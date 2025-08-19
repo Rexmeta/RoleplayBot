@@ -532,10 +532,25 @@ ${conversationText}
         console.log("Cleaned JSON for parsing:", cleanJson.substring(0, 200) + "...");
         
         const result = JSON.parse(cleanJson);
+        // 확장된 피드백 구조 지원
+        const detailedFeedback = result.detailedFeedback || {};
         return {
           overallScore: result.overallScore || 85,
           scores: result.scores || [],
-          detailedFeedback: result.detailedFeedback || { strengths: [], improvements: [], nextSteps: [], ranking: "" }
+          detailedFeedback: {
+            strengths: detailedFeedback.strengths || [],
+            improvements: detailedFeedback.improvements || [],
+            nextSteps: detailedFeedback.nextSteps || [],
+            ranking: detailedFeedback.ranking || "",
+            behaviorGuides: detailedFeedback.behaviorGuides || [],
+            conversationGuides: detailedFeedback.conversationGuides || [],
+            developmentPlan: detailedFeedback.developmentPlan || {
+              shortTerm: [],
+              mediumTerm: [],
+              longTerm: [],
+              recommendedResources: []
+            }
+          }
         };
       } catch (parseError) {
         console.log("JSON parsing failed:", parseError);
@@ -605,7 +620,51 @@ ${conversationText}
           "이선영 시나리오로 공감 능력을 더 집중적으로 훈련해보세요.",
           "실제 업무에서 비슷한 상황이 발생하면 오늘 학습한 내용을 적용해보세요."
         ],
-        ranking: "상위 25% 수준의 커뮤니케이션 스킬을 보여주셨습니다."
+        ranking: "상위 25% 수준의 커뮤니케이션 스킬을 보여주셨습니다.",
+        behaviorGuides: [
+          {
+            situation: "상급자 보고 시",
+            action: "핵심사항을 3개 이내로 정리하여 간결하게 전달",
+            example: "진행상황, 이슈사항, 필요 지원을 순서대로 보고",
+            impact: "효율적인 의사결정 지원"
+          }
+        ],
+        conversationGuides: [
+          {
+            scenario: "업무 협의",
+            goodExample: "목적과 기대결과를 먼저 공유한 후 세부사항 논의",
+            badExample: "세부사항부터 나열하여 혼란 야기",
+            keyPoints: ["목적 명확화", "상호 기대치 확인", "구체적 실행방안 합의"]
+          }
+        ],
+        developmentPlan: {
+          shortTerm: [
+            {
+              goal: "명확한 의사소통",
+              actions: ["핵심 메시지 먼저 전달", "구체적 근거 제시"],
+              measurable: "일주일간 보고/상담 시 구조화 적용"
+            }
+          ],
+          mediumTerm: [
+            {
+              goal: "상황별 대응능력 향상",
+              actions: ["다양한 상황 시뮬레이션", "피드백 수집"],
+              measurable: "한 달 내 5가지 상황별 대응법 습득"
+            }
+          ],
+          longTerm: [
+            {
+              goal: "리더십 커뮤니케이션",
+              actions: ["팀 내 조율 역할", "프레젠테이션 기회 확대"],
+              measurable: "분기별 팀 프로젝트 리딩 경험"
+            }
+          ],
+          recommendedResources: [
+            "커뮤니케이션 관련 도서 학습",
+            "사내 커뮤니케이션 교육 참여",
+            "멘토와의 정기 면담"
+          ]
+        }
       }
     };
   }
