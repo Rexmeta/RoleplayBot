@@ -347,75 +347,76 @@ export async function generateFeedback(
 
 ${conversationText}
 
-이 대화를 바탕으로 신입사원의 커뮤니케이션 역량을 평가해주세요.
+이 대화를 ComOn Check 연구 기반 커뮤니케이션 평가 프레임워크로 분석해주세요.
 
-반드시 아래 JSON 형식으로만 응답하고, 추가 설명이나 텍스트, 마크다운 코드블록은 포함하지 마세요. 순수 JSON만 반환하세요:
+반드시 아래 JSON 형식으로만 응답하세요:
 {
-  "overallScore": 82,
+  "overallScore": 75,
   "scores": [
     {
-      "category": "communication",
-      "name": "커뮤니케이션 스킬",
-      "score": 2,
-      "feedback": "명확하고 논리적인 의사소통을 보여주셨습니다.",
-      "icon": "fas fa-comments",
+      "category": "message_clarity",
+      "name": "메시지 명확성",
+      "score": 3,
+      "feedback": "구체적 피드백 내용",
+      "icon": "fas fa-bullseye",
       "color": "blue"
     },
     {
-      "category": "empathy", 
-      "name": "공감 능력",
-      "score": 1,
-      "feedback": "상대방의 감정을 이해하려고 노력했지만 더 적극적인 공감 표현이 필요합니다.",
+      "category": "audience_adaptation", 
+      "name": "상대방 배려",
+      "score": 2,
+      "feedback": "구체적 피드백 내용",
+      "icon": "fas fa-users",
+      "color": "green"
+    },
+    {
+      "category": "emotional_responsiveness",
+      "name": "감정적 반응성", 
+      "score": 4,
+      "feedback": "구체적 피드백 내용",
       "icon": "fas fa-heart",
       "color": "red"
     },
     {
-      "category": "problem_solving",
-      "name": "문제 해결력", 
-      "score": 2,
-      "feedback": "창의적이고 실현 가능한 해결책을 제시했습니다.",
-      "icon": "fas fa-lightbulb",
-      "color": "yellow"
-    },
-    {
-      "category": "negotiation",
-      "name": "협상 능력",
-      "score": 1, 
-      "feedback": "기본적인 협상 스킬은 보유하고 있으나 더 전략적인 접근이 필요합니다.",
-      "icon": "fas fa-handshake",
+      "category": "conversation_structure",
+      "name": "대화 구조화",
+      "score": 3, 
+      "feedback": "구체적 피드백 내용",
+      "icon": "fas fa-list-ol",
       "color": "purple"
     },
     {
-      "category": "pressure_response",
-      "name": "압박 상황 대응",
+      "category": "professional_competence",
+      "name": "전문적 역량",
       "score": 2,
-      "feedback": "압박 상황에서도 침착함을 유지하고 논리적으로 대응했습니다.",
-      "icon": "fas fa-shield-alt", 
-      "color": "green"
+      "feedback": "구체적 피드백 내용",
+      "icon": "fas fa-briefcase", 
+      "color": "orange"
     }
   ],
   "detailedFeedback": {
-    "strengths": [
-      "상대방의 문제 제기에 대해 방어적으로 반응하지 않고 경청하는 자세를 보였습니다.",
-      "구체적인 데이터와 근거를 제시하여 신뢰성을 높였습니다."
-    ],
-    "improvements": [
-      "상대방의 감정 상태를 더 세심하게 파악하고 공감하는 표현을 늘려보세요.",
-      "문제 해결책 제시 시 상대방의 입장에서 얻을 수 있는 이익을 더 강조해보세요."
-    ],
-    "nextSteps": [
-      "이선영 시나리오로 공감 능력을 더 집중적으로 훈련해보세요.",
-      "실제 업무에서 비슷한 상황이 발생하면 오늘 학습한 내용을 적용해보세요."
-    ],
-    "ranking": "상위 15% 수준의 커뮤니케이션 스킬을 보여주셨습니다."
+    "strengths": ["관찰된 구체적 강점들"],
+    "improvements": ["측정 가능한 개선점들"],
+    "nextSteps": ["실행 가능한 다음 단계들"],
+    "ranking": "백분위 기반 순위"
   }
 }
 
-평가 기준:
-- 각 항목은 0-2점으로 채점 (0: 부족, 1: 보통, 2: 우수)
-- 전체 점수는 0-100점으로 계산
-- 구체적이고 건설적인 피드백 제공
-- 실제 대화 내용을 바탕으로 정확한 평가 수행`;
+과학적 평가 기준 (ComOn Check 5점 척도):
+1점 (20점): 미흡 - 기본 요구사항 충족 안됨
+2점 (40점): 발전 필요 - 일부 요소는 보이나 일관성 부족  
+3점 (60점): 보통 - 기대 수준을 충족
+4점 (80점): 우수 - 기대를 초과하는 성과
+5점 (100점): 탁월 - 모든 영역에서 뛰어난 역량
+
+측정 지표:
+- 메시지 명확성: 논리적 구조, 핵심 전달력, 언어 적절성
+- 상대방 배려: 상황 인식, 니즈 파악, 맞춤형 소통
+- 감정적 반응성: 공감 표현, 감정 인식, 적절한 반응
+- 대화 구조화: 순서와 흐름, 주도권, 마무리
+- 전문적 역량: 업무 적합성, 목표 달성도, 결과 지향
+
+전체 점수 = (각 항목 점수 합계 ÷ 5) × 20`;
 
   try {
     console.log("Attempting Gemini API call for feedback...");

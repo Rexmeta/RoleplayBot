@@ -11,6 +11,9 @@ This is an AI-powered role-playing training system for new employees, designed t
 - **IMPROVED: UI flow** - Removed automatic redirect after 10 turns, added manual "Final Feedback" button for user control
 - Enhanced JSON parsing for Gemini API feedback generation with robust error handling
 - Robust fallback system ensures 100% system reliability even during API issues
+- **UPGRADED: Scientific evaluation framework** - Implemented ComOn Check research-based 5-point scoring system (1-5 scale) replacing simple 0-2 scale
+- **NEW: Research-based assessment categories** - Message clarity, audience adaptation, emotional responsiveness, conversation structure, professional competence
+- **ENHANCED: Quantitative scoring methodology** - Each category scored 1-5 points, overall score calculated as (sum/5)*20 for 0-100 scale
 
 # User Preferences
 

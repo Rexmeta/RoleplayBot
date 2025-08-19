@@ -34,7 +34,7 @@ export type ConversationMessage = {
 export type EvaluationScore = {
   category: string;
   name: string;
-  score: number; // 0-2
+  score: number; // 1-5 (ComOn Check 5-point scale)
   feedback: string;
   icon: string;
   color: string;

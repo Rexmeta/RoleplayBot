@@ -65,17 +65,27 @@ export default function FeedbackReport({
   }
 
   const getScoreColor = (score: number) => {
-    if (score >= 2) return "green";
-    if (score >= 1) return "yellow";
-    return "red";
+    if (score >= 4) return "green";      // 80-100점: 우수/탁월
+    if (score >= 3) return "blue";       // 60-79점: 보통
+    if (score >= 2) return "yellow";     // 40-59점: 발전 필요
+    return "red";                        // 20-39점: 미흡
+  };
+
+  const getScoreLabel = (score: number) => {
+    if (score >= 5) return "탁월";
+    if (score >= 4) return "우수";
+    if (score >= 3) return "보통";
+    if (score >= 2) return "발전 필요";
+    return "미흡";
   };
 
   const getOverallGrade = (score: number) => {
-    if (score >= 90) return { grade: "우수한 성과입니다!", color: "green", ranking: "상위 5%" };
-    if (score >= 80) return { grade: "좋은 성과입니다!", color: "green", ranking: "상위 15%" };
-    if (score >= 70) return { grade: "보통 수준입니다.", color: "yellow", ranking: "상위 30%" };
-    if (score >= 60) return { grade: "개선이 필요합니다.", color: "orange", ranking: "상위 50%" };
-    return { grade: "더 많은 연습이 필요합니다.", color: "red", ranking: "하위 30%" };
+    if (score >= 90) return { grade: "탁월한 성과입니다!", color: "green", ranking: "상위 5%" };
+    if (score >= 80) return { grade: "우수한 성과입니다!", color: "green", ranking: "상위 15%" };
+    if (score >= 70) return { grade: "보통 성과입니다.", color: "blue", ranking: "상위 30%" };
+    if (score >= 60) return { grade: "조금 더 노력이 필요합니다.", color: "yellow", ranking: "평균 수준" };
+    if (score >= 40) return { grade: "발전이 필요합니다.", color: "orange", ranking: "하위 30%" };
+    return { grade: "많은 개선이 필요합니다.", color: "red", ranking: "하위 10%" };
   };
 
   const overallGrade = getOverallGrade(feedback.overallScore);
@@ -135,13 +145,16 @@ export default function FeedbackReport({
                   <span className={`text-2xl font-bold text-${getScoreColor(scoreItem.score)}-600`}>
                     {scoreItem.score}
                   </span>
-                  <span className="text-slate-400">/2</span>
+                  <span className="text-slate-400">/5</span>
+                  <span className={`ml-2 text-sm font-medium text-${getScoreColor(scoreItem.score)}-600`}>
+                    {getScoreLabel(scoreItem.score)}
+                  </span>
                 </div>
               </div>
               <div className="w-full bg-slate-200 rounded-full h-2 mb-2">
                 <div 
                   className={`bg-${getScoreColor(scoreItem.score)}-600 h-2 rounded-full transition-all duration-300`}
-                  style={{ width: `${(scoreItem.score / 2) * 100}%` }}
+                  style={{ width: `${(scoreItem.score / 5) * 100}%` }}
                 ></div>
               </div>
               <p className="text-sm text-slate-600">{scoreItem.feedback}</p>
