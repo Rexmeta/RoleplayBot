@@ -94,41 +94,30 @@ async function analyzeEmotion(
   aiResponse: string,
   conversationHistory: ConversationMessage[]
 ): Promise<{ emotion: string; emotionReason: string }> {
+  console.log("Analyzing emotion for:", persona.name);
   try {
     const conversationContext = conversationHistory
       .slice(-3) // 최근 3턴만 참고
       .map(msg => `${msg.sender === 'user' ? '사용자' : persona.name}: ${msg.message}`)
       .join('\n');
 
-    const emotionPrompt = `당신은 ${persona.name}(${persona.role})를 연기하는 AI 챗봇입니다. 신입사원과 대화 중이며, 각 발화마다 당신의 감정 상태를 판단해 명확하게 구조화된 형태로 알려줘야 합니다.
+    const emotionPrompt = `${persona.name}의 감정을 판단하세요.
 
-성격: ${persona.personality}
-대화 스타일: ${persona.responseStyle}
+사용자: ${userMessage}
+AI응답: ${aiResponse}
 
-이전 대화:
-${conversationContext}
+감정 목록: 기쁨, 슬픔, 분노, 놀람, 중립
+이유는 10자 이내로 간단히.
 
-사용자 메시지: ${userMessage}
-AI 응답: ${aiResponse}
-
-요구사항:
-1. 감정은 아래 목록 중에서 가장 적절한 하나를 선택하세요: 기쁨, 슬픔, 분노, 놀람, 중립
-2. 간단한 감정 이유도 포함하세요 (예: "계속 반복 설명을 요구해서 짜증남").
-3. 감정은 대화 내용의 말투, 어휘, 문맥을 바탕으로 추론합니다.
-4. 결과는 아래와 같은 JSON 형식으로만 출력하세요:
-
-{
-  "emotion": "분노",
-  "reason": "반복된 일정 지연에 대해 짜증을 느낌",
-  "response": "${aiResponse}"
-}`;
+JSON으로만 응답:
+{"emotion": "슬픔", "reason": "스트레스"}`;
 
     const response = await genAI.models.generateContent({
       model: "gemini-1.5-flash",
       contents: [{ role: "user", parts: [{ text: emotionPrompt }] }],
       config: {
-        maxOutputTokens: 150,
-        temperature: 0.3,
+        maxOutputTokens: 50,
+        temperature: 0.1,
       }
     });
 
@@ -141,14 +130,40 @@ AI 응답: ${aiResponse}
     }
 
     if (emotionText) {
+      console.log("Raw emotion response:", emotionText);
       try {
-        const emotionData: EmotionAnalysis = JSON.parse(emotionText);
+        // JSON 코드블록 제거 처리
+        let cleanEmotionJson = emotionText.trim();
+        
+        if (cleanEmotionJson.includes('```json')) {
+          const jsonMatch = cleanEmotionJson.match(/```json\s*([\s\S]*?)\s*```/);
+          if (jsonMatch) {
+            cleanEmotionJson = jsonMatch[1].trim();
+          } else {
+            cleanEmotionJson = cleanEmotionJson.replace(/```json\s*/g, '').replace(/```\s*$/g, '');
+          }
+        }
+        
+        // JSON이 아닌 텍스트 제거
+        const jsonStart = cleanEmotionJson.indexOf('{');
+        const jsonEnd = cleanEmotionJson.lastIndexOf('}');
+        
+        if (jsonStart >= 0 && jsonEnd > jsonStart) {
+          cleanEmotionJson = cleanEmotionJson.substring(jsonStart, jsonEnd + 1);
+        }
+        
+        console.log("Cleaned emotion JSON:", cleanEmotionJson);
+        
+        const emotionData: EmotionAnalysis = JSON.parse(cleanEmotionJson);
+        console.log("Parsed emotion data:", emotionData);
+        
         return {
           emotion: emotionData.emotion || '중립',
           emotionReason: emotionData.reason || ''
         };
       } catch (parseError) {
-        console.log("Emotion JSON parsing failed, using fallback");
+        console.log("Emotion JSON parsing failed:", parseError);
+        console.log("Failed text:", emotionText.substring(0, 200));
       }
     }
   } catch (error) {
@@ -243,17 +258,22 @@ ${conversationContext}
       console.log("✓ Gemini API response received successfully");
       
       // 감정 분석 수행 (userMessage가 있을 때만)
+      console.log("UserMessage check:", userMessage ? "exists" : "missing");
       if (userMessage) {
+        console.log("Starting emotion analysis for:", userMessage.substring(0, 50));
         try {
           const emotionResult = await analyzeEmotion(persona, userMessage, generatedText, conversationHistory);
+          console.log("Emotion analysis completed:", emotionResult);
           return {
             response: generatedText,
             emotion: emotionResult.emotion,
             emotionReason: emotionResult.emotionReason
           };
         } catch (emotionError) {
-          console.log("Emotion analysis failed, returning response without emotion");
+          console.log("Emotion analysis failed:", emotionError);
         }
+      } else {
+        console.log("No userMessage provided, skipping emotion analysis");
       }
       
       return { response: generatedText };
@@ -289,6 +309,7 @@ ${conversationContext}
     
     // 폴백 감정도 포함
     if (userMessage) {
+      console.log("Using fallback emotion for:", persona.name);
       const defaultEmotions: { [key: string]: string } = {
         'communication': '중립',
         'empathy': '슬픔', 
