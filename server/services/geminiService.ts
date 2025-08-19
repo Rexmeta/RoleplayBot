@@ -118,7 +118,7 @@ ${conversationContext}
     const response = await genAI.models.generateContent({
       model: "gemini-1.5-flash",
       contents: [{ role: "user", parts: [{ text: prompt }] }],
-      generationConfig: {
+      config: {
         maxOutputTokens: 200,
         temperature: 0.8,
       }
@@ -132,7 +132,7 @@ ${conversationContext}
     if (response.candidates && response.candidates[0]) {
       const candidate = response.candidates[0];
       if (candidate.content && candidate.content.parts && candidate.content.parts[0]) {
-        generatedText = candidate.content.parts[0].text;
+        generatedText = candidate.content.parts[0].text || "";
       }
     }
     
@@ -192,7 +192,7 @@ ${conversationText}
 
 이 대화를 바탕으로 신입사원의 커뮤니케이션 역량을 평가해주세요.
 
-다음 JSON 형식으로 응답해주세요:
+반드시 아래 JSON 형식으로만 응답하고, 추가 설명이나 텍스트는 포함하지 마세요:
 {
   "overallScore": 82,
   "scores": [
@@ -266,7 +266,7 @@ ${conversationText}
     const response = await genAI.models.generateContent({
       model: "gemini-1.5-flash",
       contents: [{ role: "user", parts: [{ text: evaluationPrompt }] }],
-      generationConfig: {
+      config: {
         maxOutputTokens: 2000,
         temperature: 0.3,
       }
@@ -280,7 +280,7 @@ ${conversationText}
     if (response.candidates && response.candidates[0]) {
       const candidate = response.candidates[0];
       if (candidate.content && candidate.content.parts && candidate.content.parts[0]) {
-        generatedText = candidate.content.parts[0].text;
+        generatedText = candidate.content.parts[0].text || "";
       }
     }
     
@@ -296,7 +296,8 @@ ${conversationText}
           detailedFeedback: result.detailedFeedback || { strengths: [], improvements: [], nextSteps: [], ranking: "" }
         };
       } catch (parseError) {
-        console.log("JSON parsing failed, using fallback");
+        console.log("JSON parsing failed:", parseError);
+        console.log("Raw response:", generatedText.substring(0, 500));
         throw new Error("Failed to parse JSON feedback");
       }
     }
