@@ -45,6 +45,36 @@ export type DetailedFeedback = {
   improvements: string[];
   nextSteps: string[];
   ranking: string;
+  behaviorGuides: ActionGuide[];
+  conversationGuides: ConversationGuide[];
+  developmentPlan: DevelopmentPlan;
+};
+
+export type ActionGuide = {
+  situation: string;
+  action: string;
+  example: string;
+  impact: string;
+};
+
+export type ConversationGuide = {
+  scenario: string;
+  goodExample: string;
+  badExample: string;
+  keyPoints: string[];
+};
+
+export type DevelopmentPlan = {
+  shortTerm: PlanItem[];  // 1-2주 내
+  mediumTerm: PlanItem[];  // 1-2개월 내
+  longTerm: PlanItem[];    // 3-6개월 내
+  recommendedResources: string[];
+};
+
+export type PlanItem = {
+  goal: string;
+  actions: string[];
+  measurable: string;  // 측정 가능한 목표
 };
 
 export const insertConversationSchema = createInsertSchema(conversations).omit({

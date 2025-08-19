@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Link } from "wouter";
 import ScenarioSelector from "@/components/ScenarioSelector";
 import ChatWindow from "@/components/ChatWindow";
-import FeedbackReport from "@/components/FeedbackReport";
+import PersonalDevelopmentReport from "@/components/PersonalDevelopmentReport";
 import type { Scenario } from "@/lib/scenarios";
 
 type ViewState = "scenarios" | "chat" | "feedback";
@@ -80,7 +80,7 @@ export default function Home() {
         )}
         
         {currentView === "feedback" && selectedScenario && conversationId && (
-          <FeedbackReport
+          <PersonalDevelopmentReport
             scenario={selectedScenario}
             conversationId={conversationId}
             onRetry={() => handleScenarioSelect(selectedScenario, "")}
