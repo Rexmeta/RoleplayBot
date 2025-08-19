@@ -23,17 +23,28 @@ export default function PersonalDevelopmentReport({
 }: PersonalDevelopmentReportProps) {
   const { toast } = useToast();
 
-  const { data: feedback, isLoading, error } = useQuery<Feedback>({
+  const { data: feedback, isLoading, error, refetch } = useQuery<Feedback>({
     queryKey: ["/api/conversations", conversationId, "feedback"],
     enabled: !!conversationId,
+    retry: 2,
+    staleTime: 0, // 항상 최신 데이터 가져오기
   });
+
+
 
   const generateFeedbackMutation = useMutation({
     mutationFn: async () => {
       const response = await apiRequest("POST", `/api/conversations/${conversationId}/feedback`);
       return response.json();
     },
-    onError: () => {
+    onSuccess: () => {
+      // 피드백 생성 후 쿼리 무효화로 새 데이터 가져오기
+      setTimeout(() => {
+        window.location.reload();
+      }, 1000);
+    },
+    onError: (error) => {
+      console.error("Feedback generation error:", error);
       toast({
         title: "오류",
         description: "피드백을 생성할 수 없습니다. 다시 시도해주세요.",
@@ -60,9 +71,14 @@ export default function PersonalDevelopmentReport({
         </div>
         <h2 className="text-xl font-semibold text-slate-900 mb-2">분석 보고서를 생성할 수 없습니다</h2>
         <p className="text-slate-600 mb-4">대화가 완료되지 않았거나 오류가 발생했습니다.</p>
-        <Button onClick={() => generateFeedbackMutation.mutate()} data-testid="retry-feedback">
-          분석 다시 시도
-        </Button>
+        <div className="space-y-2">
+          <Button onClick={() => generateFeedbackMutation.mutate()} data-testid="retry-feedback">
+            분석 다시 시도
+          </Button>
+          <Button variant="outline" onClick={() => refetch()} data-testid="refetch-feedback">
+            데이터 다시 가져오기
+          </Button>
+        </div>
       </div>
     );
   }
