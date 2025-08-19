@@ -108,38 +108,28 @@ ${conversationContext}
 
 위 맥락을 바탕으로 ${persona.name}의 입장에서 자연스럽게 응답해주세요.`;
 
-  try {
-    const response = await genAI.models.generateContent({
-      model: "gemini-2.5-flash",
-      config: {
-        systemInstruction: systemPrompt,
-        maxOutputTokens: 200,
-        temperature: 0.8,
-      },
-      contents: userPrompt,
-    });
-
-    return response.text || "죄송합니다. 응답을 생성할 수 없습니다.";
-  } catch (error) {
-    console.error("Gemini API Error:", error);
-    // 임시 더미 응답 (API 키 문제 시)
-    const dummyResponses: Record<string, string[]> = {
-      communication: [
-        "안녕하세요, 김신입씨. 잘 부탁드립니다. 그런데 새로 입사한 만큼 먼저 우리 팀의 업무 프로세스를 정확히 파악하는 것이 중요할 것 같은데, 어떤 준비를 하고 오셨나요?",
-        "좋습니다. 그런데 구체적으로 어떤 부분을 어떻게 준비했는지 설명해주실 수 있을까요? 추상적인 답변보다는 실질적인 내용을 듣고 싶습니다.",
-        "음, 그 정도면 기본적인 준비는 하신 것 같네요. 하지만 실제 업무에서는 더 구체적이고 정확한 데이터가 필요합니다. 앞으로 보고서를 작성할 때는 어떤 점들을 염두에 두실 건가요?"
-      ],
-      empathy: [
-        "저도 반갑습니다. 그런데 솔직히 말씀드리면 요즘 업무 스트레스가 많아서... 새로운 팀원이 들어오는 것도 걱정이 되네요.",
-        "아니에요, 당신 탓이 아니라 전체적인 상황이 그런 거예요. 최근에 프로젝트 일정이 너무 빡빡해서 팀 전체가 힘들어하고 있거든요.",
-        "고마워요. 그런 마음가짐이라면 잘 해낼 수 있을 것 같아요. 다만 처음엔 실수할 수도 있으니까 너무 부담 갖지 마세요."
-      ]
-    };
-    
-    const responses = dummyResponses[scenarioId] || dummyResponses.communication;
-    const responseIndex = Math.min(turnCount - 1, responses.length - 1);
-    return responses[responseIndex] || "네, 알겠습니다. 계속 진행해보죠.";
-  }
+  // 임시로 더미 응답만 사용 (API 문제 해결까지)
+  const dummyResponses: Record<string, string[]> = {
+    communication: [
+      "안녕하세요, 김신입씨. 잘 부탁드립니다. 그런데 새로 입사한 만큼 먼저 우리 팀의 업무 프로세스를 정확히 파악하는 것이 중요할 것 같은데, 어떤 준비를 하고 오셨나요?",
+      "좋습니다. 그런데 구체적으로 어떤 부분을 어떻게 준비했는지 설명해주실 수 있을까요? 추상적인 답변보다는 실질적인 내용을 듣고 싶습니다.",
+      "음, 그 정도면 기본적인 준비는 하신 것 같네요. 하지만 실제 업무에서는 더 구체적이고 정확한 데이터가 필요합니다. 앞으로 보고서를 작성할 때는 어떤 점들을 염두에 두실 건가요?"
+    ],
+    empathy: [
+      "저도 반갑습니다. 그런데 솔직히 말씀드리면 요즘 업무 스트레스가 많아서... 새로운 팀원이 들어오는 것도 걱정이 되네요.",
+      "아니에요, 당신 탓이 아니라 전체적인 상황이 그런 거예요. 최근에 프로젝트 일정이 너무 빡빡해서 팀 전체가 힘들어하고 있거든요.",
+      "고마워요. 그런 마음가짐이라면 잘 해낼 수 있을 것 같아요. 다만 처음엔 실수할 수도 있으니까 너무 부담 갖지 마세요."
+    ],
+    negotiation: [
+      "박준호입니다. 바쁜 시간에 시간 내주셔서 감사합니다. 그런데 솔직히 말씀드리면, 현재 제안해주신 조건들이 우리 예산과 맞지 않아서 걱정이네요.",
+      "네, 이해합니다. 하지만 우리 입장에서는 품질과 비용 효율성 둘 다 중요합니다. 다른 대안은 없을까요?",
+      "흥미로운 제안이네요. 구체적인 수치와 일정을 다시 한 번 정리해서 제시해주실 수 있나요?"
+    ]
+  };
+  
+  const responses = dummyResponses[scenarioId] || dummyResponses.communication;
+  const responseIndex = Math.max(0, Math.min(turnCount - 1, responses.length - 1));
+  return responses[responseIndex] || "네, 알겠습니다. 계속 진행해보죠.";
 }
 
 export async function generateFeedback(
