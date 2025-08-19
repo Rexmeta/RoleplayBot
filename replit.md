@@ -14,6 +14,9 @@ This is an AI-powered role-playing training system for new employees, designed t
 - **UPGRADED: Scientific evaluation framework** - Implemented ComOn Check research-based 5-point scoring system (1-5 scale) replacing simple 0-2 scale
 - **NEW: Research-based assessment categories** - Message clarity, audience adaptation, emotional responsiveness, conversation structure, professional competence
 - **ENHANCED: Quantitative scoring methodology** - Each category scored 1-5 points, overall score calculated as (sum/5)*20 for 0-100 scale
+- **LATEST: Advanced real-time scoring system** - Implemented scientific 0-100 point scoring starting from 0, with ComOn Check methodology
+- **NEW: Multi-factor real-time analysis** - Message structure (25%), empathy expression (20%), professional solutions (25%), communication appropriateness (20%), scenario adaptation (10%)
+- **ENHANCED: Dynamic score visualization** - Color-coded progress bar with performance levels (미흡/개선 필요/보통/우수) and real-time feedback
 
 # User Preferences
 

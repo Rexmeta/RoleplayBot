@@ -102,7 +102,69 @@ export default function ChatWindow({ scenario, conversationId, onChatComplete, o
     return <div className="text-center py-8">로딩 중...</div>;
   }
 
-  const currentScore = Math.min(10, Math.max(0, 8.5 - (conversation.turnCount * 0.2)));
+  // 과학적 실시간 스코어링 시스템 (ComOn Check 연구 기반)
+  const calculateRealTimeScore = () => {
+    const messages = conversation.messages;
+    const userMessages = messages.filter(m => m.sender === "user");
+    
+    if (userMessages.length === 0) return 0;
+    
+    let totalScore = 0;
+    let scoreCount = 0;
+    
+    // 각 사용자 메시지에 대한 실시간 평가
+    userMessages.forEach((message, index) => {
+      let messageScore = 0;
+      const content = message.message.toLowerCase();
+      
+      // 1. 메시지 길이 및 구조 (25점 만점)
+      if (content.length >= 20) messageScore += 5; // 적절한 길이
+      if (content.includes('?') || content.includes('요청') || content.includes('문의')) messageScore += 5; // 질문/요청 구조
+      if (content.split('.').length > 1 || content.split(',').length > 1) messageScore += 5; // 문장 구조
+      if (!/^[ㄱ-ㅎ가-힣a-zA-Z\s]+$/.test(content.replace(/[.?!,]/g, ''))) messageScore -= 5; // 이상한 문자 패턴 감점
+      if (content.length < 5) messageScore -= 10; // 너무 짧은 메시지 대폭 감점
+      
+      // 2. 공감적 표현 (20점 만점)
+      const empathyKeywords = ['이해', '죄송', '미안', '걱정', '힘드', '어려우', '도움', '지원', '함께'];
+      const empathyCount = empathyKeywords.filter(keyword => content.includes(keyword)).length;
+      messageScore += Math.min(20, empathyCount * 4);
+      
+      // 3. 전문성 및 해결책 제시 (25점 만점)
+      const professionalKeywords = ['계획', '방안', '제안', '검토', '분석', '개선', '해결', '대안', '전략'];
+      const professionalCount = professionalKeywords.filter(keyword => content.includes(keyword)).length;
+      messageScore += Math.min(25, professionalCount * 5);
+      
+      // 4. 의사소통 적절성 (20점 만점)
+      if (content.includes('습니다') || content.includes('입니다')) messageScore += 10; // 정중한 어투
+      if (content.includes('~요') || content.includes('~네요')) messageScore += 5; // 친근한 어투
+      if (content.includes('제가') || content.includes('저는')) messageScore += 5; // 주체 명확성
+      
+      // 5. 상황 적응력 (10점 만점)
+      const scenarioKeywords: Record<string, string[]> = {
+        'communication': ['보고', '전달', '설명'],
+        'empathy': ['공감', '이해', '위로'],
+        'negotiation': ['협상', '조정', '타협'],
+        'presentation': ['발표', '설명', '제시'],
+        'feedback': ['피드백', '조언', '개선'],
+        'crisis': ['긴급', '대응', '해결']
+      };
+      
+      const relevantKeywords = scenarioKeywords[scenario.id] || [];
+      const relevanceCount = relevantKeywords.filter((keyword: string) => content.includes(keyword)).length;
+      messageScore += Math.min(10, relevanceCount * 3);
+      
+      // 대화 진행에 따른 가중치 적용
+      const progressWeight = 1 + (index * 0.1); // 후반으로 갈수록 가중치 증가
+      messageScore = Math.min(100, messageScore * progressWeight);
+      
+      totalScore += Math.max(0, messageScore);
+      scoreCount++;
+    });
+    
+    return scoreCount > 0 ? Math.round(totalScore / scoreCount) : 0;
+  };
+
+  const currentScore = calculateRealTimeScore();
   const progressPercentage = (conversation.turnCount / maxTurns) * 100;
 
   return (
@@ -326,8 +388,24 @@ export default function ChatWindow({ scenario, conversationId, onChatComplete, o
             <i className="fas fa-chart-line text-green-600 mr-2"></i>
             현재 점수
           </h4>
-          <p className="text-2xl font-bold text-green-600">{currentScore.toFixed(1)}/10</p>
-          <p className="text-xs text-slate-500">실시간 예상 점수</p>
+          <div className="space-y-1">
+            <p className="text-2xl font-bold text-green-600">{currentScore}/100</p>
+            <div className="w-full bg-gray-200 rounded-full h-2">
+              <div 
+                className={`h-2 rounded-full transition-all duration-500 ${
+                  currentScore >= 80 ? 'bg-green-500' :
+                  currentScore >= 60 ? 'bg-blue-500' :
+                  currentScore >= 40 ? 'bg-yellow-500' : 'bg-red-500'
+                }`}
+                style={{ width: `${Math.max(2, currentScore)}%` }}
+              ></div>
+            </div>
+            <p className="text-xs text-slate-500">
+              {currentScore >= 80 ? '우수' :
+               currentScore >= 60 ? '보통' :
+               currentScore >= 40 ? '개선 필요' : '미흡'}
+            </p>
+          </div>
         </div>
       </div>
     </div>
