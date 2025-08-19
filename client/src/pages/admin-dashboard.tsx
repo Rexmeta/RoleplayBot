@@ -1,4 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
+import { Link } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from "recharts";
@@ -105,9 +106,15 @@ export default function AdminDashboard() {
   return (
     <div className="container mx-auto p-6 space-y-6" data-testid="admin-dashboard">
       <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold text-slate-900" data-testid="dashboard-title">관리자 대시보드</h1>
-          <p className="text-slate-600 mt-2">교육 결과 분석 및 성과 현황</p>
+        <div className="flex items-center space-x-4">
+          <Link href="/" className="flex items-center space-x-2 text-corporate-600 hover:text-corporate-700" data-testid="back-to-home">
+            <i className="fas fa-arrow-left"></i>
+            <span className="text-sm">홈으로</span>
+          </Link>
+          <div className="border-l border-slate-300 pl-4">
+            <h1 className="text-3xl font-bold text-slate-900" data-testid="dashboard-title">관리자 대시보드</h1>
+            <p className="text-slate-600 mt-2">교육 결과 분석 및 성과 현황</p>
+          </div>
         </div>
         <div className="bg-corporate-50 border border-corporate-200 rounded-lg px-4 py-2">
           <span className="text-sm text-corporate-700 font-medium">실시간 업데이트</span>
