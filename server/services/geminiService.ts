@@ -328,7 +328,7 @@ ${conversationText}
 
 이 대화를 바탕으로 신입사원의 커뮤니케이션 역량을 평가해주세요.
 
-반드시 아래 JSON 형식으로만 응답하고, 추가 설명이나 텍스트는 포함하지 마세요:
+반드시 아래 JSON 형식으로만 응답하고, 추가 설명이나 텍스트, 마크다운 코드블록은 포함하지 마세요. 순수 JSON만 반환하세요:
 {
   "overallScore": 82,
   "scores": [
@@ -425,7 +425,29 @@ ${conversationText}
     if (generatedText && generatedText.length > 0) {
       console.log("✓ Gemini feedback API response received successfully");
       try {
-        const result = JSON.parse(generatedText);
+        // ```json 형식으로 감싸진 응답 처리
+        let cleanJson = generatedText;
+        if (generatedText.includes('```json')) {
+          const jsonMatch = generatedText.match(/```json\s*(\{[\s\S]*?\})\s*```/);
+          if (jsonMatch) {
+            cleanJson = jsonMatch[1];
+          } else {
+            // ```json으로 시작하지만 닫는 ```가 없는 경우
+            cleanJson = generatedText.replace(/```json\s*/, '').replace(/```\s*$/, '');
+          }
+        }
+        
+        // 추가 정리: 불완전한 JSON 처리
+        cleanJson = cleanJson.trim();
+        if (!cleanJson.endsWith('}')) {
+          // JSON이 중간에 잘린 경우, 마지막 완전한 객체까지만 파싱
+          const lastBraceIndex = cleanJson.lastIndexOf('}');
+          if (lastBraceIndex > 0) {
+            cleanJson = cleanJson.substring(0, lastBraceIndex + 1);
+          }
+        }
+        
+        const result = JSON.parse(cleanJson);
         return {
           overallScore: result.overallScore || 85,
           scores: result.scores || [],

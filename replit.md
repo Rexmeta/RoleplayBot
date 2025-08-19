@@ -1,11 +1,13 @@
 # Overview
 
-This is an AI-powered role-playing training system for new employees, designed to help develop communication skills through interactive conversations with AI personas. The application presents various workplace scenarios where users engage in 10-turn conversations with different AI characters (senior researchers, team leaders, clients, executives), each with distinct personalities and communication challenges. After completing conversations, users receive detailed AI-generated feedback with scores, strengths, improvements, and next steps.
+This is an AI-powered role-playing training system for new employees, designed to help develop communication skills through interactive conversations with AI personas. The application presents various workplace scenarios where users engage in 10-turn conversations with different AI characters (senior researchers, team leaders, clients, executives), each with distinct personalities and communication challenges. Each AI response includes real-time emotion analysis with visual indicators (emojis, color-coded bubbles). After completing conversations, users receive detailed AI-generated feedback with scores, strengths, improvements, and next steps.
 
 **Recent Updates (2025-08-19)**: 
 - Successfully migrated from OpenAI/AIMLAPI to Google Gemini API for real-time AI conversation generation
 - Gemini API fully operational for character-based conversations with natural, context-aware responses
 - Complete feedback system working with comprehensive evaluation reports (5 categories, detailed analysis)
+- **NEW: Real-time emotion state system** - AI characters display emotions (기쁨😊, 슬픔😢, 분노😠, 놀람😲, 중립😐) for each conversation turn
+- Emotion-based UI changes: color-coded message bubbles, avatar emotion indicators, and detailed emotion reasoning
 - Robust fallback system ensures 100% system reliability even during API issues
 
 # User Preferences
