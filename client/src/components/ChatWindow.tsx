@@ -46,11 +46,6 @@ export default function ChatWindow({ scenario, conversationId, onChatComplete, o
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["/api/conversations", conversationId] });
-      if (data.isCompleted) {
-        setTimeout(() => {
-          onChatComplete();
-        }, 1000);
-      }
       setIsLoading(false);
     },
     onError: () => {
@@ -236,45 +231,74 @@ export default function ChatWindow({ scenario, conversationId, onChatComplete, o
 
         {/* Chat Input Area */}
         <div className="border-t border-slate-200 p-6">
-          <div className="flex space-x-4">
-            <div className="flex-1">
-              <Textarea
-                value={userInput}
-                onChange={(e) => setUserInput(e.target.value)}
-                placeholder="메시지를 입력하세요... (최대 200자)"
-                maxLength={200}
-                rows={3}
-                className="resize-none"
-                disabled={isLoading || conversation.status === "completed"}
-                data-testid="input-message"
-              />
-              <div className="flex items-center justify-between mt-2">
-                <span className="text-xs text-slate-500">{userInput.length}/200</span>
-                <div className="flex items-center space-x-2 text-xs text-slate-500">
-                  <span>팁: 구체적이고 예의 바른 답변을 해보세요</span>
-                  <i className="fas fa-info-circle"></i>
-                </div>
+          {conversation.turnCount >= maxTurns ? (
+            <div className="text-center space-y-4">
+              <div className="text-lg font-semibold text-slate-700">
+                대화가 완료되었습니다!
+              </div>
+              <div className="text-sm text-slate-500">
+                총 {conversation.turnCount}턴의 대화를 나누었습니다.
+              </div>
+              <div className="flex justify-center space-x-4">
+                <Button
+                  onClick={onChatComplete}
+                  className="bg-corporate-600 hover:bg-corporate-700"
+                  data-testid="button-final-feedback"
+                >
+                  <i className="fas fa-chart-bar mr-2"></i>
+                  최종 피드백 보기
+                </Button>
+                <Button
+                  onClick={onExit}
+                  variant="outline"
+                  data-testid="button-exit-completed"
+                >
+                  <i className="fas fa-home mr-2"></i>
+                  홈으로 이동
+                </Button>
               </div>
             </div>
-            <div className="flex flex-col space-y-2">
-              <Button
-                onClick={handleSendMessage}
-                disabled={!userInput.trim() || isLoading || conversation.status === "completed"}
-                data-testid="button-send-message"
-              >
-                <i className="fas fa-paper-plane mr-2"></i>
-                전송
-              </Button>
-              <Button
-                variant="outline"
-                onClick={handleSkipTurn}
-                disabled={isLoading || conversation.status === "completed"}
-                data-testid="button-skip-turn"
-              >
-                건너뛰기
-              </Button>
+          ) : (
+            <div className="flex space-x-4">
+              <div className="flex-1">
+                <Textarea
+                  value={userInput}
+                  onChange={(e) => setUserInput(e.target.value)}
+                  placeholder="메시지를 입력하세요... (최대 200자)"
+                  maxLength={200}
+                  rows={3}
+                  className="resize-none"
+                  disabled={isLoading}
+                  data-testid="input-message"
+                />
+                <div className="flex items-center justify-between mt-2">
+                  <span className="text-xs text-slate-500">{userInput.length}/200</span>
+                  <div className="flex items-center space-x-2 text-xs text-slate-500">
+                    <span>팁: 구체적이고 예의 바른 답변을 해보세요</span>
+                    <i className="fas fa-info-circle"></i>
+                  </div>
+                </div>
+              </div>
+              <div className="flex flex-col space-y-2">
+                <Button
+                  onClick={handleSendMessage}
+                  disabled={!userInput.trim() || isLoading}
+                  data-testid="button-send-message"
+                >
+                  <i className="fas fa-paper-plane mr-2"></i>
+                  전송
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={handleSkipTurn}
+                  disabled={isLoading}
+                  data-testid="button-skip-turn"
+                >
+                  건너뛰기
+                </Button>
+              </div>
             </div>
-          </div>
+          )}
         </div>
       </div>
 

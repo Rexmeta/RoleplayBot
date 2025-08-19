@@ -425,27 +425,44 @@ ${conversationText}
     if (generatedText && generatedText.length > 0) {
       console.log("✓ Gemini feedback API response received successfully");
       try {
+        console.log("Raw Gemini feedback response:", generatedText.substring(0, 200) + "...");
+        
         // ```json 형식으로 감싸진 응답 처리
-        let cleanJson = generatedText;
-        if (generatedText.includes('```json')) {
-          const jsonMatch = generatedText.match(/```json\s*(\{[\s\S]*?\})\s*```/);
+        let cleanJson = generatedText.trim();
+        
+        // JSON 코드블록 제거
+        if (cleanJson.includes('```json')) {
+          const jsonMatch = cleanJson.match(/```json\s*([\s\S]*?)\s*```/);
           if (jsonMatch) {
-            cleanJson = jsonMatch[1];
+            cleanJson = jsonMatch[1].trim();
           } else {
             // ```json으로 시작하지만 닫는 ```가 없는 경우
-            cleanJson = generatedText.replace(/```json\s*/, '').replace(/```\s*$/, '');
+            cleanJson = cleanJson.replace(/```json\s*/g, '').replace(/```\s*$/g, '');
           }
         }
         
-        // 추가 정리: 불완전한 JSON 처리
-        cleanJson = cleanJson.trim();
+        // 일반 ``` 코드블록 제거
+        if (cleanJson.includes('```')) {
+          cleanJson = cleanJson.replace(/```[\s\S]*?```/g, '').trim();
+        }
+        
+        // JSON이 아닌 텍스트가 앞/뒤에 있는 경우 제거
+        const jsonStart = cleanJson.indexOf('{');
+        const jsonEnd = cleanJson.lastIndexOf('}');
+        
+        if (jsonStart >= 0 && jsonEnd > jsonStart) {
+          cleanJson = cleanJson.substring(jsonStart, jsonEnd + 1);
+        }
+        
+        // 불완전한 JSON 처리 - 마지막 완전한 객체까지만 파싱
         if (!cleanJson.endsWith('}')) {
-          // JSON이 중간에 잘린 경우, 마지막 완전한 객체까지만 파싱
           const lastBraceIndex = cleanJson.lastIndexOf('}');
           if (lastBraceIndex > 0) {
             cleanJson = cleanJson.substring(0, lastBraceIndex + 1);
           }
         }
+        
+        console.log("Cleaned JSON for parsing:", cleanJson.substring(0, 200) + "...");
         
         const result = JSON.parse(cleanJson);
         return {

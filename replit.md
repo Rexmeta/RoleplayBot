@@ -5,9 +5,11 @@ This is an AI-powered role-playing training system for new employees, designed t
 **Recent Updates (2025-08-19)**: 
 - Successfully migrated from OpenAI/AIMLAPI to Google Gemini API for real-time AI conversation generation
 - Gemini API fully operational for character-based conversations with natural, context-aware responses
-- Complete feedback system working with comprehensive evaluation reports (5 categories, detailed analysis)
+- **RESOLVED: Complete feedback system working** with comprehensive evaluation reports (5 categories, detailed analysis)
 - **NEW: Real-time emotion state system** - AI characters display emotions (기쁨😊, 슬픔😢, 분노😠, 놀람😲, 중립😐) for each conversation turn
 - Emotion-based UI changes: color-coded message bubbles, avatar emotion indicators, and detailed emotion reasoning
+- **IMPROVED: UI flow** - Removed automatic redirect after 10 turns, added manual "Final Feedback" button for user control
+- Enhanced JSON parsing for Gemini API feedback generation with robust error handling
 - Robust fallback system ensures 100% system reliability even during API issues
 
 # User Preferences
