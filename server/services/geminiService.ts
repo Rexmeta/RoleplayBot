@@ -1,8 +1,8 @@
 import { GoogleGenAI } from "@google/genai";
 import type { ConversationMessage, EvaluationScore, DetailedFeedback } from "@shared/schema";
 
-// Using Google Gemini AI API
-const genAI = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || "" });
+// Using Google Gemini AI API  
+const genAI = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || "" });
 
 export interface ScenarioPersona {
   id: string;
@@ -108,28 +108,69 @@ ${conversationContext}
 
 위 맥락을 바탕으로 ${persona.name}의 입장에서 자연스럽게 응답해주세요.`;
 
-  // 임시로 더미 응답만 사용 (API 문제 해결까지)
-  const dummyResponses: Record<string, string[]> = {
-    communication: [
-      "안녕하세요, 김신입씨. 잘 부탁드립니다. 그런데 새로 입사한 만큼 먼저 우리 팀의 업무 프로세스를 정확히 파악하는 것이 중요할 것 같은데, 어떤 준비를 하고 오셨나요?",
-      "좋습니다. 그런데 구체적으로 어떤 부분을 어떻게 준비했는지 설명해주실 수 있을까요? 추상적인 답변보다는 실질적인 내용을 듣고 싶습니다.",
-      "음, 그 정도면 기본적인 준비는 하신 것 같네요. 하지만 실제 업무에서는 더 구체적이고 정확한 데이터가 필요합니다. 앞으로 보고서를 작성할 때는 어떤 점들을 염두에 두실 건가요?"
-    ],
-    empathy: [
-      "저도 반갑습니다. 그런데 솔직히 말씀드리면 요즘 업무 스트레스가 많아서... 새로운 팀원이 들어오는 것도 걱정이 되네요.",
-      "아니에요, 당신 탓이 아니라 전체적인 상황이 그런 거예요. 최근에 프로젝트 일정이 너무 빡빡해서 팀 전체가 힘들어하고 있거든요.",
-      "고마워요. 그런 마음가짐이라면 잘 해낼 수 있을 것 같아요. 다만 처음엔 실수할 수도 있으니까 너무 부담 갖지 마세요."
-    ],
-    negotiation: [
-      "박준호입니다. 바쁜 시간에 시간 내주셔서 감사합니다. 그런데 솔직히 말씀드리면, 현재 제안해주신 조건들이 우리 예산과 맞지 않아서 걱정이네요.",
-      "네, 이해합니다. 하지만 우리 입장에서는 품질과 비용 효율성 둘 다 중요합니다. 다른 대안은 없을까요?",
-      "흥미로운 제안이네요. 구체적인 수치와 일정을 다시 한 번 정리해서 제시해주실 수 있나요?"
-    ]
-  };
-  
-  const responses = dummyResponses[scenarioId] || dummyResponses.communication;
-  const responseIndex = Math.max(0, Math.min(turnCount - 1, responses.length - 1));
-  return responses[responseIndex] || "네, 알겠습니다. 계속 진행해보죠.";
+  try {
+    console.log("Attempting Gemini API call...");
+    
+    const prompt = `시스템 지시사항: ${systemPrompt}
+
+사용자 메시지: ${userPrompt}`;
+
+    const response = await genAI.models.generateContent({
+      model: "gemini-1.5-flash",
+      contents: [{ role: "user", parts: [{ text: prompt }] }],
+      generationConfig: {
+        maxOutputTokens: 200,
+        temperature: 0.8,
+      }
+    });
+
+    console.log("✓ Gemini API call completed");
+    
+    let generatedText = "";
+    
+    // Access response from candidates array
+    if (response.candidates && response.candidates[0]) {
+      const candidate = response.candidates[0];
+      if (candidate.content && candidate.content.parts && candidate.content.parts[0]) {
+        generatedText = candidate.content.parts[0].text;
+      }
+    }
+    
+    console.log("Generated text:", generatedText);
+    
+    if (generatedText && generatedText.length > 0) {
+      console.log("✓ Gemini API response received successfully");
+      return generatedText;
+    }
+    
+    throw new Error("Empty response from Gemini API");
+  } catch (error) {
+    console.error("Gemini API Error:", error);
+    
+    // 폴백 더미 응답
+    const dummyResponses: Record<string, string[]> = {
+      communication: [
+        "안녕하세요, 김신입씨. 잘 부탁드립니다. 그런데 새로 입사한 만큼 먼저 우리 팀의 업무 프로세스를 정확히 파악하는 것이 중요할 것 같은데, 어떤 준비를 하고 오셨나요?",
+        "좋습니다. 그런데 구체적으로 어떤 부분을 어떻게 준비했는지 설명해주실 수 있을까요? 추상적인 답변보다는 실질적인 내용을 듣고 싶습니다.",
+        "음, 그 정도면 기본적인 준비는 하신 것 같네요. 하지만 실제 업무에서는 더 구체적이고 정확한 데이터가 필요합니다. 앞으로 보고서를 작성할 때는 어떤 점들을 염두에 두실 건가요?"
+      ],
+      empathy: [
+        "저도 반갑습니다. 그런데 솔직히 말씀드리면 요즘 업무 스트레스가 많아서... 새로운 팀원이 들어오는 것도 걱정이 되네요.",
+        "아니에요, 당신 탓이 아니라 전체적인 상황이 그런 거예요. 최근에 프로젝트 일정이 너무 빡빡해서 팀 전체가 힘들어하고 있거든요.",
+        "고마워요. 그런 마음가짐이라면 잘 해낼 수 있을 것 같아요. 다만 처음엔 실수할 수도 있으니까 너무 부담 갖지 마세요."
+      ],
+      negotiation: [
+        "박준호입니다. 바쁜 시간에 시간 내주셔서 감사합니다. 그런데 솔직히 말씀드리면, 현재 제안해주신 조건들이 우리 예산과 맞지 않아서 걱정이네요.",
+        "네, 이해합니다. 하지만 우리 입장에서는 품질과 비용 효율성 둘 다 중요합니다. 다른 대안은 없을까요?",
+        "흥미로운 제안이네요. 구체적인 수치와 일정을 다시 한 번 정리해서 제시해주실 수 있나요?"
+      ]
+    };
+    
+    console.log("Using fallback dummy response");
+    const responses = dummyResponses[scenarioId] || dummyResponses.communication;
+    const responseIndex = Math.max(0, Math.min(turnCount - 1, responses.length - 1));
+    return responses[responseIndex] || "네, 알겠습니다. 계속 진행해보죠.";
+  }
 }
 
 export async function generateFeedback(
@@ -220,50 +261,47 @@ ${conversationText}
 - 실제 대화 내용을 바탕으로 정확한 평가 수행`;
 
   try {
+    console.log("Attempting Gemini API call for feedback...");
+    
     const response = await genAI.models.generateContent({
-      model: "gemini-2.5-pro",
-      config: {
-        responseMimeType: "application/json",
-        responseSchema: {
-          type: "object",
-          properties: {
-            overallScore: { type: "number" },
-            scores: {
-              type: "array",
-              items: {
-                type: "object",
-                properties: {
-                  category: { type: "string" },
-                  name: { type: "string" },
-                  score: { type: "number" },
-                  feedback: { type: "string" },
-                  icon: { type: "string" },
-                  color: { type: "string" }
-                }
-              }
-            },
-            detailedFeedback: {
-              type: "object",
-              properties: {
-                strengths: { type: "array", items: { type: "string" } },
-                improvements: { type: "array", items: { type: "string" } },
-                nextSteps: { type: "array", items: { type: "string" } },
-                ranking: { type: "string" }
-              }
-            }
-          }
-        },
+      model: "gemini-1.5-flash",
+      contents: [{ role: "user", parts: [{ text: evaluationPrompt }] }],
+      generationConfig: {
+        maxOutputTokens: 2000,
         temperature: 0.3,
-      },
-      contents: evaluationPrompt,
+      }
     });
 
-    const result = JSON.parse(response.text || "{}");
-    return {
-      overallScore: result.overallScore || 0,
-      scores: result.scores || [],
-      detailedFeedback: result.detailedFeedback || { strengths: [], improvements: [], nextSteps: [], ranking: "" }
-    };
+    console.log("✓ Gemini feedback API call completed");
+    
+    let generatedText = "";
+    
+    // Access response from candidates array
+    if (response.candidates && response.candidates[0]) {
+      const candidate = response.candidates[0];
+      if (candidate.content && candidate.content.parts && candidate.content.parts[0]) {
+        generatedText = candidate.content.parts[0].text;
+      }
+    }
+    
+    console.log("Generated feedback text length:", generatedText.length);
+    
+    if (generatedText && generatedText.length > 0) {
+      console.log("✓ Gemini feedback API response received successfully");
+      try {
+        const result = JSON.parse(generatedText);
+        return {
+          overallScore: result.overallScore || 85,
+          scores: result.scores || [],
+          detailedFeedback: result.detailedFeedback || { strengths: [], improvements: [], nextSteps: [], ranking: "" }
+        };
+      } catch (parseError) {
+        console.log("JSON parsing failed, using fallback");
+        throw new Error("Failed to parse JSON feedback");
+      }
+    }
+    
+    throw new Error("Empty feedback response from Gemini API");
   } catch (error) {
     console.error("Feedback generation error:", error);
     // 임시 더미 피드백 (API 키 문제 시)
