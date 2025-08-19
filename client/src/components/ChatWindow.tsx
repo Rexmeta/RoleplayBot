@@ -7,6 +7,15 @@ import { Textarea } from "@/components/ui/textarea";
 import type { Scenario } from "@/lib/scenarios";
 import type { Conversation, ConversationMessage } from "@shared/schema";
 
+// 감정 이모지 매핑
+const emotionEmojis: { [key: string]: string } = {
+  '기쁨': '😊',
+  '슬픔': '😢',
+  '분노': '😠',
+  '놀람': '😲',
+  '중립': '😐'
+};
+
 interface ChatWindowProps {
   scenario: Scenario;
   conversationId: string;
@@ -156,22 +165,48 @@ export default function ChatWindow({ scenario, conversationId, onChatComplete, o
               }`}
             >
               {message.sender === "ai" && (
-                <img 
-                  src={scenario.image} 
-                  alt="AI" 
-                  className="w-8 h-8 rounded-full" 
-                />
+                <div className="relative">
+                  <img 
+                    src={scenario.image} 
+                    alt="AI" 
+                    className="w-8 h-8 rounded-full" 
+                  />
+                  {/* 감정 이모지 표시 */}
+                  {message.emotion && (
+                    <div 
+                      className="absolute -bottom-1 -right-1 text-sm bg-white rounded-full w-5 h-5 flex items-center justify-center border border-gray-200"
+                      title={message.emotionReason || message.emotion}
+                    >
+                      {emotionEmojis[message.emotion] || '😐'}
+                    </div>
+                  )}
+                </div>
               )}
               
               <div className={`flex-1 ${message.sender === "user" ? "flex justify-end" : ""}`}>
                 <div className={`rounded-lg p-3 max-w-md ${
                   message.sender === "user"
                     ? "bg-corporate-600 text-white rounded-tr-none"
-                    : "bg-slate-100 rounded-tl-none"
+                    : `bg-slate-100 rounded-tl-none ${
+                        message.emotion === '분노' ? 'border-l-4 border-red-400' :
+                        message.emotion === '슬픔' ? 'border-l-4 border-blue-400' :
+                        message.emotion === '기쁨' ? 'border-l-4 border-green-400' :
+                        message.emotion === '놀람' ? 'border-l-4 border-yellow-400' : ''
+                      }`
                 }`}>
                   <p className={message.sender === "user" ? "text-white" : "text-slate-800"}>
                     {message.message}
                   </p>
+                  {/* AI 메시지에 감정 정보 표시 */}
+                  {message.sender === "ai" && message.emotion && (
+                    <div className="mt-2 text-xs text-slate-500 flex items-center">
+                      <span className="mr-1">{emotionEmojis[message.emotion]}</span>
+                      <span>{message.emotion}</span>
+                      {message.emotionReason && (
+                        <span className="ml-2 text-slate-400">- {message.emotionReason}</span>
+                      )}
+                    </div>
+                  )}
                 </div>
               </div>
 

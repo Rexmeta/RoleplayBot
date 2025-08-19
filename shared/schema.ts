@@ -27,6 +27,8 @@ export type ConversationMessage = {
   sender: "user" | "ai";
   message: string;
   timestamp: string;
+  emotion?: string;
+  emotionReason?: string;
 };
 
 export type EvaluationScore = {

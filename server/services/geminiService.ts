@@ -4,6 +4,15 @@ import type { ConversationMessage, EvaluationScore, DetailedFeedback } from "@sh
 // Using Google Gemini AI API  
 const genAI = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || "" });
 
+// 감정 분류 매핑
+const emotionEmojis: { [key: string]: string } = {
+  '기쁨': '😊',
+  '슬픔': '😢',
+  '분노': '😠',
+  '놀람': '😲',
+  '중립': '😐'
+};
+
 export interface ScenarioPersona {
   id: string;
   name: string;
@@ -71,11 +80,103 @@ const SCENARIO_PERSONAS: Record<string, ScenarioPersona> = {
   }
 };
 
+// 감정 분석을 위한 인터페이스
+interface EmotionAnalysis {
+  emotion: string;
+  reason: string;
+  response: string;
+}
+
+// 감정 분석 함수
+async function analyzeEmotion(
+  persona: ScenarioPersona,
+  userMessage: string,
+  aiResponse: string,
+  conversationHistory: ConversationMessage[]
+): Promise<{ emotion: string; emotionReason: string }> {
+  try {
+    const conversationContext = conversationHistory
+      .slice(-3) // 최근 3턴만 참고
+      .map(msg => `${msg.sender === 'user' ? '사용자' : persona.name}: ${msg.message}`)
+      .join('\n');
+
+    const emotionPrompt = `당신은 ${persona.name}(${persona.role})를 연기하는 AI 챗봇입니다. 신입사원과 대화 중이며, 각 발화마다 당신의 감정 상태를 판단해 명확하게 구조화된 형태로 알려줘야 합니다.
+
+성격: ${persona.personality}
+대화 스타일: ${persona.responseStyle}
+
+이전 대화:
+${conversationContext}
+
+사용자 메시지: ${userMessage}
+AI 응답: ${aiResponse}
+
+요구사항:
+1. 감정은 아래 목록 중에서 가장 적절한 하나를 선택하세요: 기쁨, 슬픔, 분노, 놀람, 중립
+2. 간단한 감정 이유도 포함하세요 (예: "계속 반복 설명을 요구해서 짜증남").
+3. 감정은 대화 내용의 말투, 어휘, 문맥을 바탕으로 추론합니다.
+4. 결과는 아래와 같은 JSON 형식으로만 출력하세요:
+
+{
+  "emotion": "분노",
+  "reason": "반복된 일정 지연에 대해 짜증을 느낌",
+  "response": "${aiResponse}"
+}`;
+
+    const response = await genAI.models.generateContent({
+      model: "gemini-1.5-flash",
+      contents: [{ role: "user", parts: [{ text: emotionPrompt }] }],
+      config: {
+        maxOutputTokens: 150,
+        temperature: 0.3,
+      }
+    });
+
+    let emotionText = "";
+    if (response.candidates && response.candidates[0]) {
+      const candidate = response.candidates[0];
+      if (candidate.content && candidate.content.parts && candidate.content.parts[0]) {
+        emotionText = candidate.content.parts[0].text || "";
+      }
+    }
+
+    if (emotionText) {
+      try {
+        const emotionData: EmotionAnalysis = JSON.parse(emotionText);
+        return {
+          emotion: emotionData.emotion || '중립',
+          emotionReason: emotionData.reason || ''
+        };
+      } catch (parseError) {
+        console.log("Emotion JSON parsing failed, using fallback");
+      }
+    }
+  } catch (error) {
+    console.error("Emotion analysis error:", error);
+  }
+
+  // 폴백: 페르소나별 기본 감정
+  const defaultEmotions: { [key: string]: string } = {
+    'communication': '중립',
+    'empathy': '슬픔',
+    'negotiation': '중립',
+    'presentation': '중립',
+    'feedback': '놀람',
+    'crisis': '분노'
+  };
+
+  return {
+    emotion: defaultEmotions[persona.id] || '중립',
+    emotionReason: `${persona.name}의 기본 감정 상태`
+  };
+}
+
 export async function generateAIResponse(
   scenarioId: string,
   conversationHistory: ConversationMessage[],
-  turnCount: number
-): Promise<string> {
+  turnCount: number,
+  userMessage?: string
+): Promise<{ response: string; emotion?: string; emotionReason?: string }> {
   const persona = SCENARIO_PERSONAS[scenarioId];
   if (!persona) {
     throw new Error(`Unknown scenario: ${scenarioId}`);
@@ -140,7 +241,22 @@ ${conversationContext}
     
     if (generatedText && generatedText.length > 0) {
       console.log("✓ Gemini API response received successfully");
-      return generatedText;
+      
+      // 감정 분석 수행 (userMessage가 있을 때만)
+      if (userMessage) {
+        try {
+          const emotionResult = await analyzeEmotion(persona, userMessage, generatedText, conversationHistory);
+          return {
+            response: generatedText,
+            emotion: emotionResult.emotion,
+            emotionReason: emotionResult.emotionReason
+          };
+        } catch (emotionError) {
+          console.log("Emotion analysis failed, returning response without emotion");
+        }
+      }
+      
+      return { response: generatedText };
     }
     
     throw new Error("Empty response from Gemini API");
@@ -169,7 +285,27 @@ ${conversationContext}
     console.log("Using fallback dummy response");
     const responses = dummyResponses[scenarioId] || dummyResponses.communication;
     const responseIndex = Math.max(0, Math.min(turnCount - 1, responses.length - 1));
-    return responses[responseIndex] || "네, 알겠습니다. 계속 진행해보죠.";
+    const fallbackResponse = responses[responseIndex] || "네, 알겠습니다. 계속 진행해보죠.";
+    
+    // 폴백 감정도 포함
+    if (userMessage) {
+      const defaultEmotions: { [key: string]: string } = {
+        'communication': '중립',
+        'empathy': '슬픔', 
+        'negotiation': '중립',
+        'presentation': '중립',
+        'feedback': '놀람',
+        'crisis': '분노'
+      };
+      
+      return {
+        response: fallbackResponse,
+        emotion: defaultEmotions[scenarioId] || '중립',
+        emotionReason: `${persona.name}의 기본 감정 상태`
+      };
+    }
+    
+    return { response: fallbackResponse };
   }
 }
 

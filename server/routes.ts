@@ -57,16 +57,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const newTurnCount = conversation.turnCount + 1;
 
       // Generate AI response
-      const aiResponse = await generateAIResponse(
+      const aiResult = await generateAIResponse(
         conversation.scenarioId,
         updatedMessages,
-        newTurnCount
+        newTurnCount,
+        message
       );
 
       const aiMessage = {
         sender: "ai" as const,
-        message: aiResponse,
+        message: aiResult.response,
         timestamp: new Date().toISOString(),
+        emotion: aiResult.emotion,
+        emotionReason: aiResult.emotionReason,
       };
 
       const finalMessages = [...updatedMessages, aiMessage];
@@ -82,7 +85,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       res.json({
         conversation: updatedConversation,
-        aiResponse,
+        aiResponse: aiResult.response,
+        emotion: aiResult.emotion,
+        emotionReason: aiResult.emotionReason,
         isCompleted,
       });
     } catch (error) {
