@@ -43,6 +43,14 @@ export default function Home() {
               </div>
             </div>
             <div className="flex items-center space-x-4">
+              <a 
+                href="/admin" 
+                className="hidden md:flex items-center px-3 py-2 text-sm text-corporate-600 hover:text-corporate-700 hover:bg-corporate-50 rounded-lg transition-colors"
+                data-testid="admin-dashboard-link"
+              >
+                <i className="fas fa-chart-bar mr-2"></i>
+                관리자 대시보드
+              </a>
               <div className="hidden md:flex items-center text-sm text-slate-600">
                 <i className="fas fa-user-circle mr-2"></i>
                 <span>김신입 사원</span>

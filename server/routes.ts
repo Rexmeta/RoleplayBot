@@ -3,6 +3,7 @@ import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { insertConversationSchema, insertFeedbackSchema } from "@shared/schema";
 import { generateAIResponse, generateFeedback } from "./services/geminiService";
+import { createSampleData } from "./sampleData";
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // Create new conversation
@@ -146,6 +147,170 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(500).json({ error: "Failed to fetch feedback" });
     }
   });
+
+  // Admin Dashboard Analytics Routes
+  app.get("/api/admin/analytics/overview", async (req, res) => {
+    try {
+      const conversations = await storage.getAllConversations();
+      const feedbacks = await storage.getAllFeedbacks();
+      
+      // Calculate basic statistics
+      const totalSessions = conversations.length;
+      const completedSessions = conversations.filter(c => c.status === "completed").length;
+      const averageScore = feedbacks.length > 0 
+        ? Math.round(feedbacks.reduce((acc, f) => acc + f.overallScore, 0) / feedbacks.length)
+        : 0;
+      
+      // Scenario popularity
+      const scenarioStats = conversations.reduce((acc, conv) => {
+        acc[conv.scenarioId] = (acc[conv.scenarioId] || 0) + 1;
+        return acc;
+      }, {} as Record<string, number>);
+      
+      // Completion rate
+      const completionRate = totalSessions > 0 
+        ? Math.round((completedSessions / totalSessions) * 100)
+        : 0;
+        
+      res.json({
+        totalSessions,
+        completedSessions,
+        averageScore,
+        completionRate,
+        scenarioStats
+      });
+    } catch (error) {
+      console.error("Error getting analytics overview:", error);
+      res.status(500).json({ error: "Failed to get analytics overview" });
+    }
+  });
+
+  app.get("/api/admin/analytics/performance", async (req, res) => {
+    try {
+      const feedbacks = await storage.getAllFeedbacks();
+      const conversations = await storage.getAllConversations();
+      
+      // Score distribution
+      const scoreRanges = {
+        excellent: feedbacks.filter(f => f.overallScore >= 90).length,
+        good: feedbacks.filter(f => f.overallScore >= 80 && f.overallScore < 90).length,
+        average: feedbacks.filter(f => f.overallScore >= 70 && f.overallScore < 80).length,
+        needsImprovement: feedbacks.filter(f => f.overallScore >= 60 && f.overallScore < 70).length,
+        poor: feedbacks.filter(f => f.overallScore < 60).length
+      };
+      
+      // Category performance analysis
+      const categoryPerformance = feedbacks.reduce((acc, feedback) => {
+        feedback.scores.forEach(score => {
+          if (!acc[score.category]) {
+            acc[score.category] = { total: 0, count: 0, name: score.name };
+          }
+          acc[score.category].total += score.score;
+          acc[score.category].count += 1;
+        });
+        return acc;
+      }, {} as Record<string, { total: number; count: number; name: string }>);
+      
+      // Calculate averages
+      Object.keys(categoryPerformance).forEach(category => {
+        const data = categoryPerformance[category];
+        (categoryPerformance[category] as any) = {
+          ...data,
+          average: Math.round((data.total / data.count) * 100) / 100
+        };
+      });
+      
+      // Scenario difficulty vs performance
+      const scenarioPerformance = conversations
+        .filter(c => c.status === "completed")
+        .reduce((acc, conv) => {
+          const feedback = feedbacks.find(f => f.conversationId === conv.id);
+          if (feedback) {
+            if (!acc[conv.scenarioId]) {
+              acc[conv.scenarioId] = { scores: [], name: conv.scenarioName };
+            }
+            acc[conv.scenarioId].scores.push(feedback.overallScore);
+          }
+          return acc;
+        }, {} as Record<string, { scores: number[]; name: string }>);
+      
+      // Calculate scenario averages
+      Object.keys(scenarioPerformance).forEach(scenarioId => {
+        const scores = scenarioPerformance[scenarioId].scores;
+        (scenarioPerformance[scenarioId] as any) = {
+          ...scenarioPerformance[scenarioId],
+          average: Math.round(scores.reduce((acc, score) => acc + score, 0) / scores.length),
+          sessionCount: scores.length
+        };
+      });
+      
+      res.json({
+        scoreRanges,
+        categoryPerformance,
+        scenarioPerformance
+      });
+    } catch (error) {
+      console.error("Error getting performance analytics:", error);
+      res.status(500).json({ error: "Failed to get performance analytics" });
+    }
+  });
+
+  app.get("/api/admin/analytics/trends", async (req, res) => {
+    try {
+      const conversations = await storage.getAllConversations();
+      const feedbacks = await storage.getAllFeedbacks();
+      
+      // Daily usage over last 30 days
+      const last30Days = Array.from({ length: 30 }, (_, i) => {
+        const date = new Date();
+        date.setDate(date.getDate() - (29 - i));
+        return date.toISOString().split('T')[0];
+      });
+      
+      const dailyUsage = last30Days.map(date => {
+        const sessionsCount = conversations.filter(c => 
+          c.createdAt && c.createdAt.toISOString().split('T')[0] === date
+        ).length;
+        
+        const completedCount = conversations.filter(c => 
+          c.status === "completed" && c.createdAt && c.createdAt.toISOString().split('T')[0] === date
+        ).length;
+        
+        return {
+          date,
+          sessions: sessionsCount,
+          completed: completedCount
+        };
+      });
+      
+      // Performance trends
+      const performanceTrends = feedbacks
+        .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime())
+        .slice(-20) // Last 20 sessions
+        .map((feedback, index) => ({
+          session: index + 1,
+          score: feedback.overallScore,
+          date: feedback.createdAt
+        }));
+      
+      res.json({
+        dailyUsage,
+        performanceTrends
+      });
+    } catch (error) {
+      console.error("Error getting trends analytics:", error);
+      res.status(500).json({ error: "Failed to get trends analytics" });
+    }
+  });
+
+  // Create sample data for development
+  if (process.env.NODE_ENV === "development") {
+    try {
+      await createSampleData();
+    } catch (error) {
+      console.log("Sample data initialization:", error);
+    }
+  }
 
   const httpServer = createServer(app);
   return httpServer;
