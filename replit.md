@@ -2,6 +2,8 @@
 
 This is an AI-powered role-playing training system for new employees, designed to help develop communication skills through interactive conversations with AI personas. The application presents various workplace scenarios where users engage in 10-turn conversations with different AI characters (senior researchers, team leaders, clients, executives), each with distinct personalities and communication challenges. After completing conversations, users receive detailed AI-generated feedback with scores, strengths, improvements, and next steps.
 
+**Recent Update (2025-08-19)**: Successfully migrated from OpenAI/AIMLAPI to Google Gemini API for more reliable and cost-effective AI responses.
+
 # User Preferences
 
 Preferred communication style: Simple, everyday language.
@@ -37,7 +39,7 @@ Preferred communication style: Simple, everyday language.
 ## External Dependencies
 
 ### Third-party Services
-- **OpenAI API**: GPT-4o model for AI conversation responses and feedback generation
+- **Google Gemini API**: Gemini 2.5 Flash/Pro models for AI conversation responses and feedback generation
 - **Neon Database**: Serverless PostgreSQL hosting
 - **Replit Integration**: Development environment integration with cartographer and runtime error handling
 

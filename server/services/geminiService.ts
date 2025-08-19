@@ -1,11 +1,8 @@
-import OpenAI from "openai";
+import { GoogleGenAI } from "@google/genai";
 import type { ConversationMessage, EvaluationScore, DetailedFeedback } from "@shared/schema";
 
-// Using AIMLAPI service with OpenAI-compatible API
-const openai = new OpenAI({ 
-  apiKey: process.env.OPENAI_API_KEY || "d23fd09530da44d480de7afb5b83d237",
-  baseURL: "https://api.aimlapi.com/v1"
-});
+// Using Google Gemini AI API
+const genAI = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || "" });
 
 export interface ScenarioPersona {
   id: string;
@@ -112,19 +109,19 @@ ${conversationContext}
 위 맥락을 바탕으로 ${persona.name}의 입장에서 자연스럽게 응답해주세요.`;
 
   try {
-    const response = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
-      messages: [
-        { role: "system", content: systemPrompt },
-        { role: "user", content: userPrompt }
-      ],
-      max_tokens: 200,
-      temperature: 0.8,
+    const response = await genAI.models.generateContent({
+      model: "gemini-2.5-flash",
+      config: {
+        systemInstruction: systemPrompt,
+        maxOutputTokens: 200,
+        temperature: 0.8,
+      },
+      contents: userPrompt,
     });
 
-    return response.choices[0].message.content || "죄송합니다. 응답을 생성할 수 없습니다.";
+    return response.text || "죄송합니다. 응답을 생성할 수 없습니다.";
   } catch (error) {
-    console.error("AIMLAPI Error:", error);
+    console.error("Gemini API Error:", error);
     // 임시 더미 응답 (API 키 문제 시)
     const dummyResponses: Record<string, string[]> = {
       communication: [
@@ -233,16 +230,45 @@ ${conversationText}
 - 실제 대화 내용을 바탕으로 정확한 평가 수행`;
 
   try {
-    const response = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
-      messages: [
-        { role: "user", content: evaluationPrompt }
-      ],
-      response_format: { type: "json_object" },
-      temperature: 0.3,
+    const response = await genAI.models.generateContent({
+      model: "gemini-2.5-pro",
+      config: {
+        responseMimeType: "application/json",
+        responseSchema: {
+          type: "object",
+          properties: {
+            overallScore: { type: "number" },
+            scores: {
+              type: "array",
+              items: {
+                type: "object",
+                properties: {
+                  category: { type: "string" },
+                  name: { type: "string" },
+                  score: { type: "number" },
+                  feedback: { type: "string" },
+                  icon: { type: "string" },
+                  color: { type: "string" }
+                }
+              }
+            },
+            detailedFeedback: {
+              type: "object",
+              properties: {
+                strengths: { type: "array", items: { type: "string" } },
+                improvements: { type: "array", items: { type: "string" } },
+                nextSteps: { type: "array", items: { type: "string" } },
+                ranking: { type: "string" }
+              }
+            }
+          }
+        },
+        temperature: 0.3,
+      },
+      contents: evaluationPrompt,
     });
 
-    const result = JSON.parse(response.choices[0].message.content || "{}");
+    const result = JSON.parse(response.text || "{}");
     return {
       overallScore: result.overallScore || 0,
       scores: result.scores || [],
