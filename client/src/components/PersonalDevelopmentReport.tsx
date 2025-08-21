@@ -1,5 +1,5 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { apiRequest } from "@/lib/queryClient";
+import { apiRequest, queryClient } from "@/lib/queryClient";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -81,8 +81,9 @@ export default function PersonalDevelopmentReport({
       console.log("피드백 생성 완료, 페이지 새로고침");
       // 성공 후 자동으로 새로고침하여 최신 데이터 가져오기
       setTimeout(() => {
+        queryClient.invalidateQueries({ queryKey: [`/api/conversations/${conversationId}/feedback`] });
         refetch();
-      }, 500);
+      }, 1000);
     },
     onError: (error) => {
       console.error("Feedback generation error:", error);
@@ -94,7 +95,8 @@ export default function PersonalDevelopmentReport({
     }
   });
 
-  if (isLoading || generateFeedbackMutation.isPending || !feedback) {
+  // 로딩 중이거나 피드백 생성 중일 때만 로딩 표시
+  if (isLoading || generateFeedbackMutation.isPending) {
     return (
       <div className="text-center py-16" data-testid="feedback-loading">
         <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-corporate-600 mx-auto mb-4"></div>
@@ -106,10 +108,12 @@ export default function PersonalDevelopmentReport({
 
   // 피드백이 없고 아직 생성 중이 아니라면 자동으로 생성 시도
   if (error && error.message === "FEEDBACK_NOT_FOUND" && !generateFeedbackMutation.isPending) {
+    console.log("피드백이 없음, 자동 생성 시도...");
     generateFeedbackMutation.mutate();
   }
 
-  if ((error && error.message !== "FEEDBACK_NOT_FOUND") || (!feedback && !isLoading && !generateFeedbackMutation.isPending)) {
+  // 피드백이 없고 오류가 발생했을 때 오류 화면 표시
+  if (!feedback && !isLoading && !generateFeedbackMutation.isPending && error && error.message !== "FEEDBACK_NOT_FOUND") {
     return (
       <div className="text-center py-16" data-testid="feedback-error">
         <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
