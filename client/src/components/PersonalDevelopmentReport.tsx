@@ -16,56 +16,9 @@ interface PersonalDevelopmentReportProps {
   onSelectNewScenario: () => void;
 }
 
-// 애니메이션 훅 추가
-const useCountUpAnimation = (endValue: number, duration: number = 2000) => {
-  const [currentValue, setCurrentValue] = useState(0);
-  const [isAnimating, setIsAnimating] = useState(false);
-
-  useEffect(() => {
-    if (endValue > 0 && !isAnimating) {
-      setIsAnimating(true);
-      const startTime = Date.now();
-      const startValue = 0;
-
-      const animate = () => {
-        const now = Date.now();
-        const elapsed = now - startTime;
-        const progress = Math.min(elapsed / duration, 1);
-        
-        // easeOutCubic 애니메이션 커브
-        const easeOutCubic = 1 - Math.pow(1 - progress, 3);
-        const value = Math.round(startValue + (endValue - startValue) * easeOutCubic);
-        
-        setCurrentValue(value);
-
-        if (progress < 1) {
-          requestAnimationFrame(animate);
-        } else {
-          setIsAnimating(false);
-        }
-      };
-
-      requestAnimationFrame(animate);
-    }
-  }, [endValue, duration, isAnimating]);
-
-  return currentValue;
-};
-
-// 진행 바 애니메이션 훅
-const useProgressAnimation = (targetWidth: number, delay: number = 0) => {
-  const [currentWidth, setCurrentWidth] = useState(0);
-
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      setCurrentWidth(targetWidth);
-    }, delay);
-
-    return () => clearTimeout(timer);
-  }, [targetWidth, delay]);
-
-  return currentWidth;
-};
+// 애니메이션 없이 바로 값 표시 (hooks 오류 방지)
+const getDisplayValue = (value: number) => value;
+const getProgressWidth = (value: number) => value;
 
 export default function PersonalDevelopmentReport({ 
   scenario, 
@@ -211,26 +164,8 @@ export default function PersonalDevelopmentReport({
 
   const overallGrade = getOverallGrade(feedback?.overallScore || 0);
   
-  // 모든 애니메이션 hooks를 최상위에서 호출 (조건부 호출 방지)
-  const animatedOverallScore = useCountUpAnimation(feedback?.overallScore || 0, 2500);
-  
-  // 각 카테고리 점수 애니메이션 (최대 5개 항목으로 제한)
-  const animatedScores = [
-    useCountUpAnimation(feedback?.scores?.[0]?.score || 0, 2000),
-    useCountUpAnimation(feedback?.scores?.[1]?.score || 0, 2300),
-    useCountUpAnimation(feedback?.scores?.[2]?.score || 0, 2600),
-    useCountUpAnimation(feedback?.scores?.[3]?.score || 0, 2900),
-    useCountUpAnimation(feedback?.scores?.[4]?.score || 0, 3200)
-  ];
-  
-  // 진행 바 애니메이션 (최대 5개 항목으로 제한)
-  const progressWidths = [
-    useProgressAnimation(feedback?.scores?.[0] ? (feedback.scores[0].score / 5) * 100 : 0, 1500),
-    useProgressAnimation(feedback?.scores?.[1] ? (feedback.scores[1].score / 5) * 100 : 0, 1700),
-    useProgressAnimation(feedback?.scores?.[2] ? (feedback.scores[2].score / 5) * 100 : 0, 1900),
-    useProgressAnimation(feedback?.scores?.[3] ? (feedback.scores[3].score / 5) * 100 : 0, 2100),
-    useProgressAnimation(feedback?.scores?.[4] ? (feedback.scores[4].score / 5) * 100 : 0, 2300)
-  ];
+  // 애니메이션 제거하고 바로 값 표시 (hooks 오류 방지)
+  const displayOverallScore = getDisplayValue(feedback?.overallScore || 0);
   
   // 피드백이 로드된 후 애니메이션 지연
   useEffect(() => {
@@ -293,7 +228,7 @@ export default function PersonalDevelopmentReport({
             }}
           >
             <div className="text-3xl font-bold transition-all duration-500" data-testid="overall-grade">{overallGrade.grade}</div>
-            <div className="text-sm font-medium transition-all duration-1000">{animatedOverallScore}점</div>
+            <div className="text-sm font-medium transition-all duration-1000">{displayOverallScore}점</div>
             <div className="text-xs">종합 점수</div>
           </div>
         </div>
@@ -318,8 +253,8 @@ export default function PersonalDevelopmentReport({
           {/* 카테고리별 점수 */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {feedback?.scores?.map((score, index) => {
-              const animatedScore = animatedScores[index] || 0;
-              const progressWidth = progressWidths[index] || 0;
+              const displayScore = getDisplayValue(score.score);
+              const progressWidth = getProgressWidth((score.score / 5) * 100);
               
               return (
                 <Card 
@@ -342,7 +277,7 @@ export default function PersonalDevelopmentReport({
                         variant="secondary" 
                         className={`bg-${getScoreColor(score.score)}-100 text-${getScoreColor(score.score)}-800 transition-all duration-300 hover:scale-105`}
                       >
-                        {animatedScore}/5
+                        {displayScore}/5
                       </Badge>
                     </div>
                   </CardHeader>
