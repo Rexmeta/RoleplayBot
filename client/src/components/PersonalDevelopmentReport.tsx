@@ -1,4 +1,5 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
+import { useEffect, useState } from "react";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -15,6 +16,57 @@ interface PersonalDevelopmentReportProps {
   onSelectNewScenario: () => void;
 }
 
+// 애니메이션 훅 추가
+const useCountUpAnimation = (endValue: number, duration: number = 2000) => {
+  const [currentValue, setCurrentValue] = useState(0);
+  const [isAnimating, setIsAnimating] = useState(false);
+
+  useEffect(() => {
+    if (endValue > 0 && !isAnimating) {
+      setIsAnimating(true);
+      const startTime = Date.now();
+      const startValue = 0;
+
+      const animate = () => {
+        const now = Date.now();
+        const elapsed = now - startTime;
+        const progress = Math.min(elapsed / duration, 1);
+        
+        // easeOutCubic 애니메이션 커브
+        const easeOutCubic = 1 - Math.pow(1 - progress, 3);
+        const value = Math.round(startValue + (endValue - startValue) * easeOutCubic);
+        
+        setCurrentValue(value);
+
+        if (progress < 1) {
+          requestAnimationFrame(animate);
+        } else {
+          setIsAnimating(false);
+        }
+      };
+
+      requestAnimationFrame(animate);
+    }
+  }, [endValue, duration, isAnimating]);
+
+  return currentValue;
+};
+
+// 진행 바 애니메이션 훅
+const useProgressAnimation = (targetWidth: number, delay: number = 0) => {
+  const [currentWidth, setCurrentWidth] = useState(0);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setCurrentWidth(targetWidth);
+    }, delay);
+
+    return () => clearTimeout(timer);
+  }, [targetWidth, delay]);
+
+  return currentWidth;
+};
+
 export default function PersonalDevelopmentReport({ 
   scenario, 
   conversationId, 
@@ -22,6 +74,7 @@ export default function PersonalDevelopmentReport({
   onSelectNewScenario 
 }: PersonalDevelopmentReportProps) {
   const { toast } = useToast();
+  const [showDetailedFeedback, setShowDetailedFeedback] = useState(false);
 
   // 먼저 피드백이 존재하는지 확인하고, 없으면 자동으로 생성 시도
   const { data: feedback, isLoading, error, refetch } = useQuery<Feedback>({
@@ -160,21 +213,53 @@ export default function PersonalDevelopmentReport({
   if (!feedback) {
     return (
       <div className="text-center py-16" data-testid="feedback-loading">
-        <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-corporate-600 mx-auto mb-4"></div>
-        <h2 className="text-xl font-semibold text-slate-900 mb-2">개인 맞춤 분석 중...</h2>
-        <p className="text-slate-600">AI가 대화를 심층 분석하여 맞춤형 개발 계획을 수립하고 있습니다.</p>
+        <div className="relative mb-8">
+          <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-corporate-600 mx-auto"></div>
+          <div className="animate-pulse absolute inset-0 rounded-full h-16 w-16 border-2 border-corporate-200 mx-auto"></div>
+        </div>
+        <h2 className="text-xl font-semibold text-slate-900 mb-2 animate-pulse-gentle">개인 맞춤 분석 중...</h2>
+        <p className="text-slate-600 mb-4">AI가 대화를 심층 분석하여 맞춤형 개발 계획을 수립하고 있습니다.</p>
+        <div className="flex justify-center space-x-1 mt-6">
+          <div className="w-2 h-2 bg-corporate-500 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
+          <div className="w-2 h-2 bg-corporate-500 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
+          <div className="w-2 h-2 bg-corporate-500 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
+        </div>
       </div>
     );
   }
 
   const overallGrade = getOverallGrade(feedback.overallScore);
+  
+  // 전체 점수 애니메이션
+  const animatedOverallScore = useCountUpAnimation(feedback.overallScore, 2500);
+  
+  // 피드백이 로드된 후 애니메이션 지연
+  useEffect(() => {
+    if (feedback) {
+      const timer = setTimeout(() => {
+        setShowDetailedFeedback(true);
+      }, 1000);
+      return () => clearTimeout(timer);
+    }
+  }, [feedback]);
 
   return (
     <div className="max-w-6xl mx-auto space-y-6" data-testid="personal-development-report">
       {/* Header */}
-      <div className="bg-gradient-to-r from-corporate-600 to-corporate-700 rounded-xl p-6 text-white">
+      <div 
+        className="bg-gradient-to-r from-corporate-600 to-corporate-700 rounded-xl p-6 text-white transform transition-all duration-700 hover:shadow-2xl"
+        style={{ 
+          opacity: 0,
+          animation: `fadeInUp 0.8s ease-out forwards`
+        }}
+      >
         <div className="flex items-center justify-between">
-          <div>
+          <div 
+            style={{ 
+              opacity: 0,
+              animation: `slideInRight 0.8s ease-out 0.3s forwards`
+            }}
+          >
             <h1 className="text-2xl font-bold mb-2" data-testid="report-title">개인 맞춤 개발 보고서</h1>
             <p className="text-corporate-100">AI 분석 기반 커뮤니케이션 역량 진단 및 발전 계획</p>
             <div className="mt-3 text-sm text-corporate-200">
@@ -182,62 +267,102 @@ export default function PersonalDevelopmentReport({
               훈련 시나리오: {scenario.name} ({scenario.role})
             </div>
           </div>
-          <div className={`${overallGrade.bg} ${overallGrade.color} px-6 py-4 rounded-lg text-center min-w-[120px]`}>
-            <div className="text-3xl font-bold" data-testid="overall-grade">{overallGrade.grade}</div>
-            <div className="text-sm font-medium">{feedback.overallScore}점</div>
+          <div 
+            className={`${overallGrade.bg} ${overallGrade.color} px-6 py-4 rounded-lg text-center min-w-[120px] transform transition-all duration-1000 hover:scale-110 hover:shadow-lg`}
+            style={{ 
+              opacity: 0,
+              animation: `fadeInUp 0.8s ease-out 0.6s forwards, bounce-once 0.8s ease-out 2.5s`
+            }}
+          >
+            <div className="text-3xl font-bold transition-all duration-500" data-testid="overall-grade">{overallGrade.grade}</div>
+            <div className="text-sm font-medium transition-all duration-1000">{animatedOverallScore}점</div>
             <div className="text-xs">종합 점수</div>
           </div>
         </div>
       </div>
 
       <Tabs defaultValue="scores" className="space-y-6">
-        <TabsList className="grid w-full grid-cols-4">
-          <TabsTrigger value="scores" data-testid="tab-scores">성과 분석</TabsTrigger>
-          <TabsTrigger value="behavior" data-testid="tab-behavior">행동 가이드</TabsTrigger>
-          <TabsTrigger value="conversation" data-testid="tab-conversation">대화 가이드</TabsTrigger>
-          <TabsTrigger value="development" data-testid="tab-development">개발 계획</TabsTrigger>
+        <TabsList 
+          className="grid w-full grid-cols-4 transform transition-all duration-500"
+          style={{ 
+            opacity: 0,
+            animation: `fadeInUp 0.6s ease-out 1s forwards`
+          }}
+        >
+          <TabsTrigger value="scores" data-testid="tab-scores" className="transition-all duration-300 hover:scale-105">성과 분석</TabsTrigger>
+          <TabsTrigger value="behavior" data-testid="tab-behavior" className="transition-all duration-300 hover:scale-105">행동 가이드</TabsTrigger>
+          <TabsTrigger value="conversation" data-testid="tab-conversation" className="transition-all duration-300 hover:scale-105">대화 가이드</TabsTrigger>
+          <TabsTrigger value="development" data-testid="tab-development" className="transition-all duration-300 hover:scale-105">개발 계획</TabsTrigger>
         </TabsList>
 
         {/* 성과 분석 */}
         <TabsContent value="scores" className="space-y-6">
           {/* 카테고리별 점수 */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {feedback?.scores?.map((score, index) => (
-              <Card key={index} className="hover:shadow-md transition-shadow" data-testid={`score-card-${index}`}>
-                <CardHeader className="pb-3">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center space-x-2">
-                      <i className={`${score.icon} text-xl text-${score.color}-600`}></i>
-                      <CardTitle className="text-sm">{score.name}</CardTitle>
+            {feedback?.scores?.map((score, index) => {
+              const animatedScore = useCountUpAnimation(score.score, 2000 + index * 300);
+              const progressWidth = useProgressAnimation((score.score / 5) * 100, 1500 + index * 200);
+              
+              return (
+                <Card 
+                  key={index} 
+                  className="hover:shadow-lg transition-all duration-300 transform hover:-translate-y-1 animate-fade-in-up" 
+                  data-testid={`score-card-${index}`}
+                  style={{ 
+                    animationDelay: `${index * 200}ms`,
+                    opacity: 0,
+                    animation: `fadeInUp 0.6s ease-out ${index * 200}ms forwards`
+                  }}
+                >
+                  <CardHeader className="pb-3">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center space-x-2">
+                        <i className={`${score.icon} text-xl text-${score.color}-600 transition-transform duration-300 hover:scale-110`}></i>
+                        <CardTitle className="text-sm">{score.name}</CardTitle>
+                      </div>
+                      <Badge 
+                        variant="secondary" 
+                        className={`bg-${getScoreColor(score.score)}-100 text-${getScoreColor(score.score)}-800 transition-all duration-300 hover:scale-105`}
+                      >
+                        {animatedScore}/5
+                      </Badge>
                     </div>
-                    <Badge variant="secondary" className={`bg-${getScoreColor(score.score)}-100 text-${getScoreColor(score.score)}-800`}>
-                      {score.score}/5
-                    </Badge>
-                  </div>
-                </CardHeader>
-                <CardContent>
-                  <div className="flex items-center mb-3">
-                    <div className={`h-2 bg-${getScoreColor(score.score)}-200 rounded-full flex-1 mr-3`}>
-                      <div 
-                        className={`h-full bg-${getScoreColor(score.score)}-500 rounded-full`}
-                        style={{ width: `${(score.score / 5) * 100}%` }}
-                      />
+                  </CardHeader>
+                  <CardContent>
+                    <div className="flex items-center mb-3">
+                      <div className={`h-3 bg-${getScoreColor(score.score)}-200 rounded-full flex-1 mr-3 overflow-hidden`}>
+                        <div 
+                          className={`h-full bg-gradient-to-r from-${getScoreColor(score.score)}-400 to-${getScoreColor(score.score)}-600 rounded-full transition-all duration-1000 ease-out`}
+                          style={{ width: `${progressWidth}%` }}
+                        />
+                      </div>
+                      <span className={`text-sm font-medium text-${getScoreColor(score.score)}-600 transition-colors duration-300`}>
+                        {getScoreLabel(score.score)}
+                      </span>
                     </div>
-                    <span className={`text-sm font-medium text-${getScoreColor(score.score)}-600`}>
-                      {getScoreLabel(score.score)}
-                    </span>
-                  </div>
-                  <p className="text-sm text-slate-600" data-testid={`score-feedback-${index}`}>{score.feedback}</p>
-                </CardContent>
-              </Card>
-            ))}
+                    <div 
+                      className={`transition-all duration-500 ${showDetailedFeedback ? 'opacity-100 max-h-none' : 'opacity-0 max-h-0 overflow-hidden'}`}
+                      style={{ transitionDelay: `${2000 + index * 300}ms` }}
+                    >
+                      <p className="text-sm text-slate-600" data-testid={`score-feedback-${index}`}>{score.feedback}</p>
+                    </div>
+                  </CardContent>
+                </Card>
+              );
+            })}
           </div>
 
           {/* 종합 평가 */}
-          <Card>
+          <Card 
+            className="transform transition-all duration-500 hover:shadow-lg"
+            style={{ 
+              opacity: 0,
+              animation: `fadeInUp 0.8s ease-out 2.5s forwards`
+            }}
+          >
             <CardHeader>
               <CardTitle className="flex items-center">
-                <i className="fas fa-chart-line text-corporate-600 mr-2"></i>
+                <i className="fas fa-chart-line text-corporate-600 mr-2 transition-transform duration-300 hover:scale-110"></i>
                 종합 평가
               </CardTitle>
             </CardHeader>
