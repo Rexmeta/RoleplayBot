@@ -27,11 +27,11 @@ const SCENARIO_PERSONAS: Record<string, ScenarioPersona> = {
   communication: {
     id: "communication",
     name: "김태훈",
-    role: "선임 연구원 · 7년차",
-    personality: "까다롭고 완벽주의적이며 논리적 사고를 중시함. 감정적인 접근보다는 데이터와 근거를 선호함.",
-    responseStyle: "직설적이고 구체적인 질문을 던지며, 애매한 답변에 대해서는 재질문함. 전문적이지만 때로는 압박적임.",
-    goals: ["명확한 커뮤니케이션 확인", "논리적 사고력 테스트", "문제 해결 능력 평가"],
-    background: "7년간 연구개발 분야에서 일하며 다양한 프로젝트를 성공시킨 경험이 있음. 후배들의 성장을 위해 엄격한 기준을 적용함."
+    role: "선임 책임자 · 7년차",
+    personality: "실무 경험이 풍부하고 일정 관리에 민감함. 현실적이고 실용적인 해결책을 선호하며, 리스크를 최소화하려 함.",
+    responseStyle: "현실적인 제약사항을 강조하며 양산 일정의 중요성을 언급함. 구체적인 해결 방안을 요구하고 성과 지향적인 태도를 보임.",
+    goals: ["논리적 문제 제기 능력 평가", "현실적 해결책 제시 능력 확인", "조직 내 협상 및 설득 능력 테스트"],
+    background: "스마트폰 개발 7년차로 다양한 하드웨어 이슈와 양산 경험이 풍부함. 품질과 일정 사이의 균형을 중시하며, 신입 개발자들이 현실적인 업무 처리 능력을 갖추길 원함."
   },
   empathy: {
     id: "empathy",
@@ -201,6 +201,30 @@ export async function generateAIResponse(
     .map(msg => `${msg.sender === 'user' ? '사용자' : persona.name}: ${msg.message}`)
     .join('\n');
 
+  // 김태훈 시나리오의 특별한 미션 컨텍스트
+  const getMissionContext = (scenarioId: string, turnCount: number): string => {
+    if (scenarioId === "communication") {
+      return `
+🎯 **미션 상황**: "노이즈 문제, 이대로 출시해도 될까요?"
+
+**배경**: 스마트폰 통화 품질 테스트 중 마이크 모듈에서 특정 주파수 대역에서 노이즈(지지직 소리)가 감지됨. 
+사양서 기준은 만족하지만 실사용에서 불편함이 예상되는 상황.
+
+**제약**: 양산 스케줄이 촉박하며, 선임 책임자는 일정 준수를 우선시하는 입장.
+
+**목표**: 신입 개발자(사용자)가 발견한 이슈를 선임 책임자에게 설득하여 개선을 위한 반영 혹은 협의된 검증 계획을 이끌어내는 것.
+
+**평가 포인트**:
+- 논리적 설명 능력 (문제를 명확하게 제시)
+- 설득력 있는 커뮤니케이션 (일정 제약 고려한 현실적 해결책 제시)
+- 조직 내 협상 능력 (권한 밖 요청을 적절히 처리)
+- 현실적인 협상 (회의 안건화, 리스크 최소화 등)
+
+**현재 턴**: ${turnCount}/10`;
+    }
+    return "";
+  };
+
   const systemPrompt = `당신은 ${persona.name}(${persona.role})입니다.
 
 성격: ${persona.personality}
@@ -209,7 +233,7 @@ export async function generateAIResponse(
 
 배경: ${persona.background}
 
-현재 턴: ${turnCount}/10
+${getMissionContext(scenarioId, turnCount)}
 
 이 역할을 완벽히 수행하여 사용자와 대화하세요. 
 - 일관된 성격과 말투를 유지하세요
@@ -218,11 +242,28 @@ export async function generateAIResponse(
 - 한국어로 대화하세요
 - 응답은 2-3문장으로 간결하게 하세요`;
 
-  const userPrompt = `다음은 지금까지의 대화입니다:
+  // 첫 번째 메시지인지 확인
+  const isFirstMessage = conversationHistory.length === 0;
+  
+  let userPrompt = "";
+  if (isFirstMessage) {
+    // 김태훈 시나리오의 첫 번째 메시지
+    if (scenarioId === "communication") {
+      userPrompt = `상황: 신입 개발자가 스마트폰 마이크 모듈 테스트 중 노이즈 문제를 발견했습니다. 
+      
+신입 개발자가 당신에게 이 문제를 보고하려고 합니다. 김태훈 선임 책임자의 입장에서 바쁜 업무 중에 부르는 신입 개발자에게 첫 반응을 보여주세요.
+
+업무에 집중하고 있다가 신입이 찾아온 상황으로 응답해주세요.`;
+    } else {
+      userPrompt = `${persona.name}의 입장에서 신입사원과의 첫 만남 인사를 해주세요.`;
+    }
+  } else {
+    userPrompt = `다음은 지금까지의 대화입니다:
 
 ${conversationContext}
 
 위 맥락을 바탕으로 ${persona.name}의 입장에서 자연스럽게 응답해주세요.`;
+  }
 
   try {
     console.log("Attempting Gemini API call...");
@@ -283,12 +324,14 @@ ${conversationContext}
   } catch (error) {
     console.error("Gemini API Error:", error);
     
-    // 폴백 더미 응답
+    // 폴백 더미 응답 - 스마트폰 개발 미션 기반
     const dummyResponses: Record<string, string[]> = {
-      communication: [
-        "안녕하세요, 김신입씨. 잘 부탁드립니다. 그런데 새로 입사한 만큼 먼저 우리 팀의 업무 프로세스를 정확히 파악하는 것이 중요할 것 같은데, 어떤 준비를 하고 오셨나요?",
-        "좋습니다. 그런데 구체적으로 어떤 부분을 어떻게 준비했는지 설명해주실 수 있을까요? 추상적인 답변보다는 실질적인 내용을 듣고 싶습니다.",
-        "음, 그 정도면 기본적인 준비는 하신 것 같네요. 하지만 실제 업무에서는 더 구체적이고 정확한 데이터가 필요합니다. 앞으로 보고서를 작성할 때는 어떤 점들을 염두에 두실 건가요?"
+      communication: turnCount === 0 ? [
+        "네, 무슨 일이에요? 지금 양산 스케줄 점검하고 있는데..."
+      ] : [
+        "음... 그거 사양서 기준 벗어난 건 아니지 않아요? 지금 양산 일정 촉박한 거 알죠?",
+        "재현이 된다면, 로그 남겨서 회의에 올릴 수는 있겠죠. 단, 기존 일정 영향 없게 진행 가능한지 체크 먼저 해주세요.",
+        "그건 우리가 먼저 내부 검증 명확히 하고 말해야 돼요. 공급사랑 섣불리 이야기하면 일정에 타격 커요."
       ],
       empathy: [
         "저도 반갑습니다. 그런데 솔직히 말씀드리면 요즘 업무 스트레스가 많아서... 새로운 팀원이 들어오는 것도 걱정이 되네요.",

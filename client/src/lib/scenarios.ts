@@ -14,9 +14,9 @@ export const scenarios: Scenario[] = [
   {
     id: "communication",
     name: "김태훈",
-    role: "선임 연구원 · 7년차", 
-    description: "까다로운 성격의 선임으로, 명확하고 논리적인 커뮤니케이션을 요구합니다.",
-    skills: ["커뮤니케이션", "논리적 사고"],
+    role: "선임 책임자 · 7년차", 
+    description: "스마트폰 통화 품질 테스트 중 마이크 모듈에서 노이즈가 감지되었습니다. 사양서 기준은 만족하지만 실사용에서 불편함이 예상되는 상황에서, 촉박한 양산 일정을 고려하며 선임 책임자를 설득해야 합니다.",
+    skills: ["논리적 설명", "설득력", "협상", "문제 해결"],
     difficulty: 2,
     estimatedTime: "약 15분",
     image: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?ixlib=rb-4.0.3&ixid=MnwxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8&auto=format&fit=crop&w=150&h=150",
@@ -86,11 +86,14 @@ export const getScenarioById = (id: string): Scenario | undefined => {
 export const getSkillColor = (skill: string): string => {
   const colorMap: Record<string, string> = {
     "커뮤니케이션": "blue",
-    "논리적 사고": "purple", 
+    "논리적 사고": "purple",
+    "논리적 설명": "purple", 
     "공감력": "green",
     "갈등 해결": "orange",
     "협상력": "red",
+    "협상": "red",
     "설득력": "yellow",
+    "문제 해결": "blue",
     "프레젠테이션": "indigo",
     "압박 대응": "pink",
     "피드백": "teal", 

@@ -11,7 +11,35 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const validatedData = insertConversationSchema.parse(req.body);
       const conversation = await storage.createConversation(validatedData);
-      res.json(conversation);
+      
+      // 첫 번째 AI 메시지 자동 생성
+      try {
+        const aiResult = await generateAIResponse(
+          conversation.scenarioId,
+          [],
+          0
+        );
+
+        const aiMessage = {
+          sender: "ai" as const,
+          message: aiResult.response,
+          timestamp: new Date().toISOString(),
+          emotion: aiResult.emotion,
+          emotionReason: aiResult.emotionReason,
+        };
+
+        // 첫 번째 AI 메시지로 대화 업데이트
+        const updatedConversation = await storage.updateConversation(conversation.id, {
+          messages: [aiMessage],
+          turnCount: 0
+        });
+
+        res.json(updatedConversation);
+      } catch (aiError) {
+        console.error("AI 초기 메시지 생성 실패:", aiError);
+        // AI 메시지 생성 실패해도 대화는 생성되도록 함
+        res.json(conversation);
+      }
     } catch (error) {
       res.status(400).json({ error: "Invalid conversation data" });
     }
