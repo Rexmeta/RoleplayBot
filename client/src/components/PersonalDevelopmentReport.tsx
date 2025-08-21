@@ -162,12 +162,7 @@ export default function PersonalDevelopmentReport({
     return { grade: "D", color: "text-red-600", bg: "bg-red-50" };
   };
 
-  const overallGrade = getOverallGrade(feedback?.overallScore || 0);
-  
-  // 애니메이션 제거하고 바로 값 표시 (hooks 오류 방지)
-  const displayOverallScore = getDisplayValue(feedback?.overallScore || 0);
-  
-  // 피드백이 로드된 후 애니메이션 지연
+  // 모든 hooks를 최상위에서 호출 (조건부 렌더링 이전)
   useEffect(() => {
     if (feedback) {
       const timer = setTimeout(() => {
@@ -176,6 +171,11 @@ export default function PersonalDevelopmentReport({
       return () => clearTimeout(timer);
     }
   }, [feedback]);
+
+  const overallGrade = getOverallGrade(feedback?.overallScore || 0);
+  
+  // 애니메이션 제거하고 바로 값 표시 (hooks 오류 방지)
+  const displayOverallScore = getDisplayValue(feedback?.overallScore || 0);
 
   // feedback가 없으면 로딩 화면을 표시
   if (!feedback) {
