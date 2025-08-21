@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
+import Header from "@/components/Header";
 import type { Scenario } from "@/lib/scenarios";
 import type { Feedback } from "@shared/schema";
 
@@ -187,7 +188,9 @@ export default function PersonalDevelopmentReport({
   }
 
   return (
-    <div className="max-w-6xl mx-auto space-y-6" data-testid="personal-development-report">
+    <div>
+      <Header />
+      <div className="max-w-6xl mx-auto space-y-6" data-testid="personal-development-report">
       {/* Header */}
       <div 
         className="bg-gradient-to-r from-corporate-600 to-corporate-700 rounded-xl p-6 text-white transform transition-all duration-700 hover:shadow-2xl"
@@ -604,6 +607,7 @@ export default function PersonalDevelopmentReport({
           <i className="fas fa-print mr-2"></i>
           보고서 인쇄
         </Button>
+      </div>
       </div>
     </div>
   );
