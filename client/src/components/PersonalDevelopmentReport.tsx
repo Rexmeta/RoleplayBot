@@ -23,31 +23,72 @@ export default function PersonalDevelopmentReport({
 }: PersonalDevelopmentReportProps) {
   const { toast } = useToast();
 
+  // 먼저 피드백이 존재하는지 확인하고, 없으면 자동으로 생성 시도
   const { data: feedback, isLoading, error, refetch } = useQuery<Feedback>({
     queryKey: ["/api/conversations", conversationId, "feedback"],
     enabled: !!conversationId,
-    retry: 2,
-    staleTime: 0, // 항상 최신 데이터 가져오기
+    retry: false, // 404 에러 시 재시도하지 않음
+    staleTime: 0,
+    queryFn: async () => {
+      try {
+        const response = await fetch(`/api/conversations/${conversationId}/feedback`);
+        if (response.status === 404) {
+          // 피드백이 없으면 자동으로 생성 시도
+          console.log("피드백이 없음, 자동 생성 시도...");
+          throw new Error("FEEDBACK_NOT_FOUND");
+        }
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}`);
+        }
+        return response.json();
+      } catch (error) {
+        console.error("피드백 조회 오류:", error);
+        throw error;
+      }
+    }
   });
 
 
 
   const generateFeedbackMutation = useMutation({
     mutationFn: async () => {
-      const response = await apiRequest("POST", `/api/conversations/${conversationId}/feedback`);
-      return response.json();
+      console.log("피드백 생성 요청 시작:", conversationId);
+      try {
+        const response = await fetch(`/api/conversations/${conversationId}/feedback`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+        });
+        
+        console.log("피드백 생성 응답 상태:", response.status);
+        
+        if (!response.ok) {
+          const errorText = await response.text();
+          console.error("피드백 생성 실패:", errorText);
+          throw new Error(`HTTP ${response.status}: ${errorText}`);
+        }
+        
+        const result = await response.json();
+        console.log("피드백 생성 성공:", result);
+        return result;
+      } catch (error) {
+        console.error("피드백 생성 중 오류:", error);
+        throw error;
+      }
     },
-    onSuccess: () => {
-      // 피드백 생성 후 쿼리 무효화로 새 데이터 가져오기
+    onSuccess: (data) => {
+      console.log("피드백 생성 완료, 페이지 새로고침");
+      // 성공 후 자동으로 새로고침하여 최신 데이터 가져오기
       setTimeout(() => {
-        window.location.reload();
-      }, 1000);
+        refetch();
+      }, 500);
     },
     onError: (error) => {
       console.error("Feedback generation error:", error);
       toast({
         title: "오류",
-        description: "피드백을 생성할 수 없습니다. 다시 시도해주세요.",
+        description: `피드백을 생성할 수 없습니다: ${error.message}`,
         variant: "destructive"
       });
     }
@@ -63,7 +104,12 @@ export default function PersonalDevelopmentReport({
     );
   }
 
-  if (error || !feedback) {
+  // 피드백이 없고 아직 생성 중이 아니라면 자동으로 생성 시도
+  if (error && error.message === "FEEDBACK_NOT_FOUND" && !generateFeedbackMutation.isPending) {
+    generateFeedbackMutation.mutate();
+  }
+
+  if ((error && error.message !== "FEEDBACK_NOT_FOUND") || (!feedback && !isLoading && !generateFeedbackMutation.isPending)) {
     return (
       <div className="text-center py-16" data-testid="feedback-error">
         <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">

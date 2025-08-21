@@ -100,26 +100,37 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Generate feedback for completed conversation
   app.post("/api/conversations/:id/feedback", async (req, res) => {
     try {
+      console.log(`피드백 생성 요청: ${req.params.id}`);
+      
       const conversation = await storage.getConversation(req.params.id);
       if (!conversation) {
+        console.log(`대화를 찾을 수 없음: ${req.params.id}`);
         return res.status(404).json({ error: "Conversation not found" });
       }
 
-      if (conversation.status !== "completed") {
+      console.log(`대화 상태: ${conversation.status}, 턴 수: ${conversation.turnCount}`);
+
+      // 완료되지 않은 대화에 대해서도 피드백 생성 허용 (10턴 이상이면)
+      if (conversation.status !== "completed" && conversation.turnCount < 10) {
+        console.log("대화가 아직 완료되지 않음");
         return res.status(400).json({ error: "Conversation not completed yet" });
       }
 
       // Check if feedback already exists
       const existingFeedback = await storage.getFeedbackByConversationId(req.params.id);
       if (existingFeedback) {
+        console.log("기존 피드백 발견, 반환");
         return res.json(existingFeedback);
       }
 
+      console.log("새 피드백 생성 시작");
       // Generate new feedback
       const feedbackData = await generateFeedback(
         conversation.scenarioId,
         conversation.messages
       );
+
+      console.log("피드백 데이터 생성 완료:", feedbackData);
 
       const feedback = await storage.createFeedback({
         conversationId: req.params.id,
@@ -128,10 +139,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
         detailedFeedback: feedbackData.detailedFeedback,
       });
 
+      console.log("피드백 저장 완료");
       res.json(feedback);
     } catch (error) {
       console.error("Feedback generation error:", error);
-      res.status(500).json({ error: "Failed to generate feedback" });
+      res.status(500).json({ 
+        error: "Failed to generate feedback",
+        details: error.message,
+        stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+      });
     }
   });
 
