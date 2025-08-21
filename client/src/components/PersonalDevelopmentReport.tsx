@@ -27,7 +27,7 @@ export default function PersonalDevelopmentReport({
   onSelectNewScenario 
 }: PersonalDevelopmentReportProps) {
   const { toast } = useToast();
-  const [showDetailedFeedback, setShowDetailedFeedback] = useState(false);
+  const [showDetailedFeedback, setShowDetailedFeedback] = useState(true); // 애니메이션 없이 바로 표시
 
   // 먼저 피드백이 존재하는지 확인하고, 없으면 자동으로 생성 시도
   const { data: feedback, isLoading, error, refetch } = useQuery<Feedback>({
@@ -161,16 +161,6 @@ export default function PersonalDevelopmentReport({
     if (score >= 60) return { grade: "C", color: "text-yellow-600", bg: "bg-yellow-50" };
     return { grade: "D", color: "text-red-600", bg: "bg-red-50" };
   };
-
-  // 모든 hooks를 최상위에서 호출 (조건부 렌더링 이전)
-  useEffect(() => {
-    if (feedback) {
-      const timer = setTimeout(() => {
-        setShowDetailedFeedback(true);
-      }, 1000);
-      return () => clearTimeout(timer);
-    }
-  }, [feedback]);
 
   const overallGrade = getOverallGrade(feedback?.overallScore || 0);
   
