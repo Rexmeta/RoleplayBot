@@ -209,6 +209,39 @@ export default function PersonalDevelopmentReport({
     return { grade: "D", color: "text-red-600", bg: "bg-red-50" };
   };
 
+  const overallGrade = getOverallGrade(feedback?.overallScore || 0);
+  
+  // 모든 애니메이션 hooks를 최상위에서 호출 (조건부 호출 방지)
+  const animatedOverallScore = useCountUpAnimation(feedback?.overallScore || 0, 2500);
+  
+  // 각 카테고리 점수 애니메이션 (최대 5개 항목으로 제한)
+  const animatedScores = [
+    useCountUpAnimation(feedback?.scores?.[0]?.score || 0, 2000),
+    useCountUpAnimation(feedback?.scores?.[1]?.score || 0, 2300),
+    useCountUpAnimation(feedback?.scores?.[2]?.score || 0, 2600),
+    useCountUpAnimation(feedback?.scores?.[3]?.score || 0, 2900),
+    useCountUpAnimation(feedback?.scores?.[4]?.score || 0, 3200)
+  ];
+  
+  // 진행 바 애니메이션 (최대 5개 항목으로 제한)
+  const progressWidths = [
+    useProgressAnimation(feedback?.scores?.[0] ? (feedback.scores[0].score / 5) * 100 : 0, 1500),
+    useProgressAnimation(feedback?.scores?.[1] ? (feedback.scores[1].score / 5) * 100 : 0, 1700),
+    useProgressAnimation(feedback?.scores?.[2] ? (feedback.scores[2].score / 5) * 100 : 0, 1900),
+    useProgressAnimation(feedback?.scores?.[3] ? (feedback.scores[3].score / 5) * 100 : 0, 2100),
+    useProgressAnimation(feedback?.scores?.[4] ? (feedback.scores[4].score / 5) * 100 : 0, 2300)
+  ];
+  
+  // 피드백이 로드된 후 애니메이션 지연
+  useEffect(() => {
+    if (feedback) {
+      const timer = setTimeout(() => {
+        setShowDetailedFeedback(true);
+      }, 1000);
+      return () => clearTimeout(timer);
+    }
+  }, [feedback]);
+
   // feedback가 없으면 로딩 화면을 표시
   if (!feedback) {
     return (
@@ -227,21 +260,6 @@ export default function PersonalDevelopmentReport({
       </div>
     );
   }
-
-  const overallGrade = getOverallGrade(feedback.overallScore);
-  
-  // 전체 점수 애니메이션
-  const animatedOverallScore = useCountUpAnimation(feedback.overallScore, 2500);
-  
-  // 피드백이 로드된 후 애니메이션 지연
-  useEffect(() => {
-    if (feedback) {
-      const timer = setTimeout(() => {
-        setShowDetailedFeedback(true);
-      }, 1000);
-      return () => clearTimeout(timer);
-    }
-  }, [feedback]);
 
   return (
     <div className="max-w-6xl mx-auto space-y-6" data-testid="personal-development-report">
@@ -300,8 +318,8 @@ export default function PersonalDevelopmentReport({
           {/* 카테고리별 점수 */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {feedback?.scores?.map((score, index) => {
-              const animatedScore = useCountUpAnimation(score.score, 2000 + index * 300);
-              const progressWidth = useProgressAnimation((score.score / 5) * 100, 1500 + index * 200);
+              const animatedScore = animatedScores[index] || 0;
+              const progressWidth = progressWidths[index] || 0;
               
               return (
                 <Card 
