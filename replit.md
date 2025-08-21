@@ -2,20 +2,26 @@
 
 This is an AI-powered role-playing training system for new employees, designed to help develop communication skills through interactive conversations with AI personas. The application presents various workplace scenarios where users engage in 10-turn conversations with different AI characters (senior researchers, team leaders, clients, executives), each with distinct personalities and communication challenges. Each AI response includes real-time emotion analysis with visual indicators (emojis, color-coded bubbles). After completing conversations, users receive detailed AI-generated feedback with scores, strengths, improvements, and next steps.
 
-**Recent Updates (2025-08-19)**: 
+**Recent Updates (2025-08-21)**: 
+- **CRITICAL FIX: FontAwesome icons now display properly** - Added CDN integration, resolved "fas fa-bullseye" text showing instead of actual icons
+- **MAJOR IMPROVEMENT: User-centered feedback evaluation** - Evaluation system now properly analyzes user's communication skills instead of AI character responses
+- **ENHANCED: Evaluation prompt refinement** - Clear instructions to evaluate only user messages, not AI character dialogue
+- **TECHNICAL: TypeScript error resolution** - Fixed undefined feedback state handling, improved loading states
+- **UI/UX: Icon display system** - FontAwesome icons with proper colors and sizing throughout feedback reports
+- **QUALITY: Fallback feedback improvement** - User-focused evaluation criteria in backup system
 - Successfully migrated from OpenAI/AIMLAPI to Google Gemini API for real-time AI conversation generation
 - Gemini API fully operational for character-based conversations with natural, context-aware responses
 - **RESOLVED: Complete feedback system working** with comprehensive evaluation reports (5 categories, detailed analysis)
-- **NEW: Real-time emotion state system** - AI characters display emotions (기쁨😊, 슬픔😢, 분노😠, 놀람😲, 중립😐) for each conversation turn
+- **IMPLEMENTED: Real-time emotion state system** - AI characters display emotions (기쁨😊, 슬픔😢, 분노😠, 놀람😲, 중립😐) for each conversation turn
 - Emotion-based UI changes: color-coded message bubbles, avatar emotion indicators, and detailed emotion reasoning
 - **IMPROVED: UI flow** - Removed automatic redirect after 10 turns, added manual "Final Feedback" button for user control
 - Enhanced JSON parsing for Gemini API feedback generation with robust error handling
 - Robust fallback system ensures 100% system reliability even during API issues
-- **UPGRADED: Scientific evaluation framework** - Implemented ComOn Check research-based 5-point scoring system (1-5 scale) replacing simple 0-2 scale
-- **NEW: Research-based assessment categories** - Message clarity, audience adaptation, emotional responsiveness, conversation structure, professional competence
+- **UPGRADED: Scientific evaluation framework** - Implemented ComOn Check research-based 5-point scoring system (1-5 scale)
+- **IMPLEMENTED: Research-based assessment categories** - Message clarity, audience adaptation, emotional responsiveness, conversation structure, professional competence
 - **ENHANCED: Quantitative scoring methodology** - Each category scored 1-5 points, overall score calculated as (sum/5)*20 for 0-100 scale
-- **LATEST: Advanced real-time scoring system** - Implemented scientific 0-100 point scoring starting from 0, with ComOn Check methodology
-- **NEW: Multi-factor real-time analysis** - Message structure (25%), empathy expression (20%), professional solutions (25%), communication appropriateness (20%), scenario adaptation (10%)
+- **IMPLEMENTED: Advanced real-time scoring system** - Scientific 0-100 point scoring starting from 0, with ComOn Check methodology
+- **IMPLEMENTED: Multi-factor real-time analysis** - Message structure (25%), empathy expression (20%), professional solutions (25%), communication appropriateness (20%), scenario adaptation (10%)
 - **ENHANCED: Dynamic score visualization** - Color-coded progress bar with performance levels (미흡/개선 필요/보통/우수) and real-time feedback
 
 # User Preferences
