@@ -94,7 +94,7 @@ export default function PersonalDevelopmentReport({
     }
   });
 
-  if (isLoading || generateFeedbackMutation.isPending) {
+  if (isLoading || generateFeedbackMutation.isPending || !feedback) {
     return (
       <div className="text-center py-16" data-testid="feedback-loading">
         <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-corporate-600 mx-auto mb-4"></div>
@@ -192,7 +192,7 @@ export default function PersonalDevelopmentReport({
                 <CardHeader className="pb-3">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center space-x-2">
-                      <span className="text-xl">{score.icon}</span>
+                      <i className={`${score.icon} text-xl text-${score.color}-600`}></i>
                       <CardTitle className="text-sm">{score.name}</CardTitle>
                     </div>
                     <Badge variant="secondary" className={`bg-${getScoreColor(score.score)}-100 text-${getScoreColor(score.score)}-800`}>
