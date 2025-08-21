@@ -156,6 +156,17 @@ export default function PersonalDevelopmentReport({
     return { grade: "D", color: "text-red-600", bg: "bg-red-50" };
   };
 
+  // feedback가 없으면 로딩 화면을 표시
+  if (!feedback) {
+    return (
+      <div className="text-center py-16" data-testid="feedback-loading">
+        <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-corporate-600 mx-auto mb-4"></div>
+        <h2 className="text-xl font-semibold text-slate-900 mb-2">개인 맞춤 분석 중...</h2>
+        <p className="text-slate-600">AI가 대화를 심층 분석하여 맞춤형 개발 계획을 수립하고 있습니다.</p>
+      </div>
+    );
+  }
+
   const overallGrade = getOverallGrade(feedback.overallScore);
 
   return (
@@ -191,7 +202,7 @@ export default function PersonalDevelopmentReport({
         <TabsContent value="scores" className="space-y-6">
           {/* 카테고리별 점수 */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {feedback.scores.map((score, index) => (
+            {feedback?.scores?.map((score, index) => (
               <Card key={index} className="hover:shadow-md transition-shadow" data-testid={`score-card-${index}`}>
                 <CardHeader className="pb-3">
                   <div className="flex items-center justify-between">
@@ -238,7 +249,7 @@ export default function PersonalDevelopmentReport({
                     주요 강점
                   </h4>
                   <ul className="space-y-2" data-testid="strengths-list">
-                    {feedback.detailedFeedback.strengths.map((strength, index) => (
+                    {feedback?.detailedFeedback?.strengths?.map((strength, index) => (
                       <li key={index} className="text-sm text-slate-600 flex items-start">
                         <i className="fas fa-check text-green-500 mr-2 mt-1 text-xs"></i>
                         {strength}
@@ -252,7 +263,7 @@ export default function PersonalDevelopmentReport({
                     개선 포인트
                   </h4>
                   <ul className="space-y-2" data-testid="improvements-list">
-                    {feedback.detailedFeedback.improvements.map((improvement, index) => (
+                    {feedback?.detailedFeedback?.improvements?.map((improvement, index) => (
                       <li key={index} className="text-sm text-slate-600 flex items-start">
                         <i className="fas fa-exclamation-circle text-orange-500 mr-2 mt-1 text-xs"></i>
                         {improvement}
@@ -266,7 +277,7 @@ export default function PersonalDevelopmentReport({
                     다음 단계
                   </h4>
                   <ul className="space-y-2" data-testid="next-steps-list">
-                    {feedback.detailedFeedback.nextSteps.map((step, index) => (
+                    {feedback?.detailedFeedback?.nextSteps?.map((step, index) => (
                       <li key={index} className="text-sm text-slate-600 flex items-start">
                         <i className="fas fa-play text-blue-500 mr-2 mt-1 text-xs"></i>
                         {step}
@@ -277,7 +288,7 @@ export default function PersonalDevelopmentReport({
               </div>
               <div className="pt-4 border-t border-slate-200">
                 <p className="text-slate-700 leading-relaxed" data-testid="ranking-summary">
-                  <strong>전문가 의견:</strong> {feedback.detailedFeedback.ranking}
+                  <strong>전문가 의견:</strong> {feedback?.detailedFeedback?.ranking}
                 </p>
               </div>
             </CardContent>
@@ -287,7 +298,7 @@ export default function PersonalDevelopmentReport({
         {/* 행동 가이드 */}
         <TabsContent value="behavior" className="space-y-6">
           <div className="grid grid-cols-1 gap-6">
-            {feedback.detailedFeedback.behaviorGuides?.map((guide, index) => (
+            {feedback?.detailedFeedback?.behaviorGuides?.map((guide, index) => (
               <Card key={index} className="hover:shadow-md transition-shadow" data-testid={`behavior-guide-${index}`}>
                 <CardHeader>
                   <CardTitle className="text-lg flex items-center">
@@ -329,7 +340,7 @@ export default function PersonalDevelopmentReport({
         {/* 대화 가이드 */}
         <TabsContent value="conversation" className="space-y-6">
           <div className="grid grid-cols-1 gap-6">
-            {feedback.detailedFeedback.conversationGuides?.map((guide, index) => (
+            {feedback?.detailedFeedback?.conversationGuides?.map((guide, index) => (
               <Card key={index} className="hover:shadow-md transition-shadow" data-testid={`conversation-guide-${index}`}>
                 <CardHeader>
                   <CardTitle className="text-lg flex items-center">
@@ -387,7 +398,7 @@ export default function PersonalDevelopmentReport({
 
         {/* 개발 계획 */}
         <TabsContent value="development" className="space-y-6">
-          {feedback.detailedFeedback.developmentPlan && (
+          {feedback?.detailedFeedback?.developmentPlan && (
             <>
               {/* 단기/중기/장기 계획 */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -399,7 +410,7 @@ export default function PersonalDevelopmentReport({
                     </CardTitle>
                   </CardHeader>
                   <CardContent className="space-y-4">
-                    {feedback.detailedFeedback.developmentPlan.shortTerm.map((item, index) => (
+                    {feedback?.detailedFeedback?.developmentPlan?.shortTerm?.map((item, index) => (
                       <div key={index} className="bg-green-50 p-3 rounded-lg">
                         <h4 className="font-medium text-green-800 mb-2">{item.goal}</h4>
                         <ul className="space-y-1 mb-2">
@@ -426,7 +437,7 @@ export default function PersonalDevelopmentReport({
                     </CardTitle>
                   </CardHeader>
                   <CardContent className="space-y-4">
-                    {feedback.detailedFeedback.developmentPlan.mediumTerm.map((item, index) => (
+                    {feedback?.detailedFeedback?.developmentPlan?.mediumTerm?.map((item, index) => (
                       <div key={index} className="bg-blue-50 p-3 rounded-lg">
                         <h4 className="font-medium text-blue-800 mb-2">{item.goal}</h4>
                         <ul className="space-y-1 mb-2">
@@ -453,7 +464,7 @@ export default function PersonalDevelopmentReport({
                     </CardTitle>
                   </CardHeader>
                   <CardContent className="space-y-4">
-                    {feedback.detailedFeedback.developmentPlan.longTerm.map((item, index) => (
+                    {feedback?.detailedFeedback?.developmentPlan?.longTerm?.map((item, index) => (
                       <div key={index} className="bg-purple-50 p-3 rounded-lg">
                         <h4 className="font-medium text-purple-800 mb-2">{item.goal}</h4>
                         <ul className="space-y-1 mb-2">
@@ -483,7 +494,7 @@ export default function PersonalDevelopmentReport({
                 </CardHeader>
                 <CardContent>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4" data-testid="recommended-resources">
-                    {feedback.detailedFeedback.developmentPlan.recommendedResources.map((resource, index) => (
+                    {feedback?.detailedFeedback?.developmentPlan?.recommendedResources?.map((resource, index) => (
                       <div key={index} className="flex items-start space-x-3 p-3 bg-slate-50 rounded-lg">
                         <i className="fas fa-bookmark text-corporate-500 mt-1"></i>
                         <p className="text-slate-700 text-sm">{resource}</p>
