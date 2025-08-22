@@ -39,7 +39,7 @@ export default function ChatWindow({ scenario, conversationId, onChatComplete, o
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const recognitionRef = useRef<any>(null);
   const speechStartTextRef = useRef<string>(""); // 음성 입력 시작 시점의 텍스트
-  const lastProcessedLengthRef = useRef<number>(0); // 마지막으로 처리된 결과의 길이
+  const speechResultsRef = useRef<string>(""); // 현재 세션의 음성 결과
   const queryClient = useQueryClient();
   const { toast } = useToast();
 
@@ -134,38 +134,33 @@ export default function ChatWindow({ scenario, conversationId, onChatComplete, o
         recognition.onstart = () => {
           setIsRecording(true);
           speechStartTextRef.current = userInput.trim(); // 음성 입력 시작 시점의 텍스트 저장
-          lastProcessedLengthRef.current = 0; // 처리된 길이 초기화
+          speechResultsRef.current = ""; // 음성 결과 초기화
         };
 
         recognition.onresult = (event: any) => {
-          let finalText = '';
-          let interimText = '';
+          // 모든 final 결과를 한 번에 처리
+          let allFinalText = '';
+          let currentInterim = '';
           
-          // 모든 final 결과를 순차적으로 조합
           for (let i = 0; i < event.results.length; i++) {
             if (event.results[i].isFinal) {
-              finalText += event.results[i][0].transcript;
+              allFinalText += event.results[i][0].transcript;
             } else {
-              interimText += event.results[i][0].transcript;
+              currentInterim = event.results[i][0].transcript; // 마지막 interim만 사용
             }
           }
           
-          // final 텍스트가 이전에 처리된 것보다 길어졌을 때만 업데이트 (중복 방지)
-          if (finalText.length > lastProcessedLengthRef.current) {
-            // 새로운 부분만 추출
-            const newPart = finalText.substring(lastProcessedLengthRef.current);
-            if (newPart.trim()) {
-              const currentText = speechStartTextRef.current;
-              const updatedText = currentText + (currentText ? ' ' : '') + newPart.trim();
-              setUserInput(updatedText);
-              speechStartTextRef.current = updatedText; // 기준점 업데이트
-              lastProcessedLengthRef.current = finalText.length; // 처리된 길이 업데이트
-            }
+          // final 결과가 있으면 완전 교체 (중복 방지)
+          if (allFinalText.trim()) {
+            speechResultsRef.current = allFinalText.trim();
+            const fullText = speechStartTextRef.current + (speechStartTextRef.current ? ' ' : '') + speechResultsRef.current;
+            setUserInput(fullText);
           }
           
-          // interim 텍스트 표시 (실시간 피드백)
-          if (interimText.trim() && isRecording) {
-            const withInterim = speechStartTextRef.current + (speechStartTextRef.current ? ' ' : '') + `[음성 입력 중...] ${interimText.trim()}`;
+          // interim 결과 표시
+          if (currentInterim.trim() && isRecording) {
+            const baseText = speechStartTextRef.current + (speechStartTextRef.current ? ' ' : '') + speechResultsRef.current;
+            const withInterim = baseText + (baseText ? ' ' : '') + `[음성 입력 중...] ${currentInterim.trim()}`;
             setUserInput(withInterim);
           }
         };
@@ -191,17 +186,17 @@ export default function ChatWindow({ scenario, conversationId, onChatComplete, o
           });
           
           // 임시 텍스트 제거하고 최종 텍스트로 복원
-          const finalText = speechStartTextRef.current.replace(/\[음성 입력 중\.\.\.\].*$/, '').trim();
-          setUserInput(finalText);
-          lastProcessedLengthRef.current = 0; // 초기화
+          const finalText = speechStartTextRef.current + (speechStartTextRef.current ? ' ' : '') + speechResultsRef.current;
+          setUserInput(finalText.replace(/\[음성 입력 중\.\.\.\].*$/, '').trim());
+          speechResultsRef.current = ""; // 초기화
         };
 
         recognition.onend = () => {
           setIsRecording(false);
-          // 음성 입력 종료 시 임시 표시 제거하고 최종 텍스트 설정
-          const finalText = speechStartTextRef.current.replace(/\[음성 입력 중\.\.\.\].*$/, '').trim();
-          setUserInput(finalText);
-          lastProcessedLengthRef.current = 0; // 초기화
+          // 음성 입력 종료 시 최종 텍스트 설정
+          const finalText = speechStartTextRef.current + (speechStartTextRef.current ? ' ' : '') + speechResultsRef.current;
+          setUserInput(finalText.replace(/\[음성 입력 중\.\.\.\].*$/, '').trim());
+          speechResultsRef.current = ""; // 초기화
         };
 
         recognitionRef.current = recognition;
