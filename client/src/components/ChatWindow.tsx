@@ -38,8 +38,7 @@ export default function ChatWindow({ scenario, conversationId, onChatComplete, o
   const [speechSupported, setSpeechSupported] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const recognitionRef = useRef<any>(null);
-  const speechStartTextRef = useRef<string>(""); // 음성 입력 시작 시점의 텍스트
-  const speechResultsRef = useRef<string>(""); // 현재 세션의 음성 결과
+
   const queryClient = useQueryClient();
   const { toast } = useToast();
 
@@ -106,7 +105,7 @@ export default function ChatWindow({ scenario, conversationId, onChatComplete, o
         recognitionRef.current?.start();
         toast({
           title: "음성 입력 시작",
-          description: "말씀하세요. 중간에 멈춰도 계속 인식됩니다.",
+          description: "말씀하세요. 완료 후 다시 클릭하여 계속 추가할 수 있습니다.",
         });
       } catch (error) {
         console.error('음성 인식 시작 실패:', error);
@@ -126,41 +125,28 @@ export default function ChatWindow({ scenario, conversationId, onChatComplete, o
       if (SpeechRecognition) {
         setSpeechSupported(true);
         const recognition = new SpeechRecognition();
-        recognition.continuous = true;  // 연속 음성 인식 활성화
+        recognition.continuous = false;  // 단일 음성 입력으로 변경
         recognition.interimResults = true;  // 중간 결과 표시 활성화
         recognition.lang = 'ko-KR';
         recognition.maxAlternatives = 1;
         
         recognition.onstart = () => {
           setIsRecording(true);
-          speechStartTextRef.current = userInput.trim(); // 음성 입력 시작 시점의 텍스트 저장
-          speechResultsRef.current = ""; // 음성 결과 초기화
         };
 
         recognition.onresult = (event: any) => {
-          // 모든 final 결과를 한 번에 처리
-          let allFinalText = '';
-          let currentInterim = '';
+          const result = event.results[0];
+          const transcript = result[0].transcript;
           
-          for (let i = 0; i < event.results.length; i++) {
-            if (event.results[i].isFinal) {
-              allFinalText += event.results[i][0].transcript;
-            } else {
-              currentInterim = event.results[i][0].transcript; // 마지막 interim만 사용
-            }
-          }
-          
-          // final 결과가 있으면 완전 교체 (중복 방지)
-          if (allFinalText.trim()) {
-            speechResultsRef.current = allFinalText.trim();
-            const fullText = speechStartTextRef.current + (speechStartTextRef.current ? ' ' : '') + speechResultsRef.current;
-            setUserInput(fullText);
-          }
-          
-          // interim 결과 표시
-          if (currentInterim.trim() && isRecording) {
-            const baseText = speechStartTextRef.current + (speechStartTextRef.current ? ' ' : '') + speechResultsRef.current;
-            const withInterim = baseText + (baseText ? ' ' : '') + `[음성 입력 중...] ${currentInterim.trim()}`;
+          if (result.isFinal) {
+            // final 결과: 기존 텍스트에 추가
+            const currentText = userInput.replace(/\[음성 입력 중\.\.\.\].*$/, '').trim();
+            const newText = currentText + (currentText ? ' ' : '') + transcript.trim();
+            setUserInput(newText);
+          } else {
+            // interim 결과: 임시 표시
+            const currentText = userInput.replace(/\[음성 입력 중\.\.\.\].*$/, '').trim();
+            const withInterim = currentText + (currentText ? ' ' : '') + `[음성 입력 중...] ${transcript.trim()}`;
             setUserInput(withInterim);
           }
         };
@@ -185,18 +171,14 @@ export default function ChatWindow({ scenario, conversationId, onChatComplete, o
             variant: "destructive"
           });
           
-          // 임시 텍스트 제거하고 최종 텍스트로 복원
-          const finalText = speechStartTextRef.current + (speechStartTextRef.current ? ' ' : '') + speechResultsRef.current;
-          setUserInput(finalText.replace(/\[음성 입력 중\.\.\.\].*$/, '').trim());
-          speechResultsRef.current = ""; // 초기화
+          // 임시 텍스트 제거
+          setUserInput(prev => prev.replace(/\[음성 입력 중\.\.\.\].*$/, '').trim());
         };
 
         recognition.onend = () => {
           setIsRecording(false);
-          // 음성 입력 종료 시 최종 텍스트 설정
-          const finalText = speechStartTextRef.current + (speechStartTextRef.current ? ' ' : '') + speechResultsRef.current;
-          setUserInput(finalText.replace(/\[음성 입력 중\.\.\.\].*$/, '').trim());
-          speechResultsRef.current = ""; // 초기화
+          // 음성 입력 종료 시 임시 표시 제거
+          setUserInput(prev => prev.replace(/\[음성 입력 중\.\.\.\].*$/, '').trim());
         };
 
         recognitionRef.current = recognition;
@@ -472,7 +454,7 @@ export default function ChatWindow({ scenario, conversationId, onChatComplete, o
                   <div className="flex items-center space-x-2 text-xs text-slate-500">
                     <span>팁: 구체적이고 예의 바른 답변을 해보세요</span>
                     {speechSupported && (
-                      <span className="text-corporate-600">• 음성 입력 지원 (중간 멈춤 OK)</span>
+                      <span className="text-corporate-600">• 음성 입력 지원 (클릭하여 반복 가능)</span>
                     )}
                     {isRecording && (
                       <span className="text-red-600 animate-pulse">🎤 음성 인식 중...</span>
