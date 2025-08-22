@@ -3,6 +3,7 @@
 This is an AI-powered role-playing training system for new employees, designed to help develop communication skills through interactive conversations with AI personas. The application presents various workplace scenarios where users engage in 10-turn conversations with different AI characters (senior researchers, team leaders, clients, executives), each with distinct personalities and communication challenges. Each AI response includes real-time emotion analysis with visual indicators (emojis, color-coded bubbles). After completing conversations, users receive detailed AI-generated feedback with scores, strengths, improvements, and next steps.
 
 **Recent Updates (2025-08-22)**:
+- **LICENSE: CC BY-NC 4.0 라이센스 적용** - 상업적 사용을 제한하는 Creative Commons Attribution-NonCommercial 라이센스로 변경
 - **DOCUMENTATION: 포괄적인 README.md 작성 완료** - GitHub용 프로젝트 설명서, 설치 가이드, 기술 스택, 사용법, 평가 시스템 상세 설명 포함
 - **ENHANCED: 프로젝트 문서화 개선** - 개발자 가이드, 배포 방법, 문제 해결 섹션 추가 
 - **VOICE INPUT SYSTEM: 완전한 중복 방지 시스템 구현** - speechStartTextRef와 accumulatedSpeechRef를 사용한 텍스트 누적 추적, Web Speech API의 중복 결과 처리 문제 해결
