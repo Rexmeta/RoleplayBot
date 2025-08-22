@@ -140,14 +140,16 @@ export default function ChatWindow({ scenario, conversationId, onChatComplete, o
           
           if (result.isFinal) {
             // final 결과: 기존 텍스트에 추가
-            const currentText = userInput.replace(/\[음성 입력 중\.\.\.\].*$/, '').trim();
-            const newText = currentText + (currentText ? ' ' : '') + transcript.trim();
-            setUserInput(newText);
+            setUserInput(prev => {
+              const currentText = prev.replace(/\[음성 입력 중\.\.\.\].*$/, '').trim();
+              return currentText + (currentText ? ' ' : '') + transcript.trim();
+            });
           } else {
             // interim 결과: 임시 표시
-            const currentText = userInput.replace(/\[음성 입력 중\.\.\.\].*$/, '').trim();
-            const withInterim = currentText + (currentText ? ' ' : '') + `[음성 입력 중...] ${transcript.trim()}`;
-            setUserInput(withInterim);
+            setUserInput(prev => {
+              const currentText = prev.replace(/\[음성 입력 중\.\.\.\].*$/, '').trim();
+              return currentText + (currentText ? ' ' : '') + `[음성 입력 중...] ${transcript.trim()}`;
+            });
           }
         };
 
