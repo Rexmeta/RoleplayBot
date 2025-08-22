@@ -30,7 +30,7 @@ export const scenarios: Scenario[] = [
     skills: ["공감력", "갈등 해결"],
     difficulty: 3,
     estimatedTime: "약 20분", 
-    image: "https://images.unsplash.com/photo-1494790108755-2616b612b587?ixlib=rb-4.0.3&ixid=MnwxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8&auto=format&fit=crop&w=150&h=150",
+    image: "https://randomuser.me/api/portraits/women/44.jpg",
     difficultyStars: "★★★"
   },
   {

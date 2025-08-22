@@ -60,6 +60,9 @@ export default function ScenarioSelector({ onScenarioSelect }: ScenarioSelectorP
                 src={scenario.image} 
                 alt={`${scenario.name} 프로필`} 
                 className="w-16 h-16 rounded-full object-cover" 
+                onError={(e) => {
+                  (e.target as HTMLImageElement).src = `https://ui-avatars.com/api/?name=${encodeURIComponent(scenario.name)}&background=6366f1&color=fff&size=64`;
+                }}
               />
               <div className="flex-1">
                 <h3 className="text-lg font-semibold text-slate-900">{scenario.name}</h3>

@@ -296,6 +296,9 @@ export default function ChatWindow({ scenario, conversationId, onChatComplete, o
                 src={scenario.image} 
                 alt={scenario.name} 
                 className="w-12 h-12 rounded-full border-2 border-white/20" 
+                onError={(e) => {
+                  (e.target as HTMLImageElement).src = `https://ui-avatars.com/api/?name=${encodeURIComponent(scenario.name)}&background=6366f1&color=fff&size=48`;
+                }}
               />
               <div>
                 <h3 className="text-lg font-semibold">{scenario.name}과의 대화</h3>
