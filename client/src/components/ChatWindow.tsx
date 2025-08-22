@@ -4,7 +4,6 @@ import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import Header from "@/components/Header";
 import type { Scenario } from "@/lib/scenarios";
 import type { Conversation, ConversationMessage } from "@shared/schema";
 
@@ -170,7 +169,6 @@ export default function ChatWindow({ scenario, conversationId, onChatComplete, o
 
   return (
     <div className="chat-window">
-      <Header />
       <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
         {/* Chat Header */}
         <div className="bg-gradient-to-r from-corporate-600 to-corporate-700 px-6 py-4 text-white">
