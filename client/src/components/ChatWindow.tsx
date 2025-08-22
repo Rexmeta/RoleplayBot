@@ -36,6 +36,7 @@ export default function ChatWindow({ scenario, conversationId, onChatComplete, o
   const [isLoading, setIsLoading] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
   const [speechSupported, setSpeechSupported] = useState(false);
+  const [lastFinalTranscriptIndex, setLastFinalTranscriptIndex] = useState(0);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const recognitionRef = useRef<any>(null);
   const queryClient = useQueryClient();
@@ -95,8 +96,27 @@ export default function ChatWindow({ scenario, conversationId, onChatComplete, o
 
     if (isRecording) {
       recognitionRef.current?.stop();
+      setLastFinalTranscriptIndex(0); // 초기화
+      toast({
+        title: "음성 입력 완료",
+        description: "음성이 텍스트로 변환되었습니다.",
+      });
     } else {
-      recognitionRef.current?.start();
+      try {
+        setLastFinalTranscriptIndex(0); // 새로운 음성 입력 시작 시 초기화
+        recognitionRef.current?.start();
+        toast({
+          title: "음성 입력 시작",
+          description: "말씀하세요. 중간에 멈춰도 계속 인식됩니다.",
+        });
+      } catch (error) {
+        console.error('음성 인식 시작 실패:', error);
+        toast({
+          title: "음성 입력 오류",
+          description: "음성 인식을 시작할 수 없습니다. 다시 시도해주세요.",
+          variant: "destructive"
+        });
+      }
     }
   };
 
@@ -107,31 +127,75 @@ export default function ChatWindow({ scenario, conversationId, onChatComplete, o
       if (SpeechRecognition) {
         setSpeechSupported(true);
         const recognition = new SpeechRecognition();
-        recognition.continuous = false;
-        recognition.interimResults = false;
+        recognition.continuous = true;  // 연속 음성 인식 활성화
+        recognition.interimResults = true;  // 중간 결과 표시 활성화
         recognition.lang = 'ko-KR';
+        recognition.maxAlternatives = 1;
         
         recognition.onstart = () => {
           setIsRecording(true);
         };
 
         recognition.onresult = (event: any) => {
-          const transcript = event.results[0][0].transcript;
-          setUserInput(prev => prev + transcript);
+          let finalTranscript = '';
+          let interimTranscript = '';
+          
+          // lastFinalTranscriptIndex 이후의 새로운 결과만 처리
+          for (let i = lastFinalTranscriptIndex; i < event.results.length; i++) {
+            const transcript = event.results[i][0].transcript;
+            if (event.results[i].isFinal) {
+              finalTranscript += transcript;
+              setLastFinalTranscriptIndex(i + 1);
+            } else {
+              interimTranscript += transcript;
+            }
+          }
+          
+          // 최종 결과가 있으면 입력 필드에 추가 (중복 방지)
+          if (finalTranscript.trim()) {
+            setUserInput(prev => {
+              const currentText = prev.replace(/\[음성 입력 중\.\.\.\].*$/, '').trim();
+              return currentText + (currentText ? ' ' : '') + finalTranscript.trim();
+            });
+          }
+          
+          // 임시 결과 표시 (사용자가 현재 말하고 있는 내용을 실시간으로 보여줌)
+          if (interimTranscript.trim() && isRecording) {
+            setUserInput(prev => {
+              const currentText = prev.replace(/\[음성 입력 중\.\.\.\].*$/, '').trim();
+              return currentText + (currentText ? ' ' : '') + `[음성 입력 중...] ${interimTranscript.trim()}`;
+            });
+          }
         };
 
         recognition.onerror = (event: any) => {
           console.error('Speech recognition error:', event.error);
           setIsRecording(false);
+          
+          // 특정 오류에 대한 맞춤형 메시지
+          let errorMessage = "음성을 인식할 수 없습니다. 다시 시도해주세요.";
+          if (event.error === 'no-speech') {
+            errorMessage = "음성이 감지되지 않았습니다. 마이크를 확인하고 다시 시도해주세요.";
+          } else if (event.error === 'not-allowed') {
+            errorMessage = "마이크 권한이 거부되었습니다. 브라우저 설정에서 마이크 권한을 허용해주세요.";
+          } else if (event.error === 'network') {
+            errorMessage = "네트워크 오류로 음성 인식에 실패했습니다.";
+          }
+          
           toast({
             title: "음성 인식 오류",
-            description: "음성을 인식할 수 없습니다. 다시 시도해주세요.",
+            description: errorMessage,
             variant: "destructive"
           });
+          
+          // 임시 텍스트 제거
+          setUserInput(prev => prev.replace(/\[음성 입력 중\.\.\.\].*$/, '').trim());
         };
 
         recognition.onend = () => {
           setIsRecording(false);
+          // 음성 입력 종료 시 임시 텍스트 표시 제거
+          setUserInput(prev => prev.replace(/\[음성 입력 중\.\.\.\].*$/, '').trim());
         };
 
         recognitionRef.current = recognition;
@@ -407,7 +471,10 @@ export default function ChatWindow({ scenario, conversationId, onChatComplete, o
                   <div className="flex items-center space-x-2 text-xs text-slate-500">
                     <span>팁: 구체적이고 예의 바른 답변을 해보세요</span>
                     {speechSupported && (
-                      <span className="text-corporate-600">• 음성 입력 지원</span>
+                      <span className="text-corporate-600">• 음성 입력 지원 (중간 멈춤 OK)</span>
+                    )}
+                    {isRecording && (
+                      <span className="text-red-600 animate-pulse">🎤 음성 인식 중...</span>
                     )}
                     <i className="fas fa-info-circle"></i>
                   </div>
@@ -425,12 +492,13 @@ export default function ChatWindow({ scenario, conversationId, onChatComplete, o
                 <Button
                   variant="outline"
                   onClick={handleVoiceInput}
-                  disabled={isLoading}
-                  className={`${isRecording ? 'bg-red-50 border-red-300 text-red-700' : ''}`}
+                  disabled={isLoading || !speechSupported}
+                  className={`${isRecording ? 'bg-red-50 border-red-300 text-red-700 animate-pulse' : ''} ${!speechSupported ? 'opacity-50 cursor-not-allowed' : ''}`}
                   data-testid="button-voice-input"
+                  title={!speechSupported ? "현재 브라우저에서 음성 입력을 지원하지 않습니다" : isRecording ? "음성 입력을 중지하려면 클릭하세요" : "음성 입력을 시작하려면 클릭하세요"}
                 >
                   <i className={`fas ${isRecording ? 'fa-stop' : 'fa-microphone'} mr-2 ${isRecording ? 'text-red-500' : ''}`}></i>
-                  {isRecording ? '음성 중지' : '음성 입력'}
+                  {isRecording ? '입력 완료' : '음성 입력'}
                 </Button>
                 <Button
                   variant="outline"
