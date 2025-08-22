@@ -36,10 +36,10 @@ export default function ChatWindow({ scenario, conversationId, onChatComplete, o
   const [isLoading, setIsLoading] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
   const [speechSupported, setSpeechSupported] = useState(false);
-  const [lastFinalTranscriptIndex, setLastFinalTranscriptIndex] = useState(0);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const recognitionRef = useRef<any>(null);
-  const baseTextRef = useRef<string>(""); // 음성 입력 시작 시점의 텍스트 저장
+  const speechStartTextRef = useRef<string>(""); // 음성 입력 시작 시점의 텍스트
+  const accumulatedSpeechRef = useRef<string>(""); // 누적된 음성 텍스트
   const queryClient = useQueryClient();
   const { toast } = useToast();
 
@@ -97,15 +97,12 @@ export default function ChatWindow({ scenario, conversationId, onChatComplete, o
 
     if (isRecording) {
       recognitionRef.current?.stop();
-      setLastFinalTranscriptIndex(0); // 초기화
       toast({
         title: "음성 입력 완료",
         description: "음성이 텍스트로 변환되었습니다.",
       });
     } else {
       try {
-        setLastFinalTranscriptIndex(0); // 새로운 음성 입력 시작 시 초기화
-        baseTextRef.current = userInput.trim(); // 현재 텍스트를 기준점으로 저장
         recognitionRef.current?.start();
         toast({
           title: "음성 입력 시작",
@@ -136,38 +133,35 @@ export default function ChatWindow({ scenario, conversationId, onChatComplete, o
         
         recognition.onstart = () => {
           setIsRecording(true);
+          speechStartTextRef.current = userInput.trim(); // 음성 입력 시작 시점의 텍스트 저장
+          accumulatedSpeechRef.current = ""; // 누적 음성 텍스트 초기화
         };
 
         recognition.onresult = (event: any) => {
-          let finalTranscript = '';
-          let interimTranscript = '';
+          // 모든 final 결과를 처음부터 다시 조합 (Web Speech API의 특성상 필요)
+          let allFinalText = '';
+          let allInterimText = '';
           
-          // 새로운 final 결과만 처리 (중복 방지)
-          for (let i = lastFinalTranscriptIndex; i < event.results.length; i++) {
+          for (let i = 0; i < event.results.length; i++) {
             if (event.results[i].isFinal) {
-              finalTranscript += event.results[i][0].transcript;
-              setLastFinalTranscriptIndex(i + 1);
+              allFinalText += event.results[i][0].transcript;
+            } else {
+              allInterimText += event.results[i][0].transcript;
             }
           }
           
-          // 가장 최신 interim 결과만 사용
-          for (let i = event.results.length - 1; i >= 0; i--) {
-            if (!event.results[i].isFinal) {
-              interimTranscript = event.results[i][0].transcript;
-              break;
-            }
+          // final 텍스트가 있으면 누적된 음성 텍스트 업데이트
+          if (allFinalText.trim()) {
+            accumulatedSpeechRef.current = allFinalText.trim();
+            const fullText = speechStartTextRef.current + (speechStartTextRef.current ? ' ' : '') + accumulatedSpeechRef.current;
+            setUserInput(fullText);
           }
           
-          // final 결과가 있으면 기준 텍스트에 누적
-          if (finalTranscript.trim()) {
-            baseTextRef.current = baseTextRef.current + (baseTextRef.current ? ' ' : '') + finalTranscript.trim();
-            setUserInput(baseTextRef.current);
-          }
-          
-          // interim 결과 표시 (실시간 피드백)
-          if (interimTranscript.trim() && isRecording) {
-            const tempText = baseTextRef.current + (baseTextRef.current ? ' ' : '') + `[음성 입력 중...] ${interimTranscript.trim()}`;
-            setUserInput(tempText);
+          // interim 텍스트 표시 (실시간 피드백)
+          if (allInterimText.trim() && isRecording) {
+            const currentFinal = speechStartTextRef.current + (speechStartTextRef.current ? ' ' : '') + accumulatedSpeechRef.current;
+            const withInterim = currentFinal + (currentFinal ? ' ' : '') + `[음성 입력 중...] ${allInterimText.trim()}`;
+            setUserInput(withInterim);
           }
         };
 
@@ -191,14 +185,16 @@ export default function ChatWindow({ scenario, conversationId, onChatComplete, o
             variant: "destructive"
           });
           
-          // 임시 텍스트 제거하고 기준 텍스트로 복원
-          setUserInput(baseTextRef.current);
+          // 임시 텍스트 제거하고 원본 텍스트로 복원
+          const finalText = speechStartTextRef.current + (speechStartTextRef.current ? ' ' : '') + accumulatedSpeechRef.current;
+          setUserInput(finalText.replace(/\[음성 입력 중\.\.\.\].*$/, '').trim());
         };
 
         recognition.onend = () => {
           setIsRecording(false);
-          // 음성 입력 종료 시 임시 텍스트 표시 제거하고 최종 텍스트로 설정
-          setUserInput(baseTextRef.current);
+          // 음성 입력 종료 시 최종 텍스트 설정 (임시 표시 제거)
+          const finalText = speechStartTextRef.current + (speechStartTextRef.current ? ' ' : '') + accumulatedSpeechRef.current;
+          setUserInput(finalText.replace(/\[음성 입력 중\.\.\.\].*$/, '').trim());
         };
 
         recognitionRef.current = recognition;

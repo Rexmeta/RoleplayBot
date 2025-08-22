@@ -3,6 +3,9 @@
 This is an AI-powered role-playing training system for new employees, designed to help develop communication skills through interactive conversations with AI personas. The application presents various workplace scenarios where users engage in 10-turn conversations with different AI characters (senior researchers, team leaders, clients, executives), each with distinct personalities and communication challenges. Each AI response includes real-time emotion analysis with visual indicators (emojis, color-coded bubbles). After completing conversations, users receive detailed AI-generated feedback with scores, strengths, improvements, and next steps.
 
 **Recent Updates (2025-08-22)**: 
+- **VOICE INPUT SYSTEM: 완전한 중복 방지 시스템 구현** - speechStartTextRef와 accumulatedSpeechRef를 사용한 텍스트 누적 추적, Web Speech API의 중복 결과 처리 문제 해결
+- **ENHANCED: 연속 음성 인식 최적화** - continuous: true, interimResults: true 설정으로 자연스러운 음성 입력, 중간 멈춤 허용
+- **TECHNICAL: 음성 입력 상태 관리 개선** - 음성 입력 시작/종료 시점 정확한 텍스트 관리, 실시간 피드백과 최종 결과 분리
 - **NAVIGATION FIX: 로고 링크 중복 문제 해결** - Home 페이지의 기존 헤더만 사용하도록 수정, ChatWindow와 PersonalDevelopmentReport에서 중복 Header 제거
 - **CRITICAL FIX: React hooks 순서 오류 완전 해결** - PersonalDevelopmentReport의 조건부 hooks 호출 문제 근본적 해결, useEffect를 조건부 렌더링 이전에 호출하도록 변경, 애니메이션 hooks 완전 제거
 - **MAJOR IMPROVEMENT: 김태훈 시나리오 완전 개편** - 스마트폰 개발 미션 "노이즈 문제, 이대로 출시해도 될까요?" 구현
