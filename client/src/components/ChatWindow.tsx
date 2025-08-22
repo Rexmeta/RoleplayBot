@@ -7,6 +7,14 @@ import { Textarea } from "@/components/ui/textarea";
 import type { Scenario } from "@/lib/scenarios";
 import type { Conversation, ConversationMessage } from "@shared/schema";
 
+// Web Speech API 타입 확장
+declare global {
+  interface Window {
+    SpeechRecognition: any;
+    webkitSpeechRecognition: any;
+  }
+}
+
 // 감정 이모지 매핑
 const emotionEmojis: { [key: string]: string } = {
   '기쁨': '😊',
@@ -26,7 +34,10 @@ interface ChatWindowProps {
 export default function ChatWindow({ scenario, conversationId, onChatComplete, onExit }: ChatWindowProps) {
   const [userInput, setUserInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [isRecording, setIsRecording] = useState(false);
+  const [speechSupported, setSpeechSupported] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const recognitionRef = useRef<any>(null);
   const queryClient = useQueryClient();
   const { toast } = useToast();
 
@@ -71,6 +82,64 @@ export default function ChatWindow({ scenario, conversationId, onChatComplete, o
     if (isLoading) return;
     handleSendMessage();
   };
+
+  const handleVoiceInput = () => {
+    if (!speechSupported) {
+      toast({
+        title: "음성 인식 미지원",
+        description: "현재 브라우저에서는 음성 인식을 지원하지 않습니다.",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    if (isRecording) {
+      recognitionRef.current?.stop();
+    } else {
+      recognitionRef.current?.start();
+    }
+  };
+
+  // 음성 인식 초기화
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+      if (SpeechRecognition) {
+        setSpeechSupported(true);
+        const recognition = new SpeechRecognition();
+        recognition.continuous = false;
+        recognition.interimResults = false;
+        recognition.lang = 'ko-KR';
+        
+        recognition.onstart = () => {
+          setIsRecording(true);
+        };
+
+        recognition.onresult = (event: any) => {
+          const transcript = event.results[0][0].transcript;
+          setUserInput(prev => prev + transcript);
+        };
+
+        recognition.onerror = (event: any) => {
+          console.error('Speech recognition error:', event.error);
+          setIsRecording(false);
+          toast({
+            title: "음성 인식 오류",
+            description: "음성을 인식할 수 없습니다. 다시 시도해주세요.",
+            variant: "destructive"
+          });
+        };
+
+        recognition.onend = () => {
+          setIsRecording(false);
+        };
+
+        recognitionRef.current = recognition;
+      } else {
+        setSpeechSupported(false);
+      }
+    }
+  }, [toast]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -326,7 +395,7 @@ export default function ChatWindow({ scenario, conversationId, onChatComplete, o
                 <Textarea
                   value={userInput}
                   onChange={(e) => setUserInput(e.target.value)}
-                  placeholder="메시지를 입력하세요... (최대 200자)"
+                  placeholder={`메시지를 입력하거나 음성 입력 버튼을 사용하세요... (최대 200자)${!speechSupported ? ' - 음성 입력 미지원 브라우저' : ''}`}
                   maxLength={200}
                   rows={3}
                   className="resize-none"
@@ -337,6 +406,9 @@ export default function ChatWindow({ scenario, conversationId, onChatComplete, o
                   <span className="text-xs text-slate-500">{userInput.length}/200</span>
                   <div className="flex items-center space-x-2 text-xs text-slate-500">
                     <span>팁: 구체적이고 예의 바른 답변을 해보세요</span>
+                    {speechSupported && (
+                      <span className="text-corporate-600">• 음성 입력 지원</span>
+                    )}
                     <i className="fas fa-info-circle"></i>
                   </div>
                 </div>
@@ -349,6 +421,16 @@ export default function ChatWindow({ scenario, conversationId, onChatComplete, o
                 >
                   <i className="fas fa-paper-plane mr-2"></i>
                   전송
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={handleVoiceInput}
+                  disabled={isLoading}
+                  className={`${isRecording ? 'bg-red-50 border-red-300 text-red-700' : ''}`}
+                  data-testid="button-voice-input"
+                >
+                  <i className={`fas ${isRecording ? 'fa-stop' : 'fa-microphone'} mr-2 ${isRecording ? 'text-red-500' : ''}`}></i>
+                  {isRecording ? '음성 중지' : '음성 입력'}
                 </Button>
                 <Button
                   variant="outline"
