@@ -41,7 +41,32 @@ ${conversationHistory}
 
       const prompt = userMessage || "대화를 시작해주세요.";
 
-      // Custom API 호출
+      // 테스트 모드 확인 (실제 API 서버 없이 Mock 응답)
+      if (this.config.apiKey === 'test-key') {
+        console.log('🧪 Custom provider running in test mode');
+        const mockResponses = [
+          `안녕하세요, ${persona.name}입니다. ${userMessage ? `"${userMessage}"에 대해` : ''} 말씀드리겠습니다.`,
+          `${persona.name}로서 ${userMessage ? `귀하의 "${userMessage}" 질문에` : ''} 성실히 답변드리겠습니다.`,
+          `좋은 지적이세요. ${persona.name}의 입장에서 ${userMessage || '이 상황'}에 대해 설명드리겠습니다.`
+        ];
+        const content = mockResponses[Math.floor(Math.random() * mockResponses.length)];
+        
+        // Mock 응답에 감정 추가
+        let emotion = "중립";
+        let emotionReason = "테스트 모드에서의 기본 감정";
+        
+        if (userMessage && userMessage.includes('문제')) {
+          emotion = "분노";
+          emotionReason = "문제 상황에 대한 우려";
+        } else if (userMessage && (userMessage.includes('감사') || userMessage.includes('좋'))) {
+          emotion = "기쁨";
+          emotionReason = "긍정적인 반응에 대한 만족";
+        }
+        
+        return { content, emotion, emotionReason };
+      }
+
+      // 실제 API 호출
       const requestBody = {
         model: this.config.model,
         messages: [

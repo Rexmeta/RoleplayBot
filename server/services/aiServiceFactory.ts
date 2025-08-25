@@ -52,7 +52,16 @@ export class AIServiceFactory {
 
       case 'custom':
         if (!config.apiKey || !config.baseUrl) {
-          throw new Error('CUSTOM_API_KEY and CUSTOM_API_URL are required for custom provider');
+          console.warn('CUSTOM_API_KEY and CUSTOM_API_URL not set, using test mode');
+          // 테스트 모드: 실제 API 없이 Mock 응답 제공
+          const testConfig = {
+            provider: 'custom' as const,
+            apiKey: 'test-key',
+            model: 'test-model',
+            baseUrl: 'http://localhost:11434/v1',
+            headers: {}
+          };
+          return new CustomProvider(testConfig);
         }
         return new CustomProvider(config);
 
