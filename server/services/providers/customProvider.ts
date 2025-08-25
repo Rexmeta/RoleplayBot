@@ -122,8 +122,17 @@ ${conversationHistory}
       // 응답 형식에 따른 파싱
       let content: string;
       if (this.config.apiFormat === 'custom') {
-        // 커스텀 API 응답 파싱 (응답 구조에 따라 조정 필요)
-        content = data.output_value || data.result || data.response || data.content || "응답을 파싱할 수 없습니다.";
+        // 커스텀 API 응답 파싱 - 더 많은 필드 시도
+        content = data.output_value || 
+                 data.result || 
+                 data.response || 
+                 data.content || 
+                 data.text || 
+                 data.message ||
+                 data.answer ||
+                 JSON.stringify(data).substring(0, 100) + "..."; // 최후의 수단: 전체 응답의 일부
+        
+        console.log(`📝 Parsed content from custom API:`, content.substring(0, 100));
       } else {
         // OpenAI 호환 응답 파싱
         content = data.choices?.[0]?.message?.content || "죄송합니다. 응답을 생성할 수 없습니다.";
@@ -156,6 +165,13 @@ ${conversationHistory}
     persona: ScenarioPersona, 
     userMessage: string
   ): Promise<{ emotion: string; reason: string }> {
+    // 커스텀 API 형식에서는 간단한 규칙 기반 감정 분석 사용
+    if (this.config.apiFormat === 'custom' || this.config.apiKey === 'test-key') {
+      console.log('🧪 Using rule-based emotion analysis for custom format');
+      return this.analyzeEmotionByRules(response, persona, userMessage);
+    }
+
+    // OpenAI 호환 API만 실제 감정 분석 시도
     try {
       const emotionPrompt: string = `다음 대화에서 ${persona.name}의 감정 상태를 분석하세요.
 
@@ -189,7 +205,8 @@ JSON 형식으로 응답하세요: {"emotion": "감정", "reason": "감정을 �
       });
 
       if (!emotionResponse.ok) {
-        throw new Error(`Emotion analysis failed: ${emotionResponse.status}`);
+        console.warn(`Emotion analysis API failed (${emotionResponse.status}), falling back to rule-based analysis`);
+        return this.analyzeEmotionByRules(response, persona, userMessage);
       }
 
       const data = await emotionResponse.json();
@@ -201,9 +218,37 @@ JSON 형식으로 응답하세요: {"emotion": "감정", "reason": "감정을 �
         reason: emotionData.reason || "감정 분석 실패"
       };
     } catch (error) {
-      console.error("Emotion analysis error:", error);
-      return { emotion: "중립", reason: "감정 분석 오류" };
+      console.warn("Emotion analysis error, using rule-based fallback:", error);
+      return this.analyzeEmotionByRules(response, persona, userMessage);
     }
+  }
+
+  private analyzeEmotionByRules(
+    response: string, 
+    persona: ScenarioPersona, 
+    userMessage: string
+  ): { emotion: string; reason: string } {
+    const responseText = response.toLowerCase();
+    const userText = userMessage.toLowerCase();
+    
+    // 키워드 기반 감정 분석
+    if (responseText.includes('죄송') || responseText.includes('미안') || responseText.includes('어려워')) {
+      return { emotion: "슬픔", reason: "사과나 어려움을 표현하는 상황" };
+    }
+    
+    if (responseText.includes('좋') || responseText.includes('감사') || responseText.includes('잘')) {
+      return { emotion: "기쁨", reason: "긍정적이고 만족스러운 상황" };
+    }
+    
+    if (responseText.includes('문제') || responseText.includes('곤란') || responseText.includes('안 돼') || userText.includes('문제')) {
+      return { emotion: "분노", reason: "문제 상황이나 부정적 상황에 대한 반응" };
+    }
+    
+    if (responseText.includes('?') || responseText.includes('어떻게') || responseText.includes('정말')) {
+      return { emotion: "놀람", reason: "예상치 못한 상황이나 질문에 대한 반응" };
+    }
+    
+    return { emotion: "중립", reason: `${persona.name}의 평상시 업무적 대화` };
   }
 
   async generateFeedback(
