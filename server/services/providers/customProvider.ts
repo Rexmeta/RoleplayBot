@@ -117,22 +117,67 @@ ${conversationHistory}
       }
 
       const data = await response.json();
-      console.log(`📥 API Response:`, data);
+      console.log(`📥 API Response:`, JSON.stringify(data, null, 2));
 
       // 응답 형식에 따른 파싱
       let content: string;
       if (this.config.apiFormat === 'custom') {
-        // 커스텀 API 응답 파싱 - 더 많은 필드 시도
-        content = data.output_value || 
-                 data.result || 
-                 data.response || 
-                 data.content || 
-                 data.text || 
-                 data.message ||
-                 data.answer ||
-                 JSON.stringify(data).substring(0, 100) + "..."; // 최후의 수단: 전체 응답의 일부
+        // 커스텀 API 응답 파싱 - 복잡한 중첩 구조 지원
+        try {
+          // 1단계: 깊은 중첩 구조에서 메시지 추출 시도
+          if (data.outputs && Array.isArray(data.outputs) && data.outputs.length > 0) {
+            const firstOutput = data.outputs[0];
+            if (firstOutput.outputs && Array.isArray(firstOutput.outputs) && firstOutput.outputs.length > 0) {
+              const nestedOutput = firstOutput.outputs[0];
+              if (nestedOutput.results && nestedOutput.results.message) {
+                // outputs[0].outputs[0].results.message.test 구조
+                content = nestedOutput.results.message.test || 
+                         nestedOutput.results.message.content ||
+                         nestedOutput.results.message.text ||
+                         nestedOutput.results.message.response ||
+                         JSON.stringify(nestedOutput.results.message);
+                console.log(`📝 Found message in nested structure: outputs[0].outputs[0].results.message`);
+              } else if (nestedOutput.results) {
+                // outputs[0].outputs[0].results 레벨에서 직접 텍스트 찾기
+                content = nestedOutput.results.content ||
+                         nestedOutput.results.text ||
+                         nestedOutput.results.response ||
+                         JSON.stringify(nestedOutput.results);
+                console.log(`📝 Found message in results level`);
+              } else {
+                // outputs[0].outputs[0] 레벨에서 찾기
+                content = nestedOutput.content ||
+                         nestedOutput.text ||
+                         nestedOutput.response ||
+                         JSON.stringify(nestedOutput);
+                console.log(`📝 Found message in output level`);
+              }
+            } else {
+              // outputs[0] 레벨에서 찾기
+              content = firstOutput.content ||
+                       firstOutput.text ||
+                       firstOutput.response ||
+                       JSON.stringify(firstOutput);
+              console.log(`📝 Found message in first output level`);
+            }
+          } else {
+            // 2단계: 기본 필드들에서 찾기
+            content = data.output_value || 
+                     data.result || 
+                     data.response || 
+                     data.content || 
+                     data.text || 
+                     data.message ||
+                     data.answer ||
+                     JSON.stringify(data).substring(0, 200) + "...";
+            console.log(`📝 Found message in basic fields`);
+          }
+        } catch (parseError) {
+          console.error("❌ Error parsing custom API response:", parseError);
+          content = JSON.stringify(data).substring(0, 200) + "...";
+        }
         
-        console.log(`📝 Parsed content from custom API:`, content.substring(0, 100));
+        console.log(`📝 Final parsed content from custom API:`, content.substring(0, 150));
       } else {
         // OpenAI 호환 응답 파싱
         content = data.choices?.[0]?.message?.content || "죄송합니다. 응답을 생성할 수 없습니다.";
