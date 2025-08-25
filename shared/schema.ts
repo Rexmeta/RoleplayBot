@@ -41,13 +41,18 @@ export type EvaluationScore = {
 };
 
 export type DetailedFeedback = {
+  overallScore: number;
+  scores: {
+    clarity: number;
+    empathy: number;
+    responsiveness: number;
+    structure: number;
+    professionalism: number;
+  };
   strengths: string[];
   improvements: string[];
   nextSteps: string[];
-  ranking: string;
-  behaviorGuides: ActionGuide[];
-  conversationGuides: ConversationGuide[];
-  developmentPlan: DevelopmentPlan;
+  summary: string;
 };
 
 export type ActionGuide = {
