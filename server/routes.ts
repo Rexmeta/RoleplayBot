@@ -2,7 +2,7 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { insertConversationSchema, insertFeedbackSchema } from "@shared/schema";
-import { generateAIResponse, generateFeedback } from "./services/geminiService";
+import { generateAIResponse, generateFeedback, SCENARIO_PERSONAS } from "./services/geminiService";
 import { createSampleData } from "./sampleData";
 
 export async function registerRoutes(app: Express): Promise<Server> {
@@ -14,15 +14,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       // 첫 번째 AI 메시지 자동 생성
       try {
+        const persona = SCENARIO_PERSONAS[conversation.scenarioId];
+        if (!persona) {
+          throw new Error(`Unknown scenario: ${conversation.scenarioId}`);
+        }
+
         const aiResult = await generateAIResponse(
           conversation.scenarioId,
           [],
-          0
+          persona
         );
 
         const aiMessage = {
           sender: "ai" as const,
-          message: aiResult.response,
+          message: aiResult.content,
           timestamp: new Date().toISOString(),
           emotion: aiResult.emotion,
           emotionReason: aiResult.emotionReason,
@@ -86,16 +91,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const newTurnCount = conversation.turnCount + 1;
 
       // Generate AI response
+      const persona = SCENARIO_PERSONAS[conversation.scenarioId];
+      if (!persona) {
+        throw new Error(`Unknown scenario: ${conversation.scenarioId}`);
+      }
+
       const aiResult = await generateAIResponse(
         conversation.scenarioId,
         updatedMessages,
-        newTurnCount,
+        persona,
         message
       );
 
       const aiMessage = {
         sender: "ai" as const,
-        message: aiResult.response,
+        message: aiResult.content,
         timestamp: new Date().toISOString(),
         emotion: aiResult.emotion,
         emotionReason: aiResult.emotionReason,
@@ -114,7 +124,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       res.json({
         conversation: updatedConversation,
-        aiResponse: aiResult.response,
+        aiResponse: aiResult.content,
         emotion: aiResult.emotion,
         emotionReason: aiResult.emotionReason,
         isCompleted,
@@ -153,18 +163,68 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       console.log("새 피드백 생성 시작");
       // Generate new feedback
+      const persona = SCENARIO_PERSONAS[conversation.scenarioId];
+      if (!persona) {
+        throw new Error(`Unknown scenario: ${conversation.scenarioId}`);
+      }
+
       const feedbackData = await generateFeedback(
         conversation.scenarioId,
-        conversation.messages
+        conversation.messages,
+        persona
       );
 
       console.log("피드백 데이터 생성 완료:", feedbackData);
 
+      // EvaluationScore 배열 생성
+      const evaluationScores = [
+        {
+          category: "communication",
+          name: "메시지 명확성",
+          score: feedbackData.scores.clarity,
+          feedback: "명확하고 이해하기 쉬운 의사소통",
+          icon: "💬",
+          color: "blue"
+        },
+        {
+          category: "empathy", 
+          name: "상대방 배려",
+          score: feedbackData.scores.empathy,
+          feedback: "청자의 입장과 상황 고려",
+          icon: "❤️",
+          color: "red"
+        },
+        {
+          category: "responsiveness",
+          name: "감정적 반응성", 
+          score: feedbackData.scores.responsiveness,
+          feedback: "상대방 감정에 대한 적절한 대응",
+          icon: "🎭",
+          color: "purple"
+        },
+        {
+          category: "structure",
+          name: "대화 구조화",
+          score: feedbackData.scores.structure, 
+          feedback: "논리적이고 체계적인 대화 진행",
+          icon: "🏗️",
+          color: "green"
+        },
+        {
+          category: "professionalism",
+          name: "전문적 역량",
+          score: feedbackData.scores.professionalism,
+          feedback: "업무 상황에 맞는 전문성 발휘", 
+          icon: "👔",
+          color: "indigo"
+        }
+      ];
+
       const feedback = await storage.createFeedback({
         conversationId: req.params.id,
         overallScore: feedbackData.overallScore,
-        scores: feedbackData.scores,
-        detailedFeedback: feedbackData.detailedFeedback,
+        scores: evaluationScores,
+        detailedFeedback: feedbackData,
       });
 
       console.log("피드백 저장 완료");
@@ -173,8 +233,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.error("Feedback generation error:", error);
       res.status(500).json({ 
         error: "Failed to generate feedback",
-        details: error.message,
-        stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+        details: error instanceof Error ? error.message : String(error),
+        stack: process.env.NODE_ENV === 'development' && error instanceof Error ? error.stack : undefined
       });
     }
   });

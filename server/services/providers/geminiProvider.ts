@@ -20,7 +20,9 @@ export class GeminiProvider implements AIServiceInterface {
     console.log("Attempting Gemini API call...");
     
     try {
-      const conversationHistory = messages.map(msg => 
+      // messages가 undefined이거나 null인 경우 빈 배열로 처리
+      const safeMessages = messages || [];
+      const conversationHistory = safeMessages.map(msg => 
         `${msg.sender === 'user' ? '사용자' : persona.name}: ${msg.message}`
       ).join('\n');
 
@@ -30,7 +32,7 @@ export class GeminiProvider implements AIServiceInterface {
 - 성격: ${persona.personality}
 - 응답 스타일: ${persona.responseStyle}
 - 배경: ${persona.background}
-- 목표: ${persona.goals.join(', ')}
+- 목표: ${persona.goals ? persona.goals.join(', ') : '역량 개발'}
 
 대화 규칙:
 1. 주어진 페르소나를 정확히 구현하세요
@@ -134,7 +136,8 @@ JSON 형식으로 응답하세요:
     persona: ScenarioPersona
   ): Promise<DetailedFeedback> {
     try {
-      const conversationText = messages.map(msg => 
+      const safeMessages = messages || [];
+      const conversationText = safeMessages.map(msg => 
         `${msg.sender === 'user' ? '사용자' : persona.name}: ${msg.message}`
       ).join('\n');
 
