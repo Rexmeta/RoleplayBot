@@ -44,26 +44,7 @@ ${conversationHistory}
       // 테스트 모드 확인 (실제 API 서버 없이 Mock 응답)
       if (this.config.apiKey === 'test-key') {
         console.log('🧪 Custom provider running in test mode');
-        const mockResponses = [
-          `안녕하세요, ${persona.name}입니다. ${userMessage ? `"${userMessage}"에 대해` : ''} 말씀드리겠습니다.`,
-          `${persona.name}로서 ${userMessage ? `귀하의 "${userMessage}" 질문에` : ''} 성실히 답변드리겠습니다.`,
-          `좋은 지적이세요. ${persona.name}의 입장에서 ${userMessage || '이 상황'}에 대해 설명드리겠습니다.`
-        ];
-        const content = mockResponses[Math.floor(Math.random() * mockResponses.length)];
-        
-        // Mock 응답에 감정 추가
-        let emotion = "중립";
-        let emotionReason = "테스트 모드에서의 기본 감정";
-        
-        if (userMessage && userMessage.includes('문제')) {
-          emotion = "분노";
-          emotionReason = "문제 상황에 대한 우려";
-        } else if (userMessage && (userMessage.includes('감사') || userMessage.includes('좋'))) {
-          emotion = "기쁨";
-          emotionReason = "긍정적인 반응에 대한 만족";
-        }
-        
-        return { content, emotion, emotionReason };
+        return this.generatePersonaMockResponse(persona, userMessage, conversationHistory);
       }
 
       // API 형식에 따른 요청 처리
@@ -386,6 +367,117 @@ JSON 형식으로 응답하세요:
       console.error("Feedback generation error:", error);
       return this.getFallbackFeedback();
     }
+  }
+
+  private generatePersonaMockResponse(
+    persona: ScenarioPersona, 
+    userMessage?: string, 
+    conversationHistory?: string
+  ): { content: string; emotion: string; emotionReason: string } {
+    console.log(`🎭 Generating persona-specific mock response for ${persona.name}`);
+    
+    // 대화 턴 수 계산 (초기 메시지 생성 시 처리)
+    const turnCount = conversationHistory ? conversationHistory.split('\n').filter(line => line.startsWith('사용자:')).length : 0;
+    
+    // 페르소나별 특성화된 응답 생성
+    switch (persona.id) {
+      case 'communication':
+        return this.generateKimTaehunResponse(userMessage, turnCount);
+      
+      default:
+        return this.generateGenericPersonaResponse(persona, userMessage, turnCount);
+    }
+  }
+  
+  private generateKimTaehunResponse(userMessage?: string, turnCount: number = 0): { content: string; emotion: string; emotionReason: string } {
+    // 김태훈의 성격: 실무 경험 풍부, 일정 관리 민감, 현실적, 실용적, 리스크 최소화
+    // 응답 스타일: 현실적 제약사항 강조, 양산 일정 중시, 구체적 해결방안 요구, 성과 지향
+    
+    let content: string;
+    let emotion: string;
+    let emotionReason: string;
+    
+    // 첫 번째 대화 - 상황 설명
+    if (turnCount === 0 || !userMessage) {
+      content = "안녕하세요. 김태훈입니다. 바쁜 와중에 찾아와 주셔서 고맙습니다. 사실 요즘 마이크 모듈 노이즈 문제 때문에 머리가 좀 아픕니다. 양산 일정은 코앞인데... 이 문제를 어떻게 해결할지 함께 논의해보죠.";
+      emotion = "분노";
+      emotionReason = "양산 일정 압박과 기술적 문제로 인한 스트레스";
+      return { content, emotion, emotionReason };
+    }
+    
+    const userText = userMessage.toLowerCase();
+    
+    // 문제 해결 방안 제시 시
+    if (userText.includes('해결') || userText.includes('방법') || userText.includes('대안')) {
+      if (userText.includes('일정') || userText.includes('연기') || userText.includes('미루')) {
+        content = "일정 연기요? 이미 양산 스케줄이 확정되어 있어서 쉽지 않을 텐데요. 마케팅팀에서는 출시 시기를 맞춰달라고 압박하고 있고... 다른 해결책은 없을까요? 기술적으로 우회할 수 있는 방법 말이에요.";
+        emotion = "분노";
+        emotionReason = "일정 연기에 대한 부담과 압박감";
+      } else if (userText.includes('소프트웨어') || userText.includes('펌웨어') || userText.includes('튜닝')) {
+        content = "소프트웨어적 해결책이라... 흥미롭네요. 구체적으로 어떤 방식으로 접근하실 생각이신가요? 하드웨어 교체보다는 확실히 비용 효율적일 것 같은데, 성능 저하나 다른 부작용은 없을까요?";
+        emotion = "중립";
+        emotionReason = "현실적인 해결책에 대한 관심과 검토";
+      } else {
+        content = "네, 말씀해 보세요. 7년간 이런 문제들을 많이 겪어봤는데, 현실적으로 실행 가능한 방안인지 같이 검토해보죠. 시간과 비용, 그리고 위험도를 고려해야겠네요.";
+        emotion = "중립";
+        emotionReason = "경험에 기반한 현실적 검토 자세";
+      }
+    }
+    // 기술적 질문이나 세부사항 문의 시
+    else if (userText.includes('어떻게') || userText.includes('왜') || userText.includes('구체적') || userText.includes('?')) {
+      content = "좋은 질문이네요. 마이크 모듈의 노이즈는 주로 전원부 설계와 관련이 있어요. 특히 스위칭 노이즈가 오디오 신호에 간섭을 일으키는 경우가 많거든요. 이전에도 비슷한 케이스가 있었는데... 혹시 어떤 부분이 궁금하신가요?";
+      emotion = "중립";
+      emotionReason = "기술적 설명과 정보 공유에 대한 집중";
+    }
+    // 긍정적이거나 협력적인 의견 시
+    else if (userText.includes('좋') || userText.includes('동의') || userText.includes('맞') || userText.includes('함께')) {
+      content = "그렇습니다! 이런 협력적인 자세가 정말 중요해요. 혼자서는 해결하기 어려운 문제들이 많거든요. 경험상 이런 문제는 팀워크가 핵심이에요. 그럼 구체적인 실행 계획을 세워볼까요?";
+      emotion = "기쁨";
+      emotionReason = "협력적 태도와 팀워크에 대한 만족감";
+    }
+    // 부정적이거나 어려움 표현 시
+    else if (userText.includes('어려') || userText.includes('힘들') || userText.includes('모르') || userText.includes('불가능')) {
+      content = "그러게요... 쉽지 않은 상황이죠. 하지만 포기할 수는 없어요. 고객들은 기다려주지 않거든요. 제가 7년간 겪어본 경험으로는, 이런 상황에서도 반드시 돌파구는 있어요. 다시 차근차근 접근해보죠.";
+      emotion = "슬픔";
+      emotionReason = "어려운 상황에 대한 공감과 동시에 해결 의지";
+    }
+    // 일반적인 응답
+    else {
+      const responses = [
+        "네, 이해합니다. 하지만 현실적으로 고려해야 할 사항들이 많아요. 시간, 비용, 그리고 품질... 모든 걸 다 만족시키기는 어렵죠. 우선순위를 정해서 접근해야겠습니다.",
+        "경험상 이런 문제들은 단계별로 접근하는 게 좋아요. 일단 가장 critical한 부분부터 해결하고, 나머지는 순차적으로... 어떻게 생각하세요?",
+        "맞습니다. 양산 일정을 고려하면 시간이 정말 촉박해요. 하지만 품질을 포기할 수는 없고... 이런 딜레마가 개발자들의 숙명이죠. 최선의 방안을 찾아야겠습니다."
+      ];
+      content = responses[Math.floor(Math.random() * responses.length)];
+      emotion = "중립";
+      emotionReason = "일반적인 업무 상황에서의 신중한 태도";
+    }
+    
+    return { content, emotion, emotionReason };
+  }
+  
+  private generateGenericPersonaResponse(
+    persona: ScenarioPersona, 
+    userMessage?: string, 
+    turnCount: number = 0
+  ): { content: string; emotion: string; emotionReason: string } {
+    // 기본 페르소나 응답 (추후 다른 페르소나 추가 시 확장)
+    let content: string;
+    let emotion = "중립";
+    let emotionReason = "일반적인 대화 상황";
+    
+    if (turnCount === 0 || !userMessage) {
+      content = `안녕하세요, ${persona.name}입니다. ${persona.role}로서 도움을 드리겠습니다. 무엇을 논의해보실까요?`;
+    } else {
+      const genericResponses = [
+        `${persona.name}의 입장에서 말씀드리면, 그 부분은 중요한 포인트네요. 어떻게 접근하는 게 좋을까요?`,
+        `좋은 지적입니다. 제 경험으로는 이런 상황에서는 신중하게 검토가 필요해요.`,
+        `네, 이해합니다. ${persona.role}로서 최선의 방안을 찾아보겠습니다.`
+      ];
+      content = genericResponses[Math.floor(Math.random() * genericResponses.length)];
+    }
+    
+    return { content, emotion, emotionReason };
   }
 
   private generateCustomFeedback(conversationText: string, persona: ScenarioPersona): DetailedFeedback {
