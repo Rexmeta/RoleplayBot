@@ -94,7 +94,7 @@ export default function Home() {
         <div className="max-w-6xl mx-auto px-4">
           <div className="flex flex-col md:flex-row items-center justify-between">
             <div className="text-sm text-slate-600 mb-4 md:mb-0">
-              © 2024 AI 롤플레잉 훈련 시스템. 신입사원 역량 개발을 위한 전문 교육 도구.
+              © AI 롤플레잉 훈련 시스템
             </div>
             <div className="flex items-center space-x-6 text-sm text-slate-600">
               <a href="#" className="hover:text-corporate-600">도움말</a>
