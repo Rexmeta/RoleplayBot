@@ -61,11 +61,28 @@ app.use((req, res, next) => {
   // this serves both the API and the client.
   // It is the only port that is not firewalled.
   const port = parseInt(process.env.PORT || '5000', 10);
-  server.listen({
+  const host = process.env.HOST || "127.0.0.1";
+  
+  // Windows에서는 reusePort가 지원되지 않으므로 제거
+  const listenOptions: any = {
     port,
-    host: "127.0.0.1",
-    reusePort: true,
-  }, () => {
-    log(`serving on port ${port}`);
+    host,
+  };
+  
+  // Linux/macOS에서만 reusePort 사용 (Windows 호환성)
+  if (process.platform !== 'win32') {
+    listenOptions.reusePort = true;
+  }
+  
+  server.listen(listenOptions, () => {
+    log(`serving on port ${port} (host: ${host})`);
+    log(`platform: ${process.platform}`);
+    
+    // 로컬 접속 가이드
+    if (host === "127.0.0.1" || host === "localhost") {
+      log(`Local access: http://localhost:${port}`);
+    } else {
+      log(`Network access: http://${host}:${port}`);
+    }
   });
 })();
