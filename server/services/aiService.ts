@@ -33,6 +33,7 @@ export interface AIServiceConfig {
   model?: string;
   baseUrl?: string; // Custom API용
   headers?: Record<string, string>; // Custom API용
+  apiFormat?: 'openai' | 'custom'; // API 형식 선택
 }
 
 // 환경 변수에서 AI 서비스 설정 로드
@@ -58,7 +59,8 @@ export function getAIServiceConfig(): AIServiceConfig {
         apiKey: process.env.CUSTOM_API_KEY || '',
         model: process.env.CUSTOM_MODEL || '',
         baseUrl: process.env.CUSTOM_API_URL || '',
-        headers: process.env.CUSTOM_HEADERS ? JSON.parse(process.env.CUSTOM_HEADERS) : {}
+        headers: process.env.CUSTOM_HEADERS ? JSON.parse(process.env.CUSTOM_HEADERS) : {},
+        apiFormat: (process.env.CUSTOM_API_FORMAT as 'openai' | 'custom') || 'openai'
       };
     default: // gemini
       return {

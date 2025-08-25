@@ -66,24 +66,49 @@ ${conversationHistory}
         return { content, emotion, emotionReason };
       }
 
-      // 실제 API 호출
-      const requestBody = {
-        model: this.config.model,
-        messages: [
-          { role: "system", content: systemPrompt },
-          { role: "user", content: prompt }
-        ],
-        max_tokens: 200,
-        temperature: 0.8
-      };
+      // API 형식에 따른 요청 처리
+      let requestBody: any;
+      let apiUrl: string;
+      let headers: Record<string, string>;
 
-      const response = await fetch(`${this.config.baseUrl}/chat/completions`, {
-        method: 'POST',
-        headers: {
+      if (this.config.apiFormat === 'custom') {
+        // 커스텀 API 형식 (사용자 제공)
+        const fullPrompt = `${systemPrompt}\n\n사용자: ${prompt}`;
+        requestBody = {
+          input_type: "chat",
+          output_type: "chat", 
+          input_value: fullPrompt
+        };
+        apiUrl = this.config.baseUrl || '';
+        headers = {
+          'Content-Type': 'application/json',
+          ...this.config.headers
+        };
+      } else {
+        // OpenAI 호환 형식 (기본값)
+        requestBody = {
+          model: this.config.model,
+          messages: [
+            { role: "system", content: systemPrompt },
+            { role: "user", content: prompt }
+          ],
+          max_tokens: 200,
+          temperature: 0.8
+        };
+        apiUrl = `${this.config.baseUrl}/chat/completions`;
+        headers = {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${this.config.apiKey}`,
           ...this.config.headers
-        },
+        };
+      }
+
+      console.log(`🔗 Custom API calling: ${apiUrl}`);
+      console.log(`📝 Request format: ${this.config.apiFormat || 'openai'}`);
+
+      const response = await fetch(apiUrl, {
+        method: 'POST',
+        headers,
         body: JSON.stringify(requestBody)
       });
 
@@ -92,7 +117,17 @@ ${conversationHistory}
       }
 
       const data = await response.json();
-      const content = data.choices?.[0]?.message?.content || "죄송합니다. 응답을 생성할 수 없습니다.";
+      console.log(`📥 API Response:`, data);
+
+      // 응답 형식에 따른 파싱
+      let content: string;
+      if (this.config.apiFormat === 'custom') {
+        // 커스텀 API 응답 파싱 (응답 구조에 따라 조정 필요)
+        content = data.output_value || data.result || data.response || data.content || "응답을 파싱할 수 없습니다.";
+      } else {
+        // OpenAI 호환 응답 파싱
+        content = data.choices?.[0]?.message?.content || "죄송합니다. 응답을 생성할 수 없습니다.";
+      }
 
       // 감정 분석
       let emotion = "중립";
