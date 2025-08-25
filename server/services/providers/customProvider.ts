@@ -337,6 +337,13 @@ JSON 형식으로 응답하세요:
   "summary": "종합평가요약"
 }`;
 
+      // 테스트 모드이거나 커스텀 API 형식일 때 기본 피드백 반환
+      if (this.config.apiKey === 'test-key' || this.config.apiFormat === 'custom') {
+        console.log('🧪 Custom provider feedback in test/custom mode');
+        return this.generateCustomFeedback(conversationText, persona);
+      }
+
+      // OpenAI 호환 API만 사용
       const requestBody = {
         model: this.config.model,
         messages: [{ role: "user", content: feedbackPrompt }],
@@ -378,6 +385,120 @@ JSON 형식으로 응답하세요:
     } catch (error) {
       console.error("Feedback generation error:", error);
       return this.getFallbackFeedback();
+    }
+  }
+
+  private generateCustomFeedback(conversationText: string, persona: ScenarioPersona): DetailedFeedback {
+    console.log('📊 Generating custom feedback based on conversation analysis');
+    
+    // 대화 분석을 통한 점수 계산
+    const userMessages = conversationText.split('\n').filter(line => line.startsWith('사용자:'));
+    const aiMessages = conversationText.split('\n').filter(line => line.startsWith(persona.name + ':'));
+    
+    // 기본 점수 설정
+    let clarityScore = 3;
+    let empathyScore = 3;
+    let responsivenessScore = 3;
+    let structureScore = 3;
+    let professionalismScore = 3;
+    
+    // 대화 길이에 따른 구조화 점수
+    if (userMessages.length >= 5) {
+      structureScore = 4; // 충분한 대화량
+    }
+    if (userMessages.length >= 8) {
+      structureScore = 5; // 풍부한 대화
+    }
+    
+    // 키워드 분석을 통한 점수 조정
+    const fullText = conversationText.toLowerCase();
+    
+    // 명확성 분석
+    if (fullText.includes('구체적') || fullText.includes('자세히') || fullText.includes('명확')) {
+      clarityScore = Math.min(5, clarityScore + 1);
+    }
+    
+    // 공감 능력 분석
+    if (fullText.includes('이해') || fullText.includes('공감') || fullText.includes('마음') || fullText.includes('느낌')) {
+      empathyScore = Math.min(5, empathyScore + 1);
+    }
+    
+    // 반응성 분석
+    if (fullText.includes('빠르게') || fullText.includes('즉시') || fullText.includes('신속')) {
+      responsivenessScore = Math.min(5, responsivenessScore + 1);
+    }
+    
+    // 전문성 분석
+    if (fullText.includes('전문') || fullText.includes('경험') || fullText.includes('기술') || fullText.includes('해결')) {
+      professionalismScore = Math.min(5, professionalismScore + 1);
+    }
+    
+    // 부정적 키워드 검출시 점수 감점
+    if (fullText.includes('모르겠') || fullText.includes('어려워') || fullText.includes('힘들어')) {
+      clarityScore = Math.max(1, clarityScore - 1);
+      professionalismScore = Math.max(1, professionalismScore - 1);
+    }
+    
+    // 전체 점수 계산 (가중 평균)
+    const overallScore = Math.round(
+      (clarityScore * 0.25 + empathyScore * 0.20 + responsivenessScore * 0.25 + 
+       structureScore * 0.20 + professionalismScore * 0.10) * 20
+    );
+    
+    // 시나리오별 맞춤 피드백
+    const scenarioFeedback = this.getScenarioSpecificFeedback(persona.id, overallScore);
+    
+    return {
+      overallScore: Math.min(100, Math.max(0, overallScore)),
+      scores: {
+        clarity: clarityScore,
+        empathy: empathyScore,
+        responsiveness: responsivenessScore,
+        structure: structureScore,
+        professionalism: professionalismScore
+      },
+      strengths: scenarioFeedback.strengths,
+      improvements: scenarioFeedback.improvements,
+      nextSteps: scenarioFeedback.nextSteps,
+      summary: scenarioFeedback.summary
+    };
+  }
+  
+  private getScenarioSpecificFeedback(scenarioId: string, score: number): {
+    strengths: string[],
+    improvements: string[], 
+    nextSteps: string[],
+    summary: string
+  } {
+    const isGoodScore = score >= 75;
+    const isAverageScore = score >= 50 && score < 75;
+    
+    switch (scenarioId) {
+      case 'communication':
+        return {
+          strengths: isGoodScore 
+            ? ["김태훈과의 의사소통이 원활함", "기술적 문제를 체계적으로 접근", "협력적 태도로 문제 해결"]
+            : ["기본적인 대화 참여", "예의바른 소통", "문제 인식"],
+          improvements: isGoodScore
+            ? ["더 구체적인 기술 세부사항 논의", "대안 제시 능력 강화", "시간 관리 개선"]
+            : ["더 적극적인 질문", "구체적인 해결책 제시", "기술적 이해도 향상"],
+          nextSteps: isGoodScore
+            ? ["복잡한 기술 협상 시나리오 도전", "팀 리더십 스킬 개발", "고급 커뮤니케이션 기법 학습"]
+            : ["기본 기술 지식 보완", "질문 기법 연습", "능동적 듣기 스킬 향상"],
+          summary: isGoodScore
+            ? "김태훈과의 기술적 소통에서 우수한 성과를 보였습니다. 협력적 문제 해결 능력이 돋보입니다."
+            : isAverageScore
+            ? "김태훈과의 소통에서 기본기는 갖추었으나 더 적극적인 참여가 필요합니다."
+            : "김태훈과의 기술 논의에서 소극적인 모습을 보였습니다. 기본 소통 스킬부터 개선이 필요합니다."
+        };
+      
+      default:
+        return {
+          strengths: ["기본적인 대화 능력", "적절한 언어 사용", "상황 이해도"],
+          improvements: ["더 구체적인 표현", "감정 교감 증진", "논리적 구조화"],
+          nextSteps: ["추가 연습 필요", "전문가 피드백 받기", "실무 경험 쌓기"],
+          summary: "전반적으로 무난한 대화였습니다. 지속적인 연습을 통해 발전할 수 있습니다."
+        };
     }
   }
 
