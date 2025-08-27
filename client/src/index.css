@@ -181,6 +181,30 @@
   }
 }
 
+@layer components {
+  /* 컴포넌트 레이어에서 카드 스타일 강제 적용 */
+  .card-enhanced {
+    background-color: white !important;
+    border: 1px solid #e2e8f0 !important;
+    border-radius: 0.75rem !important;
+    box-shadow: 0px 4px 6px -1px rgba(0, 0, 0, 0.1), 0px 2px 4px -2px rgba(0, 0, 0, 0.1) !important;
+    transition: all 0.3s ease-out !important;
+  }
+  
+  .card-enhanced:hover {
+    box-shadow: 0px 20px 25px -5px rgba(0, 0, 0, 0.15), 0px 8px 10px -6px rgba(0, 0, 0, 0.1) !important;
+    transform: translateY(-4px) !important;
+    border-color: #cbd5e1 !important;
+  }
+  
+  .message-card {
+    background-color: white !important;
+    border: 1px solid #e2e8f0 !important;
+    border-radius: 0.5rem !important;
+    box-shadow: 0px 2px 4px 0px rgba(0, 0, 0, 0.1), 0px 1px 2px -1px rgba(0, 0, 0, 0.06) !important;
+  }
+}
+
 /* 전체 배경색 정책 - 옅은 그레이 배경으로 흰색 컴포넌트 구분 */
 html {
   background-color: #f8fafc !important;
@@ -208,26 +232,6 @@ body {
 .text-corporate-700 { color: var(--corporate-700); }
 
 .border-corporate-600 { border-color: var(--corporate-600); }
-
-/* 강화된 카드 스타일링 - 배경과 명확한 구분 */
-.card-enhanced {
-  background-color: white !important;
-  border: 1px solid #e2e8f0 !important;
-  box-shadow: 0px 4px 6px -1px rgba(0, 0, 0, 0.1), 0px 2px 4px -2px rgba(0, 0, 0, 0.1) !important;
-  transition: all 0.3s ease !important;
-}
-
-.card-enhanced:hover {
-  box-shadow: 0px 20px 25px -5px rgba(0, 0, 0, 0.1), 0px 8px 10px -6px rgba(0, 0, 0, 0.1) !important;
-  transform: translateY(-2px) !important;
-}
-
-/* 메시지 카드 스타일링 */
-.message-card {
-  background-color: white !important;
-  border: 1px solid #e2e8f0 !important;
-  box-shadow: 0px 1px 3px 0px rgba(0, 0, 0, 0.1), 0px 1px 2px -1px rgba(0, 0, 0, 0.1) !important;
-}
 
 /* 인트로 페이지 애니메이션 효과 */
 @keyframes pulse-glow {
