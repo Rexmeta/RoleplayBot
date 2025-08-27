@@ -3,6 +3,34 @@
 @tailwind components;
 @tailwind utilities;
 
+/* 강제 배경색 우선순위 최상위 적용 */
+* {
+  box-sizing: border-box !important;
+}
+
+html {
+  background: #f1f5f9 !important;
+  background-color: #f1f5f9 !important;
+}
+
+body {
+  background: #f1f5f9 !important;
+  background-color: #f1f5f9 !important;
+  margin: 0 !important;
+  padding: 0 !important;
+}
+
+#root {
+  background: #f1f5f9 !important;
+  background-color: #f1f5f9 !important;
+  min-height: 100vh !important;
+}
+
+.min-h-screen {
+  background: #f1f5f9 !important;
+  background-color: #f1f5f9 !important;
+}
+
 :root {
   --background: hsl(210 20% 96%);
   --foreground: hsl(210 25% 7.8431%);
@@ -177,18 +205,11 @@
 
   body {
     @apply font-sans antialiased text-foreground;
+    background: #f1f5f9 !important;
     background-color: #f1f5f9 !important;
   }
 }
 
-/* 강제 배경색 적용 */
-html {
-  background-color: #f1f5f9 !important;
-}
-
-#root {
-  background-color: #f1f5f9 !important;
-}
 
 /* Custom corporate theme colors */
 .bg-corporate-50 { background-color: var(--corporate-50); }
