@@ -53,6 +53,10 @@ export type DetailedFeedback = {
   improvements: string[];
   nextSteps: string[];
   summary: string;
+  ranking?: string;
+  behaviorGuides?: ActionGuide[];
+  conversationGuides?: ConversationGuide[];
+  developmentPlan?: DevelopmentPlan;
 };
 
 export type ActionGuide = {

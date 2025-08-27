@@ -179,7 +179,11 @@ JSON 형식으로 응답하세요:
         strengths: feedbackData.strengths || ["기본적인 대화 능력", "적절한 언어 사용", "상황 이해도"],
         improvements: feedbackData.improvements || ["더 구체적인 표현", "감정 교감 증진", "논리적 구조화"],
         nextSteps: feedbackData.nextSteps || ["추가 연습 필요", "전문가 피드백 받기", "실무 경험 쌓기"],
-        summary: feedbackData.summary || "전반적으로 무난한 대화였습니다. 지속적인 연습을 통해 발전할 수 있습니다."
+        summary: feedbackData.summary || "전반적으로 무난한 대화였습니다. 지속적인 연습을 통해 발전할 수 있습니다.",
+        ranking: "전문가 분석을 통한 종합 평가 결과입니다.",
+        behaviorGuides: this.generateBehaviorGuides(),
+        conversationGuides: this.generateConversationGuides(), 
+        developmentPlan: this.generateDevelopmentPlan(feedbackData.overallScore || 60)
       };
     } catch (error) {
       console.error("Feedback generation error:", error);
@@ -213,7 +217,60 @@ JSON 형식으로 응답하세요:
       strengths: ["기본적인 대화 참여", "적절한 언어 사용", "상황에 맞는 응답"],
       improvements: ["시스템 안정성 확보 후 재평가 필요", "더 많은 대화 기회 필요", "기술적 문제 해결 후 재시도"],
       nextSteps: ["시스템 점검 완료 후 재도전", "안정적인 환경에서 재시도", "기술 지원팀 문의"],
-      summary: "시스템 오류로 인해 정확한 평가가 어려웠습니다. 기술적 문제 해결 후 다시 시도해주세요."
+      summary: "시스템 오류로 인해 정확한 평가가 어려웠습니다. 기술적 문제 해결 후 다시 시도해주세요.",
+      ranking: "시스템 오류로 인한 임시 평가입니다.",
+      behaviorGuides: [],
+      conversationGuides: [],
+      developmentPlan: {
+        shortTerm: [],
+        mediumTerm: [],
+        longTerm: [],
+        recommendedResources: []
+      }
+    };
+  }
+
+  private generateBehaviorGuides() {
+    return [{
+      situation: "전문적 대화 상황",
+      action: "명확하고 논리적인 의사소통을 지향하세요",
+      example: "구체적인 사례와 데이터를 바탕으로 설명드리겠습니다",
+      impact: "신뢰성 향상 및 효과적인 의사결정 지원"
+    }];
+  }
+
+  private generateConversationGuides() {
+    return [{
+      scenario: "업무 협의 상황",
+      goodExample: "사실에 기반한 논리적 설명과 상대방 입장 고려",
+      badExample: "일방적 주장이나 감정적 대응",
+      keyPoints: ["명확한 의사표현", "상호 존중", "건설적 피드백"]
+    }];
+  }
+
+  private generateDevelopmentPlan(score: number) {
+    return {
+      shortTerm: [{
+        goal: "커뮤니케이션 기본기 강화",
+        actions: ["매일 대화 연습", "피드백 분석", "개선점 실천"],
+        measurable: "주 5회 연습, 점수 15% 향상"
+      }],
+      mediumTerm: [{
+        goal: "상황별 대응력 개발",
+        actions: ["다양한 시나리오 경험", "전문가 조언", "동료 피드백"],
+        measurable: "월 3회 새 시나리오, 성공률 80% 달성"
+      }],
+      longTerm: [{
+        goal: "고급 커뮤니케이션 역량 확보",
+        actions: ["전문 교육 이수", "멘토 활동", "리더십 개발"],
+        measurable: "6개월 내 전문가 수준 도달"
+      }],
+      recommendedResources: [
+        "커뮤니케이션 심화 과정",
+        "비즈니스 대화법 도서",
+        "실전 시나리오 훈련",
+        "전문가 멘토링"
+      ]
     };
   }
 }

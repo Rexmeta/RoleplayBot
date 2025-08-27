@@ -214,7 +214,11 @@ JSON 형식으로 응답하세요:
         strengths: feedbackData.strengths || ["기본적인 대화 능력", "적절한 언어 사용", "상황 이해도"],
         improvements: feedbackData.improvements || ["더 구체적인 표현", "감정 교감 증진", "논리적 구조화"],
         nextSteps: feedbackData.nextSteps || ["추가 연습 필요", "전문가 피드백 받기", "실무 경험 쌓기"],
-        summary: feedbackData.summary || "전반적으로 무난한 대화였습니다. 지속적인 연습을 통해 발전할 수 있습니다."
+        summary: feedbackData.summary || "전반적으로 무난한 대화였습니다. 지속적인 연습을 통해 발전할 수 있습니다.",
+        ranking: "전문가 분석 결과를 바탕으로 한 종합 평가입니다.",
+        behaviorGuides: this.generateBehaviorGuides(persona),
+        conversationGuides: this.generateConversationGuides(persona),
+        developmentPlan: this.generateDevelopmentPlan(feedbackData.overallScore || 60)
       };
     } catch (error) {
       console.error("Feedback generation error:", error);
@@ -248,7 +252,78 @@ JSON 형식으로 응답하세요:
       strengths: ["기본적인 대화 참여", "적절한 언어 사용", "상황에 맞는 응답"],
       improvements: ["시스템 안정성 확보 후 재평가 필요", "더 많은 대화 기회 필요", "기술적 문제 해결 후 재시도"],
       nextSteps: ["시스템 점검 완료 후 재도전", "안정적인 환경에서 재시도", "기술 지원팀 문의"],
-      summary: "시스템 오류로 인해 정확한 평가가 어려웠습니다. 기술적 문제 해결 후 다시 시도해주세요."
+      summary: "시스템 오류로 인해 정확한 평가가 어려웠습니다. 기술적 문제 해결 후 다시 시도해주세요.",
+      ranking: "기술적 문제로 인한 임시 평가입니다.",
+      behaviorGuides: [],
+      conversationGuides: [],
+      developmentPlan: {
+        shortTerm: [],
+        mediumTerm: [],
+        longTerm: [],
+        recommendedResources: []
+      }
+    };
+  }
+
+  private generateBehaviorGuides(persona: ScenarioPersona) {
+    const guides = {
+      communication: [{
+        situation: "기술적 문제 발생 시 대응",
+        action: "문제 상황을 명확히 파악하고 체계적으로 접근하세요",
+        example: "먼저 정확한 증상을 확인하고, 가능한 원인들을 단계별로 점검해보겠습니다",
+        impact: "문제 해결 시간 단축 및 협력 관계 강화"
+      }],
+      empathy: [{
+        situation: "상대방이 힘들어할 때",
+        action: "감정을 인정하고 공감하는 메시지 전달",
+        example: "정말 힘드셨겠어요. 그런 상황에서는 누구나 그렇게 느낄 수 있어요",
+        impact: "신뢰 관계 구축 및 심리적 안정감 제공"
+      }]
+    };
+    return guides[persona.id as keyof typeof guides] || [];
+  }
+
+  private generateConversationGuides(persona: ScenarioPersona) {
+    const guides = {
+      communication: [{
+        scenario: "기술 협의 상황",
+        goodExample: "구체적인 데이터와 근거를 바탕으로 논리적으로 설명",
+        badExample: "막연한 추측이나 감정적 반응으로 대응",
+        keyPoints: ["사실 기반 소통", "단계별 접근", "상호 이해 확인"]
+      }],
+      empathy: [{
+        scenario: "감정적 지원 상황",
+        goodExample: "상대방의 감정을 인정하고 공감하는 반응",
+        badExample: "감정을 무시하거나 성급한 해결책 제시",
+        keyPoints: ["경청하기", "감정 인정", "지지 표현"]
+      }]
+    };
+    return guides[persona.id as keyof typeof guides] || [];
+  }
+
+  private generateDevelopmentPlan(score: number) {
+    return {
+      shortTerm: [{
+        goal: "기본 커뮤니케이션 스킬 향상",
+        actions: ["일일 대화 연습", "피드백 받기", "자기 성찰 시간 갖기"],
+        measurable: "주 3회 이상 연습, 피드백 점수 10% 향상"
+      }],
+      mediumTerm: [{
+        goal: "상황별 대응 능력 개발",
+        actions: ["다양한 시나리오 연습", "전문가 조언 구하기", "실전 경험 쌓기"],
+        measurable: "월 2회 이상 새로운 시나리오 도전, 성공률 70% 이상"
+      }],
+      longTerm: [{
+        goal: "전문적 커뮤니케이션 역량 구축",
+        actions: ["심화 교육 과정 수강", "멘토링 참여", "리더십 역할 수행"],
+        measurable: "6개월 내 고급 과정 수료, 팀 내 커뮤니케이션 담당 역할"
+      }],
+      recommendedResources: [
+        "효과적인 커뮤니케이션 기법 도서",
+        "온라인 커뮤니케이션 강의",
+        "전문가 멘토링 프로그램",
+        "실전 시나리오 연습 플랫폼"
+      ]
     };
   }
 }
