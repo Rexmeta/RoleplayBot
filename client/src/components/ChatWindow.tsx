@@ -365,7 +365,7 @@ export default function ChatWindow({ scenario, conversationId, onChatComplete, o
                 <div className={`rounded-lg p-3 max-w-md ${
                   message.sender === "user"
                     ? "bg-corporate-600 text-white rounded-tr-none"
-                    : `bg-white border border-slate-200 shadow-sm rounded-tl-none ${
+                    : `message-card rounded-tl-none ${
                         message.emotion === '분노' ? 'border-l-4 border-red-400' :
                         message.emotion === '슬픔' ? 'border-l-4 border-blue-400' :
                         message.emotion === '기쁨' ? 'border-l-4 border-green-400' :
@@ -399,7 +399,7 @@ export default function ChatWindow({ scenario, conversationId, onChatComplete, o
           {isLoading && (
             <div className="flex items-start space-x-3">
               <img src={scenario.image} alt="AI" className="w-8 h-8 rounded-full" />
-              <div className="bg-white border border-slate-200 shadow-sm rounded-lg rounded-tl-none p-3 max-w-md">
+              <div className="message-card rounded-lg rounded-tl-none p-3 max-w-md">
                 <div className="flex space-x-1">
                   <div className="w-2 h-2 bg-slate-400 rounded-full animate-bounce"></div>
                   <div className="w-2 h-2 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: "0.1s" }}></div>

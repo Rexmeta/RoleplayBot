@@ -250,7 +250,7 @@ export default function PersonalDevelopmentReport({
               return (
                 <Card 
                   key={index} 
-                  className="bg-white border border-slate-200 shadow-md hover:shadow-xl transition-all duration-300 transform hover:-translate-y-2" 
+                  className="card-enhanced" 
                   data-testid={`score-card-${index}`}
                   style={{ 
                     animationDelay: `${index * 200}ms`,
