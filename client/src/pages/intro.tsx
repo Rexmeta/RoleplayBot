@@ -15,6 +15,11 @@ export default function Intro() {
 
   const steps = [
     {
+      icon: <Target className="w-8 h-8" />,
+      title: "맞춤형 시나리오",
+      description: "협상, 프레젠테이션, 갈등 해결 등 실무에 필요한 다양한 상황을 연습합니다."
+    },
+    {
       icon: <Users className="w-8 h-8" />,
       title: "AI 페르소나와 대화",
       description: "다양한 성격과 역할을 가진 AI 캐릭터들과 실제 업무 상황을 시뮬레이션합니다."
@@ -23,11 +28,6 @@ export default function Intro() {
       icon: <MessageCircle className="w-8 h-8" />,
       title: "실시간 감정 분석",
       description: "대화 중 AI의 감정 변화를 실시간으로 확인하며 소통 스킬을 향상시킵니다."
-    },
-    {
-      icon: <Target className="w-8 h-8" />,
-      title: "맞춤형 시나리오",
-      description: "협상, 프레젠테이션, 갈등 해결 등 실무에 필요한 다양한 상황을 연습합니다."
     },
     {
       icon: <Award className="w-8 h-8" />,
@@ -50,13 +50,21 @@ export default function Intro() {
 
   return (
     <div className="min-h-screen relative overflow-hidden">
-      {/* Background Image */}
+      {/* Background Image with Animation */}
       <div 
-        className="absolute inset-0 bg-cover bg-center bg-no-repeat"
+        className="absolute inset-0 bg-cover bg-center bg-no-repeat animate-slow-zoom"
         style={{ backgroundImage: `url(${introImage})` }}
       >
-        {/* Overlay */}
-        <div className="absolute inset-0 bg-gradient-to-br from-blue-900/90 via-purple-900/80 to-indigo-900/90" />
+        {/* Animated Overlay */}
+        <div className="absolute inset-0 bg-gradient-to-br from-blue-900/90 via-purple-900/80 to-indigo-900/90 animate-gradient-shift" />
+        {/* Floating Particles */}
+        <div className="absolute inset-0 overflow-hidden">
+          <div className="absolute w-1 h-1 bg-white/30 rounded-full animate-float-particle-1" style={{ top: '20%', left: '10%' }} />
+          <div className="absolute w-2 h-2 bg-blue-400/40 rounded-full animate-float-particle-2" style={{ top: '40%', right: '15%' }} />
+          <div className="absolute w-1 h-1 bg-purple-400/30 rounded-full animate-float-particle-3" style={{ bottom: '30%', left: '20%' }} />
+          <div className="absolute w-3 h-3 bg-indigo-400/20 rounded-full animate-float-particle-4" style={{ top: '60%', right: '25%' }} />
+          <div className="absolute w-1 h-1 bg-white/40 rounded-full animate-float-particle-5" style={{ bottom: '20%', right: '10%' }} />
+        </div>
       </div>
 
       {/* Content */}
