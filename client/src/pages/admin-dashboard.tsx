@@ -104,7 +104,8 @@ export default function AdminDashboard() {
   }) : [];
 
   return (
-    <div className="container mx-auto p-6 space-y-6" data-testid="admin-dashboard">
+    <div className="min-h-screen bg-slate-50">
+      <div className="container mx-auto p-6 space-y-6" data-testid="admin-dashboard">
       <div className="flex items-center justify-between">
         <div className="flex items-center space-x-4">
           <Link href="/" className="flex items-center space-x-2 text-corporate-600 hover:text-corporate-700" data-testid="back-to-home">
@@ -123,7 +124,7 @@ export default function AdminDashboard() {
 
       {/* Overview Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <Card data-testid="card-total-sessions">
+        <Card className="bg-white border border-slate-200 shadow-md hover:shadow-lg transition-all duration-300 transform hover:-translate-y-1" data-testid="card-total-sessions">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">총 훈련 세션</CardTitle>
             <i className="fas fa-chart-line text-blue-600"></i>
@@ -134,7 +135,7 @@ export default function AdminDashboard() {
           </CardContent>
         </Card>
 
-        <Card data-testid="card-completed-sessions">
+        <Card className="bg-white border border-slate-200 shadow-md hover:shadow-lg transition-all duration-300 transform hover:-translate-y-1" data-testid="card-completed-sessions">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">완료된 세션</CardTitle>
             <i className="fas fa-check-circle text-green-600"></i>
@@ -145,7 +146,7 @@ export default function AdminDashboard() {
           </CardContent>
         </Card>
 
-        <Card data-testid="card-average-score">
+        <Card className="bg-white border border-slate-200 shadow-md hover:shadow-lg transition-all duration-300 transform hover:-translate-y-1" data-testid="card-average-score">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">평균 점수</CardTitle>
             <i className="fas fa-star text-yellow-600"></i>
@@ -156,7 +157,7 @@ export default function AdminDashboard() {
           </CardContent>
         </Card>
 
-        <Card data-testid="card-completion-rate">
+        <Card className="bg-white border border-slate-200 shadow-md hover:shadow-lg transition-all duration-300 transform hover:-translate-y-1" data-testid="card-completion-rate">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">완료율</CardTitle>
             <i className="fas fa-percentage text-purple-600"></i>
@@ -179,7 +180,7 @@ export default function AdminDashboard() {
         <TabsContent value="performance" className="space-y-6">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {/* Score Distribution */}
-            <Card data-testid="card-score-distribution">
+            <Card className="bg-white border border-slate-200 shadow-md hover:shadow-lg transition-all duration-300" data-testid="card-score-distribution">
               <CardHeader>
                 <CardTitle>점수 분포</CardTitle>
               </CardHeader>
@@ -358,6 +359,7 @@ export default function AdminDashboard() {
           </div>
         </TabsContent>
       </Tabs>
+      </div>
     </div>
   );
 }

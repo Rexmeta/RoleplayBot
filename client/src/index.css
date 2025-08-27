@@ -177,17 +177,21 @@
 
   body {
     @apply font-sans antialiased text-foreground;
-    background-color: #f1f5f9 !important;
+    background-color: #f8fafc !important;
   }
 }
 
-/* 강제 배경색 적용 */
+/* 전체 배경색 정책 - 옅은 그레이 배경으로 흰색 컴포넌트 구분 */
 html {
-  background-color: #f1f5f9 !important;
+  background-color: #f8fafc !important;
 }
 
 #root {
-  background-color: #f1f5f9 !important;
+  background-color: #f8fafc !important;
+}
+
+body {
+  background-color: #f8fafc !important;
 }
 
 /* Custom corporate theme colors */
