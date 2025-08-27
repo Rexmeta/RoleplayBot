@@ -38,7 +38,7 @@ export default function ScenarioSelector({ onScenarioSelect }: ScenarioSelectorP
   };
 
   return (
-    <div className="scenario-selector">
+    <div className="scenario-selector" style={{ backgroundColor: '#f1f5f9', minHeight: '100vh', margin: '-2rem', padding: '2rem' }}>
       <div className="text-center mb-8">
         <h2 className="text-3xl font-bold text-slate-900 mb-4">훈련 시나리오 선택</h2>
         <p className="text-lg text-slate-600 max-w-2xl mx-auto">
