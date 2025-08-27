@@ -51,7 +51,7 @@ export default function ScenarioSelector({ onScenarioSelect }: ScenarioSelectorP
         {scenarios.map((scenario) => (
           <div
             key={scenario.id}
-            className="scenario-card bg-white rounded-xl shadow-sm border border-slate-200 p-6 hover:shadow-md transition-shadow cursor-pointer"
+            className="scenario-card bg-white rounded-xl shadow-md border border-slate-300 p-6 hover:shadow-lg transition-all duration-200 cursor-pointer hover:border-corporate-300"
             onClick={() => handleScenarioClick(scenario)}
             data-testid={`scenario-card-${scenario.id}`}
           >
