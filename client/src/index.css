@@ -359,6 +359,127 @@
   animation: float-particle-5 9s ease-in-out infinite;
 }
 
+/* 말풍선 애니메이션 */
+@keyframes speech-bubble-1 {
+  0% {
+    opacity: 0;
+    transform: scale(0.8) translateY(10px);
+  }
+  15% {
+    opacity: 1;
+    transform: scale(1) translateY(0px);
+  }
+  85% {
+    opacity: 1;
+    transform: scale(1) translateY(0px);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(0.8) translateY(-10px);
+  }
+}
+
+@keyframes speech-bubble-2 {
+  0% {
+    opacity: 0;
+    transform: scale(0.7) translateY(15px);
+  }
+  20% {
+    opacity: 1;
+    transform: scale(1) translateY(0px);
+  }
+  80% {
+    opacity: 1;
+    transform: scale(1) translateY(0px);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(0.7) translateY(-15px);
+  }
+}
+
+@keyframes speech-bubble-3 {
+  0% {
+    opacity: 0;
+    transform: scale(0.9) translateX(-10px);
+  }
+  25% {
+    opacity: 1;
+    transform: scale(1) translateX(0px);
+  }
+  75% {
+    opacity: 1;
+    transform: scale(1) translateX(0px);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(0.9) translateX(10px);
+  }
+}
+
+@keyframes speech-bubble-4 {
+  0% {
+    opacity: 0;
+    transform: scale(0.6) translateY(-20px);
+  }
+  30% {
+    opacity: 1;
+    transform: scale(1) translateY(0px);
+  }
+  70% {
+    opacity: 1;
+    transform: scale(1) translateY(0px);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(0.6) translateY(20px);
+  }
+}
+
+@keyframes speech-bubble-5 {
+  0% {
+    opacity: 0;
+    transform: scale(0.8) translateX(15px);
+  }
+  35% {
+    opacity: 1;
+    transform: scale(1) translateX(0px);
+  }
+  65% {
+    opacity: 1;
+    transform: scale(1) translateX(0px);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(0.8) translateX(-15px);
+  }
+}
+
+.animate-speech-bubble-1 {
+  animation: speech-bubble-1 6s ease-in-out infinite;
+  animation-delay: 0s;
+}
+
+.animate-speech-bubble-2 {
+  animation: speech-bubble-2 7s ease-in-out infinite;
+  animation-delay: 1.5s;
+}
+
+.animate-speech-bubble-3 {
+  animation: speech-bubble-3 8s ease-in-out infinite;
+  animation-delay: 3s;
+}
+
+.animate-speech-bubble-4 {
+  animation: speech-bubble-4 6.5s ease-in-out infinite;
+  animation-delay: 4.5s;
+}
+
+.animate-speech-bubble-5 {
+  animation: speech-bubble-5 7.5s ease-in-out infinite;
+  animation-delay: 2s;
+}
+
 .animate-pulse-glow {
   animation: pulse-glow 2s ease-in-out infinite;
 }

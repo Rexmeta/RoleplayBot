@@ -65,6 +65,48 @@ export default function Intro() {
           <div className="absolute w-3 h-3 bg-indigo-400/20 rounded-full animate-float-particle-4" style={{ top: '60%', right: '25%' }} />
           <div className="absolute w-1 h-1 bg-white/40 rounded-full animate-float-particle-5" style={{ bottom: '20%', right: '10%' }} />
         </div>
+        
+        {/* Speech Bubbles positioned around people in the image */}
+        <div className="absolute inset-0 overflow-hidden pointer-events-none">
+          {/* Left side bubbles - for people on the left side of the image */}
+          <div className="absolute animate-speech-bubble-1" style={{ top: '25%', left: '8%' }}>
+            <div className="bg-white/90 backdrop-blur-sm rounded-xl px-4 py-2 shadow-lg border border-white/30 relative">
+              <p className="text-blue-900 text-sm font-medium">협상 스킬을 배우고 싶어요!</p>
+              <div className="absolute -bottom-2 left-6 w-4 h-4 bg-white/90 rotate-45 border-r border-b border-white/30"></div>
+            </div>
+          </div>
+          
+          {/* Right side bubbles - for people on the right side of the image */}
+          <div className="absolute animate-speech-bubble-2" style={{ top: '35%', right: '12%' }}>
+            <div className="bg-blue-500/90 backdrop-blur-sm rounded-xl px-4 py-2 shadow-lg border border-blue-400/50 relative">
+              <p className="text-white text-sm font-medium">실시간 피드백이 도움돼요!</p>
+              <div className="absolute -bottom-2 right-6 w-4 h-4 bg-blue-500/90 rotate-45 border-r border-b border-blue-400/50"></div>
+            </div>
+          </div>
+          
+          {/* Center bubbles - for people in the center */}
+          <div className="absolute animate-speech-bubble-3" style={{ top: '45%', left: '15%' }}>
+            <div className="bg-purple-500/90 backdrop-blur-sm rounded-xl px-4 py-2 shadow-lg border border-purple-400/50 relative">
+              <p className="text-white text-sm font-medium">AI와 대화하니까 부담없어요</p>
+              <div className="absolute -bottom-2 left-8 w-4 h-4 bg-purple-500/90 rotate-45 border-r border-b border-purple-400/50"></div>
+            </div>
+          </div>
+          
+          {/* Additional bubbles for depth */}
+          <div className="absolute animate-speech-bubble-4" style={{ bottom: '35%', right: '18%' }}>
+            <div className="bg-green-500/90 backdrop-blur-sm rounded-xl px-3 py-2 shadow-lg border border-green-400/50 relative">
+              <p className="text-white text-xs font-medium">프레젠테이션 연습 완료!</p>
+              <div className="absolute -top-2 right-4 w-4 h-4 bg-green-500/90 rotate-45 border-l border-t border-green-400/50"></div>
+            </div>
+          </div>
+          
+          <div className="absolute animate-speech-bubble-5" style={{ bottom: '25%', left: '25%' }}>
+            <div className="bg-orange-500/90 backdrop-blur-sm rounded-xl px-3 py-2 shadow-lg border border-orange-400/50 relative">
+              <p className="text-white text-xs font-medium">감정 분석이 정확해요</p>
+              <div className="absolute -top-2 left-5 w-4 h-4 bg-orange-500/90 rotate-45 border-l border-t border-orange-400/50"></div>
+            </div>
+          </div>
+        </div>
       </div>
 
       {/* Content */}
