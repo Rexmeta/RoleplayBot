@@ -65,11 +65,14 @@ export default function Home() {
       </header>
 
       {/* Main Content */}
-      <main className="max-w-6xl mx-auto px-4 py-8">
-        {currentView === "scenarios" && (
-          <ScenarioSelector onScenarioSelect={handleScenarioSelect} />
-        )}
-        
+      {currentView === "scenarios" ? (
+        <main className="py-8" style={{ backgroundColor: '#f1f5f9' }}>
+          <div className="max-w-6xl mx-auto px-4">
+            <ScenarioSelector onScenarioSelect={handleScenarioSelect} />
+          </div>
+        </main>
+      ) : (
+        <main className="max-w-6xl mx-auto px-4 py-8">
         {currentView === "chat" && selectedScenario && conversationId && (
           <ChatWindow
             scenario={selectedScenario}
@@ -87,7 +90,8 @@ export default function Home() {
             onSelectNewScenario={handleReturnToScenarios}
           />
         )}
-      </main>
+        </main>
+      )}
 
       {/* Footer */}
       <footer className="bg-white border-t border-slate-200 py-8 mt-16">
