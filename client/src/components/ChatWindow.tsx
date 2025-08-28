@@ -41,6 +41,7 @@ export default function ChatWindow({ scenario, conversationId, onChatComplete, o
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const recognitionRef = useRef<any>(null);
   const speechSynthesisRef = useRef<SpeechSynthesis | null>(null);
+  const lastSpokenMessageRef = useRef<string>("");
 
   const queryClient = useQueryClient();
   const { toast } = useToast();
@@ -67,7 +68,7 @@ export default function ChatWindow({ scenario, conversationId, onChatComplete, o
       if (voiceModeEnabled && data.messages) {
         const lastMessage = data.messages[data.messages.length - 1];
         if (lastMessage && lastMessage.sender === 'ai') {
-          speakMessage(lastMessage.message);
+          speakMessage(lastMessage.message, true);
         }
       }
     },
@@ -130,8 +131,14 @@ export default function ChatWindow({ scenario, conversationId, onChatComplete, o
   };
 
   // TTS 기능들
-  const speakMessage = (text: string) => {
-    if (!voiceModeEnabled || !speechSynthesisRef.current) return;
+  const speakMessage = (text: string, isAutoPlay: boolean = false) => {
+    if (!speechSynthesisRef.current) return;
+    
+    // 음성 모드가 꺼져있고 자동재생인 경우 실행하지 않음
+    if (!voiceModeEnabled && isAutoPlay) return;
+    
+    // 이미 같은 메시지를 재생했다면 중복 재생 방지 (자동재생의 경우만)
+    if (isAutoPlay && lastSpokenMessageRef.current === text) return;
     
     // 기존 음성 정지
     speechSynthesisRef.current.cancel();
@@ -145,7 +152,12 @@ export default function ChatWindow({ scenario, conversationId, onChatComplete, o
     utterance.pitch = 1.0;
     utterance.volume = 0.8;
     
-    utterance.onstart = () => setIsSpeaking(true);
+    utterance.onstart = () => {
+      setIsSpeaking(true);
+      if (isAutoPlay) {
+        lastSpokenMessageRef.current = text;
+      }
+    };
     utterance.onend = () => setIsSpeaking(false);
     utterance.onerror = () => {
       setIsSpeaking(false);
@@ -169,6 +181,7 @@ export default function ChatWindow({ scenario, conversationId, onChatComplete, o
   const toggleVoiceMode = () => {
     if (voiceModeEnabled) {
       stopSpeaking();
+      lastSpokenMessageRef.current = ""; // 음성 모드 끌 때 재생 기록 초기화
     }
     setVoiceModeEnabled(!voiceModeEnabled);
   };
@@ -251,9 +264,21 @@ export default function ChatWindow({ scenario, conversationId, onChatComplete, o
     }
   }, [toast]);
 
+  // 메시지 스크롤 및 음성 자동 재생
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [conversation?.messages]);
+    
+    // 음성 모드가 켜져 있을 때 새로운 AI 메시지 자동 재생
+    if (voiceModeEnabled && conversation?.messages) {
+      const lastMessage = conversation.messages[conversation.messages.length - 1];
+      if (lastMessage && lastMessage.sender === 'ai' && !isLoading) {
+        // 약간의 지연을 두어 UI 업데이트 후 음성 재생
+        setTimeout(() => {
+          speakMessage(lastMessage.message, true);
+        }, 500);
+      }
+    }
+  }, [conversation?.messages, voiceModeEnabled, isLoading]);
 
   useEffect(() => {
     const handleKeyPress = (e: KeyboardEvent) => {
