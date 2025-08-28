@@ -68,7 +68,7 @@ export default function ChatWindow({ scenario, conversationId, onChatComplete, o
       if (voiceModeEnabled && data.messages) {
         const lastMessage = data.messages[data.messages.length - 1];
         if (lastMessage && lastMessage.sender === 'ai') {
-          speakMessage(lastMessage.message, true);
+          speakMessage(lastMessage.message, true, lastMessage.emotion);
         }
       }
     },
@@ -130,8 +130,41 @@ export default function ChatWindow({ scenario, conversationId, onChatComplete, o
     }
   };
 
+  // 페르소나별 성별 정보
+  const getPersonaGender = (scenarioId: string): 'male' | 'female' => {
+    const femalePersonas = ['empathy', 'presentation']; // 이선영, 정미경
+    return femalePersonas.includes(scenarioId) ? 'female' : 'male';
+  };
+
+  // 감정에 따른 음성 설정
+  const getVoiceSettings = (emotion: string = '중립', gender: 'male' | 'female' = 'male') => {
+    const baseSettings = {
+      lang: 'ko-KR',
+      volume: 0.8,
+    };
+
+    // 성별에 따른 기본 설정
+    const genderSettings = gender === 'female' 
+      ? { rate: 0.95, pitch: 1.2 }  // 여성: 약간 빠르고 높은 음조
+      : { rate: 0.85, pitch: 0.8 }; // 남성: 약간 느리고 낮은 음조
+
+    // 감정에 따른 추가 조정
+    const emotionAdjustments = {
+      '기쁨': { rate: genderSettings.rate + 0.1, pitch: genderSettings.pitch + 0.1 },
+      '슬픔': { rate: genderSettings.rate - 0.15, pitch: genderSettings.pitch - 0.2 },
+      '분노': { rate: genderSettings.rate + 0.05, pitch: genderSettings.pitch - 0.1 },
+      '놀람': { rate: genderSettings.rate + 0.2, pitch: genderSettings.pitch + 0.2 },
+      '중립': genderSettings
+    };
+
+    return {
+      ...baseSettings,
+      ...(emotionAdjustments[emotion] || genderSettings)
+    };
+  };
+
   // TTS 기능들
-  const speakMessage = (text: string, isAutoPlay: boolean = false) => {
+  const speakMessage = (text: string, isAutoPlay: boolean = false, emotion?: string) => {
     if (!speechSynthesisRef.current) return;
     
     // 음성 모드가 꺼져있고 자동재생인 경우 실행하지 않음
@@ -146,11 +179,37 @@ export default function ChatWindow({ scenario, conversationId, onChatComplete, o
     // 텍스트 정리 (HTML 태그, 특수 문자 제거)
     const cleanText = text.replace(/<[^>]*>/g, '').replace(/[*#_`]/g, '');
     
+    // 현재 시나리오의 성별과 감정에 따른 음성 설정
+    const gender = getPersonaGender(scenario);
+    const voiceSettings = getVoiceSettings(emotion, gender);
+    
     const utterance = new SpeechSynthesisUtterance(cleanText);
-    utterance.lang = 'ko-KR';
-    utterance.rate = 0.9; // 조금 느리게
-    utterance.pitch = 1.0;
-    utterance.volume = 0.8;
+    utterance.lang = voiceSettings.lang;
+    utterance.rate = voiceSettings.rate;
+    utterance.pitch = voiceSettings.pitch;
+    utterance.volume = voiceSettings.volume;
+    
+    // 사용 가능한 음성 중에서 성별에 맞는 음성 선택
+    const voices = speechSynthesisRef.current.getVoices();
+    const koreanVoices = voices.filter(voice => voice.lang.includes('ko'));
+    
+    if (koreanVoices.length > 0) {
+      // 성별에 맞는 음성 우선 선택
+      const genderSpecificVoice = koreanVoices.find(voice => {
+        const voiceName = voice.name.toLowerCase();
+        if (gender === 'female') {
+          return voiceName.includes('female') || voiceName.includes('woman') || 
+                 voiceName.includes('여성') || voiceName.includes('yuna') ||
+                 voiceName.includes('jihye') || voiceName.includes('seoyeon');
+        } else {
+          return voiceName.includes('male') || voiceName.includes('man') || 
+                 voiceName.includes('남성') || voiceName.includes('minho') ||
+                 voiceName.includes('gyeongtae') || voiceName.includes('junho');
+        }
+      });
+      
+      utterance.voice = genderSpecificVoice || koreanVoices[0];
+    }
     
     utterance.onstart = () => {
       setIsSpeaking(true);
@@ -274,7 +333,7 @@ export default function ChatWindow({ scenario, conversationId, onChatComplete, o
       if (lastMessage && lastMessage.sender === 'ai' && !isLoading) {
         // 약간의 지연을 두어 UI 업데이트 후 음성 재생
         setTimeout(() => {
-          speakMessage(lastMessage.message, true);
+          speakMessage(lastMessage.message, true, lastMessage.emotion);
         }, 500);
       }
     }
@@ -492,7 +551,7 @@ export default function ChatWindow({ scenario, conversationId, onChatComplete, o
                       
                       {/* 음성 재생 버튼 */}
                       <button
-                        onClick={() => speakMessage(message.message)}
+                        onClick={() => speakMessage(message.message, false, message.emotion)}
                         className="text-xs text-slate-400 hover:text-corporate-600 transition-colors flex items-center space-x-1"
                         title="이 메시지 듣기"
                         data-testid={`button-speak-message-${index}`}
