@@ -36,8 +36,11 @@ export default function ChatWindow({ scenario, conversationId, onChatComplete, o
   const [isLoading, setIsLoading] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
   const [speechSupported, setSpeechSupported] = useState(false);
+  const [voiceModeEnabled, setVoiceModeEnabled] = useState(false);
+  const [isSpeaking, setIsSpeaking] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const recognitionRef = useRef<any>(null);
+  const speechSynthesisRef = useRef<SpeechSynthesis | null>(null);
 
   const queryClient = useQueryClient();
   const { toast } = useToast();
@@ -59,6 +62,14 @@ export default function ChatWindow({ scenario, conversationId, onChatComplete, o
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["/api/conversations", conversationId] });
       setIsLoading(false);
+      
+      // 음성 모드가 활성화되어 있고 AI 응답이 있으면 음성으로 읽기
+      if (voiceModeEnabled && data.messages) {
+        const lastMessage = data.messages[data.messages.length - 1];
+        if (lastMessage && lastMessage.sender === 'ai') {
+          speakMessage(lastMessage.message);
+        }
+      }
     },
     onError: () => {
       toast({
@@ -118,7 +129,57 @@ export default function ChatWindow({ scenario, conversationId, onChatComplete, o
     }
   };
 
-  // 음성 인식 초기화
+  // TTS 기능들
+  const speakMessage = (text: string) => {
+    if (!voiceModeEnabled || !speechSynthesisRef.current) return;
+    
+    // 기존 음성 정지
+    speechSynthesisRef.current.cancel();
+    
+    // 텍스트 정리 (HTML 태그, 특수 문자 제거)
+    const cleanText = text.replace(/<[^>]*>/g, '').replace(/[*#_`]/g, '');
+    
+    const utterance = new SpeechSynthesisUtterance(cleanText);
+    utterance.lang = 'ko-KR';
+    utterance.rate = 0.9; // 조금 느리게
+    utterance.pitch = 1.0;
+    utterance.volume = 0.8;
+    
+    utterance.onstart = () => setIsSpeaking(true);
+    utterance.onend = () => setIsSpeaking(false);
+    utterance.onerror = () => {
+      setIsSpeaking(false);
+      toast({
+        title: "음성 재생 오류",
+        description: "음성을 재생할 수 없습니다.",
+        variant: "destructive"
+      });
+    };
+    
+    speechSynthesisRef.current.speak(utterance);
+  };
+
+  const stopSpeaking = () => {
+    if (speechSynthesisRef.current) {
+      speechSynthesisRef.current.cancel();
+      setIsSpeaking(false);
+    }
+  };
+
+  const toggleVoiceMode = () => {
+    if (voiceModeEnabled) {
+      stopSpeaking();
+    }
+    setVoiceModeEnabled(!voiceModeEnabled);
+  };
+
+  // TTS 기능 초기화
+  useEffect(() => {
+    if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+      speechSynthesisRef.current = window.speechSynthesis;
+    }
+  }, []);
+
   useEffect(() => {
     if (typeof window !== 'undefined') {
       const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -310,6 +371,22 @@ export default function ChatWindow({ scenario, conversationId, onChatComplete, o
                 <div className="text-sm opacity-90">진행도</div>
                 <div className="text-xl font-bold">{conversation.turnCount}/{maxTurns}</div>
               </div>
+              
+              {/* 음성 모드 토글 */}
+              <Button 
+                variant="ghost" 
+                size="sm" 
+                onClick={toggleVoiceMode}
+                className={`text-white/80 hover:text-white hover:bg-white/10 ${voiceModeEnabled ? 'bg-white/20' : ''}`}
+                data-testid="button-toggle-voice-mode"
+                title={voiceModeEnabled ? "음성 모드 끄기" : "음성 모드 켜기"}
+              >
+                <i className={`fas ${voiceModeEnabled ? 'fa-volume-up' : 'fa-volume-mute'}`}></i>
+                {voiceModeEnabled && isSpeaking && (
+                  <span className="ml-1 text-xs animate-pulse">재생중</span>
+                )}
+              </Button>
+              
               <Button 
                 variant="ghost" 
                 size="sm" 
@@ -375,14 +452,29 @@ export default function ChatWindow({ scenario, conversationId, onChatComplete, o
                   <p className={message.sender === "user" ? "text-white" : "text-slate-800"}>
                     {message.message}
                   </p>
-                  {/* AI 메시지에 감정 정보 표시 */}
-                  {message.sender === "ai" && message.emotion && (
-                    <div className="mt-2 text-xs text-slate-500 flex items-center">
-                      <span className="mr-1">{emotionEmojis[message.emotion]}</span>
-                      <span>{message.emotion}</span>
-                      {message.emotionReason && (
-                        <span className="ml-2 text-slate-400">- {message.emotionReason}</span>
+                  {/* AI 메시지에 감정 정보와 음성 버튼 표시 */}
+                  {message.sender === "ai" && (
+                    <div className="mt-2 flex items-center justify-between">
+                      {message.emotion && (
+                        <div className="text-xs text-slate-500 flex items-center">
+                          <span className="mr-1">{emotionEmojis[message.emotion]}</span>
+                          <span>{message.emotion}</span>
+                          {message.emotionReason && (
+                            <span className="ml-2 text-slate-400">- {message.emotionReason}</span>
+                          )}
+                        </div>
                       )}
+                      
+                      {/* 음성 재생 버튼 */}
+                      <button
+                        onClick={() => speakMessage(message.message)}
+                        className="text-xs text-slate-400 hover:text-corporate-600 transition-colors flex items-center space-x-1"
+                        title="이 메시지 듣기"
+                        data-testid={`button-speak-message-${index}`}
+                      >
+                        <i className="fas fa-volume-up"></i>
+                        <span>듣기</span>
+                      </button>
                     </div>
                   )}
                 </div>
