@@ -149,7 +149,7 @@ export default function ChatWindow({ scenario, conversationId, onChatComplete, o
       : { rate: 0.85, pitch: 0.8 }; // 남성: 약간 느리고 낮은 음조
 
     // 감정에 따른 추가 조정
-    const emotionAdjustments = {
+    const emotionAdjustments: Record<string, { rate: number; pitch: number }> = {
       '기쁨': { rate: genderSettings.rate + 0.1, pitch: genderSettings.pitch + 0.1 },
       '슬픔': { rate: genderSettings.rate - 0.15, pitch: genderSettings.pitch - 0.2 },
       '분노': { rate: genderSettings.rate + 0.05, pitch: genderSettings.pitch - 0.1 },
@@ -180,7 +180,7 @@ export default function ChatWindow({ scenario, conversationId, onChatComplete, o
     const cleanText = text.replace(/<[^>]*>/g, '').replace(/[*#_`]/g, '');
     
     // 현재 시나리오의 성별과 감정에 따른 음성 설정
-    const gender = getPersonaGender(scenario);
+    const gender = getPersonaGender(scenario.id);
     const voiceSettings = getVoiceSettings(emotion, gender);
     
     const utterance = new SpeechSynthesisUtterance(cleanText);
@@ -193,22 +193,37 @@ export default function ChatWindow({ scenario, conversationId, onChatComplete, o
     const voices = speechSynthesisRef.current.getVoices();
     const koreanVoices = voices.filter(voice => voice.lang.includes('ko'));
     
+    console.log(`현재 페르소나: ${scenario.name} (${gender}), 감정: ${emotion}`);
+    
     if (koreanVoices.length > 0) {
-      // 성별에 맞는 음성 우선 선택
+      // 더 많은 음성 옵션 시도
       const genderSpecificVoice = koreanVoices.find(voice => {
         const voiceName = voice.name.toLowerCase();
         if (gender === 'female') {
           return voiceName.includes('female') || voiceName.includes('woman') || 
                  voiceName.includes('여성') || voiceName.includes('yuna') ||
-                 voiceName.includes('jihye') || voiceName.includes('seoyeon');
+                 voiceName.includes('jihye') || voiceName.includes('seoyeon') ||
+                 voiceName.includes('google 한국어') || voiceName.includes('heami') ||
+                 voiceName.includes('narae') || voiceName.includes('yujin');
         } else {
           return voiceName.includes('male') || voiceName.includes('man') || 
                  voiceName.includes('남성') || voiceName.includes('minho') ||
-                 voiceName.includes('gyeongtae') || voiceName.includes('junho');
+                 voiceName.includes('gyeongtae') || voiceName.includes('junho') ||
+                 voiceName.includes('giho') || voiceName.includes('hyunsik');
         }
       });
       
-      utterance.voice = genderSpecificVoice || koreanVoices[0];
+      const selectedVoice = genderSpecificVoice || koreanVoices[0];
+      console.log(`선택된 음성: ${selectedVoice.name} (${selectedVoice.lang})`);
+      utterance.voice = selectedVoice;
+      
+      // 음성 제한사항 로깅
+      if (!genderSpecificVoice) {
+        console.warn(`⚠️ ${gender} 성별에 맞는 전용 음성을 찾을 수 없어 기본 음성을 사용합니다.`);
+        console.log('해결 방법: Chrome에서 설정 > 접근성 > 텍스트 음성 변환에서 추가 음성을 다운로드하세요.');
+      }
+    } else {
+      console.error('❌ 한국어 TTS 음성이 없습니다. 브라우저 설정을 확인하세요.');
     }
     
     utterance.onstart = () => {
@@ -245,10 +260,32 @@ export default function ChatWindow({ scenario, conversationId, onChatComplete, o
     setVoiceModeEnabled(!voiceModeEnabled);
   };
 
-  // TTS 기능 초기화
+  // TTS 기능 초기화 및 음성 목록 확인
   useEffect(() => {
     if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
       speechSynthesisRef.current = window.speechSynthesis;
+      
+      // 사용 가능한 음성 목록 로깅 (디버깅용)
+      const logAvailableVoices = () => {
+        const voices = speechSynthesisRef.current?.getVoices() || [];
+        console.log('사용 가능한 TTS 음성 목록:');
+        voices.forEach((voice, index) => {
+          console.log(`${index + 1}. ${voice.name} (${voice.lang})`);
+        });
+        
+        const koreanVoices = voices.filter(voice => voice.lang.includes('ko'));
+        console.log('한국어 음성:', koreanVoices.length, '개');
+        koreanVoices.forEach(voice => {
+          console.log(`- ${voice.name} (${voice.lang})`);
+        });
+      };
+      
+      // 음성 목록이 로드될 때까지 기다림
+      if (speechSynthesisRef.current.getVoices().length === 0) {
+        speechSynthesisRef.current.addEventListener('voiceschanged', logAvailableVoices);
+      } else {
+        logAvailableVoices();
+      }
     }
   }, []);
 
@@ -457,19 +494,60 @@ export default function ChatWindow({ scenario, conversationId, onChatComplete, o
               </div>
               
               {/* 음성 모드 토글 */}
-              <Button 
-                variant="ghost" 
-                size="sm" 
-                onClick={toggleVoiceMode}
-                className={`text-white/80 hover:text-white hover:bg-white/10 ${voiceModeEnabled ? 'bg-white/20' : ''}`}
-                data-testid="button-toggle-voice-mode"
-                title={voiceModeEnabled ? "음성 모드 끄기" : "음성 모드 켜기"}
-              >
-                <i className={`fas ${voiceModeEnabled ? 'fa-volume-up' : 'fa-volume-mute'}`}></i>
-                {voiceModeEnabled && isSpeaking && (
-                  <span className="ml-1 text-xs animate-pulse">재생중</span>
-                )}
-              </Button>
+              <div className="relative group">
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
+                  onClick={toggleVoiceMode}
+                  className={`text-white/80 hover:text-white hover:bg-white/10 ${voiceModeEnabled ? 'bg-white/20' : ''}`}
+                  data-testid="button-toggle-voice-mode"
+                  title={voiceModeEnabled ? "음성 모드 끄기" : "음성 모드 켜기"}
+                >
+                  <i className={`fas ${voiceModeEnabled ? 'fa-volume-up' : 'fa-volume-mute'}`}></i>
+                  {voiceModeEnabled && isSpeaking && (
+                    <span className="ml-1 text-xs animate-pulse">재생중</span>
+                  )}
+                </Button>
+                
+                {/* 음성 기능 정보 툴팁 */}
+                <div className="absolute right-0 top-full mt-2 w-80 bg-white border border-slate-200 rounded-lg shadow-lg p-4 text-sm text-slate-600 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50">
+                  <div className="font-semibold text-slate-800 mb-2 flex items-center">
+                    🎤 <span className="ml-1">음성 기능 정보</span>
+                  </div>
+                  <div className="space-y-3">
+                    <div>
+                      <strong className="text-slate-700">현재 상태:</strong> 
+                      <span className={`ml-1 ${voiceModeEnabled ? 'text-green-600' : 'text-gray-500'}`}>
+                        {voiceModeEnabled ? '활성화됨' : '비활성화됨'}
+                      </span>
+                    </div>
+                    
+                    <div>
+                      <strong className="text-slate-700">지원 기능:</strong>
+                      <ul className="ml-3 mt-1 text-xs space-y-1 text-slate-600">
+                        <li>✓ 페르소나별 성별 구분 (남성/여성)</li>
+                        <li>✓ 감정에 따른 음조/속도 조절</li>
+                        <li>✓ 자동 재생 및 수동 재생</li>
+                      </ul>
+                    </div>
+                    
+                    <div>
+                      <strong className="text-slate-700">현재 제한사항:</strong>
+                      <ul className="ml-3 mt-1 text-xs space-y-1 text-amber-600">
+                        <li>⚠️ 브라우저 기본 TTS 엔진 의존</li>
+                        <li>⚠️ 한국어 음성 개수 제한</li>
+                        <li>⚠️ 성별별 전용 음성 부족</li>
+                        <li>⚠️ 모든 페르소나가 유사한 음성</li>
+                      </ul>
+                    </div>
+                    
+                    <div className="text-xs bg-blue-50 p-2 rounded border-l-2 border-blue-300">
+                      <strong className="text-blue-700">💡 해결 방법:</strong>
+                      <br />Chrome 설정 → 접근성 → 텍스트 음성 변환에서 <br />추가 한국어 음성을 다운로드하세요
+                    </div>
+                  </div>
+                </div>
+              </div>
               
               <Button 
                 variant="ghost" 
