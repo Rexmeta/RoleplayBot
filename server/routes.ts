@@ -4,6 +4,7 @@ import { storage } from "./storage";
 import { insertConversationSchema, insertFeedbackSchema } from "@shared/schema";
 import { generateAIResponse, generateFeedback, SCENARIO_PERSONAS } from "./services/geminiService";
 import { createSampleData } from "./sampleData";
+import ttsRoutes from "./routes/tts.js";
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // Create new conversation
@@ -406,6 +407,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(500).json({ error: "Failed to get trends analytics" });
     }
   });
+
+  // TTS routes
+  app.use("/api/tts", ttsRoutes);
 
   // Create sample data for development
   if (process.env.NODE_ENV === "development") {

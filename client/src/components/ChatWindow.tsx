@@ -42,6 +42,7 @@ export default function ChatWindow({ scenario, conversationId, onChatComplete, o
   const recognitionRef = useRef<any>(null);
   const speechSynthesisRef = useRef<SpeechSynthesis | null>(null);
   const lastSpokenMessageRef = useRef<string>("");
+  const currentAudioRef = useRef<HTMLAudioElement | null>(null);
 
   const queryClient = useQueryClient();
   const { toast } = useToast();
@@ -163,23 +164,94 @@ export default function ChatWindow({ scenario, conversationId, onChatComplete, o
     };
   };
 
-  // TTS 기능들
-  const speakMessage = (text: string, isAutoPlay: boolean = false, emotion?: string) => {
-    if (!speechSynthesisRef.current) return;
-    
+  // ElevenLabs TTS 기능들
+  const speakMessage = async (text: string, isAutoPlay: boolean = false, emotion?: string) => {
     // 음성 모드가 꺼져있고 자동재생인 경우 실행하지 않음
     if (!voiceModeEnabled && isAutoPlay) return;
     
     // 이미 같은 메시지를 재생했다면 중복 재생 방지 (자동재생의 경우만)
     if (isAutoPlay && lastSpokenMessageRef.current === text) return;
     
-    // 기존 음성 정지
+    // 기존 오디오 정지
+    stopSpeaking();
+    
+    try {
+      setIsSpeaking(true);
+      
+      console.log(`🎤 ElevenLabs TTS 요청: ${scenario.name}, 감정: ${emotion}`);
+      
+      // ElevenLabs API 호출
+      const response = await fetch('/api/tts/generate', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          text: text,
+          scenarioId: scenario.id,
+          emotion: emotion || '중립'
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.details || 'TTS 생성 실패');
+      }
+
+      const data = await response.json();
+      
+      // Base64 오디오 데이터를 Blob으로 변환
+      const audioBlob = new Blob(
+        [Uint8Array.from(atob(data.audio), c => c.charCodeAt(0))], 
+        { type: 'audio/mpeg' }
+      );
+      
+      // 오디오 URL 생성 및 재생
+      const audioUrl = URL.createObjectURL(audioBlob);
+      const audio = new Audio(audioUrl);
+      currentAudioRef.current = audio;
+      
+      audio.onended = () => {
+        setIsSpeaking(false);
+        URL.revokeObjectURL(audioUrl); // 메모리 정리
+        currentAudioRef.current = null;
+      };
+      
+      audio.onerror = () => {
+        setIsSpeaking(false);
+        URL.revokeObjectURL(audioUrl);
+        currentAudioRef.current = null;
+        toast({
+          title: "음성 재생 오류",
+          description: "오디오 재생에 실패했습니다.",
+          variant: "destructive"
+        });
+      };
+
+      // 재생 추적
+      if (isAutoPlay) {
+        lastSpokenMessageRef.current = text;
+      }
+      
+      await audio.play();
+      
+    } catch (error) {
+      setIsSpeaking(false);
+      console.error('ElevenLabs TTS 오류:', error);
+      
+      // 백업: 기존 Web Speech API 사용
+      console.log('백업 TTS 사용 중...');
+      await fallbackToWebSpeechAPI(text, emotion);
+    }
+  };
+
+  // 백업 TTS (기존 Web Speech API)
+  const fallbackToWebSpeechAPI = async (text: string, emotion?: string) => {
+    if (!speechSynthesisRef.current) return;
+    
     speechSynthesisRef.current.cancel();
     
-    // 텍스트 정리 (HTML 태그, 특수 문자 제거)
     const cleanText = text.replace(/<[^>]*>/g, '').replace(/[*#_`]/g, '');
-    
-    // 현재 시나리오의 성별과 감정에 따른 음성 설정
     const gender = getPersonaGender(scenario.id);
     const voiceSettings = getVoiceSettings(emotion, gender);
     
@@ -189,49 +261,7 @@ export default function ChatWindow({ scenario, conversationId, onChatComplete, o
     utterance.pitch = voiceSettings.pitch;
     utterance.volume = voiceSettings.volume;
     
-    // 사용 가능한 음성 중에서 성별에 맞는 음성 선택
-    const voices = speechSynthesisRef.current.getVoices();
-    const koreanVoices = voices.filter(voice => voice.lang.includes('ko'));
-    
-    console.log(`현재 페르소나: ${scenario.name} (${gender}), 감정: ${emotion}`);
-    
-    if (koreanVoices.length > 0) {
-      // 더 많은 음성 옵션 시도
-      const genderSpecificVoice = koreanVoices.find(voice => {
-        const voiceName = voice.name.toLowerCase();
-        if (gender === 'female') {
-          return voiceName.includes('female') || voiceName.includes('woman') || 
-                 voiceName.includes('여성') || voiceName.includes('yuna') ||
-                 voiceName.includes('jihye') || voiceName.includes('seoyeon') ||
-                 voiceName.includes('google 한국어') || voiceName.includes('heami') ||
-                 voiceName.includes('narae') || voiceName.includes('yujin');
-        } else {
-          return voiceName.includes('male') || voiceName.includes('man') || 
-                 voiceName.includes('남성') || voiceName.includes('minho') ||
-                 voiceName.includes('gyeongtae') || voiceName.includes('junho') ||
-                 voiceName.includes('giho') || voiceName.includes('hyunsik');
-        }
-      });
-      
-      const selectedVoice = genderSpecificVoice || koreanVoices[0];
-      console.log(`선택된 음성: ${selectedVoice.name} (${selectedVoice.lang})`);
-      utterance.voice = selectedVoice;
-      
-      // 음성 제한사항 로깅
-      if (!genderSpecificVoice) {
-        console.warn(`⚠️ ${gender} 성별에 맞는 전용 음성을 찾을 수 없어 기본 음성을 사용합니다.`);
-        console.log('해결 방법: Chrome에서 설정 > 접근성 > 텍스트 음성 변환에서 추가 음성을 다운로드하세요.');
-      }
-    } else {
-      console.error('❌ 한국어 TTS 음성이 없습니다. 브라우저 설정을 확인하세요.');
-    }
-    
-    utterance.onstart = () => {
-      setIsSpeaking(true);
-      if (isAutoPlay) {
-        lastSpokenMessageRef.current = text;
-      }
-    };
+    utterance.onstart = () => setIsSpeaking(true);
     utterance.onend = () => setIsSpeaking(false);
     utterance.onerror = () => {
       setIsSpeaking(false);
@@ -246,10 +276,19 @@ export default function ChatWindow({ scenario, conversationId, onChatComplete, o
   };
 
   const stopSpeaking = () => {
+    // ElevenLabs 오디오 정지
+    if (currentAudioRef.current) {
+      currentAudioRef.current.pause();
+      currentAudioRef.current.currentTime = 0;
+      currentAudioRef.current = null;
+    }
+    
+    // 백업 Web Speech API 정지
     if (speechSynthesisRef.current) {
       speechSynthesisRef.current.cancel();
-      setIsSpeaking(false);
     }
+    
+    setIsSpeaking(false);
   };
 
   const toggleVoiceMode = () => {
@@ -523,27 +562,30 @@ export default function ChatWindow({ scenario, conversationId, onChatComplete, o
                     </div>
                     
                     <div>
-                      <strong className="text-slate-700">지원 기능:</strong>
-                      <ul className="ml-3 mt-1 text-xs space-y-1 text-slate-600">
-                        <li>✓ 페르소나별 성별 구분 (남성/여성)</li>
-                        <li>✓ 감정에 따른 음조/속도 조절</li>
-                        <li>✓ 자동 재생 및 수동 재생</li>
+                      <strong className="text-slate-700">🎉 ElevenLabs TTS 기능:</strong>
+                      <ul className="ml-3 mt-1 text-xs space-y-1 text-green-600">
+                        <li>✓ 페르소나별 전용 AI 음성 (5가지)</li>
+                        <li>✓ 실감나는 감정 표현</li>
+                        <li>✓ 자연스러운 발음과 억양</li>
+                        <li>✓ 성별별 특화 음성</li>
+                        <li>✓ 백업 TTS 시스템</li>
                       </ul>
                     </div>
                     
                     <div>
-                      <strong className="text-slate-700">현재 제한사항:</strong>
-                      <ul className="ml-3 mt-1 text-xs space-y-1 text-amber-600">
-                        <li>⚠️ 브라우저 기본 TTS 엔진 의존</li>
-                        <li>⚠️ 한국어 음성 개수 제한</li>
-                        <li>⚠️ 성별별 전용 음성 부족</li>
-                        <li>⚠️ 모든 페르소나가 유사한 음성</li>
+                      <strong className="text-slate-700">페르소나 음성 매핑:</strong>
+                      <ul className="ml-3 mt-1 text-xs space-y-1 text-slate-600">
+                        <li>• 김태훈 (남성): Adam - 안정적이고 성숙한 목소리</li>
+                        <li>• 이선영 (여성): Bella - 따뜻하고 공감적인 목소리</li>
+                        <li>• 박준호 (남성): Sam - 자신감 있고 강한 목소리</li>
+                        <li>• 정미경 (여성): Dorothy - 전문적이고 명확한 목소리</li>
+                        <li>• 최민수 (남성): Josh - 젊고 친근한 목소리</li>
                       </ul>
                     </div>
                     
-                    <div className="text-xs bg-blue-50 p-2 rounded border-l-2 border-blue-300">
-                      <strong className="text-blue-700">💡 해결 방법:</strong>
-                      <br />Chrome 설정 → 접근성 → 텍스트 음성 변환에서 <br />추가 한국어 음성을 다운로드하세요
+                    <div className="text-xs bg-green-50 p-2 rounded border-l-2 border-green-300">
+                      <strong className="text-green-700">🚀 혁신 기능:</strong>
+                      <br />AI 기반 ElevenLabs로 업그레이드! 실제 사람과 같은 자연스러운 음성 대화를 경험하세요.
                     </div>
                   </div>
                 </div>
