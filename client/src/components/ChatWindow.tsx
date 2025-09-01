@@ -94,7 +94,10 @@ export default function ChatWindow({ scenario, conversationId, onChatComplete, o
 
   const handleSkipTurn = () => {
     if (isLoading) return;
-    handleSendMessage();
+    
+    // 건너뛰기: 빈 메시지로 AI 응답 유도
+    setIsLoading(true);
+    sendMessageMutation.mutate("");
   };
 
   const handleVoiceInput = () => {
