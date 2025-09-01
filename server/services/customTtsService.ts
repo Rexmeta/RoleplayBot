@@ -63,7 +63,7 @@ export class CustomTtsService {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'TTS_API_KEY': this.apiKey,
+          'TTS-API-KEY': this.apiKey,
         },
         body: JSON.stringify({
           text: processedText,
@@ -109,7 +109,7 @@ export class CustomTtsService {
       const response = await fetch(`${this.apiUrl}/health`, {
         method: 'GET',
         headers: {
-          'TTS_API_KEY': this.apiKey,
+          'TTS-API-KEY': this.apiKey,
         },
         signal: controller.signal
       });
@@ -128,7 +128,7 @@ export class CustomTtsService {
     try {
       const response = await fetch(`${this.apiUrl}/speakers`, {
         headers: {
-          'TTS_API_KEY': this.apiKey,
+          'TTS-API-KEY': this.apiKey,
         },
       });
 
