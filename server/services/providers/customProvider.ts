@@ -39,7 +39,8 @@ ${conversationHistory}
 
 사용자의 새 메시지에 ${persona.name}로서 응답하세요.`;
 
-      const prompt = userMessage || "대화를 시작해주세요.";
+      // 건너뛰기 시 자연스럽게 대화 이어가기
+      const prompt = userMessage ? userMessage : "앞서 이야기를 자연스럽게 이어가거나 새로운 주제를 제시해주세요.";
 
       // 테스트 모드 확인 (실제 API 서버 없이 Mock 응답)
       if (this.config.apiKey === 'test-key') {

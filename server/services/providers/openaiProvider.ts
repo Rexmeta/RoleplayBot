@@ -41,7 +41,8 @@ export class OpenAIProvider implements AIServiceInterface {
 5. 상황에 맞는 감정을 표현하세요`
       };
 
-      const userMessageContent = userMessage || "대화를 시작해주세요.";
+      // 건너뛰기 시 자연스럽게 대화 이어가기
+      const userMessageContent = userMessage ? userMessage : "앞서 이야기를 자연스럽게 이어가거나 새로운 주제를 제시해주세요.";
 
       const response = await this.client.chat.completions.create({
         model: this.model,

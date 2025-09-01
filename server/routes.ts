@@ -107,7 +107,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         conversation.scenarioId,
         updatedMessages,
         persona,
-        isSkipTurn ? "[건너뛰기]" : message
+        isSkipTurn ? undefined : message
       );
 
       const aiMessage = {
