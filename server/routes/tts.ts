@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import { customTtsService } from '../services/customTtsService.js';
 import { elevenLabsService } from '../services/elevenlabsService.js';
 
 const router = Router();
@@ -33,13 +34,31 @@ router.post('/generate', async (req, res) => {
     
     console.log(`TTS 요청: "${cleanText.substring(0, 50)}..." (${scenarioId}, ${gender}, ${emotion})`);
 
-    // ElevenLabs API 호출
-    const audioBuffer = await elevenLabsService.generateSpeech(
-      cleanText, 
-      scenarioId, 
-      gender, 
-      emotion
-    );
+    let audioBuffer: ArrayBuffer;
+    let ttsProvider = 'custom';
+
+    try {
+      // 우선 커스텀 TTS 서버 시도
+      audioBuffer = await customTtsService.generateSpeech(
+        cleanText, 
+        scenarioId, 
+        gender, 
+        emotion
+      );
+      console.log('✅ 커스텀 TTS 사용');
+    } catch (customError) {
+      console.warn('⚠️ 커스텀 TTS 실패, ElevenLabs로 폴백:', customError);
+      
+      // 백업: ElevenLabs API 호출
+      audioBuffer = await elevenLabsService.generateSpeech(
+        cleanText, 
+        scenarioId, 
+        gender, 
+        emotion
+      );
+      ttsProvider = 'elevenlabs';
+      console.log('✅ ElevenLabs TTS 사용 (백업)');
+    }
 
     // 오디오 데이터를 Base64로 인코딩해서 반환
     const base64Audio = Buffer.from(audioBuffer).toString('base64');
@@ -51,7 +70,8 @@ router.post('/generate', async (req, res) => {
         scenarioId,
         gender,
         emotion,
-        textLength: cleanText.length
+        textLength: cleanText.length,
+        provider: ttsProvider
       }
     });
 
@@ -95,6 +115,34 @@ router.get('/usage', async (req, res) => {
     console.error('사용량 조회 오료:', error);
     res.status(500).json({ 
       error: '사용량 조회 실패',
+      details: error instanceof Error ? error.message : '알 수 없는 오류'
+    });
+  }
+});
+
+// 커스텀 TTS 서버 상태 확인
+router.get('/health', async (req, res) => {
+  try {
+    const customHealth = await customTtsService.checkHealth();
+    
+    res.json({
+      customTts: {
+        available: customHealth,
+        status: customHealth ? 'online' : 'offline'
+      },
+      elevenlabs: {
+        available: !!process.env.ELEVENLABS_API_KEY,
+        status: process.env.ELEVENLABS_API_KEY ? 'configured' : 'not_configured'
+      },
+      webSpeech: {
+        available: true,
+        status: 'browser_dependent'
+      }
+    });
+  } catch (error) {
+    console.error('TTS 서비스 상태 확인 오류:', error);
+    res.status(500).json({ 
+      error: 'TTS 서비스 상태 확인 실패',
       details: error instanceof Error ? error.message : '알 수 없는 오류'
     });
   }

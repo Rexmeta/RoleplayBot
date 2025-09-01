@@ -200,6 +200,9 @@ export default function ChatWindow({ scenario, conversationId, onChatComplete, o
 
       const data = await response.json();
       
+      // TTS 제공자 정보 로깅
+      console.log(`🎵 TTS 제공자: ${data.metadata?.provider || 'unknown'}`);
+      
       // Base64 오디오 데이터를 Blob으로 변환
       const audioBlob = new Blob(
         [Uint8Array.from(atob(data.audio), c => c.charCodeAt(0))], 
@@ -562,30 +565,30 @@ export default function ChatWindow({ scenario, conversationId, onChatComplete, o
                     </div>
                     
                     <div>
-                      <strong className="text-slate-700">🎉 ElevenLabs TTS 기능:</strong>
+                      <strong className="text-slate-700">🎉 커스텀 TTS 기능:</strong>
                       <ul className="ml-3 mt-1 text-xs space-y-1 text-green-600">
-                        <li>✓ 페르소나별 전용 AI 음성 (5가지)</li>
-                        <li>✓ 실감나는 감정 표현</li>
-                        <li>✓ 자연스러운 발음과 억양</li>
-                        <li>✓ 성별별 특화 음성</li>
-                        <li>✓ 백업 TTS 시스템</li>
+                        <li>✓ XTTS-v2 기반 고품질 음성 합성</li>
+                        <li>✓ 페르소나별 전용 스피커 음성 (5가지)</li>
+                        <li>✓ 실감나는 감정 표현 및 톤 조절</li>
+                        <li>✓ 자연스러운 한국어 발음</li>
+                        <li>✓ 이중 백업 시스템 (ElevenLabs + Web Speech)</li>
                       </ul>
                     </div>
                     
                     <div>
                       <strong className="text-slate-700">페르소나 음성 매핑:</strong>
                       <ul className="ml-3 mt-1 text-xs space-y-1 text-slate-600">
-                        <li>• 김태훈 (남성): Adam - 안정적이고 성숙한 목소리</li>
-                        <li>• 이선영 (여성): Bella - 따뜻하고 공감적인 목소리</li>
-                        <li>• 박준호 (남성): Sam - 자신감 있고 강한 목소리</li>
-                        <li>• 정미경 (여성): Dorothy - 전문적이고 명확한 목소리</li>
-                        <li>• 최민수 (남성): Josh - 젊고 친근한 목소리</li>
+                        <li>• 김태훈 (남성): 전문적이고 안정적인 목소리</li>
+                        <li>• 이선영 (여성): 따뜻하고 공감적인 목소리</li>
+                        <li>• 박준호 (남성): 자신감 있고 강인한 목소리</li>
+                        <li>• 정미경 (여성): 전문적이고 명확한 목소리</li>
+                        <li>• 최민수 (남성): 젊고 친근한 목소리</li>
                       </ul>
                     </div>
                     
-                    <div className="text-xs bg-green-50 p-2 rounded border-l-2 border-green-300">
-                      <strong className="text-green-700">🚀 혁신 기능:</strong>
-                      <br />AI 기반 ElevenLabs로 업그레이드! 실제 사람과 같은 자연스러운 음성 대화를 경험하세요.
+                    <div className="text-xs bg-blue-50 p-2 rounded border-l-2 border-blue-300">
+                      <strong className="text-blue-700">🚀 최신 기술:</strong>
+                      <br />Google Colab XTTS-v2 서버 연동! 실제 성우와 같은 자연스럽고 개성 있는 음성을 경험하세요.
                     </div>
                   </div>
                 </div>
