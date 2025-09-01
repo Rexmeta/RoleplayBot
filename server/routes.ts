@@ -68,9 +68,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/conversations/:id/messages", async (req, res) => {
     try {
       const { message } = req.body;
-      if (!message || typeof message !== "string") {
-        return res.status(400).json({ error: "Message is required" });
+      if (typeof message !== "string") {
+        return res.status(400).json({ error: "Message must be a string" });
       }
+      
+      // 빈 메시지는 건너뛰기 기능으로 허용
+      const isSkipTurn = message.trim() === "";
 
       const conversation = await storage.getConversation(req.params.id);
       if (!conversation) {
@@ -81,14 +84,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "Conversation already completed" });
       }
 
-      // Add user message
-      const userMessage = {
-        sender: "user" as const,
-        message,
-        timestamp: new Date().toISOString(),
-      };
+      // 건너뛰기가 아닌 경우에만 사용자 메시지 추가
+      let updatedMessages = conversation.messages;
+      if (!isSkipTurn) {
+        const userMessage = {
+          sender: "user" as const,
+          message,
+          timestamp: new Date().toISOString(),
+        };
+        updatedMessages = [...conversation.messages, userMessage];
+      }
 
-      const updatedMessages = [...conversation.messages, userMessage];
       const newTurnCount = conversation.turnCount + 1;
 
       // Generate AI response
@@ -101,7 +107,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         conversation.scenarioId,
         updatedMessages,
         persona,
-        message
+        isSkipTurn ? "[건너뛰기]" : message
       );
 
       const aiMessage = {
