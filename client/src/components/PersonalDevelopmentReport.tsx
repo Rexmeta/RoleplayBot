@@ -189,9 +189,14 @@ export default function PersonalDevelopmentReport({
 
   return (
     <div className="max-w-6xl mx-auto space-y-6" data-testid="personal-development-report">
-      {/* Header */}
+      {/* PDF 전용 헤더 (인쇄 시에만 표시) */}
+      <div className="pdf-header" style={{ display: 'none' }}>
+        RolePlayX
+      </div>
+      
+      {/* 화면용 헤더 */}
       <div 
-        className="bg-gradient-to-r from-corporate-600 to-corporate-700 rounded-xl p-6 text-white transform transition-all duration-700 hover:shadow-2xl"
+        className="bg-gradient-to-r from-corporate-600 to-corporate-700 rounded-xl p-6 text-white transform transition-all duration-700 hover:shadow-2xl screen-only"
         style={{ 
           opacity: 0,
           animation: `fadeInUp 0.8s ease-out forwards`
@@ -227,7 +232,7 @@ export default function PersonalDevelopmentReport({
 
       <Tabs defaultValue="scores" className="space-y-6">
         <TabsList 
-          className="grid w-full grid-cols-4 transform transition-all duration-500"
+          className="grid w-full grid-cols-4 transform transition-all duration-500 screen-only"
           style={{ 
             opacity: 0,
             animation: `fadeInUp 0.6s ease-out 1s forwards`
@@ -240,7 +245,7 @@ export default function PersonalDevelopmentReport({
         </TabsList>
 
         {/* 성과 분석 */}
-        <TabsContent value="scores" className="space-y-6">
+        <TabsContent value="scores" className="space-y-6 print-show-all">
           {/* 카테고리별 점수 */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {feedback?.scores?.map((score, index) => {
@@ -365,7 +370,7 @@ export default function PersonalDevelopmentReport({
         </TabsContent>
 
         {/* 행동 가이드 */}
-        <TabsContent value="behavior" className="space-y-6">
+        <TabsContent value="behavior" className="space-y-6 print-show-all">
           <div className="grid grid-cols-1 gap-6">
             {feedback?.detailedFeedback?.behaviorGuides?.map((guide, index) => (
               <Card key={index} className="hover:shadow-md transition-shadow" data-testid={`behavior-guide-${index}`}>
@@ -407,7 +412,7 @@ export default function PersonalDevelopmentReport({
         </TabsContent>
 
         {/* 대화 가이드 */}
-        <TabsContent value="conversation" className="space-y-6">
+        <TabsContent value="conversation" className="space-y-6 print-show-all">
           <div className="grid grid-cols-1 gap-6">
             {feedback?.detailedFeedback?.conversationGuides?.map((guide, index) => (
               <Card key={index} className="hover:shadow-md transition-shadow" data-testid={`conversation-guide-${index}`}>
@@ -466,7 +471,7 @@ export default function PersonalDevelopmentReport({
         </TabsContent>
 
         {/* 개발 계획 */}
-        <TabsContent value="development" className="space-y-6">
+        <TabsContent value="development" className="space-y-6 print-show-all">
           {feedback?.detailedFeedback?.developmentPlan && (
             <>
               {/* 단기/중기/장기 계획 */}
@@ -578,7 +583,7 @@ export default function PersonalDevelopmentReport({
       </Tabs>
 
       {/* 액션 버튼 */}
-      <div className="flex justify-center space-x-4 pt-6 border-t border-slate-200">
+      <div className="flex justify-center space-x-4 pt-6 border-t border-slate-200 no-print">
         <Button 
           onClick={onSelectNewScenario}
           variant="outline"

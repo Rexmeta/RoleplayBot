@@ -585,3 +585,65 @@ body {
 .bg-green-600 { background-color: hsl(142 76% 36%); }
 .bg-yellow-600 { background-color: hsl(32 95% 44%); }
 .bg-red-600 { background-color: hsl(0 84% 60%); }
+
+/* PDF 인쇄 스타일 */
+@media print {
+  /* 기본 PDF 설정 */
+  body {
+    background: white !important;
+    color: black !important;
+    font-size: 12pt;
+    line-height: 1.4;
+  }
+  
+  /* 페이지 설정 */
+  @page {
+    margin: 1in;
+    size: A4;
+  }
+  
+  /* PDF 전용 제목 표시 */
+  .pdf-header {
+    display: block !important;
+    text-align: center;
+    font-size: 24pt;
+    font-weight: bold;
+    color: hsl(203.7736 87.6033% 52.5490%) !important;
+    margin-bottom: 20pt;
+    border-bottom: 2pt solid hsl(203.7736 87.6033% 52.5490%);
+    padding-bottom: 10pt;
+  }
+  
+  /* 화면용 헤더 숨김 */
+  .screen-only {
+    display: none !important;
+  }
+  
+  /* 인쇄 시 불필요한 요소 숨김 */
+  .no-print {
+    display: none !important;
+  }
+  
+  /* 탭 콘텐츠 모두 표시 */
+  .print-show-all {
+    display: block !important;
+  }
+  
+  /* 탭 콘텐츠 모두 표시 (TabsContent가 숨겨져 있어도 강제 표시) */
+  [data-state="inactive"].print-show-all {
+    display: block !important;
+  }
+  
+  /* 배경색과 그라데이션 제거 */
+  * {
+    background: white !important;
+    box-shadow: none !important;
+  }
+  
+  /* 카드 스타일 조정 */
+  .card-enhanced {
+    border: 1pt solid #ccc !important;
+    margin-bottom: 10pt;
+    page-break-inside: avoid;
+  }
+}
