@@ -1,7 +1,9 @@
+import { useState } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { scenarios, getSkillColor, type Scenario } from "@/lib/scenarios";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import { Loader2 } from "lucide-react";
 
 interface ScenarioSelectorProps {
   onScenarioSelect: (scenario: Scenario, conversationId: string) => void;
@@ -9,9 +11,11 @@ interface ScenarioSelectorProps {
 
 export default function ScenarioSelector({ onScenarioSelect }: ScenarioSelectorProps) {
   const { toast } = useToast();
+  const [loadingScenarioId, setLoadingScenarioId] = useState<string | null>(null);
 
   const createConversationMutation = useMutation({
     mutationFn: async (scenario: Scenario) => {
+      setLoadingScenarioId(scenario.id);
       const response = await apiRequest("POST", "/api/conversations", {
         scenarioId: scenario.id,
         scenarioName: scenario.name,
@@ -22,9 +26,11 @@ export default function ScenarioSelector({ onScenarioSelect }: ScenarioSelectorP
       return response.json();
     },
     onSuccess: (conversation, scenario) => {
+      setLoadingScenarioId(null);
       onScenarioSelect(scenario, conversation.id);
     },
     onError: () => {
+      setLoadingScenarioId(null);
       toast({
         title: "오류",
         description: "대화를 시작할 수 없습니다. 다시 시도해주세요.",
@@ -34,6 +40,7 @@ export default function ScenarioSelector({ onScenarioSelect }: ScenarioSelectorP
   });
 
   const handleScenarioClick = (scenario: Scenario) => {
+    if (loadingScenarioId) return; // 이미 로딩 중이면 무시
     createConversationMutation.mutate(scenario);
   };
 
@@ -48,24 +55,50 @@ export default function ScenarioSelector({ onScenarioSelect }: ScenarioSelectorP
       </div>
 
       <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
-        {scenarios.map((scenario) => (
+        {scenarios.map((scenario) => {
+          const isLoading = loadingScenarioId === scenario.id;
+          return (
           <div
             key={scenario.id}
-            className="scenario-card card-enhanced rounded-xl p-6 cursor-pointer"
+            className={`scenario-card card-enhanced rounded-xl p-6 transition-all duration-200 ${
+              isLoading 
+                ? 'cursor-wait bg-blue-50 border-blue-200 border-2 shadow-lg scale-105' 
+                : loadingScenarioId 
+                  ? 'cursor-not-allowed opacity-50'
+                  : 'cursor-pointer hover:shadow-lg hover:scale-105'
+            }`}
             onClick={() => handleScenarioClick(scenario)}
             data-testid={`scenario-card-${scenario.id}`}
           >
             <div className="flex items-start space-x-4">
-              <img 
-                src={scenario.image} 
-                alt={`${scenario.name} 프로필`} 
-                className="w-16 h-16 rounded-full object-cover" 
-                onError={(e) => {
-                  (e.target as HTMLImageElement).src = `https://ui-avatars.com/api/?name=${encodeURIComponent(scenario.name)}&background=6366f1&color=fff&size=64`;
-                }}
-              />
+              <div className="relative">
+                <img 
+                  src={scenario.image} 
+                  alt={`${scenario.name} 프로필`} 
+                  className={`w-16 h-16 rounded-full object-cover transition-all duration-200 ${
+                    isLoading ? 'opacity-50' : ''
+                  }`}
+                  onError={(e) => {
+                    (e.target as HTMLImageElement).src = `https://ui-avatars.com/api/?name=${encodeURIComponent(scenario.name)}&background=6366f1&color=fff&size=64`;
+                  }}
+                />
+                {isLoading && (
+                  <div className="absolute inset-0 flex items-center justify-center">
+                    <Loader2 className="w-6 h-6 text-blue-500 animate-spin" />
+                  </div>
+                )}
+              </div>
               <div className="flex-1">
-                <h3 className="text-lg font-semibold text-slate-900">{scenario.name}</h3>
+                <div className="flex items-center space-x-2">
+                  <h3 className={`text-lg font-semibold transition-colors duration-200 ${
+                    isLoading ? 'text-blue-600' : 'text-slate-900'
+                  }`}>{scenario.name}</h3>
+                  {isLoading && (
+                    <span className="text-sm text-blue-600 font-medium animate-pulse">
+                      대화 준비 중...
+                    </span>
+                  )}
+                </div>
                 <p className="text-sm text-corporate-600 font-medium mb-2">{scenario.role}</p>
                 <p className="text-sm text-slate-600 mb-3">{scenario.description}</p>
                 <div className="flex items-center space-x-2">
@@ -88,7 +121,8 @@ export default function ScenarioSelector({ onScenarioSelect }: ScenarioSelectorP
               </div>
             </div>
           </div>
-        ))}
+          );
+        })}
       </div>
 
       <div className="text-center">
