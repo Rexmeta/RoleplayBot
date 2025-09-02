@@ -24,6 +24,13 @@ const emotionEmojis: { [key: string]: string } = {
   '중립': '😐'
 };
 
+// 경과 시간 포맷팅 함수
+const formatElapsedTime = (seconds: number): string => {
+  const minutes = Math.floor(seconds / 60);
+  const remainingSeconds = seconds % 60;
+  return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
+};
+
 interface ChatWindowProps {
   scenario: Scenario;
   conversationId: string;
@@ -38,6 +45,8 @@ export default function ChatWindow({ scenario, conversationId, onChatComplete, o
   const [speechSupported, setSpeechSupported] = useState(false);
   const [voiceModeEnabled, setVoiceModeEnabled] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
+  const [elapsedTime, setElapsedTime] = useState(0);
+  const [conversationStartTime, setConversationStartTime] = useState<Date | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const recognitionRef = useRef<any>(null);
   const speechSynthesisRef = useRef<SpeechSynthesis | null>(null);
@@ -53,6 +62,32 @@ export default function ChatWindow({ scenario, conversationId, onChatComplete, o
     queryKey: ["/api/conversations", conversationId],
     enabled: !!conversationId,
   });
+
+  // 대화 시작 시간 설정 및 타이머 효과
+  useEffect(() => {
+    if (conversation && conversation.createdAt && !conversationStartTime) {
+      setConversationStartTime(new Date(conversation.createdAt));
+    }
+  }, [conversation, conversationStartTime]);
+
+  // 경과 시간 업데이트 타이머
+  useEffect(() => {
+    let interval: NodeJS.Timeout;
+    
+    if (conversationStartTime) {
+      interval = setInterval(() => {
+        const now = new Date();
+        const elapsed = Math.floor((now.getTime() - conversationStartTime.getTime()) / 1000);
+        setElapsedTime(elapsed);
+      }, 1000);
+    }
+
+    return () => {
+      if (interval) {
+        clearInterval(interval);
+      }
+    };
+  }, [conversationStartTime]);
 
   const sendMessageMutation = useMutation({
     mutationFn: async (message: string) => {
@@ -545,6 +580,14 @@ export default function ChatWindow({ scenario, conversationId, onChatComplete, o
               </div>
             </div>
             <div className="flex items-center space-x-4">
+              {/* 경과 시간 표시 */}
+              <div className="text-right">
+                <div className="text-sm opacity-90">경과 시간</div>
+                <div className="text-xl font-bold" data-testid="elapsed-time">
+                  {formatElapsedTime(elapsedTime)}
+                </div>
+              </div>
+              
               <div className="text-right">
                 <div className="text-sm opacity-90">진행도</div>
                 <div className="text-xl font-bold">{conversation.turnCount}/{maxTurns}</div>
@@ -825,6 +868,20 @@ export default function ChatWindow({ scenario, conversationId, onChatComplete, o
           </h4>
           <p className="text-sm text-slate-600">
             {scenario.name}과 건설적인 대화를 통해 {scenario.skills.join(", ")} 역량을 개발하세요.
+          </p>
+        </div>
+        <div className="bg-white rounded-lg p-4 border border-slate-200">
+          <h4 className="font-medium text-slate-900 mb-2 flex items-center">
+            <i className="fas fa-stopwatch text-blue-600 mr-2"></i>
+            경과 시간
+          </h4>
+          <p className="text-2xl font-bold text-blue-600" data-testid="sidebar-elapsed-time">
+            {formatElapsedTime(elapsedTime)}
+          </p>
+          <p className="text-xs text-slate-500">
+            {elapsedTime < 300 ? '효율적으로 진행 중' : 
+             elapsedTime < 600 ? '적절한 속도' : 
+             elapsedTime < 900 ? '시간 관리 주의' : '신속한 마무리 권장'}
           </p>
         </div>
         <div className="bg-white rounded-lg p-4 border border-slate-200">
