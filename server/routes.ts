@@ -178,7 +178,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const feedbackData = await generateFeedback(
         conversation.scenarioId,
         conversation.messages,
-        persona
+        persona,
+        conversation
       );
 
       console.log("피드백 데이터 생성 완료:", feedbackData);

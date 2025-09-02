@@ -281,7 +281,8 @@ JSON 형식으로 응답하세요: {"emotion": "감정", "reason": "감정을 �
   async generateFeedback(
     scenario: string, 
     messages: ConversationMessage[], 
-    persona: ScenarioPersona
+    persona: ScenarioPersona,
+    conversation?: any
   ): Promise<DetailedFeedback> {
     try {
       const conversationText = messages.map(msg => 
@@ -322,7 +323,7 @@ JSON 형식으로 응답하세요:
       // 테스트 모드이거나 커스텀 API 형식일 때 기본 피드백 반환
       if (this.config.apiKey === 'test-key' || this.config.apiFormat === 'custom') {
         console.log('🧪 Custom provider feedback in test/custom mode');
-        return this.generateCustomFeedback(conversationText, persona);
+        return this.generateCustomFeedback(conversationText, persona, conversation);
       }
 
       // OpenAI 호환 API만 사용
@@ -481,12 +482,32 @@ JSON 형식으로 응답하세요:
     return { content, emotion, emotionReason };
   }
 
-  private generateCustomFeedback(conversationText: string, persona: ScenarioPersona): DetailedFeedback {
+  private generateCustomFeedback(conversationText: string, persona: ScenarioPersona, conversation?: any): DetailedFeedback {
     console.log('📊 Generating custom feedback based on conversation analysis');
     
     // 대화 분석을 통한 점수 계산
     const userMessages = conversationText.split('\n').filter(line => line.startsWith('사용자:'));
     const aiMessages = conversationText.split('\n').filter(line => line.startsWith(persona.name + ':'));
+    
+    // 시간 분석 추가 (conversation 객체에서 가져오거나 기본값 설정)
+    let conversationDuration = 0;
+    let averageResponseTime = 0;
+    let timingAnalysis = null;
+    
+    if (conversation) {
+      const now = new Date();
+      const startTime = new Date(conversation.startTime);
+      conversationDuration = Math.round((now.getTime() - startTime.getTime()) / (1000 * 60)); // 분 단위
+      
+      // 사용자 메시지 수를 기반으로 평균 응답 시간 추정
+      if (userMessages.length > 0) {
+        averageResponseTime = Math.round(conversationDuration * 60 / userMessages.length); // 초 단위
+      }
+      
+      // 시간 기반 성능 분석
+      timingAnalysis = this.analyzeTimingPerformance(conversationDuration, averageResponseTime);
+    }
+    
     
     // 기본 점수 설정
     let clarityScore = 3;
@@ -564,7 +585,10 @@ JSON 형식으로 응답하세요:
       strengths: scenarioFeedback.strengths,
       improvements: scenarioFeedback.improvements,
       nextSteps: scenarioFeedback.nextSteps,
-      summary: scenarioFeedback.summary
+      summary: scenarioFeedback.summary,
+      conversationDuration: conversationDuration || 10,
+      averageResponseTime: averageResponseTime || 30,
+      timePerformance: timingAnalysis || { rating: 'average', feedback: '시간 정보 없음' }
     };
   }
   
@@ -634,5 +658,30 @@ JSON 형식으로 응답하세요:
       nextSteps: ["시스템 점검 완료 후 재도전", "안정적인 환경에서 재시도", "기술 지원팀 문의"],
       summary: "시스템 오류로 인해 정확한 평가가 어려웠습니다. 기술적 문제 해결 후 다시 시도해주세요."
     };
+  }
+
+  // 시간 기반 성능 분석 함수
+  private analyzeTimingPerformance(conversationDuration: number, averageResponseTime: number): { rating: 'excellent' | 'good' | 'average' | 'slow'; feedback: string } {
+    // 대화 효율성 평가
+    let rating: 'excellent' | 'good' | 'average' | 'slow' = 'average';
+    let feedback = '';
+    
+    if (conversationDuration <= 10 && averageResponseTime <= 30) {
+      rating = 'excellent';
+      feedback = '매우 효율적이고 신속한 대화 진행';
+    } else if (conversationDuration <= 15 && averageResponseTime <= 45) {
+      rating = 'good';
+      feedback = '적절한 대화 속도와 반응 시간 유지';
+    } else if (conversationDuration <= 25 && averageResponseTime <= 60) {
+      rating = 'average';
+      feedback = '평균적인 대화 진행 속도';
+    } else {
+      rating = 'slow';
+      feedback = '대화 속도 및 반응 시간 개선이 필요';
+    }
+    
+    console.log(`⏱️ 시간 분석 - 대화: ${conversationDuration}분, 평균응답: ${averageResponseTime}초, 평가: ${rating}`);
+    
+    return { rating, feedback };
   }
 }

@@ -230,6 +230,52 @@ export default function PersonalDevelopmentReport({
         </div>
       </div>
 
+      {/* 대화 시간 분석 카드 (새로 추가) */}
+      {feedback?.detailedFeedback?.conversationDuration && (
+        <Card className="mb-6 border-blue-200 bg-blue-50 screen-only">
+          <CardHeader>
+            <CardTitle className="text-lg flex items-center text-blue-800">
+              <i className="fas fa-clock mr-2"></i>
+              대화 시간 분석
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-center">
+              <div className="bg-white rounded-lg p-4">
+                <div className="text-2xl font-bold text-blue-600">
+                  {feedback.detailedFeedback.conversationDuration}분
+                </div>
+                <div className="text-sm text-slate-600">총 대화 시간</div>
+              </div>
+              {feedback?.detailedFeedback?.averageResponseTime && (
+                <div className="bg-white rounded-lg p-4">
+                  <div className="text-2xl font-bold text-green-600">
+                    {feedback.detailedFeedback.averageResponseTime}초
+                  </div>
+                  <div className="text-sm text-slate-600">평균 응답 시간</div>
+                </div>
+              )}
+              {feedback?.detailedFeedback?.timePerformance && (
+                <div className="bg-white rounded-lg p-4">
+                  <div className={`text-lg font-medium ${
+                    feedback.detailedFeedback.timePerformance.rating === 'excellent' ? 'text-green-600' :
+                    feedback.detailedFeedback.timePerformance.rating === 'good' ? 'text-blue-600' :
+                    feedback.detailedFeedback.timePerformance.rating === 'average' ? 'text-yellow-600' : 'text-red-600'
+                  }`}>
+                    {feedback.detailedFeedback.timePerformance.rating === 'excellent' ? '🎯 우수' :
+                     feedback.detailedFeedback.timePerformance.rating === 'good' ? '✅ 좋음' :
+                     feedback.detailedFeedback.timePerformance.rating === 'average' ? '🔶 보통' : '⚠️ 개선필요'}
+                  </div>
+                  <div className="text-xs text-slate-600 mt-1">
+                    {feedback.detailedFeedback.timePerformance.feedback}
+                  </div>
+                </div>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       <Tabs defaultValue="scores" className="space-y-6">
         <TabsList 
           className="grid w-full grid-cols-4 transform transition-all duration-500 screen-only"

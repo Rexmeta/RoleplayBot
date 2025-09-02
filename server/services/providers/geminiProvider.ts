@@ -134,7 +134,8 @@ JSON 형식으로 응답하세요:
   async generateFeedback(
     scenario: string, 
     messages: ConversationMessage[], 
-    persona: ScenarioPersona
+    persona: ScenarioPersona,
+    conversation?: any
   ): Promise<DetailedFeedback> {
     try {
       const safeMessages = messages || [];

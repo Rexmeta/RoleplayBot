@@ -57,6 +57,12 @@ export type DetailedFeedback = {
   behaviorGuides?: ActionGuide[];
   conversationGuides?: ConversationGuide[];
   developmentPlan?: DevelopmentPlan;
+  conversationDuration?: number; // 대화 총 소요 시간 (분)
+  averageResponseTime?: number; // 평균 응답 시간 (초)
+  timePerformance?: {
+    rating: 'excellent' | 'good' | 'average' | 'slow';
+    feedback: string;
+  };
 };
 
 export type ActionGuide = {

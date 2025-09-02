@@ -12,7 +12,8 @@ export interface AIServiceInterface {
   generateFeedback(
     scenario: string, 
     messages: ConversationMessage[], 
-    persona: ScenarioPersona
+    persona: ScenarioPersona,
+    conversation?: any
   ): Promise<DetailedFeedback>;
 }
 

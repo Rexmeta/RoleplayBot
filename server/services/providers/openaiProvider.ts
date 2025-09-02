@@ -121,7 +121,8 @@ JSON 형식으로 응답하세요: {"emotion": "감정", "reason": "감정을 �
   async generateFeedback(
     scenario: string, 
     messages: ConversationMessage[], 
-    persona: ScenarioPersona
+    persona: ScenarioPersona,
+    conversation?: any
   ): Promise<DetailedFeedback> {
     try {
       const conversationText = messages.map(msg => 
