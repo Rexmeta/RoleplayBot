@@ -136,7 +136,7 @@ export default function ChatWindow({ scenario, conversationId, onChatComplete, o
 
   // 페르소나별 성별 정보
   const getPersonaGender = (scenarioId: string): 'male' | 'female' => {
-    const femalePersonas = ['empathy', 'presentation']; // 이선영, 정미경
+    const femalePersonas = ['empathy', 'presentation', 'crisis']; // 이선영, 정미경, 한지연
     return femalePersonas.includes(scenarioId) ? 'female' : 'male';
   };
 

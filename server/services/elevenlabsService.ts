@@ -61,8 +61,8 @@ export class ElevenLabsService {
     const voiceSettings = this.getVoiceSettings(emotion);
 
     console.log(`🎤 ElevenLabs Flash v2.5 TTS 요청: ${scenarioId} (${gender}) - ${emotion}`);
-    console.log(`음성 ID: ${voiceId}, 모델: eleven_flash_v2_5 (순수 파라미터 감정 표현)`);
-    console.log(`원본 텍스트: ${text.substring(0, 100)}...`);
+    console.log(`음성 ID: ${voiceId} (일관성 보장), 모델: eleven_flash_v2_5`);
+    console.log(`페르소나: ${scenarioId} → 성별: ${gender} → 음성: ${voiceId}`);
     console.log(`감정 파라미터: stability=${voiceSettings.stability}, style=${voiceSettings.style}`);
 
     const requestBody = {
