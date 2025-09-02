@@ -70,9 +70,11 @@ export class ElevenLabsService {
       model_id: 'eleven_flash_v2_5', // Flash v2.5 - 초고속 75ms 지연시간, 실시간 대화에 최적화
       voice_settings: {
         ...voiceSettings,
-        // 매우 빠르고 스트레스풀한 음성 속도 설정
-        speaking_rate: 1.6, // 60% 빨라진 속도 (직장 스트레스 표현)
-        pitch: 1.15, // 높은 톤으로 긴장감과 급박함 연출
+        // 모든 페르소나 통일된 빠른 속도 설정
+        speaking_rate: 1.6, // 60% 빨라진 속도 (모든 캐릭터 동일)
+        pitch: 1.15, // 높은 톤으로 긴장감과 급박함 연출 (모든 캐릭터 동일)
+        // 추가 통일성 보장
+        speed: 1.6, // ElevenLabs의 다른 속도 파라미터도 동일 적용
       },
       // 고급 감정 표현 설정
       pronunciation_dictionary_locators: [],
