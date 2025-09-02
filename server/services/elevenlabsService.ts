@@ -28,11 +28,11 @@ export class ElevenLabsService {
   // 감정에 따른 음성 설정 (Eleven v3 최적화)
   private getVoiceSettings(emotion: string = '중립') {
     const emotionSettings = {
-      '기쁨': { stability: 0.2, similarity_boost: 0.9, style: 0.7, use_speaker_boost: true },
-      '슬픔': { stability: 0.9, similarity_boost: 0.6, style: 0.3, use_speaker_boost: false },
-      '분노': { stability: 0.1, similarity_boost: 1.0, style: 0.9, use_speaker_boost: true },
-      '놀람': { stability: 0.05, similarity_boost: 0.8, style: 1.0, use_speaker_boost: true },
-      '중립': { stability: 0.4, similarity_boost: 0.8, style: 0.5, use_speaker_boost: true }
+      '기쁨': { stability: 0.0, similarity_boost: 0.9, style: 0.7, use_speaker_boost: true },
+      '슬픔': { stability: 1.0, similarity_boost: 0.6, style: 0.3, use_speaker_boost: false },
+      '분노': { stability: 0.0, similarity_boost: 1.0, style: 0.9, use_speaker_boost: true },
+      '놀람': { stability: 0.0, similarity_boost: 0.8, style: 1.0, use_speaker_boost: true },
+      '중립': { stability: 0.5, similarity_boost: 0.8, style: 0.5, use_speaker_boost: true }
     };
 
     return emotionSettings[emotion as keyof typeof emotionSettings] || emotionSettings['중립'];
