@@ -26,45 +26,31 @@ export class ElevenLabsService {
     return voiceMap[scenarioId as keyof typeof voiceMap] || voiceMap.communication;
   }
 
-  // 감정에 따른 음성 설정과 텍스트 전처리 (ElevenLabs 감정 태그 활용)
-  private getVoiceSettings(emotion: string = '중립', text: string) {
-    // ElevenLabs 감정 태그를 활용한 텍스트 전처리 (고급 감정 표현)
-    const emotionTags = {
-      '기쁨': '[happy] [cheerful] [enthusiastic] [bright]',
-      '슬픔': '[sad] [melancholy] [disappointed] [somber]', 
-      '분노': '[angry] [frustrated] [stern] [intense]',
-      '놀람': '[surprised] [amazed] [astonished] [startled]',
-      '중립': '[professional] [calm] [composed] [balanced]'
-    };
-
-    // 감정별 음성 파라미터 최적화 (극대화된 감정 표현)
+  // 감정에 따른 음성 설정 (음성 파라미터로만 감정 표현)
+  private getVoiceSettings(emotion: string = '중립') {
+    // 감정별 음성 파라미터 최적화 (극대화된 감정 표현, 태그 없이 순수 파라미터로)
     const emotionSettings = {
       '기쁨': { 
-        stability: 0.2, similarity_boost: 0.9, style: 0.9, use_speaker_boost: true,
-        text: `${emotionTags['기쁨']} ${text}`
+        stability: 0.2, similarity_boost: 0.9, style: 0.9, use_speaker_boost: true
       },
       '슬픔': { 
-        stability: 0.95, similarity_boost: 0.5, style: 0.1, use_speaker_boost: false,
-        text: `${emotionTags['슬픔']} ${text}`
+        stability: 0.95, similarity_boost: 0.5, style: 0.1, use_speaker_boost: false
       },
       '분노': { 
-        stability: 0.1, similarity_boost: 1.0, style: 1.0, use_speaker_boost: true,
-        text: `${emotionTags['분노']} ${text}`
+        stability: 0.1, similarity_boost: 1.0, style: 1.0, use_speaker_boost: true
       },
       '놀람': { 
-        stability: 0.05, similarity_boost: 0.85, style: 0.95, use_speaker_boost: true,
-        text: `${emotionTags['놀람']} ${text}`
+        stability: 0.05, similarity_boost: 0.85, style: 0.95, use_speaker_boost: true
       },
       '중립': { 
-        stability: 0.6, similarity_boost: 0.8, style: 0.4, use_speaker_boost: true,
-        text: `${emotionTags['중립']} ${text}`
+        stability: 0.6, similarity_boost: 0.8, style: 0.4, use_speaker_boost: true
       }
     };
 
     return emotionSettings[emotion as keyof typeof emotionSettings] || emotionSettings['중립'];
   }
 
-  // 텍스트를 음성으로 변환 (감정 태그 및 고급 설정 적용)
+  // 텍스트를 음성으로 변환 (순수 음성 파라미터로 감정 표현)
   async generateSpeech(
     text: string, 
     scenarioId: string, 
@@ -72,21 +58,17 @@ export class ElevenLabsService {
     emotion: string = '중립'
   ): Promise<ArrayBuffer> {
     const voiceId = this.getVoiceId(scenarioId, gender);
-    const emotionConfig = this.getVoiceSettings(emotion, text);
+    const voiceSettings = this.getVoiceSettings(emotion);
 
     console.log(`🎤 ElevenLabs Flash v2.5 TTS 요청: ${scenarioId} (${gender}) - ${emotion}`);
-    console.log(`음성 ID: ${voiceId}, 모델: eleven_flash_v2_5 (감정 태그 적용)`);
-    console.log(`감정 태그 적용된 텍스트: ${emotionConfig.text.substring(0, 100)}...`);
+    console.log(`음성 ID: ${voiceId}, 모델: eleven_flash_v2_5 (순수 파라미터 감정 표현)`);
+    console.log(`원본 텍스트: ${text.substring(0, 100)}...`);
+    console.log(`감정 파라미터: stability=${voiceSettings.stability}, style=${voiceSettings.style}`);
 
     const requestBody = {
-      text: emotionConfig.text, // 감정 태그가 포함된 텍스트
+      text: text, // 원본 텍스트 그대로 사용 (태그 없음)
       model_id: 'eleven_flash_v2_5', // Flash v2.5 - 초고속 75ms 지연시간, 실시간 대화에 최적화
-      voice_settings: {
-        stability: emotionConfig.stability,
-        similarity_boost: emotionConfig.similarity_boost,
-        style: emotionConfig.style,
-        use_speaker_boost: emotionConfig.use_speaker_boost
-      },
+      voice_settings: voiceSettings,
       // 고급 감정 표현 설정
       pronunciation_dictionary_locators: [],
       seed: null,
