@@ -154,8 +154,8 @@ ${conversationText}
 1. 메시지 명확성 (25%): 정확하고 이해하기 쉬운 의사소통
 2. 상대방 배려 (20%): 청자의 입장과 상황 고려
 3. 감정적 반응성 (25%): 상대방 감정에 대한 적절한 대응
-4. 대화 구조화 (20%): 논리적이고 체계적인 대화 진행
-5. 전문적 역량 (10%): 업무 상황에 맞는 전문성 발휘
+4. 대화 구조화 (15%): 논리적이고 체계적인 대화 진행
+5. 전문적 역량 (15%): 업무 상황에 맞는 전문성 발휘 (계획, 방안, 제안, 검토, 분석, 개선, 해결, 대안, 전략, 전문, 경험, 기술 등 키워드 사용)
 
 JSON 형식으로 응답하세요:
 {
@@ -210,7 +210,7 @@ JSON 형식으로 응답하세요:
           empathy: Math.min(5, Math.max(1, feedbackData.scores?.empathy || 3)),
           responsiveness: Math.min(5, Math.max(1, feedbackData.scores?.responsiveness || 3)),
           structure: Math.min(5, Math.max(1, feedbackData.scores?.structure || 3)),
-          professionalism: Math.min(5, Math.max(1, feedbackData.scores?.professionalism || 3))
+          professionalism: Math.min(5, Math.max(1, feedbackData.scores?.professionalism || 2))
         },
         strengths: feedbackData.strengths || ["기본적인 대화 능력", "적절한 언어 사용", "상황 이해도"],
         improvements: feedbackData.improvements || ["더 구체적인 표현", "감정 교감 증진", "논리적 구조화"],

@@ -521,9 +521,20 @@ JSON 형식으로 응답하세요:
       responsivenessScore = Math.min(5, responsivenessScore + 1);
     }
     
-    // 전문성 분석
-    if (fullText.includes('전문') || fullText.includes('경험') || fullText.includes('기술') || fullText.includes('해결')) {
-      professionalismScore = Math.min(5, professionalismScore + 1);
+    // 전문성 분석 (실시간 점수와 동일한 키워드 사용)
+    const professionalKeywords = ['계획', '방안', '제안', '검토', '분석', '개선', '해결', '대안', '전략', '전문', '경험', '기술'];
+    const professionalCount = professionalKeywords.filter(keyword => fullText.includes(keyword)).length;
+    
+    if (professionalCount >= 4) {
+      professionalismScore = 5; // 매우 우수
+    } else if (professionalCount >= 3) {
+      professionalismScore = 4; // 우수
+    } else if (professionalCount >= 2) {
+      professionalismScore = 4; // 보통+
+    } else if (professionalCount >= 1) {
+      professionalismScore = 3; // 보통
+    } else {
+      professionalismScore = 2; // 부족
     }
     
     // 부정적 키워드 검출시 점수 감점
@@ -532,10 +543,10 @@ JSON 형식으로 응답하세요:
       professionalismScore = Math.max(1, professionalismScore - 1);
     }
     
-    // 전체 점수 계산 (가중 평균)
+    // 전체 점수 계산 (실시간 점수와 동일한 가중치)
     const overallScore = Math.round(
       (clarityScore * 0.25 + empathyScore * 0.20 + responsivenessScore * 0.25 + 
-       structureScore * 0.20 + professionalismScore * 0.10) * 20
+       structureScore * 0.15 + professionalismScore * 0.15) * 20
     );
     
     // 시나리오별 맞춤 피드백

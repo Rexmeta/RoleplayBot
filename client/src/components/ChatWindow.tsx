@@ -496,7 +496,7 @@ export default function ChatWindow({ scenario, conversationId, onChatComplete, o
       if (content.includes('~요') || content.includes('~네요')) messageScore += 5; // 친근한 어투
       if (content.includes('제가') || content.includes('저는')) messageScore += 5; // 주체 명확성
       
-      // 5. 상황 적응력 (10점 만점)
+      // 5. 상황 적응력 (15점 만점)
       const scenarioKeywords: Record<string, string[]> = {
         'communication': ['보고', '전달', '설명'],
         'empathy': ['공감', '이해', '위로'],
@@ -508,7 +508,7 @@ export default function ChatWindow({ scenario, conversationId, onChatComplete, o
       
       const relevantKeywords = scenarioKeywords[scenario.id] || [];
       const relevanceCount = relevantKeywords.filter((keyword: string) => content.includes(keyword)).length;
-      messageScore += Math.min(10, relevanceCount * 3);
+      messageScore += Math.min(15, relevanceCount * 5);
       
       // 대화 진행에 따른 가중치 적용
       const progressWeight = 1 + (index * 0.1); // 후반으로 갈수록 가중치 증가
