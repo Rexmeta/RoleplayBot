@@ -38,18 +38,7 @@ router.post('/generate', async (req, res) => {
     let ttsProvider = 'custom';
 
     try {
-      // 우선 커스텀 TTS 서버 시도
-      audioBuffer = await customTtsService.generateSpeech(
-        cleanText, 
-        scenarioId, 
-        gender, 
-        emotion
-      );
-      console.log('✅ 커스텀 TTS 사용');
-    } catch (customError) {
-      console.warn('⚠️ 커스텀 TTS 실패, ElevenLabs로 폴백:', customError);
-      
-      // 백업: ElevenLabs API 호출
+      // 먼저 ElevenLabs API 시도 (안정성 우선)
       audioBuffer = await elevenLabsService.generateSpeech(
         cleanText, 
         scenarioId, 
@@ -57,7 +46,26 @@ router.post('/generate', async (req, res) => {
         emotion
       );
       ttsProvider = 'elevenlabs';
-      console.log('✅ ElevenLabs TTS 사용 (백업)');
+      console.log('✅ ElevenLabs TTS 사용');
+    } catch (elevenLabsError) {
+      console.warn('⚠️ ElevenLabs TTS 실패, 커스텀 TTS로 폴백:', elevenLabsError);
+      
+      try {
+        // 백업: 커스텀 TTS 서버 시도
+        audioBuffer = await customTtsService.generateSpeech(
+          cleanText, 
+          scenarioId, 
+          gender, 
+          emotion
+        );
+        ttsProvider = 'custom';
+        console.log('✅ 커스텀 TTS 사용 (백업)');
+      } catch (customError) {
+        console.error('⚠️ 모든 TTS 서비스 실패:', { elevenLabsError, customError });
+        
+        // 최종 백업: 텍스트만 반환 (클라이언트에서 Web Speech API 사용)
+        throw new Error('TTS 서비스를 사용할 수 없습니다. 브라우저 음성 합성을 사용해주세요.');
+      }
     }
 
     // 오디오 데이터를 Base64로 인코딩해서 반환

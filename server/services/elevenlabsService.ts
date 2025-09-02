@@ -9,18 +9,18 @@ export class ElevenLabsService {
     this.apiKey = apiKey;
   }
 
-  // 페르소나별 음성 ID 매핑 (사용자 지정 음성들)
+  // 페르소나별 음성 ID 매핑 (사전 정의된 음성들로 복원)
   private getVoiceId(scenarioId: string, gender: 'male' | 'female'): string {
     const voiceMap = {
-      // 남성 페르소나
-      communication: 'WqVy7827vjE2r3jWvbnP', // 김태훈 선임 연구원
-      negotiation: 'bciERhbhQhAIWwvnQA7H', // 박준호 클라이언트  
-      feedback: '8yL2rVx40vjDeu5pTbg6', // 최민수 후배 사원
+      // 남성 페르소나 (사전 정의된 음성)
+      communication: 'pNInz6obpgDQGcFmaJgB', // Adam - 성숙하고 안정적인 남성 목소리
+      negotiation: '5Q0t7uMcjvnagumLfvZi', // Sam - 자신감 있는 남성 목소리  
+      feedback: 'VR6AewLTigWG4xSOukaG', // Josh - 젊고 친근한 남성 목소리
       
-      // 여성 페르소나
-      empathy: '8jHHF8rMqMlg8if2mOUe', // 이선영 팀장
-      presentation: '4p0HBzAAGyju0nYfNntV', // 정미경 임원
-      crisis: 'aurnUodFzOtofecLd3T1', // 한지연 프로젝트 매니저
+      // 여성 페르소나 (사전 정의된 음성)
+      empathy: 'EXAVITQu4vr4xnSDxMaL', // Bella - 따뜻하고 공감적인 여성 목소리
+      presentation: 'ThT5KcBeYPX3keUQqHPh', // Dorothy - 전문적이고 명확한 여성 목소리
+      crisis: 'XB0fDUnXU5powFXDhCwa', // Charlotte - 침착하고 안정적인 여성 목소리
     };
 
     return voiceMap[scenarioId as keyof typeof voiceMap] || voiceMap.communication;

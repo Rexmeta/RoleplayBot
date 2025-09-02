@@ -245,9 +245,21 @@ export default function ChatWindow({ scenario, conversationId, onChatComplete, o
       setIsSpeaking(false);
       console.error('ElevenLabs TTS 오류:', error);
       
-      // 백업: 기존 Web Speech API 사용
+      // 백업: Web Speech API 사용
       console.log('백업 TTS 사용 중...');
-      await fallbackToWebSpeechAPI(text, emotion);
+      try {
+        await fallbackToWebSpeechAPI(text, emotion);
+      } catch (fallbackError) {
+        console.error('백업 TTS도 실패:', fallbackError);
+        // 자동재생이 아닌 경우에만 오류 메시지 표시
+        if (!isAutoPlay) {
+          toast({
+            title: "음성 서비스 오류",
+            description: "음성 재생이 일시적으로 불가능합니다.",
+            variant: "destructive"
+          });
+        }
+      }
     }
   };
 
