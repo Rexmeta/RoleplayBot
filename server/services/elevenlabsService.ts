@@ -9,18 +9,18 @@ export class ElevenLabsService {
     this.apiKey = apiKey;
   }
 
-  // 페르소나별 음성 ID 매핑 (사전 정의된 음성들로 복원)
+  // 페르소나별 음성 ID 매핑 (한국어 지원 음성들)
   private getVoiceId(scenarioId: string, gender: 'male' | 'female'): string {
     const voiceMap = {
-      // 남성 페르소나 (사전 정의된 음성)
-      communication: 'pNInz6obpgDQGcFmaJgB', // Adam - 성숙하고 안정적인 남성 목소리
-      negotiation: '5Q0t7uMcjvnagumLfvZi', // Sam - 자신감 있는 남성 목소리  
-      feedback: 'VR6AewLTigWG4xSOukaG', // Josh - 젊고 친근한 남성 목소리
+      // 남성 페르소나 (한국어 지원)
+      communication: 'onwK4e9ZLuTAKqWW03F9', // Daniel - 차분하고 전문적, 한국어 지원
+      negotiation: 'Yko7PKHZNXotIFUBG7I9', // Callum - 자신감 있고 설득력, 한국어 지원  
+      feedback: 'IKne3meq5aSn9XLyUdCD', // Charlie - 친근하고 부드러운, 한국어 지원
       
-      // 여성 페르소나 (사전 정의된 음성)
-      empathy: 'EXAVITQu4vr4xnSDxMaL', // Bella - 따뜻하고 공감적인 여성 목소리
-      presentation: 'ThT5KcBeYPX3keUQqHPh', // Dorothy - 전문적이고 명확한 여성 목소리
-      crisis: 'XB0fDUnXU5powFXDhCwa', // Charlotte - 침착하고 안정적인 여성 목소리
+      // 여성 페르소나 (한국어 지원)
+      empathy: 'XrExE9yKIg1WjnnlVkGX', // Matilda - 따뜻하고 공감적, 한국어 지원
+      presentation: 'pFZP5JQG7iQjIQuC4Bku', // Lily - 명확하고 전문적, 한국어 지원
+      crisis: 'XB0fDUnXU5powFXDhCwa', // Charlotte - 침착하고 안정적, 한국어 지원
     };
 
     return voiceMap[scenarioId as keyof typeof voiceMap] || voiceMap.communication;
