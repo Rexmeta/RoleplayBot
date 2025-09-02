@@ -26,13 +26,13 @@ export class ElevenLabsService {
     return voiceMap[scenarioId as keyof typeof voiceMap] || voiceMap.communication;
   }
 
-  // 감정에 따른 음성 설정 (Eleven v3 최적화)
+  // 감정에 따른 음성 설정 (Flash v2.5 최적화 - 속도 우선)
   private getVoiceSettings(emotion: string = '중립') {
     const emotionSettings = {
-      '기쁨': { stability: 0.0, similarity_boost: 0.9, style: 0.7, use_speaker_boost: true },
-      '슬픔': { stability: 1.0, similarity_boost: 0.6, style: 0.3, use_speaker_boost: false },
-      '분노': { stability: 0.0, similarity_boost: 1.0, style: 0.9, use_speaker_boost: true },
-      '놀람': { stability: 0.0, similarity_boost: 0.8, style: 1.0, use_speaker_boost: true },
+      '기쁨': { stability: 0.5, similarity_boost: 0.8, style: 0.6, use_speaker_boost: true },
+      '슬픔': { stability: 0.8, similarity_boost: 0.7, style: 0.3, use_speaker_boost: false },
+      '분노': { stability: 0.3, similarity_boost: 0.9, style: 0.8, use_speaker_boost: true },
+      '놀람': { stability: 0.2, similarity_boost: 0.8, style: 0.9, use_speaker_boost: true },
       '중립': { stability: 0.5, similarity_boost: 0.8, style: 0.5, use_speaker_boost: true }
     };
 
@@ -49,8 +49,8 @@ export class ElevenLabsService {
     const voiceId = this.getVoiceId(scenarioId, gender);
     const voiceSettings = this.getVoiceSettings(emotion);
 
-    console.log(`🎤 ElevenLabs v3 TTS 요청: ${scenarioId} (${gender}) - ${emotion}`);
-    console.log(`음성 ID: ${voiceId}, 모델: eleven_v3`);
+    console.log(`🎤 ElevenLabs Flash v2.5 TTS 요청: ${scenarioId} (${gender}) - ${emotion}`);
+    console.log(`음성 ID: ${voiceId}, 모델: eleven_flash_v2_5 (초고속)`);
 
     const response = await fetch(`${this.baseUrl}/text-to-speech/${voiceId}`, {
       method: 'POST',
@@ -61,7 +61,7 @@ export class ElevenLabsService {
       },
       body: JSON.stringify({
         text: text,
-        model_id: 'eleven_v3', // 최신 v3 모델 - 가장 감정적으로 풍부하고 표현력 뛰어남
+        model_id: 'eleven_flash_v2_5', // Flash v2.5 - 초고속 75ms 지연시간, 실시간 대화에 최적화
         voice_settings: voiceSettings
       }),
     });
