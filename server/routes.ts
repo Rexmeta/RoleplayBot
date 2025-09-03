@@ -19,9 +19,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
       try {
         // personaId가 있으면 사용하고, 없으면 기존 scenarioId 사용 (하위 호환성)
         const personaId = conversation.personaId || conversation.scenarioId;
-        const persona = SCENARIO_PERSONAS[personaId];
+        
+        // 동적으로 페르소나 로드
+        let persona = SCENARIO_PERSONAS[personaId];
         if (!persona) {
-          throw new Error(`Unknown persona: ${personaId}`);
+          // 파일에서 페르소나 찾기
+          const allPersonas = await fileManager.getAllPersonas();
+          const foundPersona = allPersonas.find(p => p.id === personaId);
+          if (!foundPersona) {
+            throw new Error(`Unknown persona: ${personaId}`);
+          }
+          // 레거시 형식으로 변환
+          persona = {
+            id: foundPersona.id,
+            name: foundPersona.name,
+            role: foundPersona.role,
+            personality: foundPersona.personality.communicationStyle,
+            responseStyle: foundPersona.communicationPatterns.openingStyle,
+            goals: foundPersona.communicationPatterns.winConditions,
+            background: foundPersona.background.previousExperience
+          };
         }
 
         const aiResult = await generateAIResponse(
