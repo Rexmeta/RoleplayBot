@@ -39,7 +39,7 @@ export default function ScenarioSelector({ onScenarioSelect, playerProfile }: Sc
     const scenario = scenarios.find((s: ComplexScenario) => s.id === scenarioId);
     if (!scenario) return [];
     
-    return scenario.personas.map(personaId => 
+    return scenario.personas.map((personaId: string) => 
       personas.find((p: ScenarioPersona) => p.id === personaId)
     ).filter(Boolean);
   };
@@ -140,7 +140,7 @@ export default function ScenarioSelector({ onScenarioSelect, playerProfile }: Sc
           <div className="space-y-6">
             <h2 className="text-2xl font-semibold text-slate-800 mb-4">시나리오 선택</h2>
             
-            {scenarios.map((scenario) => {
+            {scenarios.map((scenario: ComplexScenario) => {
               const recommendation = getRecommendationLevel(scenario);
               const isSelected = selectedScenario?.id === scenario.id;
               
@@ -188,7 +188,7 @@ export default function ScenarioSelector({ onScenarioSelect, playerProfile }: Sc
                     <div className="mt-4">
                       <h4 className="font-medium text-slate-700 mb-2">주요 역량</h4>
                       <div className="flex flex-wrap gap-2">
-                        {scenario.skills.map((skill, index) => (
+                        {scenario.skills.map((skill: string, index: number) => (
                           <Badge key={index} variant="secondary" className="text-xs">
                             {skill}
                           </Badge>
