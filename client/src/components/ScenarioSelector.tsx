@@ -217,83 +217,85 @@ export default function ScenarioSelector({ onScenarioSelect, playerProfile }: Sc
                           대화 상대 선택 ({scenarioPersonas.length}명)
                         </h3>
                         
-                        <div className="space-y-3 mb-6">
+                        <div className="space-y-3">
                           {scenarioPersonas.map((persona, index) => {
                             const isPersonaSelected = selectedPersona?.id === persona.id;
                             const isLoading = loadingScenarioId === scenario.id && isPersonaSelected;
                             
                             return (
-                              <Card 
-                                key={persona.id} 
-                                className={`cursor-pointer transition-all duration-300 ${
-                                  isPersonaSelected ? 'ring-2 ring-green-500 bg-green-50' : 'bg-white hover:shadow-md hover:bg-slate-50'
-                                } ${isLoading ? 'cursor-wait' : ''}`}
-                                onClick={() => !isLoading && handlePersonaSelect(persona)}
-                                data-testid={`persona-card-${persona.id}`}
-                              >
-                                <CardContent className="p-4">
-                                  <div className="flex items-center space-x-4">
-                                    <div className="relative">
-                                      <img 
-                                        src={persona.image} 
-                                        alt={persona.name}
-                                        className={`w-12 h-12 rounded-full ${isLoading ? 'opacity-50' : ''}`}
-                                        onError={(e) => {
-                                          (e.target as HTMLImageElement).src = `https://ui-avatars.com/api/?name=${encodeURIComponent(persona.name)}&background=6366f1&color=fff&size=48`;
-                                        }}
-                                      />
-                                      {isLoading && (
-                                        <div className="absolute inset-0 flex items-center justify-center">
-                                          <Loader2 className="w-4 h-4 text-green-500 animate-spin" />
-                                        </div>
-                                      )}
-                                    </div>
-                                    <div className="flex-1">
-                                      <div className="flex items-center gap-2 mb-1">
-                                        <h4 className="font-medium text-slate-900">{persona.name}</h4>
-                                        <Badge variant="outline" className="text-xs">
-                                          {persona.department}
-                                        </Badge>
-                                        {isPersonaSelected && (
-                                          <Badge className="bg-green-100 text-green-800 text-xs">선택됨</Badge>
+                              <div key={persona.id}>
+                                <Card 
+                                  className={`cursor-pointer transition-all duration-300 ${
+                                    isPersonaSelected ? 'ring-2 ring-green-500 bg-green-50' : 'bg-white hover:shadow-md hover:bg-slate-50'
+                                  } ${isLoading ? 'cursor-wait' : ''}`}
+                                  onClick={() => !isLoading && handlePersonaSelect(persona)}
+                                  data-testid={`persona-card-${persona.id}`}
+                                >
+                                  <CardContent className="p-4">
+                                    <div className="flex items-center space-x-4">
+                                      <div className="relative">
+                                        <img 
+                                          src={persona.image} 
+                                          alt={persona.name}
+                                          className={`w-12 h-12 rounded-full ${isLoading ? 'opacity-50' : ''}`}
+                                          onError={(e) => {
+                                            (e.target as HTMLImageElement).src = `https://ui-avatars.com/api/?name=${encodeURIComponent(persona.name)}&background=6366f1&color=fff&size=48`;
+                                          }}
+                                        />
+                                        {isLoading && (
+                                          <div className="absolute inset-0 flex items-center justify-center">
+                                            <Loader2 className="w-4 h-4 text-green-500 animate-spin" />
+                                          </div>
                                         )}
                                       </div>
-                                      <p className="text-sm text-slate-600">{persona.role} • {persona.experience}</p>
-                                      <p className="text-xs text-slate-500 mt-1">{persona.personality.motivation}</p>
+                                      <div className="flex-1">
+                                        <div className="flex items-center gap-2 mb-1">
+                                          <h4 className="font-medium text-slate-900">{persona.name}</h4>
+                                          <Badge variant="outline" className="text-xs">
+                                            {persona.department}
+                                          </Badge>
+                                          {isPersonaSelected && (
+                                            <Badge className="bg-green-100 text-green-800 text-xs">선택됨</Badge>
+                                          )}
+                                        </div>
+                                        <p className="text-sm text-slate-600">{persona.role} • {persona.experience}</p>
+                                        <p className="text-xs text-slate-500 mt-1">{persona.personality.motivation}</p>
+                                      </div>
+                                      <div className="text-right">
+                                        <div className="text-xs text-slate-500">#{index + 1}</div>
+                                      </div>
                                     </div>
-                                    <div className="text-right">
-                                      <div className="text-xs text-slate-500">#{index + 1}</div>
-                                    </div>
+                                  </CardContent>
+                                </Card>
+                                
+                                {/* 선택된 페르소나의 대화 시작 버튼 */}
+                                {isPersonaSelected && (
+                                  <div className="mt-3 p-4 bg-green-50 border border-green-200 rounded-lg">
+                                    <Button 
+                                      onClick={handleStartConversation}
+                                      disabled={loadingScenarioId !== null}
+                                      className="w-full bg-green-600 hover:bg-green-700 text-white py-3 text-lg font-medium"
+                                      data-testid="start-conversation-button"
+                                    >
+                                      {loadingScenarioId ? (
+                                        <>
+                                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                                          대화 준비 중...
+                                        </>
+                                      ) : (
+                                        <>🚀 {persona.name}과 대화 시작하기</>
+                                      )}
+                                    </Button>
+                                    
+                                    <p className="text-center text-sm text-slate-500 mt-2">
+                                      {persona.name}과 1:1 대화를 통해 문제를 해결해보세요
+                                    </p>
                                   </div>
-                                </CardContent>
-                              </Card>
+                                )}
+                              </div>
                             );
                           })}
                         </div>
-
-                        {selectedPersona && (
-                          <div className="pt-4 border-t border-slate-200">
-                            <Button 
-                              onClick={handleStartConversation}
-                              disabled={loadingScenarioId !== null}
-                              className="w-full bg-green-600 hover:bg-green-700 text-white py-3 text-lg font-medium"
-                              data-testid="start-conversation-button"
-                            >
-                              {loadingScenarioId ? (
-                                <>
-                                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                                  대화 준비 중...
-                                </>
-                              ) : (
-                                <>🚀 {selectedPersona.name}과 대화 시작하기</>
-                              )}
-                            </Button>
-                            
-                            <p className="text-center text-sm text-slate-500 mt-2">
-                              {selectedPersona.name}과 1:1 대화를 통해 문제를 해결해보세요
-                            </p>
-                          </div>
-                        )}
                       </div>
                     </CardContent>
                   )}
