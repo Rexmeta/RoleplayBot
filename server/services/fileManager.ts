@@ -42,29 +42,67 @@ export class FileManagerService {
   }
 
   async updateScenario(id: string, scenario: Partial<ComplexScenario>): Promise<ComplexScenario> {
-    const fileName = `${id}.json`;
-    const filePath = path.join(SCENARIOS_DIR, fileName);
-    
     try {
-      const content = await fs.readFile(filePath, 'utf-8');
-      const existingScenario = JSON.parse(content) as ComplexScenario;
+      // 모든 시나리오 파일을 검색해서 ID가 일치하는 파일 찾기
+      const files = await fs.readdir(SCENARIOS_DIR);
+      let foundFile: string | null = null;
+      let existingScenario: ComplexScenario | null = null;
+      
+      for (const file of files.filter(f => f.endsWith('.json'))) {
+        try {
+          const content = await fs.readFile(path.join(SCENARIOS_DIR, file), 'utf-8');
+          const scenarioData = JSON.parse(content) as ComplexScenario;
+          if (scenarioData.id === id) {
+            foundFile = file;
+            existingScenario = scenarioData;
+            break;
+          }
+        } catch (error) {
+          console.warn(`Failed to read scenario file ${file}:`, error);
+        }
+      }
+      
+      if (!foundFile || !existingScenario) {
+        throw new Error(`Scenario ${id} not found`);
+      }
+      
       const updatedScenario = { ...existingScenario, ...scenario, id };
+      const filePath = path.join(SCENARIOS_DIR, foundFile);
       
       await fs.writeFile(filePath, JSON.stringify(updatedScenario, null, 2), 'utf-8');
       return updatedScenario;
     } catch (error) {
-      throw new Error(`Scenario ${id} not found`);
+      throw new Error(`Scenario ${id} not found: ${error}`);
     }
   }
 
   async deleteScenario(id: string): Promise<void> {
-    const fileName = `${id}.json`;
-    const filePath = path.join(SCENARIOS_DIR, fileName);
-    
     try {
+      // 모든 시나리오 파일을 검색해서 ID가 일치하는 파일 찾기
+      const files = await fs.readdir(SCENARIOS_DIR);
+      let foundFile: string | null = null;
+      
+      for (const file of files.filter(f => f.endsWith('.json'))) {
+        try {
+          const content = await fs.readFile(path.join(SCENARIOS_DIR, file), 'utf-8');
+          const scenarioData = JSON.parse(content) as ComplexScenario;
+          if (scenarioData.id === id) {
+            foundFile = file;
+            break;
+          }
+        } catch (error) {
+          console.warn(`Failed to read scenario file ${file}:`, error);
+        }
+      }
+      
+      if (!foundFile) {
+        throw new Error(`Scenario ${id} not found`);
+      }
+      
+      const filePath = path.join(SCENARIOS_DIR, foundFile);
       await fs.unlink(filePath);
     } catch (error) {
-      throw new Error(`Failed to delete scenario ${id}`);
+      throw new Error(`Failed to delete scenario ${id}: ${error}`);
     }
   }
 
@@ -103,29 +141,67 @@ export class FileManagerService {
   }
 
   async updatePersona(id: string, persona: Partial<ScenarioPersona>): Promise<ScenarioPersona> {
-    const fileName = `${id}.json`;
-    const filePath = path.join(PERSONAS_DIR, fileName);
-    
     try {
-      const content = await fs.readFile(filePath, 'utf-8');
-      const existingPersona = JSON.parse(content) as ScenarioPersona;
+      // 모든 페르소나 파일을 검색해서 ID가 일치하는 파일 찾기
+      const files = await fs.readdir(PERSONAS_DIR);
+      let foundFile: string | null = null;
+      let existingPersona: ScenarioPersona | null = null;
+      
+      for (const file of files.filter(f => f.endsWith('.json'))) {
+        try {
+          const content = await fs.readFile(path.join(PERSONAS_DIR, file), 'utf-8');
+          const personaData = JSON.parse(content) as ScenarioPersona;
+          if (personaData.id === id) {
+            foundFile = file;
+            existingPersona = personaData;
+            break;
+          }
+        } catch (error) {
+          console.warn(`Failed to read persona file ${file}:`, error);
+        }
+      }
+      
+      if (!foundFile || !existingPersona) {
+        throw new Error(`Persona ${id} not found`);
+      }
+      
       const updatedPersona = { ...existingPersona, ...persona, id };
+      const filePath = path.join(PERSONAS_DIR, foundFile);
       
       await fs.writeFile(filePath, JSON.stringify(updatedPersona, null, 2), 'utf-8');
       return updatedPersona;
     } catch (error) {
-      throw new Error(`Persona ${id} not found`);
+      throw new Error(`Persona ${id} not found: ${error}`);
     }
   }
 
   async deletePersona(id: string): Promise<void> {
-    const fileName = `${id}.json`;
-    const filePath = path.join(PERSONAS_DIR, fileName);
-    
     try {
+      // 모든 페르소나 파일을 검색해서 ID가 일치하는 파일 찾기
+      const files = await fs.readdir(PERSONAS_DIR);
+      let foundFile: string | null = null;
+      
+      for (const file of files.filter(f => f.endsWith('.json'))) {
+        try {
+          const content = await fs.readFile(path.join(PERSONAS_DIR, file), 'utf-8');
+          const personaData = JSON.parse(content) as ScenarioPersona;
+          if (personaData.id === id) {
+            foundFile = file;
+            break;
+          }
+        } catch (error) {
+          console.warn(`Failed to read persona file ${file}:`, error);
+        }
+      }
+      
+      if (!foundFile) {
+        throw new Error(`Persona ${id} not found`);
+      }
+      
+      const filePath = path.join(PERSONAS_DIR, foundFile);
       await fs.unlink(filePath);
     } catch (error) {
-      throw new Error(`Failed to delete persona ${id}`);
+      throw new Error(`Failed to delete persona ${id}: ${error}`);
     }
   }
 
