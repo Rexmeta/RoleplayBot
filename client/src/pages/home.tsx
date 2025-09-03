@@ -3,19 +3,33 @@ import { Link } from "wouter";
 import ScenarioSelector from "@/components/ScenarioSelector";
 import ChatWindow from "@/components/ChatWindow";
 import PersonalDevelopmentReport from "@/components/PersonalDevelopmentReport";
-import type { Scenario } from "@/lib/scenarios";
+import { complexScenarios, scenarioPersonas, type ComplexScenario, type ScenarioPersona } from "@/lib/scenario-system";
 
 type ViewState = "scenarios" | "chat" | "feedback";
 
 export default function Home() {
   const [currentView, setCurrentView] = useState<ViewState>("scenarios");
-  const [selectedScenario, setSelectedScenario] = useState<Scenario | null>(null);
+  const [selectedScenario, setSelectedScenario] = useState<ComplexScenario | null>(null);
+  const [selectedPersona, setSelectedPersona] = useState<ScenarioPersona | null>(null);
   const [conversationId, setConversationId] = useState<string | null>(null);
 
-  const handleScenarioSelect = (scenario: Scenario, convId: string) => {
-    setSelectedScenario(scenario);
-    setConversationId(convId);
-    setCurrentView("chat");
+  // 사용자 프로필 (실제로는 인증 시스템에서 가져올 것)
+  const playerProfile = {
+    position: "신입 개발자",
+    department: "개발팀",
+    experience: "6개월차"
+  };
+
+  const handleScenarioSelect = (scenarioId: string, personaId: string, convId: string) => {
+    const scenario = complexScenarios.find(s => s.id === scenarioId);
+    const persona = scenarioPersonas[personaId];
+    
+    if (scenario && persona) {
+      setSelectedScenario(scenario);
+      setSelectedPersona(persona);
+      setConversationId(convId);
+      setCurrentView("chat");
+    }
   };
 
   const handleChatComplete = () => {
@@ -25,6 +39,7 @@ export default function Home() {
   const handleReturnToScenarios = () => {
     setCurrentView("scenarios");
     setSelectedScenario(null);
+    setSelectedPersona(null);
     setConversationId(null);
   };
 
@@ -68,24 +83,34 @@ export default function Home() {
       <main className={`${currentView === "scenarios" ? "py-8 bg-slate-50" : "max-w-6xl mx-auto px-4 py-8"}`}>
         {currentView === "scenarios" && (
           <div className="max-w-6xl mx-auto px-4">
-            <ScenarioSelector onScenarioSelect={handleScenarioSelect} />
+            <ScenarioSelector 
+              onScenarioSelect={handleScenarioSelect}
+              playerProfile={playerProfile}
+            />
           </div>
         )}
         
-        {currentView === "chat" && selectedScenario && conversationId && (
+        {currentView === "chat" && selectedScenario && selectedPersona && conversationId && (
           <ChatWindow
             scenario={selectedScenario}
+            persona={selectedPersona}
             conversationId={conversationId}
             onChatComplete={handleChatComplete}
             onExit={handleReturnToScenarios}
           />
         )}
         
-        {currentView === "feedback" && selectedScenario && conversationId && (
+        {currentView === "feedback" && selectedScenario && selectedPersona && conversationId && (
           <PersonalDevelopmentReport
             scenario={selectedScenario}
+            persona={selectedPersona}
             conversationId={conversationId}
-            onRetry={() => handleScenarioSelect(selectedScenario, "")}
+            onRetry={() => {
+              if (selectedScenario && selectedPersona) {
+                // 새로운 대화 시작을 위해 다시 시나리오 선택으로 돌아감
+                handleReturnToScenarios();
+              }
+            }}
             onSelectNewScenario={handleReturnToScenarios}
           />
         )}

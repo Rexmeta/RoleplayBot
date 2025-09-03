@@ -7,11 +7,12 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 
-import type { Scenario } from "@/lib/scenarios";
+import type { ComplexScenario, ScenarioPersona } from "@/lib/scenario-system";
 import type { Feedback } from "@shared/schema";
 
 interface PersonalDevelopmentReportProps {
-  scenario: Scenario;
+  scenario: ComplexScenario;
+  persona: ScenarioPersona;
   conversationId: string;
   onRetry: () => void;
   onSelectNewScenario: () => void;
@@ -23,6 +24,7 @@ const getProgressWidth = (value: number) => value;
 
 export default function PersonalDevelopmentReport({ 
   scenario, 
+  persona,
   conversationId, 
   onRetry, 
   onSelectNewScenario 
@@ -213,7 +215,7 @@ export default function PersonalDevelopmentReport({
             <p className="text-corporate-100">AI 분석 기반 커뮤니케이션 역량 진단 및 발전 계획</p>
             <div className="mt-3 text-sm text-corporate-200">
               <i className="fas fa-user mr-2"></i>
-              훈련 시나리오: {scenario.name} ({scenario.role})
+              대화 상대: {persona.name} ({persona.role}) · 시나리오: {scenario.title}
             </div>
           </div>
           <div 

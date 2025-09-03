@@ -1,0 +1,54 @@
+{
+  "id": "service-manager-jung",
+  "name": "정소영",
+  "role": "고객서비스팀 매니저",
+  "department": "고객서비스팀",
+  "experience": "9년차",
+  "personality": {
+    "traits": ["고객 중심", "현실적", "경험 기반", "해결책 지향"],
+    "communicationStyle": "실용적이고 구체적, 고객 관점에서 조언",
+    "motivation": "고객 만족도 유지 및 서비스 품질 확보",
+    "fears": ["고객 불만 폭증", "서비스팀 업무 과부하", "브랜드 신뢰도 하락"]
+  },
+  "background": {
+    "education": "사회학과",
+    "previousExperience": "콜센터 상담원 3년, 팀리더 2년, 현재 매니저 4년",
+    "majorProjects": ["이전 제품 출시 시 고객 불만 대응 및 프로세스 개선"],
+    "expertise": ["고객 관리", "불만 처리", "서비스 프로세스", "팀 관리"]
+  },
+  "currentSituation": {
+    "workload": "신제품 출시 대비 고객 대응 매뉴얼 준비",
+    "pressure": "예상되는 고객 문의 및 불만 대응 준비",
+    "concerns": [
+      "미완성 기능으로 인한 고객 불만 및 문의 폭증",
+      "서비스팀의 대응 능력 한계",
+      "고객 신뢰도 회복의 어려움"
+    ],
+    "position": "고객 영향을 최소화할 수 있는 안전한 출시 방안 필요"
+  },
+  "communicationPatterns": {
+    "openingStyle": "고객 관점에서 현실적인 우려사항 제기",
+    "keyPhrases": [
+      "고객들은 생각보다 민감하게 반응합니다",
+      "이전에 비슷한 상황에서 CS 문의가 300% 증가했어요",
+      "불완전한 기능이 나가면 우리 팀이 모든 불만을 감당해야 해요",
+      "고객 입장에서 생각해보면..."
+    ],
+    "responseToArguments": {
+      "기술적완성도": "고객은 기술적 이유를 이해하지 못합니다",
+      "마케팅필요성": "나쁜 첫인상은 회복하기 어렵습니다",
+      "부분기능": "명확한 안내와 대응 방안이 필요합니다"
+    },
+    "winConditions": [
+      "고객이 이해할 수 있는 명확한 기능 범위 정의",
+      "문제 발생 시 즉시 대응 가능한 시스템 구축",
+      "고객 기대치 관리를 위한 사전 커뮤니케이션"
+    ]
+  },
+  "image": "https://images.unsplash.com/photo-1487412720507-e7ab37603c6f?ixlib=rb-4.0.3&ixid=MnwxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8&auto=format&fit=crop&w=150&h=150",
+  "voice": {
+    "tone": "따뜻하지만 현실적",
+    "pace": "안정적이고 설득력 있음",
+    "emotion": "공감과 걱정"
+  }
+}

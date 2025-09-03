@@ -4,7 +4,7 @@ import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import type { Scenario } from "@/lib/scenarios";
+import type { ComplexScenario, ScenarioPersona } from "@/lib/scenario-system";
 import type { Conversation, ConversationMessage } from "@shared/schema";
 
 // Web Speech API 타입 확장
@@ -32,13 +32,14 @@ const formatElapsedTime = (seconds: number): string => {
 };
 
 interface ChatWindowProps {
-  scenario: Scenario;
+  scenario: ComplexScenario;
+  persona: ScenarioPersona;
   conversationId: string;
   onChatComplete: () => void;
   onExit: () => void;
 }
 
-export default function ChatWindow({ scenario, conversationId, onChatComplete, onExit }: ChatWindowProps) {
+export default function ChatWindow({ scenario, persona, conversationId, onChatComplete, onExit }: ChatWindowProps) {
   const [userInput, setUserInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
@@ -216,7 +217,7 @@ export default function ChatWindow({ scenario, conversationId, onChatComplete, o
     try {
       setIsSpeaking(true);
       
-      console.log(`🎤 ElevenLabs TTS 요청: ${scenario.name}, 감정: ${emotion}`);
+      console.log(`🎤 ElevenLabs TTS 요청: ${persona.name}, 감정: ${emotion}`);
       
       // ElevenLabs API 호출
       const response = await fetch('/api/tts/generate', {
@@ -226,7 +227,7 @@ export default function ChatWindow({ scenario, conversationId, onChatComplete, o
         },
         body: JSON.stringify({
           text: text,
-          scenarioId: scenario.id,
+          scenarioId: persona.id,
           emotion: emotion || '중립'
         }),
       });
@@ -567,16 +568,16 @@ export default function ChatWindow({ scenario, conversationId, onChatComplete, o
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-4">
               <img 
-                src={scenario.image} 
-                alt={scenario.name} 
+                src={persona.image} 
+                alt={persona.name} 
                 className="w-12 h-12 rounded-full border-2 border-white/20" 
                 onError={(e) => {
-                  (e.target as HTMLImageElement).src = `https://ui-avatars.com/api/?name=${encodeURIComponent(scenario.name)}&background=6366f1&color=fff&size=48`;
+                  (e.target as HTMLImageElement).src = `https://ui-avatars.com/api/?name=${encodeURIComponent(persona.name)}&background=6366f1&color=fff&size=48`;
                 }}
               />
               <div>
-                <h3 className="text-lg font-semibold">{scenario.name}과의 대화</h3>
-                <p className="text-blue-100 text-sm">{scenario.skills.join(", ")} 훈련 시나리오</p>
+                <h3 className="text-lg font-semibold">{persona.name}과의 대화</h3>
+                <p className="text-blue-100 text-sm">{persona.role} · {persona.department} · {scenario.title}</p>
               </div>
             </div>
             <div className="flex items-center space-x-4">
@@ -687,8 +688,8 @@ export default function ChatWindow({ scenario, conversationId, onChatComplete, o
               {message.sender === "ai" && (
                 <div className="relative">
                   <img 
-                    src={scenario.image} 
-                    alt="AI" 
+                    src={persona.image} 
+                    alt={persona.name} 
                     className="w-8 h-8 rounded-full" 
                   />
                   {/* 감정 이모지 표시 */}
@@ -755,7 +756,7 @@ export default function ChatWindow({ scenario, conversationId, onChatComplete, o
 
           {isLoading && (
             <div className="flex items-start space-x-3">
-              <img src={scenario.image} alt="AI" className="w-8 h-8 rounded-full" />
+              <img src={persona.image} alt={persona.name} className="w-8 h-8 rounded-full" />
               <div className="message-card rounded-lg rounded-tl-none p-3 max-w-md">
                 <div className="flex space-x-1">
                   <div className="w-2 h-2 bg-slate-400 rounded-full animate-bounce"></div>
@@ -867,7 +868,7 @@ export default function ChatWindow({ scenario, conversationId, onChatComplete, o
             목표
           </h4>
           <p className="text-sm text-slate-600">
-            {scenario.name}과 건설적인 대화를 통해 {scenario.skills.join(", ")} 역량을 개발하세요.
+            {persona.name}과 건설적인 대화를 통해 {scenario.skills.join(", ")} 역량을 개발하세요.
           </p>
         </div>
         <div className="bg-white rounded-lg p-4 border border-slate-200">
