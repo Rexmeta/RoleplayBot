@@ -59,18 +59,34 @@ export function PersonaManager() {
     experience: '',
     image: '',
     personality: {
-      traits: '',
+      traits: [],
+      communicationStyle: '',
       motivation: '',
-      concerns: ''
+      fears: []
     },
-    communicationStyle: {
+    background: {
+      education: '',
+      previousExperience: '',
+      majorProjects: [],
+      expertise: []
+    },
+    currentSituation: {
+      workload: '',
+      pressure: '',
+      concerns: [],
+      position: ''
+    },
+    communicationPatterns: {
+      openingStyle: '',
+      keyPhrases: [],
+      responseToArguments: {},
+      winConditions: []
+    },
+    voice: {
       tone: '',
-      approach: '',
-      keyPhrases: []
-    },
-    goals: [],
-    background: '',
-    expertise: []
+      pace: '',
+      emotion: ''
+    }
   });
 
   const { data: personas, isLoading } = useQuery<ScenarioPersona[]>({
@@ -321,15 +337,15 @@ export function PersonaManager() {
                 <h3 className="text-lg font-semibold">성격 및 소통 스타일</h3>
                 
                 <div>
-                  <Label htmlFor="traits">성격 특성</Label>
+                  <Label htmlFor="traits">성격 특성 (쉼표로 구분)</Label>
                   <Textarea
                     id="traits"
-                    value={formData.personality.traits}
+                    value={formData.personality.traits.join(', ')}
                     onChange={(e) => setFormData(prev => ({ 
                       ...prev, 
-                      personality: { ...prev.personality, traits: e.target.value }
+                      personality: { ...prev.personality, traits: e.target.value.split(',').map(s => s.trim()).filter(s => s) }
                     }))}
-                    placeholder="기술적 완벽주의자로 품질을 중시하며, 스케줄 압박 상황에서도 기술적 타협을 거부하는 경향"
+                    placeholder="완벽주의자, 신중한 성격, 기술 중심적 사고"
                     className="min-h-[80px]"
                     data-testid="textarea-traits"
                   />
@@ -352,17 +368,17 @@ export function PersonaManager() {
                   </div>
                   
                   <div>
-                    <Label htmlFor="concerns">주요 우려사항</Label>
+                    <Label htmlFor="fears">주요 우려사항 (쉼표로 구분)</Label>
                     <Textarea
-                      id="concerns"
-                      value={formData.personality.concerns}
+                      id="fears"
+                      value={formData.personality.fears.join(', ')}
                       onChange={(e) => setFormData(prev => ({ 
                         ...prev, 
-                        personality: { ...prev.personality, concerns: e.target.value }
+                        personality: { ...prev.personality, fears: e.target.value.split(',').map(s => s.trim()).filter(s => s) }
                       }))}
-                      placeholder="품질 저하로 인한 서비스 장애, 기술적 문제 발생"
+                      placeholder="품질 저하, 서비스 장애, 기술적 문제"
                       className="min-h-[60px]"
-                      data-testid="textarea-concerns"
+                      data-testid="textarea-fears"
                     />
                   </div>
                 </div>
@@ -372,10 +388,10 @@ export function PersonaManager() {
                     <Label htmlFor="tone">대화 톤</Label>
                     <Input
                       id="tone"
-                      value={formData.communicationStyle.tone}
+                      value={formData.voice.tone}
                       onChange={(e) => setFormData(prev => ({ 
                         ...prev, 
-                        communicationStyle: { ...prev.communicationStyle, tone: e.target.value }
+                        voice: { ...prev.voice, tone: e.target.value }
                       }))}
                       placeholder="예: 신중하고 분석적, 직설적이고 실용적"
                       data-testid="input-tone"
@@ -383,16 +399,16 @@ export function PersonaManager() {
                   </div>
                   
                   <div>
-                    <Label htmlFor="approach">접근 방식</Label>
+                    <Label htmlFor="communicationStyle">의사소통 스타일</Label>
                     <Input
-                      id="approach"
-                      value={formData.communicationStyle.approach}
+                      id="communicationStyle"
+                      value={formData.personality.communicationStyle}
                       onChange={(e) => setFormData(prev => ({ 
                         ...prev, 
-                        communicationStyle: { ...prev.communicationStyle, approach: e.target.value }
+                        personality: { ...prev.personality, communicationStyle: e.target.value }
                       }))}
                       placeholder="예: 데이터 기반 논리적 접근, 경험 중심 조언"
-                      data-testid="input-approach"
+                      data-testid="input-communication-style"
                     />
                   </div>
                 </div>
@@ -403,14 +419,31 @@ export function PersonaManager() {
                 <h3 className="text-lg font-semibold">배경 및 전문성</h3>
                 
                 <div>
-                  <Label htmlFor="background">배경 스토리</Label>
+                  <Label htmlFor="education">학력</Label>
+                  <Input
+                    id="education"
+                    value={formData.background.education}
+                    onChange={(e) => setFormData(prev => ({ 
+                      ...prev, 
+                      background: { ...prev.background, education: e.target.value }
+                    }))}
+                    placeholder="예: 컴퓨터공학 학사, MBA"
+                    data-testid="input-education"
+                  />
+                </div>
+
+                <div>
+                  <Label htmlFor="previousExperience">이전 경력</Label>
                   <Textarea
-                    id="background"
-                    value={formData.background}
-                    onChange={(e) => setFormData(prev => ({ ...prev, background: e.target.value }))}
-                    placeholder="5년간 모바일 앱 개발을 해오며 다양한 기술적 이슈를 경험함. 품질 저하로 인한 서비스 장애를 여러 번 겪어 신중한 접근을 선호함."
-                    className="min-h-[100px]"
-                    data-testid="textarea-background"
+                    id="previousExperience"
+                    value={formData.background.previousExperience}
+                    onChange={(e) => setFormData(prev => ({ 
+                      ...prev, 
+                      background: { ...prev.background, previousExperience: e.target.value }
+                    }))}
+                    placeholder="5년간 모바일 앱 개발을 해오며 다양한 기술적 이슈를 경험함"
+                    className="min-h-[80px]"
+                    data-testid="textarea-previous-experience"
                   />
                 </div>
 
@@ -418,23 +451,23 @@ export function PersonaManager() {
                   <Label htmlFor="expertise">전문 분야 (쉼표로 구분)</Label>
                   <Input
                     id="expertise"
-                    value={formData.expertise.join(', ')}
+                    value={formData.background.expertise.join(', ')}
                     onChange={(e) => setFormData(prev => ({ 
                       ...prev, 
-                      expertise: e.target.value.split(',').map(s => s.trim()).filter(s => s)
+                      background: { ...prev.background, expertise: e.target.value.split(',').map(s => s.trim()).filter(s => s) }
                     }))}
                     placeholder="모바일 개발, 코드 리뷰, 아키텍처 설계, 성능 최적화"
                     data-testid="input-expertise"
                   />
                   <div className="mt-2 flex flex-wrap gap-1">
-                    {formData.expertise.map((skill, index) => (
+                    {formData.background.expertise.map((skill, index) => (
                       <Badge key={index} variant="secondary" className="text-xs">
                         {skill}
                         <button 
                           type="button"
                           onClick={() => setFormData(prev => ({ 
                             ...prev, 
-                            expertise: prev.expertise.filter((_, i) => i !== index)
+                            background: { ...prev.background, expertise: prev.background.expertise.filter((_, i) => i !== index) }
                           }))}
                           className="ml-1 hover:bg-red-200"
                         >
@@ -446,17 +479,17 @@ export function PersonaManager() {
                 </div>
 
                 <div>
-                  <Label htmlFor="goals">훈련 목표 (줄바꿈으로 구분)</Label>
+                  <Label htmlFor="winConditions">성공 조건 (쉼표로 구분)</Label>
                   <Textarea
-                    id="goals"
-                    value={formData.goals.join('\n')}
+                    id="winConditions"
+                    value={formData.communicationPatterns.winConditions.join(', ')}
                     onChange={(e) => setFormData(prev => ({ 
                       ...prev, 
-                      goals: e.target.value.split('\n').filter(goal => goal.trim())
+                      communicationPatterns: { ...prev.communicationPatterns, winConditions: e.target.value.split(',').map(s => s.trim()).filter(s => s) }
                     }))}
-                    placeholder="기술적 설득 능력&#10;논리적 문제 해결&#10;품질과 일정의 균형 조율"
+                    placeholder="기술적 설득 완료, 일정 조율 합의, 품질 기준 확립"
                     className="min-h-[100px]"
-                    data-testid="textarea-goals"
+                    data-testid="textarea-win-conditions"
                   />
                 </div>
               </div>
