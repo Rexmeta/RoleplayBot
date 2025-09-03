@@ -15,6 +15,7 @@ function Router() {
       <Route path="/" component={Intro} />
       <Route path="/home" component={Home} />
       <Route path="/admin" component={AdminDashboard} />
+      <Route path="/admin-dashboard" component={AdminDashboard} />
       <Route path="/ai-generator" component={AIGeneratorPage} />
       <Route component={NotFound} />
     </Switch>
