@@ -10,16 +10,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Create new conversation
   app.post("/api/conversations", async (req, res) => {
     try {
-      console.log("Received request body:", req.body);
       const validatedData = insertConversationSchema.parse(req.body);
-      console.log("Validated data:", validatedData);
       const conversation = await storage.createConversation(validatedData);
-      console.log("Created conversation:", conversation);
       
       // 첫 번째 AI 메시지 자동 생성
       try {
         // personaId가 있으면 사용하고, 없으면 기존 scenarioId 사용 (하위 호환성)
-        const personaId = (conversation as any).personaId || conversation.scenarioId;
+        const personaId = conversation.personaId || conversation.scenarioId;
         const persona = SCENARIO_PERSONAS[personaId];
         if (!persona) {
           throw new Error(`Unknown persona: ${personaId}`);
@@ -104,7 +101,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Generate AI response
       // personaId가 있으면 사용하고, 없으면 기존 scenarioId 사용 (하위 호환성)
-      const personaId = (conversation as any).personaId || conversation.scenarioId;
+      const personaId = conversation.personaId || conversation.scenarioId;
       const persona = SCENARIO_PERSONAS[personaId];
       if (!persona) {
         throw new Error(`Unknown persona: ${personaId}`);

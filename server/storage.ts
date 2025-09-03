@@ -28,6 +28,7 @@ export class MemStorage implements IStorage {
     const conversation: Conversation = {
       id,
       scenarioId: insertConversation.scenarioId,
+      personaId: insertConversation.personaId || null,
       scenarioName: insertConversation.scenarioName,
       messages: insertConversation.messages as any,
       turnCount: insertConversation.turnCount || 0,
