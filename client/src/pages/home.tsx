@@ -3,7 +3,8 @@ import { Link } from "wouter";
 import ScenarioSelector from "@/components/ScenarioSelector";
 import ChatWindow from "@/components/ChatWindow";
 import PersonalDevelopmentReport from "@/components/PersonalDevelopmentReport";
-import { complexScenarios, scenarioPersonas, type ComplexScenario, type ScenarioPersona } from "@/lib/scenario-system";
+import { useQuery } from "@tanstack/react-query";
+import { type ComplexScenario, type ScenarioPersona } from "@/lib/scenario-system";
 
 type ViewState = "scenarios" | "chat" | "feedback";
 
@@ -13,6 +14,17 @@ export default function Home() {
   const [selectedPersona, setSelectedPersona] = useState<ScenarioPersona | null>(null);
   const [conversationId, setConversationId] = useState<string | null>(null);
 
+  // 동적으로 시나리오와 페르소나 데이터 로드
+  const { data: scenarios = [] } = useQuery({
+    queryKey: ['/api/scenarios'],
+    queryFn: () => fetch('/api/scenarios').then(res => res.json())
+  });
+
+  const { data: personas = [] } = useQuery({
+    queryKey: ['/api/personas'],
+    queryFn: () => fetch('/api/personas').then(res => res.json())
+  });
+
   // 사용자 프로필 (실제로는 인증 시스템에서 가져올 것)
   const playerProfile = {
     position: "신입 개발자",
@@ -21,8 +33,8 @@ export default function Home() {
   };
 
   const handleScenarioSelect = (scenarioId: string, personaId: string, convId: string) => {
-    const scenario = complexScenarios.find(s => s.id === scenarioId);
-    const persona = scenarioPersonas[personaId];
+    const scenario = scenarios.find((s: ComplexScenario) => s.id === scenarioId);
+    const persona = personas.find((p: ScenarioPersona) => p.id === personaId);
     
     if (scenario && persona) {
       setSelectedScenario(scenario);
