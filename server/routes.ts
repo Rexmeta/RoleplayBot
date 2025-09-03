@@ -233,11 +233,35 @@ export async function registerRoutes(app: Express): Promise<Server> {
         };
       }
 
+      // 대화 시간과 발화량 계산
+      const conversationDuration = conversation.completedAt 
+        ? Math.floor((new Date(conversation.completedAt).getTime() - new Date(conversation.createdAt).getTime()) / 1000 / 60) 
+        : 0; // 분 단위
+
+      const userMessages = conversation.messages.filter(m => m.sender === 'user');
+      const totalUserWords = userMessages.reduce((sum, msg) => sum + msg.message.length, 0);
+      const averageResponseTime = conversationDuration > 0 ? Math.round(conversationDuration * 60 / userMessages.length) : 0; // 초 단위
+
       const feedbackData = await generateFeedback(
         conversation.scenarioId,
         conversation.messages,
         persona
       );
+
+      // 시간 성과 평가 추가
+      const timePerformance = {
+        rating: conversationDuration <= 5 ? 'excellent' as const :
+                conversationDuration <= 10 ? 'good' as const :
+                conversationDuration <= 15 ? 'average' as const : 'slow' as const,
+        feedback: conversationDuration <= 5 ? '매우 효율적인 대화 진행' :
+                  conversationDuration <= 10 ? '적절한 시간 내 대화 완료' :
+                  conversationDuration <= 15 ? '평균적인 대화 속도' : '대화 시간이 다소 길었습니다'
+      };
+
+      // 피드백에 시간 정보 추가
+      feedbackData.conversationDuration = conversationDuration;
+      feedbackData.averageResponseTime = averageResponseTime;
+      feedbackData.timePerformance = timePerformance;
 
       console.log("피드백 데이터 생성 완료:", feedbackData);
 

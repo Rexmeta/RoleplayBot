@@ -143,20 +143,37 @@ JSON 형식으로 응답하세요:
         `${msg.sender === 'user' ? '사용자' : persona.name}: ${msg.message}`
       ).join('\n');
 
+      // 대화 통계 계산
+      const userMessages = safeMessages.filter(m => m.sender === 'user');
+      const totalUserWords = userMessages.reduce((sum, msg) => sum + msg.message.length, 0);
+      const averageMessageLength = userMessages.length > 0 ? Math.round(totalUserWords / userMessages.length) : 0;
+
       const feedbackPrompt = `다음은 ${persona.name}(${persona.role})과의 대화입니다.
 
 대화 내용:
 ${conversationText}
 
+대화 통계:
+- 총 대화 턴: ${safeMessages.length}턴
+- 사용자 발화 수: ${userMessages.length}회
+- 평균 발화 길이: ${averageMessageLength}자
+- 총 발화량: ${totalUserWords}자
+
 평가 목표: ${persona.goals.join(', ')}
 
 다음 5가지 기준으로 1-5점(1=미흡, 2=개선필요, 3=보통, 4=좋음, 5=우수)으로 평가하고 종합적인 피드백을 제공하세요:
 
-1. 메시지 명확성 (25%): 정확하고 이해하기 쉬운 의사소통
+1. 메시지 명확성 (25%): 정확하고 이해하기 쉬운 의사소통 (발화량과 명확성 고려)
 2. 상대방 배려 (20%): 청자의 입장과 상황 고려
 3. 감정적 반응성 (25%): 상대방 감정에 대한 적절한 대응
-4. 대화 구조화 (15%): 논리적이고 체계적인 대화 진행
+4. 대화 구조화 (15%): 논리적이고 체계적인 대화 진행 (대화 턴 수와 흐름 고려)
 5. 전문적 역량 (15%): 업무 상황에 맞는 전문성 발휘 (계획, 방안, 제안, 검토, 분석, 개선, 해결, 대안, 전략, 전문, 경험, 기술 등 키워드 사용)
+
+**평가 시 고려사항:**
+- 발화량이 너무 적으면(평균 20자 미만) 명확성 점수 감점
+- 발화량이 적절하면(평균 30-80자) 가산점
+- 대화 턴이 충분하면(8턴 이상) 구조화 점수 가산점
+- 총 발화량이 풍부하면(400자 이상) 참여도 우수 평가
 
 JSON 형식으로 응답하세요:
 {

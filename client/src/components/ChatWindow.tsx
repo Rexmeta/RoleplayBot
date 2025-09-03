@@ -75,7 +75,8 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
   useEffect(() => {
     let interval: NodeJS.Timeout;
     
-    if (conversationStartTime) {
+    // 대화가 완료되었으면 타이머 정지
+    if (conversationStartTime && conversation && conversation.turnCount < maxTurns) {
       interval = setInterval(() => {
         const now = new Date();
         const elapsed = Math.floor((now.getTime() - conversationStartTime.getTime()) / 1000);
@@ -88,7 +89,7 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
         clearInterval(interval);
       }
     };
-  }, [conversationStartTime]);
+  }, [conversationStartTime, conversation]);
 
   const sendMessageMutation = useMutation({
     mutationFn: async (message: string) => {
@@ -777,8 +778,9 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
               <div className="text-lg font-semibold text-slate-700">
                 대화가 완료되었습니다!
               </div>
-              <div className="text-sm text-slate-500">
-                총 {conversation.turnCount}턴의 대화를 나누었습니다.
+              <div className="text-sm text-slate-500 space-y-1">
+                <div>총 {conversation.turnCount}턴의 대화를 나누었습니다.</div>
+                <div>대화 시간: {formatElapsedTime(elapsedTime)}</div>
               </div>
               <div className="flex justify-center space-x-4">
                 <Button
