@@ -10,8 +10,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Create new conversation
   app.post("/api/conversations", async (req, res) => {
     try {
+      console.log("Received request body:", req.body);
       const validatedData = insertConversationSchema.parse(req.body);
+      console.log("Validated data:", validatedData);
       const conversation = await storage.createConversation(validatedData);
+      console.log("Created conversation:", conversation);
       
       // 첫 번째 AI 메시지 자동 생성
       try {
