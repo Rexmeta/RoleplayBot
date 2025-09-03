@@ -6,6 +6,7 @@ import { z } from "zod";
 export const conversations = pgTable("conversations", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   scenarioId: text("scenario_id").notNull(),
+  personaId: text("persona_id"), // 새로운 시나리오 시스템용
   scenarioName: text("scenario_name").notNull(),
   messages: jsonb("messages").notNull().$type<ConversationMessage[]>(),
   turnCount: integer("turn_count").notNull().default(0),

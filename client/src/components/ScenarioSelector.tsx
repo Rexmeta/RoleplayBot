@@ -28,6 +28,7 @@ export default function ScenarioSelector({ onScenarioSelect, playerProfile }: Sc
       setLoadingScenarioId(scenarioId);
       const response = await apiRequest("POST", "/api/conversations", {
         scenarioId: scenarioId,
+        personaId: personaId,
         scenarioName: selectedScenario?.title || "",
         messages: [],
         turnCount: 0,

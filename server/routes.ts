@@ -15,9 +15,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       // 첫 번째 AI 메시지 자동 생성
       try {
-        const persona = SCENARIO_PERSONAS[conversation.scenarioId];
+        // personaId가 있으면 사용하고, 없으면 기존 scenarioId 사용 (하위 호환성)
+        const personaId = (conversation as any).personaId || conversation.scenarioId;
+        const persona = SCENARIO_PERSONAS[personaId];
         if (!persona) {
-          throw new Error(`Unknown scenario: ${conversation.scenarioId}`);
+          throw new Error(`Unknown persona: ${personaId}`);
         }
 
         const aiResult = await generateAIResponse(
@@ -98,9 +100,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const newTurnCount = conversation.turnCount + 1;
 
       // Generate AI response
-      const persona = SCENARIO_PERSONAS[conversation.scenarioId];
+      // personaId가 있으면 사용하고, 없으면 기존 scenarioId 사용 (하위 호환성)
+      const personaId = (conversation as any).personaId || conversation.scenarioId;
+      const persona = SCENARIO_PERSONAS[personaId];
       if (!persona) {
-        throw new Error(`Unknown scenario: ${conversation.scenarioId}`);
+        throw new Error(`Unknown persona: ${personaId}`);
       }
 
       const aiResult = await generateAIResponse(
