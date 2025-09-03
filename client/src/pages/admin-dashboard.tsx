@@ -5,8 +5,6 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from "recharts";
 import { scenarios } from "@/lib/scenarios";
-import { ScenarioManager } from "@/components/admin/ScenarioManager";
-import { PersonaManager } from "@/components/admin/PersonaManager";
 
 interface AnalyticsOverview {
   totalSessions: number;
@@ -120,8 +118,16 @@ export default function AdminDashboard() {
             <p className="text-slate-600 mt-2">교육 결과 분석 및 성과 현황</p>
           </div>
         </div>
-        <div className="bg-corporate-50 border border-corporate-200 rounded-lg px-4 py-2">
-          <span className="text-sm text-corporate-700 font-medium">실시간 업데이트</span>
+        <div className="flex space-x-3">
+          <Link href="/admin-management">
+            <Button className="bg-corporate-600 hover:bg-corporate-700" data-testid="link-management">
+              <i className="fas fa-cogs mr-2"></i>
+              콘텐츠 관리
+            </Button>
+          </Link>
+          <div className="bg-corporate-50 border border-corporate-200 rounded-lg px-4 py-2">
+            <span className="text-sm text-corporate-700 font-medium">실시간 업데이트</span>
+          </div>
         </div>
       </div>
 
@@ -174,13 +180,10 @@ export default function AdminDashboard() {
 
       {/* Detailed Analytics */}
       <Tabs defaultValue="performance" className="space-y-6">
-        <TabsList className="grid w-full grid-cols-6">
+        <TabsList className="grid w-full grid-cols-3">
           <TabsTrigger value="performance" data-testid="tab-performance">성과 분석</TabsTrigger>
           <TabsTrigger value="scenarios" data-testid="tab-scenarios">시나리오 분석</TabsTrigger>
           <TabsTrigger value="trends" data-testid="tab-trends">트렌드 분석</TabsTrigger>
-          <TabsTrigger value="ai-generator" data-testid="tab-ai-generator">AI 생성</TabsTrigger>
-          <TabsTrigger value="manage-scenarios" data-testid="tab-manage-scenarios">시나리오 관리</TabsTrigger>
-          <TabsTrigger value="manage-personas" data-testid="tab-manage-personas">페르소나 관리</TabsTrigger>
         </TabsList>
 
         <TabsContent value="performance" className="space-y-6">
@@ -365,33 +368,6 @@ export default function AdminDashboard() {
           </div>
         </TabsContent>
 
-        <TabsContent value="ai-generator" className="space-y-6">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <i className="fas fa-magic text-purple-600"></i>
-                AI 시나리오 생성기
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-slate-600 mb-4">AI를 활용해 새로운 훈련 시나리오를 자동으로 생성하세요.</p>
-              <Link href="/ai-generator">
-                <Button className="bg-purple-600 hover:bg-purple-700">
-                  <i className="fas fa-external-link-alt mr-2"></i>
-                  AI 생성기 열기
-                </Button>
-              </Link>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="manage-scenarios" className="space-y-6">
-          <ScenarioManager />
-        </TabsContent>
-
-        <TabsContent value="manage-personas" className="space-y-6">
-          <PersonaManager />
-        </TabsContent>
       </Tabs>
       </div>
     </div>
