@@ -659,7 +659,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.delete("/api/admin/personas/:id", async (req, res) => {
     try {
-      await fileManager.deletePersona(req.params.id);
+      const personaId = req.params.id;
+      
+      // 연결된 시나리오 확인
+      const scenarios = await fileManager.getAllScenarios();
+      const connectedScenarios = scenarios.filter(scenario => 
+        scenario.personas.includes(personaId)
+      );
+      
+      if (connectedScenarios.length > 0) {
+        return res.status(400).json({ 
+          error: "Cannot delete persona with connected scenarios",
+          connectedScenarios: connectedScenarios.map(s => ({ id: s.id, title: s.title }))
+        });
+      }
+      
+      await fileManager.deletePersona(personaId);
       res.json({ success: true });
     } catch (error) {
       console.error("Error deleting persona:", error);

@@ -3,6 +3,7 @@ import { useQuery, useMutation } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
@@ -52,6 +53,7 @@ export function PersonaManager() {
   const { toast } = useToast();
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [editingPersona, setEditingPersona] = useState<ScenarioPersona | null>(null);
+  const [deletingPersona, setDeletingPersona] = useState<ScenarioPersona | null>(null);
   const [formData, setFormData] = useState<PersonaFormData>({
     name: '',
     role: '',
@@ -142,21 +144,35 @@ export function PersonaManager() {
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
       const response = await apiRequest('DELETE', `/api/admin/personas/${id}`);
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to delete persona');
+      }
       return response.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/admin/personas'] });
+      setDeletingPersona(null);
       toast({
         title: "페르소나 삭제 완료",
         description: "페르소나가 성공적으로 삭제되었습니다.",
       });
     },
-    onError: () => {
-      toast({
-        title: "삭제 실패",
-        description: "페르소나 삭제 중 오류가 발생했습니다.",
-        variant: "destructive",
-      });
+    onError: (error: Error) => {
+      setDeletingPersona(null);
+      if (error.message.includes('connected scenarios')) {
+        toast({
+          title: "삭제 불가",
+          description: "연결된 시나리오가 있어 삭제할 수 없습니다. 먼저 시나리오에서 이 페르소나를 제거해주세요.",
+          variant: "destructive",
+        });
+      } else {
+        toast({
+          title: "삭제 실패",
+          description: "페르소나 삭제 중 오류가 발생했습니다.",
+          variant: "destructive",
+        });
+      }
     }
   });
 
@@ -551,15 +567,42 @@ export function PersonaManager() {
                   >
                     <i className="fas fa-edit"></i>
                   </Button>
-                  <Button
-                    variant="destructive"
-                    size="sm"
-                    onClick={() => deleteMutation.mutate(persona.id)}
-                    disabled={deleteMutation.isPending}
-                    data-testid={`button-delete-persona-${persona.id}`}
-                  >
-                    <i className="fas fa-trash"></i>
-                  </Button>
+                  <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                      <Button
+                        variant="destructive"
+                        size="sm"
+                        onClick={() => setDeletingPersona(persona)}
+                        disabled={deleteMutation.isPending}
+                        data-testid={`button-delete-persona-${persona.id}`}
+                      >
+                        <i className="fas fa-trash"></i>
+                      </Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>페르소나 삭제 확인</AlertDialogTitle>
+                        <AlertDialogDescription>
+                          <strong>{persona.name}</strong> 페르소나를 삭제하시겠습니까?
+                          <br /><br />
+                          이 작업은 되돌릴 수 없습니다. 연결된 시나리오가 있는 경우 삭제가 제한될 수 있습니다.
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel onClick={() => setDeletingPersona(null)}>취소</AlertDialogCancel>
+                        <AlertDialogAction
+                          onClick={() => {
+                            if (deletingPersona) {
+                              deleteMutation.mutate(deletingPersona.id);
+                            }
+                          }}
+                          className="bg-red-600 hover:bg-red-700"
+                        >
+                          삭제하기
+                        </AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
                 </div>
               </div>
             </CardHeader>
