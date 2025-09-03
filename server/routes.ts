@@ -6,6 +6,7 @@ import { generateAIResponse, generateFeedback, SCENARIO_PERSONAS } from "./servi
 import { createSampleData } from "./sampleData";
 import ttsRoutes from "./routes/tts.js";
 import { fileManager } from "./services/fileManager";
+import { generateScenarioWithAI, enhanceScenarioWithAI } from "./services/aiScenarioGenerator";
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // Create new conversation
@@ -437,6 +438,54 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Failed to fetch personas:", error);
       res.status(500).json({ error: "Failed to fetch personas" });
+    }
+  });
+
+  // AI 시나리오 생성 API
+  app.post("/api/admin/generate-scenario", async (req, res) => {
+    try {
+      const { theme, industry, difficulty, personaCount } = req.body;
+      
+      if (!theme) {
+        return res.status(400).json({ error: "주제는 필수입니다" });
+      }
+
+      const result = await generateScenarioWithAI({
+        theme,
+        industry,
+        difficulty: Number(difficulty) || 3,
+        personaCount: Number(personaCount) || 3
+      });
+
+      res.json(result);
+    } catch (error) {
+      console.error("AI 시나리오 생성 오류:", error);
+      res.status(500).json({ error: "AI 시나리오 생성에 실패했습니다" });
+    }
+  });
+
+  app.post("/api/admin/enhance-scenario/:id", async (req, res) => {
+    try {
+      const { enhancementType } = req.body;
+      
+      if (!enhancementType || !['improve', 'expand', 'simplify'].includes(enhancementType)) {
+        return res.status(400).json({ error: "올바른 개선 유형을 선택해주세요" });
+      }
+
+      // 기존 시나리오 가져오기
+      const scenarios = await fileManager.getAllScenarios();
+      const existingScenario = scenarios.find(s => s.id === req.params.id);
+      
+      if (!existingScenario) {
+        return res.status(404).json({ error: "시나리오를 찾을 수 없습니다" });
+      }
+
+      const enhancedData = await enhanceScenarioWithAI(existingScenario, enhancementType);
+      
+      res.json(enhancedData);
+    } catch (error) {
+      console.error("AI 시나리오 개선 오류:", error);
+      res.status(500).json({ error: "AI 시나리오 개선에 실패했습니다" });
     }
   });
 

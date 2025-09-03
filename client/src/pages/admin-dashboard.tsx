@@ -173,10 +173,11 @@ export default function AdminDashboard() {
 
       {/* Detailed Analytics */}
       <Tabs defaultValue="performance" className="space-y-6">
-        <TabsList className="grid w-full grid-cols-5">
+        <TabsList className="grid w-full grid-cols-6">
           <TabsTrigger value="performance" data-testid="tab-performance">성과 분석</TabsTrigger>
           <TabsTrigger value="scenarios" data-testid="tab-scenarios">시나리오 분석</TabsTrigger>
           <TabsTrigger value="trends" data-testid="tab-trends">트렌드 분석</TabsTrigger>
+          <TabsTrigger value="ai-generator" data-testid="tab-ai-generator">AI 생성</TabsTrigger>
           <TabsTrigger value="manage-scenarios" data-testid="tab-manage-scenarios">시나리오 관리</TabsTrigger>
           <TabsTrigger value="manage-personas" data-testid="tab-manage-personas">페르소나 관리</TabsTrigger>
         </TabsList>
@@ -361,6 +362,26 @@ export default function AdminDashboard() {
               </CardContent>
             </Card>
           </div>
+        </TabsContent>
+
+        <TabsContent value="ai-generator" className="space-y-6">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <i className="fas fa-magic text-purple-600"></i>
+                AI 시나리오 생성기
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-slate-600 mb-4">AI를 활용해 새로운 훈련 시나리오를 자동으로 생성하세요.</p>
+              <Link href="/ai-generator">
+                <Button className="bg-purple-600 hover:bg-purple-700">
+                  <i className="fas fa-external-link-alt mr-2"></i>
+                  AI 생성기 열기
+                </Button>
+              </Link>
+            </CardContent>
+          </Card>
         </TabsContent>
 
         <TabsContent value="manage-scenarios" className="space-y-6">

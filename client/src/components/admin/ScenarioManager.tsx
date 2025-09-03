@@ -11,6 +11,8 @@ import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import { apiRequest, queryClient } from '@/lib/queryClient';
 import { ComplexScenario } from '@/lib/scenario-system';
+import { Loader2 } from 'lucide-react';
+import { AIScenarioGenerator } from './AIScenarioGenerator';
 
 interface ScenarioFormData {
   title: string;
@@ -75,6 +77,19 @@ export function ScenarioManager() {
   const { data: scenarios, isLoading } = useQuery<ComplexScenario[]>({
     queryKey: ['/api/admin/scenarios'],
   });
+
+  const handleAIGenerated = (result: any) => {
+    // AI 생성 결과를 폼에 자동 입력
+    setFormData({
+      ...result.scenario,
+      skills: result.scenario.skills || [],
+      objectives: result.scenario.objectives || [],
+      personas: result.scenario.personas || [],
+      recommendedFlow: result.scenario.recommendedFlow || []
+    });
+    
+    setIsCreateOpen(true);
+  };
 
   const createMutation = useMutation({
     mutationFn: async (data: ScenarioFormData) => {
@@ -248,26 +263,26 @@ export function ScenarioManager() {
         </div>
         
         <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
-          <DialogTrigger asChild>
-            <Button 
-              className="bg-corporate-600 hover:bg-corporate-700"
-              onClick={() => {
-                resetForm();
-                setEditingScenario(null);
-              }}
-              data-testid="button-create-scenario"
-            >
-              <i className="fas fa-plus mr-2"></i>
-              새 시나리오 생성
-            </Button>
-          </DialogTrigger>
+            <DialogTrigger asChild>
+              <Button 
+                className="bg-corporate-600 hover:bg-corporate-700"
+                onClick={() => {
+                  resetForm();
+                  setEditingScenario(null);
+                }}
+                data-testid="button-create-scenario"
+              >
+                <i className="fas fa-plus mr-2"></i>
+                새 시나리오 생성
+              </Button>
+            </DialogTrigger>
           
-          <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-            <DialogHeader>
-              <DialogTitle>
-                {editingScenario ? '시나리오 편집' : '새 시나리오 생성'}
-              </DialogTitle>
-            </DialogHeader>
+            <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+              <DialogHeader>
+                <DialogTitle>
+                  {editingScenario ? '시나리오 편집' : '새 시나리오 생성'}
+                </DialogTitle>
+              </DialogHeader>
             
             <form onSubmit={handleSubmit} className="space-y-6">
               {/* 기본 정보 */}

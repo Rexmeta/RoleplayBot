@@ -6,6 +6,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import Intro from "@/pages/intro";
 import Home from "@/pages/home";
 import AdminDashboard from "@/pages/admin-dashboard";
+import AIGeneratorPage from "@/pages/ai-generator";
 import NotFound from "@/pages/not-found";
 
 function Router() {
@@ -14,6 +15,7 @@ function Router() {
       <Route path="/" component={Intro} />
       <Route path="/home" component={Home} />
       <Route path="/admin" component={AdminDashboard} />
+      <Route path="/ai-generator" component={AIGeneratorPage} />
       <Route component={NotFound} />
     </Switch>
   );
