@@ -4,6 +4,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from "recharts";
 import { scenarios } from "@/lib/scenarios";
+import { ScenarioManager } from "@/components/admin/ScenarioManager";
+import { PersonaManager } from "@/components/admin/PersonaManager";
 
 interface AnalyticsOverview {
   totalSessions: number;
@@ -171,10 +173,12 @@ export default function AdminDashboard() {
 
       {/* Detailed Analytics */}
       <Tabs defaultValue="performance" className="space-y-6">
-        <TabsList className="grid w-full grid-cols-3">
+        <TabsList className="grid w-full grid-cols-5">
           <TabsTrigger value="performance" data-testid="tab-performance">성과 분석</TabsTrigger>
           <TabsTrigger value="scenarios" data-testid="tab-scenarios">시나리오 분석</TabsTrigger>
           <TabsTrigger value="trends" data-testid="tab-trends">트렌드 분석</TabsTrigger>
+          <TabsTrigger value="manage-scenarios" data-testid="tab-manage-scenarios">시나리오 관리</TabsTrigger>
+          <TabsTrigger value="manage-personas" data-testid="tab-manage-personas">페르소나 관리</TabsTrigger>
         </TabsList>
 
         <TabsContent value="performance" className="space-y-6">
@@ -357,6 +361,14 @@ export default function AdminDashboard() {
               </CardContent>
             </Card>
           </div>
+        </TabsContent>
+
+        <TabsContent value="manage-scenarios" className="space-y-6">
+          <ScenarioManager />
+        </TabsContent>
+
+        <TabsContent value="manage-personas" className="space-y-6">
+          <PersonaManager />
         </TabsContent>
       </Tabs>
       </div>

@@ -5,6 +5,7 @@ import { insertConversationSchema, insertFeedbackSchema } from "@shared/schema";
 import { generateAIResponse, generateFeedback, SCENARIO_PERSONAS } from "./services/geminiService";
 import { createSampleData } from "./sampleData";
 import ttsRoutes from "./routes/tts.js";
+import { fileManager } from "./services/fileManager";
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // Create new conversation
@@ -182,8 +183,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const feedbackData = await generateFeedback(
         conversation.scenarioId,
         conversation.messages,
-        persona,
-        conversation
+        persona
       );
 
       console.log("피드백 데이터 생성 완료:", feedbackData);
@@ -416,6 +416,90 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error getting trends analytics:", error);
       res.status(500).json({ error: "Failed to get trends analytics" });
+    }
+  });
+
+  // Admin API routes for scenario and persona management
+  
+  // 시나리오 관리 API
+  app.get("/api/admin/scenarios", async (req, res) => {
+    try {
+      const scenarios = await fileManager.getAllScenarios();
+      res.json(scenarios);
+    } catch (error) {
+      console.error("Error getting scenarios:", error);
+      res.status(500).json({ error: "Failed to get scenarios" });
+    }
+  });
+
+  app.post("/api/admin/scenarios", async (req, res) => {
+    try {
+      const scenario = await fileManager.createScenario(req.body);
+      res.json(scenario);
+    } catch (error) {
+      console.error("Error creating scenario:", error);
+      res.status(500).json({ error: "Failed to create scenario" });
+    }
+  });
+
+  app.put("/api/admin/scenarios/:id", async (req, res) => {
+    try {
+      const scenario = await fileManager.updateScenario(req.params.id, req.body);
+      res.json(scenario);
+    } catch (error) {
+      console.error("Error updating scenario:", error);
+      res.status(500).json({ error: "Failed to update scenario" });
+    }
+  });
+
+  app.delete("/api/admin/scenarios/:id", async (req, res) => {
+    try {
+      await fileManager.deleteScenario(req.params.id);
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error deleting scenario:", error);
+      res.status(500).json({ error: "Failed to delete scenario" });
+    }
+  });
+
+  // 페르소나 관리 API
+  app.get("/api/admin/personas", async (req, res) => {
+    try {
+      const personas = await fileManager.getAllPersonas();
+      res.json(personas);
+    } catch (error) {
+      console.error("Error getting personas:", error);
+      res.status(500).json({ error: "Failed to get personas" });
+    }
+  });
+
+  app.post("/api/admin/personas", async (req, res) => {
+    try {
+      const persona = await fileManager.createPersona(req.body);
+      res.json(persona);
+    } catch (error) {
+      console.error("Error creating persona:", error);
+      res.status(500).json({ error: "Failed to create persona" });
+    }
+  });
+
+  app.put("/api/admin/personas/:id", async (req, res) => {
+    try {
+      const persona = await fileManager.updatePersona(req.params.id, req.body);
+      res.json(persona);
+    } catch (error) {
+      console.error("Error updating persona:", error);
+      res.status(500).json({ error: "Failed to update persona" });
+    }
+  });
+
+  app.delete("/api/admin/personas/:id", async (req, res) => {
+    try {
+      await fileManager.deletePersona(req.params.id);
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error deleting persona:", error);
+      res.status(500).json({ error: "Failed to delete persona" });
     }
   });
 
