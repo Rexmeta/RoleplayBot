@@ -419,6 +419,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // 메인 사용자용 시나리오/페르소나 API
+  app.get("/api/scenarios", async (req, res) => {
+    try {
+      const scenarios = await fileManager.getAllScenarios();
+      res.json(scenarios);
+    } catch (error) {
+      console.error("Failed to fetch scenarios:", error);
+      res.status(500).json({ error: "Failed to fetch scenarios" });
+    }
+  });
+
+  app.get("/api/personas", async (req, res) => {
+    try {
+      const personas = await fileManager.getAllPersonas();
+      res.json(personas);
+    } catch (error) {
+      console.error("Failed to fetch personas:", error);
+      res.status(500).json({ error: "Failed to fetch personas" });
+    }
+  });
+
   // Admin API routes for scenario and persona management
   
   // 시나리오 관리 API

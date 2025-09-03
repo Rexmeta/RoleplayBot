@@ -27,15 +27,14 @@
   },
   "personas": [
     "dev-senior-lee",
-    "marketing-manager-kim", 
-    "qa-specialist-park",
+    "marketing-manager-kim",
     "service-manager-jung",
     "pm-director-oh"
   ],
   "recommendedFlow": [
     "dev-senior-lee",
     "marketing-manager-kim",
-    "qa-specialist-park", 
+    "qa-specialist-park",
     "service-manager-jung",
     "pm-director-oh"
   ],
@@ -43,7 +42,7 @@
   "estimatedTime": "60-90분",
   "skills": [
     "갈등 중재",
-    "이해관계자 관리", 
+    "이해관계자 관리",
     "문제 해결",
     "협상",
     "의사소통",

@@ -1,9 +1,9 @@
 import { useState } from "react";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { ComplexScenario, ScenarioPersona, complexScenarios, getPersonasForScenario, getDifficultyColor, getDifficultyLabel } from "@/lib/scenario-system";
+import { ComplexScenario, ScenarioPersona, getDifficultyColor, getDifficultyLabel } from "@/lib/scenario-system";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2 } from "lucide-react";
@@ -22,6 +22,27 @@ export default function ScenarioSelector({ onScenarioSelect, playerProfile }: Sc
   const [selectedScenario, setSelectedScenario] = useState<ComplexScenario | null>(null);
   const [selectedPersona, setSelectedPersona] = useState<ScenarioPersona | null>(null);
   const [loadingScenarioId, setLoadingScenarioId] = useState<string | null>(null);
+
+  // JSON 파일에서 실시간으로 시나리오와 페르소나 데이터 가져오기
+  const { data: scenarios = [], isLoading: scenariosLoading } = useQuery({
+    queryKey: ['/api/scenarios'],
+    queryFn: () => fetch('/api/scenarios').then(res => res.json())
+  });
+
+  const { data: personas = [], isLoading: personasLoading } = useQuery({
+    queryKey: ['/api/personas'],
+    queryFn: () => fetch('/api/personas').then(res => res.json())
+  });
+
+  // 시나리오에 속한 페르소나들 가져오기
+  const getPersonasForScenario = (scenarioId: string): ScenarioPersona[] => {
+    const scenario = scenarios.find((s: ComplexScenario) => s.id === scenarioId);
+    if (!scenario) return [];
+    
+    return scenario.personas.map(personaId => 
+      personas.find((p: ScenarioPersona) => p.id === personaId)
+    ).filter(Boolean);
+  };
 
   const createConversationMutation = useMutation({
     mutationFn: async ({ scenarioId, personaId }: { scenarioId: string; personaId: string }) => {
@@ -83,6 +104,17 @@ export default function ScenarioSelector({ onScenarioSelect, playerProfile }: Sc
     };
   };
 
+  if (scenariosLoading || personasLoading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 p-6 flex items-center justify-center">
+        <div className="text-center">
+          <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4" />
+          <p className="text-slate-600">시나리오 데이터를 불러오는 중...</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 p-6">
       <div className="max-w-7xl mx-auto">
@@ -108,7 +140,7 @@ export default function ScenarioSelector({ onScenarioSelect, playerProfile }: Sc
           <div className="space-y-6">
             <h2 className="text-2xl font-semibold text-slate-800 mb-4">시나리오 선택</h2>
             
-            {complexScenarios.map((scenario) => {
+            {scenarios.map((scenario) => {
               const recommendation = getRecommendationLevel(scenario);
               const isSelected = selectedScenario?.id === scenario.id;
               
