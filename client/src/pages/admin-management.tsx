@@ -13,7 +13,7 @@ export default function AdminManagement() {
       <div className="container mx-auto p-6 space-y-6" data-testid="admin-management">
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-4">
-            <Link href="/" className="flex items-center space-x-2 text-corporate-600 hover:text-corporate-700" data-testid="back-to-home">
+            <Link href="/home" className="flex items-center space-x-2 text-corporate-600 hover:text-corporate-700" data-testid="back-to-home">
               <i className="fas fa-arrow-left"></i>
               <span className="text-sm">홈으로</span>
             </Link>
