@@ -126,13 +126,6 @@ export default function ScenarioSelector({ onScenarioSelect, playerProfile }: Sc
           <p className="text-lg text-slate-600">
             복잡한 업무 상황에서 다양한 이해관계자와의 협상 및 문제 해결 능력을 기르세요
           </p>
-          {playerProfile && (
-            <div className="mt-4 p-4 bg-blue-100 rounded-lg inline-block">
-              <p className="text-blue-800">
-                <strong>{playerProfile.position}</strong> • {playerProfile.department} • {playerProfile.experience}
-              </p>
-            </div>
-          )}
         </div>
 
         <div className="max-w-4xl mx-auto">
