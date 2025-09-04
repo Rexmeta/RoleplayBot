@@ -4,7 +4,7 @@ export default function Header() {
   return (
     <header className="border-b border-slate-200 bg-white">
       <div className="container mx-auto px-4 py-3">
-        <Link href="/" className="flex items-center space-x-3 hover:opacity-80 transition-opacity w-fit" data-testid="header-home-link">
+        <Link href="/home" className="flex items-center space-x-3 hover:opacity-80 transition-opacity w-fit" data-testid="header-home-link">
           <div className="w-10 h-10 bg-corporate-600 rounded-lg flex items-center justify-center">
             <i className="fas fa-robot text-white text-lg"></i>
           </div>
