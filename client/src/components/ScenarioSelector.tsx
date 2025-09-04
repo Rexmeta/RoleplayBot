@@ -136,7 +136,6 @@ export default function ScenarioSelector({ onScenarioSelect, playerProfile }: Sc
         </div>
 
         <div className="max-w-4xl mx-auto">
-          <h2 className="text-2xl font-semibold text-slate-800 mb-6 text-center">상황 시나리오 및 대화 상대</h2>
           
           <div className="space-y-4">
             {scenarios.map((scenario: ComplexScenario) => {

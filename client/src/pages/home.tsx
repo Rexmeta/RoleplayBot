@@ -79,10 +79,6 @@ export default function Home() {
                 <i className="fas fa-chart-bar mr-2"></i>
                 관리자 대시보드
               </a>
-              <div className="hidden md:flex items-center text-sm text-slate-600">
-                <i className="fas fa-user-circle mr-2"></i>
-                <span>김신입 사원</span>
-              </div>
               <button className="text-slate-400 hover:text-slate-600">
                 <i className="fas fa-cog"></i>
               </button>
