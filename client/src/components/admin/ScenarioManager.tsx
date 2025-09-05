@@ -663,7 +663,7 @@ export function ScenarioManager() {
                       {scenario.estimatedTime}
                     </Badge>
                     <Badge variant="outline" className="bg-purple-100 text-purple-800">
-                      {scenario.personas.length}개 페르소나
+                      {(scenario.personas || []).length}개 페르소나
                     </Badge>
                   </div>
                 </div>
@@ -697,7 +697,7 @@ export function ScenarioManager() {
                 <div>
                   <h4 className="font-medium text-slate-700 mb-1">주요 역량</h4>
                   <div className="flex flex-wrap gap-1">
-                    {scenario.skills.map((skill, index) => (
+                    {(scenario.skills || []).map((skill, index) => (
                       <Badge key={index} variant="secondary" className="text-xs">
                         {skill}
                       </Badge>
@@ -708,7 +708,7 @@ export function ScenarioManager() {
                 <div>
                   <h4 className="font-medium text-slate-700 mb-1">포함된 페르소나</h4>
                   <div className="flex flex-wrap gap-1">
-                    {scenario.personas.map((personaId, index) => (
+                    {(scenario.personas || []).map((personaId, index) => (
                       <Badge key={index} variant="outline" className="text-xs">
                         {personaId}
                       </Badge>
