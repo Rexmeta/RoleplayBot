@@ -469,10 +469,8 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
     }
   }, [toast]);
 
-  // 메시지 스크롤 및 음성 자동 재생
+  // 음성 자동 재생 (스크롤 제거)
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-    
     // 음성 모드가 켜져 있을 때 새로운 AI 메시지 자동 재생
     if (voiceModeEnabled && conversation?.messages) {
       const lastMessage = conversation.messages[conversation.messages.length - 1];

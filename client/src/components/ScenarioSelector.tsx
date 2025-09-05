@@ -55,7 +55,7 @@ export default function ScenarioSelector({ onScenarioSelect, playerProfile }: Sc
             department: scenarioPersona.department,
             experience: scenarioPersona.experience,
             image: mbtiPersona?.image?.profile || mbtiPersona?.image || `https://ui-avatars.com/api/?name=${encodeURIComponent(scenarioPersona.name)}&background=6366f1&color=fff&size=150`,
-            motivation: mbtiPersona?.motivation || '목표 달성',
+            motivation: scenarioPersona.goal || mbtiPersona?.motivation || '목표 달성',
             // 시나리오 특화 정보 추가
             stance: scenarioPersona.stance,
             goal: scenarioPersona.goal,
