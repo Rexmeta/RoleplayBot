@@ -584,11 +584,21 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-4">
               <button 
-                onClick={() => {
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
                   console.log("페르소나 이미지 클릭됨");
-                  setLocation("/home");
+                  console.log("현재 위치:", location);
+                  try {
+                    setLocation("/home");
+                    console.log("setLocation 호출됨");
+                  } catch (error) {
+                    console.error("setLocation 오류:", error);
+                    console.log("onExit 함수 호출 시도");
+                    onExit();
+                  }
                 }}
-                className="hover:opacity-80 transition-opacity" 
+                className="hover:opacity-80 transition-opacity bg-transparent border-none" 
                 data-testid="chat-header-home-link"
               >
                 <img 
@@ -602,11 +612,20 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
               </button>
               <div>
                 <button 
-                  onClick={() => {
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
                     console.log("제목 클릭됨");
-                    setLocation("/home");
+                    try {
+                      setLocation("/home");
+                      console.log("제목에서 setLocation 호출됨");
+                    } catch (error) {
+                      console.error("제목에서 setLocation 오류:", error);
+                      console.log("제목에서 onExit 함수 호출 시도");
+                      onExit();
+                    }
                   }}
-                  className="hover:opacity-90 transition-opacity cursor-pointer text-left" 
+                  className="hover:opacity-90 transition-opacity cursor-pointer text-left bg-transparent border-none" 
                   data-testid="chat-title-home-link"
                 >
                   <h3 className="text-lg font-semibold">{persona.name}과의 대화</h3>
@@ -632,9 +651,18 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
               <Button 
                 variant="ghost" 
                 size="sm" 
-                onClick={() => {
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
                   console.log("홈 버튼 클릭됨");
-                  setLocation("/home");
+                  try {
+                    setLocation("/home");
+                    console.log("홈 버튼에서 setLocation 호출됨");
+                  } catch (error) {
+                    console.error("홈 버튼에서 setLocation 오류:", error);
+                    console.log("홈 버튼에서 onExit 함수 호출 시도");
+                    onExit();
+                  }
                 }}
                 className="text-white/80 hover:text-white hover:bg-white/10 p-2 transition-all" 
                 data-testid="header-home-button"
