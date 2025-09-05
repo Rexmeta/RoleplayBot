@@ -194,7 +194,7 @@ export class FileManagerService {
       // MBTI 페르소나와 시나리오 정보를 결합하여 완전한 페르소나 생성
       const fullPersona: ScenarioPersona = {
         id: scenarioPersona.id,
-        name: this.generatePersonaName(scenarioPersona.department, scenarioPersona.position, mbtiPersona.mbti),
+        name: scenarioPersona.name || this.generatePersonaName(scenarioPersona.department, scenarioPersona.position, mbtiPersona.mbti),
         role: scenarioPersona.position,
         department: scenarioPersona.department,
         experience: this.generateExperience(scenarioPersona.position),

@@ -28,6 +28,7 @@
   "personas": [
     {
       "id": "dev-senior-lee",
+      "name": "이민수",
       "department": "개발팀",
       "position": "선임 개발자",
       "personaRef": "istj.json",
@@ -37,6 +38,7 @@
     },
     {
       "id": "marketing-manager-kim",
+      "name": "김지영",
       "department": "마케팅팀",
       "position": "매니저",
       "personaRef": "entj.json",
@@ -46,6 +48,7 @@
     },
     {
       "id": "qa-specialist-park",
+      "name": "박성호",
       "department": "QA팀",
       "position": "전문가",
       "personaRef": "intp.json",
@@ -55,6 +58,7 @@
     },
     {
       "id": "service-manager-jung",
+      "name": "정예진",
       "department": "고객서비스팀",
       "position": "팀장",
       "personaRef": "isfj.json",
@@ -64,6 +68,7 @@
     },
     {
       "id": "pm-director-oh",
+      "name": "오도현",
       "department": "PMO",
       "position": "이사",
       "personaRef": "enfj.json",
