@@ -41,23 +41,31 @@ export default function ScenarioSelector({ onScenarioSelect, playerProfile }: Sc
     
     // 시나리오의 personas 배열에서 각 페르소나 객체 정보와 MBTI 특성을 결합
     return scenario.personas.map((scenarioPersona: any) => {
-      // 시나리오에서 직접 페르소나 객체를 가져오는 경우
+      // 시나리오에서 직접 페르소나 객체를 가져오는 경우 (객체 형태)
       if (typeof scenarioPersona === 'object' && scenarioPersona.personaRef) {
         const mbtiPersona = personas.find((p: any) => p.id === scenarioPersona.personaRef.replace('.json', ''));
-        return {
-          ...scenarioPersona,
-          ...mbtiPersona,
-          // 시나리오의 구체적인 정보를 우선으로 사용
-          name: scenarioPersona.name,
-          role: scenarioPersona.position,
-          department: scenarioPersona.department,
-          experience: `${scenarioPersona.experience || '경력자'}`,
-          image: mbtiPersona?.image?.profile || mbtiPersona?.image || `https://ui-avatars.com/api/?name=${encodeURIComponent(scenarioPersona.name)}&background=6366f1&color=fff&size=150`,
-          motivation: mbtiPersona?.motivation || '목표 달성'
-        };
+        
+        if (mbtiPersona) {
+          const combinedPersona = {
+            ...mbtiPersona,
+            // 시나리오의 구체적인 정보를 우선으로 사용
+            id: scenarioPersona.id,
+            name: scenarioPersona.name,
+            role: scenarioPersona.position,
+            department: scenarioPersona.department,
+            experience: scenarioPersona.experience,
+            image: mbtiPersona?.image?.profile || mbtiPersona?.image || `https://ui-avatars.com/api/?name=${encodeURIComponent(scenarioPersona.name)}&background=6366f1&color=fff&size=150`,
+            motivation: mbtiPersona?.motivation || '목표 달성',
+            // 시나리오 특화 정보 추가
+            stance: scenarioPersona.stance,
+            goal: scenarioPersona.goal,
+            tradeoff: scenarioPersona.tradeoff
+          };
+          return combinedPersona;
+        }
       }
       
-      // MBTI ID만 있는 경우 (현재 상황)
+      // MBTI ID만 있는 경우 (문자열 형태)
       const mbtiPersona = personas.find((p: any) => p.id === scenarioPersona);
       if (mbtiPersona) {
         // 기본값으로 MBTI 특성 활용
@@ -284,7 +292,7 @@ export default function ScenarioSelector({ onScenarioSelect, playerProfile }: Sc
                                           )}
                                         </div>
                                         <p className="text-sm text-slate-600">{persona.role} • {persona.experience}</p>
-                                        <p className="text-xs text-slate-500 mt-1">{persona.motivation || '목표 설정'}</p>
+                                        <p className="text-xs text-slate-500 mt-1">{(persona as any).motivation || '목표 설정'}</p>
                                       </div>
                                       <div className="text-right">
                                         <div className="text-xs text-slate-500">#{index + 1}</div>
