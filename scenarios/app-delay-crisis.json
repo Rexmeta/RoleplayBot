@@ -26,18 +26,18 @@
     "failure": "부서 간 갈등 심화 또는 비현실적 해결책 제시"
   },
   "personas": [
-    "dev-senior-lee",
-    "marketing-manager-kim",
-    "qa-specialist-park",
-    "service-manager-jung",
-    "pm-director-oh"
+    "istj",
+    "entj",
+    "intp",
+    "isfj",
+    "enfj"
   ],
   "recommendedFlow": [
-    "dev-senior-lee",
-    "marketing-manager-kim",
-    "qa-specialist-park",
-    "service-manager-jung",
-    "pm-director-oh"
+    "istj",
+    "entj",
+    "intp",
+    "isfj",
+    "enfj"
   ],
   "difficulty": 4,
   "estimatedTime": "60-90분",
