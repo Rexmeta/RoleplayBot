@@ -350,6 +350,19 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
     if (voiceModeEnabled) {
       stopSpeaking();
       lastSpokenMessageRef.current = ""; // 음성 모드 끌 때 재생 기록 초기화
+    } else {
+      // 음성 모드를 켤 때 최신 AI 메시지만 재생
+      if (conversation?.messages) {
+        const lastMessage = conversation.messages[conversation.messages.length - 1];
+        if (lastMessage && lastMessage.sender === 'ai') {
+          // 최신 메시지를 이미 재생했다고 표시하여 중복 재생 방지
+          lastSpokenMessageRef.current = lastMessage.message;
+          // 약간의 지연을 두어 UI 업데이트 후 음성 재생
+          setTimeout(() => {
+            speakMessage(lastMessage.message, false, lastMessage.emotion);
+          }, 300);
+        }
+      }
     }
     setVoiceModeEnabled(!voiceModeEnabled);
   };
