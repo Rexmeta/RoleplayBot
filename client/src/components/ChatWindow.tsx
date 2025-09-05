@@ -4,7 +4,7 @@ import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { Link } from "wouter";
+import { Link, useLocation } from "wouter";
 import type { ComplexScenario, ScenarioPersona } from "@/lib/scenario-system";
 import type { Conversation, ConversationMessage } from "@shared/schema";
 
@@ -41,6 +41,7 @@ interface ChatWindowProps {
 }
 
 export default function ChatWindow({ scenario, persona, conversationId, onChatComplete, onExit }: ChatWindowProps) {
+  const [location, setLocation] = useLocation();
   const [userInput, setUserInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
@@ -582,7 +583,14 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
         <div className="bg-gradient-to-r from-corporate-600 to-corporate-700 px-6 py-4 text-white">
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-4">
-              <Link href="/home" className="hover:opacity-80 transition-opacity" data-testid="chat-header-home-link">
+              <button 
+                onClick={() => {
+                  console.log("페르소나 이미지 클릭됨");
+                  setLocation("/home");
+                }}
+                className="hover:opacity-80 transition-opacity" 
+                data-testid="chat-header-home-link"
+              >
                 <img 
                   src={persona.image} 
                   alt={persona.name} 
@@ -591,12 +599,19 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
                     (e.target as HTMLImageElement).src = `https://ui-avatars.com/api/?name=${encodeURIComponent(persona.name)}&background=6366f1&color=fff&size=48`;
                   }}
                 />
-              </Link>
+              </button>
               <div>
-                <Link href="/home" className="hover:opacity-90 transition-opacity cursor-pointer" data-testid="chat-title-home-link">
+                <button 
+                  onClick={() => {
+                    console.log("제목 클릭됨");
+                    setLocation("/home");
+                  }}
+                  className="hover:opacity-90 transition-opacity cursor-pointer text-left" 
+                  data-testid="chat-title-home-link"
+                >
                   <h3 className="text-lg font-semibold">{persona.name}과의 대화</h3>
                   <p className="text-blue-100 text-sm">{persona.role} · {persona.department} · {scenario.title}</p>
-                </Link>
+                </button>
               </div>
             </div>
             <div className="flex items-center space-x-4">
@@ -614,9 +629,19 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
               </div>
               
               {/* 홈 버튼 */}
-              <Link href="/home" className="text-white/80 hover:text-white hover:bg-white/10 p-2 rounded-lg transition-all" data-testid="header-home-button">
-                <i className="fas fa-home text-lg" title="홈으로 이동"></i>
-              </Link>
+              <Button 
+                variant="ghost" 
+                size="sm" 
+                onClick={() => {
+                  console.log("홈 버튼 클릭됨");
+                  setLocation("/home");
+                }}
+                className="text-white/80 hover:text-white hover:bg-white/10 p-2 transition-all" 
+                data-testid="header-home-button"
+                title="홈으로 이동"
+              >
+                <i className="fas fa-home text-lg"></i>
+              </Button>
               
               {/* 음성 모드 토글 */}
               <div className="relative group">
