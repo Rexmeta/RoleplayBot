@@ -1,9 +1,5 @@
 {
   "id": "enfj",
-  "name": "오도현",
-  "role": "프로젝트 매니저",
-  "department": "경영지원팀",
-  "experience": "7년차",
   "mbti": "ENFJ",
   "personality_traits": ["리더십", "공감 능력", "조율 능력"],
   "communication_style": "상대 감정과 상황에 민감, 설득력 있음",
@@ -24,5 +20,5 @@
     "win_conditions": ["팀과 개인 만족 균형", "조화로운 해결책"]
   },
   "voice": {"tone": "따뜻하고 설득적", "pace": "중간", "emotion": "공감과 진지함"},
-  "image": "https://picsum.photos/seed/enfj/150/150"
+  "image": {"profile": "https://picsum.photos/seed/enfj/150/150", "style": "실제 인물 사진 느낌"}
 }
