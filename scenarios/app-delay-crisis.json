@@ -27,7 +27,7 @@
   },
   "personas": [
     {
-      "id": "dev-senior-lee",
+      "id": "istj",
       "name": "이민수",
       "department": "개발팀",
       "position": "선임 개발자",
@@ -38,7 +38,7 @@
       "tradeoff": "품질을 위해 마케팅 일정과 기회를 희생할 수 있다."
     },
     {
-      "id": "marketing-manager-kim",
+      "id": "entj",
       "name": "김지영",
       "department": "마케팅팀",
       "position": "매니저",
@@ -49,7 +49,7 @@
       "tradeoff": "일부 기능 제한이나 성능 저하는 감수할 수 있다."
     },
     {
-      "id": "qa-specialist-park",
+      "id": "intp",
       "name": "박성호",
       "department": "QA팀",
       "position": "품질 담당자",
@@ -60,7 +60,7 @@
       "tradeoff": "일정 지연보다 품질 사고가 더 큰 리스크다."
     },
     {
-      "id": "service-manager-jung",
+      "id": "isfj",
       "name": "정예진",
       "department": "고객서비스팀",
       "position": "서비스 매니저",
@@ -71,7 +71,7 @@
       "tradeoff": "출시 일정과 품질 사이에서 고객 관점의 균형점 찾기."
     },
     {
-      "id": "pm-director-oh",
+      "id": "enfj",
       "name": "오도현",
       "department": "경영지원팀",
       "position": "프로젝트 디렉터",
@@ -83,11 +83,11 @@
     }
   ],
   "recommendedFlow": [
-    "dev-senior-lee",
-    "marketing-manager-kim", 
-    "qa-specialist-park",
-    "service-manager-jung",
-    "pm-director-oh"
+    "enfj",
+    "isfj", 
+    "intp",
+    "istj",
+    "entj"
   ],
   "difficulty": 4,
   "estimatedTime": "60-90분",
