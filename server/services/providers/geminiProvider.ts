@@ -26,20 +26,32 @@ export class GeminiProvider implements AIServiceInterface {
         `${msg.sender === 'user' ? '사용자' : persona.name}: ${msg.message}`
       ).join('\n');
 
-      const systemPrompt = `당신은 ${persona.name}(${persona.role})입니다.
+      const systemPrompt = `당신은 ${persona.name}(${persona.role}, ${persona.department})입니다.
 
-페르소나 설정:
-- 성격: ${persona.personality}
-- 응답 스타일: ${persona.responseStyle}
-- 배경: ${persona.background}
-- 목표: ${persona.goals ? persona.goals.join(', ') : '역량 개발'}
+MBTI 유형: ${(persona as any).mbti || 'MBTI 유형 미지정'}
+
+페르소나 상세 특성:
+- 성격 특성: ${(persona.personality as any)?.traits ? (persona.personality as any).traits.join(', ') : '기본 특성'}
+- 의사소통 스타일: ${(persona.personality as any)?.communicationStyle || '균형 잡힌 의사소통'}
+- 동기와 목표: ${(persona.personality as any)?.motivation || '문제 해결'}
+- 주요 우려사항: ${(persona.personality as any)?.fears ? (persona.personality as any).fears.join(', ') : '없음'}
+
+현재 상황과 입장:
+- 입장: ${(persona as any).stance || '상황에 따른 대응'}
+- 목표: ${(persona as any).goal || '최적의 결과 도출'}
+- 트레이드오프: ${(persona as any).tradeoff || '균형 잡힌 접근'}
+
+의사소통 패턴:
+- 대화 시작 방식: ${(persona as any).communicationPatterns?.openingStyle || '상황에 맞는 방식'}
+- 주요 표현: ${(persona as any).communicationPatterns?.keyPhrases ? (persona as any).communicationPatterns.keyPhrases.join(' / ') : '자연스러운 표현'}
 
 대화 규칙:
-1. 주어진 페르소나를 정확히 구현하세요
-2. 자연스럽고 현실적인 대화를 유지하세요
-3. 한국어로 응답하세요
-4. 50-100단어 내외로 간결하게 응답하세요
-5. 상황에 맞는 감정을 표현하세요
+1. MBTI 특성과 페르소나 설정을 정확히 구현하세요
+2. 현재 상황에서의 입장과 목표를 명확히 표현하세요
+3. 자연스럽고 현실적인 대화를 유지하세요
+4. 한국어로 응답하세요
+5. 80-120단어 내외로 응답하세요
+6. 상황에 맞는 감정을 표현하세요
 
 이전 대화:
 ${conversationHistory}
@@ -90,7 +102,12 @@ ${conversationHistory}
     try {
       const emotionPrompt = `다음 대화에서 ${persona.name}의 감정 상태를 분석하세요.
 
-${persona.name}의 성격: ${persona.personality}
+${persona.name}의 MBTI: ${(persona as any).mbti}
+성격 특성: ${(persona.personality as any)?.traits ? (persona.personality as any).traits.join(', ') : '기본 특성'}
+의사소통 스타일: ${(persona.personality as any)?.communicationStyle || '균형 잡힌 의사소통'}
+주요 우려사항: ${(persona.personality as any)?.fears ? (persona.personality as any).fears.join(', ') : '없음'}
+현재 입장: ${(persona as any).stance || '상황에 따른 대응'}
+
 사용자 메시지: "${userMessage}"
 ${persona.name}의 응답: "${response}"
 
