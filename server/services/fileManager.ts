@@ -18,13 +18,7 @@ export class FileManagerService {
           const content = await fs.readFile(path.join(SCENARIOS_DIR, file), 'utf-8');
           const scenario = JSON.parse(content);
           
-          // 새로운 구조로 변환 (personas가 객체 배열인 경우)
-          if (scenario.personas && Array.isArray(scenario.personas) && scenario.personas.length > 0) {
-            if (typeof scenario.personas[0] === 'object') {
-              // 새 구조: personas는 그대로 유지하고 persona IDs만 추출
-              scenario.personas = scenario.personas.map((p: any) => p.id);
-            }
-          }
+          // 페르소나 객체 배열은 그대로 유지 (변환하지 않음)
           
           scenarios.push(scenario);
         } catch (error) {

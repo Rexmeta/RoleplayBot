@@ -65,10 +65,9 @@ export default function ScenarioSelector({ onScenarioSelect, playerProfile }: Sc
         }
       }
       
-      // MBTI ID만 있는 경우 (문자열 형태)
+      // MBTI ID만 있는 경우 (문자열 형태) - 기존 legacy 지원
       const mbtiPersona = personas.find((p: any) => p.id === scenarioPersona);
       if (mbtiPersona) {
-        // 기본값으로 MBTI 특성 활용
         return {
           ...mbtiPersona,
           id: scenarioPersona,

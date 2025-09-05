@@ -228,7 +228,16 @@ ${request.industry ? `업종: ${request.industry}` : ''}
       throw new Error("AI에서 응답을 받을 수 없습니다");
     }
 
-    const data = JSON.parse(rawJson);
+    // JSON 응답 정리 (마크다운 코드 블록 제거)
+    const cleanJson = rawJson
+      .replace(/```json\n?/g, '')
+      .replace(/```\n?/g, '')
+      .replace(/^\s*[\r\n]/gm, '')
+      .trim();
+    
+    console.log('정리된 JSON:', cleanJson.substring(0, 500) + '...');
+    
+    const data = JSON.parse(cleanJson);
     
     // 페르소나 ID 자동 생성
     data.personas.forEach((persona: any, index: number) => {
