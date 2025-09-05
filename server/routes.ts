@@ -143,8 +143,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
         };
       }
 
+      // 시나리오 객체 로드
+      const scenarios = await fileManager.getAllScenarios();
+      const scenarioObj = scenarios.find(s => s.id === conversation.scenarioId);
+      if (!scenarioObj) {
+        throw new Error(`Scenario not found: ${conversation.scenarioId}`);
+      }
+
       const aiResult = await generateAIResponse(
-        conversation.scenarioId,
+        scenarioObj, // 전체 시나리오 객체 전달
         updatedMessages,
         persona,
         isSkipTurn ? undefined : message
@@ -242,8 +249,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const totalUserWords = userMessages.reduce((sum, msg) => sum + msg.message.length, 0);
       const averageResponseTime = conversationDuration > 0 ? Math.round(conversationDuration * 60 / userMessages.length) : 0; // 초 단위
 
+      // 시나리오 객체 로드
+      const scenarios = await fileManager.getAllScenarios();
+      const scenarioObj = scenarios.find(s => s.id === conversation.scenarioId);
+      if (!scenarioObj) {
+        throw new Error(`Scenario not found: ${conversation.scenarioId}`);
+      }
+
       const feedbackData = await generateFeedback(
-        conversation.scenarioId,
+        scenarioObj, // 전체 시나리오 객체 전달
         conversation.messages,
         persona
       );

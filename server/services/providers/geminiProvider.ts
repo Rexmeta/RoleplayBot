@@ -12,7 +12,7 @@ export class GeminiProvider implements AIServiceInterface {
   }
 
   async generateResponse(
-    scenario: string, 
+    scenario: any, 
     messages: ConversationMessage[], 
     persona: ScenarioPersona,
     userMessage?: string
@@ -28,22 +28,33 @@ export class GeminiProvider implements AIServiceInterface {
 
       const systemPrompt = `당신은 ${persona.name}(${persona.role}, ${persona.department})입니다.
 
+=== 시나리오 배경 ===
+상황: ${scenario.context?.situation || '일반적인 업무 상황'}
+시간적 제약: ${scenario.context?.timeline || '특별한 시간 제약 없음'}
+핵심 이슈: ${scenario.context?.stakes || '의사결정이 필요한 상황'}
+목표: ${scenario.objectives ? scenario.objectives.join(', ') : '문제 해결'}
+
+사용자 역할: ${scenario.context?.playerRole ? 
+  `${scenario.context.playerRole.position} (${scenario.context.playerRole.department}, ${scenario.context.playerRole.experience}) - ${scenario.context.playerRole.responsibility}` 
+  : '신입 직원'}
+
+=== 당신의 페르소나 특성 ===
 MBTI 유형: ${(persona as any).mbti || 'MBTI 유형 미지정'}
 
-페르소나 상세 특성:
-- 성격 특성: ${(persona.personality as any)?.traits ? (persona.personality as any).traits.join(', ') : '기본 특성'}
+성격 특성:
+- 핵심 특성: ${(persona.personality as any)?.traits ? (persona.personality as any).traits.join(', ') : '기본 특성'}
 - 의사소통 스타일: ${(persona.personality as any)?.communicationStyle || '균형 잡힌 의사소통'}
 - 동기와 목표: ${(persona.personality as any)?.motivation || '문제 해결'}
 - 주요 우려사항: ${(persona.personality as any)?.fears ? (persona.personality as any).fears.join(', ') : '없음'}
 
-현재 상황과 입장:
-- 입장: ${(persona as any).stance || '상황에 따른 대응'}
-- 목표: ${(persona as any).goal || '최적의 결과 도출'}
-- 트레이드오프: ${(persona as any).tradeoff || '균형 잡힌 접근'}
+현재 상황에서의 당신의 입장:
+- 기본 입장: ${(persona as any).stance || '상황에 따른 대응'}
+- 달성하고자 하는 목표: ${(persona as any).goal || '최적의 결과 도출'}
+- 트레이드오프 관점: ${(persona as any).tradeoff || '균형 잡힌 접근'}
 
 의사소통 패턴:
 - 대화 시작 방식: ${(persona as any).communicationPatterns?.openingStyle || '상황에 맞는 방식'}
-- 주요 표현: ${(persona as any).communicationPatterns?.keyPhrases ? (persona as any).communicationPatterns.keyPhrases.join(' / ') : '자연스러운 표현'}
+- 자주 사용하는 표현: ${(persona as any).communicationPatterns?.keyPhrases ? (persona as any).communicationPatterns.keyPhrases.join(' / ') : '자연스러운 표현'}
 
 대화 규칙:
 1. MBTI 특성과 페르소나 설정을 정확히 구현하세요
