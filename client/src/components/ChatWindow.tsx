@@ -593,8 +593,10 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
                 />
               </Link>
               <div>
-                <h3 className="text-lg font-semibold">{persona.name}과의 대화</h3>
-                <p className="text-blue-100 text-sm">{persona.role} · {persona.department} · {scenario.title}</p>
+                <Link href="/home" className="hover:opacity-90 transition-opacity cursor-pointer" data-testid="chat-title-home-link">
+                  <h3 className="text-lg font-semibold">{persona.name}과의 대화</h3>
+                  <p className="text-blue-100 text-sm">{persona.role} · {persona.department} · {scenario.title}</p>
+                </Link>
               </div>
             </div>
             <div className="flex items-center space-x-4">
@@ -610,6 +612,11 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
                 <div className="text-sm opacity-90">진행도</div>
                 <div className="text-xl font-bold">{conversation.turnCount}/{maxTurns}</div>
               </div>
+              
+              {/* 홈 버튼 */}
+              <Link href="/home" className="text-white/80 hover:text-white hover:bg-white/10 p-2 rounded-lg transition-all" data-testid="header-home-button">
+                <i className="fas fa-home text-lg" title="홈으로 이동"></i>
+              </Link>
               
               {/* 음성 모드 토글 */}
               <div className="relative group">
