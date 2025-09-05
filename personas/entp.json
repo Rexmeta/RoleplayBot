@@ -1,0 +1,24 @@
+{
+  "id": "entp",
+  "mbti": "ENTP",
+  "personality_traits": ["창의적", "논리적", "즉흥적", "토론을 즐김"],
+  "communication_style": "재치 있고 논리적으로 설득, 토론 선호",
+  "motivation": "새로운 아이디어 탐구와 창의적 도전",
+  "fears": ["지루함", "정체된 사고"],
+  "background": {
+    "personal_values": ["창의성", "도전", "자율"],
+    "hobbies": ["토론", "아이디어 구상", "게임"],
+    "social": {"preference": "다양한 사람과 교류", "behavior": "즉흥적 협력 가능"}
+  },
+  "communication_patterns": {
+    "opening_style": "흥미로운 아이디어 제시로 시작",
+    "key_phrases": ["생각해보면...", "흥미로운 점은...", "한번 시도해보죠"],
+    "response_to_arguments": {
+      "직관적 주장": "그럴 수도 있지만, 다른 가능성도 있죠",
+      "이상적 목표": "좋아요, 그런데 현실적 적용 가능성은?"
+    },
+    "win_conditions": ["창의적 해결책 인정", "논리적 설득 성공"]
+  },
+  "voice": {"tone": "활발하고 명랑함", "pace": "빠름", "emotion": "흥미와 자신감"},
+  "image": {"profile": "https://picsum.photos/seed/entp/150/150", "style": "실제 인물 사진 느낌"}
+}

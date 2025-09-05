@@ -16,7 +16,16 @@ export class FileManagerService {
       for (const file of files.filter(f => f.endsWith('.json'))) {
         try {
           const content = await fs.readFile(path.join(SCENARIOS_DIR, file), 'utf-8');
-          const scenario = JSON.parse(content) as ComplexScenario;
+          const scenario = JSON.parse(content);
+          
+          // 새로운 구조로 변환 (personas가 객체 배열인 경우)
+          if (scenario.personas && Array.isArray(scenario.personas) && scenario.personas.length > 0) {
+            if (typeof scenario.personas[0] === 'object') {
+              // 새 구조: personas는 그대로 유지하고 persona IDs만 추출
+              scenario.personas = scenario.personas.map((p: any) => p.id);
+            }
+          }
+          
           scenarios.push(scenario);
         } catch (error) {
           console.warn(`Failed to load scenario file ${file}:`, error);
@@ -26,6 +35,34 @@ export class FileManagerService {
       return scenarios;
     } catch (error) {
       console.error('Failed to read scenarios directory:', error);
+      return [];
+    }
+  }
+
+  // 시나리오의 원본 페르소나 정보 가져오기 (MBTI 참조 포함)
+  async getScenarioPersonas(scenarioId: string): Promise<any[]> {
+    try {
+      const files = await fs.readdir(SCENARIOS_DIR);
+      
+      for (const file of files.filter(f => f.endsWith('.json'))) {
+        try {
+          const content = await fs.readFile(path.join(SCENARIOS_DIR, file), 'utf-8');
+          const scenario = JSON.parse(content);
+          
+          if (scenario.id === scenarioId && scenario.personas && Array.isArray(scenario.personas)) {
+            // 새 구조의 페르소나 정보 반환
+            if (typeof scenario.personas[0] === 'object') {
+              return scenario.personas;
+            }
+          }
+        } catch (error) {
+          console.warn(`Failed to read scenario file ${file}:`, error);
+        }
+      }
+      
+      return [];
+    } catch (error) {
+      console.error('Failed to get scenario personas:', error);
       return [];
     }
   }
@@ -127,6 +164,101 @@ export class FileManagerService {
       console.error('Failed to read personas directory:', error);
       return [];
     }
+  }
+
+  // MBTI 기반 페르소나 로딩
+  async loadMBTIPersona(mbtiFile: string): Promise<any> {
+    try {
+      const content = await fs.readFile(path.join(PERSONAS_DIR, mbtiFile), 'utf-8');
+      return JSON.parse(content);
+    } catch (error) {
+      console.error(`Failed to load MBTI persona ${mbtiFile}:`, error);
+      return null;
+    }
+  }
+
+  // 시나리오에서 persona 정보를 바탕으로 완전한 페르소나 생성
+  async createPersonaFromScenario(scenarioPersona: any): Promise<ScenarioPersona | null> {
+    try {
+      if (!scenarioPersona.personaRef) {
+        console.warn('No personaRef found for persona:', scenarioPersona.id);
+        return null;
+      }
+
+      const mbtiPersona = await this.loadMBTIPersona(scenarioPersona.personaRef);
+      if (!mbtiPersona) {
+        console.warn('Failed to load MBTI persona:', scenarioPersona.personaRef);
+        return null;
+      }
+
+      // MBTI 페르소나와 시나리오 정보를 결합하여 완전한 페르소나 생성
+      const fullPersona: ScenarioPersona = {
+        id: scenarioPersona.id,
+        name: this.generatePersonaName(scenarioPersona.department, scenarioPersona.position, mbtiPersona.mbti),
+        role: scenarioPersona.position,
+        department: scenarioPersona.department,
+        experience: this.generateExperience(scenarioPersona.position),
+        image: mbtiPersona.image?.profile || `https://ui-avatars.com/api/?name=${encodeURIComponent(scenarioPersona.id)}&background=6366f1&color=fff&size=150`,
+        personality: {
+          traits: mbtiPersona.personality_traits || [],
+          communicationStyle: mbtiPersona.communication_style || '',
+          motivation: mbtiPersona.motivation || '',
+          fears: mbtiPersona.fears || []
+        },
+        background: {
+          education: mbtiPersona.background?.education || '',
+          previousExperience: mbtiPersona.background?.previous_experience || '',
+          majorProjects: mbtiPersona.background?.major_projects || [],
+          expertise: mbtiPersona.background?.expertise || []
+        },
+        currentSituation: {
+          workload: scenarioPersona.stance || '',
+          pressure: scenarioPersona.goal || '',
+          concerns: mbtiPersona.fears || [],
+          position: scenarioPersona.position
+        },
+        communicationPatterns: {
+          openingStyle: mbtiPersona.communication_patterns?.opening_style || '',
+          keyPhrases: mbtiPersona.communication_patterns?.key_phrases || [],
+          responseToArguments: mbtiPersona.communication_patterns?.response_to_arguments || {},
+          winConditions: mbtiPersona.communication_patterns?.win_conditions || []
+        },
+        voice: {
+          tone: mbtiPersona.voice?.tone || '',
+          pace: mbtiPersona.voice?.pace || '',
+          emotion: mbtiPersona.voice?.emotion || ''
+        },
+        // 시나리오 전용 정보 추가
+        stance: scenarioPersona.stance,
+        goal: scenarioPersona.goal,
+        tradeoff: scenarioPersona.tradeoff,
+        mbti: mbtiPersona.mbti
+      };
+
+      return fullPersona;
+    } catch (error) {
+      console.error('Error creating persona from scenario:', error);
+      return null;
+    }
+  }
+
+  private generatePersonaName(department: string, position: string, mbti: string): string {
+    const surnames = ['김', '이', '박', '최', '정', '강', '조', '윤', '장', '임'];
+    const names = ['민수', '지영', '성호', '예진', '도현', '수연', '준호', '유리', '태현', '소영'];
+    const randomSurname = surnames[Math.floor(Math.random() * surnames.length)];
+    const randomName = names[Math.floor(Math.random() * names.length)];
+    return `${randomSurname}${randomName}`;
+  }
+
+  private generateExperience(position: string): string {
+    const experienceMap: Record<string, string> = {
+      '선임 개발자': '8년차',
+      '매니저': '10년차',
+      '전문가': '6년차',
+      '팀장': '12년차',
+      '이사': '15년 이상'
+    };
+    return experienceMap[position] || '5년차';
   }
 
   async createPersona(persona: Omit<ScenarioPersona, 'id'>): Promise<ScenarioPersona> {

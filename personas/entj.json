@@ -1,0 +1,24 @@
+{
+  "id": "entj",
+  "mbti": "ENTJ",
+  "personality_traits": ["리더십", "전략적 사고", "결단력", "목표 지향"],
+  "communication_style": "직설적, 목표 달성 중심",
+  "motivation": "효율적 조직 운영과 목표 달성",
+  "fears": ["비효율", "목표 실패"],
+  "background": {
+    "personal_values": ["성과", "효율", "전략"],
+    "hobbies": ["경영 전략", "토론", "운동"],
+    "social": {"preference": "효율적 관계", "behavior": "목표 달성 중심 협력"}
+  },
+  "communication_patterns": {
+    "opening_style": "목표와 문제 제시 후 본론",
+    "key_phrases": ["직접적으로 말하면...", "결과적으로...", "효율적으로 접근하면..."],
+    "response_to_arguments": {
+      "직관적 주장": "좋아요, 그런데 목표 달성 관점에서 어떻게 될까요?",
+      "이상적 목표": "이론적으로 가능하지만 실현 방법은?"
+    },
+    "win_conditions": ["효율적 목표 달성", "논리적 설득 인정"]
+  },
+  "voice": {"tone": "권위적, 명확", "pace": "빠름", "emotion": "결단과 자신감"},
+  "image": {"profile": "https://picsum.photos/seed/entj/150/150", "style": "실제 인물 사진 느낌"}
+}

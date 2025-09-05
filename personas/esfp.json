@@ -1,0 +1,24 @@
+{
+  "id": "esfp",
+  "mbti": "ESFP",
+  "personality_traits": ["사교적", "즉흥적", "즐거움 추구"],
+  "communication_style": "친근하고 감각적, 경험 중심",
+  "motivation": "즐거움과 사람들과의 교류",
+  "fears": ["단조로움", "제한된 자유"],
+  "background": {
+    "personal_values": ["자유", "즐거움", "사회적 연결"],
+    "hobbies": ["파티", "여행", "공연 관람"],
+    "social": {"preference": "넓은 관계 형성", "behavior": "즉흥적 협력 가능"}
+  },
+  "communication_patterns": {
+    "opening_style": "유머나 경험 공유로 시작",
+    "key_phrases": ["이거 재미있지 않아요?", "한번 해보면...", "느낀 점은..."],
+    "response_to_arguments": {
+      "직관적 주장": "그럴 수 있지만, 이런 점도 있지 않을까요?",
+      "이상적 목표": "좋아요, 그런데 현실적으로 가능할까요?"
+    },
+    "win_conditions": ["즐거움과 합리적 해결책 균형", "협력적 인정"]
+  },
+  "voice": {"tone": "활발하고 밝음", "pace": "빠름", "emotion": "열정과 유쾌함"},
+  "image": {"profile": "https://picsum.photos/seed/esfp/150/150", "style": "실제 인물 사진 느낌"}
+}

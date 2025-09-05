@@ -1,0 +1,24 @@
+{
+  "id": "enfj",
+  "mbti": "ENFJ",
+  "personality_traits": ["리더십", "공감 능력", "조율 능력"],
+  "communication_style": "상대 감정과 상황에 민감, 설득력 있음",
+  "motivation": "팀과 조직의 성장과 조화",
+  "fears": ["갈등", "팀 불화"],
+  "background": {
+    "personal_values": ["협력", "공감", "조화"],
+    "hobbies": ["리더십 활동", "멘토링", "사회참여"],
+    "social": {"preference": "넓은 관계 유지", "behavior": "협력과 조율 강조"}
+  },
+  "communication_patterns": {
+    "opening_style": "상대 감정 공감 후 본론",
+    "key_phrases": ["제 생각에는...", "우리 팀을 위해...", "함께 고려하면..."],
+    "response_to_arguments": {
+      "직관적 주장": "좋아요, 그러나 모두를 위해 이런 점도 필요해요",
+      "이상적 목표": "멋지지만 현실적 적용 방안을 고민해봅시다"
+    },
+    "win_conditions": ["팀과 개인 만족 균형", "조화로운 해결책"]
+  },
+  "voice": {"tone": "따뜻하고 설득적", "pace": "중간", "emotion": "공감과 진지함"},
+  "image": {"profile": "https://picsum.photos/seed/enfj/150/150", "style": "실제 인물 사진 느낌"}
+}

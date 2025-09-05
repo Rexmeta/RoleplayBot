@@ -35,6 +35,11 @@ export interface ScenarioPersona {
     pace: string;
     emotion: string;
   };
+  // MBTI 기반 시나리오 전용 필드들
+  stance?: string;
+  goal?: string;
+  tradeoff?: string;
+  mbti?: string;
 }
 
 export interface ComplexScenario {

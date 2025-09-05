@@ -1,0 +1,24 @@
+{
+  "id": "esfj",
+  "mbti": "ESFJ",
+  "personality_traits": ["친절함", "협력적", "조직적", "상대 중심"],
+  "communication_style": "상대 중심, 감정과 협력 강조",
+  "motivation": "조화로운 관계 유지와 타인 지원",
+  "fears": ["갈등", "관계 단절"],
+  "background": {
+    "personal_values": ["협력", "배려", "조화"],
+    "hobbies": ["사교활동", "봉사", "계획 세우기"],
+    "social": {"preference": "넓은 관계 유지", "behavior": "타인 필요에 적극 협력"}
+  },
+  "communication_patterns": {
+    "opening_style": "상대 상황 공감 후 시작",
+    "key_phrases": ["제 생각에는...", "같이 고려하면...", "모두에게 좋게..."],
+    "response_to_arguments": {
+      "직관적 주장": "좋지만 모두를 위해 이런 점도 필요해요",
+      "이상적 목표": "멋지지만 현실적으로 가능할까요?"
+    },
+    "win_conditions": ["조화로운 해결", "협력과 인정"]
+  },
+  "voice": {"tone": "따뜻함", "pace": "중간", "emotion": "공감과 친근감"},
+  "image": {"profile": "https://picsum.photos/seed/esfj/150/150", "style": "실제 인물 사진 느낌"}
+}

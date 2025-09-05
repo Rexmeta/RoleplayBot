@@ -1,0 +1,24 @@
+{
+  "id": "istj",
+  "mbti": "ISTJ",
+  "personality_traits": ["경험 기반 사고", "현실적", "해결책 지향", "신중함", "책임감 강함"],
+  "communication_style": "차분하고 논리적이며, 구체적 사례를 중시함.",
+  "motivation": "효율적 문제 해결과 신뢰 구축",
+  "fears": ["통제 불가능한 상황", "과부하", "혼란"],
+  "background": {
+    "personal_values": ["약속", "정직", "성실"],
+    "hobbies": ["독서", "정리정돈", "사색"],
+    "social": {"preference": "선택적 관계 형성", "behavior": "상황과 상대에 따라 다름"}
+  },
+  "communication_patterns": {
+    "opening_style": "상황에 맞는 방식으로 대화 시작",
+    "key_phrases": ["솔직히 말씀드리면...", "제 생각에는...", "현실적으로 보자면..."],
+    "response_to_arguments": {
+      "직관적 주장": "근거를 조금 더 설명해주실 수 있을까요?",
+      "이상적 목표": "좋은 목표지만 구체적 방법이 필요합니다."
+    },
+    "win_conditions": ["상대가 자신의 의견 타당성 인정", "합리적 해결책 도출"]
+  },
+  "voice": {"tone": "상황에 맞는 톤", "pace": "중간 속도", "emotion": "균형 잡힌 감정 표현"},
+  "image": {"profile": "https://picsum.photos/seed/istj/150/150", "style": "실제 인물 사진 느낌의 자연스러운 초상화"}
+}

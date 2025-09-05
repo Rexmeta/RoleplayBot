@@ -509,10 +509,29 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get("/api/personas", async (req, res) => {
     try {
-      const personas = await fileManager.getAllPersonas();
-      res.json(personas);
+      const scenarios = await fileManager.getAllScenarios();
+      const allPersonas: any[] = [];
+      
+      // 각 시나리오에서 MBTI 기반 페르소나 생성
+      for (const scenario of scenarios) {
+        const scenarioPersonas = await fileManager.getScenarioPersonas(scenario.id);
+        
+        for (const scenarioPersona of scenarioPersonas) {
+          const fullPersona = await fileManager.createPersonaFromScenario(scenarioPersona);
+          if (fullPersona) {
+            allPersonas.push(fullPersona);
+          }
+        }
+      }
+      
+      // 기존 페르소나도 포함 (하위 호환성)
+      const existingPersonas = await fileManager.getAllPersonas();
+      const mbtiPersonaIds = allPersonas.map(p => p.id);
+      const nonMbtiPersonas = existingPersonas.filter(p => !mbtiPersonaIds.includes(p.id));
+      
+      res.json([...allPersonas, ...nonMbtiPersonas]);
     } catch (error) {
-      console.error("Failed to fetch personas:", error);
+      console.error("Error fetching personas:", error);
       res.status(500).json({ error: "Failed to fetch personas" });
     }
   });
