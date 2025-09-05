@@ -251,7 +251,7 @@ export default function ScenarioSelector({ onScenarioSelect, playerProfile }: Sc
                                           )}
                                         </div>
                                         <p className="text-sm text-slate-600">{persona.role} • {persona.experience}</p>
-                                        <p className="text-xs text-slate-500 mt-1">{persona.personality.motivation}</p>
+                                        <p className="text-xs text-slate-500 mt-1">{persona.motivation || '목표 설정'}</p>
                                       </div>
                                       <div className="text-right">
                                         <div className="text-xs text-slate-500">#{index + 1}</div>
