@@ -66,8 +66,8 @@ export default function Home() {
                 <i className="fas fa-robot text-white text-lg"></i>
               </div>
               <div>
-                <h1 className="text-xl font-bold text-slate-900">RolePlayX</h1>
-                <p className="text-sm text-slate-600">Powered by Experience</p>
+                <h1 className="text-xl font-bold text-slate-900">AI 롤플레잉 훈련</h1>
+                <p className="text-sm text-slate-600">신입사원 역량 개발 시스템</p>
               </div>
             </Link>
             <div className="flex items-center space-x-4">

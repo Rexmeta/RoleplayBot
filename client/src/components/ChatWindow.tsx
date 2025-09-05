@@ -4,6 +4,7 @@ import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { Link } from "wouter";
 import type { ComplexScenario, ScenarioPersona } from "@/lib/scenario-system";
 import type { Conversation, ConversationMessage } from "@shared/schema";
 
@@ -581,14 +582,16 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
         <div className="bg-gradient-to-r from-corporate-600 to-corporate-700 px-6 py-4 text-white">
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-4">
-              <img 
-                src={persona.image} 
-                alt={persona.name} 
-                className="w-12 h-12 rounded-full border-2 border-white/20" 
-                onError={(e) => {
-                  (e.target as HTMLImageElement).src = `https://ui-avatars.com/api/?name=${encodeURIComponent(persona.name)}&background=6366f1&color=fff&size=48`;
-                }}
-              />
+              <Link href="/home" className="hover:opacity-80 transition-opacity" data-testid="chat-header-home-link">
+                <img 
+                  src={persona.image} 
+                  alt={persona.name} 
+                  className="w-12 h-12 rounded-full border-2 border-white/20 hover:border-white/40 cursor-pointer" 
+                  onError={(e) => {
+                    (e.target as HTMLImageElement).src = `https://ui-avatars.com/api/?name=${encodeURIComponent(persona.name)}&background=6366f1&color=fff&size=48`;
+                  }}
+                />
+              </Link>
               <div>
                 <h3 className="text-lg font-semibold">{persona.name}과의 대화</h3>
                 <p className="text-blue-100 text-sm">{persona.role} · {persona.department} · {scenario.title}</p>

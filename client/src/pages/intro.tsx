@@ -114,7 +114,7 @@ export default function Intro() {
         {/* Main Title Animation */}
         <div className={`text-center mb-12 transition-all duration-1000 transform ${isVisible ? 'translate-y-0 opacity-100' : 'translate-y-10 opacity-0'}`}>
           <h1 className="text-6xl md:text-7xl font-bold mb-6 bg-gradient-to-r from-white via-blue-200 to-purple-200 bg-clip-text text-transparent">
-            RolePlayX
+            AI 롤플레잉 훈련
           </h1>
           <p className="text-xl md:text-2xl text-blue-100 mb-8 max-w-2xl mx-auto leading-relaxed">
             AI와 함께하는 혁신적인 커뮤니케이션 스킬 훈련 시스템

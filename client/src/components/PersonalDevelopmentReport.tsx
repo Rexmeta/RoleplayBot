@@ -193,7 +193,7 @@ export default function PersonalDevelopmentReport({
     <div className="max-w-6xl mx-auto space-y-6" data-testid="personal-development-report">
       {/* PDF 전용 헤더 (인쇄 시에만 표시) */}
       <div className="pdf-header" style={{ display: 'none' }}>
-        RolePlayX
+        AI 롤플레잉 훈련 시스템
       </div>
       
       {/* 화면용 헤더 */}
