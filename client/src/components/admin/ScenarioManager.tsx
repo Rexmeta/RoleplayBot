@@ -123,6 +123,7 @@ export function ScenarioManager() {
       queryClient.invalidateQueries({ queryKey: ['/api/admin/scenarios'] });
       setEditingScenario(null);
       resetForm();
+      setIsCreateOpen(false); // 다이얼로그 닫기
       toast({
         title: "시나리오 수정 완료",
         description: "시나리오가 성공적으로 수정되었습니다.",
