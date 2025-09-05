@@ -646,28 +646,6 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
                 <div className="text-xl font-bold">{conversation.turnCount}/{maxTurns}</div>
               </div>
               
-              {/* 홈 버튼 */}
-              <Button 
-                variant="ghost" 
-                size="sm" 
-                onClick={(e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  console.log("홈 버튼 클릭됨");
-                  try {
-                    console.log("홈 버튼에서 onExit 함수 직접 호출");
-                    onExit(); // 시나리오 선택 화면으로 돌아가기
-                  } catch (error) {
-                    console.error("홈 버튼에서 onExit 오류:", error);
-                    window.location.reload();
-                  }
-                }}
-                className="text-white/80 hover:text-white hover:bg-white/10 p-2 transition-all" 
-                data-testid="header-home-button"
-                title="홈으로 이동"
-              >
-                <i className="fas fa-home text-lg"></i>
-              </Button>
               
               {/* 음성 모드 토글 */}
               <div className="relative group">

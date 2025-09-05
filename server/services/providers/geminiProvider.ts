@@ -61,7 +61,7 @@ MBTI 유형: ${(persona as any).mbti || 'MBTI 유형 미지정'}
 2. 현재 상황에서의 입장과 목표를 명확히 표현하세요
 3. 자연스럽고 현실적인 대화를 유지하세요
 4. 한국어로 응답하세요
-5. 80-120단어 내외로 응답하세요
+5. 20-120단어 내외로 응답하세요
 6. 상황에 맞는 감정을 표현하세요
 
 이전 대화:
@@ -70,7 +70,7 @@ ${conversationHistory}
 사용자의 새 메시지에 ${persona.name}로서 응답하세요.`;
 
       // 건너뛰기 시 자연스럽게 대화 이어가기
-      const prompt = userMessage ? userMessage : "앞서 이야기를 자연스럽게 이어가거나 새로운 주제를 제시해주세요.";
+      const prompt = userMessage ? userMessage : "앞서 이야기를 자연스럽게 이어가거나 새로운 각도에서 문제를 제시해주세요.";
 
       const response = await this.genAI.models.generateContent({
         model: this.model,
