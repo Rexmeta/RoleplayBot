@@ -34,14 +34,47 @@ export default function ScenarioSelector({ onScenarioSelect, playerProfile }: Sc
     queryFn: () => fetch('/api/personas').then(res => res.json())
   });
 
-  // 시나리오에 속한 페르소나들 가져오기
+  // 시나리오에 속한 페르소나들 가져오기 - 시나리오 정보와 MBTI 특성을 결합
   const getPersonasForScenario = (scenarioId: string): ScenarioPersona[] => {
     const scenario = scenarios.find((s: ComplexScenario) => s.id === scenarioId);
     if (!scenario) return [];
     
-    return scenario.personas.map((personaId: string) => 
-      personas.find((p: ScenarioPersona) => p.id === personaId)
-    ).filter(Boolean);
+    // 시나리오의 personas 배열에서 각 페르소나 객체 정보와 MBTI 특성을 결합
+    return scenario.personas.map((scenarioPersona: any) => {
+      // 시나리오에서 직접 페르소나 객체를 가져오는 경우
+      if (typeof scenarioPersona === 'object' && scenarioPersona.personaRef) {
+        const mbtiPersona = personas.find((p: any) => p.id === scenarioPersona.personaRef.replace('.json', ''));
+        return {
+          ...scenarioPersona,
+          ...mbtiPersona,
+          // 시나리오의 구체적인 정보를 우선으로 사용
+          name: scenarioPersona.name,
+          role: scenarioPersona.position,
+          department: scenarioPersona.department,
+          experience: `${scenarioPersona.experience || '경력자'}`,
+          image: mbtiPersona?.image?.profile || mbtiPersona?.image || `https://ui-avatars.com/api/?name=${encodeURIComponent(scenarioPersona.name)}&background=6366f1&color=fff&size=150`,
+          motivation: mbtiPersona?.motivation || '목표 달성'
+        };
+      }
+      
+      // MBTI ID만 있는 경우 (현재 상황)
+      const mbtiPersona = personas.find((p: any) => p.id === scenarioPersona);
+      if (mbtiPersona) {
+        // 기본값으로 MBTI 특성 활용
+        return {
+          ...mbtiPersona,
+          id: scenarioPersona,
+          name: `${mbtiPersona.mbti} 유형`,
+          role: '팀 구성원',
+          department: '관련 부서',
+          experience: '경력자',
+          image: mbtiPersona?.image?.profile || mbtiPersona?.image || `https://ui-avatars.com/api/?name=${encodeURIComponent(mbtiPersona.mbti)}&background=6366f1&color=fff&size=150`,
+          motivation: mbtiPersona?.motivation || '목표 달성'
+        };
+      }
+      
+      return null;
+    }).filter(Boolean);
   };
 
   const createConversationMutation = useMutation({
