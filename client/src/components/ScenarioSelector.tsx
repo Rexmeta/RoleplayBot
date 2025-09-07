@@ -40,7 +40,7 @@ export default function ScenarioSelector({ onScenarioSelect, playerProfile }: Sc
     if (!scenario) return [];
     
     // 시나리오의 personas 배열에서 각 페르소나 객체 정보와 MBTI 특성을 결합
-    return scenario.personas.map((scenarioPersona: any) => {
+    return (scenario.personas || []).map((scenarioPersona: any) => {
       // 시나리오에서 직접 페르소나 객체를 가져오는 경우 (객체 형태)
       if (typeof scenarioPersona === 'object' && scenarioPersona.personaRef) {
         const mbtiPersona = personas.find((p: any) => p.id === scenarioPersona.personaRef.replace('.json', ''));
@@ -207,12 +207,12 @@ export default function ScenarioSelector({ onScenarioSelect, playerProfile }: Sc
                           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
                             <div>
                               <h4 className="font-medium text-slate-700 mb-1">상황</h4>
-                              <p className="text-slate-600">{scenario.context.situation}</p>
+                              <p className="text-slate-600">{scenario.context?.situation || '상황 정보 없음'}</p>
                             </div>
                             <div>
                               <h4 className="font-medium text-slate-700 mb-1">당신의 역할</h4>
                               <p className="text-slate-600">
-                                {scenario.context.playerRole.position} ({scenario.context.playerRole.experience})
+                                {scenario.context?.playerRole?.position || '역할 정보 없음'} ({scenario.context?.playerRole?.experience || '경력 정보 없음'})
                               </p>
                             </div>
                           </div>
@@ -220,7 +220,7 @@ export default function ScenarioSelector({ onScenarioSelect, playerProfile }: Sc
                           <div className="mt-4">
                             <h4 className="font-medium text-slate-700 mb-2">주요 역량</h4>
                             <div className="flex flex-wrap gap-2">
-                              {scenario.skills.map((skill: string, index: number) => (
+                              {(scenario.skills || []).map((skill: string, index: number) => (
                                 <Badge key={index} variant="secondary" className="text-xs">
                                   {skill}
                                 </Badge>
@@ -230,7 +230,7 @@ export default function ScenarioSelector({ onScenarioSelect, playerProfile }: Sc
                         </div>
                         
                         <div className="text-right flex flex-col items-end">
-                          <div className="text-xs text-slate-500 mb-2">{scenario.personas.length}명의 대화 상대</div>
+                          <div className="text-xs text-slate-500 mb-2">{(scenario.personas || []).length}명의 대화 상대</div>
                           <div className="text-xs text-slate-500 mb-2">{scenario.estimatedTime}</div>
                           <div className={`transition-transform duration-300 ${isSelected ? 'rotate-180' : ''}`}>
                             <i className="fas fa-chevron-down text-slate-400"></i>
