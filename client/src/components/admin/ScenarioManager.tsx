@@ -200,7 +200,10 @@ export function ScenarioManager() {
       context: scenario.context,
       objectives: scenario.objectives,
       successCriteria: scenario.successCriteria,
-      personas: scenario.personas,
+      // personas가 객체 배열인 경우 ID만 추출, 문자열 배열인 경우 그대로 사용
+      personas: Array.isArray(scenario.personas) 
+        ? scenario.personas.map(p => typeof p === 'string' ? p : p.id || p.name || '')
+        : [],
       recommendedFlow: scenario.recommendedFlow
     });
     setIsCreateOpen(true);
@@ -710,7 +713,7 @@ export function ScenarioManager() {
                   <div className="flex flex-wrap gap-1">
                     {(scenario.personas || []).map((persona, index) => (
                       <Badge key={index} variant="outline" className="text-xs">
-                        {typeof persona === 'string' ? persona : persona.name || persona.id}
+                        {typeof persona === 'string' ? persona : persona.name || persona.id || '알 수 없는 페르소나'}
                       </Badge>
                     ))}
                   </div>
