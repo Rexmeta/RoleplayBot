@@ -854,8 +854,7 @@ export function ScenarioManager() {
                     onClick={() => handleEdit(scenario)}
                     data-testid={`button-edit-scenario-${scenario.id}`}
                   >
-                    <i className="fas fa-edit mr-1"></i>
-                    편집
+                    <i className="fas fa-edit"></i>
                   </Button>
                   <Button
                     variant="destructive"
@@ -864,8 +863,7 @@ export function ScenarioManager() {
                     disabled={deleteMutation.isPending}
                     data-testid={`button-delete-scenario-${scenario.id}`}
                   >
-                    <i className="fas fa-trash mr-1"></i>
-                    삭제
+                    <i className="fas fa-trash"></i>
                   </Button>
                 </div>
               </div>
