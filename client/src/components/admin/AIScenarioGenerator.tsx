@@ -337,11 +337,16 @@ export function AIScenarioGenerator({ onGenerated }: AIGeneratorProps) {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
+                  <SelectItem value="1">1명</SelectItem>
                   <SelectItem value="2">2명</SelectItem>
                   <SelectItem value="3">3명</SelectItem>
                   <SelectItem value="4">4명</SelectItem>
                   <SelectItem value="5">5명</SelectItem>
                   <SelectItem value="6">6명</SelectItem>
+                  <SelectItem value="7">7명</SelectItem>
+                  <SelectItem value="8">8명</SelectItem>
+                  <SelectItem value="9">9명</SelectItem>
+                  <SelectItem value="10">10명</SelectItem>
                 </SelectContent>
               </Select>
             </div>

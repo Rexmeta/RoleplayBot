@@ -3,10 +3,12 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ComplexScenario, ScenarioPersona, getDifficultyColor, getDifficultyLabel } from "@/lib/scenario-system";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2 } from "lucide-react";
+import { Loader2, Search, Filter } from "lucide-react";
 
 interface ScenarioSelectorProps {
   onScenarioSelect: (scenarioId: string, personaId: string, conversationId: string) => void;
@@ -22,6 +24,15 @@ export default function ScenarioSelector({ onScenarioSelect, playerProfile }: Sc
   const [selectedScenario, setSelectedScenario] = useState<ComplexScenario | null>(null);
   const [selectedPersona, setSelectedPersona] = useState<ScenarioPersona | null>(null);
   const [loadingScenarioId, setLoadingScenarioId] = useState<string | null>(null);
+  
+  // 필터 상태
+  const [filters, setFilters] = useState({
+    difficulty: 'all',
+    personaCount: 'all',
+    searchText: '',
+    department: 'all',
+    skillType: 'all'
+  });
 
   // JSON 파일에서 실시간으로 시나리오와 페르소나 데이터 가져오기
   const { data: scenarios = [], isLoading: scenariosLoading } = useQuery({
@@ -129,6 +140,62 @@ export default function ScenarioSelector({ onScenarioSelect, playerProfile }: Sc
     }
   };
 
+  // 필터링된 시나리오 목록
+  const filteredScenarios = scenarios.filter((scenario: ComplexScenario) => {
+    // 검색어 필터
+    if (filters.searchText && !scenario.title.toLowerCase().includes(filters.searchText.toLowerCase()) && 
+        !scenario.description.toLowerCase().includes(filters.searchText.toLowerCase())) {
+      return false;
+    }
+    
+    // 난이도 필터
+    if (filters.difficulty && filters.difficulty !== 'all' && scenario.difficulty.toString() !== filters.difficulty) {
+      return false;
+    }
+    
+    // 페르소나 수 필터
+    if (filters.personaCount && filters.personaCount !== 'all') {
+      const personaCount = scenario.personas?.length || 0;
+      const filterCount = parseInt(filters.personaCount);
+      if (personaCount !== filterCount) {
+        return false;
+      }
+    }
+    
+    // 부서 필터
+    if (filters.department && filters.department !== 'all') {
+      const hasMatchingDepartment = scenario.personas?.some((persona: any) => 
+        typeof persona === 'object' && persona.department?.toLowerCase().includes(filters.department.toLowerCase())
+      );
+      if (!hasMatchingDepartment) {
+        return false;
+      }
+    }
+    
+    // 스킬 유형 필터
+    if (filters.skillType && filters.skillType !== 'all') {
+      const hasMatchingSkill = scenario.skills?.some((skill: string) =>
+        skill.toLowerCase().includes(filters.skillType.toLowerCase())
+      );
+      if (!hasMatchingSkill) {
+        return false;
+      }
+    }
+    
+    return true;
+  });
+
+  // 필터 초기화
+  const resetFilters = () => {
+    setFilters({
+      difficulty: 'all',
+      personaCount: 'all',
+      searchText: '',
+      department: 'all',
+      skillType: 'all'
+    });
+  };
+
   const getRecommendationLevel = (scenario: ComplexScenario): { level: string; color: string; reason: string } => {
     if (playerProfile?.department === "개발팀" && scenario.id === "app-delay-crisis") {
       return {
@@ -170,8 +237,142 @@ export default function ScenarioSelector({ onScenarioSelect, playerProfile }: Sc
 
         <div className="max-w-4xl mx-auto">
           
+          {/* 필터 섹션 */}
+          <Card className="mb-6 border-slate-200">
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Filter className="h-5 w-5 text-slate-600" />
+                  <h3 className="text-lg font-semibold text-slate-900">필터</h3>
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={resetFilters}
+                  className="text-slate-600 hover:text-slate-900"
+                  data-testid="reset-filters"
+                >
+                  초기화
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {/* 검색어 */}
+                <div>
+                  <label className="text-sm font-medium text-slate-700 mb-2 block">검색어</label>
+                  <div className="relative">
+                    <Search className="absolute left-3 top-3 h-4 w-4 text-slate-400" />
+                    <Input
+                      placeholder="시나리오명 또는 설명 검색"
+                      value={filters.searchText}
+                      onChange={(e) => setFilters(prev => ({ ...prev, searchText: e.target.value }))}
+                      className="pl-10"
+                      data-testid="filter-search"
+                    />
+                  </div>
+                </div>
+                
+                {/* 난이도 */}
+                <div>
+                  <label className="text-sm font-medium text-slate-700 mb-2 block">난이도</label>
+                  <Select value={filters.difficulty} onValueChange={(value) => setFilters(prev => ({ ...prev, difficulty: value }))}>
+                    <SelectTrigger data-testid="filter-difficulty">
+                      <SelectValue placeholder="전체" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">전체</SelectItem>
+                      <SelectItem value="1">★ 초급</SelectItem>
+                      <SelectItem value="2">★★ 기초</SelectItem>
+                      <SelectItem value="3">★★★ 중급</SelectItem>
+                      <SelectItem value="4">★★★★ 고급</SelectItem>
+                      <SelectItem value="5">★★★★★ 전문가</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                
+                {/* 페르소나 수 */}
+                <div>
+                  <label className="text-sm font-medium text-slate-700 mb-2 block">페르소나 수</label>
+                  <Select value={filters.personaCount} onValueChange={(value) => setFilters(prev => ({ ...prev, personaCount: value }))}>
+                    <SelectTrigger data-testid="filter-persona-count">
+                      <SelectValue placeholder="전체" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">전체</SelectItem>
+                      <SelectItem value="1">1명</SelectItem>
+                      <SelectItem value="2">2명</SelectItem>
+                      <SelectItem value="3">3명</SelectItem>
+                      <SelectItem value="4">4명</SelectItem>
+                      <SelectItem value="5">5명</SelectItem>
+                      <SelectItem value="6">6명 이상</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                
+                {/* 부서 */}
+                <div>
+                  <label className="text-sm font-medium text-slate-700 mb-2 block">부서</label>
+                  <Select value={filters.department} onValueChange={(value) => setFilters(prev => ({ ...prev, department: value }))}>
+                    <SelectTrigger data-testid="filter-department">
+                      <SelectValue placeholder="전체" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">전체</SelectItem>
+                      <SelectItem value="개발팀">개발팀</SelectItem>
+                      <SelectItem value="마케팅팀">마케팅팀</SelectItem>
+                      <SelectItem value="QA팀">QA팀</SelectItem>
+                      <SelectItem value="고객서비스팀">고객서비스팀</SelectItem>
+                      <SelectItem value="경영진">경영진</SelectItem>
+                      <SelectItem value="물류팀">물류팀</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                
+                {/* 스킬 유형 */}
+                <div>
+                  <label className="text-sm font-medium text-slate-700 mb-2 block">핵심 스킬</label>
+                  <Select value={filters.skillType} onValueChange={(value) => setFilters(prev => ({ ...prev, skillType: value }))}>
+                    <SelectTrigger data-testid="filter-skill-type">
+                      <SelectValue placeholder="전체" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">전체</SelectItem>
+                      <SelectItem value="협상">협상</SelectItem>
+                      <SelectItem value="의사소통">의사소통</SelectItem>
+                      <SelectItem value="갈등해결">갈등해결</SelectItem>
+                      <SelectItem value="리더십">리더십</SelectItem>
+                      <SelectItem value="문제해결">문제해결</SelectItem>
+                      <SelectItem value="팀워크">팀워크</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              
+              {/* 필터 결과 요약 */}
+              <div className="mt-4 pt-4 border-t border-slate-200">
+                <div className="flex items-center justify-between text-sm text-slate-600">
+                  <span>총 {filteredScenarios.length}개의 시나리오</span>
+                  {(filters.searchText || (filters.difficulty !== 'all') || (filters.personaCount !== 'all') || (filters.department !== 'all') || (filters.skillType !== 'all')) && (
+                    <span className="text-blue-600">필터 적용됨</span>
+                  )}
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+          
           <div className="space-y-4">
-            {scenarios.map((scenario: ComplexScenario) => {
+            {filteredScenarios.length === 0 ? (
+              <div className="text-center py-12">
+                <div className="text-6xl mb-4">🔍</div>
+                <h3 className="text-xl font-medium text-slate-600 mb-2">조건에 맞는 시나리오가 없습니다</h3>
+                <p className="text-slate-500 mb-4">필터 조건을 변경하거나 초기화해보세요</p>
+                <Button onClick={resetFilters} variant="outline">
+                  필터 초기화
+                </Button>
+              </div>
+            ) : (
+              filteredScenarios.map((scenario: ComplexScenario) => {
               const recommendation = getRecommendationLevel(scenario);
               const isSelected = selectedScenario?.id === scenario.id;
               const scenarioPersonas = getPersonasForScenario(scenario.id);
@@ -333,7 +534,8 @@ export default function ScenarioSelector({ onScenarioSelect, playerProfile }: Sc
                   )}
                 </Card>
               );
-            })}
+              })
+            )}
           </div>
         </div>
       </div>
