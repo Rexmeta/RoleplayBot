@@ -29,6 +29,9 @@ export async function createSampleData() {
   ];
 
   const sampleFeedback: DetailedFeedback = {
+    overallScore: 65,
+    scores: sampleScores,
+    summary: "전반적으로 체계적이고 전문적인 커뮤니케이션을 보여주었습니다.",
     strengths: [
       "문제 상황에 대해 구체적이고 명확한 설명을 제공했습니다",
       "상대방의 감정 변화를 인식하고 적절히 반응했습니다",
@@ -48,13 +51,16 @@ export async function createSampleData() {
   };
 
   // Create sample conversations for different scenarios
-  const scenarios = [
-    { id: "communication", name: "김태훈 선임 연구원" },
-    { id: "empathy", name: "이선영 팀장" },
-    { id: "negotiation", name: "박준호 클라이언트" },
-    { id: "presentation", name: "정미경 임원" },
-    { id: "feedback", name: "최민수 후배 사원" },
-    { id: "crisis", name: "한지연 프로젝트 매니저" }
+  // 실제 시나리오 파일에서 시나리오 정보 가져오기
+  const fileManagerModule = await import('./services/fileManager');
+  const realScenarios = await fileManagerModule.fileManager.getAllScenarios();
+  
+  // 실제 시나리오가 있으면 그것을 사용, 없으면 기본값 사용
+  const scenarios = realScenarios.length > 0 ? realScenarios.map(s => ({ 
+    id: s.id, 
+    name: s.title 
+  })) : [
+    { id: "app-delay-crisis", name: "신규 스마트폰 앱 기능 출시 일정 지연 문제" }
   ];
 
   // Create multiple conversations with varying scores for realistic data
