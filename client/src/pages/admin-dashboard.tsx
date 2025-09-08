@@ -116,7 +116,8 @@ export default function AdminDashboard() {
       name: data.name || scenario?.title || scenarioId,
       average: data.average,
       sessionCount: data.sessionCount,
-      difficulty: scenario?.difficulty || 1
+      difficulty: data.difficulty || scenario?.difficulty || 1,
+      personaCount: data.personaCount || 0
     };
   }) : [];
 
