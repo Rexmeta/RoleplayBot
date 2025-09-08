@@ -196,6 +196,28 @@ export default function ScenarioSelector({ onScenarioSelect, playerProfile }: Sc
     });
   };
 
+  // 스코어링 가중치 기반 역량 정렬 (높은 가중치 순)
+  const sortSkillsByImportance = (skills: string[]): string[] => {
+    const skillWeights = {
+      // Message structure (25%)
+      '논리적설명': 25, '구조화': 25, '체계적대화': 25, '메시지구성': 25, '논리': 25,
+      // Professional solutions (25%) 
+      '문제해결': 25, '해결책제시': 25, '전문성': 25, '업무역량': 25, '실무능력': 25,
+      // Empathy expression (20%)
+      '공감': 20, '감정이해': 20, '배려': 20, '소통': 20, '의사소통': 20,
+      // Communication appropriateness (20%)
+      '협상': 20, '설득': 20, '적절한소통': 20, '상황판단': 20, '커뮤니케이션': 20,
+      // Scenario adaptation (10%)
+      '적응력': 10, '유연성': 10, '상황대응': 10, '팀워크': 10, '갈등해결': 10, '리더십': 10
+    };
+
+    return skills.sort((a, b) => {
+      const weightA = skillWeights[a] || 0;
+      const weightB = skillWeights[b] || 0;
+      return weightB - weightA; // 높은 가중치 순으로 정렬
+    });
+  };
+
   const getRecommendationLevel = (scenario: ComplexScenario): { level: string; color: string; reason: string } => {
     if (playerProfile?.department === "개발팀" && scenario.id === "app-delay-crisis") {
       return {
@@ -238,7 +260,7 @@ export default function ScenarioSelector({ onScenarioSelect, playerProfile }: Sc
         <div className="max-w-4xl mx-auto">
           
           {/* 필터 섹션 */}
-          <div className="mb-6 p-4 bg-slate-100 rounded-lg border border-slate-200">
+          <div className="mb-6 p-4 bg-white rounded-lg border border-slate-300 shadow-sm">
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-2">
                 <Filter className="h-4 w-4 text-slate-600" />
@@ -403,8 +425,12 @@ export default function ScenarioSelector({ onScenarioSelect, playerProfile }: Sc
                           <div className="mt-4">
                             <h4 className="font-medium text-slate-700 mb-2">주요 역량</h4>
                             <div className="flex flex-wrap gap-2">
-                              {(scenario.skills || []).map((skill: string, index: number) => (
-                                <Badge key={index} variant="secondary" className="text-xs">
+                              {sortSkillsByImportance(scenario.skills || []).map((skill: string, index: number) => (
+                                <Badge 
+                                  key={index} 
+                                  variant="secondary" 
+                                  className={`text-xs ${index < 2 ? 'bg-blue-100 text-blue-700 border-blue-200' : ''}`}
+                                >
                                   {skill}
                                 </Badge>
                               ))}
