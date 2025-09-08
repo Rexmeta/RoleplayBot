@@ -10,94 +10,166 @@ import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import { apiRequest, queryClient } from '@/lib/queryClient';
-import { ScenarioPersona } from '@/lib/scenario-system';
 
-interface PersonaFormData {
-  name: string;
-  role: string;
-  department: string;
-  experience: string;
-  image: string;
-  personality: {
-    traits: string[];
-    communicationStyle: string;
-    motivation: string;
-    fears: string[];
-  };
+// MBTI 페르소나 타입 정의
+interface MBTIPersona {
+  id: string;
+  mbti: string;
+  personality_traits: string[];
+  communication_style: string;
+  motivation: string;
+  fears: string[];
   background: {
-    education: string;
-    previousExperience: string;
-    majorProjects: string[];
-    expertise: string[];
+    personal_values: string[];
+    hobbies: string[];
+    social: {
+      preference: string;
+      behavior: string;
+    };
   };
-  currentSituation: {
-    workload: string;
-    pressure: string;
-    concerns: string[];
-    position: string;
-  };
-  communicationPatterns: {
-    openingStyle: string;
-    keyPhrases: string[];
-    responseToArguments: Record<string, string>;
-    winConditions: string[];
+  communication_patterns: {
+    opening_style: string;
+    key_phrases: string[];
+    response_to_arguments: Record<string, string>;
+    win_conditions: string[];
   };
   voice: {
     tone: string;
     pace: string;
     emotion: string;
   };
+  image: {
+    profile: string;
+    style: string;
+  };
+}
+
+// 시나리오별 페르소나 정보
+interface ScenarioPersonaInfo {
+  scenarioId: string;
+  scenarioTitle: string;
+  name: string;
+  department: string;
+  position: string;
+  experience: string;
+  stance: string;
+  goal: string;
+  tradeoff: string;
+}
+
+interface MBTIPersonaFormData {
+  id: string;
+  mbti: string;
+  personality_traits: string[];
+  communication_style: string;
+  motivation: string;
+  fears: string[];
+  background: {
+    personal_values: string[];
+    hobbies: string[];
+    social: {
+      preference: string;
+      behavior: string;
+    };
+  };
+  communication_patterns: {
+    opening_style: string;
+    key_phrases: string[];
+    response_to_arguments: Record<string, string>;
+    win_conditions: string[];
+  };
+  voice: {
+    tone: string;
+    pace: string;
+    emotion: string;
+  };
+  image: {
+    profile: string;
+    style: string;
+  };
 }
 
 export function PersonaManager() {
   const { toast } = useToast();
   const [isCreateOpen, setIsCreateOpen] = useState(false);
-  const [editingPersona, setEditingPersona] = useState<ScenarioPersona | null>(null);
-  const [deletingPersona, setDeletingPersona] = useState<ScenarioPersona | null>(null);
-  const [formData, setFormData] = useState<PersonaFormData>({
-    name: '',
-    role: '',
-    department: '',
-    experience: '',
-    image: '',
-    personality: {
-      traits: [],
-      communicationStyle: '',
-      motivation: '',
-      fears: []
-    },
+  const [editingPersona, setEditingPersona] = useState<MBTIPersona | null>(null);
+  const [deletingPersona, setDeletingPersona] = useState<MBTIPersona | null>(null);
+  const [formData, setFormData] = useState<MBTIPersonaFormData>({
+    id: '',
+    mbti: '',
+    personality_traits: [],
+    communication_style: '',
+    motivation: '',
+    fears: [],
     background: {
-      education: '',
-      previousExperience: '',
-      majorProjects: [],
-      expertise: []
+      personal_values: [],
+      hobbies: [],
+      social: {
+        preference: '',
+        behavior: ''
+      }
     },
-    currentSituation: {
-      workload: '',
-      pressure: '',
-      concerns: [],
-      position: ''
-    },
-    communicationPatterns: {
-      openingStyle: '',
-      keyPhrases: [],
-      responseToArguments: {},
-      winConditions: []
+    communication_patterns: {
+      opening_style: '',
+      key_phrases: [],
+      response_to_arguments: {},
+      win_conditions: []
     },
     voice: {
       tone: '',
       pace: '',
       emotion: ''
+    },
+    image: {
+      profile: '',
+      style: ''
     }
   });
 
-  const { data: personas, isLoading } = useQuery<ScenarioPersona[]>({
+  // MBTI 페르소나 목록 조회
+  const { data: personas = [], isLoading, error } = useQuery({
     queryKey: ['/api/admin/personas'],
+    queryFn: () => fetch('/api/admin/personas').then(res => res.json())
   });
 
+  // 시나리오 목록 조회 (페르소나 사용 현황 확인용)
+  const { data: scenarios = [] } = useQuery({
+    queryKey: ['/api/scenarios'],
+    queryFn: () => fetch('/api/scenarios').then(res => res.json())
+  });
+
+  // 특정 MBTI 페르소나가 사용된 시나리오들 찾기
+  const getPersonaUsageInScenarios = (personaId: string): ScenarioPersonaInfo[] => {
+    const usage: ScenarioPersonaInfo[] = [];
+    
+    scenarios.forEach((scenario: any) => {
+      if (scenario.personas) {
+        const personaInScenario = scenario.personas.find((p: any) => 
+          (typeof p === 'string' ? p === personaId : p.id === personaId)
+        );
+        
+        if (personaInScenario && typeof personaInScenario === 'object') {
+          usage.push({
+            scenarioId: scenario.id,
+            scenarioTitle: scenario.title,
+            name: personaInScenario.name,
+            department: personaInScenario.department,
+            position: personaInScenario.position,
+            experience: personaInScenario.experience,
+            stance: personaInScenario.stance,
+            goal: personaInScenario.goal,
+            tradeoff: personaInScenario.tradeoff
+          });
+        }
+      }
+    });
+    
+    return usage;
+  };
+
   const createMutation = useMutation({
-    mutationFn: async (data: PersonaFormData) => {
-      const response = await apiRequest('POST', '/api/admin/personas', data);
+    mutationFn: async (personaData: MBTIPersonaFormData) => {
+      const response = await apiRequest("POST", "/api/admin/personas", personaData);
       return response.json();
     },
     onSuccess: () => {
@@ -105,22 +177,22 @@ export function PersonaManager() {
       setIsCreateOpen(false);
       resetForm();
       toast({
-        title: "페르소나 생성 완료",
-        description: "새로운 페르소나가 성공적으로 생성되었습니다.",
+        title: "성공",
+        description: "MBTI 페르소나가 생성되었습니다."
       });
     },
     onError: () => {
       toast({
-        title: "생성 실패",
-        description: "페르소나 생성 중 오류가 발생했습니다.",
-        variant: "destructive",
+        title: "오류",
+        description: "페르소나 생성에 실패했습니다.",
+        variant: "destructive"
       });
     }
   });
 
   const updateMutation = useMutation({
-    mutationFn: async ({ id, data }: { id: string; data: PersonaFormData }) => {
-      const response = await apiRequest('PUT', `/api/admin/personas/${id}`, data);
+    mutationFn: async (personaData: MBTIPersonaFormData) => {
+      const response = await apiRequest("PUT", `/api/admin/personas/${personaData.id}`, personaData);
       return response.json();
     },
     onSuccess: () => {
@@ -128,408 +200,257 @@ export function PersonaManager() {
       setEditingPersona(null);
       resetForm();
       toast({
-        title: "페르소나 수정 완료",
-        description: "페르소나가 성공적으로 수정되었습니다.",
+        title: "성공",
+        description: "MBTI 페르소나가 수정되었습니다."
       });
     },
     onError: () => {
       toast({
-        title: "수정 실패",
-        description: "페르소나 수정 중 오류가 발생했습니다.",
-        variant: "destructive",
+        title: "오류",
+        description: "페르소나 수정에 실패했습니다.",
+        variant: "destructive"
       });
     }
   });
 
   const deleteMutation = useMutation({
-    mutationFn: async (id: string) => {
-      const response = await apiRequest('DELETE', `/api/admin/personas/${id}`);
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to delete persona');
-      }
+    mutationFn: async (personaId: string) => {
+      const response = await apiRequest("DELETE", `/api/admin/personas/${personaId}`);
       return response.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/admin/personas'] });
       setDeletingPersona(null);
       toast({
-        title: "페르소나 삭제 완료",
-        description: "페르소나가 성공적으로 삭제되었습니다.",
+        title: "성공",
+        description: "MBTI 페르소나가 삭제되었습니다."
       });
     },
-    onError: (error: Error) => {
-      setDeletingPersona(null);
-      if (error.message.includes('connected scenarios')) {
-        toast({
-          title: "삭제 불가",
-          description: "연결된 시나리오가 있어 삭제할 수 없습니다. 먼저 시나리오에서 이 페르소나를 제거해주세요.",
-          variant: "destructive",
-        });
-      } else {
-        toast({
-          title: "삭제 실패",
-          description: "페르소나 삭제 중 오류가 발생했습니다.",
-          variant: "destructive",
-        });
-      }
+    onError: () => {
+      toast({
+        title: "오류",
+        description: "페르소나 삭제에 실패했습니다.",
+        variant: "destructive"
+      });
     }
   });
 
   const resetForm = () => {
     setFormData({
-      name: '',
-      role: '',
-      department: '',
-      experience: '',
-      image: '',
-      personality: {
-        traits: [],
-        communicationStyle: '',
-        motivation: '',
-        fears: []
-      },
+      id: '',
+      mbti: '',
+      personality_traits: [],
+      communication_style: '',
+      motivation: '',
+      fears: [],
       background: {
-        education: '',
-        previousExperience: '',
-        majorProjects: [],
-        expertise: []
+        personal_values: [],
+        hobbies: [],
+        social: {
+          preference: '',
+          behavior: ''
+        }
       },
-      currentSituation: {
-        workload: '',
-        pressure: '',
-        concerns: [],
-        position: ''
-      },
-      communicationPatterns: {
-        openingStyle: '',
-        keyPhrases: [],
-        responseToArguments: {},
-        winConditions: []
+      communication_patterns: {
+        opening_style: '',
+        key_phrases: [],
+        response_to_arguments: {},
+        win_conditions: []
       },
       voice: {
         tone: '',
         pace: '',
         emotion: ''
+      },
+      image: {
+        profile: '',
+        style: ''
       }
     });
   };
 
-  const handleEdit = (persona: ScenarioPersona) => {
-    setEditingPersona(persona);
+  const handleEdit = (persona: MBTIPersona) => {
     setFormData({
-      name: persona.name,
-      role: persona.role,
-      department: persona.department,
-      experience: persona.experience,
-      image: persona.image,
-      personality: persona.personality,
-      background: persona.background,
-      currentSituation: persona.currentSituation,
-      communicationPatterns: persona.communicationPatterns,
-      voice: persona.voice
+      id: persona.id,
+      mbti: persona.mbti,
+      personality_traits: persona.personality_traits || [],
+      communication_style: persona.communication_style || '',
+      motivation: persona.motivation || '',
+      fears: persona.fears || [],
+      background: {
+        personal_values: persona.background?.personal_values || [],
+        hobbies: persona.background?.hobbies || [],
+        social: {
+          preference: persona.background?.social?.preference || '',
+          behavior: persona.background?.social?.behavior || ''
+        }
+      },
+      communication_patterns: {
+        opening_style: persona.communication_patterns?.opening_style || '',
+        key_phrases: persona.communication_patterns?.key_phrases || [],
+        response_to_arguments: persona.communication_patterns?.response_to_arguments || {},
+        win_conditions: persona.communication_patterns?.win_conditions || []
+      },
+      voice: {
+        tone: persona.voice?.tone || '',
+        pace: persona.voice?.pace || '',
+        emotion: persona.voice?.emotion || ''
+      },
+      image: {
+        profile: persona.image?.profile || '',
+        style: persona.image?.style || ''
+      }
     });
-    setIsCreateOpen(true);
+    setEditingPersona(persona);
   };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    
     if (editingPersona) {
-      updateMutation.mutate({ id: editingPersona.id, data: formData });
+      updateMutation.mutate(formData);
     } else {
       createMutation.mutate(formData);
     }
   };
 
   if (isLoading) {
-    return (
-      <div className="flex items-center justify-center py-12">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-corporate-600"></div>
-      </div>
-    );
+    return <div className="text-center py-8">로딩 중...</div>;
+  }
+
+  if (error) {
+    return <div className="text-center py-8 text-red-600">페르소나 데이터를 불러올 수 없습니다.</div>;
   }
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-2xl font-bold text-slate-900">페르소나 관리</h2>
-          <p className="text-slate-600 mt-1">AI 페르소나를 생성하고 관리할 수 있습니다.</p>
+          <h2 className="text-2xl font-bold text-slate-900">MBTI 페르소나 관리</h2>
+          <p className="text-slate-600 mt-1">성격 유형별 AI 페르소나를 관리합니다</p>
         </div>
         
-        <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
+        <Dialog open={isCreateOpen || !!editingPersona} onOpenChange={(open) => {
+          if (!open) {
+            setIsCreateOpen(false);
+            setEditingPersona(null);
+            resetForm();
+          }
+        }}>
           <DialogTrigger asChild>
             <Button 
+              onClick={() => setIsCreateOpen(true)}
               className="bg-corporate-600 hover:bg-corporate-700"
-              onClick={() => {
-                resetForm();
-                setEditingPersona(null);
-              }}
               data-testid="button-create-persona"
             >
-              <i className="fas fa-user-plus mr-2"></i>
-              새 페르소나 생성
+              새 MBTI 페르소나 생성
             </Button>
           </DialogTrigger>
-          
           <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>
-                {editingPersona ? '페르소나 편집' : '새 페르소나 생성'}
+                {editingPersona ? 'MBTI 페르소나 수정' : '새 MBTI 페르소나 생성'}
               </DialogTitle>
             </DialogHeader>
             
             <form onSubmit={handleSubmit} className="space-y-6">
-              {/* 기본 정보 */}
-              <div className="space-y-4">
-                <h3 className="text-lg font-semibold">기본 정보</h3>
-                
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <Label htmlFor="name">이름</Label>
-                    <Input
-                      id="name"
-                      value={formData.name}
-                      onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
-                      placeholder="페르소나 이름"
-                      required
-                      data-testid="input-persona-name"
-                    />
-                  </div>
-                  
-                  <div>
-                    <Label htmlFor="department">부서</Label>
-                    <Input
-                      id="department"
-                      value={formData.department}
-                      onChange={(e) => setFormData(prev => ({ ...prev, department: e.target.value }))}
-                      placeholder="예: 개발팀, 마케팅팀"
-                      required
-                      data-testid="input-persona-department"
-                    />
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <Label htmlFor="role">직급/역할</Label>
-                    <Input
-                      id="role"
-                      value={formData.role}
-                      onChange={(e) => setFormData(prev => ({ ...prev, role: e.target.value }))}
-                      placeholder="예: 선임 개발자, 팀장"
-                      required
-                      data-testid="input-persona-role"
-                    />
-                  </div>
-                  
-                  <div>
-                    <Label htmlFor="experience">경력</Label>
-                    <Input
-                      id="experience"
-                      value={formData.experience}
-                      onChange={(e) => setFormData(prev => ({ ...prev, experience: e.target.value }))}
-                      placeholder="예: 5년차, 10년 이상"
-                      required
-                      data-testid="input-persona-experience"
-                    />
-                  </div>
-                </div>
-
+              <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <Label htmlFor="image">프로필 이미지 URL</Label>
+                  <Label htmlFor="id">MBTI ID (소문자)</Label>
                   <Input
-                    id="image"
-                    value={formData.image}
-                    onChange={(e) => setFormData(prev => ({ ...prev, image: e.target.value }))}
-                    placeholder="https://example.com/image.jpg"
-                    data-testid="input-persona-image"
+                    id="id"
+                    value={formData.id}
+                    onChange={(e) => setFormData(prev => ({ ...prev, id: e.target.value }))}
+                    placeholder="istj, enfp, intp 등"
+                    required
+                    data-testid="input-persona-id"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="mbti">MBTI 유형 (대문자)</Label>
+                  <Input
+                    id="mbti"
+                    value={formData.mbti}
+                    onChange={(e) => setFormData(prev => ({ ...prev, mbti: e.target.value }))}
+                    placeholder="ISTJ, ENFP, INTP 등"
+                    required
+                    data-testid="input-mbti"
                   />
                 </div>
               </div>
 
-              {/* 성격 및 소통 스타일 */}
-              <div className="space-y-4">
-                <h3 className="text-lg font-semibold">성격 및 소통 스타일</h3>
-                
-                <div>
-                  <Label htmlFor="traits">성격 특성 (쉼표로 구분)</Label>
-                  <Textarea
-                    id="traits"
-                    value={formData.personality.traits.join(', ')}
-                    onChange={(e) => setFormData(prev => ({ 
-                      ...prev, 
-                      personality: { ...prev.personality, traits: e.target.value.split(',').map(s => s.trim()).filter(s => s) }
-                    }))}
-                    placeholder="완벽주의자, 신중한 성격, 기술 중심적 사고"
-                    className="min-h-[80px]"
-                    data-testid="textarea-traits"
-                  />
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <Label htmlFor="motivation">동기 요인</Label>
-                    <Textarea
-                      id="motivation"
-                      value={formData.personality.motivation}
-                      onChange={(e) => setFormData(prev => ({ 
-                        ...prev, 
-                        personality: { ...prev.personality, motivation: e.target.value }
-                      }))}
-                      placeholder="높은 품질의 제품 출시와 기술적 완성도 추구"
-                      className="min-h-[60px]"
-                      data-testid="textarea-motivation"
-                    />
-                  </div>
-                  
-                  <div>
-                    <Label htmlFor="fears">주요 우려사항 (쉼표로 구분)</Label>
-                    <Textarea
-                      id="fears"
-                      value={formData.personality.fears.join(', ')}
-                      onChange={(e) => setFormData(prev => ({ 
-                        ...prev, 
-                        personality: { ...prev.personality, fears: e.target.value.split(',').map(s => s.trim()).filter(s => s) }
-                      }))}
-                      placeholder="품질 저하, 서비스 장애, 기술적 문제"
-                      className="min-h-[60px]"
-                      data-testid="textarea-fears"
-                    />
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <Label htmlFor="tone">대화 톤</Label>
-                    <Input
-                      id="tone"
-                      value={formData.voice.tone}
-                      onChange={(e) => setFormData(prev => ({ 
-                        ...prev, 
-                        voice: { ...prev.voice, tone: e.target.value }
-                      }))}
-                      placeholder="예: 신중하고 분석적, 직설적이고 실용적"
-                      data-testid="input-tone"
-                    />
-                  </div>
-                  
-                  <div>
-                    <Label htmlFor="communicationStyle">의사소통 스타일</Label>
-                    <Input
-                      id="communicationStyle"
-                      value={formData.personality.communicationStyle}
-                      onChange={(e) => setFormData(prev => ({ 
-                        ...prev, 
-                        personality: { ...prev.personality, communicationStyle: e.target.value }
-                      }))}
-                      placeholder="예: 데이터 기반 논리적 접근, 경험 중심 조언"
-                      data-testid="input-communication-style"
-                    />
-                  </div>
-                </div>
+              <div>
+                <Label htmlFor="personality_traits">성격 특성 (쉼표로 구분)</Label>
+                <Textarea
+                  id="personality_traits"
+                  value={formData.personality_traits.join(', ')}
+                  onChange={(e) => setFormData(prev => ({ 
+                    ...prev, 
+                    personality_traits: e.target.value.split(',').map(s => s.trim()).filter(s => s)
+                  }))}
+                  placeholder="경험 기반 사고, 현실적, 해결책 지향"
+                  className="min-h-[80px]"
+                  data-testid="textarea-personality-traits"
+                />
               </div>
 
-              {/* 배경 및 전문성 */}
-              <div className="space-y-4">
-                <h3 className="text-lg font-semibold">배경 및 전문성</h3>
-                
+              <div>
+                <Label htmlFor="communication_style">의사소통 스타일</Label>
+                <Textarea
+                  id="communication_style"
+                  value={formData.communication_style}
+                  onChange={(e) => setFormData(prev => ({ ...prev, communication_style: e.target.value }))}
+                  placeholder="차분하고 논리적이며, 구체적 사례를 중시함"
+                  className="min-h-[60px]"
+                  data-testid="textarea-communication-style"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <Label htmlFor="education">학력</Label>
+                  <Label htmlFor="motivation">동기</Label>
                   <Input
-                    id="education"
-                    value={formData.background.education}
-                    onChange={(e) => setFormData(prev => ({ 
-                      ...prev, 
-                      background: { ...prev.background, education: e.target.value }
-                    }))}
-                    placeholder="예: 컴퓨터공학 학사, MBA"
-                    data-testid="input-education"
+                    id="motivation"
+                    value={formData.motivation}
+                    onChange={(e) => setFormData(prev => ({ ...prev, motivation: e.target.value }))}
+                    placeholder="효율적 문제 해결과 신뢰 구축"
+                    data-testid="input-motivation"
                   />
                 </div>
-
                 <div>
-                  <Label htmlFor="previousExperience">이전 경력</Label>
-                  <Textarea
-                    id="previousExperience"
-                    value={formData.background.previousExperience}
-                    onChange={(e) => setFormData(prev => ({ 
-                      ...prev, 
-                      background: { ...prev.background, previousExperience: e.target.value }
-                    }))}
-                    placeholder="5년간 모바일 앱 개발을 해오며 다양한 기술적 이슈를 경험함"
-                    className="min-h-[80px]"
-                    data-testid="textarea-previous-experience"
-                  />
-                </div>
-
-                <div>
-                  <Label htmlFor="expertise">전문 분야 (쉼표로 구분)</Label>
+                  <Label htmlFor="fears">우려사항 (쉼표로 구분)</Label>
                   <Input
-                    id="expertise"
-                    value={formData.background.expertise.join(', ')}
+                    id="fears"
+                    value={formData.fears.join(', ')}
                     onChange={(e) => setFormData(prev => ({ 
                       ...prev, 
-                      background: { ...prev.background, expertise: e.target.value.split(',').map(s => s.trim()).filter(s => s) }
+                      fears: e.target.value.split(',').map(s => s.trim()).filter(s => s)
                     }))}
-                    placeholder="모바일 개발, 코드 리뷰, 아키텍처 설계, 성능 최적화"
-                    data-testid="input-expertise"
-                  />
-                  <div className="mt-2 flex flex-wrap gap-1">
-                    {formData.background.expertise.map((skill, index) => (
-                      <Badge key={index} variant="secondary" className="text-xs">
-                        {skill}
-                        <button 
-                          type="button"
-                          onClick={() => setFormData(prev => ({ 
-                            ...prev, 
-                            background: { ...prev.background, expertise: prev.background.expertise.filter((_, i) => i !== index) }
-                          }))}
-                          className="ml-1 hover:bg-red-200"
-                        >
-                          ×
-                        </button>
-                      </Badge>
-                    ))}
-                  </div>
-                </div>
-
-                <div>
-                  <Label htmlFor="winConditions">성공 조건 (쉼표로 구분)</Label>
-                  <Textarea
-                    id="winConditions"
-                    value={formData.communicationPatterns.winConditions.join(', ')}
-                    onChange={(e) => setFormData(prev => ({ 
-                      ...prev, 
-                      communicationPatterns: { ...prev.communicationPatterns, winConditions: e.target.value.split(',').map(s => s.trim()).filter(s => s) }
-                    }))}
-                    placeholder="기술적 설득 완료, 일정 조율 합의, 품질 기준 확립"
-                    className="min-h-[100px]"
-                    data-testid="textarea-win-conditions"
+                    placeholder="통제 불가능한 상황, 과부하, 혼란"
+                    data-testid="input-fears"
                   />
                 </div>
               </div>
 
-              <div className="flex justify-end space-x-4">
-                <Button
-                  type="button"
-                  variant="outline"
+              <div className="flex justify-end space-x-2">
+                <Button 
+                  type="button" 
+                  variant="outline" 
                   onClick={() => {
                     setIsCreateOpen(false);
                     setEditingPersona(null);
                     resetForm();
                   }}
-                  data-testid="button-cancel-persona"
                 >
                   취소
                 </Button>
-                <Button
-                  type="submit"
-                  className="bg-corporate-600 hover:bg-corporate-700"
+                <Button 
+                  type="submit" 
                   disabled={createMutation.isPending || updateMutation.isPending}
+                  className="bg-corporate-600 hover:bg-corporate-700"
                   data-testid="button-save-persona"
                 >
-                  {editingPersona ? '수정하기' : '생성하기'}
+                  {createMutation.isPending || updateMutation.isPending ? '저장 중...' : '저장'}
                 </Button>
               </div>
             </form>
@@ -537,115 +458,127 @@ export function PersonaManager() {
         </Dialog>
       </div>
 
-      {/* 페르소나 목록 */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
-        {personas?.map((persona) => (
-          <Card key={persona.id} className="card-enhanced">
-            <CardHeader>
-              <div className="flex items-center space-x-4">
-                <img 
-                  src={persona.image} 
-                  alt={persona.name}
-                  className="w-12 h-12 rounded-full"
-                  onError={(e) => {
-                    (e.target as HTMLImageElement).src = `https://ui-avatars.com/api/?name=${encodeURIComponent(persona.name)}&background=6366f1&color=fff&size=48`;
-                  }}
-                />
-                <div className="flex-1">
-                  <CardTitle className="text-lg">{persona.name}</CardTitle>
-                  <p className="text-sm text-slate-600">{persona.role}</p>
-                  <Badge variant="outline" className="text-xs mt-1">
-                    {persona.department}
-                  </Badge>
-                </div>
-                <div className="flex space-x-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => handleEdit(persona)}
-                    data-testid={`button-edit-persona-${persona.id}`}
-                  >
-                    <i className="fas fa-edit"></i>
-                  </Button>
-                  <AlertDialog>
-                    <AlertDialogTrigger asChild>
-                      <Button
-                        variant="destructive"
-                        size="sm"
-                        onClick={() => setDeletingPersona(persona)}
-                        disabled={deleteMutation.isPending}
-                        data-testid={`button-delete-persona-${persona.id}`}
-                      >
-                        <i className="fas fa-trash"></i>
-                      </Button>
-                    </AlertDialogTrigger>
-                    <AlertDialogContent>
-                      <AlertDialogHeader>
-                        <AlertDialogTitle>페르소나 삭제 확인</AlertDialogTitle>
-                        <AlertDialogDescription>
-                          <strong>{persona.name}</strong> 페르소나를 삭제하시겠습니까?
-                          <br /><br />
-                          이 작업은 되돌릴 수 없습니다. 연결된 시나리오가 있는 경우 삭제가 제한될 수 있습니다.
-                        </AlertDialogDescription>
-                      </AlertDialogHeader>
-                      <AlertDialogFooter>
-                        <AlertDialogCancel onClick={() => setDeletingPersona(null)}>취소</AlertDialogCancel>
-                        <AlertDialogAction
-                          onClick={() => {
-                            if (deletingPersona) {
-                              deleteMutation.mutate(deletingPersona.id);
-                            }
-                          }}
-                          className="bg-red-600 hover:bg-red-700"
-                        >
-                          삭제하기
-                        </AlertDialogAction>
-                      </AlertDialogFooter>
-                    </AlertDialogContent>
-                  </AlertDialog>
-                </div>
-              </div>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-3">
-                <div>
-                  <h4 className="font-medium text-slate-700 mb-1">성격 특성</h4>
-                  <p className="text-sm text-slate-600">{persona.personality.traits.join(', ')}</p>
-                </div>
-                
-                <div>
-                  <h4 className="font-medium text-slate-700 mb-1">전문 분야</h4>
-                  <div className="flex flex-wrap gap-1">
-                    {persona.background.expertise.map((skill, index) => (
-                      <Badge key={index} variant="secondary" className="text-xs">
-                        {skill}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        {personas.map((persona: MBTIPersona) => {
+          const scenarioUsage = getPersonaUsageInScenarios(persona.id);
+          
+          return (
+            <Card key={persona.id} className="overflow-hidden">
+              <CardHeader>
+                <div className="flex items-start justify-between">
+                  <div className="flex-1">
+                    <CardTitle className="text-lg mb-2 flex items-center gap-2">
+                      <span className="bg-blue-100 text-blue-800 px-2 py-1 rounded text-sm font-bold">
+                        {persona.mbti}
+                      </span>
+                      <span className="text-slate-700">{persona.id}</span>
+                    </CardTitle>
+                    <p className="text-sm text-slate-600 mb-2">{persona.communication_style}</p>
+                    <div className="flex items-center gap-2">
+                      <Badge variant="outline" className="bg-green-100 text-green-800">
+                        {scenarioUsage.length}개 시나리오에서 사용
                       </Badge>
-                    ))}
+                    </div>
+                  </div>
+                  <div className="flex space-x-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleEdit(persona)}
+                      data-testid={`button-edit-persona-${persona.id}`}
+                    >
+                      편집
+                    </Button>
+                    <AlertDialog>
+                      <AlertDialogTrigger asChild>
+                        <Button
+                          variant="destructive"
+                          size="sm"
+                          onClick={() => setDeletingPersona(persona)}
+                          data-testid={`button-delete-persona-${persona.id}`}
+                        >
+                          삭제
+                        </Button>
+                      </AlertDialogTrigger>
+                      <AlertDialogContent>
+                        <AlertDialogHeader>
+                          <AlertDialogTitle>페르소나 삭제</AlertDialogTitle>
+                          <AlertDialogDescription>
+                            <strong>{persona.mbti} ({persona.id})</strong> 페르소나를 삭제하시겠습니까?
+                            <br /><br />
+                            현재 {scenarioUsage.length}개 시나리오에서 사용 중입니다.
+                            삭제 시 해당 시나리오들에 영향을 줄 수 있습니다.
+                          </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                          <AlertDialogCancel onClick={() => setDeletingPersona(null)}>취소</AlertDialogCancel>
+                          <AlertDialogAction
+                            onClick={() => {
+                              if (deletingPersona) {
+                                deleteMutation.mutate(deletingPersona.id);
+                              }
+                            }}
+                            className="bg-red-600 hover:bg-red-700"
+                          >
+                            삭제하기
+                          </AlertDialogAction>
+                        </AlertDialogFooter>
+                      </AlertDialogContent>
+                    </AlertDialog>
                   </div>
                 </div>
-                
-                <div>
-                  <h4 className="font-medium text-slate-700 mb-1">성격 특성</h4>
-                  <div className="space-y-1">
-                    {persona.personality.traits.slice(0, 2).map((trait, index) => (
-                      <p key={index} className="text-xs text-slate-600">• {trait}</p>
-                    ))}
-                    {persona.personality.traits.length > 2 && (
-                      <p className="text-xs text-slate-500">+{persona.personality.traits.length - 2}개 더</p>
-                    )}
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-3">
+                  <div>
+                    <h4 className="font-medium text-slate-700 mb-1">성격 특성</h4>
+                    <div className="flex flex-wrap gap-1">
+                      {(persona.personality_traits || []).slice(0, 3).map((trait, index) => (
+                        <Badge key={index} variant="secondary" className="text-xs">
+                          {trait}
+                        </Badge>
+                      ))}
+                      {persona.personality_traits?.length > 3 && (
+                        <Badge variant="outline" className="text-xs">
+                          +{persona.personality_traits.length - 3}개 더
+                        </Badge>
+                      )}
+                    </div>
                   </div>
+                  
+                  <div>
+                    <h4 className="font-medium text-slate-700 mb-1">동기</h4>
+                    <p className="text-sm text-slate-600">{persona.motivation}</p>
+                  </div>
+
+                  {scenarioUsage.length > 0 && (
+                    <div>
+                      <h4 className="font-medium text-slate-700 mb-1">사용 현황</h4>
+                      <div className="space-y-1">
+                        {scenarioUsage.slice(0, 2).map((usage, index) => (
+                          <div key={index} className="text-xs text-slate-600 bg-slate-50 p-2 rounded">
+                            <div className="font-medium">{usage.scenarioTitle}</div>
+                            <div>{usage.name} - {usage.position}</div>
+                          </div>
+                        ))}
+                        {scenarioUsage.length > 2 && (
+                          <p className="text-xs text-slate-500">+{scenarioUsage.length - 2}개 시나리오 더</p>
+                        )}
+                      </div>
+                    </div>
+                  )}
                 </div>
-              </div>
-            </CardContent>
-          </Card>
-        ))}
+              </CardContent>
+            </Card>
+          );
+        })}
       </div>
 
       {personas?.length === 0 && (
         <div className="text-center py-12">
-          <div className="text-6xl mb-4">👤</div>
-          <h3 className="text-xl font-medium text-slate-600 mb-2">페르소나가 없습니다</h3>
-          <p className="text-slate-500 mb-4">새로운 AI 페르소나를 생성해보세요</p>
+          <div className="text-6xl mb-4">🧠</div>
+          <h3 className="text-xl font-medium text-slate-600 mb-2">MBTI 페르소나가 없습니다</h3>
+          <p className="text-slate-500 mb-4">새로운 MBTI 성격 유형을 추가해보세요</p>
           <Button
             onClick={() => {
               resetForm();
@@ -654,7 +587,7 @@ export function PersonaManager() {
             }}
             className="bg-corporate-600 hover:bg-corporate-700"
           >
-            첫 번째 페르소나 생성
+            첫 번째 MBTI 페르소나 생성
           </Button>
         </div>
       )}
