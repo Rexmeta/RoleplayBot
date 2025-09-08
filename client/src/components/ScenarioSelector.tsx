@@ -27,11 +27,11 @@ export default function ScenarioSelector({ onScenarioSelect, playerProfile }: Sc
   
   // 필터 상태
   const [filters, setFilters] = useState({
-    difficulty: 'all',
-    personaCount: 'all',
+    difficulty: undefined as string | undefined,
+    personaCount: undefined as string | undefined,
     searchText: '',
-    department: 'all',
-    skillType: 'all'
+    department: undefined as string | undefined,
+    skillType: undefined as string | undefined
   });
 
   // JSON 파일에서 실시간으로 시나리오와 페르소나 데이터 가져오기
@@ -165,7 +165,7 @@ export default function ScenarioSelector({ onScenarioSelect, playerProfile }: Sc
     // 부서 필터
     if (filters.department && filters.department !== 'all') {
       const hasMatchingDepartment = scenario.personas?.some((persona: any) => 
-        typeof persona === 'object' && persona.department?.toLowerCase().includes(filters.department.toLowerCase())
+        typeof persona === 'object' && persona.department?.toLowerCase().includes(filters.department!.toLowerCase())
       );
       if (!hasMatchingDepartment) {
         return false;
@@ -175,7 +175,7 @@ export default function ScenarioSelector({ onScenarioSelect, playerProfile }: Sc
     // 스킬 유형 필터
     if (filters.skillType && filters.skillType !== 'all') {
       const hasMatchingSkill = scenario.skills?.some((skill: string) =>
-        skill.toLowerCase().includes(filters.skillType.toLowerCase())
+        skill.toLowerCase().includes(filters.skillType!.toLowerCase())
       );
       if (!hasMatchingSkill) {
         return false;
@@ -188,11 +188,11 @@ export default function ScenarioSelector({ onScenarioSelect, playerProfile }: Sc
   // 필터 초기화
   const resetFilters = () => {
     setFilters({
-      difficulty: 'all',
-      personaCount: 'all',
+      difficulty: undefined,
+      personaCount: undefined,
       searchText: '',
-      department: 'all',
-      skillType: 'all'
+      department: undefined,
+      skillType: undefined
     });
   };
 
@@ -336,7 +336,7 @@ export default function ScenarioSelector({ onScenarioSelect, playerProfile }: Sc
             <div className="mt-3 pt-3 border-t border-slate-300">
               <div className="flex items-center justify-between text-xs text-slate-600">
                 <span>총 {filteredScenarios.length}개의 시나리오</span>
-                {(filters.searchText || (filters.difficulty !== 'all') || (filters.personaCount !== 'all') || (filters.department !== 'all') || (filters.skillType !== 'all')) && (
+                {(filters.searchText || filters.difficulty || filters.personaCount || filters.department || filters.skillType) && (
                   <span className="text-blue-600">필터 적용됨</span>
                 )}
               </div>
