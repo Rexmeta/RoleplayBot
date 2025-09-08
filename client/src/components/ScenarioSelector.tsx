@@ -286,7 +286,7 @@ export default function ScenarioSelector({ onScenarioSelect, playerProfile }: Sc
               {/* 페르소나 수 */}
               <Select value={filters.personaCount} onValueChange={(value) => setFilters(prev => ({ ...prev, personaCount: value }))}>
                 <SelectTrigger data-testid="filter-persona-count" className="h-9 text-sm">
-                  <SelectValue placeholder="참가자 수" />
+                  <SelectValue placeholder="상대역 수" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">전체</SelectItem>
