@@ -372,6 +372,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const conversations = await storage.getAllConversations();
       const feedbacks = await storage.getAllFeedbacks();
+      const scenarios = await fileManager.getAllScenarios();
       
       // Calculate basic statistics
       const totalSessions = conversations.length;
@@ -380,9 +381,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
         ? Math.round(feedbacks.reduce((acc, f) => acc + f.overallScore, 0) / feedbacks.length)
         : 0;
       
-      // Scenario popularity
+      // Scenario popularity with proper names
       const scenarioStats = conversations.reduce((acc, conv) => {
-        acc[conv.scenarioId] = (acc[conv.scenarioId] || 0) + 1;
+        const scenario = scenarios.find(s => s.id === conv.scenarioId);
+        const scenarioName = scenario?.title || conv.scenarioName || conv.scenarioId;
+        acc[conv.scenarioId] = {
+          count: (acc[conv.scenarioId]?.count || 0) + 1,
+          name: scenarioName,
+          difficulty: scenario?.difficulty || 1
+        };
+        return acc;
+      }, {} as Record<string, { count: number; name: string; difficulty: number }>);
+      
+      // MBTI 페르소나 사용 분석
+      const mbtiUsage = conversations.reduce((acc, conv) => {
+        if (conv.personaId) {
+          acc[conv.personaId] = (acc[conv.personaId] || 0) + 1;
+        }
         return acc;
       }, {} as Record<string, number>);
       
@@ -396,7 +411,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         completedSessions,
         averageScore,
         completionRate,
-        scenarioStats
+        scenarioStats,
+        mbtiUsage,
+        totalScenarios: scenarios.length
       });
     } catch (error) {
       console.error("Error getting analytics overview:", error);
@@ -408,6 +425,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const feedbacks = await storage.getAllFeedbacks();
       const conversations = await storage.getAllConversations();
+      const scenarios = await fileManager.getAllScenarios();
       
       // Score distribution
       const scoreRanges = {
@@ -439,19 +457,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
         };
       });
       
-      // Scenario difficulty vs performance
+      // Scenario difficulty vs performance (현재 구조에 맞게 수정)
       const scenarioPerformance = conversations
         .filter(c => c.status === "completed")
         .reduce((acc, conv) => {
           const feedback = feedbacks.find(f => f.conversationId === conv.id);
+          const scenario = scenarios.find(s => s.id === conv.scenarioId);
           if (feedback) {
             if (!acc[conv.scenarioId]) {
-              acc[conv.scenarioId] = { scores: [], name: conv.scenarioName };
+              acc[conv.scenarioId] = { 
+                scores: [], 
+                name: scenario?.title || conv.scenarioName || conv.scenarioId,
+                difficulty: scenario?.difficulty || 1,
+                personaCount: Array.isArray(scenario?.personas) ? scenario.personas.length : 0
+              };
             }
             acc[conv.scenarioId].scores.push(feedback.overallScore);
           }
           return acc;
-        }, {} as Record<string, { scores: number[]; name: string }>);
+        }, {} as Record<string, { scores: number[]; name: string; difficulty: number; personaCount: number }>);
       
       // Calculate scenario averages
       Object.keys(scenarioPerformance).forEach(scenarioId => {
@@ -463,10 +487,35 @@ export async function registerRoutes(app: Express): Promise<Server> {
         };
       });
       
+      // MBTI 페르소나별 성과 분석
+      const mbtiPerformance = conversations
+        .filter(c => c.status === "completed" && c.personaId)
+        .reduce((acc, conv) => {
+          const feedback = feedbacks.find(f => f.conversationId === conv.id);
+          if (feedback && conv.personaId) {
+            if (!acc[conv.personaId]) {
+              acc[conv.personaId] = { scores: [], count: 0 };
+            }
+            acc[conv.personaId].scores.push(feedback.overallScore);
+            acc[conv.personaId].count += 1;
+          }
+          return acc;
+        }, {} as Record<string, { scores: number[]; count: number }>);
+      
+      // Calculate MBTI averages
+      Object.keys(mbtiPerformance).forEach(mbtiId => {
+        const scores = mbtiPerformance[mbtiId].scores;
+        (mbtiPerformance[mbtiId] as any) = {
+          ...mbtiPerformance[mbtiId],
+          average: scores.length > 0 ? Math.round(scores.reduce((acc, score) => acc + score, 0) / scores.length) : 0
+        };
+      });
+      
       res.json({
         scoreRanges,
         categoryPerformance,
-        scenarioPerformance
+        scenarioPerformance,
+        mbtiPerformance
       });
     } catch (error) {
       console.error("Error getting performance analytics:", error);

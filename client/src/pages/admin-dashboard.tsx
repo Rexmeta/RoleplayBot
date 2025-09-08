@@ -4,14 +4,15 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from "recharts";
-import { scenarios } from "@/lib/scenarios";
 
 interface AnalyticsOverview {
   totalSessions: number;
   completedSessions: number;
   averageScore: number;
   completionRate: number;
-  scenarioStats: Record<string, number>;
+  scenarioStats: Record<string, { count: number; name: string; difficulty: number }>;
+  mbtiUsage: Record<string, number>;
+  totalScenarios: number;
 }
 
 interface PerformanceData {
@@ -33,7 +34,10 @@ interface PerformanceData {
     name: string;
     average: number;
     sessionCount: number;
+    difficulty: number;
+    personaCount: number;
   }>;
+  mbtiPerformance: Record<string, { scores: number[]; count: number; average: number }>;
 }
 
 interface TrendsData {
@@ -62,6 +66,12 @@ export default function AdminDashboard() {
     queryKey: ["/api/admin/analytics/trends"],
   });
 
+  // 현재 시나리오 구조에 맞게 시나리오 데이터 가져오기
+  const { data: scenarios = [] } = useQuery({
+    queryKey: ['/api/scenarios'],
+    queryFn: () => fetch('/api/scenarios').then(res => res.json())
+  });
+
   if (overviewLoading || performanceLoading || trendsLoading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
@@ -85,19 +95,25 @@ export default function AdminDashboard() {
     count: data.count
   })) : [];
 
-  const scenarioPopularityData = overview ? Object.entries(overview.scenarioStats).map(([scenarioId, count]) => {
-    const scenario = scenarios.find(s => s.id === scenarioId);
+  const scenarioPopularityData = overview ? Object.entries(overview.scenarioStats).map(([scenarioId, data]) => {
     return {
-      name: scenario?.name || scenarioId,
-      sessions: count,
-      difficulty: scenario?.difficulty || 1
+      name: data.name,
+      sessions: data.count,
+      difficulty: data.difficulty
     };
   }) : [];
 
+  // MBTI 사용 분석 데이터
+  const mbtiUsageData = overview ? Object.entries(overview.mbtiUsage).map(([mbtiId, count]) => ({
+    name: mbtiId.toUpperCase(),
+    count,
+    percentage: Math.round((count / overview.totalSessions) * 100)
+  })) : [];
+
   const scenarioPerformanceData = performance ? Object.entries(performance.scenarioPerformance).map(([scenarioId, data]) => {
-    const scenario = scenarios.find(s => s.id === scenarioId);
+    const scenario = scenarios.find((s: any) => s.id === scenarioId);
     return {
-      name: data.name,
+      name: data.name || scenario?.title || scenarioId,
       average: data.average,
       sessionCount: data.sessionCount,
       difficulty: scenario?.difficulty || 1
@@ -180,9 +196,10 @@ export default function AdminDashboard() {
 
       {/* Detailed Analytics */}
       <Tabs defaultValue="performance" className="space-y-6">
-        <TabsList className="grid w-full grid-cols-3">
+        <TabsList className="grid w-full grid-cols-4">
           <TabsTrigger value="performance" data-testid="tab-performance">성과 분석</TabsTrigger>
           <TabsTrigger value="scenarios" data-testid="tab-scenarios">시나리오 분석</TabsTrigger>
+          <TabsTrigger value="mbti" data-testid="tab-mbti">MBTI 분석</TabsTrigger>
           <TabsTrigger value="trends" data-testid="tab-trends">트렌드 분석</TabsTrigger>
         </TabsList>
 
@@ -289,6 +306,7 @@ export default function AdminDashboard() {
                       <th className="text-left p-2">평균 점수</th>
                       <th className="text-left p-2">세션 수</th>
                       <th className="text-left p-2">난이도</th>
+                      <th className="text-left p-2">페르소나 수</th>
                       <th className="text-left p-2">상태</th>
                     </tr>
                   </thead>
@@ -309,6 +327,7 @@ export default function AdminDashboard() {
                         <td className="p-2">
                           {'★'.repeat(scenario.difficulty)}{'☆'.repeat(3-scenario.difficulty)}
                         </td>
+                        <td className="p-2">{scenario.personaCount || 0}명</td>
                         <td className="p-2">
                           <span className={`px-2 py-1 rounded-full text-xs ${
                             scenario.average >= 75 ? 'bg-green-100 text-green-800' :
@@ -320,6 +339,109 @@ export default function AdminDashboard() {
                         </td>
                       </tr>
                     ))}
+                  </tbody>
+                </table>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="mbti" className="space-y-6">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* MBTI Usage Distribution */}
+            <Card data-testid="card-mbti-usage">
+              <CardHeader>
+                <CardTitle>MBTI 유형별 사용량</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <ResponsiveContainer width="100%" height={300}>
+                  <BarChart data={mbtiUsageData}>
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="name" />
+                    <YAxis />
+                    <Tooltip formatter={(value, name) => [`${value}회`, name === 'count' ? '사용 횟수' : name]} />
+                    <Bar dataKey="count" fill="#8b5cf6" />
+                  </BarChart>
+                </ResponsiveContainer>
+              </CardContent>
+            </Card>
+
+            {/* MBTI Performance Chart */}
+            <Card data-testid="card-mbti-performance">
+              <CardHeader>
+                <CardTitle>MBTI 유형별 성과</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <ResponsiveContainer width="100%" height={300}>
+                  <BarChart data={performance ? Object.entries(performance.mbtiPerformance).map(([mbti, data]) => ({
+                    name: mbti.toUpperCase(),
+                    average: data.average,
+                    count: data.count
+                  })) : []}>
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="name" />
+                    <YAxis domain={[0, 100]} />
+                    <Tooltip formatter={(value, name) => [
+                      name === 'average' ? `${value}점` : `${value}회`,
+                      name === 'average' ? '평균 점수' : '세션 수'
+                    ]} />
+                    <Bar dataKey="average" fill="#06b6d4" />
+                  </BarChart>
+                </ResponsiveContainer>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* MBTI Details Table */}
+          <Card data-testid="card-mbti-details">
+            <CardHeader>
+              <CardTitle>MBTI 상세 분석</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="overflow-x-auto">
+                <table className="w-full border-collapse">
+                  <thead>
+                    <tr className="border-b">
+                      <th className="text-left p-2">MBTI 유형</th>
+                      <th className="text-left p-2">평균 점수</th>
+                      <th className="text-left p-2">세션 수</th>
+                      <th className="text-left p-2">사용 비율</th>
+                      <th className="text-left p-2">성과 레벨</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {performance ? Object.entries(performance.mbtiPerformance).map(([mbti, data], index) => {
+                      const usageCount = overview?.mbtiUsage[mbti] || 0;
+                      const usagePercentage = overview?.totalSessions ? Math.round((usageCount / overview.totalSessions) * 100) : 0;
+                      
+                      return (
+                        <tr key={index} className="border-b hover:bg-slate-50" data-testid={`mbti-row-${index}`}>
+                          <td className="p-2 font-medium">{mbti.toUpperCase()}</td>
+                          <td className="p-2">
+                            <span className={`font-semibold ${
+                              data.average >= 80 ? 'text-green-600' :
+                              data.average >= 70 ? 'text-blue-600' :
+                              data.average >= 60 ? 'text-yellow-600' : 'text-red-600'
+                            }`}>
+                              {data.average}점
+                            </span>
+                          </td>
+                          <td className="p-2">{data.count}회</td>
+                          <td className="p-2">{usagePercentage}%</td>
+                          <td className="p-2">
+                            <span className={`px-2 py-1 rounded-full text-xs ${
+                              data.average >= 80 ? 'bg-green-100 text-green-800' :
+                              data.average >= 70 ? 'bg-blue-100 text-blue-800' :
+                              data.average >= 60 ? 'bg-yellow-100 text-yellow-800' : 'bg-red-100 text-red-800'
+                            }`}>
+                              {data.average >= 80 ? '탁월' : 
+                               data.average >= 70 ? '우수' : 
+                               data.average >= 60 ? '보통' : '개선 필요'}
+                            </span>
+                          </td>
+                        </tr>
+                      );
+                    }) : []}
                   </tbody>
                 </table>
               </div>
