@@ -14,6 +14,18 @@ import { ComplexScenario } from '@/lib/scenario-system';
 import { Loader2 } from 'lucide-react';
 import { AIScenarioGenerator } from './AIScenarioGenerator';
 
+interface ScenarioPersona {
+  id: string;
+  name: string;
+  department: string;
+  position: string;
+  experience: string;
+  personaRef: string;
+  stance: string;
+  goal: string;
+  tradeoff: string;
+}
+
 interface ScenarioFormData {
   title: string;
   description: string;
@@ -38,7 +50,7 @@ interface ScenarioFormData {
     acceptable: string;
     failure: string;
   };
-  personas: string[];
+  personas: ScenarioPersona[];
   recommendedFlow: string[];
 }
 
@@ -202,7 +214,17 @@ export function ScenarioManager() {
       successCriteria: scenario.successCriteria,
       // personas가 객체 배열인 경우 ID만 추출, 문자열 배열인 경우 그대로 사용
       personas: Array.isArray(scenario.personas) 
-        ? scenario.personas.map(p => typeof p === 'string' ? p : p.id || p.name || '')
+        ? scenario.personas.map(p => typeof p === 'string' ? {
+            id: p,
+            name: '',
+            department: '',
+            position: '',
+            experience: '',
+            personaRef: p + '.json',
+            stance: '',
+            goal: '',
+            tradeoff: ''
+          } : p)
         : [],
       recommendedFlow: scenario.recommendedFlow
     });
@@ -591,34 +613,189 @@ export function ScenarioManager() {
                 </div>
 
                 <div>
-                  <Label htmlFor="personas">포함할 페르소나 ID (쉼표로 구분)</Label>
-                  <Input
-                    id="personas"
-                    value={formData.personas.join(', ')}
-                    onChange={(e) => setFormData(prev => ({ 
-                      ...prev, 
-                      personas: e.target.value.split(',').map(s => s.trim()).filter(s => s)
-                    }))}
-                    placeholder="dev-senior-lee, marketing-manager-kim, qa-specialist-park"
-                    data-testid="input-personas"
-                  />
-                  <div className="mt-2 flex flex-wrap gap-1">
+                  <div className="flex items-center justify-between mb-3">
+                    <Label>페르소나 관리</Label>
+                    <Button
+                      type="button"
+                      onClick={() => {
+                        setFormData(prev => ({
+                          ...prev,
+                          personas: [...prev.personas, {
+                            id: '',
+                            name: '',
+                            department: '',
+                            position: '',
+                            experience: '',
+                            personaRef: '',
+                            stance: '',
+                            goal: '',
+                            tradeoff: ''
+                          }]
+                        }));
+                      }}
+                      variant="outline"
+                      size="sm"
+                      data-testid="add-persona"
+                    >
+                      <i className="fas fa-plus mr-1"></i>
+                      페르소나 추가
+                    </Button>
+                  </div>
+                  
+                  <div className="space-y-4 max-h-96 overflow-y-auto">
                     {formData.personas.map((persona, index) => (
-                      <Badge key={index} variant="outline" className="text-xs">
-                        {persona}
-                        <button 
-                          type="button"
-                          onClick={() => setFormData(prev => ({ 
-                            ...prev, 
-                            personas: prev.personas.filter((_, i) => i !== index)
-                          }))}
-                          className="ml-1 hover:bg-red-200"
-                          data-testid={`remove-persona-${index}`}
-                        >
-                          ×
-                        </button>
-                      </Badge>
+                      <div key={index} className="border rounded-lg p-4 space-y-3 bg-slate-50">
+                        <div className="flex items-center justify-between">
+                          <h4 className="font-medium text-slate-700">페르소나 #{index + 1}</h4>
+                          <Button
+                            type="button"
+                            onClick={() => {
+                              setFormData(prev => ({
+                                ...prev,
+                                personas: prev.personas.filter((_, i) => i !== index)
+                              }));
+                            }}
+                            variant="destructive"
+                            size="sm"
+                            data-testid={`remove-persona-${index}`}
+                          >
+                            <i className="fas fa-trash"></i>
+                          </Button>
+                        </div>
+                        
+                        <div className="grid grid-cols-2 gap-3">
+                          <div>
+                            <Label htmlFor={`persona-id-${index}`}>MBTI ID *</Label>
+                            <Input
+                              id={`persona-id-${index}`}
+                              value={persona.id}
+                              onChange={(e) => {
+                                const newPersonas = [...formData.personas];
+                                newPersonas[index] = { ...persona, id: e.target.value, personaRef: e.target.value + '.json' };
+                                setFormData(prev => ({ ...prev, personas: newPersonas }));
+                              }}
+                              placeholder="istj, enfj, intp 등"
+                              data-testid={`input-persona-id-${index}`}
+                            />
+                          </div>
+                          
+                          <div>
+                            <Label htmlFor={`persona-name-${index}`}>이름 *</Label>
+                            <Input
+                              id={`persona-name-${index}`}
+                              value={persona.name}
+                              onChange={(e) => {
+                                const newPersonas = [...formData.personas];
+                                newPersonas[index] = { ...persona, name: e.target.value };
+                                setFormData(prev => ({ ...prev, personas: newPersonas }));
+                              }}
+                              placeholder="김민수, 이지영 등"
+                              data-testid={`input-persona-name-${index}`}
+                            />
+                          </div>
+                          
+                          <div>
+                            <Label htmlFor={`persona-department-${index}`}>부서 *</Label>
+                            <Input
+                              id={`persona-department-${index}`}
+                              value={persona.department}
+                              onChange={(e) => {
+                                const newPersonas = [...formData.personas];
+                                newPersonas[index] = { ...persona, department: e.target.value };
+                                setFormData(prev => ({ ...prev, personas: newPersonas }));
+                              }}
+                              placeholder="개발팀, 마케팅팀, QA팀 등"
+                              data-testid={`input-persona-department-${index}`}
+                            />
+                          </div>
+                          
+                          <div>
+                            <Label htmlFor={`persona-position-${index}`}>직책 *</Label>
+                            <Input
+                              id={`persona-position-${index}`}
+                              value={persona.position}
+                              onChange={(e) => {
+                                const newPersonas = [...formData.personas];
+                                newPersonas[index] = { ...persona, position: e.target.value };
+                                setFormData(prev => ({ ...prev, personas: newPersonas }));
+                              }}
+                              placeholder="선임 개발자, 매니저 등"
+                              data-testid={`input-persona-position-${index}`}
+                            />
+                          </div>
+                          
+                          <div>
+                            <Label htmlFor={`persona-experience-${index}`}>경력</Label>
+                            <Input
+                              id={`persona-experience-${index}`}
+                              value={persona.experience}
+                              onChange={(e) => {
+                                const newPersonas = [...formData.personas];
+                                newPersonas[index] = { ...persona, experience: e.target.value };
+                                setFormData(prev => ({ ...prev, personas: newPersonas }));
+                              }}
+                              placeholder="8년차, 신입, 5년차 등"
+                              data-testid={`input-persona-experience-${index}`}
+                            />
+                          </div>
+                        </div>
+                        
+                        <div>
+                          <Label htmlFor={`persona-stance-${index}`}>입장/태도 *</Label>
+                          <Textarea
+                            id={`persona-stance-${index}`}
+                            value={persona.stance}
+                            onChange={(e) => {
+                              const newPersonas = [...formData.personas];
+                              newPersonas[index] = { ...persona, stance: e.target.value };
+                              setFormData(prev => ({ ...prev, personas: newPersonas }));
+                            }}
+                            placeholder="이 상황에 대한 구체적인 입장과 의견"
+                            rows={2}
+                            data-testid={`input-persona-stance-${index}`}
+                          />
+                        </div>
+                        
+                        <div>
+                          <Label htmlFor={`persona-goal-${index}`}>목표 *</Label>
+                          <Textarea
+                            id={`persona-goal-${index}`}
+                            value={persona.goal}
+                            onChange={(e) => {
+                              const newPersonas = [...formData.personas];
+                              newPersonas[index] = { ...persona, goal: e.target.value };
+                              setFormData(prev => ({ ...prev, personas: newPersonas }));
+                            }}
+                            placeholder="개인적인 목표와 원하는 결과"
+                            rows={2}
+                            data-testid={`input-persona-goal-${index}`}
+                          />
+                        </div>
+                        
+                        <div>
+                          <Label htmlFor={`persona-tradeoff-${index}`}>양보 조건</Label>
+                          <Textarea
+                            id={`persona-tradeoff-${index}`}
+                            value={persona.tradeoff}
+                            onChange={(e) => {
+                              const newPersonas = [...formData.personas];
+                              newPersonas[index] = { ...persona, tradeoff: e.target.value };
+                              setFormData(prev => ({ ...prev, personas: newPersonas }));
+                            }}
+                            placeholder="양보할 수 있는 부분이나 조건"
+                            rows={2}
+                            data-testid={`input-persona-tradeoff-${index}`}
+                          />
+                        </div>
+                      </div>
                     ))}
+                    
+                    {formData.personas.length === 0 && (
+                      <div className="text-center py-8 text-slate-500">
+                        <i className="fas fa-users text-4xl mb-2"></i>
+                        <p>페르소나를 추가해주세요</p>
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
