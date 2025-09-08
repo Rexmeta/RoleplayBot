@@ -23,7 +23,7 @@ export interface ComplexScenario {
     acceptable: string;
     failure: string;
   };
-  personas: any[]; // persona 객체들
+  personas: ScenarioPersona[]; // persona 객체들
   recommendedFlow: string[];
   difficulty: number;
   estimatedTime: string;
@@ -162,34 +162,60 @@ ${request.skills ? `필요 역량: ${request.skills}` : ''}
     "acceptable": "수용 가능한 결과 (최소 기준 충족)",
     "failure": "실패 조건 (갈등 심화 또는 비현실적 해결책)"
   },
-  "personas": [${selectedMBTI.map((mbti, index) => `
+  "personas": [
     {
-      "id": "${mbti}",
-      "name": "한국식 이름",
-      "department": "부서명 (서로 다른 부서로 설정해서 부서간 갈등 상황 만들기)",
-      "position": "직책",
-      "experience": "경력 (신입부터 10년차까지 다양하게)",
-      "personaRef": "${mbti}.json",
-      "stance": "이 상황에 대한 ${mbti} 성격 유형에 맞는 구체적인 입장과 의견. 왜 그런 입장인지 배경도 포함",
-      "goal": "${mbti} 성격에 맞는 개인적인 목표와 원하는 결과",
-      "tradeoff": "${mbti} 성격에 맞는 양보할 수 있는 부분이나 조건"
-    }`).join(',')}
+      "id": "${selectedMBTI[0] || 'istj'}",
+      "name": "실제 한국 이름 (예: 김민수, 이지영)",
+      "department": "부서명1 (예: 개발팀, QA팀, 마케팅팀 중 하나)",
+      "position": "직책1 (예: 선임 개발자, 매니저, 대리)",
+      "experience": "경력1 (예: 3년차, 5년차, 신입, 10년차)",
+      "personaRef": "${selectedMBTI[0] || 'istj'}.json",
+      "stance": "${selectedMBTI[0] || 'ISTJ'} 성격 유형에 맞는 이 상황에 대한 구체적인 입장과 의견. 논리적이고 신중한 접근",
+      "goal": "${selectedMBTI[0] || 'ISTJ'} 성격에 맞는 개인적 목표와 원하는 결과",
+      "tradeoff": "${selectedMBTI[0] || 'ISTJ'} 성격에 맞는 양보 가능한 부분"
+    }${selectedMBTI.length > 1 ? `,
+    {
+      "id": "${selectedMBTI[1]}",
+      "name": "실제 한국 이름 (다른 이름)",
+      "department": "부서명2 (첫 번째와 다른 부서)",
+      "position": "직책2 (첫 번째와 다른 직책)",
+      "experience": "경력2 (첫 번째와 다른 경력)",
+      "personaRef": "${selectedMBTI[1]}.json",
+      "stance": "${selectedMBTI[1].toUpperCase()} 성격 유형에 맞는 이 상황에 대한 구체적인 입장과 의견",
+      "goal": "${selectedMBTI[1].toUpperCase()} 성격에 맞는 개인적 목표와 원하는 결과",
+      "tradeoff": "${selectedMBTI[1].toUpperCase()} 성격에 맞는 양보 가능한 부분"
+    }` : ''}${selectedMBTI.length > 2 ? `,
+    {
+      "id": "${selectedMBTI[2]}",
+      "name": "실제 한국 이름 (또 다른 이름)",
+      "department": "부서명3 (앞의 두 부서와 다른 부서)",
+      "position": "직책3 (앞의 두 직책과 다른 직책)",
+      "experience": "경력3 (앞의 두 경력과 다른 경력)",
+      "personaRef": "${selectedMBTI[2]}.json",
+      "stance": "${selectedMBTI[2].toUpperCase()} 성격 유형에 맞는 이 상황에 대한 구체적인 입장과 의견",
+      "goal": "${selectedMBTI[2].toUpperCase()} 성격에 맞는 개인적 목표와 원하는 결과",
+      "tradeoff": "${selectedMBTI[2].toUpperCase()} 성격에 맞는 양보 가능한 부분"
+    }` : ''}
   ],
-  "recommendedFlow": [${selectedMBTI.map(mbti => `"${mbti}"`).join(', ')}],
+  "recommendedFlow": ["${selectedMBTI[0] || 'istj'}"${selectedMBTI.length > 1 ? `, "${selectedMBTI[1]}"` : ''}${selectedMBTI.length > 2 ? `, "${selectedMBTI[2]}"` : ''}],
   "difficulty": ${request.difficulty || 3},
   "estimatedTime": "${request.estimatedTime || '60-90분'}",
   "skills": [${request.skills ? request.skills.split(',').map(skill => `"${skill.trim()}"`).join(', ') : '"갈등 중재", "협상", "문제 해결", "의사소통", "리더십"'}]
 }
 
-주의사항:
-1. 현실적이고 구체적인 한국 직장 상황을 만들어주세요
-2. 지정된 MBTI 유형만 사용하세요: ${selectedMBTI.join(', ')}
-3. 각 페르소나는 반드시 다른 부서에 소속시켜서 부서간 갈등 상황을 만들어주세요
-4. persona의 id는 정확히 MBTI 소문자 4글자여야 합니다 (예: istj, enfj)
-5. stance, goal, tradeoff는 각 MBTI 성격 유형의 특성을 반영한 구체적인 내용이어야 합니다
-6. 갈등과 협상 요소가 반드시 포함되어야 합니다
-7. 한국 직장 문화와 현실적인 업무 상황을 반영해주세요
-8. 각 페르소나의 name은 실제 한국 이름을 사용하세요`;
+중요한 지침:
+1. 반드시 ${selectedMBTI.length}명의 페르소나만 생성하세요 (지정된 MBTI 유형: ${selectedMBTI.join(', ')})
+2. 각 페르소나의 "id"는 정확히 지정된 MBTI 소문자 4글자를 사용하세요
+3. 각 페르소나는 서로 다른 부서에 소속시켜 부서간 갈등 상황을 만드세요
+4. 페르소나의 name, department, position, experience는 구체적인 한국 이름과 직장 정보를 사용하세요
+5. stance, goal, tradeoff는 해당 MBTI 성격 유형 특성에 맞는 현실적인 내용으로 작성하세요
+6. personaRef는 반드시 "MBTI유형.json" 형태로 작성하세요 (예: istj.json, enfj.json)
+7. JSON 형식을 정확히 지켜주세요 (마지막 요소 뒤에 쉼표 없음)
+
+예시 참고:
+ISTJ: 신중하고 체계적, 품질 중시
+ENFJ: 협력적이고 조화 추구, 팀워크 중시
+ENTJ: 목표 지향적, 효율성과 결과 중시`;
 
   try {
     const response = await ai.models.generateContent({
@@ -276,8 +302,9 @@ ${request.skills ? `필요 역량: ${request.skills}` : ''}
     
     const data = JSON.parse(cleanJson);
     
-    // 키워드 기반 시나리오 ID 생성
+    // 키워드 기반 시나리오 ID 생성 (타임스탬프 포함)
     const scenarioId = generateScenarioId(data.title);
+    console.log('생성된 시나리오 ID:', scenarioId);
     
     // ComplexScenario 객체 생성 (app-delay-crisis.json과 동일한 구조)
     const scenario: ComplexScenario = {

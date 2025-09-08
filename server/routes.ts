@@ -599,24 +599,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
         personaCount: Number(personaCount) || 3
       });
 
-      // AI 생성된 시나리오를 파일로 저장
-      const savedScenario = await fileManager.createScenario(result.scenario);
+      // AI 생성된 시나리오에 페르소나 객체를 직접 포함하여 저장 (app-delay-crisis.json 구조와 동일)
+      const scenarioWithPersonas = {
+        ...result.scenario,
+        personas: result.personas // 페르소나 객체를 직접 포함
+      };
       
-      // AI 생성된 페르소나들을 파일로 저장
-      const savedPersonas = [];
-      for (const persona of result.personas) {
-        const savedPersona = await fileManager.createPersona(persona);
-        savedPersonas.push(savedPersona);
-      }
-
-      // 시나리오의 personas 배열을 저장된 페르소나 ID로 업데이트
-      const updatedScenario = await fileManager.updateScenario(savedScenario.id, {
-        personas: savedPersonas.map(p => p.id)
-      });
+      const savedScenario = await fileManager.createScenario(scenarioWithPersonas);
 
       res.json({
-        scenario: updatedScenario,
-        personas: savedPersonas
+        scenario: savedScenario,
+        personas: result.personas
       });
     } catch (error) {
       console.error("AI 시나리오 생성 오류:", error);
