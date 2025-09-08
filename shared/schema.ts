@@ -44,11 +44,11 @@ export type EvaluationScore = {
 export type DetailedFeedback = {
   overallScore: number;
   scores: {
-    clarity: number;
-    empathy: number;
-    responsiveness: number;
-    structure: number;
-    professionalism: number;
+    clarityLogic: number;
+    listeningEmpathy: number;
+    appropriatenessAdaptability: number;
+    persuasivenessImpact: number;
+    strategicCommunication: number;
   };
   strengths: string[];
   improvements: string[];

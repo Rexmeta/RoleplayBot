@@ -294,44 +294,44 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // EvaluationScore 배열 생성
       const evaluationScores = [
         {
-          category: "communication",
-          name: "메시지 명확성",
-          score: feedbackData.scores.clarity,
-          feedback: "명확하고 이해하기 쉬운 의사소통",
-          icon: "💬",
+          category: "clarityLogic",
+          name: "명확성 & 논리성",
+          score: feedbackData.scores.clarityLogic,
+          feedback: "발언의 구조화, 핵심 전달, 모호성 최소화",
+          icon: "🎯",
           color: "blue"
         },
         {
-          category: "empathy", 
-          name: "상대방 배려",
-          score: feedbackData.scores.empathy,
-          feedback: "청자의 입장과 상황 고려",
-          icon: "❤️",
-          color: "red"
-        },
-        {
-          category: "responsiveness",
-          name: "감정적 반응성", 
-          score: feedbackData.scores.responsiveness,
-          feedback: "상대방 감정에 대한 적절한 대응",
-          icon: "🎭",
-          color: "purple"
-        },
-        {
-          category: "structure",
-          name: "대화 구조화",
-          score: feedbackData.scores.structure, 
-          feedback: "논리적이고 체계적인 대화 진행",
-          icon: "🏗️",
+          category: "listeningEmpathy", 
+          name: "경청 & 공감",
+          score: feedbackData.scores.listeningEmpathy,
+          feedback: "재진술·요약, 감정 인식, 우려 존중",
+          icon: "👂",
           color: "green"
         },
         {
-          category: "professionalism",
-          name: "전문적 역량",
-          score: feedbackData.scores.professionalism,
-          feedback: "업무 상황에 맞는 전문성 발휘", 
-          icon: "👔",
-          color: "indigo"
+          category: "appropriatenessAdaptability",
+          name: "적절성 & 상황 대응", 
+          score: feedbackData.scores.appropriatenessAdaptability,
+          feedback: "맥락 적합한 표현, 유연한 갈등 대응",
+          icon: "⚡",
+          color: "yellow"
+        },
+        {
+          category: "persuasivenessImpact",
+          name: "설득력 & 영향력",
+          score: feedbackData.scores.persuasivenessImpact, 
+          feedback: "논리적 근거, 사례 활용, 행동 변화 유도",
+          icon: "🎪",
+          color: "purple"
+        },
+        {
+          category: "strategicCommunication",
+          name: "전략적 커뮤니케이션",
+          score: feedbackData.scores.strategicCommunication,
+          feedback: "목표 지향적 대화, 협상·조율, 주도성", 
+          icon: "🎲",
+          color: "red"
         }
       ];
 

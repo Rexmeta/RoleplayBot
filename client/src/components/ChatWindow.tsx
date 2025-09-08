@@ -524,29 +524,30 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
       let messageScore = 0;
       const content = message.message.toLowerCase();
       
-      // 1. 메시지 길이 및 구조 (25점 만점)
-      if (content.length >= 20) messageScore += 5; // 적절한 길이
-      if (content.includes('?') || content.includes('요청') || content.includes('문의')) messageScore += 5; // 질문/요청 구조
-      if (content.split('.').length > 1 || content.split(',').length > 1) messageScore += 5; // 문장 구조
-      if (!/^[ㄱ-ㅎ가-힣a-zA-Z\s]+$/.test(content.replace(/[.?!,]/g, ''))) messageScore -= 5; // 이상한 문자 패턴 감점
-      if (content.length < 5) messageScore -= 10; // 너무 짧은 메시지 대폭 감점
+      // 1. 명확성 & 논리성 (20점 만점)
+      if (content.length >= 20) messageScore += 4; // 적절한 길이
+      if (content.includes('?') || content.includes('요청') || content.includes('문의')) messageScore += 4; // 질문/요청 구조
+      if (content.split('.').length > 1 || content.split(',').length > 1) messageScore += 4; // 문장 구조
+      if (!/^[ㄱ-ㅎ가-힣a-zA-Z\s]+$/.test(content.replace(/[.?!,]/g, ''))) messageScore -= 4; // 이상한 문자 패턴 감점
+      if (content.length < 5) messageScore -= 8; // 너무 짧은 메시지 대폭 감점
       
-      // 2. 공감적 표현 (20점 만점)
-      const empathyKeywords = ['이해', '죄송', '미안', '걱정', '힘드', '어려우', '도움', '지원', '함께'];
+      // 2. 경청 & 공감 (20점 만점)
+      const empathyKeywords = ['이해', '죄송', '미안', '걱정', '힘드', '어려우', '도움', '지원', '함께', '경청', '재진술', '요약'];
       const empathyCount = empathyKeywords.filter(keyword => content.includes(keyword)).length;
       messageScore += Math.min(20, empathyCount * 4);
       
-      // 3. 전문성 및 해결책 제시 (25점 만점)
-      const professionalKeywords = ['계획', '방안', '제안', '검토', '분석', '개선', '해결', '대안', '전략'];
-      const professionalCount = professionalKeywords.filter(keyword => content.includes(keyword)).length;
-      messageScore += Math.min(25, professionalCount * 5);
+      // 3. 적절성 & 상황 대응 (20점 만점)
+      if (content.includes('습니다') || content.includes('입니다')) messageScore += 8; // 정중한 어투
+      if (content.includes('~요') || content.includes('~네요')) messageScore += 4; // 친근한 어투
+      if (content.includes('제가') || content.includes('저는')) messageScore += 4; // 주체 명확성
+      if (content.includes('상황') || content.includes('맥락')) messageScore += 4; // 상황 인식
       
-      // 4. 의사소통 적절성 (20점 만점)
-      if (content.includes('습니다') || content.includes('입니다')) messageScore += 10; // 정중한 어투
-      if (content.includes('~요') || content.includes('~네요')) messageScore += 5; // 친근한 어투
-      if (content.includes('제가') || content.includes('저는')) messageScore += 5; // 주체 명확성
+      // 4. 설득력 & 영향력 (20점 만점)
+      const persuasionKeywords = ['근거', '사례', '데이터', '비유', '예를들어', '결론적으로', '따라서', '그러므로'];
+      const persuasionCount = persuasionKeywords.filter(keyword => content.includes(keyword)).length;
+      messageScore += Math.min(20, persuasionCount * 4);
       
-      // 5. 상황 적응력 (15점 만점)
+      // 5. 전략적 커뮤니케이션 (20점 만점)
       const scenarioKeywords: Record<string, string[]> = {
         'communication': ['보고', '전달', '설명'],
         'empathy': ['공감', '이해', '위로'],
@@ -556,9 +557,9 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
         'crisis': ['긴급', '대응', '해결']
       };
       
-      const relevantKeywords = scenarioKeywords[scenario.id] || [];
-      const relevanceCount = relevantKeywords.filter((keyword: string) => content.includes(keyword)).length;
-      messageScore += Math.min(15, relevanceCount * 5);
+      const strategicKeywords = ['목표', '계획', '방안', '전략', '조율', '협상', '주도', '질문', '피드백'];
+      const strategicCount = strategicKeywords.filter(keyword => content.includes(keyword)).length;
+      messageScore += Math.min(20, strategicCount * 4);
       
       // 대화 진행에 따른 가중치 적용
       const progressWeight = 1 + (index * 0.1); // 후반으로 갈수록 가중치 증가

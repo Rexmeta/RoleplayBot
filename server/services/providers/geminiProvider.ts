@@ -191,11 +191,11 @@ ${conversationText}
 
 다음 5가지 기준으로 1-5점(1=미흡, 2=개선필요, 3=보통, 4=좋음, 5=우수)으로 평가하고 종합적인 피드백을 제공하세요:
 
-1. 메시지 명확성 (25%): 정확하고 이해하기 쉬운 의사소통 (발화량과 명확성 고려)
-2. 상대방 배려 (20%): 청자의 입장과 상황 고려
-3. 감정적 반응성 (25%): 상대방 감정에 대한 적절한 대응
-4. 대화 구조화 (15%): 논리적이고 체계적인 대화 진행 (대화 턴 수와 흐름 고려)
-5. 전문적 역량 (15%): 업무 상황에 맞는 전문성 발휘 (계획, 방안, 제안, 검토, 분석, 개선, 해결, 대안, 전략, 전문, 경험, 기술 등 키워드 사용)
+1. 명확성 & 논리성 (20%): 발언의 구조화(서론-본론-결론), 메시지의 핵심 전달 여부, 불필요한 반복/모호성 최소화
+2. 경청 & 공감 (20%): 상대방 발언 재진술·요약 능력, 감정 인식 및 언어적/비언어적 공감 표현, 상대방의 필요·우려를 존중하는 반응
+3. 적절성 & 상황 대응 (20%): 시나리오 맥락에 맞는 표현 선택, 존칭/비공식 언어 사용의 적합성, 예상치 못한 질문·갈등 상황에 유연하게 대응
+4. 설득력 & 영향력 (20%): 논리적 근거 제시, 사례/데이터/비유 활용, 상대방의 의사결정/행동 변화 유도
+5. 전략적 커뮤니케이션 (20%): 목표 의식 있는 대화 전개, 갈등 회피 vs. 협상·조율 능력, 질문·피드백을 활용한 대화 주도성
 
 **평가 시 고려사항:**
 - 발화량이 너무 적으면(평균 20자 미만) 명확성 점수 감점
@@ -207,11 +207,11 @@ JSON 형식으로 응답하세요:
 {
   "overallScore": 전체점수(0-100),
   "scores": {
-    "clarity": 점수1-5,
-    "empathy": 점수1-5,
-    "responsiveness": 점수1-5,
-    "structure": 점수1-5,
-    "professionalism": 점수1-5
+    "clarityLogic": 점수1-5,
+    "listeningEmpathy": 점수1-5,
+    "appropriatenessAdaptability": 점수1-5,
+    "persuasivenessImpact": 점수1-5,
+    "strategicCommunication": 점수1-5
   },
   "strengths": ["강점1", "강점2", "강점3"],
   "improvements": ["개선점1", "개선점2", "개선점3"],
@@ -230,11 +230,11 @@ JSON 형식으로 응답하세요:
               scores: {
                 type: "object",
                 properties: {
-                  clarity: { type: "number" },
-                  empathy: { type: "number" },
-                  responsiveness: { type: "number" },
-                  structure: { type: "number" },
-                  professionalism: { type: "number" }
+                  clarityLogic: { type: "number" },
+                  listeningEmpathy: { type: "number" },
+                  appropriatenessAdaptability: { type: "number" },
+                  persuasivenessImpact: { type: "number" },
+                  strategicCommunication: { type: "number" }
                 }
               },
               strengths: { type: "array", items: { type: "string" } },
@@ -252,11 +252,11 @@ JSON 형식으로 응답하세요:
       return {
         overallScore: Math.min(100, Math.max(0, feedbackData.overallScore || 0)),
         scores: {
-          clarity: Math.min(5, Math.max(1, feedbackData.scores?.clarity || 3)),
-          empathy: Math.min(5, Math.max(1, feedbackData.scores?.empathy || 3)),
-          responsiveness: Math.min(5, Math.max(1, feedbackData.scores?.responsiveness || 3)),
-          structure: Math.min(5, Math.max(1, feedbackData.scores?.structure || 3)),
-          professionalism: Math.min(5, Math.max(1, feedbackData.scores?.professionalism || 2))
+          clarityLogic: Math.min(5, Math.max(1, feedbackData.scores?.clarityLogic || 3)),
+          listeningEmpathy: Math.min(5, Math.max(1, feedbackData.scores?.listeningEmpathy || 3)),
+          appropriatenessAdaptability: Math.min(5, Math.max(1, feedbackData.scores?.appropriatenessAdaptability || 3)),
+          persuasivenessImpact: Math.min(5, Math.max(1, feedbackData.scores?.persuasivenessImpact || 3)),
+          strategicCommunication: Math.min(5, Math.max(1, feedbackData.scores?.strategicCommunication || 3))
         },
         strengths: feedbackData.strengths || ["기본적인 대화 능력", "적절한 언어 사용", "상황 이해도"],
         improvements: feedbackData.improvements || ["더 구체적인 표현", "감정 교감 증진", "논리적 구조화"],
@@ -290,11 +290,11 @@ JSON 형식으로 응답하세요:
     return {
       overallScore: 60,
       scores: {
-        clarity: 3,
-        empathy: 3,
-        responsiveness: 3,
-        structure: 3,
-        professionalism: 3
+        clarityLogic: 3,
+        listeningEmpathy: 3,
+        appropriatenessAdaptability: 3,
+        persuasivenessImpact: 3,
+        strategicCommunication: 3
       },
       strengths: ["기본적인 대화 참여", "적절한 언어 사용", "상황에 맞는 응답"],
       improvements: ["시스템 안정성 확보 후 재평가 필요", "더 많은 대화 기회 필요", "기술적 문제 해결 후 재시도"],
