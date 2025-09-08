@@ -27,11 +27,11 @@ export default function ScenarioSelector({ onScenarioSelect, playerProfile }: Sc
   
   // 필터 상태
   const [filters, setFilters] = useState({
-    difficulty: undefined as string | undefined,
-    personaCount: undefined as string | undefined,
+    difficulty: '',
+    personaCount: '',
     searchText: '',
-    department: undefined as string | undefined,
-    skillType: undefined as string | undefined
+    department: '',
+    skillType: ''
   });
 
   // JSON 파일에서 실시간으로 시나리오와 페르소나 데이터 가져오기
@@ -165,7 +165,7 @@ export default function ScenarioSelector({ onScenarioSelect, playerProfile }: Sc
     // 부서 필터
     if (filters.department && filters.department !== 'all') {
       const hasMatchingDepartment = scenario.personas?.some((persona: any) => 
-        typeof persona === 'object' && persona.department?.toLowerCase().includes(filters.department!.toLowerCase())
+        typeof persona === 'object' && persona.department?.toLowerCase().includes(filters.department.toLowerCase())
       );
       if (!hasMatchingDepartment) {
         return false;
@@ -175,7 +175,7 @@ export default function ScenarioSelector({ onScenarioSelect, playerProfile }: Sc
     // 스킬 유형 필터
     if (filters.skillType && filters.skillType !== 'all') {
       const hasMatchingSkill = scenario.skills?.some((skill: string) =>
-        skill.toLowerCase().includes(filters.skillType!.toLowerCase())
+        skill.toLowerCase().includes(filters.skillType.toLowerCase())
       );
       if (!hasMatchingSkill) {
         return false;
@@ -188,11 +188,11 @@ export default function ScenarioSelector({ onScenarioSelect, playerProfile }: Sc
   // 필터 초기화
   const resetFilters = () => {
     setFilters({
-      difficulty: undefined,
-      personaCount: undefined,
+      difficulty: '',
+      personaCount: '',
       searchText: '',
-      department: undefined,
-      skillType: undefined
+      department: '',
+      skillType: ''
     });
   };
 
@@ -269,7 +269,7 @@ export default function ScenarioSelector({ onScenarioSelect, playerProfile }: Sc
               </div>
               
               {/* 난이도 */}
-              <Select value={filters.difficulty} onValueChange={(value) => setFilters(prev => ({ ...prev, difficulty: value }))}>
+              <Select value={filters.difficulty || undefined} onValueChange={(value) => setFilters(prev => ({ ...prev, difficulty: value }))}>
                 <SelectTrigger data-testid="filter-difficulty" className="h-9 text-sm">
                   <SelectValue placeholder="난이도" />
                 </SelectTrigger>
@@ -284,7 +284,7 @@ export default function ScenarioSelector({ onScenarioSelect, playerProfile }: Sc
               </Select>
               
               {/* 페르소나 수 */}
-              <Select value={filters.personaCount} onValueChange={(value) => setFilters(prev => ({ ...prev, personaCount: value }))}>
+              <Select value={filters.personaCount || undefined} onValueChange={(value) => setFilters(prev => ({ ...prev, personaCount: value }))}>
                 <SelectTrigger data-testid="filter-persona-count" className="h-9 text-sm">
                   <SelectValue placeholder="상대역 수" />
                 </SelectTrigger>
@@ -300,7 +300,7 @@ export default function ScenarioSelector({ onScenarioSelect, playerProfile }: Sc
               </Select>
               
               {/* 부서 */}
-              <Select value={filters.department} onValueChange={(value) => setFilters(prev => ({ ...prev, department: value }))}>
+              <Select value={filters.department || undefined} onValueChange={(value) => setFilters(prev => ({ ...prev, department: value }))}>
                 <SelectTrigger data-testid="filter-department" className="h-9 text-sm">
                   <SelectValue placeholder="부서" />
                 </SelectTrigger>
@@ -316,7 +316,7 @@ export default function ScenarioSelector({ onScenarioSelect, playerProfile }: Sc
               </Select>
               
               {/* 스킬 유형 */}
-              <Select value={filters.skillType} onValueChange={(value) => setFilters(prev => ({ ...prev, skillType: value }))}>
+              <Select value={filters.skillType || undefined} onValueChange={(value) => setFilters(prev => ({ ...prev, skillType: value }))}>
                 <SelectTrigger data-testid="filter-skill-type" className="h-9 text-sm">
                   <SelectValue placeholder="핵심 스킬" />
                 </SelectTrigger>
