@@ -48,44 +48,93 @@ const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || "" });
 export interface AIScenarioGenerationRequest {
   theme: string; // 주제 (예: "프로젝트 지연", "갈등 해결", "협상")
   industry?: string; // 업종 (예: "IT", "제조업", "서비스업")
+  situation?: string; // 구체적 상황 설명
+  timeline?: string; // 시간적 제약
+  stakes?: string; // 이해관계
+  playerRole?: {
+    position: string;
+    department: string;
+    experience: string;
+    responsibility: string;
+  };
+  conflictType?: string; // 갈등 유형
+  objectiveType?: string; // 목표 유형
+  skills?: string; // 필요 역량
+  estimatedTime?: string; // 예상 소요 시간
   difficulty?: number; // 1-5 난이도
   personaCount?: number; // 생성할 페르소나 수 (1-6)
 }
 
-// 키워드 기반 ID 생성 함수
+// 키워드 기반 ID 생성 함수 (생성 일시 포함)
 function generateScenarioId(title: string): string {
+  // 한글을 영어로 변환하는 맵 (단어 단위)
+  const koreanToEnglishMap: {[key: string]: string} = {
+    '프로젝트': 'project', '지연': 'delay', '갈등': 'conflict', 
+    '협상': 'negotiation', '회의': 'meeting', '위기': 'crisis',
+    '앱': 'app', '개발': 'dev', '마케팅': 'marketing', '품질': 'quality',
+    '출시': 'launch', '일정': 'schedule', '물류': 'logistics', 
+    '마비': 'paralysis', '손상': 'damage', '폭설': 'snow', 
+    '제조': 'manufacturing', '생산': 'production', '납기': 'delivery',
+    '신제품': 'new-product', '내부': 'internal', '이슈': 'issue',
+    '출고': 'shipping', '재작업': 'rework', '검수': 'inspection',
+    '구조적': 'structural', '결함': 'defect', '안전': 'safety',
+    '고객': 'customer', '서비스': 'service', '팀': 'team',
+    '관리': 'management', '시스템': 'system', '데이터': 'data',
+    '보안': 'security', '네트워크': 'network', '서버': 'server',
+    '사용자': 'user', '인터페이스': 'interface', '디자인': 'design',
+    '계획': 'plan', '예산': 'budget', '비용': 'cost',
+    '효율': 'efficiency', '성능': 'performance', '최적화': 'optimization'
+  };
+  
+  // 제목을 단어로 분리하고 변환
   const keywords = title
     .replace(/[^\w\s가-힣]/g, '') // 특수문자 제거
     .split(/\s+/) // 공백으로 분리
     .filter(word => word.length > 1) // 한 글자 단어 제거
     .slice(0, 3) // 최대 3개 키워드
-    .map(word => word.toLowerCase().replace(/[가-힣]/g, (char) => {
-      // 한글을 영어로 간단 변환 (예시)
-      const map: {[key: string]: string} = {
-        '프로젝트': 'project', '지연': 'delay', '갈등': 'conflict', 
-        '협상': 'negotiation', '회의': 'meeting', '위기': 'crisis',
-        '앱': 'app', '개발': 'dev', '마케팅': 'marketing', '품질': 'quality',
-        '출시': 'launch', '일정': 'schedule', '물류': 'logistics', 
-        '마비': 'paralysis', '손상': 'damage', '폭설': 'snow', 
-        '제조': 'manufacturing', '생산': 'production', '납기': 'delivery'
-      };
-      return map[char] || char;
-    }))
+    .map(word => {
+      // 전체 단어를 영어로 변환하거나, 없으면 한글 그대로 사용
+      const lowerWord = word.toLowerCase();
+      return koreanToEnglishMap[word] || lowerWord;
+    })
     .join('-');
   
-  return keywords || 'scenario';
+  // 생성 일시 추가 (중복 방지용)
+  const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+  const baseId = keywords || 'scenario';
+  
+  return `${baseId}-${timestamp}`;
 }
 
 export async function generateScenarioWithAI(request: AIScenarioGenerationRequest): Promise<{
   scenario: ComplexScenario;
   personas: ScenarioPersona[];
 }> {
+  // 사용 가능한 MBTI 유형 (시스템에 등록된 페르소나들)
+  const availableMBTITypes = [
+    'istj', 'isfj', 'infj', 'intj', 
+    'istp', 'isfp', 'infp', 'intp',
+    'estp', 'esfp', 'enfp', 'entp',
+    'estj', 'esfj', 'enfj', 'entj'
+  ];
+  
+  // personaCount에 맞는 MBTI 유형 선택 (중복 없이)
+  const selectedMBTI = availableMBTITypes.slice(0, request.personaCount || 3);
+
   const prompt = `다음 조건에 맞는 직장 내 롤플레이 훈련 시나리오를 정확히 다음 JSON 형식으로 생성해주세요:
 
 주제: ${request.theme}
 ${request.industry ? `업종: ${request.industry}` : ''}
+${request.situation ? `상황: ${request.situation}` : ''}
+${request.timeline ? `시간적 제약: ${request.timeline}` : ''}
+${request.stakes ? `이해관계: ${request.stakes}` : ''}
+${request.playerRole ? `참가자 역할: ${request.playerRole.position} (${request.playerRole.department}, ${request.playerRole.experience})` : ''}
+${request.conflictType ? `갈등 유형: ${request.conflictType}` : ''}
+${request.objectiveType ? `목표 유형: ${request.objectiveType}` : ''}
+${request.skills ? `필요 역량: ${request.skills}` : ''}
 난이도: ${request.difficulty || 3}/5
 페르소나 수: ${request.personaCount || 3}명
+사용 가능한 MBTI 유형: ${selectedMBTI.join(', ')} (이 유형들만 사용하세요)
 
 {
   "title": "구체적이고 현실적인 시나리오 제목",
@@ -113,53 +162,34 @@ ${request.industry ? `업종: ${request.industry}` : ''}
     "acceptable": "수용 가능한 결과 (최소 기준 충족)",
     "failure": "실패 조건 (갈등 심화 또는 비현실적 해결책)"
   },
-  "personas": [
+  "personas": [${selectedMBTI.map((mbti, index) => `
     {
-      "id": "istj",
+      "id": "${mbti}",
       "name": "한국식 이름",
-      "department": "부서명",
+      "department": "부서명 (서로 다른 부서로 설정해서 부서간 갈등 상황 만들기)",
       "position": "직책",
-      "experience": "경력",
-      "personaRef": "istj.json",
-      "stance": "이 상황에 대한 구체적인 입장과 의견. 왜 그런 입장인지 배경도 포함",
-      "goal": "개인적인 목표와 원하는 결과",
-      "tradeoff": "양보할 수 있는 부분이나 조건"
-    },
-    {
-      "id": "entj",
-      "name": "한국식 이름",
-      "department": "부서명",
-      "position": "직책",
-      "experience": "경력",
-      "personaRef": "entj.json",
-      "stance": "이 상황에 대한 구체적인 입장과 의견",
-      "goal": "개인적인 목표와 원하는 결과",
-      "tradeoff": "양보할 수 있는 부분이나 조건"
-    },
-    {
-      "id": "intp",
-      "name": "한국식 이름",
-      "department": "부서명",
-      "position": "직책",
-      "experience": "경력",
-      "personaRef": "intp.json",
-      "stance": "이 상황에 대한 구체적인 입장과 의견",
-      "goal": "개인적인 목표와 원하는 결과",
-      "tradeoff": "양보할 수 있는 부분이나 조건"
-    }
+      "experience": "경력 (신입부터 10년차까지 다양하게)",
+      "personaRef": "${mbti}.json",
+      "stance": "이 상황에 대한 ${mbti} 성격 유형에 맞는 구체적인 입장과 의견. 왜 그런 입장인지 배경도 포함",
+      "goal": "${mbti} 성격에 맞는 개인적인 목표와 원하는 결과",
+      "tradeoff": "${mbti} 성격에 맞는 양보할 수 있는 부분이나 조건"
+    }`).join(',')}
   ],
-  "recommendedFlow": ["istj", "entj", "intp"],
+  "recommendedFlow": [${selectedMBTI.map(mbti => `"${mbti}"`).join(', ')}],
   "difficulty": ${request.difficulty || 3},
-  "estimatedTime": "예상 소요 시간 (예: 60-90분)",
-  "skills": ["갈등 중재", "협상", "문제 해결", "의사소통", "리더십"]
+  "estimatedTime": "${request.estimatedTime || '60-90분'}",
+  "skills": [${request.skills ? request.skills.split(',').map(skill => `"${skill.trim()}"`).join(', ') : '"갈등 중재", "협상", "문제 해결", "의사소통", "리더십"'}]
 }
 
 주의사항:
 1. 현실적이고 구체적인 한국 직장 상황을 만들어주세요
-2. 각 페르소나는 서로 다른 MBTI 유형을 사용하세요 (istj, entj, intp, isfj, enfj 등)
-3. persona의 stance, goal, tradeoff는 이 시나리오에 특화된 구체적인 내용이어야 합니다
-4. 갈등과 협상 요소가 반드시 포함되어야 합니다
-5. 한국 직장 문화와 현실적인 업무 상황을 반영해주세요`;
+2. 지정된 MBTI 유형만 사용하세요: ${selectedMBTI.join(', ')}
+3. 각 페르소나는 반드시 다른 부서에 소속시켜서 부서간 갈등 상황을 만들어주세요
+4. persona의 id는 정확히 MBTI 소문자 4글자여야 합니다 (예: istj, enfj)
+5. stance, goal, tradeoff는 각 MBTI 성격 유형의 특성을 반영한 구체적인 내용이어야 합니다
+6. 갈등과 협상 요소가 반드시 포함되어야 합니다
+7. 한국 직장 문화와 현실적인 업무 상황을 반영해주세요
+8. 각 페르소나의 name은 실제 한국 이름을 사용하세요`;
 
   try {
     const response = await ai.models.generateContent({
