@@ -238,128 +238,110 @@ export default function ScenarioSelector({ onScenarioSelect, playerProfile }: Sc
         <div className="max-w-4xl mx-auto">
           
           {/* 필터 섹션 */}
-          <Card className="mb-6 border-slate-200">
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <Filter className="h-5 w-5 text-slate-600" />
-                  <h3 className="text-lg font-semibold text-slate-900">필터</h3>
-                </div>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={resetFilters}
-                  className="text-slate-600 hover:text-slate-900"
-                  data-testid="reset-filters"
-                >
-                  초기화
-                </Button>
+          <div className="mb-6 p-4 bg-slate-100 rounded-lg border border-slate-200">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-2">
+                <Filter className="h-4 w-4 text-slate-600" />
+                <h3 className="text-sm font-medium text-slate-700">필터</h3>
               </div>
-            </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {/* 검색어 */}
-                <div>
-                  <label className="text-sm font-medium text-slate-700 mb-2 block">검색어</label>
-                  <div className="relative">
-                    <Search className="absolute left-3 top-3 h-4 w-4 text-slate-400" />
-                    <Input
-                      placeholder="시나리오명 또는 설명 검색"
-                      value={filters.searchText}
-                      onChange={(e) => setFilters(prev => ({ ...prev, searchText: e.target.value }))}
-                      className="pl-10"
-                      data-testid="filter-search"
-                    />
-                  </div>
-                </div>
-                
-                {/* 난이도 */}
-                <div>
-                  <label className="text-sm font-medium text-slate-700 mb-2 block">난이도</label>
-                  <Select value={filters.difficulty} onValueChange={(value) => setFilters(prev => ({ ...prev, difficulty: value }))}>
-                    <SelectTrigger data-testid="filter-difficulty">
-                      <SelectValue placeholder="전체" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">전체</SelectItem>
-                      <SelectItem value="1">★ 초급</SelectItem>
-                      <SelectItem value="2">★★ 기초</SelectItem>
-                      <SelectItem value="3">★★★ 중급</SelectItem>
-                      <SelectItem value="4">★★★★ 고급</SelectItem>
-                      <SelectItem value="5">★★★★★ 전문가</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                
-                {/* 페르소나 수 */}
-                <div>
-                  <label className="text-sm font-medium text-slate-700 mb-2 block">페르소나 수</label>
-                  <Select value={filters.personaCount} onValueChange={(value) => setFilters(prev => ({ ...prev, personaCount: value }))}>
-                    <SelectTrigger data-testid="filter-persona-count">
-                      <SelectValue placeholder="전체" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">전체</SelectItem>
-                      <SelectItem value="1">1명</SelectItem>
-                      <SelectItem value="2">2명</SelectItem>
-                      <SelectItem value="3">3명</SelectItem>
-                      <SelectItem value="4">4명</SelectItem>
-                      <SelectItem value="5">5명</SelectItem>
-                      <SelectItem value="6">6명 이상</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                
-                {/* 부서 */}
-                <div>
-                  <label className="text-sm font-medium text-slate-700 mb-2 block">부서</label>
-                  <Select value={filters.department} onValueChange={(value) => setFilters(prev => ({ ...prev, department: value }))}>
-                    <SelectTrigger data-testid="filter-department">
-                      <SelectValue placeholder="전체" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">전체</SelectItem>
-                      <SelectItem value="개발팀">개발팀</SelectItem>
-                      <SelectItem value="마케팅팀">마케팅팀</SelectItem>
-                      <SelectItem value="QA팀">QA팀</SelectItem>
-                      <SelectItem value="고객서비스팀">고객서비스팀</SelectItem>
-                      <SelectItem value="경영진">경영진</SelectItem>
-                      <SelectItem value="물류팀">물류팀</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                
-                {/* 스킬 유형 */}
-                <div>
-                  <label className="text-sm font-medium text-slate-700 mb-2 block">핵심 스킬</label>
-                  <Select value={filters.skillType} onValueChange={(value) => setFilters(prev => ({ ...prev, skillType: value }))}>
-                    <SelectTrigger data-testid="filter-skill-type">
-                      <SelectValue placeholder="전체" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">전체</SelectItem>
-                      <SelectItem value="협상">협상</SelectItem>
-                      <SelectItem value="의사소통">의사소통</SelectItem>
-                      <SelectItem value="갈등해결">갈등해결</SelectItem>
-                      <SelectItem value="리더십">리더십</SelectItem>
-                      <SelectItem value="문제해결">문제해결</SelectItem>
-                      <SelectItem value="팀워크">팀워크</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={resetFilters}
+                className="text-slate-600 hover:text-slate-900 h-7 px-2 text-xs"
+                data-testid="reset-filters"
+              >
+                초기화
+              </Button>
+            </div>
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-3">
+              {/* 검색어 */}
+              <div className="relative">
+                <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
+                <Input
+                  placeholder="시나리오 검색"
+                  value={filters.searchText}
+                  onChange={(e) => setFilters(prev => ({ ...prev, searchText: e.target.value }))}
+                  className="pl-10 h-9 text-sm"
+                  data-testid="filter-search"
+                />
               </div>
               
-              {/* 필터 결과 요약 */}
-              <div className="mt-4 pt-4 border-t border-slate-200">
-                <div className="flex items-center justify-between text-sm text-slate-600">
-                  <span>총 {filteredScenarios.length}개의 시나리오</span>
-                  {(filters.searchText || (filters.difficulty !== 'all') || (filters.personaCount !== 'all') || (filters.department !== 'all') || (filters.skillType !== 'all')) && (
-                    <span className="text-blue-600">필터 적용됨</span>
-                  )}
-                </div>
+              {/* 난이도 */}
+              <Select value={filters.difficulty} onValueChange={(value) => setFilters(prev => ({ ...prev, difficulty: value }))}>
+                <SelectTrigger data-testid="filter-difficulty" className="h-9 text-sm">
+                  <SelectValue placeholder="난이도" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">전체</SelectItem>
+                  <SelectItem value="1">★ 초급</SelectItem>
+                  <SelectItem value="2">★★ 기초</SelectItem>
+                  <SelectItem value="3">★★★ 중급</SelectItem>
+                  <SelectItem value="4">★★★★ 고급</SelectItem>
+                  <SelectItem value="5">★★★★★ 전문가</SelectItem>
+                </SelectContent>
+              </Select>
+              
+              {/* 페르소나 수 */}
+              <Select value={filters.personaCount} onValueChange={(value) => setFilters(prev => ({ ...prev, personaCount: value }))}>
+                <SelectTrigger data-testid="filter-persona-count" className="h-9 text-sm">
+                  <SelectValue placeholder="참가자 수" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">전체</SelectItem>
+                  <SelectItem value="1">1명</SelectItem>
+                  <SelectItem value="2">2명</SelectItem>
+                  <SelectItem value="3">3명</SelectItem>
+                  <SelectItem value="4">4명</SelectItem>
+                  <SelectItem value="5">5명</SelectItem>
+                  <SelectItem value="6">6명 이상</SelectItem>
+                </SelectContent>
+              </Select>
+              
+              {/* 부서 */}
+              <Select value={filters.department} onValueChange={(value) => setFilters(prev => ({ ...prev, department: value }))}>
+                <SelectTrigger data-testid="filter-department" className="h-9 text-sm">
+                  <SelectValue placeholder="부서" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">전체</SelectItem>
+                  <SelectItem value="개발팀">개발팀</SelectItem>
+                  <SelectItem value="마케팅팀">마케팅팀</SelectItem>
+                  <SelectItem value="QA팀">QA팀</SelectItem>
+                  <SelectItem value="고객서비스팀">고객서비스팀</SelectItem>
+                  <SelectItem value="경영진">경영진</SelectItem>
+                  <SelectItem value="물류팀">물류팀</SelectItem>
+                </SelectContent>
+              </Select>
+              
+              {/* 스킬 유형 */}
+              <Select value={filters.skillType} onValueChange={(value) => setFilters(prev => ({ ...prev, skillType: value }))}>
+                <SelectTrigger data-testid="filter-skill-type" className="h-9 text-sm">
+                  <SelectValue placeholder="핵심 스킬" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">전체</SelectItem>
+                  <SelectItem value="협상">협상</SelectItem>
+                  <SelectItem value="의사소통">의사소통</SelectItem>
+                  <SelectItem value="갈등해결">갈등해결</SelectItem>
+                  <SelectItem value="리더십">리더십</SelectItem>
+                  <SelectItem value="문제해결">문제해결</SelectItem>
+                  <SelectItem value="팀워크">팀워크</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            
+            {/* 필터 결과 요약 */}
+            <div className="mt-3 pt-3 border-t border-slate-300">
+              <div className="flex items-center justify-between text-xs text-slate-600">
+                <span>총 {filteredScenarios.length}개의 시나리오</span>
+                {(filters.searchText || (filters.difficulty !== 'all') || (filters.personaCount !== 'all') || (filters.department !== 'all') || (filters.skillType !== 'all')) && (
+                  <span className="text-blue-600">필터 적용됨</span>
+                )}
               </div>
-            </CardContent>
-          </Card>
+            </div>
+          </div>
           
           <div className="space-y-4">
             {filteredScenarios.length === 0 ? (
@@ -431,7 +413,10 @@ export default function ScenarioSelector({ onScenarioSelect, playerProfile }: Sc
                         </div>
                         
                         <div className="text-right flex flex-col items-end">
-                          <div className="text-xs text-slate-500 mb-2">{(scenario.personas || []).length}명의 대화 상대</div>
+                          <div className="flex items-center text-xs text-slate-500 mb-2">
+                            <i className="fas fa-users mr-1"></i>
+                            {(scenario.personas || []).length}명
+                          </div>
                           <div className="text-xs text-slate-500 mb-2">{scenario.estimatedTime}</div>
                           <div className={`transition-transform duration-300 ${isSelected ? 'rotate-180' : ''}`}>
                             <i className="fas fa-chevron-down text-slate-400"></i>
