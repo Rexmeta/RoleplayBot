@@ -167,19 +167,31 @@ JSON 형식으로 응답하세요:
   ): Promise<DetailedFeedback> {
     try {
       const safeMessages = messages || [];
-      const conversationText = safeMessages.map(msg => 
-        `${msg.sender === 'user' ? '사용자' : persona.name}: ${msg.message}`
-      ).join('\n');
-
-      // 대화 통계 계산
+      
+      // 대화 통계 계산 (사용자 메시지만)
       const userMessages = safeMessages.filter(m => m.sender === 'user');
       const totalUserWords = userMessages.reduce((sum, msg) => sum + msg.message.length, 0);
       const averageMessageLength = userMessages.length > 0 ? Math.round(totalUserWords / userMessages.length) : 0;
 
-      const feedbackPrompt = `다음은 ${persona.name}(${persona.role})과의 대화입니다.
+      // 사용자 메시지만 추출 (평가 대상)
+      const userConversationText = userMessages.map((msg, index) => 
+        `사용자 발언 ${index + 1}: ${msg.message}`
+      ).join('\n');
 
-대화 내용:
-${conversationText}
+      // 전체 대화 맥락 (참고용)
+      const fullConversationText = safeMessages.map(msg => 
+        `${msg.sender === 'user' ? '사용자' : persona.name}: ${msg.message}`
+      ).join('\n');
+
+      const feedbackPrompt = `다음은 ${persona.name}(${persona.role})과의 대화에서 사용자의 발언만을 평가하는 것입니다.
+
+⚠️ 중요: 사용자의 발언만을 평가하세요. AI 페르소나의 응답은 평가 대상이 아닙니다.
+
+사용자 발언 내용 (평가 대상):
+${userConversationText}
+
+전체 대화 맥락 (참고용):
+${fullConversationText}
 
 대화 통계:
 - 총 대화 턴: ${safeMessages.length}턴
@@ -189,7 +201,7 @@ ${conversationText}
 
 평가 목표: ${persona.goals.join(', ')}
 
-다음 5가지 기준으로 1-5점(1=미흡, 2=개선필요, 3=보통, 4=좋음, 5=우수)으로 평가하고 종합적인 피드백을 제공하세요:
+🎯 **평가 지침**: 오직 사용자의 발언만을 분석하여 다음 5가지 기준으로 1-5점(1=미흡, 2=개선필요, 3=보통, 4=좋음, 5=우수)으로 평가하세요:
 
 1. 명확성 & 논리성 (20%): 발언의 구조화(서론-본론-결론), 메시지의 핵심 전달 여부, 불필요한 반복/모호성 최소화
 2. 경청 & 공감 (20%): 상대방 발언 재진술·요약 능력, 감정 인식 및 언어적/비언어적 공감 표현, 상대방의 필요·우려를 존중하는 반응
@@ -197,11 +209,13 @@ ${conversationText}
 4. 설득력 & 영향력 (20%): 논리적 근거 제시, 사례/데이터/비유 활용, 상대방의 의사결정/행동 변화 유도
 5. 전략적 커뮤니케이션 (20%): 목표 의식 있는 대화 전개, 갈등 회피 vs. 협상·조율 능력, 질문·피드백을 활용한 대화 주도성
 
-**평가 시 고려사항:**
-- 발화량이 너무 적으면(평균 20자 미만) 명확성 점수 감점
-- 발화량이 적절하면(평균 30-80자) 가산점
-- 대화 턴이 충분하면(8턴 이상) 구조화 점수 가산점
-- 총 발화량이 풍부하면(400자 이상) 참여도 우수 평가
+**⚠️ 엄격한 평가 기준:**
+- 사용자 발언이 부실하거나 부적절하면 낮은 점수를 주세요
+- 발화량이 너무 적으면(평균 20자 미만) 명확성 점수 대폭 감점
+- 의미 없는 짧은 답변이나 무성의한 응답은 엄격히 평가하세요
+- AI의 좋은 응답은 무시하고 오직 사용자 발언의 품질만 평가하세요
+- 대화 참여도가 낮거나 소극적이면 전략적 커뮤니케이션 점수 감점
+- 맥락에 맞지 않는 응답이나 상황 파악 부족 시 적절성 점수 감점
 
 JSON 형식으로 응답하세요:
 {
