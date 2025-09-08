@@ -708,9 +708,9 @@ export function ScenarioManager() {
                 <div>
                   <h4 className="font-medium text-slate-700 mb-1">포함된 페르소나</h4>
                   <div className="flex flex-wrap gap-1">
-                    {(scenario.personas || []).map((personaId, index) => (
+                    {(scenario.personas || []).map((persona, index) => (
                       <Badge key={index} variant="outline" className="text-xs">
-                        {personaId}
+                        {typeof persona === 'string' ? persona : persona.name || persona.id}
                       </Badge>
                     ))}
                   </div>
