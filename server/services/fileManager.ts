@@ -333,11 +333,44 @@ export class FileManagerService {
 
   // 유틸리티 메서드
   private generateId(name: string): string {
-    return name
-      .toLowerCase()
-      .replace(/[^a-z0-9\s]/g, '')
-      .replace(/\s+/g, '-')
-      .substring(0, 50);
+    // 한글-영어 키워드 맵핑
+    const koreanToEnglishMap: {[key: string]: string} = {
+      '프로젝트': 'project', '지연': 'delay', '갈등': 'conflict', 
+      '협상': 'negotiation', '회의': 'meeting', '위기': 'crisis',
+      '앱': 'app', '개발': 'dev', '마케팅': 'marketing', '품질': 'quality',
+      '출시': 'launch', '일정': 'schedule', '물류': 'logistics', 
+      '마비': 'paralysis', '손상': 'damage', '폭설': 'snow', 
+      '제조': 'manufacturing', '생산': 'production', '납기': 'delivery',
+      '신제품': 'new-product', '내부': 'internal', '이슈': 'issue',
+      '출고': 'shipping', '재작업': 'rework', '검수': 'inspection',
+      '구조적': 'structural', '결함': 'defect', '안전': 'safety',
+      '고객': 'customer', '서비스': 'service', '팀': 'team',
+      '관리': 'management', '시스템': 'system', '데이터': 'data',
+      '보안': 'security', '네트워크': 'network', '서버': 'server',
+      '사용자': 'user', '인터페이스': 'interface', '디자인': 'design',
+      '계획': 'plan', '예산': 'budget', '비용': 'cost',
+      '효율': 'efficiency', '성능': 'performance', '최적화': 'optimization',
+      '신규': 'new', '런칭': 'launch', '캠페인': 'campaign', '연기': 'delay'
+    };
+    
+    // 제목을 단어로 분리하고 변환
+    const keywords = name
+      .replace(/[^\w\s가-힣]/g, '') // 특수문자 제거
+      .split(/\s+/) // 공백으로 분리
+      .filter(word => word.length > 1) // 한 글자 단어 제거
+      .slice(0, 3) // 최대 3개 키워드
+      .map(word => {
+        // 전체 단어를 영어로 변환하거나, 없으면 한글 그대로 사용
+        const lowerWord = word.toLowerCase();
+        return koreanToEnglishMap[word] || lowerWord;
+      })
+      .join('-');
+    
+    // 생성 일시 추가 (중복 방지용)
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+    const baseId = keywords || 'scenario';
+    
+    return `${baseId}-${timestamp}`;
   }
 }
 

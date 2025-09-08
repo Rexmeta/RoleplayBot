@@ -565,7 +565,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // AI 시나리오 생성 API
   app.post("/api/admin/generate-scenario", async (req, res) => {
     try {
-      const { theme, industry, difficulty, personaCount } = req.body;
+      const { 
+        theme, 
+        industry, 
+        situation,
+        timeline,
+        stakes,
+        playerRole,
+        conflictType,
+        objectiveType,
+        skills,
+        estimatedTime,
+        difficulty, 
+        personaCount 
+      } = req.body;
       
       if (!theme) {
         return res.status(400).json({ error: "주제는 필수입니다" });
@@ -574,6 +587,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const result = await generateScenarioWithAI({
         theme,
         industry,
+        situation,
+        timeline,
+        stakes,
+        playerRole,
+        conflictType,
+        objectiveType,
+        skills,
+        estimatedTime,
         difficulty: Number(difficulty) || 3,
         personaCount: Number(personaCount) || 3
       });
