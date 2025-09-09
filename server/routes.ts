@@ -274,15 +274,46 @@ export async function registerRoutes(app: Express): Promise<Server> {
         persona
       );
 
-      // 시간 성과 평가 추가
-      const timePerformance = {
-        rating: conversationDuration <= 5 ? 'excellent' as const :
-                conversationDuration <= 10 ? 'good' as const :
-                conversationDuration <= 15 ? 'average' as const : 'slow' as const,
-        feedback: conversationDuration <= 5 ? '매우 효율적인 대화 진행' :
-                  conversationDuration <= 10 ? '적절한 시간 내 대화 완료' :
-                  conversationDuration <= 15 ? '평균적인 대화 속도' : '대화 시간이 다소 길었습니다'
-      };
+      // 체계적인 시간 성과 평가 시스템
+      const timePerformance = (() => {
+        // 1. 사용자 발언이 없으면 최하점
+        if (userMessages.length === 0 || totalUserWords === 0) {
+          return {
+            rating: 'slow' as const,
+            feedback: '대화 참여 없음 - 시간 평가 불가'
+          };
+        }
+
+        // 2. 발화 밀도 계산 (분당 글자 수)
+        const speechDensity = conversationDuration > 0 ? totalUserWords / conversationDuration : 0;
+        
+        // 3. 평균 발언 길이
+        const avgMessageLength = totalUserWords / userMessages.length;
+
+        // 4. 종합 평가 (발화량과 시간 고려)
+        let rating: 'excellent' | 'good' | 'average' | 'slow' = 'slow';
+        let feedback = '';
+
+        if (speechDensity >= 30 && avgMessageLength >= 20) {
+          // 활발하고 충실한 대화
+          rating = conversationDuration <= 10 ? 'excellent' : 'good';
+          feedback = `활발한 대화 참여 (밀도: ${speechDensity.toFixed(1)}자/분, 평균: ${avgMessageLength.toFixed(0)}자/발언)`;
+        } else if (speechDensity >= 15 && avgMessageLength >= 10) {
+          // 보통 수준의 대화
+          rating = conversationDuration <= 15 ? 'good' : 'average';
+          feedback = `적절한 대화 참여 (밀도: ${speechDensity.toFixed(1)}자/분, 평균: ${avgMessageLength.toFixed(0)}자/발언)`;
+        } else if (speechDensity >= 5 && avgMessageLength >= 5) {
+          // 소극적이지만 참여한 대화
+          rating = 'average';
+          feedback = `소극적 참여 (밀도: ${speechDensity.toFixed(1)}자/분, 평균: ${avgMessageLength.toFixed(0)}자/발언)`;
+        } else {
+          // 매우 소극적인 대화
+          rating = 'slow';
+          feedback = `매우 소극적 참여 (밀도: ${speechDensity.toFixed(1)}자/분, 평균: ${avgMessageLength.toFixed(0)}자/발언)`;
+        }
+
+        return { rating, feedback };
+      })();
 
       // 피드백에 시간 정보 추가
       feedbackData.conversationDuration = conversationDuration;
