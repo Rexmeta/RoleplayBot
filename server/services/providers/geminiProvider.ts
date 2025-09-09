@@ -266,9 +266,39 @@ JSON 형식으로 응답하세요:
       // 사용자 발언이 없는 경우 감지 (userMessages 길이가 0이거나 모든 메시지가 공백)
       const hasUserInput = userMessages.length > 0 && userMessages.some(msg => msg.message.trim().length > 0);
       
-      // 사용자 발언이 없으면 모든 점수를 1점으로 강제 설정
-      const defaultScore = hasUserInput ? 3 : 1;
-      const calculatedOverallScore = hasUserInput ? (feedbackData.overallScore || 0) : 20; // 5개 카테고리 각각 1점씩 = 20점
+      // 디버그 로그 추가
+      console.log("사용자 발언 분석:", {
+        userMessagesLength: userMessages.length,
+        hasUserInput: hasUserInput,
+        userMessages: userMessages.map(msg => ({ message: msg.message, length: msg.message.trim().length }))
+      });
+      
+      // 사용자 발언이 없으면 AI 응답 무시하고 모든 점수를 1점으로 강제 설정
+      if (!hasUserInput) {
+        console.log("사용자 발언 없음 - 모든 점수 1점으로 강제 설정");
+        return {
+          overallScore: 20, // 5개 카테고리 각각 1점씩 = 20점
+          scores: {
+            clarityLogic: 1,
+            listeningEmpathy: 1,
+            appropriatenessAdaptability: 1,
+            persuasivenessImpact: 1,
+            strategicCommunication: 1
+          },
+          strengths: ["평가할 사용자의 발언이 없습니다."],
+          improvements: ["더 구체적인 표현", "감정 교감 증진", "논리적 구조화"],
+          nextSteps: ["추가 연습 필요", "전문가 피드백 받기", "실무 경험 쌓기"],
+          summary: "사용자의 발언이 없어 커뮤니케이션 역량을 평가할 수 없습니다. 대화에 전혀 참여하지 않았기 때문에 모든 평가 항목에서 최하점을 부여했습니다. 목표 달성을 위해서는 먼저 대화에 참여하여 자신의 의견을 표현하는 것이 필요합니다.",
+          ranking: "전문가 분석 결과를 바탕으로 한 종합 평가입니다.",
+          behaviorGuides: this.generateBehaviorGuides(persona),
+          conversationGuides: this.generateConversationGuides(persona),
+          developmentPlan: this.generateDevelopmentPlan(20)
+        };
+      }
+      
+      // 정상적인 사용자 발언이 있는 경우의 평가
+      const defaultScore = 3;
+      const calculatedOverallScore = feedbackData.overallScore || 0;
       
       return {
         overallScore: Math.min(100, Math.max(0, calculatedOverallScore)),
