@@ -274,9 +274,11 @@ JSON 형식으로 응답하세요:
       });
       
       // 시간 분석 (사용자 발언 여부와 상관없이 항상 계산)
-      const conversationDuration = conversation?.completedAt && conversation?.createdAt 
-        ? Math.floor((new Date(conversation.completedAt).getTime() - new Date(conversation.createdAt).getTime()) / 1000 / 60) 
-        : 0; // 분 단위
+      const conversationDurationSeconds = conversation?.completedAt && conversation?.createdAt 
+        ? Math.floor((new Date(conversation.completedAt).getTime() - new Date(conversation.createdAt).getTime()) / 1000) 
+        : 0; // 초 단위
+      
+      const conversationDuration = Math.floor(conversationDurationSeconds / 60); // 분 단위 (기존 로직 호환성)
 
       // 간단한 시간 평가 (인라인)
       const timePerformance = !hasUserInput || userMessages.length === 0 || totalUserWords === 0 
@@ -303,7 +305,7 @@ JSON 형식으로 응답하세요:
           behaviorGuides: this.generateBehaviorGuides(persona),
           conversationGuides: this.generateConversationGuides(persona),
           developmentPlan: this.generateDevelopmentPlan(20),
-          conversationDuration: conversationDuration,
+          conversationDuration: conversationDurationSeconds, // 초 단위로 저장
           averageResponseTime: Infinity,
           timePerformance: timePerformance
         };
@@ -370,7 +372,7 @@ JSON 형식으로 응답하세요:
           behaviorGuides: this.generateBehaviorGuides(persona),
           conversationGuides: this.generateConversationGuides(persona),
           developmentPlan: this.generateDevelopmentPlan(20),
-          conversationDuration: conversationDuration,
+          conversationDuration: conversationDurationSeconds, // 초 단위로 저장
           averageResponseTime: Infinity,
           timePerformance: timePerformance
         };

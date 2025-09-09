@@ -497,11 +497,11 @@ JSON 형식으로 응답하세요:
     if (conversation) {
       const now = new Date();
       const startTime = new Date(conversation.startTime);
-      conversationDuration = Math.round((now.getTime() - startTime.getTime()) / (1000 * 60)); // 분 단위
+      conversationDuration = Math.round((now.getTime() - startTime.getTime()) / 1000); // 초 단위
       
       // 사용자 메시지 수를 기반으로 평균 응답 시간 추정
       if (userMessages.length > 0) {
-        averageResponseTime = Math.round(conversationDuration * 60 / userMessages.length); // 초 단위
+        averageResponseTime = Math.round(conversationDuration / userMessages.length); // 초 단위
       }
       
       // 시간 기반 성능 분석
@@ -666,13 +666,13 @@ JSON 형식으로 응답하세요:
     let rating: 'excellent' | 'good' | 'average' | 'slow' = 'average';
     let feedback = '';
     
-    if (conversationDuration <= 10 && averageResponseTime <= 30) {
+    if (conversationDuration <= 600 && averageResponseTime <= 30) { // 10분 = 600초
       rating = 'excellent';
       feedback = '매우 효율적이고 신속한 대화 진행';
-    } else if (conversationDuration <= 15 && averageResponseTime <= 45) {
+    } else if (conversationDuration <= 900 && averageResponseTime <= 45) { // 15분 = 900초
       rating = 'good';
       feedback = '적절한 대화 속도와 반응 시간 유지';
-    } else if (conversationDuration <= 25 && averageResponseTime <= 60) {
+    } else if (conversationDuration <= 1500 && averageResponseTime <= 60) { // 25분 = 1500초
       rating = 'average';
       feedback = '평균적인 대화 진행 속도';
     } else {
@@ -680,7 +680,7 @@ JSON 형식으로 응답하세요:
       feedback = '대화 속도 및 반응 시간 개선이 필요';
     }
     
-    console.log(`⏱️ 시간 분석 - 대화: ${conversationDuration}분, 평균응답: ${averageResponseTime}초, 평가: ${rating}`);
+    console.log(`⏱️ 시간 분석 - 대화: ${conversationDuration}초, 평균응답: ${averageResponseTime}초, 평가: ${rating}`);
     
     return { rating, feedback };
   }

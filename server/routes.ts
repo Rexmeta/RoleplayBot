@@ -258,10 +258,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         background: mbtiPersona?.background?.personal_values?.join(', ') || '전문성'
       };
 
-      // 대화 시간과 발화량 계산
-      const conversationDuration = conversation.completedAt 
-        ? Math.floor((new Date(conversation.completedAt).getTime() - new Date(conversation.createdAt).getTime()) / 1000 / 60) 
-        : 0; // 분 단위
+      // 대화 시간과 발화량 계산 (초 단위)
+      const conversationDurationSeconds = conversation.completedAt 
+        ? Math.floor((new Date(conversation.completedAt).getTime() - new Date(conversation.createdAt).getTime()) / 1000) 
+        : 0; // 초 단위
+      
+      const conversationDuration = Math.floor(conversationDurationSeconds / 60); // 분 단위 (기존 로직 호환성)
 
       const userMessages = conversation.messages.filter(m => m.sender === 'user');
       const totalUserWords = userMessages.reduce((sum, msg) => sum + msg.message.length, 0);
@@ -316,7 +318,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       })();
 
       // 피드백에 시간 정보 추가
-      feedbackData.conversationDuration = conversationDuration;
+      feedbackData.conversationDuration = conversationDurationSeconds; // 초 단위로 저장
+      feedbackData.conversationDurationMinutes = conversationDuration; // 분 단위도 포함
       feedbackData.averageResponseTime = averageResponseTime;
       feedbackData.timePerformance = timePerformance;
 
