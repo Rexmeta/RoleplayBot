@@ -273,6 +273,13 @@ JSON 형식으로 응답하세요:
         userMessages: userMessages.map(msg => ({ message: msg.message, length: msg.message.trim().length }))
       });
       
+      // 시간 분석 (사용자 발언 여부와 상관없이 항상 계산)
+      const conversationDuration = conversation?.completedAt && conversation?.createdAt 
+        ? Math.floor((new Date(conversation.completedAt).getTime() - new Date(conversation.createdAt).getTime()) / 1000 / 60) 
+        : 0; // 분 단위
+
+      const timePerformance = this.analyzeTimingPerformance(conversationDuration, userMessages.length, totalUserWords, hasUserInput);
+
       // 사용자 발언이 없으면 AI 응답 무시하고 모든 점수를 1점으로 강제 설정
       if (!hasUserInput) {
         console.log("사용자 발언 없음 - 모든 점수 1점으로 강제 설정");
@@ -292,7 +299,10 @@ JSON 형식으로 응답하세요:
           ranking: "전문가 분석 결과를 바탕으로 한 종합 평가입니다.",
           behaviorGuides: this.generateBehaviorGuides(persona),
           conversationGuides: this.generateConversationGuides(persona),
-          developmentPlan: this.generateDevelopmentPlan(20)
+          developmentPlan: this.generateDevelopmentPlan(20),
+          conversationDuration: conversationDuration,
+          averageResponseTime: Infinity,
+          timePerformance: timePerformance
         };
       }
       
@@ -316,7 +326,10 @@ JSON 형식으로 응답하세요:
         ranking: "전문가 분석 결과를 바탕으로 한 종합 평가입니다.",
         behaviorGuides: this.generateBehaviorGuides(persona),
         conversationGuides: this.generateConversationGuides(persona),
-        developmentPlan: this.generateDevelopmentPlan(feedbackData.overallScore || 60)
+        developmentPlan: this.generateDevelopmentPlan(feedbackData.overallScore || 60),
+        conversationDuration: conversationDuration,
+        averageResponseTime: userMessages.length > 0 ? Math.round(conversationDuration * 60 / userMessages.length) : 0,
+        timePerformance: timePerformance
       };
     } catch (error) {
       console.error("Feedback generation error:", error);
@@ -328,6 +341,13 @@ JSON 형식으로 응답하세요:
       const hasUserInput = userMessagesInCatch.length > 0 && userMessagesInCatch.some((msg: any) => msg.message.trim().length > 0);
       console.log("Fallback - 사용자 발언 있음:", hasUserInput);
       
+      // 시간 분석 (사용자 발언 여부와 상관없이 항상 계산)
+      const conversationDuration = conversation?.completedAt && conversation?.createdAt 
+        ? Math.floor((new Date(conversation.completedAt).getTime() - new Date(conversation.createdAt).getTime()) / 1000 / 60) 
+        : 0;
+
+      const timePerformance = this.analyzeTimingPerformance(conversationDuration, userMessagesInCatch.length, 0, hasUserInput);
+
       if (!hasUserInput) {
         return {
           overallScore: 20,
@@ -345,12 +365,63 @@ JSON 형식으로 응답하세요:
           ranking: "전문가 분석 결과를 바탕으로 한 종합 평가입니다.",
           behaviorGuides: this.generateBehaviorGuides(persona),
           conversationGuides: this.generateConversationGuides(persona),
-          developmentPlan: this.generateDevelopmentPlan(20)
+          developmentPlan: this.generateDevelopmentPlan(20),
+          conversationDuration: conversationDuration,
+          averageResponseTime: Infinity,
+          timePerformance: timePerformance
         };
       }
       
       return this.getFallbackFeedback();
     }
+  }
+
+  // 체계적인 시간 성과 평가 시스템
+  private analyzeTimingPerformance(
+    conversationDuration: number, 
+    userMessageCount: number, 
+    totalUserWords: number, 
+    hasUserInput: boolean
+  ): { rating: 'excellent' | 'good' | 'average' | 'slow'; feedback: string } {
+    // 1. 사용자 발언이 없으면 최하점
+    if (!hasUserInput || userMessageCount === 0 || totalUserWords === 0) {
+      return {
+        rating: 'slow' as const,
+        feedback: '대화 참여 없음 - 시간 평가 불가'
+      };
+    }
+
+    // 2. 발화 밀도 계산 (분당 글자 수)
+    const speechDensity = conversationDuration > 0 ? totalUserWords / conversationDuration : 0;
+    
+    // 3. 평균 발언 길이
+    const avgMessageLength = totalUserWords / userMessageCount;
+
+    // 4. 종합 평가 (발화량과 시간 고려)
+    let rating: 'excellent' | 'good' | 'average' | 'slow' = 'slow';
+    let feedback = '';
+
+    if (speechDensity >= 30 && avgMessageLength >= 20) {
+      // 활발하고 충실한 대화
+      rating = conversationDuration <= 10 ? 'excellent' : 'good';
+      feedback = `활발한 대화 참여 (밀도: ${speechDensity.toFixed(1)}자/분, 평균: ${avgMessageLength.toFixed(0)}자/발언)`;
+    } else if (speechDensity >= 15 && avgMessageLength >= 10) {
+      // 보통 수준의 대화
+      rating = conversationDuration <= 15 ? 'good' : 'average';
+      feedback = `적절한 대화 참여 (밀도: ${speechDensity.toFixed(1)}자/분, 평균: ${avgMessageLength.toFixed(0)}자/발언)`;
+    } else if (speechDensity >= 5 && avgMessageLength >= 5) {
+      // 소극적이지만 참여한 대화
+      rating = 'average';
+      feedback = `소극적 참여 (밀도: ${speechDensity.toFixed(1)}자/분, 평균: ${avgMessageLength.toFixed(0)}자/발언)`;
+    } else {
+      // 매우 소극적인 대화
+      rating = 'slow';
+      feedback = `매우 소극적 참여 (밀도: ${speechDensity.toFixed(1)}자/분, 평균: ${avgMessageLength.toFixed(0)}자/발언)`;
+    }
+
+    console.log(`⏱️ Gemini 시간 분석 - 대화: ${conversationDuration}분, 발화밀도: ${speechDensity.toFixed(1)}자/분, 평가: ${rating}`);
+    
+    return { rating, feedback };
   }
 
   private getFallbackResponse(persona: ScenarioPersona): string {
@@ -376,11 +447,11 @@ JSON 형식으로 응답하세요:
         persuasivenessImpact: 1,
         strategicCommunication: 1
       },
-      strengths: ["기본적인 대화 참여", "적절한 언어 사용", "상황에 맞는 응답"],
-      improvements: ["시스템 안정성 확보 후 재평가 필요", "더 많은 대화 기회 필요", "기술적 문제 해결 후 재시도"],
-      nextSteps: ["시스템 점검 완료 후 재도전", "안정적인 환경에서 재시도", "기술 지원팀 문의"],
-      summary: "시스템 오류로 인해 정확한 평가가 어려웠습니다. 기술적 문제 해결 후 다시 시도해주세요.",
-      ranking: "기술적 문제로 인한 임시 평가입니다.",
+      strengths: ["평가할 사용자의 발언이 없습니다."],
+      improvements: ["더 구체적인 표현", "감정 교감 증진", "논리적 구조화"],
+      nextSteps: ["추가 연습 필요", "전문가 피드백 받기", "실무 경험 쌓기"],
+      summary: "사용자의 발언이 없어 커뮤니케이션 역량을 평가할 수 없습니다. 대화에 전혀 참여하지 않았기 때문에 모든 평가 항목에서 최하점을 부여했습니다.",
+      ranking: "전문가 분석 결과를 바탕으로 한 종합 평가입니다.",
       behaviorGuides: [],
       conversationGuides: [],
       developmentPlan: {
@@ -388,7 +459,10 @@ JSON 형식으로 응답하세요:
         mediumTerm: [],
         longTerm: [],
         recommendedResources: []
-      }
+      },
+      conversationDuration: 0,
+      averageResponseTime: Infinity,
+      timePerformance: { rating: 'slow', feedback: '대화 참여 없음 - 시간 평가 불가' }
     };
   }
 
