@@ -235,7 +235,7 @@ export function ScenarioManager() {
         acceptable: '',
         failure: ''
       },
-      personas: scenario.personas as ScenarioPersona[] || [],
+      personas: (scenario.personas as any) || [],
       recommendedFlow: scenario.recommendedFlow || []
     });
     setIsCreateOpen(true);
@@ -281,6 +281,7 @@ export function ScenarioManager() {
               </DialogHeader>
             
               <form onSubmit={handleSubmit} className="space-y-6">
+                {/* 기본 정보 */}
                 <div className="space-y-4">
                   <h3 className="text-lg font-semibold">기본 정보</h3>
                   
@@ -338,6 +339,320 @@ export function ScenarioManager() {
                   </div>
                 </div>
 
+                {/* 상황 컨텍스트 */}
+                <div className="space-y-4">
+                  <h3 className="text-lg font-semibold">상황 컨텍스트</h3>
+                  
+                  <div className="space-y-4">
+                    <div>
+                      <Label htmlFor="situation">상황 설명</Label>
+                      <Textarea
+                        id="situation"
+                        value={formData.context.situation}
+                        onChange={(e) => setFormData(prev => ({
+                          ...prev,
+                          context: { ...prev.context, situation: e.target.value }
+                        }))}
+                        placeholder="시나리오가 벌어지는 상황을 설명하세요"
+                        className="min-h-[100px]"
+                        data-testid="textarea-situation"
+                      />
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <Label htmlFor="timeline">타임라인</Label>
+                        <Input
+                          id="timeline"
+                          value={formData.context.timeline}
+                          onChange={(e) => setFormData(prev => ({
+                            ...prev,
+                            context: { ...prev.context, timeline: e.target.value }
+                          }))}
+                          placeholder="예: 3일 내, 다음 주까지"
+                          data-testid="input-timeline"
+                        />
+                      </div>
+                      
+                      <div>
+                        <Label htmlFor="stakes">중요도/위험도</Label>
+                        <Input
+                          id="stakes"
+                          value={formData.context.stakes}
+                          onChange={(e) => setFormData(prev => ({
+                            ...prev,
+                            context: { ...prev.context, stakes: e.target.value }
+                          }))}
+                          placeholder="예: 높음, 프로젝트 성패에 중요"
+                          data-testid="input-stakes"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* 플레이어 역할 */}
+                <div className="space-y-4">
+                  <h3 className="text-lg font-semibold">플레이어 역할</h3>
+                  
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <Label htmlFor="playerPosition">직책</Label>
+                      <Input
+                        id="playerPosition"
+                        value={formData.context.playerRole.position}
+                        onChange={(e) => setFormData(prev => ({
+                          ...prev,
+                          context: {
+                            ...prev.context,
+                            playerRole: { ...prev.context.playerRole, position: e.target.value }
+                          }
+                        }))}
+                        placeholder="예: 주니어 개발자, 팀장"
+                        data-testid="input-player-position"
+                      />
+                    </div>
+                    
+                    <div>
+                      <Label htmlFor="playerDepartment">부서</Label>
+                      <Input
+                        id="playerDepartment"
+                        value={formData.context.playerRole.department}
+                        onChange={(e) => setFormData(prev => ({
+                          ...prev,
+                          context: {
+                            ...prev.context,
+                            playerRole: { ...prev.context.playerRole, department: e.target.value }
+                          }
+                        }))}
+                        placeholder="예: 개발팀, 마케팅팀"
+                        data-testid="input-player-department"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <Label htmlFor="playerExperience">경력</Label>
+                      <Input
+                        id="playerExperience"
+                        value={formData.context.playerRole.experience}
+                        onChange={(e) => setFormData(prev => ({
+                          ...prev,
+                          context: {
+                            ...prev.context,
+                            playerRole: { ...prev.context.playerRole, experience: e.target.value }
+                          }
+                        }))}
+                        placeholder="예: 2년차, 신입사원"
+                        data-testid="input-player-experience"
+                      />
+                    </div>
+                    
+                    <div>
+                      <Label htmlFor="playerResponsibility">담당 업무</Label>
+                      <Input
+                        id="playerResponsibility"
+                        value={formData.context.playerRole.responsibility}
+                        onChange={(e) => setFormData(prev => ({
+                          ...prev,
+                          context: {
+                            ...prev.context,
+                            playerRole: { ...prev.context.playerRole, responsibility: e.target.value }
+                          }
+                        }))}
+                        placeholder="예: 프론트엔드 개발, 고객 관리"
+                        data-testid="input-player-responsibility"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* 목표 설정 */}
+                <div className="space-y-4">
+                  <h3 className="text-lg font-semibold">목표 설정</h3>
+                  
+                  <div className="space-y-2">
+                    <div className="flex space-x-2">
+                      <Input
+                        placeholder="새 목표를 입력하세요"
+                        onKeyPress={(e) => {
+                          if (e.key === 'Enter') {
+                            e.preventDefault();
+                            const value = (e.target as HTMLInputElement).value.trim();
+                            if (value) {
+                              setFormData(prev => ({
+                                ...prev,
+                                objectives: [...prev.objectives, value]
+                              }));
+                              (e.target as HTMLInputElement).value = '';
+                            }
+                          }
+                        }}
+                        data-testid="input-new-objective"
+                      />
+                      <Button
+                        type="button"
+                        onClick={(e) => {
+                          const input = (e.target as HTMLElement).parentElement?.querySelector('input') as HTMLInputElement;
+                          const value = input?.value.trim();
+                          if (value) {
+                            setFormData(prev => ({
+                              ...prev,
+                              objectives: [...prev.objectives, value]
+                            }));
+                            input.value = '';
+                          }
+                        }}
+                        data-testid="button-add-objective"
+                      >
+                        추가
+                      </Button>
+                    </div>
+                    
+                    <div className="flex flex-wrap gap-2">
+                      {formData.objectives.map((objective, index) => (
+                        <Badge
+                          key={index}
+                          variant="secondary"
+                          className="cursor-pointer"
+                          onClick={() => setFormData(prev => ({
+                            ...prev,
+                            objectives: prev.objectives.filter((_, i) => i !== index)
+                          }))}
+                          data-testid={`badge-objective-${index}`}
+                        >
+                          {objective} ×
+                        </Badge>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                {/* 스킬 요구사항 */}
+                <div className="space-y-4">
+                  <h3 className="text-lg font-semibold">필요 스킬</h3>
+                  
+                  <div className="space-y-2">
+                    <div className="flex space-x-2">
+                      <Input
+                        placeholder="필요한 스킬을 입력하세요"
+                        onKeyPress={(e) => {
+                          if (e.key === 'Enter') {
+                            e.preventDefault();
+                            const value = (e.target as HTMLInputElement).value.trim();
+                            if (value && !formData.skills.includes(value)) {
+                              setFormData(prev => ({
+                                ...prev,
+                                skills: [...prev.skills, value]
+                              }));
+                              (e.target as HTMLInputElement).value = '';
+                            }
+                          }
+                        }}
+                        data-testid="input-new-skill"
+                      />
+                      <Button
+                        type="button"
+                        onClick={(e) => {
+                          const input = (e.target as HTMLElement).parentElement?.querySelector('input') as HTMLInputElement;
+                          const value = input?.value.trim();
+                          if (value && !formData.skills.includes(value)) {
+                            setFormData(prev => ({
+                              ...prev,
+                              skills: [...prev.skills, value]
+                            }));
+                            input.value = '';
+                          }
+                        }}
+                        data-testid="button-add-skill"
+                      >
+                        추가
+                      </Button>
+                    </div>
+                    
+                    <div className="flex flex-wrap gap-2">
+                      {formData.skills.map((skill, index) => (
+                        <Badge
+                          key={index}
+                          variant="outline"
+                          className="cursor-pointer"
+                          onClick={() => setFormData(prev => ({
+                            ...prev,
+                            skills: prev.skills.filter((_, i) => i !== index)
+                          }))}
+                          data-testid={`badge-skill-${index}`}
+                        >
+                          {skill} ×
+                        </Badge>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                {/* 성공 기준 */}
+                <div className="space-y-4">
+                  <h3 className="text-lg font-semibold">성공 기준</h3>
+                  
+                  <div className="space-y-4">
+                    <div>
+                      <Label htmlFor="successOptimal">최적 결과</Label>
+                      <Textarea
+                        id="successOptimal"
+                        value={formData.successCriteria.optimal}
+                        onChange={(e) => setFormData(prev => ({
+                          ...prev,
+                          successCriteria: { ...prev.successCriteria, optimal: e.target.value }
+                        }))}
+                        placeholder="최상의 결과는 무엇인가요?"
+                        data-testid="textarea-success-optimal"
+                      />
+                    </div>
+                    
+                    <div>
+                      <Label htmlFor="successGood">좋은 결과</Label>
+                      <Textarea
+                        id="successGood"
+                        value={formData.successCriteria.good}
+                        onChange={(e) => setFormData(prev => ({
+                          ...prev,
+                          successCriteria: { ...prev.successCriteria, good: e.target.value }
+                        }))}
+                        placeholder="만족스러운 결과는 무엇인가요?"
+                        data-testid="textarea-success-good"
+                      />
+                    </div>
+                    
+                    <div>
+                      <Label htmlFor="successAcceptable">수용 가능한 결과</Label>
+                      <Textarea
+                        id="successAcceptable"
+                        value={formData.successCriteria.acceptable}
+                        onChange={(e) => setFormData(prev => ({
+                          ...prev,
+                          successCriteria: { ...prev.successCriteria, acceptable: e.target.value }
+                        }))}
+                        placeholder="최소한 달성해야 할 결과는 무엇인가요?"
+                        data-testid="textarea-success-acceptable"
+                      />
+                    </div>
+                    
+                    <div>
+                      <Label htmlFor="successFailure">실패 기준</Label>
+                      <Textarea
+                        id="successFailure"
+                        value={formData.successCriteria.failure}
+                        onChange={(e) => setFormData(prev => ({
+                          ...prev,
+                          successCriteria: { ...prev.successCriteria, failure: e.target.value }
+                        }))}
+                        placeholder="어떤 경우를 실패로 볼 것인가요?"
+                        data-testid="textarea-success-failure"
+                      />
+                    </div>
+                  </div>
+                </div>
+
                 <div className="flex justify-end space-x-3">
                   <Button
                     type="button"
@@ -357,7 +672,14 @@ export function ScenarioManager() {
                     disabled={createMutation.isPending || updateMutation.isPending}
                     data-testid="button-save-scenario"
                   >
-                    {editingScenario ? '수정하기' : '생성하기'}
+                    {createMutation.isPending || updateMutation.isPending ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        {editingScenario ? '수정 중...' : '생성 중...'}
+                      </>
+                    ) : (
+                      editingScenario ? '수정하기' : '생성하기'
+                    )}
                   </Button>
                 </div>
               </form>
