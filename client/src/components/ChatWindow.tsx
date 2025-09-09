@@ -548,7 +548,7 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
 
   // 과학적 실시간 스코어링 시스템 (ComOn Check 연구 기반)
   const calculateRealTimeScore = () => {
-    const messages = conversation.messages;
+    const messages = localMessages;
     const userMessages = messages.filter(m => m.sender === "user");
     
     if (userMessages.length === 0) return 0;
