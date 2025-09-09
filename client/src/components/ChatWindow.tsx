@@ -469,7 +469,17 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
     }
   }, [toast]);
 
-  // 음성 자동 재생 (스크롤 제거)
+  // 자동 스크롤 기능
+  useEffect(() => {
+    if (messagesEndRef.current) {
+      messagesEndRef.current.scrollIntoView({ 
+        behavior: 'smooth', 
+        block: 'end' 
+      });
+    }
+  }, [conversation?.messages]);
+
+  // 음성 자동 재생
   useEffect(() => {
     // 음성 모드가 켜져 있을 때 새로운 AI 메시지 자동 재생
     if (voiceModeEnabled && conversation?.messages) {
@@ -729,7 +739,7 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
         </div>
 
         {/* Chat Messages Area */}
-        <div className="h-96 overflow-y-auto p-6 space-y-4 bg-slate-50/50" data-testid="chat-messages">
+        <div className="h-96 overflow-y-auto p-6 space-y-4 bg-slate-50/50 scroll-smooth" data-testid="chat-messages">
           {conversation.messages.map((message: ConversationMessage, index: number) => (
             <div
               key={index}
