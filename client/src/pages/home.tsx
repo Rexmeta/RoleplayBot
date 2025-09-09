@@ -3,7 +3,8 @@ import { Link } from "wouter";
 import ScenarioSelector from "@/components/ScenarioSelector";
 import ChatWindow from "@/components/ChatWindow";
 import PersonalDevelopmentReport from "@/components/PersonalDevelopmentReport";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation } from "@tanstack/react-query";
+import { apiRequest } from "@/lib/queryClient";
 import { type ComplexScenario, type ScenarioPersona } from "@/lib/scenario-system";
 
 type ViewState = "scenarios" | "chat" | "feedback";
@@ -53,6 +54,42 @@ export default function Home() {
     setSelectedScenario(null);
     setSelectedPersona(null);
     setConversationId(null);
+  };
+
+  // 재도전을 위한 새로운 대화 생성
+  const createRetryConversationMutation = useMutation({
+    mutationFn: async ({ scenarioId, personaId, scenarioName }: { 
+      scenarioId: string; 
+      personaId: string; 
+      scenarioName: string; 
+    }) => {
+      const response = await apiRequest("POST", "/api/conversations", {
+        scenarioId,
+        personaId,
+        scenarioName,
+        messages: [],
+        turnCount: 0,
+        status: "active"
+      });
+      return response.json();
+    },
+    onSuccess: (conversation) => {
+      setConversationId(conversation.id);
+      setCurrentView("chat");
+    },
+    onError: (error) => {
+      console.error("재도전 대화 생성 실패:", error);
+    }
+  });
+
+  const handleRetry = () => {
+    if (selectedScenario && selectedPersona) {
+      createRetryConversationMutation.mutate({
+        scenarioId: selectedScenario.id,
+        personaId: selectedPersona.id,
+        scenarioName: selectedScenario.title
+      });
+    }
   };
 
   return (
@@ -113,12 +150,7 @@ export default function Home() {
             scenario={selectedScenario}
             persona={selectedPersona}
             conversationId={conversationId}
-            onRetry={() => {
-              if (selectedScenario && selectedPersona) {
-                // 새로운 대화 시작을 위해 다시 시나리오 선택으로 돌아감
-                handleReturnToScenarios();
-              }
-            }}
+            onRetry={handleRetry}
             onSelectNewScenario={handleReturnToScenarios}
           />
         )}
