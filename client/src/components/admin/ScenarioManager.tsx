@@ -3,6 +3,7 @@ import { useQuery, useMutation } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
@@ -856,15 +857,44 @@ export function ScenarioManager() {
                   >
                     <i className="fas fa-edit"></i>
                   </Button>
-                  <Button
-                    variant="destructive"
-                    size="sm"
-                    onClick={() => deleteMutation.mutate(scenario.id)}
-                    disabled={deleteMutation.isPending}
-                    data-testid={`button-delete-scenario-${scenario.id}`}
-                  >
-                    <i className="fas fa-trash"></i>
-                  </Button>
+                  <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                      <Button
+                        variant="destructive"
+                        size="sm"
+                        disabled={deleteMutation.isPending}
+                        data-testid={`button-delete-scenario-${scenario.id}`}
+                      >
+                        <i className="fas fa-trash"></i>
+                      </Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>시나리오 삭제 확인</AlertDialogTitle>
+                        <AlertDialogDescription className="space-y-2">
+                          <div>
+                            <strong>"{scenario.title}"</strong> 시나리오를 정말 삭제하시겠습니까?
+                          </div>
+                          <div className="text-red-600 font-medium">
+                            ⚠️ 삭제된 시나리오는 복구할 수 없습니다.
+                          </div>
+                          <div className="text-slate-600 text-sm">
+                            이 작업은 되돌릴 수 없으니 신중하게 결정해주세요.
+                          </div>
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel>취소</AlertDialogCancel>
+                        <AlertDialogAction
+                          onClick={() => deleteMutation.mutate(scenario.id)}
+                          className="bg-red-600 hover:bg-red-700"
+                          data-testid={`confirm-delete-scenario-${scenario.id}`}
+                        >
+                          삭제
+                        </AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
                 </div>
               </div>
             </CardHeader>
