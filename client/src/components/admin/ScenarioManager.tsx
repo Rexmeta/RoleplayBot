@@ -135,7 +135,7 @@ export function ScenarioManager() {
       queryClient.invalidateQueries({ queryKey: ['/api/admin/scenarios'] });
       setEditingScenario(null);
       resetForm();
-      setIsCreateOpen(false); // 다이얼로그 닫기
+      setIsCreateOpen(false);
       toast({
         title: "시나리오 수정 완료",
         description: "시나리오가 성공적으로 수정되었습니다.",
@@ -152,8 +152,7 @@ export function ScenarioManager() {
 
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
-      const response = await apiRequest('DELETE', `/api/admin/scenarios/${id}`);
-      return response.json();
+      await apiRequest('DELETE', `/api/admin/scenarios/${id}`);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/admin/scenarios'] });
@@ -201,36 +200,6 @@ export function ScenarioManager() {
     });
   };
 
-  const handleEdit = (scenario: ComplexScenario) => {
-    setEditingScenario(scenario);
-    setFormData({
-      title: scenario.title,
-      description: scenario.description,
-      difficulty: scenario.difficulty,
-      estimatedTime: scenario.estimatedTime,
-      skills: scenario.skills,
-      context: scenario.context,
-      objectives: scenario.objectives,
-      successCriteria: scenario.successCriteria,
-      // personas가 객체 배열인 경우 ID만 추출, 문자열 배열인 경우 그대로 사용
-      personas: Array.isArray(scenario.personas) 
-        ? scenario.personas.map(p => typeof p === 'string' ? {
-            id: p,
-            name: '',
-            department: '',
-            position: '',
-            experience: '',
-            personaRef: p + '.json',
-            stance: '',
-            goal: '',
-            tradeoff: ''
-          } : p)
-        : [],
-      recommendedFlow: scenario.recommendedFlow
-    });
-    setIsCreateOpen(true);
-  };
-
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (editingScenario) {
@@ -240,36 +209,36 @@ export function ScenarioManager() {
     }
   };
 
-  const addSkill = (skill: string) => {
-    if (skill && !formData.skills.includes(skill)) {
-      setFormData(prev => ({
-        ...prev,
-        skills: [...prev.skills, skill]
-      }));
-    }
-  };
-
-  const removeSkill = (index: number) => {
-    setFormData(prev => ({
-      ...prev,
-      skills: prev.skills.filter((_, i) => i !== index)
-    }));
-  };
-
-  const addObjective = (objective: string) => {
-    if (objective && !formData.objectives.includes(objective)) {
-      setFormData(prev => ({
-        ...prev,
-        objectives: [...prev.objectives, objective]
-      }));
-    }
-  };
-
-  const removeObjective = (index: number) => {
-    setFormData(prev => ({
-      ...prev,
-      objectives: prev.objectives.filter((_, i) => i !== index)
-    }));
+  const handleEdit = (scenario: ComplexScenario) => {
+    setEditingScenario(scenario);
+    setFormData({
+      title: scenario.title || '',
+      description: scenario.description || '',
+      difficulty: scenario.difficulty || 1,
+      estimatedTime: scenario.estimatedTime || '',
+      skills: scenario.skills || [],
+      context: scenario.context || {
+        situation: '',
+        timeline: '',
+        stakes: '',
+        playerRole: {
+          position: '',
+          department: '',
+          experience: '',
+          responsibility: ''
+        }
+      },
+      objectives: scenario.objectives || [],
+      successCriteria: scenario.successCriteria || {
+        optimal: '',
+        good: '',
+        acceptable: '',
+        failure: ''
+      },
+      personas: scenario.personas as ScenarioPersona[] || [],
+      recommendedFlow: scenario.recommendedFlow || []
+    });
+    setIsCreateOpen(true);
   };
 
   if (isLoading) {
@@ -311,524 +280,93 @@ export function ScenarioManager() {
                 </DialogTitle>
               </DialogHeader>
             
-            <form onSubmit={handleSubmit} className="space-y-6">
-              {/* 기본 정보 */}
-              <div className="space-y-4">
-                <h3 className="text-lg font-semibold">기본 정보</h3>
-                
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <Label htmlFor="title">시나리오 제목</Label>
-                    <Input
-                      id="title"
-                      value={formData.title}
-                      onChange={(e) => setFormData(prev => ({ ...prev, title: e.target.value }))}
-                      placeholder="시나리오 제목을 입력하세요"
-                      required
-                      data-testid="input-scenario-title"
-                    />
-                  </div>
+              <form onSubmit={handleSubmit} className="space-y-6">
+                <div className="space-y-4">
+                  <h3 className="text-lg font-semibold">기본 정보</h3>
                   
-                  <div>
-                    <Label htmlFor="estimatedTime">예상 소요 시간</Label>
-                    <Input
-                      id="estimatedTime"
-                      value={formData.estimatedTime}
-                      onChange={(e) => setFormData(prev => ({ ...prev, estimatedTime: e.target.value }))}
-                      placeholder="예: 30-45분"
-                      required
-                      data-testid="input-estimated-time"
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <Label htmlFor="description">시나리오 설명</Label>
-                  <Textarea
-                    id="description"
-                    value={formData.description}
-                    onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
-                    placeholder="시나리오에 대한 자세한 설명을 입력하세요"
-                    className="min-h-[100px]"
-                    required
-                    data-testid="textarea-scenario-description"
-                  />
-                </div>
-
-                <div>
-                  <Label htmlFor="difficulty">난이도</Label>
-                  <Select value={formData.difficulty.toString()} onValueChange={(value) => 
-                    setFormData(prev => ({ ...prev, difficulty: parseInt(value) }))
-                  }>
-                    <SelectTrigger data-testid="select-difficulty">
-                      <SelectValue placeholder="난이도를 선택하세요" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="1">초급 (★☆☆☆☆)</SelectItem>
-                      <SelectItem value="2">초중급 (★★☆☆☆)</SelectItem>
-                      <SelectItem value="3">중급 (★★★☆☆)</SelectItem>
-                      <SelectItem value="4">중상급 (★★★★☆)</SelectItem>
-                      <SelectItem value="5">고급 (★★★★★)</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-
-              {/* 상황 설정 */}
-              <div className="space-y-4">
-                <h3 className="text-lg font-semibold">상황 설정</h3>
-                
-                <div>
-                  <Label htmlFor="situation">상황 설명</Label>
-                  <Textarea
-                    id="situation"
-                    value={formData.context.situation}
-                    onChange={(e) => setFormData(prev => ({ 
-                      ...prev, 
-                      context: { ...prev.context, situation: e.target.value }
-                    }))}
-                    placeholder="현재 상황을 자세히 설명하세요"
-                    className="min-h-[80px]"
-                    data-testid="textarea-situation"
-                  />
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <Label htmlFor="timeline">시간 제약</Label>
-                    <Input
-                      id="timeline"
-                      value={formData.context.timeline}
-                      onChange={(e) => setFormData(prev => ({ 
-                        ...prev, 
-                        context: { ...prev.context, timeline: e.target.value }
-                      }))}
-                      placeholder="예: 마케팅 발표까지 1주일 남음"
-                      data-testid="input-timeline"
-                    />
-                  </div>
-                  
-                  <div>
-                    <Label htmlFor="stakes">이해관계</Label>
-                    <Input
-                      id="stakes"
-                      value={formData.context.stakes}
-                      onChange={(e) => setFormData(prev => ({ 
-                        ...prev, 
-                        context: { ...prev.context, stakes: e.target.value }
-                      }))}
-                      placeholder="예: 품질 vs 일정 vs 고객 만족도"
-                      data-testid="input-stakes"
-                    />
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <Label htmlFor="position">플레이어 직급</Label>
-                    <Input
-                      id="position"
-                      value={formData.context.playerRole.position}
-                      onChange={(e) => setFormData(prev => ({ 
-                        ...prev, 
-                        context: { 
-                          ...prev.context, 
-                          playerRole: { ...prev.context.playerRole, position: e.target.value }
-                        }
-                      }))}
-                      placeholder="예: 신입 개발자"
-                      data-testid="input-position"
-                    />
-                  </div>
-                  
-                  <div>
-                    <Label htmlFor="playerDepartment">플레이어 부서</Label>
-                    <Input
-                      id="playerDepartment"
-                      value={formData.context.playerRole.department}
-                      onChange={(e) => setFormData(prev => ({ 
-                        ...prev, 
-                        context: { 
-                          ...prev.context, 
-                          playerRole: { ...prev.context.playerRole, department: e.target.value }
-                        }
-                      }))}
-                      placeholder="예: 개발팀"
-                      data-testid="input-player-department"
-                    />
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <Label htmlFor="playerExperience">플레이어 경력</Label>
-                    <Input
-                      id="playerExperience"
-                      value={formData.context.playerRole.experience}
-                      onChange={(e) => setFormData(prev => ({ 
-                        ...prev, 
-                        context: { 
-                          ...prev.context, 
-                          playerRole: { ...prev.context.playerRole, experience: e.target.value }
-                        }
-                      }))}
-                      placeholder="예: 6개월차"
-                      data-testid="input-player-experience"
-                    />
-                  </div>
-                  
-                  <div>
-                    <Label htmlFor="responsibility">책임 사항</Label>
-                    <Input
-                      id="responsibility"
-                      value={formData.context.playerRole.responsibility}
-                      onChange={(e) => setFormData(prev => ({ 
-                        ...prev, 
-                        context: { 
-                          ...prev.context, 
-                          playerRole: { ...prev.context.playerRole, responsibility: e.target.value }
-                        }
-                      }))}
-                      placeholder="예: 각 부서와 협의하여 최적 해결안 도출"
-                      data-testid="input-responsibility"
-                    />
-                  </div>
-                </div>
-              </div>
-
-              {/* 목표 및 성공 기준 */}
-              <div className="space-y-4">
-                <h3 className="text-lg font-semibold">목표 및 성공 기준</h3>
-                
-                <div>
-                  <Label htmlFor="objectives">목표 (줄바꿈으로 구분)</Label>
-                  <Textarea
-                    id="objectives"
-                    value={formData.objectives.join('\n')}
-                    onChange={(e) => setFormData(prev => ({ 
-                      ...prev, 
-                      objectives: e.target.value.split('\n').filter(obj => obj.trim())
-                    }))}
-                    placeholder="각 부서의 이해관계와 우려사항 파악&#10;부서 간 갈등을 중재하고 합의점 도출&#10;품질과 일정을 균형있게 고려한 현실적 해결책 제시"
-                    className="min-h-[100px]"
-                    data-testid="textarea-objectives"
-                  />
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <Label htmlFor="optimal">최적 결과</Label>
-                    <Textarea
-                      id="optimal"
-                      value={formData.successCriteria.optimal}
-                      onChange={(e) => setFormData(prev => ({ 
-                        ...prev, 
-                        successCriteria: { ...prev.successCriteria, optimal: e.target.value }
-                      }))}
-                      placeholder="모든 부서가 만족하는 타협안 도출"
-                      className="min-h-[60px]"
-                      data-testid="textarea-optimal"
-                    />
-                  </div>
-                  
-                  <div>
-                    <Label htmlFor="good">우수 결과</Label>
-                    <Textarea
-                      id="good"
-                      value={formData.successCriteria.good}
-                      onChange={(e) => setFormData(prev => ({ 
-                        ...prev, 
-                        successCriteria: { ...prev.successCriteria, good: e.target.value }
-                      }))}
-                      placeholder="주요 이해관계자들의 핵심 요구사항 반영"
-                      className="min-h-[60px]"
-                      data-testid="textarea-good"
-                    />
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <Label htmlFor="acceptable">수용 가능 결과</Label>
-                    <Textarea
-                      id="acceptable"
-                      value={formData.successCriteria.acceptable}
-                      onChange={(e) => setFormData(prev => ({ 
-                        ...prev, 
-                        successCriteria: { ...prev.successCriteria, acceptable: e.target.value }
-                      }))}
-                      placeholder="최소한의 품질 기준을 유지하면서 일정 준수"
-                      className="min-h-[60px]"
-                      data-testid="textarea-acceptable"
-                    />
-                  </div>
-                  
-                  <div>
-                    <Label htmlFor="failure">실패 기준</Label>
-                    <Textarea
-                      id="failure"
-                      value={formData.successCriteria.failure}
-                      onChange={(e) => setFormData(prev => ({ 
-                        ...prev, 
-                        successCriteria: { ...prev.successCriteria, failure: e.target.value }
-                      }))}
-                      placeholder="부서 간 갈등 심화 또는 비현실적 해결책 제시"
-                      className="min-h-[60px]"
-                      data-testid="textarea-failure"
-                    />
-                  </div>
-                </div>
-              </div>
-
-              {/* 역량 및 페르소나 */}
-              <div className="space-y-4">
-                <h3 className="text-lg font-semibold">역량 및 페르소나</h3>
-                
-                <div>
-                  <Label htmlFor="skills">주요 역량 (쉼표로 구분)</Label>
-                  <Input
-                    id="skills"
-                    value={formData.skills.join(', ')}
-                    onChange={(e) => setFormData(prev => ({ 
-                      ...prev, 
-                      skills: e.target.value.split(',').map(s => s.trim()).filter(s => s)
-                    }))}
-                    placeholder="갈등 중재, 이해관계자 관리, 문제 해결, 협상"
-                    data-testid="input-skills"
-                  />
-                  <div className="mt-2 flex flex-wrap gap-1">
-                    {formData.skills.map((skill, index) => (
-                      <Badge key={index} variant="secondary" className="text-xs">
-                        {skill}
-                        <button 
-                          type="button"
-                          onClick={() => removeSkill(index)}
-                          className="ml-1 hover:bg-red-200"
-                          data-testid={`remove-skill-${index}`}
-                        >
-                          ×
-                        </button>
-                      </Badge>
-                    ))}
-                  </div>
-                </div>
-
-                <div>
-                  <div className="flex items-center justify-between mb-3">
-                    <Label>페르소나 관리</Label>
-                    <Button
-                      type="button"
-                      onClick={() => {
-                        setFormData(prev => ({
-                          ...prev,
-                          personas: [...prev.personas, {
-                            id: '',
-                            name: '',
-                            department: '',
-                            position: '',
-                            experience: '',
-                            personaRef: '',
-                            stance: '',
-                            goal: '',
-                            tradeoff: ''
-                          }]
-                        }));
-                      }}
-                      variant="outline"
-                      size="sm"
-                      data-testid="add-persona"
-                    >
-                      <i className="fas fa-plus mr-1"></i>
-                      페르소나 추가
-                    </Button>
-                  </div>
-                  
-                  <div className="space-y-4 max-h-96 overflow-y-auto">
-                    {formData.personas.map((persona, index) => (
-                      <div key={index} className="border rounded-lg p-4 space-y-3 bg-slate-50">
-                        <div className="flex items-center justify-between">
-                          <h4 className="font-medium text-slate-700">페르소나 #{index + 1}</h4>
-                          <Button
-                            type="button"
-                            onClick={() => {
-                              setFormData(prev => ({
-                                ...prev,
-                                personas: prev.personas.filter((_, i) => i !== index)
-                              }));
-                            }}
-                            variant="destructive"
-                            size="sm"
-                            data-testid={`remove-persona-${index}`}
-                          >
-                            <i className="fas fa-trash"></i>
-                          </Button>
-                        </div>
-                        
-                        <div className="grid grid-cols-2 gap-3">
-                          <div>
-                            <Label htmlFor={`persona-id-${index}`}>MBTI ID *</Label>
-                            <Input
-                              id={`persona-id-${index}`}
-                              value={persona.id}
-                              onChange={(e) => {
-                                const newPersonas = [...formData.personas];
-                                newPersonas[index] = { ...persona, id: e.target.value, personaRef: e.target.value + '.json' };
-                                setFormData(prev => ({ ...prev, personas: newPersonas }));
-                              }}
-                              placeholder="istj, enfj, intp 등"
-                              data-testid={`input-persona-id-${index}`}
-                            />
-                          </div>
-                          
-                          <div>
-                            <Label htmlFor={`persona-name-${index}`}>이름 *</Label>
-                            <Input
-                              id={`persona-name-${index}`}
-                              value={persona.name}
-                              onChange={(e) => {
-                                const newPersonas = [...formData.personas];
-                                newPersonas[index] = { ...persona, name: e.target.value };
-                                setFormData(prev => ({ ...prev, personas: newPersonas }));
-                              }}
-                              placeholder="김민수, 이지영 등"
-                              data-testid={`input-persona-name-${index}`}
-                            />
-                          </div>
-                          
-                          <div>
-                            <Label htmlFor={`persona-department-${index}`}>부서 *</Label>
-                            <Input
-                              id={`persona-department-${index}`}
-                              value={persona.department}
-                              onChange={(e) => {
-                                const newPersonas = [...formData.personas];
-                                newPersonas[index] = { ...persona, department: e.target.value };
-                                setFormData(prev => ({ ...prev, personas: newPersonas }));
-                              }}
-                              placeholder="개발팀, 마케팅팀, QA팀 등"
-                              data-testid={`input-persona-department-${index}`}
-                            />
-                          </div>
-                          
-                          <div>
-                            <Label htmlFor={`persona-position-${index}`}>직책 *</Label>
-                            <Input
-                              id={`persona-position-${index}`}
-                              value={persona.position}
-                              onChange={(e) => {
-                                const newPersonas = [...formData.personas];
-                                newPersonas[index] = { ...persona, position: e.target.value };
-                                setFormData(prev => ({ ...prev, personas: newPersonas }));
-                              }}
-                              placeholder="선임 개발자, 매니저 등"
-                              data-testid={`input-persona-position-${index}`}
-                            />
-                          </div>
-                          
-                          <div>
-                            <Label htmlFor={`persona-experience-${index}`}>경력</Label>
-                            <Input
-                              id={`persona-experience-${index}`}
-                              value={persona.experience}
-                              onChange={(e) => {
-                                const newPersonas = [...formData.personas];
-                                newPersonas[index] = { ...persona, experience: e.target.value };
-                                setFormData(prev => ({ ...prev, personas: newPersonas }));
-                              }}
-                              placeholder="8년차, 신입, 5년차 등"
-                              data-testid={`input-persona-experience-${index}`}
-                            />
-                          </div>
-                        </div>
-                        
-                        <div>
-                          <Label htmlFor={`persona-stance-${index}`}>입장/태도 *</Label>
-                          <Textarea
-                            id={`persona-stance-${index}`}
-                            value={persona.stance}
-                            onChange={(e) => {
-                              const newPersonas = [...formData.personas];
-                              newPersonas[index] = { ...persona, stance: e.target.value };
-                              setFormData(prev => ({ ...prev, personas: newPersonas }));
-                            }}
-                            placeholder="이 상황에 대한 구체적인 입장과 의견"
-                            rows={2}
-                            data-testid={`input-persona-stance-${index}`}
-                          />
-                        </div>
-                        
-                        <div>
-                          <Label htmlFor={`persona-goal-${index}`}>목표 *</Label>
-                          <Textarea
-                            id={`persona-goal-${index}`}
-                            value={persona.goal}
-                            onChange={(e) => {
-                              const newPersonas = [...formData.personas];
-                              newPersonas[index] = { ...persona, goal: e.target.value };
-                              setFormData(prev => ({ ...prev, personas: newPersonas }));
-                            }}
-                            placeholder="개인적인 목표와 원하는 결과"
-                            rows={2}
-                            data-testid={`input-persona-goal-${index}`}
-                          />
-                        </div>
-                        
-                        <div>
-                          <Label htmlFor={`persona-tradeoff-${index}`}>양보 조건</Label>
-                          <Textarea
-                            id={`persona-tradeoff-${index}`}
-                            value={persona.tradeoff}
-                            onChange={(e) => {
-                              const newPersonas = [...formData.personas];
-                              newPersonas[index] = { ...persona, tradeoff: e.target.value };
-                              setFormData(prev => ({ ...prev, personas: newPersonas }));
-                            }}
-                            placeholder="양보할 수 있는 부분이나 조건"
-                            rows={2}
-                            data-testid={`input-persona-tradeoff-${index}`}
-                          />
-                        </div>
-                      </div>
-                    ))}
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <Label htmlFor="title">시나리오 제목</Label>
+                      <Input
+                        id="title"
+                        value={formData.title}
+                        onChange={(e) => setFormData(prev => ({ ...prev, title: e.target.value }))}
+                        placeholder="시나리오 제목을 입력하세요"
+                        required
+                        data-testid="input-scenario-title"
+                      />
+                    </div>
                     
-                    {formData.personas.length === 0 && (
-                      <div className="text-center py-8 text-slate-500">
-                        <i className="fas fa-users text-4xl mb-2"></i>
-                        <p>페르소나를 추가해주세요</p>
-                      </div>
-                    )}
+                    <div>
+                      <Label htmlFor="estimatedTime">예상 소요 시간</Label>
+                      <Input
+                        id="estimatedTime"
+                        value={formData.estimatedTime}
+                        onChange={(e) => setFormData(prev => ({ ...prev, estimatedTime: e.target.value }))}
+                        placeholder="예: 30-45분"
+                        data-testid="input-estimated-time"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <Label htmlFor="description">시나리오 설명</Label>
+                    <Textarea
+                      id="description"
+                      value={formData.description}
+                      onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
+                      placeholder="시나리오에 대한 상세한 설명을 입력하세요"
+                      className="min-h-[100px]"
+                      data-testid="textarea-description"
+                    />
+                  </div>
+
+                  <div>
+                    <Label htmlFor="difficulty">난이도</Label>
+                    <Select value={formData.difficulty.toString()} onValueChange={(value) => setFormData(prev => ({ ...prev, difficulty: parseInt(value) }))}>
+                      <SelectTrigger data-testid="select-difficulty">
+                        <SelectValue placeholder="난이도 선택" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="1">★ 쉬움</SelectItem>
+                        <SelectItem value="2">★★ 보통</SelectItem>
+                        <SelectItem value="3">★★★ 어려움</SelectItem>
+                        <SelectItem value="4">★★★★ 매우 어려움</SelectItem>
+                        <SelectItem value="5">★★★★★ 전문가</SelectItem>
+                      </SelectContent>
+                    </Select>
                   </div>
                 </div>
-              </div>
 
-              <div className="flex justify-end space-x-4">
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => {
-                    setIsCreateOpen(false);
-                    setEditingScenario(null);
-                    resetForm();
-                  }}
-                  data-testid="button-cancel"
-                >
-                  취소
-                </Button>
-                <Button
-                  type="submit"
-                  className="bg-corporate-600 hover:bg-corporate-700"
-                  disabled={createMutation.isPending || updateMutation.isPending}
-                  data-testid="button-save-scenario"
-                >
-                  {editingScenario ? '수정하기' : '생성하기'}
-                </Button>
-              </div>
-            </form>
-          </DialogContent>
-        </Dialog>
+                <div className="flex justify-end space-x-3">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => {
+                      setIsCreateOpen(false);
+                      setEditingScenario(null);
+                      resetForm();
+                    }}
+                    data-testid="button-cancel"
+                  >
+                    취소
+                  </Button>
+                  <Button
+                    type="submit"
+                    className="bg-corporate-600 hover:bg-corporate-700"
+                    disabled={createMutation.isPending || updateMutation.isPending}
+                    data-testid="button-save-scenario"
+                  >
+                    {editingScenario ? '수정하기' : '생성하기'}
+                  </Button>
+                </div>
+              </form>
+            </DialogContent>
+          </Dialog>
         
-        {/* AI 시나리오 생성기 버튼을 새 시나리오 생성 버튼 옆에 배치 */}
-        <AIScenarioGenerator onGenerated={handleAIGenerated} />
+          {/* AI 시나리오 생성기 버튼을 새 시나리오 생성 버튼 옆에 배치 */}
+          <AIScenarioGenerator onGenerated={handleAIGenerated} />
+        </div>
       </div>
 
       {/* 시나리오 목록 */}
@@ -873,28 +411,38 @@ export function ScenarioManager() {
               </div>
             </CardHeader>
             <CardContent>
-              <p className="text-slate-600 mb-4">{scenario.description}</p>
+              <p className="text-slate-600 text-sm mb-4 line-clamp-3">{scenario.description}</p>
               
               <div className="space-y-3">
                 <div>
-                  <h4 className="font-medium text-slate-700 mb-1">주요 역량</h4>
+                  <h4 className="text-sm font-medium text-slate-700 mb-1">핵심 스킬</h4>
                   <div className="flex flex-wrap gap-1">
-                    {(scenario.skills || []).map((skill, index) => (
+                    {scenario.skills?.slice(0, 3).map((skill: string, index: number) => (
                       <Badge key={index} variant="secondary" className="text-xs">
                         {skill}
                       </Badge>
                     ))}
+                    {(scenario.skills?.length || 0) > 3 && (
+                      <Badge variant="secondary" className="text-xs">
+                        +{(scenario.skills?.length || 0) - 3}개 더
+                      </Badge>
+                    )}
                   </div>
                 </div>
-                
+
                 <div>
-                  <h4 className="font-medium text-slate-700 mb-1">포함된 페르소나</h4>
+                  <h4 className="text-sm font-medium text-slate-700 mb-1">페르소나</h4>
                   <div className="flex flex-wrap gap-1">
-                    {(scenario.personas || []).map((persona, index) => (
+                    {scenario.personas?.slice(0, 2).map((persona: any, index: number) => (
                       <Badge key={index} variant="outline" className="text-xs">
-                        {typeof persona === 'string' ? persona : persona.name || persona.id || '알 수 없는 페르소나'}
+                        {persona.name || '알 수 없는 페르소나'}
                       </Badge>
                     ))}
+                    {(scenario.personas?.length || 0) > 2 && (
+                      <Badge variant="outline" className="text-xs">
+                        +{(scenario.personas?.length || 0) - 2}개 더
+                      </Badge>
+                    )}
                   </div>
                 </div>
               </div>
