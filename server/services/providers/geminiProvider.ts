@@ -320,6 +320,35 @@ JSON 형식으로 응답하세요:
       };
     } catch (error) {
       console.error("Feedback generation error:", error);
+      console.error("Error details:", error instanceof Error ? error.message : String(error));
+      
+      // 사용자 발언이 없는 경우 최하점 반환  
+      const safeMessages = messages || [];
+      const userMessagesInCatch = safeMessages.filter(m => m.sender === 'user');
+      const hasUserInput = userMessagesInCatch.length > 0 && userMessagesInCatch.some((msg: any) => msg.message.trim().length > 0);
+      console.log("Fallback - 사용자 발언 있음:", hasUserInput);
+      
+      if (!hasUserInput) {
+        return {
+          overallScore: 20,
+          scores: {
+            clarityLogic: 1,
+            listeningEmpathy: 1,
+            appropriatenessAdaptability: 1,
+            persuasivenessImpact: 1,
+            strategicCommunication: 1
+          },
+          strengths: ["평가할 사용자의 발언이 없습니다."],
+          improvements: ["더 구체적인 표현", "감정 교감 증진", "논리적 구조화"],
+          nextSteps: ["추가 연습 필요", "전문가 피드백 받기", "실무 경험 쌓기"],
+          summary: "사용자의 발언이 없어 커뮤니케이션 역량을 평가할 수 없습니다. 대화에 전혀 참여하지 않았기 때문에 모든 평가 항목에서 최하점을 부여했습니다.",
+          ranking: "전문가 분석 결과를 바탕으로 한 종합 평가입니다.",
+          behaviorGuides: this.generateBehaviorGuides(persona),
+          conversationGuides: this.generateConversationGuides(persona),
+          developmentPlan: this.generateDevelopmentPlan(20)
+        };
+      }
+      
       return this.getFallbackFeedback();
     }
   }
@@ -339,13 +368,13 @@ JSON 형식으로 응답하세요:
 
   private getFallbackFeedback(): DetailedFeedback {
     return {
-      overallScore: 60,
+      overallScore: 20,
       scores: {
-        clarityLogic: 3,
-        listeningEmpathy: 3,
-        appropriatenessAdaptability: 3,
-        persuasivenessImpact: 3,
-        strategicCommunication: 3
+        clarityLogic: 1,
+        listeningEmpathy: 1,
+        appropriatenessAdaptability: 1,
+        persuasivenessImpact: 1,
+        strategicCommunication: 1
       },
       strengths: ["기본적인 대화 참여", "적절한 언어 사용", "상황에 맞는 응답"],
       improvements: ["시스템 안정성 확보 후 재평가 필요", "더 많은 대화 기회 필요", "기술적 문제 해결 후 재시도"],
