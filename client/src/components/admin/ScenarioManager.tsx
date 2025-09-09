@@ -288,7 +288,8 @@ export function ScenarioManager() {
           <p className="text-slate-600 mt-1">훈련 시나리오를 생성하고 관리할 수 있습니다.</p>
         </div>
         
-        <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
+        <div className="flex items-center space-x-3">
+          <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
             <DialogTrigger asChild>
               <Button 
                 className="bg-corporate-600 hover:bg-corporate-700"
@@ -825,6 +826,9 @@ export function ScenarioManager() {
             </form>
           </DialogContent>
         </Dialog>
+        
+        {/* AI 시나리오 생성기 버튼을 새 시나리오 생성 버튼 옆에 배치 */}
+        <AIScenarioGenerator onGenerated={handleAIGenerated} />
       </div>
 
       {/* 시나리오 목록 */}
