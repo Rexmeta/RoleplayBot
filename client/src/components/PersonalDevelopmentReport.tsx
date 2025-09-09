@@ -653,41 +653,23 @@ export default function PersonalDevelopmentReport({
           variant="secondary"
           onClick={() => {
             try {
-              // 인쇄 스타일 적용
-              const printContent = document.documentElement.innerHTML;
-              const originalContent = document.body.innerHTML;
-              
-              // 브라우저 인쇄 기능 실행
-              if (window.print) {
-                window.print();
-              } else {
-                // 대체 방법: 새 창에서 인쇄
-                const printWindow = window.open('', '_blank');
-                if (printWindow) {
-                  printWindow.document.write(`
-                    <html>
-                      <head>
-                        <title>개인별 커뮤니케이션 훈련 보고서</title>
-                        <style>
-                          @media print {
-                            body { margin: 0; padding: 20px; font-family: Arial, sans-serif; }
-                            .no-print { display: none !important; }
-                            .print-only { display: block !important; }
-                            * { box-shadow: none !important; }
-                          }
-                        </style>
-                      </head>
-                      <body>${document.querySelector('[data-testid="personal-development-report"]')?.innerHTML || ''}</body>
-                    </html>
-                  `);
-                  printWindow.document.close();
-                  printWindow.print();
-                  printWindow.close();
-                }
-              }
+              // 브라우저 기본 인쇄 기능 실행
+              window.print();
             } catch (error) {
               console.error('인쇄 오류:', error);
-              alert('인쇄 기능을 사용할 수 없습니다. 브라우저 설정을 확인해주세요.');
+              // 사용자 친화적인 오류 메시지
+              const userAgent = navigator.userAgent;
+              let message = '인쇄 기능을 사용할 수 없습니다.';
+              
+              if (userAgent.includes('Chrome')) {
+                message += ' Chrome에서 Ctrl+P를 눌러 직접 인쇄해보세요.';
+              } else if (userAgent.includes('Firefox')) {
+                message += ' Firefox에서 Ctrl+P를 눌러 직접 인쇄해보세요.';
+              } else {
+                message += ' 브라우저에서 Ctrl+P(Windows) 또는 Cmd+P(Mac)를 눌러 직접 인쇄해보세요.';
+              }
+              
+              alert(message);
             }
           }}
           className="min-w-[120px]"
