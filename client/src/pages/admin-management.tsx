@@ -1,8 +1,11 @@
+import { useState } from "react";
 import { Link } from "wouter";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { ScenarioManager } from "@/components/admin/ScenarioManager";
 import { PersonaManager } from "@/components/admin/PersonaManager";
+import { AIScenarioGenerator } from "@/components/admin/AIScenarioGenerator";
 
 export default function AdminManagement() {
   return (
@@ -30,11 +33,27 @@ export default function AdminManagement() {
         </div>
 
         {/* Management Tabs */}
-        <Tabs defaultValue="manage-scenarios" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-2">
+        <Tabs defaultValue="ai-generator" className="space-y-6">
+          <TabsList className="grid w-full grid-cols-3">
+            <TabsTrigger value="ai-generator" data-testid="tab-ai-generator">AI 생성</TabsTrigger>
             <TabsTrigger value="manage-scenarios" data-testid="tab-manage-scenarios">시나리오 관리</TabsTrigger>
             <TabsTrigger value="manage-personas" data-testid="tab-manage-personas">페르소나 관리</TabsTrigger>
           </TabsList>
+
+          <TabsContent value="ai-generator" className="space-y-6">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <i className="fas fa-magic text-purple-600"></i>
+                  AI 시나리오 생성기
+                </CardTitle>
+                <p className="text-slate-600">AI를 활용해 새로운 훈련 시나리오를 자동으로 생성하세요.</p>
+              </CardHeader>
+              <CardContent>
+                <AIScenarioGenerator onGenerated={() => {}} />
+              </CardContent>
+            </Card>
+          </TabsContent>
 
           <TabsContent value="manage-scenarios" className="space-y-6">
             <ScenarioManager />
