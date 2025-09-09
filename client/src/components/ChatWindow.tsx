@@ -50,6 +50,7 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [elapsedTime, setElapsedTime] = useState(0);
   const [conversationStartTime, setConversationStartTime] = useState<Date | null>(null);
+  const [localMessages, setLocalMessages] = useState<ConversationMessage[]>([]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const recognitionRef = useRef<any>(null);
   const speechSynthesisRef = useRef<SpeechSynthesis | null>(null);
@@ -101,18 +102,27 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
       return response.json();
     },
     onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: ["/api/conversations", conversationId] });
-      setIsLoading(false);
-      
-      // 음성 모드가 활성화되어 있고 AI 응답이 있으면 음성으로 읽기
-      if (voiceModeEnabled && data.messages) {
-        const lastMessage = data.messages[data.messages.length - 1];
-        if (lastMessage && lastMessage.sender === 'ai') {
-          speakMessage(lastMessage.message, true, lastMessage.emotion);
+      // AI 응답만 로컬 메시지에 추가
+      if (data.messages && data.messages.length > 0) {
+        const latestMessage = data.messages[data.messages.length - 1];
+        if (latestMessage.sender === 'ai') {
+          setLocalMessages(prev => [...prev, latestMessage]);
         }
       }
+      
+      // 서버 데이터 동기화는 별도로 처리
+      queryClient.invalidateQueries({ queryKey: ["/api/conversations", conversationId] });
+      setIsLoading(false);
     },
     onError: () => {
+      // 오류 시 사용자 메시지 제거
+      setLocalMessages(prev => {
+        if (prev.length > 0 && prev[prev.length - 1].sender === 'user') {
+          return prev.slice(0, -1);
+        }
+        return prev;
+      });
+      
       toast({
         title: "오류",
         description: "메시지를 전송할 수 없습니다. 다시 시도해주세요.",
@@ -126,8 +136,18 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
     const message = userInput.trim();
     if (!message || isLoading) return;
 
+    // 사용자 메시지를 즉시 로컬 상태에 추가
+    const userMessage: ConversationMessage = {
+      sender: 'user',
+      message: message,
+      timestamp: new Date().toISOString()
+    };
+    
+    setLocalMessages(prev => [...prev, userMessage]);
     setIsLoading(true);
     setUserInput("");
+    
+    // API 호출은 별도로 진행
     sendMessageMutation.mutate(message);
   };
 
@@ -469,6 +489,13 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
     }
   }, [toast]);
 
+  // 로컬 메시지와 서버 메시지 동기화
+  useEffect(() => {
+    if (conversation?.messages) {
+      setLocalMessages(conversation.messages);
+    }
+  }, [conversation?.messages]);
+
   // 자동 스크롤 기능
   useEffect(() => {
     if (messagesEndRef.current) {
@@ -477,13 +504,13 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
         block: 'end' 
       });
     }
-  }, [conversation?.messages]);
+  }, [localMessages]);
 
   // 음성 자동 재생
   useEffect(() => {
     // 음성 모드가 켜져 있을 때 새로운 AI 메시지 자동 재생
-    if (voiceModeEnabled && conversation?.messages) {
-      const lastMessage = conversation.messages[conversation.messages.length - 1];
+    if (voiceModeEnabled && localMessages.length > 0) {
+      const lastMessage = localMessages[localMessages.length - 1];
       if (lastMessage && lastMessage.sender === 'ai' && !isLoading) {
         // 약간의 지연을 두어 UI 업데이트 후 음성 재생
         setTimeout(() => {
@@ -491,7 +518,7 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
         }, 500);
       }
     }
-  }, [conversation?.messages, voiceModeEnabled, isLoading]);
+  }, [localMessages, voiceModeEnabled, isLoading]);
 
   useEffect(() => {
     const handleKeyPress = (e: KeyboardEvent) => {
@@ -740,7 +767,7 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
 
         {/* Chat Messages Area */}
         <div className="h-96 overflow-y-auto p-6 space-y-4 bg-slate-50/50 scroll-smooth" data-testid="chat-messages">
-          {conversation.messages.map((message: ConversationMessage, index: number) => (
+          {localMessages.map((message: ConversationMessage, index: number) => (
             <div
               key={index}
               className={`flex items-start space-x-3 ${
