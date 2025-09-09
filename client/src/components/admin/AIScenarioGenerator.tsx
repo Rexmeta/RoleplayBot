@@ -76,7 +76,7 @@ export function AIScenarioGenerator({ onGenerated }: AIGeneratorProps) {
     for (const { field, name } of requiredFields) {
       if (!field.trim()) {
         toast({
-          title: "오류",
+          title: "필수 입력 누락",
           description: `${name}을(를) 입력해주세요.`,
           variant: "destructive"
         });

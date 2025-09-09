@@ -77,35 +77,177 @@ export default function AdminManagement() {
                       </button>
                     </div>
                     
-                    <div className="space-y-4">
-                      <div>
-                        <h4 className="font-medium text-slate-900">{generatedResult.scenario?.title}</h4>
-                        <p className="text-sm text-slate-600 mt-1">{generatedResult.scenario?.description}</p>
+                    <div className="space-y-6">
+                      {/* 시나리오 기본 정보 */}
+                      <div className="bg-white p-4 rounded border">
+                        <h4 className="font-semibold text-slate-900 text-lg mb-2">{generatedResult.scenario?.title}</h4>
+                        <p className="text-slate-600 mb-3">{generatedResult.scenario?.description}</p>
+                        
+                        <div className="grid grid-cols-1 md:grid-cols-4 gap-3 text-sm">
+                          <div className="bg-slate-50 p-2 rounded">
+                            <div className="text-slate-500">난이도</div>
+                            <div className="font-medium">{generatedResult.scenario?.difficulty}/5</div>
+                          </div>
+                          <div className="bg-slate-50 p-2 rounded">
+                            <div className="text-slate-500">예상 시간</div>
+                            <div className="font-medium">{generatedResult.scenario?.estimatedTime}</div>
+                          </div>
+                          <div className="bg-slate-50 p-2 rounded">
+                            <div className="text-slate-500">페르소나 수</div>
+                            <div className="font-medium">{generatedResult.personas?.length || 0}명</div>
+                          </div>
+                          <div className="bg-slate-50 p-2 rounded">
+                            <div className="text-slate-500">카테고리</div>
+                            <div className="font-medium">{generatedResult.scenario?.category || '일반'}</div>
+                          </div>
+                        </div>
                       </div>
                       
-                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
-                        <div className="bg-white p-3 rounded border">
-                          <div className="text-slate-500">난이도</div>
-                          <div className="font-medium">{generatedResult.scenario?.difficulty}/5</div>
+                      {/* 시나리오 상세 정보 */}
+                      {generatedResult.scenario?.context && (
+                        <div className="bg-white p-4 rounded border">
+                          <h5 className="font-semibold text-slate-900 mb-3">시나리오 상세</h5>
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                            {generatedResult.scenario.context.situation && (
+                              <div>
+                                <div className="text-slate-500 font-medium mb-1">상황</div>
+                                <div className="text-slate-700">{generatedResult.scenario.context.situation}</div>
+                              </div>
+                            )}
+                            {generatedResult.scenario.context.timeline && (
+                              <div>
+                                <div className="text-slate-500 font-medium mb-1">시간 제약</div>
+                                <div className="text-slate-700">{generatedResult.scenario.context.timeline}</div>
+                              </div>
+                            )}
+                            {generatedResult.scenario.context.stakes && (
+                              <div>
+                                <div className="text-slate-500 font-medium mb-1">이해관계</div>
+                                <div className="text-slate-700">{generatedResult.scenario.context.stakes}</div>
+                              </div>
+                            )}
+                            {generatedResult.scenario.context.playerRole && (
+                              <div>
+                                <div className="text-slate-500 font-medium mb-1">참가자 역할</div>
+                                <div className="text-slate-700">
+                                  {generatedResult.scenario.context.playerRole.position} 
+                                  ({generatedResult.scenario.context.playerRole.department}, {generatedResult.scenario.context.playerRole.experience})
+                                </div>
+                              </div>
+                            )}
+                          </div>
                         </div>
-                        <div className="bg-white p-3 rounded border">
-                          <div className="text-slate-500">예상 시간</div>
-                          <div className="font-medium">{generatedResult.scenario?.estimatedTime}</div>
-                        </div>
-                        <div className="bg-white p-3 rounded border">
-                          <div className="text-slate-500">페르소나 수</div>
-                          <div className="font-medium">{generatedResult.personas?.length || 0}명</div>
-                        </div>
-                      </div>
+                      )}
                       
+                      {/* 목표 및 성공 기준 */}
+                      {(generatedResult.scenario?.objectives || generatedResult.scenario?.successCriteria) && (
+                        <div className="bg-white p-4 rounded border">
+                          <h5 className="font-semibold text-slate-900 mb-3">목표 및 성공 기준</h5>
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            {generatedResult.scenario.objectives && (
+                              <div>
+                                <div className="text-slate-500 font-medium mb-2">훈련 목표</div>
+                                <ul className="text-sm text-slate-700 space-y-1">
+                                  {generatedResult.scenario.objectives.map((objective: string, idx: number) => (
+                                    <li key={idx} className="flex items-start">
+                                      <span className="text-green-600 mr-2">•</span>
+                                      <span>{objective}</span>
+                                    </li>
+                                  ))}
+                                </ul>
+                              </div>
+                            )}
+                            {generatedResult.scenario.successCriteria && (
+                              <div>
+                                <div className="text-slate-500 font-medium mb-2">성공 기준</div>
+                                <div className="text-sm text-slate-700 space-y-2">
+                                  {generatedResult.scenario.successCriteria.optimal && (
+                                    <div>
+                                      <span className="text-green-600 font-medium">최적: </span>
+                                      {generatedResult.scenario.successCriteria.optimal}
+                                    </div>
+                                  )}
+                                  {generatedResult.scenario.successCriteria.good && (
+                                    <div>
+                                      <span className="text-blue-600 font-medium">우수: </span>
+                                      {generatedResult.scenario.successCriteria.good}
+                                    </div>
+                                  )}
+                                  {generatedResult.scenario.successCriteria.acceptable && (
+                                    <div>
+                                      <span className="text-yellow-600 font-medium">수용: </span>
+                                      {generatedResult.scenario.successCriteria.acceptable}
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      )}
+                      
+                      {/* 페르소나 정보 */}
                       {generatedResult.personas && generatedResult.personas.length > 0 && (
-                        <div>
-                          <h5 className="font-medium text-slate-900 mb-2">생성된 페르소나</h5>
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                        <div className="bg-white p-4 rounded border">
+                          <h5 className="font-semibold text-slate-900 mb-3">생성된 페르소나</h5>
+                          <div className="grid grid-cols-1 gap-4">
                             {generatedResult.personas.map((persona: any, index: number) => (
-                              <div key={index} className="bg-white p-2 rounded border text-sm">
-                                <div className="font-medium">{persona.name}</div>
-                                <div className="text-slate-600">{persona.role} · {persona.mbti}</div>
+                              <div key={index} className="bg-slate-50 p-4 rounded border">
+                                <div className="flex justify-between items-start mb-3">
+                                  <div>
+                                    <div className="font-semibold text-slate-900 text-lg">{persona.name}</div>
+                                    <div className="text-slate-600">{persona.role}</div>
+                                  </div>
+                                  <div className="text-right">
+                                    <div className="bg-blue-100 text-blue-800 px-2 py-1 rounded text-sm font-medium">
+                                      {persona.mbti}
+                                    </div>
+                                  </div>
+                                </div>
+                                
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-sm">
+                                  {persona.department && (
+                                    <div>
+                                      <div className="text-slate-500 font-medium">소속</div>
+                                      <div className="text-slate-700">{persona.department}</div>
+                                    </div>
+                                  )}
+                                  {persona.position && (
+                                    <div>
+                                      <div className="text-slate-500 font-medium">직급</div>
+                                      <div className="text-slate-700">{persona.position}</div>
+                                    </div>
+                                  )}
+                                  {persona.experience && (
+                                    <div>
+                                      <div className="text-slate-500 font-medium">경력</div>
+                                      <div className="text-slate-700">{persona.experience}</div>
+                                    </div>
+                                  )}
+                                </div>
+                                
+                                {persona.personality && (
+                                  <div className="mt-3">
+                                    <div className="text-slate-500 font-medium mb-1">성격 특성</div>
+                                    <div className="text-slate-700 text-sm">{persona.personality}</div>
+                                  </div>
+                                )}
+                                
+                                {persona.communicationStyle && (
+                                  <div className="mt-3">
+                                    <div className="text-slate-500 font-medium mb-1">의사소통 스타일</div>
+                                    <div className="text-slate-700 text-sm">{persona.communicationStyle}</div>
+                                  </div>
+                                )}
+                                
+                                {persona.goals && persona.goals.length > 0 && (
+                                  <div className="mt-3">
+                                    <div className="text-slate-500 font-medium mb-1">목표</div>
+                                    <div className="text-slate-700 text-sm">
+                                      {persona.goals.join(', ')}
+                                    </div>
+                                  </div>
+                                )}
                               </div>
                             ))}
                           </div>
