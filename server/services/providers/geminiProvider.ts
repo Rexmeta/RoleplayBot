@@ -278,7 +278,10 @@ JSON 형식으로 응답하세요:
         ? Math.floor((new Date(conversation.completedAt).getTime() - new Date(conversation.createdAt).getTime()) / 1000 / 60) 
         : 0; // 분 단위
 
-      const timePerformance = this.analyzeTimingPerformance(conversationDuration, userMessages.length, totalUserWords, hasUserInput);
+      // 간단한 시간 평가 (인라인)
+      const timePerformance = !hasUserInput || userMessages.length === 0 || totalUserWords === 0 
+        ? { rating: 'slow' as const, feedback: '대화 참여 없음 - 시간 평가 불가' }
+        : { rating: 'average' as const, feedback: `대화 참여함 (${totalUserWords}자, ${userMessages.length}회 발언)` };
 
       // 사용자 발언이 없으면 AI 응답 무시하고 모든 점수를 1점으로 강제 설정
       if (!hasUserInput) {
@@ -346,7 +349,8 @@ JSON 형식으로 응답하세요:
         ? Math.floor((new Date(conversation.completedAt).getTime() - new Date(conversation.createdAt).getTime()) / 1000 / 60) 
         : 0;
 
-      const timePerformance = this.analyzeTimingPerformance(conversationDuration, userMessagesInCatch.length, 0, hasUserInput);
+      // 간단한 시간 평가 (인라인)
+      const timePerformance = { rating: 'slow' as const, feedback: '대화 참여 없음 - 시간 평가 불가' };
 
       if (!hasUserInput) {
         return {
@@ -376,53 +380,6 @@ JSON 형식으로 응답하세요:
     }
   }
 
-  // 체계적인 시간 성과 평가 시스템
-  private analyzeTimingPerformance(
-    conversationDuration: number, 
-    userMessageCount: number, 
-    totalUserWords: number, 
-    hasUserInput: boolean
-  ): { rating: 'excellent' | 'good' | 'average' | 'slow'; feedback: string } {
-    // 1. 사용자 발언이 없으면 최하점
-    if (!hasUserInput || userMessageCount === 0 || totalUserWords === 0) {
-      return {
-        rating: 'slow' as const,
-        feedback: '대화 참여 없음 - 시간 평가 불가'
-      };
-    }
-
-    // 2. 발화 밀도 계산 (분당 글자 수)
-    const speechDensity = conversationDuration > 0 ? totalUserWords / conversationDuration : 0;
-    
-    // 3. 평균 발언 길이
-    const avgMessageLength = totalUserWords / userMessageCount;
-
-    // 4. 종합 평가 (발화량과 시간 고려)
-    let rating: 'excellent' | 'good' | 'average' | 'slow' = 'slow';
-    let feedback = '';
-
-    if (speechDensity >= 30 && avgMessageLength >= 20) {
-      // 활발하고 충실한 대화
-      rating = conversationDuration <= 10 ? 'excellent' : 'good';
-      feedback = `활발한 대화 참여 (밀도: ${speechDensity.toFixed(1)}자/분, 평균: ${avgMessageLength.toFixed(0)}자/발언)`;
-    } else if (speechDensity >= 15 && avgMessageLength >= 10) {
-      // 보통 수준의 대화
-      rating = conversationDuration <= 15 ? 'good' : 'average';
-      feedback = `적절한 대화 참여 (밀도: ${speechDensity.toFixed(1)}자/분, 평균: ${avgMessageLength.toFixed(0)}자/발언)`;
-    } else if (speechDensity >= 5 && avgMessageLength >= 5) {
-      // 소극적이지만 참여한 대화
-      rating = 'average';
-      feedback = `소극적 참여 (밀도: ${speechDensity.toFixed(1)}자/분, 평균: ${avgMessageLength.toFixed(0)}자/발언)`;
-    } else {
-      // 매우 소극적인 대화
-      rating = 'slow';
-      feedback = `매우 소극적 참여 (밀도: ${speechDensity.toFixed(1)}자/분, 평균: ${avgMessageLength.toFixed(0)}자/발언)`;
-    }
-
-    console.log(`⏱️ Gemini 시간 분석 - 대화: ${conversationDuration}분, 발화밀도: ${speechDensity.toFixed(1)}자/분, 평가: ${rating}`);
-    
-    return { rating, feedback };
-  }
 
   private getFallbackResponse(persona: ScenarioPersona): string {
     const fallbacks = {
