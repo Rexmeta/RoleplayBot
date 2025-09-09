@@ -263,14 +263,21 @@ JSON 형식으로 응답하세요:
 
       const feedbackData = JSON.parse(response.text || '{}');
       
+      // 사용자 발언이 없는 경우 감지 (userMessages 길이가 0이거나 모든 메시지가 공백)
+      const hasUserInput = userMessages.length > 0 && userMessages.some(msg => msg.message.trim().length > 0);
+      
+      // 사용자 발언이 없으면 모든 점수를 1점으로 강제 설정
+      const defaultScore = hasUserInput ? 3 : 1;
+      const calculatedOverallScore = hasUserInput ? (feedbackData.overallScore || 0) : 20; // 5개 카테고리 각각 1점씩 = 20점
+      
       return {
-        overallScore: Math.min(100, Math.max(0, feedbackData.overallScore || 0)),
+        overallScore: Math.min(100, Math.max(0, calculatedOverallScore)),
         scores: {
-          clarityLogic: Math.min(5, Math.max(1, feedbackData.scores?.clarityLogic || 3)),
-          listeningEmpathy: Math.min(5, Math.max(1, feedbackData.scores?.listeningEmpathy || 3)),
-          appropriatenessAdaptability: Math.min(5, Math.max(1, feedbackData.scores?.appropriatenessAdaptability || 3)),
-          persuasivenessImpact: Math.min(5, Math.max(1, feedbackData.scores?.persuasivenessImpact || 3)),
-          strategicCommunication: Math.min(5, Math.max(1, feedbackData.scores?.strategicCommunication || 3))
+          clarityLogic: Math.min(5, Math.max(1, feedbackData.scores?.clarityLogic || defaultScore)),
+          listeningEmpathy: Math.min(5, Math.max(1, feedbackData.scores?.listeningEmpathy || defaultScore)),
+          appropriatenessAdaptability: Math.min(5, Math.max(1, feedbackData.scores?.appropriatenessAdaptability || defaultScore)),
+          persuasivenessImpact: Math.min(5, Math.max(1, feedbackData.scores?.persuasivenessImpact || defaultScore)),
+          strategicCommunication: Math.min(5, Math.max(1, feedbackData.scores?.strategicCommunication || defaultScore))
         },
         strengths: feedbackData.strengths || ["기본적인 대화 능력", "적절한 언어 사용", "상황 이해도"],
         improvements: feedbackData.improvements || ["더 구체적인 표현", "감정 교감 증진", "논리적 구조화"],
