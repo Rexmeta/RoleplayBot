@@ -142,9 +142,6 @@ export default function AdminDashboard() {
               콘텐츠 관리
             </Button>
           </Link>
-          <div className="bg-corporate-50 border border-corporate-200 rounded-lg px-4 py-2">
-            <span className="text-sm text-corporate-700 font-medium">실시간 업데이트</span>
-          </div>
         </div>
       </div>
 
