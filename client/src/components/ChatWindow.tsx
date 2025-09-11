@@ -868,338 +868,436 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
           </div>
         </div>
 
-        {/* Chat Messages Area */}
-        {chatMode === 'messenger' ? (
-          <div className="h-96 overflow-y-auto p-6 space-y-4 bg-slate-50/50 scroll-smooth" data-testid="chat-messages">
-            {localMessages.map((message: ConversationMessage, index: number) => (
-            <div
-              key={index}
-              className={`flex items-start space-x-3 ${
-                message.sender === "user" ? "justify-end" : ""
-              }`}
-            >
-              {message.sender === "ai" && (
-                <div className="relative">
-                  <img 
-                    src={persona.image} 
-                    alt={persona.name} 
-                    className="w-8 h-8 rounded-full" 
-                  />
-                  {/* 감정 이모지 표시 */}
-                  {message.emotion && (
-                    <div 
-                      className="absolute -bottom-1 -right-1 text-sm bg-white rounded-full w-5 h-5 flex items-center justify-center border border-gray-200"
-                      title={message.emotionReason || message.emotion}
-                    >
-                      {emotionEmojis[message.emotion] || '😐'}
+        {/* Main Content Area */}
+        <div className="relative flex-1 flex flex-col">
+          {/* Chat Messages Area */}
+          {chatMode === 'messenger' && (
+            <>
+              <div className="h-96 overflow-y-auto p-6 space-y-4 bg-slate-50/50 scroll-smooth" data-testid="chat-messages">
+                {localMessages.map((message: ConversationMessage, index: number) => (
+                <div
+                  key={index}
+                  className={`flex items-start space-x-3 ${
+                    message.sender === "user" ? "justify-end" : ""
+                  }`}
+                >
+                  {message.sender === "ai" && (
+                    <div className="relative">
+                      <img 
+                        src={persona.image} 
+                        alt={persona.name} 
+                        className="w-8 h-8 rounded-full" 
+                      />
+                      {/* 감정 이모지 표시 */}
+                      {message.emotion && (
+                        <div 
+                          className="absolute -bottom-1 -right-1 text-sm bg-white rounded-full w-5 h-5 flex items-center justify-center border border-gray-200"
+                          title={message.emotionReason || message.emotion}
+                        >
+                          {emotionEmojis[message.emotion] || '😐'}
+                        </div>
+                      )}
                     </div>
                   )}
+                  
+                  <div className={`flex-1 ${message.sender === "user" ? "flex justify-end" : ""}`}>
+                    <div className={`rounded-lg p-3 max-w-md ${
+                      message.sender === "user"
+                        ? "bg-corporate-600 text-white rounded-tr-none"
+                        : `message-card rounded-tl-none ${
+                            message.emotion === '분노' ? 'border-l-4 border-red-400' :
+                            message.emotion === '슬픔' ? 'border-l-4 border-blue-400' :
+                            message.emotion === '기쁨' ? 'border-l-4 border-green-400' :
+                            message.emotion === '놀람' ? 'border-l-4 border-yellow-400' : ''
+                          }`
+                    }`}>
+                      <p className={message.sender === "user" ? "text-white" : "text-slate-800"}>
+                        {message.message}
+                      </p>
+                      {/* AI 메시지에 감정 정보와 음성 버튼 표시 */}
+                      {message.sender === "ai" && (
+                        <div className="mt-2 flex items-center justify-between">
+                          {message.emotion && (
+                            <div className="text-xs text-slate-500 flex items-center">
+                              <span className="mr-1">{emotionEmojis[message.emotion]}</span>
+                              <span>{message.emotion}</span>
+                              {message.emotionReason && (
+                                <span className="ml-2 text-slate-400">- {message.emotionReason}</span>
+                              )}
+                            </div>
+                          )}
+                          
+                          {/* 음성 재생 버튼 */}
+                          <button
+                            onClick={() => speakMessage(message.message, false, message.emotion)}
+                            className="text-xs text-slate-400 hover:text-corporate-600 transition-colors flex items-center space-x-1"
+                            title="이 메시지 듣기"
+                            data-testid={`button-speak-message-${index}`}
+                          >
+                            <i className="fas fa-volume-up"></i>
+                            <span>듣기</span>
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {message.sender === "user" && (
+                    <div className="w-8 h-8 bg-corporate-600 rounded-full flex items-center justify-center text-white text-sm font-medium">
+                      나
+                    </div>
+                  )}
+                </div>
+              ))}
+
+              {isLoading && (
+                <div className="flex items-start space-x-3">
+                  <img src={persona.image} alt={persona.name} className="w-8 h-8 rounded-full" />
+                  <div className="message-card rounded-lg rounded-tl-none p-3 max-w-md">
+                    <div className="flex space-x-1">
+                      <div className="w-2 h-2 bg-slate-400 rounded-full animate-bounce"></div>
+                      <div className="w-2 h-2 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: "0.1s" }}></div>
+                      <div className="w-2 h-2 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: "0.2s" }}></div>
+                    </div>
+                  </div>
                 </div>
               )}
               
-              <div className={`flex-1 ${message.sender === "user" ? "flex justify-end" : ""}`}>
-                <div className={`rounded-lg p-3 max-w-md ${
-                  message.sender === "user"
-                    ? "bg-corporate-600 text-white rounded-tr-none"
-                    : `message-card rounded-tl-none ${
-                        message.emotion === '분노' ? 'border-l-4 border-red-400' :
-                        message.emotion === '슬픔' ? 'border-l-4 border-blue-400' :
-                        message.emotion === '기쁨' ? 'border-l-4 border-green-400' :
-                        message.emotion === '놀람' ? 'border-l-4 border-yellow-400' : ''
-                      }`
-                }`}>
-                  <p className={message.sender === "user" ? "text-white" : "text-slate-800"}>
-                    {message.message}
-                  </p>
-                  {/* AI 메시지에 감정 정보와 음성 버튼 표시 */}
-                  {message.sender === "ai" && (
-                    <div className="mt-2 flex items-center justify-between">
-                      {message.emotion && (
-                        <div className="text-xs text-slate-500 flex items-center">
-                          <span className="mr-1">{emotionEmojis[message.emotion]}</span>
-                          <span>{message.emotion}</span>
-                          {message.emotionReason && (
-                            <span className="ml-2 text-slate-400">- {message.emotionReason}</span>
-                          )}
-                        </div>
-                      )}
-                      
-                      {/* 음성 재생 버튼 */}
-                      <button
-                        onClick={() => speakMessage(message.message, false, message.emotion)}
-                        className="text-xs text-slate-400 hover:text-corporate-600 transition-colors flex items-center space-x-1"
-                        title="이 메시지 듣기"
-                        data-testid={`button-speak-message-${index}`}
+              <div ref={messagesEndRef} />
+              </div>
+
+              {/* Chat Input Area */}
+              <div className="border-t border-slate-200 p-6">
+                {conversation.turnCount >= maxTurns ? (
+                  <div className="text-center space-y-4">
+                    <div className="text-lg font-semibold text-slate-700">
+                      대화가 완료되었습니다!
+                    </div>
+                    <div className="text-sm text-slate-500 space-y-1">
+                      <div>총 {conversation.turnCount}턴의 대화를 나누었습니다.</div>
+                      <div>대화 시간: {formatElapsedTime(elapsedTime)}</div>
+                    </div>
+                    <div className="flex justify-center space-x-4">
+                      <Button
+                        onClick={onChatComplete}
+                        className="bg-corporate-600 hover:bg-corporate-700"
+                        data-testid="button-final-feedback"
                       >
-                        <i className="fas fa-volume-up"></i>
-                        <span>듣기</span>
-                      </button>
+                        <i className="fas fa-chart-bar mr-2"></i>
+                        최종 피드백 보기
+                      </Button>
+                      <Button
+                        onClick={onExit}
+                        variant="outline"
+                        data-testid="button-exit-completed"
+                      >
+                        <i className="fas fa-home mr-2"></i>
+                        홈으로 이동
+                      </Button>
                     </div>
-                  )}
-                </div>
-              </div>
-
-              {message.sender === "user" && (
-                <div className="w-8 h-8 bg-corporate-600 rounded-full flex items-center justify-center text-white text-sm font-medium">
-                  나
-                </div>
-              )}
-            </div>
-          ))}
-
-          {isLoading && (
-            <div className="flex items-start space-x-3">
-              <img src={persona.image} alt={persona.name} className="w-8 h-8 rounded-full" />
-              <div className="message-card rounded-lg rounded-tl-none p-3 max-w-md">
-                <div className="flex space-x-1">
-                  <div className="w-2 h-2 bg-slate-400 rounded-full animate-bounce"></div>
-                  <div className="w-2 h-2 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: "0.1s" }}></div>
-                  <div className="w-2 h-2 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: "0.2s" }}></div>
-                </div>
-              </div>
-            </div>
-          )}
-          
-          <div ref={messagesEndRef} />
-          </div>
-        ) : null}
-
-        {/* Full-Screen Character Mode */}
-        {chatMode === 'character' && (
-          <div 
-            className="fixed inset-0 z-10 bg-cover bg-center bg-no-repeat transition-all duration-500"
-            style={{
-              backgroundImage: `url(${getEmotionImage(persona.id, latestAiMessage?.emotion)})`
-            }}
-            data-testid="character-mode"
-          >
-            {/* Background overlay for better text readability */}
-            <div className="absolute inset-0 bg-black/20"></div>
-            
-            {/* Top UI Bar */}
-            <div className="absolute top-4 left-4 right-4 flex justify-between items-center z-20">
-              {/* Character Info */}
-              <div className="bg-white/90 backdrop-blur-sm rounded-full px-4 py-2 shadow-lg">
-                <div className="flex items-center space-x-2">
-                  <span className="text-sm font-medium text-slate-700">{persona.name}</span>
-                  {latestAiMessage?.emotion && (
-                    <span className="text-lg">
-                      {emotionEmojis[latestAiMessage.emotion] || '😐'}
-                    </span>
-                  )}
-                </div>
-              </div>
-
-              {/* Action Buttons */}
-              <div className="flex items-center space-x-2">
-                {/* Voice Toggle */}
-                {lastSpokenMessageRef.current && (
-                  <button
-                    onClick={toggleVoiceMode}
-                    className={`p-2 rounded-full shadow-lg transition-all duration-200 ${
-                      voiceModeEnabled 
-                        ? 'bg-green-500 text-white hover:bg-green-600' 
-                        : 'bg-white/90 text-slate-700 hover:bg-white'
-                    }`}
-                    data-testid="button-toggle-voice"
-                  >
-                    <i className={voiceModeEnabled ? "fas fa-volume-up" : "fas fa-volume-mute"}></i>
-                  </button>
-                )}
-
-                {/* Exit Character Mode */}
-                <button
-                  onClick={() => setChatMode('messenger')}
-                  className="p-2 bg-white/90 text-slate-700 rounded-full shadow-lg hover:bg-white transition-all duration-200"
-                  data-testid="button-exit-character"
-                >
-                  <i className="fas fa-times"></i>
-                </button>
-              </div>
-            </div>
-
-            {/* Bottom Text Box */}
-            <div className="absolute bottom-4 left-4 right-4 z-20">
-              <Card className="bg-white/95 backdrop-blur-md shadow-2xl border border-white/20">
-                <div className="p-6">
-                  {isLoading ? (
-                    <div className="flex items-center justify-center space-x-2" data-testid="status-typing">
-                      <div className="w-3 h-3 bg-purple-400 rounded-full animate-bounce"></div>
-                      <div className="w-3 h-3 bg-purple-400 rounded-full animate-bounce" style={{ animationDelay: "0.1s" }}></div>
-                      <div className="w-3 h-3 bg-purple-400 rounded-full animate-bounce" style={{ animationDelay: "0.2s" }}></div>
-                      <span className="ml-2 text-slate-600">대화 생성 중...</span>
-                    </div>
-                  ) : latestAiMessage ? (
-                    <div className="space-y-3">
-                      <p className="text-slate-800 leading-relaxed text-lg" data-testid="text-ai-line">
-                        {latestAiMessage.message}
-                      </p>
-                      {latestAiMessage.emotion && latestAiMessage.emotionReason && (
-                        <div className="text-xs text-slate-500 flex items-center pt-2 border-t border-slate-200">
-                          <span className="mr-1">{emotionEmojis[latestAiMessage.emotion]}</span>
-                          <span>{latestAiMessage.emotionReason}</span>
+                  </div>
+                ) : (
+                  <div className="flex space-x-4">
+                    <div className="flex-1">
+                      <Textarea
+                        value={userInput}
+                        onChange={(e) => setUserInput(e.target.value)}
+                        placeholder={`메시지를 입력하거나 음성 입력 버튼을 사용하세요... (최대 200자)${!speechSupported ? ' - 음성 입력 미지원 브라우저' : ''}`}
+                        maxLength={200}
+                        rows={3}
+                        className="resize-none"
+                        disabled={isLoading}
+                        data-testid="input-message"
+                      />
+                      <div className="flex items-center justify-between mt-2">
+                        <span className="text-xs text-slate-500">{userInput.length}/200</span>
+                        <div className="flex items-center space-x-2 text-xs text-slate-500">
+                          <span>팁: 구체적이고 예의 바른 답변을 해보세요</span>
+                          {speechSupported && (
+                            <span className="text-corporate-600">• 음성 입력 지원 (클릭하여 반복 가능)</span>
+                          )}
+                          {isRecording && (
+                            <span className="text-red-600 animate-pulse">🎤 음성 인식 중...</span>
+                          )}
+                          <i className="fas fa-info-circle"></i>
                         </div>
-                      )}
+                      </div>
                     </div>
-                  ) : (
-                    <div className="text-center text-slate-600 py-4">
-                      <i className="fas fa-comment-dots text-2xl text-purple-400 mb-2"></i>
-                      <p>대화를 시작해보세요</p>
+                    <div className="flex flex-col space-y-2">
+                      <Button
+                        onClick={handleSendMessage}
+                        disabled={!userInput.trim() || isLoading}
+                        data-testid="button-send-message"
+                      >
+                        <i className="fas fa-paper-plane mr-2"></i>
+                        전송
+                      </Button>
+                      <Button
+                        variant="outline"
+                        onClick={handleVoiceInput}
+                        disabled={isLoading || !speechSupported}
+                        className={`${isRecording ? 'bg-red-50 border-red-300 text-red-700 animate-pulse' : ''} ${!speechSupported ? 'opacity-50 cursor-not-allowed' : ''}`}
+                        data-testid="button-voice-input"
+                        title={!speechSupported ? "현재 브라우저에서 음성 입력을 지원하지 않습니다" : isRecording ? "음성 입력을 중지하려면 클릭하세요" : "음성 입력을 시작하려면 클릭하세요"}
+                      >
+                        <i className={`fas ${isRecording ? 'fa-stop' : 'fa-microphone'} mr-2 ${isRecording ? 'text-red-500' : ''}`}></i>
+                        {isRecording ? '입력 완료' : '음성 입력'}
+                      </Button>
+                      <Button
+                        variant="outline"
+                        onClick={handleSkipTurn}
+                        disabled={isLoading}
+                        data-testid="button-skip-turn"
+                      >
+                        건너뛰기
+                      </Button>
                     </div>
-                  )}
-                </div>
-              </Card>
-            </div>
-          </div>
-        )}
+                  </div>
+                )}
+              </div>
 
-        {/* Chat Input Area */}
-        <div className="border-t border-slate-200 p-6">
-          {conversation.turnCount >= maxTurns ? (
-            <div className="text-center space-y-4">
-              <div className="text-lg font-semibold text-slate-700">
-                대화가 완료되었습니다!
-              </div>
-              <div className="text-sm text-slate-500 space-y-1">
-                <div>총 {conversation.turnCount}턴의 대화를 나누었습니다.</div>
-                <div>대화 시간: {formatElapsedTime(elapsedTime)}</div>
-              </div>
-              <div className="flex justify-center space-x-4">
-                <Button
-                  onClick={onChatComplete}
-                  className="bg-corporate-600 hover:bg-corporate-700"
-                  data-testid="button-final-feedback"
-                >
-                  <i className="fas fa-chart-bar mr-2"></i>
-                  최종 피드백 보기
-                </Button>
-                <Button
-                  onClick={onExit}
-                  variant="outline"
-                  data-testid="button-exit-completed"
-                >
-                  <i className="fas fa-home mr-2"></i>
-                  홈으로 이동
-                </Button>
-              </div>
-            </div>
-          ) : (
-            <div className="flex space-x-4">
-              <div className="flex-1">
-                <Textarea
-                  value={userInput}
-                  onChange={(e) => setUserInput(e.target.value)}
-                  placeholder={`메시지를 입력하거나 음성 입력 버튼을 사용하세요... (최대 200자)${!speechSupported ? ' - 음성 입력 미지원 브라우저' : ''}`}
-                  maxLength={200}
-                  rows={3}
-                  className="resize-none"
-                  disabled={isLoading}
-                  data-testid="input-message"
-                />
-                <div className="flex items-center justify-between mt-2">
-                  <span className="text-xs text-slate-500">{userInput.length}/200</span>
-                  <div className="flex items-center space-x-2 text-xs text-slate-500">
-                    <span>팁: 구체적이고 예의 바른 답변을 해보세요</span>
-                    {speechSupported && (
-                      <span className="text-corporate-600">• 음성 입력 지원 (클릭하여 반복 가능)</span>
-                    )}
-                    {isRecording && (
-                      <span className="text-red-600 animate-pulse">🎤 음성 인식 중...</span>
-                    )}
-                    <i className="fas fa-info-circle"></i>
+              {/* Chat Controls & Info */}
+              <div className="mt-6 grid md:grid-cols-3 gap-4">
+                <div className="bg-white rounded-lg p-4 border border-slate-200">
+                  <h4 className="font-medium text-slate-900 mb-2 flex items-center">
+                    <i className="fas fa-target text-corporate-600 mr-2"></i>
+                    목표
+                  </h4>
+                  <p className="text-sm text-slate-600">
+                    {persona.name}과 건설적인 대화를 통해 {scenario.skills.join(", ")} 역량을 개발하세요.
+                  </p>
+                </div>
+                <div className="bg-white rounded-lg p-4 border border-slate-200">
+                  <h4 className="font-medium text-slate-900 mb-2 flex items-center">
+                    <i className="fas fa-stopwatch text-blue-600 mr-2"></i>
+                    경과 시간
+                  </h4>
+                  <p className="text-2xl font-bold text-blue-600" data-testid="sidebar-elapsed-time">
+                    {formatElapsedTime(elapsedTime)}
+                  </p>
+                  <p className="text-xs text-slate-500">
+                    {elapsedTime < 300 ? '효율적으로 진행 중' : 
+                     elapsedTime < 600 ? '적절한 속도' : 
+                     elapsedTime < 900 ? '시간 관리 주의' : '신속한 마무리 권장'}
+                  </p>
+                </div>
+                <div className="bg-white rounded-lg p-4 border border-slate-200">
+                  <h4 className="font-medium text-slate-900 mb-2 flex items-center">
+                    <i className="fas fa-clock text-amber-600 mr-2"></i>
+                    남은 턴
+                  </h4>
+                  <p className="text-2xl font-bold text-amber-600">{maxTurns - conversation.turnCount}</p>
+                  <p className="text-xs text-slate-500">턴이 끝나면 자동으로 평가됩니다</p>
+                </div>
+                <div className="bg-white rounded-lg p-4 border border-slate-200">
+                  <h4 className="font-medium text-slate-900 mb-2 flex items-center">
+                    <i className="fas fa-chart-line text-green-600 mr-2"></i>
+                    현재 점수
+                  </h4>
+                  <div className="space-y-1">
+                    <p className="text-2xl font-bold text-green-600">{currentScore}/100</p>
+                    <div className="w-full bg-gray-200 rounded-full h-2">
+                      <div 
+                        className={`h-2 rounded-full transition-all duration-500 ${
+                          currentScore >= 80 ? 'bg-green-500' :
+                          currentScore >= 60 ? 'bg-blue-500' :
+                          currentScore >= 40 ? 'bg-yellow-500' : 'bg-red-500'
+                        }`}
+                        style={{ width: `${Math.max(2, currentScore)}%` }}
+                      ></div>
+                    </div>
+                    <p className="text-xs text-slate-500">
+                      {currentScore >= 80 ? '우수' :
+                       currentScore >= 60 ? '보통' :
+                       currentScore >= 40 ? '개선 필요' : '미흡'}
+                    </p>
                   </div>
                 </div>
               </div>
-              <div className="flex flex-col space-y-2">
-                <Button
-                  onClick={handleSendMessage}
-                  disabled={!userInput.trim() || isLoading}
-                  data-testid="button-send-message"
-                >
-                  <i className="fas fa-paper-plane mr-2"></i>
-                  전송
-                </Button>
-                <Button
-                  variant="outline"
-                  onClick={handleVoiceInput}
-                  disabled={isLoading || !speechSupported}
-                  className={`${isRecording ? 'bg-red-50 border-red-300 text-red-700 animate-pulse' : ''} ${!speechSupported ? 'opacity-50 cursor-not-allowed' : ''}`}
-                  data-testid="button-voice-input"
-                  title={!speechSupported ? "현재 브라우저에서 음성 입력을 지원하지 않습니다" : isRecording ? "음성 입력을 중지하려면 클릭하세요" : "음성 입력을 시작하려면 클릭하세요"}
-                >
-                  <i className={`fas ${isRecording ? 'fa-stop' : 'fa-microphone'} mr-2 ${isRecording ? 'text-red-500' : ''}`}></i>
-                  {isRecording ? '입력 완료' : '음성 입력'}
-                </Button>
-                <Button
-                  variant="outline"
-                  onClick={handleSkipTurn}
-                  disabled={isLoading}
-                  data-testid="button-skip-turn"
-                >
-                  건너뛰기
-                </Button>
+            </>
+          )}
+
+          {chatMode === 'character' && (
+            <div 
+              className="fixed inset-0 z-10 bg-cover bg-center bg-no-repeat transition-all duration-500"
+              style={{
+                backgroundImage: `url(${getEmotionImage(persona.id, latestAiMessage?.emotion)})`
+              }}
+              data-testid="character-mode"
+            >
+              {/* Background overlay for better text readability */}
+              <div className="absolute inset-0 bg-black/20"></div>
+              
+              {/* Top UI Bar */}
+              <div className="absolute top-4 left-4 right-4 flex justify-between items-center z-20">
+                {/* Character Info */}
+                <div className="bg-white/90 backdrop-blur-sm rounded-full px-4 py-2 shadow-lg">
+                  <div className="flex items-center space-x-2">
+                    <span className="text-sm font-medium text-slate-700">{persona.name}</span>
+                    {latestAiMessage?.emotion && (
+                      <span className="text-lg">
+                        {emotionEmojis[latestAiMessage.emotion] || '😐'}
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                {/* Action Buttons */}
+                <div className="flex items-center space-x-2">
+                  {/* Voice Toggle */}
+                  {lastSpokenMessageRef.current && (
+                    <button
+                      onClick={toggleVoiceMode}
+                      className={`p-2 rounded-full shadow-lg transition-all duration-200 ${
+                        voiceModeEnabled 
+                          ? 'bg-green-500 text-white hover:bg-green-600' 
+                          : 'bg-white/90 text-slate-700 hover:bg-white'
+                      }`}
+                      data-testid="button-toggle-voice"
+                    >
+                      <i className={voiceModeEnabled ? "fas fa-volume-up" : "fas fa-volume-mute"}></i>
+                    </button>
+                  )}
+
+                  {/* Exit Character Mode */}
+                  <button
+                    onClick={() => setChatMode('messenger')}
+                    className="p-2 bg-white/90 text-slate-700 rounded-full shadow-lg hover:bg-white transition-all duration-200"
+                    data-testid="button-exit-character"
+                  >
+                    <i className="fas fa-times"></i>
+                  </button>
+                </div>
+              </div>
+
+              {/* Bottom Interactive Box */}
+              <div className="absolute bottom-4 left-4 right-4 z-20">
+                <Card className="bg-white/95 backdrop-blur-md shadow-2xl border border-white/20">
+                  {/* AI Message Section */}
+                  <div className="p-6 border-b border-slate-200/50">
+                    {isLoading ? (
+                      <div className="flex items-center justify-center space-x-2" data-testid="status-typing">
+                        <div className="w-3 h-3 bg-purple-400 rounded-full animate-bounce"></div>
+                        <div className="w-3 h-3 bg-purple-400 rounded-full animate-bounce" style={{ animationDelay: "0.1s" }}></div>
+                        <div className="w-3 h-3 bg-purple-400 rounded-full animate-bounce" style={{ animationDelay: "0.2s" }}></div>
+                        <span className="ml-2 text-slate-600">대화 생성 중...</span>
+                      </div>
+                    ) : latestAiMessage ? (
+                      <div className="space-y-3">
+                        <p className="text-slate-800 leading-relaxed text-lg" data-testid="text-ai-line">
+                          {latestAiMessage.message}
+                        </p>
+                        {latestAiMessage.emotion && latestAiMessage.emotionReason && (
+                          <div className="text-xs text-slate-500 flex items-center pt-2">
+                            <span className="mr-1">{emotionEmojis[latestAiMessage.emotion]}</span>
+                            <span>{latestAiMessage.emotionReason}</span>
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      <div className="text-center text-slate-600 py-4">
+                        <i className="fas fa-comment-dots text-2xl text-purple-400 mb-2"></i>
+                        <p>대화를 시작해보세요</p>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Input Section */}
+                  <div className="p-4">
+                    {conversation.turnCount >= maxTurns ? (
+                      <div className="text-center space-y-3">
+                        <div className="text-sm font-medium text-slate-700">
+                          대화가 완료되었습니다! (총 {conversation.turnCount}턴)
+                        </div>
+                        <div className="flex justify-center space-x-3">
+                          <Button
+                            onClick={onChatComplete}
+                            className="bg-purple-600 hover:bg-purple-700 text-white"
+                            data-testid="button-final-feedback"
+                            size="sm"
+                          >
+                            <i className="fas fa-chart-bar mr-1"></i>
+                            최종 피드백
+                          </Button>
+                          <Button
+                            onClick={onExit}
+                            variant="outline"
+                            data-testid="button-exit-completed"
+                            size="sm"
+                          >
+                            <i className="fas fa-home mr-1"></i>
+                            홈으로
+                          </Button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="space-y-3">
+                        {/* Text Input */}
+                        <Textarea
+                          value={userInput}
+                          onChange={(e) => setUserInput(e.target.value)}
+                          placeholder={`메시지를 입력하거나 음성 입력을 사용하세요... (최대 200자)${!speechSupported ? ' - 음성 입력 미지원' : ''}`}
+                          maxLength={200}
+                          rows={2}
+                          className="resize-none text-sm"
+                          disabled={isLoading}
+                          data-testid="input-message-character"
+                        />
+                        
+                        {/* Input Controls */}
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs text-slate-500">{userInput.length}/200</span>
+                          
+                          <div className="flex items-center space-x-2">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={handleVoiceInput}
+                              disabled={isLoading || !speechSupported}
+                              className={`${isRecording ? 'bg-red-50 border-red-300 text-red-700 animate-pulse' : ''} ${!speechSupported ? 'opacity-50' : ''}`}
+                              data-testid="button-voice-input-character"
+                              title={!speechSupported ? "현재 브라우저에서 음성 입력을 지원하지 않습니다" : isRecording ? "음성 입력을 중지하려면 클릭하세요" : "음성 입력을 시작하려면 클릭하세요"}
+                            >
+                              <i className={`fas ${isRecording ? 'fa-stop' : 'fa-microphone'} ${isRecording ? 'text-red-500' : ''}`}></i>
+                            </Button>
+                            
+                            <Button
+                              variant="outline" 
+                              size="sm"
+                              onClick={handleSkipTurn}
+                              disabled={isLoading}
+                              data-testid="button-skip-turn-character"
+                            >
+                              건너뛰기
+                            </Button>
+                            
+                            <Button
+                              onClick={handleSendMessage}
+                              disabled={!userInput.trim() || isLoading}
+                              className="bg-purple-600 hover:bg-purple-700 text-white"
+                              size="sm"
+                              data-testid="button-send-message-character"
+                            >
+                              <i className="fas fa-paper-plane mr-1"></i>
+                              전송
+                            </Button>
+                          </div>
+                        </div>
+                        
+                        {/* Status indicators */}
+                        {(speechSupported || isRecording) && (
+                          <div className="text-xs text-slate-500 text-center">
+                            {speechSupported && !isRecording && <span className="text-purple-600">💬 음성 입력 지원</span>}
+                            {isRecording && <span className="text-red-600 animate-pulse">🎤 음성 인식 중...</span>}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </Card>
               </div>
             </div>
           )}
-        </div>
-      </div>
-
-      {/* Chat Controls & Info */}
-      <div className="mt-6 grid md:grid-cols-3 gap-4">
-        <div className="bg-white rounded-lg p-4 border border-slate-200">
-          <h4 className="font-medium text-slate-900 mb-2 flex items-center">
-            <i className="fas fa-target text-corporate-600 mr-2"></i>
-            목표
-          </h4>
-          <p className="text-sm text-slate-600">
-            {persona.name}과 건설적인 대화를 통해 {scenario.skills.join(", ")} 역량을 개발하세요.
-          </p>
-        </div>
-        <div className="bg-white rounded-lg p-4 border border-slate-200">
-          <h4 className="font-medium text-slate-900 mb-2 flex items-center">
-            <i className="fas fa-stopwatch text-blue-600 mr-2"></i>
-            경과 시간
-          </h4>
-          <p className="text-2xl font-bold text-blue-600" data-testid="sidebar-elapsed-time">
-            {formatElapsedTime(elapsedTime)}
-          </p>
-          <p className="text-xs text-slate-500">
-            {elapsedTime < 300 ? '효율적으로 진행 중' : 
-             elapsedTime < 600 ? '적절한 속도' : 
-             elapsedTime < 900 ? '시간 관리 주의' : '신속한 마무리 권장'}
-          </p>
-        </div>
-        <div className="bg-white rounded-lg p-4 border border-slate-200">
-          <h4 className="font-medium text-slate-900 mb-2 flex items-center">
-            <i className="fas fa-clock text-amber-600 mr-2"></i>
-            남은 턴
-          </h4>
-          <p className="text-2xl font-bold text-amber-600">{maxTurns - conversation.turnCount}</p>
-          <p className="text-xs text-slate-500">턴이 끝나면 자동으로 평가됩니다</p>
-        </div>
-        <div className="bg-white rounded-lg p-4 border border-slate-200">
-          <h4 className="font-medium text-slate-900 mb-2 flex items-center">
-            <i className="fas fa-chart-line text-green-600 mr-2"></i>
-            현재 점수
-          </h4>
-          <div className="space-y-1">
-            <p className="text-2xl font-bold text-green-600">{currentScore}/100</p>
-            <div className="w-full bg-gray-200 rounded-full h-2">
-              <div 
-                className={`h-2 rounded-full transition-all duration-500 ${
-                  currentScore >= 80 ? 'bg-green-500' :
-                  currentScore >= 60 ? 'bg-blue-500' :
-                  currentScore >= 40 ? 'bg-yellow-500' : 'bg-red-500'
-                }`}
-                style={{ width: `${Math.max(2, currentScore)}%` }}
-              ></div>
-            </div>
-            <p className="text-xs text-slate-500">
-              {currentScore >= 80 ? '우수' :
-               currentScore >= 60 ? '보통' :
-               currentScore >= 40 ? '개선 필요' : '미흡'}
-            </p>
-          </div>
         </div>
       </div>
     </div>
