@@ -962,65 +962,93 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
           
           <div ref={messagesEndRef} />
           </div>
-        ) : (
-          /* Character Mode */
-          <div className="relative h-96 bg-gradient-to-b from-slate-50 to-slate-100 overflow-hidden" data-testid="character-mode">
-            {/* Character Stage */}
-            <div className="h-full flex flex-col">
-              {/* Character Image Area */}
-              <div className="flex-1 flex items-center justify-center p-8">
-                <AspectRatio ratio={3/4} className="w-80 max-w-sm">
-                  <img
-                    src={getEmotionImage(persona.id, latestAiMessage?.emotion)}
-                    alt={`${persona.name} - ${latestAiMessage?.emotion || '중립'}`}
-                    className="w-full h-full object-cover rounded-lg shadow-lg transition-all duration-500"
-                    data-testid="character-image"
-                    onError={(e) => {
-                      (e.target as HTMLImageElement).src = `https://ui-avatars.com/api/?name=${encodeURIComponent(persona.name)}&background=6366f1&color=fff&size=400`;
-                    }}
-                  />
-                  {/* Emotion Indicator */}
+        ) : null}
+
+        {/* Full-Screen Character Mode */}
+        {chatMode === 'character' && (
+          <div 
+            className="fixed inset-0 z-10 bg-cover bg-center bg-no-repeat transition-all duration-500"
+            style={{
+              backgroundImage: `url(${getEmotionImage(persona.id, latestAiMessage?.emotion)})`
+            }}
+            data-testid="character-mode"
+          >
+            {/* Background overlay for better text readability */}
+            <div className="absolute inset-0 bg-black/20"></div>
+            
+            {/* Top UI Bar */}
+            <div className="absolute top-4 left-4 right-4 flex justify-between items-center z-20">
+              {/* Character Info */}
+              <div className="bg-white/90 backdrop-blur-sm rounded-full px-4 py-2 shadow-lg">
+                <div className="flex items-center space-x-2">
+                  <span className="text-sm font-medium text-slate-700">{persona.name}</span>
                   {latestAiMessage?.emotion && (
-                    <div className="absolute top-4 right-4 bg-white/90 rounded-full p-2 shadow-md">
-                      <span className="text-2xl">
-                        {emotionEmojis[latestAiMessage.emotion] || '😐'}
-                      </span>
-                    </div>
+                    <span className="text-lg">
+                      {emotionEmojis[latestAiMessage.emotion] || '😐'}
+                    </span>
                   )}
-                </AspectRatio>
+                </div>
               </div>
 
-              {/* Text Box Area */}
-              <div className="p-6">
-                <Card className="bg-white/95 backdrop-blur-sm shadow-xl border-2 border-slate-200">
-                  <div className="p-4">
-                    {isLoading ? (
-                      <div className="flex items-center justify-center space-x-2" data-testid="status-typing">
-                        <div className="w-2 h-2 bg-slate-400 rounded-full animate-bounce"></div>
-                        <div className="w-2 h-2 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: "0.1s" }}></div>
-                        <div className="w-2 h-2 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: "0.2s" }}></div>
-                      </div>
-                    ) : latestAiMessage ? (
-                      <div className="space-y-2">
-                        <div className="text-sm text-slate-600 font-medium">{persona.name}</div>
-                        <p className="text-slate-800 leading-relaxed" data-testid="text-ai-line">
-                          {latestAiMessage.message}
-                        </p>
-                        {latestAiMessage.emotion && latestAiMessage.emotionReason && (
-                          <div className="text-xs text-slate-500 flex items-center mt-2">
-                            <span className="mr-1">{emotionEmojis[latestAiMessage.emotion]}</span>
-                            <span>{latestAiMessage.emotionReason}</span>
-                          </div>
-                        )}
-                      </div>
-                    ) : (
-                      <div className="text-center text-slate-500 py-4">
-                        대화를 시작해보세요
-                      </div>
-                    )}
-                  </div>
-                </Card>
+              {/* Action Buttons */}
+              <div className="flex items-center space-x-2">
+                {/* Voice Toggle */}
+                {lastSpokenMessageRef.current && (
+                  <button
+                    onClick={toggleVoiceMode}
+                    className={`p-2 rounded-full shadow-lg transition-all duration-200 ${
+                      voiceModeEnabled 
+                        ? 'bg-green-500 text-white hover:bg-green-600' 
+                        : 'bg-white/90 text-slate-700 hover:bg-white'
+                    }`}
+                    data-testid="button-toggle-voice"
+                  >
+                    <i className={voiceModeEnabled ? "fas fa-volume-up" : "fas fa-volume-mute"}></i>
+                  </button>
+                )}
+
+                {/* Exit Character Mode */}
+                <button
+                  onClick={() => setChatMode('messenger')}
+                  className="p-2 bg-white/90 text-slate-700 rounded-full shadow-lg hover:bg-white transition-all duration-200"
+                  data-testid="button-exit-character"
+                >
+                  <i className="fas fa-times"></i>
+                </button>
               </div>
+            </div>
+
+            {/* Bottom Text Box */}
+            <div className="absolute bottom-4 left-4 right-4 z-20">
+              <Card className="bg-white/95 backdrop-blur-md shadow-2xl border border-white/20">
+                <div className="p-6">
+                  {isLoading ? (
+                    <div className="flex items-center justify-center space-x-2" data-testid="status-typing">
+                      <div className="w-3 h-3 bg-purple-400 rounded-full animate-bounce"></div>
+                      <div className="w-3 h-3 bg-purple-400 rounded-full animate-bounce" style={{ animationDelay: "0.1s" }}></div>
+                      <div className="w-3 h-3 bg-purple-400 rounded-full animate-bounce" style={{ animationDelay: "0.2s" }}></div>
+                      <span className="ml-2 text-slate-600">대화 생성 중...</span>
+                    </div>
+                  ) : latestAiMessage ? (
+                    <div className="space-y-3">
+                      <p className="text-slate-800 leading-relaxed text-lg" data-testid="text-ai-line">
+                        {latestAiMessage.message}
+                      </p>
+                      {latestAiMessage.emotion && latestAiMessage.emotionReason && (
+                        <div className="text-xs text-slate-500 flex items-center pt-2 border-t border-slate-200">
+                          <span className="mr-1">{emotionEmojis[latestAiMessage.emotion]}</span>
+                          <span>{latestAiMessage.emotionReason}</span>
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="text-center text-slate-600 py-4">
+                      <i className="fas fa-comment-dots text-2xl text-purple-400 mb-2"></i>
+                      <p>대화를 시작해보세요</p>
+                    </div>
+                  )}
+                </div>
+              </Card>
             </div>
           </div>
         )}
