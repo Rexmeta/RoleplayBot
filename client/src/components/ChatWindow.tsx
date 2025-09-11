@@ -4,9 +4,19 @@ import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
+import { Card } from "@/components/ui/card";
+import { AspectRatio } from "@/components/ui/aspect-ratio";
 import { Link, useLocation } from "wouter";
 import type { ComplexScenario, ScenarioPersona } from "@/lib/scenario-system";
 import type { Conversation, ConversationMessage } from "@shared/schema";
+
+// 감정별 캐릭터 이미지 import
+import characterNeutral from "@/assets/characters/character-neutral.jpg";
+import characterJoy from "@/assets/characters/character-joy.jpg";
+import characterSad from "@/assets/characters/character-sad.jpg";
+import characterAngry from "@/assets/characters/character-angry.jpg";
+import characterSurprise from "@/assets/characters/character-surprise.jpg";
 
 // Web Speech API 타입 확장
 declare global {
@@ -51,11 +61,13 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
   const [elapsedTime, setElapsedTime] = useState(0);
   const [conversationStartTime, setConversationStartTime] = useState<Date | null>(null);
   const [localMessages, setLocalMessages] = useState<ConversationMessage[]>([]);
+  const [chatMode, setChatMode] = useState<'messenger' | 'character'>('messenger');
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const recognitionRef = useRef<any>(null);
   const speechSynthesisRef = useRef<SpeechSynthesis | null>(null);
   const lastSpokenMessageRef = useRef<string>("");
   const currentAudioRef = useRef<HTMLAudioElement | null>(null);
+  const currentAudioUrlRef = useRef<string | null>(null);
 
   const queryClient = useQueryClient();
   const { toast } = useToast();
@@ -273,6 +285,7 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
       
       // 오디오 URL 생성 및 재생
       const audioUrl = URL.createObjectURL(audioBlob);
+      currentAudioUrlRef.current = audioUrl; // URL 추적 (메모리 누수 방지)
       const audio = new Audio(audioUrl);
       currentAudioRef.current = audio;
       
@@ -280,12 +293,14 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
         setIsSpeaking(false);
         URL.revokeObjectURL(audioUrl); // 메모리 정리
         currentAudioRef.current = null;
+        currentAudioUrlRef.current = null;
       };
       
       audio.onerror = () => {
         setIsSpeaking(false);
         URL.revokeObjectURL(audioUrl);
         currentAudioRef.current = null;
+        currentAudioUrlRef.current = null;
         toast({
           title: "음성 재생 오류",
           description: "오디오 재생에 실패했습니다.",
@@ -358,6 +373,12 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
       currentAudioRef.current.pause();
       currentAudioRef.current.currentTime = 0;
       currentAudioRef.current = null;
+    }
+    
+    // 오디오 URL 정리 (메모리 누수 방지)
+    if (currentAudioUrlRef.current) {
+      URL.revokeObjectURL(currentAudioUrlRef.current);
+      currentAudioUrlRef.current = null;
     }
     
     // 백업 Web Speech API 정지
@@ -531,6 +552,35 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
     return () => document.removeEventListener("keypress", handleKeyPress);
   }, [userInput, isLoading]);
 
+  // 컴포넌트 언마운트 시 리소스 정리 (메모리 누수 방지)
+  useEffect(() => {
+    return () => {
+      // 오디오 정리
+      if (currentAudioRef.current) {
+        currentAudioRef.current.pause();
+        currentAudioRef.current = null;
+      }
+      
+      // 오디오 URL 정리
+      if (currentAudioUrlRef.current) {
+        URL.revokeObjectURL(currentAudioUrlRef.current);
+        currentAudioUrlRef.current = null;
+      }
+      
+      // 음성 인식 정리
+      if (recognitionRef.current) {
+        recognitionRef.current.stop();
+        recognitionRef.current = null;
+      }
+      
+      // 음성 합성 정리
+      if (speechSynthesisRef.current) {
+        speechSynthesisRef.current.cancel();
+        speechSynthesisRef.current = null;
+      }
+    };
+  }, []);
+
   if (error) {
     return (
       <div className="text-center py-8">
@@ -612,6 +662,31 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
   const currentScore = calculateRealTimeScore();
   const progressPercentage = (conversation.turnCount / maxTurns) * 100;
 
+  // 최신 AI 메시지 찾기 (캐릭터 모드용)
+  const latestAiMessage = localMessages.slice().reverse().find(msg => msg.sender === 'ai');
+  
+  // 감정별 이미지 매핑
+  const getEmotionImage = (personaId: string, emotion?: string) => {
+    try {
+      // 감정별 이미지 매핑
+      const emotionMap: { [key: string]: string } = {
+        '기쁨': characterJoy,
+        '슬픔': characterSad,
+        '분노': characterAngry,
+        '놀람': characterSurprise,
+        '중립': characterNeutral
+      };
+
+      // 해당 감정의 이미지가 있으면 사용, 없으면 중립 이미지
+      const selectedImage = emotionMap[emotion || '중립'] || emotionMap['중립'];
+      return selectedImage;
+    } catch (error) {
+      console.warn(`Failed to load emotion image for ${emotion}, falling back to persona image`);
+      // 오류 시 기본 persona 이미지 사용
+      return persona.image;
+    }
+  };
+
   return (
     <div className="chat-window">
       <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
@@ -683,6 +758,34 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
               </div>
               
               
+              {/* 채팅 모드 선택 */}
+              <div className="flex items-center space-x-2">
+                <ToggleGroup
+                  type="single"
+                  value={chatMode}
+                  onValueChange={(value: 'messenger' | 'character') => {
+                    if (value) setChatMode(value);
+                  }}
+                  className="bg-white/10 rounded-lg p-1"
+                  data-testid="toggle-chat-mode"
+                >
+                  <ToggleGroupItem 
+                    value="messenger" 
+                    className="text-white/80 hover:text-white data-[state=on]:bg-white/20 data-[state=on]:text-white px-2 py-1 text-xs"
+                    data-testid="mode-messenger"
+                  >
+                    메신저
+                  </ToggleGroupItem>
+                  <ToggleGroupItem 
+                    value="character" 
+                    className="text-white/80 hover:text-white data-[state=on]:bg-white/20 data-[state=on]:text-white px-2 py-1 text-xs"
+                    data-testid="mode-character"
+                  >
+                    캐릭터
+                  </ToggleGroupItem>
+                </ToggleGroup>
+              </div>
+
               {/* 음성 모드 토글 */}
               <div className="relative group">
                 <Button 
@@ -766,8 +869,9 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
         </div>
 
         {/* Chat Messages Area */}
-        <div className="h-96 overflow-y-auto p-6 space-y-4 bg-slate-50/50 scroll-smooth" data-testid="chat-messages">
-          {localMessages.map((message: ConversationMessage, index: number) => (
+        {chatMode === 'messenger' ? (
+          <div className="h-96 overflow-y-auto p-6 space-y-4 bg-slate-50/50 scroll-smooth" data-testid="chat-messages">
+            {localMessages.map((message: ConversationMessage, index: number) => (
             <div
               key={index}
               className={`flex items-start space-x-3 ${
@@ -857,7 +961,69 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
           )}
           
           <div ref={messagesEndRef} />
-        </div>
+          </div>
+        ) : (
+          /* Character Mode */
+          <div className="relative h-96 bg-gradient-to-b from-slate-50 to-slate-100 overflow-hidden" data-testid="character-mode">
+            {/* Character Stage */}
+            <div className="h-full flex flex-col">
+              {/* Character Image Area */}
+              <div className="flex-1 flex items-center justify-center p-8">
+                <AspectRatio ratio={3/4} className="w-80 max-w-sm">
+                  <img
+                    src={getEmotionImage(persona.id, latestAiMessage?.emotion)}
+                    alt={`${persona.name} - ${latestAiMessage?.emotion || '중립'}`}
+                    className="w-full h-full object-cover rounded-lg shadow-lg transition-all duration-500"
+                    data-testid="character-image"
+                    onError={(e) => {
+                      (e.target as HTMLImageElement).src = `https://ui-avatars.com/api/?name=${encodeURIComponent(persona.name)}&background=6366f1&color=fff&size=400`;
+                    }}
+                  />
+                  {/* Emotion Indicator */}
+                  {latestAiMessage?.emotion && (
+                    <div className="absolute top-4 right-4 bg-white/90 rounded-full p-2 shadow-md">
+                      <span className="text-2xl">
+                        {emotionEmojis[latestAiMessage.emotion] || '😐'}
+                      </span>
+                    </div>
+                  )}
+                </AspectRatio>
+              </div>
+
+              {/* Text Box Area */}
+              <div className="p-6">
+                <Card className="bg-white/95 backdrop-blur-sm shadow-xl border-2 border-slate-200">
+                  <div className="p-4">
+                    {isLoading ? (
+                      <div className="flex items-center justify-center space-x-2" data-testid="status-typing">
+                        <div className="w-2 h-2 bg-slate-400 rounded-full animate-bounce"></div>
+                        <div className="w-2 h-2 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: "0.1s" }}></div>
+                        <div className="w-2 h-2 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: "0.2s" }}></div>
+                      </div>
+                    ) : latestAiMessage ? (
+                      <div className="space-y-2">
+                        <div className="text-sm text-slate-600 font-medium">{persona.name}</div>
+                        <p className="text-slate-800 leading-relaxed" data-testid="text-ai-line">
+                          {latestAiMessage.message}
+                        </p>
+                        {latestAiMessage.emotion && latestAiMessage.emotionReason && (
+                          <div className="text-xs text-slate-500 flex items-center mt-2">
+                            <span className="mr-1">{emotionEmojis[latestAiMessage.emotion]}</span>
+                            <span>{latestAiMessage.emotionReason}</span>
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      <div className="text-center text-slate-500 py-4">
+                        대화를 시작해보세요
+                      </div>
+                    )}
+                  </div>
+                </Card>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Chat Input Area */}
         <div className="border-t border-slate-200 p-6">
