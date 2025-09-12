@@ -73,6 +73,7 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
   const [chatMode, setChatMode] = useState<'messenger' | 'character'>('messenger');
   const [showInputMode, setShowInputMode] = useState(false);
   const [isTransitioning, setIsTransitioning] = useState(false);
+  const [isEmotionTransitioning, setIsEmotionTransitioning] = useState(false);
   const [imagesLoaded, setImagesLoaded] = useState<{[key: string]: boolean}>({});
   const [currentEmotion, setCurrentEmotion] = useState<string>('중립');
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -603,15 +604,15 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
     // 감정이 변경되었을 때만 처리
     if (newEmotion !== currentEmotion) {
       if (chatMode === 'character') {
-        // 캐릭터 모드에서는 부드러운 배경 전환 (전체 화면을 숨기지 않음)
-        setIsTransitioning(true);
+        // 캐릭터 모드에서는 부드러운 배경 전환 (모드 전환과 분리된 상태 사용)
+        setIsEmotionTransitioning(true);
         
         // 즉시 새로운 감정으로 업데이트하고 짧은 전환 효과만 적용
         setCurrentEmotion(newEmotion);
         
         // 짧은 전환 효과만 적용 (200ms)
         const transitionTimeout = setTimeout(() => {
-          setIsTransitioning(false);
+          setIsEmotionTransitioning(false);
         }, 200);
         
         // cleanup 함수에서 timeout 정리
@@ -1195,7 +1196,7 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
           {chatMode === 'character' && (
             <div 
               className={`fixed inset-0 z-10 bg-cover bg-center bg-no-repeat transition-all duration-300 ${
-                isTransitioning ? 'brightness-90 scale-[1.02]' : 'brightness-100 scale-100'
+                isEmotionTransitioning ? 'brightness-90 scale-[1.02]' : 'brightness-100 scale-100'
               }`}
               style={{
                 backgroundImage: `url(${getEmotionImage(currentEmotion)})`
