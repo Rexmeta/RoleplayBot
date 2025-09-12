@@ -603,25 +603,20 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
     // 감정이 변경되었을 때만 처리
     if (newEmotion !== currentEmotion) {
       if (chatMode === 'character') {
-        // 캐릭터 모드에서는 전환 애니메이션 적용
+        // 캐릭터 모드에서는 부드러운 배경 전환 (전체 화면을 숨기지 않음)
         setIsTransitioning(true);
         
-        // setTimeout cleanup을 위한 변수들
-        let fadeOutTimeout: NodeJS.Timeout;
-        let fadeInTimeout: NodeJS.Timeout;
+        // 즉시 새로운 감정으로 업데이트하고 짧은 전환 효과만 적용
+        setCurrentEmotion(newEmotion);
         
-        // 짧은 딩레이 후 새로운 감정으로 업데이트
-        fadeOutTimeout = setTimeout(() => {
-          setCurrentEmotion(newEmotion);
-          fadeInTimeout = setTimeout(() => {
-            setIsTransitioning(false);
-          }, 150); // Fade in 시간
-        }, 150); // Fade out 시간
+        // 짧은 전환 효과만 적용 (200ms)
+        const transitionTimeout = setTimeout(() => {
+          setIsTransitioning(false);
+        }, 200);
         
         // cleanup 함수에서 timeout 정리
         return () => {
-          clearTimeout(fadeOutTimeout);
-          clearTimeout(fadeInTimeout);
+          clearTimeout(transitionTimeout);
         };
       } else {
         // 메신저 모드에서는 즉시 업데이트
@@ -1199,8 +1194,8 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
 
           {chatMode === 'character' && (
             <div 
-              className={`fixed inset-0 z-10 bg-cover bg-center bg-no-repeat transition-all duration-500 ${
-                isTransitioning ? 'opacity-0' : 'opacity-100'
+              className={`fixed inset-0 z-10 bg-cover bg-center bg-no-repeat transition-all duration-300 ${
+                isTransitioning ? 'brightness-90 scale-[1.02]' : 'brightness-100 scale-100'
               }`}
               style={{
                 backgroundImage: `url(${getEmotionImage(currentEmotion)})`
