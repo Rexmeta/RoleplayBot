@@ -12,7 +12,7 @@ import type { ComplexScenario, ScenarioPersona } from "@/lib/scenario-system";
 import type { Conversation, ConversationMessage } from "@shared/schema";
 
 // 감정별 캐릭터 이미지 import
-import characterNeutral from "@/assets/characters/character-neutral.jpg";
+import characterNeutral from "@/assets/characters/character-neutral.png";
 import characterJoy from "@/assets/characters/character-joy.jpg";
 import characterSad from "@/assets/characters/character-sad.jpg";
 import characterAngry from "@/assets/characters/character-angry.jpg";
@@ -1171,8 +1171,8 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
               </div>
 
               {/* Bottom Interactive Box */}
-              <div className="absolute bottom-4 left-4 right-4 z-20">
-                <Card className="bg-white/95 backdrop-blur-md shadow-2xl border border-white/20">
+              <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 z-20 w-full max-w-4xl px-4">
+                <Card className="bg-white/75 backdrop-blur-md shadow-2xl border border-white/20">
                   {/* AI Message Section */}
                   <div className="p-6 border-b border-slate-200/50">
                     {isLoading ? (
