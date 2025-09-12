@@ -26,7 +26,7 @@ export class GeminiProvider implements AIServiceInterface {
         `${msg.sender === 'user' ? '사용자' : persona.name}: ${msg.message}`
       ).join('\n');
 
-      const systemPrompt = `당신은 ${persona.name}(${persona.role}, ${persona.department})입니다.
+      const systemPrompt = `당신은 ${persona.name}(${persona.role})입니다.
 
 === 시나리오 배경 ===
 상황: ${scenario.context?.situation || '일반적인 업무 상황'}
@@ -305,7 +305,7 @@ JSON 형식으로 응답하세요:
           behaviorGuides: this.generateBehaviorGuides(persona),
           conversationGuides: this.generateConversationGuides(persona),
           developmentPlan: this.generateDevelopmentPlan(20),
-          conversationDuration: conversationDurationSeconds, // 초 단위로 저장
+          conversationDuration: conversationDuration * 60, // 초 단위로 저장
           averageResponseTime: Infinity,
           timePerformance: timePerformance
         };
@@ -372,7 +372,7 @@ JSON 형식으로 응답하세요:
           behaviorGuides: this.generateBehaviorGuides(persona),
           conversationGuides: this.generateConversationGuides(persona),
           developmentPlan: this.generateDevelopmentPlan(20),
-          conversationDuration: conversationDurationSeconds, // 초 단위로 저장
+          conversationDuration: conversationDuration * 60, // 초 단위로 저장
           averageResponseTime: Infinity,
           timePerformance: timePerformance
         };
