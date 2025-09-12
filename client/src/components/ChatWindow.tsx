@@ -1263,18 +1263,48 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
                             
                             {/* Goals Display */}
                             {(scenario?.objectives || scenario?.context?.playerRole?.responsibility) && (
-                              <div className="mt-3 p-3 bg-blue-50 rounded-lg border border-blue-200">
+                              <div className="mt-3 p-3 bg-blue-50 rounded-lg border border-blue-200 hover:bg-blue-100 transition-all duration-300 group cursor-pointer">
                                 <div className="flex items-start space-x-2">
                                   <i className="fas fa-bullseye text-blue-600 mt-0.5 text-sm"></i>
-                                  <div>
-                                    <div className="text-xs font-medium text-blue-800 mb-1">목표</div>
-                                    <div className="text-xs text-blue-700 leading-relaxed space-y-1">
-                                      {scenario.context?.playerRole?.responsibility && (
-                                        <div>• {scenario.context.playerRole.responsibility}</div>
-                                      )}
-                                      {scenario.objectives?.map((objective: string, index: number) => (
-                                        <div key={index}>• {objective}</div>
-                                      ))}
+                                  <div className="flex-1">
+                                    <div className="text-xs font-medium text-blue-800 mb-1 flex items-center">
+                                      목표
+                                      <span className="text-blue-500 ml-1 text-[10px] opacity-60 group-hover:opacity-100">
+                                        (hover로 전체 보기)
+                                      </span>
+                                    </div>
+                                    <div className="text-xs text-blue-700 leading-relaxed">
+                                      {(() => {
+                                        const allGoals = [
+                                          ...(scenario.context?.playerRole?.responsibility ? [`${scenario.context.playerRole.responsibility}`] : []),
+                                          ...(scenario.objectives || [])
+                                        ];
+                                        const displayGoals = allGoals.slice(0, 3);
+                                        const hasMore = allGoals.length > 3;
+                                        
+                                        return (
+                                          <>
+                                            {/* 기본 3개 목표 */}
+                                            <div className="space-y-1">
+                                              {displayGoals.map((goal: string, index: number) => (
+                                                <div key={index}>• {goal}</div>
+                                              ))}
+                                              {hasMore && (
+                                                <div className="text-blue-500 group-hover:hidden">
+                                                  • ... (+{allGoals.length - 3}개 더)
+                                                </div>
+                                              )}
+                                            </div>
+                                            
+                                            {/* 호버 시 전체 목표 */}
+                                            <div className="hidden group-hover:block space-y-1">
+                                              {allGoals.map((goal: string, index: number) => (
+                                                <div key={index}>• {goal}</div>
+                                              ))}
+                                            </div>
+                                          </>
+                                        );
+                                      })()}
                                     </div>
                                   </div>
                                 </div>
