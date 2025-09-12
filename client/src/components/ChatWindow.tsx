@@ -1306,30 +1306,33 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
                   {/* Input Section - Only When Active */}
                   {showInputMode && conversation.turnCount < maxTurns && (
                     <div className="border-t border-slate-200/30 p-4">
-                      <div className="space-y-3">
-                        <Textarea
-                          value={userInput}
-                          onChange={(e) => setUserInput(e.target.value)}
-                          placeholder={`메시지를 입력하거나 음성 입력을 사용하세요... (최대 200자)${!speechSupported ? ' - 음성 입력 미지원' : ''}`}
-                          maxLength={200}
-                          rows={2}
-                          className="resize-none text-sm"
-                          disabled={isLoading}
-                          data-testid="input-message-character"
-                        />
-                        <div className="text-xs text-slate-500">{userInput.length}/200</div>
+                      <div className="flex items-start space-x-3">
+                        {/* Text Input Area */}
+                        <div className="flex-1">
+                          <Textarea
+                            value={userInput}
+                            onChange={(e) => setUserInput(e.target.value)}
+                            placeholder={`메시지를 입력하거나 음성 입력을 사용하세요... (최대 200자)${!speechSupported ? ' - 음성 입력 미지원' : ''}`}
+                            maxLength={200}
+                            rows={2}
+                            className="resize-none text-sm"
+                            disabled={isLoading}
+                            data-testid="input-message-character"
+                          />
+                          <div className="text-xs text-slate-500 mt-1">{userInput.length}/200</div>
+                        </div>
                         
-                        {/* Button Panel */}
-                        <div className="flex flex-wrap gap-2">
+                        {/* Button Panel - Right Side */}
+                        <div className="grid grid-cols-2 gap-1 w-20">
+                          {/* Top Row: Send and Voice */}
                           <Button
                             onClick={handleSendMessage}
                             disabled={!userInput.trim() || isLoading}
-                            className="bg-purple-600 hover:bg-purple-700 text-white flex-1 min-w-[100px]"
+                            className="bg-purple-600 hover:bg-purple-700 text-white"
                             size="sm"
                             data-testid="button-send-message-character"
                           >
-                            <i className="fas fa-paper-plane mr-1"></i>
-                            전송
+                            <i className="fas fa-paper-plane"></i>
                           </Button>
                           
                           <Button
@@ -1337,21 +1340,21 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
                             size="sm"
                             onClick={handleVoiceInput}
                             disabled={isLoading || !speechSupported}
-                            className={`${isRecording ? 'bg-red-50 border-red-300 text-red-700 animate-pulse' : ''} ${!speechSupported ? 'opacity-50' : ''} flex-1 min-w-[100px]`}
+                            className={`${isRecording ? 'bg-red-50 border-red-300 text-red-700 animate-pulse' : ''} ${!speechSupported ? 'opacity-50' : ''}`}
                             data-testid="button-voice-input-character"
                             title={!speechSupported ? "현재 브라우저에서 음성 입력을 지원하지 않습니다" : isRecording ? "음성 입력을 중지하려면 클릭하세요" : "음성 입력을 시작하려면 클릭하세요"}
                           >
-                            <i className={`fas ${isRecording ? 'fa-stop' : 'fa-microphone'} mr-1`}></i>
-                            {isRecording ? '중지' : '음성'}
+                            <i className={`fas ${isRecording ? 'fa-stop' : 'fa-microphone'} ${isRecording ? 'text-red-500' : ''}`}></i>
                           </Button>
                           
+                          {/* Bottom Row: Skip (spans 2 columns) */}
                           <Button
                             variant="outline" 
                             size="sm"
                             onClick={handleSkipTurn}
                             disabled={isLoading}
                             data-testid="button-skip-turn-character"
-                            className="flex-1 min-w-[100px]"
+                            className="col-span-2"
                           >
                             Skip
                           </Button>
