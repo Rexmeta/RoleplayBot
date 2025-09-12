@@ -593,6 +593,43 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
     return () => document.removeEventListener("keypress", handleKeyPress);
   }, [userInput, isLoading]);
 
+  // 최신 AI 메시지 찾기 (캐릭터 모드용) - hooks 순서 보장을 위해 early return 이전에 위치
+  const latestAiMessage = localMessages.slice().reverse().find(msg => msg.sender === 'ai');
+  
+  // 감정 변화 감지 및 전환 처리 - hooks 순서 보장을 위해 early return 이전에 위치
+  useEffect(() => {
+    const newEmotion = latestAiMessage?.emotion || '중립';
+    
+    // 감정이 변경되었을 때만 처리
+    if (newEmotion !== currentEmotion) {
+      if (chatMode === 'character') {
+        // 캐릭터 모드에서는 전환 애니메이션 적용
+        setIsTransitioning(true);
+        
+        // setTimeout cleanup을 위한 변수들
+        let fadeOutTimeout: NodeJS.Timeout;
+        let fadeInTimeout: NodeJS.Timeout;
+        
+        // 짧은 딩레이 후 새로운 감정으로 업데이트
+        fadeOutTimeout = setTimeout(() => {
+          setCurrentEmotion(newEmotion);
+          fadeInTimeout = setTimeout(() => {
+            setIsTransitioning(false);
+          }, 150); // Fade in 시간
+        }, 150); // Fade out 시간
+        
+        // cleanup 함수에서 timeout 정리
+        return () => {
+          clearTimeout(fadeOutTimeout);
+          clearTimeout(fadeInTimeout);
+        };
+      } else {
+        // 메신저 모드에서는 즉시 업데이트
+        setCurrentEmotion(newEmotion);
+      }
+    }
+  }, [latestAiMessage?.emotion, currentEmotion, chatMode]);
+
   // 컴포넌트 언마운트 시 리소스 정리 (메모리 누수 방지)
   useEffect(() => {
     return () => {
@@ -703,29 +740,6 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
   const currentScore = calculateRealTimeScore();
   const progressPercentage = (conversation.turnCount / maxTurns) * 100;
 
-  // 최신 AI 메시지 찾기 (캐릭터 모드용)
-  const latestAiMessage = localMessages.slice().reverse().find(msg => msg.sender === 'ai');
-  
-  // 감정 변화 감지 및 전환 처리
-  useEffect(() => {
-    const newEmotion = latestAiMessage?.emotion || '중립';
-    if (newEmotion !== currentEmotion && chatMode === 'character') {
-      // 감정 변화 시 전환 애니메이션
-      setIsTransitioning(true);
-      
-      // 짧은 딩레이 후 새로운 감정으로 업데이트
-      setTimeout(() => {
-        setCurrentEmotion(newEmotion);
-        setTimeout(() => {
-          setIsTransitioning(false);
-        }, 150); // Fade in 시간
-      }, 150); // Fade out 시간
-    } else if (newEmotion !== currentEmotion) {
-      // 메신져 모드에서는 즉시 업데이트
-      setCurrentEmotion(newEmotion);
-    }
-  }, [latestAiMessage?.emotion, currentEmotion, chatMode]);
-  
   // 캐릭터 모드 전환 처리
   const handleCharacterModeTransition = () => {
     setIsTransitioning(true);
