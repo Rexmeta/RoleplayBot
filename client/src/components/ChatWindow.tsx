@@ -1284,13 +1284,7 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
                           </div>
                         </div>
                         
-                        {/* Status indicators */}
-                        {(speechSupported || isRecording) && (
-                          <div className="text-xs text-slate-500 text-center">
-                            {speechSupported && !isRecording && <span className="text-purple-600">💬 음성 입력 지원</span>}
-                            {isRecording && <span className="text-red-600 animate-pulse">🎤 음성 인식 중...</span>}
-                          </div>
-                        )}
+                        
                       </div>
                     )}
                   </div>
