@@ -46,20 +46,30 @@ const mbtiCache = new Map<string, MBTIPersona>();
  */
 export async function loadMBTIPersona(personaRef: string): Promise<MBTIPersona | null> {
   try {
+    // 보안: personaRef 검증 (path traversal 방지)
+    const allowedTypes = getAvailableMBTITypes();
+    const baseFileName = personaRef.replace('.json', '');
+    
+    if (!allowedTypes.includes(baseFileName) || personaRef.includes('..') || personaRef.includes('/')) {
+      console.error(`❌ Invalid personaRef: ${personaRef}`);
+      return null;
+    }
+    
     // 캐시에서 먼저 확인
     if (mbtiCache.has(personaRef)) {
       return mbtiCache.get(personaRef)!;
     }
 
-    // personas 폴더 경로 설정
-    const personasPath = join(process.cwd(), 'personas', personaRef);
+    // personas 폴더 경로 설정 (정규화된 파일명 사용)
+    const normalizedRef = `${baseFileName}.json`;
+    const personasPath = join(process.cwd(), 'personas', normalizedRef);
     
     // JSON 파일 읽기
     const fileContent = readFileSync(personasPath, 'utf-8');
     const mbtiPersona: MBTIPersona = JSON.parse(fileContent);
     
-    // 캐시에 저장
-    mbtiCache.set(personaRef, mbtiPersona);
+    // 캐시에 저장 (정규화된 키 사용)
+    mbtiCache.set(normalizedRef, mbtiPersona);
     
     console.log(`✅ MBTI Persona loaded: ${mbtiPersona.mbti} (${mbtiPersona.id})`);
     return mbtiPersona;

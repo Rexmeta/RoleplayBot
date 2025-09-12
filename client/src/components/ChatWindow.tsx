@@ -1132,13 +1132,27 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
               <div className="absolute top-4 left-4 right-4 flex justify-between items-center z-20">
                 {/* Character Info */}
                 <div className="bg-white/90 backdrop-blur-sm rounded-full px-4 py-2 shadow-lg">
-                  <div className="flex items-center space-x-2">
-                    <span className="text-sm font-medium text-slate-700">{persona.name}</span>
-                    {latestAiMessage?.emotion && (
-                      <span className="text-lg">
-                        {emotionEmojis[latestAiMessage.emotion] || '😐'}
+                  <div className="flex items-center space-x-3">
+                    <div className="flex items-center space-x-2">
+                      <span className="text-sm font-medium text-slate-700">{persona.name}</span>
+                      {latestAiMessage?.emotion && (
+                        <span className="text-lg">
+                          {emotionEmojis[latestAiMessage.emotion] || '😐'}
+                        </span>
+                      )}
+                    </div>
+                    {/* Time and Turn Info */}
+                    <div className="flex items-center space-x-2 text-xs text-slate-500">
+                      <span className="flex items-center" data-testid="text-elapsed-time">
+                        <i className="fas fa-clock mr-1 text-xs"></i>
+                        {formatElapsedTime(elapsedTime)}
                       </span>
-                    )}
+                      <span className="text-slate-300">•</span>
+                      <span className="flex items-center" data-testid="text-remaining-turns">
+                        <i className="fas fa-redo mr-1 text-xs"></i>
+                        {Math.max(0, maxTurns - (conversation?.turnCount ?? 0))}턴 남음
+                      </span>
+                    </div>
                   </div>
                 </div>
 

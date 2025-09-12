@@ -20,10 +20,11 @@ export class GeminiProvider implements AIServiceInterface {
   ): Promise<{ content: string; emotion: string; emotionReason: string }> {
     console.log("Attempting Gemini API call...");
     
+    // MBTI 데이터 로딩 및 페르소나 보강 (스코프 확장)
+    let enrichedPersona = persona;
+    let mbtiData: MBTIPersona | null = null;
+    
     try {
-      // MBTI 데이터 로딩 및 페르소나 보강
-      let enrichedPersona = persona;
-      let mbtiData: MBTIPersona | null = null;
       
       // 시나리오에서 현재 페르소나의 personaRef 찾기
       const currentPersona = scenario.personas?.find((p: any) => p.id === persona.id || p.name === persona.name);
@@ -60,7 +61,7 @@ export class GeminiProvider implements AIServiceInterface {
   : '신입 직원'}
 
 === 당신의 페르소나 특성 ===
-MBTI 유형: ${mbtiData?.mbti || enrichedPersona.mbti || 'MBTI 유형 미지정'}
+MBTI 유형: ${mbtiData?.mbti || (enrichedPersona as any).mbti || 'MBTI 유형 미지정'}
 
 성격 특성:
 - 핵심 특성: ${mbtiData?.personality_traits?.join(', ') || '기본 특성'}
@@ -70,9 +71,9 @@ MBTI 유형: ${mbtiData?.mbti || enrichedPersona.mbti || 'MBTI 유형 미지정'
 - 개인 가치관: ${mbtiData?.background?.personal_values?.join(', ') || '성실함'}
 
 현재 상황에서의 당신의 입장:
-- 기본 입장: ${enrichedPersona.stance || '상황에 따른 대응'}
-- 달성하고자 하는 목표: ${enrichedPersona.goal || '최적의 결과 도출'}
-- 트레이드오프 관점: ${enrichedPersona.tradeoff || '균형 잡힌 접근'}
+- 기본 입장: ${(enrichedPersona as any).stance || '상황에 따른 대응'}
+- 달성하고자 하는 목표: ${(enrichedPersona as any).goal || '최적의 결과 도출'}
+- 트레이드오프 관점: ${(enrichedPersona as any).tradeoff || '균형 잡힌 접근'}
 
 의사소통 패턴:
 - 대화 시작 방식: ${mbtiData?.communication_patterns?.opening_style || '상황에 맞는 방식'}
@@ -83,8 +84,8 @@ MBTI 유형: ${mbtiData?.mbti || enrichedPersona.mbti || 'MBTI 유형 미지정'
 1. ${mbtiData?.mbti || 'MBTI'} 특성에 맞는 사고 과정과 의사결정 패턴을 보여주세요
 2. 자주 사용하는 표현 "${mbtiData?.communication_patterns?.key_phrases?.[0] || '자연스러운 표현'}"을 적절히 활용하세요
 3. ${mbtiData?.voice?.tone || '자연스러운'} 톤으로 ${mbtiData?.voice?.pace || '보통'} 속도의 대화를 유지하세요
-4. 현재 상황에서의 입장 "${enrichedPersona.stance || '균형 잡힌 접근'}"을 일관되게 표현하세요
-5. 목표 "${enrichedPersona.goal || '최적의 결과'}" 달성을 위한 구체적 방향을 제시하세요
+4. 현재 상황에서의 입장 "${(enrichedPersona as any).stance || '균형 잡힌 접근'}"을 일관되게 표현하세요
+5. 목표 "${(enrichedPersona as any).goal || '최적의 결과'}" 달성을 위한 구체적 방향을 제시하세요
 6. 20-120단어 내외로 한국어로 응답하세요
 7. 상황에 맞는 현실적 감정과 반응을 표현하세요
 
@@ -144,7 +145,7 @@ ${persona.name}의 MBTI: ${mbtiData?.mbti || persona.mbti || 'MBTI 유형 미지
 성격 특성: ${mbtiData?.personality_traits?.join(', ') || '기본 특성'}
 의사소통 스타일: ${mbtiData?.communication_style || '균형 잡힌 의사소통'}
 주요 우려사항: ${mbtiData?.fears?.join(', ') || '없음'}
-현재 입장: ${persona.stance || '상황에 따른 대응'}
+현재 입장: ${(persona as any).stance || '상황에 따른 대응'}
 감정 표현 패턴: ${mbtiData?.voice ? `${mbtiData.voice.tone}, ${mbtiData.voice.emotion}` : '자연스러운 감정 표현'}
 
 사용자 메시지: "${userMessage}"
