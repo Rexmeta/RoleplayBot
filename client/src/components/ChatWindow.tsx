@@ -1141,7 +1141,7 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
                         </span>
                       )}
                     </div>
-                    {/* Time and Turn Info */}
+                    {/* Time, Turn Info and Voice Toggle */}
                     <div className="flex items-center space-x-2 text-xs text-slate-500">
                       <span className="flex items-center" data-testid="text-elapsed-time">
                         <i className="fas fa-clock mr-1 text-xs"></i>
@@ -1152,36 +1152,36 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
                         <i className="fas fa-redo mr-1 text-xs"></i>
                         {Math.max(0, maxTurns - (conversation?.turnCount ?? 0))}턴 남음
                       </span>
+                      {/* Voice Toggle */}
+                      {lastSpokenMessageRef.current && (
+                        <>
+                          <span className="text-slate-300">•</span>
+                          <button
+                            onClick={toggleVoiceMode}
+                            className={`p-1 rounded text-xs transition-all duration-200 ${
+                              voiceModeEnabled 
+                                ? 'text-green-600 hover:text-green-700' 
+                                : 'text-slate-400 hover:text-slate-600'
+                            }`}
+                            data-testid="button-toggle-voice-inline"
+                            title={voiceModeEnabled ? "음성 비활성화" : "음성 활성화"}
+                          >
+                            <i className={voiceModeEnabled ? "fas fa-volume-up" : "fas fa-volume-mute"}></i>
+                          </button>
+                        </>
+                      )}
                     </div>
                   </div>
                 </div>
 
-                {/* Action Buttons */}
-                <div className="flex items-center space-x-2">
-                  {/* Voice Toggle */}
-                  {lastSpokenMessageRef.current && (
-                    <button
-                      onClick={toggleVoiceMode}
-                      className={`p-2 rounded-full shadow-lg transition-all duration-200 ${
-                        voiceModeEnabled 
-                          ? 'bg-green-500 text-white hover:bg-green-600' 
-                          : 'bg-white/90 text-slate-700 hover:bg-white'
-                      }`}
-                      data-testid="button-toggle-voice"
-                    >
-                      <i className={voiceModeEnabled ? "fas fa-volume-up" : "fas fa-volume-mute"}></i>
-                    </button>
-                  )}
-
-                  {/* Exit Character Mode */}
-                  <button
-                    onClick={() => setChatMode('messenger')}
-                    className="p-2 bg-white/90 text-slate-700 rounded-full shadow-lg hover:bg-white transition-all duration-200"
-                    data-testid="button-exit-character"
-                  >
-                    <i className="fas fa-times"></i>
-                  </button>
-                </div>
+                {/* Exit to Messenger */}
+                <button
+                  onClick={() => setChatMode('messenger')}
+                  className="px-4 py-2 bg-white/90 text-slate-700 rounded-full shadow-lg hover:bg-white transition-all duration-200 text-sm font-medium"
+                  data-testid="button-exit-character"
+                >
+                  메신저
+                </button>
               </div>
 
               {/* Bottom Interactive Box */}
@@ -1260,6 +1260,26 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
                               data-testid="input-message-character"
                             />
                             <div className="text-xs text-slate-500 mt-1">{userInput.length}/200</div>
+                            
+                            {/* Goals Display */}
+                            {(scenario?.objectives || scenario?.context?.playerRole?.responsibility) && (
+                              <div className="mt-3 p-3 bg-blue-50 rounded-lg border border-blue-200">
+                                <div className="flex items-start space-x-2">
+                                  <i className="fas fa-bullseye text-blue-600 mt-0.5 text-sm"></i>
+                                  <div>
+                                    <div className="text-xs font-medium text-blue-800 mb-1">목표</div>
+                                    <div className="text-xs text-blue-700 leading-relaxed space-y-1">
+                                      {scenario.context?.playerRole?.responsibility && (
+                                        <div>• {scenario.context.playerRole.responsibility}</div>
+                                      )}
+                                      {scenario.objectives?.map((objective: string, index: number) => (
+                                        <div key={index}>• {objective}</div>
+                                      ))}
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+                            )}
                           </div>
                           
                           {/* Button Panel */}
