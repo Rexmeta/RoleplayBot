@@ -1171,7 +1171,7 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
               </div>
 
               {/* Bottom Interactive Box */}
-              <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 z-20 w-full max-w-4xl px-4">
+              <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 z-20 w-full max-w-4xl lg:max-w-6xl xl:max-w-[90%] px-4">
                 <Card className="bg-white/75 backdrop-blur-md shadow-2xl border border-white/20">
                   {/* Responsive Layout: Single grid structure */}
                   <div className="grid grid-cols-1 lg:grid-cols-2">
