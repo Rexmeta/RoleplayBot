@@ -62,6 +62,7 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
   const [conversationStartTime, setConversationStartTime] = useState<Date | null>(null);
   const [localMessages, setLocalMessages] = useState<ConversationMessage[]>([]);
   const [chatMode, setChatMode] = useState<'messenger' | 'character'>('messenger');
+  const [showInputMode, setShowInputMode] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const recognitionRef = useRef<any>(null);
   const speechSynthesisRef = useRef<SpeechSynthesis | null>(null);
@@ -1128,9 +1129,9 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
               {/* Background overlay for better text readability */}
               <div className="absolute inset-0 bg-black/20"></div>
               
-              {/* Top UI Bar */}
-              <div className="absolute top-4 left-4 right-4 flex justify-between items-center z-20">
-                {/* Character Info */}
+              {/* Top Left Area */}
+              <div className="absolute top-4 left-4 z-20 space-y-3">
+                {/* Character Info Bar */}
                 <div className="bg-white/90 backdrop-blur-sm rounded-full px-4 py-2 shadow-lg">
                   <div className="flex items-center space-x-3">
                     <div className="flex items-center space-x-2">
@@ -1174,7 +1175,62 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
                   </div>
                 </div>
 
-                {/* Exit to Messenger */}
+                {/* Goals Display - Moved to Top Left */}
+                {(scenario?.objectives || scenario?.context?.playerRole?.responsibility) && (
+                  <div className="bg-white/80 backdrop-blur-sm rounded-lg p-2 shadow-lg hover:bg-white/90 transition-all duration-300 group cursor-pointer max-w-sm">
+                    <div className="flex items-start space-x-2">
+                      <i className="fas fa-bullseye text-blue-600 mt-0.5 text-sm"></i>
+                      <div className="flex-1">
+                        <div className="text-[10px] font-medium text-blue-800 mb-1 flex items-center">
+                          목표
+                          <span className="text-blue-500 ml-1 text-[9px] opacity-60 group-hover:opacity-100">
+                            (hover로 전체 보기)
+                          </span>
+                        </div>
+                        <div className="text-[10px] text-blue-700 leading-relaxed">
+                          {(() => {
+                            const allGoals = [
+                              ...(scenario.context?.playerRole?.responsibility ? [`${scenario.context.playerRole.responsibility}`] : []),
+                              ...(scenario.objectives || [])
+                            ];
+                            const displayGoals = allGoals.slice(0, 2);
+                            const remainingGoals = allGoals.slice(2);
+                            const hasMore = allGoals.length > 2;
+                            
+                            return (
+                              <div className="space-y-1">
+                                {/* 기본 2개 목표 */}
+                                {displayGoals.map((goal: string, index: number) => (
+                                  <div key={index}>• {goal}</div>
+                                ))}
+                                
+                                {/* 더보기 표시 */}
+                                {hasMore && (
+                                  <div className="text-blue-500 group-hover:hidden">
+                                    • ... (+{remainingGoals.length}개 더)
+                                  </div>
+                                )}
+                                
+                                {/* 호버 시 나머지 목표만 추가 표시 */}
+                                {hasMore && (
+                                  <div className="hidden group-hover:block">
+                                    {remainingGoals.map((goal: string, index: number) => (
+                                      <div key={`remaining-${index}`}>• {goal}</div>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })()}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Top Right - Exit Button */}
+              <div className="absolute top-4 right-4 z-20">
                 <button
                   onClick={() => setChatMode('messenger')}
                   className="px-4 py-2 bg-white/90 text-slate-700 rounded-full shadow-lg hover:bg-white transition-all duration-200 text-sm font-medium"
@@ -1209,11 +1265,39 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
                               <span>{latestAiMessage.emotionReason}</span>
                             </div>
                           )}
+                          
+                          {/* Mobile Chat Button - Below AI Message */}
+                          {!showInputMode && (
+                            <div className="md:hidden pt-3 border-t border-slate-200/50">
+                              <Button
+                                onClick={() => setShowInputMode(true)}
+                                className="w-full bg-purple-600 hover:bg-purple-700 text-white"
+                                data-testid="button-start-chat-mobile"
+                                size="sm"
+                              >
+                                <i className="fas fa-comment mr-2"></i>
+                                대화하기
+                              </Button>
+                            </div>
+                          )}
                         </div>
                       ) : (
                         <div className="text-center text-slate-600 py-4">
                           <i className="fas fa-comment-dots text-2xl text-purple-400 mb-2"></i>
                           <p>대화를 시작해보세요</p>
+                          
+                          {/* Mobile Chat Button - For First Message */}
+                          <div className="md:hidden mt-4">
+                            <Button
+                              onClick={() => setShowInputMode(true)}
+                              className="bg-purple-600 hover:bg-purple-700 text-white"
+                              data-testid="button-start-chat-mobile-first"
+                              size="sm"
+                            >
+                              <i className="fas fa-comment mr-2"></i>
+                              대화하기
+                            </Button>
+                          </div>
                         </div>
                       )}
                     </div>
@@ -1247,112 +1331,134 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
                           </div>
                         </div>
                       ) : (
-                        <div className="flex flex-col lg:flex-row lg:items-start lg:space-x-3">
-                          <div className="flex-1">
-                            <Textarea
-                              value={userInput}
-                              onChange={(e) => setUserInput(e.target.value)}
-                              placeholder={`메시지를 입력하거나 음성 입력을 사용하세요... (최대 200자)${!speechSupported ? ' - 음성 입력 미지원' : ''}`}
-                              maxLength={200}
-                              rows={2}
-                              className="resize-none text-sm"
-                              disabled={isLoading}
-                              data-testid="input-message-character"
-                            />
-                            <div className="text-xs text-slate-500 mt-1">{userInput.length}/200</div>
-                            
-                            {/* Goals Display - Hidden on Mobile */}
-                            {(scenario?.objectives || scenario?.context?.playerRole?.responsibility) && (
-                              <div className="mt-3 p-2 bg-blue-50/80 rounded-lg border border-blue-200/60 hover:bg-blue-100/80 transition-all duration-300 group cursor-pointer hidden md:block">
-                                <div className="flex items-start space-x-2">
-                                  <i className="fas fa-bullseye text-blue-600 mt-0.5 text-sm"></i>
-                                  <div className="flex-1">
-                                    <div className="text-[10px] font-medium text-blue-800 mb-1 flex items-center">
-                                      목표
-                                      <span className="text-blue-500 ml-1 text-[9px] opacity-60 group-hover:opacity-100">
-                                        (hover로 전체 보기)
-                                      </span>
-                                    </div>
-                                    <div className="text-[10px] text-blue-700 leading-relaxed">
-                                      {(() => {
-                                        const allGoals = [
-                                          ...(scenario.context?.playerRole?.responsibility ? [`${scenario.context.playerRole.responsibility}`] : []),
-                                          ...(scenario.objectives || [])
-                                        ];
-                                        const displayGoals = allGoals.slice(0, 2);
-                                        const remainingGoals = allGoals.slice(2);
-                                        const hasMore = allGoals.length > 2;
-                                        
-                                        return (
-                                          <div className="space-y-1">
-                                            {/* 기본 2개 목표 */}
-                                            {displayGoals.map((goal: string, index: number) => (
-                                              <div key={index}>• {goal}</div>
-                                            ))}
-                                            
-                                            {/* 더보기 표시 */}
-                                            {hasMore && (
-                                              <div className="text-blue-500 group-hover:hidden">
-                                                • ... (+{remainingGoals.length}개 더)
-                                              </div>
-                                            )}
-                                            
-                                            {/* 호버 시 나머지 목표만 추가 표시 */}
-                                            {hasMore && (
-                                              <div className="hidden group-hover:block">
-                                                {remainingGoals.map((goal: string, index: number) => (
-                                                  <div key={`remaining-${index}`}>• {goal}</div>
-                                                ))}
-                                              </div>
-                                            )}
-                                          </div>
-                                        );
-                                      })()}
-                                    </div>
-                                  </div>
+                        <>
+                          {/* Desktop: Show Input or Chat Button */}
+                          <div className="hidden md:block">
+                            {showInputMode ? (
+                              <div className="flex flex-col lg:flex-row lg:items-start lg:space-x-3">
+                                <div className="flex-1">
+                                  <Textarea
+                                    value={userInput}
+                                    onChange={(e) => setUserInput(e.target.value)}
+                                    placeholder={`메시지를 입력하거나 음성 입력을 사용하세요... (최대 200자)${!speechSupported ? ' - 음성 입력 미지원' : ''}`}
+                                    maxLength={200}
+                                    rows={2}
+                                    className="resize-none text-sm"
+                                    disabled={isLoading}
+                                    data-testid="input-message-character"
+                                  />
+                                  <div className="text-xs text-slate-500 mt-1">{userInput.length}/200</div>
                                 </div>
+                                
+                                {/* Button Panel */}
+                                <div className="mt-2 lg:mt-0 w-full lg:w-36 grid grid-cols-2 gap-2">
+                                  {/* Top Row: Send and Mic */}
+                                  <Button
+                                    onClick={handleSendMessage}
+                                    disabled={!userInput.trim() || isLoading}
+                                    className="bg-purple-600 hover:bg-purple-700 text-white"
+                                    size="sm"
+                                    data-testid="button-send-message-character"
+                                  >
+                                    <i className="fas fa-paper-plane"></i>
+                                  </Button>
+                                  
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={handleVoiceInput}
+                                    disabled={isLoading || !speechSupported}
+                                    className={`${isRecording ? 'bg-red-50 border-red-300 text-red-700 animate-pulse' : ''} ${!speechSupported ? 'opacity-50' : ''}`}
+                                    data-testid="button-voice-input-character"
+                                    title={!speechSupported ? "현재 브라우저에서 음성 입력을 지원하지 않습니다" : isRecording ? "음성 입력을 중지하려면 클릭하세요" : "음성 입력을 시작하려면 클릭하세요"}
+                                  >
+                                    <i className={`fas ${isRecording ? 'fa-stop' : 'fa-microphone'} ${isRecording ? 'text-red-500' : ''}`}></i>
+                                  </Button>
+                                  
+                                  {/* Bottom Row: Skip (spans 2 columns) */}
+                                  <Button
+                                    variant="outline" 
+                                    size="sm"
+                                    onClick={handleSkipTurn}
+                                    disabled={isLoading}
+                                    data-testid="button-skip-turn-character"
+                                    className="col-span-2"
+                                  >
+                                    Skip
+                                  </Button>
+                                </div>
+                              </div>
+                            ) : (
+                              <div className="text-center">
+                                <Button
+                                  onClick={() => setShowInputMode(true)}
+                                  className="bg-purple-600 hover:bg-purple-700 text-white"
+                                  data-testid="button-start-chat-desktop"
+                                >
+                                  <i className="fas fa-comment mr-2"></i>
+                                  대화하기
+                                </Button>
                               </div>
                             )}
                           </div>
                           
-                          {/* Button Panel */}
-                          <div className="mt-2 lg:mt-0 w-full lg:w-36 grid grid-cols-2 gap-2">
-                            {/* Top Row: Send and Mic */}
-                            <Button
-                              onClick={handleSendMessage}
-                              disabled={!userInput.trim() || isLoading}
-                              className="bg-purple-600 hover:bg-purple-700 text-white"
-                              size="sm"
-                              data-testid="button-send-message-character"
-                            >
-                              <i className="fas fa-paper-plane"></i>
-                            </Button>
-                            
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={handleVoiceInput}
-                              disabled={isLoading || !speechSupported}
-                              className={`${isRecording ? 'bg-red-50 border-red-300 text-red-700 animate-pulse' : ''} ${!speechSupported ? 'opacity-50' : ''}`}
-                              data-testid="button-voice-input-character"
-                              title={!speechSupported ? "현재 브라우저에서 음성 입력을 지원하지 않습니다" : isRecording ? "음성 입력을 중지하려면 클릭하세요" : "음성 입력을 시작하려면 클릭하세요"}
-                            >
-                              <i className={`fas ${isRecording ? 'fa-stop' : 'fa-microphone'} ${isRecording ? 'text-red-500' : ''}`}></i>
-                            </Button>
-                            
-                            {/* Bottom Row: Skip (spans 2 columns) */}
-                            <Button
-                              variant="outline" 
-                              size="sm"
-                              onClick={handleSkipTurn}
-                              disabled={isLoading}
-                              data-testid="button-skip-turn-character"
-                              className="col-span-2"
-                            >
-                              Skip
-                            </Button>
+                          {/* Mobile: Hidden by default */}
+                          <div className="md:hidden">
+                            {/* Mobile input mode - only show when activated */}
+                            {showInputMode && (
+                              <div className="space-y-3">
+                                <Textarea
+                                  value={userInput}
+                                  onChange={(e) => setUserInput(e.target.value)}
+                                  placeholder={`메시지를 입력하거나 음성 입력을 사용하세요... (최대 200자)${!speechSupported ? ' - 음성 입력 미지원' : ''}`}
+                                  maxLength={200}
+                                  rows={2}
+                                  className="resize-none text-sm"
+                                  disabled={isLoading}
+                                  data-testid="input-message-character-mobile"
+                                />
+                                <div className="text-xs text-slate-500">{userInput.length}/200</div>
+                                
+                                {/* Mobile Button Panel */}
+                                <div className="grid grid-cols-2 gap-2">
+                                  <Button
+                                    onClick={handleSendMessage}
+                                    disabled={!userInput.trim() || isLoading}
+                                    className="bg-purple-600 hover:bg-purple-700 text-white"
+                                    size="sm"
+                                    data-testid="button-send-message-mobile"
+                                  >
+                                    <i className="fas fa-paper-plane mr-1"></i>
+                                    전송
+                                  </Button>
+                                  
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={handleVoiceInput}
+                                    disabled={isLoading || !speechSupported}
+                                    className={isRecording ? 'bg-red-50 border-red-300 text-red-700 animate-pulse' : ''}
+                                    data-testid="button-voice-input-mobile"
+                                  >
+                                    <i className={`fas ${isRecording ? 'fa-stop' : 'fa-microphone'} mr-1`}></i>
+                                    {isRecording ? '중지' : '음성'}
+                                  </Button>
+                                </div>
+                                
+                                <Button
+                                  variant="outline" 
+                                  size="sm"
+                                  onClick={handleSkipTurn}
+                                  disabled={isLoading}
+                                  data-testid="button-skip-turn-mobile"
+                                  className="w-full"
+                                >
+                                  Skip
+                                </Button>
+                              </div>
+                            )}
                           </div>
-                        </div>
+                        </>
                       )}
                     </div>
                   </div>
