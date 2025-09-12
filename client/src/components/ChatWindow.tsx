@@ -18,6 +18,15 @@ import characterSad from "@/assets/characters/character-sad.jpg";
 import characterAngry from "@/assets/characters/character-angry.jpg";
 import characterSurprise from "@/assets/characters/character-surprise.jpg";
 
+// 모든 캐릭터 이미지 매핑
+const characterImages = {
+  '중립': characterNeutral,
+  '기쁨': characterJoy,
+  '슬픔': characterSad,
+  '분노': characterAngry,
+  '놀람': characterSurprise
+};
+
 // Web Speech API 타입 확장
 declare global {
   interface Window {
@@ -63,6 +72,9 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
   const [localMessages, setLocalMessages] = useState<ConversationMessage[]>([]);
   const [chatMode, setChatMode] = useState<'messenger' | 'character'>('messenger');
   const [showInputMode, setShowInputMode] = useState(false);
+  const [isTransitioning, setIsTransitioning] = useState(false);
+  const [imagesLoaded, setImagesLoaded] = useState<{[key: string]: boolean}>({});
+  const [currentEmotion, setCurrentEmotion] = useState<string>('중립');
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const recognitionRef = useRef<any>(null);
   const speechSynthesisRef = useRef<SpeechSynthesis | null>(null);
@@ -72,6 +84,32 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
 
   const queryClient = useQueryClient();
   const { toast } = useToast();
+  
+  // 이미지 프리로딩 및 전환 초기화
+  useEffect(() => {
+    const preloadImages = async () => {
+      const loadPromises = Object.entries(characterImages).map(([emotion, src]) => {
+        return new Promise<void>((resolve, reject) => {
+          const img = new Image();
+          img.onload = () => {
+            setImagesLoaded(prev => ({ ...prev, [emotion]: true }));
+            resolve();
+          };
+          img.onerror = () => {
+            console.warn(`Failed to preload image for emotion: ${emotion}`);
+            setImagesLoaded(prev => ({ ...prev, [emotion]: false }));
+            resolve(); // Continue even if one image fails
+          };
+          img.src = src;
+        });
+      });
+      
+      await Promise.all(loadPromises);
+      console.log('🎨 모든 캐릭터 이미지 프리로딩 완료');
+    };
+    
+    preloadImages();
+  }, []);
 
   const maxTurns = 10;
 
@@ -668,26 +706,45 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
   // 최신 AI 메시지 찾기 (캐릭터 모드용)
   const latestAiMessage = localMessages.slice().reverse().find(msg => msg.sender === 'ai');
   
-  // 감정별 이미지 매핑
-  const getEmotionImage = (personaId: string, emotion?: string) => {
-    try {
-      // 감정별 이미지 매핑
-      const emotionMap: { [key: string]: string } = {
-        '기쁨': characterJoy,
-        '슬픔': characterSad,
-        '분노': characterAngry,
-        '놀람': characterSurprise,
-        '중립': characterNeutral
-      };
-
-      // 해당 감정의 이미지가 있으면 사용, 없으면 중립 이미지
-      const selectedImage = emotionMap[emotion || '중립'] || emotionMap['중립'];
-      return selectedImage;
-    } catch (error) {
-      console.warn(`Failed to load emotion image for ${emotion}, falling back to persona image`);
-      // 오류 시 기본 persona 이미지 사용
-      return persona.image;
+  // 감정 변화 감지 및 전환 처리
+  useEffect(() => {
+    const newEmotion = latestAiMessage?.emotion || '중립';
+    if (newEmotion !== currentEmotion && chatMode === 'character') {
+      // 감정 변화 시 전환 애니메이션
+      setIsTransitioning(true);
+      
+      // 짧은 딩레이 후 새로운 감정으로 업데이트
+      setTimeout(() => {
+        setCurrentEmotion(newEmotion);
+        setTimeout(() => {
+          setIsTransitioning(false);
+        }, 150); // Fade in 시간
+      }, 150); // Fade out 시간
+    } else if (newEmotion !== currentEmotion) {
+      // 메신져 모드에서는 즉시 업데이트
+      setCurrentEmotion(newEmotion);
     }
+  }, [latestAiMessage?.emotion, currentEmotion, chatMode]);
+  
+  // 캐릭터 모드 전환 처리
+  const handleCharacterModeTransition = () => {
+    setIsTransitioning(true);
+    
+    // 짧은 딩레이로 전환 시작
+    setTimeout(() => {
+      setChatMode('character');
+      setTimeout(() => {
+        setIsTransitioning(false);
+      }, 300); // Character mode 로딩 시간
+    }, 200);
+  };
+  
+  // 감정별 이미지 매핑
+  const getEmotionImage = (emotion?: string) => {
+    const targetEmotion = emotion || '중립';
+    const validEmotions = ['중립', '기쁨', '슬픔', '분노', '놀람'];
+    const safeEmotion = validEmotions.includes(targetEmotion) ? targetEmotion : '중립';
+    return characterImages[safeEmotion as keyof typeof characterImages];
   };
 
   return (
@@ -767,7 +824,13 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
                   type="single"
                   value={chatMode}
                   onValueChange={(value: 'messenger' | 'character') => {
-                    if (value) setChatMode(value);
+                    if (value && !isTransitioning) {
+                      if (value === 'character') {
+                        handleCharacterModeTransition();
+                      } else {
+                        setChatMode(value);
+                      }
+                    }
                   }}
                   className="bg-white/10 rounded-lg p-1"
                   data-testid="toggle-chat-mode"
@@ -1122,9 +1185,11 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
 
           {chatMode === 'character' && (
             <div 
-              className="fixed inset-0 z-10 bg-cover bg-center bg-no-repeat transition-all duration-500"
+              className={`fixed inset-0 z-10 bg-cover bg-center bg-no-repeat transition-all duration-500 ${
+                isTransitioning ? 'opacity-0' : 'opacity-100'
+              }`}
               style={{
-                backgroundImage: `url(${getEmotionImage(persona.id, latestAiMessage?.emotion)})`
+                backgroundImage: `url(${getEmotionImage(currentEmotion)})`
               }}
               data-testid="character-mode"
             >
