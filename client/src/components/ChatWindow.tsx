@@ -1186,11 +1186,11 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
 
               {/* Bottom Interactive Box */}
               <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 z-20 w-full max-w-4xl lg:max-w-6xl xl:max-w-[90%] px-4">
-                <Card className="bg-white/75 backdrop-blur-md shadow-2xl border border-white/20">
+                <Card className="bg-white/40 backdrop-blur-sm shadow-xl border border-white/10">
                   {/* Responsive Layout: Single grid structure */}
                   <div className="grid grid-cols-1 lg:grid-cols-2">
                     {/* AI Message Section */}
-                    <div className="p-6 border-b lg:border-b-0 lg:border-r border-slate-200/50">
+                    <div className="p-4 border-b lg:border-b-0 lg:border-r border-slate-200/30">
                       {isLoading ? (
                         <div className="flex items-center justify-center space-x-2" data-testid="status-typing">
                           <div className="w-3 h-3 bg-purple-400 rounded-full animate-bounce"></div>
@@ -1200,7 +1200,7 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
                         </div>
                       ) : latestAiMessage ? (
                         <div className="space-y-3">
-                          <p className="text-slate-800 leading-relaxed text-lg" data-testid="text-ai-line">
+                          <p className="text-slate-800 leading-relaxed text-base" data-testid="text-ai-line">
                             {latestAiMessage.message}
                           </p>
                           {latestAiMessage.emotion && latestAiMessage.emotionReason && (
@@ -1219,7 +1219,7 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
                     </div>
 
                     {/* Input Section */}
-                    <div className="p-4">
+                    <div className="p-3">
                       {conversation.turnCount >= maxTurns ? (
                         <div className="text-center space-y-3">
                           <div className="text-sm font-medium text-slate-700">
@@ -1261,19 +1261,19 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
                             />
                             <div className="text-xs text-slate-500 mt-1">{userInput.length}/200</div>
                             
-                            {/* Goals Display */}
+                            {/* Goals Display - Hidden on Mobile */}
                             {(scenario?.objectives || scenario?.context?.playerRole?.responsibility) && (
-                              <div className="mt-3 p-3 bg-blue-50 rounded-lg border border-blue-200 hover:bg-blue-100 transition-all duration-300 group cursor-pointer">
+                              <div className="mt-3 p-2 bg-blue-50/80 rounded-lg border border-blue-200/60 hover:bg-blue-100/80 transition-all duration-300 group cursor-pointer hidden md:block">
                                 <div className="flex items-start space-x-2">
                                   <i className="fas fa-bullseye text-blue-600 mt-0.5 text-sm"></i>
                                   <div className="flex-1">
-                                    <div className="text-xs font-medium text-blue-800 mb-1 flex items-center">
+                                    <div className="text-[10px] font-medium text-blue-800 mb-1 flex items-center">
                                       목표
-                                      <span className="text-blue-500 ml-1 text-[10px] opacity-60 group-hover:opacity-100">
+                                      <span className="text-blue-500 ml-1 text-[9px] opacity-60 group-hover:opacity-100">
                                         (hover로 전체 보기)
                                       </span>
                                     </div>
-                                    <div className="text-xs text-blue-700 leading-relaxed">
+                                    <div className="text-[10px] text-blue-700 leading-relaxed">
                                       {(() => {
                                         const allGoals = [
                                           ...(scenario.context?.playerRole?.responsibility ? [`${scenario.context.playerRole.responsibility}`] : []),
