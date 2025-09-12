@@ -1232,23 +1232,23 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
                       </div>
                     ) : (
                       <div className="space-y-3">
-                        {/* Text Input */}
-                        <Textarea
-                          value={userInput}
-                          onChange={(e) => setUserInput(e.target.value)}
-                          placeholder={`메시지를 입력하거나 음성 입력을 사용하세요... (최대 200자)${!speechSupported ? ' - 음성 입력 미지원' : ''}`}
-                          maxLength={200}
-                          rows={2}
-                          className="resize-none text-sm"
-                          disabled={isLoading}
-                          data-testid="input-message-character"
-                        />
-                        
-                        {/* Input Controls */}
-                        <div className="flex items-center justify-between">
-                          <span className="text-xs text-slate-500">{userInput.length}/200</span>
+                        {/* Text Input with Controls */}
+                        <div className="flex items-end space-x-2">
+                          <div className="flex-1">
+                            <Textarea
+                              value={userInput}
+                              onChange={(e) => setUserInput(e.target.value)}
+                              placeholder={`메시지를 입력하거나 음성 입력을 사용하세요... (최대 200자)${!speechSupported ? ' - 음성 입력 미지원' : ''}`}
+                              maxLength={200}
+                              rows={2}
+                              className="resize-none text-sm"
+                              disabled={isLoading}
+                              data-testid="input-message-character"
+                            />
+                            <div className="text-xs text-slate-500 mt-1">{userInput.length}/200</div>
+                          </div>
                           
-                          <div className="flex items-center space-x-2">
+                          <div className="flex items-center space-x-1">
                             <Button
                               variant="outline"
                               size="sm"
@@ -1268,7 +1268,7 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
                               disabled={isLoading}
                               data-testid="button-skip-turn-character"
                             >
-                              건너뛰기
+                              Skip
                             </Button>
                             
                             <Button
@@ -1278,8 +1278,7 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
                               size="sm"
                               data-testid="button-send-message-character"
                             >
-                              <i className="fas fa-paper-plane mr-1"></i>
-                              전송
+                              <i className="fas fa-paper-plane"></i>
                             </Button>
                           </div>
                         </div>
