@@ -1279,30 +1279,33 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
                                           ...(scenario.context?.playerRole?.responsibility ? [`${scenario.context.playerRole.responsibility}`] : []),
                                           ...(scenario.objectives || [])
                                         ];
-                                        const displayGoals = allGoals.slice(0, 3);
-                                        const hasMore = allGoals.length > 3;
+                                        const displayGoals = allGoals.slice(0, 2);
+                                        const remainingGoals = allGoals.slice(2);
+                                        const hasMore = allGoals.length > 2;
                                         
                                         return (
-                                          <>
-                                            {/* 기본 3개 목표 */}
-                                            <div className="space-y-1">
-                                              {displayGoals.map((goal: string, index: number) => (
-                                                <div key={index}>• {goal}</div>
-                                              ))}
-                                              {hasMore && (
-                                                <div className="text-blue-500 group-hover:hidden">
-                                                  • ... (+{allGoals.length - 3}개 더)
-                                                </div>
-                                              )}
-                                            </div>
+                                          <div className="space-y-1">
+                                            {/* 기본 2개 목표 */}
+                                            {displayGoals.map((goal: string, index: number) => (
+                                              <div key={index}>• {goal}</div>
+                                            ))}
                                             
-                                            {/* 호버 시 전체 목표 */}
-                                            <div className="hidden group-hover:block space-y-1">
-                                              {allGoals.map((goal: string, index: number) => (
-                                                <div key={index}>• {goal}</div>
-                                              ))}
-                                            </div>
-                                          </>
+                                            {/* 더보기 표시 */}
+                                            {hasMore && (
+                                              <div className="text-blue-500 group-hover:hidden">
+                                                • ... (+{remainingGoals.length}개 더)
+                                              </div>
+                                            )}
+                                            
+                                            {/* 호버 시 나머지 목표만 추가 표시 */}
+                                            {hasMore && (
+                                              <div className="hidden group-hover:block">
+                                                {remainingGoals.map((goal: string, index: number) => (
+                                                  <div key={`remaining-${index}`}>• {goal}</div>
+                                                ))}
+                                              </div>
+                                            )}
+                                          </div>
                                         );
                                       })()}
                                     </div>
