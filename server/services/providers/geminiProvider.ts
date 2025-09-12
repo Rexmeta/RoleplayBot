@@ -1,6 +1,7 @@
 import { GoogleGenAI } from "@google/genai";
 import type { ConversationMessage, DetailedFeedback } from "@shared/schema";
 import type { AIServiceInterface, ScenarioPersona } from "../aiService";
+import { loadMBTIPersona, enrichPersonaWithMBTI, type MBTIPersona } from "../../utils/mbtiLoader";
 
 export class GeminiProvider implements AIServiceInterface {
   private genAI: GoogleGenAI;
@@ -20,13 +21,33 @@ export class GeminiProvider implements AIServiceInterface {
     console.log("Attempting Gemini API call...");
     
     try {
+      // MBTI 데이터 로딩 및 페르소나 보강
+      let enrichedPersona = persona;
+      let mbtiData: MBTIPersona | null = null;
+      
+      // 시나리오에서 현재 페르소나의 personaRef 찾기
+      const currentPersona = scenario.personas?.find((p: any) => p.id === persona.id || p.name === persona.name);
+      const personaRef = currentPersona?.personaRef;
+      
+      if (personaRef) {
+        console.log(`🔍 Loading MBTI data from: ${personaRef}`);
+        mbtiData = await loadMBTIPersona(personaRef);
+        
+        if (mbtiData) {
+          enrichedPersona = await enrichPersonaWithMBTI(currentPersona, personaRef);
+          console.log(`✅ MBTI integration successful: ${mbtiData.mbti}`);
+        }
+      } else {
+        console.warn(`⚠️ No personaRef found for persona: ${persona.name}`);
+      }
+
       // messages가 undefined이거나 null인 경우 빈 배열로 처리
       const safeMessages = messages || [];
       const conversationHistory = safeMessages.map(msg => 
-        `${msg.sender === 'user' ? '사용자' : persona.name}: ${msg.message}`
+        `${msg.sender === 'user' ? '사용자' : enrichedPersona.name}: ${msg.message}`
       ).join('\n');
 
-      const systemPrompt = `당신은 ${persona.name}(${persona.role})입니다.
+      const systemPrompt = `당신은 ${enrichedPersona.name}(${enrichedPersona.role})입니다.
 
 === 시나리오 배경 ===
 상황: ${scenario.context?.situation || '일반적인 업무 상황'}
@@ -39,38 +60,43 @@ export class GeminiProvider implements AIServiceInterface {
   : '신입 직원'}
 
 === 당신의 페르소나 특성 ===
-MBTI 유형: ${(persona as any).mbti || 'MBTI 유형 미지정'}
+MBTI 유형: ${mbtiData?.mbti || enrichedPersona.mbti || 'MBTI 유형 미지정'}
 
 성격 특성:
-- 핵심 특성: ${(persona.personality as any)?.traits ? (persona.personality as any).traits.join(', ') : '기본 특성'}
-- 의사소통 스타일: ${(persona.personality as any)?.communicationStyle || '균형 잡힌 의사소통'}
-- 동기와 목표: ${(persona.personality as any)?.motivation || '문제 해결'}
-- 주요 우려사항: ${(persona.personality as any)?.fears ? (persona.personality as any).fears.join(', ') : '없음'}
+- 핵심 특성: ${mbtiData?.personality_traits?.join(', ') || '기본 특성'}
+- 의사소통 스타일: ${mbtiData?.communication_style || '균형 잡힌 의사소통'}
+- 동기와 목표: ${mbtiData?.motivation || '문제 해결'}
+- 주요 우려사항: ${mbtiData?.fears?.join(', ') || '없음'}
+- 개인 가치관: ${mbtiData?.background?.personal_values?.join(', ') || '성실함'}
 
 현재 상황에서의 당신의 입장:
-- 기본 입장: ${(persona as any).stance || '상황에 따른 대응'}
-- 달성하고자 하는 목표: ${(persona as any).goal || '최적의 결과 도출'}
-- 트레이드오프 관점: ${(persona as any).tradeoff || '균형 잡힌 접근'}
+- 기본 입장: ${enrichedPersona.stance || '상황에 따른 대응'}
+- 달성하고자 하는 목표: ${enrichedPersona.goal || '최적의 결과 도출'}
+- 트레이드오프 관점: ${enrichedPersona.tradeoff || '균형 잡힌 접근'}
 
 의사소통 패턴:
-- 대화 시작 방식: ${(persona as any).communicationPatterns?.openingStyle || '상황에 맞는 방식'}
-- 자주 사용하는 표현: ${(persona as any).communicationPatterns?.keyPhrases ? (persona as any).communicationPatterns.keyPhrases.join(' / ') : '자연스러운 표현'}
+- 대화 시작 방식: ${mbtiData?.communication_patterns?.opening_style || '상황에 맞는 방식'}
+- 자주 사용하는 표현: ${mbtiData?.communication_patterns?.key_phrases?.join(' / ') || '자연스러운 표현'}
+- 음성 톤과 스타일: ${mbtiData?.voice ? `${mbtiData.voice.tone}, ${mbtiData.voice.pace} 속도, ${mbtiData.voice.emotion}` : '자연스러운 톤'}
 
 대화 규칙:
-1. MBTI 특성과 페르소나 설정을 정확히 구현하세요
-2. 현재 상황에서의 입장과 목표를 명확히 표현하세요
-3. 자연스럽고 현실적인 대화를 유지하세요
-4. 한국어로 응답하세요
-5. 20-120단어 내외로 응답하세요
-6. 상황에 맞는 감정을 표현하세요
+1. ${mbtiData?.mbti || 'MBTI'} 특성에 맞는 사고 과정과 의사결정 패턴을 보여주세요
+2. 자주 사용하는 표현 "${mbtiData?.communication_patterns?.key_phrases?.[0] || '자연스러운 표현'}"을 적절히 활용하세요
+3. ${mbtiData?.voice?.tone || '자연스러운'} 톤으로 ${mbtiData?.voice?.pace || '보통'} 속도의 대화를 유지하세요
+4. 현재 상황에서의 입장 "${enrichedPersona.stance || '균형 잡힌 접근'}"을 일관되게 표현하세요
+5. 목표 "${enrichedPersona.goal || '최적의 결과'}" 달성을 위한 구체적 방향을 제시하세요
+6. 20-120단어 내외로 한국어로 응답하세요
+7. 상황에 맞는 현실적 감정과 반응을 표현하세요
 
 이전 대화:
 ${conversationHistory}
 
-사용자의 새 메시지에 ${persona.name}로서 응답하세요.`;
+사용자의 새 메시지에 ${enrichedPersona.name}로서 응답하세요.`;
 
-      // 건너뛰기 시 자연스럽게 대화 이어가기
+      // 건너뛰기 시 자연스럽게 대화 이어가기 (MBTI 스타일 고려)
       const prompt = userMessage ? userMessage : "앞서 이야기를 자연스럽게 이어가거나 새로운 각도에서 문제를 제시해주세요.";
+      
+      console.log(`🎭 Persona: ${enrichedPersona.name} (${mbtiData?.mbti || 'Unknown MBTI'})`);
 
       const response = await this.genAI.models.generateContent({
         model: this.model,
@@ -83,12 +109,12 @@ ${conversationHistory}
       console.log("✓ Gemini API call completed");
       console.log("Generated text:", content);
 
-      // 감정 분석
+      // 감정 분석 (MBTI 특성 반영)
       let emotion = "중립";
       let emotionReason = "일반적인 대화 상황";
 
       if (userMessage) {
-        const emotionAnalysis = await this.analyzeEmotion(content, persona, userMessage);
+        const emotionAnalysis = await this.analyzeEmotion(content, enrichedPersona, userMessage, mbtiData);
         emotion = emotionAnalysis.emotion;
         emotionReason = emotionAnalysis.reason;
       }
@@ -96,7 +122,7 @@ ${conversationHistory}
       return { content, emotion, emotionReason };
     } catch (error) {
       console.error("Gemini API error:", error);
-      const fallbackContent = this.getFallbackResponse(persona);
+      const fallbackContent = this.getFallbackResponse(enrichedPersona, mbtiData);
       return { 
         content: fallbackContent, 
         emotion: "중립", 
@@ -107,17 +133,19 @@ ${conversationHistory}
 
   private async analyzeEmotion(
     response: string, 
-    persona: ScenarioPersona, 
-    userMessage: string
+    persona: any, 
+    userMessage: string,
+    mbtiData?: MBTIPersona | null
   ): Promise<{ emotion: string; reason: string }> {
     try {
       const emotionPrompt = `다음 대화에서 ${persona.name}의 감정 상태를 분석하세요.
 
-${persona.name}의 MBTI: ${(persona as any).mbti}
-성격 특성: ${(persona.personality as any)?.traits ? (persona.personality as any).traits.join(', ') : '기본 특성'}
-의사소통 스타일: ${(persona.personality as any)?.communicationStyle || '균형 잡힌 의사소통'}
-주요 우려사항: ${(persona.personality as any)?.fears ? (persona.personality as any).fears.join(', ') : '없음'}
-현재 입장: ${(persona as any).stance || '상황에 따른 대응'}
+${persona.name}의 MBTI: ${mbtiData?.mbti || persona.mbti || 'MBTI 유형 미지정'}
+성격 특성: ${mbtiData?.personality_traits?.join(', ') || '기본 특성'}
+의사소통 스타일: ${mbtiData?.communication_style || '균형 잡힌 의사소통'}
+주요 우려사항: ${mbtiData?.fears?.join(', ') || '없음'}
+현재 입장: ${persona.stance || '상황에 따른 대응'}
+감정 표현 패턴: ${mbtiData?.voice ? `${mbtiData.voice.tone}, ${mbtiData.voice.emotion}` : '자연스러운 감정 표현'}
 
 사용자 메시지: "${userMessage}"
 ${persona.name}의 응답: "${response}"
@@ -383,9 +411,36 @@ JSON 형식으로 응답하세요:
   }
 
 
-  private getFallbackResponse(persona: ScenarioPersona): string {
+  private getFallbackResponse(persona: any, mbtiData?: MBTIPersona | null): string {
+    // MBTI 스타일에 맞는 개성화된 fallback 응답
+    if (mbtiData) {
+      const mbtiType = mbtiData.mbti;
+      const keyPhrase = mbtiData.communication_patterns?.key_phrases?.[0] || "솔직히 말하면";
+      const tone = mbtiData.voice?.tone || "차분한";
+      
+      // MBTI 유형별 맞춤형 fallback 메시지
+      const mbtiResponses = {
+        'ISTJ': `${keyPhrase}, 현재 시스템에 기술적 문제가 발생했습니다. 정확한 진단 후 다시 시도해주시기 바랍니다.`,
+        'ENTJ': `${keyPhrase}, 시스템 오류로 인해 지금 당장 효율적인 대화가 어렵습니다. 빠른 복구 후 진행하겠습니다.`,
+        'ENFJ': `정말 죄송합니다. 시스템 문제로 지금 제대로 소통하기 어려운 상황이에요. 조금만 기다려주실 수 있을까요?`,
+        'INFP': `아... 미안해요. 지금 시스템이 잘 안 되고 있어서... 잠시 후에 다시 이야기해요.`,
+        'INTP': `흥미롭네요. 시스템 오류 현상이 발생했습니다. 원인 분석 후 다시 접속해보시기 바랍니다.`,
+        'ESFJ': `어머, 정말 죄송해요! 지금 시스템에 문제가 있어서 제대로 도움을 드리지 못하고 있어요. 곧 해결될 거예요.`,
+        'ESTP': `아, 시스템이 먹통이네요! 빨리 고쳐서 다시 대화해봐요.`,
+        'ISFP': `죄송해요... 지금 시스템 상태가 좋지 않아서... 잠시만 기다려주세요.`
+      };
+      
+      if (mbtiResponses[mbtiType as keyof typeof mbtiResponses]) {
+        return mbtiResponses[mbtiType as keyof typeof mbtiResponses];
+      }
+    }
+    
+    // 기본 fallback (persona.id 기반)
     const fallbacks = {
-      communication: "안녕하세요. 김태훈입니다. 현재 시스템에 문제가 있어 정상적인 응답이 어렵습니다. 잠시 후 다시 시도해주세요.",
+      istj: `솔직히 말씀드리면, 현재 시스템에 기술적 문제가 발생했습니다. 정확한 진단 후 다시 시도해주시기 바랍니다.`,
+      entj: `직접적으로 말하면, 시스템 오류로 인해 지금 당장 효율적인 대화가 어렵습니다. 빠른 복구 후 진행하겠습니다.`,
+      enfj: `정말 죄송합니다. 시스템 문제로 지금 제대로 소통하기 어려운 상황이에요. 조금만 기다려주실 수 있을까요?`,
+      communication: `안녕하세요. ${persona.name}입니다. 현재 시스템에 문제가 있어 정상적인 응답이 어렵습니다. 잠시 후 다시 시도해주세요.`,
       empathy: "죄송해요... 지금 시스템 상태가 좋지 않아서 제대로 대화하기 어려울 것 같아요. 조금 기다려주실 수 있을까요?",
       negotiation: "시스템 연결에 문제가 있습니다. 중요한 협상이니만큼 안정적인 환경에서 다시 진행하는 것이 좋겠습니다.",
       presentation: "기술적인 문제로 인해 현재 정상적인 응답이 어렵습니다. 시스템 복구 후 다시 시도해주세요.",
@@ -393,7 +448,7 @@ JSON 형식으로 응답하세요:
       crisis: "긴급 상황인데 시스템에 문제가 발생했습니다. 빠른 복구를 위해 기술팀에 연락하겠습니다."
     };
     
-    return fallbacks[persona.id as keyof typeof fallbacks] || "시스템 오류가 발생했습니다. 잠시 후 다시 시도해주세요.";
+    return fallbacks[persona.id as keyof typeof fallbacks] || `${persona.name}입니다. 시스템 오류가 발생했습니다. 잠시 후 다시 시도해주세요.`;
   }
 
   private getFallbackFeedback(): DetailedFeedback {
