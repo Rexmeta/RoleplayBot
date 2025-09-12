@@ -1173,67 +1173,67 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
               {/* Bottom Interactive Box */}
               <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 z-20 w-full max-w-4xl px-4">
                 <Card className="bg-white/75 backdrop-blur-md shadow-2xl border border-white/20">
-                  {/* AI Message Section */}
-                  <div className="p-6 border-b border-slate-200/50">
-                    {isLoading ? (
-                      <div className="flex items-center justify-center space-x-2" data-testid="status-typing">
-                        <div className="w-3 h-3 bg-purple-400 rounded-full animate-bounce"></div>
-                        <div className="w-3 h-3 bg-purple-400 rounded-full animate-bounce" style={{ animationDelay: "0.1s" }}></div>
-                        <div className="w-3 h-3 bg-purple-400 rounded-full animate-bounce" style={{ animationDelay: "0.2s" }}></div>
-                        <span className="ml-2 text-slate-600">대화 생성 중...</span>
-                      </div>
-                    ) : latestAiMessage ? (
-                      <div className="space-y-3">
-                        <p className="text-slate-800 leading-relaxed text-lg" data-testid="text-ai-line">
-                          {latestAiMessage.message}
-                        </p>
-                        {latestAiMessage.emotion && latestAiMessage.emotionReason && (
-                          <div className="text-xs text-slate-500 flex items-center pt-2">
-                            <span className="mr-1">{emotionEmojis[latestAiMessage.emotion]}</span>
-                            <span>{latestAiMessage.emotionReason}</span>
-                          </div>
-                        )}
-                      </div>
-                    ) : (
-                      <div className="text-center text-slate-600 py-4">
-                        <i className="fas fa-comment-dots text-2xl text-purple-400 mb-2"></i>
-                        <p>대화를 시작해보세요</p>
-                      </div>
-                    )}
-                  </div>
+                  {/* Responsive Layout: Single grid structure */}
+                  <div className="grid grid-cols-1 lg:grid-cols-2">
+                    {/* AI Message Section */}
+                    <div className="p-6 border-b lg:border-b-0 lg:border-r border-slate-200/50">
+                      {isLoading ? (
+                        <div className="flex items-center justify-center space-x-2" data-testid="status-typing">
+                          <div className="w-3 h-3 bg-purple-400 rounded-full animate-bounce"></div>
+                          <div className="w-3 h-3 bg-purple-400 rounded-full animate-bounce" style={{ animationDelay: "0.1s" }}></div>
+                          <div className="w-3 h-3 bg-purple-400 rounded-full animate-bounce" style={{ animationDelay: "0.2s" }}></div>
+                          <span className="ml-2 text-slate-600">대화 생성 중...</span>
+                        </div>
+                      ) : latestAiMessage ? (
+                        <div className="space-y-3">
+                          <p className="text-slate-800 leading-relaxed text-lg" data-testid="text-ai-line">
+                            {latestAiMessage.message}
+                          </p>
+                          {latestAiMessage.emotion && latestAiMessage.emotionReason && (
+                            <div className="text-xs text-slate-500 flex items-center pt-2">
+                              <span className="mr-1">{emotionEmojis[latestAiMessage.emotion]}</span>
+                              <span>{latestAiMessage.emotionReason}</span>
+                            </div>
+                          )}
+                        </div>
+                      ) : (
+                        <div className="text-center text-slate-600 py-4">
+                          <i className="fas fa-comment-dots text-2xl text-purple-400 mb-2"></i>
+                          <p>대화를 시작해보세요</p>
+                        </div>
+                      )}
+                    </div>
 
-                  {/* Input Section */}
-                  <div className="p-4">
-                    {conversation.turnCount >= maxTurns ? (
-                      <div className="text-center space-y-3">
-                        <div className="text-sm font-medium text-slate-700">
-                          대화가 완료되었습니다! (총 {conversation.turnCount}턴)
+                    {/* Input Section */}
+                    <div className="p-4">
+                      {conversation.turnCount >= maxTurns ? (
+                        <div className="text-center space-y-3">
+                          <div className="text-sm font-medium text-slate-700">
+                            대화가 완료되었습니다! (총 {conversation.turnCount}턴)
+                          </div>
+                          <div className="flex justify-center space-x-3">
+                            <Button
+                              onClick={onChatComplete}
+                              className="bg-purple-600 hover:bg-purple-700 text-white"
+                              data-testid="button-final-feedback"
+                              size="sm"
+                            >
+                              <i className="fas fa-chart-bar mr-1"></i>
+                              최종 피드백
+                            </Button>
+                            <Button
+                              onClick={onExit}
+                              variant="outline"
+                              data-testid="button-exit-completed"
+                              size="sm"
+                            >
+                              <i className="fas fa-home mr-1"></i>
+                              홈으로
+                            </Button>
+                          </div>
                         </div>
-                        <div className="flex justify-center space-x-3">
-                          <Button
-                            onClick={onChatComplete}
-                            className="bg-purple-600 hover:bg-purple-700 text-white"
-                            data-testid="button-final-feedback"
-                            size="sm"
-                          >
-                            <i className="fas fa-chart-bar mr-1"></i>
-                            최종 피드백
-                          </Button>
-                          <Button
-                            onClick={onExit}
-                            variant="outline"
-                            data-testid="button-exit-completed"
-                            size="sm"
-                          >
-                            <i className="fas fa-home mr-1"></i>
-                            홈으로
-                          </Button>
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="space-y-3">
-                        {/* Text Input with Controls */}
-                        <div className="flex items-end space-x-2">
+                      ) : (
+                        <div className="flex flex-col lg:flex-row lg:items-start lg:space-x-3">
                           <div className="flex-1">
                             <Textarea
                               value={userInput}
@@ -1248,7 +1248,19 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
                             <div className="text-xs text-slate-500 mt-1">{userInput.length}/200</div>
                           </div>
                           
-                          <div className="flex items-center space-x-1">
+                          {/* Button Panel */}
+                          <div className="mt-2 lg:mt-0 w-full lg:w-36 grid grid-cols-2 gap-2">
+                            {/* Top Row: Send and Mic */}
+                            <Button
+                              onClick={handleSendMessage}
+                              disabled={!userInput.trim() || isLoading}
+                              className="bg-purple-600 hover:bg-purple-700 text-white"
+                              size="sm"
+                              data-testid="button-send-message-character"
+                            >
+                              <i className="fas fa-paper-plane"></i>
+                            </Button>
+                            
                             <Button
                               variant="outline"
                               size="sm"
@@ -1261,31 +1273,21 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
                               <i className={`fas ${isRecording ? 'fa-stop' : 'fa-microphone'} ${isRecording ? 'text-red-500' : ''}`}></i>
                             </Button>
                             
+                            {/* Bottom Row: Skip (spans 2 columns) */}
                             <Button
                               variant="outline" 
                               size="sm"
                               onClick={handleSkipTurn}
                               disabled={isLoading}
                               data-testid="button-skip-turn-character"
+                              className="col-span-2"
                             >
                               Skip
                             </Button>
-                            
-                            <Button
-                              onClick={handleSendMessage}
-                              disabled={!userInput.trim() || isLoading}
-                              className="bg-purple-600 hover:bg-purple-700 text-white"
-                              size="sm"
-                              data-testid="button-send-message-character"
-                            >
-                              <i className="fas fa-paper-plane"></i>
-                            </Button>
                           </div>
                         </div>
-                        
-                        
-                      </div>
-                    )}
+                      )}
+                    </div>
                   </div>
                 </Card>
               </div>
