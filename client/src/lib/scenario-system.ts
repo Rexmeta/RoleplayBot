@@ -5,6 +5,7 @@ export interface ScenarioPersona {
   role: string;
   department: string;
   experience: string;
+  gender?: 'male' | 'female'; // 성별 필드 추가 (optional)
   personality: {
     traits: string[];
     communicationStyle: string;

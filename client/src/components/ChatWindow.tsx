@@ -247,20 +247,23 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
     }
   };
 
-  // 페르소나별 성별 정보 (시나리오 ID + MBTI 타입 모두 지원)
-  const getPersonaGender = (scenarioId: string): 'male' | 'female' => {
-    // 시나리오 기반 여성 캐릭터들
-    const femaleScenarios = ['empathy', 'presentation', 'crisis']; // 이선영, 정미경, 한지연
+  // 페르소나별 성별 정보 - 실제 JSON 데이터에서 가져오기
+  const getPersonaGender = (scenarioId?: string): 'male' | 'female' => {
+    // 1. 먼저 persona 객체에서 gender 필드 확인
+    if (persona.gender) {
+      console.log(`👤 성별 정보 사용: ${persona.name} (${persona.id}) → ${persona.gender}`);
+      return persona.gender;
+    }
     
-    // MBTI 기반 여성 캐릭터들 (실제 사용되는 타입들)
-    const femaleMBTI = ['isfj', 'infp', 'isfp', 'infj']; // 정예진 등 여성 이름 캐릭터들
-    
-    // 두 배열을 합쳐서 확인
+    // 2. 백업: 하드코딩된 성별 판단 (하위 호환성)
+    const femaleScenarios = ['empathy', 'presentation', 'crisis'];
+    const femaleMBTI = ['isfj', 'infp', 'isfp', 'infj'];
     const allFemalePersonas = [...femaleScenarios, ...femaleMBTI];
     
-    console.log(`👤 성별 판단: ${scenarioId} → ${allFemalePersonas.includes(scenarioId) ? 'female' : 'male'}`);
+    const fallbackGender = allFemalePersonas.includes(scenarioId || persona.id) ? 'female' : 'male';
+    console.log(`👤 백업 성별 판단: ${scenarioId || persona.id} → ${fallbackGender}`);
     
-    return allFemalePersonas.includes(scenarioId) ? 'female' : 'male';
+    return fallbackGender;
   };
 
   // 감정에 따른 음성 설정
@@ -490,7 +493,7 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
     try {
       // 텍스트 정리
       const cleanText = text.replace(/<[^>]*>/g, '').replace(/[*#_`]/g, '');
-      const gender = getPersonaGender(scenario.id);
+      const gender = getPersonaGender();
       const voiceSettings = getVoiceSettings(emotion, gender);
       
       console.log(`🎭 캐릭터 성별: ${gender}, 감정: ${emotion || '중립'}`);
