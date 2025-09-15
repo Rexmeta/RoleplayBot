@@ -379,118 +379,168 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
     }
   };
 
-  // 백업 TTS (기존 Web Speech API)
+  // 비동기 음성 로딩 대기 함수
+  const waitForVoices = (): Promise<SpeechSynthesisVoice[]> => {
+    return new Promise((resolve) => {
+      const voices = speechSynthesisRef.current?.getVoices() || [];
+      if (voices.length > 0) {
+        resolve(voices);
+      } else {
+        const onVoicesChanged = () => {
+          const newVoices = speechSynthesisRef.current?.getVoices() || [];
+          if (newVoices.length > 0) {
+            speechSynthesisRef.current?.removeEventListener('voiceschanged', onVoicesChanged);
+            resolve(newVoices);
+          }
+        };
+        speechSynthesisRef.current?.addEventListener('voiceschanged', onVoicesChanged);
+        // 타임아웃 설정 (3초 후 빈 배열이라도 반환)
+        setTimeout(() => {
+          speechSynthesisRef.current?.removeEventListener('voiceschanged', onVoicesChanged);
+          resolve(speechSynthesisRef.current?.getVoices() || []);
+        }, 3000);
+      }
+    });
+  };
+
+  // 성별에 따른 한국어 음성 선택 함수
+  const selectKoreanVoice = (voices: SpeechSynthesisVoice[], gender: string): SpeechSynthesisVoice | null => {
+    // 먼저 한국어 음성들을 필터링
+    const koreanVoices = voices.filter(voice => 
+      voice.lang === 'ko-KR' || voice.lang.startsWith('ko')
+    );
+
+    console.log(`🎯 한국어 음성 ${koreanVoices.length}개 발견:`, koreanVoices.map(v => v.name));
+
+    if (koreanVoices.length === 0) {
+      console.log('⚠️ 한국어 음성이 없습니다. 기본 음성을 사용합니다.');
+      return null;
+    }
+
+    let selectedVoice: SpeechSynthesisVoice | null = null;
+
+    if (gender === 'male') {
+      // 남성 음성 우선 선택
+      selectedVoice = koreanVoices.find(voice => {
+        const name = voice.name.toLowerCase();
+        return name.includes('injoon') || 
+               name.includes('남성') ||
+               name.includes('male') ||
+               name.includes('man');
+      }) || null;
+      
+      console.log(`👨 남성 음성 선택 시도:`, selectedVoice?.name || '남성 음성 없음');
+    } else {
+      // 여성 음성 우선 선택  
+      selectedVoice = koreanVoices.find(voice => {
+        const name = voice.name.toLowerCase();
+        return name.includes('heami') || 
+               name.includes('yuna') ||
+               name.includes('여성') ||
+               name.includes('female') ||
+               name.includes('woman') ||
+               name.includes('google');
+      }) || null;
+
+      console.log(`👩 여성 음성 선택 시도:`, selectedVoice?.name || '여성 음성 없음');
+    }
+
+    // 성별별 음성이 없으면 첫 번째 한국어 음성 사용
+    if (!selectedVoice) {
+      selectedVoice = koreanVoices[0];
+      console.log(`🔄 기본 한국어 음성 사용:`, selectedVoice.name);
+    }
+
+    return selectedVoice;
+  };
+
+  // 백업 TTS (개선된 Web Speech API)
   const fallbackToWebSpeechAPI = async (text: string, emotion?: string) => {
-    console.log('🔧 fallbackToWebSpeechAPI 시작');
-    
-    // 상세한 브라우저 환경 진단
-    console.log('🔍 브라우저 환경 진단:');
-    console.log('- typeof window:', typeof window);
-    console.log('- window 객체 존재:', typeof window !== 'undefined');
-    console.log('- speechSynthesis in window:', typeof window !== 'undefined' && 'speechSynthesis' in window);
-    console.log('- window.speechSynthesis:', typeof window !== 'undefined' ? window.speechSynthesis : 'undefined');
-    console.log('- User Agent:', typeof window !== 'undefined' ? window.navigator.userAgent : 'undefined');
-    console.log('- Location:', typeof window !== 'undefined' ? window.location.href : 'undefined');
-    console.log('- Protocol:', typeof window !== 'undefined' ? window.location.protocol : 'undefined');
+    console.log('🔧 브라우저 TTS 백업 시작');
     
     // speechSynthesis 브라우저 지원 확인
-    if (typeof window === 'undefined') {
-      console.error('❌ window 객체가 undefined입니다');
+    if (typeof window === 'undefined' || !('speechSynthesis' in window) || !window.speechSynthesis) {
+      console.error('❌ 브라우저가 Speech Synthesis API를 지원하지 않습니다');
       toast({
         title: "음성 재생 불가",
-        description: "브라우저 환경을 감지할 수 없습니다.",
+        description: "브라우저가 음성 합성을 지원하지 않습니다.",
         variant: "destructive"
       });
       return;
     }
     
-    if (!('speechSynthesis' in window)) {
-      console.error('❌ speechSynthesis가 window 객체에 없습니다');
-      toast({
-        title: "음성 재생 불가", 
-        description: "이 브라우저는 음성 합성을 지원하지 않습니다.",
-        variant: "destructive"
-      });
-      return;
-    }
-    
-    if (!window.speechSynthesis) {
-      console.error('❌ window.speechSynthesis가 null/undefined입니다');
-      toast({
-        title: "음성 재생 불가",
-        description: "음성 합성 서비스에 접근할 수 없습니다.",
-        variant: "destructive"
-      });
-      return;
-    }
-    
-    // speechSynthesisRef가 null이면 직접 초기화
+    // speechSynthesisRef 초기화
     if (!speechSynthesisRef.current) {
-      console.log('🔄 speechSynthesis 재초기화 중...');
       speechSynthesisRef.current = window.speechSynthesis;
     }
-    
-    if (!speechSynthesisRef.current) {
-      console.error('❌ speechSynthesis 초기화 실패');
-      return;
-    }
-    
-    console.log('✅ speechSynthesis 사용 가능:', !!speechSynthesisRef.current);
     
     // 기존 음성 재생 중단
     speechSynthesisRef.current.cancel();
     
-    const cleanText = text.replace(/<[^>]*>/g, '').replace(/[*#_`]/g, '');
-    console.log('🎯 정리된 텍스트:', cleanText.substring(0, 50) + '...');
-    
-    const gender = getPersonaGender(scenario.id);
-    const voiceSettings = getVoiceSettings(emotion, gender);
-    console.log('🔊 음성 설정:', voiceSettings);
-    
-    const utterance = new SpeechSynthesisUtterance(cleanText);
-    utterance.lang = voiceSettings.lang;
-    utterance.rate = voiceSettings.rate;
-    utterance.pitch = voiceSettings.pitch;
-    utterance.volume = voiceSettings.volume;
-    
-    console.log('📢 utterance 생성 완료:', {
-      lang: utterance.lang,
-      rate: utterance.rate,
-      pitch: utterance.pitch,
-      volume: utterance.volume,
-      text: utterance.text.substring(0, 50) + '...'
-    });
-    
-    utterance.onstart = () => {
-      console.log('🎤 음성 재생 시작');
-      setIsSpeaking(true);
-    };
-    
-    utterance.onend = () => {
-      console.log('✅ 음성 재생 완료');
-      setIsSpeaking(false);
-    };
-    
-    utterance.onerror = (event) => {
-      console.error('❌ 음성 재생 오류:', event);
+    try {
+      // 텍스트 정리
+      const cleanText = text.replace(/<[^>]*>/g, '').replace(/[*#_`]/g, '');
+      const gender = getPersonaGender(scenario.id);
+      const voiceSettings = getVoiceSettings(emotion, gender);
+      
+      console.log(`🎭 캐릭터 성별: ${gender}, 감정: ${emotion || '중립'}`);
+      
+      // 음성 로딩 대기
+      console.log('⏳ 음성 목록 로딩 중...');
+      const voices = await waitForVoices();
+      console.log(`🎵 총 ${voices.length}개 음성 사용 가능`);
+      
+      // 성별에 맞는 한국어 음성 선택
+      const selectedVoice = selectKoreanVoice(voices, gender);
+      
+      // SpeechSynthesisUtterance 생성
+      const utterance = new SpeechSynthesisUtterance(cleanText);
+      utterance.lang = voiceSettings.lang;
+      utterance.rate = voiceSettings.rate;
+      utterance.pitch = voiceSettings.pitch;
+      utterance.volume = voiceSettings.volume;
+      
+      // 선택된 음성 적용
+      if (selectedVoice) {
+        utterance.voice = selectedVoice;
+        console.log(`🎯 선택된 음성: ${selectedVoice.name} (${gender === 'male' ? '남성' : '여성'})`);
+      } else {
+        console.log('🔄 기본 브라우저 음성 사용');
+      }
+      
+      // 이벤트 핸들러 설정
+      utterance.onstart = () => {
+        console.log('🎤 음성 재생 시작');
+        setIsSpeaking(true);
+      };
+      
+      utterance.onend = () => {
+        console.log('✅ 음성 재생 완료');
+        setIsSpeaking(false);
+      };
+      
+      utterance.onerror = (event) => {
+        console.error('❌ 음성 재생 오류:', event);
+        setIsSpeaking(false);
+        toast({
+          title: "음성 재생 오류",
+          description: "음성을 재생할 수 없습니다.",
+          variant: "destructive"
+        });
+      };
+      
+      // 음성 재생 시작
+      console.log('🚀 음성 재생 시작');
+      speechSynthesisRef.current.speak(utterance);
+      
+    } catch (error) {
+      console.error('❌ 브라우저 TTS 처리 중 오류:', error);
       setIsSpeaking(false);
       toast({
-        title: "음성 재생 오류",
-        description: "음성을 재생할 수 없습니다.",
+        title: "음성 처리 오류",
+        description: "음성 처리 중 문제가 발생했습니다.",
         variant: "destructive"
       });
-    };
-    
-    console.log('🚀 speechSynthesis.speak() 호출 중...');
-    speechSynthesisRef.current.speak(utterance);
-    
-    // 음성 목록 확인
-    const voices = speechSynthesisRef.current.getVoices();
-    console.log('🎵 사용 가능한 음성 수:', voices.length);
-    if (voices.length > 0) {
-      console.log('🎵 첫 번째 음성:', voices[0].name, voices[0].lang);
-    } else {
-      console.log('⚠️ 사용 가능한 음성이 없습니다. 브라우저 기본 음성으로 재생됩니다.');
     }
   };
 
