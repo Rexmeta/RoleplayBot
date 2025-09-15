@@ -383,13 +383,31 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
   const fallbackToWebSpeechAPI = async (text: string, emotion?: string) => {
     console.log('🔧 fallbackToWebSpeechAPI 시작');
     
+    // speechSynthesis 브라우저 지원 확인
+    if (typeof window === 'undefined' || !('speechSynthesis' in window)) {
+      console.error('❌ 브라우저가 Speech Synthesis API를 지원하지 않습니다');
+      toast({
+        title: "음성 재생 불가",
+        description: "브라우저가 음성 합성을 지원하지 않습니다.",
+        variant: "destructive"
+      });
+      return;
+    }
+    
+    // speechSynthesisRef가 null이면 직접 초기화
     if (!speechSynthesisRef.current) {
-      console.error('❌ speechSynthesisRef.current가 null입니다');
+      console.log('🔄 speechSynthesis 재초기화 중...');
+      speechSynthesisRef.current = window.speechSynthesis;
+    }
+    
+    if (!speechSynthesisRef.current) {
+      console.error('❌ speechSynthesis 초기화 실패');
       return;
     }
     
     console.log('✅ speechSynthesis 사용 가능:', !!speechSynthesisRef.current);
     
+    // 기존 음성 재생 중단
     speechSynthesisRef.current.cancel();
     
     const cleanText = text.replace(/<[^>]*>/g, '').replace(/[*#_`]/g, '');
@@ -441,6 +459,8 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
     console.log('🎵 사용 가능한 음성 수:', voices.length);
     if (voices.length > 0) {
       console.log('🎵 첫 번째 음성:', voices[0].name, voices[0].lang);
+    } else {
+      console.log('⚠️ 사용 가능한 음성이 없습니다. 브라우저 기본 음성으로 재생됩니다.');
     }
   };
 
