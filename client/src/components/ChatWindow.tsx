@@ -383,12 +383,42 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
   const fallbackToWebSpeechAPI = async (text: string, emotion?: string) => {
     console.log('🔧 fallbackToWebSpeechAPI 시작');
     
+    // 상세한 브라우저 환경 진단
+    console.log('🔍 브라우저 환경 진단:');
+    console.log('- typeof window:', typeof window);
+    console.log('- window 객체 존재:', typeof window !== 'undefined');
+    console.log('- speechSynthesis in window:', typeof window !== 'undefined' && 'speechSynthesis' in window);
+    console.log('- window.speechSynthesis:', typeof window !== 'undefined' ? window.speechSynthesis : 'undefined');
+    console.log('- User Agent:', typeof window !== 'undefined' ? window.navigator.userAgent : 'undefined');
+    console.log('- Location:', typeof window !== 'undefined' ? window.location.href : 'undefined');
+    console.log('- Protocol:', typeof window !== 'undefined' ? window.location.protocol : 'undefined');
+    
     // speechSynthesis 브라우저 지원 확인
-    if (typeof window === 'undefined' || !('speechSynthesis' in window)) {
-      console.error('❌ 브라우저가 Speech Synthesis API를 지원하지 않습니다');
+    if (typeof window === 'undefined') {
+      console.error('❌ window 객체가 undefined입니다');
       toast({
         title: "음성 재생 불가",
-        description: "브라우저가 음성 합성을 지원하지 않습니다.",
+        description: "브라우저 환경을 감지할 수 없습니다.",
+        variant: "destructive"
+      });
+      return;
+    }
+    
+    if (!('speechSynthesis' in window)) {
+      console.error('❌ speechSynthesis가 window 객체에 없습니다');
+      toast({
+        title: "음성 재생 불가", 
+        description: "이 브라우저는 음성 합성을 지원하지 않습니다.",
+        variant: "destructive"
+      });
+      return;
+    }
+    
+    if (!window.speechSynthesis) {
+      console.error('❌ window.speechSynthesis가 null/undefined입니다');
+      toast({
+        title: "음성 재생 불가",
+        description: "음성 합성 서비스에 접근할 수 없습니다.",
         variant: "destructive"
       });
       return;
