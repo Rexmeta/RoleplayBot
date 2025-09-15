@@ -18,6 +18,7 @@ import { AIScenarioGenerator } from './AIScenarioGenerator';
 interface ScenarioPersona {
   id: string;
   name: string;
+  gender: 'male' | 'female'; // 성별 필드 추가
   department: string;
   position: string;
   experience: string;
@@ -218,6 +219,7 @@ export function ScenarioManager() {
         ? scenario.personas.map(p => typeof p === 'string' ? {
             id: p,
             name: '',
+            gender: 'male', // 성별 기본값 추가
             department: '',
             position: '',
             experience: '',
@@ -624,6 +626,7 @@ export function ScenarioManager() {
                           personas: [...prev.personas, {
                             id: '',
                             name: '',
+                            gender: 'male', // 성별 기본값 추가
                             department: '',
                             position: '',
                             experience: '',
@@ -664,7 +667,7 @@ export function ScenarioManager() {
                           </Button>
                         </div>
                         
-                        <div className="grid grid-cols-2 gap-3">
+                        <div className="grid grid-cols-3 gap-3">
                           <div>
                             <Label htmlFor={`persona-id-${index}`}>MBTI ID *</Label>
                             <Input
@@ -693,6 +696,26 @@ export function ScenarioManager() {
                               placeholder="김민수, 이지영 등"
                               data-testid={`input-persona-name-${index}`}
                             />
+                          </div>
+
+                          <div>
+                            <Label htmlFor={`persona-gender-${index}`}>성별 *</Label>
+                            <Select
+                              value={persona.gender}
+                              onValueChange={(value: 'male' | 'female') => {
+                                const newPersonas = [...formData.personas];
+                                newPersonas[index] = { ...persona, gender: value };
+                                setFormData(prev => ({ ...prev, personas: newPersonas }));
+                              }}
+                            >
+                              <SelectTrigger data-testid={`select-persona-gender-${index}`}>
+                                <SelectValue placeholder="성별 선택" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="male">남성</SelectItem>
+                                <SelectItem value="female">여성</SelectItem>
+                              </SelectContent>
+                            </Select>
                           </div>
                           
                           <div>
@@ -918,7 +941,7 @@ export function ScenarioManager() {
                   <div className="flex flex-wrap gap-1">
                     {(scenario.personas || []).map((persona, index) => (
                       <Badge key={index} variant="outline" className="text-xs">
-                        {typeof persona === 'string' ? persona : persona.name || persona.id || '알 수 없는 페르소나'}
+                        {typeof persona === 'string' ? persona : (persona as any).name || (persona as any).id || '알 수 없는 페르소나'}
                       </Badge>
                     ))}
                   </div>

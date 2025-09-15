@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
 import { apiRequest, queryClient } from '@/lib/queryClient';
 
@@ -15,6 +16,7 @@ import { apiRequest, queryClient } from '@/lib/queryClient';
 interface MBTIPersona {
   id: string;
   mbti: string;
+  gender: 'male' | 'female'; // 성별 필드 추가
   personality_traits: string[];
   communication_style: string;
   motivation: string;
@@ -60,6 +62,7 @@ interface ScenarioPersonaInfo {
 interface MBTIPersonaFormData {
   id: string;
   mbti: string;
+  gender: 'male' | 'female'; // 성별 필드 추가
   personality_traits: string[];
   communication_style: string;
   motivation: string;
@@ -97,6 +100,7 @@ export function PersonaManager() {
   const [formData, setFormData] = useState<MBTIPersonaFormData>({
     id: '',
     mbti: '',
+    gender: 'male', // 성별 기본값 설정
     personality_traits: [],
     communication_style: '',
     motivation: '',
@@ -239,6 +243,7 @@ export function PersonaManager() {
     setFormData({
       id: '',
       mbti: '',
+      gender: 'male', // 성별 기본값 추가
       personality_traits: [],
       communication_style: '',
       motivation: '',
@@ -273,6 +278,7 @@ export function PersonaManager() {
     setFormData({
       id: persona.id,
       mbti: persona.mbti,
+      gender: persona.gender || 'male', // 성별 필드 추가
       personality_traits: persona.personality_traits || [],
       communication_style: persona.communication_style || '',
       motivation: persona.motivation || '',
@@ -354,7 +360,7 @@ export function PersonaManager() {
             </DialogHeader>
             
             <form onSubmit={handleSubmit} className="space-y-6">
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-3 gap-4">
                 <div>
                   <Label htmlFor="id">MBTI ID (소문자)</Label>
                   <Input
@@ -376,6 +382,21 @@ export function PersonaManager() {
                     required
                     data-testid="input-mbti"
                   />
+                </div>
+                <div>
+                  <Label htmlFor="gender">성별</Label>
+                  <Select
+                    value={formData.gender}
+                    onValueChange={(value: 'male' | 'female') => setFormData(prev => ({ ...prev, gender: value }))}
+                  >
+                    <SelectTrigger data-testid="select-gender">
+                      <SelectValue placeholder="성별 선택" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="male">남성</SelectItem>
+                      <SelectItem value="female">여성</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
               </div>
 
