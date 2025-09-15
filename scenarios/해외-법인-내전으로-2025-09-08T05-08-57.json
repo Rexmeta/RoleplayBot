@@ -29,6 +29,7 @@
     {
       "id": "istj",
       "name": "박준영",
+      "gender": "male",
       "department": "생산관리팀",
       "position": "과장",
       "experience": "8년차",
@@ -40,6 +41,7 @@
     {
       "id": "isfj",
       "name": "최은영",
+      "gender": "female",
       "department": "영업팀",
       "position": "대리",
       "experience": "4년차",

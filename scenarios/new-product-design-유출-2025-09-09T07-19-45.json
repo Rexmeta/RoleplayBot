@@ -29,6 +29,7 @@
     {
       "id": "istj",
       "name": "김민수",
+      "gender": "male",
       "department": "생산팀",
       "position": "과장",
       "experience": "8년차",
@@ -40,6 +41,7 @@
     {
       "id": "isfj",
       "name": "이지영",
+      "gender": "female",
       "department": "품질관리팀",
       "position": "대리",
       "experience": "5년차",
@@ -51,6 +53,7 @@
     {
       "id": "infj",
       "name": "박준호",
+      "gender": "male",
       "department": "대외협력팀",
       "position": "팀장",
       "experience": "12년차",
@@ -62,6 +65,7 @@
     {
       "id": "intj",
       "name": "최은영",
+      "gender": "female",
       "department": "전략기획팀",
       "position": "부장",
       "experience": "15년차",
@@ -73,6 +77,7 @@
     {
       "id": "istp",
       "name": "정재현",
+      "gender": "male",
       "department": "개발팀",
       "position": "선임연구원",
       "experience": "7년차",
@@ -84,6 +89,7 @@
     {
       "id": "isfp",
       "name": "한유진",
+      "gender": "female",
       "department": "디자인팀",
       "position": "선임 디자이너",
       "experience": "6년차",
@@ -95,6 +101,7 @@
     {
       "id": "infp",
       "name": "이서진",
+      "gender": "female",
       "department": "마케팅팀",
       "position": "과장",
       "experience": "9년차",
@@ -106,6 +113,7 @@
     {
       "id": "intp",
       "name": "강하준",
+      "gender": "male",
       "department": "연구개발팀",
       "position": "책임연구원",
       "experience": "11년차",
@@ -117,6 +125,7 @@
     {
       "id": "estp",
       "name": "윤지훈",
+      "gender": "male",
       "department": "영업팀",
       "position": "차장",
       "experience": "10년차",
@@ -128,6 +137,7 @@
     {
       "id": "esfp",
       "name": "서아현",
+      "gender": "female",
       "department": "홍보팀",
       "position": "대리",
       "experience": "4년차",

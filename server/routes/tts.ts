@@ -1,13 +1,49 @@
 import { Router } from 'express';
 import { customTtsService } from '../services/customTtsService.js';
 import { elevenLabsService } from '../services/elevenlabsService.js';
+import { FileManagerService } from '../services/fileManager.js';
 
 const router = Router();
+const fileManager = new FileManagerService();
 
-// 페르소나별 성별 정보
-function getPersonaGender(scenarioId: string): 'male' | 'female' {
-  const femalePersonas = ['empathy', 'presentation', 'crisis']; // 이선영, 정미경, 한지연
-  return femalePersonas.includes(scenarioId) ? 'female' : 'male';
+// 페르소나 타입 정의
+interface PersonaData {
+  id: string;
+  name: string;
+  gender?: 'male' | 'female';
+  [key: string]: any;
+}
+
+// 페르소나 ID로부터 성별 정보 조회 (시나리오 JSON 파일에서 실제 데이터 활용)
+async function getPersonaGender(personaId: string): Promise<'male' | 'female'> {
+  try {
+    // 모든 시나리오에서 해당 persona 찾기
+    const scenarios = await fileManager.getAllScenarios();
+    
+    for (const scenario of scenarios) {
+      if (scenario.personas && Array.isArray(scenario.personas)) {
+        const personas = scenario.personas as unknown as PersonaData[];
+        const persona = personas.find((p: PersonaData) => p.id === personaId);
+        if (persona && persona.gender) {
+          console.log(`👤 성별 찾음: ${personaId} (${persona.name}) → ${persona.gender}`);
+          return persona.gender;
+        }
+      }
+    }
+    
+    // 백업: MBTI 기반 하드코딩된 성별 판단
+    const femaleMBTI = ['isfj', 'infp', 'isfp', 'infj'];
+    const isFemale = femaleMBTI.includes(personaId.toLowerCase());
+    const gender = isFemale ? 'female' : 'male';
+    
+    console.log(`👤 백업 성별 판단: ${personaId} → ${gender} (하드코딩됨)`);
+    return gender;
+    
+  } catch (error) {
+    console.error('성별 조회 오류:', error);
+    // 최종 백업: 기본값
+    return 'male';
+  }
 }
 
 // TTS 음성 생성 API
@@ -30,7 +66,7 @@ router.post('/generate', async (req, res) => {
       });
     }
 
-    const gender = getPersonaGender(scenarioId);
+    const gender = await getPersonaGender(scenarioId);
     
     console.log(`TTS 요청: "${cleanText.substring(0, 50)}..." (${scenarioId}, ${gender}, ${emotion})`);
 

@@ -29,6 +29,7 @@
     {
       "id": "istj",
       "name": "김영수",
+      "gender": "male",
       "department": "생산관리팀",
       "position": "과장",
       "experience": "12년차",
@@ -40,6 +41,7 @@
     {
       "id": "isfj",
       "name": "박선영",
+      "gender": "female",
       "department": "재무팀",
       "position": "대리",
       "experience": "5년차",
@@ -51,6 +53,7 @@
     {
       "id": "infj",
       "name": "이지원",
+      "gender": "female",
       "department": "생산1팀",
       "position": "노동조합 대표 (팀장 겸직)",
       "experience": "8년차",

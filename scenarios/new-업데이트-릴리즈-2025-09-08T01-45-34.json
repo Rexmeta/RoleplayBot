@@ -29,6 +29,7 @@
     {
       "id": "istj",
       "name": "박준영",
+      "gender": "male",
       "department": "개발팀",
       "position": "선임 개발자",
       "experience": "8년차",
@@ -40,6 +41,7 @@
     {
       "id": "isfj",
       "name": "이지은",
+      "gender": "female",
       "department": "QA팀",
       "position": "QA 매니저",
       "experience": "6년차",
@@ -51,6 +53,7 @@
     {
       "id": "infj",
       "name": "최현우",
+      "gender": "male",
       "department": "서비스 기획팀",
       "position": "서비스 기획자",
       "experience": "4년차",
@@ -62,6 +65,7 @@
     {
       "id": "intj",
       "name": "김도윤",
+      "gender": "male",
       "department": "프로젝트 관리실",
       "position": "프로젝트 매니저",
       "experience": "10년차",
@@ -73,6 +77,7 @@
     {
       "id": "istp",
       "name": "정수민",
+      "gender": "female",
       "department": "마케팅팀",
       "position": "마케팅 리더",
       "experience": "7년차",

@@ -29,6 +29,7 @@
     {
       "id": "istj",
       "name": "박준영",
+      "gender": "male",
       "department": "생산관리팀",
       "position": "대리",
       "experience": "5년차",
