@@ -247,10 +247,20 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
     }
   };
 
-  // 페르소나별 성별 정보
+  // 페르소나별 성별 정보 (시나리오 ID + MBTI 타입 모두 지원)
   const getPersonaGender = (scenarioId: string): 'male' | 'female' => {
-    const femalePersonas = ['empathy', 'presentation', 'crisis']; // 이선영, 정미경, 한지연
-    return femalePersonas.includes(scenarioId) ? 'female' : 'male';
+    // 시나리오 기반 여성 캐릭터들
+    const femaleScenarios = ['empathy', 'presentation', 'crisis']; // 이선영, 정미경, 한지연
+    
+    // MBTI 기반 여성 캐릭터들 (실제 사용되는 타입들)
+    const femaleMBTI = ['isfj', 'infp', 'isfp', 'infj']; // 정예진 등 여성 이름 캐릭터들
+    
+    // 두 배열을 합쳐서 확인
+    const allFemalePersonas = [...femaleScenarios, ...femaleMBTI];
+    
+    console.log(`👤 성별 판단: ${scenarioId} → ${allFemalePersonas.includes(scenarioId) ? 'female' : 'male'}`);
+    
+    return allFemalePersonas.includes(scenarioId) ? 'female' : 'male';
   };
 
   // 감정에 따른 음성 설정
