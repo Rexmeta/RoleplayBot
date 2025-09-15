@@ -381,13 +381,23 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
 
   // 백업 TTS (기존 Web Speech API)
   const fallbackToWebSpeechAPI = async (text: string, emotion?: string) => {
-    if (!speechSynthesisRef.current) return;
+    console.log('🔧 fallbackToWebSpeechAPI 시작');
+    
+    if (!speechSynthesisRef.current) {
+      console.error('❌ speechSynthesisRef.current가 null입니다');
+      return;
+    }
+    
+    console.log('✅ speechSynthesis 사용 가능:', !!speechSynthesisRef.current);
     
     speechSynthesisRef.current.cancel();
     
     const cleanText = text.replace(/<[^>]*>/g, '').replace(/[*#_`]/g, '');
+    console.log('🎯 정리된 텍스트:', cleanText.substring(0, 50) + '...');
+    
     const gender = getPersonaGender(scenario.id);
     const voiceSettings = getVoiceSettings(emotion, gender);
+    console.log('🔊 음성 설정:', voiceSettings);
     
     const utterance = new SpeechSynthesisUtterance(cleanText);
     utterance.lang = voiceSettings.lang;
@@ -395,9 +405,26 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
     utterance.pitch = voiceSettings.pitch;
     utterance.volume = voiceSettings.volume;
     
-    utterance.onstart = () => setIsSpeaking(true);
-    utterance.onend = () => setIsSpeaking(false);
-    utterance.onerror = () => {
+    console.log('📢 utterance 생성 완료:', {
+      lang: utterance.lang,
+      rate: utterance.rate,
+      pitch: utterance.pitch,
+      volume: utterance.volume,
+      text: utterance.text.substring(0, 50) + '...'
+    });
+    
+    utterance.onstart = () => {
+      console.log('🎤 음성 재생 시작');
+      setIsSpeaking(true);
+    };
+    
+    utterance.onend = () => {
+      console.log('✅ 음성 재생 완료');
+      setIsSpeaking(false);
+    };
+    
+    utterance.onerror = (event) => {
+      console.error('❌ 음성 재생 오류:', event);
       setIsSpeaking(false);
       toast({
         title: "음성 재생 오류",
@@ -406,7 +433,15 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
       });
     };
     
+    console.log('🚀 speechSynthesis.speak() 호출 중...');
     speechSynthesisRef.current.speak(utterance);
+    
+    // 음성 목록 확인
+    const voices = speechSynthesisRef.current.getVoices();
+    console.log('🎵 사용 가능한 음성 수:', voices.length);
+    if (voices.length > 0) {
+      console.log('🎵 첫 번째 음성:', voices[0].name, voices[0].lang);
+    }
   };
 
   const stopSpeaking = () => {
