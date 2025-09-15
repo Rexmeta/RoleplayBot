@@ -1306,8 +1306,29 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
                 )}
               </div>
 
-              {/* Top Right - Exit Button */}
-              <div className="absolute top-4 right-4 z-20">
+              {/* Top Right - Control Buttons */}
+              <div className="absolute top-4 right-4 z-20 flex items-center space-x-2">
+                {/* TTS 온오프 버튼 */}
+                <button
+                  onClick={toggleVoiceMode}
+                  className={`px-3 py-2 rounded-full shadow-lg transition-all duration-200 text-sm font-medium flex items-center space-x-1 ${
+                    voiceModeEnabled 
+                      ? 'bg-green-500/90 text-white hover:bg-green-600' 
+                      : 'bg-white/90 text-slate-700 hover:bg-white'
+                  }`}
+                  data-testid="button-toggle-voice-character"
+                  title={voiceModeEnabled ? "음성 모드 끄기" : "음성 모드 켜기"}
+                >
+                  <i className={`fas ${voiceModeEnabled ? 'fa-volume-up' : 'fa-volume-mute'}`}></i>
+                  {voiceModeEnabled && isSpeaking && (
+                    <span className="text-xs animate-pulse">재생중</span>
+                  )}
+                  {!isSpeaking && (
+                    <span className="text-xs">{voiceModeEnabled ? '음성' : '음성'}</span>
+                  )}
+                </button>
+                
+                {/* 메신저 모드 전환 버튼 */}
                 <button
                   onClick={() => setChatMode('messenger')}
                   className="px-4 py-2 bg-white/90 text-slate-700 rounded-full shadow-lg hover:bg-white transition-all duration-200 text-sm font-medium"
