@@ -12,11 +12,11 @@ import type { ComplexScenario, ScenarioPersona } from "@/lib/scenario-system";
 import type { Conversation, ConversationMessage } from "@shared/schema";
 
 // 감정별 캐릭터 이미지 import
-import characterNeutral from "@/assets/characters/character-neutral.png";
-import characterJoy from "@/assets/characters/character-joy.jpg";
-import characterSad from "@/assets/characters/character-sad.jpg";
-import characterAngry from "@/assets/characters/character-angry.jpg";
-import characterSurprise from "@/assets/characters/character-surprise.jpg";
+import characterNeutral from "../../../attached_assets/characters/character-neutral.png";
+import characterJoy from "../../../attached_assets/characters/character-joy.png";
+import characterSad from "../../../attached_assets/characters/character-sad.png";
+import characterAngry from "../../../attached_assets/characters/character-angry.png";
+import characterSurprise from "../../../attached_assets/characters/character-surprise.png";
 
 // 모든 캐릭터 이미지 매핑
 const characterImages = {
