@@ -1351,8 +1351,6 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
               }}
               data-testid="character-mode"
             >
-              {/* Background overlay for better text readability */}
-              <div className="absolute inset-0 bg-black/20"></div>
               
               {/* Top Left Area */}
               <div className="absolute top-4 left-4 z-20 space-y-3">
