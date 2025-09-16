@@ -285,49 +285,11 @@ export default function ScenarioSelector({ onScenarioSelect, playerProfile }: Sc
         <div className="max-w-4xl mx-auto">
           
           {/* 필터 섹션 */}
-          <div className="mb-6 p-3 bg-white rounded-lg border border-slate-300 shadow-sm">
-            {/* 첫 번째 줄: 필터 아이콘 + 검색 + 핵심스킬 */}
-            <div className="flex items-center gap-3 mb-3">
-              <Filter className="h-4 w-4 text-slate-600 flex-shrink-0" />
-              
-              {/* 검색어 */}
-              <div className="relative flex-1">
-                <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
-                <Input
-                  placeholder="시나리오 검색"
-                  value={filters.searchText}
-                  onChange={(e) => setFilters(prev => ({ ...prev, searchText: e.target.value }))}
-                  className="pl-10 h-9 text-sm"
-                  data-testid="filter-search"
-                />
-              </div>
-              
-              {/* 스킬 유형 */}
-              <div className="flex-1">
-                <Select value={filters.skillType || undefined} onValueChange={(value) => setFilters(prev => ({ ...prev, skillType: value }))}>
-                  <SelectTrigger data-testid="filter-skill-type" className="h-9 text-sm">
-                    <SelectValue placeholder="핵심 스킬" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">전체</SelectItem>
-                    <SelectItem value="협상">협상</SelectItem>
-                    <SelectItem value="의사소통">의사소통</SelectItem>
-                    <SelectItem value="갈등해결">갈등해결</SelectItem>
-                    <SelectItem value="리더십">리더십</SelectItem>
-                    <SelectItem value="문제해결">문제해결</SelectItem>
-                    <SelectItem value="팀워크">팀워크</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-            
-            {/* 두 번째 줄: 시나리오 개수 + 버튼들 */}
-            <div className="flex items-center justify-between text-xs text-slate-600">
+          <div className="mb-6 p-4 bg-white rounded-lg border border-slate-300 shadow-sm">
+            <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-2">
-                <span>총 {filteredScenarios.length}개의 시나리오</span>
-                {(filters.searchText || filters.difficulty || filters.personaCount || filters.department || filters.skillType) && (
-                  <span className="text-blue-600">필터 적용됨</span>
-                )}
+                <Filter className="h-4 w-4 text-slate-600" />
+                <h3 className="text-sm font-medium text-slate-700">필터</h3>
               </div>
               <div className="flex items-center gap-2">
                 <Button
@@ -352,9 +314,40 @@ export default function ScenarioSelector({ onScenarioSelect, playerProfile }: Sc
               </div>
             </div>
             
+            {/* 기본 필터 (항상 표시) */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
+              {/* 검색어 */}
+              <div className="relative">
+                <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
+                <Input
+                  placeholder="시나리오 검색"
+                  value={filters.searchText}
+                  onChange={(e) => setFilters(prev => ({ ...prev, searchText: e.target.value }))}
+                  className="pl-10 h-9 text-sm"
+                  data-testid="filter-search"
+                />
+              </div>
+              
+              {/* 스킬 유형 */}
+              <Select value={filters.skillType || undefined} onValueChange={(value) => setFilters(prev => ({ ...prev, skillType: value }))}>
+                <SelectTrigger data-testid="filter-skill-type" className="h-9 text-sm">
+                  <SelectValue placeholder="핵심 스킬" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">전체</SelectItem>
+                  <SelectItem value="협상">협상</SelectItem>
+                  <SelectItem value="의사소통">의사소통</SelectItem>
+                  <SelectItem value="갈등해결">갈등해결</SelectItem>
+                  <SelectItem value="리더십">리더십</SelectItem>
+                  <SelectItem value="문제해결">문제해결</SelectItem>
+                  <SelectItem value="팀워크">팀워크</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            
             {/* 고급 필터 (토글로 표시/숨김) */}
             {showAdvancedFilters && (
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-3 pt-3 mt-3 border-t border-slate-200">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3 pt-3 border-t border-slate-200">
                 {/* 난이도 */}
                 <Select value={filters.difficulty || undefined} onValueChange={(value) => setFilters(prev => ({ ...prev, difficulty: value }))}>
                   <SelectTrigger data-testid="filter-difficulty" className="h-9 text-sm">
@@ -403,6 +396,16 @@ export default function ScenarioSelector({ onScenarioSelect, playerProfile }: Sc
                 </Select>
               </div>
             )}
+            
+            {/* 필터 결과 요약 */}
+            <div className="mt-3 pt-3 border-t border-slate-300">
+              <div className="flex items-center justify-between text-xs text-slate-600">
+                <span>총 {filteredScenarios.length}개의 시나리오</span>
+                {(filters.searchText || filters.difficulty || filters.personaCount || filters.department || filters.skillType) && (
+                  <span className="text-blue-600">필터 적용됨</span>
+                )}
+              </div>
+            </div>
           </div>
           
           <div className="space-y-4">
