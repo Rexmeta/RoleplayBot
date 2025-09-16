@@ -277,9 +277,6 @@ export default function ScenarioSelector({ onScenarioSelect, playerProfile }: Sc
           <h1 className="text-4xl font-bold text-slate-900 mb-4">
             🎭 시나리오 기반 롤플레이 훈련
           </h1>
-          <p className="text-lg text-slate-600">
-            복잡한 업무 상황에서 다양한 이해관계자와의 협상 및 문제 해결 능력을 기르세요
-          </p>
         </div>
 
         <div className="max-w-4xl mx-auto">
