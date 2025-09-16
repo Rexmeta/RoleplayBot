@@ -128,7 +128,7 @@ export default function Home() {
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <a 
-                      href="/admin-dashboard" 
+                      href="/admin-management" 
                       className="hidden md:flex items-center justify-center w-10 h-10 text-corporate-600 hover:text-corporate-700 hover:bg-corporate-50 rounded-lg transition-colors"
                       data-testid="content-management-link"
                     >
