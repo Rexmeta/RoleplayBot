@@ -89,10 +89,23 @@ MBTI 유형: ${mbtiData?.mbti || (enrichedPersona as any).mbti || 'MBTI 유형 �
 6. 20-120단어 내외로 한국어로 응답하세요
 7. 상황에 맞는 현실적 감정과 반응을 표현하세요
 
+감정 분석 기준:
+- 기쁨: 만족, 즐거움, 긍정적 반응
+- 슬픔: 실망, 우울, 부정적 감정
+- 분노: 화남, 짜증, 불만
+- 놀람: 의외, 당황, 예상치 못한 반응
+- 중립: 평상심, 차분함, 일반적 상태
+
 이전 대화:
 ${conversationHistory}
 
-사용자의 새 메시지에 ${enrichedPersona.name}로서 응답하세요.`;
+사용자의 새 메시지에 ${enrichedPersona.name}로서 응답하고, 당신의 현재 감정 상태를 분석해주세요.
+반드시 다음 JSON 형식으로 응답하세요:
+{
+  "content": "대화 내용 (20-120단어)",
+  "emotion": "기쁨|슬픔|분노|놀람|중립 중 하나",
+  "emotionReason": "감정을 느끼는 구체적인 이유"
+}`;
 
       // 건너뛰기 시 자연스럽게 대화 이어가기 (MBTI 스타일 고려)
       const prompt = userMessage ? userMessage : "앞서 이야기를 자연스럽게 이어가거나 새로운 각도에서 문제를 제시해주세요.";
@@ -101,26 +114,33 @@ ${conversationHistory}
 
       const response = await this.genAI.models.generateContent({
         model: this.model,
+        config: {
+          responseMimeType: "application/json",
+          responseSchema: {
+            type: "object",
+            properties: {
+              content: { type: "string" },
+              emotion: { type: "string" },
+              emotionReason: { type: "string" }
+            },
+            required: ["content", "emotion", "emotionReason"]
+          }
+        },
         contents: [
           { role: "user", parts: [{ text: systemPrompt + "\n\n사용자: " + prompt }] }
         ],
       });
 
-      const content = response.text || "죄송합니다. 응답을 생성할 수 없습니다.";
+      const responseData = JSON.parse(response.text || '{"content": "죄송합니다. 응답을 생성할 수 없습니다.", "emotion": "중립", "emotionReason": "시스템 오류"}');
+      
       console.log("✓ Gemini API call completed");
-      console.log("Generated text:", content);
+      console.log("Generated response:", responseData);
 
-      // 감정 분석 (MBTI 특성 반영)
-      let emotion = "중립";
-      let emotionReason = "일반적인 대화 상황";
-
-      if (userMessage) {
-        const emotionAnalysis = await this.analyzeEmotion(content, enrichedPersona, userMessage, mbtiData);
-        emotion = emotionAnalysis.emotion;
-        emotionReason = emotionAnalysis.reason;
-      }
-
-      return { content, emotion, emotionReason };
+      return {
+        content: responseData.content || "죄송합니다. 응답을 생성할 수 없습니다.",
+        emotion: responseData.emotion || "중립",
+        emotionReason: responseData.emotionReason || "일반적인 대화 상황"
+      };
     } catch (error) {
       console.error("Gemini API error:", error);
       const fallbackContent = this.getFallbackResponse(enrichedPersona, mbtiData);
@@ -132,61 +152,6 @@ ${conversationHistory}
     }
   }
 
-  private async analyzeEmotion(
-    response: string, 
-    persona: any, 
-    userMessage: string,
-    mbtiData?: MBTIPersona | null
-  ): Promise<{ emotion: string; reason: string }> {
-    try {
-      const emotionPrompt = `다음 대화에서 ${persona.name}의 감정 상태를 분석하세요.
-
-${persona.name}의 MBTI: ${mbtiData?.mbti || persona.mbti || 'MBTI 유형 미지정'}
-성격 특성: ${mbtiData?.personality_traits?.join(', ') || '기본 특성'}
-의사소통 스타일: ${mbtiData?.communication_style || '균형 잡힌 의사소통'}
-주요 우려사항: ${mbtiData?.fears?.join(', ') || '없음'}
-현재 입장: ${(persona as any).stance || '상황에 따른 대응'}
-감정 표현 패턴: ${mbtiData?.voice ? `${mbtiData.voice.tone}, ${mbtiData.voice.emotion}` : '자연스러운 감정 표현'}
-
-사용자 메시지: "${userMessage}"
-${persona.name}의 응답: "${response}"
-
-다음 중 하나의 감정으로 분류하고 이유를 설명하세요:
-- 기쁨: 만족, 즐거움, 긍정적 반응
-- 슬픔: 실망, 우울, 부정적 감정
-- 분노: 화남, 짜증, 불만
-- 놀람: 의외, 당황, 예상치 못한 반응
-- 중립: 평상심, 차분함, 일반적 상태
-
-JSON 형식으로 응답하세요:
-{"emotion": "감정", "reason": "감정을 느끼는 이유"}`;
-
-      const emotionResponse = await this.genAI.models.generateContent({
-        model: "gemini-2.5-pro",
-        config: {
-          responseMimeType: "application/json",
-          responseSchema: {
-            type: "object",
-            properties: {
-              emotion: { type: "string" },
-              reason: { type: "string" }
-            },
-            required: ["emotion", "reason"]
-          }
-        },
-        contents: [{ role: "user", parts: [{ text: emotionPrompt }] }]
-      });
-
-      const emotionData = JSON.parse(emotionResponse.text || '{"emotion": "중립", "reason": "분석 불가"}');
-      return {
-        emotion: emotionData.emotion || "중립",
-        reason: emotionData.reason || "감정 분석 실패"
-      };
-    } catch (error) {
-      console.error("Emotion analysis error:", error);
-      return { emotion: "중립", reason: "감정 분석 오류" };
-    }
-  }
 
   async generateFeedback(
     scenario: string, 
