@@ -1485,7 +1485,7 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
               </div>
 
               {/* Bottom Interactive Box - AI Message Focused */}
-              <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 z-20 w-full max-w-4xl lg:max-w-6xl xl:max-w-[90%] px-4 bg-[#ffffff9c]">
+              <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 z-20 w-full max-w-4xl lg:max-w-6xl xl:max-w-[90%] px-4 bg-[#00000000]">
                 <Card className="bg-white/40 backdrop-blur-sm shadow-xl border border-white/10">
                   {/* AI Message Section - Full Width */}
                   <div className="p-4 bg-[#ffffff9c]">
