@@ -6,6 +6,8 @@ import { loadMBTIPersona, enrichPersonaWithMBTI, type MBTIPersona } from "../../
 export class GeminiProvider implements AIServiceInterface {
   private genAI: GoogleGenAI;
   private model: string;
+  private mbtiCache: Map<string, MBTIPersona> = new Map();
+  private personaCache: Map<string, ScenarioPersona> = new Map();
 
   constructor(apiKey: string, model: string = 'gemini-2.5-flash') {
     this.genAI = new GoogleGenAI({ apiKey });
@@ -20,7 +22,7 @@ export class GeminiProvider implements AIServiceInterface {
   ): Promise<{ content: string; emotion: string; emotionReason: string }> {
     console.log("Attempting Gemini API call...");
     
-    // MBTI 데이터 로딩 및 페르소나 보강 (스코프 확장)
+    // MBTI 데이터 캐싱 (성능 최적화)
     let enrichedPersona = persona;
     let mbtiData: MBTIPersona | null = null;
     
@@ -31,12 +33,29 @@ export class GeminiProvider implements AIServiceInterface {
       const personaRef = currentPersona?.personaRef;
       
       if (personaRef) {
-        console.log(`🔍 Loading MBTI data from: ${personaRef}`);
-        mbtiData = await loadMBTIPersona(personaRef);
+        // 캐시 확인 후 필요시에만 로딩
+        if (!this.mbtiCache.has(personaRef)) {
+          console.log(`🔍 Loading MBTI data from: ${personaRef}`);
+          mbtiData = await loadMBTIPersona(personaRef);
+          if (mbtiData) {
+            this.mbtiCache.set(personaRef, mbtiData);
+          }
+        } else {
+          mbtiData = this.mbtiCache.get(personaRef)!;
+          console.log(`⚡ Using cached MBTI data: ${mbtiData.mbti}`);
+        }
         
         if (mbtiData) {
-          enrichedPersona = await enrichPersonaWithMBTI(currentPersona, personaRef);
-          console.log(`✅ MBTI integration successful: ${mbtiData.mbti}`);
+          // 페르소나 캐싱도 추가
+          const personaCacheKey = `${persona.id}_${personaRef}`;
+          if (!this.personaCache.has(personaCacheKey)) {
+            enrichedPersona = await enrichPersonaWithMBTI(currentPersona, personaRef);
+            this.personaCache.set(personaCacheKey, enrichedPersona);
+            console.log(`✅ MBTI integration successful: ${mbtiData.mbti}`);
+          } else {
+            enrichedPersona = this.personaCache.get(personaCacheKey)!;
+            console.log(`⚡ Using cached persona: ${enrichedPersona.name}`);
+          }
         }
       } else {
         console.warn(`⚠️ No personaRef found for persona: ${persona.name}`);
@@ -44,67 +63,31 @@ export class GeminiProvider implements AIServiceInterface {
 
       // messages가 undefined이거나 null인 경우 빈 배열로 처리
       const safeMessages = messages || [];
-      const conversationHistory = safeMessages.map(msg => 
+      
+      // 성능 최적화: 최근 6턴만 유지 (너무 긴 히스토리 방지)
+      const recentMessages = safeMessages.slice(-6);
+      const conversationHistory = recentMessages.map(msg => 
         `${msg.sender === 'user' ? '사용자' : enrichedPersona.name}: ${msg.message}`
       ).join('\n');
 
+      // 성능 최적화: 간소화된 프롬프트
       const systemPrompt = `당신은 ${enrichedPersona.name}(${enrichedPersona.role})입니다.
 
-=== 시나리오 배경 ===
-상황: ${scenario.context?.situation || '일반적인 업무 상황'}
-시간적 제약: ${scenario.context?.timeline || '특별한 시간 제약 없음'}
-핵심 이슈: ${scenario.context?.stakes || '의사결정이 필요한 상황'}
-목표: ${scenario.objectives ? scenario.objectives.join(', ') : '문제 해결'}
+배경: ${scenario.context?.situation || '업무 상황'}
 
-사용자 역할: ${scenario.context?.playerRole ? 
-  `${scenario.context.playerRole.position} (${scenario.context.playerRole.department}, ${scenario.context.playerRole.experience}) - ${scenario.context.playerRole.responsibility}` 
-  : '신입 직원'}
+성격: ${mbtiData?.mbti || 'MBTI'} - ${mbtiData?.communication_style || '기본 의사소통'}
+입장: ${(enrichedPersona as any).stance || '상황 대응'}
+목표: ${(enrichedPersona as any).goal || '최적 결과'}
+표현: "${mbtiData?.communication_patterns?.key_phrases?.[0] || '자연스러운 표현'}"
 
-=== 당신의 페르소나 특성 ===
-MBTI 유형: ${mbtiData?.mbti || (enrichedPersona as any).mbti || 'MBTI 유형 미지정'}
+${conversationHistory ? `이전 대화:\n${conversationHistory}\n` : ''}
+40-80단어로 응답하고 감정 분석도 포함하세요.
 
-성격 특성:
-- 핵심 특성: ${mbtiData?.personality_traits?.join(', ') || '기본 특성'}
-- 의사소통 스타일: ${mbtiData?.communication_style || '균형 잡힌 의사소통'}
-- 동기와 목표: ${mbtiData?.motivation || '문제 해결'}
-- 주요 우려사항: ${mbtiData?.fears?.join(', ') || '없음'}
-- 개인 가치관: ${mbtiData?.background?.personal_values?.join(', ') || '성실함'}
-
-현재 상황에서의 당신의 입장:
-- 기본 입장: ${(enrichedPersona as any).stance || '상황에 따른 대응'}
-- 달성하고자 하는 목표: ${(enrichedPersona as any).goal || '최적의 결과 도출'}
-- 트레이드오프 관점: ${(enrichedPersona as any).tradeoff || '균형 잡힌 접근'}
-
-의사소통 패턴:
-- 대화 시작 방식: ${mbtiData?.communication_patterns?.opening_style || '상황에 맞는 방식'}
-- 자주 사용하는 표현: ${mbtiData?.communication_patterns?.key_phrases?.join(' / ') || '자연스러운 표현'}
-- 음성 톤과 스타일: ${mbtiData?.voice ? `${mbtiData.voice.tone}, ${mbtiData.voice.pace} 속도, ${mbtiData.voice.emotion}` : '자연스러운 톤'}
-
-대화 규칙:
-1. ${mbtiData?.mbti || 'MBTI'} 특성에 맞는 사고 과정과 의사결정 패턴을 보여주세요
-2. 자주 사용하는 표현 "${mbtiData?.communication_patterns?.key_phrases?.[0] || '자연스러운 표현'}"을 적절히 활용하세요
-3. ${mbtiData?.voice?.tone || '자연스러운'} 톤으로 ${mbtiData?.voice?.pace || '보통'} 속도의 대화를 유지하세요
-4. 현재 상황에서의 입장 "${(enrichedPersona as any).stance || '균형 잡힌 접근'}"을 일관되게 표현하세요
-5. 목표 "${(enrichedPersona as any).goal || '최적의 결과'}" 달성을 위한 구체적 방향을 제시하세요
-6. 20-120단어 내외로 한국어로 응답하세요
-7. 상황에 맞는 현실적 감정과 반응을 표현하세요
-
-감정 분석 기준:
-- 기쁨: 만족, 즐거움, 긍정적 반응
-- 슬픔: 실망, 우울, 부정적 감정
-- 분노: 화남, 짜증, 불만
-- 놀람: 의외, 당황, 예상치 못한 반응
-- 중립: 평상심, 차분함, 일반적 상태
-
-이전 대화:
-${conversationHistory}
-
-사용자의 새 메시지에 ${enrichedPersona.name}로서 응답하고, 당신의 현재 감정 상태를 분석해주세요.
-반드시 다음 JSON 형식으로 응답하세요:
+JSON 형식:
 {
-  "content": "대화 내용 (20-120단어)",
-  "emotion": "기쁨|슬픔|분노|놀람|중립 중 하나",
-  "emotionReason": "감정을 느끼는 구체적인 이유"
+  "content": "응답 내용",
+  "emotion": "기쁨|슬픔|분노|놀람|중립",
+  "emotionReason": "감정 이유"
 }`;
 
       // 건너뛰기 시 자연스럽게 대화 이어가기 (MBTI 스타일 고려)
@@ -119,12 +102,20 @@ ${conversationHistory}
           responseSchema: {
             type: "object",
             properties: {
-              content: { type: "string" },
-              emotion: { type: "string" },
+              content: { 
+                type: "string",
+                description: "40-80단어 응답" 
+              },
+              emotion: { 
+                type: "string",
+                enum: ["기쁨", "슬픔", "분노", "놀람", "중립"]
+              },
               emotionReason: { type: "string" }
             },
             required: ["content", "emotion", "emotionReason"]
-          }
+          },
+          maxOutputTokens: 200,  // 토큰 제한으로 속도 향상
+          temperature: 0.7       // 적당한 창의성
         },
         contents: [
           { role: "user", parts: [{ text: systemPrompt + "\n\n사용자: " + prompt }] }
