@@ -289,7 +289,7 @@ export default function ScenarioSelector({ onScenarioSelect, playerProfile }: Sc
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-2">
                 <Filter className="h-4 w-4 text-slate-600" />
-                <h3 className="text-sm font-medium text-slate-700">필터</h3>
+                <h3 className="text-sm font-medium text-slate-700">총 {filteredScenarios.length}개의 시나리오</h3>
               </div>
               <div className="flex items-center gap-2">
                 <Button
@@ -397,15 +397,14 @@ export default function ScenarioSelector({ onScenarioSelect, playerProfile }: Sc
               </div>
             )}
             
-            {/* 필터 결과 요약 */}
-            <div className="mt-3 pt-3 border-t border-slate-300">
-              <div className="flex items-center justify-between text-xs text-slate-600">
-                <span>총 {filteredScenarios.length}개의 시나리오</span>
-                {(filters.searchText || filters.difficulty || filters.personaCount || filters.department || filters.skillType) && (
-                  <span className="text-blue-600">필터 적용됨</span>
-                )}
+            {/* 필터 적용 상태 표시 */}
+            {(filters.searchText || filters.difficulty || filters.personaCount || filters.department || filters.skillType) && (
+              <div className="mt-3 pt-3 border-t border-slate-200">
+                <div className="flex items-center justify-center">
+                  <span className="text-xs text-blue-600">필터 적용됨</span>
+                </div>
               </div>
-            </div>
+            )}
           </div>
           
           <div className="space-y-4">
