@@ -134,7 +134,7 @@ export default function ScenarioSelector({ onScenarioSelect, playerProfile }: Sc
     setTimeout(() => {
       personasRef.current?.scrollIntoView({ 
         behavior: 'smooth',
-        block: 'start' 
+        block: 'center' 
       });
     }, 100);
   };
@@ -146,7 +146,7 @@ export default function ScenarioSelector({ onScenarioSelect, playerProfile }: Sc
     setTimeout(() => {
       startButtonRef.current?.scrollIntoView({ 
         behavior: 'smooth',
-        block: 'start' 
+        block: 'center' 
       });
     }, 100);
   };
