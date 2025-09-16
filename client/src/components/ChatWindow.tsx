@@ -82,7 +82,6 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
   const lastSpokenMessageRef = useRef<string>("");
   const currentAudioRef = useRef<HTMLAudioElement | null>(null);
   const currentAudioUrlRef = useRef<string | null>(null);
-  const streamAbortControllerRef = useRef<AbortController | null>(null);
 
   const queryClient = useQueryClient();
   const { toast } = useToast();
@@ -147,106 +146,27 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
     };
   }, [conversationStartTime, conversation]);
 
-  const [streamingMessage, setStreamingMessage] = useState<string>("");
-  const [isStreaming, setIsStreaming] = useState(false);
-
-  const sendMessageWithStreaming = async (message: string) => {
-    try {
-      // Cancel any existing stream
-      if (streamAbortControllerRef.current) {
-        streamAbortControllerRef.current.abort();
-      }
-      
-      // Create new AbortController for this stream
-      const abortController = new AbortController();
-      streamAbortControllerRef.current = abortController;
-      
-      setIsLoading(true);
-      setIsStreaming(true);
-      setStreamingMessage("");
-      
-      // Use fetch for streaming (EventSource doesn't support POST)
-      const response = await fetch(`/api/conversations/${conversationId}/messages/stream`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ message }),
-        signal: abortController.signal
+  const sendMessageMutation = useMutation({
+    mutationFn: async (message: string) => {
+      const response = await apiRequest("POST", `/api/conversations/${conversationId}/messages`, {
+        message
       });
-
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-
-      const reader = response.body?.getReader();
-      const decoder = new TextDecoder();
-      let buffer = "";
-      let fullContent = "";
-
-      if (reader) {
-        try {
-          while (true) {
-            const { done, value } = await reader.read();
-            if (done) break;
-
-            buffer += decoder.decode(value, { stream: true });
-            const lines = buffer.split('\n');
-            buffer = lines.pop() || "";
-
-            for (const line of lines) {
-              if (line.startsWith('data: ')) {
-                try {
-                  const data = JSON.parse(line.slice(6));
-                  
-                  if (data.type === 'chunk') {
-                    fullContent += data.text;
-                    setStreamingMessage(fullContent);
-                  } else if (data.type === 'complete') {
-                    // 스트리밍 완료 - AI 메시지를 로컬 상태에 추가
-                    const aiMessage: ConversationMessage = {
-                      sender: 'ai',
-                      message: data.fullContent || fullContent,
-                      timestamp: new Date().toISOString(),
-                      emotion: data.emotion,
-                      emotionReason: data.emotionReason
-                    };
-                    
-                    setLocalMessages(prev => [...prev, aiMessage]);
-                    setStreamingMessage("");
-                    setIsStreaming(false);
-                    
-                    // 서버 데이터 동기화
-                    queryClient.invalidateQueries({ queryKey: ["/api/conversations", conversationId] });
-                    
-                  } else if (data.type === 'metadata') {
-                    // 메타데이터 처리 (턴 수, 완료 상태 등)
-                    console.log('Conversation metadata:', data);
-                  } else if (data.type === 'error') {
-                    throw new Error(data.message);
-                  }
-                } catch (parseError) {
-                  console.error('Failed to parse SSE data:', parseError);
-                }
-              }
-            }
-          }
-        } finally {
-          reader.releaseLock();
+      return response.json();
+    },
+    onSuccess: (data) => {
+      // AI 응답만 로컬 메시지에 추가
+      if (data.messages && data.messages.length > 0) {
+        const latestMessage = data.messages[data.messages.length - 1];
+        if (latestMessage.sender === 'ai') {
+          setLocalMessages(prev => [...prev, latestMessage]);
         }
       }
-
+      
+      // 서버 데이터 동기화는 별도로 처리
+      queryClient.invalidateQueries({ queryKey: ["/api/conversations", conversationId] });
       setIsLoading(false);
-      
-    } catch (error) {
-      // Don't show error if request was aborted
-      if (error instanceof Error && error.name === 'AbortError') {
-        console.log('Stream request was aborted');
-        return;
-      }
-      
-      console.error('Streaming error:', error);
-      
+    },
+    onError: () => {
       // 오류 시 사용자 메시지 제거
       setLocalMessages(prev => {
         if (prev.length > 0 && prev[prev.length - 1].sender === 'user') {
@@ -255,25 +175,12 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
         return prev;
       });
       
-      setStreamingMessage("");
-      setIsStreaming(false);
-      setIsLoading(false);
-      
       toast({
         title: "오류",
         description: "메시지를 전송할 수 없습니다. 다시 시도해주세요.",
         variant: "destructive"
       });
-    }
-  };
-
-  const sendMessageMutation = useMutation({
-    mutationFn: sendMessageWithStreaming,
-    onSuccess: () => {
-      // 스트리밍에서 처리됨
-    },
-    onError: () => {
-      // 스트리밍에서 처리됨
+      setIsLoading(false);
     }
   });
 
@@ -893,12 +800,6 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
         speechSynthesisRef.current.cancel();
         speechSynthesisRef.current = null;
       }
-      
-      // 스트리밍 요청 정리
-      if (streamAbortControllerRef.current) {
-        streamAbortControllerRef.current.abort();
-        streamAbortControllerRef.current = null;
-      }
     };
   }, []);
 
@@ -1273,28 +1174,7 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
                 </div>
               ))}
 
-              {/* 스트리밍 중인 메시지 표시 */}
-              {isStreaming && streamingMessage && (
-                <div className="flex items-start space-x-3">
-                  <div className="relative">
-                    <img src={persona.image} alt={persona.name} className="w-8 h-8 rounded-full" />
-                    {/* 스트리밍 중 표시 */}
-                    <div className="absolute -bottom-1 -right-1 text-sm bg-white rounded-full w-5 h-5 flex items-center justify-center border border-gray-200">
-                      <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-                    </div>
-                  </div>
-                  <div className="message-card rounded-lg rounded-tl-none p-3 max-w-md">
-                    <p className="text-slate-800">{streamingMessage}</p>
-                    <div className="mt-2 text-xs text-slate-500 flex items-center">
-                      <span className="mr-1">💬</span>
-                      <span>입력 중...</span>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* 일반 로딩 (스트리밍이 아닌 경우) */}
-              {isLoading && !isStreaming && (
+              {isLoading && (
                 <div className="flex items-start space-x-3">
                   <img src={persona.image} alt={persona.name} className="w-8 h-8 rounded-full" />
                   <div className="message-card rounded-lg rounded-tl-none p-3 max-w-md">
@@ -1611,21 +1491,7 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
                 <Card className="bg-white/40 backdrop-blur-sm shadow-xl border border-white/10">
                   {/* AI Message Section - Full Width */}
                   <div className="p-4">
-                    {/* 스트리밍 중인 메시지 표시 */}
-                    {isStreaming && streamingMessage ? (
-                      <div className="space-y-3" data-testid="status-streaming">
-                        <p className="text-slate-800 leading-relaxed text-base">
-                          {streamingMessage}
-                        </p>
-                        <div className="flex items-center justify-between pt-2">
-                          <div className="text-xs text-slate-500 flex items-center">
-                            <span className="mr-1">💬</span>
-                            <span>입력 중...</span>
-                            <div className="w-2 h-2 bg-purple-500 rounded-full animate-pulse ml-2"></div>
-                          </div>
-                        </div>
-                      </div>
-                    ) : isLoading ? (
+                    {isLoading ? (
                       <div className="flex items-center justify-center space-x-2" data-testid="status-typing">
                         <div className="w-3 h-3 bg-purple-400 rounded-full animate-bounce"></div>
                         <div className="w-3 h-3 bg-purple-400 rounded-full animate-bounce" style={{ animationDelay: "0.1s" }}></div>

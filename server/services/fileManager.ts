@@ -1,7 +1,6 @@
 import * as fs from 'fs/promises';
 import * as path from 'path';
-import { ComplexScenario } from '../services/aiScenarioGenerator';
-import { ScenarioPersona } from '../../shared/schema';
+import { ComplexScenario, ScenarioPersona } from '@/lib/scenario-system';
 
 const SCENARIOS_DIR = 'scenarios';
 const PERSONAS_DIR = 'personas';
@@ -277,6 +276,7 @@ export class FileManagerService {
         role: scenarioPersona.position,
         department: scenarioPersona.department,
         experience: this.generateExperience(scenarioPersona.position),
+        image: mbtiPersona.image?.profile || `https://ui-avatars.com/api/?name=${encodeURIComponent(scenarioPersona.id)}&background=6366f1&color=fff&size=150`,
         personality: {
           traits: mbtiPersona.personality_traits || [],
           communicationStyle: mbtiPersona.communication_style || '',
@@ -306,7 +306,6 @@ export class FileManagerService {
           pace: mbtiPersona.voice?.pace || '',
           emotion: mbtiPersona.voice?.emotion || ''
         },
-        image: mbtiPersona.image || '',
         // 시나리오 전용 정보 추가
         stance: scenarioPersona.stance,
         goal: scenarioPersona.goal,

@@ -9,18 +9,6 @@ export interface AIServiceInterface {
     userMessage?: string
   ): Promise<{ content: string; emotion: string; emotionReason: string }>;
   
-  generateResponseStream?(
-    scenario: any, 
-    messages: ConversationMessage[], 
-    persona: ScenarioPersona,
-    userMessage?: string
-  ): AsyncGenerator<
-    | { chunk: string; isComplete: false }
-    | { isComplete: true; emotion?: string; emotionReason?: string },
-    void,
-    unknown
-  >;
-  
   generateFeedback(
     scenario: string, 
     messages: ConversationMessage[], 
