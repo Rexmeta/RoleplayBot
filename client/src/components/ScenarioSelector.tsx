@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -24,6 +24,10 @@ export default function ScenarioSelector({ onScenarioSelect, playerProfile }: Sc
   const [selectedScenario, setSelectedScenario] = useState<ComplexScenario | null>(null);
   const [selectedPersona, setSelectedPersona] = useState<ScenarioPersona | null>(null);
   const [loadingScenarioId, setLoadingScenarioId] = useState<string | null>(null);
+  
+  // 스크롤 ref
+  const personasRef = useRef<HTMLDivElement>(null);
+  const startButtonRef = useRef<HTMLDivElement>(null);
   
   // 필터 상태
   const [filters, setFilters] = useState({
@@ -125,10 +129,26 @@ export default function ScenarioSelector({ onScenarioSelect, playerProfile }: Sc
   const handleScenarioClick = (scenario: ComplexScenario) => {
     setSelectedScenario(scenario);
     setSelectedPersona(null);
+    
+    // 대화상대 리스트로 스크롤
+    setTimeout(() => {
+      personasRef.current?.scrollIntoView({ 
+        behavior: 'smooth',
+        block: 'start' 
+      });
+    }, 100);
   };
 
   const handlePersonaSelect = (persona: ScenarioPersona) => {
     setSelectedPersona(persona);
+    
+    // 대화하기 버튼으로 스크롤
+    setTimeout(() => {
+      startButtonRef.current?.scrollIntoView({ 
+        behavior: 'smooth',
+        block: 'start' 
+      });
+    }, 100);
   };
 
   const handleStartConversation = () => {
@@ -456,7 +476,7 @@ export default function ScenarioSelector({ onScenarioSelect, playerProfile }: Sc
 
                   {/* 펼쳐지는 페르소나 목록 */}
                   {isSelected && (
-                    <CardContent className="border-t border-slate-200 bg-slate-50">
+                    <CardContent className="border-t border-slate-200 bg-slate-50" ref={personasRef}>
                       <div className="py-4">
                         <h3 className="text-lg font-medium text-slate-800 mb-4 flex items-center">
                           <i className="fas fa-users text-blue-600 mr-2"></i>
@@ -516,7 +536,7 @@ export default function ScenarioSelector({ onScenarioSelect, playerProfile }: Sc
                                 
                                 {/* 선택된 페르소나의 대화 시작 버튼 */}
                                 {isPersonaSelected && (
-                                  <div className="mt-3 p-4 bg-green-50 border border-green-200 rounded-lg">
+                                  <div ref={startButtonRef} className="mt-3 p-4 bg-green-50 border border-green-200 rounded-lg">
                                     <Button 
                                       onClick={handleStartConversation}
                                       disabled={loadingScenarioId !== null}
