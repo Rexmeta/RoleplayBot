@@ -70,24 +70,30 @@ export class GeminiProvider implements AIServiceInterface {
         `${msg.sender === 'user' ? '사용자' : enrichedPersona.name}: ${msg.message}`
       ).join('\n');
 
-      // 성능 최적화: 간소화된 프롬프트
       const systemPrompt = `당신은 ${enrichedPersona.name}(${enrichedPersona.role})입니다.
 
-배경: ${scenario.context?.situation || '업무 상황'}
+=== 시나리오 배경 ===
+상황: ${scenario.context?.situation || '일반적인 업무 상황'}
+목표: ${scenario.objectives ? scenario.objectives.join(', ') : '문제 해결'}
 
-성격: ${mbtiData?.mbti || 'MBTI'} - ${mbtiData?.communication_style || '기본 의사소통'}
-입장: ${(enrichedPersona as any).stance || '상황 대응'}
-목표: ${(enrichedPersona as any).goal || '최적 결과'}
-표현: "${mbtiData?.communication_patterns?.key_phrases?.[0] || '자연스러운 표현'}"
+=== 당신의 특성 ===
+MBTI: ${mbtiData?.mbti || 'MBTI 유형 미지정'}
+의사소통 스타일: ${mbtiData?.communication_style || '균형 잡힌 의사소통'}
+입장: ${(enrichedPersona as any).stance || '상황에 따른 대응'}
+목표: ${(enrichedPersona as any).goal || '최적의 결과 도출'}
+
+대화 규칙:
+1. 20-120단어 내외로 한국어로 응답하세요
+2. 현재 상황에 맞는 현실적 감정과 반응을 표현하세요
 
 ${conversationHistory ? `이전 대화:\n${conversationHistory}\n` : ''}
-40-80단어로 응답하고 감정 분석도 포함하세요.
 
-JSON 형식:
+사용자의 새 메시지에 ${enrichedPersona.name}로서 응답하고, 당신의 현재 감정 상태를 분석해주세요.
+반드시 다음 JSON 형식으로 응답하세요:
 {
-  "content": "응답 내용",
-  "emotion": "기쁨|슬픔|분노|놀람|중립",
-  "emotionReason": "감정 이유"
+  "content": "대화 내용",
+  "emotion": "기쁨|슬픔|분노|놀람|중립 중 하나",
+  "emotionReason": "감정을 느끼는 구체적인 이유"
 }`;
 
       // 건너뛰기 시 자연스럽게 대화 이어가기 (MBTI 스타일 고려)
@@ -102,20 +108,12 @@ JSON 형식:
           responseSchema: {
             type: "object",
             properties: {
-              content: { 
-                type: "string",
-                description: "40-80단어 응답" 
-              },
-              emotion: { 
-                type: "string",
-                enum: ["기쁨", "슬픔", "분노", "놀람", "중립"]
-              },
+              content: { type: "string" },
+              emotion: { type: "string" },
               emotionReason: { type: "string" }
             },
             required: ["content", "emotion", "emotionReason"]
-          },
-          maxOutputTokens: 200,  // 토큰 제한으로 속도 향상
-          temperature: 0.7       // 적당한 창의성
+          }
         },
         contents: [
           { role: "user", parts: [{ text: systemPrompt + "\n\n사용자: " + prompt }] }
