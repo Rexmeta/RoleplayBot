@@ -65,9 +65,19 @@ export async function createSampleData() {
 
   // Create multiple conversations with varying scores for realistic data
   for (const scenario of scenarios) {
+    // 시나리오에서 첫 번째 페르소나 ID 가져오기
+    const scenarioObj = realScenarios.find(s => s.id === scenario.id);
+    const firstPersonaId = scenarioObj?.personas?.[0]?.id || "istj"; // 기본값으로 istj 사용
+    
     for (let i = 0; i < Math.floor(Math.random() * 8) + 3; i++) { // 3-10 conversations per scenario
+      // 시나리오의 다양한 페르소나를 랜덤하게 선택
+      const personas = scenarioObj?.personas || [];
+      const randomPersona = personas.length > 0 ? personas[Math.floor(Math.random() * personas.length)] : null;
+      const personaId = randomPersona?.id || firstPersonaId;
+      
       const conversation = await storage.createConversation({
         scenarioId: scenario.id,
+        personaId: personaId, // personaId 추가
         scenarioName: scenario.name,
         messages: sampleMessages,
         turnCount: 10,

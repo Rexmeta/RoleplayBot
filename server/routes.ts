@@ -427,10 +427,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return acc;
       }, {} as Record<string, { count: number; name: string; difficulty: number }>);
       
-      // MBTI 페르소나 사용 분석
+      // MBTI 페르소나 사용 분석 (personaId → MBTI 유형 변환)
       const mbtiUsage = conversations.reduce((acc, conv) => {
-        if (conv.personaId) {
-          acc[conv.personaId] = (acc[conv.personaId] || 0) + 1;
+        if (conv.personaId && conv.scenarioId) {
+          // 시나리오에서 해당 페르소나 정보 찾기
+          const scenario = scenarios.find(s => s.id === conv.scenarioId);
+          if (scenario?.personas) {
+            const persona = scenario.personas.find((p: any) => 
+              (typeof p === 'object' && p.id === conv.personaId) ||
+              (typeof p === 'string' && p === conv.personaId)
+            );
+            
+            if (persona && typeof persona === 'object' && (persona as any).personaRef) {
+              // personaRef에서 MBTI 유형 추출 (예: "istj.json" → "ISTJ")
+              const mbtiType = (persona as any).personaRef.replace('.json', '').toUpperCase();
+              acc[mbtiType] = (acc[mbtiType] || 0) + 1;
+            }
+          }
         }
         return acc;
       }, {} as Record<string, number>);
@@ -521,17 +534,31 @@ export async function registerRoutes(app: Express): Promise<Server> {
         };
       });
       
-      // MBTI 페르소나별 성과 분석
+      // MBTI 유형별 성과 분석 (personaId → MBTI 유형 변환)
       const mbtiPerformance = conversations
-        .filter(c => c.status === "completed" && c.personaId)
+        .filter(c => c.status === "completed" && c.personaId && c.scenarioId)
         .reduce((acc, conv) => {
           const feedback = feedbacks.find(f => f.conversationId === conv.id);
-          if (feedback && conv.personaId) {
-            if (!acc[conv.personaId]) {
-              acc[conv.personaId] = { scores: [], count: 0 };
+          if (feedback && conv.personaId && conv.scenarioId) {
+            // 시나리오에서 해당 페르소나 정보 찾기
+            const scenario = scenarios.find(s => s.id === conv.scenarioId);
+            if (scenario?.personas) {
+              const persona = scenario.personas.find((p: any) => 
+                (typeof p === 'object' && p.id === conv.personaId) ||
+                (typeof p === 'string' && p === conv.personaId)
+              );
+              
+              if (persona && typeof persona === 'object' && (persona as any).personaRef) {
+                // personaRef에서 MBTI 유형 추출 (예: "istj.json" → "ISTJ")
+                const mbtiType = (persona as any).personaRef.replace('.json', '').toUpperCase();
+                
+                if (!acc[mbtiType]) {
+                  acc[mbtiType] = { scores: [], count: 0 };
+                }
+                acc[mbtiType].scores.push(feedback.overallScore);
+                acc[mbtiType].count += 1;
+              }
             }
-            acc[conv.personaId].scores.push(feedback.overallScore);
-            acc[conv.personaId].count += 1;
           }
           return acc;
         }, {} as Record<string, { scores: number[]; count: number }>);
