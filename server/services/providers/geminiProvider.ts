@@ -229,12 +229,42 @@ ${conversationHistory}
       let fullContent = "";
       
       // 스트리밍 청크 처리
+      let chunkCount = 0;
       for await (const chunk of response) {
+        chunkCount++;
+        console.log(`📦 Streaming chunk ${chunkCount}:`, chunk.text?.length || 0, 'characters');
         if (chunk.text) {
           fullContent += chunk.text;
-          yield { chunk: chunk.text, isComplete: false };
+          
+          // 긴 텍스트를 인위적으로 청크로 나누어 스트리밍 효과 제공
+          if (chunk.text.length > 20) {
+            const words = chunk.text.split(' ');
+            let currentChunk = '';
+            
+            for (const word of words) {
+              currentChunk += (currentChunk ? ' ' : '') + word;
+              
+              // 단어 4-6개씩 묶어서 청크로 전송
+              if (currentChunk.split(' ').length >= 4) {
+                yield { chunk: currentChunk + ' ', isComplete: false };
+                await new Promise(resolve => setTimeout(resolve, 100)); // 100ms 지연
+                currentChunk = '';
+              }
+            }
+            
+            // 남은 텍스트 전송
+            if (currentChunk) {
+              yield { chunk: currentChunk, isComplete: false };
+              await new Promise(resolve => setTimeout(resolve, 100));
+            }
+          } else {
+            // 짧은 텍스트는 그대로 전송
+            yield { chunk: chunk.text, isComplete: false };
+          }
         }
       }
+      
+      console.log(`📊 Total streaming chunks received from Gemini: ${chunkCount}`);
       
       console.log("✓ Gemini streaming API call completed");
       console.log("Generated text:", fullContent);

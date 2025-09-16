@@ -104,6 +104,50 @@ export const insertFeedbackSchema = createInsertSchema(feedbacks).omit({
   createdAt: true,
 });
 
+// ScenarioPersona type for shared use between frontend and backend
+export interface ScenarioPersona {
+  id: string;
+  name: string;
+  role: string;
+  department: string;
+  experience: string;
+  gender?: 'male' | 'female';
+  personality: {
+    traits: string[];
+    communicationStyle: string;
+    motivation: string;
+    fears: string[];
+  };
+  background: {
+    education: string;
+    previousExperience: string;
+    majorProjects: string[];
+    expertise: string[];
+  };
+  currentSituation: {
+    workload: string;
+    pressure: string;
+    concerns: string[];
+    position: string;
+  };
+  communicationPatterns: {
+    openingStyle: string;
+    keyPhrases: string[];
+    responseToArguments: Record<string, string>;
+    winConditions: string[];
+  };
+  image: string;
+  voice: {
+    tone: string;
+    pace: string;
+    emotion: string;
+  };
+  stance?: string;
+  goal?: string;
+  tradeoff?: string;
+  mbti?: string;
+}
+
 export type InsertConversation = z.infer<typeof insertConversationSchema>;
 export type InsertFeedback = z.infer<typeof insertFeedbackSchema>;
 export type Conversation = typeof conversations.$inferSelect;

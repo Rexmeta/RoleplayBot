@@ -35,7 +35,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
         
         // MBTI 특성 로드
-        const allMbtiPersonas = await fileManager.getAllPersonas();
+        const allMbtiPersonas = await fileManager.getAllMBTIPersonas();
         const mbtiPersona = allMbtiPersonas.find(p => p.id === scenarioPersona.personaRef?.replace('.json', ''));
         
         // 시나리오 정보와 MBTI 특성 결합
@@ -52,7 +52,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
 
         const aiResult = await generateAIResponse(
-          scenarioObj, // 전체 시나리오 객체 전달
+          scenarioObj.title, // 시나리오 제목을 문자열로 전달
           [],
           persona
         );
@@ -146,7 +146,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       // MBTI 특성 로드
-      const allMbtiPersonas = await fileManager.getAllPersonas();
+      const allMbtiPersonas = await fileManager.getAllMBTIPersonas();
       const mbtiPersona = allMbtiPersonas.find(p => p.id === scenarioPersona.personaRef?.replace('.json', ''));
       
       // 시나리오 정보와 MBTI 특성 결합
@@ -162,7 +162,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       };
 
       const aiResult = await generateAIResponse(
-        scenarioObj, // 전체 시나리오 객체 전달
+        scenarioObj.title, // 시나리오 제목을 문자열로 전달
         updatedMessages,
         persona,
         isSkipTurn ? undefined : message
@@ -271,7 +271,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       // MBTI 특성 로드
-      const allMbtiPersonas = await fileManager.getAllPersonas();
+      const allMbtiPersonas = await fileManager.getAllMBTIPersonas();
       const mbtiPersona = allMbtiPersonas.find(p => p.id === scenarioPersona.personaRef?.replace('.json', ''));
       
       // 시나리오 정보와 MBTI 특성 결합
@@ -293,7 +293,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       try {
         // GeminiProvider에서 스트리밍 응답 생성
         const aiService = getAIService();
-        if (aiService && 'generateResponseStream' in aiService) {
+        if (aiService && 'generateResponseStream' in aiService && typeof aiService.generateResponseStream === 'function') {
           const streamGenerator = aiService.generateResponseStream(
             scenarioObj,
             updatedMessages,
@@ -333,7 +333,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         } else {
           // 백업: 일반 응답 생성
           const aiResult = await generateAIResponse(
-            scenarioObj,
+            scenarioObj.title,
             updatedMessages,
             persona,
             isSkipTurn ? undefined : message
@@ -454,7 +454,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       // MBTI 특성 로드
-      const allMbtiPersonas = await fileManager.getAllPersonas();
+      const allMbtiPersonas = await fileManager.getAllMBTIPersonas();
       const mbtiPersona = allMbtiPersonas.find(p => p.id === scenarioPersona.personaRef?.replace('.json', ''));
       
       // 시나리오 정보와 MBTI 특성 결합
@@ -482,7 +482,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
 
       const feedbackData = await generateFeedback(
-        scenarioObj, // 전체 시나리오 객체 전달
+        scenarioObj.title, // 시나리오 제목을 문자열로 전달
         conversation.messages,
         persona
       );
@@ -529,8 +529,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       })();
 
       // 피드백에 시간 정보 추가
-      feedbackData.conversationDuration = conversationDurationSeconds; // 초 단위로 저장
-      feedbackData.conversationDurationMinutes = conversationDuration; // 분 단위도 포함
+      feedbackData.conversationDuration = conversationDuration; // 분 단위로 저장
       feedbackData.averageResponseTime = averageResponseTime;
       feedbackData.timePerformance = timePerformance;
 
@@ -1044,7 +1043,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // 연결된 시나리오 확인
       const scenarios = await fileManager.getAllScenarios();
       const connectedScenarios = scenarios.filter(scenario => 
-        scenario.personas.includes(personaId)
+        scenario.personas.some(persona => persona.id === personaId)
       );
       
       if (connectedScenarios.length > 0) {
