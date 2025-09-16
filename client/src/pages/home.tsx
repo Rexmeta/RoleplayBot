@@ -104,7 +104,7 @@ export default function Home() {
                 <i className="fas fa-robot text-white text-lg"></i>
               </div>
               <div>
-                <h1 className="text-xl font-bold text-slate-900">🎭 시나리오 기반 롤플레이 훈련</h1>
+                <h1 className="text-xl font-bold text-slate-900">🎭 Roleplay X</h1>
                 <p className="text-sm text-slate-600">신입사원 역량 개발 시스템</p>
               </div>
             </Link>
