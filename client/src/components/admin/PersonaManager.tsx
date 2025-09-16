@@ -10,6 +10,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import { apiRequest, queryClient } from '@/lib/queryClient';
+import { Edit, Trash2 } from 'lucide-react';
 
 // MBTI 페르소나 타입 정의
 interface MBTIPersona {
@@ -709,8 +710,10 @@ export function PersonaManager() {
                       size="sm"
                       onClick={() => handleEdit(persona)}
                       data-testid={`button-edit-persona-${persona.id}`}
+                      className="p-2"
+                      title="편집"
                     >
-                      편집
+                      <Edit className="h-4 w-4" />
                     </Button>
                     <AlertDialog>
                       <AlertDialogTrigger asChild>
@@ -719,8 +722,10 @@ export function PersonaManager() {
                           size="sm"
                           onClick={() => setDeletingPersona(persona)}
                           data-testid={`button-delete-persona-${persona.id}`}
+                          className="p-2"
+                          title="삭제"
                         >
-                          삭제
+                          <Trash2 className="h-4 w-4" />
                         </Button>
                       </AlertDialogTrigger>
                       <AlertDialogContent>
