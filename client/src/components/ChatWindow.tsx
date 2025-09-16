@@ -247,23 +247,16 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
     }
   };
 
-  // 페르소나별 성별 정보 - 실제 JSON 데이터에서 가져오기
-  const getPersonaGender = (scenarioId?: string): 'male' | 'female' => {
-    // 1. 먼저 persona 객체에서 gender 필드 확인
+  // 페르소나별 성별 정보 - 시나리오 JSON에서 gender 필드 가져오기
+  const getPersonaGender = (): 'male' | 'female' => {
     if (persona.gender) {
       console.log(`👤 성별 정보 사용: ${persona.name} (${persona.id}) → ${persona.gender}`);
       return persona.gender;
     }
     
-    // 2. MBTI 기반 성별 판단 (MBTI 데이터에 gender 필드가 없으므로 필수)
-    const femaleScenarios = ['empathy', 'presentation', 'crisis'];
-    const femaleMBTI = ['isfj', 'infp', 'isfp', 'infj'];
-    const allFemalePersonas = [...femaleScenarios, ...femaleMBTI];
-    
-    const fallbackGender = allFemalePersonas.includes(scenarioId || persona.id) ? 'female' : 'male';
-    console.log(`👤 MBTI 기반 성별 판단: ${scenarioId || persona.id} → ${fallbackGender}`);
-    
-    return fallbackGender;
+    // 기본값 (시나리오에 gender가 항상 있어야 함)
+    console.warn(`⚠️ ${persona.name}의 성별 정보가 없습니다. 기본값 'male' 사용`);
+    return 'male';
   };
 
   // 감정에 따른 음성 설정
