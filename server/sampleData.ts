@@ -63,6 +63,13 @@ export async function createSampleData() {
     { id: "app-delay-crisis", name: "신규 스마트폰 앱 기능 출시 일정 지연 문제" }
   ];
 
+  // 지난 30일 날짜 배열 생성 (일일 사용량 추이용)
+  const last30Days = Array.from({ length: 30 }, (_, i) => {
+    const date = new Date();
+    date.setDate(date.getDate() - (29 - i));
+    return date;
+  });
+
   // Create multiple conversations with varying scores for realistic data
   for (const scenario of scenarios) {
     // 시나리오에서 첫 번째 페르소나 ID 가져오기
@@ -73,7 +80,17 @@ export async function createSampleData() {
       // 시나리오의 다양한 페르소나를 랜덤하게 선택
       const personas = scenarioObj?.personas || [];
       const randomPersona = personas.length > 0 ? personas[Math.floor(Math.random() * personas.length)] : null;
-      const personaId = randomPersona?.id || firstPersonaId;
+      const personaId = (typeof randomPersona === 'object' && randomPersona?.id) ? randomPersona.id : firstPersonaId;
+      
+      // 랜덤한 과거 날짜 선택 (지난 30일 중)
+      const randomDate = last30Days[Math.floor(Math.random() * last30Days.length)];
+      // 해당 날짜의 랜덤한 시간 추가
+      const randomTime = new Date(randomDate);
+      randomTime.setHours(
+        Math.floor(Math.random() * 24), 
+        Math.floor(Math.random() * 60), 
+        Math.floor(Math.random() * 60)
+      );
       
       const conversation = await storage.createConversation({
         scenarioId: scenario.id,
@@ -83,6 +100,9 @@ export async function createSampleData() {
         turnCount: 10,
         status: Math.random() > 0.1 ? "completed" : "active" // 90% completion rate
       });
+      
+      // createdAt를 랜덤 날짜로 수동 설정
+      conversation.createdAt = randomTime;
 
       // Create feedback for completed conversations
       if (conversation.status === "completed") {
@@ -95,12 +115,17 @@ export async function createSampleData() {
 
         const overallScore = Math.floor((variedScores.reduce((acc, s) => acc + s.score, 0) / 5) * 20);
 
-        await storage.createFeedback({
+        const feedback = await storage.createFeedback({
           conversationId: conversation.id,
           overallScore,
           scores: variedScores,
           detailedFeedback: sampleFeedback
         });
+        
+        // 피드백도 대화와 동일한 날짜로 설정 (대화 완료 후 몇 분 뒤)
+        const feedbackTime = new Date(randomTime);
+        feedbackTime.setMinutes(feedbackTime.getMinutes() + Math.floor(Math.random() * 30) + 5); // 5-35분 후
+        feedback.createdAt = feedbackTime;
       }
     }
   }
