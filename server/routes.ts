@@ -3,6 +3,7 @@ import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { insertConversationSchema, insertFeedbackSchema } from "@shared/schema";
 import { generateAIResponse, generateFeedback, SCENARIO_PERSONAS } from "./services/geminiService";
+import { getAIService } from "./services/aiServiceFactory";
 import { createSampleData } from "./sampleData";
 import ttsRoutes from "./routes/tts.js";
 import { fileManager } from "./services/fileManager";
@@ -291,7 +292,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       try {
         // GeminiProvider에서 스트리밍 응답 생성
-        const aiService = getAiService();
+        const aiService = getAIService();
         if (aiService && 'generateResponseStream' in aiService) {
           const streamGenerator = aiService.generateResponseStream(
             scenarioObj,
