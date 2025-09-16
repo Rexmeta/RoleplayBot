@@ -1344,7 +1344,7 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
           {chatMode === 'character' && (
             <div 
               className={`fixed inset-0 z-10 bg-cover bg-center bg-no-repeat transition-all duration-300 ${
-                isEmotionTransitioning ? 'brightness-90 scale-[1.02]' : 'brightness-100 scale-100'
+                isEmotionTransitioning ? 'brightness-95 scale-[1.02]' : 'brightness-110 scale-100'
               }`}
               style={{
                 backgroundImage: `url(${getEmotionImage(currentEmotion)})`
