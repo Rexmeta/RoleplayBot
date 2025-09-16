@@ -255,13 +255,13 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
       return persona.gender;
     }
     
-    // 2. 백업: 하드코딩된 성별 판단 (하위 호환성)
+    // 2. MBTI 기반 성별 판단 (MBTI 데이터에 gender 필드가 없으므로 필수)
     const femaleScenarios = ['empathy', 'presentation', 'crisis'];
     const femaleMBTI = ['isfj', 'infp', 'isfp', 'infj'];
     const allFemalePersonas = [...femaleScenarios, ...femaleMBTI];
     
     const fallbackGender = allFemalePersonas.includes(scenarioId || persona.id) ? 'female' : 'male';
-    console.log(`👤 백업 성별 판단: ${scenarioId || persona.id} → ${fallbackGender}`);
+    console.log(`👤 MBTI 기반 성별 판단: ${scenarioId || persona.id} → ${fallbackGender}`);
     
     return fallbackGender;
   };
@@ -275,8 +275,8 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
 
     // 성별에 따른 기본 설정
     const genderSettings = gender === 'female' 
-      ? { rate: 0.95, pitch: 1.2 }  // 여성: 약간 빠르고 높은 음조
-      : { rate: 0.85, pitch: 0.8 }; // 남성: 약간 느리고 낮은 음조
+      ? { rate: 1.15, pitch: 1.4 }  // 여성: 약간 빠르고 높은 음조
+      : { rate: 1.05, pitch: 1.2 }; // 남성: 약간 느리고 낮은 음조
 
     // 감정에 따른 추가 조정
     const emotionAdjustments: Record<string, { rate: number; pitch: number }> = {
