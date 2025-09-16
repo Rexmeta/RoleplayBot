@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { ComplexScenario, ScenarioPersona, getDifficultyColor, getDifficultyLabel } from "@/lib/scenario-system";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Search, Filter } from "lucide-react";
+import { Loader2, Search, Filter, ChevronDown, ChevronUp } from "lucide-react";
 
 interface ScenarioSelectorProps {
   onScenarioSelect: (scenarioId: string, personaId: string, conversationId: string) => void;
@@ -37,6 +37,9 @@ export default function ScenarioSelector({ onScenarioSelect, playerProfile }: Sc
     department: '',
     skillType: ''
   });
+  
+  // 상세 검색 표시 여부
+  const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
 
   // JSON 파일에서 실시간으로 시나리오와 페르소나 데이터 가져오기
   const { data: scenarios = [], isLoading: scenariosLoading } = useQuery({
@@ -288,18 +291,31 @@ export default function ScenarioSelector({ onScenarioSelect, playerProfile }: Sc
                 <Filter className="h-4 w-4 text-slate-600" />
                 <h3 className="text-sm font-medium text-slate-700">필터</h3>
               </div>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={resetFilters}
-                className="text-slate-600 hover:text-slate-900 h-7 px-2 text-xs"
-                data-testid="reset-filters"
-              >
-                초기화
-              </Button>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setShowAdvancedFilters(!showAdvancedFilters)}
+                  className="text-slate-600 hover:text-slate-900 h-7 px-2 text-xs flex items-center gap-1"
+                  data-testid="toggle-advanced-filters"
+                >
+                  상세 검색
+                  {showAdvancedFilters ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={resetFilters}
+                  className="text-slate-600 hover:text-slate-900 h-7 px-2 text-xs"
+                  data-testid="reset-filters"
+                >
+                  초기화
+                </Button>
+              </div>
             </div>
             
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-3">
+            {/* 기본 필터 (항상 표시) */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
               {/* 검색어 */}
               <div className="relative">
                 <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
@@ -311,53 +327,6 @@ export default function ScenarioSelector({ onScenarioSelect, playerProfile }: Sc
                   data-testid="filter-search"
                 />
               </div>
-              
-              {/* 난이도 */}
-              <Select value={filters.difficulty || undefined} onValueChange={(value) => setFilters(prev => ({ ...prev, difficulty: value }))}>
-                <SelectTrigger data-testid="filter-difficulty" className="h-9 text-sm">
-                  <SelectValue placeholder="난이도" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">전체</SelectItem>
-                  <SelectItem value="1">★ 초급</SelectItem>
-                  <SelectItem value="2">★★ 기초</SelectItem>
-                  <SelectItem value="3">★★★ 중급</SelectItem>
-                  <SelectItem value="4">★★★★ 고급</SelectItem>
-                  <SelectItem value="5">★★★★★ 전문가</SelectItem>
-                </SelectContent>
-              </Select>
-              
-              {/* 페르소나 수 */}
-              <Select value={filters.personaCount || undefined} onValueChange={(value) => setFilters(prev => ({ ...prev, personaCount: value }))}>
-                <SelectTrigger data-testid="filter-persona-count" className="h-9 text-sm">
-                  <SelectValue placeholder="상대역 수" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">전체</SelectItem>
-                  <SelectItem value="1">1명</SelectItem>
-                  <SelectItem value="2">2명</SelectItem>
-                  <SelectItem value="3">3명</SelectItem>
-                  <SelectItem value="4">4명</SelectItem>
-                  <SelectItem value="5">5명</SelectItem>
-                  <SelectItem value="6">6명 이상</SelectItem>
-                </SelectContent>
-              </Select>
-              
-              {/* 부서 */}
-              <Select value={filters.department || undefined} onValueChange={(value) => setFilters(prev => ({ ...prev, department: value }))}>
-                <SelectTrigger data-testid="filter-department" className="h-9 text-sm">
-                  <SelectValue placeholder="부서" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">전체</SelectItem>
-                  <SelectItem value="개발팀">개발팀</SelectItem>
-                  <SelectItem value="마케팅팀">마케팅팀</SelectItem>
-                  <SelectItem value="QA팀">QA팀</SelectItem>
-                  <SelectItem value="고객서비스팀">고객서비스팀</SelectItem>
-                  <SelectItem value="경영진">경영진</SelectItem>
-                  <SelectItem value="물류팀">물류팀</SelectItem>
-                </SelectContent>
-              </Select>
               
               {/* 스킬 유형 */}
               <Select value={filters.skillType || undefined} onValueChange={(value) => setFilters(prev => ({ ...prev, skillType: value }))}>
@@ -375,6 +344,58 @@ export default function ScenarioSelector({ onScenarioSelect, playerProfile }: Sc
                 </SelectContent>
               </Select>
             </div>
+            
+            {/* 고급 필터 (토글로 표시/숨김) */}
+            {showAdvancedFilters && (
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3 pt-3 border-t border-slate-200">
+                {/* 난이도 */}
+                <Select value={filters.difficulty || undefined} onValueChange={(value) => setFilters(prev => ({ ...prev, difficulty: value }))}>
+                  <SelectTrigger data-testid="filter-difficulty" className="h-9 text-sm">
+                    <SelectValue placeholder="난이도" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">전체</SelectItem>
+                    <SelectItem value="1">★ 초급</SelectItem>
+                    <SelectItem value="2">★★ 기초</SelectItem>
+                    <SelectItem value="3">★★★ 중급</SelectItem>
+                    <SelectItem value="4">★★★★ 고급</SelectItem>
+                    <SelectItem value="5">★★★★★ 전문가</SelectItem>
+                  </SelectContent>
+                </Select>
+                
+                {/* 페르소나 수 */}
+                <Select value={filters.personaCount || undefined} onValueChange={(value) => setFilters(prev => ({ ...prev, personaCount: value }))}>
+                  <SelectTrigger data-testid="filter-persona-count" className="h-9 text-sm">
+                    <SelectValue placeholder="상대역 수" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">전체</SelectItem>
+                    <SelectItem value="1">1명</SelectItem>
+                    <SelectItem value="2">2명</SelectItem>
+                    <SelectItem value="3">3명</SelectItem>
+                    <SelectItem value="4">4명</SelectItem>
+                    <SelectItem value="5">5명</SelectItem>
+                    <SelectItem value="6">6명 이상</SelectItem>
+                  </SelectContent>
+                </Select>
+                
+                {/* 부서 */}
+                <Select value={filters.department || undefined} onValueChange={(value) => setFilters(prev => ({ ...prev, department: value }))}>
+                  <SelectTrigger data-testid="filter-department" className="h-9 text-sm">
+                    <SelectValue placeholder="부서" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">전체</SelectItem>
+                    <SelectItem value="개발팀">개발팀</SelectItem>
+                    <SelectItem value="마케팅팀">마케팅팀</SelectItem>
+                    <SelectItem value="QA팀">QA팀</SelectItem>
+                    <SelectItem value="고객서비스팀">고객서비스팀</SelectItem>
+                    <SelectItem value="경영진">경영진</SelectItem>
+                    <SelectItem value="물류팀">물류팀</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
             
             {/* 필터 결과 요약 */}
             <div className="mt-3 pt-3 border-t border-slate-300">
