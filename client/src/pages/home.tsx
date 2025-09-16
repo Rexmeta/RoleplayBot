@@ -105,7 +105,7 @@ export default function Home() {
               </div>
               <div>
                 <h1 className="text-xl font-bold text-slate-900">🎭 Roleplay X</h1>
-                <p className="text-sm text-slate-600">신입사원 역량 개발 시스템</p>
+                <p className="text-sm text-slate-600">커뮤니케이션 역량 개발 시스템</p>
               </div>
             </Link>
             <div className="flex items-center space-x-2">
