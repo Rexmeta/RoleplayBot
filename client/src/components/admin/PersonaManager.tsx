@@ -538,16 +538,11 @@ export function PersonaManager() {
                   <div>
                     <h4 className="font-medium text-slate-700 mb-1">성격 특성</h4>
                     <div className="flex flex-wrap gap-1">
-                      {(persona.personality_traits || []).slice(0, 3).map((trait, index) => (
+                      {(persona.personality_traits || []).map((trait, index) => (
                         <Badge key={index} variant="secondary" className="text-xs">
                           {trait}
                         </Badge>
                       ))}
-                      {persona.personality_traits?.length > 3 && (
-                        <Badge variant="outline" className="text-xs">
-                          +{persona.personality_traits.length - 3}개 더
-                        </Badge>
-                      )}
                     </div>
                   </div>
                   
@@ -555,6 +550,122 @@ export function PersonaManager() {
                     <h4 className="font-medium text-slate-700 mb-1">동기</h4>
                     <p className="text-sm text-slate-600">{persona.motivation}</p>
                   </div>
+
+                  {persona.fears && persona.fears.length > 0 && (
+                    <div>
+                      <h4 className="font-medium text-slate-700 mb-1">두려움</h4>
+                      <div className="flex flex-wrap gap-1">
+                        {persona.fears.map((fear, index) => (
+                          <Badge key={index} variant="outline" className="text-xs bg-red-50 text-red-700">
+                            {fear}
+                          </Badge>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {persona.background && (
+                    <div>
+                      <h4 className="font-medium text-slate-700 mb-1">배경</h4>
+                      {persona.background.personal_values && persona.background.personal_values.length > 0 && (
+                        <div className="mb-2">
+                          <p className="text-xs text-slate-500 mb-1">가치관:</p>
+                          <div className="flex flex-wrap gap-1">
+                            {persona.background.personal_values.map((value, index) => (
+                              <Badge key={index} variant="outline" className="text-xs bg-blue-50 text-blue-700">
+                                {value}
+                              </Badge>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                      {persona.background.hobbies && persona.background.hobbies.length > 0 && (
+                        <div className="mb-2">
+                          <p className="text-xs text-slate-500 mb-1">취미:</p>
+                          <div className="flex flex-wrap gap-1">
+                            {persona.background.hobbies.map((hobby, index) => (
+                              <Badge key={index} variant="outline" className="text-xs bg-green-50 text-green-700">
+                                {hobby}
+                              </Badge>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                      {persona.background.social && (
+                        <div>
+                          <p className="text-xs text-slate-500 mb-1">사회적 특성:</p>
+                          <p className="text-xs text-slate-600">{persona.background.social.preference} - {persona.background.social.behavior}</p>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {persona.communication_patterns && (
+                    <div>
+                      <h4 className="font-medium text-slate-700 mb-1">의사소통 패턴</h4>
+                      {persona.communication_patterns.opening_style && (
+                        <div className="mb-2">
+                          <p className="text-xs text-slate-500">대화 시작 스타일:</p>
+                          <p className="text-xs text-slate-600">{persona.communication_patterns.opening_style}</p>
+                        </div>
+                      )}
+                      {persona.communication_patterns.key_phrases && persona.communication_patterns.key_phrases.length > 0 && (
+                        <div className="mb-2">
+                          <p className="text-xs text-slate-500 mb-1">주요 표현:</p>
+                          <div className="flex flex-wrap gap-1">
+                            {persona.communication_patterns.key_phrases.slice(0, 2).map((phrase, index) => (
+                              <Badge key={index} variant="outline" className="text-xs bg-purple-50 text-purple-700">
+                                "{phrase}"
+                              </Badge>
+                            ))}
+                            {persona.communication_patterns.key_phrases.length > 2 && (
+                              <Badge variant="outline" className="text-xs">
+                                +{persona.communication_patterns.key_phrases.length - 2}개 더
+                              </Badge>
+                            )}
+                          </div>
+                        </div>
+                      )}
+                      {persona.communication_patterns.win_conditions && persona.communication_patterns.win_conditions.length > 0 && (
+                        <div>
+                          <p className="text-xs text-slate-500 mb-1">승리 조건:</p>
+                          <div className="flex flex-wrap gap-1">
+                            {persona.communication_patterns.win_conditions.map((condition, index) => (
+                              <Badge key={index} variant="outline" className="text-xs bg-yellow-50 text-yellow-700">
+                                {condition}
+                              </Badge>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {persona.voice && (
+                    <div>
+                      <h4 className="font-medium text-slate-700 mb-1">음성 특성</h4>
+                      <div className="grid grid-cols-3 gap-2">
+                        {persona.voice.tone && (
+                          <div>
+                            <p className="text-xs text-slate-500">톤:</p>
+                            <p className="text-xs text-slate-600">{persona.voice.tone}</p>
+                          </div>
+                        )}
+                        {persona.voice.pace && (
+                          <div>
+                            <p className="text-xs text-slate-500">속도:</p>
+                            <p className="text-xs text-slate-600">{persona.voice.pace}</p>
+                          </div>
+                        )}
+                        {persona.voice.emotion && (
+                          <div>
+                            <p className="text-xs text-slate-500">감정:</p>
+                            <p className="text-xs text-slate-600">{persona.voice.emotion}</p>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
 
                   {scenarioUsage.length > 0 && (
                     <div>
