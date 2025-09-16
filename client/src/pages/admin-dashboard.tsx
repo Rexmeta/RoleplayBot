@@ -146,26 +146,17 @@ export default function AdminDashboard() {
       </div>
 
       {/* Overview Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <Card className="card-enhanced" data-testid="card-total-sessions">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <Card className="card-enhanced" data-testid="card-session-summary">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">총 훈련 세션</CardTitle>
+            <CardTitle className="text-sm font-medium">훈련 세션</CardTitle>
             <i className="fas fa-chart-line text-blue-600"></i>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold" data-testid="total-sessions">{overview?.totalSessions || 0}</div>
-            <p className="text-xs text-slate-600">전체 시작된 세션</p>
-          </CardContent>
-        </Card>
-
-        <Card className="card-enhanced" data-testid="card-completed-sessions">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">완료된 세션</CardTitle>
-            <i className="fas fa-check-circle text-green-600"></i>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold" data-testid="completed-sessions">{overview?.completedSessions || 0}</div>
-            <p className="text-xs text-slate-600">완료율: {overview?.completionRate || 0}%</p>
+            <div className="text-2xl font-bold" data-testid="session-summary">
+              {overview?.completedSessions || 0}/{overview?.totalSessions || 0}
+            </div>
+            <p className="text-xs text-slate-600">완료율 {overview?.completionRate || 0}%</p>
           </CardContent>
         </Card>
 
@@ -177,17 +168,6 @@ export default function AdminDashboard() {
           <CardContent>
             <div className="text-2xl font-bold" data-testid="average-score">{overview?.averageScore || 0}점</div>
             <p className="text-xs text-slate-600">전체 세션 평균</p>
-          </CardContent>
-        </Card>
-
-        <Card className="card-enhanced" data-testid="card-completion-rate">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">완료율</CardTitle>
-            <i className="fas fa-percentage text-purple-600"></i>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold" data-testid="completion-rate">{overview?.completionRate || 0}%</div>
-            <p className="text-xs text-slate-600">세션 완주 비율</p>
           </CardContent>
         </Card>
       </div>
