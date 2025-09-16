@@ -70,7 +70,7 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
   const [elapsedTime, setElapsedTime] = useState(0);
   const [conversationStartTime, setConversationStartTime] = useState<Date | null>(null);
   const [localMessages, setLocalMessages] = useState<ConversationMessage[]>([]);
-  const [chatMode, setChatMode] = useState<'messenger' | 'character'>('messenger');
+  const [chatMode, setChatMode] = useState<'messenger' | 'character'>('character');
   const [showInputMode, setShowInputMode] = useState(false);
   const [isTransitioning, setIsTransitioning] = useState(false);
   const [isEmotionTransitioning, setIsEmotionTransitioning] = useState(false);
