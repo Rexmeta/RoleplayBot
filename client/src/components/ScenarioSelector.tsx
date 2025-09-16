@@ -272,12 +272,7 @@ export default function ScenarioSelector({ onScenarioSelect, playerProfile }: Sc
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 p-6">
       <div className="max-w-7xl mx-auto">
-        {/* Header */}
-        <div className="text-center mb-8">
-          <h1 className="text-4xl font-bold text-slate-900 mb-4">
-            🎭 시나리오 기반 롤플레이 훈련
-          </h1>
-        </div>
+        {/* Header */}       
 
         <div className="max-w-4xl mx-auto">
           
