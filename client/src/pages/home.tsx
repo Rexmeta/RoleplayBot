@@ -6,6 +6,7 @@ import PersonalDevelopmentReport from "@/components/PersonalDevelopmentReport";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { type ComplexScenario, type ScenarioPersona } from "@/lib/scenario-system";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 type ViewState = "scenarios" | "chat" | "feedback";
 
@@ -107,17 +108,41 @@ export default function Home() {
                 <p className="text-sm text-slate-600">신입사원 역량 개발 시스템</p>
               </div>
             </Link>
-            <div className="flex items-center space-x-4">
-              <a 
-                href="/admin" 
-                className="hidden md:flex items-center px-3 py-2 text-sm text-corporate-600 hover:text-corporate-700 hover:bg-corporate-50 rounded-lg transition-colors"
-                data-testid="admin-dashboard-link"
-              >
-                <i className="fas fa-chart-bar mr-2"></i>
-                관리자 대시보드
-              </a>
-              <button className="text-slate-400 hover:text-slate-600">
-                <i className="fas fa-cog"></i>
+            <div className="flex items-center space-x-2">
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <a 
+                      href="/admin" 
+                      className="hidden md:flex items-center justify-center w-10 h-10 text-corporate-600 hover:text-corporate-700 hover:bg-corporate-50 rounded-lg transition-colors"
+                      data-testid="admin-dashboard-link"
+                    >
+                      <i className="fas fa-chart-bar text-lg"></i>
+                    </a>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p>관리자 대시보드</p>
+                  </TooltipContent>
+                </Tooltip>
+                
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <a 
+                      href="/admin-dashboard" 
+                      className="hidden md:flex items-center justify-center w-10 h-10 text-corporate-600 hover:text-corporate-700 hover:bg-corporate-50 rounded-lg transition-colors"
+                      data-testid="content-management-link"
+                    >
+                      <i className="fas fa-cogs text-lg"></i>
+                    </a>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p>콘텐츠 관리</p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+              
+              <button className="text-slate-400 hover:text-slate-600 w-10 h-10 flex items-center justify-center rounded-lg hover:bg-slate-100 transition-colors">
+                <i className="fas fa-cog text-lg"></i>
               </button>
             </div>
           </div>
