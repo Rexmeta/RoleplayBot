@@ -104,7 +104,7 @@ export default function Home() {
                 <i className="fas fa-robot text-white text-lg"></i>
               </div>
               <div>
-                <h1 className="text-xl font-bold text-slate-900">AI 롤플레잉 훈련</h1>
+                <h1 className="text-xl font-bold text-slate-900">🎭 시나리오 기반 롤플레이 훈련</h1>
                 <p className="text-sm text-slate-600">신입사원 역량 개발 시스템</p>
               </div>
             </Link>
@@ -148,7 +148,6 @@ export default function Home() {
           </div>
         </div>
       </header>
-
       {/* Main Content */}
       <main className={`${currentView === "scenarios" ? "py-8 bg-slate-50" : "max-w-6xl mx-auto px-4 py-8"}`}>
         {currentView === "scenarios" && (
@@ -180,7 +179,6 @@ export default function Home() {
           />
         )}
       </main>
-
       {/* Footer */}
       <footer className="bg-white border-t border-slate-200 py-8 mt-16">
         <div className="max-w-6xl mx-auto px-4">
