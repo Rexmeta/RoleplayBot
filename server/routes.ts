@@ -771,31 +771,31 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // 페르소나 관리 API
   app.get("/api/admin/personas", async (req, res) => {
     try {
-      const personas = await fileManager.getAllPersonas();
+      const personas = await fileManager.getAllMBTIPersonas();
       res.json(personas);
     } catch (error) {
-      console.error("Error getting personas:", error);
-      res.status(500).json({ error: "Failed to get personas" });
+      console.error("Error getting MBTI personas:", error);
+      res.status(500).json({ error: "Failed to get MBTI personas" });
     }
   });
 
   app.post("/api/admin/personas", async (req, res) => {
     try {
-      const persona = await fileManager.createPersona(req.body);
+      const persona = await fileManager.createMBTIPersona(req.body);
       res.json(persona);
     } catch (error) {
-      console.error("Error creating persona:", error);
-      res.status(500).json({ error: "Failed to create persona" });
+      console.error("Error creating MBTI persona:", error);
+      res.status(500).json({ error: "Failed to create MBTI persona" });
     }
   });
 
   app.put("/api/admin/personas/:id", async (req, res) => {
     try {
-      const persona = await fileManager.updatePersona(req.params.id, req.body);
+      const persona = await fileManager.updateMBTIPersona(req.params.id, req.body);
       res.json(persona);
     } catch (error) {
-      console.error("Error updating persona:", error);
-      res.status(500).json({ error: "Failed to update persona" });
+      console.error("Error updating MBTI persona:", error);
+      res.status(500).json({ error: "Failed to update MBTI persona" });
     }
   });
 
@@ -816,7 +816,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
       
-      await fileManager.deletePersona(personaId);
+      await fileManager.deleteMBTIPersona(personaId);
       res.json({ success: true });
     } catch (error) {
       console.error("Error deleting persona:", error);

@@ -137,7 +137,7 @@ export class FileManagerService {
     }
   }
 
-  // 페르소나 관리
+  // 페르소나 관리 (시나리오용)
   async getAllPersonas(): Promise<ScenarioPersona[]> {
     try {
       const files = await fs.readdir(PERSONAS_DIR);
@@ -157,6 +157,90 @@ export class FileManagerService {
     } catch (error) {
       console.error('Failed to read personas directory:', error);
       return [];
+    }
+  }
+
+  // MBTI 페르소나 관리 (관리자용)
+  async getAllMBTIPersonas(): Promise<any[]> {
+    try {
+      const files = await fs.readdir(PERSONAS_DIR);
+      const personas: any[] = [];
+      
+      for (const file of files.filter(f => f.endsWith('.json'))) {
+        try {
+          const content = await fs.readFile(path.join(PERSONAS_DIR, file), 'utf-8');
+          const persona = JSON.parse(content);
+          personas.push(persona);
+        } catch (error) {
+          console.warn(`Failed to load MBTI persona file ${file}:`, error);
+        }
+      }
+      
+      return personas;
+    } catch (error) {
+      console.error('Failed to read personas directory:', error);
+      return [];
+    }
+  }
+
+  // MBTI 페르소나 생성
+  async createMBTIPersona(personaData: any): Promise<any> {
+    try {
+      const fileName = `${personaData.id}.json`;
+      const filePath = path.join(PERSONAS_DIR, fileName);
+      
+      // 이미 존재하는지 확인
+      try {
+        await fs.access(filePath);
+        throw new Error(`Persona ${personaData.id} already exists`);
+      } catch (error: any) {
+        if (error.code !== 'ENOENT') {
+          throw error;
+        }
+      }
+      
+      await fs.writeFile(filePath, JSON.stringify(personaData, null, 2));
+      return personaData;
+    } catch (error) {
+      throw new Error(`Failed to create MBTI persona: ${error}`);
+    }
+  }
+
+  // MBTI 페르소나 업데이트
+  async updateMBTIPersona(id: string, personaData: any): Promise<any> {
+    try {
+      const fileName = `${id}.json`;
+      const filePath = path.join(PERSONAS_DIR, fileName);
+      
+      // 파일이 존재하는지 확인
+      await fs.access(filePath);
+      
+      // ID가 변경된 경우 파일 이름도 변경
+      const newFileName = `${personaData.id}.json`;
+      const newFilePath = path.join(PERSONAS_DIR, newFileName);
+      
+      await fs.writeFile(newFilePath, JSON.stringify(personaData, null, 2));
+      
+      // ID가 변경된 경우 기존 파일 삭제
+      if (id !== personaData.id) {
+        await fs.unlink(filePath);
+      }
+      
+      return personaData;
+    } catch (error) {
+      throw new Error(`Failed to update MBTI persona: ${error}`);
+    }
+  }
+
+  // MBTI 페르소나 삭제
+  async deleteMBTIPersona(id: string): Promise<void> {
+    try {
+      const fileName = `${id}.json`;
+      const filePath = path.join(PERSONAS_DIR, fileName);
+      
+      await fs.unlink(filePath);
+    } catch (error) {
+      throw new Error(`Failed to delete MBTI persona: ${error}`);
     }
   }
 
