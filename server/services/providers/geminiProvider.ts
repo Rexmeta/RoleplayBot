@@ -132,6 +132,143 @@ ${conversationHistory}
     }
   }
 
+  async* generateResponseStream(
+    scenario: any, 
+    messages: ConversationMessage[], 
+    persona: ScenarioPersona,
+    userMessage?: string
+  ): AsyncGenerator<{chunk: string; isComplete: boolean; emotion?: string; emotionReason?: string}> {
+    console.log("Starting Gemini streaming API call...");
+    
+    // MBTI 데이터 로딩 및 페르소나 보강 (기존 로직과 동일)
+    let enrichedPersona = persona;
+    let mbtiData: MBTIPersona | null = null;
+    
+    try {
+      // 시나리오에서 현재 페르소나의 personaRef 찾기
+      const currentPersona = scenario.personas?.find((p: any) => p.id === persona.id || p.name === persona.name);
+      const personaRef = currentPersona?.personaRef;
+      
+      if (personaRef) {
+        console.log(`🔍 Loading MBTI data from: ${personaRef}`);
+        mbtiData = await loadMBTIPersona(personaRef);
+        
+        if (mbtiData) {
+          enrichedPersona = await enrichPersonaWithMBTI(currentPersona, personaRef);
+          console.log(`✅ MBTI integration successful: ${mbtiData.mbti}`);
+        }
+      } else {
+        console.warn(`⚠️ No personaRef found for persona: ${persona.name}`);
+      }
+
+      // messages가 undefined이거나 null인 경우 빈 배열로 처리
+      const safeMessages = messages || [];
+      const conversationHistory = safeMessages.map(msg => 
+        `${msg.sender === 'user' ? '사용자' : enrichedPersona.name}: ${msg.message}`
+      ).join('\n');
+
+      const systemPrompt = `당신은 ${enrichedPersona.name}(${enrichedPersona.role})입니다.
+
+=== 시나리오 배경 ===
+상황: ${scenario.context?.situation || '일반적인 업무 상황'}
+시간적 제약: ${scenario.context?.timeline || '특별한 시간 제약 없음'}
+핵심 이슈: ${scenario.context?.stakes || '의사결정이 필요한 상황'}
+목표: ${scenario.objectives ? scenario.objectives.join(', ') : '문제 해결'}
+
+사용자 역할: ${scenario.context?.playerRole ? 
+  `${scenario.context.playerRole.position} (${scenario.context.playerRole.department}, ${scenario.context.playerRole.experience}) - ${scenario.context.playerRole.responsibility}` 
+  : '신입 직원'}
+
+=== 당신의 페르소나 특성 ===
+MBTI 유형: ${mbtiData?.mbti || (enrichedPersona as any).mbti || 'MBTI 유형 미지정'}
+
+성격 특성:
+- 핵심 특성: ${mbtiData?.personality_traits?.join(', ') || '기본 특성'}
+- 의사소통 스타일: ${mbtiData?.communication_style || '균형 잡힌 의사소통'}
+- 동기와 목표: ${mbtiData?.motivation || '문제 해결'}
+- 주요 우려사항: ${mbtiData?.fears?.join(', ') || '없음'}
+- 개인 가치관: ${mbtiData?.background?.personal_values?.join(', ') || '성실함'}
+
+현재 상황에서의 당신의 입장:
+- 기본 입장: ${(enrichedPersona as any).stance || '상황에 따른 대응'}
+- 달성하고자 하는 목표: ${(enrichedPersona as any).goal || '최적의 결과 도출'}
+- 트레이드오프 관점: ${(enrichedPersona as any).tradeoff || '균형 잡힌 접근'}
+
+의사소통 패턴:
+- 대화 시작 방식: ${mbtiData?.communication_patterns?.opening_style || '상황에 맞는 방식'}
+- 자주 사용하는 표현: ${mbtiData?.communication_patterns?.key_phrases?.join(' / ') || '자연스러운 표현'}
+- 음성 톤과 스타일: ${mbtiData?.voice ? `${mbtiData.voice.tone}, ${mbtiData.voice.pace} 속도, ${mbtiData.voice.emotion}` : '자연스러운 톤'}
+
+대화 규칙:
+1. ${mbtiData?.mbti || 'MBTI'} 특성에 맞는 사고 과정과 의사결정 패턴을 보여주세요
+2. 자주 사용하는 표현 "${mbtiData?.communication_patterns?.key_phrases?.[0] || '자연스러운 표현'}"을 적절히 활용하세요
+3. ${mbtiData?.voice?.tone || '자연스러운'} 톤으로 ${mbtiData?.voice?.pace || '보통'} 속도의 대화를 유지하세요
+4. 현재 상황에서의 입장 "${(enrichedPersona as any).stance || '균형 잡힌 접근'}"을 일관되게 표현하세요
+5. 목표 "${(enrichedPersona as any).goal || '최적의 결과'}" 달성을 위한 구체적 방향을 제시하세요
+6. 20-120단어 내외로 한국어로 응답하세요
+7. 상황에 맞는 현실적 감정과 반응을 표현하세요
+
+이전 대화:
+${conversationHistory}
+
+사용자의 새 메시지에 ${enrichedPersona.name}로서 응답하세요.`;
+
+      // 건너뛰기 시 자연스럽게 대화 이어가기 (MBTI 스타일 고려)
+      const prompt = userMessage ? userMessage : "앞서 이야기를 자연스럽게 이어가거나 새로운 각도에서 문제를 제시해주세요.";
+      
+      console.log(`🎭 Persona: ${enrichedPersona.name} (${mbtiData?.mbti || 'Unknown MBTI'})`);
+
+      // 스트리밍 응답 생성
+      const response = await this.genAI.models.generateContentStream({
+        model: this.model,
+        contents: [
+          { role: "user", parts: [{ text: systemPrompt + "\n\n사용자: " + prompt }] }
+        ],
+      });
+
+      let fullContent = "";
+      
+      // 스트리밍 청크 처리
+      for await (const chunk of response) {
+        if (chunk.text) {
+          fullContent += chunk.text;
+          yield { chunk: chunk.text, isComplete: false };
+        }
+      }
+      
+      console.log("✓ Gemini streaming API call completed");
+      console.log("Generated text:", fullContent);
+
+      // 감정 분석 (스트리밍 완료 후)
+      let emotion = "중립";
+      let emotionReason = "일반적인 대화 상황";
+
+      if (userMessage && fullContent) {
+        const emotionAnalysis = await this.analyzeEmotion(fullContent, enrichedPersona, userMessage, mbtiData);
+        emotion = emotionAnalysis.emotion;
+        emotionReason = emotionAnalysis.reason;
+      }
+
+      // 최종 완료 신호와 감정 정보
+      yield { 
+        chunk: "", 
+        isComplete: true, 
+        emotion, 
+        emotionReason 
+      };
+
+    } catch (error) {
+      console.error("Gemini streaming API error:", error);
+      const fallbackContent = this.getFallbackResponse(enrichedPersona, mbtiData);
+      yield { 
+        chunk: fallbackContent, 
+        isComplete: true,
+        emotion: "중립", 
+        emotionReason: "시스템 오류로 기본 응답 제공" 
+      };
+    }
+  }
+
   private async analyzeEmotion(
     response: string, 
     persona: any, 

@@ -199,6 +199,216 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Stream message and get AI response (Server-Sent Events)
+  app.post("/api/conversations/:id/messages/stream", async (req, res) => {
+    try {
+      const { message } = req.body;
+      if (typeof message !== "string") {
+        return res.status(400).json({ error: "Message must be a string" });
+      }
+      
+      // 빈 메시지는 건너뛰기 기능으로 허용
+      const isSkipTurn = message.trim() === "";
+
+      const conversation = await storage.getConversation(req.params.id);
+      if (!conversation) {
+        return res.status(404).json({ error: "Conversation not found" });
+      }
+
+      if (conversation.status === "completed") {
+        return res.status(400).json({ error: "Conversation already completed" });
+      }
+
+      // SSE 헤더 설정
+      res.writeHead(200, {
+        'Content-Type': 'text/event-stream',
+        'Cache-Control': 'no-cache',
+        'Connection': 'keep-alive'
+      });
+      
+      // 연결 상태 추적
+      let isClientConnected = true;
+      const cleanup = () => {
+        isClientConnected = false;
+      };
+      
+      // 클라이언트 연결 종료 감지
+      res.on('close', cleanup);
+      res.on('finish', cleanup);
+      res.on('error', cleanup);
+      
+      // 초기 연결 확인
+      res.write(`data: ${JSON.stringify({type: 'connected'})}\n\n`);
+
+      // 건너뛰기가 아닌 경우에만 사용자 메시지 추가
+      let updatedMessages = conversation.messages;
+      if (!isSkipTurn) {
+        const userMessage = {
+          sender: "user" as const,
+          message,
+          timestamp: new Date().toISOString(),
+        };
+        updatedMessages = [...conversation.messages, userMessage];
+      }
+
+      const newTurnCount = conversation.turnCount + 1;
+
+      // Generate AI response using streaming
+      const personaId = conversation.personaId || conversation.scenarioId;
+      
+      // 시나리오에서 페르소나 정보와 MBTI 특성 결합
+      const scenarios = await fileManager.getAllScenarios();
+      const scenarioObj = scenarios.find(s => s.id === conversation.scenarioId);
+      if (!scenarioObj) {
+        throw new Error(`Scenario not found: ${conversation.scenarioId}`);
+      }
+      
+      // 시나리오에서 해당 페르소나 객체 찾기
+      const scenarioPersona = scenarioObj.personas.find((p: any) => p.id === personaId);
+      if (!scenarioPersona) {
+        throw new Error(`Persona not found in scenario: ${personaId}`);
+      }
+      
+      // MBTI 특성 로드
+      const allMbtiPersonas = await fileManager.getAllPersonas();
+      const mbtiPersona = allMbtiPersonas.find(p => p.id === scenarioPersona.personaRef?.replace('.json', ''));
+      
+      // 시나리오 정보와 MBTI 특성 결합
+      const persona = {
+        id: scenarioPersona.id,
+        name: scenarioPersona.name,
+        role: scenarioPersona.position,
+        department: scenarioPersona.department,
+        personality: mbtiPersona?.communication_style || '균형 잡힌 의사소통',
+        responseStyle: mbtiPersona?.communication_patterns?.opening_style || '상황에 맞는 방식으로 대화 시작',
+        goals: mbtiPersona?.communication_patterns?.win_conditions || ['목표 달성'],
+        background: mbtiPersona?.background?.personal_values?.join(', ') || '전문성'
+      };
+
+      let fullContent = "";
+      let emotion = "중립";
+      let emotionReason = "일반적인 대화 상황";
+
+      try {
+        // GeminiProvider에서 스트리밍 응답 생성
+        const aiService = getAiService();
+        if (aiService && 'generateResponseStream' in aiService) {
+          const streamGenerator = aiService.generateResponseStream(
+            scenarioObj,
+            updatedMessages,
+            persona as any,
+            isSkipTurn ? undefined : message
+          );
+
+          for await (const chunk of streamGenerator) {
+            // 클라이언트 연결 확인
+            if (!isClientConnected) {
+              console.log('Client disconnected, stopping stream generation');
+              break;
+            }
+            
+            if (chunk.isComplete) {
+              // 스트리밍 완료
+              emotion = chunk.emotion || "중립";
+              emotionReason = chunk.emotionReason || "일반적인 대화 상황";
+              
+              // 완료 신호 전송
+              res.write(`data: ${JSON.stringify({
+                type: 'complete',
+                emotion,
+                emotionReason,
+                fullContent
+              })}\n\n`);
+              break;
+            } else {
+              // 텍스트 청크 전송
+              fullContent += chunk.chunk;
+              res.write(`data: ${JSON.stringify({
+                type: 'chunk',
+                text: chunk.chunk
+              })}\n\n`);
+            }
+          }
+        } else {
+          // 백업: 일반 응답 생성
+          const aiResult = await generateAIResponse(
+            scenarioObj,
+            updatedMessages,
+            persona,
+            isSkipTurn ? undefined : message
+          );
+          fullContent = aiResult.content;
+          emotion = aiResult.emotion;
+          emotionReason = aiResult.emotionReason;
+
+          // 한 번에 전송
+          res.write(`data: ${JSON.stringify({
+            type: 'chunk',
+            text: fullContent
+          })}\n\n`);
+          
+          res.write(`data: ${JSON.stringify({
+            type: 'complete',
+            emotion,
+            emotionReason,
+            fullContent
+          })}\n\n`);
+        }
+
+        // AI 메시지를 대화에 저장
+        const aiMessage = {
+          sender: "ai" as const,
+          message: fullContent,
+          timestamp: new Date().toISOString(),
+          emotion,
+          emotionReason,
+        };
+
+        const finalMessages = [...updatedMessages, aiMessage];
+        const isCompleted = newTurnCount >= 10;
+
+        // 대화 업데이트
+        await storage.updateConversation(req.params.id, {
+          messages: finalMessages,
+          turnCount: newTurnCount,
+          status: isCompleted ? "completed" : "active",
+          completedAt: isCompleted ? new Date() : null,
+        });
+
+        // 메타데이터 전송
+        if (isClientConnected) {
+          res.write(`data: ${JSON.stringify({
+            type: 'metadata',
+            turnCount: newTurnCount,
+            isCompleted
+          })}\n\n`);
+          
+          // 스트리밍 성공적으로 완료
+          res.write(`data: ${JSON.stringify({type: 'stream_end'})}\n\n`);
+        }
+
+      } catch (error) {
+        console.error("Streaming error:", error);
+        if (isClientConnected) {
+          res.write(`data: ${JSON.stringify({
+            type: 'error',
+            message: 'AI 응답 생성 중 오류가 발생했습니다.'
+          })}\n\n`);
+        }
+      }
+
+      if (isClientConnected) {
+        res.end();
+      }
+      
+    } catch (error) {
+      console.error("Stream setup error:", error);
+      if (!res.headersSent) {
+        res.status(500).json({ error: "Failed to setup stream" });
+      }
+    }
+  });
+
   // Generate feedback for completed conversation
   app.post("/api/conversations/:id/feedback", async (req, res) => {
     try {
