@@ -24,19 +24,24 @@ router.post('/generate-scenario-image', async (req, res) => {
     console.log(`🎨 Gemini 이미지 생성 요청: ${scenarioTitle}`);
     console.log(`프롬프트: ${imagePrompt}`);
 
-    // Gemini 2.5 Flash Image를 사용한 이미지 생성
-    const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash-image-preview" });
-    
-    const result = await model.generateContent({
-      contents: [{ role: "user", parts: [{ text: imagePrompt }] }],
-      generationConfig: {
-        responseModalities: ["Text", "Image"]
-      }
+    // Gemini 2.5 Flash Image를 사용한 이미지 생성 (올바른 API 사용법)
+    const ai = new GoogleGenAI({ apiKey: process.env.GOOGLE_API_KEY || process.env.GEMINI_API_KEY });
+    const result = await ai.models.generateContent({
+      model: "gemini-2.5-flash-image-preview",
+      contents: imagePrompt,
     });
     
-    // Gemini는 이미지를 base64로 반환
-    const imageData = result.response.candidates?.[0]?.content?.parts?.find(part => part.inlineData)?.inlineData;
-    const imageUrl = imageData ? `data:${imageData.mimeType};base64,${imageData.data}` : null;
+    // 응답에서 이미지 데이터 추출
+    let imageUrl = null;
+    if (result.candidates && result.candidates[0] && result.candidates[0].content && result.candidates[0].content.parts) {
+      for (const part of result.candidates[0].content.parts) {
+        if (part.inlineData) {
+          const imageData = part.inlineData;
+          imageUrl = `data:${imageData.mimeType};base64,${imageData.data}`;
+          break;
+        }
+      }
+    }
     
     if (!imageUrl) {
       throw new Error('이미지가 생성되지 않았습니다.');
@@ -141,16 +146,23 @@ router.post('/generate-preview', async (req, res) => {
     // 간단한 프롬프트로 빠른 생성
     const simplePrompt = `A minimal, professional illustration representing "${scenarioTitle}", modern business style, clean composition, corporate colors, vector-like appearance`;
 
-    const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash-image-preview" });
-    const result = await model.generateContent({
-      contents: [{ role: "user", parts: [{ text: simplePrompt }] }],
-      generationConfig: {
-        responseModalities: ["Text", "Image"]
-      }
+    const ai = new GoogleGenAI({ apiKey: process.env.GOOGLE_API_KEY || process.env.GEMINI_API_KEY });
+    const result = await ai.models.generateContent({
+      model: "gemini-2.5-flash-image-preview",
+      contents: simplePrompt,
     });
     
-    const imageData = result.response.candidates?.[0]?.content?.parts?.find(part => part.inlineData)?.inlineData;
-    const imageUrl = imageData ? `data:${imageData.mimeType};base64,${imageData.data}` : null;
+    // 응답에서 이미지 데이터 추출
+    let imageUrl = null;
+    if (result.candidates && result.candidates[0] && result.candidates[0].content && result.candidates[0].content.parts) {
+      for (const part of result.candidates[0].content.parts) {
+        if (part.inlineData) {
+          const imageData = part.inlineData;
+          imageUrl = `data:${imageData.mimeType};base64,${imageData.data}`;
+          break;
+        }
+      }
+    }
 
     res.json({
       success: true,
