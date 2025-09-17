@@ -200,6 +200,8 @@ ${fullConversationText}
 - 대화 참여도가 낮거나 소극적이면 전략적 커뮤니케이션 점수 감점
 - 맥락에 맞지 않는 응답이나 상황 파악 부족 시 적절성 점수 감점
 
+**📋 추가 가이드 생성**: 이 시나리오(${persona.name} - ${persona.role})에 특화된 행동 가이드와 대화 가이드를 생성하세요.
+
 JSON 형식으로 응답하세요:
 {
   "overallScore": 전체점수(0-100),
@@ -213,7 +215,23 @@ JSON 형식으로 응답하세요:
   "strengths": ["강점1", "강점2", "강점3"],
   "improvements": ["개선점1", "개선점2", "개선점3"],
   "nextSteps": ["다음단계1", "다음단계2", "다음단계3"],
-  "summary": "종합평가요약"
+  "summary": "종합평가요약",
+  "behaviorGuides": [
+    {
+      "situation": "이 시나리오에서 발생할 수 있는 구체적 상황",
+      "action": "해당 상황에서 취해야 할 구체적 행동",
+      "example": "실제 말할 수 있는 구체적인 예시 문장",
+      "impact": "이 행동으로 얻을 수 있는 긍정적 결과"
+    }
+  ],
+  "conversationGuides": [
+    {
+      "scenario": "이 페르소나와의 대화에서 나타날 수 있는 상황",
+      "goodExample": "효과적인 대화 방법과 예시",
+      "badExample": "피해야 할 대화 방법과 예시", 
+      "keyPoints": ["핵심포인트1", "핵심포인트2", "핵심포인트3"]
+    }
+  ]
 }`;
 
       const response = await this.genAI.models.generateContent({
@@ -237,7 +255,33 @@ JSON 형식으로 응답하세요:
               strengths: { type: "array", items: { type: "string" } },
               improvements: { type: "array", items: { type: "string" } },
               nextSteps: { type: "array", items: { type: "string" } },
-              summary: { type: "string" }
+              summary: { type: "string" },
+              behaviorGuides: {
+                type: "array",
+                items: {
+                  type: "object",
+                  properties: {
+                    situation: { type: "string" },
+                    action: { type: "string" },
+                    example: { type: "string" },
+                    impact: { type: "string" }
+                  },
+                  required: ["situation", "action", "example", "impact"]
+                }
+              },
+              conversationGuides: {
+                type: "array",
+                items: {
+                  type: "object",
+                  properties: {
+                    scenario: { type: "string" },
+                    goodExample: { type: "string" },
+                    badExample: { type: "string" },
+                    keyPoints: { type: "array", items: { type: "string" } }
+                  },
+                  required: ["scenario", "goodExample", "badExample", "keyPoints"]
+                }
+              }
             }
           }
         },
@@ -312,8 +356,8 @@ JSON 형식으로 응답하세요:
         nextSteps: feedbackData.nextSteps || ["추가 연습 필요", "전문가 피드백 받기", "실무 경험 쌓기"],
         summary: feedbackData.summary || "전반적으로 무난한 대화였습니다. 지속적인 연습을 통해 발전할 수 있습니다.",
         ranking: "전문가 분석 결과를 바탕으로 한 종합 평가입니다.",
-        behaviorGuides: this.generateBehaviorGuides(persona),
-        conversationGuides: this.generateConversationGuides(persona),
+        behaviorGuides: feedbackData.behaviorGuides || this.generateBehaviorGuides(persona),
+        conversationGuides: feedbackData.conversationGuides || this.generateConversationGuides(persona),
         developmentPlan: this.generateDevelopmentPlan(feedbackData.overallScore || 60),
         conversationDuration: conversationDuration,
         averageResponseTime: userMessages.length > 0 ? Math.round(conversationDuration * 60 / userMessages.length) : 0,
