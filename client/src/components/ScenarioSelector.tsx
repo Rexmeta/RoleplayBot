@@ -47,10 +47,8 @@ export default function ScenarioSelector({ onScenarioSelect, playerProfile }: Sc
     queryFn: () => fetch('/api/scenarios').then(res => res.json())
   });
 
-  const { data: personas = [], isLoading: personasLoading } = useQuery({
-    queryKey: ['/api/personas'],
-    queryFn: () => fetch('/api/personas').then(res => res.json())
-  });
+  // MBTI 기본 특성을 시나리오 내에서 직접 처리 (외부 API 호출 없이)
+  const personasLoading = false; // 로딩 상태 제거
 
   // 시나리오에 속한 페르소나들 가져오기 - 시나리오 정보와 MBTI 특성을 결합
   const getPersonasForScenario = (scenarioId: string): ScenarioPersona[] => {
@@ -60,45 +58,27 @@ export default function ScenarioSelector({ onScenarioSelect, playerProfile }: Sc
     // 시나리오의 personas 배열에서 각 페르소나 객체 정보와 MBTI 특성을 결합
     return (scenario.personas || []).map((scenarioPersona: any) => {
       // 시나리오에서 직접 페르소나 객체를 가져오는 경우 (객체 형태)
-      if (typeof scenarioPersona === 'object' && scenarioPersona.personaRef) {
-        const mbtiPersona = personas.find((p: any) => p.id === scenarioPersona.personaRef.replace('.json', ''));
-        
-        if (mbtiPersona) {
-          const combinedPersona = {
-            ...mbtiPersona,
-            // 시나리오의 구체적인 정보를 우선으로 사용
-            id: scenarioPersona.id,
-            name: scenarioPersona.name,
-            role: scenarioPersona.position,
-            department: scenarioPersona.department,
-            experience: scenarioPersona.experience,
-            image: mbtiPersona?.image?.profile || mbtiPersona?.image || `https://ui-avatars.com/api/?name=${encodeURIComponent(scenarioPersona.name)}&background=6366f1&color=fff&size=150`,
-            motivation: scenarioPersona.goal || mbtiPersona?.motivation || '목표 달성',
-            // 시나리오 특화 정보 추가
-            stance: scenarioPersona.stance,
-            goal: scenarioPersona.goal,
-            tradeoff: scenarioPersona.tradeoff,
-            // 시나리오 연결 정보 추가 (디버깅용)
-            scenarioId: scenarioId
-          };
-          return combinedPersona;
-        }
-      }
-      
-      // MBTI ID만 있는 경우 (문자열 형태) - 기존 legacy 지원
-      const mbtiPersona = personas.find((p: any) => p.id === scenarioPersona);
-      if (mbtiPersona) {
-        return {
-          ...mbtiPersona,
-          id: scenarioPersona,
-          name: `${mbtiPersona.mbti} 유형`,
-          role: '팀 구성원',
-          department: '관련 부서',
-          experience: '경력자',
-          image: mbtiPersona?.image?.profile || mbtiPersona?.image || `https://ui-avatars.com/api/?name=${encodeURIComponent(mbtiPersona.mbti)}&background=6366f1&color=fff&size=150`,
-          motivation: mbtiPersona?.motivation || '목표 달성',
-          scenarioId: scenarioId
+      if (typeof scenarioPersona === 'object' && scenarioPersona.name) {
+        // 시나리오에 정의된 정확한 페르소나 정보를 사용 (MBTI API 의존성 제거)
+        const combinedPersona = {
+          // 시나리오의 구체적인 정보를 직접 사용 (핵심 수정!)
+          id: scenarioPersona.id,
+          name: scenarioPersona.name, // 시나리오에서 정의된 정확한 이름 사용!
+          role: scenarioPersona.position,
+          department: scenarioPersona.department,
+          experience: scenarioPersona.experience,
+          gender: scenarioPersona.gender,
+          image: `https://ui-avatars.com/api/?name=${encodeURIComponent(scenarioPersona.name)}&background=6366f1&color=fff&size=150`,
+          motivation: scenarioPersona.goal || '목표 달성',
+          // 시나리오 특화 정보 추가
+          stance: scenarioPersona.stance,
+          goal: scenarioPersona.goal,
+          tradeoff: scenarioPersona.tradeoff,
+          // 시나리오 연결 정보 추가 (디버깅용)
+          scenarioId: scenarioId,
+          mbti: scenarioPersona.personaRef?.replace('.json', '').toUpperCase() || 'UNKNOWN'
         };
+        return combinedPersona;
       }
       
       return null;

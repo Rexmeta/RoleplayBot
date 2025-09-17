@@ -648,13 +648,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const scenarios = await fileManager.getAllScenarios();
       const allPersonas: any[] = [];
       
+      console.log("🔍 DEBUG: /api/personas - Loading personas from scenarios...");
+      
       // 각 시나리오에서 MBTI 기반 페르소나 생성
       for (const scenario of scenarios) {
+        console.log(`📁 DEBUG: Processing scenario: ${scenario.id}`);
         const scenarioPersonas = await fileManager.getScenarioPersonas(scenario.id);
         
         for (const scenarioPersona of scenarioPersonas) {
+          console.log(`👤 DEBUG: Processing persona: ${scenarioPersona.name} (${scenarioPersona.id})`);
           const fullPersona = await fileManager.createPersonaFromScenario(scenarioPersona);
           if (fullPersona) {
+            console.log(`✅ DEBUG: Added persona: ${fullPersona.name} (${fullPersona.id})`);
             allPersonas.push(fullPersona);
           }
         }
@@ -664,6 +669,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const existingPersonas = await fileManager.getAllPersonas();
       const mbtiPersonaIds = allPersonas.map(p => p.id);
       const nonMbtiPersonas = existingPersonas.filter(p => !mbtiPersonaIds.includes(p.id));
+      
+      console.log(`📊 DEBUG: Total personas returned: ${allPersonas.length + nonMbtiPersonas.length}`);
+      console.log(`📋 DEBUG: Persona names: ${[...allPersonas, ...nonMbtiPersonas].map(p => `${p.name}(${p.id})`).join(', ')}`);
       
       res.json([...allPersonas, ...nonMbtiPersonas]);
     } catch (error) {
