@@ -1351,7 +1351,7 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
                 <div className="bg-white/90 backdrop-blur-sm rounded-full px-4 py-2 shadow-lg">
                   <div className="flex items-center space-x-3">
                     <div className="flex items-center space-x-2">
-                      <span className="text-sm font-medium text-slate-700">{persona.name}</span>
+                      <span className="text-sm font-medium text-slate-700">{persona.department} {persona.role} {persona.name}</span>
                       {latestAiMessage?.emotion && (
                         <span className="text-lg">
                           {emotionEmojis[latestAiMessage.emotion] || '😐'}
