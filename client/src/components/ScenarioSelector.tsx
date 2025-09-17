@@ -77,7 +77,9 @@ export default function ScenarioSelector({ onScenarioSelect, playerProfile }: Sc
             // 시나리오 특화 정보 추가
             stance: scenarioPersona.stance,
             goal: scenarioPersona.goal,
-            tradeoff: scenarioPersona.tradeoff
+            tradeoff: scenarioPersona.tradeoff,
+            // 시나리오 연결 정보 추가 (디버깅용)
+            scenarioId: scenarioId
           };
           return combinedPersona;
         }
@@ -94,7 +96,8 @@ export default function ScenarioSelector({ onScenarioSelect, playerProfile }: Sc
           department: '관련 부서',
           experience: '경력자',
           image: mbtiPersona?.image?.profile || mbtiPersona?.image || `https://ui-avatars.com/api/?name=${encodeURIComponent(mbtiPersona.mbti)}&background=6366f1&color=fff&size=150`,
-          motivation: mbtiPersona?.motivation || '목표 달성'
+          motivation: mbtiPersona?.motivation || '목표 달성',
+          scenarioId: scenarioId
         };
       }
       
