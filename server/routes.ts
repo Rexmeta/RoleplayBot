@@ -685,22 +685,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
         personaCount: Number(personaCount) || 3
       });
 
-      // 자동으로 시나리오 이미지 생성
+      // 자동으로 시나리오 이미지 생성 (내부적으로 Gemini 호출)
       let scenarioImage = null;
       try {
-        const imageResponse = await fetch(`http://localhost:5000/api/image/generate-scenario-image`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            scenarioTitle: result.scenario.title,
-            scenarioDescription: result.scenario.description,
-            industry: industry || '일반'
-          })
+        const { GoogleGenAI } = await import("@google/genai");
+        const genAI = new GoogleGenAI({ apiKey: process.env.GOOGLE_API_KEY || process.env.GEMINI_API_KEY });
+        
+        const imagePrompt = `A professional, cinematic business scene representing "${result.scenario.title}". Context: ${result.scenario.description}. Industry: ${industry || 'General business'}. Style: Clean, corporate, professional illustration with modern design elements, suitable for business training materials. Colors: Professional palette with blues, grays, and accent colors.`;
+        
+        const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash-image-preview" });
+        const imageResult = await model.generateContent({
+          contents: [{ role: "user", parts: [{ text: imagePrompt }] }],
+          generationConfig: {
+            responseModalities: ["Text", "Image"]
+          }
         });
         
-        if (imageResponse.ok) {
-          const imageData = await imageResponse.json();
-          scenarioImage = imageData.imageUrl;
+        const imageData = imageResult.response.candidates?.[0]?.content?.parts?.find(part => part.inlineData)?.inlineData;
+        scenarioImage = imageData ? `data:${imageData.mimeType};base64,${imageData.data}` : null;
+        
+        if (scenarioImage) {
+          console.log('✅ AI 시나리오 이미지 자동 생성 성공');
         }
       } catch (error) {
         console.warn('시나리오 이미지 자동 생성 실패:', error);
