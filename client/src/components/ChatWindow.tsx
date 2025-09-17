@@ -956,18 +956,6 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
               </div>
             </div>
             <div className="flex items-center space-x-4">
-              {/* 경과 시간 표시 */}
-              <div className="text-right">
-                <div className="text-sm opacity-90">경과 시간</div>
-                <div className="text-xl font-bold" data-testid="elapsed-time">
-                  {formatElapsedTime(elapsedTime)}
-                </div>
-              </div>
-              
-              <div className="text-right">
-                <div className="text-sm opacity-90">진행도</div>
-                <div className="text-xl font-bold">{conversation.turnCount}/{maxTurns}</div>
-              </div>
               
               
               {/* 채팅 모드 선택 */}
@@ -1075,13 +1063,23 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
             </div>
           </div>
           
-          {/* Progress Bar */}
-          <div className="mt-4">
-            <div className="w-full bg-white/20 rounded-full h-2">
+          {/* Progress Bar with Stats */}
+          <div className="mt-4 flex items-center space-x-3">
+            <div className="flex-1 bg-white/20 rounded-full h-2">
               <div 
                 className="bg-white rounded-full h-2 transition-all duration-300" 
                 style={{ width: `${progressPercentage}%` }}
               ></div>
+            </div>
+            <div className="flex items-center space-x-3 text-white/90 text-sm">
+              <div className="flex items-center space-x-1">
+                <i className="fas fa-clock text-xs"></i>
+                <span data-testid="elapsed-time">{formatElapsedTime(elapsedTime)}</span>
+              </div>
+              <div className="flex items-center space-x-1">
+                <i className="fas fa-tasks text-xs"></i>
+                <span>{conversation.turnCount}/{maxTurns}</span>
+              </div>
             </div>
           </div>
         </div>
