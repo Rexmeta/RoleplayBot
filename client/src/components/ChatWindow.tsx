@@ -949,8 +949,8 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
                   className="hover:opacity-90 transition-opacity cursor-pointer text-left bg-transparent border-none" 
                   data-testid="chat-title-home-link"
                 >
-                  <h3 className="text-lg font-semibold">{persona.name}과의 대화</h3>
-                  <p className="text-blue-100 text-sm">{persona.role} · {persona.department} · {scenario.title}</p>
+                  <h3 className="text-lg font-semibold">{persona.department} {persona.role} {persona.name}과의 대화</h3>
+                  <p className="text-blue-100 text-sm">{scenario.title}</p>
                 </button>
               </div>
             </div>
