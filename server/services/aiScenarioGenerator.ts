@@ -5,6 +5,7 @@ export interface ComplexScenario {
   id: string;
   title: string;
   description: string;
+  image?: string; // 시나리오를 상징하는 이미지 URL
   context: {
     situation: string;
     timeline: string;

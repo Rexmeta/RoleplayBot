@@ -407,74 +407,98 @@ export default function ScenarioSelector({ onScenarioSelect, playerProfile }: Sc
               const scenarioPersonas = getPersonasForScenario(scenario.id);
               
               return (
-                <Card key={scenario.id} className="overflow-hidden">
-                  {/* 시나리오 헤더 */}
+                <Card key={scenario.id} className="overflow-hidden group">
+                  {/* 시나리오 카드 - 이미지 배경 버전 */}
                   <div
-                    className={`cursor-pointer transition-all duration-300 ${
-                      isSelected ? 'bg-blue-50' : 'hover:bg-slate-50'
+                    className={`relative cursor-pointer transition-all duration-500 h-48 ${
+                      isSelected ? 'ring-2 ring-blue-500' : ''
                     }`}
                     onClick={() => handleScenarioClick(scenario)}
                     data-testid={`scenario-card-${scenario.id}`}
+                    style={{
+                      backgroundImage: `linear-gradient(45deg, rgba(0,0,0,0.7) 0%, rgba(0,0,0,0.3) 100%), url(${scenario.image || 'https://images.unsplash.com/photo-1557804506-669a67965ba0?w=800&h=400&fit=crop&auto=format'})`,
+                      backgroundSize: 'cover',
+                      backgroundPosition: 'center',
+                      backgroundRepeat: 'no-repeat'
+                    }}
                   >
-                    <CardHeader>
-                      <div className="flex items-start justify-between">
-                        <div className="flex-1">
-                          <div className="flex items-center gap-3 mb-2">
-                            <CardTitle className="text-lg font-semibold text-slate-900">
-                              {scenario.title}
-                            </CardTitle>
-                            <div className="flex items-center gap-2">
-                              <Badge variant="outline" className={`bg-${getDifficultyColor(scenario.difficulty)}-100 text-${getDifficultyColor(scenario.difficulty)}-800`}>
-                                {getDifficultyLabel(scenario.difficulty)} (★{scenario.difficulty})
-                              </Badge>
-                              <Badge variant="outline" className={`bg-${recommendation.color}-100 text-${recommendation.color}-800`}>
-                                {recommendation.level}
-                              </Badge>
-                            </div>
-                          </div>
-                          <p className="text-sm text-slate-600 mb-3">{scenario.description}</p>
-                          
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
-                            <div>
-                              <h4 className="font-medium text-slate-700 mb-1">상황</h4>
-                              <p className="text-slate-600">{scenario.context?.situation || '상황 정보 없음'}</p>
-                            </div>
-                            <div>
-                              <h4 className="font-medium text-slate-700 mb-1">당신의 역할</h4>
-                              <p className="text-slate-600">
-                                {scenario.context?.playerRole?.position || '역할 정보 없음'} ({scenario.context?.playerRole?.experience || '경력 정보 없음'})
-                              </p>
-                            </div>
-                          </div>
+                    {/* 기본 표시 정보 (항상 보이는 내용) */}
+                    <div className="absolute inset-0 flex flex-col justify-center items-center text-white text-center p-6 group-hover:opacity-0 transition-opacity duration-500">
+                      <h2 className="text-2xl font-bold mb-4 drop-shadow-lg">{scenario.title}</h2>
+                      <div className="flex items-center gap-4 text-sm">
+                        <div className="flex items-center gap-1 bg-white/20 backdrop-blur-sm rounded-full px-3 py-1">
+                          <i className="fas fa-star text-yellow-400"></i>
+                          <span>난이도 {scenario.difficulty}</span>
+                        </div>
+                        <div className="flex items-center gap-1 bg-white/20 backdrop-blur-sm rounded-full px-3 py-1">
+                          <i className="fas fa-users"></i>
+                          <span>{(scenario.personas || []).length}명</span>
+                        </div>
+                        <div className="flex items-center gap-1 bg-white/20 backdrop-blur-sm rounded-full px-3 py-1">
+                          <i className="fas fa-clock"></i>
+                          <span>{scenario.estimatedTime}</span>
+                        </div>
+                      </div>
+                    </div>
 
-                          <div className="mt-4">
-                            <h4 className="font-medium text-slate-700 mb-2">주요 역량</h4>
-                            <div className="flex flex-wrap gap-2">
-                              {sortSkillsByImportance(scenario.skills || []).map((skill: string, index: number) => (
-                                <Badge 
-                                  key={index} 
-                                  variant="secondary" 
-                                  className={`text-xs ${index < 2 ? 'bg-blue-100 text-blue-700 border-blue-200' : ''}`}
-                                >
-                                  {skill}
-                                </Badge>
-                              ))}
-                            </div>
+                    {/* 호버시 표시되는 상세 정보 */}
+                    <div className="absolute inset-0 bg-black/80 backdrop-blur-sm p-6 opacity-0 group-hover:opacity-100 transition-all duration-500 overflow-y-auto">
+                      <div className="text-white h-full flex flex-col">
+                        <div className="flex items-center gap-3 mb-3">
+                          <h3 className="text-lg font-semibold">{scenario.title}</h3>
+                          <div className="flex items-center gap-2">
+                            <Badge variant="outline" className="bg-white/20 text-white border-white/30">
+                              {getDifficultyLabel(scenario.difficulty)} (★{scenario.difficulty})
+                            </Badge>
+                            <Badge variant="outline" className="bg-white/20 text-white border-white/30">
+                              {recommendation.level}
+                            </Badge>
+                          </div>
+                          <div className={`ml-auto transition-transform duration-300 ${isSelected ? 'rotate-180' : ''}`}>
+                            <i className="fas fa-chevron-down text-white"></i>
                           </div>
                         </div>
                         
-                        <div className="text-right flex flex-col items-end">
-                          <div className="flex items-center text-xs text-slate-500 mb-2">
-                            <i className="fas fa-users mr-1"></i>
-                            {(scenario.personas || []).length}명
+                        <p className="text-sm text-gray-200 mb-4 flex-shrink-0">{scenario.description}</p>
+                        
+                        <div className="grid grid-cols-1 gap-3 text-sm mb-4 flex-shrink-0">
+                          <div>
+                            <h4 className="font-medium text-white mb-1 flex items-center">
+                              <i className="fas fa-exclamation-triangle mr-2 text-yellow-400"></i>
+                              상황
+                            </h4>
+                            <p className="text-gray-300 text-xs leading-relaxed">{scenario.context?.situation || '상황 정보 없음'}</p>
                           </div>
-                          <div className="text-xs text-slate-500 mb-2">{scenario.estimatedTime}</div>
-                          <div className={`transition-transform duration-300 ${isSelected ? 'rotate-180' : ''}`}>
-                            <i className="fas fa-chevron-down text-slate-400"></i>
+                          <div>
+                            <h4 className="font-medium text-white mb-1 flex items-center">
+                              <i className="fas fa-user-tie mr-2 text-blue-400"></i>
+                              당신의 역할
+                            </h4>
+                            <p className="text-gray-300 text-xs">
+                              {scenario.context?.playerRole?.position || '역할 정보 없음'} ({scenario.context?.playerRole?.experience || '경력 정보 없음'})
+                            </p>
+                          </div>
+                        </div>
+
+                        <div className="mt-auto">
+                          <h4 className="font-medium text-white mb-2 flex items-center">
+                            <i className="fas fa-lightbulb mr-2 text-green-400"></i>
+                            주요 역량
+                          </h4>
+                          <div className="flex flex-wrap gap-1">
+                            {sortSkillsByImportance(scenario.skills || []).map((skill: string, index: number) => (
+                              <Badge 
+                                key={index} 
+                                variant="secondary" 
+                                className={`text-xs bg-white/20 text-white border-white/30 ${index < 2 ? 'bg-blue-500/30 border-blue-400/50' : ''}`}
+                              >
+                                {skill}
+                              </Badge>
+                            ))}
                           </div>
                         </div>
                       </div>
-                    </CardHeader>
+                    </div>
                   </div>
 
                   {/* 펼쳐지는 페르소나 목록 */}

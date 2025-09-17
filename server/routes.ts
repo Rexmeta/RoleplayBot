@@ -5,6 +5,7 @@ import { insertConversationSchema, insertFeedbackSchema } from "@shared/schema";
 import { generateAIResponse, generateFeedback, SCENARIO_PERSONAS } from "./services/geminiService";
 import { createSampleData } from "./sampleData";
 import ttsRoutes from "./routes/tts.js";
+import imageGenerationRoutes from "./routes/imageGeneration.js";
 import { fileManager } from "./services/fileManager";
 import { generateScenarioWithAI, enhanceScenarioWithAI } from "./services/aiScenarioGenerator";
 
@@ -684,9 +685,32 @@ export async function registerRoutes(app: Express): Promise<Server> {
         personaCount: Number(personaCount) || 3
       });
 
-      // AI 생성된 시나리오에 페르소나 객체를 직접 포함하여 저장 (app-delay-crisis.json 구조와 동일)
+      // 자동으로 시나리오 이미지 생성
+      let scenarioImage = null;
+      try {
+        const imageResponse = await fetch(`http://localhost:5000/api/image/generate-scenario-image`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            scenarioTitle: result.scenario.title,
+            scenarioDescription: result.scenario.description,
+            industry: industry || '일반'
+          })
+        });
+        
+        if (imageResponse.ok) {
+          const imageData = await imageResponse.json();
+          scenarioImage = imageData.imageUrl;
+        }
+      } catch (error) {
+        console.warn('시나리오 이미지 자동 생성 실패:', error);
+        // 이미지 생성 실패해도 시나리오 생성은 계속 진행
+      }
+
+      // AI 생성된 시나리오에 페르소나 객체와 이미지를 포함하여 저장
       const scenarioWithPersonas = {
         ...result.scenario,
+        image: scenarioImage, // 자동 생성된 이미지 추가
         personas: result.personas // 페르소나 객체를 직접 포함
       };
       
@@ -828,6 +852,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // TTS routes
   app.use("/api/tts", ttsRoutes);
+
+  // 이미지 생성 라우트
+  app.use("/api/image", imageGenerationRoutes);
 
   // Create sample data for development
   if (process.env.NODE_ENV === "development") {
