@@ -160,6 +160,18 @@ export class FileManagerService {
     }
   }
 
+  // ⚡ 최적화: 특정 MBTI 유형만 로드 (성능 개선)
+  async getPersonaByMBTI(mbtiType: string): Promise<ScenarioPersona | null> {
+    try {
+      const filePath = path.join(PERSONAS_DIR, `${mbtiType.toLowerCase()}.json`);
+      const content = await fs.readFile(filePath, 'utf-8');
+      return JSON.parse(content) as ScenarioPersona;
+    } catch (error) {
+      console.warn(`Failed to load MBTI persona ${mbtiType}:`, error);
+      return null;
+    }
+  }
+
   // MBTI 페르소나 관리 (관리자용)
   async getAllMBTIPersonas(): Promise<any[]> {
     try {

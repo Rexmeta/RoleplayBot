@@ -11,7 +11,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Loader2, Search, Filter, ChevronDown, ChevronUp } from "lucide-react";
 
 interface ScenarioSelectorProps {
-  onScenarioSelect: (scenarioId: string, personaId: string, conversationId: string) => void;
+  onScenarioSelect: (scenario: ComplexScenario, persona: ScenarioPersona, conversationId: string) => void;
   playerProfile?: {
     position: string;
     department: string;
@@ -101,7 +101,10 @@ export default function ScenarioSelector({ onScenarioSelect, playerProfile }: Sc
     },
     onSuccess: (conversation, { scenarioId, personaId }) => {
       setLoadingScenarioId(null);
-      onScenarioSelect(scenarioId, personaId, conversation.id);
+      // ⚡ 최적화: 객체 직접 전달 (추가 조회 불필요)
+      if (selectedScenario && selectedPersona) {
+        onScenarioSelect(selectedScenario, selectedPersona, conversation.id);
+      }
     },
     onError: () => {
       setLoadingScenarioId(null);
@@ -127,15 +130,9 @@ export default function ScenarioSelector({ onScenarioSelect, playerProfile }: Sc
   };
 
   const handlePersonaSelect = (persona: ScenarioPersona) => {
-    // 🔍 디버깅: 선택된 페르소나 확인
-    console.log('🎯 [DEBUG] 페르소나 선택됨:', persona);
-    console.log('🎯 [DEBUG] 페르소나 이름:', persona.name);
-    console.log('🎯 [DEBUG] 페르소나 ID:', persona.id);
-    console.log('🎯 [DEBUG] 페르소나 전체 객체:', JSON.stringify(persona, null, 2));
+    // ✅ 성능 최적화 완료: 시나리오별 개별 페르소나 처리
     
-    // 🧹 React Query 캐시 완전 클리어 (페르소나 충돌 방지)
-    queryClient.invalidateQueries({ queryKey: ['/api/personas'] });
-    queryClient.removeQueries({ queryKey: ['/api/personas'] });
+    // ⚡ 최적화: 불필요한 전역 페르소나 캐시 클리어 제거
     
     setSelectedPersona(persona);
     

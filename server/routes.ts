@@ -144,9 +144,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         throw new Error(`Persona not found in scenario: ${personaId}`);
       }
       
-      // MBTI 특성 로드
-      const allMbtiPersonas = await fileManager.getAllPersonas();
-      const mbtiPersona = allMbtiPersonas.find(p => p.id === scenarioPersona.personaRef?.replace('.json', ''));
+      // ⚡ 최적화: 특정 MBTI 유형만 로드 (전체 로드 대신)
+      const mbtiType = scenarioPersona.personaRef?.replace('.json', '');
+      const mbtiPersona = mbtiType ? await fileManager.getPersonaByMBTI(mbtiType) : null;
       
       // 시나리오 정보와 MBTI 특성 결합
       const persona = {
@@ -242,9 +242,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         throw new Error(`Persona not found in scenario: ${personaId}`);
       }
       
-      // MBTI 특성 로드
-      const allMbtiPersonas = await fileManager.getAllPersonas();
-      const mbtiPersona = allMbtiPersonas.find(p => p.id === scenarioPersona.personaRef?.replace('.json', ''));
+      // ⚡ 최적화: 특정 MBTI 유형만 로드 (전체 로드 대신)
+      const mbtiType = scenarioPersona.personaRef?.replace('.json', '');
+      const mbtiPersona = mbtiType ? await fileManager.getPersonaByMBTI(mbtiType) : null;
       
       // 시나리오 정보와 MBTI 특성 결합
       const persona = {

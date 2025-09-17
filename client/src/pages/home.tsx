@@ -22,10 +22,8 @@ export default function Home() {
     queryFn: () => fetch('/api/scenarios').then(res => res.json())
   });
 
-  const { data: personas = [] } = useQuery({
-    queryKey: ['/api/personas'],
-    queryFn: () => fetch('/api/personas').then(res => res.json())
-  });
+  // ⚡ 최적화: 불필요한 전체 페르소나 조회 제거 (성능 개선)
+  // ScenarioSelector에서 시나리오별 페르소나를 직접 전달받음
 
   // 사용자 프로필 (실제로는 인증 시스템에서 가져올 것)
   const playerProfile = {
@@ -34,16 +32,12 @@ export default function Home() {
     experience: "6개월차"
   };
 
-  const handleScenarioSelect = (scenarioId: string, personaId: string, convId: string) => {
-    const scenario = scenarios.find((s: ComplexScenario) => s.id === scenarioId);
-    const persona = personas.find((p: ScenarioPersona) => p.id === personaId);
-    
-    if (scenario && persona) {
-      setSelectedScenario(scenario);
-      setSelectedPersona(persona);
-      setConversationId(convId);
-      setCurrentView("chat");
-    }
+  // ⚡ 최적화: ScenarioSelector에서 페르소나 객체를 직접 전달받도록 수정
+  const handleScenarioSelect = (scenario: ComplexScenario, persona: ScenarioPersona, convId: string) => {
+    setSelectedScenario(scenario);
+    setSelectedPersona(persona);
+    setConversationId(convId);
+    setCurrentView("chat");
   };
 
   const handleChatComplete = () => {
