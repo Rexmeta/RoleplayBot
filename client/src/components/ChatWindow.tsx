@@ -76,6 +76,7 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
   const [isEmotionTransitioning, setIsEmotionTransitioning] = useState(false);
   const [imagesLoaded, setImagesLoaded] = useState<{[key: string]: boolean}>({});
   const [currentEmotion, setCurrentEmotion] = useState<string>('중립');
+  const [isGoalsExpanded, setIsGoalsExpanded] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const recognitionRef = useRef<any>(null);
   const speechSynthesisRef = useRef<SpeechSynthesis | null>(null);
@@ -1280,9 +1281,36 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
                     <i className="fas fa-target text-corporate-600 mr-2"></i>
                     목표
                   </h4>
-                  <p className="text-sm text-slate-600">
-                    {persona.name}과 건설적인 대화를 통해 {scenario.skills.join(", ")} 역량을 개발하세요.
-                  </p>
+                  <div className="text-sm text-slate-600 space-y-1">
+                    {(() => {
+                      const allGoals = [
+                        ...(scenario.context?.playerRole?.responsibility ? [`${scenario.context.playerRole.responsibility}`] : []),
+                        ...(scenario.objectives || [])
+                      ];
+                      
+                      return allGoals.slice(0, 2).map((goal: string, index: number) => (
+                        <div key={index} className="flex items-start space-x-2">
+                          <span className="text-slate-500 text-xs mt-0.5">•</span>
+                          <span className="flex-1">{goal}</span>
+                        </div>
+                      ));
+                    })()}
+                    {(() => {
+                      const allGoals = [
+                        ...(scenario.context?.playerRole?.responsibility ? [`${scenario.context.playerRole.responsibility}`] : []),
+                        ...(scenario.objectives || [])
+                      ];
+                      
+                      if (allGoals.length > 2) {
+                        return (
+                          <div className="text-xs text-slate-500 mt-1">
+                            외 {allGoals.length - 2}개 목표 더...
+                          </div>
+                        );
+                      }
+                      return null;
+                    })()}
+                  </div>
                 </div>
                 <div className="bg-white rounded-lg p-4 border border-slate-200">
                   <h4 className="font-medium text-slate-900 mb-2 flex items-center">
@@ -1391,56 +1419,40 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
                   </div>
                 </div>
 
-                {/* Goals Display - Moved to Top Left */}
+                {/* Goals Display - Collapsible */}
                 {(scenario?.objectives || scenario?.context?.playerRole?.responsibility) && (
-                  <div className="bg-white/80 backdrop-blur-sm rounded-lg p-2 shadow-lg hover:bg-white/90 transition-all duration-300 group cursor-pointer max-w-sm">
-                    <div className="flex items-start space-x-2">
-                      <i className="fas fa-bullseye text-blue-600 mt-0.5 text-sm"></i>
-                      <div className="flex-1">
-                        <div className="text-[10px] font-medium text-blue-800 mb-1 flex items-center">
-                          목표
-                          <span className="text-blue-500 ml-1 text-[9px] opacity-60 group-hover:opacity-100">
-                            (hover로 전체 보기)
-                          </span>
-                        </div>
-                        <div className="text-[10px] text-blue-700 leading-relaxed">
+                  <div className="bg-white/80 backdrop-blur-sm rounded-lg shadow-lg transition-all duration-300 max-w-sm">
+                    <button
+                      onClick={() => setIsGoalsExpanded(!isGoalsExpanded)}
+                      className="w-full p-2 flex items-center justify-between hover:bg-white/90 transition-all duration-200 rounded-lg"
+                      data-testid="button-toggle-goals"
+                    >
+                      <div className="flex items-center space-x-2">
+                        <i className="fas fa-bullseye text-blue-600 text-sm"></i>
+                        <span className="text-sm font-medium text-blue-800">목표</span>
+                      </div>
+                      <i className={`fas ${isGoalsExpanded ? 'fa-chevron-up' : 'fa-chevron-down'} text-blue-600 text-xs transition-transform duration-200`}></i>
+                    </button>
+                    
+                    {isGoalsExpanded && (
+                      <div className="px-3 pb-3 border-t border-blue-100/50">
+                        <div className="text-xs text-blue-700 leading-relaxed space-y-2 mt-2">
                           {(() => {
                             const allGoals = [
                               ...(scenario.context?.playerRole?.responsibility ? [`${scenario.context.playerRole.responsibility}`] : []),
                               ...(scenario.objectives || [])
                             ];
-                            const displayGoals = allGoals.slice(0, 2);
-                            const remainingGoals = allGoals.slice(2);
-                            const hasMore = allGoals.length > 2;
                             
-                            return (
-                              <div className="space-y-1">
-                                {/* 기본 2개 목표 */}
-                                {displayGoals.map((goal: string, index: number) => (
-                                  <div key={index}>• {goal}</div>
-                                ))}
-                                
-                                {/* 더보기 표시 */}
-                                {hasMore && (
-                                  <div className="text-blue-500 group-hover:hidden">
-                                    • ... (+{remainingGoals.length}개 더)
-                                  </div>
-                                )}
-                                
-                                {/* 호버 시 나머지 목표만 추가 표시 */}
-                                {hasMore && (
-                                  <div className="hidden group-hover:block">
-                                    {remainingGoals.map((goal: string, index: number) => (
-                                      <div key={`remaining-${index}`}>• {goal}</div>
-                                    ))}
-                                  </div>
-                                )}
+                            return allGoals.map((goal: string, index: number) => (
+                              <div key={index} className="flex items-start space-x-2">
+                                <span className="text-blue-500 text-xs mt-0.5">•</span>
+                                <span className="flex-1">{goal}</span>
                               </div>
-                            );
+                            ));
                           })()}
                         </div>
                       </div>
-                    </div>
+                    )}
                   </div>
                 )}
               </div>
