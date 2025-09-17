@@ -354,11 +354,11 @@ JSON 형식으로 응답하세요:
       return {
         overallScore: Math.min(100, Math.max(0, feedbackData.overallScore || 0)),
         scores: {
-          clarity: Math.min(5, Math.max(1, feedbackData.scores?.clarity || 3)),
-          empathy: Math.min(5, Math.max(1, feedbackData.scores?.empathy || 3)),
-          responsiveness: Math.min(5, Math.max(1, feedbackData.scores?.responsiveness || 3)),
-          structure: Math.min(5, Math.max(1, feedbackData.scores?.structure || 3)),
-          professionalism: Math.min(5, Math.max(1, feedbackData.scores?.professionalism || 3))
+          clarityLogic: Math.min(5, Math.max(1, feedbackData.scores?.clarity || 3)),
+          listeningEmpathy: Math.min(5, Math.max(1, feedbackData.scores?.empathy || 3)),
+          appropriatenessAdaptability: Math.min(5, Math.max(1, feedbackData.scores?.responsiveness || 3)),
+          persuasivenessImpact: Math.min(5, Math.max(1, feedbackData.scores?.structure || 3)),
+          strategicCommunication: Math.min(5, Math.max(1, feedbackData.scores?.professionalism || 3))
         },
         strengths: feedbackData.strengths || ["기본적인 대화 능력", "적절한 언어 사용", "상황 이해도"],
         improvements: feedbackData.improvements || ["더 구체적인 표현", "감정 교감 증진", "논리적 구조화"],
@@ -576,11 +576,11 @@ JSON 형식으로 응답하세요:
     return {
       overallScore: Math.min(100, Math.max(0, overallScore)),
       scores: {
-        clarity: clarityScore,
-        empathy: empathyScore,
-        responsiveness: responsivenessScore,
-        structure: structureScore,
-        professionalism: professionalismScore
+        clarityLogic: clarityScore,
+        listeningEmpathy: empathyScore,
+        appropriatenessAdaptability: responsivenessScore,
+        persuasivenessImpact: structureScore,
+        strategicCommunication: professionalismScore
       },
       strengths: scenarioFeedback.strengths,
       improvements: scenarioFeedback.improvements,
@@ -588,7 +588,12 @@ JSON 형식으로 응답하세요:
       summary: scenarioFeedback.summary,
       conversationDuration: conversationDuration || 10,
       averageResponseTime: averageResponseTime || 30,
-      timePerformance: timingAnalysis || { rating: 'average', feedback: '시간 정보 없음' }
+      timePerformance: timingAnalysis || { rating: 'average', feedback: '시간 정보 없음' },
+      // 🔧 누락된 가이드 필드 추가
+      behaviorGuides: this.generateBehaviorGuides(persona.id, overallScore),
+      conversationGuides: this.generateConversationGuides(persona.id, overallScore),
+      ranking: "전문가 분석 결과를 바탕으로 한 종합 평가입니다.",
+      developmentPlan: this.generateDevelopmentPlan(overallScore)
     };
   }
   
@@ -647,16 +652,87 @@ JSON 형식으로 응답하세요:
     return {
       overallScore: 60,
       scores: {
-        clarity: 3,
-        empathy: 3,
-        responsiveness: 3,
-        structure: 3,
-        professionalism: 3
+        clarityLogic: 3,
+        listeningEmpathy: 3,
+        appropriatenessAdaptability: 3,
+        persuasivenessImpact: 3,
+        strategicCommunication: 3
       },
       strengths: ["기본적인 대화 참여", "적절한 언어 사용", "상황에 맞는 응답"],
       improvements: ["시스템 안정성 확보 후 재평가 필요", "더 많은 대화 기회 필요", "기술적 문제 해결 후 재시도"],
       nextSteps: ["시스템 점검 완료 후 재도전", "안정적인 환경에서 재시도", "기술 지원팀 문의"],
       summary: "시스템 오류로 인해 정확한 평가가 어려웠습니다. 기술적 문제 해결 후 다시 시도해주세요."
+    };
+  }
+
+  // 🔧 누락된 가이드 생성 함수들 추가
+  private generateBehaviorGuides(scenarioId: string, score: number) {
+    const guides = [
+      {
+        situation: "전문적 대화 상황",
+        action: "명확하고 논리적인 의사소통을 지향하세요",
+        example: "구체적인 사례와 데이터를 바탕으로 설명드리겠습니다",
+        impact: "신뢰성 향상 및 효과적인 의사결정 지원"
+      }
+    ];
+    
+    if (score < 50) {
+      guides.push({
+        situation: "어려운 대화 상황",
+        action: "상대방의 입장을 먼저 이해하려 노력하세요",
+        example: "그런 점에서 우려하시는 거군요. 어떤 부분이 가장 걱정되시나요?",
+        impact: "갈등 해결과 상호 신뢰 구축"
+      });
+    }
+    
+    return guides;
+  }
+
+  private generateConversationGuides(scenarioId: string, score: number) {
+    const guides = [
+      {
+        scenario: "업무 협의 상황",
+        goodExample: "사실에 기반한 논리적 설명과 상대방 입장 고려",
+        badExample: "일방적 주장이나 감정적 대응",
+        keyPoints: ["명확한 의사표현", "상호 존중", "건설적 피드백"]
+      }
+    ];
+    
+    if (score < 60) {
+      guides.push({
+        scenario: "갈등 상황 대응",
+        goodExample: "침착하게 경청하고 공동의 해결책 모색",
+        badExample: "방어적 자세나 비난적 반응",
+        keyPoints: ["감정 공감", "문제 초점 지향", "위치 파악"]
+      });
+    }
+    
+    return guides;
+  }
+
+  private generateDevelopmentPlan(score: number) {
+    return {
+      shortTerm: [{
+        goal: "커뮤니케이션 기본기 강화",
+        actions: ["매일 대화 연습", "피드백 분석", "개선점 실천"],
+        measurable: "주 5회 연습, 점수 15% 향상"
+      }],
+      mediumTerm: [{
+        goal: "상황별 대응력 개발",
+        actions: ["다양한 시나리오 경험", "전문가 조언", "동료 피드백"],
+        measurable: "월 3회 새 시나리오, 성공률 80% 달성"
+      }],
+      longTerm: [{
+        goal: "고급 커뮤니케이션 역량 확보",
+        actions: ["전문 교육 이수", "멘토 활동", "리더십 개발"],
+        measurable: "6개월 내 전문가 수준 도달"
+      }],
+      recommendedResources: [
+        "커뮤니케이션 심화 과정",
+        "비즈니스 대화법 도서",
+        "실전 시나리오 훈련",
+        "전문가 멘토링"
+      ]
     };
   }
 
