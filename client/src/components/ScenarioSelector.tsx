@@ -410,9 +410,9 @@ export default function ScenarioSelector({ onScenarioSelect, playerProfile }: Sc
                 <Card key={scenario.id} className="overflow-hidden group">
                   {/* 시나리오 카드 - 이미지 배경 버전 */}
                   <div
-                    className={`relative cursor-pointer transition-all duration-500 h-48 ${
+                    className={`relative cursor-pointer transition-all duration-500 ${
                       isSelected ? 'ring-2 ring-blue-500' : ''
-                    }`}
+                    } h-48 group-hover:h-auto`}
                     onClick={() => handleScenarioClick(scenario)}
                     data-testid={`scenario-card-${scenario.id}`}
                     style={{
@@ -423,7 +423,7 @@ export default function ScenarioSelector({ onScenarioSelect, playerProfile }: Sc
                     }}
                   >
                     {/* 기본 표시 정보 (항상 보이는 내용) */}
-                    <div className="absolute inset-0 flex flex-col justify-center items-center text-white text-center p-6 group-hover:opacity-0 transition-opacity duration-500">
+                    <div className="absolute inset-0 flex flex-col justify-center items-center text-white text-center p-6 group-hover:hidden transition-all duration-500">
                       <h2 className="text-2xl font-bold mb-4 drop-shadow-lg">{scenario.title}</h2>
                       <div className="flex items-center gap-4 text-sm">
                         <div className="flex items-center gap-1 bg-white/20 backdrop-blur-sm rounded-full px-3 py-1">
@@ -442,50 +442,60 @@ export default function ScenarioSelector({ onScenarioSelect, playerProfile }: Sc
                     </div>
 
                     {/* 호버시 표시되는 상세 정보 */}
-                    <div className="absolute inset-0 bg-black/80 backdrop-blur-sm p-6 opacity-0 group-hover:opacity-100 transition-all duration-500 overflow-y-auto">
-                      <div className="text-white h-full flex flex-col">
-                        <div className="flex items-center gap-3 mb-3">
+                    <div className="hidden group-hover:block bg-black/80 backdrop-blur-sm p-6 transition-all duration-500">
+                      <div className="text-white">
+                        {/* 헤더 */}
+                        <div className="flex items-center gap-3 mb-4">
                           <h3 className="text-lg font-semibold">{scenario.title}</h3>
-                          <div className="flex items-center gap-2">
-                            <Badge variant="outline" className="bg-white/20 text-white border-white/30">
-                              {getDifficultyLabel(scenario.difficulty)} (★{scenario.difficulty})
-                            </Badge>
-                            <Badge variant="outline" className="bg-white/20 text-white border-white/30">
-                              {recommendation.level}
-                            </Badge>
-                          </div>
-                          <div className={`ml-auto transition-transform duration-300 ${isSelected ? 'rotate-180' : ''}`}>
-                            <i className="fas fa-chevron-down text-white"></i>
-                          </div>
+                          <Badge variant="outline" className="bg-white/20 text-white border-white/30">
+                            {getDifficultyLabel(scenario.difficulty)} (★{scenario.difficulty})
+                          </Badge>
+                          <Badge variant="outline" className="bg-white/20 text-white border-white/30">
+                            {recommendation.level}
+                          </Badge>
                         </div>
                         
-                        <p className="text-sm text-gray-200 mb-4 flex-shrink-0">{scenario.description}</p>
+                        {/* 설명 */}
+                        <p className="text-sm text-gray-200 mb-4">{scenario.description}</p>
                         
-                        <div className="grid grid-cols-1 gap-3 text-sm mb-4 flex-shrink-0">
+                        {/* 상황 정보 */}
+                        <div className="space-y-3 mb-4">
                           <div>
-                            <h4 className="font-medium text-white mb-1 flex items-center">
+                            <h4 className="font-medium text-white mb-1 flex items-center text-sm">
                               <i className="fas fa-exclamation-triangle mr-2 text-yellow-400"></i>
                               상황
                             </h4>
-                            <p className="text-gray-300 text-xs leading-relaxed">{scenario.context?.situation || '상황 정보 없음'}</p>
+                            <p className="text-gray-300 text-xs leading-relaxed pl-5">
+                              {scenario.context?.situation || '상황 정보 없음'}
+                            </p>
                           </div>
+                          
                           <div>
-                            <h4 className="font-medium text-white mb-1 flex items-center">
+                            <h4 className="font-medium text-white mb-1 flex items-center text-sm">
                               <i className="fas fa-user-tie mr-2 text-blue-400"></i>
                               당신의 역할
                             </h4>
-                            <p className="text-gray-300 text-xs">
+                            <p className="text-gray-300 text-xs pl-5">
                               {scenario.context?.playerRole?.position || '역할 정보 없음'} ({scenario.context?.playerRole?.experience || '경력 정보 없음'})
                             </p>
                           </div>
+
+                          <div>
+                            <h4 className="font-medium text-white mb-1 flex items-center text-sm">
+                              <i className="fas fa-clock mr-2 text-purple-400"></i>
+                              예상 소요 시간
+                            </h4>
+                            <p className="text-gray-300 text-xs pl-5">{scenario.estimatedTime}</p>
+                          </div>
                         </div>
 
-                        <div className="mt-auto">
-                          <h4 className="font-medium text-white mb-2 flex items-center">
+                        {/* 주요 역량 */}
+                        <div>
+                          <h4 className="font-medium text-white mb-2 flex items-center text-sm">
                             <i className="fas fa-lightbulb mr-2 text-green-400"></i>
                             주요 역량
                           </h4>
-                          <div className="flex flex-wrap gap-1">
+                          <div className="flex flex-wrap gap-1 pl-5">
                             {sortSkillsByImportance(scenario.skills || []).map((skill: string, index: number) => (
                               <Badge 
                                 key={index} 
