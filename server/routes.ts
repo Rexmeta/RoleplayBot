@@ -33,9 +33,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
           throw new Error(`Persona not found in scenario: ${personaId}`);
         }
         
-        // MBTI 특성 로드
-        const allMbtiPersonas = await fileManager.getAllPersonas();
-        const mbtiPersona = allMbtiPersonas.find(p => p.id === scenarioPersona.personaRef?.replace('.json', ''));
+        // ⚡ 최적화: 특정 MBTI만 로드 (전체 페르소나 로드 방지)
+        const mbtiType = scenarioPersona.personaRef?.replace('.json', '');
+        const mbtiPersona = mbtiType ? await fileManager.getPersonaByMBTI(mbtiType) : null;
         
         // 시나리오 정보와 MBTI 특성 결합
         const persona = {
@@ -643,42 +643,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get("/api/personas", async (req, res) => {
-    try {
-      const scenarios = await fileManager.getAllScenarios();
-      const allPersonas: any[] = [];
-      
-      console.log("🔍 DEBUG: /api/personas - Loading personas from scenarios...");
-      
-      // 각 시나리오에서 MBTI 기반 페르소나 생성
-      for (const scenario of scenarios) {
-        console.log(`📁 DEBUG: Processing scenario: ${scenario.id}`);
-        const scenarioPersonas = await fileManager.getScenarioPersonas(scenario.id);
-        
-        for (const scenarioPersona of scenarioPersonas) {
-          console.log(`👤 DEBUG: Processing persona: ${scenarioPersona.name} (${scenarioPersona.id})`);
-          const fullPersona = await fileManager.createPersonaFromScenario(scenarioPersona);
-          if (fullPersona) {
-            console.log(`✅ DEBUG: Added persona: ${fullPersona.name} (${fullPersona.id})`);
-            allPersonas.push(fullPersona);
-          }
-        }
-      }
-      
-      // 기존 페르소나도 포함 (하위 호환성)
-      const existingPersonas = await fileManager.getAllPersonas();
-      const mbtiPersonaIds = allPersonas.map(p => p.id);
-      const nonMbtiPersonas = existingPersonas.filter(p => !mbtiPersonaIds.includes(p.id));
-      
-      console.log(`📊 DEBUG: Total personas returned: ${allPersonas.length + nonMbtiPersonas.length}`);
-      console.log(`📋 DEBUG: Persona names: ${[...allPersonas, ...nonMbtiPersonas].map(p => `${p.name}(${p.id})`).join(', ')}`);
-      
-      res.json([...allPersonas, ...nonMbtiPersonas]);
-    } catch (error) {
-      console.error("Error fetching personas:", error);
-      res.status(500).json({ error: "Failed to fetch personas" });
-    }
-  });
+  // ❌ 비효율적인 /api/personas 엔드포인트 제거됨 
+  // (34개 전체 시나리오 처리 방지 최적화)
+  // 이제 시나리오별 개별 페르소나 처리만 사용
 
   // AI 시나리오 생성 API
   app.post("/api/admin/generate-scenario", async (req, res) => {
