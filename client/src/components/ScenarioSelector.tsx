@@ -410,9 +410,9 @@ export default function ScenarioSelector({ onScenarioSelect, playerProfile }: Sc
                 <Card key={scenario.id} className="overflow-hidden group">
                   {/* 시나리오 카드 - 이미지 배경 버전 */}
                   <div
-                    className={`relative cursor-pointer transition-all duration-500 ${
+                    className={`relative cursor-pointer transition-all duration-700 ease-in-out ${
                       isSelected ? 'ring-2 ring-blue-500' : ''
-                    } h-48 group-hover:h-auto`}
+                    } h-48 group-hover:h-96 overflow-hidden`}
                     onClick={() => handleScenarioClick(scenario)}
                     data-testid={`scenario-card-${scenario.id}`}
                     style={{
@@ -442,7 +442,7 @@ export default function ScenarioSelector({ onScenarioSelect, playerProfile }: Sc
                     </div>
 
                     {/* 호버시 표시되는 상세 정보 */}
-                    <div className="hidden group-hover:block bg-black/80 backdrop-blur-sm p-6 transition-all duration-500">
+                    <div className="hidden group-hover:block bg-black/80 backdrop-blur-sm p-6 transition-all duration-700 ease-in-out">
                       <div className="text-white">
                         {/* 헤더 */}
                         <div className="flex items-center gap-3 mb-4">

@@ -2,10 +2,14 @@ import "dotenv/config";
 import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
+import * as pathModule from "path";
 
 const app = express();
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
+
+// scenarios/images 폴더의 이미지 파일들을 정적으로 제공 (보안상 images만 공개)
+app.use('/scenarios/images', express.static(pathModule.join(process.cwd(), 'scenarios', 'images')));
 
 app.use((req, res, next) => {
   const start = Date.now();

@@ -1,5 +1,7 @@
 import { Router } from 'express';
 import { GoogleGenAI } from "@google/genai";
+import * as fs from 'fs';
+import * as path from 'path';
 
 // Gemini 클라이언트 초기화
 const apiKey = process.env.GOOGLE_API_KEY || process.env.GEMINI_API_KEY;
@@ -47,15 +49,20 @@ router.post('/generate-scenario-image', async (req, res) => {
       throw new Error('이미지가 생성되지 않았습니다.');
     }
 
-    console.log(`✅ Gemini 이미지 생성 성공`);
+    // base64 이미지를 로컬 파일로 저장
+    const localImagePath = await saveImageToLocal(imageUrl, scenarioTitle);
+    
+    console.log(`✅ Gemini 이미지 생성 성공, 로컬 저장 완료: ${localImagePath}`);
 
     res.json({
       success: true,
-      imageUrl: imageUrl,
+      imageUrl: localImagePath, // 로컬 파일 경로 반환
+      originalImageUrl: imageUrl, // 원본 base64 URL도 포함
       prompt: imagePrompt,
       metadata: {
         model: "gemini-2.5-flash-image-preview",
-        provider: "gemini"
+        provider: "gemini",
+        savedLocally: true
       }
     });
 
@@ -132,6 +139,58 @@ function generateImagePrompt(title: string, description?: string, theme?: string
   return prompt;
 }
 
+// base64 이미지를 로컬 파일로 저장하는 함수
+async function saveImageToLocal(base64ImageUrl: string, scenarioTitle: string): Promise<string> {
+  try {
+    // base64 데이터에서 이미지 정보 추출
+    const matches = base64ImageUrl.match(/^data:([A-Za-z-+\/]+);base64,(.+)$/);
+    if (!matches) {
+      throw new Error('유효하지 않은 base64 이미지 형식입니다.');
+    }
+
+    const mimeType = matches[1];
+    const imageData = matches[2];
+    
+    // 파일 확장자 결정
+    const extension = mimeType.includes('png') ? 'png' : 
+                     mimeType.includes('jpeg') || mimeType.includes('jpg') ? 'jpg' : 
+                     'png'; // 기본값
+    
+    // 파일명 생성 (안전한 파일명으로 변환)
+    const safeTitle = scenarioTitle
+      .replace(/[^a-zA-Z0-9가-힣\s]/g, '') // 특수문자 제거
+      .replace(/\s+/g, '-') // 공백을 하이픈으로
+      .substring(0, 50); // 길이 제한
+    
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+    const filename = `${safeTitle}-${timestamp}.${extension}`;
+    
+    // 저장 경로 설정
+    const imageDir = path.join(process.cwd(), 'scenarios', 'images');
+    
+    // 디렉토리가 없으면 생성
+    if (!fs.existsSync(imageDir)) {
+      fs.mkdirSync(imageDir, { recursive: true });
+    }
+    
+    const filePath = path.join(imageDir, filename);
+    
+    // base64 데이터를 파일로 저장
+    const buffer = Buffer.from(imageData, 'base64');
+    fs.writeFileSync(filePath, buffer);
+    
+    // 웹에서 접근 가능한 상대 경로 반환
+    const webPath = `/scenarios/images/${filename}`;
+    
+    console.log(`📁 이미지 로컬 저장 완료: ${webPath}`);
+    return webPath;
+    
+  } catch (error) {
+    console.error('이미지 로컬 저장 실패:', error);
+    throw error;
+  }
+}
+
 // 미리보기 이미지 생성 (더 빠른 응답을 위한 간단한 버전)
 router.post('/generate-preview', async (req, res) => {
   try {
@@ -164,11 +223,22 @@ router.post('/generate-preview', async (req, res) => {
       }
     }
 
+    if (!imageUrl) {
+      throw new Error('미리보기 이미지가 생성되지 않았습니다.');
+    }
+
+    // 미리보기 이미지도 로컬에 저장
+    const localImagePath = await saveImageToLocal(imageUrl, scenarioTitle);
+    
     res.json({
       success: true,
-      imageUrl: imageUrl,
+      imageUrl: localImagePath, // 로컬 파일 경로 반환
+      originalImageUrl: imageUrl, // 원본 base64 URL도 포함
       prompt: simplePrompt,
-      isPreview: true
+      isPreview: true,
+      metadata: {
+        savedLocally: true
+      }
     });
 
   } catch (error: any) {
