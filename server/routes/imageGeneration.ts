@@ -28,7 +28,7 @@ router.post('/generate-scenario-image', async (req, res) => {
     const ai = new GoogleGenAI({ apiKey: process.env.GOOGLE_API_KEY || process.env.GEMINI_API_KEY });
     const result = await ai.models.generateContent({
       model: "gemini-2.5-flash-image-preview",
-      contents: imagePrompt,
+      contents: [{ role: 'user', parts: [{ text: imagePrompt }] }]
     });
     
     // 응답에서 이미지 데이터 추출
@@ -149,7 +149,7 @@ router.post('/generate-preview', async (req, res) => {
     const ai = new GoogleGenAI({ apiKey: process.env.GOOGLE_API_KEY || process.env.GEMINI_API_KEY });
     const result = await ai.models.generateContent({
       model: "gemini-2.5-flash-image-preview",
-      contents: simplePrompt,
+      contents: [{ role: 'user', parts: [{ text: simplePrompt }] }]
     });
     
     // 응답에서 이미지 데이터 추출

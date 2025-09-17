@@ -697,7 +697,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         
         const imageResponse = await ai.models.generateContent({
           model: "gemini-2.5-flash-image-preview",
-          contents: imagePrompt,
+          contents: [{ role: 'user', parts: [{ text: imagePrompt }] }]
         });
         
         // 응답에서 이미지 데이터 추출
