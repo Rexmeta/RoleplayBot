@@ -8,7 +8,7 @@ import { PersonaManager } from "@/components/admin/PersonaManager";
 import { AIScenarioGenerator } from "@/components/admin/AIScenarioGenerator";
 
 export default function AdminManagement() {
-  const [activeTab, setActiveTab] = useState("ai-generator");
+  const [activeTab, setActiveTab] = useState("manage-scenarios");
   const [generatedResult, setGeneratedResult] = useState<any>(null);
   
   const handleAIGenerated = (result: any) => {
@@ -46,9 +46,9 @@ export default function AdminManagement() {
         {/* Management Tabs */}
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
           <TabsList className="grid w-full grid-cols-3">
-            <TabsTrigger value="ai-generator" data-testid="tab-ai-generator">AI 생성</TabsTrigger>
             <TabsTrigger value="manage-scenarios" data-testid="tab-manage-scenarios">시나리오 관리</TabsTrigger>
             <TabsTrigger value="manage-personas" data-testid="tab-manage-personas">페르소나 관리</TabsTrigger>
+            <TabsTrigger value="ai-generator" data-testid="tab-ai-generator">시나리오 생성</TabsTrigger>
           </TabsList>
 
           <TabsContent value="ai-generator" className="space-y-6">

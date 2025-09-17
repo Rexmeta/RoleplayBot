@@ -5,7 +5,7 @@ import { insertConversationSchema, insertFeedbackSchema } from "@shared/schema";
 import { generateAIResponse, generateFeedback, SCENARIO_PERSONAS } from "./services/geminiService";
 import { createSampleData } from "./sampleData";
 import ttsRoutes from "./routes/tts.js";
-import imageGenerationRoutes from "./routes/imageGeneration.js";
+import imageGenerationRoutes, { saveImageToLocal } from "./routes/imageGeneration.js";
 import { fileManager } from "./services/fileManager";
 import { generateScenarioWithAI, enhanceScenarioWithAI } from "./services/aiScenarioGenerator";
 
@@ -685,7 +685,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         personaCount: Number(personaCount) || 3
       });
 
-      // 자동으로 시나리오 이미지 생성 (Gemini API 직접 호출)
+      // 자동으로 시나리오 이미지 생성 및 로컬 저장
       let scenarioImage = null;
       try {
         const { GoogleGenAI } = await import("@google/genai");
@@ -701,15 +701,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
         
         // 응답에서 이미지 데이터 추출
+        let base64ImageUrl = null;
         if (imageResponse.candidates && imageResponse.candidates[0] && imageResponse.candidates[0].content && imageResponse.candidates[0].content.parts) {
           for (const part of imageResponse.candidates[0].content.parts) {
             if (part.inlineData) {
               const imageData = part.inlineData;
-              scenarioImage = `data:${imageData.mimeType};base64,${imageData.data}`;
+              base64ImageUrl = `data:${imageData.mimeType};base64,${imageData.data}`;
               console.log('✅ AI 시나리오 이미지 자동 생성 성공');
               break;
             }
           }
+        }
+        
+        // 생성된 이미지를 로컬에 저장
+        if (base64ImageUrl) {
+          scenarioImage = await saveImageToLocal(base64ImageUrl, result.scenario.title);
         }
         
       } catch (error) {

@@ -251,4 +251,7 @@ router.post('/generate-preview', async (req, res) => {
   }
 });
 
+// saveImageToLocal 함수도 export
+export { saveImageToLocal };
+
 export default router;
