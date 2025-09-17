@@ -1,5 +1,5 @@
 import { useState, useRef } from "react";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -21,6 +21,7 @@ interface ScenarioSelectorProps {
 
 export default function ScenarioSelector({ onScenarioSelect, playerProfile }: ScenarioSelectorProps) {
   const { toast } = useToast();
+  const queryClient = useQueryClient();
   const [selectedScenario, setSelectedScenario] = useState<ComplexScenario | null>(null);
   const [selectedPersona, setSelectedPersona] = useState<ScenarioPersona | null>(null);
   const [loadingScenarioId, setLoadingScenarioId] = useState<string | null>(null);
@@ -126,6 +127,16 @@ export default function ScenarioSelector({ onScenarioSelect, playerProfile }: Sc
   };
 
   const handlePersonaSelect = (persona: ScenarioPersona) => {
+    // 🔍 디버깅: 선택된 페르소나 확인
+    console.log('🎯 [DEBUG] 페르소나 선택됨:', persona);
+    console.log('🎯 [DEBUG] 페르소나 이름:', persona.name);
+    console.log('🎯 [DEBUG] 페르소나 ID:', persona.id);
+    console.log('🎯 [DEBUG] 페르소나 전체 객체:', JSON.stringify(persona, null, 2));
+    
+    // 🧹 React Query 캐시 완전 클리어 (페르소나 충돌 방지)
+    queryClient.invalidateQueries({ queryKey: ['/api/personas'] });
+    queryClient.removeQueries({ queryKey: ['/api/personas'] });
+    
     setSelectedPersona(persona);
     
     // 대화하기 버튼으로 스크롤
