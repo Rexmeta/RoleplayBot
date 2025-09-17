@@ -201,6 +201,29 @@ export default function AIGeneratorPage() {
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
+                {/* 생성된 시나리오 이미지 표시 */}
+                {generatedResult.scenario.image && (
+                  <div>
+                    <h4 className="font-semibold text-slate-800 mb-2">생성된 시나리오 이미지</h4>
+                    <div className="relative w-full h-48 bg-slate-100 rounded-lg overflow-hidden">
+                      <img
+                        src={generatedResult.scenario.image}
+                        alt={generatedResult.scenario.title}
+                        className="w-full h-full object-cover"
+                        onError={(e) => {
+                          const target = e.target as HTMLImageElement;
+                          target.style.display = 'none';
+                          const parent = target.parentElement;
+                          if (parent) {
+                            parent.innerHTML = '<div class="flex items-center justify-center h-full text-slate-500"><i class="fas fa-image mr-2"></i>이미지를 불러올 수 없습니다</div>';
+                          }
+                        }}
+                        data-testid="generated-scenario-image"
+                      />
+                    </div>
+                  </div>
+                )}
+                
                 <div>
                   <h4 className="font-semibold text-slate-800">시나리오 제목</h4>
                   <p className="text-slate-600">{generatedResult.scenario.title}</p>
