@@ -120,8 +120,8 @@ export class ConversationCache {
     const persona = {
       id: scenarioPersona.id,
       name: scenarioPersona.name,
-      role: scenarioPersona.position,
-      department: scenarioPersona.department,
+      role: scenarioPersona.position || scenarioPersona.role || '팀원', // undefined 방지
+      department: scenarioPersona.department || '부서 미지정',
       personality: mbtiPersona?.communication_style || '균형 잡힌 의사소통',
       responseStyle: mbtiPersona?.communication_patterns?.opening_style || '상황에 맞는 방식으로 대화 시작',
       goals: mbtiPersona?.communication_patterns?.win_conditions || ['목표 달성'],
@@ -133,6 +133,8 @@ export class ConversationCache {
       stance: scenarioPersona.stance || '상황에 따른 대응',
       goal: scenarioPersona.goal || '최적의 결과 도출'
     };
+    
+    console.log(`🔍 페르소나 객체 확인: ${persona.name}(${persona.role}) - ${persona.department}`);
 
     // 캐싱
     this.personaCache.set(personaKey, persona);
