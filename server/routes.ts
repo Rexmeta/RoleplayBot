@@ -200,6 +200,118 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Strategic Selection APIs
+  
+  // Persona Selection APIs
+  app.post("/api/conversations/:id/persona-selections", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const selection = req.body;
+      
+      // Validate selection data
+      if (!selection.phase || !selection.personaId || !selection.selectionReason) {
+        return res.status(400).json({ error: "Missing required fields: phase, personaId, selectionReason" });
+      }
+      
+      const conversation = await storage.addPersonaSelection(id, {
+        phase: selection.phase,
+        personaId: selection.personaId,
+        selectionReason: selection.selectionReason,
+        timestamp: selection.timestamp || new Date().toISOString(),
+        expectedOutcome: selection.expectedOutcome || ""
+      });
+      
+      res.json({ success: true, conversation });
+    } catch (error) {
+      console.error("Error adding persona selection:", error);
+      res.status(500).json({ error: "Failed to add persona selection" });
+    }
+  });
+  
+  app.get("/api/conversations/:id/persona-selections", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const selections = await storage.getPersonaSelections(id);
+      res.json(selections);
+    } catch (error) {
+      console.error("Error getting persona selections:", error);
+      res.status(500).json({ error: "Failed to get persona selections" });
+    }
+  });
+  
+  // Strategy Choice APIs
+  app.post("/api/conversations/:id/strategy-choices", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const choice = req.body;
+      
+      // Validate choice data
+      if (!choice.phase || !choice.choice || !choice.reasoning) {
+        return res.status(400).json({ error: "Missing required fields: phase, choice, reasoning" });
+      }
+      
+      const conversation = await storage.addStrategyChoice(id, {
+        phase: choice.phase,
+        choice: choice.choice,
+        reasoning: choice.reasoning,
+        expectedImpact: choice.expectedImpact || "",
+        actualOutcome: choice.actualOutcome,
+        effectiveness: choice.effectiveness
+      });
+      
+      res.json({ success: true, conversation });
+    } catch (error) {
+      console.error("Error adding strategy choice:", error);
+      res.status(500).json({ error: "Failed to add strategy choice" });
+    }
+  });
+  
+  app.get("/api/conversations/:id/strategy-choices", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const choices = await storage.getStrategyChoices(id);
+      res.json(choices);
+    } catch (error) {
+      console.error("Error getting strategy choices:", error);
+      res.status(500).json({ error: "Failed to get strategy choices" });
+    }
+  });
+  
+  // Sequence Analysis APIs
+  app.post("/api/conversations/:id/sequence-analysis", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const analysis = req.body;
+      
+      // Validate analysis data
+      if (!analysis.selectionOrder || !analysis.overallEffectiveness) {
+        return res.status(400).json({ error: "Missing required fields: selectionOrder, overallEffectiveness" });
+      }
+      
+      const conversation = await storage.saveSequenceAnalysis(id, analysis);
+      res.json({ success: true, conversation });
+    } catch (error) {
+      console.error("Error saving sequence analysis:", error);
+      res.status(500).json({ error: "Failed to save sequence analysis" });
+    }
+  });
+  
+  app.get("/api/conversations/:id/sequence-analysis", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const analysis = await storage.getSequenceAnalysis(id);
+      
+      if (!analysis) {
+        return res.status(404).json({ error: "Sequence analysis not found" });
+      }
+      
+      res.json(analysis);
+    } catch (error) {
+      console.error("Error getting sequence analysis:", error);
+      res.status(500).json({ error: "Failed to get sequence analysis" });
+    }
+  });
+
   // Generate feedback for completed conversation
   app.post("/api/conversations/:id/feedback", async (req, res) => {
     try {

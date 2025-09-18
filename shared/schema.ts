@@ -19,6 +19,7 @@ export const conversations = pgTable("conversations", {
   totalPhases: integer("total_phases").default(1), // 총 대화 단계 수
   personaSelections: jsonb("persona_selections").$type<PersonaSelection[]>(), // 페르소나 선택 기록
   strategyChoices: jsonb("strategy_choices").$type<StrategyChoice[]>(), // 전략적 선택 기록
+  sequenceAnalysis: jsonb("sequence_analysis").$type<SequenceAnalysis>(), // 순서 분석 결과
 });
 
 export const feedbacks = pgTable("feedbacks", {
