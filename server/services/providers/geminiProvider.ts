@@ -73,9 +73,13 @@ export class GeminiProvider implements AIServiceInterface {
         ? recentMessages.map(msg => `${msg.sender === 'user' ? '👤' : '🤖'}: ${msg.message.substring(0, 50)}`).join('\n')
         : '';
 
-      // 🔧 최소한의 테스트 프롬프트
-      const systemPrompt = `안녕하세요. 간단히 인사말을 해주세요.`;
-      const prompt = "안녕하세요";
+      // 🔧 **강제 테스트** - 이 로그가 나타나지 않으면 코드가 실행되지 않은 것
+      console.log("🚀🚀🚀 GEMINI PROVIDER 수정 버전 실행 중 🚀🚀🚀");
+      console.log("🚀🚀🚀 이 메시지가 보이지 않으면 코드 수정이 반영되지 않음 🚀🚀🚀");
+      
+      // 단순한 테스트
+      const systemPrompt = "안녕하세요";
+      const prompt = "인사해주세요";
       
       console.log(`🎭 Persona: ${enrichedPersona.name} (${mbtiData?.mbti || 'Unknown MBTI'})`);
       console.log(`📝 System Prompt: ${systemPrompt}`);
