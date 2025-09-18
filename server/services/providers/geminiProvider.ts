@@ -72,18 +72,27 @@ export class GeminiProvider implements AIServiceInterface {
         ? recentMessages.map(msg => `${msg.sender === 'user' ? '👤' : '🤖'}: ${msg.message.substring(0, 50)}`).join('\n')
         : '';
 
-      // ⚡ 압축된 시스템 프롬프트 (500+ 토큰 → 100 토큰 이하)
+      // ⚡ 개선된 압축 프롬프트 (명확성 + 성능 균형)
       const compactContext = ConversationCache.getCompactScenarioContext(scenario);
       const compactMBTI = ConversationCache.getCompactMBTIContext(mbtiData);
       
-      const systemPrompt = `${enrichedPersona.name}(${enrichedPersona.role}). ${compactContext}. ${compactMBTI}.
-규칙: 50-100단어 한국어. JSON형식: {"content":"응답","emotion":"기쁨|슬픔|분노|놀람|중립","emotionReason":"이유"}.
-${conversationHistory ? `이전:\n${conversationHistory}\n` : ''}`;
+      const systemPrompt = `당신은 ${enrichedPersona.name}(${enrichedPersona.role})입니다.
 
-      // 건너뛰기 시 자연스럽게 대화 이어가기 (압축된 프롬프트)
-      const prompt = userMessage ? userMessage : "자연스럽게 대화 이어가기";
+상황: ${compactContext}
+특성: ${compactMBTI}
+${conversationHistory ? `이전 대화:\n${conversationHistory}\n` : ''}
+
+다음 규칙에 따라 응답하세요:
+1. 50-100단어로 한국어 응답
+2. 현실적인 감정 표현
+3. 반드시 JSON 형식으로 응답: {"content":"대화내용","emotion":"기쁨|슬픔|분노|놀람|중립","emotionReason":"감정 이유"}`;
+
+      // 건너뛰기 시 자연스럽게 대화 이어가기
+      const prompt = userMessage ? userMessage : "앞서 이야기를 자연스럽게 이어가주세요";
       
       console.log(`🎭 Persona: ${enrichedPersona.name} (${mbtiData?.mbti || 'Unknown MBTI'})`);
+      console.log(`📝 System Prompt: ${systemPrompt}`);
+      console.log(`👤 User Prompt: ${prompt}`);
 
       // ⚡ 성능 최적화: 토큰 제한 및 빠른 설정
       const response = await this.genAI.models.generateContent({
@@ -108,6 +117,8 @@ ${conversationHistory ? `이전:\n${conversationHistory}\n` : ''}`;
         ],
       });
 
+      console.log("🔍 Raw Gemini Response:", response.text);
+      
       const responseData = JSON.parse(response.text || '{"content": "죄송합니다. 응답을 생성할 수 없습니다.", "emotion": "중립", "emotionReason": "시스템 오류"}');
       
       console.log("✓ Gemini API call completed");
@@ -119,7 +130,8 @@ ${conversationHistory ? `이전:\n${conversationHistory}\n` : ''}`;
         emotionReason: responseData.emotionReason || "일반적인 대화 상황"
       };
     } catch (error) {
-      console.error("Gemini API error:", error);
+      console.error("🚨 Gemini API error:", error);
+      console.error("🚨 Error details:", JSON.stringify(error, null, 2));
       const fallbackContent = this.getFallbackResponse(enrichedPersona, mbtiData);
       return { 
         content: fallbackContent, 
