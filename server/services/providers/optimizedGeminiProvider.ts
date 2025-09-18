@@ -50,16 +50,26 @@ export class OptimizedGeminiProvider implements AIServiceInterface {
       
       console.log(`🎭 Persona: ${enrichedPersona.name} (${(enrichedPersona as any).mbti || 'Unknown'})`);
 
-      // Gemini API 호출 (올바른 SDK 방식)
-      const response = await this.genAI.generateContent({
+      // Gemini API 호출 (정확한 SDK 방식)
+      const response = await this.genAI.models.generateContent({
+        model: this.model,
+        config: {
+          responseMimeType: "application/json",
+          responseSchema: {
+            type: "object",
+            properties: {
+              content: { type: "string" },
+              emotion: { type: "string" },
+              emotionReason: { type: "string" }
+            },
+            required: ["content", "emotion", "emotionReason"]
+          },
+          maxOutputTokens: 150,
+          temperature: 0.7
+        },
         contents: [
           { role: "user", parts: [{ text: compactPrompt + "\n\n사용자: " + prompt }] }
         ],
-        generationConfig: {
-          responseMimeType: "application/json",
-          maxOutputTokens: 150,
-          temperature: 0.7
-        }
       });
 
       const responseText = this.extractResponseText(response);
@@ -201,15 +211,16 @@ JSON 응답:
       // 압축된 피드백 프롬프트
       const feedbackPrompt = this.buildCompactFeedbackPrompt(scenario, messages, persona);
 
-      const response = await this.genAI.generateContent({
-        contents: [
-          { role: "user", parts: [{ text: feedbackPrompt }] }
-        ],
-        generationConfig: {
+      const response = await this.genAI.models.generateContent({
+        model: this.model,
+        config: {
           responseMimeType: "application/json",
           maxOutputTokens: 400,
           temperature: 0.3
-        }
+        },
+        contents: [
+          { role: "user", parts: [{ text: feedbackPrompt }] }
+        ],
       });
 
       const totalTime = Date.now() - startTime;
