@@ -410,9 +410,9 @@ export default function ScenarioSelector({ onScenarioSelect, playerProfile }: Sc
                 <Card key={scenario.id} className="overflow-hidden group">
                   {/* 시나리오 카드 - 이미지 배경 버전 */}
                   <div
-                    className={`relative cursor-pointer transition-all duration-700 ease-in-out ${
+                    className={`relative cursor-pointer ${
                       isSelected ? 'ring-2 ring-blue-500' : ''
-                    } h-48 group-hover:h-96 overflow-hidden`}
+                    } min-h-[12rem] max-h-[12rem] group-hover:max-h-screen overflow-x-hidden overflow-y-hidden group-hover:overflow-y-auto transition-[max-height] duration-700 ease-in-out`}
                     onClick={() => handleScenarioClick(scenario)}
                     data-testid={`scenario-card-${scenario.id}`}
                     style={{
