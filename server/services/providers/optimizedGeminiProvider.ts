@@ -338,7 +338,10 @@ JSON 형식으로 응답 (모든 필드 필수):
         improvements: parsed.improvements || ["더 구체적인 표현"],
         nextSteps: parsed.nextSteps || ["연습 지속"],
         summary: parsed.summary || "전반적으로 무난한 대화",
-        conversationDuration: parsed.conversationDuration || 10
+        conversationDuration: parsed.conversationDuration || 10,
+        behaviorGuides: parsed.behaviorGuides || this.getDefaultBehaviorGuides(),
+        conversationGuides: parsed.conversationGuides || this.getDefaultConversationGuides(),
+        developmentPlan: parsed.developmentPlan || this.getDefaultDevelopmentPlan()
       };
     } catch (error) {
       console.error("Feedback parsing error:", error);
@@ -356,6 +359,70 @@ JSON 형식으로 응답 (모든 필드 필수):
       appropriatenessAdaptability: 3,
       persuasivenessImpact: 3,
       strategicCommunication: 3
+    };
+  }
+
+  /**
+   * 기본 행동가이드
+   */
+  private getDefaultBehaviorGuides() {
+    return [
+      {
+        situation: "회의나 대화에서 의견 제시 시",
+        action: "논리적 근거와 함께 구체적인 사례를 들어 설명하기",
+        example: "'이 방법을 제안하는 이유는 A, B, C입니다. 지난번 유사한 프로젝트에서...'",
+        impact: "설득력 있는 커뮤니케이션으로 동의 확보"
+      },
+      {
+        situation: "갈등 상황이나 의견 차이 발생 시",
+        action: "상대방의 관점을 먼저 인정하고 공통점 찾기",
+        example: "'말씀하신 우려사항을 이해합니다. 우리 모두 품질을 중요시한다는 점에서는 동의하시죠?'",
+        impact: "갈등 완화와 협력적 분위기 조성"
+      }
+    ];
+  }
+
+  /**
+   * 기본 대화가이드
+   */
+  private getDefaultConversationGuides() {
+    return [
+      {
+        scenario: "업무 협의 및 의사결정 상황",
+        goodExample: "체계적인 논거 제시 → 상대방 의견 청취 → 공통점 확인 → 구체적 해결책 제안",
+        badExample: "일방적 주장 → 상대방 의견 무시 → 감정적 대응 → 모호한 결론",
+        keyPoints: ["논리적 구조화", "적극적 경청", "공감적 소통", "구체적 제안"]
+      }
+    ];
+  }
+
+  /**
+   * 기본 개발계획
+   */
+  private getDefaultDevelopmentPlan() {
+    return {
+      shortTerm: [
+        {
+          goal: "일상 대화에서 논리적 표현 연습",
+          actions: ["의견 제시 시 3가지 근거 준비하기", "상대방 말을 요약해서 재확인하기"],
+          measurable: "회의에서 발언 빈도 2배 증가"
+        }
+      ],
+      mediumTerm: [
+        {
+          goal: "갈등 상황에서의 중재 능력 향상",
+          actions: ["다양한 관점 이해하기 연습", "감정적 반응 대신 논리적 대응 훈련"],
+          measurable: "갈등 해결 성공률 70% 이상"
+        }
+      ],
+      longTerm: [
+        {
+          goal: "전략적 커뮤니케이션 리더십 개발",
+          actions: ["팀 프레젠테이션 기회 확대", "외부 이해관계자와의 협상 경험 쌓기"],
+          measurable: "팀 내 커뮤니케이션 만족도 80% 이상"
+        }
+      ],
+      recommendedResources: ["비즈니스 커뮤니케이션 서적", "협상 기법 온라인 강의", "프레젠테이션 스킬 워크샵"]
     };
   }
 
@@ -387,7 +454,10 @@ JSON 형식으로 응답 (모든 필드 필수):
       improvements: ["더 구체적인 표현", "논리적 구조화"],
       nextSteps: ["더 많은 연습", "다양한 시나리오 경험"],
       summary: "전반적으로 무난한 대화 진행",
-      conversationDuration: 10
+      conversationDuration: 10,
+      behaviorGuides: this.getDefaultBehaviorGuides(),
+      conversationGuides: this.getDefaultConversationGuides(),
+      developmentPlan: this.getDefaultDevelopmentPlan()
     };
   }
 
