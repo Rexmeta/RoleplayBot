@@ -73,43 +73,22 @@ export class GeminiProvider implements AIServiceInterface {
         ? recentMessages.map(msg => `${msg.sender === 'user' ? '👤' : '🤖'}: ${msg.message.substring(0, 50)}`).join('\n')
         : '';
 
-      // ⚡ 개선된 프롬프트 (간단하고 명확하게)
-      const systemPrompt = `당신은 ${enrichedPersona.name}(${enrichedPersona.role || '팀원'})입니다.
-
-상황: ${scenario.context?.situation?.substring(0, 100) || '업무 상황'}
-성격: ISFJ 타입으로 조용하고 신중한 성격
-${conversationHistory ? `\n이전 대화:\n${conversationHistory}` : ''}
-
-상황에 맞게 자연스럽게 대화하세요. 응답은 반드시 다음 JSON 형식으로만 하세요:
-{"content": "대화 내용", "emotion": "기쁨", "emotionReason": "감정 이유"}`;
-
-      // 건너뛰기 시 자연스럽게 대화 이어가기
-      const prompt = userMessage ? userMessage : "앞서 이야기를 자연스럽게 이어가주세요";
+      // 🔧 최소한의 테스트 프롬프트
+      const systemPrompt = `안녕하세요. 간단히 인사말을 해주세요.`;
+      const prompt = "안녕하세요";
       
       console.log(`🎭 Persona: ${enrichedPersona.name} (${mbtiData?.mbti || 'Unknown MBTI'})`);
       console.log(`📝 System Prompt: ${systemPrompt}`);
       console.log(`👤 User Prompt: ${prompt}`);
 
-      // ⚡ 수정된 Google GenAI SDK 호출 (올바른 응답 처리)
+      // 🔧 최소한의 테스트 API 호출
+      console.log(`🤖 Using model: ${this.model}`);
+      console.log(`🔑 API Key exists: ${this.genAI ? 'YES' : 'NO'}`);
+      
       const result = await this.genAI.models.generateContent({
         model: this.model,
-        generationConfig: {
-          responseMimeType: "application/json",
-          responseSchema: {
-            type: "object",
-            properties: {
-              content: { type: "string" },
-              emotion: { type: "string" },
-              emotionReason: { type: "string" }
-            },
-            required: ["content", "emotion", "emotionReason"]
-          },
-          maxOutputTokens: 150,
-          temperature: 0.3,
-          candidateCount: 1
-        },
         contents: [
-          { role: "user", parts: [{ text: systemPrompt + "\n\n사용자: " + prompt }] }
+          { role: "user", parts: [{ text: "안녕하세요. 간단히 한국어로 인사해주세요." }] }
         ],
       });
 
@@ -117,19 +96,24 @@ ${conversationHistory ? `\n이전 대화:\n${conversationHistory}` : ''}
       const rawResponse = result.response?.text() || "";
       console.log("🔍 Raw Gemini Response:", rawResponse);
       
-      // 안전한 JSON 파싱
+      // 🔧 응답 확인 및 간단한 처리
+      console.log(`🔍 응답 길이: ${rawResponse.length}`);
+      console.log(`🔍 응답 타입: ${typeof rawResponse}`);
+      
       let responseData;
-      try {
-        // JSON 코드 블록 제거 (```json ... ``` 형태)
-        const cleanedResponse = rawResponse.replace(/```json\n?|\n?```/g, '').trim();
-        responseData = JSON.parse(cleanedResponse);
-      } catch (parseError) {
-        console.error("JSON 파싱 오류:", parseError);
-        console.error("원본 응답:", rawResponse);
+      if (rawResponse && rawResponse.length > 0) {
+        // 실제 응답이 있는 경우 그대로 사용 (JSON 파싱 없이)
         responseData = {
-          content: "죄송합니다. 응답을 생성할 수 없습니다.",
+          content: rawResponse,
+          emotion: "기쁨",
+          emotionReason: "성공적인 응답"
+        };
+      } else {
+        console.error("❌ Gemini 응답이 완전히 비어있음");
+        responseData = {
+          content: "Gemini API가 빈 응답을 반환했습니다. API 설정을 확인해주세요.",
           emotion: "중립",
-          emotionReason: "JSON 파싱 오류"
+          emotionReason: "빈 응답 오류"
         };
       }
       
