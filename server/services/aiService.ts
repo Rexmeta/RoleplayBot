@@ -41,10 +41,6 @@ export interface AIServiceConfig {
 export function getAIServiceConfig(): AIServiceConfig {
   const provider = (process.env.AI_PROVIDER as any) || 'gemini';
   
-  console.log("🔧 디버깅: getAIServiceConfig 호출됨");
-  console.log(`🔧 Provider: ${provider}`);
-  console.log(`🔧 GEMINI_MODEL env: "${process.env.GEMINI_MODEL}"`);
-  
   switch (provider) {
     case 'openai':
       return {
@@ -68,13 +64,11 @@ export function getAIServiceConfig(): AIServiceConfig {
         apiFormat: (process.env.CUSTOM_API_FORMAT as 'openai' | 'custom') || 'openai'
       };
     default: // gemini
-      const config = {
-        provider: 'gemini' as const,
+      return {
+        provider: 'gemini',
         apiKey: process.env.GEMINI_API_KEY || '',
         model: process.env.GEMINI_MODEL || 'gemini-2.5-flash'
       };
-      console.log(`🔧 최종 Gemini Config:`, config);
-      return config;
   }
 }
 

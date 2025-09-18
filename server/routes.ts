@@ -3,7 +3,6 @@ import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { insertConversationSchema, insertFeedbackSchema } from "@shared/schema";
 import { generateAIResponse, generateFeedback, SCENARIO_PERSONAS } from "./services/geminiService";
-import { ConversationCache } from "./services/ConversationCache";
 import { createSampleData } from "./sampleData";
 import ttsRoutes from "./routes/tts.js";
 import imageGenerationRoutes, { saveImageToLocal } from "./routes/imageGeneration.js";
@@ -22,18 +21,34 @@ export async function registerRoutes(app: Express): Promise<Server> {
         // personaId가 있으면 사용하고, 없으면 기존 scenarioId 사용 (하위 호환성)
         const personaId = conversation.personaId || conversation.scenarioId;
         
-        // ⚡ 성능 최적화: 캐싱된 대화 데이터 조회 (병렬 처리)
-        const mbtiType = conversation.scenarioId?.includes('mbti') ? 
-          conversation.personaId?.replace('.json', '') : null;
+        // 시나리오에서 페르소나 정보와 MBTI 특성 결합
+        const scenarios = await fileManager.getAllScenarios();
+        const scenarioObj = scenarios.find(s => s.id === conversation.scenarioId);
+        if (!scenarioObj) {
+          throw new Error(`Scenario not found: ${conversation.scenarioId}`);
+        }
         
-        const { scenario: scenarioObj, persona } = await ConversationCache.getConversationData(
-          conversation.id,
-          conversation.scenarioId,
-          personaId,
-          mbtiType
-        );
+        // 시나리오에서 해당 페르소나 객체 찾기
+        const scenarioPersona = scenarioObj.personas.find((p: any) => p.id === personaId);
+        if (!scenarioPersona) {
+          throw new Error(`Persona not found in scenario: ${personaId}`);
+        }
         
-        console.log(`🚀 캐시 최적화 완료: ${persona.name}`);
+        // ⚡ 최적화: 특정 MBTI만 로드 (전체 페르소나 로드 방지)
+        const mbtiType = scenarioPersona.personaRef?.replace('.json', '');
+        const mbtiPersona = mbtiType ? await fileManager.getPersonaByMBTI(mbtiType) : null;
+        
+        // 시나리오 정보와 MBTI 특성 결합
+        const persona = {
+          id: scenarioPersona.id,
+          name: scenarioPersona.name,
+          role: scenarioPersona.position,
+          department: scenarioPersona.department,
+          personality: mbtiPersona?.communication_style || '균형 잡힌 의사소통',
+          responseStyle: mbtiPersona?.communication_patterns?.opening_style || '상황에 맞는 방식으로 대화 시작',
+          goals: mbtiPersona?.communication_patterns?.win_conditions || ['목표 달성'],
+          background: mbtiPersona?.background?.personal_values?.join(', ') || '전문성'
+        };
 
 
         const aiResult = await generateAIResponse(
@@ -117,17 +132,34 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // personaId가 있으면 사용하고, 없으면 기존 scenarioId 사용 (하위 호환성)
       const personaId = conversation.personaId || conversation.scenarioId;
       
-      // ⚡ 성능 최적화: 캐싱된 데이터 조회 (병렬 처리) - 메시지 전송 시
-      const mbtiType = personaId?.includes('mbti') ? personaId?.replace('.json', '') : null;
+      // 시나리오에서 페르소나 정보와 MBTI 특성 결합
+      const scenarios = await fileManager.getAllScenarios();
+      const scenarioObj = scenarios.find(s => s.id === conversation.scenarioId);
+      if (!scenarioObj) {
+        throw new Error(`Scenario not found: ${conversation.scenarioId}`);
+      }
       
-      const { scenario: scenarioObj, persona } = await ConversationCache.getConversationData(
-        req.params.id,
-        conversation.scenarioId,
-        personaId,
-        mbtiType
-      );
+      // 시나리오에서 해당 페르소나 객체 찾기
+      const scenarioPersona = scenarioObj.personas.find((p: any) => p.id === personaId);
+      if (!scenarioPersona) {
+        throw new Error(`Persona not found in scenario: ${personaId}`);
+      }
       
-      console.log(`🚀 메시지 처리 캐시 최적화 완료: ${persona.name}`);
+      // ⚡ 최적화: 특정 MBTI 유형만 로드 (전체 로드 대신)
+      const mbtiType = scenarioPersona.personaRef?.replace('.json', '');
+      const mbtiPersona = mbtiType ? await fileManager.getPersonaByMBTI(mbtiType) : null;
+      
+      // 시나리오 정보와 MBTI 특성 결합
+      const persona = {
+        id: scenarioPersona.id,
+        name: scenarioPersona.name,
+        role: scenarioPersona.position,
+        department: scenarioPersona.department,
+        personality: mbtiPersona?.communication_style || '균형 잡힌 의사소통',
+        responseStyle: mbtiPersona?.communication_patterns?.opening_style || '상황에 맞는 방식으로 대화 시작',
+        goals: mbtiPersona?.communication_patterns?.win_conditions || ['목표 달성'],
+        background: mbtiPersona?.background?.personal_values?.join(', ') || '전문성'
+      };
 
       const aiResult = await generateAIResponse(
         scenarioObj, // 전체 시나리오 객체 전달

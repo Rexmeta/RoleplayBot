@@ -2,7 +2,6 @@ import { GoogleGenAI } from "@google/genai";
 import type { ConversationMessage, DetailedFeedback } from "@shared/schema";
 import type { AIServiceInterface, ScenarioPersona } from "../aiService";
 import { loadMBTIPersona, enrichPersonaWithMBTI, type MBTIPersona } from "../../utils/mbtiLoader";
-import { ConversationCache } from "../ConversationCache";
 
 export class GeminiProvider implements AIServiceInterface {
   private genAI: GoogleGenAI;
@@ -12,9 +11,7 @@ export class GeminiProvider implements AIServiceInterface {
 
   constructor(apiKey: string, model: string = 'gemini-2.5-flash') {
     this.genAI = new GoogleGenAI({ apiKey });
-    // ✅ 2.5 모델 사용 (사용자 요청)
     this.model = model;
-    console.log(`🤖 Using Gemini model: ${this.model}`);
   }
 
   async generateResponse(
@@ -67,69 +64,63 @@ export class GeminiProvider implements AIServiceInterface {
       // messages가 undefined이거나 null인 경우 빈 배열로 처리
       const safeMessages = messages || [];
       
-      // ⚡ 성능 최적화: 최근 4턴만 유지 (토큰 수 감소)
-      const recentMessages = safeMessages.slice(-4);
-      const conversationHistory = recentMessages.length > 0 
-        ? recentMessages.map(msg => `${msg.sender === 'user' ? '👤' : '🤖'}: ${msg.message.substring(0, 50)}`).join('\n')
-        : '';
+      // 성능 최적화: 최근 6턴만 유지 (너무 긴 히스토리 방지)
+      const recentMessages = safeMessages.slice(-6);
+      const conversationHistory = recentMessages.map(msg => 
+        `${msg.sender === 'user' ? '사용자' : enrichedPersona.name}: ${msg.message}`
+      ).join('\n');
 
-      // 🔧 **강제 테스트** - 이 로그가 나타나지 않으면 코드가 실행되지 않은 것
-      console.log("🚀🚀🚀 GEMINI PROVIDER 수정 버전 실행 중 🚀🚀🚀");
-      console.log("🚀🚀🚀 이 메시지가 보이지 않으면 코드 수정이 반영되지 않음 🚀🚀🚀");
-      
-      // 단순한 테스트
-      const systemPrompt = "안녕하세요";
-      const prompt = "인사해주세요";
+      const systemPrompt = `당신은 ${enrichedPersona.name}(${enrichedPersona.role})입니다.
+
+=== 시나리오 배경 ===
+상황: ${scenario.context?.situation || '일반적인 업무 상황'}
+목표: ${scenario.objectives ? scenario.objectives.join(', ') : '문제 해결'}
+
+=== 당신의 특성 ===
+MBTI: ${mbtiData?.mbti || 'MBTI 유형 미지정'}
+의사소통 스타일: ${mbtiData?.communication_style || '균형 잡힌 의사소통'}
+입장: ${(enrichedPersona as any).stance || '상황에 따른 대응'}
+목표: ${(enrichedPersona as any).goal || '최적의 결과 도출'}
+
+대화 규칙:
+1. 20-120단어 내외로 한국어로 응답하세요
+2. 현재 상황에 맞는 현실적 감정과 반응을 표현하세요
+
+${conversationHistory ? `이전 대화:\n${conversationHistory}\n` : ''}
+
+사용자의 새 메시지에 ${enrichedPersona.name}로서 응답하고, 당신의 현재 감정 상태를 분석해주세요.
+반드시 다음 JSON 형식으로 응답하세요:
+{
+  "content": "대화 내용",
+  "emotion": "기쁨|슬픔|분노|놀람|중립 중 하나",
+  "emotionReason": "감정을 느끼는 구체적인 이유"
+}`;
+
+      // 건너뛰기 시 자연스럽게 대화 이어가기 (MBTI 스타일 고려)
+      const prompt = userMessage ? userMessage : "앞서 이야기를 자연스럽게 이어가거나 새로운 각도에서 문제를 제시해주세요.";
       
       console.log(`🎭 Persona: ${enrichedPersona.name} (${mbtiData?.mbti || 'Unknown MBTI'})`);
-      console.log(`📝 System Prompt: ${systemPrompt}`);
-      console.log(`👤 User Prompt: ${prompt}`);
 
-      // 🔧 올바른 Gemini API 호출 방식
-      console.log(`🤖 Using model: ${this.model}`);
-      console.log(`🔑 API Key exists: ${this.genAI ? 'YES' : 'NO'}`);
-      
-      // ✅ 정확한 모델명 사용 (Google AI Studio 기준)
-      const correctedModel = this.model === 'gemini-2.5-flash' ? 'gemini-1.5-flash' : this.model;
-      console.log(`🔧 실제 API 호출 모델: ${correctedModel}`);
-      
-      // ✅ Google GenAI SDK v1.15.0 진짜 올바른 사용법
-      console.log("🔧 SDK 구조 기반 올바른 API 호출");
-      console.log("🔧 Available genAI keys:", Object.keys(this.genAI));
-      
-      // 실제 SDK 구조에 맞는 호출 방식
-      const result = await this.genAI.models.generateContent({
-        model: correctedModel,
-        contents: [{
-          role: "user",
-          parts: [{ text: "안녕하세요. 간단히 한국어로 인사해주세요." }]
-        }]
+      const response = await this.genAI.models.generateContent({
+        model: this.model,
+        config: {
+          responseMimeType: "application/json",
+          responseSchema: {
+            type: "object",
+            properties: {
+              content: { type: "string" },
+              emotion: { type: "string" },
+              emotionReason: { type: "string" }
+            },
+            required: ["content", "emotion", "emotionReason"]
+          }
+        },
+        contents: [
+          { role: "user", parts: [{ text: systemPrompt + "\n\n사용자: " + prompt }] }
+        ],
       });
 
-      // ✅ 올바른 응답 읽기 방법
-      const rawResponse = result.response?.text() || "";
-      console.log("🔍 Raw Gemini Response:", rawResponse);
-      
-      // 🔧 응답 확인 및 간단한 처리
-      console.log(`🔍 응답 길이: ${rawResponse.length}`);
-      console.log(`🔍 응답 타입: ${typeof rawResponse}`);
-      
-      let responseData;
-      if (rawResponse && rawResponse.length > 0) {
-        // 실제 응답이 있는 경우 그대로 사용 (JSON 파싱 없이)
-        responseData = {
-          content: rawResponse,
-          emotion: "기쁨",
-          emotionReason: "성공적인 응답"
-        };
-      } else {
-        console.error("❌ Gemini 응답이 완전히 비어있음");
-        responseData = {
-          content: "Gemini API가 빈 응답을 반환했습니다. API 설정을 확인해주세요.",
-          emotion: "중립",
-          emotionReason: "빈 응답 오류"
-        };
-      }
+      const responseData = JSON.parse(response.text || '{"content": "죄송합니다. 응답을 생성할 수 없습니다.", "emotion": "중립", "emotionReason": "시스템 오류"}');
       
       console.log("✓ Gemini API call completed");
       console.log("Generated response:", responseData);
@@ -140,8 +131,7 @@ export class GeminiProvider implements AIServiceInterface {
         emotionReason: responseData.emotionReason || "일반적인 대화 상황"
       };
     } catch (error) {
-      console.error("🚨 Gemini API error:", error);
-      console.error("🚨 Error details:", JSON.stringify(error, null, 2));
+      console.error("Gemini API error:", error);
       const fallbackContent = this.getFallbackResponse(enrichedPersona, mbtiData);
       return { 
         content: fallbackContent, 
@@ -244,9 +234,9 @@ JSON 형식으로 응답하세요:
   ]
 }`;
 
-      const result = await this.genAI.models.generateContent({
-        model: "gemini-1.5-pro", // 안전한 모델 사용
-        generationConfig: {
+      const response = await this.genAI.models.generateContent({
+        model: "gemini-2.5-pro",
+        config: {
           responseMimeType: "application/json",
           responseSchema: {
             type: "object",
@@ -298,19 +288,7 @@ JSON 형식으로 응답하세요:
         contents: [{ role: "user", parts: [{ text: feedbackPrompt }] }]
       });
 
-      // ✅ 올바른 응답 읽기 (generateFeedback)
-      const rawFeedbackResponse = result.response?.text() || "";
-      console.log("🔍 Raw Feedback Response:", rawFeedbackResponse);
-      
-      // 안전한 JSON 파싱 (피드백)
-      let feedbackData;
-      try {
-        const cleanedResponse = rawFeedbackResponse.replace(/```json\n?|\n?```/g, '').trim();
-        feedbackData = JSON.parse(cleanedResponse || '{}');
-      } catch (parseError) {
-        console.error("피드백 JSON 파싱 오류:", parseError);
-        feedbackData = {};
-      }
+      const feedbackData = JSON.parse(response.text || '{}');
       
       // 사용자 발언이 없는 경우 감지 (userMessages 길이가 0이거나 모든 메시지가 공백)
       const hasUserInput = userMessages.length > 0 && userMessages.some(msg => msg.message.trim().length > 0);

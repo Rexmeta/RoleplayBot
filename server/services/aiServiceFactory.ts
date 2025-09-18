@@ -34,7 +34,6 @@ export class AIServiceFactory {
     const config = getAIServiceConfig();
 
     console.log(`Creating AI service with provider: ${config.provider}`);
-    console.log("🔧 FACTORY DEBUG: config 객체 전체:", JSON.stringify(config, null, 2));
 
     switch (config.provider) {
       case 'openai':
@@ -70,9 +69,6 @@ export class AIServiceFactory {
         if (!config.apiKey) {
           throw new Error('GEMINI_API_KEY is required for Gemini provider');
         }
-        console.log("🔧 FACTORY: Gemini Provider 생성 중");
-        console.log(`🔧 FACTORY: API Key 길이: ${config.apiKey.length}`);
-        console.log(`🔧 FACTORY: 전달될 모델: ${config.model}`);
         return new GeminiProvider(config.apiKey, config.model);
     }
   }
