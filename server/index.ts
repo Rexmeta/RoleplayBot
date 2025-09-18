@@ -2,6 +2,7 @@ import "dotenv/config";
 import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
+import { GlobalMBTICache } from "./utils/globalMBTICache";
 import * as pathModule from "path";
 
 const app = express();
@@ -42,6 +43,10 @@ app.use((req, res, next) => {
 });
 
 (async () => {
+  // 🚀 MBTI 캐시 프리로드 (성능 최적화)
+  const mbtiCache = GlobalMBTICache.getInstance();
+  await mbtiCache.preloadAllMBTIData();
+
   const server = await registerRoutes(app);
 
   app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {

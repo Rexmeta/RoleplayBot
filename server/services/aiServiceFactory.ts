@@ -1,6 +1,6 @@
 import type { AIServiceInterface, AIServiceConfig } from "./aiService";
 import { getAIServiceConfig } from "./aiService";
-import { GeminiProvider } from "./providers/geminiProvider";
+import { OptimizedGeminiProvider } from "./providers/optimizedGeminiProvider";
 import { OpenAIProvider } from "./providers/openaiProvider";
 import { CustomProvider } from "./providers/customProvider";
 
@@ -48,7 +48,7 @@ export class AIServiceFactory {
         }
         // Claude는 아직 구현되지 않았으므로 Gemini로 fallback
         console.warn('Claude provider not implemented yet, falling back to Gemini');
-        return new GeminiProvider(process.env.GEMINI_API_KEY || '', 'gemini-2.5-flash');
+        return new OptimizedGeminiProvider(process.env.GEMINI_API_KEY || '', 'gemini-2.5-flash');
 
       case 'custom':
         if (!config.apiKey || !config.baseUrl) {
@@ -69,7 +69,7 @@ export class AIServiceFactory {
         if (!config.apiKey) {
           throw new Error('GEMINI_API_KEY is required for Gemini provider');
         }
-        return new GeminiProvider(config.apiKey, config.model);
+        return new OptimizedGeminiProvider(config.apiKey, config.model);
     }
   }
 }
