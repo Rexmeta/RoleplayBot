@@ -50,9 +50,9 @@ export class MemStorage implements IStorage {
       conversationType: insertConversation.conversationType || "single",
       currentPhase: insertConversation.currentPhase || 1,
       totalPhases: insertConversation.totalPhases || 1,
-      personaSelections: (insertConversation.personaSelections as PersonaSelection[]) || null,
-      strategyChoices: (insertConversation.strategyChoices as StrategyChoice[]) || null,
-      sequenceAnalysis: (insertConversation.sequenceAnalysis as SequenceAnalysis) || null,
+      personaSelections: insertConversation.personaSelections || [],
+      strategyChoices: insertConversation.strategyChoices || [],
+      sequenceAnalysis: insertConversation.sequenceAnalysis || null,
     };
     this.conversations.set(id, conversation);
     return conversation;
