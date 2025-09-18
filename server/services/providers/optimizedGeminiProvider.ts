@@ -50,26 +50,16 @@ export class OptimizedGeminiProvider implements AIServiceInterface {
       
       console.log(`🎭 Persona: ${enrichedPersona.name} (${(enrichedPersona as any).mbti || 'Unknown'})`);
 
-      // Gemini API 호출 (더 빠른 설정)
-      const response = await this.genAI.models.generateContent({
-        model: this.model,
-        config: {
-          responseMimeType: "application/json",
-          responseSchema: {
-            type: "object",
-            properties: {
-              content: { type: "string" },
-              emotion: { type: "string" },
-              emotionReason: { type: "string" }
-            },
-            required: ["content", "emotion", "emotionReason"]
-          },
-          maxOutputTokens: 150, // 토큰 수 제한으로 속도 향상
-          temperature: 0.7 // 일관성 향상
-        },
+      // Gemini API 호출 (올바른 SDK 방식)
+      const response = await this.genAI.generateContent({
         contents: [
           { role: "user", parts: [{ text: compactPrompt + "\n\n사용자: " + prompt }] }
         ],
+        generationConfig: {
+          responseMimeType: "application/json",
+          maxOutputTokens: 150,
+          temperature: 0.7
+        }
       });
 
       const responseText = this.extractResponseText(response);
@@ -211,16 +201,15 @@ JSON 응답:
       // 압축된 피드백 프롬프트
       const feedbackPrompt = this.buildCompactFeedbackPrompt(scenario, messages, persona);
 
-      const response = await this.genAI.models.generateContent({
-        model: this.model,
-        config: {
-          responseMimeType: "application/json",
-          maxOutputTokens: 400, // 피드백은 조금 더 길게
-          temperature: 0.3 // 평가는 더 일관되게
-        },
+      const response = await this.genAI.generateContent({
         contents: [
           { role: "user", parts: [{ text: feedbackPrompt }] }
         ],
+        generationConfig: {
+          responseMimeType: "application/json",
+          maxOutputTokens: 400,
+          temperature: 0.3
+        }
       });
 
       const totalTime = Date.now() - startTime;
@@ -336,18 +325,40 @@ JSON 형식으로 응답:
    */
   private extractResponseText(response: any): string {
     try {
-      // 다양한 응답 구조 지원
+      // Google Generative AI 새로운 SDK 구조 지원
       if (response.response?.text) {
-        return response.response.text();
+        return typeof response.response.text === 'function' ? response.response.text() : response.response.text;
       }
-      if (response.text) {
-        return typeof response.text === 'function' ? response.text() : response.text;
+      
+      // 새로운 SDK에서 .text() 메서드 지원
+      if (response.text && typeof response.text === 'function') {
+        return response.text();
       }
-      if (response.candidates?.[0]?.content?.parts?.[0]?.text) {
-        return response.candidates[0].content.parts[0].text;
+      
+      // 직접 텍스트 속성
+      if (response.text && typeof response.text === 'string') {
+        return response.text;
       }
-      if (response.response?.candidates?.[0]?.content?.parts?.[0]?.text) {
-        return response.response.candidates[0].content.parts[0].text;
+      
+      // candidates 구조 확인
+      if (response.candidates?.[0]) {
+        const candidate = response.candidates[0];
+        
+        // parts 배열이 있는 경우
+        if (candidate.content?.parts?.[0]?.text) {
+          return candidate.content.parts[0].text;
+        }
+        
+        // parts가 없고 content가 string인 경우  
+        if (typeof candidate.content === 'string') {
+          return candidate.content;
+        }
+        
+        // finishReason이 MAX_TOKENS인 경우 기본 응답
+        if (candidate.finishReason === 'MAX_TOKENS') {
+          console.warn("Response truncated due to MAX_TOKENS");
+          return '{"content": "응답이 너무 길어 일부만 표시됩니다.", "emotion": "중립", "emotionReason": "응답 길이 제한"}';
+        }
       }
       
       console.warn("Unknown response structure:", JSON.stringify(response, null, 2));
