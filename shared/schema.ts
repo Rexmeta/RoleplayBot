@@ -159,6 +159,41 @@ export const insertFeedbackSchema = createInsertSchema(feedbacks).omit({
   createdAt: true,
 });
 
+// Strategic Selection Insert Schemas
+export const insertPersonaSelectionSchema = z.object({
+  phase: z.number().int().min(1, "Phase must be at least 1"),
+  personaId: z.string().min(1, "Persona ID is required"),
+  selectionReason: z.string().min(1, "Selection reason is required"),
+  timestamp: z.string().optional().default(() => new Date().toISOString()),
+  expectedOutcome: z.string().optional().default(""),
+});
+
+export const insertStrategyChoiceSchema = z.object({
+  phase: z.number().int().min(1, "Phase must be at least 1"),
+  choice: z.string().min(1, "Choice is required"),
+  reasoning: z.string().min(1, "Reasoning is required"),
+  expectedImpact: z.string().optional().default(""),
+  actualOutcome: z.string().optional(),
+  effectiveness: z.number().int().min(1).max(5).optional(),
+});
+
+export const insertSequenceAnalysisSchema = z.object({
+  selectionOrder: z.array(z.number().int().min(1)).min(1, "Selection order must not be empty"),
+  optimalOrder: z.array(z.number().int().min(1)).min(1, "Optimal order must not be empty"),
+  orderScore: z.number().int().min(1).max(5, "Order score must be between 1-5"),
+  reasoningQuality: z.number().int().min(1).max(5, "Reasoning quality must be between 1-5"),
+  strategicThinking: z.number().int().min(1).max(5, "Strategic thinking must be between 1-5"),
+  adaptability: z.number().int().min(1).max(5, "Adaptability must be between 1-5"),
+  overallEffectiveness: z.number().int().min(1).max(5, "Overall effectiveness must be between 1-5"),
+  detailedAnalysis: z.string().min(1, "Detailed analysis is required"),
+  improvements: z.array(z.string()).default([]),
+  strengths: z.array(z.string()).default([]),
+});
+
+export type InsertPersonaSelection = z.infer<typeof insertPersonaSelectionSchema>;
+export type InsertStrategyChoice = z.infer<typeof insertStrategyChoiceSchema>;
+export type InsertSequenceAnalysis = z.infer<typeof insertSequenceAnalysisSchema>;
+
 export type InsertConversation = z.infer<typeof insertConversationSchema>;
 export type InsertFeedback = z.infer<typeof insertFeedbackSchema>;
 export type Conversation = typeof conversations.$inferSelect;
