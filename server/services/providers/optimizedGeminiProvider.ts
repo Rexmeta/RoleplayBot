@@ -72,7 +72,8 @@ export class OptimizedGeminiProvider implements AIServiceInterface {
         ],
       });
 
-      const responseData = JSON.parse(response.text || '{"content": "죄송합니다. 응답을 생성할 수 없습니다.", "emotion": "중립", "emotionReason": "시스템 오류"}');
+      const responseText = this.extractResponseText(response);
+      const responseData = JSON.parse(responseText || '{"content": "죄송합니다. 응답을 생성할 수 없습니다.", "emotion": "중립", "emotionReason": "시스템 오류"}');
       
       const totalTime = Date.now() - startTime;
       console.log(`✓ Optimized Gemini call completed in ${totalTime}ms`);
@@ -225,7 +226,7 @@ JSON 응답:
       const totalTime = Date.now() - startTime;
       console.log(`✓ Optimized feedback completed in ${totalTime}ms`);
 
-      return this.parseFeedbackResponse(response.text || '{}');
+      return this.parseFeedbackResponse(this.extractResponseText(response));
 
     } catch (error) {
       console.error("Optimized feedback error:", error);
@@ -328,5 +329,32 @@ JSON 형식으로 응답:
       summary: "전반적으로 무난한 대화 진행",
       conversationDuration: 10
     };
+  }
+
+  /**
+   * Google Generative AI SDK 응답에서 텍스트 추출
+   */
+  private extractResponseText(response: any): string {
+    try {
+      // 다양한 응답 구조 지원
+      if (response.response?.text) {
+        return response.response.text();
+      }
+      if (response.text) {
+        return typeof response.text === 'function' ? response.text() : response.text;
+      }
+      if (response.candidates?.[0]?.content?.parts?.[0]?.text) {
+        return response.candidates[0].content.parts[0].text;
+      }
+      if (response.response?.candidates?.[0]?.content?.parts?.[0]?.text) {
+        return response.response.candidates[0].content.parts[0].text;
+      }
+      
+      console.warn("Unknown response structure:", JSON.stringify(response, null, 2));
+      return '{}';
+    } catch (error) {
+      console.error("Error extracting response text:", error);
+      return '{}';
+    }
   }
 }
