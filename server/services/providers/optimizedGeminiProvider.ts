@@ -104,12 +104,13 @@ export class OptimizedGeminiProvider implements AIServiceInterface {
         return persona;
       }
 
-      // 캐시 키 생성
-      const cacheKey = `${persona.id}_${personaRef}`;
+      // 시나리오별 독립적인 캐시 키 생성
+      const scenarioId = scenario.id || 'default';
+      const cacheKey = `${scenarioId}_${persona.id}_${personaRef}`;
       
       // enriched persona 캐시 확인
       if (this.enrichedPersonaCache.has(cacheKey)) {
-        console.log(`⚡ Using cached enriched persona: ${persona.name}`);
+        console.log(`⚡ Using cached enriched persona: ${persona.name} (scenario: ${scenarioId})`);
         return this.enrichedPersonaCache.get(cacheKey)!;
       }
 
@@ -125,9 +126,9 @@ export class OptimizedGeminiProvider implements AIServiceInterface {
       // enrichment 수행
       const enrichedPersona = await enrichPersonaWithMBTI(currentPersona, personaRef);
       
-      // 캐시에 저장
+      // 시나리오별로 캐시에 저장
       this.enrichedPersonaCache.set(cacheKey, enrichedPersona);
-      console.log(`✅ Persona enriched and cached: ${enrichedPersona.name}`);
+      console.log(`✅ Persona enriched and cached: ${enrichedPersona.name} (scenario: ${scenarioId})`);
       
       return enrichedPersona;
 

@@ -46,15 +46,16 @@ export class GeminiProvider implements AIServiceInterface {
         }
         
         if (mbtiData) {
-          // 페르소나 캐싱도 추가
-          const personaCacheKey = `${persona.id}_${personaRef}`;
+          // 시나리오별 독립적인 페르소나 캐싱
+          const scenarioId = scenario.id || 'default';
+          const personaCacheKey = `${scenarioId}_${persona.id}_${personaRef}`;
           if (!this.personaCache.has(personaCacheKey)) {
             enrichedPersona = await enrichPersonaWithMBTI(currentPersona, personaRef);
             this.personaCache.set(personaCacheKey, enrichedPersona);
-            console.log(`✅ MBTI integration successful: ${mbtiData.mbti}`);
+            console.log(`✅ MBTI integration successful: ${mbtiData.mbti} (scenario: ${scenarioId})`);
           } else {
             enrichedPersona = this.personaCache.get(personaCacheKey)!;
-            console.log(`⚡ Using cached persona: ${enrichedPersona.name}`);
+            console.log(`⚡ Using cached persona: ${enrichedPersona.name} (scenario: ${scenarioId})`);
           }
         }
       } else {
