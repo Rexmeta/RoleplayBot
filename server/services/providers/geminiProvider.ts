@@ -93,11 +93,18 @@ export class GeminiProvider implements AIServiceInterface {
       const correctedModel = this.model === 'gemini-2.5-flash' ? 'gemini-1.5-flash' : this.model;
       console.log(`🔧 실제 API 호출 모델: ${correctedModel}`);
       
-      // ✅ Google GenAI SDK v1.15.0 올바른 사용법
-      console.log("🔧 올바른 API 호출 방식 적용");
+      // ✅ Google GenAI SDK v1.15.0 진짜 올바른 사용법
+      console.log("🔧 SDK 구조 기반 올바른 API 호출");
+      console.log("🔧 Available genAI keys:", Object.keys(this.genAI));
       
-      const model = this.genAI.getGenerativeModel({ model: correctedModel });
-      const result = await model.generateContent("안녕하세요. 간단히 한국어로 인사해주세요.");
+      // 실제 SDK 구조에 맞는 호출 방식
+      const result = await this.genAI.models.generateContent({
+        model: correctedModel,
+        contents: [{
+          role: "user",
+          parts: [{ text: "안녕하세요. 간단히 한국어로 인사해주세요." }]
+        }]
+      });
 
       // ✅ 올바른 응답 읽기 방법
       const rawResponse = result.response?.text() || "";
