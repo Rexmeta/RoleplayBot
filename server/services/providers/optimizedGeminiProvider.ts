@@ -246,81 +246,33 @@ JSON 형식으로 응답:
       `${idx + 1}. ${msg.sender === 'user' ? '사용자' : persona.name}: ${msg.message}`
     ).join('\n');
 
-    return `다음 직장 내 커뮤니케이션 대화를 전문적으로 분석하여 종합적인 피드백을 제공하세요.
+    return `업무 대화 분석:
 
-시나리오 배경: ${scenario}
-대화 상대: ${persona.name} (${persona.role})
-
-대화 내용:
 ${conversation}
 
-다음 5개 영역을 1-5점으로 평가하고 상세한 분석을 제공하세요:
-1. 명확성 & 논리성: 발언 구조화, 핵심 전달, 모호성 최소화
-2. 경청 & 공감: 재진술·요약, 감정 인식, 우려 존중
-3. 적절성 & 상황 대응: 맥락 적합한 표현, 유연한 갈등 대응
-4. 설득력 & 영향력: 논리적 근거, 사례 활용, 행동 변화 유도
-5. 전략적 커뮤니케이션: 목표 지향적 대화, 협상·조율, 주도성
+5개 영역 평가(1-5점): 명확성&논리성, 경청&공감, 적절성&상황대응, 설득력&영향력, 전략적커뮤니케이션
 
-JSON 형식으로 응답 (모든 필드 필수):
+JSON 응답:
 {
   "overallScore": 85,
-  "scores": {
-    "clarityLogic": 4,
-    "listeningEmpathy": 4,
-    "appropriatenessAdaptability": 3,
-    "persuasivenessImpact": 4,
-    "strategicCommunication": 4
-  },
-  "strengths": ["구체적인 강점1", "구체적인 강점2", "구체적인 강점3"],
-  "improvements": ["구체적인 개선점1", "구체적인 개선점2", "구체적인 개선점3"],
-  "nextSteps": ["실행가능한 다음단계1", "실행가능한 다음단계2", "실행가능한 다음단계3"],
-  "summary": "대화의 핵심 성과와 개선방향을 포함한 종합평가",
+  "scores": {"clarityLogic": 4, "listeningEmpathy": 4, "appropriatenessAdaptability": 3, "persuasivenessImpact": 4, "strategicCommunication": 4},
+  "strengths": ["강점1", "강점2", "강점3"],
+  "improvements": ["개선점1", "개선점2", "개선점3"],
+  "nextSteps": ["다음단계1", "다음단계2", "다음단계3"],
+  "summary": "종합평가",
   "conversationDuration": 10,
   "behaviorGuides": [
-    {
-      "situation": "비슷한 상황 설명",
-      "action": "구체적인 행동 가이드",
-      "example": "실제 적용 예시",
-      "impact": "기대 효과"
-    },
-    {
-      "situation": "다른 상황 설명",
-      "action": "다른 행동 가이드",
-      "example": "다른 적용 예시",
-      "impact": "다른 기대 효과"
-    }
+    {"situation": "상황설명", "action": "행동가이드", "example": "예시", "impact": "효과"},
+    {"situation": "다른상황", "action": "다른행동", "example": "다른예시", "impact": "다른효과"}
   ],
   "conversationGuides": [
-    {
-      "scenario": "유사한 시나리오",
-      "goodExample": "바람직한 대화 예시",
-      "badExample": "피해야 할 대화 예시",
-      "keyPoints": ["핵심 포인트1", "핵심 포인트2", "핵심 포인트3"]
-    }
+    {"scenario": "시나리오", "goodExample": "좋은예시", "badExample": "나쁜예시", "keyPoints": ["포인트1", "포인트2", "포인트3"]}
   ],
   "developmentPlan": {
-    "shortTerm": [
-      {
-        "goal": "1-2주 내 달성할 목표",
-        "actions": ["구체적 행동1", "구체적 행동2"],
-        "measurable": "측정 가능한 성과 지표"
-      }
-    ],
-    "mediumTerm": [
-      {
-        "goal": "1-2개월 내 달성할 목표",
-        "actions": ["구체적 행동1", "구체적 행동2"],
-        "measurable": "측정 가능한 성과 지표"
-      }
-    ],
-    "longTerm": [
-      {
-        "goal": "3-6개월 내 달성할 목표",
-        "actions": ["구체적 행동1", "구체적 행동2"],
-        "measurable": "측정 가능한 성과 지표"
-      }
-    ],
-    "recommendedResources": ["추천 자료1", "추천 자료2", "추천 자료3"]
+    "shortTerm": [{"goal": "단기목표", "actions": ["행동1", "행동2"], "measurable": "지표"}],
+    "mediumTerm": [{"goal": "중기목표", "actions": ["행동1", "행동2"], "measurable": "지표"}],
+    "longTerm": [{"goal": "장기목표", "actions": ["행동1", "행동2"], "measurable": "지표"}],
+    "recommendedResources": ["자료1", "자료2", "자료3"]
   }
 }`;
   }
@@ -490,7 +442,24 @@ JSON 형식으로 응답 (모든 필드 필수):
       if (response.candidates?.[0]) {
         const candidate = response.candidates[0];
         
-        // parts 배열이 있는 경우
+        // finishReason이 MAX_TOKENS인 경우에도 부분 응답 추출 시도
+        if (candidate.finishReason === 'MAX_TOKENS') {
+          console.warn("Response truncated due to MAX_TOKENS, but attempting to use partial response");
+          
+          // 부분 응답이라도 추출 시도
+          if (candidate.content?.parts?.[0]?.text) {
+            const partialText = candidate.content.parts[0].text;
+            console.log("Extracted partial response:", partialText.substring(0, 100) + "...");
+            return partialText;
+          }
+          
+          if (typeof candidate.content === 'string') {
+            console.log("Extracted partial string content");
+            return candidate.content;
+          }
+        }
+        
+        // 정상적인 경우 parts 배열이 있는 경우
         if (candidate.content?.parts?.[0]?.text) {
           return candidate.content.parts[0].text;
         }
@@ -498,12 +467,6 @@ JSON 형식으로 응답 (모든 필드 필수):
         // parts가 없고 content가 string인 경우  
         if (typeof candidate.content === 'string') {
           return candidate.content;
-        }
-        
-        // finishReason이 MAX_TOKENS인 경우에도 일단 응답을 시도
-        if (candidate.finishReason === 'MAX_TOKENS') {
-          console.warn("Response truncated due to MAX_TOKENS, but attempting to use partial response");
-          // 빈 응답이 아니면 부분 응답이라도 사용 시도
         }
       }
       
