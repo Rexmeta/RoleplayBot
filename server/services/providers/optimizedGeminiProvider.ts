@@ -64,7 +64,7 @@ export class OptimizedGeminiProvider implements AIServiceInterface {
             },
             required: ["content", "emotion", "emotionReason"]
           },
-          maxOutputTokens: 1000,
+          maxOutputTokens: 1500,
           temperature: 0.7
         },
         contents: [
@@ -143,23 +143,43 @@ export class OptimizedGeminiProvider implements AIServiceInterface {
   private async prepareConversationHistory(messages: ConversationMessage[], personaName: string): Promise<string> {
     const safeMessages = messages || [];
     
-    // 성능 최적화: 최근 2턴만 유지 (더 짧게)
-    const recentMessages = safeMessages.slice(-2);
+    // 성능 최적화: 최근 3턴만 유지 (맥락 유지를 위해)
+    const recentMessages = safeMessages.slice(-3);
     
     return recentMessages.map(msg => 
-      `${msg.sender === 'user' ? '유저' : personaName}: ${msg.message.slice(0, 50)}${msg.message.length > 50 ? '...' : ''}`
+      `${msg.sender === 'user' ? '사용자' : personaName}: ${msg.message.slice(0, 80)}${msg.message.length > 80 ? '...' : ''}`
     ).join('\n');
   }
 
   /**
    * 압축된 시스템 프롬프트 생성
    */
-  private buildCompactPrompt(scenario: any, persona: ScenarioPersona, conversationHistory: string): string {    
-    return `${persona.name}(${persona.role})로 응답하세요.
+  private buildCompactPrompt(scenario: any, persona: ScenarioPersona, conversationHistory: string): string {
+    const situation = scenario.context?.situation || '업무 상황';
+    const objectives = scenario.objectives?.join(', ') || '문제 해결';
+    const mbtiData = (persona as any).mbti ? this.globalCache.getMBTIPersona((persona as any).mbti.toLowerCase()) : null;
+    
+    // 페르소나의 입장과 목표
+    const stance = (persona as any).stance || '신중한 접근';
+    const goal = (persona as any).goal || '최적의 결과 도출';
+    
+    return `당신은 ${persona.name}(${persona.role})입니다.
 
-${conversationHistory ? `대화: ${conversationHistory}\n` : ''}
+상황: ${situation}
+목표: ${objectives}
+당신의 입장: ${stance}
+당신의 목표: ${goal}
 
-JSON: {"content":"응답","emotion":"기쁨|슬픔|분노|놀람|중립","emotionReason":"이유"}`;
+${conversationHistory ? `이전 대화:\n${conversationHistory}\n` : ''}
+
+역할:
+- ${persona.name}의 관점에서 반대 의견이나 어려운 질문을 제기하세요
+- 상대방이 쉽게 동의할 수 없는 도전적인 입장을 취하세요
+- ${mbtiData?.communication_style || '균형 잡힌 의사소통'} 스타일로 대화하세요
+- 30-120단어로 현실적이고 구체적으로 응답하세요
+
+JSON 형식으로 응답:
+{"content":"대화내용","emotion":"기쁨|슬픔|분노|놀람|중립","emotionReason":"감정이유"}`;
   }
 
   /**
