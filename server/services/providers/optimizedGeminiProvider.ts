@@ -64,7 +64,7 @@ export class OptimizedGeminiProvider implements AIServiceInterface {
             },
             required: ["content", "emotion", "emotionReason"]
           },
-          maxOutputTokens: 800,
+          maxOutputTokens: 1000,
           temperature: 0.7
         },
         contents: [
@@ -154,21 +154,12 @@ export class OptimizedGeminiProvider implements AIServiceInterface {
   /**
    * 압축된 시스템 프롬프트 생성
    */
-  private buildCompactPrompt(scenario: any, persona: ScenarioPersona, conversationHistory: string): string {
-    const situation = scenario.context?.situation || '업무 상황';
-    const mbtiData = (persona as any).mbti ? this.globalCache.getMBTIPersona((persona as any).mbti.toLowerCase()) : null;
-    const communicationStyle = mbtiData?.communication_style || '균형 잡힌 의사소통';
-    
-    return `당신은 ${persona.name}(${persona.role})입니다.
+  private buildCompactPrompt(scenario: any, persona: ScenarioPersona, conversationHistory: string): string {    
+    return `${persona.name}(${persona.role})로 응답하세요.
 
-상황: ${situation}
-성격: ${persona.personality || '균형 잡힌 성격'}
-의사소통 스타일: ${communicationStyle}
+${conversationHistory ? `대화: ${conversationHistory}\n` : ''}
 
-${conversationHistory ? `이전 대화:\n${conversationHistory}\n` : ''}
-
-20-100단어로 ${persona.name}답게 응답하세요. JSON 형식:
-{"content":"대화내용","emotion":"기쁨|슬픔|분노|놀람|중립","emotionReason":"감정이유"}`;
+JSON: {"content":"응답","emotion":"기쁨|슬픔|분노|놀람|중립","emotionReason":"이유"}`;
   }
 
   /**
@@ -369,8 +360,9 @@ JSON 형식으로 응답:
         }
       }
       
-      console.warn("Unknown response structure:", JSON.stringify(response, null, 2));
-      return '{}';
+      // 응답이 없으면 기본 JSON 반환
+      console.warn("No valid response found, using fallback");
+      return '{"content": "죄송합니다. 잠시 생각할 시간을 주세요.", "emotion": "중립", "emotionReason": "시스템 처리 중"}';
     } catch (error) {
       console.error("Error extracting response text:", error);
       return '{}';
