@@ -155,14 +155,20 @@ export class OptimizedGeminiProvider implements AIServiceInterface {
    * 압축된 시스템 프롬프트 생성
    */
   private buildCompactPrompt(scenario: any, persona: ScenarioPersona, conversationHistory: string): string {
-    const mbti = (persona as any).mbti || 'N/A';
+    const situation = scenario.context?.situation || '업무 상황';
+    const mbtiData = (persona as any).mbti ? this.globalCache.getMBTIPersona((persona as any).mbti.toLowerCase()) : null;
+    const communicationStyle = mbtiData?.communication_style || '균형 잡힌 의사소통';
     
-    return `${persona.name}(${persona.role}), MBTI:${mbti}
+    return `당신은 ${persona.name}(${persona.role})입니다.
 
-${conversationHistory ? `대화:\n${conversationHistory}\n` : ''}
+상황: ${situation}
+성격: ${persona.personality || '균형 잡힌 성격'}
+의사소통 스타일: ${communicationStyle}
 
-JSON으로 20-100단어 응답:
-{"content":"대화내용","emotion":"기쁨|슬픔|분노|놀람|중립","emotionReason":"이유"}`;
+${conversationHistory ? `이전 대화:\n${conversationHistory}\n` : ''}
+
+20-100단어로 ${persona.name}답게 응답하세요. JSON 형식:
+{"content":"대화내용","emotion":"기쁨|슬픔|분노|놀람|중립","emotionReason":"감정이유"}`;
   }
 
   /**
