@@ -6,13 +6,19 @@ import { z } from "zod";
 export const conversations = pgTable("conversations", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   scenarioId: text("scenario_id").notNull(),
-  personaId: text("persona_id"), // 새로운 시나리오 시스템용
+  personaId: text("persona_id"), // 레거시 지원용
   scenarioName: text("scenario_name").notNull(),
   messages: jsonb("messages").notNull().$type<ConversationMessage[]>(),
   turnCount: integer("turn_count").notNull().default(0),
   status: text("status").notNull().default("active"), // active, completed
   createdAt: timestamp("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
   completedAt: timestamp("completed_at"),
+  // 전략적 대화 시스템 추가 필드
+  conversationType: text("conversation_type").notNull().default("single"), // single, sequential
+  currentPhase: integer("current_phase").default(1), // 현재 대화 단계
+  totalPhases: integer("total_phases").default(1), // 총 대화 단계 수
+  personaSelections: jsonb("persona_selections").$type<PersonaSelection[]>(), // 페르소나 선택 기록
+  strategyChoices: jsonb("strategy_choices").$type<StrategyChoice[]>(), // 전략적 선택 기록
 });
 
 export const feedbacks = pgTable("feedbacks", {
@@ -30,6 +36,7 @@ export type ConversationMessage = {
   timestamp: string;
   emotion?: string;
   emotionReason?: string;
+  personaId?: string; // 다중 페르소나 대화용
 };
 
 export type EvaluationScore = {
@@ -49,6 +56,8 @@ export type DetailedFeedback = {
     appropriatenessAdaptability: number;
     persuasivenessImpact: number;
     strategicCommunication: number;
+    // 전략적 대화 선택 평가 추가
+    strategicSelection?: number; // 대화 순서와 선택의 논리성
   };
   strengths: string[];
   improvements: string[];
@@ -64,6 +73,8 @@ export type DetailedFeedback = {
     rating: 'excellent' | 'good' | 'average' | 'slow';
     feedback: string;
   };
+  // 전략적 선택 분석 추가
+  sequenceAnalysis?: SequenceAnalysis;
 };
 
 export type ActionGuide = {
@@ -91,6 +102,49 @@ export type PlanItem = {
   goal: string;
   actions: string[];
   measurable: string;  // 측정 가능한 목표
+};
+
+// 전략적 대화 선택 시스템 타입 정의
+export type PersonaSelection = {
+  phase: number; // 몇 번째 대화 선택인지
+  personaId: string; // 선택된 페르소나 ID
+  selectionReason: string; // 선택 사유
+  timestamp: string; // 선택 시간
+  expectedOutcome: string; // 기대하는 결과
+};
+
+export type StrategyChoice = {
+  phase: number;
+  choice: string; // 전략적 선택 내용
+  reasoning: string; // 선택 근거
+  expectedImpact: string; // 기대 효과
+  actualOutcome?: string; // 실제 결과 (대화 완료 후)
+  effectiveness?: number; // 효과성 점수 (1-5)
+};
+
+export type PersonaStatus = {
+  personaId: string;
+  name: string;
+  currentMood: 'positive' | 'neutral' | 'negative' | 'unknown'; // 현재 기분
+  approachability: number; // 접근 용이성 (1-5)
+  influence: number; // 영향력 (1-5)
+  hasBeenContacted: boolean; // 이미 대화했는지 여부
+  lastInteractionResult?: 'success' | 'neutral' | 'failure'; // 마지막 대화 결과
+  availableInfo: string[]; // 이 인물로부터 얻을 수 있는 정보
+  keyRelationships: string[]; // 주요 인물 관계
+};
+
+export type SequenceAnalysis = {
+  selectionOrder: number[]; // 선택한 순서
+  optimalOrder: number[]; // 최적 순서
+  orderScore: number; // 순서의 논리성 점수 (1-5)
+  reasoningQuality: number; // 사유 논리성 점수 (1-5)
+  strategicThinking: number; // 전략적 사고 점수 (1-5)
+  adaptability: number; // 상황 적응력 점수 (1-5)
+  overallEffectiveness: number; // 전반적 효과성 (1-5)
+  detailedAnalysis: string; // 상세 분석 내용
+  improvements: string[]; // 개선 사항
+  strengths: string[]; // 강점
 };
 
 export const insertConversationSchema = createInsertSchema(conversations).omit({
