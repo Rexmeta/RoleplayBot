@@ -508,6 +508,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
 
       console.log("피드백 저장 완료");
+
+      // 전략적 선택 분석 수행 (백그라운드 - non-blocking)
+      performStrategicAnalysis(req.params.id, conversation, scenarioObj)
+        .catch(error => {
+          console.error("전략 분석 오류 (무시):", error);
+        });
+
       res.json(feedback);
     } catch (error) {
       console.error("Feedback generation error:", error);
@@ -1013,4 +1020,332 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   const httpServer = createServer(app);
   return httpServer;
+}
+
+/**
+ * 전략적 선택 분석을 수행하고 결과를 저장하는 함수
+ */
+async function performStrategicAnalysis(
+  conversationId: string, 
+  conversation: any,
+  scenarioObj: any
+): Promise<void> {
+  console.log(`전략 분석 시작: ${conversationId}`);
+  
+  // PersonaSelection 데이터 조회
+  const personaSelections = await storage.getPersonaSelections(conversationId);
+  
+  if (!personaSelections || personaSelections.length === 0) {
+    console.log("전략적 선택 데이터가 없어 분석 건너뜀");
+    return;
+  }
+  
+  console.log(`발견된 persona selections: ${personaSelections.length}개`);
+  
+  // 기존 분석 결과가 있는지 확인
+  const existingAnalysis = await storage.getSequenceAnalysis(conversationId);
+  if (existingAnalysis) {
+    console.log("기존 전략 분석 결과 존재, 건너뜀");
+    return;
+  }
+  
+  try {
+    // PersonaStatus 배열 생성 (시나리오의 페르소나 정보 기반)
+    const personaStatuses = scenarioObj.personas.map((persona: any, index: number) => ({
+      personaId: persona.id,
+      name: persona.name,
+      currentMood: 'neutral' as const, // 기본값
+      approachability: 3, // 기본값 (1-5)
+      influence: persona.influence || 3, // 시나리오에서 가져오거나 기본값
+      hasBeenContacted: personaSelections.some(sel => sel.personaId === persona.id),
+      lastInteractionResult: undefined,
+      availableInfo: persona.availableInfo || [`${persona.name}에 대한 정보`],
+      keyRelationships: persona.keyRelationships || []
+    }));
+    
+    // SequenceLogicAnalyzer 사용하여 분석 수행 
+    const analysis = analyzeSelectionSequence(
+      personaSelections, 
+      personaStatuses, 
+      scenarioObj
+    );
+    
+    // 스키마 검증 후 분석 결과 저장
+    const validationResult = insertSequenceAnalysisSchema.safeParse(analysis);
+    if (!validationResult.success) {
+      console.error("전략 분석 결과 스키마 검증 실패:", validationResult.error.issues);
+      throw new Error("Invalid analysis data schema");
+    }
+    
+    await storage.saveSequenceAnalysis(conversationId, validationResult.data);
+    console.log("전략 분석 완료 및 저장");
+    
+  } catch (error) {
+    console.error("전략 분석 수행 중 오류:", error);
+    throw error;
+  }
+}
+
+/**
+ * SequenceLogicAnalyzer의 analyzeSelectionOrder 메서드를 구현
+ * (클라이언트 코드를 서버로 이식)
+ */
+function analyzeSelectionSequence(
+  selections: any[],
+  personaStatuses: any[],
+  scenarioContext: any
+): any {
+  const selectionOrder = selections.map((_, index) => index + 1);
+  const optimalOrder = calculateOptimalOrder(personaStatuses, scenarioContext);
+  
+  // 각 평가 요소별 점수 계산
+  const orderScore = evaluateOrderLogic(selections, personaStatuses, scenarioContext);
+  const reasoningQuality = evaluateReasoningQuality(selections);
+  const strategicThinking = evaluateStrategicThinking(selections, scenarioContext);
+  const adaptability = evaluateAdaptability(selections, personaStatuses);
+  
+  const overallEffectiveness = Math.round(
+    (orderScore + reasoningQuality + strategicThinking + adaptability) / 4
+  );
+  
+  return {
+    selectionOrder,
+    optimalOrder,
+    orderScore,
+    reasoningQuality,
+    strategicThinking,
+    adaptability,
+    overallEffectiveness,
+    detailedAnalysis: generateDetailedAnalysis(selections, personaStatuses, scenarioContext),
+    improvements: generateImprovements(orderScore, reasoningQuality, strategicThinking, adaptability),
+    strengths: generateStrengths(orderScore, reasoningQuality, strategicThinking, adaptability)
+  };
+}
+
+function calculateOptimalOrder(personaStatuses: any[], scenarioContext: any): number[] {
+  const weights = {
+    influence: 0.3,
+    approachability: 0.25,
+    information: 0.25,
+    relationships: 0.2
+  };
+  
+  const priorityScores = personaStatuses.map((persona, index) => ({
+    index: index + 1,
+    score: calculatePriorityScore(persona, weights, scenarioContext),
+    persona
+  }));
+  
+  return priorityScores
+    .sort((a, b) => b.score - a.score)
+    .map(item => item.index);
+}
+
+function calculatePriorityScore(persona: any, weights: any, scenarioContext: any): number {
+  let score = 0;
+  
+  score += persona.influence * weights.influence;
+  score += persona.approachability * weights.approachability;
+  
+  const infoScore = Math.min(5, persona.availableInfo.length) * weights.information;
+  score += infoScore;
+  
+  const relationshipScore = Math.min(5, persona.keyRelationships.length) * weights.relationships;
+  score += relationshipScore;
+  
+  const moodMultiplier = {
+    'positive': 1.2,
+    'neutral': 1.0,
+    'negative': 0.8,
+    'unknown': 0.9
+  }[persona.currentMood] || 1.0;
+  
+  return score * moodMultiplier;
+}
+
+function evaluateOrderLogic(selections: any[], personaStatuses: any[], scenarioContext: any): number {
+  const optimalOrder = calculateOptimalOrder(personaStatuses, scenarioContext);
+  const actualOrder = selections.map((_, index) => index + 1);
+  
+  const correlation = calculateOrderCorrelation(actualOrder, optimalOrder);
+  return Math.max(1, Math.min(5, Math.round(1 + (correlation + 1) * 2)));
+}
+
+function evaluateReasoningQuality(selections: any[]): number {
+  let totalScore = 0;
+  let validSelections = 0;
+  
+  for (const selection of selections) {
+    if (selection.selectionReason && selection.selectionReason.trim().length > 0) {
+      const reasoning = selection.selectionReason.toLowerCase();
+      let score = 1;
+      
+      if (reasoning.includes('때문에') || reasoning.includes('위해') || reasoning.includes('통해')) {
+        score += 1;
+      }
+      
+      if (reasoning.includes('상황') || reasoning.includes('문제') || reasoning.includes('해결')) {
+        score += 1;
+      }
+      
+      if (selection.expectedOutcome && selection.expectedOutcome.trim().length > 10) {
+        score += 1;
+      }
+      
+      if (selection.selectionReason.length > 20) {
+        score += 1;
+      }
+      
+      totalScore += Math.min(5, score);
+      validSelections++;
+    }
+  }
+  
+  return validSelections > 0 ? Math.round(totalScore / validSelections) : 1;
+}
+
+function evaluateStrategicThinking(selections: any[], scenarioContext: any): number {
+  let strategicElements = 0;
+  const maxElements = 5;
+  
+  if (selections.length > 1) {
+    const hasProgression = selections.some((sel, idx) => 
+      idx > 0 && (sel.selectionReason.includes('이전') || sel.selectionReason.includes('다음'))
+    );
+    if (hasProgression) strategicElements++;
+  }
+  
+  const hasInfoGathering = selections.some(sel => 
+    sel.selectionReason.includes('정보') || sel.selectionReason.includes('파악') || sel.expectedOutcome.includes('확인')
+  );
+  if (hasInfoGathering) strategicElements++;
+  
+  const hasInfluenceConsideration = selections.some(sel => 
+    sel.selectionReason.includes('영향') || sel.selectionReason.includes('결정권') || sel.selectionReason.includes('권한')
+  );
+  if (hasInfluenceConsideration) strategicElements++;
+  
+  const hasTimeConsideration = selections.some(sel => 
+    sel.selectionReason.includes('시간') || sel.selectionReason.includes('빠르게') || sel.selectionReason.includes('즉시')
+  );
+  if (hasTimeConsideration) strategicElements++;
+  
+  const hasRiskManagement = selections.some(sel => 
+    sel.selectionReason.includes('위험') || sel.selectionReason.includes('안전') || sel.selectionReason.includes('신중')
+  );
+  if (hasRiskManagement) strategicElements++;
+  
+  return Math.max(1, Math.min(5, Math.round(1 + (strategicElements / maxElements) * 4)));
+}
+
+function evaluateAdaptability(selections: any[], personaStatuses: any[]): number {
+  let adaptabilityScore = 3;
+  
+  for (let i = 0; i < selections.length; i++) {
+    const selection = selections[i];
+    const personaStatus = personaStatuses.find(p => p.personaId === selection.personaId);
+    
+    if (personaStatus) {
+      if (personaStatus.approachability < 3 && i > 0) {
+        adaptabilityScore += 0.5;
+      }
+      
+      if (personaStatus.currentMood === 'negative' && 
+          (selection.selectionReason.includes('신중') || selection.selectionReason.includes('조심'))) {
+        adaptabilityScore += 0.5;
+      }
+    }
+  }
+  
+  return Math.max(1, Math.min(5, Math.round(adaptabilityScore)));
+}
+
+function calculateOrderCorrelation(order1: number[], order2: number[]): number {
+  if (order1.length !== order2.length) return 0;
+  
+  let concordantPairs = 0;
+  let discordantPairs = 0;
+  
+  for (let i = 0; i < order1.length - 1; i++) {
+    for (let j = i + 1; j < order1.length; j++) {
+      const diff1 = order1[i] - order1[j];
+      const diff2 = order2[i] - order2[j];
+      
+      if (diff1 * diff2 > 0) {
+        concordantPairs++;
+      } else if (diff1 * diff2 < 0) {
+        discordantPairs++;
+      }
+    }
+  }
+  
+  const totalPairs = concordantPairs + discordantPairs;
+  return totalPairs === 0 ? 0 : (concordantPairs - discordantPairs) / totalPairs;
+}
+
+function generateDetailedAnalysis(selections: any[], personaStatuses: any[], scenarioContext: any): string {
+  const optimalOrder = calculateOptimalOrder(personaStatuses, scenarioContext);
+  const actualOrder = selections.map((_, index) => index + 1);
+  
+  let analysis = `선택된 대화 순서: ${actualOrder.join(' → ')}\n`;
+  analysis += `권장 순서: ${optimalOrder.join(' → ')}\n\n`;
+  
+  selections.forEach((selection, index) => {
+    const persona = personaStatuses.find(p => p.personaId === selection.personaId);
+    analysis += `${index + 1}순위 선택 분석:\n`;
+    analysis += `- 대상: ${persona?.name || '알 수 없음'}\n`;
+    analysis += `- 선택 사유: ${selection.selectionReason}\n`;
+    analysis += `- 기대 효과: ${selection.expectedOutcome}\n`;
+    
+    if (persona) {
+      analysis += `- 대상자 특성: 영향력 ${persona.influence}/5, 접근성 ${persona.approachability}/5\n`;
+    }
+    analysis += '\n';
+  });
+  
+  return analysis;
+}
+
+function generateImprovements(orderScore: number, reasoningQuality: number, strategicThinking: number, adaptability: number): string[] {
+  const improvements: string[] = [];
+  
+  if (orderScore < 3) {
+    improvements.push('대화 순서를 더 논리적으로 계획해보세요. 영향력과 접근성을 고려한 우선순위 설정이 필요합니다.');
+  }
+  
+  if (reasoningQuality < 3) {
+    improvements.push('선택 사유를 더 구체적이고 논리적으로 설명해주세요. "왜 이 사람을 선택했는지" 명확한 근거를 제시하세요.');
+  }
+  
+  if (strategicThinking < 3) {
+    improvements.push('전체적인 해결 전략을 수립하고, 단계별 목표를 설정해보세요. 정보 수집 → 의견 조율 → 결정권자 설득 등의 순서를 고려하세요.');
+  }
+  
+  if (adaptability < 3) {
+    improvements.push('상대방의 성격, 기분, 상황을 더 섬세하게 고려한 접근이 필요합니다.');
+  }
+  
+  return improvements;
+}
+
+function generateStrengths(orderScore: number, reasoningQuality: number, strategicThinking: number, adaptability: number): string[] {
+  const strengths: string[] = [];
+  
+  if (orderScore >= 4) {
+    strengths.push('논리적이고 효율적인 대화 순서를 잘 계획했습니다.');
+  }
+  
+  if (reasoningQuality >= 4) {
+    strengths.push('선택에 대한 명확하고 설득력 있는 근거를 제시했습니다.');
+  }
+  
+  if (strategicThinking >= 4) {
+    strengths.push('전략적 사고와 단계적 접근 방식이 뛰어납니다.');
+  }
+  
+  if (adaptability >= 4) {
+    strengths.push('상황과 상대방의 특성을 잘 고려한 유연한 대응을 보였습니다.');
+  }
+  
+  return strengths;
 }
