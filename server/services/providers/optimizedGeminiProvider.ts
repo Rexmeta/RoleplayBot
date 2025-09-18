@@ -219,7 +219,7 @@ JSON 형식으로 응답:
         model: this.model,
         config: {
           responseMimeType: "application/json",
-          maxOutputTokens: 400,
+          maxOutputTokens: 2000,
           temperature: 0.3
         },
         contents: [
