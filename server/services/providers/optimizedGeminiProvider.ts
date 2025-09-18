@@ -64,7 +64,7 @@ export class OptimizedGeminiProvider implements AIServiceInterface {
             },
             required: ["content", "emotion", "emotionReason"]
           },
-          maxOutputTokens: 150,
+          maxOutputTokens: 500,
           temperature: 0.7
         },
         contents: [
@@ -167,7 +167,7 @@ MBTI: ${mbti}
 ${conversationHistory ? `이전 대화:\n${conversationHistory}\n` : ''}
 
 규칙:
-1. 20-80단어로 한국어 응답
+1. 20-150단어로 한국어 응답 (충분히 자세하게)
 2. 현실적 감정 표현
 3. JSON 형식 필수
 
@@ -365,10 +365,10 @@ JSON 형식으로 응답:
           return candidate.content;
         }
         
-        // finishReason이 MAX_TOKENS인 경우 기본 응답
+        // finishReason이 MAX_TOKENS인 경우에도 일단 응답을 시도
         if (candidate.finishReason === 'MAX_TOKENS') {
-          console.warn("Response truncated due to MAX_TOKENS");
-          return '{"content": "응답이 너무 길어 일부만 표시됩니다.", "emotion": "중립", "emotionReason": "응답 길이 제한"}';
+          console.warn("Response truncated due to MAX_TOKENS, but attempting to use partial response");
+          // 빈 응답이 아니면 부분 응답이라도 사용 시도
         }
       }
       
