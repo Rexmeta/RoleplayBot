@@ -10,10 +10,10 @@ export class GeminiProvider implements AIServiceInterface {
   private mbtiCache: Map<string, MBTIPersona> = new Map();
   private personaCache: Map<string, ScenarioPersona> = new Map();
 
-  constructor(apiKey: string, model: string = 'gemini-1.5-flash') {
+  constructor(apiKey: string, model: string = 'gemini-2.5-flash') {
     this.genAI = new GoogleGenAI({ apiKey });
-    // ⚡ 안전한 모델 선택: 호환성 우선
-    this.model = model.includes('2.5') ? 'gemini-1.5-flash' : model;
+    // ✅ 2.5 모델 사용 (사용자 요청)
+    this.model = model;
     console.log(`🤖 Using Gemini model: ${this.model}`);
   }
 
