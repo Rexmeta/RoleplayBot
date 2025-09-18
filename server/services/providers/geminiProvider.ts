@@ -93,8 +93,29 @@ export class GeminiProvider implements AIServiceInterface {
       const correctedModel = this.model === 'gemini-2.5-flash' ? 'gemini-1.5-flash' : this.model;
       console.log(`🔧 실제 API 호출 모델: ${correctedModel}`);
       
-      const genModel = this.genAI.getGenerativeModel({ model: correctedModel });
-      const result = await genModel.generateContent("안녕하세요. 간단히 한국어로 인사해주세요.");
+      let result: any = null;
+      
+      try {
+        // 🔧 Google GenAI SDK v1.15.0 올바른 사용법 
+        console.log("🔧 API 방법 1 시도: generateContent");
+        result = await this.genAI.generateContent({
+          model: correctedModel,
+          prompt: "안녕하세요. 간단히 한국어로 인사해주세요."
+        });
+        console.log("✅ generateContent 성공!");
+      } catch (apiError: any) {
+        console.log("🚨 generateContent 실패, generateText 시도...");
+        try {
+          result = await this.genAI.generateText({
+            model: correctedModel,
+            prompt: "안녕하세요. 간단히 한국어로 인사해주세요."
+          });
+          console.log("✅ generateText 성공!");
+        } catch (apiError2: any) {
+          console.log("🚨 모든 방법 실패, 에러:", apiError2.message);
+          throw new Error(`Gemini API 호출 실패: ${apiError2.message}`);
+        }
+      }
 
       // ✅ 올바른 응답 읽기 방법
       const rawResponse = result.response?.text() || "";
