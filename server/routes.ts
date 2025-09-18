@@ -2,7 +2,7 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { insertConversationSchema, insertFeedbackSchema } from "@shared/schema";
-import { generateAIResponse, generateFeedback, SCENARIO_PERSONAS } from "./services/geminiService";
+import { generateAIResponse, generateFeedback } from "./services/geminiService";
 import { createSampleData } from "./sampleData";
 import ttsRoutes from "./routes/tts.js";
 import imageGenerationRoutes, { saveImageToLocal } from "./routes/imageGeneration.js";
