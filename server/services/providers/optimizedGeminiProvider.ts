@@ -64,7 +64,7 @@ export class OptimizedGeminiProvider implements AIServiceInterface {
             },
             required: ["content", "emotion", "emotionReason"]
           },
-          maxOutputTokens: 500,
+          maxOutputTokens: 800,
           temperature: 0.7
         },
         contents: [
@@ -143,11 +143,11 @@ export class OptimizedGeminiProvider implements AIServiceInterface {
   private async prepareConversationHistory(messages: ConversationMessage[], personaName: string): Promise<string> {
     const safeMessages = messages || [];
     
-    // 성능 최적화: 최근 4턴만 유지 (더 짧게)
-    const recentMessages = safeMessages.slice(-4);
+    // 성능 최적화: 최근 2턴만 유지 (더 짧게)
+    const recentMessages = safeMessages.slice(-2);
     
     return recentMessages.map(msg => 
-      `${msg.sender === 'user' ? '사용자' : personaName}: ${msg.message}`
+      `${msg.sender === 'user' ? '유저' : personaName}: ${msg.message.slice(0, 50)}${msg.message.length > 50 ? '...' : ''}`
     ).join('\n');
   }
 
@@ -156,27 +156,13 @@ export class OptimizedGeminiProvider implements AIServiceInterface {
    */
   private buildCompactPrompt(scenario: any, persona: ScenarioPersona, conversationHistory: string): string {
     const mbti = (persona as any).mbti || 'N/A';
-    const situation = scenario.context?.situation || '업무 상황';
     
-    return `당신은 ${persona.name}(${persona.role})입니다.
+    return `${persona.name}(${persona.role}), MBTI:${mbti}
 
-MBTI: ${mbti}
-상황: ${situation}
-성격: ${persona.personality || '균형 잡힌 성격'}
+${conversationHistory ? `대화:\n${conversationHistory}\n` : ''}
 
-${conversationHistory ? `이전 대화:\n${conversationHistory}\n` : ''}
-
-규칙:
-1. 20-150단어로 한국어 응답 (충분히 자세하게)
-2. 현실적 감정 표현
-3. JSON 형식 필수
-
-JSON 응답:
-{
-  "content": "대화 내용",
-  "emotion": "기쁨|슬픔|분노|놀람|중립 중 하나",
-  "emotionReason": "감정을 느끼는 이유"
-}`;
+JSON으로 20-100단어 응답:
+{"content":"대화내용","emotion":"기쁨|슬픔|분노|놀람|중립","emotionReason":"이유"}`;
   }
 
   /**
@@ -349,6 +335,11 @@ JSON 형식으로 응답:
       // 직접 텍스트 속성
       if (response.text && typeof response.text === 'string') {
         return response.text;
+      }
+
+      // response.response.text() 시도
+      if (response.response && typeof response.response.text === 'function') {
+        return response.response.text();
       }
       
       // candidates 구조 확인
