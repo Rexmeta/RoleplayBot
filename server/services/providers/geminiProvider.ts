@@ -85,16 +85,16 @@ export class GeminiProvider implements AIServiceInterface {
       console.log(`📝 System Prompt: ${systemPrompt}`);
       console.log(`👤 User Prompt: ${prompt}`);
 
-      // 🔧 최소한의 테스트 API 호출
+      // 🔧 올바른 Gemini API 호출 방식
       console.log(`🤖 Using model: ${this.model}`);
       console.log(`🔑 API Key exists: ${this.genAI ? 'YES' : 'NO'}`);
       
-      const result = await this.genAI.models.generateContent({
-        model: this.model,
-        contents: [
-          { role: "user", parts: [{ text: "안녕하세요. 간단히 한국어로 인사해주세요." }] }
-        ],
-      });
+      // ✅ 정확한 모델명 사용 (Google AI Studio 기준)
+      const correctedModel = this.model === 'gemini-2.5-flash' ? 'gemini-1.5-flash' : this.model;
+      console.log(`🔧 실제 API 호출 모델: ${correctedModel}`);
+      
+      const genModel = this.genAI.getGenerativeModel({ model: correctedModel });
+      const result = await genModel.generateContent("안녕하세요. 간단히 한국어로 인사해주세요.");
 
       // ✅ 올바른 응답 읽기 방법
       const rawResponse = result.response?.text() || "";
