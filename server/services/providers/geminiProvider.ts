@@ -2,6 +2,7 @@ import { GoogleGenAI } from "@google/genai";
 import type { ConversationMessage, DetailedFeedback } from "@shared/schema";
 import type { AIServiceInterface, ScenarioPersona } from "../aiService";
 import { loadMBTIPersona, enrichPersonaWithMBTI, type MBTIPersona } from "../../utils/mbtiLoader";
+import { ConversationCache } from "../ConversationCache";
 
 export class GeminiProvider implements AIServiceInterface {
   private genAI: GoogleGenAI;
@@ -11,7 +12,8 @@ export class GeminiProvider implements AIServiceInterface {
 
   constructor(apiKey: string, model: string = 'gemini-2.5-flash') {
     this.genAI = new GoogleGenAI({ apiKey });
-    this.model = model;
+    // ⚡ 성능 최적화: 더 빠른 경량 모델 사용
+    this.model = model.includes('pro') ? 'gemini-2.5-flash' : model;
   }
 
   async generateResponse(
@@ -64,43 +66,26 @@ export class GeminiProvider implements AIServiceInterface {
       // messages가 undefined이거나 null인 경우 빈 배열로 처리
       const safeMessages = messages || [];
       
-      // 성능 최적화: 최근 6턴만 유지 (너무 긴 히스토리 방지)
-      const recentMessages = safeMessages.slice(-6);
-      const conversationHistory = recentMessages.map(msg => 
-        `${msg.sender === 'user' ? '사용자' : enrichedPersona.name}: ${msg.message}`
-      ).join('\n');
+      // ⚡ 성능 최적화: 최근 4턴만 유지 (토큰 수 감소)
+      const recentMessages = safeMessages.slice(-4);
+      const conversationHistory = recentMessages.length > 0 
+        ? recentMessages.map(msg => `${msg.sender === 'user' ? '👤' : '🤖'}: ${msg.message.substring(0, 50)}`).join('\n')
+        : '';
 
-      const systemPrompt = `당신은 ${enrichedPersona.name}(${enrichedPersona.role})입니다.
+      // ⚡ 압축된 시스템 프롬프트 (500+ 토큰 → 100 토큰 이하)
+      const compactContext = ConversationCache.getCompactScenarioContext(scenario);
+      const compactMBTI = ConversationCache.getCompactMBTIContext(mbtiData);
+      
+      const systemPrompt = `${enrichedPersona.name}(${enrichedPersona.role}). ${compactContext}. ${compactMBTI}.
+규칙: 50-100단어 한국어. JSON형식: {"content":"응답","emotion":"기쁨|슬픔|분노|놀람|중립","emotionReason":"이유"}.
+${conversationHistory ? `이전:\n${conversationHistory}\n` : ''}`;
 
-=== 시나리오 배경 ===
-상황: ${scenario.context?.situation || '일반적인 업무 상황'}
-목표: ${scenario.objectives ? scenario.objectives.join(', ') : '문제 해결'}
-
-=== 당신의 특성 ===
-MBTI: ${mbtiData?.mbti || 'MBTI 유형 미지정'}
-의사소통 스타일: ${mbtiData?.communication_style || '균형 잡힌 의사소통'}
-입장: ${(enrichedPersona as any).stance || '상황에 따른 대응'}
-목표: ${(enrichedPersona as any).goal || '최적의 결과 도출'}
-
-대화 규칙:
-1. 20-120단어 내외로 한국어로 응답하세요
-2. 현재 상황에 맞는 현실적 감정과 반응을 표현하세요
-
-${conversationHistory ? `이전 대화:\n${conversationHistory}\n` : ''}
-
-사용자의 새 메시지에 ${enrichedPersona.name}로서 응답하고, 당신의 현재 감정 상태를 분석해주세요.
-반드시 다음 JSON 형식으로 응답하세요:
-{
-  "content": "대화 내용",
-  "emotion": "기쁨|슬픔|분노|놀람|중립 중 하나",
-  "emotionReason": "감정을 느끼는 구체적인 이유"
-}`;
-
-      // 건너뛰기 시 자연스럽게 대화 이어가기 (MBTI 스타일 고려)
-      const prompt = userMessage ? userMessage : "앞서 이야기를 자연스럽게 이어가거나 새로운 각도에서 문제를 제시해주세요.";
+      // 건너뛰기 시 자연스럽게 대화 이어가기 (압축된 프롬프트)
+      const prompt = userMessage ? userMessage : "자연스럽게 대화 이어가기";
       
       console.log(`🎭 Persona: ${enrichedPersona.name} (${mbtiData?.mbti || 'Unknown MBTI'})`);
 
+      // ⚡ 성능 최적화: 토큰 제한 및 빠른 설정
       const response = await this.genAI.models.generateContent({
         model: this.model,
         config: {
@@ -113,7 +98,10 @@ ${conversationHistory ? `이전 대화:\n${conversationHistory}\n` : ''}
               emotionReason: { type: "string" }
             },
             required: ["content", "emotion", "emotionReason"]
-          }
+          },
+          maxOutputTokens: 150, // 출력 토큰 제한으로 속도 향상
+          temperature: 0.3, // 더 일관성 있는 빠른 응답
+          candidateCount: 1 // 후보 응답 수 제한
         },
         contents: [
           { role: "user", parts: [{ text: systemPrompt + "\n\n사용자: " + prompt }] }
