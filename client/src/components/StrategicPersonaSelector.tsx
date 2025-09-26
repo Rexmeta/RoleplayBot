@@ -408,16 +408,19 @@ export function StrategicPersonaSelector({
         {availablePersonas.map((persona) => {
           const status = getPersonaStatus(persona.id);
           const isSelected = selectedPersonaId === persona.id;
+          const isCompleted = status?.hasBeenContacted || false;
           
           return (
             <Card 
               key={persona.id}
-              className={`cursor-pointer transition-all duration-200 ${
-                isSelected 
-                  ? 'ring-2 ring-blue-500 bg-blue-50' 
-                  : 'hover:shadow-md hover:bg-gray-50'
+              className={`transition-all duration-200 ${
+                isCompleted 
+                  ? 'opacity-50 bg-gray-100 cursor-not-allowed' 
+                  : isSelected 
+                    ? 'ring-2 ring-blue-500 bg-blue-50 cursor-pointer' 
+                    : 'hover:shadow-md hover:bg-gray-50 cursor-pointer'
               }`}
-              onClick={() => handlePersonaClick(persona.id)}
+              onClick={() => !isCompleted && handlePersonaClick(persona.id)}
               data-testid={`persona-card-${persona.id}`}
             >
               <CardContent className="p-4">
@@ -431,15 +434,25 @@ export function StrategicPersonaSelector({
                     }}
                   />
                   <div className="flex-1 min-w-0">
-                    <h3 className="font-semibold text-gray-900 truncate">
-                      {persona.name}
-                    </h3>
+                    <div className="flex items-center gap-2">
+                      <h3 className="font-semibold text-gray-900 truncate">
+                        {persona.name}
+                      </h3>
+                      {isCompleted && (
+                        <CheckCircle2 className="w-4 h-4 text-green-600 flex-shrink-0" />
+                      )}
+                    </div>
                     <p className="text-sm text-gray-600 truncate">
                       {persona.role || persona.department}
                     </p>
                     <p className="text-xs text-gray-500">
                       {persona.department}
                     </p>
+                    {isCompleted && (
+                      <Badge className="bg-green-100 text-green-800 text-xs mt-1">
+                        대화 완료
+                      </Badge>
+                    )}
                   </div>
                 </div>
 

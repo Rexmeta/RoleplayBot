@@ -114,7 +114,7 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
     preloadImages();
   }, []);
 
-  const maxTurns = 10;
+  const maxTurns = 3;
 
   const { data: conversation, error } = useQuery<Conversation>({
     queryKey: ["/api/conversations", conversationId],
