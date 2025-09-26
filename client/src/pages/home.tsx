@@ -90,9 +90,8 @@ export default function Home() {
       }
       
       // 시나리오 데이터에서 실제 페르소나 객체 찾기
-      const scenarioData = await getComplexScenarioById(scenario.id);
-      const selectedPersona = scenarioData.personas.find((p: any) => p.id === personaId);
-      setSelectedPersona(selectedPersona || null);
+      const selectedPersona = Object.values(scenarioPersonas).find(p => p.id === personaId) || null;
+      setSelectedPersona(selectedPersona);
       setConversationId(conversation.id);
       setCurrentView("chat");
     } catch (error) {
@@ -236,7 +235,7 @@ export default function Home() {
         
         {currentView === "strategic-planning" && selectedScenario && (
           <StrategicPersonaSelector
-            personas={scenarioPersonas.filter(persona => 
+            personas={Object.values(scenarioPersonas).filter(persona => 
               selectedScenario.personas?.includes(persona.id)
             )}
             personaStatuses={selectedScenario.personas?.map((p: any) => ({
