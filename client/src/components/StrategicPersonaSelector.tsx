@@ -63,6 +63,12 @@ export function StrategicPersonaSelector({
     !selectedPersonaIds.includes(persona.id)
   );
 
+  // 완료된 대화가 있는지 확인
+  const hasCompletedConversations = previousSelections.length > 0;
+  const totalPersonas = personas.length;
+  const completedCount = previousSelections.length;
+  const remainingCount = availablePersonas.length;
+
   const handlePersonaClick = (personaId: string) => {
     setSelectedPersonaId(personaId === selectedPersonaId ? null : personaId);
     if (personaId !== selectedPersonaId) {
@@ -204,6 +210,48 @@ export function StrategicPersonaSelector({
           </div>
         </div>
       </div>
+
+      {/* 진행 상황 표시 */}
+      {hasCompletedConversations && (
+        <Card className="border-green-200 bg-green-50">
+          <CardContent className="p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="text-lg font-semibold text-green-900 mb-2">
+                  진행 상황: {completedCount}/{totalPersonas} 대화 완료
+                </h3>
+                <p className="text-green-700">
+                  {remainingCount > 0 
+                    ? `${remainingCount}명의 대화 상대가 남아있습니다. 다음 상대를 선택하세요.`
+                    : '모든 대화가 완료되었습니다!'
+                  }
+                </p>
+              </div>
+              <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center">
+                <div className="text-2xl font-bold text-green-800">
+                  {Math.round((completedCount / totalPersonas) * 100)}%
+                </div>
+              </div>
+            </div>
+            
+            {/* 완료된 대화 목록 */}
+            <div className="mt-4">
+              <h4 className="font-medium text-green-900 mb-2">완료된 대화:</h4>
+              <div className="flex flex-wrap gap-2">
+                {previousSelections.map((selection, index) => {
+                  const persona = personas.find(p => p.id === selection.personaId);
+                  return (
+                    <div key={index} className="flex items-center gap-2 px-3 py-1 bg-green-100 rounded-full border border-green-200">
+                      <CheckCircle2 className="w-4 h-4 text-green-600" />
+                      <span className="text-sm font-medium text-green-800">{persona?.name}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* AI 전략 추천 섹션 */}
       <Card className="border-purple-200 bg-gradient-to-r from-purple-50 to-blue-50 mb-6">
@@ -1053,7 +1101,7 @@ export function StrategicPersonaSelector({
       )}
 
       {/* 단계 완료 버튼 (모든 대화가 끝난 경우) */}
-      {availablePersonas.length === 0 && (
+      {availablePersonas.length === 0 && hasCompletedConversations && (
         <Card className="border-blue-200 bg-blue-50">
           <CardContent className="p-6 text-center">
             <CheckCircle2 className="w-12 h-12 text-green-600 mx-auto mb-4" />
@@ -1070,6 +1118,21 @@ export function StrategicPersonaSelector({
             >
               전략적 선택 분석 받기
             </Button>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* 다음 대화 상대 선택 안내 (일부 대화 완료 시) */}
+      {availablePersonas.length > 0 && hasCompletedConversations && (
+        <Card className="border-blue-200 bg-blue-50">
+          <CardContent className="p-6 text-center">
+            <Users className="w-12 h-12 text-blue-600 mx-auto mb-4" />
+            <h3 className="text-lg font-semibold text-gray-900 mb-2">
+              다음 대화 상대를 선택하세요
+            </h3>
+            <p className="text-gray-600 mb-4">
+              아래에서 {remainingCount}명의 남은 대화 상대 중 다음으로 대화할 인물을 선택하고 전략을 세우세요.
+            </p>
           </CardContent>
         </Card>
       )}
