@@ -3,18 +3,23 @@ import { Link } from "wouter";
 import ScenarioSelector from "@/components/ScenarioSelector";
 import ChatWindow from "@/components/ChatWindow";
 import PersonalDevelopmentReport from "@/components/PersonalDevelopmentReport";
+import { StrategicPersonaSelector } from "@/components/StrategicPersonaSelector";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
-import { type ComplexScenario, type ScenarioPersona } from "@/lib/scenario-system";
+import { type ComplexScenario, type ScenarioPersona, getComplexScenarioById, scenarioPersonas } from "@/lib/scenario-system";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
-type ViewState = "scenarios" | "chat" | "feedback";
+type ViewState = "scenarios" | "strategic-planning" | "chat" | "feedback";
 
 export default function Home() {
   const [currentView, setCurrentView] = useState<ViewState>("scenarios");
   const [selectedScenario, setSelectedScenario] = useState<ComplexScenario | null>(null);
   const [selectedPersona, setSelectedPersona] = useState<ScenarioPersona | null>(null);
   const [conversationId, setConversationId] = useState<string | null>(null);
+  const [strategicConversationId, setStrategicConversationId] = useState<string | null>(null);
+  const [completedConversations, setCompletedConversations] = useState<string[]>([]);
+  const [currentPhase, setCurrentPhase] = useState(1);
+  const [totalPhases, setTotalPhases] = useState(1);
 
   // 동적으로 시나리오와 페르소나 데이터 로드
   const { data: scenarios = [] } = useQuery({
@@ -32,16 +37,88 @@ export default function Home() {
     experience: "6개월차"
   };
 
-  // ⚡ 최적화: ScenarioSelector에서 페르소나 객체를 직접 전달받도록 수정
-  const handleScenarioSelect = (scenario: ComplexScenario, persona: ScenarioPersona, convId: string) => {
+  // 시나리오 선택 처리 - 페르소나 수에 따라 분기
+  const handleScenarioSelect = (scenario: ComplexScenario, persona?: ScenarioPersona, convId?: string) => {
     setSelectedScenario(scenario);
-    setSelectedPersona(persona);
-    setConversationId(convId);
-    setCurrentView("chat");
+    
+    // 페르소나가 2명 이상이면 전략적 계획 단계로
+    if (scenario.personas && scenario.personas.length >= 2) {
+      setTotalPhases(scenario.personas.length);
+      setCurrentPhase(1);
+      setCompletedConversations([]);
+      setCurrentView("strategic-planning");
+    } else {
+      // 단일 페르소나면 기존 방식대로
+      setSelectedPersona(persona || null);
+      setConversationId(convId || null);
+      setCurrentView("chat");
+    }
+  };
+  
+  // 전략적 페르소나 선택 완료 처리
+  const handleStrategicPersonaSelect = async (personaId: string, scenario: ComplexScenario) => {
+    try {
+      const response = await apiRequest("POST", "/api/conversations", {
+        scenarioId: scenario.id,
+        personaId: personaId,
+        scenarioName: scenario.title,
+        messages: [],
+        turnCount: 0,
+        status: "active",
+        conversationType: "sequential",
+        currentPhase: currentPhase,
+        totalPhases: totalPhases
+      });
+      
+      const conversation = await response.json();
+      
+      // PersonaSelection 데이터 저장
+      try {
+        await apiRequest("POST", `/api/conversations/${conversation.id}/persona-selections`, {
+          phase: currentPhase,
+          personaId: personaId,
+          selectionReason: `${currentPhase}단계 대화 상대로 선택`,
+          expectedOutcome: "효과적인 대화를 통한 목표 달성"
+        });
+      } catch (error) {
+        console.error("페르소나 선택 데이터 저장 실패:", error);
+      }
+      
+      // 첫 번째 전략적 대화라면 strategic conversation ID 저장
+      if (!strategicConversationId) {
+        setStrategicConversationId(conversation.id);
+      }
+      
+      // 시나리오 데이터에서 실제 페르소나 객체 찾기
+      const scenarioData = await getComplexScenarioById(scenario.id);
+      const selectedPersona = scenarioData.personas.find((p: any) => p.id === personaId);
+      setSelectedPersona(selectedPersona || null);
+      setConversationId(conversation.id);
+      setCurrentView("chat");
+    } catch (error) {
+      console.error("전략적 대화 생성 실패:", error);
+    }
+  };
+  
+  // 페르소나 변경 핸들러 (대화 완료 후)
+  const handlePersonaChange = () => {
+    if (selectedScenario && selectedScenario.personas && selectedScenario.personas.length >= 2) {
+      setCurrentView("strategic-planning");
+    }
   };
 
   const handleChatComplete = () => {
-    setCurrentView("feedback");
+    if (strategicConversationId && currentPhase < totalPhases) {
+      // 전략적 대화 중이고 아직 남은 단계가 있으면
+      if (conversationId) {
+        setCompletedConversations(prev => [...prev, conversationId]);
+      }
+      setCurrentPhase(prev => prev + 1);
+      setCurrentView("strategic-planning");
+    } else {
+      // 모든 대화가 완료되었거나 단일 대화면 피드백으로
+      setCurrentView("feedback");
+    }
   };
 
   const handleReturnToScenarios = () => {
@@ -49,6 +126,10 @@ export default function Home() {
     setSelectedScenario(null);
     setSelectedPersona(null);
     setConversationId(null);
+    setStrategicConversationId(null);
+    setCompletedConversations([]);
+    setCurrentPhase(1);
+    setTotalPhases(1);
   };
 
   // 재도전을 위한 새로운 대화 생성
@@ -153,6 +234,35 @@ export default function Home() {
           </div>
         )}
         
+        {currentView === "strategic-planning" && selectedScenario && (
+          <StrategicPersonaSelector
+            personas={scenarioPersonas.filter(persona => 
+              selectedScenario.personas?.includes(persona.id)
+            )}
+            personaStatuses={selectedScenario.personas?.map((p: any) => ({
+              personaId: p.id,
+              name: p.name,
+              currentMood: 'neutral' as const,
+              approachability: 3,
+              influence: p.influence || 3,
+              hasBeenContacted: completedConversations.includes(p.id),
+              lastInteractionResult: undefined,
+              availableInfo: [`${p.name}에 대한 정보`],
+              keyRelationships: []
+            })) || []}
+            currentPhase={currentPhase}
+            totalPhases={totalPhases}
+            onPersonaSelect={async (selection) => {
+              await handleStrategicPersonaSelect(selection.personaId, selectedScenario);
+            }}
+            onPhaseComplete={() => {
+              setCurrentView("feedback");
+            }}
+            previousSelections={[]}
+            scenarioContext={selectedScenario}
+          />
+        )}
+        
         {currentView === "chat" && selectedScenario && selectedPersona && conversationId && (
           <ChatWindow
             scenario={selectedScenario}
@@ -160,6 +270,7 @@ export default function Home() {
             conversationId={conversationId}
             onChatComplete={handleChatComplete}
             onExit={handleReturnToScenarios}
+            onPersonaChange={strategicConversationId ? handlePersonaChange : undefined}
           />
         )}
         

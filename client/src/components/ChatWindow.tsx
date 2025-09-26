@@ -57,9 +57,10 @@ interface ChatWindowProps {
   conversationId: string;
   onChatComplete: () => void;
   onExit: () => void;
+  onPersonaChange?: () => void;
 }
 
-export default function ChatWindow({ scenario, persona, conversationId, onChatComplete, onExit }: ChatWindowProps) {
+export default function ChatWindow({ scenario, persona, conversationId, onChatComplete, onExit, onPersonaChange }: ChatWindowProps) {
   const [location, setLocation] = useLocation();
   const [userInput, setUserInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -1631,6 +1632,17 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
                         대화가 완료되었습니다! (총 {conversation.turnCount}턴)
                       </div>
                       <div className="flex justify-center space-x-3">
+                        {onPersonaChange && (
+                          <Button
+                            onClick={onPersonaChange}
+                            className="bg-blue-600 hover:bg-blue-700 text-white"
+                            data-testid="button-change-persona"
+                            size="sm"
+                          >
+                            <i className="fas fa-user-friends mr-1"></i>
+                            다른 상대와 대화
+                          </Button>
+                        )}
                         <Button
                           onClick={onChatComplete}
                           className="bg-purple-600 hover:bg-purple-700 text-white"

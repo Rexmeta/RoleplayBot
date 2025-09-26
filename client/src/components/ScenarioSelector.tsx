@@ -146,11 +146,18 @@ export default function ScenarioSelector({ onScenarioSelect, playerProfile }: Sc
   };
 
   const handleStartConversation = () => {
-    if (selectedScenario && selectedPersona && !loadingScenarioId) {
-      createConversationMutation.mutate({
-        scenarioId: selectedScenario.id,
-        personaId: selectedPersona.id
-      });
+    if (selectedScenario && !loadingScenarioId) {
+      // 다중 페르소나 시나리오 감지
+      if (selectedScenario.personas && selectedScenario.personas.length >= 2) {
+        // 전략적 계획 모드로 진행
+        onScenarioSelect(selectedScenario);
+      } else if (selectedPersona) {
+        // 단일 페르소나 기존 방식
+        createConversationMutation.mutate({
+          scenarioId: selectedScenario.id,
+          personaId: selectedPersona.id
+        });
+      }
     }
   };
 
