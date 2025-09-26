@@ -429,7 +429,13 @@ export default function Home() {
             onPhaseComplete={() => {
               setCurrentView("feedback");
             }}
-            previousSelections={existingConversation?.personaSelections || sequencePlan}
+            previousSelections={(() => {
+              // 실제로 대화가 완료된 페르소나들만 포함
+              const allSelections = existingConversation?.personaSelections || sequencePlan;
+              return allSelections.filter(selection => 
+                completedConversations.includes(selection.personaId)
+              );
+            })()}
             scenarioContext={selectedScenario}
             onSequencePlanSubmit={handleSequencePlanSubmit}
             initialSequencePlan={existingConversation?.personaSelections || []}
