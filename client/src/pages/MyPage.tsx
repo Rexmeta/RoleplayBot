@@ -10,8 +10,8 @@ import { type Conversation, type Feedback, type User } from "@shared/schema";
 import { format } from "date-fns";
 
 export default function MyPage() {
-  const { user } = useAuth();
   const [selectedView, setSelectedView] = useState<"history" | "stats">("history");
+  const { user } = useAuth();
 
   // 사용자의 대화 기록 조회
   const { data: conversations = [], isLoading: conversationsLoading } = useQuery<Conversation[]>({
@@ -47,18 +47,16 @@ export default function MyPage() {
     return "개선 필요";
   };
 
-  if (!user) {
-    return (
-      <div className="min-h-screen bg-slate-50 flex items-center justify-center">
-        <div className="text-center">
-          <h2 className="text-2xl font-bold text-gray-900 mb-4">로그인이 필요합니다</h2>
-          <p className="text-gray-600">MyPage를 이용하려면 먼저 로그인해주세요.</p>
-        </div>
-      </div>
-    );
-  }
-
-  const typedUser = user as User;
+  // 임시로 더미 사용자 데이터 사용
+  const typedUser: User = {
+    id: "temp-user",
+    email: "user@example.com",
+    firstName: "테스트",
+    lastName: "사용자",
+    profileImageUrl: null,
+    createdAt: new Date(),
+    updatedAt: new Date(),
+  };
 
   return (
     <div className="min-h-screen bg-slate-50">
