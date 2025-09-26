@@ -235,9 +235,51 @@ export default function Home() {
         
         {currentView === "strategic-planning" && selectedScenario && (
           <StrategicPersonaSelector
-            personas={Object.values(scenarioPersonas).filter(persona => 
-              selectedScenario.personas?.includes(persona.id)
-            )}
+            personas={(() => {
+              // 시나리오에서 받은 personas를 ScenarioPersona 타입에 맞게 변환
+              const scenarioPersonasArray = (selectedScenario.personas || []).map((p: any) => ({
+                id: p.id,
+                name: p.name,
+                role: p.position || p.role,
+                department: p.department,
+                experience: p.experience,
+                personality: {
+                  traits: [],
+                  communicationStyle: p.stance || '',
+                  motivation: p.goal || '',
+                  fears: []
+                },
+                background: {
+                  education: '',
+                  previousExperience: p.experience || '',
+                  majorProjects: [],
+                  expertise: []
+                },
+                currentSituation: {
+                  workload: '',
+                  pressure: '',
+                  concerns: [],
+                  position: p.stance || ''
+                },
+                communicationPatterns: {
+                  openingStyle: '',
+                  keyPhrases: [],
+                  responseToArguments: {},
+                  winConditions: []
+                },
+                image: `https://ui-avatars.com/api/?name=${encodeURIComponent(p.name)}&background=6366f1&color=fff&size=150`,
+                voice: {
+                  tone: '',
+                  pace: '',
+                  emotion: ''
+                },
+                stance: p.stance,
+                goal: p.goal,
+                tradeoff: p.tradeoff,
+                mbti: p.id?.toUpperCase()
+              }));
+              return scenarioPersonasArray;
+            })()}
             personaStatuses={selectedScenario.personas?.map((p: any) => ({
               personaId: p.id,
               name: p.name,
