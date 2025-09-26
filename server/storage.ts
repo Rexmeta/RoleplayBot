@@ -1,4 +1,4 @@
-import { type Conversation, type InsertConversation, type Feedback, type InsertFeedback, type PersonaSelection, type StrategyChoice, type SequenceAnalysis } from "@shared/schema";
+import { type Conversation, type InsertConversation, type Feedback, type InsertFeedback, type PersonaSelection, type StrategyChoice, type SequenceAnalysis, type User, type UpsertUser } from "@shared/schema";
 import { randomUUID } from "crypto";
 
 export interface IStorage {
@@ -24,15 +24,21 @@ export interface IStorage {
   // Strategic Selection - Sequence Analysis
   saveSequenceAnalysis(conversationId: string, analysis: SequenceAnalysis): Promise<Conversation>;
   getSequenceAnalysis(conversationId: string): Promise<SequenceAnalysis | undefined>;
+
+  // User operations - from javascript_log_in_with_replit blueprint
+  getUser(id: string): Promise<User | undefined>;
+  upsertUser(user: UpsertUser): Promise<User>;
 }
 
 export class MemStorage implements IStorage {
   private conversations: Map<string, Conversation>;
   private feedbacks: Map<string, Feedback>;
+  private users: Map<string, User>; // Auth storage
 
   constructor() {
     this.conversations = new Map();
     this.feedbacks = new Map();
+    this.users = new Map(); // Auth storage
   }
 
   async createConversation(insertConversation: InsertConversation): Promise<Conversation> {
@@ -158,6 +164,28 @@ export class MemStorage implements IStorage {
   async getSequenceAnalysis(conversationId: string): Promise<SequenceAnalysis | undefined> {
     const conversation = this.conversations.get(conversationId);
     return conversation?.sequenceAnalysis || undefined;
+  }
+
+  // User operations - from javascript_log_in_with_replit blueprint
+  async getUser(id: string): Promise<User | undefined> {
+    return this.users.get(id);
+  }
+
+  async upsertUser(userData: UpsertUser): Promise<User> {
+    const existingUser = this.users.get(userData.id as string);
+    
+    const user: User = {
+      id: userData.id as string,
+      email: userData.email || null,
+      firstName: userData.firstName || null,
+      lastName: userData.lastName || null,
+      profileImageUrl: userData.profileImageUrl || null,
+      createdAt: existingUser?.createdAt || new Date(),
+      updatedAt: new Date(),
+    };
+    
+    this.users.set(user.id, user);
+    return user;
   }
 }
 

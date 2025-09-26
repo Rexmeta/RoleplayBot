@@ -8,6 +8,9 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { type ComplexScenario, type ScenarioPersona, getComplexScenarioById, scenarioPersonas } from "@/lib/scenario-system";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { useAuth } from "@/hooks/useAuth";
+import { Button } from "@/components/ui/button";
+import { User, LogOut } from "lucide-react";
 
 type ViewState = "scenarios" | "strategic-planning" | "chat" | "feedback";
 
@@ -322,9 +325,29 @@ export default function Home() {
                 </Tooltip>
               </TooltipProvider>
               
-              <button className="text-slate-400 hover:text-slate-600 w-10 h-10 flex items-center justify-center rounded-lg hover:bg-slate-100 transition-colors">
-                <i className="fas fa-cog text-lg"></i>
-              </button>
+              {/* MyPage 링크 - from javascript_log_in_with_replit blueprint */}
+              <Button
+                onClick={() => window.location.href = '/mypage'}
+                variant="outline"
+                size="sm"
+                className="flex items-center gap-2 mr-2"
+                data-testid="mypage-button"
+              >
+                <User className="w-4 h-4" />
+                MyPage
+              </Button>
+
+              {/* 로그아웃 버튼 - from javascript_log_in_with_replit blueprint */}
+              <Button
+                onClick={() => window.location.href = '/api/logout'}
+                variant="outline"
+                size="sm"
+                className="flex items-center gap-2"
+                data-testid="logout-button"
+              >
+                <LogOut className="w-4 h-4" />
+                로그아웃
+              </Button>
             </div>
           </div>
         </div>
