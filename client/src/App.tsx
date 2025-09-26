@@ -3,6 +3,8 @@ import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { AuthProvider } from "@/components/auth/AuthProvider";
+import { useAuth } from "@/hooks/useAuth";
 import Intro from "@/pages/intro";
 import Home from "@/pages/home";
 import MyPage from "@/pages/MyPage";
@@ -10,8 +12,29 @@ import AdminDashboard from "@/pages/admin-dashboard";
 import AdminManagement from "@/pages/admin-management";
 import AIGeneratorPage from "@/pages/ai-generator";
 import NotFound from "@/pages/not-found";
+import { AuthPage } from "@/pages/AuthPage";
 
-function Router() {
+function ProtectedRouter() {
+  const { isAuthenticated, isLoading } = useAuth();
+
+  // 로딩 중일 때 스피너 표시
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">로딩 중...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // 인증되지 않은 사용자는 로그인/회원가입 페이지로
+  if (!isAuthenticated) {
+    return <AuthPage />;
+  }
+
+  // 인증된 사용자는 기존 라우트들로
   return (
     <Switch>
       <Route path="/" component={Intro} />
@@ -29,10 +52,12 @@ function Router() {
 function App() {
   return (
     <QueryClientProvider client={queryClient}>
-      <TooltipProvider>
-        <Toaster />
-        <Router />
-      </TooltipProvider>
+      <AuthProvider>
+        <TooltipProvider>
+          <Toaster />
+          <ProtectedRouter />
+        </TooltipProvider>
+      </AuthProvider>
     </QueryClientProvider>
   );
 }
