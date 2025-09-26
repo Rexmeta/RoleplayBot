@@ -35,6 +35,11 @@ export function StrategicPersonaSelector({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showAIRecommendation, setShowAIRecommendation] = useState(true);
   const [aiAnalysisVisible, setAiAnalysisVisible] = useState(true);
+  
+  // 순차적 계획 모드 상태
+  const [planningMode, setPlanningMode] = useState<'single' | 'sequence'>('single');
+  const [sequencePlan, setSequencePlan] = useState<PersonaSelection[]>([]);
+  const [currentPlanningStep, setCurrentPlanningStep] = useState(0);
 
   // 이미 선택된 페르소나들 ID 추출
   const selectedPersonaIds = previousSelections.map(sel => sel.personaId);
@@ -351,6 +356,42 @@ export function StrategicPersonaSelector({
         </Card>
       )}
 
+      {/* 계획 모드 선택기 */}
+      <Card className="border-orange-200 bg-gradient-to-r from-orange-50 to-yellow-50 mb-6">
+        <CardContent className="p-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="font-semibold text-orange-900 mb-1">
+                대화 계획 방식 선택
+              </h3>
+              <p className="text-sm text-orange-800">
+                한 명씩 선택하거나, 전체 순서를 미리 정할 수 있습니다
+              </p>
+            </div>
+            <div className="flex gap-2">
+              <Button
+                variant={planningMode === 'single' ? 'default' : 'outline'}
+                size="sm"
+                onClick={() => setPlanningMode('single')}
+                className={planningMode === 'single' ? 'bg-orange-600 hover:bg-orange-700' : ''}
+                data-testid="button-single-mode"
+              >
+                단계별 선택
+              </Button>
+              <Button
+                variant={planningMode === 'sequence' ? 'default' : 'outline'}
+                size="sm"
+                onClick={() => setPlanningMode('sequence')}
+                className={planningMode === 'sequence' ? 'bg-orange-600 hover:bg-orange-700' : ''}
+                data-testid="button-sequence-mode"
+              >
+                전체 순서 계획
+              </Button>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
       {/* 이전 선택 요약 */}
       {previousSelections.length > 0 && (
         <Card className="mb-6">
@@ -385,26 +426,49 @@ export function StrategicPersonaSelector({
         </Card>
       )}
 
-      {/* 현재 단계 안내 */}
-      <Card className="border-blue-200 bg-blue-50">
-        <CardContent className="p-4">
-          <div className="flex items-start gap-3">
-            <Target className="w-5 h-5 text-blue-600 mt-1" />
-            <div>
-              <h3 className="font-semibold text-blue-900 mb-1">
-                {currentPhase}단계: 다음 대화 상대를 선택하세요
-              </h3>
-              <p className="text-blue-800 text-sm">
-                누구와 먼저 대화할지, 그리고 그 이유를 신중히 고려해주세요. 
-                각 선택은 상황 해결에 중요한 영향을 미칠 수 있습니다.
-              </p>
+      {/* 단일 모드: 현재 단계 안내 */}
+      {planningMode === 'single' && (
+        <Card className="border-blue-200 bg-blue-50">
+          <CardContent className="p-4">
+            <div className="flex items-start gap-3">
+              <Target className="w-5 h-5 text-blue-600 mt-1" />
+              <div>
+                <h3 className="font-semibold text-blue-900 mb-1">
+                  {currentPhase}단계: 다음 대화 상대를 선택하세요
+                </h3>
+                <p className="text-blue-800 text-sm">
+                  누구와 먼저 대화할지, 그리고 그 이유를 신중히 고려해주세요. 
+                  각 선택은 상황 해결에 중요한 영향을 미칠 수 있습니다.
+                </p>
+              </div>
             </div>
-          </div>
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
+      )}
 
-      {/* 페르소나 선택 그리드 */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+      {/* 순차 모드: 전체 계획 안내 */}
+      {planningMode === 'sequence' && (
+        <Card className="border-purple-200 bg-purple-50">
+          <CardContent className="p-4">
+            <div className="flex items-start gap-3">
+              <Users className="w-5 h-5 text-purple-600 mt-1" />
+              <div>
+                <h3 className="font-semibold text-purple-900 mb-1">
+                  전체 대화 순서를 계획하세요
+                </h3>
+                <p className="text-purple-800 text-sm">
+                  모든 페르소나와의 대화 순서를 미리 정하고, 각각에 대한 전략을 수립하세요. 
+                  순서가 정해지면 자동으로 순차적으로 대화가 진행됩니다.
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* 단일 모드: 페르소나 선택 그리드 */}
+      {planningMode === 'single' && (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {availablePersonas.map((persona) => {
           const status = getPersonaStatus(persona.id);
           const isSelected = selectedPersonaId === persona.id;
@@ -550,10 +614,11 @@ export function StrategicPersonaSelector({
             </Card>
           );
         })}
-      </div>
+        </div>
+      )}
 
-      {/* 선택 상세 정보 입력 */}
-      {selectedPersonaId && (
+      {/* 단일 모드: 선택 상세 정보 입력 */}
+      {planningMode === 'single' && selectedPersonaId && (
         <Card className="border-green-200">
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-green-800">
@@ -734,6 +799,239 @@ export function StrategicPersonaSelector({
             </div>
           </CardContent>
         </Card>
+      )}
+
+      {/* 순차 모드: 전체 계획 설정 */}
+      {planningMode === 'sequence' && (
+        <div className="space-y-6">
+          <Card className="border-purple-200 bg-purple-50">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-purple-900">
+                <Users className="w-5 h-5" />
+                대화 순서 계획 ({sequencePlan.length}/{availablePersonas.length})
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {sequencePlan.length === 0 ? (
+                <div className="text-center py-8">
+                  <Target className="w-12 h-12 text-purple-400 mx-auto mb-4" />
+                  <h3 className="text-lg font-semibold text-purple-900 mb-2">
+                    첫 번째 대화 상대를 선택하세요
+                  </h3>
+                  <p className="text-purple-700">
+                    아래 페르소나 중에서 첫 번째로 대화할 상대를 선택하고 전략을 세우세요
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  <h4 className="font-semibold text-purple-900">계획된 대화 순서:</h4>
+                  {sequencePlan.map((selection, index) => {
+                    const persona = personas.find(p => p.id === selection.personaId);
+                    return (
+                      <div key={index} className="flex items-center gap-3 p-3 bg-white rounded-lg border border-purple-200">
+                        <div className="w-8 h-8 bg-purple-100 text-purple-800 rounded-full flex items-center justify-center font-semibold text-sm">
+                          {index + 1}
+                        </div>
+                        <div className="flex-1">
+                          <div className="font-medium text-gray-900">
+                            {persona?.name} ({persona?.role || persona?.department})
+                          </div>
+                          <div className="text-sm text-purple-700">
+                            {selection.selectionReason}
+                          </div>
+                        </div>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            setSequencePlan(prev => prev.filter((_, i) => i !== index));
+                          }}
+                          className="text-red-600 hover:text-red-700"
+                        >
+                          제거
+                        </Button>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* 순차 모드: 페르소나 선택 그리드 */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {availablePersonas
+              .filter(persona => !sequencePlan.some(s => s.personaId === persona.id))
+              .map((persona) => {
+                const status = getPersonaStatus(persona.id);
+                const isSelected = selectedPersonaId === persona.id;
+                
+                return (
+                  <Card 
+                    key={persona.id}
+                    className={`transition-all duration-200 ${
+                      isSelected 
+                        ? 'ring-2 ring-purple-500 bg-purple-50 cursor-pointer' 
+                        : 'hover:shadow-md hover:bg-gray-50 cursor-pointer'
+                    }`}
+                    onClick={() => handlePersonaClick(persona.id)}
+                    data-testid={`sequence-persona-card-${persona.id}`}
+                  >
+                    <CardContent className="p-4">
+                      <div className="flex items-start gap-3 mb-3">
+                        <img 
+                          src={persona.image} 
+                          alt={persona.name}
+                          className="w-12 h-12 rounded-full"
+                          onError={(e) => {
+                            (e.target as HTMLImageElement).src = `https://ui-avatars.com/api/?name=${encodeURIComponent(persona.name)}&background=6366f1&color=fff&size=48`;
+                          }}
+                        />
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2">
+                            <h3 className="font-semibold text-gray-900 truncate">
+                              {persona.name}
+                            </h3>
+                          </div>
+                          <p className="text-sm text-gray-600 truncate">
+                            {persona.role || persona.department}
+                          </p>
+                          <p className="text-xs text-gray-500">
+                            {persona.department}
+                          </p>
+                        </div>
+                      </div>
+
+                      {status && (
+                        <div className="space-y-2">
+                          {/* 현재 기분 */}
+                          <div className="flex items-center gap-2">
+                            <Badge className={`${getMoodColor(status.currentMood)} text-xs`}>
+                              {getMoodIcon(status.currentMood)} {status.currentMood}
+                            </Badge>
+                            <span className="text-xs text-gray-500">
+                              영향력 {status.influence}/5 • 접근성 {status.approachability}/5
+                            </span>
+                          </div>
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+                );
+              })}
+          </div>
+
+          {/* 순차 모드: 선택 입력 */}
+          {selectedPersonaId && (
+            <Card className="border-purple-200">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-purple-800">
+                  <AlertCircle className="w-5 h-5" />
+                  {sequencePlan.length + 1}번째 대화 전략을 수립하세요
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="space-y-4">
+                  <div>
+                    <Label htmlFor="sequence-reason" className="text-sm font-medium">
+                      이 순서에 선택하는 이유 *
+                    </Label>
+                    <textarea
+                      id="sequence-reason"
+                      value={selectionReason}
+                      onChange={(e) => setSelectionReason(e.target.value)}
+                      className="w-full mt-1 p-3 border border-gray-300 rounded-md focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                      rows={3}
+                      placeholder="왜 이 시점에 이 사람과 대화하는 것이 전략적으로 유리한지 설명해주세요..."
+                      data-testid="sequence-reason-input"
+                    />
+                  </div>
+
+                  <div>
+                    <Label htmlFor="sequence-outcome" className="text-sm font-medium">
+                      기대하는 결과 *
+                    </Label>
+                    <textarea
+                      id="sequence-outcome"
+                      value={expectedOutcome}
+                      onChange={(e) => setExpectedOutcome(e.target.value)}
+                      className="w-full mt-1 p-3 border border-gray-300 rounded-md focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                      rows={2}
+                      placeholder="이 대화를 통해 얻고자 하는 구체적인 결과를 작성해주세요..."
+                      data-testid="sequence-outcome-input"
+                    />
+                  </div>
+                </div>
+
+                <div className="flex justify-end gap-3 pt-4">
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      setSelectedPersonaId(null);
+                      setSelectionReason('');
+                      setExpectedOutcome('');
+                    }}
+                  >
+                    취소
+                  </Button>
+                  <Button
+                    onClick={() => {
+                      if (!selectedPersonaId || !selectionReason.trim() || !expectedOutcome.trim()) {
+                        return;
+                      }
+
+                      const newSelection: PersonaSelection = {
+                        phase: sequencePlan.length + 1,
+                        personaId: selectedPersonaId,
+                        selectionReason: selectionReason.trim(),
+                        timestamp: new Date().toISOString(),
+                        expectedOutcome: expectedOutcome.trim()
+                      };
+
+                      setSequencePlan(prev => [...prev, newSelection]);
+                      setSelectedPersonaId(null);
+                      setSelectionReason('');
+                      setExpectedOutcome('');
+                    }}
+                    disabled={!selectionReason.trim() || !expectedOutcome.trim() || 
+                             selectionReason.length < 20}
+                    className="bg-purple-600 hover:bg-purple-700"
+                    data-testid="add-to-sequence-button"
+                  >
+                    순서에 추가
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* 전체 계획 완료 및 시작 버튼 */}
+          {sequencePlan.length === availablePersonas.length && (
+            <Card className="border-green-200 bg-green-50">
+              <CardContent className="p-6 text-center">
+                <CheckCircle2 className="w-12 h-12 text-green-600 mx-auto mb-4" />
+                <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                  전체 대화 계획이 완성되었습니다!
+                </h3>
+                <p className="text-gray-600 mb-4">
+                  설정한 순서대로 순차적인 대화를 시작하시겠습니까?
+                </p>
+                <Button 
+                  onClick={() => {
+                    // 첫 번째 선택을 전송하고 대화 시작
+                    if (sequencePlan[0]) {
+                      onPersonaSelect(sequencePlan[0]);
+                    }
+                  }}
+                  className="bg-green-600 hover:bg-green-700"
+                  data-testid="start-sequence-button"
+                >
+                  순차 대화 시작하기
+                </Button>
+              </CardContent>
+            </Card>
+          )}
+        </div>
       )}
 
       {/* 단계 완료 버튼 (모든 대화가 끝난 경우) */}
