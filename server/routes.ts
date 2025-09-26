@@ -1,7 +1,7 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
-import { setupAuth, isAuthenticated } from "./replitAuth";
+// Replit Auth 제거됨
 import { 
   insertConversationSchema, 
   insertFeedbackSchema,
@@ -17,20 +17,13 @@ import { fileManager } from "./services/fileManager";
 import { generateScenarioWithAI, enhanceScenarioWithAI } from "./services/aiScenarioGenerator";
 
 export async function registerRoutes(app: Express): Promise<Server> {
-  // Auth middleware - from javascript_log_in_with_replit blueprint
-  await setupAuth(app);
-
-  // Auth routes - from javascript_log_in_with_replit blueprint
-  app.get('/api/auth/user', isAuthenticated, async (req: any, res) => {
-    try {
-      const userId = req.user.claims.sub;
-      const user = await storage.getUser(userId);
-      res.json(user);
-    } catch (error) {
-      console.error("Error fetching user:", error);
-      res.status(500).json({ message: "Failed to fetch user" });
-    }
-  });
+  // 이메일 기반 인증 시스템 설정
+  const cookieParser = (await import('cookie-parser')).default;
+  app.use(cookieParser());
+  
+  // 인증 시스템 설정
+  const { setupAuth } = await import('./auth');
+  setupAuth(app);
 
   // Create new conversation
   app.post("/api/conversations", async (req, res) => {

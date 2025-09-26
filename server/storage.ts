@@ -25,8 +25,10 @@ export interface IStorage {
   saveSequenceAnalysis(conversationId: string, analysis: SequenceAnalysis): Promise<Conversation>;
   getSequenceAnalysis(conversationId: string): Promise<SequenceAnalysis | undefined>;
 
-  // User operations - from javascript_log_in_with_replit blueprint
+  // User operations - 이메일 기반 인증 시스템
   getUser(id: string): Promise<User | undefined>;
+  getUserByEmail(email: string): Promise<User | undefined>;
+  createUser(user: { email: string; password: string; name: string }): Promise<User>;
   upsertUser(user: UpsertUser): Promise<User>;
 }
 
@@ -166,9 +168,33 @@ export class MemStorage implements IStorage {
     return conversation?.sequenceAnalysis || undefined;
   }
 
-  // User operations - from javascript_log_in_with_replit blueprint
+  // User operations - 이메일 기반 인증 시스템
   async getUser(id: string): Promise<User | undefined> {
     return this.users.get(id);
+  }
+
+  async getUserByEmail(email: string): Promise<User | undefined> {
+    for (const user of Array.from(this.users.values())) {
+      if (user.email === email) {
+        return user;
+      }
+    }
+    return undefined;
+  }
+
+  async createUser(userData: { email: string; password: string; name: string }): Promise<User> {
+    const id = randomUUID();
+    const user: User = {
+      id,
+      email: userData.email,
+      password: userData.password,
+      name: userData.name,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+    
+    this.users.set(id, user);
+    return user;
   }
 
   async upsertUser(userData: UpsertUser): Promise<User> {
@@ -176,10 +202,9 @@ export class MemStorage implements IStorage {
     
     const user: User = {
       id: userData.id as string,
-      email: userData.email || null,
-      firstName: userData.firstName || null,
-      lastName: userData.lastName || null,
-      profileImageUrl: userData.profileImageUrl || null,
+      email: userData.email || '',
+      password: '', // 기본값
+      name: userData.name || '',
       createdAt: existingUser?.createdAt || new Date(),
       updatedAt: new Date(),
     };

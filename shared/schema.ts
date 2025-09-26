@@ -42,13 +42,12 @@ export const sessions = pgTable(
   (table) => [index("IDX_session_expire").on(table.expire)],
 );
 
-// User storage table - 인증 시스템용
+// User storage table - 이메일 기반 인증 시스템용
 export const users = pgTable("users", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  email: varchar("email").unique(),
-  firstName: varchar("first_name"),
-  lastName: varchar("last_name"),
-  profileImageUrl: varchar("profile_image_url"),
+  email: varchar("email").unique().notNull(),
+  password: varchar("password").notNull(), // 해시된 비밀번호
+  name: varchar("name").notNull(), // 사용자 이름
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
@@ -221,6 +220,12 @@ export type InsertFeedback = z.infer<typeof insertFeedbackSchema>;
 export type Conversation = typeof conversations.$inferSelect;
 export type Feedback = typeof feedbacks.$inferSelect;
 
-// User types for authentication - from javascript_log_in_with_replit blueprint
+// User types for email-based authentication
+export type CreateUser = {
+  email: string;
+  password: string;
+  name: string;
+};
+
 export type UpsertUser = typeof users.$inferInsert;
 export type User = typeof users.$inferSelect;
