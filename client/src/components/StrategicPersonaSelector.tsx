@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { Label } from '@/components/ui/label';
-import { AlertCircle, Users, Target, Clock, CheckCircle2 } from 'lucide-react';
+import { AlertCircle, Users, Target, Clock, CheckCircle2, Brain, TrendingUp, Lightbulb } from 'lucide-react';
 import type { PersonaStatus, PersonaSelection } from '../../../shared/schema';
 import type { ScenarioPersona } from '../lib/scenario-system';
 
@@ -33,6 +33,8 @@ export function StrategicPersonaSelector({
   const [selectionReason, setSelectionReason] = useState('');
   const [expectedOutcome, setExpectedOutcome] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showAIRecommendation, setShowAIRecommendation] = useState(true);
+  const [aiAnalysisVisible, setAiAnalysisVisible] = useState(true);
 
   // 이미 선택된 페르소나들 ID 추출
   const selectedPersonaIds = previousSelections.map(sel => sel.personaId);
@@ -81,6 +83,50 @@ export function StrategicPersonaSelector({
     return personaStatuses.find(status => status.personaId === personaId);
   };
 
+  // AI 추천 페르소나 계산
+  const getAIRecommendation = () => {
+    if (availablePersonas.length === 0) return null;
+    
+    const scoredPersonas = availablePersonas.map(persona => {
+      const status = getPersonaStatus(persona.id);
+      if (!status) return { persona, score: 0, reasons: [] };
+      
+      let score = 0;
+      const reasons: string[] = [];
+      
+      // 영향력 가중치 (30%)
+      score += status.influence * 0.3;
+      if (status.influence >= 4) reasons.push('높은 영향력 보유');
+      
+      // 접근성 가중치 (25%)
+      score += status.approachability * 0.25;
+      if (status.approachability >= 4) reasons.push('접근하기 용이함');
+      
+      // 정보량 가중치 (25%)
+      const infoScore = Math.min(5, status.availableInfo.length);
+      score += infoScore * 0.25;
+      if (status.availableInfo.length >= 3) reasons.push('풍부한 정보 보유');
+      
+      // 인맥 관계 가중치 (20%)
+      const relationshipScore = Math.min(5, status.keyRelationships.length);
+      score += relationshipScore * 0.2;
+      if (status.keyRelationships.length >= 2) reasons.push('넓은 인맥 네트워크');
+      
+      // 기분 보정
+      const moodMultiplier = status.currentMood === 'positive' ? 1.2 : 
+                            status.currentMood === 'negative' ? 0.8 : 1.0;
+      score *= moodMultiplier;
+      
+      if (status.currentMood === 'positive') reasons.push('긍정적인 상태');
+      
+      return { persona, score, reasons };
+    });
+    
+    return scoredPersonas.sort((a, b) => b.score - a.score);
+  };
+  
+  const aiRecommendations = getAIRecommendation();
+
   const getMoodColor = (mood: string) => {
     switch (mood) {
       case 'positive': return 'bg-green-100 text-green-800';
@@ -117,20 +163,193 @@ export function StrategicPersonaSelector({
     <div className="max-w-6xl mx-auto p-6 space-y-6">
       {/* 헤더 섹션 */}
       <div className="text-center mb-8">
-        <h1 className="text-3xl font-bold text-gray-900 mb-2">
-          전략적 대화 계획 수립
+        <h1 className="text-3xl font-bold text-gray-900 mb-2 flex items-center justify-center gap-3">
+          <Brain className="w-8 h-8 text-blue-600" />
+          AI 전략적 대화 계획 수립
         </h1>
         <p className="text-lg text-gray-600 mb-4">
           {scenarioContext?.situation || '상황을 파악하고 적절한 순서로 대화 상대를 선택하세요'}
         </p>
-        <div className="flex items-center justify-center gap-2 text-sm text-gray-500">
-          <Users className="w-4 h-4" />
-          <span>{currentPhase}단계 / {totalPhases}단계</span>
-          <span className="mx-2">•</span>
-          <Clock className="w-4 h-4" />
-          <span>신중한 선택이 성공의 열쇠입니다</span>
+        <div className="flex items-center justify-center gap-4 text-sm">
+          <div className="flex items-center gap-2 text-blue-600">
+            <Users className="w-4 h-4" />
+            <span className="font-medium">{currentPhase}단계 / {totalPhases}단계</span>
+          </div>
+          <div className="flex items-center gap-2 text-green-600">
+            <TrendingUp className="w-4 h-4" />
+            <span className="font-medium">실시간 전략 분석</span>
+          </div>
+          <div className="flex items-center gap-2 text-purple-600">
+            <Lightbulb className="w-4 h-4" />
+            <span className="font-medium">AI 추천 시스템 활성화</span>
+          </div>
         </div>
       </div>
+
+      {/* AI 전략 추천 섹션 */}
+      <Card className="border-purple-200 bg-gradient-to-r from-purple-50 to-blue-50 mb-6">
+        <CardContent className="p-6">
+          <div className="flex items-start gap-4">
+            <div className="p-3 bg-purple-100 rounded-full">
+              <Brain className="w-6 h-6 text-purple-600" />
+            </div>
+            <div className="flex-1">
+              <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                🤖 AI 전략 분석 엔진이 활성화되었습니다
+              </h3>
+              <div className="space-y-3">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+                  <div className="flex items-center gap-2 bg-white/50 p-3 rounded-lg">
+                    <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+                    <span><strong>순서 논리성</strong> 실시간 평가</span>
+                  </div>
+                  <div className="flex items-center gap-2 bg-white/50 p-3 rounded-lg">
+                    <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse"></div>
+                    <span><strong>추론 품질</strong> 자동 분석</span>
+                  </div>
+                  <div className="flex items-center gap-2 bg-white/50 p-3 rounded-lg">
+                    <div className="w-2 h-2 bg-purple-500 rounded-full animate-pulse"></div>
+                    <span><strong>전략적 사고</strong> 평가 시스템</span>
+                  </div>
+                </div>
+                <p className="text-gray-700">
+                  각 선택마다 AI가 <strong>영향력, 접근성, 정보량, 인맥 관계</strong>를 종합 분석하여 
+                  최적의 대화 순서를 제안하고 실시간으로 전략의 효과성을 평가합니다.
+                </p>
+              </div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* AI 추천 시스템 */}
+      {showAIRecommendation && aiRecommendations && aiRecommendations.length > 0 && (
+        <Card className="border-green-200 bg-gradient-to-r from-green-50 to-emerald-50 mb-6">
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <CardTitle className="flex items-center gap-3 text-green-800">
+                <div className="p-2 bg-green-100 rounded-full">
+                  <Brain className="w-5 h-5 text-green-600" />
+                </div>
+                <div>
+                  <span className="text-lg">🎯 AI 전략 추천</span>
+                  <div className="text-sm font-normal text-green-600">실시간 상황 분석 기반</div>
+                </div>
+              </CardTitle>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setShowAIRecommendation(false)}
+                className="text-green-700 hover:text-green-800"
+              >
+                ✕
+              </Button>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              <div className="flex items-center gap-2 mb-3">
+                <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+                <span className="text-sm font-medium text-green-800">
+                  영향력, 접근성, 정보량, 인맥을 종합 분석한 최적 추천
+                </span>
+              </div>
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {aiRecommendations.slice(0, 2).map((rec, index) => {
+                  const status = getPersonaStatus(rec.persona.id);
+                  return (
+                    <div 
+                      key={rec.persona.id}
+                      className={`p-4 rounded-lg border-2 cursor-pointer transition-all ${
+                        index === 0 
+                          ? 'border-green-300 bg-green-50/50' 
+                          : 'border-green-200 bg-white/50'
+                      } hover:shadow-md`}
+                      onClick={() => handlePersonaClick(rec.persona.id)}
+                    >
+                      <div className="flex items-start gap-3">
+                        <div className={`w-8 h-8 rounded-full flex items-center justify-center text-white font-bold ${
+                          index === 0 ? 'bg-green-500' : 'bg-green-400'
+                        }`}>
+                          {index + 1}
+                        </div>
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2 mb-2">
+                            <img 
+                              src={rec.persona.image} 
+                              alt={rec.persona.name}
+                              className="w-8 h-8 rounded-full"
+                              onError={(e) => {
+                                (e.target as HTMLImageElement).src = `https://ui-avatars.com/api/?name=${encodeURIComponent(rec.persona.name)}&background=10b981&color=fff&size=32`;
+                              }}
+                            />
+                            <div>
+                              <div className="font-semibold text-gray-900">{rec.persona.name}</div>
+                              <div className="text-xs text-gray-600">{rec.persona.role}</div>
+                            </div>
+                          </div>
+                          
+                          <div className="space-y-2">
+                            <div className="flex items-center gap-2">
+                              <span className="text-xs font-medium text-green-700">AI 점수:</span>
+                              <div className="flex items-center gap-1">
+                                <div className="w-16 h-2 bg-gray-200 rounded-full overflow-hidden">
+                                  <div 
+                                    className="h-full bg-green-500 transition-all duration-300"
+                                    style={{ width: `${Math.min(100, (rec.score / 5) * 100)}%` }}
+                                  ></div>
+                                </div>
+                                <span className="text-xs font-bold text-green-600">
+                                  {(rec.score / 5 * 100).toFixed(0)}%
+                                </span>
+                              </div>
+                            </div>
+                            
+                            <div className="space-y-1">
+                              {rec.reasons.slice(0, 2).map((reason, idx) => (
+                                <div key={idx} className="flex items-center gap-2 text-xs">
+                                  <div className="w-1 h-1 bg-green-500 rounded-full"></div>
+                                  <span className="text-green-700">{reason}</span>
+                                </div>
+                              ))}
+                            </div>
+                            
+                            {status && (
+                              <div className="flex items-center gap-2 pt-1">
+                                <Badge className={`${getMoodColor(status.currentMood)} text-xs`}>
+                                  {getMoodIcon(status.currentMood)} {status.currentMood}
+                                </Badge>
+                                <span className="text-xs text-gray-500">
+                                  영향력 {status.influence}/5 • 접근성 {status.approachability}/5
+                                </span>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                      
+                      {index === 0 && (
+                        <div className="mt-3 pt-3 border-t border-green-200">
+                          <div className="flex items-center gap-2 text-xs text-green-800 font-medium">
+                            <TrendingUp className="w-3 h-3" />
+                            <span>💡 최우선 추천: 가장 전략적으로 유리한 선택</span>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+              
+              <div className="text-xs text-green-600 bg-green-50 p-3 rounded-lg">
+                <strong>💡 AI 분석 근거:</strong> 각 페르소나의 영향력(30%), 접근성(25%), 보유정보(25%), 인맥관계(20%)를 
+                가중평균하여 현재 상황에서 가장 효과적인 대화 순서를 제안합니다.
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* 이전 선택 요약 */}
       {previousSelections.length > 0 && (
@@ -152,7 +371,7 @@ export function StrategicPersonaSelector({
                     </div>
                     <div className="flex-1">
                       <div className="font-medium text-gray-900">
-                        {persona?.name} ({persona?.position})
+                        {persona?.name} ({persona?.role || persona?.department})
                       </div>
                       <div className="text-sm text-gray-600">
                         선택 사유: {selection.selectionReason}
@@ -216,7 +435,7 @@ export function StrategicPersonaSelector({
                       {persona.name}
                     </h3>
                     <p className="text-sm text-gray-600 truncate">
-                      {persona.position}
+                      {persona.role || persona.department}
                     </p>
                     <p className="text-xs text-gray-500">
                       {persona.department}
@@ -330,6 +549,86 @@ export function StrategicPersonaSelector({
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
+            {/* 선택된 페르소나 AI 분석 */}
+            {selectedPersonaId && (() => {
+              const selectedPersona = personas.find(p => p.id === selectedPersonaId);
+              const selectedStatus = getPersonaStatus(selectedPersonaId);
+              const aiRec = aiRecommendations?.find(r => r.persona.id === selectedPersonaId);
+              
+              return (
+                <div className="bg-blue-50 p-4 rounded-lg border border-blue-200 mb-4">
+                  <div className="flex items-start gap-3">
+                    <div className="p-2 bg-blue-100 rounded-full">
+                      <Brain className="w-4 h-4 text-blue-600" />
+                    </div>
+                    <div className="flex-1">
+                      <h4 className="font-semibold text-blue-900 mb-2">
+                        🤖 {selectedPersona?.name} 선택에 대한 AI 분석
+                      </h4>
+                      
+                      {aiRec && (
+                        <div className="space-y-2 text-sm">
+                          <div className="flex items-center gap-2">
+                            <span className="text-blue-700 font-medium">전략적 점수:</span>
+                            <div className="flex items-center gap-2">
+                              <div className="w-20 h-2 bg-gray-200 rounded-full overflow-hidden">
+                                <div 
+                                  className="h-full bg-blue-500 transition-all duration-300"
+                                  style={{ width: `${Math.min(100, (aiRec.score / 5) * 100)}%` }}
+                                ></div>
+                              </div>
+                              <span className="font-bold text-blue-600">
+                                {(aiRec.score / 5 * 100).toFixed(0)}%
+                              </span>
+                            </div>
+                          </div>
+                          
+                          <div className="flex flex-wrap gap-1">
+                            {aiRec.reasons.map((reason, idx) => (
+                              <Badge key={idx} className="bg-blue-100 text-blue-800 text-xs">
+                                ✓ {reason}
+                              </Badge>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                      
+                      {selectedStatus && (
+                        <div className="mt-3 pt-3 border-t border-blue-200">
+                          <div className="grid grid-cols-2 gap-4 text-xs">
+                            <div>
+                              <span className="text-blue-700 font-medium">효과성 예측:</span>
+                              <div className="flex items-center gap-1 mt-1">
+                                {selectedStatus.influence >= 4 ? (
+                                  <span className="text-green-600">✓ 높은 영향력으로 결과 도출 유리</span>
+                                ) : selectedStatus.influence >= 3 ? (
+                                  <span className="text-yellow-600">⚠ 중간 영향력, 전략적 접근 필요</span>
+                                ) : (
+                                  <span className="text-red-600">⚠ 낮은 영향력, 신중한 접근 권장</span>
+                                )}
+                              </div>
+                            </div>
+                            <div>
+                              <span className="text-blue-700 font-medium">대화 난이도:</span>
+                              <div className="flex items-center gap-1 mt-1">
+                                {selectedStatus.approachability >= 4 ? (
+                                  <span className="text-green-600">✓ 원활한 대화 예상</span>
+                                ) : selectedStatus.approachability >= 3 ? (
+                                  <span className="text-yellow-600">⚠ 보통 난이도</span>
+                                ) : (
+                                  <span className="text-red-600">⚠ 어려운 대화 예상</span>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              );
+            })()}
+            
             <div>
               <Label htmlFor="selection-reason" className="text-sm font-medium">
                 이 사람을 선택한 이유는 무엇인가요? *
@@ -342,9 +641,44 @@ export function StrategicPersonaSelector({
                 className="min-h-[80px]"
                 data-testid="selection-reason-input"
               />
-              <div className="text-xs text-gray-500 mt-1">
-                구체적이고 논리적인 근거를 제시해주세요 (최소 20자)
+              <div className="flex items-center justify-between mt-1">
+                <div className="text-xs text-gray-500">
+                  구체적이고 논리적인 근거를 제시해주세요 (최소 20자)
+                </div>
+                <div className={`text-xs font-medium ${
+                  selectionReason.length >= 20 ? 'text-green-600' : 
+                  selectionReason.length >= 10 ? 'text-yellow-600' : 'text-red-500'
+                }`}>
+                  {selectionReason.length}/20
+                </div>
               </div>
+              
+              {/* 실시간 품질 평가 */}
+              {selectionReason.length >= 10 && (
+                <div className="mt-2 p-2 bg-gray-50 rounded text-xs">
+                  <div className="flex items-center gap-2 mb-1">
+                    <Brain className="w-3 h-3 text-purple-600" />
+                    <span className="font-medium text-purple-700">AI 추론 품질 분석</span>
+                  </div>
+                  <div className="space-y-1">
+                    {selectionReason.includes('때문에') || selectionReason.includes('위해') || selectionReason.includes('통해') ? (
+                      <div className="text-green-600">✓ 명확한 인과관계 설명</div>
+                    ) : (
+                      <div className="text-yellow-600">⚠ 인과관계 명시 권장 ("때문에", "위해" 등 사용)</div>
+                    )}
+                    
+                    {selectionReason.includes('상황') || selectionReason.includes('문제') || selectionReason.includes('해결') ? (
+                      <div className="text-green-600">✓ 상황 인식 및 문제 해결 지향</div>
+                    ) : (
+                      <div className="text-yellow-600">⚠ 상황 분석 및 목표 명시 권장</div>
+                    )}
+                    
+                    <div className={`${selectionReason.length >= 30 ? 'text-green-600' : 'text-yellow-600'}`}>
+                      {selectionReason.length >= 30 ? '✓' : '⚠'} 상세한 설명 수준
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
 
             <div>
