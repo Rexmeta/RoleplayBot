@@ -89,9 +89,53 @@ export default function Home() {
         setStrategicConversationId(conversation.id);
       }
       
-      // 시나리오 데이터에서 실제 페르소나 객체 찾기
-      const selectedPersona = Object.values(scenarioPersonas).find(p => p.id === personaId) || null;
-      setSelectedPersona(selectedPersona);
+      // 시나리오에서 받은 페르소나 객체 찾기 및 ScenarioPersona 타입으로 변환
+      const personas = selectedScenario?.personas as any[] || [];
+      const rawPersona = personas.find((p: any) => p.id === personaId);
+      if (rawPersona) {
+        const selectedPersona: ScenarioPersona = {
+          id: rawPersona.id,
+          name: rawPersona.name,
+          role: rawPersona.position || rawPersona.role,
+          department: rawPersona.department,
+          experience: rawPersona.experience,
+          personality: {
+            traits: [],
+            communicationStyle: rawPersona.stance || '',
+            motivation: rawPersona.goal || '',
+            fears: []
+          },
+          background: {
+            education: '',
+            previousExperience: rawPersona.experience || '',
+            majorProjects: [],
+            expertise: []
+          },
+          currentSituation: {
+            workload: '',
+            pressure: '',
+            concerns: [],
+            position: rawPersona.stance || ''
+          },
+          communicationPatterns: {
+            openingStyle: '',
+            keyPhrases: [],
+            responseToArguments: {},
+            winConditions: []
+          },
+          image: `https://ui-avatars.com/api/?name=${encodeURIComponent(rawPersona.name)}&background=6366f1&color=fff&size=150`,
+          voice: {
+            tone: '',
+            pace: '',
+            emotion: ''
+          },
+          stance: rawPersona.stance,
+          goal: rawPersona.goal,
+          tradeoff: rawPersona.tradeoff,
+          mbti: rawPersona.id?.toUpperCase()
+        };
+        setSelectedPersona(selectedPersona);
+      }
       setConversationId(conversation.id);
       setCurrentView("chat");
     } catch (error) {
