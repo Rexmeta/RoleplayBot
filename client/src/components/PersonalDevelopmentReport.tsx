@@ -88,6 +88,9 @@ export default function PersonalDevelopmentReport({
     },
     onSuccess: (data) => {
       console.log("피드백 생성 완료, 페이지 새로고침");
+      // 성공 시 시도 플래그 제거
+      const attemptKey = `feedback_attempt_${conversationId}`;
+      localStorage.removeItem(attemptKey);
       // 성공 후 자동으로 새로고침하여 최신 데이터 가져오기
       setTimeout(() => {
         queryClient.invalidateQueries({ queryKey: [`/api/conversations/${conversationId}/feedback`] });
@@ -96,6 +99,9 @@ export default function PersonalDevelopmentReport({
     },
     onError: (error) => {
       console.error("Feedback generation error:", error);
+      // 에러 시에도 시도 플래그 제거 (무한 요청 방지)
+      const attemptKey = `feedback_attempt_${conversationId}`;
+      localStorage.removeItem(attemptKey);
       toast({
         title: "오류",
         description: `피드백을 생성할 수 없습니다: ${error.message}`,
@@ -115,10 +121,18 @@ export default function PersonalDevelopmentReport({
     );
   }
 
-  // 피드백이 없고 아직 생성 중이 아니라면 자동으로 생성 시도
+  // 피드백이 없고 아직 생성 중이 아니며, 대화가 완료된 경우에만 자동으로 생성 시도
+  // 무한 요청 방지를 위해 추가 조건 확인
   if (error && error.message === "FEEDBACK_NOT_FOUND" && !generateFeedbackMutation.isPending) {
-    console.log("피드백이 없음, 자동 생성 시도...");
-    generateFeedbackMutation.mutate();
+    // 한 번만 시도하도록 제한 (로컬 스토리지 사용)
+    const attemptKey = `feedback_attempt_${conversationId}`;
+    const hasAttempted = localStorage.getItem(attemptKey);
+    
+    if (!hasAttempted) {
+      console.log("피드백이 없음, 자동 생성 시도...");
+      localStorage.setItem(attemptKey, 'true');
+      generateFeedbackMutation.mutate();
+    }
   }
 
   // 피드백이 없고 오류가 발생했을 때 오류 화면 표시

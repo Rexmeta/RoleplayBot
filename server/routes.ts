@@ -192,7 +192,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       };
 
       const finalMessages = [...updatedMessages, aiMessage];
-      const isCompleted = newTurnCount >= 10;
+      const isCompleted = newTurnCount >= 3;
 
       // Update conversation
       const updatedConversation = await storage.updateConversation(req.params.id, {
@@ -394,8 +394,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       console.log(`대화 상태: ${conversation.status}, 턴 수: ${conversation.turnCount}`);
 
-      // 완료되지 않은 대화에 대해서도 피드백 생성 허용 (10턴 이상이면)
-      if (conversation.status !== "completed" && conversation.turnCount < 10) {
+      // 완료되지 않은 대화에 대해서도 피드백 생성 허용 (3턴 이상이면)
+      if (conversation.status !== "completed" && conversation.turnCount < 3) {
         console.log("대화가 아직 완료되지 않음");
         return res.status(400).json({ error: "Conversation not completed yet" });
       }
