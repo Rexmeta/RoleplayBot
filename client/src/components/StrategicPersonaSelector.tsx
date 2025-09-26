@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import * as React from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
@@ -17,6 +18,9 @@ interface StrategicPersonaSelectorProps {
   onPhaseComplete: () => void;
   previousSelections: PersonaSelection[];
   scenarioContext: any;
+  // 순차 계획 관련 props
+  onSequencePlanSubmit?: (sequencePlan: PersonaSelection[]) => void;
+  initialSequencePlan?: PersonaSelection[];
 }
 
 export function StrategicPersonaSelector({
@@ -27,7 +31,9 @@ export function StrategicPersonaSelector({
   onPersonaSelect,
   onPhaseComplete,
   previousSelections,
-  scenarioContext
+  scenarioContext,
+  onSequencePlanSubmit,
+  initialSequencePlan
 }: StrategicPersonaSelectorProps) {
   const [selectedPersonaId, setSelectedPersonaId] = useState<string | null>(null);
   const [selectionReason, setSelectionReason] = useState('');
@@ -38,8 +44,16 @@ export function StrategicPersonaSelector({
   
   // 순차적 계획 모드 상태
   const [planningMode, setPlanningMode] = useState<'single' | 'sequence'>('single');
-  const [sequencePlan, setSequencePlan] = useState<PersonaSelection[]>([]);
+  const [sequencePlan, setSequencePlan] = useState<PersonaSelection[]>(initialSequencePlan || []);
   const [currentPlanningStep, setCurrentPlanningStep] = useState(0);
+
+  // 초기 계획이 있으면 순차 모드로 전환
+  React.useEffect(() => {
+    if (initialSequencePlan && initialSequencePlan.length > 0) {
+      setPlanningMode('sequence');
+      setSequencePlan(initialSequencePlan);
+    }
+  }, [initialSequencePlan]);
 
   // 이미 선택된 페르소나들 ID 추출
   const selectedPersonaIds = previousSelections.map(sel => sel.personaId);
@@ -1018,6 +1032,10 @@ export function StrategicPersonaSelector({
                 </p>
                 <Button 
                   onClick={() => {
+                    // 순차 계획을 Home.tsx에 전달하여 저장
+                    if (onSequencePlanSubmit && sequencePlan.length > 0) {
+                      onSequencePlanSubmit(sequencePlan);
+                    }
                     // 첫 번째 선택을 전송하고 대화 시작
                     if (sequencePlan[0]) {
                       onPersonaSelect(sequencePlan[0]);

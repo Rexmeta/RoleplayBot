@@ -246,6 +246,48 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(500).json({ error: "Failed to get persona selections" });
     }
   });
+
+  // 순차 계획 전체를 한번에 저장하는 엔드포인트
+  app.post("/api/conversations/:id/sequence-plan", async (req, res) => {
+    try {
+      const { id } = req.params;
+      
+      // Check if conversation exists first
+      const existingConversation = await storage.getConversation(id);
+      if (!existingConversation) {
+        return res.status(404).json({ error: "Conversation not found" });
+      }
+      
+      // Validate sequence plan data
+      const { sequencePlan, conversationType } = req.body;
+      if (!Array.isArray(sequencePlan)) {
+        return res.status(400).json({ error: "sequencePlan must be an array" });
+      }
+      
+      // Validate each selection in the plan
+      for (const selection of sequencePlan) {
+        const validationResult = insertPersonaSelectionSchema.safeParse(selection);
+        if (!validationResult.success) {
+          return res.status(400).json({ 
+            error: "Invalid selection in sequence plan", 
+            details: validationResult.error.issues 
+          });
+        }
+      }
+      
+      // Update conversation with sequence plan
+      const conversation = await storage.updateConversation(id, {
+        personaSelections: sequencePlan,
+        conversationType: conversationType || 'sequential',
+        totalPhases: sequencePlan.length
+      });
+      
+      res.json({ success: true, conversation });
+    } catch (error) {
+      console.error("Error saving sequence plan:", error);
+      res.status(500).json({ error: "Failed to save sequence plan" });
+    }
+  });
   
   // Strategy Choice APIs
   app.post("/api/conversations/:id/strategy-choices", async (req, res) => {

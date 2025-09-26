@@ -5,7 +5,7 @@ import ChatWindow from "@/components/ChatWindow";
 import PersonalDevelopmentReport from "@/components/PersonalDevelopmentReport";
 import { StrategicPersonaSelector } from "@/components/StrategicPersonaSelector";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { apiRequest } from "@/lib/queryClient";
+import { apiRequest, queryClient } from "@/lib/queryClient";
 import { type ComplexScenario, type ScenarioPersona, getComplexScenarioById, scenarioPersonas } from "@/lib/scenario-system";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
@@ -20,6 +20,7 @@ export default function Home() {
   const [completedConversations, setCompletedConversations] = useState<string[]>([]);
   const [currentPhase, setCurrentPhase] = useState(1);
   const [totalPhases, setTotalPhases] = useState(1);
+  const [sequencePlan, setSequencePlan] = useState<any[]>([]);
 
   // 동적으로 시나리오와 페르소나 데이터 로드
   const { data: scenarios = [] } = useQuery({
@@ -37,8 +38,28 @@ export default function Home() {
     experience: "6개월차"
   };
 
+  // 기존 대화에서 순차 계획 로드
+  const { data: existingConversation } = useQuery({
+    queryKey: ['/api/conversations', strategicConversationId],
+    queryFn: () => strategicConversationId ? 
+      fetch(`/api/conversations/${strategicConversationId}`).then(res => res.json()) : 
+      null,
+    enabled: !!strategicConversationId
+  });
+
+  // 순차 계획 저장 mutation
+  const saveSequencePlanMutation = useMutation({
+    mutationFn: async (data: { conversationId: string, sequencePlan: any[] }) => {
+      const response = await apiRequest("POST", `/api/conversations/${data.conversationId}/sequence-plan`, {
+        sequencePlan: data.sequencePlan,
+        conversationType: 'sequential'
+      });
+      return response.json();
+    }
+  });
+
   // 시나리오 선택 처리 - 페르소나 수에 따라 분기
-  const handleScenarioSelect = (scenario: ComplexScenario, persona?: ScenarioPersona, convId?: string) => {
+  const handleScenarioSelect = async (scenario: ComplexScenario, persona?: ScenarioPersona, convId?: string) => {
     setSelectedScenario(scenario);
     
     // 페르소나가 2명 이상이면 전략적 계획 단계로
@@ -46,6 +67,26 @@ export default function Home() {
       setTotalPhases(scenario.personas.length);
       setCurrentPhase(1);
       setCompletedConversations([]);
+      
+      // 새로운 전략적 대화 세션 생성
+      try {
+        const response = await apiRequest("POST", "/api/conversations", {
+          scenarioId: scenario.id,
+          scenarioName: scenario.title,
+          messages: [],
+          turnCount: 0,
+          status: "active",
+          conversationType: "sequential",
+          currentPhase: 1,
+          totalPhases: scenario.personas.length
+        });
+        
+        const conversation = await response.json();
+        setStrategicConversationId(conversation.id);
+      } catch (error) {
+        console.error("Failed to create strategic conversation:", error);
+      }
+      
       setCurrentView("strategic-planning");
     } else {
       // 단일 페르소나면 기존 방식대로
@@ -55,6 +96,28 @@ export default function Home() {
     }
   };
   
+  // 순차 계획 저장 핸들러
+  const handleSequencePlanSubmit = async (sequencePlan: any[]) => {
+    if (!strategicConversationId) {
+      console.error("No strategic conversation ID");
+      return;
+    }
+    
+    try {
+      await saveSequencePlanMutation.mutateAsync({
+        conversationId: strategicConversationId,
+        sequencePlan
+      });
+      setSequencePlan(sequencePlan);
+      // 쿼리 무효화로 저장된 계획이 바로 반영되도록 함
+      queryClient.invalidateQueries({ 
+        queryKey: ['/api/conversations', strategicConversationId] 
+      });
+    } catch (error) {
+      console.error("Failed to save sequence plan:", error);
+    }
+  };
+
   // 전략적 페르소나 선택 완료 처리
   const handleStrategicPersonaSelect = async (personaId: string, scenario: ComplexScenario) => {
     try {
@@ -343,8 +406,10 @@ export default function Home() {
             onPhaseComplete={() => {
               setCurrentView("feedback");
             }}
-            previousSelections={[]}
+            previousSelections={existingConversation?.personaSelections || sequencePlan}
             scenarioContext={selectedScenario}
+            onSequencePlanSubmit={handleSequencePlanSubmit}
+            initialSequencePlan={existingConversation?.personaSelections || []}
           />
         )}
         
