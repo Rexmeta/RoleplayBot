@@ -4,6 +4,7 @@ import ScenarioSelector from "@/components/ScenarioSelector";
 import ChatWindow from "@/components/ChatWindow";
 import PersonalDevelopmentReport from "@/components/PersonalDevelopmentReport";
 import { SimplePersonaSelector } from "@/components/SimplePersonaSelector";
+import { StrategyReflection } from "@/components/StrategyReflection";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { type ComplexScenario, type ScenarioPersona, getComplexScenarioById, scenarioPersonas } from "@/lib/scenario-system";
@@ -285,11 +286,67 @@ export default function Home() {
           />
         )}
 
-        {currentView === "strategy-reflection" && selectedScenario && (
-          <div className="max-w-4xl mx-auto p-6">
-            <h2 className="text-2xl font-bold mb-4">전략 회고 단계</h2>
-            <p>전략 이유 입력 UI (구현 예정)</p>
-          </div>
+        {currentView === "strategy-reflection" && selectedScenario && selectedScenario.personas && (
+          <StrategyReflection
+            personas={selectedScenario.personas.map((p: any) => ({
+              id: p.id,
+              name: p.name,
+              role: p.position || p.role,
+              department: p.department,
+              experience: p.experience,
+              personality: {
+                traits: [],
+                communicationStyle: p.stance || '',
+                motivation: p.goal || '',
+                fears: []
+              },
+              background: {
+                education: '',
+                previousExperience: p.experience || '',
+                majorProjects: [],
+                expertise: []
+              },
+              currentSituation: {
+                workload: '',
+                pressure: '',
+                concerns: [],
+                position: p.stance || ''
+              },
+              communicationPatterns: {
+                openingStyle: '',
+                keyPhrases: [],
+                responseToArguments: {},
+                winConditions: []
+              },
+              image: `https://ui-avatars.com/api/?name=${encodeURIComponent(p.name)}&background=6366f1&color=fff&size=150`,
+              voice: {
+                tone: '',
+                pace: '',
+                emotion: ''
+              },
+              stance: p.stance,
+              goal: p.goal,
+              tradeoff: p.tradeoff,
+              mbti: p.id?.toUpperCase()
+            }))}
+            completedPersonaIds={completedPersonaIds}
+            onSubmit={async (reflection) => {
+              // 전략 회고를 모든 대화 ID에 저장
+              if (conversationIds.length > 0) {
+                try {
+                  // 첫 번째 대화 ID를 대표로 사용하여 전략 회고 저장
+                  await apiRequest("POST", `/api/conversations/${conversationIds[0]}/strategy-reflection`, {
+                    strategyReflection: reflection,
+                    conversationOrder: completedPersonaIds
+                  });
+                  setCurrentView("feedback");
+                } catch (error) {
+                  console.error("전략 회고 저장 실패:", error);
+                }
+              }
+            }}
+            scenarioTitle={selectedScenario.title}
+          />
         )}
         
         {currentView === "chat" && selectedScenario && selectedPersona && conversationId && (
