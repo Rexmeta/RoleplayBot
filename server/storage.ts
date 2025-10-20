@@ -31,6 +31,9 @@ export interface IStorage {
   // Strategic Selection - Sequence Analysis
   saveSequenceAnalysis(conversationId: string, analysis: SequenceAnalysis): Promise<Conversation>;
   getSequenceAnalysis(conversationId: string): Promise<SequenceAnalysis | undefined>;
+  
+  // Strategy Reflection
+  saveStrategyReflection(conversationId: string, reflection: string, conversationOrder: string[]): Promise<Conversation>;
 
   // User operations - 이메일 기반 인증 시스템
   getUser(id: string): Promise<User | undefined>;
@@ -68,6 +71,8 @@ export class MemStorage implements IStorage {
       personaSelections: insertConversation.personaSelections || [],
       strategyChoices: insertConversation.strategyChoices || [],
       sequenceAnalysis: insertConversation.sequenceAnalysis || null,
+      strategyReflection: null,
+      conversationOrder: null,
     };
     this.conversations.set(id, conversation);
     return conversation;
@@ -173,6 +178,22 @@ export class MemStorage implements IStorage {
   async getSequenceAnalysis(conversationId: string): Promise<SequenceAnalysis | undefined> {
     const conversation = this.conversations.get(conversationId);
     return conversation?.sequenceAnalysis || undefined;
+  }
+
+  // Strategy Reflection
+  async saveStrategyReflection(conversationId: string, reflection: string, conversationOrder: string[]): Promise<Conversation> {
+    const existing = this.conversations.get(conversationId);
+    if (!existing) {
+      throw new Error("Conversation not found");
+    }
+    
+    const updated = { 
+      ...existing, 
+      strategyReflection: reflection,
+      conversationOrder: conversationOrder
+    };
+    this.conversations.set(conversationId, updated);
+    return updated;
   }
 
   // User operations - 이메일 기반 인증 시스템
@@ -304,6 +325,14 @@ export class PostgreSQLStorage implements IStorage {
   async getSequenceAnalysis(conversationId: string): Promise<SequenceAnalysis | undefined> {
     const conversation = await this.getConversation(conversationId);
     return conversation?.sequenceAnalysis || undefined;
+  }
+
+  // Strategy Reflection
+  async saveStrategyReflection(conversationId: string, reflection: string, conversationOrder: string[]): Promise<Conversation> {
+    return await this.updateConversation(conversationId, { 
+      strategyReflection: reflection,
+      conversationOrder: conversationOrder
+    });
   }
 
   // User operations - 이메일 기반 인증 시스템

@@ -381,6 +381,34 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Strategy Reflection API - 사용자의 전략 회고 저장
+  app.post("/api/conversations/:id/strategy-reflection", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { strategyReflection, conversationOrder } = req.body;
+      
+      if (!strategyReflection || typeof strategyReflection !== 'string') {
+        return res.status(400).json({ error: "Strategy reflection text is required" });
+      }
+      
+      const existingConversation = await storage.getConversation(id);
+      if (!existingConversation) {
+        return res.status(404).json({ error: "Conversation not found" });
+      }
+      
+      const conversation = await storage.saveStrategyReflection(
+        id,
+        strategyReflection,
+        conversationOrder || []
+      );
+      
+      res.json({ success: true, conversation });
+    } catch (error) {
+      console.error("Error saving strategy reflection:", error);
+      res.status(500).json({ error: "Failed to save strategy reflection" });
+    }
+  });
+
   // Generate feedback for completed conversation
   app.post("/api/conversations/:id/feedback", async (req, res) => {
     try {
