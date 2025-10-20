@@ -391,6 +391,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "Strategy reflection text is required" });
       }
       
+      if (!Array.isArray(conversationOrder)) {
+        return res.status(400).json({ error: "Conversation order must be an array" });
+      }
+      
+      // 빈 문자열이나 유효하지 않은 ID 검증
+      if (conversationOrder.some(id => typeof id !== 'string' || id.trim() === '')) {
+        return res.status(400).json({ error: "All conversation order IDs must be non-empty strings" });
+      }
+      
       const existingConversation = await storage.getConversation(id);
       if (!existingConversation) {
         return res.status(404).json({ error: "Conversation not found" });
@@ -399,7 +408,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const conversation = await storage.saveStrategyReflection(
         id,
         strategyReflection,
-        conversationOrder || []
+        conversationOrder
       );
       
       res.json({ success: true, conversation });
@@ -483,7 +492,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const feedbackData = await generateFeedback(
         scenarioObj, // 전체 시나리오 객체 전달
         conversation.messages,
-        persona
+        persona,
+        conversation // 전략 회고 평가를 위해 conversation 전달
       );
 
       // 체계적인 시간 성과 평가 시스템

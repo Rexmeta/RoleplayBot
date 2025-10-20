@@ -24,8 +24,9 @@ export async function generateAIResponse(
 export async function generateFeedback(
   scenario: string, 
   messages: ConversationMessage[], 
-  persona: ScenarioPersona
+  persona: ScenarioPersona,
+  conversation?: Partial<import("@shared/schema").Conversation>
 ): Promise<DetailedFeedback> {
   const aiService = getAIService();
-  return aiService.generateFeedback(scenario, messages, persona);
+  return aiService.generateFeedback(scenario, messages, persona, conversation);
 }

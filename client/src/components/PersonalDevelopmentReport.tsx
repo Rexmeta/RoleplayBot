@@ -298,7 +298,7 @@ export default function PersonalDevelopmentReport({
 
       <Tabs defaultValue="scores" className="space-y-6">
         <TabsList 
-          className="grid w-full grid-cols-4 transform transition-all duration-500 screen-only"
+          className={`grid w-full ${feedback?.detailedFeedback?.sequenceAnalysis ? 'grid-cols-5' : 'grid-cols-4'} transform transition-all duration-500 screen-only`}
           style={{ 
             opacity: 0,
             animation: `fadeInUp 0.6s ease-out 1s forwards`
@@ -308,6 +308,9 @@ export default function PersonalDevelopmentReport({
           <TabsTrigger value="behavior" data-testid="tab-behavior" className="transition-all duration-300 hover:scale-105">행동 가이드</TabsTrigger>
           <TabsTrigger value="conversation" data-testid="tab-conversation" className="transition-all duration-300 hover:scale-105">대화 가이드</TabsTrigger>
           <TabsTrigger value="development" data-testid="tab-development" className="transition-all duration-300 hover:scale-105">개발 계획</TabsTrigger>
+          {feedback?.detailedFeedback?.sequenceAnalysis && (
+            <TabsTrigger value="strategy" data-testid="tab-strategy" className="transition-all duration-300 hover:scale-105">전략 평가</TabsTrigger>
+          )}
         </TabsList>
 
         {/* 성과 분석 */}
@@ -646,6 +649,79 @@ export default function PersonalDevelopmentReport({
             </>
           )}
         </TabsContent>
+
+        {/* 전략 평가 */}
+        {feedback?.detailedFeedback?.sequenceAnalysis && (
+          <TabsContent value="strategy" className="space-y-6 print-show-all">
+            <Card className="border-l-4 border-l-purple-500">
+              <CardHeader>
+                <CardTitle className="flex items-center text-xl">
+                  <i className="fas fa-chess text-purple-600 mr-3"></i>
+                  전략적 선택 분석
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                {/* 전략 점수 */}
+                <div className="bg-purple-50 p-6 rounded-lg">
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="text-lg font-semibold text-purple-900">전략 점수</h3>
+                    <Badge variant="outline" className="text-2xl font-bold bg-purple-100 text-purple-700 px-4 py-2">
+                      {feedback.detailedFeedback.sequenceAnalysis.strategicScore ?? '평가 대기중'}
+                    </Badge>
+                  </div>
+                  <p className="text-purple-700">
+                    {feedback.detailedFeedback.sequenceAnalysis.strategicRationale || '전략 평가가 아직 생성되지 않았습니다.'}
+                  </p>
+                </div>
+
+                {/* 순서 선택의 효과성 */}
+                {feedback.detailedFeedback.sequenceAnalysis.sequenceEffectiveness && (
+                  <div>
+                    <h3 className="text-lg font-semibold text-slate-900 mb-3 flex items-center">
+                      <i className="fas fa-bullseye text-blue-500 mr-2"></i>
+                      순서 선택의 효과성
+                    </h3>
+                    <p className="text-slate-700 bg-slate-50 p-4 rounded-lg">
+                      {feedback.detailedFeedback.sequenceAnalysis.sequenceEffectiveness}
+                    </p>
+                  </div>
+                )}
+
+                {/* 전략적 통찰 */}
+                {feedback.detailedFeedback.sequenceAnalysis.strategicInsights && (
+                  <div>
+                    <h3 className="text-lg font-semibold text-slate-900 mb-3 flex items-center">
+                      <i className="fas fa-lightbulb text-yellow-500 mr-2"></i>
+                      전략적 통찰
+                    </h3>
+                    <p className="text-slate-700 bg-yellow-50 p-4 rounded-lg border-l-4 border-yellow-400">
+                      {feedback.detailedFeedback.sequenceAnalysis.strategicInsights}
+                    </p>
+                  </div>
+                )}
+
+                {/* 대안적 접근법 */}
+                {feedback.detailedFeedback.sequenceAnalysis.alternativeApproaches && 
+                 feedback.detailedFeedback.sequenceAnalysis.alternativeApproaches.length > 0 && (
+                  <div>
+                    <h3 className="text-lg font-semibold text-slate-900 mb-3 flex items-center">
+                      <i className="fas fa-route text-green-500 mr-2"></i>
+                      대안적 접근법
+                    </h3>
+                    <div className="space-y-3">
+                      {feedback.detailedFeedback.sequenceAnalysis.alternativeApproaches.map((approach: string, index: number) => (
+                        <div key={index} className="flex items-start space-x-3 bg-green-50 p-4 rounded-lg">
+                          <Badge className="bg-green-500 text-white mt-1">{index + 1}</Badge>
+                          <p className="text-slate-700 flex-1">{approach}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+        )}
       </Tabs>
 
       {/* 액션 버튼 */}

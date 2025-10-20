@@ -206,20 +206,21 @@ JSON 형식으로 응답:
   async generateFeedback(
     scenario: string, 
     messages: ConversationMessage[], 
-    persona: ScenarioPersona
+    persona: ScenarioPersona,
+    conversation?: Partial<import("@shared/schema").Conversation>
   ): Promise<DetailedFeedback> {
     console.log("🔥 Optimized feedback generation...");
     const startTime = Date.now();
 
     try {
       // 압축된 피드백 프롬프트
-      const feedbackPrompt = this.buildCompactFeedbackPrompt(scenario, messages, persona);
+      const feedbackPrompt = this.buildCompactFeedbackPrompt(scenario, messages, persona, conversation);
 
       const response = await this.genAI.models.generateContent({
         model: this.model,
         config: {
           responseMimeType: "application/json",
-          maxOutputTokens: 2000,
+          maxOutputTokens: 3000,
           temperature: 0.3
         },
         contents: [
@@ -230,7 +231,7 @@ JSON 형식으로 응답:
       const totalTime = Date.now() - startTime;
       console.log(`✓ Optimized feedback completed in ${totalTime}ms`);
 
-      return this.parseFeedbackResponse(this.extractResponseText(response));
+      return this.parseFeedbackResponse(this.extractResponseText(response), conversation);
 
     } catch (error) {
       console.error("Optimized feedback error:", error);
@@ -241,18 +242,45 @@ JSON 형식으로 응답:
   /**
    * 상세 피드백 프롬프트 (행동가이드, 대화가이드, 개발계획 포함)
    */
-  private buildCompactFeedbackPrompt(scenario: string, messages: ConversationMessage[], persona: ScenarioPersona): string {
-    const conversation = messages.map((msg, idx) => 
+  private buildCompactFeedbackPrompt(scenario: string, messages: ConversationMessage[], persona: ScenarioPersona, conversation?: Partial<import("@shared/schema").Conversation>): string {
+    const conversationText = messages.map((msg, idx) => 
       `${idx + 1}. ${msg.sender === 'user' ? '사용자' : persona.name}: ${msg.message}`
     ).join('\n');
 
+    // 전략 회고가 있는 경우 추가 평가 수행
+    const hasStrategyReflection = conversation?.strategyReflection && conversation?.conversationOrder;
+    
+    let strategySection = '';
+    if (hasStrategyReflection && conversation.conversationOrder) {
+      strategySection = `
+
+전략적 선택 분석:
+사용자가 선택한 대화 순서: ${conversation.conversationOrder.join(' → ')}
+사용자의 전략 회고: "${conversation.strategyReflection}"
+
+이 전략 선택을 다음 기준으로 평가하세요:
+1. 전략적 논리성 (1-5점): 순서 선택이 논리적이고 목표 달성에 효과적인가?
+2. 전략적 효과성 (1-5점): 이 순서가 실제로 좋은 결과를 가져올 가능성이 높은가?
+3. 전략적 통찰력 (1-5점): 사용자가 전략적 사고를 잘 보여주는가?
+
+sequenceAnalysis 필드에 다음 형식으로 포함:
+{
+  "strategicScore": 85,
+  "strategicRationale": "전략 점수 이유",
+  "sequenceEffectiveness": "순서 선택의 효과성 평가",
+  "alternativeApproaches": ["대안적 접근법1", "대안적 접근법2"],
+  "strategicInsights": "전략적 통찰"
+}`;
+    }
+
     return `업무 대화 분석:
 
-${conversation}
+${conversationText}
+${strategySection}
 
 5개 영역 평가(1-5점): 명확성&논리성, 경청&공감, 적절성&상황대응, 설득력&영향력, 전략적커뮤니케이션
 
-JSON 응답:
+JSON 응답${hasStrategyReflection ? ' (sequenceAnalysis 포함)' : ''}:
 {
   "overallScore": 85,
   "scores": {"clarityLogic": 4, "listeningEmpathy": 4, "appropriatenessAdaptability": 3, "persuasivenessImpact": 4, "strategicCommunication": 4},
@@ -273,17 +301,25 @@ JSON 응답:
     "mediumTerm": [{"goal": "중기목표", "actions": ["행동1", "행동2"], "measurable": "지표"}],
     "longTerm": [{"goal": "장기목표", "actions": ["행동1", "행동2"], "measurable": "지표"}],
     "recommendedResources": ["자료1", "자료2", "자료3"]
-  }
+  }${hasStrategyReflection ? `,
+  "sequenceAnalysis": {
+    "strategicScore": 85,
+    "strategicRationale": "전략 점수 이유",
+    "sequenceEffectiveness": "순서 선택 효과성",
+    "alternativeApproaches": ["대안1", "대안2"],
+    "strategicInsights": "전략적 통찰"
+  }` : ''}
 }`;
   }
 
   /**
    * 피드백 응답 파싱
    */
-  private parseFeedbackResponse(responseText: string): DetailedFeedback {
+  private parseFeedbackResponse(responseText: string, conversation?: Partial<import("@shared/schema").Conversation>): DetailedFeedback {
     try {
       const parsed = JSON.parse(responseText);
-      return {
+      
+      const feedback: DetailedFeedback = {
         overallScore: parsed.overallScore || 75,
         scores: parsed.scores || this.getDefaultScores(),
         strengths: parsed.strengths || ["대화 참여"],
@@ -295,6 +331,13 @@ JSON 응답:
         conversationGuides: parsed.conversationGuides || this.getDefaultConversationGuides(),
         developmentPlan: parsed.developmentPlan || this.getDefaultDevelopmentPlan()
       };
+      
+      // 전략 분석이 있는 경우 추가
+      if (parsed.sequenceAnalysis && conversation?.strategyReflection) {
+        feedback.sequenceAnalysis = parsed.sequenceAnalysis;
+      }
+      
+      return feedback;
     } catch (error) {
       console.error("Feedback parsing error:", error);
       return this.getFallbackFeedback();

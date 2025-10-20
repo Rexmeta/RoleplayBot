@@ -1,4 +1,7 @@
-import type { ConversationMessage, EvaluationScore, DetailedFeedback } from "@shared/schema";
+import type { ConversationMessage, EvaluationScore, DetailedFeedback, Conversation } from "@shared/schema";
+
+// 전략 평가를 위한 대화 컨텍스트
+export type StrategyContext = Pick<Conversation, 'strategyReflection' | 'conversationOrder'>;
 
 // AI 서비스 공통 인터페이스
 export interface AIServiceInterface {
@@ -13,7 +16,7 @@ export interface AIServiceInterface {
     scenario: string, 
     messages: ConversationMessage[], 
     persona: ScenarioPersona,
-    conversation?: any
+    conversation?: Partial<Conversation>
   ): Promise<DetailedFeedback>;
 }
 

@@ -159,16 +159,22 @@ export type PersonaStatus = {
 };
 
 export type SequenceAnalysis = {
-  selectionOrder: number[]; // 선택한 순서
-  optimalOrder: number[]; // 최적 순서
-  orderScore: number; // 순서의 논리성 점수 (1-5)
-  reasoningQuality: number; // 사유 논리성 점수 (1-5)
-  strategicThinking: number; // 전략적 사고 점수 (1-5)
-  adaptability: number; // 상황 적응력 점수 (1-5)
-  overallEffectiveness: number; // 전반적 효과성 (1-5)
-  detailedAnalysis: string; // 상세 분석 내용
-  improvements: string[]; // 개선 사항
-  strengths: string[]; // 강점
+  selectionOrder?: number[]; // 선택한 순서 (이전 시스템용, 옵셔널)
+  optimalOrder?: number[]; // 최적 순서 (이전 시스템용, 옵셔널)
+  orderScore?: number; // 순서의 논리성 점수 (1-5) (이전 시스템용, 옵셔널)
+  reasoningQuality?: number; // 사유 논리성 점수 (1-5) (이전 시스템용, 옵셔널)
+  strategicThinking?: number; // 전략적 사고 점수 (1-5) (이전 시스템용, 옵셔널)
+  adaptability?: number; // 상황 적응력 점수 (1-5) (이전 시스템용, 옵셔널)
+  overallEffectiveness?: number; // 전반적 효과성 (1-5) (이전 시스템용, 옵셔널)
+  detailedAnalysis?: string; // 상세 분석 내용 (이전 시스템용, 옵셔널)
+  improvements?: string[]; // 개선 사항 (이전 시스템용, 옵셔널)
+  strengths?: string[]; // 강점 (이전 시스템용, 옵셔널)
+  // 새로운 전략 회고 기반 평가 필드
+  strategicScore?: number; // 전략 점수 (0-100)
+  strategicRationale?: string; // 전략 점수 이유
+  sequenceEffectiveness?: string; // 순서 선택의 효과성 평가
+  alternativeApproaches?: string[]; // 대안적 접근법
+  strategicInsights?: string; // 전략적 통찰
 };
 
 export const insertConversationSchema = createInsertSchema(conversations).omit({
