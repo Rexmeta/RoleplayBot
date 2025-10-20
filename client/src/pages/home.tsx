@@ -3,7 +3,7 @@ import { Link } from "wouter";
 import ScenarioSelector from "@/components/ScenarioSelector";
 import ChatWindow from "@/components/ChatWindow";
 import PersonalDevelopmentReport from "@/components/PersonalDevelopmentReport";
-import { StrategicPersonaSelector } from "@/components/StrategicPersonaSelector";
+import { SimplePersonaSelector } from "@/components/SimplePersonaSelector";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { type ComplexScenario, type ScenarioPersona, getComplexScenarioById, scenarioPersonas } from "@/lib/scenario-system";
@@ -12,18 +12,15 @@ import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { User, LogOut } from "lucide-react";
 
-type ViewState = "scenarios" | "strategic-planning" | "chat" | "feedback";
+type ViewState = "scenarios" | "persona-selection" | "chat" | "strategy-reflection" | "feedback";
 
 export default function Home() {
   const [currentView, setCurrentView] = useState<ViewState>("scenarios");
   const [selectedScenario, setSelectedScenario] = useState<ComplexScenario | null>(null);
   const [selectedPersona, setSelectedPersona] = useState<ScenarioPersona | null>(null);
   const [conversationId, setConversationId] = useState<string | null>(null);
-  const [strategicConversationId, setStrategicConversationId] = useState<string | null>(null);
-  const [completedConversations, setCompletedConversations] = useState<string[]>([]);
-  const [currentPhase, setCurrentPhase] = useState(1);
-  const [totalPhases, setTotalPhases] = useState(1);
-  const [sequencePlan, setSequencePlan] = useState<any[]>([]);
+  const [completedPersonaIds, setCompletedPersonaIds] = useState<string[]>([]);
+  const [conversationIds, setConversationIds] = useState<string[]>([]); // 모든 대화 ID 저장
 
   // 동적으로 시나리오와 페르소나 데이터 로드
   const { data: scenarios = [] } = useQuery({
@@ -41,191 +38,68 @@ export default function Home() {
     experience: "6개월차"
   };
 
-  // 기존 대화에서 순차 계획 로드
-  const { data: existingConversation } = useQuery({
-    queryKey: ['/api/conversations', strategicConversationId],
-    queryFn: () => strategicConversationId ? 
-      fetch(`/api/conversations/${strategicConversationId}`).then(res => res.json()) : 
-      null,
-    enabled: !!strategicConversationId
-  });
-
-  // 순차 계획 저장 mutation
-  const saveSequencePlanMutation = useMutation({
-    mutationFn: async (data: { conversationId: string, sequencePlan: any[] }) => {
-      const response = await apiRequest("POST", `/api/conversations/${data.conversationId}/sequence-plan`, {
-        sequencePlan: data.sequencePlan,
-        conversationType: 'sequential'
-      });
-      return response.json();
-    }
-  });
-
-  // 시나리오 선택 처리 - 페르소나 수에 따라 분기
+  // 시나리오 선택 처리
   const handleScenarioSelect = async (scenario: ComplexScenario, persona?: ScenarioPersona, convId?: string) => {
     setSelectedScenario(scenario);
+    setCompletedPersonaIds([]);
+    setConversationIds([]);
     
-    // 페르소나가 2명 이상이면 전략적 계획 단계로
+    // 페르소나가 2명 이상이면 페르소나 선택 화면으로
     if (scenario.personas && scenario.personas.length >= 2) {
-      setTotalPhases(scenario.personas.length);
-      setCurrentPhase(1);
-      setCompletedConversations([]);
-      
-      // 새로운 전략적 대화 세션 생성
-      try {
-        const response = await apiRequest("POST", "/api/conversations", {
-          scenarioId: scenario.id,
-          scenarioName: scenario.title,
-          messages: [],
-          turnCount: 0,
-          status: "active",
-          conversationType: "sequential",
-          currentPhase: 1,
-          totalPhases: scenario.personas.length
-        });
-        
-        const conversation = await response.json();
-        setStrategicConversationId(conversation.id);
-      } catch (error) {
-        console.error("Failed to create strategic conversation:", error);
-      }
-      
-      setCurrentView("strategic-planning");
+      setCurrentView("persona-selection");
     } else {
-      // 단일 페르소나면 기존 방식대로
+      // 단일 페르소나면 바로 대화로
       setSelectedPersona(persona || null);
       setConversationId(convId || null);
       setCurrentView("chat");
     }
   };
-  
-  // 순차 계획 저장 핸들러
-  const handleSequencePlanSubmit = async (sequencePlan: any[]) => {
-    if (!strategicConversationId) {
-      console.error("No strategic conversation ID");
-      return;
-    }
+
+  // 페르소나 선택 처리
+  const handlePersonaSelect = async (persona: ScenarioPersona) => {
+    if (!selectedScenario) return;
     
     try {
-      await saveSequencePlanMutation.mutateAsync({
-        conversationId: strategicConversationId,
-        sequencePlan
-      });
-      setSequencePlan(sequencePlan);
-      // 쿼리 무효화로 저장된 계획이 바로 반영되도록 함
-      queryClient.invalidateQueries({ 
-        queryKey: ['/api/conversations', strategicConversationId] 
-      });
-    } catch (error) {
-      console.error("Failed to save sequence plan:", error);
-    }
-  };
-
-  // 전략적 페르소나 선택 완료 처리
-  const handleStrategicPersonaSelect = async (personaId: string, scenario: ComplexScenario) => {
-    try {
       const response = await apiRequest("POST", "/api/conversations", {
-        scenarioId: scenario.id,
-        personaId: personaId,
-        scenarioName: scenario.title,
+        scenarioId: selectedScenario.id,
+        personaId: persona.id,
+        scenarioName: selectedScenario.title,
         messages: [],
         turnCount: 0,
-        status: "active",
-        conversationType: "sequential",
-        currentPhase: currentPhase,
-        totalPhases: totalPhases
+        status: "active"
       });
       
       const conversation = await response.json();
       
-      // PersonaSelection 데이터 저장
-      try {
-        await apiRequest("POST", `/api/conversations/${conversation.id}/persona-selections`, {
-          phase: currentPhase,
-          personaId: personaId,
-          selectionReason: `${currentPhase}단계 대화 상대로 선택`,
-          expectedOutcome: "효과적인 대화를 통한 목표 달성"
-        });
-      } catch (error) {
-        console.error("페르소나 선택 데이터 저장 실패:", error);
-      }
-      
-      // 첫 번째 전략적 대화라면 strategic conversation ID 저장
-      if (!strategicConversationId) {
-        setStrategicConversationId(conversation.id);
-      }
-      
-      // 시나리오에서 받은 페르소나 객체 찾기 및 ScenarioPersona 타입으로 변환
-      const personas = selectedScenario?.personas as any[] || [];
-      const rawPersona = personas.find((p: any) => p.id === personaId);
-      if (rawPersona) {
-        const selectedPersona: ScenarioPersona = {
-          id: rawPersona.id,
-          name: rawPersona.name,
-          role: rawPersona.position || rawPersona.role,
-          department: rawPersona.department,
-          experience: rawPersona.experience,
-          personality: {
-            traits: [],
-            communicationStyle: rawPersona.stance || '',
-            motivation: rawPersona.goal || '',
-            fears: []
-          },
-          background: {
-            education: '',
-            previousExperience: rawPersona.experience || '',
-            majorProjects: [],
-            expertise: []
-          },
-          currentSituation: {
-            workload: '',
-            pressure: '',
-            concerns: [],
-            position: rawPersona.stance || ''
-          },
-          communicationPatterns: {
-            openingStyle: '',
-            keyPhrases: [],
-            responseToArguments: {},
-            winConditions: []
-          },
-          image: `https://ui-avatars.com/api/?name=${encodeURIComponent(rawPersona.name)}&background=6366f1&color=fff&size=150`,
-          voice: {
-            tone: '',
-            pace: '',
-            emotion: ''
-          },
-          stance: rawPersona.stance,
-          goal: rawPersona.goal,
-          tradeoff: rawPersona.tradeoff,
-          mbti: rawPersona.id?.toUpperCase()
-        };
-        setSelectedPersona(selectedPersona);
-      }
+      setSelectedPersona(persona);
       setConversationId(conversation.id);
       setCurrentView("chat");
     } catch (error) {
-      console.error("전략적 대화 생성 실패:", error);
-    }
-  };
-  
-  // 페르소나 변경 핸들러 (대화 완료 후)
-  const handlePersonaChange = () => {
-    if (selectedScenario && selectedScenario.personas && selectedScenario.personas.length >= 2) {
-      setCurrentView("strategic-planning");
+      console.error("대화 생성 실패:", error);
     }
   };
 
   const handleChatComplete = () => {
-    if (strategicConversationId && currentPhase < totalPhases) {
-      // 전략적 대화 중이고 아직 남은 단계가 있으면
-      if (conversationId) {
-        setCompletedConversations(prev => [...prev, conversationId]);
+    if (!selectedScenario || !conversationId || !selectedPersona) return;
+    
+    // 현재 대화 ID와 페르소나 ID를 완료 목록에 추가
+    setCompletedPersonaIds(prev => [...prev, selectedPersona.id]);
+    setConversationIds(prev => [...prev, conversationId]);
+    
+    // 2명 이상의 페르소나가 있는 시나리오인 경우
+    if (selectedScenario.personas && selectedScenario.personas.length >= 2) {
+      const totalPersonas = selectedScenario.personas.length;
+      const completedCount = completedPersonaIds.length + 1; // 현재 완료한 것 포함
+      
+      if (completedCount < totalPersonas) {
+        // 아직 남은 페르소나가 있으면 페르소나 선택 화면으로
+        setCurrentView("persona-selection");
+      } else {
+        // 모든 페르소나와 대화 완료 -> 전략 회고 단계로
+        setCurrentView("strategy-reflection");
       }
-      setCurrentPhase(prev => prev + 1);
-      setCurrentView("strategic-planning");
     } else {
-      // 모든 대화가 완료되었거나 단일 대화면 피드백으로
+      // 단일 페르소나면 바로 피드백으로
       setCurrentView("feedback");
     }
   };
@@ -235,10 +109,8 @@ export default function Home() {
     setSelectedScenario(null);
     setSelectedPersona(null);
     setConversationId(null);
-    setStrategicConversationId(null);
-    setCompletedConversations([]);
-    setCurrentPhase(1);
-    setTotalPhases(1);
+    setCompletedPersonaIds([]);
+    setConversationIds([]);
   };
 
   // 재도전을 위한 새로운 대화 생성
@@ -363,83 +235,61 @@ export default function Home() {
           </div>
         )}
         
-        {currentView === "strategic-planning" && selectedScenario && (
-          <StrategicPersonaSelector
-            personas={(() => {
-              // 시나리오에서 받은 personas를 ScenarioPersona 타입에 맞게 변환
-              const scenarioPersonasArray = (selectedScenario.personas || []).map((p: any) => ({
-                id: p.id,
-                name: p.name,
-                role: p.position || p.role,
-                department: p.department,
-                experience: p.experience,
-                personality: {
-                  traits: [],
-                  communicationStyle: p.stance || '',
-                  motivation: p.goal || '',
-                  fears: []
-                },
-                background: {
-                  education: '',
-                  previousExperience: p.experience || '',
-                  majorProjects: [],
-                  expertise: []
-                },
-                currentSituation: {
-                  workload: '',
-                  pressure: '',
-                  concerns: [],
-                  position: p.stance || ''
-                },
-                communicationPatterns: {
-                  openingStyle: '',
-                  keyPhrases: [],
-                  responseToArguments: {},
-                  winConditions: []
-                },
-                image: `https://ui-avatars.com/api/?name=${encodeURIComponent(p.name)}&background=6366f1&color=fff&size=150`,
-                voice: {
-                  tone: '',
-                  pace: '',
-                  emotion: ''
-                },
-                stance: p.stance,
-                goal: p.goal,
-                tradeoff: p.tradeoff,
-                mbti: p.id?.toUpperCase()
-              }));
-              return scenarioPersonasArray;
-            })()}
-            personaStatuses={selectedScenario.personas?.map((p: any) => ({
-              personaId: p.id,
+        {currentView === "persona-selection" && selectedScenario && selectedScenario.personas && (
+          <SimplePersonaSelector
+            personas={selectedScenario.personas.map((p: any) => ({
+              id: p.id,
               name: p.name,
-              currentMood: 'neutral' as const,
-              approachability: 3,
-              influence: p.influence || 3,
-              hasBeenContacted: completedConversations.includes(p.id),
-              lastInteractionResult: undefined,
-              availableInfo: [`${p.name}에 대한 정보`],
-              keyRelationships: []
-            })) || []}
-            currentPhase={currentPhase}
-            totalPhases={totalPhases}
-            onPersonaSelect={async (selection) => {
-              await handleStrategicPersonaSelect(selection.personaId, selectedScenario);
-            }}
-            onPhaseComplete={() => {
-              setCurrentView("feedback");
-            }}
-            previousSelections={(() => {
-              // 실제로 대화가 완료된 페르소나들만 포함
-              const allSelections = existingConversation?.personaSelections || sequencePlan;
-              return allSelections.filter(selection => 
-                completedConversations.includes(selection.personaId)
-              );
-            })()}
-            scenarioContext={selectedScenario}
-            onSequencePlanSubmit={handleSequencePlanSubmit}
-            initialSequencePlan={existingConversation?.personaSelections || []}
+              role: p.position || p.role,
+              department: p.department,
+              experience: p.experience,
+              personality: {
+                traits: [],
+                communicationStyle: p.stance || '',
+                motivation: p.goal || '',
+                fears: []
+              },
+              background: {
+                education: '',
+                previousExperience: p.experience || '',
+                majorProjects: [],
+                expertise: []
+              },
+              currentSituation: {
+                workload: '',
+                pressure: '',
+                concerns: [],
+                position: p.stance || ''
+              },
+              communicationPatterns: {
+                openingStyle: '',
+                keyPhrases: [],
+                responseToArguments: {},
+                winConditions: []
+              },
+              image: `https://ui-avatars.com/api/?name=${encodeURIComponent(p.name)}&background=6366f1&color=fff&size=150`,
+              voice: {
+                tone: '',
+                pace: '',
+                emotion: ''
+              },
+              stance: p.stance,
+              goal: p.goal,
+              tradeoff: p.tradeoff,
+              mbti: p.id?.toUpperCase()
+            }))}
+            completedPersonaIds={completedPersonaIds}
+            onPersonaSelect={handlePersonaSelect}
+            scenarioTitle={selectedScenario.title}
+            scenarioSituation={selectedScenario.description}
           />
+        )}
+
+        {currentView === "strategy-reflection" && selectedScenario && (
+          <div className="max-w-4xl mx-auto p-6">
+            <h2 className="text-2xl font-bold mb-4">전략 회고 단계</h2>
+            <p>전략 이유 입력 UI (구현 예정)</p>
+          </div>
         )}
         
         {currentView === "chat" && selectedScenario && selectedPersona && conversationId && (
@@ -449,7 +299,6 @@ export default function Home() {
             conversationId={conversationId}
             onChatComplete={handleChatComplete}
             onExit={handleReturnToScenarios}
-            onPersonaChange={strategicConversationId ? handlePersonaChange : undefined}
           />
         )}
         
