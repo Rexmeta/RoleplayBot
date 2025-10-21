@@ -220,7 +220,7 @@ JSON 형식으로 응답:
         model: this.model,
         config: {
           responseMimeType: "application/json",
-          maxOutputTokens: 3000,
+          maxOutputTokens: 4096,
           temperature: 0.3
         },
         contents: [
@@ -231,7 +231,10 @@ JSON 형식으로 응답:
       const totalTime = Date.now() - startTime;
       console.log(`✓ Optimized feedback completed in ${totalTime}ms`);
 
-      return this.parseFeedbackResponse(this.extractResponseText(response), conversation);
+      const responseText = this.extractResponseText(response);
+      console.log("📝 Feedback response (first 500 chars):", responseText.substring(0, 500));
+      
+      return this.parseFeedbackResponse(responseText, conversation);
 
     } catch (error) {
       console.error("Optimized feedback error:", error);
@@ -317,7 +320,41 @@ JSON 응답${hasStrategyReflection ? ' (sequenceAnalysis 포함)' : ''}:
    */
   private parseFeedbackResponse(responseText: string, conversation?: Partial<import("@shared/schema").Conversation>): DetailedFeedback {
     try {
-      const parsed = JSON.parse(responseText);
+      // 빈 응답이나 JSON이 아닌 응답 처리
+      if (!responseText || responseText.trim() === '' || responseText === '{}') {
+        console.error("Empty or invalid response text received");
+        return this.getFallbackFeedback();
+      }
+      
+      // JSON 파싱 시도
+      let parsed;
+      try {
+        parsed = JSON.parse(responseText);
+      } catch (parseError) {
+        console.error("JSON parse failed, response text:", responseText.substring(0, 1000));
+        console.error("Parse error:", parseError);
+        
+        // 불완전한 JSON을 복구 시도
+        try {
+          // 잘린 JSON을 감지하고 닫기 시도
+          let fixedText = responseText.trim();
+          
+          // 배열이나 객체가 닫히지 않은 경우 닫기
+          const openBraces = (fixedText.match(/{/g) || []).length;
+          const closeBraces = (fixedText.match(/}/g) || []).length;
+          
+          if (openBraces > closeBraces) {
+            fixedText += '}'.repeat(openBraces - closeBraces);
+            console.log("Attempting to fix incomplete JSON...");
+            parsed = JSON.parse(fixedText);
+            console.log("✓ JSON fixed successfully");
+          } else {
+            throw parseError;
+          }
+        } catch (fixError) {
+          return this.getFallbackFeedback();
+        }
+      }
       
       const feedback: DetailedFeedback = {
         overallScore: parsed.overallScore || 75,
