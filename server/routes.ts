@@ -97,6 +97,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Get all conversations for the current user
+  app.get("/api/conversations", async (req, res) => {
+    try {
+      const conversations = await storage.getAllConversations();
+      // TODO: Filter by current user when authentication is fully implemented
+      res.json(conversations);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch conversations" });
+    }
+  });
+
   // Get conversation by ID
   app.get("/api/conversations/:id", async (req, res) => {
     try {
@@ -415,6 +426,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error saving strategy reflection:", error);
       res.status(500).json({ error: "Failed to save strategy reflection" });
+    }
+  });
+
+  // Get all feedbacks for the current user
+  app.get("/api/feedbacks", async (req, res) => {
+    try {
+      const feedbacks = await storage.getAllFeedbacks();
+      // TODO: Filter by current user when authentication is fully implemented
+      res.json(feedbacks);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch feedbacks" });
     }
   });
 
