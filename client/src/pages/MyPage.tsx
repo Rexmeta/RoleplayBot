@@ -51,11 +51,10 @@ export default function MyPage() {
   const typedUser: User = {
     id: "temp-user",
     email: "user@example.com",
-    firstName: "테스트",
-    lastName: "사용자",
-    profileImageUrl: null,
-    createdAt: new Date(),
-    updatedAt: new Date(),
+    name: "테스트 사용자",
+    password: "",
+    createdAt: null,
+    updatedAt: null,
   };
 
   return (
@@ -66,14 +65,14 @@ export default function MyPage() {
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
               <img
-                src={typedUser.profileImageUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(typedUser.firstName || typedUser.email || 'User')}&background=6366f1&color=fff&size=80`}
+                src={`https://ui-avatars.com/api/?name=${encodeURIComponent(typedUser.name || typedUser.email || 'User')}&background=6366f1&color=fff&size=80`}
                 alt="프로필"
                 className="w-16 h-16 rounded-full object-cover"
                 data-testid="profile-image"
               />
               <div>
                 <h1 className="text-2xl font-bold text-slate-900" data-testid="user-name">
-                  {typedUser.firstName || typedUser.email?.split('@')[0] || '사용자'}님의 MyPage
+                  {typedUser.name || typedUser.email?.split('@')[0] || '사용자'}님의 MyPage
                 </h1>
                 <p className="text-slate-600" data-testid="user-email">{typedUser.email}</p>
               </div>
