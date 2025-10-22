@@ -220,7 +220,7 @@ JSON 형식으로 응답:
         model: this.model,
         config: {
           responseMimeType: "application/json",
-          maxOutputTokens: 4096,
+          maxOutputTokens: 8192,
           temperature: 0.3
         },
         contents: [
@@ -276,41 +276,39 @@ sequenceAnalysis 필드에 다음 형식으로 포함:
 }`;
     }
 
-    return `업무 대화 분석:
-
+    return `대화 분석:
 ${conversationText}
 ${strategySection}
 
 5개 영역 평가(1-5점): 명확성&논리성, 경청&공감, 적절성&상황대응, 설득력&영향력, 전략적커뮤니케이션
 
-JSON 응답${hasStrategyReflection ? ' (sequenceAnalysis 포함)' : ''}:
+JSON 형식${hasStrategyReflection ? ' (sequenceAnalysis 포함)' : ''}:
 {
   "overallScore": 85,
   "scores": {"clarityLogic": 4, "listeningEmpathy": 4, "appropriatenessAdaptability": 3, "persuasivenessImpact": 4, "strategicCommunication": 4},
-  "strengths": ["강점1", "강점2", "강점3"],
-  "improvements": ["개선점1", "개선점2", "개선점3"],
-  "nextSteps": ["다음단계1", "다음단계2", "다음단계3"],
-  "summary": "종합평가",
+  "strengths": ["강점1", "강점2"],
+  "improvements": ["개선1", "개선2"],
+  "nextSteps": ["단계1", "단계2"],
+  "summary": "평가",
   "conversationDuration": 10,
   "behaviorGuides": [
-    {"situation": "상황설명", "action": "행동가이드", "example": "예시", "impact": "효과"},
-    {"situation": "다른상황", "action": "다른행동", "example": "다른예시", "impact": "다른효과"}
+    {"situation": "상황", "action": "행동", "example": "예시", "impact": "효과"}
   ],
   "conversationGuides": [
-    {"scenario": "시나리오", "goodExample": "좋은예시", "badExample": "나쁜예시", "keyPoints": ["포인트1", "포인트2", "포인트3"]}
+    {"scenario": "시나리오", "goodExample": "좋은예", "badExample": "나쁜예", "keyPoints": ["포인트1", "포인트2"]}
   ],
   "developmentPlan": {
-    "shortTerm": [{"goal": "단기목표", "actions": ["행동1", "행동2"], "measurable": "지표"}],
-    "mediumTerm": [{"goal": "중기목표", "actions": ["행동1", "행동2"], "measurable": "지표"}],
-    "longTerm": [{"goal": "장기목표", "actions": ["행동1", "행동2"], "measurable": "지표"}],
-    "recommendedResources": ["자료1", "자료2", "자료3"]
+    "shortTerm": [{"goal": "단기", "actions": ["행동1"], "measurable": "지표"}],
+    "mediumTerm": [{"goal": "중기", "actions": ["행동1"], "measurable": "지표"}],
+    "longTerm": [{"goal": "장기", "actions": ["행동1"], "measurable": "지표"}],
+    "recommendedResources": ["자료1", "자료2"]
   }${hasStrategyReflection ? `,
   "sequenceAnalysis": {
     "strategicScore": 85,
-    "strategicRationale": "전략 점수 이유",
-    "sequenceEffectiveness": "순서 선택 효과성",
-    "alternativeApproaches": ["대안1", "대안2"],
-    "strategicInsights": "전략적 통찰"
+    "strategicRationale": "이유",
+    "sequenceEffectiveness": "효과성",
+    "alternativeApproaches": ["대안1"],
+    "strategicInsights": "통찰"
   }` : ''}
 }`;
   }
