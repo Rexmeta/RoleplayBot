@@ -2,6 +2,15 @@
 
 This is an AI-powered role-playing training system for new employees, designed to help develop communication skills through interactive conversations with AI personas. The application presents various workplace scenarios where users engage in 10-turn conversations with different AI characters (senior researchers, team leaders, clients, executives), each with distinct personalities and communication challenges. Each AI response includes real-time emotion analysis with visual indicators (emojis, color-coded bubbles). After completing conversations, users receive detailed AI-generated feedback with scores, strengths, improvements, and next steps.
 
+**Recent Updates (2025-10-22)**:
+- **SECURITY: User-scoped data isolation implemented** - All conversations and feedbacks are now filtered by authenticated user
+- **AUTHENTICATION: Complete JWT token flow** - Frontend sends Authorization header with Bearer token for all API requests
+- **DATABASE: User ID foreign key added** - conversations table now has user_id column referencing users table
+- **AUTHORIZATION: Ownership verification** - All conversation endpoints verify user owns the resource before allowing access (403 Forbidden for unauthorized, 404 for not found)
+- **BACKEND: User-specific storage methods** - getUserConversations() and getUserFeedbacks() filter by userId
+- **MIDDLEWARE: Authentication enforcement** - isAuthenticated middleware applied to all conversation and feedback endpoints
+- **FRONTEND: Token management** - queryClient and apiRequest forward localStorage authToken in Authorization header
+
 **Recent Updates (2025-08-22)**:
 - **LICENSE: CC BY-NC 4.0 라이센스 적용** - 상업적 사용을 제한하는 Creative Commons Attribution-NonCommercial 라이센스로 변경
 - **DOCUMENTATION: 포괄적인 README.md 작성 완료** - GitHub용 프로젝트 설명서, 설치 가이드, 기술 스택, 사용법, 평가 시스템 상세 설명 포함
@@ -60,8 +69,12 @@ Preferred communication style: Simple, everyday language.
 - **Migrations**: Drizzle Kit for database schema management
 
 ## Authentication and Authorization
-- **Session Management**: PostgreSQL session store using connect-pg-simple
-- **Current Implementation**: Basic setup without full authentication flow implemented
+- **Authentication Method**: JWT (JSON Web Tokens) with Bearer token in Authorization header
+- **Token Storage**: localStorage for client-side token persistence
+- **Session Management**: Stateless JWT-based authentication (no server-side sessions)
+- **Authorization**: Resource ownership verification on all conversation and feedback endpoints
+- **User Isolation**: All data queries filtered by authenticated user's ID
+- **Security**: 401 Unauthorized for missing/invalid tokens, 403 Forbidden for unauthorized access
 
 ## External Dependencies
 
