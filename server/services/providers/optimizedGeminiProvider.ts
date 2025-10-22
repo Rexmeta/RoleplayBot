@@ -246,9 +246,31 @@ JSON 형식으로 응답:
    * 상세 피드백 프롬프트 (행동가이드, 대화가이드, 개발계획 포함)
    */
   private buildCompactFeedbackPrompt(scenario: string, messages: ConversationMessage[], persona: ScenarioPersona, conversation?: Partial<import("@shared/schema").Conversation>): string {
-    const conversationText = messages.map((msg, idx) => 
+    // 사용자 메시지만 필터링하여 평가 대상으로 설정
+    const userMessages = messages.filter(msg => msg.sender === 'user');
+    
+    // 전체 대화 맥락 (AI 응답 포함) - 참고용으로만 사용
+    const fullConversationContext = messages.map((msg, idx) => 
       `${idx + 1}. ${msg.sender === 'user' ? '사용자' : persona.name}: ${msg.message}`
     ).join('\n');
+    
+    // 사용자 발화만 별도로 표시 (평가 대상)
+    const userMessagesText = userMessages.map((msg, idx) => 
+      `${idx + 1}. 사용자: ${msg.message}`
+    ).join('\n');
+
+    // 비언어적 표현 및 스킵 감지
+    const nonVerbalPatterns = userMessages.filter(msg => {
+      const text = msg.message.trim().toLowerCase();
+      return text.length < 3 || 
+             text === '...' || 
+             text.match(/^(음+|어+|그+|아+|uh+|um+|hmm+)\.*/i) ||
+             text === '침묵' ||
+             text === 'skip' ||
+             text === '스킵';
+    });
+
+    const hasNonVerbalIssues = nonVerbalPatterns.length > 0;
 
     // 전략 회고가 있는 경우 추가 평가 수행
     const hasStrategyReflection = conversation?.strategyReflection && conversation?.conversationOrder;
@@ -276,9 +298,23 @@ sequenceAnalysis 필드에 다음 형식으로 포함:
 }`;
     }
 
-    return `대화 분석:
-${conversationText}
+    return `**중요**: 아래 평가는 오직 사용자의 발화만을 대상으로 수행합니다. AI(${persona.name})의 응답은 평가 대상이 아닙니다.
+
+**전체 대화 맥락** (참고용):
+${fullConversationContext}
+
+**평가 대상 - 사용자 발화만**:
+${userMessagesText}
+
+${hasNonVerbalIssues ? `\n⚠️ 비언어적 표현 감지: ${nonVerbalPatterns.length}개의 비언어적/무의미한 응답 발견 ("...", "음...", "침묵", 짧은 응답 등)
+이러한 응답들은 의사소통 능력에 네가티브한 영향을 미치므로 점수를 낮춰야 합니다.\n` : ''}
 ${strategySection}
+
+**평가 기준**:
+- 오직 사용자의 발화만 평가합니다 (AI 응답은 제외)
+- 비언어적 표현("...", "음...", "침묵")은 명확성과 설득력 점수를 크게 낮춥니다
+- 매우 짧거나 무의미한 응답은 점수를 낮춥니다
+- 스킵한 대화는 참여도와 전략적 커뮤니케이션 점수를 낮춥니다
 
 5개 영역 평가(1-5점): 명확성&논리성, 경청&공감, 적절성&상황대응, 설득력&영향력, 전략적커뮤니케이션
 
