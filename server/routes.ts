@@ -22,17 +22,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.use(cookieParser());
   
   // 인증 시스템 설정
-  const { setupAuth } = await import('./auth');
+  const { setupAuth, isAuthenticated } = await import('./auth');
   setupAuth(app);
 
   // Create new conversation
-  app.post("/api/conversations", async (req, res) => {
+  app.post("/api/conversations", isAuthenticated, async (req, res) => {
     try {
       // @ts-ignore - req.user는 auth 미들웨어에서 설정됨
       const userId = req.user?.id;
-      if (!userId) {
-        return res.status(401).json({ error: "인증이 필요합니다" });
-      }
       
       const validatedData = insertConversationSchema.parse(req.body);
       const conversation = await storage.createConversation({ ...validatedData, userId });
@@ -104,13 +101,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Get all conversations for the current user
-  app.get("/api/conversations", async (req, res) => {
+  app.get("/api/conversations", isAuthenticated, async (req, res) => {
     try {
       // @ts-ignore - req.user는 auth 미들웨어에서 설정됨
       const userId = req.user?.id;
-      if (!userId) {
-        return res.status(401).json({ error: "인증이 필요합니다" });
-      }
       
       const conversations = await storage.getUserConversations(userId);
       res.json(conversations);
@@ -441,13 +435,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Get all feedbacks for the current user
-  app.get("/api/feedbacks", async (req, res) => {
+  app.get("/api/feedbacks", isAuthenticated, async (req, res) => {
     try {
       // @ts-ignore - req.user는 auth 미들웨어에서 설정됨
       const userId = req.user?.id;
-      if (!userId) {
-        return res.status(401).json({ error: "인증이 필요합니다" });
-      }
       
       const feedbacks = await storage.getUserFeedbacks(userId);
       res.json(feedbacks);
