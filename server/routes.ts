@@ -28,8 +28,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Create new conversation
   app.post("/api/conversations", async (req, res) => {
     try {
+      // @ts-ignore - req.user는 auth 미들웨어에서 설정됨
+      const userId = req.user?.id;
+      if (!userId) {
+        return res.status(401).json({ error: "인증이 필요합니다" });
+      }
+      
       const validatedData = insertConversationSchema.parse(req.body);
-      const conversation = await storage.createConversation(validatedData);
+      const conversation = await storage.createConversation({ ...validatedData, userId });
       
       // 첫 번째 AI 메시지 자동 생성
       try {
@@ -100,8 +106,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Get all conversations for the current user
   app.get("/api/conversations", async (req, res) => {
     try {
-      const conversations = await storage.getAllConversations();
-      // TODO: Filter by current user when authentication is fully implemented
+      // @ts-ignore - req.user는 auth 미들웨어에서 설정됨
+      const userId = req.user?.id;
+      if (!userId) {
+        return res.status(401).json({ error: "인증이 필요합니다" });
+      }
+      
+      const conversations = await storage.getUserConversations(userId);
       res.json(conversations);
     } catch (error) {
       res.status(500).json({ error: "Failed to fetch conversations" });
@@ -432,8 +443,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Get all feedbacks for the current user
   app.get("/api/feedbacks", async (req, res) => {
     try {
-      const feedbacks = await storage.getAllFeedbacks();
-      // TODO: Filter by current user when authentication is fully implemented
+      // @ts-ignore - req.user는 auth 미들웨어에서 설정됨
+      const userId = req.user?.id;
+      if (!userId) {
+        return res.status(401).json({ error: "인증이 필요합니다" });
+      }
+      
+      const feedbacks = await storage.getUserFeedbacks(userId);
       res.json(feedbacks);
     } catch (error) {
       res.status(500).json({ error: "Failed to fetch feedbacks" });

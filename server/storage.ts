@@ -14,11 +14,13 @@ export interface IStorage {
   getConversation(id: string): Promise<Conversation | undefined>;
   updateConversation(id: string, updates: Partial<Conversation>): Promise<Conversation>;
   getAllConversations(): Promise<Conversation[]>;
+  getUserConversations(userId: string): Promise<Conversation[]>;
   
   // Feedback
   createFeedback(feedback: InsertFeedback): Promise<Feedback>;
   getFeedbackByConversationId(conversationId: string): Promise<Feedback | undefined>;
   getAllFeedbacks(): Promise<Feedback[]>;
+  getUserFeedbacks(userId: string): Promise<Feedback[]>;
   
   // Strategic Selection - Persona Selections
   addPersonaSelection(conversationId: string, selection: PersonaSelection): Promise<Conversation>;
@@ -57,6 +59,7 @@ export class MemStorage implements IStorage {
     const id = randomUUID();
     const conversation: Conversation = {
       id,
+      userId: insertConversation.userId || null,
       scenarioId: insertConversation.scenarioId,
       personaId: insertConversation.personaId || null,
       scenarioName: insertConversation.scenarioName,
@@ -116,8 +119,24 @@ export class MemStorage implements IStorage {
     return Array.from(this.conversations.values());
   }
 
+  async getUserConversations(userId: string): Promise<Conversation[]> {
+    return Array.from(this.conversations.values()).filter(
+      (conversation) => conversation.userId === userId
+    );
+  }
+
   async getAllFeedbacks(): Promise<Feedback[]> {
     return Array.from(this.feedbacks.values());
+  }
+
+  async getUserFeedbacks(userId: string): Promise<Feedback[]> {
+    const userConversationIds = Array.from(this.conversations.values())
+      .filter((conversation) => conversation.userId === userId)
+      .map((conversation) => conversation.id);
+    
+    return Array.from(this.feedbacks.values()).filter(
+      (feedback) => userConversationIds.includes(feedback.conversationId)
+    );
   }
 
   // Strategic Selection - Persona Selections
@@ -266,6 +285,10 @@ export class PostgreSQLStorage implements IStorage {
     return await db.select().from(conversations);
   }
 
+  async getUserConversations(userId: string): Promise<Conversation[]> {
+    return await db.select().from(conversations).where(eq(conversations.userId, userId));
+  }
+
   // Feedback
   async createFeedback(insertFeedback: InsertFeedback): Promise<Feedback> {
     const [feedback] = await db.insert(feedbacks).values(insertFeedback).returning();
@@ -279,6 +302,24 @@ export class PostgreSQLStorage implements IStorage {
 
   async getAllFeedbacks(): Promise<Feedback[]> {
     return await db.select().from(feedbacks);
+  }
+
+  async getUserFeedbacks(userId: string): Promise<Feedback[]> {
+    // Join with conversations to filter by userId
+    const result = await db
+      .select({
+        id: feedbacks.id,
+        conversationId: feedbacks.conversationId,
+        overallScore: feedbacks.overallScore,
+        scores: feedbacks.scores,
+        detailedFeedback: feedbacks.detailedFeedback,
+        createdAt: feedbacks.createdAt,
+      })
+      .from(feedbacks)
+      .innerJoin(conversations, eq(feedbacks.conversationId, conversations.id))
+      .where(eq(conversations.userId, userId));
+    
+    return result;
   }
 
   // Strategic Selection - Persona Selections

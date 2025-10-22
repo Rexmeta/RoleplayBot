@@ -5,6 +5,7 @@ import { z } from "zod";
 
 export const conversations = pgTable("conversations", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").references(() => users.id), // 사용자별 대화 관리
   scenarioId: text("scenario_id").notNull(),
   personaId: text("persona_id"), // 레거시 지원용
   scenarioName: text("scenario_name").notNull(),
