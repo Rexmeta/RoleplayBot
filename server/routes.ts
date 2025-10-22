@@ -25,6 +25,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
   const { setupAuth, isAuthenticated } = await import('./auth');
   setupAuth(app);
 
+  // Helper function to verify conversation ownership
+  async function verifyConversationOwnership(conversationId: string, userId: string) {
+    const conversation = await storage.getConversation(conversationId);
+    if (!conversation) {
+      return { error: "Conversation not found", status: 404 };
+    }
+    if (conversation.userId !== userId) {
+      return { error: "Unauthorized access", status: 403 };
+    }
+    return { conversation };
+  }
+
   // Create new conversation
   app.post("/api/conversations", isAuthenticated, async (req, res) => {
     try {
@@ -114,21 +126,33 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Get conversation by ID
-  app.get("/api/conversations/:id", async (req, res) => {
+  app.get("/api/conversations/:id", isAuthenticated, async (req, res) => {
     try {
-      const conversation = await storage.getConversation(req.params.id);
-      if (!conversation) {
-        return res.status(404).json({ error: "Conversation not found" });
+      // @ts-ignore - req.user는 auth 미들웨어에서 설정됨
+      const userId = req.user?.id;
+      const result = await verifyConversationOwnership(req.params.id, userId);
+      
+      if ('error' in result) {
+        return res.status(result.status).json({ error: result.error });
       }
-      res.json(conversation);
+      
+      res.json(result.conversation);
     } catch (error) {
       res.status(500).json({ error: "Failed to fetch conversation" });
     }
   });
 
   // Send message and get AI response
-  app.post("/api/conversations/:id/messages", async (req, res) => {
+  app.post("/api/conversations/:id/messages", isAuthenticated, async (req, res) => {
     try {
+      // @ts-ignore - req.user는 auth 미들웨어에서 설정됨
+      const userId = req.user?.id;
+      const ownershipResult = await verifyConversationOwnership(req.params.id, userId);
+      
+      if ('error' in ownershipResult) {
+        return res.status(ownershipResult.status).json({ error: ownershipResult.error });
+      }
+
       const { message } = req.body;
       if (typeof message !== "string") {
         return res.status(400).json({ error: "Message must be a string" });
@@ -234,14 +258,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Strategic Selection APIs
   
   // Persona Selection APIs
-  app.post("/api/conversations/:id/persona-selections", async (req, res) => {
+  app.post("/api/conversations/:id/persona-selections", isAuthenticated, async (req, res) => {
     try {
+      // @ts-ignore - req.user는 auth 미들웨어에서 설정됨
+      const userId = req.user?.id;
       const { id } = req.params;
+      const ownershipResult = await verifyConversationOwnership(id, userId);
       
-      // Check if conversation exists first
-      const existingConversation = await storage.getConversation(id);
-      if (!existingConversation) {
-        return res.status(404).json({ error: "Conversation not found" });
+      if ('error' in ownershipResult) {
+        return res.status(ownershipResult.status).json({ error: ownershipResult.error });
       }
       
       // Validate selection data using Zod schema
@@ -261,9 +286,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
   
-  app.get("/api/conversations/:id/persona-selections", async (req, res) => {
+  app.get("/api/conversations/:id/persona-selections", isAuthenticated, async (req, res) => {
     try {
+      // @ts-ignore - req.user는 auth 미들웨어에서 설정됨
+      const userId = req.user?.id;
       const { id } = req.params;
+      const ownershipResult = await verifyConversationOwnership(id, userId);
+      
+      if ('error' in ownershipResult) {
+        return res.status(ownershipResult.status).json({ error: ownershipResult.error });
+      }
+      
       const selections = await storage.getPersonaSelections(id);
       res.json(selections);
     } catch (error) {
@@ -273,9 +306,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // 순차 계획 전체를 한번에 저장하는 엔드포인트
-  app.post("/api/conversations/:id/sequence-plan", async (req, res) => {
+  app.post("/api/conversations/:id/sequence-plan", isAuthenticated, async (req, res) => {
     try {
+      // @ts-ignore - req.user는 auth 미들웨어에서 설정됨
+      const userId = req.user?.id;
       const { id } = req.params;
+      const ownershipResult = await verifyConversationOwnership(id, userId);
+      
+      if ('error' in ownershipResult) {
+        return res.status(ownershipResult.status).json({ error: ownershipResult.error });
+      }
       
       // Check if conversation exists first
       const existingConversation = await storage.getConversation(id);
@@ -315,14 +355,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
   
   // Strategy Choice APIs
-  app.post("/api/conversations/:id/strategy-choices", async (req, res) => {
+  app.post("/api/conversations/:id/strategy-choices", isAuthenticated, async (req, res) => {
     try {
+      // @ts-ignore - req.user는 auth 미들웨어에서 설정됨
+      const userId = req.user?.id;
       const { id } = req.params;
+      const ownershipResult = await verifyConversationOwnership(id, userId);
       
-      // Check if conversation exists first
-      const existingConversation = await storage.getConversation(id);
-      if (!existingConversation) {
-        return res.status(404).json({ error: "Conversation not found" });
+      if ('error' in ownershipResult) {
+        return res.status(ownershipResult.status).json({ error: ownershipResult.error });
       }
       
       // Validate choice data using Zod schema
@@ -342,9 +383,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
   
-  app.get("/api/conversations/:id/strategy-choices", async (req, res) => {
+  app.get("/api/conversations/:id/strategy-choices", isAuthenticated, async (req, res) => {
     try {
+      // @ts-ignore - req.user는 auth 미들웨어에서 설정됨
+      const userId = req.user?.id;
       const { id } = req.params;
+      const ownershipResult = await verifyConversationOwnership(id, userId);
+      
+      if ('error' in ownershipResult) {
+        return res.status(ownershipResult.status).json({ error: ownershipResult.error });
+      }
+      
       const choices = await storage.getStrategyChoices(id);
       res.json(choices);
     } catch (error) {
@@ -354,9 +403,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
   
   // Sequence Analysis APIs
-  app.post("/api/conversations/:id/sequence-analysis", async (req, res) => {
+  app.post("/api/conversations/:id/sequence-analysis", isAuthenticated, async (req, res) => {
     try {
+      // @ts-ignore - req.user는 auth 미들웨어에서 설정됨
+      const userId = req.user?.id;
       const { id } = req.params;
+      const ownershipResult = await verifyConversationOwnership(id, userId);
+      
+      if ('error' in ownershipResult) {
+        return res.status(ownershipResult.status).json({ error: ownershipResult.error });
+      }
       
       // Check if conversation exists first
       const existingConversation = await storage.getConversation(id);
@@ -381,9 +437,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
   
-  app.get("/api/conversations/:id/sequence-analysis", async (req, res) => {
+  app.get("/api/conversations/:id/sequence-analysis", isAuthenticated, async (req, res) => {
     try {
+      // @ts-ignore - req.user는 auth 미들웨어에서 설정됨
+      const userId = req.user?.id;
       const { id } = req.params;
+      const ownershipResult = await verifyConversationOwnership(id, userId);
+      
+      if ('error' in ownershipResult) {
+        return res.status(ownershipResult.status).json({ error: ownershipResult.error });
+      }
+      
       const analysis = await storage.getSequenceAnalysis(id);
       
       if (!analysis) {
@@ -398,9 +462,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Strategy Reflection API - 사용자의 전략 회고 저장
-  app.post("/api/conversations/:id/strategy-reflection", async (req, res) => {
+  app.post("/api/conversations/:id/strategy-reflection", isAuthenticated, async (req, res) => {
     try {
+      // @ts-ignore - req.user는 auth 미들웨어에서 설정됨
+      const userId = req.user?.id;
       const { id } = req.params;
+      const ownershipResult = await verifyConversationOwnership(id, userId);
+      
+      if ('error' in ownershipResult) {
+        return res.status(ownershipResult.status).json({ error: ownershipResult.error });
+      }
+
       const { strategyReflection, conversationOrder } = req.body;
       
       if (!strategyReflection || typeof strategyReflection !== 'string') {
@@ -448,15 +520,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Generate feedback for completed conversation
-  app.post("/api/conversations/:id/feedback", async (req, res) => {
+  app.post("/api/conversations/:id/feedback", isAuthenticated, async (req, res) => {
     try {
+      // @ts-ignore - req.user는 auth 미들웨어에서 설정됨
+      const userId = req.user?.id;
       console.log(`피드백 생성 요청: ${req.params.id}`);
       
-      const conversation = await storage.getConversation(req.params.id);
-      if (!conversation) {
-        console.log(`대화를 찾을 수 없음: ${req.params.id}`);
-        return res.status(404).json({ error: "Conversation not found" });
+      const ownershipResult = await verifyConversationOwnership(req.params.id, userId);
+      
+      if ('error' in ownershipResult) {
+        return res.status(ownershipResult.status).json({ error: ownershipResult.error });
       }
+      
+      const conversation = ownershipResult.conversation;
 
       console.log(`대화 상태: ${conversation.status}, 턴 수: ${conversation.turnCount}`);
 
@@ -645,8 +721,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Get feedback for conversation
-  app.get("/api/conversations/:id/feedback", async (req, res) => {
+  app.get("/api/conversations/:id/feedback", isAuthenticated, async (req, res) => {
     try {
+      // @ts-ignore - req.user는 auth 미들웨어에서 설정됨
+      const userId = req.user?.id;
+      const ownershipResult = await verifyConversationOwnership(req.params.id, userId);
+      
+      if ('error' in ownershipResult) {
+        return res.status(ownershipResult.status).json({ error: ownershipResult.error });
+      }
+      
       const feedback = await storage.getFeedbackByConversationId(req.params.id);
       if (!feedback) {
         return res.status(404).json({ error: "Feedback not found" });
