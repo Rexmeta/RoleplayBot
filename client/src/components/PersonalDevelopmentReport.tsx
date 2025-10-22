@@ -32,6 +32,11 @@ export default function PersonalDevelopmentReport({
   const { toast } = useToast();
   const [showDetailedFeedback, setShowDetailedFeedback] = useState(true); // 애니메이션 없이 바로 표시
 
+  // 사용자의 모든 대화 기록 조회
+  const { data: userConversations = [] } = useQuery<any[]>({
+    queryKey: ['/api/conversations'],
+  });
+
   // 먼저 피드백이 존재하는지 확인하고, 없으면 자동으로 생성 시도
   const { data: feedback, isLoading, error, refetch } = useQuery<Feedback>({
     queryKey: ["/api/conversations", conversationId, "feedback"],
@@ -58,6 +63,66 @@ export default function PersonalDevelopmentReport({
   });
 
 
+
+  // 다음 페르소나 확인 (서버에서 온 scenario는 personas가 객체 배열)
+  const getNextPersona = () => {
+    const personasArray = (scenario as any).personas;
+    if (!personasArray || personasArray.length <= 1) return null;
+    
+    const currentIndex = personasArray.findIndex((p: any) => p.id === persona.id);
+    if (currentIndex === -1 || currentIndex === personasArray.length - 1) return null;
+    
+    return personasArray[currentIndex + 1];
+  };
+
+  const nextPersona = getNextPersona();
+
+  // 다음 대화 상대와 대화 생성
+  const createNextConversationMutation = useMutation({
+    mutationFn: async () => {
+      if (!nextPersona) throw new Error("다음 대화 상대가 없습니다");
+      
+      const response = await apiRequest('POST', '/api/conversations', {
+        scenarioId: scenario.id,
+        personaId: nextPersona.id,
+        maxTurns: 3,
+      });
+
+      if (!response.ok) {
+        throw new Error('대화 생성 실패');
+      }
+
+      return response.json();
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ['/api/conversations'] });
+      window.location.href = `/chat/${data.id}`;
+    },
+    onError: (error) => {
+      toast({
+        title: "오류",
+        description: `다음 대화를 생성할 수 없습니다: ${error.message}`,
+        variant: "destructive"
+      });
+    }
+  });
+
+  const handleNextConversation = () => {
+    if (!nextPersona) return;
+    
+    // 이미 다음 페르소나와의 대화가 있는지 확인
+    const existingConversation = userConversations.find(
+      (conv: any) => conv.scenarioId === scenario.id && conv.personaId === nextPersona.id
+    );
+
+    if (existingConversation) {
+      // 이미 대화가 있으면 그 대화로 이동
+      window.location.href = `/chat/${existingConversation.id}`;
+    } else {
+      // 없으면 새로 생성
+      createNextConversationMutation.mutate();
+    }
+  };
 
   const generateFeedbackMutation = useMutation({
     mutationFn: async () => {
@@ -726,6 +791,17 @@ export default function PersonalDevelopmentReport({
 
       {/* 액션 버튼 */}
       <div className="flex justify-center space-x-4 pt-6 border-t border-slate-200 no-print">
+        {nextPersona && (
+          <Button 
+            onClick={handleNextConversation}
+            className="min-w-[120px] bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700"
+            data-testid="next-persona-button"
+            disabled={createNextConversationMutation.isPending}
+          >
+            <i className="fas fa-arrow-right mr-2"></i>
+            {createNextConversationMutation.isPending ? '생성 중...' : `다음 대화 상대: ${nextPersona.name}`}
+          </Button>
+        )}
         <Button 
           onClick={onSelectNewScenario}
           variant="outline"

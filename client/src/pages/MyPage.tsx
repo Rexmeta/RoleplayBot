@@ -25,6 +25,11 @@ export default function MyPage() {
     enabled: !!user,
   });
 
+  // 시나리오 데이터 조회
+  const { data: scenarios = [] } = useQuery<any[]>({
+    queryKey: ['/api/scenarios'],
+  });
+
   // 통계 계산
   const stats = {
     totalConversations: conversations.length,
@@ -45,6 +50,17 @@ export default function MyPage() {
     if (score >= 80) return "우수";
     if (score >= 60) return "보통";
     return "개선 필요";
+  };
+
+  // 대화 제목 생성: "시나리오 제목 + 페르소나 이름"
+  const getConversationTitle = (conversation: Conversation) => {
+    const scenario = scenarios.find(s => s.id === conversation.scenarioId);
+    if (!scenario) return conversation.scenarioId || '일반 대화';
+    
+    const persona = scenario.personas?.find((p: any) => p.id === conversation.personaId);
+    if (!persona) return scenario.title || '일반 대화';
+    
+    return `${scenario.title} - ${persona.name}`;
   };
 
   if (!user) {
@@ -143,7 +159,7 @@ export default function MyPage() {
                           <div className="flex items-center justify-between mb-2">
                             <div className="flex items-center gap-3">
                               <h3 className="font-semibold text-slate-900">
-                                {conversation.scenarioId || '일반 대화'}
+                                {getConversationTitle(conversation)}
                               </h3>
                               <Badge variant={conversation.status === 'completed' ? 'default' : 'secondary'}>
                                 {conversation.status === 'completed' ? '완료' : '진행중'}
