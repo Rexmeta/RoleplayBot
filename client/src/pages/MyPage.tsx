@@ -153,19 +153,56 @@ export default function MyPage() {
                           </div>
                           
                           {conversation.status === 'completed' && relatedFeedback && (
-                            <div className="flex items-center gap-4 text-sm">
-                              <div className="flex items-center gap-1">
-                                <Star className="w-4 h-4 text-yellow-500" />
-                                <span className={`font-medium ${getScoreColor(relatedFeedback.overallScore)}`}>
-                                  {relatedFeedback.overallScore}점
-                                </span>
-                                <Badge variant="outline" className="ml-1">
-                                  {getScoreBadge(relatedFeedback.overallScore)}
-                                </Badge>
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-4 text-sm">
+                                <div className="flex items-center gap-1">
+                                  <Star className="w-4 h-4 text-yellow-500" />
+                                  <span className={`font-medium ${getScoreColor(relatedFeedback.overallScore)}`}>
+                                    {relatedFeedback.overallScore}점
+                                  </span>
+                                  <Badge variant="outline" className="ml-1">
+                                    {getScoreBadge(relatedFeedback.overallScore)}
+                                  </Badge>
+                                </div>
+                                <div className="text-slate-600">
+                                  메시지 {conversation.messages.length}개
+                                </div>
                               </div>
-                              <div className="text-slate-600">
+                              
+                              <div className="flex gap-2">
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => window.location.href = `/chat/${conversation.id}`}
+                                  data-testid={`view-conversation-${conversation.id}`}
+                                >
+                                  대화 보기
+                                </Button>
+                                <Button
+                                  variant="default"
+                                  size="sm"
+                                  onClick={() => window.location.href = `/feedback/${conversation.id}`}
+                                  data-testid={`view-feedback-${conversation.id}`}
+                                >
+                                  피드백 보기
+                                </Button>
+                              </div>
+                            </div>
+                          )}
+                          
+                          {conversation.status !== 'completed' && (
+                            <div className="flex items-center justify-between mt-2">
+                              <div className="text-sm text-slate-600">
                                 메시지 {conversation.messages.length}개
                               </div>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => window.location.href = `/chat/${conversation.id}`}
+                                data-testid={`continue-conversation-${conversation.id}`}
+                              >
+                                대화 이어하기
+                              </Button>
                             </div>
                           )}
                         </div>
