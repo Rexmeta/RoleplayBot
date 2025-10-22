@@ -60,8 +60,15 @@ export default function MyPage() {
     const persona = scenario.personas?.find((p: any) => p.id === conversation.personaId);
     if (!persona) return scenario.title || '일반 대화';
     
-    const personaInfo = `${persona.department} ${persona.name} ${persona.role}${persona.mbti ? ` (${persona.mbti})` : ''}`;
-    return `${scenario.title} - ${personaInfo}`;
+    // undefined 방지: 각 필드가 존재하는 경우만 포함
+    const parts = [];
+    if (persona.department) parts.push(persona.department);
+    if (persona.name) parts.push(persona.name);
+    if (persona.role) parts.push(persona.role);
+    const personaInfo = parts.join(' ');
+    const mbtiInfo = persona.mbti ? ` (${persona.mbti})` : '';
+    
+    return `${scenario.title} - ${personaInfo}${mbtiInfo}`;
   };
 
   // 대화 리스트를 최근 날짜 순으로 정렬
@@ -159,8 +166,17 @@ export default function MyPage() {
                       return (
                         <div 
                           key={conversation.id} 
-                          className="border rounded-lg p-4 hover:bg-slate-50 transition-colors"
+                          className="border rounded-lg p-4 hover:bg-slate-50 transition-colors cursor-pointer"
                           data-testid={`conversation-${conversation.id}`}
+                          onClick={() => {
+                            // 진행 중인 대화는 대화창으로, 완료된 대화는 대화 기록으로
+                            if (conversation.status === 'completed') {
+                              window.location.href = `/chat/${conversation.id}`;
+                            } else {
+                              // 진행 중인 대화는 ChatWindow로 이동하여 이어하기
+                              window.location.href = `/scenario/${conversation.scenarioId}/persona/${conversation.personaId}/chat/${conversation.id}`;
+                            }
+                          }}
                         >
                           <div className="flex items-center justify-between mb-2">
                             <div className="flex items-center gap-3">
@@ -198,7 +214,10 @@ export default function MyPage() {
                                 <Button
                                   variant="outline"
                                   size="sm"
-                                  onClick={() => window.location.href = `/chat/${conversation.id}`}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    window.location.href = `/chat/${conversation.id}`;
+                                  }}
                                   data-testid={`view-conversation-${conversation.id}`}
                                 >
                                   대화 보기
@@ -206,7 +225,10 @@ export default function MyPage() {
                                 <Button
                                   variant="default"
                                   size="sm"
-                                  onClick={() => window.location.href = `/feedback/${conversation.id}`}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    window.location.href = `/feedback/${conversation.id}`;
+                                  }}
                                   data-testid={`view-feedback-${conversation.id}`}
                                 >
                                   피드백 보기
@@ -218,12 +240,15 @@ export default function MyPage() {
                           {conversation.status !== 'completed' && (
                             <div className="flex items-center justify-between mt-2">
                               <div className="text-sm text-slate-600">
-                                메시지 {conversation.messages.length}개
+                                메시지 {conversation.messages.length}개 · 클릭하여 대화 이어하기
                               </div>
                               <Button
                                 variant="outline"
                                 size="sm"
-                                onClick={() => window.location.href = `/chat/${conversation.id}`}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  window.location.href = `/scenario/${conversation.scenarioId}/persona/${conversation.personaId}/chat/${conversation.id}`;
+                                }}
                                 data-testid={`continue-conversation-${conversation.id}`}
                               >
                                 대화 이어하기

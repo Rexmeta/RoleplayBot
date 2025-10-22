@@ -66,7 +66,7 @@ export default function ConversationView() {
               대화 기록 - {scenario?.title || conversation.scenarioId || '시나리오'}
             </CardTitle>
             <div className="text-sm text-slate-600">
-              대화 상대: {persona ? `${persona.department} ${persona.name} ${persona.role}` : '알 수 없음'}
+              대화 상대: {persona ? [persona.department, persona.name, persona.role].filter(Boolean).join(' ') : '알 수 없음'}
             </div>
             <div className="text-xs text-slate-500">
               {format(new Date(conversation.createdAt), 'yyyy년 MM월 dd일 HH:mm')}
@@ -89,7 +89,7 @@ export default function ConversationView() {
                   >
                     {message.sender !== 'user' && (
                       <div className="font-semibold text-sm mb-1">
-                        {persona ? `${persona.department} ${persona.name} ${persona.role}` : '대화 상대'}
+                        {persona ? [persona.department, persona.name, persona.role].filter(Boolean).join(' ') : '대화 상대'}
                       </div>
                     )}
                     <div className="whitespace-pre-wrap">{message.message}</div>
