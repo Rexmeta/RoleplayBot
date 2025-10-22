@@ -47,15 +47,18 @@ export default function MyPage() {
     return "개선 필요";
   };
 
-  // 임시로 더미 사용자 데이터 사용
-  const typedUser: User = {
-    id: "temp-user",
-    email: "user@example.com",
-    name: "테스트 사용자",
-    password: "",
-    createdAt: null,
-    updatedAt: null,
-  };
+  if (!user) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100">
+        <div className="text-center">
+          <p className="text-slate-600">로그인이 필요합니다.</p>
+          <Button onClick={() => window.location.href = '/home'} className="mt-4">
+            홈으로 이동
+          </Button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-slate-50">
@@ -65,16 +68,16 @@ export default function MyPage() {
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
               <img
-                src={`https://ui-avatars.com/api/?name=${encodeURIComponent(typedUser.name || typedUser.email || 'User')}&background=6366f1&color=fff&size=80`}
+                src={`https://ui-avatars.com/api/?name=${encodeURIComponent(user.name || user.email || 'User')}&background=6366f1&color=fff&size=80`}
                 alt="프로필"
                 className="w-16 h-16 rounded-full object-cover"
                 data-testid="profile-image"
               />
               <div>
                 <h1 className="text-2xl font-bold text-slate-900" data-testid="user-name">
-                  {typedUser.name || typedUser.email?.split('@')[0] || '사용자'}님의 MyPage
+                  {user.name || user.email?.split('@')[0] || '사용자'}님의 MyPage
                 </h1>
-                <p className="text-slate-600" data-testid="user-email">{typedUser.email}</p>
+                <p className="text-slate-600" data-testid="user-email">{user.email}</p>
               </div>
             </div>
             <Button
