@@ -1,7 +1,6 @@
 import { useRoute } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import { type Conversation, type ConversationMessage } from "@shared/schema";
-import { getComplexScenarioById, getPersonaById } from "@/lib/scenario-system";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, MessageSquare } from "lucide-react";
@@ -11,12 +10,19 @@ export default function ConversationView() {
   const [, params] = useRoute("/chat/:conversationId");
   const conversationId = params?.conversationId;
 
-  const { data: conversation, isLoading } = useQuery<Conversation>({
+  const { data: conversation, isLoading: conversationLoading } = useQuery<Conversation>({
     queryKey: ["/api/conversations", conversationId],
     enabled: !!conversationId,
   });
 
-  if (isLoading || !conversation) {
+  // 서버에서 모든 시나리오 데이터 가져오기
+  const { data: scenarios, isLoading: scenariosLoading } = useQuery<any[]>({
+    queryKey: ["/api/scenarios"],
+  });
+
+  const isLoading = conversationLoading || scenariosLoading;
+
+  if (isLoading || !conversation || !scenarios) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100">
         <div className="text-center">
@@ -27,8 +33,9 @@ export default function ConversationView() {
     );
   }
 
-  const scenario = getComplexScenarioById(conversation.scenarioId || "");
-  const persona = getPersonaById(conversation.personaId || "");
+  // 서버 데이터에서 시나리오와 페르소나 찾기
+  const scenario = scenarios.find(s => s.id === conversation.scenarioId);
+  const persona = scenario?.personas?.find((p: any) => p.id === conversation.personaId);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
@@ -56,10 +63,10 @@ export default function ConversationView() {
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <MessageSquare className="w-5 h-5" />
-              대화 기록 - {persona?.name || '알 수 없음'}
+              대화 기록 - {scenario?.title || conversation.scenarioId || '시나리오'}
             </CardTitle>
             <div className="text-sm text-slate-600">
-              {scenario?.title || conversation.scenarioId}
+              대화 상대: {persona ? `${persona.department} ${persona.name} ${persona.role}` : '알 수 없음'}
             </div>
             <div className="text-xs text-slate-500">
               {format(new Date(conversation.createdAt), 'yyyy년 MM월 dd일 HH:mm')}
@@ -82,7 +89,7 @@ export default function ConversationView() {
                   >
                     {message.sender !== 'user' && (
                       <div className="font-semibold text-sm mb-1">
-                        {persona?.name || 'AI'}
+                        {persona ? `${persona.department} ${persona.name} ${persona.role}` : '대화 상대'}
                       </div>
                     )}
                     <div className="whitespace-pre-wrap">{message.message}</div>

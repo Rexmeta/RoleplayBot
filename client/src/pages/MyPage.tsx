@@ -52,7 +52,7 @@ export default function MyPage() {
     return "개선 필요";
   };
 
-  // 대화 제목 생성: "시나리오 제목 + 페르소나 이름"
+  // 대화 제목 생성: "시나리오 제목 + 페르소나 소속, 이름, 직급, MBTI"
   const getConversationTitle = (conversation: Conversation) => {
     const scenario = scenarios.find(s => s.id === conversation.scenarioId);
     if (!scenario) return conversation.scenarioId || '일반 대화';
@@ -60,8 +60,14 @@ export default function MyPage() {
     const persona = scenario.personas?.find((p: any) => p.id === conversation.personaId);
     if (!persona) return scenario.title || '일반 대화';
     
-    return `${scenario.title} - ${persona.name}`;
+    const personaInfo = `${persona.department} ${persona.name} ${persona.role}${persona.mbti ? ` (${persona.mbti})` : ''}`;
+    return `${scenario.title} - ${personaInfo}`;
   };
+
+  // 대화 리스트를 최근 날짜 순으로 정렬
+  const sortedConversations = [...conversations].sort((a, b) => 
+    new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+  );
 
   if (!user) {
     return (
@@ -148,7 +154,7 @@ export default function MyPage() {
                   </div>
                 ) : (
                   <div className="space-y-4">
-                    {conversations.slice(0, 10).map((conversation: Conversation) => {
+                    {sortedConversations.slice(0, 10).map((conversation: Conversation) => {
                       const relatedFeedback = feedbacks.find((f: Feedback) => f.conversationId === conversation.id);
                       return (
                         <div 
