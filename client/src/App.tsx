@@ -11,6 +11,8 @@ import MyPage from "@/pages/MyPage";
 import AdminDashboard from "@/pages/admin-dashboard";
 import AdminManagement from "@/pages/admin-management";
 import AIGeneratorPage from "@/pages/ai-generator";
+import ConversationView from "@/pages/ConversationView";
+import FeedbackView from "@/pages/FeedbackView";
 import NotFound from "@/pages/not-found";
 import { AuthPage } from "@/pages/AuthPage";
 
@@ -40,6 +42,8 @@ function ProtectedRouter() {
       <Route path="/" component={Intro} />
       <Route path="/home" component={Home} />
       <Route path="/mypage" component={MyPage} />
+      <Route path="/chat/:conversationId" component={ConversationView} />
+      <Route path="/feedback/:conversationId" component={FeedbackView} />
       <Route path="/admin" component={AdminDashboard} />
       <Route path="/admin-dashboard" component={AdminDashboard} />
       <Route path="/admin-management" component={AdminManagement} />
