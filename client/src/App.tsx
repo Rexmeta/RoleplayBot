@@ -8,6 +8,7 @@ import { useAuth } from "@/hooks/useAuth";
 import Intro from "@/pages/intro";
 import Home from "@/pages/home";
 import MyPage from "@/pages/MyPage";
+import Analytics from "@/pages/Analytics";
 import AdminDashboard from "@/pages/admin-dashboard";
 import AdminManagement from "@/pages/admin-management";
 import AIGeneratorPage from "@/pages/ai-generator";
@@ -42,6 +43,7 @@ function ProtectedRouter() {
       <Route path="/" component={Intro} />
       <Route path="/home" component={Home} />
       <Route path="/mypage" component={MyPage} />
+      <Route path="/analytics" component={Analytics} />
       <Route path="/chat/:conversationId" component={ConversationView} />
       <Route path="/feedback/:conversationId" component={FeedbackView} />
       <Route path="/admin" component={AdminDashboard} />

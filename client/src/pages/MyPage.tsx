@@ -4,7 +4,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { CalendarDays, Star, TrendingUp, MessageSquare, Award, History } from "lucide-react";
+import { CalendarDays, Star, TrendingUp, MessageSquare, Award, History, BarChart3 } from "lucide-react";
+import { Link } from "wouter";
 import { useAuth } from "@/hooks/useAuth";
 import { type Conversation, type Feedback, type User } from "@shared/schema";
 import { format } from "date-fns";
@@ -109,13 +110,25 @@ export default function MyPage() {
                 <p className="text-slate-600" data-testid="user-email">{user.email}</p>
               </div>
             </div>
-            <Button
-              onClick={() => window.location.href = '/home'}
-              variant="outline"
-              data-testid="back-to-home-button"
-            >
-              홈으로 돌아가기
-            </Button>
+            <div className="flex gap-3">
+              <Link href="/analytics">
+                <Button
+                  variant="default"
+                  className="flex items-center gap-2"
+                  data-testid="analytics-button"
+                >
+                  <BarChart3 className="w-4 h-4" />
+                  종합 분석
+                </Button>
+              </Link>
+              <Button
+                onClick={() => window.location.href = '/home'}
+                variant="outline"
+                data-testid="back-to-home-button"
+              >
+                홈으로 돌아가기
+              </Button>
+            </div>
           </div>
         </div>
       </header>
@@ -312,6 +325,30 @@ export default function MyPage() {
                 </CardContent>
               </Card>
             </div>
+
+            {/* 종합 분석 안내 */}
+            {stats.totalFeedbacks > 0 && (
+              <Card className="bg-gradient-to-r from-blue-50 to-indigo-50 border-blue-200">
+                <CardContent className="pt-6">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h3 className="text-lg font-semibold text-slate-900 mb-2 flex items-center gap-2">
+                        <BarChart3 className="w-5 h-5 text-blue-600" />
+                        전체 이력을 종합한 상세 분석 리포트
+                      </h3>
+                      <p className="text-slate-600 text-sm">
+                        카테고리별 평균, 성장 추이, 강점/약점 패턴을 확인하고 맞춤형 개선 방향을 받아보세요.
+                      </p>
+                    </div>
+                    <Link href="/analytics">
+                      <Button size="lg" data-testid="view-analytics-button">
+                        종합 분석 보기
+                      </Button>
+                    </Link>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
 
             {/* 최근 피드백 */}
             <Card>

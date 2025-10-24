@@ -741,6 +741,131 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // User Analytics - 사용자 전체 피드백 종합 분석
+  app.get("/api/analytics/summary", isAuthenticated, async (req, res) => {
+    try {
+      // @ts-ignore - req.user는 auth 미들웨어에서 설정됨
+      const userId = req.user?.id;
+      
+      // 사용자의 모든 피드백 가져오기
+      const userFeedbacks = await storage.getUserFeedbacks(userId);
+      
+      if (userFeedbacks.length === 0) {
+        return res.json({
+          totalSessions: 0,
+          averageScore: 0,
+          categoryAverages: {},
+          scoreHistory: [],
+          strengths: [],
+          improvements: [],
+          overallGrade: 'N/A',
+          progressTrend: 'neutral'
+        });
+      }
+      
+      // 1. 전체 평균 스코어 계산
+      const averageScore = Math.round(
+        userFeedbacks.reduce((acc, f) => acc + f.overallScore, 0) / userFeedbacks.length
+      );
+      
+      // 2. 카테고리별 평균 점수 계산
+      const categoryTotals = {
+        clarityLogic: 0,
+        listeningEmpathy: 0,
+        appropriatenessAdaptability: 0,
+        persuasivenessImpact: 0,
+        strategicCommunication: 0,
+      };
+      
+      userFeedbacks.forEach(feedback => {
+        const scores = (feedback.detailedFeedback as any).scores || {};
+        categoryTotals.clarityLogic += scores.clarityLogic || 0;
+        categoryTotals.listeningEmpathy += scores.listeningEmpathy || 0;
+        categoryTotals.appropriatenessAdaptability += scores.appropriatenessAdaptability || 0;
+        categoryTotals.persuasivenessImpact += scores.persuasivenessImpact || 0;
+        categoryTotals.strategicCommunication += scores.strategicCommunication || 0;
+      });
+      
+      const categoryAverages = {
+        clarityLogic: Number((categoryTotals.clarityLogic / userFeedbacks.length).toFixed(2)),
+        listeningEmpathy: Number((categoryTotals.listeningEmpathy / userFeedbacks.length).toFixed(2)),
+        appropriatenessAdaptability: Number((categoryTotals.appropriatenessAdaptability / userFeedbacks.length).toFixed(2)),
+        persuasivenessImpact: Number((categoryTotals.persuasivenessImpact / userFeedbacks.length).toFixed(2)),
+        strategicCommunication: Number((categoryTotals.strategicCommunication / userFeedbacks.length).toFixed(2)),
+      };
+      
+      // 3. 시간순 스코어 이력 (성장 추이 분석용)
+      const scoreHistory = userFeedbacks
+        .map(f => ({
+          date: f.createdAt.toISOString(),
+          score: f.overallScore,
+          conversationId: f.conversationId
+        }))
+        .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+      
+      // 4. 강점/약점 패턴 분석 (반복되는 항목 추출)
+      const allStrengths = userFeedbacks.flatMap(f => 
+        ((f.detailedFeedback as any).strengths || []) as string[]
+      );
+      const allImprovements = userFeedbacks.flatMap(f => 
+        ((f.detailedFeedback as any).improvements || []) as string[]
+      );
+      
+      // 빈도수 계산 함수
+      const getTopItems = (items: string[], limit: number = 3) => {
+        const frequency = items.reduce((acc, item) => {
+          acc[item] = (acc[item] || 0) + 1;
+          return acc;
+        }, {} as Record<string, number>);
+        
+        return Object.entries(frequency)
+          .sort((a, b) => b[1] - a[1])
+          .slice(0, limit)
+          .map(([item, count]) => ({ text: item, count }));
+      };
+      
+      const topStrengths = getTopItems(allStrengths, 5);
+      const topImprovements = getTopItems(allImprovements, 5);
+      
+      // 5. 성장 추이 판단 (최근 5개 vs 이전)
+      let progressTrend: 'improving' | 'stable' | 'declining' | 'neutral' = 'neutral';
+      if (scoreHistory.length >= 6) {
+        const recentScores = scoreHistory.slice(-5).map(s => s.score);
+        const olderScores = scoreHistory.slice(0, -5).map(s => s.score);
+        const recentAvg = recentScores.reduce((a, b) => a + b, 0) / recentScores.length;
+        const olderAvg = olderScores.reduce((a, b) => a + b, 0) / olderScores.length;
+        
+        if (recentAvg > olderAvg + 5) progressTrend = 'improving';
+        else if (recentAvg < olderAvg - 5) progressTrend = 'declining';
+        else progressTrend = 'stable';
+      }
+      
+      // 6. 종합 등급 계산
+      const getOverallGrade = (score: number) => {
+        if (score >= 90) return 'A+';
+        if (score >= 80) return 'A';
+        if (score >= 70) return 'B';
+        if (score >= 60) return 'C';
+        return 'D';
+      };
+      
+      res.json({
+        totalSessions: userFeedbacks.length,
+        averageScore,
+        categoryAverages,
+        scoreHistory,
+        topStrengths,
+        topImprovements,
+        overallGrade: getOverallGrade(averageScore),
+        progressTrend,
+        lastSessionDate: userFeedbacks[userFeedbacks.length - 1]?.createdAt.toISOString(),
+      });
+    } catch (error) {
+      console.error("Analytics summary error:", error);
+      res.status(500).json({ error: "Failed to generate analytics summary" });
+    }
+  });
+
   // Admin Dashboard Analytics Routes
   app.get("/api/admin/analytics/overview", async (req, res) => {
     try {
