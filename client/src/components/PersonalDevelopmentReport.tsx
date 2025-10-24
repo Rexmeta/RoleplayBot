@@ -37,24 +37,27 @@ export default function PersonalDevelopmentReport({
     queryKey: ['/api/conversations'],
   });
 
-  // 먼저 피드백이 존재하는지 확인하고, 없으면 자동으로 생성 시도
+  // 피드백 조회 - 한번 가져온 피드백은 캐시에서 사용 (피드백은 변경되지 않음)
   const { data: feedback, isLoading, error, refetch } = useQuery<Feedback>({
     queryKey: ["/api/conversations", conversationId, "feedback"],
     enabled: !!conversationId,
     retry: false, // 404 에러 시 재시도하지 않음
-    staleTime: 0,
+    staleTime: Infinity, // 피드백은 한번 생성되면 변경되지 않으므로 영구 캐시
+    gcTime: Infinity, // 캐시를 영구 보관
     queryFn: async () => {
       try {
         const response = await fetch(`/api/conversations/${conversationId}/feedback`);
         if (response.status === 404) {
-          // 피드백이 없으면 자동으로 생성 시도
-          console.log("피드백이 없음, 자동 생성 시도...");
+          // 피드백이 없음을 명확하게 표시
+          console.log("피드백이 아직 생성되지 않음");
           throw new Error("FEEDBACK_NOT_FOUND");
         }
         if (!response.ok) {
           throw new Error(`HTTP ${response.status}`);
         }
-        return response.json();
+        const data = await response.json();
+        console.log("피드백 로드 완료 (캐시에 저장됨)");
+        return data;
       } catch (error) {
         console.error("피드백 조회 오류:", error);
         throw error;
@@ -152,21 +155,13 @@ export default function PersonalDevelopmentReport({
       }
     },
     onSuccess: (data) => {
-      console.log("피드백 생성 완료, 페이지 새로고침");
-      // 성공 시 시도 플래그 제거
-      const attemptKey = `feedback_attempt_${conversationId}`;
-      localStorage.removeItem(attemptKey);
-      // 성공 후 자동으로 새로고침하여 최신 데이터 가져오기
-      setTimeout(() => {
-        queryClient.invalidateQueries({ queryKey: [`/api/conversations/${conversationId}/feedback`] });
-        refetch();
-      }, 1000);
+      console.log("피드백 생성 완료, 캐시 업데이트");
+      // 캐시 무효화 후 자동으로 다시 가져오기
+      queryClient.invalidateQueries({ queryKey: ["/api/conversations", conversationId, "feedback"] });
+      refetch();
     },
     onError: (error) => {
-      console.error("Feedback generation error:", error);
-      // 에러 시에도 시도 플래그 제거 (무한 요청 방지)
-      const attemptKey = `feedback_attempt_${conversationId}`;
-      localStorage.removeItem(attemptKey);
+      console.error("피드백 생성 오류:", error);
       toast({
         title: "오류",
         description: `피드백을 생성할 수 없습니다: ${error.message}`,
@@ -186,35 +181,57 @@ export default function PersonalDevelopmentReport({
     );
   }
 
-  // 피드백이 없고 아직 생성 중이 아니며, 대화가 완료된 경우에만 자동으로 생성 시도
-  // 무한 요청 방지를 위해 추가 조건 확인
-  if (error && error.message === "FEEDBACK_NOT_FOUND" && !generateFeedbackMutation.isPending) {
-    // 한 번만 시도하도록 제한 (로컬 스토리지 사용)
-    const attemptKey = `feedback_attempt_${conversationId}`;
-    const hasAttempted = localStorage.getItem(attemptKey);
-    
-    if (!hasAttempted) {
-      console.log("피드백이 없음, 자동 생성 시도...");
-      localStorage.setItem(attemptKey, 'true');
-      generateFeedbackMutation.mutate();
-    }
+  // 피드백이 없는 경우 자동 생성하지 않고, 사용자가 명시적으로 생성 버튼을 클릭하도록 안내
+  // (마이페이지에서 "피드백 보기" 버튼을 누를 때마다 재생성되는 문제 방지)
+
+  // 피드백이 없는 경우 - 아직 생성되지 않았음을 안내
+  if (!feedback && !isLoading && !generateFeedbackMutation.isPending && error?.message === "FEEDBACK_NOT_FOUND") {
+    return (
+      <div className="text-center py-16" data-testid="feedback-not-found">
+        <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
+          <i className="fas fa-clipboard-list text-blue-600 text-xl"></i>
+        </div>
+        <h2 className="text-xl font-semibold text-slate-900 mb-2">피드백이 아직 생성되지 않았습니다</h2>
+        <p className="text-slate-600 mb-4">대화를 완료한 후 피드백을 생성할 수 있습니다.</p>
+        <div className="space-y-2">
+          <Button 
+            onClick={() => generateFeedbackMutation.mutate()} 
+            data-testid="generate-feedback"
+            disabled={generateFeedbackMutation.isPending}
+          >
+            {generateFeedbackMutation.isPending ? "피드백 생성 중..." : "피드백 생성하기"}
+          </Button>
+          <Button 
+            variant="outline" 
+            onClick={() => window.location.href = '/mypage'} 
+            data-testid="back-to-mypage"
+          >
+            마이페이지로 돌아가기
+          </Button>
+        </div>
+      </div>
+    );
   }
 
-  // 피드백이 없고 오류가 발생했을 때 오류 화면 표시
+  // 기타 오류가 발생한 경우
   if (!feedback && !isLoading && !generateFeedbackMutation.isPending && error && error.message !== "FEEDBACK_NOT_FOUND") {
     return (
       <div className="text-center py-16" data-testid="feedback-error">
         <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
           <i className="fas fa-exclamation-triangle text-red-600 text-xl"></i>
         </div>
-        <h2 className="text-xl font-semibold text-slate-900 mb-2">분석 보고서를 생성할 수 없습니다</h2>
-        <p className="text-slate-600 mb-4">대화가 완료되지 않았거나 오류가 발생했습니다.</p>
+        <h2 className="text-xl font-semibold text-slate-900 mb-2">오류가 발생했습니다</h2>
+        <p className="text-slate-600 mb-4">{error.message || "알 수 없는 오류가 발생했습니다."}</p>
         <div className="space-y-2">
-          <Button onClick={() => generateFeedbackMutation.mutate()} data-testid="retry-feedback">
-            분석 다시 시도
+          <Button onClick={() => refetch()} data-testid="refetch-feedback">
+            다시 시도
           </Button>
-          <Button variant="outline" onClick={() => refetch()} data-testid="refetch-feedback">
-            데이터 다시 가져오기
+          <Button 
+            variant="outline" 
+            onClick={() => window.location.href = '/mypage'} 
+            data-testid="back-to-mypage"
+          >
+            마이페이지로 돌아가기
           </Button>
         </div>
       </div>
