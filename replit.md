@@ -2,6 +2,16 @@
 
 This is an AI-powered role-playing training system for new employees, designed to help develop communication skills through interactive conversations with AI personas. The application presents various workplace scenarios where users engage in 10-turn conversations with different AI characters (senior researchers, team leaders, clients, executives), each with distinct personalities and communication challenges. Each AI response includes real-time emotion analysis with visual indicators (emojis, color-coded bubbles). After completing conversations, users receive detailed AI-generated feedback with scores, strengths, improvements, and next steps.
 
+**Recent Updates (2025-10-24)**:
+- **ANALYTICS: 종합 분석 시스템 구현** - 사용자의 모든 대화 이력을 집계하여 종합 분석 제공
+- **COMPREHENSIVE SCORING: 전체 평균 스코어 계산** - 모든 피드백 데이터를 기반으로 카테고리별 평균 점수 산출
+- **GROWTH TRACKING: 성장 추이 분석** - 시간에 따른 점수 변화를 추적하여 향상/하락/안정 추세 판단
+- **PATTERN ANALYSIS: 강점/약점 패턴 인식** - 반복적으로 나타나는 강점과 개선점을 빈도순으로 추출
+- **UI: Analytics 페이지 추가** - 종합 점수, 등급, 카테고리별 차트, 점수 이력, 패턴 분석을 시각화한 전용 페이지
+- **NAVIGATION: 마이페이지에서 종합 분석 접근** - 헤더와 학습 통계 탭에 종합 분석 링크 추가
+- **CACHE OPTIMIZATION: 피드백 무한 재생성 버그 수정** - staleTime: Infinity로 설정하여 한번 생성된 피드백은 캐시에서 로드
+- **UX: 자동 생성 제거** - 피드백이 없을 때 사용자가 명시적으로 "피드백 생성하기" 버튼을 클릭하도록 변경
+
 **Recent Updates (2025-10-22)**:
 - **SECURITY: User-scoped data isolation implemented** - All conversations and feedbacks are now filtered by authenticated user
 - **AUTHENTICATION: Complete JWT token flow** - Frontend sends Authorization header with Bearer token for all API requests
@@ -50,8 +60,8 @@ Preferred communication style: Simple, everyday language.
 - **Framework**: React with TypeScript using Vite as the build tool
 - **UI Library**: Radix UI components with shadcn/ui design system
 - **Styling**: Tailwind CSS with custom CSS variables for theming
-- **Routing**: Wouter for lightweight client-side routing
-- **State Management**: TanStack React Query for server state management
+- **Routing**: Wouter for lightweight client-side routing (routes: /, /mypage, /analytics, /chat/:id, /feedback/:id)
+- **State Management**: TanStack React Query for server state management with aggressive caching (staleTime: Infinity for immutable data)
 - **Forms**: React Hook Form with Zod validation
 
 ## Backend Architecture
@@ -63,10 +73,14 @@ Preferred communication style: Simple, everyday language.
 
 ## Data Storage Solutions
 - **ORM**: Drizzle ORM with PostgreSQL dialect
-- **Database**: PostgreSQL (configured via Drizzle but using Neon serverless driver)
-- **Schema**: Conversations table storing messages as JSON, feedbacks table with evaluation scores
-- **Development Storage**: In-memory storage implementation for development/testing
-- **Migrations**: Drizzle Kit for database schema management
+- **Database**: PostgreSQL (Neon serverless) - ALL data persisted in database
+- **Schema**: 
+  - conversations table: stores messages as JSON, linked to users via userId foreign key
+  - feedbacks table: stores evaluation scores and detailed feedback, linked to conversations
+  - users table: email-based authentication with hashed passwords
+- **Active Storage**: PostgreSQLStorage (MemStorage available for testing)
+- **Data Persistence**: All conversations and feedbacks are permanently stored in PostgreSQL database
+- **Migrations**: Drizzle Kit with `npm run db:push` (use `--force` if needed)
 
 ## Authentication and Authorization
 - **Authentication Method**: JWT (JSON Web Tokens) with Bearer token in Authorization header
@@ -97,5 +111,25 @@ Preferred communication style: Simple, everyday language.
 - `POST /api/conversations/:id/messages` - Send message and get AI response
 - `POST /api/conversations/:id/feedback` - Generate feedback for completed conversation
 - `GET /api/conversations/:id/feedback` - Retrieve existing feedback
+- `GET /api/analytics/summary` - Get comprehensive analytics summary (all user feedbacks aggregated)
 
 The system uses a shared schema between client and server, ensuring type safety across the full stack. The application supports multiple predefined scenarios with different AI personas, each designed to test specific communication skills like empathy, negotiation, and presentation abilities.
+
+## Analytics and Reporting System
+
+### Comprehensive Analytics (/analytics)
+The analytics system aggregates all user conversation history to provide:
+- **Overall Performance**: Average score across all conversations, overall grade (A+, A, B, C, D)
+- **Category Breakdown**: Average scores for 5 evaluation categories (clarityLogic, listeningEmpathy, appropriatenessAdaptability, persuasivenessImpact, strategicCommunication)
+- **Growth Tracking**: Time-series score history showing improvement/decline/stable trends
+- **Pattern Recognition**: Top 5 most frequent strengths and improvement areas based on all feedback data
+- **Progress Trends**: Automatic comparison of recent vs older sessions to determine growth trajectory
+
+### Data Aggregation Logic
+- Fetches all feedbacks for authenticated user via JOIN with conversations table (user-scoped)
+- Calculates weighted averages for each category (1-5 scale)
+- Sorts score history chronologically for trend visualization
+- Frequency analysis of feedback text to identify recurring patterns
+- Real-time analytics updates as new conversations are completed and feedback generated
+
+This comprehensive analysis improves diagnosis accuracy by considering the full history of user interactions rather than individual session results.
