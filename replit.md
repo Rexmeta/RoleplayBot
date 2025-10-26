@@ -2,6 +2,14 @@
 
 This is an AI-powered role-playing training system for new employees, designed to help develop communication skills through interactive conversations with AI personas. The application presents various workplace scenarios where users engage in 10-turn conversations with different AI characters (senior researchers, team leaders, clients, executives), each with distinct personalities and communication challenges. Each AI response includes real-time emotion analysis with visual indicators (emojis, color-coded bubbles). After completing conversations, users receive detailed AI-generated feedback with scores, strengths, improvements, and next steps.
 
+**Recent Updates (2025-10-26)**:
+- **UI REDESIGN: 시나리오별 대화 그룹화** - 마이페이지 대화 기록을 Accordion 컴포넌트로 시나리오별 그룹화하여 가독성 향상
+- **AUTO FEEDBACK: 매 대화 자동 피드백 생성** - 모든 대화 완료 시 백그라운드에서 자동으로 피드백 생성 (마지막 대화 상대가 아니어도)
+- **HELPER FUNCTION: generateAndSaveFeedback() 구현** - 중복 생성 방지 및 백그라운드 비동기 실행으로 UX 최적화
+- **STRATEGY EVALUATION: 시나리오별 전략 평가 메뉴** - 시나리오 완료 시 "전략 평가 보기" 버튼으로 대화 순서 전략 분석 제공
+- **NAVIGATION: 개선된 대화 접근** - 진행 중/완료된 대화를 명확히 구분하고 각각 적절한 페이지로 연결
+- **VISUAL FEEDBACK: 완료 상태 시각화** - 시나리오별 완료 비율 (N/M 대화 완료) 및 완료 뱃지 표시
+
 **Recent Updates (2025-10-24)**:
 - **ANALYTICS: 종합 분석 시스템 구현** - 사용자의 모든 대화 이력을 집계하여 종합 분석 제공
 - **COMPREHENSIVE SCORING: 전체 평균 스코어 계산** - 모든 피드백 데이터를 기반으로 카테고리별 평균 점수 산출
