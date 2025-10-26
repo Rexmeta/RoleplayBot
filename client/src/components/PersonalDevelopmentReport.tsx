@@ -80,6 +80,17 @@ export default function PersonalDevelopmentReport({
 
   const nextPersona = getNextPersona();
 
+  // 다음 페르소나와의 대화가 이미 완료되었는지 확인
+  const isNextConversationCompleted = () => {
+    if (!nextPersona) return false;
+    
+    const nextConversation = userConversations.find(
+      (conv: any) => conv.scenarioId === scenario.id && conv.personaId === nextPersona.id
+    );
+    
+    return nextConversation?.status === 'completed';
+  };
+
   // 다음 대화 상대와 대화 생성
   const createNextConversationMutation = useMutation({
     mutationFn: async () => {
@@ -808,7 +819,16 @@ export default function PersonalDevelopmentReport({
 
       {/* 액션 버튼 */}
       <div className="flex justify-center space-x-4 pt-6 border-t border-slate-200 no-print">
-        {nextPersona && (
+        <Button 
+          onClick={() => window.location.href = '/mypage'}
+          variant="outline"
+          className="min-w-[120px]"
+          data-testid="back-to-mypage-button"
+        >
+          <i className="fas fa-home mr-2"></i>
+          마이페이지
+        </Button>
+        {nextPersona && !isNextConversationCompleted() && (
           <Button 
             onClick={handleNextConversation}
             className="min-w-[120px] bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700"
