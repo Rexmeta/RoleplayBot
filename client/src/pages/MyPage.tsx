@@ -4,7 +4,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { CalendarDays, Star, TrendingUp, MessageSquare, Award, History, BarChart3 } from "lucide-react";
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
+import { CalendarDays, Star, TrendingUp, MessageSquare, Award, History, BarChart3, Users, Target } from "lucide-react";
 import { Link } from "wouter";
 import { useAuth } from "@/hooks/useAuth";
 import { type Conversation, type Feedback, type User } from "@shared/schema";
@@ -76,6 +77,38 @@ export default function MyPage() {
   const sortedConversations = [...conversations].sort((a, b) => 
     new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
   );
+
+  // 시나리오별로 대화 그룹화
+  const conversationsByScenario = sortedConversations.reduce((acc, conversation) => {
+    const scenarioId = conversation.scenarioId;
+    if (!acc[scenarioId]) {
+      acc[scenarioId] = [];
+    }
+    acc[scenarioId].push(conversation);
+    return acc;
+  }, {} as Record<string, typeof sortedConversations>);
+
+  // 시나리오 정보 가져오기
+  const getScenarioInfo = (scenarioId: string) => {
+    const scenario = scenarios.find(s => s.id === scenarioId);
+    return {
+      title: scenario?.title || scenarioId,
+      difficulty: scenario?.difficulty || 1,
+    };
+  };
+
+  // 시나리오의 모든 페르소나와의 대화가 완료되었는지 확인
+  const isScenarioFullyCompleted = (scenarioId: string) => {
+    const scenario = scenarios.find(s => s.id === scenarioId);
+    if (!scenario || !scenario.personas) return false;
+    
+    const scenarioConversations = conversationsByScenario[scenarioId] || [];
+    const completedPersonaIds = scenarioConversations
+      .filter(c => c.status === 'completed')
+      .map(c => c.personaId);
+    
+    return scenario.personas.length === completedPersonaIds.length;
+  };
 
   if (!user) {
     return (
@@ -153,7 +186,7 @@ export default function MyPage() {
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <MessageSquare className="w-5 h-5" />
-                  최근 대화 기록
+                  시나리오별 대화 기록
                 </CardTitle>
               </CardHeader>
               <CardContent>
@@ -173,105 +206,147 @@ export default function MyPage() {
                     </Button>
                   </div>
                 ) : (
-                  <div className="space-y-4">
-                    {sortedConversations.slice(0, 10).map((conversation: Conversation) => {
-                      const relatedFeedback = feedbacks.find((f: Feedback) => f.conversationId === conversation.id);
+                  <Accordion type="multiple" className="w-full">
+                    {Object.entries(conversationsByScenario).map(([scenarioId, scenarioConversations]) => {
+                      const scenarioInfo = getScenarioInfo(scenarioId);
+                      const scenario = scenarios.find(s => s.id === scenarioId);
+                      const completedCount = scenarioConversations.filter(c => c.status === 'completed').length;
+                      const totalPersonas = scenario?.personas?.length || 0;
+                      const isFullyCompleted = isScenarioFullyCompleted(scenarioId);
+                      
                       return (
-                        <div 
-                          key={conversation.id} 
-                          className="border rounded-lg p-4 hover:bg-slate-50 transition-colors cursor-pointer"
-                          data-testid={`conversation-${conversation.id}`}
-                          onClick={() => {
-                            // 진행 중인 대화는 대화창으로, 완료된 대화는 대화 기록으로
-                            if (conversation.status === 'completed') {
-                              window.location.href = `/chat/${conversation.id}`;
-                            } else {
-                              // 진행 중인 대화는 ChatWindow로 이동하여 이어하기
-                              window.location.href = `/scenario/${conversation.scenarioId}/persona/${conversation.personaId}/chat/${conversation.id}`;
-                            }
-                          }}
-                        >
-                          <div className="flex items-center justify-between mb-2">
-                            <div className="flex items-center gap-3">
-                              <h3 className="font-semibold text-slate-900">
-                                {getConversationTitle(conversation)}
-                              </h3>
-                              <Badge variant={conversation.status === 'completed' ? 'default' : 'secondary'}>
-                                {conversation.status === 'completed' ? '완료' : '진행중'}
-                              </Badge>
-                            </div>
-                            <div className="flex items-center gap-2 text-sm text-slate-600">
-                              <CalendarDays className="w-4 h-4" />
-                              {format(new Date(conversation.createdAt), 'yyyy.MM.dd HH:mm')}
-                            </div>
-                          </div>
-                          
-                          {conversation.status === 'completed' && relatedFeedback && (
-                            <div className="flex items-center justify-between">
-                              <div className="flex items-center gap-4 text-sm">
-                                <div className="flex items-center gap-1">
-                                  <Star className="w-4 h-4 text-yellow-500" />
-                                  <span className={`font-medium ${getScoreColor(relatedFeedback.overallScore)}`}>
-                                    {relatedFeedback.overallScore}점
-                                  </span>
-                                  <Badge variant="outline" className="ml-1">
-                                    {getScoreBadge(relatedFeedback.overallScore)}
-                                  </Badge>
-                                </div>
-                                <div className="text-slate-600">
-                                  메시지 {conversation.messages.length}개
-                                </div>
+                        <AccordionItem key={scenarioId} value={scenarioId} data-testid={`scenario-${scenarioId}`}>
+                          <AccordionTrigger className="hover:no-underline">
+                            <div className="flex items-center justify-between w-full pr-4">
+                              <div className="flex items-center gap-3">
+                                <Users className="w-5 h-5 text-blue-600" />
+                                <h3 className="font-semibold text-slate-900 text-left">{scenarioInfo.title}</h3>
+                                <Badge variant="outline">난이도 {scenarioInfo.difficulty}</Badge>
+                                {isFullyCompleted && (
+                                  <Badge className="bg-green-600">완료</Badge>
+                                )}
                               </div>
-                              
-                              <div className="flex gap-2">
-                                <Button
-                                  variant="outline"
-                                  size="sm"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    window.location.href = `/chat/${conversation.id}`;
-                                  }}
-                                  data-testid={`view-conversation-${conversation.id}`}
-                                >
-                                  대화 보기
-                                </Button>
-                                <Button
-                                  variant="default"
-                                  size="sm"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    window.location.href = `/feedback/${conversation.id}`;
-                                  }}
-                                  data-testid={`view-feedback-${conversation.id}`}
-                                >
-                                  피드백 보기
-                                </Button>
-                              </div>
-                            </div>
-                          )}
-                          
-                          {conversation.status !== 'completed' && (
-                            <div className="flex items-center justify-between mt-2">
                               <div className="text-sm text-slate-600">
-                                메시지 {conversation.messages.length}개 · 클릭하여 대화 이어하기
+                                {completedCount}/{totalPersonas} 대화 완료
                               </div>
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  window.location.href = `/scenario/${conversation.scenarioId}/persona/${conversation.personaId}/chat/${conversation.id}`;
-                                }}
-                                data-testid={`continue-conversation-${conversation.id}`}
-                              >
-                                대화 이어하기
-                              </Button>
                             </div>
-                          )}
-                        </div>
+                          </AccordionTrigger>
+                          <AccordionContent>
+                            <div className="space-y-3 pt-3">
+                              {/* 전략 평가 버튼 (시나리오 완료 시에만 표시) */}
+                              {isFullyCompleted && (
+                                <div className="bg-gradient-to-r from-purple-50 to-indigo-50 border border-purple-200 rounded-lg p-4 mb-4">
+                                  <div className="flex items-center justify-between">
+                                    <div className="flex items-center gap-3">
+                                      <Target className="w-5 h-5 text-purple-600" />
+                                      <div>
+                                        <h4 className="font-semibold text-slate-900">대화 순서 전략 평가</h4>
+                                        <p className="text-sm text-slate-600">모든 대화를 완료했습니다. 전략적 선택을 분석해보세요.</p>
+                                      </div>
+                                    </div>
+                                    <Button 
+                                      variant="default"
+                                      className="bg-purple-600 hover:bg-purple-700"
+                                      data-testid={`strategy-analysis-${scenarioId}`}
+                                      onClick={() => window.location.href = `/strategy/${scenarioId}`}
+                                    >
+                                      전략 평가 보기
+                                    </Button>
+                                  </div>
+                                </div>
+                              )}
+                              
+                              {/* 대화 상대 리스트 */}
+                              {scenarioConversations.map((conversation: Conversation) => {
+                                const scenario = scenarios.find(s => s.id === conversation.scenarioId);
+                                const persona = scenario?.personas?.find((p: any) => p.id === conversation.personaId);
+                                const relatedFeedback = feedbacks.find((f: Feedback) => f.conversationId === conversation.id);
+                                
+                                const personaParts = [];
+                                if (persona?.department) personaParts.push(persona.department);
+                                if (persona?.name) personaParts.push(persona.name);
+                                if (persona?.role) personaParts.push(persona.role);
+                                const personaInfo = personaParts.join(' ');
+                                const mbtiInfo = persona?.mbti ? ` (${persona.mbti})` : '';
+                                
+                                return (
+                                  <div 
+                                    key={conversation.id}
+                                    className="border rounded-lg p-4 bg-white hover:bg-slate-50 transition-colors"
+                                    data-testid={`conversation-${conversation.id}`}
+                                  >
+                                    <div className="flex items-center justify-between mb-3">
+                                      <div className="flex items-center gap-3">
+                                        <h4 className="font-medium text-slate-900">
+                                          {personaInfo}{mbtiInfo}
+                                        </h4>
+                                        <Badge variant={conversation.status === 'completed' ? 'default' : 'secondary'}>
+                                          {conversation.status === 'completed' ? '완료' : '진행중'}
+                                        </Badge>
+                                      </div>
+                                      <div className="flex items-center gap-2 text-sm text-slate-600">
+                                        <CalendarDays className="w-4 h-4" />
+                                        {format(new Date(conversation.createdAt), 'yyyy.MM.dd HH:mm')}
+                                      </div>
+                                    </div>
+                                    
+                                    <div className="flex items-center justify-between">
+                                      <div className="flex items-center gap-4 text-sm">
+                                        {conversation.status === 'completed' && relatedFeedback && (
+                                          <div className="flex items-center gap-1">
+                                            <Star className="w-4 h-4 text-yellow-500" />
+                                            <span className={`font-medium ${getScoreColor(relatedFeedback.overallScore)}`}>
+                                              {relatedFeedback.overallScore}점
+                                            </span>
+                                            <Badge variant="outline" className="ml-1">
+                                              {getScoreBadge(relatedFeedback.overallScore)}
+                                            </Badge>
+                                          </div>
+                                        )}
+                                        <div className="text-slate-600">
+                                          메시지 {conversation.messages.length}개
+                                        </div>
+                                      </div>
+                                      
+                                      <div className="flex gap-2">
+                                        <Button
+                                          variant="outline"
+                                          size="sm"
+                                          onClick={() => window.location.href = `/chat/${conversation.id}`}
+                                          data-testid={`view-conversation-${conversation.id}`}
+                                        >
+                                          대화 보기
+                                        </Button>
+                                        {conversation.status === 'completed' ? (
+                                          <Button
+                                            variant="default"
+                                            size="sm"
+                                            onClick={() => window.location.href = `/feedback/${conversation.id}`}
+                                            data-testid={`view-feedback-${conversation.id}`}
+                                          >
+                                            피드백 보기
+                                          </Button>
+                                        ) : (
+                                          <Button
+                                            variant="default"
+                                            size="sm"
+                                            onClick={() => window.location.href = `/scenario/${conversation.scenarioId}/persona/${conversation.personaId}/chat/${conversation.id}`}
+                                            data-testid={`continue-conversation-${conversation.id}`}
+                                          >
+                                            대화 이어하기
+                                          </Button>
+                                        )}
+                                      </div>
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </AccordionContent>
+                        </AccordionItem>
                       );
                     })}
-                  </div>
+                  </Accordion>
                 )}
               </CardContent>
             </Card>
