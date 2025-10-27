@@ -315,33 +315,21 @@ export default function MyPage() {
                                           >
                                             <div className="flex items-center justify-between mb-3">
                                               <div className="flex items-center gap-2 flex-wrap">
-                                                {/* 이름 */}
+                                                {/* 부서 (텍스트) + 이름 + 직급/직위 (텍스트) */}
                                                 <h4 className="font-semibold text-slate-900 text-base">
+                                                  {persona?.department && <span className="text-slate-600 font-normal">{persona.department} </span>}
                                                   {persona?.name || '알 수 없음'}
+                                                  {(persona?.position || persona?.role) && <span className="text-slate-600 font-normal"> {persona?.position || persona?.role}</span>}
                                                 </h4>
                                                 
-                                                {/* 부서 */}
-                                                {persona?.department && (
-                                                  <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">
-                                                    {persona.department}
-                                                  </Badge>
-                                                )}
-                                                
-                                                {/* 직급/직위 */}
-                                                {(persona?.position || persona?.role) && (
-                                                  <Badge variant="outline" className="bg-purple-50 text-purple-700 border-purple-200">
-                                                    {persona?.position || persona?.role}
-                                                  </Badge>
-                                                )}
-                                                
-                                                {/* MBTI */}
+                                                {/* MBTI (뱃지) */}
                                                 {persona?.mbti && (
                                                   <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
                                                     {persona.mbti}
                                                   </Badge>
                                                 )}
                                                 
-                                                {/* 경력 */}
+                                                {/* 경력 (뱃지) */}
                                                 {persona?.experience && (
                                                   <Badge variant="outline" className="bg-orange-50 text-orange-700 border-orange-200">
                                                     {persona.experience}
