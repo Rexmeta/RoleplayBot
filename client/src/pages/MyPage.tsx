@@ -88,6 +88,30 @@ export default function MyPage() {
     return acc;
   }, {} as Record<string, typeof sortedConversations>);
 
+  // 날짜 문자열 생성 함수 (YYYY-MM-DD 형식)
+  const getDateKey = (date: Date | string) => {
+    const d = new Date(date);
+    return format(d, 'yyyy-MM-dd');
+  };
+
+  // 날짜를 한글로 표시 (YYYY년 MM월 DD일)
+  const getDateLabel = (dateKey: string) => {
+    const [year, month, day] = dateKey.split('-');
+    return `${year}년 ${month}월 ${day}일`;
+  };
+
+  // 시나리오별 대화를 날짜별로 다시 그룹화
+  const groupConversationsByDate = (conversations: typeof sortedConversations) => {
+    return conversations.reduce((acc, conversation) => {
+      const dateKey = getDateKey(conversation.createdAt);
+      if (!acc[dateKey]) {
+        acc[dateKey] = [];
+      }
+      acc[dateKey].push(conversation);
+      return acc;
+    }, {} as Record<string, typeof sortedConversations>);
+  };
+
   // 시나리오 정보 가져오기
   const getScenarioInfo = (scenarioId: string) => {
     const scenario = scenarios.find(s => s.id === scenarioId);
@@ -256,91 +280,115 @@ export default function MyPage() {
                                 </div>
                               )}
                               
-                              {/* 대화 상대 리스트 */}
-                              {scenarioConversations.map((conversation: Conversation) => {
-                                const scenario = scenarios.find(s => s.id === conversation.scenarioId);
-                                const persona = scenario?.personas?.find((p: any) => p.id === conversation.personaId);
-                                const relatedFeedback = feedbacks.find((f: Feedback) => f.conversationId === conversation.id);
+                              {/* 날짜별 대화 상대 리스트 */}
+                              {(() => {
+                                const conversationsByDate = groupConversationsByDate(scenarioConversations);
+                                const sortedDates = Object.keys(conversationsByDate).sort((a, b) => 
+                                  new Date(b).getTime() - new Date(a).getTime()
+                                );
                                 
-                                const personaParts = [];
-                                if (persona?.department) personaParts.push(persona.department);
-                                if (persona?.name) personaParts.push(persona.name);
-                                if (persona?.role) personaParts.push(persona.role);
-                                const personaInfo = personaParts.join(' ');
-                                const mbtiInfo = persona?.mbti ? ` (${persona.mbti})` : '';
-                                
-                                return (
-                                  <div 
-                                    key={conversation.id}
-                                    className="border rounded-lg p-4 bg-white hover:bg-slate-50 transition-colors"
-                                    data-testid={`conversation-${conversation.id}`}
-                                  >
-                                    <div className="flex items-center justify-between mb-3">
-                                      <div className="flex items-center gap-3">
-                                        <h4 className="font-medium text-slate-900">
-                                          {personaInfo}{mbtiInfo}
-                                        </h4>
-                                        <Badge variant={conversation.status === 'completed' ? 'default' : 'secondary'}>
-                                          {conversation.status === 'completed' ? '완료' : '진행중'}
-                                        </Badge>
-                                      </div>
-                                      <div className="flex items-center gap-2 text-sm text-slate-600">
-                                        <CalendarDays className="w-4 h-4" />
-                                        {format(new Date(conversation.createdAt), 'yyyy.MM.dd HH:mm')}
-                                      </div>
-                                    </div>
-                                    
-                                    <div className="flex items-center justify-between">
-                                      <div className="flex items-center gap-4 text-sm">
-                                        {conversation.status === 'completed' && relatedFeedback && (
-                                          <div className="flex items-center gap-1">
-                                            <Star className="w-4 h-4 text-yellow-500" />
-                                            <span className={`font-medium ${getScoreColor(relatedFeedback.overallScore)}`}>
-                                              {relatedFeedback.overallScore}점
-                                            </span>
-                                            <Badge variant="outline" className="ml-1">
-                                              {getScoreBadge(relatedFeedback.overallScore)}
-                                            </Badge>
-                                          </div>
-                                        )}
-                                        <div className="text-slate-600">
-                                          메시지 {conversation.messages.length}개
-                                        </div>
+                                return sortedDates.map((dateKey) => {
+                                  const dateConversations = conversationsByDate[dateKey];
+                                  
+                                  return (
+                                    <div key={dateKey} className="space-y-3">
+                                      {/* 날짜 헤더 */}
+                                      <div className="flex items-center gap-2 mt-4 mb-2">
+                                        <CalendarDays className="w-4 h-4 text-slate-500" />
+                                        <h5 className="text-sm font-semibold text-slate-700">
+                                          {getDateLabel(dateKey)}
+                                        </h5>
+                                        <div className="flex-1 h-px bg-slate-200"></div>
                                       </div>
                                       
-                                      <div className="flex gap-2">
-                                        <Button
-                                          variant="outline"
-                                          size="sm"
-                                          onClick={() => window.location.href = `/chat/${conversation.id}`}
-                                          data-testid={`view-conversation-${conversation.id}`}
-                                        >
-                                          대화 보기
-                                        </Button>
-                                        {conversation.status === 'completed' ? (
-                                          <Button
-                                            variant="default"
-                                            size="sm"
-                                            onClick={() => window.location.href = `/feedback/${conversation.id}`}
-                                            data-testid={`view-feedback-${conversation.id}`}
+                                      {/* 해당 날짜의 대화 상대들 */}
+                                      {dateConversations.map((conversation: Conversation) => {
+                                        const scenario = scenarios.find(s => s.id === conversation.scenarioId);
+                                        const persona = scenario?.personas?.find((p: any) => p.id === conversation.personaId);
+                                        const relatedFeedback = feedbacks.find((f: Feedback) => f.conversationId === conversation.id);
+                                        
+                                        const personaParts = [];
+                                        if (persona?.department) personaParts.push(persona.department);
+                                        if (persona?.name) personaParts.push(persona.name);
+                                        if (persona?.role) personaParts.push(persona.role);
+                                        const personaInfo = personaParts.join(' ');
+                                        const mbtiInfo = persona?.mbti ? ` (${persona.mbti})` : '';
+                                        
+                                        return (
+                                          <div 
+                                            key={conversation.id}
+                                            className="border rounded-lg p-4 bg-white hover:bg-slate-50 transition-colors ml-6"
+                                            data-testid={`conversation-${conversation.id}`}
                                           >
-                                            피드백 보기
-                                          </Button>
-                                        ) : (
-                                          <Button
-                                            variant="default"
-                                            size="sm"
-                                            onClick={() => window.location.href = `/scenario/${conversation.scenarioId}/persona/${conversation.personaId}/chat/${conversation.id}`}
-                                            data-testid={`continue-conversation-${conversation.id}`}
-                                          >
-                                            대화 이어하기
-                                          </Button>
-                                        )}
-                                      </div>
+                                            <div className="flex items-center justify-between mb-3">
+                                              <div className="flex items-center gap-3">
+                                                <h4 className="font-medium text-slate-900">
+                                                  {personaInfo}{mbtiInfo}
+                                                </h4>
+                                                <Badge variant={conversation.status === 'completed' ? 'default' : 'secondary'}>
+                                                  {conversation.status === 'completed' ? '완료' : '진행중'}
+                                                </Badge>
+                                              </div>
+                                              <div className="flex items-center gap-2 text-sm text-slate-600">
+                                                {format(new Date(conversation.createdAt), 'HH:mm')}
+                                              </div>
+                                            </div>
+                                            
+                                            <div className="flex items-center justify-between">
+                                              <div className="flex items-center gap-4 text-sm">
+                                                {conversation.status === 'completed' && relatedFeedback && (
+                                                  <div className="flex items-center gap-1">
+                                                    <Star className="w-4 h-4 text-yellow-500" />
+                                                    <span className={`font-medium ${getScoreColor(relatedFeedback.overallScore)}`}>
+                                                      {relatedFeedback.overallScore}점
+                                                    </span>
+                                                    <Badge variant="outline" className="ml-1">
+                                                      {getScoreBadge(relatedFeedback.overallScore)}
+                                                    </Badge>
+                                                  </div>
+                                                )}
+                                                <div className="text-slate-600">
+                                                  메시지 {conversation.messages.length}개
+                                                </div>
+                                              </div>
+                                              
+                                              <div className="flex gap-2">
+                                                <Button
+                                                  variant="outline"
+                                                  size="sm"
+                                                  onClick={() => window.location.href = `/chat/${conversation.id}`}
+                                                  data-testid={`view-conversation-${conversation.id}`}
+                                                >
+                                                  대화 보기
+                                                </Button>
+                                                {conversation.status === 'completed' ? (
+                                                  <Button
+                                                    variant="default"
+                                                    size="sm"
+                                                    onClick={() => window.location.href = `/feedback/${conversation.id}`}
+                                                    data-testid={`view-feedback-${conversation.id}`}
+                                                  >
+                                                    피드백 보기
+                                                  </Button>
+                                                ) : (
+                                                  <Button
+                                                    variant="default"
+                                                    size="sm"
+                                                    onClick={() => window.location.href = `/scenario/${conversation.scenarioId}/persona/${conversation.personaId}/chat/${conversation.id}`}
+                                                    data-testid={`continue-conversation-${conversation.id}`}
+                                                  >
+                                                    대화 이어하기
+                                                  </Button>
+                                                )}
+                                              </div>
+                                            </div>
+                                          </div>
+                                        );
+                                      })}
                                     </div>
-                                  </div>
-                                );
-                              })}
+                                  );
+                                });
+                              })()}
                             </div>
                           </AccordionContent>
                         </AccordionItem>
