@@ -307,13 +307,6 @@ export default function MyPage() {
                                         const persona = scenario?.personas?.find((p: any) => p.id === conversation.personaId);
                                         const relatedFeedback = feedbacks.find((f: Feedback) => f.conversationId === conversation.id);
                                         
-                                        const personaParts = [];
-                                        if (persona?.department) personaParts.push(persona.department);
-                                        if (persona?.name) personaParts.push(persona.name);
-                                        if (persona?.role) personaParts.push(persona.role);
-                                        const personaInfo = personaParts.join(' ');
-                                        const mbtiInfo = persona?.mbti ? ` (${persona.mbti})` : '';
-                                        
                                         return (
                                           <div 
                                             key={conversation.id}
@@ -321,10 +314,41 @@ export default function MyPage() {
                                             data-testid={`conversation-${conversation.id}`}
                                           >
                                             <div className="flex items-center justify-between mb-3">
-                                              <div className="flex items-center gap-3">
-                                                <h4 className="font-medium text-slate-900">
-                                                  {personaInfo}{mbtiInfo}
+                                              <div className="flex items-center gap-2 flex-wrap">
+                                                {/* 이름 */}
+                                                <h4 className="font-semibold text-slate-900 text-base">
+                                                  {persona?.name || '알 수 없음'}
                                                 </h4>
+                                                
+                                                {/* 부서 */}
+                                                {persona?.department && (
+                                                  <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">
+                                                    {persona.department}
+                                                  </Badge>
+                                                )}
+                                                
+                                                {/* 직급/직위 */}
+                                                {(persona?.position || persona?.role) && (
+                                                  <Badge variant="outline" className="bg-purple-50 text-purple-700 border-purple-200">
+                                                    {persona?.position || persona?.role}
+                                                  </Badge>
+                                                )}
+                                                
+                                                {/* MBTI */}
+                                                {persona?.mbti && (
+                                                  <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
+                                                    {persona.mbti}
+                                                  </Badge>
+                                                )}
+                                                
+                                                {/* 경력 */}
+                                                {persona?.experience && (
+                                                  <Badge variant="outline" className="bg-orange-50 text-orange-700 border-orange-200">
+                                                    {persona.experience}
+                                                  </Badge>
+                                                )}
+                                                
+                                                {/* 상태 뱃지 */}
                                                 <Badge variant={conversation.status === 'completed' ? 'default' : 'secondary'}>
                                                   {conversation.status === 'completed' ? '완료' : '진행중'}
                                                 </Badge>
