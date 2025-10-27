@@ -1,6 +1,7 @@
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import { ComplexScenario, ScenarioPersona } from '@/lib/scenario-system';
+import { enrichPersonaWithMBTI } from '../utils/mbtiLoader';
 
 const SCENARIOS_DIR = 'scenarios';
 const PERSONAS_DIR = 'personas';
@@ -18,7 +19,18 @@ export class FileManagerService {
           const content = await fs.readFile(path.join(SCENARIOS_DIR, file), 'utf-8');
           const scenario = JSON.parse(content);
           
-          // 페르소나 객체 배열은 그대로 유지 (변환하지 않음)
+          // 페르소나 배열을 MBTI 데이터로 enrichment
+          if (scenario.personas && Array.isArray(scenario.personas)) {
+            const enrichedPersonas = await Promise.all(
+              scenario.personas.map(async (persona: any) => {
+                if (typeof persona === 'object' && persona.personaRef) {
+                  return await enrichPersonaWithMBTI(persona, persona.personaRef);
+                }
+                return persona;
+              })
+            );
+            scenario.personas = enrichedPersonas;
+          }
           
           scenarios.push(scenario);
         } catch (error) {
