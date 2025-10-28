@@ -131,6 +131,30 @@ export function getAvailableMBTITypes(): string[] {
 }
 
 /**
+ * 시나리오 페르소나에 가벼운 MBTI 정보만 추가 (목록 표시용)
+ * @param scenarioPersona - 시나리오에서 가져온 페르소나 정보
+ * @param personaRef - MBTI JSON 파일 참조
+ * @returns MBTI와 experience만 포함된 페르소나
+ */
+export async function enrichPersonaWithBasicMBTI(scenarioPersona: any, personaRef?: string): Promise<any> {
+  if (!personaRef) {
+    return scenarioPersona;
+  }
+
+  const mbtiData = await loadMBTIPersona(personaRef);
+  
+  if (!mbtiData) {
+    return scenarioPersona;
+  }
+
+  // 가벼운 정보만 추가 (목록 표시용)
+  return {
+    ...scenarioPersona,
+    mbti: mbtiData.mbti,
+  };
+}
+
+/**
  * MBTI 캐시를 초기화하는 함수 (개발/테스트용)
  */
 export function clearMBTICache(): void {

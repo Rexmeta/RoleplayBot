@@ -1,7 +1,7 @@
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import { ComplexScenario, ScenarioPersona } from '@/lib/scenario-system';
-import { enrichPersonaWithMBTI } from '../utils/mbtiLoader';
+import { enrichPersonaWithMBTI, enrichPersonaWithBasicMBTI } from '../utils/mbtiLoader';
 
 const SCENARIOS_DIR = 'scenarios';
 const PERSONAS_DIR = 'personas';
@@ -19,12 +19,13 @@ export class FileManagerService {
           const content = await fs.readFile(path.join(SCENARIOS_DIR, file), 'utf-8');
           const scenario = JSON.parse(content);
           
-          // 페르소나 배열을 MBTI 데이터로 enrichment
+          // 시나리오 목록 조회 시에는 가벼운 MBTI 정보만 포함 (mbti만)
+          // 실제 대화 시작 시점에 선택된 페르소나의 전체 MBTI 데이터를 로드
           if (scenario.personas && Array.isArray(scenario.personas)) {
             const enrichedPersonas = await Promise.all(
               scenario.personas.map(async (persona: any) => {
                 if (typeof persona === 'object' && persona.personaRef) {
-                  return await enrichPersonaWithMBTI(persona, persona.personaRef);
+                  return await enrichPersonaWithBasicMBTI(persona, persona.personaRef);
                 }
                 return persona;
               })
