@@ -87,22 +87,8 @@ export default function Home() {
     setCompletedPersonaIds(prev => [...prev, selectedPersona.id]);
     setConversationIds(prev => [...prev, conversationId]);
     
-    // 2명 이상의 페르소나가 있는 시나리오인 경우
-    if (selectedScenario.personas && selectedScenario.personas.length >= 2) {
-      const totalPersonas = selectedScenario.personas.length;
-      const completedCount = completedPersonaIds.length + 1; // 현재 완료한 것 포함
-      
-      if (completedCount < totalPersonas) {
-        // 아직 남은 페르소나가 있으면 페르소나 선택 화면으로
-        setCurrentView("persona-selection");
-      } else {
-        // 모든 페르소나와 대화 완료 -> 전략 회고 단계로
-        setCurrentView("strategy-reflection");
-      }
-    } else {
-      // 단일 페르소나면 바로 피드백으로
-      setCurrentView("feedback");
-    }
+    // 대화 완료 후 무조건 피드백을 먼저 보여줌
+    setCurrentView("feedback");
   };
 
   const handleReturnToScenarios = () => {
@@ -359,15 +345,32 @@ export default function Home() {
           />
         )}
         
-        {currentView === "feedback" && selectedScenario && selectedPersona && conversationId && (
-          <PersonalDevelopmentReport
-            scenario={selectedScenario}
-            persona={selectedPersona}
-            conversationId={conversationId}
-            onRetry={handleRetry}
-            onSelectNewScenario={handleReturnToScenarios}
-          />
-        )}
+        {currentView === "feedback" && selectedScenario && selectedPersona && conversationId && (() => {
+          // 현재 완료된 페르소나 수 계산
+          const totalPersonas = selectedScenario.personas?.length || 0;
+          const currentCompletedCount = completedPersonaIds.length;
+          const hasMorePersonas = currentCompletedCount < totalPersonas;
+          const allPersonasCompleted = currentCompletedCount === totalPersonas;
+          
+          return (
+            <PersonalDevelopmentReport
+              scenario={selectedScenario}
+              persona={selectedPersona}
+              conversationId={conversationId}
+              onRetry={handleRetry}
+              onSelectNewScenario={handleReturnToScenarios}
+              hasMorePersonas={hasMorePersonas}
+              allPersonasCompleted={allPersonasCompleted}
+              onNextPersona={() => {
+                if (hasMorePersonas) {
+                  setCurrentView("persona-selection");
+                } else if (allPersonasCompleted && totalPersonas >= 2) {
+                  setCurrentView("strategy-reflection");
+                }
+              }}
+            />
+          );
+        })()}
       </main>
       {/* Footer */}
       <footer className="bg-white border-t border-slate-200 py-8 mt-16">

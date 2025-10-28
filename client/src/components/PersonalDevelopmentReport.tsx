@@ -16,6 +16,9 @@ interface PersonalDevelopmentReportProps {
   conversationId: string;
   onRetry: () => void;
   onSelectNewScenario: () => void;
+  hasMorePersonas?: boolean;
+  allPersonasCompleted?: boolean;
+  onNextPersona?: () => void;
 }
 
 // 애니메이션 없이 바로 값 표시 (hooks 오류 방지)
@@ -27,7 +30,10 @@ export default function PersonalDevelopmentReport({
   persona,
   conversationId, 
   onRetry, 
-  onSelectNewScenario 
+  onSelectNewScenario,
+  hasMorePersonas,
+  allPersonasCompleted,
+  onNextPersona
 }: PersonalDevelopmentReportProps) {
   const { toast } = useToast();
   const [showDetailedFeedback, setShowDetailedFeedback] = useState(true); // 애니메이션 없이 바로 표시
@@ -828,17 +834,44 @@ export default function PersonalDevelopmentReport({
           <i className="fas fa-home mr-2"></i>
           마이페이지
         </Button>
-        {nextPersona && !isNextConversationCompleted() && (
+        
+        {/* Home.tsx에서 전달된 다음 페르소나 버튼 (우선순위 높음) */}
+        {hasMorePersonas && onNextPersona && (
+          <Button 
+            onClick={onNextPersona}
+            className="min-w-[120px] bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700"
+            data-testid="next-persona-button"
+          >
+            <i className="fas fa-arrow-right mr-2"></i>
+            다음 페르소나와 대화하기
+          </Button>
+        )}
+        
+        {/* 모든 페르소나 완료 시 전략 평가 버튼 */}
+        {allPersonasCompleted && onNextPersona && (
+          <Button 
+            onClick={onNextPersona}
+            className="min-w-[120px] bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700"
+            data-testid="strategy-reflection-button"
+          >
+            <i className="fas fa-clipboard-list mr-2"></i>
+            전략 평가 보기
+          </Button>
+        )}
+        
+        {/* FeedbackView에서 사용하는 기존 순차적 다음 페르소나 버튼 */}
+        {!hasMorePersonas && !allPersonasCompleted && nextPersona && !isNextConversationCompleted() && (
           <Button 
             onClick={handleNextConversation}
             className="min-w-[120px] bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700"
-            data-testid="next-persona-button"
+            data-testid="next-persona-legacy-button"
             disabled={createNextConversationMutation.isPending}
           >
             <i className="fas fa-arrow-right mr-2"></i>
             {createNextConversationMutation.isPending ? '생성 중...' : `다음 대화 상대: ${nextPersona.name}`}
           </Button>
         )}
+        
         <Button 
           onClick={onSelectNewScenario}
           variant="outline"
