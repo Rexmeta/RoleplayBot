@@ -272,9 +272,42 @@ export default function Home() {
           />
         )}
 
-        {currentView === "strategy-reflection" && selectedScenario && selectedScenario.personas && (
-          <StrategyReflection
-            personas={selectedScenario.personas.map((p: any) => ({
+        {currentView === "strategy-reflection" && (() => {
+          console.log('🔍 Strategy Reflection Render Check:', {
+            currentView,
+            hasSelectedScenario: !!selectedScenario,
+            hasPersonas: !!selectedScenario?.personas,
+            personasLength: selectedScenario?.personas?.length,
+            completedPersonaIds,
+            conversationIds
+          });
+          
+          if (!selectedScenario) {
+            return (
+              <div className="max-w-4xl mx-auto p-6">
+                <div className="bg-red-50 border border-red-200 rounded-lg p-6 text-center">
+                  <p className="text-red-800 font-semibold">❌ 오류: 시나리오 정보가 없습니다</p>
+                  <Button onClick={handleReturnToScenarios} className="mt-4">시나리오 목록으로 돌아가기</Button>
+                </div>
+              </div>
+            );
+          }
+          
+          if (!selectedScenario.personas || selectedScenario.personas.length === 0) {
+            return (
+              <div className="max-w-4xl mx-auto p-6">
+                <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-6 text-center">
+                  <p className="text-yellow-800 font-semibold">⚠️ 오류: 페르소나 정보가 없습니다</p>
+                  <p className="text-yellow-700 mt-2">시나리오 ID: {selectedScenario.id}</p>
+                  <Button onClick={handleReturnToScenarios} className="mt-4">시나리오 목록으로 돌아가기</Button>
+                </div>
+              </div>
+            );
+          }
+          
+          return (
+            <StrategyReflection
+              personas={selectedScenario.personas.map((p: any) => ({
               id: p.id,
               name: p.name,
               role: p.position || p.role,
@@ -333,7 +366,8 @@ export default function Home() {
             }}
             scenarioTitle={selectedScenario.title}
           />
-        )}
+          )
+        })()}
         
         {currentView === "chat" && selectedScenario && selectedPersona && conversationId && (
           <ChatWindow

@@ -41,3 +41,7 @@ integrations = ["javascript_gemini:1.0.0", "javascript_openai:1.0.0", "javascrip
 [[ports]]
 localPort = 5000
 externalPort = 80
+
+[[ports]]
+localPort = 36455
+externalPort = 3000
