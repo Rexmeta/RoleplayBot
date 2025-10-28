@@ -22,6 +22,7 @@ export default function Home() {
   const [conversationId, setConversationId] = useState<string | null>(null);
   const [completedPersonaIds, setCompletedPersonaIds] = useState<string[]>([]);
   const [conversationIds, setConversationIds] = useState<string[]>([]); // 모든 대화 ID 저장
+  const [strategyReflectionSubmitted, setStrategyReflectionSubmitted] = useState(false); // 전략 회고 제출 여부 추적
 
   // 동적으로 시나리오와 페르소나 데이터 로드
   const { data: scenarios = [] } = useQuery({
@@ -44,6 +45,7 @@ export default function Home() {
     setSelectedScenario(scenario);
     setCompletedPersonaIds([]);
     setConversationIds([]);
+    setStrategyReflectionSubmitted(false); // 새 시나리오 시작 시 초기화
     
     // 페르소나가 2명 이상이면 페르소나 선택 화면으로
     if (scenario.personas && scenario.personas.length >= 2) {
@@ -98,6 +100,7 @@ export default function Home() {
     setConversationId(null);
     setCompletedPersonaIds([]);
     setConversationIds([]);
+    setStrategyReflectionSubmitted(false); // 초기화
   };
 
   // 재도전을 위한 새로운 대화 생성
@@ -358,7 +361,8 @@ export default function Home() {
                     strategyReflection: reflection,
                     conversationOrder: completedPersonaIds
                   });
-                  setCurrentView("feedback");
+                  setStrategyReflectionSubmitted(true); // 제출 완료 표시
+                  setCurrentView("scenarios"); // 시나리오 목록으로 돌아가기
                 } catch (error) {
                   console.error("전략 회고 저장 실패:", error);
                 }
@@ -394,11 +398,11 @@ export default function Home() {
               onRetry={handleRetry}
               onSelectNewScenario={handleReturnToScenarios}
               hasMorePersonas={hasMorePersonas}
-              allPersonasCompleted={allPersonasCompleted}
+              allPersonasCompleted={allPersonasCompleted && !strategyReflectionSubmitted}
               onNextPersona={() => {
                 if (hasMorePersonas) {
                   setCurrentView("persona-selection");
-                } else if (allPersonasCompleted && totalPersonas >= 2) {
+                } else if (allPersonasCompleted && !strategyReflectionSubmitted && totalPersonas >= 2) {
                   setCurrentView("strategy-reflection");
                 }
               }}
