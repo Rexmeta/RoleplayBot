@@ -164,6 +164,11 @@ export class OptimizedGeminiProvider implements AIServiceInterface {
     const stance = (persona as any).stance || '신중한 접근';
     const goal = (persona as any).goal || '최적의 결과 도출';
     
+    // 성격 특성 준비
+    const personalityTraits = mbtiData?.personality_traits 
+      ? mbtiData.personality_traits.join(', ')
+      : '균형 잡힌 성격';
+    
     return `당신은 ${persona.name}(${persona.role})입니다.
 
 상황: ${situation}
@@ -171,12 +176,15 @@ export class OptimizedGeminiProvider implements AIServiceInterface {
 당신의 입장: ${stance}
 당신의 목표: ${goal}
 
+성격 특성: ${personalityTraits}
+의사소통 스타일: ${mbtiData?.communication_style || '균형 잡힌 의사소통'}
+
 ${conversationHistory ? `이전 대화:\n${conversationHistory}\n` : ''}
 
 역할:
 - ${persona.name}의 관점에서 반대 의견이나 어려운 질문을 제기하세요
 - 상대방이 쉽게 동의할 수 없는 도전적인 입장을 취하세요
-- ${mbtiData?.communication_style || '균형 잡힌 의사소통'} 스타일로 대화하세요
+- 위 성격 특성과 의사소통 스타일을 반영하여 대화하세요
 - 30-120단어로 현실적이고 구체적으로 응답하세요
 
 JSON 형식으로 응답:
