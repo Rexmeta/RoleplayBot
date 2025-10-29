@@ -10,6 +10,7 @@ interface RealtimeSession {
   conversationId: string;
   scenarioId: string;
   personaId: string;
+  personaName: string; // Store persona name for first greeting
   userId: string;
   clientWs: WebSocket;
   openaiWs: WebSocket | null;
@@ -79,6 +80,7 @@ export class RealtimeVoiceService {
       conversationId,
       scenarioId,
       personaId,
+      personaName: scenarioPersona.name, // Store persona name
       userId,
       clientWs,
       openaiWs: null,
@@ -231,7 +233,13 @@ export class RealtimeVoiceService {
           ...event,
         });
         // 세션이 업데이트되면 AI가 자동으로 첫 인사를 시작
-        console.log('🎬 Triggering AI to start first greeting...');
+        console.log('🎬 Triggering AI to start first greeting with full context...');
+        
+        // Create a contextual first message using stored persona name
+        const firstMessage = `[시작] 대화를 시작합니다. 당신은 ${session.personaName}입니다. 상황에 맞게 자연스럽게 인사하고 대화를 시작해주세요. 반드시 음성으로 응답하세요.`;
+        
+        console.log('📝 First message context:', firstMessage);
+        
         // Add a conversation item first to prompt the AI
         this.sendToOpenAI(session, {
           type: 'conversation.item.create',
@@ -241,16 +249,18 @@ export class RealtimeVoiceService {
             content: [
               {
                 type: 'input_text',
-                text: '안녕하세요',
+                text: firstMessage,
               },
             ],
           },
         });
+        
         // Then request audio response with explicit modalities
         this.sendToOpenAI(session, {
           type: 'response.create',
           response: {
-            modalities: ['audio', 'text'], // Must be both
+            modalities: ['audio', 'text'],
+            instructions: '반드시 음성으로 자연스럽게 인사하세요. 1-2문장으로 간단히.',
           },
         });
         break;
