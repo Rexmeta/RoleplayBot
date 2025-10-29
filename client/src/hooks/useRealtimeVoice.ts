@@ -109,7 +109,7 @@ export function useRealtimeVoice({
               console.log('💬 Conversation item created:', data.item);
               break;
 
-            case 'response.audio.delta':
+            case 'audio.delta':
               if (data.delta) {
                 playAudioDelta(data.delta);
               }
@@ -177,16 +177,34 @@ export function useRealtimeVoice({
   const playAudioDelta = useCallback(async (base64Audio: string) => {
     try {
       if (!audioContextRef.current) {
-        audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
+        audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 24000 });
       }
 
-      const audioData = Uint8Array.from(atob(base64Audio), c => c.charCodeAt(0));
-      const audioBuffer = await audioContextRef.current.decodeAudioData(audioData.buffer);
+      const audioContext = audioContextRef.current;
       
-      const source = audioContextRef.current.createBufferSource();
+      // Decode base64 to raw bytes
+      const audioData = Uint8Array.from(atob(base64Audio), c => c.charCodeAt(0));
+      
+      // Convert PCM16 (Int16) to Float32 for Web Audio API
+      const pcm16 = new Int16Array(audioData.buffer);
+      const float32 = new Float32Array(pcm16.length);
+      
+      // Normalize PCM16 values (-32768 to 32767) to Float32 (-1.0 to 1.0)
+      for (let i = 0; i < pcm16.length; i++) {
+        float32[i] = pcm16[i] / 32768.0;
+      }
+
+      // Create AudioBuffer manually for PCM16 data
+      const audioBuffer = audioContext.createBuffer(1, float32.length, 24000);
+      audioBuffer.getChannelData(0).set(float32);
+      
+      // Play audio
+      const source = audioContext.createBufferSource();
       source.buffer = audioBuffer;
-      source.connect(audioContextRef.current.destination);
+      source.connect(audioContext.destination);
       source.start(0);
+      
+      console.log('🔊 Playing audio chunk:', float32.length, 'samples');
     } catch (err) {
       console.error('Error playing audio delta:', err);
     }
