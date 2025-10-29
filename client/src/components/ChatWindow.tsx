@@ -1615,8 +1615,85 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
               {/* Bottom Interactive Box - AI Message Focused */}
               <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 z-20 w-full max-w-4xl lg:max-w-6xl xl:max-w-[90%] px-4 bg-[#00000000]">
                 <Card className="rounded-2xl overflow-hidden text-card-foreground backdrop-blur-sm shadow-xl border border-white/10 bg-[#ffffff9c]">
-                  {/* AI Message Section - Full Width */}
-                  <div className="p-4 bg-[#ffffff9c]">
+                  
+                  {/* 실시간 음성 모드 - 음성 컨트롤만 표시 */}
+                  {inputMode === 'realtime-voice' ? (
+                    <div className="p-6 bg-[#ffffff9c]">
+                      <div className="flex flex-col items-center space-y-4">
+                        <div className="text-center space-y-2">
+                          <h3 className="text-lg font-semibold text-slate-800">실시간 음성 대화</h3>
+                          <p className="text-sm text-slate-600">
+                            {realtimeVoice.status === 'connected' 
+                              ? '버튼을 눌러 말씀하세요' 
+                              : realtimeVoice.status === 'connecting'
+                              ? '음성 연결 중...'
+                              : '음성 연결 대기 중...'}
+                          </p>
+                        </div>
+                        
+                        {/* 음성 녹음 버튼 */}
+                        <button
+                          onClick={() => {
+                            if (realtimeVoice.isRecording) {
+                              realtimeVoice.stopRecording();
+                            } else {
+                              realtimeVoice.startRecording();
+                            }
+                          }}
+                          disabled={realtimeVoice.status !== 'connected'}
+                          className={`
+                            w-24 h-24 rounded-full flex items-center justify-center text-4xl
+                            transition-all duration-300 shadow-lg
+                            ${realtimeVoice.status !== 'connected' 
+                              ? 'bg-gray-300 text-gray-500 cursor-not-allowed' 
+                              : realtimeVoice.isRecording
+                              ? 'bg-red-500 text-white animate-pulse'
+                              : realtimeVoice.isAISpeaking
+                              ? 'bg-blue-500 text-white animate-pulse'
+                              : 'bg-purple-600 hover:bg-purple-700 text-white'}
+                          `}
+                          data-testid="button-realtime-voice-record"
+                        >
+                          {realtimeVoice.isRecording ? (
+                            <i className="fas fa-stop"></i>
+                          ) : realtimeVoice.isAISpeaking ? (
+                            <i className="fas fa-volume-up"></i>
+                          ) : (
+                            <i className="fas fa-microphone"></i>
+                          )}
+                        </button>
+                        
+                        {/* 상태 표시 */}
+                        <div className="text-center space-y-1">
+                          {realtimeVoice.isRecording && (
+                            <p className="text-sm text-red-600 font-medium animate-pulse">
+                              🔴 녹음 중...
+                            </p>
+                          )}
+                          {realtimeVoice.isAISpeaking && (
+                            <p className="text-sm text-blue-600 font-medium animate-pulse">
+                              🔵 AI 응답 중...
+                            </p>
+                          )}
+                          {!realtimeVoice.isRecording && !realtimeVoice.isAISpeaking && realtimeVoice.status === 'connected' && (
+                            <p className="text-sm text-slate-500">
+                              준비됨
+                            </p>
+                          )}
+                        </div>
+                        
+                        {/* 에러 메시지 */}
+                        {realtimeVoice.error && (
+                          <p className="text-sm text-red-600">
+                            {realtimeVoice.error}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  ) : (
+                    <>
+                      {/* AI Message Section - Full Width */}
+                      <div className="p-4 bg-[#ffffff9c]">
                     {isLoading ? (
                       <div className="flex items-center justify-center space-x-2" data-testid="status-typing">
                         <div className="w-3 h-3 bg-purple-400 rounded-full animate-bounce"></div>
@@ -1787,6 +1864,8 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
                         </Button>
                       </div>
                     </div>
+                  )}
+                    </>
                   )}
                 </Card>
               </div>
