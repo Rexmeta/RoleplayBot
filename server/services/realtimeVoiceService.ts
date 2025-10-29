@@ -142,7 +142,7 @@ export class RealtimeVoiceService {
     const openaiWs = new WebSocket(url, {
       headers: {
         'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`,
-        'OpenAI-Beta': 'realtime=v1',
+        'OpenAI-Beta': 'realtime=v1', // Required for Beta API
       },
     });
 
@@ -152,22 +152,15 @@ export class RealtimeVoiceService {
       console.log(`✅ OpenAI Realtime API connected for session: ${session.id}`);
       session.isConnected = true;
 
-      // Configure session (GA API format)
+      // Configure session (Beta API format for gpt-4o-realtime-preview)
       this.sendToOpenAI(session, {
         type: 'session.update',
         session: {
-          type: 'realtime', // Required in GA API
           modalities: ['text', 'audio'],
           instructions: systemInstructions,
-          audio: {
-            output: { 
-              voice: 'alloy',
-              format: 'pcm16'
-            },
-            input: {
-              format: 'pcm16'
-            }
-          },
+          voice: 'alloy',
+          input_audio_format: 'pcm16',
+          output_audio_format: 'pcm16',
           input_audio_transcription: {
             model: 'whisper-1',
           },
@@ -257,15 +250,15 @@ export class RealtimeVoiceService {
         });
         break;
 
-      case 'response.output_audio.delta':
-        // Forward audio chunks to client (GA event name)
+      case 'response.audio.delta':
+        // Forward audio chunks to client (Beta event name)
         this.sendToClient(session, {
           type: 'audio.delta',
           delta: event.delta,
         });
         break;
 
-      case 'response.output_audio_transcript.delta':
+      case 'response.audio_transcript.delta':
         console.log(`🤖 AI transcript: ${event.delta}`);
         this.sendToClient(session, {
           type: 'ai.transcription.delta',
@@ -273,7 +266,7 @@ export class RealtimeVoiceService {
         });
         break;
 
-      case 'response.output_audio_transcript.done':
+      case 'response.audio_transcript.done':
         console.log(`✅ AI full transcript: ${event.transcript}`);
         this.sendToClient(session, {
           type: 'ai.transcription.done',
