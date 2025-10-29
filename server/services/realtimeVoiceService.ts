@@ -156,7 +156,7 @@ export class RealtimeVoiceService {
       this.sendToOpenAI(session, {
         type: 'session.update',
         session: {
-          modalities: ['text', 'audio'],
+          modalities: ['audio', 'text'], // audio first for voice priority
           instructions: systemInstructions,
           voice: 'alloy',
           input_audio_format: 'pcm16',
@@ -171,7 +171,7 @@ export class RealtimeVoiceService {
             silence_duration_ms: 500,
           },
           temperature: 0.8,
-          max_response_output_tokens: 1024,
+          max_response_output_tokens: 4096, // Increased for longer responses
         },
       });
 
@@ -237,11 +237,25 @@ export class RealtimeVoiceService {
         });
         // 세션이 업데이트되면 AI가 자동으로 첫 인사를 시작
         console.log('🎬 Triggering AI to start first greeting...');
+        // Add a conversation item first to prompt the AI
+        this.sendToOpenAI(session, {
+          type: 'conversation.item.create',
+          item: {
+            type: 'message',
+            role: 'user',
+            content: [
+              {
+                type: 'input_text',
+                text: '안녕하세요. 대화를 시작해주세요.',
+              },
+            ],
+          },
+        });
+        // Then request audio response
         this.sendToOpenAI(session, {
           type: 'response.create',
           response: {
             modalities: ['audio', 'text'],
-            instructions: '먼저 인사하고 대화를 시작하세요. 음성으로 응답해야 합니다.',
           },
         });
         break;
