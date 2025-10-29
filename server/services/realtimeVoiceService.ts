@@ -239,6 +239,10 @@ export class RealtimeVoiceService {
         console.log('🎬 Triggering AI to start first greeting...');
         this.sendToOpenAI(session, {
           type: 'response.create',
+          response: {
+            modalities: ['audio', 'text'],
+            instructions: '먼저 인사하고 대화를 시작하세요. 음성으로 응답해야 합니다.',
+          },
         });
         break;
 

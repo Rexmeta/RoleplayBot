@@ -180,7 +180,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // @ts-ignore - req.user는 auth 미들웨어에서 설정됨
       const userId = req.user?.id;
       
+      console.log('📥 클라이언트 요청 body:', JSON.stringify(req.body));
+      
       const validatedData = insertConversationSchema.parse(req.body);
+      console.log('✅ 검증된 데이터:', JSON.stringify(validatedData));
+      
       const conversation = await storage.createConversation({ ...validatedData, userId });
       
       console.log(`📋 새 대화 생성: mode=${conversation.mode}, id=${conversation.id}`);

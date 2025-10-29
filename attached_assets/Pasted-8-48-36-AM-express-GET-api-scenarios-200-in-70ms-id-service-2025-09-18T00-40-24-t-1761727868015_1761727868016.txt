@@ -1,0 +1,40 @@
+8:48:36 AM [express] GET /api/scenarios 200 in 70ms :: [{"id":"service-해킹-책임-2025-09-18T00-40-24","t…
+📋 새 대화 생성: mode=text, id=b5db5373-79c5-40e7-8ceb-f2b1da02e667
+💬 텍스트/TTS 모드 - Gemini로 초기 메시지 생성
+Creating AI service with provider: gemini
+Both GOOGLE_API_KEY and GEMINI_API_KEY are set. Using GOOGLE_API_KEY.
+🔥 Optimized Gemini API call...
+⚡ Using global cached MBTI: ISTJ
+🔗 Persona enriched: 이지혜 with ISTJ traits
+✅ Persona enriched and cached: 이지혜 (scenario: service-해킹-책임-2025-09-18T00-40-24)
+⚡ Parallel processing completed in 1ms
+🎭 Persona: 이지혜 (ISTJ)
+✓ Optimized Gemini call completed in 8245ms
+8:48:52 AM [express] POST /api/conversations 200 in 10669ms :: {"id":"b5db5373-79c5-40e7-8ceb-f2b1da…
+🎙️ New WebSocket connection for realtime voice
+✅ User authenticated: 30272b01-51b9-4cd2-a7ac-0a65191b13d4
+🎙️ Creating realtime voice session: 30272b01-51b9-4cd2-a7ac-0a65191b13d4-b5db5373-79c5-40e7-8ceb-f2b1da02e667-1761727733443
+✅ Realtime voice session created: 30272b01-51b9-4cd2-a7ac-0a65191b13d4-b5db5373-79c5-40e7-8ceb-f2b1da02e667-1761727733443
+✅ OpenAI Realtime API connected for session: 30272b01-51b9-4cd2-a7ac-0a65191b13d4-b5db5373-79c5-40e7-8ceb-f2b1da02e667-1761727733443
+📨 OpenAI event: session.created
+📨 OpenAI event: session.updated
+🎬 Triggering AI to start first greeting...
+📨 OpenAI event: response.created
+📨 OpenAI event: response.done
+✅ Response complete
+8:48:54 AM [express] GET /api/conversations/b5db5373-79c5-40e7-8ceb-f2b1da02e667 200 in 2177ms :: {"…
+📨 OpenAI event: error
+❌ OpenAI error: {
+  type: 'invalid_request_error',
+  code: 'input_audio_buffer_commit_empty',
+  message: 'Error committing input audio buffer: buffer too small. Expected at least 100ms of audio, but buffer only has 0.00ms of audio.',
+  param: null,
+  event_id: null
+}
+📨 OpenAI event: response.created
+📨 OpenAI event: response.done
+✅ Response complete
+🔌 WebSocket closed for session: 30272b01-51b9-4cd2-a7ac-0a65191b13d4-b5db5373-79c5-40e7-8ceb-f2b1da02e667-1761727733443
+🔚 Closing realtime voice session: 30272b01-51b9-4cd2-a7ac-0a65191b13d4-b5db5373-79c5-40e7-8ceb-f2b1da02e667-1761727733443
+🔌 OpenAI WebSocket closed for session: 30272b01-51b9-4cd2-a7ac-0a65191b13d4-b5db5373-79c5-40e7-8ceb-f2b1da02e667-1761727733443
+♻️  Session cleaned up: 30272b01-51b9-4cd2-a7ac-0a65191b13d4-b5db5373-79c5-40e7-8ceb-f2b1da02e667-1761727733443

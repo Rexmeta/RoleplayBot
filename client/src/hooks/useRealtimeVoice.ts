@@ -236,14 +236,15 @@ export function useRealtimeVoice({
       micStreamRef.current = stream;
 
       // Create AudioContext for PCM16 conversion
+      // Note: Browser may use different sample rate (e.g. 48000), we'll resample
       if (!audioContextRef.current) {
-        audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)({ 
-          sampleRate: 24000 
-        });
+        audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
       }
 
       const audioContext = audioContextRef.current;
       const source = audioContext.createMediaStreamSource(stream);
+      
+      console.log(`🎙️ AudioContext sample rate: ${audioContext.sampleRate}Hz`);
       
       // Use ScriptProcessorNode to process raw audio (4096 buffer size)
       const processor = audioContext.createScriptProcessor(4096, 1, 1);
@@ -256,10 +257,22 @@ export function useRealtimeVoice({
 
         const inputData = e.inputBuffer.getChannelData(0);
         
+        // Resample to 24kHz if needed
+        const targetSampleRate = 24000;
+        const sourceSampleRate = audioContext.sampleRate;
+        const ratio = sourceSampleRate / targetSampleRate;
+        const targetLength = Math.floor(inputData.length / ratio);
+        const resampledData = new Float32Array(targetLength);
+        
+        for (let i = 0; i < targetLength; i++) {
+          const sourceIndex = Math.floor(i * ratio);
+          resampledData[i] = inputData[sourceIndex];
+        }
+        
         // Convert Float32 (-1 to 1) to Int16 (PCM16)
-        const pcm16 = new Int16Array(inputData.length);
-        for (let i = 0; i < inputData.length; i++) {
-          const s = Math.max(-1, Math.min(1, inputData[i]));
+        const pcm16 = new Int16Array(resampledData.length);
+        for (let i = 0; i < resampledData.length; i++) {
+          const s = Math.max(-1, Math.min(1, resampledData[i]));
           pcm16[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
         }
         
@@ -274,7 +287,12 @@ export function useRealtimeVoice({
       };
       
       source.connect(processor);
-      processor.connect(audioContext.destination);
+      // IMPORTANT: Don't connect to destination (would echo microphone to speakers)
+      // Just connect to a dummy destination to keep the processor active
+      const dummyGain = audioContext.createGain();
+      dummyGain.gain.value = 0;
+      processor.connect(dummyGain);
+      dummyGain.connect(audioContext.destination);
       
       setIsRecording(true);
       console.log('🎤 Recording started (PCM16 24kHz)');
