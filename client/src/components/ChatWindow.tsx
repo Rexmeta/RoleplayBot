@@ -1284,7 +1284,13 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
                     {/* 역할 섹션 */}
                     {scenario.context?.playerRole?.responsibility && (
                       <div>
-                        <div className="text-xs font-semibold text-corporate-600 mb-1">👤 당신의 역할</div>
+                        <div className="text-xs font-semibold text-corporate-600 mb-1 flex items-center justify-between">
+                          <span>👤 당신의 역할</span>
+                          <span className="text-slate-500 font-normal">
+                            {scenario.context.playerRole.position}
+                            {scenario.context.playerRole.experience && ` (${scenario.context.playerRole.experience})`}
+                          </span>
+                        </div>
                         <div className="text-slate-700 bg-slate-50 rounded px-2 py-1.5">
                           {scenario.context.playerRole.responsibility}
                         </div>
@@ -1440,7 +1446,13 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
                           {/* 역할 섹션 */}
                           {scenario.context?.playerRole?.responsibility && (
                             <div>
-                              <div className="font-semibold text-corporate-600 mb-1.5">👤 당신의 역할</div>
+                              <div className="font-semibold text-corporate-600 mb-1.5 flex items-center justify-between">
+                                <span>👤 당신의 역할</span>
+                                <span className="text-slate-500 font-normal">
+                                  {scenario.context.playerRole.position}
+                                  {scenario.context.playerRole.experience && ` (${scenario.context.playerRole.experience})`}
+                                </span>
+                              </div>
                               <div className="bg-slate-50 text-slate-700 rounded px-2 py-1.5">
                                 {scenario.context.playerRole.responsibility}
                               </div>
