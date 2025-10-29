@@ -10,6 +10,7 @@ import { AspectRatio } from "@/components/ui/aspect-ratio";
 import { Link, useLocation } from "wouter";
 import type { ComplexScenario, ScenarioPersona } from "@/lib/scenario-system";
 import type { Conversation, ConversationMessage } from "@shared/schema";
+import { useRealtimeVoice } from "@/hooks/useRealtimeVoice";
 
 // 감정별 캐릭터 이미지 import
 import characterNeutral from "../../../attached_assets/characters/character-neutral.png";
@@ -66,7 +67,7 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
   const [isLoading, setIsLoading] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
   const [speechSupported, setSpeechSupported] = useState(false);
-  const [voiceModeEnabled, setVoiceModeEnabled] = useState(false);
+  const [inputMode, setInputMode] = useState<'text' | 'tts' | 'realtime-voice'>('text');
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [elapsedTime, setElapsedTime] = useState(0);
   const [conversationStartTime, setConversationStartTime] = useState<Date | null>(null);
@@ -87,6 +88,30 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
 
   const queryClient = useQueryClient();
   const { toast } = useToast();
+
+  const realtimeVoice = useRealtimeVoice({
+    conversationId,
+    scenarioId: scenario.id,
+    personaId: persona.id,
+    enabled: inputMode === 'realtime-voice',
+    onMessage: (message) => {
+      console.log('🎙️ Received realtime voice message:', message);
+    },
+    onError: (error) => {
+      toast({
+        title: "음성 연결 오류",
+        description: error,
+        variant: "destructive"
+      });
+    },
+    onSessionTerminated: (reason) => {
+      toast({
+        title: "음성 세션 종료",
+        description: reason,
+      });
+      setInputMode('text');
+    },
+  });
   
   // 이미지 프리로딩 및 전환 초기화
   useEffect(() => {
@@ -291,7 +316,7 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
   // ElevenLabs TTS 기능들
   const speakMessage = async (text: string, isAutoPlay: boolean = false, emotion?: string) => {
     // 음성 모드가 꺼져있고 자동재생인 경우 실행하지 않음
-    if (!voiceModeEnabled && isAutoPlay) return;
+    if (inputMode === 'text' && isAutoPlay) return;
     
     // 이미 같은 메시지를 재생했다면 중복 재생 방지 (자동재생의 경우만)
     if (isAutoPlay && lastSpokenMessageRef.current === text) return;
@@ -574,25 +599,29 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
     setIsSpeaking(false);
   };
 
-  const toggleVoiceMode = () => {
-    if (voiceModeEnabled) {
+  const handleModeChange = (newMode: 'text' | 'tts' | 'realtime-voice') => {
+    if (inputMode === 'tts') {
       stopSpeaking();
-      lastSpokenMessageRef.current = ""; // 음성 모드 끌 때 재생 기록 초기화
-    } else {
-      // 음성 모드를 켤 때 최신 AI 메시지만 재생
+      lastSpokenMessageRef.current = "";
+    }
+    
+    if (inputMode === 'realtime-voice') {
+      realtimeVoice.disconnect();
+    }
+
+    setInputMode(newMode);
+
+    if (newMode === 'tts') {
       if (conversation?.messages) {
         const lastMessage = conversation.messages[conversation.messages.length - 1];
         if (lastMessage && lastMessage.sender === 'ai') {
-          // 최신 메시지를 이미 재생했다고 표시하여 중복 재생 방지
           lastSpokenMessageRef.current = lastMessage.message;
-          // 약간의 지연을 두어 UI 업데이트 후 음성 재생
           setTimeout(() => {
             speakMessage(lastMessage.message, false, lastMessage.emotion);
           }, 300);
         }
       }
     }
-    setVoiceModeEnabled(!voiceModeEnabled);
   };
 
   // TTS 기능 초기화 및 음성 목록 확인
@@ -715,7 +744,7 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
   // 음성 자동 재생
   useEffect(() => {
     // 음성 모드가 켜져 있을 때 새로운 AI 메시지 자동 재생
-    if (voiceModeEnabled && localMessages.length > 0) {
+    if (inputMode === 'tts' && localMessages.length > 0) {
       const lastMessage = localMessages[localMessages.length - 1];
       if (lastMessage && lastMessage.sender === 'ai' && !isLoading) {
         // 약간의 지연을 두어 UI 업데이트 후 음성 재생
@@ -724,7 +753,7 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
         }, 500);
       }
     }
-  }, [localMessages, voiceModeEnabled, isLoading]);
+  }, [localMessages, inputMode, isLoading]);
 
   useEffect(() => {
     const handleKeyPress = (e: KeyboardEvent) => {
@@ -993,63 +1022,48 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
                 </ToggleGroup>
               </div>
 
-              {/* 음성 모드 토글 */}
+              {/* 입력 모드 선택 */}
               <div className="relative group">
-                <Button 
-                  variant="ghost" 
-                  size="sm" 
-                  onClick={toggleVoiceMode}
-                  className={`text-white/80 hover:text-white hover:bg-white/10 ${voiceModeEnabled ? 'bg-white/20' : ''}`}
-                  data-testid="button-toggle-voice-mode"
-                  title={voiceModeEnabled ? "음성 모드 끄기" : "음성 모드 켜기"}
+                <ToggleGroup
+                  type="single"
+                  value={inputMode}
+                  onValueChange={(value: 'text' | 'tts' | 'realtime-voice') => {
+                    if (value) handleModeChange(value);
+                  }}
+                  className="bg-white/10 rounded-lg p-1"
+                  data-testid="toggle-input-mode"
                 >
-                  <i className={`fas ${voiceModeEnabled ? 'fa-volume-up' : 'fa-volume-mute'}`}></i>
-                  {voiceModeEnabled && isSpeaking && (
-                    <span className="ml-1 text-xs animate-pulse">재생중</span>
-                  )}
-                </Button>
-                
-                {/* 음성 기능 정보 툴팁 */}
-                <div className="absolute right-0 top-full mt-2 w-80 bg-white border border-slate-200 rounded-lg shadow-lg p-4 text-sm text-slate-600 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50">
-                  <div className="font-semibold text-slate-800 mb-2 flex items-center">
-                    🎤 <span className="ml-1">음성 기능 정보</span>
-                  </div>
-                  <div className="space-y-3">
-                    <div>
-                      <strong className="text-slate-700">현재 상태:</strong> 
-                      <span className={`ml-1 ${voiceModeEnabled ? 'text-green-600' : 'text-gray-500'}`}>
-                        {voiceModeEnabled ? '활성화됨' : '비활성화됨'}
-                      </span>
-                    </div>
-                    
-                    <div>
-                      <strong className="text-slate-700">🎉 커스텀 TTS 기능:</strong>
-                      <ul className="ml-3 mt-1 text-xs space-y-1 text-green-600">
-                        <li>✓ XTTS-v2 기반 고품질 음성 합성</li>
-                        <li>✓ 페르소나별 전용 스피커 음성 (5가지)</li>
-                        <li>✓ 실감나는 감정 표현 및 톤 조절</li>
-                        <li>✓ 자연스러운 한국어 발음</li>
-                        <li>✓ 이중 백업 시스템 (ElevenLabs + Web Speech)</li>
-                      </ul>
-                    </div>
-                    
-                    <div>
-                      <strong className="text-slate-700">페르소나 음성 매핑:</strong>
-                      <ul className="ml-3 mt-1 text-xs space-y-1 text-slate-600">
-                        <li>• 김태훈 (남성): 전문적이고 안정적인 목소리</li>
-                        <li>• 이선영 (여성): 따뜻하고 공감적인 목소리</li>
-                        <li>• 박준호 (남성): 자신감 있고 강인한 목소리</li>
-                        <li>• 정미경 (여성): 전문적이고 명확한 목소리</li>
-                        <li>• 최민수 (남성): 젊고 친근한 목소리</li>
-                      </ul>
-                    </div>
-                    
-                    <div className="text-xs bg-blue-50 p-2 rounded border-l-2 border-blue-300">
-                      <strong className="text-blue-700">🚀 최신 기술:</strong>
-                      <br />Google Colab XTTS-v2 서버 연동! 실제 성우와 같은 자연스럽고 개성 있는 음성을 경험하세요.
-                    </div>
-                  </div>
-                </div>
+                  <ToggleGroupItem 
+                    value="text" 
+                    className="text-white/80 hover:text-white data-[state=on]:bg-white/20 data-[state=on]:text-white px-2 py-1 text-xs"
+                    data-testid="mode-text"
+                    title="텍스트 입력"
+                  >
+                    💬
+                  </ToggleGroupItem>
+                  <ToggleGroupItem 
+                    value="tts" 
+                    className="text-white/80 hover:text-white data-[state=on]:bg-white/20 data-[state=on]:text-white px-2 py-1 text-xs"
+                    data-testid="mode-tts"
+                    title="텍스트 입력 + AI 음성 재생"
+                  >
+                    🔊
+                  </ToggleGroupItem>
+                  <ToggleGroupItem 
+                    value="realtime-voice" 
+                    className="text-white/80 hover:text-white data-[state=on]:bg-white/20 data-[state=on]:text-white px-2 py-1 text-xs"
+                    data-testid="mode-realtime-voice"
+                    title="실시간 음성 대화 (OpenAI Realtime)"
+                  >
+                    🎙️
+                  </ToggleGroupItem>
+                </ToggleGroup>
+                {inputMode === 'tts' && isSpeaking && (
+                  <div className="absolute -top-1 -right-1 w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+                )}
+                {inputMode === 'realtime-voice' && realtimeVoice.status === 'connected' && (
+                  <div className="absolute -top-1 -right-1 w-2 h-2 bg-blue-500 rounded-full animate-pulse"></div>
+                )}
               </div>
               
               <Button 
@@ -1213,6 +1227,45 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
                       </Button>
                     </div>
                   </div>
+                ) : inputMode === 'realtime-voice' ? (
+                  <div className="text-center space-y-4">
+                    <div className="flex flex-col items-center space-y-3">
+                      <div className="text-sm text-slate-600">
+                        {realtimeVoice.status === 'connecting' && '🔄 연결 중...'}
+                        {realtimeVoice.status === 'connected' && '✅ 연결됨 - 버튼을 눌러 대화하세요'}
+                        {realtimeVoice.status === 'disconnected' && '❌ 연결 끊김'}
+                        {realtimeVoice.status === 'error' && `⚠️ ${realtimeVoice.error || '오류 발생'}`}
+                      </div>
+                      
+                      <Button
+                        onClick={() => {
+                          if (realtimeVoice.isRecording) {
+                            realtimeVoice.stopRecording();
+                          } else {
+                            realtimeVoice.startRecording();
+                          }
+                        }}
+                        disabled={realtimeVoice.status !== 'connected'}
+                        className={`w-32 h-32 rounded-full ${
+                          realtimeVoice.isRecording 
+                            ? 'bg-red-500 hover:bg-red-600 animate-pulse' 
+                            : 'bg-blue-500 hover:bg-blue-600'
+                        }`}
+                        data-testid="button-realtime-voice"
+                      >
+                        <div className="flex flex-col items-center">
+                          <i className={`fas ${realtimeVoice.isRecording ? 'fa-stop' : 'fa-microphone'} text-4xl text-white mb-2`}></i>
+                          <span className="text-white text-sm">
+                            {realtimeVoice.isRecording ? '대화 종료' : '대화 시작'}
+                          </span>
+                        </div>
+                      </Button>
+                      
+                      <p className="text-xs text-slate-500">
+                        버튼을 누르고 말하세요. AI가 실시간으로 응답합니다.
+                      </p>
+                    </div>
+                  </div>
                 ) : (
                   <div className="flex space-x-4">
                     <div className="flex-1">
@@ -1230,8 +1283,11 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
                         <span className="text-xs text-slate-500">{userInput.length}/200</span>
                         <div className="flex items-center space-x-2 text-xs text-slate-500">
                           <span>팁: 구체적이고 예의 바른 답변을 해보세요</span>
-                          {speechSupported && (
+                          {speechSupported && inputMode === 'text' && (
                             <span className="text-corporate-600">• 음성 입력 지원 (클릭하여 반복 가능)</span>
+                          )}
+                          {inputMode === 'tts' && (
+                            <span className="text-green-600">• 음성 재생 활성화됨</span>
                           )}
                           {isRecording && (
                             <span className="text-red-600 animate-pulse">🎤 음성 인식 중...</span>
@@ -1403,24 +1459,17 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
                         <i className="fas fa-redo mr-1 text-xs"></i>
                         {Math.max(0, maxTurns - (conversation?.turnCount ?? 0))}턴 남음
                       </span>
-                      {/* Voice Toggle */}
-                      {lastSpokenMessageRef.current && (
-                        <>
-                          <span className="text-slate-300">•</span>
-                          <button
-                            onClick={toggleVoiceMode}
-                            className={`p-1 rounded text-xs transition-all duration-200 ${
-                              voiceModeEnabled 
-                                ? 'text-green-600 hover:text-green-700' 
-                                : 'text-slate-400 hover:text-slate-600'
-                            }`}
-                            data-testid="button-toggle-voice-inline"
-                            title={voiceModeEnabled ? "음성 비활성화" : "음성 활성화"}
-                          >
-                            <i className={voiceModeEnabled ? "fas fa-volume-up" : "fas fa-volume-mute"}></i>
-                          </button>
-                        </>
-                      )}
+                      {/* Input Mode Indicator */}
+                      <span className="text-slate-300">•</span>
+                      <span className="text-xs">
+                        {inputMode === 'text' && '💬 텍스트'}
+                        {inputMode === 'tts' && (
+                          <span className="text-green-600">🔊 TTS {isSpeaking && '재생중...'}</span>
+                        )}
+                        {inputMode === 'realtime-voice' && (
+                          <span className="text-blue-600">🎙️ 실시간 {realtimeVoice.isRecording && '녹음중...'}</span>
+                        )}
+                      </span>
                     </div>
                   </div>
                 </div>
@@ -1482,25 +1531,40 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
 
               {/* Top Right - Control Buttons */}
               <div className="absolute top-4 right-4 z-20 flex items-center space-x-2">
-                {/* TTS 온오프 버튼 */}
-                <button
-                  onClick={toggleVoiceMode}
-                  className={`px-3 py-2 rounded-full shadow-lg transition-all duration-200 text-sm font-medium flex items-center space-x-1 ${
-                    voiceModeEnabled 
-                      ? 'bg-green-500/90 text-white hover:bg-green-600' 
-                      : 'bg-white/90 text-slate-700 hover:bg-white'
-                  }`}
-                  data-testid="button-toggle-voice-character"
-                  title={voiceModeEnabled ? "음성 모드 끄기" : "음성 모드 켜기"}
-                >
-                  <i className={`fas ${voiceModeEnabled ? 'fa-volume-up' : 'fa-volume-mute'}`}></i>
-                  {voiceModeEnabled && isSpeaking && (
-                    <span className="text-xs animate-pulse">재생중</span>
-                  )}
-                  {!isSpeaking && (
-                    <span className="text-xs">{voiceModeEnabled ? '음성' : '음성'}</span>
-                  )}
-                </button>
+                {/* 입력 모드 선택 */}
+                <div className="bg-white/90 rounded-full shadow-lg p-1">
+                  <ToggleGroup
+                    type="single"
+                    value={inputMode}
+                    onValueChange={(value: 'text' | 'tts' | 'realtime-voice') => {
+                      if (value) handleModeChange(value);
+                    }}
+                    className="bg-transparent"
+                    data-testid="toggle-input-mode-character"
+                  >
+                    <ToggleGroupItem 
+                      value="text" 
+                      className="text-slate-600 hover:text-slate-900 data-[state=on]:bg-slate-100 data-[state=on]:text-slate-900 px-2 py-1 text-xs rounded-full"
+                      title="텍스트 입력"
+                    >
+                      💬
+                    </ToggleGroupItem>
+                    <ToggleGroupItem 
+                      value="tts" 
+                      className="text-slate-600 hover:text-slate-900 data-[state=on]:bg-green-100 data-[state=on]:text-green-700 px-2 py-1 text-xs rounded-full"
+                      title="텍스트 입력 + AI 음성 재생"
+                    >
+                      🔊
+                    </ToggleGroupItem>
+                    <ToggleGroupItem 
+                      value="realtime-voice" 
+                      className="text-slate-600 hover:text-slate-900 data-[state=on]:bg-blue-100 data-[state=on]:text-blue-700 px-2 py-1 text-xs rounded-full"
+                      title="실시간 음성 대화"
+                    >
+                      🎙️
+                    </ToggleGroupItem>
+                  </ToggleGroup>
+                </div>
                 
                 {/* 메신저 모드 전환 버튼 */}
                 <button
