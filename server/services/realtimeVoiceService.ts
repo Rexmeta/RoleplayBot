@@ -224,10 +224,21 @@ export class RealtimeVoiceService {
 
     switch (event.type) {
       case 'session.created':
+        this.sendToClient(session, {
+          type: 'session.configured',
+          ...event,
+        });
+        break;
+      
       case 'session.updated':
         this.sendToClient(session, {
           type: 'session.configured',
           ...event,
+        });
+        // 세션이 업데이트되면 AI가 자동으로 첫 인사를 시작
+        console.log('🎬 Triggering AI to start first greeting...');
+        this.sendToOpenAI(session, {
+          type: 'response.create',
         });
         break;
 
