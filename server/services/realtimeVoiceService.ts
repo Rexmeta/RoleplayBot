@@ -2,8 +2,8 @@ import WebSocket from 'ws';
 import OpenAI from 'openai';
 import { fileManager } from './fileManager';
 
-// the newest OpenAI model is "gpt-5" which was released August 7, 2025. do not change this unless explicitly requested by the user
-const REALTIME_MODEL = 'gpt-4o-realtime-preview-2024-10-01';
+// OpenAI Realtime API GA version (not beta)
+const REALTIME_MODEL = 'gpt-realtime';
 
 interface RealtimeSession {
   id: string;
@@ -144,7 +144,7 @@ export class RealtimeVoiceService {
     const openaiWs = new WebSocket(url, {
       headers: {
         'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`,
-        'OpenAI-Beta': 'realtime=v1', // Required for Beta API
+        // No OpenAI-Beta header needed for GA version
       },
     });
 
@@ -154,15 +154,21 @@ export class RealtimeVoiceService {
       console.log(`✅ OpenAI Realtime API connected for session: ${session.id}`);
       session.isConnected = true;
 
-      // Configure session (Beta API format for gpt-4o-realtime-preview)
+      // Configure session (GA API format)
       this.sendToOpenAI(session, {
         type: 'session.update',
         session: {
-          modalities: ['audio', 'text'], // audio first for voice priority
+          type: 'realtime', // Required for GA version
+          model: REALTIME_MODEL,
+          modalities: ['audio', 'text'],
           instructions: systemInstructions,
-          voice: 'alloy',
-          input_audio_format: 'pcm16',
-          output_audio_format: 'pcm16',
+          audio: {
+            input: { format: 'pcm16' },
+            output: { 
+              format: 'pcm16',
+              voice: 'alloy' 
+            },
+          },
           input_audio_transcription: {
             model: 'whisper-1',
           },
@@ -275,15 +281,17 @@ export class RealtimeVoiceService {
         });
         break;
 
-      case 'response.audio.delta':
-        // Forward audio chunks to client (Beta event name)
+      case 'response.output_audio.delta':
+        // GA API: Forward audio chunks to client
+        console.log('🔊 Audio delta received');
         this.sendToClient(session, {
           type: 'audio.delta',
           delta: event.delta,
         });
         break;
 
-      case 'response.audio_transcript.delta':
+      case 'response.output_audio_transcript.delta':
+        // GA API: Forward transcript to client
         console.log(`🤖 AI transcript: ${event.delta}`);
         this.sendToClient(session, {
           type: 'ai.transcription.delta',
@@ -291,7 +299,8 @@ export class RealtimeVoiceService {
         });
         break;
 
-      case 'response.audio_transcript.done':
+      case 'response.output_audio_transcript.done':
+        // GA API: Complete transcript
         console.log(`✅ AI full transcript: ${event.transcript}`);
         this.sendToClient(session, {
           type: 'ai.transcription.done',
