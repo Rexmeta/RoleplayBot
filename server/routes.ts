@@ -1538,7 +1538,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       const jwt = (await import('jsonwebtoken')).default;
       const decoded = jwt.verify(token || '', JWT_SECRET) as any;
-      userId = decoded.id;
+      userId = decoded.userId; // JWT payload uses 'userId', not 'id'
       console.log(`✅ User authenticated: ${userId}`);
     } catch (error) {
       console.error('Authentication failed:', error);
