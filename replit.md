@@ -1,62 +1,6 @@
 # Overview
 
-This is an AI-powered role-playing training system for new employees, designed to help develop communication skills through interactive conversations with AI personas. The application presents various workplace scenarios where users engage in 10-turn conversations with different AI characters (senior researchers, team leaders, clients, executives), each with distinct personalities and communication challenges. Each AI response includes real-time emotion analysis with visual indicators (emojis, color-coded bubbles). After completing conversations, users receive detailed AI-generated feedback with scores, strengths, improvements, and next steps.
-
-**Recent Updates (2025-10-26)**:
-- **UI REDESIGN: 시나리오별 대화 그룹화** - 마이페이지 대화 기록을 Accordion 컴포넌트로 시나리오별 그룹화하여 가독성 향상
-- **AUTO FEEDBACK: 매 대화 자동 피드백 생성** - 모든 대화 완료 시 백그라운드에서 자동으로 피드백 생성 (마지막 대화 상대가 아니어도)
-- **HELPER FUNCTION: generateAndSaveFeedback() 구현** - 중복 생성 방지 및 백그라운드 비동기 실행으로 UX 최적화
-- **STRATEGY EVALUATION: 시나리오별 전략 평가 메뉴** - 시나리오 완료 시 "전략 평가 보기" 버튼으로 대화 순서 전략 분석 제공
-- **NAVIGATION: 개선된 대화 접근** - 진행 중/완료된 대화를 명확히 구분하고 각각 적절한 페이지로 연결
-- **VISUAL FEEDBACK: 완료 상태 시각화** - 시나리오별 완료 비율 (N/M 대화 완료) 및 완료 뱃지 표시
-
-**Recent Updates (2025-10-24)**:
-- **ANALYTICS: 종합 분석 시스템 구현** - 사용자의 모든 대화 이력을 집계하여 종합 분석 제공
-- **COMPREHENSIVE SCORING: 전체 평균 스코어 계산** - 모든 피드백 데이터를 기반으로 카테고리별 평균 점수 산출
-- **GROWTH TRACKING: 성장 추이 분석** - 시간에 따른 점수 변화를 추적하여 향상/하락/안정 추세 판단
-- **PATTERN ANALYSIS: 강점/약점 패턴 인식** - 반복적으로 나타나는 강점과 개선점을 빈도순으로 추출
-- **UI: Analytics 페이지 추가** - 종합 점수, 등급, 카테고리별 차트, 점수 이력, 패턴 분석을 시각화한 전용 페이지
-- **NAVIGATION: 마이페이지에서 종합 분석 접근** - 헤더와 학습 통계 탭에 종합 분석 링크 추가
-- **CACHE OPTIMIZATION: 피드백 무한 재생성 버그 수정** - staleTime: Infinity로 설정하여 한번 생성된 피드백은 캐시에서 로드
-- **UX: 자동 생성 제거** - 피드백이 없을 때 사용자가 명시적으로 "피드백 생성하기" 버튼을 클릭하도록 변경
-
-**Recent Updates (2025-10-22)**:
-- **SECURITY: User-scoped data isolation implemented** - All conversations and feedbacks are now filtered by authenticated user
-- **AUTHENTICATION: Complete JWT token flow** - Frontend sends Authorization header with Bearer token for all API requests
-- **DATABASE: User ID foreign key added** - conversations table now has user_id column referencing users table
-- **AUTHORIZATION: Ownership verification** - All conversation endpoints verify user owns the resource before allowing access (403 Forbidden for unauthorized, 404 for not found)
-- **BACKEND: User-specific storage methods** - getUserConversations() and getUserFeedbacks() filter by userId
-- **MIDDLEWARE: Authentication enforcement** - isAuthenticated middleware applied to all conversation and feedback endpoints
-- **FRONTEND: Token management** - queryClient and apiRequest forward localStorage authToken in Authorization header
-
-**Recent Updates (2025-08-22)**:
-- **LICENSE: CC BY-NC 4.0 라이센스 적용** - 상업적 사용을 제한하는 Creative Commons Attribution-NonCommercial 라이센스로 변경
-- **DOCUMENTATION: 포괄적인 README.md 작성 완료** - GitHub용 프로젝트 설명서, 설치 가이드, 기술 스택, 사용법, 평가 시스템 상세 설명 포함
-- **ENHANCED: 프로젝트 문서화 개선** - 개발자 가이드, 배포 방법, 문제 해결 섹션 추가 
-- **VOICE INPUT SYSTEM: 완전한 중복 방지 시스템 구현** - speechStartTextRef와 accumulatedSpeechRef를 사용한 텍스트 누적 추적, Web Speech API의 중복 결과 처리 문제 해결
-- **ENHANCED: 연속 음성 인식 최적화** - continuous: true, interimResults: true 설정으로 자연스러운 음성 입력, 중간 멈춤 허용
-- **TECHNICAL: 음성 입력 상태 관리 개선** - 음성 입력 시작/종료 시점 정확한 텍스트 관리, 실시간 피드백과 최종 결과 분리
-- **NAVIGATION FIX: 로고 링크 중복 문제 해결** - Home 페이지의 기존 헤더만 사용하도록 수정, ChatWindow와 PersonalDevelopmentReport에서 중복 Header 제거
-- **CRITICAL FIX: React hooks 순서 오류 완전 해결** - PersonalDevelopmentReport의 조건부 hooks 호출 문제 근본적 해결, useEffect를 조건부 렌더링 이전에 호출하도록 변경, 애니메이션 hooks 완전 제거
-- **MAJOR IMPROVEMENT: 김태훈 시나리오 완전 개편** - 스마트폰 개발 미션 "노이즈 문제, 이대로 출시해도 될까요?" 구현
-- **ENHANCED: 현실적 비즈니스 시나리오** - 마이크 모듈 노이즈 문제, 양산 일정 제약, 선임 책임자 설득 미션 구성
-- **TECHNICAL: 자동 초기 대화 생성** - 새 대화 생성 시 AI가 미션 상황에 맞는 첫 메시지 자동 생성
-- **UI/UX: 애니메이션 안정성 향상** - useCountUpAnimation, useProgressAnimation hooks 안전성 강화
-- **CONTENT: 평가 기준 업데이트** - 논리적 설명, 설득력, 조직 내 협상, 현실적 해결책 제시 능력 평가
-- Successfully migrated from OpenAI/AIMLAPI to Google Gemini API for real-time AI conversation generation
-- Gemini API fully operational for character-based conversations with natural, context-aware responses
-- **RESOLVED: Complete feedback system working** with comprehensive evaluation reports (5 categories, detailed analysis)
-- **IMPLEMENTED: Real-time emotion state system** - AI characters display emotions (기쁨😊, 슬픔😢, 분노😠, 놀람😲, 중립😐) for each conversation turn
-- Emotion-based UI changes: color-coded message bubbles, avatar emotion indicators, and detailed emotion reasoning
-- **IMPROVED: UI flow** - Removed automatic redirect after 10 turns, added manual "Final Feedback" button for user control
-- Enhanced JSON parsing for Gemini API feedback generation with robust error handling
-- Robust fallback system ensures 100% system reliability even during API issues
-- **UPGRADED: Scientific evaluation framework** - Implemented ComOn Check research-based 5-point scoring system (1-5 scale)
-- **IMPLEMENTED: Research-based assessment categories** - Message clarity, audience adaptation, emotional responsiveness, conversation structure, professional competence
-- **ENHANCED: Quantitative scoring methodology** - Each category scored 1-5 points, overall score calculated as (sum/5)*20 for 0-100 scale
-- **IMPLEMENTED: Advanced real-time scoring system** - Scientific 0-100 point scoring starting from 0, with ComOn Check methodology
-- **IMPLEMENTED: Multi-factor real-time analysis** - Message structure (25%), empathy expression (20%), professional solutions (25%), communication appropriateness (20%), scenario adaptation (10%)
-- **ENHANCED: Dynamic score visualization** - Color-coded progress bar with performance levels (미흡/개선 필요/보통/우수) and real-time feedback
+This project is an AI-powered role-playing training system designed to enhance communication skills for new employees. It uses interactive conversations with AI personas across various workplace scenarios. Users engage in 10-turn dialogues, receiving real-time emotion analysis and detailed AI-generated feedback including scores, strengths, and areas for improvement. The system supports three conversation modes: text, text-to-speech (TTS), and real-time voice, utilizing advanced AI models for natural and immersive interactions. The business vision is to provide a scalable and effective tool for professional development, leveraging AI to offer personalized communication coaching.
 
 # User Preferences
 
@@ -64,80 +8,52 @@ Preferred communication style: Simple, everyday language.
 
 # System Architecture
 
-## Frontend Architecture
-- **Framework**: React with TypeScript using Vite as the build tool
-- **UI Library**: Radix UI components with shadcn/ui design system
-- **Styling**: Tailwind CSS with custom CSS variables for theming
-- **Routing**: Wouter for lightweight client-side routing (routes: /, /mypage, /analytics, /chat/:id, /feedback/:id)
-- **State Management**: TanStack React Query for server state management with aggressive caching (staleTime: Infinity for immutable data)
+## Frontend
+- **Framework**: React with TypeScript (Vite)
+- **UI**: Radix UI with shadcn/ui, Tailwind CSS
+- **Routing**: Wouter
+- **State Management**: TanStack React Query (aggressive caching)
 - **Forms**: React Hook Form with Zod validation
+- **Conversation Modes**:
+    - **Text Input**: Standard text-based chat, optional Web Speech API for dictation.
+    - **Text-to-Speech (TTS)**: User text input, AI voice response (ElevenLabs API), voice selection based on MBTI persona.
+    - **Real-time Voice**: Full-duplex voice conversation via OpenAI Realtime API (GPT-4o Realtime), WebSocket streaming (PCM16, 24kHz), server-side VAD, Whisper transcription, Web Audio API playback.
 
-## Backend Architecture
-- **Runtime**: Node.js with Express.js server
-- **Language**: TypeScript with ES modules
-- **API Design**: RESTful endpoints for conversations and feedback
-- **Development**: Development server with hot module replacement via Vite middleware
-- **Production**: Built server bundle with static file serving
+## Backend
+- **Runtime**: Node.js with Express.js
+- **Language**: TypeScript (ES modules)
+- **API Design**: RESTful for conversations and feedback, WebSocket for real-time voice.
+- **Authentication**: JWT (JSON Web Tokens) for stateless authentication, Bearer token in `Authorization` header.
+- **Authorization**: Resource ownership verification for all user data.
+- **User Isolation**: All data queries filtered by authenticated user ID.
 
-## Data Storage Solutions
-- **ORM**: Drizzle ORM with PostgreSQL dialect
-- **Database**: PostgreSQL (Neon serverless) - ALL data persisted in database
-- **Schema**: 
-  - conversations table: stores messages as JSON, linked to users via userId foreign key
-  - feedbacks table: stores evaluation scores and detailed feedback, linked to conversations
-  - users table: email-based authentication with hashed passwords
-- **Active Storage**: PostgreSQLStorage (MemStorage available for testing)
-- **Data Persistence**: All conversations and feedbacks are permanently stored in PostgreSQL database
-- **Migrations**: Drizzle Kit with `npm run db:push` (use `--force` if needed)
+## Data Storage
+- **ORM**: Drizzle ORM (PostgreSQL dialect)
+- **Database**: PostgreSQL (Neon serverless)
+- **Schema**: `conversations`, `feedbacks`, `users` tables with appropriate foreign keys for user and conversation linking.
+- **Persistence**: All conversations and feedback are stored permanently.
 
-## Authentication and Authorization
-- **Authentication Method**: JWT (JSON Web Tokens) with Bearer token in Authorization header
-- **Token Storage**: localStorage for client-side token persistence
-- **Session Management**: Stateless JWT-based authentication (no server-side sessions)
-- **Authorization**: Resource ownership verification on all conversation and feedback endpoints
-- **User Isolation**: All data queries filtered by authenticated user's ID
-- **Security**: 401 Unauthorized for missing/invalid tokens, 403 Forbidden for unauthorized access
+## Analytics and Reporting
+- **Comprehensive Analytics**: Aggregates all user conversation history to provide:
+    - Overall performance (average score, grade).
+    - Category breakdown of scores (e.g., clarity, empathy).
+    - Growth tracking (time-series score history).
+    - Pattern recognition (frequent strengths/improvements).
+    - Progress trends (recent vs. older sessions).
+- **Evaluation Framework**: ComOn Check research-based 5-point scoring system (1-5 scale), converted to 0-100.
+- **Real-time Emotion Analysis**: AI characters display emotions (😊, 😢, 😠, 😲, 😐) with visual indicators and reasoning.
 
-## External Dependencies
+# External Dependencies
 
-### Third-party Services
-- **Google Gemini API**: Gemini 2.5 Flash/Pro models for AI conversation responses and feedback generation
-- **Neon Database**: Serverless PostgreSQL hosting
-- **Replit Integration**: Development environment integration with cartographer and runtime error handling
+## Third-party Services
+- **Google Gemini API**: Gemini 2.5 Flash/Pro for AI conversation responses and feedback generation.
+- **OpenAI Realtime API**: GPT-4o Realtime for real-time voice conversations.
+- **ElevenLabs API**: Text-to-speech synthesis.
+- **Neon Database**: Serverless PostgreSQL hosting.
 
-### Key Libraries and Frameworks
-- **React Ecosystem**: React 18, React Query, React Hook Form, React Router (Wouter)
-- **UI Components**: Comprehensive Radix UI primitive collection
-- **Database**: Drizzle ORM, Neon serverless driver, PostgreSQL session store
-- **Validation**: Zod for schema validation and type safety
-- **Development Tools**: Vite, TypeScript, Tailwind CSS, ESBuild for production builds
-- **Utilities**: date-fns for date manipulation, class-variance-authority for component variants
-
-### API Structure
-- `POST /api/conversations` - Create new conversation
-- `GET /api/conversations/:id` - Retrieve conversation
-- `POST /api/conversations/:id/messages` - Send message and get AI response
-- `POST /api/conversations/:id/feedback` - Generate feedback for completed conversation
-- `GET /api/conversations/:id/feedback` - Retrieve existing feedback
-- `GET /api/analytics/summary` - Get comprehensive analytics summary (all user feedbacks aggregated)
-
-The system uses a shared schema between client and server, ensuring type safety across the full stack. The application supports multiple predefined scenarios with different AI personas, each designed to test specific communication skills like empathy, negotiation, and presentation abilities.
-
-## Analytics and Reporting System
-
-### Comprehensive Analytics (/analytics)
-The analytics system aggregates all user conversation history to provide:
-- **Overall Performance**: Average score across all conversations, overall grade (A+, A, B, C, D)
-- **Category Breakdown**: Average scores for 5 evaluation categories (clarityLogic, listeningEmpathy, appropriatenessAdaptability, persuasivenessImpact, strategicCommunication)
-- **Growth Tracking**: Time-series score history showing improvement/decline/stable trends
-- **Pattern Recognition**: Top 5 most frequent strengths and improvement areas based on all feedback data
-- **Progress Trends**: Automatic comparison of recent vs older sessions to determine growth trajectory
-
-### Data Aggregation Logic
-- Fetches all feedbacks for authenticated user via JOIN with conversations table (user-scoped)
-- Calculates weighted averages for each category (1-5 scale)
-- Sorts score history chronologically for trend visualization
-- Frequency analysis of feedback text to identify recurring patterns
-- Real-time analytics updates as new conversations are completed and feedback generated
-
-This comprehensive analysis improves diagnosis accuracy by considering the full history of user interactions rather than individual session results.
+## Key Libraries and Frameworks
+- **React Ecosystem**: React 18, React Query, React Hook Form, Wouter.
+- **UI Components**: Radix UI.
+- **Database**: Drizzle ORM.
+- **Validation**: Zod.
+- **Development Tools**: Vite, TypeScript, Tailwind CSS.
