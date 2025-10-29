@@ -164,14 +164,9 @@ export class RealtimeVoiceService {
           input_audio_transcription: {
             model: 'whisper-1',
           },
-          turn_detection: {
-            type: 'server_vad',
-            threshold: 0.5,
-            prefix_padding_ms: 300,
-            silence_duration_ms: 500,
-          },
+          turn_detection: null, // Disable server VAD, use manual control
           temperature: 0.8,
-          max_response_output_tokens: 4096, // Increased for longer responses
+          max_response_output_tokens: 4096,
         },
       });
 
@@ -246,16 +241,17 @@ export class RealtimeVoiceService {
             content: [
               {
                 type: 'input_text',
-                text: '안녕하세요. 대화를 시작해주세요.',
+                text: '안녕하세요',
               },
             ],
           },
         });
-        // Then request audio response
+        // Then request audio response with explicit modalities
         this.sendToOpenAI(session, {
           type: 'response.create',
           response: {
-            modalities: ['audio', 'text'],
+            modalities: ['audio'], // Audio only for first greeting
+            output_audio_format: 'pcm16',
           },
         });
         break;
@@ -301,6 +297,11 @@ export class RealtimeVoiceService {
 
       case 'error':
         console.error(`❌ OpenAI error:`, event.error);
+        // Don't close session on empty buffer errors (recoverable)
+        if (event.error?.code === 'input_audio_buffer_commit_empty') {
+          console.log('⚠️  Empty audio buffer - ignoring');
+          return;
+        }
         this.sendToClient(session, {
           type: 'error',
           error: event.error,

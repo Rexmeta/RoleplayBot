@@ -308,30 +308,39 @@ export function useRealtimeVoice({
   const stopRecording = useCallback(() => {
     console.log('🎤 Stopping recording...');
     
-    // Disconnect audio processor
-    if (audioProcessorRef.current) {
-      audioProcessorRef.current.disconnect();
-      audioProcessorRef.current = null;
-    }
-    
-    // Stop microphone stream
-    if (micStreamRef.current) {
-      micStreamRef.current.getTracks().forEach(track => track.stop());
-      micStreamRef.current = null;
-    }
-    
-    // Commit audio and request response
-    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-      wsRef.current.send(JSON.stringify({
-        type: 'input_audio_buffer.commit',
-      }));
-      wsRef.current.send(JSON.stringify({
-        type: 'response.create',
-      }));
-    }
-    
+    // Stop sending audio first
     setIsRecording(false);
-    console.log('✅ Recording stopped and committed');
+    
+    // Small delay to ensure last audio chunks are sent
+    setTimeout(() => {
+      // Disconnect audio processor
+      if (audioProcessorRef.current) {
+        audioProcessorRef.current.disconnect();
+        audioProcessorRef.current = null;
+      }
+      
+      // Stop microphone stream
+      if (micStreamRef.current) {
+        micStreamRef.current.getTracks().forEach(track => track.stop());
+        micStreamRef.current = null;
+      }
+      
+      // Commit audio and request response
+      if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+        console.log('📤 Committing audio buffer and requesting response');
+        wsRef.current.send(JSON.stringify({
+          type: 'input_audio_buffer.commit',
+        }));
+        wsRef.current.send(JSON.stringify({
+          type: 'response.create',
+          response: {
+            modalities: ['audio', 'text'],
+          },
+        }));
+      }
+      
+      console.log('✅ Recording stopped and committed');
+    }, 100); // 100ms delay
   }, []);
 
   useEffect(() => {

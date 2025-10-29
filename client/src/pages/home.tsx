@@ -69,11 +69,11 @@ export default function Home() {
         scenarioName: selectedScenario.title,
         messages: [],
         turnCount: 0,
-        status: "active",
-        mode: "realtime_voice"
+        status: "active" as const,
+        mode: "realtime_voice" as const,
       };
       
-      console.log('📤 Creating conversation with data:', conversationData);
+      console.log('📤 Creating conversation with data:', JSON.stringify(conversationData));
       
       const response = await apiRequest("POST", "/api/conversations", conversationData);
       
