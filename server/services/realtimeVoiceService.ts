@@ -160,17 +160,18 @@ export class RealtimeVoiceService {
         session: {
           type: 'realtime', // Required for GA version
           model: REALTIME_MODEL,
-          modalities: ['audio', 'text'],
           instructions: systemInstructions,
           audio: {
-            input: { format: 'pcm16' },
+            input: { 
+              format: 'pcm16',
+              transcription: {
+                model: 'whisper-1',
+              },
+            },
             output: { 
               format: 'pcm16',
               voice: 'alloy' 
             },
-          },
-          input_audio_transcription: {
-            model: 'whisper-1',
           },
           turn_detection: null, // Disable server VAD, use manual control
           temperature: 0.8,
