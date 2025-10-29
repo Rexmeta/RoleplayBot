@@ -45,6 +45,8 @@ export function useRealtimeVoice({
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
+  const audioProcessorRef = useRef<ScriptProcessorNode | null>(null);
+  const micStreamRef = useRef<MediaStream | null>(null);
   
   // Store callbacks in refs to avoid recreating connect() on every render
   const onMessageRef = useRef(onMessage);
@@ -222,48 +224,60 @@ export function useRealtimeVoice({
     }
 
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const mediaRecorder = new MediaRecorder(stream, {
-        mimeType: 'audio/webm;codecs=opus',
+      const stream = await navigator.mediaDevices.getUserMedia({ 
+        audio: {
+          channelCount: 1,
+          sampleRate: 24000,
+          echoCancellation: true,
+          noiseSuppression: true,
+        } 
       });
       
-      mediaRecorderRef.current = mediaRecorder;
-      audioChunksRef.current = [];
+      micStreamRef.current = stream;
 
-      mediaRecorder.ondataavailable = (event) => {
-        if (event.data.size > 0) {
-          audioChunksRef.current.push(event.data);
-          
-          const reader = new FileReader();
-          reader.onloadend = () => {
-            if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-              const base64Audio = (reader.result as string).split(',')[1];
-              wsRef.current.send(JSON.stringify({
-                type: 'input_audio_buffer.append',
-                audio: base64Audio,
-              }));
-            }
-          };
-          reader.readAsDataURL(event.data);
+      // Create AudioContext for PCM16 conversion
+      if (!audioContextRef.current) {
+        audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)({ 
+          sampleRate: 24000 
+        });
+      }
+
+      const audioContext = audioContextRef.current;
+      const source = audioContext.createMediaStreamSource(stream);
+      
+      // Use ScriptProcessorNode to process raw audio (4096 buffer size)
+      const processor = audioContext.createScriptProcessor(4096, 1, 1);
+      audioProcessorRef.current = processor;
+      
+      processor.onaudioprocess = (e) => {
+        if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
+          return;
         }
-      };
 
-      mediaRecorder.onstop = () => {
-        console.log('🎤 Recording stopped');
-        if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-          wsRef.current.send(JSON.stringify({
-            type: 'input_audio_buffer.commit',
-          }));
-          wsRef.current.send(JSON.stringify({
-            type: 'response.create',
-          }));
+        const inputData = e.inputBuffer.getChannelData(0);
+        
+        // Convert Float32 (-1 to 1) to Int16 (PCM16)
+        const pcm16 = new Int16Array(inputData.length);
+        for (let i = 0; i < inputData.length; i++) {
+          const s = Math.max(-1, Math.min(1, inputData[i]));
+          pcm16[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
         }
-        stream.getTracks().forEach(track => track.stop());
+        
+        // Convert to base64
+        const base64 = btoa(String.fromCharCode(...new Uint8Array(pcm16.buffer)));
+        
+        // Send to OpenAI
+        wsRef.current.send(JSON.stringify({
+          type: 'input_audio_buffer.append',
+          audio: base64,
+        }));
       };
-
-      mediaRecorder.start(100);
+      
+      source.connect(processor);
+      processor.connect(audioContext.destination);
+      
       setIsRecording(true);
-      console.log('🎤 Recording started');
+      console.log('🎤 Recording started (PCM16 24kHz)');
     } catch (err) {
       console.error('Error starting recording:', err);
       setError('Microphone access denied');
@@ -274,10 +288,32 @@ export function useRealtimeVoice({
   }, [status]);
 
   const stopRecording = useCallback(() => {
-    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
-      mediaRecorderRef.current.stop();
-      setIsRecording(false);
+    console.log('🎤 Stopping recording...');
+    
+    // Disconnect audio processor
+    if (audioProcessorRef.current) {
+      audioProcessorRef.current.disconnect();
+      audioProcessorRef.current = null;
     }
+    
+    // Stop microphone stream
+    if (micStreamRef.current) {
+      micStreamRef.current.getTracks().forEach(track => track.stop());
+      micStreamRef.current = null;
+    }
+    
+    // Commit audio and request response
+    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+      wsRef.current.send(JSON.stringify({
+        type: 'input_audio_buffer.commit',
+      }));
+      wsRef.current.send(JSON.stringify({
+        type: 'response.create',
+      }));
+    }
+    
+    setIsRecording(false);
+    console.log('✅ Recording stopped and committed');
   }, []);
 
   useEffect(() => {
