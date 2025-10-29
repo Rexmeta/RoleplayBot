@@ -1,0 +1,43 @@
+9:01:26 AM [express] GET /api/scenarios 200 in 64ms :: [{"id":"service-해킹-책임-2025-09-18T00-40-24","t…
+📥 클라이언트 요청 body: {"scenarioId":"service-해킹-책임-2025-09-18T00-40-24","personaId":"istj","scenarioName":"서비스 해킹 책임 갈등: 재무부서의 합리적 해결 모색","messages":[],"turnCount":0,"status":"active"}
+✅ 검증된 데이터: {"scenarioId":"service-해킹-책임-2025-09-18T00-40-24","personaId":"istj","scenarioName":"서비스 해킹 책임 갈등: 재무부서의 합리적 해결 모색","messages":[],"turnCount":0,"status":"active"}
+📋 새 대화 생성: mode=text, id=d325650f-a260-49e8-b27e-e169f598d8f4
+💬 텍스트/TTS 모드 - Gemini로 초기 메시지 생성
+Creating AI service with provider: gemini
+Both GOOGLE_API_KEY and GEMINI_API_KEY are set. Using GOOGLE_API_KEY.
+🔥 Optimized Gemini API call...
+⚡ Using global cached MBTI: ISTJ
+🔗 Persona enriched: 이지혜 with ISTJ traits
+✅ Persona enriched and cached: 이지혜 (scenario: service-해킹-책임-2025-09-18T00-40-24)
+⚡ Parallel processing completed in 0ms
+🎭 Persona: 이지혜 (ISTJ)
+✓ Optimized Gemini call completed in 9897ms
+9:01:42 AM [express] POST /api/conversations 200 in 10305ms :: {"id":"d325650f-a260-49e8-b27e-e169f5…
+9:01:43 AM [express] GET /api/conversations/d325650f-a260-49e8-b27e-e169f598d8f4 200 in 187ms :: {"i…
+🎙️ New WebSocket connection for realtime voice
+✅ User authenticated: 30272b01-51b9-4cd2-a7ac-0a65191b13d4
+🎙️ Creating realtime voice session: 30272b01-51b9-4cd2-a7ac-0a65191b13d4-d325650f-a260-49e8-b27e-e169f598d8f4-1761728503549
+✅ Realtime voice session created: 30272b01-51b9-4cd2-a7ac-0a65191b13d4-d325650f-a260-49e8-b27e-e169f598d8f4-1761728503549
+✅ OpenAI Realtime API connected for session: 30272b01-51b9-4cd2-a7ac-0a65191b13d4-d325650f-a260-49e8-b27e-e169f598d8f4-1761728503549
+📨 OpenAI event: session.created
+📨 OpenAI event: session.updated
+🎬 Triggering AI to start first greeting...
+📨 OpenAI event: conversation.item.created
+📨 OpenAI event: response.created
+📨 OpenAI event: response.done
+✅ Response complete
+📨 OpenAI event: error
+❌ OpenAI error: {
+  type: 'invalid_request_error',
+  code: 'input_audio_buffer_commit_empty',
+  message: 'Error committing input audio buffer: buffer too small. Expected at least 100ms of audio, but buffer only has 0.00ms of audio.',
+  param: null,
+  event_id: null
+}
+📨 OpenAI event: response.created
+📨 OpenAI event: response.done
+✅ Response complete
+🔌 WebSocket closed for session: 30272b01-51b9-4cd2-a7ac-0a65191b13d4-d325650f-a260-49e8-b27e-e169f598d8f4-1761728503549
+🔚 Closing realtime voice session: 30272b01-51b9-4cd2-a7ac-0a65191b13d4-d325650f-a260-49e8-b27e-e169f598d8f4-1761728503549
+🔌 OpenAI WebSocket closed for session: 30272b01-51b9-4cd2-a7ac-0a65191b13d4-d325650f-a260-49e8-b27e-e169f598d8f4-1761728503549
+♻️  Session cleaned up: 30272b01-51b9-4cd2-a7ac-0a65191b13d4-d325650f-a260-49e8-b27e-e169f598d8f4-1761728503549
