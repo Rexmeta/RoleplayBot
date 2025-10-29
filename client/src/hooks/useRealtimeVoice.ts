@@ -19,6 +19,7 @@ interface UseRealtimeVoiceProps {
 interface UseRealtimeVoiceReturn {
   status: RealtimeVoiceStatus;
   isRecording: boolean;
+  isAISpeaking: boolean;
   connect: () => Promise<void>;
   disconnect: () => void;
   startRecording: () => void;
@@ -37,6 +38,7 @@ export function useRealtimeVoice({
 }: UseRealtimeVoiceProps): UseRealtimeVoiceReturn {
   const [status, setStatus] = useState<RealtimeVoiceStatus>('disconnected');
   const [isRecording, setIsRecording] = useState(false);
+  const [isAISpeaking, setIsAISpeaking] = useState(false);
   const [error, setError] = useState<string | null>(null);
   
   const wsRef = useRef<WebSocket | null>(null);
@@ -77,6 +79,7 @@ export function useRealtimeVoice({
     }
     setStatus('disconnected');
     setIsRecording(false);
+    setIsAISpeaking(false);
   }, []);
 
   const connect = useCallback(async () => {
@@ -111,6 +114,7 @@ export function useRealtimeVoice({
 
             case 'audio.delta':
               if (data.delta) {
+                setIsAISpeaking(true);
                 playAudioDelta(data.delta);
               }
               break;
@@ -123,6 +127,7 @@ export function useRealtimeVoice({
 
             case 'response.done':
               console.log('✅ Response complete');
+              setIsAISpeaking(false);
               break;
 
             case 'session.terminated':
@@ -288,6 +293,7 @@ export function useRealtimeVoice({
   return {
     status,
     isRecording,
+    isAISpeaking,
     connect,
     disconnect,
     startRecording,
