@@ -1533,12 +1533,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
     // Authenticate user via token
     let userId: string;
     try {
-      if (!process.env.JWT_SECRET) {
-        throw new Error('JWT_SECRET is not configured');
-      }
+      // Use same default as auth.ts for consistency
+      const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
       
       const jwt = (await import('jsonwebtoken')).default;
-      const decoded = jwt.verify(token || '', process.env.JWT_SECRET) as any;
+      const decoded = jwt.verify(token || '', JWT_SECRET) as any;
       userId = decoded.id;
       console.log(`✅ User authenticated: ${userId}`);
     } catch (error) {
