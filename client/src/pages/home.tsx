@@ -69,7 +69,8 @@ export default function Home() {
         scenarioName: selectedScenario.title,
         messages: [],
         turnCount: 0,
-        status: "active"
+        status: "active",
+        mode: "realtime_voice"
       });
       
       const conversation = await response.json();
@@ -116,7 +117,8 @@ export default function Home() {
         scenarioName,
         messages: [],
         turnCount: 0,
-        status: "active"
+        status: "active",
+        mode: "realtime_voice"
       });
       return response.json();
     },
