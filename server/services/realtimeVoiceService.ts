@@ -228,6 +228,8 @@ export class RealtimeVoiceService {
         break;
       
       case 'session.updated':
+        console.log('✅ Session updated with our settings');
+        console.log('📋 Updated session config:', JSON.stringify(event.session, null, 2));
         this.sendToClient(session, {
           type: 'session.configured',
           ...event,
@@ -260,7 +262,7 @@ export class RealtimeVoiceService {
           type: 'response.create',
           response: {
             modalities: ['audio', 'text'],
-            instructions: '반드시 음성으로 자연스럽게 인사하세요. 1-2문장으로 간단히.',
+            // instructions field is not supported in response.create
           },
         });
         break;
@@ -299,6 +301,7 @@ export class RealtimeVoiceService {
 
       case 'response.done':
         console.log(`✅ Response complete`);
+        console.log(`📊 Response details:`, JSON.stringify(event.response, null, 2));
         this.sendToClient(session, {
           type: 'response.done',
         });
