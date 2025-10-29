@@ -183,10 +183,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const validatedData = insertConversationSchema.parse(req.body);
       const conversation = await storage.createConversation({ ...validatedData, userId });
       
+      console.log(`📋 새 대화 생성: mode=${conversation.mode}, id=${conversation.id}`);
+      
       // 실시간 음성 모드는 WebSocket을 통해 초기 메시지를 받으므로 건너뛰기
       if (conversation.mode === 'realtime_voice') {
+        console.log('🎙️ 실시간 음성 모드 - Gemini 호출 건너뛰기');
         return res.json(conversation);
       }
+      
+      console.log('💬 텍스트/TTS 모드 - Gemini로 초기 메시지 생성');
       
       // 첫 번째 AI 메시지 자동 생성
       try {
