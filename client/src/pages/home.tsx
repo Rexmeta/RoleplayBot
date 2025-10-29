@@ -63,6 +63,8 @@ export default function Home() {
     if (!selectedScenario) return;
     
     try {
+      console.log(`🕐 CLIENT CODE TIMESTAMP: ${Date.now()} - UPDATED VERSION`);
+      
       const conversationData = {
         scenarioId: selectedScenario.id,
         personaId: persona.id,
@@ -73,7 +75,8 @@ export default function Home() {
         mode: "realtime_voice" as const,
       };
       
-      console.log('📤 Creating conversation with data:', JSON.stringify(conversationData));
+      console.log('📤 [NEW CODE] Creating conversation with mode:', conversationData.mode);
+      console.log('📤 [NEW CODE] Full conversation data:', JSON.stringify(conversationData));
       
       const response = await apiRequest("POST", "/api/conversations", conversationData);
       
