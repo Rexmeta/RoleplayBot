@@ -183,6 +183,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const validatedData = insertConversationSchema.parse(req.body);
       const conversation = await storage.createConversation({ ...validatedData, userId });
       
+      // 실시간 음성 모드는 WebSocket을 통해 초기 메시지를 받으므로 건너뛰기
+      if (conversation.mode === 'realtime_voice') {
+        return res.json(conversation);
+      }
+      
       // 첫 번째 AI 메시지 자동 생성
       try {
         // personaId가 있으면 사용하고, 없으면 기존 scenarioId 사용 (하위 호환성)
