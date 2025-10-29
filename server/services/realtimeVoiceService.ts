@@ -154,7 +154,7 @@ export class RealtimeVoiceService {
       console.log(`✅ OpenAI Realtime API connected for session: ${session.id}`);
       session.isConnected = true;
 
-      // Configure session (GA API format)
+      // Configure session (GA API format - simplified structure)
       this.sendToOpenAI(session, {
         type: 'session.update',
         session: {
@@ -162,20 +162,10 @@ export class RealtimeVoiceService {
           model: REALTIME_MODEL,
           instructions: systemInstructions,
           audio: {
-            input: { 
-              format: 'pcm16',
-              transcription: {
-                model: 'whisper-1',
-              },
-            },
             output: { 
-              format: 'pcm16',
               voice: 'alloy' 
             },
           },
-          turn_detection: null, // Disable server VAD, use manual control
-          temperature: 0.8,
-          max_response_output_tokens: 4096,
         },
       });
 
