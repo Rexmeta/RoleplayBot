@@ -250,8 +250,7 @@ export class RealtimeVoiceService {
         this.sendToOpenAI(session, {
           type: 'response.create',
           response: {
-            modalities: ['audio'], // Audio only for first greeting
-            output_audio_format: 'pcm16',
+            modalities: ['audio', 'text'], // Must be both
           },
         });
         break;
