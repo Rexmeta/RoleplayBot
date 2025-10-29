@@ -152,15 +152,22 @@ export class RealtimeVoiceService {
       console.log(`✅ OpenAI Realtime API connected for session: ${session.id}`);
       session.isConnected = true;
 
-      // Configure session
+      // Configure session (GA API format)
       this.sendToOpenAI(session, {
         type: 'session.update',
         session: {
+          type: 'realtime', // Required in GA API
           modalities: ['text', 'audio'],
           instructions: systemInstructions,
-          voice: 'alloy',
-          input_audio_format: 'pcm16',
-          output_audio_format: 'pcm16',
+          audio: {
+            output: { 
+              voice: 'alloy',
+              format: 'pcm16'
+            },
+            input: {
+              format: 'pcm16'
+            }
+          },
           input_audio_transcription: {
             model: 'whisper-1',
           },
@@ -250,15 +257,15 @@ export class RealtimeVoiceService {
         });
         break;
 
-      case 'response.audio.delta':
-        // Forward audio chunks to client
+      case 'response.output_audio.delta':
+        // Forward audio chunks to client (GA event name)
         this.sendToClient(session, {
           type: 'audio.delta',
           delta: event.delta,
         });
         break;
 
-      case 'response.audio_transcript.delta':
+      case 'response.output_audio_transcript.delta':
         console.log(`🤖 AI transcript: ${event.delta}`);
         this.sendToClient(session, {
           type: 'ai.transcription.delta',
@@ -266,7 +273,7 @@ export class RealtimeVoiceService {
         });
         break;
 
-      case 'response.audio_transcript.done':
+      case 'response.output_audio_transcript.done':
         console.log(`✅ AI full transcript: ${event.transcript}`);
         this.sendToClient(session, {
           type: 'ai.transcription.done',

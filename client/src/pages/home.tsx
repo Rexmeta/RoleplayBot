@@ -63,7 +63,7 @@ export default function Home() {
     if (!selectedScenario) return;
     
     try {
-      const response = await apiRequest("POST", "/api/conversations", {
+      const conversationData = {
         scenarioId: selectedScenario.id,
         personaId: persona.id,
         scenarioName: selectedScenario.title,
@@ -71,7 +71,11 @@ export default function Home() {
         turnCount: 0,
         status: "active",
         mode: "realtime_voice"
-      });
+      };
+      
+      console.log('📤 Creating conversation with data:', conversationData);
+      
+      const response = await apiRequest("POST", "/api/conversations", conversationData);
       
       const conversation = await response.json();
       
@@ -111,7 +115,7 @@ export default function Home() {
       personaId: string; 
       scenarioName: string; 
     }) => {
-      const response = await apiRequest("POST", "/api/conversations", {
+      const conversationData = {
         scenarioId,
         personaId,
         scenarioName,
@@ -119,7 +123,11 @@ export default function Home() {
         turnCount: 0,
         status: "active",
         mode: "realtime_voice"
-      });
+      };
+      
+      console.log('📤 Creating retry conversation with data:', conversationData);
+      
+      const response = await apiRequest("POST", "/api/conversations", conversationData);
       return response.json();
     },
     onSuccess: (conversation) => {
