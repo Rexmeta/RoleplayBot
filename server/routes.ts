@@ -1,5 +1,6 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
+import WebSocket, { WebSocketServer } from "ws";
 import { storage } from "./storage";
 // Replit Auth 제거됨
 import { 
@@ -15,6 +16,7 @@ import ttsRoutes from "./routes/tts.js";
 import imageGenerationRoutes, { saveImageToLocal } from "./routes/imageGeneration.js";
 import { fileManager } from "./services/fileManager";
 import { generateScenarioWithAI, enhanceScenarioWithAI } from "./services/aiScenarioGenerator";
+import { realtimeVoiceService } from "./services/realtimeVoiceService";
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // 이메일 기반 인증 시스템 설정
@@ -1491,6 +1493,123 @@ export async function registerRoutes(app: Express): Promise<Server> {
   }
 
   const httpServer = createServer(app);
+  
+  // WebSocket server for OpenAI Realtime API
+  const wss = new WebSocketServer({ 
+    server: httpServer,
+    path: '/api/realtime-voice'
+  });
+
+  wss.on('connection', async (ws: WebSocket, req) => {
+    console.log('🎙️ New WebSocket connection for realtime voice');
+    
+    // Check if realtime voice service is available
+    if (!realtimeVoiceService.isServiceAvailable()) {
+      ws.send(JSON.stringify({ 
+        type: 'error', 
+        error: 'Realtime voice service is not available. OpenAI API key is not configured.' 
+      }));
+      ws.close(1011, 'Service unavailable');
+      return;
+    }
+    
+    // Parse query parameters from URL
+    const url = new URL(req.url || '', `http://${req.headers.host}`);
+    const conversationId = url.searchParams.get('conversationId');
+    const scenarioId = url.searchParams.get('scenarioId');
+    const personaId = url.searchParams.get('personaId');
+    const token = url.searchParams.get('token');
+
+    // Validate required parameters
+    if (!conversationId || !scenarioId || !personaId) {
+      ws.send(JSON.stringify({ 
+        type: 'error', 
+        error: 'Missing required parameters: conversationId, scenarioId, personaId' 
+      }));
+      ws.close(1008, 'Missing parameters');
+      return;
+    }
+
+    // Authenticate user via token
+    let userId: string;
+    try {
+      if (!process.env.JWT_SECRET) {
+        throw new Error('JWT_SECRET is not configured');
+      }
+      
+      const jwt = (await import('jsonwebtoken')).default;
+      const decoded = jwt.verify(token || '', process.env.JWT_SECRET) as any;
+      userId = decoded.id;
+      console.log(`✅ User authenticated: ${userId}`);
+    } catch (error) {
+      console.error('Authentication failed:', error);
+      ws.send(JSON.stringify({ 
+        type: 'error', 
+        error: 'Authentication failed: ' + (error instanceof Error ? error.message : 'Invalid token')
+      }));
+      ws.close(1008, 'Authentication failed');
+      return;
+    }
+
+    // Verify conversation ownership
+    const ownership = await verifyConversationOwnership(conversationId, userId);
+    if ('error' in ownership) {
+      ws.send(JSON.stringify({ type: 'error', error: ownership.error }));
+      ws.close();
+      return;
+    }
+
+    // Create unique session ID
+    const sessionId = `${userId}-${conversationId}-${Date.now()}`;
+
+    try {
+      // Create realtime voice session
+      await realtimeVoiceService.createSession(
+        sessionId,
+        conversationId,
+        scenarioId,
+        personaId,
+        userId,
+        ws
+      );
+
+      console.log(`✅ Realtime voice session created: ${sessionId}`);
+
+      // Handle incoming client messages
+      ws.on('message', (data: WebSocket.Data) => {
+        try {
+          const message = JSON.parse(data.toString());
+          realtimeVoiceService.handleClientMessage(sessionId, message);
+        } catch (error) {
+          console.error('Error handling client message:', error);
+          ws.send(JSON.stringify({ type: 'error', error: 'Invalid message format' }));
+        }
+      });
+
+      // Handle connection close
+      ws.on('close', () => {
+        console.log(`🔌 WebSocket closed for session: ${sessionId}`);
+        realtimeVoiceService.closeSession(sessionId);
+      });
+
+      // Handle errors
+      ws.on('error', (error) => {
+        console.error(`WebSocket error for session ${sessionId}:`, error);
+        realtimeVoiceService.closeSession(sessionId);
+      });
+
+    } catch (error) {
+      console.error('Error creating realtime voice session:', error);
+      ws.send(JSON.stringify({ 
+        type: 'error', 
+        error: error instanceof Error ? error.message : 'Failed to create session' 
+      }));
+      ws.close();
+    }
+  });
+
+  console.log('✅ WebSocket server initialized at /api/realtime-voice');
+  
   return httpServer;
 }
 
