@@ -254,13 +254,9 @@ export class RealtimeVoiceService {
           },
         });
         
-        // Then request audio response with explicit modalities
+        // Then request audio response (GA API - no modalities parameter)
         this.sendToOpenAI(session, {
           type: 'response.create',
-          response: {
-            modalities: ['audio', 'text'],
-            // instructions field is not supported in response.create
-          },
         });
         break;
 
