@@ -2,8 +2,8 @@ import WebSocket from 'ws';
 import OpenAI from 'openai';
 import { fileManager } from './fileManager';
 
-// OpenAI Realtime API - using preview model for compatibility
-const REALTIME_MODEL = 'gpt-4o-realtime-preview-2024-10-01';
+// OpenAI Realtime API - using GA model
+const REALTIME_MODEL = 'gpt-4o-realtime';
 
 interface RealtimeSession {
   id: string;
