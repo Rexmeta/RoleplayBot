@@ -139,7 +139,8 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
     preloadImages();
   }, []);
 
-  const maxTurns = 3;
+  // 리얼타임 음성 모드에서는 턴 제한 없음, 다른 모드에서는 10턴
+  const maxTurns = inputMode === 'realtime-voice' ? 999 : 10;
 
   const { data: conversation, error } = useQuery<Conversation>({
     queryKey: ["/api/conversations", conversationId],
