@@ -742,19 +742,7 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
     }
   }, [localMessages]);
 
-  // 음성 자동 재생
-  useEffect(() => {
-    // 음성 모드가 켜져 있을 때 새로운 AI 메시지 자동 재생
-    if (inputMode === 'tts' && localMessages.length > 0) {
-      const lastMessage = localMessages[localMessages.length - 1];
-      if (lastMessage && lastMessage.sender === 'ai' && !isLoading) {
-        // 약간의 지연을 두어 UI 업데이트 후 음성 재생
-        setTimeout(() => {
-          speakMessage(lastMessage.message, true, lastMessage.emotion);
-        }, 500);
-      }
-    }
-  }, [localMessages, inputMode, isLoading]);
+  // TTS 자동 재생 제거 - 사용자가 듣기 버튼을 클릭할 때만 재생
 
   useEffect(() => {
     const handleKeyPress = (e: KeyboardEvent) => {
@@ -1709,26 +1697,15 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
                         </p>
                         
                         {/* AI 메시지 하단 정보 영역 */}
-                        <div className="flex items-center justify-between pt-2">
-                          {/* 감정 정보 */}
-                          {latestAiMessage.emotion && latestAiMessage.emotionReason && (
+                        {latestAiMessage.emotion && latestAiMessage.emotionReason && (
+                          <div className="flex items-center justify-between pt-2">
+                            {/* 감정 정보 */}
                             <div className="text-xs text-slate-500 flex items-center">
                               <span className="mr-1">{emotionEmojis[latestAiMessage.emotion]}</span>
                               <span>{latestAiMessage.emotionReason}</span>
                             </div>
-                          )}
-                          
-                          {/* TTS 스피커 아이콘 */}
-                          <button
-                            onClick={() => speakMessage(latestAiMessage.message, false, latestAiMessage.emotion)}
-                            className="text-xs text-slate-400 hover:text-purple-600 transition-colors flex items-center space-x-1 ml-auto"
-                            title="이 메시지 듣기"
-                            data-testid="button-speak-message-character"
-                          >
-                            <i className="fas fa-volume-up"></i>
-                            <span>듣기</span>
-                          </button>
-                        </div>
+                          </div>
+                        )}
                         
                         {/* Inline Chat Button - Minimal Space */}
                         {!showInputMode && (
