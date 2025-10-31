@@ -318,9 +318,26 @@ export class RealtimeVoiceService {
         });
         break;
 
+      // Events to ignore (already handled or not needed by client)
+      case 'conversation.item.created':
+      case 'response.created':
+      case 'response.output_item.added':
+      case 'response.content_part.added':
+      case 'response.content_part.done':
+      case 'response.output_item.done':
+      case 'response.audio.done':
+      case 'response.output_audio.done':
+      case 'rate_limits.updated':
+      case 'input_audio_buffer.speech_started':
+      case 'input_audio_buffer.speech_stopped':
+      case 'input_audio_buffer.committed':
+        // Silently ignore these events (already processed or not needed)
+        break;
+
       default:
-        // Forward other events as-is for debugging
-        this.sendToClient(session, event);
+        // Log unknown events but don't forward (prevents duplicate audio)
+        console.log(`📨 Unhandled OpenAI event: ${event.type}`);
+        break;
     }
   }
 
