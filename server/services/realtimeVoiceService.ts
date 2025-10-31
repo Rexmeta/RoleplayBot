@@ -268,13 +268,17 @@ export class RealtimeVoiceService {
         break;
 
       case 'response.audio.delta':
-      case 'response.output_audio.delta':
-        // Forward audio chunks to client (both event formats supported)
+        // Forward audio chunks to client
         console.log('🔊 Audio delta received');
         this.sendToClient(session, {
           type: 'audio.delta',
           delta: event.delta,
         });
+        break;
+
+      case 'response.output_audio.delta':
+        // 이미 audio.delta를 보내고 있다면 이건 무시
+        // console.log('ignore response.output_audio.delta');
         break;
 
       case 'response.audio_transcript.delta':
