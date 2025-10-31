@@ -47,6 +47,7 @@ export function useRealtimeVoice({
   const audioChunksRef = useRef<Blob[]>([]);
   const audioProcessorRef = useRef<ScriptProcessorNode | null>(null);
   const micStreamRef = useRef<MediaStream | null>(null);
+  const nextPlayTimeRef = useRef<number>(0); // Track when to play next chunk
   
   // Store callbacks in refs to avoid recreating connect() on every render
   const onMessageRef = useRef(onMessage);
@@ -185,6 +186,7 @@ export function useRealtimeVoice({
     try {
       if (!audioContextRef.current) {
         audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 24000 });
+        nextPlayTimeRef.current = 0; // Reset play time
       }
 
       const audioContext = audioContextRef.current;
@@ -205,13 +207,20 @@ export function useRealtimeVoice({
       const audioBuffer = audioContext.createBuffer(1, float32.length, 24000);
       audioBuffer.getChannelData(0).set(float32);
       
-      // Play audio
+      // Calculate when to play this chunk (sequential playback)
+      const currentTime = audioContext.currentTime;
+      const startTime = Math.max(currentTime, nextPlayTimeRef.current);
+      
+      // Play audio at scheduled time
       const source = audioContext.createBufferSource();
       source.buffer = audioBuffer;
       source.connect(audioContext.destination);
-      source.start(0);
+      source.start(startTime);
       
-      console.log('🔊 Playing audio chunk:', float32.length, 'samples');
+      // Update next play time (current chunk start time + duration)
+      nextPlayTimeRef.current = startTime + audioBuffer.duration;
+      
+      console.log('🔊 Playing audio chunk:', float32.length, 'samples', 'at', startTime.toFixed(3));
     } catch (err) {
       console.error('Error playing audio delta:', err);
     }

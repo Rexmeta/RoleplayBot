@@ -283,7 +283,7 @@ export class RealtimeVoiceService {
         console.log(`🤖 AI transcript: ${event.delta}`);
         this.sendToClient(session, {
           type: 'ai.transcription.delta',
-          delta: event.delta,
+          text: event.delta,  // ✅ text 필드 사용 (delta 아님)
         });
         break;
 
@@ -293,7 +293,7 @@ export class RealtimeVoiceService {
         console.log(`✅ AI full transcript: ${event.transcript}`);
         this.sendToClient(session, {
           type: 'ai.transcription.done',
-          transcript: event.transcript,
+          text: event.transcript,  // ✅ text 필드 사용
         });
         break;
 
