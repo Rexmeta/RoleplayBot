@@ -93,26 +93,9 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
     conversationId,
     scenarioId: scenario.id,
     personaId: persona.id,
-    enabled: false, // 자동 연결 비활성화, 수동 시작
+    enabled: inputMode === 'realtime-voice',
     onMessage: (message) => {
       console.log('🎙️ Received realtime voice message:', message);
-      // 실시간 음성 모드에서도 대화창에 AI 메시지 추가
-      setLocalMessages(prev => [...prev, {
-        sender: 'ai',
-        message: message,
-        timestamp: new Date().toISOString(),
-        emotion: currentEmotion,
-        emotionReason: '',
-      }]);
-    },
-    onUserTranscription: (transcript) => {
-      console.log('🎤 User transcript:', transcript);
-      // 사용자 음성 전사를 대화창에 추가
-      setLocalMessages(prev => [...prev, {
-        sender: 'user',
-        message: transcript,
-        timestamp: new Date().toISOString(),
-      }]);
     },
     onError: (error) => {
       toast({
@@ -1583,30 +1566,6 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
                 )}
               </div>
 
-              {/* Top Center - 실시간 음성 대화 내역 (실시간 음성 모드일 때만 표시) */}
-              {inputMode === 'realtime-voice' && localMessages.length > 0 && (
-                <div className="absolute top-4 left-1/2 transform -translate-x-1/2 z-20 w-full max-w-2xl px-4">
-                  <div className="bg-white/90 backdrop-blur-sm rounded-lg shadow-lg max-h-60 overflow-y-auto p-4 space-y-2">
-                    <h3 className="text-sm font-semibold text-slate-700 mb-2 sticky top-0 bg-white/90">대화 내역</h3>
-                    {localMessages.map((msg, index) => (
-                      <div
-                        key={index}
-                        className={`text-sm p-2 rounded ${
-                          msg.sender === 'user'
-                            ? 'bg-blue-100 text-blue-900 ml-8'
-                            : 'bg-slate-100 text-slate-900 mr-8'
-                        }`}
-                      >
-                        <span className="font-semibold text-xs">
-                          {msg.sender === 'user' ? '나' : persona.name}:
-                        </span>{' '}
-                        {msg.message}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
               {/* Top Right - Control Buttons */}
               <div className="absolute top-4 right-4 z-20 flex items-center space-x-2">
                 {/* 입력 모드 선택 */}
@@ -1658,93 +1617,79 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
               <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 z-20 w-full max-w-4xl lg:max-w-6xl xl:max-w-[90%] px-4 bg-[#00000000]">
                 <Card className="rounded-2xl overflow-hidden text-card-foreground backdrop-blur-sm shadow-xl border border-white/10 bg-[#ffffff9c]">
                   
-                  {/* 실시간 음성 모드 - 대화창 + 음성 버튼 */}
+                  {/* 실시간 음성 모드 - 음성 컨트롤만 표시 */}
                   {inputMode === 'realtime-voice' ? (
-                    <div className="p-4 bg-[#ffffff9c] space-y-4">
-                      {/* 대화 시작 전 상태 */}
-                      {realtimeVoice.status === 'disconnected' && (
-                        <div className="flex flex-col items-center space-y-4 py-4">
-                          <p className="text-sm text-slate-600">실시간 음성 대화를 시작하세요</p>
-                          <Button
-                            onClick={() => realtimeVoice.connect()}
-                            className="bg-purple-600 hover:bg-purple-700 text-white px-8 py-6 text-lg font-semibold rounded-full shadow-lg"
-                            data-testid="button-start-voice"
-                          >
-                            <i className="fas fa-phone mr-2"></i>
-                            대화 시작하기
-                          </Button>
+                    <div className="p-6 bg-[#ffffff9c]">
+                      <div className="flex flex-col items-center space-y-4">
+                        <div className="text-center space-y-2">
+                          <h3 className="text-lg font-semibold text-slate-800">실시간 음성 대화</h3>
+                          <p className="text-sm text-slate-600">
+                            {realtimeVoice.status === 'connected' 
+                              ? '버튼을 눌러 말씀하세요' 
+                              : realtimeVoice.status === 'connecting'
+                              ? '음성 연결 중...'
+                              : '음성 연결 대기 중...'}
+                          </p>
                         </div>
-                      )}
-                      
-                      {/* 연결 중 상태 */}
-                      {realtimeVoice.status === 'connecting' && (
-                        <div className="flex items-center justify-center space-x-2 py-4">
-                          <div className="w-3 h-3 bg-purple-400 rounded-full animate-bounce"></div>
-                          <div className="w-3 h-3 bg-purple-400 rounded-full animate-bounce" style={{ animationDelay: "0.1s" }}></div>
-                          <div className="w-3 h-3 bg-purple-400 rounded-full animate-bounce" style={{ animationDelay: "0.2s" }}></div>
-                          <span className="ml-2 text-slate-600">음성 연결 중...</span>
+                        
+                        {/* 음성 녹음 버튼 */}
+                        <button
+                          onClick={() => {
+                            if (realtimeVoice.isRecording) {
+                              realtimeVoice.stopRecording();
+                            } else {
+                              realtimeVoice.startRecording();
+                            }
+                          }}
+                          disabled={realtimeVoice.status !== 'connected'}
+                          className={`
+                            w-24 h-24 rounded-full flex items-center justify-center text-4xl
+                            transition-all duration-300 shadow-lg
+                            ${realtimeVoice.status !== 'connected' 
+                              ? 'bg-gray-300 text-gray-500 cursor-not-allowed' 
+                              : realtimeVoice.isRecording
+                              ? 'bg-red-500 text-white animate-pulse'
+                              : realtimeVoice.isAISpeaking
+                              ? 'bg-blue-500 text-white animate-pulse'
+                              : 'bg-purple-600 hover:bg-purple-700 text-white'}
+                          `}
+                          data-testid="button-realtime-voice-record"
+                        >
+                          {realtimeVoice.isRecording ? (
+                            <i className="fas fa-stop"></i>
+                          ) : realtimeVoice.isAISpeaking ? (
+                            <i className="fas fa-volume-up"></i>
+                          ) : (
+                            <i className="fas fa-microphone"></i>
+                          )}
+                        </button>
+                        
+                        {/* 상태 표시 */}
+                        <div className="text-center space-y-1">
+                          {realtimeVoice.isRecording && (
+                            <p className="text-sm text-red-600 font-medium animate-pulse">
+                              🔴 녹음 중...
+                            </p>
+                          )}
+                          {realtimeVoice.isAISpeaking && (
+                            <p className="text-sm text-blue-600 font-medium animate-pulse">
+                              🔵 AI 응답 중...
+                            </p>
+                          )}
+                          {!realtimeVoice.isRecording && !realtimeVoice.isAISpeaking && realtimeVoice.status === 'connected' && (
+                            <p className="text-sm text-slate-500">
+                              준비됨
+                            </p>
+                          )}
                         </div>
-                      )}
-                      
-                      {/* 연결 완료 - 음성 컨트롤 */}
-                      {realtimeVoice.status === 'connected' && (
-                        <div className="flex flex-col items-center space-y-4">
-                          {/* 음성 녹음 버튼 */}
-                          <button
-                            onClick={() => {
-                              if (realtimeVoice.isRecording) {
-                                realtimeVoice.stopRecording();
-                              } else {
-                                realtimeVoice.startRecording();
-                              }
-                            }}
-                            className={`
-                              w-20 h-20 rounded-full flex items-center justify-center text-3xl
-                              transition-all duration-300 shadow-lg
-                              ${realtimeVoice.isRecording
-                                ? 'bg-red-500 text-white animate-pulse'
-                                : realtimeVoice.isAISpeaking
-                                ? 'bg-blue-500 text-white animate-pulse'
-                                : 'bg-purple-600 hover:bg-purple-700 text-white'}
-                            `}
-                            data-testid="button-realtime-voice-record"
-                          >
-                            {realtimeVoice.isRecording ? (
-                              <i className="fas fa-stop"></i>
-                            ) : realtimeVoice.isAISpeaking ? (
-                              <i className="fas fa-volume-up"></i>
-                            ) : (
-                              <i className="fas fa-microphone"></i>
-                            )}
-                          </button>
-                          
-                          {/* 상태 표시 */}
-                          <div className="text-center">
-                            {realtimeVoice.isRecording && (
-                              <p className="text-sm text-red-600 font-medium animate-pulse">
-                                🔴 녹음 중...
-                              </p>
-                            )}
-                            {realtimeVoice.isAISpeaking && (
-                              <p className="text-sm text-blue-600 font-medium animate-pulse">
-                                🔵 AI 응답 중...
-                              </p>
-                            )}
-                            {!realtimeVoice.isRecording && !realtimeVoice.isAISpeaking && (
-                              <p className="text-sm text-slate-500">
-                                버튼을 눌러 말씀하세요
-                              </p>
-                            )}
-                          </div>
-                        </div>
-                      )}
-                      
-                      {/* 에러 메시지 */}
-                      {realtimeVoice.error && (
-                        <p className="text-sm text-red-600 text-center">
-                          {realtimeVoice.error}
-                        </p>
-                      )}
+                        
+                        {/* 에러 메시지 */}
+                        {realtimeVoice.error && (
+                          <p className="text-sm text-red-600">
+                            {realtimeVoice.error}
+                          </p>
+                        )}
+                      </div>
                     </div>
                   ) : (
                     <>

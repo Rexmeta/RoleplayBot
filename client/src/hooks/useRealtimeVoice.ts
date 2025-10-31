@@ -12,7 +12,6 @@ interface UseRealtimeVoiceProps {
   personaId: string;
   enabled: boolean;
   onMessage?: (message: string) => void;
-  onUserTranscription?: (transcript: string) => void;
   onError?: (error: string) => void;
   onSessionTerminated?: (reason: string) => void;
 }
@@ -34,7 +33,6 @@ export function useRealtimeVoice({
   personaId,
   enabled,
   onMessage,
-  onUserTranscription,
   onError,
   onSessionTerminated,
 }: UseRealtimeVoiceProps): UseRealtimeVoiceReturn {
@@ -53,16 +51,14 @@ export function useRealtimeVoice({
   
   // Store callbacks in refs to avoid recreating connect() on every render
   const onMessageRef = useRef(onMessage);
-  const onUserTranscriptionRef = useRef(onUserTranscription);
   const onErrorRef = useRef(onError);
   const onSessionTerminatedRef = useRef(onSessionTerminated);
   
   useEffect(() => {
     onMessageRef.current = onMessage;
-    onUserTranscriptionRef.current = onUserTranscription;
     onErrorRef.current = onError;
     onSessionTerminatedRef.current = onSessionTerminated;
-  }, [onMessage, onUserTranscription, onError, onSessionTerminated]);
+  }, [onMessage, onError, onSessionTerminated]);
 
   const getWebSocketUrl = useCallback(() => {
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
@@ -117,14 +113,6 @@ export function useRealtimeVoice({
 
             case 'conversation.item.created':
               console.log('💬 Conversation item created:', data.item);
-              break;
-
-            // 🎤 사용자 음성 전사 (텍스트 변환)
-            case 'user.transcription':
-              if (data.transcript && onUserTranscriptionRef.current) {
-                console.log('🎤 User said:', data.transcript);
-                onUserTranscriptionRef.current(data.transcript);
-              }
               break;
 
             // 🔊 오디오 재생
