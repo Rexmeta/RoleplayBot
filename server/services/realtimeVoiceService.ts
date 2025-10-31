@@ -162,7 +162,7 @@ export class RealtimeVoiceService {
       this.sendToOpenAI(session, {
         type: 'session.update',
         session: {
-          type: 'realtime', // Required for GA version
+        //  type: 'realtime', // Required for GA version
           model: REALTIME_MODEL,
           instructions: systemInstructions,
           audio: {
