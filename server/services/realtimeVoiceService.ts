@@ -148,7 +148,7 @@ export class RealtimeVoiceService {
     const openaiWs = new WebSocket(url, {
       headers: {
         'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`,
-        // No OpenAI-Beta header needed for GA version
+        'OpenAI-Beta': 'realtime=v1',
       },
     });
 
