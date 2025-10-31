@@ -267,8 +267,9 @@ export class RealtimeVoiceService {
         });
         break;
 
+      case 'response.audio.delta':
       case 'response.output_audio.delta':
-        // GA API: Forward audio chunks to client
+        // Forward audio chunks to client (both event formats supported)
         console.log('🔊 Audio delta received');
         this.sendToClient(session, {
           type: 'audio.delta',
@@ -276,8 +277,9 @@ export class RealtimeVoiceService {
         });
         break;
 
+      case 'response.audio_transcript.delta':
       case 'response.output_audio_transcript.delta':
-        // GA API: Forward transcript to client
+        // Forward transcript to client (both event formats supported)
         console.log(`🤖 AI transcript: ${event.delta}`);
         this.sendToClient(session, {
           type: 'ai.transcription.delta',
@@ -285,8 +287,9 @@ export class RealtimeVoiceService {
         });
         break;
 
+      case 'response.audio_transcript.done':
       case 'response.output_audio_transcript.done':
-        // GA API: Complete transcript
+        // Complete transcript (both event formats supported)
         console.log(`✅ AI full transcript: ${event.transcript}`);
         this.sendToClient(session, {
           type: 'ai.transcription.done',
