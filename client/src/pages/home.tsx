@@ -1,12 +1,10 @@
 import { useState } from "react";
 import { Link } from "wouter";
 import ScenarioSelector from "@/components/ScenarioSelector";
-import TextChatWindow from "@/components/TextChatWindow";
-import VoiceChatWindow from "@/components/VoiceChatWindow";
+import ChatWindow from "@/components/ChatWindow";
 import PersonalDevelopmentReport from "@/components/PersonalDevelopmentReport";
 import { SimplePersonaSelector } from "@/components/SimplePersonaSelector";
 import { StrategyReflection } from "@/components/StrategyReflection";
-import { ModeSelector } from "@/components/ModeSelector";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { type ComplexScenario, type ScenarioPersona, getComplexScenarioById, scenarioPersonas } from "@/lib/scenario-system";
@@ -15,13 +13,12 @@ import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { User, LogOut } from "lucide-react";
 
-type ViewState = "scenarios" | "persona-selection" | "mode-selection" | "chat" | "strategy-reflection" | "feedback";
+type ViewState = "scenarios" | "persona-selection" | "chat" | "strategy-reflection" | "feedback";
 
 export default function Home() {
   const [currentView, setCurrentView] = useState<ViewState>("scenarios");
   const [selectedScenario, setSelectedScenario] = useState<ComplexScenario | null>(null);
   const [selectedPersona, setSelectedPersona] = useState<ScenarioPersona | null>(null);
-  const [selectedMode, setSelectedMode] = useState<"realtime_voice" | "text_tts" | null>(null);
   const [conversationId, setConversationId] = useState<string | null>(null);
   const [completedPersonaIds, setCompletedPersonaIds] = useState<string[]>([]);
   const [conversationIds, setConversationIds] = useState<string[]>([]); // 모든 대화 ID 저장
@@ -61,36 +58,31 @@ export default function Home() {
     }
   };
 
-  // 페르소나 선택 처리 - 모드 선택으로 이동
-  const handlePersonaSelect = (persona: ScenarioPersona) => {
-    setSelectedPersona(persona);
-    setCurrentView("mode-selection");
-  };
-
-  // 모드 선택 처리 - 대화 생성
-  const handleModeSelect = async (mode: "realtime_voice" | "text_tts") => {
-    if (!selectedScenario || !selectedPersona) return;
+  // 페르소나 선택 처리
+  const handlePersonaSelect = async (persona: ScenarioPersona) => {
+    if (!selectedScenario) return;
     
     try {
-      console.log(`🕐 CLIENT CODE TIMESTAMP: ${Date.now()} - Mode: ${mode}`);
+      console.log(`🕐 CLIENT CODE TIMESTAMP: ${Date.now()} - UPDATED VERSION`);
       
       const conversationData = {
         scenarioId: selectedScenario.id,
-        personaId: selectedPersona.id,
+        personaId: persona.id,
         scenarioName: selectedScenario.title,
         messages: [],
         turnCount: 0,
         status: "active" as const,
-        mode: mode,
+        mode: "realtime_voice" as const,
       };
       
-      console.log('📤 Creating conversation with mode:', conversationData.mode);
-      console.log('📤 Full conversation data:', JSON.stringify(conversationData));
+      console.log('📤 [NEW CODE] Creating conversation with mode:', conversationData.mode);
+      console.log('📤 [NEW CODE] Full conversation data:', JSON.stringify(conversationData));
       
       const response = await apiRequest("POST", "/api/conversations", conversationData);
+      
       const conversation = await response.json();
       
-      setSelectedMode(mode);
+      setSelectedPersona(persona);
       setConversationId(conversation.id);
       setCurrentView("chat");
     } catch (error) {
@@ -113,7 +105,6 @@ export default function Home() {
     setCurrentView("scenarios");
     setSelectedScenario(null);
     setSelectedPersona(null);
-    setSelectedMode(null);
     setConversationId(null);
     setCompletedPersonaIds([]);
     setConversationIds([]);
@@ -122,11 +113,10 @@ export default function Home() {
 
   // 재도전을 위한 새로운 대화 생성
   const createRetryConversationMutation = useMutation({
-    mutationFn: async ({ scenarioId, personaId, scenarioName, mode }: { 
+    mutationFn: async ({ scenarioId, personaId, scenarioName }: { 
       scenarioId: string; 
       personaId: string; 
       scenarioName: string; 
-      mode: "realtime_voice" | "text_tts";
     }) => {
       const conversationData = {
         scenarioId,
@@ -135,7 +125,7 @@ export default function Home() {
         messages: [],
         turnCount: 0,
         status: "active",
-        mode: mode
+        mode: "realtime_voice"
       };
       
       console.log('📤 Creating retry conversation with data:', conversationData);
@@ -153,12 +143,11 @@ export default function Home() {
   });
 
   const handleRetry = () => {
-    if (selectedScenario && selectedPersona && selectedMode) {
+    if (selectedScenario && selectedPersona) {
       createRetryConversationMutation.mutate({
         scenarioId: selectedScenario.id,
         personaId: selectedPersona.id,
-        scenarioName: selectedScenario.title,
-        mode: selectedMode
+        scenarioName: selectedScenario.title
       });
     }
   };
@@ -299,15 +288,6 @@ export default function Home() {
           />
         )}
 
-        {currentView === "mode-selection" && selectedScenario && selectedPersona && (
-          <ModeSelector
-            scenarioTitle={selectedScenario.title}
-            personaName={selectedPersona.name}
-            onModeSelect={handleModeSelect}
-            onBack={() => setCurrentView("persona-selection")}
-          />
-        )}
-
         {currentView === "strategy-reflection" && (() => {
           console.log('🔍 Strategy Reflection Render Check:', {
             currentView,
@@ -407,23 +387,13 @@ export default function Home() {
         })()}
         
         {currentView === "chat" && selectedScenario && selectedPersona && conversationId && (
-          selectedMode === 'realtime_voice' ? (
-            <VoiceChatWindow
-              scenario={selectedScenario}
-              persona={selectedPersona}
-              conversationId={conversationId}
-              onChatComplete={handleChatComplete}
-              onExit={handleReturnToScenarios}
-            />
-          ) : (
-            <TextChatWindow
-              scenario={selectedScenario}
-              persona={selectedPersona}
-              conversationId={conversationId}
-              onChatComplete={handleChatComplete}
-              onExit={handleReturnToScenarios}
-            />
-          )
+          <ChatWindow
+            scenario={selectedScenario}
+            persona={selectedPersona}
+            conversationId={conversationId}
+            onChatComplete={handleChatComplete}
+            onExit={handleReturnToScenarios}
+          />
         )}
         
         {currentView === "feedback" && selectedScenario && selectedPersona && conversationId && (() => {
