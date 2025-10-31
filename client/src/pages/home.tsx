@@ -1,7 +1,8 @@
 import { useState } from "react";
 import { Link } from "wouter";
 import ScenarioSelector from "@/components/ScenarioSelector";
-import ChatWindow from "@/components/ChatWindow";
+import TextChatWindow from "@/components/TextChatWindow";
+import VoiceChatWindow from "@/components/VoiceChatWindow";
 import PersonalDevelopmentReport from "@/components/PersonalDevelopmentReport";
 import { SimplePersonaSelector } from "@/components/SimplePersonaSelector";
 import { StrategyReflection } from "@/components/StrategyReflection";
@@ -406,13 +407,23 @@ export default function Home() {
         })()}
         
         {currentView === "chat" && selectedScenario && selectedPersona && conversationId && (
-          <ChatWindow
-            scenario={selectedScenario}
-            persona={selectedPersona}
-            conversationId={conversationId}
-            onChatComplete={handleChatComplete}
-            onExit={handleReturnToScenarios}
-          />
+          selectedMode === 'realtime_voice' ? (
+            <VoiceChatWindow
+              scenario={selectedScenario}
+              persona={selectedPersona}
+              conversationId={conversationId}
+              onChatComplete={handleChatComplete}
+              onExit={handleReturnToScenarios}
+            />
+          ) : (
+            <TextChatWindow
+              scenario={selectedScenario}
+              persona={selectedPersona}
+              conversationId={conversationId}
+              onChatComplete={handleChatComplete}
+              onExit={handleReturnToScenarios}
+            />
+          )
         )}
         
         {currentView === "feedback" && selectedScenario && selectedPersona && conversationId && (() => {
