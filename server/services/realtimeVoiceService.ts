@@ -24,6 +24,10 @@ export class RealtimeVoiceService {
   private isAvailable: boolean = false;
 
   constructor() {
+    console.log("[OPENAI] key:", process.env.OPENAI_API_KEY?.slice(0, 12));
+    console.log("[OPENAI] org:", process.env.OPENAI_ORG);
+    console.log("[OPENAI] project:", process.env.OPENAI_PROJECT);
+    
     if (process.env.OPENAI_API_KEY) {
       this.openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
       this.isAvailable = true;
