@@ -158,18 +158,13 @@ export class RealtimeVoiceService {
       console.log(`✅ OpenAI Realtime API connected for session: ${session.id}`);
       session.isConnected = true;
 
-      // Configure session (GA API format - simplified structure)
+      // Configure session (API format - no type field needed)
       this.sendToOpenAI(session, {
         type: 'session.update',
         session: {
-        //  type: 'realtime', // Required for GA version
           model: REALTIME_MODEL,
           instructions: systemInstructions,
-          audio: {
-            output: { 
-              voice: 'alloy' 
-            },
-          },
+          voice: 'alloy',
         },
       });
 
