@@ -115,6 +115,7 @@ export function useRealtimeVoice({
               console.log('💬 Conversation item created:', data.item);
               break;
 
+            // 🔊 오디오 재생
             case 'audio.delta':
               if (data.delta) {
                 setIsAISpeaking(true);
@@ -122,10 +123,19 @@ export function useRealtimeVoice({
               }
               break;
 
-            case 'response.text.delta':
-              if (data.delta && onMessageRef.current) {
-                onMessageRef.current(data.delta);
+            case 'audio.done':
+              console.log('✅ Audio playback complete');
+              break;
+
+            // 📝 화면 자막만 (onMessage 호출)
+            case 'ai.transcription.delta':
+              if (data.text && onMessageRef.current) {
+                onMessageRef.current(data.text);
               }
+              break;
+
+            case 'ai.transcription.done':
+              console.log('✅ Transcription complete:', data.text);
               break;
 
             case 'response.done':
@@ -192,7 +202,12 @@ export function useRealtimeVoice({
       const audioContext = audioContextRef.current;
       
       // Decode base64 to raw bytes
-      const audioData = Uint8Array.from(atob(base64Audio), c => c.charCodeAt(0));
+      const binaryString = atob(base64Audio);
+      const len = binaryString.length;
+      const audioData = new Uint8Array(len);
+      for (let i = 0; i < len; i++) {
+        audioData[i] = binaryString.charCodeAt(i);
+      }
       
       // Convert PCM16 (Int16) to Float32 for Web Audio API
       const pcm16 = new Int16Array(audioData.buffer);
@@ -286,7 +301,12 @@ export function useRealtimeVoice({
         }
         
         // Convert to base64
-        const base64 = btoa(String.fromCharCode(...new Uint8Array(pcm16.buffer)));
+        const uint8Array = new Uint8Array(pcm16.buffer);
+        let binaryString = '';
+        for (let i = 0; i < uint8Array.length; i++) {
+          binaryString += String.fromCharCode(uint8Array[i]);
+        }
+        const base64 = btoa(binaryString);
         
         // Send to OpenAI
         wsRef.current.send(JSON.stringify({
