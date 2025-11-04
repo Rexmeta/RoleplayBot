@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Link } from "wouter";
 import ScenarioSelector from "@/components/ScenarioSelector";
+import ScenarioDetail from "@/components/ScenarioDetail";
 import ChatWindow from "@/components/ChatWindow";
 import PersonalDevelopmentReport from "@/components/PersonalDevelopmentReport";
 import { SimplePersonaSelector } from "@/components/SimplePersonaSelector";
@@ -235,6 +236,14 @@ export default function Home() {
               playerProfile={playerProfile}
             />
           </div>
+        )}
+
+        {currentView === "scenario-detail" && selectedScenario && (
+          <ScenarioDetail
+            scenario={selectedScenario}
+            onStartConversation={handleStartConversation}
+            onBack={handleReturnToScenarios}
+          />
         )}
         
         {currentView === "persona-selection" && selectedScenario && selectedScenario.personas && (
