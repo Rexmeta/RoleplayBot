@@ -13,7 +13,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { User, LogOut } from "lucide-react";
 
-type ViewState = "scenarios" | "persona-selection" | "chat" | "strategy-reflection" | "feedback";
+type ViewState = "scenarios" | "persona-selection" | "chat" | "strategy-reflection" | "strategy-result" | "feedback";
 
 export default function Home() {
   const [currentView, setCurrentView] = useState<ViewState>("scenarios");
@@ -23,6 +23,7 @@ export default function Home() {
   const [completedPersonaIds, setCompletedPersonaIds] = useState<string[]>([]);
   const [conversationIds, setConversationIds] = useState<string[]>([]); // 모든 대화 ID 저장
   const [strategyReflectionSubmitted, setStrategyReflectionSubmitted] = useState(false); // 전략 회고 제출 여부 추적
+  const [submittedStrategyReflection, setSubmittedStrategyReflection] = useState<string>(''); // 제출한 전략 회고 내용
 
   // 동적으로 시나리오와 페르소나 데이터 로드
   const { data: scenarios = [] } = useQuery({
@@ -375,7 +376,8 @@ export default function Home() {
                     conversationOrder: completedPersonaIds
                   });
                   setStrategyReflectionSubmitted(true); // 제출 완료 표시
-                  setCurrentView("scenarios"); // 시나리오 목록으로 돌아가기
+                  setSubmittedStrategyReflection(reflection); // 제출한 내용 저장
+                  setCurrentView("strategy-result"); // 결과 화면으로 이동
                 } catch (error) {
                   console.error("전략 회고 저장 실패:", error);
                 }
@@ -384,6 +386,88 @@ export default function Home() {
             scenarioTitle={selectedScenario.title}
           />
           )
+        })()}
+        
+        {currentView === "strategy-result" && selectedScenario && (() => {
+          const completedPersonas = completedPersonaIds.map(id => 
+            selectedScenario.personas.find((p: any) => p.id === id)
+          ).filter(p => p !== undefined);
+
+          return (
+            <div className="max-w-4xl mx-auto p-6 space-y-6">
+              <div className="text-center mb-8">
+                <div className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <svg className="w-10 h-10 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                  </svg>
+                </div>
+                <h1 className="text-3xl font-bold text-gray-900 mb-2">전략 회고 제출 완료!</h1>
+                <p className="text-lg text-gray-600">
+                  {selectedScenario.title} 시나리오의 전략적 대화 순서가 저장되었습니다.
+                </p>
+              </div>
+
+              <div className="bg-white rounded-lg border border-gray-200 p-6 space-y-4">
+                <h2 className="text-xl font-semibold text-gray-900 flex items-center gap-2">
+                  <svg className="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                  </svg>
+                  대화 순서
+                </h2>
+                <div className="space-y-3">
+                  {completedPersonas.map((persona: any, index: number) => (
+                    <div 
+                      key={persona.id} 
+                      className="flex items-center gap-4 p-4 bg-gray-50 rounded-lg"
+                    >
+                      <div className="w-10 h-10 bg-blue-600 rounded-full flex items-center justify-center text-white font-bold flex-shrink-0">
+                        {index + 1}
+                      </div>
+                      <div className="flex-1">
+                        <h3 className="font-semibold text-gray-900">{persona.name}</h3>
+                        <p className="text-sm text-gray-600">{persona.position || persona.role}</p>
+                      </div>
+                      {index < completedPersonas.length - 1 && (
+                        <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                        </svg>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="bg-white rounded-lg border border-gray-200 p-6 space-y-4">
+                <h2 className="text-xl font-semibold text-gray-900 flex items-center gap-2">
+                  <svg className="w-5 h-5 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
+                  </svg>
+                  전략 회고
+                </h2>
+                <div className="p-4 bg-gray-50 rounded-lg">
+                  <p className="text-gray-700 whitespace-pre-wrap">{submittedStrategyReflection}</p>
+                </div>
+              </div>
+
+              <div className="flex gap-4 justify-center pt-4">
+                <Button
+                  onClick={() => window.location.href = '/mypage'}
+                  variant="outline"
+                  size="lg"
+                  data-testid="view-history-button"
+                >
+                  대화 히스토리 보기
+                </Button>
+                <Button
+                  onClick={handleReturnToScenarios}
+                  size="lg"
+                  data-testid="return-to-scenarios-button"
+                >
+                  시나리오 목록으로
+                </Button>
+              </div>
+            </div>
+          );
         })()}
         
         {currentView === "chat" && selectedScenario && selectedPersona && conversationId && (
