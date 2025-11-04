@@ -416,6 +416,53 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // 실시간 음성 대화 메시지 일괄 저장 (AI 응답 생성 없이)
+  app.post("/api/conversations/:id/realtime-messages", isAuthenticated, async (req, res) => {
+    try {
+      // @ts-ignore - req.user는 auth 미들웨어에서 설정됨
+      const userId = req.user?.id;
+      const ownershipResult = await verifyConversationOwnership(req.params.id, userId);
+      
+      if ('error' in ownershipResult) {
+        return res.status(ownershipResult.status).json({ error: ownershipResult.error });
+      }
+
+      const { messages } = req.body;
+      if (!Array.isArray(messages)) {
+        return res.status(400).json({ error: "Messages must be an array" });
+      }
+
+      const conversation = await storage.getConversation(req.params.id);
+      if (!conversation) {
+        return res.status(404).json({ error: "Conversation not found" });
+      }
+
+      // 기존 메시지에 새 메시지 추가
+      const updatedMessages = [...conversation.messages, ...messages];
+      
+      // 턴 카운트 계산 (사용자 메시지 개수 기반)
+      const userMessageCount = messages.filter((msg: any) => msg.sender === 'user').length;
+      const newTurnCount = conversation.turnCount + userMessageCount;
+
+      // 대화 업데이트 (메시지와 턴 카운트만)
+      const updatedConversation = await storage.updateConversation(req.params.id, {
+        messages: updatedMessages,
+        turnCount: newTurnCount,
+      });
+
+      console.log(`✅ Saved ${messages.length} realtime messages (${userMessageCount} user turns)`);
+
+      res.json({
+        conversation: updatedConversation,
+        messagesSaved: messages.length,
+        turnCount: newTurnCount,
+      });
+    } catch (error) {
+      console.error("Realtime messages save error:", error);
+      res.status(500).json({ error: "Failed to save realtime messages" });
+    }
+  });
+
   // Strategic Selection APIs
   
   // Persona Selection APIs

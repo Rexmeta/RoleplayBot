@@ -282,12 +282,49 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
     setShowEndConversationDialog(true);
   };
 
-  const confirmEndConversation = () => {
-    // 실시간 음성 연결 해제
-    realtimeVoice.disconnect();
-    
-    // 대화 완료 처리 - 피드백 생성
-    onChatComplete();
+  const confirmEndConversation = async () => {
+    try {
+      setShowEndConversationDialog(false);
+      
+      // 실시간 음성 연결 해제
+      realtimeVoice.disconnect();
+      
+      // localMessages를 DB에 일괄 저장
+      if (localMessages.length > 0) {
+        console.log(`💾 Saving ${localMessages.length} realtime messages to database...`);
+        
+        // 새로운 일괄 저장 엔드포인트 사용
+        const res = await apiRequest(
+          'POST',
+          `/api/conversations/${conversationId}/realtime-messages`,
+          {
+            messages: localMessages.map(msg => ({
+              sender: msg.sender,
+              message: msg.message,
+              timestamp: msg.timestamp,
+              emotion: msg.emotion,
+              emotionReason: msg.emotionReason,
+            })),
+          }
+        );
+        
+        const result = await res.json();
+        console.log(`✅ Saved ${result.messagesSaved} messages, turn count: ${result.turnCount}`);
+        
+        // 캐시 무효화하여 최신 대화 내용 반영
+        await queryClient.invalidateQueries({ queryKey: [`/api/conversations/${conversationId}`] });
+      }
+      
+      // 대화 완료 처리 - 피드백 생성
+      onChatComplete();
+    } catch (error) {
+      console.error('❌ Error saving realtime messages:', error);
+      toast({
+        title: "메시지 저장 오류",
+        description: "대화 내용을 저장하는 중 오류가 발생했습니다.",
+        variant: "destructive"
+      });
+    }
   };
 
   const handleVoiceInput = () => {
