@@ -1,7 +1,7 @@
 import WebSocket from 'ws';
 import OpenAI from 'openai';
 import { fileManager } from './fileManager';
-import { GoogleGenerativeAI } from '@google/genai';
+import { GoogleGenAI } from '@google/genai';
 
 // OpenAI Realtime API - using GA model
 const REALTIME_MODEL = 'gpt-realtime';
@@ -22,7 +22,7 @@ interface RealtimeSession {
 export class RealtimeVoiceService {
   private sessions: Map<string, RealtimeSession> = new Map();
   private openai: OpenAI | null = null;
-  private genAI: GoogleGenerativeAI | null = null;
+  private genAI: GoogleGenAI | null = null;
   private isAvailable: boolean = false;
 
   constructor() {
@@ -40,7 +40,7 @@ export class RealtimeVoiceService {
 
     // Initialize Gemini for emotion analysis
     if (process.env.GOOGLE_GEMINI_API_KEY) {
-      this.genAI = new GoogleGenerativeAI(process.env.GOOGLE_GEMINI_API_KEY);
+      this.genAI = new GoogleGenAI({ apiKey: process.env.GOOGLE_GEMINI_API_KEY });
       console.log('✅ Gemini API initialized for emotion analysis');
     } else {
       console.warn('⚠️  GOOGLE_GEMINI_API_KEY not set - Emotion analysis disabled');
