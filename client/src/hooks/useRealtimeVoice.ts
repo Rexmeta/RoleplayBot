@@ -90,8 +90,6 @@ export function useRealtimeVoice({
   }, []);
 
   const connect = useCallback(async () => {
-    if (!enabled) return;
-    
     setStatus('connecting');
     setError(null);
 

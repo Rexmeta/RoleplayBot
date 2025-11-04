@@ -1658,94 +1658,140 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
               <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 z-20 w-full max-w-4xl lg:max-w-6xl xl:max-w-[90%] px-4 bg-[#00000000]">
                 <Card className="rounded-2xl overflow-hidden text-card-foreground backdrop-blur-sm shadow-xl border border-white/10 bg-[#ffffff9c]">
                   
-                  {/* 실시간 음성 모드 - 대화창 + 음성 버튼 */}
+                  {/* 실시간 음성 모드 */}
                   {inputMode === 'realtime-voice' ? (
-                    <div className="p-4 bg-[#ffffff9c] space-y-4">
+                    <>
                       {/* 대화 시작 전 상태 */}
                       {realtimeVoice.status === 'disconnected' && (
-                        <div className="flex flex-col items-center space-y-4 py-4">
-                          <p className="text-sm text-slate-600">실시간 음성 대화를 시작하세요</p>
-                          <Button
-                            onClick={() => realtimeVoice.connect()}
-                            className="bg-purple-600 hover:bg-purple-700 text-white px-8 py-6 text-lg font-semibold rounded-full shadow-lg"
-                            data-testid="button-start-voice"
-                          >
-                            <i className="fas fa-phone mr-2"></i>
-                            대화 시작하기
-                          </Button>
+                        <div className="p-4 bg-[#ffffff9c]">
+                          <div className="flex flex-col items-center space-y-4 py-4">
+                            <p className="text-sm text-slate-600">실시간 음성 대화를 시작하세요</p>
+                            <Button
+                              onClick={() => realtimeVoice.connect()}
+                              className="bg-purple-600 hover:bg-purple-700 text-white px-8 py-6 text-lg font-semibold rounded-full shadow-lg"
+                              data-testid="button-start-voice"
+                            >
+                              <i className="fas fa-phone mr-2"></i>
+                              대화 시작하기
+                            </Button>
+                          </div>
                         </div>
                       )}
                       
                       {/* 연결 중 상태 */}
                       {realtimeVoice.status === 'connecting' && (
-                        <div className="flex items-center justify-center space-x-2 py-4">
-                          <div className="w-3 h-3 bg-purple-400 rounded-full animate-bounce"></div>
-                          <div className="w-3 h-3 bg-purple-400 rounded-full animate-bounce" style={{ animationDelay: "0.1s" }}></div>
-                          <div className="w-3 h-3 bg-purple-400 rounded-full animate-bounce" style={{ animationDelay: "0.2s" }}></div>
-                          <span className="ml-2 text-slate-600">음성 연결 중...</span>
-                        </div>
-                      )}
-                      
-                      {/* 연결 완료 - 음성 컨트롤 */}
-                      {realtimeVoice.status === 'connected' && (
-                        <div className="flex flex-col items-center space-y-4">
-                          {/* 음성 녹음 버튼 */}
-                          <button
-                            onClick={() => {
-                              if (realtimeVoice.isRecording) {
-                                realtimeVoice.stopRecording();
-                              } else {
-                                realtimeVoice.startRecording();
-                              }
-                            }}
-                            className={`
-                              w-20 h-20 rounded-full flex items-center justify-center text-3xl
-                              transition-all duration-300 shadow-lg
-                              ${realtimeVoice.isRecording
-                                ? 'bg-red-500 text-white animate-pulse'
-                                : realtimeVoice.isAISpeaking
-                                ? 'bg-blue-500 text-white animate-pulse'
-                                : 'bg-purple-600 hover:bg-purple-700 text-white'}
-                            `}
-                            data-testid="button-realtime-voice-record"
-                          >
-                            {realtimeVoice.isRecording ? (
-                              <i className="fas fa-stop"></i>
-                            ) : realtimeVoice.isAISpeaking ? (
-                              <i className="fas fa-volume-up"></i>
-                            ) : (
-                              <i className="fas fa-microphone"></i>
-                            )}
-                          </button>
-                          
-                          {/* 상태 표시 */}
-                          <div className="text-center">
-                            {realtimeVoice.isRecording && (
-                              <p className="text-sm text-red-600 font-medium animate-pulse">
-                                🔴 녹음 중...
-                              </p>
-                            )}
-                            {realtimeVoice.isAISpeaking && (
-                              <p className="text-sm text-blue-600 font-medium animate-pulse">
-                                🔵 AI 응답 중...
-                              </p>
-                            )}
-                            {!realtimeVoice.isRecording && !realtimeVoice.isAISpeaking && (
-                              <p className="text-sm text-slate-500">
-                                버튼을 눌러 말씀하세요
-                              </p>
-                            )}
+                        <div className="p-4 bg-[#ffffff9c]">
+                          <div className="flex items-center justify-center space-x-2 py-4">
+                            <div className="w-3 h-3 bg-purple-400 rounded-full animate-bounce"></div>
+                            <div className="w-3 h-3 bg-purple-400 rounded-full animate-bounce" style={{ animationDelay: "0.1s" }}></div>
+                            <div className="w-3 h-3 bg-purple-400 rounded-full animate-bounce" style={{ animationDelay: "0.2s" }}></div>
+                            <span className="ml-2 text-slate-600">음성 연결 중...</span>
                           </div>
                         </div>
                       )}
                       
-                      {/* 에러 메시지 */}
-                      {realtimeVoice.error && (
-                        <p className="text-sm text-red-600 text-center">
-                          {realtimeVoice.error}
-                        </p>
+                      {/* 연결 완료 - 텍스트 입력창 + 음성 버튼 */}
+                      {realtimeVoice.status === 'connected' && (
+                        <div className="border-t border-slate-200/30 p-4">
+                          <div className="flex items-start space-x-3">
+                            {/* Text Input Area */}
+                            <div className="flex-1">
+                              <Textarea
+                                value={userInput}
+                                onChange={(e) => setUserInput(e.target.value)}
+                                placeholder="메시지를 입력하거나 마이크를 눌러 음성으로 대화하세요... (최대 200자)"
+                                maxLength={200}
+                                rows={2}
+                                className="resize-none text-sm"
+                                disabled={realtimeVoice.isRecording || realtimeVoice.isAISpeaking}
+                                data-testid="input-message-realtime"
+                              />
+                              <div className="text-xs text-slate-500 mt-1">{userInput.length}/200</div>
+                            </div>
+                            
+                            {/* Button Panel - Right Side */}
+                            <div className="grid grid-cols-2 gap-1 w-20">
+                              {/* Send button */}
+                              <Button
+                                onClick={handleSendMessage}
+                                disabled={!userInput.trim() || realtimeVoice.isRecording || realtimeVoice.isAISpeaking}
+                                className="bg-purple-600 hover:bg-purple-700 text-white"
+                                size="sm"
+                                data-testid="button-send-message-realtime"
+                              >
+                                <i className="fas fa-paper-plane"></i>
+                              </Button>
+                              
+                              {/* Realtime Voice button */}
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => {
+                                  if (realtimeVoice.isRecording) {
+                                    realtimeVoice.stopRecording();
+                                  } else {
+                                    realtimeVoice.startRecording();
+                                  }
+                                }}
+                                disabled={realtimeVoice.isAISpeaking}
+                                className={`${
+                                  realtimeVoice.isRecording 
+                                    ? 'bg-red-50 border-red-300 text-red-700 animate-pulse' 
+                                    : realtimeVoice.isAISpeaking
+                                    ? 'bg-blue-50 border-blue-300 text-blue-700'
+                                    : ''
+                                }`}
+                                data-testid="button-realtime-voice-record"
+                                title={realtimeVoice.isRecording ? "음성 입력을 중지하려면 클릭하세요" : "음성 입력을 시작하려면 클릭하세요"}
+                              >
+                                <i className={`fas ${
+                                  realtimeVoice.isRecording 
+                                    ? 'fa-stop text-red-500' 
+                                    : realtimeVoice.isAISpeaking
+                                    ? 'fa-volume-up text-blue-500'
+                                    : 'fa-microphone'
+                                }`}></i>
+                              </Button>
+                              
+                              {/* Skip button (spans 2 columns) */}
+                              <Button
+                                variant="outline" 
+                                size="sm"
+                                onClick={handleSkipTurn}
+                                disabled={realtimeVoice.isRecording || realtimeVoice.isAISpeaking}
+                                data-testid="button-skip-turn-realtime"
+                                className="col-span-2"
+                              >
+                                Skip
+                              </Button>
+                            </div>
+                          </div>
+                          
+                          {/* 상태 표시 */}
+                          {(realtimeVoice.isRecording || realtimeVoice.isAISpeaking) && (
+                            <div className="text-center mt-2">
+                              {realtimeVoice.isRecording && (
+                                <p className="text-sm text-red-600 font-medium animate-pulse">
+                                  🔴 녹음 중...
+                                </p>
+                              )}
+                              {realtimeVoice.isAISpeaking && (
+                                <p className="text-sm text-blue-600 font-medium animate-pulse">
+                                  🔵 AI 응답 중...
+                                </p>
+                              )}
+                            </div>
+                          )}
+                          
+                          {/* 에러 메시지 */}
+                          {realtimeVoice.error && (
+                            <p className="text-sm text-red-600 text-center mt-2">
+                              {realtimeVoice.error}
+                            </p>
+                          )}
+                        </div>
                       )}
-                    </div>
+                    </>
                   ) : (
                     <>
                       {/* AI Message Section - Full Width */}
