@@ -1,50 +1,39 @@
 import WebSocket from 'ws';
-import OpenAI from 'openai';
 import { fileManager } from './fileManager';
-import { GoogleGenAI } from '@google/genai';
+import { GoogleGenAI, Modality } from '@google/genai';
 
-// OpenAI Realtime API - using GA model
-const REALTIME_MODEL = 'gpt-realtime';
+// Gemini Live API - using latest model
+const REALTIME_MODEL = 'gemini-live-2.5-flash-preview';
 
 interface RealtimeSession {
   id: string;
   conversationId: string;
   scenarioId: string;
   personaId: string;
-  personaName: string; // Store persona name for first greeting
+  personaName: string;
   userId: string;
   clientWs: WebSocket;
-  openaiWs: WebSocket | null;
+  geminiSession: any | null; // Gemini Live API session
   isConnected: boolean;
-  audioBuffer: Buffer[];
+  currentTranscript: string;
+  audioBuffer: string[];
 }
 
 export class RealtimeVoiceService {
   private sessions: Map<string, RealtimeSession> = new Map();
-  private openai: OpenAI | null = null;
   private genAI: GoogleGenAI | null = null;
   private isAvailable: boolean = false;
 
   constructor() {
-    console.log("[OPENAI] key:", process.env.OPENAI_API_KEY?.slice(0, 12));
-    console.log("[OPENAI] org:", process.env.OPENAI_ORG);
-    console.log("[OPENAI] project:", process.env.OPENAI_PROJECT);
-    
-    if (process.env.OPENAI_API_KEY) {
-      this.openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-      this.isAvailable = true;
-      console.log('✅ OpenAI Realtime Voice Service initialized');
-    } else {
-      console.warn('⚠️  OPENAI_API_KEY not set - Realtime Voice features disabled');
-    }
-
-    // Initialize Gemini for emotion analysis
     const geminiApiKey = process.env.GOOGLE_API_KEY || process.env.GEMINI_API_KEY;
+    console.log("[GEMINI] key:", geminiApiKey?.slice(0, 12));
+    
     if (geminiApiKey) {
       this.genAI = new GoogleGenAI({ apiKey: geminiApiKey });
-      console.log('✅ Gemini API initialized for emotion analysis');
+      this.isAvailable = true;
+      console.log('✅ Gemini Live API Service initialized');
     } else {
-      console.warn('⚠️  GOOGLE_API_KEY not set - Emotion analysis disabled');
+      console.warn('⚠️  GOOGLE_API_KEY not set - Realtime Voice features disabled');
     }
   }
 
@@ -60,8 +49,8 @@ export class RealtimeVoiceService {
     userId: string,
     clientWs: WebSocket
   ): Promise<void> {
-    if (!this.isAvailable || !this.openai) {
-      throw new Error('OpenAI Realtime Voice Service is not available. Please configure OPENAI_API_KEY.');
+    if (!this.isAvailable || !this.genAI) {
+      throw new Error('Gemini Live API Service is not available. Please configure GOOGLE_API_KEY.');
     }
 
     console.log(`🎙️ Creating realtime voice session: ${sessionId}`);
@@ -82,7 +71,7 @@ export class RealtimeVoiceService {
     const mbtiType: string = scenarioPersona.personaRef?.replace('.json', '') || '';
     const mbtiPersona = mbtiType ? await fileManager.getPersonaByMBTI(mbtiType) : null;
 
-    // Create system instructions combining scenario context and MBTI traits
+    // Create system instructions
     const systemInstructions = this.buildSystemInstructions(
       scenarioObj,
       scenarioPersona,
@@ -95,18 +84,19 @@ export class RealtimeVoiceService {
       conversationId,
       scenarioId,
       personaId,
-      personaName: scenarioPersona.name, // Store persona name
+      personaName: scenarioPersona.name,
       userId,
       clientWs,
-      openaiWs: null,
+      geminiSession: null,
       isConnected: false,
+      currentTranscript: '',
       audioBuffer: [],
     };
 
     this.sessions.set(sessionId, session);
 
-    // Connect to OpenAI Realtime API
-    await this.connectToOpenAI(session, systemInstructions);
+    // Connect to Gemini Live API
+    await this.connectToGemini(session, systemInstructions);
   }
 
   private buildSystemInstructions(
@@ -158,231 +148,170 @@ export class RealtimeVoiceService {
     return instructions.join('\n');
   }
 
-  private async connectToOpenAI(
+  private async connectToGemini(
     session: RealtimeSession,
     systemInstructions: string
   ): Promise<void> {
-    const url = 'wss://api.openai.com/v1/realtime?model=' + REALTIME_MODEL;
-    
-    const openaiWs = new WebSocket(url, {
-      headers: {
-        'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`,
-        'OpenAI-Beta': 'realtime=v1',
-      },
-    });
+    if (!this.genAI) {
+      throw new Error('Gemini AI not initialized');
+    }
 
-    session.openaiWs = openaiWs;
+    try {
+      const config = {
+        responseModalities: [Modality.AUDIO],
+        systemInstruction: systemInstructions,
+        // Gemini Live API uses 16kHz input, 24kHz output
+      };
 
-    openaiWs.on('open', () => {
-      console.log(`✅ OpenAI Realtime API connected for session: ${session.id}`);
-      session.isConnected = true;
+      console.log(`🔌 Connecting to Gemini Live API for session: ${session.id}`);
 
-      // Configure session (API format - no type field needed)
-      this.sendToOpenAI(session, {
-        type: 'session.update',
-        session: {
-          model: REALTIME_MODEL,
-          instructions: systemInstructions,
-          voice: 'shimmer', // 따뜻하고 친근한 여성 음성
-          temperature: 0.6, // 일관성과 자연스러움 균형
-          input_audio_transcription: {
-            model: 'whisper-1', // Enable user speech transcription
+      const geminiSession = await this.genAI.live.connect({
+        model: REALTIME_MODEL,
+        callbacks: {
+          onopen: () => {
+            console.log(`✅ Gemini Live API connected for session: ${session.id}`);
+            session.isConnected = true;
+
+            // Notify client that session is ready
+            this.sendToClient(session, {
+              type: 'session.ready',
+              sessionId: session.id,
+            });
+
+            this.sendToClient(session, {
+              type: 'session.configured',
+            });
+
+            // Send first greeting trigger
+            console.log('🎬 Triggering AI to start first greeting...');
+            const firstMessage = `지금 대화를 시작하세요.`;
+            
+            geminiSession.sendClientContent({
+              turns: [{ role: 'user', parts: [{ text: firstMessage }] }],
+              turnComplete: true,
+            });
+          },
+          onmessage: (message: any) => {
+            this.handleGeminiMessage(session, message);
+          },
+          onerror: (error: any) => {
+            console.error(`Gemini WebSocket error for session ${session.id}:`, error);
+            this.sendToClient(session, {
+              type: 'error',
+              error: 'Gemini connection error',
+            });
+          },
+          onclose: (event: any) => {
+            console.log(`🔌 Gemini WebSocket closed for session: ${session.id}`, event.reason);
+            session.isConnected = false;
+            
+            this.sendToClient(session, {
+              type: 'session.terminated',
+              reason: event.reason || 'Gemini connection closed',
+            });
+            
+            if (session.clientWs && session.clientWs.readyState === WebSocket.OPEN) {
+              session.clientWs.close(1000, 'Gemini session ended');
+            }
+            
+            this.sessions.delete(session.id);
+            console.log(`♻️  Session cleaned up: ${session.id}`);
           },
         },
+        config: config,
       });
 
-      // Notify client that session is ready
-      this.sendToClient(session, {
-        type: 'session.ready',
-        sessionId: session.id,
-      });
-    });
+      session.geminiSession = geminiSession;
 
-    openaiWs.on('message', (data: WebSocket.Data) => {
-      try {
-        const event = JSON.parse(data.toString());
-        this.handleOpenAIEvent(session, event);
-      } catch (error) {
-        console.error('Error parsing OpenAI message:', error);
-      }
-    });
-
-    openaiWs.on('error', (error) => {
-      console.error(`OpenAI WebSocket error for session ${session.id}:`, error);
-      this.sendToClient(session, {
-        type: 'error',
-        error: 'OpenAI connection error',
-      });
-    });
-
-    openaiWs.on('close', () => {
-      console.log(`🔌 OpenAI WebSocket closed for session: ${session.id}`);
-      session.isConnected = false;
-      
-      // Notify client that OpenAI connection was closed
-      this.sendToClient(session, {
-        type: 'session.terminated',
-        reason: 'OpenAI connection closed',
-      });
-      
-      // Close client connection and clean up session
-      if (session.clientWs && session.clientWs.readyState === WebSocket.OPEN) {
-        session.clientWs.close(1000, 'OpenAI session ended');
-      }
-      
-      this.sessions.delete(session.id);
-      console.log(`♻️  Session cleaned up: ${session.id}`);
-    });
+    } catch (error) {
+      console.error(`Failed to connect to Gemini Live API:`, error);
+      throw error;
+    }
   }
 
-  private handleOpenAIEvent(session: RealtimeSession, event: any): void {
-    console.log(`📨 OpenAI event: ${event.type}`);
+  private handleGeminiMessage(session: RealtimeSession, message: any): void {
+    // Gemini Live API message structure
+    console.log(`📨 Gemini message type:`, message.serverContent ? 'serverContent' : message.data ? 'audio data' : 'other');
 
-    switch (event.type) {
-      case 'session.created':
-        this.sendToClient(session, {
-          type: 'session.configured',
-          ...event,
-        });
-        break;
-      
-      case 'session.updated':
-        console.log('✅ Session updated with our settings');
-        console.log('📋 Updated session config:', JSON.stringify(event.session, null, 2));
-        this.sendToClient(session, {
-          type: 'session.configured',
-          ...event,
-        });
-        // 세션이 업데이트되면 AI가 자동으로 첫 인사를 시작
-        console.log('🎬 Triggering AI to start first greeting...');
-        
-        // Instructions에 이미 모든 컨텍스트가 포함되어 있으므로, 간단한 트리거만 전송
-        const firstMessage = `지금 대화를 시작하세요.`;
-        
-        console.log('📝 First message trigger:', firstMessage);
-        
-        // Add a conversation item first to prompt the AI
-        this.sendToOpenAI(session, {
-          type: 'conversation.item.create',
-          item: {
-            type: 'message',
-            role: 'user',
-            content: [
-              {
-                type: 'input_text',
-                text: firstMessage,
-              },
-            ],
-          },
-        });
-        
-        // Then request audio response (GA API - no modalities parameter)
-        this.sendToOpenAI(session, {
-          type: 'response.create',
-        });
-        break;
+    // Handle audio data chunks
+    if (message.data) {
+      console.log('🔊 Audio data received');
+      this.sendToClient(session, {
+        type: 'audio.delta',
+        delta: message.data, // Base64 encoded PCM16 audio
+      });
+      return;
+    }
 
-      case 'conversation.item.input_audio_transcription.completed':
-        console.log(`🎤 User said: ${event.transcript}`);
-        this.sendToClient(session, {
-          type: 'user.transcription',
-          transcript: event.transcript,
-        });
-        break;
+    // Handle server content (transcriptions, turn completion, etc.)
+    if (message.serverContent) {
+      const { serverContent } = message;
 
-      case 'response.audio.delta':
-        // Forward audio chunks to client
-        console.log('🔊 Audio delta received');
-        this.sendToClient(session, {
-          type: 'audio.delta',
-          delta: event.delta,
-        });
-        break;
-
-      case 'response.output_audio.delta':
-        // 이미 audio.delta를 보내고 있다면 이건 무시
-        // console.log('ignore response.output_audio.delta');
-        break;
-
-      case 'response.audio_transcript.delta':
-      case 'response.output_audio_transcript.delta':
-        // Forward transcript to client (both event formats supported)
-        console.log(`🤖 AI transcript: ${event.delta}`);
-        this.sendToClient(session, {
-          type: 'ai.transcription.delta',
-          text: event.delta,  // ✅ text 필드 사용 (delta 아님)
-        });
-        break;
-
-      case 'response.audio_transcript.done':
-      case 'response.output_audio_transcript.done':
-        // Complete transcript (both event formats supported)
-        console.log(`✅ AI full transcript: ${event.transcript}`);
-        
-        // 감정 분석을 비동기로 수행하고 결과 전송
-        this.analyzeEmotion(event.transcript, session.personaName)
-          .then(({ emotion, emotionReason }) => {
-            console.log(`😊 Emotion analyzed: ${emotion} (${emotionReason})`);
-            this.sendToClient(session, {
-              type: 'ai.transcription.done',
-              text: event.transcript,
-              emotion,
-              emotionReason,
-            });
-          })
-          .catch(error => {
-            console.error('❌ Failed to analyze emotion:', error);
-            // 감정 분석 실패 시 기본값으로 전송
-            this.sendToClient(session, {
-              type: 'ai.transcription.done',
-              text: event.transcript,
-              emotion: '중립',
-              emotionReason: '감정 분석 실패',
-            });
-          });
-        break;
-
-      case 'response.done':
-        console.log(`✅ Response complete`);
-        console.log(`📊 Response details:`, JSON.stringify(event.response, null, 2));
+      // Handle turn completion
+      if (serverContent.turnComplete) {
+        console.log('✅ Turn complete');
         this.sendToClient(session, {
           type: 'response.done',
         });
-        break;
 
-      case 'error':
-        console.error(`❌ OpenAI error:`, event.error);
-        // Don't close session on empty buffer errors (recoverable)
-        if (event.error?.code === 'input_audio_buffer_commit_empty') {
-          console.log('⚠️  Empty audio buffer - ignoring');
-          return;
+        // Analyze emotion for the completed transcript
+        if (session.currentTranscript) {
+          this.analyzeEmotion(session.currentTranscript, session.personaName)
+            .then(({ emotion, emotionReason }) => {
+              console.log(`😊 Emotion analyzed: ${emotion} (${emotionReason})`);
+              this.sendToClient(session, {
+                type: 'ai.transcription.done',
+                text: session.currentTranscript,
+                emotion,
+                emotionReason,
+              });
+              session.currentTranscript = ''; // Reset for next turn
+            })
+            .catch(error => {
+              console.error('❌ Failed to analyze emotion:', error);
+              this.sendToClient(session, {
+                type: 'ai.transcription.done',
+                text: session.currentTranscript,
+                emotion: '중립',
+                emotionReason: '감정 분석 실패',
+              });
+              session.currentTranscript = '';
+            });
         }
+      }
+
+      // Handle model turn (AI response)
+      if (serverContent.modelTurn) {
+        const parts = serverContent.modelTurn.parts || [];
+        for (const part of parts) {
+          // Handle text transcription
+          if (part.text) {
+            console.log(`🤖 AI transcript: ${part.text}`);
+            session.currentTranscript += part.text;
+            this.sendToClient(session, {
+              type: 'ai.transcription.delta',
+              text: part.text,
+            });
+          }
+        }
+      }
+
+      // Handle input transcription (user speech)
+      if (serverContent.inputTranscription) {
+        const transcript = serverContent.inputTranscription.text || '';
+        console.log(`🎤 User said: ${transcript}`);
         this.sendToClient(session, {
-          type: 'error',
-          error: event.error,
+          type: 'user.transcription',
+          transcript: transcript,
         });
-        break;
+      }
 
-      // Events to ignore (already handled or not needed by client)
-      case 'conversation.item.created':
-      case 'response.created':
-      case 'response.output_item.added':
-      case 'response.content_part.added':
-      case 'response.content_part.done':
-      case 'response.output_item.done':
-      case 'response.audio.done':
-      case 'response.output_audio.done':
-      case 'rate_limits.updated':
-      case 'input_audio_buffer.speech_started':
-      case 'input_audio_buffer.speech_stopped':
-      case 'input_audio_buffer.committed':
-        // Silently ignore these events (already processed or not needed)
-        break;
-
-      default:
-        // Log unknown events but don't forward (prevents duplicate audio)
-        console.log(`📨 Unhandled OpenAI event: ${event.type}`);
-        break;
+      // Handle output transcription (AI speech)
+      if (serverContent.outputTranscription) {
+        const transcript = serverContent.outputTranscription.text || '';
+        console.log(`✅ AI full transcript: ${transcript}`);
+        session.currentTranscript = transcript;
+      }
     }
   }
 
@@ -393,41 +322,49 @@ export class RealtimeVoiceService {
       return;
     }
 
-    if (!session.isConnected || !session.openaiWs) {
-      console.error(`OpenAI not connected for session: ${sessionId}`);
+    if (!session.isConnected || !session.geminiSession) {
+      console.error(`Gemini not connected for session: ${sessionId}`);
       return;
     }
 
-    // Forward client messages to OpenAI
+    // Forward client messages to Gemini
     switch (message.type) {
       case 'input_audio_buffer.append':
-        // Client sending audio data
-        this.sendToOpenAI(session, {
-          type: 'input_audio_buffer.append',
-          audio: message.audio,
+        // Client sending audio data (base64 PCM16)
+        // Gemini expects 16kHz PCM16
+        session.geminiSession.sendRealtimeInput({
+          audio: {
+            data: message.audio,
+            mimeType: 'audio/pcm;rate=16000',
+          },
         });
         break;
 
       case 'input_audio_buffer.commit':
-        // Client finished speaking
-        this.sendToOpenAI(session, {
-          type: 'input_audio_buffer.commit',
+        // User finished speaking - send END_OF_TURN event to Gemini
+        console.log('📤 User turn complete, sending END_OF_TURN event');
+        session.geminiSession.sendRealtimeInput({
+          event: 'END_OF_TURN'
         });
         break;
 
       case 'response.create':
-        // Client requesting a response
-        this.sendToOpenAI(session, {
-          type: 'response.create',
+        // Client explicitly requesting a response - send END_OF_TURN to trigger Gemini
+        console.log('🔄 Explicit response request, sending END_OF_TURN event');
+        session.geminiSession.sendRealtimeInput({
+          event: 'END_OF_TURN'
         });
         break;
 
       case 'conversation.item.create':
         // Client sending a text message
-        this.sendToOpenAI(session, {
-          type: 'conversation.item.create',
-          item: message.item,
-        });
+        if (message.item && message.item.content) {
+          const text = message.item.content[0]?.text || '';
+          session.geminiSession.sendClientContent({
+            turns: [{ role: 'user', parts: [{ text }] }],
+            turnComplete: true,
+          });
+        }
         break;
 
       default:
@@ -473,12 +410,6 @@ export class RealtimeVoiceService {
     }
   }
 
-  private sendToOpenAI(session: RealtimeSession, message: any): void {
-    if (session.openaiWs && session.isConnected) {
-      session.openaiWs.send(JSON.stringify(message));
-    }
-  }
-
   private sendToClient(session: RealtimeSession, message: any): void {
     if (session.clientWs && session.clientWs.readyState === WebSocket.OPEN) {
       session.clientWs.send(JSON.stringify(message));
@@ -490,8 +421,8 @@ export class RealtimeVoiceService {
     if (session) {
       console.log(`🔚 Closing realtime voice session: ${sessionId}`);
       
-      if (session.openaiWs) {
-        session.openaiWs.close();
+      if (session.geminiSession) {
+        session.geminiSession.close();
       }
       
       this.sessions.delete(sessionId);

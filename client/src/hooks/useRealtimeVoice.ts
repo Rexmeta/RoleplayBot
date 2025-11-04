@@ -245,7 +245,7 @@ export function useRealtimeVoice({
         float32[i] = pcm16[i] / 32768.0;
       }
 
-      // Create AudioBuffer manually for PCM16 data
+      // Create AudioBuffer for Gemini's 24kHz output
       const audioBuffer = audioContext.createBuffer(1, float32.length, 24000);
       audioBuffer.getChannelData(0).set(float32);
       
@@ -282,7 +282,7 @@ export function useRealtimeVoice({
       const stream = await navigator.mediaDevices.getUserMedia({ 
         audio: {
           channelCount: 1,
-          sampleRate: 24000,
+          sampleRate: 16000, // Gemini Live API expects 16kHz input
           echoCancellation: true,
           noiseSuppression: true,
         } 
@@ -312,8 +312,8 @@ export function useRealtimeVoice({
 
         const inputData = e.inputBuffer.getChannelData(0);
         
-        // Resample to 24kHz if needed
-        const targetSampleRate = 24000;
+        // Resample to 16kHz for Gemini Live API
+        const targetSampleRate = 16000;
         const sourceSampleRate = audioContext.sampleRate;
         const ratio = sourceSampleRate / targetSampleRate;
         const targetLength = Math.floor(inputData.length / ratio);
@@ -355,7 +355,7 @@ export function useRealtimeVoice({
       dummyGain.connect(audioContext.destination);
       
       setIsRecording(true);
-      console.log('🎤 Recording started (PCM16 24kHz)');
+      console.log('🎤 Recording started (PCM16 16kHz for Gemini)');
     } catch (err) {
       console.error('Error starting recording:', err);
       setError('Microphone access denied');
