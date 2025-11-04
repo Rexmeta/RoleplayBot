@@ -105,15 +105,24 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
     scenarioId: scenario.id,
     personaId: persona.id,
     enabled: false, // 자동 연결 비활성화, 수동 시작
-    onMessageComplete: (message) => {
+    onMessageComplete: (message, emotion, emotionReason) => {
       console.log('✅ AI message complete:', message);
+      console.log('😊 Emotion received:', emotion, '|', emotionReason);
+      
+      // 감정 상태 업데이트 (캐릭터 이미지 변경)
+      if (emotion) {
+        setIsEmotionTransitioning(true);
+        setCurrentEmotion(emotion);
+        setTimeout(() => setIsEmotionTransitioning(false), 150);
+      }
+      
       // 완전한 AI 메시지를 대화창에 추가
       setLocalMessages(prev => [...prev, {
         sender: 'ai',
         message: message,
         timestamp: new Date().toISOString(),
-        emotion: currentEmotion,
-        emotionReason: '',
+        emotion: emotion || '중립',
+        emotionReason: emotionReason || '',
       }]);
     },
     onUserTranscription: (transcript) => {

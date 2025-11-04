@@ -12,7 +12,7 @@ interface UseRealtimeVoiceProps {
   personaId: string;
   enabled: boolean;
   onMessage?: (message: string) => void;
-  onMessageComplete?: (message: string) => void;
+  onMessageComplete?: (message: string, emotion?: string, emotionReason?: string) => void;
   onUserTranscription?: (transcript: string) => void;
   onError?: (error: string) => void;
   onSessionTerminated?: (reason: string) => void;
@@ -156,9 +156,10 @@ export function useRealtimeVoice({
 
             case 'ai.transcription.done':
               console.log('✅ Transcription complete:', data.text);
-              // 완전한 메시지를 onMessageComplete로 전달
+              console.log('😊 Emotion:', data.emotion, '|', data.emotionReason);
+              // 완전한 메시지와 감정 정보를 onMessageComplete로 전달
               if (data.text && onMessageCompleteRef.current) {
-                onMessageCompleteRef.current(data.text);
+                onMessageCompleteRef.current(data.text, data.emotion, data.emotionReason);
               }
               // 버퍼 초기화
               aiMessageBufferRef.current = '';
