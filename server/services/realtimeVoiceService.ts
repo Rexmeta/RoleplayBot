@@ -15,7 +15,8 @@ interface RealtimeSession {
   clientWs: WebSocket;
   geminiSession: any | null; // Gemini Live API session
   isConnected: boolean;
-  currentTranscript: string;
+  currentTranscript: string; // AI 응답 transcript 버퍼
+  userTranscriptBuffer: string; // 사용자 음성 transcript 버퍼
   audioBuffer: string[];
 }
 
@@ -90,6 +91,7 @@ export class RealtimeVoiceService {
       geminiSession: null,
       isConnected: false,
       currentTranscript: '',
+      userTranscriptBuffer: '',
       audioBuffer: [],
     };
 
@@ -300,20 +302,19 @@ export class RealtimeVoiceService {
       }
 
       // Handle input transcription (user speech)
+      // 음절 단위로 스트리밍되므로 버퍼에 누적만 하고 전송하지 않음
       if (serverContent.inputTranscription) {
         const transcript = serverContent.inputTranscription.text || '';
-        console.log(`🎤 User said: ${transcript}`);
-        this.sendToClient(session, {
-          type: 'user.transcription',
-          transcript: transcript,
-        });
+        console.log(`🎤 User transcript delta: ${transcript}`);
+        session.userTranscriptBuffer += transcript;
       }
 
       // Handle output transcription (AI speech)
+      // 음절 단위로 스트리밍되므로 누적 (modelTurn과 동일)
       if (serverContent.outputTranscription) {
         const transcript = serverContent.outputTranscription.text || '';
-        console.log(`✅ AI full transcript: ${transcript}`);
-        session.currentTranscript = transcript;
+        console.log(`🤖 AI transcript delta: ${transcript}`);
+        session.currentTranscript += transcript;
       }
     }
   }
@@ -344,8 +345,16 @@ export class RealtimeVoiceService {
         break;
 
       case 'input_audio_buffer.commit':
-        // User finished speaking - send END_OF_TURN event to Gemini
-        console.log('📤 User turn complete, sending END_OF_TURN event');
+        // User finished speaking - send buffered transcript and END_OF_TURN event
+        if (session.userTranscriptBuffer.trim()) {
+          console.log(`📤 User turn complete: "${session.userTranscriptBuffer}"`);
+          this.sendToClient(session, {
+            type: 'user.transcription',
+            transcript: session.userTranscriptBuffer.trim(),
+          });
+          session.userTranscriptBuffer = ''; // 버퍼 초기화
+        }
+        
         session.geminiSession.sendRealtimeInput({
           event: 'END_OF_TURN'
         });
