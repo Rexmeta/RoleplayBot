@@ -1634,8 +1634,8 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
                 )}
               </div>
 
-              {/* Top Center - 실시간 음성 대화 내역 (실시간 음성 모드일 때만 표시) */}
-              {inputMode === 'realtime-voice' && localMessages.length > 0 && (
+              {/* Top Center - 실시간 음성 대화 내역 (캐릭터 모드에서는 숨김) */}
+              {false && inputMode === 'realtime-voice' && localMessages.length > 0 && (
                 <div className="absolute top-4 left-1/2 transform -translate-x-1/2 z-20 w-full max-w-2xl px-4">
                   <div className="bg-white/90 backdrop-blur-sm rounded-lg shadow-lg max-h-60 overflow-y-auto p-4 space-y-2">
                     <h3 className="text-sm font-semibold text-slate-700 mb-2 sticky top-0 bg-white/90">대화 내역</h3>
