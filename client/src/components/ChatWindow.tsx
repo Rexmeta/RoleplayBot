@@ -94,9 +94,9 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
     scenarioId: scenario.id,
     personaId: persona.id,
     enabled: false, // 자동 연결 비활성화, 수동 시작
-    onMessage: (message) => {
-      console.log('🎙️ Received realtime voice message:', message);
-      // 실시간 음성 모드에서도 대화창에 AI 메시지 추가
+    onMessageComplete: (message) => {
+      console.log('✅ AI message complete:', message);
+      // 완전한 AI 메시지를 대화창에 추가
       setLocalMessages(prev => [...prev, {
         sender: 'ai',
         message: message,

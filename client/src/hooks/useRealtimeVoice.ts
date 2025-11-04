@@ -12,6 +12,7 @@ interface UseRealtimeVoiceProps {
   personaId: string;
   enabled: boolean;
   onMessage?: (message: string) => void;
+  onMessageComplete?: (message: string) => void;
   onUserTranscription?: (transcript: string) => void;
   onError?: (error: string) => void;
   onSessionTerminated?: (reason: string) => void;
@@ -35,6 +36,7 @@ export function useRealtimeVoice({
   personaId,
   enabled,
   onMessage,
+  onMessageComplete,
   onUserTranscription,
   onError,
   onSessionTerminated,
@@ -51,19 +53,22 @@ export function useRealtimeVoice({
   const audioProcessorRef = useRef<ScriptProcessorNode | null>(null);
   const micStreamRef = useRef<MediaStream | null>(null);
   const nextPlayTimeRef = useRef<number>(0); // Track when to play next chunk
+  const aiMessageBufferRef = useRef<string>(''); // Buffer for AI message transcription
   
   // Store callbacks in refs to avoid recreating connect() on every render
   const onMessageRef = useRef(onMessage);
+  const onMessageCompleteRef = useRef(onMessageComplete);
   const onUserTranscriptionRef = useRef(onUserTranscription);
   const onErrorRef = useRef(onError);
   const onSessionTerminatedRef = useRef(onSessionTerminated);
   
   useEffect(() => {
     onMessageRef.current = onMessage;
+    onMessageCompleteRef.current = onMessageComplete;
     onUserTranscriptionRef.current = onUserTranscription;
     onErrorRef.current = onError;
     onSessionTerminatedRef.current = onSessionTerminated;
-  }, [onMessage, onUserTranscription, onError, onSessionTerminated]);
+  }, [onMessage, onMessageComplete, onUserTranscription, onError, onSessionTerminated]);
 
   const getWebSocketUrl = useCallback(() => {
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
@@ -138,15 +143,25 @@ export function useRealtimeVoice({
               console.log('✅ Audio playback complete');
               break;
 
-            // 📝 화면 자막만 (onMessage 호출)
+            // 📝 AI 응답 스트리밍 (버퍼에 누적)
             case 'ai.transcription.delta':
-              if (data.text && onMessageRef.current) {
-                onMessageRef.current(data.text);
+              if (data.text) {
+                aiMessageBufferRef.current += data.text;
+                // 실시간 스트리밍 표시용 (선택적)
+                if (onMessageRef.current) {
+                  onMessageRef.current(data.text);
+                }
               }
               break;
 
             case 'ai.transcription.done':
               console.log('✅ Transcription complete:', data.text);
+              // 완전한 메시지를 onMessageComplete로 전달
+              if (data.text && onMessageCompleteRef.current) {
+                onMessageCompleteRef.current(data.text);
+              }
+              // 버퍼 초기화
+              aiMessageBufferRef.current = '';
               break;
 
             case 'response.done':
