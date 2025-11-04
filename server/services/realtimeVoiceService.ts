@@ -259,7 +259,17 @@ export class RealtimeVoiceService {
           type: 'response.done',
         });
 
-        // Analyze emotion for the completed transcript
+        // 사용자 발화가 완료되었다면 transcript를 전송 (VAD에 의한 자동 턴 구분)
+        if (session.userTranscriptBuffer.trim()) {
+          console.log(`🎤 User turn complete (VAD): "${session.userTranscriptBuffer.trim()}"`);
+          this.sendToClient(session, {
+            type: 'user.transcription',
+            transcript: session.userTranscriptBuffer.trim(),
+          });
+          session.userTranscriptBuffer = ''; // 버퍼 초기화
+        }
+
+        // Analyze emotion for the completed AI transcript
         if (session.currentTranscript) {
           this.analyzeEmotion(session.currentTranscript, session.personaName)
             .then(({ emotion, emotionReason }) => {
@@ -345,16 +355,9 @@ export class RealtimeVoiceService {
         break;
 
       case 'input_audio_buffer.commit':
-        // User finished speaking - send buffered transcript and END_OF_TURN event
-        if (session.userTranscriptBuffer.trim()) {
-          console.log(`📤 User turn complete: "${session.userTranscriptBuffer}"`);
-          this.sendToClient(session, {
-            type: 'user.transcription',
-            transcript: session.userTranscriptBuffer.trim(),
-          });
-          session.userTranscriptBuffer = ''; // 버퍼 초기화
-        }
-        
+        // User stopped recording - send END_OF_TURN event to Gemini
+        // Note: transcript will be sent automatically when Gemini detects turn completion via VAD
+        console.log('📤 User stopped recording, sending END_OF_TURN event');
         session.geminiSession.sendRealtimeInput({
           event: 'END_OF_TURN'
         });
