@@ -441,9 +441,10 @@ export class RealtimeVoiceService {
     }
 
     try {
-      const model = this.genAI.getGenerativeModel({ 
+      const result = await this.genAI.models.generateContent({
         model: 'gemini-2.0-flash-exp',
-        generationConfig: {
+        contents: `다음 AI 캐릭터(${personaName})의 응답에서 드러나는 감정을 분석하세요.\n\n응답: "${aiResponse}"\n\n감정은 다음 중 하나여야 합니다: 중립, 기쁨, 슬픔, 분노, 놀람\n감정 이유는 간단하게 한 문장으로 설명하세요.`,
+        config: {
           responseMimeType: "application/json",
           responseSchema: {
             type: "object",
@@ -458,18 +459,7 @@ export class RealtimeVoiceService {
         }
       });
 
-      const result = await model.generateContent({
-        contents: [
-          { 
-            role: "user", 
-            parts: [{ 
-              text: `다음 AI 캐릭터(${personaName})의 응답에서 드러나는 감정을 분석하세요.\n\n응답: "${aiResponse}"\n\n감정은 다음 중 하나여야 합니다: 중립, 기쁨, 슬픔, 분노, 놀람\n감정 이유는 간단하게 한 문장으로 설명하세요.` 
-            }] 
-          }
-        ],
-      });
-
-      const responseText = result.response?.candidates?.[0]?.content?.parts?.[0]?.text || '{}';
+      const responseText = result.text || '{}';
       console.log('📊 Gemini emotion analysis response:', responseText);
       const emotionData = JSON.parse(responseText);
 
