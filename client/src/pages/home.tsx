@@ -279,6 +279,7 @@ export default function Home() {
             onPersonaSelect={handlePersonaSelect}
             scenarioTitle={selectedScenario.title}
             scenarioSituation={selectedScenario.description}
+            scenario={selectedScenario}
           />
         )}
 
