@@ -13,7 +13,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { User, LogOut } from "lucide-react";
 
-type ViewState = "scenarios" | "persona-selection" | "chat" | "strategy-reflection" | "strategy-result" | "feedback";
+type ViewState = "scenarios" | "scenario-detail" | "persona-selection" | "chat" | "strategy-reflection" | "strategy-result" | "feedback";
 
 export default function Home() {
   const [currentView, setCurrentView] = useState<ViewState>("scenarios");
@@ -41,14 +41,19 @@ export default function Home() {
     experience: "6개월차"
   };
 
-  // 시나리오 선택 처리
+  // 시나리오 선택 처리 - 상세 화면으로 이동
   const handleScenarioSelect = async (scenario: ComplexScenario, persona?: ScenarioPersona, convId?: string) => {
     setSelectedScenario(scenario);
     setCompletedPersonaIds([]);
     setConversationIds([]);
     setStrategyReflectionSubmitted(false); // 새 시나리오 시작 시 초기화
     
-    // 모든 시나리오에서 페르소나 선택 화면으로 이동
+    // 시나리오 상세 화면으로 이동
+    setCurrentView("scenario-detail");
+  };
+
+  // 시나리오 상세 화면에서 대화 시작 버튼 클릭
+  const handleStartConversation = () => {
     setCurrentView("persona-selection");
   };
 
