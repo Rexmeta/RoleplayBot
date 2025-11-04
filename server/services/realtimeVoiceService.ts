@@ -181,15 +181,6 @@ export class RealtimeVoiceService {
             this.sendToClient(session, {
               type: 'session.configured',
             });
-
-            // Send first greeting trigger
-            console.log('🎬 Triggering AI to start first greeting...');
-            const firstMessage = `지금 대화를 시작하세요.`;
-            
-            geminiSession.sendClientContent({
-              turns: [{ role: 'user', parts: [{ text: firstMessage }] }],
-              turnComplete: true,
-            });
           },
           onmessage: (message: any) => {
             this.handleGeminiMessage(session, message);
@@ -222,6 +213,15 @@ export class RealtimeVoiceService {
       });
 
       session.geminiSession = geminiSession;
+
+      // Send first greeting trigger after connection is established
+      console.log('🎬 Triggering AI to start first greeting...');
+      const firstMessage = `지금 대화를 시작하세요.`;
+      
+      geminiSession.sendClientContent({
+        turns: [{ role: 'user', parts: [{ text: firstMessage }] }],
+        turnComplete: true,
+      });
 
     } catch (error) {
       console.error(`Failed to connect to Gemini Live API:`, error);
