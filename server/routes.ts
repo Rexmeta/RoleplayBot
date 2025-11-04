@@ -449,7 +449,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         messages: updatedMessages,
         turnCount: newTurnCount,
         status: 'completed', // 실시간 대화 종료 시 완료 상태로 변경
-        completedAt: new Date().toISOString(), // 대화 완료 시간 기록
+        completedAt: new Date(), // 대화 완료 시간 기록 (Date 객체로 전달)
       });
 
       console.log(`✅ Saved ${messages.length} realtime messages (${userMessageCount} user turns), status: completed`);
