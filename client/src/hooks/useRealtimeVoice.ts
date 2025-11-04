@@ -257,14 +257,14 @@ export function useRealtimeVoice({
       const source = audioContext.createBufferSource();
       source.buffer = audioBuffer;
       
-      // 발화 속도를 10% 빠르게 설정 (1.1배 속도)
-      source.playbackRate.value = 1.1;
+      // 발화 속도를 10% 느리게 설정 (0.9배 속도 - 더 자연스럽고 이해하기 쉬움)
+      source.playbackRate.value = 0.9;
       
       source.connect(audioContext.destination);
       source.start(startTime);
       
       // Update next play time (current chunk start time + duration / playbackRate)
-      nextPlayTimeRef.current = startTime + (audioBuffer.duration / 1.1);
+      nextPlayTimeRef.current = startTime + (audioBuffer.duration / 0.9);
       
       console.log('🔊 Playing audio chunk:', float32.length, 'samples', 'at', startTime.toFixed(3));
     } catch (err) {

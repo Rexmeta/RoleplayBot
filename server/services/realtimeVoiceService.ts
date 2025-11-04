@@ -184,6 +184,7 @@ export class RealtimeVoiceService {
           model: REALTIME_MODEL,
           instructions: systemInstructions,
           voice: 'shimmer', // 따뜻하고 친근한 여성 음성
+          temperature: 0.6, // 일관성과 자연스러움 균형
           input_audio_transcription: {
             model: 'whisper-1', // Enable user speech transcription
           },
@@ -440,9 +441,9 @@ export class RealtimeVoiceService {
     }
 
     try {
-      const model = this.genAI.models.generateContent({
+      const model = this.genAI.getGenerativeModel({ 
         model: 'gemini-2.0-flash-exp',
-        config: {
+        generationConfig: {
           responseMimeType: "application/json",
           responseSchema: {
             type: "object",
@@ -454,7 +455,10 @@ export class RealtimeVoiceService {
           },
           maxOutputTokens: 200,
           temperature: 0.5
-        },
+        }
+      });
+
+      const result = await model.generateContent({
         contents: [
           { 
             role: "user", 
@@ -465,8 +469,8 @@ export class RealtimeVoiceService {
         ],
       });
 
-      const response = await model;
-      const responseText = response.response?.candidates?.[0]?.content?.parts?.[0]?.text || '{}';
+      const responseText = result.response?.candidates?.[0]?.content?.parts?.[0]?.text || '{}';
+      console.log('📊 Gemini emotion analysis response:', responseText);
       const emotionData = JSON.parse(responseText);
 
       return {
