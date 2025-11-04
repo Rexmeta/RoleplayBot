@@ -7,6 +7,16 @@ import { Textarea } from "@/components/ui/textarea";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { Card } from "@/components/ui/card";
 import { AspectRatio } from "@/components/ui/aspect-ratio";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Link, useLocation } from "wouter";
 import type { ComplexScenario, ScenarioPersona } from "@/lib/scenario-system";
 import type { Conversation, ConversationMessage } from "@shared/schema";
@@ -79,6 +89,7 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
   const [imagesLoaded, setImagesLoaded] = useState<{[key: string]: boolean}>({});
   const [currentEmotion, setCurrentEmotion] = useState<string>('중립');
   const [isGoalsExpanded, setIsGoalsExpanded] = useState(false);
+  const [showEndConversationDialog, setShowEndConversationDialog] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const recognitionRef = useRef<any>(null);
   const speechSynthesisRef = useRef<SpeechSynthesis | null>(null);
@@ -264,6 +275,19 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
     setIsLoading(true);
     setShowInputMode(false); // Skip 후 입력창 숨기기
     sendMessageMutation.mutate("");
+  };
+
+  const handleEndRealtimeConversation = () => {
+    // 실시간 음성 대화 종료 확인 다이얼로그 표시
+    setShowEndConversationDialog(true);
+  };
+
+  const confirmEndConversation = () => {
+    // 실시간 음성 연결 해제
+    realtimeVoice.disconnect();
+    
+    // 대화 완료 처리 - 피드백 생성
+    onChatComplete();
   };
 
   const handleVoiceInput = () => {
@@ -1353,12 +1377,13 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
                             {realtimeVoice.isRecording ? '중지' : realtimeVoice.isAISpeaking ? '응답 중' : '음성'}
                           </Button>
                           <Button
-                            variant="outline"
-                            onClick={handleSkipTurn}
+                            variant="destructive"
+                            onClick={handleEndRealtimeConversation}
                             disabled={realtimeVoice.isRecording || realtimeVoice.isAISpeaking}
-                            data-testid="button-skip-turn-realtime-messenger"
+                            data-testid="button-end-conversation-messenger"
                           >
-                            Skip
+                            <i className="fas fa-stop-circle mr-2"></i>
+                            대화 종료
                           </Button>
                         </div>
                       </div>
@@ -1804,16 +1829,17 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
                                 }`}></i>
                               </Button>
                               
-                              {/* Skip button (spans 2 columns) */}
+                              {/* 대화 종료 button (spans 2 columns) */}
                               <Button
-                                variant="outline" 
+                                variant="destructive" 
                                 size="sm"
-                                onClick={handleSkipTurn}
+                                onClick={handleEndRealtimeConversation}
                                 disabled={realtimeVoice.isRecording || realtimeVoice.isAISpeaking}
-                                data-testid="button-skip-turn-realtime"
+                                data-testid="button-end-conversation-realtime"
                                 className="col-span-2"
                               >
-                                Skip
+                                <i className="fas fa-stop-circle mr-1"></i>
+                                대화 종료
                               </Button>
                             </div>
                           </div>
@@ -2026,6 +2052,32 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
           )}
         </div>
       </div>
+
+      {/* 대화 종료 확인 다이얼로그 */}
+      <AlertDialog open={showEndConversationDialog} onOpenChange={setShowEndConversationDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>대화를 종료하시겠습니까?</AlertDialogTitle>
+            <AlertDialogDescription>
+              대화를 종료하고 최종 피드백을 생성하시겠습니까?
+              <br />
+              지금까지의 대화 내용을 바탕으로 상세한 분석과 점수를 제공합니다.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel data-testid="button-cancel-end-conversation">
+              취소
+            </AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={confirmEndConversation}
+              data-testid="button-confirm-end-conversation"
+              className="bg-purple-600 hover:bg-purple-700"
+            >
+              예, 피드백 생성
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
