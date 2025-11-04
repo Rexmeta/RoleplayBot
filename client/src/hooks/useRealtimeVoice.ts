@@ -255,11 +255,15 @@ export function useRealtimeVoice({
       // Play audio at scheduled time
       const source = audioContext.createBufferSource();
       source.buffer = audioBuffer;
+      
+      // 발화 속도를 10% 빠르게 설정 (1.1배 속도)
+      source.playbackRate.value = 1.1;
+      
       source.connect(audioContext.destination);
       source.start(startTime);
       
-      // Update next play time (current chunk start time + duration)
-      nextPlayTimeRef.current = startTime + audioBuffer.duration;
+      // Update next play time (current chunk start time + duration / playbackRate)
+      nextPlayTimeRef.current = startTime + (audioBuffer.duration / 1.1);
       
       console.log('🔊 Playing audio chunk:', float32.length, 'samples', 'at', startTime.toFixed(3));
     } catch (err) {

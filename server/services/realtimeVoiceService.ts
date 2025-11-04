@@ -1,6 +1,7 @@
 import WebSocket from 'ws';
 import OpenAI from 'openai';
 import { fileManager } from './fileManager';
+import { GoogleGenerativeAI } from '@google/genai';
 
 // OpenAI Realtime API - using GA model
 const REALTIME_MODEL = 'gpt-realtime';
@@ -21,6 +22,7 @@ interface RealtimeSession {
 export class RealtimeVoiceService {
   private sessions: Map<string, RealtimeSession> = new Map();
   private openai: OpenAI | null = null;
+  private genAI: GoogleGenerativeAI | null = null;
   private isAvailable: boolean = false;
 
   constructor() {
@@ -34,6 +36,14 @@ export class RealtimeVoiceService {
       console.log('✅ OpenAI Realtime Voice Service initialized');
     } else {
       console.warn('⚠️  OPENAI_API_KEY not set - Realtime Voice features disabled');
+    }
+
+    // Initialize Gemini for emotion analysis
+    if (process.env.GOOGLE_GEMINI_API_KEY) {
+      this.genAI = new GoogleGenerativeAI(process.env.GOOGLE_GEMINI_API_KEY);
+      console.log('✅ Gemini API initialized for emotion analysis');
+    } else {
+      console.warn('⚠️  GOOGLE_GEMINI_API_KEY not set - Emotion analysis disabled');
     }
   }
 
@@ -298,10 +308,28 @@ export class RealtimeVoiceService {
       case 'response.output_audio_transcript.done':
         // Complete transcript (both event formats supported)
         console.log(`✅ AI full transcript: ${event.transcript}`);
-        this.sendToClient(session, {
-          type: 'ai.transcription.done',
-          text: event.transcript,  // ✅ text 필드 사용
-        });
+        
+        // 감정 분석을 비동기로 수행하고 결과 전송
+        this.analyzeEmotion(event.transcript, session.personaName)
+          .then(({ emotion, emotionReason }) => {
+            console.log(`😊 Emotion analyzed: ${emotion} (${emotionReason})`);
+            this.sendToClient(session, {
+              type: 'ai.transcription.done',
+              text: event.transcript,
+              emotion,
+              emotionReason,
+            });
+          })
+          .catch(error => {
+            console.error('❌ Failed to analyze emotion:', error);
+            // 감정 분석 실패 시 기본값으로 전송
+            this.sendToClient(session, {
+              type: 'ai.transcription.done',
+              text: event.transcript,
+              emotion: '중립',
+              emotionReason: '감정 분석 실패',
+            });
+          });
         break;
 
       case 'response.done':
@@ -394,6 +422,51 @@ export class RealtimeVoiceService {
 
       default:
         console.log(`Unknown client message type: ${message.type}`);
+    }
+  }
+
+  private async analyzeEmotion(aiResponse: string, personaName: string): Promise<{ emotion: string; emotionReason: string }> {
+    if (!this.genAI) {
+      return { emotion: '중립', emotionReason: '감정 분석 서비스가 비활성화되어 있습니다.' };
+    }
+
+    try {
+      const model = this.genAI.models.generateContent({
+        model: 'gemini-2.0-flash-exp',
+        config: {
+          responseMimeType: "application/json",
+          responseSchema: {
+            type: "object",
+            properties: {
+              emotion: { type: "string" },
+              emotionReason: { type: "string" }
+            },
+            required: ["emotion", "emotionReason"]
+          },
+          maxOutputTokens: 200,
+          temperature: 0.5
+        },
+        contents: [
+          { 
+            role: "user", 
+            parts: [{ 
+              text: `다음 AI 캐릭터(${personaName})의 응답에서 드러나는 감정을 분석하세요.\n\n응답: "${aiResponse}"\n\n감정은 다음 중 하나여야 합니다: 중립, 기쁨, 슬픔, 분노, 놀람\n감정 이유는 간단하게 한 문장으로 설명하세요.` 
+            }] 
+          }
+        ],
+      });
+
+      const response = await model;
+      const responseText = response.response?.candidates?.[0]?.content?.parts?.[0]?.text || '{}';
+      const emotionData = JSON.parse(responseText);
+
+      return {
+        emotion: emotionData.emotion || '중립',
+        emotionReason: emotionData.emotionReason || '감정 분석 실패'
+      };
+    } catch (error) {
+      console.error('❌ Emotion analysis error:', error);
+      return { emotion: '중립', emotionReason: '감정 분석 중 오류가 발생했습니다.' };
     }
   }
 
