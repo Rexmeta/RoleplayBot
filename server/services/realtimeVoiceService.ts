@@ -160,6 +160,9 @@ export class RealtimeVoiceService {
       const config = {
         responseModalities: [Modality.AUDIO],
         systemInstruction: systemInstructions,
+        // Enable transcription for both input and output audio
+        inputAudioTranscription: {},
+        outputAudioTranscription: {},
         // Gemini Live API uses 16kHz input, 24kHz output
       };
 

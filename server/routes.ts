@@ -444,13 +444,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const userMessageCount = messages.filter((msg: any) => msg.sender === 'user').length;
       const newTurnCount = conversation.turnCount + userMessageCount;
 
-      // 대화 업데이트 (메시지와 턴 카운트만)
+      // 대화 업데이트 (메시지, 턴 카운트, 그리고 상태를 'completed'로 변경)
       const updatedConversation = await storage.updateConversation(req.params.id, {
         messages: updatedMessages,
         turnCount: newTurnCount,
+        status: 'completed', // 실시간 대화 종료 시 완료 상태로 변경
       });
 
-      console.log(`✅ Saved ${messages.length} realtime messages (${userMessageCount} user turns)`);
+      console.log(`✅ Saved ${messages.length} realtime messages (${userMessageCount} user turns), status: completed`);
 
       res.json({
         conversation: updatedConversation,
