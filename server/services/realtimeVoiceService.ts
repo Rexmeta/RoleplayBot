@@ -165,6 +165,9 @@ export class RealtimeVoiceService {
           model: REALTIME_MODEL,
           instructions: systemInstructions,
           voice: 'alloy',
+          input_audio_transcription: {
+            model: 'whisper-1', // Enable user speech transcription
+          },
         },
       });
 
