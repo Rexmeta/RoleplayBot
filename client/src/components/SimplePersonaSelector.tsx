@@ -1,8 +1,8 @@
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { CheckCircle2, Users, MessageCircle } from "lucide-react";
-import { type ScenarioPersona } from "@/lib/scenario-system";
+import { CheckCircle2, Users, MessageCircle, Target, Clock, BarChart, Lightbulb, AlertCircle, TrendingUp } from "lucide-react";
+import { type ScenarioPersona, type ComplexScenario } from "@/lib/scenario-system";
 
 interface SimplePersonaSelectorProps {
   personas: ScenarioPersona[];
@@ -10,6 +10,7 @@ interface SimplePersonaSelectorProps {
   onPersonaSelect: (persona: ScenarioPersona) => void;
   scenarioTitle: string;
   scenarioSituation?: string;
+  scenario?: ComplexScenario;
 }
 
 export function SimplePersonaSelector({
@@ -17,7 +18,8 @@ export function SimplePersonaSelector({
   completedPersonaIds,
   onPersonaSelect,
   scenarioTitle,
-  scenarioSituation
+  scenarioSituation,
+  scenario
 }: SimplePersonaSelectorProps) {
   const availablePersonas = personas.filter(p => !completedPersonaIds.includes(p.id));
   const completedCount = completedPersonaIds.length;
@@ -28,11 +30,125 @@ export function SimplePersonaSelector({
     <div className="max-w-6xl mx-auto p-6 space-y-6">
       {/* 헤더 */}
       <div className="text-center mb-8">
-        <h1 className="text-3xl font-bold text-gray-900 mb-2">{scenarioTitle}</h1>
+        <Badge className="mb-4" variant="outline">
+          난이도 {scenario?.difficulty || 1} / 5 {scenario?.difficulty && scenario.difficulty >= 4 && '⭐'}
+        </Badge>
+        <h1 className="text-3xl font-bold text-gray-900 mb-3">{scenarioTitle}</h1>
         {scenarioSituation && (
           <p className="text-lg text-gray-600 mb-4">{scenarioSituation}</p>
         )}
+        {scenario?.estimatedTime && (
+          <div className="flex items-center justify-center gap-2 text-sm text-gray-500">
+            <Clock className="w-4 h-4" />
+            <span>예상 소요 시간: {scenario.estimatedTime}</span>
+          </div>
+        )}
       </div>
+
+      {/* 시나리오 상세 정보 */}
+      {scenario && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+          {/* 상황 설명 */}
+          <Card className="border-orange-200 bg-orange-50">
+            <CardContent className="p-6">
+              <div className="flex items-start gap-3 mb-3">
+                <AlertCircle className="w-5 h-5 text-orange-600 mt-0.5 flex-shrink-0" />
+                <div>
+                  <h3 className="font-semibold text-gray-900 mb-2">상황</h3>
+                  <p className="text-sm text-gray-700 leading-relaxed">{scenario.context.situation}</p>
+                </div>
+              </div>
+              <div className="mt-4 pt-4 border-t border-orange-200 space-y-2">
+                <div className="flex items-start gap-2 text-sm">
+                  <Clock className="w-4 h-4 text-orange-600 mt-0.5 flex-shrink-0" />
+                  <span className="text-gray-700"><strong>타임라인:</strong> {scenario.context.timeline}</span>
+                </div>
+                <div className="flex items-start gap-2 text-sm">
+                  <TrendingUp className="w-4 h-4 text-orange-600 mt-0.5 flex-shrink-0" />
+                  <span className="text-gray-700"><strong>핵심 이슈:</strong> {scenario.context.stakes}</span>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* 나의 역할 */}
+          <Card className="border-blue-200 bg-blue-50">
+            <CardContent className="p-6">
+              <div className="flex items-start gap-3">
+                <Users className="w-5 h-5 text-blue-600 mt-0.5 flex-shrink-0" />
+                <div>
+                  <h3 className="font-semibold text-gray-900 mb-3">나의 역할</h3>
+                  <div className="space-y-2 text-sm">
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">직책:</span>
+                      <span className="font-medium text-gray-900">{scenario.context.playerRole.position}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">부서:</span>
+                      <span className="font-medium text-gray-900">{scenario.context.playerRole.department}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">경력:</span>
+                      <span className="font-medium text-gray-900">{scenario.context.playerRole.experience}</span>
+                    </div>
+                    <div className="mt-4 pt-4 border-t border-blue-200">
+                      <p className="text-gray-700 leading-relaxed">
+                        <strong>책임:</strong> {scenario.context.playerRole.responsibility}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* 목표 */}
+          <Card className="border-green-200 bg-green-50">
+            <CardContent className="p-6">
+              <div className="flex items-start gap-3">
+                <Target className="w-5 h-5 text-green-600 mt-0.5 flex-shrink-0" />
+                <div>
+                  <h3 className="font-semibold text-gray-900 mb-3">목표</h3>
+                  <ul className="space-y-2">
+                    {scenario.objectives.map((obj, index) => (
+                      <li key={index} className="flex items-start gap-2 text-sm text-gray-700">
+                        <span className="text-green-600 mt-0.5 flex-shrink-0">✓</span>
+                        <span>{obj}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* 성공 기준 */}
+          <Card className="border-purple-200 bg-purple-50">
+            <CardContent className="p-6">
+              <div className="flex items-start gap-3">
+                <Lightbulb className="w-5 h-5 text-purple-600 mt-0.5 flex-shrink-0" />
+                <div className="w-full">
+                  <h3 className="font-semibold text-gray-900 mb-3">성공 기준</h3>
+                  <div className="space-y-2 text-sm">
+                    <div className="bg-white rounded p-2 border border-purple-200">
+                      <div className="font-medium text-green-700 mb-1">🏆 최적</div>
+                      <div className="text-gray-700">{scenario.successCriteria.optimal}</div>
+                    </div>
+                    <div className="bg-white rounded p-2 border border-purple-200">
+                      <div className="font-medium text-blue-700 mb-1">👍 양호</div>
+                      <div className="text-gray-700">{scenario.successCriteria.good}</div>
+                    </div>
+                    <div className="bg-white rounded p-2 border border-purple-200">
+                      <div className="font-medium text-yellow-700 mb-1">⚠️ 수용 가능</div>
+                      <div className="text-gray-700">{scenario.successCriteria.acceptable}</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
 
       {/* 진행 상황 */}
       {completedCount > 0 && (
@@ -105,7 +221,7 @@ export function SimplePersonaSelector({
                   </div>
                 )}
 
-                <div className="flex items-start gap-4">
+                <div className="flex items-start gap-4 mb-4">
                   {/* 아바타 */}
                   <div className="w-16 h-16 rounded-full bg-gradient-to-br from-blue-400 to-blue-600 flex items-center justify-center text-white font-bold text-xl flex-shrink-0">
                     {persona.name.charAt(0)}
@@ -124,13 +240,42 @@ export function SimplePersonaSelector({
                         {persona.department}
                       </Badge>
                     )}
+                    {persona.mbti && (
+                      <Badge variant="secondary" className="text-xs">
+                        {persona.mbti}
+                      </Badge>
+                    )}
                   </div>
                 </div>
+
+                {/* 페르소나 상세 정보 */}
+                {(persona.stance || persona.goal || persona.tradeoff) && (
+                  <div className="mb-4 p-3 bg-gray-50 rounded-lg border border-gray-200 text-sm space-y-2">
+                    {persona.stance && (
+                      <div>
+                        <span className="font-semibold text-gray-700">입장:</span>
+                        <p className="text-gray-600 mt-1">{persona.stance}</p>
+                      </div>
+                    )}
+                    {persona.goal && (
+                      <div>
+                        <span className="font-semibold text-gray-700">목표:</span>
+                        <p className="text-gray-600 mt-1">{persona.goal}</p>
+                      </div>
+                    )}
+                    {persona.tradeoff && (
+                      <div>
+                        <span className="font-semibold text-gray-700">트레이드오프:</span>
+                        <p className="text-gray-600 mt-1">{persona.tradeoff}</p>
+                      </div>
+                    )}
+                  </div>
+                )}
 
                 {/* 상태 표시 */}
                 <div className="mt-4">
                   {isCompleted ? (
-                    <Badge className="bg-green-100 text-green-800 w-full justify-center">
+                    <Badge className="bg-green-100 text-green-800 w-full justify-center py-2">
                       <CheckCircle2 className="w-4 h-4 mr-1" />
                       대화 완료
                     </Badge>

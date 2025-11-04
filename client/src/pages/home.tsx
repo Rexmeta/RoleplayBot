@@ -48,15 +48,8 @@ export default function Home() {
     setConversationIds([]);
     setStrategyReflectionSubmitted(false); // 새 시나리오 시작 시 초기화
     
-    // 페르소나가 2명 이상이면 페르소나 선택 화면으로
-    if (scenario.personas && scenario.personas.length >= 2) {
-      setCurrentView("persona-selection");
-    } else {
-      // 단일 페르소나면 바로 대화로
-      setSelectedPersona(persona || null);
-      setConversationId(convId || null);
-      setCurrentView("chat");
-    }
+    // 모든 시나리오에서 페르소나 선택 화면으로 이동
+    setCurrentView("persona-selection");
   };
 
   // 페르소나 선택 처리
