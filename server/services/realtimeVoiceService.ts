@@ -39,11 +39,12 @@ export class RealtimeVoiceService {
     }
 
     // Initialize Gemini for emotion analysis
-    if (process.env.GOOGLE_GEMINI_API_KEY) {
-      this.genAI = new GoogleGenAI({ apiKey: process.env.GOOGLE_GEMINI_API_KEY });
+    const geminiApiKey = process.env.GOOGLE_API_KEY || process.env.GEMINI_API_KEY;
+    if (geminiApiKey) {
+      this.genAI = new GoogleGenAI({ apiKey: geminiApiKey });
       console.log('✅ Gemini API initialized for emotion analysis');
     } else {
-      console.warn('⚠️  GOOGLE_GEMINI_API_KEY not set - Emotion analysis disabled');
+      console.warn('⚠️  GOOGLE_API_KEY not set - Emotion analysis disabled');
     }
   }
 
