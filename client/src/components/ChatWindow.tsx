@@ -233,6 +233,14 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
     const message = userInput.trim();
     if (!message || isLoading) return;
 
+    // 실시간 음성 모드일 때는 WebSocket으로 텍스트 전송
+    if (inputMode === 'realtime-voice' && realtimeVoice.status === 'connected') {
+      setUserInput("");
+      realtimeVoice.sendTextMessage(message);
+      return;
+    }
+
+    // 일반 모드 (텍스트/TTS)
     // 사용자 메시지를 즉시 로컬 상태에 추가
     const userMessage: ConversationMessage = {
       sender: 'user',

@@ -25,6 +25,7 @@ interface UseRealtimeVoiceReturn {
   disconnect: () => void;
   startRecording: () => void;
   stopRecording: () => void;
+  sendTextMessage: (text: string) => void;
   error: string | null;
 }
 
@@ -382,6 +383,45 @@ export function useRealtimeVoice({
     }, 100); // 100ms delay
   }, []);
 
+  const sendTextMessage = useCallback((text: string) => {
+    if (!text.trim() || !wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
+      console.log('⚠️ Cannot send text message: invalid state');
+      return;
+    }
+
+    console.log('📤 Sending text message:', text);
+
+    // Add user transcription to local display
+    if (onUserTranscriptionRef.current) {
+      onUserTranscriptionRef.current(text);
+    }
+
+    // Send text as conversation item to OpenAI
+    wsRef.current.send(JSON.stringify({
+      type: 'conversation.item.create',
+      item: {
+        type: 'message',
+        role: 'user',
+        content: [
+          {
+            type: 'input_text',
+            text: text,
+          }
+        ]
+      }
+    }));
+
+    // Request AI response
+    wsRef.current.send(JSON.stringify({
+      type: 'response.create',
+      response: {
+        modalities: ['audio', 'text'],
+      },
+    }));
+
+    console.log('✅ Text message sent and response requested');
+  }, []);
+
   useEffect(() => {
     if (enabled) {
       connect();
@@ -400,6 +440,7 @@ export function useRealtimeVoice({
     disconnect,
     startRecording,
     stopRecording,
+    sendTextMessage,
     error,
   };
 }
