@@ -78,7 +78,7 @@ export default function MyPage() {
     new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
   );
 
-  // 시나리오별로 대화 그룹화
+  // 시나리오별로 대화 그룹화 후 각 시나리오 그룹 내에서 최근 대화 날짜로 정렬
   const conversationsByScenario = sortedConversations.reduce((acc, conversation) => {
     const scenarioId = conversation.scenarioId;
     if (!acc[scenarioId]) {
@@ -87,6 +87,19 @@ export default function MyPage() {
     acc[scenarioId].push(conversation);
     return acc;
   }, {} as Record<string, typeof sortedConversations>);
+  
+  // 각 시나리오의 최근 대화 시간을 기준으로 시나리오 정렬
+  const sortedScenarioIds = Object.keys(conversationsByScenario).sort((scenarioIdA, scenarioIdB) => {
+    const conversationsA = conversationsByScenario[scenarioIdA];
+    const conversationsB = conversationsByScenario[scenarioIdB];
+    
+    // 각 시나리오 그룹에서 가장 최근 대화 찾기
+    const latestA = Math.max(...conversationsA.map(c => new Date(c.createdAt).getTime()));
+    const latestB = Math.max(...conversationsB.map(c => new Date(c.createdAt).getTime()));
+    
+    // 최근 대화가 있는 시나리오를 먼저 표시
+    return latestB - latestA;
+  });
 
   // 날짜 문자열 생성 함수 (YYYY-MM-DD 형식)
   const getDateKey = (date: Date | string) => {
@@ -231,7 +244,8 @@ export default function MyPage() {
                   </div>
                 ) : (
                   <Accordion type="multiple" className="w-full">
-                    {Object.entries(conversationsByScenario).map(([scenarioId, scenarioConversations]) => {
+                    {sortedScenarioIds.map((scenarioId) => {
+                      const scenarioConversations = conversationsByScenario[scenarioId];
                       const scenarioInfo = getScenarioInfo(scenarioId);
                       const scenario = scenarios.find(s => s.id === scenarioId);
                       const completedCount = scenarioConversations.filter(c => c.status === 'completed').length;
