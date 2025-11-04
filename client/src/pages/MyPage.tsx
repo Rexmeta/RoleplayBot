@@ -271,28 +271,89 @@ export default function MyPage() {
                           </AccordionTrigger>
                           <AccordionContent>
                             <div className="space-y-3 pt-3">
-                              {/* 전략 평가 버튼 (시나리오 완료 시에만 표시) */}
-                              {isFullyCompleted && (
-                                <div className="bg-gradient-to-r from-purple-50 to-indigo-50 border border-purple-200 rounded-lg p-4 mb-4">
-                                  <div className="flex items-center justify-between">
-                                    <div className="flex items-center gap-3">
-                                      <Target className="w-5 h-5 text-purple-600" />
-                                      <div>
-                                        <h4 className="font-semibold text-slate-900">대화 순서 전략 평가</h4>
-                                        <p className="text-sm text-slate-600">모든 대화를 완료했습니다. 전략적 선택을 분석해보세요.</p>
+                              {/* 전략 회고 결과 표시 (제출된 경우) */}
+                              {isFullyCompleted && (() => {
+                                // 이 시나리오의 대화 중 전략 회고가 있는지 확인
+                                const conversationWithStrategy = scenarioConversations.find(c => c.strategyReflection);
+                                
+                                if (conversationWithStrategy && conversationWithStrategy.strategyReflection) {
+                                  // 대화 순서 표시를 위한 페르소나 배열 생성
+                                  const orderedPersonas = (conversationWithStrategy.conversationOrder || [])
+                                    .map(personaId => scenario?.personas?.find((p: any) => p.id === personaId))
+                                    .filter(p => p !== undefined);
+                                  
+                                  return (
+                                    <div className="bg-gradient-to-r from-green-50 to-emerald-50 border border-green-200 rounded-lg p-5 mb-4">
+                                      <div className="space-y-4">
+                                        <div className="flex items-center gap-3">
+                                          <div className="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center">
+                                            <svg className="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                                            </svg>
+                                          </div>
+                                          <div className="flex-1">
+                                            <h4 className="font-semibold text-slate-900">전략 회고 제출 완료</h4>
+                                            <p className="text-sm text-slate-600">대화 순서와 전략이 기록되었습니다.</p>
+                                          </div>
+                                        </div>
+                                        
+                                        {/* 대화 순서 표시 */}
+                                        {orderedPersonas.length > 0 && (
+                                          <div className="bg-white rounded-lg p-4 space-y-2">
+                                            <h5 className="text-sm font-semibold text-slate-700 mb-3">대화 순서</h5>
+                                            <div className="flex items-center gap-2 flex-wrap">
+                                              {orderedPersonas.map((persona: any, index: number) => (
+                                                <div key={persona.id} className="flex items-center gap-2">
+                                                  <div className="flex items-center gap-2 px-3 py-1.5 bg-blue-50 rounded-lg border border-blue-200">
+                                                    <span className="text-xs font-bold text-blue-600">{index + 1}</span>
+                                                    <span className="text-sm text-slate-700">{persona.name}</span>
+                                                  </div>
+                                                  {index < orderedPersonas.length - 1 && (
+                                                    <svg className="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                                                    </svg>
+                                                  )}
+                                                </div>
+                                              ))}
+                                            </div>
+                                          </div>
+                                        )}
+                                        
+                                        {/* 전략 회고 내용 */}
+                                        <div className="bg-white rounded-lg p-4">
+                                          <h5 className="text-sm font-semibold text-slate-700 mb-2">전략 회고</h5>
+                                          <p className="text-sm text-slate-600 whitespace-pre-wrap leading-relaxed">
+                                            {conversationWithStrategy.strategyReflection}
+                                          </p>
+                                        </div>
                                       </div>
                                     </div>
-                                    <Button 
-                                      variant="default"
-                                      className="bg-purple-600 hover:bg-purple-700"
-                                      data-testid={`strategy-analysis-${scenarioId}`}
-                                      onClick={() => window.location.href = `/strategy/${scenarioId}`}
-                                    >
-                                      전략 평가 보기
-                                    </Button>
+                                  );
+                                }
+                                
+                                // 전략 회고가 없는 경우 평가 버튼 표시
+                                return (
+                                  <div className="bg-gradient-to-r from-purple-50 to-indigo-50 border border-purple-200 rounded-lg p-4 mb-4">
+                                    <div className="flex items-center justify-between">
+                                      <div className="flex items-center gap-3">
+                                        <Target className="w-5 h-5 text-purple-600" />
+                                        <div>
+                                          <h4 className="font-semibold text-slate-900">대화 순서 전략 평가</h4>
+                                          <p className="text-sm text-slate-600">모든 대화를 완료했습니다. 전략적 선택을 분석해보세요.</p>
+                                        </div>
+                                      </div>
+                                      <Button 
+                                        variant="default"
+                                        className="bg-purple-600 hover:bg-purple-700"
+                                        data-testid={`strategy-analysis-${scenarioId}`}
+                                        onClick={() => window.location.href = `/strategy/${scenarioId}`}
+                                      >
+                                        전략 평가 보기
+                                      </Button>
+                                    </div>
                                   </div>
-                                </div>
-                              )}
+                                );
+                              })()}
                               
                               {/* 날짜별 대화 상대 리스트 */}
                               {(() => {
