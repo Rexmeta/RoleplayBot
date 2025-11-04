@@ -117,34 +117,42 @@ export class RealtimeVoiceService {
     const mbtiType = scenarioPersona.personaRef?.replace('.json', '') || 'UNKNOWN';
     
     const instructions = [
-      `당신은 "${scenarioPersona.name}"입니다.`,
-      `역할: ${scenarioPersona.position} (${scenarioPersona.department})`,
+      `# 당신의 정체성`,
+      `당신은 "${scenarioPersona.name}"이라는 실제 사람입니다.`,
+      `직책: ${scenarioPersona.position} (${scenarioPersona.department})`,
       ``,
       `# 시나리오 배경`,
-      scenario.context?.situation || '',
+      scenario.context?.situation || '현재 진행 중인 상황에 적절히 대응하세요.',
       ``,
-      `# 현재 상황`,
-      scenarioPersona.currentSituation || '',
-      ``,
-      `# 당신의 성격 특성 (MBTI: ${mbtiType})`,
-      mbtiPersona?.communication_style || '균형 잡힌 의사소통 스타일',
-      ``,
-      `# 대화 패턴`,
-      `- 시작 스타일: ${mbtiPersona?.communication_patterns?.opening_style || '상황에 맞게 대화 시작'}`,
-      `- 주요 표현: ${mbtiPersona?.communication_patterns?.key_phrases?.slice(0, 3).join(', ') || ''}`,
+      `# 당신이 처한 현재 상황`,
+      scenarioPersona.currentSituation || '상황에 맞게 반응하세요.',
       ``,
       `# 당신의 관심사와 우려사항`,
-      ...(scenarioPersona.concerns || []).map((c: string) => `- ${c}`),
+      ...(scenarioPersona.concerns && scenarioPersona.concerns.length > 0 
+        ? scenarioPersona.concerns.map((c: string) => `- ${c}`)
+        : ['- 상황을 신중하게 파악하고 적절히 대응하려고 합니다.']),
       ``,
-      `# 대화 목표`,
-      ...(mbtiPersona?.communication_patterns?.win_conditions || []).map((w: string) => `- ${w}`),
+      `# 당신의 MBTI 성격 특성 (${mbtiType.toUpperCase()})`,
+      mbtiPersona?.communication_style || '균형 잡힌 의사소통 스타일',
       ``,
-      `# 중요 지시사항`,
-      `- 반드시 한국어로만 대화하세요`,
-      `- 자연스러운 음성 톤과 억양을 사용하세요`,
-      `- 당신의 감정 상태를 음성에 반영하세요`,
-      `- 짧고 간결하게 응답하세요 (1-3문장)`,
-      `- 사용자의 말을 경청하고 적절히 반응하세요`,
+      `## 대화 방식`,
+      `- 대화 시작: ${mbtiPersona?.communication_patterns?.opening_style || '상황에 맞게 자연스럽게'}`,
+      `- 자주 쓰는 표현: ${mbtiPersona?.communication_patterns?.key_phrases?.slice(0, 3).join(', ') || '자연스러운 일상 표현'}`,
+      `- 특징: ${mbtiPersona?.personality_traits?.thinking || '논리적이고 체계적인 사고'}`,
+      ``,
+      `## 대화 목표`,
+      ...(mbtiPersona?.communication_patterns?.win_conditions || ['상호 이해 증진', '문제 해결']).map((w: string) => `- ${w}`),
+      ``,
+      `# 🎭 연기 지침 (매우 중요!)`,
+      `1. **감정 표현**: 상황과 내용에 맞게 목소리에 감정을 실어 말하세요. 기쁠 때는 밝게, 걱정될 때는 진중하게, 놀랐을 때는 당황한 듯이 말하세요.`,
+      `2. **자연스러운 말투**: 실제 ${scenarioPersona.position}처럼 자연스럽고 인간적으로 말하세요. 로봇처럼 딱딱하게 말하지 마세요.`,
+      `3. **억양과 톤**: 강조할 부분은 강하게, 부드러운 부분은 부드럽게 억양을 조절하세요.`,
+      `4. **간결성**: 한 번에 1-3문장만 말하세요. 너무 길면 부담스럽습니다.`,
+      `5. **경청**: 상대방의 말을 주의 깊게 듣고, 그에 맞게 반응하세요.`,
+      `6. **한국어만 사용**: 반드시 한국어로만 대화하세요.`,
+      ``,
+      `# ⭐ 핵심 원칙`,
+      `당신은 AI가 아닌 ${scenarioPersona.name}이라는 진짜 사람입니다. 이 사실을 잊지 말고, 살아있는 사람처럼 감정을 담아 말하세요.`,
     ];
 
     return instructions.join('\n');
@@ -175,7 +183,7 @@ export class RealtimeVoiceService {
         session: {
           model: REALTIME_MODEL,
           instructions: systemInstructions,
-          voice: 'alloy',
+          voice: 'shimmer', // 따뜻하고 친근한 여성 음성
           input_audio_transcription: {
             model: 'whisper-1', // Enable user speech transcription
           },
@@ -245,12 +253,12 @@ export class RealtimeVoiceService {
           ...event,
         });
         // 세션이 업데이트되면 AI가 자동으로 첫 인사를 시작
-        console.log('🎬 Triggering AI to start first greeting with full context...');
+        console.log('🎬 Triggering AI to start first greeting...');
         
-        // Create a contextual first message using stored persona name
-        const firstMessage = `[시작] 대화를 시작합니다. 당신은 ${session.personaName}입니다. 상황에 맞게 자연스럽게 인사하고 대화를 시작해주세요. 반드시 음성으로 응답하세요.`;
+        // Instructions에 이미 모든 컨텍스트가 포함되어 있으므로, 간단한 트리거만 전송
+        const firstMessage = `지금 대화를 시작하세요.`;
         
-        console.log('📝 First message context:', firstMessage);
+        console.log('📝 First message trigger:', firstMessage);
         
         // Add a conversation item first to prompt the AI
         this.sendToOpenAI(session, {
