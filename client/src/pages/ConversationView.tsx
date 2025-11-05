@@ -74,33 +74,41 @@ export default function ConversationView() {
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
-              {conversation.messages.map((message: ConversationMessage, index: number) => (
-                <div
-                  key={index}
-                  className={`flex ${message.sender === 'user' ? 'justify-end' : 'justify-start'}`}
-                  data-testid={`message-${index}`}
-                >
-                  <div
-                    className={`max-w-[70%] rounded-lg px-4 py-3 ${
-                      message.sender === 'user'
-                        ? 'bg-blue-600 text-white'
-                        : 'bg-slate-100 text-slate-900'
-                    }`}
-                  >
-                    {message.sender !== 'user' && (
-                      <div className="font-semibold text-sm mb-1">
-                        {persona ? [persona.department, persona.name, persona.role].filter(Boolean).join(' ') : '대화 상대'}
-                      </div>
-                    )}
-                    <div className="whitespace-pre-wrap">{message.message}</div>
-                    {message.emotion && message.sender !== 'user' && (
-                      <div className="text-xs mt-2 opacity-75">
-                        감정: {message.emotion}
-                      </div>
-                    )}
-                  </div>
+              {conversation.messages.length === 0 ? (
+                <div className="text-center py-12 text-slate-500">
+                  <MessageSquare className="w-12 h-12 mx-auto mb-4 opacity-50" />
+                  <p className="text-lg font-medium">아직 대화 내용이 없습니다</p>
+                  <p className="text-sm mt-2">이 대화는 메시지가 저장되지 않았거나 아직 시작되지 않았습니다.</p>
                 </div>
-              ))}
+              ) : (
+                conversation.messages.map((message: ConversationMessage, index: number) => (
+                  <div
+                    key={index}
+                    className={`flex ${message.sender === 'user' ? 'justify-end' : 'justify-start'}`}
+                    data-testid={`message-${index}`}
+                  >
+                    <div
+                      className={`max-w-[70%] rounded-lg px-4 py-3 ${
+                        message.sender === 'user'
+                          ? 'bg-blue-600 text-white'
+                          : 'bg-slate-100 text-slate-900'
+                      }`}
+                    >
+                      {message.sender !== 'user' && (
+                        <div className="font-semibold text-sm mb-1">
+                          {persona ? [persona.department, persona.name, persona.role].filter(Boolean).join(' ') : '대화 상대'}
+                        </div>
+                      )}
+                      <div className="whitespace-pre-wrap">{message.message}</div>
+                      {message.emotion && message.sender !== 'user' && (
+                        <div className="text-xs mt-2 opacity-75">
+                          감정: {message.emotion}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ))
+              )}
             </div>
           </CardContent>
         </Card>
