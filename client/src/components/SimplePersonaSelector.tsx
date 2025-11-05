@@ -1,7 +1,7 @@
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { CheckCircle2, Users, MessageCircle, Target, Clock, BarChart, Lightbulb, AlertCircle, TrendingUp } from "lucide-react";
+import { CheckCircle2, Users, MessageCircle, Target, Clock, BarChart, Lightbulb, AlertCircle, TrendingUp, ArrowLeft } from "lucide-react";
 import { type ScenarioPersona, type ComplexScenario } from "@/lib/scenario-system";
 
 interface SimplePersonaSelectorProps {
@@ -11,6 +11,7 @@ interface SimplePersonaSelectorProps {
   scenarioTitle: string;
   scenarioSituation?: string;
   scenario?: ComplexScenario;
+  onBack?: () => void;
 }
 
 export function SimplePersonaSelector({
@@ -19,7 +20,8 @@ export function SimplePersonaSelector({
   onPersonaSelect,
   scenarioTitle,
   scenarioSituation,
-  scenario
+  scenario,
+  onBack
 }: SimplePersonaSelectorProps) {
   const availablePersonas = personas.filter(p => !completedPersonaIds.includes(p.id));
   const completedCount = completedPersonaIds.length;
@@ -28,6 +30,21 @@ export function SimplePersonaSelector({
 
   return (
     <div className="max-w-6xl mx-auto p-6 space-y-6">
+      {/* 상단 네비게이션 */}
+      {onBack && (
+        <div className="mb-6">
+          <Button
+            variant="ghost"
+            onClick={onBack}
+            className="gap-2 hover:bg-slate-100"
+            data-testid="back-to-scenarios"
+          >
+            <ArrowLeft className="w-4 h-4" />
+            시나리오 목록
+          </Button>
+        </div>
+      )}
+      
       {/* 헤더 */}
       <div className="text-center mb-8">
         <Badge className="mb-4" variant="outline">

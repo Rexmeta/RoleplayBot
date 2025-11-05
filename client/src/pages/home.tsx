@@ -52,6 +52,16 @@ export default function Home() {
     setCurrentView("persona-selection");
   };
 
+  // 시나리오 목록으로 돌아가기
+  const handleBackToScenarios = () => {
+    setCurrentView("scenarios");
+    setSelectedScenario(null);
+    setSelectedPersona(null);
+    setConversationId(null);
+    setCompletedPersonaIds([]);
+    setConversationIds([]);
+  };
+
   // 페르소나 선택 처리
   const handlePersonaSelect = async (persona: ScenarioPersona) => {
     if (!selectedScenario) return;
@@ -280,6 +290,7 @@ export default function Home() {
             scenarioTitle={selectedScenario.title}
             scenarioSituation={selectedScenario.description}
             scenario={selectedScenario}
+            onBack={handleBackToScenarios}
           />
         )}
 
