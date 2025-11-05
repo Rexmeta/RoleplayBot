@@ -1,17 +1,15 @@
-import { useState, useRef } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ComplexScenario, ScenarioPersona, getDifficultyColor, getDifficultyLabel } from "@/lib/scenario-system";
-import { apiRequest } from "@/lib/queryClient";
-import { useToast } from "@/hooks/use-toast";
+import { ComplexScenario, getDifficultyLabel } from "@/lib/scenario-system";
 import { Loader2, Search, Filter, ChevronDown, ChevronUp } from "lucide-react";
 
 interface ScenarioSelectorProps {
-  onScenarioSelect: (scenario: ComplexScenario, persona: ScenarioPersona, conversationId: string) => void;
+  onScenarioSelect: (scenario: ComplexScenario) => void;
   playerProfile?: {
     position: string;
     department: string;
@@ -20,16 +18,6 @@ interface ScenarioSelectorProps {
 }
 
 export default function ScenarioSelector({ onScenarioSelect, playerProfile }: ScenarioSelectorProps) {
-  const { toast } = useToast();
-  const queryClient = useQueryClient();
-  const [selectedScenario, setSelectedScenario] = useState<ComplexScenario | null>(null);
-  const [selectedPersona, setSelectedPersona] = useState<ScenarioPersona | null>(null);
-  const [loadingScenarioId, setLoadingScenarioId] = useState<string | null>(null);
-  
-  // 스크롤 ref
-  const personasRef = useRef<HTMLDivElement>(null);
-  const startButtonRef = useRef<HTMLDivElement>(null);
-  
   // 필터 상태
   const [filters, setFilters] = useState({
     difficulty: '',
@@ -51,114 +39,9 @@ export default function ScenarioSelector({ onScenarioSelect, playerProfile }: Sc
   // MBTI 기본 특성을 시나리오 내에서 직접 처리 (외부 API 호출 없이)
   const personasLoading = false; // 로딩 상태 제거
 
-  // 시나리오에 속한 페르소나들 가져오기 - 시나리오 정보와 MBTI 특성을 결합
-  const getPersonasForScenario = (scenarioId: string): ScenarioPersona[] => {
-    const scenario = scenarios.find((s: ComplexScenario) => s.id === scenarioId);
-    if (!scenario) return [];
-    
-    // 시나리오의 personas 배열에서 각 페르소나 객체 정보와 MBTI 특성을 결합
-    return (scenario.personas || []).map((scenarioPersona: any) => {
-      // 시나리오에서 직접 페르소나 객체를 가져오는 경우 (객체 형태)
-      if (typeof scenarioPersona === 'object' && scenarioPersona.name) {
-        // 시나리오에 정의된 정확한 페르소나 정보를 사용 (MBTI API 의존성 제거)
-        const combinedPersona = {
-          // 시나리오의 구체적인 정보를 직접 사용 (핵심 수정!)
-          id: scenarioPersona.id,
-          name: scenarioPersona.name, // 시나리오에서 정의된 정확한 이름 사용!
-          role: scenarioPersona.position,
-          department: scenarioPersona.department,
-          experience: scenarioPersona.experience,
-          gender: scenarioPersona.gender,
-          image: `https://ui-avatars.com/api/?name=${encodeURIComponent(scenarioPersona.name)}&background=6366f1&color=fff&size=150`,
-          motivation: scenarioPersona.goal || '목표 달성',
-          // 시나리오 특화 정보 추가
-          stance: scenarioPersona.stance,
-          goal: scenarioPersona.goal,
-          tradeoff: scenarioPersona.tradeoff,
-          // 시나리오 연결 정보 추가 (디버깅용)
-          scenarioId: scenarioId,
-          mbti: scenarioPersona.personaRef?.replace('.json', '').toUpperCase() || 'UNKNOWN'
-        };
-        return combinedPersona;
-      }
-      
-      return null;
-    }).filter(Boolean);
-  };
-
-  const createConversationMutation = useMutation({
-    mutationFn: async ({ scenarioId, personaId }: { scenarioId: string; personaId: string }) => {
-      setLoadingScenarioId(scenarioId);
-      const response = await apiRequest("POST", "/api/conversations", {
-        scenarioId: scenarioId,
-        personaId: personaId,
-        scenarioName: selectedScenario?.title || "",
-        messages: [],
-        turnCount: 0,
-        status: "active"
-      });
-      return response.json();
-    },
-    onSuccess: (conversation, { scenarioId, personaId }) => {
-      setLoadingScenarioId(null);
-      // ⚡ 최적화: 객체 직접 전달 (추가 조회 불필요)
-      if (selectedScenario && selectedPersona) {
-        onScenarioSelect(selectedScenario, selectedPersona, conversation.id);
-      }
-    },
-    onError: () => {
-      setLoadingScenarioId(null);
-      toast({
-        title: "오류",
-        description: "대화를 시작할 수 없습니다. 다시 시도해주세요.",
-        variant: "destructive"
-      });
-    }
-  });
-
   const handleScenarioClick = (scenario: ComplexScenario) => {
-    setSelectedScenario(scenario);
-    setSelectedPersona(null);
-    
-    // 대화상대 리스트로 스크롤
-    setTimeout(() => {
-      personasRef.current?.scrollIntoView({ 
-        behavior: 'smooth',
-        block: 'center' 
-      });
-    }, 100);
-  };
-
-  const handlePersonaSelect = (persona: ScenarioPersona) => {
-    // ✅ 성능 최적화 완료: 시나리오별 개별 페르소나 처리
-    
-    // ⚡ 최적화: 불필요한 전역 페르소나 캐시 클리어 제거
-    
-    setSelectedPersona(persona);
-    
-    // 대화하기 버튼으로 스크롤
-    setTimeout(() => {
-      startButtonRef.current?.scrollIntoView({ 
-        behavior: 'smooth',
-        block: 'center' 
-      });
-    }, 100);
-  };
-
-  const handleStartConversation = () => {
-    if (selectedScenario && !loadingScenarioId) {
-      // 다중 페르소나 시나리오 감지
-      if (selectedScenario.personas && selectedScenario.personas.length >= 2) {
-        // 전략적 계획 모드로 진행
-        onScenarioSelect(selectedScenario);
-      } else if (selectedPersona) {
-        // 단일 페르소나 기존 방식
-        createConversationMutation.mutate({
-          scenarioId: selectedScenario.id,
-          personaId: selectedPersona.id
-        });
-      }
-    }
+    // 바로 페르소나 선택 화면으로 이동
+    onScenarioSelect(scenario);
   };
 
   // 필터링된 시나리오 목록
@@ -410,16 +293,12 @@ export default function ScenarioSelector({ onScenarioSelect, playerProfile }: Sc
             ) : (
               filteredScenarios.map((scenario: ComplexScenario) => {
               const recommendation = getRecommendationLevel(scenario);
-              const isSelected = selectedScenario?.id === scenario.id;
-              const scenarioPersonas = getPersonasForScenario(scenario.id);
               
               return (
                 <Card key={scenario.id} className="overflow-hidden group">
                   {/* 시나리오 카드 - 이미지 배경 버전 */}
                   <div
-                    className={`relative cursor-pointer ${
-                      isSelected ? 'ring-2 ring-blue-500' : ''
-                    } min-h-[12rem] max-h-[12rem] group-hover:max-h-screen overflow-x-hidden overflow-y-hidden group-hover:overflow-y-auto transition-[max-height] duration-700 ease-in-out`}
+                    className="relative cursor-pointer min-h-[12rem] max-h-[12rem] group-hover:max-h-screen overflow-x-hidden overflow-y-hidden group-hover:overflow-y-auto transition-[max-height] duration-700 ease-in-out"
                     onClick={() => handleScenarioClick(scenario)}
                     data-testid={`scenario-card-${scenario.id}`}
                     style={{
@@ -517,98 +396,6 @@ export default function ScenarioSelector({ onScenarioSelect, playerProfile }: Sc
                       </div>
                     </div>
                   </div>
-
-                  {/* 펼쳐지는 페르소나 목록 */}
-                  {isSelected && (
-                    <CardContent className="border-t border-slate-200 bg-slate-50" ref={personasRef}>
-                      <div className="py-4">
-                        <h3 className="text-lg font-medium text-slate-800 mb-4 flex items-center">
-                          <i className="fas fa-users text-blue-600 mr-2"></i>
-                          대화 상대 선택 ({scenarioPersonas.length}명)
-                        </h3>
-                        
-                        <div className="space-y-3">
-                          {scenarioPersonas.map((persona, index) => {
-                            const isPersonaSelected = selectedPersona?.id === persona.id;
-                            const isLoading = loadingScenarioId === scenario.id && isPersonaSelected;
-                            
-                            return (
-                              <div key={persona.id}>
-                                <Card 
-                                  className={`cursor-pointer transition-all duration-300 ${
-                                    isPersonaSelected ? 'ring-2 ring-green-500 bg-green-50' : 'bg-white hover:shadow-md hover:bg-slate-50'
-                                  } ${isLoading ? 'cursor-wait' : ''}`}
-                                  onClick={() => !isLoading && handlePersonaSelect(persona)}
-                                  data-testid={`persona-card-${persona.id}`}
-                                >
-                                  <CardContent className="p-4">
-                                    <div className="flex items-center space-x-4">
-                                      <div className="relative">
-                                        <img 
-                                          src={persona.image} 
-                                          alt={persona.name}
-                                          className={`w-12 h-12 rounded-full ${isLoading ? 'opacity-50' : ''}`}
-                                          onError={(e) => {
-                                            (e.target as HTMLImageElement).src = `https://ui-avatars.com/api/?name=${encodeURIComponent(persona.name)}&background=6366f1&color=fff&size=48`;
-                                          }}
-                                        />
-                                        {isLoading && (
-                                          <div className="absolute inset-0 flex items-center justify-center">
-                                            <Loader2 className="w-4 h-4 text-green-500 animate-spin" />
-                                          </div>
-                                        )}
-                                      </div>
-                                      <div className="flex-1">
-                                        <div className="flex items-center gap-2 mb-1">
-                                          <h4 className="font-medium text-slate-900">{persona.name}</h4>
-                                          <Badge variant="outline" className="text-xs">
-                                            {persona.department}
-                                          </Badge>
-                                          {isPersonaSelected && (
-                                            <Badge className="bg-green-100 text-green-800 text-xs">선택됨</Badge>
-                                          )}
-                                        </div>
-                                        <p className="text-sm text-slate-600">{persona.role} • {persona.experience}</p>
-                                        <p className="text-xs text-slate-500 mt-1">{(persona as any).motivation || '목표 설정'}</p>
-                                      </div>
-                                      <div className="text-right">
-                                        <div className="text-xs text-slate-500">#{index + 1}</div>
-                                      </div>
-                                    </div>
-                                  </CardContent>
-                                </Card>
-                                
-                                {/* 선택된 페르소나의 대화 시작 버튼 */}
-                                {isPersonaSelected && (
-                                  <div ref={startButtonRef} className="mt-3 p-4 bg-green-50 border border-green-200 rounded-lg">
-                                    <Button 
-                                      onClick={handleStartConversation}
-                                      disabled={loadingScenarioId !== null}
-                                      className="w-full bg-green-600 hover:bg-green-700 text-white py-3 text-lg font-medium"
-                                      data-testid="start-conversation-button"
-                                    >
-                                      {loadingScenarioId ? (
-                                        <>
-                                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                                          대화 준비 중...
-                                        </>
-                                      ) : (
-                                        <>🚀 {persona.name}과 대화 시작하기</>
-                                      )}
-                                    </Button>
-                                    
-                                    <p className="text-center text-sm text-slate-500 mt-2">
-                                      {persona.name}과 1:1 대화를 통해 문제를 해결해보세요
-                                    </p>
-                                  </div>
-                                )}
-                              </div>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    </CardContent>
-                  )}
                 </Card>
               );
               })

@@ -42,7 +42,7 @@ export default function Home() {
   };
 
   // 시나리오 선택 처리
-  const handleScenarioSelect = async (scenario: ComplexScenario, persona?: ScenarioPersona, convId?: string) => {
+  const handleScenarioSelect = async (scenario: ComplexScenario) => {
     setSelectedScenario(scenario);
     setCompletedPersonaIds([]);
     setConversationIds([]);
