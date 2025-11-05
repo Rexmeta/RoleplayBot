@@ -293,6 +293,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Delete conversation by ID
+  app.delete("/api/conversations/:id", isAuthenticated, async (req, res) => {
+    try {
+      // @ts-ignore - req.user는 auth 미들웨어에서 설정됨
+      const userId = req.user?.id;
+      const result = await verifyConversationOwnership(req.params.id, userId);
+      
+      if ('error' in result) {
+        return res.status(result.status).json({ error: result.error });
+      }
+      
+      await storage.deleteConversation(req.params.id);
+      res.json({ success: true, message: "대화가 삭제되었습니다." });
+    } catch (error) {
+      console.error("대화 삭제 오류:", error);
+      res.status(500).json({ error: "Failed to delete conversation" });
+    }
+  });
+
   // Send message and get AI response
   app.post("/api/conversations/:id/messages", isAuthenticated, async (req, res) => {
     try {
