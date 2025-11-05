@@ -1754,6 +1754,15 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
                     </ToggleGroupItem>
                   </ToggleGroup>
                 </div>
+                
+                {/* 메신저 모드 전환 버튼 */}
+                <button
+                  onClick={() => setChatMode('messenger')}
+                  className="px-4 py-2 bg-white/90 text-slate-700 rounded-full shadow-lg hover:bg-white transition-all duration-200 text-sm font-medium"
+                  data-testid="button-exit-character"
+                >
+                  메신저
+                </button>
               </div>
 
               {/* Bottom Interactive Box - AI Message Focused */}
