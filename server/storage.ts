@@ -13,6 +13,7 @@ export interface IStorage {
   createConversation(conversation: InsertConversation): Promise<Conversation>;
   getConversation(id: string): Promise<Conversation | undefined>;
   updateConversation(id: string, updates: Partial<Conversation>): Promise<Conversation>;
+  deleteConversation(id: string): Promise<void>;
   getAllConversations(): Promise<Conversation[]>;
   getUserConversations(userId: string): Promise<Conversation[]>;
   
@@ -93,6 +94,16 @@ export class MemStorage implements IStorage {
     const updated = { ...existing, ...updates };
     this.conversations.set(id, updated);
     return updated;
+  }
+
+  async deleteConversation(id: string): Promise<void> {
+    this.conversations.delete(id);
+    const feedbackToDelete = Array.from(this.feedbacks.entries()).find(
+      ([_, feedback]) => feedback.conversationId === id
+    );
+    if (feedbackToDelete) {
+      this.feedbacks.delete(feedbackToDelete[0]);
+    }
   }
 
   async createFeedback(insertFeedback: InsertFeedback): Promise<Feedback> {
@@ -279,6 +290,11 @@ export class PostgreSQLStorage implements IStorage {
       throw new Error("Conversation not found");
     }
     return conversation;
+  }
+
+  async deleteConversation(id: string): Promise<void> {
+    await db.delete(feedbacks).where(eq(feedbacks.conversationId, id));
+    await db.delete(conversations).where(eq(conversations.id, id));
   }
 
   async getAllConversations(): Promise<Conversation[]> {
