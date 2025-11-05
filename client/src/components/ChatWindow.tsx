@@ -1143,23 +1143,39 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
                 )}
               </div>
 
-              {/* 캐릭터 모드 버튼 */}
-              <Button
-                onClick={() => {
-                  if (!isTransitioning && chatMode === 'messenger') {
-                    handleCharacterModeTransition();
-                  }
-                }}
-                variant="ghost"
-                size="sm"
-                className={`text-white/80 hover:text-white hover:bg-white/10 px-3 py-1 text-xs ${
-                  chatMode === 'character' ? 'bg-white/20 text-white' : ''
-                }`}
-                disabled={isTransitioning || chatMode === 'character'}
-                data-testid="button-character-mode"
-              >
-                캐릭터
-              </Button>
+              {/* 채팅 모드 선택 */}
+              <div className="flex items-center space-x-2">
+                <ToggleGroup
+                  type="single"
+                  value={chatMode}
+                  onValueChange={(value: 'messenger' | 'character') => {
+                    if (value && !isTransitioning) {
+                      if (value === 'character') {
+                        handleCharacterModeTransition();
+                      } else {
+                        setChatMode(value);
+                      }
+                    }
+                  }}
+                  className="bg-white/10 rounded-lg p-1"
+                  data-testid="toggle-chat-mode"
+                >
+                  <ToggleGroupItem 
+                    value="messenger" 
+                    className="text-white/80 hover:text-white data-[state=on]:bg-white/20 data-[state=on]:text-white px-2 py-1 text-xs"
+                    data-testid="mode-messenger"
+                  >
+                    메신저
+                  </ToggleGroupItem>
+                  <ToggleGroupItem 
+                    value="character" 
+                    className="text-white/80 hover:text-white data-[state=on]:bg-white/20 data-[state=on]:text-white px-2 py-1 text-xs"
+                    data-testid="mode-character"
+                  >
+                    캐릭터
+                  </ToggleGroupItem>
+                </ToggleGroup>
+              </div>
             </div>
           </div>
           
@@ -1754,6 +1770,15 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
                     </ToggleGroupItem>
                   </ToggleGroup>
                 </div>
+                
+                {/* 메신저 모드 전환 버튼 */}
+                <button
+                  onClick={() => setChatMode('messenger')}
+                  className="px-4 py-2 bg-white/90 text-slate-700 rounded-full shadow-lg hover:bg-white transition-all duration-200 text-sm font-medium"
+                  data-testid="button-exit-character"
+                >
+                  메신저
+                </button>
               </div>
 
               {/* Bottom Interactive Box - AI Message Focused */}
