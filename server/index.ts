@@ -6,8 +6,9 @@ import { GlobalMBTICache } from "./utils/globalMBTICache";
 import * as pathModule from "path";
 
 const app = express();
-app.use(express.json());
-app.use(express.urlencoded({ extended: false }));
+// 시나리오 데이터가 크기 때문에 body-parser limit 증가 (기본: 100kb → 10MB)
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: false, limit: '10mb' }));
 
 // scenarios/images 폴더의 이미지 파일들을 정적으로 제공 (보안상 images만 공개)
 app.use('/scenarios/images', express.static(pathModule.join(process.cwd(), 'scenarios', 'images')));
