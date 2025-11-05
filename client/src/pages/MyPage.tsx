@@ -122,9 +122,7 @@ export default function MyPage() {
   // 대화 삭제 mutation
   const deleteMutation = useMutation({
     mutationFn: async (conversationId: string) => {
-      return await apiRequest(`/api/conversations/${conversationId}`, {
-        method: 'DELETE',
-      });
+      return await apiRequest('DELETE', `/api/conversations/${conversationId}`);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/conversations'] });
