@@ -90,6 +90,8 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
   const [currentEmotion, setCurrentEmotion] = useState<string>('중립');
   const [isGoalsExpanded, setIsGoalsExpanded] = useState(false);
   const [showEndConversationDialog, setShowEndConversationDialog] = useState(false);
+  const [showModeChangeDialog, setShowModeChangeDialog] = useState(false);
+  const [pendingMode, setPendingMode] = useState<'text' | 'tts' | 'realtime-voice' | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const recognitionRef = useRef<any>(null);
   const speechSynthesisRef = useRef<SpeechSynthesis | null>(null);
@@ -696,6 +698,21 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
   };
 
   const handleModeChange = (newMode: 'text' | 'tts' | 'realtime-voice') => {
+    // 실시간 음성 모드와 다른 모드 간 전환 시 확인 필요
+    const isRealtimeToOther = inputMode === 'realtime-voice' && newMode !== 'realtime-voice';
+    const isOtherToRealtime = inputMode !== 'realtime-voice' && newMode === 'realtime-voice';
+    
+    if (isRealtimeToOther || isOtherToRealtime) {
+      setPendingMode(newMode);
+      setShowModeChangeDialog(true);
+      return;
+    }
+    
+    // 동일 카테고리 내 전환은 바로 진행 (text <-> tts)
+    performModeChange(newMode);
+  };
+
+  const performModeChange = (newMode: 'text' | 'tts' | 'realtime-voice') => {
     if (inputMode === 'tts') {
       stopSpeaking();
       lastSpokenMessageRef.current = "";
@@ -2061,6 +2078,68 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
           )}
         </div>
       </div>
+
+      {/* 입력 모드 변경 확인 다이얼로그 */}
+      <AlertDialog open={showModeChangeDialog} onOpenChange={setShowModeChangeDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>입력 모드를 변경하시겠습니까?</AlertDialogTitle>
+            <AlertDialogDescription className="space-y-2">
+              <p className="font-semibold text-amber-600">⚠️ 주의사항:</p>
+              <ul className="list-disc list-inside space-y-1 text-sm">
+                <li>입력 모드를 변경하면 <strong>대화가 처음부터 다시 시작</strong>됩니다.</li>
+                <li>지금까지 진행한 <strong>대화 내용은 저장되지 않고 삭제</strong>됩니다.</li>
+                <li>새로운 모드로 대화를 시작하려면 확인 버튼을 눌러주세요.</li>
+              </ul>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel 
+              onClick={() => {
+                setPendingMode(null);
+                setShowModeChangeDialog(false);
+              }}
+              data-testid="button-cancel-mode-change"
+            >
+              취소
+            </AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={() => {
+                if (pendingMode) {
+                  performModeChange(pendingMode);
+                  setPendingMode(null);
+                }
+                setShowModeChangeDialog(false);
+                
+                // 대화 내용 초기화
+                setLocalMessages([]);
+                setUserInput("");
+                
+                // 쿼리 캐시의 대화 데이터도 초기화 (메시지 삭제)
+                queryClient.setQueryData(['/api/conversations', conversationId], (oldData: any) => {
+                  if (oldData) {
+                    return {
+                      ...oldData,
+                      messages: [],
+                      turnCount: 0
+                    };
+                  }
+                  return oldData;
+                });
+                
+                toast({
+                  title: "입력 모드 변경됨",
+                  description: "새로운 모드로 대화를 시작하세요.",
+                });
+              }}
+              data-testid="button-confirm-mode-change"
+              className="bg-amber-600 hover:bg-amber-700"
+            >
+              확인, 모드 변경
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* 대화 종료 확인 다이얼로그 */}
       <AlertDialog open={showEndConversationDialog} onOpenChange={setShowEndConversationDialog}>
