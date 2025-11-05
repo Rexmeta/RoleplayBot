@@ -1,19 +1,25 @@
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
-import { CalendarDays, Star, TrendingUp, MessageSquare, Award, History, BarChart3, Users, Target } from "lucide-react";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+import { CalendarDays, Star, TrendingUp, MessageSquare, Award, History, BarChart3, Users, Target, Trash2 } from "lucide-react";
 import { Link } from "wouter";
 import { useAuth } from "@/hooks/useAuth";
 import { type Conversation, type Feedback, type User } from "@shared/schema";
 import { format } from "date-fns";
+import { apiRequest, queryClient } from "@/lib/queryClient";
+import { useToast } from "@/hooks/use-toast";
 
 export default function MyPage() {
   const [selectedView, setSelectedView] = useState<"history" | "stats">("history");
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [conversationToDelete, setConversationToDelete] = useState<string | null>(null);
   const { user } = useAuth();
+  const { toast } = useToast();
 
   // 사용자의 대화 기록 조회
   const { data: conversations = [], isLoading: conversationsLoading } = useQuery<Conversation[]>({
@@ -111,6 +117,44 @@ export default function MyPage() {
   const getDateLabel = (dateKey: string) => {
     const [year, month, day] = dateKey.split('-');
     return `${year}년 ${month}월 ${day}일`;
+  };
+
+  // 대화 삭제 mutation
+  const deleteMutation = useMutation({
+    mutationFn: async (conversationId: string) => {
+      return await apiRequest(`/api/conversations/${conversationId}`, {
+        method: 'DELETE',
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/conversations'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/feedbacks'] });
+      toast({
+        title: "삭제 완료",
+        description: "대화 기록이 삭제되었습니다.",
+      });
+      setDeleteDialogOpen(false);
+      setConversationToDelete(null);
+    },
+    onError: (error) => {
+      console.error("삭제 실패:", error);
+      toast({
+        title: "삭제 실패",
+        description: "대화 기록을 삭제할 수 없습니다.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleDeleteClick = (conversationId: string) => {
+    setConversationToDelete(conversationId);
+    setDeleteDialogOpen(true);
+  };
+
+  const handleDeleteConfirm = () => {
+    if (conversationToDelete) {
+      deleteMutation.mutate(conversationToDelete);
+    }
   };
 
   // 시나리오별 대화를 날짜별로 다시 그룹화
@@ -490,6 +534,15 @@ export default function MyPage() {
                                                     대화 이어하기
                                                   </Button>
                                                 )}
+                                                <Button
+                                                  variant="outline"
+                                                  size="sm"
+                                                  onClick={() => handleDeleteClick(conversation.id)}
+                                                  data-testid={`delete-conversation-${conversation.id}`}
+                                                  className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                                                >
+                                                  <Trash2 className="w-4 h-4" />
+                                                </Button>
                                               </div>
                                             </div>
                                           </div>
@@ -662,6 +715,30 @@ export default function MyPage() {
           </TabsContent>
         </Tabs>
       </main>
+
+      {/* 삭제 확인 다이얼로그 */}
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>대화 기록 삭제</AlertDialogTitle>
+            <AlertDialogDescription>
+              정말로 이 대화 기록을 삭제하시겠습니까?
+              <br />
+              <span className="font-semibold text-red-600">삭제된 대화와 피드백은 복구할 수 없습니다.</span>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel data-testid="cancel-delete">취소</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDeleteConfirm}
+              className="bg-red-600 hover:bg-red-700"
+              data-testid="confirm-delete"
+            >
+              삭제
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
