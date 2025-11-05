@@ -472,7 +472,7 @@ export default function MyPage() {
                                                   <Button
                                                     variant="default"
                                                     size="sm"
-                                                    onClick={() => window.location.href = `/scenario/${conversation.scenarioId}/persona/${conversation.personaId}/chat/${conversation.id}`}
+                                                    onClick={() => window.location.href = `/chat/${conversation.id}`}
                                                     data-testid={`continue-conversation-${conversation.id}`}
                                                   >
                                                     대화 이어하기
