@@ -1082,18 +1082,6 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
               </div>
             </div>
             <div className="flex items-center space-x-4">
-              {/* 시나리오 리스트 버튼 */}
-              <Button 
-                variant="ghost" 
-                size="sm" 
-                onClick={onExit}
-                className="text-white/80 hover:text-white hover:bg-white/10"
-                data-testid="button-scenario-list"
-              >
-                <i className="fas fa-list mr-2"></i>
-                시나리오 리스트
-              </Button>
-
               {/* 입력 모드 선택 */}
               <div className="relative group">
                 <ToggleGroup

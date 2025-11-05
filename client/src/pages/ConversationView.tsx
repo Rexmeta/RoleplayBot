@@ -41,25 +41,14 @@ export default function ConversationView() {
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
       <div className="max-w-4xl mx-auto p-6">
         <div className="mb-6 flex items-center justify-between">
-          <div className="flex gap-3">
-            <Button
-              variant="outline"
-              onClick={() => window.location.href = '/home'}
-              data-testid="scenario-list-button"
-              className="flex items-center gap-2"
-            >
-              <i className="fas fa-list"></i>
-              시나리오 리스트
-            </Button>
-            <Button
-              variant="outline"
-              onClick={() => window.location.href = '/mypage'}
-              data-testid="back-button"
-            >
-              <ArrowLeft className="w-4 h-4 mr-2" />
-              마이페이지로
-            </Button>
-          </div>
+          <Button
+            variant="outline"
+            onClick={() => window.location.href = '/mypage'}
+            data-testid="back-button"
+          >
+            <ArrowLeft className="w-4 h-4 mr-2" />
+            마이페이지로
+          </Button>
           {conversation.status === 'completed' && (
             <Button
               onClick={() => window.location.href = `/feedback/${conversationId}`}
