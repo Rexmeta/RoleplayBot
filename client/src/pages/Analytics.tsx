@@ -47,9 +47,20 @@ export default function Analytics() {
         <div className="max-w-4xl mx-auto">
           <div className="flex justify-between items-center mb-8">
             <h1 className="text-3xl font-bold text-slate-900">종합 분석</h1>
-            <Link href="/mypage">
-              <Button variant="outline" data-testid="button-back-mypage">마이페이지로</Button>
-            </Link>
+            <div className="flex gap-3">
+              <Button 
+                onClick={() => window.location.href = '/home'}
+                variant="outline"
+                data-testid="scenario-list-button"
+                className="flex items-center gap-2"
+              >
+                <i className="fas fa-list"></i>
+                시나리오 리스트
+              </Button>
+              <Link href="/mypage">
+                <Button variant="outline" data-testid="button-back-mypage">마이페이지로</Button>
+              </Link>
+            </div>
           </div>
           
           <Card>
@@ -136,9 +147,20 @@ export default function Analytics() {
               총 {analytics.totalSessions}회의 대화 세션 데이터를 기반으로 한 종합 분석
             </p>
           </div>
-          <Link href="/mypage">
-            <Button variant="outline" data-testid="button-back-mypage">마이페이지로</Button>
-          </Link>
+          <div className="flex gap-3">
+            <Button 
+              onClick={() => window.location.href = '/home'}
+              variant="outline"
+              data-testid="scenario-list-button"
+              className="flex items-center gap-2"
+            >
+              <i className="fas fa-list"></i>
+              시나리오 리스트
+            </Button>
+            <Link href="/mypage">
+              <Button variant="outline" data-testid="button-back-mypage">마이페이지로</Button>
+            </Link>
+          </div>
         </div>
 
         {/* Summary Cards */}

@@ -1082,41 +1082,17 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
               </div>
             </div>
             <div className="flex items-center space-x-4">
-              
-              
-              {/* 채팅 모드 선택 */}
-              <div className="flex items-center space-x-2">
-                <ToggleGroup
-                  type="single"
-                  value={chatMode}
-                  onValueChange={(value: 'messenger' | 'character') => {
-                    if (value && !isTransitioning) {
-                      if (value === 'character') {
-                        handleCharacterModeTransition();
-                      } else {
-                        setChatMode(value);
-                      }
-                    }
-                  }}
-                  className="bg-white/10 rounded-lg p-1"
-                  data-testid="toggle-chat-mode"
-                >
-                  <ToggleGroupItem 
-                    value="messenger" 
-                    className="text-white/80 hover:text-white data-[state=on]:bg-white/20 data-[state=on]:text-white px-2 py-1 text-xs"
-                    data-testid="mode-messenger"
-                  >
-                    메신저
-                  </ToggleGroupItem>
-                  <ToggleGroupItem 
-                    value="character" 
-                    className="text-white/80 hover:text-white data-[state=on]:bg-white/20 data-[state=on]:text-white px-2 py-1 text-xs"
-                    data-testid="mode-character"
-                  >
-                    캐릭터
-                  </ToggleGroupItem>
-                </ToggleGroup>
-              </div>
+              {/* 시나리오 리스트 버튼 */}
+              <Button 
+                variant="ghost" 
+                size="sm" 
+                onClick={onExit}
+                className="text-white/80 hover:text-white hover:bg-white/10"
+                data-testid="button-scenario-list"
+              >
+                <i className="fas fa-list mr-2"></i>
+                시나리오 리스트
+              </Button>
 
               {/* 입력 모드 선택 */}
               <div className="relative group">
@@ -1161,16 +1137,40 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
                   <div className="absolute -top-1 -right-1 w-2 h-2 bg-blue-500 rounded-full animate-pulse"></div>
                 )}
               </div>
-              
-              <Button 
-                variant="ghost" 
-                size="sm" 
-                onClick={onExit}
-                className="text-white/80 hover:text-white hover:bg-white/10"
-                data-testid="button-exit-chat"
-              >
-                <i className="fas fa-times"></i>
-              </Button>
+
+              {/* 채팅 모드 선택 */}
+              <div className="flex items-center space-x-2">
+                <ToggleGroup
+                  type="single"
+                  value={chatMode}
+                  onValueChange={(value: 'messenger' | 'character') => {
+                    if (value && !isTransitioning) {
+                      if (value === 'character') {
+                        handleCharacterModeTransition();
+                      } else {
+                        setChatMode(value);
+                      }
+                    }
+                  }}
+                  className="bg-white/10 rounded-lg p-1"
+                  data-testid="toggle-chat-mode"
+                >
+                  <ToggleGroupItem 
+                    value="messenger" 
+                    className="text-white/80 hover:text-white data-[state=on]:bg-white/20 data-[state=on]:text-white px-2 py-1 text-xs"
+                    data-testid="mode-messenger"
+                  >
+                    메신저
+                  </ToggleGroupItem>
+                  <ToggleGroupItem 
+                    value="character" 
+                    className="text-white/80 hover:text-white data-[state=on]:bg-white/20 data-[state=on]:text-white px-2 py-1 text-xs"
+                    data-testid="mode-character"
+                  >
+                    캐릭터
+                  </ToggleGroupItem>
+                </ToggleGroup>
+              </div>
             </div>
           </div>
           

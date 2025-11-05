@@ -317,6 +317,30 @@ export default function PersonalDevelopmentReport({
           animation: `fadeInUp 0.8s ease-out forwards`
         }}
       >
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex gap-3">
+            <Button 
+              onClick={onSelectNewScenario}
+              variant="ghost"
+              size="sm"
+              className="text-white/80 hover:text-white hover:bg-white/10"
+              data-testid="scenario-list-button"
+            >
+              <i className="fas fa-list mr-2"></i>
+              시나리오 리스트
+            </Button>
+            <Button 
+              onClick={() => window.location.href = '/mypage'}
+              variant="ghost"
+              size="sm"
+              className="text-white/80 hover:text-white hover:bg-white/10"
+              data-testid="mypage-button"
+            >
+              <i className="fas fa-user mr-2"></i>
+              마이페이지로
+            </Button>
+          </div>
+        </div>
         <div className="flex items-center justify-between">
           <div 
             style={{ 

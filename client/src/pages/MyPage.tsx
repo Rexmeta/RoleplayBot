@@ -181,6 +181,15 @@ export default function MyPage() {
               </div>
             </div>
             <div className="flex gap-3">
+              <Button
+                onClick={() => window.location.href = '/home'}
+                variant="outline"
+                data-testid="scenario-list-button"
+                className="flex items-center gap-2"
+              >
+                <i className="fas fa-list"></i>
+                시나리오 리스트
+              </Button>
               <Link href="/analytics">
                 <Button
                   variant="default"
@@ -191,13 +200,6 @@ export default function MyPage() {
                   종합 분석
                 </Button>
               </Link>
-              <Button
-                onClick={() => window.location.href = '/home'}
-                variant="outline"
-                data-testid="back-to-home-button"
-              >
-                홈으로 돌아가기
-              </Button>
             </div>
           </div>
         </div>
