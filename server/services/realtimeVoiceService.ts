@@ -79,6 +79,17 @@ export class RealtimeVoiceService {
       mbtiPersona
     );
 
+    console.log('\n' + '='.repeat(80));
+    console.log('🎯 실시간 대화 시작 - 전달되는 명령 및 컨텍스트');
+    console.log('='.repeat(80));
+    console.log('📋 시나리오:', scenarioObj.title);
+    console.log('👤 페르소나:', scenarioPersona.name, `(${scenarioPersona.position})`);
+    console.log('🎭 MBTI:', mbtiType.toUpperCase());
+    console.log('='.repeat(80));
+    console.log('📝 시스템 명령 (SYSTEM INSTRUCTIONS):\n');
+    console.log(systemInstructions);
+    console.log('='.repeat(80) + '\n');
+
     // Create session object
     const session: RealtimeSession = {
       id: sessionId,
@@ -243,6 +254,16 @@ export class RealtimeVoiceService {
         },
         // Gemini Live API uses 16kHz input, 24kHz output
       };
+
+      console.log('\n' + '='.repeat(80));
+      console.log('⚙️  Gemini Live API 설정 (CONFIG)');
+      console.log('='.repeat(80));
+      console.log('🎤 음성:', voiceName, `(${gender})`);
+      console.log('⏱️  발화 속도:', config.speechConfig.speakingRate, 'x');
+      console.log('🔊 응답 모달리티:', config.responseModalities.join(', '));
+      console.log('📝 입력 음성 텍스트 변환: 활성화');
+      console.log('📝 출력 음성 텍스트 변환: 활성화');
+      console.log('='.repeat(80) + '\n');
 
       console.log(`🔌 Connecting to Gemini Live API for session: ${session.id}`);
 
