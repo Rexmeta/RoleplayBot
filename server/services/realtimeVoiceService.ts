@@ -108,8 +108,9 @@ export class RealtimeVoiceService {
 
     this.sessions.set(sessionId, session);
 
-    // 성별 판단 (이름 기반)
-    const gender = this.detectGenderFromName(scenarioPersona.name);
+    // 성별 판단 (시나리오 페르소나의 gender 속성 사용)
+    const gender: 'male' | 'female' = scenarioPersona.gender === 'female' ? 'female' : 'male';
+    console.log(`👤 페르소나 성별 설정: ${scenarioPersona.name} → ${gender} (시나리오 정의값: ${scenarioPersona.gender})`);
     
     // Connect to Gemini Live API
     await this.connectToGemini(session, systemInstructions, gender);
@@ -199,32 +200,6 @@ export class RealtimeVoiceService {
     return instructions.join('\n');
   }
 
-  private detectGenderFromName(name: string): 'male' | 'female' {
-    // 한국 이름에서 성별을 추정하는 간단한 로직
-    // 여자 이름에 자주 사용되는 글자들
-    const femaleIndicators = ['진', '연', '은', '지', '아', '희', '영', '미', '서', '예', '수'];
-    // 남자 이름에 자주 사용되는 글자들  
-    const maleIndicators = ['수', '호', '우', '민', '훈', '석', '현', '준', '성', '태'];
-    
-    const lastName = name.slice(-1); // 마지막 글자
-    
-    // 명시적으로 여자 이름인 경우
-    if (['유진', '서연', '지은', '민지', '예진', '수정', '영희', '미경'].some(n => name.includes(n))) {
-      return 'female';
-    }
-    
-    // 명시적으로 남자 이름인 경우
-    if (['준수', '민수', '지훈', '현우', '성민', '태호', '준호'].some(n => name.includes(n))) {
-      return 'male';
-    }
-    
-    // 마지막 글자로 추정
-    if (femaleIndicators.includes(lastName)) {
-      return 'female';
-    }
-    
-    return 'male'; // 기본값
-  }
 
   private async connectToGemini(
     session: RealtimeSession,
