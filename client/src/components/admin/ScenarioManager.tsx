@@ -19,6 +19,7 @@ interface ScenarioPersona {
   id: string;
   name: string;
   gender: 'male' | 'female'; // 성별 필드 추가
+  mbti: string; // MBTI 필드 추가
   department: string;
   position: string;
   experience: string;
@@ -220,18 +221,28 @@ export function ScenarioManager() {
       successCriteria: scenario.successCriteria,
       // personas가 객체 배열인 경우 ID만 추출, 문자열 배열인 경우 그대로 사용
       personas: Array.isArray(scenario.personas) 
-        ? scenario.personas.map(p => typeof p === 'string' ? {
-            id: p,
-            name: '',
-            gender: 'male', // 성별 기본값 추가
-            department: '',
-            position: '',
-            experience: '',
-            personaRef: p + '.json',
-            stance: '',
-            goal: '',
-            tradeoff: ''
-          } : p)
+        ? scenario.personas.map((p: any) => {
+            if (typeof p === 'string') {
+              return {
+                id: p,
+                name: '',
+                gender: 'male' as const,
+                mbti: p.toUpperCase(),
+                department: '',
+                position: '',
+                experience: '',
+                personaRef: p + '.json',
+                stance: '',
+                goal: '',
+                tradeoff: ''
+              };
+            }
+            // 객체인 경우 mbti 필드가 없으면 id를 대문자로 변환해서 사용 (하위 호환성)
+            return {
+              ...p,
+              mbti: p.mbti || p.id.toUpperCase()
+            } as ScenarioPersona;
+          })
         : [],
       recommendedFlow: scenario.recommendedFlow
     });
@@ -666,6 +677,7 @@ export function ScenarioManager() {
                             id: '',
                             name: '',
                             gender: 'male', // 성별 기본값 추가
+                            mbti: '', // MBTI 기본값 추가
                             department: '',
                             position: '',
                             experience: '',
@@ -708,17 +720,24 @@ export function ScenarioManager() {
                         
                         <div className="grid grid-cols-3 gap-3">
                           <div>
-                            <Label htmlFor={`persona-id-${index}`}>MBTI ID *</Label>
+                            <Label htmlFor={`persona-mbti-${index}`}>MBTI *</Label>
                             <Input
-                              id={`persona-id-${index}`}
-                              value={persona.id}
+                              id={`persona-mbti-${index}`}
+                              value={persona.mbti}
                               onChange={(e) => {
+                                const mbtiValue = e.target.value.toUpperCase();
+                                const idValue = e.target.value.toLowerCase();
                                 const newPersonas = [...formData.personas];
-                                newPersonas[index] = { ...persona, id: e.target.value, personaRef: e.target.value + '.json' };
+                                newPersonas[index] = { 
+                                  ...persona, 
+                                  mbti: mbtiValue,
+                                  id: idValue, 
+                                  personaRef: idValue + '.json' 
+                                };
                                 setFormData(prev => ({ ...prev, personas: newPersonas }));
                               }}
-                              placeholder="istj, enfj, intp 등"
-                              data-testid={`input-persona-id-${index}`}
+                              placeholder="ISTJ, ENFJ, INTP 등"
+                              data-testid={`input-persona-mbti-${index}`}
                             />
                           </div>
                           
