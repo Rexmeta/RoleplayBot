@@ -54,6 +54,7 @@ export function useRealtimeVoice({
   const micStreamRef = useRef<MediaStream | null>(null);
   const nextPlayTimeRef = useRef<number>(0); // Track when to play next chunk
   const aiMessageBufferRef = useRef<string>(''); // Buffer for AI message transcription
+  const isRecordingRef = useRef<boolean>(false); // Ref for recording state (for closures)
   
   // Store callbacks in refs to avoid recreating connect() on every render
   const onMessageRef = useRef(onMessage);
@@ -306,7 +307,13 @@ export function useRealtimeVoice({
       audioProcessorRef.current = processor;
       
       processor.onaudioprocess = (e) => {
+        // Check recording state using ref (avoids closure issues)
+        if (!isRecordingRef.current) {
+          return;
+        }
+        
         if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
+          console.warn('⚠️ Cannot send audio: WebSocket not connected');
           return;
         }
 
@@ -339,11 +346,16 @@ export function useRealtimeVoice({
         }
         const base64 = btoa(binaryString);
         
-        // Send to OpenAI
+        // Send audio chunk to server
         wsRef.current.send(JSON.stringify({
           type: 'input_audio_buffer.append',
           audio: base64,
         }));
+        
+        // Log every 10th chunk to avoid spam
+        if (Math.random() < 0.1) {
+          console.log('🎤 Sending audio chunk:', pcm16.length, 'samples');
+        }
       };
       
       source.connect(processor);
@@ -355,6 +367,7 @@ export function useRealtimeVoice({
       dummyGain.connect(audioContext.destination);
       
       setIsRecording(true);
+      isRecordingRef.current = true; // Update ref for onaudioprocess callback
       console.log('🎤 Recording started (PCM16 16kHz for Gemini)');
     } catch (err) {
       console.error('Error starting recording:', err);
@@ -370,6 +383,7 @@ export function useRealtimeVoice({
     
     // Stop sending audio first
     setIsRecording(false);
+    isRecordingRef.current = false; // Update ref to stop onaudioprocess
     
     // Small delay to ensure last audio chunks are sent
     setTimeout(() => {
