@@ -1130,7 +1130,7 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
                     value="realtime-voice" 
                     className="text-white/80 hover:text-white data-[state=on]:bg-white/20 data-[state=on]:text-white px-2 py-1 text-xs"
                     data-testid="mode-realtime-voice"
-                    title="실시간 음성 대화 (OpenAI Realtime)"
+                    title="실시간 음성 대화 (Gemini Live)"
                   >
                     🎙️
                   </ToggleGroupItem>

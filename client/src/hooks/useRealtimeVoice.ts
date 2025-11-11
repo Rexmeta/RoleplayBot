@@ -430,7 +430,7 @@ export function useRealtimeVoice({
       onUserTranscriptionRef.current(text);
     }
 
-    // Send text as conversation item to OpenAI
+    // Send text as conversation item to Gemini
     wsRef.current.send(JSON.stringify({
       type: 'conversation.item.create',
       item: {

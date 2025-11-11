@@ -418,6 +418,8 @@ export class RealtimeVoiceService {
       case 'input_audio_buffer.append':
         // Client sending audio data (base64 PCM16)
         // Gemini expects 16kHz PCM16
+        const audioLength = message.audio ? message.audio.length : 0;
+        console.log(`🎤 Received audio chunk: ${audioLength} bytes (base64)`);
         session.geminiSession.sendRealtimeInput({
           audio: {
             data: message.audio,
