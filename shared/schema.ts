@@ -8,6 +8,7 @@ export const conversations = pgTable("conversations", {
   userId: varchar("user_id").references(() => users.id), // 사용자별 대화 관리
   scenarioId: text("scenario_id").notNull(),
   personaId: text("persona_id"), // 레거시 지원용
+  personaSnapshot: jsonb("persona_snapshot"), // 대화 생성 시점의 페르소나 정보 스냅샷 (시나리오 수정 시 과거 기록 보호)
   scenarioName: text("scenario_name").notNull(),
   messages: jsonb("messages").notNull().$type<ConversationMessage[]>(),
   turnCount: integer("turn_count").notNull().default(0),

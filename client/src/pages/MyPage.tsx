@@ -65,14 +65,18 @@ export default function MyPage() {
     const scenario = scenarios.find(s => s.id === conversation.scenarioId);
     if (!scenario) return conversation.scenarioId || '일반 대화';
     
-    const persona = scenario.personas?.find((p: any) => p.id === conversation.personaId);
+    // 1순위: 대화 생성 시점의 페르소나 스냅샷 사용 (과거 기록 보호)
+    // 2순위: 현재 시나리오에서 페르소나 찾기 (하위 호환성)
+    const persona = (conversation as any).personaSnapshot 
+      || scenario.personas?.find((p: any) => p.id === conversation.personaId);
+    
     if (!persona) return scenario.title || '일반 대화';
     
     // undefined 방지: 각 필드가 존재하는 경우만 포함
     const parts = [];
     if (persona.department) parts.push(persona.department);
     if (persona.name) parts.push(persona.name);
-    if (persona.role) parts.push(persona.role);
+    if (persona.role || persona.position) parts.push(persona.role || persona.position);
     const personaInfo = parts.join(' ');
     const mbtiInfo = persona.mbti ? ` (${persona.mbti})` : '';
     
@@ -444,7 +448,9 @@ export default function MyPage() {
                                       {/* 해당 날짜의 대화 상대들 */}
                                       {dateConversations.map((conversation: Conversation) => {
                                         const scenario = scenarios.find(s => s.id === conversation.scenarioId);
-                                        const persona = scenario?.personas?.find((p: any) => p.id === conversation.personaId);
+                                        // 1순위: 대화 생성 시점의 페르소나 스냅샷, 2순위: 현재 시나리오에서 찾기 (하위 호환성)
+                                        const persona = (conversation as any).personaSnapshot 
+                                          || scenario?.personas?.find((p: any) => p.id === conversation.personaId);
                                         const relatedFeedback = feedbacks.find((f: Feedback) => f.conversationId === conversation.id);
                                         
                                         return (

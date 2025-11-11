@@ -72,6 +72,7 @@ export default function Home() {
       const conversationData = {
         scenarioId: selectedScenario.id,
         personaId: persona.id,
+        personaSnapshot: persona, // 대화 생성 시점의 페르소나 정보 스냅샷 저장
         scenarioName: selectedScenario.title,
         messages: [],
         turnCount: 0,
@@ -117,14 +118,16 @@ export default function Home() {
 
   // 재도전을 위한 새로운 대화 생성
   const createRetryConversationMutation = useMutation({
-    mutationFn: async ({ scenarioId, personaId, scenarioName }: { 
+    mutationFn: async ({ scenarioId, personaId, scenarioName, persona }: { 
       scenarioId: string; 
       personaId: string; 
-      scenarioName: string; 
+      scenarioName: string;
+      persona: ScenarioPersona;
     }) => {
       const conversationData = {
         scenarioId,
         personaId,
+        personaSnapshot: persona, // 재도전 시에도 현재 페르소나 스냅샷 저장
         scenarioName,
         messages: [],
         turnCount: 0,
@@ -151,7 +154,8 @@ export default function Home() {
       createRetryConversationMutation.mutate({
         scenarioId: selectedScenario.id,
         personaId: selectedPersona.id,
-        scenarioName: selectedScenario.title
+        scenarioName: selectedScenario.title,
+        persona: selectedPersona
       });
     }
   };
