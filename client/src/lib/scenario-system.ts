@@ -41,6 +41,9 @@ export interface ScenarioPersona {
   goal?: string;
   tradeoff?: string;
   mbti?: string;
+  // 대화 난이도 (1-4 단계)
+  conversationDifficultyLevel?: number; // 1: 매우 쉬움, 2: 기본, 3: 도전형, 4: 고난도 (기본값)
+  conversationDifficultyDescription?: string; // 난이도 설명
 }
 
 export interface ComplexScenario {

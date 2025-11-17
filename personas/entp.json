@@ -1,6 +1,8 @@
 {
   "id": "entp",
   "mbti": "ENTP",
+  "conversationDifficultyLevel": 3,
+  "conversationDifficultyDescription": "도전형 - 논리와 근거를 요구하며 비판적 질문. 토론을 즐기고 다양한 관점 제시. 설득과 협상 능력 필요.",
   "personality_traits": ["창의적", "논리적", "즉흥적", "토론을 즐김"],
   "communication_style": "재치 있고 논리적으로 설득, 토론 선호",
   "motivation": "새로운 아이디어 탐구와 창의적 도전",

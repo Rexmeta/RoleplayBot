@@ -335,7 +335,10 @@ export class FileManagerService {
         stance: scenarioPersona.stance,
         goal: scenarioPersona.goal,
         tradeoff: scenarioPersona.tradeoff,
-        mbti: mbtiPersona.mbti
+        mbti: mbtiPersona.mbti,
+        // 대화 난이도 정보 (MBTI 페르소나에서 가져옴, 기본값 4)
+        conversationDifficultyLevel: mbtiPersona.conversationDifficultyLevel || 4,
+        conversationDifficultyDescription: mbtiPersona.conversationDifficultyDescription || '고난도/실전형 - 기본 난이도'
       };
 
       return fullPersona;

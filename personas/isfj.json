@@ -1,6 +1,8 @@
 {
   "id": "isfj",
   "mbti": "ISFJ",
+  "conversationDifficultyLevel": 2,
+  "conversationDifficultyDescription": "기본 난이도 - 친절하고 배려심 있으나 현실적 반응. 약한 갈등 존재하지만 다시 기회를 줌. 설명을 제공하되 스스로 생각하도록 유도.",
   "personality_traits": ["헌신적", "세심함", "책임감 강함", "배려심 깊음"],
   "communication_style": "조용히 경청하고 필요할 때 의견 제시",
   "motivation": "타인을 돕고 조화로운 관계 유지",

@@ -3,6 +3,7 @@ import type { ConversationMessage, DetailedFeedback } from "@shared/schema";
 import type { AIServiceInterface, ScenarioPersona } from "../aiService";
 import { enrichPersonaWithMBTI } from "../../utils/mbtiLoader";
 import { GlobalMBTICache } from "../../utils/globalMBTICache";
+import { getTextModeGuidelines, validateDifficultyLevel } from "../conversationDifficultyPolicy";
 
 /**
  * 최적화된 Gemini Provider
@@ -169,6 +170,10 @@ export class OptimizedGeminiProvider implements AIServiceInterface {
       ? mbtiData.personality_traits.join(', ')
       : '균형 잡힌 성격';
     
+    // 대화 난이도 레벨 가져오기
+    const difficultyLevel = validateDifficultyLevel((persona as any).conversationDifficultyLevel);
+    const difficultyGuidelines = getTextModeGuidelines(difficultyLevel);
+    
     return `당신은 ${persona.name}(${persona.role})입니다.
 
 상황: ${situation}
@@ -179,13 +184,15 @@ export class OptimizedGeminiProvider implements AIServiceInterface {
 성격 특성: ${personalityTraits}
 의사소통 스타일: ${mbtiData?.communication_style || '균형 잡힌 의사소통'}
 
+${difficultyGuidelines}
+
 ${conversationHistory ? `이전 대화:\n${conversationHistory}\n` : ''}
 
 역할:
 - ${persona.name}의 관점에서 반대 의견이나 어려운 질문을 제기하세요
 - 상대방이 쉽게 동의할 수 없는 도전적인 입장을 취하세요
 - 위 성격 특성과 의사소통 스타일을 반영하여 대화하세요
-- 30-120단어로 현실적이고 구체적으로 응답하세요
+- 위 대화 난이도 설정에 따라 적절하게 응답하세요
 
 JSON 형식으로 응답:
 {"content":"대화내용","emotion":"기쁨|슬픔|분노|놀람|중립","emotionReason":"감정이유"}`;

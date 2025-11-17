@@ -5,6 +5,8 @@ import { join } from 'path';
 export interface MBTIPersona {
   id: string;
   mbti: string;
+  conversationDifficultyLevel?: number; // 대화 난이도 (1-4, 기본값 4)
+  conversationDifficultyDescription?: string; // 난이도 설명
   personality_traits: string[];
   communication_style: string;
   motivation: string;
@@ -103,6 +105,8 @@ export async function enrichPersonaWithMBTI(scenarioPersona: any, personaRef?: s
   const enrichedPersona = {
     ...scenarioPersona,
     mbti: mbtiData.mbti,
+    conversationDifficultyLevel: mbtiData.conversationDifficultyLevel || 4,
+    conversationDifficultyDescription: mbtiData.conversationDifficultyDescription || '고난도/실전형',
     personality_traits: mbtiData.personality_traits,
     communication_style: mbtiData.communication_style,
     motivation: mbtiData.motivation,
@@ -113,7 +117,7 @@ export async function enrichPersonaWithMBTI(scenarioPersona: any, personaRef?: s
     image: mbtiData.image
   };
 
-  console.log(`🔗 Persona enriched: ${scenarioPersona.name} with ${mbtiData.mbti} traits`);
+  console.log(`🔗 Persona enriched: ${scenarioPersona.name} with ${mbtiData.mbti} traits (difficulty: ${enrichedPersona.conversationDifficultyLevel})`);
   return enrichedPersona;
 }
 
@@ -151,6 +155,8 @@ export async function enrichPersonaWithBasicMBTI(scenarioPersona: any, personaRe
   return {
     ...scenarioPersona,
     mbti: mbtiData.mbti,
+    conversationDifficultyLevel: mbtiData.conversationDifficultyLevel,
+    conversationDifficultyDescription: mbtiData.conversationDifficultyDescription
   };
 }
 

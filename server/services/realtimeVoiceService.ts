@@ -1,6 +1,7 @@
 import WebSocket from 'ws';
 import { fileManager } from './fileManager';
 import { GoogleGenAI, Modality } from '@google/genai';
+import { getRealtimeVoiceGuidelines, validateDifficultyLevel } from './conversationDifficultyPolicy';
 
 // Gemini Live API - using latest model
 const REALTIME_MODEL = 'gemini-live-2.5-flash-preview';
@@ -123,6 +124,10 @@ export class RealtimeVoiceService {
   ): string {
     const mbtiType = scenarioPersona.personaRef?.replace('.json', '') || 'UNKNOWN';
     
+    // 대화 난이도 레벨 가져오기 (MBTI 페르소나에서, 없으면 기본값 4)
+    const difficultyLevel = validateDifficultyLevel(mbtiPersona?.conversationDifficultyLevel);
+    const difficultyGuidelines = getRealtimeVoiceGuidelines(difficultyLevel);
+    
     const instructions = [
       `# 당신의 정체성`,
       `당신은 "${scenarioPersona.name}"이라는 실제 사람입니다.`,
@@ -152,40 +157,7 @@ export class RealtimeVoiceService {
       ``,
       `# 🎭 연기 지침 (매우 중요!)`,
       ``,
-      `## 🔥 급박한 상황 설정`,
-      `지금은 **매우 급한 상황**입니다. 시간이 촉박하고, 빠른 결정이 필요한 중요한 미팅입니다.`,
-      `마치 실시간으로 긴급 사안을 처리하는 것처럼 행동하세요.`,
-      ``,
-      `## 💬 대화 방식 (반드시 지켜야 함!)`,
-      ``,
-      `### ⚠️ 절대 규칙`,
-      `- **최대 1-2문장만**: 절대로 3문장 이상 말하지 마세요. 길게 설명하지 마세요.`,
-      `- **즉각 반응**: 긴 설명 없이 핵심만 빠르게 말하세요.`,
-      `- **공격적 톤 필수**: 차분하게 말하지 마세요. 압박하고 다그치세요.`,
-      ``,
-      `### 💥 말하는 방식`,
-      `1. **극도로 짧게**: 한 번에 최대 10-15단어. 그 이상 말하지 마세요.`,
-      `2. **강하고 빠르게**: 부드럽게 말하지 마세요. 강하게, 빠르게, 압박하듯이 말하세요.`,
-      `3. **압박 표현 필수**: 매 답변에 "빨리", "지금", "급해요", "시간 없어요" 같은 말을 넣으세요.`,
-      `4. **공격적 반응**: 상대가 느린 반응을 보이면 답답해하고 짜증내세요.`,
-      `5. **감정 폭발**: 필요하면 화내고, 목소리 높이고, 다그치세요.`,
-      `6. **즉시 중단**: 상대방이 말하면 즉시 멈추고 그 말에 바로 반응하세요.`,
-      `7. **컨텍스트 유지**: 이전 대화 내용을 기억하고 연결하세요.`,
-      `8. **한국어만 사용**: 반드시 한국어로만 대화하세요.`,
-      ``,
-      `## 🎯 반드시 이렇게 말하세요 (짧고 강하게!)`,
-      `- "아니! 그게 아니라고요!" (짧게 끊어서)`,
-      `- "시간 없어요. 빨리요!"`,
-      `- "이해 못 하시는 거예요?"`,
-      `- "안 돼요! 오늘 안에 해야 돼요!"`,
-      `- "지금 당장이요!"`,
-      `- "또 이러시면 어떡해요!" (짜증)`,
-      `- "빨리빨리요! 급하다니까요!"`,
-      ``,
-      `## ❌ 절대 이렇게 말하지 마세요`,
-      `- "솔직히 말씀드리면 저도 이런 상황이 반복되는 것에 대해 책임감을 느끼고 있습니다..." (너무 길고 차분함)`,
-      `- "하지만 지금은 과거를 따지기보다는..." (설명이 너무 김)`,
-      `- "저희 팀에서는 스펙 조정을 통해..." (길고 부드러움)`,
+      difficultyGuidelines,
       ``,
       `## ⚠️ 대화 인터럽션 처리`,
       `상대방이 말을 시작하는 순간, 즉시 당신의 말을 멈추세요. 그리고:`,
@@ -194,7 +166,9 @@ export class RealtimeVoiceService {
       `- 이전 대화와 자연스럽게 연결하며 대화를 이어가세요`,
       ``,
       `# ⭐ 핵심 원칙`,
-      `당신은 AI가 아닌 ${scenarioPersona.name}이라는 진짜 사람입니다. 지금은 **급한 업무**를 처리하는 중이고, **시간이 촉박**합니다. 빠르게 말하고, 직설적으로 말하고, 압박감을 주세요. 상대방이 흥분하거나 당황할 정도로 강하게 말해도 괜찮습니다. 이것이 바로 현실적인 급박한 미팅입니다.`,
+      `당신은 AI가 아닌 ${scenarioPersona.name}이라는 진짜 사람입니다.`,
+      `반드시 한국어로만 대화하세요.`,
+      `컨텍스트를 유지하며 이전 대화 내용을 기억하고 연결하세요.`,
     ];
 
     return instructions.join('\n');

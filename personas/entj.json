@@ -1,6 +1,8 @@
 {
   "id": "entj",
   "mbti": "ENTJ",
+  "conversationDifficultyLevel": 4,
+  "conversationDifficultyDescription": "고난도/실전형 - 직설적이고 압박감 있는 대화, 빠른 결정 요구, 논리적 근거 없으면 비판적 반응. 시간 제약과 목표 달성 압박이 강함.",
   "personality_traits": ["리더십", "전략적 사고", "결단력", "목표 지향"],
   "communication_style": "직설적, 목표 달성 중심",
   "motivation": "효율적 조직 운영과 목표 달성",

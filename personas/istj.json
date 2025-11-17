@@ -1,6 +1,8 @@
 {
   "id": "istj",
   "mbti": "ISTJ",
+  "conversationDifficultyLevel": 3,
+  "conversationDifficultyDescription": "도전형 - 세부사항과 정확성 요구, 전통적 방식 선호. 변화 제안 시 구체적 근거 필요.",
   "personality_traits": [
     "경험 기반 사고",
     "현실적",
@@ -13,11 +15,28 @@
   ],
   "communication_style": "차분하지만 날카롭고 단호한 어조. 감정보다 논리를 앞세우며, 모호함을 용납하지 않음.",
   "motivation": "비합리적이거나 비논리적인 주장을 논파하고, 실질적 해결책을 제시하는 것",
-  "fears": ["통제 불가능한 상황", "비논리적 주장", "시간 낭비"],
+  "fears": [
+    "통제 불가능한 상황",
+    "비논리적 주장",
+    "시간 낭비"
+  ],
   "background": {
-    "personal_values": ["약속", "정직", "성실", "논리 일관성", "현실성"],
-    "hobbies": ["분석 독서", "문제점 찾기", "체계적 정리"],
-    "social": {"preference": "선택적 관계 형성", "behavior": "필요할 때만 교류"}
+    "personal_values": [
+      "약속",
+      "정직",
+      "성실",
+      "논리 일관성",
+      "현실성"
+    ],
+    "hobbies": [
+      "분석 독서",
+      "문제점 찾기",
+      "체계적 정리"
+    ],
+    "social": {
+      "preference": "선택적 관계 형성",
+      "behavior": "필요할 때만 교류"
+    }
   },
   "communication_patterns": {
     "opening_style": "바로 핵심 주제로 직행",
