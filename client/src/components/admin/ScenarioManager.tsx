@@ -65,7 +65,7 @@ export function ScenarioManager() {
   const [formData, setFormData] = useState<ScenarioFormData>({
     title: '',
     description: '',
-    difficulty: 1,
+    difficulty: 4,
     estimatedTime: '',
     skills: [],
     image: '', // 이미지 초기값 추가
@@ -381,11 +381,10 @@ export function ScenarioManager() {
                       <SelectValue placeholder="난이도를 선택하세요" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="1">초급 (★☆☆☆☆)</SelectItem>
-                      <SelectItem value="2">초중급 (★★☆☆☆)</SelectItem>
-                      <SelectItem value="3">중급 (★★★☆☆)</SelectItem>
-                      <SelectItem value="4">중상급 (★★★★☆)</SelectItem>
-                      <SelectItem value="5">고급 (★★★★★)</SelectItem>
+                      <SelectItem value="1">매우 쉬움 (★☆☆☆)</SelectItem>
+                      <SelectItem value="2">기본 (★★☆☆)</SelectItem>
+                      <SelectItem value="3">도전형 (★★★☆)</SelectItem>
+                      <SelectItem value="4">고난도 (★★★★)</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
