@@ -86,7 +86,7 @@ export default function AdminManagement() {
                         <div className="grid grid-cols-1 md:grid-cols-4 gap-3 text-sm">
                           <div className="bg-slate-50 p-2 rounded">
                             <div className="text-slate-500">난이도</div>
-                            <div className="font-medium">{generatedResult.scenario?.difficulty}/5</div>
+                            <div className="font-medium">{generatedResult.scenario?.difficulty}/4</div>
                           </div>
                           <div className="bg-slate-50 p-2 rounded">
                             <div className="text-slate-500">예상 시간</div>

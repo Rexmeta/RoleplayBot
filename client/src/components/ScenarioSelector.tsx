@@ -228,11 +228,10 @@ export default function ScenarioSelector({ onScenarioSelect, playerProfile }: Sc
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">전체</SelectItem>
-                    <SelectItem value="1">★ 초급</SelectItem>
-                    <SelectItem value="2">★★ 기초</SelectItem>
-                    <SelectItem value="3">★★★ 중급</SelectItem>
-                    <SelectItem value="4">★★★★ 고급</SelectItem>
-                    <SelectItem value="5">★★★★★ 전문가</SelectItem>
+                    <SelectItem value="1">★ 매우 쉬움</SelectItem>
+                    <SelectItem value="2">★★ 기본</SelectItem>
+                    <SelectItem value="3">★★★ 도전형</SelectItem>
+                    <SelectItem value="4">★★★★ 고난도</SelectItem>
                   </SelectContent>
                 </Select>
                 

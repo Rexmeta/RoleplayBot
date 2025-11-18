@@ -48,7 +48,7 @@ export function SimplePersonaSelector({
       {/* 헤더 */}
       <div className="text-center mb-8">
         <Badge className="mb-4" variant="outline">
-          난이도 {scenario?.difficulty || 1} / 5 {scenario?.difficulty && scenario.difficulty >= 4 && '⭐'}
+          난이도 {scenario?.difficulty || 1} / 4 {scenario?.difficulty && scenario.difficulty >= 4 && '⭐'}
         </Badge>
         <h1 className="text-3xl font-bold text-gray-900 mb-3">{scenarioTitle}</h1>
         {scenarioSituation && (

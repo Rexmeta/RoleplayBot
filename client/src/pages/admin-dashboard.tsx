@@ -303,7 +303,7 @@ export default function AdminDashboard() {
                         </td>
                         <td className="p-2">{scenario.sessionCount}회</td>
                         <td className="p-2">
-                          {'★'.repeat(Math.min(scenario.difficulty, 5))}{'☆'.repeat(Math.max(0, 5-scenario.difficulty))}
+                          {'★'.repeat(Math.min(scenario.difficulty, 4))}{'☆'.repeat(Math.max(0, 4-scenario.difficulty))}
                         </td>
                         <td className="p-2">{scenario.personaCount || 0}명</td>
                         <td className="p-2">
