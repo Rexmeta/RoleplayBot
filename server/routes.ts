@@ -1615,11 +1615,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
     // Authenticate user via token
     let userId: string;
     try {
+      if (!token || token === 'null' || token === 'undefined') {
+        throw new Error('인증 토큰이 없습니다. 다시 로그인해주세요.');
+      }
+      
       // Use same default as auth.ts for consistency
       const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
       
       const jwt = (await import('jsonwebtoken')).default;
-      const decoded = jwt.verify(token || '', JWT_SECRET) as any;
+      const decoded = jwt.verify(token, JWT_SECRET) as any;
       userId = decoded.userId; // JWT payload uses 'userId', not 'id'
       console.log(`✅ User authenticated: ${userId}`);
     } catch (error) {

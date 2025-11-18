@@ -76,6 +76,10 @@ export function useRealtimeVoice({
     const host = window.location.host;
     const token = localStorage.getItem('authToken');
     
+    if (!token) {
+      throw new Error('인증 토큰이 없습니다. 다시 로그인해주세요.');
+    }
+    
     return `${protocol}//${host}/api/realtime-voice?conversationId=${conversationId}&scenarioId=${scenarioId}&personaId=${personaId}&token=${token}`;
   }, [conversationId, scenarioId, personaId]);
 
