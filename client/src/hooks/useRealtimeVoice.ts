@@ -105,7 +105,13 @@ export function useRealtimeVoice({
     setError(null);
 
     try {
+      const token = localStorage.getItem('authToken');
+      console.log('🔑 Auth token exists:', !!token);
+      console.log('🔑 Token length:', token?.length);
+      
       const url = getWebSocketUrl();
+      console.log('🌐 WebSocket URL:', url);
+      
       const ws = new WebSocket(url);
       wsRef.current = ws;
 
