@@ -62,7 +62,7 @@ export interface AIScenarioGenerationRequest {
   objectiveType?: string; // 목표 유형
   skills?: string; // 필요 역량
   estimatedTime?: string; // 예상 소요 시간
-  difficulty?: number; // 1-5 난이도
+  difficulty?: number; // 1-4 난이도
   personaCount?: number; // 생성할 페르소나 수 (1-6)
 }
 
@@ -133,7 +133,7 @@ ${request.playerRole ? `참가자 역할: ${request.playerRole.position} (${requ
 ${request.conflictType ? `갈등 유형: ${request.conflictType}` : ''}
 ${request.objectiveType ? `목표 유형: ${request.objectiveType}` : ''}
 ${request.skills ? `필요 역량: ${request.skills}` : ''}
-난이도: ${request.difficulty || 3}/5
+난이도: ${request.difficulty || 3}/4
 페르소나 수: ${request.personaCount || 3}명
 사용 가능한 MBTI 유형: ${selectedMBTI.join(', ')} (이 유형들만 사용하세요)
 

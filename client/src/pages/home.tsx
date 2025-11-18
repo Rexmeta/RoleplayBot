@@ -62,6 +62,22 @@ export default function Home() {
     setConversationIds([]);
   };
 
+  // 난이도 레벨에 따른 설명 반환 함수
+  const getDifficultyDescription = (level: number): string => {
+    switch (level) {
+      case 1:
+        return '매우 쉬움 - 온화하고 수용적인 대화, 비판 거의 없음';
+      case 2:
+        return '기본 - 따뜻하고 격려적이나 명확한 방향성 요구';
+      case 3:
+        return '도전형 - 논리와 근거 요구, 비판적 질문과 협상 필요';
+      case 4:
+        return '고난도 - 직설적이고 압박감 있는 대화, 빠른 결정 요구';
+      default:
+        return '기본 - 일반적인 대화 난이도';
+    }
+  };
+
   // 페르소나 선택 처리
   const handlePersonaSelect = async (persona: ScenarioPersona) => {
     if (!selectedScenario) return;
@@ -69,10 +85,17 @@ export default function Home() {
     try {
       console.log(`🕐 CLIENT CODE TIMESTAMP: ${Date.now()} - UPDATED VERSION`);
       
+      // 시나리오 난이도를 페르소나의 대화 난이도로 설정
+      const personaWithScenarioDifficulty = {
+        ...persona,
+        conversationDifficultyLevel: selectedScenario.difficulty,
+        conversationDifficultyDescription: getDifficultyDescription(selectedScenario.difficulty)
+      };
+      
       const conversationData = {
         scenarioId: selectedScenario.id,
         personaId: persona.id,
-        personaSnapshot: persona, // 대화 생성 시점의 페르소나 정보 스냅샷 저장
+        personaSnapshot: personaWithScenarioDifficulty, // 시나리오 난이도가 적용된 페르소나 스냅샷
         scenarioName: selectedScenario.title,
         messages: [],
         turnCount: 0,
@@ -81,13 +104,15 @@ export default function Home() {
       };
       
       console.log('📤 [NEW CODE] Creating conversation with mode:', conversationData.mode);
+      console.log('📤 [NEW CODE] Scenario difficulty:', selectedScenario.difficulty);
+      console.log('📤 [NEW CODE] Persona difficulty level:', personaWithScenarioDifficulty.conversationDifficultyLevel);
       console.log('📤 [NEW CODE] Full conversation data:', JSON.stringify(conversationData));
       
       const response = await apiRequest("POST", "/api/conversations", conversationData);
       
       const conversation = await response.json();
       
-      setSelectedPersona(persona);
+      setSelectedPersona(personaWithScenarioDifficulty);
       setConversationId(conversation.id);
       setCurrentView("chat");
     } catch (error) {
@@ -118,16 +143,24 @@ export default function Home() {
 
   // 재도전을 위한 새로운 대화 생성
   const createRetryConversationMutation = useMutation({
-    mutationFn: async ({ scenarioId, personaId, scenarioName, persona }: { 
+    mutationFn: async ({ scenarioId, personaId, scenarioName, persona, scenarioDifficulty }: { 
       scenarioId: string; 
       personaId: string; 
       scenarioName: string;
       persona: ScenarioPersona;
+      scenarioDifficulty: number;
     }) => {
+      // 시나리오 난이도를 페르소나의 대화 난이도로 설정
+      const personaWithScenarioDifficulty = {
+        ...persona,
+        conversationDifficultyLevel: scenarioDifficulty,
+        conversationDifficultyDescription: getDifficultyDescription(scenarioDifficulty)
+      };
+      
       const conversationData = {
         scenarioId,
         personaId,
-        personaSnapshot: persona, // 재도전 시에도 현재 페르소나 스냅샷 저장
+        personaSnapshot: personaWithScenarioDifficulty, // 재도전 시에도 시나리오 난이도 적용
         scenarioName,
         messages: [],
         turnCount: 0,
@@ -135,6 +168,7 @@ export default function Home() {
         mode: "realtime_voice"
       };
       
+      console.log('📤 Creating retry conversation with scenario difficulty:', scenarioDifficulty);
       console.log('📤 Creating retry conversation with data:', conversationData);
       
       const response = await apiRequest("POST", "/api/conversations", conversationData);
@@ -155,7 +189,8 @@ export default function Home() {
         scenarioId: selectedScenario.id,
         personaId: selectedPersona.id,
         scenarioName: selectedScenario.title,
-        persona: selectedPersona
+        persona: selectedPersona,
+        scenarioDifficulty: selectedScenario.difficulty
       });
     }
   };
