@@ -429,15 +429,15 @@ export const getPersonasForScenario = (scenarioId: string): ScenarioPersona[] =>
 };
 
 export const getDifficultyColor = (difficulty: number): string => {
-  if (difficulty <= 2) return "green";
-  if (difficulty <= 3) return "yellow"; 
-  if (difficulty <= 4) return "orange";
+  if (difficulty === 1) return "green";
+  if (difficulty === 2) return "yellow"; 
+  if (difficulty === 3) return "orange";
   return "red";
 };
 
 export const getDifficultyLabel = (difficulty: number): string => {
-  if (difficulty <= 2) return "초급";
-  if (difficulty <= 3) return "중급";
-  if (difficulty <= 4) return "고급";
-  return "전문가";
+  if (difficulty === 1) return "매우 쉬움";
+  if (difficulty === 2) return "기본";
+  if (difficulty === 3) return "도전형";
+  return "고난도";
 };
