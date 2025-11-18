@@ -52,7 +52,18 @@ export default function PersonalDevelopmentReport({
     gcTime: Infinity, // 캐시를 영구 보관
     queryFn: async () => {
       try {
-        const response = await fetch(`/api/conversations/${conversationId}/feedback`);
+        const token = localStorage.getItem("authToken");
+        const headers: Record<string, string> = {};
+        
+        if (token) {
+          headers["Authorization"] = `Bearer ${token}`;
+        }
+
+        const response = await fetch(`/api/conversations/${conversationId}/feedback`, {
+          headers,
+          credentials: "include",
+        });
+        
         if (response.status === 404) {
           // 피드백이 없음을 명확하게 표시
           console.log("피드백이 아직 생성되지 않음");
@@ -148,11 +159,19 @@ export default function PersonalDevelopmentReport({
     mutationFn: async () => {
       console.log("피드백 생성 요청 시작:", conversationId);
       try {
+        const token = localStorage.getItem("authToken");
+        const headers: Record<string, string> = {
+          'Content-Type': 'application/json',
+        };
+        
+        if (token) {
+          headers["Authorization"] = `Bearer ${token}`;
+        }
+
         const response = await fetch(`/api/conversations/${conversationId}/feedback`, {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
+          headers,
+          credentials: "include",
         });
         
         console.log("피드백 생성 응답 상태:", response.status);
