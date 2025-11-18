@@ -33,7 +33,7 @@ export function AIScenarioGenerator({ onGenerated }: AIGeneratorProps) {
     objectiveType: '',
     skills: '',
     estimatedTime: '60-90분',
-    difficulty: 3,
+    difficulty: 4,
     personaCount: 3
   });
 
@@ -318,11 +318,10 @@ export function AIScenarioGenerator({ onGenerated }: AIGeneratorProps) {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="1">1 - 쉬움</SelectItem>
-                  <SelectItem value="2">2 - 보통</SelectItem>
-                  <SelectItem value="3">3 - 중간</SelectItem>
-                  <SelectItem value="4">4 - 어려움</SelectItem>
-                  <SelectItem value="5">5 - 매우 어려움</SelectItem>
+                  <SelectItem value="1">1 - 매우 쉬움</SelectItem>
+                  <SelectItem value="2">2 - 기본</SelectItem>
+                  <SelectItem value="3">3 - 도전형</SelectItem>
+                  <SelectItem value="4">4 - 고난도</SelectItem>
                 </SelectContent>
               </Select>
             </div>
