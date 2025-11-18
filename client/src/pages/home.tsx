@@ -16,6 +16,7 @@ import { User, LogOut } from "lucide-react";
 type ViewState = "scenarios" | "persona-selection" | "chat" | "strategy-reflection" | "strategy-result" | "feedback";
 
 export default function Home() {
+  const { logout } = useAuth();
   const [currentView, setCurrentView] = useState<ViewState>("scenarios");
   const [selectedScenario, setSelectedScenario] = useState<ComplexScenario | null>(null);
   const [selectedPersona, setSelectedPersona] = useState<ScenarioPersona | null>(null);
@@ -264,9 +265,12 @@ export default function Home() {
                 MyPage
               </Button>
 
-              {/* 로그아웃 버튼 - from javascript_log_in_with_replit blueprint */}
+              {/* 로그아웃 버튼 */}
               <Button
-                onClick={() => window.location.href = '/api/logout'}
+                onClick={async () => {
+                  await logout();
+                  window.location.href = '/';
+                }}
                 variant="outline"
                 size="sm"
                 className="flex items-center gap-2"
