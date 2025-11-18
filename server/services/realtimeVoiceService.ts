@@ -124,8 +124,8 @@ export class RealtimeVoiceService {
   ): string {
     const mbtiType = scenarioPersona.personaRef?.replace('.json', '') || 'UNKNOWN';
     
-    // 대화 난이도 레벨 가져오기 (MBTI 페르소나에서, 없으면 기본값 4)
-    const difficultyLevel = validateDifficultyLevel(mbtiPersona?.conversationDifficultyLevel);
+    // 대화 난이도 레벨 가져오기 (시나리오 난이도 우선, MBTI 페르소나는 fallback, 최종 기본값 4)
+    const difficultyLevel = validateDifficultyLevel(scenario.difficulty || mbtiPersona?.conversationDifficultyLevel);
     const difficultyGuidelines = getRealtimeVoiceGuidelines(difficultyLevel);
     
     const instructions = [

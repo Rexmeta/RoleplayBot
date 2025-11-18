@@ -170,8 +170,8 @@ export class OptimizedGeminiProvider implements AIServiceInterface {
       ? mbtiData.personality_traits.join(', ')
       : '균형 잡힌 성격';
     
-    // 대화 난이도 레벨 가져오기
-    const difficultyLevel = validateDifficultyLevel((persona as any).conversationDifficultyLevel);
+    // 대화 난이도 레벨 가져오기 (시나리오 난이도 우선, 페르소나는 fallback, 최종 기본값 4)
+    const difficultyLevel = validateDifficultyLevel(scenario.difficulty || (persona as any).conversationDifficultyLevel);
     const difficultyGuidelines = getTextModeGuidelines(difficultyLevel);
     
     return `당신은 ${persona.name}(${persona.role})입니다.
