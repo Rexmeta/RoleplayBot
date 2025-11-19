@@ -185,17 +185,96 @@ export default function MyPage() {
     }
   };
 
-  // 시나리오별 대화를 날짜별로 다시 그룹화
-  const groupConversationsByDate = (conversations: typeof sortedConversations) => {
-    return conversations.reduce((acc, conversation) => {
-      const dateKey = getDateKey(conversation.createdAt);
-      if (!acc[dateKey]) {
-        acc[dateKey] = [];
-      }
-      acc[dateKey].push(conversation);
-      return acc;
-    }, {} as Record<string, typeof sortedConversations>);
+  // 세션(날짜+시나리오) 타입 정의
+  type Session = {
+    sessionKey: string; // "YYYY-MM-DD_scenarioId"
+    date: string; // "YYYY-MM-DD"
+    dateLabel: string; // "2025년 11월 19일"
+    time: string; // "09:30"
+    scenarioId: string;
+    scenarioTitle: string;
+    scenarioDifficulty: number;
+    conversations: Conversation[];
+    isCompleted: boolean; // 모든 페르소나와의 대화 완료 여부
+    attemptNumber: number; // 같은 시나리오의 몇 번째 시도인지
+    strategyReflection?: string | null; // 전략 회고
+    conversationOrder?: string[] | null; // 대화 순서
   };
+
+  // ⚡ 성능 최적화: 세션(날짜+시나리오) 그룹화 (메모이제이션)
+  const sessions = useMemo((): Session[] => {
+    // 완료된 대화만 필터링
+    const completedConversations = sortedConversations.filter(c => c.status === 'completed');
+    
+    // 세션 맵 생성: sessionKey -> conversations
+    const sessionMap = new Map<string, Conversation[]>();
+    
+    completedConversations.forEach(conversation => {
+      const dateKey = getDateKey(conversation.createdAt);
+      const sessionKey = `${dateKey}_${conversation.scenarioId}`;
+      
+      if (!sessionMap.has(sessionKey)) {
+        sessionMap.set(sessionKey, []);
+      }
+      sessionMap.get(sessionKey)!.push(conversation);
+    });
+    
+    // 시나리오별 시도 횟수 계산을 위한 맵
+    const scenarioAttemptMap = new Map<string, number>();
+    
+    // 세션을 배열로 변환하고 시간 역순 정렬
+    const sessionList: Session[] = Array.from(sessionMap.entries())
+      .map(([sessionKey, conversations]) => {
+        const [dateKey, scenarioId] = sessionKey.split('_');
+        const scenario = scenariosMap.get(scenarioId);
+        
+        // 가장 최근 대화 시간 (세션 시작 시간)
+        const latestConversation = conversations.reduce((latest, conv) => 
+          new Date(conv.createdAt) > new Date(latest.createdAt) ? conv : latest
+        , conversations[0]);
+        
+        // 전략 회고가 있는지 확인
+        const conversationWithStrategy = conversations.find(c => c.strategyReflection);
+        
+        // 모든 페르소나와의 대화가 완료되었는지 확인
+        const completedPersonaIds = new Set(conversations.map(c => c.personaId));
+        const isCompleted = scenario?.personas 
+          ? completedPersonaIds.size === scenario.personas.length
+          : conversations.length > 0;
+        
+        return {
+          sessionKey,
+          date: dateKey,
+          dateLabel: getDateLabel(dateKey),
+          time: format(new Date(latestConversation.createdAt), 'HH:mm'),
+          scenarioId,
+          scenarioTitle: scenario?.title || scenarioId,
+          scenarioDifficulty: scenario?.difficulty || 1,
+          conversations: conversations.sort((a, b) => 
+            new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+          ),
+          isCompleted,
+          attemptNumber: 0, // 아래에서 계산
+          strategyReflection: conversationWithStrategy?.strategyReflection,
+          conversationOrder: conversationWithStrategy?.conversationOrder,
+        };
+      })
+      .sort((a, b) => {
+        // 시간 역순 정렬 (최신 세션이 위로)
+        const aTime = new Date(`${a.date} ${a.time}`).getTime();
+        const bTime = new Date(`${b.date} ${b.time}`).getTime();
+        return bTime - aTime;
+      });
+    
+    // 시도 횟수 계산
+    sessionList.forEach(session => {
+      const currentAttempt = (scenarioAttemptMap.get(session.scenarioId) || 0) + 1;
+      scenarioAttemptMap.set(session.scenarioId, currentAttempt);
+      session.attemptNumber = currentAttempt;
+    });
+    
+    return sessionList;
+  }, [sortedConversations, scenariosMap]);
 
   // 시나리오 정보 가져오기
   const getScenarioInfo = (scenarioId: string) => {
@@ -326,9 +405,9 @@ export default function MyPage() {
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                {conversations.length === 0 ? (
+                {sessions.length === 0 ? (
                   <div className="text-center py-8">
-                    <div className="text-slate-600">아직 대화 기록이 없습니다.</div>
+                    <div className="text-slate-600">아직 완료된 대화 기록이 없습니다.</div>
                     <Button 
                       onClick={() => window.location.href = '/home'}
                       className="mt-4"
@@ -338,17 +417,12 @@ export default function MyPage() {
                     </Button>
                   </div>
                 ) : (
-                  <Accordion type="multiple" className="w-full">
-                    {sortedScenarioIds.map((scenarioId) => {
-                      const scenarioConversations = conversationsByScenario[scenarioId];
-                      const scenarioInfo = getScenarioInfo(scenarioId);
-                      const scenario = scenariosMap.get(scenarioId); // ⚡ O(1) 조회
-                      const completedCount = scenarioConversations.filter(c => c.status === 'completed').length;
-                      const totalPersonas = scenario?.personas?.length || 0;
-                      const isFullyCompleted = isScenarioFullyCompleted(scenarioId);
+                  <div className="space-y-4">
+                    {sessions.map((session) => {
+                      const scenario = scenariosMap.get(session.scenarioId);
                       
                       return (
-                        <AccordionItem key={scenarioId} value={scenarioId} data-testid={`scenario-${scenarioId}`}>
+                        <Card key={session.sessionKey} data-testid={`session-${session.sessionKey}`} className="overflow-hidden">
                           <AccordionTrigger className="hover:no-underline">
                             <div className="flex items-center justify-between w-full pr-4">
                               <div className="flex items-center gap-3">
