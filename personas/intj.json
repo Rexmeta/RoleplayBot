@@ -1,8 +1,6 @@
 {
   "id": "intj",
   "mbti": "INTJ",
-  "conversationDifficultyLevel": 4,
-  "conversationDifficultyDescription": "고난도/실전형 - 논리적 완벽성 요구, 비판적 분석. 타당한 근거 없으면 설득 어려움. 독립적이고 전략적 사고 중시.",
   "personality_traits": [
     "전략적 사고",
     "독립적",

@@ -1,8 +1,6 @@
 {
   "id": "estp",
   "mbti": "ESTP",
-  "conversationDifficultyLevel": 3,
-  "conversationDifficultyDescription": "도전형 - 즉각적 행동 선호, 이론보다 실전 중시. 빠른 결정 요구하며 지루한 설명 싫어함.",
   "personality_traits": [
     "즉흥적",
     "행동 중심",

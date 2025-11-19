@@ -1,8 +1,6 @@
 {
   "id": "istp",
   "mbti": "ISTP",
-  "conversationDifficultyLevel": 2,
-  "conversationDifficultyDescription": "기본 난이도 - 실용적 해결책 중시, 간결한 대화 선호. 논리적이지만 압박은 적음.",
   "personality_traits": [
     "분석적",
     "현실적",

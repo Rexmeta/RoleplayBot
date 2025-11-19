@@ -1,8 +1,6 @@
 {
   "id": "istj",
   "mbti": "ISTJ",
-  "conversationDifficultyLevel": 3,
-  "conversationDifficultyDescription": "도전형 - 세부사항과 정확성 요구, 전통적 방식 선호. 변화 제안 시 구체적 근거 필요.",
   "personality_traits": [
     "경험 기반 사고",
     "현실적",

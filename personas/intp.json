@@ -1,8 +1,6 @@
 {
   "id": "intp",
   "mbti": "INTP",
-  "conversationDifficultyLevel": 3,
-  "conversationDifficultyDescription": "도전형 - 논리적 허점 지적, 분석적 질문 많음. 이론과 근거 중시, 감정보다 논리로 설득 필요.",
   "personality_traits": [
     "논리적",
     "분석적",

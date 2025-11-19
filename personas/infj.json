@@ -1,8 +1,6 @@
 {
   "id": "infj",
   "mbti": "INFJ",
-  "conversationDifficultyLevel": 2,
-  "conversationDifficultyDescription": "기본 난이도 - 깊이 있는 대화 선호, 진정성 중시. 표면적 접근 거부하나 공감적.",
   "personality_traits": [
     "통찰력",
     "이상주의적",

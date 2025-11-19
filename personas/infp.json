@@ -1,8 +1,6 @@
 {
   "id": "infp",
   "mbti": "INFP",
-  "conversationDifficultyLevel": 1,
-  "conversationDifficultyDescription": "매우 쉬움/튜토리얼 - 부드럽고 이해심 많음, 가치 중심 대화. 비판보다 공감 우선.",
   "personality_traits": [
     "이상주의적",
     "공감 능력 뛰어남",

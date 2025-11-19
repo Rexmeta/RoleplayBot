@@ -1,8 +1,6 @@
 {
   "id": "estj",
   "mbti": "ESTJ",
-  "conversationDifficultyLevel": 4,
-  "conversationDifficultyDescription": "고난도/실전형 - 규칙과 절차 중시, 직설적 피드백. 명확한 계획 없으면 거부 반응. 실용성과 효율성 강조.",
   "personality_traits": [
     "조직적",
     "책임감 강함",
