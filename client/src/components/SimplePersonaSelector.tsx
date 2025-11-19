@@ -1,7 +1,7 @@
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { CheckCircle2, Users, MessageCircle, Target, Clock, BarChart, Lightbulb, AlertCircle, TrendingUp, ArrowLeft } from "lucide-react";
+import { CheckCircle2, Users, MessageCircle, Target, Clock, BarChart, Lightbulb, AlertCircle, TrendingUp, ArrowLeft, Loader2 } from "lucide-react";
 import { type ScenarioPersona, type ComplexScenario } from "@/lib/scenario-system";
 
 interface SimplePersonaSelectorProps {
@@ -12,6 +12,8 @@ interface SimplePersonaSelectorProps {
   scenarioSituation?: string;
   scenario?: ComplexScenario;
   onBack?: () => void;
+  isLoading?: boolean;
+  loadingPersonaId?: string | null;
 }
 
 export function SimplePersonaSelector({
@@ -21,7 +23,9 @@ export function SimplePersonaSelector({
   scenarioTitle,
   scenarioSituation,
   scenario,
-  onBack
+  onBack,
+  isLoading = false,
+  loadingPersonaId = null
 }: SimplePersonaSelectorProps) {
   const availablePersonas = personas.filter(p => !completedPersonaIds.includes(p.id));
   const completedCount = completedPersonaIds.length;
@@ -218,7 +222,8 @@ export function SimplePersonaSelector({
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {personas.map((persona) => {
           const isCompleted = completedPersonaIds.includes(persona.id);
-          const isAvailable = !isCompleted;
+          const isCurrentlyLoading = loadingPersonaId === persona.id;
+          const isAvailable = !isCompleted && !isLoading;
 
           return (
             <Card 
@@ -226,9 +231,11 @@ export function SimplePersonaSelector({
               className={`relative transition-all ${
                 isCompleted 
                   ? 'border-green-300 bg-green-50 opacity-60' 
+                  : isCurrentlyLoading
+                  ? 'border-blue-400 bg-blue-50 shadow-lg'
                   : 'border-blue-200 hover:border-blue-400 hover:shadow-lg cursor-pointer'
-              }`}
-              onClick={() => isAvailable && onPersonaSelect(persona)}
+              } ${isLoading && !isCurrentlyLoading ? 'opacity-50 pointer-events-none' : ''}`}
+              onClick={() => isAvailable && !isCurrentlyLoading && onPersonaSelect(persona)}
               data-testid={`persona-card-${persona.id}`}
             >
               <CardContent className="p-6">
@@ -300,9 +307,17 @@ export function SimplePersonaSelector({
                     <Button 
                       className="w-full"
                       variant="default"
+                      disabled={isLoading}
                       data-testid={`select-persona-${persona.id}`}
                     >
-                      대화 시작하기
+                      {isCurrentlyLoading ? (
+                        <>
+                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                          대화 준비 중...
+                        </>
+                      ) : (
+                        '대화 시작하기'
+                      )}
                     </Button>
                   )}
                 </div>

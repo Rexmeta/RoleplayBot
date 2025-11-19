@@ -25,6 +25,8 @@ export default function Home() {
   const [conversationIds, setConversationIds] = useState<string[]>([]); // 모든 대화 ID 저장
   const [strategyReflectionSubmitted, setStrategyReflectionSubmitted] = useState(false); // 전략 회고 제출 여부 추적
   const [submittedStrategyReflection, setSubmittedStrategyReflection] = useState<string>(''); // 제출한 전략 회고 내용
+  const [isCreatingConversation, setIsCreatingConversation] = useState(false); // 대화 생성 중 상태
+  const [loadingPersonaId, setLoadingPersonaId] = useState<string | null>(null); // 로딩 중인 페르소나 ID
 
   // 동적으로 시나리오와 페르소나 데이터 로드
   const { data: scenarios = [] } = useQuery({
@@ -81,7 +83,10 @@ export default function Home() {
 
   // 페르소나 선택 처리
   const handlePersonaSelect = async (persona: ScenarioPersona) => {
-    if (!selectedScenario) return;
+    if (!selectedScenario || isCreatingConversation) return;
+    
+    setIsCreatingConversation(true);
+    setLoadingPersonaId(persona.id);
     
     try {
       console.log(`🕐 CLIENT CODE TIMESTAMP: ${Date.now()} - UPDATED VERSION`);
@@ -110,6 +115,9 @@ export default function Home() {
       setCurrentView("chat");
     } catch (error) {
       console.error("대화 생성 실패:", error);
+    } finally {
+      setIsCreatingConversation(false);
+      setLoadingPersonaId(null);
     }
   };
 
@@ -325,6 +333,8 @@ export default function Home() {
             scenarioSituation={selectedScenario.description}
             scenario={selectedScenario}
             onBack={handleBackToScenarios}
+            isLoading={isCreatingConversation}
+            loadingPersonaId={loadingPersonaId}
           />
         )}
 
