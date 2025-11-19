@@ -300,7 +300,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Delete conversation by ID
+  // Delete conversation by ID (시나리오 세션 단위 삭제)
   app.delete("/api/conversations/:id", isAuthenticated, async (req, res) => {
     try {
       // @ts-ignore - req.user는 auth 미들웨어에서 설정됨
@@ -311,7 +311,50 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(result.status).json({ error: result.error });
       }
       
+      const sessionConversation = result.conversation;
+      const conversationOrder = sessionConversation.conversationOrder || [];
+      
+      // conversationOrder가 있는 경우, 연관된 모든 페르소나 대화도 삭제
+      if (conversationOrder.length > 0) {
+        console.log(`시나리오 세션 삭제: ${req.params.id}, 연관 페르소나 대화: ${conversationOrder.length}개`);
+        
+        // 세션 시간 범위 계산
+        const sessionTime = new Date(sessionConversation.createdAt).getTime();
+        const allConversations = await storage.getUserConversations(userId);
+        
+        // 같은 시나리오의 모든 완료된 세션을 시간순으로 정렬
+        const sameScenarioSessions = allConversations
+          .filter(c => c.scenarioId === sessionConversation.scenarioId && c.status === 'completed')
+          .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+        
+        const currentSessionIndex = sameScenarioSessions.findIndex(c => c.id === req.params.id);
+        const previousSessionTime = currentSessionIndex > 0
+          ? new Date(sameScenarioSessions[currentSessionIndex - 1].createdAt).getTime()
+          : 0;
+        
+        // conversationOrder에 있는 페르소나 대화들 찾아서 삭제
+        for (const personaId of conversationOrder) {
+          const personaConversation = allConversations.find(c => {
+            const convTime = new Date(c.createdAt).getTime();
+            return c.scenarioId === sessionConversation.scenarioId &&
+              c.personaId === personaId &&
+              c.status === 'completed' &&
+              convTime > previousSessionTime &&
+              convTime <= sessionTime;
+          });
+          
+          if (personaConversation) {
+            console.log(`  - 페르소나 대화 삭제: ${personaConversation.id} (${personaId})`);
+            await storage.deleteConversation(personaConversation.id);
+          }
+        }
+      } else {
+        console.log(`단일 페르소나 대화 삭제: ${req.params.id}`);
+      }
+      
+      // 세션 대화 자체 삭제
       await storage.deleteConversation(req.params.id);
+      
       res.json({ success: true, message: "대화가 삭제되었습니다." });
     } catch (error) {
       console.error("대화 삭제 오류:", error);
