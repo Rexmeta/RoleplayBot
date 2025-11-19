@@ -108,9 +108,9 @@ export default function MyPage() {
     [conversations]
   );
 
-  // ⚡ 성능 최적화: 완료된 시나리오 세션(전략 회고가 있는 대화)만 필터링하고 시간순 정렬
+  // ⚡ 성능 최적화: 완료된 대화만 필터링하고 시간순 정렬 (전략 회고 여부와 무관)
   const completedScenarioSessions = useMemo(() => 
-    sortedConversations.filter(c => c.strategyReflection && c.status === 'completed'),
+    sortedConversations.filter(c => c.status === 'completed'),
     [sortedConversations]
   );
 
@@ -197,6 +197,20 @@ export default function MyPage() {
     if (!scenario) return [];
     
     const conversationOrder = (sessionConversation as any).conversationOrder || [];
+    
+    // conversationOrder가 없는 경우 (단일 페르소나 대화), 현재 대화의 페르소나만 반환
+    if (conversationOrder.length === 0) {
+      const persona = scenario.personas?.find((p: any) => p.id === sessionConversation.personaId);
+      if (!persona) return [];
+      
+      const feedback = feedbacksMap.get(sessionConversation.id);
+      return [{
+        persona,
+        conversation: sessionConversation,
+        score: feedback?.overallScore || null,
+      }];
+    }
+    
     const sessionTime = new Date(sessionConversation.createdAt).getTime();
     
     // 같은 시나리오의 모든 완료된 세션을 시간순으로 정렬
@@ -339,9 +353,7 @@ export default function MyPage() {
           {/* 대화 기록 탭 */}
           <TabsContent value="history" className="space-y-6">
             <Card>
-              <CardHeader>
-              </CardHeader>
-              <CardContent>
+              <CardContent className="pt-6">
                 {completedScenarioSessions.length === 0 ? (
                   <div className="text-center py-8">
                     <div className="text-slate-600">아직 완료한 대화 기록이 없습니다.</div>
