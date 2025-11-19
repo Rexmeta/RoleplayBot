@@ -4,9 +4,9 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
-import { CalendarDays, Star, TrendingUp, MessageSquare, Award, History, BarChart3, Trash2, Loader2, ChevronDown, CheckCircle2, Users } from "lucide-react";
+import { CalendarDays, Star, TrendingUp, MessageSquare, Award, History, BarChart3, Users, Target, Trash2, Loader2 } from "lucide-react";
 import { Link } from "wouter";
 import { useAuth } from "@/hooks/useAuth";
 import { type Conversation, type Feedback, type User } from "@shared/schema";
@@ -100,6 +100,43 @@ export default function MyPage() {
     return `${scenario.title} - ${personaInfo}${mbtiInfo}`;
   };
 
+  // ⚡ 성능 최적화: 대화 리스트를 최근 날짜 순으로 정렬 (메모이제이션)
+  const sortedConversations = useMemo(() => 
+    [...conversations].sort((a, b) => 
+      new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+    ),
+    [conversations]
+  );
+
+  // ⚡ 성능 최적화: 시나리오별로 대화 그룹화 (메모이제이션)
+  const conversationsByScenario = useMemo(() => 
+    sortedConversations.reduce((acc, conversation) => {
+      const scenarioId = conversation.scenarioId;
+      if (!acc[scenarioId]) {
+        acc[scenarioId] = [];
+      }
+      acc[scenarioId].push(conversation);
+      return acc;
+    }, {} as Record<string, typeof sortedConversations>),
+    [sortedConversations]
+  );
+  
+  // ⚡ 성능 최적화: 각 시나리오의 최근 대화 시간을 기준으로 시나리오 정렬 (메모이제이션)
+  const sortedScenarioIds = useMemo(() => 
+    Object.keys(conversationsByScenario).sort((scenarioIdA, scenarioIdB) => {
+      const conversationsA = conversationsByScenario[scenarioIdA];
+      const conversationsB = conversationsByScenario[scenarioIdB];
+      
+      // 각 시나리오 그룹에서 가장 최근 대화 찾기
+      const latestA = Math.max(...conversationsA.map(c => new Date(c.createdAt).getTime()));
+      const latestB = Math.max(...conversationsB.map(c => new Date(c.createdAt).getTime()));
+      
+      // 최근 대화가 있는 시나리오를 먼저 표시
+      return latestB - latestA;
+    }),
+    [conversationsByScenario]
+  );
+
   // 날짜 문자열 생성 함수 (YYYY-MM-DD 형식)
   const getDateKey = (date: Date | string) => {
     const d = new Date(date);
@@ -111,88 +148,6 @@ export default function MyPage() {
     const [year, month, day] = dateKey.split('-');
     return `${year}년 ${month}월 ${day}일`;
   };
-
-  // ⚡ 성능 최적화: 대화 리스트를 최근 날짜 순으로 정렬 (메모이제이션)
-  const sortedConversations = useMemo(() => 
-    [...conversations].sort((a, b) => 
-      new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-    ),
-    [conversations]
-  );
-
-  // ⚡ 새로운 구조: 시나리오 시도별로 그룹화 (시나리오 ID + 날짜)
-  interface ScenarioAttempt {
-    scenarioId: string;
-    dateKey: string;
-    conversations: Conversation[];
-    attemptNumber: number;
-    isCompleted: boolean;
-    strategyReflection?: string | null;
-    conversationOrder?: string[] | null;
-    createdAt: Date; // 정렬용 (가장 최근 대화 시간)
-  }
-
-  const scenarioAttempts = useMemo(() => {
-    // 1단계: 시나리오 + 날짜 조합으로 그룹화
-    const attemptGroups: Record<string, Conversation[]> = {};
-    
-    sortedConversations.forEach(conversation => {
-      const dateKey = getDateKey(conversation.createdAt);
-      const attemptKey = `${conversation.scenarioId}::${dateKey}`;
-      
-      if (!attemptGroups[attemptKey]) {
-        attemptGroups[attemptKey] = [];
-      }
-      attemptGroups[attemptKey].push(conversation);
-    });
-
-    // 2단계: ScenarioAttempt 객체로 변환
-    const attempts: ScenarioAttempt[] = Object.entries(attemptGroups).map(([attemptKey, convs]) => {
-      const [scenarioId, dateKey] = attemptKey.split('::');
-      const scenario = scenariosMap.get(scenarioId);
-      
-      // 완료 여부: 모든 페르소나와 대화 완료 확인
-      const completedPersonaIds = new Set(
-        convs.filter(c => c.status === 'completed').map(c => c.personaId)
-      );
-      const isCompleted = scenario?.personas 
-        ? completedPersonaIds.size === scenario.personas.length
-        : false;
-      
-      // 전략 회고 찾기
-      const strategyConv = convs.find(c => c.strategyReflection);
-      
-      // 정렬용 최근 대화 시간
-      const latestTime = Math.max(...convs.map(c => new Date(c.createdAt).getTime()));
-      
-      return {
-        scenarioId,
-        dateKey,
-        conversations: convs,
-        attemptNumber: 0, // 3단계에서 계산
-        isCompleted,
-        strategyReflection: strategyConv?.strategyReflection,
-        conversationOrder: strategyConv?.conversationOrder,
-        createdAt: new Date(latestTime),
-      };
-    });
-
-    // 3단계: 같은 시나리오의 시도 횟수 계산
-    const scenarioAttemptCounts: Record<string, number> = {};
-    
-    attempts
-      .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime()) // 오래된 순으로 정렬
-      .forEach(attempt => {
-        if (!scenarioAttemptCounts[attempt.scenarioId]) {
-          scenarioAttemptCounts[attempt.scenarioId] = 0;
-        }
-        scenarioAttemptCounts[attempt.scenarioId]++;
-        attempt.attemptNumber = scenarioAttemptCounts[attempt.scenarioId];
-      });
-
-    // 4단계: 최근 순으로 정렬
-    return attempts.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
-  }, [sortedConversations, scenariosMap]);
 
   // 대화 삭제 mutation
   const deleteMutation = useMutation({
@@ -230,6 +185,18 @@ export default function MyPage() {
     }
   };
 
+  // 시나리오별 대화를 날짜별로 다시 그룹화
+  const groupConversationsByDate = (conversations: typeof sortedConversations) => {
+    return conversations.reduce((acc, conversation) => {
+      const dateKey = getDateKey(conversation.createdAt);
+      if (!acc[dateKey]) {
+        acc[dateKey] = [];
+      }
+      acc[dateKey].push(conversation);
+      return acc;
+    }, {} as Record<string, typeof sortedConversations>);
+  };
+
   // 시나리오 정보 가져오기
   const getScenarioInfo = (scenarioId: string) => {
     const scenario = scenariosMap.get(scenarioId); // ⚡ O(1) 조회
@@ -237,6 +204,19 @@ export default function MyPage() {
       title: scenario?.title || scenarioId,
       difficulty: scenario?.difficulty || 1,
     };
+  };
+
+  // 시나리오의 모든 페르소나와의 대화가 완료되었는지 확인
+  const isScenarioFullyCompleted = (scenarioId: string) => {
+    const scenario = scenariosMap.get(scenarioId); // ⚡ O(1) 조회
+    if (!scenario || !scenario.personas) return false;
+    
+    const scenarioConversations = conversationsByScenario[scenarioId] || [];
+    const completedPersonaIds = scenarioConversations
+      .filter(c => c.status === 'completed')
+      .map(c => c.personaId);
+    
+    return scenario.personas.length === completedPersonaIds.length;
   };
 
   // ⚡ 통합 로딩 상태
@@ -337,11 +317,17 @@ export default function MyPage() {
           </TabsList>
 
           {/* 대화 기록 탭 */}
-          <TabsContent value="history" className="space-y-4">
-            {conversations.length === 0 ? (
-              <Card>
-                <CardContent className="py-12">
-                  <div className="text-center">
+          <TabsContent value="history" className="space-y-6">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <MessageSquare className="w-5 h-5" />
+                  시나리오별 대화 기록
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {conversations.length === 0 ? (
+                  <div className="text-center py-8">
                     <div className="text-slate-600">아직 대화 기록이 없습니다.</div>
                     <Button 
                       onClick={() => window.location.href = '/home'}
@@ -351,96 +337,295 @@ export default function MyPage() {
                       첫 대화 시작하기
                     </Button>
                   </div>
-                </CardContent>
-              </Card>
-            ) : (
-              scenarioAttempts.map((attempt) => {
-                const scenario = scenariosMap.get(attempt.scenarioId);
-                const personas = attempt.conversations
-                  .filter((c) => c.status === 'completed')
-                  .map((conversation) => {
-                    const persona = (conversation as any).personaSnapshot 
-                      || scenario?.personas?.find((p: any) => p.id === conversation.personaId);
-                    const feedback = feedbacksMap.get(conversation.id);
-                    return { conversation, persona, feedback };
-                  });
-
-                return (
-                  <Card key={`${attempt.scenarioId}-${attempt.dateKey}`} data-testid={`card-attempt-${attempt.scenarioId}-${attempt.dateKey}`}>
-                    <CardHeader className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                      <div className="flex flex-col">
-                        <span className="text-sm text-slate-500" data-testid="text-attempt-date">
-                          {format(new Date(attempt.createdAt), "yyyy년 MM월 dd일 HH:mm")}
-                        </span>
-                        <CardTitle className="flex items-center gap-2 flex-wrap" data-testid="text-scenario-title">
-                          {scenario?.title ?? attempt.scenarioId}
-                          <Badge variant="outline">#{attempt.attemptNumber}회 시도</Badge>
-                          {attempt.isCompleted && <Badge className="bg-green-600">완료</Badge>}
-                        </CardTitle>
-                      </div>
-                    </CardHeader>
-                    <CardContent className="space-y-4">
-                      {attempt.strategyReflection && (
-                        <Collapsible>
-                          <CollapsibleTrigger className="flex items-center gap-2 text-sm font-medium hover:text-blue-600" data-testid="button-strategy-toggle">
-                            <ChevronDown className="h-4 w-4" /> 전략 회고 보기
-                          </CollapsibleTrigger>
-                          <CollapsibleContent className="mt-3 rounded-lg bg-slate-50 p-4 text-sm text-slate-700" data-testid="text-strategy-reflection">
-                            {attempt.strategyReflection}
-                          </CollapsibleContent>
-                        </Collapsible>
-                      )}
-
-                      <div>
-                        <h4 className="text-sm font-semibold text-slate-700 mb-3" data-testid="text-persona-section">대화한 페르소나들</h4>
-                        <div className="space-y-2">
-                          {personas.map(({ conversation, persona, feedback }) => (
-                            <div key={conversation.id} className="flex flex-col gap-2 rounded-lg border p-3 sm:flex-row sm:items-center sm:justify-between" data-testid={`row-persona-${conversation.id}`}>
-                              <div className="flex items-center gap-2 text-sm flex-wrap">
-                                <CheckCircle2 className="h-4 w-4 text-emerald-500" />
-                                <span data-testid={`text-persona-name-${conversation.id}`} className="font-medium">
-                                  {persona?.department && <span className="text-slate-600 font-normal">{persona.department} </span>}
-                                  {persona?.name ?? '미상'}
-                                  {(persona?.position || persona?.role) && <span className="text-slate-600 font-normal"> {persona?.position || persona?.role}</span>}
-                                </span>
-                                {persona?.mbti && (
-                                  <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
-                                    {persona.mbti}
-                                  </Badge>
-                                )}
-                                {feedback && (
-                                  <>
-                                    <Badge variant="secondary" data-testid={`badge-score-${conversation.id}`}>
-                                      {feedback.overallScore}점
-                                    </Badge>
-                                    <Badge variant="outline">
-                                      {getScoreBadge(feedback.overallScore)}
-                                    </Badge>
-                                  </>
+                ) : (
+                  <Accordion type="multiple" className="w-full">
+                    {sortedScenarioIds.map((scenarioId) => {
+                      const scenarioConversations = conversationsByScenario[scenarioId];
+                      const scenarioInfo = getScenarioInfo(scenarioId);
+                      const scenario = scenariosMap.get(scenarioId); // ⚡ O(1) 조회
+                      const completedCount = scenarioConversations.filter(c => c.status === 'completed').length;
+                      const totalPersonas = scenario?.personas?.length || 0;
+                      const isFullyCompleted = isScenarioFullyCompleted(scenarioId);
+                      
+                      return (
+                        <AccordionItem key={scenarioId} value={scenarioId} data-testid={`scenario-${scenarioId}`}>
+                          <AccordionTrigger className="hover:no-underline">
+                            <div className="flex items-center justify-between w-full pr-4">
+                              <div className="flex items-center gap-3">
+                                <Users className="w-5 h-5 text-blue-600" />
+                                <h3 className="font-semibold text-slate-900 text-left">{scenarioInfo.title}</h3>
+                                <Badge variant="outline">난이도 {scenarioInfo.difficulty}</Badge>
+                                {isFullyCompleted && (
+                                  <Badge className="bg-green-600">완료</Badge>
                                 )}
                               </div>
-                              <div className="flex gap-2">
-                                <Button size="sm" variant="outline" onClick={() => window.location.href = `/chat/${conversation.id}`} data-testid={`button-view-conversation-${conversation.id}`}>
-                                  대화 보기
-                                </Button>
-                                {feedback && (
-                                  <Button size="sm" onClick={() => window.location.href = `/feedback/${conversation.id}`} data-testid={`button-view-feedback-${conversation.id}`}>
-                                    피드백 보기
-                                  </Button>
-                                )}
-                                <Button size="sm" variant="outline" className="text-red-600 hover:text-red-700 hover:bg-red-50" onClick={() => handleDeleteClick(conversation.id)} data-testid={`button-delete-${conversation.id}`}>
-                                  <Trash2 className="h-4 w-4" />
-                                </Button>
+                              <div className="text-sm text-slate-600">
+                                {completedCount}/{totalPersonas} 대화 완료
                               </div>
                             </div>
-                          ))}
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                );
-              })
-            )}
+                          </AccordionTrigger>
+                          <AccordionContent>
+                            <div className="space-y-3 pt-3">
+                              {/* 전략 회고 결과 표시 (제출된 경우) */}
+                              {isFullyCompleted && (() => {
+                                // 이 시나리오의 대화 중 전략 회고가 있는지 확인
+                                const conversationWithStrategy = scenarioConversations.find(c => c.strategyReflection);
+                                
+                                // 전략 회고가 없는 경우 평가 버튼 표시
+                                if (!conversationWithStrategy || !conversationWithStrategy.strategyReflection) {
+                                  return (
+                                    <div className="bg-gradient-to-r from-purple-50 to-indigo-50 border border-purple-200 rounded-lg p-4 mb-4">
+                                      <div className="flex items-center justify-between">
+                                        <div className="flex items-center gap-3">
+                                          <Target className="w-5 h-5 text-purple-600" />
+                                          <div>
+                                            <h4 className="font-semibold text-slate-900">대화 순서 전략 평가</h4>
+                                            <p className="text-sm text-slate-600">모든 대화를 완료했습니다. 전략적 선택을 분석해보세요.</p>
+                                          </div>
+                                        </div>
+                                        <Button 
+                                          variant="default"
+                                          className="bg-purple-600 hover:bg-purple-700"
+                                          data-testid={`strategy-analysis-${scenarioId}`}
+                                          onClick={() => window.location.href = `/strategy/${scenarioId}`}
+                                        >
+                                          전략 평가 보기
+                                        </Button>
+                                      </div>
+                                    </div>
+                                  );
+                                }
+                                
+                                return null; // 전략 회고는 날짜별 섹션에서 표시
+                              })()}
+                              
+                              {/* 날짜별 대화 상대 리스트 */}
+                              {(() => {
+                                const conversationsByDate = groupConversationsByDate(scenarioConversations);
+                                const sortedDates = Object.keys(conversationsByDate).sort((a, b) => 
+                                  new Date(b).getTime() - new Date(a).getTime()
+                                );
+                                
+                                // 전략 회고가 있는 대화 찾기
+                                const conversationWithStrategy = scenarioConversations.find(c => c.strategyReflection);
+                                const strategyDate = conversationWithStrategy ? getDateKey(conversationWithStrategy.createdAt) : null;
+                                
+                                return sortedDates.map((dateKey) => {
+                                  const dateConversations = conversationsByDate[dateKey];
+                                  
+                                  return (
+                                    <div key={dateKey} className="space-y-3">
+                                      {/* 날짜 헤더 */}
+                                      <div className="flex items-center gap-2 mt-4 mb-2">
+                                        <CalendarDays className="w-4 h-4 text-slate-500" />
+                                        <h5 className="text-sm font-semibold text-slate-700">
+                                          {getDateLabel(dateKey)}
+                                        </h5>
+                                        <div className="flex-1 h-px bg-slate-200"></div>
+                                      </div>
+                                      
+                                      {/* 이 날짜에 전략 회고가 제출되었다면 표시 */}
+                                      {strategyDate === dateKey && conversationWithStrategy && conversationWithStrategy.strategyReflection && (() => {
+                                        // 대화 순서 표시를 위한 페르소나 배열 생성
+                                        const orderedPersonas = (conversationWithStrategy.conversationOrder || [])
+                                          .map(personaId => scenario?.personas?.find((p: any) => p.id === personaId))
+                                          .filter(p => p !== undefined);
+                                        
+                                        return (
+                                          <div className="bg-gradient-to-r from-green-50 to-emerald-50 border border-green-200 rounded-lg p-5 mb-4 ml-6">
+                                            <div className="space-y-4">
+                                              <div className="flex items-center gap-3">
+                                                <div className="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center">
+                                                  <svg className="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                                                  </svg>
+                                                </div>
+                                                <div className="flex-1">
+                                                  <h4 className="font-semibold text-slate-900">전략 회고 제출 완료</h4>
+                                                  <p className="text-sm text-slate-600">
+                                                    {format(new Date(conversationWithStrategy.createdAt), 'HH:mm')}에 제출됨
+                                                  </p>
+                                                </div>
+                                              </div>
+                                              
+                                              {/* 대화 순서 표시 */}
+                                              {orderedPersonas.length > 0 && (
+                                                <div className="bg-white rounded-lg p-4 space-y-2">
+                                                  <h5 className="text-sm font-semibold text-slate-700 mb-3">대화 순서</h5>
+                                                  <div className="flex items-center gap-2 flex-wrap">
+                                                    {orderedPersonas.map((persona: any, index: number) => (
+                                                      <div key={persona.id} className="flex items-center gap-2">
+                                                        <div className="flex items-center gap-2 px-3 py-1.5 bg-blue-50 rounded-lg border border-blue-200">
+                                                          <span className="text-xs font-bold text-blue-600">{index + 1}</span>
+                                                          <span className="text-sm text-slate-700">{persona.name}</span>
+                                                        </div>
+                                                        {index < orderedPersonas.length - 1 && (
+                                                          <svg className="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                                                          </svg>
+                                                        )}
+                                                      </div>
+                                                    ))}
+                                                  </div>
+                                                </div>
+                                              )}
+                                              
+                                              {/* 전략 회고 내용 */}
+                                              <div className="bg-white rounded-lg p-4">
+                                                <h5 className="text-sm font-semibold text-slate-700 mb-2">전략 회고</h5>
+                                                <p className="text-sm text-slate-600 whitespace-pre-wrap leading-relaxed">
+                                                  {conversationWithStrategy.strategyReflection}
+                                                </p>
+                                              </div>
+                                            </div>
+                                          </div>
+                                        );
+                                      })()}
+                                      
+                                      {/* 해당 날짜의 대화 상대들 - 완료된 대화만 표시 */}
+                                      {dateConversations
+                                        .filter((c: Conversation) => c.status === 'completed')
+                                        .map((conversation: Conversation) => {
+                                        const scenario = scenariosMap.get(conversation.scenarioId); // ⚡ O(1) 조회
+                                        // 1순위: 대화 생성 시점의 페르소나 스냅샷, 2순위: 현재 시나리오에서 찾기 (하위 호환성)
+                                        const persona = (conversation as any).personaSnapshot 
+                                          || scenario?.personas?.find((p: any) => p.id === conversation.personaId);
+                                        const relatedFeedback = feedbacksMap.get(conversation.id); // ⚡ O(1) 조회
+                                        
+                                        // 같은 페르소나와의 시도 번호 계산 (같은 날짜 내에서)
+                                        const samePersonaConversations = dateConversations
+                                          .filter((c: Conversation) => 
+                                            c.personaId === conversation.personaId && 
+                                            c.status === 'completed'
+                                          )
+                                          .sort((a, b) => 
+                                            new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+                                          );
+                                        
+                                        const attemptNumber = samePersonaConversations.findIndex(
+                                          c => c.id === conversation.id
+                                        ) + 1;
+                                        const hasMultipleAttempts = samePersonaConversations.length > 1;
+                                        
+                                        return (
+                                          <div 
+                                            key={conversation.id}
+                                            className="border rounded-lg p-4 bg-white hover:bg-slate-50 transition-colors ml-6"
+                                            data-testid={`conversation-${conversation.id}`}
+                                          >
+                                            <div className="flex items-center justify-between mb-3">
+                                              <div className="flex items-center gap-2 flex-wrap">
+                                                {/* 부서 (텍스트) + 이름 + 직급/직위 (텍스트) */}
+                                                <h4 className="font-semibold text-slate-900 text-base">
+                                                  {persona?.department && <span className="text-slate-600 font-normal">{persona.department} </span>}
+                                                  {persona?.name || '알 수 없음'}
+                                                  {(persona?.position || persona?.role) && <span className="text-slate-600 font-normal"> {persona?.position || persona?.role}</span>}
+                                                </h4>
+                                                
+                                                {/* MBTI (뱃지) */}
+                                                {persona?.mbti && (
+                                                  <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
+                                                    {persona.mbti}
+                                                  </Badge>
+                                                )}
+                                                
+                                                {/* 경력 (뱃지) */}
+                                                {persona?.experience && (
+                                                  <Badge variant="outline" className="bg-orange-50 text-orange-700 border-orange-200">
+                                                    {persona.experience}
+                                                  </Badge>
+                                                )}
+                                                
+                                                {/* 상태 뱃지 */}
+                                                <Badge variant={conversation.status === 'completed' ? 'default' : 'secondary'}>
+                                                  {conversation.status === 'completed' ? '완료' : '진행중'}
+                                                </Badge>
+                                                
+                                                {/* 시도 번호 뱃지 (같은 페르소나와 여러 번 대화한 경우만) */}
+                                                {hasMultipleAttempts && (
+                                                  <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">
+                                                    #{attemptNumber}회 시도
+                                                  </Badge>
+                                                )}
+                                              </div>
+                                              <div className="flex items-center gap-2 text-sm text-slate-600">
+                                                {format(new Date(conversation.createdAt), 'HH:mm')}
+                                              </div>
+                                            </div>
+                                            
+                                            <div className="flex items-center justify-between">
+                                              <div className="flex items-center gap-4 text-sm">
+                                                {conversation.status === 'completed' && relatedFeedback && (
+                                                  <div className="flex items-center gap-1">
+                                                    <Star className="w-4 h-4 text-yellow-500" />
+                                                    <span className={`font-medium ${getScoreColor(relatedFeedback.overallScore)}`}>
+                                                      {relatedFeedback.overallScore}점
+                                                    </span>
+                                                    <Badge variant="outline" className="ml-1">
+                                                      {getScoreBadge(relatedFeedback.overallScore)}
+                                                    </Badge>
+                                                  </div>
+                                                )}
+                                                <div className="text-slate-600">
+                                                  메시지 {conversation.messages.length}개
+                                                </div>
+                                              </div>
+                                              
+                                              <div className="flex gap-2">
+                                                <Button
+                                                  variant="outline"
+                                                  size="sm"
+                                                  onClick={() => window.location.href = `/chat/${conversation.id}`}
+                                                  data-testid={`view-conversation-${conversation.id}`}
+                                                >
+                                                  대화 보기
+                                                </Button>
+                                                {conversation.status === 'completed' ? (
+                                                  <Button
+                                                    variant="default"
+                                                    size="sm"
+                                                    onClick={() => window.location.href = `/feedback/${conversation.id}`}
+                                                    data-testid={`view-feedback-${conversation.id}`}
+                                                  >
+                                                    피드백 보기
+                                                  </Button>
+                                                ) : (
+                                                  <Button
+                                                    variant="default"
+                                                    size="sm"
+                                                    onClick={() => window.location.href = `/chat/${conversation.id}`}
+                                                    data-testid={`continue-conversation-${conversation.id}`}
+                                                  >
+                                                    대화 이어하기
+                                                  </Button>
+                                                )}
+                                                <Button
+                                                  variant="outline"
+                                                  size="sm"
+                                                  onClick={() => handleDeleteClick(conversation.id)}
+                                                  data-testid={`delete-conversation-${conversation.id}`}
+                                                  className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                                                >
+                                                  <Trash2 className="w-4 h-4" />
+                                                </Button>
+                                              </div>
+                                            </div>
+                                          </div>
+                                        );
+                                      })}
+                                    </div>
+                                  );
+                                });
+                              })()}
+                            </div>
+                          </AccordionContent>
+                        </AccordionItem>
+                      );
+                    })}
+                  </Accordion>
+                )}
+              </CardContent>
+            </Card>
           </TabsContent>
 
           {/* 학습 통계 탭 */}
