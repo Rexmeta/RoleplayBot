@@ -482,13 +482,30 @@ export default function MyPage() {
                                         );
                                       })()}
                                       
-                                      {/* 해당 날짜의 대화 상대들 */}
-                                      {dateConversations.map((conversation: Conversation) => {
+                                      {/* 해당 날짜의 대화 상대들 - 완료된 대화만 표시 */}
+                                      {dateConversations
+                                        .filter((c: Conversation) => c.status === 'completed')
+                                        .map((conversation: Conversation) => {
                                         const scenario = scenariosMap.get(conversation.scenarioId); // ⚡ O(1) 조회
                                         // 1순위: 대화 생성 시점의 페르소나 스냅샷, 2순위: 현재 시나리오에서 찾기 (하위 호환성)
                                         const persona = (conversation as any).personaSnapshot 
                                           || scenario?.personas?.find((p: any) => p.id === conversation.personaId);
                                         const relatedFeedback = feedbacksMap.get(conversation.id); // ⚡ O(1) 조회
+                                        
+                                        // 같은 페르소나와의 시도 번호 계산 (같은 날짜 내에서)
+                                        const samePersonaConversations = dateConversations
+                                          .filter((c: Conversation) => 
+                                            c.personaId === conversation.personaId && 
+                                            c.status === 'completed'
+                                          )
+                                          .sort((a, b) => 
+                                            new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+                                          );
+                                        
+                                        const attemptNumber = samePersonaConversations.findIndex(
+                                          c => c.id === conversation.id
+                                        ) + 1;
+                                        const hasMultipleAttempts = samePersonaConversations.length > 1;
                                         
                                         return (
                                           <div 
@@ -523,6 +540,13 @@ export default function MyPage() {
                                                 <Badge variant={conversation.status === 'completed' ? 'default' : 'secondary'}>
                                                   {conversation.status === 'completed' ? '완료' : '진행중'}
                                                 </Badge>
+                                                
+                                                {/* 시도 번호 뱃지 (같은 페르소나와 여러 번 대화한 경우만) */}
+                                                {hasMultipleAttempts && (
+                                                  <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">
+                                                    #{attemptNumber}회 시도
+                                                  </Badge>
+                                                )}
                                               </div>
                                               <div className="flex items-center gap-2 text-sm text-slate-600">
                                                 {format(new Date(conversation.createdAt), 'HH:mm')}
