@@ -4,9 +4,9 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
-import { CalendarDays, Star, TrendingUp, MessageSquare, Award, History, BarChart3, Users, Target, Trash2, Loader2 } from "lucide-react";
+import { CalendarDays, Star, TrendingUp, MessageSquare, Award, History, BarChart3, Trash2, Loader2, ChevronDown, CheckCircle2 } from "lucide-react";
 import { Link } from "wouter";
 import { useAuth } from "@/hooks/useAuth";
 import { type Conversation, type Feedback, type User } from "@shared/schema";
@@ -100,6 +100,18 @@ export default function MyPage() {
     return `${scenario.title} - ${personaInfo}${mbtiInfo}`;
   };
 
+  // 날짜 문자열 생성 함수 (YYYY-MM-DD 형식)
+  const getDateKey = (date: Date | string) => {
+    const d = new Date(date);
+    return format(d, 'yyyy-MM-dd');
+  };
+
+  // 날짜를 한글로 표시 (YYYY년 MM월 DD일)
+  const getDateLabel = (dateKey: string) => {
+    const [year, month, day] = dateKey.split('-');
+    return `${year}년 ${month}월 ${day}일`;
+  };
+
   // ⚡ 성능 최적화: 대화 리스트를 최근 날짜 순으로 정렬 (메모이제이션)
   const sortedConversations = useMemo(() => 
     [...conversations].sort((a, b) => 
@@ -181,18 +193,6 @@ export default function MyPage() {
     // 4단계: 최근 순으로 정렬
     return attempts.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
   }, [sortedConversations, scenariosMap]);
-
-  // 날짜 문자열 생성 함수 (YYYY-MM-DD 형식)
-  const getDateKey = (date: Date | string) => {
-    const d = new Date(date);
-    return format(d, 'yyyy-MM-dd');
-  };
-
-  // 날짜를 한글로 표시 (YYYY년 MM월 DD일)
-  const getDateLabel = (dateKey: string) => {
-    const [year, month, day] = dateKey.split('-');
-    return `${year}년 ${month}월 ${day}일`;
-  };
 
   // 대화 삭제 mutation
   const deleteMutation = useMutation({
