@@ -56,20 +56,28 @@ interface TrendsData {
 export default function AdminDashboard() {
   const { data: overview, isLoading: overviewLoading } = useQuery<AnalyticsOverview>({
     queryKey: ["/api/admin/analytics/overview"],
+    staleTime: 1000 * 60 * 10, // 10분간 캐시 유지 (통계 데이터)
+    gcTime: 1000 * 60 * 30,     // 30분간 메모리 유지
   });
 
   const { data: performance, isLoading: performanceLoading } = useQuery<PerformanceData>({
     queryKey: ["/api/admin/analytics/performance"],
+    staleTime: 1000 * 60 * 10, // 10분간 캐시 유지 (통계 데이터)
+    gcTime: 1000 * 60 * 30,     // 30분간 메모리 유지
   });
 
   const { data: trends, isLoading: trendsLoading } = useQuery<TrendsData>({
     queryKey: ["/api/admin/analytics/trends"],
+    staleTime: 1000 * 60 * 10, // 10분간 캐시 유지 (통계 데이터)
+    gcTime: 1000 * 60 * 30,     // 30분간 메모리 유지
   });
 
   // 현재 시나리오 구조에 맞게 시나리오 데이터 가져오기
   const { data: scenarios = [] } = useQuery({
     queryKey: ['/api/scenarios'],
-    queryFn: () => fetch('/api/scenarios').then(res => res.json())
+    queryFn: () => fetch('/api/scenarios').then(res => res.json()),
+    staleTime: 1000 * 60 * 30, // 30분간 캐시 유지 (시나리오는 자주 변경되지 않음)
+    gcTime: 1000 * 60 * 60,     // 1시간 메모리 유지
   });
 
   if (overviewLoading || performanceLoading || trendsLoading) {

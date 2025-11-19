@@ -31,6 +31,8 @@ type AnalyticsSummary = {
 export default function Analytics() {
   const { data: analytics, isLoading } = useQuery<AnalyticsSummary>({
     queryKey: ['/api/analytics/summary'],
+    staleTime: 1000 * 60 * 10, // 10분간 캐시 유지 (분석 데이터)
+    gcTime: 1000 * 60 * 30,     // 30분간 메모리 유지
   });
 
   if (isLoading) {
