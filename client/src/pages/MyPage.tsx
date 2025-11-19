@@ -197,6 +197,94 @@ export default function MyPage() {
     }, {} as Record<string, typeof sortedConversations>);
   };
 
+  // 세션 타입 정의
+  type Session = {
+    sessionKey: string;           // "날짜_시나리오ID"
+    date: string;                 // "2025-11-19"
+    scenarioId: string;
+    scenarioTitle: string;
+    difficulty: number;
+    startTime: Date;              // 그날 첫 대화 시작 시간
+    attemptNumber: number;        // 1차, 2차, 3차...
+    isCompleted: boolean;         // 모든 대화 완료 여부
+    conversations: Conversation[]; // 이 세션의 모든 대화
+    strategyReflection?: string;
+  };
+
+  // ⚡ 세션 그룹핑: 날짜 + 시나리오로 대화를 세션으로 묶기
+  const sessions = useMemo(() => {
+    // 완료된 대화만 필터링
+    const completedConversations = sortedConversations.filter(c => c.status === 'completed');
+    
+    // 1단계: 세션별로 그룹핑 (날짜_시나리오ID)
+    const sessionMap = new Map<string, Conversation[]>();
+    
+    completedConversations.forEach(conversation => {
+      const dateKey = getDateKey(conversation.createdAt);
+      const sessionKey = `${dateKey}_${conversation.scenarioId}`;
+      
+      if (!sessionMap.has(sessionKey)) {
+        sessionMap.set(sessionKey, []);
+      }
+      sessionMap.get(sessionKey)!.push(conversation);
+    });
+
+    // 2단계: 시나리오별로 세션을 그룹핑하여 시도 차수 계산
+    const scenarioSessions = new Map<string, Session[]>();
+    
+    sessionMap.forEach((conversations, sessionKey) => {
+      const [date, scenarioId] = sessionKey.split('_');
+      const scenario = scenariosMap.get(scenarioId);
+      
+      // 세션의 시작 시간 = 가장 빠른 대화 시간
+      const sortedByTime = [...conversations].sort((a, b) => 
+        new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+      );
+      
+      // 전략 회고가 있는지 확인
+      const conversationWithStrategy = conversations.find(c => c.strategyReflection);
+      
+      const session: Session = {
+        sessionKey,
+        date,
+        scenarioId,
+        scenarioTitle: scenario?.title || scenarioId,
+        difficulty: scenario?.difficulty || 1,
+        startTime: new Date(sortedByTime[0].createdAt),
+        attemptNumber: 0, // 나중에 계산
+        isCompleted: conversations.every(c => c.status === 'completed'),
+        conversations: sortedByTime,
+        strategyReflection: conversationWithStrategy?.strategyReflection || undefined,
+      };
+      
+      if (!scenarioSessions.has(scenarioId)) {
+        scenarioSessions.set(scenarioId, []);
+      }
+      scenarioSessions.get(scenarioId)!.push(session);
+    });
+
+    // 3단계: 각 시나리오 내에서 날짜순으로 정렬하여 시도 차수 부여
+    const allSessions: Session[] = [];
+    
+    scenarioSessions.forEach((sessions, scenarioId) => {
+      // 날짜순 정렬 (오래된 것부터)
+      const sortedSessions = sessions.sort((a, b) => 
+        a.startTime.getTime() - b.startTime.getTime()
+      );
+      
+      // 시도 차수 부여
+      sortedSessions.forEach((session, index) => {
+        session.attemptNumber = index + 1;
+        allSessions.push(session);
+      });
+    });
+
+    // 4단계: 전체 세션을 시간 역순으로 정렬 (최신이 맨 위)
+    return allSessions.sort((a, b) => 
+      b.startTime.getTime() - a.startTime.getTime()
+    );
+  }, [sortedConversations, scenariosMap]);
+
   // 시나리오 정보 가져오기
   const getScenarioInfo = (scenarioId: string) => {
     const scenario = scenariosMap.get(scenarioId); // ⚡ O(1) 조회
@@ -326,9 +414,9 @@ export default function MyPage() {
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                {conversations.length === 0 ? (
+                {sessions.length === 0 ? (
                   <div className="text-center py-8">
-                    <div className="text-slate-600">아직 대화 기록이 없습니다.</div>
+                    <div className="text-slate-600">아직 완료된 대화 기록이 없습니다.</div>
                     <Button 
                       onClick={() => window.location.href = '/home'}
                       className="mt-4"
@@ -338,33 +426,43 @@ export default function MyPage() {
                     </Button>
                   </div>
                 ) : (
-                  <Accordion type="multiple" className="w-full">
-                    {sortedScenarioIds.map((scenarioId) => {
-                      const scenarioConversations = conversationsByScenario[scenarioId];
-                      const scenarioInfo = getScenarioInfo(scenarioId);
-                      const scenario = scenariosMap.get(scenarioId); // ⚡ O(1) 조회
-                      const completedCount = scenarioConversations.filter(c => c.status === 'completed').length;
-                      const totalPersonas = scenario?.personas?.length || 0;
-                      const isFullyCompleted = isScenarioFullyCompleted(scenarioId);
+                  <div className="space-y-4">
+                    {/* 세션별 대화 기록 카드 리스트 (시간 역순) */}
+                    {sessions.map((session) => {
+                      const scenario = scenariosMap.get(session.scenarioId);
                       
                       return (
-                        <AccordionItem key={scenarioId} value={scenarioId} data-testid={`scenario-${scenarioId}`}>
-                          <AccordionTrigger className="hover:no-underline">
-                            <div className="flex items-center justify-between w-full pr-4">
-                              <div className="flex items-center gap-3">
-                                <Users className="w-5 h-5 text-blue-600" />
-                                <h3 className="font-semibold text-slate-900 text-left">{scenarioInfo.title}</h3>
-                                <Badge variant="outline">난이도 {scenarioInfo.difficulty}</Badge>
-                                {isFullyCompleted && (
+                        <div 
+                          key={session.sessionKey} 
+                          className="border border-slate-200 rounded-lg bg-white overflow-hidden"
+                          data-testid={`session-${session.sessionKey}`}
+                        >
+                          {/* 세션 헤더 */}
+                          <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border-b border-slate-200 p-4">
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-3 flex-wrap">
+                                <CalendarDays className="w-5 h-5 text-blue-600" />
+                                <div>
+                                  <div className="flex items-center gap-2">
+                                    <span className="text-sm font-medium text-slate-600">
+                                      {getDateLabel(session.date)} {format(session.startTime, 'HH:mm')}
+                                    </span>
+                                  </div>
+                                  <h3 className="font-semibold text-slate-900 mt-1">{session.scenarioTitle}</h3>
+                                </div>
+                                <Badge variant="outline" className="bg-purple-50 text-purple-700 border-purple-200">
+                                  #{session.attemptNumber}회 시도
+                                </Badge>
+                                <Badge variant="outline">난이도 {session.difficulty}</Badge>
+                                {session.isCompleted && (
                                   <Badge className="bg-green-600">완료</Badge>
                                 )}
                               </div>
-                              <div className="text-sm text-slate-600">
-                                {completedCount}/{totalPersonas} 대화 완료
-                              </div>
                             </div>
-                          </AccordionTrigger>
-                          <AccordionContent>
+                          </div>
+
+                          {/* 세션 내용 */}
+                          <div className="p-4 space-y-4">
                             <div className="space-y-3 pt-3">
                               {/* 전략 회고 결과 표시 (제출된 경우) */}
                               {isFullyCompleted && (() => {
