@@ -108,34 +108,79 @@ export default function MyPage() {
     [conversations]
   );
 
-  // ⚡ 성능 최적화: 시나리오별로 대화 그룹화 (메모이제이션)
-  const conversationsByScenario = useMemo(() => 
-    sortedConversations.reduce((acc, conversation) => {
-      const scenarioId = conversation.scenarioId;
-      if (!acc[scenarioId]) {
-        acc[scenarioId] = [];
+  // ⚡ 새로운 구조: 시나리오 시도별로 그룹화 (시나리오 ID + 날짜)
+  interface ScenarioAttempt {
+    scenarioId: string;
+    dateKey: string;
+    conversations: Conversation[];
+    attemptNumber: number;
+    isCompleted: boolean;
+    strategyReflection?: string | null;
+    conversationOrder?: string[] | null;
+    createdAt: Date; // 정렬용 (가장 최근 대화 시간)
+  }
+
+  const scenarioAttempts = useMemo(() => {
+    // 1단계: 시나리오 + 날짜 조합으로 그룹화
+    const attemptGroups: Record<string, Conversation[]> = {};
+    
+    sortedConversations.forEach(conversation => {
+      const dateKey = getDateKey(conversation.createdAt);
+      const attemptKey = `${conversation.scenarioId}::${dateKey}`;
+      
+      if (!attemptGroups[attemptKey]) {
+        attemptGroups[attemptKey] = [];
       }
-      acc[scenarioId].push(conversation);
-      return acc;
-    }, {} as Record<string, typeof sortedConversations>),
-    [sortedConversations]
-  );
-  
-  // ⚡ 성능 최적화: 각 시나리오의 최근 대화 시간을 기준으로 시나리오 정렬 (메모이제이션)
-  const sortedScenarioIds = useMemo(() => 
-    Object.keys(conversationsByScenario).sort((scenarioIdA, scenarioIdB) => {
-      const conversationsA = conversationsByScenario[scenarioIdA];
-      const conversationsB = conversationsByScenario[scenarioIdB];
+      attemptGroups[attemptKey].push(conversation);
+    });
+
+    // 2단계: ScenarioAttempt 객체로 변환
+    const attempts: ScenarioAttempt[] = Object.entries(attemptGroups).map(([attemptKey, convs]) => {
+      const [scenarioId, dateKey] = attemptKey.split('::');
+      const scenario = scenariosMap.get(scenarioId);
       
-      // 각 시나리오 그룹에서 가장 최근 대화 찾기
-      const latestA = Math.max(...conversationsA.map(c => new Date(c.createdAt).getTime()));
-      const latestB = Math.max(...conversationsB.map(c => new Date(c.createdAt).getTime()));
+      // 완료 여부: 모든 페르소나와 대화 완료 확인
+      const completedPersonaIds = new Set(
+        convs.filter(c => c.status === 'completed').map(c => c.personaId)
+      );
+      const isCompleted = scenario?.personas 
+        ? completedPersonaIds.size === scenario.personas.length
+        : false;
       
-      // 최근 대화가 있는 시나리오를 먼저 표시
-      return latestB - latestA;
-    }),
-    [conversationsByScenario]
-  );
+      // 전략 회고 찾기
+      const strategyConv = convs.find(c => c.strategyReflection);
+      
+      // 정렬용 최근 대화 시간
+      const latestTime = Math.max(...convs.map(c => new Date(c.createdAt).getTime()));
+      
+      return {
+        scenarioId,
+        dateKey,
+        conversations: convs,
+        attemptNumber: 0, // 3단계에서 계산
+        isCompleted,
+        strategyReflection: strategyConv?.strategyReflection,
+        conversationOrder: strategyConv?.conversationOrder,
+        createdAt: new Date(latestTime),
+      };
+    });
+
+    // 3단계: 같은 시나리오의 시도 횟수 계산
+    const scenarioAttemptCounts: Record<string, number> = {};
+    
+    attempts
+      .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime()) // 오래된 순으로 정렬
+      .forEach(attempt => {
+        if (!scenarioAttemptCounts[attempt.scenarioId]) {
+          scenarioAttemptCounts[attempt.scenarioId] = 0;
+        }
+        scenarioAttemptCounts[attempt.scenarioId]++;
+        attempt.attemptNumber = scenarioAttemptCounts[attempt.scenarioId];
+      });
+
+    // 4단계: 최근 순으로 정렬
+    return attempts.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+  }, [sortedConversations, scenariosMap]);
 
   // 날짜 문자열 생성 함수 (YYYY-MM-DD 형식)
   const getDateKey = (date: Date | string) => {
@@ -185,18 +230,6 @@ export default function MyPage() {
     }
   };
 
-  // 시나리오별 대화를 날짜별로 다시 그룹화
-  const groupConversationsByDate = (conversations: typeof sortedConversations) => {
-    return conversations.reduce((acc, conversation) => {
-      const dateKey = getDateKey(conversation.createdAt);
-      if (!acc[dateKey]) {
-        acc[dateKey] = [];
-      }
-      acc[dateKey].push(conversation);
-      return acc;
-    }, {} as Record<string, typeof sortedConversations>);
-  };
-
   // 시나리오 정보 가져오기
   const getScenarioInfo = (scenarioId: string) => {
     const scenario = scenariosMap.get(scenarioId); // ⚡ O(1) 조회
@@ -204,19 +237,6 @@ export default function MyPage() {
       title: scenario?.title || scenarioId,
       difficulty: scenario?.difficulty || 1,
     };
-  };
-
-  // 시나리오의 모든 페르소나와의 대화가 완료되었는지 확인
-  const isScenarioFullyCompleted = (scenarioId: string) => {
-    const scenario = scenariosMap.get(scenarioId); // ⚡ O(1) 조회
-    if (!scenario || !scenario.personas) return false;
-    
-    const scenarioConversations = conversationsByScenario[scenarioId] || [];
-    const completedPersonaIds = scenarioConversations
-      .filter(c => c.status === 'completed')
-      .map(c => c.personaId);
-    
-    return scenario.personas.length === completedPersonaIds.length;
   };
 
   // ⚡ 통합 로딩 상태
@@ -318,16 +338,10 @@ export default function MyPage() {
 
           {/* 대화 기록 탭 */}
           <TabsContent value="history" className="space-y-6">
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <MessageSquare className="w-5 h-5" />
-                  시나리오별 대화 기록
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                {conversations.length === 0 ? (
-                  <div className="text-center py-8">
+            {conversations.length === 0 ? (
+              <Card>
+                <CardContent className="py-12">
+                  <div className="text-center">
                     <div className="text-slate-600">아직 대화 기록이 없습니다.</div>
                     <Button 
                       onClick={() => window.location.href = '/home'}
@@ -337,9 +351,11 @@ export default function MyPage() {
                       첫 대화 시작하기
                     </Button>
                   </div>
-                ) : (
-                  <Accordion type="multiple" className="w-full">
-                    {sortedScenarioIds.map((scenarioId) => {
+                </CardContent>
+              </Card>
+            ) : (
+              <div className="space-y-4">
+                {scenarioAttempts.map((attempt) => {
                       const scenarioConversations = conversationsByScenario[scenarioId];
                       const scenarioInfo = getScenarioInfo(scenarioId);
                       const scenario = scenariosMap.get(scenarioId); // ⚡ O(1) 조회
