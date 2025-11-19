@@ -55,49 +55,6 @@ export default function MyPage() {
     [feedbacks]
   );
 
-  // 대화 삭제 mutation
-  const deleteConversationMutation = useMutation({
-    mutationFn: async (conversationId: string) => {
-      return await apiRequest(`/api/conversations/${conversationId}`, {
-        method: 'DELETE',
-      });
-    },
-    onSuccess: () => {
-      // 캐시 무효화
-      queryClient.invalidateQueries({ queryKey: ['/api/conversations'] });
-      queryClient.invalidateQueries({ queryKey: ['/api/feedbacks'] });
-      
-      toast({
-        title: "삭제 완료",
-        description: "대화 기록이 성공적으로 삭제되었습니다.",
-      });
-      
-      setDeleteDialogOpen(false);
-      setConversationToDelete(null);
-    },
-    onError: (error) => {
-      toast({
-        title: "삭제 실패",
-        description: "대화 기록 삭제 중 오류가 발생했습니다.",
-        variant: "destructive",
-      });
-      console.error("대화 삭제 오류:", error);
-    },
-  });
-
-  // 삭제 확인 핸들러
-  const handleDeleteClick = (conversationId: string, e: React.MouseEvent) => {
-    e.stopPropagation(); // Accordion 열림 방지
-    setConversationToDelete(conversationId);
-    setDeleteDialogOpen(true);
-  };
-
-  const handleDeleteConfirm = () => {
-    if (conversationToDelete) {
-      deleteConversationMutation.mutate(conversationToDelete);
-    }
-  };
-
   // 통계 계산
   const stats = useMemo(() => ({
     totalConversations: conversations.length,
@@ -214,7 +171,10 @@ export default function MyPage() {
     },
   });
 
-  const handleDeleteClick = (conversationId: string) => {
+  const handleDeleteClick = (conversationId: string, e?: React.MouseEvent) => {
+    if (e) {
+      e.stopPropagation(); // Accordion 열림 방지
+    }
     setConversationToDelete(conversationId);
     setDeleteDialogOpen(true);
   };
@@ -707,18 +667,18 @@ export default function MyPage() {
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel 
-              disabled={deleteConversationMutation.isPending}
+              disabled={deleteMutation.isPending}
               data-testid="cancel-delete"
             >
               취소
             </AlertDialogCancel>
             <AlertDialogAction
               onClick={handleDeleteConfirm}
-              disabled={deleteConversationMutation.isPending}
+              disabled={deleteMutation.isPending}
               className="bg-red-600 hover:bg-red-700"
               data-testid="confirm-delete"
             >
-              {deleteConversationMutation.isPending ? (
+              {deleteMutation.isPending ? (
                 <>
                   <Loader2 className="w-4 h-4 mr-2 animate-spin" />
                   삭제 중...

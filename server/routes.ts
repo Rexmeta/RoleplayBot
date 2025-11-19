@@ -316,40 +316,57 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       // conversationOrder가 있는 경우, 연관된 모든 페르소나 대화도 삭제
       if (conversationOrder.length > 0) {
-        console.log(`시나리오 세션 삭제: ${req.params.id}, 연관 페르소나 대화: ${conversationOrder.length}개`);
+        console.log(`시나리오 세션 삭제: ${req.params.id}, 연관 페르소나: ${conversationOrder.length}개`);
         
-        // 세션 시간 범위 계산
         const sessionTime = new Date(sessionConversation.createdAt).getTime();
+        const TIME_WINDOW = 24 * 60 * 60 * 1000; // 24시간
         const allConversations = await storage.getUserConversations(userId);
         
-        // 같은 시나리오의 모든 완료된 세션을 시간순으로 정렬
-        const sameScenarioSessions = allConversations
-          .filter(c => c.scenarioId === sessionConversation.scenarioId && c.status === 'completed')
-          .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
-        
-        const currentSessionIndex = sameScenarioSessions.findIndex(c => c.id === req.params.id);
-        const previousSessionTime = currentSessionIndex > 0
-          ? new Date(sameScenarioSessions[currentSessionIndex - 1].createdAt).getTime()
-          : 0;
-        
-        // conversationOrder에 있는 페르소나 대화들 찾아서 삭제
-        for (const personaId of conversationOrder) {
-          const personaConversation = allConversations.find(c => {
-            const convTime = new Date(c.createdAt).getTime();
-            return c.scenarioId === sessionConversation.scenarioId &&
-              c.personaId === personaId &&
-              c.status === 'completed' &&
-              convTime > previousSessionTime &&
-              convTime <= sessionTime;
-          });
+        // conversationOrder에 있는 personaId와 매칭되는 페르소나 대화 찾기
+        // 안전성을 위해 여러 조건 확인:
+        // 1. 같은 scenarioId
+        // 2. personaId가 conversationOrder에 있음
+        // 3. status가 'completed'
+        // 4. 세션 대화 이전에 생성됨 (페르소나 대화가 먼저 완료되고 세션이 생성됨)
+        // 5. 세션과 시간이 너무 멀지 않음 (24시간 이내)
+        // 6. 세션 자체가 아님 (중복 삭제 방지)
+        const personaConversationsToDelete = allConversations.filter(c => {
+          if (c.id === req.params.id) return false; // 세션 자체 제외
           
-          if (personaConversation) {
-            console.log(`  - 페르소나 대화 삭제: ${personaConversation.id} (${personaId})`);
-            await storage.deleteConversation(personaConversation.id);
+          const convTime = new Date(c.createdAt).getTime();
+          const isWithinTimeWindow = Math.abs(sessionTime - convTime) < TIME_WINDOW;
+          const isBeforeSession = convTime <= sessionTime;
+          
+          return c.scenarioId === sessionConversation.scenarioId &&
+            conversationOrder.includes(c.personaId) &&
+            c.status === 'completed' &&
+            isBeforeSession &&
+            isWithinTimeWindow;
+        });
+        
+        // 중복 제거 (같은 personaId가 여러 번 있을 수 있으므로 최신 것만 선택)
+        const personaConversationsByPersona = new Map<string, any>();
+        for (const conv of personaConversationsToDelete) {
+          const existing = personaConversationsByPersona.get(conv.personaId);
+          if (!existing || new Date(conv.createdAt).getTime() > new Date(existing.createdAt).getTime()) {
+            personaConversationsByPersona.set(conv.personaId, conv);
           }
         }
+        
+        // 식별된 페르소나 대화들 삭제
+        for (const [personaId, personaConversation] of personaConversationsByPersona) {
+          console.log(`  - 페르소나 대화 삭제: ${personaConversation.id} (${personaId})`);
+          try {
+            await storage.deleteConversation(personaConversation.id);
+          } catch (err) {
+            console.error(`    페르소나 대화 삭제 실패: ${personaConversation.id}`, err);
+            // 계속 진행 (다른 대화들도 삭제 시도)
+          }
+        }
+        
+        console.log(`  총 ${personaConversationsByPersona.size}개의 페르소나 대화 삭제 완료`);
       } else {
-        console.log(`단일 페르소나 대화 삭제: ${req.params.id}`);
+        console.log(`단일 대화 삭제: ${req.params.id}`);
       }
       
       // 세션 대화 자체 삭제
