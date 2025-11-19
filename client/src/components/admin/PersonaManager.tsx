@@ -18,7 +18,6 @@ interface MBTIPersona {
   id: string;
   mbti: string;
   gender: 'male' | 'female'; // 성별 필드 추가
-  conversationDifficultyLevel?: number; // 난이도 필드 추가 (1-4)
   personality_traits: string[];
   communication_style: string;
   motivation: string;
@@ -65,7 +64,6 @@ interface MBTIPersonaFormData {
   id: string;
   mbti: string;
   gender: 'male' | 'female'; // 성별 필드 추가
-  conversationDifficultyLevel: number; // 난이도 필드 추가 (1-4)
   personality_traits: string[];
   communication_style: string;
   motivation: string;
@@ -104,7 +102,6 @@ export function PersonaManager() {
     id: '',
     mbti: '',
     gender: 'male', // 성별 기본값 설정
-    conversationDifficultyLevel: 3, // 난이도 기본값
     personality_traits: [],
     communication_style: '',
     motivation: '',
@@ -248,7 +245,6 @@ export function PersonaManager() {
       id: '',
       mbti: '',
       gender: 'male', // 성별 기본값 추가
-      conversationDifficultyLevel: 3, // 난이도 기본값
       personality_traits: [],
       communication_style: '',
       motivation: '',
@@ -284,7 +280,6 @@ export function PersonaManager() {
       id: persona.id,
       mbti: persona.mbti,
       gender: persona.gender || 'male', // 성별 필드 추가
-      conversationDifficultyLevel: persona.conversationDifficultyLevel || 3, // 난이도 필드 추가
       personality_traits: persona.personality_traits || [],
       communication_style: persona.communication_style || '',
       motivation: persona.motivation || '',
@@ -391,37 +386,19 @@ export function PersonaManager() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <Label htmlFor="gender">성별</Label>
-                  <Select value={formData.gender} onValueChange={(value: 'male' | 'female') => 
-                    setFormData(prev => ({ ...prev, gender: value }))
-                  }>
-                    <SelectTrigger data-testid="select-gender">
-                      <SelectValue placeholder="성별 선택" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="male">남성</SelectItem>
-                      <SelectItem value="female">여성</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div>
-                  <Label htmlFor="difficulty">대화 난이도</Label>
-                  <Select value={formData.conversationDifficultyLevel.toString()} onValueChange={(value) => 
-                    setFormData(prev => ({ ...prev, conversationDifficultyLevel: parseInt(value) }))
-                  }>
-                    <SelectTrigger data-testid="select-difficulty">
-                      <SelectValue placeholder="난이도 선택" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="1">1 - 매우 쉬움 (★☆☆☆)</SelectItem>
-                      <SelectItem value="2">2 - 기본 (★★☆☆)</SelectItem>
-                      <SelectItem value="3">3 - 도전형 (★★★☆)</SelectItem>
-                      <SelectItem value="4">4 - 고난도 (★★★★)</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
+              <div>
+                <Label htmlFor="gender">성별</Label>
+                <Select value={formData.gender} onValueChange={(value: 'male' | 'female') => 
+                  setFormData(prev => ({ ...prev, gender: value }))
+                }>
+                  <SelectTrigger data-testid="select-gender">
+                    <SelectValue placeholder="성별 선택" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="male">남성</SelectItem>
+                    <SelectItem value="female">여성</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
 
               <div>
@@ -741,11 +718,6 @@ export function PersonaManager() {
                       <Badge variant="outline" className="bg-green-100 text-green-800">
                         {scenarioUsage.length}개 시나리오에서 사용
                       </Badge>
-                      {persona.conversationDifficultyLevel && (
-                        <Badge variant="outline" className="bg-orange-100 text-orange-800">
-                          난이도 {persona.conversationDifficultyLevel}/4 {'★'.repeat(persona.conversationDifficultyLevel)}
-                        </Badge>
-                      )}
                     </div>
                   </div>
                   <div className="flex space-x-2">
