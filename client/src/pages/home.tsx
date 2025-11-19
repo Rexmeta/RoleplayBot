@@ -86,17 +86,10 @@ export default function Home() {
     try {
       console.log(`🕐 CLIENT CODE TIMESTAMP: ${Date.now()} - UPDATED VERSION`);
       
-      // 시나리오 난이도를 페르소나의 대화 난이도로 설정
-      const personaWithScenarioDifficulty = {
-        ...persona,
-        conversationDifficultyLevel: selectedScenario.difficulty,
-        conversationDifficultyDescription: getDifficultyDescription(selectedScenario.difficulty)
-      };
-      
       const conversationData = {
         scenarioId: selectedScenario.id,
         personaId: persona.id,
-        personaSnapshot: personaWithScenarioDifficulty, // 시나리오 난이도가 적용된 페르소나 스냅샷
+        personaSnapshot: persona,
         scenarioName: selectedScenario.title,
         messages: [],
         turnCount: 0,
@@ -106,14 +99,13 @@ export default function Home() {
       
       console.log('📤 [NEW CODE] Creating conversation with mode:', conversationData.mode);
       console.log('📤 [NEW CODE] Scenario difficulty:', selectedScenario.difficulty);
-      console.log('📤 [NEW CODE] Persona difficulty level:', personaWithScenarioDifficulty.conversationDifficultyLevel);
       console.log('📤 [NEW CODE] Full conversation data:', JSON.stringify(conversationData));
       
       const response = await apiRequest("POST", "/api/conversations", conversationData);
       
       const conversation = await response.json();
       
-      setSelectedPersona(personaWithScenarioDifficulty);
+      setSelectedPersona(persona);
       setConversationId(conversation.id);
       setCurrentView("chat");
     } catch (error) {
@@ -144,24 +136,16 @@ export default function Home() {
 
   // 재도전을 위한 새로운 대화 생성
   const createRetryConversationMutation = useMutation({
-    mutationFn: async ({ scenarioId, personaId, scenarioName, persona, scenarioDifficulty }: { 
+    mutationFn: async ({ scenarioId, personaId, scenarioName, persona }: { 
       scenarioId: string; 
       personaId: string; 
       scenarioName: string;
       persona: ScenarioPersona;
-      scenarioDifficulty: number;
     }) => {
-      // 시나리오 난이도를 페르소나의 대화 난이도로 설정
-      const personaWithScenarioDifficulty = {
-        ...persona,
-        conversationDifficultyLevel: scenarioDifficulty,
-        conversationDifficultyDescription: getDifficultyDescription(scenarioDifficulty)
-      };
-      
       const conversationData = {
         scenarioId,
         personaId,
-        personaSnapshot: personaWithScenarioDifficulty, // 재도전 시에도 시나리오 난이도 적용
+        personaSnapshot: persona,
         scenarioName,
         messages: [],
         turnCount: 0,
@@ -169,7 +153,6 @@ export default function Home() {
         mode: "realtime_voice"
       };
       
-      console.log('📤 Creating retry conversation with scenario difficulty:', scenarioDifficulty);
       console.log('📤 Creating retry conversation with data:', conversationData);
       
       const response = await apiRequest("POST", "/api/conversations", conversationData);
@@ -190,8 +173,7 @@ export default function Home() {
         scenarioId: selectedScenario.id,
         personaId: selectedPersona.id,
         scenarioName: selectedScenario.title,
-        persona: selectedPersona,
-        scenarioDifficulty: selectedScenario.difficulty
+        persona: selectedPersona
       });
     }
   };
