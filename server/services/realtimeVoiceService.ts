@@ -124,8 +124,14 @@ export class RealtimeVoiceService {
   ): string {
     const mbtiType = scenarioPersona.personaRef?.replace('.json', '') || 'UNKNOWN';
     
-    // 대화 난이도 레벨 가져오기 (시나리오 난이도 우선, MBTI 페르소나는 fallback, 최종 기본값 4)
-    const difficultyLevel = validateDifficultyLevel(scenario.difficulty || mbtiPersona?.conversationDifficultyLevel);
+    // 대화 난이도 레벨 가져오기 (시나리오 난이도만 사용, 기본값 4)
+    const difficultyLevel = validateDifficultyLevel(scenario.difficulty);
+    
+    // 시나리오 난이도 미설정 시 경고
+    if (!scenario.difficulty) {
+      console.warn(`⚠️ 시나리오 "${scenario.title || 'Unknown'}"에 난이도 미설정, 기본값 4 적용`);
+    }
+    
     const difficultyGuidelines = getRealtimeVoiceGuidelines(difficultyLevel);
     
     const instructions = [

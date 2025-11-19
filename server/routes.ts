@@ -229,8 +229,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
           responseStyle: mbtiPersona?.communication_patterns?.opening_style || '상황에 맞는 방식으로 대화 시작',
           goals: mbtiPersona?.communication_patterns?.win_conditions || ['목표 달성'],
           background: mbtiPersona?.background?.personal_values?.join(', ') || '전문성',
-          // 시나리오 난이도 우선 사용 (MBTI 페르소나 난이도는 fallback)
-          conversationDifficultyLevel: scenarioObj.difficulty || mbtiPersona?.conversationDifficultyLevel || 4
+          // 시나리오 난이도만 사용 (없으면 기본값 4)
+          conversationDifficultyLevel: scenarioObj.difficulty || 4
         };
 
 
