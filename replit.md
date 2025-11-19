@@ -2,6 +2,12 @@
 
 This project is an AI-powered role-playing training system designed to enhance communication skills for new employees. It uses interactive conversations with AI personas across various workplace scenarios. Users engage in 10-turn dialogues, receiving real-time emotion analysis and detailed AI-generated feedback including scores, strengths, and areas for improvement. The system supports three conversation modes: text, text-to-speech (TTS), and real-time voice, utilizing advanced AI models for natural and immersive interactions. The business vision is to provide a scalable and effective tool for professional development, leveraging AI to offer personalized communication coaching.
 
+## Difficulty System
+- **4-Level Difficulty**: All scenarios use a unified 4-level difficulty system (1=매우 쉬움, 2=기본, 3=도전형, 4=고난도)
+- **Scenario-Based**: Difficulty is set at the scenario level during creation/editing (default: 4)
+- **Consistent Application**: Scenario difficulty applies uniformly across all conversation modes (text/TTS/realtime voice)
+- **MBTI Independence**: MBTI personas no longer store difficulty levels; they only define personality traits and communication styles
+
 # User Preferences
 
 Preferred communication style: Simple, everyday language.
