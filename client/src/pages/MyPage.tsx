@@ -463,14 +463,22 @@ export default function MyPage() {
 
                           {/* 세션 내용 */}
                           <div className="p-4 space-y-4">
-                            <div className="space-y-3 pt-3">
-                              {/* 전략 회고 결과 표시 (제출된 경우) */}
-                              {isFullyCompleted && (() => {
-                                // 이 시나리오의 대화 중 전략 회고가 있는지 확인
-                                const conversationWithStrategy = scenarioConversations.find(c => c.strategyReflection);
-                                
-                                // 전략 회고가 없는 경우 평가 버튼 표시
-                                if (!conversationWithStrategy || !conversationWithStrategy.strategyReflection) {
+                            {/* 전략 회고 (있으면 표시) */}
+                            {session.strategyReflection && (
+                              <div className="bg-gradient-to-r from-green-50 to-emerald-50 border border-green-200 rounded-lg p-4">
+                                <div className="space-y-3">
+                                  <div className="flex items-center gap-3">
+                                    <Target className="w-5 h-5 text-green-600" />
+                                    <h4 className="font-semibold text-slate-900">전략 회고</h4>
+                                  </div>
+                                  
+                                  {/* 대화 순서 표시 */}
+                                  {session.conversations[0]?.conversationOrder && (() => {
+                                    const orderedPersonas = session.conversations[0].conversationOrder
+                                      .map((personaId: string) => scenario?.personas?.find((p: any) => p.id === personaId))
+                                      .filter(p => p !== undefined);
+                                    
+                                    return orderedPersonas.length > 0 && (
                                   return (
                                     <div className="bg-gradient-to-r from-purple-50 to-indigo-50 border border-purple-200 rounded-lg p-4 mb-4">
                                       <div className="flex items-center justify-between">
