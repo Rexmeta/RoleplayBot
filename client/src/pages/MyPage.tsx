@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
-import { CalendarDays, Star, TrendingUp, MessageSquare, Award, History, BarChart3, Users, Target, Trash2 } from "lucide-react";
+import { CalendarDays, Star, TrendingUp, MessageSquare, Award, History, BarChart3, Users, Target, Trash2, Loader2 } from "lucide-react";
 import { Link } from "wouter";
 import { useAuth } from "@/hooks/useAuth";
 import { type Conversation, type Feedback, type User } from "@shared/schema";
@@ -25,28 +25,45 @@ export default function MyPage() {
   const { data: conversations = [], isLoading: conversationsLoading } = useQuery<Conversation[]>({
     queryKey: ['/api/conversations'],
     enabled: !!user,
+    staleTime: 1000 * 60 * 5, // 5분간 캐시 유지
+    gcTime: 1000 * 60 * 10,   // 10분간 메모리 유지
   });
 
   // 사용자의 피드백 기록 조회  
   const { data: feedbacks = [], isLoading: feedbacksLoading } = useQuery<Feedback[]>({
     queryKey: ['/api/feedbacks'],
     enabled: !!user,
+    staleTime: 1000 * 60 * 5, // 5분간 캐시 유지
+    gcTime: 1000 * 60 * 10,   // 10분간 메모리 유지
   });
 
   // 시나리오 데이터 조회
   const { data: scenarios = [] } = useQuery<any[]>({
     queryKey: ['/api/scenarios'],
+    staleTime: 1000 * 60 * 30, // 30분간 캐시 유지 (시나리오는 자주 변경되지 않음)
+    gcTime: 1000 * 60 * 60,     // 1시간 메모리 유지
   });
 
+  // ⚡ 성능 최적화: Map 기반 O(1) 조회
+  const scenariosMap = useMemo(() => 
+    new Map(scenarios.map(s => [s.id, s])),
+    [scenarios]
+  );
+
+  const feedbacksMap = useMemo(() => 
+    new Map(feedbacks.map(f => [f.conversationId, f])),
+    [feedbacks]
+  );
+
   // 통계 계산
-  const stats = {
+  const stats = useMemo(() => ({
     totalConversations: conversations.length,
     completedConversations: conversations.filter((c: Conversation) => c.status === 'completed').length,
     averageScore: feedbacks.length > 0 
       ? Math.round(feedbacks.reduce((sum: number, f: Feedback) => sum + f.overallScore, 0) / feedbacks.length)
       : 0,
     totalFeedbacks: feedbacks.length,
-  };
+  }), [conversations, feedbacks]);
 
   const getScoreColor = (score: number) => {
     if (score >= 80) return "text-green-600";
@@ -62,7 +79,7 @@ export default function MyPage() {
 
   // 대화 제목 생성: "시나리오 제목 + 페르소나 소속, 이름, 직급, MBTI"
   const getConversationTitle = (conversation: Conversation) => {
-    const scenario = scenarios.find(s => s.id === conversation.scenarioId);
+    const scenario = scenariosMap.get(conversation.scenarioId); // ⚡ O(1) 조회
     if (!scenario) return conversation.scenarioId || '일반 대화';
     
     // 1순위: 대화 생성 시점의 페르소나 스냅샷 사용 (과거 기록 보호)
@@ -83,33 +100,42 @@ export default function MyPage() {
     return `${scenario.title} - ${personaInfo}${mbtiInfo}`;
   };
 
-  // 대화 리스트를 최근 날짜 순으로 정렬
-  const sortedConversations = [...conversations].sort((a, b) => 
-    new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+  // ⚡ 성능 최적화: 대화 리스트를 최근 날짜 순으로 정렬 (메모이제이션)
+  const sortedConversations = useMemo(() => 
+    [...conversations].sort((a, b) => 
+      new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+    ),
+    [conversations]
   );
 
-  // 시나리오별로 대화 그룹화 후 각 시나리오 그룹 내에서 최근 대화 날짜로 정렬
-  const conversationsByScenario = sortedConversations.reduce((acc, conversation) => {
-    const scenarioId = conversation.scenarioId;
-    if (!acc[scenarioId]) {
-      acc[scenarioId] = [];
-    }
-    acc[scenarioId].push(conversation);
-    return acc;
-  }, {} as Record<string, typeof sortedConversations>);
+  // ⚡ 성능 최적화: 시나리오별로 대화 그룹화 (메모이제이션)
+  const conversationsByScenario = useMemo(() => 
+    sortedConversations.reduce((acc, conversation) => {
+      const scenarioId = conversation.scenarioId;
+      if (!acc[scenarioId]) {
+        acc[scenarioId] = [];
+      }
+      acc[scenarioId].push(conversation);
+      return acc;
+    }, {} as Record<string, typeof sortedConversations>),
+    [sortedConversations]
+  );
   
-  // 각 시나리오의 최근 대화 시간을 기준으로 시나리오 정렬
-  const sortedScenarioIds = Object.keys(conversationsByScenario).sort((scenarioIdA, scenarioIdB) => {
-    const conversationsA = conversationsByScenario[scenarioIdA];
-    const conversationsB = conversationsByScenario[scenarioIdB];
-    
-    // 각 시나리오 그룹에서 가장 최근 대화 찾기
-    const latestA = Math.max(...conversationsA.map(c => new Date(c.createdAt).getTime()));
-    const latestB = Math.max(...conversationsB.map(c => new Date(c.createdAt).getTime()));
-    
-    // 최근 대화가 있는 시나리오를 먼저 표시
-    return latestB - latestA;
-  });
+  // ⚡ 성능 최적화: 각 시나리오의 최근 대화 시간을 기준으로 시나리오 정렬 (메모이제이션)
+  const sortedScenarioIds = useMemo(() => 
+    Object.keys(conversationsByScenario).sort((scenarioIdA, scenarioIdB) => {
+      const conversationsA = conversationsByScenario[scenarioIdA];
+      const conversationsB = conversationsByScenario[scenarioIdB];
+      
+      // 각 시나리오 그룹에서 가장 최근 대화 찾기
+      const latestA = Math.max(...conversationsA.map(c => new Date(c.createdAt).getTime()));
+      const latestB = Math.max(...conversationsB.map(c => new Date(c.createdAt).getTime()));
+      
+      // 최근 대화가 있는 시나리오를 먼저 표시
+      return latestB - latestA;
+    }),
+    [conversationsByScenario]
+  );
 
   // 날짜 문자열 생성 함수 (YYYY-MM-DD 형식)
   const getDateKey = (date: Date | string) => {
@@ -173,7 +199,7 @@ export default function MyPage() {
 
   // 시나리오 정보 가져오기
   const getScenarioInfo = (scenarioId: string) => {
-    const scenario = scenarios.find(s => s.id === scenarioId);
+    const scenario = scenariosMap.get(scenarioId); // ⚡ O(1) 조회
     return {
       title: scenario?.title || scenarioId,
       difficulty: scenario?.difficulty || 1,
@@ -182,7 +208,7 @@ export default function MyPage() {
 
   // 시나리오의 모든 페르소나와의 대화가 완료되었는지 확인
   const isScenarioFullyCompleted = (scenarioId: string) => {
-    const scenario = scenarios.find(s => s.id === scenarioId);
+    const scenario = scenariosMap.get(scenarioId); // ⚡ O(1) 조회
     if (!scenario || !scenario.personas) return false;
     
     const scenarioConversations = conversationsByScenario[scenarioId] || [];
@@ -193,6 +219,9 @@ export default function MyPage() {
     return scenario.personas.length === completedPersonaIds.length;
   };
 
+  // ⚡ 통합 로딩 상태
+  const isLoading = conversationsLoading || feedbacksLoading;
+
   if (!user) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100">
@@ -201,6 +230,18 @@ export default function MyPage() {
           <Button onClick={() => window.location.href = '/home'} className="mt-4">
             홈으로 이동
           </Button>
+        </div>
+      </div>
+    );
+  }
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-slate-50">
+        <div className="text-center">
+          <Loader2 className="w-12 h-12 animate-spin mx-auto mb-4 text-blue-600" />
+          <p className="text-lg text-slate-700 font-medium">데이터를 불러오는 중...</p>
+          <p className="text-sm text-slate-500 mt-2">잠시만 기다려주세요</p>
         </div>
       </div>
     );
@@ -285,11 +326,7 @@ export default function MyPage() {
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                {conversationsLoading ? (
-                  <div className="text-center py-8">
-                    <div className="text-slate-600">대화 기록을 불러오는 중...</div>
-                  </div>
-                ) : conversations.length === 0 ? (
+                {conversations.length === 0 ? (
                   <div className="text-center py-8">
                     <div className="text-slate-600">아직 대화 기록이 없습니다.</div>
                     <Button 
@@ -305,7 +342,7 @@ export default function MyPage() {
                     {sortedScenarioIds.map((scenarioId) => {
                       const scenarioConversations = conversationsByScenario[scenarioId];
                       const scenarioInfo = getScenarioInfo(scenarioId);
-                      const scenario = scenarios.find(s => s.id === scenarioId);
+                      const scenario = scenariosMap.get(scenarioId); // ⚡ O(1) 조회
                       const completedCount = scenarioConversations.filter(c => c.status === 'completed').length;
                       const totalPersonas = scenario?.personas?.length || 0;
                       const isFullyCompleted = isScenarioFullyCompleted(scenarioId);
@@ -447,11 +484,11 @@ export default function MyPage() {
                                       
                                       {/* 해당 날짜의 대화 상대들 */}
                                       {dateConversations.map((conversation: Conversation) => {
-                                        const scenario = scenarios.find(s => s.id === conversation.scenarioId);
+                                        const scenario = scenariosMap.get(conversation.scenarioId); // ⚡ O(1) 조회
                                         // 1순위: 대화 생성 시점의 페르소나 스냅샷, 2순위: 현재 시나리오에서 찾기 (하위 호환성)
                                         const persona = (conversation as any).personaSnapshot 
                                           || scenario?.personas?.find((p: any) => p.id === conversation.personaId);
-                                        const relatedFeedback = feedbacks.find((f: Feedback) => f.conversationId === conversation.id);
+                                        const relatedFeedback = feedbacksMap.get(conversation.id); // ⚡ O(1) 조회
                                         
                                         return (
                                           <div 
