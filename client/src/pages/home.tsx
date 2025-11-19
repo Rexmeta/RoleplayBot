@@ -27,6 +27,7 @@ export default function Home() {
   const [submittedStrategyReflection, setSubmittedStrategyReflection] = useState<string>(''); // 제출한 전략 회고 내용
   const [isCreatingConversation, setIsCreatingConversation] = useState(false); // 대화 생성 중 상태
   const [loadingPersonaId, setLoadingPersonaId] = useState<string | null>(null); // 로딩 중인 페르소나 ID
+  const [selectedDifficulty, setSelectedDifficulty] = useState<number>(4); // 사용자가 선택한 난이도 (기본값: 4)
 
   // 동적으로 시나리오와 페르소나 데이터 로드
   const { data: scenarios = [] } = useQuery({
@@ -52,6 +53,7 @@ export default function Home() {
     setCompletedPersonaIds([]);
     setConversationIds([]);
     setStrategyReflectionSubmitted(false); // 새 시나리오 시작 시 초기화
+    setSelectedDifficulty(scenario.difficulty || 4); // 시나리오 기본 난이도로 초기화
     
     // 모든 시나리오에서 페르소나 선택 화면으로 이동
     setCurrentView("persona-selection");
@@ -65,6 +67,7 @@ export default function Home() {
     setConversationId(null);
     setCompletedPersonaIds([]);
     setConversationIds([]);
+    setSelectedDifficulty(4); // 기본 난이도로 리셋
   };
 
   // 난이도 레벨에 따른 설명 반환 함수
@@ -84,11 +87,12 @@ export default function Home() {
   };
 
   // 페르소나 선택 처리
-  const handlePersonaSelect = async (persona: ScenarioPersona) => {
+  const handlePersonaSelect = async (persona: ScenarioPersona, userSelectedDifficulty: number) => {
     if (!selectedScenario || isCreatingConversation) return;
     
     setIsCreatingConversation(true);
     setLoadingPersonaId(persona.id);
+    setSelectedDifficulty(userSelectedDifficulty); // 선택된 난이도 저장 (재도전 시 재사용)
     
     try {
       console.log(`🕐 CLIENT CODE TIMESTAMP: ${Date.now()} - UPDATED VERSION`);
@@ -102,10 +106,11 @@ export default function Home() {
         turnCount: 0,
         status: "active" as const,
         mode: "realtime_voice" as const,
+        difficulty: userSelectedDifficulty, // 사용자가 선택한 난이도
       };
       
       console.log('📤 [NEW CODE] Creating conversation with mode:', conversationData.mode);
-      console.log('📤 [NEW CODE] Scenario difficulty:', selectedScenario.difficulty);
+      console.log('📤 [NEW CODE] User selected difficulty:', userSelectedDifficulty);
       console.log('📤 [NEW CODE] Full conversation data:', JSON.stringify(conversationData));
       
       const response = await apiRequest("POST", "/api/conversations", conversationData);
@@ -146,11 +151,12 @@ export default function Home() {
 
   // 재도전을 위한 새로운 대화 생성
   const createRetryConversationMutation = useMutation({
-    mutationFn: async ({ scenarioId, personaId, scenarioName, persona }: { 
+    mutationFn: async ({ scenarioId, personaId, scenarioName, persona, difficulty }: { 
       scenarioId: string; 
       personaId: string; 
       scenarioName: string;
       persona: ScenarioPersona;
+      difficulty: number;
     }) => {
       const conversationData = {
         scenarioId,
@@ -160,7 +166,8 @@ export default function Home() {
         messages: [],
         turnCount: 0,
         status: "active",
-        mode: "realtime_voice"
+        mode: "realtime_voice",
+        difficulty
       };
       
       console.log('📤 Creating retry conversation with data:', conversationData);
@@ -183,7 +190,8 @@ export default function Home() {
         scenarioId: selectedScenario.id,
         personaId: selectedPersona.id,
         scenarioName: selectedScenario.title,
-        persona: selectedPersona
+        persona: selectedPersona,
+        difficulty: selectedDifficulty // 이전에 선택한 난이도 재사용
       });
     }
   };
@@ -337,6 +345,8 @@ export default function Home() {
             onBack={handleBackToScenarios}
             isLoading={isCreatingConversation}
             loadingPersonaId={loadingPersonaId}
+            selectedDifficulty={selectedDifficulty}
+            onDifficultyChange={setSelectedDifficulty}
           />
         )}
 

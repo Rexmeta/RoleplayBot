@@ -4,8 +4,10 @@ This project is an AI-powered role-playing training system designed to enhance c
 
 ## Difficulty System
 - **4-Level Difficulty**: All scenarios use a unified 4-level difficulty system (1=매우 쉬움, 2=기본, 3=도전형, 4=고난도)
-- **Scenario-Based**: Difficulty is set at the scenario level during creation/editing (default: 4)
-- **Consistent Application**: Scenario difficulty applies uniformly across all conversation modes (text/TTS/realtime voice)
+- **User-Selected Difficulty**: Users can select their preferred difficulty level when starting a conversation on the scenario detail page
+- **Difficulty Storage**: Selected difficulty is stored in the conversation record (`conversations.difficulty` field)
+- **AI Behavior**: AI responses adapt based on the user-selected difficulty level, overriding the scenario's default difficulty
+- **Consistent Application**: Selected difficulty applies uniformly across all conversation modes (text/TTS/realtime voice)
 - **MBTI Independence**: MBTI personas no longer store difficulty levels; they only define personality traits and communication styles
 
 # User Preferences

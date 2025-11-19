@@ -231,9 +231,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
           background: mbtiPersona?.background?.personal_values?.join(', ') || '전문성'
         };
 
+        // 사용자가 선택한 난이도를 시나리오 객체에 적용
+        const scenarioWithUserDifficulty = {
+          ...scenarioObj,
+          difficulty: conversation.difficulty // 사용자가 선택한 난이도 사용
+        };
+        
+        console.log('🎯 사용자 선택 난이도:', conversation.difficulty);
 
         const aiResult = await generateAIResponse(
-          scenarioObj, // 전체 시나리오 객체 전달
+          scenarioWithUserDifficulty, // 사용자가 선택한 난이도가 적용된 시나리오 객체 전달
           [],
           persona
         );
@@ -386,8 +393,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
         background: mbtiPersona?.background?.personal_values?.join(', ') || '전문성'
       };
 
+      // 사용자가 선택한 난이도를 시나리오 객체에 적용
+      const scenarioWithUserDifficulty = {
+        ...scenarioObj,
+        difficulty: conversation.difficulty // 사용자가 선택한 난이도 사용
+      };
+
       const aiResult = await generateAIResponse(
-        scenarioObj, // 전체 시나리오 객체 전달
+        scenarioWithUserDifficulty, // 사용자가 선택한 난이도가 적용된 시나리오 객체 전달
         updatedMessages,
         persona,
         isSkipTurn ? undefined : message

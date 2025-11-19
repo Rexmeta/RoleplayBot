@@ -25,6 +25,7 @@ export const conversations = pgTable("conversations", {
   strategyReflection: text("strategy_reflection"), // 사용자의 전략 회고 텍스트
   conversationOrder: jsonb("conversation_order").$type<string[]>(), // 실제 대화한 순서 (페르소나 ID 배열)
   mode: text("mode").notNull().default("text"), // text, tts, realtime_voice
+  difficulty: integer("difficulty").notNull().default(4), // 사용자가 선택한 난이도 (1-4)
 });
 
 export const feedbacks = pgTable("feedbacks", {

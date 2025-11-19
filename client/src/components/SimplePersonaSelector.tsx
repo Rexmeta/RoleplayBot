@@ -7,13 +7,15 @@ import { type ScenarioPersona, type ComplexScenario } from "@/lib/scenario-syste
 interface SimplePersonaSelectorProps {
   personas: ScenarioPersona[];
   completedPersonaIds: string[];
-  onPersonaSelect: (persona: ScenarioPersona) => void;
+  onPersonaSelect: (persona: ScenarioPersona, selectedDifficulty: number) => void;
   scenarioTitle: string;
   scenarioSituation?: string;
   scenario?: ComplexScenario;
   onBack?: () => void;
   isLoading?: boolean;
   loadingPersonaId?: string | null;
+  selectedDifficulty: number;
+  onDifficultyChange: (difficulty: number) => void;
 }
 
 export function SimplePersonaSelector({
@@ -25,12 +27,21 @@ export function SimplePersonaSelector({
   scenario,
   onBack,
   isLoading = false,
-  loadingPersonaId = null
+  loadingPersonaId = null,
+  selectedDifficulty,
+  onDifficultyChange
 }: SimplePersonaSelectorProps) {
   const availablePersonas = personas.filter(p => !completedPersonaIds.includes(p.id));
   const completedCount = completedPersonaIds.length;
   const totalCount = personas.length;
   const progressPercentage = Math.round((completedCount / totalCount) * 100);
+  
+  const difficultyLabels: Record<number, { name: string; color: string; description: string }> = {
+    1: { name: "매우 쉬움", color: "bg-green-100 text-green-800 border-green-300", description: "초보자를 위한 친절하고 교육적인 대화" },
+    2: { name: "기본", color: "bg-blue-100 text-blue-800 border-blue-300", description: "친절하지만 현실적인 대화" },
+    3: { name: "도전형", color: "bg-orange-100 text-orange-800 border-orange-300", description: "논리적 근거를 요구하는 도전적 대화" },
+    4: { name: "고난도", color: "bg-red-100 text-red-800 border-red-300", description: "실전과 같은 압박감 있는 대화" },
+  };
 
   return (
     <div className="max-w-6xl mx-auto p-6 space-y-6">
@@ -51,19 +62,48 @@ export function SimplePersonaSelector({
       
       {/* 헤더 */}
       <div className="text-center mb-8">
-        <Badge className="mb-4" variant="outline">
-          난이도 {scenario?.difficulty || 1} / 4 {scenario?.difficulty && scenario.difficulty >= 4 && '⭐'}
-        </Badge>
         <h1 className="text-3xl font-bold text-gray-900 mb-3">{scenarioTitle}</h1>
         {scenarioSituation && (
           <p className="text-lg text-gray-600 mb-4">{scenarioSituation}</p>
         )}
         {scenario?.estimatedTime && (
-          <div className="flex items-center justify-center gap-2 text-sm text-gray-500">
+          <div className="flex items-center justify-center gap-2 text-sm text-gray-500 mb-4">
             <Clock className="w-4 h-4" />
             <span>예상 소요 시간: {scenario.estimatedTime}</span>
           </div>
         )}
+        
+        {/* 난이도 선택 */}
+        <div className="mt-6 max-w-3xl mx-auto">
+          <h3 className="text-lg font-semibold text-gray-900 mb-3">대화 난이도 선택</h3>
+          <p className="text-sm text-gray-600 mb-4">{difficultyLabels[selectedDifficulty].description}</p>
+          <div className="grid grid-cols-4 gap-3">
+            {[1, 2, 3, 4].map((level) => (
+              <button
+                key={level}
+                onClick={() => onDifficultyChange(level)}
+                className={`p-4 rounded-lg border-2 transition-all ${
+                  selectedDifficulty === level
+                    ? difficultyLabels[level].color + " border-current shadow-md scale-105"
+                    : "bg-white border-gray-200 hover:border-gray-300 hover:shadow-sm"
+                }`}
+                data-testid={`difficulty-${level}`}
+              >
+                <div className="text-center">
+                  <div className="text-2xl font-bold mb-1">{level}</div>
+                  <div className={`text-sm font-medium ${
+                    selectedDifficulty === level ? "" : "text-gray-600"
+                  }`}>
+                    {difficultyLabels[level].name}
+                  </div>
+                  {level === 4 && selectedDifficulty === level && (
+                    <div className="mt-1">⭐</div>
+                  )}
+                </div>
+              </button>
+            ))}
+          </div>
+        </div>
       </div>
 
       {/* 시나리오 상세 정보 */}
@@ -235,7 +275,7 @@ export function SimplePersonaSelector({
                   ? 'border-blue-400 bg-blue-50 shadow-lg'
                   : 'border-blue-200 hover:border-blue-400 hover:shadow-lg cursor-pointer'
               } ${isLoading && !isCurrentlyLoading ? 'opacity-50 pointer-events-none' : ''}`}
-              onClick={() => isAvailable && !isCurrentlyLoading && onPersonaSelect(persona)}
+              onClick={() => isAvailable && !isCurrentlyLoading && onPersonaSelect(persona, selectedDifficulty)}
               data-testid={`persona-card-${persona.id}`}
             >
               <CardContent className="p-6">
