@@ -55,6 +55,49 @@ export default function MyPage() {
     [feedbacks]
   );
 
+  // 대화 삭제 mutation
+  const deleteConversationMutation = useMutation({
+    mutationFn: async (conversationId: string) => {
+      return await apiRequest(`/api/conversations/${conversationId}`, {
+        method: 'DELETE',
+      });
+    },
+    onSuccess: () => {
+      // 캐시 무효화
+      queryClient.invalidateQueries({ queryKey: ['/api/conversations'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/feedbacks'] });
+      
+      toast({
+        title: "삭제 완료",
+        description: "대화 기록이 성공적으로 삭제되었습니다.",
+      });
+      
+      setDeleteDialogOpen(false);
+      setConversationToDelete(null);
+    },
+    onError: (error) => {
+      toast({
+        title: "삭제 실패",
+        description: "대화 기록 삭제 중 오류가 발생했습니다.",
+        variant: "destructive",
+      });
+      console.error("대화 삭제 오류:", error);
+    },
+  });
+
+  // 삭제 확인 핸들러
+  const handleDeleteClick = (conversationId: string, e: React.MouseEvent) => {
+    e.stopPropagation(); // Accordion 열림 방지
+    setConversationToDelete(conversationId);
+    setDeleteDialogOpen(true);
+  };
+
+  const handleDeleteConfirm = () => {
+    if (conversationToDelete) {
+      deleteConversationMutation.mutate(conversationToDelete);
+    }
+  };
+
   // 통계 계산
   const stats = useMemo(() => ({
     totalConversations: conversations.length,
@@ -382,7 +425,7 @@ export default function MyPage() {
                         >
                           <AccordionTrigger className="hover:no-underline">
                             <div className="flex items-center justify-between w-full pr-4">
-                              <div className="flex items-center gap-3 flex-wrap">
+                              <div className="flex items-center gap-3 flex-wrap flex-1">
                                 <CalendarDays className="w-4 h-4 text-slate-500" />
                                 <span className="text-sm text-slate-600">
                                   {format(new Date(sessionConversation.createdAt), 'yyyy년 MM월 dd일 HH:mm')}
@@ -396,6 +439,15 @@ export default function MyPage() {
                                 </Badge>
                                 <Badge className="bg-green-600">완료</Badge>
                               </div>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={(e) => handleDeleteClick(sessionConversation.id, e)}
+                                className="text-red-600 hover:text-red-700 hover:bg-red-50 ml-2"
+                                data-testid={`delete-session-${sessionConversation.id}`}
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </Button>
                             </div>
                           </AccordionTrigger>
                           <AccordionContent>
@@ -654,13 +706,26 @@ export default function MyPage() {
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel data-testid="cancel-delete">취소</AlertDialogCancel>
+            <AlertDialogCancel 
+              disabled={deleteConversationMutation.isPending}
+              data-testid="cancel-delete"
+            >
+              취소
+            </AlertDialogCancel>
             <AlertDialogAction
               onClick={handleDeleteConfirm}
+              disabled={deleteConversationMutation.isPending}
               className="bg-red-600 hover:bg-red-700"
               data-testid="confirm-delete"
             >
-              삭제
+              {deleteConversationMutation.isPending ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  삭제 중...
+                </>
+              ) : (
+                '삭제'
+              )}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
