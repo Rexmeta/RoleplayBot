@@ -65,7 +65,7 @@ export function ScenarioManager() {
   const [formData, setFormData] = useState<ScenarioFormData>({
     title: '',
     description: '',
-    difficulty: 4,
+    difficulty: 2, // 기본값으로 고정 (유저가 시나리오 상세 화면에서 선택)
     estimatedTime: '',
     skills: [],
     image: '', // 이미지 초기값 추가
@@ -99,6 +99,7 @@ export function ScenarioManager() {
     // AI 생성 결과를 폼에 자동 입력
     setFormData({
       ...result.scenario,
+      difficulty: 2, // 난이도는 항상 기본값으로 고정
       skills: result.scenario.skills || [],
       objectives: result.scenario.objectives || [],
       personas: result.scenario.personas || [],
@@ -180,7 +181,7 @@ export function ScenarioManager() {
     setFormData({
       title: '',
       description: '',
-      difficulty: 1,
+      difficulty: 2, // 기본값으로 고정
       estimatedTime: '',
       skills: [],
       image: '', // 이미지 필드 초기화 추가
@@ -212,7 +213,7 @@ export function ScenarioManager() {
     setFormData({
       title: scenario.title,
       description: scenario.description,
-      difficulty: scenario.difficulty,
+      difficulty: 2, // 난이도는 항상 기본값으로 고정 (유저가 대화 시작 시 선택)
       estimatedTime: scenario.estimatedTime,
       skills: scenario.skills,
       image: scenario.image || '', // 기존 시나리오의 이미지 URL 로드
@@ -408,23 +409,6 @@ export function ScenarioManager() {
                     required
                     data-testid="textarea-scenario-description"
                   />
-                </div>
-
-                <div>
-                  <Label htmlFor="difficulty" className="text-sm font-medium text-slate-700">난이도</Label>
-                  <Select value={formData.difficulty.toString()} onValueChange={(value) => 
-                    setFormData(prev => ({ ...prev, difficulty: parseInt(value) }))
-                  }>
-                    <SelectTrigger data-testid="select-difficulty" className="bg-white">
-                      <SelectValue placeholder="난이도를 선택하세요" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="1">매우 쉬움 (★☆☆☆)</SelectItem>
-                      <SelectItem value="2">기본 (★★☆☆)</SelectItem>
-                      <SelectItem value="3">도전형 (★★★☆)</SelectItem>
-                      <SelectItem value="4">고난도 (★★★★)</SelectItem>
-                    </SelectContent>
-                  </Select>
                 </div>
               </div>
 
@@ -935,9 +919,6 @@ export function ScenarioManager() {
                 <div className="flex-1">
                   <CardTitle className="text-lg mb-2">{scenario.title}</CardTitle>
                   <div className="flex items-center gap-2 mb-2">
-                    <Badge variant="outline" className="bg-blue-100 text-blue-800">
-                      난이도 ★{scenario.difficulty}
-                    </Badge>
                     <Badge variant="outline" className="bg-green-100 text-green-800">
                       {scenario.estimatedTime}
                     </Badge>
