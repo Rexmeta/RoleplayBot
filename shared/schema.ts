@@ -91,7 +91,9 @@ export const personaRuns = pgTable("persona_runs", {
   scenarioRunId: varchar("scenario_run_id").notNull().references(() => scenarioRuns.id, { onDelete: 'cascade' }),
   conversationId: varchar("conversation_id").references(() => conversations.id, { onDelete: 'cascade' }), // 대화 재개를 위한 conversation 참조
   personaId: text("persona_id").notNull(),
+  personaName: text("persona_name"), // 페르소나 이름 (MBTI 분석 및 표시용)
   personaSnapshot: jsonb("persona_snapshot"), // 대화 생성 시점의 페르소나 정보 스냅샷
+  mbtiType: text("mbti_type"), // MBTI 유형 (예: "ISTJ", "ENFP") - MBTI 분석용
   phase: integer("phase"), // 몇 번째 대화인지 (1, 2, ...) - nullable for simple conversations
   status: text("status").notNull().default("active"), // active, completed
   turnCount: integer("turn_count").notNull().default(0),
