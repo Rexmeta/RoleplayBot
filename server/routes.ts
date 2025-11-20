@@ -351,19 +351,54 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Get conversation by ID
+  // Get conversation by ID (persona_run 구조)
   app.get("/api/conversations/:id", isAuthenticated, async (req, res) => {
     try {
       // @ts-ignore - req.user는 auth 미들웨어에서 설정됨
       const userId = req.user?.id;
-      const result = await verifyConversationOwnership(req.params.id, userId);
-      
-      if ('error' in result) {
-        return res.status(result.status).json({ error: result.error });
+      const personaRunId = req.params.id;
+
+      // ✨ 새로운 구조: persona_run 조회
+      const personaRun = await storage.getPersonaRun(personaRunId);
+      if (!personaRun) {
+        return res.status(404).json({ error: "Conversation not found" });
       }
-      
-      res.json(result.conversation);
+
+      // ✨ scenario_run 조회하여 권한 확인
+      const scenarioRun = await storage.getScenarioRun(personaRun.scenarioRunId);
+      if (!scenarioRun || scenarioRun.userId !== userId) {
+        return res.status(403).json({ error: "Unauthorized access" });
+      }
+
+      // ✨ chat_messages 조회
+      const chatMessages = await storage.getChatMessagesByPersonaRun(personaRunId);
+
+      // 레거시 conversations 구조로 변환하여 반환
+      const messages = chatMessages.map(msg => ({
+        sender: msg.sender,
+        message: msg.message,
+        timestamp: msg.createdAt.toISOString(),
+        emotion: msg.emotion,
+        emotionReason: msg.emotionReason
+      }));
+
+      res.json({
+        id: personaRun.id,
+        scenarioId: scenarioRun.scenarioId,
+        scenarioName: scenarioRun.scenarioName,
+        personaId: personaRun.personaId,
+        personaSnapshot: personaRun.personaSnapshot,
+        messages,
+        turnCount: personaRun.turnCount,
+        status: personaRun.status,
+        mode: scenarioRun.mode,
+        difficulty: scenarioRun.difficulty,
+        userId: scenarioRun.userId,
+        createdAt: personaRun.startedAt,
+        updatedAt: personaRun.completedAt || personaRun.startedAt
+      });
     } catch (error) {
+      console.error("대화 조회 오류:", error);
       res.status(500).json({ error: "Failed to fetch conversation" });
     }
   });
