@@ -174,7 +174,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     return feedback;
   }
 
-  // Create new conversation
+  // Create new conversation (scenario_run + persona_run 구조)
   app.post("/api/conversations", isAuthenticated, async (req, res) => {
     try {
       // @ts-ignore - req.user는 auth 미들웨어에서 설정됨
@@ -185,41 +185,72 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const validatedData = insertConversationSchema.parse(req.body);
       console.log('✅ 검증된 데이터:', JSON.stringify(validatedData));
       
-      const conversation = await storage.createConversation({ ...validatedData, userId });
+      // ✨ 새로운 구조: scenario_run 생성
+      const scenarioRun = await storage.createScenarioRun({
+        userId,
+        scenarioId: validatedData.scenarioId,
+        scenarioName: validatedData.scenarioName,
+        mode: validatedData.mode,
+        difficulty: validatedData.difficulty,
+        status: 'active'
+      });
       
-      console.log(`📋 새 대화 생성: mode=${conversation.mode}, id=${conversation.id}`);
+      console.log(`📋 Scenario Run 생성: ${scenarioRun.id}`);
+      
+      // ✨ 새로운 구조: persona_run 생성
+      const personaId = validatedData.personaId || validatedData.scenarioId;
+      
+      // 시나리오에서 페르소나 정보 가져오기
+      const scenarios = await fileManager.getAllScenarios();
+      const scenarioObj = scenarios.find(s => s.id === validatedData.scenarioId);
+      if (!scenarioObj) {
+        throw new Error(`Scenario not found: ${validatedData.scenarioId}`);
+      }
+      
+      const scenarioPersona = scenarioObj.personas.find((p: any) => p.id === personaId);
+      if (!scenarioPersona) {
+        throw new Error(`Persona not found in scenario: ${personaId}`);
+      }
+      
+      const mbtiType = scenarioPersona.personaRef?.replace('.json', '');
+      const mbtiPersona = mbtiType ? await fileManager.getPersonaByMBTI(mbtiType) : null;
+      
+      const personaRun = await storage.createPersonaRun({
+        scenarioRunId: scenarioRun.id,
+        personaId,
+        personaName: scenarioPersona.name,
+        personaSnapshot: validatedData.personaSnapshot || {},
+        mbtiType: mbtiType || null,
+        status: 'active'
+      });
+      
+      console.log(`👤 Persona Run 생성: ${personaRun.id}, mode=${validatedData.mode}`);
       
       // 실시간 음성 모드는 WebSocket을 통해 초기 메시지를 받으므로 건너뛰기
-      if (conversation.mode === 'realtime_voice') {
+      if (validatedData.mode === 'realtime_voice') {
         console.log('🎙️ 실시간 음성 모드 - Gemini 호출 건너뛰기');
-        return res.json(conversation);
+        // 레거시 호환성을 위해 conversations 구조로 반환
+        return res.json({
+          id: personaRun.id,
+          scenarioId: validatedData.scenarioId,
+          scenarioName: validatedData.scenarioName,
+          personaId,
+          personaSnapshot: validatedData.personaSnapshot,
+          messages: [],
+          turnCount: 0,
+          status: 'active',
+          mode: validatedData.mode,
+          difficulty: validatedData.difficulty,
+          userId,
+          createdAt: scenarioRun.startedAt,
+          updatedAt: scenarioRun.startedAt
+        });
       }
       
       console.log('💬 텍스트/TTS 모드 - Gemini로 초기 메시지 생성');
       
       // 첫 번째 AI 메시지 자동 생성
       try {
-        // personaId가 있으면 사용하고, 없으면 기존 scenarioId 사용 (하위 호환성)
-        const personaId = conversation.personaId || conversation.scenarioId;
-        
-        // 시나리오에서 페르소나 정보와 MBTI 특성 결합
-        const scenarios = await fileManager.getAllScenarios();
-        const scenarioObj = scenarios.find(s => s.id === conversation.scenarioId);
-        if (!scenarioObj) {
-          throw new Error(`Scenario not found: ${conversation.scenarioId}`);
-        }
-        
-        // 시나리오에서 해당 페르소나 객체 찾기
-        const scenarioPersona = scenarioObj.personas.find((p: any) => p.id === personaId);
-        if (!scenarioPersona) {
-          throw new Error(`Persona not found in scenario: ${personaId}`);
-        }
-        
-        // ⚡ 최적화: 특정 MBTI만 로드 (전체 페르소나 로드 방지)
-        const mbtiType = scenarioPersona.personaRef?.replace('.json', '');
-        const mbtiPersona = mbtiType ? await fileManager.getPersonaByMBTI(mbtiType) : null;
-        
-        // 시나리오 정보와 MBTI 특성 결합
         const persona = {
           id: scenarioPersona.id,
           name: scenarioPersona.name,
@@ -231,41 +262,72 @@ export async function registerRoutes(app: Express): Promise<Server> {
           background: mbtiPersona?.background?.personal_values?.join(', ') || '전문성'
         };
 
-        // 사용자가 선택한 난이도를 시나리오 객체에 적용
         const scenarioWithUserDifficulty = {
           ...scenarioObj,
-          difficulty: conversation.difficulty // 사용자가 선택한 난이도 사용
+          difficulty: validatedData.difficulty
         };
-        
-        console.log('🎯 사용자 선택 난이도:', conversation.difficulty);
 
         const aiResult = await generateAIResponse(
-          scenarioWithUserDifficulty, // 사용자가 선택한 난이도가 적용된 시나리오 객체 전달
+          scenarioWithUserDifficulty,
           [],
           persona
         );
 
-        const aiMessage = {
-          sender: "ai" as const,
+        // ✨ 새로운 구조: chat_messages에 첫 AI 메시지 저장
+        await storage.createChatMessage({
+          personaRunId: personaRun.id,
+          sender: "ai",
           message: aiResult.content,
-          timestamp: new Date().toISOString(),
-          emotion: aiResult.emotion,
-          emotionReason: aiResult.emotionReason,
-        };
-
-        // 첫 번째 AI 메시지로 대화 업데이트
-        const updatedConversation = await storage.updateConversation(conversation.id, {
-          messages: [aiMessage],
-          turnCount: 0
+          turnIndex: 0,
+          emotion: aiResult.emotion || null,
+          emotionReason: aiResult.emotionReason || null
         });
+        
+        console.log(`💬 첫 AI 메시지 생성 완료`);
 
-        res.json(updatedConversation);
+        // 레거시 호환성을 위해 conversations 구조로 반환
+        res.json({
+          id: personaRun.id,
+          scenarioId: validatedData.scenarioId,
+          scenarioName: validatedData.scenarioName,
+          personaId,
+          personaSnapshot: validatedData.personaSnapshot,
+          messages: [{
+            sender: "ai",
+            message: aiResult.content,
+            timestamp: new Date().toISOString(),
+            emotion: aiResult.emotion,
+            emotionReason: aiResult.emotionReason
+          }],
+          turnCount: 0,
+          status: 'active',
+          mode: validatedData.mode,
+          difficulty: validatedData.difficulty,
+          userId,
+          createdAt: scenarioRun.startedAt,
+          updatedAt: scenarioRun.startedAt
+        });
       } catch (aiError) {
         console.error("AI 초기 메시지 생성 실패:", aiError);
         // AI 메시지 생성 실패해도 대화는 생성되도록 함
-        res.json(conversation);
+        res.json({
+          id: personaRun.id,
+          scenarioId: validatedData.scenarioId,
+          scenarioName: validatedData.scenarioName,
+          personaId,
+          personaSnapshot: validatedData.personaSnapshot,
+          messages: [],
+          turnCount: 0,
+          status: 'active',
+          mode: validatedData.mode,
+          difficulty: validatedData.difficulty,
+          userId,
+          createdAt: scenarioRun.startedAt,
+          updatedAt: scenarioRun.startedAt
+        });
       }
     } catch (error) {
+      console.error("대화 생성 오류:", error);
       res.status(400).json({ error: "Invalid conversation data" });
     }
   });
@@ -508,48 +570,72 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // 실시간 음성 대화 메시지 일괄 저장 (AI 응답 생성 없이)
+  // 실시간 음성 대화 메시지 일괄 저장 (AI 응답 생성 없이) - 새로운 구조
   app.post("/api/conversations/:id/realtime-messages", isAuthenticated, async (req, res) => {
     try {
       // @ts-ignore - req.user는 auth 미들웨어에서 설정됨
       const userId = req.user?.id;
-      const ownershipResult = await verifyConversationOwnership(req.params.id, userId);
-      
-      if ('error' in ownershipResult) {
-        return res.status(ownershipResult.status).json({ error: ownershipResult.error });
-      }
+      const personaRunId = req.params.id;
 
       const { messages } = req.body;
       if (!Array.isArray(messages)) {
         return res.status(400).json({ error: "Messages must be an array" });
       }
 
-      const conversation = await storage.getConversation(req.params.id);
-      if (!conversation) {
-        return res.status(404).json({ error: "Conversation not found" });
+      // ✨ 새로운 구조: persona_run 조회
+      const personaRun = await storage.getPersonaRun(personaRunId);
+      if (!personaRun) {
+        return res.status(404).json({ error: "Persona run not found" });
       }
 
-      // 기존 메시지에 새 메시지 추가
-      const updatedMessages = [...conversation.messages, ...messages];
-      
+      // ✨ scenario_run 조회하여 권한 확인
+      const scenarioRun = await storage.getScenarioRun(personaRun.scenarioRunId);
+      if (!scenarioRun || scenarioRun.userId !== userId) {
+        return res.status(403).json({ error: "Unauthorized access" });
+      }
+
+      // ✨ 새로운 구조: 각 메시지를 chat_messages에 저장
+      let turnIndex = 0;
+      const existingMessages = await storage.getChatMessagesByPersonaRun(personaRunId);
+      turnIndex = existingMessages.length;
+
+      for (const msg of messages) {
+        await storage.createChatMessage({
+          personaRunId,
+          sender: msg.sender,
+          message: msg.message,
+          turnIndex,
+          emotion: msg.emotion || null,
+          emotionReason: msg.emotionReason || null
+        });
+        turnIndex++;
+      }
+
       // 턴 카운트 계산 (사용자 메시지 개수 기반)
       const userMessageCount = messages.filter((msg: any) => msg.sender === 'user').length;
-      const newTurnCount = conversation.turnCount + userMessageCount;
 
-      // 대화 업데이트 (메시지, 턴 카운트, 상태, 그리고 완료 시간)
-      const updatedConversation = await storage.updateConversation(req.params.id, {
-        messages: updatedMessages,
-        turnCount: newTurnCount,
-        status: 'completed', // 실시간 대화 종료 시 완료 상태로 변경
-        completedAt: new Date(), // 대화 완료 시간 기록 (Date 객체로 전달)
+      // ✨ persona_run 상태 업데이트
+      await storage.updatePersonaRun(personaRunId, {
+        status: 'completed',
+        completedAt: new Date()
       });
 
-      console.log(`✅ Saved ${messages.length} realtime messages (${userMessageCount} user turns), status: completed`);
+      // ✨ scenario_run 상태도 completed로 업데이트
+      await storage.updateScenarioRun(scenarioRun.id, {
+        status: 'completed',
+        completedAt: new Date()
+      });
 
+      console.log(`✅ Saved ${messages.length} realtime messages to chat_messages (${userMessageCount} user turns), status: completed`);
+
+      // 레거시 호환성을 위한 응답
       res.json({
-        conversation: updatedConversation,
+        conversation: {
+          id: personaRunId,
+          status: 'completed'
+        },
         messagesSaved: messages.length,
-        turnCount: newTurnCount,
+        turnCount: userMessageCount,
       });
     } catch (error) {
       console.error("Realtime messages save error:", error);
