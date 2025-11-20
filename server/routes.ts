@@ -595,7 +595,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       };
 
       const finalMessages = [...updatedMessages, aiMessage];
-      const isCompleted = newTurnCount >= 10;
+      const isCompleted = newTurnCount >= 3;
 
       // Update conversation
       const updatedConversation = await storage.updateConversation(req.params.id, {
@@ -671,32 +671,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // 턴 카운트 계산 (사용자 메시지 개수 기반)
       const userMessageCount = messages.filter((msg: any) => msg.sender === 'user').length;
-      
-      // ✨ 전체 사용자 턴 수 계산 (기존 메시지 + 새로 추가된 메시지)
-      const allMessages = await storage.getChatMessagesByPersonaRun(personaRunId);
-      const totalUserTurns = allMessages.filter(msg => msg.sender === 'user').length;
 
-      // ✨ persona_run 상태 업데이트: 10턴 이상이면 completed, 미만이면 active 유지
-      const isCompleted = totalUserTurns >= 10;
+      // ✨ persona_run 상태 업데이트
       await storage.updatePersonaRun(personaRunId, {
-        status: isCompleted ? 'completed' : 'active',
-        completedAt: isCompleted ? new Date() : null,
-        score: isCompleted ? personaRun.score : null
+        status: 'completed',
+        completedAt: new Date()
       });
 
       // ✨ scenario_run은 active 상태 유지 (여러 페르소나와 대화하기 위해)
       // scenario_run은 사용자가 명시적으로 종료하거나 새로운 시나리오를 시작할 때 completed로 변경됨
 
-      console.log(`✅ Saved ${messages.length} realtime messages to chat_messages (${userMessageCount} user turns), total user turns: ${totalUserTurns}, persona_run status: ${isCompleted ? 'completed' : 'active'}`);
+      console.log(`✅ Saved ${messages.length} realtime messages to chat_messages (${userMessageCount} user turns), persona_run status: completed`);
 
       // 레거시 호환성을 위한 응답
       res.json({
         conversation: {
           id: personaRunId,
-          status: isCompleted ? 'completed' : 'active'
+          status: 'completed'
         },
         messagesSaved: messages.length,
-        turnCount: totalUserTurns,
+        turnCount: userMessageCount,
       });
     } catch (error) {
       console.error("Realtime messages save error:", error);
@@ -1190,7 +1184,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.log(`대화 상태: ${conversation.status}, 턴 수: ${conversation.turnCount}`);
 
       // 완료되지 않은 대화에 대해서도 피드백 생성 허용 (3턴 이상이면)
-      if (conversation.status !== "completed" && conversation.turnCount < 10) {
+      if (conversation.status !== "completed" && conversation.turnCount < 3) {
         console.log("대화가 아직 완료되지 않음");
         return res.status(400).json({ error: "Conversation not completed yet" });
       }
