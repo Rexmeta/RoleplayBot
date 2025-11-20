@@ -186,10 +186,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.log('✅ 검증된 데이터:', JSON.stringify(validatedData));
       
       // ✨ 새로운 구조: scenario_run 생성
+      // 시도 번호 계산 (같은 사용자가 같은 시나리오를 몇 번째로 실행하는지)
+      const existingRuns = await storage.getUserScenarioRuns(userId);
+      const sameScenarioRuns = existingRuns.filter(r => r.scenarioId === validatedData.scenarioId);
+      const attemptNumber = sameScenarioRuns.length + 1;
+      
       const scenarioRun = await storage.createScenarioRun({
         userId,
         scenarioId: validatedData.scenarioId,
         scenarioName: validatedData.scenarioName,
+        attemptNumber,
         mode: validatedData.mode,
         difficulty: validatedData.difficulty,
         status: 'active'
