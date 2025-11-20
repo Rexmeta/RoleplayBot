@@ -1,0 +1,329 @@
+좋아요, 스키마까지 보여줘서 상황이 딱 보이네요.
+결론부터 말하면 지금 리스트를 conversations 기준으로 그리기 때문에 페르소나 수만큼 줄이 늘어나는 것이고,
+이미 만들어 둔 scenarioRuns / personaRuns 구조를 히스토리의 기준으로 쓰면 깔끔하게 해결됩니다.
+
+
+---
+
+1. 지금 구조 이해 & 문제 포인트
+
+현재 상태:
+
+conversations
+
+한 줄에 “특정 페르소나와의 대화” + 메시지 전체가 들어 있음
+
+멀티 페르소나 시나리오면 페르소나마다 conversations row가 1개씩 생김
+
+
+scenarioRuns
+
+“시나리오 1회 플레이”를 표현하는 상위 엔티티 (매우 잘 설계됨 👍)
+
+
+personaRuns
+
+scenarioRunId 기준으로 각 페르소나별 세션을 분리
+
+
+
+그런데 히스토리 화면은 아직 conversations를 그대로 select해서 쓰고 있을 가능성이 높습니다:
+
+> 시나리오 1번 플레이 × 페르소나 2명 × 2회 시도
+→ conversations 4행
+→ 리스트도 4줄
+
+
+
+의도한 구조는:
+
+리스트 한 줄 = scenarioRuns 1행
+
+그 안에 포함된 페르소나 목록 = personaRuns 집계
+
+
+
+---
+
+2. 추천 방향: 새 구조로 완전히 전환
+
+2-1. 앞으로의 저장 흐름
+
+1. 시나리오 시작 시
+
+
+
+// attemptNumber 계산 예시
+const [{ count }] = await db
+  .select({ count: sql<number>`count(*)` })
+  .from(scenarioRuns)
+  .where(and(
+    eq(scenarioRuns.userId, userId),
+    eq(scenarioRuns.scenarioId, scenarioId)
+  ));
+
+const [run] = await db.insert(scenarioRuns)
+  .values({
+    userId,
+    scenarioId,
+    scenarioName,
+    attemptNumber: count + 1,
+    difficulty,
+    mode,
+    conversationOrder,    // ["personaA", "personaB"]
+    personaSelections,
+    strategyChoices,
+  })
+  .returning();
+
+2. 각 페르소나와 대화 시작 시
+
+
+
+const [personaRun] = await db.insert(personaRuns)
+  .values({
+    scenarioRunId: run.id,
+    personaId,
+    personaSnapshot,
+    phase,            // 1, 2,...
+  })
+  .returning();
+
+3. 메시지 저장
+
+
+
+await db.insert(chatMessages).values({
+  personaRunId: personaRun.id,
+  turnIndex,
+  sender,      // 'user' | 'ai'
+  message,
+  emotion,
+  emotionReason,
+});
+
+4. 대화/시나리오 종료 시
+
+
+
+await db.update(personaRuns)
+  .set({ status: 'completed', turnCount, score, completedAt: new Date() })
+  .where(eq(personaRuns.id, personaRun.id));
+
+await db.update(scenarioRuns)
+  .set({
+    status: 'completed',
+    totalScore,
+    strategyReflection,
+    sequenceAnalysis,
+    completedAt: new Date(),
+  })
+  .where(eq(scenarioRuns.id, run.id));
+
+> 포인트: 멀티 페르소나 시나리오는 conversations 테이블을 더 이상 만들지 않거나,
+만들더라도 “요약용 한 줄만” 저장하도록 바꾸는 게 좋습니다.
+
+
+
+
+---
+
+3. 히스토리 리스트는 scenarioRuns 기준으로
+
+이제 “내 롤플레이 기록”은 scenarioRuns + personaRuns를 조인해서 뽑습니다.
+
+3-1. SQL 개념
+
+SELECT
+  sr.id                AS scenario_run_id,
+  sr.scenario_name,
+  sr.difficulty,
+  sr.attempt_number,
+  sr.status,
+  sr.total_score,
+  sr.started_at,
+  sr.completed_at,
+  json_agg(
+    json_build_object(
+      'personaId', pr.persona_id,
+      'personaSnapshot', pr.persona_snapshot
+    )
+    ORDER BY pr.phase
+  ) AS personas
+FROM scenario_runs sr
+JOIN persona_runs pr
+  ON pr.scenario_run_id = sr.id
+WHERE sr.user_id = $1
+GROUP BY
+  sr.id, sr.scenario_name, sr.difficulty,
+  sr.attempt_number, sr.status,
+  sr.total_score, sr.started_at, sr.completed_at
+ORDER BY sr.started_at DESC;
+
+3-2. Drizzle 코드 예시
+
+import { sql, eq, desc } from "drizzle-orm";
+
+const runs = await db
+  .select({
+    id: scenarioRuns.id,
+    scenarioName: scenarioRuns.scenarioName,
+    difficulty: scenarioRuns.difficulty,
+    attemptNumber: scenarioRuns.attemptNumber,
+    status: scenarioRuns.status,
+    totalScore: scenarioRuns.totalScore,
+    startedAt: scenarioRuns.startedAt,
+    completedAt: scenarioRuns.completedAt,
+    personas: sql`
+      json_agg(
+        json_build_object(
+          'personaId', ${personaRuns.personaId},
+          'personaSnapshot', ${personaRuns.personaSnapshot}
+        )
+        ORDER BY ${personaRuns.phase}
+      )
+    `.as("personas"),
+  })
+  .from(scenarioRuns)
+  .leftJoin(personaRuns, eq(personaRuns.scenarioRunId, scenarioRuns.id))
+  .where(eq(scenarioRuns.userId, userId))
+  .groupBy(
+    scenarioRuns.id,
+    scenarioRuns.scenarioName,
+    scenarioRuns.difficulty,
+    scenarioRuns.attemptNumber,
+    scenarioRuns.status,
+    scenarioRuns.totalScore,
+    scenarioRuns.startedAt,
+    scenarioRuns.completedAt,
+  )
+  .orderBy(desc(scenarioRuns.startedAt));
+
+이 runs 배열의 각 요소가 리스트의 한 줄이 됩니다.
+
+프론트에서는:
+
+runs.map(run => (
+  <HistoryItem
+    key={run.id}
+    title={run.scenarioName}
+    difficulty={run.difficulty}
+    attempt={run.attemptNumber}
+    score={run.totalScore}
+    personas={run.personas}   // 길이 2 → "대화한 페르소나들 (2개)"
+  />
+));
+
+→ 이렇게 하면 같은 시나리오 2회 플레이 = 리스트에 2줄,
+각 줄 안에서 personas.length === 2로 렌더링할 수 있습니다.
+
+
+---
+
+4. 기존 conversations와의 관계 정리
+
+현재 conversations에 있는 필드 중 상당수가 scenarioRuns와 중복입니다:
+
+scenarioId / scenarioName / difficulty / mode
+
+personaSelections / strategyChoices / sequenceAnalysis / strategyReflection
+
+conversationOrder 등
+
+
+정리 전략을 제안하면:
+
+1. 새 구조(멀티 페르소나, sequential)
+
+canonical: scenarioRuns, personaRuns, chatMessages, feedbacks
+
+conversations는:
+
+아예 row를 만들지 않거나,
+
+conversationType = 'legacy'/'single'에서만 사용
+
+
+
+
+2. 기존 싱글 페르소나 시나리오
+
+빠르게 가려면 그냥 conversations 계속 사용
+
+추후에 필요하면 마이그레이션해서
+
+scenarioRuns 1개,
+
+personaRuns 1개로 옮기기 가능
+
+
+
+
+3. 히스토리 쿼리에서:
+
+scenarioRuns 기반 리스트를 먼저 보여주고
+
+정말 필요한 경우에만 conversations의 단독 시나리오를 섞어서 union
+
+
+
+
+
+---
+
+5. “지금은 어떻게 수정하면 바로 2줄만 나오나?”
+
+지금 UI가 conversations에서 바로 뽑고 있다면,
+당장 빨리 고치는 한 가지 방법은:
+
+1. 멀티 페르소나 시나리오의 경우
+
+두 페르소나 모두 동일한 scenarioRunId 또는 groupId 컬럼을 conversations에 추가
+
+
+
+2. 히스토리 쿼리에서 그 group으로 묶어서 하나만 보여주기
+
+
+
+예시:
+
+// 1단계: conversations에 scenarioRunId 컬럼 추가
+ALTER TABLE conversations
+  ADD COLUMN scenario_run_id varchar REFERENCES scenario_runs(id);
+
+// 2단계: 리스트 뽑을 때 group by
+const rows = await db
+  .select({
+    scenarioRunId: conversations.scenarioRunId,
+    scenarioId: conversations.scenarioId,
+    scenarioName: conversations.scenarioName,
+    difficulty: conversations.difficulty,
+    attemptNumber: sql<number>`max(${conversations.turnCount})`, // 예시
+    status: sql<string>`max(${conversations.status})`,
+    createdAt: sql`min(${conversations.createdAt})`,
+    personaCount: sql<number>`count(distinct ${conversations.personaId})`,
+  })
+  .from(conversations)
+  .where(eq(conversations.userId, userId))
+  .groupBy(conversations.scenarioRunId, conversations.scenarioId, conversations.scenarioName)
+  .orderBy(desc(sql`min(${conversations.createdAt})`));
+
+하지만 이미 scenarioRuns/personaRuns를 잘 만들어 둔 상태라
+새 구조로 완전히 옮기는 쪽이 훨씬 깔끔합니다.
+
+
+---
+
+정리하면:
+
+스키마는 거의 완벽하게 잘 짜 두셨고,
+
+히스토리의 기준을 conversations → scenarioRuns로 바꾸는 것이 핵심입니다.
+
+그리고 쿼리에서 personaRuns를 json_agg로 묶어주면
+“2번 플레이 → 2줄, 각 줄 안에 페르소나 2명”이 정확히 구현됩니다.
+
+
+혹시 히스토리 리스트를 실제로 어떻게 뽑고 있는지(현재 Drizzle 쿼리)도 보여주면,
+그 코드 그대로 리팩터링해서 붙여 쓸 수 있는 버전으로 바꿔서도 적어줄게요.

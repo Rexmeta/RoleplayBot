@@ -43,6 +43,7 @@ export interface IStorage {
   getScenarioRun(id: string): Promise<ScenarioRun | undefined>;
   updateScenarioRun(id: string, updates: Partial<ScenarioRun>): Promise<ScenarioRun>;
   getUserScenarioRuns(userId: string): Promise<ScenarioRun[]>;
+  getUserScenarioRunsWithPersonaRuns(userId: string): Promise<(ScenarioRun & { personaRuns: PersonaRun[] })[]>;
   getScenarioRunWithPersonaRuns(id: string): Promise<(ScenarioRun & { personaRuns: PersonaRun[] }) | undefined>;
   
   // Persona Runs
@@ -241,6 +242,55 @@ export class MemStorage implements IStorage {
     };
     this.conversations.set(conversationId, updated);
     return updated;
+  }
+
+  // 새로운 데이터 구조: Scenario Runs (stub implementations - MemStorage not used)
+  async createScenarioRun(scenarioRun: InsertScenarioRun): Promise<ScenarioRun> {
+    throw new Error("MemStorage does not support Scenario Runs");
+  }
+
+  async getScenarioRun(id: string): Promise<ScenarioRun | undefined> {
+    throw new Error("MemStorage does not support Scenario Runs");
+  }
+
+  async updateScenarioRun(id: string, updates: Partial<ScenarioRun>): Promise<ScenarioRun> {
+    throw new Error("MemStorage does not support Scenario Runs");
+  }
+
+  async getUserScenarioRuns(userId: string): Promise<ScenarioRun[]> {
+    throw new Error("MemStorage does not support Scenario Runs");
+  }
+
+  async getUserScenarioRunsWithPersonaRuns(userId: string): Promise<(ScenarioRun & { personaRuns: PersonaRun[] })[]> {
+    throw new Error("MemStorage does not support Scenario Runs");
+  }
+
+  async getScenarioRunWithPersonaRuns(id: string): Promise<(ScenarioRun & { personaRuns: PersonaRun[] }) | undefined> {
+    throw new Error("MemStorage does not support Scenario Runs");
+  }
+
+  async createPersonaRun(personaRun: InsertPersonaRun): Promise<PersonaRun> {
+    throw new Error("MemStorage does not support Persona Runs");
+  }
+
+  async getPersonaRun(id: string): Promise<PersonaRun | undefined> {
+    throw new Error("MemStorage does not support Persona Runs");
+  }
+
+  async updatePersonaRun(id: string, updates: Partial<PersonaRun>): Promise<PersonaRun> {
+    throw new Error("MemStorage does not support Persona Runs");
+  }
+
+  async getPersonaRunsByScenarioRun(scenarioRunId: string): Promise<PersonaRun[]> {
+    throw new Error("MemStorage does not support Persona Runs");
+  }
+
+  async createChatMessage(message: InsertChatMessage): Promise<ChatMessage> {
+    throw new Error("MemStorage does not support Chat Messages");
+  }
+
+  async getChatMessagesByPersonaRun(personaRunId: string): Promise<ChatMessage[]> {
+    throw new Error("MemStorage does not support Chat Messages");
   }
 
   // User operations - 이메일 기반 인증 시스템
@@ -467,6 +517,33 @@ export class PostgreSQLStorage implements IStorage {
 
   async getUserScenarioRuns(userId: string): Promise<ScenarioRun[]> {
     return await db.select().from(scenarioRuns).where(eq(scenarioRuns.userId, userId)).orderBy(desc(scenarioRuns.startedAt));
+  }
+
+  async getUserScenarioRunsWithPersonaRuns(userId: string): Promise<(ScenarioRun & { personaRuns: PersonaRun[] })[]> {
+    const userScenarioRuns = await db.select().from(scenarioRuns).where(eq(scenarioRuns.userId, userId)).orderBy(desc(scenarioRuns.startedAt));
+    
+    if (userScenarioRuns.length === 0) {
+      return [];
+    }
+    
+    const scenarioRunIds = userScenarioRuns.map(sr => sr.id);
+    const allPersonaRuns = await db.select().from(personaRuns)
+      .where(eq(personaRuns.scenarioRunId, scenarioRunIds[0]))
+      .orderBy(asc(personaRuns.phase));
+    
+    const personaRunsByScenarioId = new Map<string, PersonaRun[]>();
+    
+    for (const scenarioRunId of scenarioRunIds) {
+      const runs = await db.select().from(personaRuns)
+        .where(eq(personaRuns.scenarioRunId, scenarioRunId))
+        .orderBy(asc(personaRuns.phase));
+      personaRunsByScenarioId.set(scenarioRunId, runs);
+    }
+    
+    return userScenarioRuns.map(sr => ({
+      ...sr,
+      personaRuns: personaRunsByScenarioId.get(sr.id) || []
+    }));
   }
 
   async getScenarioRunWithPersonaRuns(id: string): Promise<(ScenarioRun & { personaRuns: PersonaRun[] }) | undefined> {

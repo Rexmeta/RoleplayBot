@@ -949,14 +949,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // 새로운 데이터 구조: Scenario Runs API
-  // Get all scenario runs for the current user
+  // Get all scenario runs for the current user (with persona runs)
   app.get("/api/scenario-runs", isAuthenticated, async (req, res) => {
     try {
       // @ts-ignore - req.user는 auth 미들웨어에서 설정됨
       const userId = req.user?.id;
       
-      const scenarioRuns = await storage.getUserScenarioRuns(userId);
-      res.json(scenarioRuns);
+      // ✨ 개선: personaRuns와 함께 조회하여 프론트엔드에서 추가 쿼리 불필요
+      const scenarioRunsWithPersonas = await storage.getUserScenarioRunsWithPersonaRuns(userId);
+      res.json(scenarioRunsWithPersonas);
     } catch (error) {
       res.status(500).json({ error: "Failed to fetch scenario runs" });
     }

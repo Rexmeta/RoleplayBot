@@ -21,8 +21,8 @@ export default function MyPage() {
   const { user } = useAuth();
   const { toast } = useToast();
 
-  // 사용자의 시나리오 실행 기록 조회
-  const { data: scenarioRuns = [], isLoading: scenarioRunsLoading } = useQuery<ScenarioRun[]>({
+  // 사용자의 시나리오 실행 기록 조회 (personaRuns 포함)
+  const { data: scenarioRuns = [], isLoading: scenarioRunsLoading } = useQuery<(ScenarioRun & { personaRuns: PersonaRun[] })[]>({
     queryKey: ['/api/scenario-runs'],
     enabled: !!user,
     staleTime: 1000 * 60 * 5,
@@ -45,11 +45,19 @@ export default function MyPage() {
   // 통계 계산
   const stats = useMemo(() => {
     const completedRuns = scenarioRuns.filter(sr => sr.status === 'completed');
+    
+    // ✨ personaRuns의 평균 점수 계산
+    const allPersonaRuns = scenarioRuns.flatMap(sr => sr.personaRuns || []);
+    const completedPersonaRuns = allPersonaRuns.filter(pr => pr.status === 'completed' && pr.score !== null && pr.score !== undefined);
+    const averageScore = completedPersonaRuns.length > 0
+      ? Math.round(completedPersonaRuns.reduce((sum, pr) => sum + (pr.score || 0), 0) / completedPersonaRuns.length)
+      : 0;
+    
     return {
       totalScenarioRuns: scenarioRuns.length,
       completedScenarioRuns: completedRuns.length,
-      averageScore: 0, // TODO: persona_runs의 평균 점수 계산
-      totalFeedbacks: 0, // TODO: feedbacks 조회
+      averageScore,
+      totalFeedbacks: completedPersonaRuns.length, // 완료된 persona run = feedback
     };
   }, [scenarioRuns]);
 
@@ -282,7 +290,11 @@ export default function MyPage() {
                             </button>
                           </div>
                           <AccordionContent>
-                            <ScenarioRunDetails scenarioRun={scenarioRun} scenarioInfo={scenarioInfo} />
+                            <ScenarioRunDetails 
+                              scenarioRun={scenarioRun} 
+                              scenarioInfo={scenarioInfo}
+                              personaRuns={scenarioRun.personaRuns || []} 
+                            />
                           </AccordionContent>
                         </AccordionItem>
                       );
@@ -396,26 +408,22 @@ export default function MyPage() {
 }
 
 // 시나리오 실행 상세 컴포넌트
-function ScenarioRunDetails({ scenarioRun, scenarioInfo }: { scenarioRun: ScenarioRun; scenarioInfo: any }) {
-  const { data: personaRuns = [], isLoading } = useQuery<PersonaRun[]>({
-    queryKey: ['/api/scenario-runs', scenarioRun.id, 'persona-runs'],
-    staleTime: 1000 * 60 * 5,
-  });
-
+function ScenarioRunDetails({ 
+  scenarioRun, 
+  scenarioInfo, 
+  personaRuns 
+}: { 
+  scenarioRun: ScenarioRun; 
+  scenarioInfo: any; 
+  personaRuns: PersonaRun[];
+}) {
+  // ✨ 개선: 이미 부모에서 받아온 personaRuns 사용 (중복 쿼리 제거)
   const { data: scenarios = [] } = useQuery<any[]>({
     queryKey: ['/api/scenarios'],
     staleTime: 1000 * 60 * 30,
   });
 
   const scenario = scenarios.find(s => s.id === scenarioRun.scenarioId);
-
-  if (isLoading) {
-    return (
-      <div className="py-4 text-center">
-        <Loader2 className="w-6 h-6 animate-spin mx-auto text-blue-600" />
-      </div>
-    );
-  }
 
   return (
     <div className="space-y-4 pt-3">
