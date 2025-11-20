@@ -9,7 +9,7 @@ import { type ScenarioPersona } from "@/lib/scenario-system";
 interface StrategyReflectionProps {
   personas: ScenarioPersona[];
   completedPersonaIds: string[];
-  onSubmit: (reflection: string) => void;
+  onSubmit: (reflection: string) => Promise<void>;
   scenarioTitle: string;
 }
 
@@ -35,6 +35,7 @@ export function StrategyReflection({
       await onSubmit(reflection.trim());
     } catch (error) {
       console.error('전략 회고 제출 실패:', error);
+    } finally {
       setIsSubmitting(false);
     }
   };
