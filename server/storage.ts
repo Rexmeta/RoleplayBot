@@ -1,15 +1,15 @@
-import { type Conversation, type InsertConversation, type Feedback, type InsertFeedback, type PersonaSelection, type StrategyChoice, type SequenceAnalysis, type User, type UpsertUser, conversations, feedbacks, users } from "@shared/schema";
+import { type Conversation, type InsertConversation, type Feedback, type InsertFeedback, type PersonaSelection, type StrategyChoice, type SequenceAnalysis, type User, type UpsertUser, type ScenarioRun, type InsertScenarioRun, type PersonaRun, type InsertPersonaRun, type ChatMessage, type InsertChatMessage, conversations, feedbacks, users, scenarioRuns, personaRuns, chatMessages } from "@shared/schema";
 import { randomUUID } from "crypto";
 import { drizzle } from "drizzle-orm/neon-http";
 import { neon } from "@neondatabase/serverless";
-import { eq } from "drizzle-orm";
+import { eq, asc, desc } from "drizzle-orm";
 
 // Initialize database connection
 const sql = neon(process.env.DATABASE_URL!);
 const db = drizzle(sql);
 
 export interface IStorage {
-  // Conversations
+  // Conversations (레거시)
   createConversation(conversation: InsertConversation): Promise<Conversation>;
   getConversation(id: string): Promise<Conversation | undefined>;
   updateConversation(id: string, updates: Partial<Conversation>): Promise<Conversation>;
@@ -37,6 +37,23 @@ export interface IStorage {
   
   // Strategy Reflection
   saveStrategyReflection(conversationId: string, reflection: string, conversationOrder: string[]): Promise<Conversation>;
+
+  // 새로운 데이터 구조: Scenario Runs
+  createScenarioRun(scenarioRun: InsertScenarioRun): Promise<ScenarioRun>;
+  getScenarioRun(id: string): Promise<ScenarioRun | undefined>;
+  updateScenarioRun(id: string, updates: Partial<ScenarioRun>): Promise<ScenarioRun>;
+  getUserScenarioRuns(userId: string): Promise<ScenarioRun[]>;
+  getScenarioRunWithPersonaRuns(id: string): Promise<(ScenarioRun & { personaRuns: PersonaRun[] }) | undefined>;
+  
+  // Persona Runs
+  createPersonaRun(personaRun: InsertPersonaRun): Promise<PersonaRun>;
+  getPersonaRun(id: string): Promise<PersonaRun | undefined>;
+  updatePersonaRun(id: string, updates: Partial<PersonaRun>): Promise<PersonaRun>;
+  getPersonaRunsByScenarioRun(scenarioRunId: string): Promise<PersonaRun[]>;
+  
+  // Chat Messages
+  createChatMessage(message: InsertChatMessage): Promise<ChatMessage>;
+  getChatMessagesByPersonaRun(personaRunId: string): Promise<ChatMessage[]>;
 
   // User operations - 이메일 기반 인증 시스템
   getUser(id: string): Promise<User | undefined>;
@@ -418,6 +435,71 @@ export class PostgreSQLStorage implements IStorage {
       }
     }).returning();
     return user;
+  }
+
+  // 새로운 데이터 구조: Scenario Runs
+  async createScenarioRun(insertScenarioRun: InsertScenarioRun): Promise<ScenarioRun> {
+    const [scenarioRun] = await db.insert(scenarioRuns).values(insertScenarioRun).returning();
+    return scenarioRun;
+  }
+
+  async getScenarioRun(id: string): Promise<ScenarioRun | undefined> {
+    const [scenarioRun] = await db.select().from(scenarioRuns).where(eq(scenarioRuns.id, id));
+    return scenarioRun;
+  }
+
+  async updateScenarioRun(id: string, updates: Partial<ScenarioRun>): Promise<ScenarioRun> {
+    const [scenarioRun] = await db.update(scenarioRuns).set(updates).where(eq(scenarioRuns.id, id)).returning();
+    if (!scenarioRun) {
+      throw new Error("ScenarioRun not found");
+    }
+    return scenarioRun;
+  }
+
+  async getUserScenarioRuns(userId: string): Promise<ScenarioRun[]> {
+    return await db.select().from(scenarioRuns).where(eq(scenarioRuns.userId, userId)).orderBy(desc(scenarioRuns.startedAt));
+  }
+
+  async getScenarioRunWithPersonaRuns(id: string): Promise<(ScenarioRun & { personaRuns: PersonaRun[] }) | undefined> {
+    const scenarioRun = await this.getScenarioRun(id);
+    if (!scenarioRun) {
+      return undefined;
+    }
+    const personas = await this.getPersonaRunsByScenarioRun(id);
+    return { ...scenarioRun, personaRuns: personas };
+  }
+
+  // Persona Runs
+  async createPersonaRun(insertPersonaRun: InsertPersonaRun): Promise<PersonaRun> {
+    const [personaRun] = await db.insert(personaRuns).values(insertPersonaRun).returning();
+    return personaRun;
+  }
+
+  async getPersonaRun(id: string): Promise<PersonaRun | undefined> {
+    const [personaRun] = await db.select().from(personaRuns).where(eq(personaRuns.id, id));
+    return personaRun;
+  }
+
+  async updatePersonaRun(id: string, updates: Partial<PersonaRun>): Promise<PersonaRun> {
+    const [personaRun] = await db.update(personaRuns).set(updates).where(eq(personaRuns.id, id)).returning();
+    if (!personaRun) {
+      throw new Error("PersonaRun not found");
+    }
+    return personaRun;
+  }
+
+  async getPersonaRunsByScenarioRun(scenarioRunId: string): Promise<PersonaRun[]> {
+    return await db.select().from(personaRuns).where(eq(personaRuns.scenarioRunId, scenarioRunId)).orderBy(asc(personaRuns.phase));
+  }
+
+  // Chat Messages
+  async createChatMessage(insertMessage: InsertChatMessage): Promise<ChatMessage> {
+    const [message] = await db.insert(chatMessages).values(insertMessage).returning();
+    return message;
+  }
+
+  async getChatMessagesByPersonaRun(personaRunId: string): Promise<ChatMessage[]> {
+    return await db.select().from(chatMessages).where(eq(chatMessages.personaRunId, personaRunId)).orderBy(asc(chatMessages.turnIndex));
   }
 }
 
