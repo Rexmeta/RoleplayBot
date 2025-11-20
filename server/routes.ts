@@ -674,13 +674,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         completedAt: new Date()
       });
 
-      // ✨ scenario_run 상태도 completed로 업데이트
-      await storage.updateScenarioRun(scenarioRun.id, {
-        status: 'completed',
-        completedAt: new Date()
-      });
+      // ✨ scenario_run은 active 상태 유지 (여러 페르소나와 대화하기 위해)
+      // scenario_run은 사용자가 명시적으로 종료하거나 새로운 시나리오를 시작할 때 completed로 변경됨
 
-      console.log(`✅ Saved ${messages.length} realtime messages to chat_messages (${userMessageCount} user turns), status: completed`);
+      console.log(`✅ Saved ${messages.length} realtime messages to chat_messages (${userMessageCount} user turns), persona_run status: completed`);
 
       // 레거시 호환성을 위한 응답
       res.json({
@@ -998,6 +995,34 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Complete a scenario run
+  app.post("/api/scenario-runs/:id/complete", isAuthenticated, async (req, res) => {
+    try {
+      // @ts-ignore - req.user는 auth 미들웨어에서 설정됨
+      const userId = req.user?.id;
+      const { id } = req.params;
+      
+      const scenarioRun = await storage.getScenarioRun(id);
+      if (!scenarioRun) {
+        return res.status(404).json({ error: "Scenario run not found" });
+      }
+      
+      if (scenarioRun.userId !== userId) {
+        return res.status(403).json({ error: "Unauthorized" });
+      }
+      
+      const updated = await storage.updateScenarioRun(id, {
+        status: 'completed',
+        completedAt: new Date()
+      });
+      
+      res.json({ success: true, scenarioRun: updated });
+    } catch (error) {
+      console.error("Error completing scenario run:", error);
+      res.status(500).json({ error: "Failed to complete scenario run" });
+    }
+  });
+
   // Strategy Reflection API for Scenario Runs
   app.post("/api/scenario-runs/:id/strategy-reflection", isAuthenticated, async (req, res) => {
     try {
@@ -1023,9 +1048,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(403).json({ error: "Unauthorized" });
       }
       
+      // 전략 회고 저장과 동시에 scenario_run 완료 처리
       const updated = await storage.updateScenarioRun(id, {
         strategyReflection,
-        conversationOrder
+        conversationOrder,
+        status: 'completed',
+        completedAt: new Date()
       });
       
       res.json({ success: true, scenarioRun: updated });
