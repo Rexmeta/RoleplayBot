@@ -105,11 +105,37 @@ export default function Home() {
         console.log(`📍 시나리오 페르소나 선택 화면 이동: ${scenario.title}, scenarioRunId: ${scenarioRunIdParam || 'none'}`);
         
         setSelectedScenario(scenario);
-        setScenarioRunId(scenarioRunIdParam); // ✅ 기존 scenario_run ID 설정 (있으면)
-        setCompletedPersonaIds([]);
+        setScenarioRunId(scenarioRunIdParam);
         setConversationIds([]);
         setStrategyReflectionSubmitted(false);
         setSelectedDifficulty(scenario.difficulty || 4);
+        
+        // ✅ scenarioRunId가 있으면 완료된 페르소나 목록 불러오기
+        if (scenarioRunIdParam) {
+          apiRequest('GET', '/api/scenario-runs')
+            .then(res => res.json())
+            .then((scenarioRuns: any[]) => {
+              const run = scenarioRuns.find((sr: any) => sr.id === scenarioRunIdParam);
+              if (run) {
+                const completedIds = (run.personaRuns || [])
+                  .filter((pr: any) => pr.status === 'completed')
+                  .map((pr: any) => pr.personaId);
+                
+                setCompletedPersonaIds(completedIds);
+                console.log(`✅ 완료된 페르소나 ${completedIds.length}개 불러옴:`, completedIds);
+              } else {
+                setCompletedPersonaIds([]);
+              }
+            })
+            .catch(error => {
+              console.error('완료된 페르소나 목록 불러오기 실패:', error);
+              setCompletedPersonaIds([]);
+            });
+        } else {
+          // 새 시도인 경우 빈 배열
+          setCompletedPersonaIds([]);
+        }
+        
         setCurrentView("persona-selection");
         
         // URL에서 파라미터 제거
