@@ -492,7 +492,7 @@ function ScenarioRunDetails({
                     <Button
                       variant="outline"
                       size="sm"
-                      onClick={() => window.location.href = `/persona-run/${personaRun.id}/chat`}
+                      onClick={() => window.location.href = `/chat/${personaRun.id}`}
                       data-testid={`view-chat-${personaRun.id}`}
                     >
                       대화 보기
@@ -501,7 +501,7 @@ function ScenarioRunDetails({
                       <Button
                         variant="default"
                         size="sm"
-                        onClick={() => window.location.href = `/persona-run/${personaRun.id}/feedback`}
+                        onClick={() => window.location.href = `/feedback/${personaRun.id}`}
                         data-testid={`view-feedback-${personaRun.id}`}
                       >
                         피드백 보기
