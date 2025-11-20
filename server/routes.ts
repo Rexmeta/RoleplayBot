@@ -185,23 +185,29 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const validatedData = insertConversationSchema.parse(req.body);
       console.log('✅ 검증된 데이터:', JSON.stringify(validatedData));
       
-      // ✨ 새로운 구조: scenario_run 생성
-      // 시도 번호 계산 (같은 사용자가 같은 시나리오를 몇 번째로 실행하는지)
-      const existingRuns = await storage.getUserScenarioRuns(userId);
-      const sameScenarioRuns = existingRuns.filter(r => r.scenarioId === validatedData.scenarioId);
-      const attemptNumber = sameScenarioRuns.length + 1;
+      // ✨ 기존 active scenarioRun 찾기 또는 새로 생성
+      let scenarioRun = await storage.findActiveScenarioRun(userId, validatedData.scenarioId);
       
-      const scenarioRun = await storage.createScenarioRun({
-        userId,
-        scenarioId: validatedData.scenarioId,
-        scenarioName: validatedData.scenarioName,
-        attemptNumber,
-        mode: validatedData.mode,
-        difficulty: validatedData.difficulty,
-        status: 'active'
-      });
-      
-      console.log(`📋 Scenario Run 생성: ${scenarioRun.id}`);
+      if (scenarioRun) {
+        console.log(`♻️ 기존 Scenario Run 재사용: ${scenarioRun.id} (attempt #${scenarioRun.attemptNumber})`);
+      } else {
+        // 시도 번호 계산 (같은 사용자가 같은 시나리오를 몇 번째로 실행하는지)
+        const existingRuns = await storage.getUserScenarioRuns(userId);
+        const sameScenarioRuns = existingRuns.filter(r => r.scenarioId === validatedData.scenarioId);
+        const attemptNumber = sameScenarioRuns.length + 1;
+        
+        scenarioRun = await storage.createScenarioRun({
+          userId,
+          scenarioId: validatedData.scenarioId,
+          scenarioName: validatedData.scenarioName,
+          attemptNumber,
+          mode: validatedData.mode,
+          difficulty: validatedData.difficulty,
+          status: 'active'
+        });
+        
+        console.log(`📋 새로운 Scenario Run 생성: ${scenarioRun.id} (attempt #${attemptNumber})`);
+      }
       
       // ✨ 새로운 구조: persona_run 생성
       const personaId = validatedData.personaId || validatedData.scenarioId;

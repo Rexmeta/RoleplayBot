@@ -2,7 +2,7 @@ import { type Conversation, type InsertConversation, type Feedback, type InsertF
 import { randomUUID } from "crypto";
 import { drizzle } from "drizzle-orm/neon-http";
 import { neon } from "@neondatabase/serverless";
-import { eq, asc, desc, inArray } from "drizzle-orm";
+import { eq, asc, desc, inArray, and } from "drizzle-orm";
 
 // Initialize database connection
 const sql = neon(process.env.DATABASE_URL!);
@@ -43,6 +43,7 @@ export interface IStorage {
   getScenarioRun(id: string): Promise<ScenarioRun | undefined>;
   updateScenarioRun(id: string, updates: Partial<ScenarioRun>): Promise<ScenarioRun>;
   getUserScenarioRuns(userId: string): Promise<ScenarioRun[]>;
+  findActiveScenarioRun(userId: string, scenarioId: string): Promise<ScenarioRun | undefined>;
   getUserScenarioRunsWithPersonaRuns(userId: string): Promise<(ScenarioRun & { personaRuns: PersonaRun[] })[]>;
   getScenarioRunWithPersonaRuns(id: string): Promise<(ScenarioRun & { personaRuns: PersonaRun[] }) | undefined>;
   
@@ -258,6 +259,10 @@ export class MemStorage implements IStorage {
   }
 
   async getUserScenarioRuns(userId: string): Promise<ScenarioRun[]> {
+    throw new Error("MemStorage does not support Scenario Runs");
+  }
+
+  async findActiveScenarioRun(userId: string, scenarioId: string): Promise<ScenarioRun | undefined> {
     throw new Error("MemStorage does not support Scenario Runs");
   }
 
@@ -517,6 +522,20 @@ export class PostgreSQLStorage implements IStorage {
 
   async getUserScenarioRuns(userId: string): Promise<ScenarioRun[]> {
     return await db.select().from(scenarioRuns).where(eq(scenarioRuns.userId, userId)).orderBy(desc(scenarioRuns.startedAt));
+  }
+
+  async findActiveScenarioRun(userId: string, scenarioId: string): Promise<ScenarioRun | undefined> {
+    const [activeRun] = await db
+      .select()
+      .from(scenarioRuns)
+      .where(and(
+        eq(scenarioRuns.userId, userId),
+        eq(scenarioRuns.scenarioId, scenarioId),
+        eq(scenarioRuns.status, 'active')
+      ))
+      .orderBy(desc(scenarioRuns.startedAt))
+      .limit(1);
+    return activeRun;
   }
 
   async getUserScenarioRunsWithPersonaRuns(userId: string): Promise<(ScenarioRun & { personaRuns: PersonaRun[] })[]> {
