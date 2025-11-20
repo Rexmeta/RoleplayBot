@@ -1941,10 +1941,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
       return;
     }
 
-    // Verify conversation ownership
-    const ownership = await verifyConversationOwnership(conversationId, userId);
-    if ('error' in ownership) {
-      ws.send(JSON.stringify({ type: 'error', error: ownership.error }));
+    // ✨ Verify persona_run ownership (새로운 구조)
+    const personaRun = await storage.getPersonaRun(conversationId);
+    if (!personaRun) {
+      ws.send(JSON.stringify({ type: 'error', error: 'Conversation not found' }));
+      ws.close();
+      return;
+    }
+
+    const scenarioRun = await storage.getScenarioRun(personaRun.scenarioRunId);
+    if (!scenarioRun || scenarioRun.userId !== userId) {
+      ws.send(JSON.stringify({ type: 'error', error: 'Unauthorized access' }));
       ws.close();
       return;
     }
