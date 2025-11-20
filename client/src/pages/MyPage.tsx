@@ -9,7 +9,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { CalendarDays, Star, TrendingUp, MessageSquare, Award, History, BarChart3, Users, Target, Trash2, Loader2 } from "lucide-react";
 import { Link } from "wouter";
 import { useAuth } from "@/hooks/useAuth";
-import { type Conversation, type Feedback, type User } from "@shared/schema";
+import { type ScenarioRun, type PersonaRun, type Feedback } from "@shared/schema";
 import { format } from "date-fns";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -17,53 +17,41 @@ import { useToast } from "@/hooks/use-toast";
 export default function MyPage() {
   const [selectedView, setSelectedView] = useState<"history" | "stats">("history");
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
-  const [conversationToDelete, setConversationToDelete] = useState<string | null>(null);
+  const [scenarioRunToDelete, setScenarioRunToDelete] = useState<string | null>(null);
   const { user } = useAuth();
   const { toast } = useToast();
 
-  // 사용자의 대화 기록 조회
-  const { data: conversations = [], isLoading: conversationsLoading } = useQuery<Conversation[]>({
-    queryKey: ['/api/conversations'],
+  // 사용자의 시나리오 실행 기록 조회
+  const { data: scenarioRuns = [], isLoading: scenarioRunsLoading } = useQuery<ScenarioRun[]>({
+    queryKey: ['/api/scenario-runs'],
     enabled: !!user,
-    staleTime: 1000 * 60 * 5, // 5분간 캐시 유지
-    gcTime: 1000 * 60 * 10,   // 10분간 메모리 유지
-  });
-
-  // 사용자의 피드백 기록 조회  
-  const { data: feedbacks = [], isLoading: feedbacksLoading } = useQuery<Feedback[]>({
-    queryKey: ['/api/feedbacks'],
-    enabled: !!user,
-    staleTime: 1000 * 60 * 5, // 5분간 캐시 유지
-    gcTime: 1000 * 60 * 10,   // 10분간 메모리 유지
+    staleTime: 1000 * 60 * 5,
+    gcTime: 1000 * 60 * 10,
   });
 
   // 시나리오 데이터 조회
   const { data: scenarios = [] } = useQuery<any[]>({
     queryKey: ['/api/scenarios'],
-    staleTime: 1000 * 60 * 30, // 30분간 캐시 유지 (시나리오는 자주 변경되지 않음)
-    gcTime: 1000 * 60 * 60,     // 1시간 메모리 유지
+    staleTime: 1000 * 60 * 30,
+    gcTime: 1000 * 60 * 60,
   });
 
-  // ⚡ 성능 최적화: Map 기반 O(1) 조회
+  // 시나리오 Map
   const scenariosMap = useMemo(() => 
     new Map(scenarios.map(s => [s.id, s])),
     [scenarios]
   );
 
-  const feedbacksMap = useMemo(() => 
-    new Map(feedbacks.map(f => [f.conversationId, f])),
-    [feedbacks]
-  );
-
   // 통계 계산
-  const stats = useMemo(() => ({
-    totalConversations: conversations.length,
-    completedConversations: conversations.filter((c: Conversation) => c.status === 'completed').length,
-    averageScore: feedbacks.length > 0 
-      ? Math.round(feedbacks.reduce((sum: number, f: Feedback) => sum + f.overallScore, 0) / feedbacks.length)
-      : 0,
-    totalFeedbacks: feedbacks.length,
-  }), [conversations, feedbacks]);
+  const stats = useMemo(() => {
+    const completedRuns = scenarioRuns.filter(sr => sr.status === 'completed');
+    return {
+      totalScenarioRuns: scenarioRuns.length,
+      completedScenarioRuns: completedRuns.length,
+      averageScore: 0, // TODO: persona_runs의 평균 점수 계산
+      totalFeedbacks: 0, // TODO: feedbacks 조회
+    };
+  }, [scenarioRuns]);
 
   const getScoreColor = (score: number) => {
     if (score >= 80) return "text-green-600";
@@ -77,187 +65,71 @@ export default function MyPage() {
     return "개선 필요";
   };
 
-  // 대화 제목 생성: "시나리오 제목 + 페르소나 소속, 이름, 직급, MBTI"
-  const getConversationTitle = (conversation: Conversation) => {
-    const scenario = scenariosMap.get(conversation.scenarioId); // ⚡ O(1) 조회
-    if (!scenario) return conversation.scenarioId || '일반 대화';
-    
-    // 1순위: 대화 생성 시점의 페르소나 스냅샷 사용 (과거 기록 보호)
-    // 2순위: 현재 시나리오에서 페르소나 찾기 (하위 호환성)
-    const persona = (conversation as any).personaSnapshot 
-      || scenario.personas?.find((p: any) => p.id === conversation.personaId);
-    
-    if (!persona) return scenario.title || '일반 대화';
-    
-    // undefined 방지: 각 필드가 존재하는 경우만 포함
-    const parts = [];
-    if (persona.department) parts.push(persona.department);
-    if (persona.name) parts.push(persona.name);
-    if (persona.role || persona.position) parts.push(persona.role || persona.position);
-    const personaInfo = parts.join(' ');
-    const mbtiInfo = persona.mbti ? ` (${persona.mbti})` : '';
-    
-    return `${scenario.title} - ${personaInfo}${mbtiInfo}`;
-  };
-
-  // ⚡ 성능 최적화: 대화 리스트를 최근 날짜 순으로 정렬 (메모이제이션)
-  const sortedConversations = useMemo(() => 
-    [...conversations].sort((a, b) => 
-      new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-    ),
-    [conversations]
-  );
-
-  // ⚡ 성능 최적화: 완료된 대화만 필터링하고 시간순 정렬 (전략 회고 여부와 무관)
-  const completedScenarioSessions = useMemo(() => 
-    sortedConversations.filter(c => c.status === 'completed'),
-    [sortedConversations]
-  );
-
-  // 시나리오별 시도 번호 계산을 위한 Map 생성
-  const scenarioAttemptNumbers = useMemo(() => {
-    const attemptMap = new Map<string, number>();
-    const scenarioCounters = new Map<string, number>();
-    
-    // 시간 역순(오래된 것부터)으로 정렬하여 시도 번호 부여
-    const chronologicalSessions = [...completedScenarioSessions].sort((a, b) =>
-      new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
-    );
-    
-    chronologicalSessions.forEach(conversation => {
-      const scenarioId = conversation.scenarioId;
-      const currentCount = (scenarioCounters.get(scenarioId) || 0) + 1;
-      scenarioCounters.set(scenarioId, currentCount);
-      attemptMap.set(conversation.id, currentCount);
-    });
-    
-    return attemptMap;
-  }, [completedScenarioSessions]);
-
-  // 날짜 문자열 생성 함수 (YYYY-MM-DD 형식)
-  const getDateKey = (date: Date | string) => {
-    const d = new Date(date);
-    return format(d, 'yyyy-MM-dd');
-  };
-
-  // 날짜를 한글로 표시 (YYYY년 MM월 DD일)
-  const getDateLabel = (dateKey: string) => {
-    const [year, month, day] = dateKey.split('-');
-    return `${year}년 ${month}월 ${day}일`;
-  };
-
-  // 대화 삭제 mutation
+  // 시나리오 실행 삭제 mutation
   const deleteMutation = useMutation({
-    mutationFn: async (conversationId: string) => {
-      return await apiRequest('DELETE', `/api/conversations/${conversationId}`);
+    mutationFn: async (scenarioRunId: string) => {
+      return await apiRequest('DELETE', `/api/scenario-runs/${scenarioRunId}`);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/conversations'] });
-      queryClient.invalidateQueries({ queryKey: ['/api/feedbacks'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/scenario-runs'] });
       toast({
         title: "삭제 완료",
-        description: "대화 기록이 삭제되었습니다.",
+        description: "시나리오 실행 기록이 삭제되었습니다.",
       });
       setDeleteDialogOpen(false);
-      setConversationToDelete(null);
+      setScenarioRunToDelete(null);
     },
     onError: (error) => {
       console.error("삭제 실패:", error);
       toast({
         title: "삭제 실패",
-        description: "대화 기록을 삭제할 수 없습니다.",
+        description: "시나리오 실행 기록을 삭제할 수 없습니다.",
         variant: "destructive",
       });
     },
   });
 
-  const handleDeleteClick = (conversationId: string, e?: React.MouseEvent) => {
+  const handleDeleteClick = (scenarioRunId: string, e?: React.MouseEvent) => {
     if (e) {
-      e.stopPropagation(); // Accordion 열림 방지
+      e.stopPropagation();
     }
-    setConversationToDelete(conversationId);
+    setScenarioRunToDelete(scenarioRunId);
     setDeleteDialogOpen(true);
   };
 
   const handleDeleteConfirm = () => {
-    if (conversationToDelete) {
-      deleteMutation.mutate(conversationToDelete);
+    if (scenarioRunToDelete) {
+      deleteMutation.mutate(scenarioRunToDelete);
     }
   };
 
   // 시나리오 정보 가져오기
   const getScenarioInfo = (scenarioId: string) => {
-    const scenario = scenariosMap.get(scenarioId); // ⚡ O(1) 조회
+    const scenario = scenariosMap.get(scenarioId);
     return {
       title: scenario?.title || scenarioId,
       difficulty: scenario?.difficulty || 1,
     };
   };
 
-  // 특정 세션의 페르소나별 대화와 점수 가져오기
-  const getPersonaConversationsForSession = (sessionConversation: Conversation) => {
-    const scenario = scenariosMap.get(sessionConversation.scenarioId);
-    if (!scenario) return [];
+  // 시나리오별 시도 번호 계산
+  const scenarioAttemptNumbers = useMemo(() => {
+    const attemptMap = new Map<string, number>();
+    const scenarioCounters = new Map<string, number>();
     
-    const conversationOrder = (sessionConversation as any).conversationOrder || [];
+    const chronologicalRuns = [...scenarioRuns]
+      .filter(sr => sr.status === 'completed')
+      .sort((a, b) => new Date(a.startedAt).getTime() - new Date(b.startedAt).getTime());
     
-    // conversationOrder가 없는 경우 (단일 페르소나 대화), 현재 대화의 페르소나만 반환
-    if (conversationOrder.length === 0) {
-      const persona = scenario.personas?.find((p: any) => p.id === sessionConversation.personaId);
-      if (!persona) return [];
-      
-      const feedback = feedbacksMap.get(sessionConversation.id);
-      return [{
-        persona,
-        conversation: sessionConversation,
-        score: feedback?.overallScore || null,
-      }];
-    }
+    chronologicalRuns.forEach(run => {
+      const scenarioId = run.scenarioId;
+      const currentCount = (scenarioCounters.get(scenarioId) || 0) + 1;
+      scenarioCounters.set(scenarioId, currentCount);
+      attemptMap.set(run.id, currentCount);
+    });
     
-    const sessionTime = new Date(sessionConversation.createdAt).getTime();
-    
-    // 같은 시나리오의 모든 완료된 세션을 시간순으로 정렬
-    const sameScenarioSessions = completedScenarioSessions
-      .filter(c => c.scenarioId === sessionConversation.scenarioId)
-      .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
-    
-    // 현재 세션의 인덱스 찾기
-    const currentSessionIndex = sameScenarioSessions.findIndex(c => c.id === sessionConversation.id);
-    
-    // 이전 세션의 시간 (없으면 0)
-    const previousSessionTime = currentSessionIndex > 0
-      ? new Date(sameScenarioSessions[currentSessionIndex - 1].createdAt).getTime()
-      : 0;
-    
-    // conversationOrder 순서대로 페르소나 정보와 점수 매핑
-    return conversationOrder.map((personaId: string) => {
-      const persona = scenario.personas?.find((p: any) => p.id === personaId);
-      if (!persona) return null;
-      
-      // 이 세션에 속한 페르소나 대화 찾기:
-      // - 같은 시나리오, 같은 페르소나
-      // - 이전 세션 이후, 현재 세션 이전에 생성된 대화
-      const personaConversation = sortedConversations.find(c => {
-        const convTime = new Date(c.createdAt).getTime();
-        return c.scenarioId === sessionConversation.scenarioId &&
-          c.personaId === personaId &&
-          c.status === 'completed' &&
-          convTime > previousSessionTime &&
-          convTime <= sessionTime;
-      });
-      
-      const feedback = personaConversation ? feedbacksMap.get(personaConversation.id) : null;
-      
-      return {
-        persona,
-        conversation: personaConversation,
-        score: feedback?.overallScore || null,
-      };
-    }).filter(Boolean);
-  };
-
-  // ⚡ 통합 로딩 상태
-  const isLoading = conversationsLoading || feedbacksLoading;
+    return attemptMap;
+  }, [scenarioRuns]);
 
   if (!user) {
     return (
@@ -272,7 +144,7 @@ export default function MyPage() {
     );
   }
 
-  if (isLoading) {
+  if (scenarioRunsLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-slate-50">
         <div className="text-center">
@@ -283,6 +155,10 @@ export default function MyPage() {
       </div>
     );
   }
+
+  const completedScenarioRuns = scenarioRuns
+    .filter(sr => sr.status === 'completed')
+    .sort((a, b) => new Date(b.startedAt).getTime() - new Date(a.startedAt).getTime());
 
   return (
     <div className="min-h-screen bg-slate-50">
@@ -357,7 +233,7 @@ export default function MyPage() {
           <TabsContent value="history" className="space-y-6">
             <Card>
               <CardContent className="pt-6">
-                {completedScenarioSessions.length === 0 ? (
+                {completedScenarioRuns.length === 0 ? (
                   <div className="text-center py-8">
                     <div className="text-slate-600">아직 완료한 대화 기록이 없습니다.</div>
                     <Button 
@@ -370,127 +246,43 @@ export default function MyPage() {
                   </div>
                 ) : (
                   <Accordion type="multiple" className="w-full">
-                    {completedScenarioSessions.map((sessionConversation) => {
-                      const scenario = scenariosMap.get(sessionConversation.scenarioId);
-                      const scenarioInfo = getScenarioInfo(sessionConversation.scenarioId);
-                      const attemptNumber = scenarioAttemptNumbers.get(sessionConversation.id) || 1;
-                      const sessionDifficulty = (sessionConversation as any).difficulty || scenarioInfo.difficulty;
-                      const personaData = getPersonaConversationsForSession(sessionConversation);
+                    {completedScenarioRuns.map((scenarioRun) => {
+                      const scenarioInfo = getScenarioInfo(scenarioRun.scenarioId);
+                      const attemptNumber = scenarioAttemptNumbers.get(scenarioRun.id) || 1;
                       
                       return (
                         <AccordionItem 
-                          key={sessionConversation.id} 
-                          value={sessionConversation.id} 
-                          data-testid={`session-${sessionConversation.id}`}
+                          key={scenarioRun.id} 
+                          value={scenarioRun.id} 
+                          data-testid={`scenario-run-${scenarioRun.id}`}
                         >
-                          <AccordionTrigger className="hover:no-underline">
-                            <div className="flex items-center justify-between w-full pr-4">
-                              <div className="flex items-center gap-3 flex-wrap flex-1">
+                          <div className="flex items-center justify-between border-b">
+                            <AccordionTrigger className="hover:no-underline flex-1">
+                              <div className="flex items-center gap-3 flex-wrap">
                                 <CalendarDays className="w-4 h-4 text-slate-500" />
                                 <span className="text-sm text-slate-600">
-                                  {format(new Date(sessionConversation.createdAt), 'yyyy년 MM월 dd일 HH:mm')}
+                                  {format(new Date(scenarioRun.startedAt), 'yyyy년 MM월 dd일 HH:mm')}
                                 </span>
                                 <h3 className="font-semibold text-slate-900 text-left">{scenarioInfo.title}</h3>
                                 <Badge variant="outline" className="bg-purple-50 text-purple-700 border-purple-200">
-                                  난이도 {sessionDifficulty}
+                                  난이도 {scenarioRun.difficulty || scenarioInfo.difficulty}
                                 </Badge>
                                 <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">
                                   #{attemptNumber}회 시도
                                 </Badge>
                                 <Badge className="bg-green-600">완료</Badge>
                               </div>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={(e) => handleDeleteClick(sessionConversation.id, e)}
-                                className="text-red-600 hover:text-red-700 hover:bg-red-50 ml-2"
-                                data-testid={`delete-session-${sessionConversation.id}`}
-                              >
-                                <Trash2 className="w-4 h-4" />
-                              </Button>
-                            </div>
-                          </AccordionTrigger>
+                            </AccordionTrigger>
+                            <button
+                              onClick={(e) => handleDeleteClick(scenarioRun.id, e)}
+                              className="p-2 text-red-600 hover:text-red-700 hover:bg-red-50 rounded transition-colors mr-2"
+                              data-testid={`delete-scenario-run-${scenarioRun.id}`}
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
                           <AccordionContent>
-                            <div className="space-y-4 pt-3">
-                              {/* 전략 회고 */}
-                              {sessionConversation.strategyReflection && (
-                                <div className="bg-gradient-to-r from-green-50 to-emerald-50 border border-green-200 rounded-lg p-5">
-                                  <h5 className="text-sm font-semibold text-slate-700 mb-2 flex items-center gap-2">
-                                    <Target className="w-4 h-4 text-green-600" />
-                                    전략 회고
-                                  </h5>
-                                  <p className="text-sm text-slate-600 whitespace-pre-wrap leading-relaxed">
-                                    {sessionConversation.strategyReflection}
-                                  </p>
-                                </div>
-                              )}
-                              
-                              {/* 대화한 페르소나들 */}
-                              <div className="space-y-2">
-                                <h5 className="text-sm font-semibold text-slate-700 flex items-center gap-2">
-                                  <Users className="w-4 h-4 text-blue-600" />
-                                  대화한 페르소나들
-                                </h5>
-                                <div className="space-y-2">
-                                  {personaData.map((data: any, index: number) => (
-                                    <div 
-                                      key={data.persona.id}
-                                      className="flex items-center justify-between p-3 bg-white border rounded-lg hover:bg-slate-50 transition-colors"
-                                    >
-                                      <div className="flex items-center gap-3">
-                                        <div className="w-6 h-6 bg-blue-100 rounded-full flex items-center justify-center text-xs font-bold text-blue-600">
-                                          {index + 1}
-                                        </div>
-                                        <div className="flex items-center gap-2 flex-wrap">
-                                          <span className="font-medium text-slate-900">
-                                            {data.persona.department && <span className="text-slate-600 font-normal">{data.persona.department} </span>}
-                                            {data.persona.name}
-                                            {(data.persona.position || data.persona.role) && (
-                                              <span className="text-slate-600 font-normal"> {data.persona.position || data.persona.role}</span>
-                                            )}
-                                          </span>
-                                          {data.persona.mbti && (
-                                            <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
-                                              {data.persona.mbti}
-                                            </Badge>
-                                          )}
-                                        </div>
-                                      </div>
-                                      <div className="flex items-center gap-3">
-                                        {data.score !== null && (
-                                          <div className="flex items-center gap-1">
-                                            <Star className="w-4 h-4 text-yellow-500" />
-                                            <span className={`font-semibold ${getScoreColor(data.score)}`}>
-                                              {data.score}점
-                                            </span>
-                                          </div>
-                                        )}
-                                        {data.conversation && (
-                                          <div className="flex gap-2">
-                                            <Button
-                                              variant="outline"
-                                              size="sm"
-                                              onClick={() => window.location.href = `/chat/${data.conversation.id}`}
-                                              data-testid={`view-conversation-${data.conversation.id}`}
-                                            >
-                                              대화 보기
-                                            </Button>
-                                            <Button
-                                              variant="default"
-                                              size="sm"
-                                              onClick={() => window.location.href = `/feedback/${data.conversation.id}`}
-                                              data-testid={`view-feedback-${data.conversation.id}`}
-                                            >
-                                              피드백 보기
-                                            </Button>
-                                          </div>
-                                        )}
-                                      </div>
-                                    </div>
-                                  ))}
-                                </div>
-                              </div>
-                            </div>
+                            <ScenarioRunDetails scenarioRun={scenarioRun} scenarioInfo={scenarioInfo} />
                           </AccordionContent>
                         </AccordionItem>
                       );
@@ -503,26 +295,31 @@ export default function MyPage() {
 
           {/* 학습 통계 탭 */}
           <TabsContent value="stats" className="space-y-6">
-            {/* 통계 카드들 */}
             <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
               <Card>
                 <CardHeader className="pb-3">
-                  <CardTitle className="text-sm font-medium text-slate-600">총 대화 수</CardTitle>
+                  <CardTitle className="text-sm font-medium text-slate-600">전체 시나리오 실행</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className="text-2xl font-bold text-slate-900" data-testid="total-conversations">
-                    {stats.totalConversations}
+                  <div className="flex items-center gap-3">
+                    <MessageSquare className="w-8 h-8 text-blue-600" />
+                    <div className="text-3xl font-bold text-slate-900" data-testid="total-scenario-runs">
+                      {stats.totalScenarioRuns}
+                    </div>
                   </div>
                 </CardContent>
               </Card>
 
               <Card>
                 <CardHeader className="pb-3">
-                  <CardTitle className="text-sm font-medium text-slate-600">완료한 대화</CardTitle>
+                  <CardTitle className="text-sm font-medium text-slate-600">완료한 시나리오</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className="text-2xl font-bold text-green-600" data-testid="completed-conversations">
-                    {stats.completedConversations}
+                  <div className="flex items-center gap-3">
+                    <Award className="w-8 h-8 text-green-600" />
+                    <div className="text-3xl font-bold text-slate-900" data-testid="completed-scenario-runs">
+                      {stats.completedScenarioRuns}
+                    </div>
                   </div>
                 </CardContent>
               </Card>
@@ -532,122 +329,41 @@ export default function MyPage() {
                   <CardTitle className="text-sm font-medium text-slate-600">평균 점수</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className={`text-2xl font-bold ${getScoreColor(stats.averageScore)}`} data-testid="average-score">
-                    {stats.averageScore}점
+                  <div className="flex items-center gap-3">
+                    <Star className="w-8 h-8 text-yellow-500" />
+                    <div className={`text-3xl font-bold ${getScoreColor(stats.averageScore)}`} data-testid="average-score">
+                      {stats.averageScore}
+                    </div>
+                  </div>
+                  <div className="mt-2 text-sm text-slate-600">
+                    {getScoreBadge(stats.averageScore)}
                   </div>
                 </CardContent>
               </Card>
 
               <Card>
                 <CardHeader className="pb-3">
-                  <CardTitle className="text-sm font-medium text-slate-600">받은 피드백</CardTitle>
+                  <CardTitle className="text-sm font-medium text-slate-600">총 피드백</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className="text-2xl font-bold text-blue-600" data-testid="total-feedbacks">
-                    {stats.totalFeedbacks}
+                  <div className="flex items-center gap-3">
+                    <TrendingUp className="w-8 h-8 text-purple-600" />
+                    <div className="text-3xl font-bold text-slate-900" data-testid="total-feedbacks">
+                      {stats.totalFeedbacks}
+                    </div>
                   </div>
                 </CardContent>
               </Card>
             </div>
 
-            {/* 종합 분석 안내 */}
-            {stats.totalFeedbacks > 0 && (
-              <Card className="bg-gradient-to-r from-blue-50 to-indigo-50 border-blue-200">
-                <CardContent className="pt-6">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <h3 className="text-lg font-semibold text-slate-900 mb-2 flex items-center gap-2">
-                        <BarChart3 className="w-5 h-5 text-blue-600" />
-                        전체 이력을 종합한 상세 분석 리포트
-                      </h3>
-                      <p className="text-slate-600 text-sm">
-                        카테고리별 평균, 성장 추이, 강점/약점 패턴을 확인하고 맞춤형 개선 방향을 받아보세요.
-                      </p>
-                    </div>
-                    <Link href="/analytics">
-                      <Button size="lg" data-testid="view-analytics-button">
-                        종합 분석 보기
-                      </Button>
-                    </Link>
-                  </div>
-                </CardContent>
-              </Card>
-            )}
-
-            {/* 최근 피드백 */}
             <Card>
               <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Award className="w-5 h-5" />
-                  최근 피드백
-                </CardTitle>
+                <CardTitle>학습 인사이트</CardTitle>
               </CardHeader>
               <CardContent>
-                {feedbacksLoading ? (
-                  <div className="text-center py-8">
-                    <div className="text-slate-600">피드백을 불러오는 중...</div>
-                  </div>
-                ) : feedbacks.length === 0 ? (
-                  <div className="text-center py-8">
-                    <div className="text-slate-600">아직 받은 피드백이 없습니다.</div>
-                  </div>
-                ) : (
-                  <div className="space-y-4">
-                    {feedbacks.slice(0, 5).map((feedback: Feedback) => (
-                      <div 
-                        key={feedback.id} 
-                        className="border rounded-lg p-4"
-                        data-testid={`feedback-${feedback.id}`}
-                      >
-                        <div className="flex items-center justify-between mb-3">
-                          <div className="flex items-center gap-2">
-                            <span className={`text-xl font-bold ${getScoreColor(feedback.overallScore)}`}>
-                              {feedback.overallScore}점
-                            </span>
-                            <Badge variant="outline">
-                              {getScoreBadge(feedback.overallScore)}
-                            </Badge>
-                          </div>
-                          <div className="text-sm text-slate-600">
-                            {format(new Date(feedback.createdAt), 'yyyy.MM.dd')}
-                          </div>
-                        </div>
-                        
-                        <div className="grid grid-cols-2 md:grid-cols-5 gap-3 text-sm">
-                          <div>
-                            <div className="text-slate-600">명확성·논리</div>
-                            <div className="font-medium">{feedback.detailedFeedback.scores.clarityLogic}/5</div>
-                          </div>
-                          <div>
-                            <div className="text-slate-600">경청·공감</div>
-                            <div className="font-medium">{feedback.detailedFeedback.scores.listeningEmpathy}/5</div>
-                          </div>
-                          <div>
-                            <div className="text-slate-600">적절성·적응</div>
-                            <div className="font-medium">{feedback.detailedFeedback.scores.appropriatenessAdaptability}/5</div>
-                          </div>
-                          <div>
-                            <div className="text-slate-600">설득력·영향</div>
-                            <div className="font-medium">{feedback.detailedFeedback.scores.persuasivenessImpact}/5</div>
-                          </div>
-                          <div>
-                            <div className="text-slate-600">전략적 소통</div>
-                            <div className="font-medium">{feedback.detailedFeedback.scores.strategicCommunication}/5</div>
-                          </div>
-                        </div>
-
-                        {feedback.detailedFeedback.strengths && feedback.detailedFeedback.strengths.length > 0 && (
-                          <div className="mt-3 pt-3 border-t">
-                            <div className="text-sm text-slate-600 mb-1">주요 강점</div>
-                            <div className="text-sm text-slate-900">
-                              {feedback.detailedFeedback.strengths.join(', ')}
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                )}
+                <p className="text-slate-600">
+                  더 많은 시나리오를 완료하면 상세한 학습 통계와 성장 추이를 확인할 수 있습니다.
+                </p>
               </CardContent>
             </Card>
           </TabsContent>
@@ -658,38 +374,143 @@ export default function MyPage() {
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>대화 기록 삭제</AlertDialogTitle>
+            <AlertDialogTitle>시나리오 실행 기록 삭제</AlertDialogTitle>
             <AlertDialogDescription>
-              정말로 이 대화 기록을 삭제하시겠습니까?
-              <br />
-              <span className="font-semibold text-red-600">삭제된 대화와 피드백은 복구할 수 없습니다.</span>
+              이 시나리오 실행 기록을 삭제하시겠습니까? 관련된 모든 대화와 피드백이 함께 삭제됩니다. 이 작업은 되돌릴 수 없습니다.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel 
-              disabled={deleteMutation.isPending}
-              data-testid="cancel-delete"
-            >
-              취소
-            </AlertDialogCancel>
-            <AlertDialogAction
+            <AlertDialogCancel>취소</AlertDialogCancel>
+            <AlertDialogAction 
               onClick={handleDeleteConfirm}
-              disabled={deleteMutation.isPending}
               className="bg-red-600 hover:bg-red-700"
-              data-testid="confirm-delete"
+              data-testid="confirm-delete-button"
             >
-              {deleteMutation.isPending ? (
-                <>
-                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                  삭제 중...
-                </>
-              ) : (
-                '삭제'
-              )}
+              삭제
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+    </div>
+  );
+}
+
+// 시나리오 실행 상세 컴포넌트
+function ScenarioRunDetails({ scenarioRun, scenarioInfo }: { scenarioRun: ScenarioRun; scenarioInfo: any }) {
+  const { data: personaRuns = [], isLoading } = useQuery<PersonaRun[]>({
+    queryKey: ['/api/scenario-runs', scenarioRun.id, 'persona-runs'],
+    staleTime: 1000 * 60 * 5,
+  });
+
+  const { data: scenarios = [] } = useQuery<any[]>({
+    queryKey: ['/api/scenarios'],
+    staleTime: 1000 * 60 * 30,
+  });
+
+  const scenario = scenarios.find(s => s.id === scenarioRun.scenarioId);
+
+  if (isLoading) {
+    return (
+      <div className="py-4 text-center">
+        <Loader2 className="w-6 h-6 animate-spin mx-auto text-blue-600" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-4 pt-3">
+      {/* 전략 회고 */}
+      {scenarioRun.strategyReflection && (
+        <div className="bg-gradient-to-r from-green-50 to-emerald-50 border border-green-200 rounded-lg p-5">
+          <h5 className="text-sm font-semibold text-slate-700 mb-2 flex items-center gap-2">
+            <Target className="w-4 h-4 text-green-600" />
+            전략 회고
+          </h5>
+          <p className="text-sm text-slate-600 whitespace-pre-wrap leading-relaxed">
+            {scenarioRun.strategyReflection}
+          </p>
+        </div>
+      )}
+      
+      {/* 대화한 페르소나들 */}
+      <div className="space-y-2">
+        <h5 className="text-sm font-semibold text-slate-700 flex items-center gap-2">
+          <Users className="w-4 h-4 text-blue-600" />
+          대화한 페르소나들 ({personaRuns.length}개)
+        </h5>
+        <div className="space-y-2">
+          {personaRuns.map((personaRun, index) => {
+            const personaSnapshot = personaRun.personaSnapshot as any;
+            const persona = personaSnapshot || scenario?.personas?.find((p: any) => p.id === personaRun.personaId);
+            
+            return (
+              <div 
+                key={personaRun.id}
+                className="flex items-center justify-between p-3 bg-white border rounded-lg hover:bg-slate-50 transition-colors"
+                data-testid={`persona-run-${personaRun.id}`}
+              >
+                <div className="flex items-center gap-3">
+                  <div className="w-6 h-6 bg-blue-100 rounded-full flex items-center justify-center text-xs font-bold text-blue-600">
+                    {personaRun.phase}
+                  </div>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="font-medium text-slate-900">
+                      {persona?.department && <span className="text-slate-600 font-normal">{persona.department} </span>}
+                      {persona?.name || '알 수 없는 페르소나'}
+                      {(persona?.position || persona?.role) && (
+                        <span className="text-slate-600 font-normal"> {persona.position || persona.role}</span>
+                      )}
+                    </span>
+                    {persona?.mbti && (
+                      <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
+                        {persona.mbti}
+                      </Badge>
+                    )}
+                    <Badge variant="outline" className="text-xs">
+                      {personaRun.turnCount}턴
+                    </Badge>
+                  </div>
+                </div>
+                <div className="flex items-center gap-3">
+                  {personaRun.score !== null && personaRun.score !== undefined && (
+                    <div className="flex items-center gap-1">
+                      <Star className="w-4 h-4 text-yellow-500" />
+                      <span className={`font-semibold ${personaRun.score >= 80 ? 'text-green-600' : personaRun.score >= 60 ? 'text-yellow-600' : 'text-red-600'}`}>
+                        {personaRun.score}점
+                      </span>
+                    </div>
+                  )}
+                  <div className="flex gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => window.location.href = `/persona-run/${personaRun.id}/chat`}
+                      data-testid={`view-chat-${personaRun.id}`}
+                    >
+                      대화 보기
+                    </Button>
+                    {personaRun.status === 'completed' && (
+                      <Button
+                        variant="default"
+                        size="sm"
+                        onClick={() => window.location.href = `/persona-run/${personaRun.id}/feedback`}
+                        data-testid={`view-feedback-${personaRun.id}`}
+                      >
+                        피드백 보기
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+          {personaRuns.length === 0 && (
+            <div className="text-center py-4 text-slate-500">
+              아직 대화한 페르소나가 없습니다.
+            </div>
+          )}
+        </div>
+      </div>
     </div>
   );
 }

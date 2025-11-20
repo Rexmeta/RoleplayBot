@@ -343,6 +343,7 @@ export class PostgreSQLStorage implements IStorage {
       .select({
         id: feedbacks.id,
         conversationId: feedbacks.conversationId,
+        personaRunId: feedbacks.personaRunId,
         overallScore: feedbacks.overallScore,
         scores: feedbacks.scores,
         detailedFeedback: feedbacks.detailedFeedback,
@@ -500,6 +501,10 @@ export class PostgreSQLStorage implements IStorage {
 
   async getChatMessagesByPersonaRun(personaRunId: string): Promise<ChatMessage[]> {
     return await db.select().from(chatMessages).where(eq(chatMessages.personaRunId, personaRunId)).orderBy(asc(chatMessages.turnIndex));
+  }
+
+  async deleteScenarioRun(id: string): Promise<void> {
+    await db.delete(scenarioRuns).where(eq(scenarioRuns.id, id));
   }
 }
 

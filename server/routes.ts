@@ -903,6 +903,29 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Delete scenario run (cascade deletes persona_runs and chat_messages)
+  app.delete("/api/scenario-runs/:id", isAuthenticated, async (req, res) => {
+    try {
+      // @ts-ignore - req.user는 auth 미들웨어에서 설정됨
+      const userId = req.user?.id;
+      const scenarioRun = await storage.getScenarioRun(req.params.id);
+      
+      if (!scenarioRun) {
+        return res.status(404).json({ error: "Scenario run not found" });
+      }
+      
+      if (scenarioRun.userId !== userId) {
+        return res.status(403).json({ error: "Unauthorized" });
+      }
+      
+      await storage.deleteScenarioRun(req.params.id);
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error deleting scenario run:", error);
+      res.status(500).json({ error: "Failed to delete scenario run" });
+    }
+  });
+
   // Generate feedback for completed conversation
   app.post("/api/conversations/:id/feedback", isAuthenticated, async (req, res) => {
     try {
