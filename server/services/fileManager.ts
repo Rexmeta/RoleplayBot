@@ -19,6 +19,13 @@ export class FileManagerService {
           const content = await fs.readFile(path.join(SCENARIOS_DIR, file), 'utf-8');
           const scenario = JSON.parse(content);
           
+          // 🚀 성능 최적화: 시나리오 목록 조회 시 base64 이미지 제거
+          // base64 이미지는 수 MB에 달해 로딩 속도 저하 원인
+          if (scenario.image && scenario.image.length > 200) {
+            // 긴 base64 이미지는 placeholder로 대체
+            scenario.image = 'https://images.unsplash.com/photo-1557804506-669a67965ba0?w=800&h=400&fit=crop&auto=format';
+          }
+          
           // 시나리오 목록 조회 시에는 가벼운 MBTI 정보만 포함 (mbti만)
           // 실제 대화 시작 시점에 선택된 페르소나의 전체 MBTI 데이터를 로드
           if (scenario.personas && Array.isArray(scenario.personas)) {
