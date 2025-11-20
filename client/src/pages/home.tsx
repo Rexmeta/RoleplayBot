@@ -104,12 +104,49 @@ export default function Home() {
       if (scenario) {
         const persona = scenario.personas.find((p: any) => p.id === personaId);
         if (persona) {
-          setSelectedScenario(scenario);
-          setSelectedDifficulty(scenario.difficulty || 4);
-          setCurrentView("persona-selection");
-          
-          // URL에서 파라미터 제거
-          window.history.replaceState({}, '', '/home');
+          // 기존 scenarioRun과 completedPersonaIds 로드
+          apiRequest('GET', '/api/scenario-runs')
+            .then(res => res.json())
+            .then((scenarioRuns: any[]) => {
+              // 해당 시나리오의 active scenarioRun 찾기
+              const activeRun = scenarioRuns.find(sr => 
+                sr.scenarioId === scenarioId && sr.status === 'active'
+              );
+              
+              if (activeRun) {
+                // 완료된 페르소나 ID 목록 설정
+                const completedIds = (activeRun.personaRuns || [])
+                  .filter((pr: any) => pr.status === 'completed')
+                  .map((pr: any) => pr.personaId);
+                
+                setCompletedPersonaIds(completedIds);
+                setScenarioRunId(activeRun.id);
+                setSelectedDifficulty(activeRun.difficulty || scenario.difficulty || 4);
+                console.log(`✅ 기존 scenarioRun 발견: ${activeRun.id}, 완료된 페르소나: ${completedIds.length}개`);
+              } else {
+                // 새로 시작하는 경우
+                setCompletedPersonaIds([]);
+                setScenarioRunId(null);
+                setSelectedDifficulty(scenario.difficulty || 4);
+                console.log(`🆕 새 시나리오 시작: ${scenarioId}`);
+              }
+              
+              setSelectedScenario(scenario);
+              setCurrentView("persona-selection");
+              
+              // URL에서 파라미터 제거
+              window.history.replaceState({}, '', '/home');
+            })
+            .catch(error => {
+              console.error('scenarioRuns 조회 실패:', error);
+              // 에러가 발생해도 계속 진행 (새 시작으로 간주)
+              setSelectedScenario(scenario);
+              setCompletedPersonaIds([]);
+              setScenarioRunId(null);
+              setSelectedDifficulty(scenario.difficulty || 4);
+              setCurrentView("persona-selection");
+              window.history.replaceState({}, '', '/home');
+            });
         }
       }
     }
