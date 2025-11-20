@@ -21,6 +21,7 @@ export default function Home() {
   const [selectedScenario, setSelectedScenario] = useState<ComplexScenario | null>(null);
   const [selectedPersona, setSelectedPersona] = useState<ScenarioPersona | null>(null);
   const [conversationId, setConversationId] = useState<string | null>(null);
+  const [scenarioRunId, setScenarioRunId] = useState<string | null>(null); // 현재 시나리오 실행 ID
   const [completedPersonaIds, setCompletedPersonaIds] = useState<string[]>([]);
   const [conversationIds, setConversationIds] = useState<string[]>([]); // 모든 대화 ID 저장
   const [strategyReflectionSubmitted, setStrategyReflectionSubmitted] = useState(false); // 전략 회고 제출 여부 추적
@@ -52,6 +53,7 @@ export default function Home() {
     setSelectedScenario(scenario);
     setCompletedPersonaIds([]);
     setConversationIds([]);
+    setScenarioRunId(null); // 새 시나리오 시작 시 초기화
     setStrategyReflectionSubmitted(false); // 새 시나리오 시작 시 초기화
     setSelectedDifficulty(scenario.difficulty || 4); // 시나리오 기본 난이도로 초기화
     
@@ -65,6 +67,7 @@ export default function Home() {
     setSelectedScenario(null);
     setSelectedPersona(null);
     setConversationId(null);
+    setScenarioRunId(null);
     setCompletedPersonaIds([]);
     setConversationIds([]);
     setSelectedDifficulty(4); // 기본 난이도로 리셋
@@ -119,6 +122,7 @@ export default function Home() {
       
       setSelectedPersona(persona);
       setConversationId(conversation.id);
+      setScenarioRunId(conversation.scenarioRunId); // scenarioRunId 저장
       setCurrentView("chat");
     } catch (error) {
       console.error("대화 생성 실패:", error);
@@ -428,11 +432,11 @@ export default function Home() {
             }))}
             completedPersonaIds={completedPersonaIds}
             onSubmit={async (reflection) => {
-              // 전략 회고를 모든 대화 ID에 저장
-              if (conversationIds.length > 0) {
+              // 전략 회고를 scenario run에 저장
+              if (scenarioRunId) {
                 try {
-                  // 첫 번째 대화 ID를 대표로 사용하여 전략 회고 저장
-                  await apiRequest("POST", `/api/conversations/${conversationIds[0]}/strategy-reflection`, {
+                  // scenario run ID를 사용하여 전략 회고 저장
+                  await apiRequest("POST", `/api/scenario-runs/${scenarioRunId}/strategy-reflection`, {
                     strategyReflection: reflection,
                     conversationOrder: completedPersonaIds
                   });

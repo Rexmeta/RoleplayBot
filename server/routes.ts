@@ -305,6 +305,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         // 레거시 호환성을 위해 conversations 구조로 반환
         res.json({
           id: personaRun.id,
+          scenarioRunId: scenarioRun.id,
           scenarioId: validatedData.scenarioId,
           scenarioName: validatedData.scenarioName,
           personaId,
@@ -329,6 +330,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         // AI 메시지 생성 실패해도 대화는 생성되도록 함
         res.json({
           id: personaRun.id,
+          scenarioRunId: scenarioRun.id,
           scenarioId: validatedData.scenarioId,
           scenarioName: validatedData.scenarioName,
           personaId,
@@ -993,6 +995,43 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(scenarioRun);
     } catch (error) {
       res.status(500).json({ error: "Failed to fetch scenario run" });
+    }
+  });
+
+  // Strategy Reflection API for Scenario Runs
+  app.post("/api/scenario-runs/:id/strategy-reflection", isAuthenticated, async (req, res) => {
+    try {
+      // @ts-ignore - req.user는 auth 미들웨어에서 설정됨
+      const userId = req.user?.id;
+      const { id } = req.params;
+      const { strategyReflection, conversationOrder } = req.body;
+      
+      if (!strategyReflection || typeof strategyReflection !== 'string') {
+        return res.status(400).json({ error: "Strategy reflection text is required" });
+      }
+      
+      if (!Array.isArray(conversationOrder)) {
+        return res.status(400).json({ error: "Conversation order must be an array" });
+      }
+      
+      const scenarioRun = await storage.getScenarioRun(id);
+      if (!scenarioRun) {
+        return res.status(404).json({ error: "Scenario run not found" });
+      }
+      
+      if (scenarioRun.userId !== userId) {
+        return res.status(403).json({ error: "Unauthorized" });
+      }
+      
+      const updated = await storage.updateScenarioRun(id, {
+        strategyReflection,
+        conversationOrder
+      });
+      
+      res.json({ success: true, scenarioRun: updated });
+    } catch (error) {
+      console.error("Error saving strategy reflection:", error);
+      res.status(500).json({ error: "Failed to save strategy reflection" });
     }
   });
 
