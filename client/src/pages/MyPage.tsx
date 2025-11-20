@@ -149,13 +149,14 @@ export default function MyPage() {
     };
   };
 
-  // 시나리오별 시도 번호 계산
+  // 시나리오별 시도 번호 계산 (완료된 persona_run이 있는 모든 scenario_run 포함)
   const scenarioAttemptNumbers = useMemo(() => {
     const attemptMap = new Map<string, number>();
     const scenarioCounters = new Map<string, number>();
     
+    // ✨ 완료된 persona_run이 있는 scenario_run을 시간순으로 정렬
     const chronologicalRuns = [...scenarioRuns]
-      .filter(sr => sr.status === 'completed')
+      .filter(sr => sr.personaRuns && sr.personaRuns.some(pr => pr.status === 'completed'))
       .sort((a, b) => new Date(a.startedAt).getTime() - new Date(b.startedAt).getTime());
     
     chronologicalRuns.forEach(run => {
@@ -193,8 +194,13 @@ export default function MyPage() {
     );
   }
 
-  const completedScenarioRuns = scenarioRuns
-    .filter(sr => sr.status === 'completed')
+  // ✨ 완료된 persona_run이 있는 scenario_run을 모두 표시 (active/completed 무관)
+  const displayableScenarioRuns = scenarioRuns
+    .filter(sr => {
+      // persona_run이 하나라도 완료되었으면 표시
+      const hasCompletedPersonaRun = sr.personaRuns && sr.personaRuns.some(pr => pr.status === 'completed');
+      return hasCompletedPersonaRun;
+    })
     .sort((a, b) => new Date(b.startedAt).getTime() - new Date(a.startedAt).getTime());
 
   return (
@@ -270,7 +276,7 @@ export default function MyPage() {
           <TabsContent value="history" className="space-y-6">
             <Card>
               <CardContent className="pt-6">
-                {completedScenarioRuns.length === 0 ? (
+                {displayableScenarioRuns.length === 0 ? (
                   <div className="text-center py-8">
                     <div className="text-slate-600">아직 완료한 대화 기록이 없습니다.</div>
                     <Button 
@@ -283,7 +289,7 @@ export default function MyPage() {
                   </div>
                 ) : (
                   <Accordion type="multiple" className="w-full">
-                    {completedScenarioRuns.map((scenarioRun) => {
+                    {displayableScenarioRuns.map((scenarioRun) => {
                       const scenarioInfo = getScenarioInfo(scenarioRun.scenarioId);
                       const attemptNumber = scenarioAttemptNumbers.get(scenarioRun.id) || 1;
                       
