@@ -214,10 +214,12 @@ export default function Home() {
         status: "active" as const,
         mode: "realtime_voice" as const,
         difficulty: userSelectedDifficulty, // 사용자가 선택한 난이도
+        forceNewRun: scenarioRunId === null, // ✨ scenarioRunId가 null이면 새 scenario_run 생성
       };
       
       console.log('📤 [NEW CODE] Creating conversation with mode:', conversationData.mode);
       console.log('📤 [NEW CODE] User selected difficulty:', userSelectedDifficulty);
+      console.log('📤 [NEW CODE] forceNewRun:', conversationData.forceNewRun, '(scenarioRunId:', scenarioRunId, ')');
       console.log('📤 [NEW CODE] Full conversation data:', JSON.stringify(conversationData));
       
       const response = await apiRequest("POST", "/api/conversations", conversationData);
@@ -290,10 +292,12 @@ export default function Home() {
         turnCount: 0,
         status: "active",
         mode: "realtime_voice",
-        difficulty
+        difficulty,
+        forceNewRun: false, // ✨ 재도전은 같은 scenario_run 내에서 진행
       };
       
       console.log('📤 Creating retry conversation with data:', conversationData);
+      console.log('📤 forceNewRun: false (재도전은 같은 scenario_run 내에서 진행)');
       
       const response = await apiRequest("POST", "/api/conversations", conversationData);
       return response.json();

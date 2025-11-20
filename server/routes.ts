@@ -185,8 +185,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const validatedData = insertConversationSchema.parse(req.body);
       console.log('✅ 검증된 데이터:', JSON.stringify(validatedData));
       
+      // ✨ forceNewRun 플래그 확인 - true이면 항상 새 scenario_run 생성
+      // @ts-ignore - forceNewRun은 옵션 필드
+      const forceNewRun = req.body.forceNewRun === true;
+      
       // ✨ 기존 active scenarioRun 찾기 또는 새로 생성
-      let scenarioRun = await storage.findActiveScenarioRun(userId, validatedData.scenarioId);
+      let scenarioRun;
+      
+      if (forceNewRun) {
+        console.log(`🆕 forceNewRun=true, 새 Scenario Run 강제 생성`);
+        scenarioRun = null;
+      } else {
+        scenarioRun = await storage.findActiveScenarioRun(userId, validatedData.scenarioId);
+      }
       
       if (scenarioRun) {
         console.log(`♻️ 기존 Scenario Run 재사용: ${scenarioRun.id} (attempt #${scenarioRun.attemptNumber})`);
