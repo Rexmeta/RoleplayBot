@@ -321,27 +321,28 @@ export function ScenarioManager() {
               </Button>
             </DialogTrigger>
           
-            <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-              <DialogHeader>
-                <DialogTitle>
+            <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto bg-slate-50">
+              <DialogHeader className="bg-white px-6 py-4 -mx-6 -mt-6 border-b border-slate-200">
+                <DialogTitle className="text-xl text-slate-900">
                   {editingScenario ? '시나리오 편집' : '새 시나리오 생성'}
                 </DialogTitle>
               </DialogHeader>
             
-            <form onSubmit={handleSubmit} className="space-y-6">
+            <form onSubmit={handleSubmit} className="space-y-6 pt-6">
               {/* 기본 정보 */}
-              <div className="space-y-4">
-                <h3 className="text-lg font-semibold">기본 정보</h3>
+              <div className="space-y-4 bg-white p-6 rounded-lg border border-slate-200">
+                <h3 className="text-lg font-semibold text-slate-900 pb-3 border-b border-slate-200">기본 정보</h3>
                 
                 {/* 시나리오 이미지 - 최상단으로 이동 */}
                 <div className="space-y-3">
-                  <Label htmlFor="image">시나리오 이미지 URL (선택사항)</Label>
+                  <Label htmlFor="image" className="text-sm font-medium text-slate-700">시나리오 이미지 URL (선택사항)</Label>
                   <Input
                     id="image"
                     value={formData.image || ''}
                     onChange={(e) => setFormData(prev => ({ ...prev, image: e.target.value }))}
                     placeholder="이미지 URL을 입력하세요 (예: https://example.com/image.jpg)"
                     data-testid="input-scenario-image"
+                    className="bg-white"
                   />
                   
                   {/* 이미지 미리보기 */}
@@ -370,7 +371,7 @@ export function ScenarioManager() {
                 
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <Label htmlFor="title">시나리오 제목</Label>
+                    <Label htmlFor="title" className="text-sm font-medium text-slate-700">시나리오 제목</Label>
                     <Input
                       id="title"
                       value={formData.title}
@@ -378,11 +379,12 @@ export function ScenarioManager() {
                       placeholder="시나리오 제목을 입력하세요"
                       required
                       data-testid="input-scenario-title"
+                      className="bg-white"
                     />
                   </div>
                   
                   <div>
-                    <Label htmlFor="estimatedTime">예상 소요 시간</Label>
+                    <Label htmlFor="estimatedTime" className="text-sm font-medium text-slate-700">예상 소요 시간</Label>
                     <Input
                       id="estimatedTime"
                       value={formData.estimatedTime}
@@ -390,29 +392,30 @@ export function ScenarioManager() {
                       placeholder="예: 30-45분"
                       required
                       data-testid="input-estimated-time"
+                      className="bg-white"
                     />
                   </div>
                 </div>
 
                 <div>
-                  <Label htmlFor="description">시나리오 설명</Label>
+                  <Label htmlFor="description" className="text-sm font-medium text-slate-700">시나리오 설명</Label>
                   <Textarea
                     id="description"
                     value={formData.description}
                     onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
                     placeholder="시나리오에 대한 자세한 설명을 입력하세요"
-                    className="min-h-[100px]"
+                    className="min-h-[100px] bg-white whitespace-pre-wrap"
                     required
                     data-testid="textarea-scenario-description"
                   />
                 </div>
 
                 <div>
-                  <Label htmlFor="difficulty">난이도</Label>
+                  <Label htmlFor="difficulty" className="text-sm font-medium text-slate-700">난이도</Label>
                   <Select value={formData.difficulty.toString()} onValueChange={(value) => 
                     setFormData(prev => ({ ...prev, difficulty: parseInt(value) }))
                   }>
-                    <SelectTrigger data-testid="select-difficulty">
+                    <SelectTrigger data-testid="select-difficulty" className="bg-white">
                       <SelectValue placeholder="난이도를 선택하세요" />
                     </SelectTrigger>
                     <SelectContent>
@@ -426,11 +429,11 @@ export function ScenarioManager() {
               </div>
 
               {/* 상황 설정 */}
-              <div className="space-y-4">
-                <h3 className="text-lg font-semibold">상황 설정</h3>
+              <div className="space-y-4 bg-white p-6 rounded-lg border border-slate-200">
+                <h3 className="text-lg font-semibold text-slate-900 pb-3 border-b border-slate-200">상황 설정</h3>
                 
                 <div>
-                  <Label htmlFor="situation">상황 설명</Label>
+                  <Label htmlFor="situation" className="text-sm font-medium text-slate-700">상황 설명</Label>
                   <Textarea
                     id="situation"
                     value={formData.context.situation}
@@ -439,14 +442,14 @@ export function ScenarioManager() {
                       context: { ...prev.context, situation: e.target.value }
                     }))}
                     placeholder="현재 상황을 자세히 설명하세요"
-                    className="min-h-[80px]"
+                    className="min-h-[80px] bg-white whitespace-pre-wrap"
                     data-testid="textarea-situation"
                   />
                 </div>
 
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <Label htmlFor="timeline">시간 제약</Label>
+                    <Label htmlFor="timeline" className="text-sm font-medium text-slate-700">시간 제약</Label>
                     <Input
                       id="timeline"
                       value={formData.context.timeline}
@@ -456,11 +459,12 @@ export function ScenarioManager() {
                       }))}
                       placeholder="예: 마케팅 발표까지 1주일 남음"
                       data-testid="input-timeline"
+                      className="bg-white"
                     />
                   </div>
                   
                   <div>
-                    <Label htmlFor="stakes">이해관계</Label>
+                    <Label htmlFor="stakes" className="text-sm font-medium text-slate-700">이해관계</Label>
                     <Input
                       id="stakes"
                       value={formData.context.stakes}
@@ -470,13 +474,14 @@ export function ScenarioManager() {
                       }))}
                       placeholder="예: 품질 vs 일정 vs 고객 만족도"
                       data-testid="input-stakes"
+                      className="bg-white"
                     />
                   </div>
                 </div>
 
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <Label htmlFor="position">플레이어 직급</Label>
+                    <Label htmlFor="position" className="text-sm font-medium text-slate-700">플레이어 직급</Label>
                     <Input
                       id="position"
                       value={formData.context.playerRole.position}
@@ -489,11 +494,12 @@ export function ScenarioManager() {
                       }))}
                       placeholder="예: 신입 개발자"
                       data-testid="input-position"
+                      className="bg-white"
                     />
                   </div>
                   
                   <div>
-                    <Label htmlFor="playerDepartment">플레이어 부서</Label>
+                    <Label htmlFor="playerDepartment" className="text-sm font-medium text-slate-700">플레이어 부서</Label>
                     <Input
                       id="playerDepartment"
                       value={formData.context.playerRole.department}
@@ -506,13 +512,14 @@ export function ScenarioManager() {
                       }))}
                       placeholder="예: 개발팀"
                       data-testid="input-player-department"
+                      className="bg-white"
                     />
                   </div>
                 </div>
 
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <Label htmlFor="playerExperience">플레이어 경력</Label>
+                    <Label htmlFor="playerExperience" className="text-sm font-medium text-slate-700">플레이어 경력</Label>
                     <Input
                       id="playerExperience"
                       value={formData.context.playerRole.experience}
@@ -525,11 +532,12 @@ export function ScenarioManager() {
                       }))}
                       placeholder="예: 6개월차"
                       data-testid="input-player-experience"
+                      className="bg-white"
                     />
                   </div>
                   
                   <div>
-                    <Label htmlFor="responsibility">책임 사항</Label>
+                    <Label htmlFor="responsibility" className="text-sm font-medium text-slate-700">책임 사항</Label>
                     <Input
                       id="responsibility"
                       value={formData.context.playerRole.responsibility}
@@ -542,17 +550,18 @@ export function ScenarioManager() {
                       }))}
                       placeholder="예: 각 부서와 협의하여 최적 해결안 도출"
                       data-testid="input-responsibility"
+                      className="bg-white"
                     />
                   </div>
                 </div>
               </div>
 
               {/* 목표 및 성공 기준 */}
-              <div className="space-y-4">
-                <h3 className="text-lg font-semibold">목표 및 성공 기준</h3>
+              <div className="space-y-4 bg-white p-6 rounded-lg border border-slate-200">
+                <h3 className="text-lg font-semibold text-slate-900 pb-3 border-b border-slate-200">목표 및 성공 기준</h3>
                 
                 <div>
-                  <Label htmlFor="objectives">목표 (줄바꿈으로 구분)</Label>
+                  <Label htmlFor="objectives" className="text-sm font-medium text-slate-700">목표 (줄바꿈으로 구분)</Label>
                   <Textarea
                     id="objectives"
                     value={formData.objectives.join('\n')}
@@ -561,14 +570,14 @@ export function ScenarioManager() {
                       objectives: e.target.value.split('\n').filter(obj => obj.trim())
                     }))}
                     placeholder="각 부서의 이해관계와 우려사항 파악&#10;부서 간 갈등을 중재하고 합의점 도출&#10;품질과 일정을 균형있게 고려한 현실적 해결책 제시"
-                    className="min-h-[100px]"
+                    className="min-h-[100px] bg-white whitespace-pre-wrap"
                     data-testid="textarea-objectives"
                   />
                 </div>
 
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <Label htmlFor="optimal">최적 결과</Label>
+                    <Label htmlFor="optimal" className="text-sm font-medium text-slate-700">최적 결과</Label>
                     <Textarea
                       id="optimal"
                       value={formData.successCriteria.optimal}
@@ -577,13 +586,13 @@ export function ScenarioManager() {
                         successCriteria: { ...prev.successCriteria, optimal: e.target.value }
                       }))}
                       placeholder="모든 부서가 만족하는 타협안 도출"
-                      className="min-h-[60px]"
+                      className="min-h-[60px] bg-white whitespace-pre-wrap"
                       data-testid="textarea-optimal"
                     />
                   </div>
                   
                   <div>
-                    <Label htmlFor="good">우수 결과</Label>
+                    <Label htmlFor="good" className="text-sm font-medium text-slate-700">우수 결과</Label>
                     <Textarea
                       id="good"
                       value={formData.successCriteria.good}
@@ -592,7 +601,7 @@ export function ScenarioManager() {
                         successCriteria: { ...prev.successCriteria, good: e.target.value }
                       }))}
                       placeholder="주요 이해관계자들의 핵심 요구사항 반영"
-                      className="min-h-[60px]"
+                      className="min-h-[60px] bg-white whitespace-pre-wrap"
                       data-testid="textarea-good"
                     />
                   </div>
@@ -600,7 +609,7 @@ export function ScenarioManager() {
 
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <Label htmlFor="acceptable">수용 가능 결과</Label>
+                    <Label htmlFor="acceptable" className="text-sm font-medium text-slate-700">수용 가능 결과</Label>
                     <Textarea
                       id="acceptable"
                       value={formData.successCriteria.acceptable}
@@ -609,13 +618,13 @@ export function ScenarioManager() {
                         successCriteria: { ...prev.successCriteria, acceptable: e.target.value }
                       }))}
                       placeholder="최소한의 품질 기준을 유지하면서 일정 준수"
-                      className="min-h-[60px]"
+                      className="min-h-[60px] bg-white whitespace-pre-wrap"
                       data-testid="textarea-acceptable"
                     />
                   </div>
                   
                   <div>
-                    <Label htmlFor="failure">실패 기준</Label>
+                    <Label htmlFor="failure" className="text-sm font-medium text-slate-700">실패 기준</Label>
                     <Textarea
                       id="failure"
                       value={formData.successCriteria.failure}
@@ -624,7 +633,7 @@ export function ScenarioManager() {
                         successCriteria: { ...prev.successCriteria, failure: e.target.value }
                       }))}
                       placeholder="부서 간 갈등 심화 또는 비현실적 해결책 제시"
-                      className="min-h-[60px]"
+                      className="min-h-[60px] bg-white whitespace-pre-wrap"
                       data-testid="textarea-failure"
                     />
                   </div>
@@ -632,11 +641,11 @@ export function ScenarioManager() {
               </div>
 
               {/* 역량 및 페르소나 */}
-              <div className="space-y-4">
-                <h3 className="text-lg font-semibold">역량 및 페르소나</h3>
+              <div className="space-y-4 bg-white p-6 rounded-lg border border-slate-200">
+                <h3 className="text-lg font-semibold text-slate-900 pb-3 border-b border-slate-200">역량 및 페르소나</h3>
                 
                 <div>
-                  <Label htmlFor="skills">주요 역량 (쉼표로 구분)</Label>
+                  <Label htmlFor="skills" className="text-sm font-medium text-slate-700">주요 역량 (쉼표로 구분)</Label>
                   <Input
                     id="skills"
                     value={formData.skills.join(', ')}
@@ -646,6 +655,7 @@ export function ScenarioManager() {
                     }))}
                     placeholder="갈등 중재, 이해관계자 관리, 문제 해결, 협상"
                     data-testid="input-skills"
+                    className="bg-white"
                   />
                   <div className="mt-2 flex flex-wrap gap-1">
                     {formData.skills.map((skill, index) => (
@@ -666,7 +676,7 @@ export function ScenarioManager() {
 
                 <div>
                   <div className="flex items-center justify-between mb-3">
-                    <Label>페르소나 관리</Label>
+                    <Label className="text-sm font-medium text-slate-700">페르소나 관리</Label>
                     <Button
                       type="button"
                       onClick={() => {
@@ -698,7 +708,7 @@ export function ScenarioManager() {
                   
                   <div className="space-y-4 max-h-96 overflow-y-auto">
                     {formData.personas.map((persona, index) => (
-                      <div key={index} className="border rounded-lg p-4 space-y-3 bg-slate-50">
+                      <div key={index} className="border border-slate-300 rounded-lg p-4 space-y-3 bg-white shadow-sm">
                         <div className="flex items-center justify-between">
                           <h4 className="font-medium text-slate-700">페르소나 #{index + 1}</h4>
                           <Button
@@ -719,7 +729,7 @@ export function ScenarioManager() {
                         
                         <div className="grid grid-cols-3 gap-3">
                           <div>
-                            <Label htmlFor={`persona-mbti-${index}`}>MBTI *</Label>
+                            <Label htmlFor={`persona-mbti-${index}`} className="text-sm font-medium text-slate-700">MBTI *</Label>
                             <Input
                               id={`persona-mbti-${index}`}
                               value={persona.mbti}
@@ -737,11 +747,12 @@ export function ScenarioManager() {
                               }}
                               placeholder="ISTJ, ENFJ, INTP 등"
                               data-testid={`input-persona-mbti-${index}`}
+                              className="bg-white"
                             />
                           </div>
                           
                           <div>
-                            <Label htmlFor={`persona-name-${index}`}>이름 *</Label>
+                            <Label htmlFor={`persona-name-${index}`} className="text-sm font-medium text-slate-700">이름 *</Label>
                             <Input
                               id={`persona-name-${index}`}
                               value={persona.name}
@@ -752,11 +763,12 @@ export function ScenarioManager() {
                               }}
                               placeholder="김민수, 이지영 등"
                               data-testid={`input-persona-name-${index}`}
+                              className="bg-white"
                             />
                           </div>
 
                           <div>
-                            <Label htmlFor={`persona-gender-${index}`}>성별 *</Label>
+                            <Label htmlFor={`persona-gender-${index}`} className="text-sm font-medium text-slate-700">성별 *</Label>
                             <Select
                               value={persona.gender}
                               onValueChange={(value: 'male' | 'female') => {
@@ -765,7 +777,7 @@ export function ScenarioManager() {
                                 setFormData(prev => ({ ...prev, personas: newPersonas }));
                               }}
                             >
-                              <SelectTrigger data-testid={`select-persona-gender-${index}`}>
+                              <SelectTrigger data-testid={`select-persona-gender-${index}`} className="bg-white">
                                 <SelectValue placeholder="성별 선택" />
                               </SelectTrigger>
                               <SelectContent>
@@ -776,7 +788,7 @@ export function ScenarioManager() {
                           </div>
                           
                           <div>
-                            <Label htmlFor={`persona-department-${index}`}>부서 *</Label>
+                            <Label htmlFor={`persona-department-${index}`} className="text-sm font-medium text-slate-700">부서 *</Label>
                             <Input
                               id={`persona-department-${index}`}
                               value={persona.department}
@@ -787,11 +799,12 @@ export function ScenarioManager() {
                               }}
                               placeholder="개발팀, 마케팅팀, QA팀 등"
                               data-testid={`input-persona-department-${index}`}
+                              className="bg-white"
                             />
                           </div>
                           
                           <div>
-                            <Label htmlFor={`persona-position-${index}`}>직책 *</Label>
+                            <Label htmlFor={`persona-position-${index}`} className="text-sm font-medium text-slate-700">직책 *</Label>
                             <Input
                               id={`persona-position-${index}`}
                               value={persona.position}
@@ -802,11 +815,12 @@ export function ScenarioManager() {
                               }}
                               placeholder="선임 개발자, 매니저 등"
                               data-testid={`input-persona-position-${index}`}
+                              className="bg-white"
                             />
                           </div>
                           
                           <div>
-                            <Label htmlFor={`persona-experience-${index}`}>경력</Label>
+                            <Label htmlFor={`persona-experience-${index}`} className="text-sm font-medium text-slate-700">경력</Label>
                             <Input
                               id={`persona-experience-${index}`}
                               value={persona.experience}
@@ -817,12 +831,13 @@ export function ScenarioManager() {
                               }}
                               placeholder="8년차, 신입, 5년차 등"
                               data-testid={`input-persona-experience-${index}`}
+                              className="bg-white"
                             />
                           </div>
                         </div>
                         
                         <div>
-                          <Label htmlFor={`persona-stance-${index}`}>입장/태도 *</Label>
+                          <Label htmlFor={`persona-stance-${index}`} className="text-sm font-medium text-slate-700">입장/태도 *</Label>
                           <Textarea
                             id={`persona-stance-${index}`}
                             value={persona.stance}
@@ -834,11 +849,12 @@ export function ScenarioManager() {
                             placeholder="이 상황에 대한 구체적인 입장과 의견"
                             rows={2}
                             data-testid={`input-persona-stance-${index}`}
+                            className="bg-white whitespace-pre-wrap"
                           />
                         </div>
                         
                         <div>
-                          <Label htmlFor={`persona-goal-${index}`}>목표 *</Label>
+                          <Label htmlFor={`persona-goal-${index}`} className="text-sm font-medium text-slate-700">목표 *</Label>
                           <Textarea
                             id={`persona-goal-${index}`}
                             value={persona.goal}
@@ -850,11 +866,12 @@ export function ScenarioManager() {
                             placeholder="개인적인 목표와 원하는 결과"
                             rows={2}
                             data-testid={`input-persona-goal-${index}`}
+                            className="bg-white whitespace-pre-wrap"
                           />
                         </div>
                         
                         <div>
-                          <Label htmlFor={`persona-tradeoff-${index}`}>양보 조건</Label>
+                          <Label htmlFor={`persona-tradeoff-${index}`} className="text-sm font-medium text-slate-700">양보 조건</Label>
                           <Textarea
                             id={`persona-tradeoff-${index}`}
                             value={persona.tradeoff}
@@ -866,6 +883,7 @@ export function ScenarioManager() {
                             placeholder="양보할 수 있는 부분이나 조건"
                             rows={2}
                             data-testid={`input-persona-tradeoff-${index}`}
+                            className="bg-white whitespace-pre-wrap"
                           />
                         </div>
                       </div>
