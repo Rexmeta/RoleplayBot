@@ -52,11 +52,6 @@ export default function ScenarioSelector({ onScenarioSelect, playerProfile }: Sc
       return false;
     }
     
-    // 난이도 필터
-    if (filters.difficulty && filters.difficulty !== 'all' && scenario.difficulty.toString() !== filters.difficulty) {
-      return false;
-    }
-    
     // 페르소나 수 필터
     if (filters.personaCount && filters.personaCount !== 'all') {
       const personaCount = scenario.personas?.length || 0;
@@ -220,21 +215,7 @@ export default function ScenarioSelector({ onScenarioSelect, playerProfile }: Sc
             
             {/* 고급 필터 (토글로 표시/숨김) */}
             {showAdvancedFilters && (
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-3 pt-3 border-t border-slate-200">
-                {/* 난이도 */}
-                <Select value={filters.difficulty || undefined} onValueChange={(value) => setFilters(prev => ({ ...prev, difficulty: value }))}>
-                  <SelectTrigger data-testid="filter-difficulty" className="h-9 text-sm">
-                    <SelectValue placeholder="난이도" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">전체</SelectItem>
-                    <SelectItem value="1">★ 매우 쉬움</SelectItem>
-                    <SelectItem value="2">★★ 기본</SelectItem>
-                    <SelectItem value="3">★★★ 도전형</SelectItem>
-                    <SelectItem value="4">★★★★ 고난도</SelectItem>
-                  </SelectContent>
-                </Select>
-                
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-3 border-t border-slate-200">
                 {/* 페르소나 수 */}
                 <Select value={filters.personaCount || undefined} onValueChange={(value) => setFilters(prev => ({ ...prev, personaCount: value }))}>
                   <SelectTrigger data-testid="filter-persona-count" className="h-9 text-sm">
@@ -270,7 +251,7 @@ export default function ScenarioSelector({ onScenarioSelect, playerProfile }: Sc
             )}
             
             {/* 필터 적용 상태 표시 */}
-            {(filters.searchText || filters.difficulty || filters.personaCount || filters.department || filters.skillType) && (
+            {(filters.searchText || filters.personaCount || filters.department || filters.skillType) && (
               <div className="mt-3 pt-3 border-t border-slate-200">
                 <div className="flex items-center justify-center">
                   <span className="text-xs text-blue-600">필터 적용됨</span>
@@ -312,10 +293,6 @@ export default function ScenarioSelector({ onScenarioSelect, playerProfile }: Sc
                       <h2 className="text-2xl font-bold mb-4 drop-shadow-lg">{scenario.title}</h2>
                       <div className="flex items-center gap-4 text-sm">
                         <div className="flex items-center gap-1 bg-white/20 backdrop-blur-sm rounded-full px-3 py-1">
-                          <i className="fas fa-star text-yellow-400"></i>
-                          <span>난이도 {scenario.difficulty}</span>
-                        </div>
-                        <div className="flex items-center gap-1 bg-white/20 backdrop-blur-sm rounded-full px-3 py-1">
                           <i className="fas fa-users"></i>
                           <span>{(scenario.personas || []).length}명</span>
                         </div>
@@ -332,9 +309,6 @@ export default function ScenarioSelector({ onScenarioSelect, playerProfile }: Sc
                         {/* 헤더 */}
                         <div className="flex items-center gap-3 mb-4">
                           <h3 className="text-lg font-semibold">{scenario.title}</h3>
-                          <Badge variant="outline" className="bg-white/20 text-white border-white/30">
-                            {getDifficultyLabel(scenario.difficulty)} (★{scenario.difficulty})
-                          </Badge>
                           <Badge variant="outline" className="bg-white/20 text-white border-white/30">
                             {recommendation.level}
                           </Badge>

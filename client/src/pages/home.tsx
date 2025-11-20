@@ -110,7 +110,7 @@ export default function Home() {
         setStrategyReflectionSubmitted(false);
         setSelectedDifficulty(scenario.difficulty || 4);
         
-        // ✅ scenarioRunId가 있으면 완료된 페르소나 목록 불러오기
+        // ✅ scenarioRunId가 있으면 완료된 페르소나 목록과 난이도 불러오기
         if (scenarioRunIdParam) {
           apiRequest('GET', '/api/scenario-runs')
             .then(res => res.json())
@@ -123,6 +123,15 @@ export default function Home() {
                 
                 setCompletedPersonaIds(completedIds);
                 console.log(`✅ 완료된 페르소나 ${completedIds.length}개 불러옴:`, completedIds);
+                
+                // 🔒 난이도 고정: 첫 번째 persona_run의 난이도를 가져옴
+                if (run.personaRuns && run.personaRuns.length > 0) {
+                  const firstDifficulty = run.personaRuns[0].difficulty;
+                  if (firstDifficulty) {
+                    setSelectedDifficulty(firstDifficulty);
+                    console.log(`🔒 난이도 고정: ${firstDifficulty}`);
+                  }
+                }
               } else {
                 setCompletedPersonaIds([]);
               }

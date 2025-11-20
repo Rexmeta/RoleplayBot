@@ -76,16 +76,27 @@ export function SimplePersonaSelector({
         {/* 난이도 선택 */}
         <div className="mt-6 max-w-3xl mx-auto">
           <h3 className="text-lg font-semibold text-gray-900 mb-3">대화 난이도 선택</h3>
-          <p className="text-sm text-gray-600 mb-4">{difficultyLabels[selectedDifficulty].description}</p>
+          {completedPersonaIds.length > 0 ? (
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
+              <p className="text-sm text-blue-800 font-medium">
+                🔒 난이도가 고정되었습니다. 첫 페르소나 대화에서 선택한 난이도가 모든 페르소나 대화에 적용됩니다.
+              </p>
+            </div>
+          ) : (
+            <p className="text-sm text-gray-600 mb-4">{difficultyLabels[selectedDifficulty].description}</p>
+          )}
           <div className="grid grid-cols-4 gap-3">
             {[1, 2, 3, 4].map((level) => (
               <button
                 key={level}
-                onClick={() => onDifficultyChange(level)}
+                onClick={() => completedPersonaIds.length === 0 && onDifficultyChange(level)}
+                disabled={completedPersonaIds.length > 0}
                 className={`p-4 rounded-lg border-2 transition-all ${
                   selectedDifficulty === level
                     ? difficultyLabels[level].color + " border-current shadow-md scale-105"
-                    : "bg-white border-gray-200 hover:border-gray-300 hover:shadow-sm"
+                    : completedPersonaIds.length > 0
+                    ? "bg-gray-100 border-gray-200 cursor-not-allowed opacity-60"
+                    : "bg-white border-gray-200 hover:border-gray-300 hover:shadow-sm cursor-pointer"
                 }`}
                 data-testid={`difficulty-${level}`}
               >
