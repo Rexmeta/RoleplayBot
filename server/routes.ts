@@ -238,6 +238,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         personaSnapshot: validatedData.personaSnapshot || {},
         mbtiType: mbtiType || null,
         phase, // ✨ phase 설정
+        mode: validatedData.mode, // 대화 모드 저장
+        difficulty: validatedData.difficulty, // 난이도 저장
         status: 'active'
       });
       
@@ -249,6 +251,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         // 레거시 호환성을 위해 conversations 구조로 반환
         return res.json({
           id: personaRun.id,
+          scenarioRunId: scenarioRun.id, // scenarioRunId 추가
           scenarioId: validatedData.scenarioId,
           scenarioName: validatedData.scenarioName,
           personaId,
