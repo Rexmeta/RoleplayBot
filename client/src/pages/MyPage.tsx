@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { CalendarDays, Star, TrendingUp, MessageSquare, Award, History, BarChart3, Users, Target, Trash2, Loader2 } from "lucide-react";
 import { Link } from "wouter";
 import { useAuth } from "@/hooks/useAuth";
@@ -13,11 +14,13 @@ import { type ScenarioRun, type PersonaRun, type Feedback } from "@shared/schema
 import { format } from "date-fns";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import { StrategyReflection } from "@/components/StrategyReflection";
 
 export default function MyPage() {
   const [selectedView, setSelectedView] = useState<"history" | "stats">("history");
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [scenarioRunToDelete, setScenarioRunToDelete] = useState<string | null>(null);
+  const [strategyReflectionRunId, setStrategyReflectionRunId] = useState<string | null>(null);
   const { user } = useAuth();
   const { toast } = useToast();
 
@@ -110,6 +113,32 @@ export default function MyPage() {
       deleteMutation.mutate(scenarioRunToDelete);
     }
   };
+
+  // 전략 회고 제출 mutation
+  const submitStrategyReflectionMutation = useMutation({
+    mutationFn: async ({ runId, reflection, personaIds }: { runId: string; reflection: string; personaIds: string[] }) => {
+      return await apiRequest('POST', `/api/scenario-runs/${runId}/strategy-reflection`, {
+        strategyReflection: reflection,
+        conversationOrder: personaIds
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/scenario-runs'] });
+      toast({
+        title: "전략 회고 제출 완료",
+        description: "전략 회고가 성공적으로 저장되었습니다.",
+      });
+      setStrategyReflectionRunId(null);
+    },
+    onError: (error) => {
+      console.error("전략 회고 제출 실패:", error);
+      toast({
+        title: "제출 실패",
+        description: "전략 회고를 저장할 수 없습니다.",
+        variant: "destructive",
+      });
+    },
+  });
 
   // 시나리오 정보 가져오기
   const getScenarioInfo = (scenarioId: string) => {
@@ -293,7 +322,8 @@ export default function MyPage() {
                             <ScenarioRunDetails 
                               scenarioRun={scenarioRun} 
                               scenarioInfo={scenarioInfo}
-                              personaRuns={scenarioRun.personaRuns || []} 
+                              personaRuns={scenarioRun.personaRuns || []}
+                              setStrategyReflectionRunId={setStrategyReflectionRunId}
                             />
                           </AccordionContent>
                         </AccordionItem>
@@ -403,6 +433,37 @@ export default function MyPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* 전략 회고 다이얼로그 */}
+      {strategyReflectionRunId && (() => {
+        const scenarioRun = scenarioRuns.find(sr => sr.id === strategyReflectionRunId);
+        if (!scenarioRun) return null;
+        
+        const scenario = scenariosMap.get(scenarioRun.scenarioId);
+        if (!scenario) return null;
+        
+        const completedPersonaRuns = scenarioRun.personaRuns.filter(pr => pr.status === 'completed');
+        const completedPersonaIds = completedPersonaRuns.map(pr => pr.personaId);
+        
+        return (
+          <Dialog open={true} onOpenChange={() => setStrategyReflectionRunId(null)}>
+            <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+              <StrategyReflection
+                personas={scenario.personas || []}
+                completedPersonaIds={completedPersonaIds}
+                onSubmit={async (reflection) => {
+                  await submitStrategyReflectionMutation.mutateAsync({
+                    runId: strategyReflectionRunId,
+                    reflection,
+                    personaIds: completedPersonaIds
+                  });
+                }}
+                scenarioTitle={scenario.title}
+              />
+            </DialogContent>
+          </Dialog>
+        );
+      })()}
     </div>
   );
 }
@@ -411,11 +472,13 @@ export default function MyPage() {
 function ScenarioRunDetails({ 
   scenarioRun, 
   scenarioInfo, 
-  personaRuns 
+  personaRuns,
+  setStrategyReflectionRunId
 }: { 
   scenarioRun: ScenarioRun; 
   scenarioInfo: any; 
   personaRuns: PersonaRun[];
+  setStrategyReflectionRunId: (id: string) => void;
 }) {
   // ✨ 개선: 이미 부모에서 받아온 personaRuns 사용 (중복 쿼리 제거)
   const { data: scenarios = [] } = useQuery<any[]>({
@@ -425,10 +488,14 @@ function ScenarioRunDetails({
 
   const scenario = scenarios.find(s => s.id === scenarioRun.scenarioId);
 
+  const completedPersonaRuns = personaRuns.filter(pr => pr.status === 'completed');
+  const hasMultiplePersonas = scenario?.personas && scenario.personas.length >= 2;
+  const showStrategyReflectionButton = hasMultiplePersonas && !scenarioRun.strategyReflection && completedPersonaRuns.length >= 2;
+
   return (
     <div className="space-y-4 pt-3">
       {/* 전략 회고 */}
-      {scenarioRun.strategyReflection && (
+      {scenarioRun.strategyReflection ? (
         <div className="bg-gradient-to-r from-green-50 to-emerald-50 border border-green-200 rounded-lg p-5">
           <h5 className="text-sm font-semibold text-slate-700 mb-2 flex items-center gap-2">
             <Target className="w-4 h-4 text-green-600" />
@@ -437,6 +504,29 @@ function ScenarioRunDetails({
           <p className="text-sm text-slate-600 whitespace-pre-wrap leading-relaxed">
             {scenarioRun.strategyReflection}
           </p>
+        </div>
+      ) : showStrategyReflectionButton && (
+        <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-lg p-5">
+          <div className="flex items-center justify-between">
+            <div>
+              <h5 className="text-sm font-semibold text-slate-700 mb-1 flex items-center gap-2">
+                <Target className="w-4 h-4 text-blue-600" />
+                전략 회고 작성
+              </h5>
+              <p className="text-xs text-slate-600">
+                {completedPersonaRuns.length}명의 페르소나와 대화를 완료했습니다. 전략적 대화 순서를 회고해보세요.
+              </p>
+            </div>
+            <Button
+              variant="default"
+              size="sm"
+              onClick={() => setStrategyReflectionRunId(scenarioRun.id)}
+              data-testid={`strategy-reflection-button-${scenarioRun.id}`}
+              className="bg-blue-600 hover:bg-blue-700"
+            >
+              회고 작성
+            </Button>
+          </div>
         </div>
       )}
       
