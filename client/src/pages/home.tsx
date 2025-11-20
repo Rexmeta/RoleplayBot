@@ -205,15 +205,9 @@ export default function Home() {
   };
 
   const handleReturnToScenarios = async () => {
-    // 현재 active scenario_run이 있으면 완료 처리
-    if (scenarioRunId) {
-      try {
-        await apiRequest("POST", `/api/scenario-runs/${scenarioRunId}/complete`, {});
-        console.log(`Scenario run ${scenarioRunId} 완료 처리됨`);
-      } catch (error) {
-        console.error("Scenario run 완료 처리 실패:", error);
-      }
-    }
+    // ✅ scenario_run은 전략 회고 제출 시에만 완료 처리됨
+    // active 상태로 남겨서 나중에 마이페이지에서 재개 가능
+    console.log(`🔙 시나리오 목록으로 돌아가기 (scenario_run ${scenarioRunId || 'none'}은 active 상태 유지)`);
     
     setCurrentView("scenarios");
     setSelectedScenario(null);
@@ -222,7 +216,7 @@ export default function Home() {
     setScenarioRunId(null);
     setCompletedPersonaIds([]);
     setConversationIds([]);
-    setStrategyReflectionSubmitted(false); // 초기화
+    setStrategyReflectionSubmitted(false);
   };
 
   // 재도전을 위한 새로운 대화 생성

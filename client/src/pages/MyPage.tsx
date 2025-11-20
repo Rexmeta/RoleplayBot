@@ -292,6 +292,9 @@ export default function MyPage() {
                       const scenarioInfo = getScenarioInfo(scenarioRun.scenarioId);
                       const attemptNumber = scenarioAttemptNumbers.get(scenarioRun.id) || 1;
                       
+                      // ✨ 시나리오 완료 조건: status='completed' AND 전략회고 제출됨
+                      const isScenarioCompleted = scenarioRun.status === 'completed' && !!scenarioRun.strategyReflection;
+                      
                       return (
                         <AccordionItem 
                           key={scenarioRun.id} 
@@ -312,7 +315,11 @@ export default function MyPage() {
                                 <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">
                                   #{attemptNumber}회 시도
                                 </Badge>
-                                <Badge className="bg-green-600">완료</Badge>
+                                {isScenarioCompleted ? (
+                                  <Badge className="bg-green-600">완료</Badge>
+                                ) : (
+                                  <Badge className="bg-yellow-600">진행 중</Badge>
+                                )}
                               </div>
                             </AccordionTrigger>
                             <button
