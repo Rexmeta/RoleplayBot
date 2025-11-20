@@ -221,12 +221,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const mbtiType = scenarioPersona.personaRef?.replace('.json', '');
       const mbtiPersona = mbtiType ? await fileManager.getPersonaByMBTI(mbtiType) : null;
       
+      // ✨ phase 자동 계산: 같은 scenario_run 내의 persona_run 개수 + 1
+      const existingPersonaRuns = await storage.getPersonaRunsByScenarioRun(scenarioRun.id);
+      const phase = existingPersonaRuns.length + 1;
+      
       const personaRun = await storage.createPersonaRun({
         scenarioRunId: scenarioRun.id,
         personaId,
         personaName: scenarioPersona.name,
         personaSnapshot: validatedData.personaSnapshot || {},
         mbtiType: mbtiType || null,
+        phase, // ✨ phase 설정
         status: 'active'
       });
       

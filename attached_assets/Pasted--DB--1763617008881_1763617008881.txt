@@ -1,0 +1,204 @@
+좋아, 이제 전반 구조가 완전히 보인다 👍
+이미 DB 스키마는 거의 완벽하게 되어 있고, 문제는 “어떤 쿼리를 써서 히스토리 화면을 그리고 있느냐” 쪽이야.
+
+지금 상황 정리:
+
+멀티 페르소나 구조용으로
+scenarioRuns / personaRuns / chatMessages 이미 잘 만들어 둠
+
+하지만 히스토리 UI는 아직 getUserConversations() (= conversations 테이블) 을 쓰고 있을 가능성이 큼
+→ 페르소나 2명 = conversations 2행 → 같은 시나리오 2회 플레이 → 4행 → 4줄 노출
+
+
+해야 할 일은 두 가지:
+
+1. 히스토리 페이지에서 getUserScenarioRunsWithPersonaRuns를 기준으로 리스트를 그리기
+
+
+2. 그 함수 구현을 “시나리오 실행 1줄 + 그 안에 personaRuns 배열” 구조로 깔끔하게 수정하기
+
+
+
+
+---
+
+1. getUserScenarioRunsWithPersonaRuns 리팩터링
+
+지금 구현은
+
+scenarioRuns를 모두 가져온 뒤
+
+각 scenarioRunId에 대해 personaRuns를 매번 쿼리하는 N+1 패턴
+
+게다가 scenarioRunIds[0]로만 한 번 조회했다가, 다시 루프 돌면서 또 조회
+
+
+→ 이걸 한 번의 inArray 쿼리로 바꾸고, 메모리에서 그룹핑하면 깔끔해.
+
+import { eq, asc, desc, inArray } from "drizzle-orm"; // inArray 추가
+
+// ...
+
+async getUserScenarioRunsWithPersonaRuns(userId: string): Promise<(ScenarioRun & { personaRuns: PersonaRun[] })[]> {
+  // 1) 유저의 모든 시나리오 실행 가져오기 (리스트의 "줄"이 되는 단위)
+  const userScenarioRuns = await db
+    .select()
+    .from(scenarioRuns)
+    .where(eq(scenarioRuns.userId, userId))
+    .orderBy(desc(scenarioRuns.startedAt));
+
+  if (userScenarioRuns.length === 0) {
+    return [];
+  }
+
+  const scenarioRunIds = userScenarioRuns.map((sr) => sr.id);
+
+  // 2) 한 번에 해당 시나리오 실행들에 속한 personaRuns 전체를 가져오기
+  const allPersonaRuns = await db
+    .select()
+    .from(personaRuns)
+    .where(inArray(personaRuns.scenarioRunId, scenarioRunIds))
+    .orderBy(asc(personaRuns.phase));
+
+  // 3) scenarioRunId 별로 personaRuns 그룹핑
+  const personaRunsByScenarioId = new Map<string, PersonaRun[]>();
+
+  for (const pr of allPersonaRuns) {
+    const list = personaRunsByScenarioId.get(pr.scenarioRunId) ?? [];
+    list.push(pr);
+    personaRunsByScenarioId.set(pr.scenarioRunId, list);
+  }
+
+  // 4) 각 ScenarioRun에 personaRuns 배열 붙여서 반환
+  return userScenarioRuns.map((sr) => ({
+    ...sr,
+    personaRuns: personaRunsByScenarioId.get(sr.id) ?? [],
+  }));
+}
+
+이제 이 함수가 반환하는 구조는:
+
+type ScenarioRunWithPersonas = ScenarioRun & { personaRuns: PersonaRun[] };
+
+// 예시
+[
+  {
+    id: 'run-1',                  // 1회 플레이
+    scenarioName: '신제품 론칭 임박...',
+    attemptNumber: 1,
+    difficulty: 3,
+    totalScore: 85,
+    // ...
+    personaRuns: [
+      { personaId: '박준영', phase: 1, /* ... */ },
+      { personaId: '이지영', phase: 2, /* ... */ },
+    ]
+  },
+  {
+    id: 'run-2',                  // 2회 플레이
+    scenarioName: '신제품 론칭 임박...',
+    attemptNumber: 2,
+    // ...
+    personaRuns: [
+      { personaId: '박준영', phase: 1, /* ... */ },
+      { personaId: '이지영', phase: 2, /* ... */ },
+    ]
+  }
+]
+
+→ 동일 시나리오를 2번 했어도 배열 길이는 2
+→ 리스트에 그리면 무조건 2줄만 나옴.
+
+
+---
+
+2. 히스토리 화면에서 이 함수로 교체
+
+지금 프론트에서 아마 대략 이런 식으로 쓰고 있을 거야:
+
+// (기존)
+const conversations = await storage.getUserConversations(userId);
+// 여기서 map 돌면서 카드 4개 렌더링 → 페르소나마다 1줄
+
+이걸 아래처럼 바꿔:
+
+const runs = await storage.getUserScenarioRunsWithPersonaRuns(userId);
+
+return (
+  <>
+    {runs.map((run) => (
+      <HistoryCard
+        key={run.id}
+        title={run.scenarioName}
+        difficulty={run.difficulty}
+        attemptLabel={`#${run.attemptNumber}회 시도`}
+        score={run.totalScore}
+        status={run.status}
+        startedAt={run.startedAt}
+        // “대화한 페르소나들 (2개)” 표시용
+        personas={run.personaRuns.map((pr) => pr.personaSnapshot)}
+      />
+    ))}
+  </>
+);
+
+이렇게 변경하면:
+
+리스트의 “한 줄” = ScenarioRun 1개
+
+그 줄 안에서 run.personaRuns.length 만큼 칩/아바타 렌더링
+(예: 박준영 팀장, 이지영 매니저 2개)
+
+
+그래서 스크린샷처럼
+
+> 동일 시나리오 2회 → 4줄
+
+
+
+이 아니라
+
+> 동일 시나리오 2회 → 2줄(각 줄에 페르소나 2명)
+
+
+
+이 딱 맞게 나올 거야.
+
+
+---
+
+3. 레거시 conversations는 어떻게 할까?
+
+싱글 페르소나 옛 구조를 계속 쓸 거라면
+“히스토리(신규 시나리오)” 페이지는 scenarioRuns 기반으로만,
+“기록(레거시)” 페이지는 conversations 기반으로 분리하는 게 제일 깔끔.
+
+아니면 unified 화면을 만들려면:
+
+getUserScenarioRunsWithPersonaRuns 결과
+
+getUserConversations 결과를
+날짜 기준으로 merge 하면 됨 (이건 나중에 필요할 때 같이 설계해도 됨).
+
+
+
+
+
+---
+
+4. 정리
+
+1. DB 스키마는 이미 잘 되어 있고,
+리스트 기준을 conversations → scenarioRuns로 바꾸는 것이 핵심.
+
+
+2. getUserScenarioRunsWithPersonaRuns를 위 코드처럼 고치고,
+
+
+3. 히스토리 UI에서 이 메서드를 사용해
+각 ScenarioRun당 카드 1개 + personaRuns 배열로 페르소나 칩 렌더링하면
+지금 말한 “동일 시나리오 2회인데 4줄 뜨는 문제”는 사라진다.
+
+
+
+원하면, 프론트 쪽 컴포넌트 (예: React/Next) 코드까지 같이 짜 줄게.

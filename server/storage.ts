@@ -2,7 +2,7 @@ import { type Conversation, type InsertConversation, type Feedback, type InsertF
 import { randomUUID } from "crypto";
 import { drizzle } from "drizzle-orm/neon-http";
 import { neon } from "@neondatabase/serverless";
-import { eq, asc, desc } from "drizzle-orm";
+import { eq, asc, desc, inArray } from "drizzle-orm";
 
 // Initialize database connection
 const sql = neon(process.env.DATABASE_URL!);
@@ -520,29 +520,39 @@ export class PostgreSQLStorage implements IStorage {
   }
 
   async getUserScenarioRunsWithPersonaRuns(userId: string): Promise<(ScenarioRun & { personaRuns: PersonaRun[] })[]> {
-    const userScenarioRuns = await db.select().from(scenarioRuns).where(eq(scenarioRuns.userId, userId)).orderBy(desc(scenarioRuns.startedAt));
-    
+    // 1) 유저의 모든 시나리오 실행 가져오기 (리스트의 "줄"이 되는 단위)
+    const userScenarioRuns = await db
+      .select()
+      .from(scenarioRuns)
+      .where(eq(scenarioRuns.userId, userId))
+      .orderBy(desc(scenarioRuns.startedAt));
+
     if (userScenarioRuns.length === 0) {
       return [];
     }
-    
-    const scenarioRunIds = userScenarioRuns.map(sr => sr.id);
-    const allPersonaRuns = await db.select().from(personaRuns)
-      .where(eq(personaRuns.scenarioRunId, scenarioRunIds[0]))
+
+    const scenarioRunIds = userScenarioRuns.map((sr) => sr.id);
+
+    // 2) ✨ 한 번에 해당 시나리오 실행들에 속한 personaRuns 전체를 가져오기 (N+1 문제 해결)
+    const allPersonaRuns = await db
+      .select()
+      .from(personaRuns)
+      .where(inArray(personaRuns.scenarioRunId, scenarioRunIds))
       .orderBy(asc(personaRuns.phase));
-    
+
+    // 3) scenarioRunId 별로 personaRuns 그룹핑
     const personaRunsByScenarioId = new Map<string, PersonaRun[]>();
-    
-    for (const scenarioRunId of scenarioRunIds) {
-      const runs = await db.select().from(personaRuns)
-        .where(eq(personaRuns.scenarioRunId, scenarioRunId))
-        .orderBy(asc(personaRuns.phase));
-      personaRunsByScenarioId.set(scenarioRunId, runs);
+
+    for (const pr of allPersonaRuns) {
+      const list = personaRunsByScenarioId.get(pr.scenarioRunId) ?? [];
+      list.push(pr);
+      personaRunsByScenarioId.set(pr.scenarioRunId, list);
     }
-    
-    return userScenarioRuns.map(sr => ({
+
+    // 4) 각 ScenarioRun에 personaRuns 배열 붙여서 반환
+    return userScenarioRuns.map((sr) => ({
       ...sr,
-      personaRuns: personaRunsByScenarioId.get(sr.id) || []
+      personaRuns: personaRunsByScenarioId.get(sr.id) ?? [],
     }));
   }
 
