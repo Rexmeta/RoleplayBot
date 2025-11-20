@@ -91,7 +91,7 @@ export const personaRuns = pgTable("persona_runs", {
   scenarioRunId: varchar("scenario_run_id").notNull().references(() => scenarioRuns.id, { onDelete: 'cascade' }),
   personaId: text("persona_id").notNull(),
   personaSnapshot: jsonb("persona_snapshot"), // 대화 생성 시점의 페르소나 정보 스냅샷
-  phase: integer("phase").notNull(), // 몇 번째 대화인지 (1, 2, ...)
+  phase: integer("phase"), // 몇 번째 대화인지 (1, 2, ...) - nullable for simple conversations
   status: text("status").notNull().default("active"), // active, completed
   turnCount: integer("turn_count").notNull().default(0),
   score: integer("score"), // 이 페르소나와의 대화 점수 (0-100)
