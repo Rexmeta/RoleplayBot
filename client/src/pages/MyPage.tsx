@@ -536,47 +536,62 @@ function ScenarioRunDetails({
         </div>
       )}
       
-      {/* 대화한 페르소나들 */}
+      {/* 모든 페르소나들 (시작 전/진행 중/완료) */}
       <div className="space-y-2">
         <h5 className="text-sm font-semibold text-slate-700 flex items-center gap-2">
           <Users className="w-4 h-4 text-blue-600" />
-          대화한 페르소나들 ({personaRuns.length}개)
+          페르소나 목록 ({scenario?.personas?.length || 0}개)
         </h5>
         <div className="space-y-2">
-          {personaRuns.map((personaRun, index) => {
-            const personaSnapshot = personaRun.personaSnapshot as any;
-            const persona = personaSnapshot || scenario?.personas?.find((p: any) => p.id === personaRun.personaId);
+          {scenario?.personas?.map((persona: any, index: number) => {
+            const personaRun = personaRuns.find(pr => pr.personaId === persona.id);
+            const isCompleted = personaRun?.status === 'completed';
+            const isActive = personaRun?.status === 'active';
+            const isNotStarted = !personaRun;
             
             return (
               <div 
-                key={personaRun.id}
+                key={persona.id}
                 className="flex items-center justify-between p-3 bg-white border rounded-lg hover:bg-slate-50 transition-colors"
-                data-testid={`persona-run-${personaRun.id}`}
+                data-testid={`persona-${persona.id}`}
               >
                 <div className="flex items-center gap-3">
-                  <div className="w-6 h-6 bg-blue-100 rounded-full flex items-center justify-center text-xs font-bold text-blue-600">
-                    {personaRun.phase}
+                  <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${
+                    isCompleted ? 'bg-green-100 text-green-600' :
+                    isActive ? 'bg-yellow-100 text-yellow-600' :
+                    'bg-gray-100 text-gray-600'
+                  }`}>
+                    {personaRun?.phase || '?'}
                   </div>
                   <div className="flex items-center gap-2 flex-wrap">
                     <span className="font-medium text-slate-900">
-                      {persona?.department && <span className="text-slate-600 font-normal">{persona.department} </span>}
-                      {persona?.name || '알 수 없는 페르소나'}
-                      {(persona?.position || persona?.role) && (
+                      {persona.department && <span className="text-slate-600 font-normal">{persona.department} </span>}
+                      {persona.name}
+                      {(persona.position || persona.role) && (
                         <span className="text-slate-600 font-normal"> {persona.position || persona.role}</span>
                       )}
                     </span>
-                    {persona?.mbti && (
+                    {persona.mbti && (
                       <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
                         {persona.mbti}
                       </Badge>
                     )}
-                    <Badge variant="outline" className="text-xs">
-                      {personaRun.turnCount}턴
+                    {personaRun && (
+                      <Badge variant="outline" className="text-xs">
+                        {personaRun.turnCount}턴
+                      </Badge>
+                    )}
+                    <Badge className={
+                      isCompleted ? 'bg-green-600' :
+                      isActive ? 'bg-yellow-600' :
+                      'bg-gray-400'
+                    }>
+                      {isCompleted ? '완료' : isActive ? '진행 중' : '시작 전'}
                     </Badge>
                   </div>
                 </div>
                 <div className="flex items-center gap-3">
-                  {personaRun.score !== null && personaRun.score !== undefined && (
+                  {personaRun?.score !== null && personaRun?.score !== undefined && (
                     <div className="flex items-center gap-1">
                       <Star className="w-4 h-4 text-yellow-500" />
                       <span className={`font-semibold ${personaRun.score >= 80 ? 'text-green-600' : personaRun.score >= 60 ? 'text-yellow-600' : 'text-red-600'}`}>
@@ -585,32 +600,63 @@ function ScenarioRunDetails({
                     </div>
                   )}
                   <div className="flex gap-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => window.location.href = `/chat/${personaRun.id}`}
-                      data-testid={`view-chat-${personaRun.id}`}
-                    >
-                      대화 보기
-                    </Button>
-                    {personaRun.status === 'completed' && (
+                    {isNotStarted ? (
                       <Button
                         variant="default"
                         size="sm"
-                        onClick={() => window.location.href = `/feedback/${personaRun.id}`}
-                        data-testid={`view-feedback-${personaRun.id}`}
+                        onClick={() => window.location.href = `/home?scenarioId=${scenarioRun.scenarioId}&personaId=${persona.id}`}
+                        data-testid={`start-persona-${persona.id}`}
                       >
-                        피드백 보기
+                        대화 시작하기
                       </Button>
+                    ) : isActive ? (
+                      <>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => window.location.href = `/chat/${personaRun.id}`}
+                          data-testid={`view-chat-${personaRun.id}`}
+                        >
+                          대화 보기
+                        </Button>
+                        <Button
+                          variant="default"
+                          size="sm"
+                          onClick={() => window.location.href = `/home?resumePersonaRunId=${personaRun.id}`}
+                          data-testid={`resume-persona-${personaRun.id}`}
+                          className="bg-yellow-600 hover:bg-yellow-700"
+                        >
+                          대화 계속하기
+                        </Button>
+                      </>
+                    ) : (
+                      <>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => window.location.href = `/chat/${personaRun.id}`}
+                          data-testid={`view-chat-${personaRun.id}`}
+                        >
+                          대화 보기
+                        </Button>
+                        <Button
+                          variant="default"
+                          size="sm"
+                          onClick={() => window.location.href = `/feedback/${personaRun.id}`}
+                          data-testid={`view-feedback-${personaRun.id}`}
+                        >
+                          피드백 보기
+                        </Button>
+                      </>
                     )}
                   </div>
                 </div>
               </div>
             );
           })}
-          {personaRuns.length === 0 && (
+          {(!scenario?.personas || scenario.personas.length === 0) && (
             <div className="text-center py-4 text-slate-500">
-              아직 대화한 페르소나가 없습니다.
+              시나리오 정보를 불러올 수 없습니다.
             </div>
           )}
         </div>
