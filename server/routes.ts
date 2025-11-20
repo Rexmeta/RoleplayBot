@@ -1053,20 +1053,50 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Generate feedback for completed conversation
+  // Generate feedback for completed conversation (persona_run 구조)
   app.post("/api/conversations/:id/feedback", isAuthenticated, async (req, res) => {
     try {
       // @ts-ignore - req.user는 auth 미들웨어에서 설정됨
       const userId = req.user?.id;
-      console.log(`피드백 생성 요청: ${req.params.id}`);
+      const personaRunId = req.params.id;
+      console.log(`피드백 생성 요청: ${personaRunId}`);
       
-      const ownershipResult = await verifyConversationOwnership(req.params.id, userId);
-      
-      if ('error' in ownershipResult) {
-        return res.status(ownershipResult.status).json({ error: ownershipResult.error });
+      // ✨ persona_run 조회
+      const personaRun = await storage.getPersonaRun(personaRunId);
+      if (!personaRun) {
+        return res.status(404).json({ error: "Conversation not found" });
       }
-      
-      const conversation = ownershipResult.conversation;
+
+      // ✨ scenario_run 조회하여 권한 확인
+      const scenarioRun = await storage.getScenarioRun(personaRun.scenarioRunId);
+      if (!scenarioRun || scenarioRun.userId !== userId) {
+        return res.status(403).json({ error: "Unauthorized access" });
+      }
+
+      // ✨ chat_messages 조회
+      const chatMessages = await storage.getChatMessagesByPersonaRun(personaRunId);
+
+      // 레거시 conversation 구조로 변환
+      const conversation = {
+        id: personaRun.id,
+        scenarioId: scenarioRun.scenarioId,
+        scenarioName: scenarioRun.scenarioName,
+        personaId: personaRun.personaId,
+        personaSnapshot: personaRun.personaSnapshot,
+        messages: chatMessages.map(msg => ({
+          sender: msg.sender,
+          message: msg.message,
+          timestamp: msg.createdAt.toISOString(),
+          emotion: msg.emotion,
+          emotionReason: msg.emotionReason
+        })),
+        turnCount: personaRun.turnCount,
+        status: personaRun.status,
+        mode: scenarioRun.mode,
+        difficulty: scenarioRun.difficulty,
+        createdAt: personaRun.startedAt,
+        completedAt: personaRun.completedAt
+      };
 
       console.log(`대화 상태: ${conversation.status}, 턴 수: ${conversation.turnCount}`);
 
@@ -1254,18 +1284,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Get feedback for conversation
+  // Get feedback for conversation (persona_run 구조)
   app.get("/api/conversations/:id/feedback", isAuthenticated, async (req, res) => {
     try {
       // @ts-ignore - req.user는 auth 미들웨어에서 설정됨
       const userId = req.user?.id;
-      const ownershipResult = await verifyConversationOwnership(req.params.id, userId);
+      const personaRunId = req.params.id;
       
-      if ('error' in ownershipResult) {
-        return res.status(ownershipResult.status).json({ error: ownershipResult.error });
+      // ✨ persona_run 조회
+      const personaRun = await storage.getPersonaRun(personaRunId);
+      if (!personaRun) {
+        return res.status(404).json({ error: "Conversation not found" });
+      }
+
+      // ✨ scenario_run 조회하여 권한 확인
+      const scenarioRun = await storage.getScenarioRun(personaRun.scenarioRunId);
+      if (!scenarioRun || scenarioRun.userId !== userId) {
+        return res.status(403).json({ error: "Unauthorized access" });
       }
       
-      const feedback = await storage.getFeedbackByConversationId(req.params.id);
+      const feedback = await storage.getFeedbackByConversationId(personaRunId);
       if (!feedback) {
         return res.status(404).json({ error: "Feedback not found" });
       }
