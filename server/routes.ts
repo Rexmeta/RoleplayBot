@@ -1543,46 +1543,38 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Admin Dashboard Analytics Routes
   app.get("/api/admin/analytics/overview", async (req, res) => {
     try {
-      const conversations = await storage.getAllConversations();
+      // ✨ 새 테이블 구조 사용
+      const scenarioRuns = await storage.getAllScenarioRuns();
+      const personaRuns = await storage.getAllPersonaRuns();
       const feedbacks = await storage.getAllFeedbacks();
       const scenarios = await fileManager.getAllScenarios();
       
-      // Calculate basic statistics
-      const totalSessions = conversations.length;
-      const completedSessions = conversations.filter(c => c.status === "completed").length;
+      // Calculate basic statistics from scenario_runs
+      const totalSessions = scenarioRuns.length;
+      const completedSessions = scenarioRuns.filter(sr => sr.status === "completed").length;
+      
+      // Average score from feedbacks (linked to persona_runs)
       const averageScore = feedbacks.length > 0 
         ? Math.round(feedbacks.reduce((acc, f) => acc + f.overallScore, 0) / feedbacks.length)
         : 0;
       
-      // Scenario popularity with proper names
-      const scenarioStats = conversations.reduce((acc, conv) => {
-        const scenario = scenarios.find(s => s.id === conv.scenarioId);
-        const scenarioName = scenario?.title || conv.scenarioName || conv.scenarioId;
-        acc[conv.scenarioId] = {
-          count: (acc[conv.scenarioId]?.count || 0) + 1,
+      // Scenario popularity - count scenario_runs grouped by scenarioId
+      const scenarioStats = scenarioRuns.reduce((acc, run) => {
+        const scenario = scenarios.find(s => s.id === run.scenarioId);
+        const scenarioName = scenario?.title || run.scenarioId;
+        acc[run.scenarioId] = {
+          count: (acc[run.scenarioId]?.count || 0) + 1,
           name: scenarioName,
-          difficulty: scenario?.difficulty || 1
+          difficulty: scenario?.difficulty || 2
         };
         return acc;
       }, {} as Record<string, { count: number; name: string; difficulty: number }>);
       
-      // MBTI 페르소나 사용 분석 (personaId → MBTI 유형 변환)
-      const mbtiUsage = conversations.reduce((acc, conv) => {
-        if (conv.personaId && conv.scenarioId) {
-          // 시나리오에서 해당 페르소나 정보 찾기
-          const scenario = scenarios.find(s => s.id === conv.scenarioId);
-          if (scenario?.personas) {
-            const persona = scenario.personas.find((p: any) => 
-              (typeof p === 'object' && p.id === conv.personaId) ||
-              (typeof p === 'string' && p === conv.personaId)
-            );
-            
-            if (persona && typeof persona === 'object' && (persona as any).personaRef) {
-              // personaRef에서 MBTI 유형 추출 (예: "istj.json" → "ISTJ")
-              const mbtiType = (persona as any).personaRef.replace('.json', '').toUpperCase();
-              acc[mbtiType] = (acc[mbtiType] || 0) + 1;
-            }
-          }
+      // MBTI 사용 분석 - persona_runs의 mbtiType 사용
+      const mbtiUsage = personaRuns.reduce((acc, pr) => {
+        if (pr.mbtiType) {
+          const mbtiKey = pr.mbtiType.toUpperCase();
+          acc[mbtiKey] = (acc[mbtiKey] || 0) + 1;
         }
         return acc;
       }, {} as Record<string, number>);
@@ -1609,11 +1601,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get("/api/admin/analytics/performance", async (req, res) => {
     try {
+      // ✨ 새 테이블 구조 사용
+      const scenarioRuns = await storage.getAllScenarioRuns();
+      const personaRuns = await storage.getAllPersonaRuns();
       const feedbacks = await storage.getAllFeedbacks();
-      const conversations = await storage.getAllConversations();
       const scenarios = await fileManager.getAllScenarios();
       
-      // Score distribution
+      // Score distribution - feedbacks에서 직접 계산
       const scoreRanges = {
         excellent: feedbacks.filter(f => f.overallScore >= 90).length,
         good: feedbacks.filter(f => f.overallScore >= 80 && f.overallScore < 90).length,
@@ -1622,7 +1616,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         poor: feedbacks.filter(f => f.overallScore < 60).length
       };
       
-      // Category performance analysis
+      // Category performance analysis - feedbacks에서 직접 계산
       const categoryPerformance = feedbacks.reduce((acc, feedback) => {
         feedback.scores.forEach(score => {
           if (!acc[score.category]) {
@@ -1643,64 +1637,54 @@ export async function registerRoutes(app: Express): Promise<Server> {
         };
       });
       
-      // Scenario difficulty vs performance (현재 구조에 맞게 수정)
-      const scenarioPerformance = conversations
-        .filter(c => c.status === "completed")
-        .reduce((acc, conv) => {
-          const feedback = feedbacks.find(f => f.conversationId === conv.id);
-          const scenario = scenarios.find(s => s.id === conv.scenarioId);
+      // Scenario performance - scenarioRuns & personaRuns 기반
+      const scenarioPerformance: Record<string, { scores: number[]; name: string; difficulty: number; personaCount: number }> = {};
+      
+      for (const run of scenarioRuns.filter(sr => sr.status === "completed")) {
+        const scenario = scenarios.find(s => s.id === run.scenarioId);
+        
+        // 이 scenarioRun에 속한 personaRuns의 피드백 수집
+        const runPersonas = personaRuns.filter(pr => pr.scenarioRunId === run.id);
+        for (const pr of runPersonas) {
+          const feedback = feedbacks.find(f => f.personaRunId === pr.id);
           if (feedback) {
-            if (!acc[conv.scenarioId]) {
-              acc[conv.scenarioId] = { 
-                scores: [], 
-                name: scenario?.title || conv.scenarioName || conv.scenarioId,
-                difficulty: scenario?.difficulty || 1,
+            if (!scenarioPerformance[run.scenarioId]) {
+              scenarioPerformance[run.scenarioId] = {
+                scores: [],
+                name: scenario?.title || run.scenarioId,
+                difficulty: scenario?.difficulty || 2,
                 personaCount: Array.isArray(scenario?.personas) ? scenario.personas.length : 0
               };
             }
-            acc[conv.scenarioId].scores.push(feedback.overallScore);
+            scenarioPerformance[run.scenarioId].scores.push(feedback.overallScore);
           }
-          return acc;
-        }, {} as Record<string, { scores: number[]; name: string; difficulty: number; personaCount: number }>);
+        }
+      }
       
       // Calculate scenario averages
       Object.keys(scenarioPerformance).forEach(scenarioId => {
         const scores = scenarioPerformance[scenarioId].scores;
         (scenarioPerformance[scenarioId] as any) = {
           ...scenarioPerformance[scenarioId],
-          average: Math.round(scores.reduce((acc, score) => acc + score, 0) / scores.length),
+          average: scores.length > 0 ? Math.round(scores.reduce((acc, score) => acc + score, 0) / scores.length) : 0,
           sessionCount: scores.length
         };
       });
       
-      // MBTI 유형별 성과 분석 (personaId → MBTI 유형 변환)
-      const mbtiPerformance = conversations
-        .filter(c => c.status === "completed" && c.personaId && c.scenarioId)
-        .reduce((acc, conv) => {
-          const feedback = feedbacks.find(f => f.conversationId === conv.id);
-          if (feedback && conv.personaId && conv.scenarioId) {
-            // 시나리오에서 해당 페르소나 정보 찾기
-            const scenario = scenarios.find(s => s.id === conv.scenarioId);
-            if (scenario?.personas) {
-              const persona = scenario.personas.find((p: any) => 
-                (typeof p === 'object' && p.id === conv.personaId) ||
-                (typeof p === 'string' && p === conv.personaId)
-              );
-              
-              if (persona && typeof persona === 'object' && (persona as any).personaRef) {
-                // personaRef에서 MBTI 유형 추출 (예: "istj.json" → "ISTJ")
-                const mbtiType = (persona as any).personaRef.replace('.json', '').toUpperCase();
-                
-                if (!acc[mbtiType]) {
-                  acc[mbtiType] = { scores: [], count: 0 };
-                }
-                acc[mbtiType].scores.push(feedback.overallScore);
-                acc[mbtiType].count += 1;
-              }
-            }
+      // MBTI 유형별 성과 분석 - personaRuns 기반
+      const mbtiPerformance: Record<string, { scores: number[]; count: number }> = {};
+      
+      for (const pr of personaRuns.filter(pr => pr.status === "completed")) {
+        const feedback = feedbacks.find(f => f.personaRunId === pr.id);
+        if (feedback && pr.mbtiType) {
+          const mbtiKey = pr.mbtiType.toUpperCase();
+          if (!mbtiPerformance[mbtiKey]) {
+            mbtiPerformance[mbtiKey] = { scores: [], count: 0 };
           }
-          return acc;
-        }, {} as Record<string, { scores: number[]; count: number }>);
+          mbtiPerformance[mbtiKey].scores.push(feedback.overallScore);
+          mbtiPerformance[mbtiKey].count += 1;
+        }
+      }
       
       // Calculate MBTI averages
       Object.keys(mbtiPerformance).forEach(mbtiId => {
@@ -1725,10 +1709,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get("/api/admin/analytics/trends", async (req, res) => {
     try {
-      const conversations = await storage.getAllConversations();
+      // ✨ 새 테이블 구조 사용
+      const scenarioRuns = await storage.getAllScenarioRuns();
       const feedbacks = await storage.getAllFeedbacks();
       
-      // Daily usage over last 30 days
+      // Daily usage over last 30 days - scenarioRuns 기반
       const last30Days = Array.from({ length: 30 }, (_, i) => {
         const date = new Date();
         date.setDate(date.getDate() - (29 - i));
@@ -1736,12 +1721,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
       
       const dailyUsage = last30Days.map(date => {
-        const sessionsCount = conversations.filter(c => 
-          c.createdAt && c.createdAt.toISOString().split('T')[0] === date
+        const sessionsCount = scenarioRuns.filter(sr => 
+          sr.startedAt && sr.startedAt.toISOString().split('T')[0] === date
         ).length;
         
-        const completedCount = conversations.filter(c => 
-          c.status === "completed" && c.createdAt && c.createdAt.toISOString().split('T')[0] === date
+        const completedCount = scenarioRuns.filter(sr => 
+          sr.status === "completed" && sr.startedAt && sr.startedAt.toISOString().split('T')[0] === date
         ).length;
         
         return {
@@ -1751,7 +1736,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         };
       });
       
-      // Performance trends
+      // Performance trends - feedbacks 기반 (변경 없음)
       const performanceTrends = feedbacks
         .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime())
         .slice(-20) // Last 20 sessions

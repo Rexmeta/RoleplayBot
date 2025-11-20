@@ -43,6 +43,7 @@ export interface IStorage {
   getScenarioRun(id: string): Promise<ScenarioRun | undefined>;
   updateScenarioRun(id: string, updates: Partial<ScenarioRun>): Promise<ScenarioRun>;
   getUserScenarioRuns(userId: string): Promise<ScenarioRun[]>;
+  getAllScenarioRuns(): Promise<ScenarioRun[]>; // Admin analytics
   findActiveScenarioRun(userId: string, scenarioId: string): Promise<ScenarioRun | undefined>;
   getUserScenarioRunsWithPersonaRuns(userId: string): Promise<(ScenarioRun & { personaRuns: PersonaRun[] })[]>;
   getScenarioRunWithPersonaRuns(id: string): Promise<(ScenarioRun & { personaRuns: PersonaRun[] }) | undefined>;
@@ -52,6 +53,7 @@ export interface IStorage {
   getPersonaRun(id: string): Promise<PersonaRun | undefined>;
   updatePersonaRun(id: string, updates: Partial<PersonaRun>): Promise<PersonaRun>;
   getPersonaRunsByScenarioRun(scenarioRunId: string): Promise<PersonaRun[]>;
+  getAllPersonaRuns(): Promise<PersonaRun[]>; // Admin analytics
   
   // Chat Messages
   createChatMessage(message: InsertChatMessage): Promise<ChatMessage>;
@@ -262,6 +264,10 @@ export class MemStorage implements IStorage {
     throw new Error("MemStorage does not support Scenario Runs");
   }
 
+  async getAllScenarioRuns(): Promise<ScenarioRun[]> {
+    throw new Error("MemStorage does not support Scenario Runs");
+  }
+
   async findActiveScenarioRun(userId: string, scenarioId: string): Promise<ScenarioRun | undefined> {
     throw new Error("MemStorage does not support Scenario Runs");
   }
@@ -287,6 +293,10 @@ export class MemStorage implements IStorage {
   }
 
   async getPersonaRunsByScenarioRun(scenarioRunId: string): Promise<PersonaRun[]> {
+    throw new Error("MemStorage does not support Persona Runs");
+  }
+
+  async getAllPersonaRuns(): Promise<PersonaRun[]> {
     throw new Error("MemStorage does not support Persona Runs");
   }
 
@@ -524,6 +534,10 @@ export class PostgreSQLStorage implements IStorage {
     return await db.select().from(scenarioRuns).where(eq(scenarioRuns.userId, userId)).orderBy(desc(scenarioRuns.startedAt));
   }
 
+  async getAllScenarioRuns(): Promise<ScenarioRun[]> {
+    return await db.select().from(scenarioRuns).orderBy(desc(scenarioRuns.startedAt));
+  }
+
   async findActiveScenarioRun(userId: string, scenarioId: string): Promise<ScenarioRun | undefined> {
     const [activeRun] = await db
       .select()
@@ -605,6 +619,10 @@ export class PostgreSQLStorage implements IStorage {
 
   async getPersonaRunsByScenarioRun(scenarioRunId: string): Promise<PersonaRun[]> {
     return await db.select().from(personaRuns).where(eq(personaRuns.scenarioRunId, scenarioRunId)).orderBy(asc(personaRuns.phase));
+  }
+
+  async getAllPersonaRuns(): Promise<PersonaRun[]> {
+    return await db.select().from(personaRuns).orderBy(desc(personaRuns.startedAt));
   }
 
   // Chat Messages
