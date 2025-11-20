@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { Link } from "wouter";
+import { useState, useEffect } from "react";
+import { Link, useLocation } from "wouter";
 import ScenarioSelector from "@/components/ScenarioSelector";
 import ChatWindow from "@/components/ChatWindow";
 import PersonalDevelopmentReport from "@/components/PersonalDevelopmentReport";
@@ -17,6 +17,7 @@ type ViewState = "scenarios" | "persona-selection" | "chat" | "strategy-reflecti
 
 export default function Home() {
   const { logout } = useAuth();
+  const [location] = useLocation();
   const [currentView, setCurrentView] = useState<ViewState>("scenarios");
   const [selectedScenario, setSelectedScenario] = useState<ComplexScenario | null>(null);
   const [selectedPersona, setSelectedPersona] = useState<ScenarioPersona | null>(null);
@@ -29,6 +30,7 @@ export default function Home() {
   const [isCreatingConversation, setIsCreatingConversation] = useState(false); // 대화 생성 중 상태
   const [loadingPersonaId, setLoadingPersonaId] = useState<string | null>(null); // 로딩 중인 페르소나 ID
   const [selectedDifficulty, setSelectedDifficulty] = useState<number>(4); // 사용자가 선택한 난이도 (기본값: 4)
+  const [isResuming, setIsResuming] = useState(false); // 대화 재개 중 상태
 
   // 동적으로 시나리오와 페르소나 데이터 로드
   const { data: scenarios = [] } = useQuery({
@@ -47,6 +49,71 @@ export default function Home() {
     department: "개발팀",
     experience: "6개월차"
   };
+
+  // URL 파라미터 처리 (대화 재개)
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const resumePersonaRunId = params.get('resumePersonaRunId');
+    const scenarioId = params.get('scenarioId');
+    const personaId = params.get('personaId');
+
+    if (resumePersonaRunId && scenarios.length > 0 && !isResuming) {
+      // 대화 재개 로직
+      setIsResuming(true);
+      
+      apiRequest('GET', `/api/conversations/${resumePersonaRunId}`)
+        .then(res => res.json())
+        .then(conversation => {
+          console.log('📥 대화 재개:', conversation);
+          
+          // 시나리오 찾기
+          const scenario = scenarios.find(s => s.id === conversation.scenarioId);
+          if (!scenario) {
+            console.error('시나리오를 찾을 수 없습니다:', conversation.scenarioId);
+            setIsResuming(false);
+            return;
+          }
+
+          // 페르소나 찾기
+          const persona = scenario.personas.find((p: any) => p.id === conversation.personaId);
+          if (!persona) {
+            console.error('페르소나를 찾을 수 없습니다:', conversation.personaId);
+            setIsResuming(false);
+            return;
+          }
+
+          // 상태 설정
+          setSelectedScenario(scenario);
+          setSelectedPersona(persona);
+          setConversationId(conversation.id);
+          setScenarioRunId(conversation.scenarioRunId);
+          setSelectedDifficulty(conversation.difficulty || 4);
+          setCurrentView("chat");
+          
+          // URL에서 파라미터 제거
+          window.history.replaceState({}, '', '/home');
+          setIsResuming(false);
+        })
+        .catch(error => {
+          console.error('대화 재개 실패:', error);
+          setIsResuming(false);
+        });
+    } else if (scenarioId && personaId && scenarios.length > 0 && !isCreatingConversation) {
+      // 특정 시나리오/페르소나로 직접 시작
+      const scenario = scenarios.find(s => s.id === scenarioId);
+      if (scenario) {
+        const persona = scenario.personas.find((p: any) => p.id === personaId);
+        if (persona) {
+          setSelectedScenario(scenario);
+          setSelectedDifficulty(scenario.difficulty || 4);
+          setCurrentView("persona-selection");
+          
+          // URL에서 파라미터 제거
+          window.history.replaceState({}, '', '/home');
+        }
+      }
+    }
+  }, [scenarios, isResuming, isCreatingConversation]);
 
   // 시나리오 선택 처리
   const handleScenarioSelect = async (scenario: ComplexScenario) => {
