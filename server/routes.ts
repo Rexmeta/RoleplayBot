@@ -821,6 +821,88 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // 새로운 데이터 구조: Scenario Runs API
+  // Get all scenario runs for the current user
+  app.get("/api/scenario-runs", isAuthenticated, async (req, res) => {
+    try {
+      // @ts-ignore - req.user는 auth 미들웨어에서 설정됨
+      const userId = req.user?.id;
+      
+      const scenarioRuns = await storage.getUserScenarioRuns(userId);
+      res.json(scenarioRuns);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch scenario runs" });
+    }
+  });
+
+  // Get scenario run with all persona runs
+  app.get("/api/scenario-runs/:id", isAuthenticated, async (req, res) => {
+    try {
+      // @ts-ignore - req.user는 auth 미들웨어에서 설정됨
+      const userId = req.user?.id;
+      const scenarioRun = await storage.getScenarioRunWithPersonaRuns(req.params.id);
+      
+      if (!scenarioRun) {
+        return res.status(404).json({ error: "Scenario run not found" });
+      }
+      
+      // 권한 확인
+      if (scenarioRun.userId !== userId) {
+        return res.status(403).json({ error: "Unauthorized" });
+      }
+      
+      res.json(scenarioRun);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch scenario run" });
+    }
+  });
+
+  // Get persona runs for a scenario run
+  app.get("/api/scenario-runs/:id/persona-runs", isAuthenticated, async (req, res) => {
+    try {
+      // @ts-ignore - req.user는 auth 미들웨어에서 설정됨
+      const userId = req.user?.id;
+      const scenarioRun = await storage.getScenarioRun(req.params.id);
+      
+      if (!scenarioRun) {
+        return res.status(404).json({ error: "Scenario run not found" });
+      }
+      
+      if (scenarioRun.userId !== userId) {
+        return res.status(403).json({ error: "Unauthorized" });
+      }
+      
+      const personaRuns = await storage.getPersonaRunsByScenarioRun(req.params.id);
+      res.json(personaRuns);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch persona runs" });
+    }
+  });
+
+  // Get chat messages for a persona run
+  app.get("/api/persona-runs/:id/messages", isAuthenticated, async (req, res) => {
+    try {
+      // @ts-ignore - req.user는 auth 미들웨어에서 설정됨
+      const userId = req.user?.id;
+      const personaRun = await storage.getPersonaRun(req.params.id);
+      
+      if (!personaRun) {
+        return res.status(404).json({ error: "Persona run not found" });
+      }
+      
+      // 권한 확인: persona run의 scenario run이 현재 사용자 소유인지 확인
+      const scenarioRun = await storage.getScenarioRun(personaRun.scenarioRunId);
+      if (!scenarioRun || scenarioRun.userId !== userId) {
+        return res.status(403).json({ error: "Unauthorized" });
+      }
+      
+      const messages = await storage.getChatMessagesByPersonaRun(req.params.id);
+      res.json(messages);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch chat messages" });
+    }
+  });
+
   // Generate feedback for completed conversation
   app.post("/api/conversations/:id/feedback", isAuthenticated, async (req, res) => {
     try {
