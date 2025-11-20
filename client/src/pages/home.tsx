@@ -98,68 +98,19 @@ export default function Home() {
           console.error('대화 재개 실패:', error);
           setIsResuming(false);
         });
-    } else if (scenarioId && personaId && scenarios.length > 0 && !isCreatingConversation) {
-      // 특정 시나리오/페르소나로 직접 시작
-      const scenario = scenarios.find((s: any) => s.id === scenarioId);
-      if (scenario) {
-        const persona = scenario.personas.find((p: any) => p.id === personaId);
-        if (persona) {
-          // 기존 scenarioRun과 completedPersonaIds 로드
-          apiRequest('GET', '/api/scenario-runs')
-            .then(res => res.json())
-            .then((scenarioRuns: any[]) => {
-              // 해당 시나리오의 active scenarioRun 찾기
-              const activeRun = scenarioRuns.find(sr => 
-                sr.scenarioId === scenarioId && sr.status === 'active'
-              );
-              
-              if (activeRun) {
-                // 완료된 페르소나 ID 목록 설정
-                const completedIds = (activeRun.personaRuns || [])
-                  .filter((pr: any) => pr.status === 'completed')
-                  .map((pr: any) => pr.personaId);
-                
-                setCompletedPersonaIds(completedIds);
-                setScenarioRunId(activeRun.id);
-                setSelectedDifficulty(activeRun.difficulty || scenario.difficulty || 4);
-                console.log(`✅ 기존 scenarioRun 발견: ${activeRun.id}, 완료된 페르소나: ${completedIds.length}개`);
-              } else {
-                // 새로 시작하는 경우
-                setCompletedPersonaIds([]);
-                setScenarioRunId(null);
-                setSelectedDifficulty(scenario.difficulty || 4);
-                console.log(`🆕 새 시나리오 시작: ${scenarioId}`);
-              }
-              
-              setSelectedScenario(scenario);
-              setCurrentView("persona-selection");
-              
-              // URL에서 파라미터 제거
-              window.history.replaceState({}, '', '/home');
-            })
-            .catch(error => {
-              console.error('scenarioRuns 조회 실패:', error);
-              // 에러가 발생해도 계속 진행 (새 시작으로 간주)
-              setSelectedScenario(scenario);
-              setCompletedPersonaIds([]);
-              setScenarioRunId(null);
-              setSelectedDifficulty(scenario.difficulty || 4);
-              setCurrentView("persona-selection");
-              window.history.replaceState({}, '', '/home');
-            });
-        }
-      }
     }
   }, [scenarios, isResuming, isCreatingConversation]);
 
-  // 시나리오 선택 처리
+  // 시나리오 선택 처리 - 항상 새로운 시도로 시작
   const handleScenarioSelect = async (scenario: ComplexScenario) => {
+    console.log('🆕 새로운 시나리오 시도 시작:', scenario.title);
+    
     setSelectedScenario(scenario);
     setCompletedPersonaIds([]);
     setConversationIds([]);
-    setScenarioRunId(null); // 새 시나리오 시작 시 초기화
-    setStrategyReflectionSubmitted(false); // 새 시나리오 시작 시 초기화
-    setSelectedDifficulty(scenario.difficulty || 4); // 시나리오 기본 난이도로 초기화
+    setScenarioRunId(null); // ✅ null로 설정 → forceNewRun=true → 새 scenario_run 생성
+    setStrategyReflectionSubmitted(false);
+    setSelectedDifficulty(scenario.difficulty || 4);
     
     // 모든 시나리오에서 페르소나 선택 화면으로 이동
     setCurrentView("persona-selection");
