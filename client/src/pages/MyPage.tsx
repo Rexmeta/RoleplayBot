@@ -149,14 +149,14 @@ export default function MyPage() {
     };
   };
 
-  // 시나리오별 시도 번호 계산 (완료된 persona_run이 있는 모든 scenario_run 포함)
+  // 시나리오별 시도 번호 계산 (persona_run이 있는 모든 scenario_run 포함)
   const scenarioAttemptNumbers = useMemo(() => {
     const attemptMap = new Map<string, number>();
     const scenarioCounters = new Map<string, number>();
     
-    // ✨ 완료된 persona_run이 있는 scenario_run을 시간순으로 정렬
+    // ✨ persona_run이 있는 scenario_run을 시간순으로 정렬 (완료 여부 무관)
     const chronologicalRuns = [...scenarioRuns]
-      .filter(sr => sr.personaRuns && sr.personaRuns.some(pr => pr.status === 'completed'))
+      .filter(sr => sr.personaRuns && sr.personaRuns.length > 0)
       .sort((a, b) => new Date(a.startedAt).getTime() - new Date(b.startedAt).getTime());
     
     chronologicalRuns.forEach(run => {
@@ -194,12 +194,11 @@ export default function MyPage() {
     );
   }
 
-  // ✨ 완료된 persona_run이 있는 scenario_run을 모두 표시 (active/completed 무관)
+  // ✨ persona_run이 있는 모든 scenario_run을 표시 (완료/진행중/시작 전 모두 포함)
   const displayableScenarioRuns = scenarioRuns
     .filter(sr => {
-      // persona_run이 하나라도 완료되었으면 표시
-      const hasCompletedPersonaRun = sr.personaRuns && sr.personaRuns.some(pr => pr.status === 'completed');
-      return hasCompletedPersonaRun;
+      // persona_run이 하나라도 있으면 표시 (상태 무관)
+      return sr.personaRuns && sr.personaRuns.length > 0;
     })
     .sort((a, b) => new Date(b.startedAt).getTime() - new Date(a.startedAt).getTime());
 
