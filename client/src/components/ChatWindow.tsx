@@ -324,6 +324,9 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
         
         // 캐시 무효화하여 최신 대화 내용 반영
         await queryClient.invalidateQueries({ queryKey: [`/api/conversations/${conversationId}`] });
+        // ✅ MyPage에서 업데이트된 대화 기록을 보여주기 위해 scenario-runs 캐시도 무효화
+        await queryClient.invalidateQueries({ queryKey: ['/api/scenario-runs'] });
+        console.log('🔄 캐시 무효화 완료: conversations, scenario-runs');
       }
       
       // 대화 완료 처리 - 피드백 생성

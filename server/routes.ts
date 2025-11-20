@@ -971,6 +971,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       // ✨ 개선: personaRuns와 함께 조회하여 프론트엔드에서 추가 쿼리 불필요
       const scenarioRunsWithPersonas = await storage.getUserScenarioRunsWithPersonaRuns(userId);
+      console.log(`📊 Scenario runs for user ${userId}:`, scenarioRunsWithPersonas.map(sr => ({
+        id: sr.id,
+        scenarioId: sr.scenarioId,
+        status: sr.status,
+        personaRunsCount: sr.personaRuns?.length || 0,
+        personaRuns: sr.personaRuns?.map(pr => ({ id: pr.id, personaId: pr.personaId, status: pr.status }))
+      })));
       res.json(scenarioRunsWithPersonas);
     } catch (error) {
       res.status(500).json({ error: "Failed to fetch scenario runs" });

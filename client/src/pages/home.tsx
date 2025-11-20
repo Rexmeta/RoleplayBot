@@ -243,6 +243,10 @@ export default function Home() {
     setCompletedPersonaIds(prev => [...prev, selectedPersona.id]);
     setConversationIds(prev => [...prev, conversationId]);
     
+    // ✅ MyPage에서 업데이트된 대화 기록을 보여주기 위해 scenario-runs 캐시 무효화
+    queryClient.invalidateQueries({ queryKey: ['/api/scenario-runs'] });
+    console.log('🔄 대화 완료: scenario-runs 캐시 무효화');
+    
     // 대화 완료 후 무조건 피드백을 먼저 보여줌
     setCurrentView("feedback");
   };
