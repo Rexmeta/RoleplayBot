@@ -89,17 +89,21 @@ export const scenarioRuns = pgTable("scenario_runs", {
 export const personaRuns = pgTable("persona_runs", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   scenarioRunId: varchar("scenario_run_id").notNull().references(() => scenarioRuns.id, { onDelete: 'cascade' }),
+  conversationId: varchar("conversation_id").references(() => conversations.id, { onDelete: 'cascade' }), // 대화 재개를 위한 conversation 참조
   personaId: text("persona_id").notNull(),
   personaSnapshot: jsonb("persona_snapshot"), // 대화 생성 시점의 페르소나 정보 스냅샷
   phase: integer("phase"), // 몇 번째 대화인지 (1, 2, ...) - nullable for simple conversations
   status: text("status").notNull().default("active"), // active, completed
   turnCount: integer("turn_count").notNull().default(0),
   score: integer("score"), // 이 페르소나와의 대화 점수 (0-100)
+  mode: text("mode").notNull().default("text"), // text, tts, realtime_voice - 대화 재개 시 필요
+  difficulty: integer("difficulty").notNull().default(4), // 난이도 (1-4) - 대화 재개 시 필요
   startedAt: timestamp("started_at").notNull().default(sql`CURRENT_TIMESTAMP`),
   completedAt: timestamp("completed_at"),
 }, (table) => [
   index("idx_persona_runs_scenario_run_id").on(table.scenarioRunId),
   index("idx_persona_runs_persona_id").on(table.personaId),
+  index("idx_persona_runs_conversation_id").on(table.conversationId),
 ]);
 
 // 실제 대화 메시지 턴
