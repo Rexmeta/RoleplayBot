@@ -58,6 +58,60 @@ export const users = pgTable("users", {
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
+// 새로운 데이터 구조: 시나리오 실행 (1회 플레이)
+export const scenarioRuns = pgTable("scenario_runs", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id),
+  scenarioId: text("scenario_id").notNull(),
+  scenarioName: text("scenario_name").notNull(),
+  attemptNumber: integer("attempt_number").notNull(), // 해당 사용자가 이 시나리오를 몇 번째 시도하는지
+  status: text("status").notNull().default("in_progress"), // in_progress, completed
+  totalScore: integer("total_score"), // 전체 점수 (0-100)
+  difficulty: integer("difficulty").notNull().default(4), // 난이도 (1-4)
+  mode: text("mode").notNull().default("text"), // text, tts, realtime_voice
+  conversationOrder: jsonb("conversation_order").$type<string[]>(), // 페르소나 대화 순서
+  personaSelections: jsonb("persona_selections").$type<PersonaSelection[]>(), // 페르소나 선택 기록
+  strategyChoices: jsonb("strategy_choices").$type<StrategyChoice[]>(), // 전략적 선택 기록
+  sequenceAnalysis: jsonb("sequence_analysis").$type<SequenceAnalysis>(), // 순서 분석 결과
+  strategyReflection: text("strategy_reflection"), // 사용자의 전략 회고 텍스트
+  startedAt: timestamp("started_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+  completedAt: timestamp("completed_at"),
+}, (table) => [
+  index("idx_scenario_runs_user_id").on(table.userId),
+  index("idx_scenario_runs_scenario_id").on(table.scenarioId),
+]);
+
+// 페르소나별 대화 세션
+export const personaRuns = pgTable("persona_runs", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  scenarioRunId: varchar("scenario_run_id").notNull().references(() => scenarioRuns.id, { onDelete: 'cascade' }),
+  personaId: text("persona_id").notNull(),
+  personaSnapshot: jsonb("persona_snapshot"), // 대화 생성 시점의 페르소나 정보 스냅샷
+  phase: integer("phase").notNull(), // 몇 번째 대화인지 (1, 2, ...)
+  status: text("status").notNull().default("active"), // active, completed
+  turnCount: integer("turn_count").notNull().default(0),
+  score: integer("score"), // 이 페르소나와의 대화 점수 (0-100)
+  startedAt: timestamp("started_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+  completedAt: timestamp("completed_at"),
+}, (table) => [
+  index("idx_persona_runs_scenario_run_id").on(table.scenarioRunId),
+  index("idx_persona_runs_persona_id").on(table.personaId),
+]);
+
+// 실제 대화 메시지 턴
+export const chatMessages = pgTable("chat_messages", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  personaRunId: varchar("persona_run_id").notNull().references(() => personaRuns.id, { onDelete: 'cascade' }),
+  turnIndex: integer("turn_index").notNull(), // 대화 순서 (0, 1, 2, ...)
+  sender: text("sender").notNull(), // 'user' or 'ai'
+  message: text("message").notNull(),
+  emotion: text("emotion"), // AI 감정 (😊, 😢, 😠, 😲, 😐)
+  emotionReason: text("emotion_reason"), // 감정 이유
+  createdAt: timestamp("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+}, (table) => [
+  index("idx_chat_messages_persona_run_id").on(table.personaRunId),
+]);
+
 export type ConversationMessage = {
   sender: "user" | "ai";
   message: string;
@@ -231,6 +285,31 @@ export type InsertConversation = z.infer<typeof insertConversationSchema>;
 export type InsertFeedback = z.infer<typeof insertFeedbackSchema>;
 export type Conversation = typeof conversations.$inferSelect;
 export type Feedback = typeof feedbacks.$inferSelect;
+
+// 새로운 데이터 구조 타입들
+export const insertScenarioRunSchema = createInsertSchema(scenarioRuns).omit({
+  id: true,
+  startedAt: true,
+  completedAt: true,
+});
+
+export const insertPersonaRunSchema = createInsertSchema(personaRuns).omit({
+  id: true,
+  startedAt: true,
+  completedAt: true,
+});
+
+export const insertChatMessageSchema = createInsertSchema(chatMessages).omit({
+  id: true,
+  createdAt: true,
+});
+
+export type InsertScenarioRun = z.infer<typeof insertScenarioRunSchema>;
+export type InsertPersonaRun = z.infer<typeof insertPersonaRunSchema>;
+export type InsertChatMessage = z.infer<typeof insertChatMessageSchema>;
+export type ScenarioRun = typeof scenarioRuns.$inferSelect;
+export type PersonaRun = typeof personaRuns.$inferSelect;
+export type ChatMessage = typeof chatMessages.$inferSelect;
 
 // User types for email-based authentication
 export type CreateUser = {

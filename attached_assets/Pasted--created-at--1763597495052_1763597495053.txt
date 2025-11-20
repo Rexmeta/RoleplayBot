@@ -1,0 +1,224 @@
+지금 구조를 짐작해 보면
+“시나리오 + 페르소나 한 명 + 대화시작시간” 기준으로 한 줄씩 저장되어 있고,
+나중에 화면에서 created_at(대화시간)으로 정렬/그룹 하다 보니
+
+같은 시나리오 한 번 플레이인데도
+
+페르소나 수(2명)만큼 2개의 기록으로 보이거나
+
+회차 번호/점수/요약이 엉뚱한 줄에 붙는 문제가 생긴 것 같아요.
+
+
+이걸 막으려면 시간이 아니라 ‘시나리오 실행(run)’을 기준으로 설계하는 게 핵심입니다.
+
+
+---
+
+1. 추천 개념 구조
+
+3단계로 나누면 안정적입니다.
+
+1. Scenario (시나리오 템플릿)
+
+
+2. ScenarioRun (사용자 1회 플레이)   ← 화면에서 한 줄에 해당
+
+
+3. PersonaRun (그 안에서 각 페르소나와의 대화)
+
+
+4. Message (실제 채팅 턴)
+
+
+
+
+---
+
+2. 테이블 설계 예시
+
+2.1 시나리오/페르소나 기본 정의
+
+-- 시나리오 템플릿
+CREATE TABLE scenarios (
+  id              BIGINT PRIMARY KEY,
+  title           VARCHAR(255) NOT NULL,   -- 예: '신제품 론칭 임박, 품질 문제와 일정 준수 사이의 갈등 중재'
+  difficulty      INT NOT NULL,           -- 난이도 1~5
+  description     TEXT,
+  created_at      TIMESTAMP NOT NULL DEFAULT NOW()
+);
+
+-- 페르소나 정의
+CREATE TABLE personas (
+  id              BIGINT PRIMARY KEY,
+  name            VARCHAR(100) NOT NULL,  -- '이지영 매니저'
+  team            VARCHAR(100),           -- '영업마케팅팀'
+  mbti            VARCHAR(4),             -- 'ISFJ'
+  etc_json        JSONB                   -- 말투, 성향 등
+);
+
+-- 시나리오에 어떤 페르소나가 등장하는지(정의 단계)
+CREATE TABLE scenario_personas (
+  id              BIGINT PRIMARY KEY,
+  scenario_id     BIGINT NOT NULL REFERENCES scenarios(id),
+  persona_id      BIGINT NOT NULL REFERENCES personas(id),
+  role_label      VARCHAR(100),           -- '품질관리팀 팀장', '영업마케팅팀 매니저'
+  display_order   INT NOT NULL DEFAULT 1, -- 화면 표시 순서 1,2,...
+  UNIQUE (scenario_id, persona_id)
+);
+
+
+---
+
+2.2 시나리오 1회 실행 단위 (여기가 핵심)
+
+-- 유저가 해당 시나리오를 한 번 플레이할 때마다 1행 생성
+CREATE TABLE scenario_runs (
+  id              BIGINT PRIMARY KEY,
+  scenario_id     BIGINT NOT NULL REFERENCES scenarios(id),
+  user_id         BIGINT NOT NULL,           -- 플레이어
+  attempt_no      INT NOT NULL,              -- #5회 시도
+  status          VARCHAR(20) NOT NULL,      -- 'in_progress', 'completed'
+  total_score     INT,                       -- 85점 (전체 점수)
+  started_at      TIMESTAMP NOT NULL,
+  finished_at     TIMESTAMP,
+  review_summary  TEXT                       -- '전략 회고' 요약
+);
+
+-- 한 유저가 한 시나리오를 여러 번 할 수 있다면
+-- (scenario_id, user_id, attempt_no)는 unique
+CREATE UNIQUE INDEX uq_scenario_runs_attempt
+ON scenario_runs (scenario_id, user_id, attempt_no);
+
+> 화면 리스트의 한 카드(“신제품 론칭 임박… 난이도 4, #5회 시도, 85점, 완료”)가 바로 scenario_runs 1행에 대응하도록 만드는 것이 포인트입니다.
+페르소나는 여기 붙는 ‘자식’일 뿐, 리스트를 나누는 기준이 되면 안 됩니다.
+
+
+
+
+---
+
+2.3 실행 중 각 페르소나와의 대화 세션
+
+CREATE TABLE persona_runs (
+  id              BIGINT PRIMARY KEY,
+  scenario_run_id BIGINT NOT NULL REFERENCES scenario_runs(id),
+  persona_id      BIGINT NOT NULL REFERENCES personas(id),
+  started_at      TIMESTAMP NOT NULL,
+  finished_at     TIMESTAMP,
+  score           INT,            -- 필요하면 페르소나별 점수
+  feedback_json   JSONB           -- 페르소나별 피드백
+);
+
+-- 한 번의 시나리오 실행에서 같은 페르소나는 한 번만
+CREATE UNIQUE INDEX uq_persona_runs
+ON persona_runs (scenario_run_id, persona_id);
+
+> 지금 구조에서는 아마 persona_id + started_at 이렇게 저장하고,
+리스트 만들 때 created_at DESC로만 묶어서 가져와서
+시나리오 실행이 2개처럼 보이는 것 같아요.
+위처럼 scenario_run_id를 FK로 고정해 두면,
+페르소나가 몇 명이든 항상 한 실행(run)에 속하게 됩니다.
+
+
+
+
+---
+
+2.4 실제 메시지 로그
+
+CREATE TABLE messages (
+  id              BIGINT PRIMARY KEY,
+  persona_run_id  BIGINT NOT NULL REFERENCES persona_runs(id),
+  turn_index      INT NOT NULL,        -- 1,2,3...
+  sender          VARCHAR(10) NOT NULL, -- 'user' or 'persona' or 'system'
+  content         TEXT NOT NULL,
+  created_at      TIMESTAMP NOT NULL
+);
+
+CREATE INDEX idx_messages_persona_run
+ON messages (persona_run_id, turn_index);
+
+
+---
+
+3. 히스토리 화면 쿼리 예시
+
+“나의 롤플레이 기록 리스트”를 가져올 때는 무조건 scenario_runs를 기준으로 합니다.
+
+SELECT
+  sr.id                    AS scenario_run_id,
+  s.title,
+  s.difficulty,
+  sr.attempt_no,
+  sr.status,
+  sr.total_score,
+  sr.review_summary,
+  sr.started_at,
+  -- 이 시나리오 실행에서 대화한 페르소나들을 한 번에 묶어서 가져오기
+  json_agg(
+    json_build_object(
+      'persona_id', p.id,
+      'name',       p.name,
+      'team',       p.team,
+      'mbti',       p.mbti
+    )
+    ORDER BY sp.display_order
+  ) AS personas
+FROM scenario_runs sr
+JOIN scenarios s          ON s.id = sr.scenario_id
+JOIN persona_runs pr      ON pr.scenario_run_id = sr.id
+JOIN personas p           ON p.id = pr.persona_id
+JOIN scenario_personas sp ON sp.scenario_id = s.id
+                          AND sp.persona_id = p.id
+WHERE sr.user_id = :user_id
+GROUP BY sr.id, s.title, s.difficulty
+ORDER BY sr.started_at DESC;
+
+이렇게 하면:
+
+한 번의 실행(scenario_run_id) 아래에
+두 페르소나(박준영, 이지영)가 JSON 배열로 묶여서 내려오고
+
+화면에서는 그 배열을 반복하며
+“대화한 페르소나들 1,2 …” 칩을 렌더링하면 됩니다.
+
+점수, 난이도, 회고 요약은 scenario_runs에서만 읽으니
+카드가 중복 생성되는 문제가 없어집니다.
+
+
+
+---
+
+4. 실제 수정 포인트 정리
+
+1. 현재 테이블 중 “대화 기록 리스트”를 뽑는 기준 컬럼이
+created_at 또는 conversation_id(=페르소나별)로 되어 있으면
+scenario_run_id를 새로 추가하고 거기로 변경.
+
+
+2. 페르소나와의 대화 시작할 때
+
+먼저 scenario_runs에서 실행 행 생성(또는 기존 in_progress 실행 찾기)
+
+그 다음 persona_runs에 (scenario_run_id, persona_id) 행 생성
+
+
+
+3. 요약/점수 저장할 때
+
+시나리오 전체 요약/점수 → scenario_runs.total_score, review_summary
+
+페르소나별 피드백이 필요하면 → persona_runs.score, feedback_json
+
+
+
+4. 히스토리 화면 쿼리는 항상 scenario_runs 기준 + persona_runs를 join 후 group by.
+
+
+
+
+---
+
+원하시면,
+지금 쓰고 있는 실제 테이블 이름/컬럼 구조를 알려주면
+마이그레이션 SQL(ALTER TABLE, 데이터 이전 스크립트)까지 맞춰서 짜줄게요.
