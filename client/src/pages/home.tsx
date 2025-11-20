@@ -143,11 +143,22 @@ export default function Home() {
     setCurrentView("feedback");
   };
 
-  const handleReturnToScenarios = () => {
+  const handleReturnToScenarios = async () => {
+    // 현재 active scenario_run이 있으면 완료 처리
+    if (scenarioRunId) {
+      try {
+        await apiRequest("POST", `/api/scenario-runs/${scenarioRunId}/complete`, {});
+        console.log(`Scenario run ${scenarioRunId} 완료 처리됨`);
+      } catch (error) {
+        console.error("Scenario run 완료 처리 실패:", error);
+      }
+    }
+    
     setCurrentView("scenarios");
     setSelectedScenario(null);
     setSelectedPersona(null);
     setConversationId(null);
+    setScenarioRunId(null);
     setCompletedPersonaIds([]);
     setConversationIds([]);
     setStrategyReflectionSubmitted(false); // 초기화
