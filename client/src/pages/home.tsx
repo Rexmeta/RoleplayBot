@@ -192,6 +192,7 @@ export default function Home() {
     },
     onSuccess: (conversation) => {
       setConversationId(conversation.id);
+      setScenarioRunId(conversation.scenarioRunId); // scenarioRunId 저장
       setCurrentView("chat");
     },
     onError: (error) => {
