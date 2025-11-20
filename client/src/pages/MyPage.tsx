@@ -608,12 +608,12 @@ function ScenarioRunDetails({
                   <div className="flex gap-2">
                     {isNotStarted ? (
                       <Button
-                        variant="outline"
+                        variant="default"
                         size="sm"
-                        onClick={() => window.location.href = '/home'}
+                        onClick={() => window.location.href = `/home?scenarioId=${scenarioRun.scenarioId}&scenarioRunId=${scenarioRun.id}`}
                         data-testid={`start-persona-${persona.id}`}
                       >
-                        홈에서 시작하기
+                        대화하기
                       </Button>
                     ) : isActive ? (
                       <>

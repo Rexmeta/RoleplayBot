@@ -50,12 +50,12 @@ export default function Home() {
     experience: "6개월차"
   };
 
-  // URL 파라미터 처리 (대화 재개)
+  // URL 파라미터 처리 (대화 재개 & 페르소나 선택 화면 이동)
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const resumePersonaRunId = params.get('resumePersonaRunId');
     const scenarioId = params.get('scenarioId');
-    const personaId = params.get('personaId');
+    const scenarioRunIdParam = params.get('scenarioRunId');
 
     if (resumePersonaRunId && scenarios.length > 0 && !isResuming) {
       // 대화 재개 로직
@@ -98,6 +98,23 @@ export default function Home() {
           console.error('대화 재개 실패:', error);
           setIsResuming(false);
         });
+    } else if (scenarioId && scenarios.length > 0 && !isCreatingConversation) {
+      // 특정 시나리오의 페르소나 선택 화면으로 이동
+      const scenario = scenarios.find((s: any) => s.id === scenarioId);
+      if (scenario) {
+        console.log(`📍 시나리오 페르소나 선택 화면 이동: ${scenario.title}, scenarioRunId: ${scenarioRunIdParam || 'none'}`);
+        
+        setSelectedScenario(scenario);
+        setScenarioRunId(scenarioRunIdParam); // ✅ 기존 scenario_run ID 설정 (있으면)
+        setCompletedPersonaIds([]);
+        setConversationIds([]);
+        setStrategyReflectionSubmitted(false);
+        setSelectedDifficulty(scenario.difficulty || 4);
+        setCurrentView("persona-selection");
+        
+        // URL에서 파라미터 제거
+        window.history.replaceState({}, '', '/home');
+      }
     }
   }, [scenarios, isResuming, isCreatingConversation]);
 
