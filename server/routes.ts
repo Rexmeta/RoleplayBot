@@ -400,6 +400,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       res.json({
         id: personaRun.id,
+        scenarioRunId: scenarioRun.id, // scenarioRunId 추가
         scenarioId: scenarioRun.scenarioId,
         scenarioName: scenarioRun.scenarioName,
         personaId: personaRun.personaId,
@@ -407,8 +408,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         messages,
         turnCount: personaRun.turnCount,
         status: personaRun.status,
-        mode: scenarioRun.mode,
-        difficulty: scenarioRun.difficulty,
+        mode: personaRun.mode || scenarioRun.mode, // personaRun에서 먼저 가져오기
+        difficulty: personaRun.difficulty || scenarioRun.difficulty, // personaRun에서 먼저 가져오기
         userId: scenarioRun.userId,
         createdAt: personaRun.startedAt,
         updatedAt: personaRun.completedAt || personaRun.startedAt

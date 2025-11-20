@@ -67,7 +67,7 @@ export default function Home() {
           console.log('📥 대화 재개:', conversation);
           
           // 시나리오 찾기
-          const scenario = scenarios.find(s => s.id === conversation.scenarioId);
+          const scenario = scenarios.find((s: any) => s.id === conversation.scenarioId);
           if (!scenario) {
             console.error('시나리오를 찾을 수 없습니다:', conversation.scenarioId);
             setIsResuming(false);
@@ -100,7 +100,7 @@ export default function Home() {
         });
     } else if (scenarioId && personaId && scenarios.length > 0 && !isCreatingConversation) {
       // 특정 시나리오/페르소나로 직접 시작
-      const scenario = scenarios.find(s => s.id === scenarioId);
+      const scenario = scenarios.find((s: any) => s.id === scenarioId);
       if (scenario) {
         const persona = scenario.personas.find((p: any) => p.id === personaId);
         if (persona) {
