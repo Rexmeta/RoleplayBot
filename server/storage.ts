@@ -329,8 +329,16 @@ export class PostgreSQLStorage implements IStorage {
   }
 
   async getFeedbackByConversationId(conversationId: string): Promise<Feedback | undefined> {
-    const [feedback] = await db.select().from(feedbacks).where(eq(feedbacks.conversationId, conversationId));
-    return feedback;
+    // ✨ 새 구조: personaRunId로 조회 (conversationId가 실제로는 personaRunId)
+    // 먼저 personaRunId로 조회
+    const [feedbackByPersonaRun] = await db.select().from(feedbacks).where(eq(feedbacks.personaRunId, conversationId));
+    if (feedbackByPersonaRun) {
+      return feedbackByPersonaRun;
+    }
+    
+    // 레거시 지원: conversationId로도 조회
+    const [feedbackByConversation] = await db.select().from(feedbacks).where(eq(feedbacks.conversationId, conversationId));
+    return feedbackByConversation;
   }
 
   async getAllFeedbacks(): Promise<Feedback[]> {

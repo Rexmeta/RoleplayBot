@@ -1259,7 +1259,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       ];
 
       const feedback = await storage.createFeedback({
-        conversationId: req.params.id,
+        conversationId: null, // 레거시 지원 (nullable)
+        personaRunId: personaRunId, // ✨ 새 구조: persona_run ID 저장
         overallScore: feedbackData.overallScore,
         scores: evaluationScores,
         detailedFeedback: feedbackData,
