@@ -333,6 +333,41 @@ export function ScenarioManager() {
               <div className="space-y-4">
                 <h3 className="text-lg font-semibold">기본 정보</h3>
                 
+                {/* 시나리오 이미지 - 최상단으로 이동 */}
+                <div className="space-y-3">
+                  <Label htmlFor="image">시나리오 이미지 URL (선택사항)</Label>
+                  <Input
+                    id="image"
+                    value={formData.image || ''}
+                    onChange={(e) => setFormData(prev => ({ ...prev, image: e.target.value }))}
+                    placeholder="이미지 URL을 입력하세요 (예: https://example.com/image.jpg)"
+                    data-testid="input-scenario-image"
+                  />
+                  
+                  {/* 이미지 미리보기 */}
+                  {formData.image && (
+                    <div className="mt-3">
+                      <p className="text-sm text-slate-600 mb-2">이미지 미리보기:</p>
+                      <div className="relative w-full h-48 bg-slate-100 rounded-lg overflow-hidden border">
+                        <img
+                          src={formData.image}
+                          alt="시나리오 이미지 미리보기"
+                          className="w-full h-full object-cover"
+                          onError={(e) => {
+                            const target = e.target as HTMLImageElement;
+                            target.style.display = 'none';
+                            const parent = target.parentElement;
+                            if (parent) {
+                              parent.innerHTML = '<div class="flex items-center justify-center h-full text-slate-500 text-sm"><i class="fas fa-exclamation-triangle mr-2"></i>이미지를 불러올 수 없습니다</div>';
+                            }
+                          }}
+                          data-testid="scenario-image-preview"
+                        />
+                      </div>
+                    </div>
+                  )}
+                </div>
+                
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <Label htmlFor="title">시나리오 제목</Label>
@@ -387,41 +422,6 @@ export function ScenarioManager() {
                       <SelectItem value="4">고난도 (★★★★)</SelectItem>
                     </SelectContent>
                   </Select>
-                </div>
-
-                {/* 시나리오 이미지 */}
-                <div className="space-y-3">
-                  <Label htmlFor="image">시나리오 이미지 URL (선택사항)</Label>
-                  <Input
-                    id="image"
-                    value={formData.image || ''}
-                    onChange={(e) => setFormData(prev => ({ ...prev, image: e.target.value }))}
-                    placeholder="이미지 URL을 입력하세요 (예: https://example.com/image.jpg)"
-                    data-testid="input-scenario-image"
-                  />
-                  
-                  {/* 이미지 미리보기 */}
-                  {formData.image && (
-                    <div className="mt-3">
-                      <p className="text-sm text-slate-600 mb-2">이미지 미리보기:</p>
-                      <div className="relative w-full h-32 bg-slate-100 rounded-lg overflow-hidden border">
-                        <img
-                          src={formData.image}
-                          alt="시나리오 이미지 미리보기"
-                          className="w-full h-full object-cover"
-                          onError={(e) => {
-                            const target = e.target as HTMLImageElement;
-                            target.style.display = 'none';
-                            const parent = target.parentElement;
-                            if (parent) {
-                              parent.innerHTML = '<div class="flex items-center justify-center h-full text-slate-500 text-sm"><i class="fas fa-exclamation-triangle mr-2"></i>이미지를 불러올 수 없습니다</div>';
-                            }
-                          }}
-                          data-testid="scenario-image-preview"
-                        />
-                      </div>
-                    </div>
-                  )}
                 </div>
               </div>
 

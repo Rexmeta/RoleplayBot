@@ -97,44 +97,36 @@ router.post('/generate-scenario-image', async (req, res) => {
 
 // 이미지 생성 프롬프트 구성 함수
 function generateImagePrompt(title: string, description?: string, theme?: string, industry?: string): string {
-  let prompt = "A professional, cinematic business scene representing ";
+  let prompt = "";
+  let focusElement = "modern corporate office environment"; // 기본값 설정
 
-  // 시나리오 제목 기반 핵심 요소 추출
+  // 시나리오 제목 기반 핵심 요소 1-2개 추출 (간결하게)
   if (title.includes('파업') || title.includes('노사')) {
-    prompt += "a tense labor negotiation meeting in a modern conference room, ";
-    prompt += "with business executives and union representatives across a large table, ";
-    prompt += "documents and charts scattered on the table, ";
-    prompt += "dramatic lighting creating tension, ";
+    focusElement = "business professionals in tense negotiation meeting";
   } else if (title.includes('앱') || title.includes('개발')) {
-    prompt += "a high-tech software development office, ";
-    prompt += "multiple monitors displaying code and UI designs, ";
-    prompt += "developers working intensely, ";
-    prompt += "modern office environment with glass walls, ";
+    focusElement = "modern tech office with developers at work";
   } else if (title.includes('협상') || title.includes('갈등')) {
-    prompt += "a corporate negotiation scene, ";
-    prompt += "business professionals in a modern meeting room, ";
-    prompt += "tension visible through body language, ";
-    prompt += "professional lighting, ";
-  } else {
-    prompt += "a modern corporate business environment, ";
-    prompt += "professional business meeting scene, ";
-    prompt += "clean and sophisticated office setting, ";
+    focusElement = "corporate meeting room with business professionals";
+  } else if (title.includes('제조') || title.includes('공장')) {
+    focusElement = "industrial factory floor with equipment";
+  } else if (title.includes('프로젝트') || title.includes('일정')) {
+    focusElement = "project team meeting around a table";
   }
 
-  // 업종별 추가 요소
+  // 업종별 요소 (선택적, 간단하게) - title보다 우선순위 높음
   if (industry === '제조업') {
-    prompt += "with industrial elements visible in the background, factory or production floor visible through windows, ";
+    focusElement = "industrial factory setting";
   } else if (industry === 'IT') {
-    prompt += "with high-tech equipment and multiple screens, modern tech office environment, ";
+    focusElement = "modern tech office space";
   } else if (industry === '금융') {
-    prompt += "with financial charts and trading screens, sophisticated banking office environment, ";
+    focusElement = "professional banking office";
   }
 
-  // 스타일 및 품질 지시어
-  prompt += "photorealistic, high quality, professional photography style, ";
-  prompt += "corporate atmosphere, dramatic but professional lighting, ";
-  prompt += "8k resolution, sharp focus, professional color grading, ";
-  prompt += "business photography aesthetic, slightly cinematic feel";
+  // 실사 사진 중심의 간결한 프롬프트 구성
+  prompt = `Photorealistic documentary-style photograph of ${focusElement}. `;
+  prompt += "Professional corporate photography, natural lighting, real business setting, ";
+  prompt += "sharp focus, high quality, authentic workplace scene. ";
+  prompt += "NO text, NO speech bubbles, NO captions, NO graphic overlays.";
 
   return prompt;
 }
