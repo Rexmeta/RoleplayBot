@@ -256,7 +256,207 @@ router.post('/generate-preview', async (req, res) => {
   }
 });
 
+// 페르소나 기본 이미지 생성 엔드포인트
+router.post('/generate-persona-base', async (req, res) => {
+  try {
+    const { personaId, mbti, gender, personalityTraits, imageStyle } = req.body;
+
+    if (!personaId || !mbti || !gender) {
+      return res.status(400).json({ 
+        error: '페르소나 ID, MBTI, 성별이 필요합니다.' 
+      });
+    }
+
+    // 페르소나 기본 이미지 생성 프롬프트 구성
+    const imagePrompt = generatePersonaImagePrompt(
+      mbti, 
+      gender, 
+      personalityTraits || [], 
+      imageStyle || ''
+    );
+
+    console.log(`🎨 페르소나 기본 이미지 생성 요청: ${personaId} (${mbti}, ${gender})`);
+    console.log(`프롬프트: ${imagePrompt}`);
+
+    // Gemini 2.5 Flash Image를 사용한 이미지 생성
+    const ai = new GoogleGenAI({ apiKey: process.env.GOOGLE_API_KEY || process.env.GEMINI_API_KEY });
+    const result = await ai.models.generateContent({
+      model: "gemini-2.5-flash-image-preview",
+      contents: [{ role: 'user', parts: [{ text: imagePrompt }] }]
+    });
+    
+    // 응답에서 이미지 데이터 추출
+    let imageUrl = null;
+    if (result.candidates && result.candidates[0] && result.candidates[0].content && result.candidates[0].content.parts) {
+      for (const part of result.candidates[0].content.parts) {
+        if (part.inlineData) {
+          const imageData = part.inlineData;
+          imageUrl = `data:${imageData.mimeType};base64,${imageData.data}`;
+          break;
+        }
+      }
+    }
+    
+    if (!imageUrl) {
+      console.error('❌ 이미지 데이터를 찾을 수 없음');
+      throw new Error('이미지가 생성되지 않았습니다.');
+    }
+
+    // base64 이미지를 로컬 파일로 저장
+    const localImagePath = await savePersonaImageToLocal(imageUrl, personaId, 'neutral');
+    
+    console.log(`✅ 페르소나 기본 이미지 생성 성공: ${localImagePath}`);
+
+    res.json({
+      success: true,
+      imageUrl: localImagePath,
+      originalImageUrl: imageUrl,
+      prompt: imagePrompt,
+      metadata: {
+        model: "gemini-2.5-flash-image-preview",
+        provider: "gemini",
+        personaId,
+        mbti,
+        gender,
+        savedLocally: true
+      }
+    });
+
+  } catch (error: any) {
+    console.error('페르소나 기본 이미지 생성 오류:', error);
+    
+    if (error.message?.includes('quota') || error.status === 429) {
+      return res.status(429).json({
+        error: '요청 한도 초과',
+        details: 'API 요청 한도를 초과했습니다. 잠시 후 다시 시도해주세요.'
+      });
+    }
+
+    res.status(500).json({
+      error: '페르소나 이미지 생성 실패',
+      details: error.message || '알 수 없는 오류가 발생했습니다.'
+    });
+  }
+});
+
+// 페르소나 이미지 생성 프롬프트 구성 함수
+function generatePersonaImagePrompt(
+  mbti: string, 
+  gender: string, 
+  personalityTraits: string[], 
+  imageStyle: string
+): string {
+  // 성별 영어 변환
+  const genderEn = gender === 'male' ? 'man' : 'woman';
+  
+  // MBTI 특성 기반 외모 특징 매핑
+  const mbtiVisualTraits: Record<string, string> = {
+    'ENFJ': 'warm smile, friendly eyes, approachable expression',
+    'ENFP': 'bright eyes, enthusiastic expression, creative vibe',
+    'ENTJ': 'confident gaze, strong presence, professional demeanor',
+    'ENTP': 'sharp eyes, curious expression, innovative look',
+    'ESFJ': 'gentle smile, caring expression, welcoming presence',
+    'ESFP': 'lively expression, energetic vibe, fun personality',
+    'ESTJ': 'serious expression, organized demeanor, professional look',
+    'ESTP': 'confident smile, active vibe, dynamic presence',
+    'INFJ': 'thoughtful eyes, calm expression, deep presence',
+    'INFP': 'gentle expression, creative aura, dreamy look',
+    'INTJ': 'analytical gaze, focused expression, strategic presence',
+    'INTP': 'curious eyes, thoughtful expression, intellectual vibe',
+    'ISFJ': 'kind smile, warm presence, reliable demeanor',
+    'ISFP': 'soft expression, artistic vibe, gentle presence',
+    'ISTJ': 'composed expression, practical demeanor, steady presence',
+    'ISTP': 'calm eyes, practical look, independent vibe'
+  };
+
+  const visualTrait = mbtiVisualTraits[mbti] || 'neutral expression, professional demeanor';
+  
+  // 성격 특성을 시각적 표현으로 변환 (선택적)
+  let traitDescription = '';
+  if (personalityTraits && personalityTraits.length > 0) {
+    const traitsEn = personalityTraits.slice(0, 2).join(', '); // 최대 2개만
+    traitDescription = `, showing ${traitsEn}`;
+  }
+
+  // 스타일 설명 (기본값: 전문적인 비즈니스 초상화)
+  const styleDesc = imageStyle || 'professional business portrait photography';
+
+  // 최종 프롬프트 구성
+  let prompt = `Photorealistic professional portrait photograph of a ${genderEn}, ${visualTrait}${traitDescription}. `;
+  prompt += `${styleDesc}. `;
+  prompt += `Head and shoulders portrait, neutral background, natural professional lighting, `;
+  prompt += `high quality photography, business casual attire, looking at camera, `;
+  prompt += `neutral expression for base portrait, sharp focus, professional headshot. `;
+  prompt += `NO text, NO speech bubbles, NO captions, NO graphic overlays, NO watermarks.`;
+
+  return prompt;
+}
+
+// 페르소나 이미지를 로컬 파일로 저장하는 함수
+async function savePersonaImageToLocal(
+  base64ImageUrl: string, 
+  personaId: string, 
+  emotion: string
+): Promise<string> {
+  try {
+    // 보안: personaId 검증
+    if (personaId.includes('..') || personaId.includes('/') || personaId.includes('\\')) {
+      throw new Error('Invalid persona ID');
+    }
+
+    // base64 데이터에서 이미지 정보 추출
+    const matches = base64ImageUrl.match(/^data:([A-Za-z-+\/]+);base64,(.+)$/);
+    if (!matches) {
+      throw new Error('유효하지 않은 base64 이미지 형식입니다.');
+    }
+
+    const mimeType = matches[1];
+    const imageData = matches[2];
+    const extension = mimeType.split('/')[1] || 'png';
+    
+    // 저장 경로 설정 (attached_assets/personas/{personaId}/)
+    const imageDir = path.join(process.cwd(), 'attached_assets', 'personas', personaId);
+    
+    // 디렉토리가 없으면 생성
+    if (!fs.existsSync(imageDir)) {
+      fs.mkdirSync(imageDir, { recursive: true });
+    }
+    
+    // 한글 표정명을 영어로 변환
+    const emotionEnglishMap: Record<string, string> = {
+      '중립': 'neutral',
+      '기쁨': 'joy',
+      '슬픔': 'sad',
+      '분노': 'angry',
+      '놀람': 'surprise',
+      '호기심': 'curious',
+      '불안': 'anxious',
+      '피로': 'tired',
+      '실망': 'disappointed',
+      '당혹': 'confused'
+    };
+
+    const emotionEn = emotionEnglishMap[emotion] || emotion;
+    const filename = `${emotionEn}.${extension}`;
+    const filePath = path.join(imageDir, filename);
+    
+    // base64 데이터를 파일로 저장
+    const buffer = Buffer.from(imageData, 'base64');
+    fs.writeFileSync(filePath, buffer);
+    
+    // 웹에서 접근 가능한 경로 반환
+    const webPath = `/personas/${personaId}/${filename}`;
+    
+    console.log(`📁 페르소나 이미지 로컬 저장 완료: ${webPath}`);
+    return webPath;
+    
+  } catch (error) {
+    console.error('페르소나 이미지 로컬 저장 실패:', error);
+    throw error;
+  }
+}
+
 // saveImageToLocal 함수도 export
-export { saveImageToLocal };
+export { saveImageToLocal, savePersonaImageToLocal };
 
 export default router;
