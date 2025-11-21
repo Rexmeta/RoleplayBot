@@ -33,6 +33,9 @@ router.post('/generate-scenario-image', async (req, res) => {
       contents: [{ role: 'user', parts: [{ text: imagePrompt }] }]
     });
     
+    // 디버깅: 응답 구조 로깅
+    console.log('📋 Gemini API 응답:', JSON.stringify(result, null, 2));
+    
     // 응답에서 이미지 데이터 추출
     let imageUrl = null;
     if (result.candidates && result.candidates[0] && result.candidates[0].content && result.candidates[0].content.parts) {
@@ -46,7 +49,8 @@ router.post('/generate-scenario-image', async (req, res) => {
     }
     
     if (!imageUrl) {
-      throw new Error('이미지가 생성되지 않았습니다.');
+      console.error('❌ 이미지 데이터를 찾을 수 없음. candidates:', result.candidates);
+      throw new Error('이미지가 생성되지 않았습니다. Gemini API 응답에서 이미지 데이터를 찾을 수 없습니다.');
     }
 
     // base64 이미지를 로컬 파일로 저장
