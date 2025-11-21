@@ -2111,16 +2111,16 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>입력 모드를 변경하시겠습니까?</AlertDialogTitle>
-            <AlertDialogDescription className="space-y-2">
-              <p className="font-semibold text-amber-600">⚠️ 주의사항:</p>
-              <ul className="list-disc list-inside space-y-1 text-sm">
-                <li>입력 모드를 변경하면 <strong>대화가 처음부터 다시 시작</strong>됩니다.</li>
-                <li>지금까지 진행한 <strong>대화 내용은 저장되지 않고 삭제</strong>됩니다.</li>
-                <li>새로운 모드로 대화를 시작하려면 확인 버튼을 눌러주세요.</li>
-              </ul>
-            </AlertDialogDescription>
           </AlertDialogHeader>
-          <AlertDialogFooter>
+          <div className="space-y-2 mb-4">
+            <p className="font-semibold text-amber-600">⚠️ 주의사항:</p>
+            <ul className="list-disc list-inside space-y-1 text-sm text-muted-foreground">
+              <li>입력 모드를 변경하면 <strong>대화가 처음부터 다시 시작</strong>됩니다.</li>
+              <li>지금까지 진행한 <strong>대화 내용은 저장되지 않고 삭제</strong>됩니다.</li>
+              <li>새로운 모드로 대화를 시작하려면 확인 버튼을 눌러주세요.</li>
+            </ul>
+          </div>
+        <AlertDialogFooter>
             <AlertDialogCancel 
               onClick={() => {
                 setPendingMode(null);
