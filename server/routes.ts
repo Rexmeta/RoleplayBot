@@ -27,7 +27,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   const { setupAuth, isAuthenticated } = await import('./auth');
   setupAuth(app);
 
-  // Helper function to verify conversation ownership
+  // Helper function to verify conversation ownership (레거시)
   async function verifyConversationOwnership(conversationId: string, userId: string) {
     const conversation = await storage.getConversation(conversationId);
     if (!conversation) {
@@ -37,6 +37,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
       return { error: "Unauthorized access", status: 403 };
     }
     return { conversation };
+  }
+
+  // Helper function to verify persona run ownership (새 구조)
+  async function verifyPersonaRunOwnership(personaRunId: string, userId: string) {
+    const personaRun = await storage.getPersonaRun(personaRunId);
+    if (!personaRun) {
+      return { error: "Persona run not found", status: 404 };
+    }
+    
+    const scenarioRun = await storage.getScenarioRun(personaRun.scenarioRunId);
+    if (!scenarioRun || scenarioRun.userId !== userId) {
+      return { error: "Unauthorized access", status: 403 };
+    }
+    
+    return { personaRun, scenarioRun };
   }
 
   // Helper function to generate and save feedback automatically
@@ -510,16 +525,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Send message and get AI response
+  // Send message and get AI response (새 구조: persona_runs + chat_messages)
   app.post("/api/conversations/:id/messages", isAuthenticated, async (req, res) => {
     try {
       // @ts-ignore - req.user는 auth 미들웨어에서 설정됨
       const userId = req.user?.id;
-      const ownershipResult = await verifyConversationOwnership(req.params.id, userId);
+      const personaRunId = req.params.id;
+      
+      // ✨ 새 구조: persona_run 권한 확인
+      const ownershipResult = await verifyPersonaRunOwnership(personaRunId, userId);
       
       if ('error' in ownershipResult) {
         return res.status(ownershipResult.status).json({ error: ownershipResult.error });
       }
+
+      const { personaRun, scenarioRun } = ownershipResult;
 
       const { message } = req.body;
       if (typeof message !== "string") {
@@ -529,48 +549,45 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // 빈 메시지는 건너뛰기 기능으로 허용
       const isSkipTurn = message.trim() === "";
 
-      const conversation = await storage.getConversation(req.params.id);
-      if (!conversation) {
-        return res.status(404).json({ error: "Conversation not found" });
-      }
-
-      if (conversation.status === "completed") {
+      if (personaRun.status === "completed") {
         return res.status(400).json({ error: "Conversation already completed" });
       }
 
+      // ✨ 새 구조: chat_messages에서 기존 메시지 조회
+      const existingMessages = await storage.getChatMessagesByPersonaRun(personaRunId);
+      const currentTurnIndex = Math.floor(existingMessages.length / 2); // user + ai = 1 turn
+
       // 건너뛰기가 아닌 경우에만 사용자 메시지 추가
-      let updatedMessages = conversation.messages;
       if (!isSkipTurn) {
-        const userMessage = {
-          sender: "user" as const,
+        await storage.createChatMessage({
+          personaRunId,
+          sender: "user",
           message,
-          timestamp: new Date().toISOString(),
-        };
-        updatedMessages = [...conversation.messages, userMessage];
+          turnIndex: currentTurnIndex
+        });
       }
 
-      const newTurnCount = conversation.turnCount + 1;
+      const newTurnCount = personaRun.turnCount + 1;
 
       // Generate AI response
-      // personaId가 있으면 사용하고, 없으면 기존 scenarioId 사용 (하위 호환성)
-      const personaId = conversation.personaId || conversation.scenarioId;
+      const personaId = personaRun.personaId;
       
       // 시나리오에서 페르소나 정보와 MBTI 특성 결합
       const scenarios = await fileManager.getAllScenarios();
-      const scenarioObj = scenarios.find(s => s.id === conversation.scenarioId);
+      const scenarioObj = scenarios.find(s => s.id === scenarioRun.scenarioId);
       if (!scenarioObj) {
-        throw new Error(`Scenario not found: ${conversation.scenarioId}`);
+        throw new Error(`Scenario not found: ${scenarioRun.scenarioId}`);
       }
       
       // 시나리오에서 해당 페르소나 객체 찾기
-      const scenarioPersona = scenarioObj.personas.find((p: any) => p.id === personaId);
+      const scenarioPersona: any = scenarioObj.personas.find((p: any) => p.id === personaId);
       if (!scenarioPersona) {
         throw new Error(`Persona not found in scenario: ${personaId}`);
       }
       
       // ⚡ 최적화: 특정 MBTI 유형만 로드 (전체 로드 대신)
       const mbtiType = scenarioPersona.personaRef?.replace('.json', '');
-      const mbtiPersona = mbtiType ? await fileManager.getPersonaByMBTI(mbtiType) : null;
+      const mbtiPersona: any = mbtiType ? await fileManager.getPersonaByMBTI(mbtiType) : null;
       
       // 시나리오 정보와 MBTI 특성 결합
       const persona = {
@@ -587,50 +604,82 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // 사용자가 선택한 난이도를 시나리오 객체에 적용
       const scenarioWithUserDifficulty = {
         ...scenarioObj,
-        difficulty: conversation.difficulty // 사용자가 선택한 난이도 사용
+        difficulty: personaRun.difficulty || scenarioRun.difficulty // 사용자가 선택한 난이도 사용
       };
 
+      // ✨ 메시지를 ConversationMessage 형식으로 변환
+      const messagesForAI = (isSkipTurn ? existingMessages : [...existingMessages, {
+        id: "temp",
+        createdAt: new Date(),
+        personaRunId,
+        sender: "user" as const,
+        message,
+        turnIndex: currentTurnIndex,
+        emotion: null,
+        emotionReason: null
+      }]).map(msg => ({
+        sender: msg.sender,
+        message: msg.message,
+        timestamp: (msg.createdAt || new Date()).toISOString(),
+        emotion: msg.emotion || undefined,
+        emotionReason: msg.emotionReason || undefined
+      }));
+
       const aiResult = await generateAIResponse(
-        scenarioWithUserDifficulty, // 사용자가 선택한 난이도가 적용된 시나리오 객체 전달
-        updatedMessages,
+        scenarioWithUserDifficulty,
+        messagesForAI,
         persona,
         isSkipTurn ? undefined : message
       );
 
-      const aiMessage = {
-        sender: "ai" as const,
+      // ✨ 새 구조: AI 메시지를 chat_messages에 저장
+      await storage.createChatMessage({
+        personaRunId,
+        sender: "ai",
         message: aiResult.content,
-        timestamp: new Date().toISOString(),
+        turnIndex: currentTurnIndex,
         emotion: aiResult.emotion,
-        emotionReason: aiResult.emotionReason,
-      };
-
-      const finalMessages = [...updatedMessages, aiMessage];
-      const isCompleted = newTurnCount >= 3;
-
-      // Update conversation
-      const updatedConversation = await storage.updateConversation(req.params.id, {
-        messages: finalMessages,
-        turnCount: newTurnCount,
-        status: isCompleted ? "completed" : "active",
-        completedAt: isCompleted ? new Date() : null,
+        emotionReason: aiResult.emotionReason
       });
 
-      // 대화가 완료되면 자동으로 피드백 생성 (백그라운드에서 비동기 실행)
-      if (isCompleted) {
-        console.log(`대화 완료 - 자동 피드백 생성 시작: ${req.params.id}`);
-        // 백그라운드에서 피드백 생성 (non-blocking)
-        generateAndSaveFeedback(req.params.id, updatedConversation, scenarioObj, persona)
-          .catch(error => {
-            console.error(`자동 피드백 생성 실패 (conversationId: ${req.params.id}):`, error);
-          });
-      }
+      const isCompleted = newTurnCount >= 3;
+
+      // ✨ 새 구조: persona_run 업데이트
+      const updatedPersonaRun = await storage.updatePersonaRun(personaRunId, {
+        turnCount: newTurnCount,
+        status: isCompleted ? "completed" : "active",
+        completedAt: isCompleted ? new Date() : undefined
+      });
+
+      // ✨ 업데이트된 메시지 목록 조회
+      const updatedMessages = await storage.getChatMessagesByPersonaRun(personaRunId);
+      
+      // ✨ 응답 형식을 기존과 동일하게 유지 (호환성)
+      const messagesInOldFormat = updatedMessages.map(msg => ({
+        sender: msg.sender,
+        message: msg.message,
+        timestamp: (msg.createdAt || new Date()).toISOString(),
+        emotion: msg.emotion || undefined,
+        emotionReason: msg.emotionReason || undefined
+      }));
 
       res.json({
-        conversation: updatedConversation,
+        conversation: {
+          id: personaRunId,
+          scenarioId: scenarioRun.scenarioId,
+          personaId: personaRun.personaId,
+          scenarioName: scenarioRun.scenarioName,
+          messages: messagesInOldFormat,
+          turnCount: newTurnCount,
+          status: updatedPersonaRun.status,
+          userId: scenarioRun.userId,
+          createdAt: personaRun.startedAt,
+          completedAt: updatedPersonaRun.completedAt
+        },
         aiResponse: aiResult.content,
         emotion: aiResult.emotion,
         emotionReason: aiResult.emotionReason,
+        messages: messagesInOldFormat, // 클라이언트에서 사용
         isCompleted,
       });
     } catch (error) {
@@ -1226,14 +1275,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       // 시나리오에서 해당 페르소나 객체 찾기
-      const scenarioPersona = scenarioObj.personas.find((p: any) => p.id === personaId);
+      const scenarioPersona: any = scenarioObj.personas.find((p: any) => p.id === personaId);
       if (!scenarioPersona) {
         throw new Error(`Persona not found in scenario: ${personaId}`);
       }
       
       // ⚡ 최적화: 특정 MBTI 유형만 로드 (전체 로드 대신)
       const mbtiType = scenarioPersona.personaRef?.replace('.json', '');
-      const mbtiPersona = mbtiType ? await fileManager.getPersonaByMBTI(mbtiType) : null;
+      const mbtiPersona: any = mbtiType ? await fileManager.getPersonaByMBTI(mbtiType) : null;
       
       // 시나리오 정보와 MBTI 특성 결합
       const persona = {

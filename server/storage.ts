@@ -81,21 +81,24 @@ export class MemStorage implements IStorage {
     const id = randomUUID();
     const conversation: Conversation = {
       id,
+      mode: insertConversation.mode || "text",
       userId: insertConversation.userId || null,
       scenarioId: insertConversation.scenarioId,
       personaId: insertConversation.personaId || null,
+      personaSnapshot: insertConversation.personaSnapshot || null,
       scenarioName: insertConversation.scenarioName,
       messages: insertConversation.messages as any,
       turnCount: insertConversation.turnCount || 0,
       status: insertConversation.status || "active",
+      difficulty: insertConversation.difficulty || 2,
       createdAt: new Date(),
       completedAt: null,
       conversationType: insertConversation.conversationType || "single",
       currentPhase: insertConversation.currentPhase || 1,
       totalPhases: insertConversation.totalPhases || 1,
-      personaSelections: insertConversation.personaSelections || [],
-      strategyChoices: insertConversation.strategyChoices || [],
-      sequenceAnalysis: insertConversation.sequenceAnalysis || null,
+      personaSelections: (insertConversation.personaSelections as PersonaSelection[]) || [],
+      strategyChoices: (insertConversation.strategyChoices as StrategyChoice[]) || [],
+      sequenceAnalysis: (insertConversation.sequenceAnalysis as SequenceAnalysis) || null,
       strategyReflection: null,
       conversationOrder: null,
     };
@@ -131,7 +134,8 @@ export class MemStorage implements IStorage {
     const id = randomUUID();
     const feedback: Feedback = {
       id,
-      conversationId: insertFeedback.conversationId,
+      conversationId: insertFeedback.conversationId || null,
+      personaRunId: insertFeedback.personaRunId || null,
       overallScore: insertFeedback.overallScore,
       scores: insertFeedback.scores as any,
       detailedFeedback: insertFeedback.detailedFeedback as any,
@@ -167,7 +171,7 @@ export class MemStorage implements IStorage {
       .map((conversation) => conversation.id);
     
     return Array.from(this.feedbacks.values()).filter(
-      (feedback) => userConversationIds.includes(feedback.conversationId)
+      (feedback) => feedback.conversationId && userConversationIds.includes(feedback.conversationId)
     );
   }
 
