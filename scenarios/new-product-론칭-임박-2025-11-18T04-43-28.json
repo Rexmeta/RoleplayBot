@@ -61,11 +61,12 @@
     "istj",
     "isfj"
   ],
-  "difficulty": 4,
+  "difficulty": 2,
   "estimatedTime": "20분",
   "skills": [
     "갈등 중재",
     "의사 결정"
   ],
-  "image": "/scenarios/images/신제품-론칭-임박-품질-문제와-일정-준수-사이의-갈등-중재-2025-11-18T04-43-28.png"
+  "image": "/scenarios/images/신제품-론칭-임박-품질-문제와-일정-준수-사이의-갈등-중재-2025-11-21T09-20-17.png",
+  "imagePrompt": ""
 }

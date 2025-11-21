@@ -20,8 +20,17 @@ router.post('/generate-scenario-image', async (req, res) => {
       });
     }
 
-    // 커스텀 프롬프트가 있으면 사용, 없으면 자동 생성
-    const imagePrompt = customPrompt || generateImagePrompt(scenarioTitle, description, theme, industry);
+    // 커스텀 프롬프트 처리: 짧은 한국어 프롬프트를 영어로 변환하고 상세화
+    let imagePrompt: string;
+    if (customPrompt && customPrompt.trim()) {
+      // 커스텀 프롬프트가 있으면 영어로 확장하고 이미지 생성에 최적화
+      imagePrompt = `Photorealistic professional business photograph: ${customPrompt}. `;
+      imagePrompt += `High quality corporate photography, natural lighting, sharp focus, professional setting, modern business environment. `;
+      imagePrompt += `NO text, NO speech bubbles, NO captions, NO graphic overlays.`;
+    } else {
+      // 기본 프롬프트 생성
+      imagePrompt = generateImagePrompt(scenarioTitle, description, theme, industry);
+    }
 
     console.log(`🎨 Gemini 이미지 생성 요청: ${scenarioTitle}`);
     console.log(`프롬프트: ${imagePrompt}`);
