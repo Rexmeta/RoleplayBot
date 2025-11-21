@@ -381,11 +381,13 @@ function generatePersonaImagePrompt(
   // 스타일 설명 (기본값: 전문적인 비즈니스 초상화)
   const styleDesc = imageStyle || 'professional business portrait photography';
 
-  // 최종 프롬프트 구성
+  // 최종 프롬프트 구성 (사무실/회의실 배경 명시)
   let prompt = `Photorealistic professional portrait photograph of a ${genderEn}, ${visualTrait}${traitDescription}. `;
   prompt += `${styleDesc}. `;
-  prompt += `Head and shoulders portrait, neutral background, natural professional lighting, `;
-  prompt += `high quality photography, business casual attire, looking at camera, `;
+  prompt += `Head and shoulders portrait in modern office or meeting room background, `;
+  prompt += `professional corporate environment with neutral office setting, `;
+  prompt += `natural professional lighting, high quality photography, `;
+  prompt += `business casual attire, looking at camera, `;
   prompt += `neutral expression for base portrait, sharp focus, professional headshot. `;
   prompt += `NO text, NO speech bubbles, NO captions, NO graphic overlays, NO watermarks.`;
 
@@ -469,6 +471,20 @@ router.post('/generate-persona-expressions', async (req, res) => {
 
     console.log(`🎨 페르소나 표정 이미지 일괄 생성 시작: ${personaId} (${mbti}, ${gender})`);
 
+    // 기본(중립) 이미지 읽기 (참조용)
+    const baseImagePath = path.join(process.cwd(), 'attached_assets', 'personas', personaId, 'neutral.png');
+    
+    if (!fs.existsSync(baseImagePath)) {
+      return res.status(400).json({
+        error: '기본 이미지가 없습니다.',
+        details: '먼저 기본 이미지를 생성해주세요.'
+      });
+    }
+
+    // 기본 이미지를 base64로 인코딩
+    const baseImageBuffer = fs.readFileSync(baseImagePath);
+    const baseImageBase64 = baseImageBuffer.toString('base64');
+
     // 생성할 표정 리스트 (중립 제외)
     const emotions = [
       { korean: '기쁨', english: 'joy', description: 'joyful, happy, smiling broadly' },
@@ -504,9 +520,22 @@ router.post('/generate-persona-expressions', async (req, res) => {
         );
 
         const ai = new GoogleGenAI({ apiKey: process.env.GOOGLE_API_KEY || process.env.GEMINI_API_KEY });
+        
+        // 기본 이미지를 참조로 포함하여 API 호출
         const result = await ai.models.generateContent({
           model: "gemini-2.5-flash-image-preview",
-          contents: [{ role: 'user', parts: [{ text: imagePrompt }] }]
+          contents: [{
+            role: 'user',
+            parts: [
+              {
+                inlineData: {
+                  mimeType: 'image/png',
+                  data: baseImageBase64
+                }
+              },
+              { text: imagePrompt }
+            ]
+          }]
         });
 
         // 응답에서 이미지 데이터 추출
@@ -618,14 +647,15 @@ function generateExpressionImagePrompt(
   const visualTrait = mbtiVisualTraits[mbti] || 'neutral features';
   const styleDesc = imageStyle || 'professional business portrait photography';
 
-  // 표정 중심 프롬프트 구성
-  let prompt = `Photorealistic professional portrait photograph of a ${genderEn}, ${visualTrait}, `;
-  prompt += `showing ${emotionDescription} expression. `;
-  prompt += `${styleDesc}. `;
-  prompt += `Head and shoulders portrait, neutral background, natural professional lighting, `;
-  prompt += `high quality photography, business casual attire, looking at camera, `;
-  prompt += `clear ${emotionDescription} facial expression, sharp focus, professional headshot. `;
-  prompt += `SAME person as base portrait, SAME facial features, ONLY expression changed. `;
+  // 표정 중심 프롬프트 구성 (배경 일관성 유지)
+  let prompt = `Generate an image of the EXACT SAME person from the reference image. `;
+  prompt += `Keep IDENTICAL: face, facial features, hair, skin tone, body type, clothing, and background environment. `;
+  prompt += `ONLY CHANGE: facial expression to show ${emotionDescription}. `;
+  prompt += `The background must remain the SAME office or meeting room environment as the reference image. `;
+  prompt += `Professional business portrait with clear ${emotionDescription} expression. `;
+  prompt += `Head and shoulders portrait, same office/meeting room background as reference, `;
+  prompt += `natural professional lighting, high quality photography, `;
+  prompt += `same business casual attire as reference, looking at camera, sharp focus. `;
   prompt += `NO text, NO speech bubbles, NO captions, NO graphic overlays, NO watermarks.`;
 
   return prompt;

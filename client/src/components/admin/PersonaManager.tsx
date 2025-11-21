@@ -128,6 +128,9 @@ export function PersonaManager() {
   const [isGeneratingExpressions, setIsGeneratingExpressions] = useState(false);
   const [generationProgress, setGenerationProgress] = useState({ current: 0, total: 0 });
   
+  // 이미지 원본 보기 모달
+  const [viewingImage, setViewingImage] = useState<{ url: string; emotion: string } | null>(null);
+  
   const [formData, setFormData] = useState<MBTIPersonaFormData>({
     id: '',
     mbti: '',
@@ -888,7 +891,14 @@ export function PersonaManager() {
                     const imageUrl = formData.images?.expressions?.[emotion as keyof typeof formData.images.expressions] || '';
                     return (
                       <div key={emotion} className="flex flex-col items-center gap-2">
-                        <div className="w-20 h-20 rounded-lg border-2 border-slate-200 overflow-hidden bg-slate-50 flex items-center justify-center">
+                        <div 
+                          className={`w-20 h-20 rounded-lg border-2 border-slate-200 overflow-hidden bg-slate-50 flex items-center justify-center ${imageUrl ? 'cursor-pointer hover:border-blue-400 transition-colors' : ''}`}
+                          onClick={() => {
+                            if (imageUrl) {
+                              setViewingImage({ url: imageUrl, emotion });
+                            }
+                          }}
+                        >
                           {imageUrl ? (
                             <img 
                               src={imageUrl} 
@@ -1179,6 +1189,27 @@ export function PersonaManager() {
             첫 번째 MBTI 페르소나 생성
           </Button>
         </div>
+      )}
+
+      {/* 이미지 원본 보기 모달 */}
+      {viewingImage && (
+        <Dialog open={!!viewingImage} onOpenChange={() => setViewingImage(null)}>
+          <DialogContent className="max-w-4xl">
+            <DialogHeader>
+              <DialogTitle>{viewingImage.emotion} 표정 이미지</DialogTitle>
+            </DialogHeader>
+            <div className="flex items-center justify-center p-4 bg-slate-50 rounded-lg">
+              <img 
+                src={viewingImage.url} 
+                alt={viewingImage.emotion}
+                className="max-w-full max-h-[70vh] object-contain rounded-lg shadow-lg"
+              />
+            </div>
+            <div className="flex justify-end">
+              <Button onClick={() => setViewingImage(null)}>닫기</Button>
+            </div>
+          </DialogContent>
+        </Dialog>
       )}
     </div>
   );
