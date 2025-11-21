@@ -205,4 +205,26 @@ export function setupAuth(app: Express) {
       res.status(500).json({ valid: false, message: "서버 오류" });
     }
   });
+
+  // WebSocket 실시간 통신 전용 단기 토큰 발급
+  app.post("/api/auth/realtime-token", isAuthenticated, (req: any, res) => {
+    try {
+      const user = req.user;
+      
+      // 5분 유효 WebSocket 전용 토큰 생성
+      const realtimeToken = jwt.sign(
+        { userId: user.id, type: 'realtime' },
+        JWT_SECRET,
+        { expiresIn: '5m' }
+      );
+
+      res.json({
+        token: realtimeToken,
+        expiresIn: 300, // 5분 (초 단위)
+      });
+    } catch (error) {
+      console.error("Realtime token generation error:", error);
+      res.status(500).json({ message: "토큰 생성 오류" });
+    }
+  });
 }

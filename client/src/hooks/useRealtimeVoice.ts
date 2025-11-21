@@ -71,17 +71,43 @@ export function useRealtimeVoice({
     onSessionTerminatedRef.current = onSessionTerminated;
   }, [onMessage, onMessageComplete, onUserTranscription, onError, onSessionTerminated]);
 
-  const getWebSocketUrl = useCallback(() => {
+  const getWebSocketUrl = useCallback((token: string) => {
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     const host = window.location.host;
-    const token = localStorage.getItem('authToken');
-    
-    if (!token) {
-      throw new Error('인증 토큰이 없습니다. 다시 로그인해주세요.');
-    }
-    
     return `${protocol}//${host}/api/realtime-voice?conversationId=${conversationId}&scenarioId=${scenarioId}&personaId=${personaId}&token=${token}`;
   }, [conversationId, scenarioId, personaId]);
+
+  const getRealtimeToken = useCallback(async (): Promise<string> => {
+    // localStorage에 authToken이 있으면 사용
+    const storedToken = localStorage.getItem('authToken');
+    if (storedToken) {
+      console.log('✅ Using stored auth token');
+      return storedToken;
+    }
+
+    // localStorage에 없으면 realtime-token API 호출 (쿠키 기반 인증)
+    console.log('🔑 No stored token, requesting realtime token...');
+    try {
+      const response = await fetch('/api/auth/realtime-token', {
+        method: 'POST',
+        credentials: 'include', // 쿠키 포함
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error('인증 토큰을 가져올 수 없습니다. 다시 로그인해주세요.');
+      }
+
+      const data = await response.json();
+      console.log('✅ Realtime token received, expires in:', data.expiresIn, 'seconds');
+      return data.token;
+    } catch (error) {
+      console.error('❌ Failed to get realtime token:', error);
+      throw new Error('인증 토큰을 가져올 수 없습니다. 다시 로그인해주세요.');
+    }
+  }, []);
 
   const disconnect = useCallback(() => {
     if (wsRef.current) {
@@ -105,11 +131,11 @@ export function useRealtimeVoice({
     setError(null);
 
     try {
-      const token = localStorage.getItem('authToken');
-      console.log('🔑 Auth token exists:', !!token);
-      console.log('🔑 Token length:', token?.length);
+      // 토큰 가져오기 (localStorage 또는 realtime-token API)
+      const token = await getRealtimeToken();
+      console.log('🔑 Token obtained for WebSocket');
       
-      const url = getWebSocketUrl();
+      const url = getWebSocketUrl(token);
       console.log('🌐 WebSocket URL:', url);
       
       const ws = new WebSocket(url);
@@ -228,7 +254,7 @@ export function useRealtimeVoice({
         onErrorRef.current(err instanceof Error ? err.message : 'Connection failed');
       }
     }
-  }, [enabled, getWebSocketUrl, disconnect]);
+  }, [enabled, getRealtimeToken, getWebSocketUrl, disconnect]);
 
   const playAudioDelta = useCallback(async (base64Audio: string) => {
     try {
