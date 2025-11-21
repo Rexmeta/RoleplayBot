@@ -36,6 +36,7 @@ interface ScenarioFormData {
   estimatedTime: string;
   skills: string[];
   image?: string; // 시나리오 이미지 URL 필드 추가
+  imagePrompt?: string; // 이미지 생성 프롬프트 필드 추가
   context: {
     situation: string;
     timeline: string;
@@ -62,6 +63,7 @@ export function ScenarioManager() {
   const { toast } = useToast();
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [editingScenario, setEditingScenario] = useState<ComplexScenario | null>(null);
+  const [isGeneratingImage, setIsGeneratingImage] = useState(false);
   const [formData, setFormData] = useState<ScenarioFormData>({
     title: '',
     description: '',
@@ -69,6 +71,7 @@ export function ScenarioManager() {
     estimatedTime: '',
     skills: [],
     image: '', // 이미지 초기값 추가
+    imagePrompt: '', // 이미지 프롬프트 초기값 추가
     context: {
       situation: '',
       timeline: '',
@@ -185,6 +188,7 @@ export function ScenarioManager() {
       estimatedTime: '',
       skills: [],
       image: '', // 이미지 필드 초기화 추가
+      imagePrompt: '', // 이미지 프롬프트 초기화 추가
       context: {
         situation: '',
         timeline: '',
@@ -217,6 +221,7 @@ export function ScenarioManager() {
       estimatedTime: scenario.estimatedTime,
       skills: scenario.skills,
       image: scenario.image || '', // 기존 시나리오의 이미지 URL 로드
+      imagePrompt: (scenario as any).imagePrompt || '', // 기존 시나리오의 이미지 프롬프트 로드
       context: scenario.context,
       objectives: scenario.objectives,
       successCriteria: scenario.successCriteria,
@@ -256,6 +261,47 @@ export function ScenarioManager() {
       updateMutation.mutate({ id: editingScenario.id, data: formData });
     } else {
       createMutation.mutate(formData);
+    }
+  };
+
+  const handleGenerateImage = async () => {
+    if (!formData.title) {
+      toast({
+        title: "시나리오 제목 필요",
+        description: "이미지를 생성하려면 시나리오 제목을 먼저 입력하세요.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsGeneratingImage(true);
+    try {
+      const response = await apiRequest('POST', '/api/image/generate-scenario-image', {
+        scenarioTitle: formData.title,
+        description: formData.description,
+        customPrompt: formData.imagePrompt || undefined,
+      });
+      
+      const data = await response.json();
+      
+      if (data.success && data.imageUrl) {
+        setFormData(prev => ({ ...prev, image: data.imageUrl }));
+        toast({
+          title: "이미지 생성 완료",
+          description: "시나리오 이미지가 성공적으로 생성되었습니다.",
+        });
+      } else {
+        throw new Error(data.error || '이미지 생성 실패');
+      }
+    } catch (error: any) {
+      console.error('이미지 생성 오류:', error);
+      toast({
+        title: "이미지 생성 실패",
+        description: error.message || "이미지 생성 중 오류가 발생했습니다.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsGeneratingImage(false);
     }
   };
 
@@ -345,6 +391,40 @@ export function ScenarioManager() {
                     data-testid="input-scenario-image"
                     className="bg-white"
                   />
+                  
+                  {/* 이미지 프롬프트 입력 */}
+                  <div className="space-y-2">
+                    <Label htmlFor="imagePrompt" className="text-sm font-medium text-slate-700">이미지 생성 프롬프트 (선택사항)</Label>
+                    <Textarea
+                      id="imagePrompt"
+                      value={formData.imagePrompt || ''}
+                      onChange={(e) => setFormData(prev => ({ ...prev, imagePrompt: e.target.value }))}
+                      placeholder="커스텀 이미지 프롬프트를 입력하세요. 비워두면 자동으로 생성됩니다."
+                      className="min-h-[80px] bg-white whitespace-pre-wrap"
+                      data-testid="textarea-image-prompt"
+                    />
+                    <p className="text-xs text-slate-500">
+                      예: "Modern corporate office with team meeting, professional photography, natural lighting"
+                    </p>
+                  </div>
+                  
+                  {/* 이미지 생성 버튼 */}
+                  <Button
+                    type="button"
+                    onClick={handleGenerateImage}
+                    disabled={isGeneratingImage || !formData.title}
+                    className="w-full"
+                    data-testid="button-generate-image"
+                  >
+                    {isGeneratingImage ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        이미지 생성 중...
+                      </>
+                    ) : (
+                      '🎨 AI 이미지 생성하기'
+                    )}
+                  </Button>
                   
                   {/* 이미지 미리보기 */}
                   {formData.image && (
