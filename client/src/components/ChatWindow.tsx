@@ -34,8 +34,8 @@ import characterTired from "../../../attached_assets/characters/character-tired.
 import characterDisappointed from "../../../attached_assets/characters/character-disappointed.jpg";
 import characterConfused from "../../../attached_assets/characters/character-confused.jpg";
 
-// 모든 캐릭터 이미지 매핑
-const characterImages = {
+// 공용 캐릭터 이미지 매핑 (폴백용)
+const fallbackCharacterImages = {
   '중립': characterNeutral,
   '기쁨': characterJoy,
   '슬픔': characterSad,
@@ -46,6 +46,20 @@ const characterImages = {
   '피로': characterTired,
   '실망': characterDisappointed,
   '당혹': characterConfused
+};
+
+// 표정 한글 → 영어 매핑
+const emotionToEnglish: Record<string, string> = {
+  '중립': 'neutral',
+  '기쁨': 'joy',
+  '슬픔': 'sad',
+  '분노': 'angry',
+  '놀람': 'surprise',
+  '호기심': 'curious',
+  '불안': 'anxious',
+  '피로': 'tired',
+  '실망': 'disappointed',
+  '당혹': 'confused'
 };
 
 // Web Speech API 타입 확장
@@ -102,6 +116,7 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
   const [isTransitioning, setIsTransitioning] = useState(false);
   const [isEmotionTransitioning, setIsEmotionTransitioning] = useState(false);
   const [imagesLoaded, setImagesLoaded] = useState<{[key: string]: boolean}>({});
+  const [personaImagesAvailable, setPersonaImagesAvailable] = useState<{[key: string]: boolean}>({});
   const [currentEmotion, setCurrentEmotion] = useState<string>('중립');
   const [isGoalsExpanded, setIsGoalsExpanded] = useState(false);
   const [showEndConversationDialog, setShowEndConversationDialog] = useState(false);
@@ -167,31 +182,68 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
     },
   });
   
-  // 이미지 프리로딩 및 전환 초기화
+  // 페르소나별 이미지 로딩 함수 (폴백 포함)
+  const getCharacterImage = (emotion: string): string => {
+    const emotionEn = emotionToEnglish[emotion] || 'neutral';
+    
+    // 페르소나별 이미지가 사용 가능한지 확인
+    if (personaImagesAvailable[emotion]) {
+      return `/personas/${persona.id}/${emotionEn}.png`;
+    }
+    
+    // 페르소나별 이미지가 없으면 폴백 이미지 사용
+    return getFallbackImage(emotion);
+  };
+
+  // 이미지 폴백 처리 함수
+  const getFallbackImage = (emotion: string): string => {
+    return fallbackCharacterImages[emotion as keyof typeof fallbackCharacterImages] || fallbackCharacterImages['중립'];
+  };
+
+  // 페르소나별 이미지 체크 및 공용 이미지 프리로딩
   useEffect(() => {
-    const preloadImages = async () => {
-      const loadPromises = Object.entries(characterImages).map(([emotion, src]) => {
-        return new Promise<void>((resolve, reject) => {
+    const checkPersonaImages = async () => {
+      // 페르소나별 이미지 체크
+      const checkPromises = Object.entries(emotionToEnglish).map(([emotionKr, emotionEn]) => {
+        return new Promise<void>((resolve) => {
+          const img = new Image();
+          img.onload = () => {
+            setPersonaImagesAvailable(prev => ({ ...prev, [emotionKr]: true }));
+            console.log(`✅ 페르소나별 이미지 로딩 성공: ${emotionKr}`);
+            resolve();
+          };
+          img.onerror = () => {
+            setPersonaImagesAvailable(prev => ({ ...prev, [emotionKr]: false }));
+            console.log(`⚠️ 페르소나별 이미지 없음, 공용 이미지 사용: ${emotionKr}`);
+            resolve();
+          };
+          img.src = `/personas/${persona.id}/${emotionEn}.png`;
+        });
+      });
+
+      // 공용 이미지 프리로딩
+      const fallbackPromises = Object.entries(fallbackCharacterImages).map(([emotion, src]) => {
+        return new Promise<void>((resolve) => {
           const img = new Image();
           img.onload = () => {
             setImagesLoaded(prev => ({ ...prev, [emotion]: true }));
             resolve();
           };
           img.onerror = () => {
-            console.warn(`Failed to preload image for emotion: ${emotion}`);
+            console.warn(`Failed to preload fallback image for emotion: ${emotion}`);
             setImagesLoaded(prev => ({ ...prev, [emotion]: false }));
-            resolve(); // Continue even if one image fails
+            resolve();
           };
           img.src = src;
         });
       });
       
-      await Promise.all(loadPromises);
-      console.log('🎨 모든 캐릭터 이미지 프리로딩 완료');
+      await Promise.all([...checkPromises, ...fallbackPromises]);
+      console.log('🎨 모든 캐릭터 이미지 체크 및 프리로딩 완료');
     };
     
-    preloadImages();
-  }, []);
+    checkPersonaImages();
+  }, [persona.id]);
 
   // 리얼타임 음성 모드에서는 턴 제한 없음, 다른 모드에서는 3턴
   const maxTurns = inputMode === 'realtime-voice' ? 999 : 3;
@@ -1056,8 +1108,8 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
   const getEmotionImage = (emotion?: string) => {
     const targetEmotion = emotion || '중립';
     
-    // 모든 10가지 감정이 직접 매핑됨
-    return characterImages[targetEmotion as keyof typeof characterImages] || characterImages['중립'];
+    // 페르소나별 이미지 우선, 실패하면 폴백
+    return getCharacterImage(targetEmotion);
   };
 
   return (
