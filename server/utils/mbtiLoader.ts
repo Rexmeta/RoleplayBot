@@ -30,9 +30,21 @@ export interface MBTIPersona {
     pace: string;
     emotion: string;
   };
-  image: {
-    profile: string;
-    style: string;
+  images: {
+    base: string;  // 기본 프로필 이미지
+    style: string;  // 이미지 스타일 설명
+    expressions: {
+      중립: string;
+      기쁨: string;
+      슬픔: string;
+      분노: string;
+      놀람: string;
+      호기심: string;
+      불안: string;
+      피로: string;
+      실망: string;
+      당혹: string;
+    };
   };
 }
 
@@ -110,7 +122,7 @@ export async function enrichPersonaWithMBTI(scenarioPersona: any, personaRef?: s
     background: mbtiData.background,
     communication_patterns: mbtiData.communication_patterns,
     voice: mbtiData.voice,
-    image: mbtiData.image
+    images: mbtiData.images
   };
 
   console.log(`🔗 Persona enriched: ${scenarioPersona.name} with ${mbtiData.mbti} traits`);

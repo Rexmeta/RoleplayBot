@@ -41,9 +41,21 @@ interface MBTIPersona {
     pace: string;
     emotion: string;
   };
-  image: {
-    profile: string;
-    style: string;
+  images: {
+    base: string;  // 기본 프로필 이미지
+    style: string;  // 이미지 스타일 설명
+    expressions: {
+      중립: string;
+      기쁨: string;
+      슬픔: string;
+      분노: string;
+      놀람: string;
+      호기심: string;
+      불안: string;
+      피로: string;
+      실망: string;
+      당혹: string;
+    };
   };
 }
 
@@ -87,9 +99,21 @@ interface MBTIPersonaFormData {
     pace: string;
     emotion: string;
   };
-  image: {
-    profile: string;
-    style: string;
+  images: {
+    base: string;  // 기본 프로필 이미지
+    style: string;  // 이미지 스타일 설명
+    expressions: {
+      중립: string;
+      기쁨: string;
+      슬픔: string;
+      분노: string;
+      놀람: string;
+      호기심: string;
+      불안: string;
+      피로: string;
+      실망: string;
+      당혹: string;
+    };
   };
 }
 
@@ -125,9 +149,21 @@ export function PersonaManager() {
       pace: '',
       emotion: ''
     },
-    image: {
-      profile: '',
-      style: ''
+    images: {
+      base: '',
+      style: '',
+      expressions: {
+        중립: '',
+        기쁨: '',
+        슬픔: '',
+        분노: '',
+        놀람: '',
+        호기심: '',
+        불안: '',
+        피로: '',
+        실망: '',
+        당혹: ''
+      }
     }
   });
 
