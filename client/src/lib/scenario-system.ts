@@ -48,6 +48,7 @@ export interface ComplexScenario {
   title: string;
   description: string;
   image?: string; // 시나리오를 상징하는 이미지 URL
+  imagePrompt?: string; // 이미지 생성 프롬프트
   context: {
     situation: string;
     timeline: string;

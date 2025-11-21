@@ -12,7 +12,7 @@ const router = Router();
 // 시나리오 이미지 생성 엔드포인트
 router.post('/generate-scenario-image', async (req, res) => {
   try {
-    const { scenarioTitle, description, theme, industry } = req.body;
+    const { scenarioTitle, description, theme, industry, customPrompt } = req.body;
 
     if (!scenarioTitle) {
       return res.status(400).json({ 
@@ -20,8 +20,8 @@ router.post('/generate-scenario-image', async (req, res) => {
       });
     }
 
-    // 시나리오 정보를 기반으로 이미지 생성 프롬프트 구성
-    const imagePrompt = generateImagePrompt(scenarioTitle, description, theme, industry);
+    // 커스텀 프롬프트가 있으면 사용, 없으면 자동 생성
+    const imagePrompt = customPrompt || generateImagePrompt(scenarioTitle, description, theme, industry);
 
     console.log(`🎨 Gemini 이미지 생성 요청: ${scenarioTitle}`);
     console.log(`프롬프트: ${imagePrompt}`);
