@@ -54,6 +54,43 @@ export async function registerRoutes(app: Express): Promise<Server> {
     return { personaRun, scenarioRun };
   }
 
+  // Helper function to check if scenario should be auto-completed
+  async function checkAndCompleteScenario(scenarioRunId: string) {
+    try {
+      const scenarioRun = await storage.getScenarioRun(scenarioRunId);
+      if (!scenarioRun || scenarioRun.status === 'completed') {
+        return; // 이미 완료됨 또는 존재하지 않음
+      }
+
+      // 시나리오 정보 조회하여 총 페르소나 수 확인
+      const scenarios = await fileManager.getAllScenarios();
+      const scenario = scenarios.find(s => s.id === scenarioRun.scenarioId);
+      if (!scenario) {
+        return;
+      }
+
+      const totalPersonas = scenario.personas?.length || 0;
+      if (totalPersonas === 0) {
+        return;
+      }
+
+      // 해당 시나리오 실행의 모든 페르소나 실행 조회
+      const allPersonaRuns = await storage.getPersonaRunsByScenarioRun(scenarioRunId);
+      const completedPersonaRuns = allPersonaRuns.filter(pr => pr.status === 'completed');
+
+      // 모든 페르소나가 완료되었으면 시나리오도 완료
+      if (completedPersonaRuns.length === totalPersonas) {
+        await storage.updateScenarioRun(scenarioRunId, {
+          status: 'completed',
+          completedAt: new Date()
+        });
+        console.log(`✅ Scenario run ${scenarioRunId} auto-completed (${completedPersonaRuns.length}/${totalPersonas} personas completed)`);
+      }
+    } catch (error) {
+      console.error("Error checking scenario completion:", error);
+    }
+  }
+
   // Helper function to generate and save feedback automatically
   async function generateAndSaveFeedback(
     conversationId: string, 
@@ -651,6 +688,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         completedAt: isCompleted ? new Date() : undefined
       });
 
+      // ✨ 모든 페르소나가 완료되었는지 확인하고 시나리오 자동 완료
+      if (isCompleted) {
+        await checkAndCompleteScenario(personaRun.scenarioRunId);
+      }
+
       // ✨ 업데이트된 메시지 목록 조회
       const updatedMessages = await storage.getChatMessagesByPersonaRun(personaRunId);
       
@@ -738,8 +780,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         completedAt: new Date()
       });
 
-      // ✨ scenario_run은 active 상태 유지 (여러 페르소나와 대화하기 위해)
-      // scenario_run은 사용자가 명시적으로 종료하거나 새로운 시나리오를 시작할 때 completed로 변경됨
+      // ✨ 모든 페르소나가 완료되었는지 확인하고 시나리오 자동 완료
+      await checkAndCompleteScenario(personaRun.scenarioRunId);
 
       console.log(`✅ Saved ${messages.length} realtime messages to chat_messages (${userMessageCount} user turns), persona_run status: completed`);
 
@@ -1417,6 +1459,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
 
       console.log("피드백 저장 완료");
+
+      // ✨ 모든 페르소나가 완료되었는지 확인하고 시나리오 자동 완료
+      await checkAndCompleteScenario(personaRun.scenarioRunId);
 
       // 전략적 선택 분석 수행 (백그라운드 - non-blocking)
       performStrategicAnalysis(req.params.id, conversation, scenarioObj)
