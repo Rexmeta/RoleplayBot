@@ -292,8 +292,13 @@ export default function MyPage() {
                       const scenarioInfo = getScenarioInfo(scenarioRun.scenarioId);
                       const attemptNumber = scenarioAttemptNumbers.get(scenarioRun.id) || 1;
                       
-                      // ✨ 시나리오 완료 조건: status='completed' AND 전략회고 제출됨
-                      const isScenarioCompleted = scenarioRun.status === 'completed' && !!scenarioRun.strategyReflection;
+                      // ✨ 시나리오 완료 조건
+                      // - 페르소나 1개: status='completed'만 체크 (전략 회고 불필요)
+                      // - 페르소나 2개 이상: status='completed' AND 전략회고 제출됨
+                      const hasMultiplePersonas = scenarioInfo.personas?.length > 1;
+                      const isScenarioCompleted = hasMultiplePersonas 
+                        ? (scenarioRun.status === 'completed' && !!scenarioRun.strategyReflection)
+                        : scenarioRun.status === 'completed';
                       
                       return (
                         <AccordionItem 
