@@ -271,8 +271,150 @@ export class FileManagerService {
       const filePath = path.join(PERSONAS_DIR, fileName);
       
       await fs.unlink(filePath);
+      
+      // 페르소나 이미지 디렉토리도 삭제
+      await this.deletePersonaExpressionImages(id);
     } catch (error) {
       throw new Error(`Failed to delete MBTI persona: ${error}`);
+    }
+  }
+
+  // 페르소나 표정 이미지 저장
+  async savePersonaExpressionImage(
+    personaId: string,
+    emotion: string,
+    base64Data: string
+  ): Promise<string> {
+    try {
+      // 보안: personaId 및 emotion 검증 (path traversal 방지)
+      if (personaId.includes('..') || personaId.includes('/') || personaId.includes('\\')) {
+        throw new Error('Invalid persona ID');
+      }
+      
+      const allowedEmotions = ['중립', '기쁨', '슬픔', '분노', '놀람', '호기심', '불안', '피로', '실망', '당혹'];
+      if (!allowedEmotions.includes(emotion)) {
+        throw new Error('Invalid emotion type');
+      }
+
+      // 이미지 저장 디렉토리 생성
+      const personaImageDir = path.join('attached_assets', 'personas', personaId);
+      await fs.mkdir(personaImageDir, { recursive: true });
+
+      // base64 데이터에서 실제 이미지 데이터 추출
+      const matches = base64Data.match(/^data:([A-Za-z-+\/]+);base64,(.+)$/);
+      if (!matches || matches.length !== 3) {
+        throw new Error('Invalid base64 image data');
+      }
+
+      const mimeType = matches[1];
+      const imageData = matches[2];
+      const extension = mimeType.split('/')[1] || 'png';
+
+      // 이미지 파일 저장
+      const emotionEnglishMap: Record<string, string> = {
+        '중립': 'neutral',
+        '기쁨': 'joy',
+        '슬픔': 'sad',
+        '분노': 'angry',
+        '놀람': 'surprise',
+        '호기심': 'curious',
+        '불안': 'anxious',
+        '피로': 'tired',
+        '실망': 'disappointed',
+        '당혹': 'confused'
+      };
+
+      const fileName = `${emotionEnglishMap[emotion]}.${extension}`;
+      const filePath = path.join(personaImageDir, fileName);
+
+      const buffer = Buffer.from(imageData, 'base64');
+      await fs.writeFile(filePath, buffer);
+
+      // 웹 액세스 가능한 경로 반환
+      const webPath = `/personas/${personaId}/${fileName}`;
+      console.log(`✅ Persona expression image saved: ${webPath}`);
+      
+      return webPath;
+    } catch (error) {
+      throw new Error(`Failed to save persona expression image: ${error}`);
+    }
+  }
+
+  // 페르소나의 모든 표정 이미지 경로 조회
+  async getPersonaExpressionImages(personaId: string): Promise<Record<string, string>> {
+    try {
+      // 보안: personaId 검증
+      if (personaId.includes('..') || personaId.includes('/') || personaId.includes('\\')) {
+        throw new Error('Invalid persona ID');
+      }
+
+      const personaImageDir = path.join('attached_assets', 'personas', personaId);
+      const expressions: Record<string, string> = {};
+
+      const emotionEnglishMap: Record<string, string> = {
+        '중립': 'neutral',
+        '기쁨': 'joy',
+        '슬픔': 'sad',
+        '분노': 'angry',
+        '놀람': 'surprise',
+        '호기심': 'curious',
+        '불안': 'anxious',
+        '피로': 'tired',
+        '실망': 'disappointed',
+        '당혹': 'confused'
+      };
+
+      // 디렉토리 존재 확인
+      try {
+        await fs.access(personaImageDir);
+      } catch {
+        // 디렉토리가 없으면 빈 객체 반환
+        return expressions;
+      }
+
+      // 각 표정 이미지 파일 존재 확인
+      for (const [korean, english] of Object.entries(emotionEnglishMap)) {
+        const extensions = ['png', 'jpg', 'jpeg', 'webp'];
+        for (const ext of extensions) {
+          const fileName = `${english}.${ext}`;
+          const filePath = path.join(personaImageDir, fileName);
+          
+          try {
+            await fs.access(filePath);
+            expressions[korean] = `/personas/${personaId}/${fileName}`;
+            break;
+          } catch {
+            // 파일이 없으면 다음 확장자 시도
+          }
+        }
+      }
+
+      return expressions;
+    } catch (error) {
+      console.error(`Failed to get persona expression images: ${error}`);
+      return {};
+    }
+  }
+
+  // 페르소나 표정 이미지 디렉토리 삭제
+  async deletePersonaExpressionImages(personaId: string): Promise<void> {
+    try {
+      // 보안: personaId 검증
+      if (personaId.includes('..') || personaId.includes('/') || personaId.includes('\\')) {
+        throw new Error('Invalid persona ID');
+      }
+
+      const personaImageDir = path.join('attached_assets', 'personas', personaId);
+      
+      try {
+        await fs.rm(personaImageDir, { recursive: true, force: true });
+        console.log(`🗑️ Deleted persona images directory: ${personaImageDir}`);
+      } catch (error) {
+        // 디렉토리가 없어도 오류 무시
+        console.log(`⚠️ No persona images directory to delete: ${personaImageDir}`);
+      }
+    } catch (error) {
+      console.error(`Failed to delete persona expression images: ${error}`);
     }
   }
 

@@ -304,9 +304,21 @@ export function PersonaManager() {
         pace: '',
         emotion: ''
       },
-      image: {
-        profile: '',
-        style: ''
+      images: {
+        base: '',
+        style: '',
+        expressions: {
+          중립: '',
+          기쁨: '',
+          슬픔: '',
+          분노: '',
+          놀람: '',
+          호기심: '',
+          불안: '',
+          피로: '',
+          실망: '',
+          당혹: ''
+        }
       }
     });
   };
@@ -339,9 +351,21 @@ export function PersonaManager() {
         pace: persona.voice?.pace || '',
         emotion: persona.voice?.emotion || ''
       },
-      image: {
-        profile: persona.image?.profile || '',
-        style: persona.image?.style || ''
+      images: {
+        base: persona.images?.base || '',
+        style: persona.images?.style || '',
+        expressions: {
+          중립: persona.images?.expressions?.중립 || '',
+          기쁨: persona.images?.expressions?.기쁨 || '',
+          슬픔: persona.images?.expressions?.슬픔 || '',
+          분노: persona.images?.expressions?.분노 || '',
+          놀람: persona.images?.expressions?.놀람 || '',
+          호기심: persona.images?.expressions?.호기심 || '',
+          불안: persona.images?.expressions?.불안 || '',
+          피로: persona.images?.expressions?.피로 || '',
+          실망: persona.images?.expressions?.실망 || '',
+          당혹: persona.images?.expressions?.당혹 || ''
+        }
       }
     });
     setEditingPersona(persona);
@@ -679,30 +703,30 @@ export function PersonaManager() {
                 
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <Label htmlFor="image_profile">프로필 이미지 URL</Label>
+                    <Label htmlFor="images_base">기본 이미지 URL</Label>
                     <Input
-                      id="image_profile"
-                      value={formData.image?.profile || ''}
+                      id="images_base"
+                      value={formData.images?.base || ''}
                       onChange={(e) => setFormData(prev => ({ 
                         ...prev, 
-                        image: { ...prev.image, profile: e.target.value }
+                        images: { ...prev.images, base: e.target.value, style: prev.images.style, expressions: prev.images.expressions }
                       }))}
                       placeholder="https://picsum.photos/seed/mbti/150/150"
-                      data-testid="input-image-profile"
+                      data-testid="input-images-base"
                     />
                   </div>
 
                   <div>
-                    <Label htmlFor="image_style">이미지 스타일</Label>
+                    <Label htmlFor="images_style">이미지 스타일</Label>
                     <Input
-                      id="image_style"
-                      value={formData.image?.style || ''}
+                      id="images_style"
+                      value={formData.images?.style || ''}
                       onChange={(e) => setFormData(prev => ({ 
                         ...prev, 
-                        image: { ...prev.image, style: e.target.value }
+                        images: { ...prev.images, style: e.target.value, base: prev.images.base, expressions: prev.images.expressions }
                       }))}
                       placeholder="실제 인물 사진 느낌"
-                      data-testid="input-image-style"
+                      data-testid="input-images-style"
                     />
                   </div>
                 </div>
