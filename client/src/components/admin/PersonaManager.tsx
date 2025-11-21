@@ -122,6 +122,12 @@ export function PersonaManager() {
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [editingPersona, setEditingPersona] = useState<MBTIPersona | null>(null);
   const [deletingPersona, setDeletingPersona] = useState<MBTIPersona | null>(null);
+  
+  // 이미지 생성 상태
+  const [isGeneratingBase, setIsGeneratingBase] = useState(false);
+  const [isGeneratingExpressions, setIsGeneratingExpressions] = useState(false);
+  const [generationProgress, setGenerationProgress] = useState({ current: 0, total: 0 });
+  
   const [formData, setFormData] = useState<MBTIPersonaFormData>({
     id: '',
     mbti: '',
@@ -275,6 +281,118 @@ export function PersonaManager() {
       });
     }
   });
+
+  // 기본 이미지 생성 핸들러
+  const handleGenerateBaseImage = async () => {
+    if (!formData.id || !formData.mbti || !formData.gender) {
+      toast({
+        title: "오류",
+        description: "페르소나 ID, MBTI, 성별이 필요합니다. 먼저 페르소나를 저장해주세요.",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    setIsGeneratingBase(true);
+    try {
+      const response = await apiRequest("POST", "/api/image/generate-persona-base", {
+        personaId: formData.id,
+        mbti: formData.mbti,
+        gender: formData.gender,
+        personalityTraits: formData.personality_traits,
+        imageStyle: formData.images.style
+      });
+
+      const result = await response.json();
+      
+      if (result.success) {
+        // formData 업데이트
+        setFormData(prev => ({
+          ...prev,
+          images: {
+            ...prev.images,
+            base: result.imageUrl,
+            expressions: {
+              ...prev.images.expressions,
+              중립: result.imageUrl
+            }
+          }
+        }));
+
+        toast({
+          title: "성공",
+          description: "기본 이미지가 생성되었습니다."
+        });
+      }
+    } catch (error: any) {
+      toast({
+        title: "오류",
+        description: error.message || "기본 이미지 생성에 실패했습니다.",
+        variant: "destructive"
+      });
+    } finally {
+      setIsGeneratingBase(false);
+    }
+  };
+
+  // 전체 표정 이미지 생성 핸들러
+  const handleGenerateExpressions = async () => {
+    if (!formData.id || !formData.mbti || !formData.gender) {
+      toast({
+        title: "오류",
+        description: "페르소나 ID, MBTI, 성별이 필요합니다. 먼저 페르소나를 저장해주세요.",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    setIsGeneratingExpressions(true);
+    setGenerationProgress({ current: 0, total: 9 });
+    
+    try {
+      const response = await apiRequest("POST", "/api/image/generate-persona-expressions", {
+        personaId: formData.id,
+        mbti: formData.mbti,
+        gender: formData.gender,
+        personalityTraits: formData.personality_traits,
+        imageStyle: formData.images.style
+      });
+
+      const result = await response.json();
+      
+      if (result.success) {
+        // formData 업데이트
+        const newExpressions = { ...formData.images.expressions };
+        result.images.forEach((img: any) => {
+          if (img.success && img.emotionKorean) {
+            newExpressions[img.emotionKorean as keyof typeof newExpressions] = img.imageUrl;
+          }
+        });
+
+        setFormData(prev => ({
+          ...prev,
+          images: {
+            ...prev.images,
+            expressions: newExpressions
+          }
+        }));
+
+        toast({
+          title: "성공",
+          description: `${result.totalGenerated}/${result.totalRequested}개의 표정 이미지가 생성되었습니다.`
+        });
+      }
+    } catch (error: any) {
+      toast({
+        title: "오류",
+        description: error.message || "표정 이미지 생성에 실패했습니다.",
+        variant: "destructive"
+      });
+    } finally {
+      setIsGeneratingExpressions(false);
+      setGenerationProgress({ current: 0, total: 0 });
+    }
+  };
 
   const resetForm = () => {
     setFormData({
@@ -729,6 +847,62 @@ export function PersonaManager() {
                       data-testid="input-images-style"
                     />
                   </div>
+                </div>
+              </div>
+
+              <div className="space-y-4 border-t pt-4">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-lg font-medium text-slate-800">표정 이미지 생성</h3>
+                  <div className="flex gap-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={handleGenerateBaseImage}
+                      disabled={isGeneratingBase || !editingPersona}
+                      data-testid="button-generate-base-image"
+                    >
+                      {isGeneratingBase ? '생성 중...' : '기본 이미지 생성'}
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={handleGenerateExpressions}
+                      disabled={isGeneratingExpressions || !editingPersona}
+                      data-testid="button-generate-expressions"
+                    >
+                      {isGeneratingExpressions ? `생성 중... (${generationProgress.current}/${generationProgress.total})` : '전체 표정 생성'}
+                    </Button>
+                  </div>
+                </div>
+                
+                {!editingPersona && (
+                  <p className="text-sm text-slate-500">
+                    이미지 생성은 페르소나를 먼저 저장한 후 수정 모드에서 사용할 수 있습니다.
+                  </p>
+                )}
+
+                <div className="grid grid-cols-5 gap-3">
+                  {['중립', '기쁨', '슬픔', '분노', '놀람', '호기심', '불안', '피로', '실망', '당혹'].map((emotion) => {
+                    const imageUrl = formData.images?.expressions?.[emotion as keyof typeof formData.images.expressions] || '';
+                    return (
+                      <div key={emotion} className="flex flex-col items-center gap-2">
+                        <div className="w-20 h-20 rounded-lg border-2 border-slate-200 overflow-hidden bg-slate-50 flex items-center justify-center">
+                          {imageUrl ? (
+                            <img 
+                              src={imageUrl} 
+                              alt={emotion} 
+                              className="w-full h-full object-cover"
+                            />
+                          ) : (
+                            <span className="text-xs text-slate-400">없음</span>
+                          )}
+                        </div>
+                        <span className="text-xs text-slate-600 font-medium">{emotion}</span>
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
 
