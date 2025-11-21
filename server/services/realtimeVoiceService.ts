@@ -449,7 +449,7 @@ export class RealtimeVoiceService {
     try {
       const result = await this.genAI.models.generateContent({
         model: 'gemini-2.0-flash-exp',
-        contents: `다음 AI 캐릭터(${personaName})의 응답에서 드러나는 감정을 분석하세요.\n\n응답: "${aiResponse}"\n\n감정은 다음 중 하나여야 합니다: 중립, 기쁨, 슬픔, 분노, 놀람\n감정 이유는 간단하게 한 문장으로 설명하세요.`,
+        contents: `다음 AI 캐릭터(${personaName})의 응답에서 드러나는 감정을 분석하세요.\n\n응답: "${aiResponse}"\n\n감정은 다음 중 하나여야 합니다: 중립, 기쁨, 슬픔, 분노, 놀람, 호기심, 불안, 피로, 실망, 당혹\n감정 이유는 간단하게 한 문장으로 설명하세요.`,
         config: {
           responseMimeType: "application/json",
           responseSchema: {

@@ -52,7 +52,12 @@ const emotionEmojis: { [key: string]: string } = {
   '슬픔': '😢',
   '분노': '😠',
   '놀람': '😲',
-  '중립': '😐'
+  '중립': '😐',
+  '호기심': '🤔',
+  '불안': '😰',
+  '피로': '😫',
+  '실망': '😞',
+  '당혹': '😕'
 };
 
 // 경과 시간 포맷팅 함수
@@ -1040,9 +1045,23 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
   // 감정별 이미지 매핑
   const getEmotionImage = (emotion?: string) => {
     const targetEmotion = emotion || '중립';
-    const validEmotions = ['중립', '기쁨', '슬픔', '분노', '놀람'];
-    const safeEmotion = validEmotions.includes(targetEmotion) ? targetEmotion : '중립';
-    return characterImages[safeEmotion as keyof typeof characterImages];
+    
+    // 새로운 감정을 기존 이미지로 매핑
+    const emotionMapping: { [key: string]: string } = {
+      '중립': '중립',
+      '기쁨': '기쁨',
+      '슬픔': '슬픔',
+      '분노': '분노',
+      '놀람': '놀람',
+      '호기심': '놀람',  // 흥미로운 표정
+      '불안': '슬픔',    // 부정적 감정
+      '피로': '슬픔',    // 지친 표정
+      '실망': '슬픔',    // 부정적 감정
+      '당혹': '놀람'     // 당황스러운 표정
+    };
+    
+    const mappedEmotion = emotionMapping[targetEmotion] || '중립';
+    return characterImages[mappedEmotion as keyof typeof characterImages];
   };
 
   return (

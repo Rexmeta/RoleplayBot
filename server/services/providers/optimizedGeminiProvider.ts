@@ -201,7 +201,7 @@ ${conversationHistory ? `이전 대화:\n${conversationHistory}\n` : ''}
 - 난이도가 낮으면 친절하고 격려적으로, 난이도가 높으면 압박적이고 비판적으로 대응하세요
 
 JSON 형식으로 응답:
-{"content":"대화내용","emotion":"기쁨|슬픔|분노|놀람|중립","emotionReason":"감정이유"}`;
+{"content":"대화내용","emotion":"기쁨|슬픔|분노|놀람|중립|호기심|불안|피로|실망|당혹","emotionReason":"감정이유"}`;
   }
 
   /**

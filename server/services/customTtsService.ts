@@ -37,7 +37,12 @@ export class CustomTtsService {
       '슬픔': '조금 슬프고 차분한 톤으로: ',
       '분노': '단호하고 강한 톤으로: ',
       '놀람': '놀란 톤으로: ',
-      '중립': ''
+      '중립': '',
+      '호기심': '흥미롭고 궁금한 톤으로: ',
+      '불안': '걱정스럽고 조심스러운 톤으로: ',
+      '피로': '지치고 힘든 톤으로: ',
+      '실망': '아쉽고 실망스러운 톤으로: ',
+      '당혹': '당황스럽고 혼란스러운 톤으로: '
     };
 
     const prefix = emotionPrefixes[emotion as keyof typeof emotionPrefixes] || '';
