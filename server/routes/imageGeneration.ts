@@ -456,6 +456,181 @@ async function savePersonaImageToLocal(
   }
 }
 
+// 페르소나 표정 이미지 일괄 생성 엔드포인트 (9개 표정)
+router.post('/generate-persona-expressions', async (req, res) => {
+  try {
+    const { personaId, mbti, gender, personalityTraits, imageStyle } = req.body;
+
+    if (!personaId || !mbti || !gender) {
+      return res.status(400).json({ 
+        error: '페르소나 ID, MBTI, 성별이 필요합니다.' 
+      });
+    }
+
+    console.log(`🎨 페르소나 표정 이미지 일괄 생성 시작: ${personaId} (${mbti}, ${gender})`);
+
+    // 생성할 표정 리스트 (중립 제외)
+    const emotions = [
+      { korean: '기쁨', english: 'joy', description: 'joyful, happy, smiling broadly' },
+      { korean: '슬픔', english: 'sad', description: 'sad, downcast, melancholic' },
+      { korean: '분노', english: 'angry', description: 'angry, frustrated, upset' },
+      { korean: '놀람', english: 'surprise', description: 'surprised, amazed, astonished' },
+      { korean: '호기심', english: 'curious', description: 'curious, interested, intrigued' },
+      { korean: '불안', english: 'anxious', description: 'anxious, worried, concerned' },
+      { korean: '피로', english: 'tired', description: 'tired, exhausted, weary' },
+      { korean: '실망', english: 'disappointed', description: 'disappointed, let down, discouraged' },
+      { korean: '당혹', english: 'confused', description: 'confused, bewildered, perplexed' }
+    ];
+
+    const generatedImages: Array<{
+      emotion: string;
+      emotionKorean: string;
+      imageUrl: string;
+      success: boolean;
+      error?: string;
+    }> = [];
+
+    // 각 표정에 대해 순차적으로 이미지 생성
+    for (const emotion of emotions) {
+      try {
+        console.log(`  → ${emotion.korean} (${emotion.english}) 이미지 생성 중...`);
+
+        const imagePrompt = generateExpressionImagePrompt(
+          mbti,
+          gender,
+          personalityTraits || [],
+          imageStyle || '',
+          emotion.description
+        );
+
+        const ai = new GoogleGenAI({ apiKey: process.env.GOOGLE_API_KEY || process.env.GEMINI_API_KEY });
+        const result = await ai.models.generateContent({
+          model: "gemini-2.5-flash-image-preview",
+          contents: [{ role: 'user', parts: [{ text: imagePrompt }] }]
+        });
+
+        // 응답에서 이미지 데이터 추출
+        let imageUrl = null;
+        if (result.candidates && result.candidates[0] && result.candidates[0].content && result.candidates[0].content.parts) {
+          for (const part of result.candidates[0].content.parts) {
+            if (part.inlineData) {
+              const imageData = part.inlineData;
+              imageUrl = `data:${imageData.mimeType};base64,${imageData.data}`;
+              break;
+            }
+          }
+        }
+
+        if (imageUrl) {
+          const localImagePath = await savePersonaImageToLocal(imageUrl, personaId, emotion.korean);
+          generatedImages.push({
+            emotion: emotion.english,
+            emotionKorean: emotion.korean,
+            imageUrl: localImagePath,
+            success: true
+          });
+          console.log(`  ✅ ${emotion.korean} 이미지 생성 완료`);
+        } else {
+          generatedImages.push({
+            emotion: emotion.english,
+            emotionKorean: emotion.korean,
+            imageUrl: '',
+            success: false,
+            error: '이미지 데이터를 찾을 수 없음'
+          });
+          console.log(`  ❌ ${emotion.korean} 이미지 생성 실패`);
+        }
+
+        // API rate limit 방지를 위한 짧은 대기 (선택적)
+        await new Promise(resolve => setTimeout(resolve, 500));
+
+      } catch (emotionError: any) {
+        console.error(`  ❌ ${emotion.korean} 이미지 생성 오류:`, emotionError.message);
+        generatedImages.push({
+          emotion: emotion.english,
+          emotionKorean: emotion.korean,
+          imageUrl: '',
+          success: false,
+          error: emotionError.message
+        });
+      }
+    }
+
+    const successCount = generatedImages.filter(img => img.success).length;
+    const totalCount = emotions.length;
+
+    console.log(`✅ 페르소나 표정 이미지 일괄 생성 완료: ${successCount}/${totalCount} 성공`);
+
+    res.json({
+      success: true,
+      totalGenerated: successCount,
+      totalRequested: totalCount,
+      images: generatedImages,
+      metadata: {
+        personaId,
+        mbti,
+        gender,
+        model: "gemini-2.5-flash-image-preview",
+        provider: "gemini"
+      }
+    });
+
+  } catch (error: any) {
+    console.error('페르소나 표정 이미지 일괄 생성 오류:', error);
+
+    res.status(500).json({
+      error: '페르소나 표정 이미지 일괄 생성 실패',
+      details: error.message || '알 수 없는 오류가 발생했습니다.'
+    });
+  }
+});
+
+// 특정 표정 이미지 생성 프롬프트 구성 함수
+function generateExpressionImagePrompt(
+  mbti: string,
+  gender: string,
+  personalityTraits: string[],
+  imageStyle: string,
+  emotionDescription: string
+): string {
+  const genderEn = gender === 'male' ? 'man' : 'woman';
+
+  // MBTI 특성 기반 외모 특징 (기본 이미지와 일관성 유지)
+  const mbtiVisualTraits: Record<string, string> = {
+    'ENFJ': 'warm appearance, friendly features',
+    'ENFP': 'bright features, enthusiastic look',
+    'ENTJ': 'confident features, strong presence',
+    'ENTP': 'sharp features, innovative look',
+    'ESFJ': 'gentle features, caring presence',
+    'ESFP': 'lively features, energetic look',
+    'ESTJ': 'serious features, professional look',
+    'ESTP': 'confident features, dynamic presence',
+    'INFJ': 'thoughtful features, calm presence',
+    'INFP': 'gentle features, creative look',
+    'INTJ': 'analytical features, focused presence',
+    'INTP': 'curious features, intellectual look',
+    'ISFJ': 'kind features, warm presence',
+    'ISFP': 'soft features, artistic look',
+    'ISTJ': 'composed features, steady presence',
+    'ISTP': 'calm features, practical look'
+  };
+
+  const visualTrait = mbtiVisualTraits[mbti] || 'neutral features';
+  const styleDesc = imageStyle || 'professional business portrait photography';
+
+  // 표정 중심 프롬프트 구성
+  let prompt = `Photorealistic professional portrait photograph of a ${genderEn}, ${visualTrait}, `;
+  prompt += `showing ${emotionDescription} expression. `;
+  prompt += `${styleDesc}. `;
+  prompt += `Head and shoulders portrait, neutral background, natural professional lighting, `;
+  prompt += `high quality photography, business casual attire, looking at camera, `;
+  prompt += `clear ${emotionDescription} facial expression, sharp focus, professional headshot. `;
+  prompt += `SAME person as base portrait, SAME facial features, ONLY expression changed. `;
+  prompt += `NO text, NO speech bubbles, NO captions, NO graphic overlays, NO watermarks.`;
+
+  return prompt;
+}
+
 // saveImageToLocal 함수도 export
 export { saveImageToLocal, savePersonaImageToLocal };
 
