@@ -28,6 +28,11 @@ import characterJoy from "../../../attached_assets/characters/character-joy.png"
 import characterSad from "../../../attached_assets/characters/character-sad.png";
 import characterAngry from "../../../attached_assets/characters/character-angry.png";
 import characterSurprise from "../../../attached_assets/characters/character-surprise.png";
+import characterCurious from "../../../attached_assets/characters/character-curious.jpg";
+import characterAnxious from "../../../attached_assets/characters/character-anxious.jpg";
+import characterTired from "../../../attached_assets/characters/character-tired.jpg";
+import characterDisappointed from "../../../attached_assets/characters/character-disappointed.jpg";
+import characterConfused from "../../../attached_assets/characters/character-confused.jpg";
 
 // 모든 캐릭터 이미지 매핑
 const characterImages = {
@@ -35,7 +40,12 @@ const characterImages = {
   '기쁨': characterJoy,
   '슬픔': characterSad,
   '분노': characterAngry,
-  '놀람': characterSurprise
+  '놀람': characterSurprise,
+  '호기심': characterCurious,
+  '불안': characterAnxious,
+  '피로': characterTired,
+  '실망': characterDisappointed,
+  '당혹': characterConfused
 };
 
 // Web Speech API 타입 확장
@@ -1046,22 +1056,8 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
   const getEmotionImage = (emotion?: string) => {
     const targetEmotion = emotion || '중립';
     
-    // 새로운 감정을 기존 이미지로 매핑
-    const emotionMapping: { [key: string]: string } = {
-      '중립': '중립',
-      '기쁨': '기쁨',
-      '슬픔': '슬픔',
-      '분노': '분노',
-      '놀람': '놀람',
-      '호기심': '놀람',  // 흥미로운 표정
-      '불안': '슬픔',    // 부정적 감정
-      '피로': '슬픔',    // 지친 표정
-      '실망': '슬픔',    // 부정적 감정
-      '당혹': '놀람'     // 당황스러운 표정
-    };
-    
-    const mappedEmotion = emotionMapping[targetEmotion] || '중립';
-    return characterImages[mappedEmotion as keyof typeof characterImages];
+    // 모든 10가지 감정이 직접 매핑됨
+    return characterImages[targetEmotion as keyof typeof characterImages] || characterImages['중립'];
   };
 
   return (
