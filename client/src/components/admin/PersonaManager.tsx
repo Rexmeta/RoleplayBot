@@ -365,28 +365,28 @@ export function PersonaManager() {
         const currentGender = formData.gender;
         
         // formData 업데이트 (편집 모드 유지, 즉시 화면 반영) - 성별별로 저장
-        setFormData(prev => {
-          const updatedImages = { ...prev.images };
-          const maleExpressions = { ...((updatedImages.male?.expressions as Record<string, string>) || {}) };
-          const femaleExpressions = { ...((updatedImages.female?.expressions as Record<string, string>) || {}) };
-          
-          if (currentGender === 'male') {
-            maleExpressions['중립'] = imageUrlWithTimestamp;
-            updatedImages.male = { expressions: maleExpressions as any };
-          } else {
-            femaleExpressions['중립'] = imageUrlWithTimestamp;
-            updatedImages.female = { expressions: femaleExpressions as any };
-          }
-          return {
-            ...prev,
-            images: updatedImages as any
-          };
-        });
+        const updatedFormData = { ...formData };
+        const updatedImages = { ...updatedFormData.images };
+        const maleExpressions = { ...((updatedImages.male?.expressions as Record<string, string>) || {}) };
+        const femaleExpressions = { ...((updatedImages.female?.expressions as Record<string, string>) || {}) };
+        
+        if (currentGender === 'male') {
+          maleExpressions['중립'] = imageUrlWithTimestamp;
+          updatedImages.male = { expressions: maleExpressions as any };
+        } else {
+          femaleExpressions['중립'] = imageUrlWithTimestamp;
+          updatedImages.female = { expressions: femaleExpressions as any };
+        }
+        updatedFormData.images = updatedImages as any;
+        setFormData(updatedFormData);
 
+        // 자동 저장
         toast({
-          title: "성공",
-          description: "기본 이미지가 생성되었습니다. 저장 버튼을 눌러 변경사항을 저장하세요."
+          title: "저장 중",
+          description: "기본 이미지가 생성되었습니다. 자동으로 저장 중입니다..."
         });
+        
+        updateMutation.mutate(updatedFormData);
       }
     } catch (error: any) {
       toast({
@@ -449,37 +449,37 @@ export function PersonaManager() {
         const timestamp = Date.now();
         const currentGender = formData.gender;
         
-        setFormData(prev => {
-          const updatedImages = { ...prev.images };
-          const newExpressions: any = {};
-          
-          result.images.forEach((img: any) => {
-            if (img.success && img.emotionKorean) {
-              newExpressions[img.emotionKorean] = `${img.imageUrl}?t=${timestamp}`;
-            }
-          });
-
-          const maleExpressions = { ...((updatedImages.male?.expressions as Record<string, string>) || {}) };
-          const femaleExpressions = { ...((updatedImages.female?.expressions as Record<string, string>) || {}) };
-
-          if (currentGender === 'male') {
-            Object.assign(maleExpressions, newExpressions);
-            updatedImages.male = { expressions: maleExpressions as any };
-          } else {
-            Object.assign(femaleExpressions, newExpressions);
-            updatedImages.female = { expressions: femaleExpressions as any };
+        const updatedFormData = { ...formData };
+        const updatedImages = { ...updatedFormData.images };
+        const newExpressions: any = {};
+        
+        result.images.forEach((img: any) => {
+          if (img.success && img.emotionKorean) {
+            newExpressions[img.emotionKorean] = `${img.imageUrl}?t=${timestamp}`;
           }
-
-          return {
-            ...prev,
-            images: updatedImages as any
-          };
         });
 
+        const maleExpressions = { ...((updatedImages.male?.expressions as Record<string, string>) || {}) };
+        const femaleExpressions = { ...((updatedImages.female?.expressions as Record<string, string>) || {}) };
+
+        if (currentGender === 'male') {
+          Object.assign(maleExpressions, newExpressions);
+          updatedImages.male = { expressions: maleExpressions as any };
+        } else {
+          Object.assign(femaleExpressions, newExpressions);
+          updatedImages.female = { expressions: femaleExpressions as any };
+        }
+
+        updatedFormData.images = updatedImages as any;
+        setFormData(updatedFormData);
+
+        // 자동 저장
         toast({
-          title: "성공",
-          description: `${result.totalGenerated}/${result.totalRequested}개의 표정 이미지가 생성되었습니다. 저장 버튼을 눌러 변경사항을 저장하세요.`
+          title: "저장 중",
+          description: `${result.totalGenerated}개의 표정 이미지가 생성되었습니다. 자동으로 저장 중입니다...`
         });
+        
+        updateMutation.mutate(updatedFormData);
       }
     } catch (error: any) {
       toast({
