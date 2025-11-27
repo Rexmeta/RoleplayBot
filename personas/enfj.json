@@ -1,7 +1,7 @@
 {
   "id": "enfj",
   "mbti": "ENFJ",
-  "gender": "male",
+  "gender": "female",
   "personality_traits": [
     "리더십",
     "공감 능력",
@@ -52,18 +52,34 @@
   },
   "images": {
     "base": "/personas/enfj/neutral.png",
-    "style": "한국인 회의실에 앉아서 ",
-    "expressions": {
-      "중립": "/personas/enfj/neutral.png",
-      "기쁨": "/personas/enfj/joy.png",
-      "슬픔": "/personas/enfj/sad.png",
-      "분노": "/personas/enfj/angry.png",
-      "놀람": "/personas/enfj/surprise.png",
-      "호기심": "/personas/enfj/curious.png",
-      "불안": "/personas/enfj/anxious.png",
-      "피로": "/personas/enfj/tired.png",
-      "실망": "/personas/enfj/disappointed.png",
-      "당혹": "/personas/enfj/confused.png"
+    "style": "한국인 빈 사무실에 앉아서 ",
+    "male": {
+      "expressions": {
+        "중립": "/personas/enfj/neutral.png?t=1764225268696",
+        "기쁨": "/personas/enfj/joy.png?t=1764225358691",
+        "슬픔": "/personas/enfj/sad.png?t=1764225358691",
+        "분노": "/personas/enfj/angry.png?t=1764225358691",
+        "놀람": "/personas/enfj/surprise.png?t=1764225358691",
+        "호기심": "/personas/enfj/curious.png?t=1764225358691",
+        "불안": "/personas/enfj/anxious.png?t=1764225358691",
+        "피로": "/personas/enfj/tired.png?t=1764225358691",
+        "실망": "/personas/enfj/disappointed.png?t=1764225358691",
+        "당혹": "/personas/enfj/confused.png?t=1764225358691"
+      }
+    },
+    "female": {
+      "expressions": {
+        "중립": "/personas/enfj/neutral.png?t=1764225453451",
+        "기쁨": "/personas/enfj/joy.png?t=1764225541130",
+        "슬픔": "/personas/enfj/sad.png?t=1764225541130",
+        "분노": "/personas/enfj/angry.png?t=1764225541130",
+        "놀람": "/personas/enfj/surprise.png?t=1764225541130",
+        "호기심": "/personas/enfj/curious.png?t=1764225541130",
+        "불안": "/personas/enfj/anxious.png?t=1764225541130",
+        "피로": "/personas/enfj/tired.png?t=1764225541130",
+        "실망": "/personas/enfj/disappointed.png?t=1764225541130",
+        "당혹": "/personas/enfj/confused.png?t=1764225541130"
+      }
     }
   }
 }

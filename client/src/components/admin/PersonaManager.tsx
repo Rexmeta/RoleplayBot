@@ -1007,8 +1007,15 @@ export function PersonaManager() {
                 <div className="grid grid-cols-5 gap-3">
                   {['중립', '기쁨', '슬픔', '분노', '놀람', '호기심', '불안', '피로', '실망', '당혹'].map((emotion) => {
                     const currentGender = formData.gender;
-                    const genderImages = formData.images?.[currentGender as keyof typeof formData.images] as any;
-                    const imageUrl = genderImages?.expressions?.[emotion as keyof typeof genderImages.expressions] || '';
+                    let imageUrl = '';
+                    
+                    // 성별에 따라 이미지 경로 결정
+                    if (currentGender === 'male') {
+                      imageUrl = formData.images?.male?.expressions?.[emotion as keyof typeof formData.images.male.expressions] || '';
+                    } else if (currentGender === 'female') {
+                      imageUrl = formData.images?.female?.expressions?.[emotion as keyof typeof formData.images.female.expressions] || '';
+                    }
+                    
                     return (
                       <div key={emotion} className="flex flex-col items-center gap-2">
                         <div 
