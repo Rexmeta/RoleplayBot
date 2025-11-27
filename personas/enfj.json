@@ -1,7 +1,7 @@
 {
   "id": "enfj",
   "mbti": "ENFJ",
-  "gender": "female",
+  "gender": "male",
   "personality_traits": [
     "리더십",
     "공감 능력",
@@ -52,19 +52,19 @@
   },
   "images": {
     "base": "/personas/enfj/neutral.png",
-    "style": "한국인 빈 사무실에 앉아서 ",
+    "style": "한국인 빈 사무실에 앉아서 무표정",
     "male": {
       "expressions": {
-        "중립": "/personas/enfj/neutral.png?t=1764225268696",
-        "기쁨": "/personas/enfj/joy.png?t=1764225358691",
-        "슬픔": "/personas/enfj/sad.png?t=1764225358691",
-        "분노": "/personas/enfj/angry.png?t=1764225358691",
-        "놀람": "/personas/enfj/surprise.png?t=1764225358691",
-        "호기심": "/personas/enfj/curious.png?t=1764225358691",
-        "불안": "/personas/enfj/anxious.png?t=1764225358691",
-        "피로": "/personas/enfj/tired.png?t=1764225358691",
-        "실망": "/personas/enfj/disappointed.png?t=1764225358691",
-        "당혹": "/personas/enfj/confused.png?t=1764225358691"
+        "중립": "/personas/enfj/male/neutral.png?t=1764229865717",
+        "기쁨": "/personas/enfj/male/joy.png?t=1764229949245",
+        "슬픔": "/personas/enfj/male/sad.png?t=1764229949245",
+        "분노": "/personas/enfj/male/angry.png?t=1764229949245",
+        "놀람": "/personas/enfj/male/surprise.png?t=1764229949245",
+        "호기심": "/personas/enfj/male/curious.png?t=1764229949245",
+        "불안": "/personas/enfj/male/anxious.png?t=1764229949245",
+        "피로": "/personas/enfj/male/tired.png?t=1764229949245",
+        "실망": "/personas/enfj/male/disappointed.png?t=1764229949245",
+        "당혹": "/personas/enfj/male/confused.png?t=1764229949245"
       }
     },
     "female": {

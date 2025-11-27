@@ -167,6 +167,52 @@ export async function enrichPersonaWithBasicMBTI(scenarioPersona: any, personaRe
 }
 
 /**
+ * 이미지 경로를 성별별 폴더 구조로 변환 (구 형식 → 새 형식)
+ * @param persona - 페르소나 객체
+ * @param gender - 성별 ('male' | 'female')
+ * @returns 변환된 페르소나 객체
+ */
+export function transformImagePathsByGender(persona: any, gender: 'male' | 'female' = 'male'): any {
+  if (!persona.images || !persona.images.expressions) {
+    return persona;
+  }
+
+  // 이미지 경로 변환: /personas/enfj/neutral.png → /personas/enfj/male/neutral.png
+  const transformPath = (path: string, gender: string): string => {
+    if (!path) return path;
+    
+    // 이미 성별 폴더가 있으면 그대로 반환
+    if (path.includes('/male/') || path.includes('/female/')) {
+      return path;
+    }
+    
+    // /personas/{id}/{emotion}.png → /personas/{id}/{gender}/{emotion}.png
+    const regex = /^(\/personas\/[^/]+)\/([^/]+\.png)$/;
+    const match = path.match(regex);
+    
+    if (match) {
+      return `${match[1]}/${gender}/${match[2]}`;
+    }
+    
+    return path;
+  };
+
+  // 이미지 경로 변환
+  const transformedPersona = {
+    ...persona,
+    images: {
+      ...persona.images,
+      expressions: Object.entries(persona.images.expressions).reduce((acc, [key, path]) => {
+        acc[key as keyof typeof persona.images.expressions] = transformPath(path as string, gender);
+        return acc;
+      }, {} as typeof persona.images.expressions)
+    }
+  };
+
+  return transformedPersona;
+}
+
+/**
  * MBTI 캐시를 초기화하는 함수 (개발/테스트용)
  */
 export function clearMBTICache(): void {
