@@ -486,18 +486,24 @@ router.post('/generate-persona-expressions', async (req, res) => {
 
     console.log(`🎨 페르소나 표정 이미지 일괄 생성 시작: ${personaId} (${mbti}, ${gender})`);
 
-    // 기본(중립) 이미지 읽기 (참조용)
-    const baseImagePath = path.join(process.cwd(), 'attached_assets', 'personas', personaId, 'neutral.png');
+    // 기본(중립) 이미지 읽기 (참조용) - 성별별 폴더 경로 포함
+    const baseImagePath = path.join(process.cwd(), 'attached_assets', 'personas', personaId, gender, 'neutral.png');
     
-    if (!fs.existsSync(baseImagePath)) {
+    // 폴백: 구 형식의 경로 확인 (성별 구분 없음)
+    const fallbackImagePath = path.join(process.cwd(), 'attached_assets', 'personas', personaId, 'neutral.png');
+    const imagePathToUse = fs.existsSync(baseImagePath) ? baseImagePath : fallbackImagePath;
+    
+    if (!fs.existsSync(imagePathToUse)) {
       return res.status(400).json({
         error: '기본 이미지가 없습니다.',
-        details: '먼저 기본 이미지를 생성해주세요.'
+        details: `먼저 ${gender} 성별의 기본 이미지를 생성해주세요.`
       });
     }
+    
+    console.log(`📷 기본 이미지 경로: ${imagePathToUse}`);
 
     // 기본 이미지를 base64로 인코딩
-    const baseImageBuffer = fs.readFileSync(baseImagePath);
+    const baseImageBuffer = fs.readFileSync(imagePathToUse);
     const baseImageBase64 = baseImageBuffer.toString('base64');
 
     // 생성할 표정 리스트 (중립 제외)
