@@ -53,7 +53,7 @@ export class FileManagerService {
     }
   }
 
-  // 시나리오의 원본 페르소나 정보 가져오기 (MBTI 참조 포함)
+  // 시나리오의 원본 페르소나 정보 가져오기 (MBTI 참조 및 성별 정보 포함)
   async getScenarioPersonas(scenarioId: string): Promise<any[]> {
     try {
       const files = await fs.readdir(SCENARIOS_DIR);
@@ -64,9 +64,12 @@ export class FileManagerService {
           const scenario = JSON.parse(content);
           
           if (scenario.id === scenarioId && scenario.personas && Array.isArray(scenario.personas)) {
-            // 새 구조의 페르소나 정보 반환
+            // 새 구조의 페르소나 정보 반환 (성별 정보 포함)
             if (typeof scenario.personas[0] === 'object') {
-              return scenario.personas;
+              return scenario.personas.map((persona: any) => ({
+                ...persona,
+                gender: persona.gender || 'male' // 기본값 설정
+              }));
             }
           }
         } catch (error) {

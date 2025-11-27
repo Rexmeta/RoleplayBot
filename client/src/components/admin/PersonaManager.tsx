@@ -587,21 +587,6 @@ export function PersonaManager() {
               </div>
 
               <div>
-                <Label htmlFor="gender">성별</Label>
-                <Select value={formData.gender} onValueChange={(value: 'male' | 'female') => 
-                  setFormData(prev => ({ ...prev, gender: value }))
-                }>
-                  <SelectTrigger data-testid="select-gender">
-                    <SelectValue placeholder="성별 선택" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="male">남성</SelectItem>
-                    <SelectItem value="female">여성</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div>
                 <Label htmlFor="personality_traits">성격 특성 (쉼표로 구분)</Label>
                 <Textarea
                   id="personality_traits"
@@ -836,6 +821,21 @@ export function PersonaManager() {
                     />
                   </div>
                 </div>
+              </div>
+
+              <div>
+                <Label htmlFor="gender">성별</Label>
+                <Select value={formData.gender} onValueChange={(value: 'male' | 'female') => 
+                  setFormData(prev => ({ ...prev, gender: value }))
+                }>
+                  <SelectTrigger data-testid="select-gender">
+                    <SelectValue placeholder="성별 선택" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="male">남성</SelectItem>
+                    <SelectItem value="female">여성</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
 
               <div className="space-y-4 border-t pt-4">
