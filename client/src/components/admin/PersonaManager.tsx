@@ -303,18 +303,24 @@ export function PersonaManager() {
       const result = await response.json();
       
       if (result.success) {
-        // formData 업데이트
-        setFormData(prev => ({
-          ...prev,
+        // 업데이트된 formData 생성
+        const updatedFormData = {
+          ...formData,
           images: {
-            ...prev.images,
+            ...formData.images,
             base: result.imageUrl,
             expressions: {
-              ...prev.images.expressions,
+              ...formData.images.expressions,
               중립: result.imageUrl
             }
           }
-        }));
+        };
+        
+        // formData 업데이트
+        setFormData(updatedFormData);
+
+        // 페르소나 저장 (화면 업데이트 트리거)
+        updateMutation.mutate(updatedFormData);
 
         toast({
           title: "성공",
