@@ -220,7 +220,7 @@ router.post('/generate-preview', async (req, res) => {
     let imageUrl = null;
     if (result.candidates && result.candidates[0] && result.candidates[0].content && result.candidates[0].content.parts) {
       for (const part of result.candidates[0].content.parts) {
-        if (part.inlineData) {
+        if (part.inlineData && part.inlineData.data && part.inlineData.mimeType) {
           const imageData = part.inlineData;
           imageUrl = `data:${imageData.mimeType};base64,${imageData.data}`;
           break;
@@ -229,7 +229,8 @@ router.post('/generate-preview', async (req, res) => {
     }
 
     if (!imageUrl) {
-      throw new Error('미리보기 이미지가 생성되지 않았습니다.');
+      console.error('미리보기 이미지 API 응답:', JSON.stringify(result, null, 2));
+      throw new Error('미리보기 이미지가 생성되지 않았습니다. Gemini API가 이미지를 반환하지 않았습니다.');
     }
 
     // 미리보기 이미지도 로컬에 저장
@@ -285,13 +286,25 @@ router.post('/generate-persona-base', async (req, res) => {
       contents: [{ role: 'user', parts: [{ text: imagePrompt }] }]
     });
     
+    console.log('📊 Gemini API 응답:', JSON.stringify({
+      candidates: result.candidates?.length,
+      firstCandidate: result.candidates?.[0]?.content?.parts?.map((p: any) => ({
+        hasInlineData: !!p.inlineData,
+        hasMimeType: !!p.inlineData?.mimeType,
+        hasData: !!p.inlineData?.data,
+        dataLength: p.inlineData?.data?.length,
+        textLength: p.text?.length
+      }))
+    }));
+    
     // 응답에서 이미지 데이터 추출
     let imageUrl = null;
     if (result.candidates && result.candidates[0] && result.candidates[0].content && result.candidates[0].content.parts) {
       for (const part of result.candidates[0].content.parts) {
-        if (part.inlineData) {
+        if (part.inlineData && part.inlineData.data && part.inlineData.mimeType) {
           const imageData = part.inlineData;
           imageUrl = `data:${imageData.mimeType};base64,${imageData.data}`;
+          console.log(`✅ 이미지 데이터 발견: ${imageData.mimeType}, 크기: ${imageData.data.length} bytes`);
           break;
         }
       }
@@ -299,7 +312,8 @@ router.post('/generate-persona-base', async (req, res) => {
     
     if (!imageUrl) {
       console.error('❌ 이미지 데이터를 찾을 수 없음');
-      throw new Error('이미지가 생성되지 않았습니다.');
+      console.error('🔍 전체 응답:', JSON.stringify(result, null, 2));
+      throw new Error('이미지가 생성되지 않았습니다. Gemini API가 이미지를 반환하지 않았습니다.');
     }
 
     // base64 이미지를 로컬 파일로 저장
