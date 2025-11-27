@@ -367,24 +367,19 @@ export function PersonaManager() {
         // formData 업데이트 (편집 모드 유지, 즉시 화면 반영) - 성별별로 저장
         setFormData(prev => {
           const updatedImages = { ...prev.images };
+          const maleExpressions = { ...((updatedImages.male?.expressions as Record<string, string>) || {}) };
+          const femaleExpressions = { ...((updatedImages.female?.expressions as Record<string, string>) || {}) };
+          
           if (currentGender === 'male') {
-            updatedImages.male = {
-              expressions: {
-                ...(updatedImages.male?.expressions || {}),
-                중립: imageUrlWithTimestamp
-              }
-            };
+            maleExpressions['중립'] = imageUrlWithTimestamp;
+            updatedImages.male = { expressions: maleExpressions as any };
           } else {
-            updatedImages.female = {
-              expressions: {
-                ...(updatedImages.female?.expressions || {}),
-                중립: imageUrlWithTimestamp
-              }
-            };
+            femaleExpressions['중립'] = imageUrlWithTimestamp;
+            updatedImages.female = { expressions: femaleExpressions as any };
           }
           return {
             ...prev,
-            images: updatedImages
+            images: updatedImages as any
           };
         });
 
@@ -464,25 +459,20 @@ export function PersonaManager() {
             }
           });
 
+          const maleExpressions = { ...((updatedImages.male?.expressions as Record<string, string>) || {}) };
+          const femaleExpressions = { ...((updatedImages.female?.expressions as Record<string, string>) || {}) };
+
           if (currentGender === 'male') {
-            updatedImages.male = {
-              expressions: {
-                ...(updatedImages.male?.expressions || {}),
-                ...newExpressions
-              }
-            };
+            Object.assign(maleExpressions, newExpressions);
+            updatedImages.male = { expressions: maleExpressions as any };
           } else {
-            updatedImages.female = {
-              expressions: {
-                ...(updatedImages.female?.expressions || {}),
-                ...newExpressions
-              }
-            };
+            Object.assign(femaleExpressions, newExpressions);
+            updatedImages.female = { expressions: femaleExpressions as any };
           }
 
           return {
             ...prev,
-            images: updatedImages
+            images: updatedImages as any
           };
         });
 
@@ -942,7 +932,13 @@ export function PersonaManager() {
                       value={formData.images?.base || ''}
                       onChange={(e) => setFormData(prev => ({ 
                         ...prev, 
-                        images: { ...prev.images, base: e.target.value, style: prev.images.style, expressions: prev.images.expressions }
+                        images: { 
+                          ...prev.images, 
+                          base: e.target.value, 
+                          style: prev.images.style || '',
+                          male: prev.images.male,
+                          female: prev.images.female
+                        }
                       }))}
                       placeholder="https://picsum.photos/seed/mbti/150/150"
                       data-testid="input-images-base"
@@ -956,7 +952,13 @@ export function PersonaManager() {
                       value={formData.images?.style || ''}
                       onChange={(e) => setFormData(prev => ({ 
                         ...prev, 
-                        images: { ...prev.images, style: e.target.value, base: prev.images.base, expressions: prev.images.expressions }
+                        images: { 
+                          ...prev.images, 
+                          style: e.target.value, 
+                          base: prev.images.base || '',
+                          male: prev.images.male,
+                          female: prev.images.female
+                        }
                       }))}
                       placeholder="실제 인물 사진 느낌"
                       data-testid="input-images-style"
