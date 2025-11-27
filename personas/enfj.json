@@ -1,6 +1,7 @@
 {
   "id": "enfj",
   "mbti": "ENFJ",
+  "gender": "male",
   "personality_traits": [
     "리더십",
     "공감 능력",
@@ -49,8 +50,20 @@
     "pace": "중간",
     "emotion": "공감과 진지함"
   },
-  "image": {
-    "profile": "https://picsum.photos/seed/enfj/150/150",
-    "style": "실제 인물 사진 느낌"
+  "images": {
+    "base": "/personas/enfj/neutral.png",
+    "style": "",
+    "expressions": {
+      "중립": "/personas/enfj/neutral.png",
+      "기쁨": "/personas/enfj/joy.png",
+      "슬픔": "/personas/enfj/sad.png",
+      "분노": "/personas/enfj/angry.png",
+      "놀람": "/personas/enfj/surprise.png",
+      "호기심": "/personas/enfj/curious.png",
+      "불안": "/personas/enfj/anxious.png",
+      "피로": "/personas/enfj/tired.png",
+      "실망": "/personas/enfj/disappointed.png",
+      "당혹": "/personas/enfj/confused.png"
+    }
   }
 }

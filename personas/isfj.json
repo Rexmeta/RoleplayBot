@@ -1,6 +1,7 @@
 {
   "id": "isfj",
   "mbti": "ISFJ",
+  "gender": "female",
   "personality_traits": [
     "헌신적",
     "세심함",
@@ -50,8 +51,20 @@
     "pace": "중간 속도",
     "emotion": "균형 잡힌 감정 표현"
   },
-  "image": {
-    "profile": "https://picsum.photos/seed/isfj/150/150",
-    "style": "실제 인물 사진 느낌의 자연스러운 초상화"
+  "images": {
+    "base": "/personas/isfj/neutral.png",
+    "style": "한국인 여성 실물 사진 회의실에 앉아서 ",
+    "expressions": {
+      "중립": "/personas/isfj/neutral.png",
+      "기쁨": "/personas/isfj/joy.png",
+      "슬픔": "/personas/isfj/sad.png",
+      "분노": "/personas/isfj/angry.png",
+      "놀람": "/personas/isfj/surprise.png",
+      "호기심": "/personas/isfj/curious.png",
+      "불안": "/personas/isfj/anxious.png",
+      "피로": "/personas/isfj/tired.png",
+      "실망": "/personas/isfj/disappointed.png",
+      "당혹": "/personas/isfj/confused.png"
+    }
   }
 }

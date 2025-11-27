@@ -131,6 +131,9 @@ export function PersonaManager() {
   // 이미지 원본 보기 모달
   const [viewingImage, setViewingImage] = useState<{ url: string; emotion: string } | null>(null);
   
+  // 기본 이미지 재생성 확인 다이얼로그
+  const [showBaseImageConfirm, setShowBaseImageConfirm] = useState(false);
+  
   const [formData, setFormData] = useState<MBTIPersonaFormData>({
     id: '',
     mbti: '',
@@ -285,17 +288,8 @@ export function PersonaManager() {
     }
   });
 
-  // 기본 이미지 생성 핸들러
-  const handleGenerateBaseImage = async () => {
-    if (!formData.id || !formData.mbti || !formData.gender) {
-      toast({
-        title: "오류",
-        description: "페르소나 ID, MBTI, 성별이 필요합니다. 먼저 페르소나를 저장해주세요.",
-        variant: "destructive"
-      });
-      return;
-    }
-
+  // 기본 이미지 생성 함수 (실제 생성)
+  const generateBaseImage = async () => {
     setIsGeneratingBase(true);
     try {
       const response = await apiRequest("POST", "/api/image/generate-persona-base", {
@@ -335,6 +329,26 @@ export function PersonaManager() {
       });
     } finally {
       setIsGeneratingBase(false);
+    }
+  };
+
+  // 기본 이미지 생성 핸들러 (확인 로직 포함)
+  const handleGenerateBaseImage = () => {
+    if (!formData.id || !formData.mbti || !formData.gender) {
+      toast({
+        title: "오류",
+        description: "페르소나 ID, MBTI, 성별이 필요합니다. 먼저 페르소나를 저장해주세요.",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    // 기존 기본 이미지가 있는지 확인
+    if (formData.images?.base) {
+      setShowBaseImageConfirm(true);
+    } else {
+      // 기존 이미지가 없으면 바로 생성
+      generateBaseImage();
     }
   };
 
@@ -1211,6 +1225,30 @@ export function PersonaManager() {
           </DialogContent>
         </Dialog>
       )}
+
+      {/* 기본 이미지 재생성 확인 다이얼로그 */}
+      <AlertDialog open={showBaseImageConfirm} onOpenChange={setShowBaseImageConfirm}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>기본 이미지 재생성</AlertDialogTitle>
+            <AlertDialogDescription>
+              이미 생성된 기본 이미지가 있습니다. 기존 이미지를 삭제하고 새로운 기본 이미지를 생성하시겠어요?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>취소</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                setShowBaseImageConfirm(false);
+                generateBaseImage();
+              }}
+              className="bg-red-600 hover:bg-red-700"
+            >
+              재생성
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

@@ -1,6 +1,7 @@
 {
   "id": "istj",
   "mbti": "ISTJ",
+  "gender": "male",
   "personality_traits": [
     "경험 기반 사고",
     "현실적",
@@ -58,8 +59,20 @@
     "pace": "빠른 속도",
     "emotion": "감정을 절제하되 날카롭게"
   },
-  "image": {
-    "profile": "https://picsum.photos/seed/istj_strict/150/150",
-    "style": "실제 인물 사진 느낌의 강인한 초상화"
+  "images": {
+    "base": "/personas/istj/neutral.png",
+    "style": "한국인 회의실에 앉아서 실제 사진 ",
+    "expressions": {
+      "중립": "/personas/istj/neutral.png",
+      "기쁨": "/personas/istj/joy.png",
+      "슬픔": "/personas/istj/sad.png",
+      "분노": "/personas/istj/angry.png",
+      "놀람": "/personas/istj/surprise.png",
+      "호기심": "/personas/istj/curious.png",
+      "불안": "/personas/istj/anxious.png",
+      "피로": "/personas/istj/tired.png",
+      "실망": "/personas/istj/disappointed.png",
+      "당혹": "/personas/istj/confused.png"
+    }
   }
 }
