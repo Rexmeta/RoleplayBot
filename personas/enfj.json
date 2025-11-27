@@ -69,7 +69,7 @@
     },
     "female": {
       "expressions": {
-        "중립": "/personas/enfj/neutral.png?t=1764225453451",
+        "중립": "/personas/enfj/female/neutral.png?t=1764232112306",
         "기쁨": "/personas/enfj/joy.png?t=1764225541130",
         "슬픔": "/personas/enfj/sad.png?t=1764225541130",
         "분노": "/personas/enfj/angry.png?t=1764225541130",
