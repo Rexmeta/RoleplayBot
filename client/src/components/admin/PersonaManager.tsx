@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -183,7 +183,7 @@ export function PersonaManager() {
   const [isGeneratingBase, setIsGeneratingBase] = useState(false);
   const [isGeneratingExpressions, setIsGeneratingExpressions] = useState(false);
   const [generationProgress, setGenerationProgress] = useState({ current: 0, total: 0 });
-  const [isAutoSavingImages, setIsAutoSavingImages] = useState(false);
+  const autoSavingRef = useRef(false);
   
   // 이미지 원본 보기 모달
   const [viewingImage, setViewingImage] = useState<{ url: string; emotion: string } | null>(null);
@@ -309,19 +309,15 @@ export function PersonaManager() {
       queryClient.invalidateQueries({ queryKey: ['/api/admin/personas'] });
       
       // 이미지 자동 저장인 경우 다이얼로그 유지, 수동 저장인 경우만 닫기
-      if (!isAutoSavingImages) {
+      if (!autoSavingRef.current) {
         setEditingPersona(null);
         resetForm();
-      } else {
-        setIsAutoSavingImages(false);
-      }
-      
-      // 자동 저장이 아닐 때만 토스트 메시지 표시
-      if (!isAutoSavingImages) {
         toast({
           title: "성공",
           description: "MBTI 페르소나가 수정되었습니다."
         });
+      } else {
+        autoSavingRef.current = false;
       }
     },
     onError: () => {
@@ -330,7 +326,7 @@ export function PersonaManager() {
         description: "페르소나 수정에 실패했습니다.",
         variant: "destructive"
       });
-      setIsAutoSavingImages(false);
+      autoSavingRef.current = false;
     }
   });
 
@@ -398,7 +394,7 @@ export function PersonaManager() {
           description: "기본 이미지가 생성되었습니다. 자동으로 저장 중입니다..."
         });
         
-        setIsAutoSavingImages(true);
+        autoSavingRef.current = true;
         updateMutation.mutate(updatedFormData);
       }
     } catch (error: any) {
@@ -492,7 +488,7 @@ export function PersonaManager() {
           description: `${result.totalGenerated}개의 표정 이미지가 생성되었습니다. 자동으로 저장 중입니다...`
         });
         
-        setIsAutoSavingImages(true);
+        autoSavingRef.current = true;
         updateMutation.mutate(updatedFormData);
       }
     } catch (error: any) {

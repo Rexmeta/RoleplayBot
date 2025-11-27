@@ -1,7 +1,7 @@
 {
   "id": "entj",
   "mbti": "ENTJ",
-  "gender": "female",
+  "gender": "male",
   "personality_traits": [
     "리더십",
     "전략적 사고",
@@ -56,7 +56,7 @@
     "style": "한국인 무표정 웃지 않음. 빈 사무실 상반신 전체가 나오도록 ",
     "male": {
       "expressions": {
-        "중립": "",
+        "중립": "/personas/entj/male/neutral.png?t=1764232373702",
         "기쁨": "",
         "슬픔": "",
         "분노": "",
