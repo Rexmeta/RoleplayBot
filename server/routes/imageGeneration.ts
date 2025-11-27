@@ -316,8 +316,8 @@ router.post('/generate-persona-base', async (req, res) => {
       throw new Error('이미지가 생성되지 않았습니다. Gemini API가 이미지를 반환하지 않았습니다.');
     }
 
-    // base64 이미지를 로컬 파일로 저장
-    const localImagePath = await savePersonaImageToLocal(imageUrl, personaId, 'neutral');
+    // base64 이미지를 로컬 파일로 저장 (성별별 폴더)
+    const localImagePath = await savePersonaImageToLocal(imageUrl, personaId, 'neutral', gender);
     
     console.log(`✅ 페르소나 기본 이미지 생성 성공: ${localImagePath}`);
 
@@ -408,11 +408,12 @@ function generatePersonaImagePrompt(
   return prompt;
 }
 
-// 페르소나 이미지를 로컬 파일로 저장하는 함수
+// 페르소나 이미지를 로컬 파일로 저장하는 함수 (성별별 폴더 분리)
 async function savePersonaImageToLocal(
   base64ImageUrl: string, 
   personaId: string, 
-  emotion: string
+  emotion: string,
+  gender: 'male' | 'female' = 'male'
 ): Promise<string> {
   try {
     // 보안: personaId 검증
@@ -430,8 +431,8 @@ async function savePersonaImageToLocal(
     const imageData = matches[2];
     const extension = mimeType.split('/')[1] || 'png';
     
-    // 저장 경로 설정 (attached_assets/personas/{personaId}/)
-    const imageDir = path.join(process.cwd(), 'attached_assets', 'personas', personaId);
+    // 저장 경로 설정 (attached_assets/personas/{personaId}/{gender}/)
+    const imageDir = path.join(process.cwd(), 'attached_assets', 'personas', personaId, gender);
     
     // 디렉토리가 없으면 생성
     if (!fs.existsSync(imageDir)) {
@@ -460,8 +461,8 @@ async function savePersonaImageToLocal(
     const buffer = Buffer.from(imageData, 'base64');
     fs.writeFileSync(filePath, buffer);
     
-    // 웹에서 접근 가능한 경로 반환
-    const webPath = `/personas/${personaId}/${filename}`;
+    // 웹에서 접근 가능한 경로 반환 (성별별 폴더 포함)
+    const webPath = `/personas/${personaId}/${gender}/${filename}`;
     
     console.log(`📁 페르소나 이미지 로컬 저장 완료: ${webPath}`);
     return webPath;
@@ -565,7 +566,7 @@ router.post('/generate-persona-expressions', async (req, res) => {
         }
 
         if (imageUrl) {
-          const localImagePath = await savePersonaImageToLocal(imageUrl, personaId, emotion.korean);
+          const localImagePath = await savePersonaImageToLocal(imageUrl, personaId, emotion.korean, gender);
           generatedImages.push({
             emotion: emotion.english,
             emotionKorean: emotion.korean,
