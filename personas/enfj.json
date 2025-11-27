@@ -52,7 +52,7 @@
   },
   "images": {
     "base": "/personas/enfj/neutral.png",
-    "style": "",
+    "style": "한국인 회의실에 앉아서 ",
     "expressions": {
       "중립": "/personas/enfj/neutral.png",
       "기쁨": "/personas/enfj/joy.png",

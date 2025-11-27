@@ -303,28 +303,26 @@ export function PersonaManager() {
       const result = await response.json();
       
       if (result.success) {
-        // 업데이트된 formData 생성
-        const updatedFormData = {
-          ...formData,
+        // 타임스탬프를 추가하여 브라우저 캐시 우회
+        const timestamp = Date.now();
+        const imageUrlWithTimestamp = `${result.imageUrl}?t=${timestamp}`;
+        
+        // formData 업데이트 (편집 모드 유지, 즉시 화면 반영)
+        setFormData(prev => ({
+          ...prev,
           images: {
-            ...formData.images,
-            base: result.imageUrl,
+            ...prev.images,
+            base: imageUrlWithTimestamp,
             expressions: {
-              ...formData.images.expressions,
-              중립: result.imageUrl
+              ...prev.images.expressions,
+              중립: imageUrlWithTimestamp
             }
           }
-        };
-        
-        // formData 업데이트
-        setFormData(updatedFormData);
-
-        // 페르소나 저장 (화면 업데이트 트리거)
-        updateMutation.mutate(updatedFormData);
+        }));
 
         toast({
           title: "성공",
-          description: "기본 이미지가 생성되었습니다."
+          description: "기본 이미지가 생성되었습니다. 저장 버튼을 눌러 변경사항을 저장하세요."
         });
       }
     } catch (error: any) {
@@ -384,11 +382,12 @@ export function PersonaManager() {
       const result = await response.json();
       
       if (result.success) {
-        // formData 업데이트
+        // 타임스탬프를 추가하여 브라우저 캐시 우회
+        const timestamp = Date.now();
         const newExpressions = { ...formData.images.expressions };
         result.images.forEach((img: any) => {
           if (img.success && img.emotionKorean) {
-            newExpressions[img.emotionKorean as keyof typeof newExpressions] = img.imageUrl;
+            newExpressions[img.emotionKorean as keyof typeof newExpressions] = `${img.imageUrl}?t=${timestamp}`;
           }
         });
 
@@ -402,7 +401,7 @@ export function PersonaManager() {
 
         toast({
           title: "성공",
-          description: `${result.totalGenerated}/${result.totalRequested}개의 표정 이미지가 생성되었습니다.`
+          description: `${result.totalGenerated}/${result.totalRequested}개의 표정 이미지가 생성되었습니다. 저장 버튼을 눌러 변경사항을 저장하세요.`
         });
       }
     } catch (error: any) {
