@@ -44,7 +44,35 @@ interface MBTIPersona {
   images: {
     base: string;  // 기본 프로필 이미지
     style: string;  // 이미지 스타일 설명
-    expressions: {
+    male?: {
+      expressions: {
+        중립: string;
+        기쁨: string;
+        슬픔: string;
+        분노: string;
+        놀람: string;
+        호기심: string;
+        불안: string;
+        피로: string;
+        실망: string;
+        당혹: string;
+      };
+    };
+    female?: {
+      expressions: {
+        중립: string;
+        기쁨: string;
+        슬픔: string;
+        분노: string;
+        놀람: string;
+        호기심: string;
+        불안: string;
+        피로: string;
+        실망: string;
+        당혹: string;
+      };
+    };
+    expressions?: {
       중립: string;
       기쁨: string;
       슬픔: string;
@@ -102,7 +130,35 @@ interface MBTIPersonaFormData {
   images: {
     base: string;  // 기본 프로필 이미지
     style: string;  // 이미지 스타일 설명
-    expressions: {
+    male?: {
+      expressions: {
+        중립: string;
+        기쁨: string;
+        슬픔: string;
+        분노: string;
+        놀람: string;
+        호기심: string;
+        불안: string;
+        피로: string;
+        실망: string;
+        당혹: string;
+      };
+    };
+    female?: {
+      expressions: {
+        중립: string;
+        기쁨: string;
+        슬픔: string;
+        분노: string;
+        놀람: string;
+        호기심: string;
+        불안: string;
+        피로: string;
+        실망: string;
+        당혹: string;
+      };
+    };
+    expressions?: {
       중립: string;
       기쁨: string;
       슬픔: string;
@@ -306,19 +362,31 @@ export function PersonaManager() {
         // 타임스탬프를 추가하여 브라우저 캐시 우회
         const timestamp = Date.now();
         const imageUrlWithTimestamp = `${result.imageUrl}?t=${timestamp}`;
+        const currentGender = formData.gender;
         
-        // formData 업데이트 (편집 모드 유지, 즉시 화면 반영)
-        setFormData(prev => ({
-          ...prev,
-          images: {
-            ...prev.images,
-            base: imageUrlWithTimestamp,
-            expressions: {
-              ...prev.images.expressions,
-              중립: imageUrlWithTimestamp
-            }
+        // formData 업데이트 (편집 모드 유지, 즉시 화면 반영) - 성별별로 저장
+        setFormData(prev => {
+          const updatedImages = { ...prev.images };
+          if (currentGender === 'male') {
+            updatedImages.male = {
+              expressions: {
+                ...(updatedImages.male?.expressions || {}),
+                중립: imageUrlWithTimestamp
+              }
+            };
+          } else {
+            updatedImages.female = {
+              expressions: {
+                ...(updatedImages.female?.expressions || {}),
+                중립: imageUrlWithTimestamp
+              }
+            };
           }
-        }));
+          return {
+            ...prev,
+            images: updatedImages
+          };
+        });
 
         toast({
           title: "성공",
@@ -384,20 +452,39 @@ export function PersonaManager() {
       if (result.success) {
         // 타임스탬프를 추가하여 브라우저 캐시 우회
         const timestamp = Date.now();
-        const newExpressions = { ...formData.images.expressions };
-        result.images.forEach((img: any) => {
-          if (img.success && img.emotionKorean) {
-            newExpressions[img.emotionKorean as keyof typeof newExpressions] = `${img.imageUrl}?t=${timestamp}`;
-          }
-        });
+        const currentGender = formData.gender;
+        
+        setFormData(prev => {
+          const updatedImages = { ...prev.images };
+          const newExpressions: any = {};
+          
+          result.images.forEach((img: any) => {
+            if (img.success && img.emotionKorean) {
+              newExpressions[img.emotionKorean] = `${img.imageUrl}?t=${timestamp}`;
+            }
+          });
 
-        setFormData(prev => ({
-          ...prev,
-          images: {
-            ...prev.images,
-            expressions: newExpressions
+          if (currentGender === 'male') {
+            updatedImages.male = {
+              expressions: {
+                ...(updatedImages.male?.expressions || {}),
+                ...newExpressions
+              }
+            };
+          } else {
+            updatedImages.female = {
+              expressions: {
+                ...(updatedImages.female?.expressions || {}),
+                ...newExpressions
+              }
+            };
           }
-        }));
+
+          return {
+            ...prev,
+            images: updatedImages
+          };
+        });
 
         toast({
           title: "성공",
@@ -447,18 +534,8 @@ export function PersonaManager() {
       images: {
         base: '',
         style: '',
-        expressions: {
-          중립: '',
-          기쁨: '',
-          슬픔: '',
-          분노: '',
-          놀람: '',
-          호기심: '',
-          불안: '',
-          피로: '',
-          실망: '',
-          당혹: ''
-        }
+        male: { expressions: { 중립: '', 기쁨: '', 슬픔: '', 분노: '', 놀람: '', 호기심: '', 불안: '', 피로: '', 실망: '', 당혹: '' } },
+        female: { expressions: { 중립: '', 기쁨: '', 슬픔: '', 분노: '', 놀람: '', 호기심: '', 불안: '', 피로: '', 실망: '', 당혹: '' } }
       }
     });
   };
@@ -467,7 +544,7 @@ export function PersonaManager() {
     setFormData({
       id: persona.id,
       mbti: persona.mbti,
-      gender: persona.gender || 'male', // 성별 필드 추가
+      gender: persona.gender || 'male',
       personality_traits: persona.personality_traits || [],
       communication_style: persona.communication_style || '',
       motivation: persona.motivation || '',
@@ -494,17 +571,33 @@ export function PersonaManager() {
       images: {
         base: persona.images?.base || '',
         style: persona.images?.style || '',
-        expressions: {
-          중립: persona.images?.expressions?.중립 || '',
-          기쁨: persona.images?.expressions?.기쁨 || '',
-          슬픔: persona.images?.expressions?.슬픔 || '',
-          분노: persona.images?.expressions?.분노 || '',
-          놀람: persona.images?.expressions?.놀람 || '',
-          호기심: persona.images?.expressions?.호기심 || '',
-          불안: persona.images?.expressions?.불안 || '',
-          피로: persona.images?.expressions?.피로 || '',
-          실망: persona.images?.expressions?.실망 || '',
-          당혹: persona.images?.expressions?.당혹 || ''
+        male: {
+          expressions: {
+            중립: persona.images?.male?.expressions?.중립 || '',
+            기쁨: persona.images?.male?.expressions?.기쁨 || '',
+            슬픔: persona.images?.male?.expressions?.슬픔 || '',
+            분노: persona.images?.male?.expressions?.분노 || '',
+            놀람: persona.images?.male?.expressions?.놀람 || '',
+            호기심: persona.images?.male?.expressions?.호기심 || '',
+            불안: persona.images?.male?.expressions?.불안 || '',
+            피로: persona.images?.male?.expressions?.피로 || '',
+            실망: persona.images?.male?.expressions?.실망 || '',
+            당혹: persona.images?.male?.expressions?.당혹 || ''
+          }
+        },
+        female: {
+          expressions: {
+            중립: persona.images?.female?.expressions?.중립 || '',
+            기쁨: persona.images?.female?.expressions?.기쁨 || '',
+            슬픔: persona.images?.female?.expressions?.슬픔 || '',
+            분노: persona.images?.female?.expressions?.분노 || '',
+            놀람: persona.images?.female?.expressions?.놀람 || '',
+            호기심: persona.images?.female?.expressions?.호기심 || '',
+            불안: persona.images?.female?.expressions?.불안 || '',
+            피로: persona.images?.female?.expressions?.피로 || '',
+            실망: persona.images?.female?.expressions?.실망 || '',
+            당혹: persona.images?.female?.expressions?.당혹 || ''
+          }
         }
       }
     });
@@ -905,9 +998,15 @@ export function PersonaManager() {
                   </p>
                 )}
 
+                <div className="mb-4">
+                  <p className="text-sm text-slate-600 mb-3">현재 선택: <span className="font-semibold">{formData.gender === 'male' ? '남성' : '여성'} 표정 이미지</span></p>
+                </div>
+
                 <div className="grid grid-cols-5 gap-3">
                   {['중립', '기쁨', '슬픔', '분노', '놀람', '호기심', '불안', '피로', '실망', '당혹'].map((emotion) => {
-                    const imageUrl = formData.images?.expressions?.[emotion as keyof typeof formData.images.expressions] || '';
+                    const currentGender = formData.gender;
+                    const genderImages = formData.images?.[currentGender as keyof typeof formData.images] as any;
+                    const imageUrl = genderImages?.expressions?.[emotion as keyof typeof genderImages.expressions] || '';
                     return (
                       <div key={emotion} className="flex flex-col items-center gap-2">
                         <div 
