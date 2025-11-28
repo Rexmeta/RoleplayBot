@@ -22,8 +22,8 @@ type AnalyticsSummary = {
     score: number;
     conversationId: string;
   }>;
-  topStrengths: Array<{ text: string; count: number }>;
-  topImprovements: Array<{ text: string; count: number }>;
+  topStrengths: Array<{ category: string; count: number; items: string[] }>;
+  topImprovements: Array<{ category: string; count: number; items: string[] }>;
   overallGrade: string;
   progressTrend: 'improving' | 'stable' | 'declining' | 'neutral';
   lastSessionDate?: string;
@@ -276,13 +276,24 @@ export default function Analytics() {
                 <CardDescription>가장 자주 나타나는 강점 패턴</CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="space-y-3">
+                <div className="space-y-4">
                   {analytics.topStrengths.map((strength, index) => (
-                    <div key={index} className="flex items-start gap-3" data-testid={`strength-${index}`}>
-                      <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200 shrink-0">
-                        {strength.count}회
-                      </Badge>
-                      <p className="text-sm text-slate-700 leading-relaxed">{strength.text}</p>
+                    <div key={index} className="pb-3 border-b last:border-b-0" data-testid={`strength-${index}`}>
+                      <div className="flex items-center gap-3 mb-2">
+                        <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200 shrink-0">
+                          {strength.count}회
+                        </Badge>
+                        <p className="font-semibold text-slate-900 text-sm">{strength.category}</p>
+                      </div>
+                      {strength.items.length > 0 && (
+                        <div className="ml-12 space-y-1">
+                          {strength.items.map((item, itemIndex) => (
+                            <p key={itemIndex} className="text-xs text-slate-600 leading-relaxed">
+                              • {item}
+                            </p>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>
@@ -298,13 +309,24 @@ export default function Analytics() {
                 <CardDescription>지속적으로 나타나는 개선점</CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="space-y-3">
+                <div className="space-y-4">
                   {analytics.topImprovements.map((improvement, index) => (
-                    <div key={index} className="flex items-start gap-3" data-testid={`improvement-${index}`}>
-                      <Badge variant="outline" className="bg-orange-50 text-orange-700 border-orange-200 shrink-0">
-                        {improvement.count}회
-                      </Badge>
-                      <p className="text-sm text-slate-700 leading-relaxed">{improvement.text}</p>
+                    <div key={index} className="pb-3 border-b last:border-b-0" data-testid={`improvement-${index}`}>
+                      <div className="flex items-center gap-3 mb-2">
+                        <Badge variant="outline" className="bg-orange-50 text-orange-700 border-orange-200 shrink-0">
+                          {improvement.count}회
+                        </Badge>
+                        <p className="font-semibold text-slate-900 text-sm">{improvement.category}</p>
+                      </div>
+                      {improvement.items.length > 0 && (
+                        <div className="ml-12 space-y-1">
+                          {improvement.items.map((item, itemIndex) => (
+                            <p key={itemIndex} className="text-xs text-slate-600 leading-relaxed">
+                              • {item}
+                            </p>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>

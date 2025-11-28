@@ -1624,25 +1624,38 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.log(`📊 카테고리화된 강점:`, categorizedStrengths);
       console.log(`📊 카테고리화된 개선점:`, categorizedImprovements);
       
-      // 빈도수 계산 함수
-      const getTopItems = (items: string[], limit: number = 5) => {
-        if (items.length === 0) return [];
+      // 빈도수 계산 함수 (원본 항목 포함)
+      const getTopItemsWithDetails = (originalItems: string[], categorizedItems: string[], limit: number = 5) => {
+        if (originalItems.length === 0) return [];
         
-        const frequency = items.reduce((acc, item) => {
-          if (item && typeof item === 'string') {
-            acc[item] = (acc[item] || 0) + 1;
+        // 카테고리별 원본 항목 그룹화
+        const categoryMap: Record<string, string[]> = {};
+        originalItems.forEach((original, index) => {
+          const category = categorizedItems[index];
+          if (!categoryMap[category]) {
+            categoryMap[category] = [];
           }
+          categoryMap[category].push(original);
+        });
+        
+        // 카테고리별 출현 빈도 계산
+        const frequency = categorizedItems.reduce((acc, category) => {
+          acc[category] = (acc[category] || 0) + 1;
           return acc;
         }, {} as Record<string, number>);
         
         return Object.entries(frequency)
           .sort((a, b) => b[1] - a[1])
           .slice(0, limit)
-          .map(([item, count]) => ({ text: item, count }));
+          .map(([category, count]) => ({
+            category,
+            count,
+            items: categoryMap[category] || []
+          }));
       };
       
-      const topStrengths = getTopItems(categorizedStrengths, 5);
-      const topImprovements = getTopItems(categorizedImprovements, 5);
+      const topStrengths = getTopItemsWithDetails(allStrengths, categorizedStrengths, 5);
+      const topImprovements = getTopItemsWithDetails(allImprovements, categorizedImprovements, 5);
       console.log(`✅ 최종 강점:`, topStrengths);
       console.log(`✅ 최종 개선점:`, topImprovements);
       
