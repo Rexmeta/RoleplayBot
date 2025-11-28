@@ -172,11 +172,11 @@ JSON 형식으로 응답하세요:
       return {
         overallScore: Math.min(100, Math.max(0, feedbackData.overallScore || 0)),
         scores: {
-          clarity: Math.min(5, Math.max(1, feedbackData.scores?.clarity || 3)),
-          empathy: Math.min(5, Math.max(1, feedbackData.scores?.empathy || 3)),
-          responsiveness: Math.min(5, Math.max(1, feedbackData.scores?.responsiveness || 3)),
-          structure: Math.min(5, Math.max(1, feedbackData.scores?.structure || 3)),
-          professionalism: Math.min(5, Math.max(1, feedbackData.scores?.professionalism || 2))
+          clarityLogic: Math.min(5, Math.max(1, feedbackData.scores?.clarity || 3)),
+          listeningEmpathy: Math.min(5, Math.max(1, feedbackData.scores?.empathy || 3)),
+          appropriatenessAdaptability: Math.min(5, Math.max(1, feedbackData.scores?.responsiveness || 3)),
+          persuasivenessImpact: Math.min(5, Math.max(1, feedbackData.scores?.structure || 3)),
+          strategicCommunication: Math.min(5, Math.max(1, feedbackData.scores?.professionalism || 2))
         },
         strengths: feedbackData.strengths || ["기본적인 대화 능력", "적절한 언어 사용", "상황 이해도"],
         improvements: feedbackData.improvements || ["더 구체적인 표현", "감정 교감 증진", "논리적 구조화"],
@@ -210,11 +210,11 @@ JSON 형식으로 응답하세요:
     return {
       overallScore: 60,
       scores: {
-        clarity: 3,
-        empathy: 3,
-        responsiveness: 3,
-        structure: 3,
-        professionalism: 2
+        clarityLogic: 3,
+        listeningEmpathy: 3,
+        appropriatenessAdaptability: 3,
+        persuasivenessImpact: 3,
+        strategicCommunication: 2
       },
       strengths: ["기본적인 대화 참여", "적절한 언어 사용", "상황에 맞는 응답"],
       improvements: ["시스템 안정성 확보 후 재평가 필요", "더 많은 대화 기회 필요", "기술적 문제 해결 후 재시도"],

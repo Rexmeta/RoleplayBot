@@ -361,7 +361,7 @@ export class MemStorage implements IStorage {
 export class PostgreSQLStorage implements IStorage {
   // Conversations
   async createConversation(insertConversation: InsertConversation): Promise<Conversation> {
-    const [conversation] = await db.insert(conversations).values(insertConversation).returning();
+    const [conversation] = await db.insert(conversations).values(insertConversation as any).returning();
     return conversation;
   }
 
@@ -393,7 +393,7 @@ export class PostgreSQLStorage implements IStorage {
 
   // Feedback
   async createFeedback(insertFeedback: InsertFeedback): Promise<Feedback> {
-    const [feedback] = await db.insert(feedbacks).values(insertFeedback).returning();
+    const [feedback] = await db.insert(feedbacks).values(insertFeedback as any).returning();
     return feedback;
   }
 
@@ -517,7 +517,7 @@ export class PostgreSQLStorage implements IStorage {
 
   // 새로운 데이터 구조: Scenario Runs
   async createScenarioRun(insertScenarioRun: InsertScenarioRun): Promise<ScenarioRun> {
-    const [scenarioRun] = await db.insert(scenarioRuns).values(insertScenarioRun).returning();
+    const [scenarioRun] = await db.insert(scenarioRuns).values(insertScenarioRun as any).returning();
     return scenarioRun;
   }
 
