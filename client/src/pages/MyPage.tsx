@@ -419,10 +419,39 @@ export default function MyPage() {
               <CardHeader>
                 <CardTitle>학습 인사이트</CardTitle>
               </CardHeader>
-              <CardContent>
-                <p className="text-slate-600">
-                  더 많은 시나리오를 완료하면 상세한 학습 통계와 성장 추이를 확인할 수 있습니다.
-                </p>
+              <CardContent className="space-y-4">
+                {stats.totalFeedbacks === 0 ? (
+                  <p className="text-slate-600">
+                    더 많은 시나리오를 완료하면 상세한 학습 통계와 성장 추이를 확인할 수 있습니다.
+                  </p>
+                ) : (
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between p-3 bg-blue-50 rounded-lg border border-blue-200">
+                      <span className="text-sm text-slate-700">총 학습 시간</span>
+                      <span className="font-semibold text-slate-900">{stats.completedScenarioRuns} 시나리오 완료</span>
+                    </div>
+                    <div className="flex items-center justify-between p-3 bg-green-50 rounded-lg border border-green-200">
+                      <span className="text-sm text-slate-700">평균 성과</span>
+                      <span className={`font-semibold ${getScoreColor(stats.averageScore)}`}>
+                        {stats.averageScore}점 ({getScoreBadge(stats.averageScore)})
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between p-3 bg-purple-50 rounded-lg border border-purple-200">
+                      <span className="text-sm text-slate-700">누적 피드백</span>
+                      <span className="font-semibold text-slate-900">{stats.totalFeedbacks}개</span>
+                    </div>
+                    <div className="p-3 bg-amber-50 rounded-lg border border-amber-200">
+                      <p className="text-sm text-slate-700 mb-2">💡 추천</p>
+                      <p className="text-sm text-slate-600">
+                        {stats.averageScore >= 80 
+                          ? "훌륭한 성과를 보이고 있습니다! 더 어려운 시나리오에 도전해보세요."
+                          : stats.averageScore >= 60
+                          ? "꾸준히 발전하고 있습니다. 피드백을 참고하여 개선 영역을 집중해보세요."
+                          : "다양한 시나리오를 반복해서 경험하면 좋아질 것입니다. 계속 도전해보세요!"}
+                      </p>
+                    </div>
+                  </div>
+                )}
               </CardContent>
             </Card>
           </TabsContent>

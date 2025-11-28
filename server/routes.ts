@@ -1460,6 +1460,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       console.log("피드백 저장 완료");
 
+      // ✨ PersonaRun의 score도 업데이트 (통계 계산용)
+      await storage.updatePersonaRun(personaRunId, {
+        score: feedbackData.overallScore
+      });
+      console.log(`✅ PersonaRun score updated: ${feedbackData.overallScore}`);
+
       // ✨ 모든 페르소나가 완료되었는지 확인하고 시나리오 자동 완료
       await checkAndCompleteScenario(personaRun.scenarioRunId);
 
