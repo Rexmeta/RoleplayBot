@@ -1521,23 +1521,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // @ts-ignore - req.user는 auth 미들웨어에서 설정됨
       const userId = req.user?.id;
       
+      // ✨ 완료된 시나리오 실행 조회 (세션 기준)
+      const userScenarioRuns = await storage.getUserScenarioRuns(userId);
+      const completedScenarioRuns = userScenarioRuns.filter(sr => sr.status === 'completed');
+      
       // 사용자의 모든 피드백 가져오기
       const userFeedbacks = await storage.getUserFeedbacks(userId);
       
       if (userFeedbacks.length === 0) {
         return res.json({
-          totalSessions: 0,
+          totalSessions: completedScenarioRuns.length, // ✨ scenario_run 기준
           averageScore: 0,
           categoryAverages: {},
           scoreHistory: [],
-          strengths: [],
-          improvements: [],
+          topStrengths: [],
+          topImprovements: [],
           overallGrade: 'N/A',
           progressTrend: 'neutral'
         });
       }
       
-      // 1. 전체 평균 스코어 계산
+      // 1. 전체 평균 스코어 계산 (피드백 기반)
       const averageScore = Math.round(
         userFeedbacks.reduce((acc, f) => acc + f.overallScore, 0) / userFeedbacks.length
       );
@@ -1573,7 +1577,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         .map(f => ({
           date: f.createdAt.toISOString(),
           score: f.overallScore,
-          conversationId: f.conversationId
+          conversationId: f.personaRunId || f.conversationId
         }))
         .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
       
@@ -1586,7 +1590,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       );
       
       // 빈도수 계산 함수
-      const getTopItems = (items: string[], limit: number = 3) => {
+      const getTopItems = (items: string[], limit: number = 5) => {
         const frequency = items.reduce((acc, item) => {
           acc[item] = (acc[item] || 0) + 1;
           return acc;
@@ -1624,7 +1628,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       };
       
       res.json({
-        totalSessions: userFeedbacks.length,
+        totalSessions: completedScenarioRuns.length, // ✨ 완료한 시나리오 실행 (세션 기준)
         averageScore,
         categoryAverages,
         scoreHistory,
