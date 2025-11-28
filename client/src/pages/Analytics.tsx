@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { TrendingUp, TrendingDown, Minus, Award, Target, BarChart3, Calendar } from "lucide-react";
 import { Link } from "wouter";
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts";
 
 type AnalyticsSummary = {
   totalSessions: number;
@@ -245,22 +246,75 @@ export default function Analytics() {
           <Card className="mb-8" data-testid="card-history">
             <CardHeader>
               <CardTitle>점수 변화 추이</CardTitle>
-              <CardDescription>시간에 따른 성장 곡선</CardDescription>
+              <CardDescription>시간에 따른 성장 곡선 (0~100 점)</CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="space-y-2">
-                {analytics.scoreHistory.map((entry, index) => (
-                  <div key={entry.conversationId} className="flex items-center gap-4" data-testid={`history-${index}`}>
-                    <div className="text-sm text-slate-500 w-40">
-                      <div>{new Date(entry.date).toLocaleDateString('ko-KR', { month: 'short', day: 'numeric' })}</div>
-                      {entry.time && <div className="text-xs text-slate-400">{entry.time}</div>}
-                    </div>
-                    <Progress value={entry.score} className="flex-1 h-2" />
-                    <div className="text-sm font-semibold text-slate-900 w-12 text-right" data-testid={`history-score-${index}`}>
-                      {entry.score}
-                    </div>
+              <div className="w-full h-80">
+                <ResponsiveContainer width="100%" height="100%">
+                  <LineChart
+                    data={analytics.scoreHistory.map((entry, index) => ({
+                      name: `${new Date(entry.date).toLocaleDateString('ko-KR', { month: 'short', day: 'numeric' })} ${entry.time || ''}`,
+                      score: entry.score,
+                      date: new Date(entry.date).toLocaleDateString('ko-KR')
+                    }))}
+                    margin={{ top: 5, right: 30, left: 0, bottom: 5 }}
+                  >
+                    <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                    <XAxis 
+                      dataKey="name" 
+                      stroke="#64748b"
+                      style={{ fontSize: '12px' }}
+                    />
+                    <YAxis 
+                      stroke="#64748b"
+                      domain={[0, 100]}
+                      style={{ fontSize: '12px' }}
+                    />
+                    <Tooltip
+                      contentStyle={{
+                        backgroundColor: '#fff',
+                        border: '1px solid #e2e8f0',
+                        borderRadius: '8px',
+                        padding: '8px 12px'
+                      }}
+                      formatter={(value) => [`${value}점`, '점수']}
+                      labelStyle={{ color: '#1e293b' }}
+                    />
+                    <Legend 
+                      wrapperStyle={{ paddingTop: '20px' }}
+                      formatter={() => '종합 점수'}
+                    />
+                    <Line
+                      type="monotone"
+                      dataKey="score"
+                      stroke="#2563eb"
+                      strokeWidth={3}
+                      dot={{ fill: '#2563eb', r: 5 }}
+                      activeDot={{ r: 7 }}
+                      isAnimationActive={true}
+                    />
+                  </LineChart>
+                </ResponsiveContainer>
+              </div>
+              <div className="mt-6 grid grid-cols-3 gap-4 text-sm">
+                <div className="p-3 bg-slate-50 rounded-lg">
+                  <div className="text-slate-600 mb-1">최고 점수</div>
+                  <div className="text-2xl font-bold text-slate-900">
+                    {Math.max(...analytics.scoreHistory.map(e => e.score))}
                   </div>
-                ))}
+                </div>
+                <div className="p-3 bg-slate-50 rounded-lg">
+                  <div className="text-slate-600 mb-1">최저 점수</div>
+                  <div className="text-2xl font-bold text-slate-900">
+                    {Math.min(...analytics.scoreHistory.map(e => e.score))}
+                  </div>
+                </div>
+                <div className="p-3 bg-slate-50 rounded-lg">
+                  <div className="text-slate-600 mb-1">점수 범위</div>
+                  <div className="text-2xl font-bold text-slate-900">
+                    {Math.max(...analytics.scoreHistory.map(e => e.score)) - Math.min(...analytics.scoreHistory.map(e => e.score))}
+                  </div>
+                </div>
               </div>
             </CardContent>
           </Card>
