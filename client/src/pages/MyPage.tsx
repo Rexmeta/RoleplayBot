@@ -146,6 +146,7 @@ export default function MyPage() {
     return {
       title: scenario?.title || scenarioId,
       difficulty: scenario?.difficulty || 1,
+      personas: scenario?.personas || [],
     };
   };
 

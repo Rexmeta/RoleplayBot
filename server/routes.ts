@@ -159,7 +159,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
     // 피드백에 시간 정보 추가
     feedbackData.conversationDuration = conversationDurationSeconds;
-    feedbackData.conversationDurationMinutes = conversationDuration;
     feedbackData.averageResponseTime = averageResponseTime;
     feedbackData.timePerformance = timePerformance;
 
@@ -282,12 +281,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         throw new Error(`Scenario not found: ${validatedData.scenarioId}`);
       }
       
-      const scenarioPersona = scenarioObj.personas.find((p: any) => p.id === personaId);
+      const scenarioPersona = scenarioObj.personas.find((p: any) => p.id === personaId) as any;
       if (!scenarioPersona) {
         throw new Error(`Persona not found in scenario: ${personaId}`);
       }
       
-      const mbtiType = scenarioPersona.personaRef?.replace('.json', '');
+      const mbtiType = (scenarioPersona as any).mbti || (scenarioPersona as any).personaRef?.replace('.json', '');
       const mbtiPersona = mbtiType ? await fileManager.getPersonaByMBTI(mbtiType) : null;
       
       // ✨ phase 자동 계산: 같은 scenario_run 내의 persona_run 개수 + 1
@@ -297,12 +296,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const personaRun = await storage.createPersonaRun({
         scenarioRunId: scenarioRun.id,
         personaId,
-        personaName: scenarioPersona.name,
+        personaName: (scenarioPersona as any).name,
         personaSnapshot: validatedData.personaSnapshot || {},
         mbtiType: mbtiType || null,
-        phase, // ✨ phase 설정
-        mode: validatedData.mode, // 대화 모드 저장
-        difficulty: validatedData.difficulty, // 난이도 저장
+        phase,
+        mode: validatedData.mode,
+        difficulty: validatedData.difficulty || 2,
         status: 'active'
       });
       
@@ -311,10 +310,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // 실시간 음성 모드는 WebSocket을 통해 초기 메시지를 받으므로 건너뛰기
       if (validatedData.mode === 'realtime_voice') {
         console.log('🎙️ 실시간 음성 모드 - Gemini 호출 건너뛰기');
-        // 레거시 호환성을 위해 conversations 구조로 반환
         return res.json({
           id: personaRun.id,
-          scenarioRunId: scenarioRun.id, // scenarioRunId 추가
+          scenarioRunId: scenarioRun.id,
           scenarioId: validatedData.scenarioId,
           scenarioName: validatedData.scenarioName,
           personaId,
@@ -323,7 +321,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           turnCount: 0,
           status: 'active',
           mode: validatedData.mode,
-          difficulty: validatedData.difficulty,
+          difficulty: validatedData.difficulty || 2,
           userId,
           createdAt: scenarioRun.startedAt,
           updatedAt: scenarioRun.startedAt
@@ -332,26 +330,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       console.log('💬 텍스트/TTS 모드 - Gemini로 초기 메시지 생성');
       
-      // 첫 번째 AI 메시지 자동 생성
       try {
         const persona = {
-          id: scenarioPersona.id,
-          name: scenarioPersona.name,
-          role: scenarioPersona.position,
-          department: scenarioPersona.department,
+          id: (scenarioPersona as any).id,
+          name: (scenarioPersona as any).name,
+          role: (scenarioPersona as any).position,
+          department: (scenarioPersona as any).department,
           personality: mbtiPersona?.communication_style || '균형 잡힌 의사소통',
           responseStyle: mbtiPersona?.communication_patterns?.opening_style || '상황에 맞는 방식으로 대화 시작',
           goals: mbtiPersona?.communication_patterns?.win_conditions || ['목표 달성'],
           background: mbtiPersona?.background?.personal_values?.join(', ') || '전문성'
         };
 
-        const scenarioWithUserDifficulty = {
-          ...scenarioObj,
-          difficulty: validatedData.difficulty
-        };
-
         const aiResult = await generateAIResponse(
-          scenarioWithUserDifficulty,
+          scenarioObj as any,
           [],
           persona
         );
