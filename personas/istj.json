@@ -79,15 +79,15 @@
     "female": {
       "expressions": {
         "중립": "/personas/istj/female/neutral.png?t=1764294499745",
-        "기쁨": "",
-        "슬픔": "",
-        "분노": "",
-        "놀람": "",
-        "호기심": "",
-        "불안": "",
-        "피로": "",
-        "실망": "",
-        "당혹": ""
+        "기쁨": "/personas/istj/female/joy.png?t=1764294730526",
+        "슬픔": "/personas/istj/female/sad.png?t=1764294730526",
+        "분노": "/personas/istj/female/angry.png?t=1764294730526",
+        "놀람": "/personas/istj/female/surprise.png?t=1764294730526",
+        "호기심": "/personas/istj/female/curious.png?t=1764294730526",
+        "불안": "/personas/istj/female/anxious.png?t=1764294730526",
+        "피로": "/personas/istj/female/tired.png?t=1764294730526",
+        "실망": "/personas/istj/female/disappointed.png?t=1764294730526",
+        "당혹": "/personas/istj/female/confused.png?t=1764294730526"
       }
     }
   }

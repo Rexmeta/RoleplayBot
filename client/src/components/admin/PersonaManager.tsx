@@ -576,7 +576,9 @@ export function PersonaManager() {
         emotion: persona.voice?.emotion || ''
       },
       images: {
-        base: persona.images?.base || '',
+        base: persona.gender === 'male'
+          ? (persona.images?.male?.expressions?.중립 || persona.images?.base || '')
+          : (persona.images?.female?.expressions?.중립 || persona.images?.base || ''),
         style: persona.images?.style || '',
         male: {
           expressions: {
