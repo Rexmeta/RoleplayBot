@@ -1600,14 +1600,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
           if (lower.includes('명확') || lower.includes('핵심') || lower.includes('제시')) return '명확한 문제 제시';
           if (lower.includes('일관') || lower.includes('주장') || lower.includes('설득')) return '일관된 주장 유지';
           if (lower.includes('논리') || lower.includes('대응') || lower.includes('반박')) return '논리적 대응';
-          if (lower.includes('대안') || lower.includes('해결')) return '적극적 태도 & 대안 제시';
-          if (lower.includes('태도') || lower.includes('적극')) return '적극적 태도 & 대안 제시';
-          if (lower.includes('인지') || lower.includes('전환')) return '상황 인식 & 전환';
+          if (lower.includes('대안') || lower.includes('해결')) return '적극적 태도와 대안 제시';
+          if (lower.includes('태도') || lower.includes('적극')) return '적극적 태도와 대안 제시';
+          if (lower.includes('인지') || lower.includes('전환')) return '상황 인식과 전환';
           if (lower.includes('공감') || lower.includes('상대') || lower.includes('이해')) return '상대방 고려';
           return '의사소통 능력';
         } else {
           // 개선점 카테고리
-          if (lower.includes('비언어') || lower.includes('침묵') || lower.includes('망설')) return '명확한 표현 & 자신감';
+          if (lower.includes('비언어') || lower.includes('침묵') || lower.includes('망설')) return '명확한 표현과 자신감';
           if (lower.includes('공감') || lower.includes('이해') || lower.includes('감정')) return '공감 표현 강화';
           if (lower.includes('구체') || lower.includes('대안') || lower.includes('실행')) return '구체적 대안 제시';
           if (lower.includes('비난') || lower.includes('표현') || lower.includes('용어')) return '협력적 표현';
@@ -1659,29 +1659,47 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.log(`✅ 최종 강점:`, topStrengths);
       console.log(`✅ 최종 개선점:`, topImprovements);
       
-      // 5. 성장 추이 판단 (최근 5개 vs 이전)
+      // 5. 성장 추이 판단 (더 적응적인 알고리즘)
       let progressTrend: 'improving' | 'stable' | 'declining' | 'neutral' = 'neutral';
-      if (scoreHistory.length >= 6) {
-        const recentScores = scoreHistory.slice(-5).map(s => s.score);
-        const olderScores = scoreHistory.slice(0, -5).map(s => s.score);
-        const recentAvg = recentScores.reduce((a, b) => a + b, 0) / recentScores.length;
-        const olderAvg = olderScores.reduce((a, b) => a + b, 0) / olderScores.length;
-        const difference = recentAvg - olderAvg;
-        
-        console.log(`📈 성장추세 계산:`);
-        console.log(`  - 전체 점수: ${scoreHistory.map(s => s.score).join(', ')}`);
-        console.log(`  - 최근 5개: ${recentScores.join(', ')} (평균: ${recentAvg.toFixed(1)})`);
-        console.log(`  - 이전 점수: ${olderScores.join(', ')} (평균: ${olderAvg.toFixed(1)})`);
-        console.log(`  - 차이: ${difference.toFixed(1)} (threshold: ±5)`);
-        
-        // 임계값을 더 합리적으로 조정 (5점 → 2점)
-        if (recentAvg > olderAvg + 2) progressTrend = 'improving';
-        else if (recentAvg < olderAvg - 2) progressTrend = 'declining';
-        else progressTrend = 'stable';
-        
+      if (scoreHistory.length >= 2) {
+        // 충분한 데이터가 있으면 최근과 이전 비교
+        if (scoreHistory.length >= 6) {
+          const recentScores = scoreHistory.slice(-5).map(s => s.score);
+          const olderScores = scoreHistory.slice(0, -5).map(s => s.score);
+          const recentAvg = recentScores.reduce((a, b) => a + b, 0) / recentScores.length;
+          const olderAvg = olderScores.reduce((a, b) => a + b, 0) / olderScores.length;
+          const difference = recentAvg - olderAvg;
+          
+          console.log(`📈 성장추세 계산 (6개 이상):`);
+          console.log(`  - 최근 5개: ${recentScores.join(', ')} (평균: ${recentAvg.toFixed(1)})`);
+          console.log(`  - 이전 점수: ${olderScores.join(', ')} (평균: ${olderAvg.toFixed(1)})`);
+          console.log(`  - 차이: ${difference.toFixed(1)}`);
+          
+          if (recentAvg > olderAvg + 2) progressTrend = 'improving';
+          else if (recentAvg < olderAvg - 2) progressTrend = 'declining';
+          else progressTrend = 'stable';
+        } else {
+          // 데이터가 2-5개면 최근 vs 초기 비교
+          const midpoint = Math.ceil(scoreHistory.length / 2);
+          const recentScores = scoreHistory.slice(midpoint).map(s => s.score);
+          const olderScores = scoreHistory.slice(0, midpoint).map(s => s.score);
+          const recentAvg = recentScores.reduce((a, b) => a + b, 0) / recentScores.length;
+          const olderAvg = olderScores.reduce((a, b) => a + b, 0) / olderScores.length;
+          const difference = recentAvg - olderAvg;
+          
+          console.log(`📈 성장추세 계산 (2-5개):`);
+          console.log(`  - 전체: ${scoreHistory.map(s => s.score).join(', ')}`);
+          console.log(`  - 최근: ${recentScores.join(', ')} (평균: ${recentAvg.toFixed(1)})`);
+          console.log(`  - 이전: ${olderScores.join(', ')} (평균: ${olderAvg.toFixed(1)})`);
+          console.log(`  - 차이: ${difference.toFixed(1)}`);
+          
+          if (recentAvg > olderAvg + 1) progressTrend = 'improving';
+          else if (recentAvg < olderAvg - 1) progressTrend = 'declining';
+          else progressTrend = 'stable';
+        }
         console.log(`  ✅ 결과: ${progressTrend}`);
       } else {
-        console.log(`📈 성장추세 미계산: 데이터 부족 (${scoreHistory.length}개, 필요: 6개)`);
+        console.log(`📈 성장추세 미계산: 데이터 부족 (${scoreHistory.length}개, 필요: 2개 이상)`);
       }
       
       // 6. 종합 등급 계산
