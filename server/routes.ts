@@ -1591,6 +1591,39 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.log(`📝 강점 내용:`, allStrengths);
       console.log(`📝 개선점 내용:`, allImprovements);
       
+      // 키워드 매핑으로 유사한 항목 카테고리화
+      const categorizeItem = (text: string, type: 'strength' | 'improvement'): string => {
+        const lower = text.toLowerCase();
+        
+        if (type === 'strength') {
+          // 강점 카테고리
+          if (lower.includes('명확') || lower.includes('핵심') || lower.includes('제시')) return '명확한 문제 제시';
+          if (lower.includes('일관') || lower.includes('주장') || lower.includes('설득')) return '일관된 주장 유지';
+          if (lower.includes('논리') || lower.includes('대응') || lower.includes('반박')) return '논리적 대응';
+          if (lower.includes('대안') || lower.includes('해결')) return '적극적 태도 & 대안 제시';
+          if (lower.includes('태도') || lower.includes('적극')) return '적극적 태도 & 대안 제시';
+          if (lower.includes('인지') || lower.includes('전환')) return '상황 인식 & 전환';
+          if (lower.includes('공감') || lower.includes('상대') || lower.includes('이해')) return '상대방 고려';
+          return '의사소통 능력';
+        } else {
+          // 개선점 카테고리
+          if (lower.includes('비언어') || lower.includes('침묵') || lower.includes('망설')) return '명확한 표현 & 자신감';
+          if (lower.includes('공감') || lower.includes('이해') || lower.includes('감정')) return '공감 표현 강화';
+          if (lower.includes('구체') || lower.includes('대안') || lower.includes('실행')) return '구체적 대안 제시';
+          if (lower.includes('비난') || lower.includes('표현') || lower.includes('용어')) return '협력적 표현';
+          if (lower.includes('현실') || lower.includes('실현') || lower.includes('가능')) return '현실성 검토';
+          if (lower.includes('데이터') || lower.includes('근거') || lower.includes('논거')) return '데이터 기반 설득';
+          return '의사소통 개선';
+        }
+      };
+      
+      // 카테고리화된 강점/개선점
+      const categorizedStrengths = allStrengths.map(s => categorizeItem(s, 'strength'));
+      const categorizedImprovements = allImprovements.map(i => categorizeItem(i, 'improvement'));
+      
+      console.log(`📊 카테고리화된 강점:`, categorizedStrengths);
+      console.log(`📊 카테고리화된 개선점:`, categorizedImprovements);
+      
       // 빈도수 계산 함수
       const getTopItems = (items: string[], limit: number = 5) => {
         if (items.length === 0) return [];
@@ -1608,8 +1641,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
           .map(([item, count]) => ({ text: item, count }));
       };
       
-      const topStrengths = getTopItems(allStrengths, 5);
-      const topImprovements = getTopItems(allImprovements, 5);
+      const topStrengths = getTopItems(categorizedStrengths, 5);
+      const topImprovements = getTopItems(categorizedImprovements, 5);
       console.log(`✅ 최종 강점:`, topStrengths);
       console.log(`✅ 최종 개선점:`, topImprovements);
       
