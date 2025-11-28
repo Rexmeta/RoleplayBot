@@ -427,6 +427,7 @@ export default function Home() {
               role: p.position || p.role,
               department: p.department,
               experience: p.experience,
+              gender: p.gender,
               personality: {
                 traits: [],
                 communicationStyle: p.stance || '',
@@ -460,7 +461,7 @@ export default function Home() {
               stance: p.stance,
               goal: p.goal,
               tradeoff: p.tradeoff,
-              mbti: p.id?.toUpperCase()
+              mbti: p.mbti || p.id?.toUpperCase()
             }))}
             completedPersonaIds={completedPersonaIds}
             onPersonaSelect={handlePersonaSelect}
@@ -516,6 +517,7 @@ export default function Home() {
               role: p.position || p.role,
               department: p.department,
               experience: p.experience,
+              gender: p.gender,
               personality: {
                 traits: [],
                 communicationStyle: p.stance || '',
@@ -549,7 +551,7 @@ export default function Home() {
               stance: p.stance,
               goal: p.goal,
               tradeoff: p.tradeoff,
-              mbti: p.id?.toUpperCase()
+              mbti: p.mbti || p.id?.toUpperCase()
             }))}
             completedPersonaIds={completedPersonaIds}
             onSubmit={async (reflection) => {
