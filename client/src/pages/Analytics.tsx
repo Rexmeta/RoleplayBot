@@ -18,6 +18,7 @@ type AnalyticsSummary = {
   };
   scoreHistory: Array<{
     date: string;
+    time?: string;
     score: number;
     conversationId: string;
   }>;
@@ -250,8 +251,9 @@ export default function Analytics() {
               <div className="space-y-2">
                 {analytics.scoreHistory.map((entry, index) => (
                   <div key={entry.conversationId} className="flex items-center gap-4" data-testid={`history-${index}`}>
-                    <div className="text-sm text-slate-500 w-32">
-                      {new Date(entry.date).toLocaleDateString('ko-KR', { month: 'short', day: 'numeric' })}
+                    <div className="text-sm text-slate-500 w-40">
+                      <div>{new Date(entry.date).toLocaleDateString('ko-KR', { month: 'short', day: 'numeric' })}</div>
+                      {entry.time && <div className="text-xs text-slate-400">{entry.time}</div>}
                     </div>
                     <Progress value={entry.score} className="flex-1 h-2" />
                     <div className="text-sm font-semibold text-slate-900 w-12 text-right" data-testid={`history-score-${index}`}>

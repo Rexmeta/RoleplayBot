@@ -1566,11 +1566,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       // 3. 시간순 스코어 이력 (성장 추이 분석용)
       const scoreHistory = userFeedbacks
-        .map(f => ({
-          date: f.createdAt.toISOString(),
-          score: f.overallScore,
-          conversationId: f.personaRunId || f.conversationId
-        }))
+        .map(f => {
+          const createdDate = new Date(f.createdAt);
+          return {
+            date: f.createdAt.toISOString(),
+            time: createdDate.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' }),
+            score: f.overallScore,
+            conversationId: f.personaRunId || f.conversationId
+          };
+        })
         .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
       
       // 4. 강점/약점 패턴 분석 (반복되는 항목 추출)
