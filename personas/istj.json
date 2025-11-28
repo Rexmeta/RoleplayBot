@@ -1,7 +1,7 @@
 {
   "id": "istj",
   "mbti": "ISTJ",
-  "gender": "male",
+  "gender": "female",
   "personality_traits": [
     "경험 기반 사고",
     "현실적",
@@ -62,17 +62,33 @@
   "images": {
     "base": "/personas/istj/neutral.png",
     "style": "한국인 회의실에 앉아서 실제 사진 ",
-    "expressions": {
-      "중립": "/personas/istj/neutral.png",
-      "기쁨": "/personas/istj/joy.png",
-      "슬픔": "/personas/istj/sad.png",
-      "분노": "/personas/istj/angry.png",
-      "놀람": "/personas/istj/surprise.png",
-      "호기심": "/personas/istj/curious.png",
-      "불안": "/personas/istj/anxious.png",
-      "피로": "/personas/istj/tired.png",
-      "실망": "/personas/istj/disappointed.png",
-      "당혹": "/personas/istj/confused.png"
+    "male": {
+      "expressions": {
+        "중립": "/personas/istj/male/neutral.png?t=1764294354759",
+        "기쁨": "/personas/istj/male/joy.png?t=1764294479147",
+        "슬픔": "/personas/istj/male/sad.png?t=1764294479147",
+        "분노": "/personas/istj/male/angry.png?t=1764294479147",
+        "놀람": "/personas/istj/male/surprise.png?t=1764294479147",
+        "호기심": "/personas/istj/male/curious.png?t=1764294479147",
+        "불안": "/personas/istj/male/anxious.png?t=1764294479147",
+        "피로": "/personas/istj/male/tired.png?t=1764294479147",
+        "실망": "/personas/istj/male/disappointed.png?t=1764294479147",
+        "당혹": "/personas/istj/male/confused.png?t=1764294479147"
+      }
+    },
+    "female": {
+      "expressions": {
+        "중립": "/personas/istj/female/neutral.png?t=1764294499745",
+        "기쁨": "",
+        "슬픔": "",
+        "분노": "",
+        "놀람": "",
+        "호기심": "",
+        "불안": "",
+        "피로": "",
+        "실망": "",
+        "당혹": ""
+      }
     }
   }
 }

@@ -385,6 +385,8 @@ export function PersonaManager() {
           femaleExpressions['중립'] = imageUrlWithTimestamp;
           updatedImages.female = { expressions: femaleExpressions as any };
         }
+        // base 필드도 함께 업데이트 (성별 폴더 포함)
+        updatedImages.base = imageUrlWithTimestamp;
         updatedFormData.images = updatedImages as any;
         setFormData(updatedFormData);
 
@@ -419,8 +421,13 @@ export function PersonaManager() {
       return;
     }
 
-    // 기존 기본 이미지가 있는지 확인
-    if (formData.images?.base) {
+    // 현재 성별의 기본 이미지(중립)가 있는지 확인
+    const currentGender = formData.gender;
+    const genderImages = currentGender === 'male' 
+      ? formData.images?.male?.expressions?.['중립']
+      : formData.images?.female?.expressions?.['중립'];
+    
+    if (genderImages) {
       setShowBaseImageConfirm(true);
     } else {
       // 기존 이미지가 없으면 바로 생성
