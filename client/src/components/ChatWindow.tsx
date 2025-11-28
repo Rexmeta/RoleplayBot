@@ -186,10 +186,11 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
   const getCharacterImage = (emotion: string): string => {
     const emotionEn = emotionToEnglish[emotion] || 'neutral';
     const genderFolder = persona.gender || 'male';
+    const mbtiId = persona.mbti?.toLowerCase() || persona.id;
     
     // 페르소나별 이미지가 사용 가능한지 확인
     if (personaImagesAvailable[emotion]) {
-      return `/personas/${persona.id}/${genderFolder}/${emotionEn}.png`;
+      return `/personas/${mbtiId}/${genderFolder}/${emotionEn}.png`;
     }
     
     // 페르소나별 이미지가 없으면 폴백 이미지 사용
@@ -205,13 +206,14 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
   useEffect(() => {
     const checkPersonaImages = async () => {
       const genderFolder = persona.gender || 'male';
+      const mbtiId = persona.mbti?.toLowerCase() || persona.id;
       // 페르소나별 이미지 체크
       const checkPromises = Object.entries(emotionToEnglish).map(([emotionKr, emotionEn]) => {
         return new Promise<void>((resolve) => {
           const img = new Image();
           img.onload = () => {
             setPersonaImagesAvailable(prev => ({ ...prev, [emotionKr]: true }));
-            console.log(`✅ 페르소나별 이미지 로딩 성공: ${emotionKr}`);
+            console.log(`✅ 페르소나별 이미지 로딩 성공: ${emotionKr} (${mbtiId}/${genderFolder})`);
             resolve();
           };
           img.onerror = () => {
@@ -219,7 +221,7 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
             console.log(`⚠️ 페르소나별 이미지 없음, 공용 이미지 사용: ${emotionKr}`);
             resolve();
           };
-          img.src = `/personas/${persona.id}/${genderFolder}/${emotionEn}.png`;
+          img.src = `/personas/${mbtiId}/${genderFolder}/${emotionEn}.png`;
         });
       });
 
@@ -245,7 +247,7 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
     };
     
     checkPersonaImages();
-  }, [persona.id]);
+  }, [persona.id, persona.mbti, persona.gender]);
 
   // 리얼타임 음성 모드에서는 턴 제한 없음, 다른 모드에서는 3턴
   const maxTurns = inputMode === 'realtime-voice' ? 999 : 3;
