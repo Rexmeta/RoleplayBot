@@ -1,6 +1,7 @@
 {
   "id": "istp",
   "mbti": "ISTP",
+  "gender": "female",
   "personality_traits": [
     "분석적",
     "현실적",
@@ -50,8 +51,36 @@
     "pace": "빠르거나 느릴 수 있음",
     "emotion": "차분하지만 실용적"
   },
-  "image": {
-    "profile": "https://picsum.photos/seed/istp/150/150",
-    "style": "실제 인물 사진 느낌"
+  "images": {
+    "base": "/personas/istp/female/neutral.png?t=1764295341383",
+    "style": "한국인 상반신 전체 오피스 배경 ",
+    "male": {
+      "expressions": {
+        "중립": "/personas/istp/male/neutral.png?t=1764295213178",
+        "기쁨": "/personas/istp/male/joy.png?t=1764295323405",
+        "슬픔": "/personas/istp/male/sad.png?t=1764295323405",
+        "분노": "/personas/istp/male/angry.png?t=1764295323405",
+        "놀람": "/personas/istp/male/surprise.png?t=1764295323405",
+        "호기심": "/personas/istp/male/curious.png?t=1764295323405",
+        "불안": "/personas/istp/male/anxious.png?t=1764295323405",
+        "피로": "/personas/istp/male/tired.png?t=1764295323405",
+        "실망": "/personas/istp/male/disappointed.png?t=1764295323405",
+        "당혹": "/personas/istp/male/confused.png?t=1764295323405"
+      }
+    },
+    "female": {
+      "expressions": {
+        "중립": "/personas/istp/female/neutral.png?t=1764295341383",
+        "기쁨": "/personas/istp/female/joy.png?t=1764295430367",
+        "슬픔": "/personas/istp/female/sad.png?t=1764295430367",
+        "분노": "/personas/istp/female/angry.png?t=1764295430367",
+        "놀람": "/personas/istp/female/surprise.png?t=1764295430367",
+        "호기심": "/personas/istp/female/curious.png?t=1764295430367",
+        "불안": "/personas/istp/female/anxious.png?t=1764295430367",
+        "피로": "/personas/istp/female/tired.png?t=1764295430367",
+        "실망": "/personas/istp/female/disappointed.png?t=1764295430367",
+        "당혹": "/personas/istp/female/confused.png?t=1764295430367"
+      }
+    }
   }
 }

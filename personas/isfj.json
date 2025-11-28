@@ -1,7 +1,7 @@
 {
   "id": "isfj",
   "mbti": "ISFJ",
-  "gender": "female",
+  "gender": "male",
   "personality_traits": [
     "헌신적",
     "세심함",
@@ -52,19 +52,35 @@
     "emotion": "균형 잡힌 감정 표현"
   },
   "images": {
-    "base": "/personas/isfj/neutral.png",
-    "style": "한국인 여성 실물 사진 회의실에 앉아서 ",
-    "expressions": {
-      "중립": "/personas/isfj/neutral.png",
-      "기쁨": "/personas/isfj/joy.png",
-      "슬픔": "/personas/isfj/sad.png",
-      "분노": "/personas/isfj/angry.png",
-      "놀람": "/personas/isfj/surprise.png",
-      "호기심": "/personas/isfj/curious.png",
-      "불안": "/personas/isfj/anxious.png",
-      "피로": "/personas/isfj/tired.png",
-      "실망": "/personas/isfj/disappointed.png",
-      "당혹": "/personas/isfj/confused.png"
+    "base": "/personas/isfj/male/neutral.png?t=1764295659091",
+    "style": "한국인 실물 사진 회의실에 앉아서 ",
+    "male": {
+      "expressions": {
+        "중립": "/personas/isfj/male/neutral.png?t=1764295659091",
+        "기쁨": "/personas/isfj/male/joy.png?t=1764295748954",
+        "슬픔": "/personas/isfj/male/sad.png?t=1764295748954",
+        "분노": "/personas/isfj/male/angry.png?t=1764295748954",
+        "놀람": "/personas/isfj/male/surprise.png?t=1764295748954",
+        "호기심": "/personas/isfj/male/curious.png?t=1764295748954",
+        "불안": "/personas/isfj/male/anxious.png?t=1764295748954",
+        "피로": "/personas/isfj/male/tired.png?t=1764295748954",
+        "실망": "/personas/isfj/male/disappointed.png?t=1764295748954",
+        "당혹": "/personas/isfj/male/confused.png?t=1764295748954"
+      }
+    },
+    "female": {
+      "expressions": {
+        "중립": "/personas/isfj/female/neutral.png?t=1764295511269",
+        "기쁨": "/personas/isfj/female/joy.png?t=1764295610111",
+        "슬픔": "/personas/isfj/female/sad.png?t=1764295610111",
+        "분노": "/personas/isfj/female/angry.png?t=1764295610111",
+        "놀람": "/personas/isfj/female/surprise.png?t=1764295610111",
+        "호기심": "/personas/isfj/female/curious.png?t=1764295610111",
+        "불안": "/personas/isfj/female/anxious.png?t=1764295610111",
+        "피로": "/personas/isfj/female/tired.png?t=1764295610111",
+        "실망": "/personas/isfj/female/disappointed.png?t=1764295610111",
+        "당혹": "/personas/isfj/female/confused.png?t=1764295610111"
+      }
     }
   }
 }
