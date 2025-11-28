@@ -1578,17 +1578,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
         .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
       
       // 4. 강점/약점 패턴 분석 (반복되는 항목 추출)
-      const allStrengths = userFeedbacks.flatMap(f => 
-        ((f.detailedFeedback as any).strengths || []) as string[]
-      );
-      const allImprovements = userFeedbacks.flatMap(f => 
-        ((f.detailedFeedback as any).improvements || []) as string[]
-      );
+      const allStrengths = userFeedbacks.flatMap(f => {
+        const strengths = (f.detailedFeedback as any)?.strengths || [];
+        return Array.isArray(strengths) ? strengths : [];
+      });
+      const allImprovements = userFeedbacks.flatMap(f => {
+        const improvements = (f.detailedFeedback as any)?.improvements || [];
+        return Array.isArray(improvements) ? improvements : [];
+      });
+      
+      console.log(`📊 강점 수집: ${allStrengths.length}개, 개선점 수집: ${allImprovements.length}개`);
+      console.log(`📝 강점 내용:`, allStrengths);
+      console.log(`📝 개선점 내용:`, allImprovements);
       
       // 빈도수 계산 함수
       const getTopItems = (items: string[], limit: number = 5) => {
+        if (items.length === 0) return [];
+        
         const frequency = items.reduce((acc, item) => {
-          acc[item] = (acc[item] || 0) + 1;
+          if (item && typeof item === 'string') {
+            acc[item] = (acc[item] || 0) + 1;
+          }
           return acc;
         }, {} as Record<string, number>);
         
@@ -1600,6 +1610,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       const topStrengths = getTopItems(allStrengths, 5);
       const topImprovements = getTopItems(allImprovements, 5);
+      console.log(`✅ 최종 강점:`, topStrengths);
+      console.log(`✅ 최종 개선점:`, topImprovements);
       
       // 5. 성장 추이 판단 (최근 5개 vs 이전)
       let progressTrend: 'improving' | 'stable' | 'declining' | 'neutral' = 'neutral';
