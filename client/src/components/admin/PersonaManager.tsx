@@ -927,9 +927,22 @@ export function PersonaManager() {
 
               <div>
                 <Label htmlFor="gender">성별</Label>
-                <Select value={formData.gender} onValueChange={(value: 'male' | 'female') => 
-                  setFormData(prev => ({ ...prev, gender: value }))
-                }>
+                <Select value={formData.gender} onValueChange={(value: 'male' | 'female') => {
+                  setFormData(prev => {
+                    const neutralImage = value === 'male' 
+                      ? prev.images?.male?.expressions?.['중립']
+                      : prev.images?.female?.expressions?.['중립'];
+                    
+                    return {
+                      ...prev, 
+                      gender: value,
+                      images: {
+                        ...prev.images,
+                        base: neutralImage || prev.images?.base || ''
+                      }
+                    };
+                  });
+                }}>
                   <SelectTrigger data-testid="select-gender">
                     <SelectValue placeholder="성별 선택" />
                   </SelectTrigger>
