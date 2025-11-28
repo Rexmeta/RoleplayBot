@@ -246,22 +246,31 @@ export default function Analytics() {
           <Card className="mb-8" data-testid="card-history">
             <CardHeader>
               <CardTitle>점수 변화 추이</CardTitle>
-              <CardDescription>시간에 따른 성장 곡선 (0~100 점)</CardDescription>
+              <CardDescription>날짜별 평균 점수 추이 (0~100 점)</CardDescription>
             </CardHeader>
             <CardContent>
               <div className="w-full h-80">
                 <ResponsiveContainer width="100%" height="100%">
                   <LineChart
-                    data={analytics.scoreHistory.map((entry, index) => ({
-                      name: `${new Date(entry.date).toLocaleDateString('ko-KR', { month: 'short', day: 'numeric' })} ${entry.time || ''}`,
-                      score: entry.score,
-                      date: new Date(entry.date).toLocaleDateString('ko-KR')
+                    data={Object.entries(
+                      analytics.scoreHistory.reduce((acc, entry) => {
+                        const dateKey = new Date(entry.date).toLocaleDateString('ko-KR');
+                        if (!acc[dateKey]) {
+                          acc[dateKey] = { scores: [], date: dateKey };
+                        }
+                        acc[dateKey].scores.push(entry.score);
+                        return acc;
+                      }, {} as Record<string, { scores: number[]; date: string }>)
+                    ).map(([_, data]) => ({
+                      date: data.date,
+                      score: Math.round(data.scores.reduce((a, b) => a + b, 0) / data.scores.length),
+                      count: data.scores.length
                     }))}
                     margin={{ top: 5, right: 30, left: 0, bottom: 5 }}
                   >
                     <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
                     <XAxis 
-                      dataKey="name" 
+                      dataKey="date" 
                       stroke="#64748b"
                       style={{ fontSize: '12px' }}
                     />
@@ -277,20 +286,24 @@ export default function Analytics() {
                         borderRadius: '8px',
                         padding: '8px 12px'
                       }}
-                      formatter={(value) => [`${value}점`, '점수']}
+                      formatter={(value, name) => {
+                        if (name === 'score') return [`${value}점`, '평균 점수'];
+                        if (name === 'count') return [`${value}회`, '대화 수'];
+                        return value;
+                      }}
                       labelStyle={{ color: '#1e293b' }}
                     />
                     <Legend 
                       wrapperStyle={{ paddingTop: '20px' }}
-                      formatter={() => '종합 점수'}
+                      formatter={() => '일일 평균 점수'}
                     />
                     <Line
                       type="monotone"
                       dataKey="score"
                       stroke="#2563eb"
                       strokeWidth={3}
-                      dot={{ fill: '#2563eb', r: 5 }}
-                      activeDot={{ r: 7 }}
+                      dot={{ fill: '#2563eb', r: 6 }}
+                      activeDot={{ r: 8 }}
                       isAnimationActive={true}
                     />
                   </LineChart>
