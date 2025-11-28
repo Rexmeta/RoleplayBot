@@ -1666,10 +1666,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const olderScores = scoreHistory.slice(0, -5).map(s => s.score);
         const recentAvg = recentScores.reduce((a, b) => a + b, 0) / recentScores.length;
         const olderAvg = olderScores.reduce((a, b) => a + b, 0) / olderScores.length;
+        const difference = recentAvg - olderAvg;
         
-        if (recentAvg > olderAvg + 5) progressTrend = 'improving';
-        else if (recentAvg < olderAvg - 5) progressTrend = 'declining';
+        console.log(`📈 성장추세 계산:`);
+        console.log(`  - 전체 점수: ${scoreHistory.map(s => s.score).join(', ')}`);
+        console.log(`  - 최근 5개: ${recentScores.join(', ')} (평균: ${recentAvg.toFixed(1)})`);
+        console.log(`  - 이전 점수: ${olderScores.join(', ')} (평균: ${olderAvg.toFixed(1)})`);
+        console.log(`  - 차이: ${difference.toFixed(1)} (threshold: ±5)`);
+        
+        // 임계값을 더 합리적으로 조정 (5점 → 2점)
+        if (recentAvg > olderAvg + 2) progressTrend = 'improving';
+        else if (recentAvg < olderAvg - 2) progressTrend = 'declining';
         else progressTrend = 'stable';
+        
+        console.log(`  ✅ 결과: ${progressTrend}`);
+      } else {
+        console.log(`📈 성장추세 미계산: 데이터 부족 (${scoreHistory.length}개, 필요: 6개)`);
       }
       
       // 6. 종합 등급 계산
