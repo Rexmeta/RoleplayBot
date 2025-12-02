@@ -8,7 +8,7 @@ import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { CalendarDays, Star, TrendingUp, MessageSquare, Award, History, BarChart3, Users, Target, Trash2, Loader2, HelpCircle } from "lucide-react";
+import { CalendarDays, Star, TrendingUp, MessageSquare, Award, History, BarChart3, Users, Target, Trash2, Loader2, HelpCircle, Lightbulb, CheckCircle, AlertCircle, ArrowRight } from "lucide-react";
 import { Link } from "wouter";
 import { useAuth } from "@/hooks/useAuth";
 import { type ScenarioRun, type PersonaRun, type Feedback } from "@shared/schema";
@@ -589,6 +589,8 @@ function ScenarioRunDetails({
   personaRuns: PersonaRun[];
   setStrategyReflectionRunId: (id: string) => void;
 }) {
+  const [showStrategyFeedback, setShowStrategyFeedback] = useState(false);
+  
   // ✨ 개선: 이미 부모에서 받아온 personaRuns 사용 (중복 쿼리 제거)
   const { data: scenarios = [] } = useQuery<any[]>({
     queryKey: ['/api/scenarios'],
@@ -601,10 +603,29 @@ function ScenarioRunDetails({
   const hasMultiplePersonas = scenario?.personas && scenario.personas.length >= 2;
   const showStrategyReflectionButton = hasMultiplePersonas && !scenarioRun.strategyReflection && completedPersonaRuns.length >= 2;
 
+  // sequenceAnalysis 데이터 (전략 평가 결과)
+  const sequenceAnalysis = scenarioRun.sequenceAnalysis as {
+    strategicScore?: number;
+    strategicRationale?: string;
+    sequenceEffectiveness?: string;
+    alternativeApproaches?: string[];
+    strategicInsights?: string;
+    strengths?: string[];
+    improvements?: string[];
+  } | null;
+
+  const getScoreGrade = (score: number) => {
+    if (score >= 90) return { grade: 'S', color: 'text-purple-600 bg-purple-100', label: '탁월함' };
+    if (score >= 80) return { grade: 'A', color: 'text-green-600 bg-green-100', label: '우수함' };
+    if (score >= 70) return { grade: 'B', color: 'text-blue-600 bg-blue-100', label: '양호함' };
+    if (score >= 60) return { grade: 'C', color: 'text-yellow-600 bg-yellow-100', label: '보통' };
+    return { grade: 'D', color: 'text-red-600 bg-red-100', label: '개선 필요' };
+  };
+
   return (
     <div className="space-y-4 pt-3">
-      {/* 전략 회고 */}
-      {scenarioRun.strategyReflection ? (
+      {/* 전략 회고가 있는 경우 */}
+      {scenarioRun.strategyReflection && (
         <div className="bg-gradient-to-r from-green-50 to-emerald-50 border border-green-200 rounded-lg p-5">
           <div className="flex items-start justify-between gap-4">
             <div className="flex-1">
@@ -616,32 +637,33 @@ function ScenarioRunDetails({
                 {scenarioRun.strategyReflection}
               </p>
             </div>
-            {completedPersonaRuns.length > 0 && (
-              <div className="flex flex-col gap-2">
-                <span className="text-xs font-medium text-slate-500">피드백 보기</span>
-                <div className="flex flex-wrap gap-2">
-                  {completedPersonaRuns.map((pr, idx) => {
-                    const persona = scenario?.personas?.find((p: any) => p.id === pr.personaId);
-                    return (
-                      <Link key={pr.id} href={`/feedback/${pr.id}`}>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="text-xs bg-white hover:bg-green-50 border-green-300 text-green-700"
-                          data-testid={`feedback-button-${pr.id}`}
-                        >
-                          <BarChart3 className="w-3 h-3 mr-1" />
-                          {persona?.name || `페르소나 ${idx + 1}`}
-                        </Button>
-                      </Link>
-                    );
-                  })}
+            {sequenceAnalysis && (
+              <div className="flex flex-col gap-2 items-end">
+                <div className="flex items-center gap-2">
+                  {sequenceAnalysis.strategicScore !== undefined && (
+                    <Badge className={`${getScoreGrade(sequenceAnalysis.strategicScore).color} border-0 font-bold`}>
+                      {getScoreGrade(sequenceAnalysis.strategicScore).grade} ({sequenceAnalysis.strategicScore}점)
+                    </Badge>
+                  )}
                 </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setShowStrategyFeedback(true)}
+                  className="text-xs bg-white hover:bg-purple-50 border-purple-300 text-purple-700"
+                  data-testid={`strategy-feedback-button-${scenarioRun.id}`}
+                >
+                  <Lightbulb className="w-3 h-3 mr-1" />
+                  AI 전략 평가 보기
+                </Button>
               </div>
             )}
           </div>
         </div>
-      ) : showStrategyReflectionButton && (
+      )}
+      
+      {/* 전략 회고 작성 버튼 */}
+      {showStrategyReflectionButton && (
         <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-lg p-5">
           <div className="flex items-center justify-between">
             <div>
@@ -665,6 +687,129 @@ function ScenarioRunDetails({
           </div>
         </div>
       )}
+      
+      {/* 전략 평가 다이얼로그 */}
+      <Dialog open={showStrategyFeedback} onOpenChange={setShowStrategyFeedback}>
+        <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-xl">
+              <Lightbulb className="w-5 h-5 text-purple-600" />
+              AI 전략 평가
+            </DialogTitle>
+          </DialogHeader>
+          
+          {sequenceAnalysis && (
+            <div className="space-y-6 mt-4">
+              {/* 전략 점수 */}
+              {sequenceAnalysis.strategicScore !== undefined && (
+                <div className="text-center p-6 bg-gradient-to-r from-purple-50 to-indigo-50 rounded-xl border border-purple-200">
+                  <div className="text-5xl font-bold text-purple-700 mb-2">
+                    {sequenceAnalysis.strategicScore}
+                    <span className="text-2xl text-purple-500">/100</span>
+                  </div>
+                  <Badge className={`${getScoreGrade(sequenceAnalysis.strategicScore).color} text-sm px-3 py-1`}>
+                    {getScoreGrade(sequenceAnalysis.strategicScore).label}
+                  </Badge>
+                </div>
+              )}
+
+              {/* 전략적 근거 */}
+              {sequenceAnalysis.strategicRationale && (
+                <div className="p-4 bg-slate-50 rounded-lg border">
+                  <h4 className="font-semibold text-slate-800 mb-2 flex items-center gap-2">
+                    <Target className="w-4 h-4 text-slate-600" />
+                    전략적 근거
+                  </h4>
+                  <p className="text-sm text-slate-600 leading-relaxed whitespace-pre-wrap">
+                    {sequenceAnalysis.strategicRationale}
+                  </p>
+                </div>
+              )}
+
+              {/* 순서 효과성 */}
+              {sequenceAnalysis.sequenceEffectiveness && (
+                <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
+                  <h4 className="font-semibold text-blue-800 mb-2 flex items-center gap-2">
+                    <ArrowRight className="w-4 h-4 text-blue-600" />
+                    대화 순서 효과성
+                  </h4>
+                  <p className="text-sm text-blue-700 leading-relaxed whitespace-pre-wrap">
+                    {sequenceAnalysis.sequenceEffectiveness}
+                  </p>
+                </div>
+              )}
+
+              {/* 강점 & 개선점 */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {sequenceAnalysis.strengths && sequenceAnalysis.strengths.length > 0 && (
+                  <div className="p-4 bg-green-50 rounded-lg border border-green-200">
+                    <h4 className="font-semibold text-green-800 mb-3 flex items-center gap-2">
+                      <CheckCircle className="w-4 h-4 text-green-600" />
+                      강점
+                    </h4>
+                    <ul className="space-y-2">
+                      {sequenceAnalysis.strengths.map((strength, idx) => (
+                        <li key={idx} className="text-sm text-green-700 flex items-start gap-2">
+                          <span className="text-green-500 mt-1">•</span>
+                          <span>{strength}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+
+                {sequenceAnalysis.improvements && sequenceAnalysis.improvements.length > 0 && (
+                  <div className="p-4 bg-amber-50 rounded-lg border border-amber-200">
+                    <h4 className="font-semibold text-amber-800 mb-3 flex items-center gap-2">
+                      <AlertCircle className="w-4 h-4 text-amber-600" />
+                      개선점
+                    </h4>
+                    <ul className="space-y-2">
+                      {sequenceAnalysis.improvements.map((improvement, idx) => (
+                        <li key={idx} className="text-sm text-amber-700 flex items-start gap-2">
+                          <span className="text-amber-500 mt-1">•</span>
+                          <span>{improvement}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </div>
+
+              {/* 대안적 접근법 */}
+              {sequenceAnalysis.alternativeApproaches && sequenceAnalysis.alternativeApproaches.length > 0 && (
+                <div className="p-4 bg-indigo-50 rounded-lg border border-indigo-200">
+                  <h4 className="font-semibold text-indigo-800 mb-3 flex items-center gap-2">
+                    <Lightbulb className="w-4 h-4 text-indigo-600" />
+                    대안적 접근법
+                  </h4>
+                  <ul className="space-y-2">
+                    {sequenceAnalysis.alternativeApproaches.map((approach, idx) => (
+                      <li key={idx} className="text-sm text-indigo-700 flex items-start gap-2">
+                        <span className="font-semibold text-indigo-500">{idx + 1}.</span>
+                        <span>{approach}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              {/* 전략적 통찰 */}
+              {sequenceAnalysis.strategicInsights && (
+                <div className="p-4 bg-purple-50 rounded-lg border border-purple-200">
+                  <h4 className="font-semibold text-purple-800 mb-2 flex items-center gap-2">
+                    <Star className="w-4 h-4 text-purple-600" />
+                    전략적 통찰
+                  </h4>
+                  <p className="text-sm text-purple-700 leading-relaxed whitespace-pre-wrap">
+                    {sequenceAnalysis.strategicInsights}
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
       
       {/* 모든 페르소나들 (시작 전/진행 중/완료) */}
       <div className="space-y-2">
