@@ -51,6 +51,7 @@ export interface IStorage {
   // Persona Runs
   createPersonaRun(personaRun: InsertPersonaRun): Promise<PersonaRun>;
   getPersonaRun(id: string): Promise<PersonaRun | undefined>;
+  getPersonaRunByConversationId(conversationId: string): Promise<PersonaRun | undefined>;
   updatePersonaRun(id: string, updates: Partial<PersonaRun>): Promise<PersonaRun>;
   getPersonaRunsByScenarioRun(scenarioRunId: string): Promise<PersonaRun[]>;
   getAllPersonaRuns(): Promise<PersonaRun[]>; // Admin analytics
