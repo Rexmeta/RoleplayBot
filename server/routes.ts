@@ -2164,8 +2164,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // ✨ 최고 점수 및 평가 통계
       const allScores = feedbacks.map(f => f.overallScore);
       const highestScore = allScores.length > 0 ? Math.max(...allScores) : 0;
+      // 피드백이 있는 personaRuns 수만 계산
+      const personaRunsWithFeedback = new Set(feedbacks.map(f => f.personaRunId)).size;
       const feedbackCompletionRate = personaRuns.length > 0 
-        ? Math.round((feedbacks.length / personaRuns.length) * 100)
+        ? Math.round((personaRunsWithFeedback / personaRuns.length) * 100)
         : 0;
       const averageScore = allScores.length > 0 
         ? Math.round(allScores.reduce((a, b) => a + b, 0) / allScores.length)
