@@ -82,22 +82,15 @@ export default function MyPage() {
   const stats = useMemo(() => {
     const completedRuns = scenarioRuns.filter(sr => sr.status === 'completed');
     
-    // ✨ 피드백이 있는 personaRuns의 평균 점수만 계산
-    const allPersonaRuns = scenarioRuns.flatMap(sr => sr.personaRuns || []);
-    const completedPersonaRuns = allPersonaRuns.filter(pr => pr.status === 'completed');
-    
-    // 피드백이 있는 것만 필터링 (score !== null && score > 0)
-    const personaRunsWithFeedback = completedPersonaRuns.filter(pr => pr.score !== null && pr.score > 0);
-    const averageScore = personaRunsWithFeedback.length > 0
-      ? Math.round(personaRunsWithFeedback.reduce((sum, pr) => sum + (pr.score || 0), 0) / personaRunsWithFeedback.length)
+    // ✨ feedbacks를 직접 기반으로 계산 (Analytics와 동일)
+    const averageScore = feedbacks.length > 0
+      ? Math.round(feedbacks.reduce((sum, f) => sum + (f.overallScore || 0), 0) / feedbacks.length)
       : 0;
     
     console.log('📊 MyPage Stats Debug:', {
       totalScenarioRuns: scenarioRuns.length,
       completedScenarioRuns: completedRuns.length,
-      allPersonaRuns: allPersonaRuns.length,
-      completedPersonaRuns: completedPersonaRuns.length,
-      personaRunsWithFeedback: personaRunsWithFeedback.length,
+      totalFeedbacks: feedbacks.length,
       averageScore,
     });
     
@@ -105,7 +98,7 @@ export default function MyPage() {
       totalScenarioRuns: scenarioRuns.length,
       completedScenarioRuns: completedRuns.length,
       averageScore,
-      totalFeedbacks: personaRunsWithFeedback.length, // 피드백이 있는 persona run만 카운트
+      totalFeedbacks: feedbacks.length, // 모든 피드백 수
     };
   }, [scenarioRuns, feedbacks]);
 
