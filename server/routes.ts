@@ -819,7 +819,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
           message: msg.message,
           turnIndex,
           emotion: msg.emotion || null,
-          emotionReason: msg.emotionReason || null
+          emotionReason: msg.emotionReason || null,
+          createdAt: msg.timestamp ? new Date(msg.timestamp) : undefined
         });
         turnIndex++;
       }

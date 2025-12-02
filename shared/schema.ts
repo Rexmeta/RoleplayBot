@@ -312,7 +312,8 @@ export const insertPersonaRunSchema = createInsertSchema(personaRuns).omit({
 
 export const insertChatMessageSchema = createInsertSchema(chatMessages).omit({
   id: true,
-  createdAt: true,
+}).extend({
+  createdAt: z.date().optional(),
 });
 
 export type InsertScenarioRun = z.infer<typeof insertScenarioRunSchema>;
