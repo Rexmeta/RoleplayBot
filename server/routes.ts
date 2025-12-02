@@ -1755,16 +1755,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const feedbacks = await storage.getAllFeedbacks();
       const scenarios = await fileManager.getAllScenarios();
       
-      // Calculate basic statistics from scenario_runs
-      const totalSessions = scenarioRuns.length;
-      const completedSessions = scenarioRuns.filter(sr => sr.status === "completed").length;
+      // ✨ 롤플레이 참여 유저 기준으로 지표 계산
+      // 롤플레이 참여 = personaRuns가 있는 유저 (시나리오 시작이 아닌 실제 대화)
       
-      // Average score - only from completed scenarios
+      // 1. 완료된 시나리오 & 페르소나 런 필터링
+      const completedScenarioRuns = scenarioRuns.filter(sr => sr.status === "completed");
       const completedPersonaRuns = personaRuns.filter(pr => {
         const scenarioRun = scenarioRuns.find(sr => sr.id === pr.scenarioRunId);
         return scenarioRun?.status === "completed";
       });
       
+      // 2. 총 세션: 롤플레이(personaRuns)에 참여한 세션
+      const totalSessions = personaRuns.length;
+      const completedSessions = completedPersonaRuns.length;
+      
+      // 3. 완료된 대화의 피드백만으로 평균 점수 계산
       const completedFeedbacks = feedbacks.filter(f => 
         completedPersonaRuns.some(pr => pr.id === f.personaRunId)
       );
@@ -1773,30 +1778,36 @@ export async function registerRoutes(app: Express): Promise<Server> {
         ? Math.round(completedFeedbacks.reduce((acc, f) => acc + f.overallScore, 0) / completedFeedbacks.length)
         : 0;
       
-      // 참여인수 계산 - scenarioRuns의 고유 userId 수 (활동 사용자)
-      const activeUserIds = new Set(scenarioRuns.map(sr => sr.userId));
-      const activeUsers = activeUserIds.size;
+      // 4. 활동 유저: 실제 대화(personaRuns)에 참여한 고유 userId
+      const personaRunUserIds = new Set(personaRuns.map(pr => {
+        const scenarioRun = scenarioRuns.find(sr => sr.id === pr.scenarioRunId);
+        return scenarioRun?.userId;
+      }).filter(Boolean));
+      const activeUsers = personaRunUserIds.size;
       
-      // 전체 사용자 수는 활동 사용자와 동일하게 설정 (활동한 사용자 기준)
-      // 실제 전체 사용자를 알려면 users 테이블 필요
+      // 5. 전체 사용자 = 활동 사용자
       const totalUsers = activeUsers;
       
-      // 참여율 계산
-      const participationRate = activeUsers > 0 ? 100 : 0; // 활동한 사용자가 있으면 100%
+      // 6. 참여율
+      const participationRate = activeUsers > 0 ? 100 : 0;
       
-      // Scenario popularity - count scenario_runs grouped by scenarioId
-      const scenarioStats = scenarioRuns.reduce((acc, run) => {
-        const scenario = scenarios.find(s => s.id === run.scenarioId);
-        const scenarioName = scenario?.title || run.scenarioId;
-        acc[run.scenarioId] = {
-          count: (acc[run.scenarioId]?.count || 0) + 1,
+      // 7. 시나리오 인기도 - personaRuns 기준
+      const scenarioStats = personaRuns.reduce((acc, pr) => {
+        const scenarioRun = scenarioRuns.find(sr => sr.id === pr.scenarioRunId);
+        if (!scenarioRun) return acc;
+        
+        const scenario = scenarios.find(s => s.id === scenarioRun.scenarioId);
+        const scenarioName = scenario?.title || scenarioRun.scenarioId;
+        
+        acc[scenarioRun.scenarioId] = {
+          count: (acc[scenarioRun.scenarioId]?.count || 0) + 1,
           name: scenarioName,
           difficulty: scenario?.difficulty || 2
         };
         return acc;
       }, {} as Record<string, { count: number; name: string; difficulty: number }>);
       
-      // MBTI 사용 분석 - persona_runs의 mbtiType 사용
+      // 8. MBTI 사용 분석
       const mbtiUsage = personaRuns.reduce((acc, pr) => {
         if (pr.mbtiType) {
           const mbtiKey = pr.mbtiType.toUpperCase();
@@ -1805,7 +1816,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return acc;
       }, {} as Record<string, number>);
       
-      // Completion rate
+      // 9. 완료율 - personaRuns 기준
       const completionRate = totalSessions > 0 
         ? Math.round((completedSessions / totalSessions) * 100)
         : 0;
