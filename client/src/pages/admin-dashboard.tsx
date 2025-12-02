@@ -153,6 +153,36 @@ export default function AdminDashboard() {
     };
   }) : [];
 
+  // 난이도별 선택 인기도 계산
+  const difficultyPopularityData = scenarioPopularityData.reduce((acc: any[], scenario: any) => {
+    const existing = acc.find(d => d.difficulty === `Lv${scenario.difficulty}`);
+    if (existing) {
+      existing.count += scenario.sessions;
+    } else {
+      acc.push({
+        difficulty: `Lv${scenario.difficulty}`,
+        count: scenario.sessions
+      });
+    }
+    return acc;
+  }, []).sort((a: any, b: any) => {
+    const lvA = parseInt(a.difficulty.replace('Lv', ''));
+    const lvB = parseInt(b.difficulty.replace('Lv', ''));
+    return lvA - lvB;
+  });
+
+  // 시나리오별 난이도 분포 계산
+  const scenarioDifficultyData = scenarios.map((scenario: any) => {
+    const stats = overview?.scenarioStats?.[scenario.id];
+    return {
+      name: scenario.title,
+      lv1: scenario.difficulty === 1 ? stats?.count || 0 : 0,
+      lv2: scenario.difficulty === 2 ? stats?.count || 0 : 0,
+      lv3: scenario.difficulty === 3 ? stats?.count || 0 : 0,
+      lv4: scenario.difficulty === 4 ? stats?.count || 0 : 0
+    };
+  }).filter((d: any) => d.lv1 + d.lv2 + d.lv3 + d.lv4 > 0);
+
   return (
     <div className="min-h-screen bg-slate-50">
       <div className="container mx-auto p-6 space-y-6" data-testid="admin-dashboard">
