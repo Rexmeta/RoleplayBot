@@ -24,13 +24,45 @@ export default function MyPage() {
   const { user } = useAuth();
   const { toast } = useToast();
 
+  // 사용자의 피드백 조회
+  const { data: feedbacks = [] } = useQuery<any[]>({
+    queryKey: ['/api/feedbacks'],
+    enabled: !!user,
+    staleTime: 1000 * 60 * 5,
+    gcTime: 1000 * 60 * 10,
+  });
+
   // 사용자의 시나리오 실행 기록 조회 (personaRuns 포함)
-  const { data: scenarioRuns = [], isLoading: scenarioRunsLoading } = useQuery<(ScenarioRun & { personaRuns: PersonaRun[] })[]>({
+  const { data: rawScenarioRuns = [], isLoading: scenarioRunsLoading } = useQuery<(ScenarioRun & { personaRuns: PersonaRun[] })[]>({
     queryKey: ['/api/scenario-runs'],
     enabled: !!user,
     staleTime: 1000 * 60 * 5,
     gcTime: 1000 * 60 * 10,
   });
+
+  // 피드백 점수를 personaRun에 매핑
+  const scenarioRuns = useMemo(() => {
+    if (!feedbacks || feedbacks.length === 0) {
+      return rawScenarioRuns;
+    }
+
+    // personaRunId -> feedback 점수 맵 생성
+    const feedbackScores: Record<string, number> = {};
+    feedbacks.forEach(f => {
+      if (f.personaRunId) {
+        feedbackScores[f.personaRunId] = f.overallScore || 0;
+      }
+    });
+
+    // personaRun의 score가 null이면 피드백에서 가져오기
+    return rawScenarioRuns.map(sr => ({
+      ...sr,
+      personaRuns: (sr.personaRuns || []).map(pr => ({
+        ...pr,
+        score: pr.score !== null ? pr.score : (feedbackScores[pr.id] || 0)
+      }))
+    }));
+  }, [rawScenarioRuns, feedbacks]);
 
   // 시나리오 데이터 조회
   const { data: scenarios = [] } = useQuery<any[]>({
