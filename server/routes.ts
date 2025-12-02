@@ -1923,12 +1923,39 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const mbtiScores: Record<string, number[]> = {};
       completedFeedbacks.forEach(f => {
         const personaRun = completedPersonaRuns.find(pr => pr.id === f.personaRunId);
-        if (personaRun?.mbtiType) {
-          const mbtiKey = personaRun.mbtiType.toUpperCase();
-          if (!mbtiScores[mbtiKey]) {
-            mbtiScores[mbtiKey] = [];
+        if (personaRun) {
+          // mbtiType이 없으면 personaSnapshot 또는 scenario에서 MBTI 추출
+          let mbtiType = personaRun.mbtiType;
+          
+          if (!mbtiType && personaRun.personaSnapshot) {
+            // personaSnapshot에서 mbti 필드 추출
+            const snapshot = typeof personaRun.personaSnapshot === 'string' 
+              ? JSON.parse(personaRun.personaSnapshot) 
+              : personaRun.personaSnapshot;
+            mbtiType = snapshot?.mbti || snapshot?.personaId?.toUpperCase();
           }
-          mbtiScores[mbtiKey].push(f.overallScore);
+          
+          if (!mbtiType) {
+            // scenario의 persona 정보에서 MBTI 추출
+            const scenarioRun = scenarioRuns.find(sr => sr.id === personaRun.scenarioRunId);
+            if (scenarioRun) {
+              const scenario = scenarios.find(s => s.id === scenarioRun.scenarioId);
+              // personaId나 personaRef에서 MBTI 추출
+              const personaId = (personaRun.personaSnapshot as any)?.personaId || 
+                               (personaRun.personaSnapshot as any)?.id;
+              if (personaId) {
+                mbtiType = personaId.toUpperCase();
+              }
+            }
+          }
+          
+          if (mbtiType) {
+            const mbtiKey = mbtiType.toUpperCase();
+            if (!mbtiScores[mbtiKey]) {
+              mbtiScores[mbtiKey] = [];
+            }
+            mbtiScores[mbtiKey].push(f.overallScore);
+          }
         }
       });
       
