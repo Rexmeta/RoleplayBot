@@ -1070,7 +1070,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         scenarioId: sr.scenarioId,
         status: sr.status,
         personaRunsCount: sr.personaRuns?.length || 0,
-        personaRuns: sr.personaRuns?.map(pr => ({ id: pr.id, personaId: pr.personaId, status: pr.status }))
+        personaRuns: sr.personaRuns?.map(pr => ({ id: pr.id, personaId: pr.personaId, status: pr.status, score: pr.score }))
       })));
       res.json(scenarioRunsWithPersonas);
     } catch (error) {

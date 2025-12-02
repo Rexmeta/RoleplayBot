@@ -56,6 +56,15 @@ export default function MyPage() {
       ? Math.round(completedPersonaRuns.reduce((sum, pr) => sum + (pr.score || 0), 0) / completedPersonaRuns.length)
       : 0;
     
+    console.log('📊 MyPage Stats Debug:', {
+      totalScenarioRuns: scenarioRuns.length,
+      completedScenarioRuns: completedRuns.length,
+      allPersonaRuns: allPersonaRuns.length,
+      completedPersonaRuns: completedPersonaRuns.length,
+      averageScore,
+      personaRunsData: allPersonaRuns.slice(0, 3).map(pr => ({ status: pr.status, score: pr.score }))
+    });
+    
     return {
       totalScenarioRuns: scenarioRuns.length,
       completedScenarioRuns: completedRuns.length,
