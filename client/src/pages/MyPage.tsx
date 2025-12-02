@@ -707,7 +707,7 @@ function ScenarioRunDetails({
                       <Button
                         variant="default"
                         size="sm"
-                        onClick={() => window.location.href = `/home?scenarioId=${scenarioRun.scenarioId}&scenarioRunId=${scenarioRun.id}`}
+                        onClick={() => window.location.href = `/home?scenarioId=${scenarioRun.scenarioId}&scenarioRunId=${scenarioRun.id}&personaId=${persona.id}`}
                         data-testid={`start-persona-${persona.id}`}
                       >
                         대화하기

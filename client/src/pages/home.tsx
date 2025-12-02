@@ -65,6 +65,7 @@ export default function Home() {
     const resumePersonaRunId = params.get('resumePersonaRunId');
     const scenarioId = params.get('scenarioId');
     const scenarioRunIdParam = params.get('scenarioRunId');
+    const personaIdParam = params.get('personaId');
 
     if (resumePersonaRunId && scenarios.length > 0 && !isResuming) {
       // 대화 재개 로직
@@ -111,7 +112,7 @@ export default function Home() {
       // 특정 시나리오의 페르소나 선택 화면으로 이동
       const scenario = scenarios.find((s: any) => s.id === scenarioId);
       if (scenario) {
-        console.log(`📍 시나리오 페르소나 선택 화면 이동: ${scenario.title}, scenarioRunId: ${scenarioRunIdParam || 'none'}`);
+        console.log(`📍 시나리오 페르소나 선택 화면 이동: ${scenario.title}, scenarioRunId: ${scenarioRunIdParam || 'none'}, personaId: ${personaIdParam || 'none'}`);
         
         setSelectedScenario(scenario);
         setScenarioRunId(scenarioRunIdParam);
@@ -119,6 +120,48 @@ export default function Home() {
         setStrategyReflectionSubmitted(false);
         setStrategyEvaluation(null);
         setSelectedDifficulty(scenario.difficulty || 4);
+        
+        // ✅ personaId가 있으면 해당 페르소나를 즉시 선택 (미완료 페르소나 "대화하기" 클릭 시)
+        if (personaIdParam) {
+          const targetPersona = scenario.personas.find((p: any) => p.id === personaIdParam);
+          if (targetPersona && !isCreatingConversation) {
+            setIsCreatingConversation(true);
+            setLoadingPersonaId(personaIdParam);
+            const userSelectedDifficulty = scenario.difficulty || 4;
+            setSelectedDifficulty(userSelectedDifficulty);
+            
+            const conversationData = {
+              scenarioId: scenario.id,
+              personaId: personaIdParam,
+              personaSnapshot: targetPersona,
+              scenarioName: scenario.title,
+              messages: [],
+              turnCount: 0,
+              status: "active" as const,
+              mode: "realtime_voice" as const,
+              difficulty: userSelectedDifficulty,
+              forceNewRun: scenarioRunIdParam === null,
+            };
+            
+            apiRequest("POST", "/api/conversations", conversationData)
+              .then(res => res.json())
+              .then(conversation => {
+                setSelectedPersona(targetPersona);
+                setConversationId(conversation.id);
+                setScenarioRunId(conversation.scenarioRunId);
+                setCurrentView("chat");
+                window.history.replaceState({}, '', '/home');
+              })
+              .catch(error => {
+                console.error("대화 생성 실패:", error);
+              })
+              .finally(() => {
+                setIsCreatingConversation(false);
+                setLoadingPersonaId(null);
+              });
+            return;
+          }
+        }
         
         // ✅ scenarioRunId가 있으면 완료된 페르소나 목록과 난이도 불러오기
         if (scenarioRunIdParam) {
