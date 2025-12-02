@@ -358,6 +358,45 @@ export default function AdminDashboard() {
                 </ResponsiveContainer>
               </CardContent>
             </Card>
+
+            {/* Difficulty Popularity */}
+            <Card data-testid="card-difficulty-popularity">
+              <CardHeader>
+                <CardTitle>난이도 선택 인기도</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <ResponsiveContainer width="100%" height={300}>
+                  <BarChart data={difficultyPopularityData}>
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="difficulty" />
+                    <YAxis />
+                    <Tooltip />
+                    <Bar dataKey="count" fill="#8b5cf6" />
+                  </BarChart>
+                </ResponsiveContainer>
+              </CardContent>
+            </Card>
+
+            {/* Scenario by Difficulty */}
+            <Card data-testid="card-scenario-difficulty-breakdown">
+              <CardHeader>
+                <CardTitle>시나리오별 난이도 분포</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <ResponsiveContainer width="100%" height={300}>
+                  <BarChart data={scenarioDifficultyData}>
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="name" />
+                    <YAxis />
+                    <Tooltip />
+                    <Bar dataKey="lv1" fill="#10b981" name="Lv1" />
+                    <Bar dataKey="lv2" fill="#3b82f6" name="Lv2" />
+                    <Bar dataKey="lv3" fill="#f59e0b" name="Lv3" />
+                    <Bar dataKey="lv4" fill="#ef4444" name="Lv4" />
+                  </BarChart>
+                </ResponsiveContainer>
+              </CardContent>
+            </Card>
           </div>
 
           {/* Scenario Details Table */}
