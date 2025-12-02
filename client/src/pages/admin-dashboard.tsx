@@ -5,6 +5,14 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from "recharts";
 
+// 마우스 오버 카드 설명 헬퍼
+const CardInfo = ({ title, description }: { title: string; description: string }) => (
+  <div className="flex items-center gap-1 cursor-help" title={description}>
+    <span>{title}</span>
+    <i className="fas fa-info-circle text-slate-400 text-xs hover:text-slate-600" title={description}></i>
+  </div>
+);
+
 interface AnalyticsOverview {
   totalSessions: number;
   completedSessions: number;
@@ -238,7 +246,7 @@ export default function AdminDashboard() {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             <Card className="card-enhanced" data-testid="card-session-summary">
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">훈련 세션</CardTitle>
+                <CardTitle className="text-sm font-medium"><CardInfo title="훈련 세션" description="완료한 세션 수 / 전체 시작한 세션 수. 사용자가 실제로 대화를 완료한 페르소나 실행 기준." /></CardTitle>
                 <i className="fas fa-chart-line text-blue-600"></i>
               </CardHeader>
               <CardContent>
@@ -251,7 +259,7 @@ export default function AdminDashboard() {
 
             <Card className="card-enhanced" data-testid="card-average-score">
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">평균 점수</CardTitle>
+                <CardTitle className="text-sm font-medium"><CardInfo title="평균 점수" description="모든 완료된 세션의 평가 점수 평균 (0-100점). AI가 사용자의 커뮤니케이션 능력을 평가한 종합 점수입니다." /></CardTitle>
                 <i className="fas fa-star text-yellow-600"></i>
               </CardHeader>
               <CardContent>
@@ -262,7 +270,7 @@ export default function AdminDashboard() {
 
             <Card className="card-enhanced" data-testid="card-participation">
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">참여인수</CardTitle>
+                <CardTitle className="text-sm font-medium"><CardInfo title="참여인수" description="실제 대화에 참여한 사용자 비율 (%). 시나리오를 시작한 활동 유저 기준으로 계산됩니다." /></CardTitle>
                 <i className="fas fa-users text-green-600"></i>
               </CardHeader>
               <CardContent>
@@ -308,7 +316,7 @@ export default function AdminDashboard() {
             {/* Sessions Per User */}
             <Card className="card-enhanced" data-testid="card-sessions-per-user">
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">인당 세션</CardTitle>
+                <CardTitle className="text-sm font-medium"><CardInfo title="인당 세션" description="활동 유저당 평균 세션 수. (총 세션 수 / 활동 유저 수) 계산값입니다." /></CardTitle>
                 <i className="fas fa-user-clock text-orange-600"></i>
               </CardHeader>
               <CardContent>
@@ -322,7 +330,7 @@ export default function AdminDashboard() {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <Card className="card-enhanced" data-testid="card-new-users">
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">신규 유저</CardTitle>
+                <CardTitle className="text-sm font-medium"><CardInfo title="신규 유저" description="정확히 1회의 세션을 완료한 사용자 수. 처음 참여했거나 한 번만 시도한 사용자입니다." /></CardTitle>
                 <i className="fas fa-user-plus text-green-600"></i>
               </CardHeader>
               <CardContent>
@@ -333,7 +341,7 @@ export default function AdminDashboard() {
 
             <Card className="card-enhanced" data-testid="card-returning-users">
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">재방문 유저</CardTitle>
+                <CardTitle className="text-sm font-medium"><CardInfo title="재방문 유저" description="2회 이상의 세션을 완료한 사용자 수. 앱을 반복적으로 사용하는 활성 사용자입니다." /></CardTitle>
                 <i className="fas fa-user-check text-blue-600"></i>
               </CardHeader>
               <CardContent>
@@ -344,7 +352,7 @@ export default function AdminDashboard() {
 
             <Card className="card-enhanced" data-testid="card-returning-rate">
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">재방문율</CardTitle>
+                <CardTitle className="text-sm font-medium"><CardInfo title="재방문율" description="재방문 유저 수를 전체 활동 유저로 나눈 비율 (%). 사용자 유지율을 나타냅니다." /></CardTitle>
                 <i className="fas fa-redo text-yellow-600"></i>
               </CardHeader>
               <CardContent>
