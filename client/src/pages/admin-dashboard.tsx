@@ -160,17 +160,13 @@ export default function AdminDashboard() {
       count: d.count
     })) : [];
 
-  // 시나리오별 난이도 분포 계산 - 시나리오의 고정 난이도가 아니라 총 세션 수
+  // 시나리오별 페르소나 수 분포 계산
   const scenarioDifficultyData = scenarios.map((scenario: any) => {
-    const stats = overview?.scenarioStats?.[scenario.id];
     return {
       name: scenario.title,
-      lv1: stats?.difficulty === 1 ? stats?.count || 0 : 0,
-      lv2: stats?.difficulty === 2 ? stats?.count || 0 : 0,
-      lv3: stats?.difficulty === 3 ? stats?.count || 0 : 0,
-      lv4: stats?.difficulty === 4 ? stats?.count || 0 : 0
+      personaCount: scenario.personas?.length || 0
     };
-  }).filter((d: any) => d.lv1 + d.lv2 + d.lv3 + d.lv4 > 0);
+  }).filter((d: any) => d.personaCount > 0).sort((a: any, b: any) => b.personaCount - a.personaCount);
 
   return (
     <div className="min-h-screen bg-slate-50">
@@ -396,10 +392,10 @@ export default function AdminDashboard() {
               </CardContent>
             </Card>
 
-            {/* Scenario by Difficulty */}
-            <Card data-testid="card-scenario-difficulty-breakdown">
+            {/* Scenario by Persona Count */}
+            <Card data-testid="card-scenario-persona-distribution">
               <CardHeader>
-                <CardTitle>시나리오별 난이도 분포</CardTitle>
+                <CardTitle>시나리오별 페르소나 수 분포</CardTitle>
               </CardHeader>
               <CardContent>
                 <ResponsiveContainer width="100%" height={300}>
@@ -407,11 +403,8 @@ export default function AdminDashboard() {
                     <CartesianGrid strokeDasharray="3 3" />
                     <XAxis dataKey="name" />
                     <YAxis />
-                    <Tooltip />
-                    <Bar dataKey="lv1" fill="#10b981" name="Lv1" />
-                    <Bar dataKey="lv2" fill="#3b82f6" name="Lv2" />
-                    <Bar dataKey="lv3" fill="#f59e0b" name="Lv3" />
-                    <Bar dataKey="lv4" fill="#ef4444" name="Lv4" />
+                    <Tooltip formatter={(value) => `${value}명`} />
+                    <Bar dataKey="personaCount" fill="#8b5cf6" name="페르소나 수" />
                   </BarChart>
                 </ResponsiveContainer>
               </CardContent>
