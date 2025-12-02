@@ -607,6 +607,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const existingMessages = await storage.getChatMessagesByPersonaRun(personaRunId);
       const currentTurnIndex = Math.floor(existingMessages.length / 2); // user + ai = 1 turn
 
+      // ✨ 대화 재개 감지: 마지막 메시지 이후 5분 이상 지났으면 actualStartedAt 업데이트
+      if (existingMessages.length > 0) {
+        const lastMessage = existingMessages[existingMessages.length - 1];
+        const timeSinceLastMessage = Date.now() - new Date(lastMessage.createdAt).getTime();
+        const RESUME_THRESHOLD_MS = 5 * 60 * 1000; // 5분
+        
+        if (timeSinceLastMessage > RESUME_THRESHOLD_MS) {
+          console.log(`🔄 대화 재개 감지: ${Math.floor(timeSinceLastMessage / 1000 / 60)}분 경과, actualStartedAt 업데이트`);
+          await storage.updatePersonaRun(personaRunId, {
+            actualStartedAt: new Date()
+          });
+        }
+      }
+
       // 건너뛰기가 아닌 경우에만 사용자 메시지 추가
       if (!isSkipTurn) {
         await storage.createChatMessage({
@@ -1885,7 +1899,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const userIds = new Set<string>();
         personaRuns.forEach(pr => {
           const scenarioRun = scenarioRuns.find(sr => sr.id === pr.scenarioRunId);
-          if (scenarioRun && pr.createdAt && new Date(pr.createdAt) >= startOfToday) {
+          if (scenarioRun && pr.startedAt && new Date(pr.startedAt) >= startOfToday) {
             userIds.add(scenarioRun.userId);
           }
         });
@@ -1896,7 +1910,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const userIds = new Set<string>();
         personaRuns.forEach(pr => {
           const scenarioRun = scenarioRuns.find(sr => sr.id === pr.scenarioRunId);
-          if (scenarioRun && pr.createdAt && new Date(pr.createdAt) >= startOfWeek) {
+          if (scenarioRun && pr.startedAt && new Date(pr.startedAt) >= startOfWeek) {
             userIds.add(scenarioRun.userId);
           }
         });
@@ -1907,7 +1921,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const userIds = new Set<string>();
         personaRuns.forEach(pr => {
           const scenarioRun = scenarioRuns.find(sr => sr.id === pr.scenarioRunId);
-          if (scenarioRun && pr.createdAt && new Date(pr.createdAt) >= startOfMonth) {
+          if (scenarioRun && pr.startedAt && new Date(pr.startedAt) >= startOfMonth) {
             userIds.add(scenarioRun.userId);
           }
         });
@@ -2042,7 +2056,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       // 19. 마지막 콘텐츠 업데이트 시간 (가장 최근의 personaRun 생성 시간)
       const lastContentUpdate = personaRuns.length > 0 
-        ? new Date(Math.max(...personaRuns.map(pr => new Date(pr.createdAt).getTime())))
+        ? new Date(Math.max(...personaRuns.map(pr => new Date(pr.startedAt).getTime())))
         : null;
         
       res.json({
