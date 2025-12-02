@@ -646,46 +646,6 @@ export default function AdminDashboard() {
                 <p className="text-xs text-slate-600">등록된 MBTI 페르소나 수</p>
               </CardContent>
             </Card>
-
-            <Card className="card-enhanced" data-testid="card-difficulty-distribution">
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">난이도 분포</CardTitle>
-                <i className="fas fa-layer-group text-orange-600"></i>
-              </CardHeader>
-              <CardContent>
-                <div className="flex gap-2 text-xs">
-                  <span className="px-2 py-1 bg-green-100 text-green-800 rounded">
-                    Lv1: {scenarios.filter((s: any) => s.difficulty === 1).length}
-                  </span>
-                  <span className="px-2 py-1 bg-blue-100 text-blue-800 rounded">
-                    Lv2: {scenarios.filter((s: any) => s.difficulty === 2).length}
-                  </span>
-                  <span className="px-2 py-1 bg-yellow-100 text-yellow-800 rounded">
-                    Lv3: {scenarios.filter((s: any) => s.difficulty === 3).length}
-                  </span>
-                  <span className="px-2 py-1 bg-red-100 text-red-800 rounded">
-                    Lv4: {scenarios.filter((s: any) => s.difficulty === 4).length}
-                  </span>
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card className="card-enhanced" data-testid="card-persona-gender">
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">성별 분포</CardTitle>
-                <i className="fas fa-venus-mars text-pink-600"></i>
-              </CardHeader>
-              <CardContent>
-                <div className="flex gap-2 text-xs">
-                  <span className="px-2 py-1 bg-blue-100 text-blue-800 rounded">
-                    남성: {personas.filter((p: any) => p.gender === 'male').length}
-                  </span>
-                  <span className="px-2 py-1 bg-pink-100 text-pink-800 rounded">
-                    여성: {personas.filter((p: any) => p.gender === 'female').length}
-                  </span>
-                </div>
-              </CardContent>
-            </Card>
           </div>
 
           {/* Scenario List Table */}
@@ -703,7 +663,6 @@ export default function AdminDashboard() {
                     <thead className="bg-slate-100 sticky top-0">
                       <tr>
                         <th className="p-2 text-left">시나리오명</th>
-                        <th className="p-2 text-center">난이도</th>
                         <th className="p-2 text-center">페르소나</th>
                         <th className="p-2 text-center">사용 횟수</th>
                       </tr>
@@ -716,23 +675,13 @@ export default function AdminDashboard() {
                             <td className="p-2 font-medium truncate max-w-[180px]" title={scenario.title}>
                               {scenario.title}
                             </td>
-                            <td className="p-2 text-center">
-                              <span className={`px-2 py-1 rounded text-xs ${
-                                scenario.difficulty === 1 ? 'bg-green-100 text-green-800' :
-                                scenario.difficulty === 2 ? 'bg-blue-100 text-blue-800' :
-                                scenario.difficulty === 3 ? 'bg-yellow-100 text-yellow-800' :
-                                'bg-red-100 text-red-800'
-                              }`}>
-                                Lv{scenario.difficulty}
-                              </span>
-                            </td>
                             <td className="p-2 text-center">{scenario.personas?.length || 0}명</td>
                             <td className="p-2 text-center font-semibold text-corporate-600">{usageCount}회</td>
                           </tr>
                         );
                       })}
                       {scenarios.length === 0 && (
-                        <tr><td colSpan={4} className="p-4 text-center text-slate-500">등록된 시나리오가 없습니다.</td></tr>
+                        <tr><td colSpan={3} className="p-4 text-center text-slate-500">등록된 시나리오가 없습니다.</td></tr>
                       )}
                     </tbody>
                   </table>
@@ -755,7 +704,6 @@ export default function AdminDashboard() {
                       <tr>
                         <th className="p-2 text-left">MBTI</th>
                         <th className="p-2 text-left">이름</th>
-                        <th className="p-2 text-center">성별</th>
                         <th className="p-2 text-center">사용 횟수</th>
                       </tr>
                     </thead>
@@ -771,19 +719,12 @@ export default function AdminDashboard() {
                               </span>
                             </td>
                             <td className="p-2 font-medium">{persona.name || persona.mbti?.toUpperCase()}</td>
-                            <td className="p-2 text-center">
-                              <span className={`px-2 py-1 rounded text-xs ${
-                                persona.gender === 'male' ? 'bg-blue-100 text-blue-800' : 'bg-pink-100 text-pink-800'
-                              }`}>
-                                {persona.gender === 'male' ? '남성' : '여성'}
-                              </span>
-                            </td>
                             <td className="p-2 text-center font-semibold text-corporate-600">{usageCount}회</td>
                           </tr>
                         );
                       })}
                       {personas.length === 0 && (
-                        <tr><td colSpan={4} className="p-4 text-center text-slate-500">등록된 페르소나가 없습니다.</td></tr>
+                        <tr><td colSpan={3} className="p-4 text-center text-slate-500">등록된 페르소나가 없습니다.</td></tr>
                       )}
                     </tbody>
                   </table>
