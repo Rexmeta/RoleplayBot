@@ -1002,77 +1002,23 @@ export default function AdminDashboard() {
               </CardContent>
             </Card>
 
-            <Card className="card-enhanced" data-testid="card-content-coverage">
+            <Card className="card-enhanced" data-testid="card-recent-update">
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">MBTI 커버리지</CardTitle>
-                <i className="fas fa-check-double text-teal-600"></i>
+                <CardTitle className="text-sm font-medium">최근 업데이트</CardTitle>
+                <i className="fas fa-clock text-teal-600"></i>
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold text-teal-600">
-                  {new Set(personas.map((p: any) => p.mbti?.toUpperCase()).filter(Boolean)).size}/16
+                  {overview?.lastContentUpdate 
+                    ? new Date(overview.lastContentUpdate).toLocaleDateString('ko-KR', { year: '2-digit', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
+                    : '업데이트 없음'}
                 </div>
-                <p className="text-xs text-slate-600">등록된 MBTI 유형 수</p>
+                <p className="text-xs text-slate-600">마지막 콘텐츠 수정 일시</p>
               </CardContent>
             </Card>
           </div>
 
-          {/* 2. 콘텐츠 분포 분석 차트 */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {/* 시나리오별 페르소나 수 분포 */}
-            <Card className="card-enhanced" data-testid="card-scenario-persona-dist">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <i className="fas fa-chart-bar text-blue-600"></i>
-                  시나리오별 페르소나 수
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <ResponsiveContainer width="100%" height={250}>
-                  <BarChart data={scenarios.map((s: any) => ({ 
-                    name: s.title?.substring(0, 10) + (s.title?.length > 10 ? '...' : ''),
-                    count: s.personas?.length || 0 
-                  }))}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="name" angle={-45} textAnchor="end" height={80} tick={{ fontSize: 11 }} />
-                    <YAxis allowDecimals={false} />
-                    <Tooltip formatter={(value) => [`${value}명`, "페르소나"]} />
-                    <Bar dataKey="count" fill="#3b82f6" />
-                  </BarChart>
-                </ResponsiveContainer>
-              </CardContent>
-            </Card>
-
-            {/* MBTI 유형별 페르소나 분포 */}
-            <Card className="card-enhanced" data-testid="card-mbti-dist">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <i className="fas fa-brain text-purple-600"></i>
-                  MBTI 유형별 페르소나 분포
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <ResponsiveContainer width="100%" height={250}>
-                  <BarChart data={
-                    Object.entries(
-                      personas.reduce((acc: Record<string, number>, p: any) => {
-                        const mbti = p.mbti?.toUpperCase() || 'N/A';
-                        acc[mbti] = (acc[mbti] || 0) + 1;
-                        return acc;
-                      }, {})
-                    ).map(([mbti, count]) => ({ mbti, count }))
-                  }>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="mbti" tick={{ fontSize: 10 }} />
-                    <YAxis allowDecimals={false} />
-                    <Tooltip formatter={(value) => [`${value}개`, "페르소나"]} />
-                    <Bar dataKey="count" fill="#8b5cf6" />
-                  </BarChart>
-                </ResponsiveContainer>
-              </CardContent>
-            </Card>
-          </div>
-
-          {/* 3. 콘텐츠 목록 테이블 */}
+          {/* 2. 콘텐츠 목록 테이블 */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <Card data-testid="card-scenario-list">
               <CardHeader>
@@ -1088,24 +1034,27 @@ export default function AdminDashboard() {
                       <tr>
                         <th className="p-2 text-left">시나리오명</th>
                         <th className="p-2 text-center">페르소나</th>
+                        <th className="p-2 text-center">평균 점수</th>
                         <th className="p-2 text-center">사용 횟수</th>
                       </tr>
                     </thead>
                     <tbody>
                       {scenarios.map((scenario: any, index: number) => {
                         const usageCount = overview?.scenarioStats?.[scenario.id]?.count || 0;
+                        const avgScore = overview?.scenarioAverages?.find((s: any) => s.id === scenario.id)?.averageScore || 0;
                         return (
                           <tr key={scenario.id} className="border-b hover:bg-slate-50" data-testid={`content-scenario-row-${index}`}>
                             <td className="p-2 font-medium truncate max-w-[180px]" title={scenario.title}>
                               {scenario.title}
                             </td>
                             <td className="p-2 text-center">{scenario.personas?.length || 0}명</td>
-                            <td className="p-2 text-center font-semibold text-corporate-600">{usageCount}회</td>
+                            <td className="p-2 text-center font-semibold text-corporate-600">{avgScore > 0 ? avgScore.toFixed(1) : '-'}점</td>
+                            <td className="p-2 text-center font-semibold text-slate-600">{usageCount}회</td>
                           </tr>
                         );
                       })}
                       {scenarios.length === 0 && (
-                        <tr><td colSpan={3} className="p-4 text-center text-slate-500">등록된 시나리오가 없습니다.</td></tr>
+                        <tr><td colSpan={4} className="p-4 text-center text-slate-500">등록된 시나리오가 없습니다.</td></tr>
                       )}
                     </tbody>
                   </table>
@@ -1128,6 +1077,7 @@ export default function AdminDashboard() {
                       <tr>
                         <th className="p-2 text-left">MBTI</th>
                         <th className="p-2 text-left">이름</th>
+                        <th className="p-2 text-center">평균 점수</th>
                         <th className="p-2 text-center">사용 횟수</th>
                       </tr>
                     </thead>
@@ -1135,6 +1085,7 @@ export default function AdminDashboard() {
                       {personas.map((persona: any, index: number) => {
                         const mbtiKey = persona.mbti ? persona.mbti.toLowerCase() : '';
                         const usageCount = mbtiKey ? (overview?.mbtiUsage?.[mbtiKey] || 0) : 0;
+                        const avgScore = overview?.mbtiAverages?.find((m: any) => m.mbti.toLowerCase() === mbtiKey)?.averageScore || 0;
                         return (
                           <tr key={persona.id || index} className="border-b hover:bg-slate-50" data-testid={`content-persona-row-${index}`}>
                             <td className="p-2">
@@ -1143,12 +1094,13 @@ export default function AdminDashboard() {
                               </span>
                             </td>
                             <td className="p-2 font-medium">{persona.name || persona.mbti?.toUpperCase()}</td>
-                            <td className="p-2 text-center font-semibold text-corporate-600">{usageCount}회</td>
+                            <td className="p-2 text-center font-semibold text-corporate-600">{avgScore > 0 ? avgScore.toFixed(1) : '-'}점</td>
+                            <td className="p-2 text-center font-semibold text-slate-600">{usageCount}회</td>
                           </tr>
                         );
                       })}
                       {personas.length === 0 && (
-                        <tr><td colSpan={3} className="p-4 text-center text-slate-500">등록된 페르소나가 없습니다.</td></tr>
+                        <tr><td colSpan={4} className="p-4 text-center text-slate-500">등록된 페르소나가 없습니다.</td></tr>
                       )}
                     </tbody>
                   </table>
