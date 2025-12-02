@@ -118,7 +118,7 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
   const [imagesLoaded, setImagesLoaded] = useState<{[key: string]: boolean}>({});
   const [personaImagesAvailable, setPersonaImagesAvailable] = useState<{[key: string]: boolean}>({});
   const [currentEmotion, setCurrentEmotion] = useState<string>('중립');
-  const [loadedImageUrl, setLoadedImageUrl] = useState<string>(''); // 성공적으로 로드된 이미지 URL만 저장
+  const [loadedImageUrl, setLoadedImageUrl] = useState<string>(() => getFallbackImage('중립')); // 성공적으로 로드된 이미지 URL - 초기값: 중립 폴백
   const [isGoalsExpanded, setIsGoalsExpanded] = useState(false);
   const [showEndConversationDialog, setShowEndConversationDialog] = useState(false);
   const [showModeChangeDialog, setShowModeChangeDialog] = useState(false);
@@ -203,7 +203,7 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
     return fallbackCharacterImages[emotion as keyof typeof fallbackCharacterImages] || fallbackCharacterImages['중립'];
   };
 
-  // 페르소나별 이미지 체크 및 공용 이미지 프리로딩
+  // 페르소나별 이미지 체크 및 공용 이미지 프리로딩, 초기 이미지 설정
   useEffect(() => {
     const checkPersonaImages = async () => {
       const genderFolder = persona.gender || 'male';
@@ -245,6 +245,10 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
       
       await Promise.all([...checkPromises, ...fallbackPromises]);
       console.log('🎨 모든 캐릭터 이미지 체크 및 프리로딩 완료');
+      
+      // 초기 감정 이미지 설정 (중립)
+      const initialImageUrl = getCharacterImage('중립');
+      setLoadedImageUrl(initialImageUrl);
     };
     
     checkPersonaImages();
@@ -1109,13 +1113,16 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
     return getCharacterImage(targetEmotion);
   };
 
-  // 이미지 프리로드 함수 - 새 이미지 로드 완료 후 상태 업데이트
+  // 이미지 프리로드 함수 - 새 이미지 로드 완료 후 상태 업데이트 (기존 이미지 유지하다가 새 이미지 로드 완료 후 교체)
   const preloadImage = (imageUrl: string) => {
     const img = new Image();
     img.onload = () => {
       console.log(`✅ 표정 이미지 로드 완료: ${imageUrl}`);
-      setLoadedImageUrl(imageUrl); // 로드 완료 후 배경 이미지 업데이트
-      setIsEmotionTransitioning(false);
+      // 약간의 지연으로 부드러운 전환 효과 적용
+      setTimeout(() => {
+        setLoadedImageUrl(imageUrl); // 로드 완료 후 배경 이미지 업데이트
+        setIsEmotionTransitioning(false);
+      }, 100);
     };
     img.onerror = () => {
       console.log(`⚠️ 표정 이미지 로드 실패: ${imageUrl}, 기존 이미지 유지`);
@@ -1677,7 +1684,8 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
                 isEmotionTransitioning ? 'brightness-95 scale-[1.02]' : 'brightness-110 scale-100'
               }`}
               style={{
-                backgroundImage: `url(${loadedImageUrl || getEmotionImage(currentEmotion)})`
+                backgroundImage: `url(${loadedImageUrl})`,
+                backgroundColor: '#f5f5f5'
               }}
               data-testid="character-mode"
             >
