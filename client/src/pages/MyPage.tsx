@@ -51,7 +51,7 @@ export default function MyPage() {
     
     // ✨ personaRuns의 평균 점수 계산
     const allPersonaRuns = scenarioRuns.flatMap(sr => sr.personaRuns || []);
-    const completedPersonaRuns = allPersonaRuns.filter(pr => pr.status === 'completed' && pr.score !== null && pr.score !== undefined);
+    const completedPersonaRuns = allPersonaRuns.filter(pr => pr.status === 'completed');
     const averageScore = completedPersonaRuns.length > 0
       ? Math.round(completedPersonaRuns.reduce((sum, pr) => sum + (pr.score || 0), 0) / completedPersonaRuns.length)
       : 0;

@@ -209,10 +209,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
     // 피드백 저장
     const feedback = await storage.createFeedback({
       conversationId,
+      personaRunId: conversationId,
       overallScore: feedbackData.overallScore,
       scores: evaluationScores,
       detailedFeedback: feedbackData,
     });
+
+    // ✨ personaRun의 score 업데이트
+    try {
+      const personaRun = await storage.getPersonaRun(conversationId);
+      if (personaRun) {
+        await storage.updatePersonaRun(conversationId, {
+          score: feedbackData.overallScore
+        });
+        console.log(`✅ PersonaRun ${conversationId} score 업데이트: ${feedbackData.overallScore}`);
+      }
+    } catch (error) {
+      console.warn(`PersonaRun score 업데이트 실패: ${error}`);
+    }
 
     console.log(`피드백 자동 생성 완료: ${conversationId}`);
 
