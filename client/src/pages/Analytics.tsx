@@ -223,6 +223,7 @@ export default function Analytics() {
             </CardContent>
           </Card>
         </div>
+        </TooltipProvider>
 
         {/* Category Breakdown */}
         <Card className="mb-8" data-testid="card-categories">
