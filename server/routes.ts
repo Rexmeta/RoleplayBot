@@ -1820,6 +1820,141 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const completionRate = totalSessions > 0 
         ? Math.round((completedSessions / totalSessions) * 100)
         : 0;
+      
+      // ✨ 확장된 지표 (많은 유저 시나리오)
+      
+      // 10. DAU/WAU/MAU 계산 (캘린더 기준)
+      const now = new Date();
+      
+      // 오늘 시작 (00:00:00)
+      const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      
+      // 이번 주 시작 (일요일 기준)
+      const dayOfWeek = now.getDay();
+      const startOfWeek = new Date(now.getFullYear(), now.getMonth(), now.getDate() - dayOfWeek);
+      
+      // 이번 달 시작
+      const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+      
+      const getDauUsers = () => {
+        const userIds = new Set<string>();
+        personaRuns.forEach(pr => {
+          const scenarioRun = scenarioRuns.find(sr => sr.id === pr.scenarioRunId);
+          if (scenarioRun && pr.createdAt && new Date(pr.createdAt) >= startOfToday) {
+            userIds.add(scenarioRun.userId);
+          }
+        });
+        return userIds.size;
+      };
+      
+      const getWauUsers = () => {
+        const userIds = new Set<string>();
+        personaRuns.forEach(pr => {
+          const scenarioRun = scenarioRuns.find(sr => sr.id === pr.scenarioRunId);
+          if (scenarioRun && pr.createdAt && new Date(pr.createdAt) >= startOfWeek) {
+            userIds.add(scenarioRun.userId);
+          }
+        });
+        return userIds.size;
+      };
+      
+      const getMauUsers = () => {
+        const userIds = new Set<string>();
+        personaRuns.forEach(pr => {
+          const scenarioRun = scenarioRuns.find(sr => sr.id === pr.scenarioRunId);
+          if (scenarioRun && pr.createdAt && new Date(pr.createdAt) >= startOfMonth) {
+            userIds.add(scenarioRun.userId);
+          }
+        });
+        return userIds.size;
+      };
+      
+      const dau = getDauUsers();
+      const wau = getWauUsers();
+      const mau = getMauUsers();
+      
+      // 11. 유저당 평균 세션 수
+      const sessionsPerUser = activeUsers > 0 
+        ? Math.round((totalSessions / activeUsers) * 10) / 10
+        : 0;
+      
+      // 12. 신규 vs 재방문 비율 계산
+      const userSessionCounts: Record<string, number> = {};
+      personaRuns.forEach(pr => {
+        const scenarioRun = scenarioRuns.find(sr => sr.id === pr.scenarioRunId);
+        if (scenarioRun) {
+          userSessionCounts[scenarioRun.userId] = (userSessionCounts[scenarioRun.userId] || 0) + 1;
+        }
+      });
+      
+      const newUsers = Object.values(userSessionCounts).filter(count => count === 1).length;
+      const returningUsers = Object.values(userSessionCounts).filter(count => count > 1).length;
+      const returningRate = activeUsers > 0 
+        ? Math.round((returningUsers / activeUsers) * 100)
+        : 0;
+      
+      // 13. 시나리오별 평균 점수
+      const scenarioScores: Record<string, { scores: number[]; name: string }> = {};
+      completedFeedbacks.forEach(f => {
+        const personaRun = completedPersonaRuns.find(pr => pr.id === f.personaRunId);
+        if (personaRun) {
+          const scenarioRun = scenarioRuns.find(sr => sr.id === personaRun.scenarioRunId);
+          if (scenarioRun) {
+            const scenario = scenarios.find(s => s.id === scenarioRun.scenarioId);
+            if (!scenarioScores[scenarioRun.scenarioId]) {
+              scenarioScores[scenarioRun.scenarioId] = {
+                scores: [],
+                name: scenario?.title || scenarioRun.scenarioId
+              };
+            }
+            scenarioScores[scenarioRun.scenarioId].scores.push(f.overallScore);
+          }
+        }
+      });
+      
+      const scenarioAverages = Object.entries(scenarioScores).map(([id, data]) => ({
+        id,
+        name: data.name,
+        averageScore: Math.round(data.scores.reduce((a, b) => a + b, 0) / data.scores.length),
+        sessionCount: data.scores.length
+      })).sort((a, b) => b.averageScore - a.averageScore);
+      
+      // 14. MBTI별 평균 점수
+      const mbtiScores: Record<string, number[]> = {};
+      completedFeedbacks.forEach(f => {
+        const personaRun = completedPersonaRuns.find(pr => pr.id === f.personaRunId);
+        if (personaRun?.mbtiType) {
+          const mbtiKey = personaRun.mbtiType.toUpperCase();
+          if (!mbtiScores[mbtiKey]) {
+            mbtiScores[mbtiKey] = [];
+          }
+          mbtiScores[mbtiKey].push(f.overallScore);
+        }
+      });
+      
+      const mbtiAverages = Object.entries(mbtiScores).map(([mbti, scores]) => ({
+        mbti,
+        averageScore: Math.round(scores.reduce((a, b) => a + b, 0) / scores.length),
+        sessionCount: scores.length
+      })).sort((a, b) => b.averageScore - a.averageScore);
+      
+      // 15. Top 활동 유저 (세션 수 기준)
+      const topActiveUsers = Object.entries(userSessionCounts)
+        .map(([userId, sessionCount]) => ({ userId, sessionCount }))
+        .sort((a, b) => b.sessionCount - a.sessionCount)
+        .slice(0, 10);
+      
+      // 16. 가장 인기있는 시나리오 Top 5
+      const topScenarios = Object.entries(scenarioStats)
+        .map(([id, data]) => ({ id, ...data }))
+        .sort((a, b) => b.count - a.count)
+        .slice(0, 5);
+      
+      // 17. 가장 어려운 시나리오 Top 5 (평균 점수 낮은 순)
+      const hardestScenarios = scenarioAverages
+        .filter(s => s.sessionCount >= 1)
+        .sort((a, b) => a.averageScore - b.averageScore)
+        .slice(0, 5);
         
       res.json({
         totalSessions,
@@ -1831,7 +1966,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
         participationRate,
         scenarioStats,
         mbtiUsage,
-        totalScenarios: scenarios.length
+        totalScenarios: scenarios.length,
+        // 확장 지표
+        dau,
+        wau,
+        mau,
+        sessionsPerUser,
+        newUsers,
+        returningUsers,
+        returningRate,
+        scenarioAverages,
+        mbtiAverages,
+        topActiveUsers,
+        topScenarios,
+        hardestScenarios
       });
     } catch (error) {
       console.error("Error getting analytics overview:", error);
