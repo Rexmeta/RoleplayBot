@@ -1568,14 +1568,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const scoreHistory = userFeedbacks
         .map(f => {
           const createdDate = new Date(f.createdAt);
+          const year = createdDate.getFullYear();
+          const month = String(createdDate.getMonth() + 1).padStart(2, '0');
+          const day = String(createdDate.getDate()).padStart(2, '0');
+          const dateStr = `${year}-${month}-${day}`;
           return {
-            date: f.createdAt.toISOString(),
+            date: dateStr,
             time: createdDate.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' }),
             score: f.overallScore,
             conversationId: f.personaRunId || f.conversationId
           };
         })
-        .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+        .sort((a, b) => a.date.localeCompare(b.date));
       
       // 4. 강점/약점 패턴 분석 (반복되는 항목 추출)
       const allStrengths = userFeedbacks.flatMap(f => {

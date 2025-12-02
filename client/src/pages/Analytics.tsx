@@ -254,18 +254,23 @@ export default function Analytics() {
                   <LineChart
                     data={Object.entries(
                       analytics.scoreHistory.reduce((acc, entry) => {
-                        const dateKey = new Date(entry.date).toLocaleDateString('ko-KR');
+                        const dateKey = entry.date;
                         if (!acc[dateKey]) {
                           acc[dateKey] = { scores: [], date: dateKey };
                         }
                         acc[dateKey].scores.push(entry.score);
                         return acc;
                       }, {} as Record<string, { scores: number[]; date: string }>)
-                    ).map(([_, data]) => ({
-                      date: data.date,
-                      score: Math.round(data.scores.reduce((a, b) => a + b, 0) / data.scores.length),
-                      count: data.scores.length
-                    }))}
+                    )
+                    .sort((a, b) => a[0].localeCompare(b[0]))
+                    .map(([_, data]) => {
+                      const [year, month, day] = data.date.split('-');
+                      return {
+                        date: `${month}.${day}`,
+                        score: Math.round(data.scores.reduce((a, b) => a + b, 0) / data.scores.length),
+                        count: data.scores.length
+                      };
+                    })}
                     margin={{ top: 5, right: 30, left: 0, bottom: 5 }}
                   >
                     <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
