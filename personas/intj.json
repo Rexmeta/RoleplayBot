@@ -1,6 +1,7 @@
 {
   "id": "intj",
   "mbti": "INTJ",
+  "gender": "male",
   "personality_traits": [
     "전략적 사고",
     "독립적",
@@ -49,8 +50,36 @@
     "pace": "중간 속도",
     "emotion": "균형 잡힌 감정 표현"
   },
-  "image": {
-    "profile": "https://picsum.photos/seed/intj/150/150",
-    "style": "실제 인물 사진 느낌의 자연스러운 초상화"
+  "images": {
+    "base": "/personas/intj/male/neutral.png?t=1764663326790",
+    "style": "한국인 이가 보이지 않는 중립 표정, 상반신 전체가 보이는 앉아 있는 모습",
+    "male": {
+      "expressions": {
+        "중립": "/personas/intj/male/neutral.png?t=1764663326790",
+        "기쁨": "/personas/intj/male/joy.png?t=1764663414409",
+        "슬픔": "/personas/intj/male/sad.png?t=1764663414409",
+        "분노": "/personas/intj/male/angry.png?t=1764663414409",
+        "놀람": "/personas/intj/male/surprise.png?t=1764663414409",
+        "호기심": "/personas/intj/male/curious.png?t=1764663414409",
+        "불안": "/personas/intj/male/anxious.png?t=1764663414409",
+        "피로": "/personas/intj/male/tired.png?t=1764663414409",
+        "실망": "/personas/intj/male/disappointed.png?t=1764663414409",
+        "당혹": "/personas/intj/male/confused.png?t=1764663414409"
+      }
+    },
+    "female": {
+      "expressions": {
+        "중립": "",
+        "기쁨": "",
+        "슬픔": "",
+        "분노": "",
+        "놀람": "",
+        "호기심": "",
+        "불안": "",
+        "피로": "",
+        "실망": "",
+        "당혹": ""
+      }
+    }
   }
 }

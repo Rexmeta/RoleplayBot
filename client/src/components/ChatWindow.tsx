@@ -118,7 +118,7 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
   const [imagesLoaded, setImagesLoaded] = useState<{[key: string]: boolean}>({});
   const [personaImagesAvailable, setPersonaImagesAvailable] = useState<{[key: string]: boolean}>({});
   const [currentEmotion, setCurrentEmotion] = useState<string>('중립');
-  const [loadedImageUrl, setLoadedImageUrl] = useState<string>(() => getFallbackImage('중립')); // 성공적으로 로드된 이미지 URL - 초기값: 중립 폴백
+  const [loadedImageUrl, setLoadedImageUrl] = useState<string>(''); // 성공적으로 로드된 이미지 URL
   const [isGoalsExpanded, setIsGoalsExpanded] = useState(false);
   const [showEndConversationDialog, setShowEndConversationDialog] = useState(false);
   const [showModeChangeDialog, setShowModeChangeDialog] = useState(false);
@@ -245,14 +245,16 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
       
       await Promise.all([...checkPromises, ...fallbackPromises]);
       console.log('🎨 모든 캐릭터 이미지 체크 및 프리로딩 완료');
-      
-      // 초기 감정 이미지 설정 (중립)
-      const initialImageUrl = getCharacterImage('중립');
-      setLoadedImageUrl(initialImageUrl);
     };
     
     checkPersonaImages();
   }, [persona.id, persona.mbti, persona.gender]);
+  
+  // 초기 이미지 설정 - getFallbackImage가 정의된 후 호출
+  useEffect(() => {
+    const initialImageUrl = getCharacterImage('중립');
+    setLoadedImageUrl(initialImageUrl);
+  }, []);
 
   // 리얼타임 음성 모드에서는 턴 제한 없음, 다른 모드에서는 3턴
   const maxTurns = inputMode === 'realtime-voice' ? 999 : 3;
