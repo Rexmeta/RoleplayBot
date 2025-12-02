@@ -107,17 +107,43 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
     console.log(`피드백 생성 중: ${conversationId}`);
 
-    // 대화 시간과 발화량 계산 - 실제 대화 시작 시간(actualStartedAt)을 기준으로 계산
-    const pRun = await storage.getPersonaRunByConversationId(conversationId);
-    const startTime = pRun?.actualStartedAt ? new Date(pRun.actualStartedAt) : new Date(conversation.createdAt);
-    const conversationDurationSeconds = conversation.completedAt 
-      ? Math.floor((new Date(conversation.completedAt).getTime() - startTime.getTime()) / 1000) 
-      : 0;
+    // ✨ 메시지 기반 대화 시간 계산 - 5분 이상 간격은 제외하여 실제 대화 시간만 계산
+    const IDLE_THRESHOLD_MS = 5 * 60 * 1000; // 5분 = 대화 중단으로 간주
     
+    const calculateActualConversationTime = (messages: any[]): number => {
+      if (messages.length < 2) {
+        // 메시지가 1개 이하면 기본값 반환
+        return messages.length > 0 ? 60 : 0; // 최소 1분
+      }
+      
+      // 메시지를 시간순으로 정렬
+      const sortedMessages = [...messages].sort((a, b) => 
+        new Date(a.timestamp || a.createdAt).getTime() - new Date(b.timestamp || b.createdAt).getTime()
+      );
+      
+      let totalActiveTime = 0;
+      
+      for (let i = 1; i < sortedMessages.length; i++) {
+        const prevTime = new Date(sortedMessages[i - 1].timestamp || sortedMessages[i - 1].createdAt).getTime();
+        const currTime = new Date(sortedMessages[i].timestamp || sortedMessages[i].createdAt).getTime();
+        const gap = currTime - prevTime;
+        
+        // 5분 이하의 간격만 대화 시간에 포함
+        if (gap <= IDLE_THRESHOLD_MS) {
+          totalActiveTime += gap;
+        } else {
+          console.log(`⏸️ 대화 중단 감지: ${Math.floor(gap / 1000 / 60)}분 간격 (제외됨)`);
+        }
+      }
+      
+      return Math.floor(totalActiveTime / 1000); // 초 단위로 반환
+    };
+    
+    const conversationDurationSeconds = calculateActualConversationTime(conversation.messages);
     const conversationDuration = Math.floor(conversationDurationSeconds / 60);
     const userMessages = conversation.messages.filter((m: any) => m.sender === 'user');
     const totalUserWords = userMessages.reduce((sum: number, msg: any) => sum + msg.message.length, 0);
-    const averageResponseTime = conversationDuration > 0 ? Math.round(conversationDuration * 60 / userMessages.length) : 0;
+    const averageResponseTime = userMessages.length > 0 ? Math.round(conversationDurationSeconds / userMessages.length) : 0;
 
     // 피드백 데이터 생성
     const feedbackData = await generateFeedback(
@@ -1402,18 +1428,41 @@ export async function registerRoutes(app: Express): Promise<Server> {
         background: mbtiPersona?.background?.personal_values?.join(', ') || '전문성'
       };
 
-      // 대화 시간과 발화량 계산 (초 단위) - 실제 대화 시작 시간(actualStartedAt)을 기준으로 계산
-      const pRun = await storage.getPersonaRunByConversationId(conversation.id);
-      const startTime = pRun?.actualStartedAt ? new Date(pRun.actualStartedAt) : new Date(personaRun.startedAt);
-      const conversationDurationSeconds = conversation.completedAt 
-        ? Math.floor((new Date(conversation.completedAt).getTime() - startTime.getTime()) / 1000) 
-        : 0; // 초 단위
+      // ✨ 메시지 기반 대화 시간 계산 - 5분 이상 간격은 제외하여 실제 대화 시간만 계산
+      const IDLE_THRESHOLD_MS = 5 * 60 * 1000; // 5분 = 대화 중단으로 간주
       
+      const calculateActualConversationTime = (messages: any[]): number => {
+        if (messages.length < 2) {
+          return messages.length > 0 ? 60 : 0; // 최소 1분
+        }
+        
+        const sortedMessages = [...messages].sort((a, b) => 
+          new Date(a.timestamp || a.createdAt).getTime() - new Date(b.timestamp || b.createdAt).getTime()
+        );
+        
+        let totalActiveTime = 0;
+        
+        for (let i = 1; i < sortedMessages.length; i++) {
+          const prevTime = new Date(sortedMessages[i - 1].timestamp || sortedMessages[i - 1].createdAt).getTime();
+          const currTime = new Date(sortedMessages[i].timestamp || sortedMessages[i].createdAt).getTime();
+          const gap = currTime - prevTime;
+          
+          if (gap <= IDLE_THRESHOLD_MS) {
+            totalActiveTime += gap;
+          } else {
+            console.log(`⏸️ 대화 중단 감지: ${Math.floor(gap / 1000 / 60)}분 간격 (제외됨)`);
+          }
+        }
+        
+        return Math.floor(totalActiveTime / 1000); // 초 단위로 반환
+      };
+      
+      const conversationDurationSeconds = calculateActualConversationTime(conversation.messages);
       const conversationDuration = Math.floor(conversationDurationSeconds / 60); // 분 단위 (기존 로직 호환성)
 
       const userMessages = conversation.messages.filter(m => m.sender === 'user');
       const totalUserWords = userMessages.reduce((sum, msg) => sum + msg.message.length, 0);
-      const averageResponseTime = conversationDuration > 0 ? Math.round(conversationDuration * 60 / userMessages.length) : 0; // 초 단위
+      const averageResponseTime = userMessages.length > 0 ? Math.round(conversationDurationSeconds / userMessages.length) : 0; // 초 단위
 
 
       const feedbackData = await generateFeedback(
