@@ -10,6 +10,9 @@ interface AnalyticsOverview {
   completedSessions: number;
   averageScore: number;
   completionRate: number;
+  totalUsers: number;
+  activeUsers: number;
+  participationRate: number;
   scenarioStats: Record<string, { count: number; name: string; difficulty: number }>;
   mbtiUsage: Record<string, number>;
   totalScenarios: number;
@@ -154,7 +157,7 @@ export default function AdminDashboard() {
       </div>
 
       {/* Overview Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <Card className="card-enhanced" data-testid="card-session-summary">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">훈련 세션</CardTitle>
@@ -176,6 +179,17 @@ export default function AdminDashboard() {
           <CardContent>
             <div className="text-2xl font-bold" data-testid="average-score">{overview?.averageScore || 0}점</div>
             <p className="text-xs text-slate-600">전체 세션 평균</p>
+          </CardContent>
+        </Card>
+
+        <Card className="card-enhanced" data-testid="card-participation">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">참여인수</CardTitle>
+            <i className="fas fa-users text-green-600"></i>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold" data-testid="participation-rate">{overview?.participationRate || 0}%</div>
+            <p className="text-xs text-slate-600">{overview?.activeUsers || 0}/{overview?.totalUsers || 0} 사용자</p>
           </CardContent>
         </Card>
       </div>
