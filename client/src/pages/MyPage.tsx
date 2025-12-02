@@ -707,10 +707,10 @@ function ScenarioRunDetails({
                       <Button
                         variant="default"
                         size="sm"
-                        onClick={() => window.location.href = `/home?scenarioId=${scenarioRun.scenarioId}&scenarioRunId=${scenarioRun.id}&personaId=${persona.id}`}
+                        onClick={() => window.location.href = `/home?scenarioId=${scenarioRun.scenarioId}&scenarioRunId=${scenarioRun.id}`}
                         data-testid={`start-persona-${persona.id}`}
                       >
-                        대화하기
+                        시나리오 페르소나 선택
                       </Button>
                     ) : isActive ? (
                       <>
