@@ -1955,6 +1955,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
         .filter(s => s.sessionCount >= 1)
         .sort((a, b) => a.averageScore - b.averageScore)
         .slice(0, 5);
+      
+      // 18. 난이도별 선택 통계 - scenarioRun의 difficulty 기반
+      const difficultyStats = scenarioRuns.reduce((acc, sr) => {
+        const level = sr.difficulty || 4;
+        acc[level] = (acc[level] || 0) + 1;
+        return acc;
+      }, {} as Record<number, number>);
+      
+      const difficultyUsage = [1, 2, 3, 4].map(level => ({
+        level,
+        count: difficultyStats[level] || 0
+      }));
         
       res.json({
         totalSessions,
@@ -1979,7 +1991,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         mbtiAverages,
         topActiveUsers,
         topScenarios,
-        hardestScenarios
+        hardestScenarios,
+        difficultyUsage
       });
     } catch (error) {
       console.error("Error getting analytics overview:", error);

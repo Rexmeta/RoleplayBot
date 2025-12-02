@@ -153,33 +153,22 @@ export default function AdminDashboard() {
     };
   }) : [];
 
-  // 난이도별 선택 인기도 계산
-  const difficultyPopularityData = scenarioPopularityData.reduce((acc: any[], scenario: any) => {
-    const existing = acc.find(d => d.difficulty === `Lv${scenario.difficulty}`);
-    if (existing) {
-      existing.count += scenario.sessions;
-    } else {
-      acc.push({
-        difficulty: `Lv${scenario.difficulty}`,
-        count: scenario.sessions
-      });
-    }
-    return acc;
-  }, []).sort((a: any, b: any) => {
-    const lvA = parseInt(a.difficulty.replace('Lv', ''));
-    const lvB = parseInt(b.difficulty.replace('Lv', ''));
-    return lvA - lvB;
-  });
+  // 난이도별 선택 인기도 계산 - 사용자가 선택한 난이도 기반
+  const difficultyPopularityData = overview?.difficultyUsage ? 
+    overview.difficultyUsage.map((d: any) => ({
+      difficulty: `Lv${d.level}`,
+      count: d.count
+    })) : [];
 
-  // 시나리오별 난이도 분포 계산
+  // 시나리오별 난이도 분포 계산 - 시나리오의 고정 난이도가 아니라 총 세션 수
   const scenarioDifficultyData = scenarios.map((scenario: any) => {
     const stats = overview?.scenarioStats?.[scenario.id];
     return {
       name: scenario.title,
-      lv1: scenario.difficulty === 1 ? stats?.count || 0 : 0,
-      lv2: scenario.difficulty === 2 ? stats?.count || 0 : 0,
-      lv3: scenario.difficulty === 3 ? stats?.count || 0 : 0,
-      lv4: scenario.difficulty === 4 ? stats?.count || 0 : 0
+      lv1: stats?.difficulty === 1 ? stats?.count || 0 : 0,
+      lv2: stats?.difficulty === 2 ? stats?.count || 0 : 0,
+      lv3: stats?.difficulty === 3 ? stats?.count || 0 : 0,
+      lv4: stats?.difficulty === 4 ? stats?.count || 0 : 0
     };
   }).filter((d: any) => d.lv1 + d.lv2 + d.lv3 + d.lv4 > 0);
 
