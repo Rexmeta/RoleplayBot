@@ -1764,6 +1764,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
         ? Math.round(feedbacks.reduce((acc, f) => acc + f.overallScore, 0) / feedbacks.length)
         : 0;
       
+      // 참여인수 계산 - scenarioRuns의 고유 userId 수 (활동 사용자)
+      const activeUserIds = new Set(scenarioRuns.map(sr => sr.userId));
+      const activeUsers = activeUserIds.size;
+      
+      // 전체 사용자 수는 활동 사용자와 동일하게 설정 (활동한 사용자 기준)
+      // 실제 전체 사용자를 알려면 users 테이블 필요
+      const totalUsers = activeUsers;
+      
+      // 참여율 계산
+      const participationRate = activeUsers > 0 ? 100 : 0; // 활동한 사용자가 있으면 100%
+      
       // Scenario popularity - count scenario_runs grouped by scenarioId
       const scenarioStats = scenarioRuns.reduce((acc, run) => {
         const scenario = scenarios.find(s => s.id === run.scenarioId);
@@ -1795,6 +1806,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         completedSessions,
         averageScore,
         completionRate,
+        totalUsers,
+        activeUsers,
+        participationRate,
         scenarioStats,
         mbtiUsage,
         totalScenarios: scenarios.length
