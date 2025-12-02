@@ -1759,9 +1759,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const totalSessions = scenarioRuns.length;
       const completedSessions = scenarioRuns.filter(sr => sr.status === "completed").length;
       
-      // Average score from feedbacks (linked to persona_runs)
-      const averageScore = feedbacks.length > 0 
-        ? Math.round(feedbacks.reduce((acc, f) => acc + f.overallScore, 0) / feedbacks.length)
+      // Average score - only from completed scenarios
+      const completedPersonaRuns = personaRuns.filter(pr => {
+        const scenarioRun = scenarioRuns.find(sr => sr.id === pr.scenarioRunId);
+        return scenarioRun?.status === "completed";
+      });
+      
+      const completedFeedbacks = feedbacks.filter(f => 
+        completedPersonaRuns.some(pr => pr.id === f.personaRunId)
+      );
+      
+      const averageScore = completedFeedbacks.length > 0 
+        ? Math.round(completedFeedbacks.reduce((acc, f) => acc + f.overallScore, 0) / completedFeedbacks.length)
         : 0;
       
       // 참여인수 계산 - scenarioRuns의 고유 userId 수 (활동 사용자)
