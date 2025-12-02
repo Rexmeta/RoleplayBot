@@ -971,12 +971,6 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
         // 새 이미지 프리로드 - 로드 완료 후 배경 이미지 업데이트
         const newImageUrl = getCharacterImage(newEmotion);
         preloadImage(newImageUrl);
-        }, 200);
-        
-        // cleanup 함수에서 timeout 정리
-        return () => {
-          clearTimeout(transitionTimeout);
-        };
       } else {
         // 메신저 모드에서는 즉시 업데이트
         setCurrentEmotion(newEmotion);
@@ -1683,7 +1677,7 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
                 isEmotionTransitioning ? 'brightness-95 scale-[1.02]' : 'brightness-110 scale-100'
               }`}
               style={{
-                backgroundImage: `url(${getEmotionImage(currentEmotion)})`
+                backgroundImage: `url(${loadedImageUrl || getEmotionImage(currentEmotion)})`
               }}
               data-testid="character-mode"
             >
