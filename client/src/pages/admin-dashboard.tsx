@@ -963,7 +963,7 @@ export default function AdminDashboard() {
 
         {/* Content Registration Status */}
         <TabsContent value="content" className="space-y-6">
-          {/* Content Summary Cards */}
+          {/* 1. 콘텐츠 요약 카드 (4개) */}
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
             <Card className="card-enhanced" data-testid="card-total-scenarios">
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -971,7 +971,7 @@ export default function AdminDashboard() {
                 <i className="fas fa-folder text-blue-600"></i>
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">{scenarios.length}개</div>
+                <div className="text-2xl font-bold text-blue-600">{scenarios.length}개</div>
                 <p className="text-xs text-slate-600">등록된 시나리오 수</p>
               </CardContent>
             </Card>
@@ -982,13 +982,97 @@ export default function AdminDashboard() {
                 <i className="fas fa-user-circle text-purple-600"></i>
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">{personas.length}개</div>
+                <div className="text-2xl font-bold text-purple-600">{personas.length}개</div>
                 <p className="text-xs text-slate-600">등록된 MBTI 페르소나 수</p>
+              </CardContent>
+            </Card>
+
+            <Card className="card-enhanced" data-testid="card-avg-personas-per-scenario">
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">평균 페르소나/시나리오</CardTitle>
+                <i className="fas fa-users-cog text-green-600"></i>
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold text-green-600">
+                  {scenarios.length > 0 
+                    ? (scenarios.reduce((sum: number, s: any) => sum + (s.personas?.length || 0), 0) / scenarios.length).toFixed(1)
+                    : 0}명
+                </div>
+                <p className="text-xs text-slate-600">시나리오당 평균 페르소나</p>
+              </CardContent>
+            </Card>
+
+            <Card className="card-enhanced" data-testid="card-content-coverage">
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">MBTI 커버리지</CardTitle>
+                <i className="fas fa-check-double text-teal-600"></i>
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold text-teal-600">
+                  {new Set(personas.map((p: any) => p.mbti?.toUpperCase()).filter(Boolean)).size}/16
+                </div>
+                <p className="text-xs text-slate-600">등록된 MBTI 유형 수</p>
               </CardContent>
             </Card>
           </div>
 
-          {/* Scenario List Table */}
+          {/* 2. 콘텐츠 분포 분석 차트 */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* 시나리오별 페르소나 수 분포 */}
+            <Card className="card-enhanced" data-testid="card-scenario-persona-dist">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <i className="fas fa-chart-bar text-blue-600"></i>
+                  시나리오별 페르소나 수
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <ResponsiveContainer width="100%" height={250}>
+                  <BarChart data={scenarios.map((s: any) => ({ 
+                    name: s.title?.substring(0, 10) + (s.title?.length > 10 ? '...' : ''),
+                    count: s.personas?.length || 0 
+                  }))}>
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="name" angle={-45} textAnchor="end" height={80} tick={{ fontSize: 11 }} />
+                    <YAxis allowDecimals={false} />
+                    <Tooltip formatter={(value) => [`${value}명`, "페르소나"]} />
+                    <Bar dataKey="count" fill="#3b82f6" />
+                  </BarChart>
+                </ResponsiveContainer>
+              </CardContent>
+            </Card>
+
+            {/* MBTI 유형별 페르소나 분포 */}
+            <Card className="card-enhanced" data-testid="card-mbti-dist">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <i className="fas fa-brain text-purple-600"></i>
+                  MBTI 유형별 페르소나 분포
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <ResponsiveContainer width="100%" height={250}>
+                  <BarChart data={
+                    Object.entries(
+                      personas.reduce((acc: Record<string, number>, p: any) => {
+                        const mbti = p.mbti?.toUpperCase() || 'N/A';
+                        acc[mbti] = (acc[mbti] || 0) + 1;
+                        return acc;
+                      }, {})
+                    ).map(([mbti, count]) => ({ mbti, count }))
+                  }>
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="mbti" tick={{ fontSize: 10 }} />
+                    <YAxis allowDecimals={false} />
+                    <Tooltip formatter={(value) => [`${value}개`, "페르소나"]} />
+                    <Bar dataKey="count" fill="#8b5cf6" />
+                  </BarChart>
+                </ResponsiveContainer>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* 3. 콘텐츠 목록 테이블 */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <Card data-testid="card-scenario-list">
               <CardHeader>
