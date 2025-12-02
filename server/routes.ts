@@ -1967,6 +1967,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         level,
         count: difficultyStats[level] || 0
       }));
+      
+      // 19. 마지막 콘텐츠 업데이트 시간 (가장 최근의 personaRun 생성 시간)
+      const lastContentUpdate = personaRuns.length > 0 
+        ? new Date(Math.max(...personaRuns.map(pr => new Date(pr.createdAt).getTime())))
+        : null;
         
       res.json({
         totalSessions,
@@ -1992,7 +1997,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         topActiveUsers,
         topScenarios,
         hardestScenarios,
-        difficultyUsage
+        difficultyUsage,
+        lastContentUpdate
       });
     } catch (error) {
       console.error("Error getting analytics overview:", error);
