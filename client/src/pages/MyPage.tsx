@@ -606,13 +606,40 @@ function ScenarioRunDetails({
       {/* 전략 회고 */}
       {scenarioRun.strategyReflection ? (
         <div className="bg-gradient-to-r from-green-50 to-emerald-50 border border-green-200 rounded-lg p-5">
-          <h5 className="text-sm font-semibold text-slate-700 mb-2 flex items-center gap-2">
-            <Target className="w-4 h-4 text-green-600" />
-            전략 회고
-          </h5>
-          <p className="text-sm text-slate-600 whitespace-pre-wrap leading-relaxed">
-            {scenarioRun.strategyReflection}
-          </p>
+          <div className="flex items-start justify-between gap-4">
+            <div className="flex-1">
+              <h5 className="text-sm font-semibold text-slate-700 mb-2 flex items-center gap-2">
+                <Target className="w-4 h-4 text-green-600" />
+                전략 회고
+              </h5>
+              <p className="text-sm text-slate-600 whitespace-pre-wrap leading-relaxed">
+                {scenarioRun.strategyReflection}
+              </p>
+            </div>
+            {completedPersonaRuns.length > 0 && (
+              <div className="flex flex-col gap-2">
+                <span className="text-xs font-medium text-slate-500">피드백 보기</span>
+                <div className="flex flex-wrap gap-2">
+                  {completedPersonaRuns.map((pr, idx) => {
+                    const persona = scenario?.personas?.find((p: any) => p.id === pr.personaId);
+                    return (
+                      <Link key={pr.id} href={`/feedback/${pr.id}`}>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="text-xs bg-white hover:bg-green-50 border-green-300 text-green-700"
+                          data-testid={`feedback-button-${pr.id}`}
+                        >
+                          <BarChart3 className="w-3 h-3 mr-1" />
+                          {persona?.name || `페르소나 ${idx + 1}`}
+                        </Button>
+                      </Link>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+          </div>
         </div>
       ) : showStrategyReflectionButton && (
         <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-lg p-5">
