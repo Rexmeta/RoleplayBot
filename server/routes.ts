@@ -374,6 +374,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
           emotionReason: aiResult.emotionReason || null
         });
         
+        // ✨ actualStartedAt 업데이트 (첫 AI 응답 생성 시점)
+        await storage.updatePersonaRun(personaRun.id, {
+          actualStartedAt: new Date()
+        });
+        
         console.log(`💬 첫 AI 메시지 생성 완료`);
 
         // 레거시 호환성을 위해 conversations 구조로 반환

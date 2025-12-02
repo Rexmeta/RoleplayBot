@@ -293,6 +293,10 @@ export class MemStorage implements IStorage {
     throw new Error("MemStorage does not support Persona Runs");
   }
 
+  async getPersonaRunByConversationId(conversationId: string): Promise<PersonaRun | undefined> {
+    throw new Error("MemStorage does not support Persona Runs");
+  }
+
   async updatePersonaRun(id: string, updates: Partial<PersonaRun>): Promise<PersonaRun> {
     throw new Error("MemStorage does not support Persona Runs");
   }
@@ -635,6 +639,11 @@ export class PostgreSQLStorage implements IStorage {
 
   async getPersonaRun(id: string): Promise<PersonaRun | undefined> {
     const [personaRun] = await db.select().from(personaRuns).where(eq(personaRuns.id, id));
+    return personaRun;
+  }
+
+  async getPersonaRunByConversationId(conversationId: string): Promise<PersonaRun | undefined> {
+    const [personaRun] = await db.select().from(personaRuns).where(eq(personaRuns.conversationId, conversationId));
     return personaRun;
   }
 
