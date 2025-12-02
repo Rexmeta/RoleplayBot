@@ -257,13 +257,16 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
     setLoadedImageUrl(initialImageUrl);
   }, [personaImagesAvailable, persona.id, persona.gender, persona.mbti]);
   
-  // 감정 변화 시 이미지 업데이트
+  // 감정 변화 시 이미지 업데이트 - 이미지 로드 완료 후 표시
   useEffect(() => {
     if (currentEmotion && currentEmotion !== '중립') {
       const newImageUrl = getCharacterImage(currentEmotion);
       console.log(`🖼️ 감정 변화 이미지: ${currentEmotion} → ${newImageUrl}`);
-      preloadImage(newImageUrl);
-      setLoadedImageUrl(newImageUrl);
+      
+      // 이미지가 실제로 로드되기 전까지 기다렸다가 화면에 표시
+      preloadImage(newImageUrl).then(() => {
+        setLoadedImageUrl(newImageUrl);
+      });
     }
   }, [currentEmotion]);
 
