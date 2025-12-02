@@ -160,13 +160,22 @@ export default function AdminDashboard() {
       count: d.count
     })) : [];
 
-  // 시나리오별 페르소나 수 분포 계산
-  const scenarioDifficultyData = scenarios.map((scenario: any) => {
-    return {
-      name: scenario.title,
-      personaCount: scenario.personas?.length || 0
-    };
-  }).filter((d: any) => d.personaCount > 0).sort((a: any, b: any) => b.personaCount - a.personaCount);
+  // 페르소나 수별 인기도 계산 - 시나리오를 배제하고 페르소나 수 자체의 분포
+  const scenarioDifficultyData = scenarios.reduce((acc: any[], scenario: any) => {
+    const personaCount = scenario.personas?.length || 0;
+    if (personaCount === 0) return acc;
+    
+    const existing = acc.find(d => d.personaCount === personaCount);
+    if (existing) {
+      existing.count += 1;
+    } else {
+      acc.push({
+        personaCount,
+        count: 1
+      });
+    }
+    return acc;
+  }, []).sort((a: any, b: any) => a.personaCount - b.personaCount);
 
   return (
     <div className="min-h-screen bg-slate-50">
@@ -392,19 +401,19 @@ export default function AdminDashboard() {
               </CardContent>
             </Card>
 
-            {/* Scenario by Persona Count */}
-            <Card data-testid="card-scenario-persona-distribution">
+            {/* Persona Count Popularity */}
+            <Card data-testid="card-persona-count-popularity">
               <CardHeader>
-                <CardTitle>시나리오별 페르소나 수 분포</CardTitle>
+                <CardTitle>페르소나 수 별 인기도</CardTitle>
               </CardHeader>
               <CardContent>
                 <ResponsiveContainer width="100%" height={300}>
                   <BarChart data={scenarioDifficultyData}>
                     <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="name" />
-                    <YAxis />
-                    <Tooltip formatter={(value) => `${value}명`} />
-                    <Bar dataKey="personaCount" fill="#8b5cf6" name="페르소나 수" />
+                    <XAxis dataKey="personaCount" label={{ value: "페르소나 수", position: "insideBottom", offset: -5 }} />
+                    <YAxis label={{ value: "시나리오 개수", angle: -90, position: "insideLeft" }} />
+                    <Tooltip formatter={(value) => [`${value}개`, "시나리오 개수"]} labelFormatter={(label) => `${label}명의 페르소나`} />
+                    <Bar dataKey="count" fill="#8b5cf6" name="시나리오 개수" />
                   </BarChart>
                 </ResponsiveContainer>
               </CardContent>
