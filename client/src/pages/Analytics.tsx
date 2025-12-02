@@ -3,7 +3,8 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { TrendingUp, TrendingDown, Minus, Award, Target, BarChart3, Calendar } from "lucide-react";
+import { Tooltip as UITooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { TrendingUp, TrendingDown, Minus, Award, Target, BarChart3, Calendar, HelpCircle } from "lucide-react";
 import { Link } from "wouter";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts";
 
@@ -146,27 +147,37 @@ export default function Analytics() {
         </div>
 
         {/* Summary Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-          {/* Overall Score */}
-          <Card data-testid="card-overall-score">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-sm font-medium text-slate-600 flex items-center gap-2">
-                <Award className="w-4 h-4" />
-                종합 점수
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="flex items-end gap-3">
-                <div className="text-4xl font-bold text-slate-900" data-testid="text-average-score">
-                  {analytics.averageScore}
+        <TooltipProvider>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+            {/* Overall Score */}
+            <Card data-testid="card-overall-score">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-sm font-medium text-slate-600 flex items-center gap-2">
+                  <Award className="w-4 h-4" />
+                  종합 점수
+                  <UITooltip>
+                    <TooltipTrigger asChild>
+                      <HelpCircle className="w-4 h-4 text-slate-400 hover:text-slate-600 cursor-help" />
+                    </TooltipTrigger>
+                    <TooltipContent side="right">
+                      <p>완료된 모든 대화</p>
+                      <p>피드백의 평균 점수입니다.</p>
+                    </TooltipContent>
+                  </UITooltip>
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="flex items-end gap-3">
+                  <div className="text-4xl font-bold text-slate-900" data-testid="text-average-score">
+                    {analytics.averageScore}
+                  </div>
+                  <div className={`px-3 py-1 rounded-full text-sm font-semibold mb-1 ${getGradeColor(analytics.overallGrade)}`} data-testid="badge-grade">
+                    {analytics.overallGrade} 등급
+                  </div>
                 </div>
-                <div className={`px-3 py-1 rounded-full text-sm font-semibold mb-1 ${getGradeColor(analytics.overallGrade)}`} data-testid="badge-grade">
-                  {analytics.overallGrade} 등급
-                </div>
-              </div>
-              <Progress value={analytics.averageScore} className="mt-4" />
-            </CardContent>
-          </Card>
+                <Progress value={analytics.averageScore} className="mt-4" />
+              </CardContent>
+            </Card>
 
           {/* Sessions Count */}
           <Card data-testid="card-sessions">

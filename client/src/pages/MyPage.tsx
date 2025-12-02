@@ -7,7 +7,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { CalendarDays, Star, TrendingUp, MessageSquare, Award, History, BarChart3, Users, Target, Trash2, Loader2 } from "lucide-react";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { CalendarDays, Star, TrendingUp, MessageSquare, Award, History, BarChart3, Users, Target, Trash2, Loader2, HelpCircle } from "lucide-react";
 import { Link } from "wouter";
 import { useAuth } from "@/hooks/useAuth";
 import { type ScenarioRun, type PersonaRun, type Feedback } from "@shared/schema";
@@ -81,11 +82,14 @@ export default function MyPage() {
   const stats = useMemo(() => {
     const completedRuns = scenarioRuns.filter(sr => sr.status === 'completed');
     
-    // ✨ personaRuns의 평균 점수 계산
+    // ✨ 피드백이 있는 personaRuns의 평균 점수만 계산
     const allPersonaRuns = scenarioRuns.flatMap(sr => sr.personaRuns || []);
     const completedPersonaRuns = allPersonaRuns.filter(pr => pr.status === 'completed');
-    const averageScore = completedPersonaRuns.length > 0
-      ? Math.round(completedPersonaRuns.reduce((sum, pr) => sum + (pr.score || 0), 0) / completedPersonaRuns.length)
+    
+    // 피드백이 있는 것만 필터링 (score !== null && score > 0)
+    const personaRunsWithFeedback = completedPersonaRuns.filter(pr => pr.score !== null && pr.score > 0);
+    const averageScore = personaRunsWithFeedback.length > 0
+      ? Math.round(personaRunsWithFeedback.reduce((sum, pr) => sum + (pr.score || 0), 0) / personaRunsWithFeedback.length)
       : 0;
     
     console.log('📊 MyPage Stats Debug:', {
@@ -93,17 +97,17 @@ export default function MyPage() {
       completedScenarioRuns: completedRuns.length,
       allPersonaRuns: allPersonaRuns.length,
       completedPersonaRuns: completedPersonaRuns.length,
+      personaRunsWithFeedback: personaRunsWithFeedback.length,
       averageScore,
-      personaRunsData: allPersonaRuns.slice(0, 3).map(pr => ({ status: pr.status, score: pr.score }))
     });
     
     return {
       totalScenarioRuns: scenarioRuns.length,
       completedScenarioRuns: completedRuns.length,
       averageScore,
-      totalFeedbacks: completedPersonaRuns.length, // 완료된 persona run = feedback
+      totalFeedbacks: personaRunsWithFeedback.length, // 피드백이 있는 persona run만 카운트
     };
-  }, [scenarioRuns]);
+  }, [scenarioRuns, feedbacks]);
 
   const getScoreColor = (score: number) => {
     if (score >= 80) return "text-green-600";
@@ -396,66 +400,90 @@ export default function MyPage() {
 
           {/* 학습 통계 탭 */}
           <TabsContent value="stats" className="space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-              <Card>
-                <CardHeader className="pb-3">
-                  <CardTitle className="text-sm font-medium text-slate-600">전체 시나리오 실행</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="flex items-center gap-3">
-                    <MessageSquare className="w-8 h-8 text-blue-600" />
-                    <div className="text-3xl font-bold text-slate-900" data-testid="total-scenario-runs">
-                      {stats.totalScenarioRuns}
+            <TooltipProvider>
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+                <Card>
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-sm font-medium text-slate-600">전체 시나리오 실행</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="flex items-center gap-3">
+                      <MessageSquare className="w-8 h-8 text-blue-600" />
+                      <div className="text-3xl font-bold text-slate-900" data-testid="total-scenario-runs">
+                        {stats.totalScenarioRuns}
+                      </div>
                     </div>
-                  </div>
-                </CardContent>
-              </Card>
+                  </CardContent>
+                </Card>
 
-              <Card>
-                <CardHeader className="pb-3">
-                  <CardTitle className="text-sm font-medium text-slate-600">완료한 시나리오</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="flex items-center gap-3">
-                    <Award className="w-8 h-8 text-green-600" />
-                    <div className="text-3xl font-bold text-slate-900" data-testid="completed-scenario-runs">
-                      {stats.completedScenarioRuns}
+                <Card>
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-sm font-medium text-slate-600">완료한 시나리오</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="flex items-center gap-3">
+                      <Award className="w-8 h-8 text-green-600" />
+                      <div className="text-3xl font-bold text-slate-900" data-testid="completed-scenario-runs">
+                        {stats.completedScenarioRuns}
+                      </div>
                     </div>
-                  </div>
-                </CardContent>
-              </Card>
+                  </CardContent>
+                </Card>
 
-              <Card>
-                <CardHeader className="pb-3">
-                  <CardTitle className="text-sm font-medium text-slate-600">평균 점수</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="flex items-center gap-3">
-                    <Star className="w-8 h-8 text-yellow-500" />
-                    <div className={`text-3xl font-bold ${getScoreColor(stats.averageScore)}`} data-testid="average-score">
-                      {stats.averageScore}
+                <Card>
+                  <CardHeader className="pb-3">
+                    <div className="flex items-center gap-2">
+                      <CardTitle className="text-sm font-medium text-slate-600">평균 점수</CardTitle>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <HelpCircle className="w-4 h-4 text-slate-400 hover:text-slate-600 cursor-help" />
+                        </TooltipTrigger>
+                        <TooltipContent side="right">
+                          <p>피드백을 받은 모든 대화의</p>
+                          <p>점수 평균값입니다.</p>
+                        </TooltipContent>
+                      </Tooltip>
                     </div>
-                  </div>
-                  <div className="mt-2 text-sm text-slate-600">
-                    {getScoreBadge(stats.averageScore)}
-                  </div>
-                </CardContent>
-              </Card>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="flex items-center gap-3">
+                      <Star className="w-8 h-8 text-yellow-500" />
+                      <div className={`text-3xl font-bold ${getScoreColor(stats.averageScore)}`} data-testid="average-score">
+                        {stats.averageScore}
+                      </div>
+                    </div>
+                    <div className="mt-2 text-sm text-slate-600">
+                      {getScoreBadge(stats.averageScore)}
+                    </div>
+                  </CardContent>
+                </Card>
 
-              <Card>
-                <CardHeader className="pb-3">
-                  <CardTitle className="text-sm font-medium text-slate-600">총 피드백</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="flex items-center gap-3">
-                    <TrendingUp className="w-8 h-8 text-purple-600" />
-                    <div className="text-3xl font-bold text-slate-900" data-testid="total-feedbacks">
-                      {stats.totalFeedbacks}
+                <Card>
+                  <CardHeader className="pb-3">
+                    <div className="flex items-center gap-2">
+                      <CardTitle className="text-sm font-medium text-slate-600">총 피드백</CardTitle>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <HelpCircle className="w-4 h-4 text-slate-400 hover:text-slate-600 cursor-help" />
+                        </TooltipTrigger>
+                        <TooltipContent side="right">
+                          <p>완료되고 피드백을</p>
+                          <p>받은 대화의 개수입니다.</p>
+                        </TooltipContent>
+                      </Tooltip>
                     </div>
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="flex items-center gap-3">
+                      <TrendingUp className="w-8 h-8 text-purple-600" />
+                      <div className="text-3xl font-bold text-slate-900" data-testid="total-feedbacks">
+                        {stats.totalFeedbacks}
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+            </TooltipProvider>
 
             <Card>
               <CardHeader>
