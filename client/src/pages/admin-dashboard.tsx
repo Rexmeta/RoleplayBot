@@ -29,6 +29,8 @@ interface AnalyticsOverview {
   topActiveUsers: Array<{ userId: string; sessionCount: number }>;
   topScenarios: Array<{ id: string; name: string; count: number; difficulty: number }>;
   hardestScenarios: Array<{ id: string; name: string; averageScore: number; sessionCount: number }>;
+  difficultyUsage: Array<{ level: number; count: number }>;
+  lastContentUpdate: string | null;
 }
 
 interface PerformanceData {
