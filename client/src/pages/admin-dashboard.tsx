@@ -96,6 +96,14 @@ export default function AdminDashboard() {
     gcTime: 1000 * 60 * 60,     // 1시간 메모리 유지
   });
 
+  // MBTI 페르소나 데이터 가져오기
+  const { data: personas = [] } = useQuery({
+    queryKey: ['/api/admin/personas'],
+    queryFn: () => fetch('/api/admin/personas').then(res => res.json()),
+    staleTime: 1000 * 60 * 30,
+    gcTime: 1000 * 60 * 60,
+  });
+
   if (overviewLoading || performanceLoading || trendsLoading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
@@ -255,11 +263,12 @@ export default function AdminDashboard() {
 
       {/* Detailed Analytics */}
       <Tabs defaultValue="performance" className="space-y-6">
-        <TabsList className="grid w-full grid-cols-4">
+        <TabsList className="grid w-full grid-cols-5">
           <TabsTrigger value="performance" data-testid="tab-performance">성과 분석</TabsTrigger>
           <TabsTrigger value="scenarios" data-testid="tab-scenarios">시나리오 분석</TabsTrigger>
           <TabsTrigger value="mbti" data-testid="tab-mbti">MBTI 분석</TabsTrigger>
           <TabsTrigger value="trends" data-testid="tab-trends">트렌드 분석</TabsTrigger>
+          <TabsTrigger value="content" data-testid="tab-content">컨텐츠 현황</TabsTrigger>
         </TabsList>
 
         <TabsContent value="performance" className="space-y-6">
@@ -544,6 +553,178 @@ export default function AdminDashboard() {
                     <Line type="monotone" dataKey="score" stroke="#f59e0b" strokeWidth={2} />
                   </LineChart>
                 </ResponsiveContainer>
+              </CardContent>
+            </Card>
+          </div>
+        </TabsContent>
+
+        {/* Content Registration Status */}
+        <TabsContent value="content" className="space-y-6">
+          {/* Content Summary Cards */}
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <Card className="card-enhanced" data-testid="card-total-scenarios">
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">총 시나리오</CardTitle>
+                <i className="fas fa-folder text-blue-600"></i>
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">{scenarios.length}개</div>
+                <p className="text-xs text-slate-600">등록된 시나리오 수</p>
+              </CardContent>
+            </Card>
+
+            <Card className="card-enhanced" data-testid="card-total-personas">
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">총 페르소나</CardTitle>
+                <i className="fas fa-user-circle text-purple-600"></i>
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">{personas.length}개</div>
+                <p className="text-xs text-slate-600">등록된 MBTI 페르소나 수</p>
+              </CardContent>
+            </Card>
+
+            <Card className="card-enhanced" data-testid="card-difficulty-distribution">
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">난이도 분포</CardTitle>
+                <i className="fas fa-layer-group text-orange-600"></i>
+              </CardHeader>
+              <CardContent>
+                <div className="flex gap-2 text-xs">
+                  <span className="px-2 py-1 bg-green-100 text-green-800 rounded">
+                    Lv1: {scenarios.filter((s: any) => s.difficulty === 1).length}
+                  </span>
+                  <span className="px-2 py-1 bg-blue-100 text-blue-800 rounded">
+                    Lv2: {scenarios.filter((s: any) => s.difficulty === 2).length}
+                  </span>
+                  <span className="px-2 py-1 bg-yellow-100 text-yellow-800 rounded">
+                    Lv3: {scenarios.filter((s: any) => s.difficulty === 3).length}
+                  </span>
+                  <span className="px-2 py-1 bg-red-100 text-red-800 rounded">
+                    Lv4: {scenarios.filter((s: any) => s.difficulty === 4).length}
+                  </span>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="card-enhanced" data-testid="card-persona-gender">
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">성별 분포</CardTitle>
+                <i className="fas fa-venus-mars text-pink-600"></i>
+              </CardHeader>
+              <CardContent>
+                <div className="flex gap-2 text-xs">
+                  <span className="px-2 py-1 bg-blue-100 text-blue-800 rounded">
+                    남성: {personas.filter((p: any) => p.gender === 'male').length}
+                  </span>
+                  <span className="px-2 py-1 bg-pink-100 text-pink-800 rounded">
+                    여성: {personas.filter((p: any) => p.gender === 'female').length}
+                  </span>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Scenario List Table */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <Card data-testid="card-scenario-list">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <i className="fas fa-list text-blue-600"></i>
+                  시나리오 목록
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="overflow-x-auto max-h-[400px] overflow-y-auto">
+                  <table className="w-full text-sm">
+                    <thead className="bg-slate-100 sticky top-0">
+                      <tr>
+                        <th className="p-2 text-left">시나리오명</th>
+                        <th className="p-2 text-center">난이도</th>
+                        <th className="p-2 text-center">페르소나</th>
+                        <th className="p-2 text-center">사용 횟수</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {scenarios.map((scenario: any, index: number) => {
+                        const usageCount = overview?.scenarioStats?.[scenario.id]?.count || 0;
+                        return (
+                          <tr key={scenario.id} className="border-b hover:bg-slate-50" data-testid={`content-scenario-row-${index}`}>
+                            <td className="p-2 font-medium truncate max-w-[180px]" title={scenario.title}>
+                              {scenario.title}
+                            </td>
+                            <td className="p-2 text-center">
+                              <span className={`px-2 py-1 rounded text-xs ${
+                                scenario.difficulty === 1 ? 'bg-green-100 text-green-800' :
+                                scenario.difficulty === 2 ? 'bg-blue-100 text-blue-800' :
+                                scenario.difficulty === 3 ? 'bg-yellow-100 text-yellow-800' :
+                                'bg-red-100 text-red-800'
+                              }`}>
+                                Lv{scenario.difficulty}
+                              </span>
+                            </td>
+                            <td className="p-2 text-center">{scenario.personas?.length || 0}명</td>
+                            <td className="p-2 text-center font-semibold text-corporate-600">{usageCount}회</td>
+                          </tr>
+                        );
+                      })}
+                      {scenarios.length === 0 && (
+                        <tr><td colSpan={4} className="p-4 text-center text-slate-500">등록된 시나리오가 없습니다.</td></tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Persona List Table */}
+            <Card data-testid="card-persona-list">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <i className="fas fa-users text-purple-600"></i>
+                  MBTI 페르소나 목록
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="overflow-x-auto max-h-[400px] overflow-y-auto">
+                  <table className="w-full text-sm">
+                    <thead className="bg-slate-100 sticky top-0">
+                      <tr>
+                        <th className="p-2 text-left">MBTI</th>
+                        <th className="p-2 text-left">이름</th>
+                        <th className="p-2 text-center">성별</th>
+                        <th className="p-2 text-center">사용 횟수</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {personas.map((persona: any, index: number) => {
+                        const mbtiKey = persona.mbti ? persona.mbti.toLowerCase() : '';
+                        const usageCount = mbtiKey ? (overview?.mbtiUsage?.[mbtiKey] || 0) : 0;
+                        return (
+                          <tr key={persona.id || index} className="border-b hover:bg-slate-50" data-testid={`content-persona-row-${index}`}>
+                            <td className="p-2">
+                              <span className="px-2 py-1 bg-purple-100 text-purple-800 rounded text-xs font-bold">
+                                {persona.mbti?.toUpperCase() || 'N/A'}
+                              </span>
+                            </td>
+                            <td className="p-2 font-medium">{persona.name || persona.mbti?.toUpperCase()}</td>
+                            <td className="p-2 text-center">
+                              <span className={`px-2 py-1 rounded text-xs ${
+                                persona.gender === 'male' ? 'bg-blue-100 text-blue-800' : 'bg-pink-100 text-pink-800'
+                              }`}>
+                                {persona.gender === 'male' ? '남성' : '여성'}
+                              </span>
+                            </td>
+                            <td className="p-2 text-center font-semibold text-corporate-600">{usageCount}회</td>
+                          </tr>
+                        );
+                      })}
+                      {personas.length === 0 && (
+                        <tr><td colSpan={4} className="p-4 text-center text-slate-500">등록된 페르소나가 없습니다.</td></tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
               </CardContent>
             </Card>
           </div>
