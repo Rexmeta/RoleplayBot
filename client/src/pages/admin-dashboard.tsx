@@ -160,18 +160,21 @@ export default function AdminDashboard() {
       count: d.count
     })) : [];
 
-  // 페르소나 수별 인기도 계산 - 시나리오를 배제하고 페르소나 수 자체의 분포
+  // 페르소나 수별 인기도 계산 - 유저가 선택한 수(세션 수) 기준
   const scenarioDifficultyData = scenarios.reduce((acc: any[], scenario: any) => {
     const personaCount = scenario.personas?.length || 0;
     if (personaCount === 0) return acc;
     
+    const stats = overview?.scenarioStats?.[scenario.id];
+    const sessionCount = stats?.count || 0;
+    
     const existing = acc.find(d => d.personaCount === personaCount);
     if (existing) {
-      existing.count += 1;
+      existing.count += sessionCount;
     } else {
       acc.push({
         personaCount,
-        count: 1
+        count: sessionCount
       });
     }
     return acc;
@@ -411,9 +414,9 @@ export default function AdminDashboard() {
                   <BarChart data={scenarioDifficultyData}>
                     <CartesianGrid strokeDasharray="3 3" />
                     <XAxis dataKey="personaCount" label={{ value: "페르소나 수", position: "insideBottom", offset: -5 }} />
-                    <YAxis label={{ value: "시나리오 개수", angle: -90, position: "insideLeft" }} />
-                    <Tooltip formatter={(value) => [`${value}개`, "시나리오 개수"]} labelFormatter={(label) => `${label}명의 페르소나`} />
-                    <Bar dataKey="count" fill="#8b5cf6" name="시나리오 개수" />
+                    <YAxis label={{ value: "세션 수", angle: -90, position: "insideLeft" }} />
+                    <Tooltip formatter={(value) => [`${value}회`, "세션 수"]} labelFormatter={(label) => `${label}명의 페르소나`} />
+                    <Bar dataKey="count" fill="#8b5cf6" name="세션 수" />
                   </BarChart>
                 </ResponsiveContainer>
               </CardContent>
