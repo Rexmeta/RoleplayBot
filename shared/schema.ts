@@ -100,7 +100,8 @@ export const personaRuns = pgTable("persona_runs", {
   score: integer("score"), // 이 페르소나와의 대화 점수 (0-100)
   mode: text("mode").notNull().default("text"), // text, tts, realtime_voice - 대화 재개 시 필요
   difficulty: integer("difficulty").notNull().default(4), // 난이도 (1-4) - 대화 재개 시 필요
-  startedAt: timestamp("started_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+  startedAt: timestamp("started_at").notNull().default(sql`CURRENT_TIMESTAMP`), // 첫 생성 시간
+  actualStartedAt: timestamp("actual_started_at").notNull().default(sql`CURRENT_TIMESTAMP`), // 실제 대화 시작/재개 시간 (매 재개마다 업데이트)
   completedAt: timestamp("completed_at"),
 }, (table) => [
   index("idx_persona_runs_scenario_run_id").on(table.scenarioRunId),

@@ -107,9 +107,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
     console.log(`피드백 생성 중: ${conversationId}`);
 
-    // 대화 시간과 발화량 계산
+    // 대화 시간과 발화량 계산 - 실제 대화 시작 시간(actualStartedAt)을 기준으로 계산
+    const personaRun = await storage.getPersonaRunByConversationId(conversationId);
+    const startTime = personaRun?.actualStartedAt ? new Date(personaRun.actualStartedAt) : new Date(conversation.createdAt);
     const conversationDurationSeconds = conversation.completedAt 
-      ? Math.floor((new Date(conversation.completedAt).getTime() - new Date(conversation.createdAt).getTime()) / 1000) 
+      ? Math.floor((new Date(conversation.completedAt).getTime() - startTime.getTime()) / 1000) 
       : 0;
     
     const conversationDuration = Math.floor(conversationDurationSeconds / 60);
@@ -1381,9 +1383,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         background: mbtiPersona?.background?.personal_values?.join(', ') || '전문성'
       };
 
-      // 대화 시간과 발화량 계산 (초 단위)
+      // 대화 시간과 발화량 계산 (초 단위) - 실제 대화 시작 시간(actualStartedAt)을 기준으로 계산
+      const personaRun = await storage.getPersonaRunByConversationId(conversationId);
+      const startTime = personaRun?.actualStartedAt ? new Date(personaRun.actualStartedAt) : new Date(conversation.createdAt);
       const conversationDurationSeconds = conversation.completedAt 
-        ? Math.floor((new Date(conversation.completedAt).getTime() - new Date(conversation.createdAt).getTime()) / 1000) 
+        ? Math.floor((new Date(conversation.completedAt).getTime() - startTime.getTime()) / 1000) 
         : 0; // 초 단위
       
       const conversationDuration = Math.floor(conversationDurationSeconds / 60); // 분 단위 (기존 로직 호환성)
