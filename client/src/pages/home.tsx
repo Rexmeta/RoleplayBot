@@ -160,11 +160,15 @@ export default function Home() {
                 setLoadingPersonaId(null);
               });
             return;
-          }
         }
+        }
+        
+        // ⚠️ personaId가 없으면 반드시 페르소나 선택 화면으로만 이동
+        console.log('📍 페르소나 선택 화면으로 이동 (personaId 없음)');
         
         // ✅ scenarioRunId가 있으면 완료된 페르소나 목록과 난이도 불러오기
         if (scenarioRunIdParam) {
+          console.log('📍 scenarioRunId 있음:', scenarioRunIdParam);
           apiRequest('GET', '/api/scenario-runs')
             .then(res => res.json())
             .then((scenarioRuns: any[]) => {
@@ -198,6 +202,7 @@ export default function Home() {
           setCompletedPersonaIds([]);
         }
         
+        // 반드시 persona-selection 뷰로만 이동
         setCurrentView("persona-selection");
         
         // URL에서 파라미터 제거
