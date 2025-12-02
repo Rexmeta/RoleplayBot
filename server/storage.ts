@@ -439,19 +439,21 @@ export class PostgreSQLStorage implements IStorage {
       : [];
     
     // 4) conversationId로 피드백 조회 (레거시 지원)
-    const legacyFeedbacks = await db
+    const legacyResults = await db
       .select()
       .from(feedbacks)
       .innerJoin(conversations, eq(feedbacks.conversationId, conversations.id))
-      .where(eq(conversations.userId, userId))
-      .then(results => results.map(r => r.feedbacks));
+      .where(eq(conversations.userId, userId));
+    
+    const legacyFeedbacks = legacyResults.map(r => r.feedbacks);
     
     // 5) 두 결과 병합하고 중복 제거 (ID 기준)
     const allFeedbacks = [...newStructureFeedbacks, ...legacyFeedbacks];
     const uniqueFeedbacks = Array.from(
       new Map(allFeedbacks.map(f => [f.id, f])).values()
-    );
+    ).sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
     
+    console.log(`✅ UserFeedbacks for ${userId}: ${uniqueFeedbacks.length} feedbacks from ${newStructureFeedbacks.length} new + ${legacyFeedbacks.length} legacy`);
     return uniqueFeedbacks;
   }
 
