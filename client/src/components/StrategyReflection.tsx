@@ -73,7 +73,7 @@ export function StrategyReflection({
                 </div>
                 <div className="flex-1">
                   <h3 className="font-semibold text-gray-900">{persona.name}</h3>
-                  <p className="text-sm text-gray-600">{persona.role}</p>
+                  <p className="text-sm text-gray-600">{persona.role} · {persona.department}</p>
                 </div>
                 {index < completedPersonas.length - 1 && (
                   <ArrowRight className="w-5 h-5 text-gray-400" />
