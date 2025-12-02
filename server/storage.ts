@@ -415,22 +415,44 @@ export class PostgreSQLStorage implements IStorage {
   }
 
   async getUserFeedbacks(userId: string): Promise<Feedback[]> {
-    // Join with conversations to filter by userId
-    const result = await db
-      .select({
-        id: feedbacks.id,
-        conversationId: feedbacks.conversationId,
-        personaRunId: feedbacks.personaRunId,
-        overallScore: feedbacks.overallScore,
-        scores: feedbacks.scores,
-        detailedFeedback: feedbacks.detailedFeedback,
-        createdAt: feedbacks.createdAt,
-      })
+    // ✨ 새 구조: personaRunId를 통해 userId 필터링
+    // 1) 유저의 모든 scenarioRun ID 가져오기
+    const userScenarioRuns = await db.select().from(scenarioRuns).where(eq(scenarioRuns.userId, userId));
+    
+    if (userScenarioRuns.length === 0) {
+      return [];
+    }
+    
+    const scenarioRunIds = userScenarioRuns.map(sr => sr.id);
+    
+    // 2) 해당 scenarioRun들에 속한 모든 personaRun ID 가져오기
+    const userPersonaRuns = await db
+      .select()
+      .from(personaRuns)
+      .where(inArray(personaRuns.scenarioRunId, scenarioRunIds));
+    
+    const personaRunIds = userPersonaRuns.map(pr => pr.id);
+    
+    // 3) personaRunId로 피드백 조회 (새 구조)
+    const newStructureFeedbacks = personaRunIds.length > 0 
+      ? await db.select().from(feedbacks).where(inArray(feedbacks.personaRunId, personaRunIds))
+      : [];
+    
+    // 4) conversationId로 피드백 조회 (레거시 지원)
+    const legacyFeedbacks = await db
+      .select()
       .from(feedbacks)
       .innerJoin(conversations, eq(feedbacks.conversationId, conversations.id))
-      .where(eq(conversations.userId, userId));
+      .where(eq(conversations.userId, userId))
+      .then(results => results.map(r => r.feedbacks));
     
-    return result;
+    // 5) 두 결과 병합하고 중복 제거 (ID 기준)
+    const allFeedbacks = [...newStructureFeedbacks, ...legacyFeedbacks];
+    const uniqueFeedbacks = Array.from(
+      new Map(allFeedbacks.map(f => [f.id, f])).values()
+    );
+    
+    return uniqueFeedbacks;
   }
 
   // Strategic Selection - Persona Selections
