@@ -250,11 +250,22 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
     checkPersonaImages();
   }, [persona.id, persona.mbti, persona.gender]);
   
-  // 초기 이미지 설정 - getFallbackImage가 정의된 후 호출
+  // personaImagesAvailable이 업데이트될 때 초기 이미지 설정
   useEffect(() => {
     const initialImageUrl = getCharacterImage('중립');
+    console.log(`🖼️ 초기 이미지 설정: ${initialImageUrl}`);
     setLoadedImageUrl(initialImageUrl);
-  }, []);
+  }, [personaImagesAvailable, persona.id, persona.gender, persona.mbti]);
+  
+  // 감정 변화 시 이미지 업데이트
+  useEffect(() => {
+    if (currentEmotion && currentEmotion !== '중립') {
+      const newImageUrl = getCharacterImage(currentEmotion);
+      console.log(`🖼️ 감정 변화 이미지: ${currentEmotion} → ${newImageUrl}`);
+      preloadImage(newImageUrl);
+      setLoadedImageUrl(newImageUrl);
+    }
+  }, [currentEmotion]);
 
   // 리얼타임 음성 모드에서는 턴 제한 없음, 다른 모드에서는 3턴
   const maxTurns = inputMode === 'realtime-voice' ? 999 : 3;
