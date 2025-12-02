@@ -459,7 +459,7 @@ export default function AdminDashboard() {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <Card className="card-enhanced" data-testid="card-perf-average">
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">전체 평균 점수</CardTitle>
+                <CardTitle className="text-sm font-medium"><CardInfo title="전체 평균 점수" description="모든 피드백의 평가 점수 평균 (0-100점). AI 평가 기준: 명확성, 공감력, 문제해결능력, 태도 등 다양한 지표로 평가합니다." /></CardTitle>
                 <i className="fas fa-chart-bar text-blue-600"></i>
               </CardHeader>
               <CardContent>
@@ -472,7 +472,7 @@ export default function AdminDashboard() {
 
             <Card className="card-enhanced" data-testid="card-perf-highest">
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">최고 점수</CardTitle>
+                <CardTitle className="text-sm font-medium"><CardInfo title="최고 점수" description="시스템에서 기록된 최고 평가 점수. 사용자가 달성한 최상의 커뮤니케이션 성과입니다." /></CardTitle>
                 <i className="fas fa-trophy text-yellow-500"></i>
               </CardHeader>
               <CardContent>
@@ -485,7 +485,7 @@ export default function AdminDashboard() {
 
             <Card className="card-enhanced" data-testid="card-perf-completion">
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">평가 완료율</CardTitle>
+                <CardTitle className="text-sm font-medium"><CardInfo title="평가 완료율" description="AI 평가 피드백을 받은 세션의 비율 (%). 대화 완료 후 AI가 상세 피드백을 제공한 세션 기준입니다." /></CardTitle>
                 <i className="fas fa-check-circle text-green-600"></i>
               </CardHeader>
               <CardContent>
@@ -504,7 +504,7 @@ export default function AdminDashboard() {
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <i className="fas fa-pie-chart text-purple-600"></i>
-                  점수 분포
+                  <CardInfo title="점수 분포" description="모든 세션을 점수 범위별로 분류한 비율. 우수/양호/보통/개선필요/부족 5단계로 분류합니다." />
                 </CardTitle>
               </CardHeader>
               <CardContent>
@@ -535,7 +535,7 @@ export default function AdminDashboard() {
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <i className="fas fa-chart-line text-indigo-600"></i>
-                  점수 추이 (최근 20건)
+                  <CardInfo title="점수 추이" description="최근 20개 세션의 점수 변화 추이. 사용자의 성과 개선 정도를 시간순으로 확인할 수 있습니다." />
                 </CardTitle>
               </CardHeader>
               <CardContent>
@@ -559,7 +559,7 @@ export default function AdminDashboard() {
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <i className="fas fa-tags text-blue-600"></i>
-                  카테고리별 성과
+                  <CardInfo title="카테고리별 성과" description="평가 카테고리(명확성, 공감력, 문제해결력, 태도)별 평균 점수. 각 역량 영역의 강점과 개선점을 파악할 수 있습니다." />
                 </CardTitle>
               </CardHeader>
               <CardContent>
@@ -580,7 +580,7 @@ export default function AdminDashboard() {
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <i className="fas fa-thumbs-up text-green-600"></i>
-                  강점 Top 5
+                  <CardInfo title="강점 Top 5" description="AI 피드백에서 가장 많이 언급된 긍정적 강점. 사용자가 잘 수행하고 있는 커뮤니케이션 능력입니다." />
                 </CardTitle>
               </CardHeader>
               <CardContent>
@@ -609,7 +609,7 @@ export default function AdminDashboard() {
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <i className="fas fa-arrow-up text-orange-600"></i>
-                  개선점 Top 5
+                  <CardInfo title="개선점 Top 5" description="AI 피드백에서 가장 많이 언급된 개선사항. 사용자가 집중해서 개선해야 할 커뮤니케이션 역량입니다." />
                 </CardTitle>
               </CardHeader>
               <CardContent>
@@ -703,7 +703,7 @@ export default function AdminDashboard() {
             {/* Scenario Popularity */}
             <Card data-testid="card-scenario-popularity">
               <CardHeader>
-                <CardTitle>시나리오 인기도</CardTitle>
+                <CardTitle><CardInfo title="시나리오 인기도" description="각 시나리오별 세션 참여 수. 사용자들이 선택한 시나리오의 인기도를 나타냅니다." /></CardTitle>
               </CardHeader>
               <CardContent>
                 <ResponsiveContainer width="100%" height={300}>
@@ -721,7 +721,7 @@ export default function AdminDashboard() {
             {/* Scenario Performance */}
             <Card data-testid="card-scenario-performance">
               <CardHeader>
-                <CardTitle>시나리오별 성과</CardTitle>
+                <CardTitle><CardInfo title="시나리오별 성과" description="각 시나리오에서 사용자가 받은 평가 점수의 평균. 시나리오 난이도와 특성에 따른 성과를 비교할 수 있습니다." /></CardTitle>
               </CardHeader>
               <CardContent>
                 <ResponsiveContainer width="100%" height={300}>
@@ -739,7 +739,7 @@ export default function AdminDashboard() {
             {/* Difficulty Popularity */}
             <Card data-testid="card-difficulty-popularity">
               <CardHeader>
-                <CardTitle>난이도 선택 인기도</CardTitle>
+                <CardTitle><CardInfo title="난이도 선택 인기도" description="사용자가 선택한 난이도별 세션 수. 1=매우쉬움, 2=기본, 3=도전형, 4=고난도입니다." /></CardTitle>
               </CardHeader>
               <CardContent>
                 <ResponsiveContainer width="100%" height={300}>
@@ -757,7 +757,7 @@ export default function AdminDashboard() {
             {/* Persona Count Popularity */}
             <Card data-testid="card-persona-count-popularity">
               <CardHeader>
-                <CardTitle>페르소나 수 별 인기도</CardTitle>
+                <CardTitle><CardInfo title="페르소나 수별 인기도" description="시나리오에 포함된 페르소나 수에 따른 세션 수. 더 많은 페르소나와의 대화가 선호도에 미치는 영향을 보여줍니다." /></CardTitle>
               </CardHeader>
               <CardContent>
                 <ResponsiveContainer width="100%" height={300}>
@@ -776,7 +776,7 @@ export default function AdminDashboard() {
           {/* Scenario Details Table */}
           <Card data-testid="card-scenario-details">
             <CardHeader>
-              <CardTitle>시나리오 상세 분석</CardTitle>
+              <CardTitle><CardInfo title="시나리오 상세 분석" description="전체 시나리오의 통계 정보. 평균 점수, 세션 수, 난이도, 포함 페르소나 수, 성과 상태를 한눈에 확인할 수 있습니다." /></CardTitle>
             </CardHeader>
             <CardContent>
               <div className="overflow-x-auto">
@@ -832,7 +832,7 @@ export default function AdminDashboard() {
             {/* MBTI Usage Distribution */}
             <Card data-testid="card-mbti-usage">
               <CardHeader>
-                <CardTitle>MBTI 유형별 사용량</CardTitle>
+                <CardTitle><CardInfo title="MBTI 유형별 사용량" description="각 MBTI 페르소나와의 대화 횟수. 사용자들이 선호하는 페르소나 유형을 파악할 수 있습니다." /></CardTitle>
               </CardHeader>
               <CardContent>
                 <ResponsiveContainer width="100%" height={300}>
@@ -850,7 +850,7 @@ export default function AdminDashboard() {
             {/* MBTI Performance Chart */}
             <Card data-testid="card-mbti-performance">
               <CardHeader>
-                <CardTitle>MBTI 유형별 성과</CardTitle>
+                <CardTitle><CardInfo title="MBTI 유형별 성과" description="각 MBTI 페르소나와의 대화에서 받은 평가 점수의 평균. 특정 페르소나와의 상호작용에서 사용자의 성과를 비교할 수 있습니다." /></CardTitle>
               </CardHeader>
               <CardContent>
                 <ResponsiveContainer width="100%" height={300}>
@@ -876,7 +876,7 @@ export default function AdminDashboard() {
           {/* MBTI Details Table */}
           <Card data-testid="card-mbti-details">
             <CardHeader>
-              <CardTitle>MBTI 상세 분석</CardTitle>
+              <CardTitle><CardInfo title="MBTI 상세 분석" description="전체 MBTI 페르소나의 통계. 평균 점수, 세션 수, 사용 비율, 성과 레벨을 한눈에 확인할 수 있습니다." /></CardTitle>
             </CardHeader>
             <CardContent>
               <div className="overflow-x-auto">
@@ -935,7 +935,7 @@ export default function AdminDashboard() {
             {/* Daily Usage Trends */}
             <Card data-testid="card-daily-usage">
               <CardHeader>
-                <CardTitle>일일 사용량 추이 (최근 30일)</CardTitle>
+                <CardTitle><CardInfo title="일일 사용량 추이" description="최근 30일간 매일 시작된 세션과 완료된 세션의 수. 사용자 활동 추세와 완료율 변화를 시간순으로 볼 수 있습니다." /></CardTitle>
               </CardHeader>
               <CardContent>
                 <ResponsiveContainer width="100%" height={300}>
@@ -954,7 +954,7 @@ export default function AdminDashboard() {
             {/* Performance Trends */}
             <Card data-testid="card-performance-trends">
               <CardHeader>
-                <CardTitle>성과 트렌드 (최근 20세션)</CardTitle>
+                <CardTitle><CardInfo title="성과 트렌드" description="최근 20개 세션의 평가 점수 추이. 사용자의 학습 진행 상황과 개선 정도를 시각적으로 파악할 수 있습니다." /></CardTitle>
               </CardHeader>
               <CardContent>
                 <ResponsiveContainer width="100%" height={300}>
@@ -977,7 +977,7 @@ export default function AdminDashboard() {
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
             <Card className="card-enhanced" data-testid="card-total-scenarios">
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">총 시나리오</CardTitle>
+                <CardTitle className="text-sm font-medium"><CardInfo title="총 시나리오" description="시스템에 등록된 전체 시나리오 개수. 사용자에게 제공되는 대화 훈련 주제의 총 개수입니다." /></CardTitle>
                 <i className="fas fa-folder text-blue-600"></i>
               </CardHeader>
               <CardContent>
@@ -988,7 +988,7 @@ export default function AdminDashboard() {
 
             <Card className="card-enhanced" data-testid="card-total-personas">
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">총 페르소나</CardTitle>
+                <CardTitle className="text-sm font-medium"><CardInfo title="총 페르소나" description="시스템에 등록된 전체 MBTI 페르소나 개수. 사용자가 대화할 수 있는 개별 AI 캐릭터의 총 개수입니다." /></CardTitle>
                 <i className="fas fa-user-circle text-purple-600"></i>
               </CardHeader>
               <CardContent>
@@ -999,7 +999,7 @@ export default function AdminDashboard() {
 
             <Card className="card-enhanced" data-testid="card-avg-personas-per-scenario">
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">평균 페르소나/시나리오</CardTitle>
+                <CardTitle className="text-sm font-medium"><CardInfo title="평균 페르소나/시나리오" description="각 시나리오당 포함된 페르소나의 평균 개수. (전체 페르소나 수 / 시나리오 수) 계산값입니다." /></CardTitle>
                 <i className="fas fa-users-cog text-green-600"></i>
               </CardHeader>
               <CardContent>
@@ -1014,7 +1014,7 @@ export default function AdminDashboard() {
 
             <Card className="card-enhanced" data-testid="card-recent-update">
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">최근 업데이트</CardTitle>
+                <CardTitle className="text-sm font-medium"><CardInfo title="최근 업데이트" description="마지막으로 시나리오 또는 페르소나 콘텐츠가 수정되거나 추가된 날짜와 시간입니다." /></CardTitle>
                 <i className="fas fa-clock text-teal-600"></i>
               </CardHeader>
               <CardContent>
@@ -1034,7 +1034,7 @@ export default function AdminDashboard() {
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <i className="fas fa-list text-blue-600"></i>
-                  시나리오 목록
+                  <CardInfo title="시나리오 목록" description="전체 시나리오의 정보. 포함된 페르소나 수, 평균 점수, 사용 횟수를 확인할 수 있습니다." />
                 </CardTitle>
               </CardHeader>
               <CardContent>
@@ -1077,7 +1077,7 @@ export default function AdminDashboard() {
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <i className="fas fa-users text-purple-600"></i>
-                  MBTI 페르소나 목록
+                  <CardInfo title="MBTI 페르소나 목록" description="전체 MBTI 페르소나의 정보. 평균 점수와 사용 횟수를 통해 각 페르소나의 인기도와 성과를 확인할 수 있습니다." />
                 </CardTitle>
               </CardHeader>
               <CardContent>
