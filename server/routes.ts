@@ -10,7 +10,7 @@ import {
   insertStrategyChoiceSchema,
   insertSequenceAnalysisSchema
 } from "@shared/schema";
-import { generateAIResponse, generateFeedback } from "./services/geminiService";
+import { generateAIResponse, generateFeedback, generateStrategyReflectionFeedback } from "./services/geminiService";
 import { createSampleData } from "./sampleData";
 import ttsRoutes from "./routes/tts.js";
 import imageGenerationRoutes, { saveImageToLocal } from "./routes/imageGeneration.js";
@@ -1167,15 +1167,52 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(403).json({ error: "Unauthorized" });
       }
       
-      // 전략 회고 저장과 동시에 scenario_run 완료 처리
+      // 시나리오 정보 가져오기
+      const scenarios = await fileManager.getAllScenarios();
+      const scenario = scenarios.find(s => s.id === scenarioRun.scenarioId);
+      
+      let sequenceAnalysis = null;
+      
+      if (scenario) {
+        // AI 평가 생성
+        const evaluation = await generateStrategyReflectionFeedback(
+          strategyReflection,
+          conversationOrder,
+          {
+            title: scenario.title,
+            context: scenario.context?.situation || scenario.description || '',
+            objectives: scenario.objectives || [],
+            personas: (scenario.personas || []).map((p: any) => ({
+              id: p.id,
+              name: p.name,
+              role: p.role,
+              department: p.department || ''
+            }))
+          }
+        );
+        
+        // sequenceAnalysis 형식으로 변환
+        sequenceAnalysis = {
+          strategicScore: evaluation.strategicScore,
+          strategicRationale: evaluation.strategicRationale,
+          sequenceEffectiveness: evaluation.sequenceEffectiveness,
+          alternativeApproaches: evaluation.alternativeApproaches,
+          strategicInsights: evaluation.strategicInsights,
+          strengths: evaluation.strengths,
+          improvements: evaluation.improvements
+        };
+      }
+      
+      // 전략 회고 저장과 동시에 scenario_run 완료 처리 (sequenceAnalysis 포함)
       const updated = await storage.updateScenarioRun(id, {
         strategyReflection,
         conversationOrder,
+        sequenceAnalysis,
         status: 'completed',
         completedAt: new Date()
       });
       
-      res.json({ success: true, scenarioRun: updated });
+      res.json({ success: true, scenarioRun: updated, sequenceAnalysis });
     } catch (error) {
       console.error("Error saving strategy reflection:", error);
       res.status(500).json({ error: "Failed to save strategy reflection" });

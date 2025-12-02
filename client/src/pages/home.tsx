@@ -27,6 +27,15 @@ export default function Home() {
   const [conversationIds, setConversationIds] = useState<string[]>([]); // 모든 대화 ID 저장
   const [strategyReflectionSubmitted, setStrategyReflectionSubmitted] = useState(false); // 전략 회고 제출 여부 추적
   const [submittedStrategyReflection, setSubmittedStrategyReflection] = useState<string>(''); // 제출한 전략 회고 내용
+  const [strategyEvaluation, setStrategyEvaluation] = useState<{
+    strategicScore: number;
+    strategicRationale: string;
+    sequenceEffectiveness: string;
+    alternativeApproaches: string[];
+    strategicInsights: string;
+    strengths: string[];
+    improvements: string[];
+  } | null>(null); // AI 전략 회고 평가
   const [isCreatingConversation, setIsCreatingConversation] = useState(false); // 대화 생성 중 상태
   const [loadingPersonaId, setLoadingPersonaId] = useState<string | null>(null); // 로딩 중인 페르소나 ID
   const [selectedDifficulty, setSelectedDifficulty] = useState<number>(4); // 사용자가 선택한 난이도 (기본값: 4)
@@ -108,6 +117,7 @@ export default function Home() {
         setScenarioRunId(scenarioRunIdParam);
         setConversationIds([]);
         setStrategyReflectionSubmitted(false);
+        setStrategyEvaluation(null);
         setSelectedDifficulty(scenario.difficulty || 4);
         
         // ✅ scenarioRunId가 있으면 완료된 페르소나 목록과 난이도 불러오기
@@ -162,6 +172,7 @@ export default function Home() {
     setConversationIds([]);
     setScenarioRunId(null); // ✅ null로 설정 → forceNewRun=true → 새 scenario_run 생성
     setStrategyReflectionSubmitted(false);
+    setStrategyEvaluation(null);
     setSelectedDifficulty(scenario.difficulty || 4);
     
     // 모든 시나리오에서 페르소나 선택 화면으로 이동
@@ -269,6 +280,7 @@ export default function Home() {
     setCompletedPersonaIds([]);
     setConversationIds([]);
     setStrategyReflectionSubmitted(false);
+    setStrategyEvaluation(null);
   };
 
   // 재도전을 위한 새로운 대화 생성
@@ -559,12 +571,16 @@ export default function Home() {
               if (scenarioRunId) {
                 try {
                   // scenario run ID를 사용하여 전략 회고 저장
-                  await apiRequest("POST", `/api/scenario-runs/${scenarioRunId}/strategy-reflection`, {
+                  const response = await apiRequest("POST", `/api/scenario-runs/${scenarioRunId}/strategy-reflection`, {
                     strategyReflection: reflection,
                     conversationOrder: completedPersonaIds
                   });
+                  const result = await response.json();
                   setStrategyReflectionSubmitted(true); // 제출 완료 표시
                   setSubmittedStrategyReflection(reflection); // 제출한 내용 저장
+                  if (result.sequenceAnalysis) {
+                    setStrategyEvaluation(result.sequenceAnalysis); // AI 평가 결과 저장
+                  }
                   setCurrentView("strategy-result"); // 결과 화면으로 이동
                 } catch (error) {
                   console.error("전략 회고 저장 실패:", error);
@@ -589,11 +605,118 @@ export default function Home() {
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                   </svg>
                 </div>
-                <h1 className="text-3xl font-bold text-gray-900 mb-2">전략 회고 제출 완료!</h1>
+                <h1 className="text-3xl font-bold text-gray-900 mb-2">전략 회고 평가 완료!</h1>
                 <p className="text-lg text-gray-600">
-                  {selectedScenario.title} 시나리오의 전략적 대화 순서가 저장되었습니다.
+                  {selectedScenario.title} 시나리오의 전략적 대화 순서가 평가되었습니다.
                 </p>
               </div>
+
+              {/* AI 전략 평가 점수 */}
+              {strategyEvaluation ? (
+                <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg border border-blue-200 p-6">
+                  <div className="flex items-center justify-between mb-4">
+                    <h2 className="text-xl font-semibold text-gray-900 flex items-center gap-2">
+                      <svg className="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                      </svg>
+                      전략적 사고력 점수
+                    </h2>
+                    <div className="text-4xl font-bold text-blue-600">
+                      {strategyEvaluation.strategicScore}
+                      <span className="text-xl text-gray-500">/100</span>
+                    </div>
+                  </div>
+                  <p className="text-gray-700 mb-4">{strategyEvaluation.strategicRationale}</p>
+                  
+                  {/* 순서 효과성 */}
+                  <div className="bg-white rounded-lg p-4 mb-4">
+                    <h3 className="font-semibold text-gray-900 mb-2 flex items-center gap-2">
+                      <svg className="w-5 h-5 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
+                      </svg>
+                      순서 효과성 평가
+                    </h3>
+                    <p className="text-gray-600">{strategyEvaluation.sequenceEffectiveness}</p>
+                  </div>
+                  
+                  {/* 전략적 통찰 */}
+                  <div className="bg-white rounded-lg p-4">
+                    <h3 className="font-semibold text-gray-900 mb-2 flex items-center gap-2">
+                      <svg className="w-5 h-5 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+                      </svg>
+                      전략적 통찰
+                    </h3>
+                    <p className="text-gray-600">{strategyEvaluation.strategicInsights}</p>
+                  </div>
+                </div>
+              ) : (
+                <div className="bg-yellow-50 rounded-lg border border-yellow-200 p-6 text-center">
+                  <svg className="w-12 h-12 text-yellow-500 mx-auto mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                  </svg>
+                  <h3 className="text-lg font-semibold text-yellow-800 mb-2">AI 평가를 생성하지 못했습니다</h3>
+                  <p className="text-yellow-700 text-sm">전략 회고가 저장되었지만, AI 평가 생성 중 문제가 발생했습니다. 마이페이지에서 다시 확인해 보세요.</p>
+                </div>
+              )}
+
+              {/* 강점과 개선점 */}
+              {strategyEvaluation && (
+                <div className="grid md:grid-cols-2 gap-4">
+                  <div className="bg-green-50 rounded-lg border border-green-200 p-5">
+                    <h3 className="font-semibold text-green-800 mb-3 flex items-center gap-2">
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                      강점
+                    </h3>
+                    <ul className="space-y-2">
+                      {strategyEvaluation.strengths.map((strength, i) => (
+                        <li key={i} className="text-green-700 text-sm flex items-start gap-2">
+                          <span className="text-green-500 mt-1">✓</span>
+                          {strength}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                  <div className="bg-orange-50 rounded-lg border border-orange-200 p-5">
+                    <h3 className="font-semibold text-orange-800 mb-3 flex items-center gap-2">
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                      </svg>
+                      개선점
+                    </h3>
+                    <ul className="space-y-2">
+                      {strategyEvaluation.improvements.map((improvement, i) => (
+                        <li key={i} className="text-orange-700 text-sm flex items-start gap-2">
+                          <span className="text-orange-500 mt-1">→</span>
+                          {improvement}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                </div>
+              )}
+
+              {/* 대안적 접근법 */}
+              {strategyEvaluation && strategyEvaluation.alternativeApproaches.length > 0 && (
+                <div className="bg-purple-50 rounded-lg border border-purple-200 p-5">
+                  <h3 className="font-semibold text-purple-800 mb-3 flex items-center gap-2">
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
+                    </svg>
+                    대안적 접근법
+                  </h3>
+                  <ul className="space-y-2">
+                    {strategyEvaluation.alternativeApproaches.map((approach, i) => (
+                      <li key={i} className="text-purple-700 text-sm flex items-start gap-2">
+                        <span className="bg-purple-200 text-purple-800 rounded-full w-5 h-5 flex items-center justify-center text-xs font-bold flex-shrink-0">{i + 1}</span>
+                        {approach}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
 
               <div className="bg-white rounded-lg border border-gray-200 p-6 space-y-4">
                 <h2 className="text-xl font-semibold text-gray-900 flex items-center gap-2">
@@ -613,7 +736,7 @@ export default function Home() {
                       </div>
                       <div className="flex-1">
                         <h3 className="font-semibold text-gray-900">{persona.name}</h3>
-                        <p className="text-sm text-gray-600">{persona.position || persona.role}</p>
+                        <p className="text-sm text-gray-600">{persona.position || persona.role}{persona.department ? ` · ${persona.department}` : ''}</p>
                       </div>
                       {index < completedPersonas.length - 1 && (
                         <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -630,7 +753,7 @@ export default function Home() {
                   <svg className="w-5 h-5 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
                   </svg>
-                  전략 회고
+                  나의 전략 회고
                 </h2>
                 <div className="p-4 bg-gray-50 rounded-lg">
                   <p className="text-gray-700 whitespace-pre-wrap">{submittedStrategyReflection}</p>
