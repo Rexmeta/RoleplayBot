@@ -54,6 +54,21 @@ interface PerformanceData {
     personaCount: number;
   }>;
   mbtiPerformance: Record<string, { scores: number[]; count: number; average: number }>;
+  topStrengths: Array<{ text: string; count: number }>;
+  topImprovements: Array<{ text: string; count: number }>;
+  highestScore: number;
+  averageScore: number;
+  feedbackCompletionRate: number;
+  totalFeedbacks: number;
+  recentSessions: Array<{
+    id: number;
+    score: number;
+    scenarioName: string;
+    mbti: string;
+    userId: string;
+    completedAt: string;
+    difficulty: number;
+  }>;
 }
 
 interface TrendsData {
@@ -430,14 +445,60 @@ export default function AdminDashboard() {
         </TabsContent>
 
         <TabsContent value="performance" className="space-y-6">
+          {/* 1. 핵심 성과 요약 카드 */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <Card className="card-enhanced" data-testid="card-perf-average">
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">전체 평균 점수</CardTitle>
+                <i className="fas fa-chart-bar text-blue-600"></i>
+              </CardHeader>
+              <CardContent>
+                <div className="text-3xl font-bold text-blue-600" data-testid="perf-average-value">
+                  {performance?.averageScore || 0}점
+                </div>
+                <p className="text-xs text-slate-600 mt-1">전체 {performance?.totalFeedbacks || 0}건 평가 기준</p>
+              </CardContent>
+            </Card>
+
+            <Card className="card-enhanced" data-testid="card-perf-highest">
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">최고 점수</CardTitle>
+                <i className="fas fa-trophy text-yellow-500"></i>
+              </CardHeader>
+              <CardContent>
+                <div className="text-3xl font-bold text-yellow-600" data-testid="perf-highest-value">
+                  {performance?.highestScore || 0}점
+                </div>
+                <p className="text-xs text-slate-600 mt-1">역대 최고 기록</p>
+              </CardContent>
+            </Card>
+
+            <Card className="card-enhanced" data-testid="card-perf-completion">
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">평가 완료율</CardTitle>
+                <i className="fas fa-check-circle text-green-600"></i>
+              </CardHeader>
+              <CardContent>
+                <div className="text-3xl font-bold text-green-600" data-testid="perf-completion-value">
+                  {performance?.feedbackCompletionRate || 0}%
+                </div>
+                <p className="text-xs text-slate-600 mt-1">피드백 완료된 세션</p>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* 2. 점수 분석 섹션 */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {/* Score Distribution */}
             <Card className="card-enhanced" data-testid="card-score-distribution">
               <CardHeader>
-                <CardTitle>점수 분포</CardTitle>
+                <CardTitle className="flex items-center gap-2">
+                  <i className="fas fa-pie-chart text-purple-600"></i>
+                  점수 분포
+                </CardTitle>
               </CardHeader>
               <CardContent>
-                <ResponsiveContainer width="100%" height={300}>
+                <ResponsiveContainer width="100%" height={280}>
                   <PieChart>
                     <Pie
                       data={scoreDistributionData}
@@ -459,24 +520,172 @@ export default function AdminDashboard() {
               </CardContent>
             </Card>
 
+            {/* Score Trend Line Chart */}
+            <Card className="card-enhanced" data-testid="card-score-trend">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <i className="fas fa-chart-line text-indigo-600"></i>
+                  점수 추이 (최근 20건)
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <ResponsiveContainer width="100%" height={280}>
+                  <LineChart data={trends?.performanceTrends || []}>
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="session" label={{ value: "세션", position: "insideBottom", offset: -5 }} />
+                    <YAxis domain={[0, 100]} label={{ value: "점수", angle: -90, position: "insideLeft" }} />
+                    <Tooltip formatter={(value) => [`${value}점`, "점수"]} />
+                    <Line type="monotone" dataKey="score" stroke="#6366f1" strokeWidth={2} dot={{ fill: "#6366f1" }} />
+                  </LineChart>
+                </ResponsiveContainer>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* 3. 카테고리 분석 + 강점/개선점 */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             {/* Category Performance */}
             <Card data-testid="card-category-performance">
               <CardHeader>
-                <CardTitle>카테고리별 성과</CardTitle>
+                <CardTitle className="flex items-center gap-2">
+                  <i className="fas fa-tags text-blue-600"></i>
+                  카테고리별 성과
+                </CardTitle>
               </CardHeader>
               <CardContent>
-                <ResponsiveContainer width="100%" height={300}>
-                  <BarChart data={categoryData}>
+                <ResponsiveContainer width="100%" height={280}>
+                  <BarChart data={categoryData} layout="vertical">
                     <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="category" angle={-45} textAnchor="end" height={80} />
-                    <YAxis domain={[0, 5]} />
-                    <Tooltip />
+                    <XAxis type="number" domain={[0, 5]} />
+                    <YAxis dataKey="category" type="category" width={80} tick={{ fontSize: 12 }} />
+                    <Tooltip formatter={(value) => [`${value}점`, "평균"]} />
                     <Bar dataKey="average" fill="#3b82f6" />
                   </BarChart>
                 </ResponsiveContainer>
               </CardContent>
             </Card>
+
+            {/* Top Strengths */}
+            <Card className="card-enhanced" data-testid="card-top-strengths">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <i className="fas fa-thumbs-up text-green-600"></i>
+                  강점 Top 5
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-3">
+                  {performance?.topStrengths?.length ? performance.topStrengths.map((item, index) => (
+                    <div key={index} className="flex items-start gap-3 p-2 bg-green-50 rounded-lg" data-testid={`strength-${index}`}>
+                      <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 ${
+                        index === 0 ? 'bg-green-500 text-white' :
+                        index === 1 ? 'bg-green-400 text-white' :
+                        'bg-green-200 text-green-700'
+                      }`}>
+                        {index + 1}
+                      </span>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm text-slate-700 line-clamp-2">{item.text}</p>
+                        <p className="text-xs text-green-600 mt-1">{item.count}회 언급</p>
+                      </div>
+                    </div>
+                  )) : <p className="text-slate-500 text-sm text-center py-4">데이터 없음</p>}
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Top Improvements */}
+            <Card className="card-enhanced" data-testid="card-top-improvements">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <i className="fas fa-arrow-up text-orange-600"></i>
+                  개선점 Top 5
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-3">
+                  {performance?.topImprovements?.length ? performance.topImprovements.map((item, index) => (
+                    <div key={index} className="flex items-start gap-3 p-2 bg-orange-50 rounded-lg" data-testid={`improvement-${index}`}>
+                      <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 ${
+                        index === 0 ? 'bg-orange-500 text-white' :
+                        index === 1 ? 'bg-orange-400 text-white' :
+                        'bg-orange-200 text-orange-700'
+                      }`}>
+                        {index + 1}
+                      </span>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm text-slate-700 line-clamp-2">{item.text}</p>
+                        <p className="text-xs text-orange-600 mt-1">{item.count}회 언급</p>
+                      </div>
+                    </div>
+                  )) : <p className="text-slate-500 text-sm text-center py-4">데이터 없음</p>}
+                </div>
+              </CardContent>
+            </Card>
           </div>
+
+          {/* 4. 세부 성과 테이블 */}
+          <Card className="card-enhanced" data-testid="card-recent-sessions">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <i className="fas fa-list-alt text-slate-600"></i>
+                최근 세션 상세 (최근 20건)
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b bg-slate-50">
+                      <th className="p-3 text-left font-semibold">점수</th>
+                      <th className="p-3 text-left font-semibold">시나리오</th>
+                      <th className="p-3 text-left font-semibold">MBTI</th>
+                      <th className="p-3 text-left font-semibold">난이도</th>
+                      <th className="p-3 text-left font-semibold">사용자</th>
+                      <th className="p-3 text-left font-semibold">완료일</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {performance?.recentSessions?.map((session, index) => {
+                      const difficultyLabels: Record<number, string> = { 1: '매우 쉬움', 2: '기본', 3: '도전형', 4: '고난도' };
+                      const scoreColor = session.score >= 90 ? 'text-green-600' :
+                                        session.score >= 80 ? 'text-blue-600' :
+                                        session.score >= 70 ? 'text-yellow-600' :
+                                        session.score >= 60 ? 'text-orange-600' : 'text-red-600';
+                      return (
+                        <tr key={session.id} className="border-b hover:bg-slate-50" data-testid={`session-row-${index}`}>
+                          <td className={`p-3 font-bold ${scoreColor}`}>{session.score}점</td>
+                          <td className="p-3 truncate max-w-[150px]">{session.scenarioName}</td>
+                          <td className="p-3">
+                            <span className="px-2 py-1 bg-purple-100 text-purple-800 rounded text-xs font-bold">
+                              {session.mbti}
+                            </span>
+                          </td>
+                          <td className="p-3">
+                            <span className={`px-2 py-1 rounded text-xs ${
+                              session.difficulty === 4 ? 'bg-red-100 text-red-700' :
+                              session.difficulty === 3 ? 'bg-orange-100 text-orange-700' :
+                              session.difficulty === 2 ? 'bg-blue-100 text-blue-700' :
+                              'bg-green-100 text-green-700'
+                            }`}>
+                              {difficultyLabels[session.difficulty] || '기본'}
+                            </span>
+                          </td>
+                          <td className="p-3 text-slate-500">{session.userId}...</td>
+                          <td className="p-3 text-slate-500">
+                            {new Date(session.completedAt).toLocaleDateString('ko-KR', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                    {(!performance?.recentSessions || performance.recentSessions.length === 0) && (
+                      <tr><td colSpan={6} className="p-4 text-center text-slate-500">최근 세션 데이터가 없습니다.</td></tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </CardContent>
+          </Card>
         </TabsContent>
 
         <TabsContent value="scenarios" className="space-y-6">

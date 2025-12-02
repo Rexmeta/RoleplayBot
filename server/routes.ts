@@ -2096,11 +2096,80 @@ export async function registerRoutes(app: Express): Promise<Server> {
         };
       });
       
+      // ✨ 강점/개선점 Top 5 집계 (detailedFeedback 내부에서 추출)
+      const strengthCounts: Record<string, number> = {};
+      const improvementCounts: Record<string, number> = {};
+      
+      feedbacks.forEach(f => {
+        const detailed = f.detailedFeedback;
+        if (detailed?.strengths && Array.isArray(detailed.strengths)) {
+          detailed.strengths.forEach((s: string) => {
+            if (s && s.trim()) {
+              strengthCounts[s] = (strengthCounts[s] || 0) + 1;
+            }
+          });
+        }
+        if (detailed?.improvements && Array.isArray(detailed.improvements)) {
+          detailed.improvements.forEach((i: string) => {
+            if (i && i.trim()) {
+              improvementCounts[i] = (improvementCounts[i] || 0) + 1;
+            }
+          });
+        }
+      });
+      
+      const topStrengths = Object.entries(strengthCounts)
+        .map(([text, count]) => ({ text, count }))
+        .sort((a, b) => b.count - a.count)
+        .slice(0, 5);
+      
+      const topImprovements = Object.entries(improvementCounts)
+        .map(([text, count]) => ({ text, count }))
+        .sort((a, b) => b.count - a.count)
+        .slice(0, 5);
+      
+      // ✨ 최고 점수 및 평가 통계
+      const allScores = feedbacks.map(f => f.overallScore);
+      const highestScore = allScores.length > 0 ? Math.max(...allScores) : 0;
+      const feedbackCompletionRate = personaRuns.length > 0 
+        ? Math.round((feedbacks.length / personaRuns.length) * 100)
+        : 0;
+      const averageScore = allScores.length > 0 
+        ? Math.round(allScores.reduce((a, b) => a + b, 0) / allScores.length)
+        : 0;
+      
+      // ✨ 최근 세션 상세 테이블 (최근 20건)
+      const recentSessions = feedbacks
+        .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+        .slice(0, 20)
+        .map(f => {
+          const personaRun = personaRuns.find(pr => pr.id === f.personaRunId);
+          const scenarioRun = personaRun ? scenarioRuns.find(sr => sr.id === personaRun.scenarioRunId) : null;
+          const scenario = scenarioRun ? scenarios.find(s => s.id === scenarioRun.scenarioId) : null;
+          
+          return {
+            id: f.id,
+            score: f.overallScore,
+            scenarioName: scenario?.title || '알 수 없음',
+            mbti: personaRun?.mbtiType?.toUpperCase() || 'N/A',
+            userId: scenarioRun?.userId?.slice(0, 8) || 'N/A',
+            completedAt: f.createdAt,
+            difficulty: scenarioRun?.difficulty || 2
+          };
+        });
+      
       res.json({
         scoreRanges,
         categoryPerformance,
         scenarioPerformance,
-        mbtiPerformance
+        mbtiPerformance,
+        topStrengths,
+        topImprovements,
+        highestScore,
+        averageScore,
+        feedbackCompletionRate,
+        totalFeedbacks: feedbacks.length,
+        recentSessions
       });
     } catch (error) {
       console.error("Error getting performance analytics:", error);
