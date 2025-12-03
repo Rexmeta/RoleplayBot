@@ -19,11 +19,35 @@ export class FileManagerService {
           const content = await fs.readFile(path.join(SCENARIOS_DIR, file), 'utf-8');
           const scenario = JSON.parse(content);
           
-          // 🚀 성능 최적화: 시나리오 목록 조회 시 base64 이미지 제거
-          // base64 이미지는 수 MB에 달해 로딩 속도 저하 원인
-          if (scenario.image && scenario.image.length > 200) {
-            // 긴 base64 이미지는 placeholder로 대체
-            scenario.image = 'https://images.unsplash.com/photo-1557804506-669a67965ba0?w=800&h=400&fit=crop&auto=format';
+          // 🚀 성능 최적화: 시나리오 목록 조회 시 이미지 처리
+          if (scenario.image) {
+            // base64 이미지는 placeholder로 대체
+            if (scenario.image.length > 200) {
+              scenario.image = 'https://images.unsplash.com/photo-1557804506-669a67965ba0?w=800&h=400&fit=crop&auto=format';
+            } 
+            // 로컬 이미지는 썸네일 경로로 변환 (존재하는 경우)
+            else if (scenario.image.startsWith('/scenarios/images/')) {
+              // PNG/JPG 파일의 경우 WebP 썸네일 경로 생성
+              if (scenario.image.match(/\.(png|jpg|jpeg)$/i)) {
+                const thumbnailPath = scenario.image.replace(/\.(png|jpg|jpeg)$/i, '-thumb.webp');
+                const fullThumbPath = path.join(process.cwd(), thumbnailPath.slice(1)); // /scenarios... -> scenarios...
+                try {
+                  await fs.access(fullThumbPath);
+                  scenario.thumbnail = thumbnailPath;
+                } catch {
+                  // 썸네일이 없으면 원본 사용
+                  scenario.thumbnail = scenario.image;
+                }
+              }
+              // WebP 파일의 경우 썸네일 경로 생성
+              else if (scenario.image.endsWith('.webp') && !scenario.image.includes('-thumb')) {
+                scenario.thumbnail = scenario.image.replace('.webp', '-thumb.webp');
+              }
+              // 이미 썸네일이거나 기타 형식
+              else {
+                scenario.thumbnail = scenario.image;
+              }
+            }
           }
           
           // 시나리오 목록 조회 시에는 가벼운 MBTI 정보만 포함 (mbti만)

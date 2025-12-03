@@ -2,6 +2,13 @@ import { Router } from 'express';
 import { GoogleGenAI } from "@google/genai";
 import * as fs from 'fs';
 import * as path from 'path';
+import sharp from 'sharp';
+
+// 이미지 최적화 설정
+const IMAGE_CONFIG = {
+  original: { width: 1200, height: 800, quality: 85 },
+  thumbnail: { width: 400, height: 300, quality: 80 }
+};
 
 // Gemini 클라이언트 초기화
 const apiKey = process.env.GOOGLE_API_KEY || process.env.GEMINI_API_KEY;
@@ -144,7 +151,7 @@ function generateImagePrompt(title: string, description?: string, theme?: string
   return prompt;
 }
 
-// base64 이미지를 로컬 파일로 저장하는 함수
+// base64 이미지를 최적화하여 로컬 파일로 저장하는 함수
 async function saveImageToLocal(base64ImageUrl: string, scenarioTitle: string): Promise<string> {
   try {
     // base64 데이터에서 이미지 정보 추출
@@ -153,13 +160,7 @@ async function saveImageToLocal(base64ImageUrl: string, scenarioTitle: string): 
       throw new Error('유효하지 않은 base64 이미지 형식입니다.');
     }
 
-    const mimeType = matches[1];
     const imageData = matches[2];
-    
-    // 파일 확장자 결정
-    const extension = mimeType.includes('png') ? 'png' : 
-                     mimeType.includes('jpeg') || mimeType.includes('jpg') ? 'jpg' : 
-                     'png'; // 기본값
     
     // 파일명 생성 (안전한 파일명으로 변환)
     const safeTitle = scenarioTitle
@@ -168,7 +169,7 @@ async function saveImageToLocal(base64ImageUrl: string, scenarioTitle: string): 
       .substring(0, 50); // 길이 제한
     
     const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
-    const filename = `${safeTitle}-${timestamp}.${extension}`;
+    const baseFilename = `${safeTitle}-${timestamp}`;
     
     // 저장 경로 설정
     const imageDir = path.join(process.cwd(), 'scenarios', 'images');
@@ -178,22 +179,64 @@ async function saveImageToLocal(base64ImageUrl: string, scenarioTitle: string): 
       fs.mkdirSync(imageDir, { recursive: true });
     }
     
-    const filePath = path.join(imageDir, filename);
-    
-    // base64 데이터를 파일로 저장
+    // base64 데이터를 버퍼로 변환
     const buffer = Buffer.from(imageData, 'base64');
-    fs.writeFileSync(filePath, buffer);
+    const originalSize = buffer.length;
     
-    // 웹에서 접근 가능한 상대 경로 반환
-    const webPath = `/scenarios/images/${filename}`;
+    // 🖼️ 원본 이미지 최적화 (WebP 포맷, 리사이징)
+    const originalFilename = `${baseFilename}.webp`;
+    const originalPath = path.join(imageDir, originalFilename);
     
-    console.log(`📁 이미지 로컬 저장 완료: ${webPath}`);
+    await sharp(buffer)
+      .resize(IMAGE_CONFIG.original.width, IMAGE_CONFIG.original.height, {
+        fit: 'cover',
+        position: 'center'
+      })
+      .webp({ quality: IMAGE_CONFIG.original.quality })
+      .toFile(originalPath);
+    
+    // 📸 썸네일 생성 (리스트용 작은 이미지)
+    const thumbnailFilename = `${baseFilename}-thumb.webp`;
+    const thumbnailPath = path.join(imageDir, thumbnailFilename);
+    
+    await sharp(buffer)
+      .resize(IMAGE_CONFIG.thumbnail.width, IMAGE_CONFIG.thumbnail.height, {
+        fit: 'cover',
+        position: 'center'
+      })
+      .webp({ quality: IMAGE_CONFIG.thumbnail.quality })
+      .toFile(thumbnailPath);
+    
+    // 파일 크기 확인
+    const originalStats = fs.statSync(originalPath);
+    const thumbnailStats = fs.statSync(thumbnailPath);
+    
+    console.log(`📁 이미지 최적화 완료:`);
+    console.log(`   원본: ${(originalSize / 1024 / 1024).toFixed(2)}MB → ${(originalStats.size / 1024).toFixed(0)}KB (${((1 - originalStats.size / originalSize) * 100).toFixed(0)}% 감소)`);
+    console.log(`   썸네일: ${(thumbnailStats.size / 1024).toFixed(0)}KB`);
+    
+    // 웹에서 접근 가능한 상대 경로 반환 (원본 경로)
+    const webPath = `/scenarios/images/${originalFilename}`;
+    
     return webPath;
     
   } catch (error) {
     console.error('이미지 로컬 저장 실패:', error);
     throw error;
   }
+}
+
+// 이미지 경로에서 썸네일 경로 생성
+function getThumbnailPath(imagePath: string): string {
+  if (!imagePath) return imagePath;
+  
+  // WebP 이미지인 경우 썸네일 경로로 변환
+  if (imagePath.endsWith('.webp') && !imagePath.includes('-thumb')) {
+    return imagePath.replace('.webp', '-thumb.webp');
+  }
+  
+  // 기존 PNG/JPG 이미지는 그대로 반환 (하위 호환성)
+  return imagePath;
 }
 
 // 미리보기 이미지 생성 (더 빠른 응답을 위한 간단한 버전)
@@ -682,7 +725,105 @@ function generateExpressionImagePrompt(
   return prompt;
 }
 
+// 기존 이미지 일괄 최적화 엔드포인트
+router.post('/optimize-existing-images', async (req, res) => {
+  try {
+    const imageDir = path.join(process.cwd(), 'scenarios', 'images');
+    
+    if (!fs.existsSync(imageDir)) {
+      return res.json({
+        success: true,
+        message: '최적화할 이미지가 없습니다.',
+        optimized: 0
+      });
+    }
+    
+    const files = fs.readdirSync(imageDir);
+    const pngFiles = files.filter(f => f.endsWith('.png') || f.endsWith('.jpg') || f.endsWith('.jpeg'));
+    
+    console.log(`🔧 기존 이미지 최적화 시작: ${pngFiles.length}개 파일`);
+    
+    let optimizedCount = 0;
+    let totalSavedBytes = 0;
+    const results: Array<{ file: string; originalSize: number; newSize: number; thumbnailSize: number }> = [];
+    
+    for (const file of pngFiles) {
+      try {
+        const filePath = path.join(imageDir, file);
+        const originalStats = fs.statSync(filePath);
+        const originalSize = originalStats.size;
+        
+        // 이미 최적화된 파일 건너뛰기 (thumb 포함 파일)
+        if (file.includes('-thumb')) continue;
+        
+        const buffer = fs.readFileSync(filePath);
+        const baseFilename = file.replace(/\.(png|jpg|jpeg)$/i, '');
+        
+        // WebP로 최적화된 원본 생성
+        const optimizedFilename = `${baseFilename}.webp`;
+        const optimizedPath = path.join(imageDir, optimizedFilename);
+        
+        await sharp(buffer)
+          .resize(IMAGE_CONFIG.original.width, IMAGE_CONFIG.original.height, {
+            fit: 'cover',
+            position: 'center'
+          })
+          .webp({ quality: IMAGE_CONFIG.original.quality })
+          .toFile(optimizedPath);
+        
+        // 썸네일 생성
+        const thumbnailFilename = `${baseFilename}-thumb.webp`;
+        const thumbnailPath = path.join(imageDir, thumbnailFilename);
+        
+        await sharp(buffer)
+          .resize(IMAGE_CONFIG.thumbnail.width, IMAGE_CONFIG.thumbnail.height, {
+            fit: 'cover',
+            position: 'center'
+          })
+          .webp({ quality: IMAGE_CONFIG.thumbnail.quality })
+          .toFile(thumbnailPath);
+        
+        const optimizedStats = fs.statSync(optimizedPath);
+        const thumbnailStats = fs.statSync(thumbnailPath);
+        
+        const savedBytes = originalSize - optimizedStats.size;
+        totalSavedBytes += savedBytes;
+        
+        results.push({
+          file,
+          originalSize,
+          newSize: optimizedStats.size,
+          thumbnailSize: thumbnailStats.size
+        });
+        
+        console.log(`   ✅ ${file}: ${(originalSize / 1024).toFixed(0)}KB → ${(optimizedStats.size / 1024).toFixed(0)}KB + ${(thumbnailStats.size / 1024).toFixed(0)}KB thumb`);
+        optimizedCount++;
+        
+      } catch (fileError) {
+        console.error(`   ❌ ${file} 최적화 실패:`, fileError);
+      }
+    }
+    
+    console.log(`🎉 기존 이미지 최적화 완료: ${optimizedCount}개 파일, ${(totalSavedBytes / 1024 / 1024).toFixed(2)}MB 절약`);
+    
+    res.json({
+      success: true,
+      optimized: optimizedCount,
+      totalFiles: pngFiles.length,
+      totalSavedMB: (totalSavedBytes / 1024 / 1024).toFixed(2),
+      results
+    });
+    
+  } catch (error: any) {
+    console.error('기존 이미지 최적화 오류:', error);
+    res.status(500).json({
+      error: '이미지 최적화 실패',
+      details: error.message
+    });
+  }
+});
+
 // saveImageToLocal 함수도 export
-export { saveImageToLocal, savePersonaImageToLocal };
+export { saveImageToLocal, savePersonaImageToLocal, getThumbnailPath };
 
 export default router;

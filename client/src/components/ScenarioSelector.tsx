@@ -276,13 +276,13 @@ export default function ScenarioSelector({ onScenarioSelect, playerProfile }: Sc
               
               return (
                 <Card key={scenario.id} className="overflow-hidden group">
-                  {/* 시나리오 카드 - 이미지 배경 버전 */}
+                  {/* 시나리오 카드 - 이미지 배경 버전 (썸네일 우선 사용) */}
                   <div
                     className="relative cursor-pointer min-h-[12rem] max-h-[12rem] group-hover:max-h-screen overflow-x-hidden overflow-y-hidden group-hover:overflow-y-auto transition-[max-height] duration-700 ease-in-out"
                     onClick={() => handleScenarioClick(scenario)}
                     data-testid={`scenario-card-${scenario.id}`}
                     style={{
-                      backgroundImage: `linear-gradient(45deg, rgba(0,0,0,0.7) 0%, rgba(0,0,0,0.3) 100%), url(${scenario.image || 'https://images.unsplash.com/photo-1557804506-669a67965ba0?w=800&h=400&fit=crop&auto=format'})`,
+                      backgroundImage: `linear-gradient(45deg, rgba(0,0,0,0.7) 0%, rgba(0,0,0,0.3) 100%), url(${(scenario as any).thumbnail || scenario.image || 'https://images.unsplash.com/photo-1557804506-669a67965ba0?w=800&h=400&fit=crop&auto=format'})`,
                       backgroundSize: 'cover',
                       backgroundPosition: 'center',
                       backgroundRepeat: 'no-repeat'
