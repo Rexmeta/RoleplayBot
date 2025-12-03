@@ -1286,7 +1286,13 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
                             message.emotion === '분노' ? 'border-l-4 border-red-400' :
                             message.emotion === '슬픔' ? 'border-l-4 border-blue-400' :
                             message.emotion === '기쁨' ? 'border-l-4 border-green-400' :
-                            message.emotion === '놀람' ? 'border-l-4 border-yellow-400' : ''
+                            message.emotion === '놀람' ? 'border-l-4 border-yellow-400' :
+                            message.emotion === '호기심' ? 'border-l-4 border-purple-400' :
+                            message.emotion === '불안' ? 'border-l-4 border-orange-400' :
+                            message.emotion === '피로' ? 'border-l-4 border-slate-400' :
+                            message.emotion === '실망' ? 'border-l-4 border-indigo-400' :
+                            message.emotion === '당혹' ? 'border-l-4 border-pink-400' :
+                            message.emotion === '중립' ? 'border-l-4 border-gray-300' : ''
                           }`
                     }`}>
                       <p className={message.sender === "user" ? "text-white" : "text-slate-800"}>
