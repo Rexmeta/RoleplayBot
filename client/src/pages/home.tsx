@@ -23,7 +23,7 @@ import {
 type ViewState = "scenarios" | "persona-selection" | "chat" | "strategy-reflection" | "strategy-result" | "feedback";
 
 export default function Home() {
-  const { logout } = useAuth();
+  const { logout, user } = useAuth();
   const [location] = useLocation();
   const [currentView, setCurrentView] = useState<ViewState>("scenarios");
   const [selectedScenario, setSelectedScenario] = useState<ComplexScenario | null>(null);
