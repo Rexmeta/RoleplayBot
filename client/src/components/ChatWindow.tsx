@@ -1137,8 +1137,20 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
     img.src = imageUrl;
   };
 
+  // 디버그: 렌더링 확인
+  console.log('🔴 ChatWindow RENDER 시작:', { 
+    conversationId, 
+    persona: persona?.name,
+    scenario: scenario?.title,
+    error: error?.message 
+  });
+
   return (
-    <div className="chat-window">
+    <div className="chat-window" style={{ minHeight: '400px', background: '#f0f0f0' }}>
+      {/* 디버그: 렌더링 확인용 */}
+      <div className="bg-green-100 p-2 text-sm text-green-800 border-b border-green-200">
+        ChatWindow 렌더링됨 - 대화ID: {conversationId} | 페르소나: {persona?.name || 'N/A'} | 시나리오: {scenario?.title || 'N/A'}
+      </div>
       <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
         {/* Chat Header */}
         <div className="bg-gradient-to-r from-corporate-600 to-corporate-700 px-6 py-4 text-white">
