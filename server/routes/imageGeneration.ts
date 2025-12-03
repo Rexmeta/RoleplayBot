@@ -11,8 +11,8 @@ const IMAGE_CONFIG = {
     thumbnail: { width: 400, height: 300, quality: 80 }
   },
   persona: {
-    original: { width: 400, height: 400, quality: 85 },
-    thumbnail: { width: 150, height: 150, quality: 80 }
+    original: { width: 800, height: 800, quality: 90 },
+    thumbnail: { width: 200, height: 200, quality: 80 }
   }
 };
 

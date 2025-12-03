@@ -1,7 +1,7 @@
 {
   "id": "infj",
   "mbti": "INFJ",
-  "gender": "female",
+  "gender": "male",
   "personality_traits": [
     "통찰력",
     "이상주의적",
@@ -51,20 +51,20 @@
     "emotion": "균형 잡힌 감정 표현"
   },
   "images": {
-    "base": "/personas/infj/female/neutral.webp?t=1764722190411",
+    "base": "/personas/infj/male/neutral.webp?t=1764722697043",
     "style": "한국인 상반신 전체 앉아 있는 모습",
     "male": {
       "expressions": {
-        "중립": "",
-        "기쁨": "",
-        "슬픔": "",
-        "분노": "",
-        "놀람": "",
-        "호기심": "",
-        "불안": "",
-        "피로": "",
-        "실망": "",
-        "당혹": ""
+        "중립": "/personas/infj/male/neutral.webp?t=1764722697043",
+        "기쁨": "/personas/infj/male/joy.webp?t=1764722788131",
+        "슬픔": "/personas/infj/male/sad.webp?t=1764722788131",
+        "분노": "/personas/infj/male/angry.webp?t=1764722788131",
+        "놀람": "/personas/infj/male/surprise.webp?t=1764722788131",
+        "호기심": "/personas/infj/male/curious.webp?t=1764722788131",
+        "불안": "/personas/infj/male/anxious.webp?t=1764722788131",
+        "피로": "/personas/infj/male/tired.webp?t=1764722788131",
+        "실망": "/personas/infj/male/disappointed.webp?t=1764722788131",
+        "당혹": "/personas/infj/male/confused.webp?t=1764722788131"
       }
     },
     "female": {
