@@ -20,10 +20,13 @@ export class FileManagerService {
           const scenario = JSON.parse(content);
           
           // 🚀 성능 최적화: 시나리오 목록 조회 시 이미지 처리
+          const defaultPlaceholder = 'https://images.unsplash.com/photo-1557804506-669a67965ba0?w=800&h=400&fit=crop&auto=format';
+          
           if (scenario.image) {
             // base64 이미지는 placeholder로 대체
             if (scenario.image.length > 200) {
-              scenario.image = 'https://images.unsplash.com/photo-1557804506-669a67965ba0?w=800&h=400&fit=crop&auto=format';
+              scenario.image = defaultPlaceholder;
+              scenario.thumbnail = defaultPlaceholder;
             } 
             // 로컬 이미지는 썸네일 경로로 변환 (존재하는 경우)
             else if (scenario.image.startsWith('/scenarios/images/')) {
@@ -48,6 +51,14 @@ export class FileManagerService {
                 scenario.thumbnail = scenario.image;
               }
             }
+            // 외부 URL인 경우 그대로 사용
+            else {
+              scenario.thumbnail = scenario.image;
+            }
+          } else {
+            // 이미지가 없는 경우 placeholder 사용
+            scenario.image = defaultPlaceholder;
+            scenario.thumbnail = defaultPlaceholder;
           }
           
           // 시나리오 목록 조회 시에는 가벼운 MBTI 정보만 포함 (mbti만)
