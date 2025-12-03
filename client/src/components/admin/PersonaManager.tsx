@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
@@ -11,7 +12,7 @@ import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
 import { apiRequest, queryClient } from '@/lib/queryClient';
-import { Edit, Trash2 } from 'lucide-react';
+import { MoreVertical } from 'lucide-react';
 
 // MBTI 페르소나 타입 정의
 interface MBTIPersona {
@@ -1123,56 +1124,64 @@ export function PersonaManager() {
                       </Badge>
                     </div>
                   </div>
-                  <div className="flex space-x-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => handleEdit(persona)}
-                      data-testid={`button-edit-persona-${persona.id}`}
-                      className="p-2"
-                      title="편집"
-                    >
-                      <Edit className="h-4 w-4" />
-                    </Button>
-                    <AlertDialog>
-                      <AlertDialogTrigger asChild>
-                        <Button
-                          variant="destructive"
-                          size="sm"
-                          onClick={() => setDeletingPersona(persona)}
-                          data-testid={`button-delete-persona-${persona.id}`}
-                          className="p-2"
-                          title="삭제"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </AlertDialogTrigger>
-                      <AlertDialogContent>
-                        <AlertDialogHeader>
-                          <AlertDialogTitle>페르소나 삭제</AlertDialogTitle>
-                          <AlertDialogDescription>
-                            <strong>{persona.mbti} ({persona.id})</strong> 페르소나를 삭제하시겠습니까?
-                            <br /><br />
-                            현재 {scenarioUsage.length}개 시나리오에서 사용 중입니다.
-                            삭제 시 해당 시나리오들에 영향을 줄 수 있습니다.
-                          </AlertDialogDescription>
-                        </AlertDialogHeader>
-                        <AlertDialogFooter>
-                          <AlertDialogCancel onClick={() => setDeletingPersona(null)}>취소</AlertDialogCancel>
-                          <AlertDialogAction
-                            onClick={() => {
-                              if (deletingPersona) {
-                                deleteMutation.mutate(deletingPersona.id);
-                              }
-                            }}
-                            className="bg-red-600 hover:bg-red-700"
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="flex items-center justify-center w-8 h-8 p-0"
+                        data-testid={`button-persona-menu-${persona.id}`}
+                      >
+                        <MoreVertical className="h-4 w-4" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      <DropdownMenuItem
+                        onClick={() => handleEdit(persona)}
+                        data-testid={`button-edit-persona-${persona.id}`}
+                      >
+                        <i className="fas fa-edit mr-2 w-4 h-4 text-center"></i>
+                        수정
+                      </DropdownMenuItem>
+                      <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                          <DropdownMenuItem
+                            onSelect={(e) => e.preventDefault()}
+                            onClick={() => setDeletingPersona(persona)}
+                            data-testid={`button-delete-persona-${persona.id}`}
+                            className="text-red-600 focus:text-red-600 focus:bg-red-50"
                           >
-                            삭제하기
-                          </AlertDialogAction>
-                        </AlertDialogFooter>
-                      </AlertDialogContent>
-                    </AlertDialog>
-                  </div>
+                            <i className="fas fa-trash mr-2 w-4 h-4 text-center"></i>
+                            삭제
+                          </DropdownMenuItem>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                          <AlertDialogHeader>
+                            <AlertDialogTitle>페르소나 삭제</AlertDialogTitle>
+                            <AlertDialogDescription>
+                              <strong>{persona.mbti} ({persona.id})</strong> 페르소나를 삭제하시겠습니까?
+                              <br /><br />
+                              현재 {scenarioUsage.length}개 시나리오에서 사용 중입니다.
+                              삭제 시 해당 시나리오들에 영향을 줄 수 있습니다.
+                            </AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel onClick={() => setDeletingPersona(null)}>취소</AlertDialogCancel>
+                            <AlertDialogAction
+                              onClick={() => {
+                                if (deletingPersona) {
+                                  deleteMutation.mutate(deletingPersona.id);
+                                }
+                              }}
+                              className="bg-red-600 hover:bg-red-700"
+                            >
+                              삭제하기
+                            </AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
                 </div>
               </CardHeader>
               <CardContent>

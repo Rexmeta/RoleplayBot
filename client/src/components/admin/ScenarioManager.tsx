@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
@@ -12,7 +13,7 @@ import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import { apiRequest, queryClient } from '@/lib/queryClient';
 import { ComplexScenario } from '@/lib/scenario-system';
-import { Loader2 } from 'lucide-react';
+import { Loader2, MoreVertical } from 'lucide-react';
 import { AIScenarioGenerator } from './AIScenarioGenerator';
 
 interface ScenarioPersona {
@@ -1007,54 +1008,65 @@ export function ScenarioManager() {
                     </Badge>
                   </div>
                 </div>
-                <div className="flex space-x-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => handleEdit(scenario)}
-                    data-testid={`button-edit-scenario-${scenario.id}`}
-                  >
-                    <i className="fas fa-edit"></i>
-                  </Button>
-                  <AlertDialog>
-                    <AlertDialogTrigger asChild>
-                      <Button
-                        variant="destructive"
-                        size="sm"
-                        disabled={deleteMutation.isPending}
-                        data-testid={`button-delete-scenario-${scenario.id}`}
-                      >
-                        <i className="fas fa-trash"></i>
-                      </Button>
-                    </AlertDialogTrigger>
-                    <AlertDialogContent>
-                      <AlertDialogHeader>
-                        <AlertDialogTitle>시나리오 삭제 확인</AlertDialogTitle>
-                        <AlertDialogDescription className="space-y-2">
-                          <div>
-                            <strong>"{scenario.title}"</strong> 시나리오를 정말 삭제하시겠습니까?
-                          </div>
-                          <div className="text-red-600 font-medium">
-                            ⚠️ 삭제된 시나리오는 복구할 수 없습니다.
-                          </div>
-                          <div className="text-slate-600 text-sm">
-                            이 작업은 되돌릴 수 없으니 신중하게 결정해주세요.
-                          </div>
-                        </AlertDialogDescription>
-                      </AlertDialogHeader>
-                      <AlertDialogFooter>
-                        <AlertDialogCancel>취소</AlertDialogCancel>
-                        <AlertDialogAction
-                          onClick={() => deleteMutation.mutate(scenario.id)}
-                          className="bg-red-600 hover:bg-red-700"
-                          data-testid={`confirm-delete-scenario-${scenario.id}`}
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="flex items-center justify-center w-8 h-8 p-0"
+                      data-testid={`button-scenario-menu-${scenario.id}`}
+                    >
+                      <MoreVertical className="h-4 w-4" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuItem
+                      onClick={() => handleEdit(scenario)}
+                      data-testid={`button-edit-scenario-${scenario.id}`}
+                    >
+                      <i className="fas fa-edit mr-2 w-4 h-4 text-center"></i>
+                      수정
+                    </DropdownMenuItem>
+                    <AlertDialog>
+                      <AlertDialogTrigger asChild>
+                        <DropdownMenuItem
+                          onSelect={(e) => e.preventDefault()}
+                          data-testid={`button-delete-scenario-${scenario.id}`}
+                          className="text-red-600 focus:text-red-600 focus:bg-red-50"
                         >
+                          <i className="fas fa-trash mr-2 w-4 h-4 text-center"></i>
                           삭제
-                        </AlertDialogAction>
-                      </AlertDialogFooter>
-                    </AlertDialogContent>
-                  </AlertDialog>
-                </div>
+                        </DropdownMenuItem>
+                      </AlertDialogTrigger>
+                      <AlertDialogContent>
+                        <AlertDialogHeader>
+                          <AlertDialogTitle>시나리오 삭제 확인</AlertDialogTitle>
+                          <AlertDialogDescription className="space-y-2">
+                            <div>
+                              <strong>"{scenario.title}"</strong> 시나리오를 정말 삭제하시겠습니까?
+                            </div>
+                            <div className="text-red-600 font-medium">
+                              ⚠️ 삭제된 시나리오는 복구할 수 없습니다.
+                            </div>
+                            <div className="text-slate-600 text-sm">
+                              이 작업은 되돌릴 수 없으니 신중하게 결정해주세요.
+                            </div>
+                          </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                          <AlertDialogCancel>취소</AlertDialogCancel>
+                          <AlertDialogAction
+                            onClick={() => deleteMutation.mutate(scenario.id)}
+                            className="bg-red-600 hover:bg-red-700"
+                            data-testid={`confirm-delete-scenario-${scenario.id}`}
+                          >
+                            삭제
+                          </AlertDialogAction>
+                        </AlertDialogFooter>
+                      </AlertDialogContent>
+                    </AlertDialog>
+                  </DropdownMenuContent>
+                </DropdownMenu>
               </div>
             </CardHeader>
             <CardContent>
