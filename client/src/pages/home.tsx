@@ -84,8 +84,12 @@ export default function Home() {
             return;
           }
 
-          // 페르소나 찾기
-          const persona = scenario.personas.find((p: any) => p.id === conversation.personaId);
+          // 페르소나 찾기 - 시나리오에서 찾거나, personaSnapshot 사용
+          let persona = scenario.personas.find((p: any) => p.id === conversation.personaId);
+          if (!persona && conversation.personaSnapshot) {
+            console.log('📥 시나리오에서 페르소나 찾지 못함, personaSnapshot 사용:', conversation.personaSnapshot);
+            persona = conversation.personaSnapshot;
+          }
           if (!persona) {
             console.error('페르소나를 찾을 수 없습니다:', conversation.personaId);
             setIsResuming(false);
