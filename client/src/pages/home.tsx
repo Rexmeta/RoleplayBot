@@ -67,6 +67,17 @@ export default function Home() {
     const scenarioRunIdParam = params.get('scenarioRunId');
     const personaIdParam = params.get('personaId');
 
+    console.log('🔍 URL 파라미터 처리:', {
+      resumePersonaRunId,
+      scenarioId,
+      scenarioRunIdParam,
+      personaIdParam,
+      scenariosLength: scenarios.length,
+      isResuming,
+      isCreatingConversation,
+      currentView
+    });
+
     if (resumePersonaRunId && scenarios.length > 0 && !isResuming) {
       // 대화 재개 로직
       setIsResuming(true);
@@ -384,6 +395,16 @@ export default function Home() {
       });
     }
   };
+
+  console.log('🎨 렌더링 상태:', {
+    currentView,
+    selectedScenario: selectedScenario?.id,
+    selectedPersona: selectedPersona?.id,
+    conversationId,
+    scenarioRunId,
+    isResuming,
+    isCreatingConversation
+  });
 
   return (
     <div className="min-h-screen bg-slate-50">
