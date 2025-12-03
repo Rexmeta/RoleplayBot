@@ -142,16 +142,17 @@ export function getTextModeGuidelines(level: number = 4): string {
 
 /**
  * 난이도 레벨 검증 (1-4 범위)
+ * 기본값: 2 (기본 난이도) - 사용자가 난이도를 선택하지 않은 경우 적용
  */
 export function validateDifficultyLevel(level: number | undefined): number {
   if (level === undefined || level === null) {
-    return 4; // 기본값
+    return 2; // 기본값: 기본 난이도
   }
   
   const numLevel = Number(level);
   if (isNaN(numLevel) || numLevel < 1 || numLevel > 4) {
-    console.warn(`Invalid difficulty level: ${level}, using default 4`);
-    return 4;
+    console.warn(`Invalid difficulty level: ${level}, using default 2`);
+    return 2;
   }
   
   return Math.floor(numLevel);

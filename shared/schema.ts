@@ -25,7 +25,7 @@ export const conversations = pgTable("conversations", {
   strategyReflection: text("strategy_reflection"), // 사용자의 전략 회고 텍스트
   conversationOrder: jsonb("conversation_order").$type<string[]>(), // 실제 대화한 순서 (페르소나 ID 배열)
   mode: text("mode").notNull().default("text"), // text, tts, realtime_voice
-  difficulty: integer("difficulty").notNull().default(4), // 사용자가 선택한 난이도 (1-4)
+  difficulty: integer("difficulty").notNull().default(2), // 사용자가 선택한 난이도 (1-4), 기본값: 기본 난이도
 });
 
 export const feedbacks = pgTable("feedbacks", {
@@ -72,7 +72,7 @@ export const scenarioRuns = pgTable("scenario_runs", {
   attemptNumber: integer("attempt_number").notNull(), // 해당 사용자가 이 시나리오를 몇 번째 시도하는지
   status: text("status").notNull().default("in_progress"), // in_progress, completed
   totalScore: integer("total_score"), // 전체 점수 (0-100)
-  difficulty: integer("difficulty").notNull().default(4), // 난이도 (1-4)
+  difficulty: integer("difficulty").notNull().default(2), // 사용자가 선택한 난이도 (1-4), 기본값: 기본 난이도
   mode: text("mode").notNull().default("text"), // text, tts, realtime_voice
   conversationOrder: jsonb("conversation_order").$type<string[]>(), // 페르소나 대화 순서
   personaSelections: jsonb("persona_selections").$type<PersonaSelection[]>(), // 페르소나 선택 기록
@@ -100,7 +100,7 @@ export const personaRuns = pgTable("persona_runs", {
   turnCount: integer("turn_count").notNull().default(0),
   score: integer("score"), // 이 페르소나와의 대화 점수 (0-100)
   mode: text("mode").notNull().default("text"), // text, tts, realtime_voice - 대화 재개 시 필요
-  difficulty: integer("difficulty").notNull().default(4), // 난이도 (1-4) - 대화 재개 시 필요
+  difficulty: integer("difficulty").notNull().default(2), // 사용자가 선택한 난이도 (1-4), 기본값: 기본 난이도 - 대화 재개 시 필요
   startedAt: timestamp("started_at").notNull().default(sql`CURRENT_TIMESTAMP`), // 첫 생성 시간
   actualStartedAt: timestamp("actual_started_at").notNull().default(sql`CURRENT_TIMESTAMP`), // 실제 대화 시작/재개 시간 (매 재개마다 업데이트)
   completedAt: timestamp("completed_at"),
