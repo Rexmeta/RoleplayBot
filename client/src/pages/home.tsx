@@ -854,14 +854,30 @@ export default function Home() {
           );
         })()}
         
-        {currentView === "chat" && selectedScenario && selectedPersona && conversationId && (
-          <ChatWindow
-            scenario={selectedScenario}
-            persona={selectedPersona}
-            conversationId={conversationId}
-            onChatComplete={handleChatComplete}
-            onExit={handleReturnToScenarios}
-          />
+        {currentView === "chat" && (
+          <>
+            {selectedScenario && selectedPersona && conversationId ? (
+              <ChatWindow
+                scenario={selectedScenario}
+                persona={selectedPersona}
+                conversationId={conversationId}
+                onChatComplete={handleChatComplete}
+                onExit={handleReturnToScenarios}
+              />
+            ) : (
+              <div className="max-w-4xl mx-auto p-6">
+                <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-6 text-center">
+                  <p className="text-yellow-800 font-semibold">대화 화면 로딩 중...</p>
+                  <p className="text-yellow-700 mt-2 text-sm">
+                    시나리오: {selectedScenario ? '있음' : '없음'}, 
+                    페르소나: {selectedPersona ? '있음' : '없음'}, 
+                    대화ID: {conversationId ? '있음' : '없음'}
+                  </p>
+                  <Button onClick={handleReturnToScenarios} className="mt-4">시나리오 목록으로 돌아가기</Button>
+                </div>
+              </div>
+            )}
+          </>
         )}
         
         {currentView === "feedback" && selectedScenario && selectedPersona && conversationId && (() => {
