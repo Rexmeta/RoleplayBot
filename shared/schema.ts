@@ -58,6 +58,7 @@ export const users = pgTable("users", {
   email: varchar("email").unique().notNull(),
   password: varchar("password").notNull(), // 해시된 비밀번호
   name: varchar("name").notNull(), // 사용자 이름
+  isAdmin: integer("is_admin").notNull().default(0), // 0=false, 1=true
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });

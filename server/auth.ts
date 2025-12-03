@@ -7,6 +7,10 @@ import { z } from "zod";
 const JWT_SECRET = process.env.JWT_SECRET || "your-secret-key-change-in-production";
 const JWT_EXPIRES_IN = "7d"; // 7일
 
+// 관리자 이메일 목록
+const ADMIN_EMAILS = (process.env.ADMIN_EMAILS || "").split(",").filter(e => e.trim()).map(e => e.trim().toLowerCase());
+console.log("🔑 Admin emails configured:", ADMIN_EMAILS.length > 0 ? ADMIN_EMAILS : "None");
+
 // 회원가입 스키마
 const registerSchema = z.object({
   email: z.string().email("유효한 이메일을 입력해주세요"),
@@ -109,6 +113,7 @@ export function setupAuth(app: Express) {
           id: user.id,
           email: user.email,
           name: user.name,
+          isAdmin: user.isAdmin === 1,
         },
         token,
       });
@@ -159,6 +164,7 @@ export function setupAuth(app: Express) {
           id: user.id,
           email: user.email,
           name: user.name,
+          isAdmin: user.isAdmin === 1,
         },
         token,
       });
@@ -183,7 +189,14 @@ export function setupAuth(app: Express) {
   // 현재 사용자 정보 조회
   app.get("/api/auth/user", isAuthenticated, (req: any, res) => {
     const { password, ...userWithoutPassword } = req.user;
-    res.json(userWithoutPassword);
+    
+    // isAdmin을 boolean으로 변환
+    const userData = {
+      ...userWithoutPassword,
+      isAdmin: userWithoutPassword.isAdmin === 1 || ADMIN_EMAILS.includes(userWithoutPassword.email?.toLowerCase()),
+    };
+    
+    res.json(userData);
   });
 
   // 토큰 검증
