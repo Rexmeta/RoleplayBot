@@ -117,6 +117,7 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
   const [isEmotionTransitioning, setIsEmotionTransitioning] = useState(false);
   const [imagesLoaded, setImagesLoaded] = useState<{[key: string]: boolean}>({});
   const [personaImagesAvailable, setPersonaImagesAvailable] = useState<{[key: string]: boolean}>({});
+  const [imagesCheckComplete, setImagesCheckComplete] = useState(false); // 이미지 체크 완료 상태
   const [currentEmotion, setCurrentEmotion] = useState<string>('중립');
   const [loadedImageUrl, setLoadedImageUrl] = useState<string>(characterNeutral); // 초기값: 중립 fallback 이미지
   const [isGoalsExpanded, setIsGoalsExpanded] = useState(false);
@@ -244,9 +245,11 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
       });
       
       await Promise.all([...checkPromises, ...fallbackPromises]);
+      setImagesCheckComplete(true); // 체크 완료 표시
       console.log('🎨 모든 캐릭터 이미지 체크 및 프리로딩 완료');
     };
     
+    setImagesCheckComplete(false); // 체크 시작 시 초기화
     checkPersonaImages();
   }, [persona.id, persona.mbti, persona.gender]);
   
@@ -1705,8 +1708,19 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
               data-testid="character-mode"
             >
               
-              {/* 이미지가 없을 때 안내 메시지 */}
-              {!personaImagesAvailable['중립'] && (
+              {/* 이미지 체크 중 로딩 표시 */}
+              {!imagesCheckComplete && (
+                <div className="absolute inset-0 flex items-center justify-center z-5">
+                  <div className="bg-white/95 backdrop-blur-sm rounded-2xl p-8 shadow-xl max-w-md text-center">
+                    <div className="text-6xl mb-4 animate-pulse">🎨</div>
+                    <h3 className="text-xl font-bold text-slate-800 mb-2">캐릭터 이미지 로딩 중...</h3>
+                    <p className="text-slate-600">잠시만 기다려주세요</p>
+                  </div>
+                </div>
+              )}
+              
+              {/* 이미지 체크 완료 후 중립 이미지가 없을 때 안내 메시지 */}
+              {imagesCheckComplete && !personaImagesAvailable['중립'] && (
                 <div className="absolute inset-0 flex items-center justify-center z-5">
                   <div className="bg-white/95 backdrop-blur-sm rounded-2xl p-8 shadow-xl max-w-md text-center">
                     <div className="text-6xl mb-4">🎨</div>
