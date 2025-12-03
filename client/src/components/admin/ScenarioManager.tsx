@@ -1070,7 +1070,7 @@ export function ScenarioManager() {
               </div>
             </CardHeader>
             <CardContent>
-              <p className="text-slate-600 mb-4">{scenario.description}</p>
+              <p className="text-slate-600 mb-4 whitespace-pre-wrap">{scenario.description}</p>
               
               <div className="space-y-3">
                 <div>
