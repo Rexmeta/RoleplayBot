@@ -1699,11 +1699,34 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
                 isEmotionTransitioning ? 'brightness-95 scale-[1.02]' : 'brightness-110 scale-100'
               }`}
               style={{
-                backgroundImage: `url(${loadedImageUrl})`,
+                backgroundImage: loadedImageUrl ? `url(${loadedImageUrl})` : 'none',
                 backgroundColor: '#f5f5f5'
               }}
               data-testid="character-mode"
             >
+              
+              {/* 이미지가 없을 때 안내 메시지 */}
+              {!personaImagesAvailable['중립'] && (
+                <div className="absolute inset-0 flex items-center justify-center z-5">
+                  <div className="bg-white/95 backdrop-blur-sm rounded-2xl p-8 shadow-xl max-w-md text-center">
+                    <div className="text-6xl mb-4">🎨</div>
+                    <h3 className="text-xl font-bold text-slate-800 mb-2">캐릭터 이미지 준비 중</h3>
+                    <p className="text-slate-600 mb-4">
+                      아직 캐릭터 이미지가 생성되지 않았습니다.
+                    </p>
+                    <p className="text-sm text-slate-500">
+                      메신저 모드로 전환하거나, 잠시 후 다시 시도해주세요.
+                    </p>
+                    <button
+                      onClick={() => setChatMode('messenger')}
+                      className="mt-4 px-6 py-2 bg-corporate-600 text-white rounded-full hover:bg-corporate-700 transition-colors"
+                      data-testid="button-switch-to-messenger"
+                    >
+                      메신저 모드로 전환
+                    </button>
+                  </div>
+                </div>
+              )}
               
               {/* Top Left Area */}
               <div className="absolute top-4 left-4 z-20 space-y-3">
