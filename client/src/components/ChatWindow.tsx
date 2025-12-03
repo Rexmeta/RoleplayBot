@@ -245,17 +245,16 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
       
       await Promise.all([...checkPromises, ...fallbackPromises]);
       console.log('🎨 모든 캐릭터 이미지 체크 및 프리로딩 완료');
+      
+      // 이미지 체크 완료 후 초기 이미지 직접 설정
+      const emotionEn = emotionToEnglish['중립'] || 'neutral';
+      const initialImageUrl = `/personas/${mbtiId}/${genderFolder}/${emotionEn}.webp`;
+      console.log(`🖼️ 초기 이미지 설정: ${initialImageUrl}`);
+      setLoadedImageUrl(initialImageUrl);
     };
     
     checkPersonaImages();
   }, [persona.id, persona.mbti, persona.gender]);
-  
-  // personaImagesAvailable이 업데이트될 때 초기 이미지 설정
-  useEffect(() => {
-    const initialImageUrl = getCharacterImage('중립');
-    console.log(`🖼️ 초기 이미지 설정: ${initialImageUrl}`);
-    setLoadedImageUrl(initialImageUrl);
-  }, [personaImagesAvailable, persona.id, persona.gender, persona.mbti]);
   
   // 감정 변화 시 이미지 업데이트 - preloadImage 함수가 로드 완료 후 setLoadedImageUrl 호출
   useEffect(() => {
