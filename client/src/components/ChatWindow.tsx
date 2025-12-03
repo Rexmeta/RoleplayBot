@@ -118,7 +118,7 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
   const [imagesLoaded, setImagesLoaded] = useState<{[key: string]: boolean}>({});
   const [personaImagesAvailable, setPersonaImagesAvailable] = useState<{[key: string]: boolean}>({});
   const [currentEmotion, setCurrentEmotion] = useState<string>('중립');
-  const [loadedImageUrl, setLoadedImageUrl] = useState<string>(''); // 성공적으로 로드된 이미지 URL
+  const [loadedImageUrl, setLoadedImageUrl] = useState<string>(characterNeutral); // 초기값: 중립 fallback 이미지
   const [isGoalsExpanded, setIsGoalsExpanded] = useState(false);
   const [showEndConversationDialog, setShowEndConversationDialog] = useState(false);
   const [showModeChangeDialog, setShowModeChangeDialog] = useState(false);
@@ -262,7 +262,7 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
     if (currentEmotion) {
       const newImageUrl = getCharacterImage(currentEmotion);
       console.log(`🖼️ 감정 변화 이미지: ${currentEmotion} → ${newImageUrl}`);
-      preloadImage(newImageUrl);
+      preloadImage(newImageUrl, currentEmotion);
     }
   }, [currentEmotion]);
 
@@ -986,7 +986,7 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
         
         // 새 이미지 프리로드 - 로드 완료 후 배경 이미지 업데이트
         const newImageUrl = getCharacterImage(newEmotion);
-        preloadImage(newImageUrl);
+        preloadImage(newImageUrl, newEmotion);
       } else {
         // 메신저 모드에서는 즉시 업데이트
         setCurrentEmotion(newEmotion);
@@ -1126,7 +1126,7 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
   };
 
   // 이미지 프리로드 함수 - 새 이미지 로드 완료 후 상태 업데이트 (기존 이미지 유지하다가 새 이미지 로드 완료 후 교체)
-  const preloadImage = (imageUrl: string) => {
+  const preloadImage = (imageUrl: string, emotion?: string) => {
     const img = new Image();
     img.onload = () => {
       console.log(`✅ 표정 이미지 로드 완료: ${imageUrl}`);
@@ -1137,8 +1137,11 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
       }, 100);
     };
     img.onerror = () => {
-      console.log(`⚠️ 표정 이미지 로드 실패: ${imageUrl}, 기존 이미지 유지`);
-      setIsEmotionTransitioning(false); // 로드 실패해도 전환 종료
+      console.log(`⚠️ 표정 이미지 로드 실패: ${imageUrl}, fallback 이미지 적용`);
+      // 로드 실패 시 fallback 이미지를 설정 (빈 화면 방지)
+      const fallbackUrl = getFallbackImage(emotion || '중립');
+      setLoadedImageUrl(fallbackUrl);
+      setIsEmotionTransitioning(false);
     };
     img.src = imageUrl;
   };
