@@ -315,7 +315,7 @@ export default function ScenarioSelector({ onScenarioSelect, playerProfile }: Sc
                         </div>
                         
                         {/* 설명 */}
-                        <p className="text-sm text-gray-200 mb-4">{scenario.description}</p>
+                        <p className="text-sm text-gray-200 mb-4 whitespace-pre-wrap">{scenario.description}</p>
                         
                         {/* 상황 정보 */}
                         <div className="space-y-3 mb-4">
@@ -324,7 +324,7 @@ export default function ScenarioSelector({ onScenarioSelect, playerProfile }: Sc
                               <i className="fas fa-exclamation-triangle mr-2 text-yellow-400"></i>
                               상황
                             </h4>
-                            <p className="text-gray-300 text-xs leading-relaxed pl-5">
+                            <p className="text-gray-300 text-xs leading-relaxed pl-5 whitespace-pre-wrap">
                               {scenario.context?.situation || '상황 정보 없음'}
                             </p>
                           </div>
