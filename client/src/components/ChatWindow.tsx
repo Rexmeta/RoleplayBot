@@ -259,7 +259,7 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
   
   // 감정 변화 시 이미지 업데이트 - preloadImage 함수가 로드 완료 후 setLoadedImageUrl 호출
   useEffect(() => {
-    if (currentEmotion && currentEmotion !== '중립') {
+    if (currentEmotion) {
       const newImageUrl = getCharacterImage(currentEmotion);
       console.log(`🖼️ 감정 변화 이미지: ${currentEmotion} → ${newImageUrl}`);
       preloadImage(newImageUrl);
