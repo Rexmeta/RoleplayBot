@@ -64,7 +64,7 @@ export function SimplePersonaSelector({
       <div className="text-center mb-8">
         <h1 className="text-3xl font-bold text-gray-900 mb-3">{scenarioTitle}</h1>
         {scenarioSituation && (
-          <p className="text-lg text-gray-600 mb-4 whitespace-pre-wrap">{scenarioSituation}</p>
+          <p className="text-lg text-gray-600 mb-4 whitespace-pre-wrap text-left">{scenarioSituation}</p>
         )}
         {scenario?.estimatedTime && (
           <div className="flex items-center justify-center gap-2 text-sm text-gray-500 mb-4">
