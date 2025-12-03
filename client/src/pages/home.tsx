@@ -435,16 +435,18 @@ export default function Home() {
                     History
                   </DropdownMenuItem>
                   
-                  {user?.isAdmin && (
+                  {(user?.role === 'admin' || user?.role === 'operator') && (
                     <>
                       <DropdownMenuSeparator />
-                      <DropdownMenuItem
-                        onClick={() => window.location.href = '/admin'}
-                        data-testid="menu-admin-dashboard"
-                      >
-                        <BarChart3 className="w-4 h-4 mr-2" />
-                        관리자 대시보드
-                      </DropdownMenuItem>
+                      {user?.role === 'admin' && (
+                        <DropdownMenuItem
+                          onClick={() => window.location.href = '/admin'}
+                          data-testid="menu-admin-dashboard"
+                        >
+                          <BarChart3 className="w-4 h-4 mr-2" />
+                          관리자 대시보드
+                        </DropdownMenuItem>
+                      )}
                       <DropdownMenuItem
                         onClick={() => window.location.href = '/admin-management'}
                         data-testid="menu-content-management"

@@ -4,7 +4,7 @@ export interface User {
   id: string;
   email: string;
   name: string;
-  isAdmin?: boolean;
+  role: 'admin' | 'operator' | 'user'; // admin=시스템관리자, operator=운영자, user=일반유저
 }
 
 export interface AuthContextType {
