@@ -22,32 +22,6 @@ import type { ComplexScenario, ScenarioPersona } from "@/lib/scenario-system";
 import type { Conversation, ConversationMessage } from "@shared/schema";
 import { useRealtimeVoice } from "@/hooks/useRealtimeVoice";
 
-// 감정별 캐릭터 이미지 import
-import characterNeutral from "../../../attached_assets/characters/character-neutral.png";
-import characterJoy from "../../../attached_assets/characters/character-joy.png";
-import characterSad from "../../../attached_assets/characters/character-sad.png";
-import characterAngry from "../../../attached_assets/characters/character-angry.png";
-import characterSurprise from "../../../attached_assets/characters/character-surprise.png";
-import characterCurious from "../../../attached_assets/characters/character-curious.jpg";
-import characterAnxious from "../../../attached_assets/characters/character-anxious.jpg";
-import characterTired from "../../../attached_assets/characters/character-tired.jpg";
-import characterDisappointed from "../../../attached_assets/characters/character-disappointed.jpg";
-import characterConfused from "../../../attached_assets/characters/character-confused.jpg";
-
-// 공용 캐릭터 이미지 매핑 (폴백용)
-const fallbackCharacterImages = {
-  '중립': characterNeutral,
-  '기쁨': characterJoy,
-  '슬픔': characterSad,
-  '분노': characterAngry,
-  '놀람': characterSurprise,
-  '호기심': characterCurious,
-  '불안': characterAnxious,
-  '피로': characterTired,
-  '실망': characterDisappointed,
-  '당혹': characterConfused
-};
-
 // 표정 한글 → 영어 매핑
 const emotionToEnglish: Record<string, string> = {
   '중립': 'neutral',
@@ -115,8 +89,7 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
   const [showInputMode, setShowInputMode] = useState(false);
   const [isTransitioning, setIsTransitioning] = useState(false);
   const [isEmotionTransitioning, setIsEmotionTransitioning] = useState(false);
-  const [imagesLoaded, setImagesLoaded] = useState<{[key: string]: boolean}>({});
-  const [personaImagesAvailable, setPersonaImagesAvailable] = useState<{[key: string]: boolean}>({});
+    const [personaImagesAvailable, setPersonaImagesAvailable] = useState<{[key: string]: boolean}>({});
   const [currentEmotion, setCurrentEmotion] = useState<string>('중립');
   const [loadedImageUrl, setLoadedImageUrl] = useState<string>(''); // 성공적으로 로드된 이미지 URL
   const [isGoalsExpanded, setIsGoalsExpanded] = useState(false);
@@ -183,8 +156,8 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
     },
   });
   
-  // 페르소나별 이미지 로딩 함수 (성별 폴더 포함, 폴백 포함, WebP 최적화)
-  const getCharacterImage = (emotion: string): string => {
+  // 페르소나별 이미지 로딩 함수 (성별 폴더 포함, WebP 최적화)
+  const getCharacterImage = (emotion: string): string | null => {
     const emotionEn = emotionToEnglish[emotion] || 'neutral';
     const genderFolder = persona.gender || 'male';
     const mbtiId = persona.mbti?.toLowerCase() || persona.id;
@@ -194,16 +167,15 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
       return `/personas/${mbtiId}/${genderFolder}/${emotionEn}.webp`;
     }
     
-    // 페르소나별 이미지가 없으면 폴백 이미지 사용
-    return getFallbackImage(emotion);
+    // 페르소나별 이미지가 없으면 null 반환
+    return null;
   };
+  
+  // 모든 감정에 대해 이미지가 없는지 확인
+  const hasNoPersonaImages = Object.values(personaImagesAvailable).every(v => v === false) && 
+    Object.keys(personaImagesAvailable).length === Object.keys(emotionToEnglish).length;
 
-  // 이미지 폴백 처리 함수
-  const getFallbackImage = (emotion: string): string => {
-    return fallbackCharacterImages[emotion as keyof typeof fallbackCharacterImages] || fallbackCharacterImages['중립'];
-  };
-
-  // 페르소나별 이미지 체크 및 공용 이미지 프리로딩, 초기 이미지 설정
+  // 페르소나별 이미지 체크
   useEffect(() => {
     const checkPersonaImages = async () => {
       const genderFolder = persona.gender || 'male';
@@ -219,32 +191,15 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
           };
           img.onerror = () => {
             setPersonaImagesAvailable(prev => ({ ...prev, [emotionKr]: false }));
-            console.log(`⚠️ 페르소나별 이미지 없음, 공용 이미지 사용: ${emotionKr}`);
+            console.log(`⚠️ 페르소나별 이미지 없음: ${emotionKr}`);
             resolve();
           };
           img.src = `/personas/${mbtiId}/${genderFolder}/${emotionEn}.webp`;
         });
       });
-
-      // 공용 이미지 프리로딩
-      const fallbackPromises = Object.entries(fallbackCharacterImages).map(([emotion, src]) => {
-        return new Promise<void>((resolve) => {
-          const img = new Image();
-          img.onload = () => {
-            setImagesLoaded(prev => ({ ...prev, [emotion]: true }));
-            resolve();
-          };
-          img.onerror = () => {
-            console.warn(`Failed to preload fallback image for emotion: ${emotion}`);
-            setImagesLoaded(prev => ({ ...prev, [emotion]: false }));
-            resolve();
-          };
-          img.src = src;
-        });
-      });
       
-      await Promise.all([...checkPromises, ...fallbackPromises]);
-      console.log('🎨 모든 캐릭터 이미지 체크 및 프리로딩 완료');
+      await Promise.all(checkPromises);
+      console.log('🎨 페르소나 이미지 체크 완료');
     };
     
     checkPersonaImages();
@@ -254,7 +209,9 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
   useEffect(() => {
     const initialImageUrl = getCharacterImage('중립');
     console.log(`🖼️ 초기 이미지 설정: ${initialImageUrl}`);
-    setLoadedImageUrl(initialImageUrl);
+    if (initialImageUrl) {
+      setLoadedImageUrl(initialImageUrl);
+    }
   }, [personaImagesAvailable, persona.id, persona.gender, persona.mbti]);
   
   // 감정 변화 시 이미지 업데이트 - preloadImage 함수가 로드 완료 후 setLoadedImageUrl 호출
@@ -262,7 +219,9 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
     if (currentEmotion && currentEmotion !== '중립') {
       const newImageUrl = getCharacterImage(currentEmotion);
       console.log(`🖼️ 감정 변화 이미지: ${currentEmotion} → ${newImageUrl}`);
-      preloadImage(newImageUrl);
+      if (newImageUrl) {
+        preloadImage(newImageUrl);
+      }
     }
   }, [currentEmotion]);
 
@@ -986,7 +945,9 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
         
         // 새 이미지 프리로드 - 로드 완료 후 배경 이미지 업데이트
         const newImageUrl = getCharacterImage(newEmotion);
-        preloadImage(newImageUrl);
+        if (newImageUrl) {
+          preloadImage(newImageUrl);
+        }
       } else {
         // 메신저 모드에서는 즉시 업데이트
         setCurrentEmotion(newEmotion);
@@ -1696,11 +1657,21 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
                 isEmotionTransitioning ? 'brightness-95 scale-[1.02]' : 'brightness-110 scale-100'
               }`}
               style={{
-                backgroundImage: `url(${loadedImageUrl})`,
+                backgroundImage: loadedImageUrl ? `url(${loadedImageUrl})` : 'none',
                 backgroundColor: '#f5f5f5'
               }}
               data-testid="character-mode"
             >
+              {/* 페르소나 이미지가 없을 때 안내 메시지 */}
+              {hasNoPersonaImages && (
+                <div className="absolute inset-0 flex items-center justify-center z-5">
+                  <div className="bg-white/95 backdrop-blur-sm rounded-2xl px-8 py-6 shadow-xl max-w-md text-center">
+                    <div className="text-4xl mb-4">🖼️</div>
+                    <h3 className="text-lg font-semibold text-slate-800 mb-2">페르소나 이미지가 존재하지 않습니다</h3>
+                    <p className="text-sm text-slate-600">운영자에게 문의해 주세요.</p>
+                  </div>
+                </div>
+              )}
               
               {/* Top Left Area */}
               <div className="absolute top-4 left-4 z-20 space-y-3">
