@@ -150,18 +150,18 @@ export function SimplePersonaSelector({
                 <Users className="w-5 h-5 text-blue-600 mt-0.5 flex-shrink-0" />
                 <div>
                   <h3 className="font-semibold text-gray-900 mb-3">나의 역할</h3>
-                  <div className="space-y-3 text-sm">
+                  <div className="space-y-2 text-sm">
                     <div>
-                      <span className="text-gray-600">직책:</span>
-                      <span className="font-medium text-gray-900 block">{scenario.context.playerRole.position}</span>
+                      <span className="text-gray-600">직책: </span>
+                      <span className="font-medium text-gray-900">{scenario.context.playerRole.position}</span>
                     </div>
                     <div>
-                      <span className="text-gray-600">부서:</span>
-                      <span className="font-medium text-gray-900 block">{scenario.context.playerRole.department}</span>
+                      <span className="text-gray-600">부서: </span>
+                      <span className="font-medium text-gray-900">{scenario.context.playerRole.department}</span>
                     </div>
                     <div>
-                      <span className="text-gray-600">경력:</span>
-                      <span className="font-medium text-gray-900 block">{scenario.context.playerRole.experience}</span>
+                      <span className="text-gray-600">경력: </span>
+                      <span className="font-medium text-gray-900">{scenario.context.playerRole.experience}</span>
                     </div>
                     <div className="mt-4 pt-4 border-t border-blue-200">
                       <p className="text-gray-700 leading-relaxed">
