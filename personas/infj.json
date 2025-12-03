@@ -70,15 +70,15 @@
     "female": {
       "expressions": {
         "중립": "/personas/infj/female/neutral.webp?t=1764722190411",
-        "기쁨": "",
-        "슬픔": "",
-        "분노": "",
-        "놀람": "",
-        "호기심": "",
-        "불안": "",
-        "피로": "",
-        "실망": "",
-        "당혹": ""
+        "기쁨": "/personas/infj/female/joy.webp?t=1764722566648",
+        "슬픔": "/personas/infj/female/sad.webp?t=1764722566648",
+        "분노": "/personas/infj/female/angry.webp?t=1764722566648",
+        "놀람": "/personas/infj/female/surprise.webp?t=1764722566648",
+        "호기심": "/personas/infj/female/curious.webp?t=1764722566648",
+        "불안": "/personas/infj/female/anxious.webp?t=1764722566648",
+        "피로": "/personas/infj/female/tired.webp?t=1764722566648",
+        "실망": "/personas/infj/female/disappointed.webp?t=1764722566648",
+        "당혹": "/personas/infj/female/confused.webp?t=1764722566648"
       }
     }
   }
