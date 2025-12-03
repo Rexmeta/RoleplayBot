@@ -378,10 +378,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
           name: (scenarioPersona as any).name,
           role: (scenarioPersona as any).position,
           department: (scenarioPersona as any).department,
-          personality: mbtiPersona?.communication_style || '균형 잡힌 의사소통',
-          responseStyle: mbtiPersona?.communication_patterns?.opening_style || '상황에 맞는 방식으로 대화 시작',
-          goals: mbtiPersona?.communication_patterns?.win_conditions || ['목표 달성'],
-          background: mbtiPersona?.background?.personal_values?.join(', ') || '전문성'
+          personality: (mbtiPersona as any)?.communication_style || '균형 잡힌 의사소통',
+          responseStyle: (mbtiPersona as any)?.communication_patterns?.opening_style || '상황에 맞는 방식으로 대화 시작',
+          goals: (mbtiPersona as any)?.communication_patterns?.win_conditions || ['목표 달성'],
+          background: (mbtiPersona as any)?.background?.personal_values?.join(', ') || '전문성'
         };
 
         const aiResult = await generateAIResponse(
@@ -530,7 +530,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const result = await verifyConversationOwnership(req.params.id, userId);
       
       if ('error' in result) {
-        return res.status(result.status).json({ error: result.error });
+        return res.status(result.status || 500).json({ error: result.error });
       }
       
       const sessionConversation = result.conversation;
@@ -554,6 +554,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         // 6. 세션 자체가 아님 (중복 삭제 방지)
         const personaConversationsToDelete = allConversations.filter(c => {
           if (c.id === req.params.id) return false; // 세션 자체 제외
+          if (!c.personaId) return false; // personaId가 null인 경우 제외
           
           const convTime = new Date(c.createdAt).getTime();
           const isWithinTimeWindow = Math.abs(sessionTime - convTime) < TIME_WINDOW;
@@ -569,14 +570,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
         // 중복 제거 (같은 personaId가 여러 번 있을 수 있으므로 최신 것만 선택)
         const personaConversationsByPersona = new Map<string, any>();
         for (const conv of personaConversationsToDelete) {
-          const existing = personaConversationsByPersona.get(conv.personaId);
+          const existing = personaConversationsByPersona.get(conv.personaId!);
           if (!existing || new Date(conv.createdAt).getTime() > new Date(existing.createdAt).getTime()) {
-            personaConversationsByPersona.set(conv.personaId, conv);
+            personaConversationsByPersona.set(conv.personaId!, conv);
           }
         }
         
         // 식별된 페르소나 대화들 삭제
-        for (const [personaId, personaConversation] of personaConversationsByPersona) {
+        for (const [personaId, personaConversation] of Array.from(personaConversationsByPersona)) {
           console.log(`  - 페르소나 대화 삭제: ${personaConversation.id} (${personaId})`);
           try {
             await storage.deleteConversation(personaConversation.id);
@@ -612,7 +613,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const ownershipResult = await verifyPersonaRunOwnership(personaRunId, userId);
       
       if ('error' in ownershipResult) {
-        return res.status(ownershipResult.status).json({ error: ownershipResult.error });
+        return res.status(ownershipResult.status || 500).json({ error: ownershipResult.error });
       }
 
       const { personaRun, scenarioRun } = ownershipResult;
@@ -685,10 +686,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         name: scenarioPersona.name,
         role: scenarioPersona.position,
         department: scenarioPersona.department,
-        personality: mbtiPersona?.communication_style || '균형 잡힌 의사소통',
-        responseStyle: mbtiPersona?.communication_patterns?.opening_style || '상황에 맞는 방식으로 대화 시작',
-        goals: mbtiPersona?.communication_patterns?.win_conditions || ['목표 달성'],
-        background: mbtiPersona?.background?.personal_values?.join(', ') || '전문성'
+        personality: (mbtiPersona as any)?.communication_style || '균형 잡힌 의사소통',
+        responseStyle: (mbtiPersona as any)?.communication_patterns?.opening_style || '상황에 맞는 방식으로 대화 시작',
+        goals: (mbtiPersona as any)?.communication_patterns?.win_conditions || ['목표 달성'],
+        background: (mbtiPersona as any)?.background?.personal_values?.join(', ') || '전문성'
       };
 
       // 사용자가 선택한 난이도를 시나리오 객체에 적용
@@ -716,8 +717,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }));
 
       const aiResult = await generateAIResponse(
-        scenarioWithUserDifficulty,
-        messagesForAI,
+        scenarioWithUserDifficulty as any,
+        messagesForAI as any,
         persona,
         isSkipTurn ? undefined : message
       );
@@ -865,7 +866,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const ownershipResult = await verifyConversationOwnership(id, userId);
       
       if ('error' in ownershipResult) {
-        return res.status(ownershipResult.status).json({ error: ownershipResult.error });
+        return res.status(ownershipResult.status || 500).json({ error: ownershipResult.error });
       }
       
       // Validate selection data using Zod schema
@@ -893,7 +894,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const ownershipResult = await verifyConversationOwnership(id, userId);
       
       if ('error' in ownershipResult) {
-        return res.status(ownershipResult.status).json({ error: ownershipResult.error });
+        return res.status(ownershipResult.status || 500).json({ error: ownershipResult.error });
       }
       
       const selections = await storage.getPersonaSelections(id);
@@ -913,7 +914,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const ownershipResult = await verifyConversationOwnership(id, userId);
       
       if ('error' in ownershipResult) {
-        return res.status(ownershipResult.status).json({ error: ownershipResult.error });
+        return res.status(ownershipResult.status || 500).json({ error: ownershipResult.error });
       }
       
       // Check if conversation exists first
@@ -962,7 +963,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const ownershipResult = await verifyConversationOwnership(id, userId);
       
       if ('error' in ownershipResult) {
-        return res.status(ownershipResult.status).json({ error: ownershipResult.error });
+        return res.status(ownershipResult.status || 500).json({ error: ownershipResult.error });
       }
       
       // Validate choice data using Zod schema
@@ -990,7 +991,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const ownershipResult = await verifyConversationOwnership(id, userId);
       
       if ('error' in ownershipResult) {
-        return res.status(ownershipResult.status).json({ error: ownershipResult.error });
+        return res.status(ownershipResult.status || 500).json({ error: ownershipResult.error });
       }
       
       const choices = await storage.getStrategyChoices(id);
@@ -1010,7 +1011,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const ownershipResult = await verifyConversationOwnership(id, userId);
       
       if ('error' in ownershipResult) {
-        return res.status(ownershipResult.status).json({ error: ownershipResult.error });
+        return res.status(ownershipResult.status || 500).json({ error: ownershipResult.error });
       }
       
       // Check if conversation exists first
@@ -1044,7 +1045,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const ownershipResult = await verifyConversationOwnership(id, userId);
       
       if ('error' in ownershipResult) {
-        return res.status(ownershipResult.status).json({ error: ownershipResult.error });
+        return res.status(ownershipResult.status || 500).json({ error: ownershipResult.error });
       }
       
       const analysis = await storage.getSequenceAnalysis(id);
@@ -1069,7 +1070,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const ownershipResult = await verifyConversationOwnership(id, userId);
       
       if ('error' in ownershipResult) {
-        return res.status(ownershipResult.status).json({ error: ownershipResult.error });
+        return res.status(ownershipResult.status || 500).json({ error: ownershipResult.error });
       }
 
       const { strategyReflection, conversationOrder } = req.body;
@@ -1467,10 +1468,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
 
       const feedbackData = await generateFeedback(
-        scenarioObj, // 전체 시나리오 객체 전달
-        conversation.messages,
+        scenarioObj as any, // 전체 시나리오 객체 전달
+        conversation.messages as any,
         persona,
-        conversation // 전략 회고 평가를 위해 conversation 전달
+        conversation as any // 전략 회고 평가를 위해 conversation 전달
       );
 
       // 체계적인 시간 성과 평가 시스템
@@ -2467,7 +2468,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         personas: result.personas // 페르소나 객체를 직접 포함
       };
       
-      const savedScenario = await fileManager.createScenario(scenarioWithPersonas);
+      const savedScenario = await fileManager.createScenario(scenarioWithPersonas as any);
 
       res.json({
         scenario: savedScenario,
@@ -2495,7 +2496,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ error: "시나리오를 찾을 수 없습니다" });
       }
 
-      const enhancedData = await enhanceScenarioWithAI(existingScenario, enhancementType);
+      const enhancedData = await enhanceScenarioWithAI(existingScenario as any, enhancementType);
       
       res.json(enhancedData);
     } catch (error) {
@@ -2880,12 +2881,13 @@ function calculatePriorityScore(persona: any, weights: any, scenarioContext: any
   const relationshipScore = Math.min(5, persona.keyRelationships.length) * weights.relationships;
   score += relationshipScore;
   
-  const moodMultiplier = {
+  const moodMultipliers: Record<string, number> = {
     'positive': 1.2,
     'neutral': 1.0,
     'negative': 0.8,
     'unknown': 0.9
-  }[persona.currentMood] || 1.0;
+  };
+  const moodMultiplier = moodMultipliers[persona.currentMood as string] || 1.0;
   
   return score * moodMultiplier;
 }
