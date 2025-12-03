@@ -443,11 +443,11 @@ export default function Home() {
                 onClick={() => window.location.href = '/mypage'}
                 variant="outline"
                 size="sm"
-                className="flex items-center gap-2 mr-2"
+                className="flex items-center justify-center w-10 h-10 mr-2"
                 data-testid="mypage-button"
+                title="마이페이지"
               >
                 <User className="w-4 h-4" />
-                MyPage
               </Button>
 
               {/* 로그아웃 버튼 */}
