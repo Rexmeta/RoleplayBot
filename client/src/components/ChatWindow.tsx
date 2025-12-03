@@ -183,15 +183,15 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
     },
   });
   
-  // 페르소나별 이미지 로딩 함수 (성별 폴더 포함, 폴백 포함)
+  // 페르소나별 이미지 로딩 함수 (성별 폴더 포함, 폴백 포함, WebP 최적화)
   const getCharacterImage = (emotion: string): string => {
     const emotionEn = emotionToEnglish[emotion] || 'neutral';
     const genderFolder = persona.gender || 'male';
     const mbtiId = persona.mbti?.toLowerCase() || persona.id;
     
-    // 페르소나별 이미지가 사용 가능한지 확인
+    // 페르소나별 이미지가 사용 가능한지 확인 (WebP 최적화 이미지 사용)
     if (personaImagesAvailable[emotion]) {
-      return `/personas/${mbtiId}/${genderFolder}/${emotionEn}.png`;
+      return `/personas/${mbtiId}/${genderFolder}/${emotionEn}.webp`;
     }
     
     // 페르소나별 이미지가 없으면 폴백 이미지 사용
@@ -222,7 +222,7 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
             console.log(`⚠️ 페르소나별 이미지 없음, 공용 이미지 사용: ${emotionKr}`);
             resolve();
           };
-          img.src = `/personas/${mbtiId}/${genderFolder}/${emotionEn}.png`;
+          img.src = `/personas/${mbtiId}/${genderFolder}/${emotionEn}.webp`;
         });
       });
 

@@ -56,30 +56,30 @@
     "style": "한국인 무표정 웃지 않음. 빈 사무실 상반신 전체가 나오도록 ",
     "male": {
       "expressions": {
-        "중립": "/personas/enfp/male/neutral.png?t=1764231117658",
-        "기쁨": "/personas/enfp/male/joy.png?t=1764231211154",
-        "슬픔": "/personas/enfp/male/sad.png?t=1764231211154",
-        "분노": "/personas/enfp/male/angry.png?t=1764231211154",
-        "놀람": "/personas/enfp/male/surprise.png?t=1764231211154",
-        "호기심": "/personas/enfp/male/curious.png?t=1764231211154",
-        "불안": "/personas/enfp/male/anxious.png?t=1764231211154",
-        "피로": "/personas/enfp/male/tired.png?t=1764231211154",
-        "실망": "/personas/enfp/male/disappointed.png?t=1764231211154",
-        "당혹": "/personas/enfp/male/confused.png?t=1764231211154"
+        "중립": "/personas/enfp/male/neutral.webp",
+        "기쁨": "/personas/enfp/male/joy.webp",
+        "슬픔": "/personas/enfp/male/sad.webp",
+        "분노": "/personas/enfp/male/angry.webp",
+        "놀람": "/personas/enfp/male/surprise.webp",
+        "호기심": "/personas/enfp/male/curious.webp",
+        "불안": "/personas/enfp/male/anxious.webp",
+        "피로": "/personas/enfp/male/tired.webp",
+        "실망": "/personas/enfp/male/disappointed.webp",
+        "당혹": "/personas/enfp/male/confused.webp"
       }
     },
     "female": {
       "expressions": {
-        "중립": "/personas/enfp/female/neutral.png?t=1764231392740",
-        "기쁨": "/personas/enfp/female/joy.png?t=1764231634565",
-        "슬픔": "/personas/enfp/female/sad.png?t=1764231634565",
-        "분노": "/personas/enfp/female/angry.png?t=1764231634565",
-        "놀람": "/personas/enfp/female/surprise.png?t=1764231634565",
-        "호기심": "/personas/enfp/female/curious.png?t=1764231634565",
-        "불안": "/personas/enfp/female/anxious.png?t=1764231634565",
-        "피로": "/personas/enfp/female/tired.png?t=1764231634565",
-        "실망": "/personas/enfp/female/disappointed.png?t=1764231634565",
-        "당혹": "/personas/enfp/female/confused.png?t=1764231634565"
+        "중립": "/personas/enfp/female/neutral.webp",
+        "기쁨": "/personas/enfp/female/joy.webp",
+        "슬픔": "/personas/enfp/female/sad.webp",
+        "분노": "/personas/enfp/female/angry.webp",
+        "놀람": "/personas/enfp/female/surprise.webp",
+        "호기심": "/personas/enfp/female/curious.webp",
+        "불안": "/personas/enfp/female/anxious.webp",
+        "피로": "/personas/enfp/female/tired.webp",
+        "실망": "/personas/enfp/female/disappointed.webp",
+        "당혹": "/personas/enfp/female/confused.webp"
       }
     }
   }

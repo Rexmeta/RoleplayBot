@@ -60,34 +60,34 @@
     "emotion": "감정을 절제하되 날카롭게"
   },
   "images": {
-    "base": "/personas/istj/neutral.png",
+    "base": "/personas/istj/neutral.webp",
     "style": "한국인 회의실에 앉아서 실제 사진 ",
     "male": {
       "expressions": {
-        "중립": "/personas/istj/male/neutral.png?t=1764294354759",
-        "기쁨": "/personas/istj/male/joy.png?t=1764294479147",
-        "슬픔": "/personas/istj/male/sad.png?t=1764294479147",
-        "분노": "/personas/istj/male/angry.png?t=1764294479147",
-        "놀람": "/personas/istj/male/surprise.png?t=1764294479147",
-        "호기심": "/personas/istj/male/curious.png?t=1764294479147",
-        "불안": "/personas/istj/male/anxious.png?t=1764294479147",
-        "피로": "/personas/istj/male/tired.png?t=1764294479147",
-        "실망": "/personas/istj/male/disappointed.png?t=1764294479147",
-        "당혹": "/personas/istj/male/confused.png?t=1764294479147"
+        "중립": "/personas/istj/male/neutral.webp",
+        "기쁨": "/personas/istj/male/joy.webp",
+        "슬픔": "/personas/istj/male/sad.webp",
+        "분노": "/personas/istj/male/angry.webp",
+        "놀람": "/personas/istj/male/surprise.webp",
+        "호기심": "/personas/istj/male/curious.webp",
+        "불안": "/personas/istj/male/anxious.webp",
+        "피로": "/personas/istj/male/tired.webp",
+        "실망": "/personas/istj/male/disappointed.webp",
+        "당혹": "/personas/istj/male/confused.webp"
       }
     },
     "female": {
       "expressions": {
-        "중립": "/personas/istj/female/neutral.png?t=1764294499745",
-        "기쁨": "/personas/istj/female/joy.png?t=1764294730526",
-        "슬픔": "/personas/istj/female/sad.png?t=1764294730526",
-        "분노": "/personas/istj/female/angry.png?t=1764294730526",
-        "놀람": "/personas/istj/female/surprise.png?t=1764294730526",
-        "호기심": "/personas/istj/female/curious.png?t=1764294730526",
-        "불안": "/personas/istj/female/anxious.png?t=1764294730526",
-        "피로": "/personas/istj/female/tired.png?t=1764294730526",
-        "실망": "/personas/istj/female/disappointed.png?t=1764294730526",
-        "당혹": "/personas/istj/female/confused.png?t=1764294730526"
+        "중립": "/personas/istj/female/neutral.webp",
+        "기쁨": "/personas/istj/female/joy.webp",
+        "슬픔": "/personas/istj/female/sad.webp",
+        "분노": "/personas/istj/female/angry.webp",
+        "놀람": "/personas/istj/female/surprise.webp",
+        "호기심": "/personas/istj/female/curious.webp",
+        "불안": "/personas/istj/female/anxious.webp",
+        "피로": "/personas/istj/female/tired.webp",
+        "실망": "/personas/istj/female/disappointed.webp",
+        "당혹": "/personas/istj/female/confused.webp"
       }
     }
   }

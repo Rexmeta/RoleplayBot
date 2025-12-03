@@ -51,20 +51,20 @@
     "emotion": "균형 잡힌 감정 표현"
   },
   "images": {
-    "base": "/personas/intj/male/neutral.png?t=1764663326790",
+    "base": "/personas/intj/male/neutral.webp",
     "style": "한국인 이가 보이지 않는 중립 표정, 상반신 전체가 보이는 앉아 있는 모습",
     "male": {
       "expressions": {
-        "중립": "/personas/intj/male/neutral.png?t=1764663326790",
-        "기쁨": "/personas/intj/male/joy.png?t=1764663414409",
-        "슬픔": "/personas/intj/male/sad.png?t=1764663414409",
-        "분노": "/personas/intj/male/angry.png?t=1764663414409",
-        "놀람": "/personas/intj/male/surprise.png?t=1764663414409",
-        "호기심": "/personas/intj/male/curious.png?t=1764663414409",
-        "불안": "/personas/intj/male/anxious.png?t=1764663414409",
-        "피로": "/personas/intj/male/tired.png?t=1764663414409",
-        "실망": "/personas/intj/male/disappointed.png?t=1764663414409",
-        "당혹": "/personas/intj/male/confused.png?t=1764663414409"
+        "중립": "/personas/intj/male/neutral.webp",
+        "기쁨": "/personas/intj/male/joy.webp",
+        "슬픔": "/personas/intj/male/sad.webp",
+        "분노": "/personas/intj/male/angry.webp",
+        "놀람": "/personas/intj/male/surprise.webp",
+        "호기심": "/personas/intj/male/curious.webp",
+        "불안": "/personas/intj/male/anxious.webp",
+        "피로": "/personas/intj/male/tired.webp",
+        "실망": "/personas/intj/male/disappointed.webp",
+        "당혹": "/personas/intj/male/confused.webp"
       }
     },
     "female": {

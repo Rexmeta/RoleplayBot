@@ -6,8 +6,14 @@ import sharp from 'sharp';
 
 // 이미지 최적화 설정
 const IMAGE_CONFIG = {
-  original: { width: 1200, height: 800, quality: 85 },
-  thumbnail: { width: 400, height: 300, quality: 80 }
+  scenario: {
+    original: { width: 1200, height: 800, quality: 85 },
+    thumbnail: { width: 400, height: 300, quality: 80 }
+  },
+  persona: {
+    original: { width: 400, height: 400, quality: 85 },
+    thumbnail: { width: 150, height: 150, quality: 80 }
+  }
 };
 
 // Gemini 클라이언트 초기화
@@ -188,11 +194,11 @@ async function saveImageToLocal(base64ImageUrl: string, scenarioTitle: string): 
     const originalPath = path.join(imageDir, originalFilename);
     
     await sharp(buffer)
-      .resize(IMAGE_CONFIG.original.width, IMAGE_CONFIG.original.height, {
+      .resize(IMAGE_CONFIG.scenario.original.width, IMAGE_CONFIG.scenario.original.height, {
         fit: 'cover',
         position: 'center'
       })
-      .webp({ quality: IMAGE_CONFIG.original.quality })
+      .webp({ quality: IMAGE_CONFIG.scenario.original.quality })
       .toFile(originalPath);
     
     // 📸 썸네일 생성 (리스트용 작은 이미지)
@@ -200,11 +206,11 @@ async function saveImageToLocal(base64ImageUrl: string, scenarioTitle: string): 
     const thumbnailPath = path.join(imageDir, thumbnailFilename);
     
     await sharp(buffer)
-      .resize(IMAGE_CONFIG.thumbnail.width, IMAGE_CONFIG.thumbnail.height, {
+      .resize(IMAGE_CONFIG.scenario.thumbnail.width, IMAGE_CONFIG.scenario.thumbnail.height, {
         fit: 'cover',
         position: 'center'
       })
-      .webp({ quality: IMAGE_CONFIG.thumbnail.quality })
+      .webp({ quality: IMAGE_CONFIG.scenario.thumbnail.quality })
       .toFile(thumbnailPath);
     
     // 파일 크기 확인
@@ -451,7 +457,7 @@ function generatePersonaImagePrompt(
   return prompt;
 }
 
-// 페르소나 이미지를 로컬 파일로 저장하는 함수 (성별별 폴더 분리)
+// 페르소나 이미지를 로컬 파일로 저장하는 함수 (성별별 폴더 분리, WebP 최적화)
 async function savePersonaImageToLocal(
   base64ImageUrl: string, 
   personaId: string, 
@@ -470,9 +476,7 @@ async function savePersonaImageToLocal(
       throw new Error('유효하지 않은 base64 이미지 형식입니다.');
     }
 
-    const mimeType = matches[1];
     const imageData = matches[2];
-    const extension = mimeType.split('/')[1] || 'png';
     
     // 저장 경로 설정 (attached_assets/personas/{personaId}/{gender}/)
     const imageDir = path.join(process.cwd(), 'attached_assets', 'personas', personaId, gender);
@@ -497,17 +501,43 @@ async function savePersonaImageToLocal(
     };
 
     const emotionEn = emotionEnglishMap[emotion] || emotion;
-    const filename = `${emotionEn}.${extension}`;
-    const filePath = path.join(imageDir, filename);
     
-    // base64 데이터를 파일로 저장
+    // base64 데이터를 버퍼로 변환
     const buffer = Buffer.from(imageData, 'base64');
-    fs.writeFileSync(filePath, buffer);
+    const originalSize = buffer.length;
+    
+    // 🚀 Sharp를 사용한 이미지 최적화 (WebP 변환)
+    const { original: origConfig, thumbnail: thumbConfig } = IMAGE_CONFIG.persona;
+    
+    // 원본 최적화 (400x400 WebP)
+    const optimizedFilename = `${emotionEn}.webp`;
+    const optimizedPath = path.join(imageDir, optimizedFilename);
+    await sharp(buffer)
+      .resize(origConfig.width, origConfig.height, { fit: 'cover', position: 'center' })
+      .webp({ quality: origConfig.quality })
+      .toFile(optimizedPath);
+    
+    // 썸네일 생성 (150x150 WebP) - 대화창 등 작은 영역용
+    const thumbnailFilename = `${emotionEn}-thumb.webp`;
+    const thumbnailPath = path.join(imageDir, thumbnailFilename);
+    await sharp(buffer)
+      .resize(thumbConfig.width, thumbConfig.height, { fit: 'cover', position: 'center' })
+      .webp({ quality: thumbConfig.quality })
+      .toFile(thumbnailPath);
+    
+    // 최적화 결과 로깅
+    const optimizedSize = fs.statSync(optimizedPath).size;
+    const thumbSize = fs.statSync(thumbnailPath).size;
+    const savedBytes = originalSize - optimizedSize;
+    const savedPercent = ((savedBytes / originalSize) * 100).toFixed(1);
+    
+    console.log(`📁 페르소나 이미지 최적화 저장: ${emotionEn}`);
+    console.log(`   원본: ${(originalSize/1024).toFixed(0)}KB → 최적화: ${(optimizedSize/1024).toFixed(0)}KB (${savedPercent}% 감소)`);
+    console.log(`   썸네일: ${(thumbSize/1024).toFixed(0)}KB`);
     
     // 웹에서 접근 가능한 경로 반환 (성별별 폴더 포함)
-    const webPath = `/personas/${personaId}/${gender}/${filename}`;
+    const webPath = `/personas/${personaId}/${gender}/${optimizedFilename}`;
     
-    console.log(`📁 페르소나 이미지 로컬 저장 완료: ${webPath}`);
     return webPath;
     
   } catch (error) {
@@ -764,11 +794,11 @@ router.post('/optimize-existing-images', async (req, res) => {
         const optimizedPath = path.join(imageDir, optimizedFilename);
         
         await sharp(buffer)
-          .resize(IMAGE_CONFIG.original.width, IMAGE_CONFIG.original.height, {
+          .resize(IMAGE_CONFIG.scenario.original.width, IMAGE_CONFIG.scenario.original.height, {
             fit: 'cover',
             position: 'center'
           })
-          .webp({ quality: IMAGE_CONFIG.original.quality })
+          .webp({ quality: IMAGE_CONFIG.scenario.original.quality })
           .toFile(optimizedPath);
         
         // 썸네일 생성
@@ -776,11 +806,11 @@ router.post('/optimize-existing-images', async (req, res) => {
         const thumbnailPath = path.join(imageDir, thumbnailFilename);
         
         await sharp(buffer)
-          .resize(IMAGE_CONFIG.thumbnail.width, IMAGE_CONFIG.thumbnail.height, {
+          .resize(IMAGE_CONFIG.scenario.thumbnail.width, IMAGE_CONFIG.scenario.thumbnail.height, {
             fit: 'cover',
             position: 'center'
           })
-          .webp({ quality: IMAGE_CONFIG.thumbnail.quality })
+          .webp({ quality: IMAGE_CONFIG.scenario.thumbnail.quality })
           .toFile(thumbnailPath);
         
         const optimizedStats = fs.statSync(optimizedPath);
