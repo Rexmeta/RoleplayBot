@@ -11,7 +11,13 @@ import { type ComplexScenario, type ScenarioPersona, getComplexScenarioById, sce
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
-import { User, LogOut } from "lucide-react";
+import { User, LogOut, History } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 type ViewState = "scenarios" | "persona-selection" | "chat" | "strategy-reflection" | "strategy-result" | "feedback";
 
@@ -438,32 +444,39 @@ export default function Home() {
                 </Tooltip>
               </TooltipProvider>
               
-              {/* MyPage 링크 - from javascript_log_in_with_replit blueprint */}
-              <Button
-                onClick={() => window.location.href = '/mypage'}
-                variant="outline"
-                size="sm"
-                className="flex items-center justify-center w-10 h-10 mr-2"
-                data-testid="mypage-button"
-                title="마이페이지"
-              >
-                <User className="w-4 h-4" />
-              </Button>
-
-              {/* 로그아웃 버튼 */}
-              <Button
-                onClick={async () => {
-                  await logout();
-                  window.location.href = '/';
-                }}
-                variant="outline"
-                size="sm"
-                className="flex items-center gap-2"
-                data-testid="logout-button"
-              >
-                <LogOut className="w-4 h-4" />
-                로그아웃
-              </Button>
+              {/* MyPage Dropdown Menu */}
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="flex items-center justify-center w-10 h-10"
+                    data-testid="mypage-button"
+                    title="마이페이지"
+                  >
+                    <User className="w-4 h-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem
+                    onClick={() => window.location.href = '/mypage'}
+                    data-testid="menu-history"
+                  >
+                    <History className="w-4 h-4 mr-2" />
+                    History
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    onClick={async () => {
+                      await logout();
+                      window.location.href = '/';
+                    }}
+                    data-testid="menu-logout"
+                  >
+                    <LogOut className="w-4 h-4 mr-2" />
+                    로그아웃
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             </div>
           </div>
         </div>
