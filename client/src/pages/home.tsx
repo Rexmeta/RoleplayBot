@@ -11,12 +11,13 @@ import { type ComplexScenario, type ScenarioPersona, getComplexScenarioById, sce
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
-import { User, LogOut, History } from "lucide-react";
+import { User, LogOut, History, Settings, BarChart3 } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
+  DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
 
 type ViewState = "scenarios" | "persona-selection" | "chat" | "strategy-reflection" | "strategy-result" | "feedback";
@@ -412,38 +413,6 @@ export default function Home() {
               </div>
             </button>
             <div className="flex items-center space-x-2">
-              <TooltipProvider>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <a 
-                      href="/admin" 
-                      className="hidden md:flex items-center justify-center w-10 h-10 text-corporate-600 hover:text-corporate-700 hover:bg-corporate-50 rounded-lg transition-colors"
-                      data-testid="admin-dashboard-link"
-                    >
-                      <i className="fas fa-chart-bar text-lg"></i>
-                    </a>
-                  </TooltipTrigger>
-                  <TooltipContent>
-                    <p>관리자 대시보드</p>
-                  </TooltipContent>
-                </Tooltip>
-                
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <a 
-                      href="/admin-management" 
-                      className="hidden md:flex items-center justify-center w-10 h-10 text-corporate-600 hover:text-corporate-700 hover:bg-corporate-50 rounded-lg transition-colors"
-                      data-testid="content-management-link"
-                    >
-                      <i className="fas fa-cogs text-lg"></i>
-                    </a>
-                  </TooltipTrigger>
-                  <TooltipContent>
-                    <p>콘텐츠 관리</p>
-                  </TooltipContent>
-                </Tooltip>
-              </TooltipProvider>
-              
               {/* MyPage Dropdown Menu */}
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
@@ -465,6 +434,28 @@ export default function Home() {
                     <History className="w-4 h-4 mr-2" />
                     History
                   </DropdownMenuItem>
+                  
+                  {user?.isAdmin && (
+                    <>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem
+                        onClick={() => window.location.href = '/admin'}
+                        data-testid="menu-admin-dashboard"
+                      >
+                        <BarChart3 className="w-4 h-4 mr-2" />
+                        관리자 대시보드
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        onClick={() => window.location.href = '/admin-management'}
+                        data-testid="menu-content-management"
+                      >
+                        <Settings className="w-4 h-4 mr-2" />
+                        콘텐츠 관리
+                      </DropdownMenuItem>
+                    </>
+                  )}
+                  
+                  <DropdownMenuSeparator />
                   <DropdownMenuItem
                     onClick={async () => {
                       await logout();
