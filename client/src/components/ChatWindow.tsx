@@ -209,21 +209,28 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
     const checkPersonaImages = async () => {
       const genderFolder = persona.gender || 'male';
       const mbtiId = persona.mbti?.toLowerCase() || persona.id;
+      const emotionEn = emotionToEnglish['중립'] || 'neutral';
+      
+      // 이미지 사용 가능 여부를 로컬에서 추적
+      const availableImages: {[key: string]: boolean} = {};
+      
       // 페르소나별 이미지 체크
-      const checkPromises = Object.entries(emotionToEnglish).map(([emotionKr, emotionEn]) => {
+      const checkPromises = Object.entries(emotionToEnglish).map(([emotionKr, emotionEnVal]) => {
         return new Promise<void>((resolve) => {
           const img = new Image();
           img.onload = () => {
+            availableImages[emotionKr] = true;
             setPersonaImagesAvailable(prev => ({ ...prev, [emotionKr]: true }));
             console.log(`✅ 페르소나별 이미지 로딩 성공: ${emotionKr} (${mbtiId}/${genderFolder})`);
             resolve();
           };
           img.onerror = () => {
+            availableImages[emotionKr] = false;
             setPersonaImagesAvailable(prev => ({ ...prev, [emotionKr]: false }));
             console.log(`⚠️ 페르소나별 이미지 없음, 공용 이미지 사용: ${emotionKr}`);
             resolve();
           };
-          img.src = `/personas/${mbtiId}/${genderFolder}/${emotionEn}.webp`;
+          img.src = `/personas/${mbtiId}/${genderFolder}/${emotionEnVal}.webp`;
         });
       });
 
@@ -245,23 +252,9 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
       });
       
       await Promise.all([...checkPromises, ...fallbackPromises]);
-      setImagesCheckComplete(true); // 체크 완료 표시
-      console.log('🎨 모든 캐릭터 이미지 체크 및 프리로딩 완료');
-    };
-    
-    setImagesCheckComplete(false); // 체크 시작 시 초기화
-    checkPersonaImages();
-  }, [persona.id, persona.mbti, persona.gender]);
-  
-  // 이미지 체크 완료 시 초기 이미지 설정
-  useEffect(() => {
-    if (imagesCheckComplete) {
-      const genderFolder = persona.gender || 'male';
-      const mbtiId = persona.mbti?.toLowerCase() || persona.id;
-      const emotionEn = emotionToEnglish['중립'] || 'neutral';
       
-      // 페르소나별 이미지가 있으면 사용, 없으면 fallback
-      if (personaImagesAvailable['중립']) {
+      // 체크 완료 후 직접 초기 이미지 설정 (useEffect 의존성 문제 해결)
+      if (availableImages['중립']) {
         const personaImageUrl = `/personas/${mbtiId}/${genderFolder}/${emotionEn}.webp`;
         console.log(`🖼️ 초기 이미지 설정 (페르소나): ${personaImageUrl}`);
         setLoadedImageUrl(personaImageUrl);
@@ -270,8 +263,14 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
         console.log(`🖼️ 초기 이미지 설정 (fallback): ${fallbackUrl}`);
         setLoadedImageUrl(fallbackUrl);
       }
-    }
-  }, [imagesCheckComplete, personaImagesAvailable, persona.id, persona.gender, persona.mbti]);
+      
+      setImagesCheckComplete(true); // 체크 완료 표시
+      console.log('🎨 모든 캐릭터 이미지 체크 및 프리로딩 완료');
+    };
+    
+    setImagesCheckComplete(false); // 체크 시작 시 초기화
+    checkPersonaImages();
+  }, [persona.id, persona.mbti, persona.gender]);
   
   // 감정 변화 시 이미지 업데이트 - preloadImage 함수가 로드 완료 후 setLoadedImageUrl 호출
   useEffect(() => {
