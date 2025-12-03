@@ -203,18 +203,11 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
     return fallbackCharacterImages[emotion as keyof typeof fallbackCharacterImages] || fallbackCharacterImages['중립'];
   };
 
-  // 페르소나별 이미지 체크 및 초기 이미지 설정 (폴백 이미지는 백그라운드에서 로드)
+  // 페르소나별 이미지 체크 및 공용 이미지 프리로딩, 초기 이미지 설정
   useEffect(() => {
-    const genderFolder = persona.gender || 'male';
-    const mbtiId = persona.mbti?.toLowerCase() || persona.id;
-    
-    // 초기 이미지 즉시 설정 (로딩 없이 바로 표시)
-    const emotionEn = emotionToEnglish['중립'] || 'neutral';
-    const initialImageUrl = `/personas/${mbtiId}/${genderFolder}/${emotionEn}.webp`;
-    console.log(`🖼️ 초기 이미지 즉시 설정: ${initialImageUrl}`);
-    setLoadedImageUrl(initialImageUrl);
-    
     const checkPersonaImages = async () => {
+      const genderFolder = persona.gender || 'male';
+      const mbtiId = persona.mbti?.toLowerCase() || persona.id;
       // 페르소나별 이미지 체크
       const checkPromises = Object.entries(emotionToEnglish).map(([emotionKr, emotionEn]) => {
         return new Promise<void>((resolve) => {
@@ -232,28 +225,41 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
           img.src = `/personas/${mbtiId}/${genderFolder}/${emotionEn}.webp`;
         });
       });
-      
-      await Promise.all(checkPromises);
-      console.log('🎨 페르소나별 이미지 체크 완료');
 
-      // 공용 폴백 이미지는 백그라운드에서 프리로딩 (기다리지 않음)
-      Object.entries(fallbackCharacterImages).forEach(([emotion, src]) => {
-        const img = new Image();
-        img.onload = () => setImagesLoaded(prev => ({ ...prev, [emotion]: true }));
-        img.onerror = () => {
-          console.warn(`Failed to preload fallback image for emotion: ${emotion}`);
-          setImagesLoaded(prev => ({ ...prev, [emotion]: false }));
-        };
-        img.src = src;
+      // 공용 이미지 프리로딩
+      const fallbackPromises = Object.entries(fallbackCharacterImages).map(([emotion, src]) => {
+        return new Promise<void>((resolve) => {
+          const img = new Image();
+          img.onload = () => {
+            setImagesLoaded(prev => ({ ...prev, [emotion]: true }));
+            resolve();
+          };
+          img.onerror = () => {
+            console.warn(`Failed to preload fallback image for emotion: ${emotion}`);
+            setImagesLoaded(prev => ({ ...prev, [emotion]: false }));
+            resolve();
+          };
+          img.src = src;
+        });
       });
+      
+      await Promise.all([...checkPromises, ...fallbackPromises]);
+      console.log('🎨 모든 캐릭터 이미지 체크 및 프리로딩 완료');
     };
     
     checkPersonaImages();
   }, [persona.id, persona.mbti, persona.gender]);
   
+  // personaImagesAvailable이 업데이트될 때 초기 이미지 설정
+  useEffect(() => {
+    const initialImageUrl = getCharacterImage('중립');
+    console.log(`🖼️ 초기 이미지 설정: ${initialImageUrl}`);
+    setLoadedImageUrl(initialImageUrl);
+  }, [personaImagesAvailable, persona.id, persona.gender, persona.mbti]);
+  
   // 감정 변화 시 이미지 업데이트 - preloadImage 함수가 로드 완료 후 setLoadedImageUrl 호출
   useEffect(() => {
-    if (currentEmotion) {
+    if (currentEmotion && currentEmotion !== '중립') {
       const newImageUrl = getCharacterImage(currentEmotion);
       console.log(`🖼️ 감정 변화 이미지: ${currentEmotion} → ${newImageUrl}`);
       preloadImage(newImageUrl);
@@ -1137,20 +1143,8 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
     img.src = imageUrl;
   };
 
-  // 디버그: 렌더링 확인
-  console.log('🔴 ChatWindow RENDER 시작:', { 
-    conversationId, 
-    persona: persona?.name,
-    scenario: scenario?.title,
-    error: error?.message 
-  });
-
   return (
-    <div className="chat-window" style={{ minHeight: '400px', background: '#f0f0f0' }}>
-      {/* 디버그: 렌더링 확인용 */}
-      <div className="bg-green-100 p-2 text-sm text-green-800 border-b border-green-200">
-        ChatWindow 렌더링됨 - 대화ID: {conversationId} | 페르소나: {persona?.name || 'N/A'} | 시나리오: {scenario?.title || 'N/A'}
-      </div>
+    <div className="chat-window">
       <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
         {/* Chat Header */}
         <div className="bg-gradient-to-r from-corporate-600 to-corporate-700 px-6 py-4 text-white">

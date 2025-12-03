@@ -67,17 +67,6 @@ export default function Home() {
     const scenarioRunIdParam = params.get('scenarioRunId');
     const personaIdParam = params.get('personaId');
 
-    console.log('🔍 URL 파라미터 처리:', {
-      resumePersonaRunId,
-      scenarioId,
-      scenarioRunIdParam,
-      personaIdParam,
-      scenariosLength: scenarios.length,
-      isResuming,
-      isCreatingConversation,
-      currentView
-    });
-
     if (resumePersonaRunId && scenarios.length > 0 && !isResuming) {
       // 대화 재개 로직
       setIsResuming(true);
@@ -95,12 +84,8 @@ export default function Home() {
             return;
           }
 
-          // 페르소나 찾기 - 시나리오에서 찾거나, personaSnapshot 사용
-          let persona = scenario.personas.find((p: any) => p.id === conversation.personaId);
-          if (!persona && conversation.personaSnapshot) {
-            console.log('📥 시나리오에서 페르소나 찾지 못함, personaSnapshot 사용:', conversation.personaSnapshot);
-            persona = conversation.personaSnapshot;
-          }
+          // 페르소나 찾기
+          const persona = scenario.personas.find((p: any) => p.id === conversation.personaId);
           if (!persona) {
             console.error('페르소나를 찾을 수 없습니다:', conversation.personaId);
             setIsResuming(false);
@@ -395,16 +380,6 @@ export default function Home() {
       });
     }
   };
-
-  console.log('🎨 렌더링 상태:', {
-    currentView,
-    selectedScenario: selectedScenario?.id,
-    selectedPersona: selectedPersona?.id,
-    conversationId,
-    scenarioRunId,
-    isResuming,
-    isCreatingConversation
-  });
 
   return (
     <div className="min-h-screen bg-slate-50">
@@ -854,30 +829,14 @@ export default function Home() {
           );
         })()}
         
-        {currentView === "chat" && (
-          <>
-            {selectedScenario && selectedPersona && conversationId ? (
-              <ChatWindow
-                scenario={selectedScenario}
-                persona={selectedPersona}
-                conversationId={conversationId}
-                onChatComplete={handleChatComplete}
-                onExit={handleReturnToScenarios}
-              />
-            ) : (
-              <div className="max-w-4xl mx-auto p-6">
-                <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-6 text-center">
-                  <p className="text-yellow-800 font-semibold">대화 화면 로딩 중...</p>
-                  <p className="text-yellow-700 mt-2 text-sm">
-                    시나리오: {selectedScenario ? '있음' : '없음'}, 
-                    페르소나: {selectedPersona ? '있음' : '없음'}, 
-                    대화ID: {conversationId ? '있음' : '없음'}
-                  </p>
-                  <Button onClick={handleReturnToScenarios} className="mt-4">시나리오 목록으로 돌아가기</Button>
-                </div>
-              </div>
-            )}
-          </>
+        {currentView === "chat" && selectedScenario && selectedPersona && conversationId && (
+          <ChatWindow
+            scenario={selectedScenario}
+            persona={selectedPersona}
+            conversationId={conversationId}
+            onChatComplete={handleChatComplete}
+            onExit={handleReturnToScenarios}
+          />
         )}
         
         {currentView === "feedback" && selectedScenario && selectedPersona && conversationId && (() => {
