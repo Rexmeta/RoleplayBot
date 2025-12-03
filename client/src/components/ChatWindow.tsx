@@ -203,11 +203,18 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
     return fallbackCharacterImages[emotion as keyof typeof fallbackCharacterImages] || fallbackCharacterImages['중립'];
   };
 
-  // 페르소나별 이미지 체크 및 공용 이미지 프리로딩, 초기 이미지 설정
+  // 페르소나별 이미지 체크 및 초기 이미지 설정 (폴백 이미지는 백그라운드에서 로드)
   useEffect(() => {
+    const genderFolder = persona.gender || 'male';
+    const mbtiId = persona.mbti?.toLowerCase() || persona.id;
+    
+    // 초기 이미지 즉시 설정 (로딩 없이 바로 표시)
+    const emotionEn = emotionToEnglish['중립'] || 'neutral';
+    const initialImageUrl = `/personas/${mbtiId}/${genderFolder}/${emotionEn}.webp`;
+    console.log(`🖼️ 초기 이미지 즉시 설정: ${initialImageUrl}`);
+    setLoadedImageUrl(initialImageUrl);
+    
     const checkPersonaImages = async () => {
-      const genderFolder = persona.gender || 'male';
-      const mbtiId = persona.mbti?.toLowerCase() || persona.id;
       // 페르소나별 이미지 체크
       const checkPromises = Object.entries(emotionToEnglish).map(([emotionKr, emotionEn]) => {
         return new Promise<void>((resolve) => {
@@ -225,32 +232,20 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
           img.src = `/personas/${mbtiId}/${genderFolder}/${emotionEn}.webp`;
         });
       });
+      
+      await Promise.all(checkPromises);
+      console.log('🎨 페르소나별 이미지 체크 완료');
 
-      // 공용 이미지 프리로딩
-      const fallbackPromises = Object.entries(fallbackCharacterImages).map(([emotion, src]) => {
-        return new Promise<void>((resolve) => {
-          const img = new Image();
-          img.onload = () => {
-            setImagesLoaded(prev => ({ ...prev, [emotion]: true }));
-            resolve();
-          };
-          img.onerror = () => {
-            console.warn(`Failed to preload fallback image for emotion: ${emotion}`);
-            setImagesLoaded(prev => ({ ...prev, [emotion]: false }));
-            resolve();
-          };
-          img.src = src;
-        });
+      // 공용 폴백 이미지는 백그라운드에서 프리로딩 (기다리지 않음)
+      Object.entries(fallbackCharacterImages).forEach(([emotion, src]) => {
+        const img = new Image();
+        img.onload = () => setImagesLoaded(prev => ({ ...prev, [emotion]: true }));
+        img.onerror = () => {
+          console.warn(`Failed to preload fallback image for emotion: ${emotion}`);
+          setImagesLoaded(prev => ({ ...prev, [emotion]: false }));
+        };
+        img.src = src;
       });
-      
-      await Promise.all([...checkPromises, ...fallbackPromises]);
-      console.log('🎨 모든 캐릭터 이미지 체크 및 프리로딩 완료');
-      
-      // 이미지 체크 완료 후 초기 이미지 직접 설정
-      const emotionEn = emotionToEnglish['중립'] || 'neutral';
-      const initialImageUrl = `/personas/${mbtiId}/${genderFolder}/${emotionEn}.webp`;
-      console.log(`🖼️ 초기 이미지 설정: ${initialImageUrl}`);
-      setLoadedImageUrl(initialImageUrl);
     };
     
     checkPersonaImages();
