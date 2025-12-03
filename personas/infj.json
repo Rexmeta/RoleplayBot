@@ -1,6 +1,7 @@
 {
   "id": "infj",
   "mbti": "INFJ",
+  "gender": "female",
   "personality_traits": [
     "통찰력",
     "이상주의적",
@@ -49,8 +50,36 @@
     "pace": "중간 속도",
     "emotion": "균형 잡힌 감정 표현"
   },
-  "image": {
-    "profile": "https://picsum.photos/seed/infj/150/150",
-    "style": "실제 인물 사진 느낌의 자연스러운 초상화"
+  "images": {
+    "base": "/personas/infj/female/neutral.webp?t=1764722190411",
+    "style": "한국인 상반신 전체 앉아 있는 모습",
+    "male": {
+      "expressions": {
+        "중립": "",
+        "기쁨": "",
+        "슬픔": "",
+        "분노": "",
+        "놀람": "",
+        "호기심": "",
+        "불안": "",
+        "피로": "",
+        "실망": "",
+        "당혹": ""
+      }
+    },
+    "female": {
+      "expressions": {
+        "중립": "/personas/infj/female/neutral.webp?t=1764722190411",
+        "기쁨": "",
+        "슬픔": "",
+        "분노": "",
+        "놀람": "",
+        "호기심": "",
+        "불안": "",
+        "피로": "",
+        "실망": "",
+        "당혹": ""
+      }
+    }
   }
 }

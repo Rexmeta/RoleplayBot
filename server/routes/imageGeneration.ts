@@ -559,14 +559,27 @@ router.post('/generate-persona-expressions', async (req, res) => {
 
     console.log(`🎨 페르소나 표정 이미지 일괄 생성 시작: ${personaId} (${mbti}, ${gender})`);
 
-    // 기본(중립) 이미지 읽기 (참조용) - 성별별 폴더 경로 포함
-    const baseImagePath = path.join(process.cwd(), 'attached_assets', 'personas', personaId, gender, 'neutral.png');
+    // 기본(중립) 이미지 읽기 (참조용) - 성별별 폴더 경로 포함, WebP 우선
+    const baseDir = path.join(process.cwd(), 'attached_assets', 'personas', personaId, gender);
+    const fallbackDir = path.join(process.cwd(), 'attached_assets', 'personas', personaId);
     
-    // 폴백: 구 형식의 경로 확인 (성별 구분 없음)
-    const fallbackImagePath = path.join(process.cwd(), 'attached_assets', 'personas', personaId, 'neutral.png');
-    const imagePathToUse = fs.existsSync(baseImagePath) ? baseImagePath : fallbackImagePath;
+    // WebP 파일 우선 확인, PNG 폴백
+    let imagePathToUse = '';
+    const possiblePaths = [
+      path.join(baseDir, 'neutral.webp'),
+      path.join(baseDir, 'neutral.png'),
+      path.join(fallbackDir, 'neutral.webp'),
+      path.join(fallbackDir, 'neutral.png')
+    ];
     
-    if (!fs.existsSync(imagePathToUse)) {
+    for (const p of possiblePaths) {
+      if (fs.existsSync(p)) {
+        imagePathToUse = p;
+        break;
+      }
+    }
+    
+    if (!imagePathToUse) {
       return res.status(400).json({
         error: '기본 이미지가 없습니다.',
         details: `먼저 ${gender} 성별의 기본 이미지를 생성해주세요.`
