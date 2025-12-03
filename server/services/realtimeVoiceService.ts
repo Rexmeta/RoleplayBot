@@ -49,7 +49,8 @@ export class RealtimeVoiceService {
     scenarioId: string,
     personaId: string,
     userId: string,
-    clientWs: WebSocket
+    clientWs: WebSocket,
+    userSelectedDifficulty?: number // 사용자가 선택한 난이도 (1-4)
   ): Promise<void> {
     if (!this.isAvailable || !this.genAI) {
       throw new Error('Gemini Live API Service is not available. Please configure GOOGLE_API_KEY.');
@@ -73,9 +74,15 @@ export class RealtimeVoiceService {
     const mbtiType: string = scenarioPersona.personaRef?.replace('.json', '') || '';
     const mbtiPersona = mbtiType ? await fileManager.getPersonaByMBTI(mbtiType) : null;
 
+    // 사용자가 선택한 난이도를 시나리오 객체에 적용
+    const scenarioWithUserDifficulty = {
+      ...scenarioObj,
+      difficulty: userSelectedDifficulty || 2 // 사용자가 선택한 난이도 사용, 기본값 2
+    };
+
     // Create system instructions
     const systemInstructions = this.buildSystemInstructions(
-      scenarioObj,
+      scenarioWithUserDifficulty,
       scenarioPersona,
       mbtiPersona
     );
@@ -124,13 +131,9 @@ export class RealtimeVoiceService {
   ): string {
     const mbtiType = scenarioPersona.personaRef?.replace('.json', '') || 'UNKNOWN';
     
-    // 대화 난이도 레벨 가져오기 (시나리오 난이도만 사용, 기본값 4)
+    // 대화 난이도 레벨 가져오기 (사용자가 선택한 난이도 사용, 기본값 2)
     const difficultyLevel = validateDifficultyLevel(scenario.difficulty);
-    
-    // 시나리오 난이도 미설정 시 경고
-    if (!scenario.difficulty) {
-      console.warn(`⚠️ 시나리오 "${scenario.title || 'Unknown'}"에 난이도 미설정, 기본값 4 적용`);
-    }
+    console.log(`🎯 대화 난이도: Level ${difficultyLevel} (사용자 선택)`)
     
     const difficultyGuidelines = getRealtimeVoiceGuidelines(difficultyLevel);
     

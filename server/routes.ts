@@ -384,8 +384,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
           background: mbtiPersona?.background?.personal_values?.join(', ') || '전문성'
         };
 
+        // 사용자가 선택한 난이도를 시나리오 객체에 적용
+        const scenarioWithUserDifficulty = {
+          ...scenarioObj,
+          difficulty: validatedData.difficulty || 2 // 사용자가 선택한 난이도 사용
+        };
+
         const aiResult = await generateAIResponse(
-          scenarioObj as any,
+          scenarioWithUserDifficulty as any,
           [],
           persona
         );
@@ -2699,6 +2705,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
     const sessionId = `${userId}-${conversationId}-${Date.now()}`;
 
     try {
+      // 사용자가 선택한 난이도 가져오기
+      const userSelectedDifficulty = personaRun.difficulty || scenarioRun.difficulty || 2;
+      console.log(`🎯 실시간 음성 세션 난이도: Level ${userSelectedDifficulty}`);
+      
       // Create realtime voice session
       await realtimeVoiceService.createSession(
         sessionId,
@@ -2706,7 +2716,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         scenarioId,
         personaId,
         userId,
-        ws
+        ws,
+        userSelectedDifficulty
       );
 
       console.log(`✅ Realtime voice session created: ${sessionId}`);
