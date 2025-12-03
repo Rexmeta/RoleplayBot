@@ -117,9 +117,8 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
   const [isEmotionTransitioning, setIsEmotionTransitioning] = useState(false);
   const [imagesLoaded, setImagesLoaded] = useState<{[key: string]: boolean}>({});
   const [personaImagesAvailable, setPersonaImagesAvailable] = useState<{[key: string]: boolean}>({});
-  const [imagesCheckComplete, setImagesCheckComplete] = useState(false); // 이미지 체크 완료 상태
   const [currentEmotion, setCurrentEmotion] = useState<string>('중립');
-  const [loadedImageUrl, setLoadedImageUrl] = useState<string>(characterNeutral); // 초기값: 중립 fallback 이미지
+  const [loadedImageUrl, setLoadedImageUrl] = useState<string>(''); // 성공적으로 로드된 이미지 URL
   const [isGoalsExpanded, setIsGoalsExpanded] = useState(false);
   const [showEndConversationDialog, setShowEndConversationDialog] = useState(false);
   const [showModeChangeDialog, setShowModeChangeDialog] = useState(false);
@@ -209,28 +208,21 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
     const checkPersonaImages = async () => {
       const genderFolder = persona.gender || 'male';
       const mbtiId = persona.mbti?.toLowerCase() || persona.id;
-      const emotionEn = emotionToEnglish['중립'] || 'neutral';
-      
-      // 이미지 사용 가능 여부를 로컬에서 추적
-      const availableImages: {[key: string]: boolean} = {};
-      
       // 페르소나별 이미지 체크
-      const checkPromises = Object.entries(emotionToEnglish).map(([emotionKr, emotionEnVal]) => {
+      const checkPromises = Object.entries(emotionToEnglish).map(([emotionKr, emotionEn]) => {
         return new Promise<void>((resolve) => {
           const img = new Image();
           img.onload = () => {
-            availableImages[emotionKr] = true;
             setPersonaImagesAvailable(prev => ({ ...prev, [emotionKr]: true }));
             console.log(`✅ 페르소나별 이미지 로딩 성공: ${emotionKr} (${mbtiId}/${genderFolder})`);
             resolve();
           };
           img.onerror = () => {
-            availableImages[emotionKr] = false;
             setPersonaImagesAvailable(prev => ({ ...prev, [emotionKr]: false }));
             console.log(`⚠️ 페르소나별 이미지 없음, 공용 이미지 사용: ${emotionKr}`);
             resolve();
           };
-          img.src = `/personas/${mbtiId}/${genderFolder}/${emotionEnVal}.webp`;
+          img.src = `/personas/${mbtiId}/${genderFolder}/${emotionEn}.webp`;
         });
       });
 
@@ -252,32 +244,25 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
       });
       
       await Promise.all([...checkPromises, ...fallbackPromises]);
-      
-      // 체크 완료 후 직접 초기 이미지 설정 (useEffect 의존성 문제 해결)
-      if (availableImages['중립']) {
-        const personaImageUrl = `/personas/${mbtiId}/${genderFolder}/${emotionEn}.webp`;
-        console.log(`🖼️ 초기 이미지 설정 (페르소나): ${personaImageUrl}`);
-        setLoadedImageUrl(personaImageUrl);
-      } else {
-        const fallbackUrl = fallbackCharacterImages['중립'];
-        console.log(`🖼️ 초기 이미지 설정 (fallback): ${fallbackUrl}`);
-        setLoadedImageUrl(fallbackUrl);
-      }
-      
-      setImagesCheckComplete(true); // 체크 완료 표시
       console.log('🎨 모든 캐릭터 이미지 체크 및 프리로딩 완료');
     };
     
-    setImagesCheckComplete(false); // 체크 시작 시 초기화
     checkPersonaImages();
   }, [persona.id, persona.mbti, persona.gender]);
   
+  // personaImagesAvailable이 업데이트될 때 초기 이미지 설정
+  useEffect(() => {
+    const initialImageUrl = getCharacterImage('중립');
+    console.log(`🖼️ 초기 이미지 설정: ${initialImageUrl}`);
+    setLoadedImageUrl(initialImageUrl);
+  }, [personaImagesAvailable, persona.id, persona.gender, persona.mbti]);
+  
   // 감정 변화 시 이미지 업데이트 - preloadImage 함수가 로드 완료 후 setLoadedImageUrl 호출
   useEffect(() => {
-    if (currentEmotion) {
+    if (currentEmotion && currentEmotion !== '중립') {
       const newImageUrl = getCharacterImage(currentEmotion);
       console.log(`🖼️ 감정 변화 이미지: ${currentEmotion} → ${newImageUrl}`);
-      preloadImage(newImageUrl, currentEmotion);
+      preloadImage(newImageUrl);
     }
   }, [currentEmotion]);
 
@@ -1001,7 +986,7 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
         
         // 새 이미지 프리로드 - 로드 완료 후 배경 이미지 업데이트
         const newImageUrl = getCharacterImage(newEmotion);
-        preloadImage(newImageUrl, newEmotion);
+        preloadImage(newImageUrl);
       } else {
         // 메신저 모드에서는 즉시 업데이트
         setCurrentEmotion(newEmotion);
@@ -1141,7 +1126,7 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
   };
 
   // 이미지 프리로드 함수 - 새 이미지 로드 완료 후 상태 업데이트 (기존 이미지 유지하다가 새 이미지 로드 완료 후 교체)
-  const preloadImage = (imageUrl: string, emotion?: string) => {
+  const preloadImage = (imageUrl: string) => {
     const img = new Image();
     img.onload = () => {
       console.log(`✅ 표정 이미지 로드 완료: ${imageUrl}`);
@@ -1152,11 +1137,8 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
       }, 100);
     };
     img.onerror = () => {
-      console.log(`⚠️ 표정 이미지 로드 실패: ${imageUrl}, fallback 이미지 적용`);
-      // 로드 실패 시 fallback 이미지를 설정 (빈 화면 방지)
-      const fallbackUrl = getFallbackImage(emotion || '중립');
-      setLoadedImageUrl(fallbackUrl);
-      setIsEmotionTransitioning(false);
+      console.log(`⚠️ 표정 이미지 로드 실패: ${imageUrl}, 기존 이미지 유지`);
+      setIsEmotionTransitioning(false); // 로드 실패해도 전환 종료
     };
     img.src = imageUrl;
   };
@@ -1714,45 +1696,11 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
                 isEmotionTransitioning ? 'brightness-95 scale-[1.02]' : 'brightness-110 scale-100'
               }`}
               style={{
-                backgroundImage: loadedImageUrl ? `url(${loadedImageUrl})` : 'none',
+                backgroundImage: `url(${loadedImageUrl})`,
                 backgroundColor: '#f5f5f5'
               }}
               data-testid="character-mode"
             >
-              
-              {/* 이미지 체크 중 로딩 표시 */}
-              {!imagesCheckComplete && (
-                <div className="absolute inset-0 flex items-center justify-center z-5">
-                  <div className="bg-white/95 backdrop-blur-sm rounded-2xl p-8 shadow-xl max-w-md text-center">
-                    <div className="text-6xl mb-4 animate-pulse">🎨</div>
-                    <h3 className="text-xl font-bold text-slate-800 mb-2">캐릭터 이미지 로딩 중...</h3>
-                    <p className="text-slate-600">잠시만 기다려주세요</p>
-                  </div>
-                </div>
-              )}
-              
-              {/* 이미지 체크 완료 후 중립 이미지가 없을 때 안내 메시지 */}
-              {imagesCheckComplete && !personaImagesAvailable['중립'] && (
-                <div className="absolute inset-0 flex items-center justify-center z-5">
-                  <div className="bg-white/95 backdrop-blur-sm rounded-2xl p-8 shadow-xl max-w-md text-center">
-                    <div className="text-6xl mb-4">🎨</div>
-                    <h3 className="text-xl font-bold text-slate-800 mb-2">캐릭터 이미지 준비 중</h3>
-                    <p className="text-slate-600 mb-4">
-                      아직 캐릭터 이미지가 생성되지 않았습니다.
-                    </p>
-                    <p className="text-sm text-slate-500">
-                      메신저 모드로 전환하거나, 잠시 후 다시 시도해주세요.
-                    </p>
-                    <button
-                      onClick={() => setChatMode('messenger')}
-                      className="mt-4 px-6 py-2 bg-corporate-600 text-white rounded-full hover:bg-corporate-700 transition-colors"
-                      data-testid="button-switch-to-messenger"
-                    >
-                      메신저 모드로 전환
-                    </button>
-                  </div>
-                </div>
-              )}
               
               {/* Top Left Area */}
               <div className="absolute top-4 left-4 z-20 space-y-3">

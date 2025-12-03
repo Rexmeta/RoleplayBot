@@ -73,13 +73,7 @@ export function useRealtimeVoice({
 
   const getWebSocketUrl = useCallback((token: string) => {
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    // window.location.host가 undefined이거나 비어있는 경우 대비
-    let host = window.location.host;
-    if (!host || host.includes('undefined')) {
-      const hostname = window.location.hostname || 'localhost';
-      const port = window.location.port ? `:${window.location.port}` : '';
-      host = `${hostname}${port}`;
-    }
+    const host = window.location.host;
     return `${protocol}//${host}/api/realtime-voice?conversationId=${conversationId}&scenarioId=${scenarioId}&personaId=${personaId}&token=${token}`;
   }, [conversationId, scenarioId, personaId]);
 

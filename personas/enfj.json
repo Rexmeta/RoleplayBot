@@ -1,7 +1,7 @@
 {
   "id": "enfj",
   "mbti": "ENFJ",
-  "gender": "female",
+  "gender": "male",
   "personality_traits": [
     "리더십",
     "공감 능력",
@@ -51,34 +51,34 @@
     "emotion": "공감과 진지함"
   },
   "images": {
-    "base": "/personas/enfj/female/neutral.webp?t=1764744272667",
-    "style": "한국인 빈 사무실에 앉아서 무표정  치아가 보이지 않게 다리는 조금만 보이게 ",
+    "base": "/personas/enfj/neutral.webp",
+    "style": "한국인 빈 사무실에 앉아서 무표정",
     "male": {
       "expressions": {
-        "중립": "/personas/enfj/male/neutral.webp?t=1764728908452",
-        "기쁨": "/personas/enfj/male/joy.webp?t=1764728995575",
-        "슬픔": "/personas/enfj/male/sad.webp?t=1764728995575",
-        "분노": "/personas/enfj/male/angry.webp?t=1764728995575",
-        "놀람": "/personas/enfj/male/surprise.webp?t=1764728995575",
-        "호기심": "/personas/enfj/male/curious.webp?t=1764728995575",
-        "불안": "/personas/enfj/male/anxious.webp?t=1764728995575",
-        "피로": "/personas/enfj/male/tired.webp?t=1764728995575",
-        "실망": "/personas/enfj/male/disappointed.webp?t=1764728995575",
-        "당혹": "/personas/enfj/male/confused.webp?t=1764728995575"
+        "중립": "/personas/enfj/male/neutral.webp",
+        "기쁨": "/personas/enfj/male/joy.webp",
+        "슬픔": "/personas/enfj/male/sad.webp",
+        "분노": "/personas/enfj/male/angry.webp",
+        "놀람": "/personas/enfj/male/surprise.webp",
+        "호기심": "/personas/enfj/male/curious.webp",
+        "불안": "/personas/enfj/male/anxious.webp",
+        "피로": "/personas/enfj/male/tired.webp",
+        "실망": "/personas/enfj/male/disappointed.webp",
+        "당혹": "/personas/enfj/male/confused.webp"
       }
     },
     "female": {
       "expressions": {
-        "중립": "/personas/enfj/female/neutral.webp?t=1764744272667",
-        "기쁨": "/personas/enfj/female/joy.webp?t=1764744364008",
-        "슬픔": "/personas/enfj/female/sad.webp?t=1764744364008",
-        "분노": "/personas/enfj/female/angry.webp?t=1764744364008",
-        "놀람": "/personas/enfj/female/surprise.webp?t=1764744364008",
-        "호기심": "/personas/enfj/female/curious.webp?t=1764744364008",
-        "불안": "/personas/enfj/female/anxious.webp?t=1764744364008",
-        "피로": "/personas/enfj/female/tired.webp?t=1764744364008",
-        "실망": "/personas/enfj/female/disappointed.webp?t=1764744364008",
-        "당혹": "/personas/enfj/female/confused.webp?t=1764744364008"
+        "중립": "/personas/enfj/female/neutral.webp",
+        "기쁨": "/personas/enfj/female/joy.webp",
+        "슬픔": "/personas/enfj/female/sad.webp",
+        "분노": "/personas/enfj/female/angry.webp",
+        "놀람": "/personas/enfj/female/surprise.webp",
+        "호기심": "/personas/enfj/female/curious.webp",
+        "불안": "/personas/enfj/female/anxious.webp",
+        "피로": "/personas/enfj/female/tired.webp",
+        "실망": "/personas/enfj/female/disappointed.webp",
+        "당혹": "/personas/enfj/female/confused.webp"
       }
     }
   }
