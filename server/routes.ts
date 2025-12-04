@@ -1906,21 +1906,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // 6. 참여율
       const participationRate = activeUsers > 0 ? 100 : 0;
       
-      // 7. 시나리오 인기도 - personaRuns 기준
+      // 7. 시나리오 인기도 - personaRuns 기준 (difficulty는 사용자 선택 난이도 사용)
       const scenarioStats = personaRuns.reduce((acc, pr) => {
         const scenarioRun = scenarioRuns.find(sr => sr.id === pr.scenarioRunId);
         if (!scenarioRun) return acc;
         
         const scenario = scenarios.find(s => s.id === scenarioRun.scenarioId);
         const scenarioName = scenario?.title || scenarioRun.scenarioId;
+        const userDifficulty = scenarioRun.difficulty || 2; // 사용자가 선택한 난이도
         
-        acc[scenarioRun.scenarioId] = {
-          count: (acc[scenarioRun.scenarioId]?.count || 0) + 1,
-          name: scenarioName,
-          difficulty: scenario?.difficulty || 2
-        };
+        if (!acc[scenarioRun.scenarioId]) {
+          acc[scenarioRun.scenarioId] = {
+            count: 0,
+            name: scenarioName,
+            difficulties: [] as number[] // 사용자가 선택한 난이도들 수집
+          };
+        }
+        acc[scenarioRun.scenarioId].count += 1;
+        acc[scenarioRun.scenarioId].difficulties.push(userDifficulty);
+        
         return acc;
-      }, {} as Record<string, { count: number; name: string; difficulty: number }>);
+      }, {} as Record<string, { count: number; name: string; difficulties: number[] }>);
       
       // 8. MBTI 사용 분석
       const mbtiUsage = personaRuns.reduce((acc, pr) => {
@@ -2186,11 +2192,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         };
       });
       
-      // Scenario performance - scenarioRuns & personaRuns 기반
-      const scenarioPerformance: Record<string, { scores: number[]; name: string; difficulty: number; personaCount: number }> = {};
+      // Scenario performance - scenarioRuns & personaRuns 기반 (difficulty는 사용자 선택 난이도 사용)
+      const scenarioPerformance: Record<string, { scores: number[]; name: string; difficulties: number[]; personaCount: number }> = {};
       
       for (const run of scenarioRuns.filter(sr => sr.status === "completed")) {
         const scenario = scenarios.find(s => s.id === run.scenarioId);
+        const userDifficulty = run.difficulty || 2; // 사용자가 선택한 난이도
         
         // 이 scenarioRun에 속한 personaRuns의 피드백 수집
         const runPersonas = personaRuns.filter(pr => pr.scenarioRunId === run.id);
@@ -2201,21 +2208,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
               scenarioPerformance[run.scenarioId] = {
                 scores: [],
                 name: scenario?.title || run.scenarioId,
-                difficulty: scenario?.difficulty || 2,
+                difficulties: [], // 사용자가 선택한 난이도들 수집
                 personaCount: Array.isArray(scenario?.personas) ? scenario.personas.length : 0
               };
             }
             scenarioPerformance[run.scenarioId].scores.push(feedback.overallScore);
+            scenarioPerformance[run.scenarioId].difficulties.push(userDifficulty);
           }
         }
       }
       
-      // Calculate scenario averages
+      // Calculate scenario averages (점수 및 난이도 평균)
       Object.keys(scenarioPerformance).forEach(scenarioId => {
         const scores = scenarioPerformance[scenarioId].scores;
+        const difficulties = scenarioPerformance[scenarioId].difficulties;
         (scenarioPerformance[scenarioId] as any) = {
           ...scenarioPerformance[scenarioId],
           average: scores.length > 0 ? Math.round(scores.reduce((acc, score) => acc + score, 0) / scores.length) : 0,
+          avgDifficulty: difficulties.length > 0 ? Math.round((difficulties.reduce((acc, d) => acc + d, 0) / difficulties.length) * 10) / 10 : 2,
           sessionCount: scores.length
         };
       });

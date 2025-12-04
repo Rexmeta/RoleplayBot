@@ -33,7 +33,6 @@ export function AIScenarioGenerator({ onGenerated }: AIGeneratorProps) {
     objectiveType: '',
     skills: '',
     estimatedTime: '60-90분',
-    difficulty: 4,
     personaCount: 3
   });
 
@@ -307,48 +306,31 @@ export function AIScenarioGenerator({ onGenerated }: AIGeneratorProps) {
             </div>
           </div>
           
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <Label>난이도</Label>
-              <Select 
-                value={formData.difficulty.toString()} 
-                onValueChange={(value) => setFormData(prev => ({ ...prev, difficulty: Number(value) }))}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="1">1 - 매우 쉬움</SelectItem>
-                  <SelectItem value="2">2 - 기본</SelectItem>
-                  <SelectItem value="3">3 - 도전형</SelectItem>
-                  <SelectItem value="4">4 - 고난도</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            
-            <div>
-              <Label>페르소나 수</Label>
-              <Select 
-                value={formData.personaCount.toString()} 
-                onValueChange={(value) => setFormData(prev => ({ ...prev, personaCount: Number(value) }))}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="1">1명</SelectItem>
-                  <SelectItem value="2">2명</SelectItem>
-                  <SelectItem value="3">3명</SelectItem>
-                  <SelectItem value="4">4명</SelectItem>
-                  <SelectItem value="5">5명</SelectItem>
-                  <SelectItem value="6">6명</SelectItem>
-                  <SelectItem value="7">7명</SelectItem>
-                  <SelectItem value="8">8명</SelectItem>
-                  <SelectItem value="9">9명</SelectItem>
-                  <SelectItem value="10">10명</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
+          <div>
+            <Label>페르소나 수</Label>
+            <Select 
+              value={formData.personaCount.toString()} 
+              onValueChange={(value) => setFormData(prev => ({ ...prev, personaCount: Number(value) }))}
+            >
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="1">1명</SelectItem>
+                <SelectItem value="2">2명</SelectItem>
+                <SelectItem value="3">3명</SelectItem>
+                <SelectItem value="4">4명</SelectItem>
+                <SelectItem value="5">5명</SelectItem>
+                <SelectItem value="6">6명</SelectItem>
+                <SelectItem value="7">7명</SelectItem>
+                <SelectItem value="8">8명</SelectItem>
+                <SelectItem value="9">9명</SelectItem>
+                <SelectItem value="10">10명</SelectItem>
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-slate-500 mt-1">
+              난이도는 사용자가 대화 시작 시 선택합니다
+            </p>
           </div>
           
           <div className="flex gap-2 pt-4">
