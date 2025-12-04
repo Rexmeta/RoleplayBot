@@ -417,7 +417,7 @@ export default function MyPage() {
                     <div className="flex items-center gap-3">
                       <Award className="w-8 h-8 text-green-600" />
                       <div className="text-3xl font-bold text-slate-900" data-testid="completed-scenario-runs">
-                        {stats.completedScenarioRuns}
+                        {stats.completedScenarioRuns}/{stats.totalScenarioRuns}
                       </div>
                     </div>
                   </CardContent>
@@ -491,7 +491,7 @@ export default function MyPage() {
                   <div className="space-y-3">
                     <div className="flex items-center justify-between p-3 bg-blue-50 rounded-lg border border-blue-200">
                       <span className="text-sm text-slate-700">총 학습 시간</span>
-                      <span className="font-semibold text-slate-900">{stats.completedScenarioRuns} 시나리오 완료</span>
+                      <span className="font-semibold text-slate-900">{stats.completedScenarioRuns}/{stats.totalScenarioRuns} 시나리오 완료</span>
                     </div>
                     <div className="flex items-center justify-between p-3 bg-green-50 rounded-lg border border-green-200">
                       <span className="text-sm text-slate-700">평균 성과</span>

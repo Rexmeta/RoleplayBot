@@ -10,6 +10,7 @@ import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, Responsi
 
 type AnalyticsSummary = {
   totalSessions: number;
+  completedSessions?: number;
   averageScore: number;
   categoryAverages: {
     clarityLogic: number;
@@ -138,7 +139,7 @@ export default function Analytics() {
           <div>
             <h1 className="text-3xl font-bold text-slate-900 mb-2">종합 커뮤니케이션 분석</h1>
             <p className="text-slate-600">
-              총 {analytics.totalSessions}회의 대화 세션 데이터를 기반으로 한 종합 분석
+              {analytics.completedSessions ? `${analytics.completedSessions}/${analytics.totalSessions}회의 대화 세션` : `총 ${analytics.totalSessions}회의 대화 세션`} 데이터를 기반으로 한 종합 분석
             </p>
           </div>
           <Link href="/mypage">
@@ -189,7 +190,7 @@ export default function Analytics() {
             </CardHeader>
             <CardContent>
               <div className="text-4xl font-bold text-slate-900" data-testid="text-total-sessions">
-                {analytics.totalSessions}
+                {analytics.completedSessions !== undefined ? `${analytics.completedSessions}/${analytics.totalSessions}` : analytics.totalSessions}
               </div>
               <p className="text-sm text-slate-500 mt-2">
                 {analytics.lastSessionDate && (
