@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { pgTable, text, varchar, integer, timestamp, jsonb, index, boolean } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, integer, timestamp, jsonb, index, boolean, doublePrecision } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -73,6 +73,31 @@ export const systemSettings = pgTable("system_settings", {
 }, (table) => [
   index("idx_system_settings_category").on(table.category),
   index("idx_system_settings_key").on(table.key),
+]);
+
+// AI 사용량 로그 테이블 - 토큰 사용량 및 비용 추적
+export const aiUsageLogs = pgTable("ai_usage_logs", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  occurredAt: timestamp("occurred_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+  feature: varchar("feature").notNull(), // conversation, feedback, strategy, scenario, realtime
+  model: varchar("model").notNull(), // gemini-2.5-flash, gpt-4o 등
+  provider: varchar("provider").notNull(), // google, openai
+  userId: varchar("user_id").references(() => users.id), // 사용자 ID (nullable - 시스템 작업 시)
+  conversationId: varchar("conversation_id"), // 관련 대화 ID (optional)
+  requestId: varchar("request_id"), // 요청 추적용 고유 ID
+  promptTokens: integer("prompt_tokens").notNull().default(0), // 입력 토큰 수
+  completionTokens: integer("completion_tokens").notNull().default(0), // 출력 토큰 수
+  totalTokens: integer("total_tokens").notNull().default(0), // 총 토큰 수
+  inputCostUsd: doublePrecision("input_cost_usd").notNull().default(0), // 입력 비용 (USD)
+  outputCostUsd: doublePrecision("output_cost_usd").notNull().default(0), // 출력 비용 (USD)
+  totalCostUsd: doublePrecision("total_cost_usd").notNull().default(0), // 총 비용 (USD)
+  durationMs: integer("duration_ms"), // 요청 소요 시간 (ms)
+  metadata: jsonb("metadata").$type<Record<string, any>>(), // 추가 메타데이터
+}, (table) => [
+  index("idx_ai_usage_logs_occurred_at").on(table.occurredAt),
+  index("idx_ai_usage_logs_feature").on(table.feature),
+  index("idx_ai_usage_logs_user_id").on(table.userId),
+  index("idx_ai_usage_logs_model").on(table.model),
 ]);
 
 // User storage table - 이메일 기반 인증 시스템용
@@ -380,3 +405,43 @@ export const insertSystemSettingSchema = createInsertSchema(systemSettings).omit
 
 export type InsertSystemSetting = z.infer<typeof insertSystemSettingSchema>;
 export type SystemSetting = typeof systemSettings.$inferSelect;
+
+// AI Usage Log types
+export const insertAiUsageLogSchema = createInsertSchema(aiUsageLogs).omit({
+  id: true,
+  occurredAt: true,
+});
+
+export type InsertAiUsageLog = z.infer<typeof insertAiUsageLogSchema>;
+export type AiUsageLog = typeof aiUsageLogs.$inferSelect;
+
+// AI Usage 집계 타입
+export type AiUsageSummary = {
+  totalTokens: number;
+  promptTokens: number;
+  completionTokens: number;
+  totalCostUsd: number;
+  requestCount: number;
+};
+
+export type AiUsageByFeature = {
+  feature: string;
+  totalTokens: number;
+  totalCostUsd: number;
+  requestCount: number;
+};
+
+export type AiUsageByModel = {
+  model: string;
+  provider: string;
+  totalTokens: number;
+  totalCostUsd: number;
+  requestCount: number;
+};
+
+export type AiUsageDaily = {
+  date: string;
+  totalTokens: number;
+  totalCostUsd: number;
+  requestCount: number;
+};

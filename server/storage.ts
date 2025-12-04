@@ -1,12 +1,12 @@
-import { type Conversation, type InsertConversation, type Feedback, type InsertFeedback, type PersonaSelection, type StrategyChoice, type SequenceAnalysis, type User, type UpsertUser, type ScenarioRun, type InsertScenarioRun, type PersonaRun, type InsertPersonaRun, type ChatMessage, type InsertChatMessage, type Category, type InsertCategory, type SystemSetting, conversations, feedbacks, users, scenarioRuns, personaRuns, chatMessages, categories, systemSettings } from "@shared/schema";
+import { type Conversation, type InsertConversation, type Feedback, type InsertFeedback, type PersonaSelection, type StrategyChoice, type SequenceAnalysis, type User, type UpsertUser, type ScenarioRun, type InsertScenarioRun, type PersonaRun, type InsertPersonaRun, type ChatMessage, type InsertChatMessage, type Category, type InsertCategory, type SystemSetting, type AiUsageLog, type InsertAiUsageLog, type AiUsageSummary, type AiUsageByFeature, type AiUsageByModel, type AiUsageDaily, conversations, feedbacks, users, scenarioRuns, personaRuns, chatMessages, categories, systemSettings, aiUsageLogs } from "@shared/schema";
 import { randomUUID } from "crypto";
 import { drizzle } from "drizzle-orm/neon-http";
 import { neon } from "@neondatabase/serverless";
-import { eq, asc, desc, inArray, and } from "drizzle-orm";
+import { eq, asc, desc, inArray, and, gte, lte, sql as sqlBuilder, count, sum } from "drizzle-orm";
 
 // Initialize database connection
-const sql = neon(process.env.DATABASE_URL!);
-const db = drizzle(sql);
+const neonClient = neon(process.env.DATABASE_URL!);
+const db = drizzle(neonClient);
 
 export interface IStorage {
   // Conversations (레거시)
@@ -85,6 +85,14 @@ export interface IStorage {
   getSystemSetting(category: string, key: string): Promise<SystemSetting | undefined>;
   upsertSystemSetting(setting: { category: string; key: string; value: string; description?: string; updatedBy?: string }): Promise<SystemSetting>;
   deleteSystemSetting(category: string, key: string): Promise<void>;
+  
+  // AI Usage Logs operations - AI 사용량 추적
+  createAiUsageLog(log: InsertAiUsageLog): Promise<AiUsageLog>;
+  getAiUsageSummary(startDate: Date, endDate: Date): Promise<AiUsageSummary>;
+  getAiUsageByFeature(startDate: Date, endDate: Date): Promise<AiUsageByFeature[]>;
+  getAiUsageByModel(startDate: Date, endDate: Date): Promise<AiUsageByModel[]>;
+  getAiUsageDaily(startDate: Date, endDate: Date): Promise<AiUsageDaily[]>;
+  getAiUsageLogs(startDate: Date, endDate: Date, limit?: number): Promise<AiUsageLog[]>;
 }
 
 export class MemStorage implements IStorage {
@@ -466,6 +474,31 @@ export class MemStorage implements IStorage {
   }
   async deleteSystemSetting(_category: string, _key: string): Promise<void> {
     throw new Error("Not implemented in MemStorage");
+  }
+  
+  // AI Usage Logs - MemStorage stubs
+  async createAiUsageLog(_log: InsertAiUsageLog): Promise<AiUsageLog> {
+    throw new Error("Not implemented in MemStorage");
+  }
+  
+  async getAiUsageSummary(_startDate: Date, _endDate: Date): Promise<AiUsageSummary> {
+    return { totalTokens: 0, promptTokens: 0, completionTokens: 0, totalCostUsd: 0, requestCount: 0 };
+  }
+  
+  async getAiUsageByFeature(_startDate: Date, _endDate: Date): Promise<AiUsageByFeature[]> {
+    return [];
+  }
+  
+  async getAiUsageByModel(_startDate: Date, _endDate: Date): Promise<AiUsageByModel[]> {
+    return [];
+  }
+  
+  async getAiUsageDaily(_startDate: Date, _endDate: Date): Promise<AiUsageDaily[]> {
+    return [];
+  }
+  
+  async getAiUsageLogs(_startDate: Date, _endDate: Date, _limit?: number): Promise<AiUsageLog[]> {
+    return [];
   }
 }
 
@@ -891,6 +924,95 @@ export class PostgreSQLStorage implements IStorage {
   async deleteSystemSetting(category: string, key: string): Promise<void> {
     await db.delete(systemSettings)
       .where(and(eq(systemSettings.category, category), eq(systemSettings.key, key)));
+  }
+  
+  // AI Usage Logs
+  async createAiUsageLog(log: InsertAiUsageLog): Promise<AiUsageLog> {
+    const [inserted] = await db.insert(aiUsageLogs).values(log as any).returning();
+    return inserted;
+  }
+  
+  async getAiUsageSummary(startDate: Date, endDate: Date): Promise<AiUsageSummary> {
+    const result = await db.select({
+      totalTokens: sqlBuilder<number>`COALESCE(SUM(${aiUsageLogs.totalTokens}), 0)::integer`,
+      promptTokens: sqlBuilder<number>`COALESCE(SUM(${aiUsageLogs.promptTokens}), 0)::integer`,
+      completionTokens: sqlBuilder<number>`COALESCE(SUM(${aiUsageLogs.completionTokens}), 0)::integer`,
+      totalCostUsd: sqlBuilder<number>`COALESCE(SUM(${aiUsageLogs.totalCostUsd}), 0)::float`,
+      requestCount: sqlBuilder<number>`COUNT(*)::integer`,
+    })
+    .from(aiUsageLogs)
+    .where(and(
+      gte(aiUsageLogs.occurredAt, startDate),
+      lte(aiUsageLogs.occurredAt, endDate)
+    ));
+    
+    return result[0] || { totalTokens: 0, promptTokens: 0, completionTokens: 0, totalCostUsd: 0, requestCount: 0 };
+  }
+  
+  async getAiUsageByFeature(startDate: Date, endDate: Date): Promise<AiUsageByFeature[]> {
+    const result = await db.select({
+      feature: aiUsageLogs.feature,
+      totalTokens: sqlBuilder<number>`COALESCE(SUM(${aiUsageLogs.totalTokens}), 0)::integer`,
+      totalCostUsd: sqlBuilder<number>`COALESCE(SUM(${aiUsageLogs.totalCostUsd}), 0)::float`,
+      requestCount: sqlBuilder<number>`COUNT(*)::integer`,
+    })
+    .from(aiUsageLogs)
+    .where(and(
+      gte(aiUsageLogs.occurredAt, startDate),
+      lte(aiUsageLogs.occurredAt, endDate)
+    ))
+    .groupBy(aiUsageLogs.feature)
+    .orderBy(desc(sqlBuilder`SUM(${aiUsageLogs.totalTokens})`));
+    
+    return result;
+  }
+  
+  async getAiUsageByModel(startDate: Date, endDate: Date): Promise<AiUsageByModel[]> {
+    const result = await db.select({
+      model: aiUsageLogs.model,
+      provider: aiUsageLogs.provider,
+      totalTokens: sqlBuilder<number>`COALESCE(SUM(${aiUsageLogs.totalTokens}), 0)::integer`,
+      totalCostUsd: sqlBuilder<number>`COALESCE(SUM(${aiUsageLogs.totalCostUsd}), 0)::float`,
+      requestCount: sqlBuilder<number>`COUNT(*)::integer`,
+    })
+    .from(aiUsageLogs)
+    .where(and(
+      gte(aiUsageLogs.occurredAt, startDate),
+      lte(aiUsageLogs.occurredAt, endDate)
+    ))
+    .groupBy(aiUsageLogs.model, aiUsageLogs.provider)
+    .orderBy(desc(sqlBuilder`SUM(${aiUsageLogs.totalTokens})`));
+    
+    return result;
+  }
+  
+  async getAiUsageDaily(startDate: Date, endDate: Date): Promise<AiUsageDaily[]> {
+    const result = await db.select({
+      date: sqlBuilder<string>`TO_CHAR(${aiUsageLogs.occurredAt}, 'YYYY-MM-DD')`,
+      totalTokens: sqlBuilder<number>`COALESCE(SUM(${aiUsageLogs.totalTokens}), 0)::integer`,
+      totalCostUsd: sqlBuilder<number>`COALESCE(SUM(${aiUsageLogs.totalCostUsd}), 0)::float`,
+      requestCount: sqlBuilder<number>`COUNT(*)::integer`,
+    })
+    .from(aiUsageLogs)
+    .where(and(
+      gte(aiUsageLogs.occurredAt, startDate),
+      lte(aiUsageLogs.occurredAt, endDate)
+    ))
+    .groupBy(sqlBuilder`TO_CHAR(${aiUsageLogs.occurredAt}, 'YYYY-MM-DD')`)
+    .orderBy(asc(sqlBuilder`TO_CHAR(${aiUsageLogs.occurredAt}, 'YYYY-MM-DD')`));
+    
+    return result;
+  }
+  
+  async getAiUsageLogs(startDate: Date, endDate: Date, limit: number = 100): Promise<AiUsageLog[]> {
+    return await db.select()
+      .from(aiUsageLogs)
+      .where(and(
+        gte(aiUsageLogs.occurredAt, startDate),
+        lte(aiUsageLogs.occurredAt, endDate)
+      ))
+      .orderBy(desc(aiUsageLogs.occurredAt))
+      .limit(limit);
   }
 }
 
