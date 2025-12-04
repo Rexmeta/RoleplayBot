@@ -9,7 +9,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Progress } from "@/components/ui/progress";
-import { CalendarDays, Star, TrendingUp, MessageSquare, Award, History, BarChart3, Users, Target, Trash2, Loader2, HelpCircle, Lightbulb, CheckCircle, AlertCircle, ArrowRight, Minus, TrendingDown, LogOut, Settings } from "lucide-react";
+import { CalendarDays, Star, TrendingUp, MessageSquare, Award, History, BarChart3, User, Target, Trash2, Loader2, HelpCircle, Lightbulb, CheckCircle, AlertCircle, ArrowRight, Minus, TrendingDown, LogOut, Settings } from "lucide-react";
 import { Link } from "wouter";
 import { useAuth } from "@/hooks/useAuth";
 import {
@@ -294,19 +294,19 @@ export default function MyPage() {
                     variant="outline"
                     size="sm"
                     className="flex items-center justify-center w-10 h-10"
-                    data-testid="mypage-profile-button"
+                    data-testid="mypage-button"
                     title="마이페이지"
                   >
-                    <Users className="w-4 h-4" />
+                    <User className="w-4 h-4" />
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end">
                   <DropdownMenuItem
                     onClick={() => window.location.href = '/mypage'}
-                    data-testid="menu-mypage"
+                    data-testid="menu-history"
                   >
                     <History className="w-4 h-4 mr-2" />
-                    마이페이지
+                    History
                   </DropdownMenuItem>
                   
                   {(user?.role === 'admin' || user?.role === 'operator') && (
