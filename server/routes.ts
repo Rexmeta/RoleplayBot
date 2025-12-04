@@ -1846,6 +1846,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return 'D';
       };
       
+      // 마지막 완료 시나리오 날짜 계산
+      const lastCompletedScenario = completedScenarioRuns.length > 0 
+        ? completedScenarioRuns.sort((a, b) => new Date(b.startedAt).getTime() - new Date(a.startedAt).getTime())[0]
+        : null;
+      
       res.json({
         totalSessions: userScenarioRuns.length, // ✨ 진행한 시나리오 (모든 scenarioRuns)
         completedSessions: completedScenarioRuns.length, // ✨ 완료한 시나리오
@@ -1857,7 +1862,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         topImprovements,
         overallGrade: getOverallGrade(averageScore),
         progressTrend,
-        lastSessionDate: userFeedbacks[userFeedbacks.length - 1]?.createdAt.toISOString(),
+        lastSessionDate: lastCompletedScenario?.startedAt.toISOString(),
       });
     } catch (error) {
       console.error("Analytics summary error:", error);
