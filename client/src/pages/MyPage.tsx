@@ -281,16 +281,14 @@ export default function MyPage() {
                 <i className="fas fa-list"></i>
                 시나리오 리스트
               </Button>
-              <Link href="/admin-dashboard">
-                <Button
-                  variant="outline"
-                  className="flex items-center gap-2"
-                  data-testid="admin-dashboard-button"
-                >
-                  <Users className="w-4 h-4" />
-                  관리자 대시보드
-                </Button>
-              </Link>
+              <Button
+                variant="ghost"
+                size="icon"
+                data-testid="mypage-profile-button"
+                title="마이페이지"
+              >
+                <Users className="w-5 h-5 text-slate-600" />
+              </Button>
             </div>
           </div>
         </div>
