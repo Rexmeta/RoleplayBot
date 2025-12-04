@@ -12,6 +12,7 @@ const registerSchema = z.object({
   email: z.string().email("유효한 이메일을 입력해주세요"),
   password: z.string().min(6, "비밀번호는 최소 6자 이상이어야 합니다"),
   name: z.string().min(1, "이름을 입력해주세요").max(50, "이름은 50자 이하여야 합니다"),
+  categoryId: z.string().uuid().optional(),
 });
 
 // 로그인 스키마
@@ -82,7 +83,7 @@ export function setupAuth(app: Express) {
   // 회원가입
   app.post("/api/auth/register", async (req, res) => {
     try {
-      const { email, password, name } = registerSchema.parse(req.body);
+      const { email, password, name, categoryId } = registerSchema.parse(req.body);
 
       // 이미 존재하는 사용자 확인
       const existingUser = await storage.getUserByEmail(email);
@@ -93,11 +94,12 @@ export function setupAuth(app: Express) {
       // 비밀번호 해시
       const hashedPassword = await hashPassword(password);
 
-      // 사용자 생성
+      // 사용자 생성 (categoryId는 선택사항으로 저장)
       const user = await storage.createUser({
         email,
         password: hashedPassword,
         name,
+        assignedCategoryId: categoryId || null,
       });
 
       // JWT 토큰 생성

@@ -63,7 +63,7 @@ export interface IStorage {
   // User operations - 이메일 기반 인증 시스템
   getUser(id: string): Promise<User | undefined>;
   getUserByEmail(email: string): Promise<User | undefined>;
-  createUser(user: { email: string; password: string; name: string }): Promise<User>;
+  createUser(user: { email: string; password: string; name: string; assignedCategoryId?: string | null }): Promise<User>;
   updateUser(id: string, updates: { name?: string; password?: string; profileImage?: string; tier?: string }): Promise<User>;
   upsertUser(user: UpsertUser): Promise<User>;
   updateUserLastLogin(id: string): Promise<void>;
@@ -344,13 +344,19 @@ export class MemStorage implements IStorage {
     return undefined;
   }
 
-  async createUser(userData: { email: string; password: string; name: string }): Promise<User> {
+  async createUser(userData: { email: string; password: string; name: string; assignedCategoryId?: string | null }): Promise<User> {
     const id = randomUUID();
     const user: User = {
       id,
       email: userData.email,
       password: userData.password,
       name: userData.name,
+      role: 'user',
+      profileImage: null,
+      tier: 'bronze',
+      isActive: true,
+      lastLoginAt: null,
+      assignedCategoryId: userData.assignedCategoryId || null,
       createdAt: new Date(),
       updatedAt: new Date(),
     };
@@ -384,8 +390,14 @@ export class MemStorage implements IStorage {
     const user: User = {
       id: userData.id as string,
       email: userData.email || '',
-      password: '', // 기본값
+      password: existingUser?.password || '',
       name: userData.name || '',
+      role: existingUser?.role || 'user',
+      profileImage: existingUser?.profileImage || null,
+      tier: existingUser?.tier || 'bronze',
+      isActive: existingUser?.isActive ?? true,
+      lastLoginAt: existingUser?.lastLoginAt || null,
+      assignedCategoryId: existingUser?.assignedCategoryId || null,
       createdAt: existingUser?.createdAt || new Date(),
       updatedAt: new Date(),
     };
@@ -597,7 +609,7 @@ export class PostgreSQLStorage implements IStorage {
     return user;
   }
 
-  async createUser(userData: { email: string; password: string; name: string }): Promise<User> {
+  async createUser(userData: { email: string; password: string; name: string; assignedCategoryId?: string | null }): Promise<User> {
     const [user] = await db.insert(users).values(userData).returning();
     return user;
   }

@@ -2979,8 +2979,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // ========== 카테고리 관리 API (시스템 관리자 전용) ==========
   
-  // 모든 카테고리 조회 (인증된 사용자)
-  app.get("/api/categories", isAuthenticated, async (req, res) => {
+  // 모든 카테고리 조회 (공개 - 회원가입 시 카테고리 선택에 필요)
+  app.get("/api/categories", async (req, res) => {
     try {
       const allCategories = await storage.getAllCategories();
       res.json(allCategories);

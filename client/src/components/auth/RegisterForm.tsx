@@ -2,13 +2,21 @@ import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
+import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Mail, Lock, User } from "lucide-react";
+import { Loader2, Mail, Lock, User, Folder } from "lucide-react";
+
+interface Category {
+  id: string;
+  name: string;
+  description?: string;
+}
 
 const registerSchema = z.object({
   name: z.string().min(1, "이름을 입력해주세요").max(50, "이름은 50자 이하여야 합니다"),
@@ -30,6 +38,18 @@ export function RegisterForm({ onSwitchToLogin }: RegisterFormProps) {
   const { register: registerUser } = useAuth();
   const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(false);
+  const [selectedCategoryId, setSelectedCategoryId] = useState<string>("");
+
+  const { data: categories = [] } = useQuery<Category[]>({
+    queryKey: ['/api/categories'],
+    queryFn: async () => {
+      const res = await fetch('/api/categories');
+      if (!res.ok) return [];
+      const data = await res.json();
+      return Array.isArray(data) ? data : [];
+    },
+    staleTime: 1000 * 60 * 30,
+  });
 
   const {
     register,
@@ -48,7 +68,8 @@ export function RegisterForm({ onSwitchToLogin }: RegisterFormProps) {
   const onSubmit = async (data: RegisterFormData) => {
     try {
       setIsLoading(true);
-      await registerUser(data.email, data.password, data.name);
+      const categoryToSubmit = selectedCategoryId && selectedCategoryId.length > 0 ? selectedCategoryId : undefined;
+      await registerUser(data.email, data.password, data.name, categoryToSubmit);
       toast({
         title: "회원가입 성공",
         description: "계정이 생성되었습니다. 환영합니다!",
@@ -97,6 +118,32 @@ export function RegisterForm({ onSwitchToLogin }: RegisterFormProps) {
                 {errors.name.message}
               </p>
             )}
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="category" data-testid="label-category">
+              관심 카테고리 (선택)
+            </Label>
+            <div className="relative">
+              <Folder className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4 z-10" />
+              <Select
+                value={selectedCategoryId}
+                onValueChange={(value) => {
+                  setSelectedCategoryId(value);
+                }}
+              >
+                <SelectTrigger className="pl-10" data-testid="select-category">
+                  <SelectValue placeholder="카테고리를 선택하세요" />
+                </SelectTrigger>
+                <SelectContent>
+                  {categories.map((category) => (
+                    <SelectItem key={category.id} value={category.id}>
+                      {category.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           </div>
 
           <div className="space-y-2">
