@@ -2687,20 +2687,59 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Admin API routes for scenario and persona management
   
+  // 운영자/관리자 권한 확인 미들웨어
+  const isOperatorOrAdmin = (req: any, res: any, next: any) => {
+    // @ts-ignore - req.user는 auth 미들웨어에서 설정됨
+    const user = req.user;
+    if (!user || (user.role !== 'admin' && user.role !== 'operator')) {
+      return res.status(403).json({ error: "Access denied. Operator or admin only." });
+    }
+    next();
+  };
+
   // 시나리오 관리 API
-  app.get("/api/admin/scenarios", async (req, res) => {
+  app.get("/api/admin/scenarios", isAuthenticated, isOperatorOrAdmin, async (req, res) => {
     try {
       const scenarios = await fileManager.getAllScenarios();
-      res.json(scenarios);
+      
+      // @ts-ignore - req.user는 auth 미들웨어에서 설정됨
+      const user = req.user;
+      
+      // 관리자는 모든 시나리오 접근 가능
+      if (user.role === 'admin') {
+        return res.json(scenarios);
+      }
+      
+      // 운영자는 할당된 카테고리의 시나리오만 접근 가능
+      if (user.role === 'operator' && user.assignedCategoryId) {
+        const filteredScenarios = scenarios.filter((s: any) => s.categoryId === user.assignedCategoryId);
+        return res.json(filteredScenarios);
+      }
+      
+      // 카테고리 미할당 운영자는 빈 배열
+      res.json([]);
     } catch (error) {
       console.error("Error getting scenarios:", error);
       res.status(500).json({ error: "Failed to get scenarios" });
     }
   });
 
-  app.post("/api/admin/scenarios", async (req, res) => {
+  app.post("/api/admin/scenarios", isAuthenticated, isOperatorOrAdmin, async (req, res) => {
     try {
-      const scenario = await fileManager.createScenario(req.body);
+      // @ts-ignore - req.user는 auth 미들웨어에서 설정됨
+      const user = req.user;
+      
+      let scenarioData = req.body;
+      
+      // 운영자는 자신의 카테고리에만 시나리오 생성 가능
+      if (user.role === 'operator') {
+        if (!user.assignedCategoryId) {
+          return res.status(403).json({ error: "No category assigned. Contact admin." });
+        }
+        scenarioData.categoryId = user.assignedCategoryId;
+      }
+      
+      const scenario = await fileManager.createScenario(scenarioData);
       res.json(scenario);
     } catch (error) {
       console.error("Error creating scenario:", error);
@@ -2708,9 +2747,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.put("/api/admin/scenarios/:id", async (req, res) => {
+  app.put("/api/admin/scenarios/:id", isAuthenticated, isOperatorOrAdmin, async (req, res) => {
     try {
-      const scenario = await fileManager.updateScenario(req.params.id, req.body);
+      // @ts-ignore - req.user는 auth 미들웨어에서 설정됨
+      const user = req.user;
+      const scenarioId = req.params.id;
+      
+      // 운영자는 자신의 카테고리 시나리오만 수정 가능
+      if (user.role === 'operator') {
+        const scenarios = await fileManager.getAllScenarios();
+        const existingScenario = scenarios.find((s: any) => s.id === scenarioId);
+        
+        if (!existingScenario || existingScenario.categoryId !== user.assignedCategoryId) {
+          return res.status(403).json({ error: "Access denied. Not authorized for this scenario." });
+        }
+        
+        // 카테고리 변경 방지
+        req.body.categoryId = user.assignedCategoryId;
+      }
+      
+      const scenario = await fileManager.updateScenario(scenarioId, req.body);
       res.json(scenario);
     } catch (error) {
       console.error("Error updating scenario:", error);
@@ -2718,9 +2774,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.delete("/api/admin/scenarios/:id", async (req, res) => {
+  app.delete("/api/admin/scenarios/:id", isAuthenticated, isOperatorOrAdmin, async (req, res) => {
     try {
-      await fileManager.deleteScenario(req.params.id);
+      // @ts-ignore - req.user는 auth 미들웨어에서 설정됨
+      const user = req.user;
+      const scenarioId = req.params.id;
+      
+      // 운영자는 자신의 카테고리 시나리오만 삭제 가능
+      if (user.role === 'operator') {
+        const scenarios = await fileManager.getAllScenarios();
+        const existingScenario = scenarios.find((s: any) => s.id === scenarioId);
+        
+        if (!existingScenario || existingScenario.categoryId !== user.assignedCategoryId) {
+          return res.status(403).json({ error: "Access denied. Not authorized for this scenario." });
+        }
+      }
+      
+      await fileManager.deleteScenario(scenarioId);
       res.json({ success: true });
     } catch (error) {
       console.error("Error deleting scenario:", error);
