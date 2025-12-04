@@ -6,7 +6,14 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ComplexScenario, getDifficultyLabel } from "@/lib/scenario-system";
-import { Loader2, Search, Filter, ChevronDown, ChevronUp } from "lucide-react";
+import { Loader2, Search, Filter, ChevronDown, ChevronUp, Folder } from "lucide-react";
+
+interface Category {
+  id: string;
+  name: string;
+  description: string;
+  order: number;
+}
 
 interface ScenarioSelectorProps {
   onScenarioSelect: (scenario: ComplexScenario) => void;
@@ -24,7 +31,8 @@ export default function ScenarioSelector({ onScenarioSelect, playerProfile }: Sc
     personaCount: '',
     searchText: '',
     department: '',
-    skillType: ''
+    skillType: '',
+    categoryId: ''
   });
   
   // 상세 검색 표시 여부
@@ -36,6 +44,13 @@ export default function ScenarioSelector({ onScenarioSelect, playerProfile }: Sc
     queryFn: () => fetch('/api/scenarios').then(res => res.json())
   });
 
+  // 카테고리 목록 가져오기
+  const { data: categories = [] } = useQuery<Category[]>({
+    queryKey: ['/api/categories'],
+    queryFn: () => fetch('/api/categories').then(res => res.json()),
+    staleTime: 1000 * 60 * 30,
+  });
+
   // MBTI 기본 특성을 시나리오 내에서 직접 처리 (외부 API 호출 없이)
   const personasLoading = false; // 로딩 상태 제거
 
@@ -44,8 +59,22 @@ export default function ScenarioSelector({ onScenarioSelect, playerProfile }: Sc
     onScenarioSelect(scenario);
   };
 
+  // 카테고리 이름 조회 헬퍼 함수
+  const getCategoryName = (categoryId: string | undefined): string => {
+    if (!categoryId) return '';
+    const category = categories.find(c => c.id === categoryId);
+    return category?.name || '';
+  };
+
   // 필터링된 시나리오 목록
   const filteredScenarios = scenarios.filter((scenario: ComplexScenario) => {
+    // 카테고리 필터
+    if (filters.categoryId && filters.categoryId !== 'all') {
+      if ((scenario as any).categoryId !== filters.categoryId) {
+        return false;
+      }
+    }
+    
     // 검색어 필터
     if (filters.searchText && !scenario.title.toLowerCase().includes(filters.searchText.toLowerCase()) && 
         !scenario.description.toLowerCase().includes(filters.searchText.toLowerCase())) {
@@ -91,7 +120,8 @@ export default function ScenarioSelector({ onScenarioSelect, playerProfile }: Sc
       personaCount: '',
       searchText: '',
       department: '',
-      skillType: ''
+      skillType: '',
+      categoryId: ''
     });
   };
 
@@ -183,7 +213,7 @@ export default function ScenarioSelector({ onScenarioSelect, playerProfile }: Sc
             </div>
             
             {/* 기본 필터 (항상 표시) */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-3">
               {/* 검색어 */}
               <div className="relative">
                 <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
@@ -195,6 +225,24 @@ export default function ScenarioSelector({ onScenarioSelect, playerProfile }: Sc
                   data-testid="filter-search"
                 />
               </div>
+              
+              {/* 카테고리 필터 */}
+              <Select value={filters.categoryId || undefined} onValueChange={(value) => setFilters(prev => ({ ...prev, categoryId: value }))}>
+                <SelectTrigger data-testid="filter-category" className="h-9 text-sm">
+                  <div className="flex items-center gap-2">
+                    <Folder className="h-4 w-4 text-slate-400" />
+                    <SelectValue placeholder="카테고리" />
+                  </div>
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">전체 카테고리</SelectItem>
+                  {categories.map((category) => (
+                    <SelectItem key={category.id} value={category.id}>
+                      {category.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
               
               {/* 스킬 유형 */}
               <Select value={filters.skillType || undefined} onValueChange={(value) => setFilters(prev => ({ ...prev, skillType: value }))}>
@@ -251,7 +299,7 @@ export default function ScenarioSelector({ onScenarioSelect, playerProfile }: Sc
             )}
             
             {/* 필터 적용 상태 표시 */}
-            {(filters.searchText || filters.personaCount || filters.department || filters.skillType) && (
+            {(filters.searchText || filters.personaCount || filters.department || filters.skillType || (filters.categoryId && filters.categoryId !== 'all')) && (
               <div className="mt-3 pt-3 border-t border-slate-200">
                 <div className="flex items-center justify-center">
                   <span className="text-xs text-blue-600">필터 적용됨</span>
@@ -290,6 +338,15 @@ export default function ScenarioSelector({ onScenarioSelect, playerProfile }: Sc
                   >
                     {/* 기본 표시 정보 (항상 보이는 내용) */}
                     <div className="absolute inset-0 flex flex-col justify-center items-center text-white text-center p-6 group-hover:hidden transition-all duration-500">
+                      {/* 카테고리 배지 (상단 좌측) */}
+                      {getCategoryName((scenario as any).categoryId) && (
+                        <div className="absolute top-3 left-3">
+                          <Badge className="bg-blue-600/80 text-white text-xs backdrop-blur-sm">
+                            <Folder className="h-3 w-3 mr-1" />
+                            {getCategoryName((scenario as any).categoryId)}
+                          </Badge>
+                        </div>
+                      )}
                       <h2 className="text-2xl font-bold mb-4 drop-shadow-lg">{scenario.title}</h2>
                       <div className="flex items-center gap-4 text-sm">
                         <div className="flex items-center gap-1 bg-white/20 backdrop-blur-sm rounded-full px-3 py-1">

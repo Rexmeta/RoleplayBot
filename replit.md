@@ -92,6 +92,23 @@ Preferred communication style: Simple, everyday language.
 - API: PATCH `/api/system-admin/users/:id` - Update user role/tier/status (admin only)
 - Tier system: bronze, silver, gold, platinum, diamond
 
+## Category System
+- **Categories Table**: `categories` - stores scenario categories (온보딩, 리더십, 경영지원, 기타)
+- **Operator Assignment**: `users.assignedCategoryId` - links operators to their managed category
+- **Scenario Categories**: `scenarios.categoryId` - each scenario belongs to one category
+- **Permission Control**:
+  - 시스템관리자 (admin): Can manage all categories and all scenarios
+  - 운영자 (operator): Can only manage scenarios in their assigned category
+- **API Endpoints**:
+  - GET `/api/categories` - List all categories (public)
+  - POST `/api/categories` - Create category (admin only)
+  - PATCH `/api/categories/:id` - Update category (admin only)
+  - DELETE `/api/categories/:id` - Delete category if no linked scenarios (admin only)
+- **UI Features**:
+  - System admin page: Category management tab with CRUD operations
+  - Scenario list: Category filter dropdown + category badge on cards
+  - Admin management: Operators see only their category's scenarios
+
 ## Recent Changes (December 2025)
 - Added system admin page with user management functionality
 - Extended users table with isActive and lastLoginAt fields
