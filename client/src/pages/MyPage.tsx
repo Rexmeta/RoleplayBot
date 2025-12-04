@@ -9,9 +9,16 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Progress } from "@/components/ui/progress";
-import { CalendarDays, Star, TrendingUp, MessageSquare, Award, History, BarChart3, Users, Target, Trash2, Loader2, HelpCircle, Lightbulb, CheckCircle, AlertCircle, ArrowRight, Minus, TrendingDown } from "lucide-react";
+import { CalendarDays, Star, TrendingUp, MessageSquare, Award, History, BarChart3, Users, Target, Trash2, Loader2, HelpCircle, Lightbulb, CheckCircle, AlertCircle, ArrowRight, Minus, TrendingDown, LogOut, Settings } from "lucide-react";
 import { Link } from "wouter";
 import { useAuth } from "@/hooks/useAuth";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+  DropdownMenuSeparator,
+} from "@/components/ui/dropdown-menu";
 import { type ScenarioRun, type PersonaRun, type Feedback } from "@shared/schema";
 import { format } from "date-fns";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -24,7 +31,7 @@ export default function MyPage() {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [scenarioRunToDelete, setScenarioRunToDelete] = useState<string | null>(null);
   const [strategyReflectionRunId, setStrategyReflectionRunId] = useState<string | null>(null);
-  const { user } = useAuth();
+  const { user, logout } = useAuth();
   const { toast } = useToast();
 
   // 사용자의 피드백 조회
@@ -281,14 +288,62 @@ export default function MyPage() {
                 <i className="fas fa-list"></i>
                 시나리오 리스트
               </Button>
-              <Button
-                variant="ghost"
-                size="icon"
-                data-testid="mypage-profile-button"
-                title="마이페이지"
-              >
-                <Users className="w-5 h-5 text-slate-600" />
-              </Button>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="flex items-center justify-center w-10 h-10"
+                    data-testid="mypage-profile-button"
+                    title="마이페이지"
+                  >
+                    <Users className="w-4 h-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem
+                    onClick={() => window.location.href = '/mypage'}
+                    data-testid="menu-mypage"
+                  >
+                    <History className="w-4 h-4 mr-2" />
+                    마이페이지
+                  </DropdownMenuItem>
+                  
+                  {(user?.role === 'admin' || user?.role === 'operator') && (
+                    <>
+                      <DropdownMenuSeparator />
+                      {user?.role === 'admin' && (
+                        <DropdownMenuItem
+                          onClick={() => window.location.href = '/admin'}
+                          data-testid="menu-admin-dashboard"
+                        >
+                          <BarChart3 className="w-4 h-4 mr-2" />
+                          관리자 대시보드
+                        </DropdownMenuItem>
+                      )}
+                      <DropdownMenuItem
+                        onClick={() => window.location.href = '/admin-management'}
+                        data-testid="menu-content-management"
+                      >
+                        <Settings className="w-4 h-4 mr-2" />
+                        콘텐츠 관리
+                      </DropdownMenuItem>
+                    </>
+                  )}
+                  
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem
+                    onClick={async () => {
+                      await logout();
+                      window.location.href = '/';
+                    }}
+                    data-testid="menu-logout"
+                  >
+                    <LogOut className="w-4 h-4 mr-2" />
+                    로그아웃
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             </div>
           </div>
         </div>
