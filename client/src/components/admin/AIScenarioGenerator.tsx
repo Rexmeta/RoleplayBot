@@ -246,11 +246,26 @@ export function AIScenarioGenerator({ onGenerated }: AIGeneratorProps) {
                   <SelectValue placeholder="갈등 유형 선택" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="부서간">부서간 갈등</SelectItem>
-                  <SelectItem value="우선순위">우선순위 충돌</SelectItem>
-                  <SelectItem value="자원경쟁">자원 경쟁</SelectItem>
-                  <SelectItem value="의견차이">의견 차이</SelectItem>
-                  <SelectItem value="리더십">리더십 갈등</SelectItem>
+                  <SelectItem value="역할불명확">역할 불명확</SelectItem>
+                  <SelectItem value="업무우선순위충돌">업무 우선순위 충돌</SelectItem>
+                  <SelectItem value="성과불균형인식">성과 불균형 인식</SelectItem>
+                  <SelectItem value="세대차이">세대 차이</SelectItem>
+                  <SelectItem value="소통오류">소통 오류</SelectItem>
+                  <SelectItem value="의사결정방식차이">의사결정 방식 차이</SelectItem>
+                  <SelectItem value="리더십스타일차이">리더십 스타일 차이</SelectItem>
+                  <SelectItem value="성과독점">성과 독점</SelectItem>
+                  <SelectItem value="정보독점">정보 독점</SelectItem>
+                  <SelectItem value="책임떠넘기기">책임 떠넘기기</SelectItem>
+                  <SelectItem value="업무방식차이">업무 방식 차이</SelectItem>
+                  <SelectItem value="개인목표조직목표불일치">개인 목표와 조직 목표 불일치</SelectItem>
+                  <SelectItem value="지식경험차이">지식/경험의 차이</SelectItem>
+                  <SelectItem value="업무범위침범">업무 범위 침범</SelectItem>
+                  <SelectItem value="정치적갈등">정치적 갈등</SelectItem>
+                  <SelectItem value="감정누적">감정의 누적</SelectItem>
+                  <SelectItem value="인정욕구미충족">인정 욕구 미충족</SelectItem>
+                  <SelectItem value="신뢰부족">신뢰 부족</SelectItem>
+                  <SelectItem value="리소스경쟁">리소스 경쟁</SelectItem>
+                  <SelectItem value="다양성가치관차이">다양성·가치관 차이</SelectItem>
                 </SelectContent>
               </Select>
             </div>
