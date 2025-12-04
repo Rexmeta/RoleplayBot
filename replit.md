@@ -109,7 +109,24 @@ Preferred communication style: Simple, everyday language.
   - Scenario list: Category filter dropdown + category badge on cards
   - Admin management: Operators see only their category's scenarios
 
+## System Settings (System Admin)
+- **Database Table**: `system_settings` - stores configurable system parameters
+- **Settings Categories**: AI model settings, evaluation system, conversation defaults, voice settings
+- **API Endpoints**:
+  - GET `/api/system-admin/settings` - List all settings (admin only)
+  - GET `/api/system-admin/settings/:category` - List settings by category (admin only)
+  - PUT `/api/system-admin/settings` - Create/update single setting (admin only)
+  - PUT `/api/system-admin/settings/batch` - Batch update settings (admin only)
+  - DELETE `/api/system-admin/settings/:category/:key` - Delete setting (admin only)
+- **Default Settings**:
+  - AI: model, temperature, maxTokens
+  - Evaluation: minPassingScore, evaluationCategories
+  - Conversation: maxTurns, sessionTimeout
+  - Voice: defaultVoice, speechRate
+- **UI**: System admin page → "시스템 설정" tab with categorized form inputs
+
 ## Recent Changes (December 2025)
+- Added system settings management feature for configurable system parameters
 - Added system admin page with user management functionality
 - Extended users table with isActive and lastLoginAt fields
 - Implemented role-based menu visibility in UserProfileMenu
