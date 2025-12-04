@@ -1,4 +1,4 @@
-import { type Conversation, type InsertConversation, type Feedback, type InsertFeedback, type PersonaSelection, type StrategyChoice, type SequenceAnalysis, type User, type UpsertUser, type ScenarioRun, type InsertScenarioRun, type PersonaRun, type InsertPersonaRun, type ChatMessage, type InsertChatMessage, conversations, feedbacks, users, scenarioRuns, personaRuns, chatMessages } from "@shared/schema";
+import { type Conversation, type InsertConversation, type Feedback, type InsertFeedback, type PersonaSelection, type StrategyChoice, type SequenceAnalysis, type User, type UpsertUser, type ScenarioRun, type InsertScenarioRun, type PersonaRun, type InsertPersonaRun, type ChatMessage, type InsertChatMessage, type Category, type InsertCategory, conversations, feedbacks, users, scenarioRuns, personaRuns, chatMessages, categories } from "@shared/schema";
 import { randomUUID } from "crypto";
 import { drizzle } from "drizzle-orm/neon-http";
 import { neon } from "@neondatabase/serverless";
@@ -70,7 +70,14 @@ export interface IStorage {
   
   // System Admin operations - 시스템 관리자 전용
   getAllUsers(): Promise<User[]>;
-  adminUpdateUser(id: string, updates: { role?: string; tier?: string; isActive?: boolean }): Promise<User>;
+  adminUpdateUser(id: string, updates: { role?: string; tier?: string; isActive?: boolean; assignedCategoryId?: string | null }): Promise<User>;
+  
+  // Category operations - 카테고리 관리
+  createCategory(category: InsertCategory): Promise<Category>;
+  getCategory(id: string): Promise<Category | undefined>;
+  getAllCategories(): Promise<Category[]>;
+  updateCategory(id: string, updates: Partial<InsertCategory>): Promise<Category>;
+  deleteCategory(id: string): Promise<void>;
 }
 
 export class MemStorage implements IStorage {
@@ -399,13 +406,30 @@ export class MemStorage implements IStorage {
     return Array.from(this.users.values());
   }
 
-  async adminUpdateUser(id: string, updates: { role?: string; tier?: string; isActive?: boolean }): Promise<User> {
+  async adminUpdateUser(id: string, updates: { role?: string; tier?: string; isActive?: boolean; assignedCategoryId?: string | null }): Promise<User> {
     const user = this.users.get(id);
     if (!user) throw new Error("User not found");
     
     const updatedUser = { ...user, ...updates, updatedAt: new Date() };
     this.users.set(id, updatedUser);
     return updatedUser;
+  }
+
+  // Category operations - not implemented for MemStorage
+  async createCategory(_category: InsertCategory): Promise<Category> {
+    throw new Error("Not implemented in MemStorage");
+  }
+  async getCategory(_id: string): Promise<Category | undefined> {
+    throw new Error("Not implemented in MemStorage");
+  }
+  async getAllCategories(): Promise<Category[]> {
+    throw new Error("Not implemented in MemStorage");
+  }
+  async updateCategory(_id: string, _updates: Partial<InsertCategory>): Promise<Category> {
+    throw new Error("Not implemented in MemStorage");
+  }
+  async deleteCategory(_id: string): Promise<void> {
+    throw new Error("Not implemented in MemStorage");
   }
 }
 
@@ -614,13 +638,41 @@ export class PostgreSQLStorage implements IStorage {
     return await db.select().from(users).orderBy(desc(users.createdAt));
   }
 
-  async adminUpdateUser(id: string, updates: { role?: string; tier?: string; isActive?: boolean }): Promise<User> {
+  async adminUpdateUser(id: string, updates: { role?: string; tier?: string; isActive?: boolean; assignedCategoryId?: string | null }): Promise<User> {
     const [user] = await db.update(users)
       .set({ ...updates, updatedAt: new Date() })
       .where(eq(users.id, id))
       .returning();
     if (!user) throw new Error("User not found");
     return user;
+  }
+
+  // Category operations - 카테고리 관리
+  async createCategory(insertCategory: InsertCategory): Promise<Category> {
+    const [category] = await db.insert(categories).values(insertCategory).returning();
+    return category;
+  }
+
+  async getCategory(id: string): Promise<Category | undefined> {
+    const [category] = await db.select().from(categories).where(eq(categories.id, id));
+    return category;
+  }
+
+  async getAllCategories(): Promise<Category[]> {
+    return await db.select().from(categories).orderBy(asc(categories.order));
+  }
+
+  async updateCategory(id: string, updates: Partial<InsertCategory>): Promise<Category> {
+    const [category] = await db.update(categories)
+      .set(updates)
+      .where(eq(categories.id, id))
+      .returning();
+    if (!category) throw new Error("Category not found");
+    return category;
+  }
+
+  async deleteCategory(id: string): Promise<void> {
+    await db.delete(categories).where(eq(categories.id, id));
   }
 
   // 새로운 데이터 구조: Scenario Runs

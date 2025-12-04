@@ -52,6 +52,15 @@ export const sessions = pgTable(
   (table) => [index("IDX_session_expire").on(table.expire)],
 );
 
+// 시나리오 카테고리 테이블
+export const categories = pgTable("categories", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: varchar("name").notNull().unique(), // 카테고리 이름 (예: 온보딩, 리더십, 경영지원, 기타)
+  description: text("description"), // 카테고리 설명
+  order: integer("order").notNull().default(0), // 정렬 순서
+  createdAt: timestamp("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+});
+
 // User storage table - 이메일 기반 인증 시스템용
 export const users = pgTable("users", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
@@ -63,6 +72,7 @@ export const users = pgTable("users", {
   tier: varchar("tier").notNull().default("bronze"), // 회원 등급: bronze, silver, gold, platinum, diamond
   isActive: boolean("is_active").notNull().default(true), // 계정 활성화 상태
   lastLoginAt: timestamp("last_login_at"), // 마지막 로그인 시간
+  assignedCategoryId: varchar("assigned_category_id").references(() => categories.id), // 운영자가 담당하는 카테고리 (운영자만 해당)
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
@@ -333,7 +343,17 @@ export type CreateUser = {
   email: string;
   password: string;
   name: string;
+  assignedCategoryId?: string; // 운영자 회원가입 시 카테고리 지정
 };
 
 export type UpsertUser = typeof users.$inferInsert;
 export type User = typeof users.$inferSelect;
+
+// Category types
+export const insertCategorySchema = createInsertSchema(categories).omit({
+  id: true,
+  createdAt: true,
+});
+
+export type InsertCategory = z.infer<typeof insertCategorySchema>;
+export type Category = typeof categories.$inferSelect;
