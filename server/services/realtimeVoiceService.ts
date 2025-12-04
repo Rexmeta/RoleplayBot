@@ -2,9 +2,10 @@ import WebSocket from 'ws';
 import { fileManager } from './fileManager';
 import { GoogleGenAI, Modality } from '@google/genai';
 import { getRealtimeVoiceGuidelines, validateDifficultyLevel } from './conversationDifficultyPolicy';
+import { storage } from '../storage';
 
-// Gemini Live API - using latest model
-const REALTIME_MODEL = 'gemini-live-2.5-flash-preview';
+// Default Gemini Live API model
+const DEFAULT_REALTIME_MODEL = 'gemini-live-2.5-flash-preview';
 
 interface RealtimeSession {
   id: string;
@@ -41,6 +42,37 @@ export class RealtimeVoiceService {
 
   isServiceAvailable(): boolean {
     return this.isAvailable;
+  }
+
+  private async getRealtimeModel(): Promise<string> {
+    try {
+      // Add timeout to prevent blocking WebSocket connection
+      const timeoutPromise = new Promise<undefined>((_, reject) => 
+        setTimeout(() => reject(new Error('DB setting fetch timeout')), 2000)
+      );
+      
+      const settingPromise = storage.getSystemSetting("ai", "model_realtime");
+      const setting = await Promise.race([settingPromise, timeoutPromise]);
+      
+      // Validate the model value is a valid Gemini Live model
+      const validModels = [
+        'gemini-2.5-flash-native-audio-preview',
+        'gemini-live-2.5-flash-preview', 
+        'gemini-2.0-flash-live-preview-04-09'
+      ];
+      
+      const model = setting?.value;
+      if (model && validModels.includes(model)) {
+        console.log(`🤖 Using realtime model from DB: ${model}`);
+        return model;
+      }
+      
+      console.log(`🤖 Using default realtime model: ${DEFAULT_REALTIME_MODEL}`);
+      return DEFAULT_REALTIME_MODEL;
+    } catch (error) {
+      console.warn(`⚠️ Failed to get realtime model from DB, using default: ${DEFAULT_REALTIME_MODEL}`);
+      return DEFAULT_REALTIME_MODEL;
+    }
   }
 
   async createSession(
@@ -234,10 +266,12 @@ export class RealtimeVoiceService {
       console.log('📝 출력 음성 텍스트 변환: 활성화');
       console.log('='.repeat(80) + '\n');
 
-      console.log(`🔌 Connecting to Gemini Live API for session: ${session.id}`);
+      // Get model from DB settings
+      const realtimeModel = await this.getRealtimeModel();
+      console.log(`🔌 Connecting to Gemini Live API for session: ${session.id} using model: ${realtimeModel}`);
 
       const geminiSession = await this.genAI.live.connect({
-        model: REALTIME_MODEL,
+        model: realtimeModel,
         callbacks: {
           onopen: () => {
             console.log(`✅ Gemini Live API connected for session: ${session.id}`);
