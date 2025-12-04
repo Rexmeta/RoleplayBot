@@ -2907,6 +2907,107 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // ========== 카테고리 관리 API (시스템 관리자 전용) ==========
+  
+  // 모든 카테고리 조회 (인증된 사용자)
+  app.get("/api/categories", isAuthenticated, async (req, res) => {
+    try {
+      const allCategories = await storage.getAllCategories();
+      res.json(allCategories);
+    } catch (error: any) {
+      console.error("Error getting categories:", error);
+      res.status(500).json({ error: error.message || "Failed to get categories" });
+    }
+  });
+
+  // 카테고리 생성 (시스템 관리자 전용)
+  app.post("/api/system-admin/categories", isAuthenticated, isSystemAdmin, async (req, res) => {
+    try {
+      const { name, description, order } = req.body;
+      
+      if (!name || name.trim() === "") {
+        return res.status(400).json({ error: "Category name is required" });
+      }
+      
+      const category = await storage.createCategory({
+        name: name.trim(),
+        description: description || null,
+        order: order || 0,
+      });
+      
+      res.json(category);
+    } catch (error: any) {
+      console.error("Error creating category:", error);
+      if (error.message?.includes("unique") || error.code === "23505") {
+        res.status(400).json({ error: "Category name already exists" });
+      } else {
+        res.status(500).json({ error: error.message || "Failed to create category" });
+      }
+    }
+  });
+
+  // 카테고리 수정 (시스템 관리자 전용)
+  app.patch("/api/system-admin/categories/:id", isAuthenticated, isSystemAdmin, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { name, description, order } = req.body;
+      
+      const updates: any = {};
+      if (name !== undefined) updates.name = name.trim();
+      if (description !== undefined) updates.description = description;
+      if (order !== undefined) updates.order = order;
+      
+      if (Object.keys(updates).length === 0) {
+        return res.status(400).json({ error: "No valid updates provided" });
+      }
+      
+      const category = await storage.updateCategory(id, updates);
+      res.json(category);
+    } catch (error: any) {
+      console.error("Error updating category:", error);
+      if (error.message?.includes("unique") || error.code === "23505") {
+        res.status(400).json({ error: "Category name already exists" });
+      } else {
+        res.status(500).json({ error: error.message || "Failed to update category" });
+      }
+    }
+  });
+
+  // 카테고리 삭제 (시스템 관리자 전용)
+  app.delete("/api/system-admin/categories/:id", isAuthenticated, isSystemAdmin, async (req, res) => {
+    try {
+      const { id } = req.params;
+      
+      // 해당 카테고리에 연결된 시나리오가 있는지 확인
+      const scenarios = await fileManager.getAllScenarios();
+      const connectedScenarios = scenarios.filter((s: any) => s.categoryId === id);
+      
+      if (connectedScenarios.length > 0) {
+        return res.status(400).json({
+          error: "Cannot delete category with connected scenarios",
+          connectedScenarios: connectedScenarios.map((s: any) => ({ id: s.id, title: s.title })),
+        });
+      }
+      
+      // 해당 카테고리가 할당된 운영자가 있는지 확인
+      const allUsers = await storage.getAllUsers();
+      const assignedOperators = allUsers.filter(u => u.assignedCategoryId === id);
+      
+      if (assignedOperators.length > 0) {
+        return res.status(400).json({
+          error: "Cannot delete category with assigned operators",
+          assignedOperators: assignedOperators.map(u => ({ id: u.id, name: u.name, email: u.email })),
+        });
+      }
+      
+      await storage.deleteCategory(id);
+      res.json({ success: true });
+    } catch (error: any) {
+      console.error("Error deleting category:", error);
+      res.status(500).json({ error: error.message || "Failed to delete category" });
+    }
+  });
+
   // TTS routes
   app.use("/api/tts", ttsRoutes);
 
