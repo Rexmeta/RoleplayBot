@@ -3204,6 +3204,90 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // ===== AI Usage Tracking APIs =====
+  
+  // AI 사용량 요약 조회
+  app.get("/api/system-admin/ai-usage/summary", isAuthenticated, isSystemAdmin, async (req, res) => {
+    try {
+      const { startDate, endDate } = req.query;
+      
+      // Default: last 30 days
+      const end = endDate ? new Date(endDate as string) : new Date();
+      const start = startDate ? new Date(startDate as string) : new Date(end.getTime() - 30 * 24 * 60 * 60 * 1000);
+      
+      const summary = await storage.getAiUsageSummary(start, end);
+      res.json(summary);
+    } catch (error: any) {
+      console.error("Error fetching AI usage summary:", error);
+      res.status(500).json({ error: error.message || "Failed to fetch AI usage summary" });
+    }
+  });
+
+  // 기능별 AI 사용량 조회
+  app.get("/api/system-admin/ai-usage/by-feature", isAuthenticated, isSystemAdmin, async (req, res) => {
+    try {
+      const { startDate, endDate } = req.query;
+      
+      const end = endDate ? new Date(endDate as string) : new Date();
+      const start = startDate ? new Date(startDate as string) : new Date(end.getTime() - 30 * 24 * 60 * 60 * 1000);
+      
+      const usageByFeature = await storage.getAiUsageByFeature(start, end);
+      res.json(usageByFeature);
+    } catch (error: any) {
+      console.error("Error fetching AI usage by feature:", error);
+      res.status(500).json({ error: error.message || "Failed to fetch AI usage by feature" });
+    }
+  });
+
+  // 모델별 AI 사용량 조회
+  app.get("/api/system-admin/ai-usage/by-model", isAuthenticated, isSystemAdmin, async (req, res) => {
+    try {
+      const { startDate, endDate } = req.query;
+      
+      const end = endDate ? new Date(endDate as string) : new Date();
+      const start = startDate ? new Date(startDate as string) : new Date(end.getTime() - 30 * 24 * 60 * 60 * 1000);
+      
+      const usageByModel = await storage.getAiUsageByModel(start, end);
+      res.json(usageByModel);
+    } catch (error: any) {
+      console.error("Error fetching AI usage by model:", error);
+      res.status(500).json({ error: error.message || "Failed to fetch AI usage by model" });
+    }
+  });
+
+  // 일별 AI 사용량 조회
+  app.get("/api/system-admin/ai-usage/daily", isAuthenticated, isSystemAdmin, async (req, res) => {
+    try {
+      const { startDate, endDate } = req.query;
+      
+      const end = endDate ? new Date(endDate as string) : new Date();
+      const start = startDate ? new Date(startDate as string) : new Date(end.getTime() - 30 * 24 * 60 * 60 * 1000);
+      
+      const dailyUsage = await storage.getAiUsageDaily(start, end);
+      res.json(dailyUsage);
+    } catch (error: any) {
+      console.error("Error fetching daily AI usage:", error);
+      res.status(500).json({ error: error.message || "Failed to fetch daily AI usage" });
+    }
+  });
+
+  // 상세 AI 사용 로그 조회
+  app.get("/api/system-admin/ai-usage/logs", isAuthenticated, isSystemAdmin, async (req, res) => {
+    try {
+      const { startDate, endDate, limit } = req.query;
+      
+      const end = endDate ? new Date(endDate as string) : new Date();
+      const start = startDate ? new Date(startDate as string) : new Date(end.getTime() - 7 * 24 * 60 * 60 * 1000);
+      const logLimit = limit ? parseInt(limit as string) : 100;
+      
+      const logs = await storage.getAiUsageLogs(start, end, logLimit);
+      res.json(logs);
+    } catch (error: any) {
+      console.error("Error fetching AI usage logs:", error);
+      res.status(500).json({ error: error.message || "Failed to fetch AI usage logs" });
+    }
+  });
+
   // TTS routes
   app.use("/api/tts", ttsRoutes);
 
