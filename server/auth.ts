@@ -147,6 +147,9 @@ export function setupAuth(app: Express) {
       // JWT 토큰 생성
       const token = generateToken(user.id, rememberMe);
 
+      // 마지막 로그인 시간 업데이트
+      await storage.updateUserLastLogin(user.id);
+
       // 쿠키 설정 (자동로그인용)
       if (rememberMe) {
         res.cookie('token', token, {
