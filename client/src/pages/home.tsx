@@ -11,19 +11,12 @@ import { type ComplexScenario, type ScenarioPersona, getComplexScenarioById, sce
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
-import { User, LogOut, History, Settings, BarChart3 } from "lucide-react";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-  DropdownMenuSeparator,
-} from "@/components/ui/dropdown-menu";
+import { UserProfileMenu } from "@/components/UserProfileMenu";
 
 type ViewState = "scenarios" | "persona-selection" | "chat" | "strategy-reflection" | "strategy-result" | "feedback";
 
 export default function Home() {
-  const { logout, user } = useAuth();
+  const { user } = useAuth();
   const [location] = useLocation();
   const [currentView, setCurrentView] = useState<ViewState>("scenarios");
   const [selectedScenario, setSelectedScenario] = useState<ComplexScenario | null>(null);
@@ -413,63 +406,7 @@ export default function Home() {
               </div>
             </button>
             <div className="flex items-center space-x-2">
-              {/* MyPage Dropdown Menu */}
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="flex items-center justify-center w-10 h-10"
-                    data-testid="mypage-button"
-                    title="마이페이지"
-                  >
-                    <User className="w-4 h-4" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                  <DropdownMenuItem
-                    onClick={() => window.location.href = '/mypage'}
-                    data-testid="menu-history"
-                  >
-                    <History className="w-4 h-4 mr-2" />
-                    History
-                  </DropdownMenuItem>
-                  
-                  {(user?.role === 'admin' || user?.role === 'operator') && (
-                    <>
-                      <DropdownMenuSeparator />
-                      {user?.role === 'admin' && (
-                        <DropdownMenuItem
-                          onClick={() => window.location.href = '/admin'}
-                          data-testid="menu-admin-dashboard"
-                        >
-                          <BarChart3 className="w-4 h-4 mr-2" />
-                          관리자 대시보드
-                        </DropdownMenuItem>
-                      )}
-                      <DropdownMenuItem
-                        onClick={() => window.location.href = '/admin-management'}
-                        data-testid="menu-content-management"
-                      >
-                        <Settings className="w-4 h-4 mr-2" />
-                        콘텐츠 관리
-                      </DropdownMenuItem>
-                    </>
-                  )}
-                  
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem
-                    onClick={async () => {
-                      await logout();
-                      window.location.href = '/';
-                    }}
-                    data-testid="menu-logout"
-                  >
-                    <LogOut className="w-4 h-4 mr-2" />
-                    로그아웃
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
+              <UserProfileMenu />
             </div>
           </div>
         </div>

@@ -3,10 +3,9 @@ import { Link } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from "recharts";
-import { User, History, LogOut } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
+import { UserProfileMenu } from "@/components/UserProfileMenu";
 
 // 마우스 오버 카드 설명 헬퍼
 const CardInfo = ({ title, description }: { title: string; description: string }) => (
@@ -98,7 +97,7 @@ interface TrendsData {
 }
 
 export default function AdminDashboard() {
-  const { user, logout } = useAuth();
+  const { user } = useAuth();
 
   const { data: overview, isLoading: overviewLoading } = useQuery<AnalyticsOverview>({
     queryKey: ["/api/admin/analytics/overview"],
@@ -224,62 +223,7 @@ export default function AdminDashboard() {
             <p className="text-slate-600 mt-2">교육 결과 분석 및 성과 현황</p>
           </div>
         </div>
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button
-              variant="outline"
-              size="sm"
-              className="flex items-center justify-center w-10 h-10"
-              data-testid="mypage-button"
-              title="마이페이지"
-            >
-              <User className="w-4 h-4" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuItem
-              onClick={() => window.location.href = '/mypage'}
-              data-testid="menu-history"
-            >
-              <History className="w-4 h-4 mr-2" />
-              History
-            </DropdownMenuItem>
-            
-            {(user?.role === 'admin' || user?.role === 'operator') && (
-              <>
-                <DropdownMenuSeparator />
-                {user?.role === 'admin' && (
-                  <DropdownMenuItem
-                    onClick={() => window.location.href = '/admin'}
-                    data-testid="menu-admin-dashboard"
-                  >
-                    <i className="fas fa-chart-bar w-4 h-4 mr-2"></i>
-                    관리자 대시보드
-                  </DropdownMenuItem>
-                )}
-                <DropdownMenuItem
-                  onClick={() => window.location.href = '/admin-management'}
-                  data-testid="menu-content-management"
-                >
-                  <i className="fas fa-cogs w-4 h-4 mr-2"></i>
-                  콘텐츠 관리
-                </DropdownMenuItem>
-              </>
-            )}
-            
-            <DropdownMenuSeparator />
-            <DropdownMenuItem
-              onClick={async () => {
-                await logout();
-                window.location.href = '/';
-              }}
-              data-testid="menu-logout"
-            >
-              <LogOut className="w-4 h-4 mr-2" />
-              로그아웃
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+        <UserProfileMenu />
       </div>
 
       {/* Detailed Analytics */}
