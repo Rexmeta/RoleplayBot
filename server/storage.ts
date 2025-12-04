@@ -1,4 +1,4 @@
-import { type Conversation, type InsertConversation, type Feedback, type InsertFeedback, type PersonaSelection, type StrategyChoice, type SequenceAnalysis, type User, type UpsertUser, type ScenarioRun, type InsertScenarioRun, type PersonaRun, type InsertPersonaRun, type ChatMessage, type InsertChatMessage, type Category, type InsertCategory, conversations, feedbacks, users, scenarioRuns, personaRuns, chatMessages, categories } from "@shared/schema";
+import { type Conversation, type InsertConversation, type Feedback, type InsertFeedback, type PersonaSelection, type StrategyChoice, type SequenceAnalysis, type User, type UpsertUser, type ScenarioRun, type InsertScenarioRun, type PersonaRun, type InsertPersonaRun, type ChatMessage, type InsertChatMessage, type Category, type InsertCategory, type SystemSetting, conversations, feedbacks, users, scenarioRuns, personaRuns, chatMessages, categories, systemSettings } from "@shared/schema";
 import { randomUUID } from "crypto";
 import { drizzle } from "drizzle-orm/neon-http";
 import { neon } from "@neondatabase/serverless";
@@ -78,6 +78,13 @@ export interface IStorage {
   getAllCategories(): Promise<Category[]>;
   updateCategory(id: string, updates: Partial<InsertCategory>): Promise<Category>;
   deleteCategory(id: string): Promise<void>;
+  
+  // System Settings operations - 시스템 설정 관리
+  getSystemSettings(): Promise<SystemSetting[]>;
+  getSystemSettingsByCategory(category: string): Promise<SystemSetting[]>;
+  getSystemSetting(category: string, key: string): Promise<SystemSetting | undefined>;
+  upsertSystemSetting(setting: { category: string; key: string; value: string; description?: string; updatedBy?: string }): Promise<SystemSetting>;
+  deleteSystemSetting(category: string, key: string): Promise<void>;
 }
 
 export class MemStorage implements IStorage {
@@ -441,6 +448,23 @@ export class MemStorage implements IStorage {
     throw new Error("Not implemented in MemStorage");
   }
   async deleteCategory(_id: string): Promise<void> {
+    throw new Error("Not implemented in MemStorage");
+  }
+  
+  // System Settings operations - not implemented for MemStorage
+  async getSystemSettings(): Promise<SystemSetting[]> {
+    throw new Error("Not implemented in MemStorage");
+  }
+  async getSystemSettingsByCategory(_category: string): Promise<SystemSetting[]> {
+    throw new Error("Not implemented in MemStorage");
+  }
+  async getSystemSetting(_category: string, _key: string): Promise<SystemSetting | undefined> {
+    throw new Error("Not implemented in MemStorage");
+  }
+  async upsertSystemSetting(_setting: { category: string; key: string; value: string; description?: string; updatedBy?: string }): Promise<SystemSetting> {
+    throw new Error("Not implemented in MemStorage");
+  }
+  async deleteSystemSetting(_category: string, _key: string): Promise<void> {
     throw new Error("Not implemented in MemStorage");
   }
 }
@@ -818,6 +842,55 @@ export class PostgreSQLStorage implements IStorage {
 
   async deleteScenarioRun(id: string): Promise<void> {
     await db.delete(scenarioRuns).where(eq(scenarioRuns.id, id));
+  }
+
+  // System Settings
+  async getSystemSettings(): Promise<SystemSetting[]> {
+    return await db.select().from(systemSettings).orderBy(asc(systemSettings.category), asc(systemSettings.key));
+  }
+
+  async getSystemSettingsByCategory(category: string): Promise<SystemSetting[]> {
+    return await db.select().from(systemSettings).where(eq(systemSettings.category, category)).orderBy(asc(systemSettings.key));
+  }
+
+  async getSystemSetting(category: string, key: string): Promise<SystemSetting | undefined> {
+    const [setting] = await db.select().from(systemSettings)
+      .where(and(eq(systemSettings.category, category), eq(systemSettings.key, key)));
+    return setting;
+  }
+
+  async upsertSystemSetting(setting: { category: string; key: string; value: string; description?: string; updatedBy?: string }): Promise<SystemSetting> {
+    // Check if setting exists
+    const existing = await this.getSystemSetting(setting.category, setting.key);
+    
+    if (existing) {
+      // Update existing
+      const [updated] = await db.update(systemSettings)
+        .set({ 
+          value: setting.value, 
+          description: setting.description,
+          updatedBy: setting.updatedBy,
+          updatedAt: new Date()
+        })
+        .where(and(eq(systemSettings.category, setting.category), eq(systemSettings.key, setting.key)))
+        .returning();
+      return updated;
+    } else {
+      // Insert new
+      const [inserted] = await db.insert(systemSettings).values({
+        category: setting.category,
+        key: setting.key,
+        value: setting.value,
+        description: setting.description,
+        updatedBy: setting.updatedBy,
+      }).returning();
+      return inserted;
+    }
+  }
+
+  async deleteSystemSetting(category: string, key: string): Promise<void> {
+    await db.delete(systemSettings)
+      .where(and(eq(systemSettings.category, category), eq(systemSettings.key, key)));
   }
 }
 
