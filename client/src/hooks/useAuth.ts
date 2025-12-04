@@ -5,6 +5,8 @@ export interface User {
   email: string;
   name: string;
   role: 'admin' | 'operator' | 'user'; // admin=시스템관리자, operator=운영자, user=일반유저
+  profileImage?: string | null; // 프로필 이미지 URL
+  tier?: string; // 회원 등급: bronze, silver, gold, platinum, diamond
 }
 
 export interface AuthContextType {

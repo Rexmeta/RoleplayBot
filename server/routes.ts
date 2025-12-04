@@ -277,7 +277,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(401).json({ error: "Unauthorized" });
       }
 
-      const { name, currentPassword, newPassword } = req.body;
+      const { name, currentPassword, newPassword, profileImage } = req.body;
       
       // 현재 사용자 정보 조회
       const user = await storage.getUser(userId);
@@ -285,11 +285,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ error: "User not found" });
       }
 
-      const updates: { name?: string; password?: string } = {};
+      const updates: { name?: string; password?: string; profileImage?: string } = {};
 
       // 이름 업데이트
       if (name && name.trim()) {
         updates.name = name.trim();
+      }
+
+      // 프로필 이미지 업데이트
+      if (profileImage !== undefined) {
+        updates.profileImage = profileImage;
       }
 
       // 비밀번호 변경
@@ -321,11 +326,70 @@ export async function registerRoutes(app: Express): Promise<Server> {
         email: updatedUser.email,
         name: updatedUser.name,
         role: updatedUser.role,
+        profileImage: updatedUser.profileImage,
+        tier: updatedUser.tier,
         updatedAt: updatedUser.updatedAt,
       });
     } catch (error: any) {
       console.error("Error updating user profile:", error);
       res.status(500).json({ error: error.message || "Failed to update profile" });
+    }
+  });
+
+  // Upload profile image
+  app.post("/api/user/profile-image", isAuthenticated, async (req, res) => {
+    try {
+      // @ts-ignore - req.user는 auth 미들웨어에서 설정됨
+      const userId = req.user?.id;
+      if (!userId) {
+        return res.status(401).json({ error: "Unauthorized" });
+      }
+
+      const { imageData } = req.body; // Base64 encoded image
+      if (!imageData) {
+        return res.status(400).json({ error: "Image data is required" });
+      }
+
+      // Base64 이미지를 파일로 저장
+      const fs = await import('fs');
+      const path = await import('path');
+      
+      // 이미지 데이터 파싱
+      const matches = imageData.match(/^data:image\/(\w+);base64,(.+)$/);
+      if (!matches) {
+        return res.status(400).json({ error: "Invalid image format" });
+      }
+      
+      const ext = matches[1];
+      const base64Data = matches[2];
+      const buffer = Buffer.from(base64Data, 'base64');
+      
+      // 프로필 이미지 저장 디렉토리 생성
+      const uploadDir = path.join(process.cwd(), 'public', 'uploads', 'profiles');
+      if (!fs.existsSync(uploadDir)) {
+        fs.mkdirSync(uploadDir, { recursive: true });
+      }
+      
+      // 파일명 생성 (userId + timestamp)
+      const filename = `${userId}-${Date.now()}.${ext}`;
+      const filepath = path.join(uploadDir, filename);
+      
+      // 파일 저장
+      fs.writeFileSync(filepath, buffer);
+      
+      // 이미지 URL 생성
+      const imageUrl = `/uploads/profiles/${filename}`;
+      
+      // 사용자 프로필 업데이트
+      const updatedUser = await storage.updateUser(userId, { profileImage: imageUrl });
+      
+      res.json({
+        profileImage: updatedUser.profileImage,
+        message: "Profile image uploaded successfully"
+      });
+    } catch (error: any) {
+      console.error("Error uploading profile image:", error);
+      res.status(500).json({ error: error.message || "Failed to upload profile image" });
     }
   });
 
@@ -348,6 +412,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         email: user.email,
         name: user.name,
         role: user.role,
+        profileImage: user.profileImage,
+        tier: user.tier,
         createdAt: user.createdAt,
         updatedAt: user.updatedAt,
       });

@@ -59,6 +59,8 @@ export const users = pgTable("users", {
   password: varchar("password").notNull(), // 해시된 비밀번호
   name: varchar("name").notNull(), // 사용자 이름
   role: varchar("role").notNull().default("user"), // admin, operator, user
+  profileImage: varchar("profile_image"), // 프로필 이미지 URL
+  tier: varchar("tier").notNull().default("bronze"), // 회원 등급: bronze, silver, gold, platinum, diamond
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });

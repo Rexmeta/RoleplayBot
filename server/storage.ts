@@ -64,7 +64,7 @@ export interface IStorage {
   getUser(id: string): Promise<User | undefined>;
   getUserByEmail(email: string): Promise<User | undefined>;
   createUser(user: { email: string; password: string; name: string }): Promise<User>;
-  updateUser(id: string, updates: { name?: string; password?: string }): Promise<User>;
+  updateUser(id: string, updates: { name?: string; password?: string; profileImage?: string; tier?: string }): Promise<User>;
   upsertUser(user: UpsertUser): Promise<User>;
 }
 
@@ -347,7 +347,7 @@ export class MemStorage implements IStorage {
     return user;
   }
 
-  async updateUser(id: string, updates: { name?: string; password?: string }): Promise<User> {
+  async updateUser(id: string, updates: { name?: string; password?: string; profileImage?: string; tier?: string }): Promise<User> {
     const existingUser = this.users.get(id);
     if (!existingUser) {
       throw new Error("User not found");
@@ -357,6 +357,8 @@ export class MemStorage implements IStorage {
       ...existingUser,
       ...(updates.name && { name: updates.name }),
       ...(updates.password && { password: updates.password }),
+      ...(updates.profileImage !== undefined && { profileImage: updates.profileImage }),
+      ...(updates.tier && { tier: updates.tier }),
       updatedAt: new Date(),
     };
     
@@ -550,10 +552,12 @@ export class PostgreSQLStorage implements IStorage {
     return user;
   }
 
-  async updateUser(id: string, updates: { name?: string; password?: string }): Promise<User> {
+  async updateUser(id: string, updates: { name?: string; password?: string; profileImage?: string; tier?: string }): Promise<User> {
     const updateData: any = { updatedAt: new Date() };
     if (updates.name) updateData.name = updates.name;
     if (updates.password) updateData.password = updates.password;
+    if (updates.profileImage !== undefined) updateData.profileImage = updates.profileImage;
+    if (updates.tier) updateData.tier = updates.tier;
     
     const [user] = await db.update(users).set(updateData).where(eq(users.id, id)).returning();
     if (!user) {

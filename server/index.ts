@@ -16,6 +16,9 @@ app.use('/scenarios/images', express.static(pathModule.join(process.cwd(), 'scen
 // attached_assets/personas 폴더의 페르소나별 표정 이미지를 정적으로 제공
 app.use('/personas', express.static(pathModule.join(process.cwd(), 'attached_assets', 'personas')));
 
+// 사용자 프로필 이미지 업로드 폴더를 정적으로 제공
+app.use('/uploads', express.static(pathModule.join(process.cwd(), 'public', 'uploads')));
+
 app.use((req, res, next) => {
   const start = Date.now();
   const path = req.path;
