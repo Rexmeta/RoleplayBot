@@ -121,7 +121,7 @@ export default function ScenarioSelector({ onScenarioSelect, playerProfile }: Sc
       searchText: '',
       department: '',
       skillType: '',
-      categoryId: ''
+      categoryId: 'all'
     });
   };
 
