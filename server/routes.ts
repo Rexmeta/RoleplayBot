@@ -2984,7 +2984,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/categories", async (req, res) => {
     try {
       const allCategories = await storage.getAllCategories();
-      res.json(allCategories);
+      
+      // 시나리오 수 계산
+      const allScenarios = await fileManager.getAllScenarios();
+      const categoriesWithCount = allCategories.map(category => {
+        const scenarioCount = allScenarios.filter(s => s.categoryId === category.id).length;
+        return {
+          ...category,
+          scenarioCount
+        };
+      });
+      
+      res.json(categoriesWithCount);
     } catch (error: any) {
       console.error("Error getting categories:", error);
       res.status(500).json({ error: error.message || "Failed to get categories" });

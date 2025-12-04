@@ -56,6 +56,7 @@ interface Category {
   name: string;
   description: string | null;
   order: number;
+  scenarioCount?: number;
   createdAt: string;
 }
 
@@ -579,7 +580,7 @@ export default function SystemAdminPage() {
                                 {category.description || "-"}
                               </TableCell>
                               <TableCell>
-                                <Badge variant="secondary">-</Badge>
+                                <Badge variant="secondary">{category.scenarioCount ?? 0}</Badge>
                               </TableCell>
                               <TableCell>
                                 {assignedOperators.length > 0 ? (
