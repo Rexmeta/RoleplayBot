@@ -38,6 +38,7 @@ interface ScenarioFormData {
   skills: string[];
   image?: string; // 시나리오 이미지 URL 필드 추가
   imagePrompt?: string; // 이미지 생성 프롬프트 필드 추가
+  objectiveType?: string; // 목표 유형 추가
   context: {
     situation: string;
     timeline: string;
@@ -73,6 +74,7 @@ export function ScenarioManager() {
     skills: [],
     image: '', // 이미지 초기값 추가
     imagePrompt: '', // 이미지 프롬프트 초기값 추가
+    objectiveType: '', // 목표 유형 초기값 추가
     context: {
       situation: '',
       timeline: '',
@@ -105,6 +107,7 @@ export function ScenarioManager() {
       ...result.scenario,
       difficulty: 2, // 난이도는 항상 기본값으로 고정
       skills: result.scenario.skills || [],
+      objectiveType: result.scenario.objectiveType || '', // 목표 유형 처리
       objectives: result.scenario.objectives || [],
       personas: result.scenario.personas || [],
       recommendedFlow: result.scenario.recommendedFlow || []
@@ -190,6 +193,7 @@ export function ScenarioManager() {
       skills: [],
       image: '', // 이미지 필드 초기화 추가
       imagePrompt: '', // 이미지 프롬프트 초기화 추가
+      objectiveType: '', // 목표 유형 초기화
       context: {
         situation: '',
         timeline: '',
@@ -223,6 +227,7 @@ export function ScenarioManager() {
       skills: scenario.skills,
       image: scenario.image || '', // 기존 시나리오의 이미지 URL 로드
       imagePrompt: (scenario as any).imagePrompt || '', // 기존 시나리오의 이미지 프롬프트 로드
+      objectiveType: (scenario as any).objectiveType || '', // 기존 시나리오의 목표 유형 로드
       context: scenario.context,
       objectives: scenario.objectives,
       successCriteria: scenario.successCriteria,
@@ -624,6 +629,40 @@ export function ScenarioManager() {
               {/* 목표 및 성공 기준 */}
               <div className="space-y-4 bg-white p-6 rounded-lg border border-slate-200">
                 <h3 className="text-lg font-semibold text-slate-900 pb-3 border-b border-slate-200">목표 및 성공 기준</h3>
+                
+                <div>
+                  <Label htmlFor="objectiveType" className="text-sm font-medium text-slate-700">목표 유형</Label>
+                  <Select 
+                    value={formData.objectiveType || ''} 
+                    onValueChange={(value) => setFormData(prev => ({ ...prev, objectiveType: value }))}
+                  >
+                    <SelectTrigger className="bg-white">
+                      <SelectValue placeholder="목표 유형 선택" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="역할책임명확화">역할 및 책임 명확화</SelectItem>
+                      <SelectItem value="우선순위협의">우선순위 협의 및 합의</SelectItem>
+                      <SelectItem value="공정평가기준수립">공정한 평가 기준 수립</SelectItem>
+                      <SelectItem value="세대간이해증진">세대 간 상호 이해 증진</SelectItem>
+                      <SelectItem value="효과적소통정보공유">효과적 소통 및 정보 공유</SelectItem>
+                      <SelectItem value="의사결정표준화">의사결정 프로세스 표준화</SelectItem>
+                      <SelectItem value="리더십스타일조정">리더십 스타일 조정</SelectItem>
+                      <SelectItem value="공로분배팀워크">공로 분배 및 팀워크 강화</SelectItem>
+                      <SelectItem value="정보투명성공유">정보 투명성 및 공유</SelectItem>
+                      <SelectItem value="책임소재명확화">책임 소재 명확화</SelectItem>
+                      <SelectItem value="업무프로세스조정">업무 프로세스 조정</SelectItem>
+                      <SelectItem value="목표정렬">목표 정렬 및 방향성 통일</SelectItem>
+                      <SelectItem value="전문성존중학습">전문성 존중 및 학습</SelectItem>
+                      <SelectItem value="업무경계협력">업무 경계 설정 및 협력</SelectItem>
+                      <SelectItem value="공정한조직문화">공정한 조직 문화 조성</SelectItem>
+                      <SelectItem value="신뢰회복감정해소">신뢰 회복 및 감정 해소</SelectItem>
+                      <SelectItem value="기여도인정동기부여">기여도 인정 및 동기 부여</SelectItem>
+                      <SelectItem value="신뢰관계재구축">신뢰 관계 재구축</SelectItem>
+                      <SelectItem value="리소스배분협의">리소스 배분 협의 및 최적화</SelectItem>
+                      <SelectItem value="다양성포용성증진">다양성 이해 및 포용성 증진</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
                 
                 <div>
                   <Label htmlFor="objectives" className="text-sm font-medium text-slate-700">목표 (줄바꿈으로 구분)</Label>
