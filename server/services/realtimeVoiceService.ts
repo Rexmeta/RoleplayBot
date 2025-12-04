@@ -184,6 +184,18 @@ export class RealtimeVoiceService {
   }
 
 
+  // 성별별 사용 가능한 음성 목록 (Gemini Live API)
+  private static readonly MALE_VOICES = ['Puck', 'Charon', 'Fenrir', 'Orus'];
+  private static readonly FEMALE_VOICES = ['Aoede', 'Kore', 'Leda', 'Zephyr'];
+
+  // 성별에 따라 랜덤 음성 선택
+  private getRandomVoice(gender: 'male' | 'female'): string {
+    const voices = gender === 'female' 
+      ? RealtimeVoiceService.FEMALE_VOICES 
+      : RealtimeVoiceService.MALE_VOICES;
+    return voices[Math.floor(Math.random() * voices.length)];
+  }
+
   private async connectToGemini(
     session: RealtimeSession,
     systemInstructions: string,
@@ -194,10 +206,10 @@ export class RealtimeVoiceService {
     }
 
     try {
-      // Gemini Live API 음성 설정
-      const voiceName = gender === 'female' ? 'Aoede' : 'Puck';
+      // 성별에 따라 랜덤하게 음성 선택
+      const voiceName = this.getRandomVoice(gender);
       
-      console.log(`🎤 Setting voice for ${gender}: ${voiceName}`);
+      console.log(`🎤 Setting voice for ${gender}: ${voiceName} (랜덤 선택)`);
       
       const config = {
         responseModalities: [Modality.AUDIO],
@@ -205,10 +217,9 @@ export class RealtimeVoiceService {
         // Enable transcription for both input and output audio
         inputAudioTranscription: {},
         outputAudioTranscription: {},
-        // 음성 설정: 빠른 발화 속도와 성별에 맞는 음성
+        // 음성 설정: 성별에 맞는 랜덤 음성 (발화 속도는 기본값 사용)
         speechConfig: {
           voiceConfig: { prebuiltVoiceConfig: { voiceName } },
-          speakingRate: 1.3, // 1.3배 빠른 발화 속도 (급한 미팅 분위기)
         },
         // Gemini Live API uses 16kHz input, 24kHz output
       };
@@ -216,8 +227,8 @@ export class RealtimeVoiceService {
       console.log('\n' + '='.repeat(80));
       console.log('⚙️  Gemini Live API 설정 (CONFIG)');
       console.log('='.repeat(80));
-      console.log('🎤 음성:', voiceName, `(${gender})`);
-      console.log('⏱️  발화 속도:', config.speechConfig.speakingRate, 'x');
+      console.log('🎤 음성:', voiceName, `(${gender}, 랜덤 선택)`);
+      console.log('⏱️  발화 속도: 기본값 (1.0x)');
       console.log('🔊 응답 모달리티:', config.responseModalities.join(', '));
       console.log('📝 입력 음성 텍스트 변환: 활성화');
       console.log('📝 출력 음성 텍스트 변환: 활성화');
