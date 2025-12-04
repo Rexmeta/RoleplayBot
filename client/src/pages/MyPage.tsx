@@ -298,15 +298,21 @@ export default function MyPage() {
 
       {/* Main Content */}
       <main className="max-w-6xl mx-auto px-4 py-8">
-        <Tabs value={selectedView} onValueChange={(v) => setSelectedView(v as any)} className="space-y-6">
+        <Tabs value={selectedView} onValueChange={(v) => {
+          if (v === 'analytics') {
+            window.location.href = '/analytics';
+          } else {
+            setSelectedView(v as any);
+          }
+        }} className="space-y-6">
           <TabsList className="grid w-full grid-cols-2">
             <TabsTrigger value="history" className="flex items-center gap-2" data-testid="history-tab">
               <History className="w-4 h-4" />
               대화 기록
             </TabsTrigger>
-            <TabsTrigger value="stats" className="flex items-center gap-2" data-testid="stats-tab">
-              <TrendingUp className="w-4 h-4" />
-              학습 통계
+            <TabsTrigger value="analytics" className="flex items-center gap-2" data-testid="analytics-tab">
+              <BarChart3 className="w-4 h-4" />
+              종합 분석
             </TabsTrigger>
           </TabsList>
 
@@ -391,8 +397,8 @@ export default function MyPage() {
             </Card>
           </TabsContent>
 
-          {/* 학습 통계 탭 */}
-          <TabsContent value="stats" className="space-y-6">
+          {/* 종합 분석 탭 */}
+          <TabsContent value="analytics" className="space-y-6">
             <TooltipProvider>
               <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
                 <Card>
