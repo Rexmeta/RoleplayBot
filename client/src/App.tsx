@@ -12,6 +12,7 @@ import Analytics from "@/pages/Analytics";
 import AdminDashboard from "@/pages/admin-dashboard";
 import AdminManagement from "@/pages/admin-management";
 import AIGeneratorPage from "@/pages/ai-generator";
+import SystemAdminPage from "@/pages/system-admin";
 import ConversationView from "@/pages/ConversationView";
 import FeedbackView from "@/pages/FeedbackView";
 import NotFound from "@/pages/not-found";
@@ -50,6 +51,7 @@ function ProtectedRouter() {
       <Route path="/admin-dashboard" component={AdminDashboard} />
       <Route path="/admin-management" component={AdminManagement} />
       <Route path="/ai-generator" component={AIGeneratorPage} />
+      <Route path="/system-admin" component={SystemAdminPage} />
       <Route component={NotFound} />
     </Switch>
   );

@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { User, LogOut, History, Settings, BarChart3, UserCog } from "lucide-react";
+import { User, LogOut, History, Settings, BarChart3, UserCog, ShieldCheck } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -77,18 +77,29 @@ export function UserProfileMenu() {
             회원정보 수정
           </DropdownMenuItem>
           
+          {user?.role === 'admin' && (
+            <>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                onClick={() => window.location.href = '/system-admin'}
+                data-testid="menu-system-admin"
+              >
+                <ShieldCheck className="w-4 h-4 mr-2" />
+                시스템 관리자
+              </DropdownMenuItem>
+            </>
+          )}
+          
           {(user?.role === 'admin' || user?.role === 'operator') && (
             <>
               <DropdownMenuSeparator />
-              {user?.role === 'admin' && (
-                <DropdownMenuItem
-                  onClick={() => window.location.href = '/admin'}
-                  data-testid="menu-admin-dashboard"
-                >
-                  <BarChart3 className="w-4 h-4 mr-2" />
-                  운영자 대시보드
-                </DropdownMenuItem>
-              )}
+              <DropdownMenuItem
+                onClick={() => window.location.href = '/admin'}
+                data-testid="menu-admin-dashboard"
+              >
+                <BarChart3 className="w-4 h-4 mr-2" />
+                운영자 대시보드
+              </DropdownMenuItem>
               <DropdownMenuItem
                 onClick={() => window.location.href = '/admin-management'}
                 data-testid="menu-content-management"
