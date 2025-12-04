@@ -13,6 +13,9 @@ app.use(express.urlencoded({ extended: false, limit: '10mb' }));
 // scenarios/images 폴더의 이미지 파일들을 정적으로 제공 (보안상 images만 공개)
 app.use('/scenarios/images', express.static(pathModule.join(process.cwd(), 'scenarios', 'images')));
 
+// scenarios/videos 폴더의 영상 파일들을 정적으로 제공 (인트로 영상)
+app.use('/scenarios/videos', express.static(pathModule.join(process.cwd(), 'scenarios', 'videos')));
+
 // attached_assets/personas 폴더의 페르소나별 표정 이미지를 정적으로 제공
 app.use('/personas', express.static(pathModule.join(process.cwd(), 'attached_assets', 'personas')));
 

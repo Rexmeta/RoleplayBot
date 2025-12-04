@@ -5,6 +5,7 @@ import ChatWindow from "@/components/ChatWindow";
 import PersonalDevelopmentReport from "@/components/PersonalDevelopmentReport";
 import { SimplePersonaSelector } from "@/components/SimplePersonaSelector";
 import { StrategyReflection } from "@/components/StrategyReflection";
+import { VideoIntro } from "@/components/VideoIntro";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { type ComplexScenario, type ScenarioPersona, getComplexScenarioById, scenarioPersonas } from "@/lib/scenario-system";
@@ -13,7 +14,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { AppHeader } from "@/components/AppHeader";
 
-type ViewState = "scenarios" | "persona-selection" | "chat" | "strategy-reflection" | "strategy-result" | "feedback";
+type ViewState = "scenarios" | "persona-selection" | "video-intro" | "chat" | "strategy-reflection" | "strategy-result" | "feedback";
 
 export default function Home() {
   const { user } = useAuth();
@@ -291,13 +292,29 @@ export default function Home() {
       setSelectedPersona(persona);
       setConversationId(conversation.id);
       setScenarioRunId(conversation.scenarioRunId); // scenarioRunId 저장
-      setCurrentView("chat");
+      
+      // 시나리오에 인트로 영상이 있으면 영상 먼저 보여주기
+      if (selectedScenario.introVideoUrl) {
+        setCurrentView("video-intro");
+      } else {
+        setCurrentView("chat");
+      }
     } catch (error) {
       console.error("대화 생성 실패:", error);
     } finally {
       setIsCreatingConversation(false);
       setLoadingPersonaId(null);
     }
+  };
+
+  // 영상 인트로 완료 후 대화 시작
+  const handleVideoComplete = () => {
+    setCurrentView("chat");
+  };
+
+  // 영상 건너뛰기
+  const handleVideoSkip = () => {
+    setCurrentView("chat");
   };
 
   const handleChatComplete = () => {
@@ -752,6 +769,15 @@ export default function Home() {
           );
         })()}
         
+        {currentView === "video-intro" && selectedScenario && selectedScenario.introVideoUrl && (
+          <VideoIntro
+            videoSrc={selectedScenario.introVideoUrl}
+            scenarioTitle={selectedScenario.title}
+            onComplete={handleVideoComplete}
+            onSkip={handleVideoSkip}
+          />
+        )}
+
         {currentView === "chat" && selectedScenario && selectedPersona && conversationId && (
           <ChatWindow
             scenario={selectedScenario}

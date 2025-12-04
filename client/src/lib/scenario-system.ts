@@ -50,6 +50,7 @@ export interface ComplexScenario {
   image?: string; // 시나리오를 상징하는 이미지 URL
   imagePrompt?: string; // 이미지 생성 프롬프트
   categoryId?: string; // 시나리오 카테고리 ID
+  introVideoUrl?: string; // 대화 시작 전 보여줄 인트로 영상 URL
   context: {
     situation: string;
     timeline: string;
