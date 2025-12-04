@@ -1,13 +1,11 @@
 import { useState } from "react";
-import { Link } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Button } from "@/components/ui/button";
 import { ScenarioManager } from "@/components/admin/ScenarioManager";
 import { PersonaManager } from "@/components/admin/PersonaManager";
 import { AIScenarioGenerator } from "@/components/admin/AIScenarioGenerator";
 import { useAuth } from "@/hooks/useAuth";
-import { UserProfileMenu } from "@/components/UserProfileMenu";
+import { AppHeader } from "@/components/AppHeader";
 
 export default function AdminManagement() {
   const { user } = useAuth();
@@ -24,21 +22,12 @@ export default function AdminManagement() {
 
   return (
     <div className="min-h-screen bg-slate-50">
+      <AppHeader 
+        title="콘텐츠 관리"
+        subtitle="시나리오와 페르소나 생성 및 관리"
+        showBackButton
+      />
       <div className="container mx-auto p-6 space-y-6" data-testid="admin-management">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center space-x-4">
-            <Link href="/home" className="flex items-center space-x-2 text-corporate-600 hover:text-corporate-700" data-testid="back-to-home">
-              <i className="fas fa-arrow-left"></i>
-              <span className="text-sm">홈으로</span>
-            </Link>
-            <div className="border-l border-slate-300 pl-4">
-              <h1 className="text-3xl font-bold text-slate-900" data-testid="management-title">콘텐츠 관리</h1>
-              <p className="text-slate-600 mt-2">시나리오와 페르소나 생성 및 관리</p>
-            </div>
-          </div>
-          <UserProfileMenu />
-        </div>
-
         {/* Management Tabs */}
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
           <TabsList className="grid w-full grid-cols-3">

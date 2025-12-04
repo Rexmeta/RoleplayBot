@@ -1,11 +1,10 @@
 import { useQuery } from "@tanstack/react-query";
-import { Link } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from "recharts";
 import { useAuth } from "@/hooks/useAuth";
-import { UserProfileMenu } from "@/components/UserProfileMenu";
+import { AppHeader } from "@/components/AppHeader";
 
 // 마우스 오버 카드 설명 헬퍼
 const CardInfo = ({ title, description }: { title: string; description: string }) => (
@@ -211,21 +210,12 @@ export default function AdminDashboard() {
 
   return (
     <div className="min-h-screen bg-slate-50">
+      <AppHeader 
+        title="관리자 대시보드"
+        subtitle="교육 결과 분석 및 성과 현황"
+        showBackButton
+      />
       <div className="container mx-auto p-6 space-y-6" data-testid="admin-dashboard">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center space-x-4">
-          <Link href="/home" className="flex items-center space-x-2 text-corporate-600 hover:text-corporate-700" data-testid="back-to-home">
-            <i className="fas fa-arrow-left"></i>
-            <span className="text-sm">홈으로</span>
-          </Link>
-          <div className="border-l border-slate-300 pl-4">
-            <h1 className="text-3xl font-bold text-slate-900" data-testid="dashboard-title">관리자 대시보드</h1>
-            <p className="text-slate-600 mt-2">교육 결과 분석 및 성과 현황</p>
-          </div>
-        </div>
-        <UserProfileMenu />
-      </div>
-
       {/* Detailed Analytics */}
       <Tabs defaultValue="overview" className="space-y-6">
         <TabsList className="grid w-full grid-cols-6">

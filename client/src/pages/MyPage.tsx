@@ -9,10 +9,10 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Progress } from "@/components/ui/progress";
-import { CalendarDays, Star, TrendingUp, MessageSquare, Award, History, BarChart3, Target, Trash2, Loader2, HelpCircle, Lightbulb, CheckCircle, AlertCircle, ArrowRight, Minus, TrendingDown } from "lucide-react";
+import { CalendarDays, Star, TrendingUp, MessageSquare, Award, History, BarChart3, Target, Trash2, Loader2, HelpCircle, Lightbulb, CheckCircle, AlertCircle, ArrowRight, Minus, TrendingDown, Users } from "lucide-react";
 import { Link } from "wouter";
 import { useAuth } from "@/hooks/useAuth";
-import { UserProfileMenu } from "@/components/UserProfileMenu";
+import { AppHeader } from "@/components/AppHeader";
 import { type ScenarioRun, type PersonaRun, type Feedback } from "@shared/schema";
 import { format } from "date-fns";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -254,39 +254,22 @@ export default function MyPage() {
 
   return (
     <div className="min-h-screen bg-slate-50">
-      {/* Header */}
-      <header className="bg-white border-b border-slate-200">
-        <div className="max-w-6xl mx-auto px-4 py-6">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <img
-                src={`https://ui-avatars.com/api/?name=${encodeURIComponent(user.name || user.email || 'User')}&background=6366f1&color=fff&size=80`}
-                alt="프로필"
-                className="w-16 h-16 rounded-full object-cover"
-                data-testid="profile-image"
-              />
-              <div>
-                <h1 className="text-2xl font-bold text-slate-900" data-testid="user-name">
-                  {user.name || user.email?.split('@')[0] || '사용자'}님의 MyPage
-                </h1>
-                <p className="text-slate-600" data-testid="user-email">{user.email}</p>
-              </div>
-            </div>
-            <div className="flex gap-3">
-              <Button
-                onClick={() => window.location.href = '/home'}
-                variant="outline"
-                data-testid="scenario-list-button"
-                className="flex items-center gap-2"
-              >
-                <i className="fas fa-list"></i>
-                시나리오 리스트
-              </Button>
-              <UserProfileMenu />
-            </div>
-          </div>
-        </div>
-      </header>
+      <AppHeader 
+        variant="mypage"
+        userName={user.name || user.email?.split('@')[0] || '사용자'}
+        userEmail={user.email}
+        rightContent={
+          <Button
+            onClick={() => window.location.href = '/home'}
+            variant="outline"
+            data-testid="scenario-list-button"
+            className="flex items-center gap-2"
+          >
+            <i className="fas fa-list"></i>
+            시나리오 리스트
+          </Button>
+        }
+      />
 
       {/* Main Content */}
       <main className="max-w-6xl mx-auto px-4 py-8">
@@ -542,7 +525,7 @@ export default function MyPage() {
                               }, {})
                             )
                             .sort((a, b) => a[0].localeCompare(b[0]))
-                            .map(([_, data]) => {
+                            .map(([_, data]: [string, { date: string; scores: number[] }]) => {
                               const [year, month, day] = data.date.split('-');
                               return {
                                 date: `${month}.${day}`,

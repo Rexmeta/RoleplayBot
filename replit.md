@@ -65,3 +65,23 @@ Preferred communication style: Simple, everyday language.
 - **Database**: Drizzle ORM.
 - **Validation**: Zod.
 - **Development Tools**: Vite, TypeScript, Tailwind CSS.
+
+# Code Organization
+
+## Common Components
+- **AppHeader**: Reusable header component with title, subtitle, back button, and user profile menu
+- **UserProfileMenu**: User profile dropdown with navigation and logout functionality
+
+## Key Files
+- `client/src/components/AppHeader.tsx`: Common header component used across all pages
+- `client/src/components/UserProfileMenu.tsx`: User profile dropdown component
+- `client/src/pages/home.tsx`: Main landing page with scenario selection
+- `client/src/pages/MyPage.tsx`: User dashboard with conversation history and analytics tabs
+- `client/src/pages/admin-dashboard.tsx`: Admin analytics and performance monitoring
+- `client/src/pages/admin-management.tsx`: Content management for scenarios and personas
+
+## Recent Changes (December 2025)
+- Extracted AppHeader and UserProfileMenu as shared components to eliminate code duplication across 4 pages
+- Removed unused legacy files: Header.tsx, StrategicPersonaSelector.tsx, FeedbackReport.tsx, scenarios.ts, authUtils.ts, dynamic-situation-manager.ts, sequence-analyzer.ts, assets folder
+- Unified UI terminology: "MBTI 페르소나" → "페르소나"
+- Standardized session display format: "완료한세션/전체세션"

@@ -11,7 +11,7 @@ import { type ComplexScenario, type ScenarioPersona, getComplexScenarioById, sce
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
-import { UserProfileMenu } from "@/components/UserProfileMenu";
+import { AppHeader } from "@/components/AppHeader";
 
 type ViewState = "scenarios" | "persona-selection" | "chat" | "strategy-reflection" | "strategy-result" | "feedback";
 
@@ -383,34 +383,14 @@ export default function Home() {
 
   return (
     <div className="min-h-screen bg-slate-50">
-      {/* Header */}
-      <header className="bg-white border-b border-slate-200 sticky top-0 z-10">
-        <div className="max-w-6xl mx-auto px-4 py-4">
-          <div className="flex items-center justify-between">
-            <button 
-              onClick={() => {
-                setCurrentView('scenarios');
-                setSelectedScenario(null);
-                setSelectedPersona(null);
-                setConversationId(null);
-              }}
-              className="flex items-center space-x-3 hover:opacity-80 transition-opacity cursor-pointer bg-transparent border-none" 
-              data-testid="home-link"
-            >
-              <div className="w-10 h-10 bg-corporate-600 rounded-lg flex items-center justify-center">
-                <i className="fas fa-robot text-white text-lg"></i>
-              </div>
-              <div>
-                <h1 className="text-xl font-bold text-slate-900">🎭 Roleplay X</h1>
-                <p className="text-sm text-slate-600">커뮤니케이션 역량 개발</p>
-              </div>
-            </button>
-            <div className="flex items-center space-x-2">
-              <UserProfileMenu />
-            </div>
-          </div>
-        </div>
-      </header>
+      <AppHeader 
+        onLogoClick={() => {
+          setCurrentView('scenarios');
+          setSelectedScenario(null);
+          setSelectedPersona(null);
+          setConversationId(null);
+        }}
+      />
       {/* Main Content */}
       <main className={`${currentView === "scenarios" ? "py-8 bg-slate-50" : "max-w-6xl mx-auto px-4 py-8"}`}>
         {currentView === "scenarios" && (
