@@ -24,6 +24,23 @@ export class OptimizedGeminiProvider implements AIServiceInterface {
     this.globalCache = GlobalMBTICache.getInstance();
   }
 
+  /**
+   * 현재 사용 중인 모델명 반환
+   */
+  getModel(): string {
+    return this.model;
+  }
+
+  /**
+   * 모델을 동적으로 변경 (시스템 설정에서 변경 시 사용)
+   */
+  setModel(model: string): void {
+    if (model && model !== this.model) {
+      console.log(`🔄 AI Model changed: ${this.model} → ${model}`);
+      this.model = model;
+    }
+  }
+
   async generateResponse(
     scenario: any, 
     messages: ConversationMessage[], 

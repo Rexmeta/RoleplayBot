@@ -2,7 +2,7 @@
 // 새로운 AI 서비스 사용을 위해서는 aiServiceFactory.ts를 사용하세요
 
 import { GoogleGenAI } from "@google/genai";
-import { getAIService } from "./aiServiceFactory";
+import { getAIService, syncModelFromSettings, getCurrentModel } from "./aiServiceFactory";
 import { emotionEmojis } from "./aiService";
 import type { ConversationMessage, DetailedFeedback, SequenceAnalysis } from "@shared/schema";
 import type { ScenarioPersona } from "./aiService";
@@ -18,6 +18,10 @@ export async function generateAIResponse(
   persona: ScenarioPersona,
   userMessage?: string
 ): Promise<{ content: string; emotion: string; emotionReason: string }> {
+  // DB 설정에서 최신 모델 동기화
+  await syncModelFromSettings();
+  console.log(`🤖 Using AI model: ${getCurrentModel()}`);
+  
   const aiService = getAIService();
   return aiService.generateResponse(scenario, messages, persona, userMessage);
 }
@@ -28,6 +32,10 @@ export async function generateFeedback(
   persona: ScenarioPersona,
   conversation?: Partial<import("@shared/schema").Conversation>
 ): Promise<DetailedFeedback> {
+  // DB 설정에서 최신 모델 동기화
+  await syncModelFromSettings();
+  console.log(`📊 Generating feedback with model: ${getCurrentModel()}`);
+  
   const aiService = getAIService();
   return aiService.generateFeedback(scenario, messages, persona, conversation);
 }

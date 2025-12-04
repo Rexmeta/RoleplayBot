@@ -33,7 +33,7 @@ import {
 import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { Search, Users, Shield, UserCog, Loader2, User, KeyRound, Eye, EyeOff, FolderTree, Plus, Pencil, Trash2, GripVertical, Settings, Save, RotateCcw } from "lucide-react";
+import { Search, Users, Shield, UserCog, Loader2, User, KeyRound, Eye, EyeOff, FolderTree, Plus, Pencil, Trash2, GripVertical, Settings, Save, CheckCircle, XCircle, ExternalLink } from "lucide-react";
 import { format } from "date-fns";
 import { ko } from "date-fns/locale";
 
@@ -71,24 +71,16 @@ interface SystemSetting {
   updatedAt: string;
 }
 
-const SETTING_CATEGORIES = {
-  ai: { label: "AI 모델 설정", description: "AI 응답 생성 및 대화 관련 설정" },
-  evaluation: { label: "평가 시스템", description: "사용자 응답 평가 기준 및 점수 계산" },
-  conversation: { label: "대화 기본 설정", description: "대화 턴 수, 시간 제한 등" },
-  voice: { label: "음성 설정", description: "TTS 및 실시간 음성 관련 설정" },
-};
-
-const DEFAULT_SETTINGS: { category: string; key: string; value: string; description: string }[] = [
-  { category: "ai", key: "model", value: "gemini-2.5-flash", description: "AI 대화에 사용할 모델 (gemini-2.5-flash, gemini-2.5-pro)" },
-  { category: "ai", key: "temperature", value: "0.7", description: "AI 응답의 창의성 정도 (0.0 ~ 1.0)" },
-  { category: "ai", key: "maxTokens", value: "2048", description: "AI 응답의 최대 토큰 수" },
-  { category: "evaluation", key: "minPassingScore", value: "60", description: "합격 기준 점수 (0 ~ 100, C등급 기준)" },
-  { category: "evaluation", key: "evaluationCategories", value: "명확성&논리성,경청&공감,적절성&상황대응,설득력&영향력,전략적커뮤니케이션", description: "평가 항목 (쉼표로 구분)" },
-  { category: "conversation", key: "maxTurns", value: "10", description: "대화당 최대 턴 수" },
-  { category: "conversation", key: "idleTimeout", value: "5", description: "유휴 시간 제한 (분, 대화 중단으로 간주)" },
-  { category: "voice", key: "ttsProvider", value: "elevenlabs", description: "TTS 서비스 제공자 (elevenlabs, openai)" },
-  { category: "voice", key: "speechRate", value: "1.0", description: "음성 속도 (0.5 ~ 2.0)" },
+const AI_MODELS = [
+  { value: "gemini-2.5-flash", label: "Gemini 2.5 Flash", description: "빠른 응답 속도, 일반 대화용" },
+  { value: "gemini-2.5-pro", label: "Gemini 2.5 Pro", description: "높은 품질, 복잡한 대화용" },
 ];
+
+interface ApiKeyStatus {
+  gemini: boolean;
+  openai: boolean;
+  elevenlabs: boolean;
+}
 
 const roleConfig: Record<string, { label: string; color: string; bgColor: string }> = {
   admin: { label: "시스템관리자", color: "text-red-700", bgColor: "bg-red-100" },
@@ -134,7 +126,7 @@ export default function SystemAdminPage() {
   const [deletingCategory, setDeletingCategory] = useState<Category | null>(null);
 
   // System settings state
-  const [settingsFormData, setSettingsFormData] = useState<Record<string, string>>({});
+  const [selectedModel, setSelectedModel] = useState<string>("gemini-2.5-flash");
   const [hasSettingsChanges, setHasSettingsChanges] = useState(false);
 
   const { data: users = [], isLoading: usersLoading } = useQuery<UserData[]>({
@@ -145,8 +137,12 @@ export default function SystemAdminPage() {
     queryKey: ["/api/categories"],
   });
 
-  const { data: systemSettings = [], isLoading: settingsLoading, refetch: refetchSettings } = useQuery<SystemSetting[]>({
+  const { data: systemSettings = [], isLoading: settingsLoading } = useQuery<SystemSetting[]>({
     queryKey: ["/api/system-admin/settings"],
+  });
+
+  const { data: apiKeyStatus, isLoading: apiKeyStatusLoading } = useQuery<ApiKeyStatus>({
+    queryKey: ["/api/system-admin/api-keys-status"],
   });
 
   const updateUserMutation = useMutation({
@@ -257,13 +253,13 @@ export default function SystemAdminPage() {
   });
 
   const saveSettingsMutation = useMutation({
-    mutationFn: async (settings: { category: string; key: string; value: string; description?: string }[]) => {
-      return await apiRequest("PUT", "/api/system-admin/settings/batch", { settings });
+    mutationFn: async (setting: { category: string; key: string; value: string; description?: string }) => {
+      return await apiRequest("PUT", "/api/system-admin/settings", setting);
     },
     onSuccess: () => {
       toast({
         title: "저장 완료",
-        description: "시스템 설정이 저장되었습니다.",
+        description: "AI 모델 설정이 저장되었습니다.",
       });
       queryClient.invalidateQueries({ queryKey: ["/api/system-admin/settings"] });
       setHasSettingsChanges(false);
@@ -271,62 +267,34 @@ export default function SystemAdminPage() {
     onError: (error: any) => {
       toast({
         title: "저장 실패",
-        description: error.message || "시스템 설정 저장에 실패했습니다.",
+        description: error.message || "설정 저장에 실패했습니다.",
         variant: "destructive",
       });
     },
   });
 
-  // Initialize settings form data when settings are loaded
-  const initializeSettingsForm = () => {
-    const formData: Record<string, string> = {};
-    
-    // First, set default values
-    DEFAULT_SETTINGS.forEach(setting => {
-      formData[`${setting.category}.${setting.key}`] = setting.value;
-    });
-    
-    // Then, override with saved values from database
-    systemSettings.forEach(setting => {
-      formData[`${setting.category}.${setting.key}`] = setting.value;
-    });
-    
-    setSettingsFormData(formData);
-    setHasSettingsChanges(false);
-  };
-
-  const handleSettingChange = (category: string, key: string, value: string) => {
-    setSettingsFormData(prev => ({
-      ...prev,
-      [`${category}.${key}`]: value,
-    }));
+  const handleModelChange = (value: string) => {
+    setSelectedModel(value);
     setHasSettingsChanges(true);
   };
 
   const handleSaveSettings = () => {
-    const settings = Object.entries(settingsFormData).map(([fullKey, value]) => {
-      const [category, key] = fullKey.split(".");
-      const defaultSetting = DEFAULT_SETTINGS.find(s => s.category === category && s.key === key);
-      return {
-        category,
-        key,
-        value,
-        description: defaultSetting?.description,
-      };
+    saveSettingsMutation.mutate({
+      category: "ai",
+      key: "model",
+      value: selectedModel,
+      description: "AI 대화에 사용할 모델",
     });
-    saveSettingsMutation.mutate(settings);
   };
 
-  const handleResetSettings = () => {
-    initializeSettingsForm();
-  };
-
-  // Initialize settings form when data is loaded
+  // Initialize model from saved settings
   useEffect(() => {
-    if (systemSettings.length > 0 || !settingsLoading) {
-      initializeSettingsForm();
+    const savedModel = systemSettings.find(s => s.category === "ai" && s.key === "model");
+    if (savedModel) {
+      setSelectedModel(savedModel.value);
     }
-  }, [systemSettings, settingsLoading]);
+    setHasSettingsChanges(false);
+  }, [systemSettings]);
 
   const filteredUsers = users.filter((user) => {
     const matchesSearch =
@@ -748,84 +716,146 @@ export default function SystemAdminPage() {
 
           <TabsContent value="settings" className="space-y-6 mt-6">
             <Card>
-              <CardHeader className="flex flex-row items-center justify-between">
-                <div>
-                  <CardTitle>시스템 설정</CardTitle>
-                  <p className="text-sm text-muted-foreground mt-1">
-                    AI 모델, 평가 기준, 대화 및 음성 설정을 관리합니다.
-                  </p>
-                </div>
-                <div className="flex gap-2">
-                  <Button
-                    variant="outline"
-                    onClick={handleResetSettings}
-                    disabled={!hasSettingsChanges || saveSettingsMutation.isPending}
-                    data-testid="button-reset-settings"
-                  >
-                    <RotateCcw className="h-4 w-4 mr-2" />
-                    초기화
-                  </Button>
-                  <Button
-                    onClick={handleSaveSettings}
-                    disabled={!hasSettingsChanges || saveSettingsMutation.isPending}
-                    data-testid="button-save-settings"
-                  >
-                    {saveSettingsMutation.isPending ? (
-                      <>
-                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                        저장 중...
-                      </>
-                    ) : (
-                      <>
-                        <Save className="h-4 w-4 mr-2" />
-                        저장
-                      </>
-                    )}
-                  </Button>
-                </div>
+              <CardHeader>
+                <CardTitle>AI 모델 설정</CardTitle>
+                <p className="text-sm text-muted-foreground">
+                  대화 생성에 사용할 AI 모델을 선택합니다.
+                </p>
               </CardHeader>
               <CardContent>
                 {settingsLoading ? (
-                  <div className="flex items-center justify-center py-12">
-                    <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+                  <div className="flex items-center justify-center py-8">
+                    <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
                   </div>
                 ) : (
-                  <div className="space-y-8">
-                    {Object.entries(SETTING_CATEGORIES).map(([categoryKey, categoryInfo]) => (
-                      <div key={categoryKey} className="space-y-4">
-                        <div className="border-b pb-2">
-                          <h3 className="font-semibold text-lg">{categoryInfo.label}</h3>
-                          <p className="text-sm text-muted-foreground">{categoryInfo.description}</p>
-                        </div>
-                        <div className="grid gap-4">
-                          {DEFAULT_SETTINGS.filter(s => s.category === categoryKey).map(setting => (
-                            <div key={`${setting.category}-${setting.key}`} className="grid grid-cols-1 md:grid-cols-3 gap-4 items-start p-4 bg-slate-50 rounded-lg">
-                              <div className="space-y-1">
-                                <label className="text-sm font-medium">{setting.key}</label>
-                                <p className="text-xs text-muted-foreground">{setting.description}</p>
-                              </div>
-                              <div className="md:col-span-2">
-                                <Input
-                                  value={settingsFormData[`${setting.category}.${setting.key}`] || setting.value}
-                                  onChange={(e) => handleSettingChange(setting.category, setting.key, e.target.value)}
-                                  data-testid={`input-setting-${setting.category}-${setting.key}`}
-                                />
-                              </div>
+                  <div className="space-y-4">
+                    <div className="space-y-3">
+                      {AI_MODELS.map((model) => (
+                        <div
+                          key={model.value}
+                          className={`p-4 border rounded-lg cursor-pointer transition-colors ${
+                            selectedModel === model.value
+                              ? "border-blue-500 bg-blue-50"
+                              : "border-gray-200 hover:border-gray-300"
+                          }`}
+                          onClick={() => handleModelChange(model.value)}
+                          data-testid={`model-option-${model.value}`}
+                        >
+                          <div className="flex items-center gap-3">
+                            <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${
+                              selectedModel === model.value ? "border-blue-500" : "border-gray-300"
+                            }`}>
+                              {selectedModel === model.value && (
+                                <div className="w-2 h-2 rounded-full bg-blue-500" />
+                              )}
                             </div>
-                          ))}
+                            <div>
+                              <p className="font-medium">{model.label}</p>
+                              <p className="text-sm text-muted-foreground">{model.description}</p>
+                            </div>
+                          </div>
                         </div>
-                      </div>
-                    ))}
+                      ))}
+                    </div>
+                    
+                    <Button
+                      onClick={handleSaveSettings}
+                      disabled={!hasSettingsChanges || saveSettingsMutation.isPending}
+                      className="mt-4"
+                      data-testid="button-save-settings"
+                    >
+                      {saveSettingsMutation.isPending ? (
+                        <>
+                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                          저장 중...
+                        </>
+                      ) : (
+                        <>
+                          <Save className="h-4 w-4 mr-2" />
+                          저장
+                        </>
+                      )}
+                    </Button>
                   </div>
                 )}
               </CardContent>
             </Card>
 
-            {hasSettingsChanges && (
-              <div className="fixed bottom-6 right-6 bg-amber-100 text-amber-800 px-4 py-2 rounded-lg shadow-lg flex items-center gap-2">
-                <span className="text-sm">저장되지 않은 변경사항이 있습니다.</span>
-              </div>
-            )}
+            <Card>
+              <CardHeader>
+                <CardTitle>API Key 상태</CardTitle>
+                <p className="text-sm text-muted-foreground">
+                  외부 서비스 연동에 필요한 API Key 설정 상태입니다.
+                </p>
+              </CardHeader>
+              <CardContent>
+                {apiKeyStatusLoading ? (
+                  <div className="flex items-center justify-center py-8">
+                    <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between p-3 bg-slate-50 rounded-lg">
+                      <div className="flex items-center gap-3">
+                        {apiKeyStatus?.gemini ? (
+                          <CheckCircle className="h-5 w-5 text-green-600" />
+                        ) : (
+                          <XCircle className="h-5 w-5 text-red-500" />
+                        )}
+                        <div>
+                          <p className="font-medium">Google Gemini API</p>
+                          <p className="text-sm text-muted-foreground">AI 대화 생성에 사용</p>
+                        </div>
+                      </div>
+                      <Badge variant={apiKeyStatus?.gemini ? "default" : "destructive"}>
+                        {apiKeyStatus?.gemini ? "설정됨" : "미설정"}
+                      </Badge>
+                    </div>
+
+                    <div className="flex items-center justify-between p-3 bg-slate-50 rounded-lg">
+                      <div className="flex items-center gap-3">
+                        {apiKeyStatus?.openai ? (
+                          <CheckCircle className="h-5 w-5 text-green-600" />
+                        ) : (
+                          <XCircle className="h-5 w-5 text-red-500" />
+                        )}
+                        <div>
+                          <p className="font-medium">OpenAI API</p>
+                          <p className="text-sm text-muted-foreground">실시간 음성 대화에 사용</p>
+                        </div>
+                      </div>
+                      <Badge variant={apiKeyStatus?.openai ? "default" : "destructive"}>
+                        {apiKeyStatus?.openai ? "설정됨" : "미설정"}
+                      </Badge>
+                    </div>
+
+                    <div className="flex items-center justify-between p-3 bg-slate-50 rounded-lg">
+                      <div className="flex items-center gap-3">
+                        {apiKeyStatus?.elevenlabs ? (
+                          <CheckCircle className="h-5 w-5 text-green-600" />
+                        ) : (
+                          <XCircle className="h-5 w-5 text-red-500" />
+                        )}
+                        <div>
+                          <p className="font-medium">ElevenLabs API</p>
+                          <p className="text-sm text-muted-foreground">TTS 음성 합성에 사용</p>
+                        </div>
+                      </div>
+                      <Badge variant={apiKeyStatus?.elevenlabs ? "default" : "destructive"}>
+                        {apiKeyStatus?.elevenlabs ? "설정됨" : "미설정"}
+                      </Badge>
+                    </div>
+
+                    <div className="mt-4 p-3 bg-amber-50 border border-amber-200 rounded-lg">
+                      <p className="text-sm text-amber-800">
+                        API Key는 보안을 위해 Secrets 탭에서 관리됩니다. 
+                        변경이 필요한 경우 Replit의 Secrets 메뉴를 이용해 주세요.
+                      </p>
+                    </div>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
           </TabsContent>
         </Tabs>
       </div>

@@ -18,6 +18,10 @@ export interface AIServiceInterface {
     persona: ScenarioPersona,
     conversation?: Partial<Conversation>
   ): Promise<DetailedFeedback>;
+
+  // 모델 동적 변경 지원 (선택적)
+  getModel?(): string;
+  setModel?(model: string): void;
 }
 
 export interface ScenarioPersona {

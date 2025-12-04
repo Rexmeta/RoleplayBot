@@ -3188,6 +3188,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // API Key 상태 확인 (값은 반환하지 않고 설정 여부만 확인)
+  app.get("/api/system-admin/api-keys-status", isAuthenticated, isSystemAdmin, async (req, res) => {
+    try {
+      const status = {
+        gemini: !!process.env.GEMINI_API_KEY,
+        openai: !!process.env.OPENAI_API_KEY,
+        elevenlabs: !!process.env.ELEVENLABS_API_KEY,
+      };
+      res.json(status);
+    } catch (error: any) {
+      console.error("Error checking API keys status:", error);
+      res.status(500).json({ error: error.message || "Failed to check API keys status" });
+    }
+  });
+
   // TTS routes
   app.use("/api/tts", ttsRoutes);
 

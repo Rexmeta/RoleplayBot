@@ -3,6 +3,7 @@ import { getAIServiceConfig } from "./aiService";
 import { OptimizedGeminiProvider } from "./providers/optimizedGeminiProvider";
 import { OpenAIProvider } from "./providers/openaiProvider";
 import { CustomProvider } from "./providers/customProvider";
+import { storage } from "../storage";
 
 /**
  * AI 서비스 팩토리
@@ -79,4 +80,31 @@ export class AIServiceFactory {
  */
 export function getAIService(): AIServiceInterface {
   return AIServiceFactory.getInstance();
+}
+
+/**
+ * DB 시스템 설정에서 AI 모델 설정을 읽어와 서비스에 적용
+ * 대화 시작 전에 호출하여 최신 설정 반영
+ */
+export async function syncModelFromSettings(): Promise<void> {
+  try {
+    const modelSetting = await storage.getSystemSetting("ai", "model");
+    if (modelSetting?.value) {
+      const service = AIServiceFactory.getInstance();
+      if (service.setModel) {
+        service.setModel(modelSetting.value);
+      }
+    }
+  } catch (error) {
+    console.error("Failed to sync AI model from settings:", error);
+    // 실패해도 기본 모델 사용하므로 에러 무시
+  }
+}
+
+/**
+ * 현재 사용 중인 AI 모델명 반환
+ */
+export function getCurrentModel(): string {
+  const service = AIServiceFactory.getInstance();
+  return service.getModel?.() || 'gemini-2.5-flash';
 }
