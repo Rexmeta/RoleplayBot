@@ -2784,6 +2784,101 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // ==========================================
+  // System Admin API (시스템 관리자 전용)
+  // ==========================================
+  
+  // 시스템 관리자 권한 확인 미들웨어
+  const isSystemAdmin = (req: any, res: any, next: any) => {
+    // @ts-ignore - req.user는 auth 미들웨어에서 설정됨
+    if (!req.user || req.user.role !== 'admin') {
+      return res.status(403).json({ error: "Access denied. System admin only." });
+    }
+    next();
+  };
+
+  // 전체 사용자 목록 조회 (시스템 관리자 전용)
+  app.get("/api/system-admin/users", isAuthenticated, isSystemAdmin, async (req, res) => {
+    try {
+      const allUsers = await storage.getAllUsers();
+      
+      // 비밀번호 제외한 사용자 정보 반환
+      const usersWithoutPassword = allUsers.map(user => ({
+        id: user.id,
+        email: user.email,
+        name: user.name,
+        role: user.role,
+        tier: user.tier,
+        isActive: user.isActive ?? true,
+        profileImage: user.profileImage,
+        lastLoginAt: user.lastLoginAt,
+        createdAt: user.createdAt,
+        updatedAt: user.updatedAt,
+      }));
+      
+      res.json(usersWithoutPassword);
+    } catch (error: any) {
+      console.error("Error fetching all users:", error);
+      res.status(500).json({ error: error.message || "Failed to fetch users" });
+    }
+  });
+
+  // 사용자 정보 수정 (역할/등급/활성화 상태 - 시스템 관리자 전용)
+  app.patch("/api/system-admin/users/:id", isAuthenticated, isSystemAdmin, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { role, tier, isActive } = req.body;
+      
+      // 자기 자신의 역할 변경 방지 (안전장치)
+      // @ts-ignore
+      if (id === req.user?.id && role && role !== 'admin') {
+        return res.status(400).json({ error: "Cannot change your own admin role" });
+      }
+      
+      const updates: { role?: string; tier?: string; isActive?: boolean } = {};
+      
+      if (role !== undefined) {
+        if (!['admin', 'operator', 'user'].includes(role)) {
+          return res.status(400).json({ error: "Invalid role. Must be admin, operator, or user" });
+        }
+        updates.role = role;
+      }
+      
+      if (tier !== undefined) {
+        if (!['bronze', 'silver', 'gold', 'platinum', 'diamond'].includes(tier)) {
+          return res.status(400).json({ error: "Invalid tier" });
+        }
+        updates.tier = tier;
+      }
+      
+      if (isActive !== undefined) {
+        updates.isActive = isActive;
+      }
+      
+      if (Object.keys(updates).length === 0) {
+        return res.status(400).json({ error: "No valid updates provided" });
+      }
+      
+      const updatedUser = await storage.adminUpdateUser(id, updates);
+      
+      res.json({
+        id: updatedUser.id,
+        email: updatedUser.email,
+        name: updatedUser.name,
+        role: updatedUser.role,
+        tier: updatedUser.tier,
+        isActive: updatedUser.isActive ?? true,
+        profileImage: updatedUser.profileImage,
+        lastLoginAt: updatedUser.lastLoginAt,
+        createdAt: updatedUser.createdAt,
+        updatedAt: updatedUser.updatedAt,
+      });
+    } catch (error: any) {
+      console.error("Error updating user:", error);
+      res.status(500).json({ error: error.message || "Failed to update user" });
+    }
+  });
+
   // TTS routes
   app.use("/api/tts", ttsRoutes);
 
