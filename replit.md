@@ -147,7 +147,33 @@ Preferred communication style: Simple, everyday language.
   - Keys managed via Replit Secrets tab
 - **UI**: System admin page → "시스템 설정" tab with per-feature AI model selectors and API key status cards
 
+## AI Usage Tracking (System Admin)
+- **Database Table**: `ai_usage_logs` - stores AI API usage data for cost tracking
+- **Tracked Metrics**:
+  - Feature (conversation, feedback, strategy, scenario, realtime, image)
+  - Model and provider (Gemini, OpenAI, Anthropic)
+  - Token usage (prompt, completion, total)
+  - Cost in USD (calculated based on model pricing)
+  - Duration, user ID, conversation ID, request ID
+- **Automatic Tracking**:
+  - aiUsageTracker service calculates costs based on model pricing
+  - Fire-and-forget logging to avoid impacting API response times
+  - Integrated into OptimizedGeminiProvider and OpenAIProvider
+- **API Endpoints** (admin only):
+  - GET `/api/system-admin/ai-usage/summary` - Aggregate usage summary
+  - GET `/api/system-admin/ai-usage/by-feature` - Usage breakdown by feature
+  - GET `/api/system-admin/ai-usage/by-model` - Usage breakdown by model
+  - GET `/api/system-admin/ai-usage/daily` - Daily usage timeline
+  - GET `/api/system-admin/ai-usage/logs` - Detailed usage logs
+- **UI**: System admin page → "AI 사용량" tab with:
+  - Date range filter (7/30/90 days presets)
+  - Summary cards (requests, tokens, cost, avg cost per request)
+  - Feature usage table
+  - Model usage table
+  - Daily usage table
+
 ## Recent Changes (December 2025)
+- Added AI usage tracking system for monitoring token usage and costs
 - Added system settings management feature for configurable system parameters
 - Added system admin page with user management functionality
 - Extended users table with isActive and lastLoginAt fields

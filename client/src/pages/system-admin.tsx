@@ -33,7 +33,7 @@ import {
 import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { Search, Users, Shield, UserCog, Loader2, User, KeyRound, Eye, EyeOff, FolderTree, Plus, Pencil, Trash2, GripVertical, Settings, Save, CheckCircle, XCircle, ExternalLink } from "lucide-react";
+import { Search, Users, Shield, UserCog, Loader2, User, KeyRound, Eye, EyeOff, FolderTree, Plus, Pencil, Trash2, GripVertical, Settings, Save, CheckCircle, XCircle, ExternalLink, Activity, DollarSign, Zap, TrendingUp, Calendar } from "lucide-react";
 import { format } from "date-fns";
 import { ko } from "date-fns/locale";
 
@@ -69,6 +69,36 @@ interface SystemSetting {
   updatedBy: string | null;
   createdAt: string;
   updatedAt: string;
+}
+
+interface AiUsageSummary {
+  totalTokens: number;
+  promptTokens: number;
+  completionTokens: number;
+  totalCostUsd: number;
+  requestCount: number;
+}
+
+interface AiUsageByFeature {
+  feature: string;
+  totalTokens: number;
+  totalCostUsd: number;
+  requestCount: number;
+}
+
+interface AiUsageByModel {
+  model: string;
+  provider: string;
+  totalTokens: number;
+  totalCostUsd: number;
+  requestCount: number;
+}
+
+interface AiUsageDaily {
+  date: string;
+  totalTokens: number;
+  totalCostUsd: number;
+  requestCount: number;
 }
 
 const AI_MODELS = [
@@ -271,6 +301,77 @@ export default function SystemAdminPage() {
 
   const { data: apiKeyStatus, isLoading: apiKeyStatusLoading } = useQuery<ApiKeyStatus>({
     queryKey: ["/api/system-admin/api-keys-status"],
+  });
+
+  // AI Usage state and queries
+  const [usageDateRange, setUsageDateRange] = useState(() => {
+    const end = new Date();
+    const start = new Date(end.getTime() - 30 * 24 * 60 * 60 * 1000); // Last 30 days
+    return { start: start.toISOString().split('T')[0], end: end.toISOString().split('T')[0] };
+  });
+
+  const { data: usageSummary, isLoading: usageSummaryLoading } = useQuery<AiUsageSummary>({
+    queryKey: ["/api/system-admin/ai-usage/summary", usageDateRange],
+    queryFn: async () => {
+      const params = new URLSearchParams({
+        startDate: usageDateRange.start,
+        endDate: usageDateRange.end,
+      });
+      const res = await fetch(`/api/system-admin/ai-usage/summary?${params}`, {
+        headers: { Authorization: `Bearer ${localStorage.getItem('authToken')}` }
+      });
+      if (!res.ok) throw new Error('Failed to fetch usage summary');
+      return res.json();
+    },
+    enabled: activeTab === 'ai-usage',
+  });
+
+  const { data: usageByFeature = [], isLoading: usageByFeatureLoading } = useQuery<AiUsageByFeature[]>({
+    queryKey: ["/api/system-admin/ai-usage/by-feature", usageDateRange],
+    queryFn: async () => {
+      const params = new URLSearchParams({
+        startDate: usageDateRange.start,
+        endDate: usageDateRange.end,
+      });
+      const res = await fetch(`/api/system-admin/ai-usage/by-feature?${params}`, {
+        headers: { Authorization: `Bearer ${localStorage.getItem('authToken')}` }
+      });
+      if (!res.ok) throw new Error('Failed to fetch usage by feature');
+      return res.json();
+    },
+    enabled: activeTab === 'ai-usage',
+  });
+
+  const { data: usageByModel = [], isLoading: usageByModelLoading } = useQuery<AiUsageByModel[]>({
+    queryKey: ["/api/system-admin/ai-usage/by-model", usageDateRange],
+    queryFn: async () => {
+      const params = new URLSearchParams({
+        startDate: usageDateRange.start,
+        endDate: usageDateRange.end,
+      });
+      const res = await fetch(`/api/system-admin/ai-usage/by-model?${params}`, {
+        headers: { Authorization: `Bearer ${localStorage.getItem('authToken')}` }
+      });
+      if (!res.ok) throw new Error('Failed to fetch usage by model');
+      return res.json();
+    },
+    enabled: activeTab === 'ai-usage',
+  });
+
+  const { data: dailyUsage = [], isLoading: dailyUsageLoading } = useQuery<AiUsageDaily[]>({
+    queryKey: ["/api/system-admin/ai-usage/daily", usageDateRange],
+    queryFn: async () => {
+      const params = new URLSearchParams({
+        startDate: usageDateRange.start,
+        endDate: usageDateRange.end,
+      });
+      const res = await fetch(`/api/system-admin/ai-usage/daily?${params}`, {
+        headers: { Authorization: `Bearer ${localStorage.getItem('authToken')}` }
+      });
+      if (!res.ok) throw new Error('Failed to fetch daily usage');
+      return res.json();
+    },
+    enabled: activeTab === 'ai-usage',
   });
 
   const updateUserMutation = useMutation({
@@ -554,7 +655,7 @@ export default function SystemAdminPage() {
 
       <div className="container mx-auto p-6 space-y-6" data-testid="system-admin-page">
         <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <TabsList className="grid w-full max-w-2xl grid-cols-3">
+          <TabsList className="grid w-full max-w-3xl grid-cols-4">
             <TabsTrigger value="users" className="flex items-center gap-2" data-testid="tab-users">
               <Users className="h-4 w-4" />
               사용자 관리
@@ -566,6 +667,10 @@ export default function SystemAdminPage() {
             <TabsTrigger value="settings" className="flex items-center gap-2" data-testid="tab-settings">
               <Settings className="h-4 w-4" />
               시스템 설정
+            </TabsTrigger>
+            <TabsTrigger value="ai-usage" className="flex items-center gap-2" data-testid="tab-ai-usage">
+              <Activity className="h-4 w-4" />
+              AI 사용량
             </TabsTrigger>
           </TabsList>
 
@@ -1146,6 +1251,309 @@ export default function SystemAdminPage() {
                         변경이 필요한 경우 Replit의 Secrets 메뉴를 이용해 주세요.
                       </p>
                     </div>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* AI Usage Tab */}
+          <TabsContent value="ai-usage" className="space-y-6 mt-6">
+            {/* Date Range Filter */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Calendar className="h-5 w-5" />
+                  조회 기간
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="flex flex-wrap gap-4 items-center">
+                  <div className="flex items-center gap-2">
+                    <label className="text-sm font-medium">시작일</label>
+                    <Input
+                      type="date"
+                      value={usageDateRange.start}
+                      onChange={(e) => setUsageDateRange(prev => ({ ...prev, start: e.target.value }))}
+                      className="w-40"
+                      data-testid="input-usage-start-date"
+                    />
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <label className="text-sm font-medium">종료일</label>
+                    <Input
+                      type="date"
+                      value={usageDateRange.end}
+                      onChange={(e) => setUsageDateRange(prev => ({ ...prev, end: e.target.value }))}
+                      className="w-40"
+                      data-testid="input-usage-end-date"
+                    />
+                  </div>
+                  <div className="flex gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        const end = new Date();
+                        const start = new Date(end.getTime() - 7 * 24 * 60 * 60 * 1000);
+                        setUsageDateRange({
+                          start: start.toISOString().split('T')[0],
+                          end: end.toISOString().split('T')[0]
+                        });
+                      }}
+                      data-testid="button-usage-7days"
+                    >
+                      최근 7일
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        const end = new Date();
+                        const start = new Date(end.getTime() - 30 * 24 * 60 * 60 * 1000);
+                        setUsageDateRange({
+                          start: start.toISOString().split('T')[0],
+                          end: end.toISOString().split('T')[0]
+                        });
+                      }}
+                      data-testid="button-usage-30days"
+                    >
+                      최근 30일
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        const end = new Date();
+                        const start = new Date(end.getTime() - 90 * 24 * 60 * 60 * 1000);
+                        setUsageDateRange({
+                          start: start.toISOString().split('T')[0],
+                          end: end.toISOString().split('T')[0]
+                        });
+                      }}
+                      data-testid="button-usage-90days"
+                    >
+                      최근 90일
+                    </Button>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Summary Cards */}
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+              <Card data-testid="card-total-requests">
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium">총 요청 수</CardTitle>
+                  <Zap className="h-4 w-4 text-blue-500" />
+                </CardHeader>
+                <CardContent>
+                  {usageSummaryLoading ? (
+                    <Loader2 className="h-6 w-6 animate-spin" />
+                  ) : (
+                    <div className="text-2xl font-bold">{(usageSummary?.requestCount || 0).toLocaleString()}</div>
+                  )}
+                </CardContent>
+              </Card>
+
+              <Card data-testid="card-total-tokens">
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium">총 토큰 사용량</CardTitle>
+                  <Activity className="h-4 w-4 text-green-500" />
+                </CardHeader>
+                <CardContent>
+                  {usageSummaryLoading ? (
+                    <Loader2 className="h-6 w-6 animate-spin" />
+                  ) : (
+                    <>
+                      <div className="text-2xl font-bold">{((usageSummary?.totalTokens || 0) / 1000).toFixed(1)}K</div>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        입력: {((usageSummary?.promptTokens || 0) / 1000).toFixed(1)}K / 출력: {((usageSummary?.completionTokens || 0) / 1000).toFixed(1)}K
+                      </p>
+                    </>
+                  )}
+                </CardContent>
+              </Card>
+
+              <Card data-testid="card-total-cost">
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium">예상 비용 (USD)</CardTitle>
+                  <DollarSign className="h-4 w-4 text-amber-500" />
+                </CardHeader>
+                <CardContent>
+                  {usageSummaryLoading ? (
+                    <Loader2 className="h-6 w-6 animate-spin" />
+                  ) : (
+                    <div className="text-2xl font-bold">${(usageSummary?.totalCostUsd || 0).toFixed(4)}</div>
+                  )}
+                </CardContent>
+              </Card>
+
+              <Card data-testid="card-avg-cost-per-request">
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium">요청당 평균 비용</CardTitle>
+                  <TrendingUp className="h-4 w-4 text-purple-500" />
+                </CardHeader>
+                <CardContent>
+                  {usageSummaryLoading ? (
+                    <Loader2 className="h-6 w-6 animate-spin" />
+                  ) : (
+                    <div className="text-2xl font-bold">
+                      ${usageSummary?.requestCount 
+                        ? ((usageSummary.totalCostUsd || 0) / usageSummary.requestCount).toFixed(6) 
+                        : '0.000000'}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* Usage by Feature */}
+            <Card>
+              <CardHeader>
+                <CardTitle>기능별 사용량</CardTitle>
+              </CardHeader>
+              <CardContent>
+                {usageByFeatureLoading ? (
+                  <div className="flex justify-center py-8">
+                    <Loader2 className="h-8 w-8 animate-spin" />
+                  </div>
+                ) : usageByFeature.length === 0 ? (
+                  <div className="text-center py-8 text-muted-foreground">
+                    선택한 기간에 사용 데이터가 없습니다.
+                  </div>
+                ) : (
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>기능</TableHead>
+                        <TableHead className="text-right">요청 수</TableHead>
+                        <TableHead className="text-right">토큰 사용량</TableHead>
+                        <TableHead className="text-right">예상 비용 (USD)</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {usageByFeature.map((row) => (
+                        <TableRow key={row.feature} data-testid={`row-feature-${row.feature}`}>
+                          <TableCell className="font-medium">
+                            <Badge variant="outline">
+                              {row.feature === 'conversation' ? '대화 응답' :
+                               row.feature === 'feedback' ? '피드백 생성' :
+                               row.feature === 'strategy' ? '전략 분석' :
+                               row.feature === 'scenario' ? '시나리오 생성' :
+                               row.feature === 'realtime' ? '실시간 음성' :
+                               row.feature === 'image' ? '이미지 생성' :
+                               row.feature}
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="text-right">{row.requestCount.toLocaleString()}</TableCell>
+                          <TableCell className="text-right">{(row.totalTokens / 1000).toFixed(1)}K</TableCell>
+                          <TableCell className="text-right">${row.totalCostUsd.toFixed(4)}</TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Usage by Model */}
+            <Card>
+              <CardHeader>
+                <CardTitle>모델별 사용량</CardTitle>
+              </CardHeader>
+              <CardContent>
+                {usageByModelLoading ? (
+                  <div className="flex justify-center py-8">
+                    <Loader2 className="h-8 w-8 animate-spin" />
+                  </div>
+                ) : usageByModel.length === 0 ? (
+                  <div className="text-center py-8 text-muted-foreground">
+                    선택한 기간에 사용 데이터가 없습니다.
+                  </div>
+                ) : (
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>모델</TableHead>
+                        <TableHead>제공자</TableHead>
+                        <TableHead className="text-right">요청 수</TableHead>
+                        <TableHead className="text-right">토큰 사용량</TableHead>
+                        <TableHead className="text-right">예상 비용 (USD)</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {usageByModel.map((row) => (
+                        <TableRow key={`${row.model}-${row.provider}`} data-testid={`row-model-${row.model}`}>
+                          <TableCell className="font-medium">{row.model}</TableCell>
+                          <TableCell>
+                            <Badge 
+                              variant="secondary"
+                              className={
+                                row.provider === 'gemini' ? 'bg-blue-100 text-blue-700' :
+                                row.provider === 'openai' ? 'bg-green-100 text-green-700' :
+                                row.provider === 'anthropic' ? 'bg-purple-100 text-purple-700' :
+                                ''
+                              }
+                            >
+                              {row.provider === 'gemini' ? 'Google' :
+                               row.provider === 'openai' ? 'OpenAI' :
+                               row.provider === 'anthropic' ? 'Anthropic' :
+                               row.provider}
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="text-right">{row.requestCount.toLocaleString()}</TableCell>
+                          <TableCell className="text-right">{(row.totalTokens / 1000).toFixed(1)}K</TableCell>
+                          <TableCell className="text-right">${row.totalCostUsd.toFixed(4)}</TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Daily Usage */}
+            <Card>
+              <CardHeader>
+                <CardTitle>일별 사용량</CardTitle>
+              </CardHeader>
+              <CardContent>
+                {dailyUsageLoading ? (
+                  <div className="flex justify-center py-8">
+                    <Loader2 className="h-8 w-8 animate-spin" />
+                  </div>
+                ) : dailyUsage.length === 0 ? (
+                  <div className="text-center py-8 text-muted-foreground">
+                    선택한 기간에 사용 데이터가 없습니다.
+                  </div>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>날짜</TableHead>
+                          <TableHead className="text-right">요청 수</TableHead>
+                          <TableHead className="text-right">토큰 사용량</TableHead>
+                          <TableHead className="text-right">예상 비용 (USD)</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {dailyUsage.slice(-14).map((row) => (
+                          <TableRow key={row.date} data-testid={`row-daily-${row.date}`}>
+                            <TableCell className="font-medium">{row.date}</TableCell>
+                            <TableCell className="text-right">{row.requestCount.toLocaleString()}</TableCell>
+                            <TableCell className="text-right">{(row.totalTokens / 1000).toFixed(1)}K</TableCell>
+                            <TableCell className="text-right">${row.totalCostUsd.toFixed(4)}</TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                    {dailyUsage.length > 14 && (
+                      <p className="text-sm text-muted-foreground mt-2 text-center">
+                        최근 14일 데이터만 표시됩니다. 전체 {dailyUsage.length}일 데이터 중.
+                      </p>
+                    )}
                   </div>
                 )}
               </CardContent>
