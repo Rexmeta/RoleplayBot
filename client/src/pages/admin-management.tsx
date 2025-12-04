@@ -135,7 +135,11 @@ export default function AdminManagement() {
                         <h4 className="font-semibold text-slate-900 text-lg mb-2">{generatedResult.scenario?.title}</h4>
                         <p className="text-slate-600 mb-3">{generatedResult.scenario?.description}</p>
                         
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-sm">
+                        <div className="grid grid-cols-1 md:grid-cols-4 gap-3 text-sm">
+                          <div className="bg-slate-50 p-2 rounded">
+                            <div className="text-slate-500">난이도</div>
+                            <div className="font-medium">{generatedResult.scenario?.difficulty}/4</div>
+                          </div>
                           <div className="bg-slate-50 p-2 rounded">
                             <div className="text-slate-500">예상 시간</div>
                             <div className="font-medium">{generatedResult.scenario?.estimatedTime}</div>

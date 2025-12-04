@@ -24,7 +24,7 @@ interface AnalyticsOverview {
   totalUsers: number;
   activeUsers: number;
   participationRate: number;
-  scenarioStats: Record<string, { count: number; name: string }>;
+  scenarioStats: Record<string, { count: number; name: string; difficulty: number }>;
   mbtiUsage: Record<string, number>;
   totalScenarios: number;
   // 확장 지표
@@ -38,8 +38,9 @@ interface AnalyticsOverview {
   scenarioAverages: Array<{ id: string; name: string; averageScore: number; sessionCount: number }>;
   mbtiAverages: Array<{ mbti: string; averageScore: number; sessionCount: number }>;
   topActiveUsers: Array<{ userId: string; sessionCount: number }>;
-  topScenarios: Array<{ id: string; name: string; count: number }>;
+  topScenarios: Array<{ id: string; name: string; count: number; difficulty: number }>;
   hardestScenarios: Array<{ id: string; name: string; averageScore: number; sessionCount: number }>;
+  difficultyUsage: Array<{ level: number; count: number }>;
   lastContentUpdate: string | null;
 }
 
@@ -62,6 +63,7 @@ interface PerformanceData {
     name: string;
     average: number;
     sessionCount: number;
+    difficulty: number;
     personaCount: number;
   }>;
   mbtiPerformance: Record<string, { scores: number[]; count: number; average: number }>;
@@ -158,7 +160,8 @@ export default function AdminDashboard() {
   const scenarioPopularityData = overview ? Object.entries(overview.scenarioStats).map(([scenarioId, data]) => {
     return {
       name: data.name,
-      sessions: data.count
+      sessions: data.count,
+      difficulty: data.difficulty
     };
   }) : [];
 
@@ -175,9 +178,17 @@ export default function AdminDashboard() {
       name: data.name || scenario?.title || scenarioId,
       average: data.average,
       sessionCount: data.sessionCount,
+      difficulty: data.difficulty || scenario?.difficulty || 1,
       personaCount: data.personaCount || 0
     };
   }) : [];
+
+  // 난이도별 선택 인기도 계산 - 사용자가 선택한 난이도 기반
+  const difficultyPopularityData = overview?.difficultyUsage ? 
+    overview.difficultyUsage.map((d: any) => ({
+      difficulty: `Lv${d.level}`,
+      count: d.count
+    })) : [];
 
   // 페르소나 수별 인기도 계산 - 유저가 선택한 수(세션 수) 기준
   const scenarioDifficultyData = scenarios.reduce((acc: any[], scenario: any) => {
@@ -692,12 +703,14 @@ export default function AdminDashboard() {
                       <th className="p-3 text-left font-semibold">점수</th>
                       <th className="p-3 text-left font-semibold">시나리오</th>
                       <th className="p-3 text-left font-semibold">MBTI</th>
+                      <th className="p-3 text-left font-semibold">난이도</th>
                       <th className="p-3 text-left font-semibold">사용자</th>
                       <th className="p-3 text-left font-semibold">완료일</th>
                     </tr>
                   </thead>
                   <tbody>
                     {performance?.recentSessions?.map((session, index) => {
+                      const difficultyLabels: Record<number, string> = { 1: '매우 쉬움', 2: '기본', 3: '도전형', 4: '고난도' };
                       const scoreColor = session.score >= 90 ? 'text-green-600' :
                                         session.score >= 80 ? 'text-blue-600' :
                                         session.score >= 70 ? 'text-yellow-600' :
@@ -711,6 +724,16 @@ export default function AdminDashboard() {
                               {session.mbti}
                             </span>
                           </td>
+                          <td className="p-3">
+                            <span className={`px-2 py-1 rounded text-xs ${
+                              session.difficulty === 4 ? 'bg-red-100 text-red-700' :
+                              session.difficulty === 3 ? 'bg-orange-100 text-orange-700' :
+                              session.difficulty === 2 ? 'bg-blue-100 text-blue-700' :
+                              'bg-green-100 text-green-700'
+                            }`}>
+                              {difficultyLabels[session.difficulty] || '기본'}
+                            </span>
+                          </td>
                           <td className="p-3 text-slate-500">{session.userId}...</td>
                           <td className="p-3 text-slate-500">
                             {new Date(session.completedAt).toLocaleDateString('ko-KR', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
@@ -719,7 +742,7 @@ export default function AdminDashboard() {
                       );
                     })}
                     {(!performance?.recentSessions || performance.recentSessions.length === 0) && (
-                      <tr><td colSpan={5} className="p-4 text-center text-slate-500">최근 세션 데이터가 없습니다.</td></tr>
+                      <tr><td colSpan={6} className="p-4 text-center text-slate-500">최근 세션 데이터가 없습니다.</td></tr>
                     )}
                   </tbody>
                 </table>
@@ -766,6 +789,24 @@ export default function AdminDashboard() {
               </CardContent>
             </Card>
 
+            {/* Difficulty Popularity */}
+            <Card data-testid="card-difficulty-popularity">
+              <CardHeader>
+                <CardTitle><CardInfo title="난이도 선택 인기도" description="사용자가 선택한 난이도별 세션 수. 1=매우쉬움, 2=기본, 3=도전형, 4=고난도입니다." /></CardTitle>
+              </CardHeader>
+              <CardContent>
+                <ResponsiveContainer width="100%" height={300}>
+                  <BarChart data={difficultyPopularityData}>
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="difficulty" />
+                    <YAxis />
+                    <Tooltip />
+                    <Bar dataKey="count" fill="#8b5cf6" />
+                  </BarChart>
+                </ResponsiveContainer>
+              </CardContent>
+            </Card>
+
             {/* Persona Count Popularity */}
             <Card data-testid="card-persona-count-popularity">
               <CardHeader>
@@ -798,6 +839,7 @@ export default function AdminDashboard() {
                       <th className="text-left p-2">시나리오</th>
                       <th className="text-left p-2">평균 점수</th>
                       <th className="text-left p-2">세션 수</th>
+                      <th className="text-left p-2">난이도</th>
                       <th className="text-left p-2">페르소나 수</th>
                       <th className="text-left p-2">상태</th>
                     </tr>
@@ -816,6 +858,9 @@ export default function AdminDashboard() {
                           </span>
                         </td>
                         <td className="p-2">{scenario.sessionCount}회</td>
+                        <td className="p-2">
+                          {'★'.repeat(Math.min(scenario.difficulty, 4))}{'☆'.repeat(Math.max(0, 4-scenario.difficulty))}
+                        </td>
                         <td className="p-2">{scenario.personaCount || 0}명</td>
                         <td className="p-2">
                           <span className={`px-2 py-1 rounded-full text-xs ${

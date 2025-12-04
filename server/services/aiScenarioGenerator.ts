@@ -26,6 +26,7 @@ export interface ComplexScenario {
   };
   personas: ScenarioPersona[]; // persona 객체들
   recommendedFlow: string[];
+  difficulty: number;
   estimatedTime: string;
   skills: string[];
 }
@@ -61,6 +62,7 @@ export interface AIScenarioGenerationRequest {
   objectiveType?: string; // 목표 유형
   skills?: string; // 필요 역량
   estimatedTime?: string; // 예상 소요 시간
+  difficulty?: number; // 1-4 난이도
   personaCount?: number; // 생성할 페르소나 수 (1-6)
 }
 
@@ -131,6 +133,7 @@ ${request.playerRole ? `참가자 역할: ${request.playerRole.position} (${requ
 ${request.conflictType ? `갈등 유형: ${request.conflictType}` : ''}
 ${request.objectiveType ? `목표 유형: ${request.objectiveType}` : ''}
 ${request.skills ? `필요 역량: ${request.skills}` : ''}
+난이도: ${request.difficulty || 3}/4
 페르소나 수: ${request.personaCount || 3}명
 사용 가능한 MBTI 유형: ${selectedMBTI.join(', ')} (이 유형들만 사용하세요)
 
@@ -196,6 +199,7 @@ ${request.skills ? `필요 역량: ${request.skills}` : ''}
     }` : ''}
   ],
   "recommendedFlow": ["${selectedMBTI[0] || 'istj'}"${selectedMBTI.length > 1 ? `, "${selectedMBTI[1]}"` : ''}${selectedMBTI.length > 2 ? `, "${selectedMBTI[2]}"` : ''}],
+  "difficulty": ${request.difficulty || 3},
   "estimatedTime": "${request.estimatedTime || '60-90분'}",
   "skills": [${request.skills ? request.skills.split(',').map(skill => `"${skill.trim()}"`).join(', ') : '"갈등 중재", "협상", "문제 해결", "의사소통", "리더십"'}]
 }
@@ -273,10 +277,11 @@ ENTJ: 목표 지향적, 효율성과 결과 중시`;
               }
             },
             recommendedFlow: { type: "array", items: { type: "string" } },
+            difficulty: { type: "number" },
             estimatedTime: { type: "string" },
             skills: { type: "array", items: { type: "string" } }
           },
-          required: ["title", "description", "context", "objectives", "successCriteria", "personas", "recommendedFlow", "estimatedTime", "skills"]
+          required: ["title", "description", "context", "objectives", "successCriteria", "personas", "recommendedFlow", "difficulty", "estimatedTime", "skills"]
         }
       },
       contents: prompt
@@ -312,6 +317,7 @@ ENTJ: 목표 지향적, 효율성과 결과 중시`;
       successCriteria: data.successCriteria,
       personas: data.personas,
       recommendedFlow: data.recommendedFlow,
+      difficulty: data.difficulty,
       estimatedTime: data.estimatedTime,
       skills: data.skills
     };
