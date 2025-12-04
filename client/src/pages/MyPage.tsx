@@ -558,28 +558,126 @@ export default function MyPage() {
                                 count: data.scores.length
                               };
                             })}
+                            margin={{ top: 5, right: 30, left: 0, bottom: 5 }}
                           >
-                            <CartesianGrid strokeDasharray="3 3" />
-                            <XAxis dataKey="date" />
-                            <YAxis domain={[0, 100]} />
-                            <ChartTooltip />
-                            <Legend />
+                            <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                            <XAxis dataKey="date" stroke="#64748b" style={{ fontSize: '12px' }} />
+                            <YAxis stroke="#64748b" domain={[0, 100]} style={{ fontSize: '12px' }} />
+                            <ChartTooltip
+                              contentStyle={{
+                                backgroundColor: '#fff',
+                                border: '1px solid #e2e8f0',
+                                borderRadius: '8px',
+                                padding: '8px 12px'
+                              }}
+                              formatter={(value: any) => [`${value}점`, '평균 점수']}
+                              labelStyle={{ color: '#1e293b' }}
+                            />
+                            <Legend wrapperStyle={{ paddingTop: '20px' }} formatter={() => '일일 평균 점수'} />
                             <Line
                               type="monotone"
                               dataKey="score"
-                              stroke="#6366f1"
-                              strokeWidth={2}
-                              dot={{ fill: '#6366f1', r: 4 }}
-                              activeDot={{ r: 6 }}
-                              isAnimationActive={false}
-                              name="점수"
+                              stroke="#2563eb"
+                              strokeWidth={3}
+                              dot={{ fill: '#2563eb', r: 6 }}
+                              activeDot={{ r: 8 }}
+                              isAnimationActive={true}
                             />
                           </LineChart>
                         </ResponsiveContainer>
                       </div>
+                      <div className="mt-6 grid grid-cols-3 gap-4 text-sm">
+                        <div className="p-3 bg-slate-50 rounded-lg">
+                          <div className="text-slate-600 mb-1">최고 점수</div>
+                          <div className="text-2xl font-bold text-slate-900">
+                            {Math.max(...analyticsData.scoreHistory.map((e: any) => e.score))}
+                          </div>
+                        </div>
+                        <div className="p-3 bg-slate-50 rounded-lg">
+                          <div className="text-slate-600 mb-1">최저 점수</div>
+                          <div className="text-2xl font-bold text-slate-900">
+                            {Math.min(...analyticsData.scoreHistory.map((e: any) => e.score))}
+                          </div>
+                        </div>
+                        <div className="p-3 bg-slate-50 rounded-lg">
+                          <div className="text-slate-600 mb-1">점수 범위</div>
+                          <div className="text-2xl font-bold text-slate-900">
+                            {Math.max(...analyticsData.scoreHistory.map((e: any) => e.score)) - Math.min(...analyticsData.scoreHistory.map((e: any) => e.score))}
+                          </div>
+                        </div>
+                      </div>
                     </CardContent>
                   </Card>
                 )}
+
+                {/* Strengths and Improvements */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {/* Top Strengths */}
+                  {analyticsData.topStrengths && analyticsData.topStrengths.length > 0 && (
+                    <Card>
+                      <CardHeader>
+                        <CardTitle className="text-green-600">주요 강점</CardTitle>
+                        <CardDescription>가장 자주 나타나는 강점 패턴</CardDescription>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="space-y-4">
+                          {analyticsData.topStrengths.map((strength: any, index: number) => (
+                            <div key={index} className="pb-3 border-b last:border-b-0">
+                              <div className="flex items-center gap-3 mb-2">
+                                <Badge className="bg-green-50 text-green-700 border-green-200 shrink-0">
+                                  {strength.count}회
+                                </Badge>
+                                <p className="font-semibold text-slate-900 text-sm">{strength.category}</p>
+                              </div>
+                              {strength.items && strength.items.length > 0 && (
+                                <div className="ml-12 space-y-1">
+                                  {strength.items.map((item: string, itemIndex: number) => (
+                                    <p key={itemIndex} className="text-xs text-slate-600 leading-relaxed">
+                                      • {item}
+                                    </p>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      </CardContent>
+                    </Card>
+                  )}
+
+                  {/* Top Improvements */}
+                  {analyticsData.topImprovements && analyticsData.topImprovements.length > 0 && (
+                    <Card>
+                      <CardHeader>
+                        <CardTitle className="text-orange-600">개선 필요 영역</CardTitle>
+                        <CardDescription>지속적으로 나타나는 개선점</CardDescription>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="space-y-4">
+                          {analyticsData.topImprovements.map((improvement: any, index: number) => (
+                            <div key={index} className="pb-3 border-b last:border-b-0">
+                              <div className="flex items-center gap-3 mb-2">
+                                <Badge className="bg-orange-50 text-orange-700 border-orange-200 shrink-0">
+                                  {improvement.count}회
+                                </Badge>
+                                <p className="font-semibold text-slate-900 text-sm">{improvement.category}</p>
+                              </div>
+                              {improvement.items && improvement.items.length > 0 && (
+                                <div className="ml-12 space-y-1">
+                                  {improvement.items.map((item: string, itemIndex: number) => (
+                                    <p key={itemIndex} className="text-xs text-slate-600 leading-relaxed">
+                                      • {item}
+                                    </p>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      </CardContent>
+                    </Card>
+                  )}
+                </div>
               </>
             )}
           </TabsContent>
