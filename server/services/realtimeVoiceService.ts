@@ -56,9 +56,7 @@ export class RealtimeVoiceService {
       
       // Validate the model value is a valid Gemini Live model
       const validModels = [
-        'gemini-2.5-flash-native-audio-preview',
-        'gemini-live-2.5-flash-preview', 
-        'gemini-2.0-flash-live-preview-04-09'
+        'gemini-live-2.5-flash-preview'
       ];
       
       const model = setting?.value;
