@@ -636,7 +636,7 @@ export function PersonaManager() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-2xl font-bold text-slate-900">MBTI 페르소나 관리</h2>
+          <h2 className="text-2xl font-bold text-slate-900">페르소나 관리</h2>
           <p className="text-slate-600 mt-1">성격 유형별 AI 페르소나를 관리합니다</p>
         </div>
         
@@ -653,13 +653,13 @@ export function PersonaManager() {
               className="bg-corporate-600 hover:bg-corporate-700"
               data-testid="button-create-persona"
             >
-              새 MBTI 페르소나 생성
+              페르소나 생성
             </Button>
           </DialogTrigger>
           <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>
-                {editingPersona ? 'MBTI 페르소나 수정' : '새 MBTI 페르소나 생성'}
+                {editingPersona ? '페르소나 수정' : '페르소나 생성'}
               </DialogTitle>
             </DialogHeader>
             
