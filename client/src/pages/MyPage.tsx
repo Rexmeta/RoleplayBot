@@ -18,7 +18,7 @@ import { useToast } from "@/hooks/use-toast";
 import { StrategyReflection } from "@/components/StrategyReflection";
 
 export default function MyPage() {
-  const [selectedView, setSelectedView] = useState<"history" | "stats">("history");
+  const [selectedView, setSelectedView] = useState<"history" | "analytics">("history");
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [scenarioRunToDelete, setScenarioRunToDelete] = useState<string | null>(null);
   const [strategyReflectionRunId, setStrategyReflectionRunId] = useState<string | null>(null);
@@ -281,16 +281,6 @@ export default function MyPage() {
                   관리자 대시보드
                 </Button>
               </Link>
-              <Link href="/analytics">
-                <Button
-                  variant="default"
-                  className="flex items-center gap-2"
-                  data-testid="analytics-button"
-                >
-                  <BarChart3 className="w-4 h-4" />
-                  종합 분석
-                </Button>
-              </Link>
             </div>
           </div>
         </div>
@@ -298,13 +288,7 @@ export default function MyPage() {
 
       {/* Main Content */}
       <main className="max-w-6xl mx-auto px-4 py-8">
-        <Tabs value={selectedView} onValueChange={(v) => {
-          if (v === 'analytics') {
-            window.location.href = '/analytics';
-          } else {
-            setSelectedView(v as any);
-          }
-        }} className="space-y-6">
+        <Tabs value={selectedView} onValueChange={(v) => setSelectedView(v as any)} className="space-y-6">
           <TabsList className="grid w-full grid-cols-2">
             <TabsTrigger value="history" className="flex items-center gap-2" data-testid="history-tab">
               <History className="w-4 h-4" />
