@@ -1,6 +1,6 @@
 import { useState, useMemo } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -8,7 +8,8 @@ import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { CalendarDays, Star, TrendingUp, MessageSquare, Award, History, BarChart3, Users, Target, Trash2, Loader2, HelpCircle, Lightbulb, CheckCircle, AlertCircle, ArrowRight } from "lucide-react";
+import { Progress } from "@/components/ui/progress";
+import { CalendarDays, Star, TrendingUp, MessageSquare, Award, History, BarChart3, Users, Target, Trash2, Loader2, HelpCircle, Lightbulb, CheckCircle, AlertCircle, ArrowRight, Minus, TrendingDown } from "lucide-react";
 import { Link } from "wouter";
 import { useAuth } from "@/hooks/useAuth";
 import { type ScenarioRun, type PersonaRun, type Feedback } from "@shared/schema";
@@ -16,6 +17,7 @@ import { format } from "date-fns";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { StrategyReflection } from "@/components/StrategyReflection";
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as ChartTooltip, Legend, ResponsiveContainer } from "recharts";
 
 export default function MyPage() {
   const [selectedView, setSelectedView] = useState<"history" | "analytics">("history");
@@ -70,6 +72,14 @@ export default function MyPage() {
     queryKey: ['/api/scenarios'],
     staleTime: 1000 * 60 * 30,
     gcTime: 1000 * 60 * 60,
+  });
+
+  // 종합 분석 데이터 조회
+  const { data: analyticsData } = useQuery<any>({
+    queryKey: ['/api/analytics/summary'],
+    enabled: !!user,
+    staleTime: 1000 * 60,
+    gcTime: 1000 * 60 * 5,
   });
 
   // 시나리오 Map
@@ -383,130 +393,195 @@ export default function MyPage() {
 
           {/* 종합 분석 탭 */}
           <TabsContent value="analytics" className="space-y-6">
-            <TooltipProvider>
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-                <Card>
-                  <CardHeader className="pb-3">
-                    <CardTitle className="text-sm font-medium text-slate-600">전체 시나리오 실행</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="flex items-center gap-3">
-                      <MessageSquare className="w-8 h-8 text-blue-600" />
-                      <div className="text-3xl font-bold text-slate-900" data-testid="total-scenario-runs">
-                        {stats.totalScenarioRuns}
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-
-                <Card>
-                  <CardHeader className="pb-3">
-                    <CardTitle className="text-sm font-medium text-slate-600">완료한 시나리오</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="flex items-center gap-3">
-                      <Award className="w-8 h-8 text-green-600" />
-                      <div className="text-3xl font-bold text-slate-900" data-testid="completed-scenario-runs">
-                        {stats.completedScenarioRuns}/{stats.totalScenarioRuns}
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-
-                <Card>
-                  <CardHeader className="pb-3">
-                    <div className="flex items-center gap-2">
-                      <CardTitle className="text-sm font-medium text-slate-600">평균 점수</CardTitle>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <HelpCircle className="w-4 h-4 text-slate-400 hover:text-slate-600 cursor-help" />
-                        </TooltipTrigger>
-                        <TooltipContent side="right">
-                          <p>피드백을 받은 모든 대화의</p>
-                          <p>점수 평균값입니다.</p>
-                        </TooltipContent>
-                      </Tooltip>
-                    </div>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="flex items-center gap-3">
-                      <Star className="w-8 h-8 text-yellow-500" />
-                      <div className={`text-3xl font-bold ${getScoreColor(stats.averageScore)}`} data-testid="average-score">
-                        {stats.averageScore}
-                      </div>
-                    </div>
-                    <div className="mt-2 text-sm text-slate-600">
-                      {getScoreBadge(stats.averageScore)}
-                    </div>
-                  </CardContent>
-                </Card>
-
-                <Card>
-                  <CardHeader className="pb-3">
-                    <div className="flex items-center gap-2">
-                      <CardTitle className="text-sm font-medium text-slate-600">총 피드백</CardTitle>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <HelpCircle className="w-4 h-4 text-slate-400 hover:text-slate-600 cursor-help" />
-                        </TooltipTrigger>
-                        <TooltipContent side="right">
-                          <p>완료되고 피드백을</p>
-                          <p>받은 대화의 개수입니다.</p>
-                        </TooltipContent>
-                      </Tooltip>
-                    </div>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="flex items-center gap-3">
-                      <TrendingUp className="w-8 h-8 text-purple-600" />
-                      <div className="text-3xl font-bold text-slate-900" data-testid="total-feedbacks">
-                        {stats.totalFeedbacks}
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
+            {!analyticsData ? (
+              <div className="text-center py-8">
+                <Loader2 className="w-8 h-8 animate-spin mx-auto mb-2" />
+                <p className="text-slate-600">분석 데이터를 불러오는 중...</p>
               </div>
-            </TooltipProvider>
+            ) : (
+              <>
+                <TooltipProvider>
+                  <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+                    {/* Overall Score */}
+                    <Card>
+                      <CardHeader className="pb-3">
+                        <CardTitle className="text-sm font-medium text-slate-600 flex items-center gap-2">
+                          <Award className="w-4 h-4" />
+                          종합 점수
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="flex items-end gap-3">
+                          <div className="text-4xl font-bold text-slate-900">
+                            {analyticsData.averageScore}
+                          </div>
+                          <div className={`px-3 py-1 rounded-full text-sm font-semibold mb-1 ${analyticsData.overallGrade?.startsWith('A') ? 'text-green-600 bg-green-50' : analyticsData.overallGrade === 'B' ? 'text-blue-600 bg-blue-50' : analyticsData.overallGrade === 'C' ? 'text-yellow-600 bg-yellow-50' : 'text-red-600 bg-red-50'}`}>
+                            {analyticsData.overallGrade} 등급
+                          </div>
+                        </div>
+                        <Progress value={analyticsData.averageScore} className="mt-4" />
+                      </CardContent>
+                    </Card>
 
-            <Card>
-              <CardHeader>
-                <CardTitle>학습 인사이트</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                {stats.totalFeedbacks === 0 ? (
-                  <p className="text-slate-600">
-                    더 많은 시나리오를 완료하면 상세한 학습 통계와 성장 추이를 확인할 수 있습니다.
-                  </p>
-                ) : (
-                  <div className="space-y-3">
-                    <div className="flex items-center justify-between p-3 bg-blue-50 rounded-lg border border-blue-200">
-                      <span className="text-sm text-slate-700">총 학습 시간</span>
-                      <span className="font-semibold text-slate-900">{stats.completedScenarioRuns}/{stats.totalScenarioRuns} 시나리오 완료</span>
-                    </div>
-                    <div className="flex items-center justify-between p-3 bg-green-50 rounded-lg border border-green-200">
-                      <span className="text-sm text-slate-700">평균 성과</span>
-                      <span className={`font-semibold ${getScoreColor(stats.averageScore)}`}>
-                        {stats.averageScore}점 ({getScoreBadge(stats.averageScore)})
-                      </span>
-                    </div>
-                    <div className="flex items-center justify-between p-3 bg-purple-50 rounded-lg border border-purple-200">
-                      <span className="text-sm text-slate-700">누적 피드백</span>
-                      <span className="font-semibold text-slate-900">{stats.totalFeedbacks}개</span>
-                    </div>
-                    <div className="p-3 bg-amber-50 rounded-lg border border-amber-200">
-                      <p className="text-sm text-slate-700 mb-2">💡 추천</p>
-                      <p className="text-sm text-slate-600">
-                        {stats.averageScore >= 80 
-                          ? "훌륭한 성과를 보이고 있습니다! 더 어려운 시나리오에 도전해보세요."
-                          : stats.averageScore >= 60
-                          ? "꾸준히 발전하고 있습니다. 피드백을 참고하여 개선 영역을 집중해보세요."
-                          : "다양한 시나리오를 반복해서 경험하면 좋아질 것입니다. 계속 도전해보세요!"}
-                      </p>
-                    </div>
+                    {/* Sessions Count */}
+                    <Card>
+                      <CardHeader className="pb-3">
+                        <CardTitle className="text-sm font-medium text-slate-600 flex items-center gap-2">
+                          <BarChart3 className="w-4 h-4" />
+                          완료한 시나리오
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="text-4xl font-bold text-slate-900">
+                          {analyticsData.completedSessions !== undefined ? `${analyticsData.completedSessions}/${analyticsData.totalSessions}` : analyticsData.totalSessions}
+                        </div>
+                        <p className="text-sm text-slate-500 mt-2">
+                          {analyticsData.lastSessionDate && (
+                            <>마지막 세션: {new Date(analyticsData.lastSessionDate).toLocaleDateString('ko-KR')}</>
+                          )}
+                        </p>
+                      </CardContent>
+                    </Card>
+
+                    {/* Progress Trend */}
+                    <Card>
+                      <CardHeader className="pb-3">
+                        <CardTitle className="text-sm font-medium text-slate-600 flex items-center gap-2">
+                          <Target className="w-4 h-4" />
+                          성장 추세
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="flex items-center gap-3">
+                          {analyticsData.progressTrend === 'improving' ? <TrendingUp className="w-5 h-5 text-green-600" /> : analyticsData.progressTrend === 'declining' ? <TrendingDown className="w-5 h-5 text-red-600" /> : <Minus className="w-5 h-5 text-slate-600" />}
+                          <div className={`px-3 py-1 rounded-full text-sm font-semibold ${analyticsData.progressTrend === 'improving' ? 'text-green-600 bg-green-50' : analyticsData.progressTrend === 'declining' ? 'text-red-600 bg-red-50' : 'text-slate-600 bg-slate-50'}`}>
+                            {analyticsData.progressTrend === 'improving' ? '성장 중' : analyticsData.progressTrend === 'declining' ? '하락 중' : analyticsData.progressTrend === 'stable' ? '안정적' : '중립'}
+                          </div>
+                        </div>
+                        <p className="text-sm text-slate-500 mt-3">
+                          {analyticsData.progressTrend === 'improving' && '최근 실력이 향상되고 있습니다'}
+                          {analyticsData.progressTrend === 'declining' && '추가 연습이 필요합니다'}
+                          {analyticsData.progressTrend === 'stable' && '안정적인 수준을 유지하고 있습니다'}
+                          {analyticsData.progressTrend === 'neutral' && '데이터가 더 필요합니다'}
+                        </p>
+                      </CardContent>
+                    </Card>
+
+                    {/* Total Feedbacks */}
+                    <Card>
+                      <CardHeader className="pb-3">
+                        <CardTitle className="text-sm font-medium text-slate-600 flex items-center gap-2">
+                          <MessageSquare className="w-4 h-4" />
+                          총 피드백
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="text-4xl font-bold text-slate-900">
+                          {analyticsData.totalFeedbacks || 0}
+                        </div>
+                      </CardContent>
+                    </Card>
                   </div>
+                </TooltipProvider>
+
+                {/* Category Breakdown */}
+                <Card>
+                  <CardHeader>
+                    <CardTitle>카테고리별 평균 점수</CardTitle>
+                    <CardDescription>5개 평가 항목별 종합 분석 (5점 만점)</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-6">
+                      {Object.entries(analyticsData.categoryAverages || {}).map(([key, value]) => {
+                        const categoryNames: Record<string, string> = {
+                          clarityLogic: "명확성 & 논리성",
+                          listeningEmpathy: "경청 & 공감",
+                          appropriatenessAdaptability: "적절성 & 상황 대응",
+                          persuasivenessImpact: "설득력 & 영향력",
+                          strategicCommunication: "전략적 커뮤니케이션"
+                        };
+                        const categoryIcons: Record<string, string> = {
+                          clarityLogic: "🎯",
+                          listeningEmpathy: "👂",
+                          appropriatenessAdaptability: "⚡",
+                          persuasivenessImpact: "🎪",
+                          strategicCommunication: "🎲"
+                        };
+                        return (
+                          <div key={key}>
+                            <div className="flex items-center justify-between mb-2">
+                              <div className="flex items-center gap-2">
+                                <span className="text-xl">{categoryIcons[key]}</span>
+                                <span className="font-medium text-slate-900">
+                                  {categoryNames[key]}
+                                </span>
+                              </div>
+                              <span className="text-lg font-semibold text-slate-900">
+                                {(value as number).toFixed(1)} / 5.0
+                              </span>
+                            </div>
+                            <Progress value={(value as number) * 20} className="h-3" />
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </CardContent>
+                </Card>
+
+                {/* Score History Chart */}
+                {analyticsData.scoreHistory && analyticsData.scoreHistory.length > 1 && (
+                  <Card>
+                    <CardHeader>
+                      <CardTitle>점수 변화 추이</CardTitle>
+                      <CardDescription>날짜별 평균 점수 추이 (0~100 점)</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="w-full h-80">
+                        <ResponsiveContainer width="100%" height="100%">
+                          <LineChart
+                            data={Object.entries(
+                              analyticsData.scoreHistory.reduce((acc: Record<string, any>, entry: any) => {
+                                const dateKey = entry.date;
+                                if (!acc[dateKey]) {
+                                  acc[dateKey] = { scores: [], date: dateKey };
+                                }
+                                acc[dateKey].scores.push(entry.score);
+                                return acc;
+                              }, {})
+                            )
+                            .sort((a, b) => a[0].localeCompare(b[0]))
+                            .map(([_, data]) => {
+                              const [year, month, day] = data.date.split('-');
+                              return {
+                                date: `${month}.${day}`,
+                                score: Math.round(data.scores.reduce((a: number, b: number) => a + b, 0) / data.scores.length),
+                                count: data.scores.length
+                              };
+                            })}
+                          >
+                            <CartesianGrid strokeDasharray="3 3" />
+                            <XAxis dataKey="date" />
+                            <YAxis domain={[0, 100]} />
+                            <ChartTooltip />
+                            <Legend />
+                            <Line
+                              type="monotone"
+                              dataKey="score"
+                              stroke="#6366f1"
+                              strokeWidth={2}
+                              dot={{ fill: '#6366f1', r: 4 }}
+                              activeDot={{ r: 6 }}
+                              isAnimationActive={false}
+                              name="점수"
+                            />
+                          </LineChart>
+                        </ResponsiveContainer>
+                      </div>
+                    </CardContent>
+                  </Card>
                 )}
-              </CardContent>
-            </Card>
+              </>
+            )}
           </TabsContent>
         </Tabs>
       </main>
