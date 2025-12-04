@@ -1651,7 +1651,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       if (userFeedbacks.length === 0) {
         return res.json({
-          totalSessions: completedScenarioRuns.length, // ✨ scenario_run 기준
+          totalSessions: userScenarioRuns.length, // ✨ 진행한 시나리오 (모든 scenarioRuns)
+          completedSessions: completedScenarioRuns.length, // ✨ 완료한 시나리오
+          totalFeedbacks: 0, // ✨ 총 피드백
           averageScore: 0,
           categoryAverages: {},
           scoreHistory: [],
@@ -1845,7 +1847,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       };
       
       res.json({
-        totalSessions: completedScenarioRuns.length, // ✨ 완료한 시나리오 실행 (세션 기준)
+        totalSessions: userScenarioRuns.length, // ✨ 진행한 시나리오 (모든 scenarioRuns)
+        completedSessions: completedScenarioRuns.length, // ✨ 완료한 시나리오
+        totalFeedbacks: userFeedbacks.length, // ✨ 총 피드백
         averageScore,
         categoryAverages,
         scoreHistory,
