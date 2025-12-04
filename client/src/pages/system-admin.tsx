@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { AppHeader } from "@/components/AppHeader";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -33,7 +33,7 @@ import {
 import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { Search, Users, Shield, UserCog, Loader2, User, KeyRound, Eye, EyeOff, FolderTree, Plus, Pencil, Trash2, GripVertical } from "lucide-react";
+import { Search, Users, Shield, UserCog, Loader2, User, KeyRound, Eye, EyeOff, FolderTree, Plus, Pencil, Trash2, GripVertical, Settings, Save, RotateCcw } from "lucide-react";
 import { format } from "date-fns";
 import { ko } from "date-fns/locale";
 
@@ -59,6 +59,36 @@ interface Category {
   scenarioCount?: number;
   createdAt: string;
 }
+
+interface SystemSetting {
+  id: string;
+  category: string;
+  key: string;
+  value: string;
+  description: string | null;
+  updatedBy: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+const SETTING_CATEGORIES = {
+  ai: { label: "AI 모델 설정", description: "AI 응답 생성 및 대화 관련 설정" },
+  evaluation: { label: "평가 시스템", description: "사용자 응답 평가 기준 및 점수 계산" },
+  conversation: { label: "대화 기본 설정", description: "대화 턴 수, 시간 제한 등" },
+  voice: { label: "음성 설정", description: "TTS 및 실시간 음성 관련 설정" },
+};
+
+const DEFAULT_SETTINGS: { category: string; key: string; value: string; description: string }[] = [
+  { category: "ai", key: "model", value: "gemini-2.5-flash", description: "AI 대화에 사용할 모델 (gemini-2.5-flash, gemini-2.5-pro)" },
+  { category: "ai", key: "temperature", value: "0.7", description: "AI 응답의 창의성 정도 (0.0 ~ 1.0)" },
+  { category: "ai", key: "maxTokens", value: "2048", description: "AI 응답의 최대 토큰 수" },
+  { category: "evaluation", key: "minPassingScore", value: "60", description: "합격 기준 점수 (0 ~ 100)" },
+  { category: "evaluation", key: "evaluationCategories", value: "명확성,공감력,적절성,전문성,해결력", description: "평가 항목 (쉼표로 구분)" },
+  { category: "conversation", key: "maxTurns", value: "10", description: "대화당 최대 턴 수" },
+  { category: "conversation", key: "sessionTimeout", value: "30", description: "세션 타임아웃 (분)" },
+  { category: "voice", key: "defaultVoice", value: "alloy", description: "기본 TTS 음성 (alloy, echo, fable, onyx, nova, shimmer)" },
+  { category: "voice", key: "speechRate", value: "1.0", description: "음성 속도 (0.5 ~ 2.0)" },
+];
 
 const roleConfig: Record<string, { label: string; color: string; bgColor: string }> = {
   admin: { label: "시스템관리자", color: "text-red-700", bgColor: "bg-red-100" },
@@ -103,12 +133,20 @@ export default function SystemAdminPage() {
   }>({ name: "", description: "", order: 0 });
   const [deletingCategory, setDeletingCategory] = useState<Category | null>(null);
 
+  // System settings state
+  const [settingsFormData, setSettingsFormData] = useState<Record<string, string>>({});
+  const [hasSettingsChanges, setHasSettingsChanges] = useState(false);
+
   const { data: users = [], isLoading: usersLoading } = useQuery<UserData[]>({
     queryKey: ["/api/system-admin/users"],
   });
 
   const { data: categories = [], isLoading: categoriesLoading } = useQuery<Category[]>({
     queryKey: ["/api/categories"],
+  });
+
+  const { data: systemSettings = [], isLoading: settingsLoading, refetch: refetchSettings } = useQuery<SystemSetting[]>({
+    queryKey: ["/api/system-admin/settings"],
   });
 
   const updateUserMutation = useMutation({
@@ -218,6 +256,78 @@ export default function SystemAdminPage() {
     },
   });
 
+  const saveSettingsMutation = useMutation({
+    mutationFn: async (settings: { category: string; key: string; value: string; description?: string }[]) => {
+      return await apiRequest("PUT", "/api/system-admin/settings/batch", { settings });
+    },
+    onSuccess: () => {
+      toast({
+        title: "저장 완료",
+        description: "시스템 설정이 저장되었습니다.",
+      });
+      queryClient.invalidateQueries({ queryKey: ["/api/system-admin/settings"] });
+      setHasSettingsChanges(false);
+    },
+    onError: (error: any) => {
+      toast({
+        title: "저장 실패",
+        description: error.message || "시스템 설정 저장에 실패했습니다.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Initialize settings form data when settings are loaded
+  const initializeSettingsForm = () => {
+    const formData: Record<string, string> = {};
+    
+    // First, set default values
+    DEFAULT_SETTINGS.forEach(setting => {
+      formData[`${setting.category}.${setting.key}`] = setting.value;
+    });
+    
+    // Then, override with saved values from database
+    systemSettings.forEach(setting => {
+      formData[`${setting.category}.${setting.key}`] = setting.value;
+    });
+    
+    setSettingsFormData(formData);
+    setHasSettingsChanges(false);
+  };
+
+  const handleSettingChange = (category: string, key: string, value: string) => {
+    setSettingsFormData(prev => ({
+      ...prev,
+      [`${category}.${key}`]: value,
+    }));
+    setHasSettingsChanges(true);
+  };
+
+  const handleSaveSettings = () => {
+    const settings = Object.entries(settingsFormData).map(([fullKey, value]) => {
+      const [category, key] = fullKey.split(".");
+      const defaultSetting = DEFAULT_SETTINGS.find(s => s.category === category && s.key === key);
+      return {
+        category,
+        key,
+        value,
+        description: defaultSetting?.description,
+      };
+    });
+    saveSettingsMutation.mutate(settings);
+  };
+
+  const handleResetSettings = () => {
+    initializeSettingsForm();
+  };
+
+  // Initialize settings form when data is loaded
+  useEffect(() => {
+    if (systemSettings.length > 0 || !settingsLoading) {
+      initializeSettingsForm();
+    }
+  }, [systemSettings, settingsLoading]);
+
   const filteredUsers = users.filter((user) => {
     const matchesSearch =
       user.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -312,7 +422,7 @@ export default function SystemAdminPage() {
 
       <div className="container mx-auto p-6 space-y-6" data-testid="system-admin-page">
         <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <TabsList className="grid w-full max-w-md grid-cols-2">
+          <TabsList className="grid w-full max-w-2xl grid-cols-3">
             <TabsTrigger value="users" className="flex items-center gap-2" data-testid="tab-users">
               <Users className="h-4 w-4" />
               사용자 관리
@@ -320,6 +430,10 @@ export default function SystemAdminPage() {
             <TabsTrigger value="categories" className="flex items-center gap-2" data-testid="tab-categories">
               <FolderTree className="h-4 w-4" />
               카테고리 관리
+            </TabsTrigger>
+            <TabsTrigger value="settings" className="flex items-center gap-2" data-testid="tab-settings">
+              <Settings className="h-4 w-4" />
+              시스템 설정
             </TabsTrigger>
           </TabsList>
 
@@ -630,6 +744,88 @@ export default function SystemAdminPage() {
                 )}
               </CardContent>
             </Card>
+          </TabsContent>
+
+          <TabsContent value="settings" className="space-y-6 mt-6">
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between">
+                <div>
+                  <CardTitle>시스템 설정</CardTitle>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    AI 모델, 평가 기준, 대화 및 음성 설정을 관리합니다.
+                  </p>
+                </div>
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    onClick={handleResetSettings}
+                    disabled={!hasSettingsChanges || saveSettingsMutation.isPending}
+                    data-testid="button-reset-settings"
+                  >
+                    <RotateCcw className="h-4 w-4 mr-2" />
+                    초기화
+                  </Button>
+                  <Button
+                    onClick={handleSaveSettings}
+                    disabled={!hasSettingsChanges || saveSettingsMutation.isPending}
+                    data-testid="button-save-settings"
+                  >
+                    {saveSettingsMutation.isPending ? (
+                      <>
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        저장 중...
+                      </>
+                    ) : (
+                      <>
+                        <Save className="h-4 w-4 mr-2" />
+                        저장
+                      </>
+                    )}
+                  </Button>
+                </div>
+              </CardHeader>
+              <CardContent>
+                {settingsLoading ? (
+                  <div className="flex items-center justify-center py-12">
+                    <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+                  </div>
+                ) : (
+                  <div className="space-y-8">
+                    {Object.entries(SETTING_CATEGORIES).map(([categoryKey, categoryInfo]) => (
+                      <div key={categoryKey} className="space-y-4">
+                        <div className="border-b pb-2">
+                          <h3 className="font-semibold text-lg">{categoryInfo.label}</h3>
+                          <p className="text-sm text-muted-foreground">{categoryInfo.description}</p>
+                        </div>
+                        <div className="grid gap-4">
+                          {DEFAULT_SETTINGS.filter(s => s.category === categoryKey).map(setting => (
+                            <div key={`${setting.category}-${setting.key}`} className="grid grid-cols-1 md:grid-cols-3 gap-4 items-start p-4 bg-slate-50 rounded-lg">
+                              <div className="space-y-1">
+                                <label className="text-sm font-medium">{setting.key}</label>
+                                <p className="text-xs text-muted-foreground">{setting.description}</p>
+                              </div>
+                              <div className="md:col-span-2">
+                                <Input
+                                  value={settingsFormData[`${setting.category}.${setting.key}`] || setting.value}
+                                  onChange={(e) => handleSettingChange(setting.category, setting.key, e.target.value)}
+                                  data-testid={`input-setting-${setting.category}-${setting.key}`}
+                                />
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            {hasSettingsChanges && (
+              <div className="fixed bottom-6 right-6 bg-amber-100 text-amber-800 px-4 py-2 rounded-lg shadow-lg flex items-center gap-2">
+                <span className="text-sm">저장되지 않은 변경사항이 있습니다.</span>
+              </div>
+            )}
           </TabsContent>
         </Tabs>
       </div>
