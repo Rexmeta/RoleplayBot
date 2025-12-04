@@ -139,7 +139,7 @@ export default function Analytics() {
           <div>
             <h1 className="text-3xl font-bold text-slate-900 mb-2">종합 커뮤니케이션 분석</h1>
             <p className="text-slate-600">
-              {analytics.completedSessions ? `${analytics.completedSessions}/${analytics.totalSessions}회의 대화 세션` : `총 ${analytics.totalSessions}회의 대화 세션`} 데이터를 기반으로 한 종합 분석
+              {analytics.completedSessions ? `${analytics.completedSessions}/${analytics.totalSessions}개의 시나리오` : `총 ${analytics.totalSessions}개의 시나리오`} 데이터를 기반으로 한 종합 분석
             </p>
           </div>
           <Link href="/mypage">
@@ -185,7 +185,7 @@ export default function Analytics() {
             <CardHeader className="pb-3">
               <CardTitle className="text-sm font-medium text-slate-600 flex items-center gap-2">
                 <BarChart3 className="w-4 h-4" />
-                완료한 세션
+                완료한 시나리오
               </CardTitle>
             </CardHeader>
             <CardContent>
