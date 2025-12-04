@@ -130,6 +130,36 @@ const AI_MODELS = [
   },
 ];
 
+const GEMINI_LIVE_MODELS = [
+  { 
+    value: "gemini-2.5-flash-native-audio-preview", 
+    label: "Gemini 2.5 Flash Native Audio", 
+    provider: "Google Live",
+    description: "최신 네이티브 오디오, 30+ HD 음성",
+    pricing: "Preview 요금제 (확인 필요)",
+    features: "감정 대화, 24개 언어, 사고 모드",
+    recommended: true
+  },
+  { 
+    value: "gemini-live-2.5-flash-preview", 
+    label: "Gemini 2.5 Flash Preview", 
+    provider: "Google Live",
+    description: "실시간 음성 대화 기본 모델",
+    pricing: "Preview 요금제 (확인 필요)",
+    features: "저지연 스트리밍, VAD 지원",
+    recommended: false
+  },
+  { 
+    value: "gemini-2.0-flash-live-preview-04-09", 
+    label: "Gemini 2.0 Flash Live", 
+    provider: "Google Live",
+    description: "이전 버전 실시간 대화 모델",
+    pricing: "Preview 요금제 (확인 필요)",
+    features: "안정적 성능, 비용 효율적",
+    recommended: false
+  },
+];
+
 const FEATURE_MODEL_INFO = [
   {
     id: "conversation",
@@ -168,17 +198,19 @@ const FEATURE_MODEL_INFO = [
     supportedProviders: ["Google"] // Gemini만 지원 (Google SDK 사용)
   },
   {
+    id: "realtime",
+    feature: "실시간 음성 대화",
+    description: "Gemini Live API 기반 음성 대화",
+    settingKey: "model_realtime",
+    defaultModel: "gemini-live-2.5-flash-preview",
+    configurable: true,
+    supportedProviders: ["Google Live"] // Gemini Live API만 지원
+  },
+  {
     id: "image",
     feature: "이미지 생성",
     description: "시나리오/페르소나 이미지 자동 생성",
     fixedModel: "Gemini 2.5 Flash Image",
-    configurable: false
-  },
-  {
-    id: "realtime",
-    feature: "실시간 음성 대화",
-    description: "음성 기반 실시간 대화",
-    fixedModel: "GPT-4o Realtime",
     configurable: false
   }
 ];
@@ -239,6 +271,7 @@ export default function SystemAdminPage() {
     model_feedback: "gemini-2.5-flash",
     model_strategy: "gemini-2.5-flash",
     model_scenario: "gemini-2.5-flash",
+    model_realtime: "gemini-live-2.5-flash-preview",
   });
   const [hasSettingsChanges, setHasSettingsChanges] = useState(false);
 
@@ -929,6 +962,7 @@ export default function SystemAdminPage() {
                   <div className="space-y-6">
                     {FEATURE_MODEL_INFO.filter(f => f.configurable && 'settingKey' in f).map((feature) => {
                       const supportedProviders: string[] = 'supportedProviders' in feature && feature.supportedProviders ? feature.supportedProviders : [];
+                      const modelsToShow = feature.id === 'realtime' ? GEMINI_LIVE_MODELS : AI_MODELS;
                       
                       return (
                       <div key={feature.id} className="space-y-3">
@@ -942,7 +976,7 @@ export default function SystemAdminPage() {
                           )}
                         </div>
                         <div className="grid gap-2 md:grid-cols-3 lg:grid-cols-4">
-                          {AI_MODELS.map((model) => {
+                          {modelsToShow.map((model) => {
                             const isProviderSupported = supportedProviders.length === 0 || supportedProviders.includes(model.provider);
                             const isModelDisabled = 'disabled' in model && model.disabled;
                             const isDisabled = isModelDisabled || !isProviderSupported;
