@@ -111,19 +111,20 @@ Preferred communication style: Simple, everyday language.
 
 ## System Settings (System Admin)
 - **Database Table**: `system_settings` - stores configurable system parameters
-- **Settings Categories**: AI model settings, evaluation system, conversation defaults, voice settings
+- **Simplified Settings**: Focus on AI model selection (gemini-2.5-flash / gemini-2.5-pro)
 - **API Endpoints**:
   - GET `/api/system-admin/settings` - List all settings (admin only)
-  - GET `/api/system-admin/settings/:category` - List settings by category (admin only)
   - PUT `/api/system-admin/settings` - Create/update single setting (admin only)
-  - PUT `/api/system-admin/settings/batch` - Batch update settings (admin only)
-  - DELETE `/api/system-admin/settings/:category/:key` - Delete setting (admin only)
-- **Default Settings**:
-  - AI: model (gemini-2.5-flash), temperature (0.7), maxTokens (2048)
-  - Evaluation: minPassingScore (60), evaluationCategories (5개 평가 항목)
-  - Conversation: maxTurns (10), idleTimeout (5분)
-  - Voice: ttsProvider (elevenlabs), speechRate (1.0)
-- **UI**: System admin page → "시스템 설정" tab with categorized form inputs
+  - GET `/api/system-admin/api-keys-status` - Check API key configuration status (admin only)
+- **Dynamic Model Selection**:
+  - Model setting stored in DB (`category=ai`, `key=model`)
+  - AI service reads model from DB before each response generation
+  - `syncModelFromSettings()` function updates singleton AI service with latest setting
+- **API Key Status Display**:
+  - Shows configuration status for Gemini, OpenAI, ElevenLabs keys
+  - Only displays boolean status (설정됨/미설정), not actual values
+  - Keys managed via Replit Secrets tab
+- **UI**: System admin page → "시스템 설정" tab with AI model selector and API key status cards
 
 ## Recent Changes (December 2025)
 - Added system settings management feature for configurable system parameters
