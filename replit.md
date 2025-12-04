@@ -113,7 +113,7 @@ Preferred communication style: Simple, everyday language.
 - **Database Table**: `system_settings` - stores configurable system parameters
 - **Per-Feature Model Selection**:
   - Each feature has independent model configuration
-  - DB keys: `model_conversation`, `model_feedback`, `model_strategy`
+  - DB keys: `model_conversation`, `model_feedback`, `model_strategy`, `model_scenario`
   - Available models:
     - Gemini: 2.5 Flash, 2.5 Pro
     - OpenAI: GPT-4o, GPT-4o Mini
@@ -122,6 +122,7 @@ Preferred communication style: Simple, everyday language.
   - 대화 응답 생성: Gemini/OpenAI 지원 (configurable via `model_conversation`)
   - 피드백 생성: Gemini/OpenAI 지원 (configurable via `model_feedback`)
   - 전략 회고 평가: Gemini만 지원 (configurable via `model_strategy`, Google SDK 사용)
+  - 시나리오 생성: Gemini만 지원 (configurable via `model_scenario`, Google SDK 사용)
   - 이미지 생성: Gemini 2.5 Flash Image (고정 - 변경 불가)
   - 실시간 음성 대화: GPT-4o Realtime (고정 - 변경 불가)
 - **Architecture**:
