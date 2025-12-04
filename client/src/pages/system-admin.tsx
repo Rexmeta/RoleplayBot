@@ -159,6 +159,15 @@ const FEATURE_MODEL_INFO = [
     supportedProviders: ["Google"] // Gemini만 지원
   },
   {
+    id: "scenario",
+    feature: "시나리오 생성",
+    description: "AI 기반 훈련 시나리오 자동 생성",
+    settingKey: "model_scenario",
+    defaultModel: "gemini-2.5-flash",
+    configurable: true,
+    supportedProviders: ["Google"] // Gemini만 지원 (Google SDK 사용)
+  },
+  {
     id: "image",
     feature: "이미지 생성",
     description: "시나리오/페르소나 이미지 자동 생성",
@@ -229,6 +238,7 @@ export default function SystemAdminPage() {
     model_conversation: "gemini-2.5-flash",
     model_feedback: "gemini-2.5-flash",
     model_strategy: "gemini-2.5-flash",
+    model_scenario: "gemini-2.5-flash",
   });
   const [hasSettingsChanges, setHasSettingsChanges] = useState(false);
 

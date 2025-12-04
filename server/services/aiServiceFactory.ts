@@ -6,12 +6,13 @@ import { CustomProvider } from "./providers/customProvider";
 import { storage } from "../storage";
 
 // 기능별 설정 키 매핑
-export type AIFeature = 'conversation' | 'feedback' | 'strategy';
+export type AIFeature = 'conversation' | 'feedback' | 'strategy' | 'scenario';
 
 const FEATURE_SETTING_KEYS: Record<AIFeature, string> = {
   conversation: 'model_conversation',
   feedback: 'model_feedback',
   strategy: 'model_strategy',
+  scenario: 'model_scenario',
 };
 
 /**

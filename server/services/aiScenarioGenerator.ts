@@ -1,4 +1,5 @@
 import { GoogleGenAI } from "@google/genai";
+import { getModelForFeature } from "./aiServiceFactory";
 
 // 시나리오 타입 정의
 export interface ComplexScenario {
@@ -219,8 +220,17 @@ ENFJ: 협력적이고 조화 추구, 팀워크 중시
 ENTJ: 목표 지향적, 효율성과 결과 중시`;
 
   try {
+    // DB에서 설정된 모델 가져오기 (Gemini만 지원)
+    let configuredModel = await getModelForFeature('scenario');
+    // Gemini 모델만 지원하므로 비-Gemini 모델이 설정되면 기본값으로 폴백
+    if (!configuredModel.startsWith('gemini-')) {
+      console.log(`⚠️ 시나리오 생성은 Gemini만 지원합니다. ${configuredModel} → gemini-2.5-flash로 폴백`);
+      configuredModel = 'gemini-2.5-flash';
+    }
+    console.log(`🎬 시나리오 생성 모델: ${configuredModel}`);
+    
     const response = await ai.models.generateContent({
-      model: "gemini-2.5-flash",
+      model: configuredModel,
       config: {
         responseMimeType: "application/json",
         responseSchema: {
@@ -362,8 +372,17 @@ ${enhancementType === 'improve' ?
 }`;
 
   try {
+    // DB에서 설정된 모델 가져오기 (Gemini만 지원)
+    let configuredModel = await getModelForFeature('scenario');
+    // Gemini 모델만 지원하므로 비-Gemini 모델이 설정되면 기본값으로 폴백
+    if (!configuredModel.startsWith('gemini-')) {
+      console.log(`⚠️ 시나리오 개선은 Gemini만 지원합니다. ${configuredModel} → gemini-2.5-flash로 폴백`);
+      configuredModel = 'gemini-2.5-flash';
+    }
+    console.log(`🔧 시나리오 개선 모델: ${configuredModel}`);
+    
     const response = await ai.models.generateContent({
-      model: "gemini-2.5-flash",
+      model: configuredModel,
       config: {
         responseMimeType: "application/json"
       },
