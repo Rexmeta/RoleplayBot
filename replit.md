@@ -111,34 +111,39 @@ Preferred communication style: Simple, everyday language.
 
 ## System Settings (System Admin)
 - **Database Table**: `system_settings` - stores configurable system parameters
-- **Expanded Model Selection**: 
-  - Gemini: 2.5 Flash, 2.5 Pro
-  - OpenAI: GPT-4o, GPT-4o Mini
-  - Claude: 3.5 Sonnet, 3.5 Haiku (준비 중 - 백엔드 미구현)
-- **Model Information Display**:
-  - Pricing per 1M tokens (input/output 비용)
-  - Features description for each model
-  - Provider badge and "추천" badge for recommended models
-  - "준비 중" badge and disabled state for unsupported models
-- **Feature Usage Summary**:
-  - 대화 응답 생성: 시스템 설정 모델 (동적)
-  - 피드백 생성: 시스템 설정 모델 (동적)
-  - 전략 회고 평가: Gemini 2.5 Flash (고정)
-  - 이미지 생성: Gemini 2.5 Flash Image (고정)
-  - 실시간 음성 대화: GPT-4o Realtime (고정)
+- **Per-Feature Model Selection**:
+  - Each feature has independent model configuration
+  - DB keys: `model_conversation`, `model_feedback`, `model_strategy`
+  - Available models:
+    - Gemini: 2.5 Flash, 2.5 Pro
+    - OpenAI: GPT-4o, GPT-4o Mini
+    - Claude: 3.5 Sonnet, 3.5 Haiku (준비 중 - 백엔드 미구현)
+- **Feature Model Constraints**:
+  - 대화 응답 생성: Gemini/OpenAI 지원 (configurable via `model_conversation`)
+  - 피드백 생성: Gemini/OpenAI 지원 (configurable via `model_feedback`)
+  - 전략 회고 평가: Gemini만 지원 (configurable via `model_strategy`, Google SDK 사용)
+  - 이미지 생성: Gemini 2.5 Flash Image (고정 - 변경 불가)
+  - 실시간 음성 대화: GPT-4o Realtime (고정 - 변경 불가)
+- **Architecture**:
+  - `AIServiceFactory.getAIServiceForFeature(feature)` - creates fresh provider instance per request
+  - No singleton pattern - eliminates race conditions with concurrent requests
+  - Each feature reads its own setting from DB and creates appropriate provider
+  - Strategy evaluation falls back to Gemini if non-Gemini model is selected (SDK limitation)
 - **API Endpoints**:
   - GET `/api/system-admin/settings` - List all settings (admin only)
   - PUT `/api/system-admin/settings` - Create/update single setting (admin only)
   - GET `/api/system-admin/api-keys-status` - Check API key configuration status (admin only)
-- **Dynamic Model Selection**:
-  - Model setting stored in DB (`category=ai`, `key=model`)
-  - AI service reads model from DB before each response generation
-  - `syncModelFromSettings()` function updates singleton AI service with latest setting
+- **Model Information Display**:
+  - Pricing per 1M tokens (input/output 비용)
+  - Features description for each model
+  - Provider badge and "추천" badge for recommended models
+  - "준비 중" badge for backend-unsupported models
+  - "미지원" badge for feature-unsupported providers
 - **API Key Status Display**:
   - Shows configuration status for Gemini, OpenAI, ElevenLabs, Anthropic keys
   - Only displays boolean status (설정됨/미설정), not actual values
   - Keys managed via Replit Secrets tab
-- **UI**: System admin page → "시스템 설정" tab with AI model selector and API key status cards
+- **UI**: System admin page → "시스템 설정" tab with per-feature AI model selectors and API key status cards
 
 ## Recent Changes (December 2025)
 - Added system settings management feature for configurable system parameters
