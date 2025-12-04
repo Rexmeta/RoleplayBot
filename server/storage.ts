@@ -64,6 +64,7 @@ export interface IStorage {
   getUser(id: string): Promise<User | undefined>;
   getUserByEmail(email: string): Promise<User | undefined>;
   createUser(user: { email: string; password: string; name: string }): Promise<User>;
+  updateUser(id: string, updates: { name?: string; password?: string }): Promise<User>;
   upsertUser(user: UpsertUser): Promise<User>;
 }
 
@@ -346,6 +347,23 @@ export class MemStorage implements IStorage {
     return user;
   }
 
+  async updateUser(id: string, updates: { name?: string; password?: string }): Promise<User> {
+    const existingUser = this.users.get(id);
+    if (!existingUser) {
+      throw new Error("User not found");
+    }
+    
+    const updatedUser: User = {
+      ...existingUser,
+      ...(updates.name && { name: updates.name }),
+      ...(updates.password && { password: updates.password }),
+      updatedAt: new Date(),
+    };
+    
+    this.users.set(id, updatedUser);
+    return updatedUser;
+  }
+
   async upsertUser(userData: UpsertUser): Promise<User> {
     const existingUser = this.users.get(userData.id as string);
     
@@ -529,6 +547,18 @@ export class PostgreSQLStorage implements IStorage {
 
   async createUser(userData: { email: string; password: string; name: string }): Promise<User> {
     const [user] = await db.insert(users).values(userData).returning();
+    return user;
+  }
+
+  async updateUser(id: string, updates: { name?: string; password?: string }): Promise<User> {
+    const updateData: any = { updatedAt: new Date() };
+    if (updates.name) updateData.name = updates.name;
+    if (updates.password) updateData.password = updates.password;
+    
+    const [user] = await db.update(users).set(updateData).where(eq(users.id, id)).returning();
+    if (!user) {
+      throw new Error("User not found");
+    }
     return user;
   }
 

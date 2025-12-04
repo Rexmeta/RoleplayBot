@@ -267,6 +267,96 @@ export async function registerRoutes(app: Express): Promise<Server> {
     return feedback;
   }
 
+  // ===== User Profile Management =====
+  // Update user profile (name and/or password)
+  app.patch("/api/user/profile", isAuthenticated, async (req, res) => {
+    try {
+      // @ts-ignore - req.user는 auth 미들웨어에서 설정됨
+      const userId = req.user?.id;
+      if (!userId) {
+        return res.status(401).json({ error: "Unauthorized" });
+      }
+
+      const { name, currentPassword, newPassword } = req.body;
+      
+      // 현재 사용자 정보 조회
+      const user = await storage.getUser(userId);
+      if (!user) {
+        return res.status(404).json({ error: "User not found" });
+      }
+
+      const updates: { name?: string; password?: string } = {};
+
+      // 이름 업데이트
+      if (name && name.trim()) {
+        updates.name = name.trim();
+      }
+
+      // 비밀번호 변경
+      if (newPassword) {
+        if (!currentPassword) {
+          return res.status(400).json({ error: "Current password is required to change password" });
+        }
+
+        // 현재 비밀번호 확인
+        const { verifyPassword, hashPassword } = await import('./auth');
+        const isValidPassword = await verifyPassword(currentPassword, user.password);
+        if (!isValidPassword) {
+          return res.status(400).json({ error: "Current password is incorrect" });
+        }
+
+        // 새 비밀번호 해싱
+        updates.password = await hashPassword(newPassword);
+      }
+
+      if (Object.keys(updates).length === 0) {
+        return res.status(400).json({ error: "No updates provided" });
+      }
+
+      // 사용자 정보 업데이트
+      const updatedUser = await storage.updateUser(userId, updates);
+
+      res.json({
+        id: updatedUser.id,
+        email: updatedUser.email,
+        name: updatedUser.name,
+        role: updatedUser.role,
+        updatedAt: updatedUser.updatedAt,
+      });
+    } catch (error: any) {
+      console.error("Error updating user profile:", error);
+      res.status(500).json({ error: error.message || "Failed to update profile" });
+    }
+  });
+
+  // Get current user profile
+  app.get("/api/user/profile", isAuthenticated, async (req, res) => {
+    try {
+      // @ts-ignore - req.user는 auth 미들웨어에서 설정됨
+      const userId = req.user?.id;
+      if (!userId) {
+        return res.status(401).json({ error: "Unauthorized" });
+      }
+
+      const user = await storage.getUser(userId);
+      if (!user) {
+        return res.status(404).json({ error: "User not found" });
+      }
+
+      res.json({
+        id: user.id,
+        email: user.email,
+        name: user.name,
+        role: user.role,
+        createdAt: user.createdAt,
+        updatedAt: user.updatedAt,
+      });
+    } catch (error: any) {
+      console.error("Error fetching user profile:", error);
+      res.status(500).json({ error: error.message || "Failed to fetch profile" });
+    }
+  });
+
   // Create new conversation (scenario_run + persona_run 구조)
   app.post("/api/conversations", isAuthenticated, async (req, res) => {
     try {
