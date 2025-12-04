@@ -132,13 +132,31 @@ const AI_MODELS = [
 
 const GEMINI_LIVE_MODELS = [
   { 
-    value: "gemini-2.5-flash-native-audio-preview-09-2025", 
+    value: "gemini-2.5-flash-native-audio-preview", 
     label: "Gemini 2.5 Flash Native Audio", 
     provider: "Google Live",
     description: "최신 네이티브 오디오, 30+ HD 음성",
-    pricing: "Preview 요금제",
+    pricing: "Preview 요금제 (확인 필요)",
     features: "감정 대화, 24개 언어, 사고 모드",
     recommended: true
+  },
+  { 
+    value: "gemini-live-2.5-flash-preview", 
+    label: "Gemini 2.5 Flash Preview", 
+    provider: "Google Live",
+    description: "실시간 음성 대화 기본 모델",
+    pricing: "Preview 요금제 (확인 필요)",
+    features: "저지연 스트리밍, VAD 지원",
+    recommended: false
+  },
+  { 
+    value: "gemini-2.0-flash-live-preview-04-09", 
+    label: "Gemini 2.0 Flash Live", 
+    provider: "Google Live",
+    description: "이전 버전 실시간 대화 모델",
+    pricing: "Preview 요금제 (확인 필요)",
+    features: "안정적 성능, 비용 효율적",
+    recommended: false
   },
 ];
 
@@ -184,7 +202,7 @@ const FEATURE_MODEL_INFO = [
     feature: "실시간 음성 대화",
     description: "Gemini Live API 기반 음성 대화",
     settingKey: "model_realtime",
-    defaultModel: "gemini-2.5-flash-native-audio-preview-09-2025",
+    defaultModel: "gemini-live-2.5-flash-preview",
     configurable: true,
     supportedProviders: ["Google Live"] // Gemini Live API만 지원
   },
@@ -253,7 +271,7 @@ export default function SystemAdminPage() {
     model_feedback: "gemini-2.5-flash",
     model_strategy: "gemini-2.5-flash",
     model_scenario: "gemini-2.5-flash",
-    model_realtime: "gemini-2.5-flash-native-audio-preview-09-2025",
+    model_realtime: "gemini-live-2.5-flash-preview",
   });
   const [hasSettingsChanges, setHasSettingsChanges] = useState(false);
 
@@ -976,7 +994,7 @@ export default function SystemAdminPage() {
                                 }`}
                                 onClick={() => !isDisabled && handleFeatureModelChange(feature.settingKey!, model.value)}
                                 data-testid={`model-option-${feature.id}-${model.value}`}
-                                aria-disabled={isDisabled ? "true" : "false"}
+                                aria-disabled={isDisabled}
                               >
                                 <div className="flex items-start gap-2">
                                   <div className={`w-4 h-4 mt-0.5 rounded-full border-2 flex items-center justify-center flex-shrink-0 ${

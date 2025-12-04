@@ -116,7 +116,7 @@ Preferred communication style: Simple, everyday language.
   - DB keys: `model_conversation`, `model_feedback`, `model_strategy`, `model_scenario`, `model_realtime`
   - Available models:
     - Gemini: 2.5 Flash, 2.5 Pro
-    - Gemini Live: 2.5 Flash Native Audio (gemini-2.5-flash-native-audio-preview-09-2025)
+    - Gemini Live: 2.5 Flash Native Audio, 2.5 Flash Preview, 2.0 Flash (실시간 음성 전용)
     - OpenAI: GPT-4o, GPT-4o Mini
     - Claude: 3.5 Sonnet, 3.5 Haiku (준비 중 - 백엔드 미구현)
 - **Feature Model Constraints**:
