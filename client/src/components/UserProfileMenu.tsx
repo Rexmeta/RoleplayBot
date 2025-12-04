@@ -86,7 +86,7 @@ export function UserProfileMenu() {
                   data-testid="menu-admin-dashboard"
                 >
                   <BarChart3 className="w-4 h-4 mr-2" />
-                  관리자 대시보드
+                  운영자 대시보드
                 </DropdownMenuItem>
               )}
               <DropdownMenuItem

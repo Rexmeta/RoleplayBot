@@ -211,7 +211,7 @@ export default function AdminDashboard() {
   return (
     <div className="min-h-screen bg-slate-50">
       <AppHeader 
-        title="관리자 대시보드"
+        title="운영자 대시보드"
         subtitle="교육 결과 분석 및 성과 현황"
         showBackButton
       />

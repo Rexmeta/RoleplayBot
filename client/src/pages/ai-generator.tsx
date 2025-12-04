@@ -96,7 +96,7 @@ export default function AIGeneratorPage() {
             <Link href="/admin">
               <Button variant="outline" size="sm">
                 <i className="fas fa-arrow-left mr-2"></i>
-                관리자 대시보드로
+                운영자 대시보드로
               </Button>
             </Link>
             <h1 className="text-3xl font-bold text-slate-900">AI 시나리오 생성기</h1>
