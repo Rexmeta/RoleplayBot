@@ -61,6 +61,20 @@ export const categories = pgTable("categories", {
   createdAt: timestamp("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
 });
 
+// 시스템 설정 테이블 (키-값 저장)
+export const systemSettings = pgTable("system_settings", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  category: varchar("category").notNull(), // ai_model, evaluation, conversation, voice
+  key: varchar("key").notNull(), // 설정 키
+  value: text("value").notNull(), // 설정 값 (JSON 문자열 가능)
+  description: text("description"), // 설정 설명
+  updatedAt: timestamp("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+  updatedBy: varchar("updated_by").references(() => users.id), // 마지막 수정자
+}, (table) => [
+  index("idx_system_settings_category").on(table.category),
+  index("idx_system_settings_key").on(table.key),
+]);
+
 // User storage table - 이메일 기반 인증 시스템용
 export const users = pgTable("users", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
@@ -357,3 +371,12 @@ export const insertCategorySchema = createInsertSchema(categories).omit({
 
 export type InsertCategory = z.infer<typeof insertCategorySchema>;
 export type Category = typeof categories.$inferSelect;
+
+// System Settings types
+export const insertSystemSettingSchema = createInsertSchema(systemSettings).omit({
+  id: true,
+  updatedAt: true,
+});
+
+export type InsertSystemSetting = z.infer<typeof insertSystemSettingSchema>;
+export type SystemSetting = typeof systemSettings.$inferSelect;
