@@ -772,7 +772,6 @@ export default function Home() {
         {currentView === "video-intro" && selectedScenario && selectedScenario.introVideoUrl && (
           <VideoIntro
             videoSrc={selectedScenario.introVideoUrl}
-            scenarioTitle={selectedScenario.title}
             onComplete={handleVideoComplete}
             onSkip={handleVideoSkip}
           />
