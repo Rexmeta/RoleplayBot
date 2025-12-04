@@ -4,13 +4,14 @@ import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Tooltip as UITooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { TrendingUp, TrendingDown, Minus, Award, Target, BarChart3, Calendar, HelpCircle } from "lucide-react";
+import { TrendingUp, TrendingDown, Minus, Award, Target, BarChart3, Calendar, HelpCircle, MessageSquare } from "lucide-react";
 import { Link } from "wouter";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts";
 
 type AnalyticsSummary = {
   totalSessions: number;
   completedSessions?: number;
+  totalFeedbacks?: number;
   averageScore: number;
   categoryAverages: {
     clarityLogic: number;
@@ -149,7 +150,7 @@ export default function Analytics() {
 
         {/* Summary Cards */}
         <TooltipProvider>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
             {/* Overall Score */}
             <Card data-testid="card-overall-score">
               <CardHeader className="pb-3">
@@ -221,6 +222,30 @@ export default function Analytics() {
                 {analytics.progressTrend === 'stable' && '안정적인 수준을 유지하고 있습니다'}
                 {analytics.progressTrend === 'neutral' && '데이터가 더 필요합니다'}
               </p>
+            </CardContent>
+          </Card>
+
+          {/* Total Feedbacks */}
+          <Card data-testid="card-feedbacks">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-sm font-medium text-slate-600 flex items-center gap-2">
+                <MessageSquare className="w-4 h-4" />
+                총 피드백
+                <UITooltip>
+                  <TooltipTrigger asChild>
+                    <HelpCircle className="w-4 h-4 text-slate-400 hover:text-slate-600 cursor-help" />
+                  </TooltipTrigger>
+                  <TooltipContent side="right">
+                    <p>완료되고 피드백을</p>
+                    <p>받은 대화의 개수입니다.</p>
+                  </TooltipContent>
+                </UITooltip>
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-4xl font-bold text-slate-900" data-testid="text-total-feedbacks">
+                {analytics.totalFeedbacks || 0}
+              </div>
             </CardContent>
           </Card>
         </div>
