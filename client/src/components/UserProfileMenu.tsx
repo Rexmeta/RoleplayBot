@@ -13,20 +13,18 @@ import { Badge } from "@/components/ui/badge";
 import { useAuth } from "@/hooks/useAuth";
 import { ProfileEditDialog } from "./ProfileEditDialog";
 
-const tierConfig: Record<string, { label: string; color: string; bgColor: string }> = {
-  bronze: { label: "브론즈", color: "text-amber-700", bgColor: "bg-amber-100" },
-  silver: { label: "실버", color: "text-slate-600", bgColor: "bg-slate-100" },
-  gold: { label: "골드", color: "text-yellow-600", bgColor: "bg-yellow-100" },
-  platinum: { label: "플래티넘", color: "text-cyan-600", bgColor: "bg-cyan-100" },
-  diamond: { label: "다이아몬드", color: "text-purple-600", bgColor: "bg-purple-100" },
+const roleConfig: Record<string, { label: string; color: string; bgColor: string }> = {
+  admin: { label: "시스템관리자", color: "text-red-700", bgColor: "bg-red-100" },
+  operator: { label: "운영자", color: "text-blue-700", bgColor: "bg-blue-100" },
+  user: { label: "일반유저", color: "text-slate-600", bgColor: "bg-slate-100" },
 };
 
 export function UserProfileMenu() {
   const { logout, user } = useAuth();
   const [showProfileEdit, setShowProfileEdit] = useState(false);
 
-  const tier = user?.tier || "bronze";
-  const tierInfo = tierConfig[tier] || tierConfig.bronze;
+  const role = user?.role || "user";
+  const roleInfo = roleConfig[role] || roleConfig.user;
 
   return (
     <>
@@ -55,8 +53,8 @@ export function UserProfileMenu() {
             <div className="flex flex-col space-y-1">
               <p className="text-sm font-medium leading-none">{user?.name || "사용자"}</p>
               <p className="text-xs leading-none text-muted-foreground">{user?.email}</p>
-              <Badge className={`${tierInfo.bgColor} ${tierInfo.color} text-xs mt-1 w-fit`} data-testid="menu-tier-badge">
-                {tierInfo.label}
+              <Badge className={`${roleInfo.bgColor} ${roleInfo.color} text-xs mt-1 w-fit`} data-testid="menu-role-badge">
+                {roleInfo.label}
               </Badge>
             </div>
           </DropdownMenuLabel>
