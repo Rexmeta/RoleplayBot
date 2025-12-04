@@ -119,10 +119,10 @@ Preferred communication style: Simple, everyday language.
   - PUT `/api/system-admin/settings/batch` - Batch update settings (admin only)
   - DELETE `/api/system-admin/settings/:category/:key` - Delete setting (admin only)
 - **Default Settings**:
-  - AI: model, temperature, maxTokens
-  - Evaluation: minPassingScore, evaluationCategories
-  - Conversation: maxTurns, sessionTimeout
-  - Voice: defaultVoice, speechRate
+  - AI: model (gemini-2.5-flash), temperature (0.7), maxTokens (2048)
+  - Evaluation: minPassingScore (60), evaluationCategories (5개 평가 항목)
+  - Conversation: maxTurns (10), idleTimeout (5분)
+  - Voice: ttsProvider (elevenlabs), speechRate (1.0)
 - **UI**: System admin page → "시스템 설정" tab with categorized form inputs
 
 ## Recent Changes (December 2025)

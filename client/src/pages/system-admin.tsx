@@ -82,11 +82,11 @@ const DEFAULT_SETTINGS: { category: string; key: string; value: string; descript
   { category: "ai", key: "model", value: "gemini-2.5-flash", description: "AI 대화에 사용할 모델 (gemini-2.5-flash, gemini-2.5-pro)" },
   { category: "ai", key: "temperature", value: "0.7", description: "AI 응답의 창의성 정도 (0.0 ~ 1.0)" },
   { category: "ai", key: "maxTokens", value: "2048", description: "AI 응답의 최대 토큰 수" },
-  { category: "evaluation", key: "minPassingScore", value: "60", description: "합격 기준 점수 (0 ~ 100)" },
-  { category: "evaluation", key: "evaluationCategories", value: "명확성,공감력,적절성,전문성,해결력", description: "평가 항목 (쉼표로 구분)" },
+  { category: "evaluation", key: "minPassingScore", value: "60", description: "합격 기준 점수 (0 ~ 100, C등급 기준)" },
+  { category: "evaluation", key: "evaluationCategories", value: "명확성&논리성,경청&공감,적절성&상황대응,설득력&영향력,전략적커뮤니케이션", description: "평가 항목 (쉼표로 구분)" },
   { category: "conversation", key: "maxTurns", value: "10", description: "대화당 최대 턴 수" },
-  { category: "conversation", key: "sessionTimeout", value: "30", description: "세션 타임아웃 (분)" },
-  { category: "voice", key: "defaultVoice", value: "alloy", description: "기본 TTS 음성 (alloy, echo, fable, onyx, nova, shimmer)" },
+  { category: "conversation", key: "idleTimeout", value: "5", description: "유휴 시간 제한 (분, 대화 중단으로 간주)" },
+  { category: "voice", key: "ttsProvider", value: "elevenlabs", description: "TTS 서비스 제공자 (elevenlabs, openai)" },
   { category: "voice", key: "speechRate", value: "1.0", description: "음성 속도 (0.5 ~ 2.0)" },
 ];
 
