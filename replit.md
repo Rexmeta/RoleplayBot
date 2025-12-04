@@ -111,7 +111,21 @@ Preferred communication style: Simple, everyday language.
 
 ## System Settings (System Admin)
 - **Database Table**: `system_settings` - stores configurable system parameters
-- **Simplified Settings**: Focus on AI model selection (gemini-2.5-flash / gemini-2.5-pro)
+- **Expanded Model Selection**: 
+  - Gemini: 2.5 Flash, 2.5 Pro
+  - OpenAI: GPT-4o, GPT-4o Mini
+  - Claude: 3.5 Sonnet, 3.5 Haiku (준비 중 - 백엔드 미구현)
+- **Model Information Display**:
+  - Pricing per 1M tokens (input/output 비용)
+  - Features description for each model
+  - Provider badge and "추천" badge for recommended models
+  - "준비 중" badge and disabled state for unsupported models
+- **Feature Usage Summary**:
+  - 대화 응답 생성: 시스템 설정 모델 (동적)
+  - 피드백 생성: 시스템 설정 모델 (동적)
+  - 전략 회고 평가: Gemini 2.5 Flash (고정)
+  - 이미지 생성: Gemini 2.5 Flash Image (고정)
+  - 실시간 음성 대화: GPT-4o Realtime (고정)
 - **API Endpoints**:
   - GET `/api/system-admin/settings` - List all settings (admin only)
   - PUT `/api/system-admin/settings` - Create/update single setting (admin only)
@@ -121,7 +135,7 @@ Preferred communication style: Simple, everyday language.
   - AI service reads model from DB before each response generation
   - `syncModelFromSettings()` function updates singleton AI service with latest setting
 - **API Key Status Display**:
-  - Shows configuration status for Gemini, OpenAI, ElevenLabs keys
+  - Shows configuration status for Gemini, OpenAI, ElevenLabs, Anthropic keys
   - Only displays boolean status (설정됨/미설정), not actual values
   - Keys managed via Replit Secrets tab
 - **UI**: System admin page → "시스템 설정" tab with AI model selector and API key status cards
