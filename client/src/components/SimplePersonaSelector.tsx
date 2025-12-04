@@ -359,6 +359,12 @@ export function SimplePersonaSelector({
                       className="w-full"
                       variant="default"
                       disabled={isLoading}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (isAvailable && !isCurrentlyLoading) {
+                          onPersonaSelect(persona, selectedDifficulty);
+                        }
+                      }}
                       data-testid={`select-persona-${persona.id}`}
                     >
                       {isCurrentlyLoading ? (
