@@ -72,14 +72,102 @@ interface SystemSetting {
 }
 
 const AI_MODELS = [
-  { value: "gemini-2.5-flash", label: "Gemini 2.5 Flash", description: "빠른 응답 속도, 일반 대화용" },
-  { value: "gemini-2.5-pro", label: "Gemini 2.5 Pro", description: "높은 품질, 복잡한 대화용" },
+  { 
+    value: "gemini-2.5-flash", 
+    label: "Gemini 2.5 Flash", 
+    provider: "Google",
+    description: "빠른 응답 속도, 일반 대화용",
+    pricing: "입력 $0.075/1M 토큰, 출력 $0.30/1M 토큰",
+    features: "텍스트 생성, 멀티모달 지원",
+    recommended: true
+  },
+  { 
+    value: "gemini-2.5-pro", 
+    label: "Gemini 2.5 Pro", 
+    provider: "Google",
+    description: "높은 품질, 복잡한 대화용",
+    pricing: "입력 $1.25/1M 토큰, 출력 $5.00/1M 토큰",
+    features: "최고 품질 텍스트, 복잡한 추론",
+    recommended: false
+  },
+  { 
+    value: "gpt-4o", 
+    label: "GPT-4o", 
+    provider: "OpenAI",
+    description: "OpenAI 최신 멀티모달 모델",
+    pricing: "입력 $2.50/1M 토큰, 출력 $10.00/1M 토큰",
+    features: "고품질 텍스트, 이미지 이해",
+    recommended: false
+  },
+  { 
+    value: "gpt-4o-mini", 
+    label: "GPT-4o Mini", 
+    provider: "OpenAI",
+    description: "경제적인 OpenAI 모델",
+    pricing: "입력 $0.15/1M 토큰, 출력 $0.60/1M 토큰",
+    features: "빠른 속도, 비용 효율적",
+    recommended: false
+  },
+  { 
+    value: "claude-3-5-sonnet-20241022", 
+    label: "Claude 3.5 Sonnet", 
+    provider: "Anthropic",
+    description: "균형 잡힌 성능과 속도 (준비 중)",
+    pricing: "입력 $3.00/1M 토큰, 출력 $15.00/1M 토큰",
+    features: "고품질 텍스트, 긴 문맥 지원",
+    recommended: false,
+    disabled: true
+  },
+  { 
+    value: "claude-3-5-haiku-20241022", 
+    label: "Claude 3.5 Haiku", 
+    provider: "Anthropic",
+    description: "빠르고 경제적인 모델 (준비 중)",
+    pricing: "입력 $0.80/1M 토큰, 출력 $4.00/1M 토큰",
+    features: "빠른 응답, 효율적",
+    recommended: false,
+    disabled: true
+  },
+];
+
+const FEATURE_MODEL_INFO = [
+  {
+    feature: "대화 응답 생성",
+    description: "시나리오에서 AI 페르소나가 사용자에게 응답",
+    model: "시스템 설정 모델 사용",
+    configurable: true
+  },
+  {
+    feature: "피드백 생성",
+    description: "대화 완료 후 사용자 성과 평가",
+    model: "시스템 설정 모델 사용",
+    configurable: true
+  },
+  {
+    feature: "전략 회고 평가",
+    description: "대화 순서 전략에 대한 AI 평가",
+    model: "Gemini 2.5 Flash (고정)",
+    configurable: false
+  },
+  {
+    feature: "이미지 생성",
+    description: "시나리오/페르소나 이미지 자동 생성",
+    model: "Gemini 2.5 Flash Image (고정)",
+    configurable: false
+  },
+  {
+    feature: "실시간 음성 대화",
+    description: "음성 기반 실시간 대화",
+    model: "GPT-4o Realtime (고정)",
+    configurable: false
+  }
 ];
 
 interface ApiKeyStatus {
   gemini: boolean;
   openai: boolean;
   elevenlabs: boolean;
+  anthropic: boolean;
 }
 
 const roleConfig: Record<string, { label: string; color: string; bgColor: string }> = {
@@ -279,6 +367,17 @@ export default function SystemAdminPage() {
   };
 
   const handleSaveSettings = () => {
+    // 비활성화된 모델 선택 방지
+    const selectedModelInfo = AI_MODELS.find(m => m.value === selectedModel);
+    if (selectedModelInfo && 'disabled' in selectedModelInfo && selectedModelInfo.disabled) {
+      toast({
+        title: "저장 불가",
+        description: "선택한 모델은 현재 지원되지 않습니다. 다른 모델을 선택해 주세요.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     saveSettingsMutation.mutate({
       category: "ai",
       key: "model",
@@ -719,7 +818,7 @@ export default function SystemAdminPage() {
               <CardHeader>
                 <CardTitle>AI 모델 설정</CardTitle>
                 <p className="text-sm text-muted-foreground">
-                  대화 생성에 사용할 AI 모델을 선택합니다.
+                  대화 응답 및 피드백 생성에 사용할 AI 모델을 선택합니다. 모델별 비용과 특성을 확인하세요.
                 </p>
               </CardHeader>
               <CardContent>
@@ -729,55 +828,131 @@ export default function SystemAdminPage() {
                   </div>
                 ) : (
                   <div className="space-y-4">
-                    <div className="space-y-3">
-                      {AI_MODELS.map((model) => (
-                        <div
-                          key={model.value}
-                          className={`p-4 border rounded-lg cursor-pointer transition-colors ${
-                            selectedModel === model.value
-                              ? "border-blue-500 bg-blue-50"
-                              : "border-gray-200 hover:border-gray-300"
-                          }`}
-                          onClick={() => handleModelChange(model.value)}
-                          data-testid={`model-option-${model.value}`}
-                        >
-                          <div className="flex items-center gap-3">
-                            <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${
-                              selectedModel === model.value ? "border-blue-500" : "border-gray-300"
-                            }`}>
-                              {selectedModel === model.value && (
-                                <div className="w-2 h-2 rounded-full bg-blue-500" />
-                              )}
-                            </div>
-                            <div>
-                              <p className="font-medium">{model.label}</p>
-                              <p className="text-sm text-muted-foreground">{model.description}</p>
+                    <div className="grid gap-3 md:grid-cols-2">
+                      {AI_MODELS.map((model) => {
+                        const isDisabled = 'disabled' in model && model.disabled;
+                        const isSelected = selectedModel === model.value;
+                        
+                        return (
+                          <div
+                            key={model.value}
+                            className={`p-4 border rounded-lg transition-colors ${
+                              isDisabled 
+                                ? "border-gray-200 bg-gray-50 cursor-not-allowed opacity-60 pointer-events-none"
+                                : isSelected
+                                  ? "border-blue-500 bg-blue-50 cursor-pointer"
+                                  : "border-gray-200 hover:border-gray-300 cursor-pointer"
+                            }`}
+                            onClick={() => !isDisabled && handleModelChange(model.value)}
+                            data-testid={`model-option-${model.value}`}
+                            aria-disabled={isDisabled}
+                          >
+                            <div className="flex items-start gap-3">
+                              <div className={`w-4 h-4 mt-1 rounded-full border-2 flex items-center justify-center flex-shrink-0 ${
+                                isDisabled 
+                                  ? "border-gray-300"
+                                  : isSelected 
+                                    ? "border-blue-500" 
+                                    : "border-gray-300"
+                              }`}>
+                                {isSelected && !isDisabled && (
+                                  <div className="w-2 h-2 rounded-full bg-blue-500" />
+                                )}
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  <span className="font-medium">{model.label}</span>
+                                  <Badge variant="outline" className="text-xs">{model.provider}</Badge>
+                                  {'recommended' in model && model.recommended && (
+                                    <Badge className="text-xs bg-green-100 text-green-700 hover:bg-green-100">추천</Badge>
+                                  )}
+                                  {isDisabled && (
+                                    <Badge variant="secondary" className="text-xs">준비 중</Badge>
+                                  )}
+                                </div>
+                                <p className="text-sm text-muted-foreground mt-1">{model.description}</p>
+                                <div className="mt-2 space-y-1">
+                                  <p className="text-xs text-blue-600 font-mono">{model.pricing}</p>
+                                  <p className="text-xs text-gray-500">{model.features}</p>
+                                </div>
+                              </div>
                             </div>
                           </div>
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
                     
-                    <Button
-                      onClick={handleSaveSettings}
-                      disabled={!hasSettingsChanges || saveSettingsMutation.isPending}
-                      className="mt-4"
-                      data-testid="button-save-settings"
-                    >
-                      {saveSettingsMutation.isPending ? (
-                        <>
-                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                          저장 중...
-                        </>
-                      ) : (
-                        <>
-                          <Save className="h-4 w-4 mr-2" />
-                          저장
-                        </>
+                    <div className="flex items-center gap-4">
+                      <Button
+                        onClick={handleSaveSettings}
+                        disabled={!hasSettingsChanges || saveSettingsMutation.isPending}
+                        data-testid="button-save-settings"
+                      >
+                        {saveSettingsMutation.isPending ? (
+                          <>
+                            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                            저장 중...
+                          </>
+                        ) : (
+                          <>
+                            <Save className="h-4 w-4 mr-2" />
+                            저장
+                          </>
+                        )}
+                      </Button>
+                      {hasSettingsChanges && (
+                        <span className="text-sm text-amber-600">변경사항이 있습니다</span>
                       )}
-                    </Button>
+                    </div>
                   </div>
                 )}
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>기능별 AI 모델 사용 현황</CardTitle>
+                <p className="text-sm text-muted-foreground">
+                  각 기능에서 어떤 AI 모델을 사용하는지 확인할 수 있습니다.
+                </p>
+              </CardHeader>
+              <CardContent>
+                <div className="rounded-md border">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>기능</TableHead>
+                        <TableHead>설명</TableHead>
+                        <TableHead>사용 모델</TableHead>
+                        <TableHead className="text-center">설정 가능</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {FEATURE_MODEL_INFO.map((item, index) => (
+                        <TableRow key={index}>
+                          <TableCell className="font-medium">{item.feature}</TableCell>
+                          <TableCell className="text-muted-foreground text-sm">{item.description}</TableCell>
+                          <TableCell>
+                            {item.configurable ? (
+                              <Badge variant="outline" className="text-blue-600 border-blue-200">
+                                {selectedModel ? AI_MODELS.find(m => m.value === selectedModel)?.label || item.model : item.model}
+                              </Badge>
+                            ) : (
+                              <span className="text-sm text-gray-600">{item.model}</span>
+                            )}
+                          </TableCell>
+                          <TableCell className="text-center">
+                            {item.configurable ? (
+                              <CheckCircle className="h-4 w-4 text-green-500 mx-auto" />
+                            ) : (
+                              <XCircle className="h-4 w-4 text-gray-400 mx-auto" />
+                            )}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
               </CardContent>
             </Card>
 
@@ -843,6 +1018,23 @@ export default function SystemAdminPage() {
                       </div>
                       <Badge variant={apiKeyStatus?.elevenlabs ? "default" : "destructive"}>
                         {apiKeyStatus?.elevenlabs ? "설정됨" : "미설정"}
+                      </Badge>
+                    </div>
+
+                    <div className="flex items-center justify-between p-3 bg-slate-50 rounded-lg">
+                      <div className="flex items-center gap-3">
+                        {apiKeyStatus?.anthropic ? (
+                          <CheckCircle className="h-5 w-5 text-green-600" />
+                        ) : (
+                          <XCircle className="h-5 w-5 text-red-500" />
+                        )}
+                        <div>
+                          <p className="font-medium">Anthropic API</p>
+                          <p className="text-sm text-muted-foreground">Claude 모델 사용에 필요 (준비 중)</p>
+                        </div>
+                      </div>
+                      <Badge variant={apiKeyStatus?.anthropic ? "default" : "secondary"}>
+                        {apiKeyStatus?.anthropic ? "설정됨" : "미설정"}
                       </Badge>
                     </div>
 
