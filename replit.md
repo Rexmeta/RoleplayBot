@@ -113,9 +113,10 @@ Preferred communication style: Simple, everyday language.
 - **Database Table**: `system_settings` - stores configurable system parameters
 - **Per-Feature Model Selection**:
   - Each feature has independent model configuration
-  - DB keys: `model_conversation`, `model_feedback`, `model_strategy`, `model_scenario`
+  - DB keys: `model_conversation`, `model_feedback`, `model_strategy`, `model_scenario`, `model_realtime`
   - Available models:
     - Gemini: 2.5 Flash, 2.5 Pro
+    - Gemini Live: 2.5 Flash Native Audio, 2.5 Flash Preview, 2.0 Flash (실시간 음성 전용)
     - OpenAI: GPT-4o, GPT-4o Mini
     - Claude: 3.5 Sonnet, 3.5 Haiku (준비 중 - 백엔드 미구현)
 - **Feature Model Constraints**:
@@ -123,8 +124,8 @@ Preferred communication style: Simple, everyday language.
   - 피드백 생성: Gemini/OpenAI 지원 (configurable via `model_feedback`)
   - 전략 회고 평가: Gemini만 지원 (configurable via `model_strategy`, Google SDK 사용)
   - 시나리오 생성: Gemini만 지원 (configurable via `model_scenario`, Google SDK 사용)
+  - 실시간 음성 대화: Gemini Live API만 지원 (configurable via `model_realtime`)
   - 이미지 생성: Gemini 2.5 Flash Image (고정 - 변경 불가)
-  - 실시간 음성 대화: GPT-4o Realtime (고정 - 변경 불가)
 - **Architecture**:
   - `AIServiceFactory.getAIServiceForFeature(feature)` - creates fresh provider instance per request
   - No singleton pattern - eliminates race conditions with concurrent requests
