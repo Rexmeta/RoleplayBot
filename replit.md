@@ -77,10 +77,26 @@ Preferred communication style: Simple, everyday language.
 - `client/src/components/UserProfileMenu.tsx`: User profile dropdown component
 - `client/src/pages/home.tsx`: Main landing page with scenario selection
 - `client/src/pages/MyPage.tsx`: User dashboard with conversation history and analytics tabs
-- `client/src/pages/admin-dashboard.tsx`: Admin analytics and performance monitoring
+- `client/src/pages/admin-dashboard.tsx`: Operator dashboard - analytics and performance monitoring
 - `client/src/pages/admin-management.tsx`: Content management for scenarios and personas
+- `client/src/pages/system-admin.tsx`: System admin page - user management (role/tier/status)
+
+## Role-Based Access Control
+- **시스템관리자 (admin)**: Full access to system admin page, operator dashboard, content management
+- **운영자 (operator)**: Access to operator dashboard, content management
+- **일반유저 (user)**: Standard user features only
+
+## User Management (System Admin)
+- Users table extended with `isActive` (account status) and `lastLoginAt` (last login time)
+- API: GET `/api/system-admin/users` - List all users (admin only)
+- API: PATCH `/api/system-admin/users/:id` - Update user role/tier/status (admin only)
+- Tier system: bronze, silver, gold, platinum, diamond
 
 ## Recent Changes (December 2025)
+- Added system admin page with user management functionality
+- Extended users table with isActive and lastLoginAt fields
+- Implemented role-based menu visibility in UserProfileMenu
+- Renamed "관리자 대시보드" to "운영자 대시보드"
 - Extracted AppHeader and UserProfileMenu as shared components to eliminate code duplication across 4 pages
 - Removed unused legacy files: Header.tsx, StrategicPersonaSelector.tsx, FeedbackReport.tsx, scenarios.ts, authUtils.ts, dynamic-situation-manager.ts, sequence-analyzer.ts, assets folder
 - Unified UI terminology: "MBTI 페르소나" → "페르소나"
