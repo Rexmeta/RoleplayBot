@@ -2,7 +2,7 @@
 // 새로운 AI 서비스 사용을 위해서는 aiServiceFactory.ts를 사용하세요
 
 import { GoogleGenAI } from "@google/genai";
-import { getAIService, syncModelFromSettings, getCurrentModel } from "./aiServiceFactory";
+import { getAIServiceForFeature, getModelForFeature } from "./aiServiceFactory";
 import { emotionEmojis } from "./aiService";
 import type { ConversationMessage, DetailedFeedback, SequenceAnalysis } from "@shared/schema";
 import type { ScenarioPersona } from "./aiService";
@@ -11,18 +11,15 @@ import type { ScenarioPersona } from "./aiService";
 export { ScenarioPersona, emotionEmojis };
 
 
-// Legacy 함수들 - AI 서비스 팩토리로 위임
+// AI 서비스 팩토리로 위임 - 기능별 모델 사용
 export async function generateAIResponse(
   scenario: string, 
   messages: ConversationMessage[], 
   persona: ScenarioPersona,
   userMessage?: string
 ): Promise<{ content: string; emotion: string; emotionReason: string }> {
-  // DB 설정에서 최신 모델 동기화
-  await syncModelFromSettings();
-  console.log(`🤖 Using AI model: ${getCurrentModel()}`);
-  
-  const aiService = getAIService();
+  // 대화 기능에 설정된 모델을 사용하는 AI 서비스 인스턴스 생성
+  const aiService = await getAIServiceForFeature('conversation');
   return aiService.generateResponse(scenario, messages, persona, userMessage);
 }
 
@@ -32,11 +29,8 @@ export async function generateFeedback(
   persona: ScenarioPersona,
   conversation?: Partial<import("@shared/schema").Conversation>
 ): Promise<DetailedFeedback> {
-  // DB 설정에서 최신 모델 동기화
-  await syncModelFromSettings();
-  console.log(`📊 Generating feedback with model: ${getCurrentModel()}`);
-  
-  const aiService = getAIService();
+  // 피드백 기능에 설정된 모델을 사용하는 AI 서비스 인스턴스 생성
+  const aiService = await getAIServiceForFeature('feedback');
   return aiService.generateFeedback(scenario, messages, persona, conversation);
 }
 
@@ -62,11 +56,13 @@ export async function generateStrategyReflectionFeedback(
     personas: Array<{ id: string; name: string; role: string; department: string }>;
   }
 ): Promise<StrategyReflectionEvaluation> {
-  console.log("🧠 전략 회고 AI 평가 시작...");
+  // 전략 기능에 설정된 모델 가져오기
+  const configuredModel = await getModelForFeature('strategy');
+  console.log(`🧠 전략 회고 AI 평가 시작... (모델: ${configuredModel})`);
   
-  const apiKey = process.env.GEMINI_API_KEY;
+  const apiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
   if (!apiKey) {
-    console.error("GEMINI_API_KEY가 설정되지 않았습니다.");
+    console.error("GEMINI_API_KEY 또는 GOOGLE_API_KEY가 설정되지 않았습니다.");
     return getDefaultStrategyEvaluation();
   }
 
@@ -117,8 +113,11 @@ ${orderedPersonas}
 한국어로 친절하고 구체적으로 평가해주세요. 격려적인 톤을 유지하되 구체적인 피드백을 제공하세요.`;
 
   try {
+    // Gemini 모델만 지원, OpenAI/Claude 모델이 설정된 경우 기본값 사용
+    const modelToUse = configuredModel.startsWith('gemini-') ? configuredModel : 'gemini-2.5-flash';
+    
     const response = await genAI.models.generateContent({
-      model: 'gemini-2.5-flash',
+      model: modelToUse,
       config: {
         responseMimeType: "application/json",
         responseSchema: {

@@ -132,33 +132,44 @@ const AI_MODELS = [
 
 const FEATURE_MODEL_INFO = [
   {
+    id: "conversation",
     feature: "대화 응답 생성",
     description: "시나리오에서 AI 페르소나가 사용자에게 응답",
-    model: "시스템 설정 모델 사용",
-    configurable: true
+    settingKey: "model_conversation",
+    defaultModel: "gemini-2.5-flash",
+    configurable: true,
+    supportedProviders: ["Google", "OpenAI"] // Claude 준비 중
   },
   {
+    id: "feedback",
     feature: "피드백 생성",
     description: "대화 완료 후 사용자 성과 평가",
-    model: "시스템 설정 모델 사용",
-    configurable: true
+    settingKey: "model_feedback",
+    defaultModel: "gemini-2.5-flash",
+    configurable: true,
+    supportedProviders: ["Google", "OpenAI"] // Claude 준비 중
   },
   {
+    id: "strategy",
     feature: "전략 회고 평가",
     description: "대화 순서 전략에 대한 AI 평가",
-    model: "Gemini 2.5 Flash (고정)",
-    configurable: false
+    settingKey: "model_strategy",
+    defaultModel: "gemini-2.5-flash",
+    configurable: true,
+    supportedProviders: ["Google"] // Gemini만 지원
   },
   {
+    id: "image",
     feature: "이미지 생성",
     description: "시나리오/페르소나 이미지 자동 생성",
-    model: "Gemini 2.5 Flash Image (고정)",
+    fixedModel: "Gemini 2.5 Flash Image",
     configurable: false
   },
   {
+    id: "realtime",
     feature: "실시간 음성 대화",
     description: "음성 기반 실시간 대화",
-    model: "GPT-4o Realtime (고정)",
+    fixedModel: "GPT-4o Realtime",
     configurable: false
   }
 ];
@@ -213,8 +224,12 @@ export default function SystemAdminPage() {
   }>({ name: "", description: "", order: 0 });
   const [deletingCategory, setDeletingCategory] = useState<Category | null>(null);
 
-  // System settings state
-  const [selectedModel, setSelectedModel] = useState<string>("gemini-2.5-flash");
+  // System settings state - per-feature model selection
+  const [featureModels, setFeatureModels] = useState<Record<string, string>>({
+    model_conversation: "gemini-2.5-flash",
+    model_feedback: "gemini-2.5-flash",
+    model_strategy: "gemini-2.5-flash",
+  });
   const [hasSettingsChanges, setHasSettingsChanges] = useState(false);
 
   const { data: users = [], isLoading: usersLoading } = useQuery<UserData[]>({
@@ -341,8 +356,13 @@ export default function SystemAdminPage() {
   });
 
   const saveSettingsMutation = useMutation({
-    mutationFn: async (setting: { category: string; key: string; value: string; description?: string }) => {
-      return await apiRequest("PUT", "/api/system-admin/settings", setting);
+    mutationFn: async (settings: { category: string; key: string; value: string; description?: string }[]) => {
+      const results = [];
+      for (const setting of settings) {
+        const result = await apiRequest("PUT", "/api/system-admin/settings", setting);
+        results.push(result);
+      }
+      return results;
     },
     onSuccess: () => {
       toast({
@@ -361,36 +381,56 @@ export default function SystemAdminPage() {
     },
   });
 
-  const handleModelChange = (value: string) => {
-    setSelectedModel(value);
+  const handleFeatureModelChange = (settingKey: string, value: string) => {
+    setFeatureModels(prev => ({ ...prev, [settingKey]: value }));
     setHasSettingsChanges(true);
   };
 
   const handleSaveSettings = () => {
     // 비활성화된 모델 선택 방지
-    const selectedModelInfo = AI_MODELS.find(m => m.value === selectedModel);
-    if (selectedModelInfo && 'disabled' in selectedModelInfo && selectedModelInfo.disabled) {
-      toast({
-        title: "저장 불가",
-        description: "선택한 모델은 현재 지원되지 않습니다. 다른 모델을 선택해 주세요.",
-        variant: "destructive",
-      });
-      return;
+    for (const [key, value] of Object.entries(featureModels)) {
+      const modelInfo = AI_MODELS.find(m => m.value === value);
+      if (modelInfo && 'disabled' in modelInfo && modelInfo.disabled) {
+        toast({
+          title: "저장 불가",
+          description: "선택한 모델 중 지원되지 않는 모델이 있습니다. 다른 모델을 선택해 주세요.",
+          variant: "destructive",
+        });
+        return;
+      }
     }
 
-    saveSettingsMutation.mutate({
+    const featureDescriptions: Record<string, string> = {
+      model_conversation: "대화 응답 생성에 사용할 모델",
+      model_feedback: "피드백 생성에 사용할 모델",
+      model_strategy: "전략 회고 평가에 사용할 모델",
+    };
+
+    const settings = Object.entries(featureModels).map(([key, value]) => ({
       category: "ai",
-      key: "model",
-      value: selectedModel,
-      description: "AI 대화에 사용할 모델",
-    });
+      key,
+      value,
+      description: featureDescriptions[key] || "",
+    }));
+
+    saveSettingsMutation.mutate(settings);
   };
 
-  // Initialize model from saved settings
+  // Initialize models from saved settings
   useEffect(() => {
-    const savedModel = systemSettings.find(s => s.category === "ai" && s.key === "model");
-    if (savedModel) {
-      setSelectedModel(savedModel.value);
+    const newFeatureModels: Record<string, string> = { ...featureModels };
+    let hasChanges = false;
+    
+    FEATURE_MODEL_INFO.filter(f => f.configurable && 'settingKey' in f).forEach(feature => {
+      const saved = systemSettings.find(s => s.category === "ai" && s.key === feature.settingKey);
+      if (saved && saved.value !== newFeatureModels[feature.settingKey!]) {
+        newFeatureModels[feature.settingKey!] = saved.value;
+        hasChanges = true;
+      }
+    });
+    
+    if (hasChanges) {
+      setFeatureModels(newFeatureModels);
     }
     setHasSettingsChanges(false);
   }, [systemSettings]);
@@ -814,11 +854,60 @@ export default function SystemAdminPage() {
           </TabsContent>
 
           <TabsContent value="settings" className="space-y-6 mt-6">
+            {/* 기능별 AI 모델 사용 현황 - 최상단 */}
             <Card>
               <CardHeader>
-                <CardTitle>AI 모델 설정</CardTitle>
+                <CardTitle>기능별 AI 모델 사용 현황</CardTitle>
                 <p className="text-sm text-muted-foreground">
-                  대화 응답 및 피드백 생성에 사용할 AI 모델을 선택합니다. 모델별 비용과 특성을 확인하세요.
+                  각 기능에서 사용 중인 AI 모델을 확인할 수 있습니다.
+                </p>
+              </CardHeader>
+              <CardContent>
+                <div className="rounded-md border">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>기능</TableHead>
+                        <TableHead>설명</TableHead>
+                        <TableHead>사용 모델</TableHead>
+                        <TableHead className="text-center">설정 가능</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {FEATURE_MODEL_INFO.map((item) => (
+                        <TableRow key={item.id}>
+                          <TableCell className="font-medium">{item.feature}</TableCell>
+                          <TableCell className="text-muted-foreground text-sm">{item.description}</TableCell>
+                          <TableCell>
+                            {item.configurable && 'settingKey' in item ? (
+                              <Badge variant="outline" className="text-blue-600 border-blue-200">
+                                {AI_MODELS.find(m => m.value === featureModels[item.settingKey!])?.label || item.defaultModel}
+                              </Badge>
+                            ) : (
+                              <span className="text-sm text-gray-600">{item.fixedModel}</span>
+                            )}
+                          </TableCell>
+                          <TableCell className="text-center">
+                            {item.configurable ? (
+                              <CheckCircle className="h-4 w-4 text-green-500 mx-auto" />
+                            ) : (
+                              <XCircle className="h-4 w-4 text-gray-400 mx-auto" />
+                            )}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* 기능별 AI 모델 설정 */}
+            <Card>
+              <CardHeader>
+                <CardTitle>기능별 AI 모델 설정</CardTitle>
+                <p className="text-sm text-muted-foreground">
+                  각 기능에 사용할 AI 모델을 개별적으로 설정할 수 있습니다. 모델별 비용과 특성을 확인하세요.
                 </p>
               </CardHeader>
               <CardContent>
@@ -827,62 +916,96 @@ export default function SystemAdminPage() {
                     <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
                   </div>
                 ) : (
-                  <div className="space-y-4">
-                    <div className="grid gap-3 md:grid-cols-2">
-                      {AI_MODELS.map((model) => {
-                        const isDisabled = 'disabled' in model && model.disabled;
-                        const isSelected = selectedModel === model.value;
-                        
-                        return (
-                          <div
-                            key={model.value}
-                            className={`p-4 border rounded-lg transition-colors ${
-                              isDisabled 
-                                ? "border-gray-200 bg-gray-50 cursor-not-allowed opacity-60 pointer-events-none"
-                                : isSelected
-                                  ? "border-blue-500 bg-blue-50 cursor-pointer"
-                                  : "border-gray-200 hover:border-gray-300 cursor-pointer"
-                            }`}
-                            onClick={() => !isDisabled && handleModelChange(model.value)}
-                            data-testid={`model-option-${model.value}`}
-                            aria-disabled={isDisabled}
-                          >
-                            <div className="flex items-start gap-3">
-                              <div className={`w-4 h-4 mt-1 rounded-full border-2 flex items-center justify-center flex-shrink-0 ${
-                                isDisabled 
-                                  ? "border-gray-300"
-                                  : isSelected 
-                                    ? "border-blue-500" 
-                                    : "border-gray-300"
-                              }`}>
-                                {isSelected && !isDisabled && (
-                                  <div className="w-2 h-2 rounded-full bg-blue-500" />
-                                )}
-                              </div>
-                              <div className="flex-1 min-w-0">
-                                <div className="flex items-center gap-2 flex-wrap">
-                                  <span className="font-medium">{model.label}</span>
-                                  <Badge variant="outline" className="text-xs">{model.provider}</Badge>
-                                  {'recommended' in model && model.recommended && (
-                                    <Badge className="text-xs bg-green-100 text-green-700 hover:bg-green-100">추천</Badge>
-                                  )}
-                                  {isDisabled && (
-                                    <Badge variant="secondary" className="text-xs">준비 중</Badge>
-                                  )}
+                  <div className="space-y-6">
+                    {FEATURE_MODEL_INFO.filter(f => f.configurable && 'settingKey' in f).map((feature) => {
+                      const supportedProviders: string[] = 'supportedProviders' in feature && feature.supportedProviders ? feature.supportedProviders : [];
+                      
+                      return (
+                      <div key={feature.id} className="space-y-3">
+                        <div className="flex items-center gap-2">
+                          <h4 className="font-medium text-base">{feature.feature}</h4>
+                          <Badge variant="secondary" className="text-xs">{feature.description}</Badge>
+                          {supportedProviders.length === 1 && (
+                            <Badge variant="outline" className="text-xs text-amber-600 border-amber-300">
+                              {supportedProviders[0]}만 지원
+                            </Badge>
+                          )}
+                        </div>
+                        <div className="grid gap-2 md:grid-cols-3 lg:grid-cols-4">
+                          {AI_MODELS.map((model) => {
+                            const isProviderSupported = supportedProviders.length === 0 || supportedProviders.includes(model.provider);
+                            const isModelDisabled = 'disabled' in model && model.disabled;
+                            const isDisabled = isModelDisabled || !isProviderSupported;
+                            const isSelected = featureModels[feature.settingKey!] === model.value;
+                            
+                            return (
+                              <div
+                                key={model.value}
+                                className={`p-3 border rounded-lg transition-colors ${
+                                  isDisabled 
+                                    ? "border-gray-200 bg-gray-50 cursor-not-allowed opacity-60 pointer-events-none"
+                                    : isSelected
+                                      ? "border-blue-500 bg-blue-50 cursor-pointer"
+                                      : "border-gray-200 hover:border-gray-300 cursor-pointer"
+                                }`}
+                                onClick={() => !isDisabled && handleFeatureModelChange(feature.settingKey!, model.value)}
+                                data-testid={`model-option-${feature.id}-${model.value}`}
+                                aria-disabled={isDisabled}
+                              >
+                                <div className="flex items-start gap-2">
+                                  <div className={`w-4 h-4 mt-0.5 rounded-full border-2 flex items-center justify-center flex-shrink-0 ${
+                                    isDisabled 
+                                      ? "border-gray-300"
+                                      : isSelected 
+                                        ? "border-blue-500" 
+                                        : "border-gray-300"
+                                  }`}>
+                                    {isSelected && !isDisabled && (
+                                      <div className="w-2 h-2 rounded-full bg-blue-500" />
+                                    )}
+                                  </div>
+                                  <div className="flex-1 min-w-0">
+                                    <div className="flex items-center gap-1 flex-wrap">
+                                      <span className="font-medium text-sm">{model.label}</span>
+                                      {'recommended' in model && model.recommended && (
+                                        <Badge className="text-[10px] px-1 py-0 bg-green-100 text-green-700 hover:bg-green-100">추천</Badge>
+                                      )}
+                                      {isModelDisabled && (
+                                        <Badge variant="secondary" className="text-[10px] px-1 py-0">준비 중</Badge>
+                                      )}
+                                      {!isProviderSupported && !isModelDisabled && (
+                                        <Badge variant="outline" className="text-[10px] px-1 py-0 text-gray-500">미지원</Badge>
+                                      )}
+                                    </div>
+                                    <p className="text-xs text-muted-foreground mt-1 line-clamp-1">{model.description}</p>
+                                    <p className="text-[10px] text-blue-600 font-mono mt-1">{model.pricing}</p>
+                                  </div>
                                 </div>
-                                <p className="text-sm text-muted-foreground mt-1">{model.description}</p>
-                                <div className="mt-2 space-y-1">
-                                  <p className="text-xs text-blue-600 font-mono">{model.pricing}</p>
-                                  <p className="text-xs text-gray-500">{model.features}</p>
-                                </div>
                               </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    );
+                  })}
+                    
+                    {/* 고정 모델 안내 */}
+                    <div className="pt-4 border-t">
+                      <h4 className="font-medium text-sm text-muted-foreground mb-2">고정 모델 (변경 불가)</h4>
+                      <div className="grid gap-2 md:grid-cols-2">
+                        {FEATURE_MODEL_INFO.filter(f => !f.configurable).map((feature) => (
+                          <div key={feature.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                            <div>
+                              <p className="font-medium text-sm">{feature.feature}</p>
+                              <p className="text-xs text-muted-foreground">{feature.description}</p>
                             </div>
+                            <Badge variant="outline" className="text-gray-600">{feature.fixedModel}</Badge>
                           </div>
-                        );
-                      })}
+                        ))}
+                      </div>
                     </div>
                     
-                    <div className="flex items-center gap-4">
+                    <div className="flex items-center gap-4 pt-4 border-t">
                       <Button
                         onClick={handleSaveSettings}
                         disabled={!hasSettingsChanges || saveSettingsMutation.isPending}
@@ -906,53 +1029,6 @@ export default function SystemAdminPage() {
                     </div>
                   </div>
                 )}
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle>기능별 AI 모델 사용 현황</CardTitle>
-                <p className="text-sm text-muted-foreground">
-                  각 기능에서 어떤 AI 모델을 사용하는지 확인할 수 있습니다.
-                </p>
-              </CardHeader>
-              <CardContent>
-                <div className="rounded-md border">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>기능</TableHead>
-                        <TableHead>설명</TableHead>
-                        <TableHead>사용 모델</TableHead>
-                        <TableHead className="text-center">설정 가능</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {FEATURE_MODEL_INFO.map((item, index) => (
-                        <TableRow key={index}>
-                          <TableCell className="font-medium">{item.feature}</TableCell>
-                          <TableCell className="text-muted-foreground text-sm">{item.description}</TableCell>
-                          <TableCell>
-                            {item.configurable ? (
-                              <Badge variant="outline" className="text-blue-600 border-blue-200">
-                                {selectedModel ? AI_MODELS.find(m => m.value === selectedModel)?.label || item.model : item.model}
-                              </Badge>
-                            ) : (
-                              <span className="text-sm text-gray-600">{item.model}</span>
-                            )}
-                          </TableCell>
-                          <TableCell className="text-center">
-                            {item.configurable ? (
-                              <CheckCircle className="h-4 w-4 text-green-500 mx-auto" />
-                            ) : (
-                              <XCircle className="h-4 w-4 text-gray-400 mx-auto" />
-                            )}
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </div>
               </CardContent>
             </Card>
 
