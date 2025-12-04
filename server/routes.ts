@@ -2879,6 +2879,34 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // 비밀번호 재설정 (시스템 관리자 전용)
+  app.post("/api/system-admin/users/:id/reset-password", isAuthenticated, isSystemAdmin, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { newPassword } = req.body;
+      
+      if (!newPassword || newPassword.length < 6) {
+        return res.status(400).json({ error: "Password must be at least 6 characters" });
+      }
+      
+      // 비밀번호 해싱
+      const bcrypt = await import("bcryptjs");
+      const hashedPassword = await bcrypt.hash(newPassword, 10);
+      
+      // 사용자 비밀번호 업데이트
+      const updatedUser = await storage.updateUser(id, { password: hashedPassword });
+      
+      res.json({
+        success: true,
+        message: "Password reset successfully",
+        userId: updatedUser.id,
+      });
+    } catch (error: any) {
+      console.error("Error resetting password:", error);
+      res.status(500).json({ error: error.message || "Failed to reset password" });
+    }
+  });
+
   // TTS routes
   app.use("/api/tts", ttsRoutes);
 

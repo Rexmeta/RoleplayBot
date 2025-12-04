@@ -31,7 +31,7 @@ import {
 import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { Search, Users, Shield, UserCog, Loader2, User } from "lucide-react";
+import { Search, Users, Shield, UserCog, Loader2, User, KeyRound, Eye, EyeOff } from "lucide-react";
 import { format } from "date-fns";
 import { ko } from "date-fns/locale";
 
@@ -73,6 +73,9 @@ export default function SystemAdminPage() {
     tier: string;
     isActive: boolean;
   }>({ role: "", tier: "", isActive: true });
+  const [resetPasswordUser, setResetPasswordUser] = useState<UserData | null>(null);
+  const [newPassword, setNewPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
 
   const { data: users = [], isLoading } = useQuery<UserData[]>({
     queryKey: ["/api/system-admin/users"],
@@ -94,6 +97,28 @@ export default function SystemAdminPage() {
       toast({
         title: "오류",
         description: error.message || "사용자 정보 수정에 실패했습니다.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const resetPasswordMutation = useMutation({
+    mutationFn: async ({ id, newPassword }: { id: string; newPassword: string }) => {
+      return await apiRequest("POST", `/api/system-admin/users/${id}/reset-password`, { newPassword });
+    },
+    onSuccess: () => {
+      toast({
+        title: "비밀번호 재설정 완료",
+        description: "임시 비밀번호가 설정되었습니다. 사용자에게 알려주세요.",
+      });
+      setResetPasswordUser(null);
+      setNewPassword("");
+      setShowPassword(false);
+    },
+    onError: (error: any) => {
+      toast({
+        title: "오류",
+        description: error.message || "비밀번호 재설정에 실패했습니다.",
         variant: "destructive",
       });
     },
@@ -255,7 +280,7 @@ export default function SystemAdminPage() {
                       <TableHead>상태</TableHead>
                       <TableHead>최근 접속</TableHead>
                       <TableHead>가입일</TableHead>
-                      <TableHead className="w-[80px]">관리</TableHead>
+                      <TableHead className="w-[120px]">관리</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -314,14 +339,25 @@ export default function SystemAdminPage() {
                             {format(new Date(user.createdAt), "yyyy-MM-dd", { locale: ko })}
                           </TableCell>
                           <TableCell>
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => openEditDialog(user)}
-                              data-testid={`button-edit-${user.id}`}
-                            >
-                              수정
-                            </Button>
+                            <div className="flex gap-1">
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => openEditDialog(user)}
+                                data-testid={`button-edit-${user.id}`}
+                              >
+                                수정
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => setResetPasswordUser(user)}
+                                data-testid={`button-reset-password-${user.id}`}
+                                title="비밀번호 재설정"
+                              >
+                                <KeyRound className="h-4 w-4" />
+                              </Button>
+                            </div>
                           </TableCell>
                         </TableRow>
                       ))
@@ -413,6 +449,80 @@ export default function SystemAdminPage() {
                 </>
               ) : (
                 "저장"
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!resetPasswordUser} onOpenChange={(open) => {
+        if (!open) {
+          setResetPasswordUser(null);
+          setNewPassword("");
+          setShowPassword(false);
+        }
+      }}>
+        <DialogContent data-testid="dialog-reset-password">
+          <DialogHeader>
+            <DialogTitle>비밀번호 재설정</DialogTitle>
+            <DialogDescription>
+              {resetPasswordUser?.name} ({resetPasswordUser?.email})의 새 비밀번호를 설정합니다.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <label className="text-sm font-medium">새 비밀번호</label>
+              <div className="relative">
+                <Input
+                  type={showPassword ? "text" : "password"}
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  placeholder="6자 이상 입력"
+                  data-testid="input-new-password"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                >
+                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                임시 비밀번호 설정 후 사용자에게 직접 알려주세요.
+              </p>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setResetPasswordUser(null);
+                setNewPassword("");
+                setShowPassword(false);
+              }}
+              data-testid="button-cancel-reset"
+            >
+              취소
+            </Button>
+            <Button
+              onClick={() => {
+                if (resetPasswordUser && newPassword.length >= 6) {
+                  resetPasswordMutation.mutate({ id: resetPasswordUser.id, newPassword });
+                }
+              }}
+              disabled={resetPasswordMutation.isPending || newPassword.length < 6}
+              data-testid="button-confirm-reset"
+            >
+              {resetPasswordMutation.isPending ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  재설정 중...
+                </>
+              ) : (
+                "비밀번호 재설정"
               )}
             </Button>
           </DialogFooter>
