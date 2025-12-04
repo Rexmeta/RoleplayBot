@@ -1,6 +1,7 @@
 import OpenAI from "openai";
 import type { ConversationMessage, DetailedFeedback } from "@shared/schema";
 import type { AIServiceInterface, ScenarioPersona } from "../aiService";
+import { trackUsage, extractOpenAITokens, getModelPricingKey } from "../aiUsageTracker";
 
 export class OpenAIProvider implements AIServiceInterface {
   private client: OpenAI;
@@ -17,6 +18,8 @@ export class OpenAIProvider implements AIServiceInterface {
     persona: ScenarioPersona,
     userMessage?: string
   ): Promise<{ content: string; emotion: string; emotionReason: string }> {
+    const startTime = Date.now();
+    
     try {
       const conversationHistory = messages.map(msg => ({
         role: msg.sender === 'user' ? 'user' as const : 'assistant' as const,
@@ -53,6 +56,19 @@ export class OpenAIProvider implements AIServiceInterface {
         ],
         max_tokens: 200,
         temperature: 0.8
+      });
+
+      const totalTime = Date.now() - startTime;
+      
+      // Track usage asynchronously (fire and forget)
+      const tokens = extractOpenAITokens(response);
+      trackUsage({
+        feature: 'conversation',
+        model: getModelPricingKey(this.model),
+        provider: 'openai',
+        promptTokens: tokens.promptTokens,
+        completionTokens: tokens.completionTokens,
+        durationMs: totalTime,
       });
 
       const content = response.choices[0]?.message?.content || "죄송합니다. 응답을 생성할 수 없습니다.";
@@ -124,6 +140,8 @@ JSON 형식으로 응답하세요: {"emotion": "감정", "reason": "감정을 �
     persona: ScenarioPersona,
     conversation?: any
   ): Promise<DetailedFeedback> {
+    const startTime = Date.now();
+    
     try {
       const conversationText = messages.map(msg => 
         `${msg.sender === 'user' ? '사용자' : persona.name}: ${msg.message}`
@@ -165,6 +183,19 @@ JSON 형식으로 응답하세요:
         messages: [{ role: 'user', content: feedbackPrompt }],
         response_format: { type: "json_object" },
         temperature: 0.3
+      });
+
+      const totalTime = Date.now() - startTime;
+      
+      // Track usage asynchronously (fire and forget)
+      const tokens = extractOpenAITokens(response);
+      trackUsage({
+        feature: 'feedback',
+        model: getModelPricingKey(this.model),
+        provider: 'openai',
+        promptTokens: tokens.promptTokens,
+        completionTokens: tokens.completionTokens,
+        durationMs: totalTime,
       });
 
       const feedbackData = JSON.parse(response.choices[0]?.message?.content || '{}');

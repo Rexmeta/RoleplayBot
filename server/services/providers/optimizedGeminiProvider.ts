@@ -4,6 +4,7 @@ import type { AIServiceInterface, ScenarioPersona } from "../aiService";
 import { enrichPersonaWithMBTI } from "../../utils/mbtiLoader";
 import { GlobalMBTICache } from "../../utils/globalMBTICache";
 import { getTextModeGuidelines, validateDifficultyLevel } from "../conversationDifficultyPolicy";
+import { trackUsage, extractGeminiTokens, getModelPricingKey } from "../aiUsageTracker";
 
 /**
  * 최적화된 Gemini Provider
@@ -95,6 +96,17 @@ export class OptimizedGeminiProvider implements AIServiceInterface {
       
       const totalTime = Date.now() - startTime;
       console.log(`✓ Optimized Gemini call completed in ${totalTime}ms`);
+      
+      // Track usage asynchronously (fire and forget)
+      const tokens = extractGeminiTokens(response);
+      trackUsage({
+        feature: 'conversation',
+        model: getModelPricingKey(this.model),
+        provider: 'gemini',
+        promptTokens: tokens.promptTokens,
+        completionTokens: tokens.completionTokens,
+        durationMs: totalTime,
+      });
 
       return {
         content: responseData.content || "죄송합니다. 응답을 생성할 수 없습니다.",
@@ -267,6 +279,17 @@ JSON 형식으로 응답:
 
       const responseText = this.extractResponseText(response);
       console.log("📝 Feedback response (first 500 chars):", responseText.substring(0, 500));
+      
+      // Track usage asynchronously (fire and forget)
+      const tokens = extractGeminiTokens(response);
+      trackUsage({
+        feature: 'feedback',
+        model: getModelPricingKey(this.model),
+        provider: 'gemini',
+        promptTokens: tokens.promptTokens,
+        completionTokens: tokens.completionTokens,
+        durationMs: totalTime,
+      });
       
       return this.parseFeedbackResponse(responseText, conversation);
 
