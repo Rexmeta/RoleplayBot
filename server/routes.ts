@@ -3090,6 +3090,104 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // ========== 시스템 설정 API (시스템 관리자 전용) ==========
+  
+  // 모든 시스템 설정 조회
+  app.get("/api/system-admin/settings", isAuthenticated, isSystemAdmin, async (req, res) => {
+    try {
+      const settings = await storage.getSystemSettings();
+      res.json(settings);
+    } catch (error: any) {
+      console.error("Error getting system settings:", error);
+      res.status(500).json({ error: error.message || "Failed to get system settings" });
+    }
+  });
+
+  // 카테고리별 시스템 설정 조회
+  app.get("/api/system-admin/settings/:category", isAuthenticated, isSystemAdmin, async (req, res) => {
+    try {
+      const { category } = req.params;
+      const settings = await storage.getSystemSettingsByCategory(category);
+      res.json(settings);
+    } catch (error: any) {
+      console.error("Error getting system settings by category:", error);
+      res.status(500).json({ error: error.message || "Failed to get system settings" });
+    }
+  });
+
+  // 시스템 설정 저장/수정 (Upsert)
+  app.put("/api/system-admin/settings", isAuthenticated, isSystemAdmin, async (req, res) => {
+    try {
+      const { category, key, value, description } = req.body;
+      
+      if (!category || !key) {
+        return res.status(400).json({ error: "Category and key are required" });
+      }
+      
+      const user = req.user as any;
+      const setting = await storage.upsertSystemSetting({
+        category,
+        key,
+        value: typeof value === 'object' ? JSON.stringify(value) : String(value),
+        description,
+        updatedBy: user?.id,
+      });
+      
+      res.json(setting);
+    } catch (error: any) {
+      console.error("Error saving system setting:", error);
+      res.status(500).json({ error: error.message || "Failed to save system setting" });
+    }
+  });
+
+  // 여러 설정 일괄 저장
+  app.put("/api/system-admin/settings/batch", isAuthenticated, isSystemAdmin, async (req, res) => {
+    try {
+      const { settings } = req.body;
+      
+      if (!Array.isArray(settings)) {
+        return res.status(400).json({ error: "Settings must be an array" });
+      }
+      
+      const user = req.user as any;
+      const savedSettings = [];
+      
+      for (const setting of settings) {
+        const { category, key, value, description } = setting;
+        
+        if (!category || !key) {
+          continue; // Skip invalid settings
+        }
+        
+        const saved = await storage.upsertSystemSetting({
+          category,
+          key,
+          value: typeof value === 'object' ? JSON.stringify(value) : String(value),
+          description,
+          updatedBy: user?.id,
+        });
+        savedSettings.push(saved);
+      }
+      
+      res.json(savedSettings);
+    } catch (error: any) {
+      console.error("Error saving system settings batch:", error);
+      res.status(500).json({ error: error.message || "Failed to save system settings" });
+    }
+  });
+
+  // 시스템 설정 삭제
+  app.delete("/api/system-admin/settings/:category/:key", isAuthenticated, isSystemAdmin, async (req, res) => {
+    try {
+      const { category, key } = req.params;
+      await storage.deleteSystemSetting(category, key);
+      res.json({ success: true });
+    } catch (error: any) {
+      console.error("Error deleting system setting:", error);
+      res.status(500).json({ error: error.message || "Failed to delete system setting" });
+    }
+  });
+
   // TTS routes
   app.use("/api/tts", ttsRoutes);
 
