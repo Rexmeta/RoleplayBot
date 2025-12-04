@@ -2882,6 +2882,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         isActive: user.isActive ?? true,
         profileImage: user.profileImage,
         lastLoginAt: user.lastLoginAt,
+        assignedCategoryId: user.assignedCategoryId,
         createdAt: user.createdAt,
         updatedAt: user.updatedAt,
       }));
