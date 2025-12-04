@@ -4,8 +4,8 @@ import { GoogleGenAI, Modality } from '@google/genai';
 import { getRealtimeVoiceGuidelines, validateDifficultyLevel } from './conversationDifficultyPolicy';
 import { storage } from '../storage';
 
-// Default Gemini Live API model
-const DEFAULT_REALTIME_MODEL = 'gemini-live-2.5-flash-preview';
+// Default Gemini Live API model (Native Audio - recommended)
+const DEFAULT_REALTIME_MODEL = 'gemini-2.5-flash-native-audio-preview-09-2025';
 
 interface RealtimeSession {
   id: string;
@@ -56,9 +56,7 @@ export class RealtimeVoiceService {
       
       // Validate the model value is a valid Gemini Live model
       const validModels = [
-        'gemini-2.5-flash-native-audio-preview',
-        'gemini-live-2.5-flash-preview', 
-        'gemini-2.0-flash-live-preview-04-09'
+        'gemini-2.5-flash-native-audio-preview-09-2025'
       ];
       
       const model = setting?.value;
