@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { pgTable, text, varchar, integer, timestamp, jsonb, index } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, integer, timestamp, jsonb, index, boolean } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -61,6 +61,8 @@ export const users = pgTable("users", {
   role: varchar("role").notNull().default("user"), // admin, operator, user
   profileImage: varchar("profile_image"), // 프로필 이미지 URL
   tier: varchar("tier").notNull().default("bronze"), // 회원 등급: bronze, silver, gold, platinum, diamond
+  isActive: boolean("is_active").notNull().default(true), // 계정 활성화 상태
+  lastLoginAt: timestamp("last_login_at"), // 마지막 로그인 시간
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });

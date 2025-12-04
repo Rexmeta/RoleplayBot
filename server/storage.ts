@@ -66,6 +66,11 @@ export interface IStorage {
   createUser(user: { email: string; password: string; name: string }): Promise<User>;
   updateUser(id: string, updates: { name?: string; password?: string; profileImage?: string; tier?: string }): Promise<User>;
   upsertUser(user: UpsertUser): Promise<User>;
+  updateUserLastLogin(id: string): Promise<void>;
+  
+  // System Admin operations - 시스템 관리자 전용
+  getAllUsers(): Promise<User[]>;
+  adminUpdateUser(id: string, updates: { role?: string; tier?: string; isActive?: boolean }): Promise<User>;
 }
 
 export class MemStorage implements IStorage {
@@ -381,6 +386,27 @@ export class MemStorage implements IStorage {
     this.users.set(user.id, user);
     return user;
   }
+
+  async updateUserLastLogin(id: string): Promise<void> {
+    const user = this.users.get(id);
+    if (user) {
+      user.lastLoginAt = new Date();
+      this.users.set(id, user);
+    }
+  }
+
+  async getAllUsers(): Promise<User[]> {
+    return Array.from(this.users.values());
+  }
+
+  async adminUpdateUser(id: string, updates: { role?: string; tier?: string; isActive?: boolean }): Promise<User> {
+    const user = this.users.get(id);
+    if (!user) throw new Error("User not found");
+    
+    const updatedUser = { ...user, ...updates, updatedAt: new Date() };
+    this.users.set(id, updatedUser);
+    return updatedUser;
+  }
 }
 
 export class PostgreSQLStorage implements IStorage {
@@ -575,6 +601,25 @@ export class PostgreSQLStorage implements IStorage {
         updatedAt: new Date(),
       }
     }).returning();
+    return user;
+  }
+
+  async updateUserLastLogin(id: string): Promise<void> {
+    await db.update(users)
+      .set({ lastLoginAt: new Date() })
+      .where(eq(users.id, id));
+  }
+
+  async getAllUsers(): Promise<User[]> {
+    return await db.select().from(users).orderBy(desc(users.createdAt));
+  }
+
+  async adminUpdateUser(id: string, updates: { role?: string; tier?: string; isActive?: boolean }): Promise<User> {
+    const [user] = await db.update(users)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(users.id, id))
+      .returning();
+    if (!user) throw new Error("User not found");
     return user;
   }
 
