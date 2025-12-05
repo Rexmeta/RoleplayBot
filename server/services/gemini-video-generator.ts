@@ -1,13 +1,20 @@
 import { GoogleGenAI } from "@google/genai";
 import * as fs from 'fs';
 import * as path from 'path';
+import { exec } from 'child_process';
+import { promisify } from 'util';
+
+const execAsync = promisify(exec);
 
 const VIDEO_CONFIG = {
   maxDurationSeconds: 8,
-  outputFormat: 'mp4',
+  outputFormat: 'webm',
   resolution: '720p',
   pollingIntervalMs: 5000,
   maxPollingAttempts: 60,
+  webmCrf: 30,
+  webmVideoBitrate: '1M',
+  webmAudioBitrate: '128k',
 };
 
 const apiKey = process.env.GOOGLE_API_KEY || process.env.GEMINI_API_KEY;
@@ -269,15 +276,54 @@ async function saveVideoToLocal(videoBytes: Uint8Array, scenarioId: string, scen
     .substring(0, 50);
   
   const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
-  const filename = `intro-${safeScenarioId}-${timestamp}.mp4`;
-  const filePath = path.join(videoDir, filename);
+  const mp4Filename = `intro-${safeScenarioId}-${timestamp}.mp4`;
+  const webmFilename = `intro-${safeScenarioId}-${timestamp}.webm`;
+  const mp4FilePath = path.join(videoDir, mp4Filename);
+  const webmFilePath = path.join(videoDir, webmFilename);
   
-  fs.writeFileSync(filePath, Buffer.from(videoBytes));
+  fs.writeFileSync(mp4FilePath, Buffer.from(videoBytes));
   
-  const stats = fs.statSync(filePath);
-  console.log(`📁 비디오 저장 완료: ${filename} (${(stats.size / 1024 / 1024).toFixed(2)}MB)`);
+  const mp4Stats = fs.statSync(mp4FilePath);
+  console.log(`📁 원본 MP4 저장 완료: ${mp4Filename} (${(mp4Stats.size / 1024 / 1024).toFixed(2)}MB)`);
   
-  return `/scenarios/videos/${filename}`;
+  try {
+    console.log(`🔄 WebM 변환 시작...`);
+    const webmPath = await convertToWebM(mp4FilePath, webmFilePath);
+    
+    fs.unlinkSync(mp4FilePath);
+    console.log(`🗑️ 원본 MP4 파일 삭제 완료`);
+    
+    const webmStats = fs.statSync(webmFilePath);
+    console.log(`✅ WebM 변환 완료: ${webmFilename} (${(webmStats.size / 1024 / 1024).toFixed(2)}MB)`);
+    
+    return `/scenarios/videos/${webmFilename}`;
+  } catch (convertError) {
+    console.error('WebM 변환 실패, MP4 사용:', convertError);
+    return `/scenarios/videos/${mp4Filename}`;
+  }
+}
+
+async function convertToWebM(inputPath: string, outputPath: string): Promise<string> {
+  const ffmpegCommand = `ffmpeg -i "${inputPath}" -c:v libvpx-vp9 -b:v ${VIDEO_CONFIG.webmVideoBitrate} -crf ${VIDEO_CONFIG.webmCrf} -c:a libopus -b:a ${VIDEO_CONFIG.webmAudioBitrate} -y "${outputPath}"`;
+  
+  console.log(`🎥 FFmpeg 명령어: ${ffmpegCommand}`);
+  
+  try {
+    const { stdout, stderr } = await execAsync(ffmpegCommand, { timeout: 120000 });
+    
+    if (stderr) {
+      console.log('FFmpeg stderr:', stderr.slice(-500));
+    }
+    
+    if (!fs.existsSync(outputPath)) {
+      throw new Error('WebM 파일이 생성되지 않았습니다.');
+    }
+    
+    return outputPath;
+  } catch (error: any) {
+    console.error('FFmpeg 변환 오류:', error.message);
+    throw error;
+  }
 }
 
 export async function deleteIntroVideo(videoUrl: string): Promise<boolean> {

@@ -175,6 +175,7 @@ Preferred communication style: Simple, everyday language.
 
 ## Intro Video Generation (Content Management)
 - **Gemini Veo 3.1 API**: 8-second AI-generated video clips with native audio
+- **Video Format**: WebM (VP9 + Opus) - converted from MP4 using FFmpeg for web optimization
 - **Video Storage**: `scenarios/videos/` directory, served via static file route
 - **Scenario Integration**: `introVideoUrl` field in scenario JSON stores the generated video URL
 - **Workflow**:
