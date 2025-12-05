@@ -17,6 +17,7 @@ import imageGenerationRoutes, { saveImageToLocal } from "./routes/imageGeneratio
 import { fileManager } from "./services/fileManager";
 import { generateScenarioWithAI, enhanceScenarioWithAI } from "./services/aiScenarioGenerator";
 import { realtimeVoiceService } from "./services/realtimeVoiceService";
+import { generateIntroVideo, deleteIntroVideo, getVideoGenerationStatus } from "./services/gemini-video-generator";
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // 이메일 기반 인증 시스템 설정
@@ -2795,6 +2796,134 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error deleting scenario:", error);
       res.status(500).json({ error: "Failed to delete scenario" });
+    }
+  });
+
+  // 시나리오 인트로 비디오 생성 API
+  app.post("/api/admin/scenarios/:id/generate-intro-video", isAuthenticated, isOperatorOrAdmin, async (req, res) => {
+    try {
+      const scenarioId = req.params.id;
+      const { customPrompt } = req.body;
+      
+      // 시나리오 정보 가져오기
+      const scenarios = await fileManager.getAllScenarios();
+      const scenario = scenarios.find((s: any) => s.id === scenarioId);
+      
+      if (!scenario) {
+        return res.status(404).json({ error: "Scenario not found" });
+      }
+      
+      // 비디오 생성 상태 확인
+      const status = getVideoGenerationStatus();
+      if (!status.available) {
+        return res.status(503).json({ 
+          error: "비디오 생성 서비스를 사용할 수 없습니다.", 
+          reason: status.reason 
+        });
+      }
+      
+      console.log(`🎬 시나리오 인트로 비디오 생성 시작: ${scenario.title}`);
+      
+      // 비디오 생성 요청
+      const result = await generateIntroVideo({
+        scenarioId: scenario.id,
+        scenarioTitle: scenario.title,
+        description: scenario.description,
+        customPrompt: customPrompt,
+        context: {
+          situation: scenario.context?.situation || scenario.description,
+          stakes: scenario.context?.stakes || '',
+          timeline: scenario.context?.timeline || ''
+        }
+      });
+      
+      if (!result.success) {
+        return res.status(500).json({ 
+          error: result.error || "비디오 생성 실패",
+          prompt: result.prompt
+        });
+      }
+      
+      // 기존 비디오가 있으면 삭제
+      if (scenario.introVideoUrl && scenario.introVideoUrl.startsWith('/scenarios/videos/')) {
+        await deleteIntroVideo(scenario.introVideoUrl);
+      }
+      
+      // 시나리오에 비디오 URL만 업데이트 (부분 업데이트)
+      await fileManager.updateScenario(scenarioId, {
+        introVideoUrl: result.videoUrl
+      } as any);
+      
+      console.log(`✅ 시나리오 인트로 비디오 생성 완료: ${result.videoUrl}`);
+      
+      res.json({
+        success: true,
+        videoUrl: result.videoUrl,
+        prompt: result.prompt,
+        metadata: result.metadata
+      });
+      
+    } catch (error: any) {
+      console.error("Error generating intro video:", error);
+      res.status(500).json({ 
+        error: "Failed to generate intro video",
+        details: error.message 
+      });
+    }
+  });
+
+  // 시나리오 인트로 비디오 삭제 API
+  app.delete("/api/admin/scenarios/:id/intro-video", isAuthenticated, isOperatorOrAdmin, async (req, res) => {
+    try {
+      const scenarioId = req.params.id;
+      
+      // 시나리오 정보 가져오기
+      const scenarios = await fileManager.getAllScenarios();
+      const scenario = scenarios.find((s: any) => s.id === scenarioId);
+      
+      if (!scenario) {
+        return res.status(404).json({ error: "Scenario not found" });
+      }
+      
+      if (!scenario.introVideoUrl) {
+        return res.json({ success: true, message: "No intro video to delete" });
+      }
+      
+      // 비디오 파일 삭제
+      const deleted = await deleteIntroVideo(scenario.introVideoUrl);
+      
+      // 시나리오에서 비디오 URL 제거 (부분 업데이트)
+      await fileManager.updateScenario(scenarioId, {
+        introVideoUrl: ''
+      } as any);
+      
+      console.log(`🗑️ 시나리오 인트로 비디오 삭제 완료: ${scenarioId}`);
+      
+      res.json({ 
+        success: true,
+        deleted 
+      });
+      
+    } catch (error: any) {
+      console.error("Error deleting intro video:", error);
+      res.status(500).json({ 
+        error: "Failed to delete intro video",
+        details: error.message 
+      });
+    }
+  });
+
+  // 비디오 생성 서비스 상태 확인 API
+  app.get("/api/admin/video-generation-status", isAuthenticated, isOperatorOrAdmin, async (req, res) => {
+    try {
+      const status = getVideoGenerationStatus();
+      res.json(status);
+    } catch (error: any) {
+      console.error("Error checking video generation status:", error);
+      res.status(500).json({ 
+        available: false, 
+        reason: error.message 
+      });
     }
   });
 

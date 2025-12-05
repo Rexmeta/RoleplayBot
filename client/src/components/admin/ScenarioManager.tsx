@@ -38,6 +38,8 @@ interface ScenarioFormData {
   skills: string[];
   image?: string; // 시나리오 이미지 URL 필드 추가
   imagePrompt?: string; // 이미지 생성 프롬프트 필드 추가
+  introVideoUrl?: string; // 인트로 비디오 URL 필드 추가
+  videoPrompt?: string; // 비디오 생성 프롬프트 필드 추가
   objectiveType?: string; // 목표 유형 추가
   context: {
     situation: string;
@@ -66,6 +68,7 @@ export function ScenarioManager() {
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [editingScenario, setEditingScenario] = useState<ComplexScenario | null>(null);
   const [isGeneratingImage, setIsGeneratingImage] = useState(false);
+  const [isGeneratingVideo, setIsGeneratingVideo] = useState(false);
   const [formData, setFormData] = useState<ScenarioFormData>({
     title: '',
     description: '',
@@ -74,6 +77,8 @@ export function ScenarioManager() {
     skills: [],
     image: '', // 이미지 초기값 추가
     imagePrompt: '', // 이미지 프롬프트 초기값 추가
+    introVideoUrl: '', // 인트로 비디오 URL 초기값 추가
+    videoPrompt: '', // 비디오 프롬프트 초기값 추가
     objectiveType: '', // 목표 유형 초기값 추가
     context: {
       situation: '',
@@ -193,6 +198,8 @@ export function ScenarioManager() {
       skills: [],
       image: '', // 이미지 필드 초기화 추가
       imagePrompt: '', // 이미지 프롬프트 초기화 추가
+      introVideoUrl: '', // 인트로 비디오 URL 초기화 추가
+      videoPrompt: '', // 비디오 프롬프트 초기화 추가
       objectiveType: '', // 목표 유형 초기화
       context: {
         situation: '',
@@ -227,6 +234,8 @@ export function ScenarioManager() {
       skills: scenario.skills,
       image: scenario.image || '', // 기존 시나리오의 이미지 URL 로드
       imagePrompt: (scenario as any).imagePrompt || '', // 기존 시나리오의 이미지 프롬프트 로드
+      introVideoUrl: (scenario as any).introVideoUrl || '', // 기존 시나리오의 인트로 비디오 URL 로드
+      videoPrompt: (scenario as any).videoPrompt || '', // 기존 시나리오의 비디오 프롬프트 로드
       objectiveType: (scenario as any).objectiveType || '', // 기존 시나리오의 목표 유형 로드
       context: scenario.context,
       objectives: scenario.objectives,
@@ -308,6 +317,85 @@ export function ScenarioManager() {
       });
     } finally {
       setIsGeneratingImage(false);
+    }
+  };
+
+  const handleGenerateVideo = async () => {
+    if (!editingScenario?.id) {
+      toast({
+        title: "시나리오 저장 필요",
+        description: "비디오를 생성하려면 시나리오를 먼저 저장하세요.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (!formData.title) {
+      toast({
+        title: "시나리오 제목 필요",
+        description: "비디오를 생성하려면 시나리오 제목을 먼저 입력하세요.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsGeneratingVideo(true);
+    try {
+      const response = await apiRequest('POST', `/api/admin/scenarios/${editingScenario.id}/generate-intro-video`, {
+        customPrompt: formData.videoPrompt || undefined,
+      });
+      
+      const data = await response.json();
+      
+      if (data.success && data.videoUrl) {
+        setFormData(prev => ({ ...prev, introVideoUrl: data.videoUrl }));
+        toast({
+          title: "비디오 생성 완료",
+          description: "인트로 비디오가 성공적으로 생성되었습니다.",
+        });
+        // 시나리오 목록 갱신
+        queryClient.invalidateQueries({ queryKey: ['/api/admin/scenarios'] });
+      } else {
+        throw new Error(data.error || '비디오 생성 실패');
+      }
+    } catch (error: any) {
+      console.error('비디오 생성 오류:', error);
+      toast({
+        title: "비디오 생성 실패",
+        description: error.message || "비디오 생성 중 오류가 발생했습니다.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsGeneratingVideo(false);
+    }
+  };
+
+  const handleDeleteVideo = async () => {
+    if (!editingScenario?.id) {
+      return;
+    }
+
+    try {
+      const response = await apiRequest('DELETE', `/api/admin/scenarios/${editingScenario.id}/intro-video`);
+      const data = await response.json();
+      
+      if (data.success) {
+        setFormData(prev => ({ ...prev, introVideoUrl: '' }));
+        toast({
+          title: "비디오 삭제 완료",
+          description: "인트로 비디오가 삭제되었습니다.",
+        });
+        queryClient.invalidateQueries({ queryKey: ['/api/admin/scenarios'] });
+      } else {
+        throw new Error(data.error || '비디오 삭제 실패');
+      }
+    } catch (error: any) {
+      console.error('비디오 삭제 오류:', error);
+      toast({
+        title: "비디오 삭제 실패",
+        description: error.message || "비디오 삭제 중 오류가 발생했습니다.",
+        variant: "destructive",
+      });
     }
   };
 
@@ -450,6 +538,100 @@ export function ScenarioManager() {
                             }
                           }}
                           data-testid="scenario-image-preview"
+                        />
+                      </div>
+                    </div>
+                  )}
+                </div>
+                
+                {/* 인트로 비디오 생성 섹션 */}
+                <div className="space-y-3 mt-6 pt-6 border-t border-slate-200">
+                  <div className="flex items-center justify-between">
+                    <Label className="text-sm font-medium text-slate-700">대화 인트로 비디오 (선택사항)</Label>
+                    {formData.introVideoUrl && (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={handleDeleteVideo}
+                        className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                        data-testid="button-delete-video"
+                      >
+                        <i className="fas fa-trash mr-1"></i>
+                        비디오 삭제
+                      </Button>
+                    )}
+                  </div>
+                  <p className="text-xs text-slate-500">
+                    대화 시작 시 재생될 8초 인트로 비디오를 AI로 생성합니다. 시나리오를 먼저 저장한 후 생성할 수 있습니다.
+                  </p>
+                  
+                  {/* 비디오 URL 직접 입력 */}
+                  <Input
+                    id="introVideoUrl"
+                    value={formData.introVideoUrl || ''}
+                    onChange={(e) => setFormData(prev => ({ ...prev, introVideoUrl: e.target.value }))}
+                    placeholder="비디오 URL을 입력하세요 (예: /scenarios/videos/intro.mp4)"
+                    data-testid="input-intro-video-url"
+                    className="bg-white"
+                  />
+                  
+                  {/* 비디오 프롬프트 입력 */}
+                  <div className="space-y-2">
+                    <Label htmlFor="videoPrompt" className="text-sm font-medium text-slate-700">비디오 생성 프롬프트 (선택사항)</Label>
+                    <Textarea
+                      id="videoPrompt"
+                      value={formData.videoPrompt || ''}
+                      onChange={(e) => setFormData(prev => ({ ...prev, videoPrompt: e.target.value }))}
+                      placeholder="커스텀 비디오 프롬프트를 입력하세요. 비워두면 시나리오 상황에 맞게 자동 생성됩니다."
+                      className="min-h-[80px] bg-white whitespace-pre-wrap"
+                      data-testid="textarea-video-prompt"
+                    />
+                    <p className="text-xs text-slate-500">
+                      예: "Modern tech office, employees discussing urgently around monitors showing security alerts, tense atmosphere"
+                    </p>
+                  </div>
+                  
+                  {/* 비디오 생성 버튼 */}
+                  <Button
+                    type="button"
+                    onClick={handleGenerateVideo}
+                    disabled={isGeneratingVideo || !editingScenario?.id}
+                    className="w-full"
+                    variant={editingScenario?.id ? "default" : "secondary"}
+                    data-testid="button-generate-video"
+                  >
+                    {isGeneratingVideo ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        비디오 생성 중... (약 1-3분 소요)
+                      </>
+                    ) : editingScenario?.id ? (
+                      '🎬 AI 인트로 비디오 생성하기'
+                    ) : (
+                      '시나리오 저장 후 비디오 생성 가능'
+                    )}
+                  </Button>
+                  
+                  {/* 비디오 미리보기 */}
+                  {formData.introVideoUrl && (
+                    <div className="mt-3">
+                      <p className="text-sm text-slate-600 mb-2">비디오 미리보기:</p>
+                      <div className="relative w-full bg-slate-900 rounded-lg overflow-hidden border">
+                        <video
+                          src={formData.introVideoUrl}
+                          controls
+                          className="w-full max-h-64 object-contain"
+                          preload="metadata"
+                          onError={(e) => {
+                            const target = e.target as HTMLVideoElement;
+                            target.style.display = 'none';
+                            const parent = target.parentElement;
+                            if (parent) {
+                              parent.innerHTML = '<div class="flex items-center justify-center h-32 text-slate-400 text-sm"><i class="fas fa-exclamation-triangle mr-2"></i>비디오를 불러올 수 없습니다</div>';
+                            }
+                          }}
+                          data-testid="scenario-video-preview"
                         />
                       </div>
                     </div>
