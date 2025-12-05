@@ -118,8 +118,20 @@ export async function generateIntroVideo(request: VideoGenerationRequest): Promi
     
     if (videoData.uri) {
       console.log('📥 비디오 URI에서 다운로드:', videoData.uri);
-      const response = await fetch(videoData.uri);
+      
+      const downloadUrl = new URL(videoData.uri);
+      downloadUrl.searchParams.set('key', apiKey!);
+      
+      const response = await fetch(downloadUrl.toString(), {
+        headers: {
+          'x-goog-api-key': apiKey!
+        }
+      });
+      
       if (!response.ok) {
+        console.error(`비디오 다운로드 실패 - Status: ${response.status}, StatusText: ${response.statusText}`);
+        const errorText = await response.text().catch(() => '');
+        console.error(`응답 내용: ${errorText}`);
         throw new Error(`비디오 다운로드 실패: ${response.status}`);
       }
       const arrayBuffer = await response.arrayBuffer();
