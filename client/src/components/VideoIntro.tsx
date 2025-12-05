@@ -11,6 +11,8 @@ export function VideoIntro({ videoSrc, onComplete, onSkip }: VideoIntroProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [showSkip, setShowSkip] = useState(false);
+  const [isFadingIn, setIsFadingIn] = useState(true);
+  const [isFadingOut, setIsFadingOut] = useState(false);
 
   useEffect(() => {
     const video = videoRef.current;
@@ -21,10 +23,16 @@ export function VideoIntro({ videoSrc, onComplete, onSkip }: VideoIntroProps) {
       video.play().catch(() => {
         setShowSkip(true);
       });
+      setTimeout(() => {
+        setIsFadingIn(false);
+      }, 50);
     };
 
     const handleEnded = () => {
-      onComplete();
+      setIsFadingOut(true);
+      setTimeout(() => {
+        onComplete();
+      }, 500);
     };
 
     const handleError = () => {
@@ -47,6 +55,13 @@ export function VideoIntro({ videoSrc, onComplete, onSkip }: VideoIntroProps) {
     };
   }, [onComplete, onSkip]);
 
+  const handleSkip = () => {
+    setIsFadingOut(true);
+    setTimeout(() => {
+      onSkip();
+    }, 500);
+  };
+
   const webmSrc = videoSrc.replace(/\.mp4$/, ".webm");
 
   return (
@@ -62,7 +77,9 @@ export function VideoIntro({ videoSrc, onComplete, onSkip }: VideoIntroProps) {
 
       <video
         ref={videoRef}
-        className="w-full h-full object-contain"
+        className={`w-full h-full object-cover transition-opacity duration-500 ${
+          isFadingIn ? 'opacity-0' : isFadingOut ? 'opacity-0' : 'opacity-100'
+        }`}
         playsInline
         preload="auto"
         autoPlay
@@ -72,9 +89,9 @@ export function VideoIntro({ videoSrc, onComplete, onSkip }: VideoIntroProps) {
         <source src={videoSrc} type="video/mp4" />
       </video>
 
-      {showSkip && (
+      {showSkip && !isFadingOut && (
         <button
-          onClick={onSkip}
+          onClick={handleSkip}
           className="absolute top-6 right-6 flex items-center gap-2 px-4 py-2 bg-black/60 hover:bg-black/80 text-white/80 hover:text-white rounded-full transition-all text-sm backdrop-blur-sm"
           data-testid="button-skip-video"
         >
