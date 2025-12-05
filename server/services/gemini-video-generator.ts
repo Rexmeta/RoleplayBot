@@ -65,7 +65,13 @@ export async function generateIntroVideo(request: VideoGenerationRequest): Promi
     
     while (!result.done && attempts < VIDEO_CONFIG.maxPollingAttempts) {
       await new Promise(resolve => setTimeout(resolve, VIDEO_CONFIG.pollingIntervalMs));
-      result = await genAI.operations.get({ name: operation.name! });
+      
+      try {
+        result = await genAI.operations.getVideosOperation({ operation: result });
+      } catch (pollError: any) {
+        console.log(`⏳ 폴링 시도 ${attempts + 1}: ${pollError.message || '대기 중...'}`);
+      }
+      
       attempts++;
       console.log(`⏳ 비디오 생성 진행 중... (${attempts}/${VIDEO_CONFIG.maxPollingAttempts})`);
     }
@@ -80,9 +86,12 @@ export async function generateIntroVideo(request: VideoGenerationRequest): Promi
 
     if (result.error) {
       console.error('❌ Veo API 오류:', result.error);
+      const errorMessage = typeof result.error === 'object' && result.error !== null 
+        ? (result.error as any).message || JSON.stringify(result.error)
+        : String(result.error);
       return {
         success: false,
-        error: result.error.message || '비디오 생성 중 오류가 발생했습니다.',
+        error: errorMessage || '비디오 생성 중 오류가 발생했습니다.',
         prompt: videoPrompt
       };
     }
@@ -116,7 +125,15 @@ export async function generateIntroVideo(request: VideoGenerationRequest): Promi
       const arrayBuffer = await response.arrayBuffer();
       videoBytes = new Uint8Array(arrayBuffer);
     } else if (videoData.videoBytes) {
-      videoBytes = videoData.videoBytes;
+      if (typeof videoData.videoBytes === 'string') {
+        const binaryString = atob(videoData.videoBytes);
+        videoBytes = new Uint8Array(binaryString.length);
+        for (let i = 0; i < binaryString.length; i++) {
+          videoBytes[i] = binaryString.charCodeAt(i);
+        }
+      } else {
+        videoBytes = videoData.videoBytes as Uint8Array;
+      }
     }
 
     if (!videoBytes) {
