@@ -54,7 +54,7 @@ export async function generateIntroVideo(request: VideoGenerationRequest): Promi
     console.log(`프롬프트: ${videoPrompt}`);
 
     const operation = await genAI.models.generateVideos({
-      model: "veo-3.0-generate-preview",
+      model: "veo-3.1-generate-preview",
       prompt: videoPrompt,
     });
 
@@ -165,7 +165,7 @@ export async function generateIntroVideo(request: VideoGenerationRequest): Promi
       videoUrl: localVideoPath,
       prompt: videoPrompt,
       metadata: {
-        model: "veo-3.0-generate-preview",
+        model: "veo-3.1-generate-preview",
         provider: "gemini",
         durationSeconds: VIDEO_CONFIG.maxDurationSeconds,
         savedLocally: true

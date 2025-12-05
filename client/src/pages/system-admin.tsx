@@ -229,7 +229,7 @@ const FEATURE_MODEL_INFO = [
     id: "video",
     feature: "인트로 비디오 생성",
     description: "시나리오 인트로 비디오 AI 생성",
-    fixedModel: "Gemini Veo 3.0",
+    fixedModel: "Gemini Veo 3.1",
     configurable: false
   }
 ];

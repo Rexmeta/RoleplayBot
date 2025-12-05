@@ -126,7 +126,7 @@ Preferred communication style: Simple, everyday language.
   - 시나리오 생성: Gemini만 지원 (configurable via `model_scenario`, Google SDK 사용)
   - 실시간 음성 대화: Gemini Live API만 지원 (configurable via `model_realtime`)
   - 이미지 생성: Gemini 2.5 Flash Image (고정 - 변경 불가)
-  - 인트로 비디오 생성: Gemini Veo 3.0 (고정 - 변경 불가)
+  - 인트로 비디오 생성: Gemini Veo 3.1 (고정 - 변경 불가)
 - **Architecture**:
   - `AIServiceFactory.getAIServiceForFeature(feature)` - creates fresh provider instance per request
   - No singleton pattern - eliminates race conditions with concurrent requests
