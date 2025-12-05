@@ -172,7 +172,25 @@ Preferred communication style: Simple, everyday language.
   - Model usage table
   - Daily usage table
 
+## Intro Video Generation (Content Management)
+- **Gemini Veo 3.1 API**: 8-second AI-generated video clips with native audio
+- **Video Storage**: `scenarios/videos/` directory, served via static file route
+- **Scenario Integration**: `introVideoUrl` field in scenario JSON stores the generated video URL
+- **Workflow**:
+  1. Admin/operator edits an existing scenario
+  2. Enters video prompt describing the desired intro scene
+  3. Clicks "인트로 비디오 생성" to generate video (takes ~30-60 seconds)
+  4. Video preview appears; can delete and regenerate if needed
+  5. Video URL is automatically saved to scenario
+- **API Endpoints**:
+  - POST `/api/admin/scenarios/:id/generate-intro-video` - Generate video with prompt
+  - DELETE `/api/admin/scenarios/:id/intro-video` - Delete existing video
+- **Service File**: `server/services/gemini-video-generator.ts` - Veo API integration with async polling
+- **UI Location**: ScenarioManager.tsx → Edit dialog → "인트로 비디오" section (below image generation)
+- **Requirements**: Gemini API key with Veo access (paid tier required for video generation)
+
 ## Recent Changes (December 2025)
+- Added scenario intro video generation using Gemini Veo 3.1 API
 - Added AI usage tracking system for monitoring token usage and costs
 - Added system settings management feature for configurable system parameters
 - Added system admin page with user management functionality
