@@ -12,29 +12,22 @@ export function VideoIntro({ videoSrc, onComplete, onSkip }: VideoIntroProps) {
   const [isLoading, setIsLoading] = useState(true);
   const [showSkip, setShowSkip] = useState(false);
 
-  console.log('🎬 [VideoIntro] 컴포넌트 렌더링, videoSrc:', videoSrc);
-
   useEffect(() => {
     const video = videoRef.current;
     if (!video) return;
 
     const handleCanPlay = () => {
-      console.log('🎬 [VideoIntro] canplay 이벤트 - 영상 재생 준비 완료');
       setIsLoading(false);
-      video.play().catch((err) => {
-        console.log('🎬 [VideoIntro] 자동재생 실패:', err);
+      video.play().catch(() => {
         setShowSkip(true);
       });
     };
 
     const handleEnded = () => {
-      console.log('🎬 [VideoIntro] ended 이벤트 - 영상 재생 완료');
       onComplete();
     };
 
-    const handleError = (e: Event) => {
-      console.error('🎬 [VideoIntro] error 이벤트 - 영상 로딩 실패:', e);
-      console.error('🎬 [VideoIntro] video.error:', video.error);
+    const handleError = () => {
       onSkip();
     };
 
