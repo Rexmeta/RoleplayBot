@@ -224,6 +224,13 @@ const FEATURE_MODEL_INFO = [
     description: "시나리오/페르소나 이미지 자동 생성",
     fixedModel: "Gemini 2.5 Flash Image",
     configurable: false
+  },
+  {
+    id: "video",
+    feature: "인트로 비디오 생성",
+    description: "시나리오 인트로 비디오 AI 생성",
+    fixedModel: "Gemini Veo 2.0",
+    configurable: false
   }
 ];
 
