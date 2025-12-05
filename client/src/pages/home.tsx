@@ -284,6 +284,7 @@ export default function Home() {
       console.log('📤 [NEW CODE] User selected difficulty:', userSelectedDifficulty);
       console.log('📤 [NEW CODE] forceNewRun:', conversationData.forceNewRun, '(scenarioRunId:', scenarioRunId, ')');
       console.log('📤 [NEW CODE] Full conversation data:', JSON.stringify(conversationData));
+      console.log('🎬 [DEBUG] introVideoUrl 체크:', selectedScenario.introVideoUrl);
       
       const response = await apiRequest("POST", "/api/conversations", conversationData);
       
