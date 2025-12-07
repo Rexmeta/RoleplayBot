@@ -1659,15 +1659,86 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
 
           {chatMode === 'character' && (
             <div 
-              className={`fixed inset-0 z-10 bg-cover bg-center bg-no-repeat transition-all duration-300 ${
-                isEmotionTransitioning ? 'brightness-95 scale-[1.02]' : 'brightness-110 scale-100'
-              }`}
-              style={{
-                backgroundImage: loadedImageUrl ? `url(${loadedImageUrl})` : 'none',
-                backgroundColor: '#f5f5f5'
-              }}
+              className="fixed inset-0 z-10 flex"
               data-testid="character-mode"
             >
+              {/* Wide Screen Left Sidebar - Goals Panel (visible on 2xl+) */}
+              <div className="hidden 2xl:flex flex-col w-80 bg-gradient-to-b from-slate-50 to-slate-100 border-r border-slate-200 p-4 overflow-y-auto z-30">
+                {/* Character Info */}
+                <div className="bg-white rounded-xl px-4 py-3 shadow-sm border border-slate-100 mb-4">
+                  <div className="flex items-center space-x-2">
+                    <span className="text-sm font-semibold text-slate-800">{persona.department} {persona.role} {persona.name}</span>
+                    {latestAiMessage?.emotion && (
+                      <span className="text-lg">{emotionEmojis[latestAiMessage.emotion] || '😐'}</span>
+                    )}
+                  </div>
+                  <div className="flex items-center space-x-3 text-xs text-slate-500 mt-2">
+                    <span className="flex items-center" data-testid="text-elapsed-time-sidebar">
+                      <i className="fas fa-clock mr-1"></i>
+                      {formatElapsedTime(elapsedTime)}
+                    </span>
+                    <span className="flex items-center" data-testid="text-remaining-turns-sidebar">
+                      <i className="fas fa-redo mr-1"></i>
+                      {Math.max(0, maxTurns - (conversation?.turnCount ?? 0))}턴 남음
+                    </span>
+                  </div>
+                </div>
+                
+                {/* Goals Panel - Always Expanded */}
+                {(scenario?.objectives || scenario?.context?.playerRole?.responsibility) && (
+                  <div className="bg-white rounded-xl shadow-sm border border-slate-100 p-4 flex-1">
+                    <h4 className="font-semibold text-slate-800 mb-4 flex items-center">
+                      <i className="fas fa-user-tie text-corporate-600 mr-2"></i>
+                      당신의 역할과 목표
+                    </h4>
+                    <div className="text-sm leading-relaxed space-y-4">
+                      {/* 역할 섹션 */}
+                      {scenario.context?.playerRole?.responsibility && (
+                        <div>
+                          <div className="font-semibold text-corporate-600 mb-2 flex items-center justify-between text-xs">
+                            <span>👤 당신의 역할</span>
+                            <span className="text-slate-500 font-normal">
+                              {scenario.context.playerRole.position}
+                              {scenario.context.playerRole.experience && ` (${scenario.context.playerRole.experience})`}
+                            </span>
+                          </div>
+                          <div className="bg-slate-50 text-slate-700 rounded-lg px-3 py-2 text-sm">
+                            {scenario.context.playerRole.responsibility}
+                          </div>
+                        </div>
+                      )}
+                      
+                      {/* 목표 섹션 */}
+                      {scenario.objectives && scenario.objectives.length > 0 && (
+                        <div>
+                          <div className="font-semibold text-blue-600 mb-2 text-xs">🎯 달성 목표</div>
+                          <div className="space-y-2">
+                            {scenario.objectives.map((objective: string, index: number) => (
+                              <div key={index} className="flex items-start space-x-2 bg-blue-50/50 rounded-lg px-3 py-2">
+                                <span className="text-blue-500 text-xs mt-0.5 font-bold">{index + 1}</span>
+                                <span className="flex-1 text-slate-700 text-sm">{objective}</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Character Image Area with max-width constraint */}
+              <div className="flex-1 flex justify-center bg-slate-100">
+                <div 
+                  className={`relative w-full max-w-[1400px] h-full bg-cover bg-center bg-no-repeat transition-all duration-300 ${
+                    isEmotionTransitioning ? 'brightness-95 scale-[1.02]' : 'brightness-110 scale-100'
+                  }`}
+                  style={{
+                    backgroundImage: loadedImageUrl ? `url(${loadedImageUrl})` : 'none',
+                    backgroundColor: '#f5f5f5'
+                  }}
+                >
+              
               {/* 페르소나 이미지가 없을 때 안내 메시지 */}
               {hasNoPersonaImages && (
                 <div className="absolute inset-0 flex items-center justify-center z-5">
@@ -1679,8 +1750,8 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
                 </div>
               )}
               
-              {/* Top Left Area */}
-              <div className="absolute top-4 left-4 z-20 space-y-3">
+              {/* Top Left Area - Hidden on 2xl (shown in sidebar) */}
+              <div className="absolute top-4 left-4 z-20 space-y-3 2xl:hidden">
                 {/* Character Info Bar */}
                 <div className="bg-white/90 backdrop-blur-sm rounded-full px-4 py-2 shadow-lg">
                   <div className="flex items-center space-x-3">
@@ -1718,9 +1789,9 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
                   </div>
                 </div>
 
-                {/* Goals Display - Collapsible */}
+                {/* Goals Display - Collapsible (Hidden on 2xl where sidebar is visible) */}
                 {(scenario?.objectives || scenario?.context?.playerRole?.responsibility) && (
-                  <div className="bg-white/80 backdrop-blur-sm rounded-lg shadow-lg transition-all duration-300 max-w-sm">
+                  <div className="bg-white/80 backdrop-blur-sm rounded-lg shadow-lg transition-all duration-300 max-w-sm 2xl:hidden">
                     <button
                       onClick={() => setIsGoalsExpanded(!isGoalsExpanded)}
                       className="w-full p-2 flex items-center justify-between hover:bg-white/90 transition-all duration-200 rounded-lg"
@@ -2161,6 +2232,8 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
                     </>
                   )}
                 </Card>
+              </div>
+                </div>
               </div>
             </div>
           )}
