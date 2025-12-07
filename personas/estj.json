@@ -1,6 +1,7 @@
 {
   "id": "estj",
   "mbti": "ESTJ",
+  "gender": "male",
   "personality_traits": [
     "조직적",
     "책임감 강함",
@@ -50,8 +51,36 @@
     "pace": "빠름",
     "emotion": "결단과 신뢰"
   },
-  "image": {
-    "profile": "https://picsum.photos/seed/estj/150/150",
-    "style": "실제 인물 사진 느낌"
+  "images": {
+    "base": "/personas/estj/male/neutral.webp?t=1765149651719",
+    "style": "한국인 회의실에 앉아 있는 모습 상반신 전체가 보이도록 ",
+    "male": {
+      "expressions": {
+        "중립": "/personas/estj/male/neutral.webp?t=1765149651719",
+        "기쁨": "/personas/estj/male/joy.webp?t=1765149748327",
+        "슬픔": "/personas/estj/male/sad.webp?t=1765149748327",
+        "분노": "/personas/estj/male/angry.webp?t=1765149748327",
+        "놀람": "/personas/estj/male/surprise.webp?t=1765149748327",
+        "호기심": "/personas/estj/male/curious.webp?t=1765149748327",
+        "불안": "/personas/estj/male/anxious.webp?t=1765149748327",
+        "피로": "/personas/estj/male/tired.webp?t=1765149748327",
+        "실망": "/personas/estj/male/disappointed.webp?t=1765149748327",
+        "당혹": "/personas/estj/male/confused.webp?t=1765149748327"
+      }
+    },
+    "female": {
+      "expressions": {
+        "중립": "",
+        "기쁨": "",
+        "슬픔": "",
+        "분노": "",
+        "놀람": "",
+        "호기심": "",
+        "불안": "",
+        "피로": "",
+        "실망": "",
+        "당혹": ""
+      }
+    }
   }
 }
