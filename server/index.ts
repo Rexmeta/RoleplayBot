@@ -81,28 +81,24 @@ app.use((req, res, next) => {
   // this serves both the API and the client.
   // It is the only port that is not firewalled.
   const port = parseInt(process.env.PORT || '5000', 10);
-  const host = process.env.HOST || "0.0.0.0";
+  const host = "0.0.0.0"; // Cloud Run requires 0.0.0.0, not localhost
   
-  // Windows에서는 reusePort가 지원되지 않으므로 제거
-  const listenOptions: any = {
-    port,
-    host,
-  };
-  
-  // Linux/macOS에서만 reusePort 사용 (Windows 호환성)
-  if (process.platform !== 'win32') {
-    listenOptions.reusePort = true;
-  }
-  
-  server.listen(listenOptions, () => {
+  // Cloud Run 호환성을 위해 reusePort 옵션 제거
+  server.listen(port, host, () => {
     log(`serving on port ${port} (host: ${host})`);
     log(`platform: ${process.platform}`);
-    
-    // 로컬 접속 가이드
-    if (host === "127.0.0.1" || host === "localhost") {
-      log(`Local access: http://localhost:${port}`);
+    log(`Network access: http://${host}:${port}`);
+  });
+  
+  // 서버 시작 오류 핸들링
+  server.on('error', (err: NodeJS.ErrnoException) => {
+    if (err.code === 'EADDRINUSE') {
+      console.error(`Port ${port} is already in use`);
+    } else if (err.code === 'EACCES') {
+      console.error(`Permission denied for port ${port}`);
     } else {
-      log(`Network access: http://${host}:${port}`);
+      console.error('Server error:', err);
     }
+    process.exit(1);
   });
 })();
