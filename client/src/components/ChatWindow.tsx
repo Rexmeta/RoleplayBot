@@ -73,9 +73,10 @@ interface ChatWindowProps {
   onExit: () => void;
   onPersonaChange?: () => void;
   onReady?: () => void;
+  onConversationEnding?: () => void;
 }
 
-export default function ChatWindow({ scenario, persona, conversationId, onChatComplete, onExit, onPersonaChange, onReady }: ChatWindowProps) {
+export default function ChatWindow({ scenario, persona, conversationId, onChatComplete, onExit, onPersonaChange, onReady, onConversationEnding }: ChatWindowProps) {
   const [location, setLocation] = useLocation();
   const [userInput, setUserInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
