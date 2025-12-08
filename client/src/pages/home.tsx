@@ -41,6 +41,7 @@ export default function Home() {
   const [loadingPersonaId, setLoadingPersonaId] = useState<string | null>(null); // 로딩 중인 페르소나 ID
   const [selectedDifficulty, setSelectedDifficulty] = useState<number>(4); // 사용자가 선택한 난이도 (기본값: 4)
   const [isResuming, setIsResuming] = useState(false); // 대화 재개 중 상태
+  const [isVideoTransitioning, setIsVideoTransitioning] = useState(false); // 인트로 영상 → 대화 전환 중 상태
 
   // 동적으로 시나리오와 페르소나 데이터 로드
   const { data: scenarios = [] } = useQuery({
@@ -308,12 +309,19 @@ export default function Home() {
 
   // 영상 인트로 완료 후 대화 시작
   const handleVideoComplete = () => {
+    setIsVideoTransitioning(true);
     setCurrentView("chat");
   };
 
   // 영상 건너뛰기
   const handleVideoSkip = () => {
+    setIsVideoTransitioning(true);
     setCurrentView("chat");
+  };
+
+  // ChatWindow가 준비 완료되면 전환 오버레이 해제
+  const handleChatReady = () => {
+    setIsVideoTransitioning(false);
   };
 
   const handleChatComplete = () => {
@@ -784,6 +792,14 @@ export default function Home() {
             conversationId={conversationId}
             onChatComplete={handleChatComplete}
             onExit={handleReturnToScenarios}
+            onReady={handleChatReady}
+          />
+        )}
+        
+        {isVideoTransitioning && (
+          <div 
+            className="fixed inset-0 z-[60] bg-black transition-opacity duration-500"
+            data-testid="video-transition-overlay"
           />
         )}
         
