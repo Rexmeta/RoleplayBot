@@ -37,6 +37,7 @@ export default function PersonalDevelopmentReport({
 }: PersonalDevelopmentReportProps) {
   const { toast } = useToast();
   const [showDetailedFeedback, setShowDetailedFeedback] = useState(true); // 애니메이션 없이 바로 표시
+  const [hasRequestedFeedback, setHasRequestedFeedback] = useState(false); // 피드백 생성 요청 여부
 
   // 사용자의 모든 대화 기록 조회
   const { data: userConversations = [] } = useQuery<any[]>({
@@ -205,8 +206,15 @@ export default function PersonalDevelopmentReport({
     }
   });
 
-  // 로딩 중이거나 피드백 생성 중일 때만 로딩 표시
-  if (isLoading || generateFeedbackMutation.isPending) {
+  // 피드백 생성 버튼 클릭 핸들러
+  const handleGenerateFeedback = () => {
+    setHasRequestedFeedback(true);
+    generateFeedbackMutation.mutate();
+  };
+
+  // 로딩 중이거나 피드백 생성 중일 때 로딩 표시
+  // hasRequestedFeedback이 true이면 피드백이 표시될 때까지 로딩 상태 유지
+  if (isLoading || generateFeedbackMutation.isPending || (hasRequestedFeedback && !feedback)) {
     return (
       <div className="text-center py-16" data-testid="feedback-loading">
         <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-corporate-600 mx-auto mb-4"></div>
@@ -220,7 +228,7 @@ export default function PersonalDevelopmentReport({
   // (마이페이지에서 "피드백 보기" 버튼을 누를 때마다 재생성되는 문제 방지)
 
   // 피드백이 없는 경우 - 아직 생성되지 않았음을 안내
-  if (!feedback && !isLoading && !generateFeedbackMutation.isPending && error?.message === "FEEDBACK_NOT_FOUND") {
+  if (!feedback && !isLoading && !hasRequestedFeedback && error?.message === "FEEDBACK_NOT_FOUND") {
     return (
       <div className="text-center py-16" data-testid="feedback-not-found">
         <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
@@ -230,7 +238,7 @@ export default function PersonalDevelopmentReport({
         <p className="text-slate-600 mb-4">대화를 완료한 후 피드백을 생성할 수 있습니다.</p>
         <div className="space-y-2">
           <Button 
-            onClick={() => generateFeedbackMutation.mutate()} 
+            onClick={handleGenerateFeedback} 
             data-testid="generate-feedback"
             disabled={generateFeedbackMutation.isPending}
           >
