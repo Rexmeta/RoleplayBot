@@ -6,7 +6,6 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import html2pdf from "html2pdf.js";
 
 import type { ComplexScenario, ScenarioPersona } from "@/lib/scenario-system";
 import type { Feedback } from "@shared/schema";
@@ -236,13 +235,21 @@ export default function PersonalDevelopmentReport({
     
     setIsExportingPdf(true);
     try {
+      // 동적으로 html2pdf 라이브러리 로드
+      const html2pdfModule = await import('html2pdf.js');
+      const html2pdf = html2pdfModule.default || html2pdfModule;
+      
+      if (!html2pdf) {
+        throw new Error('html2pdf 라이브러리를 로드할 수 없습니다.');
+      }
+      
       // PDF 내보내기 모드 클래스 추가
       reportRef.current.classList.add('pdf-export-mode');
       
       const opt = {
         margin: [10, 10, 10, 10] as [number, number, number, number],
         filename: `개발보고서_${scenario.title}_${new Date().toLocaleDateString('ko-KR').replace(/\./g, '-')}.pdf`,
-        image: { type: 'jpeg', quality: 0.98 },
+        image: { type: 'jpeg' as const, quality: 0.98 },
         html2canvas: { 
           scale: 2,
           useCORS: true,
@@ -250,9 +257,9 @@ export default function PersonalDevelopmentReport({
           scrollY: 0
         },
         jsPDF: { 
-          unit: 'mm', 
-          format: 'a4', 
-          orientation: 'portrait' 
+          unit: 'mm' as const, 
+          format: 'a4' as const, 
+          orientation: 'portrait' as const 
         },
         pagebreak: { mode: ['avoid-all', 'css', 'legacy'] }
       };
@@ -543,6 +550,7 @@ export default function PersonalDevelopmentReport({
 
         {/* 성과 분석 */}
         <TabsContent value="scores" className="space-y-6 print-show-all">
+          <h2 className="print-section-title hidden print:block">📊 성과 분석</h2>
           {/* 카테고리별 점수 */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {feedback?.scores?.map((score, index) => {
@@ -667,7 +675,8 @@ export default function PersonalDevelopmentReport({
         </TabsContent>
 
         {/* 행동 가이드 */}
-        <TabsContent value="behavior" className="space-y-6 print-show-all">
+        <TabsContent value="behavior" className="space-y-6 print-show-all print-section-break">
+          <h2 className="print-section-title hidden print:block">🎯 행동 가이드</h2>
           <div className="grid grid-cols-1 gap-6">
             {feedback?.detailedFeedback?.behaviorGuides?.map((guide, index) => (
               <Card key={index} className="hover:shadow-md transition-shadow" data-testid={`behavior-guide-${index}`}>
@@ -709,7 +718,8 @@ export default function PersonalDevelopmentReport({
         </TabsContent>
 
         {/* 대화 가이드 */}
-        <TabsContent value="conversation" className="space-y-6 print-show-all">
+        <TabsContent value="conversation" className="space-y-6 print-show-all print-section-break">
+          <h2 className="print-section-title hidden print:block">💬 대화 가이드</h2>
           <div className="grid grid-cols-1 gap-6">
             {feedback?.detailedFeedback?.conversationGuides?.map((guide, index) => (
               <Card key={index} className="hover:shadow-md transition-shadow" data-testid={`conversation-guide-${index}`}>
@@ -768,7 +778,8 @@ export default function PersonalDevelopmentReport({
         </TabsContent>
 
         {/* 개발 계획 */}
-        <TabsContent value="development" className="space-y-6 print-show-all">
+        <TabsContent value="development" className="space-y-6 print-show-all print-section-break">
+          <h2 className="print-section-title hidden print:block">📈 개발 계획</h2>
           {feedback?.detailedFeedback?.developmentPlan && (
             <>
               {/* 단기/중기/장기 계획 */}
@@ -880,7 +891,8 @@ export default function PersonalDevelopmentReport({
 
         {/* 전략 평가 */}
         {feedback?.detailedFeedback?.sequenceAnalysis && (
-          <TabsContent value="strategy" className="space-y-6 print-show-all">
+          <TabsContent value="strategy" className="space-y-6 print-show-all print-section-break">
+            <h2 className="print-section-title hidden print:block">🎮 전략 평가</h2>
             <Card className="border-l-4 border-l-purple-500">
               <CardHeader>
                 <CardTitle className="flex items-center text-xl">
