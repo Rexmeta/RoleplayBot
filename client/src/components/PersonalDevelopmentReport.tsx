@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
+import html2pdf from "html2pdf.js";
 
 import type { ComplexScenario, ScenarioPersona } from "@/lib/scenario-system";
 import type { Feedback } from "@shared/schema";
@@ -229,22 +230,256 @@ export default function PersonalDevelopmentReport({
     generateFeedbackMutation.mutate();
   };
 
+  // 인쇄/PDF용 전체 보고서 HTML 생성
+  const generatePrintableContent = () => {
+    if (!feedback) return '';
+    
+    const overallGrade = getOverallGrade(feedback.overallScore || 0);
+    
+    return `
+      <div style="font-family: 'Noto Sans KR', sans-serif; padding: 20px; max-width: 800px; margin: 0 auto;">
+        <!-- 헤더 -->
+        <div style="background: linear-gradient(135deg, #4f46e5, #6366f1); color: white; padding: 24px; border-radius: 12px; margin-bottom: 24px;">
+          <h1 style="font-size: 24px; font-weight: bold; margin-bottom: 8px;">개인 맞춤 개발 보고서</h1>
+          <p style="opacity: 0.9; margin-bottom: 12px;">AI 분석 기반 커뮤니케이션 역량 진단 및 발전 계획</p>
+          <p style="font-size: 14px; opacity: 0.8;">대화 상대: ${persona.name} (${persona.role}) · 시나리오: ${scenario.title}</p>
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 16px;">
+            <div></div>
+            <div style="background: white; color: ${overallGrade.color.replace('text-', '')}; padding: 16px 24px; border-radius: 8px; text-align: center;">
+              <div style="font-size: 28px; font-weight: bold; color: #16a34a;">${overallGrade.grade}</div>
+              <div style="font-size: 14px; color: #4b5563;">${feedback.overallScore}점</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 1. 성과 분석 -->
+        <div style="margin-bottom: 32px; page-break-inside: avoid;">
+          <h2 style="font-size: 20px; font-weight: bold; color: #1f2937; border-bottom: 2px solid #4f46e5; padding-bottom: 8px; margin-bottom: 16px;">📊 성과 분석</h2>
+          
+          <!-- 카테고리별 점수 -->
+          <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; margin-bottom: 24px;">
+            ${feedback.scores?.map(score => `
+              <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 16px;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                  <span style="font-weight: 600; color: #374151;">${score.icon} ${score.name}</span>
+                  <span style="background: #dbeafe; color: #1e40af; padding: 4px 8px; border-radius: 4px; font-size: 12px;">${score.score}/5</span>
+                </div>
+                <p style="font-size: 13px; color: #6b7280;">${score.feedback}</p>
+              </div>
+            `).join('') || ''}
+          </div>
+
+          <!-- 종합 평가 -->
+          <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 20px;">
+            <h3 style="font-size: 16px; font-weight: 600; color: #374151; margin-bottom: 16px;">📈 종합 평가</h3>
+            <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 16px;">
+              <div>
+                <h4 style="font-size: 14px; font-weight: 600; color: #16a34a; margin-bottom: 8px;">✅ 주요 강점</h4>
+                <ul style="list-style: none; padding: 0; margin: 0;">
+                  ${feedback.detailedFeedback?.strengths?.map(s => `<li style="font-size: 13px; color: #4b5563; margin-bottom: 4px;">• ${s}</li>`).join('') || ''}
+                </ul>
+              </div>
+              <div>
+                <h4 style="font-size: 14px; font-weight: 600; color: #ea580c; margin-bottom: 8px;">⬆️ 개선 포인트</h4>
+                <ul style="list-style: none; padding: 0; margin: 0;">
+                  ${feedback.detailedFeedback?.improvements?.map(i => `<li style="font-size: 13px; color: #4b5563; margin-bottom: 4px;">• ${i}</li>`).join('') || ''}
+                </ul>
+              </div>
+              <div>
+                <h4 style="font-size: 14px; font-weight: 600; color: #2563eb; margin-bottom: 8px;">➡️ 다음 단계</h4>
+                <ul style="list-style: none; padding: 0; margin: 0;">
+                  ${feedback.detailedFeedback?.nextSteps?.map(s => `<li style="font-size: 13px; color: #4b5563; margin-bottom: 4px;">• ${s}</li>`).join('') || ''}
+                </ul>
+              </div>
+            </div>
+            <div style="border-top: 1px solid #e2e8f0; padding-top: 12px;">
+              <p style="font-size: 14px; color: #374151;"><strong>전문가 의견:</strong> ${feedback.detailedFeedback?.ranking || ''}</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- 2. 행동 가이드 -->
+        <div style="margin-bottom: 32px; page-break-inside: avoid;">
+          <h2 style="font-size: 20px; font-weight: bold; color: #1f2937; border-bottom: 2px solid #eab308; padding-bottom: 8px; margin-bottom: 16px;">🎯 행동 가이드</h2>
+          ${feedback.detailedFeedback?.behaviorGuides?.map(guide => `
+            <div style="background: #fffbeb; border: 1px solid #fde68a; border-radius: 8px; padding: 16px; margin-bottom: 16px;">
+              <h3 style="font-size: 16px; font-weight: 600; color: #92400e; margin-bottom: 12px;">💡 ${guide.situation}</h3>
+              <div style="margin-bottom: 12px;">
+                <h4 style="font-size: 14px; font-weight: 600; color: #4f46e5; margin-bottom: 4px;">권장 행동</h4>
+                <p style="font-size: 13px; color: #374151; background: #f0f9ff; padding: 8px; border-radius: 4px;">${guide.action}</p>
+              </div>
+              <div style="margin-bottom: 12px;">
+                <h4 style="font-size: 14px; font-weight: 600; color: #16a34a; margin-bottom: 4px;">구체적 예시</h4>
+                <p style="font-size: 13px; color: #166534; background: #dcfce7; padding: 8px; border-radius: 4px; font-style: italic;">"${guide.example}"</p>
+              </div>
+              <div>
+                <h4 style="font-size: 14px; font-weight: 600; color: #2563eb; margin-bottom: 4px;">기대 효과</h4>
+                <p style="font-size: 13px; color: #374151;">${guide.impact}</p>
+              </div>
+            </div>
+          `).join('') || '<p style="color: #6b7280;">구체적인 행동 가이드가 준비 중입니다.</p>'}
+        </div>
+
+        <!-- 3. 대화 가이드 -->
+        <div style="margin-bottom: 32px; page-break-inside: avoid;">
+          <h2 style="font-size: 20px; font-weight: bold; color: #1f2937; border-bottom: 2px solid #06b6d4; padding-bottom: 8px; margin-bottom: 16px;">💬 대화 가이드</h2>
+          ${feedback.detailedFeedback?.conversationGuides?.map(guide => `
+            <div style="background: #f0fdfa; border: 1px solid #99f6e4; border-radius: 8px; padding: 16px; margin-bottom: 16px;">
+              <h3 style="font-size: 16px; font-weight: 600; color: #0f766e; margin-bottom: 12px;">💭 ${guide.scenario}</h3>
+              <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin-bottom: 12px;">
+                <div style="background: #dcfce7; border: 1px solid #86efac; padding: 12px; border-radius: 4px;">
+                  <h4 style="font-size: 13px; font-weight: 600; color: #16a34a; margin-bottom: 4px;">✅ 좋은 예시</h4>
+                  <p style="font-size: 12px; color: #166534;">${guide.goodExample}</p>
+                </div>
+                <div style="background: #fef2f2; border: 1px solid #fecaca; padding: 12px; border-radius: 4px;">
+                  <h4 style="font-size: 13px; font-weight: 600; color: #dc2626; margin-bottom: 4px;">❌ 피해야 할 예시</h4>
+                  <p style="font-size: 12px; color: #991b1b;">${guide.badExample}</p>
+                </div>
+              </div>
+              <div>
+                <h4 style="font-size: 13px; font-weight: 600; color: #4f46e5; margin-bottom: 4px;">🔑 핵심 포인트</h4>
+                <ul style="list-style: none; padding: 0; margin: 0; display: grid; grid-template-columns: repeat(2, 1fr); gap: 4px;">
+                  ${guide.keyPoints?.map(point => `<li style="font-size: 12px; color: #4b5563;">• ${point}</li>`).join('') || ''}
+                </ul>
+              </div>
+            </div>
+          `).join('') || '<p style="color: #6b7280;">맞춤형 대화 가이드가 준비 중입니다.</p>'}
+        </div>
+
+        <!-- 4. 개발 계획 -->
+        <div style="margin-bottom: 32px; page-break-inside: avoid;">
+          <h2 style="font-size: 20px; font-weight: bold; color: #1f2937; border-bottom: 2px solid #8b5cf6; padding-bottom: 8px; margin-bottom: 16px;">📈 개발 계획</h2>
+          ${feedback.detailedFeedback?.developmentPlan ? `
+            <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 20px;">
+              <!-- 단기 목표 -->
+              <div style="background: #f0fdf4; border-left: 4px solid #22c55e; padding: 16px; border-radius: 0 8px 8px 0;">
+                <h3 style="font-size: 15px; font-weight: 600; color: #16a34a; margin-bottom: 12px;">📅 단기 목표 (1-2주)</h3>
+                ${feedback.detailedFeedback.developmentPlan.shortTerm?.map(item => `
+                  <div style="background: white; padding: 12px; border-radius: 4px; margin-bottom: 8px;">
+                    <h4 style="font-size: 13px; font-weight: 600; color: #166534; margin-bottom: 8px;">${item.goal}</h4>
+                    <ul style="list-style: none; padding: 0; margin: 0 0 8px 0;">
+                      ${item.actions.map(a => `<li style="font-size: 12px; color: #4b5563;">→ ${a}</li>`).join('')}
+                    </ul>
+                    <div style="font-size: 11px; background: #dcfce7; padding: 4px 8px; border-radius: 4px; color: #166534;">측정지표: ${item.measurable}</div>
+                  </div>
+                `).join('') || ''}
+              </div>
+              
+              <!-- 중기 목표 -->
+              <div style="background: #eff6ff; border-left: 4px solid #3b82f6; padding: 16px; border-radius: 0 8px 8px 0;">
+                <h3 style="font-size: 15px; font-weight: 600; color: #2563eb; margin-bottom: 12px;">📆 중기 목표 (1-2개월)</h3>
+                ${feedback.detailedFeedback.developmentPlan.mediumTerm?.map(item => `
+                  <div style="background: white; padding: 12px; border-radius: 4px; margin-bottom: 8px;">
+                    <h4 style="font-size: 13px; font-weight: 600; color: #1e40af; margin-bottom: 8px;">${item.goal}</h4>
+                    <ul style="list-style: none; padding: 0; margin: 0 0 8px 0;">
+                      ${item.actions.map(a => `<li style="font-size: 12px; color: #4b5563;">→ ${a}</li>`).join('')}
+                    </ul>
+                    <div style="font-size: 11px; background: #dbeafe; padding: 4px 8px; border-radius: 4px; color: #1e40af;">측정지표: ${item.measurable}</div>
+                  </div>
+                `).join('') || ''}
+              </div>
+              
+              <!-- 장기 목표 -->
+              <div style="background: #faf5ff; border-left: 4px solid #a855f7; padding: 16px; border-radius: 0 8px 8px 0;">
+                <h3 style="font-size: 15px; font-weight: 600; color: #7c3aed; margin-bottom: 12px;">🗓️ 장기 목표 (3-6개월)</h3>
+                ${feedback.detailedFeedback.developmentPlan.longTerm?.map(item => `
+                  <div style="background: white; padding: 12px; border-radius: 4px; margin-bottom: 8px;">
+                    <h4 style="font-size: 13px; font-weight: 600; color: #6b21a8; margin-bottom: 8px;">${item.goal}</h4>
+                    <ul style="list-style: none; padding: 0; margin: 0 0 8px 0;">
+                      ${item.actions.map(a => `<li style="font-size: 12px; color: #4b5563;">→ ${a}</li>`).join('')}
+                    </ul>
+                    <div style="font-size: 11px; background: #f3e8ff; padding: 4px 8px; border-radius: 4px; color: #6b21a8;">측정지표: ${item.measurable}</div>
+                  </div>
+                `).join('') || ''}
+              </div>
+            </div>
+            
+            <!-- 추천 리소스 -->
+            ${feedback.detailedFeedback.developmentPlan.recommendedResources?.length ? `
+              <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 16px;">
+                <h3 style="font-size: 15px; font-weight: 600; color: #374151; margin-bottom: 12px;">📚 추천 학습 자료</h3>
+                <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px;">
+                  ${feedback.detailedFeedback.developmentPlan.recommendedResources.map(r => `
+                    <div style="background: white; padding: 8px 12px; border-radius: 4px; font-size: 13px; color: #4b5563;">📖 ${r}</div>
+                  `).join('')}
+                </div>
+              </div>
+            ` : ''}
+          ` : '<p style="color: #6b7280;">개발 계획이 준비 중입니다.</p>'}
+        </div>
+
+        ${feedback.detailedFeedback?.sequenceAnalysis ? `
+        <!-- 5. 전략 평가 -->
+        <div style="margin-bottom: 32px; page-break-inside: avoid;">
+          <h2 style="font-size: 20px; font-weight: bold; color: #1f2937; border-bottom: 2px solid #ec4899; padding-bottom: 8px; margin-bottom: 16px;">🎮 전략 평가</h2>
+          <div style="background: #fdf4ff; border-left: 4px solid #a855f7; padding: 20px; border-radius: 0 8px 8px 0;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+              <h3 style="font-size: 16px; font-weight: 600; color: #7c3aed;">전략 점수</h3>
+              <span style="background: #e9d5ff; color: #7c3aed; padding: 8px 16px; border-radius: 8px; font-size: 18px; font-weight: bold;">
+                ${feedback.detailedFeedback.sequenceAnalysis.strategicScore ?? '평가 대기중'}
+              </span>
+            </div>
+            <p style="font-size: 14px; color: #6b21a8; margin-bottom: 16px;">${feedback.detailedFeedback.sequenceAnalysis.strategicRationale || ''}</p>
+            
+            ${feedback.detailedFeedback.sequenceAnalysis.sequenceEffectiveness ? `
+              <div style="margin-bottom: 16px;">
+                <h4 style="font-size: 14px; font-weight: 600; color: #2563eb; margin-bottom: 8px;">🎯 순서 선택의 효과성</h4>
+                <p style="font-size: 13px; color: #374151; background: white; padding: 12px; border-radius: 4px;">${feedback.detailedFeedback.sequenceAnalysis.sequenceEffectiveness}</p>
+              </div>
+            ` : ''}
+            
+            ${feedback.detailedFeedback.sequenceAnalysis.strategicInsights ? `
+              <div style="margin-bottom: 16px;">
+                <h4 style="font-size: 14px; font-weight: 600; color: #eab308; margin-bottom: 8px;">💡 전략적 통찰</h4>
+                <p style="font-size: 13px; color: #374151; background: #fef9c3; padding: 12px; border-radius: 4px; border-left: 4px solid #eab308;">${feedback.detailedFeedback.sequenceAnalysis.strategicInsights}</p>
+              </div>
+            ` : ''}
+            
+            ${feedback.detailedFeedback.sequenceAnalysis.alternativeApproaches?.length ? `
+              <div>
+                <h4 style="font-size: 14px; font-weight: 600; color: #16a34a; margin-bottom: 8px;">🛤️ 대안적 접근법</h4>
+                ${feedback.detailedFeedback.sequenceAnalysis.alternativeApproaches.map((a: string, i: number) => `
+                  <div style="display: flex; align-items: flex-start; gap: 8px; background: #dcfce7; padding: 12px; border-radius: 4px; margin-bottom: 8px;">
+                    <span style="background: #22c55e; color: white; padding: 2px 8px; border-radius: 4px; font-size: 12px;">${i + 1}</span>
+                    <p style="font-size: 13px; color: #166534; margin: 0;">${a}</p>
+                  </div>
+                `).join('')}
+              </div>
+            ` : ''}
+          </div>
+        </div>
+        ` : ''}
+
+        <!-- 푸터 -->
+        <div style="text-align: center; padding-top: 20px; border-top: 1px solid #e2e8f0; color: #9ca3af; font-size: 12px;">
+          생성일: ${new Date().toLocaleDateString('ko-KR')} · AI 기반 개인 맞춤 개발 보고서
+        </div>
+      </div>
+    `;
+  };
+
   // PDF 파일로 저장
   const handleExportPdf = async () => {
-    if (!reportRef.current) return;
+    if (!feedback) return;
     
     setIsExportingPdf(true);
     try {
-      // 동적으로 html2pdf 라이브러리 로드
-      const html2pdfModule = await import('html2pdf.js');
-      const html2pdf = html2pdfModule.default || html2pdfModule;
+      toast({
+        title: "PDF 생성 중",
+        description: "보고서를 PDF로 변환하고 있습니다...",
+      });
+
+      // 인쇄용 HTML 생성
+      const printableContent = generatePrintableContent();
       
-      if (!html2pdf) {
-        throw new Error('html2pdf 라이브러리를 로드할 수 없습니다.');
-      }
-      
-      // PDF 내보내기 모드 클래스 추가
-      reportRef.current.classList.add('pdf-export-mode');
+      // 임시 컨테이너 생성
+      const container = document.createElement('div');
+      container.innerHTML = printableContent;
+      container.style.position = 'absolute';
+      container.style.left = '-9999px';
+      container.style.top = '0';
+      container.style.width = '210mm'; // A4 너비
+      document.body.appendChild(container);
       
       const opt = {
         margin: [10, 10, 10, 10] as [number, number, number, number],
@@ -264,7 +499,10 @@ export default function PersonalDevelopmentReport({
         pagebreak: { mode: ['avoid-all', 'css', 'legacy'] }
       };
       
-      await html2pdf().set(opt).from(reportRef.current).save();
+      await html2pdf().set(opt).from(container).save();
+      
+      // 임시 컨테이너 제거
+      document.body.removeChild(container);
       
       toast({
         title: "PDF 저장 완료",
@@ -278,41 +516,68 @@ export default function PersonalDevelopmentReport({
         variant: "destructive"
       });
     } finally {
-      // PDF 내보내기 모드 클래스 제거
-      reportRef.current?.classList.remove('pdf-export-mode');
       setIsExportingPdf(false);
     }
   };
 
   // 보고서 인쇄
   const handlePrint = () => {
+    if (!feedback) return;
+    
     try {
-      // 인쇄 시작 알림
       toast({
         title: "인쇄 준비 중",
-        description: "인쇄 대화상자를 열고 있습니다...",
+        description: "인쇄용 보고서를 생성하고 있습니다...",
       });
       
-      // 약간의 지연 후 인쇄 대화상자 열기 (브라우저가 처리할 시간 제공)
-      setTimeout(() => {
-        window.print();
-      }, 100);
-    } catch (error) {
-      console.error('인쇄 오류:', error);
-      const userAgent = navigator.userAgent;
-      let message = '인쇄 기능을 사용할 수 없습니다.';
+      // 인쇄용 HTML 생성
+      const printableContent = generatePrintableContent();
       
-      if (userAgent.includes('Chrome')) {
-        message += ' Chrome에서 Ctrl+P를 눌러 직접 인쇄해보세요.';
-      } else if (userAgent.includes('Firefox')) {
-        message += ' Firefox에서 Ctrl+P를 눌러 직접 인쇄해보세요.';
-      } else {
-        message += ' 브라우저에서 Ctrl+P(Windows) 또는 Cmd+P(Mac)를 눌러 직접 인쇄해보세요.';
+      // 새 창에서 인쇄
+      const printWindow = window.open('', '_blank', 'width=800,height=600');
+      if (!printWindow) {
+        toast({
+          title: "팝업 차단",
+          description: "브라우저에서 팝업을 허용해주세요. 또는 Ctrl+P로 직접 인쇄하세요.",
+          variant: "destructive"
+        });
+        return;
       }
       
+      printWindow.document.write(`
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <meta charset="utf-8">
+          <title>개인 맞춤 개발 보고서 - ${scenario.title}</title>
+          <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;600;700&display=swap" rel="stylesheet">
+          <style>
+            * { box-sizing: border-box; }
+            body { margin: 0; padding: 0; }
+            @media print {
+              body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+            }
+          </style>
+        </head>
+        <body>
+          ${printableContent}
+          <script>
+            window.onload = function() {
+              setTimeout(function() {
+                window.print();
+                window.close();
+              }, 500);
+            };
+          </script>
+        </body>
+        </html>
+      `);
+      printWindow.document.close();
+    } catch (error) {
+      console.error('인쇄 오류:', error);
       toast({
         title: "인쇄 오류",
-        description: message,
+        description: "브라우저에서 Ctrl+P(Windows) 또는 Cmd+P(Mac)를 눌러 직접 인쇄해보세요.",
         variant: "destructive"
       });
     }
