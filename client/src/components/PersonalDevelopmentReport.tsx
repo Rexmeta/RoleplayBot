@@ -287,7 +287,16 @@ export default function PersonalDevelopmentReport({
   // 보고서 인쇄
   const handlePrint = () => {
     try {
-      window.print();
+      // 인쇄 시작 알림
+      toast({
+        title: "인쇄 준비 중",
+        description: "인쇄 대화상자를 열고 있습니다...",
+      });
+      
+      // 약간의 지연 후 인쇄 대화상자 열기 (브라우저가 처리할 시간 제공)
+      setTimeout(() => {
+        window.print();
+      }, 100);
     } catch (error) {
       console.error('인쇄 오류:', error);
       const userAgent = navigator.userAgent;
