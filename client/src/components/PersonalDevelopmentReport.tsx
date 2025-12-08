@@ -230,11 +230,32 @@ export default function PersonalDevelopmentReport({
     generateFeedbackMutation.mutate();
   };
 
+  // HTML 이스케이프 함수 (XSS 방지)
+  const escapeHtml = (text: string | null | undefined): string => {
+    if (!text) return '';
+    return String(text)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#039;');
+  };
+
   // 인쇄/PDF용 전체 보고서 HTML 생성
   const generatePrintableContent = () => {
     if (!feedback) return '';
     
     const overallGrade = getOverallGrade(feedback.overallScore || 0);
+    
+    // 안전한 배열 접근
+    const scores = feedback.scores || [];
+    const strengths = feedback.detailedFeedback?.strengths || [];
+    const improvements = feedback.detailedFeedback?.improvements || [];
+    const nextSteps = feedback.detailedFeedback?.nextSteps || [];
+    const behaviorGuides = feedback.detailedFeedback?.behaviorGuides || [];
+    const conversationGuides = feedback.detailedFeedback?.conversationGuides || [];
+    const developmentPlan = feedback.detailedFeedback?.developmentPlan;
+    const sequenceAnalysis = feedback.detailedFeedback?.sequenceAnalysis;
     
     return `
       <div style="font-family: 'Noto Sans KR', sans-serif; padding: 20px; max-width: 800px; margin: 0 auto;">
@@ -242,12 +263,12 @@ export default function PersonalDevelopmentReport({
         <div style="background: linear-gradient(135deg, #4f46e5, #6366f1); color: white; padding: 24px; border-radius: 12px; margin-bottom: 24px;">
           <h1 style="font-size: 24px; font-weight: bold; margin-bottom: 8px;">개인 맞춤 개발 보고서</h1>
           <p style="opacity: 0.9; margin-bottom: 12px;">AI 분석 기반 커뮤니케이션 역량 진단 및 발전 계획</p>
-          <p style="font-size: 14px; opacity: 0.8;">대화 상대: ${persona.name} (${persona.role}) · 시나리오: ${scenario.title}</p>
+          <p style="font-size: 14px; opacity: 0.8;">대화 상대: ${escapeHtml(persona.name)} (${escapeHtml(persona.role)}) · 시나리오: ${escapeHtml(scenario.title)}</p>
           <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 16px;">
             <div></div>
             <div style="background: white; color: ${overallGrade.color.replace('text-', '')}; padding: 16px 24px; border-radius: 8px; text-align: center;">
-              <div style="font-size: 28px; font-weight: bold; color: #16a34a;">${overallGrade.grade}</div>
-              <div style="font-size: 14px; color: #4b5563;">${feedback.overallScore}점</div>
+              <div style="font-size: 28px; font-weight: bold; color: #16a34a;">${escapeHtml(overallGrade.grade)}</div>
+              <div style="font-size: 14px; color: #4b5563;">${feedback.overallScore || 0}점</div>
             </div>
           </div>
         </div>
@@ -258,15 +279,15 @@ export default function PersonalDevelopmentReport({
           
           <!-- 카테고리별 점수 -->
           <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; margin-bottom: 24px;">
-            ${feedback.scores?.map(score => `
+            ${scores.map(score => `
               <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 16px;">
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-                  <span style="font-weight: 600; color: #374151;">${score.icon} ${score.name}</span>
-                  <span style="background: #dbeafe; color: #1e40af; padding: 4px 8px; border-radius: 4px; font-size: 12px;">${score.score}/5</span>
+                  <span style="font-weight: 600; color: #374151;">${escapeHtml(score.icon)} ${escapeHtml(score.name)}</span>
+                  <span style="background: #dbeafe; color: #1e40af; padding: 4px 8px; border-radius: 4px; font-size: 12px;">${score.score || 0}/5</span>
                 </div>
-                <p style="font-size: 13px; color: #6b7280;">${score.feedback}</p>
+                <p style="font-size: 13px; color: #6b7280;">${escapeHtml(score.feedback)}</p>
               </div>
-            `).join('') || ''}
+            `).join('')}
           </div>
 
           <!-- 종합 평가 -->
@@ -276,24 +297,24 @@ export default function PersonalDevelopmentReport({
               <div>
                 <h4 style="font-size: 14px; font-weight: 600; color: #16a34a; margin-bottom: 8px;">✅ 주요 강점</h4>
                 <ul style="list-style: none; padding: 0; margin: 0;">
-                  ${feedback.detailedFeedback?.strengths?.map(s => `<li style="font-size: 13px; color: #4b5563; margin-bottom: 4px;">• ${s}</li>`).join('') || ''}
+                  ${strengths.map(s => `<li style="font-size: 13px; color: #4b5563; margin-bottom: 4px;">• ${escapeHtml(s)}</li>`).join('')}
                 </ul>
               </div>
               <div>
                 <h4 style="font-size: 14px; font-weight: 600; color: #ea580c; margin-bottom: 8px;">⬆️ 개선 포인트</h4>
                 <ul style="list-style: none; padding: 0; margin: 0;">
-                  ${feedback.detailedFeedback?.improvements?.map(i => `<li style="font-size: 13px; color: #4b5563; margin-bottom: 4px;">• ${i}</li>`).join('') || ''}
+                  ${improvements.map(i => `<li style="font-size: 13px; color: #4b5563; margin-bottom: 4px;">• ${escapeHtml(i)}</li>`).join('')}
                 </ul>
               </div>
               <div>
                 <h4 style="font-size: 14px; font-weight: 600; color: #2563eb; margin-bottom: 8px;">➡️ 다음 단계</h4>
                 <ul style="list-style: none; padding: 0; margin: 0;">
-                  ${feedback.detailedFeedback?.nextSteps?.map(s => `<li style="font-size: 13px; color: #4b5563; margin-bottom: 4px;">• ${s}</li>`).join('') || ''}
+                  ${nextSteps.map(s => `<li style="font-size: 13px; color: #4b5563; margin-bottom: 4px;">• ${escapeHtml(s)}</li>`).join('')}
                 </ul>
               </div>
             </div>
             <div style="border-top: 1px solid #e2e8f0; padding-top: 12px;">
-              <p style="font-size: 14px; color: #374151;"><strong>전문가 의견:</strong> ${feedback.detailedFeedback?.ranking || ''}</p>
+              <p style="font-size: 14px; color: #374151;"><strong>전문가 의견:</strong> ${escapeHtml(feedback.detailedFeedback?.ranking)}</p>
             </div>
           </div>
         </div>
@@ -301,106 +322,106 @@ export default function PersonalDevelopmentReport({
         <!-- 2. 행동 가이드 -->
         <div style="margin-bottom: 32px; page-break-inside: avoid;">
           <h2 style="font-size: 20px; font-weight: bold; color: #1f2937; border-bottom: 2px solid #eab308; padding-bottom: 8px; margin-bottom: 16px;">🎯 행동 가이드</h2>
-          ${feedback.detailedFeedback?.behaviorGuides?.map(guide => `
+          ${behaviorGuides.length > 0 ? behaviorGuides.map(guide => `
             <div style="background: #fffbeb; border: 1px solid #fde68a; border-radius: 8px; padding: 16px; margin-bottom: 16px;">
-              <h3 style="font-size: 16px; font-weight: 600; color: #92400e; margin-bottom: 12px;">💡 ${guide.situation}</h3>
+              <h3 style="font-size: 16px; font-weight: 600; color: #92400e; margin-bottom: 12px;">💡 ${escapeHtml(guide.situation)}</h3>
               <div style="margin-bottom: 12px;">
                 <h4 style="font-size: 14px; font-weight: 600; color: #4f46e5; margin-bottom: 4px;">권장 행동</h4>
-                <p style="font-size: 13px; color: #374151; background: #f0f9ff; padding: 8px; border-radius: 4px;">${guide.action}</p>
+                <p style="font-size: 13px; color: #374151; background: #f0f9ff; padding: 8px; border-radius: 4px;">${escapeHtml(guide.action)}</p>
               </div>
               <div style="margin-bottom: 12px;">
                 <h4 style="font-size: 14px; font-weight: 600; color: #16a34a; margin-bottom: 4px;">구체적 예시</h4>
-                <p style="font-size: 13px; color: #166534; background: #dcfce7; padding: 8px; border-radius: 4px; font-style: italic;">"${guide.example}"</p>
+                <p style="font-size: 13px; color: #166534; background: #dcfce7; padding: 8px; border-radius: 4px; font-style: italic;">"${escapeHtml(guide.example)}"</p>
               </div>
               <div>
                 <h4 style="font-size: 14px; font-weight: 600; color: #2563eb; margin-bottom: 4px;">기대 효과</h4>
-                <p style="font-size: 13px; color: #374151;">${guide.impact}</p>
+                <p style="font-size: 13px; color: #374151;">${escapeHtml(guide.impact)}</p>
               </div>
             </div>
-          `).join('') || '<p style="color: #6b7280;">구체적인 행동 가이드가 준비 중입니다.</p>'}
+          `).join('') : '<p style="color: #6b7280;">구체적인 행동 가이드가 준비 중입니다.</p>'}
         </div>
 
         <!-- 3. 대화 가이드 -->
         <div style="margin-bottom: 32px; page-break-inside: avoid;">
           <h2 style="font-size: 20px; font-weight: bold; color: #1f2937; border-bottom: 2px solid #06b6d4; padding-bottom: 8px; margin-bottom: 16px;">💬 대화 가이드</h2>
-          ${feedback.detailedFeedback?.conversationGuides?.map(guide => `
+          ${conversationGuides.length > 0 ? conversationGuides.map(guide => `
             <div style="background: #f0fdfa; border: 1px solid #99f6e4; border-radius: 8px; padding: 16px; margin-bottom: 16px;">
-              <h3 style="font-size: 16px; font-weight: 600; color: #0f766e; margin-bottom: 12px;">💭 ${guide.scenario}</h3>
+              <h3 style="font-size: 16px; font-weight: 600; color: #0f766e; margin-bottom: 12px;">💭 ${escapeHtml(guide.scenario)}</h3>
               <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin-bottom: 12px;">
                 <div style="background: #dcfce7; border: 1px solid #86efac; padding: 12px; border-radius: 4px;">
                   <h4 style="font-size: 13px; font-weight: 600; color: #16a34a; margin-bottom: 4px;">✅ 좋은 예시</h4>
-                  <p style="font-size: 12px; color: #166534;">${guide.goodExample}</p>
+                  <p style="font-size: 12px; color: #166534;">${escapeHtml(guide.goodExample)}</p>
                 </div>
                 <div style="background: #fef2f2; border: 1px solid #fecaca; padding: 12px; border-radius: 4px;">
                   <h4 style="font-size: 13px; font-weight: 600; color: #dc2626; margin-bottom: 4px;">❌ 피해야 할 예시</h4>
-                  <p style="font-size: 12px; color: #991b1b;">${guide.badExample}</p>
+                  <p style="font-size: 12px; color: #991b1b;">${escapeHtml(guide.badExample)}</p>
                 </div>
               </div>
               <div>
                 <h4 style="font-size: 13px; font-weight: 600; color: #4f46e5; margin-bottom: 4px;">🔑 핵심 포인트</h4>
                 <ul style="list-style: none; padding: 0; margin: 0; display: grid; grid-template-columns: repeat(2, 1fr); gap: 4px;">
-                  ${guide.keyPoints?.map(point => `<li style="font-size: 12px; color: #4b5563;">• ${point}</li>`).join('') || ''}
+                  ${(guide.keyPoints || []).map(point => `<li style="font-size: 12px; color: #4b5563;">• ${escapeHtml(point)}</li>`).join('')}
                 </ul>
               </div>
             </div>
-          `).join('') || '<p style="color: #6b7280;">맞춤형 대화 가이드가 준비 중입니다.</p>'}
+          `).join('') : '<p style="color: #6b7280;">맞춤형 대화 가이드가 준비 중입니다.</p>'}
         </div>
 
         <!-- 4. 개발 계획 -->
         <div style="margin-bottom: 32px; page-break-inside: avoid;">
           <h2 style="font-size: 20px; font-weight: bold; color: #1f2937; border-bottom: 2px solid #8b5cf6; padding-bottom: 8px; margin-bottom: 16px;">📈 개발 계획</h2>
-          ${feedback.detailedFeedback?.developmentPlan ? `
+          ${developmentPlan ? `
             <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 20px;">
               <!-- 단기 목표 -->
               <div style="background: #f0fdf4; border-left: 4px solid #22c55e; padding: 16px; border-radius: 0 8px 8px 0;">
                 <h3 style="font-size: 15px; font-weight: 600; color: #16a34a; margin-bottom: 12px;">📅 단기 목표 (1-2주)</h3>
-                ${feedback.detailedFeedback.developmentPlan.shortTerm?.map(item => `
+                ${(developmentPlan.shortTerm || []).map(item => `
                   <div style="background: white; padding: 12px; border-radius: 4px; margin-bottom: 8px;">
-                    <h4 style="font-size: 13px; font-weight: 600; color: #166534; margin-bottom: 8px;">${item.goal}</h4>
+                    <h4 style="font-size: 13px; font-weight: 600; color: #166534; margin-bottom: 8px;">${escapeHtml(item.goal)}</h4>
                     <ul style="list-style: none; padding: 0; margin: 0 0 8px 0;">
-                      ${item.actions.map(a => `<li style="font-size: 12px; color: #4b5563;">→ ${a}</li>`).join('')}
+                      ${(item.actions || []).map(a => `<li style="font-size: 12px; color: #4b5563;">→ ${escapeHtml(a)}</li>`).join('')}
                     </ul>
-                    <div style="font-size: 11px; background: #dcfce7; padding: 4px 8px; border-radius: 4px; color: #166534;">측정지표: ${item.measurable}</div>
+                    <div style="font-size: 11px; background: #dcfce7; padding: 4px 8px; border-radius: 4px; color: #166534;">측정지표: ${escapeHtml(item.measurable)}</div>
                   </div>
-                `).join('') || ''}
+                `).join('')}
               </div>
               
               <!-- 중기 목표 -->
               <div style="background: #eff6ff; border-left: 4px solid #3b82f6; padding: 16px; border-radius: 0 8px 8px 0;">
                 <h3 style="font-size: 15px; font-weight: 600; color: #2563eb; margin-bottom: 12px;">📆 중기 목표 (1-2개월)</h3>
-                ${feedback.detailedFeedback.developmentPlan.mediumTerm?.map(item => `
+                ${(developmentPlan.mediumTerm || []).map(item => `
                   <div style="background: white; padding: 12px; border-radius: 4px; margin-bottom: 8px;">
-                    <h4 style="font-size: 13px; font-weight: 600; color: #1e40af; margin-bottom: 8px;">${item.goal}</h4>
+                    <h4 style="font-size: 13px; font-weight: 600; color: #1e40af; margin-bottom: 8px;">${escapeHtml(item.goal)}</h4>
                     <ul style="list-style: none; padding: 0; margin: 0 0 8px 0;">
-                      ${item.actions.map(a => `<li style="font-size: 12px; color: #4b5563;">→ ${a}</li>`).join('')}
+                      ${(item.actions || []).map(a => `<li style="font-size: 12px; color: #4b5563;">→ ${escapeHtml(a)}</li>`).join('')}
                     </ul>
-                    <div style="font-size: 11px; background: #dbeafe; padding: 4px 8px; border-radius: 4px; color: #1e40af;">측정지표: ${item.measurable}</div>
+                    <div style="font-size: 11px; background: #dbeafe; padding: 4px 8px; border-radius: 4px; color: #1e40af;">측정지표: ${escapeHtml(item.measurable)}</div>
                   </div>
-                `).join('') || ''}
+                `).join('')}
               </div>
               
               <!-- 장기 목표 -->
               <div style="background: #faf5ff; border-left: 4px solid #a855f7; padding: 16px; border-radius: 0 8px 8px 0;">
                 <h3 style="font-size: 15px; font-weight: 600; color: #7c3aed; margin-bottom: 12px;">🗓️ 장기 목표 (3-6개월)</h3>
-                ${feedback.detailedFeedback.developmentPlan.longTerm?.map(item => `
+                ${(developmentPlan.longTerm || []).map(item => `
                   <div style="background: white; padding: 12px; border-radius: 4px; margin-bottom: 8px;">
-                    <h4 style="font-size: 13px; font-weight: 600; color: #6b21a8; margin-bottom: 8px;">${item.goal}</h4>
+                    <h4 style="font-size: 13px; font-weight: 600; color: #6b21a8; margin-bottom: 8px;">${escapeHtml(item.goal)}</h4>
                     <ul style="list-style: none; padding: 0; margin: 0 0 8px 0;">
-                      ${item.actions.map(a => `<li style="font-size: 12px; color: #4b5563;">→ ${a}</li>`).join('')}
+                      ${(item.actions || []).map(a => `<li style="font-size: 12px; color: #4b5563;">→ ${escapeHtml(a)}</li>`).join('')}
                     </ul>
-                    <div style="font-size: 11px; background: #f3e8ff; padding: 4px 8px; border-radius: 4px; color: #6b21a8;">측정지표: ${item.measurable}</div>
+                    <div style="font-size: 11px; background: #f3e8ff; padding: 4px 8px; border-radius: 4px; color: #6b21a8;">측정지표: ${escapeHtml(item.measurable)}</div>
                   </div>
-                `).join('') || ''}
+                `).join('')}
               </div>
             </div>
             
             <!-- 추천 리소스 -->
-            ${feedback.detailedFeedback.developmentPlan.recommendedResources?.length ? `
+            ${(developmentPlan.recommendedResources || []).length > 0 ? `
               <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 16px;">
                 <h3 style="font-size: 15px; font-weight: 600; color: #374151; margin-bottom: 12px;">📚 추천 학습 자료</h3>
                 <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px;">
-                  ${feedback.detailedFeedback.developmentPlan.recommendedResources.map(r => `
-                    <div style="background: white; padding: 8px 12px; border-radius: 4px; font-size: 13px; color: #4b5563;">📖 ${r}</div>
+                  ${(developmentPlan.recommendedResources || []).map(r => `
+                    <div style="background: white; padding: 8px 12px; border-radius: 4px; font-size: 13px; color: #4b5563;">📖 ${escapeHtml(r)}</div>
                   `).join('')}
                 </div>
               </div>
@@ -408,7 +429,7 @@ export default function PersonalDevelopmentReport({
           ` : '<p style="color: #6b7280;">개발 계획이 준비 중입니다.</p>'}
         </div>
 
-        ${feedback.detailedFeedback?.sequenceAnalysis ? `
+        ${sequenceAnalysis ? `
         <!-- 5. 전략 평가 -->
         <div style="margin-bottom: 32px; page-break-inside: avoid;">
           <h2 style="font-size: 20px; font-weight: bold; color: #1f2937; border-bottom: 2px solid #ec4899; padding-bottom: 8px; margin-bottom: 16px;">🎮 전략 평가</h2>
@@ -416,32 +437,32 @@ export default function PersonalDevelopmentReport({
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
               <h3 style="font-size: 16px; font-weight: 600; color: #7c3aed;">전략 점수</h3>
               <span style="background: #e9d5ff; color: #7c3aed; padding: 8px 16px; border-radius: 8px; font-size: 18px; font-weight: bold;">
-                ${feedback.detailedFeedback.sequenceAnalysis.strategicScore ?? '평가 대기중'}
+                ${escapeHtml(String(sequenceAnalysis.strategicScore ?? '평가 대기중'))}
               </span>
             </div>
-            <p style="font-size: 14px; color: #6b21a8; margin-bottom: 16px;">${feedback.detailedFeedback.sequenceAnalysis.strategicRationale || ''}</p>
+            <p style="font-size: 14px; color: #6b21a8; margin-bottom: 16px;">${escapeHtml(sequenceAnalysis.strategicRationale)}</p>
             
-            ${feedback.detailedFeedback.sequenceAnalysis.sequenceEffectiveness ? `
+            ${sequenceAnalysis.sequenceEffectiveness ? `
               <div style="margin-bottom: 16px;">
                 <h4 style="font-size: 14px; font-weight: 600; color: #2563eb; margin-bottom: 8px;">🎯 순서 선택의 효과성</h4>
-                <p style="font-size: 13px; color: #374151; background: white; padding: 12px; border-radius: 4px;">${feedback.detailedFeedback.sequenceAnalysis.sequenceEffectiveness}</p>
+                <p style="font-size: 13px; color: #374151; background: white; padding: 12px; border-radius: 4px;">${escapeHtml(sequenceAnalysis.sequenceEffectiveness)}</p>
               </div>
             ` : ''}
             
-            ${feedback.detailedFeedback.sequenceAnalysis.strategicInsights ? `
+            ${sequenceAnalysis.strategicInsights ? `
               <div style="margin-bottom: 16px;">
                 <h4 style="font-size: 14px; font-weight: 600; color: #eab308; margin-bottom: 8px;">💡 전략적 통찰</h4>
-                <p style="font-size: 13px; color: #374151; background: #fef9c3; padding: 12px; border-radius: 4px; border-left: 4px solid #eab308;">${feedback.detailedFeedback.sequenceAnalysis.strategicInsights}</p>
+                <p style="font-size: 13px; color: #374151; background: #fef9c3; padding: 12px; border-radius: 4px; border-left: 4px solid #eab308;">${escapeHtml(sequenceAnalysis.strategicInsights)}</p>
               </div>
             ` : ''}
             
-            ${feedback.detailedFeedback.sequenceAnalysis.alternativeApproaches?.length ? `
+            ${(sequenceAnalysis.alternativeApproaches || []).length > 0 ? `
               <div>
                 <h4 style="font-size: 14px; font-weight: 600; color: #16a34a; margin-bottom: 8px;">🛤️ 대안적 접근법</h4>
-                ${feedback.detailedFeedback.sequenceAnalysis.alternativeApproaches.map((a: string, i: number) => `
+                ${(sequenceAnalysis.alternativeApproaches || []).map((a: string, i: number) => `
                   <div style="display: flex; align-items: flex-start; gap: 8px; background: #dcfce7; padding: 12px; border-radius: 4px; margin-bottom: 8px;">
                     <span style="background: #22c55e; color: white; padding: 2px 8px; border-radius: 4px; font-size: 12px;">${i + 1}</span>
-                    <p style="font-size: 13px; color: #166534; margin: 0;">${a}</p>
+                    <p style="font-size: 13px; color: #166534; margin: 0;">${escapeHtml(a)}</p>
                   </div>
                 `).join('')}
               </div>
@@ -463,6 +484,8 @@ export default function PersonalDevelopmentReport({
     if (!feedback) return;
     
     setIsExportingPdf(true);
+    let container: HTMLDivElement | null = null;
+    
     try {
       toast({
         title: "PDF 생성 중",
@@ -473,7 +496,7 @@ export default function PersonalDevelopmentReport({
       const printableContent = generatePrintableContent();
       
       // 임시 컨테이너 생성
-      const container = document.createElement('div');
+      container = document.createElement('div');
       container.innerHTML = printableContent;
       container.style.position = 'absolute';
       container.style.left = '-9999px';
@@ -483,7 +506,7 @@ export default function PersonalDevelopmentReport({
       
       const opt = {
         margin: [10, 10, 10, 10] as [number, number, number, number],
-        filename: `개발보고서_${scenario.title}_${new Date().toLocaleDateString('ko-KR').replace(/\./g, '-')}.pdf`,
+        filename: `개발보고서_${escapeHtml(scenario.title)}_${new Date().toLocaleDateString('ko-KR').replace(/\./g, '-')}.pdf`,
         image: { type: 'jpeg' as const, quality: 0.98 },
         html2canvas: { 
           scale: 2,
@@ -501,9 +524,6 @@ export default function PersonalDevelopmentReport({
       
       await html2pdf().set(opt).from(container).save();
       
-      // 임시 컨테이너 제거
-      document.body.removeChild(container);
-      
       toast({
         title: "PDF 저장 완료",
         description: "보고서가 PDF 파일로 저장되었습니다.",
@@ -516,6 +536,10 @@ export default function PersonalDevelopmentReport({
         variant: "destructive"
       });
     } finally {
+      // 임시 컨테이너 제거 (성공/실패 모두)
+      if (container && container.parentNode) {
+        document.body.removeChild(container);
+      }
       setIsExportingPdf(false);
     }
   };
@@ -549,7 +573,7 @@ export default function PersonalDevelopmentReport({
         <html>
         <head>
           <meta charset="utf-8">
-          <title>개인 맞춤 개발 보고서 - ${scenario.title}</title>
+          <title>개인 맞춤 개발 보고서 - ${escapeHtml(scenario.title)}</title>
           <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;600;700&display=swap" rel="stylesheet">
           <style>
             * { box-sizing: border-box; }
