@@ -6,7 +6,6 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import html2pdf from "html2pdf.js";
 
 import type { ComplexScenario, ScenarioPersona } from "@/lib/scenario-system";
 import type { Feedback } from "@shared/schema";
@@ -479,99 +478,114 @@ export default function PersonalDevelopmentReport({
     `;
   };
 
-  // PDF 파일로 저장 - 화면에 임시로 보여주면서 캡처
-  const handleExportPdf = async () => {
+  // HTML 파일 다운로드 - 오프라인에서 열어서 PDF로 인쇄 가능
+  const handleDownloadHtml = () => {
     if (!feedback) return;
     
     setIsExportingPdf(true);
-    let printContainer: HTMLDivElement | null = null;
     
     try {
-      toast({
-        title: "PDF 생성 중",
-        description: "보고서를 PDF로 변환하고 있습니다. 잠시만 기다려주세요...",
-      });
-
-      // 인쇄용 HTML 생성
       const printableContent = generatePrintableContent();
       
       if (!printableContent || printableContent.trim() === '') {
         throw new Error('보고서 콘텐츠가 비어 있습니다.');
       }
       
-      // 화면에 보이는 임시 컨테이너 생성 (pdf 캡처용)
-      printContainer = document.createElement('div');
-      printContainer.id = 'pdf-print-container';
-      printContainer.innerHTML = printableContent;
-      printContainer.style.cssText = `
-        position: fixed;
-        top: 0;
-        left: 0;
-        width: 100%;
-        height: auto;
-        background: white;
-        z-index: 99999;
+      const fullHtml = `<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>개인 맞춤 개발 보고서 - ${escapeHtml(scenario.title)}</title>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { 
+      font-family: 'Noto Sans KR', sans-serif; 
+      padding: 40px; 
+      background: #f8fafc; 
+      max-width: 900px; 
+      margin: 0 auto;
+    }
+    @media print {
+      body { 
+        background: white; 
         padding: 20px;
-        overflow: auto;
-      `;
-      document.body.appendChild(printContainer);
-      
-      // 렌더링 및 폰트 로드 대기
-      await new Promise(resolve => setTimeout(resolve, 1000));
+        -webkit-print-color-adjust: exact; 
+        print-color-adjust: exact; 
+      }
+      .no-print { display: none !important; }
+    }
+    .print-instructions {
+      background: linear-gradient(135deg, #3b82f6 0%, #6366f1 100%);
+      color: white;
+      padding: 20px 30px;
+      border-radius: 12px;
+      margin-bottom: 30px;
+      text-align: center;
+    }
+    .print-instructions h2 { font-size: 18px; margin-bottom: 10px; }
+    .print-instructions p { font-size: 14px; opacity: 0.9; }
+    .print-instructions button {
+      background: white;
+      color: #3b82f6;
+      border: none;
+      padding: 12px 24px;
+      border-radius: 8px;
+      font-size: 16px;
+      font-weight: 600;
+      cursor: pointer;
+      margin-top: 15px;
+    }
+    .print-instructions button:hover { background: #f1f5f9; }
+  </style>
+</head>
+<body>
+  <div class="print-instructions no-print">
+    <h2>📄 개인 맞춤 개발 보고서</h2>
+    <p>이 파일을 인쇄하거나 PDF로 저장하려면 아래 버튼을 클릭하세요.</p>
+    <p>또는 Ctrl+P (Mac: Cmd+P)를 눌러 인쇄 대화상자를 열 수 있습니다.</p>
+    <button onclick="window.print()">🖨️ 인쇄 / PDF 저장</button>
+  </div>
+  ${printableContent}
+  <div class="no-print" style="text-align: center; margin-top: 30px; padding: 20px; border-top: 1px solid #e2e8f0;">
+    <p style="color: #9ca3af; font-size: 12px;">PDF로 저장하려면 인쇄 대화상자에서 "PDF로 저장" 또는 "Microsoft Print to PDF"를 선택하세요.</p>
+  </div>
+</body>
+</html>`;
       
       const safeFilename = scenario.title.replace(/[<>:"/\\|?*]/g, '_');
-      
-      const opt = {
-        margin: 10,
-        filename: `개발보고서_${safeFilename}_${new Date().toLocaleDateString('ko-KR').replace(/\./g, '-')}.pdf`,
-        image: { type: 'jpeg' as const, quality: 0.98 },
-        html2canvas: { 
-          scale: 2,
-          useCORS: true,
-          logging: false,
-          windowWidth: printContainer.scrollWidth,
-          windowHeight: printContainer.scrollHeight
-        },
-        jsPDF: { 
-          unit: 'mm' as const, 
-          format: 'a4' as const, 
-          orientation: 'portrait' as const 
-        }
-      };
-      
-      await html2pdf().set(opt).from(printContainer).save();
+      const blob = new Blob([fullHtml], { type: 'text/html;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `개발보고서_${safeFilename}_${new Date().toLocaleDateString('ko-KR').replace(/\./g, '-')}.html`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
       
       toast({
-        title: "PDF 저장 완료",
-        description: "보고서가 PDF 파일로 저장되었습니다.",
+        title: "HTML 파일 다운로드 완료",
+        description: "다운로드된 파일을 열어서 '인쇄/PDF 저장' 버튼을 클릭하세요.",
       });
     } catch (error) {
-      console.error('PDF 저장 오류:', error);
+      console.error('HTML 다운로드 오류:', error);
       toast({
-        title: "PDF 저장 실패",
-        description: error instanceof Error ? error.message : "PDF 파일 저장 중 오류가 발생했습니다.",
+        title: "다운로드 실패",
+        description: error instanceof Error ? error.message : "파일 다운로드 중 오류가 발생했습니다.",
         variant: "destructive"
       });
     } finally {
-      // 임시 컨테이너 제거
-      if (printContainer && printContainer.parentNode) {
-        document.body.removeChild(printContainer);
-      }
       setIsExportingPdf(false);
     }
   };
 
-  // 보고서 인쇄 - iframe 방식 사용
+  // 브라우저 기본 인쇄 기능 사용 - 새 창에서 인쇄
   const handlePrint = () => {
     if (!feedback) return;
     
     try {
-      toast({
-        title: "인쇄 준비 중",
-        description: "인쇄 대화상자가 곧 열립니다...",
-      });
-      
-      // 인쇄용 HTML 생성
       const printableContent = generatePrintableContent();
       
       if (!printableContent || printableContent.trim() === '') {
@@ -583,58 +597,77 @@ export default function PersonalDevelopmentReport({
         return;
       }
       
-      // iframe을 사용한 인쇄 (더 안정적)
-      const printFrame = document.createElement('iframe');
-      printFrame.style.cssText = 'position: fixed; top: 0; left: 0; width: 100%; height: 100%; border: none; z-index: 99999;';
-      document.body.appendChild(printFrame);
-      
-      const frameDoc = printFrame.contentDocument || printFrame.contentWindow?.document;
-      if (!frameDoc) {
-        document.body.removeChild(printFrame);
-        throw new Error('인쇄 프레임을 생성할 수 없습니다.');
+      // 새 창 열기
+      const printWindow = window.open('', '_blank', 'width=900,height=800');
+      if (!printWindow) {
+        toast({
+          title: "팝업 차단됨",
+          description: "브라우저에서 팝업을 허용해주세요. 또는 'HTML 다운로드' 버튼을 사용해주세요.",
+          variant: "destructive"
+        });
+        return;
       }
       
-      frameDoc.open();
-      frameDoc.write(`
-        <!DOCTYPE html>
-        <html>
-        <head>
-          <meta charset="utf-8">
-          <title>개인 맞춤 개발 보고서 - ${escapeHtml(scenario.title)}</title>
-          <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;600;700&display=swap" rel="stylesheet">
-          <style>
-            * { box-sizing: border-box; margin: 0; padding: 0; }
-            body { font-family: 'Noto Sans KR', sans-serif; padding: 20px; background: white; }
-            @media print {
-              body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-            }
-          </style>
-        </head>
-        <body>
-          ${printableContent}
-        </body>
-        </html>
-      `);
-      frameDoc.close();
+      printWindow.document.write(`<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <title>개인 맞춤 개발 보고서 - ${escapeHtml(scenario.title)}</title>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Noto Sans KR', sans-serif; padding: 30px; background: white; }
+    @media print {
+      body { -webkit-print-color-adjust: exact; print-color-adjust: exact; padding: 20px; }
+      .no-print { display: none !important; }
+    }
+    .print-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 20px;
+      padding-bottom: 15px;
+      border-bottom: 2px solid #e2e8f0;
+    }
+    .print-header h1 { font-size: 18px; color: #1e3a5f; }
+    .print-actions { display: flex; gap: 10px; }
+    .print-actions button {
+      padding: 10px 20px;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      border: none;
+    }
+    .btn-print { background: #3b82f6; color: white; }
+    .btn-print:hover { background: #2563eb; }
+    .btn-close { background: #6b7280; color: white; }
+    .btn-close:hover { background: #4b5563; }
+  </style>
+</head>
+<body>
+  <div class="print-header no-print">
+    <h1>📄 개인 맞춤 개발 보고서</h1>
+    <div class="print-actions">
+      <button class="btn-print" onclick="window.print()">🖨️ 인쇄 / PDF 저장</button>
+      <button class="btn-close" onclick="window.close()">닫기</button>
+    </div>
+  </div>
+  ${printableContent}
+</body>
+</html>`);
+      printWindow.document.close();
       
-      // 폰트 로드 대기 후 인쇄
-      setTimeout(() => {
-        printFrame.contentWindow?.focus();
-        printFrame.contentWindow?.print();
-        
-        // 인쇄 대화상자가 닫힌 후 iframe 제거
-        setTimeout(() => {
-          if (printFrame.parentNode) {
-            document.body.removeChild(printFrame);
-          }
-        }, 1000);
-      }, 500);
+      toast({
+        title: "인쇄 창 열림",
+        description: "새 창에서 '인쇄/PDF 저장' 버튼을 클릭하세요.",
+      });
       
     } catch (error) {
       console.error('인쇄 오류:', error);
       toast({
         title: "인쇄 오류",
-        description: "브라우저에서 Ctrl+P(Windows) 또는 Cmd+P(Mac)를 눌러 직접 인쇄해보세요.",
+        description: "HTML 다운로드 버튼을 사용해서 파일을 다운로드한 후 인쇄해주세요.",
         variant: "destructive"
       });
     }
@@ -1372,20 +1405,20 @@ export default function PersonalDevelopmentReport({
         </Button>
         <Button 
           variant="outline"
-          onClick={handleExportPdf}
+          onClick={handleDownloadHtml}
           disabled={isExportingPdf}
           className="min-w-[120px]"
-          data-testid="export-pdf-button"
+          data-testid="export-html-button"
         >
           {isExportingPdf ? (
             <>
               <i className="fas fa-spinner fa-spin mr-2"></i>
-              PDF 저장 중...
+              다운로드 중...
             </>
           ) : (
             <>
-              <i className="fas fa-file-pdf mr-2"></i>
-              PDF 저장
+              <i className="fas fa-download mr-2"></i>
+              HTML 다운로드
             </>
           )}
         </Button>
