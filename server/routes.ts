@@ -3417,6 +3417,189 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // ===== Difficulty Settings APIs (운영자/관리자 접근 가능) =====
+  
+  // 대화 난이도 설정 조회 (전체)
+  app.get("/api/admin/difficulty-settings", isAuthenticated, isOperatorOrAdmin, async (req, res) => {
+    try {
+      const settings = await storage.getSystemSettingsByCategory('difficulty');
+      
+      // 설정을 레벨별로 파싱하여 반환
+      const difficultySettings: Record<number, any> = {};
+      for (const setting of settings) {
+        if (setting.key.startsWith('level_')) {
+          const level = parseInt(setting.key.replace('level_', ''));
+          try {
+            difficultySettings[level] = JSON.parse(setting.value);
+          } catch (e) {
+            console.warn(`Failed to parse difficulty setting for level ${level}:`, e);
+          }
+        }
+      }
+      
+      res.json(difficultySettings);
+    } catch (error: any) {
+      console.error("Error getting difficulty settings:", error);
+      res.status(500).json({ error: error.message || "Failed to get difficulty settings" });
+    }
+  });
+  
+  // 특정 레벨의 난이도 설정 조회
+  app.get("/api/admin/difficulty-settings/:level", isAuthenticated, isOperatorOrAdmin, async (req, res) => {
+    try {
+      const level = parseInt(req.params.level);
+      if (isNaN(level) || level < 1 || level > 4) {
+        return res.status(400).json({ error: "Invalid level. Must be 1-4." });
+      }
+      
+      const settings = await storage.getSystemSettingsByCategory('difficulty');
+      const levelSetting = settings.find(s => s.key === `level_${level}`);
+      
+      if (levelSetting) {
+        try {
+          res.json(JSON.parse(levelSetting.value));
+        } catch (e) {
+          res.status(500).json({ error: "Failed to parse difficulty setting" });
+        }
+      } else {
+        // 기본값 반환
+        const { getDifficultyGuidelines } = await import('./services/conversationDifficultyPolicy');
+        res.json(getDifficultyGuidelines(level));
+      }
+    } catch (error: any) {
+      console.error("Error getting difficulty setting:", error);
+      res.status(500).json({ error: error.message || "Failed to get difficulty setting" });
+    }
+  });
+  
+  // 난이도 설정 저장 (단일 레벨)
+  app.put("/api/admin/difficulty-settings/:level", isAuthenticated, isOperatorOrAdmin, async (req, res) => {
+    try {
+      const level = parseInt(req.params.level);
+      if (isNaN(level) || level < 1 || level > 4) {
+        return res.status(400).json({ error: "Invalid level. Must be 1-4." });
+      }
+      
+      const { name, description, responseLength, tone, pressure, feedback, constraints } = req.body;
+      
+      // 유효성 검사
+      if (!name || !description || !responseLength || !tone || !pressure || !feedback) {
+        return res.status(400).json({ error: "Missing required fields" });
+      }
+      
+      const user = req.user as any;
+      const settingValue = {
+        level,
+        name,
+        description,
+        responseLength,
+        tone,
+        pressure,
+        feedback,
+        constraints: constraints || []
+      };
+      
+      const saved = await storage.upsertSystemSetting({
+        category: 'difficulty',
+        key: `level_${level}`,
+        value: JSON.stringify(settingValue),
+        description: `Difficulty level ${level} settings`,
+        updatedBy: user?.id,
+      });
+      
+      // 캐시 무효화 (있는 경우)
+      const { invalidateDifficultyCache } = await import('./services/conversationDifficultyPolicy');
+      invalidateDifficultyCache();
+      
+      res.json({ success: true, setting: settingValue });
+    } catch (error: any) {
+      console.error("Error saving difficulty setting:", error);
+      res.status(500).json({ error: error.message || "Failed to save difficulty setting" });
+    }
+  });
+  
+  // 난이도 설정 일괄 저장 (모든 레벨)
+  app.put("/api/admin/difficulty-settings", isAuthenticated, isOperatorOrAdmin, async (req, res) => {
+    try {
+      const { settings } = req.body;
+      
+      if (!settings || typeof settings !== 'object') {
+        return res.status(400).json({ error: "Settings must be an object with level keys" });
+      }
+      
+      const user = req.user as any;
+      const savedSettings: Record<number, any> = {};
+      
+      for (const [levelKey, setting] of Object.entries(settings)) {
+        const level = parseInt(levelKey);
+        if (isNaN(level) || level < 1 || level > 4) continue;
+        
+        const { name, description, responseLength, tone, pressure, feedback, constraints } = setting as any;
+        
+        if (!name || !description || !responseLength || !tone || !pressure || !feedback) {
+          continue; // Skip invalid settings
+        }
+        
+        const settingValue = {
+          level,
+          name,
+          description,
+          responseLength,
+          tone,
+          pressure,
+          feedback,
+          constraints: constraints || []
+        };
+        
+        await storage.upsertSystemSetting({
+          category: 'difficulty',
+          key: `level_${level}`,
+          value: JSON.stringify(settingValue),
+          description: `Difficulty level ${level} settings`,
+          updatedBy: user?.id,
+        });
+        
+        savedSettings[level] = settingValue;
+      }
+      
+      // 캐시 무효화
+      const { invalidateDifficultyCache } = await import('./services/conversationDifficultyPolicy');
+      invalidateDifficultyCache();
+      
+      res.json({ success: true, settings: savedSettings });
+    } catch (error: any) {
+      console.error("Error saving difficulty settings batch:", error);
+      res.status(500).json({ error: error.message || "Failed to save difficulty settings" });
+    }
+  });
+  
+  // 난이도 설정 초기화 (기본값으로 복원)
+  app.post("/api/admin/difficulty-settings/reset", isAuthenticated, isOperatorOrAdmin, async (req, res) => {
+    try {
+      const user = req.user as any;
+      const { getDefaultDifficultySettings, invalidateDifficultyCache } = await import('./services/conversationDifficultyPolicy');
+      
+      const defaultSettings = getDefaultDifficultySettings();
+      
+      for (const [level, setting] of Object.entries(defaultSettings)) {
+        await storage.upsertSystemSetting({
+          category: 'difficulty',
+          key: `level_${level}`,
+          value: JSON.stringify(setting),
+          description: `Difficulty level ${level} settings (reset to default)`,
+          updatedBy: user?.id,
+        });
+      }
+      
+      invalidateDifficultyCache();
+      
+      res.json({ success: true, settings: defaultSettings });
+    } catch (error: any) {
+      console.error("Error resetting difficulty settings:", error);
+      res.status(500).json({ error: error.message || "Failed to reset difficulty settings" });
+    }
+  });
+
   // TTS routes
   app.use("/api/tts", ttsRoutes);
 

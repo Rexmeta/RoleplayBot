@@ -173,6 +173,27 @@ Preferred communication style: Simple, everyday language.
   - Model usage table
   - Daily usage table
 
+## Difficulty Settings (Operator Dashboard)
+- **Configurable Difficulty Levels**: 4-level difficulty system now editable via operator dashboard
+- **Database Storage**: Uses `system_settings` table with category `difficulty` and keys `level_1` through `level_4`
+- **Caching**: 5-minute TTL cache with stale-while-revalidate pattern for performance
+- **Settings Per Level**:
+  - name: Level name (e.g., "매우 쉬움 / 튜토리얼")
+  - description: Level description
+  - responseLength: AI response length guidelines
+  - tone: Communication tone/style
+  - pressure: Pressure level description
+  - feedback: Feedback style examples
+  - constraints: Array of specific behavior constraints
+- **API Endpoints** (operator/admin):
+  - GET `/api/admin/difficulty-settings` - Get all difficulty settings
+  - GET `/api/admin/difficulty-settings/:level` - Get specific level settings
+  - PUT `/api/admin/difficulty-settings/:level` - Update specific level settings
+  - PUT `/api/admin/difficulty-settings` - Batch update all levels
+  - POST `/api/admin/difficulty-settings/reset` - Reset to default values
+- **Service File**: `server/services/conversationDifficultyPolicy.ts` - Difficulty guidelines with DB-backed storage
+- **UI Location**: Operator dashboard → "난이도 설정" tab with 4 editable level cards
+
 ## Intro Video Generation (Content Management)
 - **Gemini Veo 3.1 API**: 8-second AI-generated video clips with native audio
 - **Video Format**: WebM (VP9 + Opus) - converted from MP4 using FFmpeg for web optimization
@@ -192,6 +213,7 @@ Preferred communication style: Simple, everyday language.
 - **Requirements**: Gemini API key with Veo access (paid tier required for video generation)
 
 ## Recent Changes (December 2025)
+- Added configurable difficulty settings to operator dashboard (난이도 설정 탭)
 - Added scenario intro video generation using Gemini Veo 3.1 API
 - Added AI usage tracking system for monitoring token usage and costs
 - Added system settings management feature for configurable system parameters

@@ -6,6 +6,8 @@
  * - Level 2: 기본 난이도
  * - Level 3: 도전형
  * - Level 4: 고난도/실전형 (기본값)
+ * 
+ * DB에서 설정을 읽어오며, 캐시를 통해 성능 최적화
  */
 
 export interface DifficultyGuidelines {
@@ -19,11 +21,25 @@ export interface DifficultyGuidelines {
   constraints: string[];
 }
 
+// 캐시 관리
+let difficultyCache: Record<number, DifficultyGuidelines> | null = null;
+let cacheTimestamp: number = 0;
+const CACHE_TTL_MS = 5 * 60 * 1000; // 5분 캐시
+
 /**
- * 난이도 레벨에 따른 대화 지침 반환
+ * 캐시 무효화
  */
-export function getDifficultyGuidelines(level: number = 4): DifficultyGuidelines {
-  const guidelines: Record<number, DifficultyGuidelines> = {
+export function invalidateDifficultyCache(): void {
+  difficultyCache = null;
+  cacheTimestamp = 0;
+  console.log('🔄 Difficulty settings cache invalidated');
+}
+
+/**
+ * 기본 난이도 설정 반환 (하드코딩된 기본값)
+ */
+export function getDefaultDifficultySettings(): Record<number, DifficultyGuidelines> {
+  return {
     1: {
       level: 1,
       name: '매우 쉬움 / 튜토리얼',
@@ -90,9 +106,100 @@ export function getDifficultyGuidelines(level: number = 4): DifficultyGuidelines
       ]
     }
   };
+}
 
+/**
+ * DB에서 난이도 설정을 로드하고 캐시에 저장
+ */
+async function loadDifficultySettingsFromDB(): Promise<Record<number, DifficultyGuidelines>> {
+  try {
+    // 동적 import로 순환 참조 방지
+    const { storage } = await import('../storage');
+    const settings = await storage.getSystemSettingsByCategory('difficulty');
+    
+    const dbSettings: Record<number, DifficultyGuidelines> = {};
+    
+    for (const setting of settings) {
+      if (setting.key.startsWith('level_')) {
+        const level = parseInt(setting.key.replace('level_', ''));
+        try {
+          const parsed = JSON.parse(setting.value);
+          if (parsed && typeof parsed === 'object') {
+            dbSettings[level] = parsed as DifficultyGuidelines;
+          }
+        } catch (e) {
+          console.warn(`Failed to parse difficulty setting for level ${level}:`, e);
+        }
+      }
+    }
+    
+    // DB 설정이 있으면 반환, 없으면 기본값
+    if (Object.keys(dbSettings).length > 0) {
+      // 기본값으로 누락된 레벨 채우기
+      const defaultSettings = getDefaultDifficultySettings();
+      for (let i = 1; i <= 4; i++) {
+        if (!dbSettings[i]) {
+          dbSettings[i] = defaultSettings[i];
+        }
+      }
+      return dbSettings;
+    }
+    
+    return getDefaultDifficultySettings();
+  } catch (error) {
+    console.error('Failed to load difficulty settings from DB:', error);
+    return getDefaultDifficultySettings();
+  }
+}
+
+/**
+ * 캐시된 난이도 설정 가져오기 (동기 버전 - 캐시 미스 시 기본값 반환)
+ */
+function getCachedDifficultySettings(): Record<number, DifficultyGuidelines> {
+  const now = Date.now();
+  
+  // 캐시가 유효하면 반환
+  if (difficultyCache && (now - cacheTimestamp) < CACHE_TTL_MS) {
+    return difficultyCache;
+  }
+  
+  // 캐시 미스 시 비동기로 로드하고 기본값 반환
+  loadDifficultySettingsFromDB().then(settings => {
+    difficultyCache = settings;
+    cacheTimestamp = Date.now();
+    console.log('✅ Difficulty settings loaded from DB');
+  }).catch(err => {
+    console.error('Error loading difficulty settings:', err);
+  });
+  
+  // 캐시가 있으면 만료되어도 일단 반환 (stale-while-revalidate)
+  if (difficultyCache) {
+    return difficultyCache;
+  }
+  
+  // 캐시가 없으면 기본값 반환
+  return getDefaultDifficultySettings();
+}
+
+/**
+ * 난이도 레벨에 따른 대화 지침 반환
+ */
+export function getDifficultyGuidelines(level: number = 4): DifficultyGuidelines {
+  const settings = getCachedDifficultySettings();
+  
   // 유효하지 않은 레벨이면 기본값 4 반환
-  return guidelines[level] || guidelines[4];
+  return settings[level] || settings[4] || getDefaultDifficultySettings()[4];
+}
+
+/**
+ * 비동기 버전 - DB에서 직접 로드 (API 응답용)
+ */
+export async function getDifficultyGuidelinesAsync(level: number = 4): Promise<DifficultyGuidelines> {
+  const settings = await loadDifficultySettingsFromDB();
+  difficultyCache = settings;
+  cacheTimestamp = Date.now();
+  
+  return settings[level] || settings[4] || getDefaultDifficultySettings()[4];
 }
 
 /**
