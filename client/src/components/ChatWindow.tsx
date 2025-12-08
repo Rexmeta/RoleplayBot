@@ -72,9 +72,10 @@ interface ChatWindowProps {
   onChatComplete: () => void;
   onExit: () => void;
   onPersonaChange?: () => void;
+  onReady?: () => void;
 }
 
-export default function ChatWindow({ scenario, persona, conversationId, onChatComplete, onExit, onPersonaChange }: ChatWindowProps) {
+export default function ChatWindow({ scenario, persona, conversationId, onChatComplete, onExit, onPersonaChange, onReady }: ChatWindowProps) {
   const [location, setLocation] = useLocation();
   const [userInput, setUserInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -235,6 +236,7 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
         setLoadedImageUrl(imageUrl);
       }
       setIsOverlayFading(true);
+      onReady?.();
       setTimeout(() => {
         setIsInitialLoading(false);
       }, 500);
