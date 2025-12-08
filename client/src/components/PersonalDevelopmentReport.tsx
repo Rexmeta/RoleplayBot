@@ -495,24 +495,40 @@ export default function PersonalDevelopmentReport({
       // 인쇄용 HTML 생성
       const printableContent = generatePrintableContent();
       
-      // 임시 컨테이너 생성
+      if (!printableContent || printableContent.trim() === '') {
+        throw new Error('보고서 콘텐츠가 비어 있습니다.');
+      }
+      
+      // 임시 컨테이너 생성 - 화면에 보이지 않지만 렌더링 가능한 위치
       container = document.createElement('div');
       container.innerHTML = printableContent;
-      container.style.position = 'absolute';
-      container.style.left = '-9999px';
+      container.style.position = 'fixed';
+      container.style.left = '0';
       container.style.top = '0';
-      container.style.width = '210mm'; // A4 너비
+      container.style.width = '210mm';
+      container.style.minHeight = '297mm';
+      container.style.background = 'white';
+      container.style.zIndex = '-9999';
+      container.style.opacity = '0';
+      container.style.pointerEvents = 'none';
       document.body.appendChild(container);
+      
+      // 폰트 로드 대기
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
+      const safeFilename = scenario.title.replace(/[<>:"/\\|?*]/g, '_');
       
       const opt = {
         margin: [10, 10, 10, 10] as [number, number, number, number],
-        filename: `개발보고서_${escapeHtml(scenario.title)}_${new Date().toLocaleDateString('ko-KR').replace(/\./g, '-')}.pdf`,
+        filename: `개발보고서_${safeFilename}_${new Date().toLocaleDateString('ko-KR').replace(/\./g, '-')}.pdf`,
         image: { type: 'jpeg' as const, quality: 0.98 },
         html2canvas: { 
           scale: 2,
           useCORS: true,
           letterRendering: true,
-          scrollY: 0
+          scrollY: 0,
+          windowWidth: 800,
+          windowHeight: 1200
         },
         jsPDF: { 
           unit: 'mm' as const, 
@@ -532,7 +548,7 @@ export default function PersonalDevelopmentReport({
       console.error('PDF 저장 오류:', error);
       toast({
         title: "PDF 저장 실패",
-        description: "PDF 파일 저장 중 오류가 발생했습니다.",
+        description: error instanceof Error ? error.message : "PDF 파일 저장 중 오류가 발생했습니다.",
         variant: "destructive"
       });
     } finally {
@@ -551,14 +567,23 @@ export default function PersonalDevelopmentReport({
     try {
       toast({
         title: "인쇄 준비 중",
-        description: "인쇄용 보고서를 생성하고 있습니다...",
+        description: "새 창에서 보고서가 열립니다. 인쇄 후 창을 닫아주세요.",
       });
       
       // 인쇄용 HTML 생성
       const printableContent = generatePrintableContent();
       
+      if (!printableContent || printableContent.trim() === '') {
+        toast({
+          title: "인쇄 실패",
+          description: "보고서 콘텐츠가 비어 있습니다.",
+          variant: "destructive"
+        });
+        return;
+      }
+      
       // 새 창에서 인쇄
-      const printWindow = window.open('', '_blank', 'width=800,height=600');
+      const printWindow = window.open('', '_blank', 'width=900,height=700');
       if (!printWindow) {
         toast({
           title: "팝업 차단",
@@ -577,22 +602,35 @@ export default function PersonalDevelopmentReport({
           <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;600;700&display=swap" rel="stylesheet">
           <style>
             * { box-sizing: border-box; }
-            body { margin: 0; padding: 0; }
+            body { margin: 0; padding: 20px; background: #f5f5f5; }
             @media print {
-              body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+              body { -webkit-print-color-adjust: exact; print-color-adjust: exact; background: white; padding: 0; }
+            }
+            .print-button {
+              position: fixed;
+              top: 20px;
+              right: 20px;
+              background: #4f46e5;
+              color: white;
+              border: none;
+              padding: 12px 24px;
+              border-radius: 8px;
+              font-size: 16px;
+              cursor: pointer;
+              z-index: 1000;
+              box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            }
+            .print-button:hover {
+              background: #4338ca;
+            }
+            @media print {
+              .print-button { display: none; }
             }
           </style>
         </head>
         <body>
+          <button class="print-button" onclick="window.print()">인쇄하기</button>
           ${printableContent}
-          <script>
-            window.onload = function() {
-              setTimeout(function() {
-                window.print();
-                window.close();
-              }, 500);
-            };
-          </script>
         </body>
         </html>
       `);
