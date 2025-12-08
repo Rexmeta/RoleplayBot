@@ -3,6 +3,7 @@ import { fileManager } from './fileManager';
 import { GoogleGenAI, Modality } from '@google/genai';
 import { getRealtimeVoiceGuidelines, validateDifficultyLevel } from './conversationDifficultyPolicy';
 import { storage } from '../storage';
+import { trackUsage } from './aiUsageTracker';
 
 // Default Gemini Live API model
 const DEFAULT_REALTIME_MODEL = 'gemini-live-2.5-flash-preview';
@@ -20,6 +21,10 @@ interface RealtimeSession {
   currentTranscript: string; // AI 응답 transcript 버퍼
   userTranscriptBuffer: string; // 사용자 음성 transcript 버퍼
   audioBuffer: string[];
+  startTime: number; // 세션 시작 시간 (ms)
+  totalUserTranscriptLength: number; // 누적 사용자 텍스트 길이
+  totalAiTranscriptLength: number; // 누적 AI 텍스트 길이
+  realtimeModel: string; // 사용된 모델
 }
 
 export class RealtimeVoiceService {
@@ -128,6 +133,9 @@ export class RealtimeVoiceService {
     console.log(systemInstructions);
     console.log('='.repeat(80) + '\n');
 
+    // Get realtime model for tracking
+    const realtimeModel = await this.getRealtimeModel();
+
     // Create session object
     const session: RealtimeSession = {
       id: sessionId,
@@ -142,6 +150,10 @@ export class RealtimeVoiceService {
       currentTranscript: '',
       userTranscriptBuffer: '',
       audioBuffer: [],
+      startTime: Date.now(),
+      totalUserTranscriptLength: 0,
+      totalAiTranscriptLength: 0,
+      realtimeModel,
     };
 
     this.sessions.set(sessionId, session);
@@ -308,6 +320,9 @@ export class RealtimeVoiceService {
               session.clientWs.close(1000, 'Gemini session ended');
             }
             
+            // 세션 종료 전 사용량 추적
+            this.trackSessionUsage(session);
+            
             this.sessions.delete(session.id);
             console.log(`♻️  Session cleaned up: ${session.id}`);
           },
@@ -393,7 +408,7 @@ export class RealtimeVoiceService {
         }
       }
 
-      // Handle model turn (AI response)
+      // Handle model turn (AI response) - 토큰 추적은 outputTranscription에서만 수행 (중복 방지)
       if (serverContent.modelTurn) {
         const parts = serverContent.modelTurn.parts || [];
         for (const part of parts) {
@@ -401,6 +416,7 @@ export class RealtimeVoiceService {
           if (part.text) {
             console.log(`🤖 AI transcript: ${part.text}`);
             session.currentTranscript += part.text;
+            // Note: 토큰 길이는 outputTranscription에서만 추적 (modelTurn과 중복되므로)
             this.sendToClient(session, {
               type: 'ai.transcription.delta',
               text: part.text,
@@ -415,14 +431,19 @@ export class RealtimeVoiceService {
         const transcript = serverContent.inputTranscription.text || '';
         console.log(`🎤 User transcript delta: ${transcript}`);
         session.userTranscriptBuffer += transcript;
+        session.totalUserTranscriptLength += transcript.length; // 누적 길이 추적
       }
 
-      // Handle output transcription (AI speech)
-      // 음절 단위로 스트리밍되므로 누적 (modelTurn과 동일)
+      // Handle output transcription (AI speech) - 토큰 추적은 여기서만 수행
+      // modelTurn.parts.text와 outputTranscription.text가 동일 내용이므로 여기서만 추적
       if (serverContent.outputTranscription) {
         const transcript = serverContent.outputTranscription.text || '';
         console.log(`🤖 AI transcript delta: ${transcript}`);
-        session.currentTranscript += transcript;
+        // currentTranscript는 modelTurn에서 이미 누적되므로 여기서는 길이만 추적
+        if (!serverContent.modelTurn) {
+          session.currentTranscript += transcript;
+        }
+        session.totalAiTranscriptLength += transcript.length; // 누적 길이 추적 (여기서만)
       }
     }
   }
@@ -531,10 +552,56 @@ export class RealtimeVoiceService {
     }
   }
 
+  // 세션 사용량 추적 헬퍼 메서드 (중복 방지를 위해 한 번만 호출)
+  private trackSessionUsage(session: RealtimeSession): void {
+    // 이미 추적된 세션인지 확인 (중복 방지)
+    if ((session as any)._usageTracked) {
+      return;
+    }
+    (session as any)._usageTracked = true;
+    
+    const durationMs = Date.now() - session.startTime;
+    
+    // 텍스트 길이를 기반으로 토큰 추정 (한국어: 약 2-3자 = 1토큰)
+    const estimatedUserTokens = Math.ceil(session.totalUserTranscriptLength / 2);
+    const estimatedAiTokens = Math.ceil(session.totalAiTranscriptLength / 2);
+    
+    // Gemini Live API는 음성 처리도 함께 하므로 텍스트 토큰의 약 1.5배 추정
+    // (텍스트만 고려하면 과소평가, 오디오 전부 계산하면 과대평가)
+    const audioTokenMultiplier = 1.5;
+    const totalPromptTokens = Math.ceil(estimatedUserTokens * audioTokenMultiplier);
+    const totalCompletionTokens = Math.ceil(estimatedAiTokens * audioTokenMultiplier);
+    
+    if (totalPromptTokens > 0 || totalCompletionTokens > 0) {
+      trackUsage({
+        feature: 'realtime',
+        model: session.realtimeModel,
+        provider: 'gemini',
+        promptTokens: totalPromptTokens,
+        completionTokens: totalCompletionTokens,
+        userId: session.userId,
+        conversationId: session.conversationId,
+        durationMs,
+        metadata: {
+          scenarioId: session.scenarioId,
+          personaId: session.personaId,
+          totalUserTranscriptLength: session.totalUserTranscriptLength,
+          totalAiTranscriptLength: session.totalAiTranscriptLength,
+          estimationMethod: 'transcript_length_based',
+        }
+      });
+      
+      console.log(`📊 Realtime usage tracked: ${totalPromptTokens} prompt + ${totalCompletionTokens} completion tokens, duration: ${Math.round(durationMs/1000)}s`);
+    }
+  }
+
   closeSession(sessionId: string): void {
     const session = this.sessions.get(sessionId);
     if (session) {
       console.log(`🔚 Closing realtime voice session: ${sessionId}`);
+      
+      // 세션 사용량 추적
+      this.trackSessionUsage(session);
       
       if (session.geminiSession) {
         session.geminiSession.close();
