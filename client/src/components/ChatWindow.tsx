@@ -95,6 +95,9 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
   const [isGoalsExpanded, setIsGoalsExpanded] = useState(false);
   const [showEndConversationDialog, setShowEndConversationDialog] = useState(false);
   const [showModeChangeDialog, setShowModeChangeDialog] = useState(false);
+  const [isInitialLoading, setIsInitialLoading] = useState(true);
+  const [isOverlayFading, setIsOverlayFading] = useState(false);
+  const initialLoadCompletedRef = useRef(false);
   const [pendingMode, setPendingMode] = useState<'text' | 'tts' | 'realtime-voice' | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const recognitionRef = useRef<any>(null);
@@ -175,7 +178,7 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
   const hasNoPersonaImages = Object.values(personaImagesAvailable).every(v => v === false) && 
     Object.keys(personaImagesAvailable).length === Object.keys(emotionToEnglish).length;
 
-  // 페르소나별 이미지 체크
+  // 페르소나별 이미지 체크 (conversationId도 의존성에 포함하여 대화 재개 시에도 체크 실행)
   useEffect(() => {
     const checkPersonaImages = async () => {
       const genderFolder = persona.gender || 'male';
@@ -203,16 +206,60 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
     };
     
     checkPersonaImages();
-  }, [persona.id, persona.mbti, persona.gender]);
+  }, [persona.id, persona.mbti, persona.gender, conversationId]);
   
-  // personaImagesAvailable이 업데이트될 때 초기 이미지 설정
+  // 페르소나가 변경되면 로딩 상태 및 이미지 상태 리셋
   useEffect(() => {
+    initialLoadCompletedRef.current = false;
+    setIsInitialLoading(true);
+    setIsOverlayFading(false);
+    setPersonaImagesAvailable({});
+    setLoadedImageUrl('');
+  }, [persona.id, conversationId]);
+
+  // personaImagesAvailable이 업데이트될 때 초기 이미지 설정 및 로딩 오버레이 해제
+  useEffect(() => {
+    if (initialLoadCompletedRef.current) return;
+    
+    const allEmotionsChecked = Object.keys(personaImagesAvailable).length === Object.keys(emotionToEnglish).length;
+    if (!allEmotionsChecked) return;
+
     const initialImageUrl = getCharacterImage('중립');
     console.log(`🖼️ 초기 이미지 설정: ${initialImageUrl}`);
+    
+    const completeInitialLoad = (imageUrl?: string) => {
+      if (initialLoadCompletedRef.current) return;
+      initialLoadCompletedRef.current = true;
+      
+      if (imageUrl) {
+        setLoadedImageUrl(imageUrl);
+      }
+      setIsOverlayFading(true);
+      setTimeout(() => {
+        setIsInitialLoading(false);
+      }, 500);
+    };
+
     if (initialImageUrl) {
-      setLoadedImageUrl(initialImageUrl);
+      const img = new Image();
+      img.onload = () => {
+        console.log('✅ ChatWindow: 초기 페르소나 이미지 로드 완료, 오버레이 페이드아웃');
+        completeInitialLoad(initialImageUrl);
+      };
+      img.onerror = () => {
+        console.log('⚠️ ChatWindow: 초기 페르소나 이미지 로드 실패, 폴백 이미지 사용');
+        const fallbackUrl = `https://ui-avatars.com/api/?name=${encodeURIComponent(persona.name)}&background=6366f1&color=fff&size=400`;
+        setLoadedImageUrl(fallbackUrl);
+        completeInitialLoad();
+      };
+      img.src = initialImageUrl;
+    } else {
+      console.log('⚠️ ChatWindow: 페르소나 이미지 없음, 폴백 이미지 사용');
+      const fallbackUrl = `https://ui-avatars.com/api/?name=${encodeURIComponent(persona.name)}&background=6366f1&color=fff&size=400`;
+      setLoadedImageUrl(fallbackUrl);
+      completeInitialLoad();
     }
-  }, [personaImagesAvailable, persona.id, persona.gender, persona.mbti]);
+  }, [personaImagesAvailable, persona.id, persona.gender, persona.mbti, persona.name]);
   
   // 감정 변화 시 이미지 업데이트 - preloadImage 함수가 로드 완료 후 setLoadedImageUrl 호출
   useEffect(() => {
@@ -1105,7 +1152,17 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
   };
 
   return (
-    <div className="chat-window">
+    <div className="chat-window relative">
+      {isInitialLoading && (
+        <div 
+          className={`fixed inset-0 z-50 bg-black flex items-center justify-center transition-opacity duration-500 ${
+            isOverlayFading ? 'opacity-0' : 'opacity-100'
+          }`}
+          data-testid="chat-loading-overlay"
+        >
+          <div className="w-12 h-12 border-4 border-white/20 border-t-white rounded-full animate-spin" />
+        </div>
+      )}
       <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
         {/* Chat Header */}
         <div className="bg-gradient-to-r from-corporate-600 to-corporate-700 px-6 py-4 text-white">
