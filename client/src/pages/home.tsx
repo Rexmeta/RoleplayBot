@@ -310,13 +310,23 @@ export default function Home() {
   // 영상 인트로 완료 후 대화 시작
   const handleVideoComplete = () => {
     setIsVideoTransitioning(true);
-    setCurrentView("chat");
+    // 오버레이가 확실히 렌더링된 후 view 변경 (다음 프레임에서 실행)
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        setCurrentView("chat");
+      });
+    });
   };
 
   // 영상 건너뛰기
   const handleVideoSkip = () => {
     setIsVideoTransitioning(true);
-    setCurrentView("chat");
+    // 오버레이가 확실히 렌더링된 후 view 변경 (다음 프레임에서 실행)
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        setCurrentView("chat");
+      });
+    });
   };
 
   // ChatWindow가 준비 완료되면 전환 오버레이 해제
