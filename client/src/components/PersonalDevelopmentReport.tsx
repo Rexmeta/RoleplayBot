@@ -19,6 +19,7 @@ interface PersonalDevelopmentReportProps {
   hasMorePersonas?: boolean;
   allPersonasCompleted?: boolean;
   onNextPersona?: () => void;
+  onFeedbackGeneratingChange?: (isGenerating: boolean) => void;
 }
 
 // 애니메이션 없이 바로 값 표시 (hooks 오류 방지)
@@ -33,7 +34,8 @@ export default function PersonalDevelopmentReport({
   onSelectNewScenario,
   hasMorePersonas,
   allPersonasCompleted,
-  onNextPersona
+  onNextPersona,
+  onFeedbackGeneratingChange
 }: PersonalDevelopmentReportProps) {
   const { toast } = useToast();
   const [showDetailedFeedback, setShowDetailedFeedback] = useState(true); // 애니메이션 없이 바로 표시
@@ -195,9 +197,11 @@ export default function PersonalDevelopmentReport({
       console.log("피드백 생성 완료, 캐시 즉시 업데이트");
       // 캐시에 즉시 피드백 데이터 설정 (에러 상태를 덮어씀)
       queryClient.setQueryData(["/api/conversations", conversationId, "feedback"], data);
+      onFeedbackGeneratingChange?.(false); // 부모에게 피드백 생성 완료 알림
     },
     onError: (error) => {
       console.error("피드백 생성 오류:", error);
+      onFeedbackGeneratingChange?.(false); // 에러 시에도 부모에게 알림
       toast({
         title: "오류",
         description: `피드백을 생성할 수 없습니다: ${error.message}`,
@@ -209,6 +213,7 @@ export default function PersonalDevelopmentReport({
   // 피드백 생성 버튼 클릭 핸들러
   const handleGenerateFeedback = () => {
     setHasRequestedFeedback(true);
+    onFeedbackGeneratingChange?.(true); // 부모에게 피드백 생성 시작 알림
     generateFeedbackMutation.mutate();
   };
 
