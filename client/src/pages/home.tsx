@@ -773,6 +773,7 @@ export default function Home() {
             videoSrc={selectedScenario.introVideoUrl}
             onComplete={handleVideoComplete}
             onSkip={handleVideoSkip}
+            preloadImageUrl={selectedPersona ? `/personas/${(selectedPersona.mbti?.toLowerCase() || selectedPersona.id)}/${selectedPersona.gender || 'male'}/neutral.webp` : undefined}
           />
         )}
 

@@ -1,18 +1,52 @@
-import { useRef, useEffect, useState } from "react";
+import { useRef, useEffect, useState, useCallback } from "react";
 import { X } from "lucide-react";
 
 interface VideoIntroProps {
   videoSrc: string;
   onComplete: () => void;
   onSkip: () => void;
+  preloadImageUrl?: string;
 }
 
-export function VideoIntro({ videoSrc, onComplete, onSkip }: VideoIntroProps) {
+export function VideoIntro({ videoSrc, onComplete, onSkip, preloadImageUrl }: VideoIntroProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [showSkip, setShowSkip] = useState(false);
   const [isFadingIn, setIsFadingIn] = useState(true);
   const [isFadingOut, setIsFadingOut] = useState(false);
+  const [videoEnded, setVideoEnded] = useState(false);
+  const [imagePreloaded, setImagePreloaded] = useState(!preloadImageUrl);
+
+  const tryComplete = useCallback(() => {
+    if (videoEnded && imagePreloaded) {
+      setIsFadingOut(true);
+      setTimeout(() => {
+        onComplete();
+      }, 500);
+    }
+  }, [videoEnded, imagePreloaded, onComplete]);
+
+  useEffect(() => {
+    if (!preloadImageUrl) {
+      setImagePreloaded(true);
+      return;
+    }
+
+    const img = new Image();
+    img.onload = () => {
+      console.log('✅ VideoIntro: 페르소나 이미지 프리로드 완료');
+      setImagePreloaded(true);
+    };
+    img.onerror = () => {
+      console.log('⚠️ VideoIntro: 페르소나 이미지 프리로드 실패, 계속 진행');
+      setImagePreloaded(true);
+    };
+    img.src = preloadImageUrl;
+  }, [preloadImageUrl]);
+
+  useEffect(() => {
+    tryComplete();
+  }, [tryComplete]);
 
   useEffect(() => {
     const video = videoRef.current;
@@ -29,10 +63,7 @@ export function VideoIntro({ videoSrc, onComplete, onSkip }: VideoIntroProps) {
     };
 
     const handleEnded = () => {
-      setIsFadingOut(true);
-      setTimeout(() => {
-        onComplete();
-      }, 500);
+      setVideoEnded(true);
     };
 
     const handleError = () => {
@@ -53,7 +84,7 @@ export function VideoIntro({ videoSrc, onComplete, onSkip }: VideoIntroProps) {
       video.removeEventListener("error", handleError);
       clearTimeout(skipTimer);
     };
-  }, [onComplete, onSkip]);
+  }, [onSkip]);
 
   const handleSkip = () => {
     setIsFadingOut(true);
@@ -69,8 +100,8 @@ export function VideoIntro({ videoSrc, onComplete, onSkip }: VideoIntroProps) {
       className="fixed inset-0 z-50 bg-black flex items-center justify-center"
       data-testid="video-intro-overlay"
     >
-      {isLoading && (
-        <div className="absolute inset-0 flex items-center justify-center">
+      {(isLoading || (videoEnded && !imagePreloaded)) && (
+        <div className="absolute inset-0 flex items-center justify-center z-10">
           <div className="w-12 h-12 border-4 border-white/20 border-t-white rounded-full animate-spin" />
         </div>
       )}
