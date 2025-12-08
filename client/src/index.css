@@ -588,9 +588,20 @@ body {
 
 /* PDF 인쇄 스타일 */
 @media print {
+  /* 인쇄 시 강제 라이트 모드 적용 */
+  :root {
+    --background: hsl(0 0% 100%) !important;
+    --foreground: hsl(0 0% 0%) !important;
+    --card: hsl(0 0% 100%) !important;
+    --card-foreground: hsl(0 0% 0%) !important;
+    --muted: hsl(0 0% 96%) !important;
+    --muted-foreground: hsl(0 0% 20%) !important;
+  }
+  
   /* 기본 PDF 설정 */
-  body {
+  html, body {
     background: white !important;
+    background-color: white !important;
     color: black !important;
     font-size: 11pt;
     line-height: 1.5;
@@ -648,17 +659,81 @@ body {
     display: none !important;
   }
   
-  /* 배경색과 그라데이션 제거 (인쇄 시) */
-  .print-report-container * {
+  /* 보고서 컨테이너 기본 배경 */
+  .print-report-container {
     background: white !important;
+    background-color: white !important;
+  }
+  
+  /* 모든 카드와 컴포넌트 배경 흰색으로 강제 */
+  .print-report-container *,
+  .print-report-container [class*="bg-"] {
+    background-color: white !important;
+    background-image: none !important;
     box-shadow: none !important;
   }
   
-  /* 카드 스타일 조정 */
-  .card-enhanced {
-    border: 1pt solid #ddd !important;
+  /* 테두리가 있는 색상 카드는 옅은 테두리로 대체 */
+  .print-report-container [class*="bg-blue-"],
+  .print-report-container [class*="bg-green-"],
+  .print-report-container [class*="bg-purple-"],
+  .print-report-container [class*="bg-amber-"],
+  .print-report-container [class*="bg-indigo-"],
+  .print-report-container [class*="bg-slate-"],
+  .print-report-container [class*="bg-gray-"],
+  .print-report-container [class*="bg-zinc-"] {
+    background-color: #fafafa !important;
+    border: 1px solid #e5e7eb !important;
+  }
+  
+  /* 카드 컴포넌트 스타일 */
+  .print-report-container .card,
+  .print-report-container [class*="Card"],
+  .print-report-container .card-enhanced {
+    background-color: white !important;
+    border: 1pt solid #d1d5db !important;
     margin-bottom: 8pt;
     page-break-inside: avoid;
+  }
+  
+  /* 배지 스타일 유지 (색상 유지) */
+  .print-report-container .badge,
+  .print-report-container [class*="Badge"] {
+    background-color: #f3f4f6 !important;
+    border: 1px solid #d1d5db !important;
+  }
+  
+  /* 텍스트 색상 가독성 확보 */
+  .print-report-container * {
+    color: #1f2937 !important;
+  }
+  
+  .print-report-container h1,
+  .print-report-container h2,
+  .print-report-container h3,
+  .print-report-container h4 {
+    color: #111827 !important;
+  }
+  
+  /* 강조 텍스트 색상 유지 */
+  .print-report-container .text-green-600,
+  .print-report-container .text-green-700 {
+    color: #059669 !important;
+  }
+  
+  .print-report-container .text-blue-600,
+  .print-report-container .text-blue-700 {
+    color: #2563eb !important;
+  }
+  
+  .print-report-container .text-purple-600,
+  .print-report-container .text-purple-700 {
+    color: #7c3aed !important;
+  }
+  
+  .print-report-container .text-amber-600,
+  .print-report-container .text-amber-700 {
+    color: #d97706 !important;
   }
 
   /* 섹션별 페이지 나눔 */
@@ -685,9 +760,10 @@ body {
   }
 }
 
-/* PDF 생성용 스타일 (html2pdf) */
+/* PDF 생성용 스타일 (HTML 다운로드) */
 .pdf-export-mode {
   background: white !important;
+  background-color: white !important;
   padding: 20px;
 }
 
@@ -707,6 +783,26 @@ body {
 .pdf-export-mode * {
   animation: none !important;
   transition: none !important;
+}
+
+/* HTML 다운로드 시 배경색 처리 */
+.pdf-export-mode *,
+.pdf-export-mode [class*="bg-"] {
+  background-color: white !important;
+  background-image: none !important;
+  box-shadow: none !important;
+}
+
+.pdf-export-mode [class*="bg-blue-"],
+.pdf-export-mode [class*="bg-green-"],
+.pdf-export-mode [class*="bg-purple-"],
+.pdf-export-mode [class*="bg-amber-"],
+.pdf-export-mode [class*="bg-indigo-"],
+.pdf-export-mode [class*="bg-slate-"],
+.pdf-export-mode [class*="bg-gray-"],
+.pdf-export-mode [class*="bg-zinc-"] {
+  background-color: #fafafa !important;
+  border: 1px solid #e5e7eb !important;
 }
 
 .pdf-export-mode .print-section-title {
