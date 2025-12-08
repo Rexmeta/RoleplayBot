@@ -1544,12 +1544,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
         completedAt: personaRun.completedAt
       };
 
-      console.log(`대화 상태: ${conversation.status}, 턴 수: ${conversation.turnCount}`);
+      console.log(`대화 상태: ${conversation.status}, 턴 수: ${conversation.turnCount}, 모드: ${conversation.mode}`);
 
-      // 완료되지 않은 대화에 대해서도 피드백 생성 허용 (3턴 이상이면)
-      if (conversation.status !== "completed" && conversation.turnCount < 3) {
-        console.log("대화가 아직 완료되지 않음");
+      // 실시간 음성 대화는 status가 completed이면 피드백 생성 허용 (턴 카운트 체크 제외)
+      // 텍스트/TTS 모드는 기존 로직 유지 (completed 또는 3턴 이상)
+      const isRealtimeVoice = conversation.mode === 'realtime_voice';
+      const isCompleted = conversation.status === "completed";
+      const hasEnoughTurns = conversation.turnCount >= 3;
+      
+      if (!isCompleted && !hasEnoughTurns && !isRealtimeVoice) {
+        console.log("대화가 아직 완료되지 않음 (텍스트/TTS 모드)");
         return res.status(400).json({ error: "Conversation not completed yet" });
+      }
+      
+      // 실시간 음성 모드에서 completed가 아닌 경우도 체크
+      if (isRealtimeVoice && !isCompleted) {
+        console.log("실시간 음성 대화가 아직 완료되지 않음");
+        return res.status(400).json({ error: "Realtime voice conversation not completed yet" });
       }
 
       // Check if feedback already exists
