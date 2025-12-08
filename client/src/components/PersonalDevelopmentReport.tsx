@@ -20,6 +20,7 @@ interface PersonalDevelopmentReportProps {
   allPersonasCompleted?: boolean;
   onNextPersona?: () => void;
   onFeedbackGeneratingChange?: (isGenerating: boolean) => void;
+  onReady?: () => void;
 }
 
 // 애니메이션 없이 바로 값 표시 (hooks 오류 방지)
@@ -35,7 +36,8 @@ export default function PersonalDevelopmentReport({
   hasMorePersonas,
   allPersonasCompleted,
   onNextPersona,
-  onFeedbackGeneratingChange
+  onFeedbackGeneratingChange,
+  onReady
 }: PersonalDevelopmentReportProps) {
   const { toast } = useToast();
   const [showDetailedFeedback, setShowDetailedFeedback] = useState(true); // 애니메이션 없이 바로 표시
@@ -85,7 +87,15 @@ export default function PersonalDevelopmentReport({
     }
   });
 
-
+  // 피드백이 로드되거나 피드백 생성 버튼 화면이 준비되면 부모에게 알림
+  useEffect(() => {
+    // 피드백이 있는 경우 또는 피드백이 없어서 버튼을 표시할 경우
+    if (!isLoading) {
+      if (feedback || error?.message === "FEEDBACK_NOT_FOUND") {
+        onReady?.();
+      }
+    }
+  }, [feedback, isLoading, error, onReady]);
 
   // 다음 페르소나 확인 (서버에서 온 scenario는 personas가 객체 배열)
   const getNextPersona = () => {

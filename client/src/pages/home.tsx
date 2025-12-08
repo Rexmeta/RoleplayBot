@@ -43,6 +43,7 @@ export default function Home() {
   const [isResuming, setIsResuming] = useState(false); // 대화 재개 중 상태
   const [isVideoTransitioning, setIsVideoTransitioning] = useState(false); // 인트로 영상 → 대화 전환 중 상태
   const [isFeedbackGenerating, setIsFeedbackGenerating] = useState(false); // 피드백 생성 중 상태
+  const [isTransitioningToFeedback, setIsTransitioningToFeedback] = useState(false); // 대화 종료 → 피드백 전환 중 상태
 
   // 동적으로 시나리오와 페르소나 데이터 로드
   const { data: scenarios = [] } = useQuery({
@@ -338,6 +339,9 @@ export default function Home() {
   const handleChatComplete = () => {
     if (!selectedScenario || !conversationId || !selectedPersona) return;
     
+    // 전환 오버레이 표시 (화면 깜빡임 방지)
+    setIsTransitioningToFeedback(true);
+    
     // 현재 대화 ID와 페르소나 ID를 완료 목록에 추가
     setCompletedPersonaIds(prev => [...prev, selectedPersona.id]);
     setConversationIds(prev => [...prev, conversationId]);
@@ -348,6 +352,11 @@ export default function Home() {
     
     // 대화 완료 후 무조건 피드백을 먼저 보여줌
     setCurrentView("feedback");
+  };
+  
+  // 피드백 화면 준비 완료 시 전환 오버레이 해제
+  const handleFeedbackReady = () => {
+    setIsTransitioningToFeedback(false);
   };
 
   const handleReturnToScenarios = async () => {
@@ -814,15 +823,21 @@ export default function Home() {
           />
         )}
         
-        {isFeedbackGenerating && (
+        {(isFeedbackGenerating || isTransitioningToFeedback) && (
           <div 
             className="fixed inset-0 z-[60] bg-white flex items-center justify-center"
-            data-testid="feedback-generating-overlay"
+            data-testid="feedback-transition-overlay"
           >
             <div className="text-center">
               <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-corporate-600 mx-auto mb-4"></div>
-              <h2 className="text-xl font-semibold text-slate-900 mb-2">개인 맞춤 분석 중...</h2>
-              <p className="text-slate-600">AI가 대화를 심층 분석하여 맞춤형 개발 계획을 수립하고 있습니다.</p>
+              <h2 className="text-xl font-semibold text-slate-900 mb-2">
+                {isFeedbackGenerating ? "개인 맞춤 분석 중..." : "피드백 화면 준비 중..."}
+              </h2>
+              <p className="text-slate-600">
+                {isFeedbackGenerating 
+                  ? "AI가 대화를 심층 분석하여 맞춤형 개발 계획을 수립하고 있습니다."
+                  : "잠시만 기다려 주세요."}
+              </p>
             </div>
           </div>
         )}
@@ -851,6 +866,7 @@ export default function Home() {
                 }
               }}
               onFeedbackGeneratingChange={setIsFeedbackGenerating}
+              onReady={handleFeedbackReady}
             />
           );
         })()}
