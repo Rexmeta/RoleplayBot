@@ -479,17 +479,17 @@ export default function PersonalDevelopmentReport({
     `;
   };
 
-  // PDF 파일로 저장
+  // PDF 파일로 저장 - 화면에 임시로 보여주면서 캡처
   const handleExportPdf = async () => {
     if (!feedback) return;
     
     setIsExportingPdf(true);
-    let container: HTMLDivElement | null = null;
+    let printContainer: HTMLDivElement | null = null;
     
     try {
       toast({
         title: "PDF 생성 중",
-        description: "보고서를 PDF로 변환하고 있습니다...",
+        description: "보고서를 PDF로 변환하고 있습니다. 잠시만 기다려주세요...",
       });
 
       // 인쇄용 HTML 생성
@@ -499,46 +499,47 @@ export default function PersonalDevelopmentReport({
         throw new Error('보고서 콘텐츠가 비어 있습니다.');
       }
       
-      // 임시 컨테이너 생성 - 화면에 보이지 않지만 렌더링 가능한 위치
-      container = document.createElement('div');
-      container.innerHTML = printableContent;
-      container.style.position = 'fixed';
-      container.style.left = '0';
-      container.style.top = '0';
-      container.style.width = '210mm';
-      container.style.minHeight = '297mm';
-      container.style.background = 'white';
-      container.style.zIndex = '-9999';
-      container.style.opacity = '0';
-      container.style.pointerEvents = 'none';
-      document.body.appendChild(container);
+      // 화면에 보이는 임시 컨테이너 생성 (pdf 캡처용)
+      printContainer = document.createElement('div');
+      printContainer.id = 'pdf-print-container';
+      printContainer.innerHTML = printableContent;
+      printContainer.style.cssText = `
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: auto;
+        background: white;
+        z-index: 99999;
+        padding: 20px;
+        overflow: auto;
+      `;
+      document.body.appendChild(printContainer);
       
-      // 폰트 로드 대기
-      await new Promise(resolve => setTimeout(resolve, 500));
+      // 렌더링 및 폰트 로드 대기
+      await new Promise(resolve => setTimeout(resolve, 1000));
       
       const safeFilename = scenario.title.replace(/[<>:"/\\|?*]/g, '_');
       
       const opt = {
-        margin: [10, 10, 10, 10] as [number, number, number, number],
+        margin: 10,
         filename: `개발보고서_${safeFilename}_${new Date().toLocaleDateString('ko-KR').replace(/\./g, '-')}.pdf`,
         image: { type: 'jpeg' as const, quality: 0.98 },
         html2canvas: { 
           scale: 2,
           useCORS: true,
-          letterRendering: true,
-          scrollY: 0,
-          windowWidth: 800,
-          windowHeight: 1200
+          logging: false,
+          windowWidth: printContainer.scrollWidth,
+          windowHeight: printContainer.scrollHeight
         },
         jsPDF: { 
           unit: 'mm' as const, 
           format: 'a4' as const, 
           orientation: 'portrait' as const 
-        },
-        pagebreak: { mode: ['avoid-all', 'css', 'legacy'] }
+        }
       };
       
-      await html2pdf().set(opt).from(container).save();
+      await html2pdf().set(opt).from(printContainer).save();
       
       toast({
         title: "PDF 저장 완료",
@@ -552,22 +553,22 @@ export default function PersonalDevelopmentReport({
         variant: "destructive"
       });
     } finally {
-      // 임시 컨테이너 제거 (성공/실패 모두)
-      if (container && container.parentNode) {
-        document.body.removeChild(container);
+      // 임시 컨테이너 제거
+      if (printContainer && printContainer.parentNode) {
+        document.body.removeChild(printContainer);
       }
       setIsExportingPdf(false);
     }
   };
 
-  // 보고서 인쇄
+  // 보고서 인쇄 - iframe 방식 사용
   const handlePrint = () => {
     if (!feedback) return;
     
     try {
       toast({
         title: "인쇄 준비 중",
-        description: "새 창에서 보고서가 열립니다. 인쇄 후 창을 닫아주세요.",
+        description: "인쇄 대화상자가 곧 열립니다...",
       });
       
       // 인쇄용 HTML 생성
@@ -582,18 +583,19 @@ export default function PersonalDevelopmentReport({
         return;
       }
       
-      // 새 창에서 인쇄
-      const printWindow = window.open('', '_blank', 'width=900,height=700');
-      if (!printWindow) {
-        toast({
-          title: "팝업 차단",
-          description: "브라우저에서 팝업을 허용해주세요. 또는 Ctrl+P로 직접 인쇄하세요.",
-          variant: "destructive"
-        });
-        return;
+      // iframe을 사용한 인쇄 (더 안정적)
+      const printFrame = document.createElement('iframe');
+      printFrame.style.cssText = 'position: fixed; top: 0; left: 0; width: 100%; height: 100%; border: none; z-index: 99999;';
+      document.body.appendChild(printFrame);
+      
+      const frameDoc = printFrame.contentDocument || printFrame.contentWindow?.document;
+      if (!frameDoc) {
+        document.body.removeChild(printFrame);
+        throw new Error('인쇄 프레임을 생성할 수 없습니다.');
       }
       
-      printWindow.document.write(`
+      frameDoc.open();
+      frameDoc.write(`
         <!DOCTYPE html>
         <html>
         <head>
@@ -601,40 +603,33 @@ export default function PersonalDevelopmentReport({
           <title>개인 맞춤 개발 보고서 - ${escapeHtml(scenario.title)}</title>
           <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;600;700&display=swap" rel="stylesheet">
           <style>
-            * { box-sizing: border-box; }
-            body { margin: 0; padding: 20px; background: #f5f5f5; }
+            * { box-sizing: border-box; margin: 0; padding: 0; }
+            body { font-family: 'Noto Sans KR', sans-serif; padding: 20px; background: white; }
             @media print {
-              body { -webkit-print-color-adjust: exact; print-color-adjust: exact; background: white; padding: 0; }
-            }
-            .print-button {
-              position: fixed;
-              top: 20px;
-              right: 20px;
-              background: #4f46e5;
-              color: white;
-              border: none;
-              padding: 12px 24px;
-              border-radius: 8px;
-              font-size: 16px;
-              cursor: pointer;
-              z-index: 1000;
-              box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-            }
-            .print-button:hover {
-              background: #4338ca;
-            }
-            @media print {
-              .print-button { display: none; }
+              body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
             }
           </style>
         </head>
         <body>
-          <button class="print-button" onclick="window.print()">인쇄하기</button>
           ${printableContent}
         </body>
         </html>
       `);
-      printWindow.document.close();
+      frameDoc.close();
+      
+      // 폰트 로드 대기 후 인쇄
+      setTimeout(() => {
+        printFrame.contentWindow?.focus();
+        printFrame.contentWindow?.print();
+        
+        // 인쇄 대화상자가 닫힌 후 iframe 제거
+        setTimeout(() => {
+          if (printFrame.parentNode) {
+            document.body.removeChild(printFrame);
+          }
+        }, 1000);
+      }, 500);
+      
     } catch (error) {
       console.error('인쇄 오류:', error);
       toast({
