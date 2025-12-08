@@ -7,7 +7,10 @@ export const MODEL_PRICING: Record<string, { input: number; output: number }> = 
   'gemini-2.5-flash': { input: 0.15, output: 0.60 },
   'gemini-2.5-pro': { input: 1.25, output: 10.00 },
   'gemini-2.0-flash-live-001': { input: 0.35, output: 1.50 }, // Gemini Live preview
-  'gemini-2.0-flash-preview-image-generation': { input: 0.15, output: 0.60 }, // Image generation
+  'gemini-live-2.5-flash-preview': { input: 0.35, output: 1.50 }, // Gemini Live 2.5 Flash
+  'gemini-2.5-flash-image-preview': { input: 0.15, output: 0.60 }, // Image generation
+  'gemini-2.0-flash-preview-image-generation': { input: 0.15, output: 0.60 }, // Image generation (legacy)
+  'veo-3.1-generate-preview': { input: 0.00, output: 0.00 }, // Veo video generation (per-video pricing, not per-token)
   
   // OpenAI models
   'gpt-4o': { input: 2.50, output: 10.00 },
@@ -19,6 +22,11 @@ export const MODEL_PRICING: Record<string, { input: number; output: number }> = 
   'claude-3.5-haiku': { input: 0.80, output: 4.00 },
 };
 
+// Video generation pricing (per video, not per token)
+export const VIDEO_PRICING: Record<string, number> = {
+  'veo-3.1-generate-preview': 0.35, // USD per 8-second video (estimated)
+};
+
 // Feature types for categorization
 export type AIFeature = 
   | 'conversation'
@@ -27,6 +35,7 @@ export type AIFeature =
   | 'scenario'
   | 'realtime'
   | 'image'
+  | 'video'
   | 'other';
 
 export type AIProvider = 'gemini' | 'openai' | 'anthropic' | 'other';
@@ -194,13 +203,100 @@ export function getProviderFromModel(model: string): AIProvider {
   return 'other';
 }
 
+// Track video generation usage (fixed cost per video, not per token)
+export async function trackVideoUsage(params: {
+  model: string;
+  provider: AIProvider;
+  userId?: string;
+  conversationId?: string;
+  requestId?: string;
+  durationMs?: number;
+  metadata?: Record<string, any>;
+}): Promise<void> {
+  try {
+    const videoCost = VIDEO_PRICING[params.model] || 0.35; // Default cost per video
+    
+    const logEntry: InsertAiUsageLog = {
+      feature: 'video',
+      model: params.model,
+      provider: params.provider,
+      promptTokens: 0,
+      completionTokens: 0,
+      totalTokens: 0,
+      inputCostUsd: 0,
+      outputCostUsd: videoCost,
+      totalCostUsd: videoCost,
+      userId: params.userId || null,
+      conversationId: params.conversationId || null,
+      requestId: params.requestId || null,
+      durationMs: params.durationMs || null,
+      metadata: params.metadata || null,
+    };
+    
+    storage.createAiUsageLog(logEntry).catch((error) => {
+      console.error('Failed to log video usage:', error);
+    });
+  } catch (error) {
+    console.error('Error in trackVideoUsage:', error);
+  }
+}
+
+// Track image generation usage (estimate tokens based on image generation)
+export async function trackImageUsage(params: {
+  model: string;
+  provider: AIProvider;
+  userId?: string;
+  requestId?: string;
+  durationMs?: number;
+  metadata?: Record<string, any>;
+}): Promise<void> {
+  try {
+    // Image generation typically uses ~500-1000 input tokens for prompt
+    // and ~1000-2000 output tokens for image data
+    const estimatedPromptTokens = 800;
+    const estimatedCompletionTokens = 1500;
+    
+    const { inputCost, outputCost, totalCost } = calculateCost(
+      params.model,
+      estimatedPromptTokens,
+      estimatedCompletionTokens
+    );
+    
+    const logEntry: InsertAiUsageLog = {
+      feature: 'image',
+      model: params.model,
+      provider: params.provider,
+      promptTokens: estimatedPromptTokens,
+      completionTokens: estimatedCompletionTokens,
+      totalTokens: estimatedPromptTokens + estimatedCompletionTokens,
+      inputCostUsd: inputCost,
+      outputCostUsd: outputCost,
+      totalCostUsd: totalCost,
+      userId: params.userId || null,
+      conversationId: null,
+      requestId: params.requestId || null,
+      durationMs: params.durationMs || null,
+      metadata: params.metadata || null,
+    };
+    
+    storage.createAiUsageLog(logEntry).catch((error) => {
+      console.error('Failed to log image usage:', error);
+    });
+  } catch (error) {
+    console.error('Error in trackImageUsage:', error);
+  }
+}
+
 export default {
   trackUsage,
   trackUsageSync,
+  trackVideoUsage,
+  trackImageUsage,
   calculateCost,
   extractGeminiTokens,
   extractOpenAITokens,
   getModelPricingKey,
   getProviderFromModel,
   MODEL_PRICING,
+  VIDEO_PRICING,
 };
