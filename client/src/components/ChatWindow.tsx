@@ -390,9 +390,18 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
     setShowEndConversationDialog(true);
   };
 
+  // 텍스트/TTS 모드에서 피드백 화면으로 이동 시 즉시 오버레이 표시
+  const handleGoToFeedback = () => {
+    onConversationEnding?.(); // 즉시 전환 오버레이 표시
+    onChatComplete(); // 피드백 화면으로 이동
+  };
+
   const confirmEndConversation = async () => {
     try {
       setShowEndConversationDialog(false);
+      
+      // 즉시 전환 오버레이 표시 (부모에게 알림)
+      onConversationEnding?.();
       
       // 실시간 음성 연결 해제
       realtimeVoice.disconnect();
@@ -1423,7 +1432,7 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
                     </div>
                     <div className="flex justify-center space-x-4">
                       <Button
-                        onClick={onChatComplete}
+                        onClick={handleGoToFeedback}
                         className="bg-corporate-600 hover:bg-corporate-700"
                         data-testid="button-final-feedback"
                       >
@@ -2269,7 +2278,7 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
                           </Button>
                         )}
                         <Button
-                          onClick={onChatComplete}
+                          onClick={handleGoToFeedback}
                           className="bg-purple-600 hover:bg-purple-700 text-white"
                           data-testid="button-final-feedback"
                           size="sm"

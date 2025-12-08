@@ -813,6 +813,7 @@ export default function Home() {
             onChatComplete={handleChatComplete}
             onExit={handleReturnToScenarios}
             onReady={handleChatReady}
+            onConversationEnding={() => setIsTransitioningToFeedback(true)}
           />
         )}
         
