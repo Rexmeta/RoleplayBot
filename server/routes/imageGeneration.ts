@@ -3,6 +3,7 @@ import { GoogleGenAI } from "@google/genai";
 import * as fs from 'fs';
 import * as path from 'path';
 import sharp from 'sharp';
+import { trackImageUsage } from '../services/aiUsageTracker';
 
 // 이미지 최적화 설정
 const IMAGE_CONFIG = {
@@ -79,6 +80,13 @@ router.post('/generate-scenario-image', async (req, res) => {
     const localImagePath = await saveImageToLocal(imageUrl, scenarioTitle);
     
     console.log(`✅ Gemini 이미지 생성 성공, 로컬 저장 완료: ${localImagePath}`);
+
+    // AI 사용량 추적
+    trackImageUsage({
+      model: 'gemini-2.5-flash-image-preview',
+      provider: 'gemini',
+      metadata: { type: 'scenario', scenarioTitle }
+    });
 
     res.json({
       success: true,
@@ -285,6 +293,13 @@ router.post('/generate-preview', async (req, res) => {
     // 미리보기 이미지도 로컬에 저장
     const localImagePath = await saveImageToLocal(imageUrl, scenarioTitle);
     
+    // AI 사용량 추적
+    trackImageUsage({
+      model: 'gemini-2.5-flash-image-preview',
+      provider: 'gemini',
+      metadata: { type: 'preview', scenarioTitle }
+    });
+
     res.json({
       success: true,
       imageUrl: localImagePath, // 로컬 파일 경로 반환
@@ -369,6 +384,13 @@ router.post('/generate-persona-base', async (req, res) => {
     const localImagePath = await savePersonaImageToLocal(imageUrl, personaId, 'neutral', gender);
     
     console.log(`✅ 페르소나 기본 이미지 생성 성공: ${localImagePath}`);
+
+    // AI 사용량 추적
+    trackImageUsage({
+      model: 'gemini-2.5-flash-image-preview',
+      provider: 'gemini',
+      metadata: { type: 'persona-base', personaId, mbti, gender }
+    });
 
     res.json({
       success: true,
@@ -665,6 +687,14 @@ router.post('/generate-persona-expressions', async (req, res) => {
             imageUrl: localImagePath,
             success: true
           });
+          
+          // AI 사용량 추적 (각 표정 이미지마다)
+          trackImageUsage({
+            model: 'gemini-2.5-flash-image-preview',
+            provider: 'gemini',
+            metadata: { type: 'persona-expression', personaId, emotion: emotion.english, gender }
+          });
+          
           console.log(`  ✅ ${emotion.korean} 이미지 생성 완료`);
         } else {
           generatedImages.push({
