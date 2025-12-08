@@ -42,6 +42,7 @@ export default function Home() {
   const [selectedDifficulty, setSelectedDifficulty] = useState<number>(4); // 사용자가 선택한 난이도 (기본값: 4)
   const [isResuming, setIsResuming] = useState(false); // 대화 재개 중 상태
   const [isVideoTransitioning, setIsVideoTransitioning] = useState(false); // 인트로 영상 → 대화 전환 중 상태
+  const [isFeedbackGenerating, setIsFeedbackGenerating] = useState(false); // 피드백 생성 중 상태
 
   // 동적으로 시나리오와 페르소나 데이터 로드
   const { data: scenarios = [] } = useQuery({
@@ -813,6 +814,19 @@ export default function Home() {
           />
         )}
         
+        {isFeedbackGenerating && (
+          <div 
+            className="fixed inset-0 z-[60] bg-white flex items-center justify-center"
+            data-testid="feedback-generating-overlay"
+          >
+            <div className="text-center">
+              <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-corporate-600 mx-auto mb-4"></div>
+              <h2 className="text-xl font-semibold text-slate-900 mb-2">개인 맞춤 분석 중...</h2>
+              <p className="text-slate-600">AI가 대화를 심층 분석하여 맞춤형 개발 계획을 수립하고 있습니다.</p>
+            </div>
+          </div>
+        )}
+        
         {currentView === "feedback" && selectedScenario && selectedPersona && conversationId && (() => {
           // 현재 완료된 페르소나 수 계산
           const totalPersonas = selectedScenario.personas?.length || 0;
@@ -836,6 +850,7 @@ export default function Home() {
                   setCurrentView("strategy-reflection");
                 }
               }}
+              onFeedbackGeneratingChange={setIsFeedbackGenerating}
             />
           );
         })()}
