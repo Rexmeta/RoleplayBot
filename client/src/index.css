@@ -592,13 +592,15 @@ body {
   body {
     background: white !important;
     color: black !important;
-    font-size: 12pt;
-    line-height: 1.4;
+    font-size: 11pt;
+    line-height: 1.5;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
   }
   
   /* 페이지 설정 */
   @page {
-    margin: 1in;
+    margin: 0.75in;
     size: A4;
   }
   
@@ -606,12 +608,12 @@ body {
   .pdf-header {
     display: block !important;
     text-align: center;
-    font-size: 24pt;
+    font-size: 20pt;
     font-weight: bold;
     color: hsl(203.7736 87.6033% 52.5490%) !important;
-    margin-bottom: 20pt;
+    margin-bottom: 16pt;
     border-bottom: 2pt solid hsl(203.7736 87.6033% 52.5490%);
-    padding-bottom: 10pt;
+    padding-bottom: 8pt;
   }
   
   /* 화면용 헤더 숨김 */
@@ -627,23 +629,92 @@ body {
   /* 탭 콘텐츠 모두 표시 */
   .print-show-all {
     display: block !important;
+    opacity: 1 !important;
+    visibility: visible !important;
+    position: relative !important;
+    transform: none !important;
+    animation: none !important;
   }
   
   /* 탭 콘텐츠 모두 표시 (TabsContent가 숨겨져 있어도 강제 표시) */
   [data-state="inactive"].print-show-all {
     display: block !important;
+    opacity: 1 !important;
+    visibility: visible !important;
+  }
+
+  /* 탭 리스트 숨김 */
+  [role="tablist"] {
+    display: none !important;
   }
   
-  /* 배경색과 그라데이션 제거 */
-  * {
+  /* 배경색과 그라데이션 제거 (인쇄 시) */
+  .print-report-container * {
     background: white !important;
     box-shadow: none !important;
   }
   
   /* 카드 스타일 조정 */
   .card-enhanced {
-    border: 1pt solid #ccc !important;
-    margin-bottom: 10pt;
+    border: 1pt solid #ddd !important;
+    margin-bottom: 8pt;
     page-break-inside: avoid;
   }
+
+  /* 섹션별 페이지 나눔 */
+  .print-section-break {
+    page-break-before: always;
+    padding-top: 16pt;
+  }
+
+  /* 모든 애니메이션 비활성화 */
+  * {
+    animation: none !important;
+    transition: none !important;
+  }
+
+  /* 섹션 타이틀 */
+  .print-section-title {
+    display: block !important;
+    font-size: 14pt;
+    font-weight: bold;
+    color: #1e3a5f !important;
+    margin: 16pt 0 8pt 0;
+    padding-bottom: 4pt;
+    border-bottom: 1pt solid #ddd;
+  }
+}
+
+/* PDF 생성용 스타일 (html2pdf) */
+.pdf-export-mode {
+  background: white !important;
+  padding: 20px;
+}
+
+.pdf-export-mode .screen-only,
+.pdf-export-mode .no-print,
+.pdf-export-mode [role="tablist"] {
+  display: none !important;
+}
+
+.pdf-export-mode .print-show-all,
+.pdf-export-mode [data-state="inactive"].print-show-all {
+  display: block !important;
+  opacity: 1 !important;
+  visibility: visible !important;
+}
+
+.pdf-export-mode * {
+  animation: none !important;
+  transition: none !important;
+}
+
+.pdf-export-mode .print-section-title {
+  display: block !important;
+  font-size: 16px;
+  font-weight: bold;
+  color: #1e3a5f;
+  margin: 20px 0 10px 0;
+  padding-bottom: 5px;
+  border-bottom: 1px solid #ddd;
 }

@@ -1,11 +1,12 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
+import html2pdf from "html2pdf.js";
 
 import type { ComplexScenario, ScenarioPersona } from "@/lib/scenario-system";
 import type { Feedback } from "@shared/schema";
@@ -42,6 +43,8 @@ export default function PersonalDevelopmentReport({
   const { toast } = useToast();
   const [showDetailedFeedback, setShowDetailedFeedback] = useState(true); // 애니메이션 없이 바로 표시
   const [hasRequestedFeedback, setHasRequestedFeedback] = useState(false); // 피드백 생성 요청 여부
+  const [isExportingPdf, setIsExportingPdf] = useState(false); // PDF 내보내기 중
+  const reportRef = useRef<HTMLDivElement>(null); // 보고서 컨테이너 참조
 
   // 사용자의 모든 대화 기록 조회
   const { data: userConversations = [] } = useQuery<any[]>({
@@ -227,6 +230,78 @@ export default function PersonalDevelopmentReport({
     generateFeedbackMutation.mutate();
   };
 
+  // PDF 파일로 저장
+  const handleExportPdf = async () => {
+    if (!reportRef.current) return;
+    
+    setIsExportingPdf(true);
+    try {
+      // PDF 내보내기 모드 클래스 추가
+      reportRef.current.classList.add('pdf-export-mode');
+      
+      const opt = {
+        margin: [10, 10, 10, 10] as [number, number, number, number],
+        filename: `개발보고서_${scenario.title}_${new Date().toLocaleDateString('ko-KR').replace(/\./g, '-')}.pdf`,
+        image: { type: 'jpeg', quality: 0.98 },
+        html2canvas: { 
+          scale: 2,
+          useCORS: true,
+          letterRendering: true,
+          scrollY: 0
+        },
+        jsPDF: { 
+          unit: 'mm', 
+          format: 'a4', 
+          orientation: 'portrait' 
+        },
+        pagebreak: { mode: ['avoid-all', 'css', 'legacy'] }
+      };
+      
+      await html2pdf().set(opt).from(reportRef.current).save();
+      
+      toast({
+        title: "PDF 저장 완료",
+        description: "보고서가 PDF 파일로 저장되었습니다.",
+      });
+    } catch (error) {
+      console.error('PDF 저장 오류:', error);
+      toast({
+        title: "PDF 저장 실패",
+        description: "PDF 파일 저장 중 오류가 발생했습니다.",
+        variant: "destructive"
+      });
+    } finally {
+      // PDF 내보내기 모드 클래스 제거
+      reportRef.current?.classList.remove('pdf-export-mode');
+      setIsExportingPdf(false);
+    }
+  };
+
+  // 보고서 인쇄
+  const handlePrint = () => {
+    try {
+      window.print();
+    } catch (error) {
+      console.error('인쇄 오류:', error);
+      const userAgent = navigator.userAgent;
+      let message = '인쇄 기능을 사용할 수 없습니다.';
+      
+      if (userAgent.includes('Chrome')) {
+        message += ' Chrome에서 Ctrl+P를 눌러 직접 인쇄해보세요.';
+      } else if (userAgent.includes('Firefox')) {
+        message += ' Firefox에서 Ctrl+P를 눌러 직접 인쇄해보세요.';
+      } else {
+        message += ' 브라우저에서 Ctrl+P(Windows) 또는 Cmd+P(Mac)를 눌러 직접 인쇄해보세요.';
+      }
+      
+      toast({
+        title: "인쇄 오류",
+        description: message,
+        variant: "destructive"
+      });
+    }
+  };
+
   // 로딩 중이거나 피드백 생성 중일 때 로딩 표시
   // hasRequestedFeedback이 true이면 피드백이 표시될 때까지 로딩 상태 유지
   if (isLoading || generateFeedbackMutation.isPending || (hasRequestedFeedback && !feedback)) {
@@ -344,10 +419,10 @@ export default function PersonalDevelopmentReport({
   }
 
   return (
-    <div className="max-w-6xl mx-auto space-y-6" data-testid="personal-development-report">
-      {/* PDF 전용 헤더 (인쇄 시에만 표시) */}
-      <div className="pdf-header" style={{ display: 'none' }}>
-        AI 롤플레잉 훈련 시스템
+    <div ref={reportRef} className="max-w-6xl mx-auto space-y-6 print-report-container" data-testid="personal-development-report">
+      {/* PDF 전용 헤더 (인쇄/PDF 시에만 표시) */}
+      <div className="pdf-header hidden print:block">
+        개인 맞춤 개발 보고서 - {scenario.title}
       </div>
       
       {/* 화면용 헤더 */}
@@ -945,32 +1020,31 @@ export default function PersonalDevelopmentReport({
         </Button>
         <Button 
           variant="secondary"
-          onClick={() => {
-            try {
-              // 브라우저 기본 인쇄 기능 실행
-              window.print();
-            } catch (error) {
-              console.error('인쇄 오류:', error);
-              // 사용자 친화적인 오류 메시지
-              const userAgent = navigator.userAgent;
-              let message = '인쇄 기능을 사용할 수 없습니다.';
-              
-              if (userAgent.includes('Chrome')) {
-                message += ' Chrome에서 Ctrl+P를 눌러 직접 인쇄해보세요.';
-              } else if (userAgent.includes('Firefox')) {
-                message += ' Firefox에서 Ctrl+P를 눌러 직접 인쇄해보세요.';
-              } else {
-                message += ' 브라우저에서 Ctrl+P(Windows) 또는 Cmd+P(Mac)를 눌러 직접 인쇄해보세요.';
-              }
-              
-              alert(message);
-            }
-          }}
+          onClick={handlePrint}
           className="min-w-[120px]"
           data-testid="print-report-button"
         >
           <i className="fas fa-print mr-2"></i>
           보고서 인쇄
+        </Button>
+        <Button 
+          variant="outline"
+          onClick={handleExportPdf}
+          disabled={isExportingPdf}
+          className="min-w-[120px]"
+          data-testid="export-pdf-button"
+        >
+          {isExportingPdf ? (
+            <>
+              <i className="fas fa-spinner fa-spin mr-2"></i>
+              PDF 저장 중...
+            </>
+          ) : (
+            <>
+              <i className="fas fa-file-pdf mr-2"></i>
+              PDF 저장
+            </>
+          )}
         </Button>
       </div>
     </div>
