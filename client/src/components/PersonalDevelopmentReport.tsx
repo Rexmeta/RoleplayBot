@@ -191,10 +191,9 @@ export default function PersonalDevelopmentReport({
       }
     },
     onSuccess: (data) => {
-      console.log("피드백 생성 완료, 캐시 업데이트");
-      // 캐시 무효화 후 자동으로 다시 가져오기
-      queryClient.invalidateQueries({ queryKey: ["/api/conversations", conversationId, "feedback"] });
-      refetch();
+      console.log("피드백 생성 완료, 캐시 즉시 업데이트");
+      // 캐시에 즉시 피드백 데이터 설정 (에러 상태를 덮어씀)
+      queryClient.setQueryData(["/api/conversations", conversationId, "feedback"], data);
     },
     onError: (error) => {
       console.error("피드백 생성 오류:", error);
