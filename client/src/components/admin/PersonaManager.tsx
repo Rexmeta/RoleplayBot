@@ -656,353 +656,409 @@ export function PersonaManager() {
               페르소나 생성
             </Button>
           </DialogTrigger>
-          <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-            <DialogHeader>
-              <DialogTitle>
+          <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto bg-slate-50">
+            <DialogHeader className="bg-indigo-600 -m-6 mb-4 p-6 rounded-t-lg">
+              <DialogTitle className="text-white text-xl flex items-center gap-2">
+                <i className="fas fa-user-edit"></i>
                 {editingPersona ? '페르소나 수정' : '페르소나 생성'}
               </DialogTitle>
             </DialogHeader>
             
             <form onSubmit={handleSubmit} className="space-y-6">
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <Label htmlFor="id">MBTI ID (소문자)</Label>
-                  <Input
-                    id="id"
-                    value={formData.id}
-                    onChange={(e) => setFormData(prev => ({ ...prev, id: e.target.value }))}
-                    placeholder="istj, enfp, intp 등"
-                    required
-                    data-testid="input-persona-id"
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="mbti">MBTI 유형 (대문자)</Label>
-                  <Input
-                    id="mbti"
-                    value={formData.mbti}
-                    onChange={(e) => setFormData(prev => ({ ...prev, mbti: e.target.value }))}
-                    placeholder="ISTJ, ENFP, INTP 등"
-                    required
-                    data-testid="input-mbti"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <Label htmlFor="personality_traits">성격 특성 (쉼표로 구분)</Label>
-                <Textarea
-                  id="personality_traits"
-                  value={formData.personality_traits.join(', ')}
-                  onChange={(e) => setFormData(prev => ({ 
-                    ...prev, 
-                    personality_traits: e.target.value.split(',').map(s => s.trim()).filter(s => s)
-                  }))}
-                  placeholder="경험 기반 사고, 현실적, 해결책 지향"
-                  className="min-h-[80px]"
-                  data-testid="textarea-personality-traits"
-                />
-              </div>
-
-              <div>
-                <Label htmlFor="communication_style">의사소통 스타일</Label>
-                <Textarea
-                  id="communication_style"
-                  value={formData.communication_style}
-                  onChange={(e) => setFormData(prev => ({ ...prev, communication_style: e.target.value }))}
-                  placeholder="차분하고 논리적이며, 구체적 사례를 중시함"
-                  className="min-h-[60px]"
-                  data-testid="textarea-communication-style"
-                />
-              </div>
-
-              <div>
-                <Label htmlFor="motivation">동기</Label>
-                <Textarea
-                  id="motivation"
-                  value={formData.motivation}
-                  onChange={(e) => setFormData(prev => ({ ...prev, motivation: e.target.value }))}
-                  placeholder="효율적 문제 해결과 신뢰 구축"
-                  data-testid="input-motivation"
-                />
-              </div>
-
-              <div>
-                <Label htmlFor="fears">두려움/우려사항 (쉼표로 구분)</Label>
-                <Input
-                  id="fears"
-                  value={formData.fears.join(', ')}
-                  onChange={(e) => setFormData(prev => ({ 
-                    ...prev, 
-                    fears: e.target.value.split(',').map(s => s.trim()).filter(s => s)
-                  }))}
-                  placeholder="통제 불가능한 상황, 과부하, 혼란"
-                  data-testid="input-fears"
-                />
-              </div>
-
-              <div className="space-y-4 border-t pt-4">
-                <h3 className="text-lg font-medium text-slate-800">배경 정보</h3>
-                
-                <div>
-                  <Label htmlFor="personal_values">개인 가치관 (쉼표로 구분)</Label>
-                  <Input
-                    id="personal_values"
-                    value={formData.background?.personal_values?.join(', ') || ''}
-                    onChange={(e) => setFormData(prev => ({ 
-                      ...prev, 
-                      background: {
-                        ...prev.background,
-                        personal_values: e.target.value.split(',').map(s => s.trim()).filter(s => s)
-                      }
-                    }))}
-                    placeholder="협력, 공감, 조화, 자유, 즐거움"
-                    data-testid="input-personal-values"
-                  />
-                </div>
-
-                <div>
-                  <Label htmlFor="hobbies">취미 (쉼표로 구분)</Label>
-                  <Input
-                    id="hobbies"
-                    value={formData.background?.hobbies?.join(', ') || ''}
-                    onChange={(e) => setFormData(prev => ({ 
-                      ...prev, 
-                      background: {
-                        ...prev.background,
-                        hobbies: e.target.value.split(',').map(s => s.trim()).filter(s => s)
-                      }
-                    }))}
-                    placeholder="리더십 활동, 멘토링, 파티, 여행"
-                    data-testid="input-hobbies"
-                  />
-                </div>
-
-                <div className="grid grid-cols-2 gap-3">
+              {/* 기본 정보 섹션 */}
+              <div className="bg-white rounded-lg p-5 shadow-sm border border-slate-200">
+                <h3 className="text-base font-bold text-slate-900 mb-4 flex items-center gap-2 pb-2 border-b border-slate-200">
+                  <i className="fas fa-id-card text-indigo-600"></i>
+                  기본 정보
+                </h3>
+                <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <Label htmlFor="social_preference">사회적 선호</Label>
+                    <Label htmlFor="id" className="text-sm font-semibold text-slate-700 mb-1.5 block">MBTI ID (소문자)</Label>
                     <Input
-                      id="social_preference"
-                      value={formData.background?.social?.preference || ''}
+                      id="id"
+                      value={formData.id}
+                      onChange={(e) => setFormData(prev => ({ ...prev, id: e.target.value }))}
+                      placeholder="istj, enfp, intp 등"
+                      required
+                      className="border-slate-300 focus:border-indigo-500 focus:ring-indigo-500 bg-white"
+                      data-testid="input-persona-id"
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="mbti" className="text-sm font-semibold text-slate-700 mb-1.5 block">MBTI 유형 (대문자)</Label>
+                    <Input
+                      id="mbti"
+                      value={formData.mbti}
+                      onChange={(e) => setFormData(prev => ({ ...prev, mbti: e.target.value }))}
+                      placeholder="ISTJ, ENFP, INTP 등"
+                      required
+                      className="border-slate-300 focus:border-indigo-500 focus:ring-indigo-500 bg-white"
+                      data-testid="input-mbti"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* 성격 특성 섹션 */}
+              <div className="bg-white rounded-lg p-5 shadow-sm border border-slate-200">
+                <h3 className="text-base font-bold text-slate-900 mb-4 flex items-center gap-2 pb-2 border-b border-slate-200">
+                  <i className="fas fa-brain text-purple-600"></i>
+                  성격 특성
+                </h3>
+                <div className="space-y-4">
+                  <div>
+                    <Label htmlFor="personality_traits" className="text-sm font-semibold text-slate-700 mb-1.5 block">성격 특성 (쉼표로 구분)</Label>
+                    <Textarea
+                      id="personality_traits"
+                      value={formData.personality_traits.join(', ')}
+                      onChange={(e) => setFormData(prev => ({ 
+                        ...prev, 
+                        personality_traits: e.target.value.split(',').map(s => s.trim()).filter(s => s)
+                      }))}
+                      placeholder="경험 기반 사고, 현실적, 해결책 지향"
+                      className="min-h-[80px] border-slate-300 focus:border-indigo-500 focus:ring-indigo-500 bg-white"
+                      data-testid="textarea-personality-traits"
+                    />
+                  </div>
+
+                  <div>
+                    <Label htmlFor="communication_style" className="text-sm font-semibold text-slate-700 mb-1.5 block">의사소통 스타일</Label>
+                    <Textarea
+                      id="communication_style"
+                      value={formData.communication_style}
+                      onChange={(e) => setFormData(prev => ({ ...prev, communication_style: e.target.value }))}
+                      placeholder="차분하고 논리적이며, 구체적 사례를 중시함"
+                      className="min-h-[60px] border-slate-300 focus:border-indigo-500 focus:ring-indigo-500 bg-white"
+                      data-testid="textarea-communication-style"
+                    />
+                  </div>
+
+                  <div>
+                    <Label htmlFor="motivation" className="text-sm font-semibold text-slate-700 mb-1.5 block">동기</Label>
+                    <Textarea
+                      id="motivation"
+                      value={formData.motivation}
+                      onChange={(e) => setFormData(prev => ({ ...prev, motivation: e.target.value }))}
+                      placeholder="효율적 문제 해결과 신뢰 구축"
+                      className="border-slate-300 focus:border-indigo-500 focus:ring-indigo-500 bg-white"
+                      data-testid="input-motivation"
+                    />
+                  </div>
+
+                  <div>
+                    <Label htmlFor="fears" className="text-sm font-semibold text-slate-700 mb-1.5 block">두려움/우려사항 (쉼표로 구분)</Label>
+                    <Input
+                      id="fears"
+                      value={formData.fears.join(', ')}
+                      onChange={(e) => setFormData(prev => ({ 
+                        ...prev, 
+                        fears: e.target.value.split(',').map(s => s.trim()).filter(s => s)
+                      }))}
+                      placeholder="통제 불가능한 상황, 과부하, 혼란"
+                      className="border-slate-300 focus:border-indigo-500 focus:ring-indigo-500 bg-white"
+                      data-testid="input-fears"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* 배경 정보 섹션 */}
+              <div className="bg-white rounded-lg p-5 shadow-sm border border-slate-200">
+                <h3 className="text-base font-bold text-slate-900 mb-4 flex items-center gap-2 pb-2 border-b border-slate-200">
+                  <i className="fas fa-user-circle text-green-600"></i>
+                  배경 정보
+                </h3>
+                
+                <div className="space-y-4">
+                  <div>
+                    <Label htmlFor="personal_values" className="text-sm font-semibold text-slate-700 mb-1.5 block">개인 가치관 (쉼표로 구분)</Label>
+                    <Input
+                      id="personal_values"
+                      value={formData.background?.personal_values?.join(', ') || ''}
                       onChange={(e) => setFormData(prev => ({ 
                         ...prev, 
                         background: {
                           ...prev.background,
-                          social: {
-                            ...prev.background?.social,
-                            preference: e.target.value
-                          }
+                          personal_values: e.target.value.split(',').map(s => s.trim()).filter(s => s)
                         }
                       }))}
-                      placeholder="넓은 관계 유지"
-                      data-testid="input-social-preference"
+                      placeholder="협력, 공감, 조화, 자유, 즐거움"
+                      className="border-slate-300 focus:border-indigo-500 focus:ring-indigo-500 bg-white"
+                      data-testid="input-personal-values"
                     />
                   </div>
 
                   <div>
-                    <Label htmlFor="social_behavior">사회적 행동</Label>
+                    <Label htmlFor="hobbies" className="text-sm font-semibold text-slate-700 mb-1.5 block">취미 (쉼표로 구분)</Label>
                     <Input
-                      id="social_behavior"
-                      value={formData.background?.social?.behavior || ''}
+                      id="hobbies"
+                      value={formData.background?.hobbies?.join(', ') || ''}
                       onChange={(e) => setFormData(prev => ({ 
                         ...prev, 
                         background: {
                           ...prev.background,
-                          social: {
-                            ...prev.background?.social,
-                            behavior: e.target.value
+                          hobbies: e.target.value.split(',').map(s => s.trim()).filter(s => s)
+                        }
+                      }))}
+                      placeholder="리더십 활동, 멘토링, 파티, 여행"
+                      className="border-slate-300 focus:border-indigo-500 focus:ring-indigo-500 bg-white"
+                      data-testid="input-hobbies"
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <Label htmlFor="social_preference" className="text-sm font-semibold text-slate-700 mb-1.5 block">사회적 선호</Label>
+                      <Input
+                        id="social_preference"
+                        value={formData.background?.social?.preference || ''}
+                        onChange={(e) => setFormData(prev => ({ 
+                          ...prev, 
+                          background: {
+                            ...prev.background,
+                            social: {
+                              ...prev.background?.social,
+                              preference: e.target.value
+                            }
                           }
+                        }))}
+                        placeholder="넓은 관계 유지"
+                        className="border-slate-300 focus:border-indigo-500 focus:ring-indigo-500 bg-white"
+                        data-testid="input-social-preference"
+                      />
+                    </div>
+
+                    <div>
+                      <Label htmlFor="social_behavior" className="text-sm font-semibold text-slate-700 mb-1.5 block">사회적 행동</Label>
+                      <Input
+                        id="social_behavior"
+                        value={formData.background?.social?.behavior || ''}
+                        onChange={(e) => setFormData(prev => ({ 
+                          ...prev, 
+                          background: {
+                            ...prev.background,
+                            social: {
+                              ...prev.background?.social,
+                              behavior: e.target.value
+                            }
+                          }
+                        }))}
+                        placeholder="협력과 조율 강조"
+                        className="border-slate-300 focus:border-indigo-500 focus:ring-indigo-500 bg-white"
+                        data-testid="input-social-behavior"
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* 의사소통 패턴 섹션 */}
+              <div className="bg-white rounded-lg p-5 shadow-sm border border-slate-200">
+                <h3 className="text-base font-bold text-slate-900 mb-4 flex items-center gap-2 pb-2 border-b border-slate-200">
+                  <i className="fas fa-comments text-blue-600"></i>
+                  의사소통 패턴
+                </h3>
+                <div className="space-y-4">
+                  <div>
+                    <Label htmlFor="opening_style" className="text-sm font-semibold text-slate-700 mb-1.5 block">대화 시작 스타일</Label>
+                    <Input
+                      id="opening_style"
+                      value={formData.communication_patterns?.opening_style || ''}
+                      onChange={(e) => setFormData(prev => ({ 
+                        ...prev, 
+                        communication_patterns: {
+                          ...prev.communication_patterns,
+                          opening_style: e.target.value
                         }
                       }))}
-                      placeholder="협력과 조율 강조"
-                      data-testid="input-social-behavior"
-                    />
-                  </div>
-                </div>
-              </div>
-
-              <div className="space-y-4 border-t pt-4">
-                <h3 className="text-lg font-medium text-slate-800">의사소통 패턴</h3>
-                
-                <div>
-                  <Label htmlFor="opening_style">대화 시작 스타일</Label>
-                  <Input
-                    id="opening_style"
-                    value={formData.communication_patterns?.opening_style || ''}
-                    onChange={(e) => setFormData(prev => ({ 
-                      ...prev, 
-                      communication_patterns: {
-                        ...prev.communication_patterns,
-                        opening_style: e.target.value
-                      }
-                    }))}
-                    placeholder="바로 핵심 주제로 직행 / 유머나 경험 공유로 시작"
-                    data-testid="input-opening-style"
-                  />
-                </div>
-
-                <div>
-                  <Label htmlFor="key_phrases">주요 표현 (쉼표로 구분)</Label>
-                  <Textarea
-                    id="key_phrases"
-                    value={formData.communication_patterns?.key_phrases?.join(', ') || ''}
-                    onChange={(e) => setFormData(prev => ({ 
-                      ...prev, 
-                      communication_patterns: {
-                        ...prev.communication_patterns,
-                        key_phrases: e.target.value.split(',').map(s => s.trim()).filter(s => s)
-                      }
-                    }))}
-                    placeholder="솔직히 말씀드리면..., 이거 재미있지 않아요?, 논리적으로 맞지 않습니다."
-                    className="min-h-[60px]"
-                    data-testid="textarea-key-phrases"
-                  />
-                </div>
-
-                <div>
-                  <Label htmlFor="win_conditions">승리 조건 (쉼표로 구분)</Label>
-                  <Textarea
-                    id="win_conditions"
-                    value={formData.communication_patterns?.win_conditions?.join(', ') || ''}
-                    onChange={(e) => setFormData(prev => ({ 
-                      ...prev, 
-                      communication_patterns: {
-                        ...prev.communication_patterns,
-                        win_conditions: e.target.value.split(',').map(s => s.trim()).filter(s => s)
-                      }
-                    }))}
-                    placeholder="상대가 논리적 허점을 인정, 즐거움과 합리적 해결책 균형"
-                    className="min-h-[60px]"
-                    data-testid="textarea-win-conditions"
-                  />
-                </div>
-              </div>
-
-              <div className="space-y-4 border-t pt-4">
-                <h3 className="text-lg font-medium text-slate-800">음성 특성</h3>
-                
-                <div className="grid grid-cols-3 gap-3">
-                  <div>
-                    <Label htmlFor="voice_tone">톤</Label>
-                    <Input
-                      id="voice_tone"
-                      value={formData.voice?.tone || ''}
-                      onChange={(e) => setFormData(prev => ({ 
-                        ...prev, 
-                        voice: { ...prev.voice, tone: e.target.value }
-                      }))}
-                      placeholder="따뜻하고 설득적"
-                      data-testid="input-voice-tone"
+                      placeholder="바로 핵심 주제로 직행 / 유머나 경험 공유로 시작"
+                      className="border-slate-300 focus:border-indigo-500 focus:ring-indigo-500 bg-white"
+                      data-testid="input-opening-style"
                     />
                   </div>
 
                   <div>
-                    <Label htmlFor="voice_pace">속도</Label>
-                    <Input
-                      id="voice_pace"
-                      value={formData.voice?.pace || ''}
+                    <Label htmlFor="key_phrases" className="text-sm font-semibold text-slate-700 mb-1.5 block">주요 표현 (쉼표로 구분)</Label>
+                    <Textarea
+                      id="key_phrases"
+                      value={formData.communication_patterns?.key_phrases?.join(', ') || ''}
                       onChange={(e) => setFormData(prev => ({ 
                         ...prev, 
-                        voice: { ...prev.voice, pace: e.target.value }
-                      }))}
-                      placeholder="중간 / 빠름"
-                      data-testid="input-voice-pace"
-                    />
-                  </div>
-
-                  <div>
-                    <Label htmlFor="voice_emotion">감정</Label>
-                    <Input
-                      id="voice_emotion"
-                      value={formData.voice?.emotion || ''}
-                      onChange={(e) => setFormData(prev => ({ 
-                        ...prev, 
-                        voice: { ...prev.voice, emotion: e.target.value }
-                      }))}
-                      placeholder="공감과 진지함"
-                      data-testid="input-voice-emotion"
-                    />
-                  </div>
-                </div>
-              </div>
-
-              <div>
-                <Label htmlFor="gender">성별</Label>
-                <Select value={formData.gender} onValueChange={(value: 'male' | 'female') => {
-                  setFormData(prev => {
-                    const neutralImage = value === 'male' 
-                      ? prev.images?.male?.expressions?.['중립']
-                      : prev.images?.female?.expressions?.['중립'];
-                    
-                    return {
-                      ...prev, 
-                      gender: value,
-                      images: {
-                        ...prev.images,
-                        base: neutralImage || prev.images?.base || ''
-                      }
-                    };
-                  });
-                }}>
-                  <SelectTrigger data-testid="select-gender">
-                    <SelectValue placeholder="성별 선택" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="male">남성</SelectItem>
-                    <SelectItem value="female">여성</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="space-y-4 border-t pt-4">
-                <h3 className="text-lg font-medium text-slate-800">이미지 정보</h3>
-                
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <Label htmlFor="images_base">기본 이미지 URL</Label>
-                    <Input
-                      id="images_base"
-                      value={formData.images?.base || ''}
-                      onChange={(e) => setFormData(prev => ({ 
-                        ...prev, 
-                        images: { 
-                          ...prev.images, 
-                          base: e.target.value, 
-                          style: prev.images.style || '',
-                          male: prev.images.male,
-                          female: prev.images.female
+                        communication_patterns: {
+                          ...prev.communication_patterns,
+                          key_phrases: e.target.value.split(',').map(s => s.trim()).filter(s => s)
                         }
                       }))}
-                      placeholder="https://picsum.photos/seed/mbti/150/150"
-                      data-testid="input-images-base"
+                      placeholder="솔직히 말씀드리면..., 이거 재미있지 않아요?, 논리적으로 맞지 않습니다."
+                      className="min-h-[60px] border-slate-300 focus:border-indigo-500 focus:ring-indigo-500 bg-white"
+                      data-testid="textarea-key-phrases"
                     />
                   </div>
 
                   <div>
-                    <Label htmlFor="images_style">이미지 스타일</Label>
-                    <Input
-                      id="images_style"
-                      value={formData.images?.style || ''}
+                    <Label htmlFor="win_conditions" className="text-sm font-semibold text-slate-700 mb-1.5 block">승리 조건 (쉼표로 구분)</Label>
+                    <Textarea
+                      id="win_conditions"
+                      value={formData.communication_patterns?.win_conditions?.join(', ') || ''}
                       onChange={(e) => setFormData(prev => ({ 
                         ...prev, 
-                        images: { 
-                          ...prev.images, 
-                          style: e.target.value, 
-                          base: prev.images.base || '',
-                          male: prev.images.male,
-                          female: prev.images.female
+                        communication_patterns: {
+                          ...prev.communication_patterns,
+                          win_conditions: e.target.value.split(',').map(s => s.trim()).filter(s => s)
                         }
                       }))}
-                      placeholder="실제 인물 사진 느낌"
-                      data-testid="input-images-style"
+                      placeholder="상대가 논리적 허점을 인정, 즐거움과 합리적 해결책 균형"
+                      className="min-h-[60px] border-slate-300 focus:border-indigo-500 focus:ring-indigo-500 bg-white"
+                      data-testid="textarea-win-conditions"
                     />
                   </div>
                 </div>
               </div>
 
-              <div className="space-y-4 border-t pt-4">
-                <div className="flex items-center justify-between">
-                  <h3 className="text-lg font-medium text-slate-800">표정 이미지 생성</h3>
+              {/* 음성 및 성별 섹션 */}
+              <div className="bg-white rounded-lg p-5 shadow-sm border border-slate-200">
+                <h3 className="text-base font-bold text-slate-900 mb-4 flex items-center gap-2 pb-2 border-b border-slate-200">
+                  <i className="fas fa-microphone text-orange-600"></i>
+                  음성 특성 및 성별
+                </h3>
+                <div className="space-y-4">
+                  <div className="grid grid-cols-3 gap-3">
+                    <div>
+                      <Label htmlFor="voice_tone" className="text-sm font-semibold text-slate-700 mb-1.5 block">톤</Label>
+                      <Input
+                        id="voice_tone"
+                        value={formData.voice?.tone || ''}
+                        onChange={(e) => setFormData(prev => ({ 
+                          ...prev, 
+                          voice: { ...prev.voice, tone: e.target.value }
+                        }))}
+                        placeholder="따뜻하고 설득적"
+                        className="border-slate-300 focus:border-indigo-500 focus:ring-indigo-500 bg-white"
+                        data-testid="input-voice-tone"
+                      />
+                    </div>
+
+                    <div>
+                      <Label htmlFor="voice_pace" className="text-sm font-semibold text-slate-700 mb-1.5 block">속도</Label>
+                      <Input
+                        id="voice_pace"
+                        value={formData.voice?.pace || ''}
+                        onChange={(e) => setFormData(prev => ({ 
+                          ...prev, 
+                          voice: { ...prev.voice, pace: e.target.value }
+                        }))}
+                        placeholder="중간 / 빠름"
+                        className="border-slate-300 focus:border-indigo-500 focus:ring-indigo-500 bg-white"
+                        data-testid="input-voice-pace"
+                      />
+                    </div>
+
+                    <div>
+                      <Label htmlFor="voice_emotion" className="text-sm font-semibold text-slate-700 mb-1.5 block">감정</Label>
+                      <Input
+                        id="voice_emotion"
+                        value={formData.voice?.emotion || ''}
+                        onChange={(e) => setFormData(prev => ({ 
+                          ...prev, 
+                          voice: { ...prev.voice, emotion: e.target.value }
+                        }))}
+                        placeholder="공감과 진지함"
+                        className="border-slate-300 focus:border-indigo-500 focus:ring-indigo-500 bg-white"
+                        data-testid="input-voice-emotion"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <Label htmlFor="gender" className="text-sm font-semibold text-slate-700 mb-1.5 block">성별</Label>
+                    <Select value={formData.gender} onValueChange={(value: 'male' | 'female') => {
+                      setFormData(prev => {
+                        const neutralImage = value === 'male' 
+                          ? prev.images?.male?.expressions?.['중립']
+                          : prev.images?.female?.expressions?.['중립'];
+                        
+                        return {
+                          ...prev, 
+                          gender: value,
+                          images: {
+                            ...prev.images,
+                            base: neutralImage || prev.images?.base || ''
+                          }
+                        };
+                      });
+                    }}>
+                      <SelectTrigger data-testid="select-gender" className="border-slate-300 focus:border-indigo-500 focus:ring-indigo-500 bg-white">
+                        <SelectValue placeholder="성별 선택" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="male">남성</SelectItem>
+                        <SelectItem value="female">여성</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+              </div>
+
+              {/* 이미지 정보 섹션 */}
+              <div className="bg-white rounded-lg p-5 shadow-sm border border-slate-200">
+                <h3 className="text-base font-bold text-slate-900 mb-4 flex items-center gap-2 pb-2 border-b border-slate-200">
+                  <i className="fas fa-image text-pink-600"></i>
+                  이미지 정보
+                </h3>
+                <div className="space-y-4">
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <Label htmlFor="images_base" className="text-sm font-semibold text-slate-700 mb-1.5 block">기본 이미지 URL</Label>
+                      <Input
+                        id="images_base"
+                        value={formData.images?.base || ''}
+                        onChange={(e) => setFormData(prev => ({ 
+                          ...prev, 
+                          images: { 
+                            ...prev.images, 
+                            base: e.target.value, 
+                            style: prev.images.style || '',
+                            male: prev.images.male,
+                            female: prev.images.female
+                          }
+                        }))}
+                        placeholder="https://picsum.photos/seed/mbti/150/150"
+                        className="border-slate-300 focus:border-indigo-500 focus:ring-indigo-500 bg-white"
+                        data-testid="input-images-base"
+                      />
+                    </div>
+
+                    <div>
+                      <Label htmlFor="images_style" className="text-sm font-semibold text-slate-700 mb-1.5 block">이미지 스타일</Label>
+                      <Input
+                        id="images_style"
+                        value={formData.images?.style || ''}
+                        onChange={(e) => setFormData(prev => ({ 
+                          ...prev, 
+                          images: { 
+                            ...prev.images, 
+                            style: e.target.value, 
+                            base: prev.images.base || '',
+                            male: prev.images.male,
+                            female: prev.images.female
+                          }
+                        }))}
+                        placeholder="실제 인물 사진 느낌"
+                        className="border-slate-300 focus:border-indigo-500 focus:ring-indigo-500 bg-white"
+                        data-testid="input-images-style"
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* 표정 이미지 생성 섹션 */}
+              <div className="bg-white rounded-lg p-5 shadow-sm border border-slate-200">
+                <div className="flex items-center justify-between mb-4 pb-2 border-b border-slate-200">
+                  <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
+                    <i className="fas fa-magic text-amber-600"></i>
+                    표정 이미지 생성
+                  </h3>
                   <div className="flex gap-2">
                     <Button
                       type="button"

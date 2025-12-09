@@ -1,7 +1,7 @@
 {
   "id": "isfj",
   "mbti": "ISFJ",
-  "gender": "male",
+  "gender": "female",
   "personality_traits": [
     "헌신적",
     "세심함",
@@ -52,8 +52,8 @@
     "emotion": "균형 잡힌 감정 표현"
   },
   "images": {
-    "base": "/personas/isfj/male/neutral.webp",
-    "style": "한국인 실물 사진 회의실에 앉아서 ",
+    "base": "/personas/isfj/female/neutral.webp?t=1765276715968",
+    "style": "한국인 치아가 보이지 않는 무표정, 실물 사진 회의실에 앉아서 ",
     "male": {
       "expressions": {
         "중립": "/personas/isfj/male/neutral.webp",
@@ -70,16 +70,16 @@
     },
     "female": {
       "expressions": {
-        "중립": "/personas/isfj/female/neutral.webp",
-        "기쁨": "/personas/isfj/female/joy.webp",
-        "슬픔": "/personas/isfj/female/sad.webp",
-        "분노": "/personas/isfj/female/angry.webp",
-        "놀람": "/personas/isfj/female/surprise.webp",
-        "호기심": "/personas/isfj/female/curious.webp",
-        "불안": "/personas/isfj/female/anxious.webp",
-        "피로": "/personas/isfj/female/tired.webp",
-        "실망": "/personas/isfj/female/disappointed.webp",
-        "당혹": "/personas/isfj/female/confused.webp"
+        "중립": "/personas/isfj/female/neutral.webp?t=1765276715968",
+        "기쁨": "/personas/isfj/female/joy.webp?t=1765276837786",
+        "슬픔": "/personas/isfj/female/sad.webp?t=1765276837786",
+        "분노": "/personas/isfj/female/angry.webp?t=1765276837786",
+        "놀람": "/personas/isfj/female/surprise.webp?t=1765276837786",
+        "호기심": "/personas/isfj/female/curious.webp?t=1765276837786",
+        "불안": "/personas/isfj/female/anxious.webp?t=1765276837786",
+        "피로": "/personas/isfj/female/tired.webp?t=1765276837786",
+        "실망": "/personas/isfj/female/disappointed.webp?t=1765276837786",
+        "당혹": "/personas/isfj/female/confused.webp?t=1765276837786"
       }
     }
   }
