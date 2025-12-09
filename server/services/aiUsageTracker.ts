@@ -1,25 +1,21 @@
 import { storage } from '../storage';
 import type { InsertAiUsageLog } from '@shared/schema';
 
-// Model pricing per 1M tokens (USD)
+// Model pricing per 1M tokens (USD) - Updated December 2025
 export const MODEL_PRICING: Record<string, { input: number; output: number }> = {
-  // Gemini models
-  'gemini-2.5-flash': { input: 0.15, output: 0.60 },
-  'gemini-2.5-pro': { input: 1.25, output: 10.00 },
+  // Gemini models (2025 pricing - unified thinking/non-thinking)
+  'gemini-2.5-flash': { input: 0.30, output: 2.50 },
+  'gemini-2.5-pro': { input: 1.25, output: 10.00 }, // ≤200K tokens
   'gemini-2.0-flash-live-001': { input: 0.35, output: 1.50 }, // Gemini Live preview
   'gemini-live-2.5-flash-preview': { input: 0.35, output: 1.50 }, // Gemini Live 2.5 Flash
-  'gemini-2.5-flash-image-preview': { input: 0.15, output: 0.60 }, // Image generation
-  'gemini-2.0-flash-preview-image-generation': { input: 0.15, output: 0.60 }, // Image generation (legacy)
+  'gemini-2.5-flash-image-preview': { input: 0.30, output: 2.50 }, // Image generation
+  'gemini-2.0-flash-preview-image-generation': { input: 0.30, output: 2.50 }, // Image generation (legacy)
   'veo-3.1-generate-preview': { input: 0.00, output: 0.00 }, // Veo video generation (per-video pricing, not per-token)
   
   // OpenAI models
   'gpt-4o': { input: 2.50, output: 10.00 },
   'gpt-4o-mini': { input: 0.15, output: 0.60 },
   'gpt-4o-realtime-preview': { input: 5.00, output: 20.00 }, // Realtime API (text tokens)
-  
-  // Claude models (for future use)
-  'claude-3.5-sonnet': { input: 3.00, output: 15.00 },
-  'claude-3.5-haiku': { input: 0.80, output: 4.00 },
 };
 
 // Video generation pricing (per video, not per token)

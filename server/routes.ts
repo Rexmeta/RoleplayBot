@@ -3332,7 +3332,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
         gemini: !!(process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY),
         openai: !!process.env.OPENAI_API_KEY,
         elevenlabs: !!process.env.ELEVENLABS_API_KEY,
-        anthropic: !!process.env.ANTHROPIC_API_KEY,
       };
       res.json(status);
     } catch (error: any) {

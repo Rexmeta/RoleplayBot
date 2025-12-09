@@ -107,7 +107,7 @@ const AI_MODELS = [
     label: "Gemini 2.5 Flash", 
     provider: "Google",
     description: "빠른 응답 속도, 일반 대화용",
-    pricing: "입력 $0.075/1M 토큰, 출력 $0.30/1M 토큰",
+    pricing: "입력 $0.30/1M 토큰, 출력 $2.50/1M 토큰",
     features: "텍스트 생성, 멀티모달 지원",
     recommended: true
   },
@@ -116,7 +116,7 @@ const AI_MODELS = [
     label: "Gemini 2.5 Pro", 
     provider: "Google",
     description: "높은 품질, 복잡한 대화용",
-    pricing: "입력 $1.25/1M 토큰, 출력 $5.00/1M 토큰",
+    pricing: "입력 $1.25/1M 토큰, 출력 $10.00/1M 토큰",
     features: "최고 품질 텍스트, 복잡한 추론",
     recommended: false
   },
@@ -137,26 +137,6 @@ const AI_MODELS = [
     pricing: "입력 $0.15/1M 토큰, 출력 $0.60/1M 토큰",
     features: "빠른 속도, 비용 효율적",
     recommended: false
-  },
-  { 
-    value: "claude-3-5-sonnet-20241022", 
-    label: "Claude 3.5 Sonnet", 
-    provider: "Anthropic",
-    description: "균형 잡힌 성능과 속도 (준비 중)",
-    pricing: "입력 $3.00/1M 토큰, 출력 $15.00/1M 토큰",
-    features: "고품질 텍스트, 긴 문맥 지원",
-    recommended: false,
-    disabled: true
-  },
-  { 
-    value: "claude-3-5-haiku-20241022", 
-    label: "Claude 3.5 Haiku", 
-    provider: "Anthropic",
-    description: "빠르고 경제적인 모델 (준비 중)",
-    pricing: "입력 $0.80/1M 토큰, 출력 $4.00/1M 토큰",
-    features: "빠른 응답, 효율적",
-    recommended: false,
-    disabled: true
   },
 ];
 
@@ -180,7 +160,7 @@ const FEATURE_MODEL_INFO = [
     settingKey: "model_conversation",
     defaultModel: "gemini-2.5-flash",
     configurable: true,
-    supportedProviders: ["Google", "OpenAI"] // Claude 준비 중
+    supportedProviders: ["Google", "OpenAI"]
   },
   {
     id: "feedback",
@@ -189,7 +169,7 @@ const FEATURE_MODEL_INFO = [
     settingKey: "model_feedback",
     defaultModel: "gemini-2.5-flash",
     configurable: true,
-    supportedProviders: ["Google", "OpenAI"] // Claude 준비 중
+    supportedProviders: ["Google", "OpenAI"]
   },
   {
     id: "strategy",
@@ -238,7 +218,6 @@ interface ApiKeyStatus {
   gemini: boolean;
   openai: boolean;
   elevenlabs: boolean;
-  anthropic: boolean;
 }
 
 const roleConfig: Record<string, { label: string; color: string; bgColor: string }> = {
@@ -1248,23 +1227,6 @@ export default function SystemAdminPage() {
                       </div>
                       <Badge variant={apiKeyStatus?.elevenlabs ? "default" : "destructive"}>
                         {apiKeyStatus?.elevenlabs ? "설정됨" : "미설정"}
-                      </Badge>
-                    </div>
-
-                    <div className="flex items-center justify-between p-3 bg-slate-50 rounded-lg">
-                      <div className="flex items-center gap-3">
-                        {apiKeyStatus?.anthropic ? (
-                          <CheckCircle className="h-5 w-5 text-green-600" />
-                        ) : (
-                          <XCircle className="h-5 w-5 text-red-500" />
-                        )}
-                        <div>
-                          <p className="font-medium">Anthropic API</p>
-                          <p className="text-sm text-muted-foreground">Claude 모델 사용에 필요 (준비 중)</p>
-                        </div>
-                      </div>
-                      <Badge variant={apiKeyStatus?.anthropic ? "default" : "secondary"}>
-                        {apiKeyStatus?.anthropic ? "설정됨" : "미설정"}
                       </Badge>
                     </div>
 
