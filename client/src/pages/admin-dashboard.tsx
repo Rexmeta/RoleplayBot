@@ -103,6 +103,7 @@ interface TrendsData {
 
 export default function AdminDashboard() {
   const { user } = useAuth();
+  const [showMobileTabMenu, setShowMobileTabMenu] = useState(false);
 
   const { data: overview, isLoading: overviewLoading } = useQuery<AnalyticsOverview>({
     queryKey: ["/api/admin/analytics/overview"],
@@ -223,8 +224,9 @@ export default function AdminDashboard() {
       />
       <div className="container mx-auto p-6 space-y-6" data-testid="admin-dashboard">
       {/* Detailed Analytics */}
-      <Tabs defaultValue="overview" className="space-y-6">
-        <TabsList className="grid w-full grid-cols-7">
+      <Tabs defaultValue="overview" className="space-y-6" onValueChange={(value) => setShowMobileTabMenu(false)}>
+        {/* 데스크톱 탭 */}
+        <TabsList className="hidden md:grid w-full grid-cols-7">
           <TabsTrigger value="overview" data-testid="tab-overview">개요</TabsTrigger>
           <TabsTrigger value="performance" data-testid="tab-performance">성과 분석</TabsTrigger>
           <TabsTrigger value="scenarios" data-testid="tab-scenarios">시나리오 분석</TabsTrigger>
@@ -233,6 +235,36 @@ export default function AdminDashboard() {
           <TabsTrigger value="content" data-testid="tab-content">컨텐츠 현황</TabsTrigger>
           <TabsTrigger value="difficulty" data-testid="tab-difficulty">난이도 설정</TabsTrigger>
         </TabsList>
+        
+        {/* 모바일 탭 (스마트 버튼 포함) */}
+        <div className="md:hidden space-y-2">
+          <TabsList className="grid w-full grid-cols-4">
+            <TabsTrigger value="overview" data-testid="mobile-tab-overview">개요</TabsTrigger>
+            <TabsTrigger value="performance" data-testid="mobile-tab-performance">성과</TabsTrigger>
+            <TabsTrigger value="scenarios" data-testid="mobile-tab-scenarios">시나리오</TabsTrigger>
+            <button
+              type="button"
+              onClick={() => setShowMobileTabMenu(!showMobileTabMenu)}
+              className={`inline-flex items-center justify-center whitespace-nowrap rounded-sm px-3 py-1.5 text-sm font-medium ring-offset-background transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ${showMobileTabMenu ? 'bg-indigo-600 text-white' : 'bg-muted text-muted-foreground hover:bg-muted/80'}`}
+              data-testid="mobile-tab-more"
+            >
+              <i className={`fas ${showMobileTabMenu ? 'fa-times' : 'fa-ellipsis-h'} mr-1`}></i>
+              {showMobileTabMenu ? '닫기' : '더보기'}
+            </button>
+          </TabsList>
+          
+          {/* 확장 메뉴 */}
+          {showMobileTabMenu && (
+            <div className="bg-slate-100 rounded-lg p-2 animate-in slide-in-from-top duration-200">
+              <TabsList className="grid w-full grid-cols-2 gap-2 bg-transparent">
+                <TabsTrigger value="mbti" className="bg-white" data-testid="mobile-tab-mbti">MBTI 분석</TabsTrigger>
+                <TabsTrigger value="trends" className="bg-white" data-testid="mobile-tab-trends">트렌드</TabsTrigger>
+                <TabsTrigger value="content" className="bg-white" data-testid="mobile-tab-content">컨텐츠</TabsTrigger>
+                <TabsTrigger value="difficulty" className="bg-white" data-testid="mobile-tab-difficulty">난이도</TabsTrigger>
+              </TabsList>
+            </div>
+          )}
+        </div>
 
         {/* Overview Tab */}
         <TabsContent value="overview" className="space-y-6">
