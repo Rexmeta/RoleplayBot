@@ -3343,13 +3343,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // ===== AI Usage Tracking APIs =====
   
+  // 날짜를 해당 날짜의 끝(23:59:59.999)으로 설정하는 헬퍼 함수
+  const setEndOfDay = (date: Date): Date => {
+    const endOfDay = new Date(date);
+    endOfDay.setHours(23, 59, 59, 999);
+    return endOfDay;
+  };
+  
   // AI 사용량 요약 조회
   app.get("/api/system-admin/ai-usage/summary", isAuthenticated, isSystemAdmin, async (req, res) => {
     try {
       const { startDate, endDate } = req.query;
       
       // Default: last 30 days
-      const end = endDate ? new Date(endDate as string) : new Date();
+      let end = endDate ? new Date(endDate as string) : new Date();
+      end = setEndOfDay(end); // 해당 날짜의 끝으로 설정
       const start = startDate ? new Date(startDate as string) : new Date(end.getTime() - 30 * 24 * 60 * 60 * 1000);
       
       const summary = await storage.getAiUsageSummary(start, end);
@@ -3366,7 +3374,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { startDate, endDate } = req.query;
       
-      const end = endDate ? new Date(endDate as string) : new Date();
+      let end = endDate ? new Date(endDate as string) : new Date();
+      end = setEndOfDay(end); // 해당 날짜의 끝으로 설정
       const start = startDate ? new Date(startDate as string) : new Date(end.getTime() - 30 * 24 * 60 * 60 * 1000);
       
       const usageByFeature = await storage.getAiUsageByFeature(start, end);
@@ -3383,7 +3392,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { startDate, endDate } = req.query;
       
-      const end = endDate ? new Date(endDate as string) : new Date();
+      let end = endDate ? new Date(endDate as string) : new Date();
+      end = setEndOfDay(end); // 해당 날짜의 끝으로 설정
       const start = startDate ? new Date(startDate as string) : new Date(end.getTime() - 30 * 24 * 60 * 60 * 1000);
       
       const usageByModel = await storage.getAiUsageByModel(start, end);
@@ -3400,7 +3410,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { startDate, endDate } = req.query;
       
-      const end = endDate ? new Date(endDate as string) : new Date();
+      let end = endDate ? new Date(endDate as string) : new Date();
+      end = setEndOfDay(end); // 해당 날짜의 끝으로 설정
       const start = startDate ? new Date(startDate as string) : new Date(end.getTime() - 30 * 24 * 60 * 60 * 1000);
       
       const dailyUsage = await storage.getAiUsageDaily(start, end);
@@ -3417,7 +3428,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { startDate, endDate, limit } = req.query;
       
-      const end = endDate ? new Date(endDate as string) : new Date();
+      let end = endDate ? new Date(endDate as string) : new Date();
+      end = setEndOfDay(end); // 해당 날짜의 끝으로 설정
       const start = startDate ? new Date(startDate as string) : new Date(end.getTime() - 7 * 24 * 60 * 60 * 1000);
       const logLimit = limit ? parseInt(limit as string) : 100;
       
