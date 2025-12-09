@@ -52,8 +52,8 @@
     "emotion": "차분하지만 실용적"
   },
   "images": {
-    "base": "/personas/istp/female/neutral.webp",
-    "style": "한국인 상반신 전체 오피스 배경 ",
+    "base": "/personas/istp/female/neutral.webp?t=1765239857895",
+    "style": "한국인, 이가 보이지 않는 무표정, 상반신 전체 오피스 배경 ",
     "male": {
       "expressions": {
         "중립": "/personas/istp/male/neutral.webp",
@@ -70,7 +70,7 @@
     },
     "female": {
       "expressions": {
-        "중립": "/personas/istp/female/neutral.webp",
+        "중립": "/personas/istp/female/neutral.webp?t=1765239857895",
         "기쁨": "/personas/istp/female/joy.webp",
         "슬픔": "/personas/istp/female/sad.webp",
         "분노": "/personas/istp/female/angry.webp",

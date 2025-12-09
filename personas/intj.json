@@ -1,7 +1,7 @@
 {
   "id": "intj",
   "mbti": "INTJ",
-  "gender": "male",
+  "gender": "female",
   "personality_traits": [
     "전략적 사고",
     "독립적",
@@ -51,7 +51,7 @@
     "emotion": "균형 잡힌 감정 표현"
   },
   "images": {
-    "base": "/personas/intj/male/neutral.webp",
+    "base": "/personas/intj/female/neutral.webp?t=1765240395590",
     "style": "한국인 이가 보이지 않는 중립 표정, 상반신 전체가 보이는 앉아 있는 모습",
     "male": {
       "expressions": {
@@ -69,16 +69,16 @@
     },
     "female": {
       "expressions": {
-        "중립": "",
-        "기쁨": "",
-        "슬픔": "",
-        "분노": "",
-        "놀람": "",
-        "호기심": "",
-        "불안": "",
-        "피로": "",
-        "실망": "",
-        "당혹": ""
+        "중립": "/personas/intj/female/neutral.webp?t=1765240395590",
+        "기쁨": "/personas/intj/female/joy.webp?t=1765240575166",
+        "슬픔": "/personas/intj/female/sad.webp?t=1765240575166",
+        "분노": "/personas/intj/female/angry.webp?t=1765240575166",
+        "놀람": "/personas/intj/female/surprise.webp?t=1765240575166",
+        "호기심": "/personas/intj/female/curious.webp?t=1765240575166",
+        "불안": "/personas/intj/female/anxious.webp?t=1765240575166",
+        "피로": "/personas/intj/female/tired.webp?t=1765240575166",
+        "실망": "/personas/intj/female/disappointed.webp?t=1765240575166",
+        "당혹": "/personas/intj/female/confused.webp?t=1765240575166"
       }
     }
   }

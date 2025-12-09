@@ -33,7 +33,7 @@ import {
 import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { Search, Users, Shield, UserCog, Loader2, User, KeyRound, Eye, EyeOff, FolderTree, Plus, Pencil, Trash2, GripVertical, Settings, Save, CheckCircle, XCircle, ExternalLink, Activity, DollarSign, Zap, TrendingUp, Calendar } from "lucide-react";
+import { Search, Users, Shield, UserCog, Loader2, User, KeyRound, Eye, EyeOff, FolderTree, Plus, Pencil, Trash2, GripVertical, Settings, Save, CheckCircle, XCircle, ExternalLink, Activity, DollarSign, Zap, TrendingUp, Calendar, RefreshCw } from "lucide-react";
 import { format } from "date-fns";
 import { ko } from "date-fns/locale";
 
@@ -317,7 +317,7 @@ export default function SystemAdminPage() {
     return { start: start.toISOString().split('T')[0], end: end.toISOString().split('T')[0] };
   });
 
-  const { data: usageSummary, isLoading: usageSummaryLoading } = useQuery<AiUsageSummary>({
+  const { data: usageSummary, isLoading: usageSummaryLoading, refetch: refetchSummary } = useQuery<AiUsageSummary>({
     queryKey: ["/api/system-admin/ai-usage/summary", usageDateRange],
     queryFn: async () => {
       const params = new URLSearchParams({
@@ -331,9 +331,10 @@ export default function SystemAdminPage() {
       return res.json();
     },
     enabled: activeTab === 'ai-usage',
+    staleTime: 30 * 1000, // 30 seconds
   });
 
-  const { data: usageByFeature = [], isLoading: usageByFeatureLoading } = useQuery<AiUsageByFeature[]>({
+  const { data: usageByFeature = [], isLoading: usageByFeatureLoading, refetch: refetchByFeature } = useQuery<AiUsageByFeature[]>({
     queryKey: ["/api/system-admin/ai-usage/by-feature", usageDateRange],
     queryFn: async () => {
       const params = new URLSearchParams({
@@ -347,9 +348,10 @@ export default function SystemAdminPage() {
       return res.json();
     },
     enabled: activeTab === 'ai-usage',
+    staleTime: 30 * 1000, // 30 seconds
   });
 
-  const { data: usageByModel = [], isLoading: usageByModelLoading } = useQuery<AiUsageByModel[]>({
+  const { data: usageByModel = [], isLoading: usageByModelLoading, refetch: refetchByModel } = useQuery<AiUsageByModel[]>({
     queryKey: ["/api/system-admin/ai-usage/by-model", usageDateRange],
     queryFn: async () => {
       const params = new URLSearchParams({
@@ -363,9 +365,10 @@ export default function SystemAdminPage() {
       return res.json();
     },
     enabled: activeTab === 'ai-usage',
+    staleTime: 30 * 1000, // 30 seconds
   });
 
-  const { data: dailyUsage = [], isLoading: dailyUsageLoading } = useQuery<AiUsageDaily[]>({
+  const { data: dailyUsage = [], isLoading: dailyUsageLoading, refetch: refetchDaily } = useQuery<AiUsageDaily[]>({
     queryKey: ["/api/system-admin/ai-usage/daily", usageDateRange],
     queryFn: async () => {
       const params = new URLSearchParams({
@@ -379,7 +382,16 @@ export default function SystemAdminPage() {
       return res.json();
     },
     enabled: activeTab === 'ai-usage',
+    staleTime: 30 * 1000, // 30 seconds
   });
+
+  // 모든 AI 사용량 데이터 새로고침
+  const refetchAllUsageData = () => {
+    refetchSummary();
+    refetchByFeature();
+    refetchByModel();
+    refetchDaily();
+  };
 
   const updateUserMutation = useMutation({
     mutationFn: async ({ id, updates }: { id: string; updates: any }) => {
@@ -1341,6 +1353,18 @@ export default function SystemAdminPage() {
                       data-testid="button-usage-90days"
                     >
                       최근 90일
+                    </Button>
+                  </div>
+                  <div className="ml-auto">
+                    <Button
+                      variant="default"
+                      size="sm"
+                      onClick={refetchAllUsageData}
+                      disabled={usageSummaryLoading || usageByFeatureLoading || usageByModelLoading || dailyUsageLoading}
+                      data-testid="button-refresh-usage"
+                    >
+                      <RefreshCw className={`h-4 w-4 mr-1 ${(usageSummaryLoading || usageByFeatureLoading || usageByModelLoading || dailyUsageLoading) ? 'animate-spin' : ''}`} />
+                      새로고침
                     </Button>
                   </div>
                 </div>

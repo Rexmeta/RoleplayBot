@@ -1,6 +1,7 @@
 {
   "id": "entp",
   "mbti": "ENTP",
+  "gender": "female",
   "personality_traits": [
     "창의적",
     "논리적",
@@ -50,8 +51,36 @@
     "pace": "빠름",
     "emotion": "흥미와 자신감"
   },
-  "image": {
-    "profile": "https://picsum.photos/seed/entp/150/150",
-    "style": "실제 인물 사진 느낌"
+  "images": {
+    "base": "/personas/entp/female/neutral.webp?t=1765240236675",
+    "style": "글자가 포함되면 안됨, 한국인, 이가 보이지 않는 무표정, 회의실 배경, 상반신 손까지 나오도록 ",
+    "male": {
+      "expressions": {
+        "중립": "/personas/entp/male/neutral.webp?t=1765239933085",
+        "기쁨": "/personas/entp/male/joy.webp?t=1765240031318",
+        "슬픔": "/personas/entp/male/sad.webp?t=1765240031318",
+        "분노": "/personas/entp/male/angry.webp?t=1765240031318",
+        "놀람": "/personas/entp/male/surprise.webp?t=1765240031318",
+        "호기심": "/personas/entp/male/curious.webp?t=1765240031318",
+        "불안": "/personas/entp/male/anxious.webp?t=1765240031318",
+        "피로": "/personas/entp/male/tired.webp?t=1765240031318",
+        "실망": "/personas/entp/male/disappointed.webp?t=1765240031318",
+        "당혹": "/personas/entp/male/confused.webp?t=1765240031318"
+      }
+    },
+    "female": {
+      "expressions": {
+        "중립": "/personas/entp/female/neutral.webp?t=1765240236675",
+        "기쁨": "/personas/entp/female/joy.webp?t=1765240330781",
+        "슬픔": "/personas/entp/female/sad.webp?t=1765240330781",
+        "분노": "/personas/entp/female/angry.webp?t=1765240330781",
+        "놀람": "/personas/entp/female/surprise.webp?t=1765240330781",
+        "호기심": "/personas/entp/female/curious.webp?t=1765240330781",
+        "불안": "/personas/entp/female/anxious.webp?t=1765240330781",
+        "피로": "/personas/entp/female/tired.webp?t=1765240330781",
+        "실망": "/personas/entp/female/disappointed.webp?t=1765240330781",
+        "당혹": "/personas/entp/female/confused.webp?t=1765240330781"
+      }
+    }
   }
 }

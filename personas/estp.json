@@ -1,6 +1,7 @@
 {
   "id": "estp",
   "mbti": "ESTP",
+  "gender": "male",
   "personality_traits": [
     "즉흥적",
     "행동 중심",
@@ -49,8 +50,36 @@
     "pace": "빠름",
     "emotion": "실용적"
   },
-  "image": {
-    "profile": "https://picsum.photos/seed/estp/150/150",
-    "style": "실제 인물 사진 느낌"
+  "images": {
+    "base": "/personas/estp/male/neutral.webp?t=1765239372638",
+    "style": "한국인, 이가 보이지 않는 무표정, 회의실에 앉아 있는 모습, 상반신 전체",
+    "male": {
+      "expressions": {
+        "중립": "/personas/estp/male/neutral.webp?t=1765239372638",
+        "기쁨": "/personas/estp/male/joy.webp?t=1765239505478",
+        "슬픔": "/personas/estp/male/sad.webp?t=1765239505478",
+        "분노": "/personas/estp/male/angry.webp?t=1765239505478",
+        "놀람": "/personas/estp/male/surprise.webp?t=1765239505478",
+        "호기심": "/personas/estp/male/curious.webp?t=1765239505478",
+        "불안": "/personas/estp/male/anxious.webp?t=1765239505478",
+        "피로": "/personas/estp/male/tired.webp?t=1765239505478",
+        "실망": "/personas/estp/male/disappointed.webp?t=1765239505478",
+        "당혹": "/personas/estp/male/confused.webp?t=1765239505478"
+      }
+    },
+    "female": {
+      "expressions": {
+        "중립": "",
+        "기쁨": "",
+        "슬픔": "",
+        "분노": "",
+        "놀람": "",
+        "호기심": "",
+        "불안": "",
+        "피로": "",
+        "실망": "",
+        "당혹": ""
+      }
+    }
   }
 }

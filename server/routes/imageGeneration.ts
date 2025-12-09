@@ -365,10 +365,10 @@ router.post('/generate-persona-base', async (req, res) => {
     let imageUrl = null;
     if (result.candidates && result.candidates[0] && result.candidates[0].content && result.candidates[0].content.parts) {
       for (const part of result.candidates[0].content.parts) {
-        if (part.inlineData && part.inlineData.data && part.inlineData.mimeType) {
-          const imageData = part.inlineData;
-          imageUrl = `data:${imageData.mimeType};base64,${imageData.data}`;
-          console.log(`✅ 이미지 데이터 발견: ${imageData.mimeType}, 크기: ${imageData.data.length} bytes`);
+        const inlineData = part.inlineData;
+        if (inlineData && inlineData.data && inlineData.mimeType) {
+          imageUrl = `data:${inlineData.mimeType};base64,${inlineData.data}`;
+          console.log(`✅ 이미지 데이터 발견: ${inlineData.mimeType}, 크기: ${inlineData.data.length} bytes`);
           break;
         }
       }
