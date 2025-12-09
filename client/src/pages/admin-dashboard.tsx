@@ -226,14 +226,13 @@ export default function AdminDashboard() {
       {/* Detailed Analytics */}
       <Tabs defaultValue="overview" className="space-y-6" onValueChange={(value) => setShowMobileTabMenu(false)}>
         {/* 데스크톱 탭 */}
-        <TabsList className="hidden md:grid w-full grid-cols-7">
+        <TabsList className="hidden md:grid w-full grid-cols-6">
           <TabsTrigger value="overview" data-testid="tab-overview">개요</TabsTrigger>
           <TabsTrigger value="performance" data-testid="tab-performance">성과 분석</TabsTrigger>
           <TabsTrigger value="scenarios" data-testid="tab-scenarios">시나리오 분석</TabsTrigger>
           <TabsTrigger value="mbti" data-testid="tab-mbti">MBTI 분석</TabsTrigger>
           <TabsTrigger value="trends" data-testid="tab-trends">트렌드 분석</TabsTrigger>
-          <TabsTrigger value="content" data-testid="tab-content">컨텐츠 현황</TabsTrigger>
-          <TabsTrigger value="difficulty" data-testid="tab-difficulty">난이도 설정</TabsTrigger>
+          <TabsTrigger value="content" data-testid="tab-content">컨텐츠 관리</TabsTrigger>
         </TabsList>
         
         {/* 모바일 탭 (스마트 버튼 포함) */}
@@ -256,11 +255,10 @@ export default function AdminDashboard() {
           {/* 확장 메뉴 */}
           {showMobileTabMenu && (
             <div className="bg-slate-100 rounded-lg p-2 animate-in slide-in-from-top duration-200">
-              <TabsList className="grid w-full grid-cols-2 gap-2 bg-transparent">
+              <TabsList className="grid w-full grid-cols-3 gap-2 bg-transparent">
                 <TabsTrigger value="mbti" className="bg-white" data-testid="mobile-tab-mbti">MBTI 분석</TabsTrigger>
                 <TabsTrigger value="trends" className="bg-white" data-testid="mobile-tab-trends">트렌드</TabsTrigger>
                 <TabsTrigger value="content" className="bg-white" data-testid="mobile-tab-content">컨텐츠</TabsTrigger>
-                <TabsTrigger value="difficulty" className="bg-white" data-testid="mobile-tab-difficulty">난이도</TabsTrigger>
               </TabsList>
             </div>
           )}
@@ -997,10 +995,24 @@ export default function AdminDashboard() {
           </div>
         </TabsContent>
 
-        {/* Content Registration Status */}
+        {/* Content Management (with subtabs) */}
         <TabsContent value="content" className="space-y-6">
-          {/* 1. 콘텐츠 요약 카드 (4개) */}
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <Tabs defaultValue="content-status" className="space-y-4">
+            <TabsList className="grid w-full grid-cols-2 max-w-md">
+              <TabsTrigger value="content-status" data-testid="subtab-content-status">
+                <i className="fas fa-folder mr-2"></i>
+                컨텐츠 현황
+              </TabsTrigger>
+              <TabsTrigger value="difficulty-settings" data-testid="subtab-difficulty-settings">
+                <i className="fas fa-sliders-h mr-2"></i>
+                난이도 설정
+              </TabsTrigger>
+            </TabsList>
+
+            {/* 컨텐츠 현황 서브탭 */}
+            <TabsContent value="content-status" className="space-y-6">
+              {/* 1. 콘텐츠 요약 카드 (4개) */}
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
             <Card className="card-enhanced" data-testid="card-total-scenarios">
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                 <CardTitle className="text-sm font-medium"><CardInfo title="총 시나리오" description="시스템에 등록된 전체 시나리오 개수. 사용자에게 제공되는 대화 훈련 주제의 총 개수입니다." /></CardTitle>
@@ -1144,11 +1156,13 @@ export default function AdminDashboard() {
               </CardContent>
             </Card>
           </div>
-        </TabsContent>
+            </TabsContent>
 
-        {/* Difficulty Settings Tab */}
-        <TabsContent value="difficulty" className="space-y-6">
-          <DifficultySettingsTab />
+            {/* 난이도 설정 서브탭 */}
+            <TabsContent value="difficulty-settings" className="space-y-6">
+              <DifficultySettingsTab />
+            </TabsContent>
+          </Tabs>
         </TabsContent>
 
       </Tabs>
