@@ -4,7 +4,11 @@ import type { Express, RequestHandler } from "express";
 import { storage } from "./storage";
 import { z } from "zod";
 
-const JWT_SECRET = process.env.JWT_SECRET || "your-secret-key-change-in-production";
+// JWT_SECRET 필수 - 환경 변수가 없으면 서버 시작 시 에러 발생
+const JWT_SECRET = process.env.JWT_SECRET;
+if (!JWT_SECRET) {
+  throw new Error("⛔ CRITICAL: JWT_SECRET environment variable is required. Server cannot start without it.");
+}
 const JWT_EXPIRES_IN = "7d"; // 7일
 
 // 회원가입 스키마
@@ -150,11 +154,12 @@ export function setupAuth(app: Express) {
       // 마지막 로그인 시간 업데이트
       await storage.updateUserLastLogin(user.id);
 
-      // 쿠키 설정 (자동로그인용)
+      // 쿠키 설정 (자동로그인용) - 보안 강화
       if (rememberMe) {
         res.cookie('token', token, {
           httpOnly: true,
           secure: process.env.NODE_ENV === 'production',
+          sameSite: 'strict', // CSRF 방지
           maxAge: 30 * 24 * 60 * 60 * 1000, // 30일
         });
       }

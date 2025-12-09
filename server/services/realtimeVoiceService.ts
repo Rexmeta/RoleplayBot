@@ -34,7 +34,6 @@ export class RealtimeVoiceService {
 
   constructor() {
     const geminiApiKey = process.env.GOOGLE_API_KEY || process.env.GEMINI_API_KEY;
-    console.log("[GEMINI] key:", geminiApiKey?.slice(0, 12));
     
     if (geminiApiKey) {
       this.genAI = new GoogleGenAI({ apiKey: geminiApiKey });
