@@ -4,7 +4,6 @@ import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { Card } from "@/components/ui/card";
 import { AspectRatio } from "@/components/ui/aspect-ratio";
 import {
@@ -1230,48 +1229,64 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
               </div>
             </div>
             <div className="flex items-center space-x-4">
-              {/* 입력 모드 선택 */}
-              <div className="relative group">
-                <ToggleGroup
-                  type="single"
-                  value={inputMode}
-                  onValueChange={(value: 'text' | 'tts' | 'realtime-voice') => {
-                    if (value) handleModeChange(value);
-                  }}
-                  className="bg-white/10 rounded-lg p-1"
+              {/* 입력 모드 선택 - 호버 드롭다운 */}
+              <div className="relative group" data-testid="input-mode-dropdown">
+                {/* 현재 모드 아이콘 (항상 표시) */}
+                <button
+                  className="bg-white/10 rounded-lg p-2 text-white hover:bg-white/20 transition-all flex items-center gap-1"
                   data-testid="toggle-input-mode"
+                  title={
+                    inputMode === 'text' ? '텍스트 입력' : 
+                    inputMode === 'tts' ? '텍스트 입력 + AI 음성 재생' : 
+                    '실시간 음성 대화 (Gemini Live)'
+                  }
                 >
-                  <ToggleGroupItem 
-                    value="text" 
-                    className="text-white/80 hover:text-white data-[state=on]:bg-white/20 data-[state=on]:text-white px-2 py-1 text-xs"
-                    data-testid="mode-text"
-                    title="텍스트 입력"
-                  >
-                    💬
-                  </ToggleGroupItem>
-                  <ToggleGroupItem 
-                    value="tts" 
-                    className="text-white/80 hover:text-white data-[state=on]:bg-white/20 data-[state=on]:text-white px-2 py-1 text-xs"
-                    data-testid="mode-tts"
-                    title="텍스트 입력 + AI 음성 재생"
-                  >
-                    🔊
-                  </ToggleGroupItem>
-                  <ToggleGroupItem 
-                    value="realtime-voice" 
-                    className="text-white/80 hover:text-white data-[state=on]:bg-white/20 data-[state=on]:text-white px-2 py-1 text-xs"
-                    data-testid="mode-realtime-voice"
-                    title="실시간 음성 대화 (Gemini Live)"
-                  >
-                    🎙️
-                  </ToggleGroupItem>
-                </ToggleGroup>
+                  <span className="text-lg">
+                    {inputMode === 'text' ? '💬' : inputMode === 'tts' ? '🔊' : '🎙️'}
+                  </span>
+                  <i className="fas fa-chevron-down text-xs text-white/60 group-hover:text-white transition-colors"></i>
+                </button>
+                
+                {/* 상태 표시 점 */}
                 {inputMode === 'tts' && isSpeaking && (
                   <div className="absolute -top-1 -right-1 w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
                 )}
                 {inputMode === 'realtime-voice' && realtimeVoice.status === 'connected' && (
                   <div className="absolute -top-1 -right-1 w-2 h-2 bg-blue-500 rounded-full animate-pulse"></div>
                 )}
+                
+                {/* 호버시 펼쳐지는 드롭다운 메뉴 */}
+                <div className="absolute top-full left-0 mt-1 bg-slate-800 rounded-lg shadow-lg border border-white/10 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50 min-w-[160px]">
+                  <div className="py-1">
+                    <button
+                      onClick={() => handleModeChange('text')}
+                      className={`w-full px-3 py-2 text-left text-sm flex items-center gap-2 hover:bg-white/10 transition-colors ${inputMode === 'text' ? 'bg-white/20 text-white' : 'text-white/80'}`}
+                      data-testid="mode-text"
+                    >
+                      <span className="text-lg">💬</span>
+                      <span>텍스트 입력</span>
+                      {inputMode === 'text' && <i className="fas fa-check ml-auto text-green-400"></i>}
+                    </button>
+                    <button
+                      onClick={() => handleModeChange('tts')}
+                      className={`w-full px-3 py-2 text-left text-sm flex items-center gap-2 hover:bg-white/10 transition-colors ${inputMode === 'tts' ? 'bg-white/20 text-white' : 'text-white/80'}`}
+                      data-testid="mode-tts"
+                    >
+                      <span className="text-lg">🔊</span>
+                      <span>텍스트 + 음성재생</span>
+                      {inputMode === 'tts' && <i className="fas fa-check ml-auto text-green-400"></i>}
+                    </button>
+                    <button
+                      onClick={() => handleModeChange('realtime-voice')}
+                      className={`w-full px-3 py-2 text-left text-sm flex items-center gap-2 hover:bg-white/10 transition-colors ${inputMode === 'realtime-voice' ? 'bg-white/20 text-white' : 'text-white/80'}`}
+                      data-testid="mode-realtime-voice"
+                    >
+                      <span className="text-lg">🎙️</span>
+                      <span>실시간 음성대화</span>
+                      {inputMode === 'realtime-voice' && <i className="fas fa-check ml-auto text-green-400"></i>}
+                    </button>
+                  </div>
+                </div>
               </div>
 
               {/* 캐릭터 모드 버튼 */}
@@ -1939,39 +1954,55 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
 
               {/* Top Right - Control Buttons */}
               <div className="absolute top-4 right-4 z-20 flex items-center space-x-2">
-                {/* 입력 모드 선택 */}
-                <div className="bg-white/90 rounded-full shadow-lg p-1">
-                  <ToggleGroup
-                    type="single"
-                    value={inputMode}
-                    onValueChange={(value: 'text' | 'tts' | 'realtime-voice') => {
-                      if (value) handleModeChange(value);
-                    }}
-                    className="bg-transparent"
+                {/* 입력 모드 선택 - 호버 드롭다운 */}
+                <div className="relative group" data-testid="input-mode-dropdown-character">
+                  <button
+                    className="bg-white/90 rounded-full shadow-lg px-3 py-2 flex items-center gap-1 hover:bg-white transition-all"
                     data-testid="toggle-input-mode-character"
+                    title={
+                      inputMode === 'text' ? '텍스트 입력' : 
+                      inputMode === 'tts' ? '텍스트 입력 + AI 음성 재생' : 
+                      '실시간 음성 대화 (Gemini Live)'
+                    }
                   >
-                    <ToggleGroupItem 
-                      value="text" 
-                      className="text-slate-600 hover:text-slate-900 data-[state=on]:bg-slate-100 data-[state=on]:text-slate-900 px-2 py-1 text-xs rounded-full"
-                      title="텍스트 입력"
-                    >
-                      💬
-                    </ToggleGroupItem>
-                    <ToggleGroupItem 
-                      value="tts" 
-                      className="text-slate-600 hover:text-slate-900 data-[state=on]:bg-green-100 data-[state=on]:text-green-700 px-2 py-1 text-xs rounded-full"
-                      title="텍스트 입력 + AI 음성 재생"
-                    >
-                      🔊
-                    </ToggleGroupItem>
-                    <ToggleGroupItem 
-                      value="realtime-voice" 
-                      className="text-slate-600 hover:text-slate-900 data-[state=on]:bg-blue-100 data-[state=on]:text-blue-700 px-2 py-1 text-xs rounded-full"
-                      title="실시간 음성 대화"
-                    >
-                      🎙️
-                    </ToggleGroupItem>
-                  </ToggleGroup>
+                    <span className="text-lg">
+                      {inputMode === 'text' ? '💬' : inputMode === 'tts' ? '🔊' : '🎙️'}
+                    </span>
+                    <i className="fas fa-chevron-down text-xs text-slate-400 group-hover:text-slate-600 transition-colors"></i>
+                  </button>
+                  
+                  {/* 호버시 펼쳐지는 드롭다운 메뉴 */}
+                  <div className="absolute top-full right-0 mt-1 bg-white rounded-lg shadow-lg border border-slate-200 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50 min-w-[160px]">
+                    <div className="py-1">
+                      <button
+                        onClick={() => handleModeChange('text')}
+                        className={`w-full px-3 py-2 text-left text-sm flex items-center gap-2 hover:bg-slate-100 transition-colors ${inputMode === 'text' ? 'bg-slate-50 text-slate-900' : 'text-slate-600'}`}
+                        data-testid="mode-text-character"
+                      >
+                        <span className="text-lg">💬</span>
+                        <span>텍스트 입력</span>
+                        {inputMode === 'text' && <i className="fas fa-check ml-auto text-green-500"></i>}
+                      </button>
+                      <button
+                        onClick={() => handleModeChange('tts')}
+                        className={`w-full px-3 py-2 text-left text-sm flex items-center gap-2 hover:bg-slate-100 transition-colors ${inputMode === 'tts' ? 'bg-green-50 text-green-700' : 'text-slate-600'}`}
+                        data-testid="mode-tts-character"
+                      >
+                        <span className="text-lg">🔊</span>
+                        <span>텍스트 + 음성재생</span>
+                        {inputMode === 'tts' && <i className="fas fa-check ml-auto text-green-500"></i>}
+                      </button>
+                      <button
+                        onClick={() => handleModeChange('realtime-voice')}
+                        className={`w-full px-3 py-2 text-left text-sm flex items-center gap-2 hover:bg-slate-100 transition-colors ${inputMode === 'realtime-voice' ? 'bg-blue-50 text-blue-700' : 'text-slate-600'}`}
+                        data-testid="mode-realtime-voice-character"
+                      >
+                        <span className="text-lg">🎙️</span>
+                        <span>실시간 음성대화</span>
+                        {inputMode === 'realtime-voice' && <i className="fas fa-check ml-auto text-green-500"></i>}
+                      </button>
+                    </div>
+                  </div>
                 </div>
                 
                 {/* 메신저 모드 전환 버튼 */}
