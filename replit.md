@@ -30,6 +30,10 @@ Preferred communication style: Simple, everyday language.
   - JWT_SECRET 필수 (미설정시 서버 시작 차단)
   - Cookie sameSite=strict로 CSRF 방지
   - API 키 로깅 금지
+  - 로그인 Rate Limiting (5분 내 5회 실패 시 차단)
+  - 비밀번호 복잡성 정책 (8자+대문자+소문자+숫자+특수문자)
+  - 업로드 파일 인증 필수 + Path Traversal 방지
+  - API 응답 로그에서 민감정보 자동 제거
 
 ## Data Storage
 - **ORM**: Drizzle ORM (PostgreSQL dialect)
