@@ -27,6 +27,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // 인증 시스템 설정
   const { setupAuth, isAuthenticated } = await import('./auth');
   setupAuth(app);
+  
+  // 업로드 파일 보호된 접근 (인증 필요)
+  const path = await import('path');
+  const fs = await import('fs');
+  app.get('/uploads/*', isAuthenticated, (req: any, res) => {
+    const filePath = path.join(process.cwd(), 'public', req.path);
+    
+    // 경로 조작(Path Traversal) 방지
+    const normalizedPath = path.normalize(filePath);
+    const uploadsDir = path.join(process.cwd(), 'public', 'uploads');
+    
+    if (!normalizedPath.startsWith(uploadsDir)) {
+      return res.status(403).json({ message: "접근이 거부되었습니다" });
+    }
+    
+    if (fs.existsSync(normalizedPath)) {
+      res.sendFile(normalizedPath);
+    } else {
+      res.status(404).json({ message: "파일을 찾을 수 없습니다" });
+    }
+  });
 
   // Helper function to verify conversation ownership (레거시)
   async function verifyConversationOwnership(conversationId: string, userId: string) {

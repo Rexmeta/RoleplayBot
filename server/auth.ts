@@ -11,10 +11,60 @@ if (!JWT_SECRET) {
 }
 const JWT_EXPIRES_IN = "7d"; // 7일
 
+// Rate Limiting 설정 (메모리 기반)
+const loginAttempts = new Map<string, { count: number; firstAttempt: number }>();
+const RATE_LIMIT_WINDOW = 5 * 60 * 1000; // 5분
+const MAX_LOGIN_ATTEMPTS = 5;
+
+function checkRateLimit(identifier: string): { allowed: boolean; remainingTime?: number } {
+  const now = Date.now();
+  const attempts = loginAttempts.get(identifier);
+  
+  if (!attempts) {
+    return { allowed: true };
+  }
+  
+  // 윈도우 시간이 지났으면 초기화
+  if (now - attempts.firstAttempt > RATE_LIMIT_WINDOW) {
+    loginAttempts.delete(identifier);
+    return { allowed: true };
+  }
+  
+  if (attempts.count >= MAX_LOGIN_ATTEMPTS) {
+    const remainingTime = Math.ceil((RATE_LIMIT_WINDOW - (now - attempts.firstAttempt)) / 1000);
+    return { allowed: false, remainingTime };
+  }
+  
+  return { allowed: true };
+}
+
+function recordLoginAttempt(identifier: string): void {
+  const now = Date.now();
+  const attempts = loginAttempts.get(identifier);
+  
+  if (!attempts || now - attempts.firstAttempt > RATE_LIMIT_WINDOW) {
+    loginAttempts.set(identifier, { count: 1, firstAttempt: now });
+  } else {
+    attempts.count++;
+  }
+}
+
+function clearLoginAttempts(identifier: string): void {
+  loginAttempts.delete(identifier);
+}
+
+// 비밀번호 복잡성 검증
+const passwordSchema = z.string()
+  .min(8, "비밀번호는 최소 8자 이상이어야 합니다")
+  .regex(/[A-Z]/, "비밀번호에 대문자를 포함해야 합니다")
+  .regex(/[a-z]/, "비밀번호에 소문자를 포함해야 합니다")
+  .regex(/[0-9]/, "비밀번호에 숫자를 포함해야 합니다")
+  .regex(/[!@#$%^&*(),.?":{}|<>]/, "비밀번호에 특수문자를 포함해야 합니다");
+
 // 회원가입 스키마
 const registerSchema = z.object({
   email: z.string().email("유효한 이메일을 입력해주세요"),
-  password: z.string().min(6, "비밀번호는 최소 6자 이상이어야 합니다"),
+  password: passwordSchema,
   name: z.string().min(1, "이름을 입력해주세요").max(50, "이름은 50자 이하여야 합니다"),
   categoryId: z.string().uuid().optional(),
 });
@@ -135,18 +185,34 @@ export function setupAuth(app: Express) {
   app.post("/api/auth/login", async (req, res) => {
     try {
       const { email, password, rememberMe } = loginSchema.parse(req.body);
+      
+      // Rate Limiting 체크 (IP + 이메일 조합)
+      const clientIp = req.ip || req.socket.remoteAddress || 'unknown';
+      const rateLimitKey = `${clientIp}:${email}`;
+      const rateCheck = checkRateLimit(rateLimitKey);
+      
+      if (!rateCheck.allowed) {
+        return res.status(429).json({ 
+          message: `로그인 시도가 너무 많습니다. ${rateCheck.remainingTime}초 후에 다시 시도해주세요.` 
+        });
+      }
 
       // 사용자 찾기
       const user = await storage.getUserByEmail(email);
       if (!user) {
+        recordLoginAttempt(rateLimitKey);
         return res.status(400).json({ message: "이메일 또는 비밀번호가 일치하지 않습니다" });
       }
 
       // 비밀번호 검증
       const isPasswordValid = await verifyPassword(password, user.password);
       if (!isPasswordValid) {
+        recordLoginAttempt(rateLimitKey);
         return res.status(400).json({ message: "이메일 또는 비밀번호가 일치하지 않습니다" });
       }
+      
+      // 로그인 성공 시 실패 횟수 초기화
+      clearLoginAttempts(rateLimitKey);
 
       // JWT 토큰 생성
       const token = generateToken(user.id, rememberMe);
