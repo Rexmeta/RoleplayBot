@@ -43,6 +43,7 @@ export default function PersonalDevelopmentReport({
   const [showDetailedFeedback, setShowDetailedFeedback] = useState(true); // 애니메이션 없이 바로 표시
   const [hasRequestedFeedback, setHasRequestedFeedback] = useState(false); // 피드백 생성 요청 여부
   const [isExportingPdf, setIsExportingPdf] = useState(false); // PDF 내보내기 중
+  const [showMobileMenu, setShowMobileMenu] = useState(false); // 모바일 스마트 메뉴 상태
   const reportRef = useRef<HTMLDivElement>(null); // 보고서 컨테이너 참조
 
   // 사용자의 모든 대화 기록 조회
@@ -1328,8 +1329,8 @@ export default function PersonalDevelopmentReport({
         )}
       </Tabs>
 
-      {/* 액션 버튼 */}
-      <div className="flex justify-center space-x-4 pt-6 border-t border-slate-200 no-print">
+      {/* 액션 버튼 - 데스크톱 */}
+      <div className="hidden md:flex justify-center flex-wrap gap-3 pt-6 border-t border-slate-200 no-print">
         <Button 
           onClick={() => window.location.href = '/mypage'}
           variant="outline"
@@ -1423,6 +1424,115 @@ export default function PersonalDevelopmentReport({
           )}
         </Button>
       </div>
+      
+      {/* 액션 버튼 - 모바일 (스마트 버튼) */}
+      <div className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 shadow-lg z-50 no-print">
+        {/* 확장된 메뉴 */}
+        {showMobileMenu && (
+          <div className="p-3 border-b border-slate-100 bg-slate-50 animate-in slide-in-from-bottom duration-200">
+            <div className="grid grid-cols-2 gap-2">
+              {hasMorePersonas && onNextPersona && (
+                <Button 
+                  onClick={() => { setShowMobileMenu(false); onNextPersona(); }}
+                  className="w-full text-sm bg-gradient-to-r from-green-600 to-emerald-600"
+                  data-testid="mobile-next-persona-button"
+                >
+                  <i className="fas fa-arrow-right mr-1"></i>
+                  다음 페르소나
+                </Button>
+              )}
+              
+              {allPersonasCompleted && onNextPersona && (
+                <Button 
+                  onClick={() => { setShowMobileMenu(false); onNextPersona(); }}
+                  className="w-full text-sm bg-gradient-to-r from-purple-600 to-indigo-600"
+                  data-testid="mobile-strategy-button"
+                >
+                  <i className="fas fa-clipboard-list mr-1"></i>
+                  전략 평가
+                </Button>
+              )}
+              
+              {!hasMorePersonas && !allPersonasCompleted && nextPersona && !isNextConversationCompleted() && (
+                <Button 
+                  onClick={() => { setShowMobileMenu(false); handleNextConversation(); }}
+                  className="w-full text-sm bg-gradient-to-r from-blue-600 to-indigo-600"
+                  disabled={createNextConversationMutation.isPending}
+                  data-testid="mobile-next-legacy-button"
+                >
+                  <i className="fas fa-arrow-right mr-1"></i>
+                  다음 대화
+                </Button>
+              )}
+              
+              <Button 
+                onClick={() => { setShowMobileMenu(false); onSelectNewScenario(); }}
+                variant="outline"
+                className="w-full text-sm"
+                data-testid="mobile-new-scenario-button"
+              >
+                <i className="fas fa-redo mr-1"></i>
+                새 훈련
+              </Button>
+              
+              <Button 
+                onClick={() => { setShowMobileMenu(false); onRetry(); }}
+                className="w-full text-sm"
+                data-testid="mobile-retry-button"
+              >
+                <i className="fas fa-sync-alt mr-1"></i>
+                재도전
+              </Button>
+              
+              <Button 
+                variant="secondary"
+                onClick={() => { setShowMobileMenu(false); handlePrint(); }}
+                className="w-full text-sm"
+                data-testid="mobile-print-button"
+              >
+                <i className="fas fa-print mr-1"></i>
+                인쇄
+              </Button>
+              
+              <Button 
+                variant="outline"
+                onClick={() => { setShowMobileMenu(false); handleDownloadHtml(); }}
+                disabled={isExportingPdf}
+                className="w-full text-sm"
+                data-testid="mobile-download-button"
+              >
+                <i className="fas fa-download mr-1"></i>
+                다운로드
+              </Button>
+            </div>
+          </div>
+        )}
+        
+        {/* 하단 스마트 버튼 바 */}
+        <div className="flex items-center justify-between p-3">
+          <Button 
+            onClick={() => window.location.href = '/mypage'}
+            variant="outline"
+            className="flex-1 mr-2"
+            data-testid="mobile-mypage-button"
+          >
+            <i className="fas fa-home mr-2"></i>
+            마이페이지
+          </Button>
+          
+          <Button 
+            onClick={() => setShowMobileMenu(!showMobileMenu)}
+            className={`flex-1 ${showMobileMenu ? 'bg-slate-600' : 'bg-indigo-600'}`}
+            data-testid="mobile-menu-toggle"
+          >
+            <i className={`fas ${showMobileMenu ? 'fa-times' : 'fa-th-large'} mr-2`}></i>
+            {showMobileMenu ? '닫기' : '더보기'}
+          </Button>
+        </div>
+      </div>
+      
+      {/* 모바일 하단 메뉴 공간 확보 */}
+      <div className="md:hidden h-20"></div>
     </div>
   );
 }
