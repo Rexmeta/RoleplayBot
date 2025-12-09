@@ -23,9 +23,13 @@ Preferred communication style: Simple, everyday language.
 - **Runtime**: Node.js with Express.js
 - **Language**: TypeScript (ES modules)
 - **API Design**: RESTful for conversations and feedback, WebSocket for real-time voice.
-- **Authentication**: JWT (JSON Web Tokens).
+- **Authentication**: JWT (JSON Web Tokens) - JWT_SECRET 환경 변수 필수.
 - **Authorization**: Resource ownership verification and role-based access control (admin, operator, user).
 - **User Isolation**: All data queries filtered by authenticated user ID.
+- **Security**: 
+  - JWT_SECRET 필수 (미설정시 서버 시작 차단)
+  - Cookie sameSite=strict로 CSRF 방지
+  - API 키 로깅 금지
 
 ## Data Storage
 - **ORM**: Drizzle ORM (PostgreSQL dialect)
