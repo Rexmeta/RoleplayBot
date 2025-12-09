@@ -118,7 +118,6 @@ Preferred communication style: Simple, everyday language.
     - Gemini: 2.5 Flash, 2.5 Pro
     - Gemini Live: 2.5 Flash Preview (실시간 음성 전용)
     - OpenAI: GPT-4o, GPT-4o Mini
-    - Claude: 3.5 Sonnet, 3.5 Haiku (준비 중 - 백엔드 미구현)
 - **Feature Model Constraints**:
   - 대화 응답 생성: Gemini/OpenAI 지원 (configurable via `model_conversation`)
   - 피드백 생성: Gemini/OpenAI 지원 (configurable via `model_feedback`)
@@ -143,7 +142,7 @@ Preferred communication style: Simple, everyday language.
   - "준비 중" badge for backend-unsupported models
   - "미지원" badge for feature-unsupported providers
 - **API Key Status Display**:
-  - Shows configuration status for Gemini, OpenAI, ElevenLabs, Anthropic keys
+  - Shows configuration status for Gemini, OpenAI, ElevenLabs keys
   - Only displays boolean status (설정됨/미설정), not actual values
   - Keys managed via Replit Secrets tab
 - **UI**: System admin page → "시스템 설정" tab with per-feature AI model selectors and API key status cards
@@ -152,9 +151,9 @@ Preferred communication style: Simple, everyday language.
 - **Database Table**: `ai_usage_logs` - stores AI API usage data for cost tracking
 - **Tracked Metrics**:
   - Feature (conversation, feedback, strategy, scenario, realtime, image)
-  - Model and provider (Gemini, OpenAI, Anthropic)
+  - Model and provider (Gemini, OpenAI)
   - Token usage (prompt, completion, total)
-  - Cost in USD (calculated based on model pricing)
+  - Cost in USD (calculated based on model pricing, updated Dec 2025)
   - Duration, user ID, conversation ID, request ID
 - **Automatic Tracking**:
   - aiUsageTracker service calculates costs based on model pricing
@@ -213,6 +212,9 @@ Preferred communication style: Simple, everyday language.
 - **Requirements**: Gemini API key with Veo access (paid tier required for video generation)
 
 ## Recent Changes (December 2025)
+- Updated AI model pricing to December 2025 rates (Gemini 2.5 Flash: $0.30/$2.50 per 1M tokens)
+- Removed Claude/Anthropic options from system settings (only Gemini and OpenAI supported)
+- Fixed AI usage date filtering to include current day data
 - Added configurable difficulty settings to operator dashboard (난이도 설정 탭)
 - Added scenario intro video generation using Gemini Veo 3.1 API
 - Added AI usage tracking system for monitoring token usage and costs
