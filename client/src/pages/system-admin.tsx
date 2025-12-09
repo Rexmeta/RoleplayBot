@@ -325,7 +325,8 @@ export default function SystemAdminPage() {
         endDate: usageDateRange.end,
       });
       const res = await fetch(`/api/system-admin/ai-usage/summary?${params}`, {
-        headers: { Authorization: `Bearer ${localStorage.getItem('authToken')}` }
+        headers: { Authorization: `Bearer ${localStorage.getItem('authToken')}` },
+        cache: 'no-store',
       });
       if (!res.ok) throw new Error('Failed to fetch usage summary');
       return res.json();
@@ -342,7 +343,8 @@ export default function SystemAdminPage() {
         endDate: usageDateRange.end,
       });
       const res = await fetch(`/api/system-admin/ai-usage/by-feature?${params}`, {
-        headers: { Authorization: `Bearer ${localStorage.getItem('authToken')}` }
+        headers: { Authorization: `Bearer ${localStorage.getItem('authToken')}` },
+        cache: 'no-store',
       });
       if (!res.ok) throw new Error('Failed to fetch usage by feature');
       return res.json();
@@ -359,7 +361,8 @@ export default function SystemAdminPage() {
         endDate: usageDateRange.end,
       });
       const res = await fetch(`/api/system-admin/ai-usage/by-model?${params}`, {
-        headers: { Authorization: `Bearer ${localStorage.getItem('authToken')}` }
+        headers: { Authorization: `Bearer ${localStorage.getItem('authToken')}` },
+        cache: 'no-store',
       });
       if (!res.ok) throw new Error('Failed to fetch usage by model');
       return res.json();
@@ -376,7 +379,8 @@ export default function SystemAdminPage() {
         endDate: usageDateRange.end,
       });
       const res = await fetch(`/api/system-admin/ai-usage/daily?${params}`, {
-        headers: { Authorization: `Bearer ${localStorage.getItem('authToken')}` }
+        headers: { Authorization: `Bearer ${localStorage.getItem('authToken')}` },
+        cache: 'no-store',
       });
       if (!res.ok) throw new Error('Failed to fetch daily usage');
       return res.json();

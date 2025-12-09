@@ -3356,6 +3356,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const start = startDate ? new Date(startDate as string) : new Date(end.getTime() - 30 * 24 * 60 * 60 * 1000);
       
       const summary = await storage.getAiUsageSummary(start, end);
+      res.set('Cache-Control', 'no-store, no-cache, must-revalidate');
       res.json(summary);
     } catch (error: any) {
       console.error("Error fetching AI usage summary:", error);
@@ -3372,6 +3373,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const start = startDate ? new Date(startDate as string) : new Date(end.getTime() - 30 * 24 * 60 * 60 * 1000);
       
       const usageByFeature = await storage.getAiUsageByFeature(start, end);
+      res.set('Cache-Control', 'no-store, no-cache, must-revalidate');
       res.json(usageByFeature);
     } catch (error: any) {
       console.error("Error fetching AI usage by feature:", error);
@@ -3388,6 +3390,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const start = startDate ? new Date(startDate as string) : new Date(end.getTime() - 30 * 24 * 60 * 60 * 1000);
       
       const usageByModel = await storage.getAiUsageByModel(start, end);
+      res.set('Cache-Control', 'no-store, no-cache, must-revalidate');
       res.json(usageByModel);
     } catch (error: any) {
       console.error("Error fetching AI usage by model:", error);
@@ -3404,6 +3407,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const start = startDate ? new Date(startDate as string) : new Date(end.getTime() - 30 * 24 * 60 * 60 * 1000);
       
       const dailyUsage = await storage.getAiUsageDaily(start, end);
+      res.set('Cache-Control', 'no-store, no-cache, must-revalidate');
       res.json(dailyUsage);
     } catch (error: any) {
       console.error("Error fetching daily AI usage:", error);
@@ -3421,6 +3425,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const logLimit = limit ? parseInt(limit as string) : 100;
       
       const logs = await storage.getAiUsageLogs(start, end, logLimit);
+      res.set('Cache-Control', 'no-store, no-cache, must-revalidate');
       res.json(logs);
     } catch (error: any) {
       console.error("Error fetching AI usage logs:", error);
