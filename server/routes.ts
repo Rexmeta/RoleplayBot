@@ -3125,15 +3125,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const allCategories = await storage.getAllCategories();
       
-      // 시나리오 수 계산
-      const allScenarios = await fileManager.getAllScenarios();
-      const categoriesWithCount = allCategories.map(category => {
-        const scenarioCount = allScenarios.filter(s => s.categoryId === category.id).length;
-        return {
-          ...category,
-          scenarioCount
-        };
-      });
+      // 🚀 최적화: 캐시된 시나리오 카운트 사용 (파일 전체 파싱 대신 카운트만)
+      const scenarioCounts = await fileManager.getScenarioCountsByCategory();
+      const categoriesWithCount = allCategories.map(category => ({
+        ...category,
+        scenarioCount: scenarioCounts.get(category.id) || 0
+      }));
       
       res.json(categoriesWithCount);
     } catch (error: any) {

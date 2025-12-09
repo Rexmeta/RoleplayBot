@@ -6,7 +6,68 @@ import { enrichPersonaWithMBTI, enrichPersonaWithBasicMBTI } from '../utils/mbti
 const SCENARIOS_DIR = 'scenarios';
 const PERSONAS_DIR = 'personas';
 
+// 시나리오 카운트 캐시 (카테고리별)
+interface ScenarioCountCache {
+  counts: Map<string, number>;
+  lastUpdated: number;
+  ttl: number; // milliseconds
+}
+
+const scenarioCountCache: ScenarioCountCache = {
+  counts: new Map(),
+  lastUpdated: 0,
+  ttl: 60 * 1000 // 1분 캐시
+};
+
 export class FileManagerService {
+  
+  // 🚀 경량화된 시나리오 카운트 조회 (캐시 사용)
+  async getScenarioCountsByCategory(): Promise<Map<string, number>> {
+    const now = Date.now();
+    
+    // 캐시가 유효하면 바로 반환
+    if (scenarioCountCache.counts.size > 0 && 
+        (now - scenarioCountCache.lastUpdated) < scenarioCountCache.ttl) {
+      return scenarioCountCache.counts;
+    }
+    
+    // 캐시 갱신: 파일에서 categoryId만 추출 (경량 파싱)
+    try {
+      const files = await fs.readdir(SCENARIOS_DIR);
+      const counts = new Map<string, number>();
+      
+      for (const file of files.filter(f => f.endsWith('.json'))) {
+        try {
+          const content = await fs.readFile(path.join(SCENARIOS_DIR, file), 'utf-8');
+          // 빠른 파싱: categoryId만 추출
+          const categoryMatch = content.match(/"categoryId"\s*:\s*"([^"]+)"/);
+          if (categoryMatch) {
+            const categoryId = categoryMatch[1];
+            counts.set(categoryId, (counts.get(categoryId) || 0) + 1);
+          } else {
+            // categoryId가 없는 시나리오는 'uncategorized'로 카운트
+            counts.set('uncategorized', (counts.get('uncategorized') || 0) + 1);
+          }
+        } catch (error) {
+          // 파일 읽기 실패 시 건너뜀
+        }
+      }
+      
+      // 캐시 업데이트
+      scenarioCountCache.counts = counts;
+      scenarioCountCache.lastUpdated = now;
+      
+      return counts;
+    } catch (error) {
+      console.error('Failed to get scenario counts:', error);
+      return new Map();
+    }
+  }
+  
+  // 캐시 무효화 (시나리오 생성/수정/삭제 시 호출)
+  invalidateScenarioCountCache(): void {
+    scenarioCountCache.lastUpdated = 0;
+  }
   
   // 시나리오 관리
   async getAllScenarios(): Promise<ComplexScenario[]> {
@@ -127,6 +188,7 @@ export class FileManagerService {
     const filePath = path.join(SCENARIOS_DIR, fileName);
     
     await fs.writeFile(filePath, JSON.stringify(newScenario, null, 2), 'utf-8');
+    this.invalidateScenarioCountCache(); // 캐시 무효화
     return newScenario;
   }
 
@@ -159,6 +221,7 @@ export class FileManagerService {
       const filePath = path.join(SCENARIOS_DIR, foundFile);
       
       await fs.writeFile(filePath, JSON.stringify(updatedScenario, null, 2), 'utf-8');
+      this.invalidateScenarioCountCache(); // 캐시 무효화
       return updatedScenario;
     } catch (error) {
       throw new Error(`Scenario ${id} not found: ${error}`);
@@ -190,6 +253,7 @@ export class FileManagerService {
       
       const filePath = path.join(SCENARIOS_DIR, foundFile);
       await fs.unlink(filePath);
+      this.invalidateScenarioCountCache(); // 캐시 무효화
     } catch (error) {
       throw new Error(`Failed to delete scenario ${id}: ${error}`);
     }
