@@ -1858,17 +1858,6 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
                         <i className="fas fa-redo mr-1 text-xs"></i>
                         {Math.max(0, maxTurns - (conversation?.turnCount ?? 0))}턴 남음
                       </span>
-                      {/* Input Mode Indicator */}
-                      <span className="text-slate-300">•</span>
-                      <span className="text-xs">
-                        {inputMode === 'text' && '💬 텍스트'}
-                        {inputMode === 'tts' && (
-                          <span className="text-green-600">🔊 TTS {isSpeaking && '재생중...'}</span>
-                        )}
-                        {inputMode === 'realtime-voice' && (
-                          <span className="text-blue-600">🎙️ 실시간 {realtimeVoice.isRecording && '녹음중...'}</span>
-                        )}
-                      </span>
                     </div>
                   </div>
                 </div>
