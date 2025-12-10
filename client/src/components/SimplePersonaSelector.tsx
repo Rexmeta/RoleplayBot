@@ -373,8 +373,8 @@ export function SimplePersonaSelector({
               </CardContent>
             </Card>
 
-            {/* 페르소나 목록 */}
-            <div className="space-y-4">
+            {/* 페르소나 목록 - 2열 그리드 */}
+            <div className="grid grid-cols-2 gap-3">
               {personas.map((persona) => {
                 const isCompleted = completedPersonaIds.includes(persona.id);
                 const isCurrentlyLoading = loadingPersonaId === persona.id;
@@ -395,7 +395,7 @@ export function SimplePersonaSelector({
                   >
                     <CardContent className="p-0">
                       {/* 페르소나 이미지 배경 - 얼굴이 보이도록 세로 영역 확장 */}
-                      <div className="relative h-44 bg-gradient-to-br from-slate-100 to-slate-200 overflow-hidden">
+                      <div className="relative h-32 bg-gradient-to-br from-slate-100 to-slate-200 overflow-hidden">
                         <img 
                           src={getPersonaImage(persona)}
                           alt={persona.name}
@@ -421,35 +421,36 @@ export function SimplePersonaSelector({
                       </div>
 
                       {/* 페르소나 정보 - 이름, 직급, 소속을 가로 배열 */}
-                      <div className="p-4">
-                        <div className="flex items-center flex-wrap gap-x-2 gap-y-1 mb-3">
-                          <h3 className="font-bold text-lg text-slate-900">{persona.name}</h3>
-                          <span className="text-slate-400">·</span>
-                          <span className="text-sm text-slate-600">{persona.role}</span>
+                      <div className="p-3">
+                        <div className="flex items-center flex-wrap gap-x-1.5 gap-y-0.5 mb-2">
+                          <h3 className="font-bold text-sm text-slate-900">{persona.name}</h3>
+                          <span className="text-slate-400 text-xs">·</span>
+                          <span className="text-xs text-slate-600">{persona.role}</span>
                           {persona.department && (
                             <>
-                              <span className="text-slate-400">·</span>
-                              <span className="text-sm text-slate-500">{persona.department}</span>
+                              <span className="text-slate-400 text-xs">·</span>
+                              <span className="text-xs text-slate-500">{persona.department}</span>
                             </>
                           )}
                         </div>
 
                         {/* 입장/목표 미리보기 */}
                         {persona.stance && (
-                          <p className="text-xs text-slate-500 line-clamp-2 mb-3">
+                          <p className="text-xs text-slate-500 line-clamp-2 mb-2">
                             {persona.stance}
                           </p>
                         )}
 
                         {/* 액션 버튼 */}
                         {isCompleted ? (
-                          <div className="flex items-center justify-center gap-2 py-2 bg-green-100 rounded-lg text-green-700 text-sm font-medium">
-                            <CheckCircle2 className="w-4 h-4" />
-                            대화 완료
+                          <div className="flex items-center justify-center gap-1.5 py-1.5 bg-green-100 rounded-lg text-green-700 text-xs font-medium">
+                            <CheckCircle2 className="w-3.5 h-3.5" />
+                            완료
                           </div>
                         ) : (
                           <Button 
-                            className="w-full bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 shadow-md"
+                            size="sm"
+                            className="w-full bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 shadow-md text-xs h-8"
                             disabled={isLoading}
                             onClick={(e) => {
                               e.stopPropagation();
@@ -461,12 +462,12 @@ export function SimplePersonaSelector({
                           >
                             {isCurrentlyLoading ? (
                               <>
-                                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                                <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />
                                 준비 중...
                               </>
                             ) : (
                               <>
-                                <Play className="w-4 h-4 mr-2" />
+                                <Play className="w-3.5 h-3.5 mr-1.5" />
                                 대화 시작
                               </>
                             )}
