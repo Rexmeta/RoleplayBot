@@ -37,6 +37,22 @@ export default function ScenarioSelector({ onScenarioSelect, playerProfile }: Sc
   
   // 상세 검색 표시 여부
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
+  
+  // 펼쳐진 시나리오 상태 관리
+  const [expandedScenarios, setExpandedScenarios] = useState<Set<string | number>>(new Set());
+  
+  const toggleScenarioExpand = (scenarioId: string | number, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setExpandedScenarios(prev => {
+      const next = new Set(prev);
+      if (next.has(scenarioId)) {
+        next.delete(scenarioId);
+      } else {
+        next.add(scenarioId);
+      }
+      return next;
+    });
+  };
 
   // JSON 파일에서 실시간으로 시나리오와 페르소나 데이터 가져오기
   const { data: scenarios = [], isLoading: scenariosLoading } = useQuery({
@@ -321,108 +337,158 @@ export default function ScenarioSelector({ onScenarioSelect, playerProfile }: Sc
             ) : (
               filteredScenarios.map((scenario: ComplexScenario) => {
               const recommendation = getRecommendationLevel(scenario);
+              const isExpanded = expandedScenarios.has(scenario.id);
               
               return (
-                <Card key={scenario.id} className="overflow-hidden group">
-                  {/* 시나리오 카드 - 이미지 배경 버전 (썸네일 우선 사용) */}
+                <Card 
+                  key={scenario.id} 
+                  className="overflow-hidden group relative border-0 shadow-lg hover:shadow-2xl transition-all duration-500"
+                >
+                  {/* 배경 이미지 레이어 - 줌 인 효과 */}
                   <div
-                    className="relative cursor-pointer min-h-[12rem] max-h-[12rem] group-hover:max-h-screen overflow-x-hidden overflow-y-hidden group-hover:overflow-y-auto transition-[max-height] duration-700 ease-in-out"
+                    className="absolute inset-0 bg-cover bg-center bg-no-repeat transition-all duration-700 ease-out group-hover:scale-110 group-hover:brightness-110"
+                    style={{
+                      backgroundImage: `url(${(scenario as any).thumbnail || scenario.image || 'https://images.unsplash.com/photo-1557804506-669a67965ba0?w=800&h=400&fit=crop&auto=format'})`,
+                    }}
+                  />
+                  
+                  {/* 그라데이션 오버레이 - 호버시 밝아지는 효과 */}
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/40 to-black/20 group-hover:from-black/70 group-hover:via-black/30 group-hover:to-transparent transition-all duration-500" />
+                  
+                  {/* 시나리오 카드 콘텐츠 */}
+                  <div
+                    className="relative cursor-pointer min-h-[14rem]"
                     onClick={() => handleScenarioClick(scenario)}
                     data-testid={`scenario-card-${scenario.id}`}
-                    style={{
-                      backgroundImage: `linear-gradient(45deg, rgba(0,0,0,0.7) 0%, rgba(0,0,0,0.3) 100%), url(${(scenario as any).thumbnail || scenario.image || 'https://images.unsplash.com/photo-1557804506-669a67965ba0?w=800&h=400&fit=crop&auto=format'})`,
-                      backgroundSize: 'cover',
-                      backgroundPosition: 'center',
-                      backgroundRepeat: 'no-repeat'
-                    }}
                   >
-                    {/* 기본 표시 정보 (항상 보이는 내용) */}
-                    <div className="absolute inset-0 flex flex-col justify-center items-center text-white text-center p-6 group-hover:hidden transition-all duration-500">
-                      {/* 카테고리 배지 (상단 좌측) */}
+                    {/* 상단 배지 영역 */}
+                    <div className="absolute top-4 left-4 right-4 flex items-start justify-between z-10">
+                      {/* 카테고리 배지 */}
                       {getCategoryName((scenario as any).categoryId) && (
-                        <div className="absolute top-3 left-3">
-                          <Badge className="bg-blue-600/80 text-white text-xs backdrop-blur-sm">
-                            <Folder className="h-3 w-3 mr-1" />
-                            {getCategoryName((scenario as any).categoryId)}
-                          </Badge>
-                        </div>
+                        <Badge className="bg-blue-600/90 text-white text-xs backdrop-blur-md shadow-lg">
+                          <Folder className="h-3 w-3 mr-1" />
+                          {getCategoryName((scenario as any).categoryId)}
+                        </Badge>
                       )}
-                      <h2 className="text-2xl font-bold mb-4 drop-shadow-lg">{scenario.title}</h2>
-                      <div className="flex items-center gap-4 text-sm">
-                        <div className="flex items-center gap-1 bg-white/20 backdrop-blur-sm rounded-full px-3 py-1">
-                          <i className="fas fa-users"></i>
-                          <span>{(scenario.personas || []).length}명</span>
+                      
+                      {/* 펼치기/접기 버튼 */}
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={(e) => toggleScenarioExpand(scenario.id, e)}
+                        className="w-8 h-8 p-0 bg-white/20 hover:bg-white/40 backdrop-blur-md rounded-full transition-all duration-300"
+                        data-testid={`button-expand-scenario-${scenario.id}`}
+                      >
+                        {isExpanded ? (
+                          <ChevronUp className="w-4 h-4 text-white" />
+                        ) : (
+                          <ChevronDown className="w-4 h-4 text-white" />
+                        )}
+                      </Button>
+                    </div>
+                    
+                    {/* 메인 콘텐츠 - 항상 보이는 영역 */}
+                    <div className="absolute bottom-0 left-0 right-0 p-5 text-white">
+                      <h2 className="text-xl font-bold mb-3 drop-shadow-lg line-clamp-2 group-hover:text-white transition-colors duration-300">
+                        {scenario.title}
+                      </h2>
+                      <div className="flex items-center gap-3 text-sm">
+                        <div className="flex items-center gap-1.5 bg-white/20 backdrop-blur-md rounded-full px-3 py-1.5 shadow-sm">
+                          <i className="fas fa-users text-xs"></i>
+                          <span className="font-medium">{(scenario.personas || []).length}명</span>
                         </div>
-                        <div className="flex items-center gap-1 bg-white/20 backdrop-blur-sm rounded-full px-3 py-1">
-                          <i className="fas fa-clock"></i>
-                          <span>{scenario.estimatedTime}</span>
+                        <div className="flex items-center gap-1.5 bg-white/20 backdrop-blur-md rounded-full px-3 py-1.5 shadow-sm">
+                          <i className="fas fa-clock text-xs"></i>
+                          <span className="font-medium">{scenario.estimatedTime}</span>
                         </div>
+                        <Badge variant="outline" className="bg-white/20 text-white border-white/40 backdrop-blur-md">
+                          {recommendation.level}
+                        </Badge>
                       </div>
                     </div>
-
-                    {/* 호버시 표시되는 상세 정보 */}
-                    <div className="hidden group-hover:block bg-black/80 backdrop-blur-sm p-6 transition-all duration-700 ease-in-out">
-                      <div className="text-white">
-                        {/* 헤더 */}
-                        <div className="flex items-center gap-3 mb-4">
-                          <h3 className="text-lg font-semibold">{scenario.title}</h3>
-                          <Badge variant="outline" className="bg-white/20 text-white border-white/30">
-                            {recommendation.level}
-                          </Badge>
+                  </div>
+                  
+                  {/* 펼쳐지는 상세 정보 영역 */}
+                  <div 
+                    className={`relative overflow-hidden transition-all duration-500 ease-in-out ${
+                      isExpanded ? 'max-h-[600px] opacity-100' : 'max-h-0 opacity-0'
+                    }`}
+                  >
+                    <div className="bg-gradient-to-b from-slate-900 to-slate-800 p-6 text-white">
+                      {/* 설명 */}
+                      <p className="text-sm text-gray-200 mb-5 leading-relaxed whitespace-pre-wrap">
+                        {scenario.description}
+                      </p>
+                      
+                      {/* 상황 정보 */}
+                      <div className="space-y-4 mb-5">
+                        <div className="bg-white/5 rounded-lg p-4">
+                          <h4 className="font-medium text-white mb-2 flex items-center text-sm">
+                            <i className="fas fa-exclamation-triangle mr-2 text-yellow-400"></i>
+                            상황
+                          </h4>
+                          <p className="text-gray-300 text-xs leading-relaxed whitespace-pre-wrap">
+                            {scenario.context?.situation || '상황 정보 없음'}
+                          </p>
                         </div>
                         
-                        {/* 설명 */}
-                        <p className="text-sm text-gray-200 mb-4 whitespace-pre-wrap">{scenario.description}</p>
-                        
-                        {/* 상황 정보 */}
-                        <div className="space-y-3 mb-4">
-                          <div>
-                            <h4 className="font-medium text-white mb-1 flex items-center text-sm">
-                              <i className="fas fa-exclamation-triangle mr-2 text-yellow-400"></i>
-                              상황
-                            </h4>
-                            <p className="text-gray-300 text-xs leading-relaxed pl-5 whitespace-pre-wrap">
-                              {scenario.context?.situation || '상황 정보 없음'}
-                            </p>
-                          </div>
-                          
-                          <div>
-                            <h4 className="font-medium text-white mb-1 flex items-center text-sm">
+                        <div className="grid grid-cols-2 gap-3">
+                          <div className="bg-white/5 rounded-lg p-3">
+                            <h4 className="font-medium text-white mb-1 flex items-center text-xs">
                               <i className="fas fa-user-tie mr-2 text-blue-400"></i>
                               당신의 역할
                             </h4>
-                            <p className="text-gray-300 text-xs pl-5">
-                              {scenario.context?.playerRole?.position || '역할 정보 없음'} ({scenario.context?.playerRole?.experience || '경력 정보 없음'})
+                            <p className="text-gray-300 text-xs">
+                              {scenario.context?.playerRole?.position || '역할 정보 없음'}
+                            </p>
+                            <p className="text-gray-400 text-xs mt-0.5">
+                              {scenario.context?.playerRole?.experience || ''}
                             </p>
                           </div>
-
-                          <div>
-                            <h4 className="font-medium text-white mb-1 flex items-center text-sm">
+                          
+                          <div className="bg-white/5 rounded-lg p-3">
+                            <h4 className="font-medium text-white mb-1 flex items-center text-xs">
                               <i className="fas fa-clock mr-2 text-purple-400"></i>
                               예상 소요 시간
                             </h4>
-                            <p className="text-gray-300 text-xs pl-5">{scenario.estimatedTime}</p>
+                            <p className="text-gray-300 text-xs">{scenario.estimatedTime}</p>
                           </div>
                         </div>
+                      </div>
 
-                        {/* 주요 역량 */}
-                        <div>
-                          <h4 className="font-medium text-white mb-2 flex items-center text-sm">
-                            <i className="fas fa-lightbulb mr-2 text-green-400"></i>
-                            주요 역량
-                          </h4>
-                          <div className="flex flex-wrap gap-1 pl-5">
-                            {sortSkillsByImportance(scenario.skills || []).map((skill: string, index: number) => (
-                              <Badge 
-                                key={index} 
-                                variant="secondary" 
-                                className={`text-xs bg-white/20 text-white border-white/30 ${index < 2 ? 'bg-blue-500/30 border-blue-400/50' : ''}`}
-                              >
-                                {skill}
-                              </Badge>
-                            ))}
-                          </div>
+                      {/* 주요 역량 */}
+                      <div>
+                        <h4 className="font-medium text-white mb-3 flex items-center text-sm">
+                          <i className="fas fa-lightbulb mr-2 text-green-400"></i>
+                          주요 역량
+                        </h4>
+                        <div className="flex flex-wrap gap-2">
+                          {sortSkillsByImportance(scenario.skills || []).map((skill: string, index: number) => (
+                            <Badge 
+                              key={index} 
+                              variant="secondary" 
+                              className={`text-xs transition-all duration-300 ${
+                                index < 2 
+                                  ? 'bg-blue-500/40 text-blue-100 border-blue-400/50 hover:bg-blue-500/60' 
+                                  : 'bg-white/10 text-white border-white/20 hover:bg-white/20'
+                              }`}
+                            >
+                              {skill}
+                            </Badge>
+                          ))}
                         </div>
+                      </div>
+                      
+                      {/* 시작 버튼 */}
+                      <div className="mt-5 pt-4 border-t border-white/10">
+                        <Button 
+                          onClick={() => handleScenarioClick(scenario)}
+                          className="w-full bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white font-medium shadow-lg hover:shadow-xl transition-all duration-300"
+                          data-testid={`button-start-scenario-${scenario.id}`}
+                        >
+                          <i className="fas fa-play mr-2"></i>
+                          시나리오 시작하기
+                        </Button>
                       </div>
                     </div>
                   </div>
