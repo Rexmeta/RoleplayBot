@@ -87,6 +87,7 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
   const [conversationStartTime, setConversationStartTime] = useState<Date | null>(null);
   const [localMessages, setLocalMessages] = useState<ConversationMessage[]>([]);
   const [chatMode, setChatMode] = useState<'messenger' | 'character'>('character');
+  const [isWideScreen, setIsWideScreen] = useState(false);
   const [showInputMode, setShowInputMode] = useState(false);
   const [isTransitioning, setIsTransitioning] = useState(false);
   const [isEmotionTransitioning, setIsEmotionTransitioning] = useState(false);
@@ -215,6 +216,21 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
     setPersonaImagesAvailable({});
     setLoadedImageUrl('');
   }, [persona.id, conversationId]);
+
+  // 넓은 화면(1920px 이상)에서 자동으로 메신저 모드로 전환
+  useEffect(() => {
+    const checkScreenWidth = () => {
+      const isWide = window.innerWidth >= 1920;
+      setIsWideScreen(isWide);
+      if (isWide && chatMode === 'character') {
+        setChatMode('messenger');
+      }
+    };
+
+    checkScreenWidth();
+    window.addEventListener('resize', checkScreenWidth);
+    return () => window.removeEventListener('resize', checkScreenWidth);
+  }, [chatMode]);
 
   // personaImagesAvailable이 업데이트될 때 초기 이미지 설정 및 로딩 오버레이 해제
   useEffect(() => {
@@ -1690,8 +1706,8 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
               className="fixed inset-0 z-10 flex"
               data-testid="character-mode"
             >
-              {/* Wide Screen Left Sidebar - Goals Panel (visible on 2xl+) */}
-              <div className="hidden 2xl:flex flex-col w-96 xl:w-[420px] bg-gradient-to-b from-slate-50 to-slate-100 border-r border-slate-200 p-4 overflow-y-auto z-30">
+              {/* Wide Screen Left Sidebar - Goals Panel (visible on xl+) */}
+              <div className="hidden xl:flex flex-col w-[480px] 2xl:w-[560px] bg-gradient-to-b from-slate-50 to-slate-100 border-r border-slate-200 p-4 overflow-y-auto z-30">
                 {/* Character Info */}
                 <div className="bg-white rounded-xl px-4 py-3 shadow-sm border border-slate-100 mb-4">
                   <div className="flex items-center space-x-2">
@@ -1758,7 +1774,7 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
               {/* Character Image Area with max-width constraint */}
               <div className="flex-1 flex justify-center bg-slate-100">
                 <div 
-                  className={`relative w-full max-w-[1000px] 2xl:max-w-[1100px] h-full bg-cover bg-center bg-no-repeat transition-all duration-300 ${
+                  className={`relative w-full max-w-[800px] xl:max-w-[900px] h-full bg-cover bg-center bg-no-repeat transition-all duration-300 ${
                     isEmotionTransitioning ? 'brightness-95 scale-[1.02]' : 'brightness-110 scale-100'
                   }`}
                   style={{
@@ -1779,7 +1795,7 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
               )}
               
               {/* Top Left Area - Hidden on 2xl (shown in sidebar) */}
-              <div className="absolute top-4 left-4 z-20 space-y-3 2xl:hidden">
+              <div className="absolute top-4 left-4 z-20 space-y-3 xl:hidden">
                 {/* Character Info Bar */}
                 <div className="bg-white/90 backdrop-blur-sm rounded-full px-4 py-2 shadow-lg">
                   <div className="flex items-center space-x-3">
@@ -1808,7 +1824,7 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
 
                 {/* Goals Display - Collapsible (Hidden on 2xl where sidebar is visible) */}
                 {(scenario?.objectives || scenario?.context?.playerRole?.responsibility) && (
-                  <div className="bg-white/80 backdrop-blur-sm rounded-lg shadow-lg transition-all duration-300 max-w-sm 2xl:hidden">
+                  <div className="bg-white/80 backdrop-blur-sm rounded-lg shadow-lg transition-all duration-300 max-w-sm xl:hidden">
                     <button
                       onClick={() => setIsGoalsExpanded(!isGoalsExpanded)}
                       className="w-full p-2 flex items-center justify-between hover:bg-white/90 transition-all duration-200 rounded-lg"
