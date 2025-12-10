@@ -69,7 +69,7 @@ export function ScenarioManager() {
   const [editingScenario, setEditingScenario] = useState<ComplexScenario | null>(null);
   const [isGeneratingImage, setIsGeneratingImage] = useState(false);
   const [isGeneratingVideo, setIsGeneratingVideo] = useState(false);
-  const [expandedScenarios, setExpandedScenarios] = useState<Set<number>>(new Set());
+  const [expandedScenarios, setExpandedScenarios] = useState<Set<string | number>>(new Set());
   const [formData, setFormData] = useState<ScenarioFormData>({
     title: '',
     description: '',
