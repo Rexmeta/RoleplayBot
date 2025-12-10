@@ -13,7 +13,7 @@ import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import { apiRequest, queryClient } from '@/lib/queryClient';
 import { ComplexScenario } from '@/lib/scenario-system';
-import { Loader2, MoreVertical } from 'lucide-react';
+import { Loader2, MoreVertical, ChevronDown, ChevronUp, Clock, Users, Target } from 'lucide-react';
 import { AIScenarioGenerator } from './AIScenarioGenerator';
 
 interface ScenarioPersona {
@@ -69,6 +69,7 @@ export function ScenarioManager() {
   const [editingScenario, setEditingScenario] = useState<ComplexScenario | null>(null);
   const [isGeneratingImage, setIsGeneratingImage] = useState(false);
   const [isGeneratingVideo, setIsGeneratingVideo] = useState(false);
+  const [expandedScenarios, setExpandedScenarios] = useState<Set<number>>(new Set());
   const [formData, setFormData] = useState<ScenarioFormData>({
     title: '',
     description: '',
@@ -1216,118 +1217,191 @@ export function ScenarioManager() {
       </div>
 
       {/* 시나리오 목록 */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {scenarios?.map((scenario) => (
-          <Card key={scenario.id} className="card-enhanced">
-            <CardHeader>
-              <div className="flex items-start justify-between">
-                <div className="flex-1">
-                  <CardTitle className="text-lg mb-2">{scenario.title}</CardTitle>
-                  <div className="flex items-center gap-2 mb-2">
-                    <Badge variant="outline" className="bg-green-100 text-green-800">
-                      {scenario.estimatedTime}
-                    </Badge>
-                    <Badge variant="outline" className="bg-purple-100 text-purple-800">
-                      {(scenario.personas || []).length}개 페르소나
-                    </Badge>
-                  </div>
-                </div>
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="flex items-center justify-center w-8 h-8 p-0"
-                      data-testid={`button-scenario-menu-${scenario.id}`}
-                    >
-                      <MoreVertical className="h-4 w-4" />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end">
-                    <DropdownMenuItem
-                      onClick={() => handleEdit(scenario)}
-                      data-testid={`button-edit-scenario-${scenario.id}`}
-                    >
-                      <i className="fas fa-edit mr-2 w-4 h-4 text-center"></i>
-                      수정
-                    </DropdownMenuItem>
-                    <AlertDialog>
-                      <AlertDialogTrigger asChild>
-                        <DropdownMenuItem
-                          onSelect={(e) => e.preventDefault()}
-                          data-testid={`button-delete-scenario-${scenario.id}`}
-                          className="text-red-600 focus:text-red-600 focus:bg-red-50"
-                        >
-                          <i className="fas fa-trash mr-2 w-4 h-4 text-center"></i>
-                          삭제
-                        </DropdownMenuItem>
-                      </AlertDialogTrigger>
-                      <AlertDialogContent>
-                        <AlertDialogHeader>
-                          <AlertDialogTitle>시나리오 삭제 확인</AlertDialogTitle>
-                          <AlertDialogDescription className="space-y-2">
-                            <div>
-                              <strong>"{scenario.title}"</strong> 시나리오를 정말 삭제하시겠습니까?
-                            </div>
-                            <div className="text-red-600 font-medium">
-                              ⚠️ 삭제된 시나리오는 복구할 수 없습니다.
-                            </div>
-                            <div className="text-slate-600 text-sm">
-                              이 작업은 되돌릴 수 없으니 신중하게 결정해주세요.
-                            </div>
-                          </AlertDialogDescription>
-                        </AlertDialogHeader>
-                        <AlertDialogFooter>
-                          <AlertDialogCancel>취소</AlertDialogCancel>
-                          <AlertDialogAction
-                            onClick={() => deleteMutation.mutate(scenario.id)}
-                            className="bg-red-600 hover:bg-red-700"
-                            data-testid={`confirm-delete-scenario-${scenario.id}`}
-                          >
-                            삭제
-                          </AlertDialogAction>
-                        </AlertDialogFooter>
-                      </AlertDialogContent>
-                    </AlertDialog>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              </div>
-            </CardHeader>
-            <CardContent>
-              <p className="text-slate-600 mb-4 whitespace-pre-wrap">{scenario.description}</p>
+      <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-5">
+        {scenarios?.map((scenario) => {
+          const isExpanded = expandedScenarios.has(scenario.id);
+          const toggleExpand = () => {
+            setExpandedScenarios(prev => {
+              const next = new Set(prev);
+              if (next.has(scenario.id)) {
+                next.delete(scenario.id);
+              } else {
+                next.add(scenario.id);
+              }
+              return next;
+            });
+          };
+          
+          return (
+            <Card 
+              key={scenario.id} 
+              className="group relative overflow-hidden border-0 shadow-md hover:shadow-xl transition-all duration-300 bg-gradient-to-br from-white to-slate-50"
+            >
+              <div className="absolute top-0 left-0 w-1.5 h-full bg-gradient-to-b from-corporate-500 to-corporate-600" />
               
-              <div className="space-y-3">
-                <div>
-                  <h4 className="font-medium text-slate-700 mb-1">주요 역량</h4>
-                  <div className="flex flex-wrap gap-1">
-                    {(scenario.skills || []).map((skill, index) => (
-                      <Badge key={index} variant="secondary" className="text-xs">
-                        {skill}
-                      </Badge>
-                    ))}
+              <CardHeader className="pb-3 pl-5">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex-1 min-w-0">
+                    <CardTitle className="text-base font-semibold text-slate-800 line-clamp-2 leading-tight mb-3">
+                      {scenario.title}
+                    </CardTitle>
+                    <div className="flex items-center gap-3 text-sm text-slate-500">
+                      <div className="flex items-center gap-1.5">
+                        <Clock className="w-3.5 h-3.5" />
+                        <span>{scenario.estimatedTime}</span>
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        <Users className="w-3.5 h-3.5" />
+                        <span>{(scenario.personas || []).length}명</span>
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        <Target className="w-3.5 h-3.5" />
+                        <span>{(scenario.skills || []).length}개 역량</span>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <div className="flex items-center gap-1">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={toggleExpand}
+                      className="w-8 h-8 p-0 hover:bg-slate-100"
+                      data-testid={`button-expand-scenario-${scenario.id}`}
+                    >
+                      {isExpanded ? (
+                        <ChevronUp className="w-4 h-4 text-slate-500" />
+                      ) : (
+                        <ChevronDown className="w-4 h-4 text-slate-500" />
+                      )}
+                    </Button>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="w-8 h-8 p-0 hover:bg-slate-100"
+                          data-testid={`button-scenario-menu-${scenario.id}`}
+                        >
+                          <MoreVertical className="h-4 w-4 text-slate-500" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem
+                          onClick={() => handleEdit(scenario)}
+                          data-testid={`button-edit-scenario-${scenario.id}`}
+                        >
+                          <i className="fas fa-edit mr-2 w-4 h-4 text-center"></i>
+                          수정
+                        </DropdownMenuItem>
+                        <AlertDialog>
+                          <AlertDialogTrigger asChild>
+                            <DropdownMenuItem
+                              onSelect={(e) => e.preventDefault()}
+                              data-testid={`button-delete-scenario-${scenario.id}`}
+                              className="text-red-600 focus:text-red-600 focus:bg-red-50"
+                            >
+                              <i className="fas fa-trash mr-2 w-4 h-4 text-center"></i>
+                              삭제
+                            </DropdownMenuItem>
+                          </AlertDialogTrigger>
+                          <AlertDialogContent>
+                            <AlertDialogHeader>
+                              <AlertDialogTitle>시나리오 삭제 확인</AlertDialogTitle>
+                              <AlertDialogDescription className="space-y-2">
+                                <div>
+                                  <strong>"{scenario.title}"</strong> 시나리오를 정말 삭제하시겠습니까?
+                                </div>
+                                <div className="text-red-600 font-medium">
+                                  ⚠️ 삭제된 시나리오는 복구할 수 없습니다.
+                                </div>
+                                <div className="text-slate-600 text-sm">
+                                  이 작업은 되돌릴 수 없으니 신중하게 결정해주세요.
+                                </div>
+                              </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                              <AlertDialogCancel>취소</AlertDialogCancel>
+                              <AlertDialogAction
+                                onClick={() => deleteMutation.mutate(scenario.id)}
+                                className="bg-red-600 hover:bg-red-700"
+                                data-testid={`confirm-delete-scenario-${scenario.id}`}
+                              >
+                                삭제
+                              </AlertDialogAction>
+                            </AlertDialogFooter>
+                          </AlertDialogContent>
+                        </AlertDialog>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
                   </div>
                 </div>
-                
-                <div>
-                  <h4 className="font-medium text-slate-700 mb-1">포함된 페르소나</h4>
-                  <div className="flex flex-wrap gap-1">
-                    {(scenario.personas || []).map((persona, index) => {
-                      if (typeof persona === 'string') {
-                        return <Badge key={index} variant="outline" className="text-xs">{persona}</Badge>;
-                      }
-                      const p = persona as any;
-                      const department = p.department || '';
-                      const name = p.name || p.id || '알 수 없는 페르소나';
-                      const mbti = p.mbti ? `(${p.mbti})` : '';
-                      const displayText = [department, name, mbti].filter(Boolean).join(' ');
-                      return <Badge key={index} variant="outline" className="text-xs">{displayText}</Badge>;
-                    })}
+              </CardHeader>
+              
+              <div 
+                className={`overflow-hidden transition-all duration-300 ease-in-out ${
+                  isExpanded ? 'max-h-[500px] opacity-100' : 'max-h-0 opacity-0'
+                }`}
+              >
+                <CardContent className="pt-0 pl-5 pb-4 space-y-4">
+                  <div className="border-t border-slate-100 pt-4">
+                    <p className="text-sm text-slate-600 leading-relaxed line-clamp-3">
+                      {scenario.description}
+                    </p>
                   </div>
-                </div>
+                  
+                  <div>
+                    <h4 className="text-xs font-medium text-slate-500 uppercase tracking-wide mb-2">주요 역량</h4>
+                    <div className="flex flex-wrap gap-1.5">
+                      {(scenario.skills || []).map((skill, index) => (
+                        <Badge 
+                          key={index} 
+                          variant="secondary" 
+                          className="text-xs bg-blue-50 text-blue-700 hover:bg-blue-100 border-0"
+                        >
+                          {skill}
+                        </Badge>
+                      ))}
+                    </div>
+                  </div>
+                  
+                  <div>
+                    <h4 className="text-xs font-medium text-slate-500 uppercase tracking-wide mb-2">페르소나</h4>
+                    <div className="flex flex-wrap gap-1.5">
+                      {(scenario.personas || []).map((persona, index) => {
+                        if (typeof persona === 'string') {
+                          return (
+                            <Badge 
+                              key={index} 
+                              variant="outline" 
+                              className="text-xs bg-purple-50 text-purple-700 border-purple-200"
+                            >
+                              {persona}
+                            </Badge>
+                          );
+                        }
+                        const p = persona as any;
+                        const department = p.department || '';
+                        const name = p.name || p.id || '알 수 없는 페르소나';
+                        const mbti = p.mbti ? `(${p.mbti})` : '';
+                        const displayText = [department, name, mbti].filter(Boolean).join(' ');
+                        return (
+                          <Badge 
+                            key={index} 
+                            variant="outline" 
+                            className="text-xs bg-purple-50 text-purple-700 border-purple-200"
+                          >
+                            {displayText}
+                          </Badge>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </CardContent>
               </div>
-            </CardContent>
-          </Card>
-        ))}
+            </Card>
+          );
+        })}
       </div>
 
       {scenarios?.length === 0 && (
