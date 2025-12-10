@@ -1269,19 +1269,6 @@ export function ScenarioManager() {
                   </div>
                   
                   <div className="flex items-center gap-1">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={toggleExpand}
-                      className="w-8 h-8 p-0 hover:bg-slate-100"
-                      data-testid={`button-expand-scenario-${scenario.id}`}
-                    >
-                      {isExpanded ? (
-                        <ChevronUp className="w-4 h-4 text-slate-500" />
-                      ) : (
-                        <ChevronDown className="w-4 h-4 text-slate-500" />
-                      )}
-                    </Button>
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
                         <Button
