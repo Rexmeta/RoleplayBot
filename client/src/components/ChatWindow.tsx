@@ -1345,16 +1345,16 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
                 >
                   {message.sender === "ai" && (
                     <div className="relative flex-shrink-0">
-                      <div className="w-10 h-10 rounded-full ring-2 ring-white shadow-md overflow-hidden">
+                      <div className="w-12 h-12 rounded-xl ring-2 ring-white shadow-md overflow-hidden bg-slate-100">
                         <img 
-                          src={persona.image} 
+                          src={getCharacterImage(message.emotion || '중립') || persona.image} 
                           alt={persona.name} 
                           className="w-full h-full object-cover" 
                         />
                       </div>
                       {message.emotion && (
                         <div 
-                          className="absolute -bottom-1 -right-1 text-xs bg-white rounded-full w-6 h-6 flex items-center justify-center shadow-sm border-2 border-white"
+                          className="absolute -bottom-1 -right-1 text-xs bg-white rounded-lg w-6 h-6 flex items-center justify-center shadow-sm border-2 border-white"
                           title={message.emotionReason || message.emotion}
                         >
                           {emotionEmojis[message.emotion] || '😐'}
@@ -1423,8 +1423,8 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
 
               {isLoading && (
                 <div className="flex items-end space-x-3">
-                  <div className="w-10 h-10 rounded-full ring-2 ring-white shadow-md overflow-hidden">
-                    <img src={persona.image} alt={persona.name} className="w-full h-full object-cover" />
+                  <div className="w-12 h-12 rounded-xl ring-2 ring-white shadow-md overflow-hidden bg-slate-100">
+                    <img src={getCharacterImage('중립') || persona.image} alt={persona.name} className="w-full h-full object-cover" />
                   </div>
                   <div className="bg-white rounded-2xl rounded-bl-md px-4 py-3 shadow-md border border-slate-100">
                     <div className="flex space-x-1.5">
