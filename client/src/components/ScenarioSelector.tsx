@@ -43,7 +43,18 @@ export default function ScenarioSelector({ onScenarioSelect, playerProfile }: Sc
   
   const toggleScenarioExpand = (scenarioId: string | number, e: React.MouseEvent) => {
     e.stopPropagation();
+    const isCurrentlyExpanded = expandedScenarioId === scenarioId;
     setExpandedScenarioId(prev => prev === scenarioId ? null : scenarioId);
+    
+    // 모바일에서 펼칠 때 해당 카드가 화면에 보이도록 스크롤
+    if (!isCurrentlyExpanded) {
+      setTimeout(() => {
+        const card = document.querySelector(`[data-testid="scenario-card-${scenarioId}"]`)?.closest('.group');
+        if (card) {
+          card.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+      }, 100);
+    }
   };
 
   // JSON 파일에서 실시간으로 시나리오와 페르소나 데이터 가져오기
