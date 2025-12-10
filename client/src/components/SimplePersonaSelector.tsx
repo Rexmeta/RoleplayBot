@@ -1,7 +1,9 @@
+import { useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { CheckCircle2, Users, MessageCircle, Target, Clock, BarChart, Lightbulb, AlertCircle, TrendingUp, ArrowLeft, Loader2 } from "lucide-react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { CheckCircle2, Users, MessageCircle, Target, Clock, Lightbulb, AlertCircle, TrendingUp, ArrowLeft, Loader2, Play, BookOpen, Award, Briefcase } from "lucide-react";
 import { type ScenarioPersona, type ComplexScenario } from "@/lib/scenario-system";
 
 interface SimplePersonaSelectorProps {
@@ -31,357 +33,452 @@ export function SimplePersonaSelector({
   selectedDifficulty,
   onDifficultyChange
 }: SimplePersonaSelectorProps) {
+  const [activeTab, setActiveTab] = useState("overview");
   const availablePersonas = personas.filter(p => !completedPersonaIds.includes(p.id));
   const completedCount = completedPersonaIds.length;
   const totalCount = personas.length;
   const progressPercentage = Math.round((completedCount / totalCount) * 100);
   
-  const difficultyLabels: Record<number, { name: string; color: string; description: string }> = {
-    1: { name: "매우 쉬움", color: "bg-green-100 text-green-800 border-green-300", description: "초보자를 위한 친절하고 교육적인 대화" },
-    2: { name: "기본", color: "bg-blue-100 text-blue-800 border-blue-300", description: "친절하지만 현실적인 대화" },
-    3: { name: "도전형", color: "bg-orange-100 text-orange-800 border-orange-300", description: "논리적 근거를 요구하는 도전적 대화" },
-    4: { name: "고난도", color: "bg-red-100 text-red-800 border-red-300", description: "실전과 같은 압박감 있는 대화" },
+  const difficultyLabels: Record<number, { name: string; color: string; bgColor: string; description: string }> = {
+    1: { name: "매우 쉬움", color: "text-green-700", bgColor: "bg-green-500", description: "초보자를 위한 친절하고 교육적인 대화" },
+    2: { name: "기본", color: "text-blue-700", bgColor: "bg-blue-500", description: "친절하지만 현실적인 대화" },
+    3: { name: "도전형", color: "text-orange-700", bgColor: "bg-orange-500", description: "논리적 근거를 요구하는 도전적 대화" },
+    4: { name: "고난도", color: "text-red-700", bgColor: "bg-red-500", description: "실전과 같은 압박감 있는 대화" },
+  };
+
+  const getPersonaImage = (persona: ScenarioPersona) => {
+    const genderFolder = persona.gender || 'male';
+    const mbtiId = persona.mbti?.toLowerCase() || 'default';
+    return `/personas/${mbtiId}/${genderFolder}/neutral.webp`;
   };
 
   return (
-    <div className="max-w-6xl mx-auto p-6 space-y-6">
-      {/* 상단 네비게이션 */}
-      {onBack && (
-        <div className="mb-6">
-          <Button
-            variant="ghost"
-            onClick={onBack}
-            className="gap-2 hover:bg-slate-100"
-            data-testid="back-to-scenarios"
-          >
-            <ArrowLeft className="w-4 h-4" />
-            시나리오 목록
-          </Button>
-        </div>
-      )}
-      
-      {/* 헤더 */}
-      <div className="text-center mb-8">
-        <h1 className="text-3xl font-bold text-gray-900 mb-3">{scenarioTitle}</h1>
-        {scenarioSituation && (
-          <p className="text-lg text-gray-600 mb-4 whitespace-pre-wrap text-left">{scenarioSituation}</p>
-        )}
-        {scenario?.estimatedTime && (
-          <div className="flex items-center justify-center gap-2 text-sm text-gray-500 mb-4">
-            <Clock className="w-4 h-4" />
-            <span>예상 소요 시간: {scenario.estimatedTime}</span>
-          </div>
-        )}
+    <div className="min-h-screen bg-gradient-to-b from-slate-50 to-white">
+      {/* 히어로 헤더 */}
+      <div className="relative overflow-hidden">
+        {/* 배경 이미지 */}
+        <div 
+          className="absolute inset-0 bg-cover bg-center"
+          style={{
+            backgroundImage: `url(${(scenario as any)?.thumbnail || (scenario as any)?.image || 'https://images.unsplash.com/photo-1557804506-669a67965ba0?w=1200&h=400&fit=crop&auto=format'})`,
+          }}
+        />
+        <div className="absolute inset-0 bg-gradient-to-r from-slate-900/95 via-slate-900/85 to-slate-900/70" />
         
-        {/* 난이도 선택 */}
-        <div className="mt-6 max-w-3xl mx-auto">
-          <h3 className="text-lg font-semibold text-gray-900 mb-3">대화 난이도 선택</h3>
-          {completedPersonaIds.length > 0 ? (
-            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
-              <p className="text-sm text-blue-800 font-medium">
-                🔒 난이도가 고정되었습니다. 첫 페르소나 대화에서 선택한 난이도가 모든 페르소나 대화에 적용됩니다.
-              </p>
-            </div>
-          ) : (
-            <p className="text-sm text-gray-600 mb-4">{difficultyLabels[selectedDifficulty].description}</p>
+        {/* 히어로 콘텐츠 */}
+        <div className="relative z-10 max-w-7xl mx-auto px-6 py-12">
+          {/* 네비게이션 */}
+          {onBack && (
+            <Button
+              variant="ghost"
+              onClick={onBack}
+              className="mb-6 text-white/80 hover:text-white hover:bg-white/10 gap-2"
+              data-testid="back-to-scenarios"
+            >
+              <ArrowLeft className="w-4 h-4" />
+              시나리오 목록
+            </Button>
           )}
-          <div className="grid grid-cols-4 gap-3">
-            {[1, 2, 3, 4].map((level) => (
-              <button
-                key={level}
-                onClick={() => completedPersonaIds.length === 0 && onDifficultyChange(level)}
-                disabled={completedPersonaIds.length > 0}
-                className={`p-4 rounded-lg border-2 transition-all ${
-                  selectedDifficulty === level
-                    ? difficultyLabels[level].color + " border-current shadow-md scale-105"
-                    : completedPersonaIds.length > 0
-                    ? "bg-gray-100 border-gray-200 cursor-not-allowed opacity-60"
-                    : "bg-white border-gray-200 hover:border-gray-300 hover:shadow-sm cursor-pointer"
-                }`}
-                data-testid={`difficulty-${level}`}
-              >
-                <div className="text-center">
-                  <div className="text-2xl font-bold mb-1">{level}</div>
-                  <div className={`text-sm font-medium ${
-                    selectedDifficulty === level ? "" : "text-gray-600"
-                  }`}>
-                    {difficultyLabels[level].name}
-                  </div>
-                  {level === 4 && selectedDifficulty === level && (
-                    <div className="mt-1">⭐</div>
-                  )}
+          
+          <div className="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-6">
+            <div className="flex-1">
+              {/* 카테고리 배지 */}
+              {(scenario as any)?.categoryName && (
+                <Badge className="mb-4 bg-blue-500/20 text-blue-300 border-blue-400/30 backdrop-blur-sm">
+                  <BookOpen className="w-3 h-3 mr-1" />
+                  {(scenario as any).categoryName}
+                </Badge>
+              )}
+              
+              <h1 className="text-3xl lg:text-4xl font-bold text-white mb-4 leading-tight">
+                {scenarioTitle}
+              </h1>
+              
+              {/* 핵심 지표 */}
+              <div className="flex flex-wrap items-center gap-4 text-white/80">
+                <div className="flex items-center gap-2 bg-white/10 backdrop-blur-sm rounded-full px-4 py-2">
+                  <Clock className="w-4 h-4" />
+                  <span className="text-sm font-medium">{scenario?.estimatedTime || '15-20분'}</span>
                 </div>
-              </button>
-            ))}
+                <div className="flex items-center gap-2 bg-white/10 backdrop-blur-sm rounded-full px-4 py-2">
+                  <Users className="w-4 h-4" />
+                  <span className="text-sm font-medium">{totalCount}명의 대화 상대</span>
+                </div>
+                <div className="flex items-center gap-2 bg-white/10 backdrop-blur-sm rounded-full px-4 py-2">
+                  <Target className="w-4 h-4" />
+                  <span className="text-sm font-medium">{scenario?.skills?.length || 0}개 역량</span>
+                </div>
+              </div>
+            </div>
+            
+            {/* 진행률 표시 */}
+            {completedCount > 0 && (
+              <div className="bg-white/10 backdrop-blur-sm rounded-xl p-4 border border-white/20">
+                <div className="flex items-center gap-4">
+                  <div className="w-16 h-16 rounded-full bg-gradient-to-br from-green-400 to-green-600 flex items-center justify-center">
+                    <span className="text-xl font-bold text-white">{progressPercentage}%</span>
+                  </div>
+                  <div>
+                    <p className="text-white font-semibold">{completedCount}/{totalCount} 완료</p>
+                    <p className="text-white/70 text-sm">{availablePersonas.length}명 남음</p>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </div>
 
-      {/* 시나리오 상세 정보 */}
-      {scenario && (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-          {/* 상황 설명 */}
-          <Card className="border-orange-200 bg-orange-50">
-            <CardContent className="p-6">
-              <div className="flex items-start gap-3 mb-3">
-                <AlertCircle className="w-5 h-5 text-orange-600 mt-0.5 flex-shrink-0" />
-                <div>
-                  <h3 className="font-semibold text-gray-900 mb-2">상황</h3>
-                  <p className="text-sm text-gray-700 leading-relaxed">{scenario.context.situation}</p>
-                </div>
-              </div>
-              <div className="mt-4 pt-4 border-t border-orange-200 space-y-2">
-                <div className="flex items-start gap-2 text-sm">
-                  <Clock className="w-4 h-4 text-orange-600 mt-0.5 flex-shrink-0" />
-                  <span className="text-gray-700"><strong>타임라인:</strong> {scenario.context.timeline}</span>
-                </div>
-                <div className="flex items-start gap-2 text-sm">
-                  <TrendingUp className="w-4 h-4 text-orange-600 mt-0.5 flex-shrink-0" />
-                  <span className="text-gray-700"><strong>핵심 이슈:</strong> {scenario.context.stakes}</span>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* 나의 역할 */}
-          <Card className="border-blue-200 bg-blue-50">
-            <CardContent className="p-6">
-              <div className="flex items-start gap-3">
-                <Users className="w-5 h-5 text-blue-600 mt-0.5 flex-shrink-0" />
-                <div>
-                  <h3 className="font-semibold text-gray-900 mb-3">나의 역할</h3>
-                  <div className="space-y-2 text-sm">
-                    <div>
-                      <span className="text-gray-600">직책: </span>
-                      <span className="font-medium text-gray-900">{scenario.context.playerRole.position}</span>
-                    </div>
-                    <div>
-                      <span className="text-gray-600">부서: </span>
-                      <span className="font-medium text-gray-900">{scenario.context.playerRole.department}</span>
-                    </div>
-                    <div>
-                      <span className="text-gray-600">경력: </span>
-                      <span className="font-medium text-gray-900">{scenario.context.playerRole.experience}</span>
-                    </div>
-                    <div className="mt-4 pt-4 border-t border-blue-200">
-                      <p className="text-gray-700 leading-relaxed">
-                        <strong>책임:</strong> {scenario.context.playerRole.responsibility}
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* 목표 */}
-          <Card className="border-green-200 bg-green-50">
-            <CardContent className="p-6">
-              <div className="flex items-start gap-3">
-                <Target className="w-5 h-5 text-green-600 mt-0.5 flex-shrink-0" />
-                <div>
-                  <h3 className="font-semibold text-gray-900 mb-3">목표</h3>
-                  <ul className="space-y-2">
-                    {scenario.objectives.map((obj, index) => (
-                      <li key={index} className="flex items-start gap-2 text-sm text-gray-700">
-                        <span className="text-green-600 mt-0.5 flex-shrink-0">✓</span>
-                        <span>{obj}</span>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* 성공 기준 */}
-          <Card className="border-purple-200 bg-purple-50">
-            <CardContent className="p-6">
-              <div className="flex items-start gap-3">
-                <Lightbulb className="w-5 h-5 text-purple-600 mt-0.5 flex-shrink-0" />
-                <div className="w-full">
-                  <h3 className="font-semibold text-gray-900 mb-3">성공 기준</h3>
-                  <div className="space-y-2 text-sm">
-                    <div className="bg-white rounded p-2 border border-purple-200">
-                      <div className="font-medium text-green-700 mb-1">🏆 최적</div>
-                      <div className="text-gray-700">{scenario.successCriteria.optimal}</div>
-                    </div>
-                    <div className="bg-white rounded p-2 border border-purple-200">
-                      <div className="font-medium text-blue-700 mb-1">👍 양호</div>
-                      <div className="text-gray-700">{scenario.successCriteria.good}</div>
-                    </div>
-                    <div className="bg-white rounded p-2 border border-purple-200">
-                      <div className="font-medium text-yellow-700 mb-1">⚠️ 수용 가능</div>
-                      <div className="text-gray-700">{scenario.successCriteria.acceptable}</div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-      )}
-
-      {/* 진행 상황 */}
-      {completedCount > 0 && (
-        <Card className="border-green-200 bg-green-50">
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <h3 className="text-lg font-semibold text-green-900 mb-2">
-                  진행 상황: {completedCount}/{totalCount} 대화 완료
+      {/* 메인 콘텐츠 */}
+      <div className="max-w-7xl mx-auto px-6 py-8">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+          {/* 왼쪽: 탭 콘텐츠 */}
+          <div className="lg:col-span-2 space-y-6">
+            {/* 난이도 선택 */}
+            <Card className="border-0 shadow-lg overflow-hidden">
+              <div className="bg-gradient-to-r from-slate-800 to-slate-700 px-6 py-4">
+                <h3 className="text-lg font-semibold text-white flex items-center gap-2">
+                  <Award className="w-5 h-5" />
+                  대화 난이도 선택
                 </h3>
-                <p className="text-green-700">
-                  {availablePersonas.length > 0 
-                    ? `${availablePersonas.length}명의 대화 상대가 남아있습니다.`
-                    : '모든 대화가 완료되었습니다!'
-                  }
-                </p>
               </div>
-              <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center">
-                <div className="text-2xl font-bold text-green-800">
-                  {progressPercentage}%
-                </div>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* 안내 메시지 */}
-      <Card className="border-blue-200 bg-blue-50">
-        <CardContent className="p-6">
-          <div className="flex items-start gap-4">
-            <MessageCircle className="w-6 h-6 text-blue-600 mt-1" />
-            <div>
-              <h3 className="text-lg font-semibold text-gray-900 mb-2">
-                {completedCount === 0 
-                  ? '대화 상대를 선택하세요'
-                  : '다음 대화 상대를 선택하세요'
-                }
-              </h3>
-              <p className="text-gray-700">
-                아래 인물들 중 대화하고 싶은 상대를 선택하세요. 
-                {totalCount >= 2 && ' 모든 대화가 끝나면 대화 순서에 대한 전략적 평가를 받을 수 있습니다.'}
-              </p>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* 페르소나 목록 */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {personas.map((persona) => {
-          const isCompleted = completedPersonaIds.includes(persona.id);
-          const isCurrentlyLoading = loadingPersonaId === persona.id;
-          const isAvailable = !isCompleted && !isLoading;
-
-          return (
-            <Card 
-              key={persona.id}
-              className={`relative transition-all ${
-                isCompleted 
-                  ? 'border-green-300 bg-green-50 opacity-60' 
-                  : isCurrentlyLoading
-                  ? 'border-blue-400 bg-blue-50 shadow-lg'
-                  : 'border-blue-200 hover:border-blue-400 hover:shadow-lg cursor-pointer'
-              } ${isLoading && !isCurrentlyLoading ? 'opacity-50 pointer-events-none' : ''}`}
-              onClick={() => isAvailable && !isCurrentlyLoading && onPersonaSelect(persona, selectedDifficulty)}
-              data-testid={`persona-card-${persona.id}`}
-            >
               <CardContent className="p-6">
-                {isCompleted && (
-                  <div className="absolute top-4 right-4">
-                    <CheckCircle2 className="w-6 h-6 text-green-600" />
-                  </div>
-                )}
-
-                <div className="flex items-start gap-4 mb-4">
-                  {/* 아바타 */}
-                  <div className="w-16 h-16 rounded-full bg-gradient-to-br from-blue-400 to-blue-600 flex items-center justify-center text-white font-bold text-xl flex-shrink-0">
-                    {persona.name.charAt(0)}
-                  </div>
-
-                  {/* 정보 */}
-                  <div className="flex-1 min-w-0">
-                    <h3 className="font-bold text-lg text-gray-900 mb-1">
-                      {persona.name}
-                    </h3>
-                    <p className="text-sm text-gray-600 mb-2">
-                      {persona.role}
+                {completedPersonaIds.length > 0 ? (
+                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
+                    <p className="text-sm text-blue-800 font-medium">
+                      🔒 난이도가 고정되었습니다. 첫 대화에서 선택한 난이도가 모든 대화에 적용됩니다.
                     </p>
-                    {persona.department && (
-                      <Badge variant="outline" className="text-xs mb-2">
-                        {persona.department}
-                      </Badge>
-                    )}
-                    {persona.mbti && (
-                      <Badge variant="secondary" className="text-xs">
-                        {persona.mbti}
-                      </Badge>
-                    )}
                   </div>
-                </div>
-
-                {/* 페르소나 상세 정보 */}
-                {(persona.stance || persona.goal || persona.tradeoff) && (
-                  <div className="mb-4 p-3 bg-gray-50 rounded-lg border border-gray-200 text-sm space-y-2">
-                    {persona.stance && (
-                      <div>
-                        <span className="font-semibold text-gray-700">입장:</span>
-                        <p className="text-gray-600 mt-1">{persona.stance}</p>
-                      </div>
-                    )}
-                    {persona.goal && (
-                      <div>
-                        <span className="font-semibold text-gray-700">목표:</span>
-                        <p className="text-gray-600 mt-1">{persona.goal}</p>
-                      </div>
-                    )}
-                    {persona.tradeoff && (
-                      <div>
-                        <span className="font-semibold text-gray-700">트레이드오프:</span>
-                        <p className="text-gray-600 mt-1">{persona.tradeoff}</p>
-                      </div>
-                    )}
-                  </div>
+                ) : (
+                  <p className="text-sm text-slate-600 mb-4">{difficultyLabels[selectedDifficulty].description}</p>
                 )}
-
-                {/* 상태 표시 */}
-                <div className="mt-4">
-                  {isCompleted ? (
-                    <Badge className="bg-green-100 text-green-800 w-full justify-center py-2">
-                      <CheckCircle2 className="w-4 h-4 mr-1" />
-                      대화 완료
-                    </Badge>
-                  ) : (
-                    <Button 
-                      className="w-full"
-                      variant="default"
-                      disabled={isLoading}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        if (isAvailable && !isCurrentlyLoading) {
-                          onPersonaSelect(persona, selectedDifficulty);
-                        }
-                      }}
-                      data-testid={`select-persona-${persona.id}`}
+                <div className="grid grid-cols-4 gap-3">
+                  {[1, 2, 3, 4].map((level) => (
+                    <button
+                      key={level}
+                      onClick={() => completedPersonaIds.length === 0 && onDifficultyChange(level)}
+                      disabled={completedPersonaIds.length > 0}
+                      className={`relative p-4 rounded-xl border-2 transition-all duration-300 ${
+                        selectedDifficulty === level
+                          ? `${difficultyLabels[level].bgColor} border-transparent text-white shadow-lg scale-105`
+                          : completedPersonaIds.length > 0
+                          ? "bg-slate-100 border-slate-200 cursor-not-allowed opacity-60"
+                          : "bg-white border-slate-200 hover:border-slate-300 hover:shadow-md cursor-pointer"
+                      }`}
+                      data-testid={`difficulty-${level}`}
                     >
-                      {isCurrentlyLoading ? (
-                        <>
-                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                          대화 준비 중...
-                        </>
-                      ) : (
-                        '대화 시작하기'
-                      )}
-                    </Button>
-                  )}
+                      <div className="text-center">
+                        <div className={`text-2xl font-bold mb-1 ${selectedDifficulty === level ? 'text-white' : 'text-slate-700'}`}>
+                          {level}
+                        </div>
+                        <div className={`text-xs font-medium ${selectedDifficulty === level ? 'text-white/90' : 'text-slate-600'}`}>
+                          {difficultyLabels[level].name}
+                        </div>
+                      </div>
+                    </button>
+                  ))}
                 </div>
               </CardContent>
             </Card>
-          );
-        })}
+
+            {/* 탭 콘텐츠 */}
+            {scenario && (
+              <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+                <TabsList className="w-full grid grid-cols-4 bg-slate-100 p-1 rounded-xl">
+                  <TabsTrigger value="overview" className="rounded-lg data-[state=active]:bg-white data-[state=active]:shadow-sm">
+                    개요
+                  </TabsTrigger>
+                  <TabsTrigger value="situation" className="rounded-lg data-[state=active]:bg-white data-[state=active]:shadow-sm">
+                    상황
+                  </TabsTrigger>
+                  <TabsTrigger value="objectives" className="rounded-lg data-[state=active]:bg-white data-[state=active]:shadow-sm">
+                    목표
+                  </TabsTrigger>
+                  <TabsTrigger value="criteria" className="rounded-lg data-[state=active]:bg-white data-[state=active]:shadow-sm">
+                    평가 기준
+                  </TabsTrigger>
+                </TabsList>
+
+                <TabsContent value="overview" className="mt-6">
+                  <Card className="border-0 shadow-md">
+                    <CardContent className="p-6 space-y-6">
+                      {/* 나의 역할 */}
+                      <div className="flex items-start gap-4">
+                        <div className="w-12 h-12 rounded-xl bg-blue-100 flex items-center justify-center flex-shrink-0">
+                          <Briefcase className="w-6 h-6 text-blue-600" />
+                        </div>
+                        <div className="flex-1">
+                          <h4 className="font-semibold text-slate-900 mb-2">나의 역할</h4>
+                          <div className="grid grid-cols-2 gap-3 text-sm">
+                            <div>
+                              <span className="text-slate-500">직책:</span>
+                              <span className="ml-2 font-medium text-slate-900">{scenario.context.playerRole.position}</span>
+                            </div>
+                            <div>
+                              <span className="text-slate-500">부서:</span>
+                              <span className="ml-2 font-medium text-slate-900">{scenario.context.playerRole.department}</span>
+                            </div>
+                            <div>
+                              <span className="text-slate-500">경력:</span>
+                              <span className="ml-2 font-medium text-slate-900">{scenario.context.playerRole.experience}</span>
+                            </div>
+                          </div>
+                          <p className="mt-3 text-sm text-slate-600 leading-relaxed">
+                            {scenario.context.playerRole.responsibility}
+                          </p>
+                        </div>
+                      </div>
+
+                      {/* 주요 역량 */}
+                      {scenario.skills && scenario.skills.length > 0 && (
+                        <div className="pt-4 border-t border-slate-100">
+                          <h4 className="font-semibold text-slate-900 mb-3 flex items-center gap-2">
+                            <Lightbulb className="w-4 h-4 text-amber-500" />
+                            주요 역량
+                          </h4>
+                          <div className="flex flex-wrap gap-2">
+                            {scenario.skills.map((skill, index) => (
+                              <Badge 
+                                key={index} 
+                                variant="secondary"
+                                className={`${index < 2 ? 'bg-blue-100 text-blue-700' : 'bg-slate-100 text-slate-700'}`}
+                              >
+                                {skill}
+                              </Badge>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+                </TabsContent>
+
+                <TabsContent value="situation" className="mt-6">
+                  <Card className="border-0 shadow-md">
+                    <CardContent className="p-6 space-y-6">
+                      <div className="flex items-start gap-4">
+                        <div className="w-12 h-12 rounded-xl bg-orange-100 flex items-center justify-center flex-shrink-0">
+                          <AlertCircle className="w-6 h-6 text-orange-600" />
+                        </div>
+                        <div className="flex-1">
+                          <h4 className="font-semibold text-slate-900 mb-2">현재 상황</h4>
+                          <p className="text-slate-700 leading-relaxed whitespace-pre-wrap">
+                            {scenario.context.situation}
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-4 border-t border-slate-100">
+                        <div className="bg-slate-50 rounded-xl p-4">
+                          <div className="flex items-center gap-2 mb-2">
+                            <Clock className="w-4 h-4 text-slate-500" />
+                            <span className="font-medium text-slate-700">타임라인</span>
+                          </div>
+                          <p className="text-sm text-slate-600">{scenario.context.timeline}</p>
+                        </div>
+                        <div className="bg-slate-50 rounded-xl p-4">
+                          <div className="flex items-center gap-2 mb-2">
+                            <TrendingUp className="w-4 h-4 text-slate-500" />
+                            <span className="font-medium text-slate-700">핵심 이슈</span>
+                          </div>
+                          <p className="text-sm text-slate-600">{scenario.context.stakes}</p>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </TabsContent>
+
+                <TabsContent value="objectives" className="mt-6">
+                  <Card className="border-0 shadow-md">
+                    <CardContent className="p-6">
+                      <div className="flex items-start gap-4">
+                        <div className="w-12 h-12 rounded-xl bg-green-100 flex items-center justify-center flex-shrink-0">
+                          <Target className="w-6 h-6 text-green-600" />
+                        </div>
+                        <div className="flex-1">
+                          <h4 className="font-semibold text-slate-900 mb-4">달성해야 할 목표</h4>
+                          <ul className="space-y-3">
+                            {scenario.objectives.map((obj, index) => (
+                              <li key={index} className="flex items-start gap-3 bg-green-50 rounded-lg p-3">
+                                <span className="w-6 h-6 rounded-full bg-green-500 text-white flex items-center justify-center text-sm font-medium flex-shrink-0">
+                                  {index + 1}
+                                </span>
+                                <span className="text-slate-700">{obj}</span>
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </TabsContent>
+
+                <TabsContent value="criteria" className="mt-6">
+                  <Card className="border-0 shadow-md">
+                    <CardContent className="p-6">
+                      <div className="flex items-start gap-4">
+                        <div className="w-12 h-12 rounded-xl bg-purple-100 flex items-center justify-center flex-shrink-0">
+                          <Award className="w-6 h-6 text-purple-600" />
+                        </div>
+                        <div className="flex-1">
+                          <h4 className="font-semibold text-slate-900 mb-4">성공 기준</h4>
+                          <div className="space-y-3">
+                            <div className="bg-gradient-to-r from-green-50 to-emerald-50 rounded-xl p-4 border border-green-200">
+                              <div className="flex items-center gap-2 mb-2">
+                                <span className="text-lg">🏆</span>
+                                <span className="font-semibold text-green-800">최적</span>
+                              </div>
+                              <p className="text-sm text-green-700">{scenario.successCriteria.optimal}</p>
+                            </div>
+                            <div className="bg-gradient-to-r from-blue-50 to-sky-50 rounded-xl p-4 border border-blue-200">
+                              <div className="flex items-center gap-2 mb-2">
+                                <span className="text-lg">👍</span>
+                                <span className="font-semibold text-blue-800">양호</span>
+                              </div>
+                              <p className="text-sm text-blue-700">{scenario.successCriteria.good}</p>
+                            </div>
+                            <div className="bg-gradient-to-r from-amber-50 to-yellow-50 rounded-xl p-4 border border-amber-200">
+                              <div className="flex items-center gap-2 mb-2">
+                                <span className="text-lg">⚠️</span>
+                                <span className="font-semibold text-amber-800">수용 가능</span>
+                              </div>
+                              <p className="text-sm text-amber-700">{scenario.successCriteria.acceptable}</p>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </TabsContent>
+              </Tabs>
+            )}
+          </div>
+
+          {/* 오른쪽: 페르소나 선택 */}
+          <div className="space-y-6">
+            {/* 안내 메시지 */}
+            <Card className="border-0 shadow-lg bg-gradient-to-br from-blue-600 to-blue-700">
+              <CardContent className="p-5">
+                <div className="flex items-start gap-3 text-white">
+                  <MessageCircle className="w-5 h-5 mt-0.5 flex-shrink-0" />
+                  <div>
+                    <h3 className="font-semibold mb-1">
+                      {completedCount === 0 ? '대화 상대 선택' : '다음 대화 상대'}
+                    </h3>
+                    <p className="text-sm text-blue-100">
+                      아래 인물 중 대화할 상대를 선택하세요
+                    </p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* 페르소나 목록 */}
+            <div className="space-y-4">
+              {personas.map((persona) => {
+                const isCompleted = completedPersonaIds.includes(persona.id);
+                const isCurrentlyLoading = loadingPersonaId === persona.id;
+                const isAvailable = !isCompleted && !isLoading;
+
+                return (
+                  <Card 
+                    key={persona.id}
+                    className={`relative transition-all duration-300 cursor-pointer overflow-hidden ${
+                      isCompleted 
+                        ? 'border-green-300 bg-green-50/50 opacity-70' 
+                        : isCurrentlyLoading
+                        ? 'border-blue-400 bg-blue-50 shadow-xl ring-2 ring-blue-400/50'
+                        : 'border-slate-200 hover:border-blue-400 hover:shadow-xl hover:-translate-y-1'
+                    } ${isLoading && !isCurrentlyLoading ? 'opacity-50 pointer-events-none' : ''}`}
+                    onClick={() => isAvailable && !isCurrentlyLoading && onPersonaSelect(persona, selectedDifficulty)}
+                    data-testid={`persona-card-${persona.id}`}
+                  >
+                    <CardContent className="p-0">
+                      {/* 페르소나 이미지 배경 */}
+                      <div className="relative h-24 bg-gradient-to-br from-slate-100 to-slate-200 overflow-hidden">
+                        <img 
+                          src={getPersonaImage(persona)}
+                          alt={persona.name}
+                          className="absolute inset-0 w-full h-full object-cover object-top opacity-80"
+                          onError={(e) => {
+                            (e.target as HTMLImageElement).style.display = 'none';
+                          }}
+                        />
+                        <div className="absolute inset-0 bg-gradient-to-t from-white via-transparent to-transparent" />
+                        
+                        {isCompleted && (
+                          <div className="absolute top-3 right-3 w-8 h-8 rounded-full bg-green-500 flex items-center justify-center shadow-lg">
+                            <CheckCircle2 className="w-5 h-5 text-white" />
+                          </div>
+                        )}
+                      </div>
+
+                      {/* 페르소나 정보 */}
+                      <div className="p-4">
+                        <div className="flex items-start justify-between mb-2">
+                          <div>
+                            <h3 className="font-bold text-lg text-slate-900">{persona.name}</h3>
+                            <p className="text-sm text-slate-600">{persona.role}</p>
+                          </div>
+                          {persona.mbti && (
+                            <Badge variant="secondary" className="text-xs bg-slate-100">
+                              {persona.mbti}
+                            </Badge>
+                          )}
+                        </div>
+
+                        {persona.department && (
+                          <Badge variant="outline" className="text-xs mb-3">
+                            {persona.department}
+                          </Badge>
+                        )}
+
+                        {/* 입장/목표 미리보기 */}
+                        {persona.stance && (
+                          <p className="text-xs text-slate-500 line-clamp-2 mb-3">
+                            {persona.stance}
+                          </p>
+                        )}
+
+                        {/* 액션 버튼 */}
+                        {isCompleted ? (
+                          <div className="flex items-center justify-center gap-2 py-2 bg-green-100 rounded-lg text-green-700 text-sm font-medium">
+                            <CheckCircle2 className="w-4 h-4" />
+                            대화 완료
+                          </div>
+                        ) : (
+                          <Button 
+                            className="w-full bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 shadow-md"
+                            disabled={isLoading}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              if (isAvailable && !isCurrentlyLoading) {
+                                onPersonaSelect(persona, selectedDifficulty);
+                              }
+                            }}
+                            data-testid={`select-persona-${persona.id}`}
+                          >
+                            {isCurrentlyLoading ? (
+                              <>
+                                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                                준비 중...
+                              </>
+                            ) : (
+                              <>
+                                <Play className="w-4 h-4 mr-2" />
+                                대화 시작
+                              </>
+                            )}
+                          </Button>
+                        )}
+                      </div>
+                    </CardContent>
+                  </Card>
+                );
+              })}
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   );
