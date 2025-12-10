@@ -1187,24 +1187,25 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
                   console.log("현재 위치:", location);
                   try {
                     console.log("onExit 함수 직접 호출");
-                    onExit(); // 시나리오 선택 화면으로 돌아가기
+                    onExit();
                   } catch (error) {
                     console.error("onExit 오류:", error);
-                    // 최후 수단: 브라우저 새로고침
                     window.location.reload();
                   }
                 }}
                 className="hover:opacity-80 transition-opacity bg-transparent border-none" 
                 data-testid="chat-header-home-link"
               >
-                <img 
-                  src={persona.image} 
-                  alt={persona.name} 
-                  className="w-12 h-12 rounded-full border-2 border-white/20 hover:border-white/40 cursor-pointer" 
-                  onError={(e) => {
-                    (e.target as HTMLImageElement).src = `https://ui-avatars.com/api/?name=${encodeURIComponent(persona.name)}&background=6366f1&color=fff&size=48`;
-                  }}
-                />
+                <div className="w-12 h-12 rounded-xl border-2 border-white/20 hover:border-white/40 cursor-pointer overflow-hidden bg-slate-200 shadow-md">
+                  <img 
+                    src={getCharacterImage('중립') || persona.image} 
+                    alt={persona.name} 
+                    className="w-full h-full object-cover object-top" 
+                    onError={(e) => {
+                      (e.target as HTMLImageElement).src = `https://ui-avatars.com/api/?name=${encodeURIComponent(persona.name)}&background=6366f1&color=fff&size=48`;
+                    }}
+                  />
+                </div>
               </button>
               <div>
                 <button 
@@ -1344,12 +1345,12 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
                   }`}
                 >
                   {message.sender === "ai" && (
-                    <div className="relative flex-shrink-0">
-                      <div className="w-12 h-12 rounded-xl ring-2 ring-white shadow-md overflow-hidden bg-slate-100">
+                    <div className="relative flex-shrink-0 self-start">
+                      <div className="w-14 h-14 rounded-xl ring-2 ring-white shadow-lg overflow-hidden bg-slate-100">
                         <img 
                           src={getCharacterImage(message.emotion || '중립') || persona.image} 
                           alt={persona.name} 
-                          className="w-full h-full object-cover" 
+                          className="w-full h-full object-cover object-top scale-110" 
                         />
                       </div>
                       {message.emotion && (
@@ -1422,11 +1423,11 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
               ))}
 
               {isLoading && (
-                <div className="flex items-end space-x-3">
-                  <div className="w-12 h-12 rounded-xl ring-2 ring-white shadow-md overflow-hidden bg-slate-100">
-                    <img src={getCharacterImage('중립') || persona.image} alt={persona.name} className="w-full h-full object-cover" />
+                <div className="flex items-start space-x-3">
+                  <div className="w-14 h-14 rounded-xl ring-2 ring-white shadow-lg overflow-hidden bg-slate-100 flex-shrink-0">
+                    <img src={getCharacterImage('중립') || persona.image} alt={persona.name} className="w-full h-full object-cover object-top scale-110" />
                   </div>
-                  <div className="bg-white rounded-2xl rounded-bl-md px-4 py-3 shadow-md border border-slate-100">
+                  <div className="bg-white rounded-2xl rounded-bl-md px-4 py-3 shadow-md border border-slate-100 mt-1">
                     <div className="flex space-x-1.5">
                       <div className="w-2.5 h-2.5 bg-slate-300 rounded-full animate-bounce"></div>
                       <div className="w-2.5 h-2.5 bg-slate-300 rounded-full animate-bounce" style={{ animationDelay: "0.15s" }}></div>
