@@ -101,6 +101,17 @@ interface TrendsData {
   }>;
 }
 
+interface EmotionData {
+  emotions: Array<{
+    emotion: string;
+    emoji: string;
+    count: number;
+    percentage: number;
+  }>;
+  totalEmotions: number;
+  uniqueEmotions: number;
+}
+
 export default function AdminDashboard() {
   const { user } = useAuth();
   const [showMobileTabMenu, setShowMobileTabMenu] = useState(false);
@@ -123,6 +134,12 @@ export default function AdminDashboard() {
     gcTime: 1000 * 60 * 30,     // 30분간 메모리 유지
   });
 
+  const { data: emotions, isLoading: emotionsLoading } = useQuery<EmotionData>({
+    queryKey: ["/api/admin/analytics/emotions"],
+    staleTime: 1000 * 60 * 10,
+    gcTime: 1000 * 60 * 30,
+  });
+
   // 현재 시나리오 구조에 맞게 시나리오 데이터 가져오기
   const { data: scenarios = [] } = useQuery({
     queryKey: ['/api/scenarios'],
@@ -139,7 +156,7 @@ export default function AdminDashboard() {
     gcTime: 1000 * 60 * 60,
   });
 
-  if (overviewLoading || performanceLoading || trendsLoading) {
+  if (overviewLoading || performanceLoading || trendsLoading || emotionsLoading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-corporate-600"></div>
@@ -226,11 +243,12 @@ export default function AdminDashboard() {
       {/* Detailed Analytics */}
       <Tabs defaultValue="overview" className="space-y-6" onValueChange={(value) => setShowMobileTabMenu(false)}>
         {/* 데스크톱 탭 */}
-        <TabsList className="hidden md:grid w-full grid-cols-6">
+        <TabsList className="hidden md:grid w-full grid-cols-7">
           <TabsTrigger value="overview" data-testid="tab-overview">개요</TabsTrigger>
           <TabsTrigger value="performance" data-testid="tab-performance">성과 분석</TabsTrigger>
           <TabsTrigger value="scenarios" data-testid="tab-scenarios">시나리오 분석</TabsTrigger>
           <TabsTrigger value="mbti" data-testid="tab-mbti">MBTI 분석</TabsTrigger>
+          <TabsTrigger value="emotions" data-testid="tab-emotions">감정 분석</TabsTrigger>
           <TabsTrigger value="trends" data-testid="tab-trends">트렌드 분석</TabsTrigger>
           <TabsTrigger value="content" data-testid="tab-content">컨텐츠 현황</TabsTrigger>
         </TabsList>
@@ -255,8 +273,9 @@ export default function AdminDashboard() {
           {/* 확장 메뉴 */}
           {showMobileTabMenu && (
             <div className="bg-slate-100 rounded-lg p-2 animate-in slide-in-from-top duration-200">
-              <TabsList className="grid w-full grid-cols-3 gap-2 bg-transparent">
-                <TabsTrigger value="mbti" className="bg-white" data-testid="mobile-tab-mbti">MBTI 분석</TabsTrigger>
+              <TabsList className="grid w-full grid-cols-4 gap-2 bg-transparent">
+                <TabsTrigger value="mbti" className="bg-white" data-testid="mobile-tab-mbti">MBTI</TabsTrigger>
+                <TabsTrigger value="emotions" className="bg-white" data-testid="mobile-tab-emotions">감정</TabsTrigger>
                 <TabsTrigger value="trends" className="bg-white" data-testid="mobile-tab-trends">트렌드</TabsTrigger>
                 <TabsTrigger value="content" className="bg-white" data-testid="mobile-tab-content">컨텐츠</TabsTrigger>
               </TabsList>
@@ -993,6 +1012,111 @@ export default function AdminDashboard() {
               </CardContent>
             </Card>
           </div>
+        </TabsContent>
+
+        {/* Emotion Analysis Tab */}
+        <TabsContent value="emotions" className="space-y-6">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <Card className="card-enhanced" data-testid="card-total-emotions">
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium"><CardInfo title="총 감정 표현" description="AI가 대화 중 표현한 총 감정 횟수입니다." /></CardTitle>
+                <i className="fas fa-heart text-pink-600"></i>
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold text-pink-600">{emotions?.totalEmotions || 0}회</div>
+                <p className="text-xs text-slate-600">기록된 감정 표현</p>
+              </CardContent>
+            </Card>
+
+            <Card className="card-enhanced" data-testid="card-unique-emotions">
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium"><CardInfo title="감정 종류" description="AI가 표현한 고유한 감정 종류의 개수입니다." /></CardTitle>
+                <i className="fas fa-theater-masks text-purple-600"></i>
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold text-purple-600">{emotions?.uniqueEmotions || 0}종류</div>
+                <p className="text-xs text-slate-600">다양한 감정 표현</p>
+              </CardContent>
+            </Card>
+
+            <Card className="card-enhanced" data-testid="card-top-emotion">
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium"><CardInfo title="최다 감정" description="가장 많이 표현된 감정입니다." /></CardTitle>
+                <i className="fas fa-star text-yellow-600"></i>
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold text-yellow-600">
+                  {emotions?.emotions?.[0] ? `${emotions.emotions[0].emoji} ${emotions.emotions[0].emotion}` : '-'}
+                </div>
+                <p className="text-xs text-slate-600">
+                  {emotions?.emotions?.[0] ? `${emotions.emotions[0].count}회 (${emotions.emotions[0].percentage}%)` : '데이터 없음'}
+                </p>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Emotion Frequency Chart */}
+          <Card data-testid="card-emotion-frequency">
+            <CardHeader>
+              <CardTitle><CardInfo title="감정 빈도 분석" description="AI 페르소나가 대화 중 표현한 감정의 빈도를 보여줍니다. 사용자와의 상호작용 패턴을 파악할 수 있습니다." /></CardTitle>
+            </CardHeader>
+            <CardContent>
+              <ResponsiveContainer width="100%" height={350}>
+                <BarChart data={emotions?.emotions || []} layout="vertical">
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis type="number" />
+                  <YAxis 
+                    dataKey="emotion" 
+                    type="category" 
+                    width={80}
+                    tickFormatter={(value) => {
+                      const emotion = emotions?.emotions?.find(e => e.emotion === value);
+                      return emotion ? `${emotion.emoji} ${value}` : value;
+                    }}
+                  />
+                  <Tooltip 
+                    formatter={(value: number, name: string) => [`${value}회`, '빈도']}
+                    labelFormatter={(label) => {
+                      const emotion = emotions?.emotions?.find(e => e.emotion === label);
+                      return emotion ? `${emotion.emoji} ${label}` : label;
+                    }}
+                  />
+                  <Bar dataKey="count" fill="#8b5cf6" radius={[0, 4, 4, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </CardContent>
+          </Card>
+
+          {/* Emotion Pie Chart */}
+          <Card data-testid="card-emotion-distribution">
+            <CardHeader>
+              <CardTitle><CardInfo title="감정 분포" description="전체 감정 표현의 비율을 보여줍니다." /></CardTitle>
+            </CardHeader>
+            <CardContent>
+              <ResponsiveContainer width="100%" height={350}>
+                <PieChart>
+                  <Pie
+                    data={emotions?.emotions?.map((e, i) => ({
+                      name: `${e.emoji} ${e.emotion}`,
+                      value: e.count,
+                      fill: ['#ef4444', '#f97316', '#f59e0b', '#22c55e', '#3b82f6', '#8b5cf6', '#ec4899', '#06b6d4', '#6366f1', '#84cc16', '#14b8a6'][i % 11]
+                    })) || []}
+                    dataKey="value"
+                    nameKey="name"
+                    cx="50%"
+                    cy="50%"
+                    outerRadius={120}
+                    label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                  >
+                    {emotions?.emotions?.map((_, i) => (
+                      <Cell key={`cell-${i}`} fill={['#ef4444', '#f97316', '#f59e0b', '#22c55e', '#3b82f6', '#8b5cf6', '#ec4899', '#06b6d4', '#6366f1', '#84cc16', '#14b8a6'][i % 11]} />
+                    ))}
+                  </Pie>
+                  <Tooltip formatter={(value: number) => [`${value}회`, '빈도']} />
+                </PieChart>
+              </ResponsiveContainer>
+            </CardContent>
+          </Card>
         </TabsContent>
 
         {/* Content Registration Status */}
