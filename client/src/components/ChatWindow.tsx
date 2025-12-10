@@ -98,6 +98,8 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
   const [showEndConversationDialog, setShowEndConversationDialog] = useState(false);
   const [isInitialLoading, setIsInitialLoading] = useState(true);
   const [isOverlayFading, setIsOverlayFading] = useState(false);
+  const [showMicPrompt, setShowMicPrompt] = useState(false); // AI 첫 응답 후 마이크 안내 애니메이션
+  const hasUserSpokenRef = useRef(false); // 사용자가 마이크를 사용했는지 추적
   const initialLoadCompletedRef = useRef(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const recognitionRef = useRef<any>(null);
@@ -133,6 +135,11 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
         emotion: emotion || '중립',
         emotionReason: emotionReason || '',
       }]);
+      
+      // AI 응답 완료 후 사용자가 아직 마이크를 사용하지 않았다면 마이크 안내 애니메이션 표시
+      if (!hasUserSpokenRef.current) {
+        setShowMicPrompt(true);
+      }
     },
     onUserTranscription: (transcript) => {
       console.log('🎤 User transcript:', transcript);
@@ -1462,28 +1469,42 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
                               if (realtimeVoice.isRecording) {
                                 realtimeVoice.stopRecording();
                               } else {
+                                // 사용자가 마이크를 클릭했으므로 애니메이션 중지
+                                hasUserSpokenRef.current = true;
+                                setShowMicPrompt(false);
                                 realtimeVoice.startRecording();
                               }
                             }}
                             disabled={realtimeVoice.isAISpeaking}
-                            className={`${
+                            className={`relative ${
                               realtimeVoice.isRecording 
                                 ? 'bg-red-50 border-red-300 text-red-700 animate-pulse' 
                                 : realtimeVoice.isAISpeaking
                                 ? 'bg-blue-50 border-blue-300 text-blue-700'
+                                : showMicPrompt
+                                ? 'bg-gradient-to-r from-blue-500 to-purple-500 text-white border-transparent shadow-lg animate-bounce'
                                 : ''
                             }`}
                             data-testid="button-realtime-voice-messenger"
                             title={realtimeVoice.isRecording ? "음성 입력을 중지하려면 클릭하세요" : "음성 입력을 시작하려면 클릭하세요"}
                           >
+                            {/* 마이크 안내 애니메이션 - 펄스 링 효과 */}
+                            {showMicPrompt && !realtimeVoice.isRecording && !realtimeVoice.isAISpeaking && (
+                              <>
+                                <span className="absolute inset-0 rounded-md bg-blue-400 animate-ping opacity-30"></span>
+                                <span className="absolute -inset-1 rounded-lg bg-gradient-to-r from-blue-400 to-purple-400 opacity-20 blur-sm animate-pulse"></span>
+                              </>
+                            )}
                             <i className={`fas ${
                               realtimeVoice.isRecording 
                                 ? 'fa-stop text-red-500 mr-2' 
                                 : realtimeVoice.isAISpeaking
                                 ? 'fa-volume-up text-blue-500 mr-2'
+                                : showMicPrompt
+                                ? 'fa-microphone text-white mr-2'
                                 : 'fa-microphone mr-2'
                             }`}></i>
-                            {realtimeVoice.isRecording ? '중지' : realtimeVoice.isAISpeaking ? '응답 중' : '음성'}
+                            {realtimeVoice.isRecording ? '중지' : realtimeVoice.isAISpeaking ? '응답 중' : showMicPrompt ? '말씀하세요!' : '음성'}
                           </Button>
                           <Button
                             variant="destructive"
