@@ -1647,51 +1647,53 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
               </div>
 
               {/* Chat Controls & Info */}
-              <div className="mt-6 grid md:grid-cols-4 gap-4">
-                <div className="bg-white rounded-lg p-4 border border-slate-200">
-                  <h4 className="font-medium text-slate-900 mb-2 flex items-center">
-                    <i className="fas fa-stopwatch text-blue-600 mr-2"></i>
-                    경과 시간
-                  </h4>
-                  <p className="text-2xl font-bold text-blue-600" data-testid="sidebar-elapsed-time">
-                    {formatElapsedTime(elapsedTime)}
-                  </p>
-                  <p className="text-xs text-slate-500">
-                    {elapsedTime < 300 ? '효율적으로 진행 중' : 
-                     elapsedTime < 600 ? '적절한 속도' : 
-                     elapsedTime < 900 ? '시간 관리 주의' : '신속한 마무리 권장'}
-                  </p>
-                </div>
-                <div className="bg-white rounded-lg p-4 border border-slate-200">
-                  <h4 className="font-medium text-slate-900 mb-2 flex items-center">
-                    <i className="fas fa-clock text-amber-600 mr-2"></i>
-                    남은 턴
-                  </h4>
-                  <p className="text-2xl font-bold text-amber-600">{maxTurns - conversation.turnCount}</p>
-                  <p className="text-xs text-slate-500">턴이 끝나면 자동으로 평가됩니다</p>
-                </div>
-                <div className="bg-white rounded-lg p-4 border border-slate-200">
-                  <h4 className="font-medium text-slate-900 mb-2 flex items-center">
-                    <i className="fas fa-chart-line text-green-600 mr-2"></i>
-                    현재 점수
-                  </h4>
-                  <div className="space-y-1">
-                    <p className="text-2xl font-bold text-green-600">{currentScore}/100</p>
-                    <div className="w-full bg-gray-200 rounded-full h-2">
-                      <div 
-                        className={`h-2 rounded-full transition-all duration-500 ${
-                          currentScore >= 80 ? 'bg-green-500' :
-                          currentScore >= 60 ? 'bg-blue-500' :
-                          currentScore >= 40 ? 'bg-yellow-500' : 'bg-red-500'
-                        }`}
-                        style={{ width: `${Math.max(2, currentScore)}%` }}
-                      ></div>
-                    </div>
-                    <p className="text-xs text-slate-500">
-                      {currentScore >= 80 ? '우수' :
-                       currentScore >= 60 ? '보통' :
-                       currentScore >= 40 ? '개선 필요' : '미흡'}
+              <div className="mt-6 space-y-4">
+                <div className="grid md:grid-cols-3 gap-4">
+                  <div className="bg-white rounded-lg p-4 border border-slate-200">
+                    <h4 className="font-medium text-slate-900 mb-2 flex items-center">
+                      <i className="fas fa-stopwatch text-blue-600 mr-2"></i>
+                      경과 시간
+                    </h4>
+                    <p className="text-2xl font-bold text-blue-600" data-testid="sidebar-elapsed-time">
+                      {formatElapsedTime(elapsedTime)}
                     </p>
+                    <p className="text-xs text-slate-500">
+                      {elapsedTime < 300 ? '효율적으로 진행 중' : 
+                       elapsedTime < 600 ? '적절한 속도' : 
+                       elapsedTime < 900 ? '시간 관리 주의' : '신속한 마무리 권장'}
+                    </p>
+                  </div>
+                  <div className="bg-white rounded-lg p-4 border border-slate-200">
+                    <h4 className="font-medium text-slate-900 mb-2 flex items-center">
+                      <i className="fas fa-clock text-amber-600 mr-2"></i>
+                      남은 턴
+                    </h4>
+                    <p className="text-2xl font-bold text-amber-600">{maxTurns - conversation.turnCount}</p>
+                    <p className="text-xs text-slate-500">턴이 끝나면 자동으로 평가됩니다</p>
+                  </div>
+                  <div className="bg-white rounded-lg p-4 border border-slate-200">
+                    <h4 className="font-medium text-slate-900 mb-2 flex items-center">
+                      <i className="fas fa-chart-line text-green-600 mr-2"></i>
+                      현재 점수
+                    </h4>
+                    <div className="space-y-1">
+                      <p className="text-2xl font-bold text-green-600">{currentScore}/100</p>
+                      <div className="w-full bg-gray-200 rounded-full h-2">
+                        <div 
+                          className={`h-2 rounded-full transition-all duration-500 ${
+                            currentScore >= 80 ? 'bg-green-500' :
+                            currentScore >= 60 ? 'bg-blue-500' :
+                            currentScore >= 40 ? 'bg-yellow-500' : 'bg-red-500'
+                          }`}
+                          style={{ width: `${Math.max(2, currentScore)}%` }}
+                        ></div>
+                      </div>
+                      <p className="text-xs text-slate-500">
+                        {currentScore >= 80 ? '우수' :
+                         currentScore >= 60 ? '보통' :
+                         currentScore >= 40 ? '개선 필요' : '미흡'}
+                      </p>
+                    </div>
                   </div>
                 </div>
                 <div className="bg-white rounded-lg p-4 border border-slate-200">
