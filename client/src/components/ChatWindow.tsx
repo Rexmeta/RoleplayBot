@@ -1647,50 +1647,7 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
               </div>
 
               {/* Chat Controls & Info */}
-              <div className="mt-6 grid md:grid-cols-3 gap-4">
-                <div className="bg-white rounded-lg p-4 border border-slate-200">
-                  <h4 className="font-medium text-slate-900 mb-3 flex items-center">
-                    <i className="fas fa-user-tie text-corporate-600 mr-2"></i>
-                    당신의 역할과 목표
-                  </h4>
-                  <div className="text-sm space-y-3">
-                    {/* 역할 섹션 */}
-                    {scenario.context?.playerRole?.responsibility && (
-                      <div>
-                        <div className="text-xs font-semibold text-corporate-600 mb-1 flex items-center justify-between">
-                          <span>👤 당신의 역할</span>
-                          <span className="text-slate-500 font-normal">
-                            {scenario.context.playerRole.position}
-                            {scenario.context.playerRole.experience && ` (${scenario.context.playerRole.experience})`}
-                          </span>
-                        </div>
-                        <div className="text-slate-700 bg-slate-50 rounded px-2 py-1.5">
-                          {scenario.context.playerRole.responsibility}
-                        </div>
-                      </div>
-                    )}
-                    
-                    {/* 목표 섹션 */}
-                    {scenario.objectives && scenario.objectives.length > 0 && (
-                      <div>
-                        <div className="text-xs font-semibold text-blue-600 mb-1">🎯 달성 목표</div>
-                        <div className="space-y-1">
-                          {scenario.objectives.slice(0, 2).map((objective: string, index: number) => (
-                            <div key={index} className="flex items-start space-x-2">
-                              <span className="text-blue-500 text-xs mt-0.5">•</span>
-                              <span className="flex-1 text-slate-600">{objective}</span>
-                            </div>
-                          ))}
-                          {scenario.objectives.length > 2 && (
-                            <div className="text-xs text-slate-500 mt-1 pl-4">
-                              외 {scenario.objectives.length - 2}개 목표 더...
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                </div>
+              <div className="mt-6 grid md:grid-cols-4 gap-4">
                 <div className="bg-white rounded-lg p-4 border border-slate-200">
                   <h4 className="font-medium text-slate-900 mb-2 flex items-center">
                     <i className="fas fa-stopwatch text-blue-600 mr-2"></i>
@@ -1735,6 +1692,49 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
                        currentScore >= 60 ? '보통' :
                        currentScore >= 40 ? '개선 필요' : '미흡'}
                     </p>
+                  </div>
+                </div>
+                <div className="bg-white rounded-lg p-4 border border-slate-200">
+                  <h4 className="font-medium text-slate-900 mb-3 flex items-center">
+                    <i className="fas fa-user-tie text-corporate-600 mr-2"></i>
+                    당신의 역할과 목표
+                  </h4>
+                  <div className="text-sm space-y-3">
+                    {/* 역할 섹션 */}
+                    {scenario.context?.playerRole?.responsibility && (
+                      <div>
+                        <div className="text-xs font-semibold text-corporate-600 mb-1 flex items-center justify-between">
+                          <span>👤 당신의 역할</span>
+                          <span className="text-slate-500 font-normal">
+                            {scenario.context.playerRole.position}
+                            {scenario.context.playerRole.experience && ` (${scenario.context.playerRole.experience})`}
+                          </span>
+                        </div>
+                        <div className="text-slate-700 bg-slate-50 rounded px-2 py-1.5">
+                          {scenario.context.playerRole.responsibility}
+                        </div>
+                      </div>
+                    )}
+                    
+                    {/* 목표 섹션 */}
+                    {scenario.objectives && scenario.objectives.length > 0 && (
+                      <div>
+                        <div className="text-xs font-semibold text-blue-600 mb-1">🎯 달성 목표</div>
+                        <div className="space-y-1">
+                          {scenario.objectives.slice(0, 2).map((objective: string, index: number) => (
+                            <div key={index} className="flex items-start space-x-2">
+                              <span className="text-blue-500 text-xs mt-0.5">•</span>
+                              <span className="flex-1 text-slate-600">{objective}</span>
+                            </div>
+                          ))}
+                          {scenario.objectives.length > 2 && (
+                            <div className="text-xs text-slate-500 mt-1 pl-4">
+                              외 {scenario.objectives.length - 2}개 목표 더...
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
