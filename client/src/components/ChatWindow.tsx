@@ -1335,25 +1335,26 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
           {/* Chat Messages Area */}
           {chatMode === 'messenger' && (
             <>
-              <div className="h-96 overflow-y-auto p-6 space-y-4 bg-slate-50/50 scroll-smooth" data-testid="chat-messages">
+              <div className="h-96 overflow-y-auto p-6 space-y-5 bg-gradient-to-b from-slate-50 to-white scroll-smooth" data-testid="chat-messages">
                 {localMessages.map((message: ConversationMessage, index: number) => (
                 <div
                   key={index}
-                  className={`flex items-start space-x-3 ${
+                  className={`flex items-end space-x-3 ${
                     message.sender === "user" ? "justify-end" : ""
                   }`}
                 >
                   {message.sender === "ai" && (
-                    <div className="relative">
-                      <img 
-                        src={persona.image} 
-                        alt={persona.name} 
-                        className="w-8 h-8 rounded-full" 
-                      />
-                      {/* 감정 이모지 표시 */}
+                    <div className="relative flex-shrink-0">
+                      <div className="w-10 h-10 rounded-full ring-2 ring-white shadow-md overflow-hidden">
+                        <img 
+                          src={persona.image} 
+                          alt={persona.name} 
+                          className="w-full h-full object-cover" 
+                        />
+                      </div>
                       {message.emotion && (
                         <div 
-                          className="absolute -bottom-1 -right-1 text-sm bg-white rounded-full w-5 h-5 flex items-center justify-center border border-gray-200"
+                          className="absolute -bottom-1 -right-1 text-xs bg-white rounded-full w-6 h-6 flex items-center justify-center shadow-sm border-2 border-white"
                           title={message.emotionReason || message.emotion}
                         >
                           {emotionEmojis[message.emotion] || '😐'}
@@ -1362,43 +1363,42 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
                     </div>
                   )}
                   
-                  <div className={`flex-1 ${message.sender === "user" ? "flex justify-end" : ""}`}>
-                    <div className={`rounded-lg p-3 max-w-md ${
+                  <div className={`flex flex-col ${message.sender === "user" ? "items-end" : "items-start"} max-w-[70%]`}>
+                    {message.sender === "ai" && (
+                      <span className="text-xs text-slate-500 mb-1 ml-1 font-medium">{persona.name}</span>
+                    )}
+                    <div className={`rounded-2xl px-4 py-3 shadow-sm ${
                       message.sender === "user"
-                        ? "bg-corporate-600 text-white rounded-tr-none"
-                        : `message-card rounded-tl-none ${
-                            message.emotion === '분노' ? 'border-l-4 border-red-400' :
-                            message.emotion === '슬픔' ? 'border-l-4 border-blue-400' :
-                            message.emotion === '기쁨' ? 'border-l-4 border-green-400' :
-                            message.emotion === '놀람' ? 'border-l-4 border-yellow-400' :
-                            message.emotion === '호기심' ? 'border-l-4 border-purple-400' :
-                            message.emotion === '불안' ? 'border-l-4 border-orange-400' :
-                            message.emotion === '피로' ? 'border-l-4 border-slate-400' :
-                            message.emotion === '실망' ? 'border-l-4 border-indigo-400' :
-                            message.emotion === '당혹' ? 'border-l-4 border-pink-400' :
-                            message.emotion === '중립' ? 'border-l-4 border-gray-300' : ''
+                        ? "bg-gradient-to-br from-corporate-600 to-corporate-700 text-white rounded-br-md"
+                        : `bg-white border border-slate-100 rounded-bl-md shadow-md ${
+                            message.emotion === '분노' ? 'border-l-4 border-l-red-400' :
+                            message.emotion === '슬픔' ? 'border-l-4 border-l-blue-400' :
+                            message.emotion === '기쁨' ? 'border-l-4 border-l-green-400' :
+                            message.emotion === '놀람' ? 'border-l-4 border-l-yellow-400' :
+                            message.emotion === '호기심' ? 'border-l-4 border-l-purple-400' :
+                            message.emotion === '불안' ? 'border-l-4 border-l-orange-400' :
+                            message.emotion === '피로' ? 'border-l-4 border-l-slate-400' :
+                            message.emotion === '실망' ? 'border-l-4 border-l-indigo-400' :
+                            message.emotion === '당혹' ? 'border-l-4 border-l-pink-400' :
+                            message.emotion === '중립' ? 'border-l-4 border-l-gray-300' : ''
                           }`
                     }`}>
-                      <p className={message.sender === "user" ? "text-white" : "text-slate-800"}>
+                      <p className={`leading-relaxed ${message.sender === "user" ? "text-white" : "text-slate-700"}`}>
                         {message.message}
                       </p>
-                      {/* AI 메시지에 감정 정보와 음성 버튼 표시 */}
                       {message.sender === "ai" && (
-                        <div className="mt-2 flex items-center justify-between">
+                        <div className="mt-2 pt-2 border-t border-slate-100 flex items-center justify-between gap-3">
                           {message.emotion && (
-                            <div className="text-xs text-slate-500 flex items-center">
-                              <span className="mr-1">{emotionEmojis[message.emotion]}</span>
-                              <span>{message.emotion}</span>
-                              {message.emotionReason && (
-                                <span className="ml-2 text-slate-400">- {message.emotionReason}</span>
-                              )}
+                            <div className="flex items-center gap-1.5 text-xs text-slate-500">
+                              <span className="bg-slate-50 px-2 py-0.5 rounded-full flex items-center gap-1">
+                                <span>{emotionEmojis[message.emotion]}</span>
+                                <span className="font-medium">{message.emotion}</span>
+                              </span>
                             </div>
                           )}
-                          
-                          {/* 음성 재생 버튼 */}
                           <button
                             onClick={() => speakMessage(message.message, false, message.emotion)}
-                            className="text-xs text-slate-400 hover:text-corporate-600 transition-colors flex items-center space-x-1"
+                            className="text-xs text-slate-400 hover:text-corporate-600 transition-all duration-200 flex items-center gap-1 hover:scale-105"
                             title="이 메시지 듣기"
                             data-testid={`button-speak-message-${index}`}
                           >
@@ -1408,10 +1408,13 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
                         </div>
                       )}
                     </div>
+                    <span className="text-[10px] text-slate-400 mt-1 mx-1">
+                      {new Date().toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' })}
+                    </span>
                   </div>
 
                   {message.sender === "user" && (
-                    <div className="w-8 h-8 bg-corporate-600 rounded-full flex items-center justify-center text-white text-sm font-medium">
+                    <div className="w-10 h-10 bg-gradient-to-br from-corporate-500 to-corporate-700 rounded-full flex items-center justify-center text-white text-sm font-semibold shadow-md ring-2 ring-white flex-shrink-0">
                       나
                     </div>
                   )}
@@ -1419,13 +1422,15 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
               ))}
 
               {isLoading && (
-                <div className="flex items-start space-x-3">
-                  <img src={persona.image} alt={persona.name} className="w-8 h-8 rounded-full" />
-                  <div className="message-card rounded-lg rounded-tl-none p-3 max-w-md">
-                    <div className="flex space-x-1">
-                      <div className="w-2 h-2 bg-slate-400 rounded-full animate-bounce"></div>
-                      <div className="w-2 h-2 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: "0.1s" }}></div>
-                      <div className="w-2 h-2 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: "0.2s" }}></div>
+                <div className="flex items-end space-x-3">
+                  <div className="w-10 h-10 rounded-full ring-2 ring-white shadow-md overflow-hidden">
+                    <img src={persona.image} alt={persona.name} className="w-full h-full object-cover" />
+                  </div>
+                  <div className="bg-white rounded-2xl rounded-bl-md px-4 py-3 shadow-md border border-slate-100">
+                    <div className="flex space-x-1.5">
+                      <div className="w-2.5 h-2.5 bg-slate-300 rounded-full animate-bounce"></div>
+                      <div className="w-2.5 h-2.5 bg-slate-300 rounded-full animate-bounce" style={{ animationDelay: "0.15s" }}></div>
+                      <div className="w-2.5 h-2.5 bg-slate-300 rounded-full animate-bounce" style={{ animationDelay: "0.3s" }}></div>
                     </div>
                   </div>
                 </div>
@@ -1435,7 +1440,7 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
               </div>
 
               {/* Chat Input Area */}
-              <div className="border-t border-slate-200 p-6">
+              <div className="border-t border-slate-100 bg-white p-6 shadow-[0_-4px_20px_-8px_rgba(0,0,0,0.1)]">
                 {conversation.turnCount >= maxTurns ? (
                   <div className="text-center space-y-4">
                     <div className="text-lg font-semibold text-slate-700">
@@ -1584,39 +1589,43 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
                     )}
                   </>
                 ) : (
-                  <div className="flex space-x-4">
+                  <div className="flex gap-4">
                     <div className="flex-1">
-                      <Textarea
-                        value={userInput}
-                        onChange={(e) => setUserInput(e.target.value)}
-                        placeholder={`메시지를 입력하거나 음성 입력 버튼을 사용하세요... (최대 200자)${!speechSupported ? ' - 음성 입력 미지원 브라우저' : ''}`}
-                        maxLength={200}
-                        rows={3}
-                        className="resize-none"
-                        disabled={isLoading}
-                        data-testid="input-message"
-                      />
-                      <div className="flex items-center justify-between mt-2">
-                        <span className="text-xs text-slate-500">{userInput.length}/200</span>
-                        <div className="flex items-center space-x-2 text-xs text-slate-500">
+                      <div className="relative">
+                        <Textarea
+                          value={userInput}
+                          onChange={(e) => setUserInput(e.target.value)}
+                          placeholder={`메시지를 입력하세요... (최대 200자)`}
+                          maxLength={200}
+                          rows={3}
+                          className="resize-none rounded-xl border-slate-200 focus:border-corporate-400 focus:ring-corporate-400/20 focus:ring-4 transition-all duration-200 pr-12"
+                          disabled={isLoading}
+                          data-testid="input-message"
+                        />
+                        <div className="absolute bottom-3 right-3 text-xs text-slate-400 bg-white/80 px-1.5 py-0.5 rounded">
+                          {userInput.length}/200
+                        </div>
+                      </div>
+                      <div className="flex items-center justify-between mt-2 px-1">
+                        <div className="flex items-center gap-2 text-xs text-slate-500">
+                          <i className="fas fa-lightbulb text-amber-400"></i>
                           <span>팁: 구체적이고 예의 바른 답변을 해보세요</span>
-                          {speechSupported && inputMode === 'text' && (
-                            <span className="text-corporate-600">• 음성 입력 지원 (클릭하여 반복 가능)</span>
-                          )}
-                          {inputMode === 'tts' && (
-                            <span className="text-green-600">• 음성 재생 활성화됨</span>
-                          )}
+                        </div>
+                        <div className="flex items-center gap-2 text-xs">
                           {isRecording && (
-                            <span className="text-red-600 animate-pulse">🎤 음성 인식 중...</span>
+                            <span className="text-red-600 animate-pulse flex items-center gap-1">
+                              <span className="w-2 h-2 bg-red-500 rounded-full animate-pulse"></span>
+                              음성 인식 중...
+                            </span>
                           )}
-                          <i className="fas fa-info-circle"></i>
                         </div>
                       </div>
                     </div>
-                    <div className="flex flex-col space-y-2">
+                    <div className="flex flex-col gap-2">
                       <Button
                         onClick={handleSendMessage}
                         disabled={!userInput.trim() || isLoading}
+                        className="bg-gradient-to-r from-corporate-600 to-corporate-700 hover:from-corporate-700 hover:to-corporate-800 shadow-md hover:shadow-lg transition-all duration-200 rounded-xl h-12"
                         data-testid="button-send-message"
                       >
                         <i className="fas fa-paper-plane mr-2"></i>
@@ -1626,19 +1635,25 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
                         variant="outline"
                         onClick={handleVoiceInput}
                         disabled={isLoading || !speechSupported}
-                        className={`${isRecording ? 'bg-red-50 border-red-300 text-red-700 animate-pulse' : ''} ${!speechSupported ? 'opacity-50 cursor-not-allowed' : ''}`}
+                        className={`rounded-xl h-10 transition-all duration-200 ${
+                          isRecording 
+                            ? 'bg-red-50 border-red-300 text-red-700 animate-pulse shadow-md' 
+                            : 'hover:bg-slate-50 hover:border-slate-300 hover:shadow-sm'
+                        } ${!speechSupported ? 'opacity-50 cursor-not-allowed' : ''}`}
                         data-testid="button-voice-input"
                         title={!speechSupported ? "현재 브라우저에서 음성 입력을 지원하지 않습니다" : isRecording ? "음성 입력을 중지하려면 클릭하세요" : "음성 입력을 시작하려면 클릭하세요"}
                       >
-                        <i className={`fas ${isRecording ? 'fa-stop' : 'fa-microphone'} mr-2 ${isRecording ? 'text-red-500' : ''}`}></i>
-                        {isRecording ? '입력 완료' : '음성 입력'}
+                        <i className={`fas ${isRecording ? 'fa-stop' : 'fa-microphone'} mr-2 ${isRecording ? 'text-red-500' : 'text-corporate-600'}`}></i>
+                        {isRecording ? '완료' : '음성'}
                       </Button>
                       <Button
-                        variant="outline"
+                        variant="ghost"
                         onClick={handleSkipTurn}
                         disabled={isLoading}
+                        className="rounded-xl h-10 text-slate-500 hover:text-slate-700 hover:bg-slate-100"
                         data-testid="button-skip-turn"
                       >
+                        <i className="fas fa-forward mr-2"></i>
                         건너뛰기
                       </Button>
                     </div>
@@ -1647,91 +1662,117 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
               </div>
 
               {/* Chat Controls & Info */}
-              <div className="mt-6 space-y-4">
+              <div className="mt-8 space-y-5 px-2">
                 <div className="grid md:grid-cols-3 gap-4">
-                  <div className="bg-white rounded-lg p-4 border border-slate-200">
-                    <h4 className="font-medium text-slate-900 mb-2 flex items-center">
-                      <i className="fas fa-stopwatch text-blue-600 mr-2"></i>
-                      경과 시간
-                    </h4>
-                    <p className="text-2xl font-bold text-blue-600" data-testid="sidebar-elapsed-time">
+                  <div className="bg-white rounded-2xl p-5 border border-slate-100 shadow-sm hover:shadow-md transition-all duration-300 group">
+                    <div className="flex items-center justify-between mb-3">
+                      <h4 className="font-semibold text-slate-700 text-sm flex items-center">
+                        <div className="w-8 h-8 bg-blue-100 rounded-xl flex items-center justify-center mr-2 group-hover:scale-110 transition-transform duration-300">
+                          <i className="fas fa-stopwatch text-blue-600 text-sm"></i>
+                        </div>
+                        경과 시간
+                      </h4>
+                    </div>
+                    <p className="text-3xl font-bold bg-gradient-to-r from-blue-600 to-blue-500 bg-clip-text text-transparent" data-testid="sidebar-elapsed-time">
                       {formatElapsedTime(elapsedTime)}
                     </p>
-                    <p className="text-xs text-slate-500">
+                    <p className="text-xs text-slate-500 mt-2 flex items-center gap-1">
+                      <span className={`w-2 h-2 rounded-full ${
+                        elapsedTime < 300 ? 'bg-green-400' : 
+                        elapsedTime < 600 ? 'bg-blue-400' : 
+                        elapsedTime < 900 ? 'bg-amber-400' : 'bg-red-400'
+                      }`}></span>
                       {elapsedTime < 300 ? '효율적으로 진행 중' : 
                        elapsedTime < 600 ? '적절한 속도' : 
                        elapsedTime < 900 ? '시간 관리 주의' : '신속한 마무리 권장'}
                     </p>
                   </div>
-                  <div className="bg-white rounded-lg p-4 border border-slate-200">
-                    <h4 className="font-medium text-slate-900 mb-2 flex items-center">
-                      <i className="fas fa-clock text-amber-600 mr-2"></i>
-                      남은 턴
-                    </h4>
-                    <p className="text-2xl font-bold text-amber-600">{maxTurns - conversation.turnCount}</p>
-                    <p className="text-xs text-slate-500">턴이 끝나면 자동으로 평가됩니다</p>
+                  <div className="bg-white rounded-2xl p-5 border border-slate-100 shadow-sm hover:shadow-md transition-all duration-300 group">
+                    <div className="flex items-center justify-between mb-3">
+                      <h4 className="font-semibold text-slate-700 text-sm flex items-center">
+                        <div className="w-8 h-8 bg-amber-100 rounded-xl flex items-center justify-center mr-2 group-hover:scale-110 transition-transform duration-300">
+                          <i className="fas fa-sync-alt text-amber-600 text-sm"></i>
+                        </div>
+                        남은 턴
+                      </h4>
+                    </div>
+                    <p className="text-3xl font-bold bg-gradient-to-r from-amber-600 to-amber-500 bg-clip-text text-transparent">{maxTurns - conversation.turnCount}</p>
+                    <p className="text-xs text-slate-500 mt-2">턴이 끝나면 자동으로 평가됩니다</p>
                   </div>
-                  <div className="bg-white rounded-lg p-4 border border-slate-200">
-                    <h4 className="font-medium text-slate-900 mb-2 flex items-center">
-                      <i className="fas fa-chart-line text-green-600 mr-2"></i>
-                      현재 점수
-                    </h4>
-                    <div className="space-y-1">
-                      <p className="text-2xl font-bold text-green-600">{currentScore}/100</p>
-                      <div className="w-full bg-gray-200 rounded-full h-2">
-                        <div 
-                          className={`h-2 rounded-full transition-all duration-500 ${
-                            currentScore >= 80 ? 'bg-green-500' :
-                            currentScore >= 60 ? 'bg-blue-500' :
-                            currentScore >= 40 ? 'bg-yellow-500' : 'bg-red-500'
-                          }`}
-                          style={{ width: `${Math.max(2, currentScore)}%` }}
-                        ></div>
-                      </div>
-                      <p className="text-xs text-slate-500">
+                  <div className="bg-white rounded-2xl p-5 border border-slate-100 shadow-sm hover:shadow-md transition-all duration-300 group">
+                    <div className="flex items-center justify-between mb-3">
+                      <h4 className="font-semibold text-slate-700 text-sm flex items-center">
+                        <div className="w-8 h-8 bg-green-100 rounded-xl flex items-center justify-center mr-2 group-hover:scale-110 transition-transform duration-300">
+                          <i className="fas fa-chart-line text-green-600 text-sm"></i>
+                        </div>
+                        현재 점수
+                      </h4>
+                      <span className={`text-xs font-medium px-2 py-1 rounded-full ${
+                        currentScore >= 80 ? 'bg-green-100 text-green-700' :
+                        currentScore >= 60 ? 'bg-blue-100 text-blue-700' :
+                        currentScore >= 40 ? 'bg-yellow-100 text-yellow-700' : 'bg-red-100 text-red-700'
+                      }`}>
                         {currentScore >= 80 ? '우수' :
                          currentScore >= 60 ? '보통' :
                          currentScore >= 40 ? '개선 필요' : '미흡'}
-                      </p>
+                      </span>
+                    </div>
+                    <div className="space-y-2">
+                      <p className="text-3xl font-bold bg-gradient-to-r from-green-600 to-green-500 bg-clip-text text-transparent">{currentScore}<span className="text-lg text-slate-400">/100</span></p>
+                      <div className="w-full bg-slate-100 rounded-full h-2.5 overflow-hidden">
+                        <div 
+                          className={`h-2.5 rounded-full transition-all duration-700 ease-out ${
+                            currentScore >= 80 ? 'bg-gradient-to-r from-green-400 to-green-500' :
+                            currentScore >= 60 ? 'bg-gradient-to-r from-blue-400 to-blue-500' :
+                            currentScore >= 40 ? 'bg-gradient-to-r from-yellow-400 to-yellow-500' : 'bg-gradient-to-r from-red-400 to-red-500'
+                          }`}
+                          style={{ width: `${Math.max(3, currentScore)}%` }}
+                        ></div>
+                      </div>
                     </div>
                   </div>
                 </div>
-                <div className="bg-white rounded-lg p-4 border border-slate-200">
-                  <h4 className="font-medium text-slate-900 mb-3 flex items-center">
-                    <i className="fas fa-user-tie text-corporate-600 mr-2"></i>
+                <div className="bg-white rounded-2xl p-5 border border-slate-100 shadow-sm hover:shadow-md transition-all duration-300">
+                  <h4 className="font-semibold text-slate-700 mb-4 flex items-center text-sm">
+                    <div className="w-8 h-8 bg-corporate-100 rounded-xl flex items-center justify-center mr-2">
+                      <i className="fas fa-user-tie text-corporate-600 text-sm"></i>
+                    </div>
                     당신의 역할과 목표
                   </h4>
-                  <div className="text-sm space-y-3">
-                    {/* 역할 섹션 */}
+                  <div className="text-sm grid md:grid-cols-2 gap-4">
                     {scenario.context?.playerRole?.responsibility && (
-                      <div>
-                        <div className="text-xs font-semibold text-corporate-600 mb-1 flex items-center justify-between">
-                          <span>👤 당신의 역할</span>
-                          <span className="text-slate-500 font-normal">
+                      <div className="bg-gradient-to-br from-slate-50 to-slate-100/50 rounded-xl p-4">
+                        <div className="text-xs font-semibold text-corporate-600 mb-2 flex items-center justify-between">
+                          <span className="flex items-center gap-1.5">
+                            <i className="fas fa-id-badge"></i>
+                            당신의 역할
+                          </span>
+                          <span className="text-slate-500 font-normal bg-white px-2 py-0.5 rounded-full">
                             {scenario.context.playerRole.position}
-                            {scenario.context.playerRole.experience && ` (${scenario.context.playerRole.experience})`}
                           </span>
                         </div>
-                        <div className="text-slate-700 bg-slate-50 rounded px-2 py-1.5">
+                        <div className="text-slate-700 leading-relaxed">
                           {scenario.context.playerRole.responsibility}
                         </div>
                       </div>
                     )}
                     
-                    {/* 목표 섹션 */}
                     {scenario.objectives && scenario.objectives.length > 0 && (
-                      <div>
-                        <div className="text-xs font-semibold text-blue-600 mb-1">🎯 달성 목표</div>
-                        <div className="space-y-1">
+                      <div className="bg-gradient-to-br from-blue-50 to-blue-100/30 rounded-xl p-4">
+                        <div className="text-xs font-semibold text-blue-600 mb-2 flex items-center gap-1.5">
+                          <i className="fas fa-bullseye"></i>
+                          달성 목표
+                        </div>
+                        <div className="space-y-2">
                           {scenario.objectives.slice(0, 2).map((objective: string, index: number) => (
-                            <div key={index} className="flex items-start space-x-2">
-                              <span className="text-blue-500 text-xs mt-0.5">•</span>
-                              <span className="flex-1 text-slate-600">{objective}</span>
+                            <div key={index} className="flex items-start gap-2">
+                              <span className="w-5 h-5 bg-blue-500 text-white rounded-full flex items-center justify-center text-xs flex-shrink-0 mt-0.5">{index + 1}</span>
+                              <span className="flex-1 text-slate-700 leading-relaxed">{objective}</span>
                             </div>
                           ))}
                           {scenario.objectives.length > 2 && (
-                            <div className="text-xs text-slate-500 mt-1 pl-4">
-                              외 {scenario.objectives.length - 2}개 목표 더...
+                            <div className="text-xs text-slate-500 pl-7">
+                              +{scenario.objectives.length - 2}개 목표 더...
                             </div>
                           )}
                         </div>
