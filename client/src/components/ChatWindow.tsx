@@ -1345,12 +1345,12 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
                   }`}
                 >
                   {message.sender === "ai" && (
-                    <div className="relative flex-shrink-0 self-start">
-                      <div className="w-14 h-14 rounded-xl ring-2 ring-white shadow-lg overflow-hidden bg-slate-100">
+                    <div className="relative flex-shrink-0 self-stretch flex items-end">
+                      <div className="w-16 h-full min-h-[4rem] rounded-xl ring-2 ring-white shadow-lg overflow-hidden bg-slate-100">
                         <img 
                           src={getCharacterImage(message.emotion || '중립') || persona.image} 
                           alt={persona.name} 
-                          className="w-full h-full object-cover object-top scale-110" 
+                          className="w-full h-full object-cover object-top" 
                         />
                       </div>
                       {message.emotion && (
