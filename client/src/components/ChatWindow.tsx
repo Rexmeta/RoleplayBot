@@ -1691,7 +1691,7 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
               data-testid="character-mode"
             >
               {/* Wide Screen Left Sidebar - Goals Panel (visible on 2xl+) */}
-              <div className="hidden 2xl:flex flex-col w-80 bg-gradient-to-b from-slate-50 to-slate-100 border-r border-slate-200 p-4 overflow-y-auto z-30">
+              <div className="hidden 2xl:flex flex-col w-96 xl:w-[420px] bg-gradient-to-b from-slate-50 to-slate-100 border-r border-slate-200 p-4 overflow-y-auto z-30">
                 {/* Character Info */}
                 <div className="bg-white rounded-xl px-4 py-3 shadow-sm border border-slate-100 mb-4">
                   <div className="flex items-center space-x-2">
@@ -1758,7 +1758,7 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
               {/* Character Image Area with max-width constraint */}
               <div className="flex-1 flex justify-center bg-slate-100">
                 <div 
-                  className={`relative w-full max-w-[1400px] h-full bg-cover bg-center bg-no-repeat transition-all duration-300 ${
+                  className={`relative w-full max-w-[1000px] 2xl:max-w-[1100px] h-full bg-cover bg-center bg-no-repeat transition-all duration-300 ${
                     isEmotionTransitioning ? 'brightness-95 scale-[1.02]' : 'brightness-110 scale-100'
                   }`}
                   style={{
