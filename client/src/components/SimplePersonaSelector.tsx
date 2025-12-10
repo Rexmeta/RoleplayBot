@@ -394,44 +394,45 @@ export function SimplePersonaSelector({
                     data-testid={`persona-card-${persona.id}`}
                   >
                     <CardContent className="p-0">
-                      {/* 페르소나 이미지 배경 */}
-                      <div className="relative h-24 bg-gradient-to-br from-slate-100 to-slate-200 overflow-hidden">
+                      {/* 페르소나 이미지 배경 - 얼굴이 보이도록 세로 영역 확장 */}
+                      <div className="relative h-44 bg-gradient-to-br from-slate-100 to-slate-200 overflow-hidden">
                         <img 
                           src={getPersonaImage(persona)}
                           alt={persona.name}
-                          className="absolute inset-0 w-full h-full object-cover object-top opacity-80"
+                          className="absolute inset-0 w-full h-full object-cover object-top opacity-90"
                           onError={(e) => {
                             (e.target as HTMLImageElement).style.display = 'none';
                           }}
                         />
-                        <div className="absolute inset-0 bg-gradient-to-t from-white via-transparent to-transparent" />
+                        <div className="absolute inset-0 bg-gradient-to-t from-white via-white/20 to-transparent" />
                         
                         {isCompleted && (
                           <div className="absolute top-3 right-3 w-8 h-8 rounded-full bg-green-500 flex items-center justify-center shadow-lg">
                             <CheckCircle2 className="w-5 h-5 text-white" />
                           </div>
                         )}
-                      </div>
 
-                      {/* 페르소나 정보 */}
-                      <div className="p-4">
-                        <div className="flex items-start justify-between mb-2">
-                          <div>
-                            <h3 className="font-bold text-lg text-slate-900">{persona.name}</h3>
-                            <p className="text-sm text-slate-600">{persona.role}</p>
-                          </div>
-                          {persona.mbti && (
-                            <Badge variant="secondary" className="text-xs bg-slate-100">
-                              {persona.mbti}
-                            </Badge>
-                          )}
-                        </div>
-
-                        {persona.department && (
-                          <Badge variant="outline" className="text-xs mb-3">
-                            {persona.department}
+                        {/* MBTI 배지 - 이미지 위에 표시 */}
+                        {persona.mbti && (
+                          <Badge className="absolute top-3 left-3 bg-white/90 text-slate-700 text-xs shadow-sm">
+                            {persona.mbti}
                           </Badge>
                         )}
+                      </div>
+
+                      {/* 페르소나 정보 - 이름, 직급, 소속을 가로 배열 */}
+                      <div className="p-4">
+                        <div className="flex items-center flex-wrap gap-x-2 gap-y-1 mb-3">
+                          <h3 className="font-bold text-lg text-slate-900">{persona.name}</h3>
+                          <span className="text-slate-400">·</span>
+                          <span className="text-sm text-slate-600">{persona.role}</span>
+                          {persona.department && (
+                            <>
+                              <span className="text-slate-400">·</span>
+                              <span className="text-sm text-slate-500">{persona.department}</span>
+                            </>
+                          )}
+                        </div>
 
                         {/* 입장/목표 미리보기 */}
                         {persona.stance && (
