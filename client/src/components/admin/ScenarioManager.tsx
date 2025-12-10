@@ -2,9 +2,8 @@ import React, { useState } from 'react';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
@@ -447,20 +446,23 @@ export function ScenarioManager() {
           <p className="text-slate-600 mt-1">훈련 시나리오를 생성하고 관리할 수 있습니다.</p>
         </div>
         
+        <div className="flex items-center gap-2">
+          <AIScenarioGenerator onGenerated={handleAIGenerated} />
+          <Button 
+            className="bg-corporate-600 hover:bg-corporate-700"
+            onClick={() => {
+              resetForm();
+              setEditingScenario(null);
+              setIsCreateOpen(true);
+            }}
+            data-testid="button-create-scenario"
+          >
+            <i className="fas fa-plus mr-2"></i>
+            직접 생성
+          </Button>
+        </div>
+
         <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
-            <DialogTrigger asChild>
-              <Button 
-                className="bg-corporate-600 hover:bg-corporate-700"
-                onClick={() => {
-                  resetForm();
-                  setEditingScenario(null);
-                }}
-                data-testid="button-create-scenario"
-              >
-                <i className="fas fa-plus mr-2"></i>
-                새 시나리오 생성
-              </Button>
-            </DialogTrigger>
           
             <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto bg-slate-50">
               <DialogHeader className="bg-white px-6 py-4 -mx-6 -mt-6 border-b border-slate-200">
