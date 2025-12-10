@@ -32,7 +32,8 @@ const emotionToEnglish: Record<string, string> = {
   '불안': 'anxious',
   '피로': 'tired',
   '실망': 'disappointed',
-  '당혹': 'confused'
+  '당혹': 'confused',
+  '단호': 'firm'
 };
 
 // Web Speech API 타입 확장
@@ -54,7 +55,8 @@ const emotionEmojis: { [key: string]: string } = {
   '불안': '😰',
   '피로': '😫',
   '실망': '😞',
-  '당혹': '😕'
+  '당혹': '😕',
+  '단호': '😤'
 };
 
 // 경과 시간 포맷팅 함수
