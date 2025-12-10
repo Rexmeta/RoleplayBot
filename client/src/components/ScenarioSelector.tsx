@@ -413,8 +413,8 @@ export default function ScenarioSelector({ onScenarioSelect, playerProfile }: Sc
                   
                   {/* 펼쳐지는 상세 정보 영역 */}
                   <div 
-                    className={`relative overflow-hidden transition-all duration-500 ease-in-out ${
-                      isExpanded ? 'max-h-[600px] opacity-100' : 'max-h-0 opacity-0'
+                    className={`relative transition-all duration-500 ease-in-out ${
+                      isExpanded ? 'max-h-[2000px] opacity-100' : 'max-h-0 opacity-0 overflow-hidden'
                     }`}
                   >
                     <div className="bg-gradient-to-b from-slate-900 to-slate-800 p-6 text-white">
