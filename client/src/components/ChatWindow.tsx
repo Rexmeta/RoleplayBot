@@ -1199,20 +1199,6 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
               </div>
             </div>
             <div className="flex items-center space-x-4">
-              {/* 실시간 음성 모드 표시 */}
-              <div className="relative" data-testid="input-mode-indicator">
-                <div
-                  className="bg-white/10 rounded-lg p-2 text-white flex items-center gap-2"
-                  title="실시간 음성 대화"
-                >
-                  <span className="text-lg">🎙️</span>
-                  <span className="text-sm">음성대화</span>
-                </div>
-                {realtimeVoice.status === 'connected' && (
-                  <div className="absolute -top-1 -right-1 w-2 h-2 bg-blue-500 rounded-full animate-pulse"></div>
-                )}
-              </div>
-
               {/* 캐릭터 모드 버튼 */}
               <Button
                 onClick={() => {
@@ -1924,20 +1910,6 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
 
               {/* Top Right - Control Buttons */}
               <div className="absolute top-4 right-4 z-20 flex items-center space-x-2">
-                {/* 실시간 음성 모드 표시 */}
-                <div className="relative" data-testid="input-mode-indicator-character">
-                  <div
-                    className="bg-white/90 rounded-full shadow-lg px-3 py-2 flex items-center gap-2"
-                    title="실시간 음성 대화"
-                  >
-                    <span className="text-lg">🎙️</span>
-                    <span className="text-sm text-slate-700">음성대화</span>
-                    {realtimeVoice.status === 'connected' && (
-                      <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse"></div>
-                    )}
-                  </div>
-                </div>
-                
                 {/* 메신저 모드 전환 버튼 */}
                 <button
                   onClick={() => setChatMode('messenger')}
