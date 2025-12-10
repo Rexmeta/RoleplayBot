@@ -95,11 +95,9 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
   const [loadedImageUrl, setLoadedImageUrl] = useState<string>(''); // 성공적으로 로드된 이미지 URL
   const [isGoalsExpanded, setIsGoalsExpanded] = useState(false);
   const [showEndConversationDialog, setShowEndConversationDialog] = useState(false);
-  const [showModeChangeDialog, setShowModeChangeDialog] = useState(false);
   const [isInitialLoading, setIsInitialLoading] = useState(true);
   const [isOverlayFading, setIsOverlayFading] = useState(false);
   const initialLoadCompletedRef = useRef(false);
-  const [pendingMode, setPendingMode] = useState<'text' | 'tts' | 'realtime-voice' | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const recognitionRef = useRef<any>(null);
   const speechSynthesisRef = useRef<SpeechSynthesis | null>(null);
@@ -805,45 +803,6 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
     setIsSpeaking(false);
   };
 
-  const handleModeChange = (newMode: 'text' | 'tts' | 'realtime-voice') => {
-    // 실시간 음성 모드와 다른 모드 간 전환 시 확인 필요
-    const isRealtimeToOther = inputMode === 'realtime-voice' && newMode !== 'realtime-voice';
-    const isOtherToRealtime = inputMode !== 'realtime-voice' && newMode === 'realtime-voice';
-    
-    if (isRealtimeToOther || isOtherToRealtime) {
-      setPendingMode(newMode);
-      setShowModeChangeDialog(true);
-      return;
-    }
-    
-    // 동일 카테고리 내 전환은 바로 진행 (text <-> tts)
-    performModeChange(newMode);
-  };
-
-  const performModeChange = (newMode: 'text' | 'tts' | 'realtime-voice') => {
-    if (inputMode === 'tts') {
-      stopSpeaking();
-      lastSpokenMessageRef.current = "";
-    }
-    
-    if (inputMode === 'realtime-voice') {
-      realtimeVoice.disconnect();
-    }
-
-    setInputMode(newMode);
-
-    if (newMode === 'tts') {
-      if (conversation?.messages) {
-        const lastMessage = conversation.messages[conversation.messages.length - 1];
-        if (lastMessage && lastMessage.sender === 'ai') {
-          lastSpokenMessageRef.current = lastMessage.message;
-          setTimeout(() => {
-            speakMessage(lastMessage.message, false, lastMessage.emotion);
-          }, 300);
-        }
-      }
-    }
-  };
 
   // TTS 기능 초기화 및 음성 목록 확인
   useEffect(() => {
@@ -962,19 +921,6 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
     }
   }, [localMessages]);
 
-  // 음성 자동 재생
-  useEffect(() => {
-    // 음성 모드가 켜져 있을 때 새로운 AI 메시지 자동 재생
-    if (inputMode === 'tts' && localMessages.length > 0) {
-      const lastMessage = localMessages[localMessages.length - 1];
-      if (lastMessage && lastMessage.sender === 'ai' && !isLoading) {
-        // 약간의 지연을 두어 UI 업데이트 후 음성 재생
-        setTimeout(() => {
-          speakMessage(lastMessage.message, true, lastMessage.emotion);
-        }, 500);
-      }
-    }
-  }, [localMessages, inputMode, isLoading]);
 
   useEffect(() => {
     const handleKeyPress = (e: KeyboardEvent) => {
@@ -1230,64 +1176,18 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
               </div>
             </div>
             <div className="flex items-center space-x-4">
-              {/* 입력 모드 선택 - 호버 드롭다운 */}
-              <div className="relative group" data-testid="input-mode-dropdown">
-                {/* 현재 모드 아이콘 (항상 표시) */}
-                <button
-                  className="bg-white/10 rounded-lg p-2 text-white hover:bg-white/20 transition-all flex items-center gap-1"
-                  data-testid="toggle-input-mode"
-                  title={
-                    inputMode === 'text' ? '텍스트 입력' : 
-                    inputMode === 'tts' ? '텍스트 입력 + AI 음성 재생' : 
-                    '실시간 음성 대화 (Gemini Live)'
-                  }
+              {/* 실시간 음성 모드 표시 */}
+              <div className="relative" data-testid="input-mode-indicator">
+                <div
+                  className="bg-white/10 rounded-lg p-2 text-white flex items-center gap-2"
+                  title="실시간 음성 대화"
                 >
-                  <span className="text-lg">
-                    {inputMode === 'text' ? '💬' : inputMode === 'tts' ? '🔊' : '🎙️'}
-                  </span>
-                  <i className="fas fa-chevron-down text-xs text-white/60 group-hover:text-white transition-colors"></i>
-                </button>
-                
-                {/* 상태 표시 점 */}
-                {inputMode === 'tts' && isSpeaking && (
-                  <div className="absolute -top-1 -right-1 w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-                )}
-                {inputMode === 'realtime-voice' && realtimeVoice.status === 'connected' && (
+                  <span className="text-lg">🎙️</span>
+                  <span className="text-sm">음성대화</span>
+                </div>
+                {realtimeVoice.status === 'connected' && (
                   <div className="absolute -top-1 -right-1 w-2 h-2 bg-blue-500 rounded-full animate-pulse"></div>
                 )}
-                
-                {/* 호버시 펼쳐지는 드롭다운 메뉴 */}
-                <div className="absolute top-full left-0 mt-1 bg-slate-800 rounded-lg shadow-lg border border-white/10 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50 min-w-[160px]">
-                  <div className="py-1">
-                    <button
-                      onClick={() => handleModeChange('text')}
-                      className={`w-full px-3 py-2 text-left text-sm flex items-center gap-2 hover:bg-white/10 transition-colors ${inputMode === 'text' ? 'bg-white/20 text-white' : 'text-white/80'}`}
-                      data-testid="mode-text"
-                    >
-                      <span className="text-lg">💬</span>
-                      <span>텍스트 입력</span>
-                      {inputMode === 'text' && <i className="fas fa-check ml-auto text-green-400"></i>}
-                    </button>
-                    <button
-                      onClick={() => handleModeChange('tts')}
-                      className={`w-full px-3 py-2 text-left text-sm flex items-center gap-2 hover:bg-white/10 transition-colors ${inputMode === 'tts' ? 'bg-white/20 text-white' : 'text-white/80'}`}
-                      data-testid="mode-tts"
-                    >
-                      <span className="text-lg">🔊</span>
-                      <span>텍스트 + 음성재생</span>
-                      {inputMode === 'tts' && <i className="fas fa-check ml-auto text-green-400"></i>}
-                    </button>
-                    <button
-                      onClick={() => handleModeChange('realtime-voice')}
-                      className={`w-full px-3 py-2 text-left text-sm flex items-center gap-2 hover:bg-white/10 transition-colors ${inputMode === 'realtime-voice' ? 'bg-white/20 text-white' : 'text-white/80'}`}
-                      data-testid="mode-realtime-voice"
-                    >
-                      <span className="text-lg">🎙️</span>
-                      <span>실시간 음성대화</span>
-                      {inputMode === 'realtime-voice' && <i className="fas fa-check ml-auto text-green-400"></i>}
-                    </button>
-                  </div>
-                </div>
               </div>
 
               {/* 캐릭터 모드 버튼 */}
@@ -1987,54 +1887,17 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
 
               {/* Top Right - Control Buttons */}
               <div className="absolute top-4 right-4 z-20 flex items-center space-x-2">
-                {/* 입력 모드 선택 - 호버 드롭다운 */}
-                <div className="relative group" data-testid="input-mode-dropdown-character">
-                  <button
-                    className="bg-white/90 rounded-full shadow-lg px-3 py-2 flex items-center gap-1 hover:bg-white transition-all"
-                    data-testid="toggle-input-mode-character"
-                    title={
-                      inputMode === 'text' ? '텍스트 입력' : 
-                      inputMode === 'tts' ? '텍스트 입력 + AI 음성 재생' : 
-                      '실시간 음성 대화 (Gemini Live)'
-                    }
+                {/* 실시간 음성 모드 표시 */}
+                <div className="relative" data-testid="input-mode-indicator-character">
+                  <div
+                    className="bg-white/90 rounded-full shadow-lg px-3 py-2 flex items-center gap-2"
+                    title="실시간 음성 대화"
                   >
-                    <span className="text-lg">
-                      {inputMode === 'text' ? '💬' : inputMode === 'tts' ? '🔊' : '🎙️'}
-                    </span>
-                    <i className="fas fa-chevron-down text-xs text-slate-400 group-hover:text-slate-600 transition-colors"></i>
-                  </button>
-                  
-                  {/* 호버시 펼쳐지는 드롭다운 메뉴 */}
-                  <div className="absolute top-full right-0 mt-1 bg-white rounded-lg shadow-lg border border-slate-200 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50 min-w-[160px]">
-                    <div className="py-1">
-                      <button
-                        onClick={() => handleModeChange('text')}
-                        className={`w-full px-3 py-2 text-left text-sm flex items-center gap-2 hover:bg-slate-100 transition-colors ${inputMode === 'text' ? 'bg-slate-50 text-slate-900' : 'text-slate-600'}`}
-                        data-testid="mode-text-character"
-                      >
-                        <span className="text-lg">💬</span>
-                        <span>텍스트 입력</span>
-                        {inputMode === 'text' && <i className="fas fa-check ml-auto text-green-500"></i>}
-                      </button>
-                      <button
-                        onClick={() => handleModeChange('tts')}
-                        className={`w-full px-3 py-2 text-left text-sm flex items-center gap-2 hover:bg-slate-100 transition-colors ${inputMode === 'tts' ? 'bg-green-50 text-green-700' : 'text-slate-600'}`}
-                        data-testid="mode-tts-character"
-                      >
-                        <span className="text-lg">🔊</span>
-                        <span>텍스트 + 음성재생</span>
-                        {inputMode === 'tts' && <i className="fas fa-check ml-auto text-green-500"></i>}
-                      </button>
-                      <button
-                        onClick={() => handleModeChange('realtime-voice')}
-                        className={`w-full px-3 py-2 text-left text-sm flex items-center gap-2 hover:bg-slate-100 transition-colors ${inputMode === 'realtime-voice' ? 'bg-blue-50 text-blue-700' : 'text-slate-600'}`}
-                        data-testid="mode-realtime-voice-character"
-                      >
-                        <span className="text-lg">🎙️</span>
-                        <span>실시간 음성대화</span>
-                        {inputMode === 'realtime-voice' && <i className="fas fa-check ml-auto text-green-500"></i>}
-                      </button>
-                    </div>
+                    <span className="text-lg">🎙️</span>
+                    <span className="text-sm text-slate-700">음성대화</span>
+                    {realtimeVoice.status === 'connected' && (
+                      <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse"></div>
+                    )}
                   </div>
                 </div>
                 
@@ -2372,68 +2235,6 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
           )}
         </div>
       </div>
-
-      {/* 입력 모드 변경 확인 다이얼로그 */}
-      <AlertDialog open={showModeChangeDialog} onOpenChange={setShowModeChangeDialog}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>입력 모드를 변경하시겠습니까?</AlertDialogTitle>
-          </AlertDialogHeader>
-          <div className="space-y-2 mb-4">
-            <p className="font-semibold text-amber-600">⚠️ 주의사항:</p>
-            <ul className="list-disc list-inside space-y-1 text-sm text-muted-foreground">
-              <li>입력 모드를 변경하면 <strong>대화가 처음부터 다시 시작</strong>됩니다.</li>
-              <li>지금까지 진행한 <strong>대화 내용은 저장되지 않고 삭제</strong>됩니다.</li>
-              <li>새로운 모드로 대화를 시작하려면 확인 버튼을 눌러주세요.</li>
-            </ul>
-          </div>
-        <AlertDialogFooter>
-            <AlertDialogCancel 
-              onClick={() => {
-                setPendingMode(null);
-                setShowModeChangeDialog(false);
-              }}
-              data-testid="button-cancel-mode-change"
-            >
-              취소
-            </AlertDialogCancel>
-            <AlertDialogAction 
-              onClick={() => {
-                if (pendingMode) {
-                  performModeChange(pendingMode);
-                  setPendingMode(null);
-                }
-                setShowModeChangeDialog(false);
-                
-                // 대화 내용 초기화
-                setLocalMessages([]);
-                setUserInput("");
-                
-                // 쿼리 캐시의 대화 데이터도 초기화 (메시지 삭제)
-                queryClient.setQueryData(['/api/conversations', conversationId], (oldData: any) => {
-                  if (oldData) {
-                    return {
-                      ...oldData,
-                      messages: [],
-                      turnCount: 0
-                    };
-                  }
-                  return oldData;
-                });
-                
-                toast({
-                  title: "입력 모드 변경됨",
-                  description: "새로운 모드로 대화를 시작하세요.",
-                });
-              }}
-              data-testid="button-confirm-mode-change"
-              className="bg-amber-600 hover:bg-amber-700"
-            >
-              확인, 모드 변경
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
 
       {/* 대화 종료 확인 다이얼로그 */}
       <AlertDialog open={showEndConversationDialog} onOpenChange={setShowEndConversationDialog}>
