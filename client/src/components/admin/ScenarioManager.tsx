@@ -107,6 +107,13 @@ export function ScenarioManager() {
     queryKey: ['/api/admin/scenarios'],
   });
 
+  // 시나리오 로드 시 모두 펼쳐진 상태로 초기화
+  React.useEffect(() => {
+    if (scenarios && scenarios.length > 0) {
+      setExpandedScenarios(new Set(scenarios.map(s => s.id)));
+    }
+  }, [scenarios]);
+
   const handleAIGenerated = (result: any) => {
     // AI 생성 결과를 폼에 자동 입력
     setFormData({
