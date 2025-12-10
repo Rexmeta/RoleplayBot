@@ -358,7 +358,7 @@ export default function ScenarioSelector({ onScenarioSelect, playerProfile }: Sc
                   {/* 시나리오 카드 콘텐츠 */}
                   <div
                     className="relative cursor-pointer min-h-[14rem]"
-                    onClick={() => handleScenarioClick(scenario)}
+                    onClick={() => toggleScenarioExpand(scenario.id, { stopPropagation: () => {} } as React.MouseEvent)}
                     data-testid={`scenario-card-${scenario.id}`}
                   >
                     {/* 상단 배지 영역 */}
