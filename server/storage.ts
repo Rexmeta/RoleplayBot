@@ -2,7 +2,8 @@ import { type Conversation, type InsertConversation, type Feedback, type InsertF
 import { randomUUID } from "crypto";
 import { drizzle } from "drizzle-orm/neon-http";
 import { neon } from "@neondatabase/serverless";
-import { eq, asc, desc, inArray, and, gte, lte, sql as sqlBuilder, count, sum } from "drizzle-orm";
+import { eq, asc, desc, inArray, and, gte, lte, sql as sqlBuilder, count, sum, isNotNull } from "drizzle-orm";
+const sql = sqlBuilder;
 
 // Initialize database connection
 const neonClient = neon(process.env.DATABASE_URL!);
@@ -59,6 +60,7 @@ export interface IStorage {
   // Chat Messages
   createChatMessage(message: InsertChatMessage): Promise<ChatMessage>;
   getChatMessagesByPersonaRun(personaRunId: string): Promise<ChatMessage[]>;
+  getAllEmotionStats(): Promise<{ emotion: string; count: number }[]>; // Admin analytics - 감정 빈도
 
   // User operations - 이메일 기반 인증 시스템
   getUser(id: string): Promise<User | undefined>;
@@ -343,6 +345,10 @@ export class MemStorage implements IStorage {
 
   async getChatMessagesByPersonaRun(personaRunId: string): Promise<ChatMessage[]> {
     throw new Error("MemStorage does not support Chat Messages");
+  }
+
+  async getAllEmotionStats(): Promise<{ emotion: string; count: number }[]> {
+    throw new Error("MemStorage does not support emotion stats");
   }
 
   // User operations - 이메일 기반 인증 시스템
@@ -871,6 +877,23 @@ export class PostgreSQLStorage implements IStorage {
 
   async getChatMessagesByPersonaRun(personaRunId: string): Promise<ChatMessage[]> {
     return await db.select().from(chatMessages).where(eq(chatMessages.personaRunId, personaRunId)).orderBy(asc(chatMessages.turnIndex));
+  }
+
+  async getAllEmotionStats(): Promise<{ emotion: string; count: number }[]> {
+    // AI 메시지에서 감정 빈도 집계 (emotion이 null이 아닌 것만)
+    const result = await db.select({
+      emotion: chatMessages.emotion,
+      count: sql<number>`count(*)::int`
+    })
+    .from(chatMessages)
+    .where(and(
+      eq(chatMessages.sender, 'ai'),
+      isNotNull(chatMessages.emotion)
+    ))
+    .groupBy(chatMessages.emotion)
+    .orderBy(desc(sql`count(*)`));
+    
+    return result.filter(r => r.emotion !== null) as { emotion: string; count: number }[];
   }
 
   async deleteScenarioRun(id: string): Promise<void> {

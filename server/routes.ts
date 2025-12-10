@@ -2584,6 +2584,48 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // 감정 분석 통계 API
+  app.get("/api/admin/analytics/emotions", async (req, res) => {
+    try {
+      const emotionStats = await storage.getAllEmotionStats();
+      
+      // 감정 이모지 매핑
+      const emotionEmojis: Record<string, string> = {
+        '기쁨': '😊',
+        '슬픔': '😢',
+        '분노': '😠',
+        '놀람': '😲',
+        '중립': '😐',
+        '호기심': '🤔',
+        '불안': '😰',
+        '피로': '😫',
+        '실망': '😞',
+        '당혹': '😕',
+        '단호': '😤'
+      };
+      
+      // 총 감정 수
+      const totalEmotions = emotionStats.reduce((sum, e) => sum + e.count, 0);
+      
+      // 감정별 데이터 가공
+      const emotionsWithDetails = emotionStats.map(e => ({
+        emotion: e.emotion,
+        emoji: emotionEmojis[e.emotion] || '❓',
+        count: e.count,
+        percentage: totalEmotions > 0 ? Math.round((e.count / totalEmotions) * 100) : 0
+      }));
+      
+      res.json({
+        emotions: emotionsWithDetails,
+        totalEmotions,
+        uniqueEmotions: emotionStats.length
+      });
+    } catch (error) {
+      console.error("Error getting emotion analytics:", error);
+      res.status(500).json({ error: "Failed to get emotion analytics" });
+    }
+  });
+
   // 메인 사용자용 시나리오/페르소나 API
   app.get("/api/scenarios", async (req, res) => {
     try {
