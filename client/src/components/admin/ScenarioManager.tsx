@@ -1311,11 +1311,17 @@ export function ScenarioManager() {
                 <div>
                   <h4 className="font-medium text-slate-700 mb-1">포함된 페르소나</h4>
                   <div className="flex flex-wrap gap-1">
-                    {(scenario.personas || []).map((persona, index) => (
-                      <Badge key={index} variant="outline" className="text-xs">
-                        {typeof persona === 'string' ? persona : (persona as any).name || (persona as any).id || '알 수 없는 페르소나'}
-                      </Badge>
-                    ))}
+                    {(scenario.personas || []).map((persona, index) => {
+                      if (typeof persona === 'string') {
+                        return <Badge key={index} variant="outline" className="text-xs">{persona}</Badge>;
+                      }
+                      const p = persona as any;
+                      const department = p.department || '';
+                      const name = p.name || p.id || '알 수 없는 페르소나';
+                      const mbti = p.mbti ? `(${p.mbti})` : '';
+                      const displayText = [department, name, mbti].filter(Boolean).join(' ');
+                      return <Badge key={index} variant="outline" className="text-xs">{displayText}</Badge>;
+                    })}
                   </div>
                 </div>
               </div>
