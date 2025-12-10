@@ -38,20 +38,12 @@ export default function ScenarioSelector({ onScenarioSelect, playerProfile }: Sc
   // 상세 검색 표시 여부
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
   
-  // 펼쳐진 시나리오 상태 관리
-  const [expandedScenarios, setExpandedScenarios] = useState<Set<string | number>>(new Set());
+  // 펼쳐진 시나리오 상태 관리 (한 번에 하나만 펼치기)
+  const [expandedScenarioId, setExpandedScenarioId] = useState<string | number | null>(null);
   
   const toggleScenarioExpand = (scenarioId: string | number, e: React.MouseEvent) => {
     e.stopPropagation();
-    setExpandedScenarios(prev => {
-      const next = new Set(prev);
-      if (next.has(scenarioId)) {
-        next.delete(scenarioId);
-      } else {
-        next.add(scenarioId);
-      }
-      return next;
-    });
+    setExpandedScenarioId(prev => prev === scenarioId ? null : scenarioId);
   };
 
   // JSON 파일에서 실시간으로 시나리오와 페르소나 데이터 가져오기
@@ -337,7 +329,7 @@ export default function ScenarioSelector({ onScenarioSelect, playerProfile }: Sc
             ) : (
               filteredScenarios.map((scenario: ComplexScenario) => {
               const recommendation = getRecommendationLevel(scenario);
-              const isExpanded = expandedScenarios.has(scenario.id);
+              const isExpanded = expandedScenarioId === scenario.id;
               
               return (
                 <Card 
