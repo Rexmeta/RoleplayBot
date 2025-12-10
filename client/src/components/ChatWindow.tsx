@@ -1168,9 +1168,9 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
               >
                 <div className="w-12 h-12 rounded-xl border-2 border-white/20 hover:border-white/40 cursor-pointer overflow-hidden bg-slate-200 shadow-md">
                   <img 
-                    src={getCharacterImage('중립') || persona.image} 
+                    src={getCharacterImage(currentEmotion) || persona.image} 
                     alt={persona.name} 
-                    className="w-full h-full object-cover object-top" 
+                    className="w-full h-full object-cover object-top transition-opacity duration-200" 
                     onError={(e) => {
                       (e.target as HTMLImageElement).src = `https://ui-avatars.com/api/?name=${encodeURIComponent(persona.name)}&background=6366f1&color=fff&size=48`;
                     }}
