@@ -427,14 +427,16 @@ export default function Home() {
 
   return (
     <div className="min-h-screen bg-slate-50">
-      <AppHeader 
-        onLogoClick={() => {
-          setCurrentView('scenarios');
-          setSelectedScenario(null);
-          setSelectedPersona(null);
-          setConversationId(null);
-        }}
-      />
+      {currentView !== "chat" && (
+        <AppHeader 
+          onLogoClick={() => {
+            setCurrentView('scenarios');
+            setSelectedScenario(null);
+            setSelectedPersona(null);
+            setConversationId(null);
+          }}
+        />
+      )}
       {/* Main Content */}
       <main className={`${currentView === "scenarios" ? "py-8 bg-slate-50" : "max-w-6xl mx-auto px-4 py-8"}`}>
         {currentView === "scenarios" && (
