@@ -1088,40 +1088,8 @@ export default function AdminDashboard() {
             </Card>
           </div>
 
-          {/* Overall Emotion Charts */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <Card data-testid="card-emotion-frequency">
-              <CardHeader>
-                <CardTitle><CardInfo title="감정 빈도 분석" description="AI 페르소나가 대화 중 표현한 감정의 빈도를 보여줍니다." /></CardTitle>
-              </CardHeader>
-              <CardContent>
-                <ResponsiveContainer width="100%" height={300}>
-                  <BarChart data={emotions?.emotions || []} layout="vertical">
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis type="number" />
-                    <YAxis 
-                      dataKey="emotion" 
-                      type="category" 
-                      width={80}
-                      tickFormatter={(value) => {
-                        const emotion = emotions?.emotions?.find(e => e.emotion === value);
-                        return emotion ? `${emotion.emoji} ${value}` : value;
-                      }}
-                    />
-                    <Tooltip 
-                      formatter={(value: number) => [`${value}회`, '빈도']}
-                      labelFormatter={(label) => {
-                        const emotion = emotions?.emotions?.find(e => e.emotion === label);
-                        return emotion ? `${emotion.emoji} ${label}` : label;
-                      }}
-                    />
-                    <Bar dataKey="count" fill="#8b5cf6" radius={[0, 4, 4, 0]} />
-                  </BarChart>
-                </ResponsiveContainer>
-              </CardContent>
-            </Card>
-
-            <Card data-testid="card-emotion-distribution">
+          {/* Overall Emotion Distribution Chart */}
+          <Card data-testid="card-emotion-distribution">
               <CardHeader>
                 <CardTitle><CardInfo title="감정 분포" description="전체 감정 표현의 비율을 보여줍니다." /></CardTitle>
               </CardHeader>
@@ -1150,7 +1118,6 @@ export default function AdminDashboard() {
                 </ResponsiveContainer>
               </CardContent>
             </Card>
-          </div>
 
           {/* Difficulty Analysis Section */}
           <div className="border-t pt-6">
