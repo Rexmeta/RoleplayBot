@@ -1227,35 +1227,6 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
 
         {/* Main Content Area */}
         <div className="relative flex-1 flex flex-col">
-          {/* 모드 토글 버튼 - 메신저 모드 */}
-          {chatMode === 'messenger' && (
-            <div className="absolute top-2 right-2 z-20">
-              <div className="flex items-center bg-slate-200/80 backdrop-blur-sm rounded-lg p-0.5 shadow-lg">
-                <button
-                  className={`p-2 rounded-md transition-all duration-200 bg-white text-corporate-600 shadow-sm`}
-                  disabled={true}
-                  data-testid="button-messenger-mode"
-                  title="메신저 모드"
-                >
-                  <MessageSquare className="w-4 h-4" />
-                </button>
-                <button
-                  onClick={() => {
-                    if (!isTransitioning) {
-                      handleCharacterModeTransition();
-                    }
-                  }}
-                  className={`p-2 rounded-md transition-all duration-200 text-slate-500 hover:text-slate-700 hover:bg-white/50`}
-                  disabled={isTransitioning}
-                  data-testid="button-character-mode"
-                  title="캐릭터 모드"
-                >
-                  <User className="w-4 h-4" />
-                </button>
-              </div>
-            </div>
-          )}
-          
           {/* Chat Messages Area */}
           {chatMode === 'messenger' && (
             <>
@@ -1422,8 +1393,33 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
                     
                     {/* 연결 완료 - 마이크 중심 레이아웃 (메신저 모드) */}
                     {realtimeVoice.status === 'connected' && (
-                      <div className="flex items-center justify-center gap-4 py-2">
-                        {/* 대화 종료 버튼 - 왼쪽 */}
+                      <div className="flex items-center justify-center gap-3 py-2">
+                        {/* 모드 토글 버튼 */}
+                        <div className="flex items-center bg-slate-100 rounded-lg p-0.5 shrink-0">
+                          <button
+                            className="p-1.5 rounded-md bg-white text-corporate-600 shadow-sm"
+                            disabled={true}
+                            data-testid="button-messenger-mode"
+                            title="메신저 모드"
+                          >
+                            <MessageSquare className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            onClick={() => {
+                              if (!isTransitioning) {
+                                handleCharacterModeTransition();
+                              }
+                            }}
+                            className="p-1.5 rounded-md text-slate-400 hover:text-slate-600 hover:bg-white/50"
+                            disabled={isTransitioning}
+                            data-testid="button-character-mode"
+                            title="캐릭터 모드"
+                          >
+                            <User className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                        
+                        {/* 대화 종료 버튼 */}
                         <Button
                           variant="outline"
                           size="sm"
@@ -1949,30 +1945,6 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
                 </div>
               )}
 
-              {/* Top Right - Control Buttons */}
-              <div className="absolute top-4 right-4 z-20 flex items-center">
-                {/* 모드 토글 버튼 */}
-                <div className="flex items-center bg-white/20 backdrop-blur-sm rounded-lg p-0.5 shadow-lg">
-                  <button
-                    onClick={() => setChatMode('messenger')}
-                    className={`p-2 rounded-md transition-all duration-200 text-white/80 hover:text-white hover:bg-white/20`}
-                    disabled={isTransitioning}
-                    data-testid="button-messenger-mode"
-                    title="메신저 모드"
-                  >
-                    <MessageSquare className="w-4 h-4" />
-                  </button>
-                  <button
-                    className={`p-2 rounded-md transition-all duration-200 bg-white text-corporate-600 shadow-sm`}
-                    disabled={true}
-                    data-testid="button-character-mode"
-                    title="캐릭터 모드"
-                  >
-                    <User className="w-4 h-4" />
-                  </button>
-                </div>
-              </div>
-
               {/* Bottom Interactive Box - AI Message Focused */}
               <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 z-20 w-full max-w-4xl lg:max-w-6xl xl:max-w-[90%] px-4 bg-[#00000000]">
                 <Card className="rounded-2xl overflow-hidden text-card-foreground backdrop-blur-sm shadow-xl border border-white/10 bg-[#ffffff9c]">
@@ -2012,8 +1984,29 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
                       {/* 연결 완료 - 마이크 중심 레이아웃 */}
                       {realtimeVoice.status === 'connected' && (
                         <div className="border-t border-slate-200/30 p-4">
-                          <div className="flex items-center justify-center gap-4">
-                            {/* 대화 종료 버튼 - 왼쪽 */}
+                          <div className="flex items-center justify-center gap-3">
+                            {/* 모드 토글 버튼 */}
+                            <div className="flex items-center bg-slate-100 rounded-lg p-0.5 shrink-0">
+                              <button
+                                onClick={() => setChatMode('messenger')}
+                                className="p-1.5 rounded-md text-slate-400 hover:text-slate-600 hover:bg-white/50"
+                                disabled={isTransitioning}
+                                data-testid="button-messenger-mode"
+                                title="메신저 모드"
+                              >
+                                <MessageSquare className="w-3.5 h-3.5" />
+                              </button>
+                              <button
+                                className="p-1.5 rounded-md bg-white text-corporate-600 shadow-sm"
+                                disabled={true}
+                                data-testid="button-character-mode"
+                                title="캐릭터 모드"
+                              >
+                                <User className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                            
+                            {/* 대화 종료 버튼 */}
                             <Button
                               variant="outline"
                               size="sm"
