@@ -352,7 +352,19 @@ export class RealtimeVoiceService {
   }
 
   private handleGeminiMessage(session: RealtimeSession, message: any): void {
-    // Gemini Live API message structure
+    // Gemini Live API message structure - log full structure for debugging
+    const msgKeys = Object.keys(message);
+    console.log(`📨 Gemini message keys:`, msgKeys);
+    if (message.serverContent) {
+      const scKeys = Object.keys(message.serverContent);
+      console.log(`📨 serverContent keys:`, scKeys);
+      if (message.serverContent.modelTurn) {
+        console.log(`📨 modelTurn parts count:`, message.serverContent.modelTurn.parts?.length || 0);
+        message.serverContent.modelTurn.parts?.forEach((part: any, i: number) => {
+          console.log(`📨 part[${i}] keys:`, Object.keys(part));
+        });
+      }
+    }
     console.log(`📨 Gemini message type:`, message.serverContent ? 'serverContent' : message.data ? 'audio data' : 'other');
 
     // Handle audio data chunks
