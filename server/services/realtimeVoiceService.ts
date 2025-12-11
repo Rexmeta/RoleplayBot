@@ -217,8 +217,13 @@ export class RealtimeVoiceService {
       ``,
       `# ⭐ 핵심 원칙`,
       `당신은 AI가 아닌 ${scenarioPersona.name}이라는 진짜 사람입니다.`,
-      `반드시 한국어로만 대화하세요.`,
       `컨텍스트를 유지하며 이전 대화 내용을 기억하고 연결하세요.`,
+      ``,
+      `# ⚠️ 필수 출력 규칙 (절대 위반 금지!)`,
+      `- 반드시 한국어로만 대화하세요. 영어를 절대 사용하지 마세요.`,
+      `- 내부 사고 과정, 분석, 전략 등을 절대 출력하지 마세요.`,
+      `- "Commencing", "Now I'm", "Let me" 등 영어 표현을 절대 사용하지 마세요.`,
+      `- 바로 대화 내용만 출력하세요. 메타 설명이나 서술을 하지 마세요.`,
     ];
 
     return instructions.join('\n');
@@ -333,7 +338,7 @@ export class RealtimeVoiceService {
 
       // Send first greeting trigger after connection is established
       console.log('🎬 Triggering AI to start first greeting...');
-      const firstMessage = `지금 바로 시작하세요. 급한 일입니다. 짧고 강하게 인사하세요.`;
+      const firstMessage = `(대화가 시작됩니다. 당신의 캐릭터로서 짧게 인사해주세요. 영어나 메타 설명 없이, 바로 한국어 인사만 해주세요.)`;
       
       geminiSession.sendClientContent({
         turns: [{ role: 'user', parts: [{ text: firstMessage }] }],
