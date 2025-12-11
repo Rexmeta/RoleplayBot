@@ -48,6 +48,8 @@ interface RealtimeSession {
   totalUserTranscriptLength: number; // 누적 사용자 텍스트 길이
   totalAiTranscriptLength: number; // 누적 AI 텍스트 길이
   realtimeModel: string; // 사용된 모델
+  hasReceivedFirstAIResponse: boolean; // 첫 AI 응답 수신 여부
+  firstGreetingRetryCount: number; // 첫 인사 재시도 횟수
 }
 
 export class RealtimeVoiceService {
@@ -176,6 +178,8 @@ export class RealtimeVoiceService {
       totalUserTranscriptLength: 0,
       totalAiTranscriptLength: 0,
       realtimeModel,
+      hasReceivedFirstAIResponse: false,
+      firstGreetingRetryCount: 0,
     };
 
     this.sessions.set(sessionId, session);
@@ -410,6 +414,21 @@ export class RealtimeVoiceService {
       // Handle turn completion
       if (serverContent.turnComplete) {
         console.log('✅ Turn complete');
+        
+        // 첫 AI 응답이 없는 경우 재시도 (최대 2회)
+        if (!session.hasReceivedFirstAIResponse && !session.currentTranscript && session.firstGreetingRetryCount < 2) {
+          session.firstGreetingRetryCount++;
+          console.log(`⚠️ 첫 인사 응답 없음, 재시도 ${session.firstGreetingRetryCount}/2...`);
+          
+          // END_OF_TURN 이벤트를 보내서 AI가 응답하도록 강제
+          if (session.geminiSession) {
+            session.geminiSession.sendRealtimeInput({
+              event: 'END_OF_TURN'
+            });
+          }
+          return; // 재시도 후 다음 메시지 기다림
+        }
+        
         this.sendToClient(session, {
           type: 'response.done',
         });
@@ -457,6 +476,12 @@ export class RealtimeVoiceService {
 
       // Handle model turn (AI response) - 오디오와 텍스트 모두 처리
       if (serverContent.modelTurn) {
+        // 첫 AI 응답 수신 플래그 설정
+        if (!session.hasReceivedFirstAIResponse) {
+          session.hasReceivedFirstAIResponse = true;
+          console.log('🎉 첫 AI 응답 수신!');
+        }
+        
         const parts = serverContent.modelTurn.parts || [];
         console.log(`🎭 modelTurn parts count: ${parts.length}`);
         
