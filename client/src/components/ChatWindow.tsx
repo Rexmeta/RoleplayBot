@@ -1960,15 +1960,27 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
               )}
 
               {/* Top Right - Control Buttons */}
-              <div className="absolute top-4 right-4 z-20 flex items-center space-x-2">
-                {/* 메신저 모드 전환 버튼 */}
-                <button
-                  onClick={() => setChatMode('messenger')}
-                  className="px-4 py-2 bg-white/90 text-slate-700 rounded-full shadow-lg hover:bg-white transition-all duration-200 text-sm font-medium"
-                  data-testid="button-exit-character"
-                >
-                  메신저
-                </button>
+              <div className="absolute top-4 right-4 z-20 flex items-center">
+                {/* 모드 토글 버튼 */}
+                <div className="flex items-center bg-white/20 backdrop-blur-sm rounded-lg p-0.5 shadow-lg">
+                  <button
+                    onClick={() => setChatMode('messenger')}
+                    className={`p-2 rounded-md transition-all duration-200 text-white/80 hover:text-white hover:bg-white/20`}
+                    disabled={isTransitioning}
+                    data-testid="button-messenger-mode"
+                    title="메신저 모드"
+                  >
+                    <MessageSquare className="w-4 h-4" />
+                  </button>
+                  <button
+                    className={`p-2 rounded-md transition-all duration-200 bg-white text-corporate-600 shadow-sm`}
+                    disabled={true}
+                    data-testid="button-character-mode"
+                    title="캐릭터 모드"
+                  >
+                    <User className="w-4 h-4" />
+                  </button>
+                </div>
               </div>
 
               {/* Bottom Interactive Box - AI Message Focused */}
