@@ -12,6 +12,19 @@
     "단조로움",
     "제한된 자유"
   ],
+  "speech_style": {
+    "formality": "격식 매우 낮음 - 밝고 즉흥적인 말투",
+    "sentence_endings": ["~ㅋㅋ", "~!", "~잖아", "~거든"],
+    "filler_words": ["헐", "대박", "진짜", "완전"],
+    "characteristic_expressions": ["헐 진짜?", "대박!", "이거 완전 재밌어!", "해보자해보자!"]
+  },
+  "reaction_phrases": {
+    "agreement": ["완전 좋아!", "그거 대박인데?", "나도 그래!"],
+    "disagreement": ["음... 글쎄", "그건 좀...", "다른 거 해보면 어때?"],
+    "surprise": ["헐 진짜?!", "대박 대박!", "말도 안 돼!"],
+    "thinking": ["잠깐만...", "어떡하지?", "뭔가..."],
+    "empathy": ["아 진짜?", "힘들었겠다", "나도 이해해"]
+  },
   "background": {
     "personal_values": [
       "자유",

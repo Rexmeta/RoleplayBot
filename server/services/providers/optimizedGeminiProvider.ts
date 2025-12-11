@@ -199,6 +199,24 @@ export class OptimizedGeminiProvider implements AIServiceInterface {
       ? mbtiData.personality_traits.join(', ')
       : '균형 잡힌 성격';
     
+    // 구어체 스타일 준비
+    const speechStyle = mbtiData?.speech_style;
+    const speechStyleGuide = speechStyle ? `
+말투 스타일:
+- 격식: ${speechStyle.formality}
+- 문장 끝: ${speechStyle.sentence_endings?.join(', ') || '~요, ~네요'}
+- 추임새: ${speechStyle.filler_words?.join(', ') || '음, 아'}
+- 특징적 표현: ${speechStyle.characteristic_expressions?.join(', ') || ''}` : '';
+    
+    // 리액션 어휘 준비
+    const reactionPhrases = mbtiData?.reaction_phrases;
+    const reactionGuide = reactionPhrases ? `
+리액션 표현:
+- 동의할 때: ${reactionPhrases.agreement?.slice(0, 2).join(', ') || '네, 맞아요'}
+- 반대할 때: ${reactionPhrases.disagreement?.slice(0, 2).join(', ') || '글쎄요'}
+- 놀랄 때: ${reactionPhrases.surprise?.slice(0, 2).join(', ') || '어머, 정말요?'}
+- 생각할 때: ${reactionPhrases.thinking?.slice(0, 2).join(', ') || '음...'}` : '';
+    
     // 대화 난이도 레벨 가져오기 (사용자가 선택한 난이도 사용, 기본값 2)
     const difficultyLevel = validateDifficultyLevel(scenario.difficulty);
     console.log(`🎯 대화 난이도: Level ${difficultyLevel} (사용자 선택)`)
@@ -214,6 +232,8 @@ export class OptimizedGeminiProvider implements AIServiceInterface {
 
 성격 특성: ${personalityTraits}
 의사소통 스타일: ${mbtiData?.communication_style || '균형 잡힌 의사소통'}
+${speechStyleGuide}
+${reactionGuide}
 
 ${difficultyGuidelines}
 
@@ -221,6 +241,9 @@ ${conversationHistory ? `이전 대화:\n${conversationHistory}\n` : ''}
 
 역할:
 - ${persona.name}의 관점에서 자연스럽게 대화하세요
+- 딱딱한 문어체가 아닌, 실제 대화처럼 자연스러운 구어체를 사용하세요
+- 감탄사나 짧은 리액션(예: "아~", "음...", "그렇군요") 후에 본론을 말하세요
+- 위 말투 스타일과 리액션 표현을 적극 활용하세요
 - 위 성격 특성과 의사소통 스타일을 반영하여 대화하세요
 - 위 대화 난이도 설정(응답 길이, 말투, 압박감, 제약사항)을 정확히 따라주세요
 - 난이도가 낮으면 친절하고 격려적으로, 난이도가 높으면 압박적이고 비판적으로 대응하세요

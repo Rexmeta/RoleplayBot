@@ -9,6 +9,19 @@ export interface MBTIPersona {
   communication_style: string;
   motivation: string;
   fears: string[];
+  speech_style?: {
+    formality: string;
+    sentence_endings: string[];
+    filler_words: string[];
+    characteristic_expressions: string[];
+  };
+  reaction_phrases?: {
+    agreement: string[];
+    disagreement: string[];
+    surprise: string[];
+    thinking: string[];
+    empathy: string[];
+  };
   background: {
     personal_values: string[];
     hobbies: string[];

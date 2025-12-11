@@ -14,6 +14,19 @@
     "제한된 자유",
     "즉흥적 갈등"
   ],
+  "speech_style": {
+    "formality": "격식 낮음 - 실용적이고 간결한 말투",
+    "sentence_endings": ["~요", "~죠", "~거든요", "~할게요"],
+    "filler_words": ["됐어요", "일단", "그냥", "해보죠"],
+    "characteristic_expressions": ["됐어요", "해보죠", "일단 해봐요", "결과를 보면 알죠"]
+  },
+  "reaction_phrases": {
+    "agreement": ["됐어요, 가죠", "그게 낫겠네요", "해봐요"],
+    "disagreement": ["그건 안 될 것 같아요", "다른 방법이 있어요", "실제로는 어려워요"],
+    "surprise": ["오 그래요?", "몰랐네요", "흥미롭네요"],
+    "thinking": ["일단...", "해보면...", "실제로는..."],
+    "empathy": ["그럴 수 있죠", "이해해요", "상황이 그랬군요"]
+  },
   "background": {
     "personal_values": [
       "실용성",
