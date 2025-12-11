@@ -61,6 +61,9 @@ export interface IStorage {
   createChatMessage(message: InsertChatMessage): Promise<ChatMessage>;
   getChatMessagesByPersonaRun(personaRunId: string): Promise<ChatMessage[]>;
   getAllEmotionStats(): Promise<{ emotion: string; count: number }[]>; // Admin analytics - 감정 빈도
+  getEmotionStatsByScenario(): Promise<{ scenarioId: string; scenarioName: string; emotions: { emotion: string; count: number }[]; totalCount: number }[]>;
+  getEmotionStatsByMbti(): Promise<{ mbti: string; emotions: { emotion: string; count: number }[]; totalCount: number }[]>;
+  getEmotionTimelineByPersonaRun(personaRunId: string): Promise<{ turnIndex: number; emotion: string | null; message: string }[]>;
 
   // User operations - 이메일 기반 인증 시스템
   getUser(id: string): Promise<User | undefined>;
@@ -349,6 +352,18 @@ export class MemStorage implements IStorage {
 
   async getAllEmotionStats(): Promise<{ emotion: string; count: number }[]> {
     throw new Error("MemStorage does not support emotion stats");
+  }
+
+  async getEmotionStatsByScenario(): Promise<{ scenarioId: string; scenarioName: string; emotions: { emotion: string; count: number }[]; totalCount: number }[]> {
+    throw new Error("MemStorage does not support emotion stats by scenario");
+  }
+
+  async getEmotionStatsByMbti(): Promise<{ mbti: string; emotions: { emotion: string; count: number }[]; totalCount: number }[]> {
+    throw new Error("MemStorage does not support emotion stats by MBTI");
+  }
+
+  async getEmotionTimelineByPersonaRun(personaRunId: string): Promise<{ turnIndex: number; emotion: string | null; message: string }[]> {
+    throw new Error("MemStorage does not support emotion timeline");
   }
 
   // User operations - 이메일 기반 인증 시스템
@@ -894,6 +909,103 @@ export class PostgreSQLStorage implements IStorage {
     .orderBy(desc(sql`count(*)`));
     
     return result.filter(r => r.emotion !== null) as { emotion: string; count: number }[];
+  }
+
+  async getEmotionStatsByScenario(): Promise<{ scenarioId: string; scenarioName: string; emotions: { emotion: string; count: number }[]; totalCount: number }[]> {
+    // 시나리오별 감정 통계: chat_messages -> persona_runs -> scenario_runs 조인
+    const result = await db.select({
+      scenarioId: scenarioRuns.scenarioId,
+      scenarioName: scenarioRuns.scenarioName,
+      emotion: chatMessages.emotion,
+      count: sql<number>`count(*)::int`
+    })
+    .from(chatMessages)
+    .innerJoin(personaRuns, eq(chatMessages.personaRunId, personaRuns.id))
+    .innerJoin(scenarioRuns, eq(personaRuns.scenarioRunId, scenarioRuns.id))
+    .where(and(
+      eq(chatMessages.sender, 'ai'),
+      isNotNull(chatMessages.emotion)
+    ))
+    .groupBy(scenarioRuns.scenarioId, scenarioRuns.scenarioName, chatMessages.emotion)
+    .orderBy(scenarioRuns.scenarioId, desc(sql`count(*)`));
+    
+    // 시나리오별로 그룹화
+    const scenarioMap = new Map<string, { scenarioId: string; scenarioName: string; emotions: { emotion: string; count: number }[]; totalCount: number }>();
+    
+    for (const row of result) {
+      if (!row.emotion) continue;
+      
+      if (!scenarioMap.has(row.scenarioId)) {
+        scenarioMap.set(row.scenarioId, {
+          scenarioId: row.scenarioId,
+          scenarioName: row.scenarioName,
+          emotions: [],
+          totalCount: 0
+        });
+      }
+      
+      const scenario = scenarioMap.get(row.scenarioId)!;
+      scenario.emotions.push({ emotion: row.emotion, count: row.count });
+      scenario.totalCount += row.count;
+    }
+    
+    return Array.from(scenarioMap.values()).sort((a, b) => b.totalCount - a.totalCount);
+  }
+
+  async getEmotionStatsByMbti(): Promise<{ mbti: string; emotions: { emotion: string; count: number }[]; totalCount: number }[]> {
+    // MBTI별 감정 통계: chat_messages -> persona_runs (mbti 필드) 조인
+    const result = await db.select({
+      mbti: personaRuns.mbti,
+      emotion: chatMessages.emotion,
+      count: sql<number>`count(*)::int`
+    })
+    .from(chatMessages)
+    .innerJoin(personaRuns, eq(chatMessages.personaRunId, personaRuns.id))
+    .where(and(
+      eq(chatMessages.sender, 'ai'),
+      isNotNull(chatMessages.emotion),
+      isNotNull(personaRuns.mbti)
+    ))
+    .groupBy(personaRuns.mbti, chatMessages.emotion)
+    .orderBy(personaRuns.mbti, desc(sql`count(*)`));
+    
+    // MBTI별로 그룹화
+    const mbtiMap = new Map<string, { mbti: string; emotions: { emotion: string; count: number }[]; totalCount: number }>();
+    
+    for (const row of result) {
+      if (!row.emotion || !row.mbti) continue;
+      
+      if (!mbtiMap.has(row.mbti)) {
+        mbtiMap.set(row.mbti, {
+          mbti: row.mbti,
+          emotions: [],
+          totalCount: 0
+        });
+      }
+      
+      const mbtiData = mbtiMap.get(row.mbti)!;
+      mbtiData.emotions.push({ emotion: row.emotion, count: row.count });
+      mbtiData.totalCount += row.count;
+    }
+    
+    return Array.from(mbtiMap.values()).sort((a, b) => b.totalCount - a.totalCount);
+  }
+
+  async getEmotionTimelineByPersonaRun(personaRunId: string): Promise<{ turnIndex: number; emotion: string | null; message: string }[]> {
+    // 특정 대화의 감정 타임라인 (AI 메시지만)
+    const result = await db.select({
+      turnIndex: chatMessages.turnIndex,
+      emotion: chatMessages.emotion,
+      message: chatMessages.message
+    })
+    .from(chatMessages)
+    .where(and(
+      eq(chatMessages.personaRunId, personaRunId),
+      eq(chatMessages.sender, 'ai')
+    ))
+    .orderBy(asc(chatMessages.turnIndex));
+    
+    return result;
   }
 
   async deleteScenarioRun(id: string): Promise<void> {

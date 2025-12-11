@@ -2626,6 +2626,96 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // 시나리오별 감정 분석 API
+  app.get("/api/admin/analytics/emotions/by-scenario", async (req, res) => {
+    try {
+      const scenarioStats = await storage.getEmotionStatsByScenario();
+      
+      const emotionEmojis: Record<string, string> = {
+        '기쁨': '😊', '슬픔': '😢', '분노': '😠', '놀람': '😲', '중립': '😐',
+        '호기심': '🤔', '불안': '😰', '피로': '😫', '실망': '😞', '당혹': '😕', '단호': '😤'
+      };
+      
+      const scenariosWithDetails = scenarioStats.map(scenario => ({
+        ...scenario,
+        emotions: scenario.emotions.map(e => ({
+          ...e,
+          emoji: emotionEmojis[e.emotion] || '❓',
+          percentage: scenario.totalCount > 0 ? Math.round((e.count / scenario.totalCount) * 100) : 0
+        })),
+        topEmotion: scenario.emotions[0] ? {
+          emotion: scenario.emotions[0].emotion,
+          emoji: emotionEmojis[scenario.emotions[0].emotion] || '❓',
+          count: scenario.emotions[0].count
+        } : null
+      }));
+      
+      res.json({ scenarios: scenariosWithDetails });
+    } catch (error) {
+      console.error("Error getting scenario emotion analytics:", error);
+      res.status(500).json({ error: "Failed to get scenario emotion analytics" });
+    }
+  });
+
+  // MBTI별 감정 분석 API
+  app.get("/api/admin/analytics/emotions/by-mbti", async (req, res) => {
+    try {
+      const mbtiStats = await storage.getEmotionStatsByMbti();
+      
+      const emotionEmojis: Record<string, string> = {
+        '기쁨': '😊', '슬픔': '😢', '분노': '😠', '놀람': '😲', '중립': '😐',
+        '호기심': '🤔', '불안': '😰', '피로': '😫', '실망': '😞', '당혹': '😕', '단호': '😤'
+      };
+      
+      const mbtiWithDetails = mbtiStats.map(mbti => ({
+        ...mbti,
+        emotions: mbti.emotions.map(e => ({
+          ...e,
+          emoji: emotionEmojis[e.emotion] || '❓',
+          percentage: mbti.totalCount > 0 ? Math.round((e.count / mbti.totalCount) * 100) : 0
+        })),
+        topEmotion: mbti.emotions[0] ? {
+          emotion: mbti.emotions[0].emotion,
+          emoji: emotionEmojis[mbti.emotions[0].emotion] || '❓',
+          count: mbti.emotions[0].count
+        } : null
+      }));
+      
+      res.json({ mbtiStats: mbtiWithDetails });
+    } catch (error) {
+      console.error("Error getting MBTI emotion analytics:", error);
+      res.status(500).json({ error: "Failed to get MBTI emotion analytics" });
+    }
+  });
+
+  // 대화별 감정 타임라인 API
+  app.get("/api/admin/analytics/emotions/timeline/:personaRunId", async (req, res) => {
+    try {
+      const { personaRunId } = req.params;
+      
+      if (!personaRunId) {
+        return res.status(400).json({ error: "personaRunId is required" });
+      }
+      
+      const timeline = await storage.getEmotionTimelineByPersonaRun(personaRunId);
+      
+      const emotionEmojis: Record<string, string> = {
+        '기쁨': '😊', '슬픔': '😢', '분노': '😠', '놀람': '😲', '중립': '😐',
+        '호기심': '🤔', '불안': '😰', '피로': '😫', '실망': '😞', '당혹': '😕', '단호': '😤'
+      };
+      
+      const timelineWithEmojis = timeline.map(item => ({
+        ...item,
+        emoji: item.emotion ? (emotionEmojis[item.emotion] || '❓') : null
+      }));
+      
+      res.json({ timeline: timelineWithEmojis });
+    } catch (error) {
+      console.error("Error getting emotion timeline:", error);
+      res.status(500).json({ error: "Failed to get emotion timeline" });
+    }
+  });
+
   // 메인 사용자용 시나리오/페르소나 API
   app.get("/api/scenarios", async (req, res) => {
     try {
