@@ -517,7 +517,7 @@ async function savePersonaImageToLocal(
       '놀람': 'surprise',
       '호기심': 'curious',
       '불안': 'anxious',
-      '피로': 'tired',
+      '단호': 'determined',
       '실망': 'disappointed',
       '당혹': 'confused'
     };
@@ -622,7 +622,7 @@ router.post('/generate-persona-expressions', async (req, res) => {
       { korean: '놀람', english: 'surprise', description: 'surprised, amazed, astonished' },
       { korean: '호기심', english: 'curious', description: 'curious, interested, intrigued' },
       { korean: '불안', english: 'anxious', description: 'anxious, worried, concerned' },
-      { korean: '피로', english: 'tired', description: 'tired, exhausted, weary' },
+      { korean: '단호', english: 'determined', description: 'determined, firm, resolute' },
       { korean: '실망', english: 'disappointed', description: 'disappointed, let down, discouraged' },
       { korean: '당혹', english: 'confused', description: 'confused, bewildered, perplexed' }
     ];
@@ -773,7 +773,7 @@ router.post('/generate-persona-single-expression', async (req, res) => {
       '놀람': { english: 'surprise', description: 'surprised, amazed, astonished' },
       '호기심': { english: 'curious', description: 'curious, interested, intrigued' },
       '불안': { english: 'anxious', description: 'anxious, worried, concerned' },
-      '피로': { english: 'tired', description: 'tired, exhausted, weary' },
+      '단호': { english: 'determined', description: 'determined, firm, resolute' },
       '실망': { english: 'disappointed', description: 'disappointed, let down, discouraged' },
       '당혹': { english: 'confused', description: 'confused, bewildered, perplexed' }
     };

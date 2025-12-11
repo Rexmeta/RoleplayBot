@@ -31,10 +31,9 @@ const emotionToEnglish: Record<string, string> = {
   '놀람': 'surprise',
   '호기심': 'curious',
   '불안': 'anxious',
-  '피로': 'tired',
+  '단호': 'determined',
   '실망': 'disappointed',
-  '당혹': 'confused',
-  '단호': 'firm'
+  '당혹': 'confused'
 };
 
 // Web Speech API 타입 확장
@@ -54,10 +53,9 @@ const emotionEmojis: { [key: string]: string } = {
   '중립': '😐',
   '호기심': '🤔',
   '불안': '😰',
-  '피로': '😫',
+  '단호': '😤',
   '실망': '😞',
-  '당혹': '😕',
-  '단호': '😤'
+  '당혹': '😕'
 };
 
 // 경과 시간 포맷팅 함수
@@ -1311,7 +1309,7 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
                             message.emotion === '놀람' ? 'border-l-4 border-l-yellow-400' :
                             message.emotion === '호기심' ? 'border-l-4 border-l-purple-400' :
                             message.emotion === '불안' ? 'border-l-4 border-l-orange-400' :
-                            message.emotion === '피로' ? 'border-l-4 border-l-slate-400' :
+                            message.emotion === '단호' ? 'border-l-4 border-l-slate-400' :
                             message.emotion === '실망' ? 'border-l-4 border-l-indigo-400' :
                             message.emotion === '당혹' ? 'border-l-4 border-l-pink-400' :
                             message.emotion === '중립' ? 'border-l-4 border-l-gray-300' : ''
