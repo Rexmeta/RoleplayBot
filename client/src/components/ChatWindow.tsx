@@ -1485,9 +1485,9 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
                           }`}></i>
                         </button>
                         
-                        {/* 텍스트 입력 영역 - 동적 확장 */}
-                        <div className={`flex items-center gap-2 transition-all duration-300 ease-in-out overflow-hidden ${
-                          isInputExpanded ? 'w-72' : 'w-36'
+                        {/* 텍스트 입력 영역 - 동적 확장 (브라우저 너비에 맞춤) */}
+                        <div className={`flex items-center gap-2 transition-all duration-300 ease-in-out overflow-hidden flex-1 ${
+                          isInputExpanded ? 'max-w-full' : 'max-w-[200px]'
                         }`}>
                           <div className="relative flex-1">
                             <input
@@ -2075,9 +2075,9 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
                               }`}></i>
                             </button>
                             
-                            {/* 텍스트 입력 영역 - 동적 확장 */}
-                            <div className={`flex items-center gap-2 transition-all duration-300 ease-in-out overflow-hidden ${
-                              isInputExpanded ? 'w-64' : 'w-32'
+                            {/* 텍스트 입력 영역 - 동적 확장 (브라우저 너비에 맞춤) */}
+                            <div className={`flex items-center gap-2 transition-all duration-300 ease-in-out overflow-hidden flex-1 ${
+                              isInputExpanded ? 'max-w-full' : 'max-w-[180px]'
                             }`}>
                               <div className="relative flex-1">
                                 <input
