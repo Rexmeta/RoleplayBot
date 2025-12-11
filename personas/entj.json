@@ -1,7 +1,7 @@
 {
   "id": "entj",
   "mbti": "ENTJ",
-  "gender": "female",
+  "gender": "male",
   "personality_traits": [
     "리더십",
     "전략적 사고",
@@ -52,11 +52,11 @@
     "emotion": "결단과 자신감"
   },
   "images": {
-    "base": "/personas/entj/neutral.webp",
-    "style": "한국인 무표정 웃지 않음. 빈 사무실 상반신 전체가 나오도록 ",
+    "base": "/personas/entj/male/neutral.webp?t=1765417962957",
+    "style": "한국인 무표정 웃지 않음. 상반신 전체 손까지 나오도록 회의실에 앉아서, 독특한 헤어 스타일  ",
     "male": {
       "expressions": {
-        "중립": "/personas/entj/male/neutral.webp",
+        "중립": "/personas/entj/male/neutral.webp?t=1765417962957",
         "기쁨": "/personas/entj/male/joy.webp",
         "슬픔": "/personas/entj/male/sad.webp",
         "분노": "/personas/entj/male/angry.webp",

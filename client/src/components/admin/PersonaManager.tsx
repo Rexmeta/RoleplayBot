@@ -54,7 +54,7 @@ interface MBTIPersona {
         놀람: string;
         호기심: string;
         불안: string;
-        피로: string;
+        단호: string;
         실망: string;
         당혹: string;
       };
@@ -68,7 +68,7 @@ interface MBTIPersona {
         놀람: string;
         호기심: string;
         불안: string;
-        피로: string;
+        단호: string;
         실망: string;
         당혹: string;
       };
@@ -81,7 +81,7 @@ interface MBTIPersona {
       놀람: string;
       호기심: string;
       불안: string;
-      피로: string;
+      단호: string;
       실망: string;
       당혹: string;
     };
@@ -140,7 +140,7 @@ interface MBTIPersonaFormData {
         놀람: string;
         호기심: string;
         불안: string;
-        피로: string;
+        단호: string;
         실망: string;
         당혹: string;
       };
@@ -154,7 +154,7 @@ interface MBTIPersonaFormData {
         놀람: string;
         호기심: string;
         불안: string;
-        피로: string;
+        단호: string;
         실망: string;
         당혹: string;
       };
@@ -167,7 +167,7 @@ interface MBTIPersonaFormData {
       놀람: string;
       호기심: string;
       불안: string;
-      피로: string;
+      단호: string;
       실망: string;
       당혹: string;
     };
@@ -230,7 +230,7 @@ export function PersonaManager() {
         놀람: '',
         호기심: '',
         불안: '',
-        피로: '',
+        단호: '',
         실망: '',
         당혹: ''
       }
@@ -542,8 +542,8 @@ export function PersonaManager() {
       images: {
         base: '',
         style: '',
-        male: { expressions: { 중립: '', 기쁨: '', 슬픔: '', 분노: '', 놀람: '', 호기심: '', 불안: '', 피로: '', 실망: '', 당혹: '' } },
-        female: { expressions: { 중립: '', 기쁨: '', 슬픔: '', 분노: '', 놀람: '', 호기심: '', 불안: '', 피로: '', 실망: '', 당혹: '' } }
+        male: { expressions: { 중립: '', 기쁨: '', 슬픔: '', 분노: '', 놀람: '', 호기심: '', 불안: '', 단호: '', 실망: '', 당혹: '' } },
+        female: { expressions: { 중립: '', 기쁨: '', 슬픔: '', 분노: '', 놀람: '', 호기심: '', 불안: '', 단호: '', 실망: '', 당혹: '' } }
       }
     });
   };
@@ -590,7 +590,7 @@ export function PersonaManager() {
             놀람: persona.images?.male?.expressions?.놀람 || '',
             호기심: persona.images?.male?.expressions?.호기심 || '',
             불안: persona.images?.male?.expressions?.불안 || '',
-            피로: persona.images?.male?.expressions?.피로 || '',
+            단호: persona.images?.male?.expressions?.단호 || '',
             실망: persona.images?.male?.expressions?.실망 || '',
             당혹: persona.images?.male?.expressions?.당혹 || ''
           }
@@ -604,7 +604,7 @@ export function PersonaManager() {
             놀람: persona.images?.female?.expressions?.놀람 || '',
             호기심: persona.images?.female?.expressions?.호기심 || '',
             불안: persona.images?.female?.expressions?.불안 || '',
-            피로: persona.images?.female?.expressions?.피로 || '',
+            단호: persona.images?.female?.expressions?.단호 || '',
             실망: persona.images?.female?.expressions?.실망 || '',
             당혹: persona.images?.female?.expressions?.당혹 || ''
           }
@@ -1094,7 +1094,7 @@ export function PersonaManager() {
                 </div>
 
                 <div className="grid grid-cols-5 gap-3">
-                  {['중립', '기쁨', '슬픔', '분노', '놀람', '호기심', '불안', '피로', '실망', '당혹'].map((emotion) => {
+                  {['중립', '기쁨', '슬픔', '분노', '놀람', '호기심', '불안', '단호', '실망', '당혹'].map((emotion) => {
                     const currentGender = formData.gender;
                     let imageUrl = '';
                     
