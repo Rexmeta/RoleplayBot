@@ -5,8 +5,8 @@ import { getRealtimeVoiceGuidelines, validateDifficultyLevel } from './conversat
 import { storage } from '../storage';
 import { trackUsage } from './aiUsageTracker';
 
-// Default Gemini Live API model
-const DEFAULT_REALTIME_MODEL = 'gemini-live-2.5-flash-preview';
+// Default Gemini Live API model (updated December 2025)
+const DEFAULT_REALTIME_MODEL = 'gemini-2.5-flash-native-audio-preview-09-2025';
 
 interface RealtimeSession {
   id: string;
@@ -60,7 +60,7 @@ export class RealtimeVoiceService {
       
       // Validate the model value is a valid Gemini Live model
       const validModels = [
-        'gemini-live-2.5-flash-preview'
+        'gemini-2.5-flash-native-audio-preview-09-2025'
       ];
       
       const model = setting?.value;

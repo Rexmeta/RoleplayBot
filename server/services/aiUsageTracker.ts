@@ -7,7 +7,7 @@ export const MODEL_PRICING: Record<string, { input: number; output: number }> = 
   'gemini-2.5-flash': { input: 0.30, output: 2.50 },
   'gemini-2.5-pro': { input: 1.25, output: 10.00 }, // ≤200K tokens
   'gemini-2.0-flash-live-001': { input: 0.35, output: 1.50 }, // Gemini Live preview
-  'gemini-live-2.5-flash-preview': { input: 0.35, output: 1.50 }, // Gemini Live 2.5 Flash
+  'gemini-2.5-flash-native-audio-preview-09-2025': { input: 0.35, output: 1.50 }, // Gemini Live Native Audio
   'gemini-2.5-flash-image-preview': { input: 0.30, output: 2.50 }, // Image generation
   'gemini-2.0-flash-preview-image-generation': { input: 0.30, output: 2.50 }, // Image generation (legacy)
   'veo-3.1-generate-preview': { input: 0.00, output: 0.00 }, // Veo video generation (per-video pricing, not per-token)

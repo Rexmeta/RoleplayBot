@@ -142,12 +142,12 @@ const AI_MODELS = [
 
 const GEMINI_LIVE_MODELS = [
   { 
-    value: "gemini-live-2.5-flash-preview", 
-    label: "Gemini 2.5 Flash Preview", 
+    value: "gemini-2.5-flash-native-audio-preview-09-2025", 
+    label: "Gemini 2.5 Flash Native Audio", 
     provider: "Google Live",
-    description: "실시간 음성 대화 기본 모델",
-    pricing: "Preview 요금제 (확인 필요)",
-    features: "저지연 스트리밍, VAD 지원",
+    description: "실시간 음성 대화 기본 모델 (2025.09)",
+    pricing: "입력 $0.35/1M, 출력 $1.50/1M 토큰",
+    features: "저지연 스트리밍, VAD 지원, 네이티브 오디오",
     recommended: true
   },
 ];
@@ -194,7 +194,7 @@ const FEATURE_MODEL_INFO = [
     feature: "실시간 음성 대화",
     description: "Gemini Live API 기반 음성 대화",
     settingKey: "model_realtime",
-    defaultModel: "gemini-live-2.5-flash-preview",
+    defaultModel: "gemini-2.5-flash-native-audio-preview-09-2025",
     configurable: true,
     supportedProviders: ["Google Live"] // Gemini Live API만 지원
   },
@@ -269,7 +269,7 @@ export default function SystemAdminPage() {
     model_feedback: "gemini-2.5-flash",
     model_strategy: "gemini-2.5-flash",
     model_scenario: "gemini-2.5-flash",
-    model_realtime: "gemini-live-2.5-flash-preview",
+    model_realtime: "gemini-2.5-flash-native-audio-preview-09-2025",
   });
   const [hasSettingsChanges, setHasSettingsChanges] = useState(false);
 
