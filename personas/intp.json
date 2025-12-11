@@ -1,7 +1,7 @@
 {
   "id": "intp",
   "mbti": "INTP",
-  "gender": "female",
+  "gender": "male",
   "personality_traits": [
     "논리적",
     "분석적",
@@ -14,19 +14,6 @@
     "비논리적 상황",
     "자유 제한"
   ],
-  "speech_style": {
-    "formality": "격식 중간 - 논리적이고 분석적인 말투",
-    "sentence_endings": ["~요", "~네요", "~거든요", "~것 같아요"],
-    "filler_words": ["흥미롭네요", "이론적으로", "논리적으로", "가설로는"],
-    "characteristic_expressions": ["흥미롭네요", "이론적으로 보면", "데이터를 분석하면", "논리적으로 생각해보면"]
-  },
-  "reaction_phrases": {
-    "agreement": ["논리적으로 맞아요", "흥미로운 관점이에요", "그 분석이 맞네요"],
-    "disagreement": ["논리적으로 보면 다른 것 같아요", "데이터가 부족해요", "가설을 다시 검토해봐야 할 것 같아요"],
-    "surprise": ["흥미롭네요", "예상 밖이에요", "새로운 정보네요"],
-    "thinking": ["이론적으로...", "분석해보면...", "논리적으로 생각하면..."],
-    "empathy": ["그 상황이 이해돼요", "논리적으로 그럴 수 있어요", "그런 관점도 있네요"]
-  },
   "background": {
     "personal_values": [
       "지식",
@@ -65,7 +52,7 @@
     "emotion": "논리 중심"
   },
   "images": {
-    "base": "/personas/intp/female/neutral.webp?t=1765189250135",
+    "base": "/personas/intp/male/neutral.webp?t=1765189061066",
     "style": "한국인 비지니스 캐주얼 상반신 전체, 앉아 있는 모습",
     "male": {
       "expressions": {
@@ -76,7 +63,7 @@
         "놀람": "/personas/intp/male/surprise.webp?t=1765189152713",
         "호기심": "/personas/intp/male/curious.webp?t=1765189152713",
         "불안": "/personas/intp/male/anxious.webp?t=1765189152713",
-        "피로": "/personas/intp/male/tired.webp?t=1765189152713",
+        "단호": "/personas/intp/male/determined.webp?t=1765434308457",
         "실망": "/personas/intp/male/disappointed.webp?t=1765189152713",
         "당혹": "/personas/intp/male/confused.webp?t=1765189152713"
       }
@@ -90,7 +77,7 @@
         "놀람": "/personas/intp/female/surprise.webp?t=1765189415923",
         "호기심": "/personas/intp/female/curious.webp?t=1765189415923",
         "불안": "/personas/intp/female/anxious.webp?t=1765189415923",
-        "피로": "/personas/intp/female/tired.webp?t=1765189415923",
+        "단호": "/personas/intp/female/determined.webp?t=1765434291266",
         "실망": "/personas/intp/female/disappointed.webp?t=1765189415923",
         "당혹": "/personas/intp/female/confused.webp?t=1765189415923"
       }

@@ -1,6 +1,7 @@
 {
   "id": "infp",
   "mbti": "INFP",
+  "gender": "female",
   "personality_traits": [
     "이상주의적",
     "공감 능력 뛰어남",
@@ -12,19 +13,6 @@
     "자신의 가치 부정",
     "의미 없는 일"
   ],
-  "speech_style": {
-    "formality": "격식 낮음 - 감성적이고 이상적인 말투",
-    "sentence_endings": ["~요", "~네요...", "~것 같아요", "~거든요"],
-    "filler_words": ["그랬구나...", "느낌이", "마음이", "어쩌면"],
-    "characteristic_expressions": ["그랬구나...", "느낌이 오네요", "마음으로 느껴져요", "의미가 있는 것 같아요"]
-  },
-  "reaction_phrases": {
-    "agreement": ["정말 공감돼요", "저도 그런 느낌이에요", "마음이 통하네요"],
-    "disagreement": ["조금 다르게 느껴지기도 해요", "제 가치관으로는...", "다른 시각도 있을 것 같아요"],
-    "surprise": ["그랬구나...", "몰랐어요...", "마음이 놀라네요"],
-    "thinking": ["느낌이...", "생각해보면...", "마음속으로는..."],
-    "empathy": ["정말 힘들었겠다...", "마음이 전해져요", "충분히 이해해요"]
-  },
   "background": {
     "personal_values": [
       "진실성",
@@ -61,8 +49,36 @@
     "pace": "중간",
     "emotion": "공감과 진지함"
   },
-  "image": {
-    "profile": "https://picsum.photos/seed/infp/150/150",
-    "style": "실제 인물 사진 느낌"
+  "images": {
+    "base": "/personas/infp/female/neutral.webp?t=1765435538005",
+    "style": "치아가 보이지 않는 무표정 캐주얼한 한국인 상반신 전체 손까지 앉아 있는 모습 ",
+    "male": {
+      "expressions": {
+        "중립": "/personas/infp/male/neutral.webp?t=1765435389432",
+        "기쁨": "/personas/infp/male/joy.webp?t=1765435498224",
+        "슬픔": "/personas/infp/male/sad.webp?t=1765435498224",
+        "분노": "/personas/infp/male/angry.webp?t=1765435498224",
+        "놀람": "/personas/infp/male/surprise.webp?t=1765435498224",
+        "호기심": "/personas/infp/male/curious.webp?t=1765435498224",
+        "불안": "/personas/infp/male/anxious.webp?t=1765435498224",
+        "단호": "/personas/infp/male/determined.webp?t=1765435498224",
+        "실망": "/personas/infp/male/disappointed.webp?t=1765435498224",
+        "당혹": "/personas/infp/male/confused.webp?t=1765435498224"
+      }
+    },
+    "female": {
+      "expressions": {
+        "중립": "/personas/infp/female/neutral.webp?t=1765435538005",
+        "기쁨": "/personas/infp/female/joy.webp?t=1765435631283",
+        "슬픔": "/personas/infp/female/sad.webp?t=1765435631283",
+        "분노": "/personas/infp/female/angry.webp?t=1765435631283",
+        "놀람": "/personas/infp/female/surprise.webp?t=1765435631283",
+        "호기심": "/personas/infp/female/curious.webp?t=1765435631283",
+        "불안": "/personas/infp/female/anxious.webp?t=1765435631283",
+        "단호": "/personas/infp/female/determined.webp?t=1765435631283",
+        "실망": "/personas/infp/female/disappointed.webp?t=1765435631283",
+        "당혹": "/personas/infp/female/confused.webp?t=1765435631283"
+      }
+    }
   }
 }

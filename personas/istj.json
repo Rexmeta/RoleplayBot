@@ -1,7 +1,7 @@
 {
   "id": "istj",
   "mbti": "ISTJ",
-  "gender": "female",
+  "gender": "male",
   "personality_traits": [
     "경험 기반 사고",
     "현실적",
@@ -19,19 +19,6 @@
     "비논리적 주장",
     "시간 낭비"
   ],
-  "speech_style": {
-    "formality": "격식 높음 - 단호하고 원칙적인 말투",
-    "sentence_endings": ["~입니다", "~합니다", "~이죠", "~해야 합니다"],
-    "filler_words": ["규정상", "정확히 말하면", "사실", "논리적으로"],
-    "characteristic_expressions": ["규정상", "정확히 말하면", "원칙적으로", "데이터에 따르면"]
-  },
-  "reaction_phrases": {
-    "agreement": ["맞습니다", "동의합니다", "정확한 판단입니다"],
-    "disagreement": ["논리적으로 맞지 않습니다", "규정에 어긋납니다", "근거가 부족합니다"],
-    "surprise": ["그건 몰랐군요", "확인이 필요합니다", "새로운 정보네요"],
-    "thinking": ["정확히 말하면...", "규정을 보면...", "데이터를 확인하면..."],
-    "empathy": ["상황을 이해합니다", "고려하겠습니다", "의견 참고하겠습니다"]
-  },
   "background": {
     "personal_values": [
       "약속",
@@ -73,20 +60,20 @@
     "emotion": "감정을 절제하되 날카롭게"
   },
   "images": {
-    "base": "/personas/istj/neutral.webp",
-    "style": "한국인 회의실에 앉아서 실제 사진 ",
+    "base": "/personas/istj/male/neutral.webp?t=1765434544464",
+    "style": "한국인 40대 초, 치아가 보이지 않는 무표정, 회의실에 앉아서 상체 전체 손까지 보이도록 정장아닌 개성넘치는 스타일  ",
     "male": {
       "expressions": {
-        "중립": "/personas/istj/male/neutral.webp",
-        "기쁨": "/personas/istj/male/joy.webp",
-        "슬픔": "/personas/istj/male/sad.webp",
-        "분노": "/personas/istj/male/angry.webp",
-        "놀람": "/personas/istj/male/surprise.webp",
-        "호기심": "/personas/istj/male/curious.webp",
-        "불안": "/personas/istj/male/anxious.webp",
-        "피로": "/personas/istj/male/tired.webp",
-        "실망": "/personas/istj/male/disappointed.webp",
-        "당혹": "/personas/istj/male/confused.webp"
+        "중립": "/personas/istj/male/neutral.webp?t=1765434544464",
+        "기쁨": "/personas/istj/male/joy.webp?t=1765434634922",
+        "슬픔": "/personas/istj/male/sad.webp?t=1765434634922",
+        "분노": "/personas/istj/male/angry.webp?t=1765434634922",
+        "놀람": "/personas/istj/male/surprise.webp?t=1765434634922",
+        "호기심": "/personas/istj/male/curious.webp?t=1765434634922",
+        "불안": "/personas/istj/male/anxious.webp?t=1765434634922",
+        "단호": "/personas/istj/male/determined.webp?t=1765434634922",
+        "실망": "/personas/istj/male/disappointed.webp?t=1765434634922",
+        "당혹": "/personas/istj/male/confused.webp?t=1765434634922"
       }
     },
     "female": {
@@ -98,7 +85,7 @@
         "놀람": "/personas/istj/female/surprise.webp",
         "호기심": "/personas/istj/female/curious.webp",
         "불안": "/personas/istj/female/anxious.webp",
-        "피로": "/personas/istj/female/tired.webp",
+        "단호": "/personas/istj/female/determined.webp?t=1765434364598",
         "실망": "/personas/istj/female/disappointed.webp",
         "당혹": "/personas/istj/female/confused.webp"
       }

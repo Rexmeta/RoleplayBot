@@ -1,7 +1,7 @@
 {
   "id": "isfj",
   "mbti": "ISFJ",
-  "gender": "female",
+  "gender": "male",
   "personality_traits": [
     "헌신적",
     "세심함",
@@ -14,19 +14,6 @@
     "타인에게 실망 줌",
     "갈등"
   ],
-  "speech_style": {
-    "formality": "격식 중간 - 조용하고 배려있는 말투",
-    "sentence_endings": ["~요", "~네요", "~할게요", "~드릴게요"],
-    "filler_words": ["네", "알겠어요", "그러면", "혹시"],
-    "characteristic_expressions": ["네, 알겠어요", "도와드릴게요", "제가 해볼게요", "걱정 마세요"]
-  },
-  "reaction_phrases": {
-    "agreement": ["네, 좋아요", "알겠어요", "그렇게 할게요"],
-    "disagreement": ["조금 어려울 것 같아요...", "다른 방법도 있을까요?", "생각해볼게요"],
-    "surprise": ["아, 그래요?", "몰랐어요", "그렇군요"],
-    "thinking": ["음... 어떻게 하면...", "생각해보면...", "도움이 될까요?"],
-    "empathy": ["힘드셨겠어요", "제가 도와드릴게요", "걱정돼요"]
-  },
   "background": {
     "personal_values": [
       "배려",
@@ -65,7 +52,7 @@
     "emotion": "균형 잡힌 감정 표현"
   },
   "images": {
-    "base": "/personas/isfj/female/neutral.webp?t=1765276715968",
+    "base": "/personas/isfj/male/neutral.webp",
     "style": "한국인 치아가 보이지 않는 무표정, 실물 사진 회의실에 앉아서 ",
     "male": {
       "expressions": {
@@ -76,7 +63,7 @@
         "놀람": "/personas/isfj/male/surprise.webp",
         "호기심": "/personas/isfj/male/curious.webp",
         "불안": "/personas/isfj/male/anxious.webp",
-        "피로": "/personas/isfj/male/tired.webp",
+        "단호": "/personas/isfj/male/determined.webp?t=1765434717813",
         "실망": "/personas/isfj/male/disappointed.webp",
         "당혹": "/personas/isfj/male/confused.webp"
       }
@@ -90,7 +77,7 @@
         "놀람": "/personas/isfj/female/surprise.webp?t=1765276837786",
         "호기심": "/personas/isfj/female/curious.webp?t=1765276837786",
         "불안": "/personas/isfj/female/anxious.webp?t=1765276837786",
-        "피로": "/personas/isfj/female/tired.webp?t=1765276837786",
+        "단호": "/personas/isfj/female/determined.webp?t=1765434701818",
         "실망": "/personas/isfj/female/disappointed.webp?t=1765276837786",
         "당혹": "/personas/isfj/female/confused.webp?t=1765276837786"
       }

@@ -13,19 +13,6 @@
     "갈등",
     "팀 불화"
   ],
-  "speech_style": {
-    "formality": "격식 중간 - 따뜻하고 배려있는 말투",
-    "sentence_endings": ["~요", "~네요", "~죠", "~할까요?"],
-    "filler_words": ["그렇군요", "이해해요", "음", "그래서"],
-    "characteristic_expressions": ["그렇구나~", "이해해요", "함께 해봐요", "도움이 될 것 같아요"]
-  },
-  "reaction_phrases": {
-    "agreement": ["좋은 생각이에요", "저도 그렇게 생각해요", "함께 하면 좋겠네요"],
-    "disagreement": ["다른 관점도 있을 것 같아요", "모두를 위해 이 부분도 고려해봐요", "조금 더 생각해볼까요?"],
-    "surprise": ["오 그래요?", "정말이요?", "몰랐네요"],
-    "thinking": ["생각해보면요...", "어떻게 하면 좋을까요?", "함께 고민해봐요"],
-    "empathy": ["정말 힘드셨겠어요", "마음이 느껴져요", "충분히 이해해요"]
-  },
   "background": {
     "personal_values": [
       "협력",
@@ -64,7 +51,7 @@
     "emotion": "공감과 진지함"
   },
   "images": {
-    "base": "/personas/enfj/neutral.webp",
+    "base": "/personas/enfj/male/neutral.webp",
     "style": "한국인 빈 사무실에 앉아서 무표정",
     "male": {
       "expressions": {
@@ -75,7 +62,7 @@
         "놀람": "/personas/enfj/male/surprise.webp",
         "호기심": "/personas/enfj/male/curious.webp",
         "불안": "/personas/enfj/male/anxious.webp",
-        "피로": "/personas/enfj/male/tired.webp",
+        "단호": "/personas/enfj/male/determined.webp?t=1765433721274",
         "실망": "/personas/enfj/male/disappointed.webp",
         "당혹": "/personas/enfj/male/confused.webp"
       }
@@ -89,7 +76,7 @@
         "놀람": "/personas/enfj/female/surprise.webp",
         "호기심": "/personas/enfj/female/curious.webp",
         "불안": "/personas/enfj/female/anxious.webp",
-        "피로": "/personas/enfj/female/tired.webp",
+        "단호": "/personas/enfj/female/determined.webp?t=1765433742743",
         "실망": "/personas/enfj/female/disappointed.webp",
         "당혹": "/personas/enfj/female/confused.webp"
       }

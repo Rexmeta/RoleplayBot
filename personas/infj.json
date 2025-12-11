@@ -1,7 +1,7 @@
 {
   "id": "infj",
   "mbti": "INFJ",
-  "gender": "male",
+  "gender": "female",
   "personality_traits": [
     "통찰력",
     "이상주의적",
@@ -13,19 +13,6 @@
     "가치 없는 일에 시간 소모",
     "내적 갈등"
   ],
-  "speech_style": {
-    "formality": "격식 중간 - 통찰력 있고 신중한 말투",
-    "sentence_endings": ["~요", "~네요", "~것 같아요", "~거든요"],
-    "filler_words": ["음...", "사실", "생각해보면", "어떻게 보면"],
-    "characteristic_expressions": ["음... 그렇군요", "생각해보면...", "깊이 보면...", "의미 있게 느껴져요"]
-  },
-  "reaction_phrases": {
-    "agreement": ["공감이 가요", "저도 그렇게 느꼈어요", "좋은 관점이에요"],
-    "disagreement": ["조금 다르게 생각해봐도 될까요?", "다른 관점도 있는 것 같아요", "생각해볼 부분이 있어요"],
-    "surprise": ["그렇군요...", "몰랐던 부분이네요", "흥미로운 이야기예요"],
-    "thinking": ["음... 생각해보면...", "깊이 보면...", "어떻게 보면..."],
-    "empathy": ["마음이 느껴져요", "정말 힘드셨겠어요", "그 감정이 이해돼요"]
-  },
   "background": {
     "personal_values": [
       "진실성",
@@ -64,34 +51,34 @@
     "emotion": "균형 잡힌 감정 표현"
   },
   "images": {
-    "base": "/personas/infj/male/neutral.webp?t=1764722697043",
-    "style": "한국인 상반신 전체 앉아 있는 모습",
+    "base": "/personas/infj/female/neutral.webp?t=1765435173613",
+    "style": "한국인 30대, 캐주얼,  상반신 손까지 보이는, 앉아 있는 모습",
     "male": {
       "expressions": {
-        "중립": "/personas/infj/male/neutral.webp?t=1764722697043",
-        "기쁨": "/personas/infj/male/joy.webp?t=1764722788131",
-        "슬픔": "/personas/infj/male/sad.webp?t=1764722788131",
-        "분노": "/personas/infj/male/angry.webp?t=1764722788131",
-        "놀람": "/personas/infj/male/surprise.webp?t=1764722788131",
-        "호기심": "/personas/infj/male/curious.webp?t=1764722788131",
-        "불안": "/personas/infj/male/anxious.webp?t=1764722788131",
-        "피로": "/personas/infj/male/tired.webp?t=1764722788131",
-        "실망": "/personas/infj/male/disappointed.webp?t=1764722788131",
-        "당혹": "/personas/infj/male/confused.webp?t=1764722788131"
+        "중립": "/personas/infj/male/neutral.webp?t=1765434961924",
+        "기쁨": "/personas/infj/male/joy.webp?t=1765435062050",
+        "슬픔": "/personas/infj/male/sad.webp?t=1765435062050",
+        "분노": "/personas/infj/male/angry.webp?t=1765435062050",
+        "놀람": "/personas/infj/male/surprise.webp?t=1765435062050",
+        "호기심": "/personas/infj/male/curious.webp?t=1765435062050",
+        "불안": "/personas/infj/male/anxious.webp?t=1765435062050",
+        "단호": "/personas/infj/male/determined.webp?t=1765435062050",
+        "실망": "/personas/infj/male/disappointed.webp?t=1765435062050",
+        "당혹": "/personas/infj/male/confused.webp?t=1765435062050"
       }
     },
     "female": {
       "expressions": {
-        "중립": "/personas/infj/female/neutral.webp?t=1764722190411",
-        "기쁨": "/personas/infj/female/joy.webp?t=1764722566648",
-        "슬픔": "/personas/infj/female/sad.webp?t=1764722566648",
-        "분노": "/personas/infj/female/angry.webp?t=1764722566648",
-        "놀람": "/personas/infj/female/surprise.webp?t=1764722566648",
-        "호기심": "/personas/infj/female/curious.webp?t=1764722566648",
-        "불안": "/personas/infj/female/anxious.webp?t=1764722566648",
-        "피로": "/personas/infj/female/tired.webp?t=1764722566648",
-        "실망": "/personas/infj/female/disappointed.webp?t=1764722566648",
-        "당혹": "/personas/infj/female/confused.webp?t=1764722566648"
+        "중립": "/personas/infj/female/neutral.webp?t=1765435173613",
+        "기쁨": "/personas/infj/female/joy.webp?t=1765435275849",
+        "슬픔": "/personas/infj/female/sad.webp?t=1765435275849",
+        "분노": "/personas/infj/female/angry.webp?t=1765435275849",
+        "놀람": "/personas/infj/female/surprise.webp?t=1765435275849",
+        "호기심": "/personas/infj/female/curious.webp?t=1765435275849",
+        "불안": "/personas/infj/female/anxious.webp?t=1765435275849",
+        "단호": "/personas/infj/female/determined.webp?t=1765435275849",
+        "실망": "/personas/infj/female/disappointed.webp?t=1765435275849",
+        "당혹": "/personas/infj/female/confused.webp?t=1765435275849"
       }
     }
   }

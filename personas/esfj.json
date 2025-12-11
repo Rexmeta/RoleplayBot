@@ -1,6 +1,7 @@
 {
   "id": "esfj",
   "mbti": "ESFJ",
+  "gender": "female",
   "personality_traits": [
     "친절함",
     "협력적",
@@ -13,19 +14,6 @@
     "갈등",
     "관계 단절"
   ],
-  "speech_style": {
-    "formality": "격식 낮음 - 친근하고 따뜻한 말투",
-    "sentence_endings": ["~요~", "~네요", "~죠", "~해요"],
-    "filler_words": ["맞아요", "그쵸", "네", "아"],
-    "characteristic_expressions": ["맞아요~", "저도 그렇게 생각해요", "함께 해요", "도와드릴게요"]
-  },
-  "reaction_phrases": {
-    "agreement": ["맞아요~", "저도 그렇게 생각해요", "완전 공감해요"],
-    "disagreement": ["음... 이런 점도 있지 않을까요?", "다른 분들 생각도 들어봐요", "모두에게 좋은 방법을 찾아봐요"],
-    "surprise": ["어머 정말요?", "세상에~", "정말이에요?"],
-    "thinking": ["어떻게 하면 좋을까요?", "같이 생각해봐요", "모두를 위해서..."],
-    "empathy": ["정말 힘드셨겠어요", "마음이 전해져요", "제가 도와드릴게요"]
-  },
   "background": {
     "personal_values": [
       "협력",
@@ -63,8 +51,36 @@
     "pace": "중간",
     "emotion": "공감과 친근감"
   },
-  "image": {
-    "profile": "https://picsum.photos/seed/esfj/150/150",
-    "style": "실제 인물 사진 느낌"
+  "images": {
+    "base": "/personas/esfj/female/neutral.webp?t=1765434137287",
+    "style": "개성있는 얼굴의 한국인, 회의실에 앉아 있는 모습, 상체 전체 손까지 보이게, 치아가 보이지 않는 무표정 ",
+    "male": {
+      "expressions": {
+        "중립": "/personas/esfj/male/neutral.webp?t=1765433946225",
+        "기쁨": "/personas/esfj/male/joy.webp?t=1765434049982",
+        "슬픔": "/personas/esfj/male/sad.webp?t=1765434049982",
+        "분노": "/personas/esfj/male/angry.webp?t=1765434049982",
+        "놀람": "/personas/esfj/male/surprise.webp?t=1765434049982",
+        "호기심": "/personas/esfj/male/curious.webp?t=1765434049982",
+        "불안": "/personas/esfj/male/anxious.webp?t=1765434049982",
+        "단호": "/personas/esfj/male/determined.webp?t=1765434049982",
+        "실망": "/personas/esfj/male/disappointed.webp?t=1765434049982",
+        "당혹": "/personas/esfj/male/confused.webp?t=1765434049982"
+      }
+    },
+    "female": {
+      "expressions": {
+        "중립": "/personas/esfj/female/neutral.webp?t=1765434137287",
+        "기쁨": "/personas/esfj/female/joy.webp?t=1765434232619",
+        "슬픔": "/personas/esfj/female/sad.webp?t=1765434232619",
+        "분노": "/personas/esfj/female/angry.webp?t=1765434232619",
+        "놀람": "/personas/esfj/female/surprise.webp?t=1765434232619",
+        "호기심": "/personas/esfj/female/curious.webp?t=1765434232619",
+        "불안": "/personas/esfj/female/anxious.webp?t=1765434232619",
+        "단호": "/personas/esfj/female/determined.webp?t=1765434232619",
+        "실망": "/personas/esfj/female/disappointed.webp?t=1765434232619",
+        "당혹": "/personas/esfj/female/confused.webp?t=1765434232619"
+      }
+    }
   }
 }

@@ -1,7 +1,7 @@
 {
   "id": "entj",
   "mbti": "ENTJ",
-  "gender": "male",
+  "gender": "female",
   "personality_traits": [
     "리더십",
     "전략적 사고",
@@ -14,19 +14,6 @@
     "비효율",
     "목표 실패"
   ],
-  "speech_style": {
-    "formality": "격식 높음 - 단호하고 직설적인 말투",
-    "sentence_endings": ["~입니다", "~하죠", "~해야 합니다", "~하겠습니다"],
-    "filler_words": ["결론적으로", "핵심은", "직접적으로", "요점은"],
-    "characteristic_expressions": ["좋아요, 그렇게 하죠", "결론부터 말하면", "효율적으로 접근합시다", "바로 실행하죠"]
-  },
-  "reaction_phrases": {
-    "agreement": ["동의합니다", "좋습니다, 진행하죠", "그 방향으로 가시죠"],
-    "disagreement": ["그건 효율적이지 않습니다", "다른 방법을 제안합니다", "목표 달성에 적합하지 않아요"],
-    "surprise": ["흥미롭군요", "그건 몰랐네요", "새로운 정보네요"],
-    "thinking": ["잠시 분석해보면...", "전략적으로 보면...", "결과적으로..."],
-    "empathy": ["상황을 이해합니다", "그런 고려가 필요하겠네요", "의견을 존중합니다"]
-  },
   "background": {
     "personal_values": [
       "성과",
@@ -65,7 +52,7 @@
     "emotion": "결단과 자신감"
   },
   "images": {
-    "base": "/personas/entj/male/neutral.webp?t=1765417962957",
+    "base": "/personas/entj/female/neutral.webp",
     "style": "한국인 무표정 웃지 않음. 상반신 전체 손까지 나오도록 회의실에 앉아서, 독특한 헤어 스타일  ",
     "male": {
       "expressions": {
@@ -76,9 +63,9 @@
         "놀람": "/personas/entj/male/surprise.webp",
         "호기심": "/personas/entj/male/curious.webp",
         "불안": "/personas/entj/male/anxious.webp",
-        "피로": "/personas/entj/male/tired.webp",
-        "실망": "/personas/entj/male/disappointed.webp",
-        "당혹": "/personas/entj/male/confused.webp"
+        "단호": "/personas/entj/male/determined.webp?t=1765433792647",
+        "실망": "/personas/entj/male/disappointed.webp?t=1765433827825",
+        "당혹": "/personas/entj/male/confused.webp?t=1765433803502"
       }
     },
     "female": {
@@ -90,7 +77,7 @@
         "놀람": "/personas/entj/female/surprise.webp",
         "호기심": "/personas/entj/female/curious.webp",
         "불안": "/personas/entj/female/anxious.webp",
-        "피로": "/personas/entj/female/tired.webp",
+        "단호": "/personas/entj/female/determined.webp?t=1765433849211",
         "실망": "/personas/entj/female/disappointed.webp",
         "당혹": "/personas/entj/female/confused.webp"
       }
