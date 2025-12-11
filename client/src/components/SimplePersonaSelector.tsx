@@ -395,7 +395,7 @@ export function SimplePersonaSelector({
                   >
                     <CardContent className="p-0">
                       {/* 페르소나 이미지 배경 - 얼굴이 보이도록 세로 영역 확장 */}
-                      <div className="relative h-32 bg-gradient-to-br from-slate-100 to-slate-200 overflow-hidden">
+                      <div className="relative h-40 bg-gradient-to-br from-slate-100 to-slate-200 overflow-hidden">
                         <img 
                           src={getPersonaImage(persona)}
                           alt={persona.name}
