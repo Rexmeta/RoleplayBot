@@ -467,6 +467,7 @@ export function useRealtimeVoice({
     }
 
     // Send text as conversation item to Gemini
+    // Note: turnComplete: true is set on server side, so no need for response.create
     wsRef.current.send(JSON.stringify({
       type: 'conversation.item.create',
       item: {
@@ -481,15 +482,7 @@ export function useRealtimeVoice({
       }
     }));
 
-    // Request AI response
-    wsRef.current.send(JSON.stringify({
-      type: 'response.create',
-      response: {
-        modalities: ['audio', 'text'],
-      },
-    }));
-
-    console.log('✅ Text message sent and response requested');
+    console.log('✅ Text message sent');
   }, []);
 
   useEffect(() => {
