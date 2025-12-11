@@ -455,16 +455,20 @@ export default function Home() {
               setIsHeaderVisible(false);
             }}
           />
-          <button
-            onClick={() => setIsHeaderVisible(false)}
-            className="absolute right-4 top-1/2 -translate-y-1/2 p-2 text-slate-500 hover:text-slate-700 transition-colors"
-            data-testid="button-hide-header"
-            title="헤더 숨기기"
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <polyline points="18 15 12 9 6 15"></polyline>
-            </svg>
-          </button>
+          {/* 헤더 하단 중앙에 숨기기 버튼 */}
+          <div className="absolute -bottom-3 left-1/2 -translate-x-1/2 z-50">
+            <button
+              onClick={() => setIsHeaderVisible(false)}
+              className="flex items-center gap-1 px-3 py-1 text-xs bg-white border border-slate-200 text-slate-500 hover:text-slate-700 hover:bg-slate-50 rounded-full shadow-sm transition-colors"
+              data-testid="button-hide-header"
+              title="헤더 숨기기"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="18 15 12 9 6 15"></polyline>
+              </svg>
+              <span>접기</span>
+            </button>
+          </div>
         </div>
       )}
       
