@@ -103,6 +103,15 @@ interface AiUsageDaily {
 
 const AI_MODELS = [
   { 
+    value: "gemini-2.0-flash-exp", 
+    label: "Gemini 2.0 Flash (Exp)", 
+    provider: "Google",
+    description: "실험적 빠른 모델, 감정 분석용",
+    pricing: "입력 $0.10/1M 토큰, 출력 $0.40/1M 토큰",
+    features: "빠른 속도, 비용 효율적",
+    recommended: false
+  },
+  { 
     value: "gemini-2.5-flash", 
     label: "Gemini 2.5 Flash", 
     provider: "Google",
@@ -199,6 +208,15 @@ const FEATURE_MODEL_INFO = [
     supportedProviders: ["Google Live"] // Gemini Live API만 지원
   },
   {
+    id: "emotion",
+    feature: "페르소나 감성 표현",
+    description: "AI 페르소나의 감정 분석 및 표현",
+    settingKey: "model_emotion",
+    defaultModel: "gemini-2.0-flash-exp",
+    configurable: true,
+    supportedProviders: ["Google"] // Gemini만 지원
+  },
+  {
     id: "image",
     feature: "이미지 생성",
     description: "시나리오/페르소나 이미지 자동 생성",
@@ -270,6 +288,7 @@ export default function SystemAdminPage() {
     model_strategy: "gemini-2.5-flash",
     model_scenario: "gemini-2.5-flash",
     model_realtime: "gemini-2.5-flash-native-audio-preview-09-2025",
+    model_emotion: "gemini-2.0-flash-exp",
   });
   const [hasSettingsChanges, setHasSettingsChanges] = useState(false);
 
@@ -532,6 +551,7 @@ export default function SystemAdminPage() {
       model_conversation: "대화 응답 생성에 사용할 모델",
       model_feedback: "피드백 생성에 사용할 모델",
       model_strategy: "전략 회고 평가에 사용할 모델",
+      model_emotion: "페르소나 감성 표현에 사용할 모델",
     };
 
     const settings = Object.entries(featureModels).map(([key, value]) => ({
