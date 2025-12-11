@@ -63,6 +63,7 @@ export interface IStorage {
   getAllEmotionStats(): Promise<{ emotion: string; count: number }[]>; // Admin analytics - 감정 빈도
   getEmotionStatsByScenario(): Promise<{ scenarioId: string; scenarioName: string; emotions: { emotion: string; count: number }[]; totalCount: number }[]>;
   getEmotionStatsByMbti(): Promise<{ mbti: string; emotions: { emotion: string; count: number }[]; totalCount: number }[]>;
+  getEmotionStatsByDifficulty(): Promise<{ difficulty: number; emotions: { emotion: string; count: number }[]; totalCount: number }[]>;
   getEmotionTimelineByPersonaRun(personaRunId: string): Promise<{ turnIndex: number; emotion: string | null; message: string }[]>;
 
   // User operations - 이메일 기반 인증 시스템
@@ -360,6 +361,10 @@ export class MemStorage implements IStorage {
 
   async getEmotionStatsByMbti(): Promise<{ mbti: string; emotions: { emotion: string; count: number }[]; totalCount: number }[]> {
     throw new Error("MemStorage does not support emotion stats by MBTI");
+  }
+
+  async getEmotionStatsByDifficulty(): Promise<{ difficulty: number; emotions: { emotion: string; count: number }[]; totalCount: number }[]> {
+    throw new Error("MemStorage does not support emotion stats by difficulty");
   }
 
   async getEmotionTimelineByPersonaRun(personaRunId: string): Promise<{ turnIndex: number; emotion: string | null; message: string }[]> {
@@ -989,6 +994,46 @@ export class PostgreSQLStorage implements IStorage {
     }
     
     return Array.from(mbtiMap.values()).sort((a, b) => b.totalCount - a.totalCount);
+  }
+
+  async getEmotionStatsByDifficulty(): Promise<{ difficulty: number; emotions: { emotion: string; count: number }[]; totalCount: number }[]> {
+    // 난이도별 감정 통계: chat_messages -> persona_runs (difficulty 필드) 조인
+    const result = await db.select({
+      difficulty: personaRuns.difficulty,
+      emotion: chatMessages.emotion,
+      count: sql<number>`count(*)::int`
+    })
+    .from(chatMessages)
+    .innerJoin(personaRuns, eq(chatMessages.personaRunId, personaRuns.id))
+    .where(and(
+      eq(chatMessages.sender, 'ai'),
+      isNotNull(chatMessages.emotion),
+      isNotNull(personaRuns.difficulty)
+    ))
+    .groupBy(personaRuns.difficulty, chatMessages.emotion)
+    .orderBy(personaRuns.difficulty, desc(sql`count(*)`));
+    
+    // 난이도별로 그룹화
+    const difficultyMap = new Map<number, { difficulty: number; emotions: { emotion: string; count: number }[]; totalCount: number }>();
+    
+    for (const row of result) {
+      if (!row.emotion || row.difficulty === null) continue;
+      
+      if (!difficultyMap.has(row.difficulty)) {
+        difficultyMap.set(row.difficulty, {
+          difficulty: row.difficulty,
+          emotions: [],
+          totalCount: 0
+        });
+      }
+      
+      const difficultyData = difficultyMap.get(row.difficulty)!;
+      difficultyData.emotions.push({ emotion: row.emotion, count: row.count });
+      difficultyData.totalCount += row.count;
+    }
+    
+    // 난이도 순서대로 정렬 (1, 2, 3, 4)
+    return Array.from(difficultyMap.values()).sort((a, b) => a.difficulty - b.difficulty);
   }
 
   async getEmotionTimelineByPersonaRun(personaRunId: string): Promise<{ turnIndex: number; emotion: string | null; message: string }[]> {

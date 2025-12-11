@@ -2688,6 +2688,45 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // 난이도별 감정 분석 API
+  app.get("/api/admin/analytics/emotions/by-difficulty", async (req, res) => {
+    try {
+      const difficultyStats = await storage.getEmotionStatsByDifficulty();
+      
+      const emotionEmojis: Record<string, string> = {
+        '기쁨': '😊', '슬픔': '😢', '분노': '😠', '놀람': '😲', '중립': '😐',
+        '호기심': '🤔', '불안': '😰', '피로': '😫', '실망': '😞', '당혹': '😕', '단호': '😤'
+      };
+      
+      const difficultyNames: Record<number, string> = {
+        1: '입문',
+        2: '기본',
+        3: '심화',
+        4: '전문가'
+      };
+      
+      const difficultyWithDetails = difficultyStats.map(diff => ({
+        ...diff,
+        difficultyName: difficultyNames[diff.difficulty] || `레벨 ${diff.difficulty}`,
+        emotions: diff.emotions.map(e => ({
+          ...e,
+          emoji: emotionEmojis[e.emotion] || '❓',
+          percentage: diff.totalCount > 0 ? Math.round((e.count / diff.totalCount) * 100) : 0
+        })),
+        topEmotion: diff.emotions[0] ? {
+          emotion: diff.emotions[0].emotion,
+          emoji: emotionEmojis[diff.emotions[0].emotion] || '❓',
+          count: diff.emotions[0].count
+        } : null
+      }));
+      
+      res.json({ difficultyStats: difficultyWithDetails });
+    } catch (error) {
+      console.error("Error getting difficulty emotion analytics:", error);
+      res.status(500).json({ error: "Failed to get difficulty emotion analytics" });
+    }
+  });
+
   // 대화별 감정 타임라인 API
   app.get("/api/admin/analytics/emotions/timeline/:personaRunId", async (req, res) => {
     try {
