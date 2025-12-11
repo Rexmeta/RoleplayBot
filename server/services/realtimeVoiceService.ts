@@ -426,6 +426,14 @@ export class RealtimeVoiceService {
               text: part.text,
             });
           }
+          // Handle audio data (inlineData)
+          if (part.inlineData && part.inlineData.data) {
+            console.log('🔊 Audio data received from modelTurn');
+            this.sendToClient(session, {
+              type: 'audio.delta',
+              delta: part.inlineData.data,
+            });
+          }
         }
       }
 
