@@ -474,10 +474,10 @@ export default function Home() {
       
       {/* 상세 페이지에서 헤더가 숨겨졌을 때 토글 버튼 */}
       {isDetailPage && !isHeaderVisible && (
-        <div className="flex justify-center pt-2 pb-1">
+        <div className="flex justify-center pt-1">
           <button
             onClick={() => setIsHeaderVisible(true)}
-            className="flex items-center gap-1 px-3 py-1.5 text-xs text-slate-500 hover:text-slate-700 hover:bg-slate-100 rounded-full transition-colors"
+            className="flex items-center gap-1 px-3 py-1 text-xs text-slate-500 hover:text-slate-700 hover:bg-slate-100 rounded-full transition-colors"
             data-testid="button-show-header"
             title="헤더 보기"
           >
@@ -490,7 +490,7 @@ export default function Home() {
       )}
       
       {/* Main Content */}
-      <main className={`${currentView === "scenarios" ? "py-8 bg-slate-50" : "max-w-6xl mx-auto px-4 py-8"}`}>
+      <main className={`${currentView === "scenarios" ? "py-8 bg-slate-50" : currentView === "chat" ? "max-w-6xl mx-auto px-4 pt-2 pb-8" : "max-w-6xl mx-auto px-4 py-8"}`}>
         {currentView === "scenarios" && (
           <div className="max-w-6xl mx-auto px-4">
             <ScenarioSelector 
