@@ -12,7 +12,7 @@ import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
 import { apiRequest, queryClient } from '@/lib/queryClient';
-import { MoreVertical } from 'lucide-react';
+import { MoreVertical, RefreshCw } from 'lucide-react';
 
 // MBTI 페르소나 타입 정의
 interface MBTIPersona {
@@ -54,7 +54,7 @@ interface MBTIPersona {
         놀람: string;
         호기심: string;
         불안: string;
-        단호: string;
+        피로: string;
         실망: string;
         당혹: string;
       };
@@ -68,7 +68,7 @@ interface MBTIPersona {
         놀람: string;
         호기심: string;
         불안: string;
-        단호: string;
+        피로: string;
         실망: string;
         당혹: string;
       };
@@ -81,7 +81,7 @@ interface MBTIPersona {
       놀람: string;
       호기심: string;
       불안: string;
-      단호: string;
+      피로: string;
       실망: string;
       당혹: string;
     };
@@ -140,7 +140,7 @@ interface MBTIPersonaFormData {
         놀람: string;
         호기심: string;
         불안: string;
-        단호: string;
+        피로: string;
         실망: string;
         당혹: string;
       };
@@ -154,7 +154,7 @@ interface MBTIPersonaFormData {
         놀람: string;
         호기심: string;
         불안: string;
-        단호: string;
+        피로: string;
         실망: string;
         당혹: string;
       };
@@ -167,7 +167,7 @@ interface MBTIPersonaFormData {
       놀람: string;
       호기심: string;
       불안: string;
-      단호: string;
+      피로: string;
       실망: string;
       당혹: string;
     };
@@ -191,6 +191,9 @@ export function PersonaManager() {
   
   // 기본 이미지 재생성 확인 다이얼로그
   const [showBaseImageConfirm, setShowBaseImageConfirm] = useState(false);
+  
+  // 개별 표정 이미지 생성 상태
+  const [generatingSingleEmotion, setGeneratingSingleEmotion] = useState<string | null>(null);
   
   const [formData, setFormData] = useState<MBTIPersonaFormData>({
     id: '',
@@ -230,7 +233,7 @@ export function PersonaManager() {
         놀람: '',
         호기심: '',
         불안: '',
-        단호: '',
+        피로: '',
         실망: '',
         당혹: ''
       }
@@ -511,6 +514,75 @@ export function PersonaManager() {
     }
   };
 
+  // 개별 표정 이미지 재생성 핸들러
+  const handleGenerateSingleExpression = async (emotion: string) => {
+    if (!formData.id || !formData.mbti || !formData.gender) {
+      toast({
+        title: "오류",
+        description: "페르소나 ID, MBTI, 성별이 필요합니다.",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    setGeneratingSingleEmotion(emotion);
+    
+    try {
+      const response = await apiRequest("POST", "/api/image/generate-persona-single-expression", {
+        personaId: formData.id,
+        mbti: formData.mbti,
+        gender: formData.gender,
+        personalityTraits: formData.personality_traits,
+        imageStyle: formData.images.style,
+        emotion
+      });
+
+      const result = await response.json();
+      
+      if (result.success) {
+        const timestamp = Date.now();
+        const imageUrlWithTimestamp = `${result.imageUrl}?t=${timestamp}`;
+        const currentGender = formData.gender;
+        
+        const updatedFormData = { ...formData };
+        const updatedImages = { ...updatedFormData.images };
+        
+        if (currentGender === 'male') {
+          const maleExpressions = { ...((updatedImages.male?.expressions as Record<string, string>) || {}) };
+          maleExpressions[emotion] = imageUrlWithTimestamp;
+          updatedImages.male = { expressions: maleExpressions as any };
+        } else {
+          const femaleExpressions = { ...((updatedImages.female?.expressions as Record<string, string>) || {}) };
+          femaleExpressions[emotion] = imageUrlWithTimestamp;
+          updatedImages.female = { expressions: femaleExpressions as any };
+        }
+        
+        if (emotion === '중립') {
+          updatedImages.base = imageUrlWithTimestamp;
+        }
+        
+        updatedFormData.images = updatedImages as any;
+        setFormData(updatedFormData);
+
+        toast({
+          title: "저장 중",
+          description: `${emotion} 표정 이미지가 생성되었습니다. 자동으로 저장 중입니다...`
+        });
+        
+        autoSavingRef.current = true;
+        updateMutation.mutate(updatedFormData);
+      }
+    } catch (error: any) {
+      toast({
+        title: "오류",
+        description: error.message || `${emotion} 표정 이미지 생성에 실패했습니다.`,
+        variant: "destructive"
+      });
+    } finally {
+      setGeneratingSingleEmotion(null);
+    }
+  };
+
   const resetForm = () => {
     setFormData({
       id: '',
@@ -542,8 +614,8 @@ export function PersonaManager() {
       images: {
         base: '',
         style: '',
-        male: { expressions: { 중립: '', 기쁨: '', 슬픔: '', 분노: '', 놀람: '', 호기심: '', 불안: '', 단호: '', 실망: '', 당혹: '' } },
-        female: { expressions: { 중립: '', 기쁨: '', 슬픔: '', 분노: '', 놀람: '', 호기심: '', 불안: '', 단호: '', 실망: '', 당혹: '' } }
+        male: { expressions: { 중립: '', 기쁨: '', 슬픔: '', 분노: '', 놀람: '', 호기심: '', 불안: '', 피로: '', 실망: '', 당혹: '' } },
+        female: { expressions: { 중립: '', 기쁨: '', 슬픔: '', 분노: '', 놀람: '', 호기심: '', 불안: '', 피로: '', 실망: '', 당혹: '' } }
       }
     });
   };
@@ -590,7 +662,7 @@ export function PersonaManager() {
             놀람: persona.images?.male?.expressions?.놀람 || '',
             호기심: persona.images?.male?.expressions?.호기심 || '',
             불안: persona.images?.male?.expressions?.불안 || '',
-            단호: persona.images?.male?.expressions?.단호 || '',
+            피로: persona.images?.male?.expressions?.피로 || '',
             실망: persona.images?.male?.expressions?.실망 || '',
             당혹: persona.images?.male?.expressions?.당혹 || ''
           }
@@ -604,7 +676,7 @@ export function PersonaManager() {
             놀람: persona.images?.female?.expressions?.놀람 || '',
             호기심: persona.images?.female?.expressions?.호기심 || '',
             불안: persona.images?.female?.expressions?.불안 || '',
-            단호: persona.images?.female?.expressions?.단호 || '',
+            피로: persona.images?.female?.expressions?.피로 || '',
             실망: persona.images?.female?.expressions?.실망 || '',
             당혹: persona.images?.female?.expressions?.당혹 || ''
           }
@@ -1094,7 +1166,7 @@ export function PersonaManager() {
                 </div>
 
                 <div className="grid grid-cols-5 gap-3">
-                  {['중립', '기쁨', '슬픔', '분노', '놀람', '호기심', '불안', '단호', '실망', '당혹'].map((emotion) => {
+                  {['중립', '기쁨', '슬픔', '분노', '놀람', '호기심', '불안', '피로', '실망', '당혹'].map((emotion) => {
                     const currentGender = formData.gender;
                     let imageUrl = '';
                     
@@ -1105,8 +1177,10 @@ export function PersonaManager() {
                       imageUrl = formData.images?.female?.expressions?.[emotion as keyof typeof formData.images.female.expressions] || '';
                     }
                     
+                    const isGenerating = generatingSingleEmotion === emotion;
+                    
                     return (
-                      <div key={emotion} className="flex flex-col items-center gap-2">
+                      <div key={emotion} className="flex flex-col items-center gap-1">
                         <div 
                           className={`w-20 h-20 rounded-lg border-2 border-slate-200 overflow-hidden bg-slate-50 flex items-center justify-center ${imageUrl ? 'cursor-pointer hover:border-blue-400 transition-colors' : ''}`}
                           onClick={() => {
@@ -1115,7 +1189,9 @@ export function PersonaManager() {
                             }
                           }}
                         >
-                          {imageUrl ? (
+                          {isGenerating ? (
+                            <RefreshCw className="w-5 h-5 text-slate-400 animate-spin" />
+                          ) : imageUrl ? (
                             <img 
                               src={imageUrl} 
                               alt={emotion} 
@@ -1125,7 +1201,24 @@ export function PersonaManager() {
                             <span className="text-xs text-slate-400">없음</span>
                           )}
                         </div>
-                        <span className="text-xs text-slate-600 font-medium">{emotion}</span>
+                        <div className="flex items-center gap-1">
+                          <span className="text-xs text-slate-600 font-medium">{emotion}</span>
+                          {editingPersona && (
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleGenerateSingleExpression(emotion);
+                              }}
+                              disabled={isGenerating || isGeneratingExpressions}
+                              className="p-0.5 rounded hover:bg-slate-200 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                              title={`${emotion} 이미지 재생성`}
+                              data-testid={`button-regenerate-${emotion}`}
+                            >
+                              <RefreshCw className={`w-3 h-3 text-slate-500 ${isGenerating ? 'animate-spin' : ''}`} />
+                            </button>
+                          )}
+                        </div>
                       </div>
                     );
                   })}

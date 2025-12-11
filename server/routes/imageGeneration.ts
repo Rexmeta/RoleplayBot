@@ -751,6 +751,177 @@ router.post('/generate-persona-expressions', async (req, res) => {
   }
 });
 
+// 단일 표정 이미지 재생성 엔드포인트
+router.post('/generate-persona-single-expression', async (req, res) => {
+  try {
+    const { personaId, mbti, gender, personalityTraits, imageStyle, emotion } = req.body;
+
+    if (!personaId || !mbti || !gender || !emotion) {
+      return res.status(400).json({ 
+        error: '페르소나 ID, MBTI, 성별, 표정이 필요합니다.' 
+      });
+    }
+
+    console.log(`🎨 페르소나 단일 표정 이미지 생성: ${personaId} - ${emotion} (${gender})`);
+
+    // 표정 매핑
+    const emotionMap: Record<string, { english: string; description: string }> = {
+      '중립': { english: 'neutral', description: 'neutral, calm, composed' },
+      '기쁨': { english: 'joy', description: 'joyful, happy, smiling broadly' },
+      '슬픔': { english: 'sad', description: 'sad, downcast, melancholic' },
+      '분노': { english: 'angry', description: 'angry, frustrated, upset' },
+      '놀람': { english: 'surprise', description: 'surprised, amazed, astonished' },
+      '호기심': { english: 'curious', description: 'curious, interested, intrigued' },
+      '불안': { english: 'anxious', description: 'anxious, worried, concerned' },
+      '피로': { english: 'tired', description: 'tired, exhausted, weary' },
+      '실망': { english: 'disappointed', description: 'disappointed, let down, discouraged' },
+      '당혹': { english: 'confused', description: 'confused, bewildered, perplexed' }
+    };
+
+    const emotionInfo = emotionMap[emotion];
+    if (!emotionInfo) {
+      return res.status(400).json({ 
+        error: '지원하지 않는 표정입니다.',
+        validEmotions: Object.keys(emotionMap)
+      });
+    }
+
+    // 중립 표정인 경우 기본 이미지 생성 로직 사용
+    if (emotion === '중립') {
+      const imagePrompt = generatePersonaImagePrompt(
+        mbti, 
+        gender, 
+        personalityTraits || [], 
+        imageStyle || ''
+      );
+
+      const ai = new GoogleGenAI({ apiKey: process.env.GOOGLE_API_KEY || process.env.GEMINI_API_KEY });
+      const result = await ai.models.generateContent({
+        model: "gemini-2.5-flash-image-preview",
+        contents: [{ role: 'user', parts: [{ text: imagePrompt }] }]
+      });
+
+      let imageUrl = null;
+      if (result.candidates && result.candidates[0] && result.candidates[0].content && result.candidates[0].content.parts) {
+        for (const part of result.candidates[0].content.parts) {
+          if (part.inlineData && part.inlineData.data && part.inlineData.mimeType) {
+            imageUrl = `data:${part.inlineData.mimeType};base64,${part.inlineData.data}`;
+            break;
+          }
+        }
+      }
+
+      if (!imageUrl) {
+        throw new Error('이미지가 생성되지 않았습니다.');
+      }
+
+      const localImagePath = await savePersonaImageToLocal(imageUrl, personaId, emotion, gender);
+      
+      trackImageUsage({
+        model: 'gemini-2.5-flash-image-preview',
+        provider: 'gemini',
+        metadata: { type: 'persona-single-expression', personaId, emotion, gender }
+      });
+
+      return res.json({
+        success: true,
+        emotion,
+        emotionEnglish: emotionInfo.english,
+        imageUrl: localImagePath,
+        metadata: { personaId, mbti, gender, model: "gemini-2.5-flash-image-preview" }
+      });
+    }
+
+    // 다른 표정의 경우 기본 이미지를 참조로 사용
+    const baseDir = path.join(process.cwd(), 'attached_assets', 'personas', personaId, gender);
+    const fallbackDir = path.join(process.cwd(), 'attached_assets', 'personas', personaId);
+    
+    let imagePathToUse = '';
+    const possiblePaths = [
+      path.join(baseDir, 'neutral.webp'),
+      path.join(baseDir, 'neutral.png'),
+      path.join(fallbackDir, 'neutral.webp'),
+      path.join(fallbackDir, 'neutral.png')
+    ];
+    
+    for (const p of possiblePaths) {
+      if (fs.existsSync(p)) {
+        imagePathToUse = p;
+        break;
+      }
+    }
+    
+    if (!imagePathToUse) {
+      return res.status(400).json({
+        error: '기본 이미지가 없습니다.',
+        details: `먼저 ${gender} 성별의 기본(중립) 이미지를 생성해주세요.`
+      });
+    }
+
+    const baseImageBuffer = fs.readFileSync(imagePathToUse);
+    const baseImageBase64 = baseImageBuffer.toString('base64');
+
+    const imagePrompt = generateExpressionImagePrompt(
+      mbti,
+      gender,
+      personalityTraits || [],
+      imageStyle || '',
+      emotionInfo.description
+    );
+
+    const ai = new GoogleGenAI({ apiKey: process.env.GOOGLE_API_KEY || process.env.GEMINI_API_KEY });
+    const result = await ai.models.generateContent({
+      model: "gemini-2.5-flash-image-preview",
+      contents: [{
+        role: 'user',
+        parts: [
+          { inlineData: { mimeType: 'image/png', data: baseImageBase64 } },
+          { text: imagePrompt }
+        ]
+      }]
+    });
+
+    let imageUrl = null;
+    if (result.candidates && result.candidates[0] && result.candidates[0].content && result.candidates[0].content.parts) {
+      for (const part of result.candidates[0].content.parts) {
+        if (part.inlineData && part.inlineData.data && part.inlineData.mimeType) {
+          imageUrl = `data:${part.inlineData.mimeType};base64,${part.inlineData.data}`;
+          break;
+        }
+      }
+    }
+
+    if (!imageUrl) {
+      throw new Error('이미지가 생성되지 않았습니다.');
+    }
+
+    const localImagePath = await savePersonaImageToLocal(imageUrl, personaId, emotion, gender);
+    
+    trackImageUsage({
+      model: 'gemini-2.5-flash-image-preview',
+      provider: 'gemini',
+      metadata: { type: 'persona-single-expression', personaId, emotion, gender }
+    });
+
+    console.log(`✅ ${emotion} 표정 이미지 생성 완료: ${localImagePath}`);
+
+    res.json({
+      success: true,
+      emotion,
+      emotionEnglish: emotionInfo.english,
+      imageUrl: localImagePath,
+      metadata: { personaId, mbti, gender, model: "gemini-2.5-flash-image-preview" }
+    });
+
+  } catch (error: any) {
+    console.error('단일 표정 이미지 생성 오류:', error);
+    res.status(500).json({
+      error: '표정 이미지 생성 실패',
+      details: error.message || '알 수 없는 오류가 발생했습니다.'
+    });
+  }
+});
+
 // 특정 표정 이미지 생성 프롬프트 구성 함수
 function generateExpressionImagePrompt(
   mbti: string,
