@@ -8,6 +8,29 @@ import { trackUsage } from './aiUsageTracker';
 // Default Gemini Live API model (updated December 2025)
 const DEFAULT_REALTIME_MODEL = 'gemini-2.5-flash-native-audio-preview-09-2025';
 
+// Gemini의 thinking/reasoning 텍스트를 필터링하고 한국어 응답만 추출
+function filterThinkingText(text: string): string {
+  if (!text) return '';
+  
+  // 패턴 1: **제목** 형식의 thinking 블록 제거
+  // 예: "**Beginning the Briefing**\nI've initiated..."
+  let filtered = text.replace(/\*\*[^*]+\*\*\s*/g, '');
+  
+  // 패턴 2: 영문으로만 구성된 줄 제거 (한글이 없는 줄)
+  const lines = filtered.split('\n');
+  const koreanLines = lines.filter(line => {
+    const trimmed = line.trim();
+    if (!trimmed) return false;
+    // 한글이 포함된 줄만 유지
+    return /[\uAC00-\uD7AF\u1100-\u11FF\u3130-\u318F]/.test(trimmed);
+  });
+  
+  filtered = koreanLines.join('\n').trim();
+  
+  // 패턴 3: 남은 텍스트에서 앞뒤 공백 정리
+  return filtered;
+}
+
 interface RealtimeSession {
   id: string;
   conversationId: string;
@@ -403,27 +426,32 @@ export class RealtimeVoiceService {
 
         // Analyze emotion for the completed AI transcript
         if (session.currentTranscript) {
-          this.analyzeEmotion(session.currentTranscript, session.personaName)
-            .then(({ emotion, emotionReason }) => {
-              console.log(`😊 Emotion analyzed: ${emotion} (${emotionReason})`);
-              this.sendToClient(session, {
-                type: 'ai.transcription.done',
-                text: session.currentTranscript,
-                emotion,
-                emotionReason,
+          // thinking 텍스트 필터링 - 한국어 응답만 추출
+          const filteredTranscript = filterThinkingText(session.currentTranscript);
+          console.log(`📝 Filtered transcript: "${filteredTranscript.substring(0, 100)}..."`);
+          
+          if (filteredTranscript) {
+            this.analyzeEmotion(filteredTranscript, session.personaName)
+              .then(({ emotion, emotionReason }) => {
+                console.log(`😊 Emotion analyzed: ${emotion} (${emotionReason})`);
+                this.sendToClient(session, {
+                  type: 'ai.transcription.done',
+                  text: filteredTranscript,
+                  emotion,
+                  emotionReason,
+                });
+              })
+              .catch(error => {
+                console.error('❌ Failed to analyze emotion:', error);
+                this.sendToClient(session, {
+                  type: 'ai.transcription.done',
+                  text: filteredTranscript,
+                  emotion: '중립',
+                  emotionReason: '감정 분석 실패',
+                });
               });
-              session.currentTranscript = ''; // Reset for next turn
-            })
-            .catch(error => {
-              console.error('❌ Failed to analyze emotion:', error);
-              this.sendToClient(session, {
-                type: 'ai.transcription.done',
-                text: session.currentTranscript,
-                emotion: '중립',
-                emotionReason: '감정 분석 실패',
-              });
-              session.currentTranscript = '';
-            });
+          }
+          session.currentTranscript = ''; // Reset for next turn
         }
       }
 
@@ -435,12 +463,16 @@ export class RealtimeVoiceService {
         for (const part of parts) {
           // Handle text transcription
           if (part.text) {
-            console.log(`🤖 AI transcript: ${part.text}`);
+            console.log(`🤖 AI transcript (raw): ${part.text.substring(0, 100)}...`);
             session.currentTranscript += part.text;
-            this.sendToClient(session, {
-              type: 'ai.transcription.delta',
-              text: part.text,
-            });
+            // thinking 텍스트 필터링 - 한국어만 클라이언트에 전송
+            const filteredText = filterThinkingText(part.text);
+            if (filteredText) {
+              this.sendToClient(session, {
+                type: 'ai.transcription.delta',
+                text: filteredText,
+              });
+            }
           }
           
           // Handle inline audio data (inlineData 형식)
@@ -471,12 +503,21 @@ export class RealtimeVoiceService {
       // modelTurn.parts.text와 outputTranscription.text가 동일 내용이므로 여기서만 추적
       if (serverContent.outputTranscription) {
         const transcript = serverContent.outputTranscription.text || '';
-        console.log(`🤖 AI transcript delta: ${transcript}`);
+        console.log(`🤖 AI transcript delta (raw): ${transcript}`);
         // currentTranscript는 modelTurn에서 이미 누적되므로 여기서는 길이만 추적
         if (!serverContent.modelTurn) {
           session.currentTranscript += transcript;
         }
         session.totalAiTranscriptLength += transcript.length; // 누적 길이 추적 (여기서만)
+        
+        // thinking 텍스트 필터링 - 한국어만 클라이언트에 전송
+        const filteredTranscript = filterThinkingText(transcript);
+        if (filteredTranscript) {
+          this.sendToClient(session, {
+            type: 'ai.transcription.delta',
+            text: filteredTranscript,
+          });
+        }
       }
     }
   }
