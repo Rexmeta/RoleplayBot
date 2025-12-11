@@ -46,12 +46,15 @@ export default function ScenarioSelector({ onScenarioSelect, playerProfile }: Sc
     const isCurrentlyExpanded = expandedScenarioId === scenarioId;
     setExpandedScenarioId(prev => prev === scenarioId ? null : scenarioId);
     
-    // 카드 클릭 시 해당 카드 상단이 화면 상단에 위치하도록 스크롤 (펼침 애니메이션 완료 후)
+    // 카드 클릭 시 카테고리 뱃지가 화면 상단에 위치하도록 스크롤 (펼침 애니메이션 완료 후)
     if (!isCurrentlyExpanded) {
       setTimeout(() => {
         const card = document.querySelector(`[data-testid="scenario-card-${scenarioId}"]`)?.closest('.group');
         if (card) {
-          card.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          const rect = card.getBoundingClientRect();
+          // 카드 상단이 화면 최상단에 위치하도록 스크롤 (헤더 고려하여 약간 여백)
+          const scrollTop = window.scrollY + rect.top - 16;
+          window.scrollTo({ top: Math.max(0, scrollTop), behavior: 'smooth' });
         }
       }, 400);
     }
