@@ -219,6 +219,11 @@ export class RealtimeVoiceService {
       `당신은 AI가 아닌 ${scenarioPersona.name}이라는 진짜 사람입니다.`,
       `반드시 한국어로만 대화하세요.`,
       `컨텍스트를 유지하며 이전 대화 내용을 기억하고 연결하세요.`,
+      ``,
+      `# 🎬 대화 시작 지침`,
+      `세션이 시작되면 반드시 먼저 인사를 건네며 대화를 시작하세요.`,
+      `상대방이 말을 걸 때까지 기다리지 말고, 당신이 먼저 상황에 맞는 인사나 첫 마디를 하세요.`,
+      `예시: "안녕하세요, 급한 건으로 찾아뵙게 됐습니다.", "오셨군요, 지금 상황이 좀 급합니다."`,
     ];
 
     return instructions.join('\n');
@@ -333,7 +338,9 @@ export class RealtimeVoiceService {
 
       // Send first greeting trigger after connection is established
       console.log('🎬 Triggering AI to start first greeting...');
-      const firstMessage = `지금 바로 시작하세요. 급한 일입니다. 짧고 강하게 인사하세요.`;
+      
+      // 첫 인사를 유도하는 트리거 - 상대방이 도착했음을 알려 AI가 먼저 인사하도록 함
+      const firstMessage = `(상대방이 방금 도착했습니다. 당신이 먼저 인사를 건네세요.)`;
       
       geminiSession.sendClientContent({
         turns: [{ role: 'user', parts: [{ text: firstMessage }] }],
@@ -347,12 +354,18 @@ export class RealtimeVoiceService {
   }
 
   private handleGeminiMessage(session: RealtimeSession, message: any): void {
-    // Gemini Live API message structure
-    console.log(`📨 Gemini message type:`, message.serverContent ? 'serverContent' : message.data ? 'audio data' : 'other');
+    // Gemini Live API message structure - 상세 디버깅
+    const msgType = message.serverContent ? 'serverContent' : message.data ? 'audio data' : 'other';
+    console.log(`📨 Gemini message type: ${msgType}`);
+    
+    // 디버깅: 'other' 타입이면 전체 구조 출력
+    if (msgType === 'other') {
+      console.log(`🔍 Unknown message structure:`, JSON.stringify(message, null, 2).substring(0, 500));
+    }
 
-    // Handle audio data chunks
+    // Handle audio data chunks (top-level data field)
     if (message.data) {
-      console.log('🔊 Audio data received');
+      console.log('🔊 Audio data received (top-level)');
       this.sendToClient(session, {
         type: 'audio.delta',
         delta: message.data, // Base64 encoded PCM16 audio
@@ -363,6 +376,13 @@ export class RealtimeVoiceService {
     // Handle server content (transcriptions, turn completion, etc.)
     if (message.serverContent) {
       const { serverContent } = message;
+      
+      // 디버깅: serverContent 구조 상세 로깅
+      const hasModelTurn = !!serverContent.modelTurn;
+      const hasTurnComplete = !!serverContent.turnComplete;
+      const hasInputTranscription = !!serverContent.inputTranscription;
+      const hasOutputTranscription = !!serverContent.outputTranscription;
+      console.log(`📋 serverContent: modelTurn=${hasModelTurn}, turnComplete=${hasTurnComplete}, inputTx=${hasInputTranscription}, outputTx=${hasOutputTranscription}`);
 
       // Handle turn completion
       if (serverContent.turnComplete) {
@@ -407,19 +427,33 @@ export class RealtimeVoiceService {
         }
       }
 
-      // Handle model turn (AI response) - 토큰 추적은 outputTranscription에서만 수행 (중복 방지)
+      // Handle model turn (AI response) - 오디오와 텍스트 모두 처리
       if (serverContent.modelTurn) {
         const parts = serverContent.modelTurn.parts || [];
+        console.log(`🎭 modelTurn parts count: ${parts.length}`);
+        
         for (const part of parts) {
           // Handle text transcription
           if (part.text) {
             console.log(`🤖 AI transcript: ${part.text}`);
             session.currentTranscript += part.text;
-            // Note: 토큰 길이는 outputTranscription에서만 추적 (modelTurn과 중복되므로)
             this.sendToClient(session, {
               type: 'ai.transcription.delta',
               text: part.text,
             });
+          }
+          
+          // Handle inline audio data (inlineData 형식)
+          if (part.inlineData) {
+            const audioData = part.inlineData.data;
+            const mimeType = part.inlineData.mimeType || 'audio/pcm';
+            console.log(`🔊 Audio data received (inlineData), mimeType: ${mimeType}, length: ${audioData?.length || 0}`);
+            if (audioData) {
+              this.sendToClient(session, {
+                type: 'audio.delta',
+                delta: audioData,
+              });
+            }
           }
         }
       }
