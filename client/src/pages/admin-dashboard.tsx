@@ -131,10 +131,20 @@ interface MbtiEmotionData {
   }>;
 }
 
+interface DifficultyEmotionData {
+  difficultyStats: Array<{
+    difficulty: number;
+    difficultyName: string;
+    emotions: Array<{ emotion: string; emoji: string; count: number; percentage: number }>;
+    totalCount: number;
+    topEmotion: { emotion: string; emoji: string; count: number } | null;
+  }>;
+}
+
 export default function AdminDashboard() {
   const { user } = useAuth();
   const [showMobileTabMenu, setShowMobileTabMenu] = useState(false);
-  const [emotionScope, setEmotionScope] = useState<'overall' | 'scenario' | 'mbti'>('overall');
+  const [emotionScope, setEmotionScope] = useState<'overall' | 'scenario' | 'mbti' | 'difficulty'>('overall');
 
   const { data: overview, isLoading: overviewLoading } = useQuery<AnalyticsOverview>({
     queryKey: ["/api/admin/analytics/overview"],
@@ -172,6 +182,13 @@ export default function AdminDashboard() {
     staleTime: 1000 * 60 * 10,
     gcTime: 1000 * 60 * 30,
     enabled: emotionScope === 'mbti',
+  });
+
+  const { data: difficultyEmotions } = useQuery<DifficultyEmotionData>({
+    queryKey: ["/api/admin/analytics/emotions/by-difficulty"],
+    staleTime: 1000 * 60 * 10,
+    gcTime: 1000 * 60 * 30,
+    enabled: emotionScope === 'difficulty',
   });
 
   // 현재 시나리오 구조에 맞게 시나리오 데이터 가져오기
@@ -1073,6 +1090,13 @@ export default function AdminDashboard() {
             >
               MBTI별
             </button>
+            <button
+              onClick={() => setEmotionScope('difficulty')}
+              className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${emotionScope === 'difficulty' ? 'bg-white shadow-sm text-purple-700' : 'text-slate-600 hover:text-slate-900'}`}
+              data-testid="emotion-scope-difficulty"
+            >
+              난이도별
+            </button>
           </div>
 
           {/* Overall View */}
@@ -1316,6 +1340,150 @@ export default function AdminDashboard() {
                         <Bar dataKey="count" fill="#6366f1" radius={[4, 4, 0, 0]} />
                       </BarChart>
                     </ResponsiveContainer>
+                  </CardContent>
+                </Card>
+              )}
+            </>
+          )}
+
+          {/* Difficulty View */}
+          {emotionScope === 'difficulty' && (
+            <>
+              <Card data-testid="card-difficulty-emotion-summary">
+                <CardHeader>
+                  <CardTitle><CardInfo title="난이도별 감정 현황" description="각 난이도 레벨에서 AI가 표현한 감정의 분포를 보여줍니다." /></CardTitle>
+                </CardHeader>
+                <CardContent>
+                  {!difficultyEmotions?.difficultyStats?.length ? (
+                    <div className="text-center py-8 text-slate-500">난이도별 감정 데이터가 없습니다.</div>
+                  ) : (
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                      {difficultyEmotions.difficultyStats.map((diff) => {
+                        const difficultyColors: Record<number, string> = {
+                          1: 'bg-green-100 border-green-300',
+                          2: 'bg-blue-100 border-blue-300',
+                          3: 'bg-orange-100 border-orange-300',
+                          4: 'bg-red-100 border-red-300'
+                        };
+                        return (
+                          <div key={diff.difficulty} className={`border-2 rounded-lg p-4 ${difficultyColors[diff.difficulty] || 'bg-slate-100 border-slate-300'}`}>
+                            <div className="flex justify-between items-center mb-3">
+                              <div>
+                                <span className="font-bold text-lg">{diff.difficultyName}</span>
+                                <span className="ml-2 text-sm text-slate-500">Lv.{diff.difficulty}</span>
+                              </div>
+                              {diff.topEmotion && (
+                                <span className="text-2xl" title={`주요 감정: ${diff.topEmotion.emotion}`}>
+                                  {diff.topEmotion.emoji}
+                                </span>
+                              )}
+                            </div>
+                            <p className="text-sm text-slate-600 mb-3">총 {diff.totalCount}회 감정 표현</p>
+                            <div className="flex flex-wrap gap-2">
+                              {diff.emotions.slice(0, 4).map((e) => (
+                                <span 
+                                  key={e.emotion}
+                                  className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-white/80 text-slate-700"
+                                >
+                                  {e.emoji} {e.percentage}%
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+
+              {/* Difficulty Emotion Comparison Chart */}
+              {difficultyEmotions?.difficultyStats && difficultyEmotions.difficultyStats.length > 0 && (
+                <Card data-testid="card-difficulty-emotion-chart">
+                  <CardHeader>
+                    <CardTitle><CardInfo title="난이도별 감정 빈도 비교" description="난이도별로 총 감정 표현 횟수를 비교합니다. 높은 난이도에서 더 다양한 감정이 나타날 수 있습니다." /></CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <ResponsiveContainer width="100%" height={350}>
+                      <BarChart data={difficultyEmotions.difficultyStats.map(d => ({
+                        name: d.difficultyName,
+                        count: d.totalCount,
+                        topEmotion: d.topEmotion?.emoji || ''
+                      }))}>
+                        <CartesianGrid strokeDasharray="3 3" />
+                        <XAxis dataKey="name" />
+                        <YAxis />
+                        <Tooltip 
+                          formatter={(value: number) => [`${value}회`, '감정 표현 횟수']}
+                          labelFormatter={(label) => {
+                            const diff = difficultyEmotions.difficultyStats.find(d => d.difficultyName === label);
+                            return diff?.topEmotion ? `${label} (주요: ${diff.topEmotion.emoji} ${diff.topEmotion.emotion})` : label;
+                          }}
+                        />
+                        <Bar dataKey="count" radius={[4, 4, 0, 0]}>
+                          {difficultyEmotions.difficultyStats.map((d, idx) => {
+                            const colors = ['#22c55e', '#3b82f6', '#f97316', '#ef4444'];
+                            return <Cell key={`cell-${idx}`} fill={colors[d.difficulty - 1] || '#8b5cf6'} />;
+                          })}
+                        </Bar>
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </CardContent>
+                </Card>
+              )}
+
+              {/* Difficulty Emotion Detail Table */}
+              {difficultyEmotions?.difficultyStats && difficultyEmotions.difficultyStats.length > 0 && (
+                <Card data-testid="card-difficulty-emotion-table">
+                  <CardHeader>
+                    <CardTitle><CardInfo title="난이도별 감정 상세 분석" description="각 난이도에서 어떤 감정이 얼마나 표현되었는지 상세하게 확인합니다." /></CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-sm">
+                        <thead>
+                          <tr className="border-b">
+                            <th className="text-left py-2 px-3 font-medium">난이도</th>
+                            <th className="text-left py-2 px-3 font-medium">주요 감정</th>
+                            <th className="text-right py-2 px-3 font-medium">감정 표현 수</th>
+                            <th className="text-left py-2 px-3 font-medium">감정 분포</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {difficultyEmotions.difficultyStats.map((diff) => (
+                            <tr key={diff.difficulty} className="border-b hover:bg-slate-50">
+                              <td className="py-3 px-3">
+                                <span className="font-medium">{diff.difficultyName}</span>
+                                <span className="ml-1 text-xs text-slate-400">(Lv.{diff.difficulty})</span>
+                              </td>
+                              <td className="py-3 px-3">
+                                {diff.topEmotion ? (
+                                  <span className="inline-flex items-center gap-1">
+                                    <span className="text-lg">{diff.topEmotion.emoji}</span>
+                                    <span>{diff.topEmotion.emotion}</span>
+                                    <span className="text-xs text-slate-500">({diff.topEmotion.count}회)</span>
+                                  </span>
+                                ) : '-'}
+                              </td>
+                              <td className="py-3 px-3 text-right font-medium">{diff.totalCount}회</td>
+                              <td className="py-3 px-3">
+                                <div className="flex flex-wrap gap-1">
+                                  {diff.emotions.slice(0, 5).map((e) => (
+                                    <span 
+                                      key={e.emotion}
+                                      className="inline-flex items-center px-1.5 py-0.5 rounded text-xs bg-slate-100"
+                                      title={`${e.emotion}: ${e.count}회`}
+                                    >
+                                      {e.emoji} {e.percentage}%
+                                    </span>
+                                  ))}
+                                </div>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
                   </CardContent>
                 </Card>
               )}
