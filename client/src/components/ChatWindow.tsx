@@ -1148,9 +1148,9 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
       )}
       <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
         {/* Chat Header */}
-        <div className="bg-gradient-to-r from-corporate-600 to-corporate-700 px-6 py-4 text-white">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-4">
+        <div className="bg-gradient-to-r from-corporate-600 to-corporate-700 px-4 sm:px-6 py-3 sm:py-4 text-white">
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex items-center space-x-3 sm:space-x-4 min-w-0 flex-1">
               <button 
                 onClick={(e) => {
                   e.preventDefault();
@@ -1165,21 +1165,21 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
                     window.location.reload();
                   }
                 }}
-                className="hover:opacity-80 transition-opacity bg-transparent border-none" 
+                className="hover:opacity-80 transition-opacity bg-transparent border-none flex-shrink-0" 
                 data-testid="chat-header-home-link"
               >
-                <div className="w-12 h-12 rounded-xl border-2 border-white/20 hover:border-white/40 cursor-pointer overflow-hidden bg-slate-200 shadow-md">
+                <div className="w-14 h-14 sm:w-12 sm:h-12 rounded-xl border-2 border-white/30 hover:border-white/50 cursor-pointer overflow-hidden bg-gradient-to-br from-slate-100 to-slate-200 shadow-lg">
                   <img 
                     src={getCharacterImage(currentEmotion) || persona.image} 
                     alt={persona.name} 
-                    className="w-full h-full object-cover object-top transition-opacity duration-200" 
+                    className="w-full h-full object-cover object-[center_15%] transition-all duration-200 scale-110" 
                     onError={(e) => {
-                      (e.target as HTMLImageElement).src = `https://ui-avatars.com/api/?name=${encodeURIComponent(persona.name)}&background=6366f1&color=fff&size=48`;
+                      (e.target as HTMLImageElement).src = `https://ui-avatars.com/api/?name=${encodeURIComponent(persona.name)}&background=6366f1&color=fff&size=64`;
                     }}
                   />
                 </div>
               </button>
-              <div>
+              <div className="min-w-0 flex-1">
                 <button 
                   onClick={(e) => {
                     e.preventDefault();
@@ -1187,17 +1187,17 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
                     console.log("제목 클릭됨");
                     try {
                       console.log("제목에서 onExit 함수 직접 호출");
-                      onExit(); // 시나리오 선택 화면으로 돌아가기
+                      onExit();
                     } catch (error) {
                       console.error("제목에서 onExit 오류:", error);
                       window.location.reload();
                     }
                   }}
-                  className="hover:opacity-90 transition-opacity cursor-pointer text-left bg-transparent border-none" 
+                  className="hover:opacity-90 transition-opacity cursor-pointer text-left bg-transparent border-none w-full" 
                   data-testid="chat-title-home-link"
                 >
-                  <h3 className="text-lg font-semibold">{persona.department} {persona.role} {persona.name}과의 대화</h3>
-                  <p className="text-blue-100 text-sm">{scenario.title}</p>
+                  <h3 className="text-base sm:text-lg font-semibold truncate">{persona.name} ({persona.department})</h3>
+                  <p className="text-blue-100 text-xs sm:text-sm truncate">{scenario.title}</p>
                 </button>
               </div>
             </div>
