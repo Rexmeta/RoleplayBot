@@ -1202,45 +1202,6 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
                 </button>
               </div>
             </div>
-            <div className="flex items-center">
-              {/* 모드 토글 버튼 */}
-              <div className="flex items-center bg-white/10 rounded-lg p-0.5">
-                <button
-                  onClick={() => {
-                    if (!isTransitioning && chatMode === 'character') {
-                      setChatMode('messenger');
-                    }
-                  }}
-                  className={`p-2 rounded-md transition-all duration-200 ${
-                    chatMode === 'messenger' 
-                      ? 'bg-white text-corporate-600 shadow-sm' 
-                      : 'text-white/70 hover:text-white hover:bg-white/10'
-                  }`}
-                  disabled={isTransitioning || chatMode === 'messenger'}
-                  data-testid="button-messenger-mode"
-                  title="메신저 모드"
-                >
-                  <MessageSquare className="w-4 h-4" />
-                </button>
-                <button
-                  onClick={() => {
-                    if (!isTransitioning && chatMode === 'messenger') {
-                      handleCharacterModeTransition();
-                    }
-                  }}
-                  className={`p-2 rounded-md transition-all duration-200 ${
-                    chatMode === 'character' 
-                      ? 'bg-white text-corporate-600 shadow-sm' 
-                      : 'text-white/70 hover:text-white hover:bg-white/10'
-                  }`}
-                  disabled={isTransitioning || chatMode === 'character'}
-                  data-testid="button-character-mode"
-                  title="캐릭터 모드"
-                >
-                  <User className="w-4 h-4" />
-                </button>
-              </div>
-            </div>
           </div>
           
           {/* Progress Bar with Stats */}
@@ -1266,6 +1227,35 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
 
         {/* Main Content Area */}
         <div className="relative flex-1 flex flex-col">
+          {/* 모드 토글 버튼 - 메신저 모드 */}
+          {chatMode === 'messenger' && (
+            <div className="absolute top-2 right-2 z-20">
+              <div className="flex items-center bg-slate-200/80 backdrop-blur-sm rounded-lg p-0.5 shadow-lg">
+                <button
+                  className={`p-2 rounded-md transition-all duration-200 bg-white text-corporate-600 shadow-sm`}
+                  disabled={true}
+                  data-testid="button-messenger-mode"
+                  title="메신저 모드"
+                >
+                  <MessageSquare className="w-4 h-4" />
+                </button>
+                <button
+                  onClick={() => {
+                    if (!isTransitioning) {
+                      handleCharacterModeTransition();
+                    }
+                  }}
+                  className={`p-2 rounded-md transition-all duration-200 text-slate-500 hover:text-slate-700 hover:bg-white/50`}
+                  disabled={isTransitioning}
+                  data-testid="button-character-mode"
+                  title="캐릭터 모드"
+                >
+                  <User className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+          )}
+          
           {/* Chat Messages Area */}
           {chatMode === 'messenger' && (
             <>
