@@ -44,6 +44,7 @@ export default function Home() {
   const [isVideoTransitioning, setIsVideoTransitioning] = useState(false); // 인트로 영상 → 대화 전환 중 상태
   const [isFeedbackGenerating, setIsFeedbackGenerating] = useState(false); // 피드백 생성 중 상태
   const [isTransitioningToFeedback, setIsTransitioningToFeedback] = useState(false); // 대화 종료 → 피드백 전환 중 상태
+  const [isHeaderVisible, setIsHeaderVisible] = useState(false); // 상세 페이지에서 헤더 표시 상태
 
   // 동적으로 시나리오와 페르소나 데이터 로드
   const { data: scenarios = [] } = useQuery({
@@ -425,9 +426,13 @@ export default function Home() {
     }
   };
 
+  // 상세 페이지 여부 (시나리오 목록 제외)
+  const isDetailPage = currentView !== "scenarios";
+
   return (
     <div className="min-h-screen bg-slate-50">
-      {currentView !== "chat" && (
+      {/* 시나리오 목록에서는 항상 헤더 표시 */}
+      {!isDetailPage && (
         <AppHeader 
           onLogoClick={() => {
             setCurrentView('scenarios');
@@ -437,6 +442,49 @@ export default function Home() {
           }}
         />
       )}
+      
+      {/* 상세 페이지에서는 토글 가능한 헤더 */}
+      {isDetailPage && isHeaderVisible && (
+        <div className="relative">
+          <AppHeader 
+            onLogoClick={() => {
+              setCurrentView('scenarios');
+              setSelectedScenario(null);
+              setSelectedPersona(null);
+              setConversationId(null);
+              setIsHeaderVisible(false);
+            }}
+          />
+          <button
+            onClick={() => setIsHeaderVisible(false)}
+            className="absolute right-4 top-1/2 -translate-y-1/2 p-2 text-slate-500 hover:text-slate-700 transition-colors"
+            data-testid="button-hide-header"
+            title="헤더 숨기기"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="18 15 12 9 6 15"></polyline>
+            </svg>
+          </button>
+        </div>
+      )}
+      
+      {/* 상세 페이지에서 헤더가 숨겨졌을 때 토글 버튼 */}
+      {isDetailPage && !isHeaderVisible && (
+        <div className="flex justify-center pt-2 pb-1">
+          <button
+            onClick={() => setIsHeaderVisible(true)}
+            className="flex items-center gap-1 px-3 py-1.5 text-xs text-slate-500 hover:text-slate-700 hover:bg-slate-100 rounded-full transition-colors"
+            data-testid="button-show-header"
+            title="헤더 보기"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="6 9 12 15 18 9"></polyline>
+            </svg>
+            <span>메뉴</span>
+          </button>
+        </div>
+      )}
+      
       {/* Main Content */}
       <main className={`${currentView === "scenarios" ? "py-8 bg-slate-50" : "max-w-6xl mx-auto px-4 py-8"}`}>
         {currentView === "scenarios" && (
