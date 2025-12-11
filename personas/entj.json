@@ -1,7 +1,7 @@
 {
   "id": "entj",
   "mbti": "ENTJ",
-  "gender": "female",
+  "gender": "male",
   "personality_traits": [
     "리더십",
     "전략적 사고",
@@ -52,20 +52,20 @@
     "emotion": "결단과 자신감"
   },
   "images": {
-    "base": "/personas/entj/neutral.webp",
-    "style": "한국인 무표정 웃지 않음. 빈 사무실 상반신 전체가 나오도록 ",
+    "base": "/personas/entj/male/neutral.webp?t=1765417353777",
+    "style": "한국인 무표정 웃지 않음. 상반신 전체, 손까지 나오도록 앉아 있는 모습, 독특한 헤어스타일 ",
     "male": {
       "expressions": {
-        "중립": "/personas/entj/male/neutral.webp",
-        "기쁨": "/personas/entj/male/joy.webp",
-        "슬픔": "/personas/entj/male/sad.webp",
-        "분노": "/personas/entj/male/angry.webp",
-        "놀람": "/personas/entj/male/surprise.webp",
-        "호기심": "/personas/entj/male/curious.webp",
-        "불안": "/personas/entj/male/anxious.webp",
-        "피로": "/personas/entj/male/tired.webp",
-        "실망": "/personas/entj/male/disappointed.webp",
-        "당혹": "/personas/entj/male/confused.webp"
+        "중립": "/personas/entj/male/neutral.webp?t=1765417353777",
+        "기쁨": "/personas/entj/male/joy.webp?t=1765417456120",
+        "슬픔": "/personas/entj/male/sad.webp?t=1765417456120",
+        "분노": "/personas/entj/male/angry.webp?t=1765417456120",
+        "놀람": "/personas/entj/male/surprise.webp?t=1765417456120",
+        "호기심": "/personas/entj/male/curious.webp?t=1765417456120",
+        "불안": "/personas/entj/male/anxious.webp?t=1765417456120",
+        "피로": "/personas/entj/male/tired.webp?t=1765417456120",
+        "실망": "/personas/entj/male/disappointed.webp?t=1765417456120",
+        "당혹": "/personas/entj/male/confused.webp?t=1765417456120"
       }
     },
     "female": {
