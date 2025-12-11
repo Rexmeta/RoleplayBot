@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
+import { MessageSquare, User } from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
 import { Card } from "@/components/ui/card";
 import { AspectRatio } from "@/components/ui/aspect-ratio";
@@ -1201,24 +1202,44 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
                 </button>
               </div>
             </div>
-            <div className="flex items-center space-x-4">
-              {/* 캐릭터 모드 버튼 */}
-              <Button
-                onClick={() => {
-                  if (!isTransitioning && chatMode === 'messenger') {
-                    handleCharacterModeTransition();
-                  }
-                }}
-                variant="ghost"
-                size="sm"
-                className={`text-white/80 hover:text-white hover:bg-white/10 px-3 py-1 text-xs ${
-                  chatMode === 'character' ? 'bg-white/20 text-white' : ''
-                }`}
-                disabled={isTransitioning || chatMode === 'character'}
-                data-testid="button-character-mode"
-              >
-                캐릭터
-              </Button>
+            <div className="flex items-center">
+              {/* 모드 토글 버튼 */}
+              <div className="flex items-center bg-white/10 rounded-lg p-0.5">
+                <button
+                  onClick={() => {
+                    if (!isTransitioning && chatMode === 'character') {
+                      setChatMode('messenger');
+                    }
+                  }}
+                  className={`p-2 rounded-md transition-all duration-200 ${
+                    chatMode === 'messenger' 
+                      ? 'bg-white text-corporate-600 shadow-sm' 
+                      : 'text-white/70 hover:text-white hover:bg-white/10'
+                  }`}
+                  disabled={isTransitioning || chatMode === 'messenger'}
+                  data-testid="button-messenger-mode"
+                  title="메신저 모드"
+                >
+                  <MessageSquare className="w-4 h-4" />
+                </button>
+                <button
+                  onClick={() => {
+                    if (!isTransitioning && chatMode === 'messenger') {
+                      handleCharacterModeTransition();
+                    }
+                  }}
+                  className={`p-2 rounded-md transition-all duration-200 ${
+                    chatMode === 'character' 
+                      ? 'bg-white text-corporate-600 shadow-sm' 
+                      : 'text-white/70 hover:text-white hover:bg-white/10'
+                  }`}
+                  disabled={isTransitioning || chatMode === 'character'}
+                  data-testid="button-character-mode"
+                  title="캐릭터 모드"
+                >
+                  <User className="w-4 h-4" />
+                </button>
+              </div>
             </div>
           </div>
           
