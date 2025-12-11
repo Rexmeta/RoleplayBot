@@ -1166,7 +1166,7 @@ export function PersonaManager() {
                 </div>
 
                 <div className="grid grid-cols-5 gap-3">
-                  {['중립', '기쁨', '슬픔', '분노', '놀람', '호기심', '불안', '피로', '실망', '당혹'].map((emotion) => {
+                  {['중립', '기쁨', '슬픔', '분노', '놀람', '호기심', '불안', '단호', '실망', '당혹'].map((emotion) => {
                     const currentGender = formData.gender;
                     let imageUrl = '';
                     
