@@ -373,8 +373,8 @@ export function SimplePersonaSelector({
               </CardContent>
             </Card>
 
-            {/* 페르소나 목록 - 2열 그리드 */}
-            <div className="grid grid-cols-2 gap-3">
+            {/* 페르소나 목록 - 작은화면 3열, 큰화면(오른쪽 배치시) 2열 */}
+            <div className="grid grid-cols-3 lg:grid-cols-2 gap-3">
               {personas.map((persona) => {
                 const isCompleted = completedPersonaIds.includes(persona.id);
                 const isCurrentlyLoading = loadingPersonaId === persona.id;
@@ -421,7 +421,7 @@ export function SimplePersonaSelector({
                       </div>
 
                       {/* 페르소나 정보 - 이름, 직급, 소속을 가로 배열 */}
-                      <div className="p-3">
+                      <div className="p-4">
                         <div className="flex items-center flex-wrap gap-x-1.5 gap-y-0.5 mb-2">
                           <h3 className="font-bold text-sm text-slate-900">{persona.name}</h3>
                           <span className="text-slate-400 text-xs">·</span>
@@ -434,9 +434,9 @@ export function SimplePersonaSelector({
                           )}
                         </div>
 
-                        {/* 입장/목표 미리보기 */}
+                        {/* 입장/목표 미리보기 - 확장된 텍스트 영역 */}
                         {persona.stance && (
-                          <p className="text-xs text-slate-500 line-clamp-2 mb-2">
+                          <p className="text-xs text-slate-500 line-clamp-4 mb-3 leading-relaxed">
                             {persona.stance}
                           </p>
                         )}
