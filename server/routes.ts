@@ -28,6 +28,29 @@ export async function registerRoutes(app: Express): Promise<Server> {
   const { setupAuth, isAuthenticated } = await import('./auth');
   setupAuth(app);
   
+  // 시스템 헬스체크 엔드포인트 (운영 모니터링용)
+  app.get('/api/health', (req, res) => {
+    const memoryUsage = process.memoryUsage();
+    const activeRealtimeSessions = realtimeVoiceService.getActiveSessionCount();
+    
+    res.json({
+      status: 'healthy',
+      timestamp: new Date().toISOString(),
+      uptime: process.uptime(),
+      memory: {
+        heapUsed: Math.round(memoryUsage.heapUsed / 1024 / 1024),
+        heapTotal: Math.round(memoryUsage.heapTotal / 1024 / 1024),
+        rss: Math.round(memoryUsage.rss / 1024 / 1024),
+        external: Math.round(memoryUsage.external / 1024 / 1024),
+        unit: 'MB',
+      },
+      realtimeVoice: {
+        activeSessions: activeRealtimeSessions,
+        isAvailable: realtimeVoiceService.isServiceAvailable(),
+      },
+    });
+  });
+  
   // 업로드 파일 보호된 접근 (인증 필요)
   const path = await import('path');
   const fs = await import('fs');

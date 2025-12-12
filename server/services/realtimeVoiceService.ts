@@ -31,6 +31,11 @@ function filterThinkingText(text: string): string {
   return filtered;
 }
 
+// 동시 접속 최적화 설정
+const SESSION_TIMEOUT_MS = 30 * 60 * 1000; // 30분 비활성 타임아웃
+const MAX_TRANSCRIPT_LENGTH = 50000; // 트랜스크립트 최대 길이 (약 25,000자)
+const CLEANUP_INTERVAL_MS = 60 * 1000; // 1분마다 정리
+
 interface RealtimeSession {
   id: string;
   conversationId: string;
@@ -45,6 +50,7 @@ interface RealtimeSession {
   userTranscriptBuffer: string; // 사용자 음성 transcript 버퍼
   audioBuffer: string[];
   startTime: number; // 세션 시작 시간 (ms)
+  lastActivityTime: number; // 마지막 활동 시간 (ms)
   totalUserTranscriptLength: number; // 누적 사용자 텍스트 길이
   totalAiTranscriptLength: number; // 누적 AI 텍스트 길이
   realtimeModel: string; // 사용된 모델
@@ -56,6 +62,7 @@ export class RealtimeVoiceService {
   private sessions: Map<string, RealtimeSession> = new Map();
   private genAI: GoogleGenAI | null = null;
   private isAvailable: boolean = false;
+  private cleanupInterval: NodeJS.Timeout | null = null;
 
   constructor() {
     const geminiApiKey = process.env.GOOGLE_API_KEY || process.env.GEMINI_API_KEY;
@@ -64,8 +71,45 @@ export class RealtimeVoiceService {
       this.genAI = new GoogleGenAI({ apiKey: geminiApiKey });
       this.isAvailable = true;
       console.log('✅ Gemini Live API Service initialized');
+      
+      // 비활성 세션 정리 스케줄러 시작
+      this.startCleanupScheduler();
     } else {
       console.warn('⚠️  GOOGLE_API_KEY not set - Realtime Voice features disabled');
+    }
+  }
+  
+  // 비활성 세션 자동 정리 스케줄러
+  private startCleanupScheduler(): void {
+    this.cleanupInterval = setInterval(() => {
+      this.cleanupInactiveSessions();
+    }, CLEANUP_INTERVAL_MS);
+    
+    console.log(`🧹 Session cleanup scheduler started (interval: ${CLEANUP_INTERVAL_MS / 1000}s)`);
+  }
+  
+  // 비활성 세션 정리
+  private cleanupInactiveSessions(): void {
+    const now = Date.now();
+    const sessionsToClose: string[] = [];
+    
+    this.sessions.forEach((session, sessionId) => {
+      const inactiveTime = now - session.lastActivityTime;
+      
+      // 타임아웃된 세션 식별
+      if (inactiveTime > SESSION_TIMEOUT_MS) {
+        console.log(`⏰ Session ${sessionId} inactive for ${Math.round(inactiveTime / 60000)}min, marking for cleanup`);
+        sessionsToClose.push(sessionId);
+      }
+    });
+    
+    // 세션 정리
+    for (const sessionId of sessionsToClose) {
+      this.closeSession(sessionId);
+    }
+    
+    if (sessionsToClose.length > 0) {
+      console.log(`🧹 Cleaned up ${sessionsToClose.length} inactive sessions. Active: ${this.sessions.size}`);
     }
   }
 
@@ -175,6 +219,7 @@ export class RealtimeVoiceService {
       userTranscriptBuffer: '',
       audioBuffer: [],
       startTime: Date.now(),
+      lastActivityTime: Date.now(),
       totalUserTranscriptLength: 0,
       totalAiTranscriptLength: 0,
       realtimeModel,
@@ -381,6 +426,9 @@ export class RealtimeVoiceService {
   }
 
   private handleGeminiMessage(session: RealtimeSession, message: any): void {
+    // 활동 시간 업데이트 - Gemini 응답 수신 시에도 갱신하여 정확한 세션 타임아웃 관리
+    session.lastActivityTime = Date.now();
+    
     // Gemini Live API message structure - 상세 디버깅
     const msgType = message.serverContent ? 'serverContent' : message.data ? 'audio data' : 'other';
     console.log(`📨 Gemini message type: ${msgType}`);
@@ -450,25 +498,29 @@ export class RealtimeVoiceService {
           console.log(`📝 Filtered transcript: "${filteredTranscript.substring(0, 100)}..."`);
           
           if (filteredTranscript) {
-            this.analyzeEmotion(filteredTranscript, session.personaName)
-              .then(({ emotion, emotionReason }) => {
-                console.log(`😊 Emotion analyzed: ${emotion} (${emotionReason})`);
-                this.sendToClient(session, {
-                  type: 'ai.transcription.done',
-                  text: filteredTranscript,
-                  emotion,
-                  emotionReason,
+            // setImmediate로 감정 분석을 비동기화하여 이벤트 루프 블로킹 방지
+            // 대화 품질에 영향 없이 동시 접속 처리량 향상
+            setImmediate(() => {
+              this.analyzeEmotion(filteredTranscript, session.personaName)
+                .then(({ emotion, emotionReason }) => {
+                  console.log(`😊 Emotion analyzed: ${emotion} (${emotionReason})`);
+                  this.sendToClient(session, {
+                    type: 'ai.transcription.done',
+                    text: filteredTranscript,
+                    emotion,
+                    emotionReason,
+                  });
+                })
+                .catch(error => {
+                  console.error('❌ Failed to analyze emotion:', error);
+                  this.sendToClient(session, {
+                    type: 'ai.transcription.done',
+                    text: filteredTranscript,
+                    emotion: '중립',
+                    emotionReason: '감정 분석 실패',
+                  });
                 });
-              })
-              .catch(error => {
-                console.error('❌ Failed to analyze emotion:', error);
-                this.sendToClient(session, {
-                  type: 'ai.transcription.done',
-                  text: filteredTranscript,
-                  emotion: '중립',
-                  emotionReason: '감정 분석 실패',
-                });
-              });
+            });
           }
           session.currentTranscript = ''; // Reset for next turn
         }
@@ -553,6 +605,9 @@ export class RealtimeVoiceService {
       console.error(`Session not found: ${sessionId}`);
       return;
     }
+    
+    // 활동 시간 업데이트
+    session.lastActivityTime = Date.now();
 
     if (!session.isConnected || !session.geminiSession) {
       console.error(`Gemini not connected for session: ${sessionId}`);
