@@ -1150,24 +1150,11 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
         <div className="bg-gradient-to-r from-corporate-600 to-corporate-700 px-4 sm:px-6 py-3 sm:py-4 text-white">
           <div className="flex items-center justify-between gap-3">
             <div className="flex items-center space-x-3 sm:space-x-4 min-w-0 flex-1">
-              <button 
-                onClick={(e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  console.log("페르소나 이미지 클릭됨");
-                  console.log("현재 위치:", location);
-                  try {
-                    console.log("onExit 함수 직접 호출");
-                    onExit();
-                  } catch (error) {
-                    console.error("onExit 오류:", error);
-                    window.location.reload();
-                  }
-                }}
-                className="hover:opacity-80 transition-opacity bg-transparent border-none flex-shrink-0" 
-                data-testid="chat-header-home-link"
+              <div 
+                className="flex-shrink-0" 
+                data-testid="chat-header-persona-image"
               >
-                <div className="w-14 h-14 sm:w-12 sm:h-12 rounded-xl border-2 border-white/30 hover:border-white/50 cursor-pointer overflow-hidden bg-gradient-to-br from-slate-100 to-slate-200 shadow-lg">
+                <div className="w-14 h-14 sm:w-12 sm:h-12 rounded-xl border-2 border-white/30 overflow-hidden bg-gradient-to-br from-slate-100 to-slate-200 shadow-lg">
                   <img 
                     src={getCharacterImage(currentEmotion) || persona.image} 
                     alt={persona.name} 
@@ -1177,27 +1164,15 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
                     }}
                   />
                 </div>
-              </button>
+              </div>
               <div className="min-w-0 flex-1">
-                <button 
-                  onClick={(e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    console.log("제목 클릭됨");
-                    try {
-                      console.log("제목에서 onExit 함수 직접 호출");
-                      onExit();
-                    } catch (error) {
-                      console.error("제목에서 onExit 오류:", error);
-                      window.location.reload();
-                    }
-                  }}
-                  className="hover:opacity-90 transition-opacity cursor-pointer text-left bg-transparent border-none w-full" 
-                  data-testid="chat-title-home-link"
+                <div 
+                  className="text-left w-full" 
+                  data-testid="chat-header-persona-info"
                 >
                   <h3 className="text-base sm:text-lg font-semibold truncate">{persona.name} ({persona.department})</h3>
                   <p className="text-blue-100 text-xs sm:text-sm truncate">{scenario.title}</p>
-                </button>
+                </div>
               </div>
             </div>
             <div className="flex items-center">
