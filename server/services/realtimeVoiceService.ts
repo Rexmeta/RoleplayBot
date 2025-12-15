@@ -463,16 +463,25 @@ export class RealtimeVoiceService {
       if (serverContent.turnComplete) {
         console.log('✅ Turn complete');
         
-        // 첫 AI 응답이 없는 경우 재시도 (최대 2회)
-        if (!session.hasReceivedFirstAIResponse && !session.currentTranscript && session.firstGreetingRetryCount < 2) {
+        // 첫 AI 응답이 없는 경우 재시도 (최대 3회)
+        if (!session.hasReceivedFirstAIResponse && !session.currentTranscript && session.firstGreetingRetryCount < 3) {
           session.firstGreetingRetryCount++;
-          console.log(`⚠️ 첫 인사 응답 없음, 재시도 ${session.firstGreetingRetryCount}/2...`);
+          console.log(`⚠️ 첫 인사 응답 없음, 재시도 ${session.firstGreetingRetryCount}/3...`);
           
-          // END_OF_TURN 이벤트를 보내서 AI가 응답하도록 강제
+          // sendClientContent로 인사 트리거 메시지를 다시 보내서 AI가 응답하도록 강제
           if (session.geminiSession) {
-            session.geminiSession.sendRealtimeInput({
-              event: 'END_OF_TURN'
+            const retryMessages = [
+              `(상대방이 기다리고 있습니다. 당신이 먼저 인사를 건네세요.)`,
+              `(상대방이 도착했습니다. 지금 바로 인사하고 대화를 시작하세요.)`,
+              `(대화를 시작해야 합니다. 한국어로 인사를 건네세요.)`
+            ];
+            const retryMessage = retryMessages[session.firstGreetingRetryCount - 1] || retryMessages[0];
+            
+            session.geminiSession.sendClientContent({
+              turns: [{ role: 'user', parts: [{ text: retryMessage }] }],
+              turnComplete: true,
             });
+            console.log(`🔄 인사 트리거 재전송: "${retryMessage}"`);
           }
           return; // 재시도 후 다음 메시지 기다림
         }

@@ -1,7 +1,7 @@
 {
   "id": "estp",
   "mbti": "ESTP",
-  "gender": "male",
+  "gender": "female",
   "personality_traits": [
     "즉흥적",
     "행동 중심",
@@ -13,19 +13,6 @@
     "지루함",
     "제한된 행동"
   ],
-  "speech_style": {
-    "formality": "격식 낮음 - 실용적이고 직접적인 말투",
-    "sentence_endings": ["~죠", "~요", "~거든요", "~할게요"],
-    "filler_words": ["됐고", "그냥", "일단", "바로"],
-    "characteristic_expressions": ["그냥 해보죠", "됐고, 다음은?", "바로 시작하죠", "결과를 보면 알죠"]
-  },
-  "reaction_phrases": {
-    "agreement": ["됐어요, 해보죠", "그게 낫겠네요", "바로 가시죠"],
-    "disagreement": ["그건 안 될 것 같아요", "다른 방법이 있어요", "실제로는 어려워요"],
-    "surprise": ["오 진짜?", "몰랐네요", "그래요?"],
-    "thinking": ["일단...", "실제로 해보면...", "결과를 보면..."],
-    "empathy": ["그럴 수 있죠", "이해해요", "상황이 그랬군요"]
-  },
   "background": {
     "personal_values": [
       "실용성",
@@ -64,34 +51,34 @@
     "emotion": "실용적"
   },
   "images": {
-    "base": "/personas/estp/male/neutral.webp?t=1765239372638",
-    "style": "한국인, 이가 보이지 않는 무표정, 회의실에 앉아 있는 모습, 상반신 전체",
+    "base": "/personas/estp/female/neutral.webp?t=1765528435066",
+    "style": "한국인, 이가 보이지 않는 무표정, 머리스타일을 개성넘치게, 회의실에 앉아 있는 모습, 상반신 전체",
     "male": {
       "expressions": {
-        "중립": "/personas/estp/male/neutral.webp?t=1765239372638",
-        "기쁨": "/personas/estp/male/joy.webp?t=1765239505478",
-        "슬픔": "/personas/estp/male/sad.webp?t=1765239505478",
-        "분노": "/personas/estp/male/angry.webp?t=1765239505478",
-        "놀람": "/personas/estp/male/surprise.webp?t=1765239505478",
-        "호기심": "/personas/estp/male/curious.webp?t=1765239505478",
-        "불안": "/personas/estp/male/anxious.webp?t=1765239505478",
-        "피로": "/personas/estp/male/tired.webp?t=1765239505478",
-        "실망": "/personas/estp/male/disappointed.webp?t=1765239505478",
-        "당혹": "/personas/estp/male/confused.webp?t=1765239505478"
+        "중립": "/personas/estp/male/neutral.webp?t=1765528028154",
+        "기쁨": "/personas/estp/male/joy.webp?t=1765528124463",
+        "슬픔": "/personas/estp/male/sad.webp?t=1765528124463",
+        "분노": "/personas/estp/male/angry.webp?t=1765528124463",
+        "놀람": "/personas/estp/male/surprise.webp?t=1765528124463",
+        "호기심": "/personas/estp/male/curious.webp?t=1765528124463",
+        "불안": "/personas/estp/male/anxious.webp?t=1765528124463",
+        "단호": "/personas/estp/male/determined.webp?t=1765528124463",
+        "실망": "/personas/estp/male/disappointed.webp?t=1765528124463",
+        "당혹": "/personas/estp/male/confused.webp?t=1765528124463"
       }
     },
     "female": {
       "expressions": {
-        "중립": "",
-        "기쁨": "",
-        "슬픔": "",
-        "분노": "",
-        "놀람": "",
-        "호기심": "",
-        "불안": "",
-        "피로": "",
-        "실망": "",
-        "당혹": ""
+        "중립": "/personas/estp/female/neutral.webp?t=1765528435066",
+        "기쁨": "/personas/estp/female/joy.webp?t=1765528523225",
+        "슬픔": "/personas/estp/female/sad.webp?t=1765528523225",
+        "분노": "/personas/estp/female/angry.webp?t=1765528523225",
+        "놀람": "/personas/estp/female/surprise.webp?t=1765528523225",
+        "호기심": "/personas/estp/female/curious.webp?t=1765528523225",
+        "불안": "/personas/estp/female/anxious.webp?t=1765528523225",
+        "단호": "/personas/estp/female/determined.webp?t=1765528523225",
+        "실망": "/personas/estp/female/disappointed.webp?t=1765528523225",
+        "당혹": "/personas/estp/female/confused.webp?t=1765528523225"
       }
     }
   }
