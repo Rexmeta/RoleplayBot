@@ -978,7 +978,7 @@ export default function Home() {
               © AI 롤플레잉 훈련 시스템
             </div>
             <div className="flex items-center space-x-6 text-sm text-slate-600">
-              <a href="#" className="hover:text-corporate-600">도움말</a>
+              <a href="/help" className="hover:text-corporate-600" data-testid="link-help">도움말</a>
               <a href="#" className="hover:text-corporate-600">문의하기</a>
               <a href="#" className="hover:text-corporate-600">개인정보처리방침</a>
             </div>
