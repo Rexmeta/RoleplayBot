@@ -13,6 +13,16 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { AppHeader } from "@/components/AppHeader";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 type ViewState = "scenarios" | "persona-selection" | "video-intro" | "chat" | "strategy-reflection" | "strategy-result" | "feedback";
 
@@ -45,6 +55,7 @@ export default function Home() {
   const [isFeedbackGenerating, setIsFeedbackGenerating] = useState(false); // 피드백 생성 중 상태
   const [isTransitioningToFeedback, setIsTransitioningToFeedback] = useState(false); // 대화 종료 → 피드백 전환 중 상태
   const [isHeaderVisible, setIsHeaderVisible] = useState(false); // 상세 페이지에서 헤더 표시 상태
+  const [showExitConversationDialog, setShowExitConversationDialog] = useState(false); // 대화 중 홈 이동 경고 다이얼로그
 
   // 동적으로 시나리오와 페르소나 데이터 로드
   const { data: scenarios = [] } = useQuery({
@@ -448,11 +459,15 @@ export default function Home() {
         <div className="relative">
           <AppHeader 
             onLogoClick={() => {
-              setCurrentView('scenarios');
-              setSelectedScenario(null);
-              setSelectedPersona(null);
-              setConversationId(null);
-              setIsHeaderVisible(false);
+              if (currentView === 'chat') {
+                setShowExitConversationDialog(true);
+              } else {
+                setCurrentView('scenarios');
+                setSelectedScenario(null);
+                setSelectedPersona(null);
+                setConversationId(null);
+                setIsHeaderVisible(false);
+              }
             }}
           />
           {/* 헤더 하단 중앙에 숨기기 버튼 */}
@@ -926,6 +941,35 @@ export default function Home() {
           );
         })()}
       </main>
+
+      {/* 대화 중 홈 이동 경고 다이얼로그 */}
+      <AlertDialog open={showExitConversationDialog} onOpenChange={setShowExitConversationDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>대화를 중단하시겠습니까?</AlertDialogTitle>
+            <AlertDialogDescription>
+              현재 진행 중인 대화가 중단됩니다. 중단된 대화는 히스토리에서 다시 확인하고 이어서 대화할 수 있습니다.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel data-testid="button-cancel-exit">계속 대화하기</AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={() => {
+                setCurrentView('scenarios');
+                setSelectedScenario(null);
+                setSelectedPersona(null);
+                setConversationId(null);
+                setIsHeaderVisible(false);
+                setShowExitConversationDialog(false);
+              }}
+              data-testid="button-confirm-exit"
+            >
+              홈으로 이동
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
       {/* Footer */}
       <footer className="bg-white border-t border-slate-200 py-8 mt-16">
         <div className="max-w-6xl mx-auto px-4">
