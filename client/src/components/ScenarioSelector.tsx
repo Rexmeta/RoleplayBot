@@ -97,29 +97,33 @@ export default function ScenarioSelector({ onScenarioSelect, playerProfile }: Sc
   const getCategoryBadgeColor = (categoryId: string | undefined): string => {
     if (!categoryId) return 'bg-slate-600/90';
     
-    // 고정 색상 맵 (카테고리 ID별)
+    // 다양한 색상 팔레트
     const colorPalette = [
       'bg-blue-600/90',      // 0
       'bg-purple-600/90',    // 1
       'bg-pink-600/90',      // 2
       'bg-red-600/90',       // 3
       'bg-orange-600/90',    // 4
-      'bg-green-600/90',     // 5
-      'bg-teal-600/90',      // 6
-      'bg-cyan-600/90',      // 7
-      'bg-indigo-600/90',    // 8
-      'bg-rose-600/90',      // 9
+      'bg-amber-600/90',     // 5
+      'bg-yellow-600/90',    // 6
+      'bg-green-600/90',     // 7
+      'bg-emerald-600/90',   // 8
+      'bg-teal-600/90',      // 9
+      'bg-cyan-600/90',      // 10
+      'bg-sky-600/90',       // 11
+      'bg-indigo-600/90',    // 12
+      'bg-violet-600/90',    // 13
+      'bg-fuchsia-600/90',   // 14
+      'bg-rose-600/90',      // 15
+      'bg-red-700/90',       // 16
+      'bg-orange-700/90',    // 17
+      'bg-green-700/90',     // 18
+      'bg-blue-700/90',      // 19
     ];
     
-    // 카테고리 ID를 숫자로 변환해서 색상 선택 (안정적인 해시)
-    let hash = 0;
-    if (categoryId) {
-      for (let i = 0; i < categoryId.length; i++) {
-        hash = ((hash << 5) - hash) + categoryId.charCodeAt(i);
-        hash = hash & hash;
-      }
-    }
-    const colorIndex = Math.abs(hash) % colorPalette.length;
+    // 카테고리 배열에서 인덱스 찾아서 색상 선택 (더 안정적)
+    const categoryIndex = categories.findIndex(c => c.id === categoryId);
+    const colorIndex = categoryIndex >= 0 ? categoryIndex % colorPalette.length : Math.abs(categoryId.charCodeAt(0)) % colorPalette.length;
     return colorPalette[colorIndex];
   };
 
