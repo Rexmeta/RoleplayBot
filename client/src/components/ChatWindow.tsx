@@ -297,8 +297,8 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
     }
   }, [currentEmotion]);
 
-  // 리얼타임 음성 모드에서는 턴 제한 없음, 다른 모드에서는 3턴
-  const maxTurns = inputMode === 'realtime-voice' ? 999 : 3;
+  // 모든 모드에서 턴 제한 없음 (999턴)
+  const maxTurns = 999;
 
   const { data: conversation, error } = useQuery<Conversation>({
     queryKey: ["/api/conversations", conversationId],
