@@ -81,11 +81,46 @@ export default function ScenarioSelector({ onScenarioSelect, playerProfile }: Sc
     onScenarioSelect(scenario);
   };
 
+  // 카테고리별 배지 색상 팔레트
+  const categoryColorMap: Record<string, string> = {
+    'default': 'bg-blue-600/90',
+  };
+
   // 카테고리 이름 조회 헬퍼 함수
   const getCategoryName = (categoryId: string | undefined): string => {
     if (!categoryId) return '';
     const category = categories.find(c => c.id === categoryId);
     return category?.name || '';
+  };
+
+  // 카테고리별 뱃지 색상 조회 함수
+  const getCategoryBadgeColor = (categoryId: string | undefined): string => {
+    if (!categoryId) return 'bg-slate-600/90';
+    
+    // 고정 색상 맵 (카테고리 ID별)
+    const colorPalette = [
+      'bg-blue-600/90',      // 0
+      'bg-purple-600/90',    // 1
+      'bg-pink-600/90',      // 2
+      'bg-red-600/90',       // 3
+      'bg-orange-600/90',    // 4
+      'bg-green-600/90',     // 5
+      'bg-teal-600/90',      // 6
+      'bg-cyan-600/90',      // 7
+      'bg-indigo-600/90',    // 8
+      'bg-rose-600/90',      // 9
+    ];
+    
+    // 카테고리 ID를 숫자로 변환해서 색상 선택 (안정적인 해시)
+    let hash = 0;
+    if (categoryId) {
+      for (let i = 0; i < categoryId.length; i++) {
+        hash = ((hash << 5) - hash) + categoryId.charCodeAt(i);
+        hash = hash & hash;
+      }
+    }
+    const colorIndex = Math.abs(hash) % colorPalette.length;
+    return colorPalette[colorIndex];
   };
 
   // 필터링된 시나리오 목록
@@ -371,7 +406,7 @@ export default function ScenarioSelector({ onScenarioSelect, playerProfile }: Sc
                     <div className="absolute top-4 left-4 right-4 flex items-start justify-between z-10">
                       {/* 카테고리 배지 */}
                       {getCategoryName((scenario as any).categoryId) && (
-                        <Badge className="bg-blue-600/90 text-white text-xs backdrop-blur-md shadow-lg">
+                        <Badge className={`${getCategoryBadgeColor((scenario as any).categoryId)} text-white text-xs backdrop-blur-md shadow-lg`}>
                           <Folder className="h-3 w-3 mr-1" />
                           {getCategoryName((scenario as any).categoryId)}
                         </Badge>
