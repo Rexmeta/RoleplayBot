@@ -316,6 +316,26 @@ export function ScenarioManager() {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    
+    // 필수 필드 검증
+    if (!formData.title) {
+      toast({
+        title: "제목 필수",
+        description: "시나리오 제목을 입력하세요.",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    if (!formData.categoryId) {
+      toast({
+        title: "카테고리 필수",
+        description: "카테고리를 선택하세요.",
+        variant: "destructive",
+      });
+      return;
+    }
+    
     if (editingScenario) {
       updateMutation.mutate({ id: editingScenario.id, data: formData });
     } else {
@@ -708,13 +728,18 @@ export function ScenarioManager() {
                   </div>
                   
                   <div>
-                    <Label htmlFor="category" className="text-sm font-medium text-slate-700">카테고리</Label>
+                    <Label htmlFor="category" className="text-sm font-medium text-slate-700">
+                      카테고리 <span className="text-red-500">*</span>
+                    </Label>
                     <Select 
                       value={formData.categoryId || ''} 
                       onValueChange={(val) => setFormData(prev => ({ ...prev, categoryId: val }))}
                     >
-                      <SelectTrigger className="bg-white" data-testid="select-category">
-                        <SelectValue placeholder="카테고리 선택" />
+                      <SelectTrigger 
+                        className={`bg-white ${!formData.categoryId ? 'border-red-300' : ''}`}
+                        data-testid="select-category"
+                      >
+                        <SelectValue placeholder="카테고리 선택 (필수)" />
                       </SelectTrigger>
                       <SelectContent>
                         {categories?.map(cat => (
@@ -724,6 +749,9 @@ export function ScenarioManager() {
                         ))}
                       </SelectContent>
                     </Select>
+                    {!formData.categoryId && (
+                      <p className="text-xs text-red-500 mt-1">카테고리를 선택하세요.</p>
+                    )}
                   </div>
                   
                   <div>
