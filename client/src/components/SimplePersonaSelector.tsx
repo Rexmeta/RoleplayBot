@@ -3,7 +3,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { CheckCircle2, Users, MessageCircle, Target, Clock, Lightbulb, AlertCircle, TrendingUp, ArrowLeft, Loader2, Play, BookOpen, Award, Briefcase } from "lucide-react";
+import { CheckCircle2, Users, MessageCircle, Target, Clock, Lightbulb, AlertCircle, TrendingUp, ArrowLeft, Loader2, Play, BookOpen, Award, Briefcase, FileText } from "lucide-react";
 import { type ScenarioPersona, type ComplexScenario } from "@/lib/scenario-system";
 
 interface SimplePersonaSelectorProps {
@@ -202,8 +202,23 @@ export function SimplePersonaSelector({
                 <TabsContent value="overview" className="mt-6">
                   <Card className="border-0 shadow-md">
                     <CardContent className="p-6 space-y-6">
+                      {/* 시나리오 개요 */}
+                      {scenario.description && (
+                        <div className="flex items-start gap-4">
+                          <div className="w-12 h-12 rounded-xl bg-indigo-100 flex items-center justify-center flex-shrink-0">
+                            <FileText className="w-6 h-6 text-indigo-600" />
+                          </div>
+                          <div className="flex-1">
+                            <h4 className="font-semibold text-slate-900 mb-2">시나리오 개요</h4>
+                            <p className="text-slate-700 leading-relaxed whitespace-pre-wrap text-sm">
+                              {scenario.description}
+                            </p>
+                          </div>
+                        </div>
+                      )}
+
                       {/* 나의 역할 */}
-                      <div className="flex items-start gap-4">
+                      <div className="flex items-start gap-4 pt-4 border-t border-slate-100">
                         <div className="w-12 h-12 rounded-xl bg-blue-100 flex items-center justify-center flex-shrink-0">
                           <Briefcase className="w-6 h-6 text-blue-600" />
                         </div>
