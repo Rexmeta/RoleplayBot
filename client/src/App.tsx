@@ -58,22 +58,28 @@ function ProtectedRouter() {
   );
 }
 
+function AuthenticatedApp() {
+  return (
+    <AuthProvider>
+      <ProtectedRouter />
+    </AuthProvider>
+  );
+}
+
 function App() {
   return (
     <QueryClientProvider client={queryClient}>
-      <AuthProvider>
-        <TooltipProvider>
-          <Toaster />
-          <Switch>
-            {/* 공개 라우트 - 인증 불필요 */}
-            <Route path="/help" component={HelpPage} />
-            {/* 보호된 라우트 - 인증 필요 */}
-            <Route>
-              <ProtectedRouter />
-            </Route>
-          </Switch>
-        </TooltipProvider>
-      </AuthProvider>
+      <TooltipProvider>
+        <Toaster />
+        <Switch>
+          {/* 공개 라우트 - 인증 불필요, AuthProvider 바깥에서 즉시 렌더링 */}
+          <Route path="/help" component={HelpPage} />
+          {/* 보호된 라우트 - 인증 필요 */}
+          <Route>
+            <AuthenticatedApp />
+          </Route>
+        </Switch>
+      </TooltipProvider>
     </QueryClientProvider>
   );
 }
