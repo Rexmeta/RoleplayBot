@@ -70,6 +70,8 @@ export function ScenarioManager() {
   const [isGeneratingImage, setIsGeneratingImage] = useState(false);
   const [isGeneratingVideo, setIsGeneratingVideo] = useState(false);
   const [expandedScenarios, setExpandedScenarios] = useState<Set<string | number>>(new Set());
+  const [imagePreviewUrl, setImagePreviewUrl] = useState<string | null>(null);
+  const [videoPreviewUrl, setVideoPreviewUrl] = useState<string | null>(null);
   const [formData, setFormData] = useState<ScenarioFormData>({
     title: '',
     description: '',
@@ -534,8 +536,12 @@ export function ScenarioManager() {
                   {/* 이미지 미리보기 */}
                   {formData.image && (
                     <div className="mt-3">
-                      <p className="text-sm text-slate-600 mb-2">이미지 미리보기:</p>
-                      <div className="relative w-full h-48 bg-slate-100 rounded-lg overflow-hidden border">
+                      <p className="text-sm text-slate-600 mb-2">이미지 미리보기 (클릭하면 전체보기):</p>
+                      <div 
+                        className="relative w-full h-48 bg-slate-100 rounded-lg overflow-hidden border cursor-pointer hover:shadow-lg transition-shadow"
+                        onClick={() => setImagePreviewUrl(formData.image || null)}
+                        data-testid="image-preview-container"
+                      >
                         <img
                           src={formData.image}
                           alt="시나리오 이미지 미리보기"
@@ -627,8 +633,12 @@ export function ScenarioManager() {
                   {/* 비디오 미리보기 */}
                   {formData.introVideoUrl && (
                     <div className="mt-3">
-                      <p className="text-sm text-slate-600 mb-2">비디오 미리보기:</p>
-                      <div className="relative w-full bg-slate-900 rounded-lg overflow-hidden border">
+                      <p className="text-sm text-slate-600 mb-2">비디오 미리보기 (클릭하면 전체보기):</p>
+                      <div 
+                        className="relative w-full bg-slate-900 rounded-lg overflow-hidden border cursor-pointer hover:shadow-lg transition-shadow"
+                        onClick={() => setVideoPreviewUrl(formData.introVideoUrl || null)}
+                        data-testid="video-preview-container"
+                      >
                         <video
                           src={formData.introVideoUrl}
                           controls
@@ -1415,6 +1425,39 @@ export function ScenarioManager() {
           </Button>
         </div>
       )}
+
+      {/* 이미지 전체보기 모달 */}
+      <Dialog open={!!imagePreviewUrl} onOpenChange={(open) => !open && setImagePreviewUrl(null)}>
+        <DialogContent className="max-w-4xl w-full" data-testid="image-preview-modal">
+          <DialogHeader>
+            <DialogTitle>이미지 전체보기</DialogTitle>
+          </DialogHeader>
+          <div className="flex items-center justify-center bg-slate-100 rounded-lg overflow-hidden max-h-[70vh]">
+            <img
+              src={imagePreviewUrl || ''}
+              alt="전체보기"
+              className="max-w-full max-h-[70vh] object-contain"
+            />
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* 비디오 전체보기 모달 */}
+      <Dialog open={!!videoPreviewUrl} onOpenChange={(open) => !open && setVideoPreviewUrl(null)}>
+        <DialogContent className="max-w-4xl w-full" data-testid="video-preview-modal">
+          <DialogHeader>
+            <DialogTitle>비디오 전체보기</DialogTitle>
+          </DialogHeader>
+          <div className="flex items-center justify-center bg-slate-900 rounded-lg overflow-hidden max-h-[70vh]">
+            <video
+              src={videoPreviewUrl || ''}
+              controls
+              className="max-w-full max-h-[70vh] object-contain"
+              autoPlay
+            />
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
