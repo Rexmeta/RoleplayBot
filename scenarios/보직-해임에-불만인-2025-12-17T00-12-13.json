@@ -48,9 +48,9 @@
     "협상",
     "설득"
   ],
-  "image": "/scenarios/images/보직-해임에-불만인-핵심-리더의-이직-방지-협상-2025-12-17T00-11-16.webp",
+  "image": "/scenarios/images/보직-해임에-불만인-핵심-리더의-이직-방지-협상-2025-12-17T00-32-57.webp",
   "objectiveType": "",
   "introVideoUrl": "/scenarios/videos/intro-보직-해임에-불만인-2025-12-17T00-12-13-2025-12-17T00-13-56.webm",
-  "imagePrompt": "",
+  "imagePrompt": "텍스트를 포함하지 않는다. 실사형으로 한국인, 보직 해임에 불만인 핵심 리더의 이탈 방지를 위한 1:1 미팅",
   "videoPrompt": ""
 }
