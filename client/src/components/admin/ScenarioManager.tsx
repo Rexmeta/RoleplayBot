@@ -36,6 +36,7 @@ interface ScenarioFormData {
   difficulty: number;
   estimatedTime: string;
   skills: string[];
+  categoryId?: string; // 카테고리 ID 필드 추가
   image?: string; // 시나리오 이미지 URL 필드 추가
   imagePrompt?: string; // 이미지 생성 프롬프트 필드 추가
   introVideoUrl?: string; // 인트로 비디오 URL 필드 추가
@@ -78,6 +79,7 @@ export function ScenarioManager() {
     difficulty: 2, // 기본값으로 고정 (유저가 시나리오 상세 화면에서 선택)
     estimatedTime: '',
     skills: [],
+    categoryId: '', // 카테고리 ID 초기값 추가
     image: '', // 이미지 초기값 추가
     imagePrompt: '', // 이미지 프롬프트 초기값 추가
     introVideoUrl: '', // 인트로 비디오 URL 초기값 추가
@@ -109,6 +111,11 @@ export function ScenarioManager() {
     queryKey: ['/api/admin/scenarios'],
   });
 
+  // 카테고리 목록 조회
+  const { data: categories } = useQuery<{ id: number; name: string; description?: string }[]>({
+    queryKey: ['/api/categories'],
+  });
+
   // 시나리오 로드 시 모두 펼쳐진 상태로 초기화
   React.useEffect(() => {
     if (scenarios && scenarios.length > 0) {
@@ -125,6 +132,7 @@ export function ScenarioManager() {
       difficulty: 2, // 난이도는 항상 기본값으로 고정
       estimatedTime: scenario.estimatedTime || '',
       skills: scenario.skills || [],
+      categoryId: scenario.categoryId ? String(scenario.categoryId) : '',
       image: scenario.image || '',
       imagePrompt: scenario.imagePrompt || '',
       introVideoUrl: scenario.introVideoUrl || '',
@@ -230,6 +238,7 @@ export function ScenarioManager() {
       difficulty: 2, // 기본값으로 고정
       estimatedTime: '',
       skills: [],
+      categoryId: '', // 카테고리 ID 초기화
       image: '', // 이미지 필드 초기화 추가
       imagePrompt: '', // 이미지 프롬프트 초기화 추가
       introVideoUrl: '', // 인트로 비디오 URL 초기화 추가
@@ -266,6 +275,7 @@ export function ScenarioManager() {
       difficulty: 2, // 난이도는 항상 기본값으로 고정 (유저가 대화 시작 시 선택)
       estimatedTime: scenario.estimatedTime,
       skills: scenario.skills,
+      categoryId: (scenario as any).categoryId ? String((scenario as any).categoryId) : '', // 기존 시나리오의 카테고리 ID 로드
       image: scenario.image || '', // 기존 시나리오의 이미지 URL 로드
       imagePrompt: (scenario as any).imagePrompt || '', // 기존 시나리오의 이미지 프롬프트 로드
       introVideoUrl: (scenario as any).introVideoUrl || '', // 기존 시나리오의 인트로 비디오 URL 로드
@@ -683,7 +693,7 @@ export function ScenarioManager() {
                   )}
                 </div>
                 
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-3 gap-4">
                   <div>
                     <Label htmlFor="title" className="text-sm font-medium text-slate-700">시나리오 제목</Label>
                     <Input
@@ -695,6 +705,25 @@ export function ScenarioManager() {
                       data-testid="input-scenario-title"
                       className="bg-white"
                     />
+                  </div>
+                  
+                  <div>
+                    <Label htmlFor="category" className="text-sm font-medium text-slate-700">카테고리</Label>
+                    <Select 
+                      value={formData.categoryId || ''} 
+                      onValueChange={(val) => setFormData(prev => ({ ...prev, categoryId: val }))}
+                    >
+                      <SelectTrigger className="bg-white" data-testid="select-category">
+                        <SelectValue placeholder="카테고리 선택" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {categories?.map(cat => (
+                          <SelectItem key={cat.id} value={String(cat.id)} data-testid={`category-option-${cat.id}`}>
+                            {cat.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </div>
                   
                   <div>
