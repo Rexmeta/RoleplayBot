@@ -123,8 +123,9 @@ export async function generateScenarioWithAI(request: AIScenarioGenerationReques
   // personaCount에 맞는 MBTI 유형 선택 (중복 없이)
   const selectedMBTI = availableMBTITypes.slice(0, request.personaCount || 3);
 
-  const prompt = `다음 조건에 맞는 직장 내 롤플레이 훈련 시나리오를 정확히 다음 JSON 형식으로 생성해주세요:
+  const prompt = `당신은 기업 교육용 롤플레이 시나리오를 설계하는 전문가입니다. 피평가자가 상황을 충분히 이해하고 몰입할 수 있도록 풍부하고 체계적인 시나리오를 작성해주세요.
 
+## 시나리오 생성 조건
 주제: ${request.theme}
 ${request.industry ? `업종: ${request.industry}` : ''}
 ${request.situation ? `상황: ${request.situation}` : ''}
@@ -138,31 +139,58 @@ ${request.skills ? `필요 역량: ${request.skills}` : ''}
 페르소나 수: ${request.personaCount || 3}명
 사용 가능한 MBTI 유형: ${selectedMBTI.join(', ')} (이 유형들만 사용하세요)
 
+## 필수 작성 기준 (매우 중요!)
+1. **description (시나리오 설명)**: 반드시 1000자 이상으로 작성하세요!
+   - 첫 번째 단락: 회사/조직의 배경과 현재 처한 상황 개요 (200자 이상)
+   - 두 번째 단락: 문제가 발생한 구체적인 경위와 원인 (200자 이상)
+   - 세 번째 단락: 각 이해관계자들의 입장과 갈등 구조 (200자 이상)
+   - 네 번째 단락: 해결하지 않을 경우 예상되는 결과와 리스크 (200자 이상)
+   - 다섯 번째 단락: 참가자가 이 상황에서 수행해야 할 역할과 기대 (200자 이상)
+
+2. **context.situation (상황 설명)**: 반드시 500자 이상으로 작성하세요!
+   - 구체적인 사건의 시작점과 전개 과정
+   - 관련된 사람들의 감정 상태와 우려 사항
+   - 현재 시점에서의 긴급성과 중요도
+   - 조직 내 정치적 역학 관계나 과거 이력
+
+3. **context.stakes (이해관계)**: 200자 이상으로 구체적으로 작성
+   - 각 당사자가 얻을 수 있는 것과 잃을 수 있는 것
+   - 단기적 영향과 장기적 영향
+   - 정량적 지표 (비용, 시간, 매출 등)와 정성적 지표 (신뢰, 관계, 평판 등)
+
+4. **objectives**: 각 목표를 2-3문장으로 구체화 (단순한 한 줄이 아님)
+
+5. **successCriteria**: 각 기준을 2-3문장으로 구체적인 상황과 함께 설명
+
+6. **personas의 stance, goal, tradeoff**: 각각 100자 이상으로 심층적으로 작성
+
+## JSON 형식
+
 {
-  "title": "구체적이고 현실적인 시나리오 제목",
-  "description": "200-300자의 상황 설명. 갈등 상황과 해결이 필요한 문제를 구체적으로 설명",
+  "title": "구체적이고 현실적인 시나리오 제목 (문제 상황이 명확히 드러나도록)",
+  "description": "1000자 이상의 포괄적인 시나리오 설명. 위의 5개 단락 구조를 반드시 따라주세요. 피평가자가 상황에 몰입할 수 있도록 구체적인 숫자, 날짜, 이름, 사건 등을 포함하세요.",
   "context": {
-    "situation": "구체적인 상황 설명",
-    "timeline": "시간적 제약 조건 (예: 1주일 남음, 내일 마감 등)",
-    "stakes": "이해관계 및 중요성 (예: 품질 vs 일정, 비용 vs 효과)",
+    "situation": "500자 이상의 구체적이고 상세한 상황 설명. 사건의 발단부터 현재까지의 전개, 관련자들의 감정과 입장, 긴급성과 복잡성을 모두 포함하세요.",
+    "timeline": "시간적 제약 조건과 마일스톤 (예: '신제품 출시까지 2주 남음. 다음 주 월요일까지 디자인 확정, 수요일까지 개발 완료 필요. 경쟁사는 이미 유사 제품을 출시 준비 중')",
+    "stakes": "200자 이상의 이해관계 설명. 각 당사자의 득실, 단기/장기 영향, 정량적/정성적 지표를 구체적으로 포함하세요.",
     "playerRole": {
       "position": "참가자의 역할 (예: 개발자, 매니저, 팀장)",
       "department": "소속 부서 (예: 개발팀, 마케팅팀)",
       "experience": "경력 수준 (예: 3년차, 신입, 10년차)",
-      "responsibility": "핵심 책임 (예: 최적의 해결안 도출, 팀 간 협의)"
+      "responsibility": "핵심 책임과 권한 범위 (예: '이 프로젝트의 기술 리드로서 품질과 일정 사이의 균형을 잡고, 모든 이해관계자가 수용할 수 있는 해결책을 도출해야 함')"
     }
   },
   "objectives": [
-    "목표1: 구체적이고 측정 가능한 목표",
-    "목표2: 실행 가능한 목표",
-    "목표3: 현실적인 목표",
-    "목표4: Win-Win 전략 수립"
+    "목표1: 구체적이고 측정 가능한 목표. 왜 이 목표가 중요한지, 달성 시 어떤 가치가 있는지 2-3문장으로 설명",
+    "목표2: 실행 가능한 목표. 목표 달성을 위해 필요한 조건과 과정을 2-3문장으로 설명",
+    "목표3: 현실적인 목표. 제약 조건 내에서 어떻게 달성할 수 있는지 2-3문장으로 설명",
+    "목표4: Win-Win 전략 수립. 모든 이해관계자의 핵심 니즈를 파악하고 통합하는 방법을 2-3문장으로 설명"
   ],
   "successCriteria": {
-    "optimal": "최상의 결과 (모든 이해관계자 만족)",
-    "good": "좋은 결과 (핵심 요구사항 충족)",
-    "acceptable": "수용 가능한 결과 (최소 기준 충족)",
-    "failure": "실패 조건 (갈등 심화 또는 비현실적 해결책)"
+    "optimal": "최상의 결과에 대한 구체적 묘사 (예: '모든 팀이 합의한 일정과 품질 기준을 달성하고, 추가 예산 없이 프로젝트 완료. 각 부서의 핵심 KPI도 충족')",
+    "good": "좋은 결과에 대한 구체적 묘사 (예: '핵심 기능은 예정대로 출시하고, 일부 부가 기능은 다음 버전으로 연기. 고객 불만 최소화')",
+    "acceptable": "수용 가능한 결과에 대한 구체적 묘사 (예: '일정이 1주 지연되지만, 품질은 유지. 추가 비용 10% 이내로 통제')",
+    "failure": "실패 조건에 대한 구체적 묘사 (예: '팀 간 갈등이 심화되어 핵심 인력이 이탈 의사 표명. 프로젝트 전면 재검토 필요')"
   },
   "personas": [
     {
@@ -172,9 +200,9 @@ ${request.skills ? `필요 역량: ${request.skills}` : ''}
       "position": "직책1 (예: 선임 개발자, 매니저, 대리)",
       "experience": "경력1 (예: 3년차, 5년차, 신입, 10년차)",
       "personaRef": "${selectedMBTI[0] || 'istj'}.json",
-      "stance": "${selectedMBTI[0] || 'ISTJ'} 성격 유형에 맞는 이 상황에 대한 구체적인 입장과 의견. 논리적이고 신중한 접근",
-      "goal": "${selectedMBTI[0] || 'ISTJ'} 성격에 맞는 개인적 목표와 원하는 결과",
-      "tradeoff": "${selectedMBTI[0] || 'ISTJ'} 성격에 맞는 양보 가능한 부분"
+      "stance": "100자 이상으로 ${selectedMBTI[0]?.toUpperCase() || 'ISTJ'} 성격 유형의 특성을 반영한 이 상황에 대한 구체적인 입장과 의견을 작성하세요. 왜 그런 입장을 취하는지, 어떤 가치와 원칙에 기반하는지, 과거 경험이나 전문성이 어떻게 영향을 미치는지 포함",
+      "goal": "100자 이상으로 ${selectedMBTI[0]?.toUpperCase() || 'ISTJ'} 성격의 특성을 반영한 개인적 목표와 원하는 결과를 작성하세요. 단기 목표와 장기 목표, 이 상황에서 달성하고 싶은 것과 피하고 싶은 것 포함",
+      "tradeoff": "100자 이상으로 ${selectedMBTI[0]?.toUpperCase() || 'ISTJ'} 성격의 특성을 반영한 양보 가능한 부분을 작성하세요. 어떤 조건에서 양보할 수 있는지, 반대로 절대 양보할 수 없는 것은 무엇인지 포함"
     }${selectedMBTI.length > 1 ? `,
     {
       "id": "${selectedMBTI[1]}",
@@ -183,9 +211,9 @@ ${request.skills ? `필요 역량: ${request.skills}` : ''}
       "position": "직책2 (첫 번째와 다른 직책)",
       "experience": "경력2 (첫 번째와 다른 경력)",
       "personaRef": "${selectedMBTI[1]}.json",
-      "stance": "${selectedMBTI[1].toUpperCase()} 성격 유형에 맞는 이 상황에 대한 구체적인 입장과 의견",
-      "goal": "${selectedMBTI[1].toUpperCase()} 성격에 맞는 개인적 목표와 원하는 결과",
-      "tradeoff": "${selectedMBTI[1].toUpperCase()} 성격에 맞는 양보 가능한 부분"
+      "stance": "100자 이상으로 ${selectedMBTI[1].toUpperCase()} 성격 유형의 특성을 반영한 이 상황에 대한 구체적인 입장과 의견을 작성하세요. 왜 그런 입장을 취하는지, 어떤 가치와 원칙에 기반하는지 포함",
+      "goal": "100자 이상으로 ${selectedMBTI[1].toUpperCase()} 성격의 특성을 반영한 개인적 목표와 원하는 결과를 작성하세요. 이 상황에서 달성하고 싶은 것과 피하고 싶은 것 포함",
+      "tradeoff": "100자 이상으로 ${selectedMBTI[1].toUpperCase()} 성격의 특성을 반영한 양보 가능한 부분을 작성하세요. 어떤 조건에서 양보할 수 있는지 포함"
     }` : ''}${selectedMBTI.length > 2 ? `,
     {
       "id": "${selectedMBTI[2]}",
@@ -194,9 +222,9 @@ ${request.skills ? `필요 역량: ${request.skills}` : ''}
       "position": "직책3 (앞의 두 직책과 다른 직책)",
       "experience": "경력3 (앞의 두 경력과 다른 경력)",
       "personaRef": "${selectedMBTI[2]}.json",
-      "stance": "${selectedMBTI[2].toUpperCase()} 성격 유형에 맞는 이 상황에 대한 구체적인 입장과 의견",
-      "goal": "${selectedMBTI[2].toUpperCase()} 성격에 맞는 개인적 목표와 원하는 결과",
-      "tradeoff": "${selectedMBTI[2].toUpperCase()} 성격에 맞는 양보 가능한 부분"
+      "stance": "100자 이상으로 ${selectedMBTI[2].toUpperCase()} 성격 유형의 특성을 반영한 이 상황에 대한 구체적인 입장과 의견을 작성하세요. 왜 그런 입장을 취하는지, 어떤 가치와 원칙에 기반하는지 포함",
+      "goal": "100자 이상으로 ${selectedMBTI[2].toUpperCase()} 성격의 특성을 반영한 개인적 목표와 원하는 결과를 작성하세요. 이 상황에서 달성하고 싶은 것과 피하고 싶은 것 포함",
+      "tradeoff": "100자 이상으로 ${selectedMBTI[2].toUpperCase()} 성격의 특성을 반영한 양보 가능한 부분을 작성하세요. 어떤 조건에서 양보할 수 있는지 포함"
     }` : ''}
   ],
   "recommendedFlow": ["${selectedMBTI[0] || 'istj'}"${selectedMBTI.length > 1 ? `, "${selectedMBTI[1]}"` : ''}${selectedMBTI.length > 2 ? `, "${selectedMBTI[2]}"` : ''}],
@@ -205,19 +233,34 @@ ${request.skills ? `필요 역량: ${request.skills}` : ''}
   "skills": [${request.skills ? request.skills.split(',').map(skill => `"${skill.trim()}"`).join(', ') : '"갈등 중재", "협상", "문제 해결", "의사소통", "리더십"'}]
 }
 
-중요한 지침:
-1. 반드시 ${selectedMBTI.length}명의 페르소나만 생성하세요 (지정된 MBTI 유형: ${selectedMBTI.join(', ')})
-2. 각 페르소나의 "id"는 정확히 지정된 MBTI 소문자 4글자를 사용하세요
-3. 각 페르소나는 서로 다른 부서에 소속시켜 부서간 갈등 상황을 만드세요
-4. 페르소나의 name, department, position, experience는 구체적인 한국 이름과 직장 정보를 사용하세요
-5. stance, goal, tradeoff는 해당 MBTI 성격 유형 특성에 맞는 현실적인 내용으로 작성하세요
-6. personaRef는 반드시 "MBTI유형.json" 형태로 작성하세요 (예: istj.json, enfj.json)
-7. JSON 형식을 정확히 지켜주세요 (마지막 요소 뒤에 쉼표 없음)
+## 필수 준수 사항 (매우 중요!)
+1. **description은 반드시 1000자 이상**, **situation은 반드시 500자 이상**으로 작성하세요. 이보다 짧으면 다시 작성해야 합니다.
+2. 반드시 ${selectedMBTI.length}명의 페르소나만 생성하세요 (지정된 MBTI 유형: ${selectedMBTI.join(', ')})
+3. 각 페르소나의 "id"는 정확히 지정된 MBTI 소문자 4글자를 사용하세요
+4. 각 페르소나는 서로 다른 부서에 소속시켜 부서간 갈등 상황을 만드세요
+5. 페르소나의 name, department, position, experience는 구체적인 한국 이름과 직장 정보를 사용하세요
+6. **stance, goal, tradeoff는 각각 100자 이상**으로 해당 MBTI 성격 유형 특성에 맞는 현실적인 내용으로 작성하세요
+7. personaRef는 반드시 "MBTI유형.json" 형태로 작성하세요 (예: istj.json, enfj.json)
+8. JSON 형식을 정확히 지켜주세요 (마지막 요소 뒤에 쉼표 없음)
+9. 모든 텍스트는 자연스러운 한국어로 작성하고, 피평가자가 상황에 몰입할 수 있도록 구체적인 디테일을 포함하세요
 
-예시 참고:
-ISTJ: 신중하고 체계적, 품질 중시
-ENFJ: 협력적이고 조화 추구, 팀워크 중시
-ENTJ: 목표 지향적, 효율성과 결과 중시`;
+## MBTI 유형별 특성 참고
+- ISTJ: 신중하고 체계적, 규정과 절차 중시, 품질과 안정성 우선
+- ISFJ: 배려심 깊고 헌신적, 조화와 팀워크 중시, 실질적 도움 제공
+- INFJ: 통찰력 있고 이상적, 의미와 가치 추구, 장기적 비전 중시
+- INTJ: 전략적이고 독립적, 효율성과 혁신 추구, 높은 기준 유지
+- ISTP: 분석적이고 실용적, 문제 해결 능력, 유연한 대응
+- ISFP: 적응력 있고 온화함, 개인의 가치 중시, 조화로운 환경 선호
+- INFP: 이상주의적이고 공감적, 진정성과 의미 추구, 창의적 해결책
+- INTP: 논리적이고 분석적, 지적 호기심, 혁신적 아이디어
+- ESTP: 행동 지향적이고 현실적, 즉각적 문제 해결, 위험 감수
+- ESFP: 열정적이고 사교적, 즐거움과 조화 추구, 실용적 접근
+- ENFP: 창의적이고 열정적, 가능성 탐색, 변화와 혁신 추구
+- ENTP: 혁신적이고 도전적, 논쟁과 아이디어 탐구, 새로운 방법 시도
+- ESTJ: 조직적이고 실용적, 효율성과 결과 중시, 명확한 체계 선호
+- ESFJ: 협력적이고 배려심 깊음, 조화와 팀워크 중시, 실질적 도움 제공
+- ENFJ: 카리스마 있고 공감적, 팀 발전과 조화 추구, 사람 중심적
+- ENTJ: 결단력 있고 목표 지향적, 효율성과 결과 중시, 리더십 발휘`;
 
   try {
     // DB에서 설정된 모델 가져오기 (Gemini만 지원)
@@ -312,6 +355,40 @@ ENTJ: 목표 지향적, 효율성과 결과 중시`;
     console.log('정리된 JSON:', cleanJson.substring(0, 500) + '...');
     
     const data = JSON.parse(cleanJson);
+    
+    // 내용 길이 검증
+    const descriptionLength = data.description?.length || 0;
+    const situationLength = data.context?.situation?.length || 0;
+    const stakesLength = data.context?.stakes?.length || 0;
+    
+    console.log(`📝 시나리오 내용 길이 검증:`);
+    console.log(`   - description: ${descriptionLength}자 (최소 1000자 필요)`);
+    console.log(`   - situation: ${situationLength}자 (최소 500자 필요)`);
+    console.log(`   - stakes: ${stakesLength}자 (최소 200자 필요)`);
+    
+    // 경고 로그 출력 (기준 미달 시)
+    if (descriptionLength < 1000) {
+      console.warn(`⚠️ description이 ${descriptionLength}자로 1000자 미만입니다. 더 상세한 시나리오가 권장됩니다.`);
+    }
+    if (situationLength < 500) {
+      console.warn(`⚠️ situation이 ${situationLength}자로 500자 미만입니다. 더 상세한 상황 설명이 권장됩니다.`);
+    }
+    if (stakesLength < 200) {
+      console.warn(`⚠️ stakes가 ${stakesLength}자로 200자 미만입니다. 더 상세한 이해관계 설명이 권장됩니다.`);
+    }
+    
+    // 페르소나별 내용 길이 검증
+    if (data.personas && Array.isArray(data.personas)) {
+      data.personas.forEach((persona: any, index: number) => {
+        const stanceLen = persona.stance?.length || 0;
+        const goalLen = persona.goal?.length || 0;
+        const tradeoffLen = persona.tradeoff?.length || 0;
+        
+        if (stanceLen < 100 || goalLen < 100 || tradeoffLen < 100) {
+          console.warn(`⚠️ 페르소나 ${index + 1} (${persona.name || persona.id})의 내용이 부족합니다: stance=${stanceLen}자, goal=${goalLen}자, tradeoff=${tradeoffLen}자`);
+        }
+      });
+    }
     
     // 키워드 기반 시나리오 ID 생성 (타임스탬프 포함)
     const scenarioId = generateScenarioId(data.title);
