@@ -53,7 +53,6 @@ function ProtectedRouter() {
       <Route path="/admin-management" component={AdminManagement} />
       <Route path="/ai-generator" component={AIGeneratorPage} />
       <Route path="/system-admin" component={SystemAdminPage} />
-      <Route path="/help" component={HelpPage} />
       <Route component={NotFound} />
     </Switch>
   );
@@ -65,7 +64,14 @@ function App() {
       <AuthProvider>
         <TooltipProvider>
           <Toaster />
-          <ProtectedRouter />
+          <Switch>
+            {/* 공개 라우트 - 인증 불필요 */}
+            <Route path="/help" component={HelpPage} />
+            {/* 보호된 라우트 - 인증 필요 */}
+            <Route>
+              <ProtectedRouter />
+            </Route>
+          </Switch>
         </TooltipProvider>
       </AuthProvider>
     </QueryClientProvider>
