@@ -434,9 +434,22 @@ export default function ScenarioSelector({ onScenarioSelect, playerProfile }: Sc
                     
                     {/* 메인 콘텐츠 - 항상 보이는 영역 */}
                     <div className="absolute bottom-0 left-0 right-0 p-5 text-white">
-                      <h2 className="text-xl font-bold mb-3 drop-shadow-lg line-clamp-2 group-hover:text-white transition-colors duration-300">
+                      <h2 className="text-xl font-bold mb-2 drop-shadow-lg line-clamp-2 group-hover:text-white transition-colors duration-300">
                         {scenario.title}
                       </h2>
+                      
+                      {/* 설명 미리보기 (500자 제한) */}
+                      {!isExpanded && scenario.description && (
+                        <p className="text-xs text-gray-200 mb-3 leading-relaxed line-clamp-3 drop-shadow-md">
+                          {scenario.description.length > 500 
+                            ? scenario.description.substring(0, 500) + '...' 
+                            : scenario.description}
+                          {scenario.description.length > 500 && (
+                            <span className="text-blue-300 ml-1 font-medium">상세 보기 ▼</span>
+                          )}
+                        </p>
+                      )}
+                      
                       <div className="flex items-center gap-3 text-sm">
                         <div className="flex items-center gap-1.5 bg-white/20 backdrop-blur-md rounded-full px-3 py-1.5 shadow-sm">
                           <i className="fas fa-users text-xs"></i>
@@ -460,10 +473,16 @@ export default function ScenarioSelector({ onScenarioSelect, playerProfile }: Sc
                     }`}
                   >
                     <div className="bg-gradient-to-b from-slate-900 to-slate-800 p-6 text-white">
-                      {/* 설명 */}
-                      <p className="text-sm text-gray-200 mb-5 leading-relaxed whitespace-pre-wrap">
-                        {scenario.description}
-                      </p>
+                      {/* 시나리오 개요 */}
+                      <div className="bg-white/5 rounded-lg p-4 mb-5">
+                        <h4 className="font-medium text-white mb-3 flex items-center text-sm">
+                          <i className="fas fa-file-alt mr-2 text-blue-400"></i>
+                          시나리오 개요
+                        </h4>
+                        <p className="text-sm text-gray-200 leading-relaxed whitespace-pre-wrap">
+                          {scenario.description}
+                        </p>
+                      </div>
                       
                       {/* 상황 정보 */}
                       <div className="space-y-4 mb-5">
