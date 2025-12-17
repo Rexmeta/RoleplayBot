@@ -117,15 +117,39 @@ export function ScenarioManager() {
   }, [scenarios]);
 
   const handleAIGenerated = (result: any) => {
-    // AI 생성 결과를 폼에 자동 입력
+    // AI 생성 결과를 폼에 자동 입력 - 모든 필드 완전 복사
+    const scenario = result.scenario || {};
     setFormData({
-      ...result.scenario,
+      title: scenario.title || '',
+      description: scenario.description || '',
       difficulty: 2, // 난이도는 항상 기본값으로 고정
-      skills: result.scenario.skills || [],
-      objectiveType: result.scenario.objectiveType || '', // 목표 유형 처리
-      objectives: result.scenario.objectives || [],
-      personas: result.scenario.personas || [],
-      recommendedFlow: result.scenario.recommendedFlow || []
+      estimatedTime: scenario.estimatedTime || '',
+      skills: scenario.skills || [],
+      image: scenario.image || '',
+      imagePrompt: scenario.imagePrompt || '',
+      introVideoUrl: scenario.introVideoUrl || '',
+      videoPrompt: scenario.videoPrompt || '',
+      objectiveType: scenario.objectiveType || '',
+      context: scenario.context || {
+        situation: '',
+        timeline: '',
+        stakes: '',
+        playerRole: {
+          position: '',
+          department: '',
+          experience: '',
+          responsibility: ''
+        }
+      },
+      objectives: scenario.objectives || [],
+      successCriteria: scenario.successCriteria || {
+        optimal: '',
+        good: '',
+        acceptable: '',
+        failure: ''
+      },
+      personas: scenario.personas || [],
+      recommendedFlow: scenario.recommendedFlow || []
     });
     
     setIsCreateOpen(true);

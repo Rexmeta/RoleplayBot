@@ -2868,17 +2868,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
         // 이미지 생성 실패해도 시나리오 생성은 계속 진행
       }
 
-      // AI 생성된 시나리오에 페르소나 객체와 이미지를 포함하여 저장
+      // AI 생성된 시나리오에 페르소나 객체와 이미지를 포함 (저장하지 않음 - 폼에서 저장)
       const scenarioWithPersonas = {
         ...result.scenario,
         image: scenarioImage, // 자동 생성된 이미지 추가
         personas: result.personas // 페르소나 객체를 직접 포함
       };
       
-      const savedScenario = await fileManager.createScenario(scenarioWithPersonas);
-
+      // 저장하지 않고 데이터만 반환 - 사용자가 폼에서 저장 버튼 클릭 시 저장됨
       res.json({
-        scenario: savedScenario,
+        scenario: scenarioWithPersonas,
         personas: result.personas
       });
     } catch (error) {
