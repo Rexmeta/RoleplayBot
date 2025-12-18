@@ -2782,6 +2782,35 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/scenarios", async (req, res) => {
     try {
       const scenarios = await fileManager.getAllScenarios();
+      
+      // 인증된 사용자인지 확인 (토큰이 있는 경우)
+      const token = req.cookies?.auth_token || req.headers.authorization?.split(' ')[1];
+      if (token) {
+        try {
+          const jwt = await import('jsonwebtoken');
+          const decoded = jwt.default.verify(token, process.env.JWT_SECRET!) as any;
+          const user = await storage.getUserById(decoded.userId);
+          
+          if (user) {
+            // 시스템관리자(admin)는 모든 시나리오 접근 가능
+            if (user.role === 'admin') {
+              return res.json(scenarios);
+            }
+            
+            // 운영자 또는 일반유저가 assignedCategoryId가 있는 경우 해당 카테고리만 필터링
+            if (user.assignedCategoryId) {
+              const filteredScenarios = scenarios.filter((s: any) => 
+                String(s.categoryId) === String(user.assignedCategoryId)
+              );
+              return res.json(filteredScenarios);
+            }
+          }
+        } catch (tokenError) {
+          // 토큰 검증 실패 시 전체 시나리오 반환 (비로그인 사용자와 동일 처리)
+        }
+      }
+      
+      // 비로그인 사용자 또는 카테고리 미할당 사용자는 전체 시나리오 접근 가능
       res.json(scenarios);
     } catch (error) {
       console.error("Failed to fetch scenarios:", error);
