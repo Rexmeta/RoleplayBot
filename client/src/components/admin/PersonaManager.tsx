@@ -249,7 +249,12 @@ export function PersonaManager() {
   // 시나리오 목록 조회 (페르소나 사용 현황 확인용)
   const { data: scenarios = [] } = useQuery({
     queryKey: ['/api/scenarios'],
-    queryFn: () => fetch('/api/scenarios').then(res => res.json())
+    queryFn: () => {
+      const token = localStorage.getItem("authToken");
+      const headers: Record<string, string> = {};
+      if (token) headers["Authorization"] = `Bearer ${token}`;
+      return fetch('/api/scenarios', { credentials: 'include', headers }).then(res => res.json());
+    }
   });
 
   // 특정 MBTI 페르소나가 사용된 시나리오들 찾기

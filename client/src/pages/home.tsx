@@ -60,7 +60,12 @@ export default function Home() {
   // 동적으로 시나리오와 페르소나 데이터 로드
   const { data: scenarios = [] } = useQuery({
     queryKey: ['/api/scenarios'],
-    queryFn: () => fetch('/api/scenarios').then(res => res.json()),
+    queryFn: () => {
+      const token = localStorage.getItem("authToken");
+      const headers: Record<string, string> = {};
+      if (token) headers["Authorization"] = `Bearer ${token}`;
+      return fetch('/api/scenarios', { credentials: 'include', headers }).then(res => res.json());
+    },
     staleTime: 1000 * 60 * 30, // 30분간 캐시 유지 (시나리오는 자주 변경되지 않음)
     gcTime: 1000 * 60 * 60,     // 1시간 메모리 유지
   });
