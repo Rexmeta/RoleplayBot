@@ -27,15 +27,10 @@ export function AppHeader({
   userEmail
 }: AppHeaderProps) {
   const LogoContent = (
-    <>
-      <div className="w-10 h-10 bg-corporate-600 rounded-lg flex items-center justify-center">
-        <i className="fas fa-robot text-white text-lg"></i>
-      </div>
-      <div>
-        <h1 className="text-xl font-bold text-slate-900">{title}</h1>
-        <p className="text-sm text-slate-600">{subtitle}</p>
-      </div>
-    </>
+    <div>
+      <h1 className="text-xl font-bold text-slate-900">{title}</h1>
+      <p className="text-sm text-slate-600">{subtitle}</p>
+    </div>
   );
 
   if (variant === 'mypage') {
