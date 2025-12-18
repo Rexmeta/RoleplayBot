@@ -2104,13 +2104,66 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Admin Dashboard Analytics Routes
-  app.get("/api/admin/analytics/overview", async (req, res) => {
+  app.get("/api/admin/analytics/overview", isAuthenticated, async (req: any, res) => {
     try {
+      const user = req.user;
+      const categoryIdParam = req.query.categoryId as string | undefined;
+      
       // ✨ 새 테이블 구조 사용
-      const scenarioRuns = await storage.getAllScenarioRuns();
-      const personaRuns = await storage.getAllPersonaRuns();
-      const feedbacks = await storage.getAllFeedbacks();
-      const scenarios = await fileManager.getAllScenarios();
+      const allScenarioRuns = await storage.getAllScenarioRuns();
+      const allPersonaRuns = await storage.getAllPersonaRuns();
+      const allFeedbacks = await storage.getAllFeedbacks();
+      const allScenarios = await fileManager.getAllScenarios();
+      
+      // 카테고리 필터링 결정
+      let targetCategoryId: string | null = null;
+      let restrictToEmpty = false; // 운영자인데 카테고리 없으면 빈 결과
+      
+      if (user.role === 'admin') {
+        // 관리자: categoryId 파라미터가 있으면 해당 카테고리만, 없으면 전체
+        targetCategoryId = categoryIdParam || null;
+      } else if (user.role === 'operator') {
+        // 운영자: assignedCategoryId가 있으면 해당 카테고리만, 없으면 빈 결과
+        if (user.assignedCategoryId) {
+          targetCategoryId = user.assignedCategoryId;
+        } else {
+          restrictToEmpty = true;
+        }
+      } else if (user.assignedCategoryId) {
+        // 일반유저: assignedCategoryId가 있으면 해당 카테고리만
+        targetCategoryId = user.assignedCategoryId;
+      }
+      
+      // 시나리오 필터링
+      const scenarios = restrictToEmpty 
+        ? []
+        : targetCategoryId 
+          ? allScenarios.filter((s: any) => String(s.categoryId) === String(targetCategoryId))
+          : allScenarios;
+      const scenarioIds = new Set(scenarios.map((s: any) => s.id));
+      
+      // scenarioRuns 필터링 (해당 카테고리 시나리오만)
+      const scenarioRuns = restrictToEmpty 
+        ? []
+        : targetCategoryId
+          ? allScenarioRuns.filter(sr => scenarioIds.has(sr.scenarioId))
+          : allScenarioRuns;
+      const scenarioRunIds = new Set(scenarioRuns.map(sr => sr.id));
+      
+      // personaRuns 필터링
+      const personaRuns = restrictToEmpty 
+        ? []
+        : targetCategoryId
+          ? allPersonaRuns.filter(pr => scenarioRunIds.has(pr.scenarioRunId))
+          : allPersonaRuns;
+      const personaRunIds = new Set(personaRuns.map(pr => pr.id));
+      
+      // feedbacks 필터링
+      const feedbacks = restrictToEmpty 
+        ? []
+        : targetCategoryId
+          ? allFeedbacks.filter(f => personaRunIds.has(f.personaRunId))
+          : allFeedbacks;
       
       // ✨ 롤플레이 참여 유저 기준으로 지표 계산
       // 롤플레이 참여 = personaRuns가 있는 유저 (시나리오 시작이 아닌 실제 대화)
@@ -2149,7 +2202,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const participationRate = activeUsers > 0 ? 100 : 0;
       
       // 7. 시나리오 인기도 - personaRuns 기준 (difficulty는 사용자 선택 난이도 사용)
-      const scenarioStats = personaRuns.reduce((acc, pr) => {
+      const scenarioStatsRaw = personaRuns.reduce((acc, pr) => {
         const scenarioRun = scenarioRuns.find(sr => sr.id === pr.scenarioRunId);
         if (!scenarioRun) return acc;
         
@@ -2169,6 +2222,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
         
         return acc;
       }, {} as Record<string, { count: number; name: string; difficulties: number[] }>);
+      
+      // difficulties 배열을 평균 difficulty로 변환
+      const scenarioStats = Object.entries(scenarioStatsRaw).reduce((acc, [id, data]) => {
+        const avgDifficulty = data.difficulties.length > 0 
+          ? Math.round(data.difficulties.reduce((sum, d) => sum + d, 0) / data.difficulties.length)
+          : 2;
+        acc[id] = {
+          count: data.count,
+          name: data.name,
+          difficulty: avgDifficulty
+        };
+        return acc;
+      }, {} as Record<string, { count: number; name: string; difficulty: number }>);
       
       // 8. MBTI 사용 분석
       const mbtiUsage = personaRuns.reduce((acc, pr) => {
@@ -2396,13 +2462,63 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get("/api/admin/analytics/performance", async (req, res) => {
+  app.get("/api/admin/analytics/performance", isAuthenticated, async (req: any, res) => {
     try {
+      const user = req.user;
+      const categoryIdParam = req.query.categoryId as string | undefined;
+      
       // ✨ 새 테이블 구조 사용
-      const scenarioRuns = await storage.getAllScenarioRuns();
-      const personaRuns = await storage.getAllPersonaRuns();
-      const feedbacks = await storage.getAllFeedbacks();
-      const scenarios = await fileManager.getAllScenarios();
+      const allScenarioRuns = await storage.getAllScenarioRuns();
+      const allPersonaRuns = await storage.getAllPersonaRuns();
+      const allFeedbacks = await storage.getAllFeedbacks();
+      const allScenarios = await fileManager.getAllScenarios();
+      
+      // 카테고리 필터링 결정
+      let targetCategoryId: string | null = null;
+      let restrictToEmpty = false;
+      
+      if (user.role === 'admin') {
+        targetCategoryId = categoryIdParam || null;
+      } else if (user.role === 'operator') {
+        if (user.assignedCategoryId) {
+          targetCategoryId = user.assignedCategoryId;
+        } else {
+          restrictToEmpty = true;
+        }
+      } else if (user.assignedCategoryId) {
+        targetCategoryId = user.assignedCategoryId;
+      }
+      
+      // 시나리오 필터링
+      const scenarios = restrictToEmpty 
+        ? []
+        : targetCategoryId 
+          ? allScenarios.filter((s: any) => String(s.categoryId) === String(targetCategoryId))
+          : allScenarios;
+      const scenarioIds = new Set(scenarios.map((s: any) => s.id));
+      
+      // scenarioRuns 필터링
+      const scenarioRuns = restrictToEmpty 
+        ? []
+        : targetCategoryId
+          ? allScenarioRuns.filter(sr => scenarioIds.has(sr.scenarioId))
+          : allScenarioRuns;
+      const scenarioRunIds = new Set(scenarioRuns.map(sr => sr.id));
+      
+      // personaRuns 필터링
+      const personaRuns = restrictToEmpty 
+        ? []
+        : targetCategoryId
+          ? allPersonaRuns.filter(pr => scenarioRunIds.has(pr.scenarioRunId))
+          : allPersonaRuns;
+      const personaRunIds = new Set(personaRuns.map(pr => pr.id));
+      
+      // feedbacks 필터링
+      const feedbacks = restrictToEmpty 
+        ? []
+        : targetCategoryId
+          ? allFeedbacks.filter(f => personaRunIds.has(f.personaRunId))
+          : allFeedbacks;
       
       // Score distribution - feedbacks에서 직접 계산
       const scoreRanges = {
@@ -2579,11 +2695,63 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get("/api/admin/analytics/trends", async (req, res) => {
+  app.get("/api/admin/analytics/trends", isAuthenticated, async (req: any, res) => {
     try {
+      const user = req.user;
+      const categoryIdParam = req.query.categoryId as string | undefined;
+      
       // ✨ 새 테이블 구조 사용
-      const scenarioRuns = await storage.getAllScenarioRuns();
-      const feedbacks = await storage.getAllFeedbacks();
+      const allScenarioRuns = await storage.getAllScenarioRuns();
+      const allFeedbacks = await storage.getAllFeedbacks();
+      const allScenarios = await fileManager.getAllScenarios();
+      const allPersonaRuns = await storage.getAllPersonaRuns();
+      
+      // 카테고리 필터링 결정
+      let targetCategoryId: string | null = null;
+      let restrictToEmpty = false;
+      
+      if (user.role === 'admin') {
+        targetCategoryId = categoryIdParam || null;
+      } else if (user.role === 'operator') {
+        if (user.assignedCategoryId) {
+          targetCategoryId = user.assignedCategoryId;
+        } else {
+          restrictToEmpty = true;
+        }
+      } else if (user.assignedCategoryId) {
+        targetCategoryId = user.assignedCategoryId;
+      }
+      
+      // 시나리오 필터링
+      const scenarios = restrictToEmpty 
+        ? []
+        : targetCategoryId 
+          ? allScenarios.filter((s: any) => String(s.categoryId) === String(targetCategoryId))
+          : allScenarios;
+      const scenarioIds = new Set(scenarios.map((s: any) => s.id));
+      
+      // scenarioRuns 필터링
+      const scenarioRuns = restrictToEmpty 
+        ? []
+        : targetCategoryId
+          ? allScenarioRuns.filter(sr => scenarioIds.has(sr.scenarioId))
+          : allScenarioRuns;
+      const scenarioRunIds = new Set(scenarioRuns.map(sr => sr.id));
+      
+      // personaRuns 필터링
+      const personaRuns = restrictToEmpty 
+        ? []
+        : targetCategoryId
+          ? allPersonaRuns.filter(pr => scenarioRunIds.has(pr.scenarioRunId))
+          : allPersonaRuns;
+      const personaRunIds = new Set(personaRuns.map(pr => pr.id));
+      
+      // feedbacks 필터링
+      const feedbacks = restrictToEmpty 
+        ? []
+        : targetCategoryId
+          ? allFeedbacks.filter(f => personaRunIds.has(f.personaRunId))
+          : allFeedbacks;
       
       // Daily usage over last 30 days - scenarioRuns 기반
       const last30Days = Array.from({ length: 30 }, (_, i) => {

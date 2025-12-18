@@ -5,12 +5,14 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from "recharts";
 import { useAuth } from "@/hooks/useAuth";
 import { AppHeader } from "@/components/AppHeader";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useState, useEffect } from "react";
+import { Filter } from "lucide-react";
 
 // 마우스 오버 카드 설명 헬퍼
 const CardInfo = ({ title, description }: { title: string; description: string }) => (
@@ -132,26 +134,58 @@ interface DifficultyEmotionData {
   }>;
 }
 
+interface Category {
+  id: string;
+  name: string;
+}
+
 export default function AdminDashboard() {
   const { user } = useAuth();
   const [showMobileTabMenu, setShowMobileTabMenu] = useState(false);
+  const [selectedCategoryId, setSelectedCategoryId] = useState<string>('all');
+
+  // 카테고리 목록 가져오기
+  const { data: categories = [] } = useQuery<Category[]>({
+    queryKey: ['/api/categories'],
+  });
+
+  // 카테고리 필터 쿼리 파라미터 생성
+  const categoryParam = selectedCategoryId !== 'all' ? `?categoryId=${selectedCategoryId}` : '';
 
   const { data: overview, isLoading: overviewLoading } = useQuery<AnalyticsOverview>({
-    queryKey: ["/api/admin/analytics/overview"],
-    staleTime: 1000 * 60 * 10, // 10분간 캐시 유지 (통계 데이터)
-    gcTime: 1000 * 60 * 30,     // 30분간 메모리 유지
+    queryKey: ["/api/admin/analytics/overview", selectedCategoryId],
+    queryFn: () => {
+      const token = localStorage.getItem("authToken");
+      const headers: Record<string, string> = {};
+      if (token) headers["Authorization"] = `Bearer ${token}`;
+      return fetch(`/api/admin/analytics/overview${categoryParam}`, { credentials: 'include', headers }).then(res => res.json());
+    },
+    staleTime: 1000 * 60 * 10,
+    gcTime: 1000 * 60 * 30,
   });
 
   const { data: performance, isLoading: performanceLoading } = useQuery<PerformanceData>({
-    queryKey: ["/api/admin/analytics/performance"],
-    staleTime: 1000 * 60 * 10, // 10분간 캐시 유지 (통계 데이터)
-    gcTime: 1000 * 60 * 30,     // 30분간 메모리 유지
+    queryKey: ["/api/admin/analytics/performance", selectedCategoryId],
+    queryFn: () => {
+      const token = localStorage.getItem("authToken");
+      const headers: Record<string, string> = {};
+      if (token) headers["Authorization"] = `Bearer ${token}`;
+      return fetch(`/api/admin/analytics/performance${categoryParam}`, { credentials: 'include', headers }).then(res => res.json());
+    },
+    staleTime: 1000 * 60 * 10,
+    gcTime: 1000 * 60 * 30,
   });
 
   const { data: trends, isLoading: trendsLoading } = useQuery<TrendsData>({
-    queryKey: ["/api/admin/analytics/trends"],
-    staleTime: 1000 * 60 * 10, // 10분간 캐시 유지 (통계 데이터)
-    gcTime: 1000 * 60 * 30,     // 30분간 메모리 유지
+    queryKey: ["/api/admin/analytics/trends", selectedCategoryId],
+    queryFn: () => {
+      const token = localStorage.getItem("authToken");
+      const headers: Record<string, string> = {};
+      if (token) headers["Authorization"] = `Bearer ${token}`;
+      return fetch(`/api/admin/analytics/trends${categoryParam}`, { credentials: 'include', headers }).then(res => res.json());
+    },
+    staleTime: 1000 * 60 * 10,
+    gcTime: 1000 * 60 * 30,
   });
 
   const { data: emotions, isLoading: emotionsLoading } = useQuery<EmotionData>({
@@ -277,6 +311,43 @@ export default function AdminDashboard() {
         showBackButton
       />
       <div className="container mx-auto p-6 space-y-6" data-testid="admin-dashboard">
+      
+      {/* 관리자용 카테고리 필터 (시스템 관리자만 표시) */}
+      {user?.role === 'admin' && (
+        <div className="flex items-center gap-3 p-4 bg-white rounded-lg border shadow-sm">
+          <Filter className="w-5 h-5 text-slate-500" />
+          <span className="text-sm font-medium text-slate-700">카테고리 필터:</span>
+          <Select value={selectedCategoryId} onValueChange={setSelectedCategoryId}>
+            <SelectTrigger className="w-[200px]" data-testid="category-filter-select">
+              <SelectValue placeholder="전체 카테고리" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">전체 카테고리</SelectItem>
+              {categories.map((category) => (
+                <SelectItem key={category.id} value={category.id}>
+                  {category.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          {selectedCategoryId !== 'all' && (
+            <span className="text-xs text-slate-500">
+              선택된 카테고리의 데이터만 표시됩니다
+            </span>
+          )}
+        </div>
+      )}
+      
+      {/* 운영자용 카테고리 표시 (운영자인 경우 자신의 카테고리만 표시) */}
+      {user?.role === 'operator' && user?.assignedCategoryId && (
+        <div className="flex items-center gap-3 p-4 bg-blue-50 rounded-lg border border-blue-200">
+          <Filter className="w-5 h-5 text-blue-500" />
+          <span className="text-sm font-medium text-blue-700">
+            {categories.find(c => String(c.id) === String(user.assignedCategoryId))?.name || '할당된 카테고리'} 카테고리 데이터만 표시됩니다
+          </span>
+        </div>
+      )}
+      
       {/* Detailed Analytics */}
       <Tabs defaultValue="overview" className="space-y-6" onValueChange={(value) => setShowMobileTabMenu(false)}>
         {/* 데스크톱 탭 */}
