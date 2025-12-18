@@ -1340,9 +1340,16 @@ export function ScenarioManager() {
               <CardHeader className="pb-3 pl-5">
                 <div className="flex items-start justify-between gap-3">
                   <div className="flex-1 min-w-0">
-                    <CardTitle className="text-base font-semibold text-slate-800 line-clamp-2 leading-tight mb-3">
+                    <CardTitle className="text-base font-semibold text-slate-800 line-clamp-2 leading-tight mb-2">
                       {scenario.title}
                     </CardTitle>
+                    <div className="flex items-center gap-2 mb-2">
+                      {categories && (scenario as any).categoryId && (
+                        <Badge variant="outline" className="text-xs bg-slate-50 text-slate-700 border-slate-200">
+                          {categories.find(c => c.id === Number((scenario as any).categoryId))?.name || '미분류'}
+                        </Badge>
+                      )}
+                    </div>
                     <div className="flex items-center gap-3 text-sm text-slate-500">
                       <div className="flex items-center gap-1.5">
                         <Clock className="w-3.5 h-3.5" />
