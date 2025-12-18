@@ -63,7 +63,17 @@ export default function ScenarioSelector({ onScenarioSelect, playerProfile }: Sc
   // JSON 파일에서 실시간으로 시나리오와 페르소나 데이터 가져오기
   const { data: scenarios = [], isLoading: scenariosLoading } = useQuery({
     queryKey: ['/api/scenarios'],
-    queryFn: () => fetch('/api/scenarios', { credentials: 'include' }).then(res => res.json())
+    queryFn: () => {
+      const token = localStorage.getItem("authToken");
+      const headers: Record<string, string> = {};
+      if (token) {
+        headers["Authorization"] = `Bearer ${token}`;
+      }
+      return fetch('/api/scenarios', { 
+        credentials: 'include',
+        headers 
+      }).then(res => res.json());
+    }
   });
 
   // 카테고리 목록 가져오기
