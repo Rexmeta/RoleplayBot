@@ -40,16 +40,16 @@ export function AppHeader({
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
               <img
-                src={`https://ui-avatars.com/api/?name=${encodeURIComponent(userName || 'User')}&background=6366f1&color=fff&size=80`}
+                src={`https://ui-avatars.com/api/?name=${encodeURIComponent(userName || 'User')}&background=6366f1&color=fff&size=40`}
                 alt="프로필"
-                className="w-16 h-16 rounded-full object-cover"
+                className="w-8 h-8 rounded-full object-cover"
                 data-testid="profile-image"
               />
               <div>
-                <h1 className="text-2xl font-bold text-slate-900" data-testid="user-name">
+                <h1 className="text-lg font-bold text-slate-900" data-testid="user-name">
                   {userName || '사용자'}님의 MyPage
                 </h1>
-                <p className="text-slate-600" data-testid="user-email">{userEmail}</p>
+                <p className="text-sm text-slate-600" data-testid="user-email">{userEmail}</p>
               </div>
             </div>
             <div className="flex gap-3">
