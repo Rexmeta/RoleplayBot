@@ -38,20 +38,33 @@ export function AppHeader({
       <header className="bg-white border-b border-slate-200">
         <div className="max-w-6xl mx-auto px-4 py-6">
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <img
-                src={`https://ui-avatars.com/api/?name=${encodeURIComponent(userName || 'User')}&background=6366f1&color=fff&size=40`}
-                alt="프로필"
-                className="w-8 h-8 rounded-full object-cover"
-                data-testid="profile-image"
-              />
-              <div>
-                <h1 className="text-sm font-bold text-slate-900" data-testid="user-name">
-                  {userName || '사용자'}님의 MyPage
-                </h1>
-                <p className="text-xs text-slate-600" data-testid="user-email">{userEmail}</p>
+            {showBackButton ? (
+              <div className="flex items-center space-x-4">
+                <Link 
+                  href={backHref} 
+                  className="flex items-center space-x-2 text-corporate-600 hover:text-corporate-700" 
+                  data-testid="back-to-home"
+                >
+                  <i className="fas fa-arrow-left"></i>
+                  <span className="text-sm">{backLabel}</span>
+                </Link>
               </div>
-            </div>
+            ) : (
+              <div className="flex items-center gap-4">
+                <img
+                  src={`https://ui-avatars.com/api/?name=${encodeURIComponent(userName || 'User')}&background=6366f1&color=fff&size=40`}
+                  alt="프로필"
+                  className="w-8 h-8 rounded-full object-cover"
+                  data-testid="profile-image"
+                />
+                <div>
+                  <h1 className="text-sm font-bold text-slate-900" data-testid="user-name">
+                    {userName || '사용자'}님의 MyPage
+                  </h1>
+                  <p className="text-xs text-slate-600" data-testid="user-email">{userEmail}</p>
+                </div>
+              </div>
+            )}
             <div className="flex gap-3">
               {rightContent}
               <UserProfileMenu />
