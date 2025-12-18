@@ -60,10 +60,10 @@ export interface IStorage {
   // Chat Messages
   createChatMessage(message: InsertChatMessage): Promise<ChatMessage>;
   getChatMessagesByPersonaRun(personaRunId: string): Promise<ChatMessage[]>;
-  getAllEmotionStats(): Promise<{ emotion: string; count: number }[]>; // Admin analytics - 감정 빈도
-  getEmotionStatsByScenario(): Promise<{ scenarioId: string; scenarioName: string; emotions: { emotion: string; count: number }[]; totalCount: number }[]>;
-  getEmotionStatsByMbti(): Promise<{ mbti: string; emotions: { emotion: string; count: number }[]; totalCount: number }[]>;
-  getEmotionStatsByDifficulty(): Promise<{ difficulty: number; emotions: { emotion: string; count: number }[]; totalCount: number }[]>;
+  getAllEmotionStats(scenarioIds?: string[]): Promise<{ emotion: string; count: number }[]>; // Admin analytics - 감정 빈도
+  getEmotionStatsByScenario(scenarioIds?: string[]): Promise<{ scenarioId: string; scenarioName: string; emotions: { emotion: string; count: number }[]; totalCount: number }[]>;
+  getEmotionStatsByMbti(scenarioIds?: string[]): Promise<{ mbti: string; emotions: { emotion: string; count: number }[]; totalCount: number }[]>;
+  getEmotionStatsByDifficulty(scenarioIds?: string[]): Promise<{ difficulty: number; emotions: { emotion: string; count: number }[]; totalCount: number }[]>;
   getEmotionTimelineByPersonaRun(personaRunId: string): Promise<{ turnIndex: number; emotion: string | null; message: string }[]>;
 
   // User operations - 이메일 기반 인증 시스템
@@ -351,19 +351,19 @@ export class MemStorage implements IStorage {
     throw new Error("MemStorage does not support Chat Messages");
   }
 
-  async getAllEmotionStats(): Promise<{ emotion: string; count: number }[]> {
+  async getAllEmotionStats(scenarioIds?: string[]): Promise<{ emotion: string; count: number }[]> {
     throw new Error("MemStorage does not support emotion stats");
   }
 
-  async getEmotionStatsByScenario(): Promise<{ scenarioId: string; scenarioName: string; emotions: { emotion: string; count: number }[]; totalCount: number }[]> {
+  async getEmotionStatsByScenario(scenarioIds?: string[]): Promise<{ scenarioId: string; scenarioName: string; emotions: { emotion: string; count: number }[]; totalCount: number }[]> {
     throw new Error("MemStorage does not support emotion stats by scenario");
   }
 
-  async getEmotionStatsByMbti(): Promise<{ mbti: string; emotions: { emotion: string; count: number }[]; totalCount: number }[]> {
+  async getEmotionStatsByMbti(scenarioIds?: string[]): Promise<{ mbti: string; emotions: { emotion: string; count: number }[]; totalCount: number }[]> {
     throw new Error("MemStorage does not support emotion stats by MBTI");
   }
 
-  async getEmotionStatsByDifficulty(): Promise<{ difficulty: number; emotions: { emotion: string; count: number }[]; totalCount: number }[]> {
+  async getEmotionStatsByDifficulty(scenarioIds?: string[]): Promise<{ difficulty: number; emotions: { emotion: string; count: number }[]; totalCount: number }[]> {
     throw new Error("MemStorage does not support emotion stats by difficulty");
   }
 
@@ -899,8 +899,28 @@ export class PostgreSQLStorage implements IStorage {
     return await db.select().from(chatMessages).where(eq(chatMessages.personaRunId, personaRunId)).orderBy(asc(chatMessages.turnIndex));
   }
 
-  async getAllEmotionStats(): Promise<{ emotion: string; count: number }[]> {
-    // AI 메시지에서 감정 빈도 집계 (emotion이 null이 아닌 것만)
+  async getAllEmotionStats(scenarioIds?: string[]): Promise<{ emotion: string; count: number }[]> {
+    // scenarioIds가 있으면 해당 시나리오만 필터링
+    if (scenarioIds && scenarioIds.length > 0) {
+      const result = await db.select({
+        emotion: chatMessages.emotion,
+        count: sql<number>`count(*)::int`
+      })
+      .from(chatMessages)
+      .innerJoin(personaRuns, eq(chatMessages.personaRunId, personaRuns.id))
+      .innerJoin(scenarioRuns, eq(personaRuns.scenarioRunId, scenarioRuns.id))
+      .where(and(
+        eq(chatMessages.sender, 'ai'),
+        isNotNull(chatMessages.emotion),
+        inArray(scenarioRuns.scenarioId, scenarioIds)
+      ))
+      .groupBy(chatMessages.emotion)
+      .orderBy(desc(sql`count(*)`));
+      
+      return result.filter(r => r.emotion !== null) as { emotion: string; count: number }[];
+    }
+    
+    // scenarioIds가 없으면 전체 조회
     const result = await db.select({
       emotion: chatMessages.emotion,
       count: sql<number>`count(*)::int`
@@ -916,8 +936,17 @@ export class PostgreSQLStorage implements IStorage {
     return result.filter(r => r.emotion !== null) as { emotion: string; count: number }[];
   }
 
-  async getEmotionStatsByScenario(): Promise<{ scenarioId: string; scenarioName: string; emotions: { emotion: string; count: number }[]; totalCount: number }[]> {
+  async getEmotionStatsByScenario(scenarioIds?: string[]): Promise<{ scenarioId: string; scenarioName: string; emotions: { emotion: string; count: number }[]; totalCount: number }[]> {
     // 시나리오별 감정 통계: chat_messages -> persona_runs -> scenario_runs 조인
+    const whereConditions = [
+      eq(chatMessages.sender, 'ai'),
+      isNotNull(chatMessages.emotion)
+    ];
+    
+    if (scenarioIds && scenarioIds.length > 0) {
+      whereConditions.push(inArray(scenarioRuns.scenarioId, scenarioIds));
+    }
+    
     const result = await db.select({
       scenarioId: scenarioRuns.scenarioId,
       scenarioName: scenarioRuns.scenarioName,
@@ -927,10 +956,7 @@ export class PostgreSQLStorage implements IStorage {
     .from(chatMessages)
     .innerJoin(personaRuns, eq(chatMessages.personaRunId, personaRuns.id))
     .innerJoin(scenarioRuns, eq(personaRuns.scenarioRunId, scenarioRuns.id))
-    .where(and(
-      eq(chatMessages.sender, 'ai'),
-      isNotNull(chatMessages.emotion)
-    ))
+    .where(and(...whereConditions))
     .groupBy(scenarioRuns.scenarioId, scenarioRuns.scenarioName, chatMessages.emotion)
     .orderBy(scenarioRuns.scenarioId, desc(sql`count(*)`));
     
@@ -957,8 +983,18 @@ export class PostgreSQLStorage implements IStorage {
     return Array.from(scenarioMap.values()).sort((a, b) => b.totalCount - a.totalCount);
   }
 
-  async getEmotionStatsByMbti(): Promise<{ mbti: string; emotions: { emotion: string; count: number }[]; totalCount: number }[]> {
-    // MBTI별 감정 통계: chat_messages -> persona_runs (mbti 필드) 조인
+  async getEmotionStatsByMbti(scenarioIds?: string[]): Promise<{ mbti: string; emotions: { emotion: string; count: number }[]; totalCount: number }[]> {
+    // MBTI별 감정 통계: chat_messages -> persona_runs -> scenario_runs 조인
+    const whereConditions = [
+      eq(chatMessages.sender, 'ai'),
+      isNotNull(chatMessages.emotion),
+      isNotNull(personaRuns.mbti)
+    ];
+    
+    if (scenarioIds && scenarioIds.length > 0) {
+      whereConditions.push(inArray(scenarioRuns.scenarioId, scenarioIds));
+    }
+    
     const result = await db.select({
       mbti: personaRuns.mbti,
       emotion: chatMessages.emotion,
@@ -966,11 +1002,8 @@ export class PostgreSQLStorage implements IStorage {
     })
     .from(chatMessages)
     .innerJoin(personaRuns, eq(chatMessages.personaRunId, personaRuns.id))
-    .where(and(
-      eq(chatMessages.sender, 'ai'),
-      isNotNull(chatMessages.emotion),
-      isNotNull(personaRuns.mbti)
-    ))
+    .innerJoin(scenarioRuns, eq(personaRuns.scenarioRunId, scenarioRuns.id))
+    .where(and(...whereConditions))
     .groupBy(personaRuns.mbti, chatMessages.emotion)
     .orderBy(personaRuns.mbti, desc(sql`count(*)`));
     
@@ -996,8 +1029,18 @@ export class PostgreSQLStorage implements IStorage {
     return Array.from(mbtiMap.values()).sort((a, b) => b.totalCount - a.totalCount);
   }
 
-  async getEmotionStatsByDifficulty(): Promise<{ difficulty: number; emotions: { emotion: string; count: number }[]; totalCount: number }[]> {
-    // 난이도별 감정 통계: chat_messages -> persona_runs (difficulty 필드) 조인
+  async getEmotionStatsByDifficulty(scenarioIds?: string[]): Promise<{ difficulty: number; emotions: { emotion: string; count: number }[]; totalCount: number }[]> {
+    // 난이도별 감정 통계: chat_messages -> persona_runs -> scenario_runs 조인
+    const whereConditions = [
+      eq(chatMessages.sender, 'ai'),
+      isNotNull(chatMessages.emotion),
+      isNotNull(personaRuns.difficulty)
+    ];
+    
+    if (scenarioIds && scenarioIds.length > 0) {
+      whereConditions.push(inArray(scenarioRuns.scenarioId, scenarioIds));
+    }
+    
     const result = await db.select({
       difficulty: personaRuns.difficulty,
       emotion: chatMessages.emotion,
@@ -1005,11 +1048,8 @@ export class PostgreSQLStorage implements IStorage {
     })
     .from(chatMessages)
     .innerJoin(personaRuns, eq(chatMessages.personaRunId, personaRuns.id))
-    .where(and(
-      eq(chatMessages.sender, 'ai'),
-      isNotNull(chatMessages.emotion),
-      isNotNull(personaRuns.difficulty)
-    ))
+    .innerJoin(scenarioRuns, eq(personaRuns.scenarioRunId, scenarioRuns.id))
+    .where(and(...whereConditions))
     .groupBy(personaRuns.difficulty, chatMessages.emotion)
     .orderBy(personaRuns.difficulty, desc(sql`count(*)`));
     

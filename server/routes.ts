@@ -2796,10 +2796,48 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // 감정 분석 통계 API
-  app.get("/api/admin/analytics/emotions", async (req, res) => {
+  // 감정 분석 통계 API - 카테고리 필터링 적용 (admin/operator 전용)
+  app.get("/api/admin/analytics/emotions", isAuthenticated, async (req: any, res) => {
     try {
-      const emotionStats = await storage.getAllEmotionStats();
+      const user = req.user;
+      
+      // 역할 체크: admin 또는 operator만 접근 가능
+      if (user.role !== 'admin' && user.role !== 'operator') {
+        return res.status(403).json({ error: "관리자 또는 운영자만 접근할 수 있습니다" });
+      }
+      
+      const categoryIdParam = req.query.categoryId as string | undefined;
+      
+      // 카테고리 필터링을 위한 시나리오 ID 목록 조회
+      const allScenarios = await fileManager.getAllScenarios();
+      let scenarioIds: string[] | undefined = undefined;
+      
+      if (user.role === 'admin') {
+        if (categoryIdParam) {
+          scenarioIds = allScenarios
+            .filter((s: any) => String(s.categoryId) === String(categoryIdParam))
+            .map((s: any) => s.id);
+        }
+      } else if (user.role === 'operator') {
+        if (user.assignedCategoryId) {
+          scenarioIds = allScenarios
+            .filter((s: any) => String(s.categoryId) === String(user.assignedCategoryId))
+            .map((s: any) => s.id);
+        } else {
+          scenarioIds = [];
+        }
+      }
+      
+      // scenarioIds가 빈 배열이면 빈 결과 반환
+      if (scenarioIds && scenarioIds.length === 0) {
+        return res.json({
+          emotions: [],
+          totalEmotions: 0,
+          uniqueEmotions: 0
+        });
+      }
+      
+      const emotionStats = await storage.getAllEmotionStats(scenarioIds);
       
       // 감정 이모지 매핑
       const emotionEmojis: Record<string, string> = {
@@ -2838,10 +2876,42 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // 시나리오별 감정 분석 API
-  app.get("/api/admin/analytics/emotions/by-scenario", async (req, res) => {
+  // 시나리오별 감정 분석 API - 카테고리 필터링 적용 (admin/operator 전용)
+  app.get("/api/admin/analytics/emotions/by-scenario", isAuthenticated, async (req: any, res) => {
     try {
-      const scenarioStats = await storage.getEmotionStatsByScenario();
+      const user = req.user;
+      
+      // 역할 체크: admin 또는 operator만 접근 가능
+      if (user.role !== 'admin' && user.role !== 'operator') {
+        return res.status(403).json({ error: "관리자 또는 운영자만 접근할 수 있습니다" });
+      }
+      
+      const categoryIdParam = req.query.categoryId as string | undefined;
+      
+      const allScenarios = await fileManager.getAllScenarios();
+      let scenarioIds: string[] | undefined = undefined;
+      
+      if (user.role === 'admin') {
+        if (categoryIdParam) {
+          scenarioIds = allScenarios
+            .filter((s: any) => String(s.categoryId) === String(categoryIdParam))
+            .map((s: any) => s.id);
+        }
+      } else if (user.role === 'operator') {
+        if (user.assignedCategoryId) {
+          scenarioIds = allScenarios
+            .filter((s: any) => String(s.categoryId) === String(user.assignedCategoryId))
+            .map((s: any) => s.id);
+        } else {
+          scenarioIds = [];
+        }
+      }
+      
+      if (scenarioIds && scenarioIds.length === 0) {
+        return res.json({ scenarios: [] });
+      }
+      
+      const scenarioStats = await storage.getEmotionStatsByScenario(scenarioIds);
       
       const emotionEmojis: Record<string, string> = {
         '기쁨': '😊', '슬픔': '😢', '분노': '😠', '놀람': '😲', '중립': '😐',
@@ -2869,10 +2939,42 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // MBTI별 감정 분석 API
-  app.get("/api/admin/analytics/emotions/by-mbti", async (req, res) => {
+  // MBTI별 감정 분석 API - 카테고리 필터링 적용 (admin/operator 전용)
+  app.get("/api/admin/analytics/emotions/by-mbti", isAuthenticated, async (req: any, res) => {
     try {
-      const mbtiStats = await storage.getEmotionStatsByMbti();
+      const user = req.user;
+      
+      // 역할 체크: admin 또는 operator만 접근 가능
+      if (user.role !== 'admin' && user.role !== 'operator') {
+        return res.status(403).json({ error: "관리자 또는 운영자만 접근할 수 있습니다" });
+      }
+      
+      const categoryIdParam = req.query.categoryId as string | undefined;
+      
+      const allScenarios = await fileManager.getAllScenarios();
+      let scenarioIds: string[] | undefined = undefined;
+      
+      if (user.role === 'admin') {
+        if (categoryIdParam) {
+          scenarioIds = allScenarios
+            .filter((s: any) => String(s.categoryId) === String(categoryIdParam))
+            .map((s: any) => s.id);
+        }
+      } else if (user.role === 'operator') {
+        if (user.assignedCategoryId) {
+          scenarioIds = allScenarios
+            .filter((s: any) => String(s.categoryId) === String(user.assignedCategoryId))
+            .map((s: any) => s.id);
+        } else {
+          scenarioIds = [];
+        }
+      }
+      
+      if (scenarioIds && scenarioIds.length === 0) {
+        return res.json({ mbtiStats: [] });
+      }
+      
+      const mbtiStats = await storage.getEmotionStatsByMbti(scenarioIds);
       
       const emotionEmojis: Record<string, string> = {
         '기쁨': '😊', '슬픔': '😢', '분노': '😠', '놀람': '😲', '중립': '😐',
@@ -2900,10 +3002,42 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // 난이도별 감정 분석 API
-  app.get("/api/admin/analytics/emotions/by-difficulty", async (req, res) => {
+  // 난이도별 감정 분석 API - 카테고리 필터링 적용 (admin/operator 전용)
+  app.get("/api/admin/analytics/emotions/by-difficulty", isAuthenticated, async (req: any, res) => {
     try {
-      const difficultyStats = await storage.getEmotionStatsByDifficulty();
+      const user = req.user;
+      
+      // 역할 체크: admin 또는 operator만 접근 가능
+      if (user.role !== 'admin' && user.role !== 'operator') {
+        return res.status(403).json({ error: "관리자 또는 운영자만 접근할 수 있습니다" });
+      }
+      
+      const categoryIdParam = req.query.categoryId as string | undefined;
+      
+      const allScenarios = await fileManager.getAllScenarios();
+      let scenarioIds: string[] | undefined = undefined;
+      
+      if (user.role === 'admin') {
+        if (categoryIdParam) {
+          scenarioIds = allScenarios
+            .filter((s: any) => String(s.categoryId) === String(categoryIdParam))
+            .map((s: any) => s.id);
+        }
+      } else if (user.role === 'operator') {
+        if (user.assignedCategoryId) {
+          scenarioIds = allScenarios
+            .filter((s: any) => String(s.categoryId) === String(user.assignedCategoryId))
+            .map((s: any) => s.id);
+        } else {
+          scenarioIds = [];
+        }
+      }
+      
+      if (scenarioIds && scenarioIds.length === 0) {
+        return res.json({ difficultyStats: [] });
+      }
+      
+      const difficultyStats = await storage.getEmotionStatsByDifficulty(scenarioIds);
       
       const emotionEmojis: Record<string, string> = {
         '기쁨': '😊', '슬픔': '😢', '분노': '😠', '놀람': '😲', '중립': '😐',
