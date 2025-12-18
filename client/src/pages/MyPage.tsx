@@ -256,7 +256,6 @@ export default function MyPage() {
     <div className="min-h-screen bg-slate-50">
       <AppHeader 
         variant="mypage"
-        showBackButton
         userName={user.name || user.email?.split('@')[0] || '사용자'}
         userEmail={user.email}
         rightContent={
