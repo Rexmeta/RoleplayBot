@@ -2789,7 +2789,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         try {
           const jwt = await import('jsonwebtoken');
           const decoded = jwt.default.verify(token, process.env.JWT_SECRET!) as any;
-          const user = await storage.getUserById(decoded.userId);
+          const user = await storage.getUser(decoded.userId);
           
           if (user) {
             // 시스템관리자(admin)는 모든 시나리오 접근 가능
