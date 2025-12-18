@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { User, LogOut, History, Settings, BarChart3, UserCog, ShieldCheck } from "lucide-react";
 import {
@@ -23,8 +24,14 @@ export function UserProfileMenu() {
   const { logout, user } = useAuth();
   const [showProfileEdit, setShowProfileEdit] = useState(false);
 
+  const { data: categories } = useQuery<{ id: string; name: string }[]>({
+    queryKey: ['/api/categories'],
+    enabled: !!user?.assignedCategoryId,
+  });
+
   const role = user?.role || "user";
   const roleInfo = roleConfig[role] || roleConfig.user;
+  const assignedCategory = categories?.find(c => String(c.id) === String(user?.assignedCategoryId));
 
   return (
     <>
@@ -53,9 +60,16 @@ export function UserProfileMenu() {
             <div className="flex flex-col space-y-1">
               <p className="text-sm font-medium leading-none">{user?.name || "사용자"}</p>
               <p className="text-xs leading-none text-muted-foreground">{user?.email}</p>
-              <Badge className={`${roleInfo.bgColor} ${roleInfo.color} text-xs mt-1 w-fit`} data-testid="menu-role-badge">
-                {roleInfo.label}
-              </Badge>
+              <div className="flex items-center gap-1 mt-1 flex-wrap">
+                {assignedCategory && (
+                  <Badge className="bg-green-100 text-green-700 text-xs w-fit" data-testid="menu-category-badge">
+                    {assignedCategory.name}
+                  </Badge>
+                )}
+                <Badge className={`${roleInfo.bgColor} ${roleInfo.color} text-xs w-fit`} data-testid="menu-role-badge">
+                  {roleInfo.label}
+                </Badge>
+              </div>
             </div>
           </DropdownMenuLabel>
           <DropdownMenuSeparator />
