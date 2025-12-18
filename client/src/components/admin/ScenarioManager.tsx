@@ -112,7 +112,7 @@ export function ScenarioManager() {
   });
 
   // 카테고리 목록 조회
-  const { data: categories } = useQuery<{ id: number; name: string; description?: string }[]>({
+  const { data: categories } = useQuery<{ id: string; name: string; description?: string }[]>({
     queryKey: ['/api/categories'],
   });
 
@@ -1343,14 +1343,12 @@ export function ScenarioManager() {
                     <CardTitle className="text-base font-semibold text-slate-800 line-clamp-2 leading-tight mb-2">
                       {scenario.title}
                     </CardTitle>
-                    <div className="flex items-center gap-2 mb-2">
+                    <div className="flex items-center flex-wrap gap-3 text-sm text-slate-500">
                       {categories && (scenario as any).categoryId && (
                         <Badge variant="outline" className="text-xs bg-slate-50 text-slate-700 border-slate-200">
-                          {categories.find(c => c.id === Number((scenario as any).categoryId))?.name || '미분류'}
+                          {categories.find(c => String(c.id) === String((scenario as any).categoryId))?.name || '미분류'}
                         </Badge>
                       )}
-                    </div>
-                    <div className="flex items-center gap-3 text-sm text-slate-500">
                       <div className="flex items-center gap-1.5">
                         <Clock className="w-3.5 h-3.5" />
                         <span>{scenario.estimatedTime}</span>
