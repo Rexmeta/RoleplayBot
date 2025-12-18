@@ -46,10 +46,10 @@ export function AppHeader({
                 data-testid="profile-image"
               />
               <div>
-                <h1 className="text-lg font-bold text-slate-900" data-testid="user-name">
+                <h1 className="text-sm font-bold text-slate-900" data-testid="user-name">
                   {userName || '사용자'}님의 MyPage
                 </h1>
-                <p className="text-sm text-slate-600" data-testid="user-email">{userEmail}</p>
+                <p className="text-xs text-slate-600" data-testid="user-email">{userEmail}</p>
               </div>
             </div>
             <div className="flex gap-3">
