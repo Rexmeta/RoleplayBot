@@ -1,5 +1,4 @@
 import { Switch, Route } from "wouter";
-import { lazy, Suspense } from "react";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
@@ -16,10 +15,9 @@ import AIGeneratorPage from "@/pages/ai-generator";
 import SystemAdminPage from "@/pages/system-admin";
 import ConversationView from "@/pages/ConversationView";
 import FeedbackView from "@/pages/FeedbackView";
+import HelpPage from "@/pages/HelpPage";
 import NotFound from "@/pages/not-found";
 import { AuthPage } from "@/pages/AuthPage";
-
-const LazyHelpPage = lazy(() => import("@/pages/HelpPage"));
 
 function ProtectedRouter() {
   const { isAuthenticated, isLoading } = useAuth();
@@ -55,37 +53,21 @@ function ProtectedRouter() {
       <Route path="/admin-management" component={AdminManagement} />
       <Route path="/ai-generator" component={AIGeneratorPage} />
       <Route path="/system-admin" component={SystemAdminPage} />
+      <Route path="/help" component={HelpPage} />
       <Route component={NotFound} />
     </Switch>
-  );
-}
-
-function AuthenticatedApp() {
-  return (
-    <AuthProvider>
-      <ProtectedRouter />
-    </AuthProvider>
   );
 }
 
 function App() {
   return (
     <QueryClientProvider client={queryClient}>
-      <TooltipProvider>
-        <Toaster />
-        <Switch>
-          {/* 공개 라우트 - 인증 불필요, Code Splitting으로 빠른 로딩 */}
-          <Route path="/help">
-            <Suspense fallback={<div className="min-h-screen flex items-center justify-center"><p>로딩 중...</p></div>}>
-              <LazyHelpPage />
-            </Suspense>
-          </Route>
-          {/* 보호된 라우트 - 인증 필요 */}
-          <Route>
-            <AuthenticatedApp />
-          </Route>
-        </Switch>
-      </TooltipProvider>
+      <AuthProvider>
+        <TooltipProvider>
+          <Toaster />
+          <ProtectedRouter />
+        </TooltipProvider>
+      </AuthProvider>
     </QueryClientProvider>
   );
 }
