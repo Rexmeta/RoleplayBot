@@ -51,9 +51,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
     });
   });
   
-  // 업로드 파일 보호된 접근 (인증 필요)
+  // 업로드 파일 접근 (프로필 이미지는 공개, 기타 파일은 인증 필요)
   const path = await import('path');
   const fs = await import('fs');
+  
+  // 프로필 이미지는 공개 접근 허용 (img 태그에서 Authorization 헤더 불가)
+  app.get('/uploads/profiles/*', (req: any, res) => {
+    const filePath = path.join(process.cwd(), 'public', req.path);
+    
+    // 경로 조작(Path Traversal) 방지
+    const normalizedPath = path.normalize(filePath);
+    const profilesDir = path.join(process.cwd(), 'public', 'uploads', 'profiles');
+    
+    if (!normalizedPath.startsWith(profilesDir)) {
+      return res.status(403).json({ message: "접근이 거부되었습니다" });
+    }
+    
+    if (fs.existsSync(normalizedPath)) {
+      res.sendFile(normalizedPath);
+    } else {
+      res.status(404).json({ message: "파일을 찾을 수 없습니다" });
+    }
+  });
+  
+  // 기타 업로드 파일은 인증 필요
   app.get('/uploads/*', isAuthenticated, (req: any, res) => {
     const filePath = path.join(process.cwd(), 'public', req.path);
     
