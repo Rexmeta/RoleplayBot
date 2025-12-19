@@ -180,6 +180,29 @@ export class RealtimeVoiceService {
     const mbtiType: string = scenarioPersona.personaRef?.replace('.json', '') || '';
     const mbtiPersona = mbtiType ? await fileManager.getPersonaByMBTI(mbtiType) : null;
 
+    // 사용자 정보 로드 (이름, 역할)
+    let userName = '사용자';
+    try {
+      const user = await storage.getUser(userId);
+      if (user?.name) {
+        userName = user.name;
+      }
+    } catch (error) {
+      console.warn(`⚠️ Failed to load user info for userId ${userId}:`, error);
+    }
+
+    // 시나리오에서 사용자 역할 정보 추출
+    const playerRole = scenarioObj.context?.playerRole || {};
+    const userRoleInfo = {
+      name: userName,
+      position: playerRole.position || '담당자',
+      department: playerRole.department || '',
+      experience: playerRole.experience || '',
+      responsibility: playerRole.responsibility || ''
+    };
+    
+    console.log(`👤 사용자 정보: ${userRoleInfo.name} (${userRoleInfo.position}${userRoleInfo.department ? ', ' + userRoleInfo.department : ''})`);
+
     // 사용자가 선택한 난이도를 시나리오 객체에 적용
     const scenarioWithUserDifficulty = {
       ...scenarioObj,
@@ -190,7 +213,8 @@ export class RealtimeVoiceService {
     const systemInstructions = this.buildSystemInstructions(
       scenarioWithUserDifficulty,
       scenarioPersona,
-      mbtiPersona
+      mbtiPersona,
+      userRoleInfo
     );
 
     console.log('\n' + '='.repeat(80));
@@ -246,7 +270,8 @@ export class RealtimeVoiceService {
   private buildSystemInstructions(
     scenario: any,
     scenarioPersona: any,
-    mbtiPersona: any
+    mbtiPersona: any,
+    userRoleInfo?: { name: string; position: string; department: string; experience: string; responsibility: string }
   ): string {
     const mbtiType = scenarioPersona.personaRef?.replace('.json', '') || 'UNKNOWN';
     
@@ -256,11 +281,26 @@ export class RealtimeVoiceService {
     
     const difficultyGuidelines = getRealtimeVoiceGuidelines(difficultyLevel);
     
+    // 대화 상대(사용자) 정보 섹션 구성
+    const userInfoSection = userRoleInfo ? [
+      `# 📌 대화 상대 정보 (중요!)`,
+      `당신이 대화하는 상대방의 정보입니다. 대화 중 이 정보를 참고하세요:`,
+      `- 이름: ${userRoleInfo.name}`,
+      userRoleInfo.position ? `- 직책: ${userRoleInfo.position}` : '',
+      userRoleInfo.department ? `- 소속: ${userRoleInfo.department}` : '',
+      userRoleInfo.experience ? `- 경력: ${userRoleInfo.experience}` : '',
+      userRoleInfo.responsibility ? `- 책임: ${userRoleInfo.responsibility}` : '',
+      ``,
+      `⚠️ 상대방을 부를 때 "${userRoleInfo.name}"님 또는 "${userRoleInfo.position}"님으로 호칭하세요.`,
+      ``,
+    ].filter(line => line !== '') : [];
+    
     const instructions = [
       `# 당신의 정체성`,
       `당신은 "${scenarioPersona.name}"이라는 실제 사람입니다.`,
       `직책: ${scenarioPersona.position} (${scenarioPersona.department})`,
       ``,
+      ...userInfoSection,
       `# 시나리오 배경`,
       scenario.context?.situation || '현재 진행 중인 상황에 적절히 대응하세요.',
       ``,
@@ -301,7 +341,7 @@ export class RealtimeVoiceService {
       `# 🎬 대화 시작 지침`,
       `세션이 시작되면 반드시 먼저 인사를 건네며 대화를 시작하세요.`,
       `상대방이 말을 걸 때까지 기다리지 말고, 당신이 먼저 상황에 맞는 인사나 첫 마디를 하세요.`,
-      `예시: "안녕하세요, 급한 건으로 찾아뵙게 됐습니다.", "오셨군요, 지금 상황이 좀 급합니다."`,
+      userRoleInfo ? `예시: "${userRoleInfo.name}님, 안녕하세요. 급한 건으로 찾아뵙게 됐습니다.", "${userRoleInfo.position}님 오셨군요, 지금 상황이 좀 급합니다."` : `예시: "안녕하세요, 급한 건으로 찾아뵙게 됐습니다.", "오셨군요, 지금 상황이 좀 급합니다."`,
     ];
 
     return instructions.join('\n');
