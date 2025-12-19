@@ -3105,10 +3105,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/scenarios", async (req, res) => {
     try {
       const scenarios = await fileManager.getAllScenarios();
+      const categoryIdParam = req.query.categoryId as string | undefined;
       
       // 인증된 사용자인지 확인 (토큰이 있는 경우)
       const token = req.cookies?.token || req.headers.authorization?.split(' ')[1];
-      console.log(`[Scenarios API] Token exists: ${!!token}`);
+      console.log(`[Scenarios API] Token exists: ${!!token}, categoryIdParam: ${categoryIdParam}`);
       
       if (token) {
         try {
@@ -3119,8 +3120,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
           console.log(`[Scenarios API] User found: ${!!user}, role: ${user?.role}, assignedCategoryId: ${user?.assignedCategoryId}`);
           
           if (user) {
-            // 시스템관리자(admin)는 모든 시나리오 접근 가능
+            // 시스템관리자(admin)는 모든 시나리오 접근 가능 (카테고리 필터 선택 가능)
             if (user.role === 'admin') {
+              if (categoryIdParam) {
+                const filteredScenarios = scenarios.filter((s: any) => 
+                  String(s.categoryId) === String(categoryIdParam)
+                );
+                console.log(`[Scenarios API] Admin user with filter - returning ${filteredScenarios.length}/${scenarios.length} scenarios for category ${categoryIdParam}`);
+                return res.json(filteredScenarios);
+              }
               console.log(`[Scenarios API] Admin user - returning all ${scenarios.length} scenarios`);
               return res.json(scenarios);
             }

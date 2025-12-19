@@ -189,31 +189,49 @@ export default function AdminDashboard() {
   });
 
   const { data: emotions, isLoading: emotionsLoading } = useQuery<EmotionData>({
-    queryKey: ["/api/admin/analytics/emotions"],
+    queryKey: ["/api/admin/analytics/emotions", selectedCategoryId],
+    queryFn: () => {
+      const token = localStorage.getItem("authToken");
+      const headers: Record<string, string> = {};
+      if (token) headers["Authorization"] = `Bearer ${token}`;
+      return fetch(`/api/admin/analytics/emotions${categoryParam}`, { credentials: 'include', headers }).then(res => res.json());
+    },
     staleTime: 1000 * 60 * 10,
     gcTime: 1000 * 60 * 30,
   });
 
   const { data: scenarioEmotions } = useQuery<ScenarioEmotionData>({
-    queryKey: ["/api/admin/analytics/emotions/by-scenario"],
+    queryKey: ["/api/admin/analytics/emotions/by-scenario", selectedCategoryId],
+    queryFn: () => {
+      const token = localStorage.getItem("authToken");
+      const headers: Record<string, string> = {};
+      if (token) headers["Authorization"] = `Bearer ${token}`;
+      return fetch(`/api/admin/analytics/emotions/by-scenario${categoryParam}`, { credentials: 'include', headers }).then(res => res.json());
+    },
     staleTime: 1000 * 60 * 10,
     gcTime: 1000 * 60 * 30,
   });
 
   const { data: difficultyEmotions } = useQuery<DifficultyEmotionData>({
-    queryKey: ["/api/admin/analytics/emotions/by-difficulty"],
-    staleTime: 1000 * 60 * 10,
-    gcTime: 1000 * 60 * 30,
-  });
-
-  // 현재 시나리오 구조에 맞게 시나리오 데이터 가져오기
-  const { data: scenarios = [] } = useQuery({
-    queryKey: ['/api/scenarios'],
+    queryKey: ["/api/admin/analytics/emotions/by-difficulty", selectedCategoryId],
     queryFn: () => {
       const token = localStorage.getItem("authToken");
       const headers: Record<string, string> = {};
       if (token) headers["Authorization"] = `Bearer ${token}`;
-      return fetch('/api/scenarios', { credentials: 'include', headers }).then(res => res.json());
+      return fetch(`/api/admin/analytics/emotions/by-difficulty${categoryParam}`, { credentials: 'include', headers }).then(res => res.json());
+    },
+    staleTime: 1000 * 60 * 10,
+    gcTime: 1000 * 60 * 30,
+  });
+
+  // 현재 시나리오 구조에 맞게 시나리오 데이터 가져오기 (카테고리 필터 적용)
+  const { data: scenarios = [] } = useQuery({
+    queryKey: ['/api/scenarios', selectedCategoryId],
+    queryFn: () => {
+      const token = localStorage.getItem("authToken");
+      const headers: Record<string, string> = {};
+      if (token) headers["Authorization"] = `Bearer ${token}`;
+      return fetch(`/api/scenarios${categoryParam}`, { credentials: 'include', headers }).then(res => res.json());
     },
     staleTime: 1000 * 60 * 30, // 30분간 캐시 유지 (시나리오는 자주 변경되지 않음)
     gcTime: 1000 * 60 * 60,     // 1시간 메모리 유지
