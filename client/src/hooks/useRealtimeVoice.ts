@@ -66,6 +66,7 @@ export function useRealtimeVoice({
   const bargeInTriggeredRef = useRef<boolean>(false); // Flag to prevent multiple barge-in triggers
   const serverVoiceDetectedTimeRef = useRef<number | null>(null); // Timestamp when server detected user speaking
   const isAISpeakingRef = useRef<boolean>(false); // Ref for isAISpeaking state (for closures)
+  const isAudioPausedRef = useRef<boolean>(false); // Track if AI audio is paused due to user speaking
   
   // Store callbacks in refs to avoid recreating connect() on every render
   const onMessageRef = useRef(onMessage);
@@ -546,41 +547,36 @@ export function useRealtimeVoice({
         
         // Debug logging
         if (Math.random() < 0.08) {
-          console.log(`🔊 RAW-VAD: RMS=${rms.toFixed(4)}, threshold=${VOICE_THRESHOLD}, AISpeaking=${isAISpeakingRef.current}, bargeTriggered=${bargeInTriggeredRef.current}`);
+          console.log(`🔊 RAW-VAD: RMS=${rms.toFixed(4)}, threshold=${VOICE_THRESHOLD}, AISpeaking=${isAISpeakingRef.current}, audioPaused=${isAudioPausedRef.current}`);
         }
         
-        // Voice activity detection for 1.5-second barge-in
+        // Voice activity detection - INSTANT pause/resume approach
         if (rms > VOICE_THRESHOLD) {
+          // User is speaking - immediately pause AI audio if not already paused
+          if (!isAudioPausedRef.current && isAISpeakingRef.current && playbackContextRef.current) {
+            console.log('🎤 User speaking detected - pausing AI audio instantly');
+            isAudioPausedRef.current = true;
+            playbackContextRef.current.suspend().then(() => {
+              console.log('⏸️ AI audio paused');
+            }).catch(err => {
+              console.warn('Failed to suspend playback:', err);
+            });
+          }
+          
+          // Track voice activity start for logging
           if (voiceActivityStartRef.current === null) {
             voiceActivityStartRef.current = Date.now();
-            console.log('🎤 RAW Voice activity started (no echo cancellation)');
-          }
-          
-          const voiceDuration = Date.now() - voiceActivityStartRef.current;
-          
-          // Log progress
-          if (voiceDuration > 0 && voiceDuration % 500 < 100 && isAISpeakingRef.current) {
-            console.log(`🎤 Voice duration: ${(voiceDuration/1000).toFixed(1)}s (need 1.5s for barge-in)`);
-          }
-          
-          // Trigger barge-in after 1.5 seconds of voice during AI speech
-          if (voiceDuration >= 1500 && isAISpeakingRef.current && !bargeInTriggeredRef.current) {
-            console.log('🎤 1.5-second voice detected (raw) - triggering barge-in');
-            bargeInTriggeredRef.current = true;
-            
-            stopCurrentPlayback();
-            expectedTurnSeqRef.current++;
-            
-            if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-              wsRef.current.send(JSON.stringify({
-                type: 'response.cancel',
-              }));
-              console.log('📤 Sent response.cancel after 1.5s raw voice detection');
-            }
           }
         } else {
-          if (voiceActivityStartRef.current !== null) {
-            console.log('🔇 RAW Voice activity ended');
+          // User stopped speaking - resume AI audio if it was paused
+          if (isAudioPausedRef.current && playbackContextRef.current) {
+            console.log('🔇 User stopped speaking - resuming AI audio');
+            isAudioPausedRef.current = false;
+            playbackContextRef.current.resume().then(() => {
+              console.log('▶️ AI audio resumed');
+            }).catch(err => {
+              console.warn('Failed to resume playback:', err);
+            });
           }
           voiceActivityStartRef.current = null;
         }
@@ -666,6 +662,12 @@ export function useRealtimeVoice({
     // Reset voice activity tracking
     voiceActivityStartRef.current = null;
     bargeInTriggeredRef.current = false;
+    isAudioPausedRef.current = false;
+    
+    // Resume audio if it was paused
+    if (playbackContextRef.current && playbackContextRef.current.state === 'suspended') {
+      playbackContextRef.current.resume().catch(() => {});
+    }
     
     // Stop sending audio first
     setIsRecording(false);
