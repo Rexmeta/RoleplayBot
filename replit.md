@@ -17,7 +17,7 @@ Preferred communication style: Simple, everyday language.
 - **Conversation Modes**:
     - **Text Input**: Standard text-based chat.
     - **Text-to-Speech (TTS)**: User text input, AI voice response via ElevenLabs API, voice selection based on MBTI persona.
-    - **Real-time Voice**: Full-duplex voice conversation via OpenAI Realtime API (GPT-4o Realtime), WebSocket streaming, server-side VAD, Whisper transcription, Web Audio API playback.
+    - **Real-time Voice**: Full-duplex voice conversation via Gemini Live API, WebSocket streaming, server-side VAD, Web Audio API playback, barge-in support (turnSeq-based interruption handling).
 
 ## Backend
 - **Runtime**: Node.js with Express.js
@@ -55,7 +55,7 @@ Preferred communication style: Simple, everyday language.
 
 ## Third-party Services
 - **Google Gemini API**: Gemini 2.5 Flash/Pro for AI conversation responses, feedback, strategy, scenario generation, and Gemini Veo 3.1 for intro video generation.
-- **OpenAI Realtime API**: GPT-4o Realtime for real-time voice conversations.
+- **Google Gemini Live API**: Real-time voice conversations with barge-in support.
 - **ElevenLabs API**: Text-to-speech synthesis.
 - **Neon Database**: Serverless PostgreSQL hosting.
 
