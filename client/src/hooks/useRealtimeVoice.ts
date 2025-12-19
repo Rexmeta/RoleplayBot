@@ -535,15 +535,25 @@ export function useRealtimeVoice({
         }
         
         if (rms > VOICE_THRESHOLD) {
-          // User is speaking - immediately pause AI audio if not already paused
-          if (!isAudioPausedRef.current && isPlaybackRunning && playbackContextRef.current) {
-            console.log('🎤 User speaking detected - pausing AI audio instantly');
-            isAudioPausedRef.current = true;
-            playbackContextRef.current.suspend().then(() => {
-              console.log('⏸️ AI audio paused');
-            }).catch(err => {
-              console.warn('Failed to suspend playback:', err);
-            });
+          // User is speaking - cancel AI response immediately (only once per barge-in)
+          if (!bargeInTriggeredRef.current && isPlaybackRunning) {
+            console.log('🎤 User speaking detected - triggering barge-in (cancel AI response)');
+            bargeInTriggeredRef.current = true;
+            
+            // 1. Stop current audio playback and clear buffer
+            stopCurrentPlayback();
+            
+            // 2. Increment expected turn seq to ignore any remaining audio from old response
+            expectedTurnSeqRef.current++;
+            console.log(`📊 Expected turn seq incremented to ${expectedTurnSeqRef.current}`);
+            
+            // 3. Send response.cancel to server to stop Gemini from generating more audio
+            if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+              wsRef.current.send(JSON.stringify({
+                type: 'response.cancel',
+              }));
+              console.log('📤 Sent response.cancel to interrupt AI response');
+            }
           }
           
           // Track voice activity start for logging
@@ -551,15 +561,10 @@ export function useRealtimeVoice({
             voiceActivityStartRef.current = Date.now();
           }
         } else {
-          // User stopped speaking - resume AI audio if it was paused
-          if (isAudioPausedRef.current && playbackContextRef.current) {
-            console.log('🔇 User stopped speaking - resuming AI audio');
-            isAudioPausedRef.current = false;
-            playbackContextRef.current.resume().then(() => {
-              console.log('▶️ AI audio resumed');
-            }).catch(err => {
-              console.warn('Failed to resume playback:', err);
-            });
+          // User stopped speaking - reset barge-in flag for next interruption
+          if (bargeInTriggeredRef.current) {
+            console.log('🔇 User stopped speaking - ready for new AI response');
+            bargeInTriggeredRef.current = false;
           }
           voiceActivityStartRef.current = null;
         }
