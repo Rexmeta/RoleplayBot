@@ -287,8 +287,9 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
   }, [personaImagesAvailable, persona.id, persona.gender, persona.mbti, persona.name]);
   
   // 감정 변화 시 이미지 업데이트 - preloadImage 함수가 로드 완료 후 setLoadedImageUrl 호출
+  // 중립 표정으로 돌아올 때도 이미지가 업데이트되도록 조건 제거
   useEffect(() => {
-    if (currentEmotion && currentEmotion !== '중립') {
+    if (currentEmotion) {
       const newImageUrl = getCharacterImage(currentEmotion);
       console.log(`🖼️ 감정 변화 이미지: ${currentEmotion} → ${newImageUrl}`);
       if (newImageUrl) {
