@@ -61,6 +61,7 @@ export function useRealtimeVoice({
   const expectedTurnSeqRef = useRef<number>(0); // Expected turn sequence for audio filtering
   const voiceActivityStartRef = useRef<number | null>(null); // Timestamp when voice activity started
   const bargeInTriggeredRef = useRef<boolean>(false); // Flag to prevent multiple barge-in triggers
+  const serverVoiceDetectedTimeRef = useRef<number | null>(null); // Timestamp when server detected user speaking
   const isAISpeakingRef = useRef<boolean>(false); // Ref for isAISpeaking state (for closures)
   
   // Store callbacks in refs to avoid recreating connect() on every render
@@ -224,6 +225,43 @@ export function useRealtimeVoice({
                 console.log('🎤 User said:', data.transcript);
                 onUserTranscriptionRef.current(data.transcript);
               }
+              // Reset server voice detection after transcription is complete
+              serverVoiceDetectedTimeRef.current = null;
+              break;
+            
+            // 🎙️ 서버에서 사용자 음성 감지 시작 (barge-in용)
+            case 'user.speaking.started':
+              console.log('🎙️ Server detected user speaking');
+              if (serverVoiceDetectedTimeRef.current === null) {
+                serverVoiceDetectedTimeRef.current = Date.now();
+              }
+              // Check for barge-in after 1.5 seconds
+              if (isAISpeakingRef.current && !bargeInTriggeredRef.current) {
+                setTimeout(() => {
+                  // Double-check conditions after delay
+                  if (isAISpeakingRef.current && !bargeInTriggeredRef.current && serverVoiceDetectedTimeRef.current !== null) {
+                    const duration = Date.now() - serverVoiceDetectedTimeRef.current;
+                    if (duration >= 1500) {
+                      console.log('🎤 1.5-second voice detected by server - triggering barge-in');
+                      bargeInTriggeredRef.current = true;
+                      
+                      // Stop current AI audio playback
+                      stopCurrentPlayback();
+                      
+                      // Increment expected turn seq to ignore audio from cancelled turn
+                      expectedTurnSeqRef.current++;
+                      
+                      // Send cancel signal to server
+                      if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+                        wsRef.current.send(JSON.stringify({
+                          type: 'response.cancel',
+                        }));
+                        console.log('📤 Sent response.cancel after 1.5-second voice detection');
+                      }
+                    }
+                  }
+                }, 1500);
+              }
               break;
 
             // 🔊 오디오 재생
@@ -285,6 +323,7 @@ export function useRealtimeVoice({
               console.log('🔊 Previous turn complete, clearing barge-in flag');
               isInterruptedRef.current = false;
               bargeInTriggeredRef.current = false; // Reset barge-in trigger for next interaction
+              serverVoiceDetectedTimeRef.current = null; // Reset server voice detection
               if (data.turnSeq !== undefined) {
                 expectedTurnSeqRef.current = data.turnSeq - 1; // Accept audio from this turn onwards
               }

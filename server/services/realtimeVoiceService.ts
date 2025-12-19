@@ -617,6 +617,16 @@ export class RealtimeVoiceService {
       if (serverContent.inputTranscription) {
         const transcript = serverContent.inputTranscription.text || '';
         console.log(`🎤 User transcript delta: ${transcript}`);
+        
+        // Notify client that user started speaking (for barge-in detection)
+        // Send only once per speaking session (when buffer was empty)
+        if (session.userTranscriptBuffer.length === 0 && transcript.length > 0) {
+          console.log('🎙️ User started speaking - notifying client');
+          this.sendToClient(session, {
+            type: 'user.speaking.started',
+          });
+        }
+        
         session.userTranscriptBuffer += transcript;
         session.totalUserTranscriptLength += transcript.length; // 누적 길이 추적
       }
