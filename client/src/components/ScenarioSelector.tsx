@@ -483,16 +483,32 @@ export default function ScenarioSelector({ onScenarioSelect, playerProfile }: Sc
                     }`}
                   >
                     <div className="bg-gradient-to-b from-slate-900 to-slate-800 p-6 text-white">
-                      {/* 시나리오 개요 */}
-                      <div className="bg-white/5 rounded-lg p-4 mb-5">
-                        <h4 className="font-medium text-white mb-3 flex items-center text-sm">
-                          <i className="fas fa-file-alt mr-2 text-blue-400"></i>
-                          시나리오 개요
-                        </h4>
-                        <p className="text-sm text-gray-200 leading-relaxed whitespace-pre-wrap">
-                          {scenario.description}
-                        </p>
-                      </div>
+                      {/* 시나리오 개요 - 모바일에서는 300자 제한 */}
+                      {scenario.description && (
+                        <div className="bg-white/5 rounded-lg p-4 mb-5">
+                          <h4 className="font-medium text-white mb-3 flex items-center text-sm">
+                            <i className="fas fa-file-alt mr-2 text-blue-400"></i>
+                            시나리오 개요
+                          </h4>
+                          {/* 데스크탑: 전체 표시, 모바일: 300자 제한 */}
+                          <p className="text-sm text-gray-200 leading-relaxed whitespace-pre-wrap hidden md:block">
+                            {scenario.description}
+                          </p>
+                          <div className="md:hidden">
+                            <p className="text-sm text-gray-200 leading-relaxed whitespace-pre-wrap">
+                              {scenario.description.length > 300 
+                                ? scenario.description.substring(0, 300) + '...' 
+                                : scenario.description}
+                            </p>
+                            {scenario.description.length > 300 && (
+                              <p className="text-xs text-blue-300 mt-2 flex items-center gap-1">
+                                <i className="fas fa-info-circle"></i>
+                                전체 내용은 시나리오 시작 후 확인 가능합니다
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                      )}
                       
                       {/* 상황 정보 */}
                       <div className="space-y-4 mb-5">
