@@ -455,6 +455,7 @@ export class RealtimeVoiceService {
       this.sendToClient(session, {
         type: 'audio.delta',
         delta: message.data, // Base64 encoded PCM16 audio
+        turnSeq: session.turnSeq, // Include turn sequence for client-side filtering
       });
       return;
     }
@@ -486,6 +487,7 @@ export class RealtimeVoiceService {
           // Notify client that it's safe to play audio again
           this.sendToClient(session, {
             type: 'response.ready',
+            turnSeq: session.turnSeq, // Include new turn sequence
           });
         }
         
@@ -603,6 +605,7 @@ export class RealtimeVoiceService {
               this.sendToClient(session, {
                 type: 'audio.delta',
                 delta: audioData,
+                turnSeq: session.turnSeq, // Include turn sequence for client-side filtering
               });
             }
           }

@@ -48,7 +48,8 @@ export function useRealtimeVoice({
   
   const wsRef = useRef<WebSocket | null>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
-  const audioContextRef = useRef<AudioContext | null>(null);
+  const playbackContextRef = useRef<AudioContext | null>(null); // For AI audio playback
+  const captureContextRef = useRef<AudioContext | null>(null); // For microphone capture
   const audioChunksRef = useRef<Blob[]>([]);
   const audioProcessorRef = useRef<ScriptProcessorNode | null>(null);
   const micStreamRef = useRef<MediaStream | null>(null);
@@ -57,6 +58,10 @@ export function useRealtimeVoice({
   const isRecordingRef = useRef<boolean>(false); // Ref for recording state (for closures)
   const scheduledSourcesRef = useRef<AudioBufferSourceNode[]>([]); // Track scheduled audio sources for interruption
   const isInterruptedRef = useRef<boolean>(false); // Flag to ignore audio after barge-in until new response
+  const expectedTurnSeqRef = useRef<number>(0); // Expected turn sequence for audio filtering
+  const voiceActivityStartRef = useRef<number | null>(null); // Timestamp when voice activity started
+  const bargeInTriggeredRef = useRef<boolean>(false); // Flag to prevent multiple barge-in triggers
+  const isAISpeakingRef = useRef<boolean>(false); // Ref for isAISpeaking state (for closures)
   
   // Store callbacks in refs to avoid recreating connect() on every render
   const onMessageRef = useRef(onMessage);
@@ -129,6 +134,22 @@ export function useRealtimeVoice({
     }
     scheduledSourcesRef.current = [];
     
+    // Suspend and close playback AudioContext to immediately halt all audio
+    // This ensures no queued audio chunks can play
+    // Note: Only close playback context, keep capture context intact for microphone
+    if (playbackContextRef.current && playbackContextRef.current.state !== 'closed') {
+      try {
+        // Suspend immediately stops all processing
+        playbackContextRef.current.suspend();
+        // Close and create fresh context for next playback
+        playbackContextRef.current.close();
+        playbackContextRef.current = null;
+        console.log('🔇 Playback AudioContext closed to flush audio queue');
+      } catch (err) {
+        console.warn('Error closing playback AudioContext:', err);
+      }
+    }
+    
     // Reset playback timing
     nextPlayTimeRef.current = 0;
     
@@ -136,6 +157,7 @@ export function useRealtimeVoice({
     aiMessageBufferRef.current = '';
     
     setIsAISpeaking(false);
+    isAISpeakingRef.current = false;
   }, []);
 
   const disconnect = useCallback(() => {
@@ -149,9 +171,13 @@ export function useRealtimeVoice({
     if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
       mediaRecorderRef.current.stop();
     }
-    if (audioContextRef.current) {
-      audioContextRef.current.close();
-      audioContextRef.current = null;
+    if (playbackContextRef.current) {
+      playbackContextRef.current.close();
+      playbackContextRef.current = null;
+    }
+    if (captureContextRef.current) {
+      captureContextRef.current.close();
+      captureContextRef.current = null;
     }
     setStatus('disconnected');
     setIsRecording(false);
@@ -203,7 +229,13 @@ export function useRealtimeVoice({
             // 🔊 오디오 재생
             case 'audio.delta':
               if (data.delta) {
+                // Filter by turn sequence if provided
+                if (data.turnSeq !== undefined && data.turnSeq <= expectedTurnSeqRef.current) {
+                  console.log(`🔇 Ignoring old audio (turnSeq ${data.turnSeq} <= expected ${expectedTurnSeqRef.current})`);
+                  break;
+                }
                 setIsAISpeaking(true);
+                isAISpeakingRef.current = true;
                 playAudioDelta(data.delta);
               }
               break;
@@ -237,19 +269,25 @@ export function useRealtimeVoice({
             case 'response.done':
               console.log('✅ Response complete');
               setIsAISpeaking(false);
+              isAISpeakingRef.current = false;
               // Do NOT reset interrupted flag here - wait for response.started from a genuine new turn
               break;
 
             case 'response.interrupted':
               console.log('⚡ Response interrupted (barge-in acknowledged)');
               setIsAISpeaking(false);
+              isAISpeakingRef.current = false;
               // Keep interrupted flag true until user finishes speaking and new response starts
               break;
 
             case 'response.ready':
-              // Server confirms previous turn complete, clear interrupted flag
+              // Server confirms previous turn complete, update expected turn seq
               console.log('🔊 Previous turn complete, clearing barge-in flag');
               isInterruptedRef.current = false;
+              bargeInTriggeredRef.current = false; // Reset barge-in trigger for next interaction
+              if (data.turnSeq !== undefined) {
+                expectedTurnSeqRef.current = data.turnSeq - 1; // Accept audio from this turn onwards
+              }
               break;
 
             case 'session.terminated':
@@ -309,12 +347,12 @@ export function useRealtimeVoice({
     }
     
     try {
-      if (!audioContextRef.current) {
-        audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 24000 });
+      if (!playbackContextRef.current) {
+        playbackContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 24000 });
         nextPlayTimeRef.current = 0; // Reset play time
       }
 
-      const audioContext = audioContextRef.current;
+      const audioContext = playbackContextRef.current;
       
       // Decode base64 to raw bytes
       const binaryString = atob(base64Audio);
@@ -405,13 +443,13 @@ export function useRealtimeVoice({
       
       micStreamRef.current = stream;
 
-      // Create AudioContext for PCM16 conversion
+      // Create AudioContext for PCM16 conversion (separate from playback)
       // Note: Browser may use different sample rate (e.g. 48000), we'll resample
-      if (!audioContextRef.current) {
-        audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
+      if (!captureContextRef.current) {
+        captureContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
       }
 
-      const audioContext = audioContextRef.current;
+      const audioContext = captureContextRef.current;
       const source = audioContext.createMediaStreamSource(stream);
       
       console.log(`🎙️ AudioContext sample rate: ${audioContext.sampleRate}Hz`);
@@ -432,6 +470,47 @@ export function useRealtimeVoice({
         }
 
         const inputData = e.inputBuffer.getChannelData(0);
+        
+        // Calculate RMS (Root Mean Square) for voice activity detection
+        let sum = 0;
+        for (let i = 0; i < inputData.length; i++) {
+          sum += inputData[i] * inputData[i];
+        }
+        const rms = Math.sqrt(sum / inputData.length);
+        const VOICE_THRESHOLD = 0.01; // Adjust this threshold as needed
+        
+        // Voice activity detection for 3-second barge-in
+        if (rms > VOICE_THRESHOLD) {
+          // Voice detected
+          if (voiceActivityStartRef.current === null) {
+            voiceActivityStartRef.current = Date.now();
+          }
+          
+          const voiceDuration = Date.now() - voiceActivityStartRef.current;
+          
+          // If voice detected for 3+ seconds and AI is speaking, trigger barge-in
+          if (voiceDuration >= 3000 && isAISpeakingRef.current && !bargeInTriggeredRef.current) {
+            console.log('🎤 3-second voice detected - triggering barge-in');
+            bargeInTriggeredRef.current = true;
+            
+            // Stop current AI audio playback
+            stopCurrentPlayback();
+            
+            // Increment expected turn seq to ignore audio from cancelled turn
+            expectedTurnSeqRef.current++;
+            
+            // Send cancel signal to server
+            if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+              wsRef.current.send(JSON.stringify({
+                type: 'response.cancel',
+              }));
+              console.log('📤 Sent response.cancel after 3-second voice detection');
+            }
+          }
+        } else {
+          // No voice - reset timer
+          voiceActivityStartRef.current = null;
+        }
         
         // Resample to 16kHz for Gemini Live API
         const targetSampleRate = 16000;
@@ -494,6 +573,10 @@ export function useRealtimeVoice({
 
   const stopRecording = useCallback(() => {
     console.log('🎤 Stopping recording...');
+    
+    // Reset voice activity tracking
+    voiceActivityStartRef.current = null;
+    bargeInTriggeredRef.current = false;
     
     // Stop sending audio first
     setIsRecording(false);
