@@ -484,7 +484,9 @@ export function useRealtimeVoice({
     }
 
     try {
-      // Stream 1: With echo cancellation for Gemini (clean audio for speech recognition)
+      // Single mic stream - shared between Gemini and VAD
+      // Note: We use echo cancellation for clean audio, and VAD uses the same stream
+      // since the separate rawStream approach had issues with browser mic access
       const stream = await navigator.mediaDevices.getUserMedia({ 
         audio: {
           channelCount: 1,
@@ -495,41 +497,20 @@ export function useRealtimeVoice({
       });
       
       micStreamRef.current = stream;
+      console.log('🎙️ Created single mic stream for Gemini + VAD');
 
-      // Stream 2: WITHOUT echo cancellation for VAD (detects user voice even during AI playback)
-      const rawStream = await navigator.mediaDevices.getUserMedia({ 
-        audio: {
-          channelCount: 1,
-          sampleRate: 16000,
-          echoCancellation: false,  // CRITICAL: Disable to detect voice during AI playback
-          noiseSuppression: false,
-          autoGainControl: false,
-        } 
-      });
-      
-      rawMicStreamRef.current = rawStream;
-      console.log('🎙️ Created dual mic streams: processed (for Gemini) + raw (for VAD)');
-
-      // Create AudioContext for PCM16 conversion (with echo cancellation)
+      // Create AudioContext for PCM16 conversion
       if (!captureContextRef.current) {
         captureContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
       }
 
-      // Create separate AudioContext for VAD (without echo cancellation)
-      if (!vadContextRef.current) {
-        vadContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
-      }
-
       const audioContext = captureContextRef.current;
-      const vadAudioContext = vadContextRef.current;
       const source = audioContext.createMediaStreamSource(stream);
-      const rawSource = vadAudioContext.createMediaStreamSource(rawStream);
       
-      console.log(`🎙️ Capture AudioContext sample rate: ${audioContext.sampleRate}Hz`);
-      console.log(`🎙️ VAD AudioContext sample rate: ${vadAudioContext.sampleRate}Hz`);
+      console.log(`🎙️ AudioContext sample rate: ${audioContext.sampleRate}Hz`);
       
-      // VAD Processor: Uses raw stream WITHOUT echo cancellation
-      const vadProcessor = vadAudioContext.createScriptProcessor(4096, 1, 1);
+      // VAD Processor: Uses same stream for voice activity detection
+      const vadProcessor = audioContext.createScriptProcessor(4096, 1, 1);
       vadProcessorRef.current = vadProcessor;
       
       vadProcessor.onaudioprocess = (e) => {
@@ -543,7 +524,7 @@ export function useRealtimeVoice({
           sum += inputData[i] * inputData[i];
         }
         const rms = Math.sqrt(sum / inputData.length);
-        const VOICE_THRESHOLD = 0.01; // Slightly higher threshold for raw mic (no noise suppression)
+        const VOICE_THRESHOLD = 0.003; // Lower threshold to detect voice reliably
         
         // Check if playback AudioContext is actually running (more reliable than isAISpeakingRef)
         const isPlaybackRunning = playbackContextRef.current?.state === 'running';
@@ -584,11 +565,11 @@ export function useRealtimeVoice({
         }
       };
       
-      rawSource.connect(vadProcessor);
-      const vadDummyGain = vadAudioContext.createGain();
+      source.connect(vadProcessor);
+      const vadDummyGain = audioContext.createGain();
       vadDummyGain.gain.value = 0;
       vadProcessor.connect(vadDummyGain);
-      vadDummyGain.connect(vadAudioContext.destination);
+      vadDummyGain.connect(audioContext.destination);
       
       // Main Audio Processor: Uses processed stream for Gemini
       const processor = audioContext.createScriptProcessor(4096, 1, 1);
