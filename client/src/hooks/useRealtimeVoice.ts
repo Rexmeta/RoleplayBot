@@ -545,15 +545,17 @@ export function useRealtimeVoice({
         const rms = Math.sqrt(sum / inputData.length);
         const VOICE_THRESHOLD = 0.01; // Slightly higher threshold for raw mic (no noise suppression)
         
+        // Check if playback AudioContext is actually running (more reliable than isAISpeakingRef)
+        const isPlaybackRunning = playbackContextRef.current?.state === 'running';
+        
         // Debug logging
         if (Math.random() < 0.08) {
-          console.log(`🔊 RAW-VAD: RMS=${rms.toFixed(4)}, threshold=${VOICE_THRESHOLD}, AISpeaking=${isAISpeakingRef.current}, audioPaused=${isAudioPausedRef.current}`);
+          console.log(`🔊 RAW-VAD: RMS=${rms.toFixed(4)}, threshold=${VOICE_THRESHOLD}, playbackRunning=${isPlaybackRunning}, audioPaused=${isAudioPausedRef.current}`);
         }
         
-        // Voice activity detection - INSTANT pause/resume approach
         if (rms > VOICE_THRESHOLD) {
           // User is speaking - immediately pause AI audio if not already paused
-          if (!isAudioPausedRef.current && isAISpeakingRef.current && playbackContextRef.current) {
+          if (!isAudioPausedRef.current && isPlaybackRunning && playbackContextRef.current) {
             console.log('🎤 User speaking detected - pausing AI audio instantly');
             isAudioPausedRef.current = true;
             playbackContextRef.current.suspend().then(() => {
