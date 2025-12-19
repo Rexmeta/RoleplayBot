@@ -524,20 +524,29 @@ export function useRealtimeVoice({
           sum += inputData[i] * inputData[i];
         }
         const rms = Math.sqrt(sum / inputData.length);
-        const VOICE_THRESHOLD = 0.003; // Lower threshold to detect voice reliably
+        const VOICE_THRESHOLD = 0.015; // Higher threshold to avoid false triggers from background noise
+        const BARGE_IN_DELAY_MS = 150; // Require 150ms of continuous voice before triggering barge-in
         
         // Check if playback AudioContext is actually running (more reliable than isAISpeakingRef)
         const isPlaybackRunning = playbackContextRef.current?.state === 'running';
         
         // Debug logging
         if (Math.random() < 0.08) {
-          console.log(`🔊 RAW-VAD: RMS=${rms.toFixed(4)}, threshold=${VOICE_THRESHOLD}, playbackRunning=${isPlaybackRunning}, audioPaused=${isAudioPausedRef.current}`);
+          console.log(`🔊 RAW-VAD: RMS=${rms.toFixed(4)}, threshold=${VOICE_THRESHOLD}, playbackRunning=${isPlaybackRunning}`);
         }
         
         if (rms > VOICE_THRESHOLD) {
-          // User is speaking - cancel AI response immediately (only once per barge-in)
-          if (!bargeInTriggeredRef.current && isPlaybackRunning) {
-            console.log('🎤 User speaking detected - triggering barge-in (cancel AI response)');
+          // Track voice activity start time
+          if (voiceActivityStartRef.current === null) {
+            voiceActivityStartRef.current = Date.now();
+            console.log('🎤 Voice activity started');
+          }
+          
+          const voiceDuration = Date.now() - voiceActivityStartRef.current;
+          
+          // Only trigger barge-in after sustained voice activity (reduces false triggers)
+          if (voiceDuration >= BARGE_IN_DELAY_MS && !bargeInTriggeredRef.current && isPlaybackRunning) {
+            console.log(`🎤 ${BARGE_IN_DELAY_MS}ms voice detected - triggering barge-in`);
             bargeInTriggeredRef.current = true;
             
             // 1. Stop current audio playback and clear buffer
@@ -554,11 +563,6 @@ export function useRealtimeVoice({
               }));
               console.log('📤 Sent response.cancel to interrupt AI response');
             }
-          }
-          
-          // Track voice activity start for logging
-          if (voiceActivityStartRef.current === null) {
-            voiceActivityStartRef.current = Date.now();
           }
         } else {
           // User stopped speaking - reset barge-in flag for next interruption
