@@ -676,6 +676,20 @@ export class RealtimeVoiceService {
       if (serverContent.outputTranscription) {
         const transcript = serverContent.outputTranscription.text || '';
         console.log(`🤖 AI transcript delta (raw): ${transcript}`);
+        
+        // 새 AI 응답이 시작되면 barge-in 플래그를 즉시 클리어 (오디오 손실 방지)
+        // turnComplete를 기다리지 않고 새 응답의 오디오를 바로 재생할 수 있게 함
+        if (session.isInterrupted && transcript.length > 0) {
+          console.log(`🔊 New AI response started - clearing barge-in flag immediately`);
+          session.isInterrupted = false;
+          
+          // Notify client that it's safe to play audio again
+          this.sendToClient(session, {
+            type: 'response.ready',
+            turnSeq: session.turnSeq,
+          });
+        }
+        
         // currentTranscript는 modelTurn에서 이미 누적되므로 여기서는 길이만 추적
         if (!serverContent.modelTurn) {
           session.currentTranscript += transcript;
