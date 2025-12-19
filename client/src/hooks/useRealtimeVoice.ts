@@ -477,16 +477,27 @@ export function useRealtimeVoice({
           sum += inputData[i] * inputData[i];
         }
         const rms = Math.sqrt(sum / inputData.length);
-        const VOICE_THRESHOLD = 0.01; // Adjust this threshold as needed
+        const VOICE_THRESHOLD = 0.005; // Lowered threshold for better voice detection
+        
+        // Debug logging (every ~1 second = ~12 chunks at 4096 samples/48kHz)
+        if (Math.random() < 0.08) {
+          console.log(`🔊 VAD: RMS=${rms.toFixed(4)}, threshold=${VOICE_THRESHOLD}, AISpeaking=${isAISpeakingRef.current}, bargeTriggered=${bargeInTriggeredRef.current}`);
+        }
         
         // Voice activity detection for 3-second barge-in
         if (rms > VOICE_THRESHOLD) {
           // Voice detected
           if (voiceActivityStartRef.current === null) {
             voiceActivityStartRef.current = Date.now();
+            console.log('🎤 Voice activity started');
           }
           
           const voiceDuration = Date.now() - voiceActivityStartRef.current;
+          
+          // Log progress every second
+          if (voiceDuration > 0 && voiceDuration % 1000 < 100 && isAISpeakingRef.current) {
+            console.log(`🎤 Voice duration: ${(voiceDuration/1000).toFixed(1)}s (need 3s for barge-in)`);
+          }
           
           // If voice detected for 3+ seconds and AI is speaking, trigger barge-in
           if (voiceDuration >= 3000 && isAISpeakingRef.current && !bargeInTriggeredRef.current) {
@@ -508,7 +519,10 @@ export function useRealtimeVoice({
             }
           }
         } else {
-          // No voice - reset timer
+          // No voice - reset timer only if we had activity before
+          if (voiceActivityStartRef.current !== null) {
+            console.log('🔇 Voice activity ended');
+          }
           voiceActivityStartRef.current = null;
         }
         
