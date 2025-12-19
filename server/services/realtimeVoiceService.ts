@@ -56,6 +56,9 @@ interface RealtimeSession {
   realtimeModel: string; // 사용된 모델
   hasReceivedFirstAIResponse: boolean; // 첫 AI 응답 수신 여부
   firstGreetingRetryCount: number; // 첫 인사 재시도 횟수
+  isInterrupted: boolean; // Barge-in flag to suppress audio until new response
+  turnSeq: number; // Monotonic turn counter, incremented on each turnComplete
+  cancelledTurnSeq: number; // Turn seq when cancel was issued (ignore audio from this turn)
 }
 
 export class RealtimeVoiceService {
@@ -225,6 +228,9 @@ export class RealtimeVoiceService {
       realtimeModel,
       hasReceivedFirstAIResponse: false,
       firstGreetingRetryCount: 0,
+      isInterrupted: false,
+      turnSeq: 0, // First turn is 0
+      cancelledTurnSeq: -1, // No cancelled turn initially
     };
 
     this.sessions.set(sessionId, session);
@@ -440,6 +446,11 @@ export class RealtimeVoiceService {
 
     // Handle audio data chunks (top-level data field)
     if (message.data) {
+      // Skip audio if interrupted (barge-in active)
+      if (session.isInterrupted) {
+        console.log(`🔇 Suppressing audio (barge-in active)`);
+        return;
+      }
       console.log('🔊 Audio data received (top-level)');
       this.sendToClient(session, {
         type: 'audio.delta',
@@ -462,6 +473,21 @@ export class RealtimeVoiceService {
       // Handle turn completion
       if (serverContent.turnComplete) {
         console.log('✅ Turn complete');
+        
+        // Increment turn sequence on every turnComplete - marks new turn boundary
+        session.turnSeq++;
+        console.log(`📊 Turn seq incremented to ${session.turnSeq}`);
+        
+        // If interrupted, check if new turn is beyond cancelled turn
+        if (session.isInterrupted && session.turnSeq > session.cancelledTurnSeq) {
+          console.log(`🔊 New turn ${session.turnSeq} > cancelled ${session.cancelledTurnSeq} - clearing barge-in flag`);
+          session.isInterrupted = false;
+          
+          // Notify client that it's safe to play audio again
+          this.sendToClient(session, {
+            type: 'response.ready',
+          });
+        }
         
         // 첫 AI 응답이 없는 경우 재시도 (최대 3회)
         if (!session.hasReceivedFirstAIResponse && !session.currentTranscript && session.firstGreetingRetryCount < 3) {
@@ -543,6 +569,8 @@ export class RealtimeVoiceService {
           console.log('🎉 첫 AI 응답 수신!');
         }
         
+        // Note: barge-in flag is cleared in turnComplete when turnSeq > cancelledTurnSeq
+        
         const parts = serverContent.modelTurn.parts || [];
         console.log(`🎭 modelTurn parts count: ${parts.length}`);
         
@@ -563,6 +591,11 @@ export class RealtimeVoiceService {
           
           // Handle inline audio data (inlineData 형식)
           if (part.inlineData) {
+            // Skip audio if interrupted (barge-in active)
+            if (session.isInterrupted) {
+              console.log(`🔇 Suppressing inline audio (barge-in active)`);
+              continue;
+            }
             const audioData = part.inlineData.data;
             const mimeType = part.inlineData.mimeType || 'audio/pcm';
             console.log(`🔊 Audio data received (inlineData), mimeType: ${mimeType}, length: ${audioData?.length || 0}`);
@@ -664,6 +697,27 @@ export class RealtimeVoiceService {
             turnComplete: true,
           });
         }
+        break;
+
+      case 'response.cancel':
+        // User interrupted AI (barge-in) - cancel current response
+        console.log(`⚡ Barge-in: Canceling turn ${session.turnSeq}`);
+        
+        // Set interrupted flag and record which turn we're cancelling
+        session.isInterrupted = true;
+        session.cancelledTurnSeq = session.turnSeq;
+        
+        // Clear current transcript buffer
+        session.currentTranscript = '';
+        session.userTranscriptBuffer = '';
+        
+        // Send interruption acknowledgment to client
+        this.sendToClient(session, {
+          type: 'response.interrupted',
+        });
+        
+        // Note: Gemini Live API handles interruption naturally when user starts speaking
+        // The audio input will take priority and Gemini will stop generating
         break;
 
       default:

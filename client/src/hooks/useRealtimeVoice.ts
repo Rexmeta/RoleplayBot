@@ -55,6 +55,8 @@ export function useRealtimeVoice({
   const nextPlayTimeRef = useRef<number>(0); // Track when to play next chunk
   const aiMessageBufferRef = useRef<string>(''); // Buffer for AI message transcription
   const isRecordingRef = useRef<boolean>(false); // Ref for recording state (for closures)
+  const scheduledSourcesRef = useRef<AudioBufferSourceNode[]>([]); // Track scheduled audio sources for interruption
+  const isInterruptedRef = useRef<boolean>(false); // Flag to ignore audio after barge-in until new response
   
   // Store callbacks in refs to avoid recreating connect() on every render
   const onMessageRef = useRef(onMessage);
@@ -109,7 +111,37 @@ export function useRealtimeVoice({
     }
   }, []);
 
+  // Stop all scheduled audio playback immediately (for barge-in/interruption)
+  const stopCurrentPlayback = useCallback(() => {
+    console.log('🔇 Stopping current AI audio playback (barge-in)');
+    
+    // Set interrupted flag to ignore incoming audio chunks until new response
+    isInterruptedRef.current = true;
+    
+    // Stop all scheduled audio sources
+    for (const source of scheduledSourcesRef.current) {
+      try {
+        source.stop();
+        source.disconnect();
+      } catch (err) {
+        // Source may have already finished playing
+      }
+    }
+    scheduledSourcesRef.current = [];
+    
+    // Reset playback timing
+    nextPlayTimeRef.current = 0;
+    
+    // Reset AI message buffer
+    aiMessageBufferRef.current = '';
+    
+    setIsAISpeaking(false);
+  }, []);
+
   const disconnect = useCallback(() => {
+    // Stop any playing audio first
+    stopCurrentPlayback();
+    
     if (wsRef.current) {
       wsRef.current.close();
       wsRef.current = null;
@@ -124,7 +156,7 @@ export function useRealtimeVoice({
     setStatus('disconnected');
     setIsRecording(false);
     setIsAISpeaking(false);
-  }, []);
+  }, [stopCurrentPlayback]);
 
   const connect = useCallback(async () => {
     setStatus('connecting');
@@ -205,6 +237,19 @@ export function useRealtimeVoice({
             case 'response.done':
               console.log('✅ Response complete');
               setIsAISpeaking(false);
+              // Do NOT reset interrupted flag here - wait for response.started from a genuine new turn
+              break;
+
+            case 'response.interrupted':
+              console.log('⚡ Response interrupted (barge-in acknowledged)');
+              setIsAISpeaking(false);
+              // Keep interrupted flag true until user finishes speaking and new response starts
+              break;
+
+            case 'response.ready':
+              // Server confirms previous turn complete, clear interrupted flag
+              console.log('🔊 Previous turn complete, clearing barge-in flag');
+              isInterruptedRef.current = false;
               break;
 
             case 'session.terminated':
@@ -257,6 +302,12 @@ export function useRealtimeVoice({
   }, [enabled, getRealtimeToken, getWebSocketUrl, disconnect]);
 
   const playAudioDelta = useCallback(async (base64Audio: string) => {
+    // Ignore audio chunks if interrupted (barge-in active)
+    if (isInterruptedRef.current) {
+      console.log('🔇 Ignoring audio chunk (barge-in active)');
+      return;
+    }
+    
     try {
       if (!audioContextRef.current) {
         audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 24000 });
@@ -300,6 +351,17 @@ export function useRealtimeVoice({
       source.connect(audioContext.destination);
       source.start(startTime);
       
+      // Track source for potential interruption (barge-in)
+      scheduledSourcesRef.current.push(source);
+      
+      // Clean up finished sources
+      source.onended = () => {
+        const index = scheduledSourcesRef.current.indexOf(source);
+        if (index > -1) {
+          scheduledSourcesRef.current.splice(index, 1);
+        }
+      };
+      
       // Update next play time (current chunk start time + duration / playbackRate)
       nextPlayTimeRef.current = startTime + (audioBuffer.duration / 0.9);
       
@@ -313,6 +375,22 @@ export function useRealtimeVoice({
     if (status !== 'connected' || !wsRef.current) {
       console.warn('Cannot start recording: not connected');
       return;
+    }
+
+    // Barge-in: If AI is speaking, interrupt it
+    if (isAISpeaking) {
+      console.log('🎤 User starting to speak - interrupting AI (barge-in)');
+      
+      // Stop audio playback immediately
+      stopCurrentPlayback();
+      
+      // Send interrupt signal to server to cancel current AI response
+      if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+        wsRef.current.send(JSON.stringify({
+          type: 'response.cancel',
+        }));
+        console.log('📤 Sent response.cancel to server');
+      }
     }
 
     try {
@@ -412,7 +490,7 @@ export function useRealtimeVoice({
         onErrorRef.current('Microphone access denied');
       }
     }
-  }, [status]);
+  }, [status, isAISpeaking, stopCurrentPlayback]);
 
   const stopRecording = useCallback(() => {
     console.log('🎤 Stopping recording...');
