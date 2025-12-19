@@ -49,10 +49,13 @@ export function useRealtimeVoice({
   const wsRef = useRef<WebSocket | null>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const playbackContextRef = useRef<AudioContext | null>(null); // For AI audio playback
-  const captureContextRef = useRef<AudioContext | null>(null); // For microphone capture
+  const captureContextRef = useRef<AudioContext | null>(null); // For microphone capture (with echo cancellation)
+  const vadContextRef = useRef<AudioContext | null>(null); // For VAD capture (NO echo cancellation)
   const audioChunksRef = useRef<Blob[]>([]);
   const audioProcessorRef = useRef<ScriptProcessorNode | null>(null);
+  const vadProcessorRef = useRef<ScriptProcessorNode | null>(null); // VAD processor (no echo cancellation)
   const micStreamRef = useRef<MediaStream | null>(null);
+  const rawMicStreamRef = useRef<MediaStream | null>(null); // Raw mic stream for VAD (no echo cancellation)
   const nextPlayTimeRef = useRef<number>(0); // Track when to play next chunk
   const aiMessageBufferRef = useRef<string>(''); // Buffer for AI message transcription
   const isRecordingRef = useRef<boolean>(false); // Ref for recording state (for closures)
@@ -179,6 +182,15 @@ export function useRealtimeVoice({
     if (captureContextRef.current) {
       captureContextRef.current.close();
       captureContextRef.current = null;
+    }
+    if (vadContextRef.current) {
+      vadContextRef.current.close();
+      vadContextRef.current = null;
+    }
+    // Stop raw microphone stream
+    if (rawMicStreamRef.current) {
+      rawMicStreamRef.current.getTracks().forEach(track => track.stop());
+      rawMicStreamRef.current = null;
     }
     setStatus('disconnected');
     setIsRecording(false);
@@ -471,6 +483,7 @@ export function useRealtimeVoice({
     }
 
     try {
+      // Stream 1: With echo cancellation for Gemini (clean audio for speech recognition)
       const stream = await navigator.mediaDevices.getUserMedia({ 
         audio: {
           channelCount: 1,
@@ -482,88 +495,115 @@ export function useRealtimeVoice({
       
       micStreamRef.current = stream;
 
-      // Create AudioContext for PCM16 conversion (separate from playback)
-      // Note: Browser may use different sample rate (e.g. 48000), we'll resample
+      // Stream 2: WITHOUT echo cancellation for VAD (detects user voice even during AI playback)
+      const rawStream = await navigator.mediaDevices.getUserMedia({ 
+        audio: {
+          channelCount: 1,
+          sampleRate: 16000,
+          echoCancellation: false,  // CRITICAL: Disable to detect voice during AI playback
+          noiseSuppression: false,
+          autoGainControl: false,
+        } 
+      });
+      
+      rawMicStreamRef.current = rawStream;
+      console.log('🎙️ Created dual mic streams: processed (for Gemini) + raw (for VAD)');
+
+      // Create AudioContext for PCM16 conversion (with echo cancellation)
       if (!captureContextRef.current) {
         captureContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
       }
 
-      const audioContext = captureContextRef.current;
-      const source = audioContext.createMediaStreamSource(stream);
-      
-      console.log(`🎙️ AudioContext sample rate: ${audioContext.sampleRate}Hz`);
-      
-      // Use ScriptProcessorNode to process raw audio (4096 buffer size)
-      const processor = audioContext.createScriptProcessor(4096, 1, 1);
-      audioProcessorRef.current = processor;
-      
-      processor.onaudioprocess = (e) => {
-        // Check recording state using ref (avoids closure issues)
-        if (!isRecordingRef.current) {
-          return;
-        }
-        
-        if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
-          console.warn('⚠️ Cannot send audio: WebSocket not connected');
-          return;
-        }
+      // Create separate AudioContext for VAD (without echo cancellation)
+      if (!vadContextRef.current) {
+        vadContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
+      }
 
+      const audioContext = captureContextRef.current;
+      const vadAudioContext = vadContextRef.current;
+      const source = audioContext.createMediaStreamSource(stream);
+      const rawSource = vadAudioContext.createMediaStreamSource(rawStream);
+      
+      console.log(`🎙️ Capture AudioContext sample rate: ${audioContext.sampleRate}Hz`);
+      console.log(`🎙️ VAD AudioContext sample rate: ${vadAudioContext.sampleRate}Hz`);
+      
+      // VAD Processor: Uses raw stream WITHOUT echo cancellation
+      const vadProcessor = vadAudioContext.createScriptProcessor(4096, 1, 1);
+      vadProcessorRef.current = vadProcessor;
+      
+      vadProcessor.onaudioprocess = (e) => {
+        if (!isRecordingRef.current) return;
+        
         const inputData = e.inputBuffer.getChannelData(0);
         
-        // Calculate RMS (Root Mean Square) for voice activity detection
+        // Calculate RMS for voice activity detection
         let sum = 0;
         for (let i = 0; i < inputData.length; i++) {
           sum += inputData[i] * inputData[i];
         }
         const rms = Math.sqrt(sum / inputData.length);
-        const VOICE_THRESHOLD = 0.005; // Lowered threshold for better voice detection
+        const VOICE_THRESHOLD = 0.01; // Slightly higher threshold for raw mic (no noise suppression)
         
-        // Debug logging (every ~1 second = ~12 chunks at 4096 samples/48kHz)
+        // Debug logging
         if (Math.random() < 0.08) {
-          console.log(`🔊 VAD: RMS=${rms.toFixed(4)}, threshold=${VOICE_THRESHOLD}, AISpeaking=${isAISpeakingRef.current}, bargeTriggered=${bargeInTriggeredRef.current}`);
+          console.log(`🔊 RAW-VAD: RMS=${rms.toFixed(4)}, threshold=${VOICE_THRESHOLD}, AISpeaking=${isAISpeakingRef.current}, bargeTriggered=${bargeInTriggeredRef.current}`);
         }
         
-        // Voice activity detection for 3-second barge-in
+        // Voice activity detection for 1.5-second barge-in
         if (rms > VOICE_THRESHOLD) {
-          // Voice detected
           if (voiceActivityStartRef.current === null) {
             voiceActivityStartRef.current = Date.now();
-            console.log('🎤 Voice activity started');
+            console.log('🎤 RAW Voice activity started (no echo cancellation)');
           }
           
           const voiceDuration = Date.now() - voiceActivityStartRef.current;
           
-          // Log progress every second
-          if (voiceDuration > 0 && voiceDuration % 1000 < 100 && isAISpeakingRef.current) {
-            console.log(`🎤 Voice duration: ${(voiceDuration/1000).toFixed(1)}s (need 3s for barge-in)`);
+          // Log progress
+          if (voiceDuration > 0 && voiceDuration % 500 < 100 && isAISpeakingRef.current) {
+            console.log(`🎤 Voice duration: ${(voiceDuration/1000).toFixed(1)}s (need 1.5s for barge-in)`);
           }
           
-          // If voice detected for 3+ seconds and AI is speaking, trigger barge-in
-          if (voiceDuration >= 3000 && isAISpeakingRef.current && !bargeInTriggeredRef.current) {
-            console.log('🎤 3-second voice detected - triggering barge-in');
+          // Trigger barge-in after 1.5 seconds of voice during AI speech
+          if (voiceDuration >= 1500 && isAISpeakingRef.current && !bargeInTriggeredRef.current) {
+            console.log('🎤 1.5-second voice detected (raw) - triggering barge-in');
             bargeInTriggeredRef.current = true;
             
-            // Stop current AI audio playback
             stopCurrentPlayback();
-            
-            // Increment expected turn seq to ignore audio from cancelled turn
             expectedTurnSeqRef.current++;
             
-            // Send cancel signal to server
             if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
               wsRef.current.send(JSON.stringify({
                 type: 'response.cancel',
               }));
-              console.log('📤 Sent response.cancel after 3-second voice detection');
+              console.log('📤 Sent response.cancel after 1.5s raw voice detection');
             }
           }
         } else {
-          // No voice - reset timer only if we had activity before
           if (voiceActivityStartRef.current !== null) {
-            console.log('🔇 Voice activity ended');
+            console.log('🔇 RAW Voice activity ended');
           }
           voiceActivityStartRef.current = null;
         }
+      };
+      
+      rawSource.connect(vadProcessor);
+      const vadDummyGain = vadAudioContext.createGain();
+      vadDummyGain.gain.value = 0;
+      vadProcessor.connect(vadDummyGain);
+      vadDummyGain.connect(vadAudioContext.destination);
+      
+      // Main Audio Processor: Uses processed stream for Gemini
+      const processor = audioContext.createScriptProcessor(4096, 1, 1);
+      audioProcessorRef.current = processor;
+      
+      processor.onaudioprocess = (e) => {
+        if (!isRecordingRef.current) return;
+        
+        if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
+          return;
+        }
+
+        const inputData = e.inputBuffer.getChannelData(0);
         
         // Resample to 16kHz for Gemini Live API
         const targetSampleRate = 16000;
@@ -577,14 +617,14 @@ export function useRealtimeVoice({
           resampledData[i] = inputData[sourceIndex];
         }
         
-        // Convert Float32 (-1 to 1) to Int16 (PCM16)
+        // Convert Float32 to Int16 (PCM16)
         const pcm16 = new Int16Array(resampledData.length);
         for (let i = 0; i < resampledData.length; i++) {
           const s = Math.max(-1, Math.min(1, resampledData[i]));
           pcm16[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
         }
         
-        // Convert to base64
+        // Convert to base64 and send
         const uint8Array = new Uint8Array(pcm16.buffer);
         let binaryString = '';
         for (let i = 0; i < uint8Array.length; i++) {
@@ -592,21 +632,17 @@ export function useRealtimeVoice({
         }
         const base64 = btoa(binaryString);
         
-        // Send audio chunk to server
         wsRef.current.send(JSON.stringify({
           type: 'input_audio_buffer.append',
           audio: base64,
         }));
         
-        // Log every 10th chunk to avoid spam
         if (Math.random() < 0.1) {
           console.log('🎤 Sending audio chunk:', pcm16.length, 'samples');
         }
       };
       
       source.connect(processor);
-      // IMPORTANT: Don't connect to destination (would echo microphone to speakers)
-      // Just connect to a dummy destination to keep the processor active
       const dummyGain = audioContext.createGain();
       dummyGain.gain.value = 0;
       processor.connect(dummyGain);
@@ -643,10 +679,22 @@ export function useRealtimeVoice({
         audioProcessorRef.current = null;
       }
       
+      // Disconnect VAD processor
+      if (vadProcessorRef.current) {
+        vadProcessorRef.current.disconnect();
+        vadProcessorRef.current = null;
+      }
+      
       // Stop microphone stream
       if (micStreamRef.current) {
         micStreamRef.current.getTracks().forEach(track => track.stop());
         micStreamRef.current = null;
+      }
+      
+      // Stop raw microphone stream (VAD)
+      if (rawMicStreamRef.current) {
+        rawMicStreamRef.current.getTracks().forEach(track => track.stop());
+        rawMicStreamRef.current = null;
       }
       
       // Commit audio and request response
