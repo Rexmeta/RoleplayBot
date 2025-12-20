@@ -492,6 +492,12 @@ export class RealtimeVoiceService {
             turns: [{ role: 'user', parts: [{ text: autoGreeting }] }],
             turnComplete: true,
           });
+          
+          // 🔧 sendClientContent 후 END_OF_TURN 이벤트를 보내서 Gemini가 응답하도록 강제
+          console.log('📤 Sending END_OF_TURN to trigger AI greeting response (timeout)...');
+          currentSession.geminiSession.sendRealtimeInput({
+            event: 'END_OF_TURN'
+          });
         }
       }, 3000);
 
@@ -580,6 +586,11 @@ export class RealtimeVoiceService {
               turnComplete: true,
             });
             console.log(`🔄 인사 트리거 재전송: "${retryMessage}"`);
+            
+            // 🔧 sendClientContent 후 END_OF_TURN 이벤트를 보내서 Gemini가 응답하도록 강제
+            session.geminiSession.sendRealtimeInput({
+              event: 'END_OF_TURN'
+            });
           }
           return; // 재시도 후 다음 메시지 기다림
         }
@@ -800,12 +811,24 @@ export class RealtimeVoiceService {
         // 클라이언트의 AudioContext가 준비됨 - 이제 첫 인사를 트리거
         console.log('🎬 Client ready signal received - triggering first greeting...');
         
+        // 이미 첫 응답을 받았으면 중복 트리거 방지
+        if (session.hasReceivedFirstAIResponse) {
+          console.log('⏭️ First greeting already received, skipping duplicate trigger');
+          break;
+        }
+        
         // 첫 인사를 유도하는 트리거 - 상대방이 도착했음을 알려 AI가 먼저 인사하도록 함
         const firstMessage = `(상대방이 방금 도착했습니다. 당신이 먼저 인사를 건네세요.)`;
         
         session.geminiSession.sendClientContent({
           turns: [{ role: 'user', parts: [{ text: firstMessage }] }],
           turnComplete: true,
+        });
+        
+        // 🔧 sendClientContent 후 END_OF_TURN 이벤트를 보내서 Gemini가 응답하도록 강제
+        console.log('📤 Sending END_OF_TURN to trigger AI greeting response...');
+        session.geminiSession.sendRealtimeInput({
+          event: 'END_OF_TURN'
         });
         break;
 
