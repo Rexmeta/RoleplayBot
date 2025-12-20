@@ -45,7 +45,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         unit: 'MB',
       },
       realtimeVoice: {
-        activeSessions: activeRealtimeSessions,
+        ...realtimeVoiceService.getSessionStatus(),
         isAvailable: realtimeVoiceService.isServiceAvailable(),
       },
     });

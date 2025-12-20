@@ -203,6 +203,23 @@ export function useRealtimeVoice({
     setError(null);
 
     try {
+      // 🔊 AudioContext 사전 준비 (첫 인사 음성 누락 방지)
+      // 사용자가 "연결" 버튼을 클릭한 시점에 AudioContext를 미리 생성하고 resume
+      if (!playbackContextRef.current || playbackContextRef.current.state === 'closed') {
+        playbackContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 24000 });
+        console.log('🔊 Pre-created playback AudioContext for first greeting');
+      }
+      
+      // 브라우저 자동재생 정책 해제 (사용자 상호작용 시점에 resume)
+      if (playbackContextRef.current.state === 'suspended') {
+        try {
+          await playbackContextRef.current.resume();
+          console.log('🔊 AudioContext resumed for first greeting playback');
+        } catch (err) {
+          console.warn('⚠️ Failed to resume AudioContext:', err);
+        }
+      }
+      
       // 토큰 가져오기 (localStorage 또는 realtime-token API)
       const token = await getRealtimeToken();
       console.log('🔑 Token obtained for WebSocket');

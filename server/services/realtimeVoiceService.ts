@@ -35,6 +35,7 @@ function filterThinkingText(text: string): string {
 const SESSION_TIMEOUT_MS = 30 * 60 * 1000; // 30분 비활성 타임아웃
 const MAX_TRANSCRIPT_LENGTH = 50000; // 트랜스크립트 최대 길이 (약 25,000자)
 const CLEANUP_INTERVAL_MS = 60 * 1000; // 1분마다 정리
+const MAX_CONCURRENT_SESSIONS = 100; // 최대 동시 세션 수 (Gemini Tier 2 기준)
 
 interface RealtimeSession {
   id: string;
@@ -162,7 +163,14 @@ export class RealtimeVoiceService {
       throw new Error('Gemini Live API Service is not available. Please configure GOOGLE_API_KEY.');
     }
 
-    console.log(`🎙️ Creating realtime voice session: ${sessionId}`);
+    // 동시 세션 수 제한 체크
+    const currentSessionCount = this.sessions.size;
+    if (currentSessionCount >= MAX_CONCURRENT_SESSIONS) {
+      console.warn(`⚠️ Max concurrent sessions reached: ${currentSessionCount}/${MAX_CONCURRENT_SESSIONS}`);
+      throw new Error(`현재 동시 접속자가 많아 서비스를 이용할 수 없습니다. 잠시 후 다시 시도해 주세요. (${currentSessionCount}/${MAX_CONCURRENT_SESSIONS})`);
+    }
+
+    console.log(`🎙️ Creating realtime voice session: ${sessionId} (${currentSessionCount + 1}/${MAX_CONCURRENT_SESSIONS})`);
 
     // Load scenario and persona data
     const scenarios = await fileManager.getAllScenarios();
@@ -897,6 +905,39 @@ export class RealtimeVoiceService {
 
   getActiveSessionCount(): number {
     return this.sessions.size;
+  }
+
+  // 세션 상태 모니터링 정보 반환
+  getSessionStatus(): {
+    activeSessions: number;
+    maxSessions: number;
+    availableSlots: number;
+    utilizationPercent: number;
+    sessions: Array<{
+      id: string;
+      personaName: string;
+      durationSec: number;
+      isConnected: boolean;
+    }>;
+  } {
+    const now = Date.now();
+    const activeSessions = this.sessions.size;
+    const maxSessions = MAX_CONCURRENT_SESSIONS;
+    
+    const sessionDetails = Array.from(this.sessions.values()).map(session => ({
+      id: session.id.split('-').slice(0, 2).join('-') + '...', // 익명화된 ID
+      personaName: session.personaName,
+      durationSec: Math.round((now - session.startTime) / 1000),
+      isConnected: session.isConnected,
+    }));
+
+    return {
+      activeSessions,
+      maxSessions,
+      availableSlots: Math.max(0, maxSessions - activeSessions),
+      utilizationPercent: Math.round((activeSessions / maxSessions) * 100),
+      sessions: sessionDetails,
+    };
   }
 }
 
