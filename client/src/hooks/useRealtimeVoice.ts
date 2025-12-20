@@ -402,9 +402,17 @@ export function useRealtimeVoice({
       if (!playbackContextRef.current) {
         playbackContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 24000 });
         nextPlayTimeRef.current = 0; // Reset play time
+        console.log('🔊 Created new playback AudioContext');
       }
 
       const audioContext = playbackContextRef.current;
+      
+      // Resume AudioContext if suspended (browser autoplay policy)
+      // This is critical for first greeting audio to play
+      if (audioContext.state === 'suspended') {
+        console.log('🔊 Resuming suspended AudioContext for playback');
+        await audioContext.resume();
+      }
       
       // Decode base64 to raw bytes
       const binaryString = atob(base64Audio);
@@ -524,8 +532,8 @@ export function useRealtimeVoice({
           sum += inputData[i] * inputData[i];
         }
         const rms = Math.sqrt(sum / inputData.length);
-        const VOICE_THRESHOLD = 0.015; // Higher threshold to avoid false triggers from background noise
-        const BARGE_IN_DELAY_MS = 150; // Require 150ms of continuous voice before triggering barge-in
+        const VOICE_THRESHOLD = 0.03; // Higher threshold to avoid false triggers from background noise/echo
+        const BARGE_IN_DELAY_MS = 300; // Require 300ms of continuous voice before triggering barge-in
         
         // Check if playback AudioContext is actually running (more reliable than isAISpeakingRef)
         const isPlaybackRunning = playbackContextRef.current?.state === 'running';
