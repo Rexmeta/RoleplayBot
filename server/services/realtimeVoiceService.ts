@@ -441,10 +441,24 @@ export class RealtimeVoiceService {
             console.log(`🔌 Gemini WebSocket closed for session: ${session.id}`, event.reason);
             session.isConnected = false;
             
-            this.sendToClient(session, {
-              type: 'session.terminated',
-              reason: event.reason || 'Gemini connection closed',
-            });
+            // 연결이 예기치 않게 끊긴 경우와 정상 종료 구분
+            const isNormalClose = event.code === 1000 || event.reason === 'Normal closure';
+            
+            if (isNormalClose) {
+              // 정상 종료
+              this.sendToClient(session, {
+                type: 'session.terminated',
+                reason: 'Gemini connection closed',
+              });
+            } else {
+              // 비정상 종료 - 클라이언트에 에러 알림 (즉시 종료하지 않음)
+              console.log(`⚠️ Unexpected Gemini disconnection: code=${event.code}, reason=${event.reason}`);
+              this.sendToClient(session, {
+                type: 'error',
+                error: 'AI 연결이 일시적으로 끊어졌습니다. 대화를 종료하고 다시 시작해주세요.',
+                recoverable: false,
+              });
+            }
             
             if (session.clientWs && session.clientWs.readyState === WebSocket.OPEN) {
               session.clientWs.close(1000, 'Gemini session ended');
@@ -465,6 +479,21 @@ export class RealtimeVoiceService {
       // 첫 인사는 클라이언트가 'client.ready' 신호를 보낸 후에 트리거됨
       // 이렇게 하면 클라이언트의 AudioContext가 준비된 상태에서 첫 인사 오디오가 재생됨
       console.log('⏳ Waiting for client.ready signal before triggering first greeting...');
+      
+      // 타임아웃: 3초 후에도 client.ready를 받지 못하면 자동으로 첫 인사 트리거
+      // 클라이언트 연결 문제 시에도 대화가 시작되도록 보장
+      setTimeout(() => {
+        // 세션이 아직 존재하고, 첫 AI 응답이 없는 경우에만 자동 트리거
+        const currentSession = this.sessions.get(session.id);
+        if (currentSession && !currentSession.hasReceivedFirstAIResponse && currentSession.geminiSession) {
+          console.log('⏰ client.ready timeout (3s) - auto-triggering first greeting...');
+          const autoGreeting = `(상대방이 방금 도착했습니다. 당신이 먼저 인사를 건네세요.)`;
+          currentSession.geminiSession.sendClientContent({
+            turns: [{ role: 'user', parts: [{ text: autoGreeting }] }],
+            turnComplete: true,
+          });
+        }
+      }, 3000);
 
     } catch (error) {
       console.error(`Failed to connect to Gemini Live API:`, error);
@@ -787,6 +816,21 @@ export class RealtimeVoiceService {
         // Set interrupted flag and record which turn we're cancelling
         session.isInterrupted = true;
         session.cancelledTurnSeq = session.turnSeq;
+        
+        // 🔧 barge-in 시 현재까지의 AI 응답을 부분 전사로 저장 (대화 기록 누락 방지)
+        if (session.currentTranscript.trim()) {
+          const partialTranscript = filterThinkingText(session.currentTranscript);
+          if (partialTranscript) {
+            console.log(`📝 Saving partial AI transcript before barge-in: "${partialTranscript.substring(0, 50)}..."`);
+            this.sendToClient(session, {
+              type: 'ai.transcription.done',
+              text: partialTranscript + '...',  // 중단되었음을 표시
+              emotion: '중립',
+              emotionReason: '사용자가 대화를 중단했습니다',
+              interrupted: true,  // 중단 플래그
+            });
+          }
+        }
         
         // Clear current transcript buffer
         session.currentTranscript = '';
