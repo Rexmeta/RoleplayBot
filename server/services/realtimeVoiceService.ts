@@ -8,6 +8,33 @@ import { trackUsage } from './aiUsageTracker';
 // Default Gemini Live API model (updated December 2025)
 const DEFAULT_REALTIME_MODEL = 'gemini-2.5-flash-native-audio-preview-09-2025';
 
+// 텍스트가 영어로 된 "생각" 텍스트인지 확인
+function isThinkingText(text: string): boolean {
+  if (!text || text.trim().length === 0) return false;
+  
+  // 한국어가 하나라도 있으면 thinking 텍스트가 아님
+  if (/[\uAC00-\uD7AF\u1100-\u11FF\u3130-\u318F]/.test(text)) {
+    return false;
+  }
+  
+  // **제목** 형식으로 시작하면 thinking 텍스트
+  if (/^\*\*[^*]+\*\*/.test(text.trim())) {
+    return true;
+  }
+  
+  // 영어 thinking 키워드 패턴
+  const thinkingPatterns = [
+    /^I['']m\s+(focusing|thinking|considering|now|about|going)/i,
+    /^(I|Now|Let me|First|Okay)\s+(understand|need|will|am|have)/i,
+    /^(Initiating|Beginning|Starting|Transitioning|Highlighting)/i,
+    /^(I've|I'm|I'll)\s+/i,
+    /^The\s+(user|situation|context)/i,
+  ];
+  
+  const trimmed = text.trim();
+  return thinkingPatterns.some(pattern => pattern.test(trimmed));
+}
+
 // Gemini의 thinking/reasoning 텍스트를 필터링하고 한국어 응답만 추출
 function filterThinkingText(text: string): string {
   if (!text) return '';
@@ -402,6 +429,10 @@ export class RealtimeVoiceService {
         speechConfig: {
           voiceConfig: { prebuiltVoiceConfig: { voiceName } },
         },
+        // Thinking 모드 비활성화 - 영어로 된 생각 과정 출력 방지
+        thinkingConfig: {
+          thinkingBudget: 0,
+        },
         // Gemini Live API uses 16kHz input, 24kHz output
       };
 
@@ -666,6 +697,16 @@ export class RealtimeVoiceService {
         const parts = serverContent.modelTurn.parts || [];
         console.log(`🎭 modelTurn parts count: ${parts.length}`);
         
+        // 먼저 텍스트 파트에서 thinking 텍스트인지 확인
+        let hasThinkingText = false;
+        for (const part of parts) {
+          if (part.text && isThinkingText(part.text)) {
+            hasThinkingText = true;
+            console.log(`⚠️ Thinking text detected in modelTurn - will suppress audio for this chunk`);
+            break;
+          }
+        }
+        
         for (const part of parts) {
           // Handle text transcription
           if (part.text) {
@@ -686,6 +727,11 @@ export class RealtimeVoiceService {
             // Skip audio if interrupted (barge-in active)
             if (session.isInterrupted) {
               console.log(`🔇 Suppressing inline audio (barge-in active)`);
+              continue;
+            }
+            // Skip audio if thinking text was detected in this modelTurn
+            if (hasThinkingText) {
+              console.log(`🔇 Suppressing inline audio (thinking text detected)`);
               continue;
             }
             const audioData = part.inlineData.data;
