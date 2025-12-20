@@ -462,16 +462,9 @@ export class RealtimeVoiceService {
 
       session.geminiSession = geminiSession;
 
-      // Send first greeting trigger after connection is established
-      console.log('🎬 Triggering AI to start first greeting...');
-      
-      // 첫 인사를 유도하는 트리거 - 상대방이 도착했음을 알려 AI가 먼저 인사하도록 함
-      const firstMessage = `(상대방이 방금 도착했습니다. 당신이 먼저 인사를 건네세요.)`;
-      
-      geminiSession.sendClientContent({
-        turns: [{ role: 'user', parts: [{ text: firstMessage }] }],
-        turnComplete: true,
-      });
+      // 첫 인사는 클라이언트가 'client.ready' 신호를 보낸 후에 트리거됨
+      // 이렇게 하면 클라이언트의 AudioContext가 준비된 상태에서 첫 인사 오디오가 재생됨
+      console.log('⏳ Waiting for client.ready signal before triggering first greeting...');
 
     } catch (error) {
       console.error(`Failed to connect to Gemini Live API:`, error);
@@ -772,6 +765,19 @@ export class RealtimeVoiceService {
             turnComplete: true,
           });
         }
+        break;
+
+      case 'client.ready':
+        // 클라이언트의 AudioContext가 준비됨 - 이제 첫 인사를 트리거
+        console.log('🎬 Client ready signal received - triggering first greeting...');
+        
+        // 첫 인사를 유도하는 트리거 - 상대방이 도착했음을 알려 AI가 먼저 인사하도록 함
+        const firstMessage = `(상대방이 방금 도착했습니다. 당신이 먼저 인사를 건네세요.)`;
+        
+        session.geminiSession.sendClientContent({
+          turns: [{ role: 'user', parts: [{ text: firstMessage }] }],
+          turnComplete: true,
+        });
         break;
 
       case 'response.cancel':

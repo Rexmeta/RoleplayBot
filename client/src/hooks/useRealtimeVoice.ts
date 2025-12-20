@@ -233,6 +233,15 @@ export function useRealtimeVoice({
       ws.onopen = () => {
         console.log('🎙️ WebSocket connected for realtime voice');
         setStatus('connected');
+        
+        // 🔊 AudioContext 준비 완료 신호 전송 - 서버는 이 신호를 받은 후 첫 인사를 시작
+        // 이렇게 하면 클라이언트가 오디오 재생 준비가 완료된 상태에서 첫 인사를 받을 수 있음
+        setTimeout(() => {
+          if (ws.readyState === WebSocket.OPEN) {
+            ws.send(JSON.stringify({ type: 'client.ready' }));
+            console.log('📤 Sent client.ready signal to server');
+          }
+        }, 100); // 100ms 딜레이로 WebSocket 안정화 후 전송
       };
 
       ws.onmessage = (event) => {
