@@ -226,20 +226,18 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
     setLoadedImageUrl('');
   }, [persona.id, conversationId]);
 
-  // 넓은 화면(1920px 이상)에서 자동으로 메신저 모드로 전환
+  // 화면 너비 추적 (레이아웃 힌트용, 모드 강제 전환하지 않음)
   useEffect(() => {
     const checkScreenWidth = () => {
       const isWide = window.innerWidth >= 1920;
       setIsWideScreen(isWide);
-      if (isWide && chatMode === 'character') {
-        setChatMode('messenger');
-      }
+      // 사용자가 선택한 chatMode를 유지 - 강제 전환하지 않음
     };
 
     checkScreenWidth();
     window.addEventListener('resize', checkScreenWidth);
     return () => window.removeEventListener('resize', checkScreenWidth);
-  }, [chatMode]);
+  }, []);
 
   // personaImagesAvailable이 업데이트될 때 초기 이미지 설정 및 로딩 오버레이 해제
   useEffect(() => {
