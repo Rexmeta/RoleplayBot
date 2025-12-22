@@ -224,7 +224,26 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
     setIsOverlayFading(false);
     setPersonaImagesAvailable({});
     setLoadedImageUrl('');
-  }, [persona.id, conversationId]);
+    
+    // 타임아웃 가드: 3초 후에도 초기 로딩이 완료되지 않으면 강제 해제
+    // (이미지 로딩 실패 시 블랙 화면 방지)
+    const timeoutId = setTimeout(() => {
+      if (!initialLoadCompletedRef.current) {
+        console.log('⚠️ ChatWindow 초기 로딩 타임아웃 - 폴백 이미지 설정 및 오버레이 강제 해제');
+        initialLoadCompletedRef.current = true;
+        // 폴백 이미지 설정 (캐릭터 모드에서 이미지가 없으면 안됨)
+        const fallbackUrl = `https://ui-avatars.com/api/?name=${encodeURIComponent(persona.name)}&background=6366f1&color=fff&size=400`;
+        setLoadedImageUrl(fallbackUrl);
+        setIsOverlayFading(true);
+        onReady?.();
+        setTimeout(() => {
+          setIsInitialLoading(false);
+        }, 500);
+      }
+    }, 3000);
+    
+    return () => clearTimeout(timeoutId);
+  }, [persona.id, persona.name, conversationId, onReady]);
 
   // 화면 너비 추적 (레이아웃 힌트용, 모드 강제 전환하지 않음)
   useEffect(() => {
