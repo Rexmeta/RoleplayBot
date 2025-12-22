@@ -1379,18 +1379,34 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
                   </div>
                 ) : inputMode === 'realtime-voice' ? (
                   <>
-                    {/* 대화 시작 전 상태 */}
+                    {/* 대화 시작 전 또는 끊김 상태 */}
                     {realtimeVoice.status === 'disconnected' && (
                       <div className="text-center space-y-4 py-4">
-                        <p className="text-sm text-slate-600">실시간 음성 대화를 시작하세요</p>
-                        <Button
-                          onClick={() => realtimeVoice.connect()}
-                          className="bg-purple-600 hover:bg-purple-700 text-white px-8 py-3 rounded-full shadow-lg"
-                          data-testid="button-start-voice-messenger"
-                        >
-                          <i className="fas fa-phone mr-2"></i>
-                          대화 시작하기
-                        </Button>
+                        {realtimeVoice.conversationPhase === 'interrupted' ? (
+                          <>
+                            <p className="text-sm text-orange-600">연결이 끊겼습니다. 이어서 대화할 수 있습니다.</p>
+                            <Button
+                              onClick={() => realtimeVoice.connect()}
+                              className="bg-orange-500 hover:bg-orange-600 text-white px-8 py-3 rounded-full shadow-lg"
+                              data-testid="button-resume-voice-messenger"
+                            >
+                              <i className="fas fa-redo mr-2"></i>
+                              이어서 하기
+                            </Button>
+                          </>
+                        ) : (
+                          <>
+                            <p className="text-sm text-slate-600">실시간 음성 대화를 시작하세요</p>
+                            <Button
+                              onClick={() => realtimeVoice.connect()}
+                              className="bg-purple-600 hover:bg-purple-700 text-white px-8 py-3 rounded-full shadow-lg"
+                              data-testid="button-start-voice-messenger"
+                            >
+                              <i className="fas fa-phone mr-2"></i>
+                              대화 시작하기
+                            </Button>
+                          </>
+                        )}
                       </div>
                     )}
                     
@@ -1964,19 +1980,35 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
                   {/* 실시간 음성 모드 */}
                   {inputMode === 'realtime-voice' ? (
                     <>
-                      {/* 대화 시작 전 상태 */}
+                      {/* 대화 시작 전 또는 끊김 상태 */}
                       {realtimeVoice.status === 'disconnected' && (
                         <div className="p-4 bg-[#ffffff9c]">
                           <div className="flex flex-col items-center space-y-4 py-4">
-                            <p className="text-sm text-slate-600">실시간 음성 대화를 시작하세요</p>
-                            <Button
-                              onClick={() => realtimeVoice.connect()}
-                              className="bg-purple-600 hover:bg-purple-700 text-white px-8 py-6 text-lg font-semibold rounded-full shadow-lg"
-                              data-testid="button-start-voice"
-                            >
-                              <i className="fas fa-phone mr-2"></i>
-                              대화 시작하기
-                            </Button>
+                            {realtimeVoice.conversationPhase === 'interrupted' ? (
+                              <>
+                                <p className="text-sm text-orange-600">연결이 끊겼습니다. 이어서 대화할 수 있습니다.</p>
+                                <Button
+                                  onClick={() => realtimeVoice.connect()}
+                                  className="bg-orange-500 hover:bg-orange-600 text-white px-8 py-6 text-lg font-semibold rounded-full shadow-lg"
+                                  data-testid="button-resume-voice"
+                                >
+                                  <i className="fas fa-redo mr-2"></i>
+                                  이어서 하기
+                                </Button>
+                              </>
+                            ) : (
+                              <>
+                                <p className="text-sm text-slate-600">실시간 음성 대화를 시작하세요</p>
+                                <Button
+                                  onClick={() => realtimeVoice.connect()}
+                                  className="bg-purple-600 hover:bg-purple-700 text-white px-8 py-6 text-lg font-semibold rounded-full shadow-lg"
+                                  data-testid="button-start-voice"
+                                >
+                                  <i className="fas fa-phone mr-2"></i>
+                                  대화 시작하기
+                                </Button>
+                              </>
+                            )}
                           </div>
                         </div>
                       )}

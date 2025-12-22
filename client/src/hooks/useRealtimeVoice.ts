@@ -6,6 +6,13 @@ export type RealtimeVoiceStatus =
   | 'connected' 
   | 'error';
 
+// 대화 진행 단계: idle(시작 전) → active(진행 중) → interrupted(끊김) → ended(종료)
+export type ConversationPhase = 
+  | 'idle'        // 대화 시작 전
+  | 'active'      // 대화 진행 중
+  | 'interrupted' // 연결 끊김 (재연결 가능)
+  | 'ended';      // 대화 완료 (재연결 불가)
+
 interface UseRealtimeVoiceProps {
   conversationId: string;
   scenarioId: string;
@@ -20,6 +27,7 @@ interface UseRealtimeVoiceProps {
 
 interface UseRealtimeVoiceReturn {
   status: RealtimeVoiceStatus;
+  conversationPhase: ConversationPhase;
   isRecording: boolean;
   isAISpeaking: boolean;
   connect: () => Promise<void>;
@@ -27,6 +35,7 @@ interface UseRealtimeVoiceReturn {
   startRecording: () => void;
   stopRecording: () => void;
   sendTextMessage: (text: string) => void;
+  resetPhase: () => void; // 대화 단계 리셋 (새 대화 시작시)
   error: string | null;
 }
 
@@ -42,9 +51,13 @@ export function useRealtimeVoice({
   onSessionTerminated,
 }: UseRealtimeVoiceProps): UseRealtimeVoiceReturn {
   const [status, setStatus] = useState<RealtimeVoiceStatus>('disconnected');
+  const [conversationPhase, setConversationPhase] = useState<ConversationPhase>('idle');
   const [isRecording, setIsRecording] = useState(false);
   const [isAISpeaking, setIsAISpeaking] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  
+  // 대화가 실제로 시작되었는지 추적 (AI가 한번이라도 응답했으면 true)
+  const hasConversationStartedRef = useRef<boolean>(false);
   
   const wsRef = useRef<WebSocket | null>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
@@ -233,6 +246,7 @@ export function useRealtimeVoice({
       ws.onopen = () => {
         console.log('🎙️ WebSocket connected for realtime voice');
         setStatus('connected');
+        setConversationPhase('active'); // 연결 성공 시 active 상태로
         
         // 🔊 AudioContext 준비 완료 신호 전송 - 서버는 이 신호를 받은 후 첫 인사를 시작
         // 이렇게 하면 클라이언트가 오디오 재생 준비가 완료된 상태에서 첫 인사를 받을 수 있음
@@ -368,6 +382,8 @@ export function useRealtimeVoice({
             case 'ai.transcription.done':
               console.log('✅ Transcription complete:', data.text);
               console.log('😊 Emotion:', data.emotion, '|', data.emotionReason);
+              // AI가 응답했으면 대화가 시작된 것으로 표시
+              hasConversationStartedRef.current = true;
               // 완전한 메시지와 감정 정보를 onMessageComplete로 전달
               if (data.text && onMessageCompleteRef.current) {
                 onMessageCompleteRef.current(data.text, data.emotion, data.emotionReason);
@@ -421,6 +437,7 @@ export function useRealtimeVoice({
 
             case 'session.terminated':
               console.log('🔌 Session terminated:', data.reason);
+              setConversationPhase('ended'); // 세션 종료 시 ended 상태로
               if (onSessionTerminatedRef.current) {
                 onSessionTerminatedRef.current(data.reason || 'Session ended');
               }
@@ -456,6 +473,20 @@ export function useRealtimeVoice({
         console.log('🔌 WebSocket closed:', event.code, event.reason);
         setStatus('disconnected');
         setIsRecording(false);
+        
+        // phase가 이미 ended면 덮어쓰지 않음 (정상 종료)
+        // 대화가 시작된 적 있고 ended가 아니면 interrupted로 변경 (중간 끊김)
+        setConversationPhase((currentPhase) => {
+          if (currentPhase === 'ended') {
+            console.log('📍 Conversation phase: ended (normal termination)');
+            return 'ended';
+          }
+          if (hasConversationStartedRef.current) {
+            console.log('📍 Conversation phase: interrupted (can resume)');
+            return 'interrupted';
+          }
+          return 'idle';
+        });
       };
 
     } catch (err) {
@@ -843,8 +874,16 @@ export function useRealtimeVoice({
     };
   }, [enabled, connect, disconnect]);
 
+  // 대화 단계 리셋 (새 대화 시작시 사용)
+  const resetPhase = useCallback(() => {
+    setConversationPhase('idle');
+    hasConversationStartedRef.current = false;
+    console.log('📍 Conversation phase reset to idle');
+  }, []);
+
   return {
     status,
+    conversationPhase,
     isRecording,
     isAISpeaking,
     connect,
@@ -852,6 +891,7 @@ export function useRealtimeVoice({
     startRecording,
     stopRecording,
     sendTextMessage,
+    resetPhase,
     error,
   };
 }
