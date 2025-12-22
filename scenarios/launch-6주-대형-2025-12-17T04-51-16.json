@@ -14,7 +14,7 @@
   "categoryId": "318cdfbb-0cb9-45ec-be28-ea03882160ae",
   "image": "/scenarios/images/출시-6주-차-대형-고객-장애와-리콜-위기-2025-12-17T07-30-11.webp",
   "imagePrompt": "한국인 치아가 보이지 않는 중립적인 표정, 회의실에 앉아서 손이 보이게, 실사, 텍스트 미포함 ",
-  "introVideoUrl": "",
+  "introVideoUrl": "/scenarios/videos/intro-launch-6주-대형-2025-12-17T04-51-16-2025-12-22T00-31-00.webm",
   "videoPrompt": "",
   "objectiveType": "",
   "context": {
@@ -146,16 +146,16 @@
       "gender": "male"
     },
     {
-      "id": "esfj",
+      "id": "isfj",
       "name": "송혜교",
       "department": "인사",
       "position": "HR/People Partner",
       "experience": "8년차",
-      "personaRef": "esfj.json",
+      "personaRef": "isfj.json",
       "stance": "이 사태는 기술 문제가 아니라 사람과 문화의 문제입니다. 특정 팀에 책임이 전가되면서 조직 전체가 무너지고 있어요. 핵심 개발자가 곧 번아웃으로 휴직계를 낼 겁니다. 사람을 잃으면 복구는 더 힘듭니다.",
       "goal": "핵심 인재의 이탈을 막고, 위기 상황에서도 서로를 존중하는 건강한 조직 문화를 회복하는 것.",
       "tradeoff": "단기적인 성과를 위해 야근이 불가피하다면, 그에 상응하는 명확한 보상과 회복 프로그램을 즉시 약속하고 실행해야 함.",
-      "mbti": "ESFJ",
+      "mbti": "ISFJ",
       "gender": "female"
     },
     {

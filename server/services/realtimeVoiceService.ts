@@ -87,6 +87,13 @@ interface RealtimeSession {
   isInterrupted: boolean; // Barge-in flag to suppress audio until new response
   turnSeq: number; // Monotonic turn counter, incremented on each turnComplete
   cancelledTurnSeq: number; // Turn seq when cancel was issued (ignore audio from this turn)
+  // Session resumption 관련 필드
+  sessionResumptionToken: string | null; // Gemini 세션 재개 토큰
+  isReconnecting: boolean; // 재연결 중 플래그
+  reconnectAttempts: number; // 재연결 시도 횟수
+  systemInstructions: string; // 재연결시 사용할 시스템 인스트럭션
+  voiceGender: 'male' | 'female'; // 재연결시 사용할 음성 성별
+  goAwayWarningTime: number | null; // GoAway 경고 수신 시간
 }
 
 export class RealtimeVoiceService {
@@ -266,6 +273,10 @@ export class RealtimeVoiceService {
     // Get realtime model for tracking
     const realtimeModel = await this.getRealtimeModel();
 
+    // 성별 판단 (시나리오 페르소나의 gender 속성 사용)
+    const gender: 'male' | 'female' = scenarioPersona.gender === 'female' ? 'female' : 'male';
+    console.log(`👤 페르소나 성별 설정: ${scenarioPersona.name} → ${gender} (시나리오 정의값: ${scenarioPersona.gender})`);
+    
     // Create session object
     const session: RealtimeSession = {
       id: sessionId,
@@ -290,13 +301,16 @@ export class RealtimeVoiceService {
       isInterrupted: false,
       turnSeq: 0, // First turn is 0
       cancelledTurnSeq: -1, // No cancelled turn initially
+      // Session resumption 관련 필드 초기화
+      sessionResumptionToken: null,
+      isReconnecting: false,
+      reconnectAttempts: 0,
+      systemInstructions: systemInstructions, // 재연결시 필요
+      voiceGender: gender, // 재연결시 필요
+      goAwayWarningTime: null,
     };
 
     this.sessions.set(sessionId, session);
-
-    // 성별 판단 (시나리오 페르소나의 gender 속성 사용)
-    const gender: 'male' | 'female' = scenarioPersona.gender === 'female' ? 'female' : 'male';
-    console.log(`👤 페르소나 성별 설정: ${scenarioPersona.name} → ${gender} (시나리오 정의값: ${scenarioPersona.gender})`);
     
     // Connect to Gemini Live API
     await this.connectToGemini(session, systemInstructions, gender);
@@ -484,6 +498,126 @@ export class RealtimeVoiceService {
             // 연결이 예기치 않게 끊긴 경우와 정상 종료 구분
             const isNormalClose = event.code === 1000 || event.reason === 'Normal closure';
             
+            // 자동 재연결 가능 조건 체크 (1011 Internal Error + 클라이언트 연결 유지 + 최대 재시도 미초과)
+            const MAX_RECONNECT_ATTEMPTS = 3;
+            const canReconnect = 
+              event.code === 1011 && // Internal error
+              session.clientWs && 
+              session.clientWs.readyState === WebSocket.OPEN &&
+              session.reconnectAttempts < MAX_RECONNECT_ATTEMPTS &&
+              !session.isReconnecting;
+            
+            // 자동 재연결 시도 (cleanup 없이 바로 return)
+            if (canReconnect) {
+              // 세션 ID를 캡처하여 클로저에서 사용
+              const sessionId = session.id;
+              
+              // 재귀적 재시도 함수
+              const attemptReconnect = (attemptNumber: number) => {
+                // 세션이 여전히 유효한지 확인
+                const currentSession = this.sessions.get(sessionId);
+                if (!currentSession) {
+                  console.log('❌ 재연결 취소: 세션이 존재하지 않음');
+                  return;
+                }
+                if (currentSession.clientWs.readyState !== WebSocket.OPEN) {
+                  console.log('❌ 재연결 취소: 클라이언트 연결 종료됨');
+                  this.trackSessionUsage(currentSession);
+                  this.sessions.delete(sessionId);
+                  return;
+                }
+                
+                currentSession.isReconnecting = true;
+                currentSession.reconnectAttempts = attemptNumber;
+                console.log(`🔄 자동 재연결 시도 ${attemptNumber}/${MAX_RECONNECT_ATTEMPTS}...`);
+                
+                // 클라이언트에 재연결 상태 알림
+                this.sendToClient(currentSession, {
+                  type: 'session.reconnecting',
+                  attempt: attemptNumber,
+                  maxAttempts: MAX_RECONNECT_ATTEMPTS,
+                });
+                
+                // Exponential backoff (1초, 2초, 4초)
+                const delay = Math.pow(2, attemptNumber - 1) * 1000;
+                
+                setTimeout(() => {
+                  // 재시도 전 세션 유효성 재확인
+                  const sess = this.sessions.get(sessionId);
+                  if (!sess || sess.clientWs.readyState !== WebSocket.OPEN) {
+                    console.log('❌ 재연결 취소: 클라이언트 연결 종료됨');
+                    if (sess) {
+                      this.trackSessionUsage(sess);
+                      this.sessions.delete(sessionId);
+                    }
+                    return;
+                  }
+                  
+                  console.log(`🔌 Gemini 재연결 중... (attempt ${attemptNumber})`);
+                  this.connectToGemini(
+                    sess, 
+                    sess.systemInstructions, 
+                    sess.voiceGender
+                  ).then(() => {
+                    sess.isReconnecting = false;
+                    sess.reconnectAttempts = 0; // 성공시 재시도 횟수 리셋
+                    console.log(`✅ Gemini 재연결 성공!`);
+                    
+                    // 재연결 성공 알림
+                    this.sendToClient(sess, {
+                      type: 'session.reconnected',
+                    });
+                    
+                    // 대화 컨텍스트 복원 및 AI 응답 트리거
+                    if (sess.geminiSession) {
+                      console.log('📤 재연결 후 대화 재개 트리거...');
+                      sess.geminiSession.sendClientContent({
+                        turns: [{ role: 'user', parts: [{ text: '(기술적 문제가 해결되었습니다. 이전 대화를 이어서 간단히 확인 질문을 해주세요.)' }] }],
+                        turnComplete: true,
+                      });
+                      
+                      // END_OF_TURN을 보내서 AI가 응답하도록 강제
+                      sess.geminiSession.sendRealtimeInput({
+                        event: 'END_OF_TURN'
+                      });
+                    }
+                  }).catch((error) => {
+                    console.error(`❌ Gemini 재연결 실패 (attempt ${attemptNumber}):`, error);
+                    sess.isReconnecting = false;
+                    
+                    // 다음 재시도 또는 최종 실패
+                    if (attemptNumber < MAX_RECONNECT_ATTEMPTS) {
+                      // 다음 재시도 스케줄링
+                      console.log(`🔄 다음 재시도 스케줄링... (${attemptNumber + 1}/${MAX_RECONNECT_ATTEMPTS})`);
+                      attemptReconnect(attemptNumber + 1);
+                    } else {
+                      // 최대 재시도 횟수 초과 - 최종 실패
+                      console.log(`❌ 최대 재시도 횟수 초과 - 세션 종료`);
+                      this.sendToClient(sess, {
+                        type: 'error',
+                        error: 'AI 연결을 복구할 수 없습니다. 대화를 다시 시작해주세요.',
+                        recoverable: false,
+                      });
+                      
+                      if (sess.clientWs && sess.clientWs.readyState === WebSocket.OPEN) {
+                        sess.clientWs.close(1000, 'Gemini reconnection failed');
+                      }
+                      this.trackSessionUsage(sess);
+                      this.sessions.delete(sessionId);
+                      console.log(`♻️  Session cleaned up after failed reconnection: ${sessionId}`);
+                    }
+                  });
+                }, delay);
+              };
+              
+              // 첫 번째 재시도 시작
+              attemptReconnect(1);
+              
+              // 재연결 시도 중이므로 cleanup 없이 즉시 return
+              return;
+            }
+            
+            // 이하는 재연결하지 않는 경우에만 실행됨
             if (isNormalClose) {
               // 정상 종료
               this.sendToClient(session, {
@@ -491,7 +625,7 @@ export class RealtimeVoiceService {
                 reason: 'Gemini connection closed',
               });
             } else {
-              // 비정상 종료 - 클라이언트에 에러 알림 (즉시 종료하지 않음)
+              // 비정상 종료 - 재연결 불가
               console.log(`⚠️ Unexpected Gemini disconnection: code=${event.code}, reason=${event.reason}`);
               this.sendToClient(session, {
                 type: 'error',
@@ -500,6 +634,7 @@ export class RealtimeVoiceService {
               });
             }
             
+            // Cleanup (재연결 경로에서는 실행되지 않음)
             if (session.clientWs && session.clientWs.readyState === WebSocket.OPEN) {
               session.clientWs.close(1000, 'Gemini session ended');
             }
@@ -551,12 +686,36 @@ export class RealtimeVoiceService {
     // 활동 시간 업데이트 - Gemini 응답 수신 시에도 갱신하여 정확한 세션 타임아웃 관리
     session.lastActivityTime = Date.now();
     
+    // GoAway 메시지 처리 (세션 종료 예고)
+    if (message.goAway) {
+      const timeLeft = message.goAway.timeLeft || 0;
+      console.log(`⚠️ GoAway 경고 수신: ${timeLeft}초 후 연결 종료 예정`);
+      session.goAwayWarningTime = Date.now();
+      
+      // 클라이언트에 알림
+      this.sendToClient(session, {
+        type: 'session.warning',
+        message: `연결이 ${timeLeft}초 후 종료됩니다. 대화를 마무리해 주세요.`,
+        timeLeft: timeLeft,
+      });
+      return;
+    }
+    
+    // Session Resumption 토큰 저장
+    if (message.sessionResumption) {
+      const token = message.sessionResumption.handle;
+      if (token) {
+        session.sessionResumptionToken = token;
+        console.log(`🔑 Session resumption token 저장됨`);
+      }
+    }
+    
     // Gemini Live API message structure - 상세 디버깅
     const msgType = message.serverContent ? 'serverContent' : message.data ? 'audio data' : 'other';
     console.log(`📨 Gemini message type: ${msgType}`);
     
-    // 디버깅: 'other' 타입이면 전체 구조 출력
-    if (msgType === 'other') {
+    // 디버깅: 'other' 타입이면 전체 구조 출력 (goAway, sessionResumption 이외)
+    if (msgType === 'other' && !message.goAway && !message.sessionResumption) {
       console.log(`🔍 Unknown message structure:`, JSON.stringify(message, null, 2).substring(0, 500));
     }
 

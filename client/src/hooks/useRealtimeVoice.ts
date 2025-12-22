@@ -401,6 +401,24 @@ export function useRealtimeVoice({
               }
               break;
 
+            case 'session.warning':
+              // GoAway 경고 - 세션이 곧 종료됨
+              console.log(`⚠️ Session warning: ${data.message} (${data.timeLeft}s left)`);
+              // 사용자에게 경고 표시 가능
+              break;
+            
+            case 'session.reconnecting':
+              // 서버에서 Gemini 재연결 시도 중
+              console.log(`🔄 Reconnecting to AI... (attempt ${data.attempt}/${data.maxAttempts})`);
+              setError(`AI 연결 재시도 중... (${data.attempt}/${data.maxAttempts})`);
+              break;
+            
+            case 'session.reconnected':
+              // Gemini 재연결 성공
+              console.log('✅ Session reconnected successfully');
+              setError(null); // 에러 상태 클리어
+              break;
+
             case 'session.terminated':
               console.log('🔌 Session terminated:', data.reason);
               if (onSessionTerminatedRef.current) {
