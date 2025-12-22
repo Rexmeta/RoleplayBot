@@ -249,44 +249,11 @@ export function useRealtimeVoice({
         setConversationPhase('active'); // 연결 성공 시 active 상태로
         
         // 🔊 AudioContext 준비 완료 신호 전송 - 서버는 이 신호를 받은 후 첫 인사를 시작
-        // 이렇게 하면 클라이언트가 오디오 재생 준비가 완료된 상태에서 첫 인사를 받을 수 있음
+        // 서버에서 sendClientContent + END_OF_TURN으로 인사를 트리거함 (클라이언트는 신호만 보냄)
         setTimeout(() => {
           if (ws.readyState === WebSocket.OPEN) {
             ws.send(JSON.stringify({ type: 'client.ready' }));
-            console.log('📤 Sent client.ready signal to server');
-            
-            // 🔧 Gemini Live API는 오디오 입력 없이 응답하지 않으므로,
-            // 짧은 무음 오디오 (0.5초)를 보내서 AI가 첫 인사를 시작하도록 트리거
-            setTimeout(() => {
-              if (ws.readyState === WebSocket.OPEN) {
-                // 16kHz PCM16 무음 오디오 생성 (0.5초 = 8000 샘플)
-                const silenceSamples = 8000;
-                const silenceBuffer = new Int16Array(silenceSamples);
-                // 완전한 무음 대신 아주 작은 노이즈 추가 (VAD 트리거 방지)
-                for (let i = 0; i < silenceSamples; i++) {
-                  silenceBuffer[i] = Math.floor(Math.random() * 10) - 5; // -5 to 5 range
-                }
-                
-                // ArrayBuffer to Base64 변환
-                const bytes = new Uint8Array(silenceBuffer.buffer);
-                let binary = '';
-                for (let i = 0; i < bytes.byteLength; i++) {
-                  binary += String.fromCharCode(bytes[i]);
-                }
-                const base64Silence = btoa(binary);
-                
-                ws.send(JSON.stringify({
-                  type: 'input_audio_buffer.append',
-                  audio: base64Silence,
-                }));
-                console.log('📤 Sent silence audio to trigger first greeting');
-                
-                // END_OF_TURN 이벤트 전송으로 AI 응답 트리거
-                ws.send(JSON.stringify({ type: 'input_audio_buffer.commit' }));
-                ws.send(JSON.stringify({ type: 'response.create' }));
-                console.log('📤 Sent END_OF_TURN to trigger AI greeting');
-              }
-            }, 200); // 200ms 후 무음 오디오 전송
+            console.log('📤 Sent client.ready signal to server (server will trigger greeting)');
           }
         }, 100); // 100ms 딜레이로 WebSocket 안정화 후 전송
       };

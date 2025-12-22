@@ -83,6 +83,7 @@ interface RealtimeSession {
   totalAiTranscriptLength: number; // 누적 AI 텍스트 길이
   realtimeModel: string; // 사용된 모델
   hasReceivedFirstAIResponse: boolean; // 첫 AI 응답 수신 여부
+  hasTriggeredFirstGreeting: boolean; // 첫 인사 트리거 여부 (중복 방지)
   firstGreetingRetryCount: number; // 첫 인사 재시도 횟수
   isInterrupted: boolean; // Barge-in flag to suppress audio until new response
   turnSeq: number; // Monotonic turn counter, incremented on each turnComplete
@@ -297,6 +298,7 @@ export class RealtimeVoiceService {
       totalAiTranscriptLength: 0,
       realtimeModel,
       hasReceivedFirstAIResponse: false,
+      hasTriggeredFirstGreeting: false,
       firstGreetingRetryCount: 0,
       isInterrupted: false,
       turnSeq: 0, // First turn is 0
@@ -658,10 +660,14 @@ export class RealtimeVoiceService {
       // 타임아웃: 3초 후에도 client.ready를 받지 못하면 자동으로 첫 인사 트리거
       // 클라이언트 연결 문제 시에도 대화가 시작되도록 보장
       setTimeout(() => {
-        // 세션이 아직 존재하고, 첫 AI 응답이 없는 경우에만 자동 트리거
+        // 세션이 아직 존재하고, 첫 인사 트리거가 없었고, 첫 AI 응답이 없는 경우에만 자동 트리거
         const currentSession = this.sessions.get(session.id);
-        if (currentSession && !currentSession.hasReceivedFirstAIResponse && currentSession.geminiSession) {
+        if (currentSession && 
+            !currentSession.hasTriggeredFirstGreeting && 
+            !currentSession.hasReceivedFirstAIResponse && 
+            currentSession.geminiSession) {
           console.log('⏰ client.ready timeout (3s) - auto-triggering first greeting...');
+          currentSession.hasTriggeredFirstGreeting = true; // 중복 방지 플래그 설정
           const autoGreeting = `(상대방이 방금 도착했습니다. 당신이 먼저 인사를 건네세요.)`;
           currentSession.geminiSession.sendClientContent({
             turns: [{ role: 'user', parts: [{ text: autoGreeting }] }],
@@ -673,6 +679,8 @@ export class RealtimeVoiceService {
           currentSession.geminiSession.sendRealtimeInput({
             event: 'END_OF_TURN'
           });
+        } else if (currentSession?.hasTriggeredFirstGreeting) {
+          console.log('⏭️ Timeout skipped - first greeting already triggered');
         }
       }, 3000);
 
@@ -1025,11 +1033,14 @@ export class RealtimeVoiceService {
         // 클라이언트의 AudioContext가 준비됨 - 이제 첫 인사를 트리거
         console.log('🎬 Client ready signal received - triggering first greeting...');
         
-        // 이미 첫 응답을 받았으면 중복 트리거 방지
-        if (session.hasReceivedFirstAIResponse) {
-          console.log('⏭️ First greeting already received, skipping duplicate trigger');
+        // 이미 첫 인사 트리거 또는 첫 응답을 받았으면 중복 트리거 방지
+        if (session.hasTriggeredFirstGreeting || session.hasReceivedFirstAIResponse) {
+          console.log('⏭️ First greeting already triggered or received, skipping duplicate trigger');
           break;
         }
+        
+        // 중복 방지 플래그 설정
+        session.hasTriggeredFirstGreeting = true;
         
         // 첫 인사를 유도하는 트리거 - 상대방이 도착했음을 알려 AI가 먼저 인사하도록 함
         const firstMessage = `(상대방이 방금 도착했습니다. 당신이 먼저 인사를 건네세요.)`;
