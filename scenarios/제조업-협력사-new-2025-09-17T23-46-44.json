@@ -69,5 +69,8 @@
     "공급망 관리"
   ],
   "image": "/scenarios/images/제조업-협력사-신규-부품-단가-협상-품질-가격-납기-균형점-찾기-2025-11-21T09-25-03.webp",
-  "imagePrompt": "협력사와 물류를 배경으로 "
+  "imagePrompt": "협력사와 물류를 배경으로 ",
+  "introVideoUrl": "/scenarios/videos/intro-제조업-협력사-new-2025-09-17T23-46-44-2025-12-22T06-34-40.webm",
+  "videoPrompt": "First-person perspective walking down a empty modern office hallway and approaching a closed meeting room door, opening it, entering the room, and sitting down in a chair at the table. realistic style. asian ",
+  "objectiveType": ""
 }
