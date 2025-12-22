@@ -335,6 +335,17 @@ export default function Home() {
         setCurrentView("chat");
       });
     });
+    
+    // 타임아웃 가드: ChatWindow가 1.5초 내에 준비되지 않으면 오버레이 자동 해제
+    // (ChatWindow 렌더링 조건이 충족되지 않는 경우 블랙 화면 방지)
+    setTimeout(() => {
+      setIsVideoTransitioning(prev => {
+        if (prev) {
+          console.log('⚠️ ChatWindow 준비 타임아웃 - 오버레이 강제 해제');
+        }
+        return false;
+      });
+    }, 1500);
   };
 
   // 영상 건너뛰기
@@ -346,6 +357,16 @@ export default function Home() {
         setCurrentView("chat");
       });
     });
+    
+    // 타임아웃 가드: ChatWindow가 1.5초 내에 준비되지 않으면 오버레이 자동 해제
+    setTimeout(() => {
+      setIsVideoTransitioning(prev => {
+        if (prev) {
+          console.log('⚠️ ChatWindow 준비 타임아웃 (스킵) - 오버레이 강제 해제');
+        }
+        return false;
+      });
+    }, 1500);
   };
 
   // ChatWindow가 준비 완료되면 전환 오버레이 해제
