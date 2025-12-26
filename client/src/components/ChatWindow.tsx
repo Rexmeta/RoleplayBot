@@ -109,6 +109,7 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
   const lastSpokenMessageRef = useRef<string>("");
   const currentAudioRef = useRef<HTMLAudioElement | null>(null);
   const currentAudioUrlRef = useRef<string | null>(null);
+  const onReadyRef = useRef(onReady); // onReady 콜백을 ref로 저장하여 의존성 배열에서 제외
 
   const queryClient = useQueryClient();
   const { toast } = useToast();
@@ -217,6 +218,11 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
     checkPersonaImages();
   }, [persona.id, persona.mbti, persona.gender, conversationId]);
   
+  // onReady ref 동기화
+  useEffect(() => {
+    onReadyRef.current = onReady;
+  }, [onReady]);
+
   // 페르소나가 변경되면 로딩 상태 및 이미지 상태 리셋
   useEffect(() => {
     initialLoadCompletedRef.current = false;
@@ -235,7 +241,7 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
         const fallbackUrl = `https://ui-avatars.com/api/?name=${encodeURIComponent(persona.name)}&background=6366f1&color=fff&size=400`;
         setLoadedImageUrl(fallbackUrl);
         setIsOverlayFading(true);
-        onReady?.();
+        onReadyRef.current?.();
         setTimeout(() => {
           setIsInitialLoading(false);
         }, 500);
@@ -243,7 +249,7 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
     }, 3000);
     
     return () => clearTimeout(timeoutId);
-  }, [persona.id, persona.name, conversationId, onReady]);
+  }, [persona.id, persona.name, conversationId]);
 
   // 화면 너비 추적 (레이아웃 힌트용, 모드 강제 전환하지 않음)
   useEffect(() => {
@@ -276,7 +282,7 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
         setLoadedImageUrl(imageUrl);
       }
       setIsOverlayFading(true);
-      onReady?.();
+      onReadyRef.current?.();
       setTimeout(() => {
         setIsInitialLoading(false);
       }, 500);
