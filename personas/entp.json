@@ -14,19 +14,6 @@
     "지루함",
     "정체된 사고"
   ],
-  "speech_style": {
-    "formality": "격식 낮음~중간 - 논쟁적이고 도전적인 말투",
-    "sentence_endings": ["~네요", "~죠?", "~거든요", "~잖아요"],
-    "filler_words": ["근데", "아", "사실", "그러니까"],
-    "characteristic_expressions": ["근데 이건 어떻게 생각해요?", "재미있는 관점이네요", "다른 가능성도 있지 않을까요?", "한번 생각해보면"]
-  },
-  "reaction_phrases": {
-    "agreement": ["재미있는 관점이네요", "그것도 일리가 있어요", "흥미롭게 들리네요"],
-    "disagreement": ["근데 이렇게 보면 어떨까요?", "다른 관점에서 보면요", "그건 좀 다르게 생각해볼 수도 있어요"],
-    "surprise": ["오 그래요?", "흥미롭네요!", "몰랐던 부분이네요"],
-    "thinking": ["잠깐, 생각해보면...", "이런 접근은 어떨까요?", "만약에..."],
-    "empathy": ["그 상황이 이해돼요", "그럴 수 있죠", "공감이 가네요"]
-  },
   "background": {
     "personal_values": [
       "창의성",
@@ -76,7 +63,7 @@
         "놀람": "/personas/entp/male/surprise.webp?t=1765240031318",
         "호기심": "/personas/entp/male/curious.webp?t=1765240031318",
         "불안": "/personas/entp/male/anxious.webp?t=1765240031318",
-        "피로": "/personas/entp/male/tired.webp?t=1765240031318",
+        "단호": "",
         "실망": "/personas/entp/male/disappointed.webp?t=1765240031318",
         "당혹": "/personas/entp/male/confused.webp?t=1765240031318"
       }
@@ -90,7 +77,7 @@
         "놀람": "/personas/entp/female/surprise.webp?t=1765240330781",
         "호기심": "/personas/entp/female/curious.webp?t=1765240330781",
         "불안": "/personas/entp/female/anxious.webp?t=1765240330781",
-        "피로": "/personas/entp/female/tired.webp?t=1765240330781",
+        "단호": "/personas/entp/female/determined.webp?t=1766711522877",
         "실망": "/personas/entp/female/disappointed.webp?t=1765240330781",
         "당혹": "/personas/entp/female/confused.webp?t=1765240330781"
       }
