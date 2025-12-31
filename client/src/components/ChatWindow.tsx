@@ -1447,15 +1447,31 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
                     
                     {/* AI 인사 준비 중 상태 (메신저 모드) */}
                     {realtimeVoice.status === 'connected' && realtimeVoice.isWaitingForGreeting && (
-                      <div className="flex items-center justify-center space-x-2 py-4">
-                        <div className="w-2 h-2 bg-purple-500 rounded-full animate-bounce"></div>
-                        <div className="w-2 h-2 bg-purple-500 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
-                        <div className="w-2 h-2 bg-purple-500 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
-                        <span className="ml-2 text-slate-600 text-sm">
-                          {realtimeVoice.greetingRetryCount > 0 
-                            ? `${persona.department} ${persona.role} ${persona.name}님이 인사를 준비하고 있습니다... (재시도 ${realtimeVoice.greetingRetryCount}/3)`
-                            : `${persona.department} ${persona.role} ${persona.name}님이 인사를 준비하고 있습니다...`}
-                        </span>
+                      <div className="flex flex-col items-center justify-center gap-3 py-4">
+                        <div className="flex items-center justify-center space-x-2">
+                          <div className="w-2 h-2 bg-purple-500 rounded-full animate-bounce"></div>
+                          <div className="w-2 h-2 bg-purple-500 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
+                          <div className="w-2 h-2 bg-purple-500 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
+                          <span className="ml-2 text-slate-600 text-sm">
+                            {realtimeVoice.greetingRetryCount > 0 
+                              ? `${persona.department} ${persona.role} ${persona.name}님이 인사를 준비하고 있습니다... (재시도 ${realtimeVoice.greetingRetryCount}/3)`
+                              : `${persona.department} ${persona.role} ${persona.name}님이 인사를 준비하고 있습니다...`}
+                          </span>
+                        </div>
+                        <Button
+                          onClick={() => {
+                            hasUserSpokenRef.current = true;
+                            setShowMicPrompt(false);
+                            setIsInputExpanded(false);
+                            realtimeVoice.startRecording();
+                          }}
+                          size="sm"
+                          className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-full text-sm"
+                          data-testid="button-start-greeting-messenger"
+                        >
+                          <i className="fas fa-microphone mr-1.5"></i>
+                          대화 시작하기
+                        </Button>
                       </div>
                     )}
                     
@@ -2078,15 +2094,31 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
                       {/* AI 인사 준비 중 상태 (캐릭터 모드 하단) */}
                       {realtimeVoice.status === 'connected' && realtimeVoice.isWaitingForGreeting && (
                         <div className="p-4 bg-[#ffffff9c]">
-                          <div className="flex items-center justify-center space-x-2 py-4">
-                            <div className="w-2 h-2 bg-purple-500 rounded-full animate-bounce"></div>
-                            <div className="w-2 h-2 bg-purple-500 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
-                            <div className="w-2 h-2 bg-purple-500 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
-                            <span className="ml-2 text-slate-600 text-sm">
-                              {realtimeVoice.greetingRetryCount > 0 
-                                ? `${persona.department} ${persona.role} ${persona.name}님이 인사를 준비하고 있습니다... (재시도 ${realtimeVoice.greetingRetryCount}/3)`
-                                : `${persona.department} ${persona.role} ${persona.name}님이 인사를 준비하고 있습니다...`}
-                            </span>
+                          <div className="flex flex-col items-center justify-center gap-3 py-4">
+                            <div className="flex items-center justify-center space-x-2">
+                              <div className="w-2 h-2 bg-purple-500 rounded-full animate-bounce"></div>
+                              <div className="w-2 h-2 bg-purple-500 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
+                              <div className="w-2 h-2 bg-purple-500 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
+                              <span className="ml-2 text-slate-600 text-sm">
+                                {realtimeVoice.greetingRetryCount > 0 
+                                  ? `${persona.department} ${persona.role} ${persona.name}님이 인사를 준비하고 있습니다... (재시도 ${realtimeVoice.greetingRetryCount}/3)`
+                                  : `${persona.department} ${persona.role} ${persona.name}님이 인사를 준비하고 있습니다...`}
+                              </span>
+                            </div>
+                            <Button
+                              onClick={() => {
+                                hasUserSpokenRef.current = true;
+                                setShowMicPrompt(false);
+                                setIsInputExpanded(false);
+                                realtimeVoice.startRecording();
+                              }}
+                              size="sm"
+                              className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-full text-sm"
+                              data-testid="button-start-greeting-character"
+                            >
+                              <i className="fas fa-microphone mr-1.5"></i>
+                              대화 시작하기
+                            </Button>
                           </div>
                         </div>
                       )}
