@@ -43,18 +43,47 @@ function filterThinkingText(text: string): string {
   // 예: "**Beginning the Briefing**\nI've initiated..."
   let filtered = text.replace(/\*\*[^*]+\*\*\s*/g, '');
   
-  // 패턴 2: 영문으로만 구성된 줄 제거 (한글이 없는 줄)
+  // 패턴 2: 라인 단위 필터링
   const lines = filtered.split('\n');
   const koreanLines = lines.filter(line => {
     const trimmed = line.trim();
     if (!trimmed) return false;
-    // 한글이 포함된 줄만 유지
-    return /[\uAC00-\uD7AF\u1100-\u11FF\u3130-\u318F]/.test(trimmed);
+    
+    // 한글이 포함된 줄 확인
+    const hasKorean = /[\uAC00-\uD7AF\u1100-\u11FF\u3130-\u318F]/.test(trimmed);
+    if (!hasKorean) return false; // 한글이 없으면 제거
+    
+    // 한글이 있는 줄이라도, 영문이 너무 많으면 제거 (thinking 텍스트로 의심)
+    // 한글 문자 개수와 영문 단어 개수 비교
+    const koreanCharCount = (trimmed.match(/[\uAC00-\uD7AF\u1100-\u11FF\u3130-\u318F]/g) || []).length;
+    const englishWords = (trimmed.match(/\b[a-zA-Z]+\b/g) || []).length;
+    
+    // 영문 단어가 한글 문자의 3배 이상이면 thinking 텍스트로 간주
+    // 예: "I've crafted a greeting for Rex님" → 5개 영문 단어 vs 3개 한글 문자 → 제거
+    if (englishWords > 0 && englishWords >= koreanCharCount * 3) {
+      return false;
+    }
+    
+    return true;
   });
   
   filtered = koreanLines.join('\n').trim();
   
-  // 패턴 3: 남은 텍스트에서 앞뒤 공백 정리
+  // 패턴 3: 남은 텍스트에서 영문 단어가 연속으로 많은 부분 제거
+  // "ensuring my tone reflects concern but remains professional" 같은 영문 구문 제거
+  filtered = filtered.replace(/([a-zA-Z\s]{20,})/g, (match) => {
+    // 영문만 20자 이상 연속인 경우 제거
+    if (!/[\uAC00-\uD7AF\u1100-\u11FF\u3130-\u318F]/.test(match)) {
+      return '';
+    }
+    return match;
+  });
+  
+  // 앞뒤 공백 정리
+  filtered = filtered.trim();
+  // 연속된 공백 정리
+  filtered = filtered.replace(/\s+/g, ' ');
+  
   return filtered;
 }
 
