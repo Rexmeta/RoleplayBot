@@ -366,6 +366,7 @@ export function useRealtimeVoice({
               // 첫 인사 대기 상태 해제
               setIsWaitingForGreeting(false);
               setGreetingRetryCount(0);
+              setGreetingFailed(false); // 첫 대화 진행 후 인사 실패 메시지 제거
               // 완전한 메시지와 감정 정보를 onMessageComplete로 전달
               if (data.text && onMessageCompleteRef.current) {
                 onMessageCompleteRef.current(data.text, data.emotion, data.emotionReason);
