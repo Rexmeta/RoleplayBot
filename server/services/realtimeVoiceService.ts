@@ -779,6 +779,13 @@ export class RealtimeVoiceService {
           session.firstGreetingRetryCount++;
           console.log(`⚠️ 첫 인사 응답 없음, 재시도 ${session.firstGreetingRetryCount}/3...`);
           
+          // 클라이언트에 재시도 상태 알림 (UI 표시용)
+          this.sendToClient(session, {
+            type: 'greeting.retry',
+            retryCount: session.firstGreetingRetryCount,
+            maxRetries: 3,
+          });
+          
           // sendClientContent로 인사 트리거 메시지를 다시 보내서 AI가 응답하도록 강제
           if (session.geminiSession) {
             const retryMessages = [

@@ -30,6 +30,8 @@ interface UseRealtimeVoiceReturn {
   conversationPhase: ConversationPhase;
   isRecording: boolean;
   isAISpeaking: boolean;
+  isWaitingForGreeting: boolean; // AI 첫 인사 대기 중 여부
+  greetingRetryCount: number; // 인사 재시도 횟수 (0-3)
   connect: () => Promise<void>;
   disconnect: () => void;
   startRecording: () => void;
@@ -55,6 +57,8 @@ export function useRealtimeVoice({
   const [isRecording, setIsRecording] = useState(false);
   const [isAISpeaking, setIsAISpeaking] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [isWaitingForGreeting, setIsWaitingForGreeting] = useState(false);
+  const [greetingRetryCount, setGreetingRetryCount] = useState(0);
   
   // 대화가 실제로 시작되었는지 추적 (AI가 한번이라도 응답했으면 true)
   const hasConversationStartedRef = useRef<boolean>(false);
@@ -209,6 +213,8 @@ export function useRealtimeVoice({
     setStatus('disconnected');
     setIsRecording(false);
     setIsAISpeaking(false);
+    setIsWaitingForGreeting(false); // 연결 종료 시 리셋
+    setGreetingRetryCount(0); // 연결 종료 시 리셋
   }, [stopCurrentPlayback]);
 
   const connect = useCallback(async () => {
@@ -247,6 +253,8 @@ export function useRealtimeVoice({
         console.log('🎙️ WebSocket connected for realtime voice');
         setStatus('connected');
         setConversationPhase('active'); // 연결 성공 시 active 상태로
+        setIsWaitingForGreeting(true); // AI 첫 인사 대기 중
+        setGreetingRetryCount(0); // 재시도 횟수 초기화
         
         // 🔊 AudioContext 준비 완료 신호 전송 - 서버는 이 신호를 받은 후 첫 인사를 시작
         // 서버에서 sendClientContent + END_OF_TURN으로 인사를 트리거함 (클라이언트는 신호만 보냄)
@@ -351,6 +359,9 @@ export function useRealtimeVoice({
               console.log('😊 Emotion:', data.emotion, '|', data.emotionReason);
               // AI가 응답했으면 대화가 시작된 것으로 표시
               hasConversationStartedRef.current = true;
+              // 첫 인사 대기 상태 해제
+              setIsWaitingForGreeting(false);
+              setGreetingRetryCount(0);
               // 완전한 메시지와 감정 정보를 onMessageComplete로 전달
               if (data.text && onMessageCompleteRef.current) {
                 onMessageCompleteRef.current(data.text, data.emotion, data.emotionReason);
@@ -402,6 +413,12 @@ export function useRealtimeVoice({
               setError(null); // 에러 상태 클리어
               break;
 
+            case 'greeting.retry':
+              // 첫 인사 재시도 중 (서버에서 전송)
+              console.log(`🔄 Greeting retry: ${data.retryCount}/${data.maxRetries}`);
+              setGreetingRetryCount(data.retryCount);
+              break;
+
             case 'session.terminated':
               console.log('🔌 Session terminated:', data.reason);
               setConversationPhase('ended'); // 세션 종료 시 ended 상태로
@@ -431,6 +448,8 @@ export function useRealtimeVoice({
         console.error('❌ WebSocket error:', event);
         setError('WebSocket connection error');
         setStatus('error');
+        setIsWaitingForGreeting(false); // 에러 시 리셋
+        setGreetingRetryCount(0); // 에러 시 리셋
         if (onErrorRef.current) {
           onErrorRef.current('Connection error');
         }
@@ -440,6 +459,8 @@ export function useRealtimeVoice({
         console.log('🔌 WebSocket closed:', event.code, event.reason);
         setStatus('disconnected');
         setIsRecording(false);
+        setIsWaitingForGreeting(false); // 연결 종료 시 리셋
+        setGreetingRetryCount(0); // 연결 종료 시 리셋
         
         // phase가 이미 ended면 덮어쓰지 않음 (정상 종료)
         // 대화가 시작된 적 있고 ended가 아니면 interrupted로 변경 (중간 끊김)
@@ -460,6 +481,8 @@ export function useRealtimeVoice({
       console.error('Error connecting to WebSocket:', err);
       setError(err instanceof Error ? err.message : 'Connection failed');
       setStatus('error');
+      setIsWaitingForGreeting(false); // 연결 실패 시 리셋
+      setGreetingRetryCount(0); // 연결 실패 시 리셋
       if (onErrorRef.current) {
         onErrorRef.current(err instanceof Error ? err.message : 'Connection failed');
       }
@@ -853,6 +876,8 @@ export function useRealtimeVoice({
     conversationPhase,
     isRecording,
     isAISpeaking,
+    isWaitingForGreeting,
+    greetingRetryCount,
     connect,
     disconnect,
     startRecording,

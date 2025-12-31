@@ -1443,8 +1443,22 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
                       </div>
                     )}
                     
+                    {/* AI 인사 준비 중 상태 (메신저 모드) */}
+                    {realtimeVoice.status === 'connected' && realtimeVoice.isWaitingForGreeting && (
+                      <div className="flex items-center justify-center space-x-2 py-4">
+                        <div className="w-2 h-2 bg-purple-500 rounded-full animate-bounce"></div>
+                        <div className="w-2 h-2 bg-purple-500 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
+                        <div className="w-2 h-2 bg-purple-500 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
+                        <span className="ml-2 text-slate-600 text-sm">
+                          {realtimeVoice.greetingRetryCount > 0 
+                            ? `AI가 인사를 준비하고 있습니다... (재시도 ${realtimeVoice.greetingRetryCount}/3)`
+                            : 'AI가 인사를 준비하고 있습니다...'}
+                        </span>
+                      </div>
+                    )}
+                    
                     {/* 연결 완료 - 마이크 중심 레이아웃 (메신저 모드) */}
-                    {realtimeVoice.status === 'connected' && (
+                    {realtimeVoice.status === 'connected' && !realtimeVoice.isWaitingForGreeting && (
                       <div className="flex items-center justify-center gap-4 py-2">
                         {/* 대화 종료 버튼 - 왼쪽 */}
                         <Button
@@ -1854,6 +1868,28 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
                   }}
                 >
               
+              {/* AI 첫 인사 준비 중 오버레이 (캐릭터 모드) */}
+              {realtimeVoice.status === 'connected' && realtimeVoice.isWaitingForGreeting && (
+                <div className="absolute inset-0 flex items-center justify-center z-30 pointer-events-none">
+                  {/* 펄스 애니메이션 오버레이 */}
+                  <div className="absolute inset-0 bg-gradient-to-b from-purple-500/5 to-indigo-500/5 animate-pulse"></div>
+                  
+                  {/* 상태 메시지 */}
+                  <div className="bg-white/95 backdrop-blur-sm rounded-2xl px-6 py-4 shadow-xl text-center animate-bounce-slow">
+                    <div className="flex items-center justify-center space-x-2 mb-2">
+                      <div className="w-2 h-2 bg-purple-500 rounded-full animate-bounce"></div>
+                      <div className="w-2 h-2 bg-purple-500 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
+                      <div className="w-2 h-2 bg-purple-500 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
+                    </div>
+                    <p className="text-sm font-medium text-slate-700">
+                      {realtimeVoice.greetingRetryCount > 0 
+                        ? `AI가 인사를 준비하고 있습니다... (재시도 ${realtimeVoice.greetingRetryCount}/3)`
+                        : 'AI가 인사를 준비하고 있습니다...'}
+                    </p>
+                  </div>
+                </div>
+              )}
+
               {/* 페르소나 이미지가 없을 때 안내 메시지 */}
               {hasNoPersonaImages && (
                 <div className="absolute inset-0 flex items-center justify-center z-5">
@@ -2048,8 +2084,24 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
                         </div>
                       )}
                       
+                      {/* AI 인사 준비 중 상태 (캐릭터 모드 하단) */}
+                      {realtimeVoice.status === 'connected' && realtimeVoice.isWaitingForGreeting && (
+                        <div className="p-4 bg-[#ffffff9c]">
+                          <div className="flex items-center justify-center space-x-2 py-4">
+                            <div className="w-2 h-2 bg-purple-500 rounded-full animate-bounce"></div>
+                            <div className="w-2 h-2 bg-purple-500 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
+                            <div className="w-2 h-2 bg-purple-500 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
+                            <span className="ml-2 text-slate-600 text-sm">
+                              {realtimeVoice.greetingRetryCount > 0 
+                                ? `AI가 인사를 준비하고 있습니다... (재시도 ${realtimeVoice.greetingRetryCount}/3)`
+                                : 'AI가 인사를 준비하고 있습니다...'}
+                            </span>
+                          </div>
+                        </div>
+                      )}
+                      
                       {/* 연결 완료 - 마이크 중심 레이아웃 */}
-                      {realtimeVoice.status === 'connected' && (
+                      {realtimeVoice.status === 'connected' && !realtimeVoice.isWaitingForGreeting && (
                         <div className="border-t border-slate-200/30 p-4">
                           <div className="flex items-center justify-center gap-4">
                             {/* 대화 종료 버튼 - 왼쪽 */}
