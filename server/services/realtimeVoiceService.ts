@@ -809,6 +809,15 @@ export class RealtimeVoiceService {
           return; // 재시도 후 다음 메시지 기다림
         }
         
+        // 3회 시도 후에도 AI 응답이 없으면 사용자에게 먼저 시작하라고 알림
+        if (!session.hasReceivedFirstAIResponse && !session.currentTranscript && session.firstGreetingRetryCount >= 3) {
+          console.log(`❌ 3회 시도 후에도 AI 인사 응답 없음 - 사용자가 먼저 시작하도록 안내`);
+          this.sendToClient(session, {
+            type: 'greeting.failed',
+          });
+          // 더 이상 재시도하지 않음, 사용자 입력 대기
+        }
+        
         this.sendToClient(session, {
           type: 'response.done',
         });

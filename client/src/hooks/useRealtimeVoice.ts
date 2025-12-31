@@ -32,6 +32,7 @@ interface UseRealtimeVoiceReturn {
   isAISpeaking: boolean;
   isWaitingForGreeting: boolean; // AI 첫 인사 대기 중 여부
   greetingRetryCount: number; // 인사 재시도 횟수 (0-3)
+  greetingFailed: boolean; // 3회 시도 후 AI 인사 실패
   connect: () => Promise<void>;
   disconnect: () => void;
   startRecording: () => void;
@@ -59,6 +60,7 @@ export function useRealtimeVoice({
   const [error, setError] = useState<string | null>(null);
   const [isWaitingForGreeting, setIsWaitingForGreeting] = useState(false);
   const [greetingRetryCount, setGreetingRetryCount] = useState(0);
+  const [greetingFailed, setGreetingFailed] = useState(false);
   
   // 대화가 실제로 시작되었는지 추적 (AI가 한번이라도 응답했으면 true)
   const hasConversationStartedRef = useRef<boolean>(false);
@@ -215,11 +217,13 @@ export function useRealtimeVoice({
     setIsAISpeaking(false);
     setIsWaitingForGreeting(false); // 연결 종료 시 리셋
     setGreetingRetryCount(0); // 연결 종료 시 리셋
+    setGreetingFailed(false); // 연결 종료 시 리셋
   }, [stopCurrentPlayback]);
 
   const connect = useCallback(async () => {
     setStatus('connecting');
     setError(null);
+    setGreetingFailed(false); // 새 연결 시 리셋
 
     try {
       // 🔊 AudioContext 사전 준비 (첫 인사 음성 누락 방지)
@@ -418,6 +422,13 @@ export function useRealtimeVoice({
               console.log(`🔄 Greeting retry: ${data.retryCount}/${data.maxRetries}`);
               setGreetingRetryCount(data.retryCount);
               break;
+              
+            case 'greeting.failed':
+              // 3회 시도 후에도 AI 인사 실패 - 사용자가 먼저 시작하도록 안내
+              console.log('❌ Greeting failed after 3 retries - user should start first');
+              setIsWaitingForGreeting(false);
+              setGreetingFailed(true);
+              break;
 
             case 'session.terminated':
               console.log('🔌 Session terminated:', data.reason);
@@ -450,6 +461,7 @@ export function useRealtimeVoice({
         setStatus('error');
         setIsWaitingForGreeting(false); // 에러 시 리셋
         setGreetingRetryCount(0); // 에러 시 리셋
+        setGreetingFailed(false); // 에러 시 리셋
         if (onErrorRef.current) {
           onErrorRef.current('Connection error');
         }
@@ -461,6 +473,7 @@ export function useRealtimeVoice({
         setIsRecording(false);
         setIsWaitingForGreeting(false); // 연결 종료 시 리셋
         setGreetingRetryCount(0); // 연결 종료 시 리셋
+        setGreetingFailed(false); // 연결 종료 시 리셋
         
         // phase가 이미 ended면 덮어쓰지 않음 (정상 종료)
         // 대화가 시작된 적 있고 ended가 아니면 interrupted로 변경 (중간 끊김)
@@ -483,6 +496,7 @@ export function useRealtimeVoice({
       setStatus('error');
       setIsWaitingForGreeting(false); // 연결 실패 시 리셋
       setGreetingRetryCount(0); // 연결 실패 시 리셋
+      setGreetingFailed(false); // 연결 실패 시 리셋
       if (onErrorRef.current) {
         onErrorRef.current(err instanceof Error ? err.message : 'Connection failed');
       }
@@ -878,6 +892,7 @@ export function useRealtimeVoice({
     isAISpeaking,
     isWaitingForGreeting,
     greetingRetryCount,
+    greetingFailed,
     connect,
     disconnect,
     startRecording,
