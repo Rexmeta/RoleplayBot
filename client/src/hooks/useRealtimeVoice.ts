@@ -926,6 +926,7 @@ export function useRealtimeVoice({
     isWaitingForGreeting,
     greetingRetryCount,
     greetingFailed,
+    audioAmplitude,
     connect,
     disconnect,
     startRecording,
