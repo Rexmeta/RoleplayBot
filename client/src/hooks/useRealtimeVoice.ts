@@ -558,9 +558,11 @@ export function useRealtimeVoice({
     }
   }, [enabled, getRealtimeToken, getWebSocketUrl, disconnect]);
 
-  // 음량 분석 루프 시작
+  // 음량 분석 루프 시작 (빠른 attack, 느린 release로 역동적 반응)
   const startAmplitudeAnalysis = useCallback(() => {
     if (amplitudeAnimationRef.current) return; // 이미 실행 중
+    
+    let prevAmplitude = 0;
     
     const analyzeAmplitude = () => {
       // 재생 중인 오디오 소스가 있거나 isAISpeaking 상태일 때 분석
@@ -570,18 +572,40 @@ export function useRealtimeVoice({
         const dataArray = new Uint8Array(analyserNodeRef.current.frequencyBinCount);
         analyserNodeRef.current.getByteFrequencyData(dataArray);
         
-        // RMS 계산으로 음량 추출
-        let sum = 0;
-        for (let i = 0; i < dataArray.length; i++) {
-          sum += dataArray[i] * dataArray[i];
-        }
-        const rms = Math.sqrt(sum / dataArray.length) / 255; // 0-1 범위로 정규화
+        // 음성 주파수 대역(200Hz-2kHz) 집중 분석으로 민감도 향상
+        const binCount = analyserNodeRef.current.frequencyBinCount;
+        const startBin = Math.floor(binCount * 0.05);  // ~200Hz
+        const endBin = Math.floor(binCount * 0.4);     // ~2kHz
         
-        // 부드럽게 변화하도록 이전 값과 보간
-        setAudioAmplitude(prev => prev * 0.7 + rms * 0.3);
+        let sum = 0;
+        let peakValue = 0;
+        for (let i = startBin; i < endBin; i++) {
+          const value = dataArray[i];
+          sum += value * value;
+          peakValue = Math.max(peakValue, value);
+        }
+        
+        // RMS + Peak 혼합으로 더 역동적인 반응
+        const rms = Math.sqrt(sum / (endBin - startBin)) / 255;
+        const peak = peakValue / 255;
+        const rawAmplitude = rms * 0.6 + peak * 0.4;
+        
+        // 증폭 및 범위 조정 (0.1 ~ 0.95)
+        const amplified = Math.min(0.95, rawAmplitude * 2.5);
+        const normalized = Math.max(0.1, amplified);
+        
+        // Attack/Release envelope: 빠른 attack(0.6), 느린 release(0.85)
+        if (normalized > prevAmplitude) {
+          prevAmplitude = prevAmplitude * 0.4 + normalized * 0.6; // Fast attack
+        } else {
+          prevAmplitude = prevAmplitude * 0.85 + normalized * 0.15; // Slow release
+        }
+        
+        setAudioAmplitude(prevAmplitude);
       } else {
         // 재생 중인 오디오가 없으면 음량 0으로 점진적 감소
-        setAudioAmplitude(prev => prev * 0.9);
+        prevAmplitude = prevAmplitude * 0.92;
+        setAudioAmplitude(prevAmplitude);
       }
       
       amplitudeAnimationRef.current = requestAnimationFrame(analyzeAmplitude);
