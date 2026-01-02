@@ -1835,10 +1835,6 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
                       <i className="fas fa-clock mr-1"></i>
                       {formatElapsedTime(elapsedTime)}
                     </span>
-                    <span className="flex items-center" data-testid="text-remaining-turns-sidebar">
-                      <i className="fas fa-redo mr-1"></i>
-                      {Math.max(0, maxTurns - (conversation?.turnCount ?? 0))}턴 남음
-                    </span>
                   </div>
                 </div>
                 
@@ -1930,10 +1926,6 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
                         {formatElapsedTime(elapsedTime)}
                       </span>
                       <span className="text-slate-300">•</span>
-                      <span className="flex items-center" data-testid="text-remaining-turns">
-                        <i className="fas fa-redo mr-1 text-xs"></i>
-                        {Math.max(0, maxTurns - (conversation?.turnCount ?? 0))}턴 남음
-                      </span>
                     </div>
                   </div>
                 </div>
