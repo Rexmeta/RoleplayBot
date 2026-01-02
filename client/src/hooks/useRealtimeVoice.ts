@@ -198,6 +198,23 @@ export function useRealtimeVoice({
     // Stop any playing audio first
     stopCurrentPlayback();
     
+    // 음량 분석 루프 정지
+    if (amplitudeAnimationRef.current) {
+      cancelAnimationFrame(amplitudeAnimationRef.current);
+      amplitudeAnimationRef.current = null;
+    }
+    setAudioAmplitude(0);
+    
+    // AnalyserNode 정리
+    if (analyserNodeRef.current) {
+      analyserNodeRef.current.disconnect();
+      analyserNodeRef.current = null;
+    }
+    if (gainNodeRef.current) {
+      gainNodeRef.current.disconnect();
+      gainNodeRef.current = null;
+    }
+    
     if (wsRef.current) {
       wsRef.current.close();
       wsRef.current = null;
@@ -536,6 +553,44 @@ export function useRealtimeVoice({
     }
   }, [enabled, getRealtimeToken, getWebSocketUrl, disconnect]);
 
+  // 음량 분석 루프 시작
+  const startAmplitudeAnalysis = useCallback(() => {
+    if (amplitudeAnimationRef.current) return; // 이미 실행 중
+    
+    const analyzeAmplitude = () => {
+      if (analyserNodeRef.current && isAISpeakingRef.current) {
+        const dataArray = new Uint8Array(analyserNodeRef.current.frequencyBinCount);
+        analyserNodeRef.current.getByteFrequencyData(dataArray);
+        
+        // RMS 계산으로 음량 추출
+        let sum = 0;
+        for (let i = 0; i < dataArray.length; i++) {
+          sum += dataArray[i] * dataArray[i];
+        }
+        const rms = Math.sqrt(sum / dataArray.length) / 255; // 0-1 범위로 정규화
+        
+        // 부드럽게 변화하도록 이전 값과 보간
+        setAudioAmplitude(prev => prev * 0.7 + rms * 0.3);
+      } else {
+        // AI가 말하지 않으면 음량 0으로 점진적 감소
+        setAudioAmplitude(prev => prev * 0.9);
+      }
+      
+      amplitudeAnimationRef.current = requestAnimationFrame(analyzeAmplitude);
+    };
+    
+    amplitudeAnimationRef.current = requestAnimationFrame(analyzeAmplitude);
+  }, []);
+  
+  // 음량 분석 루프 정지
+  const stopAmplitudeAnalysis = useCallback(() => {
+    if (amplitudeAnimationRef.current) {
+      cancelAnimationFrame(amplitudeAnimationRef.current);
+      amplitudeAnimationRef.current = null;
+    }
+    setAudioAmplitude(0);
+  }, []);
+
   const playAudioDelta = useCallback(async (base64Audio: string) => {
     // Ignore audio chunks if interrupted (barge-in active)
     if (isInterruptedRef.current) {
@@ -557,6 +612,25 @@ export function useRealtimeVoice({
       if (audioContext.state === 'suspended') {
         console.log('🔊 Resuming suspended AudioContext for playback');
         await audioContext.resume();
+      }
+      
+      // AnalyserNode 생성 (음량 분석용)
+      if (!analyserNodeRef.current) {
+        analyserNodeRef.current = audioContext.createAnalyser();
+        analyserNodeRef.current.fftSize = 256;
+        analyserNodeRef.current.smoothingTimeConstant = 0.8;
+        
+        // GainNode 생성 (Analyser를 destination에 연결)
+        gainNodeRef.current = audioContext.createGain();
+        gainNodeRef.current.gain.value = 1.0;
+        
+        // Analyser -> Gain -> Destination 체인 구성
+        analyserNodeRef.current.connect(gainNodeRef.current);
+        gainNodeRef.current.connect(audioContext.destination);
+        
+        // 음량 분석 루프 시작
+        startAmplitudeAnalysis();
+        console.log('🎵 AnalyserNode created for amplitude visualization');
       }
       
       // Decode base64 to raw bytes
@@ -591,7 +665,8 @@ export function useRealtimeVoice({
       // 발화 속도를 10% 느리게 설정 (0.9배 속도 - 더 자연스럽고 이해하기 쉬움)
       source.playbackRate.value = 0.9;
       
-      source.connect(audioContext.destination);
+      // Source -> Analyser (Analyser는 이미 destination에 연결됨)
+      source.connect(analyserNodeRef.current!);
       source.start(startTime);
       
       // Track source for potential interruption (barge-in)
@@ -612,7 +687,7 @@ export function useRealtimeVoice({
     } catch (err) {
       console.error('Error playing audio delta:', err);
     }
-  }, []);
+  }, [startAmplitudeAnalysis]);
 
   const startRecording = useCallback(async () => {
     if (status !== 'connected' || !wsRef.current) {
