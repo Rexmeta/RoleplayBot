@@ -178,6 +178,11 @@ export function useRealtimeVoice({
         // Close and create fresh context for next playback
         playbackContextRef.current.close();
         playbackContextRef.current = null;
+        
+        // AnalyserNode와 GainNode도 함께 정리 (새 context와 호환되지 않음)
+        analyserNodeRef.current = null;
+        gainNodeRef.current = null;
+        
         console.log('🔇 Playback AudioContext closed to flush audio queue');
       } catch (err) {
         console.warn('Error closing playback AudioContext:', err);
