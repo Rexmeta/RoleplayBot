@@ -388,8 +388,8 @@ export function SimplePersonaSelector({
               </CardContent>
             </Card>
 
-            {/* 페르소나 목록 - 작은화면 3열, 큰화면(오른쪽 배치시) 2열 */}
-            <div className="grid grid-cols-3 lg:grid-cols-2 gap-3">
+            {/* 페르소나 목록 - 작은화면 2열, 큰화면(오른쪽 배치시) 2열 */}
+            <div className="grid grid-cols-2 lg:grid-cols-2 gap-3">
               {personas.map((persona) => {
                 const isCompleted = completedPersonaIds.includes(persona.id);
                 const isCurrentlyLoading = loadingPersonaId === persona.id;
