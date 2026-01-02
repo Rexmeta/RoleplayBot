@@ -2035,6 +2035,32 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
 
               {/* Bottom Interactive Box - AI Message Focused */}
               <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 z-20 w-full max-w-4xl lg:max-w-6xl xl:max-w-[90%] px-4 bg-[#00000000]">
+                {/* 최근 대화 내용 (최대 5턴) */}
+                {localMessages.length > 0 && (
+                  <div className="mb-2 space-y-1 max-h-32 overflow-y-auto px-2">
+                    {localMessages.slice(-5).map((msg, index) => (
+                      <div
+                        key={index}
+                        className={`text-sm ${
+                          msg.sender === 'user'
+                            ? 'text-right'
+                            : 'text-left'
+                        }`}
+                      >
+                        <span className={`inline-block max-w-[85%] ${
+                          msg.sender === 'user'
+                            ? 'text-blue-600'
+                            : 'text-purple-700'
+                        }`}>
+                          <span className="font-semibold text-xs opacity-70">
+                            {msg.sender === 'user' ? '나' : persona.name}:
+                          </span>{' '}
+                          <span className="drop-shadow-sm">{msg.message}</span>
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
                 <Card className="rounded-2xl overflow-hidden text-card-foreground backdrop-blur-sm shadow-xl border border-white/10 bg-[#ffffff9c]">
                   
                   {/* 실시간 음성 모드 */}
