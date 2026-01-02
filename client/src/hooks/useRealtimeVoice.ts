@@ -38,6 +38,7 @@ interface UseRealtimeVoiceReturn {
   isWaitingForGreeting: boolean; // AI 첫 인사 대기 중 여부
   greetingRetryCount: number; // 인사 재시도 횟수 (0-3)
   greetingFailed: boolean; // 3회 시도 후 AI 인사 실패
+  audioAmplitude: number; // AI 음성 볼륨 레벨 (0-1)
   connect: (previousMessages?: PreviousMessage[]) => Promise<void>;
   disconnect: () => void;
   startRecording: () => void;
@@ -66,6 +67,7 @@ export function useRealtimeVoice({
   const [isWaitingForGreeting, setIsWaitingForGreeting] = useState(false);
   const [greetingRetryCount, setGreetingRetryCount] = useState(0);
   const [greetingFailed, setGreetingFailed] = useState(false);
+  const [audioAmplitude, setAudioAmplitude] = useState(0); // AI 음성 볼륨 레벨
   
   // 대화가 실제로 시작되었는지 추적 (AI가 한번이라도 응답했으면 true)
   const hasConversationStartedRef = useRef<boolean>(false);
@@ -91,6 +93,9 @@ export function useRealtimeVoice({
   const serverVoiceDetectedTimeRef = useRef<number | null>(null); // Timestamp when server detected user speaking
   const isAISpeakingRef = useRef<boolean>(false); // Ref for isAISpeaking state (for closures)
   const isAudioPausedRef = useRef<boolean>(false); // Track if AI audio is paused due to user speaking
+  const analyserNodeRef = useRef<AnalyserNode | null>(null); // For AI audio amplitude analysis
+  const gainNodeRef = useRef<GainNode | null>(null); // GainNode for audio routing with analyser
+  const amplitudeAnimationRef = useRef<number | null>(null); // For amplitude animation loop
   
   // Store callbacks in refs to avoid recreating connect() on every render
   const onMessageRef = useRef(onMessage);
