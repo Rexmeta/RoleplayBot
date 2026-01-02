@@ -697,16 +697,15 @@ export class RealtimeVoiceService {
             currentSession.geminiSession) {
           console.log('⏰ client.ready timeout (3s) - auto-triggering first greeting...');
           currentSession.hasTriggeredFirstGreeting = true; // 중복 방지 플래그 설정
-          const autoGreeting = `(상대방이 방금 도착했습니다. 당신이 먼저 인사를 건네세요.)`;
-          currentSession.geminiSession.sendClientContent({
-            turns: [{ role: 'user', parts: [{ text: autoGreeting }] }],
-            turnComplete: true,
-          });
           
-          // 🔧 sendClientContent 후 END_OF_TURN 이벤트를 보내서 Gemini가 응답하도록 강제
-          console.log('📤 Sending END_OF_TURN to trigger AI greeting response (timeout)...');
-          currentSession.geminiSession.sendRealtimeInput({
-            event: 'END_OF_TURN'
+          // 🔧 Gemini Live API는 명시적인 사용자 발화처럼 보이는 입력이 필요
+          // 괄호 형식 대신 실제 인사처럼 보이는 텍스트로 AI 응답 유도
+          const greetingTrigger = `안녕하세요`;
+          console.log(`📤 Sending greeting trigger: "${greetingTrigger}"`);
+          
+          currentSession.geminiSession.sendClientContent({
+            turns: [{ role: 'user', parts: [{ text: greetingTrigger }] }],
+            turnComplete: true,
           });
         } else if (currentSession?.hasTriggeredFirstGreeting) {
           console.log('⏭️ Timeout skipped - first greeting already triggered');
@@ -815,12 +814,12 @@ export class RealtimeVoiceService {
             maxRetries: 3,
           });
           
-          // sendClientContent로 인사 트리거 메시지를 다시 보내서 AI가 응답하도록 강제
+          // 🔧 실제 대화처럼 보이는 메시지로 AI 응답 유도
           if (session.geminiSession) {
             const retryMessages = [
-              `(상대방이 기다리고 있습니다. 당신이 먼저 인사를 건네세요.)`,
-              `(상대방이 도착했습니다. 지금 바로 인사하고 대화를 시작하세요.)`,
-              `(대화를 시작해야 합니다. 한국어로 인사를 건네세요.)`
+              `네, 안녕하세요`,
+              `여기 있습니다`,
+              `말씀하세요`
             ];
             const retryMessage = retryMessages[session.firstGreetingRetryCount - 1] || retryMessages[0];
             
@@ -829,11 +828,6 @@ export class RealtimeVoiceService {
               turnComplete: true,
             });
             console.log(`🔄 인사 트리거 재전송: "${retryMessage}"`);
-            
-            // 🔧 sendClientContent 후 END_OF_TURN 이벤트를 보내서 Gemini가 응답하도록 강제
-            session.geminiSession.sendRealtimeInput({
-              event: 'END_OF_TURN'
-            });
           }
           return; // 재시도 후 다음 메시지 기다림
         }
