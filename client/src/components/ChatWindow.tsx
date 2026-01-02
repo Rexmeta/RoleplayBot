@@ -1255,10 +1255,12 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
                 <i className="fas fa-clock text-xs"></i>
                 <span data-testid="elapsed-time">{formatElapsedTime(elapsedTime)}</span>
               </div>
-              <div className="flex items-center space-x-1">
-                <i className="fas fa-tasks text-xs"></i>
-                <span>{conversation.turnCount}/{maxTurns}</span>
-              </div>
+              {chatMode === 'messenger' && (
+                <div className="flex items-center space-x-1">
+                  <i className="fas fa-tasks text-xs"></i>
+                  <span>{conversation.turnCount}/{maxTurns}</span>
+                </div>
+              )}
             </div>
           </div>
         </div>
