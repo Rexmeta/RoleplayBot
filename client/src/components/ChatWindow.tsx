@@ -1392,7 +1392,16 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
                           <>
                             <p className="text-sm text-orange-600">연결이 끊겼습니다. 이어서 대화할 수 있습니다.</p>
                             <Button
-                              onClick={() => realtimeVoice.connect()}
+                              onClick={() => {
+                                // 이전 대화 기록을 전달하여 컨텍스트 유지 (user/ai만 필터링)
+                                const previousMessages = localMessages
+                                  .filter(m => m.sender === 'user' || m.sender === 'ai')
+                                  .map(m => ({
+                                    role: m.sender as 'user' | 'ai',
+                                    content: m.message
+                                  }));
+                                realtimeVoice.connect(previousMessages);
+                              }}
                               className="bg-orange-500 hover:bg-orange-600 text-white px-8 py-3 rounded-full shadow-lg"
                               data-testid="button-resume-voice-messenger"
                             >
@@ -2053,7 +2062,16 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
                               <>
                                 <p className="text-sm text-orange-600">연결이 끊겼습니다. 이어서 대화할 수 있습니다.</p>
                                 <Button
-                                  onClick={() => realtimeVoice.connect()}
+                                  onClick={() => {
+                                    // 이전 대화 기록을 전달하여 컨텍스트 유지 (user/ai만 필터링)
+                                    const previousMessages = localMessages
+                                      .filter(m => m.sender === 'user' || m.sender === 'ai')
+                                      .map(m => ({
+                                        role: m.sender as 'user' | 'ai',
+                                        content: m.message
+                                      }));
+                                    realtimeVoice.connect(previousMessages);
+                                  }}
                                   className="bg-orange-500 hover:bg-orange-600 text-white px-8 py-6 text-lg font-semibold rounded-full shadow-lg"
                                   data-testid="button-resume-voice"
                                 >

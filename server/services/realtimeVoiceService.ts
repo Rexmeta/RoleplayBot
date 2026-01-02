@@ -1081,32 +1081,69 @@ export class RealtimeVoiceService {
 
       case 'client.ready':
         // 클라이언트의 AudioContext가 준비됨 - 이제 첫 인사를 트리거
-        console.log('🎬 Client ready signal received - triggering first greeting...');
+        const isResuming = message.isResuming === true;
+        const previousMessages = message.previousMessages as Array<{role: 'user' | 'ai', content: string}> | undefined;
         
-        // 이미 첫 인사 트리거 또는 첫 응답을 받았으면 중복 트리거 방지
-        if (session.hasTriggeredFirstGreeting || session.hasReceivedFirstAIResponse) {
-          console.log('⏭️ First greeting already triggered or received, skipping duplicate trigger');
-          break;
+        if (isResuming && previousMessages && previousMessages.length > 0) {
+          // 🔄 재연결 모드: 이전 대화 기록을 컨텍스트로 전달
+          console.log(`🔄 Resuming conversation with ${previousMessages.length} previous messages`);
+          
+          // 이전 대화에 AI 응답이 있었는지 확인
+          const hadPreviousAIResponse = previousMessages.some(m => m.role === 'ai');
+          
+          // 이전 대화 요약을 Gemini에 전달
+          const conversationSummary = previousMessages.map((m, i) => 
+            `${m.role === 'user' ? '사용자' : '당신'}: ${m.content}`
+          ).join('\n');
+          
+          const resumeContext = `[이전 대화 내용 - 이 대화를 이어서 진행합니다]\n${conversationSummary}\n\n[대화 재개 - 사용자가 돌아왔습니다. 이전 대화 맥락을 이어서 자연스럽게 대화를 계속하세요. 처음 인사하듯이 하지 말고, 대화가 끊겼다가 다시 연결된 것처럼 "다시 연결되었네요" 또는 "어디까지 얘기했죠?" 같은 자연스러운 반응을 하세요.]`;
+          
+          console.log(`📤 Sending resume context to Gemini (had previous AI response: ${hadPreviousAIResponse})`);
+          
+          // 첫 인사 트리거 플래그 설정 (재시도 방지)
+          session.hasTriggeredFirstGreeting = true;
+          // 이전에 AI 응답이 있었던 경우에만 true로 설정
+          if (hadPreviousAIResponse) {
+            session.hasReceivedFirstAIResponse = true;
+          }
+          
+          session.geminiSession.sendClientContent({
+            turns: [{ role: 'user', parts: [{ text: resumeContext }] }],
+            turnComplete: true,
+          });
+          
+          session.geminiSession.sendRealtimeInput({
+            event: 'END_OF_TURN'
+          });
+        } else {
+          // 새 대화 시작: 첫 인사 트리거
+          console.log('🎬 Client ready signal received - triggering first greeting...');
+          
+          // 이미 첫 인사 트리거 또는 첫 응답을 받았으면 중복 트리거 방지
+          if (session.hasTriggeredFirstGreeting || session.hasReceivedFirstAIResponse) {
+            console.log('⏭️ First greeting already triggered or received, skipping duplicate trigger');
+            break;
+          }
+          
+          // 중복 방지 플래그 설정
+          session.hasTriggeredFirstGreeting = true;
+          
+          // 🔧 Gemini Live API는 명시적인 사용자 발화처럼 보이는 입력이 필요
+          // 괄호 형식 대신 실제 인사처럼 보이는 텍스트로 AI 응답 유도
+          const greetingText = `안녕하세요`;
+          console.log(`📤 Sending greeting trigger: "${greetingText}"`);
+          
+          session.geminiSession.sendClientContent({
+            turns: [{ role: 'user', parts: [{ text: greetingText }] }],
+            turnComplete: true,
+          });
+          
+          // 🔧 sendClientContent 후 END_OF_TURN 이벤트를 보내서 Gemini가 응답하도록 강제
+          console.log('📤 Sending END_OF_TURN to trigger AI greeting response...');
+          session.geminiSession.sendRealtimeInput({
+            event: 'END_OF_TURN'
+          });
         }
-        
-        // 중복 방지 플래그 설정
-        session.hasTriggeredFirstGreeting = true;
-        
-        // 🔧 Gemini Live API는 명시적인 사용자 발화처럼 보이는 입력이 필요
-        // 괄호 형식 대신 실제 인사처럼 보이는 텍스트로 AI 응답 유도
-        const greetingText = `안녕하세요`;
-        console.log(`📤 Sending greeting trigger: "${greetingText}"`);
-        
-        session.geminiSession.sendClientContent({
-          turns: [{ role: 'user', parts: [{ text: greetingText }] }],
-          turnComplete: true,
-        });
-        
-        // 🔧 sendClientContent 후 END_OF_TURN 이벤트를 보내서 Gemini가 응답하도록 강제
-        console.log('📤 Sending END_OF_TURN to trigger AI greeting response...');
-        session.geminiSession.sendRealtimeInput({
-          event: 'END_OF_TURN'
-        });
         break;
 
       case 'response.cancel':

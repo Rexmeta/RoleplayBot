@@ -13,6 +13,11 @@ export type ConversationPhase =
   | 'interrupted' // 연결 끊김 (재연결 가능)
   | 'ended';      // 대화 완료 (재연결 불가)
 
+interface PreviousMessage {
+  role: 'user' | 'ai';
+  content: string;
+}
+
 interface UseRealtimeVoiceProps {
   conversationId: string;
   scenarioId: string;
@@ -33,7 +38,7 @@ interface UseRealtimeVoiceReturn {
   isWaitingForGreeting: boolean; // AI 첫 인사 대기 중 여부
   greetingRetryCount: number; // 인사 재시도 횟수 (0-3)
   greetingFailed: boolean; // 3회 시도 후 AI 인사 실패
-  connect: () => Promise<void>;
+  connect: (previousMessages?: PreviousMessage[]) => Promise<void>;
   disconnect: () => void;
   startRecording: () => void;
   stopRecording: () => void;
@@ -220,7 +225,14 @@ export function useRealtimeVoice({
     setGreetingFailed(false); // 연결 종료 시 리셋
   }, [stopCurrentPlayback]);
 
-  const connect = useCallback(async () => {
+  // Ref to store previous messages for reconnection (accessible in ws.onopen closure)
+  const previousMessagesRef = useRef<PreviousMessage[] | undefined>(undefined);
+  
+  const connect = useCallback(async (previousMessages?: PreviousMessage[]) => {
+    // Store for use in ws.onopen closure
+    previousMessagesRef.current = previousMessages;
+    const isResuming = previousMessages && previousMessages.length > 0;
+    
     setStatus('connecting');
     setError(null);
     setGreetingFailed(false); // 새 연결 시 리셋
@@ -257,15 +269,30 @@ export function useRealtimeVoice({
         console.log('🎙️ WebSocket connected for realtime voice');
         setStatus('connected');
         setConversationPhase('active'); // 연결 성공 시 active 상태로
-        setIsWaitingForGreeting(true); // AI 첫 인사 대기 중
+        
+        // 재연결 시에는 첫 인사 대기 안함
+        const resuming = previousMessagesRef.current && previousMessagesRef.current.length > 0;
+        if (!resuming) {
+          setIsWaitingForGreeting(true); // AI 첫 인사 대기 중
+        }
         setGreetingRetryCount(0); // 재시도 횟수 초기화
         
         // 🔊 AudioContext 준비 완료 신호 전송 - 서버는 이 신호를 받은 후 첫 인사를 시작
         // 서버에서 sendClientContent + END_OF_TURN으로 인사를 트리거함 (클라이언트는 신호만 보냄)
         setTimeout(() => {
           if (ws.readyState === WebSocket.OPEN) {
-            ws.send(JSON.stringify({ type: 'client.ready' }));
-            console.log('📤 Sent client.ready signal to server (server will trigger greeting)');
+            const readyMessage: any = { type: 'client.ready' };
+            
+            // 🔄 재연결 시 이전 대화 기록 전송
+            if (previousMessagesRef.current && previousMessagesRef.current.length > 0) {
+              readyMessage.previousMessages = previousMessagesRef.current;
+              readyMessage.isResuming = true;
+              console.log(`📤 Sending client.ready with ${previousMessagesRef.current.length} previous messages (resuming)`);
+            } else {
+              console.log('📤 Sent client.ready signal to server (server will trigger greeting)');
+            }
+            
+            ws.send(JSON.stringify(readyMessage));
           }
         }, 100); // 100ms 딜레이로 WebSocket 안정화 후 전송
       };
