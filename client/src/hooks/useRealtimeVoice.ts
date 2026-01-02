@@ -558,7 +558,10 @@ export function useRealtimeVoice({
     if (amplitudeAnimationRef.current) return; // 이미 실행 중
     
     const analyzeAmplitude = () => {
-      if (analyserNodeRef.current && isAISpeakingRef.current) {
+      // 재생 중인 오디오 소스가 있거나 isAISpeaking 상태일 때 분석
+      const hasPlayingAudio = scheduledSourcesRef.current.length > 0;
+      
+      if (analyserNodeRef.current && hasPlayingAudio) {
         const dataArray = new Uint8Array(analyserNodeRef.current.frequencyBinCount);
         analyserNodeRef.current.getByteFrequencyData(dataArray);
         
@@ -572,7 +575,7 @@ export function useRealtimeVoice({
         // 부드럽게 변화하도록 이전 값과 보간
         setAudioAmplitude(prev => prev * 0.7 + rms * 0.3);
       } else {
-        // AI가 말하지 않으면 음량 0으로 점진적 감소
+        // 재생 중인 오디오가 없으면 음량 0으로 점진적 감소
         setAudioAmplitude(prev => prev * 0.9);
       }
       
