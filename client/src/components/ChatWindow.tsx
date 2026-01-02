@@ -22,6 +22,7 @@ import { Link, useLocation } from "wouter";
 import type { ComplexScenario, ScenarioPersona } from "@/lib/scenario-system";
 import type { Conversation, ConversationMessage } from "@shared/schema";
 import { useRealtimeVoice } from "@/hooks/useRealtimeVoice";
+import { AISpeechParticleLayer } from "@/components/AISpeechParticleLayer";
 
 // 표정 한글 → 영어 매핑
 const emotionToEnglish: Record<string, string> = {
@@ -1880,6 +1881,12 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
                     backgroundColor: '#f5f5f5'
                   }}
                 >
+              
+              {/* AI 음성 파티클 시각화 레이어 */}
+              <AISpeechParticleLayer 
+                amplitude={realtimeVoice.audioAmplitude} 
+                isActive={realtimeVoice.isAISpeaking} 
+              />
               
               {/* AI 첫 인사 준비 중 오버레이 (캐릭터 모드) - 하단에만 표시하도록 제거 */}
 
