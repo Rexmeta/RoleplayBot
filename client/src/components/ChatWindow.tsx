@@ -1321,27 +1321,6 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
                       <p className={`leading-relaxed ${message.sender === "user" ? "text-white" : "text-slate-700"}`}>
                         {message.message}
                       </p>
-                      {message.sender === "ai" && (
-                        <div className="mt-2 pt-2 border-t border-slate-100 flex items-center justify-between gap-3">
-                          {message.emotion && (
-                            <div className="flex items-center gap-1.5 text-xs text-slate-500">
-                              <span className="bg-slate-50 px-2 py-0.5 rounded-full flex items-center gap-1">
-                                <span>{emotionEmojis[message.emotion]}</span>
-                                <span className="font-medium">{message.emotion}</span>
-                              </span>
-                            </div>
-                          )}
-                          <button
-                            onClick={() => speakMessage(message.message, false, message.emotion)}
-                            className="text-xs text-slate-400 hover:text-corporate-600 transition-all duration-200 flex items-center gap-1 hover:scale-105"
-                            title="이 메시지 듣기"
-                            data-testid={`button-speak-message-${index}`}
-                          >
-                            <i className="fas fa-volume-up"></i>
-                            <span>듣기</span>
-                          </button>
-                        </div>
-                      )}
                     </div>
                     <span className="text-[10px] text-slate-400 mt-1 mx-1">
                       {new Date().toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' })}
@@ -2305,28 +2284,6 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
                         <p className="text-slate-800 leading-relaxed text-base" data-testid="text-ai-line">
                           {latestAiMessage.message}
                         </p>
-                        
-                        {/* AI 메시지 하단 정보 영역 */}
-                        <div className="flex items-center justify-between pt-2">
-                          {/* 감정 정보 */}
-                          {latestAiMessage.emotion && latestAiMessage.emotionReason && (
-                            <div className="text-xs text-slate-500 flex items-center">
-                              <span className="mr-1">{emotionEmojis[latestAiMessage.emotion]}</span>
-                              <span>{latestAiMessage.emotionReason}</span>
-                            </div>
-                          )}
-                          
-                          {/* TTS 스피커 아이콘 */}
-                          <button
-                            onClick={() => speakMessage(latestAiMessage.message, false, latestAiMessage.emotion)}
-                            className="text-xs text-slate-400 hover:text-purple-600 transition-colors flex items-center space-x-1 ml-auto"
-                            title="이 메시지 듣기"
-                            data-testid="button-speak-message-character"
-                          >
-                            <i className="fas fa-volume-up"></i>
-                            <span>듣기</span>
-                          </button>
-                        </div>
                         
                         {/* Inline Chat Button - Minimal Space */}
                         {!showInputMode && (
