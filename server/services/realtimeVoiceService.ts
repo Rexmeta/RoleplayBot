@@ -707,6 +707,12 @@ export class RealtimeVoiceService {
             turns: [{ role: 'user', parts: [{ text: greetingTrigger }] }],
             turnComplete: true,
           });
+          
+          // 🔧 sendClientContent 후 END_OF_TURN 이벤트를 보내서 Gemini가 응답하도록 강제
+          console.log('📤 Sending END_OF_TURN to trigger AI greeting response (timeout)...');
+          currentSession.geminiSession.sendRealtimeInput({
+            event: 'END_OF_TURN'
+          });
         } else if (currentSession?.hasTriggeredFirstGreeting) {
           console.log('⏭️ Timeout skipped - first greeting already triggered');
         }
@@ -828,6 +834,11 @@ export class RealtimeVoiceService {
               turnComplete: true,
             });
             console.log(`🔄 인사 트리거 재전송: "${retryMessage}"`);
+            
+            // 🔧 sendClientContent 후 END_OF_TURN 이벤트를 보내서 Gemini가 응답하도록 강제
+            session.geminiSession.sendRealtimeInput({
+              event: 'END_OF_TURN'
+            });
           }
           return; // 재시도 후 다음 메시지 기다림
         }
@@ -1081,11 +1092,13 @@ export class RealtimeVoiceService {
         // 중복 방지 플래그 설정
         session.hasTriggeredFirstGreeting = true;
         
-        // 첫 인사를 유도하는 트리거 - 상대방이 도착했음을 알려 AI가 먼저 인사하도록 함
-        const firstMessage = `(상대방이 방금 도착했습니다. 당신이 먼저 인사를 건네세요.)`;
+        // 🔧 Gemini Live API는 명시적인 사용자 발화처럼 보이는 입력이 필요
+        // 괄호 형식 대신 실제 인사처럼 보이는 텍스트로 AI 응답 유도
+        const greetingText = `안녕하세요`;
+        console.log(`📤 Sending greeting trigger: "${greetingText}"`);
         
         session.geminiSession.sendClientContent({
-          turns: [{ role: 'user', parts: [{ text: firstMessage }] }],
+          turns: [{ role: 'user', parts: [{ text: greetingText }] }],
           turnComplete: true,
         });
         
