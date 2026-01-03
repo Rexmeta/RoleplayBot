@@ -19,21 +19,21 @@ interface AISpeechParticleLayerProps {
   className?: string;
 }
 
-const PARTICLE_COUNT = 48;
+const PARTICLE_COUNT = 40;
 const COLORS = [
-  'rgba(99, 102, 241, 0.25)',
-  'rgba(139, 92, 246, 0.25)',
-  'rgba(168, 85, 247, 0.2)',
-  'rgba(79, 70, 229, 0.25)',
-  'rgba(124, 58, 237, 0.2)',
-  'rgba(192, 132, 252, 0.18)',
+  'rgba(99, 102, 241, 0.18)',
+  'rgba(139, 92, 246, 0.18)',
+  'rgba(168, 85, 247, 0.15)',
+  'rgba(79, 70, 229, 0.18)',
+  'rgba(124, 58, 237, 0.15)',
+  'rgba(192, 132, 252, 0.12)',
 ];
 
 export function AISpeechParticleLayer({ amplitude, isActive, className = '' }: AISpeechParticleLayerProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const particlesRef = useRef<Particle[]>([]);
   const animationRef = useRef<number | null>(null);
-  const currentAmplitudeRef = useRef(0);
+  const smoothedAmpRef = useRef(0);
   const timeRef = useRef(0);
 
   useEffect(() => {
@@ -56,18 +56,18 @@ export function AISpeechParticleLayer({ amplitude, isActive, className = '' }: A
 
     const centerX = canvas.width / 2;
     const centerY = canvas.height / 2;
-    const baseRadius = Math.min(canvas.width, canvas.height) * 0.18;
+    const baseRadius = Math.min(canvas.width, canvas.height) * 0.16;
 
     particlesRef.current = Array.from({ length: PARTICLE_COUNT }, (_, i) => {
       const angle = (i / PARTICLE_COUNT) * Math.PI * 2;
-      const radius = baseRadius + Math.random() * 30;
+      const radius = baseRadius + Math.random() * 20;
       return {
         x: centerX + Math.cos(angle) * radius,
         y: centerY + Math.sin(angle) * radius,
         baseX: centerX,
         baseY: centerY,
-        size: 0.8 + Math.random() * 0.8,
-        baseSize: 0.8 + Math.random() * 0.8,
+        size: 0.5 + Math.random() * 0.5,
+        baseSize: 0.5 + Math.random() * 0.5,
         color: COLORS[Math.floor(Math.random() * COLORS.length)],
         angle,
         baseRadius: radius,
@@ -91,65 +91,53 @@ export function AISpeechParticleLayer({ amplitude, isActive, className = '' }: A
       timeRef.current += 0.016;
       const time = timeRef.current;
       
+      // 직접 amplitude 값 사용 (이미 hook에서 smoothing됨)
       const targetAmp = amplitude;
-      const currentAmp = currentAmplitudeRef.current;
+      const currentAmp = smoothedAmpRef.current;
       
+      // 빠른 반응
       if (targetAmp > currentAmp) {
-        currentAmplitudeRef.current = currentAmp + (targetAmp - currentAmp) * 0.3;
+        smoothedAmpRef.current = currentAmp + (targetAmp - currentAmp) * 0.5;
       } else {
-        currentAmplitudeRef.current = currentAmp + (targetAmp - currentAmp) * 0.08;
+        smoothedAmpRef.current = currentAmp + (targetAmp - currentAmp) * 0.15;
       }
 
       ctx.clearRect(0, 0, canvas.width, canvas.height);
 
       const centerX = canvas.width / 2;
       const centerY = canvas.height / 2;
-      const amp = currentAmplitudeRef.current;
+      const amp = smoothedAmpRef.current;
 
       particlesRef.current.forEach((particle) => {
-        const pulseWave = Math.sin(time * 3 + particle.phase) * 0.5 + 0.5;
-        const radiusExpand = amp * 60 + pulseWave * amp * 25;
+        // 방사형 펄스: amplitude에 비례해서 바깥으로 확장
+        const pulseWave = Math.sin(time * 4 + particle.phase) * 0.3 + 0.7;
+        const radiusExpand = amp * 80 * pulseWave;
         
         const currentRadius = particle.baseRadius + radiusExpand;
         
         particle.x = centerX + Math.cos(particle.angle) * currentRadius;
         particle.y = centerY + Math.sin(particle.angle) * currentRadius;
 
-        const dynamicSize = particle.baseSize * (1 + amp * 1.2);
-        const alpha = isActive ? 0.12 + amp * 0.18 : 0.05;
+        // 크기와 투명도도 amplitude에 반응
+        const dynamicSize = particle.baseSize * (1 + amp * 1.5);
+        const alpha = isActive ? 0.08 + amp * 0.15 : 0.03;
 
         ctx.beginPath();
         ctx.arc(particle.x, particle.y, dynamicSize, 0, Math.PI * 2);
         ctx.fillStyle = particle.color.replace(/[\d.]+\)$/, `${alpha})`);
         ctx.fill();
-
-        if (isActive && amp > 0.35) {
-          const glowSize = dynamicSize * 1.8;
-          const glowAlpha = amp * 0.08;
-          
-          const gradient = ctx.createRadialGradient(
-            particle.x, particle.y, 0,
-            particle.x, particle.y, glowSize
-          );
-          gradient.addColorStop(0, particle.color.replace(/[\d.]+\)$/, `${glowAlpha})`));
-          gradient.addColorStop(1, particle.color.replace(/[\d.]+\)$/, '0)'));
-          
-          ctx.beginPath();
-          ctx.arc(particle.x, particle.y, glowSize, 0, Math.PI * 2);
-          ctx.fillStyle = gradient;
-          ctx.fill();
-        }
       });
 
-      if (isActive && amp > 0.25) {
-        const wavePhase = (time * 1.5) % 2;
-        const waveRadius = Math.min(canvas.width, canvas.height) * 0.18 * (0.8 + wavePhase * amp);
-        const waveAlpha = Math.max(0, (1 - wavePhase * 0.5) * amp * 0.05);
+      // 중심에서 퍼져나가는 파동 (amplitude 클 때만)
+      if (isActive && amp > 0.15) {
+        const wavePhase = (time * 2) % 1.5;
+        const waveRadius = Math.min(canvas.width, canvas.height) * 0.16 * (0.6 + wavePhase * amp * 0.8);
+        const waveAlpha = Math.max(0, (1 - wavePhase * 0.7) * amp * 0.04);
         
         ctx.beginPath();
         ctx.arc(centerX, centerY, waveRadius, 0, Math.PI * 2);
         ctx.strokeStyle = `rgba(139, 92, 246, ${waveAlpha})`;
-        ctx.lineWidth = 1;
+        ctx.lineWidth = 0.5;
         ctx.stroke();
       }
 

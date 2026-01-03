@@ -558,54 +558,49 @@ export function useRealtimeVoice({
     }
   }, [enabled, getRealtimeToken, getWebSocketUrl, disconnect]);
 
-  // 음량 분석 루프 시작 (빠른 attack, 느린 release로 역동적 반응)
+  // 음량 분석 루프 시작 (실제 오디오 파형에서 직접 측정)
   const startAmplitudeAnalysis = useCallback(() => {
     if (amplitudeAnimationRef.current) return; // 이미 실행 중
     
-    let prevAmplitude = 0;
+    let smoothedAmplitude = 0;
     
     const analyzeAmplitude = () => {
-      // 재생 중인 오디오 소스가 있거나 isAISpeaking 상태일 때 분석
-      const hasPlayingAudio = scheduledSourcesRef.current.length > 0;
+      // AnalyserNode가 있고, AI가 말하는 중이거나 오디오 소스가 있을 때 분석
+      const isPlaying = isAISpeakingRef.current || scheduledSourcesRef.current.length > 0;
       
-      if (analyserNodeRef.current && hasPlayingAudio) {
-        const dataArray = new Uint8Array(analyserNodeRef.current.frequencyBinCount);
-        analyserNodeRef.current.getByteFrequencyData(dataArray);
+      if (analyserNodeRef.current && isPlaying) {
+        // Time domain data로 실제 파형 진폭 측정 (더 정확함)
+        const timeData = new Float32Array(analyserNodeRef.current.fftSize);
+        analyserNodeRef.current.getFloatTimeDomainData(timeData);
         
-        // 음성 주파수 대역(200Hz-2kHz) 집중 분석으로 민감도 향상
-        const binCount = analyserNodeRef.current.frequencyBinCount;
-        const startBin = Math.floor(binCount * 0.05);  // ~200Hz
-        const endBin = Math.floor(binCount * 0.4);     // ~2kHz
-        
+        // 실제 파형에서 RMS와 Peak 계산
         let sum = 0;
-        let peakValue = 0;
-        for (let i = startBin; i < endBin; i++) {
-          const value = dataArray[i];
+        let peak = 0;
+        for (let i = 0; i < timeData.length; i++) {
+          const value = Math.abs(timeData[i]);
           sum += value * value;
-          peakValue = Math.max(peakValue, value);
+          peak = Math.max(peak, value);
         }
+        const rms = Math.sqrt(sum / timeData.length);
         
-        // RMS + Peak 혼합으로 더 역동적인 반응
-        const rms = Math.sqrt(sum / (endBin - startBin)) / 255;
-        const peak = peakValue / 255;
-        const rawAmplitude = rms * 0.6 + peak * 0.4;
+        // RMS(70%) + Peak(30%) 혼합으로 역동적 반응
+        const rawAmplitude = rms * 0.7 + peak * 0.3;
         
-        // 증폭 및 범위 조정 (0.1 ~ 0.95)
-        const amplified = Math.min(0.95, rawAmplitude * 2.5);
-        const normalized = Math.max(0.1, amplified);
+        // 강한 증폭 (음성은 보통 0.1 이하의 낮은 값)
+        const amplified = Math.min(1.0, rawAmplitude * 8);
         
-        // Attack/Release envelope: 빠른 attack(0.5), 아주 느린 release(0.95)
-        if (normalized > prevAmplitude) {
-          prevAmplitude = prevAmplitude * 0.5 + normalized * 0.5; // Fast attack
+        // 빠른 attack, 느린 release
+        if (amplified > smoothedAmplitude) {
+          smoothedAmplitude = smoothedAmplitude * 0.3 + amplified * 0.7; // Very fast attack
         } else {
-          prevAmplitude = prevAmplitude * 0.95 + normalized * 0.05; // Very slow release
+          smoothedAmplitude = smoothedAmplitude * 0.92 + amplified * 0.08; // Slow release
         }
         
-        setAudioAmplitude(prevAmplitude);
+        setAudioAmplitude(smoothedAmplitude);
       } else {
-        // 재생 중인 오디오가 없으면 음량 0으로 매우 천천히 감소
-        prevAmplitude = prevAmplitude * 0.97;
-        setAudioAmplitude(prevAmplitude);
+        // 재생 중인 오디오가 없으면 매우 천천히 감소
+        smoothedAmplitude = smoothedAmplitude * 0.96;
+        setAudioAmplitude(smoothedAmplitude);
       }
       
       amplitudeAnimationRef.current = requestAnimationFrame(analyzeAmplitude);
