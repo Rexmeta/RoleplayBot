@@ -594,17 +594,17 @@ export function useRealtimeVoice({
         const amplified = Math.min(0.95, rawAmplitude * 2.5);
         const normalized = Math.max(0.1, amplified);
         
-        // Attack/Release envelope: 빠른 attack(0.6), 느린 release(0.85)
+        // Attack/Release envelope: 빠른 attack(0.5), 아주 느린 release(0.95)
         if (normalized > prevAmplitude) {
-          prevAmplitude = prevAmplitude * 0.4 + normalized * 0.6; // Fast attack
+          prevAmplitude = prevAmplitude * 0.5 + normalized * 0.5; // Fast attack
         } else {
-          prevAmplitude = prevAmplitude * 0.85 + normalized * 0.15; // Slow release
+          prevAmplitude = prevAmplitude * 0.95 + normalized * 0.05; // Very slow release
         }
         
         setAudioAmplitude(prevAmplitude);
       } else {
-        // 재생 중인 오디오가 없으면 음량 0으로 점진적 감소
-        prevAmplitude = prevAmplitude * 0.92;
+        // 재생 중인 오디오가 없으면 음량 0으로 매우 천천히 감소
+        prevAmplitude = prevAmplitude * 0.97;
         setAudioAmplitude(prevAmplitude);
       }
       

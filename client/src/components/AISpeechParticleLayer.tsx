@@ -3,20 +3,14 @@ import { useRef, useEffect } from 'react';
 interface Particle {
   x: number;
   y: number;
-  vx: number;
-  vy: number;
   baseX: number;
   baseY: number;
   size: number;
   baseSize: number;
   color: string;
   angle: number;
-  speed: number;
-  orbitRadius: number;
-  baseOrbitRadius: number;
+  baseRadius: number;
   phase: number;
-  noiseOffset: number;
-  energy: number;
 }
 
 interface AISpeechParticleLayerProps {
@@ -25,24 +19,22 @@ interface AISpeechParticleLayerProps {
   className?: string;
 }
 
-const PARTICLE_COUNT = 60;
+const PARTICLE_COUNT = 48;
 const COLORS = [
-  'rgba(99, 102, 241, 0.4)',
-  'rgba(139, 92, 246, 0.4)',
-  'rgba(168, 85, 247, 0.35)',
-  'rgba(79, 70, 229, 0.4)',
-  'rgba(124, 58, 237, 0.35)',
-  'rgba(192, 132, 252, 0.3)',
+  'rgba(99, 102, 241, 0.25)',
+  'rgba(139, 92, 246, 0.25)',
+  'rgba(168, 85, 247, 0.2)',
+  'rgba(79, 70, 229, 0.25)',
+  'rgba(124, 58, 237, 0.2)',
+  'rgba(192, 132, 252, 0.18)',
 ];
 
 export function AISpeechParticleLayer({ amplitude, isActive, className = '' }: AISpeechParticleLayerProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const particlesRef = useRef<Particle[]>([]);
   const animationRef = useRef<number | null>(null);
-  const targetAmplitudeRef = useRef(0);
   const currentAmplitudeRef = useRef(0);
   const timeRef = useRef(0);
-  const prevAmplitudeRef = useRef(0);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -64,28 +56,22 @@ export function AISpeechParticleLayer({ amplitude, isActive, className = '' }: A
 
     const centerX = canvas.width / 2;
     const centerY = canvas.height / 2;
-    const baseRadius = Math.min(canvas.width, canvas.height) * 0.2;
+    const baseRadius = Math.min(canvas.width, canvas.height) * 0.18;
 
     particlesRef.current = Array.from({ length: PARTICLE_COUNT }, (_, i) => {
       const angle = (i / PARTICLE_COUNT) * Math.PI * 2;
-      const orbitRadius = baseRadius + Math.random() * 50;
+      const radius = baseRadius + Math.random() * 30;
       return {
-        x: centerX + Math.cos(angle) * orbitRadius,
-        y: centerY + Math.sin(angle) * orbitRadius,
-        vx: 0,
-        vy: 0,
+        x: centerX + Math.cos(angle) * radius,
+        y: centerY + Math.sin(angle) * radius,
         baseX: centerX,
         baseY: centerY,
-        size: 1 + Math.random() * 1.5,
-        baseSize: 1 + Math.random() * 1.5,
+        size: 0.8 + Math.random() * 0.8,
+        baseSize: 0.8 + Math.random() * 0.8,
         color: COLORS[Math.floor(Math.random() * COLORS.length)],
         angle,
-        speed: 0.003 + Math.random() * 0.004,
-        orbitRadius,
-        baseOrbitRadius: orbitRadius,
+        baseRadius: radius,
         phase: Math.random() * Math.PI * 2,
-        noiseOffset: Math.random() * 1000,
-        energy: 0,
       };
     });
 
@@ -93,10 +79,6 @@ export function AISpeechParticleLayer({ amplitude, isActive, className = '' }: A
       window.removeEventListener('resize', resizeCanvas);
     };
   }, []);
-
-  useEffect(() => {
-    targetAmplitudeRef.current = amplitude;
-  }, [amplitude]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -109,59 +91,41 @@ export function AISpeechParticleLayer({ amplitude, isActive, className = '' }: A
       timeRef.current += 0.016;
       const time = timeRef.current;
       
+      const targetAmp = amplitude;
       const currentAmp = currentAmplitudeRef.current;
-      const targetAmp = targetAmplitudeRef.current;
-      currentAmplitudeRef.current = currentAmp + (targetAmp - currentAmp) * 0.25;
       
-      const ampDelta = currentAmplitudeRef.current - prevAmplitudeRef.current;
-      const isBurst = ampDelta > 0.15;
-      prevAmplitudeRef.current = currentAmplitudeRef.current;
+      if (targetAmp > currentAmp) {
+        currentAmplitudeRef.current = currentAmp + (targetAmp - currentAmp) * 0.3;
+      } else {
+        currentAmplitudeRef.current = currentAmp + (targetAmp - currentAmp) * 0.08;
+      }
 
       ctx.clearRect(0, 0, canvas.width, canvas.height);
 
       const centerX = canvas.width / 2;
       const centerY = canvas.height / 2;
-      const baseRadius = Math.min(canvas.width, canvas.height) * 0.2;
       const amp = currentAmplitudeRef.current;
 
       particlesRef.current.forEach((particle) => {
-        if (isBurst) {
-          particle.energy = Math.min(1, particle.energy + 0.5);
-        }
-        particle.energy *= 0.95;
+        const pulseWave = Math.sin(time * 3 + particle.phase) * 0.5 + 0.5;
+        const radiusExpand = amp * 60 + pulseWave * amp * 25;
         
-        const baseSpeed = isActive ? particle.speed * (1 + amp * 3) : particle.speed * 0.3;
-        particle.angle += baseSpeed;
+        const currentRadius = particle.baseRadius + radiusExpand;
         
-        const noise = Math.sin(time * 2 + particle.noiseOffset) * 15 * amp;
-        const pulseOffset = Math.sin(particle.angle * 4 + particle.phase) * 30 * amp;
-        const burstOffset = particle.energy * 40;
-        
-        const dynamicRadius = particle.baseOrbitRadius * (isActive ? (0.8 + amp * 0.8) : 0.5) + pulseOffset + noise + burstOffset;
-        
-        const targetX = centerX + Math.cos(particle.angle) * dynamicRadius;
-        const targetY = centerY + Math.sin(particle.angle) * dynamicRadius;
-        
-        const springForce = 0.15 + amp * 0.1;
-        const damping = 0.75;
-        
-        particle.vx = (particle.vx + (targetX - particle.x) * springForce) * damping;
-        particle.vy = (particle.vy + (targetY - particle.y) * springForce) * damping;
-        
-        particle.x += particle.vx;
-        particle.y += particle.vy;
+        particle.x = centerX + Math.cos(particle.angle) * currentRadius;
+        particle.y = centerY + Math.sin(particle.angle) * currentRadius;
 
-        const dynamicSize = particle.baseSize * (1 + amp * 1.5 + particle.energy * 1);
-        const alpha = isActive ? 0.2 + amp * 0.3 : 0.08;
+        const dynamicSize = particle.baseSize * (1 + amp * 1.2);
+        const alpha = isActive ? 0.12 + amp * 0.18 : 0.05;
 
         ctx.beginPath();
         ctx.arc(particle.x, particle.y, dynamicSize, 0, Math.PI * 2);
         ctx.fillStyle = particle.color.replace(/[\d.]+\)$/, `${alpha})`);
         ctx.fill();
 
-        if (isActive && (amp > 0.3 || particle.energy > 0.3)) {
-          const glowSize = dynamicSize * (1.5 + amp * 0.5 + particle.energy * 0.5);
-          const glowAlpha = (amp * 0.2 + particle.energy * 0.15) * 0.4;
+        if (isActive && amp > 0.35) {
+          const glowSize = dynamicSize * 1.8;
+          const glowAlpha = amp * 0.08;
           
           const gradient = ctx.createRadialGradient(
             particle.x, particle.y, 0,
@@ -177,34 +141,16 @@ export function AISpeechParticleLayer({ amplitude, isActive, className = '' }: A
         }
       });
 
-      if (isActive && amp > 0.2) {
-        const waveCount = 2;
-        for (let w = 0; w < waveCount; w++) {
-          const wavePhase = (time * 2 + w * 0.5) % 2;
-          const waveRadius = baseRadius * (0.5 + wavePhase * amp * 1.2);
-          const waveAlpha = Math.max(0, (1 - wavePhase) * amp * 0.08);
-          
-          ctx.beginPath();
-          ctx.arc(centerX, centerY, waveRadius, 0, Math.PI * 2);
-          ctx.strokeStyle = `rgba(139, 92, 246, ${waveAlpha})`;
-          ctx.lineWidth = 1 + amp * 1.5;
-          ctx.stroke();
-        }
-      }
-
       if (isActive && amp > 0.25) {
-        const gradient = ctx.createRadialGradient(
-          centerX, centerY, baseRadius * 0.3,
-          centerX, centerY, baseRadius * (1.3 + amp * 0.5)
-        );
-        gradient.addColorStop(0, `rgba(139, 92, 246, ${amp * 0.06})`);
-        gradient.addColorStop(0.5, `rgba(99, 102, 241, ${amp * 0.03})`);
-        gradient.addColorStop(1, 'rgba(99, 102, 241, 0)');
-
+        const wavePhase = (time * 1.5) % 2;
+        const waveRadius = Math.min(canvas.width, canvas.height) * 0.18 * (0.8 + wavePhase * amp);
+        const waveAlpha = Math.max(0, (1 - wavePhase * 0.5) * amp * 0.05);
+        
         ctx.beginPath();
-        ctx.arc(centerX, centerY, baseRadius * (1.5 + amp), 0, Math.PI * 2);
-        ctx.fillStyle = gradient;
-        ctx.fill();
+        ctx.arc(centerX, centerY, waveRadius, 0, Math.PI * 2);
+        ctx.strokeStyle = `rgba(139, 92, 246, ${waveAlpha})`;
+        ctx.lineWidth = 1;
+        ctx.stroke();
       }
 
       animationRef.current = requestAnimationFrame(animate);
@@ -217,7 +163,7 @@ export function AISpeechParticleLayer({ amplitude, isActive, className = '' }: A
         cancelAnimationFrame(animationRef.current);
       }
     };
-  }, [isActive]);
+  }, [isActive, amplitude]);
 
   return (
     <canvas
