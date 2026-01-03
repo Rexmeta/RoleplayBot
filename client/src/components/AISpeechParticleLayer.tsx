@@ -25,14 +25,14 @@ interface AISpeechParticleLayerProps {
   className?: string;
 }
 
-const PARTICLE_COUNT = 80;
+const PARTICLE_COUNT = 60;
 const COLORS = [
-  'rgba(99, 102, 241, 1)',
-  'rgba(139, 92, 246, 1)',
-  'rgba(168, 85, 247, 1)',
-  'rgba(79, 70, 229, 1)',
-  'rgba(124, 58, 237, 1)',
-  'rgba(192, 132, 252, 1)',
+  'rgba(99, 102, 241, 0.4)',
+  'rgba(139, 92, 246, 0.4)',
+  'rgba(168, 85, 247, 0.35)',
+  'rgba(79, 70, 229, 0.4)',
+  'rgba(124, 58, 237, 0.35)',
+  'rgba(192, 132, 252, 0.3)',
 ];
 
 export function AISpeechParticleLayer({ amplitude, isActive, className = '' }: AISpeechParticleLayerProps) {
@@ -76,8 +76,8 @@ export function AISpeechParticleLayer({ amplitude, isActive, className = '' }: A
         vy: 0,
         baseX: centerX,
         baseY: centerY,
-        size: 2 + Math.random() * 3,
-        baseSize: 2 + Math.random() * 3,
+        size: 1 + Math.random() * 1.5,
+        baseSize: 1 + Math.random() * 1.5,
         color: COLORS[Math.floor(Math.random() * COLORS.length)],
         angle,
         speed: 0.003 + Math.random() * 0.004,
@@ -151,17 +151,17 @@ export function AISpeechParticleLayer({ amplitude, isActive, className = '' }: A
         particle.x += particle.vx;
         particle.y += particle.vy;
 
-        const dynamicSize = particle.baseSize * (1 + amp * 2.5 + particle.energy * 2);
-        const alpha = isActive ? 0.5 + amp * 0.5 : 0.15;
+        const dynamicSize = particle.baseSize * (1 + amp * 1.5 + particle.energy * 1);
+        const alpha = isActive ? 0.2 + amp * 0.3 : 0.08;
 
         ctx.beginPath();
         ctx.arc(particle.x, particle.y, dynamicSize, 0, Math.PI * 2);
         ctx.fillStyle = particle.color.replace(/[\d.]+\)$/, `${alpha})`);
         ctx.fill();
 
-        if (isActive && (amp > 0.2 || particle.energy > 0.2)) {
-          const glowSize = dynamicSize * (2 + amp + particle.energy);
-          const glowAlpha = (amp * 0.4 + particle.energy * 0.3) * 0.5;
+        if (isActive && (amp > 0.3 || particle.energy > 0.3)) {
+          const glowSize = dynamicSize * (1.5 + amp * 0.5 + particle.energy * 0.5);
+          const glowAlpha = (amp * 0.2 + particle.energy * 0.15) * 0.4;
           
           const gradient = ctx.createRadialGradient(
             particle.x, particle.y, 0,
@@ -177,28 +177,28 @@ export function AISpeechParticleLayer({ amplitude, isActive, className = '' }: A
         }
       });
 
-      if (isActive && amp > 0.1) {
-        const waveCount = 3;
+      if (isActive && amp > 0.2) {
+        const waveCount = 2;
         for (let w = 0; w < waveCount; w++) {
           const wavePhase = (time * 2 + w * 0.5) % 2;
-          const waveRadius = baseRadius * (0.5 + wavePhase * amp * 1.5);
-          const waveAlpha = Math.max(0, (1 - wavePhase) * amp * 0.15);
+          const waveRadius = baseRadius * (0.5 + wavePhase * amp * 1.2);
+          const waveAlpha = Math.max(0, (1 - wavePhase) * amp * 0.08);
           
           ctx.beginPath();
           ctx.arc(centerX, centerY, waveRadius, 0, Math.PI * 2);
           ctx.strokeStyle = `rgba(139, 92, 246, ${waveAlpha})`;
-          ctx.lineWidth = 2 + amp * 3;
+          ctx.lineWidth = 1 + amp * 1.5;
           ctx.stroke();
         }
       }
 
-      if (isActive && amp > 0.15) {
+      if (isActive && amp > 0.25) {
         const gradient = ctx.createRadialGradient(
           centerX, centerY, baseRadius * 0.3,
-          centerX, centerY, baseRadius * (1.5 + amp)
+          centerX, centerY, baseRadius * (1.3 + amp * 0.5)
         );
-        gradient.addColorStop(0, `rgba(139, 92, 246, ${amp * 0.12})`);
-        gradient.addColorStop(0.5, `rgba(99, 102, 241, ${amp * 0.06})`);
+        gradient.addColorStop(0, `rgba(139, 92, 246, ${amp * 0.06})`);
+        gradient.addColorStop(0.5, `rgba(99, 102, 241, ${amp * 0.03})`);
         gradient.addColorStop(1, 'rgba(99, 102, 241, 0)');
 
         ctx.beginPath();
