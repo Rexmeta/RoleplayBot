@@ -39,6 +39,7 @@ interface UseRealtimeVoiceReturn {
   greetingRetryCount: number; // 인사 재시도 횟수 (0-3)
   greetingFailed: boolean; // 3회 시도 후 AI 인사 실패
   audioAmplitude: number; // AI 음성 볼륨 레벨 (0-1)
+  userAudioAmplitude: number; // 사용자 음성 볼륨 레벨 (0-1)
   connect: (previousMessages?: PreviousMessage[]) => Promise<void>;
   disconnect: () => void;
   startRecording: () => void;
@@ -68,6 +69,7 @@ export function useRealtimeVoice({
   const [greetingRetryCount, setGreetingRetryCount] = useState(0);
   const [greetingFailed, setGreetingFailed] = useState(false);
   const [audioAmplitude, setAudioAmplitude] = useState(0); // AI 음성 볼륨 레벨
+  const [userAudioAmplitude, setUserAudioAmplitude] = useState(0); // 사용자 음성 볼륨 레벨
   
   // 대화가 실제로 시작되었는지 추적 (AI가 한번이라도 응답했으면 true)
   const hasConversationStartedRef = useRef<boolean>(false);
@@ -800,6 +802,10 @@ export function useRealtimeVoice({
           console.log(`🔊 RAW-VAD: RMS=${rms.toFixed(4)}, threshold=${VOICE_THRESHOLD}, playbackRunning=${isPlaybackRunning}`);
         }
         
+        // 사용자 음성 볼륨 업데이트 (파티클 애니메이션용)
+        const normalizedRms = Math.min(1, rms * 10); // 0~1 범위로 정규화
+        setUserAudioAmplitude(normalizedRms);
+        
         if (rms > VOICE_THRESHOLD) {
           // Track voice activity start time
           if (voiceActivityStartRef.current === null) {
@@ -1039,6 +1045,7 @@ export function useRealtimeVoice({
     greetingRetryCount,
     greetingFailed,
     audioAmplitude,
+    userAudioAmplitude,
     connect,
     disconnect,
     startRecording,

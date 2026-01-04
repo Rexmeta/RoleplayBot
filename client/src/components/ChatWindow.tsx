@@ -23,6 +23,7 @@ import type { ComplexScenario, ScenarioPersona } from "@/lib/scenario-system";
 import type { Conversation, ConversationMessage } from "@shared/schema";
 import { useRealtimeVoice } from "@/hooks/useRealtimeVoice";
 import { AISpeechParticleLayer } from "@/components/AISpeechParticleLayer";
+import { UserSpeechParticleLayer } from "@/components/UserSpeechParticleLayer";
 
 // 표정 한글 → 영어 매핑
 const emotionToEnglish: Record<string, string> = {
@@ -1882,10 +1883,16 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
                   }}
                 >
               
-              {/* AI 음성 파티클 시각화 레이어 */}
+              {/* AI 음성 파티클 시각화 레이어 (상단) */}
               <AISpeechParticleLayer 
                 amplitude={realtimeVoice.audioAmplitude} 
                 isActive={realtimeVoice.isAISpeaking} 
+              />
+              
+              {/* 사용자 음성 파티클 시각화 레이어 (하단 마이크 중심) */}
+              <UserSpeechParticleLayer 
+                amplitude={realtimeVoice.userAudioAmplitude} 
+                isActive={realtimeVoice.isRecording && !realtimeVoice.isAISpeaking} 
               />
               
               {/* AI 첫 인사 준비 중 오버레이 (캐릭터 모드) - 하단에만 표시하도록 제거 */}
