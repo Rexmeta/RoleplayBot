@@ -269,6 +269,9 @@ export function useRealtimeVoice({
     
     // 🔧 barge-in 플래그 초기화 (첫 인사 오디오 재생 보장)
     isInterruptedRef.current = false;
+    
+    // 🔧 턴 시퀀스 초기화 (첫 인사 오디오 재생 보장)
+    expectedTurnSeqRef.current = 0;
 
     try {
       // 🔊 AudioContext 사전 준비 (첫 인사 음성 누락 방지)
@@ -393,8 +396,9 @@ export function useRealtimeVoice({
             case 'audio.delta':
               if (data.delta) {
                 // Filter by turn sequence if provided
-                if (data.turnSeq !== undefined && data.turnSeq <= expectedTurnSeqRef.current) {
-                  console.log(`🔇 Ignoring old audio (turnSeq ${data.turnSeq} <= expected ${expectedTurnSeqRef.current})`);
+                // 주의: < 연산자 사용 (<=가 아님) - turnSeq === expected일 때는 재생해야 함
+                if (data.turnSeq !== undefined && data.turnSeq < expectedTurnSeqRef.current) {
+                  console.log(`🔇 Ignoring old audio (turnSeq ${data.turnSeq} < expected ${expectedTurnSeqRef.current})`);
                   break;
                 }
                 setIsAISpeaking(true);
