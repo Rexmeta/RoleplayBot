@@ -21,12 +21,12 @@ interface AISpeechParticleLayerProps {
 
 const PARTICLE_COUNT = 120; // 3배 증가 (40 → 120)
 const COLORS = [
-  'rgba(99, 102, 241, 0.08)',
-  'rgba(139, 92, 246, 0.08)',
-  'rgba(168, 85, 247, 0.06)',
-  'rgba(79, 70, 229, 0.08)',
-  'rgba(124, 58, 237, 0.06)',
-  'rgba(192, 132, 252, 0.05)',
+  'rgba(99, 102, 241, 0.18)',
+  'rgba(139, 92, 246, 0.18)',
+  'rgba(168, 85, 247, 0.15)',
+  'rgba(79, 70, 229, 0.18)',
+  'rgba(124, 58, 237, 0.15)',
+  'rgba(192, 132, 252, 0.12)',
 ];
 
 export function AISpeechParticleLayer({ amplitude, isActive, className = '' }: AISpeechParticleLayerProps) {
@@ -55,7 +55,7 @@ export function AISpeechParticleLayer({ amplitude, isActive, className = '' }: A
     window.addEventListener('resize', resizeCanvas);
 
     const centerX = canvas.width / 2;
-    const centerY = canvas.height * 0.35; // 상단으로 이동 (50% → 35%)
+    const centerY = canvas.height * 0.25; // 더 상단으로 이동 (35% → 25%)
     const baseRadius = Math.min(canvas.width, canvas.height) * 0.16;
 
     particlesRef.current = Array.from({ length: PARTICLE_COUNT }, (_, i) => {
@@ -105,22 +105,22 @@ export function AISpeechParticleLayer({ amplitude, isActive, className = '' }: A
       ctx.clearRect(0, 0, canvas.width, canvas.height);
 
       const centerX = canvas.width / 2;
-      const centerY = canvas.height * 0.35; // 상단으로 이동 (50% → 35%)
+      const centerY = canvas.height * 0.25; // 더 상단으로 이동 (35% → 25%)
       const amp = smoothedAmpRef.current;
 
       particlesRef.current.forEach((particle) => {
-        // 방사형 펄스: amplitude에 비례해서 바깥으로 확장
-        const pulseWave = Math.sin(time * 4 + particle.phase) * 0.3 + 0.7;
-        const radiusExpand = amp * 80 * pulseWave;
+        // 방사형 펄스: amplitude에 비례해서 바깥으로 확장 (더 다이나믹하게)
+        const pulseWave = Math.sin(time * 8 + particle.phase) * 0.4 + 0.6; // 속도 2배, 진폭 증가
+        const radiusExpand = amp * 120 * pulseWave; // 확장 범위 1.5배 증가
         
         const currentRadius = particle.baseRadius + radiusExpand;
         
         particle.x = centerX + Math.cos(particle.angle) * currentRadius;
         particle.y = centerY + Math.sin(particle.angle) * currentRadius;
 
-        // 크기와 투명도도 amplitude에 반응 (캐릭터 이미지가 가려지지 않도록 투명하게)
-        const dynamicSize = particle.baseSize * (1 + amp * 1.5);
-        const alpha = isActive ? 0.04 + amp * 0.08 : 0.02;
+        // 크기와 투명도도 amplitude에 반응 (원래 수준으로 복원)
+        const dynamicSize = particle.baseSize * (1 + amp * 2.0); // 크기 반응 증가
+        const alpha = isActive ? 0.08 + amp * 0.15 : 0.03;
 
         ctx.beginPath();
         ctx.arc(particle.x, particle.y, dynamicSize, 0, Math.PI * 2);
