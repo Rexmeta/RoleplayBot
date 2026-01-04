@@ -203,6 +203,9 @@ export function useRealtimeVoice({
     // Stop any playing audio first
     stopCurrentPlayback();
     
+    // 🔧 barge-in 플래그 초기화 (다음 연결에서 첫 인사 오디오 재생 허용)
+    isInterruptedRef.current = false;
+    
     // 음량 분석 루프 정지
     if (amplitudeAnimationRef.current) {
       cancelAnimationFrame(amplitudeAnimationRef.current);
@@ -263,6 +266,9 @@ export function useRealtimeVoice({
     setStatus('connecting');
     setError(null);
     setGreetingFailed(false); // 새 연결 시 리셋
+    
+    // 🔧 barge-in 플래그 초기화 (첫 인사 오디오 재생 보장)
+    isInterruptedRef.current = false;
 
     try {
       // 🔊 AudioContext 사전 준비 (첫 인사 음성 누락 방지)
