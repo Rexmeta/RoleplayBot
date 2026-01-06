@@ -60,6 +60,7 @@ export interface IStorage {
   // Chat Messages
   createChatMessage(message: InsertChatMessage): Promise<ChatMessage>;
   getChatMessagesByPersonaRun(personaRunId: string): Promise<ChatMessage[]>;
+  deleteChatMessagesByPersonaRun(personaRunId: string): Promise<void>;
   getAllEmotionStats(scenarioIds?: string[]): Promise<{ emotion: string; count: number }[]>; // Admin analytics - 감정 빈도
   getEmotionStatsByScenario(scenarioIds?: string[]): Promise<{ scenarioId: string; scenarioName: string; emotions: { emotion: string; count: number }[]; totalCount: number }[]>;
   getEmotionStatsByMbti(scenarioIds?: string[]): Promise<{ mbti: string; emotions: { emotion: string; count: number }[]; totalCount: number }[]>;
@@ -348,6 +349,10 @@ export class MemStorage implements IStorage {
   }
 
   async getChatMessagesByPersonaRun(personaRunId: string): Promise<ChatMessage[]> {
+    throw new Error("MemStorage does not support Chat Messages");
+  }
+
+  async deleteChatMessagesByPersonaRun(personaRunId: string): Promise<void> {
     throw new Error("MemStorage does not support Chat Messages");
   }
 
@@ -897,6 +902,10 @@ export class PostgreSQLStorage implements IStorage {
 
   async getChatMessagesByPersonaRun(personaRunId: string): Promise<ChatMessage[]> {
     return await db.select().from(chatMessages).where(eq(chatMessages.personaRunId, personaRunId)).orderBy(asc(chatMessages.turnIndex));
+  }
+
+  async deleteChatMessagesByPersonaRun(personaRunId: string): Promise<void> {
+    await db.delete(chatMessages).where(eq(chatMessages.personaRunId, personaRunId));
   }
 
   async getAllEmotionStats(scenarioIds?: string[]): Promise<{ emotion: string; count: number }[]> {

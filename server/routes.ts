@@ -1082,6 +1082,46 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // 대화 초기화 API - 메시지 삭제 및 상태 리셋
+  app.delete("/api/conversations/:id/messages", isAuthenticated, async (req, res) => {
+    try {
+      // @ts-ignore - req.user는 auth 미들웨어에서 설정됨
+      const userId = req.user?.id;
+      const personaRunId = req.params.id;
+
+      // persona_run 조회
+      const personaRun = await storage.getPersonaRun(personaRunId);
+      if (!personaRun) {
+        return res.status(404).json({ error: "Persona run not found" });
+      }
+
+      // scenario_run 조회하여 권한 확인
+      const scenarioRun = await storage.getScenarioRun(personaRun.scenarioRunId);
+      if (!scenarioRun || scenarioRun.userId !== userId) {
+        return res.status(403).json({ error: "Unauthorized access" });
+      }
+
+      // 메시지 삭제
+      await storage.deleteChatMessagesByPersonaRun(personaRunId);
+
+      // persona_run 상태를 'in_progress'로 리셋
+      await storage.updatePersonaRun(personaRunId, {
+        status: 'in_progress',
+        completedAt: null
+      });
+
+      console.log(`🔄 Reset conversation: deleted messages and reset persona_run ${personaRunId} to in_progress`);
+
+      res.json({
+        success: true,
+        message: "Conversation reset successfully"
+      });
+    } catch (error) {
+      console.error("Conversation reset error:", error);
+      res.status(500).json({ error: "Failed to reset conversation" });
+    }
+  });
+
   // Strategic Selection APIs
   
   // Persona Selection APIs

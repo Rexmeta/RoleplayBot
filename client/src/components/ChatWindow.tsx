@@ -497,6 +497,50 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
     }
   };
 
+  // 대화 초기화 핸들러
+  const handleResetConversation = async () => {
+    try {
+      setShowEndConversationDialog(false);
+      
+      // 실시간 음성 연결 해제
+      realtimeVoice.disconnect();
+      
+      // 서버에서 메시지 삭제 및 상태 리셋
+      await apiRequest('DELETE', `/api/conversations/${conversationId}/messages`);
+      
+      // 로컬 메시지 초기화
+      setLocalMessages([]);
+      
+      // 대화 단계 리셋
+      realtimeVoice.resetPhase();
+      
+      // 캐시 무효화
+      await queryClient.invalidateQueries({ queryKey: [`/api/conversations/${conversationId}`] });
+      
+      // 대화 시작 시간 리셋
+      setConversationStartTime(null);
+      setElapsedTime(0);
+      
+      // 사용자 발화 상태 리셋
+      hasUserSpokenRef.current = false;
+      setShowMicPrompt(false);
+      
+      toast({
+        title: "대화가 초기화되었습니다",
+        description: "'대화 시작하기' 버튼을 눌러 새로운 대화를 시작하세요.",
+      });
+      
+      console.log('🔄 Conversation reset complete');
+    } catch (error) {
+      console.error('❌ Error resetting conversation:', error);
+      toast({
+        title: "초기화 오류",
+        description: "대화를 초기화하는 중 오류가 발생했습니다.",
+        variant: "destructive"
+      });
+    }
+  };
+
   const handleVoiceInput = () => {
     if (!speechSupported) {
       toast({
@@ -2475,10 +2519,19 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
               지금까지의 대화 내용을 바탕으로 상세한 분석과 점수를 제공합니다.
             </AlertDialogDescription>
           </AlertDialogHeader>
-          <AlertDialogFooter>
+          <AlertDialogFooter className="flex-col sm:flex-row gap-2">
             <AlertDialogCancel data-testid="button-cancel-end-conversation">
               취소
             </AlertDialogCancel>
+            <Button
+              variant="outline"
+              onClick={handleResetConversation}
+              data-testid="button-reset-conversation"
+              className="border-orange-300 text-orange-600 hover:bg-orange-50"
+            >
+              <i className="fas fa-redo mr-1"></i>
+              대화 초기화
+            </Button>
             <AlertDialogAction 
               onClick={confirmEndConversation}
               data-testid="button-confirm-end-conversation"
