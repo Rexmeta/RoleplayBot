@@ -1,0 +1,40 @@
+# Dependencies
+node_modules/
+
+# Build outputs (will be built in container)
+dist/
+
+# Development files
+*.log
+npm-debug.log*
+
+# Git
+.git/
+.gitignore
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Environment files (secrets should be set via Cloud Run)
+.env
+.env.*
+
+# Documentation
+*.md
+docs/
+
+# Test files
+*.test.ts
+*.spec.ts
+__tests__/
+
+# Attached assets (development only)
+attached_assets/
+
+# Replit specific
+.replit
+replit.nix
+.cache/
