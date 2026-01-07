@@ -2,7 +2,6 @@ import { useState, useEffect } from "react";
 import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { ChevronRight, Users, MessageCircle, Target, Award } from "lucide-react";
-import introImage from "@assets/generated_images/Corporate_training_roleplay_scene_38ec84a7.png";
 
 export default function Intro() {
   const [, setLocation] = useLocation();
@@ -50,13 +49,12 @@ export default function Intro() {
 
   return (
     <div className="min-h-screen relative overflow-hidden">
-      {/* Background Image with Animation */}
+      {/* Background with Animation */}
       <div 
-        className="absolute inset-0 bg-cover bg-center bg-no-repeat animate-slow-zoom"
-        style={{ backgroundImage: `url(${introImage})` }}
+        className="absolute inset-0 animate-slow-zoom"
       >
-        {/* Animated Overlay */}
-        <div className="absolute inset-0 bg-gradient-to-br from-blue-900/90 via-purple-900/80 to-indigo-900/90 animate-gradient-shift" />
+        {/* Animated Gradient Background */}
+        <div className="absolute inset-0 bg-gradient-to-br from-blue-900 via-purple-900 to-indigo-900 animate-gradient-shift" />
         {/* Floating Particles */}
         <div className="absolute inset-0 overflow-hidden">
           <div className="absolute w-1 h-1 bg-white/30 rounded-full animate-float-particle-1" style={{ top: '20%', left: '10%' }} />
