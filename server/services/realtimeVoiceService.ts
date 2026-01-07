@@ -124,6 +124,8 @@ interface RealtimeSession {
   systemInstructions: string; // 재연결시 사용할 시스템 인스트럭션
   voiceGender: 'male' | 'female'; // 재연결시 사용할 음성 성별
   goAwayWarningTime: number | null; // GoAway 경고 수신 시간
+  // 버퍼링된 메시지 (Gemini 연결 전에 도착한 메시지)
+  pendingClientReady: any | null; // client.ready 메시지 버퍼 (연결 전 도착시)
 }
 
 export class RealtimeVoiceService {
@@ -339,6 +341,7 @@ export class RealtimeVoiceService {
       systemInstructions: systemInstructions, // 재연결시 필요
       voiceGender: gender, // 재연결시 필요
       goAwayWarningTime: null,
+      pendingClientReady: null, // client.ready 메시지 버퍼 초기화
     };
 
     this.sessions.set(sessionId, session);
@@ -511,6 +514,7 @@ export class RealtimeVoiceService {
             this.sendToClient(session, {
               type: 'session.configured',
             });
+            
           },
           onmessage: (message: any) => {
             this.handleGeminiMessage(session, message);
@@ -681,6 +685,15 @@ export class RealtimeVoiceService {
       });
 
       session.geminiSession = geminiSession;
+
+      // 🔧 버퍼링된 client.ready 메시지가 있으면 재생 (Gemini 연결 전에 도착한 경우)
+      if (session.pendingClientReady) {
+        console.log(`▶️ Replaying buffered client.ready message for session: ${session.id}`);
+        const bufferedMessage = session.pendingClientReady;
+        session.pendingClientReady = null; // 버퍼 클리어
+        // 바로 처리 (geminiSession이 이제 설정되었으므로)
+        this.handleClientMessage(session.id, bufferedMessage);
+      }
 
       // 첫 인사는 클라이언트가 'client.ready' 신호를 보낸 후에 트리거됨
       // 이렇게 하면 클라이언트의 AudioContext가 준비된 상태에서 첫 인사 오디오가 재생됨
@@ -1031,8 +1044,14 @@ export class RealtimeVoiceService {
     // 활동 시간 업데이트
     session.lastActivityTime = Date.now();
 
+    // 🔧 Gemini 연결 전에 도착한 client.ready 메시지 버퍼링
     if (!session.isConnected || !session.geminiSession) {
-      console.error(`Gemini not connected for session: ${sessionId}`);
+      if (message.type === 'client.ready') {
+        console.log(`⏸️ Gemini not ready yet, buffering client.ready message for session: ${sessionId}`);
+        session.pendingClientReady = message;
+        return;
+      }
+      console.warn(`⚠️ Gemini not connected for session: ${sessionId}, dropping message type: ${message.type}`);
       return;
     }
 
