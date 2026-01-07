@@ -1,0 +1,50 @@
+"unable to prepare context: unable to evaluate symlinks in Dockerfile path: lstat /workspace/Dockerfile: no such file or directory" 오류 메시지는 Cloud Build가 빌드를 시작하려고 할 때, 지정된 위치에서 Dockerfile 을 찾을 수 없다는 의미입니다.
+
+이 오류는 주로 다음 두 가지 상황에서 발생합니다.
+
+Dockerfile 의 경로가 잘못 지정되었을 때: cloudbuild.yaml 파일에서 docker build 명령어를 실행할 때 Dockerfile 이 있는 디렉터리를 정확히 지정하지 않았을 경우.
+Dockerfile 의 이름이 잘못되었을 때: 파일 이름이 Dockerfile 이 아니라 dockerfile 또는 다른 이름일 경우 (대소문자 구분).
+제공해주신 cloudbuild-backend.yaml 내용을 다시 살펴보겠습니다.
+
+steps:
+# 1. Docker 이미지 빌드
+- name: 'gcr.io/cloud-builders/docker'
+  args: ['build', '-t', 'gcr.io/$PROJECT_ID/ai-roleplay-backend:$COMMIT_SHA', './backend'] # backend 디렉터리에서 빌드
+Generated code may be subject to license restrictions not shown here. Use code with care. Learn more 
+
+여기서 args: ['build', '-t', 'gcr.io/$PROJECT_ID/ai-roleplay-backend:$COMMIT_SHA', './backend'] 부분은 Docker 빌드 컨텍스트를 ./backend 디렉터리로 지정하고 있습니다. 이는 Cloud Build가 backend 디렉터리 안에서 Dockerfile 을 찾을 것이라는 의미입니다.
+
+해결 방법:
+
+Dockerfile 의 실제 위치 확인:
+프로젝트의 루트 디렉터리에서 backend 라는 이름의 폴더가 있는지 확인합니다.
+backend 폴더 안에 Dockerfile 이라는 이름의 파일이 정확히 있는지 확인합니다.
+만약 Dockerfile 이 프로젝트 루트 디렉터리에 있다면, cloudbuild-backend.yaml 의 args 를 다음과 같이 수정해야 합니다:
+# 1. Docker 이미지 빌드
+- name: 'gcr.io/cloud-builders/docker'
+  args: ['build', '-t', 'gcr.io/$PROJECT_ID/ai-roleplay-backend:$COMMIT_SHA', '.'] # 프로젝트 루트에서 빌드
+Generated code may be subject to license restrictions not shown here. Use code with care. Learn more 
+
+만약 Dockerfile 이 backend 폴더 안에 있는데, backend 폴더가 아니라 다른 이름의 폴더(예: server )에 있다면, cloudbuild-backend.yaml 의 args 를 해당 폴더 이름으로 수정해야 합니다:
+# 1. Docker 이미지 빌드
+- name: 'gcr.io/cloud-builders/docker'
+  args: ['build', '-t', 'gcr.io/$PROJECT_ID/ai-roleplay-backend:$COMMIT_SHA', './server'] # server 디렉터리에서 빌드
+Generated code may be subject to license restrictions not shown here. Use code with care. Learn more 
+
+Dockerfile 의 파일 이름 확인:
+Dockerfile 파일의 이름이 정확히 Dockerfile 인지 확인합니다. (대소문자 구분)
+간혹 dockerfile (소문자)이나 Dockerfile.prod 등으로 저장하는 경우가 있는데, 이 경우 cloudbuild.yaml 에서 docker build -f <파일명> 옵션을 사용하여 명시적으로 지정해야 합니다. 하지만 기본적으로는 Dockerfile 이어야 합니다.
+가장 유력한 원인:
+
+프로젝트 구조상 backend 폴더가 존재하지 않거나, Dockerfile 이 backend 폴더 안에 있지 않고 프로젝트의 루트 디렉터리에 있을 가능성이 가장 높습니다.
+
+수정 후 다시 시도:
+
+Dockerfile 의 위치와 cloudbuild-backend.yaml 의 args 경로를 일치시킵니다.
+변경사항을 GitHub에 커밋하고 푸시합니다.
+git add .
+git commit -m "Fix Dockerfile path in cloudbuild-backend.yaml"
+git push origin main
+Generated code may be subject to license restrictions not shown here. Use code with care. Learn more 
+
+Cloud Build 트리거가 다시 실행되는지 확인하고, 이번에는 빌드가 성공하는지 확인합니다.
