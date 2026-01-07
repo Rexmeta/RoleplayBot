@@ -39,12 +39,14 @@ steps:
       - '8080'
       - '--set-env-vars'
       - 'NODE_ENV=production'
-      # Secret Manager에서 시크릿 주입 (필수)
+      # Secret Manager에서 시크릿 주입
+      # 사전에 Google Cloud Secret Manager에 아래 시크릿들을 생성해야 합니다:
+      # - jwt-secret: JWT 인증용 시크릿 키
+      # - database-url: PostgreSQL 연결 문자열
+      # - google-api-key: Gemini API 키
+      # (선택) elevenlabs-api-key: TTS 기능용 - 필요시 아래 줄에 추가
       - '--set-secrets'
       - 'JWT_SECRET=jwt-secret:latest,DATABASE_URL=database-url:latest,GOOGLE_API_KEY=google-api-key:latest'
-      # 선택적 시크릿 (ElevenLabs TTS)
-      - '--update-secrets'
-      - 'ELEVENLABS_API_KEY=elevenlabs-api-key:latest'
 
 images:
   - 'gcr.io/$PROJECT_ID/ai-roleplay-training:$COMMIT_SHA'
