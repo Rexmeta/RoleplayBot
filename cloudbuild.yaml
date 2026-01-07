@@ -39,6 +39,12 @@ steps:
       - '8080'
       - '--set-env-vars'
       - 'NODE_ENV=production'
+      # Secret Manager에서 시크릿 주입 (필수)
+      - '--set-secrets'
+      - 'JWT_SECRET=jwt-secret:latest,DATABASE_URL=database-url:latest,GOOGLE_API_KEY=google-api-key:latest'
+      # 선택적 시크릿 (ElevenLabs TTS)
+      - '--update-secrets'
+      - 'ELEVENLABS_API_KEY=elevenlabs-api-key:latest'
 
 images:
   - 'gcr.io/$PROJECT_ID/ai-roleplay-training:$COMMIT_SHA'

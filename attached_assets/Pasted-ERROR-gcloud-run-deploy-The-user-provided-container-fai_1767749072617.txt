@@ -1,0 +1,40 @@
+ERROR: (gcloud.run.deploy) The user-provided container failed to start and listen on the port defined provided by the PORT=8080 environment variable within the allocated timeout.
+
+이 오류는 Cloud Run이 배포된 컨테이너를 시작하려고 시도했지만, 컨테이너가 지정된 PORT=8080 환경 변수를 사용하여 할당된 시간(timeout) 내에 포트에서 수신 대기(listen)하지 못했음을 의미합니다. 즉, 컨테이너가 정상적으로 실행되지 못하고 종료되었거나, 포트 바인딩에 실패했다는 뜻입니다.
+
+주요 원인 및 해결 방법:
+
+컨테이너 내부 애플리케이션 문제 (가장 흔함):
+문제: 컨테이너 이미지는 성공적으로 빌드되었지만, 컨테이너 내부에서 실행되는 Node.js 애플리케이션 자체에 오류가 있어 시작되지 못하는 경우입니다. npm start 명령이 실패하거나, 시작 시 예외가 발생하여 서버가 포트를 열지 못하는 상황입니다.
+해결:
+로그 확인 (가장 중요): 오류 메시지에 제공된 Logs URL 을 방문하여 Cloud Run 서비스의 로그를 자세히 확인해야 합니다. 이 로그에는 애플리케이션이 시작될 때 발생한 실제 오류 메시지(예: 모듈을 찾을 수 없음, 데이터베이스 연결 오류, 환경 변수 누락, 코드 구문 오류 등)가 기록되어 있을 가능성이 높습니다.
+https://console.cloud.google.com/logs/viewer?project=roleplay-469506&resource=cloud_run_revision/service_name/ai-roleplay-training/revision_name/ai-roleplay-training-00001-f8j&advancedFilter=resource.type%3D%22cloud_run_revision%22%0Aresource.labels.service_name%3D%22ai-roleplay-training%22%0Aresource.labels.revision_name%3D%22ai-roleplay-training-00001-f8j%22
+로컬에서 컨테이너 실행: 빌드된 Docker 이미지를 로컬 환경에서 직접 실행하여 동일한 오류가 발생하는지 확인합니다.
+# 로컬에서 빌드된 이미지 이름은 Cloud Build 로그에서 확인할 수 있습니다.
+# 예시: gcr.io/roleplay-469506/ai-roleplay-training:909f9359c839e98c8d4ce0e5cb01b6308a67c088
+docker run -p 8080:8080 -e PORT=8080 -e NODE_ENV=production gcr.io/roleplay-469506/ai-roleplay-training:909f9359c839e98c8d4ce0e5cb01b6308a67c088
+Generated code may be subject to license restrictions not shown here. Use code with care. Learn more 
+
+이 명령을 실행했을 때 터미널에 어떤 로그가 출력되는지 확인하여 문제의 원인을 찾을 수 있습니다.
+환경 변수: 애플리케이션이 시작하기 위해 필요한 환경 변수(예: GEMINI_API_KEY , DATABASE_URL 등)가 Cloud Run 서비스에 올바르게 전달되었는지 확인합니다. 특히 DATABASE_URL 과 같은 민감 정보는 Secret Manager를 통해 전달했는데, 제대로 주입되었는지 Cloud Run 서비스의 "세부정보" 탭에서 확인하세요.
+애플리케이션이 PORT 환경 변수를 사용하지 않을 때:
+문제: Cloud Run은 PORT 환경 변수를 통해 컨테이너가 수신 대기해야 하는 포트를 알려줍니다. 하지만 애플리케이션 코드가 이 PORT 환경 변수를 사용하지 않고 하드코딩된 포트(예: app.listen(3000) )에서만 수신 대기하는 경우, Cloud Run은 컨테이너가 시작되지 않았다고 판단합니다.
+해결: Node.js Express 애플리케이션 코드를 다음과 같이 수정하여 PORT 환경 변수를 사용하도록 합니다.
+const express = require('express');
+const app = express();
+const port = process.env.PORT || 8080; // Cloud Run은 PORT 환경 변수를 제공합니다.
+
+app.listen(port, () => {
+  console.log(`Server listening on port ${port}`);
+});
+Generated code may be subject to license restrictions not shown here. Use code with care. Learn more 
+
+Dockerfile 의 EXPOSE 8080 과 Cloud Run 배포 명령어의 --port 8080 은 컨테이너 외부로 노출할 포트를 지정하는 것이며, 컨테이너 내부 애플리케이션이 반드시 해당 포트에서 수신 대기해야 합니다.
+애플리케이션이 0.0.0.0 에서 수신 대기하지 않을 때:
+문제: 컨테이너 내부의 Node.js 서버가 localhost (127.0.0.1)와 같은 특정 IP 주소에서만 수신 대기하도록 구성된 경우, Cloud Run 환경에서는 외부에서 접근할 수 없어 오류가 발생할 수 있습니다.
+해결: Node.js Express 앱이 모든 네트워크 인터페이스에서 수신 대기하도록 코드를 수정합니다. 이는 app.listen(port) 또는 app.listen(port, '0.0.0.0') 과 같이 일반적으로 기본 동작이 0.0.0.0 이므로 크게 문제가 되지 않을 수 있습니다.
+권장되는 다음 단계:
+
+가장 먼저, 제공된 Logs URL로 이동하여 Cloud Run 서비스의 자세한 로그를 확인하십시오. 여기에 문제의 핵심 원인이 있을 가능성이 매우 높습니다.
+로컬에서 빌드된 Docker 이미지를 실행하여 문제가 재현되는지 확인하고, 로컬 환경에서 디버깅하여 문제점을 파악하고 해결합니다.
+애플리케이션 코드가 PORT 환경 변수를 올바르게 사용하고 있는지 다시 한번 확인합니다.
