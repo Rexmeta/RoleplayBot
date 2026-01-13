@@ -136,7 +136,7 @@ export default function PrivacyPolicy() {
                 </p>
                 <ul className="mt-3 space-y-1 text-white/70">
                   <li>담당부서: 개인정보보호팀</li>
-                  <li>이메일: privacy@example.com</li>
+                  <li>이메일: privacy@mothle.com</li>
                 </ul>
               </div>
             </section>
