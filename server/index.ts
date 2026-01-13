@@ -68,11 +68,23 @@ app.use((req, res, next) => {
 });
 
 (async () => {
-  // 🚀 MBTI 캐시 프리로드 (성능 최적화)
-  const mbtiCache = GlobalMBTICache.getInstance();
-  await mbtiCache.preloadAllMBTIData();
+  console.log('🚀 Starting server initialization...');
+  console.log(`📋 Environment: ${process.env.NODE_ENV || 'development'}`);
+  console.log(`🔌 PORT: ${process.env.PORT || '5000'}`);
+  
+  // 🚀 MBTI 캐시 프리로드 (성능 최적화) - 실패해도 서버 시작 계속
+  try {
+    console.log('📦 Loading MBTI cache...');
+    const mbtiCache = GlobalMBTICache.getInstance();
+    await mbtiCache.preloadAllMBTIData();
+    console.log('✅ MBTI cache loaded successfully');
+  } catch (error) {
+    console.error('⚠️ MBTI cache preload failed (non-fatal):', error);
+  }
 
+  console.log('📡 Registering routes...');
   const server = await registerRoutes(app);
+  console.log('✅ Routes registered successfully');
 
   app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
     const status = err.status || err.statusCode || 500;
@@ -86,9 +98,12 @@ app.use((req, res, next) => {
   // setting up all the other routes so the catch-all route
   // doesn't interfere with the other routes
   if (app.get("env") === "development") {
+    console.log('🔧 Setting up Vite (development)...');
     await setupVite(app, server);
   } else {
+    console.log('📁 Setting up static file serving (production)...');
     serveStatic(app);
+    console.log('✅ Static file serving configured');
   }
 
   // ALWAYS serve the app on the port specified in the environment variable PORT
@@ -98,8 +113,12 @@ app.use((req, res, next) => {
   const port = parseInt(process.env.PORT || '5000', 10);
   const host = "0.0.0.0"; // Cloud Run requires 0.0.0.0, not localhost
   
+  console.log(`🌐 Starting server on ${host}:${port}...`);
+  
   // Cloud Run 호환성을 위해 reusePort 옵션 제거
   server.listen(port, host, () => {
+    console.log('✅ Server started successfully!');
+    console.log(`🎉 Application ready at http://${host}:${port}`);
     log(`serving on port ${port} (host: ${host})`);
     log(`platform: ${process.platform}`);
     log(`Network access: http://${host}:${port}`);
