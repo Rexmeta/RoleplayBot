@@ -16,6 +16,7 @@ import SystemAdminPage from "@/pages/system-admin";
 import ConversationView from "@/pages/ConversationView";
 import FeedbackView from "@/pages/FeedbackView";
 import HelpPage from "@/pages/HelpPage";
+import PrivacyPolicy from "@/pages/privacy-policy";
 import NotFound from "@/pages/not-found";
 import { AuthPage } from "@/pages/AuthPage";
 
@@ -54,6 +55,7 @@ function ProtectedRouter() {
       <Route path="/ai-generator" component={AIGeneratorPage} />
       <Route path="/system-admin" component={SystemAdminPage} />
       <Route path="/help" component={HelpPage} />
+      <Route path="/privacy-policy" component={PrivacyPolicy} />
       <Route component={NotFound} />
     </Switch>
   );
