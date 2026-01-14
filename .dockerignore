@@ -31,8 +31,10 @@ docs/
 *.spec.ts
 __tests__/
 
-# Attached assets (development only)
-attached_assets/
+# Attached assets (exclude pasted files, keep personas images)
+attached_assets/*.txt
+attached_assets/*.png
+attached_assets/generated_images/
 
 # Replit specific
 .replit

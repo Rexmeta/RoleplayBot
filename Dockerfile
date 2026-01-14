@@ -33,7 +33,9 @@ COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/personas ./personas
 COPY --from=builder /app/scenarios ./scenarios
 COPY --from=builder /app/public ./public
-COPY --from=builder /app/attached_assets ./attached_assets
+
+# Create attached_assets/personas folder structure (for persona images)
+RUN mkdir -p attached_assets/personas
 
 # Set environment variables
 ENV NODE_ENV=production
