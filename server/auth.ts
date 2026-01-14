@@ -161,9 +161,10 @@ export function setupAuth(app: Express) {
       });
 
       // 첫 번째 사용자면 admin으로 업그레이드
+      let finalRole = user.role || 'user';
       if (isFirstUser) {
         await storage.adminUpdateUser(user.id, { role: 'admin' });
-        user.role = 'admin';
+        finalRole = 'admin';
         console.log(`🔑 First user ${email} automatically set as admin`);
       }
 
@@ -171,16 +172,16 @@ export function setupAuth(app: Express) {
       const token = generateToken(user.id);
 
       res.status(201).json({
-        message: "회원가입이 완료되었습니다",
+        message: isFirstUser ? "회원가입이 완료되었습니다. 첫 번째 사용자로 관리자 권한이 부여되었습니다." : "회원가입이 완료되었습니다",
         user: {
           id: user.id,
           email: user.email,
           name: user.name,
-          role: user.role || 'user',
+          role: finalRole,
         },
         token,
       });
-    } catch (error) {
+    } catch (error: any) {
       console.error("Registration error:", error);
       if (error instanceof z.ZodError) {
         const errorMessages = error.errors.map(e => e.message);
@@ -189,7 +190,9 @@ export function setupAuth(app: Express) {
           errors: errorMessages,
         });
       }
-      res.status(500).json({ message: "서버 오류가 발생했습니다" });
+      // 더 자세한 오류 메시지 제공
+      const errorMessage = error?.message || "알 수 없는 오류가 발생했습니다";
+      res.status(500).json({ message: `서버 오류: ${errorMessage}` });
     }
   });
 
