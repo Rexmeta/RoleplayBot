@@ -203,8 +203,8 @@ export type DetailedFeedback = {
     appropriatenessAdaptability: number;
     persuasivenessImpact: number;
     strategicCommunication: number;
-    // 전략적 대화 선택 평가 추가
-    strategicSelection?: number; // 대화 순서와 선택의 논리성
+    strategicSelection?: number;
+    [key: string]: number | undefined; // 동적 평가 기준 지원
   };
   strengths: string[];
   improvements: string[];
@@ -214,14 +214,15 @@ export type DetailedFeedback = {
   behaviorGuides?: ActionGuide[];
   conversationGuides?: ConversationGuide[];
   developmentPlan?: DevelopmentPlan;
-  conversationDuration?: number; // 대화 총 소요 시간 (분)
-  averageResponseTime?: number; // 평균 응답 시간 (초)
+  conversationDuration?: number;
+  averageResponseTime?: number;
   timePerformance?: {
     rating: 'excellent' | 'good' | 'average' | 'slow';
     feedback: string;
   };
-  // 전략적 선택 분석 추가
   sequenceAnalysis?: SequenceAnalysis;
+  evaluationCriteriaSetId?: string; // 사용된 평가 기준 세트 ID
+  evaluationCriteriaSetName?: string; // 사용된 평가 기준 세트 이름
 };
 
 export type ActionGuide = {

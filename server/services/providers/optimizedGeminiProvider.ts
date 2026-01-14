@@ -1,6 +1,6 @@
 import { GoogleGenAI } from "@google/genai";
 import type { ConversationMessage, DetailedFeedback } from "@shared/schema";
-import type { AIServiceInterface, ScenarioPersona } from "../aiService";
+import type { AIServiceInterface, ScenarioPersona, EvaluationCriteriaWithDimensions } from "../aiService";
 import { enrichPersonaWithMBTI } from "../../utils/mbtiLoader";
 import { GlobalMBTICache } from "../../utils/globalMBTICache";
 import { getTextModeGuidelines, validateDifficultyLevel } from "../conversationDifficultyPolicy";
@@ -276,14 +276,15 @@ JSON 형식으로 응답:
     scenario: string, 
     messages: ConversationMessage[], 
     persona: ScenarioPersona,
-    conversation?: Partial<import("@shared/schema").Conversation>
+    conversation?: Partial<import("@shared/schema").Conversation>,
+    evaluationCriteria?: EvaluationCriteriaWithDimensions
   ): Promise<DetailedFeedback> {
-    console.log("🔥 Optimized feedback generation...");
+    console.log("🔥 Optimized feedback generation...", evaluationCriteria ? `(Criteria: ${evaluationCriteria.name})` : "(Default criteria)");
     const startTime = Date.now();
 
     try {
-      // 압축된 피드백 프롬프트
-      const feedbackPrompt = this.buildCompactFeedbackPrompt(scenario, messages, persona, conversation);
+      // 압축된 피드백 프롬프트 - 동적 평가 기준 지원
+      const feedbackPrompt = this.buildCompactFeedbackPrompt(scenario, messages, persona, conversation, evaluationCriteria);
 
       const response = await this.genAI.models.generateContent({
         model: this.model,
@@ -314,18 +315,19 @@ JSON 형식으로 응답:
         durationMs: totalTime,
       });
       
-      return this.parseFeedbackResponse(responseText, conversation);
+      return this.parseFeedbackResponse(responseText, conversation, evaluationCriteria);
 
     } catch (error) {
       console.error("Optimized feedback error:", error);
-      return this.getFallbackFeedback();
+      return this.getFallbackFeedback(evaluationCriteria);
     }
   }
 
   /**
    * 상세 피드백 프롬프트 (행동가이드, 대화가이드, 개발계획 포함)
+   * 동적 평가 기준 지원
    */
-  private buildCompactFeedbackPrompt(scenario: string, messages: ConversationMessage[], persona: ScenarioPersona, conversation?: Partial<import("@shared/schema").Conversation>): string {
+  private buildCompactFeedbackPrompt(scenario: string, messages: ConversationMessage[], persona: ScenarioPersona, conversation?: Partial<import("@shared/schema").Conversation>, evaluationCriteria?: EvaluationCriteriaWithDimensions): string {
     // 사용자 메시지만 필터링하여 평가 대상으로 설정
     const userMessages = messages.filter(msg => msg.sender === 'user');
     
@@ -378,6 +380,27 @@ sequenceAnalysis 필드에 다음 형식으로 포함:
 }`;
     }
 
+    // 동적 평가 기준이 있는 경우 사용, 없으면 기본 기준 사용
+    const dimensions = evaluationCriteria?.dimensions || this.getDefaultDimensions();
+    
+    // 평가 기준 설명 생성
+    const dimensionsList = dimensions.map((dim, idx) => 
+      `${idx + 1}. ${dim.name} (${dim.key}): ${dim.description || dim.name}`
+    ).join('\n');
+    
+    // 점수 형식 생성 (동적)
+    const scoresFormat = dimensions.map(dim => `"${dim.key}": ${Math.ceil(dim.maxScore / 2)}`).join(', ');
+    
+    // 채점 기준 설명 생성 (있는 경우)
+    let scoringRubricsSection = '';
+    const dimensionsWithRubric = dimensions.filter(dim => dim.scoringRubric && dim.scoringRubric.length > 0);
+    if (dimensionsWithRubric.length > 0) {
+      scoringRubricsSection = '\n\n**상세 채점 기준**:\n' + dimensionsWithRubric.map(dim => {
+        const rubricText = dim.scoringRubric!.map(r => `  - ${r.score}점 (${r.label}): ${r.description}`).join('\n');
+        return `${dim.name} (1-5점):\n${rubricText}`;
+      }).join('\n\n');
+    }
+
     return `**중요**: 아래 평가는 오직 사용자의 발화만을 대상으로 수행합니다. AI(${persona.name})의 응답은 평가 대상이 아닙니다.
 
 **전체 대화 맥락** (참고용):
@@ -396,12 +419,14 @@ ${strategySection}
 - 매우 짧거나 무의미한 응답은 점수를 낮춥니다
 - 스킵한 대화는 참여도와 전략적 커뮤니케이션 점수를 낮춥니다
 
-5개 영역 평가(1-5점): 명확성&논리성, 경청&공감, 적절성&상황대응, 설득력&영향력, 전략적커뮤니케이션
+**평가 영역** (1-5점):
+${dimensionsList}
+${scoringRubricsSection}
 
 JSON 형식${hasStrategyReflection ? ' (sequenceAnalysis 포함)' : ''}:
 {
   "overallScore": 85,
-  "scores": {"clarityLogic": 4, "listeningEmpathy": 4, "appropriatenessAdaptability": 3, "persuasivenessImpact": 4, "strategicCommunication": 4},
+  "scores": {${scoresFormat}},
   "strengths": ["강점1", "강점2"],
   "improvements": ["개선1", "개선2"],
   "nextSteps": ["단계1", "단계2"],
@@ -430,14 +455,14 @@ JSON 형식${hasStrategyReflection ? ' (sequenceAnalysis 포함)' : ''}:
   }
 
   /**
-   * 피드백 응답 파싱
+   * 피드백 응답 파싱 (동적 평가 기준 지원)
    */
-  private parseFeedbackResponse(responseText: string, conversation?: Partial<import("@shared/schema").Conversation>): DetailedFeedback {
+  private parseFeedbackResponse(responseText: string, conversation?: Partial<import("@shared/schema").Conversation>, evaluationCriteria?: EvaluationCriteriaWithDimensions): DetailedFeedback {
     try {
       // 빈 응답이나 JSON이 아닌 응답 처리
       if (!responseText || responseText.trim() === '' || responseText === '{}') {
         console.error("Empty or invalid response text received");
-        return this.getFallbackFeedback();
+        return this.getFallbackFeedback(evaluationCriteria);
       }
       
       // JSON 파싱 시도
@@ -466,13 +491,13 @@ JSON 형식${hasStrategyReflection ? ' (sequenceAnalysis 포함)' : ''}:
             throw parseError;
           }
         } catch (fixError) {
-          return this.getFallbackFeedback();
+          return this.getFallbackFeedback(evaluationCriteria);
         }
       }
       
       const feedback: DetailedFeedback = {
         overallScore: parsed.overallScore || 75,
-        scores: parsed.scores || this.getDefaultScores(),
+        scores: parsed.scores || this.getDefaultScores(evaluationCriteria),
         strengths: parsed.strengths || ["대화 참여"],
         improvements: parsed.improvements || ["더 구체적인 표현"],
         nextSteps: parsed.nextSteps || ["연습 지속"],
@@ -488,24 +513,42 @@ JSON 형식${hasStrategyReflection ? ' (sequenceAnalysis 포함)' : ''}:
         feedback.sequenceAnalysis = parsed.sequenceAnalysis;
       }
       
+      // 사용된 평가 기준 정보 추가
+      if (evaluationCriteria) {
+        feedback.evaluationCriteriaSetId = evaluationCriteria.id;
+        feedback.evaluationCriteriaSetName = evaluationCriteria.name;
+      }
+      
       return feedback;
     } catch (error) {
       console.error("Feedback parsing error:", error);
-      return this.getFallbackFeedback();
+      return this.getFallbackFeedback(evaluationCriteria);
     }
   }
 
   /**
-   * 기본 점수
+   * 기본 평가 차원 (동적 평가 기준이 없을 때 사용)
    */
-  private getDefaultScores() {
-    return {
-      clarityLogic: 3,
-      listeningEmpathy: 3,
-      appropriatenessAdaptability: 3,
-      persuasivenessImpact: 3,
-      strategicCommunication: 3
-    };
+  private getDefaultDimensions(): EvaluationCriteriaWithDimensions['dimensions'] {
+    return [
+      { key: 'clarityLogic', name: '명확성 & 논리성', description: '의사 표현의 명확성과 논리적 구성', weight: 1, minScore: 1, maxScore: 5 },
+      { key: 'listeningEmpathy', name: '경청 & 공감', description: '상대방의 말을 듣고 공감하는 능력', weight: 1, minScore: 1, maxScore: 5 },
+      { key: 'appropriatenessAdaptability', name: '적절성 & 상황대응', description: '상황에 맞는 적절한 대응', weight: 1, minScore: 1, maxScore: 5 },
+      { key: 'persuasivenessImpact', name: '설득력 & 영향력', description: '상대방을 설득하고 영향을 미치는 능력', weight: 1, minScore: 1, maxScore: 5 },
+      { key: 'strategicCommunication', name: '전략적 커뮤니케이션', description: '목표 달성을 위한 전략적 소통', weight: 1, minScore: 1, maxScore: 5 },
+    ];
+  }
+
+  /**
+   * 기본 점수 (동적 평가 기준 지원)
+   */
+  private getDefaultScores(evaluationCriteria?: EvaluationCriteriaWithDimensions) {
+    const dimensions = evaluationCriteria?.dimensions || this.getDefaultDimensions();
+    const scores: Record<string, number> = {};
+    for (const dim of dimensions) {
+      scores[dim.key] = Math.ceil((dim.minScore + dim.maxScore) / 2);
+    }
+    return scores;
   }
 
   /**
@@ -590,12 +633,12 @@ JSON 형식${hasStrategyReflection ? ' (sequenceAnalysis 포함)' : ''}:
   }
 
   /**
-   * 폴백 피드백
+   * 폴백 피드백 (동적 평가 기준 지원)
    */
-  private getFallbackFeedback(): DetailedFeedback {
-    return {
+  private getFallbackFeedback(evaluationCriteria?: EvaluationCriteriaWithDimensions): DetailedFeedback {
+    const feedback: DetailedFeedback = {
       overallScore: 75,
-      scores: this.getDefaultScores(),
+      scores: this.getDefaultScores(evaluationCriteria) as any,
       strengths: ["대화 참여", "적극적인 자세"],
       improvements: ["더 구체적인 표현", "논리적 구조화"],
       nextSteps: ["더 많은 연습", "다양한 시나리오 경험"],
@@ -605,6 +648,13 @@ JSON 형식${hasStrategyReflection ? ' (sequenceAnalysis 포함)' : ''}:
       conversationGuides: this.getDefaultConversationGuides(),
       developmentPlan: this.getDefaultDevelopmentPlan()
     };
+    
+    if (evaluationCriteria) {
+      feedback.evaluationCriteriaSetId = evaluationCriteria.id;
+      feedback.evaluationCriteriaSetName = evaluationCriteria.name;
+    }
+    
+    return feedback;
   }
 
   /**

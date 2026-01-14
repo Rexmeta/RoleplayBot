@@ -1,7 +1,29 @@
-import type { ConversationMessage, EvaluationScore, DetailedFeedback, Conversation } from "@shared/schema";
+import type { ConversationMessage, EvaluationScore, DetailedFeedback, Conversation, EvaluationDimension, EvaluationCriteriaSet } from "@shared/schema";
 
 // 전략 평가를 위한 대화 컨텍스트
 export type StrategyContext = Pick<Conversation, 'strategyReflection' | 'conversationOrder'>;
+
+// 동적 평가 기준 세트 (차원 포함)
+export interface EvaluationCriteriaWithDimensions {
+  id: string;
+  name: string;
+  description?: string | null;
+  dimensions: Array<{
+    key: string;
+    name: string;
+    description?: string | null;
+    weight: number;
+    minScore: number;
+    maxScore: number;
+    icon?: string | null;
+    color?: string | null;
+    scoringRubric?: Array<{
+      score: number;
+      label: string;
+      description: string;
+    }> | null;
+  }>;
+}
 
 // AI 서비스 공통 인터페이스
 export interface AIServiceInterface {
@@ -16,7 +38,8 @@ export interface AIServiceInterface {
     scenario: string, 
     messages: ConversationMessage[], 
     persona: ScenarioPersona,
-    conversation?: Partial<Conversation>
+    conversation?: Partial<Conversation>,
+    evaluationCriteria?: EvaluationCriteriaWithDimensions
   ): Promise<DetailedFeedback>;
 
   // 모델 동적 변경 지원 (선택적)
