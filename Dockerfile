@@ -34,8 +34,8 @@ COPY --from=builder /app/personas ./personas
 COPY --from=builder /app/scenarios ./scenarios
 COPY --from=builder /app/public ./public
 
-# Create attached_assets/personas folder structure (for persona images)
-RUN mkdir -p attached_assets/personas
+# Copy persona expression images (682 files)
+COPY --from=builder /app/attached_assets/personas ./attached_assets/personas
 
 # Set environment variables
 ENV NODE_ENV=production
