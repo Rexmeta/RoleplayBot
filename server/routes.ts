@@ -4248,6 +4248,272 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // ===== Evaluation Criteria APIs (운영자/관리자 접근 가능) =====
+  
+  // 모든 평가 기준 세트 조회
+  app.get("/api/admin/evaluation-criteria", isAuthenticated, isOperatorOrAdmin, async (req, res) => {
+    try {
+      const criteriaSets = await storage.getAllEvaluationCriteriaSets();
+      res.json(criteriaSets);
+    } catch (error: any) {
+      console.error("Error getting evaluation criteria sets:", error);
+      res.status(500).json({ error: error.message || "Failed to get evaluation criteria sets" });
+    }
+  });
+  
+  // 활성화된 평가 기준 세트만 조회
+  app.get("/api/admin/evaluation-criteria/active", isAuthenticated, isOperatorOrAdmin, async (req, res) => {
+    try {
+      const criteriaSets = await storage.getActiveEvaluationCriteriaSets();
+      res.json(criteriaSets);
+    } catch (error: any) {
+      console.error("Error getting active evaluation criteria sets:", error);
+      res.status(500).json({ error: error.message || "Failed to get active evaluation criteria sets" });
+    }
+  });
+  
+  // 특정 평가 기준 세트 조회 (차원 포함)
+  app.get("/api/admin/evaluation-criteria/:id", isAuthenticated, isOperatorOrAdmin, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const criteriaSetWithDimensions = await storage.getEvaluationCriteriaSetWithDimensions(id);
+      
+      if (!criteriaSetWithDimensions) {
+        return res.status(404).json({ error: "Evaluation criteria set not found" });
+      }
+      
+      res.json(criteriaSetWithDimensions);
+    } catch (error: any) {
+      console.error("Error getting evaluation criteria set:", error);
+      res.status(500).json({ error: error.message || "Failed to get evaluation criteria set" });
+    }
+  });
+  
+  // 카테고리 또는 기본 평가 기준 세트 조회 (피드백 생성 시 사용)
+  app.get("/api/evaluation-criteria/active", isAuthenticated, async (req, res) => {
+    try {
+      const { categoryId } = req.query;
+      const criteriaSet = await storage.getActiveEvaluationCriteriaSetWithDimensions(categoryId as string | undefined);
+      
+      if (!criteriaSet) {
+        return res.status(404).json({ error: "No active evaluation criteria set found" });
+      }
+      
+      res.json(criteriaSet);
+    } catch (error: any) {
+      console.error("Error getting active evaluation criteria set:", error);
+      res.status(500).json({ error: error.message || "Failed to get active evaluation criteria set" });
+    }
+  });
+  
+  // 평가 기준 세트 생성
+  app.post("/api/admin/evaluation-criteria", isAuthenticated, isOperatorOrAdmin, async (req, res) => {
+    try {
+      const user = req.user as any;
+      const { name, description, isDefault, isActive, categoryId, dimensions } = req.body;
+      
+      if (!name || name.trim() === "") {
+        return res.status(400).json({ error: "Name is required" });
+      }
+      
+      // 기본 기준으로 설정하려면 기존 기본 기준 해제
+      if (isDefault) {
+        const existingDefault = await storage.getDefaultEvaluationCriteriaSet();
+        if (existingDefault) {
+          await storage.updateEvaluationCriteriaSet(existingDefault.id, { isDefault: false });
+        }
+      }
+      
+      // 기준 세트 생성
+      const criteriaSet = await storage.createEvaluationCriteriaSet({
+        name: name.trim(),
+        description: description || null,
+        isDefault: isDefault || false,
+        isActive: isActive !== false,
+        categoryId: categoryId || null,
+        createdBy: user?.id || null,
+      });
+      
+      // 차원 생성 (있는 경우)
+      const createdDimensions = [];
+      if (dimensions && Array.isArray(dimensions)) {
+        for (let i = 0; i < dimensions.length; i++) {
+          const dim = dimensions[i];
+          const dimension = await storage.createEvaluationDimension({
+            criteriaSetId: criteriaSet.id,
+            key: dim.key,
+            name: dim.name,
+            description: dim.description || null,
+            weight: dim.weight || 1,
+            minScore: dim.minScore || 0,
+            maxScore: dim.maxScore || 100,
+            icon: dim.icon || null,
+            color: dim.color || null,
+            displayOrder: dim.displayOrder ?? i,
+            scoringRubric: dim.scoringRubric || null,
+            isActive: dim.isActive !== false,
+          });
+          createdDimensions.push(dimension);
+        }
+      }
+      
+      res.json({ ...criteriaSet, dimensions: createdDimensions });
+    } catch (error: any) {
+      console.error("Error creating evaluation criteria set:", error);
+      res.status(500).json({ error: error.message || "Failed to create evaluation criteria set" });
+    }
+  });
+  
+  // 평가 기준 세트 수정
+  app.put("/api/admin/evaluation-criteria/:id", isAuthenticated, isOperatorOrAdmin, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { name, description, isDefault, isActive, categoryId } = req.body;
+      
+      const existing = await storage.getEvaluationCriteriaSet(id);
+      if (!existing) {
+        return res.status(404).json({ error: "Evaluation criteria set not found" });
+      }
+      
+      // 기본 기준으로 변경하려면 기존 기본 기준 해제
+      if (isDefault && !existing.isDefault) {
+        const existingDefault = await storage.getDefaultEvaluationCriteriaSet();
+        if (existingDefault && existingDefault.id !== id) {
+          await storage.updateEvaluationCriteriaSet(existingDefault.id, { isDefault: false });
+        }
+      }
+      
+      const updated = await storage.updateEvaluationCriteriaSet(id, {
+        name: name?.trim(),
+        description: description !== undefined ? description : undefined,
+        isDefault: isDefault !== undefined ? isDefault : undefined,
+        isActive: isActive !== undefined ? isActive : undefined,
+        categoryId: categoryId !== undefined ? categoryId : undefined,
+      });
+      
+      res.json(updated);
+    } catch (error: any) {
+      console.error("Error updating evaluation criteria set:", error);
+      res.status(500).json({ error: error.message || "Failed to update evaluation criteria set" });
+    }
+  });
+  
+  // 평가 기준 세트 삭제
+  app.delete("/api/admin/evaluation-criteria/:id", isAuthenticated, isOperatorOrAdmin, async (req, res) => {
+    try {
+      const { id } = req.params;
+      
+      const existing = await storage.getEvaluationCriteriaSet(id);
+      if (!existing) {
+        return res.status(404).json({ error: "Evaluation criteria set not found" });
+      }
+      
+      await storage.deleteEvaluationCriteriaSet(id);
+      res.json({ success: true });
+    } catch (error: any) {
+      console.error("Error deleting evaluation criteria set:", error);
+      res.status(500).json({ error: error.message || "Failed to delete evaluation criteria set" });
+    }
+  });
+  
+  // 기본 평가 기준 세트 설정
+  app.post("/api/admin/evaluation-criteria/:id/set-default", isAuthenticated, isOperatorOrAdmin, async (req, res) => {
+    try {
+      const { id } = req.params;
+      
+      const existing = await storage.getEvaluationCriteriaSet(id);
+      if (!existing) {
+        return res.status(404).json({ error: "Evaluation criteria set not found" });
+      }
+      
+      await storage.setDefaultEvaluationCriteriaSet(id);
+      res.json({ success: true });
+    } catch (error: any) {
+      console.error("Error setting default evaluation criteria set:", error);
+      res.status(500).json({ error: error.message || "Failed to set default evaluation criteria set" });
+    }
+  });
+  
+  // ===== Evaluation Dimension APIs =====
+  
+  // 차원 추가
+  app.post("/api/admin/evaluation-criteria/:criteriaSetId/dimensions", isAuthenticated, isOperatorOrAdmin, async (req, res) => {
+    try {
+      const { criteriaSetId } = req.params;
+      const { key, name, description, weight, minScore, maxScore, icon, color, displayOrder, scoringRubric, isActive } = req.body;
+      
+      if (!key || !name) {
+        return res.status(400).json({ error: "Key and name are required" });
+      }
+      
+      // 기준 세트 존재 확인
+      const criteriaSet = await storage.getEvaluationCriteriaSet(criteriaSetId);
+      if (!criteriaSet) {
+        return res.status(404).json({ error: "Evaluation criteria set not found" });
+      }
+      
+      // 기존 차원 수 조회하여 displayOrder 기본값 설정
+      const existingDimensions = await storage.getEvaluationDimensionsByCriteriaSet(criteriaSetId);
+      
+      const dimension = await storage.createEvaluationDimension({
+        criteriaSetId,
+        key,
+        name,
+        description: description || null,
+        weight: weight || 1,
+        minScore: minScore || 0,
+        maxScore: maxScore || 100,
+        icon: icon || null,
+        color: color || null,
+        displayOrder: displayOrder ?? existingDimensions.length,
+        scoringRubric: scoringRubric || null,
+        isActive: isActive !== false,
+      });
+      
+      res.json(dimension);
+    } catch (error: any) {
+      console.error("Error creating evaluation dimension:", error);
+      res.status(500).json({ error: error.message || "Failed to create evaluation dimension" });
+    }
+  });
+  
+  // 차원 수정
+  app.put("/api/admin/evaluation-dimensions/:id", isAuthenticated, isOperatorOrAdmin, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const updates = req.body;
+      
+      const existing = await storage.getEvaluationDimension(id);
+      if (!existing) {
+        return res.status(404).json({ error: "Evaluation dimension not found" });
+      }
+      
+      const updated = await storage.updateEvaluationDimension(id, updates);
+      res.json(updated);
+    } catch (error: any) {
+      console.error("Error updating evaluation dimension:", error);
+      res.status(500).json({ error: error.message || "Failed to update evaluation dimension" });
+    }
+  });
+  
+  // 차원 삭제
+  app.delete("/api/admin/evaluation-dimensions/:id", isAuthenticated, isOperatorOrAdmin, async (req, res) => {
+    try {
+      const { id } = req.params;
+      
+      const existing = await storage.getEvaluationDimension(id);
+      if (!existing) {
+        return res.status(404).json({ error: "Evaluation dimension not found" });
+      }
+      
+      await storage.deleteEvaluationDimension(id);
+      res.json({ success: true });
+    } catch (error: any) {
+      console.error("Error deleting evaluation dimension:", error);
+      res.status(500).json({ error: error.message || "Failed to delete evaluation dimension" });
+    }
+  });
+
   // TTS routes
   app.use("/api/tts", ttsRoutes);
 

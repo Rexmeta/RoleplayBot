@@ -415,6 +415,74 @@ export const insertAiUsageLogSchema = createInsertSchema(aiUsageLogs).omit({
 export type InsertAiUsageLog = z.infer<typeof insertAiUsageLogSchema>;
 export type AiUsageLog = typeof aiUsageLogs.$inferSelect;
 
+// 평가 기준 세트 테이블 (운영자가 설정하는 평가 기준 그룹)
+export const evaluationCriteriaSets = pgTable("evaluation_criteria_sets", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: varchar("name").notNull(), // 평가 기준 세트 이름 (예: "기본 커뮤니케이션 평가", "리더십 평가")
+  description: text("description"), // 세트 설명
+  isDefault: boolean("is_default").notNull().default(false), // 기본 평가 기준 여부
+  isActive: boolean("is_active").notNull().default(true), // 활성화 여부
+  categoryId: varchar("category_id").references(() => categories.id), // 특정 카테고리에만 적용 (null이면 전체)
+  createdBy: varchar("created_by").references(() => users.id),
+  createdAt: timestamp("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+  updatedAt: timestamp("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+}, (table) => [
+  index("idx_criteria_sets_category").on(table.categoryId),
+  index("idx_criteria_sets_default").on(table.isDefault),
+]);
+
+// 평가 지표 테이블 (각 평가 기준 세트에 속하는 개별 지표)
+export const evaluationDimensions = pgTable("evaluation_dimensions", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  criteriaSetId: varchar("criteria_set_id").notNull().references(() => evaluationCriteriaSets.id, { onDelete: 'cascade' }),
+  key: varchar("key").notNull(), // 내부 키 (예: "clarityLogic", "empathy")
+  name: varchar("name").notNull(), // 표시 이름 (예: "명확성 & 논리성")
+  description: text("description"), // 지표 설명
+  icon: varchar("icon").notNull().default("📊"), // 아이콘 이모지
+  color: varchar("color").notNull().default("blue"), // 차트/UI 색상
+  weight: doublePrecision("weight").notNull().default(1.0), // 가중치 (전체 점수 계산 시)
+  minScore: integer("min_score").notNull().default(1), // 최소 점수
+  maxScore: integer("max_score").notNull().default(5), // 최대 점수
+  scoringRubric: jsonb("scoring_rubric").$type<ScoringRubric[]>(), // 점수별 평가 기준
+  displayOrder: integer("display_order").notNull().default(0), // 표시 순서
+  isActive: boolean("is_active").notNull().default(true),
+  createdAt: timestamp("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+}, (table) => [
+  index("idx_dimensions_criteria_set").on(table.criteriaSetId),
+  index("idx_dimensions_key").on(table.key),
+]);
+
+// 점수별 평가 기준 타입
+export type ScoringRubric = {
+  score: number; // 1, 2, 3, 4, 5
+  label: string; // "매우 부족", "부족", "보통", "우수", "매우 우수"
+  description: string; // 해당 점수를 받기 위한 조건 설명
+};
+
+// 평가 기준 세트 타입
+export const insertEvaluationCriteriaSetSchema = createInsertSchema(evaluationCriteriaSets).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export type InsertEvaluationCriteriaSet = z.infer<typeof insertEvaluationCriteriaSetSchema>;
+export type EvaluationCriteriaSet = typeof evaluationCriteriaSets.$inferSelect;
+
+// 평가 지표 타입
+export const insertEvaluationDimensionSchema = createInsertSchema(evaluationDimensions).omit({
+  id: true,
+  createdAt: true,
+});
+
+export type InsertEvaluationDimension = z.infer<typeof insertEvaluationDimensionSchema>;
+export type EvaluationDimension = typeof evaluationDimensions.$inferSelect;
+
+// 평가 기준 세트 + 지표 통합 타입 (API 응답용)
+export type EvaluationCriteriaSetWithDimensions = EvaluationCriteriaSet & {
+  dimensions: EvaluationDimension[];
+};
+
 // AI Usage 집계 타입
 export type AiUsageSummary = {
   totalTokens: number;

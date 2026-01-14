@@ -1,4 +1,4 @@
-import { type Conversation, type InsertConversation, type Feedback, type InsertFeedback, type PersonaSelection, type StrategyChoice, type SequenceAnalysis, type User, type UpsertUser, type ScenarioRun, type InsertScenarioRun, type PersonaRun, type InsertPersonaRun, type ChatMessage, type InsertChatMessage, type Category, type InsertCategory, type SystemSetting, type AiUsageLog, type InsertAiUsageLog, type AiUsageSummary, type AiUsageByFeature, type AiUsageByModel, type AiUsageDaily, conversations, feedbacks, users, scenarioRuns, personaRuns, chatMessages, categories, systemSettings, aiUsageLogs } from "@shared/schema";
+import { type Conversation, type InsertConversation, type Feedback, type InsertFeedback, type PersonaSelection, type StrategyChoice, type SequenceAnalysis, type User, type UpsertUser, type ScenarioRun, type InsertScenarioRun, type PersonaRun, type InsertPersonaRun, type ChatMessage, type InsertChatMessage, type Category, type InsertCategory, type SystemSetting, type AiUsageLog, type InsertAiUsageLog, type AiUsageSummary, type AiUsageByFeature, type AiUsageByModel, type AiUsageDaily, type EvaluationCriteriaSet, type InsertEvaluationCriteriaSet, type EvaluationDimension, type InsertEvaluationDimension, type EvaluationCriteriaSetWithDimensions, conversations, feedbacks, users, scenarioRuns, personaRuns, chatMessages, categories, systemSettings, aiUsageLogs, evaluationCriteriaSets, evaluationDimensions } from "@shared/schema";
 import { randomUUID } from "crypto";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { Pool } from "pg";
@@ -107,6 +107,28 @@ export interface IStorage {
   getAiUsageByModel(startDate: Date, endDate: Date): Promise<AiUsageByModel[]>;
   getAiUsageDaily(startDate: Date, endDate: Date): Promise<AiUsageDaily[]>;
   getAiUsageLogs(startDate: Date, endDate: Date, limit?: number): Promise<AiUsageLog[]>;
+  
+  // Evaluation Criteria operations - 평가 기준 관리
+  createEvaluationCriteriaSet(criteriaSet: InsertEvaluationCriteriaSet): Promise<EvaluationCriteriaSet>;
+  getEvaluationCriteriaSet(id: string): Promise<EvaluationCriteriaSet | undefined>;
+  getAllEvaluationCriteriaSets(): Promise<EvaluationCriteriaSet[]>;
+  getActiveEvaluationCriteriaSets(): Promise<EvaluationCriteriaSet[]>;
+  getDefaultEvaluationCriteriaSet(): Promise<EvaluationCriteriaSet | undefined>;
+  getEvaluationCriteriaSetByCategory(categoryId: string): Promise<EvaluationCriteriaSet | undefined>;
+  updateEvaluationCriteriaSet(id: string, updates: Partial<InsertEvaluationCriteriaSet>): Promise<EvaluationCriteriaSet>;
+  deleteEvaluationCriteriaSet(id: string): Promise<void>;
+  setDefaultEvaluationCriteriaSet(id: string): Promise<void>;
+  
+  // Evaluation Dimensions operations - 평가 지표 관리
+  createEvaluationDimension(dimension: InsertEvaluationDimension): Promise<EvaluationDimension>;
+  getEvaluationDimension(id: string): Promise<EvaluationDimension | undefined>;
+  getEvaluationDimensionsByCriteriaSet(criteriaSetId: string): Promise<EvaluationDimension[]>;
+  updateEvaluationDimension(id: string, updates: Partial<InsertEvaluationDimension>): Promise<EvaluationDimension>;
+  deleteEvaluationDimension(id: string): Promise<void>;
+  
+  // Combined operations - 평가 기준 세트 + 지표 조회
+  getEvaluationCriteriaSetWithDimensions(id: string): Promise<EvaluationCriteriaSetWithDimensions | undefined>;
+  getActiveEvaluationCriteriaSetWithDimensions(categoryId?: string): Promise<EvaluationCriteriaSetWithDimensions | undefined>;
 }
 
 export class MemStorage implements IStorage {
@@ -537,6 +559,56 @@ export class MemStorage implements IStorage {
   
   async getAiUsageLogs(_startDate: Date, _endDate: Date, _limit?: number): Promise<AiUsageLog[]> {
     return [];
+  }
+  
+  // Evaluation Criteria - MemStorage stubs
+  async createEvaluationCriteriaSet(_criteriaSet: InsertEvaluationCriteriaSet): Promise<EvaluationCriteriaSet> {
+    throw new Error("Not implemented in MemStorage");
+  }
+  async getEvaluationCriteriaSet(_id: string): Promise<EvaluationCriteriaSet | undefined> {
+    throw new Error("Not implemented in MemStorage");
+  }
+  async getAllEvaluationCriteriaSets(): Promise<EvaluationCriteriaSet[]> {
+    return [];
+  }
+  async getActiveEvaluationCriteriaSets(): Promise<EvaluationCriteriaSet[]> {
+    return [];
+  }
+  async getDefaultEvaluationCriteriaSet(): Promise<EvaluationCriteriaSet | undefined> {
+    return undefined;
+  }
+  async getEvaluationCriteriaSetByCategory(_categoryId: string): Promise<EvaluationCriteriaSet | undefined> {
+    return undefined;
+  }
+  async updateEvaluationCriteriaSet(_id: string, _updates: Partial<InsertEvaluationCriteriaSet>): Promise<EvaluationCriteriaSet> {
+    throw new Error("Not implemented in MemStorage");
+  }
+  async deleteEvaluationCriteriaSet(_id: string): Promise<void> {
+    throw new Error("Not implemented in MemStorage");
+  }
+  async setDefaultEvaluationCriteriaSet(_id: string): Promise<void> {
+    throw new Error("Not implemented in MemStorage");
+  }
+  async createEvaluationDimension(_dimension: InsertEvaluationDimension): Promise<EvaluationDimension> {
+    throw new Error("Not implemented in MemStorage");
+  }
+  async getEvaluationDimension(_id: string): Promise<EvaluationDimension | undefined> {
+    throw new Error("Not implemented in MemStorage");
+  }
+  async getEvaluationDimensionsByCriteriaSet(_criteriaSetId: string): Promise<EvaluationDimension[]> {
+    return [];
+  }
+  async updateEvaluationDimension(_id: string, _updates: Partial<InsertEvaluationDimension>): Promise<EvaluationDimension> {
+    throw new Error("Not implemented in MemStorage");
+  }
+  async deleteEvaluationDimension(_id: string): Promise<void> {
+    throw new Error("Not implemented in MemStorage");
+  }
+  async getEvaluationCriteriaSetWithDimensions(_id: string): Promise<EvaluationCriteriaSetWithDimensions | undefined> {
+    return undefined;
+  }
+  async getActiveEvaluationCriteriaSetWithDimensions(_categoryId?: string): Promise<EvaluationCriteriaSetWithDimensions | undefined> {
+    return undefined;
   }
 }
 
@@ -1004,7 +1076,7 @@ export class PostgreSQLStorage implements IStorage {
     const whereConditions = [
       eq(chatMessages.sender, 'ai'),
       isNotNull(chatMessages.emotion),
-      isNotNull(personaRuns.mbti)
+      isNotNull(personaRuns.mbtiType)
     ];
     
     if (scenarioIds && scenarioIds.length > 0) {
@@ -1012,7 +1084,7 @@ export class PostgreSQLStorage implements IStorage {
     }
     
     const result = await db.select({
-      mbti: personaRuns.mbti,
+      mbti: personaRuns.mbtiType,
       emotion: chatMessages.emotion,
       count: sql<number>`count(*)::int`
     })
@@ -1020,8 +1092,8 @@ export class PostgreSQLStorage implements IStorage {
     .innerJoin(personaRuns, eq(chatMessages.personaRunId, personaRuns.id))
     .innerJoin(scenarioRuns, eq(personaRuns.scenarioRunId, scenarioRuns.id))
     .where(and(...whereConditions))
-    .groupBy(personaRuns.mbti, chatMessages.emotion)
-    .orderBy(personaRuns.mbti, desc(sql`count(*)`));
+    .groupBy(personaRuns.mbtiType, chatMessages.emotion)
+    .orderBy(personaRuns.mbtiType, desc(sql`count(*)`));
     
     // MBTI별로 그룹화
     const mbtiMap = new Map<string, { mbti: string; emotions: { emotion: string; count: number }[]; totalCount: number }>();
@@ -1249,6 +1321,124 @@ export class PostgreSQLStorage implements IStorage {
       ))
       .orderBy(desc(aiUsageLogs.occurredAt))
       .limit(limit);
+  }
+  
+  // Evaluation Criteria Sets
+  async createEvaluationCriteriaSet(criteriaSet: InsertEvaluationCriteriaSet): Promise<EvaluationCriteriaSet> {
+    const [inserted] = await db.insert(evaluationCriteriaSets).values(criteriaSet as any).returning();
+    return inserted;
+  }
+  
+  async getEvaluationCriteriaSet(id: string): Promise<EvaluationCriteriaSet | undefined> {
+    const results = await db.select().from(evaluationCriteriaSets).where(eq(evaluationCriteriaSets.id, id));
+    return results[0];
+  }
+  
+  async getAllEvaluationCriteriaSets(): Promise<EvaluationCriteriaSet[]> {
+    return await db.select().from(evaluationCriteriaSets).orderBy(desc(evaluationCriteriaSets.createdAt));
+  }
+  
+  async getActiveEvaluationCriteriaSets(): Promise<EvaluationCriteriaSet[]> {
+    return await db.select().from(evaluationCriteriaSets)
+      .where(eq(evaluationCriteriaSets.isActive, true))
+      .orderBy(desc(evaluationCriteriaSets.createdAt));
+  }
+  
+  async getDefaultEvaluationCriteriaSet(): Promise<EvaluationCriteriaSet | undefined> {
+    const results = await db.select().from(evaluationCriteriaSets)
+      .where(and(
+        eq(evaluationCriteriaSets.isDefault, true),
+        eq(evaluationCriteriaSets.isActive, true)
+      ));
+    return results[0];
+  }
+  
+  async getEvaluationCriteriaSetByCategory(categoryId: string): Promise<EvaluationCriteriaSet | undefined> {
+    const results = await db.select().from(evaluationCriteriaSets)
+      .where(and(
+        eq(evaluationCriteriaSets.categoryId, categoryId),
+        eq(evaluationCriteriaSets.isActive, true)
+      ));
+    return results[0];
+  }
+  
+  async updateEvaluationCriteriaSet(id: string, updates: Partial<InsertEvaluationCriteriaSet>): Promise<EvaluationCriteriaSet> {
+    const [updated] = await db.update(evaluationCriteriaSets)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(evaluationCriteriaSets.id, id))
+      .returning();
+    return updated;
+  }
+  
+  async deleteEvaluationCriteriaSet(id: string): Promise<void> {
+    await db.delete(evaluationCriteriaSets).where(eq(evaluationCriteriaSets.id, id));
+  }
+  
+  async setDefaultEvaluationCriteriaSet(id: string): Promise<void> {
+    // First, unset all defaults
+    await db.update(evaluationCriteriaSets).set({ isDefault: false });
+    // Then set the new default
+    await db.update(evaluationCriteriaSets)
+      .set({ isDefault: true, updatedAt: new Date() })
+      .where(eq(evaluationCriteriaSets.id, id));
+  }
+  
+  // Evaluation Dimensions
+  async createEvaluationDimension(dimension: InsertEvaluationDimension): Promise<EvaluationDimension> {
+    const [inserted] = await db.insert(evaluationDimensions).values(dimension as any).returning();
+    return inserted;
+  }
+  
+  async getEvaluationDimension(id: string): Promise<EvaluationDimension | undefined> {
+    const results = await db.select().from(evaluationDimensions).where(eq(evaluationDimensions.id, id));
+    return results[0];
+  }
+  
+  async getEvaluationDimensionsByCriteriaSet(criteriaSetId: string): Promise<EvaluationDimension[]> {
+    return await db.select().from(evaluationDimensions)
+      .where(eq(evaluationDimensions.criteriaSetId, criteriaSetId))
+      .orderBy(asc(evaluationDimensions.displayOrder));
+  }
+  
+  async updateEvaluationDimension(id: string, updates: Partial<InsertEvaluationDimension>): Promise<EvaluationDimension> {
+    const [updated] = await db.update(evaluationDimensions)
+      .set(updates as any)
+      .where(eq(evaluationDimensions.id, id))
+      .returning();
+    return updated;
+  }
+  
+  async deleteEvaluationDimension(id: string): Promise<void> {
+    await db.delete(evaluationDimensions).where(eq(evaluationDimensions.id, id));
+  }
+  
+  // Combined operations
+  async getEvaluationCriteriaSetWithDimensions(id: string): Promise<EvaluationCriteriaSetWithDimensions | undefined> {
+    const criteriaSet = await this.getEvaluationCriteriaSet(id);
+    if (!criteriaSet) return undefined;
+    
+    const dimensions = await this.getEvaluationDimensionsByCriteriaSet(id);
+    return { ...criteriaSet, dimensions };
+  }
+  
+  async getActiveEvaluationCriteriaSetWithDimensions(categoryId?: string): Promise<EvaluationCriteriaSetWithDimensions | undefined> {
+    let criteriaSet: EvaluationCriteriaSet | undefined;
+    
+    // 1. 카테고리 ID가 있으면 해당 카테고리의 기준 세트 찾기
+    if (categoryId) {
+      criteriaSet = await this.getEvaluationCriteriaSetByCategory(categoryId);
+    }
+    
+    // 2. 카테고리별 기준이 없으면 기본 기준 세트 사용
+    if (!criteriaSet) {
+      criteriaSet = await this.getDefaultEvaluationCriteriaSet();
+    }
+    
+    // 3. 기본 기준도 없으면 undefined 반환
+    if (!criteriaSet) return undefined;
+    
+    const dimensions = await this.getEvaluationDimensionsByCriteriaSet(criteriaSet.id);
+    return { ...criteriaSet, dimensions };
   }
 }
 

@@ -155,6 +155,37 @@ CREATE TABLE IF NOT EXISTS "ai_usage_logs" (
   "duration_ms" integer,
   "metadata" jsonb
 );
+
+-- 11. Evaluation Criteria Sets (평가 기준 세트)
+CREATE TABLE IF NOT EXISTS "evaluation_criteria_sets" (
+  "id" varchar PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+  "name" varchar NOT NULL,
+  "description" text,
+  "is_default" boolean DEFAULT false NOT NULL,
+  "is_active" boolean DEFAULT true NOT NULL,
+  "category_id" varchar,
+  "created_by" varchar,
+  "created_at" timestamp DEFAULT CURRENT_TIMESTAMP NOT NULL,
+  "updated_at" timestamp DEFAULT CURRENT_TIMESTAMP NOT NULL
+);
+
+-- 12. Evaluation Dimensions (평가 지표)
+CREATE TABLE IF NOT EXISTS "evaluation_dimensions" (
+  "id" varchar PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+  "criteria_set_id" varchar NOT NULL,
+  "key" varchar NOT NULL,
+  "name" varchar NOT NULL,
+  "description" text,
+  "icon" varchar DEFAULT '📊' NOT NULL,
+  "color" varchar DEFAULT 'blue' NOT NULL,
+  "weight" double precision DEFAULT 1.0 NOT NULL,
+  "min_score" integer DEFAULT 1 NOT NULL,
+  "max_score" integer DEFAULT 5 NOT NULL,
+  "scoring_rubric" jsonb,
+  "display_order" integer DEFAULT 0 NOT NULL,
+  "is_active" boolean DEFAULT true NOT NULL,
+  "created_at" timestamp DEFAULT CURRENT_TIMESTAMP NOT NULL
+);
 `;
 
 const foreignKeysSQL = `
@@ -208,6 +239,21 @@ DO $$ BEGIN
   ALTER TABLE "system_settings" ADD CONSTRAINT "system_settings_updated_by_users_id_fk" 
     FOREIGN KEY ("updated_by") REFERENCES "public"."users"("id");
 EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+DO $$ BEGIN
+  ALTER TABLE "evaluation_criteria_sets" ADD CONSTRAINT "evaluation_criteria_sets_category_id_fk" 
+    FOREIGN KEY ("category_id") REFERENCES "public"."categories"("id");
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+DO $$ BEGIN
+  ALTER TABLE "evaluation_criteria_sets" ADD CONSTRAINT "evaluation_criteria_sets_created_by_fk" 
+    FOREIGN KEY ("created_by") REFERENCES "public"."users"("id");
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+DO $$ BEGIN
+  ALTER TABLE "evaluation_dimensions" ADD CONSTRAINT "evaluation_dimensions_criteria_set_id_fk" 
+    FOREIGN KEY ("criteria_set_id") REFERENCES "public"."evaluation_criteria_sets"("id") ON DELETE cascade;
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 `;
 
 const indexesSQL = `
@@ -227,6 +273,10 @@ CREATE INDEX IF NOT EXISTS "idx_ai_usage_logs_occurred_at" ON "ai_usage_logs" US
 CREATE INDEX IF NOT EXISTS "idx_ai_usage_logs_feature" ON "ai_usage_logs" USING btree ("feature");
 CREATE INDEX IF NOT EXISTS "idx_ai_usage_logs_user_id" ON "ai_usage_logs" USING btree ("user_id");
 CREATE INDEX IF NOT EXISTS "idx_ai_usage_logs_model" ON "ai_usage_logs" USING btree ("model");
+CREATE INDEX IF NOT EXISTS "idx_criteria_sets_category" ON "evaluation_criteria_sets" USING btree ("category_id");
+CREATE INDEX IF NOT EXISTS "idx_criteria_sets_default" ON "evaluation_criteria_sets" USING btree ("is_default");
+CREATE INDEX IF NOT EXISTS "idx_dimensions_criteria_set" ON "evaluation_dimensions" USING btree ("criteria_set_id");
+CREATE INDEX IF NOT EXISTS "idx_dimensions_key" ON "evaluation_dimensions" USING btree ("key");
 `;
 
 export async function runMigrations(): Promise<void> {
