@@ -1,0 +1,148 @@
+Welcome to Cloud Shell! Type "help" to get started, or type "gemini" to try prompting with Gemini CLI.
+Your Cloud Platform project in this session is set to roleplay-469506.
+Use `gcloud config set project [PROJECT_ID]` to change to a different project.
+btobkorea@cloudshell:~ (roleplay-469506)$ gcloud sql instances describe ai-roleplay-db-instance --format="value(state)"
+API [sqladmin.googleapis.com] not enabled on project [roleplay-469506]. Would you like to enable and retry (this will take a few minutes)? (y/N)?  y
+
+Enabling service [sqladmin.googleapis.com] on project [roleplay-469506]...
+Operation "operations/acat.p2-231279078440-392feb45-e737-4938-be85-0d817e1653c3" finished successfully.
+RUNNABLE
+btobkorea@cloudshell:~ (roleplay-469506)$ gcloud sql instances describe ai-roleplay-db-instance --format="value(state)"
+RUNNABLE
+btobkorea@cloudshell:~ (roleplay-469506)$ gcloud services enable sqladmin.googleapis.com
+btobkorea@cloudshell:~ (roleplay-469506)$ gcloud projects add-iam-policy-binding roleplay-469506 \
+  --member="serviceAccount:231279078440-compute@developer.gserviceaccount.com" \
+  --role="roles/cloudsql.client"
+ [1] EXPRESSION=request.time < timestamp("2026-01-06T10:03:56.582Z"), TITLE=developer-connect-connection-setup
+ [2] None
+ [3] Specify a new condition
+The policy contains bindings with conditions, so specifying a condition is required when adding a binding. Please specify a condition.:  
+Please enter a value between 1 and 3:  
+Please enter a value between 1 and 3:  
+Please enter a value between 1 and 3:  
+Please enter a value between 1 and 3:  1
+
+Updated IAM policy for project [roleplay-469506].
+bindings:
+- members:
+  - serviceAccount:service-231279078440@gcp-sa-artifactregistry.iam.gserviceaccount.com
+  role: roles/artifactregistry.serviceAgent
+- members:
+  - serviceAccount:231279078440-compute@developer.gserviceaccount.com
+  role: roles/artifactregistry.writer
+- members:
+  - serviceAccount:service-231279078440@gcp-sa-binaryauthorization.iam.gserviceaccount.com
+  role: roles/binaryauthorization.serviceAgent
+- members:
+  - serviceAccount:service-231279078440@gcp-sa-cloudaicompanion.iam.gserviceaccount.com
+  role: roles/cloudaicompanion.serviceAgent
+- members:
+  - serviceAccount:231279078440@cloudbuild.gserviceaccount.com
+  role: roles/cloudbuild.builds.builder
+- members:
+  - serviceAccount:service-231279078440@gcp-sa-cloudbuild.iam.gserviceaccount.com
+  role: roles/cloudbuild.serviceAgent
+- condition:
+    expression: request.time < timestamp("2026-01-06T10:03:56.582Z")
+    title: developer-connect-connection-setup
+  members:
+  - serviceAccount:231279078440-compute@developer.gserviceaccount.com
+  role: roles/cloudsql.client
+- members:
+  - serviceAccount:service-231279078440@compute-system.iam.gserviceaccount.com
+  role: roles/compute.serviceAgent
+- members:
+  - serviceAccount:service-231279078440@container-engine-robot.iam.gserviceaccount.com
+  role: roles/container.serviceAgent
+- members:
+  - serviceAccount:service-231279078440@container-analysis.iam.gserviceaccount.com
+  role: roles/containeranalysis.ServiceAgent
+- members:
+  - serviceAccount:service-231279078440@containerregistry.iam.gserviceaccount.com
+  role: roles/containerregistry.ServiceAgent
+- members:
+  - serviceAccount:service-231279078440@gcp-sa-devconnect.iam.gserviceaccount.com
+  role: roles/developerconnect.serviceAgent
+- members:
+  - serviceAccount:231279078440-compute@developer.gserviceaccount.com
+  - serviceAccount:231279078440@cloudservices.gserviceaccount.com
+  role: roles/editor
+- members:
+  - user:btobkorea@gmail.com
+  role: roles/iam.devOps
+- members:
+  - serviceAccount:231279078440-compute@developer.gserviceaccount.com
+  role: roles/iam.serviceAccountUser
+- members:
+  - serviceAccount:231279078440-compute@developer.gserviceaccount.com
+  role: roles/logging.logWriter
+- members:
+  - user:btobkorea@gmail.com
+  role: roles/owner
+- members:
+  - serviceAccount:service-231279078440@gcp-sa-pubsub.iam.gserviceaccount.com
+  role: roles/pubsub.serviceAgent
+- members:
+  - serviceAccount:231279078440-compute@developer.gserviceaccount.com
+  role: roles/run.admin
+- members:
+  - serviceAccount:service-231279078440@serverless-robot-prod.iam.gserviceaccount.com
+  role: roles/run.serviceAgent
+- condition:
+    expression: request.time < timestamp("2026-01-06T10:03:56.582Z")
+    title: developer-connect-connection-setup
+  members:
+  - serviceAccount:service-231279078440@gcp-sa-devconnect.iam.gserviceaccount.com
+  role: roles/secretmanager.admin
+- members:
+  - serviceAccount:231279078440-compute@developer.gserviceaccount.com
+  - user:btobkorea@gmail.com
+  role: roles/secretmanager.secretAccessor
+etag: BwZIU220ptE=
+version: 3
+btobkorea@cloudshell:~ (roleplay-469506)$ gcloud run services logs read ai-roleplay-training --region=asia-northeast3 --limit=50
+2026-01-14 06:32:58 ✅ MBTI Cache preloaded: 16/16 personas in 28ms
+2026-01-14 06:32:58 ✅ MBTI cache loaded successfully
+2026-01-14 06:32:58 📡 Registering routes...
+2026-01-14 06:32:58 ✅ WebSocket server initialized at /api/realtime-voice
+2026-01-14 06:32:58 ✅ Routes registered successfully
+2026-01-14 06:32:58 📁 Setting up static file serving (production)...
+2026-01-14 06:32:58 ✅ Static file serving configured
+2026-01-14 06:32:58 🌐 Starting server on 0.0.0.0:8080...
+2026-01-14 06:32:58 ✅ Server started successfully!
+2026-01-14 06:32:58 🎉 Application ready at http://0.0.0.0:8080
+2026-01-14 06:32:59 6:32:58 AM [express] serving on port 8080 (host: 0.0.0.0)
+2026-01-14 06:32:59 6:32:59 AM [express] platform: linux
+2026-01-14 06:32:59 6:32:59 AM [express] Network access: http://0.0.0.0:8080
+2026-01-14 06:39:46 GET 200 https://ai-roleplay-training-231279078440.asia-northeast3.run.app/
+2026-01-14 06:39:46 GET 200 https://ai-roleplay-training-231279078440.asia-northeast3.run.app/assets/index-CV6AVfVv.css
+2026-01-14 06:39:46 GET 200 https://ai-roleplay-training-231279078440.asia-northeast3.run.app/assets/index-DnwKrF0Z.js
+2026-01-14 06:39:47 GET 401 https://ai-roleplay-training-231279078440.asia-northeast3.run.app/api/auth/user
+2026-01-14 06:39:47 6:39:47 AM [express] GET /api/auth/user 401 in 4ms :: {"message":"인증 토큰이 필요합니다"}
+2026-01-14 06:39:47 GET 200 https://ai-roleplay-training-231279078440.asia-northeast3.run.app/favicon.ico
+2026-01-14 06:39:49 GET 500 https://ai-roleplay-training-231279078440.asia-northeast3.run.app/api/categories
+2026-01-14 06:39:50 Error getting categories: Error: connect ECONNREFUSED /cloudsql/roleplay-469506:asia-northeast3:ai-roleplay-db-instance/.s.PGSQL.5432
+2026-01-14 06:39:50     at /app/node_modules/pg-pool/index.js:45:11
+2026-01-14 06:39:50     at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+2026-01-14 06:39:50     at async file:///app/node_modules/drizzle-orm/node-postgres/session.js:83:22
+2026-01-14 06:39:50     at async PostgreSQLStorage.getAllCategories (file:///app/dist/index.js:860:16)
+2026-01-14 06:39:50     at async file:///app/dist/index.js:9319:29 {
+2026-01-14 06:39:50   errno: -111,
+2026-01-14 06:39:50   code: 'ECONNREFUSED',
+2026-01-14 06:39:50   syscall: 'connect',
+2026-01-14 06:39:50   address: '/cloudsql/roleplay-469506:asia-northeast3:ai-roleplay-db-instance/.s.PGSQL.5432'
+2026-01-14 06:39:50 }
+2026-01-14 06:39:50 6:39:50 AM [express] GET /api/categories 500 in 354ms :: {"error":"connect ECONNREFUSED /cloudsql/ro…
+2026-01-14 06:40:06 POST 500 https://ai-roleplay-training-231279078440.asia-northeast3.run.app/api/auth/register
+2026-01-14 06:40:06 Registration error: Error: connect ECONNREFUSED /cloudsql/roleplay-469506:asia-northeast3:ai-roleplay-db-instance/.s.PGSQL.5432
+2026-01-14 06:40:06     at /app/node_modules/pg-pool/index.js:45:11
+2026-01-14 06:40:06     at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+2026-01-14 06:40:06     at async file:///app/node_modules/drizzle-orm/node-postgres/session.js:83:22
+2026-01-14 06:40:06     at async PostgreSQLStorage.getUserByEmail (file:///app/dist/index.js:809:24)
+2026-01-14 06:40:06     at async file:///app/dist/index.js:2166:28 {
+2026-01-14 06:40:06   errno: -111,
+2026-01-14 06:40:06   code: 'ECONNREFUSED',
+2026-01-14 06:40:06   syscall: 'connect',
+2026-01-14 06:40:06   address: '/cloudsql/roleplay-469506:asia-northeast3:ai-roleplay-db-instance/.s.PGSQL.5432'
+2026-01-14 06:40:06 }
+2026-01-14 06:40:06 6:40:06 AM [express] POST /api/auth/register 500 in 55ms :: {"message":"서버 오류: connect ECONNREFUSED …
