@@ -1,7 +1,7 @@
 import "dotenv/config";
 import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
-import { setupVite, serveStatic, log } from "./vite";
+import { serveStatic, log } from "./static";
 import { GlobalMBTICache } from "./utils/globalMBTICache";
 import * as pathModule from "path";
 
@@ -99,6 +99,7 @@ app.use((req, res, next) => {
   // doesn't interfere with the other routes
   if (app.get("env") === "development") {
     console.log('🔧 Setting up Vite (development)...');
+    const { setupVite } = await import("./vite");
     await setupVite(app, server);
   } else {
     console.log('📁 Setting up static file serving (production)...');
