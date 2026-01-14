@@ -1,0 +1,239 @@
+ERROR 2026-01-14T00:52:09.986945Z Error [ERR_MODULE_NOT_FOUND]: Cannot find package 'vite' imported from /app/dist/index.js at packageResolve (node:internal/modules/esm/resolve:873:9) at moduleResolve (node:internal/modules/esm/resolve:946:18) at defaultResolve (node:internal/modules/esm/resolve:1188:11) at ModuleLoader.defaultResolve (node:internal/modules/esm/loader:708:12)
+  {
+    "textPayload": "Error [ERR_MODULE_NOT_FOUND]: Cannot find package 'vite' imported from /app/dist/index.js\n    at packageResolve (node:internal/modules/esm/resolve:873:9)\n    at moduleResolve (node:internal/modules/esm/resolve:946:18)\n    at defaultResolve (node:internal/modules/esm/resolve:1188:11)\n    at ModuleLoader.defaultResolve (node:internal/modules/esm/loader:708:12)",
+    "insertId": "6966e8b9000f0f413cd42cc3",
+    "resource": {
+      "type": "cloud_run_revision",
+      "labels": {
+        "location": "asia-northeast3",
+        "configuration_name": "ai-roleplay-training",
+        "project_id": "roleplay-469506",
+        "service_name": "ai-roleplay-training",
+        "revision_name": "ai-roleplay-training-00002-nbw"
+      }
+    },
+    "timestamp": "2026-01-14T00:52:09.986945Z",
+    "severity": "ERROR",
+    "labels": {
+      "instanceId": "005eb6974c967ba1658aa88fdcfaf53f077c88de30a872b4784f05cf14b1f9706629dcc9554f6221be32a92acd56cef308d8eae6f670015fcdadaf13781e62e23006c775e4a82806bc4b7762b8419555b7507c"
+    },
+    "logName": "projects/roleplay-469506/logs/run.googleapis.com%2Fstderr",
+    "receiveTimestamp": "2026-01-14T00:52:09.990414811Z",
+    "errorGroups": [
+      {
+        "id": "CNa9tvCwiMPCYw"
+      }
+    ]
+  }
+DEFAULT 2026-01-14T00:52:09.986947Z at #cachedDefaultResolve (node:internal/modules/esm/loader:657:25)
+DEFAULT 2026-01-14T00:52:09.986950Z at ModuleLoader.resolve (node:internal/modules/esm/loader:640:38)
+DEFAULT 2026-01-14T00:52:09.986953Z at ModuleLoader.getModuleJobForImport (node:internal/modules/esm/loader:264:38)
+DEFAULT 2026-01-14T00:52:09.986955Z at ModuleJob._link (node:internal/modules/esm/module_job:168:49) {
+DEFAULT 2026-01-14T00:52:09.986958Z code: 'ERR_MODULE_NOT_FOUND'
+DEFAULT 2026-01-14T00:52:09.986960Z }
+DEFAULT 2026-01-14T00:52:09.986963Z Node.js v20.19.6
+WARNING 2026-01-14T00:52:10.609411083Z Container called exit(1).
+ERROR 2026-01-14T00:52:15.475440Z Default STARTUP TCP probe failed 1 time consecutively for container "ai-roleplay-training-1" on port 8080. The instance was not started. Connection failed with status CANCELLED.
+  {
+    "textPayload": "Default STARTUP TCP probe failed 1 time consecutively for container \"ai-roleplay-training-1\" on port 8080. The instance was not started.\nConnection failed with status CANCELLED.",
+    "insertId": "6966e8bf000741308f3bf602",
+    "resource": {
+      "type": "cloud_run_revision",
+      "labels": {
+        "location": "asia-northeast3",
+        "service_name": "ai-roleplay-training",
+        "configuration_name": "ai-roleplay-training",
+        "project_id": "roleplay-469506",
+        "revision_name": "ai-roleplay-training-00002-nbw"
+      }
+    },
+    "timestamp": "2026-01-14T00:52:15.475440Z",
+    "severity": "ERROR",
+    "labels": {
+      "instanceId": "005eb6974c967ba1658aa88fdcfaf53f077c88de30a872b4784f05cf14b1f9706629dcc9554f6221be32a92acd56cef308d8eae6f670015fcdadaf13781e62e23006c775e4a82806bc4b7762b8419555b7507c"
+    },
+    "logName": "projects/roleplay-469506/logs/run.googleapis.com%2Fvarlog%2Fsystem",
+    "receiveTimestamp": "2026-01-14T00:52:15.601413272Z"
+  }
+ERROR 2026-01-14T00:52:15.477820Z [protoPayload.serviceName: Cloud Run] [protoPayload.methodName: ReplaceService] [protoPayload.resourceName: ai-roleplay-training-00002-nbw] Ready condition status changed to False for Revision ai-roleplay-training-00002-nbw with message: The user-provided container failed to start and listen on the port defined provided by the PORT=8080 environment variable within the allocated timeout. This can happen when the container port is misconfigured or if the timeout is too short. The health check timeout can be extended. Logs for this revision might contain more information. Logs URL: https://console.cloud.google.com/logs/viewer?project=roleplay-469506&resource=cloud_run_revision/service_name/ai-roleplay-training/revision_name/ai-roleplay-training-00002-nbw&advancedFilter=resource.type%3D%22cloud_run_revision%22%0Aresource.labels.service_name%3D%22ai-roleplay-training%22%0Aresource.labels.revision_name%3D%22ai-roleplay-training-00002-nbw%22 For more troubleshooting guidance, see https://cloud.google.com/run/docs/troubleshooting#container-failed-to-start
+  {
+    "protoPayload": {
+      "@type": "type.googleapis.com/google.cloud.audit.AuditLog",
+      "status": {
+        "code": 9,
+        "message": "Ready condition status changed to False for Revision ai-roleplay-training-00002-nbw with message: The user-provided container failed to start and listen on the port defined provided by the PORT=8080 environment variable within the allocated timeout. This can happen when the container port is misconfigured or if the timeout is too short. The health check timeout can be extended. Logs for this revision might contain more information.\n\nLogs URL: https://console.cloud.google.com/logs/viewer?project=roleplay-469506&resource=cloud_run_revision/service_name/ai-roleplay-training/revision_name/ai-roleplay-training-00002-nbw&advancedFilter=resource.type%3D%22cloud_run_revision%22%0Aresource.labels.service_name%3D%22ai-roleplay-training%22%0Aresource.labels.revision_name%3D%22ai-roleplay-training-00002-nbw%22 \nFor more troubleshooting guidance, see https://cloud.google.com/run/docs/troubleshooting#container-failed-to-start"
+      },
+      "serviceName": "run.googleapis.com",
+      "methodName": "/Services.ReplaceService",
+      "resourceName": "namespaces/roleplay-469506/revisions/ai-roleplay-training-00002-nbw",
+      "response": {
+        "metadata": {
+          "name": "ai-roleplay-training-00002-nbw",
+          "namespace": "231279078440",
+          "selfLink": "/apis/serving.knative.dev/v1/namespaces/231279078440/revisions/ai-roleplay-training-00002-nbw",
+          "uid": "50c8945c-229f-416a-97a6-c224568b07c0",
+          "resourceVersion": "AAZIToTzkzM",
+          "generation": 1,
+          "creationTimestamp": "2026-01-14T00:51:59.430182Z",
+          "labels": {
+            "client.knative.dev/nonce": "tkdhglybdo",
+            "serving.knative.dev/configuration": "ai-roleplay-training",
+            "serving.knative.dev/configurationGeneration": "2",
+            "serving.knative.dev/service": "ai-roleplay-training",
+            "serving.knative.dev/serviceUid": "d5ae4d43-7774-4c67-a4ec-fc0bd3fb47ca",
+            "serving.knative.dev/route": "ai-roleplay-training",
+            "run.googleapis.com/satisfiesPzs": "true",
+            "cloud.googleapis.com/location": "asia-northeast3",
+            "run.googleapis.com/startupProbeType": "Default"
+          },
+          "annotations": {
+            "autoscaling.knative.dev/maxScale": "10",
+            "run.googleapis.com/client-name": "gcloud",
+            "run.googleapis.com/client-version": "552.0.0",
+            "serving.knative.dev/creator": "231279078440-compute@developer.gserviceaccount.com",
+            "run.googleapis.com/operation-id": "8329d730-6ccc-4d05-b494-15a70d7189af",
+            "run.googleapis.com/startup-cpu-boost": "true"
+          },
+          "ownerReferences": [
+            {
+              "kind": "Configuration",
+              "name": "ai-roleplay-training",
+              "uid": "99f663c3-4869-4c38-8100-bd3e2ae17148",
+              "apiVersion": "serving.knative.dev/v1",
+              "controller": true,
+              "blockOwnerDeletion": true
+            }
+          ]
+        },
+        "apiVersion": "serving.knative.dev/v1",
+        "kind": "Revision",
+        "spec": {
+          "containerConcurrency": 80,
+          "timeoutSeconds": 300,
+          "serviceAccountName": "231279078440-compute@developer.gserviceaccount.com",
+          "containers": [
+            {
+              "name": "ai-roleplay-training-1",
+              "image": "gcr.io/roleplay-469506/ai-roleplay-training@sha256:7db26adf3ab4eb64f86db48e23f045352f3e1c298f0bfa2e207c3e8084681bd3",
+              "ports": [
+                {
+                  "name": "http1",
+                  "containerPort": 8080
+                }
+              ],
+              "env": [
+                {
+                  "name": "NODE_ENV",
+                  "value": "production"
+                },
+                {
+                  "name": "JWT_SECRET",
+                  "valueFrom": {
+                    "secretKeyRef": {
+                      "key": "latest",
+                      "name": "jwt-secret"
+                    }
+                  }
+                },
+                {
+                  "name": "DATABASE_URL",
+                  "valueFrom": {
+                    "secretKeyRef": {
+                      "key": "latest",
+                      "name": "database-url"
+                    }
+                  }
+                },
+                {
+                  "name": "GOOGLE_API_KEY",
+                  "valueFrom": {
+                    "secretKeyRef": {
+                      "key": "latest",
+                      "name": "google-api-key"
+                    }
+                  }
+                }
+              ],
+              "resources": {
+                "limits": {
+                  "cpu": "1",
+                  "memory": "1Gi"
+                }
+              },
+              "startupProbe": {
+                "timeoutSeconds": 240,
+                "periodSeconds": 240,
+                "failureThreshold": 1,
+                "tcpSocket": {
+                  "port": 8080
+                }
+              }
+            }
+          ]
+        },
+        "status": {
+          "observedGeneration": 1,
+          "conditions": [
+            {
+              "type": "Ready",
+              "status": "False",
+              "reason": "HealthCheckContainerError",
+              "message": "The user-provided container failed to start and listen on the port defined provided by the PORT=8080 environment variable within the allocated timeout. This can happen when the container port is misconfigured or if the timeout is too short. The health check timeout can be extended. Logs for this revision might contain more information.\n\nLogs URL: https://console.cloud.google.com/logs/viewer?project=roleplay-469506&resource=cloud_run_revision/service_name/ai-roleplay-training/revision_name/ai-roleplay-training-00002-nbw&advancedFilter=resource.type%3D%22cloud_run_revision%22%0Aresource.labels.service_name%3D%22ai-roleplay-training%22%0Aresource.labels.revision_name%3D%22ai-roleplay-training-00002-nbw%22 \nFor more troubleshooting guidance, see https://cloud.google.com/run/docs/troubleshooting#container-failed-to-start",
+              "lastTransitionTime": "2026-01-14T00:52:15.468339Z"
+            },
+            {
+              "type": "ContainerHealthy",
+              "status": "False",
+              "reason": "HealthCheckContainerError",
+              "message": "The user-provided container failed to start and listen on the port defined provided by the PORT=8080 environment variable within the allocated timeout. This can happen when the container port is misconfigured or if the timeout is too short. The health check timeout can be extended. Logs for this revision might contain more information.\n\nLogs URL: https://console.cloud.google.com/logs/viewer?project=roleplay-469506&resource=cloud_run_revision/service_name/ai-roleplay-training/revision_name/ai-roleplay-training-00002-nbw&advancedFilter=resource.type%3D%22cloud_run_revision%22%0Aresource.labels.service_name%3D%22ai-roleplay-training%22%0Aresource.labels.revision_name%3D%22ai-roleplay-training-00002-nbw%22 \nFor more troubleshooting guidance, see https://cloud.google.com/run/docs/troubleshooting#container-failed-to-start",
+              "lastTransitionTime": "2026-01-14T00:52:15.468339Z"
+            },
+            {
+              "type": "ContainerReady",
+              "status": "True",
+              "message": "Container image import completed in 5.82s.",
+              "lastTransitionTime": "2026-01-14T00:52:07.626875Z"
+            },
+            {
+              "type": "ResourcesAvailable",
+              "status": "True",
+              "message": "Provisioning imported containers completed in 1.53s. Checking container health. This will wait for up to 4m for the configured startup probe, including an initial delay of 0s.",
+              "lastTransitionTime": "2026-01-14T00:52:09.158018Z"
+            },
+            {
+              "type": "Retry",
+              "status": "True",
+              "reason": "ImmediateRetry",
+              "message": "System will retry after 00:00 from lastTransitionTime for attempt 0.",
+              "lastTransitionTime": "2026-01-14T00:52:09.158018Z",
+              "severity": "Info"
+            }
+          ],
+          "logUrl": "https://console.cloud.google.com/logs/viewer?project=roleplay-469506&resource=cloud_run_revision/service_name/ai-roleplay-training/revision_name/ai-roleplay-training-00002-nbw&advancedFilter=resource.type%3D%22cloud_run_revision%22%0Aresource.labels.service_name%3D%22ai-roleplay-training%22%0Aresource.labels.revision_name%3D%22ai-roleplay-training-00002-nbw%22",
+          "imageDigest": "gcr.io/roleplay-469506/ai-roleplay-training@sha256:7db26adf3ab4eb64f86db48e23f045352f3e1c298f0bfa2e207c3e8084681bd3",
+          "containerStatuses": [
+            {
+              "name": "ai-roleplay-training-1",
+              "imageDigest": "gcr.io/roleplay-469506/ai-roleplay-training@sha256:7db26adf3ab4eb64f86db48e23f045352f3e1c298f0bfa2e207c3e8084681bd3"
+            }
+          ]
+        },
+        "@type": "type.googleapis.com/google.cloud.run.v1.Revision"
+      }
+    },
+    "insertId": "-59obimd590o",
+    "resource": {
+      "type": "cloud_run_revision",
+      "labels": {
+        "location": "asia-northeast3",
+        "service_name": "ai-roleplay-training",
+        "revision_name": "ai-roleplay-training-00002-nbw",
+        "configuration_name": "ai-roleplay-training",
+        "project_id": "roleplay-469506"
+      }
+    },
+    "timestamp": "2026-01-14T00:52:15.477820Z",
+    "severity": "ERROR",
+    "logName": "projects/roleplay-469506/logs/cloudaudit.googleapis.com%2Fsystem_event",
+    "receiveTimestamp": "2026-01-14T00:52:16.175800690Z"
+  }
