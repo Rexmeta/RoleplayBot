@@ -8,18 +8,31 @@ import { TrendingUp, TrendingDown, Minus, Award, Target, BarChart3, Calendar, He
 import { Link } from "wouter";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts";
 
+type EvaluationDimension = {
+  id: string;
+  key: string;
+  name: string;
+  description: string;
+  icon?: string;
+  color?: string;
+  weight: number;
+  minScore: number;
+  maxScore: number;
+};
+
+type EvaluationCriteriaSet = {
+  id: string;
+  name: string;
+  description?: string;
+  dimensions: EvaluationDimension[];
+};
+
 type AnalyticsSummary = {
   totalSessions: number;
   completedSessions?: number;
   totalFeedbacks?: number;
   averageScore: number;
-  categoryAverages: {
-    clarityLogic: number;
-    listeningEmpathy: number;
-    appropriatenessAdaptability: number;
-    persuasivenessImpact: number;
-    strategicCommunication: number;
-  };
+  categoryAverages: Record<string, number>;
   scoreHistory: Array<{
     date: string;
     time?: string;
@@ -33,12 +46,53 @@ type AnalyticsSummary = {
   lastSessionDate?: string;
 };
 
+const DEFAULT_DIMENSION_ICONS: Record<string, string> = {
+  clarityLogic: "🎯",
+  listeningEmpathy: "👂",
+  appropriatenessAdaptability: "⚡",
+  persuasivenessImpact: "🎪",
+  strategicCommunication: "🎲"
+};
+
+const DEFAULT_DIMENSION_NAMES: Record<string, string> = {
+  clarityLogic: "명확성 & 논리성",
+  listeningEmpathy: "경청 & 공감",
+  appropriatenessAdaptability: "적절성 & 상황 대응",
+  persuasivenessImpact: "설득력 & 영향력",
+  strategicCommunication: "전략적 커뮤니케이션"
+};
+
 export default function Analytics() {
   const { data: analytics, isLoading } = useQuery<AnalyticsSummary>({
     queryKey: ['/api/analytics/summary'],
-    staleTime: 1000 * 60, // 1분간 캐시 유지 (분석 데이터 - 실시간 업데이트)
-    gcTime: 1000 * 60 * 5, // 5분간 메모리 유지
+    staleTime: 1000 * 60,
+    gcTime: 1000 * 60 * 5,
   });
+
+  const { data: evaluationCriteria } = useQuery<EvaluationCriteriaSet>({
+    queryKey: ['/api/evaluation-criteria/active'],
+    staleTime: 1000 * 60 * 10,
+  });
+
+  const getDimensionName = (key: string): string => {
+    const dimension = evaluationCriteria?.dimensions?.find(d => d.key === key);
+    return dimension?.name || DEFAULT_DIMENSION_NAMES[key] || key;
+  };
+
+  const getDimensionIcon = (key: string): string => {
+    const dimension = evaluationCriteria?.dimensions?.find(d => d.key === key);
+    if (dimension?.icon) {
+      const iconMap: Record<string, string> = {
+        'fa-solid fa-bullseye': '🎯',
+        'fa-solid fa-heart': '👂',
+        'fa-solid fa-arrows-rotate': '⚡',
+        'fa-solid fa-chart-line': '🎪',
+        'fa-solid fa-chess': '🎲'
+      };
+      return iconMap[dimension.icon] || DEFAULT_DIMENSION_ICONS[key] || '📊';
+    }
+    return DEFAULT_DIMENSION_ICONS[key] || '📊';
+  };
 
   if (isLoading) {
     return (
@@ -74,21 +128,6 @@ export default function Analytics() {
     );
   }
 
-  const categoryNames = {
-    clarityLogic: "명확성 & 논리성",
-    listeningEmpathy: "경청 & 공감",
-    appropriatenessAdaptability: "적절성 & 상황 대응",
-    persuasivenessImpact: "설득력 & 영향력",
-    strategicCommunication: "전략적 커뮤니케이션"
-  };
-
-  const categoryIcons = {
-    clarityLogic: "🎯",
-    listeningEmpathy: "👂",
-    appropriatenessAdaptability: "⚡",
-    persuasivenessImpact: "🎪",
-    strategicCommunication: "🎲"
-  };
 
   const getGradeColor = (grade: string) => {
     if (grade.startsWith('A')) return 'text-green-600 bg-green-50';
@@ -263,9 +302,9 @@ export default function Analytics() {
                 <div key={key} data-testid={`category-${key}`}>
                   <div className="flex items-center justify-between mb-2">
                     <div className="flex items-center gap-2">
-                      <span className="text-xl">{categoryIcons[key as keyof typeof categoryIcons]}</span>
+                      <span className="text-xl">{getDimensionIcon(key)}</span>
                       <span className="font-medium text-slate-900">
-                        {categoryNames[key as keyof typeof categoryNames]}
+                        {getDimensionName(key)}
                       </span>
                     </div>
                     <span className="text-lg font-semibold text-slate-900" data-testid={`score-${key}`}>

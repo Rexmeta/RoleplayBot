@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useCallback } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -19,6 +19,41 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { StrategyReflection } from "@/components/StrategyReflection";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as ChartTooltip, Legend, ResponsiveContainer } from "recharts";
+
+type EvaluationDimension = {
+  id: string;
+  key: string;
+  name: string;
+  description: string;
+  icon?: string;
+  color?: string;
+  weight: number;
+  minScore: number;
+  maxScore: number;
+};
+
+type EvaluationCriteriaSet = {
+  id: string;
+  name: string;
+  description?: string;
+  dimensions: EvaluationDimension[];
+};
+
+const DEFAULT_DIMENSION_ICONS: Record<string, string> = {
+  clarityLogic: "🎯",
+  listeningEmpathy: "👂",
+  appropriatenessAdaptability: "⚡",
+  persuasivenessImpact: "🎪",
+  strategicCommunication: "🎲"
+};
+
+const DEFAULT_DIMENSION_NAMES: Record<string, string> = {
+  clarityLogic: "명확성 & 논리성",
+  listeningEmpathy: "경청 & 공감",
+  appropriatenessAdaptability: "적절성 & 상황 대응",
+  persuasivenessImpact: "설득력 & 영향력",
+  strategicCommunication: "전략적 커뮤니케이션"
+};
 
 export default function MyPage() {
   const [selectedView, setSelectedView] = useState<"history" | "analytics">("history");
@@ -82,6 +117,32 @@ export default function MyPage() {
     staleTime: 1000 * 60,
     gcTime: 1000 * 60 * 5,
   });
+
+  // 평가 기준 조회 (동적 차원 메타데이터)
+  const { data: evaluationCriteria } = useQuery<EvaluationCriteriaSet>({
+    queryKey: ['/api/evaluation-criteria/active'],
+    staleTime: 1000 * 60 * 10,
+  });
+
+  const getDimensionName = useCallback((key: string): string => {
+    const dimension = evaluationCriteria?.dimensions?.find(d => d.key === key);
+    return dimension?.name || DEFAULT_DIMENSION_NAMES[key] || key;
+  }, [evaluationCriteria]);
+
+  const getDimensionIcon = useCallback((key: string): string => {
+    const dimension = evaluationCriteria?.dimensions?.find(d => d.key === key);
+    if (dimension?.icon) {
+      const iconMap: Record<string, string> = {
+        'fa-solid fa-bullseye': '🎯',
+        'fa-solid fa-heart': '👂',
+        'fa-solid fa-arrows-rotate': '⚡',
+        'fa-solid fa-chart-line': '🎪',
+        'fa-solid fa-chess': '🎲'
+      };
+      return iconMap[dimension.icon] || DEFAULT_DIMENSION_ICONS[key] || '📊';
+    }
+    return DEFAULT_DIMENSION_ICONS[key] || '📊';
+  }, [evaluationCriteria]);
 
   // 시나리오 Map
   const scenariosMap = useMemo(() => 
@@ -467,38 +528,22 @@ export default function MyPage() {
                   </CardHeader>
                   <CardContent>
                     <div className="space-y-6">
-                      {Object.entries(analyticsData.categoryAverages || {}).map(([key, value]) => {
-                        const categoryNames: Record<string, string> = {
-                          clarityLogic: "명확성 & 논리성",
-                          listeningEmpathy: "경청 & 공감",
-                          appropriatenessAdaptability: "적절성 & 상황 대응",
-                          persuasivenessImpact: "설득력 & 영향력",
-                          strategicCommunication: "전략적 커뮤니케이션"
-                        };
-                        const categoryIcons: Record<string, string> = {
-                          clarityLogic: "🎯",
-                          listeningEmpathy: "👂",
-                          appropriatenessAdaptability: "⚡",
-                          persuasivenessImpact: "🎪",
-                          strategicCommunication: "🎲"
-                        };
-                        return (
-                          <div key={key}>
-                            <div className="flex items-center justify-between mb-2">
-                              <div className="flex items-center gap-2">
-                                <span className="text-xl">{categoryIcons[key]}</span>
-                                <span className="font-medium text-slate-900">
-                                  {categoryNames[key]}
-                                </span>
-                              </div>
-                              <span className="text-lg font-semibold text-slate-900">
-                                {(value as number).toFixed(1)} / 5.0
+                      {Object.entries(analyticsData.categoryAverages || {}).map(([key, value]) => (
+                        <div key={key}>
+                          <div className="flex items-center justify-between mb-2">
+                            <div className="flex items-center gap-2">
+                              <span className="text-xl">{getDimensionIcon(key)}</span>
+                              <span className="font-medium text-slate-900">
+                                {getDimensionName(key)}
                               </span>
                             </div>
-                            <Progress value={(value as number) * 20} className="h-3" />
+                            <span className="text-lg font-semibold text-slate-900">
+                              {(value as number).toFixed(1)} / 5.0
+                            </span>
                           </div>
-                        );
-                      })}
+                          <Progress value={(value as number) * 20} className="h-3" />
+                        </div>
+                      ))}
                     </div>
                   </CardContent>
                 </Card>

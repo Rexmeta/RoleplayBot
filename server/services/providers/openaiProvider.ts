@@ -1,6 +1,6 @@
 import OpenAI from "openai";
 import type { ConversationMessage, DetailedFeedback } from "@shared/schema";
-import type { AIServiceInterface, ScenarioPersona } from "../aiService";
+import type { AIServiceInterface, ScenarioPersona, EvaluationCriteriaWithDimensions } from "../aiService";
 import { trackUsage, extractOpenAITokens, getModelPricingKey } from "../aiUsageTracker";
 
 export class OpenAIProvider implements AIServiceInterface {
@@ -138,7 +138,8 @@ JSON 형식으로 응답하세요: {"emotion": "감정", "reason": "감정을 �
     scenario: string, 
     messages: ConversationMessage[], 
     persona: ScenarioPersona,
-    conversation?: any
+    conversation?: any,
+    evaluationCriteria?: EvaluationCriteriaWithDimensions
   ): Promise<DetailedFeedback> {
     const startTime = Date.now();
     
@@ -147,36 +148,8 @@ JSON 형식으로 응답하세요: {"emotion": "감정", "reason": "감정을 �
         `${msg.sender === 'user' ? '사용자' : persona.name}: ${msg.message}`
       ).join('\n');
 
-      const feedbackPrompt = `다음은 ${persona.name}(${persona.role})과의 대화입니다.
-
-대화 내용:
-${conversationText}
-
-평가 목표: ${persona.goals.join(', ')}
-
-다음 5가지 기준으로 1-5점(1=미흡, 2=개선필요, 3=보통, 4=좋음, 5=우수)으로 평가하고 종합적인 피드백을 제공하세요:
-
-1. 메시지 명확성 (25%): 정확하고 이해하기 쉬운 의사소통
-2. 상대방 배려 (20%): 청자의 입장과 상황 고려
-3. 감정적 반응성 (25%): 상대방 감정에 대한 적절한 대응
-4. 대화 구조화 (15%): 논리적이고 체계적인 대화 진행
-5. 전문적 역량 (15%): 업무 상황에 맞는 전문성 발휘 (계획, 방안, 제안, 검토, 분석, 개선, 해결, 대안, 전략, 전문, 경험, 기술 등 키워드 사용)
-
-JSON 형식으로 응답하세요:
-{
-  "overallScore": 전체점수(0-100),
-  "scores": {
-    "clarity": 점수1-5,
-    "empathy": 점수1-5,
-    "responsiveness": 점수1-5,
-    "structure": 점수1-5,
-    "professionalism": 점수1-5
-  },
-  "strengths": ["강점1", "강점2", "강점3"],
-  "improvements": ["개선점1", "개선점2", "개선점3"],
-  "nextSteps": ["다음단계1", "다음단계2", "다음단계3"],
-  "summary": "종합평가요약"
-}`;
+      // 동적 평가 기준 기반 프롬프트 생성
+      const feedbackPrompt = this.buildFeedbackPrompt(conversationText, persona, evaluationCriteria);
 
       const response = await this.client.chat.completions.create({
         model: this.model,
@@ -200,28 +173,91 @@ JSON 형식으로 응답하세요:
 
       const feedbackData = JSON.parse(response.choices[0]?.message?.content || '{}');
       
-      return {
-        overallScore: Math.min(100, Math.max(0, feedbackData.overallScore || 0)),
-        scores: {
-          clarityLogic: Math.min(5, Math.max(1, feedbackData.scores?.clarity || 3)),
-          listeningEmpathy: Math.min(5, Math.max(1, feedbackData.scores?.empathy || 3)),
-          appropriatenessAdaptability: Math.min(5, Math.max(1, feedbackData.scores?.responsiveness || 3)),
-          persuasivenessImpact: Math.min(5, Math.max(1, feedbackData.scores?.structure || 3)),
-          strategicCommunication: Math.min(5, Math.max(1, feedbackData.scores?.professionalism || 2))
-        },
-        strengths: feedbackData.strengths || ["기본적인 대화 능력", "적절한 언어 사용", "상황 이해도"],
-        improvements: feedbackData.improvements || ["더 구체적인 표현", "감정 교감 증진", "논리적 구조화"],
-        nextSteps: feedbackData.nextSteps || ["추가 연습 필요", "전문가 피드백 받기", "실무 경험 쌓기"],
-        summary: feedbackData.summary || "전반적으로 무난한 대화였습니다. 지속적인 연습을 통해 발전할 수 있습니다.",
-        ranking: "전문가 분석을 통한 종합 평가 결과입니다.",
-        behaviorGuides: this.generateBehaviorGuides(),
-        conversationGuides: this.generateConversationGuides(), 
-        developmentPlan: this.generateDevelopmentPlan(feedbackData.overallScore || 60)
-      };
+      return this.parseFeedbackResponse(feedbackData, evaluationCriteria);
     } catch (error) {
       console.error("Feedback generation error:", error);
-      return this.getFallbackFeedback();
+      return this.getFallbackFeedback(evaluationCriteria);
     }
+  }
+
+  private getDefaultDimensions(): EvaluationCriteriaWithDimensions['dimensions'] {
+    return [
+      { key: 'clarityLogic', name: '명확성 & 논리성', description: '의사 표현의 명확성과 논리적 구성', weight: 1, minScore: 1, maxScore: 5 },
+      { key: 'listeningEmpathy', name: '경청 & 공감', description: '상대방의 말을 듣고 공감하는 능력', weight: 1, minScore: 1, maxScore: 5 },
+      { key: 'appropriatenessAdaptability', name: '적절성 & 상황대응', description: '상황에 맞는 적절한 대응', weight: 1, minScore: 1, maxScore: 5 },
+      { key: 'persuasivenessImpact', name: '설득력 & 영향력', description: '상대방을 설득하고 영향을 미치는 능력', weight: 1, minScore: 1, maxScore: 5 },
+      { key: 'strategicCommunication', name: '전략적 커뮤니케이션', description: '목표 달성을 위한 전략적 소통', weight: 1, minScore: 1, maxScore: 5 },
+    ];
+  }
+
+  private buildFeedbackPrompt(conversationText: string, persona: ScenarioPersona, evaluationCriteria?: EvaluationCriteriaWithDimensions): string {
+    const dimensions = evaluationCriteria?.dimensions || this.getDefaultDimensions();
+    const criteriaName = evaluationCriteria?.name || '기본 평가 기준';
+    
+    // 동적 평가 차원 목록 생성
+    const dimensionsList = dimensions.map((dim, idx) => 
+      `${idx + 1}. ${dim.name} (${dim.key}): ${dim.description} [${dim.minScore}-${dim.maxScore}점]`
+    ).join('\n');
+
+    // 동적 scores 구조 생성
+    const scoresStructure = dimensions.map(dim => `"${dim.key}": 점수${dim.minScore}-${dim.maxScore}`).join(',\n    ');
+
+    return `당신은 커뮤니케이션 평가 전문가입니다.
+
+## 평가 기준 세트: ${criteriaName}
+
+## 대화 내용:
+${conversationText}
+
+## 페르소나 정보:
+- 이름: ${persona.name}
+- 역할: ${persona.role}
+- 평가 목표: ${persona.goals.join(', ')}
+
+## 평가 차원 (${dimensions.length}개):
+${dimensionsList}
+
+## 평가 지침:
+1. 각 차원별로 지정된 점수 범위 내에서 평가
+2. 전체 점수는 0-100점
+3. 한국어로 응답
+
+JSON 형식으로 응답:
+{
+  "overallScore": 전체점수(0-100),
+  "scores": {
+    ${scoresStructure}
+  },
+  "strengths": ["강점1", "강점2", "강점3"],
+  "improvements": ["개선점1", "개선점2", "개선점3"],
+  "nextSteps": ["다음단계1", "다음단계2", "다음단계3"],
+  "summary": "종합평가요약"
+}`;
+  }
+
+  private parseFeedbackResponse(feedbackData: any, evaluationCriteria?: EvaluationCriteriaWithDimensions): DetailedFeedback {
+    const dimensions = evaluationCriteria?.dimensions || this.getDefaultDimensions();
+    
+    // 동적 scores 객체 생성
+    const scores: Record<string, number> = {};
+    for (const dim of dimensions) {
+      const rawScore = feedbackData.scores?.[dim.key];
+      scores[dim.key] = Math.min(dim.maxScore, Math.max(dim.minScore, rawScore || Math.ceil((dim.minScore + dim.maxScore) / 2)));
+    }
+
+    return {
+      overallScore: Math.min(100, Math.max(0, feedbackData.overallScore || 60)),
+      scores: scores as any,
+      strengths: feedbackData.strengths || ["기본적인 대화 능력", "적절한 언어 사용", "상황 이해도"],
+      improvements: feedbackData.improvements || ["더 구체적인 표현", "감정 교감 증진", "논리적 구조화"],
+      nextSteps: feedbackData.nextSteps || ["추가 연습 필요", "전문가 피드백 받기", "실무 경험 쌓기"],
+      summary: feedbackData.summary || "전반적으로 무난한 대화였습니다. 지속적인 연습을 통해 발전할 수 있습니다.",
+      ranking: "전문가 분석을 통한 종합 평가 결과입니다.",
+      behaviorGuides: this.generateBehaviorGuides(),
+      conversationGuides: this.generateConversationGuides(), 
+      developmentPlan: this.generateDevelopmentPlan(feedbackData.overallScore || 60),
+      evaluationCriteriaSetName: evaluationCriteria?.name
+    };
   }
 
   private getFallbackResponse(persona: ScenarioPersona): string {
@@ -237,16 +273,16 @@ JSON 형식으로 응답하세요:
     return fallbacks[persona.id as keyof typeof fallbacks] || "시스템 오류가 발생했습니다. 잠시 후 다시 시도해주세요.";
   }
 
-  private getFallbackFeedback(): DetailedFeedback {
+  private getFallbackFeedback(evaluationCriteria?: EvaluationCriteriaWithDimensions): DetailedFeedback {
+    const dimensions = evaluationCriteria?.dimensions || this.getDefaultDimensions();
+    const scores: Record<string, number> = {};
+    for (const dim of dimensions) {
+      scores[dim.key] = Math.ceil((dim.minScore + dim.maxScore) / 2);
+    }
+
     return {
       overallScore: 60,
-      scores: {
-        clarityLogic: 3,
-        listeningEmpathy: 3,
-        appropriatenessAdaptability: 3,
-        persuasivenessImpact: 3,
-        strategicCommunication: 2
-      },
+      scores: scores as any,
       strengths: ["기본적인 대화 참여", "적절한 언어 사용", "상황에 맞는 응답"],
       improvements: ["시스템 안정성 확보 후 재평가 필요", "더 많은 대화 기회 필요", "기술적 문제 해결 후 재시도"],
       nextSteps: ["시스템 점검 완료 후 재도전", "안정적인 환경에서 재시도", "기술 지원팀 문의"],
@@ -259,7 +295,8 @@ JSON 형식으로 응답하세요:
         mediumTerm: [],
         longTerm: [],
         recommendedResources: []
-      }
+      },
+      evaluationCriteriaSetName: evaluationCriteria?.name
     };
   }
 
