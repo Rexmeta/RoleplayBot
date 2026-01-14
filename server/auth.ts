@@ -148,6 +148,10 @@ export function setupAuth(app: Express) {
       // 비밀번호 해시
       const hashedPassword = await hashPassword(password);
 
+      // 첫 번째 회원가입자는 자동으로 admin으로 설정
+      const allUsers = await storage.getAllUsers();
+      const isFirstUser = allUsers.length === 0;
+
       // 사용자 생성 (categoryId는 선택사항으로 저장)
       const user = await storage.createUser({
         email,
@@ -155,6 +159,13 @@ export function setupAuth(app: Express) {
         name,
         assignedCategoryId: categoryId || null,
       });
+
+      // 첫 번째 사용자면 admin으로 업그레이드
+      if (isFirstUser) {
+        await storage.adminUpdateUser(user.id, { role: 'admin' });
+        user.role = 'admin';
+        console.log(`🔑 First user ${email} automatically set as admin`);
+      }
 
       // JWT 토큰 생성
       const token = generateToken(user.id);
@@ -172,9 +183,10 @@ export function setupAuth(app: Express) {
     } catch (error) {
       console.error("Registration error:", error);
       if (error instanceof z.ZodError) {
+        const errorMessages = error.errors.map(e => e.message);
         return res.status(400).json({
-          message: "입력 오류",
-          errors: error.errors.map(e => e.message),
+          message: errorMessages.join(', '),
+          errors: errorMessages,
         });
       }
       res.status(500).json({ message: "서버 오류가 발생했습니다" });

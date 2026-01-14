@@ -21,7 +21,12 @@ interface Category {
 const registerSchema = z.object({
   name: z.string().min(1, "이름을 입력해주세요").max(50, "이름은 50자 이하여야 합니다"),
   email: z.string().email("유효한 이메일을 입력해주세요"),
-  password: z.string().min(6, "비밀번호는 최소 6자 이상이어야 합니다"),
+  password: z.string()
+    .min(8, "비밀번호는 최소 8자 이상이어야 합니다")
+    .regex(/[A-Z]/, "비밀번호에 대문자를 포함해야 합니다")
+    .regex(/[a-z]/, "비밀번호에 소문자를 포함해야 합니다")
+    .regex(/[0-9]/, "비밀번호에 숫자를 포함해야 합니다")
+    .regex(/[!@#$%^&*(),.?":{}|<>]/, "비밀번호에 특수문자를 포함해야 합니다"),
   confirmPassword: z.string().min(1, "비밀번호 확인을 입력해주세요"),
 }).refine((data) => data.password === data.confirmPassword, {
   message: "비밀번호가 일치하지 않습니다",
@@ -177,7 +182,7 @@ export function RegisterForm({ onSwitchToLogin }: RegisterFormProps) {
               <Input
                 id="password"
                 type="password"
-                placeholder="최소 6자 이상"
+                placeholder="8자 이상, 대/소문자, 숫자, 특수문자 포함"
                 className="pl-10"
                 data-testid="input-password"
                 {...register("password")}
