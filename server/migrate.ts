@@ -279,6 +279,114 @@ CREATE INDEX IF NOT EXISTS "idx_dimensions_criteria_set" ON "evaluation_dimensio
 CREATE INDEX IF NOT EXISTS "idx_dimensions_key" ON "evaluation_dimensions" USING btree ("key");
 `;
 
+// 기본 평가 기준 세트 시딩 SQL
+const seedDefaultEvaluationCriteriaSQL = `
+-- 기본 평가 기준 세트 (없으면 생성)
+INSERT INTO "evaluation_criteria_sets" ("id", "name", "description", "is_default", "is_active", "category_id", "created_by", "created_at", "updated_at")
+SELECT 
+  'default-criteria-set',
+  '기본 커뮤니케이션 평가 기준',
+  'ComOn Check 연구 기반 5점 척도 평가 기준. 명확성/논리성, 경청/공감, 적절성/적응력, 설득력/영향력, 전략적 커뮤니케이션 5개 차원으로 구성됩니다.',
+  true,
+  true,
+  NULL,
+  NULL,
+  NOW(),
+  NOW()
+WHERE NOT EXISTS (SELECT 1 FROM "evaluation_criteria_sets" WHERE "id" = 'default-criteria-set');
+
+-- 기본 평가 차원들 (없으면 생성)
+INSERT INTO "evaluation_dimensions" ("id", "criteria_set_id", "key", "name", "description", "weight", "min_score", "max_score", "icon", "color", "display_order", "is_active", "scoring_rubric", "created_at")
+SELECT 
+  'dim-clarity-logic',
+  'default-criteria-set',
+  'clarityLogic',
+  '명확성과 논리성',
+  '메시지의 명확한 전달과 논리적인 구조로 효과적으로 의사를 표현하는 능력',
+  1.0,
+  1,
+  5,
+  'fa-solid fa-bullseye',
+  'blue',
+  1,
+  true,
+  '[{"score":5,"label":"탁월","description":"매우 명확하고 논리적인 커뮤니케이션"},{"score":4,"label":"우수","description":"명확하고 논리적인 커뮤니케이션"},{"score":3,"label":"보통","description":"기본적인 명확성과 논리성"},{"score":2,"label":"개선필요","description":"명확성이나 논리성이 부족"},{"score":1,"label":"미흡","description":"불명확하고 비논리적인 커뮤니케이션"}]',
+  NOW()
+WHERE NOT EXISTS (SELECT 1 FROM "evaluation_dimensions" WHERE "id" = 'dim-clarity-logic');
+
+INSERT INTO "evaluation_dimensions" ("id", "criteria_set_id", "key", "name", "description", "weight", "min_score", "max_score", "icon", "color", "display_order", "is_active", "scoring_rubric", "created_at")
+SELECT 
+  'dim-listening-empathy',
+  'default-criteria-set',
+  'listeningEmpathy',
+  '경청과 공감',
+  '상대방의 말을 주의 깊게 듣고 감정을 이해하며 적절히 반응하는 능력',
+  1.0,
+  1,
+  5,
+  'fa-solid fa-heart',
+  'pink',
+  2,
+  true,
+  '[{"score":5,"label":"탁월","description":"깊은 경청과 공감 능력"},{"score":4,"label":"우수","description":"우수한 경청과 공감"},{"score":3,"label":"보통","description":"기본적인 경청과 공감"},{"score":2,"label":"개선필요","description":"경청이나 공감이 부족"},{"score":1,"label":"미흡","description":"경청과 공감이 미흡"}]',
+  NOW()
+WHERE NOT EXISTS (SELECT 1 FROM "evaluation_dimensions" WHERE "id" = 'dim-listening-empathy');
+
+INSERT INTO "evaluation_dimensions" ("id", "criteria_set_id", "key", "name", "description", "weight", "min_score", "max_score", "icon", "color", "display_order", "is_active", "scoring_rubric", "created_at")
+SELECT 
+  'dim-appropriateness',
+  'default-criteria-set',
+  'appropriatenessAdaptability',
+  '적절성과 적응력',
+  '상황과 맥락에 맞게 커뮤니케이션 스타일을 조절하고 적절하게 대응하는 능력',
+  1.0,
+  1,
+  5,
+  'fa-solid fa-arrows-rotate',
+  'green',
+  3,
+  true,
+  '[{"score":5,"label":"탁월","description":"뛰어난 상황 적응력"},{"score":4,"label":"우수","description":"우수한 상황 대응"},{"score":3,"label":"보통","description":"기본적인 상황 대응"},{"score":2,"label":"개선필요","description":"상황 대응이 미숙"},{"score":1,"label":"미흡","description":"상황 파악이 미흡"}]',
+  NOW()
+WHERE NOT EXISTS (SELECT 1 FROM "evaluation_dimensions" WHERE "id" = 'dim-appropriateness');
+
+INSERT INTO "evaluation_dimensions" ("id", "criteria_set_id", "key", "name", "description", "weight", "min_score", "max_score", "icon", "color", "display_order", "is_active", "scoring_rubric", "created_at")
+SELECT 
+  'dim-persuasiveness',
+  'default-criteria-set',
+  'persuasivenessImpact',
+  '설득력과 영향력',
+  '상대방을 효과적으로 설득하고 원하는 방향으로 영향력을 발휘하는 능력',
+  1.0,
+  1,
+  5,
+  'fa-solid fa-chart-line',
+  'orange',
+  4,
+  true,
+  '[{"score":5,"label":"탁월","description":"탁월한 설득력과 영향력"},{"score":4,"label":"우수","description":"우수한 설득력"},{"score":3,"label":"보통","description":"기본적인 설득력"},{"score":2,"label":"개선필요","description":"설득력이 부족"},{"score":1,"label":"미흡","description":"설득력이 미흡"}]',
+  NOW()
+WHERE NOT EXISTS (SELECT 1 FROM "evaluation_dimensions" WHERE "id" = 'dim-persuasiveness');
+
+INSERT INTO "evaluation_dimensions" ("id", "criteria_set_id", "key", "name", "description", "weight", "min_score", "max_score", "icon", "color", "display_order", "is_active", "scoring_rubric", "created_at")
+SELECT 
+  'dim-strategic-comm',
+  'default-criteria-set',
+  'strategicCommunication',
+  '전략적 커뮤니케이션',
+  '목표 달성을 위해 체계적이고 전략적으로 대화를 이끌어가는 능력',
+  1.0,
+  1,
+  5,
+  'fa-solid fa-chess',
+  'purple',
+  5,
+  true,
+  '[{"score":5,"label":"탁월","description":"탁월한 전략적 대화 능력"},{"score":4,"label":"우수","description":"우수한 전략적 접근"},{"score":3,"label":"보통","description":"기본적인 전략적 대화"},{"score":2,"label":"개선필요","description":"전략적 접근이 부족"},{"score":1,"label":"미흡","description":"전략적 사고가 미흡"}]',
+  NOW()
+WHERE NOT EXISTS (SELECT 1 FROM "evaluation_dimensions" WHERE "id" = 'dim-strategic-comm');
+`;
+
 export async function runMigrations(): Promise<void> {
   const databaseUrl = process.env.DATABASE_URL;
   
@@ -313,6 +421,10 @@ export async function runMigrations(): Promise<void> {
       // Indexes 추가
       await client.query(indexesSQL);
       console.log('✅ Indexes created/verified');
+      
+      // 기본 평가 기준 시딩
+      await client.query(seedDefaultEvaluationCriteriaSQL);
+      console.log('✅ Default evaluation criteria seeded');
       
       console.log('✅ Database migrations completed successfully');
     } finally {

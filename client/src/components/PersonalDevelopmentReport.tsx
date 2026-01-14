@@ -277,6 +277,12 @@ export default function PersonalDevelopmentReport({
         <div style="margin-bottom: 32px; page-break-inside: avoid;">
           <h2 style="font-size: 20px; font-weight: bold; color: #1f2937; border-bottom: 2px solid #4f46e5; padding-bottom: 8px; margin-bottom: 16px;">📊 성과 분석</h2>
           
+          ${feedback.detailedFeedback?.evaluationCriteriaSetName ? `
+          <div style="background: #eef2ff; border: 1px solid #c7d2fe; border-radius: 8px; padding: 12px; margin-bottom: 16px;">
+            <span style="font-size: 14px; color: #4338ca; font-weight: 500;">📋 평가 기준: ${escapeHtml(feedback.detailedFeedback.evaluationCriteriaSetName)}</span>
+          </div>
+          ` : ''}
+          
           <!-- 카테고리별 점수 -->
           <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; margin-bottom: 24px;">
             ${scores.map(score => `
@@ -916,6 +922,19 @@ export default function PersonalDevelopmentReport({
         {/* 성과 분석 */}
         <TabsContent value="scores" className="space-y-6 print-show-all">
           <h2 className="print-section-title hidden print:block">📊 성과 분석</h2>
+          
+          {/* 사용된 평가 기준 세트 정보 */}
+          {feedback?.detailedFeedback?.evaluationCriteriaSetName && (
+            <div className="bg-indigo-50 border border-indigo-200 rounded-lg p-4 mb-4 screen-only">
+              <div className="flex items-center gap-2">
+                <i className="fas fa-clipboard-check text-indigo-600"></i>
+                <span className="text-sm font-medium text-indigo-800">
+                  평가 기준: {feedback.detailedFeedback.evaluationCriteriaSetName}
+                </span>
+              </div>
+            </div>
+          )}
+          
           {/* 카테고리별 점수 */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {feedback?.scores?.map((score, index) => {
