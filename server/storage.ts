@@ -6,9 +6,13 @@ import { eq, asc, desc, inArray, and, gte, lte, sql as sqlBuilder, count, sum, i
 const sql = sqlBuilder;
 
 // Initialize database connection using node-postgres
+const databaseUrl = process.env.DATABASE_URL!;
+const isUnixSocket = databaseUrl.includes('/cloudsql/');
+const disableSsl = databaseUrl.includes('sslmode=disable') || isUnixSocket;
+
 const pool = new Pool({
-  connectionString: process.env.DATABASE_URL!,
-  ssl: process.env.DATABASE_URL?.includes('sslmode=disable') ? false : { rejectUnauthorized: false }
+  connectionString: databaseUrl,
+  ssl: disableSsl ? false : { rejectUnauthorized: false }
 });
 const db = drizzle(pool);
 
