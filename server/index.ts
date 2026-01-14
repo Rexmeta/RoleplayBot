@@ -3,6 +3,7 @@ import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
 import { serveStatic, log } from "./static";
 import { GlobalMBTICache } from "./utils/globalMBTICache";
+import { runMigrations } from "./migrate";
 import * as pathModule from "path";
 
 const app = express();
@@ -71,6 +72,14 @@ app.use((req, res, next) => {
   console.log('🚀 Starting server initialization...');
   console.log(`📋 Environment: ${process.env.NODE_ENV || 'development'}`);
   console.log(`🔌 PORT: ${process.env.PORT || '5000'}`);
+  
+  // 🗄️ 데이터베이스 마이그레이션 실행 (테이블 자동 생성)
+  try {
+    console.log('🗄️ Running database migrations...');
+    await runMigrations();
+  } catch (error) {
+    console.error('⚠️ Database migration failed (non-fatal):', error);
+  }
   
   // 🚀 MBTI 캐시 프리로드 (성능 최적화) - 실패해도 서버 시작 계속
   try {
