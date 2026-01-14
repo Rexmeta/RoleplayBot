@@ -1,0 +1,142 @@
+2026-01-14 13:56:44.756
+
+GET
+
+500
+
+245 B
+
+127.029 s
+
+Chrome 143.0.0.0
+https://ai-roleplay-training-231279078440.asia-northeast3.run.app/api/categories
+
+{
+httpRequest: {11}
+insertId: "6967228b000c067eda2a705b"
+labels: {1}
+logName: "projects/roleplay-469506/logs/run.googleapis.com%2Frequests"
+receiveTimestamp: "2026-01-14T04:58:51.790963423Z"
+resource: {2}
+severity: "ERROR"
+spanId: "d11ce59529bbc121"
+timestamp: "2026-01-14T04:56:44.756571Z"
+trace: "projects/roleplay-469506/traces/11f588eaf3579c70810311489c9338e9"
+}
+2026-01-14 13:57:08.564
+
+POST
+
+500
+
+262 B
+
+127.032 s
+
+Chrome 143.0.0.0
+https://ai-roleplay-training-231279078440.asia-northeast3.run.app/api/auth/register
+
+{
+httpRequest: {11}
+insertId: "696722a3000923fef5c2ca64"
+labels: {1}
+logName: "projects/roleplay-469506/logs/run.googleapis.com%2Frequests"
+receiveTimestamp: "2026-01-14T04:59:15.601934469Z"
+resource: {2}
+severity: "ERROR"
+spanId: "80bafccc465d2adb"
+timestamp: "2026-01-14T04:57:08.564517Z"
+trace: "projects/roleplay-469506/traces/81c744f66806e71c23fe0d57f148e0c2"
+traceSampled: true
+}
+2026-01-14 13:57:14.897
+2026-01-14 04:57:14.897 UTC [39]: [981-1] db=,user=,host= LOG:  checkpoint starting: time
+2026-01-14 13:57:14.926
+2026-01-14 04:57:14.926 UTC [39]: [982-1] db=,user=,host= LOG:  checkpoint complete: wrote 0 buffers (0.0%), wrote 1 SLRU buffers; 0 WAL file(s) added, 0 removed, 0 recycled; write=0.025 s, sync=0.001 s, total=0.030 s; sync files=1, longest=0.001 s, average=0.001 s; distance=1 kB, estimate=8 kB; lsn=0/4FAF748, redo lsn=0/4FAF6F0
+2026-01-14 13:58:02.161
+2026-01-14 04:58:02.161 UTC [18334]: [1-1] db=,user=,host= LOG:  automatic vacuum of table "cloudsqladmin.public.heartbeat": index scans: 0 pages: 0 removed, 1 remain, 1 scanned (100.00% of total), 0 eagerly scanned tuples: 60 removed, 1 remain, 0 are dead but not yet removable removable cutoff: 15803, which was 0 XIDs old when operation ended new relfrozenxid: 15802, which is 61 XIDs ahead of previous value frozen: 0 pages from table (0.00% of total) had 0 tuples frozen visibility map: 1 pages set all-visible, 0 pages set all-frozen (0 were all-visible) index scan not needed: 0 pages from table (0.00% of total) had 0 dead item identifiers removed avg read rate: 0.000 MB/s, avg write rate: 47.063 MB/s buffer usage: 54 hits, 0 reads, 1 dirtied WAL usage: 1 records, 1 full page images, 2378 bytes, 0 buffers full system usage: CPU: user: 0.00 s, system: 0.00 s, elapsed: 0.00 s
+2026-01-14 13:58:02.164
+2026-01-14 04:58:02.164 UTC [18334]: [2-1] db=,user=,host= LOG:  automatic analyze of table "cloudsqladmin.public.heartbeat" avg read rate: 0.000 MB/s, avg write rate: 1.953 MB/s buffer usage: 173 hits, 0 reads, 1 dirtied WAL usage: 4 records, 1 full page images, 5376 bytes, 0 buffers full system usage: CPU: user: 0.00 s, system: 0.00 s, elapsed: 0.00 s
+2026-01-14 13:58:51.786
+Error getting categories: Error: connect ETIMEDOUT 34.64.236.16:5432
+2026-01-14 13:58:51.786
+    at /app/node_modules/pg-pool/index.js:45:11
+2026-01-14 13:58:51.786
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+2026-01-14 13:58:51.786
+    at async file:///app/node_modules/drizzle-orm/node-postgres/session.js:83:22
+2026-01-14 13:58:51.786
+    at async PostgreSQLStorage.getAllCategories (file:///app/dist/index.js:857:16)
+2026-01-14 13:58:51.786
+    at async file:///app/dist/index.js:9316:29 {
+2026-01-14 13:58:51.786
+  errno: -110,
+2026-01-14 13:58:51.786
+  code: 'ETIMEDOUT',
+2026-01-14 13:58:51.786
+  syscall: 'connect',
+2026-01-14 13:58:51.786
+  address: '34.64.236.16',
+2026-01-14 13:58:51.786
+  port: 5432
+2026-01-14 13:58:51.786
+}
+2026-01-14 13:58:51.788
+4:58:51 AM [express] GET /api/categories 500 in 127026ms :: {"error":"connect ETIMEDOUT 34.64.236.16…
+2026-01-14 13:59:15.597
+Registration error: Error: connect ETIMEDOUT 34.64.236.16:5432
+2026-01-14 13:59:15.597
+    at /app/node_modules/pg-pool/index.js:45:11
+2026-01-14 13:59:15.597
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+2026-01-14 13:59:15.597
+    at async file:///app/node_modules/drizzle-orm/node-postgres/session.js:83:22
+2026-01-14 13:59:15.597
+    at async PostgreSQLStorage.getUserByEmail (file:///app/dist/index.js:806:24)
+2026-01-14 13:59:15.597
+    at async file:///app/dist/index.js:2163:28 {
+2026-01-14 13:59:15.597
+  errno: -110,
+2026-01-14 13:59:15.597
+  code: 'ETIMEDOUT',
+2026-01-14 13:59:15.597
+  syscall: 'connect',
+2026-01-14 13:59:15.597
+  address: '34.64.236.16',
+2026-01-14 13:59:15.597
+  port: 5432
+2026-01-14 13:59:15.597
+}
+2026-01-14 13:59:15.599
+4:59:15 AM [express] POST /api/auth/register 500 in 127012ms :: {"message":"서버 오류: connect ETIMEDOUT…
+2026-01-14 13:59:29.965
+
+POST
+
+500
+
+262 B
+
+127.01 s
+
+Chrome 143.0.0.0
+https://ai-roleplay-training-231279078440.asia-northeast3.run.app/api/auth/register
+
+{
+httpRequest: {11}
+insertId: "69672330000f025bd217be07"
+labels: {1}
+logName: "projects/roleplay-469506/logs/run.googleapis.com%2Frequests"
+receiveTimestamp: "2026-01-14T05:01:36.986925185Z"
+resource: {2}
+severity: "ERROR"
+spanId: "d7e0d38fb1add980"
+timestamp: "2026-01-14T04:59:29.965595Z"
+trace: "projects/roleplay-469506/traces/24fea196973ae82c8c99017fa852dbbe"
+traceSampled: true
+}
+2026-01-14 13:59:45.025
+2026-01-14 04:59:45.024 UTC [39]: [983-1] db=,user=,host= LOG:  checkpoint starting: time
+2026-01-14 13:59:45.256
+2026-01-14 04:59:45.256 UTC [39]: [984-1] db=,user=,host= LOG:  checkpoint complete: wrote 2 buffers (0.0%), wrote 1 SLRU buffers; 0 WAL file(s) added, 0 removed, 0 recycled; write=0.226 s, sync=0.002 s, total=0.232 s; sync files=3, longest=0.001 s, average=0.001 s; distance=9 kB, estimate=9 kB; lsn=0/4FB1E28, redo lsn=0/4FB1DD0
+To view newer entries:
