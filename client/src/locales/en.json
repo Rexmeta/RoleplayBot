@@ -22,7 +22,8 @@
     "language": "Language",
     "logout": "Logout",
     "login": "Login",
-    "register": "Register"
+    "register": "Register",
+    "user": "User"
   },
   "nav": {
     "home": "Home",
@@ -107,6 +108,7 @@
   },
   "mypage": {
     "title": "My Page",
+    "titleSuffix": "'s My Page",
     "conversationHistory": "Conversation History",
     "analytics": "Analytics",
     "profile": "Profile",

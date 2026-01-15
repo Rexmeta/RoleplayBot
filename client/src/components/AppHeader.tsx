@@ -17,21 +17,27 @@ interface AppHeaderProps {
 }
 
 export function AppHeader({
-  title = "🎭 Roleplay X",
-  subtitle = "커뮤니케이션 역량 개발",
+  title,
+  subtitle,
   showBackButton = false,
   backHref = "/home",
-  backLabel = "홈으로",
+  backLabel,
   onLogoClick,
   rightContent,
   variant = 'default',
   userName,
   userEmail
 }: AppHeaderProps) {
+  const { t } = useTranslation();
+  
+  const displayTitle = title || `🎭 ${t('common.appName')}`;
+  const displaySubtitle = subtitle || t('common.tagline');
+  const displayBackLabel = backLabel || t('nav.backToHome');
+
   const LogoContent = (
     <div>
-      <h1 className="text-xl font-bold text-slate-900">{title}</h1>
-      <p className="text-sm text-slate-600">{subtitle}</p>
+      <h1 className="text-xl font-bold text-slate-900">{displayTitle}</h1>
+      <p className="text-sm text-slate-600">{displaySubtitle}</p>
     </div>
   );
 
@@ -47,11 +53,11 @@ export function AppHeader({
                 data-testid="back-to-home"
               >
                 <i className="fas fa-arrow-left"></i>
-                <span className="text-sm">홈으로</span>
+                <span className="text-sm">{t('nav.backToHome')}</span>
               </Link>
               <div className="border-l border-slate-300 pl-4">
                 <h1 className="text-sm font-bold text-slate-900" data-testid="user-name">
-                  {userName || '사용자'}님의 MyPage
+                  {userName || t('common.user')}{t('mypage.titleSuffix')}
                 </h1>
                 <p className="text-xs text-slate-600" data-testid="user-email">{userEmail}</p>
               </div>
@@ -79,11 +85,11 @@ export function AppHeader({
                 data-testid="back-to-home"
               >
                 <i className="fas fa-arrow-left"></i>
-                <span className="text-sm">{backLabel}</span>
+                <span className="text-sm">{displayBackLabel}</span>
               </Link>
               <div className="border-l border-slate-300 pl-4">
-                <h1 className="text-3xl font-bold text-slate-900" data-testid="page-title">{title}</h1>
-                <p className="text-slate-600 mt-2">{subtitle}</p>
+                <h1 className="text-3xl font-bold text-slate-900" data-testid="page-title">{displayTitle}</h1>
+                <p className="text-slate-600 mt-2">{displaySubtitle}</p>
               </div>
             </div>
           ) : onLogoClick ? (

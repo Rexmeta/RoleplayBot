@@ -22,7 +22,8 @@
     "language": "언어",
     "logout": "로그아웃",
     "login": "로그인",
-    "register": "회원가입"
+    "register": "회원가입",
+    "user": "사용자"
   },
   "nav": {
     "home": "홈으로",
@@ -107,6 +108,7 @@
   },
   "mypage": {
     "title": "마이페이지",
+    "titleSuffix": "님의 마이페이지",
     "conversationHistory": "대화 기록",
     "analytics": "분석",
     "profile": "프로필",

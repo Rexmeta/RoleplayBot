@@ -22,7 +22,8 @@
     "language": "语言",
     "logout": "退出登录",
     "login": "登录",
-    "register": "注册"
+    "register": "注册",
+    "user": "用户"
   },
   "nav": {
     "home": "返回首页",
@@ -107,6 +108,7 @@
   },
   "mypage": {
     "title": "我的页面",
+    "titleSuffix": "的个人页面",
     "conversationHistory": "对话历史",
     "analytics": "数据分析",
     "profile": "个人资料",
