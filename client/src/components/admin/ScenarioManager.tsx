@@ -797,8 +797,8 @@ export function ScenarioManager() {
                     평가 기준 (선택)
                   </Label>
                   <Select 
-                    value={formData.evaluationCriteriaSetId || ''} 
-                    onValueChange={(val) => setFormData(prev => ({ ...prev, evaluationCriteriaSetId: val || undefined }))}
+                    value={formData.evaluationCriteriaSetId || 'default'} 
+                    onValueChange={(val) => setFormData(prev => ({ ...prev, evaluationCriteriaSetId: val === 'default' ? '' : val }))}
                   >
                     <SelectTrigger 
                       className="bg-white"
@@ -807,7 +807,7 @@ export function ScenarioManager() {
                       <SelectValue placeholder="기본 평가 기준 사용" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="">기본 평가 기준 사용</SelectItem>
+                      <SelectItem value="default">기본 평가 기준 사용</SelectItem>
                       {evaluationCriteriaSets?.map(criteria => (
                         <SelectItem key={criteria.id} value={criteria.id} data-testid={`criteria-option-${criteria.id}`}>
                           {criteria.name} {criteria.isDefault && '(기본값)'}
