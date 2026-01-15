@@ -72,5 +72,6 @@
   "imagePrompt": "품질은 현장에서 작업 유니폼을 영업팀은 정장 차림의 모습으로 서로 대립하는 아이덴티티를 잘 보여주는 복장과 분위기로 대립하는 모습",
   "introVideoUrl": "/scenarios/videos/intro-new-product-론칭-임박-2025-11-18T04-43-28-2025-12-05T08-19-34.webm",
   "videoPrompt": "First-person perspective walking down a empty modern office hallway and approaching a closed meeting room door, opening it, entering the room, and sitting down in a chair at the table. realistic style. asian ",
-  "objectiveType": ""
+  "objectiveType": "",
+  "evaluationCriteriaSetId": "ce1d1443-df1e-4806-9a5a-41ff5b7cf1ba"
 }
