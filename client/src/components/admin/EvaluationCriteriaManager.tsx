@@ -10,9 +10,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Badge } from "@/components/ui/badge";
+import { Slider } from "@/components/ui/slider";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { Plus, Edit, Trash2, Star, Check, GripVertical, Copy, Settings, MessageCircle, Target, Lightbulb, Heart, Users, Award, Brain, Zap, Shield, TrendingUp, Eye, Ear, HandHeart, Compass, Flag, ThumbsUp, Megaphone, PenTool, BookOpen, Sparkles } from "lucide-react";
+import { Plus, Edit, Trash2, Star, Check, GripVertical, Copy, Settings, MessageCircle, Target, Lightbulb, Heart, Users, Award, Brain, Zap, Shield, TrendingUp, Eye, Ear, HandHeart, Compass, Flag, ThumbsUp, Megaphone, PenTool, BookOpen, Sparkles, AlertCircle } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 
 const AVAILABLE_ICONS = [
@@ -59,6 +60,7 @@ interface EvaluationDimension {
   name: string;
   description?: string | null;
   weight: number;
+  dimensionType: 'core' | 'standard' | 'bonus';
   minScore: number;
   maxScore: number;
   icon?: string | null;
@@ -86,11 +88,17 @@ interface Category {
 }
 
 const DEFAULT_DIMENSIONS = [
-  { key: 'clarityLogic', name: '명확성 & 논리성', description: '의사 표현의 명확성과 논리적 구성' },
-  { key: 'listeningEmpathy', name: '경청 & 공감', description: '상대방의 말을 듣고 공감하는 능력' },
-  { key: 'appropriatenessAdaptability', name: '적절성 & 상황대응', description: '상황에 맞는 적절한 대응' },
-  { key: 'persuasivenessImpact', name: '설득력 & 영향력', description: '상대방을 설득하고 영향을 미치는 능력' },
-  { key: 'strategicCommunication', name: '전략적 커뮤니케이션', description: '목표 달성을 위한 전략적 소통' },
+  { key: 'clarityLogic', name: '명확성 & 논리성', description: '의사 표현의 명확성과 논리적 구성', weight: 20 },
+  { key: 'listeningEmpathy', name: '경청 & 공감', description: '상대방의 말을 듣고 공감하는 능력', weight: 20 },
+  { key: 'appropriatenessAdaptability', name: '적절성 & 상황대응', description: '상황에 맞는 적절한 대응', weight: 20 },
+  { key: 'persuasivenessImpact', name: '설득력 & 영향력', description: '상대방을 설득하고 영향을 미치는 능력', weight: 20 },
+  { key: 'strategicCommunication', name: '전략적 커뮤니케이션', description: '목표 달성을 위한 전략적 소통', weight: 20 },
+];
+
+const DIMENSION_TYPE_OPTIONS = [
+  { value: 'core', label: '필수 기준', description: '반드시 충족해야 하는 핵심 평가 항목', color: 'text-red-600' },
+  { value: 'standard', label: '일반 기준', description: '표준 평가 항목', color: 'text-blue-600' },
+  { value: 'bonus', label: '가점 기준', description: '추가 가점을 받을 수 있는 항목', color: 'text-green-600' },
 ];
 
 export function EvaluationCriteriaManager() {
@@ -114,7 +122,8 @@ export function EvaluationCriteriaManager() {
     key: '',
     name: '',
     description: '',
-    weight: 1,
+    weight: 20,
+    dimensionType: 'standard' as 'core' | 'standard' | 'bonus',
     minScore: 1,
     maxScore: 5,
     icon: '',
@@ -253,7 +262,8 @@ export function EvaluationCriteriaManager() {
       key: '',
       name: '',
       description: '',
-      weight: 1,
+      weight: 20,
+      dimensionType: 'standard',
       minScore: 1,
       maxScore: 5,
       icon: '',
@@ -267,7 +277,8 @@ export function EvaluationCriteriaManager() {
     const dimensions = formData.useDefaultDimensions
       ? DEFAULT_DIMENSIONS.map((dim, idx) => ({
           ...dim,
-          weight: 1,
+          weight: dim.weight,
+          dimensionType: 'standard',
           minScore: 1,
           maxScore: 5,
           displayOrder: idx,
@@ -327,6 +338,7 @@ export function EvaluationCriteriaManager() {
       name: dimension.name,
       description: dimension.description || '',
       weight: dimension.weight,
+      dimensionType: dimension.dimensionType || 'standard',
       minScore: dimension.minScore,
       maxScore: dimension.maxScore,
       icon: dimension.icon || '',
@@ -345,6 +357,7 @@ export function EvaluationCriteriaManager() {
       name: dimensionFormData.name,
       description: dimensionFormData.description || null,
       weight: dimensionFormData.weight,
+      dimensionType: dimensionFormData.dimensionType,
       minScore: dimensionFormData.minScore,
       maxScore: dimensionFormData.maxScore,
       icon: dimensionFormData.icon || 'Star',
@@ -632,18 +645,44 @@ export function EvaluationCriteriaManager() {
                 placeholder="이 평가 차원에 대한 상세 설명"
               />
             </div>
-            <div className="grid grid-cols-3 gap-4">
-              <div>
-                <Label htmlFor="dim-weight">가중치</Label>
-                <Input
-                  id="dim-weight"
-                  type="number"
-                  min="0"
-                  step="0.1"
-                  value={dimensionFormData.weight}
-                  onChange={(e) => setDimensionFormData({ ...dimensionFormData, weight: parseFloat(e.target.value) || 1 })}
-                />
+            <div>
+              <Label>차원 유형</Label>
+              <Select
+                value={dimensionFormData.dimensionType}
+                onValueChange={(value: 'core' | 'standard' | 'bonus') => setDimensionFormData({ ...dimensionFormData, dimensionType: value })}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {DIMENSION_TYPE_OPTIONS.map(opt => (
+                    <SelectItem key={opt.value} value={opt.value}>
+                      <div className="flex items-center gap-2">
+                        <span className={opt.color}>{opt.label}</span>
+                        <span className="text-xs text-slate-400">- {opt.description}</span>
+                      </div>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <Label htmlFor="dim-weight">가중치 (%)</Label>
+                <span className="text-lg font-bold text-blue-600">{dimensionFormData.weight}%</span>
               </div>
+              <Slider
+                id="dim-weight"
+                min={0}
+                max={100}
+                step={5}
+                value={[dimensionFormData.weight]}
+                onValueChange={(values) => setDimensionFormData({ ...dimensionFormData, weight: values[0] })}
+                className="my-2"
+              />
+              <p className="text-xs text-slate-500">모든 활성 차원의 가중치 합계가 100%가 되도록 설정하세요.</p>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
               <div>
                 <Label htmlFor="dim-minScore">최소 점수</Label>
                 <Input
@@ -758,28 +797,51 @@ function CriteriaSetDetail({
   }
 
   const dimensions = setWithDimensions?.dimensions || [];
+  const activeDimensions = dimensions.filter(d => d.isActive);
+  const totalWeight = activeDimensions.reduce((sum, d) => sum + (d.weight || 0), 0);
+  const isWeightValid = Math.abs(totalWeight - 100) < 0.1;
+
+  const getDimensionTypeBadge = (type: string) => {
+    switch (type) {
+      case 'core':
+        return <Badge className="bg-red-100 text-red-700 text-xs">필수</Badge>;
+      case 'bonus':
+        return <Badge className="bg-green-100 text-green-700 text-xs">가점</Badge>;
+      default:
+        return <Badge className="bg-blue-100 text-blue-700 text-xs">일반</Badge>;
+    }
+  };
 
   return (
     <div className="space-y-4">
-      <div className="flex gap-2">
-        <Button variant="outline" size="sm" onClick={onEdit}>
-          <Edit className="h-4 w-4 mr-1" />
-          수정
-        </Button>
-        {!isDefault && (
-          <Button variant="outline" size="sm" onClick={onSetDefault}>
-            <Star className="h-4 w-4 mr-1" />
-            기본으로 설정
+      <div className="flex items-center justify-between">
+        <div className="flex gap-2">
+          <Button variant="outline" size="sm" onClick={onEdit}>
+            <Edit className="h-4 w-4 mr-1" />
+            수정
           </Button>
-        )}
-        <Button variant="outline" size="sm" onClick={onAddDimension}>
-          <Plus className="h-4 w-4 mr-1" />
-          차원 추가
-        </Button>
-        <Button variant="destructive" size="sm" onClick={onDelete}>
-          <Trash2 className="h-4 w-4 mr-1" />
-          삭제
-        </Button>
+          {!isDefault && (
+            <Button variant="outline" size="sm" onClick={onSetDefault}>
+              <Star className="h-4 w-4 mr-1" />
+              기본으로 설정
+            </Button>
+          )}
+          <Button variant="outline" size="sm" onClick={onAddDimension}>
+            <Plus className="h-4 w-4 mr-1" />
+            차원 추가
+          </Button>
+          <Button variant="destructive" size="sm" onClick={onDelete}>
+            <Trash2 className="h-4 w-4 mr-1" />
+            삭제
+          </Button>
+        </div>
+        <div className={`flex items-center gap-2 px-3 py-1 rounded-lg ${isWeightValid ? 'bg-green-50 text-green-700' : 'bg-amber-50 text-amber-700'}`}>
+          {!isWeightValid && <AlertCircle className="h-4 w-4" />}
+          <span className="text-sm font-medium">
+            가중치 합계: <span className="font-bold">{totalWeight.toFixed(1)}%</span>
+            {!isWeightValid && ' (100% 권장)'}
+          </span>
+        </div>
       </div>
 
       {dimensions.length === 0 ? (
@@ -792,11 +854,11 @@ function CriteriaSetDetail({
             <thead className="bg-slate-50">
               <tr>
                 <th className="text-left px-3 py-2">순서</th>
-                <th className="text-left px-3 py-2">키</th>
+                <th className="text-left px-3 py-2">유형</th>
                 <th className="text-left px-3 py-2">이름</th>
                 <th className="text-left px-3 py-2">설명</th>
                 <th className="text-center px-3 py-2">가중치</th>
-                <th className="text-center px-3 py-2">점수 범위</th>
+                <th className="text-center px-3 py-2">점수</th>
                 <th className="text-center px-3 py-2">상태</th>
                 <th className="text-right px-3 py-2">작업</th>
               </tr>
@@ -805,15 +867,20 @@ function CriteriaSetDetail({
               {dimensions.map((dim, index) => (
                 <tr key={dim.id} className="border-t">
                   <td className="px-3 py-2 text-slate-500">{index + 1}</td>
-                  <td className="px-3 py-2 font-mono text-xs">{dim.key}</td>
+                  <td className="px-3 py-2">{getDimensionTypeBadge((dim as any).dimensionType || 'standard')}</td>
                   <td className="px-3 py-2">
-                    {dim.icon && <span className="mr-1">{dim.icon}</span>}
-                    {dim.name}
+                    <div className="flex items-center gap-1">
+                      {dim.icon && <span className="mr-1">{dim.icon}</span>}
+                      <span className="font-medium">{dim.name}</span>
+                    </div>
+                    <span className="text-xs text-slate-400 font-mono">{dim.key}</span>
                   </td>
                   <td className="px-3 py-2 text-slate-500 max-w-[200px] truncate">
                     {dim.description}
                   </td>
-                  <td className="px-3 py-2 text-center">{dim.weight}</td>
+                  <td className="px-3 py-2 text-center">
+                    <span className="font-bold text-blue-600">{dim.weight}%</span>
+                  </td>
                   <td className="px-3 py-2 text-center">{dim.minScore}-{dim.maxScore}</td>
                   <td className="px-3 py-2 text-center">
                     {dim.isActive ? (
