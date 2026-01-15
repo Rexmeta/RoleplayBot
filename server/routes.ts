@@ -4289,6 +4289,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
   
+  // 모든 평가 기준 세트 목록 조회 (시나리오 생성/수정 시 사용)
+  app.get("/api/evaluation-criteria", isAuthenticated, async (req, res) => {
+    try {
+      const criteriaSets = await storage.getEvaluationCriteriaSets();
+      res.json(criteriaSets);
+    } catch (error: any) {
+      console.error("Error getting evaluation criteria sets:", error);
+      res.status(500).json({ error: error.message || "Failed to get evaluation criteria sets" });
+    }
+  });
+  
   // 카테고리 또는 기본 평가 기준 세트 조회 (피드백 생성 시 사용)
   app.get("/api/evaluation-criteria/active", isAuthenticated, async (req, res) => {
     try {
