@@ -8,6 +8,7 @@ export interface User {
   profileImage?: string | null; // 프로필 이미지 URL
   tier?: string; // 회원 등급: bronze, silver, gold, platinum, diamond
   assignedCategoryId?: string | null; // 운영자가 담당하는 카테고리 ID
+  preferredLanguage?: string; // 선호 언어: ko, en, ja, zh
 }
 
 export interface AuthContextType {
@@ -15,7 +16,7 @@ export interface AuthContextType {
   isLoading: boolean;
   isAuthenticated: boolean;
   login: (email: string, password: string, rememberMe?: boolean) => Promise<void>;
-  register: (email: string, password: string, name: string, categoryId?: string) => Promise<void>;
+  register: (email: string, password: string, name: string, categoryId?: string, preferredLanguage?: string) => Promise<void>;
   logout: () => Promise<void>;
 }
 

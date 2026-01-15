@@ -73,18 +73,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   // 회원가입 mutation
   const registerMutation = useMutation({
-    mutationFn: async ({ email, password, name, categoryId }: {
+    mutationFn: async ({ email, password, name, categoryId, preferredLanguage }: {
       email: string;
       password: string;
       name: string;
       categoryId?: string;
+      preferredLanguage?: string;
     }) => {
       const response = await fetch("/api/auth/register", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ email, password, name, categoryId }),
+        body: JSON.stringify({ email, password, name, categoryId, preferredLanguage }),
       });
       
       if (!response.ok) {
@@ -140,8 +141,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     await loginMutation.mutateAsync({ email, password, rememberMe });
   };
 
-  const register = async (email: string, password: string, name: string, categoryId?: string) => {
-    await registerMutation.mutateAsync({ email, password, name, categoryId });
+  const register = async (email: string, password: string, name: string, categoryId?: string, preferredLanguage?: string) => {
+    await registerMutation.mutateAsync({ email, password, name, categoryId, preferredLanguage });
   };
 
   const logout = async () => {

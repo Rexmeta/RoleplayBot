@@ -10,7 +10,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Mail, Lock, User, Folder } from "lucide-react";
+import { Loader2, Mail, Lock, User, Folder, Globe } from "lucide-react";
+import { useTranslation } from "react-i18next";
+import { SUPPORTED_LANGUAGES } from "@/lib/i18n";
 
 interface Category {
   id: string;
@@ -42,8 +44,10 @@ interface RegisterFormProps {
 export function RegisterForm({ onSwitchToLogin }: RegisterFormProps) {
   const { register: registerUser } = useAuth();
   const { toast } = useToast();
+  const { i18n, t } = useTranslation();
   const [isLoading, setIsLoading] = useState(false);
   const [selectedCategoryId, setSelectedCategoryId] = useState<string>("");
+  const [selectedLanguage, setSelectedLanguage] = useState<string>(i18n.language || 'ko');
 
   const { data: categories = [] } = useQuery<Category[]>({
     queryKey: ['/api/categories'],
@@ -74,16 +78,18 @@ export function RegisterForm({ onSwitchToLogin }: RegisterFormProps) {
     try {
       setIsLoading(true);
       const categoryToSubmit = selectedCategoryId && selectedCategoryId.length > 0 ? selectedCategoryId : undefined;
-      await registerUser(data.email, data.password, data.name, categoryToSubmit);
+      await registerUser(data.email, data.password, data.name, categoryToSubmit, selectedLanguage);
+      i18n.changeLanguage(selectedLanguage);
+      localStorage.setItem('preferredLanguage', selectedLanguage);
       toast({
-        title: "회원가입 성공",
-        description: "계정이 생성되었습니다. 환영합니다!",
+        title: t('auth.registerSuccess'),
+        description: t('auth.welcomeMessage') || "계정이 생성되었습니다. 환영합니다!",
       });
     } catch (error: any) {
       console.error("Register error:", error);
       toast({
-        title: "회원가입 실패",
-        description: error.message || "회원가입 중 오류가 발생했습니다.",
+        title: t('auth.registerError'),
+        description: error.message || t('auth.registerError'),
         variant: "destructive",
       });
     } finally {
@@ -123,6 +129,36 @@ export function RegisterForm({ onSwitchToLogin }: RegisterFormProps) {
                 {errors.name.message}
               </p>
             )}
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="language" data-testid="label-language">
+              {t('common.language')}
+            </Label>
+            <div className="relative">
+              <Globe className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4 z-10" />
+              <Select
+                value={selectedLanguage}
+                onValueChange={(value) => {
+                  setSelectedLanguage(value);
+                  i18n.changeLanguage(value);
+                }}
+              >
+                <SelectTrigger className="pl-10" data-testid="select-language">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {SUPPORTED_LANGUAGES.map((lang) => (
+                    <SelectItem key={lang.code} value={lang.code}>
+                      <span className="flex items-center gap-2">
+                        <span>{lang.flag}</span>
+                        <span>{lang.name}</span>
+                      </span>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           </div>
 
           <div className="space-y-2">

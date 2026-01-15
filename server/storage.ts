@@ -77,7 +77,7 @@ export interface IStorage {
   // User operations - 이메일 기반 인증 시스템
   getUser(id: string): Promise<User | undefined>;
   getUserByEmail(email: string): Promise<User | undefined>;
-  createUser(user: { email: string; password: string; name: string; assignedCategoryId?: string | null }): Promise<User>;
+  createUser(user: { email: string; password: string; name: string; assignedCategoryId?: string | null; preferredLanguage?: string }): Promise<User>;
   updateUser(id: string, updates: { name?: string; password?: string; profileImage?: string; tier?: string }): Promise<User>;
   updateUserLanguage(id: string, language: string): Promise<User>;
   upsertUser(user: UpsertUser): Promise<User>;
@@ -420,7 +420,7 @@ export class MemStorage implements IStorage {
     return undefined;
   }
 
-  async createUser(userData: { email: string; password: string; name: string; assignedCategoryId?: string | null }): Promise<User> {
+  async createUser(userData: { email: string; password: string; name: string; assignedCategoryId?: string | null; preferredLanguage?: string }): Promise<User> {
     const id = randomUUID();
     const user: User = {
       id,
@@ -430,7 +430,7 @@ export class MemStorage implements IStorage {
       role: 'user',
       profileImage: null,
       tier: 'bronze',
-      preferredLanguage: 'ko',
+      preferredLanguage: userData.preferredLanguage || 'ko',
       isActive: true,
       lastLoginAt: null,
       assignedCategoryId: userData.assignedCategoryId || null,
@@ -795,8 +795,11 @@ export class PostgreSQLStorage implements IStorage {
     return user;
   }
 
-  async createUser(userData: { email: string; password: string; name: string; assignedCategoryId?: string | null }): Promise<User> {
-    const [user] = await db.insert(users).values(userData).returning();
+  async createUser(userData: { email: string; password: string; name: string; assignedCategoryId?: string | null; preferredLanguage?: string }): Promise<User> {
+    const [user] = await db.insert(users).values({
+      ...userData,
+      preferredLanguage: userData.preferredLanguage || 'ko',
+    }).returning();
     return user;
   }
 

@@ -1,6 +1,5 @@
 import { Link } from "wouter";
 import { UserProfileMenu } from "@/components/UserProfileMenu";
-import { LanguageSelector } from "@/components/LanguageSelector";
 import { useTranslation } from "react-i18next";
 
 interface AppHeaderProps {
@@ -64,7 +63,6 @@ export function AppHeader({
             </div>
             <div className="flex gap-3">
               {rightContent}
-              <LanguageSelector />
               <UserProfileMenu />
             </div>
           </div>
@@ -111,7 +109,6 @@ export function AppHeader({
           )}
           <div className="flex items-center space-x-2">
             {rightContent}
-            <LanguageSelector />
             <UserProfileMenu />
           </div>
         </div>
