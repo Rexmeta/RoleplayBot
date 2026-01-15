@@ -78,13 +78,13 @@ export function DifficultySettingsTab() {
       return res.json();
     },
     onSuccess: () => {
-      toast({ title: '저장 완료', description: '난이도 설정이 저장되었습니다.' });
+      toast({ title: '저장 완료', description: '대화 난이도 설정이 저장되었습니다.' });
       queryClient.invalidateQueries({ queryKey: ['/api/admin/difficulty-settings'] });
       setEditingLevel(null);
       setEditForm(null);
     },
     onError: (error: any) => {
-      toast({ title: '저장 실패', description: error.message || '난이도 설정 저장에 실패했습니다.', variant: 'destructive' });
+      toast({ title: '저장 실패', description: error.message || '대화 난이도 설정 저장에 실패했습니다.', variant: 'destructive' });
     }
   });
 
@@ -94,7 +94,7 @@ export function DifficultySettingsTab() {
       return res.json();
     },
     onSuccess: () => {
-      toast({ title: '초기화 완료', description: '난이도 설정이 기본값으로 복원되었습니다.' });
+      toast({ title: '초기화 완료', description: '대화 난이도 설정이 기본값으로 복원되었습니다.' });
       queryClient.invalidateQueries({ queryKey: ['/api/admin/difficulty-settings'] });
     },
     onError: (error: any) => {

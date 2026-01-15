@@ -21,7 +21,7 @@ export default function AdminManagement() {
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
           <TabsList className="grid w-full grid-cols-4">
             <TabsTrigger value="manage-scenarios" data-testid="tab-manage-scenarios">시나리오 관리</TabsTrigger>
-            <TabsTrigger value="difficulty-settings" data-testid="tab-difficulty-settings">난이도 설정</TabsTrigger>
+            <TabsTrigger value="difficulty-settings" data-testid="tab-difficulty-settings">대화 난이도</TabsTrigger>
             <TabsTrigger value="manage-personas" data-testid="tab-manage-personas">페르소나 관리</TabsTrigger>
             <TabsTrigger value="evaluation-criteria" data-testid="tab-evaluation-criteria">평가 기준</TabsTrigger>
           </TabsList>
