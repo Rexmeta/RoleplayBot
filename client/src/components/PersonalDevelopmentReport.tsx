@@ -312,6 +312,9 @@ export default function PersonalDevelopmentReport({
     const conversationGuides = feedback.detailedFeedback?.conversationGuides || [];
     const developmentPlan = feedback.detailedFeedback?.developmentPlan;
     const sequenceAnalysis = feedback.detailedFeedback?.sequenceAnalysis;
+    const conversationDuration = feedback.detailedFeedback?.conversationDuration;
+    const averageResponseTime = feedback.detailedFeedback?.averageResponseTime;
+    const timePerformance = feedback.detailedFeedback?.timePerformance;
     
     const userProfile = userConversations.length > 0 ? userConversations[0].user : null;
     const userName = userProfile?.name || '사용자';
@@ -331,6 +334,45 @@ export default function PersonalDevelopmentReport({
             </div>
           </div>
         </div>
+
+        <!-- 대화 시간 분석 -->
+        ${conversationDuration ? `
+        <div style="margin-bottom: 32px; page-break-inside: avoid;">
+          <h2 style="font-size: 20px; font-weight: bold; color: #1f2937; border-bottom: 2px solid #3b82f6; padding-bottom: 8px; margin-bottom: 16px;">⏱️ 대화 시간 분석</h2>
+          <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px;">
+            <div style="background: #f0f9ff; border: 1px solid #bae6fd; border-radius: 8px; padding: 16px; text-align: center;">
+              <div style="font-size: 20px; font-weight: bold; color: #0284c7; margin-bottom: 4px;">
+                ${Math.floor(conversationDuration / 60)}:${(conversationDuration % 60).toString().padStart(2, '0')}
+              </div>
+              <div style="font-size: 13px; color: #0369a1;">총 대화 시간</div>
+            </div>
+            
+            ${averageResponseTime ? `
+            <div style="background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px; padding: 16px; text-align: center;">
+              <div style="font-size: 20px; font-weight: bold; color: #16a34a; margin-bottom: 4px;">
+                ${averageResponseTime}초
+              </div>
+              <div style="font-size: 13px; color: #15803d;">평균 응답 시간</div>
+            </div>
+            ` : ''}
+
+            ${timePerformance ? `
+            <div style="background: #fff7ed; border: 1px solid #ffedd5; border-radius: 8px; padding: 16px; text-align: center;">
+              <div style="font-size: 16px; font-weight: 600; color: ${
+                timePerformance.rating === 'excellent' ? '#16a34a' :
+                timePerformance.rating === 'good' ? '#2563eb' :
+                timePerformance.rating === 'average' ? '#d97706' : '#dc2626'
+              }; margin-bottom: 4px;">
+                ${timePerformance.rating === 'excellent' ? '🎯 우수' :
+                  timePerformance.rating === 'good' ? '✅ 좋음' :
+                  timePerformance.rating === 'average' ? '🔶 보통' : '⚠️ 개선필요'}
+              </div>
+              <div style="font-size: 11px; color: #9a3412;">${escapeHtml(timePerformance.feedback)}</div>
+            </div>
+            ` : ''}
+          </div>
+        </div>
+        ` : ''}
 
         <!-- 1. 성과 분석 -->
         <div style="margin-bottom: 32px; page-break-inside: avoid;">
