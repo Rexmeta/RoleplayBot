@@ -4,7 +4,6 @@
   "difficulty": 2,
   "estimatedTime": "70-90분",
   "skills": [
-    "갈등 중재",
     "협상",
     "문제 해결",
     "의사소통",
@@ -16,7 +15,7 @@
   "imagePrompt": "한국인 치아가 보이지 않는 중립적인 표정, 회의실에 앉아서 손이 보이게, 실사, 텍스트 미포함 ",
   "introVideoUrl": "/scenarios/videos/intro-launch-6주-대형-2025-12-17T04-51-16-2025-12-22T00-31-00.webm",
   "videoPrompt": "",
-  "objectiveType": "",
+  "objectiveType": "우선순위협의",
   "context": {
     "situation": "핵심 기능 'AutoDispatch 3.0'의 장애로 주요 고객사의 물류 시스템이 마비될 위기에 처했으며, 이로 인해 막대한 금전적 손실과 회사 평판 하락이 우려됩니다. 개발, 운영, QA, 세일즈 등 각 부서는 서로 다른 해결책을 주장하며 대립하고 있어 신속한 의사결정이 어려운 상황입니다.",
     "timeline": "72시간 내 즉각적인 안정화 조치를 완료하고, 2주 안에 근본적인 재발방지 로드맵을 수립하여 CEO에게 보고해야 합니다.",
@@ -158,5 +157,6 @@
     "istj",
     "intj"
   ],
-  "id": "launch-6주-대형-2025-12-17T04-51-16"
+  "id": "launch-6주-대형-2025-12-17T04-51-16",
+  "evaluationCriteriaSetId": "ce1d1443-df1e-4806-9a5a-41ff5b7cf1ba"
 }
