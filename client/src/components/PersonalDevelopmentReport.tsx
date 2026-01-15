@@ -100,6 +100,12 @@ export default function PersonalDevelopmentReport({
     }
   }, [feedback, isLoading, error, onReady]);
 
+  const { data: userProfile } = useQuery<any>({
+    queryKey: ['/api/auth/user'],
+  });
+
+  const userName = userProfile?.name || '사용자';
+
   // 다음 페르소나 확인 (서버에서 온 scenario는 personas가 객체 배열)
   const getNextPersona = () => {
     const personasArray = (scenario as any).personas;
@@ -257,13 +263,16 @@ export default function PersonalDevelopmentReport({
     const developmentPlan = feedback.detailedFeedback?.developmentPlan;
     const sequenceAnalysis = feedback.detailedFeedback?.sequenceAnalysis;
     
+    const userProfile = userConversations.length > 0 ? userConversations[0].user : null;
+    const userName = userProfile?.name || '사용자';
+
     return `
       <div style="font-family: 'Noto Sans KR', sans-serif; padding: 20px; max-width: 800px; margin: 0 auto;">
         <!-- 헤더 -->
         <div style="background: linear-gradient(135deg, #4f46e5, #6366f1); color: white; padding: 24px; border-radius: 12px; margin-bottom: 24px;">
-          <h1 style="font-size: 24px; font-weight: bold; margin-bottom: 8px;">개인 맞춤 개발 보고서</h1>
-          <p style="opacity: 0.9; margin-bottom: 12px;">AI 분석 기반 커뮤니케이션 역량 진단 및 발전 계획</p>
-          <p style="font-size: 14px; opacity: 0.8;">대화 상대: ${escapeHtml(persona.name)} (${escapeHtml(persona.role)}) · 시나리오: ${escapeHtml(scenario.title)}</p>
+          <h1 style="font-size: 24px; font-weight: bold; margin-bottom: 8px;">${escapeHtml(userName)} 맞춤 보고서</h1>
+          <p style="opacity: 0.9; margin-bottom: 4px;">시나리오 : ${escapeHtml(scenario.title)}</p>
+          <p style="font-size: 14px; opacity: 0.8; margin-bottom: 12px;">대화 상대 : ${escapeHtml(persona.role)} ${escapeHtml(persona.name)}</p>
           <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 16px;">
             <div></div>
             <div style="background: white; color: ${overallGrade.color.replace('text-', '')}; padding: 16px 24px; border-radius: 8px; text-align: center;">
@@ -503,7 +512,7 @@ export default function PersonalDevelopmentReport({
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>개인 맞춤 개발 보고서 - ${escapeHtml(scenario.title)}</title>
+  <title>${escapeHtml(userName)} 맞춤 보고서 - ${escapeHtml(scenario.title)}</title>
   <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;600;700&display=swap" rel="stylesheet">
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -619,7 +628,7 @@ export default function PersonalDevelopmentReport({
 <html lang="ko">
 <head>
   <meta charset="utf-8">
-  <title>개인 맞춤 개발 보고서 - ${escapeHtml(scenario.title)}</title>
+  <title>${escapeHtml(userName)} 맞춤 보고서 - ${escapeHtml(scenario.title)}</title>
   <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;600;700&display=swap" rel="stylesheet">
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -654,7 +663,7 @@ export default function PersonalDevelopmentReport({
 </head>
 <body>
   <div class="print-header no-print">
-    <h1>📄 개인 맞춤 개발 보고서</h1>
+    <h1>${escapeHtml(userName)} 맞춤 보고서</h1>
     <div class="print-actions">
       <button class="btn-print" onclick="window.print()">🖨️ 인쇄 / PDF 저장</button>
       <button class="btn-close" onclick="window.close()">닫기</button>
@@ -831,11 +840,12 @@ export default function PersonalDevelopmentReport({
               animation: `slideInRight 0.8s ease-out 0.3s forwards`
             }}
           >
-            <h1 className="text-2xl font-bold mb-2" data-testid="report-title">개인 맞춤 개발 보고서</h1>
-            <p className="text-corporate-100">AI 분석 기반 커뮤니케이션 역량 진단 및 발전 계획</p>
+            <h1 className="text-2xl font-bold mb-2" data-testid="report-title">{userName} 맞춤 보고서</h1>
+            <p className="text-corporate-100">시나리오 : {scenario.title}</p>
+            <p className="text-corporate-100 text-sm mt-1">대화 상대 : {persona.role} {persona.name}</p>
             <div className="mt-3 text-sm text-corporate-200">
-              <i className="fas fa-user mr-2"></i>
-              대화 상대: {persona.name} ({persona.role}) · 시나리오: {scenario.title}
+              <i className="fas fa-history mr-2"></i>
+              대화 일시: {new Date().toLocaleString('ko-KR')}
             </div>
           </div>
           <div 
