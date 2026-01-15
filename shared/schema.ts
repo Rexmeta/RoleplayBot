@@ -441,7 +441,8 @@ export const evaluationDimensions = pgTable("evaluation_dimensions", {
   description: text("description"), // 지표 설명
   icon: varchar("icon").notNull().default("📊"), // 아이콘 이모지
   color: varchar("color").notNull().default("blue"), // 차트/UI 색상
-  weight: doublePrecision("weight").notNull().default(1.0), // 가중치 (전체 점수 계산 시)
+  weight: doublePrecision("weight").notNull().default(20.0), // 가중치 (백분율 %, 전체 합계 100%)
+  dimensionType: varchar("dimension_type").notNull().default("standard"), // 차원 유형: 'core' (필수), 'standard' (일반), 'bonus' (가점)
   minScore: integer("min_score").notNull().default(1), // 최소 점수
   maxScore: integer("max_score").notNull().default(5), // 최대 점수
   scoringRubric: jsonb("scoring_rubric").$type<ScoringRubric[]>(), // 점수별 평가 기준
