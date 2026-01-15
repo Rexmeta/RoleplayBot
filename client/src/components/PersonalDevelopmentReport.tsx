@@ -247,6 +247,56 @@ export default function PersonalDevelopmentReport({
       .replace(/'/g, '&#039;');
   };
 
+  // 페르소나 전체 정보 표시 (소속 + 직급/역할 + 이름)
+  const getPersonaFullInfo = () => {
+    // persona 또는 personaSnapshot에서 데이터 추출
+    const p = persona as any;
+    
+    // 소속 부서 (여러 소스에서 탐색)
+    const department = p.department || p.personaSnapshot?.department || p.affiliation || '';
+    
+    // 직위/포지션 (여러 소스에서 탐색)
+    const position = p.position || p.currentSituation?.position || p.personaSnapshot?.position || '';
+    
+    // 역할 (role 필드)
+    const role = p.role || p.personaSnapshot?.role || '';
+    
+    // 이름
+    const name = p.name || p.personaSnapshot?.name || '';
+    
+    // role에 이미 소속 정보가 포함된 경우 (예: "개발팀 선임")
+    const roleIncludesDepartment = department && role && role.includes(department);
+    
+    const parts: string[] = [];
+    
+    if (roleIncludesDepartment) {
+      // role에 소속이 포함되어 있으면 role 사용
+      parts.push(role);
+      // position이 별도로 있고 role에 포함되지 않으면 추가
+      if (position && !role.includes(position)) {
+        parts.push(position);
+      }
+    } else {
+      // 소속 추가
+      if (department) {
+        parts.push(department);
+      }
+      // 직위 또는 역할 추가
+      if (position) {
+        parts.push(position);
+      } else if (role) {
+        parts.push(role);
+      }
+    }
+    
+    // 이름 추가
+    if (name) {
+      parts.push(name);
+    }
+    
+    return parts.join(' ') || `${role} ${name}`.trim();
+  };
+
   // 인쇄/PDF용 전체 보고서 HTML 생성
   const generatePrintableContent = () => {
     if (!feedback) return '';
@@ -272,7 +322,7 @@ export default function PersonalDevelopmentReport({
         <div style="background: linear-gradient(135deg, #4f46e5, #6366f1); color: white; padding: 24px; border-radius: 12px; margin-bottom: 24px;">
           <h1 style="font-size: 24px; font-weight: bold; margin-bottom: 8px;">${escapeHtml(userName)}님 맞춤 보고서</h1>
           <p style="opacity: 0.9; margin-bottom: 4px;">시나리오 : ${escapeHtml(scenario.title)}</p>
-          <p style="font-size: 14px; opacity: 0.8; margin-bottom: 12px;">대화 상대 : ${escapeHtml(persona.role)} ${escapeHtml(persona.name)}</p>
+          <p style="font-size: 14px; opacity: 0.8; margin-bottom: 12px;">대화 상대 : ${escapeHtml(getPersonaFullInfo())}</p>
           <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 16px;">
             <div></div>
             <div style="background: white; color: ${overallGrade.color.replace('text-', '')}; padding: 16px 24px; border-radius: 8px; text-align: center;">
@@ -842,7 +892,7 @@ export default function PersonalDevelopmentReport({
           >
             <h1 className="text-2xl font-bold mb-2" data-testid="report-title">{userName}님 맞춤 보고서</h1>
             <p className="text-corporate-100">시나리오 : {scenario.title}</p>
-            <p className="text-corporate-100 text-sm mt-1">대화 상대 : {persona.role} {persona.name}</p>
+            <p className="text-corporate-100 text-sm mt-1">대화 상대 : {getPersonaFullInfo()}</p>
             <div className="mt-3 text-sm text-corporate-200">
               <i className="fas fa-history mr-2"></i>
               대화 일시: {new Date().toLocaleString('ko-KR')}
