@@ -127,10 +127,29 @@ export function EvaluationCriteriaManager() {
     minScore: 1,
     maxScore: 5,
     icon: '',
-    color: '',
+    color: '#6366f1',
     isActive: true,
     scoringRubric: [] as ScoringRubric[],
   });
+
+  const PRESET_COLORS = [
+    '#6366f1', // Indigo
+    '#3b82f6', // Blue
+    '#0ea5e9', // Sky
+    '#06b6d4', // Cyan
+    '#10b981', // Emerald
+    '#22c55e', // Green
+    '#84cc16', // Lime
+    '#eab308', // Yellow
+    '#f59e0b', // Amber
+    '#f97316', // Orange
+    '#ef4444', // Red
+    '#ec4899', // Pink
+    '#d946ef', // Fuchsia
+    '#a855f7', // Purple
+    '#8b5cf6', // Violet
+    '#64748b', // Slate
+  ];
 
   const { data: criteriaSets = [], isLoading } = useQuery<EvaluationCriteriaSet[]>({
     queryKey: ['/api/admin/evaluation-criteria'],
@@ -734,12 +753,50 @@ export function EvaluationCriteriaManager() {
               </div>
               <div>
                 <Label htmlFor="dim-color">색상</Label>
-                <Input
-                  id="dim-color"
-                  value={dimensionFormData.color}
-                  onChange={(e) => setDimensionFormData({ ...dimensionFormData, color: e.target.value })}
-                  placeholder="#3B82F6"
-                />
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button variant="outline" className="w-full justify-between px-3">
+                      <div className="flex items-center gap-2 overflow-hidden">
+                        <div 
+                          className="w-4 h-4 rounded-full shrink-0 border border-slate-200" 
+                          style={{ backgroundColor: dimensionFormData.color || '#6366f1' }}
+                        />
+                        <span className="truncate text-xs font-mono">{dimensionFormData.color || '#6366f1'}</span>
+                      </div>
+                      <Settings className="h-4 w-4 opacity-50 shrink-0" />
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-[220px] p-3" align="end">
+                    <div className="space-y-3">
+                      <div className="grid grid-cols-4 gap-2">
+                        {PRESET_COLORS.map((color) => (
+                          <button
+                            key={color}
+                            className={`w-8 h-8 rounded-md border border-slate-200 hover:scale-110 transition-transform ${dimensionFormData.color === color ? 'ring-2 ring-slate-950 ring-offset-1' : ''}`}
+                            style={{ backgroundColor: color }}
+                            onClick={() => setDimensionFormData({ ...dimensionFormData, color })}
+                            title={color}
+                          />
+                        ))}
+                      </div>
+                      <div className="flex items-center gap-2 pt-2 border-t">
+                        <Input
+                          type="color"
+                          value={dimensionFormData.color || '#6366f1'}
+                          onChange={(e) => setDimensionFormData({ ...dimensionFormData, color: e.target.value })}
+                          className="w-10 h-8 p-1 cursor-pointer shrink-0 border-none bg-transparent"
+                        />
+                        <Input
+                          type="text"
+                          value={dimensionFormData.color || '#6366f1'}
+                          onChange={(e) => setDimensionFormData({ ...dimensionFormData, color: e.target.value })}
+                          className="h-8 text-xs font-mono"
+                          placeholder="#000000"
+                        />
+                      </div>
+                    </div>
+                  </PopoverContent>
+                </Popover>
               </div>
             </div>
             <div className="flex items-center justify-between">
