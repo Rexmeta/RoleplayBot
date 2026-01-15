@@ -27,11 +27,12 @@ export async function generateFeedback(
   scenario: string, 
   messages: ConversationMessage[], 
   persona: ScenarioPersona,
-  conversation?: Partial<import("@shared/schema").Conversation>
+  conversation?: Partial<import("@shared/schema").Conversation>,
+  evaluationDimensions?: any[]
 ): Promise<DetailedFeedback> {
   // 피드백 기능에 설정된 모델을 사용하는 AI 서비스 인스턴스 생성
   const aiService = await getAIServiceForFeature('feedback');
-  return aiService.generateFeedback(scenario, messages, persona, conversation);
+  return aiService.generateFeedback(scenario, messages, persona, conversation, evaluationDimensions);
 }
 
 // 전략 회고 평가 타입

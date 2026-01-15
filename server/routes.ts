@@ -1744,12 +1744,41 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const totalUserWords = userMessages.reduce((sum, msg) => sum + msg.message.length, 0);
       const averageResponseTime = userMessages.length > 0 ? Math.round(conversationDurationSeconds / userMessages.length) : 0; // 초 단위
 
+      // ✨ 시나리오에 설정된 평가 기준 세트 조회
+      let evaluationCriteria: any = null;
+      if ((scenarioObj as any).evaluationCriteriaSetId) {
+        const criteriaSet = await storage.getEvaluationCriteriaSetWithDimensions((scenarioObj as any).evaluationCriteriaSetId);
+        if (criteriaSet && criteriaSet.dimensions && criteriaSet.dimensions.length > 0) {
+          evaluationCriteria = {
+            id: criteriaSet.id,
+            name: criteriaSet.name,
+            description: criteriaSet.description,
+            dimensions: criteriaSet.dimensions.filter((d: any) => d.isActive)
+          };
+          console.log(`📊 시나리오 평가 기준 사용: ${criteriaSet.name} (${evaluationCriteria.dimensions.length}개 차원)`);
+        }
+      }
+      
+      // 평가 기준이 없으면 기본값 사용
+      if (!evaluationCriteria) {
+        const defaultCriteria = await storage.getActiveEvaluationCriteriaSetWithDimensions();
+        if (defaultCriteria && defaultCriteria.dimensions) {
+          evaluationCriteria = {
+            id: defaultCriteria.id,
+            name: defaultCriteria.name,
+            description: defaultCriteria.description,
+            dimensions: defaultCriteria.dimensions.filter((d: any) => d.isActive)
+          };
+          console.log(`📊 기본 평가 기준 사용: ${defaultCriteria.name} (${evaluationCriteria.dimensions.length}개 차원)`);
+        }
+      }
 
       const feedbackData = await generateFeedback(
         scenarioObj, // 전체 시나리오 객체 전달
         conversation.messages,
         persona,
-        conversation // 전략 회고 평가를 위해 conversation 전달
+        conversation, // 전략 회고 평가를 위해 conversation 전달
+        evaluationCriteria // ✨ 동적 평가 기준 세트 전달
       );
 
       // 체계적인 시간 성과 평가 시스템
@@ -1800,49 +1829,65 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       console.log("피드백 데이터 생성 완료:", feedbackData);
 
-      // EvaluationScore 배열 생성
-      const evaluationScores = [
-        {
-          category: "clarityLogic",
-          name: "명확성 & 논리성",
-          score: feedbackData.scores.clarityLogic,
-          feedback: "발언의 구조화, 핵심 전달, 모호성 최소화",
-          icon: "🎯",
-          color: "blue"
-        },
-        {
-          category: "listeningEmpathy", 
-          name: "경청 & 공감",
-          score: feedbackData.scores.listeningEmpathy,
-          feedback: "재진술·요약, 감정 인식, 우려 존중",
-          icon: "👂",
-          color: "green"
-        },
-        {
-          category: "appropriatenessAdaptability",
-          name: "적절성 & 상황 대응", 
-          score: feedbackData.scores.appropriatenessAdaptability,
-          feedback: "맥락 적합한 표현, 유연한 갈등 대응",
-          icon: "⚡",
-          color: "yellow"
-        },
-        {
-          category: "persuasivenessImpact",
-          name: "설득력 & 영향력",
-          score: feedbackData.scores.persuasivenessImpact, 
-          feedback: "논리적 근거, 사례 활용, 행동 변화 유도",
-          icon: "🎪",
-          color: "purple"
-        },
-        {
-          category: "strategicCommunication",
-          name: "전략적 커뮤니케이션",
-          score: feedbackData.scores.strategicCommunication,
-          feedback: "목표 지향적 대화, 협상·조율, 주도성", 
-          icon: "🎲",
-          color: "red"
-        }
-      ];
+      // ✨ EvaluationScore 배열 동적 생성
+      let evaluationScores: any[];
+      
+      if (evaluationCriteria && evaluationCriteria.dimensions && evaluationCriteria.dimensions.length > 0) {
+        // 동적 평가 차원 사용
+        evaluationScores = evaluationCriteria.dimensions.map((dim: any) => ({
+          category: dim.key,
+          name: dim.name,
+          score: feedbackData.scores[dim.key] || 3,
+          feedback: dim.description || dim.name,
+          icon: dim.icon || '📊',
+          color: dim.color || '#6366f1'
+        }));
+        console.log(`📊 동적 evaluationScores 생성: ${evaluationScores.length}개`);
+      } else {
+        // 기본 하드코딩된 평가 기준 (폴백)
+        evaluationScores = [
+          {
+            category: "clarityLogic",
+            name: "명확성 & 논리성",
+            score: feedbackData.scores.clarityLogic,
+            feedback: "발언의 구조화, 핵심 전달, 모호성 최소화",
+            icon: "🎯",
+            color: "blue"
+          },
+          {
+            category: "listeningEmpathy", 
+            name: "경청 & 공감",
+            score: feedbackData.scores.listeningEmpathy,
+            feedback: "재진술·요약, 감정 인식, 우려 존중",
+            icon: "👂",
+            color: "green"
+          },
+          {
+            category: "appropriatenessAdaptability",
+            name: "적절성 & 상황 대응", 
+            score: feedbackData.scores.appropriatenessAdaptability,
+            feedback: "맥락 적합한 표현, 유연한 갈등 대응",
+            icon: "⚡",
+            color: "yellow"
+          },
+          {
+            category: "persuasivenessImpact",
+            name: "설득력 & 영향력",
+            score: feedbackData.scores.persuasivenessImpact, 
+            feedback: "논리적 근거, 사례 활용, 행동 변화 유도",
+            icon: "🎪",
+            color: "purple"
+          },
+          {
+            category: "strategicCommunication",
+            name: "전략적 커뮤니케이션",
+            score: feedbackData.scores.strategicCommunication,
+            feedback: "목표 지향적 대화, 협상·조율, 주도성", 
+            icon: "🎲",
+            color: "red"
+          }
+        ];
+      }
 
       const feedback = await storage.createFeedback({
         conversationId: null, // 레거시 지원 (nullable)
