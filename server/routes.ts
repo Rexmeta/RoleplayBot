@@ -4292,7 +4292,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // 모든 평가 기준 세트 목록 조회 (시나리오 생성/수정 시 사용)
   app.get("/api/evaluation-criteria", isAuthenticated, async (req, res) => {
     try {
-      const criteriaSets = await storage.getEvaluationCriteriaSets();
+      const criteriaSets = await storage.getAllEvaluationCriteriaSets();
       res.json(criteriaSets);
     } catch (error: any) {
       console.error("Error getting evaluation criteria sets:", error);
