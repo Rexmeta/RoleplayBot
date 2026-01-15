@@ -270,7 +270,7 @@ export default function PersonalDevelopmentReport({
       <div style="font-family: 'Noto Sans KR', sans-serif; padding: 20px; max-width: 800px; margin: 0 auto;">
         <!-- 헤더 -->
         <div style="background: linear-gradient(135deg, #4f46e5, #6366f1); color: white; padding: 24px; border-radius: 12px; margin-bottom: 24px;">
-          <h1 style="font-size: 24px; font-weight: bold; margin-bottom: 8px;">${escapeHtml(userName)} 맞춤 보고서</h1>
+          <h1 style="font-size: 24px; font-weight: bold; margin-bottom: 8px;">${escapeHtml(userName)}님 맞춤 보고서</h1>
           <p style="opacity: 0.9; margin-bottom: 4px;">시나리오 : ${escapeHtml(scenario.title)}</p>
           <p style="font-size: 14px; opacity: 0.8; margin-bottom: 12px;">대화 상대 : ${escapeHtml(persona.role)} ${escapeHtml(persona.name)}</p>
           <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 16px;">
@@ -663,7 +663,7 @@ export default function PersonalDevelopmentReport({
 </head>
 <body>
   <div class="print-header no-print">
-    <h1>${escapeHtml(userName)} 맞춤 보고서</h1>
+    <h1>${escapeHtml(userName)}님 맞춤 보고서</h1>
     <div class="print-actions">
       <button class="btn-print" onclick="window.print()">🖨️ 인쇄 / PDF 저장</button>
       <button class="btn-close" onclick="window.close()">닫기</button>
@@ -840,7 +840,7 @@ export default function PersonalDevelopmentReport({
               animation: `slideInRight 0.8s ease-out 0.3s forwards`
             }}
           >
-            <h1 className="text-2xl font-bold mb-2" data-testid="report-title">{userName} 맞춤 보고서</h1>
+            <h1 className="text-2xl font-bold mb-2" data-testid="report-title">{userName}님 맞춤 보고서</h1>
             <p className="text-corporate-100">시나리오 : {scenario.title}</p>
             <p className="text-corporate-100 text-sm mt-1">대화 상대 : {persona.role} {persona.name}</p>
             <div className="mt-3 text-sm text-corporate-200">
