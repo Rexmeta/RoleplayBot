@@ -182,21 +182,36 @@ JSON 형식으로 응답하세요: {"emotion": "감정", "reason": "감정을 �
 
   private getDefaultDimensions(): EvaluationCriteriaWithDimensions['dimensions'] {
     return [
-      { key: 'clarityLogic', name: '명확성 & 논리성', description: '의사 표현의 명확성과 논리적 구성', weight: 1, minScore: 1, maxScore: 5 },
-      { key: 'listeningEmpathy', name: '경청 & 공감', description: '상대방의 말을 듣고 공감하는 능력', weight: 1, minScore: 1, maxScore: 5 },
-      { key: 'appropriatenessAdaptability', name: '적절성 & 상황대응', description: '상황에 맞는 적절한 대응', weight: 1, minScore: 1, maxScore: 5 },
-      { key: 'persuasivenessImpact', name: '설득력 & 영향력', description: '상대방을 설득하고 영향을 미치는 능력', weight: 1, minScore: 1, maxScore: 5 },
-      { key: 'strategicCommunication', name: '전략적 커뮤니케이션', description: '목표 달성을 위한 전략적 소통', weight: 1, minScore: 1, maxScore: 5 },
+      { key: 'clarityLogic', name: '명확성 & 논리성', description: '의사 표현의 명확성과 논리적 구성', weight: 20, minScore: 1, maxScore: 5 },
+      { key: 'listeningEmpathy', name: '경청 & 공감', description: '상대방의 말을 듣고 공감하는 능력', weight: 20, minScore: 1, maxScore: 5 },
+      { key: 'appropriatenessAdaptability', name: '적절성 & 상황대응', description: '상황에 맞는 적절한 대응', weight: 20, minScore: 1, maxScore: 5 },
+      { key: 'persuasivenessImpact', name: '설득력 & 영향력', description: '상대방을 설득하고 영향을 미치는 능력', weight: 20, minScore: 1, maxScore: 5 },
+      { key: 'strategicCommunication', name: '전략적 커뮤니케이션', description: '목표 달성을 위한 전략적 소통', weight: 20, minScore: 1, maxScore: 5 },
     ];
+  }
+
+  private calculateWeightedOverallScore(scores: Record<string, number>, evaluationCriteria?: EvaluationCriteriaWithDimensions): number {
+    const dimensions = evaluationCriteria?.dimensions || this.getDefaultDimensions();
+    const totalWeight = dimensions.reduce((sum, d) => sum + d.weight, 0);
+    
+    if (totalWeight === 0) return 75;
+    
+    const weightedSum = dimensions.reduce((sum, d) => {
+      const score = scores[d.key] || 3;
+      const normalizedScore = (score - d.minScore) / (d.maxScore - d.minScore);
+      return sum + normalizedScore * d.weight;
+    }, 0);
+    
+    return Math.round((weightedSum / totalWeight) * 100);
   }
 
   private buildFeedbackPrompt(conversationText: string, persona: ScenarioPersona, evaluationCriteria?: EvaluationCriteriaWithDimensions): string {
     const dimensions = evaluationCriteria?.dimensions || this.getDefaultDimensions();
     const criteriaName = evaluationCriteria?.name || '기본 평가 기준';
     
-    // 동적 평가 차원 목록 생성
+    // 동적 평가 차원 목록 생성 (가중치 포함)
     const dimensionsList = dimensions.map((dim, idx) => 
-      `${idx + 1}. ${dim.name} (${dim.key}): ${dim.description} [${dim.minScore}-${dim.maxScore}점]`
+      `${idx + 1}. ${dim.name} (${dim.key}): ${dim.description} [${dim.minScore}-${dim.maxScore}점, 가중치: ${dim.weight}%]`
     ).join('\n');
 
     // 동적 scores 구조 생성
@@ -246,7 +261,7 @@ JSON 형식으로 응답:
     }
 
     return {
-      overallScore: Math.min(100, Math.max(0, feedbackData.overallScore || 60)),
+      overallScore: this.calculateWeightedOverallScore(scores, evaluationCriteria),
       scores: scores as any,
       strengths: feedbackData.strengths || ["기본적인 대화 능력", "적절한 언어 사용", "상황 이해도"],
       improvements: feedbackData.improvements || ["더 구체적인 표현", "감정 교감 증진", "논리적 구조화"],

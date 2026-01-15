@@ -383,9 +383,9 @@ sequenceAnalysis 필드에 다음 형식으로 포함:
     // 동적 평가 기준이 있는 경우 사용, 없으면 기본 기준 사용
     const dimensions = evaluationCriteria?.dimensions || this.getDefaultDimensions();
     
-    // 평가 기준 설명 생성
+    // 평가 기준 설명 생성 (가중치 포함)
     const dimensionsList = dimensions.map((dim, idx) => 
-      `${idx + 1}. ${dim.name} (${dim.key}): ${dim.description || dim.name}`
+      `${idx + 1}. ${dim.name} (${dim.key}): ${dim.description || dim.name} [가중치: ${dim.weight}%]`
     ).join('\n');
     
     // 점수 형식 생성 (동적)
@@ -495,9 +495,11 @@ JSON 형식${hasStrategyReflection ? ' (sequenceAnalysis 포함)' : ''}:
         }
       }
       
+      const scores = parsed.scores || this.getDefaultScores(evaluationCriteria);
+      
       const feedback: DetailedFeedback = {
-        overallScore: parsed.overallScore || 75,
-        scores: parsed.scores || this.getDefaultScores(evaluationCriteria),
+        overallScore: this.calculateWeightedOverallScore(scores, evaluationCriteria),
+        scores: scores,
         strengths: parsed.strengths || ["대화 참여"],
         improvements: parsed.improvements || ["더 구체적인 표현"],
         nextSteps: parsed.nextSteps || ["연습 지속"],
@@ -531,12 +533,30 @@ JSON 형식${hasStrategyReflection ? ' (sequenceAnalysis 포함)' : ''}:
    */
   private getDefaultDimensions(): EvaluationCriteriaWithDimensions['dimensions'] {
     return [
-      { key: 'clarityLogic', name: '명확성 & 논리성', description: '의사 표현의 명확성과 논리적 구성', weight: 1, minScore: 1, maxScore: 5 },
-      { key: 'listeningEmpathy', name: '경청 & 공감', description: '상대방의 말을 듣고 공감하는 능력', weight: 1, minScore: 1, maxScore: 5 },
-      { key: 'appropriatenessAdaptability', name: '적절성 & 상황대응', description: '상황에 맞는 적절한 대응', weight: 1, minScore: 1, maxScore: 5 },
-      { key: 'persuasivenessImpact', name: '설득력 & 영향력', description: '상대방을 설득하고 영향을 미치는 능력', weight: 1, minScore: 1, maxScore: 5 },
-      { key: 'strategicCommunication', name: '전략적 커뮤니케이션', description: '목표 달성을 위한 전략적 소통', weight: 1, minScore: 1, maxScore: 5 },
+      { key: 'clarityLogic', name: '명확성 & 논리성', description: '의사 표현의 명확성과 논리적 구성', weight: 20, minScore: 1, maxScore: 5 },
+      { key: 'listeningEmpathy', name: '경청 & 공감', description: '상대방의 말을 듣고 공감하는 능력', weight: 20, minScore: 1, maxScore: 5 },
+      { key: 'appropriatenessAdaptability', name: '적절성 & 상황대응', description: '상황에 맞는 적절한 대응', weight: 20, minScore: 1, maxScore: 5 },
+      { key: 'persuasivenessImpact', name: '설득력 & 영향력', description: '상대방을 설득하고 영향을 미치는 능력', weight: 20, minScore: 1, maxScore: 5 },
+      { key: 'strategicCommunication', name: '전략적 커뮤니케이션', description: '목표 달성을 위한 전략적 소통', weight: 20, minScore: 1, maxScore: 5 },
     ];
+  }
+
+  /**
+   * 가중 평균으로 전체 점수 계산
+   */
+  private calculateWeightedOverallScore(scores: Record<string, number>, evaluationCriteria?: EvaluationCriteriaWithDimensions): number {
+    const dimensions = evaluationCriteria?.dimensions || this.getDefaultDimensions();
+    const totalWeight = dimensions.reduce((sum, d) => sum + d.weight, 0);
+    
+    if (totalWeight === 0) return 75;
+    
+    const weightedSum = dimensions.reduce((sum, d) => {
+      const score = scores[d.key] || 3;
+      const normalizedScore = (score - d.minScore) / (d.maxScore - d.minScore);
+      return sum + normalizedScore * d.weight;
+    }, 0);
+    
+    return Math.round((weightedSum / totalWeight) * 100);
   }
 
   /**
