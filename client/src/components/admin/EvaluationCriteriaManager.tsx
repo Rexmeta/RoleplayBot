@@ -12,7 +12,39 @@ import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { Plus, Edit, Trash2, Star, Check, GripVertical, Copy, Settings } from "lucide-react";
+import { Plus, Edit, Trash2, Star, Check, GripVertical, Copy, Settings, MessageCircle, Target, Lightbulb, Heart, Users, Award, Brain, Zap, Shield, TrendingUp, Eye, Ear, HandHeart, Compass, Flag, ThumbsUp, Megaphone, PenTool, BookOpen, Sparkles } from "lucide-react";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+
+const AVAILABLE_ICONS = [
+  { name: 'Star', icon: Star },
+  { name: 'MessageCircle', icon: MessageCircle },
+  { name: 'Target', icon: Target },
+  { name: 'Lightbulb', icon: Lightbulb },
+  { name: 'Heart', icon: Heart },
+  { name: 'Users', icon: Users },
+  { name: 'Award', icon: Award },
+  { name: 'Brain', icon: Brain },
+  { name: 'Zap', icon: Zap },
+  { name: 'Shield', icon: Shield },
+  { name: 'TrendingUp', icon: TrendingUp },
+  { name: 'Eye', icon: Eye },
+  { name: 'Ear', icon: Ear },
+  { name: 'HandHeart', icon: HandHeart },
+  { name: 'Compass', icon: Compass },
+  { name: 'Flag', icon: Flag },
+  { name: 'ThumbsUp', icon: ThumbsUp },
+  { name: 'Megaphone', icon: Megaphone },
+  { name: 'PenTool', icon: PenTool },
+  { name: 'BookOpen', icon: BookOpen },
+  { name: 'Sparkles', icon: Sparkles },
+  { name: 'Check', icon: Check },
+  { name: 'Settings', icon: Settings },
+];
+
+const getIconComponent = (iconName: string) => {
+  const found = AVAILABLE_ICONS.find(i => i.name === iconName);
+  return found ? found.icon : Star;
+};
 
 interface ScoringRubric {
   score: number;
@@ -634,12 +666,32 @@ export function EvaluationCriteriaManager() {
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <Label htmlFor="dim-icon">아이콘</Label>
-                <Input
-                  id="dim-icon"
-                  value={dimensionFormData.icon}
-                  onChange={(e) => setDimensionFormData({ ...dimensionFormData, icon: e.target.value })}
-                  placeholder="💡"
-                />
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button variant="outline" className="w-full justify-start gap-2">
+                      {(() => {
+                        const IconComp = getIconComponent(dimensionFormData.icon || 'Star');
+                        return <IconComp className="h-4 w-4" />;
+                      })()}
+                      <span>{dimensionFormData.icon || '아이콘 선택'}</span>
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-80 p-3" align="start">
+                    <div className="grid grid-cols-6 gap-2">
+                      {AVAILABLE_ICONS.map(({ name, icon: IconComp }) => (
+                        <Button
+                          key={name}
+                          variant={dimensionFormData.icon === name ? "default" : "ghost"}
+                          size="icon"
+                          className="h-9 w-9"
+                          onClick={() => setDimensionFormData({ ...dimensionFormData, icon: name })}
+                        >
+                          <IconComp className="h-4 w-4" />
+                        </Button>
+                      ))}
+                    </div>
+                  </PopoverContent>
+                </Popover>
               </div>
               <div>
                 <Label htmlFor="dim-color">색상</Label>
