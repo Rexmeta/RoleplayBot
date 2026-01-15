@@ -279,6 +279,26 @@ export function setupAuth(app: Express) {
     res.json(userWithoutPassword);
   });
 
+  // 사용자 언어 설정 업데이트
+  app.patch("/api/auth/user/language", isAuthenticated, async (req: any, res) => {
+    try {
+      const { language } = req.body;
+      
+      const validLanguages = ['ko', 'en', 'ja', 'zh'];
+      if (!language || !validLanguages.includes(language)) {
+        return res.status(400).json({ message: "유효하지 않은 언어 코드입니다" });
+      }
+
+      const updatedUser = await storage.updateUserLanguage(req.user.id, language);
+      const { password, ...userWithoutPassword } = updatedUser;
+      
+      res.json(userWithoutPassword);
+    } catch (error) {
+      console.error("Language update error:", error);
+      res.status(500).json({ message: "언어 설정 업데이트 중 오류가 발생했습니다" });
+    }
+  });
+
   // 토큰 검증
   app.post("/api/auth/verify", (req, res) => {
     try {

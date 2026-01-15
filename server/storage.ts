@@ -79,6 +79,7 @@ export interface IStorage {
   getUserByEmail(email: string): Promise<User | undefined>;
   createUser(user: { email: string; password: string; name: string; assignedCategoryId?: string | null }): Promise<User>;
   updateUser(id: string, updates: { name?: string; password?: string; profileImage?: string; tier?: string }): Promise<User>;
+  updateUserLanguage(id: string, language: string): Promise<User>;
   upsertUser(user: UpsertUser): Promise<User>;
   updateUserLastLogin(id: string): Promise<void>;
   
@@ -429,6 +430,7 @@ export class MemStorage implements IStorage {
       role: 'user',
       profileImage: null,
       tier: 'bronze',
+      preferredLanguage: 'ko',
       isActive: true,
       lastLoginAt: null,
       assignedCategoryId: userData.assignedCategoryId || null,
@@ -459,6 +461,22 @@ export class MemStorage implements IStorage {
     return updatedUser;
   }
 
+  async updateUserLanguage(id: string, language: string): Promise<User> {
+    const existingUser = this.users.get(id);
+    if (!existingUser) {
+      throw new Error("User not found");
+    }
+    
+    const updatedUser: User = {
+      ...existingUser,
+      preferredLanguage: language,
+      updatedAt: new Date(),
+    };
+    
+    this.users.set(id, updatedUser);
+    return updatedUser;
+  }
+
   async upsertUser(userData: UpsertUser): Promise<User> {
     const existingUser = this.users.get(userData.id as string);
     
@@ -470,6 +488,7 @@ export class MemStorage implements IStorage {
       role: existingUser?.role || 'user',
       profileImage: existingUser?.profileImage || null,
       tier: existingUser?.tier || 'bronze',
+      preferredLanguage: existingUser?.preferredLanguage || 'ko',
       isActive: existingUser?.isActive ?? true,
       lastLoginAt: existingUser?.lastLoginAt || null,
       assignedCategoryId: existingUser?.assignedCategoryId || null,
@@ -789,6 +808,17 @@ export class PostgreSQLStorage implements IStorage {
     if (updates.tier) updateData.tier = updates.tier;
     
     const [user] = await db.update(users).set(updateData).where(eq(users.id, id)).returning();
+    if (!user) {
+      throw new Error("User not found");
+    }
+    return user;
+  }
+
+  async updateUserLanguage(id: string, language: string): Promise<User> {
+    const [user] = await db.update(users).set({ 
+      preferredLanguage: language, 
+      updatedAt: new Date() 
+    }).where(eq(users.id, id)).returning();
     if (!user) {
       throw new Error("User not found");
     }

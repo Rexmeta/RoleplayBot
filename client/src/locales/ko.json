@@ -1,0 +1,140 @@
+{
+  "common": {
+    "appName": "Roleplay X",
+    "tagline": "커뮤니케이션 역량 개발",
+    "loading": "로딩 중...",
+    "error": "오류가 발생했습니다",
+    "save": "저장",
+    "cancel": "취소",
+    "confirm": "확인",
+    "delete": "삭제",
+    "edit": "수정",
+    "create": "생성",
+    "search": "검색",
+    "back": "뒤로",
+    "next": "다음",
+    "previous": "이전",
+    "close": "닫기",
+    "submit": "제출",
+    "reset": "초기화",
+    "home": "홈",
+    "settings": "설정",
+    "language": "언어",
+    "logout": "로그아웃",
+    "login": "로그인",
+    "register": "회원가입"
+  },
+  "nav": {
+    "home": "홈으로",
+    "mypage": "마이페이지",
+    "admin": "관리자",
+    "help": "도움말",
+    "backToHome": "홈으로"
+  },
+  "auth": {
+    "loginTitle": "로그인",
+    "registerTitle": "회원가입",
+    "email": "이메일",
+    "password": "비밀번호",
+    "confirmPassword": "비밀번호 확인",
+    "name": "이름",
+    "loginButton": "로그인",
+    "registerButton": "회원가입",
+    "noAccount": "계정이 없으신가요?",
+    "hasAccount": "이미 계정이 있으신가요?",
+    "forgotPassword": "비밀번호를 잊으셨나요?",
+    "loginSuccess": "로그인되었습니다",
+    "registerSuccess": "회원가입이 완료되었습니다",
+    "loginError": "로그인에 실패했습니다",
+    "registerError": "회원가입에 실패했습니다",
+    "invalidCredentials": "이메일 또는 비밀번호가 올바르지 않습니다",
+    "emailRequired": "이메일을 입력해주세요",
+    "passwordRequired": "비밀번호를 입력해주세요",
+    "nameRequired": "이름을 입력해주세요",
+    "passwordMismatch": "비밀번호가 일치하지 않습니다",
+    "emailInvalid": "올바른 이메일 형식이 아닙니다"
+  },
+  "home": {
+    "welcome": "환영합니다",
+    "welcomeMessage": "AI 기반 역할극 훈련으로 커뮤니케이션 역량을 향상시키세요",
+    "startTraining": "훈련 시작하기",
+    "viewHistory": "훈련 기록 보기",
+    "selectScenario": "시나리오 선택",
+    "selectDifficulty": "난이도 선택",
+    "difficulty": {
+      "level1": "입문",
+      "level2": "기본",
+      "level3": "심화",
+      "level4": "전문가"
+    }
+  },
+  "chat": {
+    "placeholder": "메시지를 입력하세요...",
+    "send": "전송",
+    "thinking": "생각 중...",
+    "turnCount": "턴",
+    "conversationComplete": "대화가 완료되었습니다",
+    "viewFeedback": "피드백 보기",
+    "retry": "다시 시도",
+    "endConversation": "대화 종료"
+  },
+  "feedback": {
+    "title": "맞춤 보고서",
+    "overallScore": "종합 점수",
+    "performanceAnalysis": "성과 분석",
+    "behaviorGuide": "행동 가이드",
+    "conversationGuide": "대화 가이드",
+    "developmentPlan": "개발 계획",
+    "strategyEvaluation": "전략 평가",
+    "strengths": "주요 강점",
+    "improvements": "개선 포인트",
+    "nextSteps": "다음 단계",
+    "expertOpinion": "전문가 의견",
+    "print": "인쇄",
+    "download": "다운로드",
+    "generateFeedback": "피드백 생성하기",
+    "generating": "피드백 생성 중...",
+    "notGenerated": "피드백이 아직 생성되지 않았습니다",
+    "conversationTimeAnalysis": "대화 시간 분석",
+    "totalTime": "총 대화 시간",
+    "avgResponseTime": "평균 응답 시간",
+    "timePerformance": {
+      "excellent": "우수",
+      "good": "좋음",
+      "average": "보통",
+      "slow": "개선필요"
+    }
+  },
+  "mypage": {
+    "title": "마이페이지",
+    "conversationHistory": "대화 기록",
+    "analytics": "분석",
+    "profile": "프로필",
+    "noConversations": "아직 대화 기록이 없습니다",
+    "startFirst": "첫 번째 훈련을 시작해보세요"
+  },
+  "admin": {
+    "title": "관리자",
+    "dashboard": "대시보드",
+    "users": "사용자 관리",
+    "scenarios": "시나리오 관리",
+    "categories": "카테고리 관리",
+    "settings": "시스템 설정",
+    "evaluationCriteria": "평가 기준",
+    "difficultySettings": "난이도 설정",
+    "aiUsage": "AI 사용량"
+  },
+  "scenario": {
+    "select": "시나리오 선택",
+    "persona": "대화 상대",
+    "objective": "목표",
+    "context": "상황",
+    "difficulty": "난이도"
+  },
+  "toast": {
+    "success": "성공",
+    "error": "오류",
+    "warning": "경고",
+    "info": "안내"
+  }
+}

@@ -1,0 +1,140 @@
+{
+  "common": {
+    "appName": "Roleplay X",
+    "tagline": "コミュニケーション能力開発",
+    "loading": "読み込み中...",
+    "error": "エラーが発生しました",
+    "save": "保存",
+    "cancel": "キャンセル",
+    "confirm": "確認",
+    "delete": "削除",
+    "edit": "編集",
+    "create": "作成",
+    "search": "検索",
+    "back": "戻る",
+    "next": "次へ",
+    "previous": "前へ",
+    "close": "閉じる",
+    "submit": "送信",
+    "reset": "リセット",
+    "home": "ホーム",
+    "settings": "設定",
+    "language": "言語",
+    "logout": "ログアウト",
+    "login": "ログイン",
+    "register": "会員登録"
+  },
+  "nav": {
+    "home": "ホームへ",
+    "mypage": "マイページ",
+    "admin": "管理者",
+    "help": "ヘルプ",
+    "backToHome": "ホームに戻る"
+  },
+  "auth": {
+    "loginTitle": "ログイン",
+    "registerTitle": "会員登録",
+    "email": "メールアドレス",
+    "password": "パスワード",
+    "confirmPassword": "パスワード確認",
+    "name": "名前",
+    "loginButton": "ログイン",
+    "registerButton": "登録",
+    "noAccount": "アカウントをお持ちでない方",
+    "hasAccount": "すでにアカウントをお持ちの方",
+    "forgotPassword": "パスワードをお忘れですか？",
+    "loginSuccess": "ログインしました",
+    "registerSuccess": "会員登録が完了しました",
+    "loginError": "ログインに失敗しました",
+    "registerError": "会員登録に失敗しました",
+    "invalidCredentials": "メールアドレスまたはパスワードが正しくありません",
+    "emailRequired": "メールアドレスを入力してください",
+    "passwordRequired": "パスワードを入力してください",
+    "nameRequired": "名前を入力してください",
+    "passwordMismatch": "パスワードが一致しません",
+    "emailInvalid": "正しいメール形式ではありません"
+  },
+  "home": {
+    "welcome": "ようこそ",
+    "welcomeMessage": "AIベースのロールプレイトレーニングでコミュニケーション能力を向上させましょう",
+    "startTraining": "トレーニング開始",
+    "viewHistory": "履歴を見る",
+    "selectScenario": "シナリオ選択",
+    "selectDifficulty": "難易度選択",
+    "difficulty": {
+      "level1": "入門",
+      "level2": "基本",
+      "level3": "中級",
+      "level4": "上級"
+    }
+  },
+  "chat": {
+    "placeholder": "メッセージを入力...",
+    "send": "送信",
+    "thinking": "考え中...",
+    "turnCount": "ターン",
+    "conversationComplete": "会話が完了しました",
+    "viewFeedback": "フィードバックを見る",
+    "retry": "再試行",
+    "endConversation": "会話終了"
+  },
+  "feedback": {
+    "title": "カスタムレポート",
+    "overallScore": "総合スコア",
+    "performanceAnalysis": "パフォーマンス分析",
+    "behaviorGuide": "行動ガイド",
+    "conversationGuide": "会話ガイド",
+    "developmentPlan": "開発計画",
+    "strategyEvaluation": "戦略評価",
+    "strengths": "主な強み",
+    "improvements": "改善ポイント",
+    "nextSteps": "次のステップ",
+    "expertOpinion": "専門家の意見",
+    "print": "印刷",
+    "download": "ダウンロード",
+    "generateFeedback": "フィードバック生成",
+    "generating": "フィードバック生成中...",
+    "notGenerated": "フィードバックはまだ生成されていません",
+    "conversationTimeAnalysis": "会話時間分析",
+    "totalTime": "総会話時間",
+    "avgResponseTime": "平均応答時間",
+    "timePerformance": {
+      "excellent": "優秀",
+      "good": "良好",
+      "average": "普通",
+      "slow": "改善必要"
+    }
+  },
+  "mypage": {
+    "title": "マイページ",
+    "conversationHistory": "会話履歴",
+    "analytics": "分析",
+    "profile": "プロフィール",
+    "noConversations": "まだ会話履歴がありません",
+    "startFirst": "最初のトレーニングを始めましょう"
+  },
+  "admin": {
+    "title": "管理者",
+    "dashboard": "ダッシュボード",
+    "users": "ユーザー管理",
+    "scenarios": "シナリオ管理",
+    "categories": "カテゴリー管理",
+    "settings": "システム設定",
+    "evaluationCriteria": "評価基準",
+    "difficultySettings": "難易度設定",
+    "aiUsage": "AI使用量"
+  },
+  "scenario": {
+    "select": "シナリオ選択",
+    "persona": "会話相手",
+    "objective": "目標",
+    "context": "状況",
+    "difficulty": "難易度"
+  },
+  "toast": {
+    "success": "成功",
+    "error": "エラー",
+    "warning": "警告",
+    "info": "お知らせ"
+  }
+}

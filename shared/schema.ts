@@ -109,6 +109,7 @@ export const users = pgTable("users", {
   role: varchar("role").notNull().default("user"), // admin, operator, user
   profileImage: varchar("profile_image"), // 프로필 이미지 URL
   tier: varchar("tier").notNull().default("bronze"), // 회원 등급: bronze, silver, gold, platinum, diamond
+  preferredLanguage: varchar("preferred_language").notNull().default("ko"), // 선호 언어: ko, en, ja, zh
   isActive: boolean("is_active").notNull().default(true), // 계정 활성화 상태
   lastLoginAt: timestamp("last_login_at"), // 마지막 로그인 시간
   assignedCategoryId: varchar("assigned_category_id").references(() => categories.id), // 운영자가 담당하는 카테고리 (운영자만 해당)

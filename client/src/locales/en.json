@@ -1,0 +1,140 @@
+{
+  "common": {
+    "appName": "Roleplay X",
+    "tagline": "Communication Skills Development",
+    "loading": "Loading...",
+    "error": "An error occurred",
+    "save": "Save",
+    "cancel": "Cancel",
+    "confirm": "Confirm",
+    "delete": "Delete",
+    "edit": "Edit",
+    "create": "Create",
+    "search": "Search",
+    "back": "Back",
+    "next": "Next",
+    "previous": "Previous",
+    "close": "Close",
+    "submit": "Submit",
+    "reset": "Reset",
+    "home": "Home",
+    "settings": "Settings",
+    "language": "Language",
+    "logout": "Logout",
+    "login": "Login",
+    "register": "Register"
+  },
+  "nav": {
+    "home": "Home",
+    "mypage": "My Page",
+    "admin": "Admin",
+    "help": "Help",
+    "backToHome": "Back to Home"
+  },
+  "auth": {
+    "loginTitle": "Login",
+    "registerTitle": "Register",
+    "email": "Email",
+    "password": "Password",
+    "confirmPassword": "Confirm Password",
+    "name": "Name",
+    "loginButton": "Login",
+    "registerButton": "Register",
+    "noAccount": "Don't have an account?",
+    "hasAccount": "Already have an account?",
+    "forgotPassword": "Forgot password?",
+    "loginSuccess": "Logged in successfully",
+    "registerSuccess": "Registration completed",
+    "loginError": "Login failed",
+    "registerError": "Registration failed",
+    "invalidCredentials": "Invalid email or password",
+    "emailRequired": "Please enter your email",
+    "passwordRequired": "Please enter your password",
+    "nameRequired": "Please enter your name",
+    "passwordMismatch": "Passwords do not match",
+    "emailInvalid": "Invalid email format"
+  },
+  "home": {
+    "welcome": "Welcome",
+    "welcomeMessage": "Improve your communication skills with AI-powered roleplay training",
+    "startTraining": "Start Training",
+    "viewHistory": "View History",
+    "selectScenario": "Select Scenario",
+    "selectDifficulty": "Select Difficulty",
+    "difficulty": {
+      "level1": "Beginner",
+      "level2": "Basic",
+      "level3": "Intermediate",
+      "level4": "Expert"
+    }
+  },
+  "chat": {
+    "placeholder": "Type your message...",
+    "send": "Send",
+    "thinking": "Thinking...",
+    "turnCount": "Turn",
+    "conversationComplete": "Conversation completed",
+    "viewFeedback": "View Feedback",
+    "retry": "Retry",
+    "endConversation": "End Conversation"
+  },
+  "feedback": {
+    "title": "Personal Report",
+    "overallScore": "Overall Score",
+    "performanceAnalysis": "Performance Analysis",
+    "behaviorGuide": "Behavior Guide",
+    "conversationGuide": "Conversation Guide",
+    "developmentPlan": "Development Plan",
+    "strategyEvaluation": "Strategy Evaluation",
+    "strengths": "Key Strengths",
+    "improvements": "Areas for Improvement",
+    "nextSteps": "Next Steps",
+    "expertOpinion": "Expert Opinion",
+    "print": "Print",
+    "download": "Download",
+    "generateFeedback": "Generate Feedback",
+    "generating": "Generating feedback...",
+    "notGenerated": "Feedback has not been generated yet",
+    "conversationTimeAnalysis": "Conversation Time Analysis",
+    "totalTime": "Total Time",
+    "avgResponseTime": "Avg Response Time",
+    "timePerformance": {
+      "excellent": "Excellent",
+      "good": "Good",
+      "average": "Average",
+      "slow": "Needs Improvement"
+    }
+  },
+  "mypage": {
+    "title": "My Page",
+    "conversationHistory": "Conversation History",
+    "analytics": "Analytics",
+    "profile": "Profile",
+    "noConversations": "No conversation history yet",
+    "startFirst": "Start your first training session"
+  },
+  "admin": {
+    "title": "Admin",
+    "dashboard": "Dashboard",
+    "users": "User Management",
+    "scenarios": "Scenario Management",
+    "categories": "Category Management",
+    "settings": "System Settings",
+    "evaluationCriteria": "Evaluation Criteria",
+    "difficultySettings": "Difficulty Settings",
+    "aiUsage": "AI Usage"
+  },
+  "scenario": {
+    "select": "Select Scenario",
+    "persona": "Conversation Partner",
+    "objective": "Objective",
+    "context": "Context",
+    "difficulty": "Difficulty"
+  },
+  "toast": {
+    "success": "Success",
+    "error": "Error",
+    "warning": "Warning",
+    "info": "Info"
+  }
+}
