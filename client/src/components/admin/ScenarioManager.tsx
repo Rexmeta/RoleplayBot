@@ -37,6 +37,7 @@ interface ScenarioFormData {
   estimatedTime: string;
   skills: string[];
   categoryId?: string; // 카테고리 ID 필드 추가
+  evaluationCriteriaSetId?: string; // 평가 기준 세트 ID 필드 추가
   image?: string; // 시나리오 이미지 URL 필드 추가
   imagePrompt?: string; // 이미지 생성 프롬프트 필드 추가
   introVideoUrl?: string; // 인트로 비디오 URL 필드 추가
@@ -80,6 +81,7 @@ export function ScenarioManager() {
     estimatedTime: '',
     skills: [],
     categoryId: '', // 카테고리 ID 초기값 추가
+    evaluationCriteriaSetId: '', // 평가 기준 세트 ID 초기값 추가
     image: '', // 이미지 초기값 추가
     imagePrompt: '', // 이미지 프롬프트 초기값 추가
     introVideoUrl: '', // 인트로 비디오 URL 초기값 추가
@@ -116,6 +118,11 @@ export function ScenarioManager() {
     queryKey: ['/api/categories'],
   });
 
+  // 평가 기준 세트 목록 조회
+  const { data: evaluationCriteriaSets } = useQuery<{ id: string; name: string; description?: string; isDefault?: boolean }[]>({
+    queryKey: ['/api/evaluation-criteria'],
+  });
+
   // 시나리오 로드 시 모두 펼쳐진 상태로 초기화
   React.useEffect(() => {
     if (scenarios && scenarios.length > 0) {
@@ -133,6 +140,7 @@ export function ScenarioManager() {
       estimatedTime: scenario.estimatedTime || '',
       skills: scenario.skills || [],
       categoryId: scenario.categoryId ? String(scenario.categoryId) : '',
+      evaluationCriteriaSetId: scenario.evaluationCriteriaSetId || '',
       image: scenario.image || '',
       imagePrompt: scenario.imagePrompt || '',
       introVideoUrl: scenario.introVideoUrl || '',
@@ -239,6 +247,7 @@ export function ScenarioManager() {
       estimatedTime: '',
       skills: [],
       categoryId: '', // 카테고리 ID 초기화
+      evaluationCriteriaSetId: '', // 평가 기준 세트 ID 초기화
       image: '', // 이미지 필드 초기화 추가
       imagePrompt: '', // 이미지 프롬프트 초기화 추가
       introVideoUrl: '', // 인트로 비디오 URL 초기화 추가
@@ -276,6 +285,7 @@ export function ScenarioManager() {
       estimatedTime: scenario.estimatedTime,
       skills: scenario.skills,
       categoryId: (scenario as any).categoryId ? String((scenario as any).categoryId) : '', // 기존 시나리오의 카테고리 ID 로드
+      evaluationCriteriaSetId: (scenario as any).evaluationCriteriaSetId || '', // 기존 시나리오의 평가 기준 세트 ID 로드
       image: scenario.image || '', // 기존 시나리오의 이미지 URL 로드
       imagePrompt: (scenario as any).imagePrompt || '', // 기존 시나리오의 이미지 프롬프트 로드
       introVideoUrl: (scenario as any).introVideoUrl || '', // 기존 시나리오의 인트로 비디오 URL 로드
@@ -532,7 +542,7 @@ export function ScenarioManager() {
             <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto bg-slate-50">
               <DialogHeader className="bg-white px-6 py-4 -mx-6 -mt-6 border-b border-slate-200">
                 <DialogTitle className="text-xl text-slate-900">
-                  {editingScenario ? '시나리오 편집' : '새 시나리오 생성'}
+                  {editingScenario ? (editingScenario.title || '시나리오 편집') : '새 시나리오 생성'}
                 </DialogTitle>
               </DialogHeader>
             
@@ -779,6 +789,35 @@ export function ScenarioManager() {
                     required
                     data-testid="textarea-scenario-description"
                   />
+                </div>
+
+                {/* 평가 기준 선택 */}
+                <div>
+                  <Label htmlFor="evaluationCriteria" className="text-sm font-medium text-slate-700">
+                    평가 기준 (선택)
+                  </Label>
+                  <Select 
+                    value={formData.evaluationCriteriaSetId || ''} 
+                    onValueChange={(val) => setFormData(prev => ({ ...prev, evaluationCriteriaSetId: val || undefined }))}
+                  >
+                    <SelectTrigger 
+                      className="bg-white"
+                      data-testid="select-evaluation-criteria"
+                    >
+                      <SelectValue placeholder="기본 평가 기준 사용" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="">기본 평가 기준 사용</SelectItem>
+                      {evaluationCriteriaSets?.map(criteria => (
+                        <SelectItem key={criteria.id} value={criteria.id} data-testid={`criteria-option-${criteria.id}`}>
+                          {criteria.name} {criteria.isDefault && '(기본값)'}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-slate-500 mt-1">
+                    특정 평가 기준을 선택하지 않으면 기본 평가 기준이 적용됩니다.
+                  </p>
                 </div>
               </div>
 
