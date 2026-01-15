@@ -315,8 +315,8 @@ export function EvaluationCriteriaManager() {
       weight: dimensionFormData.weight,
       minScore: dimensionFormData.minScore,
       maxScore: dimensionFormData.maxScore,
-      icon: dimensionFormData.icon || null,
-      color: dimensionFormData.color || null,
+      icon: dimensionFormData.icon || 'Star',
+      color: dimensionFormData.color || '#6366f1',
       isActive: dimensionFormData.isActive,
       scoringRubric: dimensionFormData.scoringRubric.length > 0 ? dimensionFormData.scoringRubric : null,
     };
