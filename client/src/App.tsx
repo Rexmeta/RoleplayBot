@@ -1,4 +1,3 @@
-import { useEffect } from "react";
 import { Switch, Route } from "wouter";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
@@ -6,7 +5,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider } from "@/components/auth/AuthProvider";
 import { useAuth } from "@/hooks/useAuth";
-import i18n from "@/lib/i18n";
+import "@/lib/i18n";
 import Intro from "@/pages/intro";
 import Home from "@/pages/home";
 import MyPage from "@/pages/MyPage";
@@ -64,21 +63,6 @@ function ProtectedRouter() {
 }
 
 function App() {
-  useEffect(() => {
-    const handleLanguageChanged = (lng: string) => {
-      console.log(`[App] Language changed to: ${lng}, refetching queries...`);
-      queryClient.refetchQueries({ queryKey: ['/api/scenarios'], type: 'active' });
-      queryClient.refetchQueries({ queryKey: ['/api/categories'], type: 'active' });
-      queryClient.refetchQueries({ queryKey: ['/api/admin/scenarios'], type: 'active' });
-    };
-
-    i18n.on('languageChanged', handleLanguageChanged);
-    
-    return () => {
-      i18n.off('languageChanged', handleLanguageChanged);
-    };
-  }, []);
-
   return (
     <QueryClientProvider client={queryClient}>
       <AuthProvider>

@@ -48,6 +48,9 @@ export function UserProfileMenu() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/auth/user'] });
+      queryClient.refetchQueries({ queryKey: ['/api/scenarios'], type: 'active' });
+      queryClient.refetchQueries({ queryKey: ['/api/categories'], type: 'active' });
+      queryClient.refetchQueries({ queryKey: ['/api/admin/scenarios'], type: 'active' });
     },
   });
 
