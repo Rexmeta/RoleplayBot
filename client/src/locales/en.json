@@ -138,5 +138,30 @@
     "error": "Error",
     "warning": "Warning",
     "info": "Info"
+  },
+  "voice": {
+    "connectionError": "Voice connection error",
+    "sessionEnded": "Voice session ended",
+    "sendError": "Unable to send message. Please try again.",
+    "saveError": "Error saving conversation.",
+    "resetSuccess": "Conversation has been reset",
+    "resetDescription": "Click 'Start Conversation' to begin a new conversation.",
+    "resetError": "Error resetting conversation.",
+    "notSupported": "Voice recognition is not supported in this browser.",
+    "inputComplete": "Voice input complete",
+    "inputCompleteDesc": "Voice has been converted to text.",
+    "inputStart": "Voice input started",
+    "inputStartDesc": "Please speak. Click again to add more.",
+    "inputError": "Voice input error",
+    "inputErrorDesc": "Unable to start voice recognition. Please try again.",
+    "playError": "Voice playback error",
+    "playErrorDesc": "Failed to play audio.",
+    "serviceError": "Voice service error",
+    "serviceErrorDesc": "Voice playback is temporarily unavailable.",
+    "notAvailable": "Voice unavailable",
+    "notAvailableDesc": "Browser does not support speech synthesis.",
+    "processingError": "Voice processing error",
+    "processingErrorDesc": "Problem occurred during voice processing.",
+    "recognitionError": "Voice recognition error"
   }
 }

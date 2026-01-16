@@ -138,5 +138,30 @@
     "error": "오류",
     "warning": "경고",
     "info": "안내"
+  },
+  "voice": {
+    "connectionError": "음성 연결 오류",
+    "sessionEnded": "음성 세션 종료",
+    "sendError": "메시지를 전송할 수 없습니다. 다시 시도해주세요.",
+    "saveError": "대화 내용을 저장하는 중 오류가 발생했습니다.",
+    "resetSuccess": "대화가 초기화되었습니다",
+    "resetDescription": "'대화 시작하기' 버튼을 눌러 새로운 대화를 시작하세요.",
+    "resetError": "대화를 초기화하는 중 오류가 발생했습니다.",
+    "notSupported": "현재 브라우저에서는 음성 인식을 지원하지 않습니다.",
+    "inputComplete": "음성 입력 완료",
+    "inputCompleteDesc": "음성이 텍스트로 변환되었습니다.",
+    "inputStart": "음성 입력 시작",
+    "inputStartDesc": "말씀하세요. 완료 후 다시 클릭하여 계속 추가할 수 있습니다.",
+    "inputError": "음성 입력 오류",
+    "inputErrorDesc": "음성 인식을 시작할 수 없습니다. 다시 시도해주세요.",
+    "playError": "음성 재생 오류",
+    "playErrorDesc": "오디오 재생에 실패했습니다.",
+    "serviceError": "음성 서비스 오류",
+    "serviceErrorDesc": "음성 재생이 일시적으로 불가능합니다.",
+    "notAvailable": "음성 재생 불가",
+    "notAvailableDesc": "브라우저가 음성 합성을 지원하지 않습니다.",
+    "processingError": "음성 처리 오류",
+    "processingErrorDesc": "음성 처리 중 문제가 발생했습니다.",
+    "recognitionError": "음성 인식 오류"
   }
 }

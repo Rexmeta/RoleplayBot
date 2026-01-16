@@ -138,5 +138,30 @@
     "error": "错误",
     "warning": "警告",
     "info": "提示"
+  },
+  "voice": {
+    "connectionError": "语音连接错误",
+    "sessionEnded": "语音会话已结束",
+    "sendError": "无法发送消息，请重试。",
+    "saveError": "保存对话时出错。",
+    "resetSuccess": "对话已重置",
+    "resetDescription": "点击「开始对话」按钮开始新对话。",
+    "resetError": "重置对话时出错。",
+    "notSupported": "此浏览器不支持语音识别。",
+    "inputComplete": "语音输入完成",
+    "inputCompleteDesc": "语音已转换为文本。",
+    "inputStart": "语音输入开始",
+    "inputStartDesc": "请说话。完成后再次点击可继续添加。",
+    "inputError": "语音输入错误",
+    "inputErrorDesc": "无法启动语音识别，请重试。",
+    "playError": "语音播放错误",
+    "playErrorDesc": "音频播放失败。",
+    "serviceError": "语音服务错误",
+    "serviceErrorDesc": "语音播放暂时不可用。",
+    "notAvailable": "语音不可用",
+    "notAvailableDesc": "浏览器不支持语音合成。",
+    "processingError": "语音处理错误",
+    "processingErrorDesc": "语音处理过程中出现问题。",
+    "recognitionError": "语音识别错误"
   }
 }

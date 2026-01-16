@@ -138,5 +138,30 @@
     "error": "エラー",
     "warning": "警告",
     "info": "お知らせ"
+  },
+  "voice": {
+    "connectionError": "音声接続エラー",
+    "sessionEnded": "音声セッション終了",
+    "sendError": "メッセージを送信できません。もう一度お試しください。",
+    "saveError": "会話の保存中にエラーが発生しました。",
+    "resetSuccess": "会話がリセットされました",
+    "resetDescription": "「会話を開始」ボタンをクリックして新しい会話を始めてください。",
+    "resetError": "会話のリセット中にエラーが発生しました。",
+    "notSupported": "このブラウザでは音声認識がサポートされていません。",
+    "inputComplete": "音声入力完了",
+    "inputCompleteDesc": "音声がテキストに変換されました。",
+    "inputStart": "音声入力開始",
+    "inputStartDesc": "お話しください。完了後、もう一度クリックして追加できます。",
+    "inputError": "音声入力エラー",
+    "inputErrorDesc": "音声認識を開始できません。もう一度お試しください。",
+    "playError": "音声再生エラー",
+    "playErrorDesc": "オーディオの再生に失敗しました。",
+    "serviceError": "音声サービスエラー",
+    "serviceErrorDesc": "音声再生が一時的に利用できません。",
+    "notAvailable": "音声利用不可",
+    "notAvailableDesc": "ブラウザが音声合成をサポートしていません。",
+    "processingError": "音声処理エラー",
+    "processingErrorDesc": "音声処理中に問題が発生しました。",
+    "recognitionError": "音声認識エラー"
   }
 }

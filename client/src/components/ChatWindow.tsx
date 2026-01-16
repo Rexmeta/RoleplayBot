@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useTranslation } from "react-i18next";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
@@ -24,6 +25,16 @@ import type { Conversation, ConversationMessage } from "@shared/schema";
 import { useRealtimeVoice } from "@/hooks/useRealtimeVoice";
 import { AISpeechParticleLayer } from "@/components/AISpeechParticleLayer";
 import { UserSpeechParticleLayer } from "@/components/UserSpeechParticleLayer";
+
+const getSpeechSynthesisLang = (langCode: string): string => {
+  const langMap: Record<string, string> = {
+    'ko': 'ko-KR',
+    'en': 'en-US',
+    'ja': 'ja-JP',
+    'zh': 'zh-CN'
+  };
+  return langMap[langCode] || 'ko-KR';
+};
 
 // 표정 한글 → 영어 매핑
 const emotionToEnglish: Record<string, string> = {
@@ -117,6 +128,7 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const { user } = useAuth();
+  const { i18n, t } = useTranslation();
 
   const realtimeVoice = useRealtimeVoice({
     conversationId,
@@ -159,14 +171,14 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
     },
     onError: (error) => {
       toast({
-        title: "음성 연결 오류",
+        title: t('voice.connectionError'),
         description: error,
         variant: "destructive"
       });
     },
     onSessionTerminated: (reason) => {
       toast({
-        title: "음성 세션 종료",
+        title: t('voice.sessionEnded'),
         description: reason,
       });
       setInputMode('text');
@@ -390,8 +402,8 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
       });
       
       toast({
-        title: "오류",
-        description: "메시지를 전송할 수 없습니다. 다시 시도해주세요.",
+        title: t('toast.error'),
+        description: t('voice.sendError'),
         variant: "destructive"
       });
       setIsLoading(false);
@@ -490,8 +502,8 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
     } catch (error) {
       console.error('❌ Error saving realtime messages:', error);
       toast({
-        title: "메시지 저장 오류",
-        description: "대화 내용을 저장하는 중 오류가 발생했습니다.",
+        title: t('voice.saveError'),
+        description: t('voice.saveError'),
         variant: "destructive"
       });
     }
@@ -526,16 +538,16 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
       setShowMicPrompt(false);
       
       toast({
-        title: "대화가 초기화되었습니다",
-        description: "'대화 시작하기' 버튼을 눌러 새로운 대화를 시작하세요.",
+        title: t('voice.resetSuccess'),
+        description: t('voice.resetDescription'),
       });
       
       console.log('🔄 Conversation reset complete');
     } catch (error) {
       console.error('❌ Error resetting conversation:', error);
       toast({
-        title: "초기화 오류",
-        description: "대화를 초기화하는 중 오류가 발생했습니다.",
+        title: t('voice.resetError'),
+        description: t('voice.resetError'),
         variant: "destructive"
       });
     }
@@ -544,8 +556,8 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
   const handleVoiceInput = () => {
     if (!speechSupported) {
       toast({
-        title: "음성 인식 미지원",
-        description: "현재 브라우저에서는 음성 인식을 지원하지 않습니다.",
+        title: t('voice.notSupported'),
+        description: t('voice.notSupported'),
         variant: "destructive"
       });
       return;
@@ -554,21 +566,21 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
     if (isRecording) {
       recognitionRef.current?.stop();
       toast({
-        title: "음성 입력 완료",
-        description: "음성이 텍스트로 변환되었습니다.",
+        title: t('voice.inputComplete'),
+        description: t('voice.inputCompleteDesc'),
       });
     } else {
       try {
         recognitionRef.current?.start();
         toast({
-          title: "음성 입력 시작",
-          description: "말씀하세요. 완료 후 다시 클릭하여 계속 추가할 수 있습니다.",
+          title: t('voice.inputStart'),
+          description: t('voice.inputStartDesc'),
         });
       } catch (error) {
         console.error('음성 인식 시작 실패:', error);
         toast({
-          title: "음성 입력 오류",
-          description: "음성 인식을 시작할 수 없습니다. 다시 시도해주세요.",
+          title: t('voice.inputError'),
+          description: t('voice.inputErrorDesc'),
           variant: "destructive"
         });
       }
@@ -590,7 +602,7 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
   // 감정에 따른 음성 설정
   const getVoiceSettings = (emotion: string = '중립', gender: 'male' | 'female' = 'male') => {
     const baseSettings = {
-      lang: 'ko-KR',
+      lang: getSpeechSynthesisLang(i18n.language),
       volume: 0.8,
     };
 
@@ -678,8 +690,8 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
         currentAudioRef.current = null;
         currentAudioUrlRef.current = null;
         toast({
-          title: "음성 재생 오류",
-          description: "오디오 재생에 실패했습니다.",
+          title: t('voice.playError'),
+          description: t('voice.playErrorDesc'),
           variant: "destructive"
         });
       };
@@ -704,8 +716,8 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
         // 자동재생이 아닌 경우에만 오류 메시지 표시
         if (!isAutoPlay) {
           toast({
-            title: "음성 서비스 오류",
-            description: "음성 재생이 일시적으로 불가능합니다.",
+            title: t('voice.serviceError'),
+            description: t('voice.serviceErrorDesc'),
             variant: "destructive"
           });
         }
@@ -796,8 +808,8 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
     if (typeof window === 'undefined' || !('speechSynthesis' in window) || !window.speechSynthesis) {
       console.error('❌ 브라우저가 Speech Synthesis API를 지원하지 않습니다');
       toast({
-        title: "음성 재생 불가",
-        description: "브라우저가 음성 합성을 지원하지 않습니다.",
+        title: t('voice.notAvailable'),
+        description: t('voice.notAvailableDesc'),
         variant: "destructive"
       });
       return;
@@ -857,8 +869,8 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
         console.error('❌ 음성 재생 오류:', event);
         setIsSpeaking(false);
         toast({
-          title: "음성 재생 오류",
-          description: "음성을 재생할 수 없습니다.",
+          title: t('voice.playError'),
+          description: t('voice.playErrorDesc'),
           variant: "destructive"
         });
       };
@@ -871,8 +883,8 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
       console.error('❌ 브라우저 TTS 처리 중 오류:', error);
       setIsSpeaking(false);
       toast({
-        title: "음성 처리 오류",
-        description: "음성 처리 중 문제가 발생했습니다.",
+        title: t('voice.processingError'),
+        description: t('voice.processingErrorDesc'),
         variant: "destructive"
       });
     }
@@ -979,7 +991,7 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
           }
           
           toast({
-            title: "음성 인식 오류",
+            title: t('voice.recognitionError'),
             description: errorMessage,
             variant: "destructive"
           });
