@@ -209,6 +209,8 @@
     "noSituation": "状況情報なし",
     "yourRole": "あなたの役割",
     "noRole": "役割情報なし",
+    "position": "役職",
+    "experience": "経験",
     "estimatedTime": "所要時間目安",
     "keyCompetencies": "主要能力",
     "startScenario": "シナリオを開始",
@@ -258,6 +260,23 @@
     "bubble3": "AIとの会話は気楽です",
     "bubble4": "プレゼンテーション練習完了！",
     "bubble5": "感情分析が正確です"
+  },
+  "conversation": {
+    "loading": "会話を読み込み中...",
+    "backToMyPage": "マイページへ",
+    "viewFeedback": "フィードバックを見る",
+    "history": "会話履歴",
+    "partner": "会話相手",
+    "noMessages": "まだメッセージがありません",
+    "noMessagesHint": "この会話にはメッセージが保存されていないか、まだ開始されていません。",
+    "emotion": "感情"
+  },
+  "feedback": {
+    "loading": "フィードバックを読み込み中...",
+    "scenarioNotFound": "シナリオまたはペルソナが見つかりません。"
+  },
+  "common": {
+    "unknown": "不明"
   },
   "voice": {
     "connectionError": "音声接続エラー",

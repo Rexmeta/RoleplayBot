@@ -209,6 +209,8 @@
     "noSituation": "暂无情况信息",
     "yourRole": "您的角色",
     "noRole": "暂无角色信息",
+    "position": "职位",
+    "experience": "经验",
     "estimatedTime": "预计时间",
     "keyCompetencies": "关键能力",
     "startScenario": "开始场景",
@@ -258,6 +260,23 @@
     "bubble3": "和AI对话没有压力",
     "bubble4": "演示练习完成！",
     "bubble5": "情绪分析很准确"
+  },
+  "conversation": {
+    "loading": "正在加载对话...",
+    "backToMyPage": "返回我的页面",
+    "viewFeedback": "查看反馈",
+    "history": "对话记录",
+    "partner": "对话对象",
+    "noMessages": "暂无消息",
+    "noMessagesHint": "此对话没有保存的消息或尚未开始。",
+    "emotion": "情绪"
+  },
+  "feedback": {
+    "loading": "正在加载反馈...",
+    "scenarioNotFound": "找不到场景或人设。"
+  },
+  "common": {
+    "unknown": "未知"
   },
   "voice": {
     "connectionError": "语音连接错误",

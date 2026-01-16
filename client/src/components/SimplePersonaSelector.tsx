@@ -223,24 +223,32 @@ export function SimplePersonaSelector({
                           <Briefcase className="w-6 h-6 text-blue-600" />
                         </div>
                         <div className="flex-1">
-                          <h4 className="font-semibold text-slate-900 mb-2">나의 역할</h4>
-                          <div className="grid grid-cols-2 gap-3 text-sm">
-                            <div>
-                              <span className="text-slate-500">직책:</span>
-                              <span className="ml-2 font-medium text-slate-900">{scenario.context.playerRole.position}</span>
-                            </div>
-                            <div>
-                              <span className="text-slate-500">부서:</span>
-                              <span className="ml-2 font-medium text-slate-900">{scenario.context.playerRole.department}</span>
-                            </div>
-                            <div>
-                              <span className="text-slate-500">경력:</span>
-                              <span className="ml-2 font-medium text-slate-900">{scenario.context.playerRole.experience}</span>
-                            </div>
-                          </div>
-                          <p className="mt-3 text-sm text-slate-600 leading-relaxed">
-                            {scenario.context.playerRole.responsibility}
-                          </p>
+                          <h4 className="font-semibold text-slate-900 mb-2">{t('scenario.yourRole')}</h4>
+                          {scenario.context?.playerRoleText ? (
+                            <p className="text-sm text-slate-700 leading-relaxed whitespace-pre-wrap">
+                              {scenario.context.playerRoleText}
+                            </p>
+                          ) : (
+                            <>
+                              <div className="grid grid-cols-2 gap-3 text-sm">
+                                <div>
+                                  <span className="text-slate-500">{t('scenario.position')}:</span>
+                                  <span className="ml-2 font-medium text-slate-900">{scenario.context?.playerRole?.position}</span>
+                                </div>
+                                <div>
+                                  <span className="text-slate-500">{t('scenario.department')}:</span>
+                                  <span className="ml-2 font-medium text-slate-900">{scenario.context?.playerRole?.department}</span>
+                                </div>
+                                <div>
+                                  <span className="text-slate-500">{t('scenario.experience')}:</span>
+                                  <span className="ml-2 font-medium text-slate-900">{scenario.context?.playerRole?.experience}</span>
+                                </div>
+                              </div>
+                              <p className="mt-3 text-sm text-slate-600 leading-relaxed">
+                                {scenario.context?.playerRole?.responsibility}
+                              </p>
+                            </>
+                          )}
                         </div>
                       </div>
 

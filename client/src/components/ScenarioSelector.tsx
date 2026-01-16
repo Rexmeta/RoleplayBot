@@ -531,12 +531,20 @@ export default function ScenarioSelector({ onScenarioSelect, playerProfile }: Sc
                               <i className="fas fa-user-tie mr-2 text-blue-400"></i>
                               {t('scenario.yourRole')}
                             </h4>
-                            <p className="text-gray-300 text-xs">
-                              {scenario.context?.playerRole?.position || t('scenario.noRole')}
-                            </p>
-                            <p className="text-gray-400 text-xs mt-0.5">
-                              {scenario.context?.playerRole?.experience || ''}
-                            </p>
+                            {scenario.context?.playerRoleText ? (
+                              <p className="text-gray-300 text-xs line-clamp-2">
+                                {scenario.context.playerRoleText}
+                              </p>
+                            ) : (
+                              <>
+                                <p className="text-gray-300 text-xs">
+                                  {scenario.context?.playerRole?.position || t('scenario.noRole')}
+                                </p>
+                                <p className="text-gray-400 text-xs mt-0.5">
+                                  {scenario.context?.playerRole?.experience || ''}
+                                </p>
+                              </>
+                            )}
                           </div>
                           
                           <div className="bg-white/5 rounded-lg p-3">

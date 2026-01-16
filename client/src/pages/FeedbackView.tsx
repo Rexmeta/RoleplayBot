@@ -4,8 +4,10 @@ import { useMemo } from "react";
 import PersonalDevelopmentReport from "@/components/PersonalDevelopmentReport";
 import { Button } from "@/components/ui/button";
 import { type Conversation } from "@shared/schema";
+import { useTranslation } from "react-i18next";
 
 export default function FeedbackView() {
+  const { t } = useTranslation();
   const [, params] = useRoute("/feedback/:conversationId");
   const conversationId = params?.conversationId;
 
@@ -36,7 +38,7 @@ export default function FeedbackView() {
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100">
         <div className="text-center">
           <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          <p className="text-gray-600">피드백을 불러오는 중...</p>
+          <p className="text-gray-600">{t('feedback.loading')}</p>
         </div>
       </div>
     );
@@ -50,7 +52,7 @@ export default function FeedbackView() {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100">
         <div className="text-center">
-          <p className="text-red-600">시나리오 또는 페르소나를 찾을 수 없습니다.</p>
+          <p className="text-red-600">{t('feedback.scenarioNotFound')}</p>
           <p className="text-sm text-gray-500 mt-2">
             Scenario ID: {conversation.scenarioId}, Persona ID: {conversation.personaId}
           </p>
@@ -58,7 +60,7 @@ export default function FeedbackView() {
             onClick={() => window.location.href = '/mypage'}
             className="mt-4"
           >
-            마이페이지로 돌아가기
+            {t('conversation.backToMyPage')}
           </Button>
         </div>
       </div>

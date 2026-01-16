@@ -6,8 +6,10 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, MessageSquare } from "lucide-react";
 import { format } from "date-fns";
+import { useTranslation } from "react-i18next";
 
 export default function ConversationView() {
+  const { t } = useTranslation();
   const [, params] = useRoute("/chat/:conversationId");
   const conversationId = params?.conversationId;
 
@@ -38,7 +40,7 @@ export default function ConversationView() {
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100">
         <div className="text-center">
           <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          <p className="text-gray-600">대화를 불러오는 중...</p>
+          <p className="text-gray-600">{t('conversation.loading')}</p>
         </div>
       </div>
     );
@@ -58,14 +60,14 @@ export default function ConversationView() {
             data-testid="back-button"
           >
             <ArrowLeft className="w-4 h-4 mr-2" />
-            마이페이지로
+            {t('conversation.backToMyPage')}
           </Button>
           {conversation.status === 'completed' && (
             <Button
               onClick={() => window.location.href = `/feedback/${conversationId}`}
               data-testid="view-feedback-button"
             >
-              피드백 보기
+              {t('conversation.viewFeedback')}
             </Button>
           )}
         </div>
@@ -74,10 +76,10 @@ export default function ConversationView() {
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <MessageSquare className="w-5 h-5" />
-              대화 기록 - {scenario?.title || conversation.scenarioId || '시나리오'}
+              {t('conversation.history')} - {scenario?.title || conversation.scenarioId || t('scenario.select')}
             </CardTitle>
             <div className="text-sm text-slate-600">
-              대화 상대: {persona ? [persona.department, persona.name, persona.role].filter(Boolean).join(' ') : '알 수 없음'}
+              {t('conversation.partner')}: {persona ? [persona.department, persona.name, persona.role].filter(Boolean).join(' ') : t('common.unknown')}
             </div>
             <div className="text-xs text-slate-500">
               {format(new Date(conversation.createdAt), 'yyyy년 MM월 dd일 HH:mm')}
@@ -88,8 +90,8 @@ export default function ConversationView() {
               {conversation.messages.length === 0 ? (
                 <div className="text-center py-12 text-slate-500">
                   <MessageSquare className="w-12 h-12 mx-auto mb-4 opacity-50" />
-                  <p className="text-lg font-medium">아직 대화 내용이 없습니다</p>
-                  <p className="text-sm mt-2">이 대화는 메시지가 저장되지 않았거나 아직 시작되지 않았습니다.</p>
+                  <p className="text-lg font-medium">{t('conversation.noMessages')}</p>
+                  <p className="text-sm mt-2">{t('conversation.noMessagesHint')}</p>
                 </div>
               ) : (
                 conversation.messages.map((message: ConversationMessage, index: number) => (
@@ -107,13 +109,13 @@ export default function ConversationView() {
                     >
                       {message.sender !== 'user' && (
                         <div className="font-semibold text-sm mb-1">
-                          {persona ? [persona.department, persona.name, persona.role].filter(Boolean).join(' ') : '대화 상대'}
+                          {persona ? [persona.department, persona.name, persona.role].filter(Boolean).join(' ') : t('conversation.partner')}
                         </div>
                       )}
                       <div className="whitespace-pre-wrap">{message.message}</div>
                       {message.emotion && message.sender !== 'user' && (
                         <div className="text-xs mt-2 opacity-75">
-                          감정: {message.emotion}
+                          {t('conversation.emotion')}: {message.emotion}
                         </div>
                       )}
                     </div>

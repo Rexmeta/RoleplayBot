@@ -209,6 +209,8 @@
     "noSituation": "No situation info",
     "yourRole": "Your Role",
     "noRole": "No role info",
+    "position": "Position",
+    "experience": "Experience",
     "estimatedTime": "Estimated Time",
     "keyCompetencies": "Key Competencies",
     "startScenario": "Start Scenario",
@@ -258,6 +260,23 @@
     "bubble3": "Talking with AI is stress-free",
     "bubble4": "Presentation practice complete!",
     "bubble5": "Emotion analysis is accurate"
+  },
+  "conversation": {
+    "loading": "Loading conversation...",
+    "backToMyPage": "Back to My Page",
+    "viewFeedback": "View Feedback",
+    "history": "Conversation History",
+    "partner": "Conversation Partner",
+    "noMessages": "No messages yet",
+    "noMessagesHint": "This conversation has no saved messages or hasn't started yet.",
+    "emotion": "Emotion"
+  },
+  "feedback": {
+    "loading": "Loading feedback...",
+    "scenarioNotFound": "Scenario or persona not found."
+  },
+  "common": {
+    "unknown": "Unknown"
   },
   "voice": {
     "connectionError": "Voice connection error",

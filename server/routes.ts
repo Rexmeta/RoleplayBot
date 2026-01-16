@@ -3275,10 +3275,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
                   description: translation.description || scenario.description,
                   context: {
                     ...scenario.context,
+                    playerRole: scenario.context?.playerRole,
                     situation: translation.situation || scenario.context?.situation,
                     timeline: translation.timeline || scenario.context?.timeline,
                     stakes: translation.stakes || scenario.context?.stakes,
-                    playerRole: translation.playerRole || scenario.context?.playerRole,
+                    playerRoleText: translation.playerRole || null,
                   },
                   objectives: translation.objectives || scenario.objectives,
                   successCriteria: {
