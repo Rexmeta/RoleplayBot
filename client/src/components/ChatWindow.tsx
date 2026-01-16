@@ -942,15 +942,22 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
     }
   }, []);
 
+  const VOICE_INPUT_MARKER = '🎤';
+  
+  const removeInterimText = (text: string): string => {
+    const markerPattern = new RegExp(`\\[${VOICE_INPUT_MARKER}.*?\\].*$`);
+    return text.replace(markerPattern, '').trim();
+  };
+
   useEffect(() => {
     if (typeof window !== 'undefined') {
       const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
       if (SpeechRecognition) {
         setSpeechSupported(true);
         const recognition = new SpeechRecognition();
-        recognition.continuous = false;  // 단일 음성 입력으로 변경
-        recognition.interimResults = true;  // 중간 결과 표시 활성화
-        recognition.lang = 'ko-KR';
+        recognition.continuous = false;
+        recognition.interimResults = true;
+        recognition.lang = getSpeechSynthesisLang(i18n.language);
         recognition.maxAlternatives = 1;
         
         recognition.onstart = () => {
@@ -962,16 +969,14 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
           const transcript = result[0].transcript;
           
           if (result.isFinal) {
-            // final 결과: 기존 텍스트에 추가
             setUserInput(prev => {
-              const currentText = prev.replace(/\[음성 입력 중\.\.\.\].*$/, '').trim();
+              const currentText = removeInterimText(prev);
               return currentText + (currentText ? ' ' : '') + transcript.trim();
             });
           } else {
-            // interim 결과: 임시 표시
             setUserInput(prev => {
-              const currentText = prev.replace(/\[음성 입력 중\.\.\.\].*$/, '').trim();
-              return currentText + (currentText ? ' ' : '') + `[음성 입력 중...] ${transcript.trim()}`;
+              const currentText = removeInterimText(prev);
+              return currentText + (currentText ? ' ' : '') + `[${VOICE_INPUT_MARKER}] ${transcript.trim()}`;
             });
           }
         };
@@ -980,14 +985,13 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
           console.error('Speech recognition error:', event.error);
           setIsRecording(false);
           
-          // 특정 오류에 대한 맞춤형 메시지
-          let errorMessage = "음성을 인식할 수 없습니다. 다시 시도해주세요.";
+          let errorMessage = t('voice.recognitionFailed');
           if (event.error === 'no-speech') {
-            errorMessage = "음성이 감지되지 않았습니다. 마이크를 확인하고 다시 시도해주세요.";
+            errorMessage = t('voice.noSpeech');
           } else if (event.error === 'not-allowed') {
-            errorMessage = "마이크 권한이 거부되었습니다. 브라우저 설정에서 마이크 권한을 허용해주세요.";
+            errorMessage = t('voice.notAllowed');
           } else if (event.error === 'network') {
-            errorMessage = "네트워크 오류로 음성 인식에 실패했습니다.";
+            errorMessage = t('voice.networkError');
           }
           
           toast({
@@ -996,14 +1000,12 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
             variant: "destructive"
           });
           
-          // 임시 텍스트 제거
-          setUserInput(prev => prev.replace(/\[음성 입력 중\.\.\.\].*$/, '').trim());
+          setUserInput(prev => removeInterimText(prev));
         };
 
         recognition.onend = () => {
           setIsRecording(false);
-          // 음성 입력 종료 시 임시 표시 제거
-          setUserInput(prev => prev.replace(/\[음성 입력 중\.\.\.\].*$/, '').trim());
+          setUserInput(prev => removeInterimText(prev));
         };
 
         recognitionRef.current = recognition;
@@ -1011,7 +1013,7 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
         setSpeechSupported(false);
       }
     }
-  }, [toast]);
+  }, [toast, i18n.language, t]);
 
   // 로컬 메시지와 서버 메시지 동기화
   useEffect(() => {

@@ -162,6 +162,11 @@
     "notAvailableDesc": "浏览器不支持语音合成。",
     "processingError": "语音处理错误",
     "processingErrorDesc": "语音处理过程中出现问题。",
-    "recognitionError": "语音识别错误"
+    "recognitionError": "语音识别错误",
+    "recognitionFailed": "无法识别语音，请重试。",
+    "noSpeech": "未检测到语音，请检查麦克风后重试。",
+    "notAllowed": "麦克风权限被拒绝，请在浏览器设置中允许麦克风访问。",
+    "networkError": "由于网络错误，语音识别失败。",
+    "inputInProgress": "语音输入中..."
   }
 }

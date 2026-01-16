@@ -162,6 +162,11 @@
     "notAvailableDesc": "Browser does not support speech synthesis.",
     "processingError": "Voice processing error",
     "processingErrorDesc": "Problem occurred during voice processing.",
-    "recognitionError": "Voice recognition error"
+    "recognitionError": "Voice recognition error",
+    "recognitionFailed": "Could not recognize speech. Please try again.",
+    "noSpeech": "No speech detected. Please check your microphone and try again.",
+    "notAllowed": "Microphone permission denied. Please allow microphone access in browser settings.",
+    "networkError": "Voice recognition failed due to network error.",
+    "inputInProgress": "Voice input in progress..."
   }
 }

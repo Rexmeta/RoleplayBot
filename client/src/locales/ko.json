@@ -162,6 +162,11 @@
     "notAvailableDesc": "브라우저가 음성 합성을 지원하지 않습니다.",
     "processingError": "음성 처리 오류",
     "processingErrorDesc": "음성 처리 중 문제가 발생했습니다.",
-    "recognitionError": "음성 인식 오류"
+    "recognitionError": "음성 인식 오류",
+    "recognitionFailed": "음성을 인식할 수 없습니다. 다시 시도해주세요.",
+    "noSpeech": "음성이 감지되지 않았습니다. 마이크를 확인하고 다시 시도해주세요.",
+    "notAllowed": "마이크 권한이 거부되었습니다. 브라우저 설정에서 마이크 권한을 허용해주세요.",
+    "networkError": "네트워크 오류로 음성 인식에 실패했습니다.",
+    "inputInProgress": "음성 입력 중..."
   }
 }

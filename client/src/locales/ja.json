@@ -162,6 +162,11 @@
     "notAvailableDesc": "ブラウザが音声合成をサポートしていません。",
     "processingError": "音声処理エラー",
     "processingErrorDesc": "音声処理中に問題が発生しました。",
-    "recognitionError": "音声認識エラー"
+    "recognitionError": "音声認識エラー",
+    "recognitionFailed": "音声を認識できませんでした。もう一度お試しください。",
+    "noSpeech": "音声が検出されませんでした。マイクを確認してもう一度お試しください。",
+    "notAllowed": "マイクの権限が拒否されました。ブラウザ設定でマイクを許可してください。",
+    "networkError": "ネットワークエラーにより音声認識に失敗しました。",
+    "inputInProgress": "音声入力中..."
   }
 }
