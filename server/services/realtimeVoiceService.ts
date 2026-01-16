@@ -35,45 +35,82 @@ function isThinkingText(text: string): boolean {
   return thinkingPatterns.some(pattern => pattern.test(trimmed));
 }
 
-// Gemini의 thinking/reasoning 텍스트를 필터링하고 한국어 응답만 추출
-function filterThinkingText(text: string): string {
+// Gemini의 thinking/reasoning 텍스트를 필터링하고 사용자 언어에 맞는 응답만 추출
+function filterThinkingText(text: string, userLanguage: 'ko' | 'en' | 'ja' | 'zh' = 'ko'): string {
   if (!text) return '';
   
   // 패턴 1: **제목** 형식의 thinking 블록 제거
   // 예: "**Beginning the Briefing**\nI've initiated..."
   let filtered = text.replace(/\*\*[^*]+\*\*\s*/g, '');
   
+  // 언어별 문자 패턴 정의
+  const languagePatterns: Record<string, RegExp> = {
+    ko: /[\uAC00-\uD7AF\u1100-\u11FF\u3130-\u318F]/, // 한글
+    ja: /[\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FAF]/, // 히라가나, 가타카나, 한자
+    zh: /[\u4E00-\u9FFF\u3400-\u4DBF]/, // 중국어 한자
+    en: /[a-zA-Z]/, // 영어
+  };
+  
+  // 영어인 경우 thinking 패턴만 제거하고 영어 텍스트 유지
+  if (userLanguage === 'en') {
+    const lines = filtered.split('\n');
+    const validLines = lines.filter(line => {
+      const trimmed = line.trim();
+      if (!trimmed) return false;
+      
+      // Thinking 텍스트 패턴 확인
+      const thinkingPatterns = [
+        /^\*\*[^*]+\*\*/,
+        /^I['']m\s+(focusing|thinking|considering|now|about|going)/i,
+        /^(I|Now|Let me|First|Okay)\s+(understand|need|will|am|have)\s+to/i,
+        /^(Initiating|Beginning|Starting|Transitioning|Highlighting)/i,
+        /^The\s+(user|situation|context)\s+(is|seems|appears)/i,
+        /^(considering|crafting|ensuring|maintaining|reflecting)/i,
+      ];
+      
+      if (thinkingPatterns.some(pattern => pattern.test(trimmed))) {
+        return false;
+      }
+      
+      return true;
+    });
+    
+    filtered = validLines.join('\n').trim();
+    filtered = filtered.replace(/\s+/g, ' ');
+    return filtered;
+  }
+  
+  // 한국어, 일본어, 중국어의 경우 해당 언어 문자가 있는 줄만 유지
+  const targetPattern = languagePatterns[userLanguage] || languagePatterns.ko;
+  
   // 패턴 2: 라인 단위 필터링
   const lines = filtered.split('\n');
-  const koreanLines = lines.filter(line => {
+  const targetLines = lines.filter(line => {
     const trimmed = line.trim();
     if (!trimmed) return false;
     
-    // 한글이 포함된 줄 확인
-    const hasKorean = /[\uAC00-\uD7AF\u1100-\u11FF\u3130-\u318F]/.test(trimmed);
-    if (!hasKorean) return false; // 한글이 없으면 제거
+    // 대상 언어 문자가 포함된 줄 확인
+    const hasTargetLanguage = targetPattern.test(trimmed);
+    if (!hasTargetLanguage) return false;
     
-    // 한글이 있는 줄이라도, 영문이 너무 많으면 제거 (thinking 텍스트로 의심)
-    // 한글 문자 개수와 영문 단어 개수 비교
-    const koreanCharCount = (trimmed.match(/[\uAC00-\uD7AF\u1100-\u11FF\u3130-\u318F]/g) || []).length;
+    // 대상 언어 문자가 있는 줄이라도, 영문이 너무 많으면 제거 (thinking 텍스트로 의심)
+    const targetCharCount = (trimmed.match(new RegExp(targetPattern.source, 'g')) || []).length;
     const englishWords = (trimmed.match(/\b[a-zA-Z]+\b/g) || []).length;
     
-    // 영문 단어가 한글 문자의 3배 이상이면 thinking 텍스트로 간주
-    // 예: "I've crafted a greeting for Rex님" → 5개 영문 단어 vs 3개 한글 문자 → 제거
-    if (englishWords > 0 && englishWords >= koreanCharCount * 3) {
+    // 영문 단어가 대상 언어 문자의 3배 이상이면 thinking 텍스트로 간주
+    if (englishWords > 0 && englishWords >= targetCharCount * 3) {
       return false;
     }
     
     return true;
   });
   
-  filtered = koreanLines.join('\n').trim();
+  filtered = targetLines.join('\n').trim();
   
-  // 패턴 3: 남은 텍스트에서 영문 단어가 연속으로 많은 부분 제거
-  // "ensuring my tone reflects concern but remains professional" 같은 영문 구문 제거
+  // 패턴 3: 남은 텍스트에서 영문 단어가 연속으로 많은 부분 제거 (한국어/일본어/중국어 모드)
   filtered = filtered.replace(/([a-zA-Z\s]{20,})/g, (match) => {
     // 영문만 20자 이상 연속인 경우 제거
-    if (!/[\uAC00-\uD7AF\u1100-\u11FF\u3130-\u318F]/.test(match)) {
+    if (!targetPattern.test(match)) {
       return '';
     }
     return match;
@@ -935,9 +972,9 @@ export class RealtimeVoiceService {
 
         // Analyze emotion for the completed AI transcript
         if (session.currentTranscript) {
-          // thinking 텍스트 필터링 - 한국어 응답만 추출
-          const filteredTranscript = filterThinkingText(session.currentTranscript);
-          console.log(`📝 Filtered transcript: "${filteredTranscript.substring(0, 100)}..."`);
+          // thinking 텍스트 필터링 - 사용자 언어에 맞는 응답만 추출
+          const filteredTranscript = filterThinkingText(session.currentTranscript, session.userLanguage);
+          console.log(`📝 Filtered transcript (${session.userLanguage}): "${filteredTranscript.substring(0, 100)}..."`);
           
           if (filteredTranscript) {
             // setImmediate로 감정 분석을 비동기화하여 이벤트 루프 블로킹 방지
@@ -996,8 +1033,8 @@ export class RealtimeVoiceService {
           if (part.text) {
             console.log(`🤖 AI transcript (raw): ${part.text.substring(0, 100)}...`);
             session.currentTranscript += part.text;
-            // thinking 텍스트 필터링 - 한국어만 클라이언트에 전송
-            const filteredText = filterThinkingText(part.text);
+            // thinking 텍스트 필터링 - 사용자 언어에 맞는 텍스트만 클라이언트에 전송
+            const filteredText = filterThinkingText(part.text, session.userLanguage);
             if (filteredText) {
               this.sendToClient(session, {
                 type: 'ai.transcription.delta',
@@ -1076,8 +1113,8 @@ export class RealtimeVoiceService {
         }
         session.totalAiTranscriptLength += transcript.length; // 누적 길이 추적 (여기서만)
         
-        // thinking 텍스트 필터링 - 한국어만 클라이언트에 전송
-        const filteredTranscript = filterThinkingText(transcript);
+        // thinking 텍스트 필터링 - 사용자 언어에 맞는 텍스트만 클라이언트에 전송
+        const filteredTranscript = filterThinkingText(transcript, session.userLanguage);
         if (filteredTranscript) {
           this.sendToClient(session, {
             type: 'ai.transcription.delta',
@@ -1229,7 +1266,7 @@ export class RealtimeVoiceService {
         
         // 🔧 barge-in 시 현재까지의 AI 응답을 부분 전사로 저장 (대화 기록 누락 방지)
         if (session.currentTranscript.trim()) {
-          const partialTranscript = filterThinkingText(session.currentTranscript);
+          const partialTranscript = filterThinkingText(session.currentTranscript, session.userLanguage);
           if (partialTranscript) {
             console.log(`📝 Saving partial AI transcript before barge-in: "${partialTranscript.substring(0, 50)}..."`);
             this.sendToClient(session, {
