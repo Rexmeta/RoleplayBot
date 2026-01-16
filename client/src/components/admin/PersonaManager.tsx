@@ -12,7 +12,8 @@ import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
 import { apiRequest, queryClient } from '@/lib/queryClient';
-import { MoreVertical, RefreshCw } from 'lucide-react';
+import { MoreVertical, RefreshCw, Languages } from 'lucide-react';
+import { PersonaTranslationEditor } from './PersonaTranslationEditor';
 
 // MBTI 페르소나 타입 정의
 interface MBTIPersona {
@@ -179,6 +180,7 @@ export function PersonaManager() {
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [editingPersona, setEditingPersona] = useState<MBTIPersona | null>(null);
   const [deletingPersona, setDeletingPersona] = useState<MBTIPersona | null>(null);
+  const [translatingPersona, setTranslatingPersona] = useState<MBTIPersona | null>(null);
   
   // 이미지 생성 상태
   const [isGeneratingBase, setIsGeneratingBase] = useState(false);
@@ -1297,6 +1299,13 @@ export function PersonaManager() {
                         <i className="fas fa-edit mr-2 w-4 h-4 text-center"></i>
                         수정
                       </DropdownMenuItem>
+                      <DropdownMenuItem
+                        onClick={() => setTranslatingPersona(persona)}
+                        data-testid={`button-translate-persona-${persona.id}`}
+                      >
+                        <Languages className="mr-2 w-4 h-4" />
+                        번역 관리
+                      </DropdownMenuItem>
                       <AlertDialog>
                         <AlertDialogTrigger asChild>
                           <DropdownMenuItem
@@ -1557,6 +1566,25 @@ export function PersonaManager() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* 번역 관리 모달 */}
+      <Dialog open={!!translatingPersona} onOpenChange={(open) => !open && setTranslatingPersona(null)}>
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto" data-testid="persona-translation-dialog">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Languages className="h-5 w-5" />
+              번역 관리 - {translatingPersona?.mbti}
+            </DialogTitle>
+          </DialogHeader>
+          {translatingPersona && (
+            <PersonaTranslationEditor
+              personaId={translatingPersona.id}
+              personaMbti={translatingPersona.mbti}
+              personaTraits={translatingPersona.personality_traits || []}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

@@ -4924,6 +4924,84 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
   
+  // Admin: Generate AI translation for scenario
+  app.post("/api/admin/scenarios/:scenarioId/generate-translation", isAuthenticated, isOperatorOrAdmin, async (req: any, res) => {
+    try {
+      const { scenarioId } = req.params;
+      const { targetLocale } = req.body;
+      
+      if (!targetLocale) {
+        return res.status(400).json({ message: "대상 언어가 필요합니다" });
+      }
+      
+      const scenario = await storage.getScenarioById(scenarioId);
+      if (!scenario) {
+        return res.status(404).json({ message: "시나리오를 찾을 수 없습니다" });
+      }
+      
+      const languages = await storage.getAllLanguages();
+      const targetLang = languages.find(l => l.code === targetLocale);
+      if (!targetLang) {
+        return res.status(400).json({ message: "지원하지 않는 언어입니다" });
+      }
+      
+      const languageNames: Record<string, string> = {
+        'en': 'English',
+        'ja': 'Japanese (日本語)',
+        'zh': 'Chinese Simplified (简体中文)',
+      };
+      
+      const prompt = `Translate the following Korean roleplay scenario into ${languageNames[targetLocale] || targetLocale}. 
+Maintain the professional tone and context. Provide translations in JSON format.
+
+Source scenario:
+Title: ${scenario.title}
+Description: ${scenario.description}
+Situation: ${(scenario as any).context?.situation || ''}
+Timeline: ${(scenario as any).context?.timeline || ''}
+Stakes: ${(scenario as any).context?.stakes || ''}
+Objectives: ${JSON.stringify((scenario as any).objectives || [])}
+Success Criteria (Optimal): ${(scenario as any).successCriteria?.optimal || ''}
+Success Criteria (Good): ${(scenario as any).successCriteria?.good || ''}
+Success Criteria (Acceptable): ${(scenario as any).successCriteria?.acceptable || ''}
+Success Criteria (Failure): ${(scenario as any).successCriteria?.failure || ''}
+
+Return ONLY valid JSON in this exact format:
+{
+  "title": "translated title",
+  "description": "translated description",
+  "contextSituation": "translated situation",
+  "contextTimeline": "translated timeline",
+  "contextStakes": "translated stakes",
+  "objectives": ["translated objective 1", "translated objective 2"],
+  "successCriteriaOptimal": "translated optimal criteria",
+  "successCriteriaGood": "translated good criteria",
+  "successCriteriaAcceptable": "translated acceptable criteria",
+  "successCriteriaFailure": "translated failure criteria"
+}`;
+
+      const response = await generateAIResponse('gemini-2.5-flash-preview-05-20', prompt, 'translate');
+      
+      let translation;
+      try {
+        const jsonMatch = response.match(/\{[\s\S]*\}/);
+        if (jsonMatch) {
+          translation = JSON.parse(jsonMatch[0]);
+        } else {
+          throw new Error("JSON not found in response");
+        }
+      } catch (parseError) {
+        console.error("Failed to parse AI translation response:", parseError);
+        return res.status(500).json({ message: "AI 응답 파싱 실패" });
+      }
+      
+      res.json({ success: true, translation });
+    } catch (error) {
+      console.error("Error generating scenario translation:", error);
+      res.status(500).json({ message: "AI 번역 생성 실패" });
+    }
+  });
+  
   // ================================
   // Persona Translations API
   // ================================
@@ -5021,6 +5099,74 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
   
+  // Admin: Generate AI translation for persona
+  app.post("/api/admin/personas/:personaId/generate-translation", isAuthenticated, isOperatorOrAdmin, async (req: any, res) => {
+    try {
+      const { personaId } = req.params;
+      const { targetLocale } = req.body;
+      
+      if (!targetLocale) {
+        return res.status(400).json({ message: "대상 언어가 필요합니다" });
+      }
+      
+      const persona = await storage.getPersonaById(personaId);
+      if (!persona) {
+        return res.status(404).json({ message: "페르소나를 찾을 수 없습니다" });
+      }
+      
+      const languages = await storage.getAllLanguages();
+      const targetLang = languages.find(l => l.code === targetLocale);
+      if (!targetLang) {
+        return res.status(400).json({ message: "지원하지 않는 언어입니다" });
+      }
+      
+      const languageNames: Record<string, string> = {
+        'en': 'English',
+        'ja': 'Japanese (日本語)',
+        'zh': 'Chinese Simplified (简体中文)',
+      };
+      
+      const personaData = persona as any;
+      const prompt = `Translate the following Korean MBTI persona information into ${languageNames[targetLocale] || targetLocale}. 
+Maintain the professional tone and context appropriate for a workplace roleplay training system.
+
+Source persona:
+MBTI Type: ${personaData.mbti}
+Personality Traits: ${JSON.stringify(personaData.personality_traits || [])}
+Communication Style: ${personaData.communication_style || ''}
+Motivation: ${personaData.motivation || ''}
+
+Return ONLY valid JSON in this exact format:
+{
+  "name": "localized type name (e.g., 'The Analyst' for English, '分析家' for Chinese)",
+  "personalityDescription": "translated personality description combining traits and style",
+  "position": "typical position title in that language",
+  "department": "typical department name in that language",
+  "background": "translated background and motivation"
+}`;
+
+      const response = await generateAIResponse('gemini-2.5-flash-preview-05-20', prompt, 'translate');
+      
+      let translation;
+      try {
+        const jsonMatch = response.match(/\{[\s\S]*\}/);
+        if (jsonMatch) {
+          translation = JSON.parse(jsonMatch[0]);
+        } else {
+          throw new Error("JSON not found in response");
+        }
+      } catch (parseError) {
+        console.error("Failed to parse AI translation response:", parseError);
+        return res.status(500).json({ message: "AI 응답 파싱 실패" });
+      }
+      
+      res.json({ success: true, translation });
+    } catch (error) {
+      console.error("Error generating persona translation:", error);
+      res.status(500).json({ message: "AI 번역 생성 실패" });
+    }
+  });
+  
   // ================================
   // Category Translations API
   // ================================
@@ -5094,6 +5240,214 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error deleting category translation:", error);
       res.status(500).json({ message: "카테고리 번역 삭제 실패" });
+    }
+  });
+  
+  // ================================
+  // Translation Dashboard API
+  // ================================
+  
+  // Get translation status for all content types
+  app.get("/api/admin/translation-status", isAuthenticated, isOperatorOrAdmin, async (req, res) => {
+    try {
+      const languages = await storage.getAllLanguages();
+      const nonDefaultLanguages = languages.filter(l => !l.isDefault);
+      
+      const scenarios = await storage.getAllScenarios();
+      const personas = await storage.getAllPersonas();
+      const categories = await storage.getAllCategories();
+      
+      const scenarioTranslations: Record<string, { count: number; reviewed: number; machine: number }> = {};
+      const personaTranslations: Record<string, { count: number; reviewed: number; machine: number }> = {};
+      const categoryTranslations: Record<string, { count: number; reviewed: number; machine: number }> = {};
+      
+      for (const lang of nonDefaultLanguages) {
+        scenarioTranslations[lang.code] = { count: 0, reviewed: 0, machine: 0 };
+        personaTranslations[lang.code] = { count: 0, reviewed: 0, machine: 0 };
+        categoryTranslations[lang.code] = { count: 0, reviewed: 0, machine: 0 };
+      }
+      
+      for (const scenario of scenarios) {
+        const translations = await storage.getScenarioTranslations(String(scenario.id));
+        for (const t of translations) {
+          if (scenarioTranslations[t.locale]) {
+            scenarioTranslations[t.locale].count++;
+            if (t.isReviewed) scenarioTranslations[t.locale].reviewed++;
+            if (t.isMachineTranslated) scenarioTranslations[t.locale].machine++;
+          }
+        }
+      }
+      
+      for (const persona of personas) {
+        const translations = await storage.getPersonaTranslations(persona.id);
+        for (const t of translations) {
+          if (personaTranslations[t.locale]) {
+            personaTranslations[t.locale].count++;
+            if (t.isReviewed) personaTranslations[t.locale].reviewed++;
+            if (t.isMachineTranslated) personaTranslations[t.locale].machine++;
+          }
+        }
+      }
+      
+      for (const category of categories) {
+        const translations = await storage.getCategoryTranslations(String(category.id));
+        for (const t of translations) {
+          if (categoryTranslations[t.locale]) {
+            categoryTranslations[t.locale].count++;
+            if (t.isReviewed) categoryTranslations[t.locale].reviewed++;
+            if (t.isMachineTranslated) categoryTranslations[t.locale].machine++;
+          }
+        }
+      }
+      
+      res.json({
+        scenarios: {
+          total: scenarios.length,
+          translated: scenarioTranslations,
+        },
+        personas: {
+          total: personas.length,
+          translated: personaTranslations,
+        },
+        categories: {
+          total: categories.length,
+          translated: categoryTranslations,
+        },
+      });
+    } catch (error) {
+      console.error("Error fetching translation status:", error);
+      res.status(500).json({ message: "번역 상태 조회 실패" });
+    }
+  });
+  
+  // Batch generate translations for a content type
+  app.post("/api/admin/generate-all-translations", isAuthenticated, isOperatorOrAdmin, async (req: any, res) => {
+    try {
+      const { targetLocale, contentType } = req.body;
+      
+      if (!targetLocale || !contentType) {
+        return res.status(400).json({ message: "대상 언어와 콘텐츠 타입이 필요합니다" });
+      }
+      
+      const languages = await storage.getAllLanguages();
+      const targetLang = languages.find(l => l.code === targetLocale);
+      if (!targetLang) {
+        return res.status(400).json({ message: "지원하지 않는 언어입니다" });
+      }
+      
+      const languageNames: Record<string, string> = {
+        'en': 'English',
+        'ja': 'Japanese (日本語)',
+        'zh': 'Chinese Simplified (简体中文)',
+      };
+      
+      let count = 0;
+      
+      if (contentType === 'scenarios') {
+        const scenarios = await storage.getAllScenarios();
+        for (const scenario of scenarios) {
+          const existing = await storage.getScenarioTranslation(String(scenario.id), targetLocale);
+          if (!existing) {
+            const prompt = `Translate the following Korean roleplay scenario into ${languageNames[targetLocale] || targetLocale}. 
+Maintain the professional tone and context. Return ONLY valid JSON.
+
+Source scenario:
+Title: ${scenario.title}
+Description: ${scenario.description}
+
+Return JSON: {"title": "translated title", "description": "translated description"}`;
+
+            try {
+              const response = await generateAIResponse('gemini-2.5-flash-preview-05-20', prompt, 'translate');
+              const jsonMatch = response.match(/\{[\s\S]*\}/);
+              if (jsonMatch) {
+                const translation = JSON.parse(jsonMatch[0]);
+                await storage.upsertScenarioTranslation({
+                  scenarioId: String(scenario.id),
+                  locale: targetLocale,
+                  title: translation.title,
+                  description: translation.description,
+                  isMachineTranslated: true,
+                  isReviewed: false,
+                });
+                count++;
+              }
+            } catch (e) {
+              console.error(`Failed to translate scenario ${scenario.id}:`, e);
+            }
+          }
+        }
+      } else if (contentType === 'personas') {
+        const personas = await storage.getAllPersonas();
+        for (const persona of personas) {
+          const existing = await storage.getPersonaTranslation(persona.id, targetLocale);
+          if (!existing) {
+            const personaData = persona as any;
+            const prompt = `Translate the following Korean MBTI persona into ${languageNames[targetLocale] || targetLocale}. 
+Return ONLY valid JSON.
+
+Source: MBTI ${personaData.mbti}, Traits: ${JSON.stringify(personaData.personality_traits || [])}
+
+Return JSON: {"name": "type name", "personalityDescription": "description"}`;
+
+            try {
+              const response = await generateAIResponse('gemini-2.5-flash-preview-05-20', prompt, 'translate');
+              const jsonMatch = response.match(/\{[\s\S]*\}/);
+              if (jsonMatch) {
+                const translation = JSON.parse(jsonMatch[0]);
+                await storage.upsertPersonaTranslation({
+                  personaId: persona.id,
+                  locale: targetLocale,
+                  name: translation.name,
+                  personalityDescription: translation.personalityDescription,
+                  isMachineTranslated: true,
+                  isReviewed: false,
+                });
+                count++;
+              }
+            } catch (e) {
+              console.error(`Failed to translate persona ${persona.id}:`, e);
+            }
+          }
+        }
+      } else if (contentType === 'categories') {
+        const categories = await storage.getAllCategories();
+        for (const category of categories) {
+          const existing = await storage.getCategoryTranslation(String(category.id), targetLocale);
+          if (!existing) {
+            const prompt = `Translate the following Korean category into ${languageNames[targetLocale] || targetLocale}. 
+Return ONLY valid JSON.
+
+Source: Name: ${category.name}, Description: ${category.description || ''}
+
+Return JSON: {"name": "translated name", "description": "translated description"}`;
+
+            try {
+              const response = await generateAIResponse('gemini-2.5-flash-preview-05-20', prompt, 'translate');
+              const jsonMatch = response.match(/\{[\s\S]*\}/);
+              if (jsonMatch) {
+                const translation = JSON.parse(jsonMatch[0]);
+                await storage.upsertCategoryTranslation({
+                  categoryId: String(category.id),
+                  locale: targetLocale,
+                  name: translation.name,
+                  description: translation.description,
+                  isMachineTranslated: true,
+                  isReviewed: false,
+                });
+                count++;
+              }
+            } catch (e) {
+              console.error(`Failed to translate category ${category.id}:`, e);
+            }
+          }
+        }
+      }
+      
+      res.json({ success: true, count });
+    } catch (error) {
+      console.error("Error generating batch translations:", error);
+      res.status(500).json({ message: "일괄 번역 생성 실패" });
     }
   });
   

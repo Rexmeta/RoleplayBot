@@ -13,8 +13,9 @@ import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import { apiRequest, queryClient } from '@/lib/queryClient';
 import { ComplexScenario } from '@/lib/scenario-system';
-import { Loader2, MoreVertical, ChevronDown, ChevronUp, Clock, Users, Target } from 'lucide-react';
+import { Loader2, MoreVertical, ChevronDown, ChevronUp, Clock, Users, Target, Languages } from 'lucide-react';
 import { AIScenarioGenerator } from './AIScenarioGenerator';
+import { ScenarioTranslationEditor } from './ScenarioTranslationEditor';
 
 interface ScenarioPersona {
   id: string;
@@ -74,6 +75,7 @@ export function ScenarioManager() {
   const [expandedScenarios, setExpandedScenarios] = useState<Set<string | number>>(new Set());
   const [imagePreviewUrl, setImagePreviewUrl] = useState<string | null>(null);
   const [videoPreviewUrl, setVideoPreviewUrl] = useState<string | null>(null);
+  const [translatingScenario, setTranslatingScenario] = useState<ComplexScenario | null>(null);
   const [formData, setFormData] = useState<ScenarioFormData>({
     title: '',
     description: '',
@@ -1423,6 +1425,13 @@ export function ScenarioManager() {
                           <i className="fas fa-edit mr-2 w-4 h-4 text-center"></i>
                           수정
                         </DropdownMenuItem>
+                        <DropdownMenuItem
+                          onClick={() => setTranslatingScenario(scenario)}
+                          data-testid={`button-translate-scenario-${scenario.id}`}
+                        >
+                          <Languages className="mr-2 w-4 h-4" />
+                          번역 관리
+                        </DropdownMenuItem>
                         <AlertDialog>
                           <AlertDialogTrigger asChild>
                             <DropdownMenuItem
@@ -1581,6 +1590,25 @@ export function ScenarioManager() {
               autoPlay
             />
           </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* 번역 관리 모달 */}
+      <Dialog open={!!translatingScenario} onOpenChange={(open) => !open && setTranslatingScenario(null)}>
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto" data-testid="translation-dialog">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Languages className="h-5 w-5" />
+              번역 관리 - {translatingScenario?.title}
+            </DialogTitle>
+          </DialogHeader>
+          {translatingScenario && (
+            <ScenarioTranslationEditor
+              scenarioId={String(translatingScenario.id)}
+              scenarioTitle={translatingScenario.title}
+              scenarioDescription={translatingScenario.description}
+            />
+          )}
         </DialogContent>
       </Dialog>
     </div>
