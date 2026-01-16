@@ -23,7 +23,11 @@
     "logout": "退出登录",
     "login": "登录",
     "register": "注册",
-    "user": "用户"
+    "user": "用户",
+    "menu": "菜单",
+    "fold": "收起",
+    "start": "开始",
+    "skipIntro": "跳过介绍"
   },
   "nav": {
     "home": "返回首页",
@@ -141,6 +145,39 @@
   },
   "settings": {
     "languageUpdateFailed": "语言设置更改失败。请重试。"
+  },
+  "landing": {
+    "title": "AI角色扮演沟通训练",
+    "description": "在真实的职场场景中与AI对话，培养您的沟通技能。通过实时反馈和战略分析提升沟通能力。",
+    "feature1Title": "多样化人设",
+    "feature1Desc": "与扮演团队领导、同事、客户、高管等不同角色的AI人设在真实场景中练习对话。",
+    "feature2Title": "战略对话规划",
+    "feature2Desc": "提前规划对话顺序，为每个对话对象制定最佳沟通策略。",
+    "feature3Title": "实时分析",
+    "feature3Desc": "对话过程中实时提供情绪分析和评分，完成后获得综合反馈报告。",
+    "loginHint": "使用Google、GitHub、Apple或邮箱轻松登录",
+    "demoTitle": "💡 在这些情况下练习",
+    "demoItem1": "向同事传达困难的请求",
+    "demoItem2": "汇报项目延期情况",
+    "demoItem3": "协调与团队成员的意见分歧",
+    "demoItem4": "向上级提出想法"
+  },
+  "intro": {
+    "title": "AI角色扮演训练",
+    "subtitle": "与AI一起的创新沟通技能训练系统",
+    "step1Title": "定制场景",
+    "step1Desc": "练习谈判、演示、冲突解决等实际工作中需要的各种情况。",
+    "step2Title": "与AI人设对话",
+    "step2Desc": "与具有不同性格和角色的AI角色模拟真实工作场景。",
+    "step3Title": "实时情绪分析",
+    "step3Desc": "在对话中实时确认AI的情绪变化，提升沟通技能。",
+    "step4Title": "详细反馈",
+    "step4Desc": "对话完成后获得AI分析的详细评估和改进建议。",
+    "bubble1": "我想学习谈判技巧！",
+    "bubble2": "实时反馈很有帮助！",
+    "bubble3": "和AI对话没有压力",
+    "bubble4": "演示练习完成！",
+    "bubble5": "情绪分析很准确"
   },
   "voice": {
     "connectionError": "语音连接错误",

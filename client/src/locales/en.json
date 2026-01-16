@@ -23,7 +23,11 @@
     "logout": "Logout",
     "login": "Login",
     "register": "Register",
-    "user": "User"
+    "user": "User",
+    "menu": "Menu",
+    "fold": "Fold",
+    "start": "Get Started",
+    "skipIntro": "Skip Intro"
   },
   "nav": {
     "home": "Home",
@@ -141,6 +145,39 @@
   },
   "settings": {
     "languageUpdateFailed": "Failed to update language settings. Please try again."
+  },
+  "landing": {
+    "title": "AI Roleplay Communication Training",
+    "description": "Develop your communication skills by conversing with AI in realistic workplace scenarios. Improve with real-time feedback and strategic analysis.",
+    "feature1Title": "Diverse Personas",
+    "feature1Desc": "Practice conversations with AI personas playing various roles like managers, colleagues, customers, and executives in realistic situations.",
+    "feature2Title": "Strategic Conversation Planning",
+    "feature2Desc": "Plan your conversation order in advance and develop optimal communication strategies for each counterpart.",
+    "feature3Title": "Real-time Analysis",
+    "feature3Desc": "Get real-time emotion analysis and scores during conversations, and receive comprehensive feedback reports upon completion.",
+    "loginHint": "Sign in easily with Google, GitHub, Apple, or email",
+    "demoTitle": "💡 Practice in situations like these",
+    "demoItem1": "Delivering difficult requests to colleagues",
+    "demoItem2": "Reporting project delays",
+    "demoItem3": "Mediating opinion differences with team members",
+    "demoItem4": "Proposing ideas to superiors"
+  },
+  "intro": {
+    "title": "AI Roleplay Training",
+    "subtitle": "An innovative communication skills training system with AI",
+    "step1Title": "Customized Scenarios",
+    "step1Desc": "Practice various real-world situations including negotiation, presentation, and conflict resolution.",
+    "step2Title": "Conversation with AI Personas",
+    "step2Desc": "Simulate real work situations with AI characters of various personalities and roles.",
+    "step3Title": "Real-time Emotion Analysis",
+    "step3Desc": "Monitor AI's emotional changes in real-time during conversations to improve communication skills.",
+    "step4Title": "Detailed Feedback",
+    "step4Desc": "Receive detailed AI analysis and improvement suggestions after completing conversations.",
+    "bubble1": "I want to learn negotiation skills!",
+    "bubble2": "Real-time feedback helps!",
+    "bubble3": "Talking with AI is stress-free",
+    "bubble4": "Presentation practice complete!",
+    "bubble5": "Emotion analysis is accurate"
   },
   "voice": {
     "connectionError": "Voice connection error",
