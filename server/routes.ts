@@ -4748,6 +4748,355 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   console.log('✅ WebSocket server initialized at /api/realtime-voice');
   
+  // ================================
+  // Translation Management API
+  // ================================
+  
+  // Get all supported languages
+  app.get("/api/languages", async (req, res) => {
+    try {
+      const languages = await storage.getActiveSupportedLanguages();
+      res.json(languages);
+    } catch (error) {
+      console.error("Error fetching languages:", error);
+      res.status(500).json({ message: "지원 언어 목록 조회 실패" });
+    }
+  });
+  
+  // Admin: Get all languages (including inactive)
+  app.get("/api/admin/languages", isAuthenticated, isOperatorOrAdmin, async (req, res) => {
+    try {
+      const languages = await storage.getSupportedLanguages();
+      res.json(languages);
+    } catch (error) {
+      console.error("Error fetching languages:", error);
+      res.status(500).json({ message: "지원 언어 목록 조회 실패" });
+    }
+  });
+  
+  // Admin: Create new language
+  app.post("/api/admin/languages", isAuthenticated, isOperatorOrAdmin, async (req, res) => {
+    try {
+      const { code, name, nativeName, displayOrder } = req.body;
+      if (!code || !name || !nativeName) {
+        return res.status(400).json({ message: "언어 코드, 이름, 네이티브 이름은 필수입니다" });
+      }
+      
+      const language = await storage.createSupportedLanguage({
+        code,
+        name,
+        nativeName,
+        isActive: true,
+        isDefault: false,
+        displayOrder: displayOrder || 99,
+      });
+      res.json(language);
+    } catch (error) {
+      console.error("Error creating language:", error);
+      res.status(500).json({ message: "언어 생성 실패" });
+    }
+  });
+  
+  // Admin: Update language
+  app.put("/api/admin/languages/:code", isAuthenticated, isOperatorOrAdmin, async (req, res) => {
+    try {
+      const { code } = req.params;
+      const updates = req.body;
+      const language = await storage.updateSupportedLanguage(code, updates);
+      res.json(language);
+    } catch (error) {
+      console.error("Error updating language:", error);
+      res.status(500).json({ message: "언어 수정 실패" });
+    }
+  });
+  
+  // Admin: Delete language
+  app.delete("/api/admin/languages/:code", isAuthenticated, isOperatorOrAdmin, async (req, res) => {
+    try {
+      const { code } = req.params;
+      
+      // 기본 언어(ko)는 삭제 불가
+      if (code === 'ko') {
+        return res.status(400).json({ message: "기본 언어(한국어)는 삭제할 수 없습니다" });
+      }
+      
+      await storage.deleteSupportedLanguage(code);
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error deleting language:", error);
+      res.status(500).json({ message: "언어 삭제 실패" });
+    }
+  });
+  
+  // ================================
+  // Scenario Translations API
+  // ================================
+  
+  // Get scenario translation for a specific locale
+  app.get("/api/scenarios/:scenarioId/translations/:locale", async (req, res) => {
+    try {
+      const { scenarioId, locale } = req.params;
+      const translation = await storage.getScenarioTranslation(scenarioId, locale);
+      
+      if (!translation) {
+        return res.status(404).json({ message: "번역을 찾을 수 없습니다" });
+      }
+      
+      res.json(translation);
+    } catch (error) {
+      console.error("Error fetching scenario translation:", error);
+      res.status(500).json({ message: "시나리오 번역 조회 실패" });
+    }
+  });
+  
+  // Get all translations for a scenario
+  app.get("/api/scenarios/:scenarioId/translations", async (req, res) => {
+    try {
+      const { scenarioId } = req.params;
+      const translations = await storage.getScenarioTranslations(scenarioId);
+      res.json(translations);
+    } catch (error) {
+      console.error("Error fetching scenario translations:", error);
+      res.status(500).json({ message: "시나리오 번역 목록 조회 실패" });
+    }
+  });
+  
+  // Admin: Upsert scenario translation
+  app.put("/api/admin/scenarios/:scenarioId/translations/:locale", isAuthenticated, isOperatorOrAdmin, async (req, res) => {
+    try {
+      const { scenarioId, locale } = req.params;
+      const { title, description, situation, playerRole, isMachineTranslated } = req.body;
+      
+      if (!title) {
+        return res.status(400).json({ message: "제목은 필수입니다" });
+      }
+      
+      const translation = await storage.upsertScenarioTranslation({
+        scenarioId,
+        locale,
+        title,
+        description,
+        situation,
+        playerRole,
+        isMachineTranslated: isMachineTranslated || false,
+        isReviewed: false,
+      });
+      
+      res.json(translation);
+    } catch (error) {
+      console.error("Error upserting scenario translation:", error);
+      res.status(500).json({ message: "시나리오 번역 저장 실패" });
+    }
+  });
+  
+  // Admin: Mark translation as reviewed
+  app.post("/api/admin/scenarios/:scenarioId/translations/:locale/review", isAuthenticated, isOperatorOrAdmin, async (req: any, res) => {
+    try {
+      const { scenarioId, locale } = req.params;
+      const userId = req.user?.id;
+      
+      if (!userId) {
+        return res.status(401).json({ message: "인증이 필요합니다" });
+      }
+      
+      const translation = await storage.markScenarioTranslationReviewed(scenarioId, locale, userId);
+      res.json(translation);
+    } catch (error) {
+      console.error("Error marking translation reviewed:", error);
+      res.status(500).json({ message: "번역 검수 처리 실패" });
+    }
+  });
+  
+  // Admin: Delete scenario translation
+  app.delete("/api/admin/scenarios/:scenarioId/translations/:locale", isAuthenticated, isOperatorOrAdmin, async (req, res) => {
+    try {
+      const { scenarioId, locale } = req.params;
+      
+      if (locale === 'ko') {
+        return res.status(400).json({ message: "기본 언어 번역은 삭제할 수 없습니다" });
+      }
+      
+      await storage.deleteScenarioTranslation(scenarioId, locale);
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error deleting scenario translation:", error);
+      res.status(500).json({ message: "시나리오 번역 삭제 실패" });
+    }
+  });
+  
+  // ================================
+  // Persona Translations API
+  // ================================
+  
+  // Get persona translation for a specific locale
+  app.get("/api/personas/:personaId/translations/:locale", async (req, res) => {
+    try {
+      const { personaId, locale } = req.params;
+      const translation = await storage.getPersonaTranslation(personaId, locale);
+      
+      if (!translation) {
+        return res.status(404).json({ message: "번역을 찾을 수 없습니다" });
+      }
+      
+      res.json(translation);
+    } catch (error) {
+      console.error("Error fetching persona translation:", error);
+      res.status(500).json({ message: "페르소나 번역 조회 실패" });
+    }
+  });
+  
+  // Get all translations for a persona
+  app.get("/api/personas/:personaId/translations", async (req, res) => {
+    try {
+      const { personaId } = req.params;
+      const translations = await storage.getPersonaTranslations(personaId);
+      res.json(translations);
+    } catch (error) {
+      console.error("Error fetching persona translations:", error);
+      res.status(500).json({ message: "페르소나 번역 목록 조회 실패" });
+    }
+  });
+  
+  // Admin: Upsert persona translation
+  app.put("/api/admin/personas/:personaId/translations/:locale", isAuthenticated, isOperatorOrAdmin, async (req, res) => {
+    try {
+      const { personaId, locale } = req.params;
+      const { name, position, department, personalityDescription, background, isMachineTranslated } = req.body;
+      
+      if (!name) {
+        return res.status(400).json({ message: "이름은 필수입니다" });
+      }
+      
+      const translation = await storage.upsertPersonaTranslation({
+        personaId,
+        locale,
+        name,
+        position,
+        department,
+        personalityDescription,
+        background,
+        isMachineTranslated: isMachineTranslated || false,
+        isReviewed: false,
+      });
+      
+      res.json(translation);
+    } catch (error) {
+      console.error("Error upserting persona translation:", error);
+      res.status(500).json({ message: "페르소나 번역 저장 실패" });
+    }
+  });
+  
+  // Admin: Mark translation as reviewed
+  app.post("/api/admin/personas/:personaId/translations/:locale/review", isAuthenticated, isOperatorOrAdmin, async (req: any, res) => {
+    try {
+      const { personaId, locale } = req.params;
+      const userId = req.user?.id;
+      
+      if (!userId) {
+        return res.status(401).json({ message: "인증이 필요합니다" });
+      }
+      
+      const translation = await storage.markPersonaTranslationReviewed(personaId, locale, userId);
+      res.json(translation);
+    } catch (error) {
+      console.error("Error marking translation reviewed:", error);
+      res.status(500).json({ message: "번역 검수 처리 실패" });
+    }
+  });
+  
+  // Admin: Delete persona translation
+  app.delete("/api/admin/personas/:personaId/translations/:locale", isAuthenticated, isOperatorOrAdmin, async (req, res) => {
+    try {
+      const { personaId, locale } = req.params;
+      
+      if (locale === 'ko') {
+        return res.status(400).json({ message: "기본 언어 번역은 삭제할 수 없습니다" });
+      }
+      
+      await storage.deletePersonaTranslation(personaId, locale);
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error deleting persona translation:", error);
+      res.status(500).json({ message: "페르소나 번역 삭제 실패" });
+    }
+  });
+  
+  // ================================
+  // Category Translations API
+  // ================================
+  
+  // Get category translation for a specific locale
+  app.get("/api/categories/:categoryId/translations/:locale", async (req, res) => {
+    try {
+      const { categoryId, locale } = req.params;
+      const translation = await storage.getCategoryTranslation(categoryId, locale);
+      
+      if (!translation) {
+        return res.status(404).json({ message: "번역을 찾을 수 없습니다" });
+      }
+      
+      res.json(translation);
+    } catch (error) {
+      console.error("Error fetching category translation:", error);
+      res.status(500).json({ message: "카테고리 번역 조회 실패" });
+    }
+  });
+  
+  // Get all translations for a category
+  app.get("/api/categories/:categoryId/translations", async (req, res) => {
+    try {
+      const { categoryId } = req.params;
+      const translations = await storage.getCategoryTranslations(categoryId);
+      res.json(translations);
+    } catch (error) {
+      console.error("Error fetching category translations:", error);
+      res.status(500).json({ message: "카테고리 번역 목록 조회 실패" });
+    }
+  });
+  
+  // Admin: Upsert category translation
+  app.put("/api/admin/categories/:categoryId/translations/:locale", isAuthenticated, isOperatorOrAdmin, async (req, res) => {
+    try {
+      const { categoryId, locale } = req.params;
+      const { name, description, isMachineTranslated } = req.body;
+      
+      if (!name) {
+        return res.status(400).json({ message: "이름은 필수입니다" });
+      }
+      
+      const translation = await storage.upsertCategoryTranslation({
+        categoryId,
+        locale,
+        name,
+        description,
+        isMachineTranslated: isMachineTranslated || false,
+        isReviewed: false,
+      });
+      
+      res.json(translation);
+    } catch (error) {
+      console.error("Error upserting category translation:", error);
+      res.status(500).json({ message: "카테고리 번역 저장 실패" });
+    }
+  });
+  
+  // Admin: Delete category translation
+  app.delete("/api/admin/categories/:categoryId/translations/:locale", isAuthenticated, isOperatorOrAdmin, async (req, res) => {
+    try {
+      const { categoryId, locale } = req.params;
+      
+      if (locale === 'ko') {
+        return res.status(400).json({ message: "기본 언어 번역은 삭제할 수 없습니다" });
+      }
+      
+      await storage.deleteCategoryTranslation(categoryId, locale);
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error deleting category translation:", error);
+      res.status(500).json({ message: "카테고리 번역 삭제 실패" });
+    }
+  });
+  
   return httpServer;
 }
 

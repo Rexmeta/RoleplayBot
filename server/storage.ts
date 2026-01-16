@@ -1,4 +1,4 @@
-import { type Conversation, type InsertConversation, type Feedback, type InsertFeedback, type PersonaSelection, type StrategyChoice, type SequenceAnalysis, type User, type UpsertUser, type ScenarioRun, type InsertScenarioRun, type PersonaRun, type InsertPersonaRun, type ChatMessage, type InsertChatMessage, type Category, type InsertCategory, type SystemSetting, type AiUsageLog, type InsertAiUsageLog, type AiUsageSummary, type AiUsageByFeature, type AiUsageByModel, type AiUsageDaily, type EvaluationCriteriaSet, type InsertEvaluationCriteriaSet, type EvaluationDimension, type InsertEvaluationDimension, type EvaluationCriteriaSetWithDimensions, conversations, feedbacks, users, scenarioRuns, personaRuns, chatMessages, categories, systemSettings, aiUsageLogs, evaluationCriteriaSets, evaluationDimensions } from "@shared/schema";
+import { type Conversation, type InsertConversation, type Feedback, type InsertFeedback, type PersonaSelection, type StrategyChoice, type SequenceAnalysis, type User, type UpsertUser, type ScenarioRun, type InsertScenarioRun, type PersonaRun, type InsertPersonaRun, type ChatMessage, type InsertChatMessage, type Category, type InsertCategory, type SystemSetting, type AiUsageLog, type InsertAiUsageLog, type AiUsageSummary, type AiUsageByFeature, type AiUsageByModel, type AiUsageDaily, type EvaluationCriteriaSet, type InsertEvaluationCriteriaSet, type EvaluationDimension, type InsertEvaluationDimension, type EvaluationCriteriaSetWithDimensions, type SupportedLanguage, type InsertSupportedLanguage, type ScenarioTranslation, type InsertScenarioTranslation, type PersonaTranslation, type InsertPersonaTranslation, type CategoryTranslation, type InsertCategoryTranslation, conversations, feedbacks, users, scenarioRuns, personaRuns, chatMessages, categories, systemSettings, aiUsageLogs, evaluationCriteriaSets, evaluationDimensions, supportedLanguages, scenarioTranslations, personaTranslations, categoryTranslations } from "@shared/schema";
 import { randomUUID } from "crypto";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { Pool } from "pg";
@@ -130,6 +130,36 @@ export interface IStorage {
   // Combined operations - 평가 기준 세트 + 지표 조회
   getEvaluationCriteriaSetWithDimensions(id: string): Promise<EvaluationCriteriaSetWithDimensions | undefined>;
   getActiveEvaluationCriteriaSetWithDimensions(categoryId?: string): Promise<EvaluationCriteriaSetWithDimensions | undefined>;
+  
+  // Supported Languages - 지원 언어 관리
+  getSupportedLanguages(): Promise<SupportedLanguage[]>;
+  getActiveSupportedLanguages(): Promise<SupportedLanguage[]>;
+  getSupportedLanguage(code: string): Promise<SupportedLanguage | undefined>;
+  createSupportedLanguage(language: InsertSupportedLanguage): Promise<SupportedLanguage>;
+  updateSupportedLanguage(code: string, updates: Partial<InsertSupportedLanguage>): Promise<SupportedLanguage>;
+  deleteSupportedLanguage(code: string): Promise<void>;
+  
+  // Scenario Translations - 시나리오 번역
+  getScenarioTranslation(scenarioId: string, locale: string): Promise<ScenarioTranslation | undefined>;
+  getScenarioTranslations(scenarioId: string): Promise<ScenarioTranslation[]>;
+  getAllScenarioTranslations(locale: string): Promise<ScenarioTranslation[]>;
+  upsertScenarioTranslation(translation: InsertScenarioTranslation): Promise<ScenarioTranslation>;
+  deleteScenarioTranslation(scenarioId: string, locale: string): Promise<void>;
+  markScenarioTranslationReviewed(scenarioId: string, locale: string, reviewerId: string): Promise<ScenarioTranslation>;
+  
+  // Persona Translations - 페르소나 번역
+  getPersonaTranslation(personaId: string, locale: string): Promise<PersonaTranslation | undefined>;
+  getPersonaTranslations(personaId: string): Promise<PersonaTranslation[]>;
+  getAllPersonaTranslations(locale: string): Promise<PersonaTranslation[]>;
+  upsertPersonaTranslation(translation: InsertPersonaTranslation): Promise<PersonaTranslation>;
+  deletePersonaTranslation(personaId: string, locale: string): Promise<void>;
+  markPersonaTranslationReviewed(personaId: string, locale: string, reviewerId: string): Promise<PersonaTranslation>;
+  
+  // Category Translations - 카테고리 번역
+  getCategoryTranslation(categoryId: string, locale: string): Promise<CategoryTranslation | undefined>;
+  getCategoryTranslations(categoryId: string): Promise<CategoryTranslation[]>;
+  upsertCategoryTranslation(translation: InsertCategoryTranslation): Promise<CategoryTranslation>;
+  deleteCategoryTranslation(categoryId: string, locale: string): Promise<void>;
 }
 
 export class MemStorage implements IStorage {
@@ -629,6 +659,33 @@ export class MemStorage implements IStorage {
   async getActiveEvaluationCriteriaSetWithDimensions(_categoryId?: string): Promise<EvaluationCriteriaSetWithDimensions | undefined> {
     return undefined;
   }
+  
+  // Translation stubs - MemStorage
+  async getSupportedLanguages(): Promise<SupportedLanguage[]> { return []; }
+  async getActiveSupportedLanguages(): Promise<SupportedLanguage[]> { return []; }
+  async getSupportedLanguage(_code: string): Promise<SupportedLanguage | undefined> { return undefined; }
+  async createSupportedLanguage(_language: InsertSupportedLanguage): Promise<SupportedLanguage> { throw new Error("Not implemented"); }
+  async updateSupportedLanguage(_code: string, _updates: Partial<InsertSupportedLanguage>): Promise<SupportedLanguage> { throw new Error("Not implemented"); }
+  async deleteSupportedLanguage(_code: string): Promise<void> {}
+  
+  async getScenarioTranslation(_scenarioId: string, _locale: string): Promise<ScenarioTranslation | undefined> { return undefined; }
+  async getScenarioTranslations(_scenarioId: string): Promise<ScenarioTranslation[]> { return []; }
+  async getAllScenarioTranslations(_locale: string): Promise<ScenarioTranslation[]> { return []; }
+  async upsertScenarioTranslation(_translation: InsertScenarioTranslation): Promise<ScenarioTranslation> { throw new Error("Not implemented"); }
+  async deleteScenarioTranslation(_scenarioId: string, _locale: string): Promise<void> {}
+  async markScenarioTranslationReviewed(_scenarioId: string, _locale: string, _reviewerId: string): Promise<ScenarioTranslation> { throw new Error("Not implemented"); }
+  
+  async getPersonaTranslation(_personaId: string, _locale: string): Promise<PersonaTranslation | undefined> { return undefined; }
+  async getPersonaTranslations(_personaId: string): Promise<PersonaTranslation[]> { return []; }
+  async getAllPersonaTranslations(_locale: string): Promise<PersonaTranslation[]> { return []; }
+  async upsertPersonaTranslation(_translation: InsertPersonaTranslation): Promise<PersonaTranslation> { throw new Error("Not implemented"); }
+  async deletePersonaTranslation(_personaId: string, _locale: string): Promise<void> {}
+  async markPersonaTranslationReviewed(_personaId: string, _locale: string, _reviewerId: string): Promise<PersonaTranslation> { throw new Error("Not implemented"); }
+  
+  async getCategoryTranslation(_categoryId: string, _locale: string): Promise<CategoryTranslation | undefined> { return undefined; }
+  async getCategoryTranslations(_categoryId: string): Promise<CategoryTranslation[]> { return []; }
+  async upsertCategoryTranslation(_translation: InsertCategoryTranslation): Promise<CategoryTranslation> { throw new Error("Not implemented"); }
+  async deleteCategoryTranslation(_categoryId: string, _locale: string): Promise<void> {}
 }
 
 export class PostgreSQLStorage implements IStorage {
@@ -1472,6 +1529,197 @@ export class PostgreSQLStorage implements IStorage {
     
     const dimensions = await this.getEvaluationDimensionsByCriteriaSet(criteriaSet.id);
     return { ...criteriaSet, dimensions };
+  }
+  
+  // ================================
+  // Supported Languages operations
+  // ================================
+  
+  async getSupportedLanguages(): Promise<SupportedLanguage[]> {
+    return await db.select().from(supportedLanguages).orderBy(asc(supportedLanguages.displayOrder));
+  }
+  
+  async getActiveSupportedLanguages(): Promise<SupportedLanguage[]> {
+    return await db.select().from(supportedLanguages)
+      .where(eq(supportedLanguages.isActive, true))
+      .orderBy(asc(supportedLanguages.displayOrder));
+  }
+  
+  async getSupportedLanguage(code: string): Promise<SupportedLanguage | undefined> {
+    const results = await db.select().from(supportedLanguages).where(eq(supportedLanguages.code, code));
+    return results[0];
+  }
+  
+  async createSupportedLanguage(language: InsertSupportedLanguage): Promise<SupportedLanguage> {
+    const [created] = await db.insert(supportedLanguages).values(language).returning();
+    return created;
+  }
+  
+  async updateSupportedLanguage(code: string, updates: Partial<InsertSupportedLanguage>): Promise<SupportedLanguage> {
+    const [updated] = await db.update(supportedLanguages)
+      .set(updates)
+      .where(eq(supportedLanguages.code, code))
+      .returning();
+    return updated;
+  }
+  
+  async deleteSupportedLanguage(code: string): Promise<void> {
+    await db.delete(supportedLanguages).where(eq(supportedLanguages.code, code));
+  }
+  
+  // ================================
+  // Scenario Translations operations
+  // ================================
+  
+  async getScenarioTranslation(scenarioId: string, locale: string): Promise<ScenarioTranslation | undefined> {
+    const results = await db.select().from(scenarioTranslations)
+      .where(and(
+        eq(scenarioTranslations.scenarioId, scenarioId),
+        eq(scenarioTranslations.locale, locale)
+      ));
+    return results[0];
+  }
+  
+  async getScenarioTranslations(scenarioId: string): Promise<ScenarioTranslation[]> {
+    return await db.select().from(scenarioTranslations)
+      .where(eq(scenarioTranslations.scenarioId, scenarioId));
+  }
+  
+  async getAllScenarioTranslations(locale: string): Promise<ScenarioTranslation[]> {
+    return await db.select().from(scenarioTranslations)
+      .where(eq(scenarioTranslations.locale, locale));
+  }
+  
+  async upsertScenarioTranslation(translation: InsertScenarioTranslation): Promise<ScenarioTranslation> {
+    const existing = await this.getScenarioTranslation(translation.scenarioId, translation.locale);
+    
+    if (existing) {
+      const [updated] = await db.update(scenarioTranslations)
+        .set({ ...translation, updatedAt: new Date() })
+        .where(eq(scenarioTranslations.id, existing.id))
+        .returning();
+      return updated;
+    } else {
+      const [created] = await db.insert(scenarioTranslations).values(translation).returning();
+      return created;
+    }
+  }
+  
+  async deleteScenarioTranslation(scenarioId: string, locale: string): Promise<void> {
+    await db.delete(scenarioTranslations)
+      .where(and(
+        eq(scenarioTranslations.scenarioId, scenarioId),
+        eq(scenarioTranslations.locale, locale)
+      ));
+  }
+  
+  async markScenarioTranslationReviewed(scenarioId: string, locale: string, reviewerId: string): Promise<ScenarioTranslation> {
+    const [updated] = await db.update(scenarioTranslations)
+      .set({ isReviewed: true, reviewedBy: reviewerId, updatedAt: new Date() })
+      .where(and(
+        eq(scenarioTranslations.scenarioId, scenarioId),
+        eq(scenarioTranslations.locale, locale)
+      ))
+      .returning();
+    return updated;
+  }
+  
+  // ================================
+  // Persona Translations operations
+  // ================================
+  
+  async getPersonaTranslation(personaId: string, locale: string): Promise<PersonaTranslation | undefined> {
+    const results = await db.select().from(personaTranslations)
+      .where(and(
+        eq(personaTranslations.personaId, personaId),
+        eq(personaTranslations.locale, locale)
+      ));
+    return results[0];
+  }
+  
+  async getPersonaTranslations(personaId: string): Promise<PersonaTranslation[]> {
+    return await db.select().from(personaTranslations)
+      .where(eq(personaTranslations.personaId, personaId));
+  }
+  
+  async getAllPersonaTranslations(locale: string): Promise<PersonaTranslation[]> {
+    return await db.select().from(personaTranslations)
+      .where(eq(personaTranslations.locale, locale));
+  }
+  
+  async upsertPersonaTranslation(translation: InsertPersonaTranslation): Promise<PersonaTranslation> {
+    const existing = await this.getPersonaTranslation(translation.personaId, translation.locale);
+    
+    if (existing) {
+      const [updated] = await db.update(personaTranslations)
+        .set({ ...translation, updatedAt: new Date() })
+        .where(eq(personaTranslations.id, existing.id))
+        .returning();
+      return updated;
+    } else {
+      const [created] = await db.insert(personaTranslations).values(translation).returning();
+      return created;
+    }
+  }
+  
+  async deletePersonaTranslation(personaId: string, locale: string): Promise<void> {
+    await db.delete(personaTranslations)
+      .where(and(
+        eq(personaTranslations.personaId, personaId),
+        eq(personaTranslations.locale, locale)
+      ));
+  }
+  
+  async markPersonaTranslationReviewed(personaId: string, locale: string, reviewerId: string): Promise<PersonaTranslation> {
+    const [updated] = await db.update(personaTranslations)
+      .set({ isReviewed: true, reviewedBy: reviewerId, updatedAt: new Date() })
+      .where(and(
+        eq(personaTranslations.personaId, personaId),
+        eq(personaTranslations.locale, locale)
+      ))
+      .returning();
+    return updated;
+  }
+  
+  // ================================
+  // Category Translations operations
+  // ================================
+  
+  async getCategoryTranslation(categoryId: string, locale: string): Promise<CategoryTranslation | undefined> {
+    const results = await db.select().from(categoryTranslations)
+      .where(and(
+        eq(categoryTranslations.categoryId, categoryId),
+        eq(categoryTranslations.locale, locale)
+      ));
+    return results[0];
+  }
+  
+  async getCategoryTranslations(categoryId: string): Promise<CategoryTranslation[]> {
+    return await db.select().from(categoryTranslations)
+      .where(eq(categoryTranslations.categoryId, categoryId));
+  }
+  
+  async upsertCategoryTranslation(translation: InsertCategoryTranslation): Promise<CategoryTranslation> {
+    const existing = await this.getCategoryTranslation(translation.categoryId, translation.locale);
+    
+    if (existing) {
+      const [updated] = await db.update(categoryTranslations)
+        .set({ ...translation, updatedAt: new Date() })
+        .where(eq(categoryTranslations.id, existing.id))
+        .returning();
+      return updated;
+    } else {
+      const [created] = await db.insert(categoryTranslations).values(translation).returning();
+      return created;
+    }
+  }
+  
+  async deleteCategoryTranslation(categoryId: string, locale: string): Promise<void> {
+    await db.delete(categoryTranslations)
+      .where(and(
+        eq(categoryTranslations.categoryId, categoryId),
+        eq(categoryTranslations.locale, locale)
+      ));
   }
 }
 
