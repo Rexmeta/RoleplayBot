@@ -540,7 +540,14 @@ export const scenarioTranslations = pgTable("scenario_translations", {
   title: text("title").notNull(),
   description: text("description"),
   situation: text("situation"), // context.situation
+  timeline: text("timeline"), // context.timeline - 시간적 제약
+  stakes: text("stakes"), // context.stakes - 이해관계
   playerRole: text("player_role"), // context.playerRole 설명
+  objectives: text("objectives").array(), // 목표 배열
+  successCriteriaOptimal: text("success_criteria_optimal"), // 성공기준: 최적
+  successCriteriaGood: text("success_criteria_good"), // 성공기준: 양호
+  successCriteriaAcceptable: text("success_criteria_acceptable"), // 성공기준: 수용가능
+  successCriteriaFailure: text("success_criteria_failure"), // 성공기준: 실패
   isMachineTranslated: boolean("is_machine_translated").notNull().default(false), // AI 번역 여부
   isReviewed: boolean("is_reviewed").notNull().default(false), // 검수 완료 여부
   reviewedBy: varchar("reviewed_by").references(() => users.id), // 검수자
