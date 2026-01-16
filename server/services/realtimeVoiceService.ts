@@ -83,6 +83,10 @@ function filterThinkingText(text: string, userLanguage: 'ko' | 'en' | 'ja' | 'zh
   // 한국어, 일본어, 중국어의 경우 해당 언어 문자가 있는 줄만 유지
   const targetPattern = languagePatterns[userLanguage] || languagePatterns.ko;
   
+  // 다른 언어 문자 패턴 (필터링용)
+  const koreanPattern = /[\uAC00-\uD7AF\u1100-\u11FF\u3130-\u318F]/; // 한글
+  const japaneseKanaPattern = /[\u3040-\u309F\u30A0-\u30FF]/; // 히라가나, 가타카나 (한자 제외)
+  
   // 패턴 2: 라인 단위 필터링
   const lines = filtered.split('\n');
   const targetLines = lines.filter(line => {
@@ -92,6 +96,27 @@ function filterThinkingText(text: string, userLanguage: 'ko' | 'en' | 'ja' | 'zh
     // 대상 언어 문자가 포함된 줄 확인
     const hasTargetLanguage = targetPattern.test(trimmed);
     if (!hasTargetLanguage) return false;
+    
+    // 중국어 모드: 한글이나 일본어 가나가 포함된 줄 제거 (한자는 공유되므로 가나로 일본어 구분)
+    if (userLanguage === 'zh') {
+      if (koreanPattern.test(trimmed) || japaneseKanaPattern.test(trimmed)) {
+        return false;
+      }
+    }
+    
+    // 일본어 모드: 한글이 포함된 줄 제거
+    if (userLanguage === 'ja') {
+      if (koreanPattern.test(trimmed)) {
+        return false;
+      }
+    }
+    
+    // 한국어 모드: 일본어 가나가 포함된 줄 제거
+    if (userLanguage === 'ko') {
+      if (japaneseKanaPattern.test(trimmed)) {
+        return false;
+      }
+    }
     
     // 대상 언어 문자가 있는 줄이라도, 영문이 너무 많으면 제거 (thinking 텍스트로 의심)
     const targetCharCount = (trimmed.match(new RegExp(targetPattern.source, 'g')) || []).length;
