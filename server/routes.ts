@@ -3221,6 +3221,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const token = req.cookies?.token || req.headers.authorization?.split(' ')[1];
       console.log(`[Scenarios API] Token exists: ${!!token}, categoryIdParam: ${categoryIdParam}`);
       
+      let userLanguage = 'ko'; // 기본 언어
+      let filteredScenarios = scenarios;
+      
       if (token) {
         try {
           const jwt = await import('jsonwebtoken');
@@ -3230,26 +3233,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
           console.log(`[Scenarios API] User found: ${!!user}, role: ${user?.role}, assignedCategoryId: ${user?.assignedCategoryId}`);
           
           if (user) {
+            userLanguage = user.language || 'ko';
+            
             // 시스템관리자(admin)는 모든 시나리오 접근 가능 (카테고리 필터 선택 가능)
             if (user.role === 'admin') {
               if (categoryIdParam) {
-                const filteredScenarios = scenarios.filter((s: any) => 
+                filteredScenarios = scenarios.filter((s: any) => 
                   String(s.categoryId) === String(categoryIdParam)
                 );
                 console.log(`[Scenarios API] Admin user with filter - returning ${filteredScenarios.length}/${scenarios.length} scenarios for category ${categoryIdParam}`);
-                return res.json(filteredScenarios);
+              } else {
+                console.log(`[Scenarios API] Admin user - returning all ${scenarios.length} scenarios`);
               }
-              console.log(`[Scenarios API] Admin user - returning all ${scenarios.length} scenarios`);
-              return res.json(scenarios);
-            }
-            
-            // 운영자 또는 일반유저가 assignedCategoryId가 있는 경우 해당 카테고리만 필터링
-            if (user.assignedCategoryId) {
-              const filteredScenarios = scenarios.filter((s: any) => 
+            } else if (user.assignedCategoryId) {
+              // 운영자 또는 일반유저가 assignedCategoryId가 있는 경우 해당 카테고리만 필터링
+              filteredScenarios = scenarios.filter((s: any) => 
                 String(s.categoryId) === String(user.assignedCategoryId)
               );
               console.log(`[Scenarios API] Filtered by category ${user.assignedCategoryId}: ${filteredScenarios.length}/${scenarios.length} scenarios`);
-              return res.json(filteredScenarios);
             } else {
               console.log(`[Scenarios API] User has no assignedCategoryId - returning all scenarios`);
             }
@@ -3260,9 +3261,49 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
       
+      // 사용자 언어에 따라 번역 적용
+      if (userLanguage !== 'ko') {
+        console.log(`[Scenarios API] Applying translations for language: ${userLanguage}`);
+        const translatedScenarios = await Promise.all(
+          filteredScenarios.map(async (scenario: any) => {
+            try {
+              const translation = await storage.getScenarioTranslation(scenario.id, userLanguage);
+              if (translation) {
+                return {
+                  ...scenario,
+                  title: translation.title || scenario.title,
+                  description: translation.description || scenario.description,
+                  context: {
+                    ...scenario.context,
+                    situation: translation.situation || scenario.context?.situation,
+                    timeline: translation.timeline || scenario.context?.timeline,
+                    stakes: translation.stakes || scenario.context?.stakes,
+                    playerRole: translation.playerRole || scenario.context?.playerRole,
+                  },
+                  objectives: translation.objectives || scenario.objectives,
+                  successCriteria: {
+                    optimal: translation.successCriteriaOptimal || scenario.successCriteria?.optimal,
+                    good: translation.successCriteriaGood || scenario.successCriteria?.good,
+                    acceptable: translation.successCriteriaAcceptable || scenario.successCriteria?.acceptable,
+                    failure: translation.successCriteriaFailure || scenario.successCriteria?.failure,
+                  },
+                  _translated: true,
+                  _translationLocale: userLanguage,
+                };
+              }
+              return scenario;
+            } catch (err) {
+              console.error(`[Scenarios API] Translation fetch error for ${scenario.id}:`, err);
+              return scenario;
+            }
+          })
+        );
+        return res.json(translatedScenarios);
+      }
+      
       // 비로그인 사용자 또는 카테고리 미할당 사용자는 전체 시나리오 접근 가능
-      console.log(`[Scenarios API] Returning all ${scenarios.length} scenarios (no auth or no category)`);
-      res.json(scenarios);
+      console.log(`[Scenarios API] Returning ${filteredScenarios.length} scenarios (language: ${userLanguage})`);
+      res.json(filteredScenarios);
     } catch (error) {
       console.error("Failed to fetch scenarios:", error);
       res.status(500).json({ error: "Failed to fetch scenarios" });
