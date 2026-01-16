@@ -4960,7 +4960,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ message: "시나리오를 찾을 수 없습니다" });
       }
       
-      const languages = await storage.getAllLanguages();
+      const languages = await storage.getActiveSupportedLanguages();
       const targetLang = languages.find(l => l.code === targetLocale);
       if (!targetLang) {
         return res.status(400).json({ message: "지원하지 않는 언어입니다" });
@@ -5146,7 +5146,7 @@ Return ONLY valid JSON in this exact format:
         return res.status(404).json({ message: "페르소나를 찾을 수 없습니다" });
       }
       
-      const languages = await storage.getAllLanguages();
+      const languages = await storage.getActiveSupportedLanguages();
       const targetLang = languages.find(l => l.code === targetLocale);
       if (!targetLang) {
         return res.status(400).json({ message: "지원하지 않는 언어입니다" });
@@ -5282,7 +5282,7 @@ Return ONLY valid JSON in this exact format:
   // Get translation status for all content types
   app.get("/api/admin/translation-status", isAuthenticated, isOperatorOrAdmin, async (req, res) => {
     try {
-      const languages = await storage.getAllLanguages();
+      const languages = await storage.getActiveSupportedLanguages();
       const nonDefaultLanguages = languages.filter(l => !l.isDefault);
       
       const scenarios = await storage.getAllScenarios();
@@ -5361,7 +5361,7 @@ Return ONLY valid JSON in this exact format:
         return res.status(400).json({ message: "대상 언어와 콘텐츠 타입이 필요합니다" });
       }
       
-      const languages = await storage.getAllLanguages();
+      const languages = await storage.getActiveSupportedLanguages();
       const targetLang = languages.find(l => l.code === targetLocale);
       if (!targetLang) {
         return res.status(400).json({ message: "지원하지 않는 언어입니다" });
