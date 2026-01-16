@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ComplexScenario, getDifficultyLabel } from "@/lib/scenario-system";
 import { Loader2, Search, Filter, ChevronDown, ChevronUp, Folder } from "lucide-react";
+import { useTranslation } from "react-i18next";
 
 interface Category {
   id: string;
@@ -25,6 +26,8 @@ interface ScenarioSelectorProps {
 }
 
 export default function ScenarioSelector({ onScenarioSelect, playerProfile }: ScenarioSelectorProps) {
+  const { t } = useTranslation();
+  
   // 필터 상태
   const [filters, setFilters] = useState({
     difficulty: '',
@@ -223,15 +226,15 @@ export default function ScenarioSelector({ onScenarioSelect, playerProfile }: Sc
   const getRecommendationLevel = (scenario: ComplexScenario): { level: string; color: string; reason: string } => {
     if (playerProfile?.department === "개발팀" && scenario.id === "app-delay-crisis") {
       return {
-        level: "강력 추천",
+        level: t('scenario.stronglyRecommended'),
         color: "green",
-        reason: "개발팀 배경에 최적화된 시나리오"
+        reason: t('scenario.optimizedForDev')
       };
     }
     return {
-      level: "적합",
+      level: t('scenario.recommended'),
       color: "blue", 
-      reason: "모든 부서에 유용한 협업 시나리오"
+      reason: t('scenario.usefulForAll')
     };
   };
 
@@ -240,7 +243,7 @@ export default function ScenarioSelector({ onScenarioSelect, playerProfile }: Sc
       <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 p-6 flex items-center justify-center">
         <div className="text-center">
           <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4" />
-          <p className="text-slate-600">시나리오 데이터를 불러오는 중...</p>
+          <p className="text-slate-600">{t('scenario.loading')}</p>
         </div>
       </div>
     );
@@ -258,7 +261,7 @@ export default function ScenarioSelector({ onScenarioSelect, playerProfile }: Sc
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-2">
                 <Filter className="h-4 w-4 text-slate-600" />
-                <h3 className="text-sm font-medium text-slate-700">총 {filteredScenarios.length}개의 시나리오</h3>
+                <h3 className="text-sm font-medium text-slate-700">{t('scenario.totalCount', { count: filteredScenarios.length })}</h3>
               </div>
               <div className="flex items-center gap-2">
                 <Button
@@ -268,7 +271,7 @@ export default function ScenarioSelector({ onScenarioSelect, playerProfile }: Sc
                   className="text-slate-600 hover:text-slate-900 h-7 px-2 text-xs flex items-center gap-1"
                   data-testid="toggle-advanced-filters"
                 >
-                  상세 검색
+                  {t('scenario.advancedSearch')}
                   {showAdvancedFilters ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
                 </Button>
                 <Button
@@ -278,7 +281,7 @@ export default function ScenarioSelector({ onScenarioSelect, playerProfile }: Sc
                   className="text-slate-600 hover:text-slate-900 h-7 px-2 text-xs"
                   data-testid="reset-filters"
                 >
-                  초기화
+                  {t('scenario.reset')}
                 </Button>
               </div>
             </div>
@@ -289,7 +292,7 @@ export default function ScenarioSelector({ onScenarioSelect, playerProfile }: Sc
               <div className="relative">
                 <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
                 <Input
-                  placeholder="시나리오 검색"
+                  placeholder={t('scenario.searchPlaceholder')}
                   value={filters.searchText}
                   onChange={(e) => setFilters(prev => ({ ...prev, searchText: e.target.value }))}
                   className="pl-10 h-9 text-sm"
@@ -302,11 +305,11 @@ export default function ScenarioSelector({ onScenarioSelect, playerProfile }: Sc
                 <SelectTrigger data-testid="filter-category" className="h-9 text-sm">
                   <div className="flex items-center gap-2">
                     <Folder className="h-4 w-4 text-slate-400" />
-                    <SelectValue placeholder="카테고리" />
+                    <SelectValue placeholder={t('scenario.category')} />
                   </div>
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">전체 카테고리</SelectItem>
+                  <SelectItem value="all">{t('scenario.allCategories')}</SelectItem>
                   {categories.map((category) => (
                     <SelectItem key={category.id} value={category.id}>
                       {category.name}
@@ -318,16 +321,16 @@ export default function ScenarioSelector({ onScenarioSelect, playerProfile }: Sc
               {/* 스킬 유형 */}
               <Select value={filters.skillType || undefined} onValueChange={(value) => setFilters(prev => ({ ...prev, skillType: value }))}>
                 <SelectTrigger data-testid="filter-skill-type" className="h-9 text-sm">
-                  <SelectValue placeholder="핵심 스킬" />
+                  <SelectValue placeholder={t('scenario.coreSkill')} />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">전체</SelectItem>
-                  <SelectItem value="협상">협상</SelectItem>
-                  <SelectItem value="의사소통">의사소통</SelectItem>
-                  <SelectItem value="갈등해결">갈등해결</SelectItem>
-                  <SelectItem value="리더십">리더십</SelectItem>
-                  <SelectItem value="문제해결">문제해결</SelectItem>
-                  <SelectItem value="팀워크">팀워크</SelectItem>
+                  <SelectItem value="all">{t('scenario.all')}</SelectItem>
+                  <SelectItem value="협상">{t('scenario.negotiation')}</SelectItem>
+                  <SelectItem value="의사소통">{t('scenario.communication')}</SelectItem>
+                  <SelectItem value="갈등해결">{t('scenario.conflictResolution')}</SelectItem>
+                  <SelectItem value="리더십">{t('scenario.leadership')}</SelectItem>
+                  <SelectItem value="문제해결">{t('scenario.problemSolving')}</SelectItem>
+                  <SelectItem value="팀워크">{t('scenario.teamwork')}</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -338,32 +341,32 @@ export default function ScenarioSelector({ onScenarioSelect, playerProfile }: Sc
                 {/* 페르소나 수 */}
                 <Select value={filters.personaCount || undefined} onValueChange={(value) => setFilters(prev => ({ ...prev, personaCount: value }))}>
                   <SelectTrigger data-testid="filter-persona-count" className="h-9 text-sm">
-                    <SelectValue placeholder="상대역 수" />
+                    <SelectValue placeholder={t('scenario.personaCount')} />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="all">전체</SelectItem>
-                    <SelectItem value="1">1명</SelectItem>
-                    <SelectItem value="2">2명</SelectItem>
-                    <SelectItem value="3">3명</SelectItem>
-                    <SelectItem value="4">4명</SelectItem>
-                    <SelectItem value="5">5명</SelectItem>
-                    <SelectItem value="6">6명 이상</SelectItem>
+                    <SelectItem value="all">{t('scenario.all')}</SelectItem>
+                    <SelectItem value="1">{t('scenario.personaCountN', { count: 1 })}</SelectItem>
+                    <SelectItem value="2">{t('scenario.personaCountN', { count: 2 })}</SelectItem>
+                    <SelectItem value="3">{t('scenario.personaCountN', { count: 3 })}</SelectItem>
+                    <SelectItem value="4">{t('scenario.personaCountN', { count: 4 })}</SelectItem>
+                    <SelectItem value="5">{t('scenario.personaCountN', { count: 5 })}</SelectItem>
+                    <SelectItem value="6">{t('scenario.personaCount6Plus')}</SelectItem>
                   </SelectContent>
                 </Select>
                 
                 {/* 부서 */}
                 <Select value={filters.department || undefined} onValueChange={(value) => setFilters(prev => ({ ...prev, department: value }))}>
                   <SelectTrigger data-testid="filter-department" className="h-9 text-sm">
-                    <SelectValue placeholder="부서" />
+                    <SelectValue placeholder={t('scenario.department')} />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="all">전체</SelectItem>
-                    <SelectItem value="개발팀">개발팀</SelectItem>
-                    <SelectItem value="마케팅팀">마케팅팀</SelectItem>
-                    <SelectItem value="QA팀">QA팀</SelectItem>
-                    <SelectItem value="고객서비스팀">고객서비스팀</SelectItem>
-                    <SelectItem value="경영진">경영진</SelectItem>
-                    <SelectItem value="물류팀">물류팀</SelectItem>
+                    <SelectItem value="all">{t('scenario.all')}</SelectItem>
+                    <SelectItem value="개발팀">{t('scenario.devTeam')}</SelectItem>
+                    <SelectItem value="마케팅팀">{t('scenario.marketingTeam')}</SelectItem>
+                    <SelectItem value="QA팀">{t('scenario.qaTeam')}</SelectItem>
+                    <SelectItem value="고객서비스팀">{t('scenario.csTeam')}</SelectItem>
+                    <SelectItem value="경영진">{t('scenario.management')}</SelectItem>
+                    <SelectItem value="물류팀">{t('scenario.logisticsTeam')}</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -373,7 +376,7 @@ export default function ScenarioSelector({ onScenarioSelect, playerProfile }: Sc
             {(filters.searchText || filters.personaCount || filters.department || filters.skillType || (filters.categoryId && filters.categoryId !== 'all')) && (
               <div className="mt-3 pt-3 border-t border-slate-200">
                 <div className="flex items-center justify-center">
-                  <span className="text-xs text-blue-600">필터 적용됨</span>
+                  <span className="text-xs text-blue-600">{t('scenario.filterApplied')}</span>
                 </div>
               </div>
             )}
@@ -383,10 +386,10 @@ export default function ScenarioSelector({ onScenarioSelect, playerProfile }: Sc
             {filteredScenarios.length === 0 ? (
               <div className="text-center py-12">
                 <div className="text-6xl mb-4">🔍</div>
-                <h3 className="text-xl font-medium text-slate-600 mb-2">조건에 맞는 시나리오가 없습니다</h3>
-                <p className="text-slate-500 mb-4">필터 조건을 변경하거나 초기화해보세요</p>
+                <h3 className="text-xl font-medium text-slate-600 mb-2">{t('scenario.noResults')}</h3>
+                <p className="text-slate-500 mb-4">{t('scenario.noResultsHint')}</p>
                 <Button onClick={resetFilters} variant="outline">
-                  필터 초기화
+                  {t('scenario.filterReset')}
                 </Button>
               </div>
             ) : (
@@ -455,7 +458,7 @@ export default function ScenarioSelector({ onScenarioSelect, playerProfile }: Sc
                             ? scenario.description.substring(0, 500) + '...' 
                             : scenario.description}
                           {scenario.description.length > 500 && (
-                            <span className="text-blue-300 ml-1 font-medium">상세 보기 ▼</span>
+                            <span className="text-blue-300 ml-1 font-medium">{t('scenario.viewMore')} ▼</span>
                           )}
                         </p>
                       )}
@@ -488,7 +491,7 @@ export default function ScenarioSelector({ onScenarioSelect, playerProfile }: Sc
                         <div className="bg-white/5 rounded-lg p-4 mb-5">
                           <h4 className="font-medium text-white mb-3 flex items-center text-sm">
                             <i className="fas fa-file-alt mr-2 text-blue-400"></i>
-                            시나리오 개요
+                            {t('scenario.overview')}
                           </h4>
                           {/* 데스크탑: 전체 표시, 모바일: 300자 제한 */}
                           <p className="text-sm text-gray-200 leading-relaxed whitespace-pre-wrap hidden md:block">
@@ -503,7 +506,7 @@ export default function ScenarioSelector({ onScenarioSelect, playerProfile }: Sc
                             {scenario.description.length > 300 && (
                               <p className="text-xs text-blue-300 mt-2 flex items-center gap-1">
                                 <i className="fas fa-info-circle"></i>
-                                전체 내용은 시나리오 시작 후 확인 가능합니다
+                                {t('scenario.mobileHint')}
                               </p>
                             )}
                           </div>
@@ -515,10 +518,10 @@ export default function ScenarioSelector({ onScenarioSelect, playerProfile }: Sc
                         <div className="bg-white/5 rounded-lg p-4">
                           <h4 className="font-medium text-white mb-2 flex items-center text-sm">
                             <i className="fas fa-exclamation-triangle mr-2 text-yellow-400"></i>
-                            상황
+                            {t('scenario.situation')}
                           </h4>
                           <p className="text-gray-300 text-xs leading-relaxed whitespace-pre-wrap">
-                            {scenario.context?.situation || '상황 정보 없음'}
+                            {scenario.context?.situation || t('scenario.noSituation')}
                           </p>
                         </div>
                         
@@ -526,10 +529,10 @@ export default function ScenarioSelector({ onScenarioSelect, playerProfile }: Sc
                           <div className="bg-white/5 rounded-lg p-3">
                             <h4 className="font-medium text-white mb-1 flex items-center text-xs">
                               <i className="fas fa-user-tie mr-2 text-blue-400"></i>
-                              당신의 역할
+                              {t('scenario.yourRole')}
                             </h4>
                             <p className="text-gray-300 text-xs">
-                              {scenario.context?.playerRole?.position || '역할 정보 없음'}
+                              {scenario.context?.playerRole?.position || t('scenario.noRole')}
                             </p>
                             <p className="text-gray-400 text-xs mt-0.5">
                               {scenario.context?.playerRole?.experience || ''}
@@ -539,7 +542,7 @@ export default function ScenarioSelector({ onScenarioSelect, playerProfile }: Sc
                           <div className="bg-white/5 rounded-lg p-3">
                             <h4 className="font-medium text-white mb-1 flex items-center text-xs">
                               <i className="fas fa-clock mr-2 text-purple-400"></i>
-                              예상 소요 시간
+                              {t('scenario.estimatedTime')}
                             </h4>
                             <p className="text-gray-300 text-xs">{scenario.estimatedTime}</p>
                           </div>
@@ -550,7 +553,7 @@ export default function ScenarioSelector({ onScenarioSelect, playerProfile }: Sc
                       <div>
                         <h4 className="font-medium text-white mb-3 flex items-center text-sm">
                           <i className="fas fa-lightbulb mr-2 text-green-400"></i>
-                          주요 역량
+                          {t('scenario.keyCompetencies')}
                         </h4>
                         <div className="flex flex-wrap gap-2">
                           {sortSkillsByImportance(scenario.skills || []).map((skill: string, index: number) => (
@@ -577,7 +580,7 @@ export default function ScenarioSelector({ onScenarioSelect, playerProfile }: Sc
                           data-testid={`button-start-scenario-${scenario.id}`}
                         >
                           <i className="fas fa-play mr-2"></i>
-                          시나리오 시작하기
+                          {t('scenario.startScenario')}
                         </Button>
                       </div>
                     </div>
