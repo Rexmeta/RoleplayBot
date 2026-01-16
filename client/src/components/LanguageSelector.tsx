@@ -29,8 +29,6 @@ export function LanguageSelector() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/auth/user'] });
-      queryClient.invalidateQueries({ queryKey: ['/api/scenarios'] });
-      queryClient.invalidateQueries({ queryKey: ['/api/categories'] });
     },
   });
 
