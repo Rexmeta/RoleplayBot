@@ -252,17 +252,31 @@ export default function PersonalDevelopmentReport({
     // persona 또는 personaSnapshot에서 데이터 추출
     const p = persona as any;
     
+    // 유효한 필드인지 확인하는 헬퍼 함수 (너무 긴 텍스트는 stance/goal 등의 설명 필드로 간주)
+    const isValidShortField = (value: string | undefined, maxLength: number = 30): string => {
+      if (!value || typeof value !== 'string') return '';
+      // stance, goal, tradeoff 등의 긴 설명 필드가 잘못 참조되는 것을 방지
+      if (value.length > maxLength) return '';
+      return value;
+    };
+    
     // 소속 부서 (여러 소스에서 탐색)
-    const department = p.department || p.personaSnapshot?.department || p.affiliation || '';
+    const department = isValidShortField(p.department, 20) || 
+                       isValidShortField(p.personaSnapshot?.department, 20) || 
+                       isValidShortField(p.affiliation, 20) || '';
     
     // 직위/포지션 (여러 소스에서 탐색)
-    const position = p.position || p.currentSituation?.position || p.personaSnapshot?.position || '';
+    const position = isValidShortField(p.position, 20) || 
+                     isValidShortField(p.currentSituation?.position, 20) || 
+                     isValidShortField(p.personaSnapshot?.position, 20) || '';
     
-    // 역할 (role 필드)
-    const role = p.role || p.personaSnapshot?.role || '';
+    // 역할 (role 필드) - position과 다를 경우만 사용
+    const role = isValidShortField(p.role, 30) || 
+                 isValidShortField(p.personaSnapshot?.role, 30) || '';
     
-    // 이름
-    const name = p.name || p.personaSnapshot?.name || '';
+    // 이름 (20자 이하만 유효한 이름으로 간주)
+    const name = isValidShortField(p.name, 20) || 
+                 isValidShortField(p.personaSnapshot?.name, 20) || '';
     
     // role에 이미 소속 정보가 포함된 경우 (예: "개발팀 선임")
     const roleIncludesDepartment = department && role && role.includes(department);
