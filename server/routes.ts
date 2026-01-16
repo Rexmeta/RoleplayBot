@@ -5020,7 +5020,7 @@ Return ONLY valid JSON in this exact format:
       
       const genAI = new GoogleGenAI({ apiKey });
       const result = await genAI.models.generateContent({
-        model: 'gemini-2.5-flash-preview-05-20',
+        model: 'gemini-2.5-flash',
         contents: prompt,
       });
       
@@ -5196,7 +5196,7 @@ Return ONLY valid JSON in this exact format:
       
       const genAI = new GoogleGenAI({ apiKey });
       const result = await genAI.models.generateContent({
-        model: 'gemini-2.5-flash-preview-05-20',
+        model: 'gemini-2.5-flash',
         contents: prompt,
       });
       
