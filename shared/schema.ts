@@ -516,3 +516,116 @@ export type AiUsageDaily = {
   totalCostUsd: number;
   requestCount: number;
 };
+
+// ================================
+// 다국어 콘텐츠 지원 테이블들
+// ================================
+
+// 지원 언어 테이블 - 언어 확장성을 위한 동적 관리
+export const supportedLanguages = pgTable("supported_languages", {
+  code: varchar("code", { length: 10 }).primaryKey(), // 'ko', 'en', 'ja', 'zh', 'vi', 'es' 등
+  name: varchar("name").notNull(), // '한국어', 'English', '日本語' 등
+  nativeName: varchar("native_name").notNull(), // 해당 언어로 된 이름
+  isActive: boolean("is_active").notNull().default(true), // 활성화 여부
+  isDefault: boolean("is_default").notNull().default(false), // 기본 언어 여부 (ko = true)
+  displayOrder: integer("display_order").notNull().default(0), // 표시 순서
+  createdAt: timestamp("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+});
+
+// 시나리오 번역 테이블
+export const scenarioTranslations = pgTable("scenario_translations", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  scenarioId: text("scenario_id").notNull(), // JSON 시나리오 ID 참조
+  locale: varchar("locale", { length: 10 }).notNull().references(() => supportedLanguages.code),
+  title: text("title").notNull(),
+  description: text("description"),
+  situation: text("situation"), // context.situation
+  playerRole: text("player_role"), // context.playerRole 설명
+  isMachineTranslated: boolean("is_machine_translated").notNull().default(false), // AI 번역 여부
+  isReviewed: boolean("is_reviewed").notNull().default(false), // 검수 완료 여부
+  reviewedBy: varchar("reviewed_by").references(() => users.id), // 검수자
+  createdAt: timestamp("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+  updatedAt: timestamp("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+}, (table) => [
+  index("idx_scenario_translations_scenario_id").on(table.scenarioId),
+  index("idx_scenario_translations_locale").on(table.locale),
+]);
+
+// 페르소나 번역 테이블
+export const personaTranslations = pgTable("persona_translations", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  personaId: text("persona_id").notNull(), // JSON 페르소나 ID 참조
+  locale: varchar("locale", { length: 10 }).notNull().references(() => supportedLanguages.code),
+  name: varchar("name").notNull(), // 이름
+  position: varchar("position"), // 직책
+  department: varchar("department"), // 부서
+  personalityDescription: text("personality_description"), // 성격 설명
+  background: text("background"), // 배경 설명
+  isMachineTranslated: boolean("is_machine_translated").notNull().default(false),
+  isReviewed: boolean("is_reviewed").notNull().default(false),
+  reviewedBy: varchar("reviewed_by").references(() => users.id),
+  createdAt: timestamp("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+  updatedAt: timestamp("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+}, (table) => [
+  index("idx_persona_translations_persona_id").on(table.personaId),
+  index("idx_persona_translations_locale").on(table.locale),
+]);
+
+// 카테고리 번역 테이블
+export const categoryTranslations = pgTable("category_translations", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  categoryId: varchar("category_id").notNull().references(() => categories.id, { onDelete: 'cascade' }),
+  locale: varchar("locale", { length: 10 }).notNull().references(() => supportedLanguages.code),
+  name: varchar("name").notNull(),
+  description: text("description"),
+  isMachineTranslated: boolean("is_machine_translated").notNull().default(false),
+  isReviewed: boolean("is_reviewed").notNull().default(false),
+  createdAt: timestamp("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+  updatedAt: timestamp("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+}, (table) => [
+  index("idx_category_translations_category_id").on(table.categoryId),
+  index("idx_category_translations_locale").on(table.locale),
+]);
+
+// 지원 언어 타입
+export const insertSupportedLanguageSchema = createInsertSchema(supportedLanguages);
+export type InsertSupportedLanguage = z.infer<typeof insertSupportedLanguageSchema>;
+export type SupportedLanguage = typeof supportedLanguages.$inferSelect;
+
+// 시나리오 번역 타입
+export const insertScenarioTranslationSchema = createInsertSchema(scenarioTranslations).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+export type InsertScenarioTranslation = z.infer<typeof insertScenarioTranslationSchema>;
+export type ScenarioTranslation = typeof scenarioTranslations.$inferSelect;
+
+// 페르소나 번역 타입
+export const insertPersonaTranslationSchema = createInsertSchema(personaTranslations).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+export type InsertPersonaTranslation = z.infer<typeof insertPersonaTranslationSchema>;
+export type PersonaTranslation = typeof personaTranslations.$inferSelect;
+
+// 카테고리 번역 타입
+export const insertCategoryTranslationSchema = createInsertSchema(categoryTranslations).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+export type InsertCategoryTranslation = z.infer<typeof insertCategoryTranslationSchema>;
+export type CategoryTranslation = typeof categoryTranslations.$inferSelect;
+
+// 번역 상태 통계 타입 (대시보드용)
+export type TranslationStats = {
+  locale: string;
+  totalScenarios: number;
+  translatedScenarios: number;
+  reviewedScenarios: number;
+  totalPersonas: number;
+  translatedPersonas: number;
+  reviewedPersonas: number;
+};
