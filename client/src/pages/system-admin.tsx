@@ -33,7 +33,8 @@ import {
 import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { Search, Users, Shield, UserCog, Loader2, User, KeyRound, Eye, EyeOff, FolderTree, Plus, Pencil, Trash2, GripVertical, Settings, Save, CheckCircle, XCircle, ExternalLink, Activity, DollarSign, Zap, TrendingUp, Calendar, RefreshCw } from "lucide-react";
+import { Search, Users, Shield, UserCog, Loader2, User, KeyRound, Eye, EyeOff, FolderTree, Plus, Pencil, Trash2, GripVertical, Settings, Save, CheckCircle, XCircle, ExternalLink, Activity, DollarSign, Zap, TrendingUp, Calendar, RefreshCw, Languages } from "lucide-react";
+import { LanguageManager } from "@/components/LanguageManager";
 import { format } from "date-fns";
 import { ko } from "date-fns/locale";
 
@@ -677,7 +678,7 @@ export default function SystemAdminPage() {
 
       <div className="container mx-auto p-6 space-y-6" data-testid="system-admin-page">
         <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <TabsList className="grid w-full max-w-3xl grid-cols-4">
+          <TabsList className="grid w-full max-w-4xl grid-cols-5">
             <TabsTrigger value="users" className="flex items-center gap-2" data-testid="tab-users">
               <Users className="h-4 w-4" />
               사용자 관리
@@ -685,6 +686,10 @@ export default function SystemAdminPage() {
             <TabsTrigger value="categories" className="flex items-center gap-2" data-testid="tab-categories">
               <FolderTree className="h-4 w-4" />
               카테고리 관리
+            </TabsTrigger>
+            <TabsTrigger value="languages" className="flex items-center gap-2" data-testid="tab-languages">
+              <Languages className="h-4 w-4" />
+              언어 관리
             </TabsTrigger>
             <TabsTrigger value="settings" className="flex items-center gap-2" data-testid="tab-settings">
               <Settings className="h-4 w-4" />
@@ -1003,6 +1008,10 @@ export default function SystemAdminPage() {
                 )}
               </CardContent>
             </Card>
+          </TabsContent>
+
+          <TabsContent value="languages" className="space-y-6 mt-6">
+            <LanguageManager />
           </TabsContent>
 
           <TabsContent value="settings" className="space-y-6 mt-6">
