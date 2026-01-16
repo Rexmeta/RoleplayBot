@@ -466,7 +466,7 @@ export default function ScenarioSelector({ onScenarioSelect, playerProfile }: Sc
                       <div className="flex items-center gap-3 text-sm">
                         <div className="flex items-center gap-1.5 bg-white/20 backdrop-blur-md rounded-full px-3 py-1.5 shadow-sm">
                           <i className="fas fa-users text-xs"></i>
-                          <span className="font-medium">{(scenario.personas || []).length}명</span>
+                          <span className="font-medium">{t('scenario.personaCountN', { count: (scenario.personas || []).length })}</span>
                         </div>
                         <div className="flex items-center gap-1.5 bg-white/20 backdrop-blur-md rounded-full px-3 py-1.5 shadow-sm">
                           <i className="fas fa-clock text-xs"></i>
