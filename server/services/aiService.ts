@@ -25,13 +25,25 @@ export interface EvaluationCriteriaWithDimensions {
   }>;
 }
 
+// 지원되는 언어 코드
+export type SupportedLanguage = 'ko' | 'en' | 'ja' | 'zh';
+
+// 언어별 응답 지시문
+export const LANGUAGE_INSTRUCTIONS: Record<SupportedLanguage, string> = {
+  ko: '반드시 한국어로 응답하세요.',
+  en: 'You must respond in English.',
+  ja: '必ず日本語で応答してください。',
+  zh: '请务必用中文回复。'
+};
+
 // AI 서비스 공통 인터페이스
 export interface AIServiceInterface {
   generateResponse(
     scenario: string, 
     messages: ConversationMessage[], 
     persona: ScenarioPersona,
-    userMessage?: string
+    userMessage?: string,
+    language?: SupportedLanguage
   ): Promise<{ content: string; emotion: string; emotionReason: string }>;
   
   generateFeedback(
@@ -39,7 +51,8 @@ export interface AIServiceInterface {
     messages: ConversationMessage[], 
     persona: ScenarioPersona,
     conversation?: Partial<Conversation>,
-    evaluationCriteria?: EvaluationCriteriaWithDimensions
+    evaluationCriteria?: EvaluationCriteriaWithDimensions,
+    language?: SupportedLanguage
   ): Promise<DetailedFeedback>;
 
   // 모델 동적 변경 지원 (선택적)

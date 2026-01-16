@@ -162,7 +162,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     conversationId: string, 
     conversation: any, 
     scenarioObj: any, 
-    persona: any
+    persona: any,
+    userLanguage: 'ko' | 'en' | 'ja' | 'zh' = 'ko'
   ) {
     // 이미 피드백이 있는지 확인
     const existingFeedback = await storage.getFeedbackByConversationId(conversationId);
@@ -211,12 +212,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
     const totalUserWords = userMessages.reduce((sum: number, msg: any) => sum + msg.message.length, 0);
     const averageResponseTime = userMessages.length > 0 ? Math.round(conversationDurationSeconds / userMessages.length) : 0;
 
-    // 피드백 데이터 생성
+    // 피드백 데이터 생성 (사용자 언어 전달)
     const feedbackData = await generateFeedback(
       scenarioObj,
       conversation.messages,
       persona,
-      conversation
+      conversation,
+      undefined, // evaluationDimensions - 이 함수에서는 기본값 사용
+      userLanguage
     );
 
     // 시간 성과 평가
@@ -612,10 +615,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
           difficulty: validatedData.difficulty || 2 // 사용자가 선택한 난이도 사용
         };
 
+        // 사용자 언어 설정 가져오기
+        const user = await storage.getUser(userId);
+        const userLanguage = (user?.preferredLanguage as 'ko' | 'en' | 'ja' | 'zh') || 'ko';
+        
         const aiResult = await generateAIResponse(
           scenarioWithUserDifficulty as any,
           [],
-          persona
+          persona,
+          undefined,
+          userLanguage
         );
 
         // ✨ 새로운 구조: chat_messages에 첫 AI 메시지 저장
@@ -943,11 +952,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
         emotionReason: msg.emotionReason || undefined
       }));
 
+      // 사용자 언어 설정 가져오기
+      const user = await storage.getUser(scenarioRun.userId);
+      const userLanguage = (user?.preferredLanguage as 'ko' | 'en' | 'ja' | 'zh') || 'ko';
+      
       const aiResult = await generateAIResponse(
         scenarioWithUserDifficulty,
         messagesForAI,
         persona,
-        isSkipTurn ? undefined : message
+        isSkipTurn ? undefined : message,
+        userLanguage
       );
 
       // ✨ 새 구조: AI 메시지를 chat_messages에 저장
@@ -1773,12 +1787,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
 
+      // 사용자 언어 설정 가져오기
+      const feedbackUser = await storage.getUser(userId);
+      const feedbackUserLanguage = (feedbackUser?.preferredLanguage as 'ko' | 'en' | 'ja' | 'zh') || 'ko';
+      
       const feedbackData = await generateFeedback(
         scenarioObj, // 전체 시나리오 객체 전달
         conversation.messages,
         persona,
         conversation, // 전략 회고 평가를 위해 conversation 전달
-        evaluationCriteria // ✨ 동적 평가 기준 세트 전달
+        evaluationCriteria, // ✨ 동적 평가 기준 세트 전달
+        feedbackUserLanguage // 사용자 언어 전달
       );
 
       // 체계적인 시간 성과 평가 시스템

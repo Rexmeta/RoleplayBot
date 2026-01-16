@@ -5,10 +5,11 @@ import { GoogleGenAI } from "@google/genai";
 import { getAIServiceForFeature, getModelForFeature } from "./aiServiceFactory";
 import { emotionEmojis } from "./aiService";
 import type { ConversationMessage, DetailedFeedback, SequenceAnalysis } from "@shared/schema";
-import type { ScenarioPersona } from "./aiService";
+import type { ScenarioPersona, SupportedLanguage } from "./aiService";
 
 // 하위 호환성을 위한 기존 인터페이스 유지
 export { ScenarioPersona, emotionEmojis };
+export type { SupportedLanguage };
 
 
 // AI 서비스 팩토리로 위임 - 기능별 모델 사용
@@ -16,11 +17,12 @@ export async function generateAIResponse(
   scenario: string, 
   messages: ConversationMessage[], 
   persona: ScenarioPersona,
-  userMessage?: string
+  userMessage?: string,
+  language: SupportedLanguage = 'ko'
 ): Promise<{ content: string; emotion: string; emotionReason: string }> {
   // 대화 기능에 설정된 모델을 사용하는 AI 서비스 인스턴스 생성
   const aiService = await getAIServiceForFeature('conversation');
-  return aiService.generateResponse(scenario, messages, persona, userMessage);
+  return aiService.generateResponse(scenario, messages, persona, userMessage, language);
 }
 
 export async function generateFeedback(
@@ -28,11 +30,12 @@ export async function generateFeedback(
   messages: ConversationMessage[], 
   persona: ScenarioPersona,
   conversation?: Partial<import("@shared/schema").Conversation>,
-  evaluationDimensions?: any[]
+  evaluationCriteria?: any,
+  language: SupportedLanguage = 'ko'
 ): Promise<DetailedFeedback> {
   // 피드백 기능에 설정된 모델을 사용하는 AI 서비스 인스턴스 생성
   const aiService = await getAIServiceForFeature('feedback');
-  return aiService.generateFeedback(scenario, messages, persona, conversation, evaluationDimensions);
+  return aiService.generateFeedback(scenario, messages, persona, conversation, evaluationCriteria, language);
 }
 
 // 전략 회고 평가 타입

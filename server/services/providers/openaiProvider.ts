@@ -1,6 +1,7 @@
 import OpenAI from "openai";
 import type { ConversationMessage, DetailedFeedback } from "@shared/schema";
-import type { AIServiceInterface, ScenarioPersona, EvaluationCriteriaWithDimensions } from "../aiService";
+import type { AIServiceInterface, ScenarioPersona, EvaluationCriteriaWithDimensions, SupportedLanguage } from "../aiService";
+import { LANGUAGE_INSTRUCTIONS } from "../aiService";
 import { trackUsage, extractOpenAITokens, getModelPricingKey } from "../aiUsageTracker";
 
 export class OpenAIProvider implements AIServiceInterface {
@@ -16,9 +17,11 @@ export class OpenAIProvider implements AIServiceInterface {
     scenario: string, 
     messages: ConversationMessage[], 
     persona: ScenarioPersona,
-    userMessage?: string
+    userMessage?: string,
+    language: SupportedLanguage = 'ko'
   ): Promise<{ content: string; emotion: string; emotionReason: string }> {
     const startTime = Date.now();
+    const languageInstruction = LANGUAGE_INSTRUCTIONS[language] || LANGUAGE_INSTRUCTIONS.ko;
     
     try {
       const conversationHistory = messages.map(msg => ({
@@ -39,7 +42,7 @@ export class OpenAIProvider implements AIServiceInterface {
 대화 규칙:
 1. 주어진 페르소나를 정확히 구현하세요
 2. 자연스럽고 현실적인 대화를 유지하세요
-3. 한국어로 응답하세요
+3. ${languageInstruction}
 4. 50-100단어 내외로 간결하게 응답하세요
 5. 상황에 맞는 감정을 표현하세요`
       };
@@ -139,17 +142,19 @@ JSON 형식으로 응답하세요: {"emotion": "감정", "reason": "감정을 �
     messages: ConversationMessage[], 
     persona: ScenarioPersona,
     conversation?: any,
-    evaluationCriteria?: EvaluationCriteriaWithDimensions
+    evaluationCriteria?: EvaluationCriteriaWithDimensions,
+    language: SupportedLanguage = 'ko'
   ): Promise<DetailedFeedback> {
     const startTime = Date.now();
+    const languageInstruction = LANGUAGE_INSTRUCTIONS[language] || LANGUAGE_INSTRUCTIONS.ko;
     
     try {
       const conversationText = messages.map(msg => 
         `${msg.sender === 'user' ? '사용자' : persona.name}: ${msg.message}`
       ).join('\n');
 
-      // 동적 평가 기준 기반 프롬프트 생성
-      const feedbackPrompt = this.buildFeedbackPrompt(conversationText, persona, evaluationCriteria);
+      // 동적 평가 기준 기반 프롬프트 생성 (언어 설정 포함)
+      const feedbackPrompt = this.buildFeedbackPrompt(conversationText, persona, evaluationCriteria, language);
 
       const response = await this.client.chat.completions.create({
         model: this.model,
@@ -205,9 +210,10 @@ JSON 형식으로 응답하세요: {"emotion": "감정", "reason": "감정을 �
     return Math.round((weightedSum / totalWeight) * 100);
   }
 
-  private buildFeedbackPrompt(conversationText: string, persona: ScenarioPersona, evaluationCriteria?: EvaluationCriteriaWithDimensions): string {
+  private buildFeedbackPrompt(conversationText: string, persona: ScenarioPersona, evaluationCriteria?: EvaluationCriteriaWithDimensions, language: SupportedLanguage = 'ko'): string {
     const dimensions = evaluationCriteria?.dimensions || this.getDefaultDimensions();
     const criteriaName = evaluationCriteria?.name || '기본 평가 기준';
+    const languageInstruction = LANGUAGE_INSTRUCTIONS[language] || LANGUAGE_INSTRUCTIONS.ko;
     
     // 동적 평가 차원 목록 생성 (가중치 포함)
     const dimensionsList = dimensions.map((dim, idx) => 
@@ -235,7 +241,7 @@ ${dimensionsList}
 ## 평가 지침:
 1. 각 차원별로 지정된 점수 범위 내에서 평가
 2. 전체 점수는 0-100점
-3. 한국어로 응답
+3. **중요**: ${languageInstruction}
 
 JSON 형식으로 응답:
 {

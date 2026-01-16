@@ -1,6 +1,7 @@
 import { GoogleGenAI } from "@google/genai";
 import type { ConversationMessage, DetailedFeedback } from "@shared/schema";
-import type { AIServiceInterface, ScenarioPersona, EvaluationCriteriaWithDimensions } from "../aiService";
+import type { AIServiceInterface, ScenarioPersona, EvaluationCriteriaWithDimensions, SupportedLanguage } from "../aiService";
+import { LANGUAGE_INSTRUCTIONS } from "../aiService";
 import { enrichPersonaWithMBTI } from "../../utils/mbtiLoader";
 import { GlobalMBTICache } from "../../utils/globalMBTICache";
 import { getTextModeGuidelines, validateDifficultyLevel } from "../conversationDifficultyPolicy";
@@ -46,9 +47,10 @@ export class OptimizedGeminiProvider implements AIServiceInterface {
     scenario: any, 
     messages: ConversationMessage[], 
     persona: ScenarioPersona,
-    userMessage?: string
+    userMessage?: string,
+    language: SupportedLanguage = 'ko'
   ): Promise<{ content: string; emotion: string; emotionReason: string }> {
-    console.log("🔥 Optimized Gemini API call...");
+    console.log(`🔥 Optimized Gemini API call... (language: ${language})`);
     const startTime = Date.now();
     
     try {
@@ -61,8 +63,8 @@ export class OptimizedGeminiProvider implements AIServiceInterface {
       const enrichTime = Date.now() - startTime;
       console.log(`⚡ Parallel processing completed in ${enrichTime}ms`);
 
-      // 압축된 시스템 프롬프트 생성
-      const compactPrompt = this.buildCompactPrompt(scenario, enrichedPersona, conversationHistory);
+      // 압축된 시스템 프롬프트 생성 (언어 설정 포함)
+      const compactPrompt = this.buildCompactPrompt(scenario, enrichedPersona, conversationHistory, language);
       
       // 건너뛰기 처리
       const prompt = userMessage ? userMessage : "이전 대화의 흐름을 자연스럽게 이어가세요.";
@@ -185,10 +187,11 @@ export class OptimizedGeminiProvider implements AIServiceInterface {
   /**
    * 압축된 시스템 프롬프트 생성
    */
-  private buildCompactPrompt(scenario: any, persona: ScenarioPersona, conversationHistory: string): string {
+  private buildCompactPrompt(scenario: any, persona: ScenarioPersona, conversationHistory: string, language: SupportedLanguage = 'ko'): string {
     const situation = scenario.context?.situation || '업무 상황';
     const objectives = scenario.objectives?.join(', ') || '문제 해결';
     const mbtiData = (persona as any).mbti ? this.globalCache.getMBTIPersona((persona as any).mbti.toLowerCase()) : null;
+    const languageInstruction = LANGUAGE_INSTRUCTIONS[language] || LANGUAGE_INSTRUCTIONS.ko;
     
     // 페르소나의 입장과 목표
     const stance = (persona as any).stance || '신중한 접근';
@@ -248,6 +251,8 @@ ${conversationHistory ? `이전 대화:\n${conversationHistory}\n` : ''}
 - 위 대화 난이도 설정(응답 길이, 말투, 압박감, 제약사항)을 정확히 따라주세요
 - 난이도가 낮으면 친절하고 격려적으로, 난이도가 높으면 압박적이고 비판적으로 대응하세요
 
+**중요 언어 지시**: ${languageInstruction}
+
 JSON 형식으로 응답:
 {"content":"대화내용","emotion":"기쁨|슬픔|분노|놀람|중립|호기심|불안|피로|실망|당혹","emotionReason":"감정이유"}`;
   }
@@ -277,14 +282,15 @@ JSON 형식으로 응답:
     messages: ConversationMessage[], 
     persona: ScenarioPersona,
     conversation?: Partial<import("@shared/schema").Conversation>,
-    evaluationCriteria?: EvaluationCriteriaWithDimensions
+    evaluationCriteria?: EvaluationCriteriaWithDimensions,
+    language: SupportedLanguage = 'ko'
   ): Promise<DetailedFeedback> {
-    console.log("🔥 Optimized feedback generation...", evaluationCriteria ? `(Criteria: ${evaluationCriteria.name})` : "(Default criteria)");
+    console.log(`🔥 Optimized feedback generation... (language: ${language})`, evaluationCriteria ? `(Criteria: ${evaluationCriteria.name})` : "(Default criteria)");
     const startTime = Date.now();
 
     try {
-      // 압축된 피드백 프롬프트 - 동적 평가 기준 지원
-      const feedbackPrompt = this.buildCompactFeedbackPrompt(scenario, messages, persona, conversation, evaluationCriteria);
+      // 압축된 피드백 프롬프트 - 동적 평가 기준 지원 (언어 설정 포함)
+      const feedbackPrompt = this.buildCompactFeedbackPrompt(scenario, messages, persona, conversation, evaluationCriteria, language);
 
       const response = await this.genAI.models.generateContent({
         model: this.model,
@@ -327,7 +333,8 @@ JSON 형식으로 응답:
    * 상세 피드백 프롬프트 (행동가이드, 대화가이드, 개발계획 포함)
    * 동적 평가 기준 지원
    */
-  private buildCompactFeedbackPrompt(scenario: string, messages: ConversationMessage[], persona: ScenarioPersona, conversation?: Partial<import("@shared/schema").Conversation>, evaluationCriteria?: EvaluationCriteriaWithDimensions): string {
+  private buildCompactFeedbackPrompt(scenario: string, messages: ConversationMessage[], persona: ScenarioPersona, conversation?: Partial<import("@shared/schema").Conversation>, evaluationCriteria?: EvaluationCriteriaWithDimensions, language: SupportedLanguage = 'ko'): string {
+    const languageInstruction = LANGUAGE_INSTRUCTIONS[language] || LANGUAGE_INSTRUCTIONS.ko;
     // 사용자 메시지만 필터링하여 평가 대상으로 설정
     const userMessages = messages.filter(msg => msg.sender === 'user');
     
@@ -422,6 +429,8 @@ ${strategySection}
 **평가 영역** (1-5점):
 ${dimensionsList}
 ${scoringRubricsSection}
+
+**중요 언어 지시**: ${languageInstruction}
 
 JSON 형식${hasStrategyReflection ? ' (sequenceAnalysis 포함)' : ''}:
 {
