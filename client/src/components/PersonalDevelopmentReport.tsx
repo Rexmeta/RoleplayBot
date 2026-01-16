@@ -265,42 +265,31 @@ export default function PersonalDevelopmentReport({
                        isValidShortField(p.personaSnapshot?.department, 20) || 
                        isValidShortField(p.affiliation, 20) || '';
     
-    // 직위/포지션 (여러 소스에서 탐색)
-    const position = isValidShortField(p.position, 20) || 
-                     isValidShortField(p.currentSituation?.position, 20) || 
-                     isValidShortField(p.personaSnapshot?.position, 20) || '';
+    // 직위/포지션 - position 필드 우선 (AI 생성 시나리오에서 사용)
+    const position = isValidShortField(p.position, 30) || 
+                     isValidShortField(p.personaSnapshot?.position, 30) || '';
     
-    // 역할 (role 필드) - position과 다를 경우만 사용
+    // 역할 (role 필드) - 레거시 시나리오 호환
     const role = isValidShortField(p.role, 30) || 
-                 isValidShortField(p.personaSnapshot?.role, 30) || '';
+                 isValidShortField(p.personaSnapshot?.role, 30) || 
+                 isValidShortField(p.currentSituation?.position, 30) || '';
     
     // 이름 (20자 이하만 유효한 이름으로 간주)
     const name = isValidShortField(p.name, 20) || 
                  isValidShortField(p.personaSnapshot?.name, 20) || '';
     
-    // role에 이미 소속 정보가 포함된 경우 (예: "개발팀 선임")
-    const roleIncludesDepartment = department && role && role.includes(department);
-    
     const parts: string[] = [];
     
-    if (roleIncludesDepartment) {
-      // role에 소속이 포함되어 있으면 role 사용
+    // 소속 추가
+    if (department) {
+      parts.push(department);
+    }
+    
+    // 직위 추가 (position 우선, 없으면 role)
+    if (position) {
+      parts.push(position);
+    } else if (role && !role.includes(department)) {
       parts.push(role);
-      // position이 별도로 있고 role에 포함되지 않으면 추가
-      if (position && !role.includes(position)) {
-        parts.push(position);
-      }
-    } else {
-      // 소속 추가
-      if (department) {
-        parts.push(department);
-      }
-      // 직위 또는 역할 추가
-      if (position) {
-        parts.push(position);
-      } else if (role) {
-        parts.push(role);
-      }
     }
     
     // 이름 추가
@@ -308,7 +297,7 @@ export default function PersonalDevelopmentReport({
       parts.push(name);
     }
     
-    return parts.join(' ') || `${role} ${name}`.trim();
+    return parts.join(' ') || name || '';
   };
 
   // 인쇄/PDF용 전체 보고서 HTML 생성

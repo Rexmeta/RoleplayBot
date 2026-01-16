@@ -8,7 +8,7 @@ import { StrategyReflection } from "@/components/StrategyReflection";
 import { VideoIntro } from "@/components/VideoIntro";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { type ComplexScenario, type ScenarioPersona, getComplexScenarioById, scenarioPersonas } from "@/lib/scenario-system";
+import { type ComplexScenario, type ScenarioPersona } from "@/lib/scenario-system";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
