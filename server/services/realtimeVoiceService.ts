@@ -126,6 +126,7 @@ interface RealtimeSession {
   goAwayWarningTime: number | null; // GoAway 경고 수신 시간
   // 버퍼링된 메시지 (Gemini 연결 전에 도착한 메시지)
   pendingClientReady: any | null; // client.ready 메시지 버퍼 (연결 전 도착시)
+  userLanguage: 'ko' | 'en' | 'ja' | 'zh'; // 사용자 선택 언어
 }
 
 export class RealtimeVoiceService {
@@ -223,7 +224,8 @@ export class RealtimeVoiceService {
     personaId: string,
     userId: string,
     clientWs: WebSocket,
-    userSelectedDifficulty?: number // 사용자가 선택한 난이도 (1-4)
+    userSelectedDifficulty?: number, // 사용자가 선택한 난이도 (1-4)
+    userLanguage: 'ko' | 'en' | 'ja' | 'zh' = 'ko' // 사용자 선택 언어
   ): Promise<void> {
     if (!this.isAvailable || !this.genAI) {
       throw new Error('Gemini Live API Service is not available. Please configure GOOGLE_API_KEY.');
@@ -283,12 +285,13 @@ export class RealtimeVoiceService {
       difficulty: userSelectedDifficulty || 2 // 사용자가 선택한 난이도 사용, 기본값 2
     };
 
-    // Create system instructions
+    // Create system instructions with user language
     const systemInstructions = this.buildSystemInstructions(
       scenarioWithUserDifficulty,
       scenarioPersona,
       mbtiPersona,
-      userRoleInfo
+      userRoleInfo,
+      userLanguage
     );
 
     console.log('\n' + '='.repeat(80));
@@ -342,6 +345,7 @@ export class RealtimeVoiceService {
       voiceGender: gender, // 재연결시 필요
       goAwayWarningTime: null,
       pendingClientReady: null, // client.ready 메시지 버퍼 초기화
+      userLanguage, // 사용자 선택 언어 저장
     };
 
     this.sessions.set(sessionId, session);
@@ -354,15 +358,65 @@ export class RealtimeVoiceService {
     scenario: any,
     scenarioPersona: any,
     mbtiPersona: any,
-    userRoleInfo?: { name: string; position: string; department: string; experience: string; responsibility: string }
+    userRoleInfo?: { name: string; position: string; department: string; experience: string; responsibility: string },
+    userLanguage: 'ko' | 'en' | 'ja' | 'zh' = 'ko'
   ): string {
     const mbtiType = scenarioPersona.personaRef?.replace('.json', '') || 'UNKNOWN';
     
     // 대화 난이도 레벨 가져오기 (사용자가 선택한 난이도 사용, 기본값 2)
     const difficultyLevel = validateDifficultyLevel(scenario.difficulty);
     console.log(`🎯 대화 난이도: Level ${difficultyLevel} (사용자 선택)`)
+    console.log(`🌐 대화 언어: ${userLanguage}`);
     
     const difficultyGuidelines = getRealtimeVoiceGuidelines(difficultyLevel);
+    
+    // 언어별 지시문 정의
+    const languageInstructions: Record<'ko' | 'en' | 'ja' | 'zh', {
+      langName: string;
+      prohibition: string;
+      requirement: string;
+      greetingInstruction: string;
+      greetingExample: string;
+    }> = {
+      ko: {
+        langName: '한국어',
+        prohibition: '영어 사용 절대 금지! 모든 응답은 반드시 한국어로만 하세요.',
+        requirement: '모든 대화는 100% 한국어로만 진행하세요.',
+        greetingInstruction: '세션이 시작되면 반드시 한국어로 먼저 인사를 건네며 대화를 시작하세요.',
+        greetingExample: userRoleInfo 
+          ? `"${userRoleInfo.name}님, 안녕하세요. 급한 건으로 찾아뵙게 됐습니다." 또는 "${userRoleInfo.position}님 오셨군요, 지금 상황이 좀 급합니다."`
+          : `"안녕하세요, 급한 건으로 찾아뵙게 됐습니다." 또는 "오셨군요, 지금 상황이 좀 급합니다."`
+      },
+      en: {
+        langName: 'English',
+        prohibition: 'Always respond in English only. Do not use Korean or other languages.',
+        requirement: 'Conduct all conversations 100% in English.',
+        greetingInstruction: 'When the session starts, greet in English first and begin the conversation.',
+        greetingExample: userRoleInfo
+          ? `"Hello ${userRoleInfo.name}, I need to speak with you about an urgent matter." or "Good to see you, ${userRoleInfo.position}. We have an urgent situation."`
+          : `"Hello, I need to speak with you about an urgent matter." or "Good to see you. We have an urgent situation."`
+      },
+      ja: {
+        langName: '日本語',
+        prohibition: '必ず日本語だけで応答してください。韓国語や英語は使用禁止です。',
+        requirement: 'すべての会話は100%日本語で行ってください。',
+        greetingInstruction: 'セッションが始まったら、必ず日本語で挨拶をして会話を始めてください。',
+        greetingExample: userRoleInfo
+          ? `"${userRoleInfo.name}さん、こんにちは。急ぎの件でお伺いしました。" または "${userRoleInfo.position}さん、いらっしゃいましたか。今、状況が急です。"`
+          : `"こんにちは、急ぎの件でお伺いしました。" または "いらっしゃいましたか。今、状況が急です。"`
+      },
+      zh: {
+        langName: '中文',
+        prohibition: '必须只用中文回答。禁止使用韩语或英语。',
+        requirement: '所有对话必须100%使用中文。',
+        greetingInstruction: '会话开始时，请务必用中文先打招呼并开始对话。',
+        greetingExample: userRoleInfo
+          ? `"${userRoleInfo.name}，您好。有紧急事情需要和您商量。" 或 "${userRoleInfo.position}来了啊，现在情况有些紧急。"`
+          : `"您好，有紧急事情需要商量。" 或 "来了啊，现在情况有些紧急。"`
+      }
+    };
+    
+    const langInst = languageInstructions[userLanguage];
     
     // 대화 상대(사용자) 정보 섹션 구성
     const userInfoSection = userRoleInfo ? [
@@ -420,20 +474,20 @@ export class RealtimeVoiceService {
       `당신은 AI가 아닌 ${scenarioPersona.name}이라는 진짜 사람입니다.`,
       ``,
       `## 🚫 절대 금지사항`,
-      `- 영어 사용 절대 금지! 모든 응답은 반드시 한국어로만 하세요.`,
+      `- ${langInst.prohibition}`,
       `- 내면의 생각이나 사고 과정을 말로 표현하지 마세요.`,
-      `- "Initiating", "Thinking", "I'm focusing" 등의 영어 표현 절대 금지.`,
+      `- "Initiating", "Thinking", "I'm focusing" 등의 메타 표현 절대 금지.`,
       `- 별표(**) 로 감싼 제목이나 메타 텍스트 절대 금지.`,
       ``,
       `## ✅ 필수사항`,
-      `- 모든 대화는 100% 한국어로만 진행하세요.`,
-      `- 생각 없이 바로 자연스러운 한국어 대화를 시작하세요.`,
+      `- ${langInst.requirement}`,
+      `- 생각 없이 바로 자연스러운 ${langInst.langName} 대화를 시작하세요.`,
       `- 컨텍스트를 유지하며 이전 대화 내용을 기억하고 연결하세요.`,
       ``,
       `# 🎬 대화 시작 지침`,
-      `세션이 시작되면 반드시 한국어로 먼저 인사를 건네며 대화를 시작하세요.`,
-      `영어로 생각하거나 설명하지 말고, 바로 한국어로 인사하세요.`,
-      userRoleInfo ? `첫 마디 예시: "${userRoleInfo.name}님, 안녕하세요. 급한 건으로 찾아뵙게 됐습니다." 또는 "${userRoleInfo.position}님 오셨군요, 지금 상황이 좀 급합니다."` : `첫 마디 예시: "안녕하세요, 급한 건으로 찾아뵙게 됐습니다." 또는 "오셨군요, 지금 상황이 좀 급합니다."`,
+      `${langInst.greetingInstruction}`,
+      `메타 텍스트나 다른 언어로 생각하지 말고, 바로 ${langInst.langName}로 인사하세요.`,
+      `첫 마디 예시: ${langInst.greetingExample}`,
     ];
 
     return instructions.join('\n');

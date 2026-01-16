@@ -1503,6 +1503,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       let sequenceAnalysis = null;
       
+      // 사용자 언어 설정 가져오기
+      const strategyUser = await storage.getUser(userId);
+      const strategyUserLanguage = (strategyUser?.preferredLanguage as 'ko' | 'en' | 'ja' | 'zh') || 'ko';
+      
       if (scenario) {
         // AI 평가 생성
         const evaluation = await generateStrategyReflectionFeedback(
@@ -1518,7 +1522,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
               role: p.role,
               department: p.department || ''
             }))
-          }
+          },
+          strategyUserLanguage
         );
         
         // sequenceAnalysis 형식으로 변환
@@ -4689,6 +4694,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const userSelectedDifficulty = personaRun.difficulty || scenarioRun.difficulty || 2;
       console.log(`🎯 실시간 음성 세션 난이도: Level ${userSelectedDifficulty}`);
       
+      // 사용자 언어 설정 가져오기
+      const voiceUser = await storage.getUser(userId);
+      const voiceUserLanguage = (voiceUser?.preferredLanguage as 'ko' | 'en' | 'ja' | 'zh') || 'ko';
+      console.log(`🌐 실시간 음성 세션 언어: ${voiceUserLanguage}`);
+      
       // Create realtime voice session
       await realtimeVoiceService.createSession(
         sessionId,
@@ -4697,7 +4707,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         personaId,
         userId,
         ws,
-        userSelectedDifficulty
+        userSelectedDifficulty,
+        voiceUserLanguage
       );
 
       console.log(`✅ Realtime voice session created: ${sessionId}`);

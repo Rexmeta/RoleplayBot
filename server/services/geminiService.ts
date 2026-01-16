@@ -58,7 +58,8 @@ export async function generateStrategyReflectionFeedback(
     context: string;
     objectives: string[];
     personas: Array<{ id: string; name: string; role: string; department: string }>;
-  }
+  },
+  language: SupportedLanguage = 'ko'
 ): Promise<StrategyReflectionEvaluation> {
   // 전략 기능에 설정된 모델 가져오기
   const configuredModel = await getModelForFeature('strategy');
@@ -114,7 +115,10 @@ ${orderedPersonas}
   "improvements": ["개선점 1", "개선점 2", "개선점 3"]
 }
 
-한국어로 친절하고 구체적으로 평가해주세요. 격려적인 톤을 유지하되 구체적인 피드백을 제공하세요.`;
+${language === 'ko' ? '한국어로 친절하고 구체적으로 평가해주세요.' : 
+  language === 'en' ? 'Please evaluate kindly and specifically in English.' :
+  language === 'ja' ? '日本語で親切かつ具体的に評価してください。' :
+  '请用中文友好且具体地进行评估。'} 격려적인 톤을 유지하되 구체적인 피드백을 제공하세요.`;
 
   try {
     // Gemini 모델만 지원, OpenAI/Claude 모델이 설정된 경우 기본값 사용
