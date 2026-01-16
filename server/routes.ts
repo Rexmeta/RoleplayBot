@@ -4954,7 +4954,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: "대상 언어가 필요합니다" });
       }
       
-      const scenario = await storage.getScenarioById(scenarioId);
+      const allScenarios = await fileManager.getAllScenarios();
+      const scenario = allScenarios.find(s => s.id === scenarioId);
       if (!scenario) {
         return res.status(404).json({ message: "시나리오를 찾을 수 없습니다" });
       }
