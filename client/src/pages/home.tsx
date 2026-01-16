@@ -13,6 +13,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { AppHeader } from "@/components/AppHeader";
+import { useTranslation } from "react-i18next";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -28,6 +29,7 @@ type ViewState = "scenarios" | "persona-selection" | "video-intro" | "chat" | "s
 
 export default function Home() {
   const { user } = useAuth();
+  const { t } = useTranslation();
   const [location] = useLocation();
   const [currentView, setCurrentView] = useState<ViewState>("scenarios");
   const [selectedScenario, setSelectedScenario] = useState<ComplexScenario | null>(null);
@@ -260,19 +262,18 @@ export default function Home() {
     setSelectedDifficulty(4); // 기본 난이도로 리셋
   };
 
-  // 난이도 레벨에 따른 설명 반환 함수
   const getDifficultyDescription = (level: number): string => {
     switch (level) {
       case 1:
-        return '매우 쉬움 - 온화하고 수용적인 대화, 비판 거의 없음';
+        return t('home.difficulty.desc1');
       case 2:
-        return '기본 - 따뜻하고 격려적이나 명확한 방향성 요구';
+        return t('home.difficulty.desc2');
       case 3:
-        return '도전형 - 논리와 근거 요구, 비판적 질문과 협상 필요';
+        return t('home.difficulty.desc3');
       case 4:
-        return '고난도 - 직설적이고 압박감 있는 대화, 빠른 결정 요구';
+        return t('home.difficulty.desc4');
       default:
-        return '기본 - 일반적인 대화 난이도';
+        return t('home.difficulty.default');
     }
   };
 
@@ -502,12 +503,12 @@ export default function Home() {
               onClick={() => setIsHeaderVisible(false)}
               className="flex items-center gap-1 px-3 py-1 text-xs bg-white border border-slate-200 text-slate-500 hover:text-slate-700 hover:bg-slate-50 rounded-full shadow-sm transition-colors"
               data-testid="button-hide-header"
-              title="헤더 숨기기"
+              title={t('home.hideHeader')}
             >
               <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <polyline points="18 15 12 9 6 15"></polyline>
               </svg>
-              <span>접기</span>
+              <span>{t('common.fold')}</span>
             </button>
           </div>
         </div>
@@ -520,12 +521,12 @@ export default function Home() {
             onClick={() => setIsHeaderVisible(true)}
             className="flex items-center gap-1 px-3 py-1.5 text-xs text-slate-500 hover:text-slate-700 hover:bg-slate-100 rounded-full transition-colors"
             data-testid="button-show-header"
-            title="헤더 보기"
+            title={t('home.showHeader')}
           >
             <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <polyline points="6 9 12 15 18 9"></polyline>
             </svg>
-            <span>메뉴</span>
+            <span>{t('common.menu')}</span>
           </button>
         </div>
       )}
@@ -612,8 +613,8 @@ export default function Home() {
             return (
               <div className="max-w-4xl mx-auto p-6">
                 <div className="bg-red-50 border border-red-200 rounded-lg p-6 text-center">
-                  <p className="text-red-800 font-semibold">❌ 오류: 시나리오 정보가 없습니다</p>
-                  <Button onClick={handleReturnToScenarios} className="mt-4">시나리오 목록으로 돌아가기</Button>
+                  <p className="text-red-800 font-semibold">❌ {t('home.errorNoScenario')}</p>
+                  <Button onClick={handleReturnToScenarios} className="mt-4">{t('home.backToScenarios')}</Button>
                 </div>
               </div>
             );
@@ -623,9 +624,9 @@ export default function Home() {
             return (
               <div className="max-w-4xl mx-auto p-6">
                 <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-6 text-center">
-                  <p className="text-yellow-800 font-semibold">⚠️ 오류: 페르소나 정보가 없습니다</p>
-                  <p className="text-yellow-700 mt-2">시나리오 ID: {selectedScenario.id}</p>
-                  <Button onClick={handleReturnToScenarios} className="mt-4">시나리오 목록으로 돌아가기</Button>
+                  <p className="text-yellow-800 font-semibold">⚠️ {t('home.errorNoPersona')}</p>
+                  <p className="text-yellow-700 mt-2">{t('home.scenarioId')}: {selectedScenario.id}</p>
+                  <Button onClick={handleReturnToScenarios} className="mt-4">{t('home.backToScenarios')}</Button>
                 </div>
               </div>
             );
@@ -715,9 +716,9 @@ export default function Home() {
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                   </svg>
                 </div>
-                <h1 className="text-3xl font-bold text-gray-900 mb-2">전략 회고 평가 완료!</h1>
+                <h1 className="text-3xl font-bold text-gray-900 mb-2">{t('home.strategyComplete')}</h1>
                 <p className="text-lg text-gray-600">
-                  {selectedScenario.title} 시나리오의 전략적 대화 순서가 평가되었습니다.
+                  {selectedScenario.title} - {t('home.strategyCompleteDesc')}
                 </p>
               </div>
 
@@ -729,7 +730,7 @@ export default function Home() {
                       <svg className="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
                       </svg>
-                      전략적 사고력 점수
+                      {t('home.strategicScore')}
                     </h2>
                     <div className="text-4xl font-bold text-blue-600">
                       {strategyEvaluation.strategicScore}
@@ -744,7 +745,7 @@ export default function Home() {
                       <svg className="w-5 h-5 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
                       </svg>
-                      순서 효과성 평가
+                      {t('home.sequenceEffectiveness')}
                     </h3>
                     <p className="text-gray-600">{strategyEvaluation.sequenceEffectiveness}</p>
                   </div>
@@ -755,7 +756,7 @@ export default function Home() {
                       <svg className="w-5 h-5 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
                       </svg>
-                      전략적 통찰
+                      {t('home.strategicInsights')}
                     </h3>
                     <p className="text-gray-600">{strategyEvaluation.strategicInsights}</p>
                   </div>
@@ -765,8 +766,8 @@ export default function Home() {
                   <svg className="w-12 h-12 text-yellow-500 mx-auto mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
                   </svg>
-                  <h3 className="text-lg font-semibold text-yellow-800 mb-2">AI 평가를 생성하지 못했습니다</h3>
-                  <p className="text-yellow-700 text-sm">전략 회고가 저장되었지만, AI 평가 생성 중 문제가 발생했습니다. 마이페이지에서 다시 확인해 보세요.</p>
+                  <h3 className="text-lg font-semibold text-yellow-800 mb-2">{t('home.aiEvalError')}</h3>
+                  <p className="text-yellow-700 text-sm">{t('home.aiEvalErrorDesc')}</p>
                 </div>
               )}
 
@@ -778,7 +779,7 @@ export default function Home() {
                       <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
                       </svg>
-                      강점
+                      {t('home.strengths')}
                     </h3>
                     <ul className="space-y-2">
                       {strategyEvaluation.strengths.map((strength, i) => (
@@ -794,7 +795,7 @@ export default function Home() {
                       <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
                       </svg>
-                      개선점
+                      {t('home.improvements')}
                     </h3>
                     <ul className="space-y-2">
                       {strategyEvaluation.improvements.map((improvement, i) => (
@@ -815,7 +816,7 @@ export default function Home() {
                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
                     </svg>
-                    대안적 접근법
+                    {t('home.alternativeApproaches')}
                   </h3>
                   <ul className="space-y-2">
                     {strategyEvaluation.alternativeApproaches.map((approach, i) => (
@@ -833,7 +834,7 @@ export default function Home() {
                   <svg className="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
                   </svg>
-                  대화 순서
+                  {t('home.conversationOrder')}
                 </h2>
                 <div className="space-y-3">
                   {completedPersonas.map((persona: any, index: number) => (
@@ -863,7 +864,7 @@ export default function Home() {
                   <svg className="w-5 h-5 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
                   </svg>
-                  나의 전략 회고
+                  {t('home.myStrategyReflection')}
                 </h2>
                 <div className="p-4 bg-gray-50 rounded-lg">
                   <p className="text-gray-700 whitespace-pre-wrap">{submittedStrategyReflection}</p>
@@ -877,14 +878,14 @@ export default function Home() {
                   size="lg"
                   data-testid="view-history-button"
                 >
-                  대화 히스토리 보기
+                  {t('home.viewConversationHistory')}
                 </Button>
                 <Button
                   onClick={handleReturnToScenarios}
                   size="lg"
                   data-testid="return-to-scenarios-button"
                 >
-                  시나리오 목록으로
+                  {t('home.goToScenarios')}
                 </Button>
               </div>
             </div>
@@ -927,12 +928,12 @@ export default function Home() {
             <div className="text-center">
               <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-corporate-600 mx-auto mb-4"></div>
               <h2 className="text-xl font-semibold text-slate-900 mb-2">
-                {isFeedbackGenerating ? "개인 맞춤 분석 중..." : "피드백 화면 준비 중..."}
+                {isFeedbackGenerating ? t('home.analyzingFeedback') : t('home.preparingFeedback')}
               </h2>
               <p className="text-slate-600">
                 {isFeedbackGenerating 
-                  ? "AI가 대화를 심층 분석하여 맞춤형 개발 계획을 수립하고 있습니다."
-                  : "잠시만 기다려 주세요."}
+                  ? t('home.analyzingFeedbackDesc')
+                  : t('home.preparingFeedbackDesc')}
               </p>
             </div>
           </div>
@@ -972,13 +973,13 @@ export default function Home() {
       <AlertDialog open={showExitConversationDialog} onOpenChange={setShowExitConversationDialog}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>대화를 중단하시겠습니까?</AlertDialogTitle>
+            <AlertDialogTitle>{t('home.exitConversationTitle')}</AlertDialogTitle>
             <AlertDialogDescription>
-              현재 진행 중인 대화가 중단됩니다. 중단된 대화는 히스토리에서 다시 확인하고 이어서 대화할 수 있습니다.
+              {t('home.exitConversationDesc')}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel data-testid="button-cancel-exit">계속 대화하기</AlertDialogCancel>
+            <AlertDialogCancel data-testid="button-cancel-exit">{t('home.continueConversation')}</AlertDialogCancel>
             <AlertDialogAction 
               onClick={() => {
                 setCurrentView('scenarios');
@@ -990,7 +991,7 @@ export default function Home() {
               }}
               data-testid="button-confirm-exit"
             >
-              홈으로 이동
+              {t('home.goToHome')}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -1001,12 +1002,12 @@ export default function Home() {
         <div className="max-w-6xl mx-auto px-4">
           <div className="flex flex-col md:flex-row items-center justify-between">
             <div className="text-sm text-slate-600 mb-4 md:mb-0">
-              © AI 롤플레잉 훈련 시스템
+              © {t('home.footerCopyright')}
             </div>
             <div className="flex items-center space-x-6 text-sm text-slate-600">
-              <a href="/help" className="hover:text-corporate-600" data-testid="link-help">도움말</a>
-              <a href="#" className="hover:text-corporate-600">문의하기</a>
-              <a href="/privacy-policy" className="hover:text-corporate-600">개인정보처리방침</a>
+              <a href="/help" className="hover:text-corporate-600" data-testid="link-help">{t('home.footerHelp')}</a>
+              <a href="#" className="hover:text-corporate-600">{t('home.footerContact')}</a>
+              <a href="/privacy-policy" className="hover:text-corporate-600">{t('home.footerPrivacy')}</a>
             </div>
           </div>
         </div>
