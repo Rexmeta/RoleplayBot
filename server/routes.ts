@@ -3233,7 +3233,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           console.log(`[Scenarios API] User found: ${!!user}, role: ${user?.role}, assignedCategoryId: ${user?.assignedCategoryId}`);
           
           if (user) {
-            userLanguage = user.language || 'ko';
+            userLanguage = (user as any).preferredLanguage || 'ko';
             
             // 시스템관리자(admin)는 모든 시나리오 접근 가능 (카테고리 필터 선택 가능)
             if (user.role === 'admin') {
