@@ -1607,6 +1607,26 @@ export function ScenarioManager() {
               scenarioId={String(translatingScenario.id)}
               scenarioTitle={translatingScenario.title}
               scenarioDescription={translatingScenario.description}
+              scenarioContext={{
+                situation: translatingScenario.context?.situation || '',
+                timeline: translatingScenario.context?.timeline || '',
+                stakes: translatingScenario.context?.stakes || '',
+                playerRole: typeof translatingScenario.context?.playerRole === 'object' 
+                  ? [
+                      (translatingScenario.context.playerRole as any)?.position,
+                      (translatingScenario.context.playerRole as any)?.department,
+                      (translatingScenario.context.playerRole as any)?.experience,
+                      (translatingScenario.context.playerRole as any)?.responsibility
+                    ].filter(Boolean).join(' / ')
+                  : (translatingScenario.context?.playerRole || ''),
+              }}
+              scenarioObjectives={translatingScenario.objectives || []}
+              scenarioSuccessCriteria={{
+                optimal: translatingScenario.successCriteria?.optimal || '',
+                good: translatingScenario.successCriteria?.good || '',
+                acceptable: translatingScenario.successCriteria?.acceptable || '',
+                failure: translatingScenario.successCriteria?.failure || '',
+              }}
             />
           )}
         </DialogContent>

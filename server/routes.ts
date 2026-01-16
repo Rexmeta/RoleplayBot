@@ -4865,7 +4865,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.put("/api/admin/scenarios/:scenarioId/translations/:locale", isAuthenticated, isOperatorOrAdmin, async (req, res) => {
     try {
       const { scenarioId, locale } = req.params;
-      const { title, description, situation, playerRole, isMachineTranslated } = req.body;
+      const { 
+        title, 
+        description, 
+        situation,
+        timeline,
+        stakes,
+        playerRole, 
+        objectives,
+        successCriteriaOptimal,
+        successCriteriaGood,
+        successCriteriaAcceptable,
+        successCriteriaFailure,
+        isMachineTranslated 
+      } = req.body;
       
       if (!title) {
         return res.status(400).json({ message: "제목은 필수입니다" });
@@ -4877,7 +4890,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
         title,
         description,
         situation,
+        timeline,
+        stakes,
         playerRole,
+        objectives: objectives || null,
+        successCriteriaOptimal,
+        successCriteriaGood,
+        successCriteriaAcceptable,
+        successCriteriaFailure,
         isMachineTranslated: isMachineTranslated || false,
         isReviewed: false,
       });
@@ -4951,6 +4971,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
         'zh': 'Chinese Simplified (简体中文)',
       };
       
+      const playerRoleStr = typeof (scenario as any).context?.playerRole === 'object' 
+        ? [
+            (scenario as any).context.playerRole?.position,
+            (scenario as any).context.playerRole?.department,
+            (scenario as any).context.playerRole?.experience,
+            (scenario as any).context.playerRole?.responsibility
+          ].filter(Boolean).join(' / ')
+        : ((scenario as any).context?.playerRole || '');
+      
       const prompt = `Translate the following Korean roleplay scenario into ${languageNames[targetLocale] || targetLocale}. 
 Maintain the professional tone and context. Provide translations in JSON format.
 
@@ -4960,6 +4989,7 @@ Description: ${scenario.description}
 Situation: ${(scenario as any).context?.situation || ''}
 Timeline: ${(scenario as any).context?.timeline || ''}
 Stakes: ${(scenario as any).context?.stakes || ''}
+Player Role: ${playerRoleStr}
 Objectives: ${JSON.stringify((scenario as any).objectives || [])}
 Success Criteria (Optimal): ${(scenario as any).successCriteria?.optimal || ''}
 Success Criteria (Good): ${(scenario as any).successCriteria?.good || ''}
@@ -4970,9 +5000,10 @@ Return ONLY valid JSON in this exact format:
 {
   "title": "translated title",
   "description": "translated description",
-  "contextSituation": "translated situation",
-  "contextTimeline": "translated timeline",
-  "contextStakes": "translated stakes",
+  "situation": "translated situation",
+  "timeline": "translated timeline",
+  "stakes": "translated stakes",
+  "playerRole": "translated player role",
   "objectives": ["translated objective 1", "translated objective 2"],
   "successCriteriaOptimal": "translated optimal criteria",
   "successCriteriaGood": "translated good criteria",

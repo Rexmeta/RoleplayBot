@@ -7,9 +7,11 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
+import { Separator } from '@/components/ui/separator';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import { useToast } from '@/hooks/use-toast';
 import { apiRequest, queryClient } from '@/lib/queryClient';
-import { Loader2, Languages, CheckCircle, AlertCircle, Bot, Save, Trash2 } from 'lucide-react';
+import { Loader2, Languages, CheckCircle, AlertCircle, Bot, Save, Trash2, Plus, X } from 'lucide-react';
 import { SupportedLanguage } from '@shared/schema';
 
 interface ScenarioTranslation {
@@ -17,11 +19,12 @@ interface ScenarioTranslation {
   scenarioId: string;
   locale: string;
   title: string;
-  description: string;
-  contextSituation: string | null;
-  contextTimeline: string | null;
-  contextStakes: string | null;
-  objectives: string[];
+  description: string | null;
+  situation: string | null;
+  timeline: string | null;
+  stakes: string | null;
+  playerRole: string | null;
+  objectives: string[] | null;
   successCriteriaOptimal: string | null;
   successCriteriaGood: string | null;
   successCriteriaAcceptable: string | null;
@@ -30,13 +33,37 @@ interface ScenarioTranslation {
   isReviewed: boolean;
 }
 
+interface ScenarioContext {
+  situation?: string;
+  timeline?: string;
+  stakes?: string;
+  playerRole?: string;
+}
+
+interface ScenarioSuccessCriteria {
+  optimal?: string;
+  good?: string;
+  acceptable?: string;
+  failure?: string;
+}
+
 interface ScenarioTranslationEditorProps {
   scenarioId: string;
   scenarioTitle: string;
   scenarioDescription: string;
+  scenarioContext?: ScenarioContext;
+  scenarioObjectives?: string[];
+  scenarioSuccessCriteria?: ScenarioSuccessCriteria;
 }
 
-export function ScenarioTranslationEditor({ scenarioId, scenarioTitle, scenarioDescription }: ScenarioTranslationEditorProps) {
+export function ScenarioTranslationEditor({ 
+  scenarioId, 
+  scenarioTitle, 
+  scenarioDescription,
+  scenarioContext = {},
+  scenarioObjectives = [],
+  scenarioSuccessCriteria = {}
+}: ScenarioTranslationEditorProps) {
   const { toast } = useToast();
   const [activeTab, setActiveTab] = useState<string>('');
   const [translationData, setTranslationData] = useState<Record<string, Partial<ScenarioTranslation>>>({});
@@ -178,6 +205,32 @@ export function ScenarioTranslationEditor({ scenarioId, scenarioTitle, scenarioD
     });
   };
 
+  const handleAddObjective = (locale: string) => {
+    setTranslationData(prev => {
+      const current = prev[locale]?.objectives || [];
+      return {
+        ...prev,
+        [locale]: {
+          ...prev[locale],
+          objectives: [...current, ''],
+        },
+      };
+    });
+  };
+
+  const handleRemoveObjective = (locale: string, index: number) => {
+    setTranslationData(prev => {
+      const current = prev[locale]?.objectives || [];
+      return {
+        ...prev,
+        [locale]: {
+          ...prev[locale],
+          objectives: current.filter((_, i) => i !== index),
+        },
+      };
+    });
+  };
+
   if (languagesLoading || translationsLoading) {
     return (
       <div className="flex items-center justify-center py-8">
@@ -201,11 +254,11 @@ export function ScenarioTranslationEditor({ scenarioId, scenarioTitle, scenarioD
   }
 
   return (
-    <Card>
-      <CardHeader>
+    <Card className="max-h-[80vh]">
+      <CardHeader className="pb-2">
         <CardTitle className="flex items-center gap-2">
           <Languages className="h-5 w-5" />
-          다국어 번역
+          다국어 번역 - 전체 필드
         </CardTitle>
       </CardHeader>
       <CardContent>
@@ -240,6 +293,7 @@ export function ScenarioTranslationEditor({ scenarioId, scenarioTitle, scenarioD
             const translation = translationData[lang.code] || {};
             const isReviewed = translation.isReviewed;
             const isMachine = translation.isMachineTranslated;
+            const objectives = translation.objectives || [];
 
             return (
               <TabsContent key={lang.code} value={lang.code} className="space-y-4">
@@ -309,53 +363,264 @@ export function ScenarioTranslationEditor({ scenarioId, scenarioTitle, scenarioD
                   </div>
                 </div>
 
-                <div className="grid gap-4">
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label className="text-muted-foreground text-xs">원본 제목 (한국어)</Label>
-                      <div className="p-2 bg-muted rounded text-sm">{scenarioTitle}</div>
-                    </div>
-                    <div className="space-y-2">
-                      <Label>번역 제목 ({lang.name})</Label>
-                      <Input
-                        value={translation.title || ''}
-                        onChange={(e) => handleFieldChange(lang.code, 'title', e.target.value)}
-                        placeholder={`${lang.nativeName} 제목 입력...`}
-                      />
-                    </div>
-                  </div>
+                <ScrollArea className="h-[60vh] pr-4">
+                  <div className="grid gap-6">
+                    <div className="space-y-4">
+                      <h4 className="font-semibold text-sm text-slate-700 border-b pb-2">기본 정보</h4>
+                      
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <Label className="text-muted-foreground text-xs">원본 제목 (한국어)</Label>
+                          <div className="p-2 bg-muted rounded text-sm">{scenarioTitle}</div>
+                        </div>
+                        <div className="space-y-2">
+                          <Label>번역 제목 ({lang.name})</Label>
+                          <Input
+                            value={translation.title || ''}
+                            onChange={(e) => handleFieldChange(lang.code, 'title', e.target.value)}
+                            placeholder={`${lang.nativeName} 제목 입력...`}
+                          />
+                        </div>
+                      </div>
 
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label className="text-muted-foreground text-xs">원본 설명 (한국어)</Label>
-                      <div className="p-2 bg-muted rounded text-sm min-h-[80px]">{scenarioDescription}</div>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <Label className="text-muted-foreground text-xs">원본 설명 (한국어)</Label>
+                          <div className="p-2 bg-muted rounded text-sm min-h-[80px] whitespace-pre-wrap">{scenarioDescription}</div>
+                        </div>
+                        <div className="space-y-2">
+                          <Label>번역 설명 ({lang.name})</Label>
+                          <Textarea
+                            value={translation.description || ''}
+                            onChange={(e) => handleFieldChange(lang.code, 'description', e.target.value)}
+                            placeholder={`${lang.nativeName} 설명 입력...`}
+                            rows={3}
+                          />
+                        </div>
+                      </div>
                     </div>
-                    <div className="space-y-2">
-                      <Label>번역 설명 ({lang.name})</Label>
-                      <Textarea
-                        value={translation.description || ''}
-                        onChange={(e) => handleFieldChange(lang.code, 'description', e.target.value)}
-                        placeholder={`${lang.nativeName} 설명 입력...`}
-                        rows={3}
-                      />
-                    </div>
-                  </div>
 
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label className="text-muted-foreground text-xs">상황 설명</Label>
+                    <Separator />
+
+                    <div className="space-y-4">
+                      <h4 className="font-semibold text-sm text-slate-700 border-b pb-2">상황 설정 (Context)</h4>
+                      
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <Label className="text-muted-foreground text-xs">원본 상황 설명</Label>
+                          <div className="p-2 bg-muted rounded text-sm min-h-[60px] whitespace-pre-wrap">
+                            {scenarioContext?.situation || '(미설정)'}
+                          </div>
+                        </div>
+                        <div className="space-y-2">
+                          <Label>번역 상황 설명 ({lang.name})</Label>
+                          <Textarea
+                            value={translation.situation || ''}
+                            onChange={(e) => handleFieldChange(lang.code, 'situation', e.target.value)}
+                            placeholder={`${lang.nativeName} 상황 설명...`}
+                            rows={2}
+                          />
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <Label className="text-muted-foreground text-xs">원본 시간적 제약</Label>
+                          <div className="p-2 bg-muted rounded text-sm min-h-[40px]">
+                            {scenarioContext?.timeline || '(미설정)'}
+                          </div>
+                        </div>
+                        <div className="space-y-2">
+                          <Label>번역 시간적 제약 ({lang.name})</Label>
+                          <Input
+                            value={translation.timeline || ''}
+                            onChange={(e) => handleFieldChange(lang.code, 'timeline', e.target.value)}
+                            placeholder={`${lang.nativeName} 시간적 제약...`}
+                          />
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <Label className="text-muted-foreground text-xs">원본 이해관계</Label>
+                          <div className="p-2 bg-muted rounded text-sm min-h-[40px]">
+                            {scenarioContext?.stakes || '(미설정)'}
+                          </div>
+                        </div>
+                        <div className="space-y-2">
+                          <Label>번역 이해관계 ({lang.name})</Label>
+                          <Input
+                            value={translation.stakes || ''}
+                            onChange={(e) => handleFieldChange(lang.code, 'stakes', e.target.value)}
+                            placeholder={`${lang.nativeName} 이해관계...`}
+                          />
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <Label className="text-muted-foreground text-xs">원본 플레이어 역할</Label>
+                          <div className="p-2 bg-muted rounded text-sm min-h-[40px]">
+                            {scenarioContext?.playerRole || '(미설정)'}
+                          </div>
+                        </div>
+                        <div className="space-y-2">
+                          <Label>번역 플레이어 역할 ({lang.name})</Label>
+                          <Input
+                            value={translation.playerRole || ''}
+                            onChange={(e) => handleFieldChange(lang.code, 'playerRole', e.target.value)}
+                            placeholder={`${lang.nativeName} 플레이어 역할...`}
+                          />
+                        </div>
+                      </div>
                     </div>
-                    <div className="space-y-2">
-                      <Label>번역 상황 설명</Label>
-                      <Textarea
-                        value={translation.contextSituation || ''}
-                        onChange={(e) => handleFieldChange(lang.code, 'contextSituation', e.target.value)}
-                        placeholder={`${lang.nativeName} 상황 설명...`}
-                        rows={2}
-                      />
+
+                    <Separator />
+
+                    <div className="space-y-4">
+                      <h4 className="font-semibold text-sm text-slate-700 border-b pb-2">목표 (Objectives)</h4>
+                      
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <Label className="text-muted-foreground text-xs">원본 목표</Label>
+                          <div className="p-2 bg-muted rounded text-sm space-y-1">
+                            {scenarioObjectives.length > 0 ? (
+                              scenarioObjectives.map((obj, idx) => (
+                                <div key={idx} className="flex items-start gap-2">
+                                  <span className="text-xs text-muted-foreground">{idx + 1}.</span>
+                                  <span>{obj}</span>
+                                </div>
+                              ))
+                            ) : (
+                              <span className="text-muted-foreground">(목표 미설정)</span>
+                            )}
+                          </div>
+                        </div>
+                        <div className="space-y-2">
+                          <Label className="flex items-center justify-between">
+                            <span>번역 목표 ({lang.name})</span>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleAddObjective(lang.code)}
+                              className="h-6 px-2"
+                            >
+                              <Plus className="h-3 w-3 mr-1" />
+                              추가
+                            </Button>
+                          </Label>
+                          <div className="space-y-2">
+                            {objectives.length > 0 ? (
+                              objectives.map((obj, idx) => (
+                                <div key={idx} className="flex items-center gap-2">
+                                  <span className="text-xs text-muted-foreground w-4">{idx + 1}.</span>
+                                  <Input
+                                    value={obj}
+                                    onChange={(e) => handleObjectiveChange(lang.code, idx, e.target.value)}
+                                    placeholder={`목표 ${idx + 1}...`}
+                                    className="flex-1"
+                                  />
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => handleRemoveObjective(lang.code, idx)}
+                                    className="h-8 w-8 p-0"
+                                  >
+                                    <X className="h-3 w-3" />
+                                  </Button>
+                                </div>
+                              ))
+                            ) : (
+                              <p className="text-sm text-muted-foreground">번역할 목표를 추가하세요</p>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <Separator />
+
+                    <div className="space-y-4">
+                      <h4 className="font-semibold text-sm text-slate-700 border-b pb-2">성공 기준 (Success Criteria)</h4>
+                      
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <Label className="text-muted-foreground text-xs">원본 최적 (Optimal)</Label>
+                          <div className="p-2 bg-green-50 border border-green-200 rounded text-sm min-h-[40px]">
+                            {scenarioSuccessCriteria?.optimal || '(미설정)'}
+                          </div>
+                        </div>
+                        <div className="space-y-2">
+                          <Label className="text-green-700">번역 최적 ({lang.name})</Label>
+                          <Textarea
+                            value={translation.successCriteriaOptimal || ''}
+                            onChange={(e) => handleFieldChange(lang.code, 'successCriteriaOptimal', e.target.value)}
+                            placeholder={`${lang.nativeName} 최적 기준...`}
+                            rows={2}
+                            className="border-green-200 focus:border-green-400"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <Label className="text-muted-foreground text-xs">원본 양호 (Good)</Label>
+                          <div className="p-2 bg-blue-50 border border-blue-200 rounded text-sm min-h-[40px]">
+                            {scenarioSuccessCriteria?.good || '(미설정)'}
+                          </div>
+                        </div>
+                        <div className="space-y-2">
+                          <Label className="text-blue-700">번역 양호 ({lang.name})</Label>
+                          <Textarea
+                            value={translation.successCriteriaGood || ''}
+                            onChange={(e) => handleFieldChange(lang.code, 'successCriteriaGood', e.target.value)}
+                            placeholder={`${lang.nativeName} 양호 기준...`}
+                            rows={2}
+                            className="border-blue-200 focus:border-blue-400"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <Label className="text-muted-foreground text-xs">원본 수용가능 (Acceptable)</Label>
+                          <div className="p-2 bg-yellow-50 border border-yellow-200 rounded text-sm min-h-[40px]">
+                            {scenarioSuccessCriteria?.acceptable || '(미설정)'}
+                          </div>
+                        </div>
+                        <div className="space-y-2">
+                          <Label className="text-yellow-700">번역 수용가능 ({lang.name})</Label>
+                          <Textarea
+                            value={translation.successCriteriaAcceptable || ''}
+                            onChange={(e) => handleFieldChange(lang.code, 'successCriteriaAcceptable', e.target.value)}
+                            placeholder={`${lang.nativeName} 수용가능 기준...`}
+                            rows={2}
+                            className="border-yellow-200 focus:border-yellow-400"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <Label className="text-muted-foreground text-xs">원본 실패 (Failure)</Label>
+                          <div className="p-2 bg-red-50 border border-red-200 rounded text-sm min-h-[40px]">
+                            {scenarioSuccessCriteria?.failure || '(미설정)'}
+                          </div>
+                        </div>
+                        <div className="space-y-2">
+                          <Label className="text-red-700">번역 실패 ({lang.name})</Label>
+                          <Textarea
+                            value={translation.successCriteriaFailure || ''}
+                            onChange={(e) => handleFieldChange(lang.code, 'successCriteriaFailure', e.target.value)}
+                            placeholder={`${lang.nativeName} 실패 기준...`}
+                            rows={2}
+                            className="border-red-200 focus:border-red-400"
+                          />
+                        </div>
+                      </div>
                     </div>
                   </div>
-                </div>
+                </ScrollArea>
               </TabsContent>
             );
           })}
