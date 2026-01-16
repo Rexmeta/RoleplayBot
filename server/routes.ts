@@ -11,6 +11,7 @@ import {
   insertSequenceAnalysisSchema
 } from "@shared/schema";
 import { generateAIResponse, generateFeedback, generateStrategyReflectionFeedback } from "./services/geminiService";
+import { GoogleGenAI } from "@google/genai";
 import { createSampleData } from "./sampleData";
 import ttsRoutes from "./routes/tts.js";
 import imageGenerationRoutes, { saveImageToLocal } from "./routes/imageGeneration.js";
@@ -5012,7 +5013,18 @@ Return ONLY valid JSON in this exact format:
   "successCriteriaFailure": "translated failure criteria"
 }`;
 
-      const response = await generateAIResponse('gemini-2.5-flash-preview-05-20', prompt, 'translate');
+      const apiKey = process.env.GOOGLE_API_KEY || process.env.GEMINI_API_KEY;
+      if (!apiKey) {
+        return res.status(500).json({ message: "API 키가 설정되지 않았습니다" });
+      }
+      
+      const genAI = new GoogleGenAI({ apiKey });
+      const result = await genAI.models.generateContent({
+        model: 'gemini-2.5-flash-preview-05-20',
+        contents: prompt,
+      });
+      
+      const response = result.text || '';
       
       let translation;
       try {
@@ -5177,7 +5189,18 @@ Return ONLY valid JSON in this exact format:
   "background": "translated background and motivation"
 }`;
 
-      const response = await generateAIResponse('gemini-2.5-flash-preview-05-20', prompt, 'translate');
+      const apiKey = process.env.GOOGLE_API_KEY || process.env.GEMINI_API_KEY;
+      if (!apiKey) {
+        return res.status(500).json({ message: "API 키가 설정되지 않았습니다" });
+      }
+      
+      const genAI = new GoogleGenAI({ apiKey });
+      const result = await genAI.models.generateContent({
+        model: 'gemini-2.5-flash-preview-05-20',
+        contents: prompt,
+      });
+      
+      const response = result.text || '';
       
       let translation;
       try {
