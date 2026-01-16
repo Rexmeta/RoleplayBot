@@ -38,7 +38,7 @@ Preferred communication style: Simple, everyday language.
 ## Data Storage
 - **ORM**: Drizzle ORM (PostgreSQL dialect)
 - **Database**: PostgreSQL (Neon serverless)
-- **Schema**: `conversations`, `feedbacks`, `users`, `categories`, `system_settings`, `ai_usage_logs` tables.
+- **Schema**: `conversations`, `feedbacks`, `users`, `categories`, `system_settings`, `ai_usage_logs`, `supported_languages`, `scenario_translations`, `persona_translations` tables.
 
 ## Features
 - **4-Level Difficulty System**: Users select difficulty, influencing AI responses across all conversation modes.
@@ -50,6 +50,7 @@ Preferred communication style: Simple, everyday language.
 - **AI Usage Tracking**: Logs AI API usage data (feature, model, token usage, cost) for cost analysis.
 - **Configurable Difficulty Settings**: Difficulty levels are editable via the operator dashboard, allowing customization of name, description, response length, tone, pressure, feedback style, and constraints.
 - **Intro Video Generation**: Integration with Gemini Veo 3.1 API for generating 8-second intro videos for scenarios, stored as WebM files.
+- **Multilingual Translation System**: Comprehensive translation management with AI-powered translation generation (Gemini 2.5 Flash), manual editing/review workflow, batch translation tools, and translation status dashboard. Supports Korean, English, Japanese, and Chinese with extensible language database.
 
 # External Dependencies
 
