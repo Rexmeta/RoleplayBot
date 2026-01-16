@@ -139,6 +139,9 @@
     "warning": "경고",
     "info": "안내"
   },
+  "settings": {
+    "languageUpdateFailed": "언어 설정 변경에 실패했습니다. 다시 시도해주세요."
+  },
   "voice": {
     "connectionError": "음성 연결 오류",
     "sessionEnded": "음성 세션 종료",

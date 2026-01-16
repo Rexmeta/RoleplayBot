@@ -3,6 +3,7 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient } from "@/lib/queryClient";
 import { AuthContext } from "@/hooks/useAuth";
 import type { User, AuthContextType } from "@/hooks/useAuth";
+import i18n from "@/lib/i18n";
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
@@ -128,14 +129,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     },
   });
 
-  // 현재 사용자 정보 업데이트
+  // 현재 사용자 정보 업데이트 및 언어 동기화
   useEffect(() => {
-    if (currentUser && !user) {
+    if (currentUser) {
       setUser(currentUser);
-    } else if (!currentUser && !isUserLoading && user) {
+      
+      // 서버의 언어 설정을 i18n에 동기화 (서버가 source of truth)
+      // currentUser가 변경될 때마다 언어 설정 확인 및 동기화
+      if (currentUser.preferredLanguage && currentUser.preferredLanguage !== i18n.language) {
+        i18n.changeLanguage(currentUser.preferredLanguage);
+        localStorage.setItem('preferredLanguage', currentUser.preferredLanguage);
+      }
+    } else if (!isUserLoading) {
       setUser(null);
     }
-  }, [currentUser, isUserLoading, user]);
+  }, [currentUser, isUserLoading]);
 
   const login = async (email: string, password: string, rememberMe?: boolean) => {
     await loginMutation.mutateAsync({ email, password, rememberMe });

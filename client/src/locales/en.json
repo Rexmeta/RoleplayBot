@@ -139,6 +139,9 @@
     "warning": "Warning",
     "info": "Info"
   },
+  "settings": {
+    "languageUpdateFailed": "Failed to update language settings. Please try again."
+  },
   "voice": {
     "connectionError": "Voice connection error",
     "sessionEnded": "Voice session ended",

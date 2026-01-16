@@ -139,6 +139,9 @@
     "warning": "警告",
     "info": "お知らせ"
   },
+  "settings": {
+    "languageUpdateFailed": "言語設定の変更に失敗しました。もう一度お試しください。"
+  },
   "voice": {
     "connectionError": "音声接続エラー",
     "sessionEnded": "音声セッション終了",

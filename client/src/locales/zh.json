@@ -139,6 +139,9 @@
     "warning": "警告",
     "info": "提示"
   },
+  "settings": {
+    "languageUpdateFailed": "语言设置更改失败。请重试。"
+  },
   "voice": {
     "connectionError": "语音连接错误",
     "sessionEnded": "语音会话已结束",

@@ -9,9 +9,11 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Button } from '@/components/ui/button';
+import { useToast } from '@/hooks/use-toast';
 
 export function LanguageSelector() {
-  const { i18n } = useTranslation();
+  const { i18n, t } = useTranslation();
+  const { toast } = useToast();
 
   const { data: userProfile } = useQuery<any>({
     queryKey: ['/api/auth/user'],
@@ -30,12 +32,27 @@ export function LanguageSelector() {
     },
   });
 
-  const handleLanguageChange = (langCode: LanguageCode) => {
+  const handleLanguageChange = async (langCode: LanguageCode) => {
+    if (!userProfile) {
+      i18n.changeLanguage(langCode);
+      localStorage.setItem('preferredLanguage', langCode);
+      return;
+    }
+    
+    const previousLang = i18n.language;
     i18n.changeLanguage(langCode);
     localStorage.setItem('preferredLanguage', langCode);
     
-    if (userProfile) {
-      updateLanguageMutation.mutate(langCode);
+    try {
+      await updateLanguageMutation.mutateAsync(langCode);
+    } catch (error) {
+      i18n.changeLanguage(previousLang);
+      localStorage.setItem('preferredLanguage', previousLang);
+      toast({
+        title: t('common.error'),
+        description: t('settings.languageUpdateFailed'),
+        variant: "destructive"
+      });
     }
   };
 

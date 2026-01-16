@@ -19,6 +19,7 @@ import { ProfileEditDialog } from "./ProfileEditDialog";
 import { useTranslation } from "react-i18next";
 import { SUPPORTED_LANGUAGES, type LanguageCode } from "@/lib/i18n";
 import { apiRequest, queryClient } from "@/lib/queryClient";
+import { useToast } from "@/hooks/use-toast";
 
 const roleConfig: Record<string, { label: string; color: string; bgColor: string }> = {
   admin: { label: "시스템관리자", color: "text-red-700", bgColor: "bg-red-100" },
@@ -30,6 +31,7 @@ export function UserProfileMenu() {
   const { logout, user } = useAuth();
   const [showProfileEdit, setShowProfileEdit] = useState(false);
   const { i18n, t } = useTranslation();
+  const { toast } = useToast();
 
   const { data: categories } = useQuery<{ id: string; name: string }[]>({
     queryKey: ['/api/categories'],
@@ -49,11 +51,27 @@ export function UserProfileMenu() {
     },
   });
 
-  const handleLanguageChange = (langCode: LanguageCode) => {
+  const handleLanguageChange = async (langCode: LanguageCode) => {
+    if (!user) {
+      i18n.changeLanguage(langCode);
+      localStorage.setItem('preferredLanguage', langCode);
+      return;
+    }
+    
+    const previousLang = i18n.language;
     i18n.changeLanguage(langCode);
     localStorage.setItem('preferredLanguage', langCode);
-    if (user) {
-      updateLanguageMutation.mutate(langCode);
+    
+    try {
+      await updateLanguageMutation.mutateAsync(langCode);
+    } catch (error) {
+      i18n.changeLanguage(previousLang);
+      localStorage.setItem('preferredLanguage', previousLang);
+      toast({
+        title: t('common.error'),
+        description: t('settings.languageUpdateFailed'),
+        variant: "destructive"
+      });
     }
   };
 
