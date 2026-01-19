@@ -27,7 +27,8 @@
     "menu": "Menu",
     "fold": "Fold",
     "start": "Get Started",
-    "skipIntro": "Skip Intro"
+    "skipIntro": "Skip Intro",
+    "unknown": "Unknown"
   },
   "nav": {
     "home": "Home",
@@ -274,9 +275,6 @@
   "feedback": {
     "loading": "Loading feedback...",
     "scenarioNotFound": "Scenario or persona not found."
-  },
-  "common": {
-    "unknown": "Unknown"
   },
   "voice": {
     "connectionError": "Voice connection error",

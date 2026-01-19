@@ -27,7 +27,8 @@
     "menu": "菜单",
     "fold": "收起",
     "start": "开始",
-    "skipIntro": "跳过介绍"
+    "skipIntro": "跳过介绍",
+    "unknown": "未知"
   },
   "nav": {
     "home": "返回首页",
@@ -274,9 +275,6 @@
   "feedback": {
     "loading": "正在加载反馈...",
     "scenarioNotFound": "找不到场景或人设。"
-  },
-  "common": {
-    "unknown": "未知"
   },
   "voice": {
     "connectionError": "语音连接错误",
