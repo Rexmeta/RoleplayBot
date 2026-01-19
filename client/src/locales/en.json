@@ -1,7 +1,7 @@
 {
   "common": {
-    "appName": "Roleplay X",
-    "tagline": "Communication Skills Development",
+    "appName": "RoleplayX",
+    "tagline": "Skill based HRD",
     "loading": "Loading...",
     "error": "An error occurred",
     "save": "Save",
@@ -19,7 +19,7 @@
     "reset": "Reset",
     "home": "Home",
     "settings": "Settings",
-    "language": "Language",
+    "language": "English",
     "logout": "Logout",
     "login": "Login",
     "register": "Register",

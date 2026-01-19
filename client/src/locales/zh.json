@@ -1,7 +1,7 @@
 {
   "common": {
-    "appName": "Roleplay X",
-    "tagline": "沟通能力培养",
+    "appName": "RoleplayX",
+    "tagline": "Skill based HRD",
     "loading": "加载中...",
     "error": "发生错误",
     "save": "保存",
@@ -19,8 +19,8 @@
     "reset": "重置",
     "home": "首页",
     "settings": "设置",
-    "language": "语言",
-    "logout": "退出登录",
+    "language": "中文",
+    "logout": "Logout",
     "login": "登录",
     "register": "注册",
     "user": "用户",

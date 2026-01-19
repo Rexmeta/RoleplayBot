@@ -1,7 +1,7 @@
 {
   "common": {
-    "appName": "Roleplay X",
-    "tagline": "커뮤니케이션 역량 개발",
+    "appName": "RoleplayX",
+    "tagline": "Skill based HRD",
     "loading": "로딩 중...",
     "error": "오류가 발생했습니다",
     "save": "저장",
@@ -19,8 +19,8 @@
     "reset": "초기화",
     "home": "홈",
     "settings": "설정",
-    "language": "언어",
-    "logout": "로그아웃",
+    "language": "한국어",
+    "logout": "Logout",
     "login": "로그인",
     "register": "회원가입",
     "user": "사용자",
