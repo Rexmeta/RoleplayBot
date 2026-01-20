@@ -19,6 +19,7 @@ import { fileManager } from "./services/fileManager";
 import { generateScenarioWithAI, enhanceScenarioWithAI } from "./services/aiScenarioGenerator";
 import { realtimeVoiceService } from "./services/realtimeVoiceService";
 import { generateIntroVideo, deleteIntroVideo, getVideoGenerationStatus } from "./services/gemini-video-generator";
+import { GlobalMBTICache } from "./utils/globalMBTICache";
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // 이메일 기반 인증 시스템 설정
@@ -5257,7 +5258,8 @@ Return ONLY valid JSON in this exact format:
         return res.status(400).json({ message: "원문 언어와 대상 언어가 동일합니다" });
       }
       
-      const persona = await storage.getPersonaById(personaId);
+      const mbtiCache = GlobalMBTICache.getInstance();
+      const persona = mbtiCache.getMBTIPersona(personaId);
       if (!persona) {
         return res.status(404).json({ message: "페르소나를 찾을 수 없습니다" });
       }
@@ -5281,19 +5283,24 @@ Return ONLY valid JSON in this exact format:
       
       const personaData = persona as any;
       let sourceData: any = {
-        mbti: personaData.mbti,
+        mbti: personaData.mbti || personaId.replace('.json', '').toUpperCase(),
         personalityTraits: personaData.personality_traits || [],
         communicationStyle: personaData.communication_style || '',
         motivation: personaData.motivation || '',
         fears: personaData.fears || [],
-        background: personaData.background || {},
-        name: '',
+        backgroundData: personaData.background || {},
+        name: personaData.mbti || personaId.replace('.json', '').toUpperCase(),
         position: '',
         department: '',
         role: '',
         stance: '',
         goal: '',
         tradeoff: '',
+        education: personaData.background?.social?.preference || '',
+        previousExperience: personaData.background?.social?.behavior || '',
+        majorProjects: personaData.background?.hobbies || [],
+        expertise: personaData.background?.personal_values || [],
+        background: '',
       };
       
       if (sourceLocale !== 'ko') {

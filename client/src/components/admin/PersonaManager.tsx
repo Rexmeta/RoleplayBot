@@ -1583,6 +1583,7 @@ export function PersonaManager() {
               personaTraits={translatingPersona.personality_traits || []}
               sourceData={{
                 name: translatingPersona.mbti,
+                mbti: translatingPersona.mbti,
                 personality: {
                   traits: translatingPersona.personality_traits || [],
                   communicationStyle: translatingPersona.communication_style || '',
@@ -1590,9 +1591,9 @@ export function PersonaManager() {
                   fears: translatingPersona.fears || [],
                 },
                 background: {
-                  education: '',
-                  previousExperience: '',
-                  majorProjects: [],
+                  education: translatingPersona.background?.social?.preference || '',
+                  previousExperience: translatingPersona.background?.social?.behavior || '',
+                  majorProjects: translatingPersona.background?.hobbies || [],
                   expertise: translatingPersona.background?.personal_values || [],
                 },
               }}
