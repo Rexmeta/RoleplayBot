@@ -52,7 +52,7 @@ router.post('/generate-scenario-image', async (req, res) => {
     // Gemini 2.5 Flash Image를 사용한 이미지 생성 (올바른 API 사용법)
     const ai = new GoogleGenAI({ apiKey: process.env.GOOGLE_API_KEY || process.env.GEMINI_API_KEY });
     const result = await ai.models.generateContent({
-      model: "gemini-2.5-flash-image-preview",
+      model: "gemini-2.5-flash-image",
       contents: [{ role: 'user', parts: [{ text: imagePrompt }] }]
     });
     
@@ -83,7 +83,7 @@ router.post('/generate-scenario-image', async (req, res) => {
 
     // AI 사용량 추적
     trackImageUsage({
-      model: 'gemini-2.5-flash-image-preview',
+      model: 'gemini-2.5-flash-image',
       provider: 'gemini',
       metadata: { type: 'scenario', scenarioTitle }
     });
@@ -94,7 +94,7 @@ router.post('/generate-scenario-image', async (req, res) => {
       originalImageUrl: imageUrl, // 원본 base64 URL도 포함
       prompt: imagePrompt,
       metadata: {
-        model: "gemini-2.5-flash-image-preview",
+        model: "gemini-2.5-flash-image",
         provider: "gemini",
         savedLocally: true
       }
@@ -269,7 +269,7 @@ router.post('/generate-preview', async (req, res) => {
 
     const ai = new GoogleGenAI({ apiKey: process.env.GOOGLE_API_KEY || process.env.GEMINI_API_KEY });
     const result = await ai.models.generateContent({
-      model: "gemini-2.5-flash-image-preview",
+      model: "gemini-2.5-flash-image",
       contents: [{ role: 'user', parts: [{ text: simplePrompt }] }]
     });
     
@@ -295,7 +295,7 @@ router.post('/generate-preview', async (req, res) => {
     
     // AI 사용량 추적
     trackImageUsage({
-      model: 'gemini-2.5-flash-image-preview',
+      model: 'gemini-2.5-flash-image',
       provider: 'gemini',
       metadata: { type: 'preview', scenarioTitle }
     });
@@ -346,7 +346,7 @@ router.post('/generate-persona-base', async (req, res) => {
     // Gemini 2.5 Flash Image를 사용한 이미지 생성
     const ai = new GoogleGenAI({ apiKey: process.env.GOOGLE_API_KEY || process.env.GEMINI_API_KEY });
     const result = await ai.models.generateContent({
-      model: "gemini-2.5-flash-image-preview",
+      model: "gemini-2.5-flash-image",
       contents: [{ role: 'user', parts: [{ text: imagePrompt }] }]
     });
     
@@ -387,7 +387,7 @@ router.post('/generate-persona-base', async (req, res) => {
 
     // AI 사용량 추적
     trackImageUsage({
-      model: 'gemini-2.5-flash-image-preview',
+      model: 'gemini-2.5-flash-image',
       provider: 'gemini',
       metadata: { type: 'persona-base', personaId, mbti, gender }
     });
@@ -398,7 +398,7 @@ router.post('/generate-persona-base', async (req, res) => {
       originalImageUrl: imageUrl,
       prompt: imagePrompt,
       metadata: {
-        model: "gemini-2.5-flash-image-preview",
+        model: "gemini-2.5-flash-image",
         provider: "gemini",
         personaId,
         mbti,
@@ -652,7 +652,7 @@ router.post('/generate-persona-expressions', async (req, res) => {
         
         // 기본 이미지를 참조로 포함하여 API 호출
         const result = await ai.models.generateContent({
-          model: "gemini-2.5-flash-image-preview",
+          model: "gemini-2.5-flash-image",
           contents: [{
             role: 'user',
             parts: [
@@ -690,7 +690,7 @@ router.post('/generate-persona-expressions', async (req, res) => {
           
           // AI 사용량 추적 (각 표정 이미지마다)
           trackImageUsage({
-            model: 'gemini-2.5-flash-image-preview',
+            model: 'gemini-2.5-flash-image',
             provider: 'gemini',
             metadata: { type: 'persona-expression', personaId, emotion: emotion.english, gender }
           });
@@ -736,7 +736,7 @@ router.post('/generate-persona-expressions', async (req, res) => {
         personaId,
         mbti,
         gender,
-        model: "gemini-2.5-flash-image-preview",
+        model: "gemini-2.5-flash-image",
         provider: "gemini"
       }
     });
@@ -797,7 +797,7 @@ router.post('/generate-persona-single-expression', async (req, res) => {
 
       const ai = new GoogleGenAI({ apiKey: process.env.GOOGLE_API_KEY || process.env.GEMINI_API_KEY });
       const result = await ai.models.generateContent({
-        model: "gemini-2.5-flash-image-preview",
+        model: "gemini-2.5-flash-image",
         contents: [{ role: 'user', parts: [{ text: imagePrompt }] }]
       });
 
@@ -818,7 +818,7 @@ router.post('/generate-persona-single-expression', async (req, res) => {
       const localImagePath = await savePersonaImageToLocal(imageUrl, personaId, emotion, gender);
       
       trackImageUsage({
-        model: 'gemini-2.5-flash-image-preview',
+        model: 'gemini-2.5-flash-image',
         provider: 'gemini',
         metadata: { type: 'persona-single-expression', personaId, emotion, gender }
       });
@@ -828,7 +828,7 @@ router.post('/generate-persona-single-expression', async (req, res) => {
         emotion,
         emotionEnglish: emotionInfo.english,
         imageUrl: localImagePath,
-        metadata: { personaId, mbti, gender, model: "gemini-2.5-flash-image-preview" }
+        metadata: { personaId, mbti, gender, model: "gemini-2.5-flash-image" }
       });
     }
 
@@ -871,7 +871,7 @@ router.post('/generate-persona-single-expression', async (req, res) => {
 
     const ai = new GoogleGenAI({ apiKey: process.env.GOOGLE_API_KEY || process.env.GEMINI_API_KEY });
     const result = await ai.models.generateContent({
-      model: "gemini-2.5-flash-image-preview",
+      model: "gemini-2.5-flash-image",
       contents: [{
         role: 'user',
         parts: [
@@ -898,7 +898,7 @@ router.post('/generate-persona-single-expression', async (req, res) => {
     const localImagePath = await savePersonaImageToLocal(imageUrl, personaId, emotion, gender);
     
     trackImageUsage({
-      model: 'gemini-2.5-flash-image-preview',
+      model: 'gemini-2.5-flash-image',
       provider: 'gemini',
       metadata: { type: 'persona-single-expression', personaId, emotion, gender }
     });
@@ -910,7 +910,7 @@ router.post('/generate-persona-single-expression', async (req, res) => {
       emotion,
       emotionEnglish: emotionInfo.english,
       imageUrl: localImagePath,
-      metadata: { personaId, mbti, gender, model: "gemini-2.5-flash-image-preview" }
+      metadata: { personaId, mbti, gender, model: "gemini-2.5-flash-image" }
     });
 
   } catch (error: any) {
