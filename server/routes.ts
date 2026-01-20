@@ -5162,11 +5162,12 @@ Return ONLY valid JSON in this exact format:
   });
   
   // Admin: Upsert persona translation (마스터 페르소나 기본 정보만 - 시나리오 컨텍스트 제외)
+  // 주의: position, department, role은 시나리오에서 정의되므로 scenarioTranslations.personaContexts에서 관리
   app.put("/api/admin/personas/:personaId/translations/:locale", isAuthenticated, isOperatorOrAdmin, async (req, res) => {
     try {
       const { personaId, locale } = req.params;
       const { 
-        name, position, department, role,
+        name,
         personalityTraits, communicationStyle, motivation, fears, personalityDescription,
         education, previousExperience, majorProjects, expertise, background,
         isMachineTranslated, sourceLocale
@@ -5181,9 +5182,6 @@ Return ONLY valid JSON in this exact format:
         sourceLocale: sourceLocale || 'ko',
         locale,
         name,
-        position,
-        department,
-        role,
         personalityTraits,
         communicationStyle,
         motivation,
@@ -5286,9 +5284,6 @@ Return ONLY valid JSON in this exact format:
         fears: personaData.fears || [],
         backgroundData: personaData.background || {},
         name: personaData.mbti || personaId.replace('.json', '').toUpperCase(),
-        position: '',
-        department: '',
-        role: '',
         education: personaData.background?.social?.preference || '',
         previousExperience: personaData.background?.social?.behavior || '',
         majorProjects: personaData.background?.hobbies || [],
@@ -5304,9 +5299,6 @@ Return ONLY valid JSON in this exact format:
         sourceData = {
           ...sourceData,
           name: sourceTranslation.name || '',
-          position: sourceTranslation.position || '',
-          department: sourceTranslation.department || '',
-          role: sourceTranslation.role || '',
           personalityTraits: sourceTranslation.personalityTraits || [],
           communicationStyle: sourceTranslation.communicationStyle || '',
           motivation: sourceTranslation.motivation || '',
@@ -5320,9 +5312,10 @@ Return ONLY valid JSON in this exact format:
         };
       }
       
+      // 마스터 페르소나 번역: MBTI 성격 유형 정보만 번역 (position/department/role은 시나리오에서 정의)
       const prompt = `Translate the following ${languageNames[sourceLocale] || sourceLocale} MBTI persona information into ${languageNames[targetLocale] || targetLocale}. 
 Maintain the professional tone and context appropriate for a workplace roleplay training system.
-Note: This is for MASTER persona identity translation only. Scenario-specific context (stance, goal, tradeoff) is translated separately.
+Note: This is for MASTER MBTI persona identity translation only. Position, department, role, stance, goal, tradeoff are scenario-specific and translated separately.
 
 Source persona:
 MBTI Type: ${sourceData.mbti}
@@ -5331,9 +5324,6 @@ Communication Style: ${sourceData.communicationStyle}
 Motivation: ${sourceData.motivation}
 Fears: ${JSON.stringify(sourceData.fears)}
 Background: ${JSON.stringify(sourceData.background)}` : `Name: ${sourceData.name}
-Position: ${sourceData.position}
-Department: ${sourceData.department}
-Role: ${sourceData.role}
 Personality Traits: ${JSON.stringify(sourceData.personalityTraits)}
 Communication Style: ${sourceData.communicationStyle}
 Motivation: ${sourceData.motivation}
@@ -5347,10 +5337,7 @@ Background: ${sourceData.background}`}
 
 Return ONLY valid JSON in this exact format (include all fields, use null for unavailable data):
 {
-  "name": "localized type name (e.g., 'The Analyst' for English, '分析家' for Chinese)",
-  "position": "typical position title in that language",
-  "department": "typical department name in that language",
-  "role": "translated role description",
+  "name": "localized MBTI type name (e.g., 'The Analyst' for English, '分析家' for Chinese)",
   "personalityTraits": ["translated trait 1", "translated trait 2"],
   "communicationStyle": "translated communication style description",
   "motivation": "translated motivation",

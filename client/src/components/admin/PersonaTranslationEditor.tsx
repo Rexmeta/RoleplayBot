@@ -15,15 +15,14 @@ import { apiRequest, queryClient } from '@/lib/queryClient';
 import { Loader2, Languages, CheckCircle, AlertCircle, Bot, Save, Trash2, ChevronDown, ChevronUp } from 'lucide-react';
 import { SupportedLanguage } from '@shared/schema';
 
+// 마스터 페르소나 번역 (MBTI 성격 유형 정보만)
+// position, department, role은 시나리오에서 정의되므로 scenarioTranslations.personaContexts에서 관리
 interface PersonaTranslation {
   id: number;
   personaId: string;
   sourceLocale: string;
   locale: string;
   name: string;
-  position: string | null;
-  department: string | null;
-  role: string | null;
   personalityTraits: string[] | null;
   communicationStyle: string | null;
   motivation: string | null;
@@ -40,9 +39,6 @@ interface PersonaTranslation {
 
 interface PersonaSourceData {
   name: string;
-  position?: string;
-  department?: string;
-  role?: string;
   mbti?: string;
   personality?: {
     traits?: string[];
@@ -364,63 +360,21 @@ export function PersonaTranslationEditor({
                       <CollapsibleContent className="border border-t-0 rounded-b p-4 space-y-4">
                         <div className="grid grid-cols-2 gap-4">
                           <div className="space-y-2">
-                            <Label className="text-muted-foreground text-xs">원본 이름</Label>
+                            <Label className="text-muted-foreground text-xs">원본 MBTI 유형명</Label>
                             <div className="p-2 bg-muted rounded text-sm">{sourceData?.name || personaMbti}</div>
                           </div>
                           <div className="space-y-2">
-                            <Label>이름 ({lang.nativeName}) *</Label>
+                            <Label>MBTI 유형명 ({lang.nativeName}) *</Label>
                             <Input
                               value={translation.name || ''}
                               onChange={(e) => handleFieldChange(lang.code, 'name', e.target.value)}
-                              placeholder={`${lang.nativeName} 이름 입력...`}
+                              placeholder={`예: The Analyst, 分析家 등...`}
                             />
                           </div>
                         </div>
-
-                        <div className="grid grid-cols-2 gap-4">
-                          <div className="space-y-2">
-                            <Label className="text-muted-foreground text-xs">원본 직책</Label>
-                            <div className="p-2 bg-muted rounded text-sm min-h-[38px]">{sourceData?.position || '-'}</div>
-                          </div>
-                          <div className="space-y-2">
-                            <Label>직책 ({lang.nativeName})</Label>
-                            <Input
-                              value={translation.position || ''}
-                              onChange={(e) => handleFieldChange(lang.code, 'position', e.target.value)}
-                              placeholder={`${lang.nativeName} 직책...`}
-                            />
-                          </div>
-                        </div>
-
-                        <div className="grid grid-cols-2 gap-4">
-                          <div className="space-y-2">
-                            <Label className="text-muted-foreground text-xs">원본 부서</Label>
-                            <div className="p-2 bg-muted rounded text-sm min-h-[38px]">{sourceData?.department || '-'}</div>
-                          </div>
-                          <div className="space-y-2">
-                            <Label>부서 ({lang.nativeName})</Label>
-                            <Input
-                              value={translation.department || ''}
-                              onChange={(e) => handleFieldChange(lang.code, 'department', e.target.value)}
-                              placeholder={`${lang.nativeName} 부서...`}
-                            />
-                          </div>
-                        </div>
-
-                        <div className="grid grid-cols-2 gap-4">
-                          <div className="space-y-2">
-                            <Label className="text-muted-foreground text-xs">원본 역할</Label>
-                            <div className="p-2 bg-muted rounded text-sm min-h-[38px]">{sourceData?.role || '-'}</div>
-                          </div>
-                          <div className="space-y-2">
-                            <Label>역할 ({lang.nativeName})</Label>
-                            <Input
-                              value={translation.role || ''}
-                              onChange={(e) => handleFieldChange(lang.code, 'role', e.target.value)}
-                              placeholder={`${lang.nativeName} 역할...`}
-                            />
-                          </div>
-                        </div>
+                        <p className="text-xs text-muted-foreground">
+                          ※ 직책, 부서, 역할, 입장, 목표, 협상범위는 시나리오별로 다르게 정의되므로 시나리오 번역에서 관리합니다.
+                        </p>
                       </CollapsibleContent>
                     </Collapsible>
 
