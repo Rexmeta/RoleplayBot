@@ -1113,7 +1113,7 @@ export class RealtimeVoiceService {
       }
 
       // Handle input transcription (user speech)
-      // 음절 단위로 스트리밍되므로 버퍼에 누적만 하고 전송하지 않음
+      // 실시간 delta를 클라이언트에 전송하여 즉각적인 피드백 제공
       if (serverContent.inputTranscription) {
         const transcript = serverContent.inputTranscription.text || '';
         console.log(`🎤 User transcript delta: ${transcript}`);
@@ -1129,6 +1129,15 @@ export class RealtimeVoiceService {
         
         session.userTranscriptBuffer += transcript;
         session.totalUserTranscriptLength += transcript.length; // 누적 길이 추적
+        
+        // 사용자 전사 delta를 클라이언트에 실시간 전송
+        if (transcript.length > 0) {
+          this.sendToClient(session, {
+            type: 'user.transcription.delta',
+            text: transcript,
+            accumulated: session.userTranscriptBuffer, // 누적된 전체 전사도 함께 전송
+          });
+        }
       }
 
       // Handle output transcription (AI speech) - 토큰 추적은 여기서만 수행

@@ -117,6 +117,7 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
   const [isInputExpanded, setIsInputExpanded] = useState(false); // 텍스트 입력창 확대 상태
   const [pendingAiMessage, setPendingAiMessage] = useState(false); // AI가 말하는 중 placeholder 표시
   const [pendingUserMessage, setPendingUserMessage] = useState(false); // 사용자 음성 인식 중 placeholder 표시
+  const [pendingUserText, setPendingUserText] = useState(''); // 실시간 사용자 전사 텍스트
   const hasUserSpokenRef = useRef(false); // 사용자가 마이크를 사용했는지 추적
   const initialLoadCompletedRef = useRef(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -169,12 +170,18 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
       console.log('🎤 User transcript:', transcript);
       // User placeholder 숨기기 (전사 완료)
       setPendingUserMessage(false);
+      setPendingUserText(''); // 실시간 텍스트 리셋
       // 사용자 음성 전사를 대화창에 추가
       setLocalMessages(prev => [...prev, {
         sender: 'user',
         message: transcript,
         timestamp: new Date().toISOString(),
       }]);
+    },
+    onUserTranscriptionDelta: (delta, accumulated) => {
+      console.log('🎤 User transcription delta:', delta, '→', accumulated);
+      // 실시간 전사 텍스트 업데이트
+      setPendingUserText(accumulated);
     },
     onAiSpeakingStart: () => {
       console.log('🔊 AI speaking started - showing placeholder');
@@ -185,6 +192,7 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
       console.log('🎤 User speaking started - showing placeholder');
       // 사용자가 말하기 시작하면 placeholder 표시
       setPendingUserMessage(true);
+      setPendingUserText(''); // 새 발화 시작 시 리셋
       hasUserSpokenRef.current = true;
       setShowMicPrompt(false);
     },
@@ -203,6 +211,7 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
       // placeholder 상태 리셋
       setPendingAiMessage(false);
       setPendingUserMessage(false);
+      setPendingUserText('');
       setInputMode('text');
     },
   });
@@ -1052,7 +1061,7 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
         block: 'end' 
       });
     }
-  }, [localMessages, pendingAiMessage, pendingUserMessage]);
+  }, [localMessages, pendingAiMessage, pendingUserMessage, pendingUserText]);
 
 
   useEffect(() => {
@@ -1449,15 +1458,19 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
                 </div>
               )}
 
-              {/* 사용자 음성 인식 중 placeholder (하이브리드 방식) */}
+              {/* 사용자 음성 인식 중 placeholder (하이브리드 방식 - 실시간 텍스트 표시) */}
               {pendingUserMessage && (
                 <div className="flex items-end space-x-3 justify-end animate-in fade-in duration-300">
                   <div className="flex flex-col items-end max-w-[75%]">
                     <div className="bg-gradient-to-r from-purple-500 to-purple-600 rounded-2xl rounded-br-md px-4 py-3 shadow-md mt-1">
-                      <div className="flex items-center space-x-2 text-white">
-                        <i className="fas fa-microphone animate-pulse"></i>
-                        <span className="text-sm">{t('chat.recognizing') || '음성 인식 중...'}</span>
-                      </div>
+                      {pendingUserText ? (
+                        <p className="leading-relaxed text-white">{pendingUserText}</p>
+                      ) : (
+                        <div className="flex items-center space-x-2 text-white">
+                          <i className="fas fa-microphone animate-pulse"></i>
+                          <span className="text-sm">{t('chat.recognizing') || '음성 인식 중...'}</span>
+                        </div>
+                      )}
                     </div>
                   </div>
                   <div className="w-10 h-10 bg-gradient-to-br from-corporate-500 to-corporate-700 rounded-full flex items-center justify-center text-white text-sm font-semibold shadow-md ring-2 ring-white flex-shrink-0">
@@ -2186,15 +2199,19 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
                         </span>
                       </div>
                     )}
-                    {/* 사용자 음성 인식 중 placeholder (캐릭터 모드) */}
+                    {/* 사용자 음성 인식 중 placeholder (캐릭터 모드 - 실시간 텍스트 표시) */}
                     {pendingUserMessage && (
                       <div className="text-sm text-right animate-in fade-in duration-300">
                         <span className="inline-block max-w-[85%] text-blue-600">
                           <span className="font-semibold text-xs opacity-70">{t('chat.me')}:</span>{' '}
-                          <span className="drop-shadow-sm flex items-center justify-end space-x-1">
-                            <i className="fas fa-microphone animate-pulse text-purple-500"></i>
-                            <span className="text-purple-600">{t('chat.recognizing') || '음성 인식 중...'}</span>
-                          </span>
+                          {pendingUserText ? (
+                            <span className="drop-shadow-sm">{pendingUserText}</span>
+                          ) : (
+                            <span className="drop-shadow-sm flex items-center justify-end space-x-1">
+                              <i className="fas fa-microphone animate-pulse text-purple-500"></i>
+                              <span className="text-purple-600">{t('chat.recognizing') || '음성 인식 중...'}</span>
+                            </span>
+                          )}
                         </span>
                       </div>
                     )}

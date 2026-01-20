@@ -26,6 +26,7 @@ interface UseRealtimeVoiceProps {
   onMessage?: (message: string) => void;
   onMessageComplete?: (message: string, emotion?: string, emotionReason?: string) => void;
   onUserTranscription?: (transcript: string) => void;
+  onUserTranscriptionDelta?: (delta: string, accumulated: string) => void; // 실시간 전사 delta
   onAiSpeakingStart?: () => void;
   onUserSpeakingStart?: () => void;
   onError?: (error: string) => void;
@@ -59,6 +60,7 @@ export function useRealtimeVoice({
   onMessage,
   onMessageComplete,
   onUserTranscription,
+  onUserTranscriptionDelta,
   onAiSpeakingStart,
   onUserSpeakingStart,
   onError,
@@ -114,6 +116,7 @@ export function useRealtimeVoice({
   const onMessageRef = useRef(onMessage);
   const onMessageCompleteRef = useRef(onMessageComplete);
   const onUserTranscriptionRef = useRef(onUserTranscription);
+  const onUserTranscriptionDeltaRef = useRef(onUserTranscriptionDelta);
   const onAiSpeakingStartRef = useRef(onAiSpeakingStart);
   const onUserSpeakingStartRef = useRef(onUserSpeakingStart);
   const onErrorRef = useRef(onError);
@@ -126,11 +129,12 @@ export function useRealtimeVoice({
     onMessageRef.current = onMessage;
     onMessageCompleteRef.current = onMessageComplete;
     onUserTranscriptionRef.current = onUserTranscription;
+    onUserTranscriptionDeltaRef.current = onUserTranscriptionDelta;
     onAiSpeakingStartRef.current = onAiSpeakingStart;
     onUserSpeakingStartRef.current = onUserSpeakingStart;
     onErrorRef.current = onError;
     onSessionTerminatedRef.current = onSessionTerminated;
-  }, [onMessage, onMessageComplete, onUserTranscription, onAiSpeakingStart, onUserSpeakingStart, onError, onSessionTerminated]);
+  }, [onMessage, onMessageComplete, onUserTranscription, onUserTranscriptionDelta, onAiSpeakingStart, onUserSpeakingStart, onError, onSessionTerminated]);
 
   const getWebSocketUrl = useCallback((token: string) => {
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
@@ -383,7 +387,7 @@ export function useRealtimeVoice({
               console.log('💬 Conversation item created:', data.item);
               break;
 
-            // 🎤 사용자 음성 전사 (텍스트 변환)
+            // 🎤 사용자 음성 전사 (텍스트 변환) - 완료 시
             case 'user.transcription':
               if (data.transcript && onUserTranscriptionRef.current) {
                 console.log('🎤 User said:', data.transcript);
@@ -391,6 +395,14 @@ export function useRealtimeVoice({
               }
               // Reset server voice detection after transcription is complete
               serverVoiceDetectedTimeRef.current = null;
+              break;
+            
+            // 🎤 사용자 음성 전사 delta (실시간 업데이트)
+            case 'user.transcription.delta':
+              if (data.accumulated && onUserTranscriptionDeltaRef.current) {
+                console.log('🎤 User speaking (delta):', data.text, '→ accumulated:', data.accumulated);
+                onUserTranscriptionDeltaRef.current(data.text, data.accumulated);
+              }
               break;
             
             // 🎙️ 서버에서 사용자 음성 감지 시작 (barge-in용)
