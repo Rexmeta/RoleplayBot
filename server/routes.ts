@@ -4987,14 +4987,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
   
-  // Admin: Generate AI translation for scenario
+  // Admin: Generate AI translation for scenario (supports bidirectional translation)
   app.post("/api/admin/scenarios/:scenarioId/generate-translation", isAuthenticated, isOperatorOrAdmin, async (req: any, res) => {
     try {
       const { scenarioId } = req.params;
-      const { targetLocale } = req.body;
+      const { targetLocale, sourceLocale = 'ko' } = req.body;
       
       if (!targetLocale) {
         return res.status(400).json({ message: "대상 언어가 필요합니다" });
+      }
+      
+      if (sourceLocale === targetLocale) {
+        return res.status(400).json({ message: "원문 언어와 대상 언어가 동일합니다" });
       }
       
       const allScenarios = await fileManager.getAllScenarios();
@@ -5005,40 +5009,75 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       const languages = await storage.getActiveSupportedLanguages();
       const targetLang = languages.find(l => l.code === targetLocale);
+      const sourceLang = languages.find(l => l.code === sourceLocale);
       if (!targetLang) {
-        return res.status(400).json({ message: "지원하지 않는 언어입니다" });
+        return res.status(400).json({ message: "지원하지 않는 대상 언어입니다" });
+      }
+      if (!sourceLang) {
+        return res.status(400).json({ message: "지원하지 않는 원문 언어입니다" });
       }
       
       const languageNames: Record<string, string> = {
+        'ko': 'Korean (한국어)',
         'en': 'English',
         'ja': 'Japanese (日本語)',
         'zh': 'Chinese Simplified (简体中文)',
       };
       
-      const playerRoleStr = typeof (scenario as any).context?.playerRole === 'object' 
-        ? [
-            (scenario as any).context.playerRole?.position,
-            (scenario as any).context.playerRole?.department,
-            (scenario as any).context.playerRole?.experience,
-            (scenario as any).context.playerRole?.responsibility
-          ].filter(Boolean).join(' / ')
-        : ((scenario as any).context?.playerRole || '');
+      let sourceData: any = {
+        title: scenario.title,
+        description: scenario.description,
+        situation: (scenario as any).context?.situation || '',
+        timeline: (scenario as any).context?.timeline || '',
+        stakes: (scenario as any).context?.stakes || '',
+        playerRole: '',
+        objectives: (scenario as any).objectives || [],
+        successCriteriaOptimal: (scenario as any).successCriteria?.optimal || '',
+        successCriteriaGood: (scenario as any).successCriteria?.good || '',
+        successCriteriaAcceptable: (scenario as any).successCriteria?.acceptable || '',
+        successCriteriaFailure: (scenario as any).successCriteria?.failure || '',
+      };
       
-      const prompt = `Translate the following Korean roleplay scenario into ${languageNames[targetLocale] || targetLocale}. 
+      const playerRoleObj = (scenario as any).context?.playerRole;
+      sourceData.playerRole = typeof playerRoleObj === 'object' 
+        ? [playerRoleObj?.position, playerRoleObj?.department, playerRoleObj?.experience, playerRoleObj?.responsibility].filter(Boolean).join(' / ')
+        : (playerRoleObj || '');
+      
+      if (sourceLocale !== 'ko') {
+        const sourceTranslation = await storage.getScenarioTranslation(scenarioId, sourceLocale);
+        if (!sourceTranslation) {
+          return res.status(400).json({ message: `원문 언어(${sourceLocale})의 번역이 존재하지 않습니다` });
+        }
+        sourceData = {
+          title: sourceTranslation.title,
+          description: sourceTranslation.description || '',
+          situation: sourceTranslation.situation || '',
+          timeline: sourceTranslation.timeline || '',
+          stakes: sourceTranslation.stakes || '',
+          playerRole: sourceTranslation.playerRole || '',
+          objectives: sourceTranslation.objectives || [],
+          successCriteriaOptimal: sourceTranslation.successCriteriaOptimal || '',
+          successCriteriaGood: sourceTranslation.successCriteriaGood || '',
+          successCriteriaAcceptable: sourceTranslation.successCriteriaAcceptable || '',
+          successCriteriaFailure: sourceTranslation.successCriteriaFailure || '',
+        };
+      }
+      
+      const prompt = `Translate the following ${languageNames[sourceLocale] || sourceLocale} roleplay scenario into ${languageNames[targetLocale] || targetLocale}. 
 Maintain the professional tone and context. Provide translations in JSON format.
 
 Source scenario:
-Title: ${scenario.title}
-Description: ${scenario.description}
-Situation: ${(scenario as any).context?.situation || ''}
-Timeline: ${(scenario as any).context?.timeline || ''}
-Stakes: ${(scenario as any).context?.stakes || ''}
-Player Role: ${playerRoleStr}
-Objectives: ${JSON.stringify((scenario as any).objectives || [])}
-Success Criteria (Optimal): ${(scenario as any).successCriteria?.optimal || ''}
-Success Criteria (Good): ${(scenario as any).successCriteria?.good || ''}
-Success Criteria (Acceptable): ${(scenario as any).successCriteria?.acceptable || ''}
-Success Criteria (Failure): ${(scenario as any).successCriteria?.failure || ''}
+Title: ${sourceData.title}
+Description: ${sourceData.description}
+Situation: ${sourceData.situation}
+Timeline: ${sourceData.timeline}
+Stakes: ${sourceData.stakes}
+Player Role: ${sourceData.playerRole}
+Objectives: ${JSON.stringify(sourceData.objectives)}
+Success Criteria (Optimal): ${sourceData.successCriteriaOptimal}
+Success Criteria (Good): ${sourceData.successCriteriaGood}
+Success Criteria (Acceptable): ${sourceData.successCriteriaAcceptable}
+Success Criteria (Failure): ${sourceData.successCriteriaFailure}
 
 Return ONLY valid JSON in this exact format:
 {
@@ -5185,14 +5224,18 @@ Return ONLY valid JSON in this exact format:
     }
   });
   
-  // Admin: Generate AI translation for persona
+  // Admin: Generate AI translation for persona (supports bidirectional translation)
   app.post("/api/admin/personas/:personaId/generate-translation", isAuthenticated, isOperatorOrAdmin, async (req: any, res) => {
     try {
       const { personaId } = req.params;
-      const { targetLocale } = req.body;
+      const { targetLocale, sourceLocale = 'ko' } = req.body;
       
       if (!targetLocale) {
         return res.status(400).json({ message: "대상 언어가 필요합니다" });
+      }
+      
+      if (sourceLocale === targetLocale) {
+        return res.status(400).json({ message: "원문 언어와 대상 언어가 동일합니다" });
       }
       
       const persona = await storage.getPersonaById(personaId);
@@ -5202,25 +5245,60 @@ Return ONLY valid JSON in this exact format:
       
       const languages = await storage.getActiveSupportedLanguages();
       const targetLang = languages.find(l => l.code === targetLocale);
+      const sourceLang = languages.find(l => l.code === sourceLocale);
       if (!targetLang) {
-        return res.status(400).json({ message: "지원하지 않는 언어입니다" });
+        return res.status(400).json({ message: "지원하지 않는 대상 언어입니다" });
+      }
+      if (!sourceLang) {
+        return res.status(400).json({ message: "지원하지 않는 원문 언어입니다" });
       }
       
       const languageNames: Record<string, string> = {
+        'ko': 'Korean (한국어)',
         'en': 'English',
         'ja': 'Japanese (日本語)',
         'zh': 'Chinese Simplified (简体中文)',
       };
       
       const personaData = persona as any;
-      const prompt = `Translate the following Korean MBTI persona information into ${languageNames[targetLocale] || targetLocale}. 
+      let sourceData: any = {
+        mbti: personaData.mbti,
+        personalityTraits: personaData.personality_traits || [],
+        communicationStyle: personaData.communication_style || '',
+        motivation: personaData.motivation || '',
+        name: '',
+        position: '',
+        department: '',
+        background: '',
+      };
+      
+      if (sourceLocale !== 'ko') {
+        const sourceTranslation = await storage.getPersonaTranslation(personaId, sourceLocale);
+        if (!sourceTranslation) {
+          return res.status(400).json({ message: `원문 언어(${sourceLocale})의 번역이 존재하지 않습니다` });
+        }
+        sourceData = {
+          ...sourceData,
+          name: sourceTranslation.name || '',
+          position: sourceTranslation.position || '',
+          department: sourceTranslation.department || '',
+          personalityDescription: sourceTranslation.personalityDescription || '',
+          background: sourceTranslation.background || '',
+        };
+      }
+      
+      const prompt = `Translate the following ${languageNames[sourceLocale] || sourceLocale} MBTI persona information into ${languageNames[targetLocale] || targetLocale}. 
 Maintain the professional tone and context appropriate for a workplace roleplay training system.
 
 Source persona:
-MBTI Type: ${personaData.mbti}
-Personality Traits: ${JSON.stringify(personaData.personality_traits || [])}
-Communication Style: ${personaData.communication_style || ''}
-Motivation: ${personaData.motivation || ''}
+MBTI Type: ${sourceData.mbti}
+${sourceLocale === 'ko' ? `Personality Traits: ${JSON.stringify(sourceData.personalityTraits)}
+Communication Style: ${sourceData.communicationStyle}
+Motivation: ${sourceData.motivation}` : `Name: ${sourceData.name}
+Position: ${sourceData.position}
+Department: ${sourceData.department}
+Personality Description: ${sourceData.personalityDescription}
+Background: ${sourceData.background}`}
 
 Return ONLY valid JSON in this exact format:
 {
@@ -5417,22 +5495,31 @@ Return ONLY valid JSON in this exact format:
     }
   });
   
-  // Batch generate translations for a content type
+  // Batch generate translations for a content type (supports bidirectional translation)
   app.post("/api/admin/generate-all-translations", isAuthenticated, isOperatorOrAdmin, async (req: any, res) => {
     try {
-      const { targetLocale, contentType } = req.body;
+      const { targetLocale, contentType, sourceLocale = 'ko' } = req.body;
       
       if (!targetLocale || !contentType) {
         return res.status(400).json({ message: "대상 언어와 콘텐츠 타입이 필요합니다" });
       }
       
+      if (sourceLocale === targetLocale) {
+        return res.status(400).json({ message: "원문 언어와 대상 언어가 동일합니다" });
+      }
+      
       const languages = await storage.getActiveSupportedLanguages();
       const targetLang = languages.find(l => l.code === targetLocale);
+      const sourceLang = languages.find(l => l.code === sourceLocale);
       if (!targetLang) {
-        return res.status(400).json({ message: "지원하지 않는 언어입니다" });
+        return res.status(400).json({ message: "지원하지 않는 대상 언어입니다" });
+      }
+      if (!sourceLang) {
+        return res.status(400).json({ message: "지원하지 않는 원문 언어입니다" });
       }
       
       const languageNames: Record<string, string> = {
+        'ko': 'Korean (한국어)',
         'en': 'English',
         'ja': 'Japanese (日本語)',
         'zh': 'Chinese Simplified (简体中文)',
@@ -5445,12 +5532,25 @@ Return ONLY valid JSON in this exact format:
         for (const scenario of scenarios) {
           const existing = await storage.getScenarioTranslation(String(scenario.id), targetLocale);
           if (!existing) {
-            const prompt = `Translate the following Korean roleplay scenario into ${languageNames[targetLocale] || targetLocale}. 
+            let sourceTitle = scenario.title;
+            let sourceDesc = scenario.description;
+            
+            if (sourceLocale !== 'ko') {
+              const sourceTranslation = await storage.getScenarioTranslation(String(scenario.id), sourceLocale);
+              if (!sourceTranslation) {
+                console.log(`Skipping scenario ${scenario.id}: no source translation for ${sourceLocale}`);
+                continue;
+              }
+              sourceTitle = sourceTranslation.title;
+              sourceDesc = sourceTranslation.description || '';
+            }
+            
+            const prompt = `Translate the following ${languageNames[sourceLocale] || sourceLocale} roleplay scenario into ${languageNames[targetLocale] || targetLocale}. 
 Maintain the professional tone and context. Return ONLY valid JSON.
 
 Source scenario:
-Title: ${scenario.title}
-Description: ${scenario.description}
+Title: ${sourceTitle}
+Description: ${sourceDesc}
 
 Return JSON: {"title": "translated title", "description": "translated description"}`;
 
@@ -5466,6 +5566,7 @@ Return JSON: {"title": "translated title", "description": "translated descriptio
                   description: translation.description,
                   isMachineTranslated: true,
                   isReviewed: false,
+                  sourceLocale: sourceLocale,
                 });
                 count++;
               }
@@ -5480,10 +5581,30 @@ Return JSON: {"title": "translated title", "description": "translated descriptio
           const existing = await storage.getPersonaTranslation(persona.id, targetLocale);
           if (!existing) {
             const personaData = persona as any;
-            const prompt = `Translate the following Korean MBTI persona into ${languageNames[targetLocale] || targetLocale}. 
+            let sourceName = '';
+            let sourceDesc = '';
+            
+            if (sourceLocale !== 'ko') {
+              const sourceTranslation = await storage.getPersonaTranslation(persona.id, sourceLocale);
+              if (!sourceTranslation) {
+                console.log(`Skipping persona ${persona.id}: no source translation for ${sourceLocale}`);
+                continue;
+              }
+              sourceName = sourceTranslation.name;
+              sourceDesc = sourceTranslation.personalityDescription || '';
+            }
+            
+            const prompt = sourceLocale === 'ko' 
+              ? `Translate the following ${languageNames[sourceLocale] || sourceLocale} MBTI persona into ${languageNames[targetLocale] || targetLocale}. 
 Return ONLY valid JSON.
 
 Source: MBTI ${personaData.mbti}, Traits: ${JSON.stringify(personaData.personality_traits || [])}
+
+Return JSON: {"name": "type name", "personalityDescription": "description"}`
+              : `Translate the following ${languageNames[sourceLocale] || sourceLocale} MBTI persona into ${languageNames[targetLocale] || targetLocale}. 
+Return ONLY valid JSON.
+
+Source: Name: ${sourceName}, Description: ${sourceDesc}
 
 Return JSON: {"name": "type name", "personalityDescription": "description"}`;
 
@@ -5499,6 +5620,7 @@ Return JSON: {"name": "type name", "personalityDescription": "description"}`;
                   personalityDescription: translation.personalityDescription,
                   isMachineTranslated: true,
                   isReviewed: false,
+                  sourceLocale: sourceLocale,
                 });
                 count++;
               }
@@ -5512,10 +5634,23 @@ Return JSON: {"name": "type name", "personalityDescription": "description"}`;
         for (const category of categories) {
           const existing = await storage.getCategoryTranslation(String(category.id), targetLocale);
           if (!existing) {
-            const prompt = `Translate the following Korean category into ${languageNames[targetLocale] || targetLocale}. 
+            let sourceName = category.name;
+            let sourceDesc = category.description || '';
+            
+            if (sourceLocale !== 'ko') {
+              const sourceTranslation = await storage.getCategoryTranslation(String(category.id), sourceLocale);
+              if (!sourceTranslation) {
+                console.log(`Skipping category ${category.id}: no source translation for ${sourceLocale}`);
+                continue;
+              }
+              sourceName = sourceTranslation.name;
+              sourceDesc = sourceTranslation.description || '';
+            }
+            
+            const prompt = `Translate the following ${languageNames[sourceLocale] || sourceLocale} category into ${languageNames[targetLocale] || targetLocale}. 
 Return ONLY valid JSON.
 
-Source: Name: ${category.name}, Description: ${category.description || ''}
+Source: Name: ${sourceName}, Description: ${sourceDesc}
 
 Return JSON: {"name": "translated name", "description": "translated description"}`;
 
@@ -5531,6 +5666,7 @@ Return JSON: {"name": "translated name", "description": "translated description"
                   description: translation.description,
                   isMachineTranslated: true,
                   isReviewed: false,
+                  sourceLocale: sourceLocale,
                 });
                 count++;
               }
