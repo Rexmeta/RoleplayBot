@@ -1,0 +1,68 @@
+{
+  "id": "AAA",
+  "mbti": "AAA",
+  "gender": "male",
+  "personality_traits": [
+    "드러움"
+  ],
+  "communication_style": "신경질적",
+  "motivation": "매우 자기 중심적",
+  "fears": [
+    "과부하"
+  ],
+  "background": {
+    "personal_values": [
+      "비협조"
+    ],
+    "hobbies": [
+      "잠자기"
+    ],
+    "social": {
+      "preference": "좁은 관계",
+      "behavior": ""
+    }
+  },
+  "communication_patterns": {
+    "opening_style": "",
+    "key_phrases": [],
+    "response_to_arguments": {},
+    "win_conditions": []
+  },
+  "voice": {
+    "tone": "차가움",
+    "pace": "중간",
+    "emotion": "공감하지 못함 "
+  },
+  "images": {
+    "base": "",
+    "style": "실물 사진 ",
+    "male": {
+      "expressions": {
+        "중립": "",
+        "기쁨": "",
+        "슬픔": "",
+        "분노": "",
+        "놀람": "",
+        "호기심": "",
+        "불안": "",
+        "단호": "",
+        "실망": "",
+        "당혹": ""
+      }
+    },
+    "female": {
+      "expressions": {
+        "중립": "",
+        "기쁨": "",
+        "슬픔": "",
+        "분노": "",
+        "놀람": "",
+        "호기심": "",
+        "불안": "",
+        "단호": "",
+        "실망": "",
+        "당혹": ""
+      }
+    }
+  }
+}
