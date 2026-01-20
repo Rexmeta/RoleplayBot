@@ -5161,13 +5161,12 @@ Return ONLY valid JSON in this exact format:
     }
   });
   
-  // Admin: Upsert persona translation
+  // Admin: Upsert persona translation (마스터 페르소나 기본 정보만 - 시나리오 컨텍스트 제외)
   app.put("/api/admin/personas/:personaId/translations/:locale", isAuthenticated, isOperatorOrAdmin, async (req, res) => {
     try {
       const { personaId, locale } = req.params;
       const { 
         name, position, department, role,
-        stance, goal, tradeoff,
         personalityTraits, communicationStyle, motivation, fears, personalityDescription,
         education, previousExperience, majorProjects, expertise, background,
         isMachineTranslated, sourceLocale
@@ -5185,9 +5184,6 @@ Return ONLY valid JSON in this exact format:
         position,
         department,
         role,
-        stance,
-        goal,
-        tradeoff,
         personalityTraits,
         communicationStyle,
         motivation,
@@ -5293,9 +5289,6 @@ Return ONLY valid JSON in this exact format:
         position: '',
         department: '',
         role: '',
-        stance: '',
-        goal: '',
-        tradeoff: '',
         education: personaData.background?.social?.preference || '',
         previousExperience: personaData.background?.social?.behavior || '',
         majorProjects: personaData.background?.hobbies || [],
@@ -5314,9 +5307,6 @@ Return ONLY valid JSON in this exact format:
           position: sourceTranslation.position || '',
           department: sourceTranslation.department || '',
           role: sourceTranslation.role || '',
-          stance: sourceTranslation.stance || '',
-          goal: sourceTranslation.goal || '',
-          tradeoff: sourceTranslation.tradeoff || '',
           personalityTraits: sourceTranslation.personalityTraits || [],
           communicationStyle: sourceTranslation.communicationStyle || '',
           motivation: sourceTranslation.motivation || '',
@@ -5332,6 +5322,7 @@ Return ONLY valid JSON in this exact format:
       
       const prompt = `Translate the following ${languageNames[sourceLocale] || sourceLocale} MBTI persona information into ${languageNames[targetLocale] || targetLocale}. 
 Maintain the professional tone and context appropriate for a workplace roleplay training system.
+Note: This is for MASTER persona identity translation only. Scenario-specific context (stance, goal, tradeoff) is translated separately.
 
 Source persona:
 MBTI Type: ${sourceData.mbti}
@@ -5343,9 +5334,6 @@ Background: ${JSON.stringify(sourceData.background)}` : `Name: ${sourceData.name
 Position: ${sourceData.position}
 Department: ${sourceData.department}
 Role: ${sourceData.role}
-Stance: ${sourceData.stance}
-Goal: ${sourceData.goal}
-Tradeoff: ${sourceData.tradeoff}
 Personality Traits: ${JSON.stringify(sourceData.personalityTraits)}
 Communication Style: ${sourceData.communicationStyle}
 Motivation: ${sourceData.motivation}
@@ -5363,9 +5351,6 @@ Return ONLY valid JSON in this exact format (include all fields, use null for un
   "position": "typical position title in that language",
   "department": "typical department name in that language",
   "role": "translated role description",
-  "stance": "translated stance/attitude",
-  "goal": "translated goal",
-  "tradeoff": "translated negotiation range",
   "personalityTraits": ["translated trait 1", "translated trait 2"],
   "communicationStyle": "translated communication style description",
   "motivation": "translated motivation",
