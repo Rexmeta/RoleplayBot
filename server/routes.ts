@@ -5164,7 +5164,13 @@ Return ONLY valid JSON in this exact format:
   app.put("/api/admin/personas/:personaId/translations/:locale", isAuthenticated, isOperatorOrAdmin, async (req, res) => {
     try {
       const { personaId, locale } = req.params;
-      const { name, position, department, personalityDescription, background, isMachineTranslated } = req.body;
+      const { 
+        name, position, department, role,
+        stance, goal, tradeoff,
+        personalityTraits, communicationStyle, motivation, fears, personalityDescription,
+        education, previousExperience, majorProjects, expertise, background,
+        isMachineTranslated, sourceLocale
+      } = req.body;
       
       if (!name) {
         return res.status(400).json({ message: "이름은 필수입니다" });
@@ -5172,11 +5178,24 @@ Return ONLY valid JSON in this exact format:
       
       const translation = await storage.upsertPersonaTranslation({
         personaId,
+        sourceLocale: sourceLocale || 'ko',
         locale,
         name,
         position,
         department,
+        role,
+        stance,
+        goal,
+        tradeoff,
+        personalityTraits,
+        communicationStyle,
+        motivation,
+        fears,
         personalityDescription,
+        education,
+        previousExperience,
+        majorProjects,
+        expertise,
         background,
         isMachineTranslated: isMachineTranslated || false,
         isReviewed: false,
@@ -5266,10 +5285,15 @@ Return ONLY valid JSON in this exact format:
         personalityTraits: personaData.personality_traits || [],
         communicationStyle: personaData.communication_style || '',
         motivation: personaData.motivation || '',
+        fears: personaData.fears || [],
+        background: personaData.background || {},
         name: '',
         position: '',
         department: '',
-        background: '',
+        role: '',
+        stance: '',
+        goal: '',
+        tradeoff: '',
       };
       
       if (sourceLocale !== 'ko') {
@@ -5282,7 +5306,19 @@ Return ONLY valid JSON in this exact format:
           name: sourceTranslation.name || '',
           position: sourceTranslation.position || '',
           department: sourceTranslation.department || '',
+          role: sourceTranslation.role || '',
+          stance: sourceTranslation.stance || '',
+          goal: sourceTranslation.goal || '',
+          tradeoff: sourceTranslation.tradeoff || '',
+          personalityTraits: sourceTranslation.personalityTraits || [],
+          communicationStyle: sourceTranslation.communicationStyle || '',
+          motivation: sourceTranslation.motivation || '',
+          fears: sourceTranslation.fears || [],
           personalityDescription: sourceTranslation.personalityDescription || '',
+          education: sourceTranslation.education || '',
+          previousExperience: sourceTranslation.previousExperience || '',
+          majorProjects: sourceTranslation.majorProjects || [],
+          expertise: sourceTranslation.expertise || [],
           background: sourceTranslation.background || '',
         };
       }
@@ -5294,19 +5330,45 @@ Source persona:
 MBTI Type: ${sourceData.mbti}
 ${sourceLocale === 'ko' ? `Personality Traits: ${JSON.stringify(sourceData.personalityTraits)}
 Communication Style: ${sourceData.communicationStyle}
-Motivation: ${sourceData.motivation}` : `Name: ${sourceData.name}
+Motivation: ${sourceData.motivation}
+Fears: ${JSON.stringify(sourceData.fears)}
+Background: ${JSON.stringify(sourceData.background)}` : `Name: ${sourceData.name}
 Position: ${sourceData.position}
 Department: ${sourceData.department}
+Role: ${sourceData.role}
+Stance: ${sourceData.stance}
+Goal: ${sourceData.goal}
+Tradeoff: ${sourceData.tradeoff}
+Personality Traits: ${JSON.stringify(sourceData.personalityTraits)}
+Communication Style: ${sourceData.communicationStyle}
+Motivation: ${sourceData.motivation}
+Fears: ${JSON.stringify(sourceData.fears)}
 Personality Description: ${sourceData.personalityDescription}
+Education: ${sourceData.education}
+Previous Experience: ${sourceData.previousExperience}
+Major Projects: ${JSON.stringify(sourceData.majorProjects)}
+Expertise: ${JSON.stringify(sourceData.expertise)}
 Background: ${sourceData.background}`}
 
-Return ONLY valid JSON in this exact format:
+Return ONLY valid JSON in this exact format (include all fields, use null for unavailable data):
 {
   "name": "localized type name (e.g., 'The Analyst' for English, '分析家' for Chinese)",
-  "personalityDescription": "translated personality description combining traits and style",
   "position": "typical position title in that language",
   "department": "typical department name in that language",
-  "background": "translated background and motivation"
+  "role": "translated role description",
+  "stance": "translated stance/attitude",
+  "goal": "translated goal",
+  "tradeoff": "translated negotiation range",
+  "personalityTraits": ["translated trait 1", "translated trait 2"],
+  "communicationStyle": "translated communication style description",
+  "motivation": "translated motivation",
+  "fears": ["translated fear 1", "translated fear 2"],
+  "personalityDescription": "translated personality description summary",
+  "education": "translated education background",
+  "previousExperience": "translated previous experience",
+  "majorProjects": ["translated project 1", "translated project 2"],
+  "expertise": ["translated expertise 1", "translated expertise 2"],
+  "background": "translated background summary"
 }`;
 
       const apiKey = process.env.GOOGLE_API_KEY || process.env.GEMINI_API_KEY;
