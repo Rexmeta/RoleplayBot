@@ -1960,8 +1960,8 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
                 <div className="absolute inset-0 flex items-center justify-center z-5">
                   <div className="bg-white/95 backdrop-blur-sm rounded-2xl px-8 py-6 shadow-xl max-w-md text-center">
                     <div className="text-4xl mb-4">🖼️</div>
-                    <h3 className="text-lg font-semibold text-slate-800 mb-2">페르소나 이미지가 존재하지 않습니다</h3>
-                    <p className="text-sm text-slate-600">운영자에게 문의해 주세요.</p>
+                    <h3 className="text-lg font-semibold text-slate-800 mb-2">{t('chat.personaImageNotFound')}</h3>
+                    <p className="text-sm text-slate-600">{t('chat.contactOperator')}</p>
                   </div>
                 </div>
               )}
@@ -2000,7 +2000,7 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
                     >
                       <div className="flex items-center space-x-2">
                         <i className="fas fa-user-tie text-corporate-600 text-sm"></i>
-                        <span className="text-sm font-medium text-slate-800">당신의 역할과 목표</span>
+                        <span className="text-sm font-medium text-slate-800">{t('chat.yourRoleAndGoals')}</span>
                       </div>
                       <i className={`fas ${isGoalsExpanded ? 'fa-chevron-up' : 'fa-chevron-down'} text-slate-600 text-xs transition-transform duration-200`}></i>
                     </button>
@@ -2012,7 +2012,7 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
                           {scenario.context?.playerRole?.responsibility && (
                             <div>
                               <div className="font-semibold text-corporate-600 mb-1.5 flex items-center justify-between">
-                                <span>👤 당신의 역할</span>
+                                <span>👤 {t('chat.yourRole')}</span>
                                 <span className="text-slate-500 font-normal">
                                   {scenario.context.playerRole.position}
                                   {scenario.context.playerRole.experience && ` (${scenario.context.playerRole.experience})`}
@@ -2027,7 +2027,7 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
                           {/* 목표 섹션 */}
                           {scenario.objectives && scenario.objectives.length > 0 && (
                             <div>
-                              <div className="font-semibold text-blue-600 mb-1.5">🎯 달성 목표</div>
+                              <div className="font-semibold text-blue-600 mb-1.5">🎯 {t('chat.achievementGoals')}</div>
                               <div className="space-y-1.5">
                                 {scenario.objectives.map((objective: string, index: number) => (
                                   <div key={index} className="flex items-start space-x-2">
@@ -2049,7 +2049,7 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
               {false && inputMode === 'realtime-voice' && localMessages.length > 0 && (
                 <div className="absolute top-4 left-1/2 transform -translate-x-1/2 z-20 w-full max-w-2xl px-4">
                   <div className="bg-white/90 backdrop-blur-sm rounded-lg shadow-lg max-h-60 overflow-y-auto p-4 space-y-2">
-                    <h3 className="text-sm font-semibold text-slate-700 mb-2 sticky top-0 bg-white/90">대화 내역</h3>
+                    <h3 className="text-sm font-semibold text-slate-700 mb-2 sticky top-0 bg-white/90">{t('chat.conversationHistory')}</h3>
                     {localMessages.map((msg, index) => (
                       <div
                         key={index}
@@ -2060,7 +2060,7 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
                         }`}
                       >
                         <span className="font-semibold text-xs">
-                          {msg.sender === 'user' ? '나' : persona.name}:
+                          {msg.sender === 'user' ? t('chat.me') : persona.name}:
                         </span>{' '}
                         {msg.message}
                       </div>
@@ -2078,7 +2078,7 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
                     className={`p-2 rounded-md transition-all duration-200 text-white/80 hover:text-white hover:bg-white/20`}
                     disabled={isTransitioning}
                     data-testid="button-messenger-mode"
-                    title="메신저 모드"
+                    title={t('chat.messengerMode')}
                   >
                     <MessageSquare className="w-4 h-4" />
                   </button>
@@ -2086,7 +2086,7 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
                     className={`p-2 rounded-md transition-all duration-200 bg-white text-corporate-600 shadow-sm`}
                     disabled={true}
                     data-testid="button-character-mode"
-                    title="캐릭터 모드"
+                    title={t('chat.characterMode')}
                   >
                     <User className="w-4 h-4" />
                   </button>
@@ -2113,7 +2113,7 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
                             : 'text-purple-700'
                         }`}>
                           <span className="font-semibold text-xs opacity-70">
-                            {msg.sender === 'user' ? '나' : persona.name}:
+                            {msg.sender === 'user' ? t('chat.me') : persona.name}:
                           </span>{' '}
                           <span className="drop-shadow-sm">{msg.message}</span>
                         </span>
@@ -2132,7 +2132,7 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
                           <div className="flex flex-col items-center space-y-4 py-4">
                             {realtimeVoice.conversationPhase === 'interrupted' ? (
                               <>
-                                <p className="text-sm text-orange-600">연결이 끊겼습니다. 이어서 대화할 수 있습니다.</p>
+                                <p className="text-sm text-orange-600">{t('chat.connectionLost')}</p>
                                 <Button
                                   onClick={() => {
                                     // 이전 대화 기록을 전달하여 컨텍스트 유지 (user/ai만 필터링)
@@ -2148,19 +2148,19 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
                                   data-testid="button-resume-voice"
                                 >
                                   <i className="fas fa-redo mr-2"></i>
-                                  이어서 하기
+                                  {t('chat.resume')}
                                 </Button>
                               </>
                             ) : (
                               <>
-                                <p className="text-sm text-slate-600">실시간 음성 대화를 시작하세요</p>
+                                <p className="text-sm text-slate-600">{t('chat.startRealtimeVoice')}</p>
                                 <Button
                                   onClick={() => realtimeVoice.connect()}
                                   className="bg-purple-600 hover:bg-purple-700 text-white px-8 py-6 text-lg font-semibold rounded-full shadow-lg"
                                   data-testid="button-start-voice"
                                 >
                                   <i className="fas fa-phone mr-2"></i>
-                                  대화 시작하기
+                                  {t('chat.startConversation')}
                                 </Button>
                               </>
                             )}
@@ -2175,7 +2175,7 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
                             <div className="w-3 h-3 bg-purple-400 rounded-full animate-bounce"></div>
                             <div className="w-3 h-3 bg-purple-400 rounded-full animate-bounce" style={{ animationDelay: "0.1s" }}></div>
                             <div className="w-3 h-3 bg-purple-400 rounded-full animate-bounce" style={{ animationDelay: "0.2s" }}></div>
-                            <span className="ml-2 text-slate-600">음성 연결 중...</span>
+                            <span className="ml-2 text-slate-600">{t('chat.connectingVoice')}</span>
                           </div>
                         </div>
                       )}
@@ -2190,8 +2190,8 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
                               <div className="w-2 h-2 bg-purple-500 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
                               <span className="ml-2 text-slate-600 text-sm">
                                 {realtimeVoice.greetingRetryCount > 0 
-                                  ? `${persona.department} ${persona.role} ${persona.name}님이 인사를 준비하고 있습니다... (재시도 ${realtimeVoice.greetingRetryCount}/3)`
-                                  : `${persona.department} ${persona.role} ${persona.name}님이 인사를 준비하고 있습니다...`}
+                                  ? `${persona.department} ${persona.role} ${persona.name}${t('chat.preparingGreetingRetry', { count: realtimeVoice.greetingRetryCount })}`
+                                  : `${persona.department} ${persona.role} ${persona.name}${t('chat.preparingGreeting')}`}
                               </span>
                             </div>
                             <Button
@@ -2206,7 +2206,7 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
                               data-testid="button-start-greeting-character"
                             >
                               <i className="fas fa-microphone mr-1.5"></i>
-                              대화 시작하기
+                              {t('chat.startConversation')}
                             </Button>
                           </div>
                         </div>
@@ -2217,7 +2217,7 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
                         <div className="p-4 bg-[#ffffff9c]">
                           <div className="flex items-center justify-center py-4">
                             <span className="text-orange-600 text-sm font-medium">
-                              {user?.name || '회원'}님, {persona.name}님에게 먼저 인사를 건네보세요!
+                              {user?.name || t('chat.member')}, {persona.name}{t('chat.sayHelloFirst')}
                             </span>
                           </div>
                         </div>
@@ -2237,7 +2237,7 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
                               className="text-red-600 border-red-200 hover:bg-red-50 shrink-0"
                             >
                               <i className="fas fa-stop-circle mr-1"></i>
-                              종료
+                              {t('chat.end')}
                             </Button>
                             
                             {/* 중앙 마이크 버튼 - 크고 강조 */}
@@ -2263,7 +2263,7 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
                                   : 'bg-gradient-to-r from-purple-500 to-indigo-500 text-white hover:scale-105'
                               }`}
                               data-testid="button-realtime-voice-record"
-                              title={realtimeVoice.isRecording ? "음성 입력을 중지하려면 클릭하세요" : "음성 입력을 시작하려면 클릭하세요"}
+                              title={realtimeVoice.isRecording ? t('chat.stopRecording') : t('chat.startRecording')}
                             >
                               {/* 펄스 링 효과 */}
                               {(showMicPrompt || realtimeVoice.isRecording) && !realtimeVoice.isAISpeaking && (
@@ -2303,7 +2303,7 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
                                       setIsInputExpanded(false);
                                     }
                                   }}
-                                  placeholder={isInputExpanded ? "메시지 입력... (Enter로 전송)" : "텍스트로 대화"}
+                                  placeholder={isInputExpanded ? t('chat.messageInputExpanded') : t('chat.messageInputCollapsed')}
                                   className={`w-full px-3 py-2 text-sm border rounded-full bg-white/80 focus:outline-none focus:ring-2 focus:ring-purple-400 transition-all ${
                                     isInputExpanded ? 'border-purple-300' : 'border-slate-200'
                                   }`}
@@ -2338,12 +2338,12 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
                             <div className="text-center mt-3">
                               {realtimeVoice.isRecording && (
                                 <p className="text-sm text-red-600 font-medium animate-pulse">
-                                  🔴 녹음 중... 말씀이 끝나면 자동으로 전송됩니다
+                                  🔴 {t('chat.recording')}
                                 </p>
                               )}
                               {realtimeVoice.isAISpeaking && (
                                 <p className="text-sm text-blue-600 font-medium animate-pulse">
-                                  🔵 AI가 응답하고 있습니다...
+                                  🔵 {t('chat.aiResponding')}
                                 </p>
                               )}
                             </div>
@@ -2367,7 +2367,7 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
                         <div className="w-3 h-3 bg-purple-400 rounded-full animate-bounce"></div>
                         <div className="w-3 h-3 bg-purple-400 rounded-full animate-bounce" style={{ animationDelay: "0.1s" }}></div>
                         <div className="w-3 h-3 bg-purple-400 rounded-full animate-bounce" style={{ animationDelay: "0.2s" }}></div>
-                        <span className="ml-2 text-slate-600">대화 생성 중...</span>
+                        <span className="ml-2 text-slate-600">{t('chat.generatingConversation')}</span>
                       </div>
                     ) : latestAiMessage ? (
                       <div className="space-y-3">
@@ -2385,7 +2385,7 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
                               size="sm"
                             >
                               <i className="fas fa-comment mr-1"></i>
-                              대화하기
+                              {t('chat.startChat')}
                             </Button>
                           </div>
                         )}
@@ -2393,7 +2393,7 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
                     ) : (
                       <div className="text-center text-slate-600 py-4">
                         <i className="fas fa-comment-dots text-2xl text-purple-400 mb-2"></i>
-                        <p>대화를 시작해보세요</p>
+                        <p>{t('chat.startConversationHint')}</p>
                         
                         {/* First Chat Button */}
                         <div className="mt-4">
@@ -2404,7 +2404,7 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
                             size="sm"
                           >
                             <i className="fas fa-comment mr-2"></i>
-                            대화하기
+                            {t('chat.startChat')}
                           </Button>
                         </div>
                       </div>
@@ -2421,7 +2421,7 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
                           <Textarea
                             value={userInput}
                             onChange={(e) => setUserInput(e.target.value)}
-                            placeholder={`메시지를 입력하거나 음성 입력을 사용하세요... (최대 200자)${!speechSupported ? ' - 음성 입력 미지원' : ''}`}
+                            placeholder={`${t('chat.messageInputPlaceholder')}${!speechSupported ? ' - ' + t('chat.voiceNotSupported') : ''}`}
                             maxLength={200}
                             rows={2}
                             className="resize-none text-sm"
@@ -2451,7 +2451,7 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
                             disabled={isLoading || !speechSupported}
                             className={`${isRecording ? 'bg-red-50 border-red-300 text-red-700 animate-pulse' : ''} ${!speechSupported ? 'opacity-50' : ''}`}
                             data-testid="button-voice-input-character"
-                            title={!speechSupported ? "현재 브라우저에서 음성 입력을 지원하지 않습니다" : isRecording ? "음성 입력을 중지하려면 클릭하세요" : "음성 입력을 시작하려면 클릭하세요"}
+                            title={!speechSupported ? t('voice.notSupported') : isRecording ? t('chat.stopRecording') : t('chat.startRecording')}
                           >
                             <i className={`fas ${isRecording ? 'fa-stop' : 'fa-microphone'} ${isRecording ? 'text-red-500' : ''}`}></i>
                           </Button>
@@ -2476,7 +2476,7 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
                   {conversation.turnCount >= maxTurns && (
                     <div className="border-t border-slate-200/30 p-4 text-center space-y-3">
                       <div className="text-sm font-medium text-slate-700">
-                        대화가 완료되었습니다! (총 {conversation.turnCount}턴)
+                        {t('chat.conversationComplete', { count: conversation.turnCount })}
                       </div>
                       <div className="flex justify-center space-x-3">
                         {onPersonaChange && (
@@ -2487,7 +2487,7 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
                             size="sm"
                           >
                             <i className="fas fa-user-friends mr-1"></i>
-                            다른 상대와 대화
+                            {t('chat.chatWithAnother')}
                           </Button>
                         )}
                         <Button
@@ -2497,7 +2497,7 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
                           size="sm"
                         >
                           <i className="fas fa-chart-bar mr-1"></i>
-                          최종 피드백
+                          {t('chat.finalFeedback')}
                         </Button>
                         <Button
                           onClick={onExit}
@@ -2506,7 +2506,7 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
                           size="sm"
                         >
                           <i className="fas fa-home mr-1"></i>
-                          홈으로
+                          {t('chat.goHome')}
                         </Button>
                       </div>
                     </div>
@@ -2526,16 +2526,16 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
       <AlertDialog open={showEndConversationDialog} onOpenChange={setShowEndConversationDialog}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>대화를 종료하시겠습니까?</AlertDialogTitle>
+            <AlertDialogTitle>{t('chat.endConversationTitle')}</AlertDialogTitle>
             <AlertDialogDescription>
-              대화를 종료하고 최종 피드백을 생성하시겠습니까?
+              {t('chat.endConversationDesc')}
               <br />
-              지금까지의 대화 내용을 바탕으로 상세한 분석과 점수를 제공합니다.
+              {t('chat.endConversationDesc2')}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter className="flex-col sm:flex-row gap-2">
             <AlertDialogCancel data-testid="button-cancel-end-conversation">
-              취소
+              {t('chat.cancel')}
             </AlertDialogCancel>
             <Button
               variant="outline"
@@ -2544,14 +2544,14 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
               className="border-orange-300 text-orange-600 hover:bg-orange-50"
             >
               <i className="fas fa-redo mr-1"></i>
-              대화 초기화
+              {t('chat.resetConversation')}
             </Button>
             <AlertDialogAction 
               onClick={confirmEndConversation}
               data-testid="button-confirm-end-conversation"
               className="bg-purple-600 hover:bg-purple-700"
             >
-              예, 피드백 생성
+              {t('chat.yesGenerateFeedback')}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
