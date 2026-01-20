@@ -866,14 +866,15 @@ export function useRealtimeVoice({
           sum += inputData[i] * inputData[i];
         }
         const rms = Math.sqrt(sum / inputData.length);
-        const VOICE_THRESHOLD = 0.03; // Higher threshold to avoid false triggers from background noise/echo
+        const VOICE_THRESHOLD = 0.06; // Higher threshold (0.03→0.06) to avoid false triggers from ambient noise
         const BARGE_IN_DELAY_MS = 300; // Require 300ms of continuous voice before triggering barge-in
+        const MIN_VOICE_DURATION_MS = 500; // Minimum voice duration before considering as real speech
         
         // Check if playback AudioContext is actually running (more reliable than isAISpeakingRef)
         const isPlaybackRunning = playbackContextRef.current?.state === 'running';
         
-        // Debug logging
-        if (Math.random() < 0.08) {
+        // Debug logging (reduced frequency for cleaner logs)
+        if (Math.random() < 0.05) {
           console.log(`🔊 RAW-VAD: RMS=${rms.toFixed(4)}, threshold=${VOICE_THRESHOLD}, playbackRunning=${isPlaybackRunning}`);
         }
         
@@ -882,13 +883,17 @@ export function useRealtimeVoice({
         setUserAudioAmplitude(normalizedRms);
         
         if (rms > VOICE_THRESHOLD) {
-          // Track voice activity start time
+          // Track voice activity start time (silent tracking, log only after MIN_VOICE_DURATION_MS)
           if (voiceActivityStartRef.current === null) {
             voiceActivityStartRef.current = Date.now();
-            console.log('🎤 Voice activity started');
           }
           
           const voiceDuration = Date.now() - voiceActivityStartRef.current;
+          
+          // Log voice activity only after minimum duration (reduces false positive logs)
+          if (voiceDuration >= MIN_VOICE_DURATION_MS && voiceDuration < MIN_VOICE_DURATION_MS + 100) {
+            console.log(`🎤 Voice activity confirmed (${MIN_VOICE_DURATION_MS}ms sustained)`);
+          }
           
           // Only trigger barge-in after sustained voice activity (reduces false triggers)
           if (voiceDuration >= BARGE_IN_DELAY_MS && !bargeInTriggeredRef.current && isPlaybackRunning) {
