@@ -24,9 +24,6 @@ interface PersonaTranslation {
   position: string | null;
   department: string | null;
   role: string | null;
-  stance: string | null;
-  goal: string | null;
-  tradeoff: string | null;
   personalityTraits: string[] | null;
   communicationStyle: string | null;
   motivation: string | null;
@@ -46,9 +43,6 @@ interface PersonaSourceData {
   position?: string;
   department?: string;
   role?: string;
-  stance?: string;
-  goal?: string;
-  tradeoff?: string;
   mbti?: string;
   personality?: {
     traits?: string[];
@@ -83,7 +77,6 @@ export function PersonaTranslationEditor({
   const [isGenerating, setIsGenerating] = useState<string | null>(null);
   const [openSections, setOpenSections] = useState<Record<string, boolean>>({
     basic: true,
-    context: true,
     personality: true,
     background: true
   });
@@ -425,62 +418,6 @@ export function PersonaTranslationEditor({
                               value={translation.role || ''}
                               onChange={(e) => handleFieldChange(lang.code, 'role', e.target.value)}
                               placeholder={`${lang.nativeName} 역할...`}
-                            />
-                          </div>
-                        </div>
-                      </CollapsibleContent>
-                    </Collapsible>
-
-                    <Collapsible open={openSections.context} onOpenChange={() => toggleSection('context')}>
-                      <CollapsibleTrigger className="flex items-center gap-2 w-full p-2 bg-muted rounded-t hover:bg-muted/80">
-                        {openSections.context ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-                        <span className="font-medium">시나리오 컨텍스트</span>
-                      </CollapsibleTrigger>
-                      <CollapsibleContent className="border border-t-0 rounded-b p-4 space-y-4">
-                        <div className="grid grid-cols-2 gap-4">
-                          <div className="space-y-2">
-                            <Label className="text-muted-foreground text-xs">원본 입장/태도</Label>
-                            <div className="p-2 bg-muted rounded text-sm min-h-[60px] whitespace-pre-wrap">{sourceData?.stance || '-'}</div>
-                          </div>
-                          <div className="space-y-2">
-                            <Label>입장/태도 ({lang.nativeName})</Label>
-                            <Textarea
-                              value={translation.stance || ''}
-                              onChange={(e) => handleFieldChange(lang.code, 'stance', e.target.value)}
-                              placeholder={`${lang.nativeName} 입장/태도...`}
-                              rows={2}
-                            />
-                          </div>
-                        </div>
-
-                        <div className="grid grid-cols-2 gap-4">
-                          <div className="space-y-2">
-                            <Label className="text-muted-foreground text-xs">원본 목표</Label>
-                            <div className="p-2 bg-muted rounded text-sm min-h-[60px] whitespace-pre-wrap">{sourceData?.goal || '-'}</div>
-                          </div>
-                          <div className="space-y-2">
-                            <Label>목표 ({lang.nativeName})</Label>
-                            <Textarea
-                              value={translation.goal || ''}
-                              onChange={(e) => handleFieldChange(lang.code, 'goal', e.target.value)}
-                              placeholder={`${lang.nativeName} 목표...`}
-                              rows={2}
-                            />
-                          </div>
-                        </div>
-
-                        <div className="grid grid-cols-2 gap-4">
-                          <div className="space-y-2">
-                            <Label className="text-muted-foreground text-xs">원본 협상 가능 범위</Label>
-                            <div className="p-2 bg-muted rounded text-sm min-h-[60px] whitespace-pre-wrap">{sourceData?.tradeoff || '-'}</div>
-                          </div>
-                          <div className="space-y-2">
-                            <Label>협상 가능 범위 ({lang.nativeName})</Label>
-                            <Textarea
-                              value={translation.tradeoff || ''}
-                              onChange={(e) => handleFieldChange(lang.code, 'tradeoff', e.target.value)}
-                              placeholder={`${lang.nativeName} 협상 가능 범위...`}
-                              rows={2}
                             />
                           </div>
                         </div>
