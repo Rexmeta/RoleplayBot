@@ -197,6 +197,16 @@ export function PersonaManager() {
   // 개별 표정 이미지 생성 상태
   const [generatingSingleEmotion, setGeneratingSingleEmotion] = useState<string | null>(null);
   
+  // 쉼표로 구분된 입력 필드의 원시 텍스트 상태 (타이핑 중 쉼표 유지)
+  const [rawInputs, setRawInputs] = useState({
+    personality_traits: '',
+    fears: '',
+    personal_values: '',
+    hobbies: '',
+    key_phrases: '',
+    win_conditions: ''
+  });
+  
   const [formData, setFormData] = useState<MBTIPersonaFormData>({
     id: '',
     mbti: '',
@@ -625,6 +635,14 @@ export function PersonaManager() {
         female: { expressions: { 중립: '', 기쁨: '', 슬픔: '', 분노: '', 놀람: '', 호기심: '', 불안: '', 단호: '', 실망: '', 당혹: '' } }
       }
     });
+    setRawInputs({
+      personality_traits: '',
+      fears: '',
+      personal_values: '',
+      hobbies: '',
+      key_phrases: '',
+      win_conditions: ''
+    });
   };
 
   const handleEdit = (persona: MBTIPersona) => {
@@ -690,6 +708,15 @@ export function PersonaManager() {
         }
       }
     });
+    // rawInputs도 설정 (쉼표로 구분된 필드들)
+    setRawInputs({
+      personality_traits: (persona.personality_traits || []).join(', '),
+      fears: (persona.fears || []).join(', '),
+      personal_values: (persona.background?.personal_values || []).join(', '),
+      hobbies: (persona.background?.hobbies || []).join(', '),
+      key_phrases: (persona.communication_patterns?.key_phrases || []).join(', '),
+      win_conditions: (persona.communication_patterns?.win_conditions || []).join(', ')
+    });
     setEditingPersona(persona);
   };
 
@@ -728,7 +755,11 @@ export function PersonaManager() {
         }}>
           <DialogTrigger asChild>
             <Button 
-              onClick={() => setIsCreateOpen(true)}
+              onClick={() => {
+                resetForm();
+                setEditingPersona(null);
+                setIsCreateOpen(true);
+              }}
               className="bg-corporate-600 hover:bg-corporate-700"
               data-testid="button-create-persona"
             >
@@ -789,8 +820,9 @@ export function PersonaManager() {
                     <Label htmlFor="personality_traits" className="text-sm font-semibold text-slate-700 mb-1.5 block">성격 특성 (쉼표로 구분)</Label>
                     <Textarea
                       id="personality_traits"
-                      value={formData.personality_traits.join(', ')}
-                      onChange={(e) => setFormData(prev => ({ 
+                      value={rawInputs.personality_traits}
+                      onChange={(e) => setRawInputs(prev => ({ ...prev, personality_traits: e.target.value }))}
+                      onBlur={(e) => setFormData(prev => ({ 
                         ...prev, 
                         personality_traits: e.target.value.split(',').map(s => s.trim()).filter(s => s)
                       }))}
@@ -828,8 +860,9 @@ export function PersonaManager() {
                     <Label htmlFor="fears" className="text-sm font-semibold text-slate-700 mb-1.5 block">두려움/우려사항 (쉼표로 구분)</Label>
                     <Input
                       id="fears"
-                      value={formData.fears.join(', ')}
-                      onChange={(e) => setFormData(prev => ({ 
+                      value={rawInputs.fears}
+                      onChange={(e) => setRawInputs(prev => ({ ...prev, fears: e.target.value }))}
+                      onBlur={(e) => setFormData(prev => ({ 
                         ...prev, 
                         fears: e.target.value.split(',').map(s => s.trim()).filter(s => s)
                       }))}
@@ -853,8 +886,9 @@ export function PersonaManager() {
                     <Label htmlFor="personal_values" className="text-sm font-semibold text-slate-700 mb-1.5 block">개인 가치관 (쉼표로 구분)</Label>
                     <Input
                       id="personal_values"
-                      value={formData.background?.personal_values?.join(', ') || ''}
-                      onChange={(e) => setFormData(prev => ({ 
+                      value={rawInputs.personal_values}
+                      onChange={(e) => setRawInputs(prev => ({ ...prev, personal_values: e.target.value }))}
+                      onBlur={(e) => setFormData(prev => ({ 
                         ...prev, 
                         background: {
                           ...prev.background,
@@ -871,8 +905,9 @@ export function PersonaManager() {
                     <Label htmlFor="hobbies" className="text-sm font-semibold text-slate-700 mb-1.5 block">취미 (쉼표로 구분)</Label>
                     <Input
                       id="hobbies"
-                      value={formData.background?.hobbies?.join(', ') || ''}
-                      onChange={(e) => setFormData(prev => ({ 
+                      value={rawInputs.hobbies}
+                      onChange={(e) => setRawInputs(prev => ({ ...prev, hobbies: e.target.value }))}
+                      onBlur={(e) => setFormData(prev => ({ 
                         ...prev, 
                         background: {
                           ...prev.background,
@@ -960,8 +995,9 @@ export function PersonaManager() {
                     <Label htmlFor="key_phrases" className="text-sm font-semibold text-slate-700 mb-1.5 block">주요 표현 (쉼표로 구분)</Label>
                     <Textarea
                       id="key_phrases"
-                      value={formData.communication_patterns?.key_phrases?.join(', ') || ''}
-                      onChange={(e) => setFormData(prev => ({ 
+                      value={rawInputs.key_phrases}
+                      onChange={(e) => setRawInputs(prev => ({ ...prev, key_phrases: e.target.value }))}
+                      onBlur={(e) => setFormData(prev => ({ 
                         ...prev, 
                         communication_patterns: {
                           ...prev.communication_patterns,
@@ -978,8 +1014,9 @@ export function PersonaManager() {
                     <Label htmlFor="win_conditions" className="text-sm font-semibold text-slate-700 mb-1.5 block">승리 조건 (쉼표로 구분)</Label>
                     <Textarea
                       id="win_conditions"
-                      value={formData.communication_patterns?.win_conditions?.join(', ') || ''}
-                      onChange={(e) => setFormData(prev => ({ 
+                      value={rawInputs.win_conditions}
+                      onChange={(e) => setRawInputs(prev => ({ ...prev, win_conditions: e.target.value }))}
+                      onBlur={(e) => setFormData(prev => ({ 
                         ...prev, 
                         communication_patterns: {
                           ...prev.communication_patterns,
