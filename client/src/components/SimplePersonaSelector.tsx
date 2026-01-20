@@ -42,10 +42,10 @@ export function SimplePersonaSelector({
   const progressPercentage = Math.round((completedCount / totalCount) * 100);
   
   const difficultyLabels: Record<number, { name: string; color: string; bgColor: string; description: string }> = {
-    1: { name: "매우 쉬움", color: "text-green-700", bgColor: "bg-green-500", description: "초보자를 위한 친절하고 교육적인 대화" },
-    2: { name: "기본", color: "text-blue-700", bgColor: "bg-blue-500", description: "친절하지만 현실적인 대화" },
-    3: { name: "도전형", color: "text-orange-700", bgColor: "bg-orange-500", description: "논리적 근거를 요구하는 도전적 대화" },
-    4: { name: "고난도", color: "text-red-700", bgColor: "bg-red-500", description: "실전과 같은 압박감 있는 대화" },
+    1: { name: t('scenario.difficulty1'), color: "text-green-700", bgColor: "bg-green-500", description: t('scenario.difficulty1Desc') },
+    2: { name: t('scenario.difficulty2'), color: "text-blue-700", bgColor: "bg-blue-500", description: t('scenario.difficulty2Desc') },
+    3: { name: t('scenario.difficulty3'), color: "text-orange-700", bgColor: "bg-orange-500", description: t('scenario.difficulty3Desc') },
+    4: { name: t('scenario.difficulty4'), color: "text-red-700", bgColor: "bg-red-500", description: t('scenario.difficulty4Desc') },
   };
 
   const getPersonaImage = (persona: ScenarioPersona) => {
@@ -78,7 +78,7 @@ export function SimplePersonaSelector({
               data-testid="back-to-scenarios"
             >
               <ArrowLeft className="w-4 h-4" />
-              시나리오 목록
+              {t('scenario.scenarioList')}
             </Button>
           )}
           
@@ -100,15 +100,15 @@ export function SimplePersonaSelector({
               <div className="flex flex-wrap items-center gap-4 text-white/80">
                 <div className="flex items-center gap-2 bg-white/10 backdrop-blur-sm rounded-full px-4 py-2">
                   <Clock className="w-4 h-4" />
-                  <span className="text-sm font-medium">{scenario?.estimatedTime || '15-20분'}</span>
+                  <span className="text-sm font-medium">{scenario?.estimatedTime || t('scenario.defaultTime')}</span>
                 </div>
                 <div className="flex items-center gap-2 bg-white/10 backdrop-blur-sm rounded-full px-4 py-2">
                   <Users className="w-4 h-4" />
-                  <span className="text-sm font-medium">{totalCount}명의 대화 상대</span>
+                  <span className="text-sm font-medium">{t('scenario.conversationPartners', { count: totalCount })}</span>
                 </div>
                 <div className="flex items-center gap-2 bg-white/10 backdrop-blur-sm rounded-full px-4 py-2">
                   <Target className="w-4 h-4" />
-                  <span className="text-sm font-medium">{scenario?.skills?.length || 0}개 역량</span>
+                  <span className="text-sm font-medium">{t('scenario.competenciesCount', { count: scenario?.skills?.length || 0 })}</span>
                 </div>
               </div>
             </div>
@@ -121,8 +121,8 @@ export function SimplePersonaSelector({
                     <span className="text-xl font-bold text-white">{progressPercentage}%</span>
                   </div>
                   <div>
-                    <p className="text-white font-semibold">{completedCount}/{totalCount} 완료</p>
-                    <p className="text-white/70 text-sm">{availablePersonas.length}명 남음</p>
+                    <p className="text-white font-semibold">{t('scenario.completed', { completed: completedCount, total: totalCount })}</p>
+                    <p className="text-white/70 text-sm">{t('scenario.remaining', { count: availablePersonas.length })}</p>
                   </div>
                 </div>
               </div>
@@ -141,14 +141,14 @@ export function SimplePersonaSelector({
               <div className="bg-gradient-to-r from-slate-800 to-slate-700 px-6 py-4">
                 <h3 className="text-lg font-semibold text-white flex items-center gap-2">
                   <Award className="w-5 h-5" />
-                  대화 난이도 선택
+                  {t('scenario.selectDifficulty')}
                 </h3>
               </div>
               <CardContent className="p-6">
                 {completedPersonaIds.length > 0 ? (
                   <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
                     <p className="text-sm text-blue-800 font-medium">
-                      🔒 난이도가 고정되었습니다. 첫 대화에서 선택한 난이도가 모든 대화에 적용됩니다.
+                      🔒 {t('scenario.difficultyLocked')}
                     </p>
                   </div>
                 ) : (
@@ -188,16 +188,16 @@ export function SimplePersonaSelector({
               <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
                 <TabsList className="w-full grid grid-cols-4 bg-slate-100 p-1 rounded-xl">
                   <TabsTrigger value="overview" className="rounded-lg data-[state=active]:bg-white data-[state=active]:shadow-sm">
-                    개요
+                    {t('scenario.tabOverview')}
                   </TabsTrigger>
                   <TabsTrigger value="situation" className="rounded-lg data-[state=active]:bg-white data-[state=active]:shadow-sm">
-                    상황
+                    {t('scenario.tabSituation')}
                   </TabsTrigger>
                   <TabsTrigger value="objectives" className="rounded-lg data-[state=active]:bg-white data-[state=active]:shadow-sm">
-                    목표
+                    {t('scenario.tabObjectives')}
                   </TabsTrigger>
                   <TabsTrigger value="criteria" className="rounded-lg data-[state=active]:bg-white data-[state=active]:shadow-sm">
-                    평가 기준
+                    {t('scenario.tabCriteria')}
                   </TabsTrigger>
                 </TabsList>
 
@@ -211,7 +211,7 @@ export function SimplePersonaSelector({
                             <FileText className="w-6 h-6 text-indigo-600" />
                           </div>
                           <div className="flex-1">
-                            <h4 className="font-semibold text-slate-900 mb-2">시나리오 개요</h4>
+                            <h4 className="font-semibold text-slate-900 mb-2">{t('scenario.scenarioOverview')}</h4>
                             <p className="text-slate-700 leading-relaxed whitespace-pre-wrap text-sm">
                               {scenario.description}
                             </p>
@@ -259,7 +259,7 @@ export function SimplePersonaSelector({
                         <div className="pt-4 border-t border-slate-100">
                           <h4 className="font-semibold text-slate-900 mb-3 flex items-center gap-2">
                             <Lightbulb className="w-4 h-4 text-amber-500" />
-                            주요 역량
+                            {t('scenario.keyCompetencies')}
                           </h4>
                           <div className="flex flex-wrap gap-2">
                             {scenario.skills.map((skill, index) => (
@@ -286,7 +286,7 @@ export function SimplePersonaSelector({
                           <AlertCircle className="w-6 h-6 text-orange-600" />
                         </div>
                         <div className="flex-1">
-                          <h4 className="font-semibold text-slate-900 mb-2">현재 상황</h4>
+                          <h4 className="font-semibold text-slate-900 mb-2">{t('scenario.currentSituation')}</h4>
                           <p className="text-slate-700 leading-relaxed whitespace-pre-wrap">
                             {scenario.context.situation}
                           </p>
@@ -297,14 +297,14 @@ export function SimplePersonaSelector({
                         <div className="bg-slate-50 rounded-xl p-4">
                           <div className="flex items-center gap-2 mb-2">
                             <Clock className="w-4 h-4 text-slate-500" />
-                            <span className="font-medium text-slate-700">타임라인</span>
+                            <span className="font-medium text-slate-700">{t('scenario.timeline')}</span>
                           </div>
                           <p className="text-sm text-slate-600">{scenario.context.timeline}</p>
                         </div>
                         <div className="bg-slate-50 rounded-xl p-4">
                           <div className="flex items-center gap-2 mb-2">
                             <TrendingUp className="w-4 h-4 text-slate-500" />
-                            <span className="font-medium text-slate-700">핵심 이슈</span>
+                            <span className="font-medium text-slate-700">{t('scenario.coreIssues')}</span>
                           </div>
                           <p className="text-sm text-slate-600">{scenario.context.stakes}</p>
                         </div>
@@ -321,7 +321,7 @@ export function SimplePersonaSelector({
                           <Target className="w-6 h-6 text-green-600" />
                         </div>
                         <div className="flex-1">
-                          <h4 className="font-semibold text-slate-900 mb-4">달성해야 할 목표</h4>
+                          <h4 className="font-semibold text-slate-900 mb-4">{t('scenario.objectivesToAchieve')}</h4>
                           <ul className="space-y-3">
                             {scenario.objectives.map((obj, index) => (
                               <li key={index} className="flex items-start gap-3 bg-green-50 rounded-lg p-3">
@@ -346,26 +346,26 @@ export function SimplePersonaSelector({
                           <Award className="w-6 h-6 text-purple-600" />
                         </div>
                         <div className="flex-1">
-                          <h4 className="font-semibold text-slate-900 mb-4">성공 기준</h4>
+                          <h4 className="font-semibold text-slate-900 mb-4">{t('scenario.successCriteria')}</h4>
                           <div className="space-y-3">
                             <div className="bg-gradient-to-r from-green-50 to-emerald-50 rounded-xl p-4 border border-green-200">
                               <div className="flex items-center gap-2 mb-2">
                                 <span className="text-lg">🏆</span>
-                                <span className="font-semibold text-green-800">최적</span>
+                                <span className="font-semibold text-green-800">{t('scenario.optimal')}</span>
                               </div>
                               <p className="text-sm text-green-700">{scenario.successCriteria.optimal}</p>
                             </div>
                             <div className="bg-gradient-to-r from-blue-50 to-sky-50 rounded-xl p-4 border border-blue-200">
                               <div className="flex items-center gap-2 mb-2">
                                 <span className="text-lg">👍</span>
-                                <span className="font-semibold text-blue-800">양호</span>
+                                <span className="font-semibold text-blue-800">{t('scenario.good')}</span>
                               </div>
                               <p className="text-sm text-blue-700">{scenario.successCriteria.good}</p>
                             </div>
                             <div className="bg-gradient-to-r from-amber-50 to-yellow-50 rounded-xl p-4 border border-amber-200">
                               <div className="flex items-center gap-2 mb-2">
                                 <span className="text-lg">⚠️</span>
-                                <span className="font-semibold text-amber-800">수용 가능</span>
+                                <span className="font-semibold text-amber-800">{t('scenario.acceptable')}</span>
                               </div>
                               <p className="text-sm text-amber-700">{scenario.successCriteria.acceptable}</p>
                             </div>
@@ -388,10 +388,10 @@ export function SimplePersonaSelector({
                   <MessageCircle className="w-5 h-5 mt-0.5 flex-shrink-0" />
                   <div>
                     <h3 className="font-semibold mb-1">
-                      {completedCount === 0 ? '대화 상대 선택' : '다음 대화 상대'}
+                      {completedCount === 0 ? t('scenario.selectPartner') : t('scenario.nextPartner')}
                     </h3>
                     <p className="text-sm text-blue-100">
-                      아래 인물 중 대화할 상대를 선택하세요
+                      {t('scenario.selectPartnerHint')}
                     </p>
                   </div>
                 </div>
@@ -470,7 +470,7 @@ export function SimplePersonaSelector({
                         {isCompleted ? (
                           <div className="flex items-center justify-center gap-1.5 py-1.5 bg-green-100 rounded-lg text-green-700 text-xs font-medium">
                             <CheckCircle2 className="w-3.5 h-3.5" />
-                            완료
+                            {t('scenario.completedLabel')}
                           </div>
                         ) : (
                           <Button 
@@ -488,12 +488,12 @@ export function SimplePersonaSelector({
                             {isCurrentlyLoading ? (
                               <>
                                 <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />
-                                준비 중...
+                                {t('scenario.preparing')}
                               </>
                             ) : (
                               <>
                                 <Play className="w-3.5 h-3.5 mr-1.5" />
-                                대화 시작
+                                {t('scenario.startConversation')}
                               </>
                             )}
                           </Button>
