@@ -565,11 +565,28 @@ export const personaTranslations = pgTable("persona_translations", {
   personaId: text("persona_id").notNull(), // JSON 페르소나 ID 참조
   sourceLocale: varchar("source_locale", { length: 10 }).notNull().default('ko').references(() => supportedLanguages.code), // 원문 언어
   locale: varchar("locale", { length: 10 }).notNull().references(() => supportedLanguages.code), // 번역 대상 언어
+  // 기본 정보
   name: varchar("name").notNull(), // 이름
   position: varchar("position"), // 직책
   department: varchar("department"), // 부서
-  personalityDescription: text("personality_description"), // 성격 설명
-  background: text("background"), // 배경 설명
+  role: text("role"), // 역할 설명 (예: "개발팀 선임")
+  // 시나리오 컨텍스트 필드
+  stance: text("stance"), // 입장/태도
+  goal: text("goal"), // 목표
+  tradeoff: text("tradeoff"), // 협상 가능 범위
+  // 성격 정보
+  personalityTraits: text("personality_traits").array(), // 성격 특성 배열
+  communicationStyle: text("communication_style"), // 커뮤니케이션 스타일
+  motivation: text("motivation"), // 동기
+  fears: text("fears").array(), // 두려움 배열
+  personalityDescription: text("personality_description"), // 성격 설명 (요약)
+  // 배경 정보
+  education: text("education"), // 학력
+  previousExperience: text("previous_experience"), // 이전 경험
+  majorProjects: text("major_projects").array(), // 주요 프로젝트 배열
+  expertise: text("expertise").array(), // 전문분야 배열
+  background: text("background"), // 배경 설명 (요약)
+  // 메타 정보
   isMachineTranslated: boolean("is_machine_translated").notNull().default(false),
   isReviewed: boolean("is_reviewed").notNull().default(false),
   reviewedBy: varchar("reviewed_by").references(() => users.id),

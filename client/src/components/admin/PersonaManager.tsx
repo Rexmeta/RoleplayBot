@@ -1581,6 +1581,21 @@ export function PersonaManager() {
               personaId={translatingPersona.id}
               personaMbti={translatingPersona.mbti}
               personaTraits={translatingPersona.personality_traits || []}
+              sourceData={{
+                name: translatingPersona.mbti,
+                personality: {
+                  traits: translatingPersona.personality_traits || [],
+                  communicationStyle: translatingPersona.communication_style || '',
+                  motivation: translatingPersona.motivation || '',
+                  fears: translatingPersona.fears || [],
+                },
+                background: {
+                  education: '',
+                  previousExperience: '',
+                  majorProjects: [],
+                  expertise: translatingPersona.background?.personal_values || [],
+                },
+              }}
             />
           )}
         </DialogContent>
