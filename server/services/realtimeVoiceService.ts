@@ -289,6 +289,9 @@ export class RealtimeVoiceService {
     userSelectedDifficulty?: number, // 사용자가 선택한 난이도 (1-4)
     userLanguage: 'ko' | 'en' | 'ja' | 'zh' = 'ko' // 사용자 선택 언어
   ): Promise<void> {
+    const sessionStartTime = Date.now();
+    console.log(`⏱️ [TIMING] createSession 시작: ${new Date(sessionStartTime).toISOString()}`);
+    
     if (!this.isAvailable || !this.genAI) {
       throw new Error('Gemini Live API Service is not available. Please configure GOOGLE_API_KEY.');
     }
@@ -411,9 +414,11 @@ export class RealtimeVoiceService {
     };
 
     this.sessions.set(sessionId, session);
+    console.log(`⏱️ [TIMING] 세션 객체 생성 완료: ${Date.now() - sessionStartTime}ms`);
     
     // Connect to Gemini Live API
     await this.connectToGemini(session, systemInstructions, gender);
+    console.log(`⏱️ [TIMING] createSession 완료 (총): ${Date.now() - sessionStartTime}ms`);
   }
 
   private buildSystemInstructions(
@@ -577,6 +582,9 @@ export class RealtimeVoiceService {
       throw new Error('Gemini AI not initialized');
     }
 
+    const connectStartTime = Date.now();
+    console.log(`⏱️ [TIMING] connectToGemini 시작: ${new Date(connectStartTime).toISOString()}`);
+
     try {
       // 성별에 따라 랜덤하게 음성 선택
       const voiceName = this.getRandomVoice(gender);
@@ -610,14 +618,22 @@ export class RealtimeVoiceService {
       console.log('📝 출력 음성 텍스트 변환: 활성화');
       console.log('='.repeat(80) + '\n');
 
-      // Get model from DB settings
-      const realtimeModel = await this.getRealtimeModel();
+      // Get model from DB settings (use cached value from session if available)
+      const dbStartTime = Date.now();
+      const realtimeModel = session.realtimeModel || await this.getRealtimeModel();
+      console.log(`⏱️ [TIMING] DB 모델 조회 완료: ${Date.now() - dbStartTime}ms`);
       console.log(`🔌 Connecting to Gemini Live API for session: ${session.id} using model: ${realtimeModel}`);
 
+      const geminiConnectStartTime = Date.now();
+      console.log(`⏱️ [TIMING] Gemini live.connect() 호출 시작`);
+      
       const geminiSession = await this.genAI.live.connect({
         model: realtimeModel,
         callbacks: {
           onopen: () => {
+            const geminiConnectTime = Date.now() - geminiConnectStartTime;
+            const totalTime = Date.now() - connectStartTime;
+            console.log(`⏱️ [TIMING] Gemini onopen 발생: live.connect() ${geminiConnectTime}ms, 총 ${totalTime}ms`);
             console.log(`✅ Gemini Live API connected for session: ${session.id}`);
             session.isConnected = true;
 
@@ -804,6 +820,7 @@ export class RealtimeVoiceService {
 
       // 🔧 버퍼링된 client.ready 메시지가 있으면 재생 (Gemini 연결 전에 도착한 경우)
       if (session.pendingClientReady) {
+        console.log(`⏱️ [TIMING] 버퍼링된 client.ready 재생 시작`);
         console.log(`▶️ Replaying buffered client.ready message for session: ${session.id}`);
         const bufferedMessage = session.pendingClientReady;
         session.pendingClientReady = null; // 버퍼 클리어
@@ -1035,6 +1052,7 @@ export class RealtimeVoiceService {
         // 첫 AI 응답 수신 플래그 설정
         if (!session.hasReceivedFirstAIResponse) {
           session.hasReceivedFirstAIResponse = true;
+          console.log(`⏱️ [TIMING] 첫 AI 응답 수신: ${new Date().toISOString()}`);
           console.log('🎉 첫 AI 응답 수신!');
         }
         
@@ -1216,6 +1234,9 @@ export class RealtimeVoiceService {
 
       case 'client.ready':
         // 클라이언트의 AudioContext가 준비됨 - 이제 첫 인사를 트리거
+        const clientReadyTime = Date.now();
+        console.log(`⏱️ [TIMING] client.ready 수신: ${new Date(clientReadyTime).toISOString()}`);
+        
         const isResuming = message.isResuming === true;
         const previousMessages = message.previousMessages as Array<{role: 'user' | 'ai', content: string}> | undefined;
         
