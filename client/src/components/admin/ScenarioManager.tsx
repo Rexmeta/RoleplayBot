@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -13,9 +13,11 @@ import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import { apiRequest, queryClient } from '@/lib/queryClient';
 import { ComplexScenario } from '@/lib/scenario-system';
-import { Loader2, MoreVertical, ChevronDown, ChevronUp, Clock, Users, Target, Languages } from 'lucide-react';
+import { Loader2, MoreVertical, ChevronDown, ChevronUp, Clock, Users, Target, Languages, Search } from 'lucide-react';
 import { AIScenarioGenerator } from './AIScenarioGenerator';
 import { ScenarioTranslationEditor } from './ScenarioTranslationEditor';
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 
 interface ScenarioPersona {
   id: string;
@@ -124,6 +126,24 @@ export function ScenarioManager() {
   const { data: evaluationCriteriaSets } = useQuery<{ id: string; name: string; description?: string; isDefault?: boolean }[]>({
     queryKey: ['/api/evaluation-criteria'],
   });
+
+  // 등록된 페르소나 목록 조회
+  const { data: availablePersonas = [] } = useQuery<{ id: string; mbti: string; personality_traits?: string[]; communication_style?: string }[]>({
+    queryKey: ['/api/admin/personas'],
+  });
+
+  // 시나리오 내 이미 선택된 페르소나 ID 목록
+  const selectedPersonaIds = useMemo(() => {
+    return formData.personas.map(p => p.id).filter(id => id);
+  }, [formData.personas]);
+
+  // 특정 인덱스의 페르소나 슬롯에서 선택 가능한 페르소나 목록 (중복 방지)
+  const getAvailablePersonasForSlot = (currentIndex: number) => {
+    const currentPersonaId = formData.personas[currentIndex]?.id;
+    return availablePersonas.filter(p => 
+      p.id === currentPersonaId || !selectedPersonaIds.includes(p.id)
+    );
+  };
 
   // 시나리오 로드 시 모두 펼쳐진 상태로 초기화
   React.useEffect(() => {
@@ -1158,26 +1178,43 @@ export function ScenarioManager() {
                         
                         <div className="grid grid-cols-3 gap-3">
                           <div>
-                            <Label htmlFor={`persona-mbti-${index}`} className="text-sm font-medium text-slate-700">MBTI *</Label>
-                            <Input
-                              id={`persona-mbti-${index}`}
-                              value={persona.mbti}
-                              onChange={(e) => {
-                                const mbtiValue = e.target.value.toUpperCase();
-                                const idValue = e.target.value.toLowerCase();
-                                const newPersonas = [...formData.personas];
-                                newPersonas[index] = { 
-                                  ...persona, 
-                                  mbti: mbtiValue,
-                                  id: idValue, 
-                                  personaRef: idValue + '.json' 
-                                };
-                                setFormData(prev => ({ ...prev, personas: newPersonas }));
+                            <Label htmlFor={`persona-id-${index}`} className="text-sm font-medium text-slate-700">페르소나 ID *</Label>
+                            <Select
+                              value={persona.id}
+                              onValueChange={(selectedId) => {
+                                const selectedPersona = availablePersonas.find(p => p.id === selectedId);
+                                if (selectedPersona) {
+                                  const newPersonas = [...formData.personas];
+                                  newPersonas[index] = { 
+                                    ...persona, 
+                                    id: selectedId,
+                                    mbti: selectedPersona.mbti.toUpperCase(),
+                                    personaRef: selectedId + '.json' 
+                                  };
+                                  setFormData(prev => ({ ...prev, personas: newPersonas }));
+                                }
                               }}
-                              placeholder="ISTJ, ENFJ, INTP 등"
-                              data-testid={`input-persona-mbti-${index}`}
-                              className="bg-white"
-                            />
+                            >
+                              <SelectTrigger data-testid={`select-persona-id-${index}`} className="bg-white">
+                                <SelectValue placeholder="페르소나 선택" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {getAvailablePersonasForSlot(index).length === 0 ? (
+                                  <div className="py-2 px-3 text-sm text-slate-500">
+                                    선택 가능한 페르소나가 없습니다
+                                  </div>
+                                ) : (
+                                  getAvailablePersonasForSlot(index).map((p) => (
+                                    <SelectItem key={p.id} value={p.id}>
+                                      <div className="flex items-center gap-2">
+                                        <span className="font-medium">{p.mbti}</span>
+                                        <span className="text-xs text-slate-500">({p.id})</span>
+                                      </div>
+                                    </SelectItem>
+                                  ))
+                                )}
+                              </SelectContent>
+                            </Select>
                           </div>
                           
                           <div>
