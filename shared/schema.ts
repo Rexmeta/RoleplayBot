@@ -536,7 +536,8 @@ export const supportedLanguages = pgTable("supported_languages", {
 export const scenarioTranslations = pgTable("scenario_translations", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   scenarioId: text("scenario_id").notNull(), // JSON 시나리오 ID 참조
-  locale: varchar("locale", { length: 10 }).notNull().references(() => supportedLanguages.code),
+  sourceLocale: varchar("source_locale", { length: 10 }).notNull().default('ko').references(() => supportedLanguages.code), // 원문 언어
+  locale: varchar("locale", { length: 10 }).notNull().references(() => supportedLanguages.code), // 번역 대상 언어
   title: text("title").notNull(),
   description: text("description"),
   situation: text("situation"), // context.situation
@@ -562,7 +563,8 @@ export const scenarioTranslations = pgTable("scenario_translations", {
 export const personaTranslations = pgTable("persona_translations", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   personaId: text("persona_id").notNull(), // JSON 페르소나 ID 참조
-  locale: varchar("locale", { length: 10 }).notNull().references(() => supportedLanguages.code),
+  sourceLocale: varchar("source_locale", { length: 10 }).notNull().default('ko').references(() => supportedLanguages.code), // 원문 언어
+  locale: varchar("locale", { length: 10 }).notNull().references(() => supportedLanguages.code), // 번역 대상 언어
   name: varchar("name").notNull(), // 이름
   position: varchar("position"), // 직책
   department: varchar("department"), // 부서
@@ -582,7 +584,8 @@ export const personaTranslations = pgTable("persona_translations", {
 export const categoryTranslations = pgTable("category_translations", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   categoryId: varchar("category_id").notNull().references(() => categories.id, { onDelete: 'cascade' }),
-  locale: varchar("locale", { length: 10 }).notNull().references(() => supportedLanguages.code),
+  sourceLocale: varchar("source_locale", { length: 10 }).notNull().default('ko').references(() => supportedLanguages.code), // 원문 언어
+  locale: varchar("locale", { length: 10 }).notNull().references(() => supportedLanguages.code), // 번역 대상 언어
   name: varchar("name").notNull(),
   description: text("description"),
   isMachineTranslated: boolean("is_machine_translated").notNull().default(false),
