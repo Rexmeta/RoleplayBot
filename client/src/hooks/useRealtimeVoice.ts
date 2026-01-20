@@ -436,48 +436,14 @@ export function useRealtimeVoice({
               console.log('✅ Audio playback complete');
               break;
 
-            // 📝 AI 응답 스트리밍 (오디오 동기화 적용)
+            // 📝 AI 응답 스트리밍 (텍스트 즉시 표시 - Gemini에서 텍스트가 늦게 도착하므로 지연 없이 바로 표시)
             case 'ai.transcription.delta':
               if (data.text) {
                 aiMessageBufferRef.current += data.text;
                 
-                // 오디오-텍스트 동기화 로직
+                // 텍스트 도착 즉시 표시 (Gemini API가 텍스트를 오디오보다 늦게 보내므로 추가 지연 없음)
                 if (onMessageRef.current) {
-                  const now = Date.now();
-                  
-                  // 오디오가 시작되었으면 동기화 체크
-                  if (audioResponseStartTimeRef.current !== null) {
-                    const audioElapsedMs = now - audioResponseStartTimeRef.current;
-                    const textElapsedMs = now - (lastTextDisplayTimeRef.current || audioResponseStartTimeRef.current);
-                    
-                    // 텍스트 간 최소 간격 (너무 빠른 표시 방지) - 50ms
-                    // 오디오가 2초 이상 앞서있으면 텍스트 즉시 표시 (지연 없음)
-                    const audioDurationMs = totalScheduledAudioDurationRef.current * 1000;
-                    const textLagMs = audioDurationMs - textElapsedMs;
-                    
-                    if (textLagMs > 2000) {
-                      // 텍스트가 오디오보다 2초 이상 뒤처짐 - 즉시 표시
-                      console.log(`📝 Text lagging by ${(textLagMs/1000).toFixed(1)}s - immediate display`);
-                      onMessageRef.current(data.text);
-                      lastTextDisplayTimeRef.current = now;
-                    } else if (textElapsedMs < 50) {
-                      // 너무 빠른 연속 표시 방지 - 약간 딜레이
-                      setTimeout(() => {
-                        if (onMessageRef.current) {
-                          onMessageRef.current(data.text);
-                          lastTextDisplayTimeRef.current = Date.now();
-                        }
-                      }, 50 - textElapsedMs);
-                    } else {
-                      // 정상 상태 - 즉시 표시
-                      onMessageRef.current(data.text);
-                      lastTextDisplayTimeRef.current = now;
-                    }
-                  } else {
-                    // 오디오 시작 전이면 바로 표시
-                    onMessageRef.current(data.text);
-                    lastTextDisplayTimeRef.current = now;
-                  }
+                  onMessageRef.current(data.text);
                 }
               }
               break;
@@ -763,8 +729,8 @@ export function useRealtimeVoice({
       const source = audioContext.createBufferSource();
       source.buffer = audioBuffer;
       
-      // 발화 속도를 10% 느리게 설정 (0.9배 속도 - 더 자연스럽고 이해하기 쉬움)
-      source.playbackRate.value = 0.9;
+      // 발화 속도를 정상으로 설정 (1.0배 속도 - 텍스트와 음성 동기화 개선)
+      source.playbackRate.value = 1.0;
       
       // Source -> Analyser (Analyser는 이미 destination에 연결됨)
       source.connect(analyserNodeRef.current!);
@@ -781,8 +747,8 @@ export function useRealtimeVoice({
         }
       };
       
-      // Update next play time (current chunk start time + duration / playbackRate)
-      const chunkDuration = audioBuffer.duration / 0.9; // 0.9x 속도 고려
+      // Update next play time (current chunk start time + duration)
+      const chunkDuration = audioBuffer.duration; // 1.0x 속도
       nextPlayTimeRef.current = startTime + chunkDuration;
       
       // 오디오-텍스트 동기화: 오디오 시작 시간 및 누적 길이 추적
