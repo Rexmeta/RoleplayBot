@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { CheckCircle2, Users, MessageCircle, Target, Clock, Lightbulb, AlertCircle, TrendingUp, ArrowLeft, Loader2, Play, BookOpen, Award, Briefcase, FileText } from "lucide-react";
 import { type ScenarioPersona, type ComplexScenario } from "@/lib/scenario-system";
+import { useTranslation } from "react-i18next";
 
 interface SimplePersonaSelectorProps {
   personas: ScenarioPersona[];
@@ -33,6 +34,7 @@ export function SimplePersonaSelector({
   selectedDifficulty,
   onDifficultyChange
 }: SimplePersonaSelectorProps) {
+  const { t } = useTranslation();
   const [activeTab, setActiveTab] = useState("overview");
   const availablePersonas = personas.filter(p => !completedPersonaIds.includes(p.id));
   const completedCount = completedPersonaIds.length;
