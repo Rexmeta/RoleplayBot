@@ -106,6 +106,8 @@ export function EvaluationCriteriaManager() {
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [isDimensionDialogOpen, setIsDimensionDialogOpen] = useState(false);
+  const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
+  const [setToDelete, setSetToDelete] = useState<EvaluationCriteriaSet | null>(null);
   const [selectedSet, setSelectedSet] = useState<EvaluationCriteriaSet | null>(null);
   const [selectedDimension, setSelectedDimension] = useState<EvaluationDimension | null>(null);
   
@@ -474,7 +476,7 @@ export function EvaluationCriteriaManager() {
                   setId={set.id}
                   fetchSetWithDimensions={fetchSetWithDimensions}
                   onEdit={() => handleEditSet(set)}
-                  onDelete={() => deleteMutation.mutate(set.id)}
+                  onDelete={() => { setSetToDelete(set); setIsDeleteConfirmOpen(true); }}
                   onSetDefault={() => setDefaultMutation.mutate(set.id)}
                   onAddDimension={() => handleAddDimension(set)}
                   onEditDimension={(dim) => handleEditDimension(set, dim)}
@@ -815,6 +817,50 @@ export function EvaluationCriteriaManager() {
               disabled={!dimensionFormData.key || !dimensionFormData.name || createDimensionMutation.isPending || updateDimensionMutation.isPending}
             >
               {(createDimensionMutation.isPending || updateDimensionMutation.isPending) ? "저장 중..." : "저장"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* 삭제 확인 다이얼로그 */}
+      <Dialog open={isDeleteConfirmOpen} onOpenChange={setIsDeleteConfirmOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-red-600">
+              <AlertCircle className="h-5 w-5" />
+              평가 기준 세트 삭제
+            </DialogTitle>
+            <DialogDescription>
+              이 작업은 되돌릴 수 없습니다. 정말로 삭제하시겠습니까?
+            </DialogDescription>
+          </DialogHeader>
+          {setToDelete && (
+            <div className="bg-red-50 border border-red-200 rounded-lg p-4 my-4">
+              <p className="font-medium text-slate-800">{setToDelete.name}</p>
+              {setToDelete.description && (
+                <p className="text-sm text-slate-600 mt-1">{setToDelete.description}</p>
+              )}
+              {setToDelete.isDefault && (
+                <Badge className="mt-2 bg-amber-100 text-amber-700">기본 평가 기준</Badge>
+              )}
+            </div>
+          )}
+          <DialogFooter className="gap-2">
+            <Button variant="outline" onClick={() => { setIsDeleteConfirmOpen(false); setSetToDelete(null); }}>
+              취소
+            </Button>
+            <Button 
+              variant="destructive" 
+              onClick={() => {
+                if (setToDelete) {
+                  deleteMutation.mutate(setToDelete.id);
+                  setIsDeleteConfirmOpen(false);
+                  setSetToDelete(null);
+                }
+              }}
+              disabled={deleteMutation.isPending}
+            >
+              {deleteMutation.isPending ? "삭제 중..." : "삭제"}
             </Button>
           </DialogFooter>
         </DialogContent>
