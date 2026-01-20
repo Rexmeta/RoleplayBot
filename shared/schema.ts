@@ -562,25 +562,27 @@ export const scenarioTranslations = pgTable("scenario_translations", {
 ]);
 
 // 시나리오별 페르소나 컨텍스트 번역 타입 (시나리오 번역에 포함됨)
+// 직책, 부서, 역할은 마스터 페르소나가 아닌 시나리오에서 정의되므로 여기에 포함
 export type PersonaContextTranslation = {
   personaId: string;        // 페르소나 ID
+  position?: string;        // 직책 (시나리오에서 정의)
+  department?: string;      // 부서 (시나리오에서 정의)
+  role?: string;            // 역할 설명 (시나리오에서 정의)
   stance?: string;          // 입장/태도
   goal?: string;            // 목표
   tradeoff?: string;        // 협상 가능 범위
 };
 
 // 페르소나 번역 테이블 (마스터 페르소나 기본 정보만 - 시나리오 컨텍스트 제외)
+// 주의: position, department, role은 시나리오에서 정의되므로 scenarioTranslations.personaContexts에서 관리
 export const personaTranslations = pgTable("persona_translations", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   personaId: text("persona_id").notNull(), // JSON 페르소나 ID 참조
   sourceLocale: varchar("source_locale", { length: 10 }).notNull().default('ko').references(() => supportedLanguages.code), // 원문 언어
   locale: varchar("locale", { length: 10 }).notNull().references(() => supportedLanguages.code), // 번역 대상 언어
-  // 기본 정보
-  name: varchar("name").notNull(), // 이름
-  position: varchar("position"), // 직책
-  department: varchar("department"), // 부서
-  role: text("role"), // 역할 설명 (예: "개발팀 선임")
-  // 성격 정보 (시나리오 컨텍스트 필드 stance/goal/tradeoff는 scenarioTranslations.personaContexts로 이동)
+  // 기본 정보 (마스터 페르소나 아이덴티티만 - MBTI 유형명)
+  name: varchar("name").notNull(), // MBTI 유형 이름 (예: "분석가형", "The Analyst")
+  // 성격 정보 (시나리오 컨텍스트 필드 stance/goal/tradeoff/position/department/role은 scenarioTranslations.personaContexts로 이동)
   personalityTraits: text("personality_traits").array(), // 성격 특성 배열
   communicationStyle: text("communication_style"), // 커뮤니케이션 스타일
   motivation: text("motivation"), // 동기
