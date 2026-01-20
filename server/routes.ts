@@ -4470,8 +4470,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
             weight: dim.weight || 1,
             minScore: dim.minScore || 0,
             maxScore: dim.maxScore || 100,
-            icon: dim.icon || null,
-            color: dim.color || null,
+            icon: dim.icon || '📊', // 기본 아이콘
+            color: dim.color || 'blue', // 기본 색상
             displayOrder: dim.displayOrder ?? i,
             scoringRubric: dim.scoringRubric || null,
             isActive: dim.isActive !== false,
