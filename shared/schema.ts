@@ -549,6 +549,8 @@ export const scenarioTranslations = pgTable("scenario_translations", {
   successCriteriaGood: text("success_criteria_good"), // 성공기준: 양호
   successCriteriaAcceptable: text("success_criteria_acceptable"), // 성공기준: 수용가능
   successCriteriaFailure: text("success_criteria_failure"), // 성공기준: 실패
+  // 시나리오별 페르소나 컨텍스트 번역 (stance, goal, tradeoff 등)
+  personaContexts: jsonb("persona_contexts").$type<PersonaContextTranslation[]>(),
   isMachineTranslated: boolean("is_machine_translated").notNull().default(false), // AI 번역 여부
   isReviewed: boolean("is_reviewed").notNull().default(false), // 검수 완료 여부
   reviewedBy: varchar("reviewed_by").references(() => users.id), // 검수자
@@ -559,7 +561,15 @@ export const scenarioTranslations = pgTable("scenario_translations", {
   index("idx_scenario_translations_locale").on(table.locale),
 ]);
 
-// 페르소나 번역 테이블
+// 시나리오별 페르소나 컨텍스트 번역 타입 (시나리오 번역에 포함됨)
+export type PersonaContextTranslation = {
+  personaId: string;        // 페르소나 ID
+  stance?: string;          // 입장/태도
+  goal?: string;            // 목표
+  tradeoff?: string;        // 협상 가능 범위
+};
+
+// 페르소나 번역 테이블 (마스터 페르소나 기본 정보만 - 시나리오 컨텍스트 제외)
 export const personaTranslations = pgTable("persona_translations", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   personaId: text("persona_id").notNull(), // JSON 페르소나 ID 참조
@@ -570,11 +580,7 @@ export const personaTranslations = pgTable("persona_translations", {
   position: varchar("position"), // 직책
   department: varchar("department"), // 부서
   role: text("role"), // 역할 설명 (예: "개발팀 선임")
-  // 시나리오 컨텍스트 필드
-  stance: text("stance"), // 입장/태도
-  goal: text("goal"), // 목표
-  tradeoff: text("tradeoff"), // 협상 가능 범위
-  // 성격 정보
+  // 성격 정보 (시나리오 컨텍스트 필드 stance/goal/tradeoff는 scenarioTranslations.personaContexts로 이동)
   personalityTraits: text("personality_traits").array(), // 성격 특성 배열
   communicationStyle: text("communication_style"), // 커뮤니케이션 스타일
   motivation: text("motivation"), // 동기
