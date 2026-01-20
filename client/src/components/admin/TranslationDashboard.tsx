@@ -5,11 +5,12 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
 import { apiRequest, queryClient } from '@/lib/queryClient';
 import { 
   Loader2, Languages, FileText, Users, FolderTree, 
-  CheckCircle, AlertCircle, Bot, RefreshCw, BarChart 
+  CheckCircle, AlertCircle, Bot, RefreshCw, BarChart, ArrowRight
 } from 'lucide-react';
 import { SupportedLanguage } from '@shared/schema';
 
@@ -31,6 +32,7 @@ interface TranslationStatus {
 export function TranslationDashboard() {
   const { toast } = useToast();
   const [isGeneratingAll, setIsGeneratingAll] = useState<string | null>(null);
+  const [sourceLocale, setSourceLocale] = useState<string>('ko');
 
   const { data: languages = [], isLoading: languagesLoading } = useQuery<SupportedLanguage[]>({
     queryKey: ['/api/languages'],
@@ -46,6 +48,7 @@ export function TranslationDashboard() {
       const res = await apiRequest('POST', '/api/admin/generate-all-translations', {
         targetLocale: locale,
         contentType,
+        sourceLocale,
       });
       const data = await res.json();
       
@@ -80,9 +83,10 @@ export function TranslationDashboard() {
     );
   }
 
-  const nonDefaultLanguages = languages.filter(l => !l.isDefault);
+  const targetLanguages = languages.filter(l => l.code !== sourceLocale);
+  const sourceLanguageOptions = languages.filter(l => l.isActive);
 
-  if (nonDefaultLanguages.length === 0) {
+  if (targetLanguages.length === 0) {
     return (
       <Card>
         <CardContent className="py-12 text-center text-muted-foreground">
@@ -115,7 +119,7 @@ export function TranslationDashboard() {
         <CardDescription>총 {total}개 항목</CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
-        {nonDefaultLanguages.map((lang) => {
+        {targetLanguages.map((lang) => {
           const langStatus = translated[lang.code] || { count: 0, reviewed: 0, machine: 0 };
           const percent = getProgressPercent(langStatus.count, total);
           const reviewedPercent = getProgressPercent(langStatus.reviewed, langStatus.count);
@@ -187,10 +191,29 @@ export function TranslationDashboard() {
             콘텐츠 번역 상태를 확인하고 일괄 번역을 실행할 수 있습니다.
           </p>
         </div>
-        <Button variant="outline" onClick={() => refetch()}>
-          <RefreshCw className="h-4 w-4 mr-2" />
-          새로고침
-        </Button>
+        <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2">
+            <span className="text-sm text-muted-foreground">원문 언어:</span>
+            <Select value={sourceLocale} onValueChange={setSourceLocale}>
+              <SelectTrigger className="w-[140px]">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {sourceLanguageOptions.map((lang) => (
+                  <SelectItem key={lang.code} value={lang.code}>
+                    {lang.nativeName}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <ArrowRight className="h-4 w-4 text-muted-foreground" />
+            <span className="text-sm text-muted-foreground">번역 대상</span>
+          </div>
+          <Button variant="outline" onClick={() => refetch()}>
+            <RefreshCw className="h-4 w-4 mr-2" />
+            새로고침
+          </Button>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -224,6 +247,12 @@ export function TranslationDashboard() {
           <CardTitle>번역 가이드</CardTitle>
         </CardHeader>
         <CardContent className="space-y-3 text-sm text-muted-foreground">
+          <div className="flex items-start gap-2">
+            <Languages className="h-4 w-4 mt-0.5 text-blue-600" />
+            <div>
+              <span className="font-medium text-foreground">양방향 번역</span>: 원문 언어를 선택하면 해당 언어에서 다른 모든 언어로 번역할 수 있습니다. 영어/일본어/중국어를 원문으로 선택하면 한국어 번역도 가능합니다.
+            </div>
+          </div>
           <div className="flex items-start gap-2">
             <Bot className="h-4 w-4 mt-0.5 text-amber-600" />
             <div>
