@@ -1450,10 +1450,9 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
                       <div className="text-center space-y-4 py-4">
                         {realtimeVoice.conversationPhase === 'interrupted' ? (
                           <>
-                            <p className="text-sm text-orange-600">연결이 끊겼습니다. 이어서 대화할 수 있습니다.</p>
+                            <p className="text-sm text-orange-600">{t('chat.connectionLost')}</p>
                             <Button
                               onClick={() => {
-                                // 이전 대화 기록을 전달하여 컨텍스트 유지 (user/ai만 필터링)
                                 const previousMessages = localMessages
                                   .filter(m => m.sender === 'user' || m.sender === 'ai')
                                   .map(m => ({
@@ -1466,19 +1465,19 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
                               data-testid="button-resume-voice-messenger"
                             >
                               <i className="fas fa-redo mr-2"></i>
-                              이어서 하기
+                              {t('chat.resume')}
                             </Button>
                           </>
                         ) : (
                           <>
-                            <p className="text-sm text-slate-600">실시간 음성 대화를 시작하세요</p>
+                            <p className="text-sm text-slate-600">{t('chat.startRealtimeVoice')}</p>
                             <Button
                               onClick={() => realtimeVoice.connect()}
                               className="bg-purple-600 hover:bg-purple-700 text-white px-8 py-3 rounded-full shadow-lg"
                               data-testid="button-start-voice-messenger"
                             >
                               <i className="fas fa-phone mr-2"></i>
-                              대화 시작하기
+                              {t('chat.startConversation')}
                             </Button>
                           </>
                         )}
@@ -1491,7 +1490,7 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
                         <div className="w-3 h-3 bg-purple-400 rounded-full animate-bounce"></div>
                         <div className="w-3 h-3 bg-purple-400 rounded-full animate-bounce" style={{ animationDelay: "0.1s" }}></div>
                         <div className="w-3 h-3 bg-purple-400 rounded-full animate-bounce" style={{ animationDelay: "0.2s" }}></div>
-                        <span className="ml-2 text-slate-600">음성 연결 중...</span>
+                        <span className="ml-2 text-slate-600">{t('chat.connectingVoice')}</span>
                       </div>
                     )}
                     
@@ -1504,8 +1503,8 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
                           <div className="w-2 h-2 bg-purple-500 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
                           <span className="ml-2 text-slate-600 text-sm">
                             {realtimeVoice.greetingRetryCount > 0 
-                              ? `${persona.department} ${persona.role} ${persona.name}님이 인사를 준비하고 있습니다... (재시도 ${realtimeVoice.greetingRetryCount}/3)`
-                              : `${persona.department} ${persona.role} ${persona.name}님이 인사를 준비하고 있습니다...`}
+                              ? `${persona.department} ${persona.role} ${persona.name}${t('chat.preparingGreetingRetry', { count: realtimeVoice.greetingRetryCount })}`
+                              : `${persona.department} ${persona.role} ${persona.name}${t('chat.preparingGreeting')}`}
                           </span>
                         </div>
                         <Button
@@ -1520,7 +1519,7 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
                           data-testid="button-start-greeting-messenger"
                         >
                           <i className="fas fa-microphone mr-1.5"></i>
-                          대화 시작하기
+                          {t('chat.startConversation')}
                         </Button>
                       </div>
                     )}
@@ -1529,7 +1528,7 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
                     {realtimeVoice.status === 'connected' && realtimeVoice.greetingFailed && (
                       <div className="flex items-center justify-center py-4">
                         <span className="text-orange-600 text-sm font-medium">
-                          {user?.name || '회원'}님, {persona.name}님에게 먼저 인사를 건네보세요!
+                          {user?.name || t('chat.member')}{t('chat.sayHelloFirst', { name: persona.name })}
                         </span>
                       </div>
                     )}
@@ -1547,7 +1546,7 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
                           className="text-red-600 border-red-200 hover:bg-red-50 shrink-0"
                         >
                           <i className="fas fa-stop-circle mr-1"></i>
-                          종료
+                          {t('chat.end')}
                         </Button>
                         
                         {/* 중앙 마이크 버튼 - 크고 강조 */}
@@ -1688,13 +1687,13 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
                       <div className="flex items-center justify-between mt-2 px-1">
                         <div className="flex items-center gap-2 text-xs text-slate-500">
                           <i className="fas fa-lightbulb text-amber-400"></i>
-                          <span>팁: 구체적이고 예의 바른 답변을 해보세요</span>
+                          <span>{t('chat.tipPoliteAnswer')}</span>
                         </div>
                         <div className="flex items-center gap-2 text-xs">
                           {isRecording && (
                             <span className="text-red-600 animate-pulse flex items-center gap-1">
                               <span className="w-2 h-2 bg-red-500 rounded-full animate-pulse"></span>
-                              음성 인식 중...
+                              {t('voice.inputInProgress')}
                             </span>
                           )}
                         </div>
@@ -1708,7 +1707,7 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
                         data-testid="button-send-message"
                       >
                         <i className="fas fa-paper-plane mr-2"></i>
-                        전송
+                        {t('chat.send')}
                       </Button>
                       <Button
                         variant="outline"
@@ -1720,10 +1719,10 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
                             : 'hover:bg-slate-50 hover:border-slate-300 hover:shadow-sm'
                         } ${!speechSupported ? 'opacity-50 cursor-not-allowed' : ''}`}
                         data-testid="button-voice-input"
-                        title={!speechSupported ? "현재 브라우저에서 음성 입력을 지원하지 않습니다" : isRecording ? "음성 입력을 중지하려면 클릭하세요" : "음성 입력을 시작하려면 클릭하세요"}
+                        title={!speechSupported ? t('chat.voiceNotSupported') : isRecording ? t('chat.stopRecording') : t('chat.startRecording')}
                       >
                         <i className={`fas ${isRecording ? 'fa-stop' : 'fa-microphone'} mr-2 ${isRecording ? 'text-red-500' : 'text-corporate-600'}`}></i>
-                        {isRecording ? '완료' : '음성'}
+                        {isRecording ? t('chat.done') : t('chat.voice')}
                       </Button>
                       <Button
                         variant="ghost"
@@ -1733,7 +1732,7 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
                         data-testid="button-skip-turn"
                       >
                         <i className="fas fa-forward mr-2"></i>
-                        건너뛰기
+                        {t('chat.skip')}
                       </Button>
                     </div>
                   </div>
@@ -1749,7 +1748,7 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
                         <div className="w-8 h-8 bg-blue-100 rounded-xl flex items-center justify-center mr-2 group-hover:scale-110 transition-transform duration-300">
                           <i className="fas fa-stopwatch text-blue-600 text-sm"></i>
                         </div>
-                        경과 시간
+                        {t('chat.elapsedTime')}
                       </h4>
                     </div>
                     <p className="text-3xl font-bold bg-gradient-to-r from-blue-600 to-blue-500 bg-clip-text text-transparent" data-testid="sidebar-elapsed-time">
@@ -1761,9 +1760,9 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
                         elapsedTime < 600 ? 'bg-blue-400' : 
                         elapsedTime < 900 ? 'bg-amber-400' : 'bg-red-400'
                       }`}></span>
-                      {elapsedTime < 300 ? '효율적으로 진행 중' : 
-                       elapsedTime < 600 ? '적절한 속도' : 
-                       elapsedTime < 900 ? '시간 관리 주의' : '신속한 마무리 권장'}
+                      {elapsedTime < 300 ? t('chat.efficientProgress') : 
+                       elapsedTime < 600 ? t('chat.appropriateSpeed') : 
+                       elapsedTime < 900 ? t('chat.timeManagementNeeded') : t('chat.quickFinishRecommended')}
                     </p>
                   </div>
                   <div className="bg-white rounded-2xl p-5 border border-slate-100 shadow-sm hover:shadow-md transition-all duration-300 group">
@@ -1772,11 +1771,11 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
                         <div className="w-8 h-8 bg-amber-100 rounded-xl flex items-center justify-center mr-2 group-hover:scale-110 transition-transform duration-300">
                           <i className="fas fa-sync-alt text-amber-600 text-sm"></i>
                         </div>
-                        남은 턴
+                        {t('chat.remainingTurns')}
                       </h4>
                     </div>
                     <p className="text-3xl font-bold bg-gradient-to-r from-amber-600 to-amber-500 bg-clip-text text-transparent">{maxTurns - conversation.turnCount}</p>
-                    <p className="text-xs text-slate-500 mt-2">턴이 끝나면 자동으로 평가됩니다</p>
+                    <p className="text-xs text-slate-500 mt-2">{t('chat.autoEvaluateOnEnd')}</p>
                   </div>
                   <div className="bg-white rounded-2xl p-5 border border-slate-100 shadow-sm hover:shadow-md transition-all duration-300 group">
                     <div className="flex items-center justify-between mb-3">
@@ -1784,16 +1783,16 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
                         <div className="w-8 h-8 bg-green-100 rounded-xl flex items-center justify-center mr-2 group-hover:scale-110 transition-transform duration-300">
                           <i className="fas fa-chart-line text-green-600 text-sm"></i>
                         </div>
-                        현재 점수
+                        {t('chat.currentScore')}
                       </h4>
                       <span className={`text-xs font-medium px-2 py-1 rounded-full ${
                         currentScore >= 80 ? 'bg-green-100 text-green-700' :
                         currentScore >= 60 ? 'bg-blue-100 text-blue-700' :
                         currentScore >= 40 ? 'bg-yellow-100 text-yellow-700' : 'bg-red-100 text-red-700'
                       }`}>
-                        {currentScore >= 80 ? '우수' :
-                         currentScore >= 60 ? '보통' :
-                         currentScore >= 40 ? '개선 필요' : '미흡'}
+                        {currentScore >= 80 ? t('chat.scoreExcellent') :
+                         currentScore >= 60 ? t('chat.scoreAverage') :
+                         currentScore >= 40 ? t('chat.scoreNeedsImprovement') : t('chat.scorePoor')}
                       </span>
                     </div>
                     <div className="space-y-2">
@@ -1816,7 +1815,7 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
                     <div className="w-8 h-8 bg-corporate-100 rounded-xl flex items-center justify-center mr-2">
                       <i className="fas fa-user-tie text-corporate-600 text-sm"></i>
                     </div>
-                    당신의 역할과 목표
+                    {t('chat.yourRoleAndGoals')}
                   </h4>
                   <div className="text-sm grid md:grid-cols-2 gap-4">
                     {scenario.context?.playerRole?.responsibility && (
@@ -1824,7 +1823,7 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
                         <div className="text-xs font-semibold text-corporate-600 mb-2 flex items-center justify-between">
                           <span className="flex items-center gap-1.5">
                             <i className="fas fa-id-badge"></i>
-                            당신의 역할
+                            {t('chat.yourRole')}
                           </span>
                           <span className="text-slate-500 font-normal bg-white px-2 py-0.5 rounded-full">
                             {scenario.context.playerRole.position}
@@ -1840,7 +1839,7 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
                       <div className="bg-gradient-to-br from-blue-50 to-blue-100/30 rounded-xl p-4">
                         <div className="text-xs font-semibold text-blue-600 mb-2 flex items-center gap-1.5">
                           <i className="fas fa-bullseye"></i>
-                          달성 목표
+                          {t('chat.achievementGoals')}
                         </div>
                         <div className="space-y-2">
                           {scenario.objectives.slice(0, 2).map((objective: string, index: number) => (
@@ -1851,7 +1850,7 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
                           ))}
                           {scenario.objectives.length > 2 && (
                             <div className="text-xs text-slate-500 pl-7">
-                              +{scenario.objectives.length - 2}개 목표 더...
+                              {t('chat.moreGoals', { count: scenario.objectives.length - 2 })}
                             </div>
                           )}
                         </div>
@@ -1891,14 +1890,14 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
                   <div className="bg-white rounded-xl shadow-sm border border-slate-100 p-4 flex-1">
                     <h4 className="font-semibold text-slate-800 mb-4 flex items-center">
                       <i className="fas fa-user-tie text-corporate-600 mr-2"></i>
-                      당신의 역할과 목표
+                      {t('chat.yourRoleAndGoals')}
                     </h4>
                     <div className="text-sm leading-relaxed space-y-4">
                       {/* 역할 섹션 */}
                       {scenario.context?.playerRole?.responsibility && (
                         <div>
                           <div className="font-semibold text-corporate-600 mb-2 flex items-center justify-between text-xs">
-                            <span>👤 당신의 역할</span>
+                            <span>👤 {t('chat.yourRole')}</span>
                             <span className="text-slate-500 font-normal">
                               {scenario.context.playerRole.position}
                               {scenario.context.playerRole.experience && ` (${scenario.context.playerRole.experience})`}
@@ -1913,7 +1912,7 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
                       {/* 목표 섹션 */}
                       {scenario.objectives && scenario.objectives.length > 0 && (
                         <div>
-                          <div className="font-semibold text-blue-600 mb-2 text-xs">🎯 달성 목표</div>
+                          <div className="font-semibold text-blue-600 mb-2 text-xs">🎯 {t('chat.achievementGoals')}</div>
                           <div className="space-y-2">
                             {scenario.objectives.map((objective: string, index: number) => (
                               <div key={index} className="flex items-start space-x-2 bg-blue-50/50 rounded-lg px-3 py-2">
