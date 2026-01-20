@@ -141,6 +141,8 @@
     "messageInputExpanded": "메시지 입력... (Enter로 전송)",
     "messageInputCollapsed": "텍스트로 대화",
     "recording": "녹음 중... 말씀이 끝나면 자동으로 전송됩니다",
+    "aiSpeaking": "AI가 말하는 중...",
+    "recognizing": "음성 인식 중...",
     "aiResponding": "AI가 응답하고 있습니다...",
     "generatingConversation": "대화 생성 중...",
     "startChat": "대화하기",

@@ -141,6 +141,8 @@
     "messageInputExpanded": "メッセージを入力... (Enterで送信)",
     "messageInputCollapsed": "テキストで会話",
     "recording": "録音中... 話し終わると自動的に送信されます",
+    "aiSpeaking": "AIが話しています...",
+    "recognizing": "音声認識中...",
     "aiResponding": "AIが応答しています...",
     "generatingConversation": "会話を生成中...",
     "startChat": "会話する",

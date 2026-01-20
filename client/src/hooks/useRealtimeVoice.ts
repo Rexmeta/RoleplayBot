@@ -26,6 +26,8 @@ interface UseRealtimeVoiceProps {
   onMessage?: (message: string) => void;
   onMessageComplete?: (message: string, emotion?: string, emotionReason?: string) => void;
   onUserTranscription?: (transcript: string) => void;
+  onAiSpeakingStart?: () => void;
+  onUserSpeakingStart?: () => void;
   onError?: (error: string) => void;
   onSessionTerminated?: (reason: string) => void;
 }
@@ -57,6 +59,8 @@ export function useRealtimeVoice({
   onMessage,
   onMessageComplete,
   onUserTranscription,
+  onAiSpeakingStart,
+  onUserSpeakingStart,
   onError,
   onSessionTerminated,
 }: UseRealtimeVoiceProps): UseRealtimeVoiceReturn {
@@ -110,16 +114,23 @@ export function useRealtimeVoice({
   const onMessageRef = useRef(onMessage);
   const onMessageCompleteRef = useRef(onMessageComplete);
   const onUserTranscriptionRef = useRef(onUserTranscription);
+  const onAiSpeakingStartRef = useRef(onAiSpeakingStart);
+  const onUserSpeakingStartRef = useRef(onUserSpeakingStart);
   const onErrorRef = useRef(onError);
   const onSessionTerminatedRef = useRef(onSessionTerminated);
+  
+  // Track if AI speaking callback has been fired for current turn (reset on turn complete)
+  const aiSpeakingCallbackFiredRef = useRef(false);
   
   useEffect(() => {
     onMessageRef.current = onMessage;
     onMessageCompleteRef.current = onMessageComplete;
     onUserTranscriptionRef.current = onUserTranscription;
+    onAiSpeakingStartRef.current = onAiSpeakingStart;
+    onUserSpeakingStartRef.current = onUserSpeakingStart;
     onErrorRef.current = onError;
     onSessionTerminatedRef.current = onSessionTerminated;
-  }, [onMessage, onMessageComplete, onUserTranscription, onError, onSessionTerminated]);
+  }, [onMessage, onMessageComplete, onUserTranscription, onAiSpeakingStart, onUserSpeakingStart, onError, onSessionTerminated]);
 
   const getWebSocketUrl = useCallback((token: string) => {
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
@@ -387,6 +398,10 @@ export function useRealtimeVoice({
               console.log('🎙️ Server detected user speaking');
               if (serverVoiceDetectedTimeRef.current === null) {
                 serverVoiceDetectedTimeRef.current = Date.now();
+                // 사용자 음성 감지 시 placeholder 표시 콜백 호출
+                if (onUserSpeakingStartRef.current) {
+                  onUserSpeakingStartRef.current();
+                }
               }
               // Check for barge-in after 1.5 seconds
               if (isAISpeakingRef.current && !bargeInTriggeredRef.current) {
@@ -426,6 +441,15 @@ export function useRealtimeVoice({
                   console.log(`🔇 Ignoring old audio (turnSeq ${data.turnSeq} < expected ${expectedTurnSeqRef.current})`);
                   break;
                 }
+                
+                // 첫 오디오 청크 도착 시 AI 말하기 시작 콜백 호출 (턴당 1회)
+                if (!aiSpeakingCallbackFiredRef.current) {
+                  aiSpeakingCallbackFiredRef.current = true;
+                  if (onAiSpeakingStartRef.current) {
+                    onAiSpeakingStartRef.current();
+                  }
+                }
+                
                 setIsAISpeaking(true);
                 isAISpeakingRef.current = true;
                 playAudioDelta(data.delta);
@@ -473,6 +497,8 @@ export function useRealtimeVoice({
               audioResponseStartTimeRef.current = null;
               totalScheduledAudioDurationRef.current = 0;
               lastTextDisplayTimeRef.current = 0;
+              // AI 말하기 시작 콜백 플래그 리셋 (다음 턴을 위해)
+              aiSpeakingCallbackFiredRef.current = false;
               // Do NOT reset interrupted flag here - wait for response.started from a genuine new turn
               break;
 

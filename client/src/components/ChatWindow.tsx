@@ -115,6 +115,8 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
   const [isOverlayFading, setIsOverlayFading] = useState(false);
   const [showMicPrompt, setShowMicPrompt] = useState(false); // AI 첫 응답 후 마이크 안내 애니메이션
   const [isInputExpanded, setIsInputExpanded] = useState(false); // 텍스트 입력창 확대 상태
+  const [pendingAiMessage, setPendingAiMessage] = useState(false); // AI가 말하는 중 placeholder 표시
+  const [pendingUserMessage, setPendingUserMessage] = useState(false); // 사용자 음성 인식 중 placeholder 표시
   const hasUserSpokenRef = useRef(false); // 사용자가 마이크를 사용했는지 추적
   const initialLoadCompletedRef = useRef(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -139,6 +141,9 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
       console.log('✅ AI message complete:', message);
       console.log('😊 Emotion received:', emotion, '|', emotionReason);
       
+      // AI placeholder 숨기기 (텍스트 도착)
+      setPendingAiMessage(false);
+      
       // 감정 상태 업데이트 (캐릭터 이미지 변경)
       if (emotion) {
         setIsEmotionTransitioning(true);
@@ -162,12 +167,26 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
     },
     onUserTranscription: (transcript) => {
       console.log('🎤 User transcript:', transcript);
+      // User placeholder 숨기기 (전사 완료)
+      setPendingUserMessage(false);
       // 사용자 음성 전사를 대화창에 추가
       setLocalMessages(prev => [...prev, {
         sender: 'user',
         message: transcript,
         timestamp: new Date().toISOString(),
       }]);
+    },
+    onAiSpeakingStart: () => {
+      console.log('🔊 AI speaking started - showing placeholder');
+      // AI가 말하기 시작하면 placeholder 표시
+      setPendingAiMessage(true);
+    },
+    onUserSpeakingStart: () => {
+      console.log('🎤 User speaking started - showing placeholder');
+      // 사용자가 말하기 시작하면 placeholder 표시
+      setPendingUserMessage(true);
+      hasUserSpokenRef.current = true;
+      setShowMicPrompt(false);
     },
     onError: (error) => {
       toast({
@@ -181,6 +200,9 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
         title: t('voice.sessionEnded'),
         description: reason,
       });
+      // placeholder 상태 리셋
+      setPendingAiMessage(false);
+      setPendingUserMessage(false);
       setInputMode('text');
     },
   });
@@ -1022,7 +1044,7 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
     }
   }, [conversation?.messages]);
 
-  // 자동 스크롤 기능
+  // 자동 스크롤 기능 (메시지 및 placeholder 상태 변경 시)
   useEffect(() => {
     if (messagesEndRef.current) {
       messagesEndRef.current.scrollIntoView({ 
@@ -1030,7 +1052,7 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
         block: 'end' 
       });
     }
-  }, [localMessages]);
+  }, [localMessages, pendingAiMessage, pendingUserMessage]);
 
 
   useEffect(() => {
@@ -1406,6 +1428,40 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
                       <div className="w-2.5 h-2.5 bg-slate-300 rounded-full animate-bounce" style={{ animationDelay: "0.15s" }}></div>
                       <div className="w-2.5 h-2.5 bg-slate-300 rounded-full animate-bounce" style={{ animationDelay: "0.3s" }}></div>
                     </div>
+                  </div>
+                </div>
+              )}
+
+              {/* AI 말하는 중 placeholder (하이브리드 방식) */}
+              {pendingAiMessage && (
+                <div className="flex items-end space-x-3 animate-in fade-in duration-300">
+                  <div className="w-10 h-10 rounded-xl ring-2 ring-white shadow-lg overflow-hidden bg-slate-100 flex-shrink-0">
+                    <img src={getCharacterImage(currentEmotion) || persona.image} alt={persona.name} className="w-full h-full object-cover object-top scale-110" />
+                  </div>
+                  <div className="flex flex-col max-w-[75%]">
+                    <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-2xl rounded-bl-md px-4 py-3 shadow-md border border-blue-100 mt-1">
+                      <div className="flex items-center space-x-2 text-blue-600">
+                        <i className="fas fa-volume-up animate-pulse"></i>
+                        <span className="text-sm">{t('chat.aiSpeaking') || 'AI가 말하는 중...'}</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* 사용자 음성 인식 중 placeholder (하이브리드 방식) */}
+              {pendingUserMessage && (
+                <div className="flex items-end space-x-3 justify-end animate-in fade-in duration-300">
+                  <div className="flex flex-col items-end max-w-[75%]">
+                    <div className="bg-gradient-to-r from-purple-500 to-purple-600 rounded-2xl rounded-br-md px-4 py-3 shadow-md mt-1">
+                      <div className="flex items-center space-x-2 text-white">
+                        <i className="fas fa-microphone animate-pulse"></i>
+                        <span className="text-sm">{t('chat.recognizing') || '음성 인식 중...'}</span>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="w-10 h-10 bg-gradient-to-br from-corporate-500 to-corporate-700 rounded-full flex items-center justify-center text-white text-sm font-semibold shadow-md ring-2 ring-white flex-shrink-0">
+                    나
                   </div>
                 </div>
               )}
@@ -2095,7 +2151,7 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
               {/* Bottom Interactive Box - AI Message Focused */}
               <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 z-20 w-full max-w-4xl lg:max-w-6xl xl:max-w-[90%] px-4 bg-[#00000000]">
                 {/* 최근 대화 내용 (최대 5턴) */}
-                {localMessages.length > 0 && (
+                {(localMessages.length > 0 || pendingAiMessage || pendingUserMessage) && (
                   <div className="mb-2 space-y-1 max-h-32 overflow-y-auto px-2">
                     {localMessages.slice(-5).map((msg, index) => (
                       <div
@@ -2118,6 +2174,30 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
                         </span>
                       </div>
                     ))}
+                    {/* AI 말하는 중 placeholder (캐릭터 모드) */}
+                    {pendingAiMessage && (
+                      <div className="text-sm text-left animate-in fade-in duration-300">
+                        <span className="inline-block max-w-[85%] text-purple-700">
+                          <span className="font-semibold text-xs opacity-70">{persona.name}:</span>{' '}
+                          <span className="drop-shadow-sm flex items-center space-x-1">
+                            <i className="fas fa-volume-up animate-pulse text-blue-500"></i>
+                            <span className="text-blue-600">{t('chat.aiSpeaking') || 'AI가 말하는 중...'}</span>
+                          </span>
+                        </span>
+                      </div>
+                    )}
+                    {/* 사용자 음성 인식 중 placeholder (캐릭터 모드) */}
+                    {pendingUserMessage && (
+                      <div className="text-sm text-right animate-in fade-in duration-300">
+                        <span className="inline-block max-w-[85%] text-blue-600">
+                          <span className="font-semibold text-xs opacity-70">{t('chat.me')}:</span>{' '}
+                          <span className="drop-shadow-sm flex items-center justify-end space-x-1">
+                            <i className="fas fa-microphone animate-pulse text-purple-500"></i>
+                            <span className="text-purple-600">{t('chat.recognizing') || '음성 인식 중...'}</span>
+                          </span>
+                        </span>
+                      </div>
+                    )}
                   </div>
                 )}
                 <Card className="rounded-2xl overflow-hidden text-card-foreground backdrop-blur-sm shadow-xl border border-white/10 bg-[#ffffff9c]">

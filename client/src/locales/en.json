@@ -141,6 +141,8 @@
     "messageInputExpanded": "Enter message... (Press Enter to send)",
     "messageInputCollapsed": "Text chat",
     "recording": "Recording... Will send automatically when you finish speaking",
+    "aiSpeaking": "AI is speaking...",
+    "recognizing": "Recognizing speech...",
     "aiResponding": "AI is responding...",
     "generatingConversation": "Generating conversation...",
     "startChat": "Chat",

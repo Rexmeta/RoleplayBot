@@ -141,6 +141,8 @@
     "messageInputExpanded": "输入消息... (按Enter发送)",
     "messageInputCollapsed": "文字对话",
     "recording": "录音中... 说完后自动发送",
+    "aiSpeaking": "AI正在说话...",
+    "recognizing": "语音识别中...",
     "aiResponding": "AI正在回复...",
     "generatingConversation": "生成对话中...",
     "startChat": "开始对话",
