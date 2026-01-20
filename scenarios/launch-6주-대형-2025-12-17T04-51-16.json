@@ -41,17 +41,17 @@
   },
   "personas": [
     {
-      "id": "isfp",
+      "id": "entp",
       "name": "이수현",
       "department": "엔지니어링",
       "position": "CTO",
       "experience": "18년차",
-      "personaRef": "isfp.json",
+      "personaRef": "entp.json",
       "stance": "섣불리 원인을 단정하고 특정 팀을 비난할 수 없습니다. 로그가 부족하고 재현이 어려운 복잡한 문제입니다. 엔지니어들을 압박에서 보호하고, 논리적으로 분석할 시간을 주어야 합니다.",
       "goal": "기술팀의 명예를 지키고, 완벽한 원인 분석을 통해 장기적으로 지속가능한 해결책을 찾는 것.",
       "tradeoff": "분석 시간을 벌기 위한 임시 조치로서의 롤백이나 기능 비활성화는 수용 가능.",
       "gender": "female",
-      "mbti": "ISFP"
+      "mbti": "ENTP"
     },
     {
       "id": "estj",
