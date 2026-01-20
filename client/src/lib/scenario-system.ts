@@ -69,6 +69,7 @@ export interface ComplexScenario {
       experience: string;
       responsibility: string;
     };
+    playerRoleText?: string; // 번역된 역할 설명
   };
   objectives: string[];
   successCriteria: {

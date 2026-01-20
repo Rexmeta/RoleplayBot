@@ -1818,7 +1818,7 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
                     {t('chat.yourRoleAndGoals')}
                   </h4>
                   <div className="text-sm grid md:grid-cols-2 gap-4">
-                    {scenario.context?.playerRole?.responsibility && (
+                    {(scenario.context?.playerRoleText || scenario.context?.playerRole?.responsibility) && (
                       <div className="bg-gradient-to-br from-slate-50 to-slate-100/50 rounded-xl p-4">
                         <div className="text-xs font-semibold text-corporate-600 mb-2 flex items-center justify-between">
                           <span className="flex items-center gap-1.5">
@@ -1826,11 +1826,11 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
                             {t('chat.yourRole')}
                           </span>
                           <span className="text-slate-500 font-normal bg-white px-2 py-0.5 rounded-full">
-                            {scenario.context.playerRole.position}
+                            {scenario.context?.playerRole?.position}
                           </span>
                         </div>
                         <div className="text-slate-700 leading-relaxed">
-                          {scenario.context.playerRole.responsibility}
+                          {scenario.context?.playerRoleText || scenario.context?.playerRole?.responsibility}
                         </div>
                       </div>
                     )}
@@ -1886,7 +1886,7 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
                 </div>
                 
                 {/* Goals Panel - Always Expanded */}
-                {(scenario?.objectives || scenario?.context?.playerRole?.responsibility) && (
+                {(scenario?.objectives || scenario?.context?.playerRoleText || scenario?.context?.playerRole?.responsibility) && (
                   <div className="bg-white rounded-xl shadow-sm border border-slate-100 p-4 flex-1">
                     <h4 className="font-semibold text-slate-800 mb-4 flex items-center">
                       <i className="fas fa-user-tie text-corporate-600 mr-2"></i>
@@ -1894,17 +1894,17 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
                     </h4>
                     <div className="text-sm leading-relaxed space-y-4">
                       {/* 역할 섹션 */}
-                      {scenario.context?.playerRole?.responsibility && (
+                      {(scenario.context?.playerRoleText || scenario.context?.playerRole?.responsibility) && (
                         <div>
                           <div className="font-semibold text-corporate-600 mb-2 flex items-center justify-between text-xs">
                             <span>👤 {t('chat.yourRole')}</span>
                             <span className="text-slate-500 font-normal">
-                              {scenario.context.playerRole.position}
-                              {scenario.context.playerRole.experience && ` (${scenario.context.playerRole.experience})`}
+                              {scenario.context?.playerRole?.position}
+                              {scenario.context?.playerRole?.experience && ` (${scenario.context.playerRole.experience})`}
                             </span>
                           </div>
                           <div className="bg-slate-50 text-slate-700 rounded-lg px-3 py-2 text-sm">
-                            {scenario.context.playerRole.responsibility}
+                            {scenario.context?.playerRoleText || scenario.context?.playerRole?.responsibility}
                           </div>
                         </div>
                       )}
@@ -1990,7 +1990,7 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
                 </div>
 
                 {/* Goals Display - Collapsible (Hidden on 2xl where sidebar is visible) */}
-                {(scenario?.objectives || scenario?.context?.playerRole?.responsibility) && (
+                {(scenario?.objectives || scenario?.context?.playerRoleText || scenario?.context?.playerRole?.responsibility) && (
                   <div className="bg-white/80 backdrop-blur-sm rounded-lg shadow-lg transition-all duration-300 max-w-sm xl:hidden">
                     <button
                       onClick={() => setIsGoalsExpanded(!isGoalsExpanded)}
@@ -2008,17 +2008,17 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
                       <div className="px-3 pb-3 border-t border-slate-100/50">
                         <div className="text-xs leading-relaxed space-y-3 mt-3">
                           {/* 역할 섹션 */}
-                          {scenario.context?.playerRole?.responsibility && (
+                          {(scenario.context?.playerRoleText || scenario.context?.playerRole?.responsibility) && (
                             <div>
                               <div className="font-semibold text-corporate-600 mb-1.5 flex items-center justify-between">
                                 <span>👤 {t('chat.yourRole')}</span>
                                 <span className="text-slate-500 font-normal">
-                                  {scenario.context.playerRole.position}
-                                  {scenario.context.playerRole.experience && ` (${scenario.context.playerRole.experience})`}
+                                  {scenario.context?.playerRole?.position}
+                                  {scenario.context?.playerRole?.experience && ` (${scenario.context.playerRole.experience})`}
                                 </span>
                               </div>
                               <div className="bg-slate-50 text-slate-700 rounded px-2 py-1.5">
-                                {scenario.context.playerRole.responsibility}
+                                {scenario.context?.playerRoleText || scenario.context?.playerRole?.responsibility}
                               </div>
                             </div>
                           )}
