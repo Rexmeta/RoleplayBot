@@ -30,6 +30,20 @@
     "skipIntro": "Skip Intro",
     "unknown": "Unknown"
   },
+  "roles": {
+    "admin": "System Admin",
+    "operator": "Operator",
+    "user": "User"
+  },
+  "menu": {
+    "mypage": "My Page",
+    "profile": "Profile",
+    "history": "Conversation History",
+    "profileEdit": "Edit Profile",
+    "systemAdmin": "System Admin",
+    "operatorDashboard": "Operator Dashboard",
+    "contentManagement": "Content Management"
+  },
   "nav": {
     "home": "Home",
     "mypage": "My Page",

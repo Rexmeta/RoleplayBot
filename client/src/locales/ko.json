@@ -30,6 +30,20 @@
     "skipIntro": "인트로 건너뛰기",
     "unknown": "알 수 없음"
   },
+  "roles": {
+    "admin": "시스템관리자",
+    "operator": "운영자",
+    "user": "일반유저"
+  },
+  "menu": {
+    "mypage": "마이페이지",
+    "profile": "프로필",
+    "history": "대화 기록",
+    "profileEdit": "회원정보 수정",
+    "systemAdmin": "시스템 관리자",
+    "operatorDashboard": "운영자 대시보드",
+    "contentManagement": "콘텐츠 관리"
+  },
   "nav": {
     "home": "홈으로",
     "mypage": "마이페이지",

@@ -21,10 +21,10 @@ import { SUPPORTED_LANGUAGES, type LanguageCode } from "@/lib/i18n";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 
-const roleConfig: Record<string, { label: string; color: string; bgColor: string }> = {
-  admin: { label: "시스템관리자", color: "text-red-700", bgColor: "bg-red-100" },
-  operator: { label: "운영자", color: "text-blue-700", bgColor: "bg-blue-100" },
-  user: { label: "일반유저", color: "text-slate-600", bgColor: "bg-slate-100" },
+const roleConfig: Record<string, { color: string; bgColor: string }> = {
+  admin: { color: "text-red-700", bgColor: "bg-red-100" },
+  operator: { color: "text-blue-700", bgColor: "bg-blue-100" },
+  user: { color: "text-slate-600", bgColor: "bg-slate-100" },
 };
 
 export function UserProfileMenu() {
@@ -92,12 +92,12 @@ export function UserProfileMenu() {
             size="sm"
             className="flex items-center justify-center w-10 h-10 p-0 overflow-hidden rounded-full"
             data-testid="mypage-button"
-            title="마이페이지"
+            title={t('menu.mypage')}
           >
             {user?.profileImage ? (
               <img 
                 src={user.profileImage} 
-                alt="프로필" 
+                alt={t('menu.profile')} 
                 className="w-full h-full object-cover"
               />
             ) : (
@@ -108,7 +108,7 @@ export function UserProfileMenu() {
         <DropdownMenuContent align="end" className="w-56">
           <DropdownMenuLabel className="font-normal">
             <div className="flex flex-col space-y-1">
-              <p className="text-sm font-medium leading-none">{user?.name || "사용자"}</p>
+              <p className="text-sm font-medium leading-none">{user?.name || t('common.user')}</p>
               <p className="text-xs leading-none text-muted-foreground">{user?.email}</p>
               <div className="flex items-center gap-1 mt-1 flex-wrap">
                 {assignedCategory && (
@@ -117,7 +117,7 @@ export function UserProfileMenu() {
                   </Badge>
                 )}
                 <Badge className={`${roleInfo.bgColor} ${roleInfo.color} text-xs w-fit`} data-testid="menu-role-badge">
-                  {roleInfo.label}
+                  {t(`roles.${role}`)}
                 </Badge>
               </div>
             </div>
@@ -128,7 +128,7 @@ export function UserProfileMenu() {
             data-testid="menu-history"
           >
             <History className="w-4 h-4 mr-2" />
-            History
+            {t('menu.history')}
           </DropdownMenuItem>
           
           <DropdownMenuItem
@@ -136,7 +136,7 @@ export function UserProfileMenu() {
             data-testid="menu-profile-edit"
           >
             <UserCog className="w-4 h-4 mr-2" />
-            {t('mypage.profile') || '회원정보 수정'}
+            {t('menu.profileEdit')}
           </DropdownMenuItem>
           
           <DropdownMenuSub>
@@ -171,7 +171,7 @@ export function UserProfileMenu() {
                 data-testid="menu-system-admin"
               >
                 <ShieldCheck className="w-4 h-4 mr-2" />
-                시스템 관리자
+                {t('menu.systemAdmin')}
               </DropdownMenuItem>
             </>
           )}
@@ -184,14 +184,14 @@ export function UserProfileMenu() {
                 data-testid="menu-admin-dashboard"
               >
                 <BarChart3 className="w-4 h-4 mr-2" />
-                운영자 대시보드
+                {t('menu.operatorDashboard')}
               </DropdownMenuItem>
               <DropdownMenuItem
                 onClick={() => window.location.href = '/admin-management'}
                 data-testid="menu-content-management"
               >
                 <Settings className="w-4 h-4 mr-2" />
-                콘텐츠 관리
+                {t('menu.contentManagement')}
               </DropdownMenuItem>
             </>
           )}

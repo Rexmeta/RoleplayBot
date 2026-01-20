@@ -30,6 +30,20 @@
     "skipIntro": "跳过介绍",
     "unknown": "未知"
   },
+  "roles": {
+    "admin": "系统管理员",
+    "operator": "运营者",
+    "user": "普通用户"
+  },
+  "menu": {
+    "mypage": "我的页面",
+    "profile": "个人资料",
+    "history": "对话记录",
+    "profileEdit": "编辑个人信息",
+    "systemAdmin": "系统管理员",
+    "operatorDashboard": "运营者仪表板",
+    "contentManagement": "内容管理"
+  },
   "nav": {
     "home": "返回首页",
     "mypage": "我的页面",

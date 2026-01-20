@@ -30,6 +30,20 @@
     "skipIntro": "イントロをスキップ",
     "unknown": "不明"
   },
+  "roles": {
+    "admin": "システム管理者",
+    "operator": "運営者",
+    "user": "一般ユーザー"
+  },
+  "menu": {
+    "mypage": "マイページ",
+    "profile": "プロフィール",
+    "history": "会話履歴",
+    "profileEdit": "会員情報修正",
+    "systemAdmin": "システム管理者",
+    "operatorDashboard": "運営者ダッシュボード",
+    "contentManagement": "コンテンツ管理"
+  },
   "nav": {
     "home": "ホームへ",
     "mypage": "マイページ",
