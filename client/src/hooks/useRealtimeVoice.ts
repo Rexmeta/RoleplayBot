@@ -99,6 +99,13 @@ export function useRealtimeVoice({
   const gainNodeRef = useRef<GainNode | null>(null); // GainNode for audio routing with analyser
   const amplitudeAnimationRef = useRef<number | null>(null); // For amplitude animation loop
   
+  // 오디오-텍스트 동기화를 위한 refs
+  const audioResponseStartTimeRef = useRef<number | null>(null); // 오디오 응답 시작 시간 (첫 청크 도착 시점)
+  const totalScheduledAudioDurationRef = useRef<number>(0); // 총 스케줄된 오디오 길이 (초)
+  const textBufferQueueRef = useRef<string[]>([]); // 텍스트 버퍼 큐 (동기화 대기)
+  const lastTextDisplayTimeRef = useRef<number>(0); // 마지막 텍스트 표시 시간
+  const textSyncIntervalRef = useRef<NodeJS.Timeout | null>(null); // 텍스트 동기화 인터벌
+  
   // Store callbacks in refs to avoid recreating connect() on every render
   const onMessageRef = useRef(onMessage);
   const onMessageCompleteRef = useRef(onMessageComplete);
@@ -197,6 +204,16 @@ export function useRealtimeVoice({
     // Reset AI message buffer
     aiMessageBufferRef.current = '';
     
+    // 오디오-텍스트 동기화 상태 초기화
+    audioResponseStartTimeRef.current = null;
+    totalScheduledAudioDurationRef.current = 0;
+    textBufferQueueRef.current = [];
+    lastTextDisplayTimeRef.current = 0;
+    if (textSyncIntervalRef.current) {
+      clearInterval(textSyncIntervalRef.current);
+      textSyncIntervalRef.current = null;
+    }
+    
     setIsAISpeaking(false);
     isAISpeakingRef.current = false;
   }, []);
@@ -204,6 +221,12 @@ export function useRealtimeVoice({
   const disconnect = useCallback(() => {
     // Stop any playing audio first
     stopCurrentPlayback();
+    
+    // 텍스트 동기화 인터벌 정리
+    if (textSyncIntervalRef.current) {
+      clearInterval(textSyncIntervalRef.current);
+      textSyncIntervalRef.current = null;
+    }
     
     // 🔧 barge-in 플래그 초기화 (다음 연결에서 첫 인사 오디오 재생 허용)
     isInterruptedRef.current = false;
@@ -413,13 +436,48 @@ export function useRealtimeVoice({
               console.log('✅ Audio playback complete');
               break;
 
-            // 📝 AI 응답 스트리밍 (버퍼에 누적)
+            // 📝 AI 응답 스트리밍 (오디오 동기화 적용)
             case 'ai.transcription.delta':
               if (data.text) {
                 aiMessageBufferRef.current += data.text;
-                // 실시간 스트리밍 표시용 (선택적)
+                
+                // 오디오-텍스트 동기화 로직
                 if (onMessageRef.current) {
-                  onMessageRef.current(data.text);
+                  const now = Date.now();
+                  
+                  // 오디오가 시작되었으면 동기화 체크
+                  if (audioResponseStartTimeRef.current !== null) {
+                    const audioElapsedMs = now - audioResponseStartTimeRef.current;
+                    const textElapsedMs = now - (lastTextDisplayTimeRef.current || audioResponseStartTimeRef.current);
+                    
+                    // 텍스트 간 최소 간격 (너무 빠른 표시 방지) - 50ms
+                    // 오디오가 2초 이상 앞서있으면 텍스트 즉시 표시 (지연 없음)
+                    const audioDurationMs = totalScheduledAudioDurationRef.current * 1000;
+                    const textLagMs = audioDurationMs - textElapsedMs;
+                    
+                    if (textLagMs > 2000) {
+                      // 텍스트가 오디오보다 2초 이상 뒤처짐 - 즉시 표시
+                      console.log(`📝 Text lagging by ${(textLagMs/1000).toFixed(1)}s - immediate display`);
+                      onMessageRef.current(data.text);
+                      lastTextDisplayTimeRef.current = now;
+                    } else if (textElapsedMs < 50) {
+                      // 너무 빠른 연속 표시 방지 - 약간 딜레이
+                      setTimeout(() => {
+                        if (onMessageRef.current) {
+                          onMessageRef.current(data.text);
+                          lastTextDisplayTimeRef.current = Date.now();
+                        }
+                      }, 50 - textElapsedMs);
+                    } else {
+                      // 정상 상태 - 즉시 표시
+                      onMessageRef.current(data.text);
+                      lastTextDisplayTimeRef.current = now;
+                    }
+                  } else {
+                    // 오디오 시작 전이면 바로 표시
+                    onMessageRef.current(data.text);
+                    lastTextDisplayTimeRef.current = now;
+                  }
                 }
               }
               break;
@@ -445,6 +503,10 @@ export function useRealtimeVoice({
               console.log('✅ Response complete');
               setIsAISpeaking(false);
               isAISpeakingRef.current = false;
+              // 오디오-텍스트 동기화 상태 초기화 (다음 응답을 위해)
+              audioResponseStartTimeRef.current = null;
+              totalScheduledAudioDurationRef.current = 0;
+              lastTextDisplayTimeRef.current = 0;
               // Do NOT reset interrupted flag here - wait for response.started from a genuine new turn
               break;
 
@@ -720,9 +782,18 @@ export function useRealtimeVoice({
       };
       
       // Update next play time (current chunk start time + duration / playbackRate)
-      nextPlayTimeRef.current = startTime + (audioBuffer.duration / 0.9);
+      const chunkDuration = audioBuffer.duration / 0.9; // 0.9x 속도 고려
+      nextPlayTimeRef.current = startTime + chunkDuration;
       
-      console.log('🔊 Playing audio chunk:', float32.length, 'samples', 'at', startTime.toFixed(3));
+      // 오디오-텍스트 동기화: 오디오 시작 시간 및 누적 길이 추적
+      if (audioResponseStartTimeRef.current === null) {
+        audioResponseStartTimeRef.current = Date.now();
+        totalScheduledAudioDurationRef.current = 0;
+        console.log('🔊 Audio response started - sync tracking initialized');
+      }
+      totalScheduledAudioDurationRef.current += chunkDuration;
+      
+      console.log('🔊 Playing audio chunk:', float32.length, 'samples', 'at', startTime.toFixed(3), `(total: ${totalScheduledAudioDurationRef.current.toFixed(2)}s)`);
     } catch (err) {
       console.error('Error playing audio delta:', err);
     }
