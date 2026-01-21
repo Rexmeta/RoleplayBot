@@ -4917,6 +4917,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         stakes,
         playerRole, 
         objectives,
+        skills,
         successCriteriaOptimal,
         successCriteriaGood,
         successCriteriaAcceptable,
@@ -4939,6 +4940,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         stakes,
         playerRole,
         objectives: objectives || null,
+        skills: skills || null,
         successCriteriaOptimal,
         successCriteriaGood,
         successCriteriaAcceptable,
@@ -5035,6 +5037,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         stakes: (scenario as any).context?.stakes || '',
         playerRole: '',
         objectives: (scenario as any).objectives || [],
+        skills: (scenario as any).skills || [],
         successCriteriaOptimal: (scenario as any).successCriteria?.optimal || '',
         successCriteriaGood: (scenario as any).successCriteria?.good || '',
         successCriteriaAcceptable: (scenario as any).successCriteria?.acceptable || '',
@@ -5073,6 +5076,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           stakes: sourceTranslation.stakes || '',
           playerRole: sourceTranslation.playerRole || '',
           objectives: sourceTranslation.objectives || [],
+          skills: (sourceTranslation as any).skills || (scenario as any).skills || [],
           successCriteriaOptimal: sourceTranslation.successCriteriaOptimal || '',
           successCriteriaGood: sourceTranslation.successCriteriaGood || '',
           successCriteriaAcceptable: sourceTranslation.successCriteriaAcceptable || '',
@@ -5112,6 +5116,7 @@ Timeline: ${sourceData.timeline}
 Stakes: ${sourceData.stakes}
 Player Role: ${sourceData.playerRole}
 Objectives: ${JSON.stringify(sourceData.objectives)}
+Skills (Key Competencies): ${JSON.stringify(sourceData.skills)}
 Success Criteria (Optimal): ${sourceData.successCriteriaOptimal}
 Success Criteria (Good): ${sourceData.successCriteriaGood}
 Success Criteria (Acceptable): ${sourceData.successCriteriaAcceptable}
@@ -5126,6 +5131,7 @@ Return ONLY valid JSON in this exact format:
   "stakes": "translated stakes",
   "playerRole": "translated player role",
   "objectives": ["translated objective 1", "translated objective 2"],
+  "skills": ["translated skill 1", "translated skill 2"],
   "successCriteriaOptimal": "translated optimal criteria",
   "successCriteriaGood": "translated good criteria",
   "successCriteriaAcceptable": "translated acceptable criteria",

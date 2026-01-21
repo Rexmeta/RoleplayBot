@@ -36,6 +36,7 @@ interface ScenarioTranslation {
   stakes: string | null;
   playerRole: string | null;
   objectives: string[] | null;
+  skills: string[] | null;
   successCriteriaOptimal: string | null;
   successCriteriaGood: string | null;
   successCriteriaAcceptable: string | null;
@@ -77,6 +78,7 @@ interface ScenarioTranslationEditorProps {
   scenarioDescription: string;
   scenarioContext?: ScenarioContext;
   scenarioObjectives?: string[];
+  scenarioSkills?: string[];
   scenarioSuccessCriteria?: ScenarioSuccessCriteria;
   scenarioPersonas?: ScenarioPersonaInfo[];
 }
@@ -87,6 +89,7 @@ export function ScenarioTranslationEditor({
   scenarioDescription,
   scenarioContext = {},
   scenarioObjectives = [],
+  scenarioSkills = [],
   scenarioSuccessCriteria = {},
   scenarioPersonas = []
 }: ScenarioTranslationEditorProps) {
@@ -252,6 +255,48 @@ export function ScenarioTranslationEditor({
         [locale]: {
           ...prev[locale],
           objectives: current.filter((_, i) => i !== index),
+        },
+      };
+    });
+  };
+
+  // Skills (핵심역량) 핸들러
+  const handleSkillChange = (locale: string, index: number, value: string) => {
+    setTranslationData(prev => {
+      const current = prev[locale]?.skills || [];
+      const newSkills = [...current];
+      newSkills[index] = value;
+      return {
+        ...prev,
+        [locale]: {
+          ...prev[locale],
+          skills: newSkills,
+        },
+      };
+    });
+  };
+
+  const handleAddSkill = (locale: string) => {
+    setTranslationData(prev => {
+      const current = prev[locale]?.skills || [];
+      return {
+        ...prev,
+        [locale]: {
+          ...prev[locale],
+          skills: [...current, ''],
+        },
+      };
+    });
+  };
+
+  const handleRemoveSkill = (locale: string, index: number) => {
+    setTranslationData(prev => {
+      const current = prev[locale]?.skills || [];
+      return {
+        ...prev,
+        [locale]: {
+          ...prev[locale],
+          skills: current.filter((_, i) => i !== index),
         },
       };
     });
@@ -587,6 +632,69 @@ export function ScenarioTranslationEditor({
                               ))
                             ) : (
                               <p className="text-sm text-muted-foreground">번역할 목표를 추가하세요</p>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <Separator />
+
+                    {/* 핵심역량 (Skills) 번역 섹션 */}
+                    <div className="space-y-4">
+                      <h4 className="font-semibold text-sm text-slate-700 border-b pb-2">핵심역량 (Key Competencies)</h4>
+                      
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <Label className="text-muted-foreground text-xs">원본 핵심역량</Label>
+                          <div className="p-2 bg-slate-50 border rounded text-sm min-h-[60px]">
+                            {scenarioSkills.length > 0 ? (
+                              <div className="flex flex-wrap gap-1">
+                                {scenarioSkills.map((skill, idx) => (
+                                  <Badge key={idx} variant="secondary" className="text-xs">{skill}</Badge>
+                                ))}
+                              </div>
+                            ) : (
+                              <span className="text-muted-foreground">(미설정)</span>
+                            )}
+                          </div>
+                        </div>
+                        <div className="space-y-2">
+                          <div className="flex items-center justify-between">
+                            <Label>번역 핵심역량 ({lang.name})</Label>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleAddSkill(lang.code)}
+                              className="h-6 px-2"
+                            >
+                              <Plus className="h-3 w-3 mr-1" />
+                              추가
+                            </Button>
+                          </div>
+                          <div className="space-y-2 max-h-[200px] overflow-y-auto">
+                            {(translation.skills || []).length > 0 ? (
+                              (translation.skills || []).map((skill, idx) => (
+                                <div key={idx} className="flex items-center gap-2">
+                                  <span className="text-xs text-muted-foreground w-4">{idx + 1}.</span>
+                                  <Input
+                                    value={skill}
+                                    onChange={(e) => handleSkillChange(lang.code, idx, e.target.value)}
+                                    placeholder={`역량 ${idx + 1}...`}
+                                    className="flex-1 h-8"
+                                  />
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => handleRemoveSkill(lang.code, idx)}
+                                    className="h-8 w-8 p-0"
+                                  >
+                                    <X className="h-3 w-3" />
+                                  </Button>
+                                </div>
+                              ))
+                            ) : (
+                              <p className="text-sm text-muted-foreground">번역할 핵심역량을 추가하세요</p>
                             )}
                           </div>
                         </div>

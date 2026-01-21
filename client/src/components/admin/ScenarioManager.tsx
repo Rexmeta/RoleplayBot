@@ -1664,6 +1664,7 @@ export function ScenarioManager() {
                 acceptable: translatingScenario.successCriteria?.acceptable || '',
                 failure: translatingScenario.successCriteria?.failure || '',
               }}
+              scenarioSkills={translatingScenario.skills || []}
               scenarioPersonas={(translatingScenario.personas || []).map((p: any) => ({
                 id: p.id || p.personaRef || '',
                 name: p.name || '',

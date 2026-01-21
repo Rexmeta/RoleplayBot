@@ -549,6 +549,7 @@ export const scenarioTranslations = pgTable("scenario_translations", {
   successCriteriaGood: text("success_criteria_good"), // 성공기준: 양호
   successCriteriaAcceptable: text("success_criteria_acceptable"), // 성공기준: 수용가능
   successCriteriaFailure: text("success_criteria_failure"), // 성공기준: 실패
+  skills: text("skills").array(), // 핵심역량 (Key Competencies) 배열
   // 시나리오별 페르소나 컨텍스트 번역 (stance, goal, tradeoff 등)
   personaContexts: jsonb("persona_contexts").$type<PersonaContextTranslation[]>(),
   isMachineTranslated: boolean("is_machine_translated").notNull().default(false), // AI 번역 여부

@@ -8,6 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { ComplexScenario, getDifficultyLabel } from "@/lib/scenario-system";
 import { Loader2, Search, Filter, ChevronDown, ChevronUp, Folder } from "lucide-react";
 import { useTranslation } from "react-i18next";
+import i18n from "@/lib/i18n";
 
 interface Category {
   id: string;
@@ -27,6 +28,7 @@ interface ScenarioSelectorProps {
 
 export default function ScenarioSelector({ onScenarioSelect, playerProfile }: ScenarioSelectorProps) {
   const { t } = useTranslation();
+  const currentLang = i18n.language || 'ko';
   
   // 필터 상태
   const [filters, setFilters] = useState({
@@ -85,6 +87,39 @@ export default function ScenarioSelector({ onScenarioSelect, playerProfile }: Sc
     queryFn: () => fetch('/api/categories').then(res => res.json()),
     staleTime: 1000 * 60 * 30,
   });
+
+  // 펼쳐진 시나리오의 번역 가져오기 (공용 API 사용)
+  const { data: expandedScenarioTranslation } = useQuery({
+    queryKey: ['/api/scenarios', expandedScenarioId, 'translations', currentLang],
+    queryFn: async () => {
+      if (!expandedScenarioId || currentLang === 'ko') return null;
+      const token = localStorage.getItem("authToken");
+      const headers: Record<string, string> = {};
+      if (token) {
+        headers["Authorization"] = `Bearer ${token}`;
+      }
+      const res = await fetch(`/api/scenarios/${expandedScenarioId}/translations/${currentLang}`, {
+        credentials: 'include',
+        headers
+      });
+      if (!res.ok) return null;
+      return res.json();
+    },
+    enabled: !!expandedScenarioId && currentLang !== 'ko',
+    staleTime: 1000 * 60 * 10,
+  });
+
+  // 시나리오 ID로 번역된 skills 가져오기
+  const getTranslatedSkills = (scenarioId: string | number, originalSkills: string[]): string[] => {
+    if (currentLang === 'ko' || !expandedScenarioTranslation) {
+      return originalSkills;
+    }
+    // 현재 펼쳐진 시나리오의 번역만 사용
+    if (String(expandedScenarioId) === String(scenarioId) && expandedScenarioTranslation.skills?.length > 0) {
+      return expandedScenarioTranslation.skills;
+    }
+    return originalSkills;
+  };
 
   // MBTI 기본 특성을 시나리오 내에서 직접 처리 (외부 API 호출 없이)
   const personasLoading = false; // 로딩 상태 제거
@@ -564,7 +599,7 @@ export default function ScenarioSelector({ onScenarioSelect, playerProfile }: Sc
                           {t('scenario.keyCompetencies')}
                         </h4>
                         <div className="flex flex-wrap gap-2">
-                          {sortSkillsByImportance(scenario.skills || []).map((skill: string, index: number) => (
+                          {sortSkillsByImportance(getTranslatedSkills(scenario.id, scenario.skills || [])).map((skill: string, index: number) => (
                             <Badge 
                               key={index} 
                               variant="secondary" 
