@@ -393,7 +393,9 @@
         "personaNamePlaceholder": "e.g., John Doe",
         "personaGender": "Gender",
         "personaExperience": "Experience",
-        "personaExperiencePlaceholder": "e.g., 8 years, junior, 5 years"
+        "personaExperiencePlaceholder": "e.g., 8 years, junior, 5 years",
+        "evaluationCriteriaHelp": "If no specific criteria is selected, default evaluation criteria will be applied.",
+        "situationSettings": "Situation Settings"
       },
       "toast": {
         "titleRequired": "Title is required",

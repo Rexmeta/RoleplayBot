@@ -855,7 +855,7 @@ export function ScenarioManager() {
                     </SelectContent>
                   </Select>
                   <p className="text-xs text-slate-500 mt-1">
-                    특정 평가 기준을 선택하지 않으면 기본 평가 기준이 적용됩니다.
+                    {t('admin.scenarioManager.form.evaluationCriteriaHelp')}
                   </p>
                 </div>
               </div>

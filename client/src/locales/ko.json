@@ -393,7 +393,9 @@
         "personaNamePlaceholder": "예: 김민수, 이지영 등",
         "personaGender": "성별",
         "personaExperience": "경력",
-        "personaExperiencePlaceholder": "예: 8년차, 신입, 5년차 등"
+        "personaExperiencePlaceholder": "예: 8년차, 신입, 5년차 등",
+        "evaluationCriteriaHelp": "특정 평가 기준을 선택하지 않으면 기본 평가 기준이 적용됩니다.",
+        "situationSettings": "상황 설정"
       },
       "toast": {
         "titleRequired": "제목 필수",

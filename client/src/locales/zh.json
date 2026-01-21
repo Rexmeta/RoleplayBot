@@ -393,7 +393,9 @@
         "personaNamePlaceholder": "例：张三",
         "personaGender": "性别",
         "personaExperience": "经验",
-        "personaExperiencePlaceholder": "例：8年、新人、5年等"
+        "personaExperiencePlaceholder": "例：8年、新人、5年等",
+        "evaluationCriteriaHelp": "如果不选择特定的评价标准，将使用默认评价标准。",
+        "situationSettings": "情景设置"
       },
       "toast": {
         "titleRequired": "标题必填",

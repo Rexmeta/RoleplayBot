@@ -393,7 +393,9 @@
         "personaNamePlaceholder": "例：田中太郎",
         "personaGender": "性別",
         "personaExperience": "経験",
-        "personaExperiencePlaceholder": "例：8年目、新人、5年目など"
+        "personaExperiencePlaceholder": "例：8年目、新人、5年目など",
+        "evaluationCriteriaHelp": "特定の評価基準を選択しない場合、デフォルトの評価基準が適用されます。",
+        "situationSettings": "状況設定"
       },
       "toast": {
         "titleRequired": "タイトル必須",
