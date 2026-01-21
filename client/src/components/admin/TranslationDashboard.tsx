@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useQuery, useMutation } from '@tanstack/react-query';
+import { useTranslation } from 'react-i18next';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -30,6 +31,7 @@ interface TranslationStatus {
 }
 
 export function TranslationDashboard() {
+  const { t } = useTranslation();
   const { toast } = useToast();
   const [isGeneratingAll, setIsGeneratingAll] = useState<string | null>(null);
   const [sourceLocale, setSourceLocale] = useState<string>('ko');
@@ -54,19 +56,19 @@ export function TranslationDashboard() {
       
       if (data.success) {
         toast({
-          title: '일괄 번역 완료',
-          description: `${data.count}개 항목이 번역되었습니다.`,
+          title: t('admin.translationDashboard.batchComplete'),
+          description: t('admin.translationDashboard.batchCompleteDesc', { count: data.count }),
         });
         refetch();
         queryClient.invalidateQueries({ queryKey: ['/api/scenarios'] });
         queryClient.invalidateQueries({ queryKey: ['/api/personas'] });
         queryClient.invalidateQueries({ queryKey: ['/api/categories'] });
       } else {
-        throw new Error(data.error || '번역 생성 실패');
+        throw new Error(data.error || t('admin.translationDashboard.batchFailed'));
       }
     } catch (error: any) {
       toast({
-        title: '일괄 번역 실패',
+        title: t('admin.translationDashboard.batchFailed'),
         description: error.message,
         variant: 'destructive',
       });
@@ -91,8 +93,8 @@ export function TranslationDashboard() {
       <Card>
         <CardContent className="py-12 text-center text-muted-foreground">
           <Languages className="h-12 w-12 mx-auto mb-4" />
-          <p className="text-lg font-medium">번역할 언어가 없습니다</p>
-          <p className="text-sm mt-2">시스템 설정에서 지원 언어를 추가하세요.</p>
+          <p className="text-lg font-medium">{t('admin.translationDashboard.noLanguages')}</p>
+          <p className="text-sm mt-2">{t('admin.translationDashboard.addLanguagesHint')}</p>
         </CardContent>
       </Card>
     );
@@ -116,7 +118,7 @@ export function TranslationDashboard() {
           {icon}
           {title}
         </CardTitle>
-        <CardDescription>총 {total}개 항목</CardDescription>
+        <CardDescription>{t('admin.translationDashboard.totalItems', { count: total })}</CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
         {targetLanguages.map((lang) => {
@@ -139,13 +141,13 @@ export function TranslationDashboard() {
                   {langStatus.reviewed > 0 && (
                     <Badge variant="outline" className="text-green-600 border-green-200">
                       <CheckCircle className="h-3 w-3 mr-1" />
-                      {langStatus.reviewed} 검토됨
+                      {langStatus.reviewed} {t('admin.translationDashboard.reviewed')}
                     </Badge>
                   )}
                   {needsReview > 0 && (
                     <Badge variant="outline" className="text-amber-600 border-amber-200">
                       <AlertCircle className="h-3 w-3 mr-1" />
-                      {needsReview} 검토 필요
+                      {needsReview} {t('admin.translationDashboard.needsReview')}
                     </Badge>
                   )}
                 </div>
@@ -154,7 +156,7 @@ export function TranslationDashboard() {
               <Progress value={percent} className="h-2" />
               
               <div className="flex items-center justify-between text-xs text-muted-foreground">
-                <span>번역 진행률: {percent}%</span>
+                <span>{t('admin.translationDashboard.translationProgress')}: {percent}%</span>
                 {missing > 0 && (
                   <Button
                     variant="ghost"
@@ -168,7 +170,7 @@ export function TranslationDashboard() {
                     ) : (
                       <Bot className="h-3 w-3 mr-1" />
                     )}
-                    미번역 {missing}개 자동 생성
+                    {t('admin.translationDashboard.autoGenerate', { count: missing })}
                   </Button>
                 )}
               </div>
@@ -185,15 +187,15 @@ export function TranslationDashboard() {
         <div>
           <h2 className="text-2xl font-bold flex items-center gap-2">
             <BarChart className="h-6 w-6" />
-            번역 현황 대시보드
+            {t('admin.translationDashboard.title')}
           </h2>
           <p className="text-muted-foreground mt-1">
-            콘텐츠 번역 상태를 확인하고 일괄 번역을 실행할 수 있습니다.
+            {t('admin.translationDashboard.description')}
           </p>
         </div>
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-2">
-            <span className="text-sm text-muted-foreground">원문 언어:</span>
+            <span className="text-sm text-muted-foreground">{t('admin.translationDashboard.sourceLanguage')}:</span>
             <Select value={sourceLocale} onValueChange={setSourceLocale}>
               <SelectTrigger className="w-[140px]">
                 <SelectValue />
@@ -207,18 +209,18 @@ export function TranslationDashboard() {
               </SelectContent>
             </Select>
             <ArrowRight className="h-4 w-4 text-muted-foreground" />
-            <span className="text-sm text-muted-foreground">번역 대상</span>
+            <span className="text-sm text-muted-foreground">{t('admin.translationDashboard.targetLanguages')}</span>
           </div>
           <Button variant="outline" onClick={() => refetch()}>
             <RefreshCw className="h-4 w-4 mr-2" />
-            새로고침
+            {t('admin.translationDashboard.refresh')}
           </Button>
         </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {status?.scenarios && renderContentTypeCard(
-          '시나리오',
+          t('admin.scenarios'),
           <FileText className="h-5 w-5 text-blue-600" />,
           'scenarios',
           status.scenarios.total,
@@ -226,7 +228,7 @@ export function TranslationDashboard() {
         )}
         
         {status?.personas && renderContentTypeCard(
-          '페르소나',
+          t('admin.personas'),
           <Users className="h-5 w-5 text-purple-600" />,
           'personas',
           status.personas.total,
@@ -234,7 +236,7 @@ export function TranslationDashboard() {
         )}
         
         {status?.categories && renderContentTypeCard(
-          '카테고리',
+          t('admin.categories'),
           <FolderTree className="h-5 w-5 text-green-600" />,
           'categories',
           status.categories.total,
@@ -244,31 +246,31 @@ export function TranslationDashboard() {
 
       <Card>
         <CardHeader>
-          <CardTitle>번역 가이드</CardTitle>
+          <CardTitle>{t('admin.translationDashboard.guide.title')}</CardTitle>
         </CardHeader>
         <CardContent className="space-y-3 text-sm text-muted-foreground">
           <div className="flex items-start gap-2">
             <Languages className="h-4 w-4 mt-0.5 text-blue-600" />
             <div>
-              <span className="font-medium text-foreground">양방향 번역</span>: 원문 언어를 선택하면 해당 언어에서 다른 모든 언어로 번역할 수 있습니다. 영어/일본어/중국어를 원문으로 선택하면 한국어 번역도 가능합니다.
+              <span className="font-medium text-foreground">{t('admin.translationDashboard.guide.bidirectional')}</span>: {t('admin.translationDashboard.guide.bidirectionalDesc')}
             </div>
           </div>
           <div className="flex items-start gap-2">
             <Bot className="h-4 w-4 mt-0.5 text-amber-600" />
             <div>
-              <span className="font-medium text-foreground">AI 번역</span>: Gemini AI가 자동으로 생성한 번역입니다. 운영자 검토가 필요합니다.
+              <span className="font-medium text-foreground">{t('admin.translationDashboard.guide.aiTranslation')}</span>: {t('admin.translationDashboard.guide.aiTranslationDesc')}
             </div>
           </div>
           <div className="flex items-start gap-2">
             <CheckCircle className="h-4 w-4 mt-0.5 text-green-600" />
             <div>
-              <span className="font-medium text-foreground">검토됨</span>: 운영자가 확인하고 승인한 번역입니다.
+              <span className="font-medium text-foreground">{t('admin.translationDashboard.guide.reviewedLabel')}</span>: {t('admin.translationDashboard.guide.reviewedDesc')}
             </div>
           </div>
           <div className="flex items-start gap-2">
             <AlertCircle className="h-4 w-4 mt-0.5 text-amber-600" />
             <div>
-              <span className="font-medium text-foreground">검토 필요</span>: AI가 생성했지만 아직 운영자가 확인하지 않은 번역입니다.
+              <span className="font-medium text-foreground">{t('admin.translationDashboard.guide.needsReviewLabel')}</span>: {t('admin.translationDashboard.guide.needsReviewDesc')}
             </div>
           </div>
         </CardContent>

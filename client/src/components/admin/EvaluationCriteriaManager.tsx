@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
+import { useTranslation } from "react-i18next";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -102,6 +103,7 @@ const DIMENSION_TYPE_OPTIONS = [
 ];
 
 export function EvaluationCriteriaManager() {
+  const { t } = useTranslation();
   const { toast } = useToast();
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
@@ -420,7 +422,7 @@ export function EvaluationCriteriaManager() {
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <div>
-          <h2 className="text-2xl font-bold">평가 기준 관리</h2>
+          <h2 className="text-2xl font-bold">{t('admin.evaluationCriteria')}</h2>
           <p className="text-slate-600">사용자 대화 피드백에 사용될 평가 기준을 설정합니다.</p>
         </div>
         <Button onClick={() => { resetFormData(); setIsCreateDialogOpen(true); }}>

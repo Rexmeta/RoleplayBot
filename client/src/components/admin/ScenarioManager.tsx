@@ -1,5 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { useQuery, useMutation } from '@tanstack/react-query';
+import { useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -69,6 +70,7 @@ interface ScenarioFormData {
 }
 
 export function ScenarioManager() {
+  const { t } = useTranslation();
   const { toast } = useToast();
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [editingScenario, setEditingScenario] = useState<ComplexScenario | null>(null);
@@ -539,8 +541,8 @@ export function ScenarioManager() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-2xl font-bold text-slate-900">시나리오 관리</h2>
-          <p className="text-slate-600 mt-1">훈련 시나리오를 생성하고 관리할 수 있습니다.</p>
+          <h2 className="text-2xl font-bold text-slate-900">{t('admin.scenarioManager.title')}</h2>
+          <p className="text-slate-600 mt-1">{t('admin.scenarioManager.description')}</p>
         </div>
         
         <div className="flex items-center gap-2">
@@ -1376,7 +1378,7 @@ export function ScenarioManager() {
                   }}
                   data-testid="button-cancel"
                 >
-                  취소
+                  {t('admin.common.cancel')}
                 </Button>
                 <Button
                   type="submit"
@@ -1384,7 +1386,7 @@ export function ScenarioManager() {
                   disabled={createMutation.isPending || updateMutation.isPending}
                   data-testid="button-save-scenario"
                 >
-                  {editingScenario ? '수정하기' : '생성하기'}
+                  {editingScenario ? t('admin.scenarioManager.editScenario') : t('admin.scenarioManager.addScenario')}
                 </Button>
               </div>
             </form>

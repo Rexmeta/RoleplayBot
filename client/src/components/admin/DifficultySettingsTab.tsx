@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useQuery, useMutation } from '@tanstack/react-query';
+import { useTranslation } from 'react-i18next';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -63,6 +64,7 @@ const defaultDifficultySettings: Record<number, DifficultyGuidelines> = {
 };
 
 export function DifficultySettingsTab() {
+  const { t } = useTranslation();
   const { toast } = useToast();
   const [editingLevel, setEditingLevel] = useState<number | null>(null);
   const [editForm, setEditForm] = useState<DifficultyGuidelines | null>(null);
@@ -165,7 +167,7 @@ export function DifficultySettingsTab() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-xl font-bold text-slate-800">대화 난이도 설정</h2>
+          <h2 className="text-xl font-bold text-slate-800">{t('admin.difficultySettings')}</h2>
           <p className="text-sm text-slate-600 mt-1">
             AI 캐릭터의 대화 스타일을 난이도별로 설정합니다. 이 설정은 텍스트, TTS, 실시간 음성 모든 대화 모드에 적용됩니다.
           </p>

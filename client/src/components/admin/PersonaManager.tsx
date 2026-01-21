@@ -1,5 +1,6 @@
 import React, { useState, useRef } from 'react';
 import { useQuery, useMutation } from '@tanstack/react-query';
+import { useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
@@ -176,6 +177,7 @@ interface MBTIPersonaFormData {
 }
 
 export function PersonaManager() {
+  const { t } = useTranslation();
   const { toast } = useToast();
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [editingPersona, setEditingPersona] = useState<MBTIPersona | null>(null);
@@ -742,8 +744,8 @@ export function PersonaManager() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-2xl font-bold text-slate-900">페르소나 관리</h2>
-          <p className="text-slate-600 mt-1">성격 유형별 AI 페르소나를 관리합니다</p>
+          <h2 className="text-2xl font-bold text-slate-900">{t('admin.personaManager.title')}</h2>
+          <p className="text-slate-600 mt-1">{t('admin.personaManager.description')}</p>
         </div>
         
         <Dialog open={isCreateOpen || !!editingPersona} onOpenChange={(open) => {
@@ -770,7 +772,7 @@ export function PersonaManager() {
             <DialogHeader className="bg-indigo-600 -m-6 mb-4 p-6 rounded-t-lg">
               <DialogTitle className="text-white text-xl flex items-center gap-2">
                 <i className="fas fa-user-edit"></i>
-                {editingPersona ? '페르소나 수정' : '페르소나 생성'}
+                {editingPersona ? t('admin.personaManager.editPersona') : t('admin.personaManager.addPersona')}
               </DialogTitle>
             </DialogHeader>
             
@@ -1279,7 +1281,7 @@ export function PersonaManager() {
                     resetForm();
                   }}
                 >
-                  취소
+                  {t('admin.common.cancel')}
                 </Button>
                 <Button 
                   type="submit" 
@@ -1287,7 +1289,7 @@ export function PersonaManager() {
                   className="bg-corporate-600 hover:bg-corporate-700"
                   data-testid="button-save-persona"
                 >
-                  {createMutation.isPending || updateMutation.isPending ? '저장 중...' : '저장'}
+                  {createMutation.isPending || updateMutation.isPending ? t('admin.common.loading') : t('admin.common.save')}
                 </Button>
               </div>
             </form>
