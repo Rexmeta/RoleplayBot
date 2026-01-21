@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -6,6 +7,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { CheckCircle2, Users, MessageCircle, Target, Clock, Lightbulb, AlertCircle, TrendingUp, ArrowLeft, Loader2, Play, BookOpen, Award, Briefcase, FileText } from "lucide-react";
 import { type ScenarioPersona, type ComplexScenario } from "@/lib/scenario-system";
 import { useTranslation } from "react-i18next";
+import i18n from "@/lib/i18n";
 
 interface SimplePersonaSelectorProps {
   personas: ScenarioPersona[];
@@ -35,11 +37,41 @@ export function SimplePersonaSelector({
   onDifficultyChange
 }: SimplePersonaSelectorProps) {
   const { t } = useTranslation();
+  const currentLang = i18n.language || 'ko';
   const [activeTab, setActiveTab] = useState("overview");
   const availablePersonas = personas.filter(p => !completedPersonaIds.includes(p.id));
   const completedCount = completedPersonaIds.length;
   const totalCount = personas.length;
   const progressPercentage = Math.round((completedCount / totalCount) * 100);
+
+  // 시나리오 번역 가져오기
+  const { data: scenarioTranslation } = useQuery({
+    queryKey: ['/api/scenarios', scenario?.id, 'translations', currentLang],
+    queryFn: async () => {
+      if (!scenario?.id || currentLang === 'ko') return null;
+      const token = localStorage.getItem("authToken");
+      const headers: Record<string, string> = {};
+      if (token) {
+        headers["Authorization"] = `Bearer ${token}`;
+      }
+      const res = await fetch(`/api/scenarios/${encodeURIComponent(scenario.id)}/translations/${currentLang}`, {
+        credentials: 'include',
+        headers
+      });
+      if (!res.ok) return null;
+      return res.json();
+    },
+    enabled: !!scenario?.id && currentLang !== 'ko',
+    staleTime: 1000 * 60 * 10,
+  });
+
+  // 번역된 skills 가져오기
+  const getTranslatedSkills = (originalSkills: string[]): string[] => {
+    if (currentLang === 'ko' || !scenarioTranslation?.skills?.length) {
+      return originalSkills;
+    }
+    return scenarioTranslation.skills;
+  };
   
   const difficultyLabels: Record<number, { name: string; color: string; bgColor: string; description: string }> = {
     1: { name: t('scenario.difficulty1'), color: "text-green-700", bgColor: "bg-green-500", description: t('scenario.difficulty1Desc') },
@@ -262,7 +294,7 @@ export function SimplePersonaSelector({
                             {t('scenario.keyCompetencies')}
                           </h4>
                           <div className="flex flex-wrap gap-2">
-                            {scenario.skills.map((skill, index) => (
+                            {getTranslatedSkills(scenario.skills).map((skill, index) => (
                               <Badge 
                                 key={index} 
                                 variant="secondary"
