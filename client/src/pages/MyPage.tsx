@@ -9,7 +9,8 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Progress } from "@/components/ui/progress";
-import { CalendarDays, Star, TrendingUp, MessageSquare, Award, History, BarChart3, Target, Trash2, Loader2, HelpCircle, Lightbulb, CheckCircle, AlertCircle, ArrowRight, Minus, TrendingDown, Users } from "lucide-react";
+import { CalendarDays, Star, TrendingUp, MessageSquare, Award, History, BarChart3, Target, Trash2, Loader2, HelpCircle, Lightbulb, CheckCircle, AlertCircle, ArrowRight, Minus, TrendingDown, Users, Filter } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Link } from "wouter";
 import { useAuth } from "@/hooks/useAuth";
 import { AppHeader } from "@/components/AppHeader";
@@ -55,11 +56,33 @@ const DEFAULT_DIMENSION_NAMES: Record<string, string> = {
   strategicCommunication: "전략적 커뮤니케이션"
 };
 
+const FA_TO_EMOJI: Record<string, string> = {
+  'fa-solid fa-bullseye': '🎯',
+  'fa-solid fa-heart': '❤️',
+  'fa-solid fa-arrows-rotate': '🔄',
+  'fa-solid fa-chart-line': '📈',
+  'fa-solid fa-chess': '♟️',
+  'fa-solid fa-comments': '💬',
+  'fa-solid fa-handshake': '🤝',
+  'fa-solid fa-brain': '🧠',
+  'fa-solid fa-lightbulb': '💡',
+  'fa-solid fa-star': '⭐',
+};
+
+const getDisplayIcon = (icon: string): string => {
+  if (!icon) return '📊';
+  if (icon.startsWith('fa-')) {
+    return FA_TO_EMOJI[icon] || '📊';
+  }
+  return icon;
+};
+
 export default function MyPage() {
   const [selectedView, setSelectedView] = useState<"history" | "analytics">("history");
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [scenarioRunToDelete, setScenarioRunToDelete] = useState<string | null>(null);
   const [strategyReflectionRunId, setStrategyReflectionRunId] = useState<string | null>(null);
+  const [selectedCriteriaSet, setSelectedCriteriaSet] = useState<string>("all");
   const { user } = useAuth();
   const { toast } = useToast();
 
@@ -523,27 +546,80 @@ export default function MyPage() {
                 {/* Category Breakdown */}
                 <Card>
                   <CardHeader>
-                    <CardTitle>카테고리별 평균 점수</CardTitle>
-                    <CardDescription>5개 평가 항목별 종합 분석 (5점 만점)</CardDescription>
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <CardTitle>카테고리별 평균 점수</CardTitle>
+                        <CardDescription>
+                          {analyticsData.criteriaDetails && analyticsData.criteriaDetails.length > 0 
+                            ? `${analyticsData.criteriaDetails.length}개 평가 기준 종합 분석 (5점 만점)`
+                            : '평가 항목별 종합 분석 (5점 만점)'}
+                        </CardDescription>
+                      </div>
+                      {analyticsData.usedCriteriaSets && analyticsData.usedCriteriaSets.length >= 1 && (
+                        <div className="flex items-center gap-2">
+                          <Filter className="w-4 h-4 text-slate-500" />
+                          <Select value={selectedCriteriaSet} onValueChange={setSelectedCriteriaSet}>
+                            <SelectTrigger className="w-[240px]">
+                              <SelectValue placeholder="평가 기준 세트 선택" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="all">전체 평가 기준 ({analyticsData.totalFeedbacks}회)</SelectItem>
+                              {analyticsData.usedCriteriaSets.map((criteriaSet: any) => (
+                                <SelectItem key={criteriaSet.id} value={criteriaSet.id}>
+                                  {criteriaSet.name} ({criteriaSet.feedbackCount}회)
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      )}
+                    </div>
                   </CardHeader>
                   <CardContent>
                     <div className="space-y-6">
-                      {Object.entries(analyticsData.categoryAverages || {}).map(([key, value]) => (
-                        <div key={key}>
-                          <div className="flex items-center justify-between mb-2">
-                            <div className="flex items-center gap-2">
-                              <span className="text-xl">{getDimensionIcon(key)}</span>
-                              <span className="font-medium text-slate-900">
-                                {getDimensionName(key)}
+                      {/* 새로운 criteriaDetails 사용 (있는 경우) */}
+                      {analyticsData.criteriaDetails && analyticsData.criteriaDetails.length > 0 ? (
+                        (selectedCriteriaSet === "all" 
+                          ? analyticsData.criteriaDetails 
+                          : analyticsData.criteriaDetailsBySet?.[selectedCriteriaSet] || []
+                        ).map((criteria: any) => (
+                          <div key={criteria.key}>
+                            <div className="flex items-center justify-between mb-2">
+                              <div className="flex items-center gap-2">
+                                <span className="text-xl">{getDisplayIcon(criteria.icon)}</span>
+                                <span className="font-medium text-slate-900">
+                                  {criteria.name}
+                                </span>
+                                <Badge variant="outline" className="text-xs bg-slate-50">
+                                  {criteria.evaluationCount}회 평가
+                                </Badge>
+                              </div>
+                              <span className="text-lg font-semibold text-slate-900">
+                                {criteria.averageScore.toFixed(1)} / 5.0
                               </span>
                             </div>
-                            <span className="text-lg font-semibold text-slate-900">
-                              {(value as number).toFixed(1)} / 5.0
-                            </span>
+                            <Progress value={criteria.averageScore * 20} className="h-3" />
                           </div>
-                          <Progress value={(value as number) * 20} className="h-3" />
-                        </div>
-                      ))}
+                        ))
+                      ) : (
+                        /* 기존 categoryAverages 호환 (구버전 데이터) */
+                        Object.entries(analyticsData.categoryAverages || {}).map(([key, value]) => (
+                          <div key={key}>
+                            <div className="flex items-center justify-between mb-2">
+                              <div className="flex items-center gap-2">
+                                <span className="text-xl">{getDimensionIcon(key)}</span>
+                                <span className="font-medium text-slate-900">
+                                  {getDimensionName(key)}
+                                </span>
+                              </div>
+                              <span className="text-lg font-semibold text-slate-900">
+                                {(value as number).toFixed(1)} / 5.0
+                              </span>
+                            </div>
+                            <Progress value={(value as number) * 20} className="h-3" />
+                          </div>
+                        ))
+                      )}
                     </div>
                   </CardContent>
                 </Card>
