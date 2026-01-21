@@ -785,11 +785,14 @@ export function PersonaManager() {
                 </h3>
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <Label htmlFor="id" className="text-sm font-semibold text-slate-700 mb-1.5 block">페르소나 ID (소문자)</Label>
+                    <Label htmlFor="id" className="text-sm font-semibold text-slate-700 mb-1.5 block">페르소나 ID (영문 소문자만)</Label>
                     <Input
                       id="id"
                       value={formData.id}
-                      onChange={(e) => setFormData(prev => ({ ...prev, id: e.target.value }))}
+                      onChange={(e) => {
+                        const value = e.target.value.replace(/[^a-z]/g, '');
+                        setFormData(prev => ({ ...prev, id: value }));
+                      }}
                       placeholder="istj, enfp, intp 등"
                       required
                       className="border-slate-300 focus:border-indigo-500 focus:ring-indigo-500 bg-white"
@@ -797,11 +800,14 @@ export function PersonaManager() {
                     />
                   </div>
                   <div>
-                    <Label htmlFor="mbti" className="text-sm font-semibold text-slate-700 mb-1.5 block">페르소나 유형 (대문자)</Label>
+                    <Label htmlFor="mbti" className="text-sm font-semibold text-slate-700 mb-1.5 block">페르소나 유형 (영문 대문자만)</Label>
                     <Input
                       id="mbti"
                       value={formData.mbti}
-                      onChange={(e) => setFormData(prev => ({ ...prev, mbti: e.target.value }))}
+                      onChange={(e) => {
+                        const value = e.target.value.replace(/[^A-Z]/g, '');
+                        setFormData(prev => ({ ...prev, mbti: value }));
+                      }}
                       placeholder="ISTJ, ENFP, INTP 등"
                       required
                       className="border-slate-300 focus:border-indigo-500 focus:ring-indigo-500 bg-white"
