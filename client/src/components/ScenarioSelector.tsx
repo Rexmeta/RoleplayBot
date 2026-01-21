@@ -121,6 +121,39 @@ export default function ScenarioSelector({ onScenarioSelect, playerProfile }: Sc
     return originalSkills;
   };
 
+  // 번역된 제목 가져오기
+  const getTranslatedTitle = (scenarioId: string | number, originalTitle: string): string => {
+    if (currentLang === 'ko' || !expandedScenarioTranslation) {
+      return originalTitle;
+    }
+    if (String(expandedScenarioId) === String(scenarioId) && expandedScenarioTranslation.title) {
+      return expandedScenarioTranslation.title;
+    }
+    return originalTitle;
+  };
+
+  // 번역된 설명 가져오기
+  const getTranslatedDescription = (scenarioId: string | number, originalDescription: string): string => {
+    if (currentLang === 'ko' || !expandedScenarioTranslation) {
+      return originalDescription;
+    }
+    if (String(expandedScenarioId) === String(scenarioId) && expandedScenarioTranslation.description) {
+      return expandedScenarioTranslation.description;
+    }
+    return originalDescription;
+  };
+
+  // 번역된 상황 정보 가져오기
+  const getTranslatedSituation = (scenarioId: string | number, originalSituation: string | undefined): string | undefined => {
+    if (currentLang === 'ko' || !expandedScenarioTranslation || !originalSituation) {
+      return originalSituation;
+    }
+    if (String(expandedScenarioId) === String(scenarioId) && expandedScenarioTranslation.situation) {
+      return expandedScenarioTranslation.situation;
+    }
+    return originalSituation;
+  };
+
   // MBTI 기본 특성을 시나리오 내에서 직접 처리 (외부 API 호출 없이)
   const personasLoading = false; // 로딩 상태 제거
 
@@ -483,20 +516,23 @@ export default function ScenarioSelector({ onScenarioSelect, playerProfile }: Sc
                     {/* 메인 콘텐츠 - 항상 보이는 영역 */}
                     <div className="absolute bottom-0 left-0 right-0 p-5 text-white">
                       <h2 className="text-xl font-bold mb-2 drop-shadow-lg line-clamp-2 group-hover:text-white transition-colors duration-300">
-                        {scenario.title}
+                        {getTranslatedTitle(scenario.id, scenario.title)}
                       </h2>
                       
                       {/* 설명 미리보기 (500자 제한) */}
-                      {!isExpanded && scenario.description && (
-                        <p className="text-xs text-gray-200 mb-3 leading-relaxed line-clamp-3 drop-shadow-md">
-                          {scenario.description.length > 500 
-                            ? scenario.description.substring(0, 500) + '...' 
-                            : scenario.description}
-                          {scenario.description.length > 500 && (
-                            <span className="text-blue-300 ml-1 font-medium">{t('scenario.viewMore')} ▼</span>
-                          )}
-                        </p>
-                      )}
+                      {!isExpanded && scenario.description && (() => {
+                        const desc = getTranslatedDescription(scenario.id, scenario.description);
+                        return (
+                          <p className="text-xs text-gray-200 mb-3 leading-relaxed line-clamp-3 drop-shadow-md">
+                            {desc.length > 500 
+                              ? desc.substring(0, 500) + '...' 
+                              : desc}
+                            {desc.length > 500 && (
+                              <span className="text-blue-300 ml-1 font-medium">{t('scenario.viewMore')} ▼</span>
+                            )}
+                          </p>
+                        );
+                      })()}
                       
                       <div className="flex items-center gap-3 text-sm">
                         <div className="flex items-center gap-1.5 bg-white/20 backdrop-blur-md rounded-full px-3 py-1.5 shadow-sm">
@@ -522,31 +558,34 @@ export default function ScenarioSelector({ onScenarioSelect, playerProfile }: Sc
                   >
                     <div className="bg-gradient-to-b from-slate-900 to-slate-800 p-6 text-white">
                       {/* 시나리오 개요 - 모바일에서는 300자 제한 */}
-                      {scenario.description && (
-                        <div className="bg-white/5 rounded-lg p-4 mb-5">
-                          <h4 className="font-medium text-white mb-3 flex items-center text-sm">
-                            <i className="fas fa-file-alt mr-2 text-blue-400"></i>
-                            {t('scenario.overview')}
-                          </h4>
-                          {/* 데스크탑: 전체 표시, 모바일: 300자 제한 */}
-                          <p className="text-sm text-gray-200 leading-relaxed whitespace-pre-wrap hidden md:block">
-                            {scenario.description}
-                          </p>
-                          <div className="md:hidden">
-                            <p className="text-sm text-gray-200 leading-relaxed whitespace-pre-wrap">
-                              {scenario.description.length > 300 
-                                ? scenario.description.substring(0, 300) + '...' 
-                                : scenario.description}
+                      {scenario.description && (() => {
+                        const desc = getTranslatedDescription(scenario.id, scenario.description);
+                        return (
+                          <div className="bg-white/5 rounded-lg p-4 mb-5">
+                            <h4 className="font-medium text-white mb-3 flex items-center text-sm">
+                              <i className="fas fa-file-alt mr-2 text-blue-400"></i>
+                              {t('scenario.overview')}
+                            </h4>
+                            {/* 데스크탑: 전체 표시, 모바일: 300자 제한 */}
+                            <p className="text-sm text-gray-200 leading-relaxed whitespace-pre-wrap hidden md:block">
+                              {desc}
                             </p>
-                            {scenario.description.length > 300 && (
-                              <p className="text-xs text-blue-300 mt-2 flex items-center gap-1">
-                                <i className="fas fa-info-circle"></i>
-                                {t('scenario.mobileHint')}
+                            <div className="md:hidden">
+                              <p className="text-sm text-gray-200 leading-relaxed whitespace-pre-wrap">
+                                {desc.length > 300 
+                                  ? desc.substring(0, 300) + '...' 
+                                  : desc}
                               </p>
-                            )}
+                              {desc.length > 300 && (
+                                <p className="text-xs text-blue-300 mt-2 flex items-center gap-1">
+                                  <i className="fas fa-info-circle"></i>
+                                  {t('scenario.mobileHint')}
+                                </p>
+                              )}
+                            </div>
                           </div>
-                        </div>
-                      )}
+                        );
+                      })()}
                       
                       {/* 상황 정보 */}
                       <div className="space-y-4 mb-5">
@@ -556,7 +595,7 @@ export default function ScenarioSelector({ onScenarioSelect, playerProfile }: Sc
                             {t('scenario.situation')}
                           </h4>
                           <p className="text-gray-300 text-xs leading-relaxed whitespace-pre-wrap">
-                            {scenario.context?.situation || t('scenario.noSituation')}
+                            {getTranslatedSituation(scenario.id, scenario.context?.situation) || t('scenario.noSituation')}
                           </p>
                         </div>
                         
