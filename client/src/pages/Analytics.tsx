@@ -352,7 +352,7 @@ export default function Analytics() {
                     : '평가 항목별 종합 분석 (5점 만점)'}
                 </CardDescription>
               </div>
-              {analytics.usedCriteriaSets && analytics.usedCriteriaSets.length > 1 && (
+              {analytics.usedCriteriaSets && analytics.usedCriteriaSets.length >= 1 && (
                 <div className="flex items-center gap-2">
                   <Filter className="w-4 h-4 text-slate-500" />
                   <Select value={selectedCriteriaSet} onValueChange={setSelectedCriteriaSet}>
