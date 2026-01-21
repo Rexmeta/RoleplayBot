@@ -557,7 +557,7 @@ export function ScenarioManager() {
             data-testid="button-create-scenario"
           >
             <i className="fas fa-plus mr-2"></i>
-            직접 생성
+            {t('admin.scenarioManager.createManually')}
           </Button>
         </div>
 
@@ -1462,14 +1462,14 @@ export function ScenarioManager() {
                           data-testid={`button-edit-scenario-${scenario.id}`}
                         >
                           <i className="fas fa-edit mr-2 w-4 h-4 text-center"></i>
-                          수정
+                          {t('admin.common.edit')}
                         </DropdownMenuItem>
                         <DropdownMenuItem
                           onClick={() => setTranslatingScenario(scenario)}
                           data-testid={`button-translate-scenario-${scenario.id}`}
                         >
                           <Languages className="mr-2 w-4 h-4" />
-                          번역 관리
+                          {t('admin.common.manageTranslation')}
                         </DropdownMenuItem>
                         <AlertDialog>
                           <AlertDialogTrigger asChild>
@@ -1479,32 +1479,26 @@ export function ScenarioManager() {
                               className="text-red-600 focus:text-red-600 focus:bg-red-50"
                             >
                               <i className="fas fa-trash mr-2 w-4 h-4 text-center"></i>
-                              삭제
+                              {t('admin.common.delete')}
                             </DropdownMenuItem>
                           </AlertDialogTrigger>
                           <AlertDialogContent>
                             <AlertDialogHeader>
-                              <AlertDialogTitle>시나리오 삭제 확인</AlertDialogTitle>
+                              <AlertDialogTitle>{t('admin.scenarioManager.deleteScenario')}</AlertDialogTitle>
                               <AlertDialogDescription className="space-y-2">
                                 <div>
-                                  <strong>"{scenario.title}"</strong> 시나리오를 정말 삭제하시겠습니까?
-                                </div>
-                                <div className="text-red-600 font-medium">
-                                  ⚠️ 삭제된 시나리오는 복구할 수 없습니다.
-                                </div>
-                                <div className="text-slate-600 text-sm">
-                                  이 작업은 되돌릴 수 없으니 신중하게 결정해주세요.
+                                  {t('admin.scenarioManager.deleteConfirm')}
                                 </div>
                               </AlertDialogDescription>
                             </AlertDialogHeader>
                             <AlertDialogFooter>
-                              <AlertDialogCancel>취소</AlertDialogCancel>
+                              <AlertDialogCancel>{t('common.cancel')}</AlertDialogCancel>
                               <AlertDialogAction
                                 onClick={() => deleteMutation.mutate(scenario.id)}
                                 className="bg-red-600 hover:bg-red-700"
                                 data-testid={`confirm-delete-scenario-${scenario.id}`}
                               >
-                                삭제
+                                {t('common.delete')}
                               </AlertDialogAction>
                             </AlertDialogFooter>
                           </AlertDialogContent>
@@ -1594,7 +1588,7 @@ export function ScenarioManager() {
             }}
             className="bg-corporate-600 hover:bg-corporate-700"
           >
-            첫 번째 시나리오 생성
+            {t('admin.scenarioManager.createFirstScenario')}
           </Button>
         </div>
       )}

@@ -765,7 +765,7 @@ export function PersonaManager() {
               className="bg-corporate-600 hover:bg-corporate-700"
               data-testid="button-create-persona"
             >
-              페르소나 생성
+              {t('admin.personaManager.createPersona')}
             </Button>
           </DialogTrigger>
           <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto bg-slate-50">
@@ -1342,14 +1342,14 @@ export function PersonaManager() {
                         data-testid={`button-edit-persona-${persona.id}`}
                       >
                         <i className="fas fa-edit mr-2 w-4 h-4 text-center"></i>
-                        수정
+                        {t('admin.common.edit')}
                       </DropdownMenuItem>
                       <DropdownMenuItem
                         onClick={() => setTranslatingPersona(persona)}
                         data-testid={`button-translate-persona-${persona.id}`}
                       >
                         <Languages className="mr-2 w-4 h-4" />
-                        번역 관리
+                        {t('admin.common.manageTranslation')}
                       </DropdownMenuItem>
                       <AlertDialog>
                         <AlertDialogTrigger asChild>
@@ -1360,21 +1360,18 @@ export function PersonaManager() {
                             className="text-red-600 focus:text-red-600 focus:bg-red-50"
                           >
                             <i className="fas fa-trash mr-2 w-4 h-4 text-center"></i>
-                            삭제
+                            {t('admin.common.delete')}
                           </DropdownMenuItem>
                         </AlertDialogTrigger>
                         <AlertDialogContent>
                           <AlertDialogHeader>
-                            <AlertDialogTitle>페르소나 삭제</AlertDialogTitle>
+                            <AlertDialogTitle>{t('admin.personaManager.deletePersona')}</AlertDialogTitle>
                             <AlertDialogDescription>
-                              <strong>{persona.mbti} ({persona.id})</strong> 페르소나를 삭제하시겠습니까?
-                              <br /><br />
-                              현재 {scenarioUsage.length}개 시나리오에서 사용 중입니다.
-                              삭제 시 해당 시나리오들에 영향을 줄 수 있습니다.
+                              {t('admin.personaManager.deleteConfirm')}
                             </AlertDialogDescription>
                           </AlertDialogHeader>
                           <AlertDialogFooter>
-                            <AlertDialogCancel onClick={() => setDeletingPersona(null)}>취소</AlertDialogCancel>
+                            <AlertDialogCancel onClick={() => setDeletingPersona(null)}>{t('common.cancel')}</AlertDialogCancel>
                             <AlertDialogAction
                               onClick={() => {
                                 if (deletingPersona) {
@@ -1383,7 +1380,7 @@ export function PersonaManager() {
                               }}
                               className="bg-red-600 hover:bg-red-700"
                             >
-                              삭제하기
+                              {t('admin.personaManager.deleteButton')}
                             </AlertDialogAction>
                           </AlertDialogFooter>
                         </AlertDialogContent>
@@ -1552,8 +1549,8 @@ export function PersonaManager() {
       {personas?.length === 0 && (
         <div className="text-center py-12">
           <div className="text-6xl mb-4">🧠</div>
-          <h3 className="text-xl font-medium text-slate-600 mb-2">페르소나가 없습니다</h3>
-          <p className="text-slate-500 mb-4">새로운 페르소나 유형을 추가해보세요</p>
+          <h3 className="text-xl font-medium text-slate-600 mb-2">{t('admin.personaManager.noPersonas')}</h3>
+          <p className="text-slate-500 mb-4">{t('admin.personaManager.description')}</p>
           <Button
             onClick={() => {
               resetForm();
@@ -1562,7 +1559,7 @@ export function PersonaManager() {
             }}
             className="bg-corporate-600 hover:bg-corporate-700"
           >
-            첫 번째 페르소나 생성
+            {t('admin.personaManager.createFirstPersona')}
           </Button>
         </div>
       )}
@@ -1582,7 +1579,7 @@ export function PersonaManager() {
               />
             </div>
             <div className="flex justify-end">
-              <Button onClick={() => setViewingImage(null)}>닫기</Button>
+              <Button onClick={() => setViewingImage(null)}>{t('common.close')}</Button>
             </div>
           </DialogContent>
         </Dialog>
@@ -1592,13 +1589,13 @@ export function PersonaManager() {
       <AlertDialog open={showBaseImageConfirm} onOpenChange={setShowBaseImageConfirm}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>기본 이미지 재생성</AlertDialogTitle>
+            <AlertDialogTitle>{t('admin.common.regenerate')}</AlertDialogTitle>
             <AlertDialogDescription>
-              이미 생성된 기본 이미지가 있습니다. 기존 이미지를 삭제하고 새로운 기본 이미지를 생성하시겠어요?
+              {t('admin.personaManager.deleteConfirm')}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>취소</AlertDialogCancel>
+            <AlertDialogCancel>{t('common.cancel')}</AlertDialogCancel>
             <AlertDialogAction
               onClick={() => {
                 setShowBaseImageConfirm(false);
@@ -1606,7 +1603,7 @@ export function PersonaManager() {
               }}
               className="bg-red-600 hover:bg-red-700"
             >
-              재생성
+              {t('admin.common.regenerate')}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

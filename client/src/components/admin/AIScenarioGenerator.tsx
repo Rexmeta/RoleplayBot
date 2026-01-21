@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useMutation } from '@tanstack/react-query';
+import { useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
@@ -15,6 +16,7 @@ interface AIGeneratorProps {
 }
 
 export function AIScenarioGenerator({ onGenerated }: AIGeneratorProps) {
+  const { t } = useTranslation();
   const { toast } = useToast();
   const [isOpen, setIsOpen] = useState(false);
   const [formData, setFormData] = useState({
@@ -45,15 +47,15 @@ export function AIScenarioGenerator({ onGenerated }: AIGeneratorProps) {
       setIsOpen(false);
       onGenerated(result);
       toast({
-        title: "성공",
-        description: "AI가 시나리오를 생성했습니다.",
+        title: t('admin.aiGenerator.success'),
+        description: t('admin.aiGenerator.generated'),
         variant: "default"
       });
     },
     onError: () => {
       toast({
-        title: "오류", 
-        description: "AI 시나리오 생성에 실패했습니다.",
+        title: t('common.error'),
+        description: t('admin.aiGenerator.generateFailed'),
         variant: "destructive"
       });
     }
@@ -61,21 +63,21 @@ export function AIScenarioGenerator({ onGenerated }: AIGeneratorProps) {
 
   const handleGenerate = () => {
     const requiredFields = [
-      { field: formData.theme, name: '주제' },
-      { field: formData.situation, name: '상황 설명' },
-      { field: formData.timeline, name: '시간적 제약' },
-      { field: formData.stakes, name: '이해관계' },
-      { field: formData.playerRole.position, name: '직책' },
-      { field: formData.playerRole.department, name: '소속 부서' },
-      { field: formData.playerRole.experience, name: '경력 수준' },
-      { field: formData.playerRole.responsibility, name: '핵심 책임' }
+      { field: formData.theme, name: t('admin.aiGenerator.topic') },
+      { field: formData.situation, name: t('admin.aiGenerator.situationDescription') },
+      { field: formData.timeline, name: t('admin.aiGenerator.timeConstraint') },
+      { field: formData.stakes, name: t('admin.aiGenerator.stakeholdersAndConflicts') },
+      { field: formData.playerRole.position, name: t('admin.aiGenerator.position') },
+      { field: formData.playerRole.department, name: t('admin.aiGenerator.department') },
+      { field: formData.playerRole.experience, name: t('admin.aiGenerator.experienceLevel') },
+      { field: formData.playerRole.responsibility, name: t('admin.aiGenerator.coreResponsibility') }
     ];
     
     for (const { field, name } of requiredFields) {
       if (!field.trim()) {
         toast({
-          title: "필수 입력 누락",
-          description: `${name}을(를) 입력해주세요.`,
+          title: t('admin.aiGenerator.requiredFieldMissing'),
+          description: t('admin.aiGenerator.pleaseEnter', { field: name }),
           variant: "destructive"
         });
         return;
@@ -94,7 +96,7 @@ export function AIScenarioGenerator({ onGenerated }: AIGeneratorProps) {
           data-testid="button-ai-generate"
         >
           <i className="fas fa-magic mr-2"></i>
-          AI로 생성
+          {t('admin.aiGenerator.generateWithAI')}
         </Button>
       </DialogTrigger>
       
@@ -102,7 +104,7 @@ export function AIScenarioGenerator({ onGenerated }: AIGeneratorProps) {
         <DialogHeader className="bg-purple-600 -m-6 mb-4 p-6 rounded-t-lg">
           <DialogTitle className="text-white text-xl flex items-center gap-2">
             <i className="fas fa-magic"></i>
-            AI 시나리오 생성
+            {t('admin.aiGenerator.title')}
           </DialogTitle>
         </DialogHeader>
         
@@ -117,7 +119,7 @@ export function AIScenarioGenerator({ onGenerated }: AIGeneratorProps) {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <Label htmlFor="theme" className="text-sm font-semibold text-slate-700 mb-1.5 block">
-                    주제 <span className="text-red-500">*</span>
+                    {t('admin.aiGenerator.topic')} <span className="text-red-500">*</span>
                   </Label>
                   <Input
                     id="theme"
@@ -130,7 +132,7 @@ export function AIScenarioGenerator({ onGenerated }: AIGeneratorProps) {
                 </div>
                 
                 <div>
-                  <Label htmlFor="industry" className="text-sm font-semibold text-slate-700 mb-1.5 block">업종</Label>
+                  <Label htmlFor="industry" className="text-sm font-semibold text-slate-700 mb-1.5 block">{t('admin.aiGenerator.industry')}</Label>
                   <Input
                     id="industry"
                     value={formData.industry}
@@ -144,7 +146,7 @@ export function AIScenarioGenerator({ onGenerated }: AIGeneratorProps) {
               
               <div>
                 <Label htmlFor="situation" className="text-sm font-semibold text-slate-700 mb-1.5 block">
-                  구체적 상황 설명 <span className="text-red-500">*</span>
+                  {t('admin.aiGenerator.situationDescription')} <span className="text-red-500">*</span>
                 </Label>
                 <Textarea
                   id="situation"
@@ -159,7 +161,7 @@ export function AIScenarioGenerator({ onGenerated }: AIGeneratorProps) {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <Label htmlFor="timeline" className="text-sm font-semibold text-slate-700 mb-1.5 block">
-                    시간적 제약 <span className="text-red-500">*</span>
+                    {t('admin.aiGenerator.timeConstraint')} <span className="text-red-500">*</span>
                   </Label>
                   <Input
                     id="timeline"
@@ -173,7 +175,7 @@ export function AIScenarioGenerator({ onGenerated }: AIGeneratorProps) {
                 
                 <div>
                   <Label htmlFor="stakes" className="text-sm font-semibold text-slate-700 mb-1.5 block">
-                    이해관계 및 갈등 요소 <span className="text-red-500">*</span>
+                    {t('admin.aiGenerator.stakeholdersAndConflicts')} <span className="text-red-500">*</span>
                   </Label>
                   <Input
                     id="stakes"
@@ -197,7 +199,7 @@ export function AIScenarioGenerator({ onGenerated }: AIGeneratorProps) {
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <Label htmlFor="position" className="text-sm font-semibold text-slate-700 mb-1.5 block">
-                  직책 <span className="text-red-500">*</span>
+                  {t('admin.aiGenerator.position')} <span className="text-red-500">*</span>
                 </Label>
                 <Input
                   id="position"
@@ -214,7 +216,7 @@ export function AIScenarioGenerator({ onGenerated }: AIGeneratorProps) {
               
               <div>
                 <Label htmlFor="department" className="text-sm font-semibold text-slate-700 mb-1.5 block">
-                  소속 부서 <span className="text-red-500">*</span>
+                  {t('admin.aiGenerator.department')} <span className="text-red-500">*</span>
                 </Label>
                 <Input
                   id="department"
@@ -231,7 +233,7 @@ export function AIScenarioGenerator({ onGenerated }: AIGeneratorProps) {
               
               <div>
                 <Label htmlFor="experience" className="text-sm font-semibold text-slate-700 mb-1.5 block">
-                  경력 수준 <span className="text-red-500">*</span>
+                  {t('admin.aiGenerator.experienceLevel')} <span className="text-red-500">*</span>
                 </Label>
                 <Select 
                   value={formData.playerRole.experience} 
@@ -256,7 +258,7 @@ export function AIScenarioGenerator({ onGenerated }: AIGeneratorProps) {
               
               <div>
                 <Label htmlFor="responsibility" className="text-sm font-semibold text-slate-700 mb-1.5 block">
-                  핵심 책임 <span className="text-red-500">*</span>
+                  {t('admin.aiGenerator.coreResponsibility')} <span className="text-red-500">*</span>
                 </Label>
                 <Input
                   id="responsibility"
@@ -281,7 +283,7 @@ export function AIScenarioGenerator({ onGenerated }: AIGeneratorProps) {
             </h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <Label htmlFor="conflictType" className="text-sm font-semibold text-slate-700 mb-1.5 block">갈등 유형</Label>
+                <Label htmlFor="conflictType" className="text-sm font-semibold text-slate-700 mb-1.5 block">{t('admin.aiGenerator.conflictType')}</Label>
                 <Select 
                   value={formData.conflictType} 
                   onValueChange={(value) => setFormData(prev => ({ ...prev, conflictType: value }))}
@@ -315,7 +317,7 @@ export function AIScenarioGenerator({ onGenerated }: AIGeneratorProps) {
               </div>
               
               <div>
-                <Label htmlFor="objectiveType" className="text-sm font-semibold text-slate-700 mb-1.5 block">목표 유형</Label>
+                <Label htmlFor="objectiveType" className="text-sm font-semibold text-slate-700 mb-1.5 block">{t('admin.aiGenerator.goalType')}</Label>
                 <Select 
                   value={formData.objectiveType} 
                   onValueChange={(value) => setFormData(prev => ({ ...prev, objectiveType: value }))}
@@ -371,7 +373,7 @@ export function AIScenarioGenerator({ onGenerated }: AIGeneratorProps) {
                 </div>
                 
                 <div>
-                  <Label htmlFor="estimatedTime" className="text-sm font-semibold text-slate-700 mb-1.5 block">예상 소요 시간</Label>
+                  <Label htmlFor="estimatedTime" className="text-sm font-semibold text-slate-700 mb-1.5 block">{t('admin.aiGenerator.estimatedTime')}</Label>
                   <Select 
                     value={formData.estimatedTime} 
                     onValueChange={(value) => setFormData(prev => ({ ...prev, estimatedTime: value }))}
@@ -412,7 +414,7 @@ export function AIScenarioGenerator({ onGenerated }: AIGeneratorProps) {
                   </SelectContent>
                 </Select>
                 <p className="text-xs text-slate-500 mt-1">
-                  난이도는 사용자가 대화 시작 시 선택합니다
+                  {t('admin.aiGenerator.difficultyNote')}
                 </p>
               </div>
             </div>
@@ -427,12 +429,12 @@ export function AIScenarioGenerator({ onGenerated }: AIGeneratorProps) {
               {generateMutation.isPending ? (
                 <>
                   <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                  생성 중...
+                  {t('admin.common.loading')}
                 </>
               ) : (
                 <>
                   <i className="fas fa-magic mr-2"></i>
-                  생성하기
+                  {t('admin.aiGenerator.generateButton')}
                 </>
               )}
             </Button>
@@ -441,7 +443,7 @@ export function AIScenarioGenerator({ onGenerated }: AIGeneratorProps) {
               variant="outline"
               onClick={() => setIsOpen(false)}
             >
-              취소
+              {t('common.cancel')}
             </Button>
           </div>
         </div>

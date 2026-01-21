@@ -427,7 +427,7 @@ export function EvaluationCriteriaManager() {
         </div>
         <Button onClick={() => { resetFormData(); setIsCreateDialogOpen(true); }}>
           <Plus className="h-4 w-4 mr-2" />
-          새 평가 기준 세트
+          {t('admin.evaluationCriteria.newCriteriaSet')}
         </Button>
       </div>
 
@@ -441,7 +441,7 @@ export function EvaluationCriteriaManager() {
             </p>
             <Button onClick={() => { resetFormData(); setIsCreateDialogOpen(true); }}>
               <Plus className="h-4 w-4 mr-2" />
-              첫 평가 기준 세트 만들기
+              {t('admin.evaluationCriteria.createFirstSet')}
             </Button>
           </CardContent>
         </Card>
@@ -556,9 +556,9 @@ export function EvaluationCriteriaManager() {
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setIsCreateDialogOpen(false)}>취소</Button>
+            <Button variant="outline" onClick={() => setIsCreateDialogOpen(false)}>{t('common.cancel')}</Button>
             <Button onClick={handleCreate} disabled={!formData.name || createMutation.isPending}>
-              {createMutation.isPending ? "생성 중..." : "생성"}
+              {createMutation.isPending ? t('admin.common.loading') : t('common.create')}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -621,9 +621,9 @@ export function EvaluationCriteriaManager() {
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setIsEditDialogOpen(false)}>취소</Button>
+            <Button variant="outline" onClick={() => setIsEditDialogOpen(false)}>{t('common.cancel')}</Button>
             <Button onClick={handleUpdate} disabled={!formData.name || updateMutation.isPending}>
-              {updateMutation.isPending ? "저장 중..." : "저장"}
+              {updateMutation.isPending ? t('admin.common.loading') : t('common.save')}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -813,12 +813,12 @@ export function EvaluationCriteriaManager() {
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setIsDimensionDialogOpen(false)}>취소</Button>
+            <Button variant="outline" onClick={() => setIsDimensionDialogOpen(false)}>{t('common.cancel')}</Button>
             <Button 
               onClick={handleSaveDimension} 
               disabled={!dimensionFormData.key || !dimensionFormData.name || createDimensionMutation.isPending || updateDimensionMutation.isPending}
             >
-              {(createDimensionMutation.isPending || updateDimensionMutation.isPending) ? "저장 중..." : "저장"}
+              {(createDimensionMutation.isPending || updateDimensionMutation.isPending) ? t('admin.common.loading') : t('common.save')}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -849,7 +849,7 @@ export function EvaluationCriteriaManager() {
           )}
           <DialogFooter className="gap-2">
             <Button variant="outline" onClick={() => { setIsDeleteConfirmOpen(false); setSetToDelete(null); }}>
-              취소
+              {t('common.cancel')}
             </Button>
             <Button 
               variant="destructive" 
@@ -862,7 +862,7 @@ export function EvaluationCriteriaManager() {
               }}
               disabled={deleteMutation.isPending}
             >
-              {deleteMutation.isPending ? "삭제 중..." : "삭제"}
+              {deleteMutation.isPending ? t('admin.common.loading') : t('common.delete')}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -892,13 +892,14 @@ function CriteriaSetDetail({
   onDeleteDimension: (dimId: string) => void;
   isDefault: boolean;
 }) {
+  const { t } = useTranslation();
   const { data: setWithDimensions, isLoading } = useQuery({
     queryKey: ['/api/admin/evaluation-criteria', setId],
     queryFn: () => fetchSetWithDimensions(setId),
   });
 
   if (isLoading) {
-    return <div className="py-4 text-center text-slate-500">로딩 중...</div>;
+    return <div className="py-4 text-center text-slate-500">{t('common.loading')}</div>;
   }
 
   const dimensions = setWithDimensions?.dimensions || [];
@@ -909,11 +910,11 @@ function CriteriaSetDetail({
   const getDimensionTypeBadge = (type: string) => {
     switch (type) {
       case 'core':
-        return <Badge className="bg-red-100 text-red-700 text-xs">필수</Badge>;
+        return <Badge className="bg-red-100 text-red-700 text-xs">{t('admin.evaluationCriteria.required')}</Badge>;
       case 'bonus':
-        return <Badge className="bg-green-100 text-green-700 text-xs">가점</Badge>;
+        return <Badge className="bg-green-100 text-green-700 text-xs">{t('admin.evaluationCriteria.bonus')}</Badge>;
       default:
-        return <Badge className="bg-blue-100 text-blue-700 text-xs">일반</Badge>;
+        return <Badge className="bg-blue-100 text-blue-700 text-xs">{t('admin.evaluationCriteria.general')}</Badge>;
     }
   };
 
@@ -923,49 +924,49 @@ function CriteriaSetDetail({
         <div className="flex gap-2">
           <Button variant="outline" size="sm" onClick={onEdit}>
             <Edit className="h-4 w-4 mr-1" />
-            수정
+            {t('admin.evaluationCriteria.edit')}
           </Button>
           {!isDefault && (
             <Button variant="outline" size="sm" onClick={onSetDefault}>
               <Star className="h-4 w-4 mr-1" />
-              기본으로 설정
+              {t('admin.evaluationCriteria.setAsDefault')}
             </Button>
           )}
           <Button variant="outline" size="sm" onClick={onAddDimension}>
             <Plus className="h-4 w-4 mr-1" />
-            차원 추가
+            {t('admin.evaluationCriteria.addDimension')}
           </Button>
           <Button variant="destructive" size="sm" onClick={onDelete}>
             <Trash2 className="h-4 w-4 mr-1" />
-            삭제
+            {t('common.delete')}
           </Button>
         </div>
         <div className={`flex items-center gap-2 px-3 py-1 rounded-lg ${isWeightValid ? 'bg-green-50 text-green-700' : 'bg-amber-50 text-amber-700'}`}>
           {!isWeightValid && <AlertCircle className="h-4 w-4" />}
           <span className="text-sm font-medium">
-            가중치 합계: <span className="font-bold">{totalWeight.toFixed(1)}%</span>
-            {!isWeightValid && ' (100% 권장)'}
+            {t('admin.evaluationCriteria.weightSum')}: <span className="font-bold">{totalWeight.toFixed(1)}%</span>
+            {!isWeightValid && ` ${t('admin.evaluationCriteria.weightRecommended')}`}
           </span>
         </div>
       </div>
 
       {dimensions.length === 0 ? (
         <div className="py-6 text-center text-slate-500">
-          <p>평가 차원이 없습니다. 차원을 추가하세요.</p>
+          <p>{t('admin.evaluationCriteria.noDimensions')}</p>
         </div>
       ) : (
         <div className="border rounded-lg overflow-hidden">
           <table className="w-full text-sm">
             <thead className="bg-slate-50">
               <tr>
-                <th className="text-left px-3 py-2">순서</th>
-                <th className="text-left px-3 py-2">유형</th>
-                <th className="text-left px-3 py-2">이름</th>
-                <th className="text-left px-3 py-2">설명</th>
-                <th className="text-center px-3 py-2">가중치</th>
-                <th className="text-center px-3 py-2">점수</th>
-                <th className="text-center px-3 py-2">상태</th>
-                <th className="text-right px-3 py-2">작업</th>
+                <th className="text-left px-3 py-2">{t('admin.evaluationCriteria.order')}</th>
+                <th className="text-left px-3 py-2">{t('admin.evaluationCriteria.type')}</th>
+                <th className="text-left px-3 py-2">{t('admin.evaluationCriteria.name')}</th>
+                <th className="text-left px-3 py-2">{t('admin.evaluationCriteria.descriptionLabel')}</th>
+                <th className="text-center px-3 py-2">{t('admin.evaluationCriteria.weight')}</th>
+                <th className="text-center px-3 py-2">{t('admin.evaluationCriteria.score')}</th>
+                <th className="text-center px-3 py-2">{t('admin.evaluationCriteria.status')}</th>
+                <th className="text-right px-3 py-2">{t('admin.evaluationCriteria.actions')}</th>
               </tr>
             </thead>
             <tbody>
@@ -989,9 +990,9 @@ function CriteriaSetDetail({
                   <td className="px-3 py-2 text-center">{dim.minScore}-{dim.maxScore}</td>
                   <td className="px-3 py-2 text-center">
                     {dim.isActive ? (
-                      <Badge variant="default" className="bg-green-100 text-green-700">활성</Badge>
+                      <Badge variant="default" className="bg-green-100 text-green-700">{t('admin.evaluationCriteria.active')}</Badge>
                     ) : (
-                      <Badge variant="secondary">비활성</Badge>
+                      <Badge variant="secondary">{t('admin.evaluationCriteria.inactive')}</Badge>
                     )}
                   </td>
                   <td className="px-3 py-2 text-right">

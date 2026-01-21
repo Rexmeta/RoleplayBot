@@ -179,7 +179,7 @@ export function DifficultySettingsTab() {
           data-testid="button-reset-difficulty"
         >
           <i className="fas fa-undo mr-2"></i>
-          기본값으로 초기화
+          {t('admin.difficultySettings.resetToDefault')}
         </Button>
       </div>
 
@@ -210,11 +210,11 @@ export function DifficultySettingsTab() {
                     {isEditing ? (
                       <>
                         <Button size="sm" variant="outline" onClick={handleCancel} data-testid={`button-cancel-${level}`}>
-                          취소
+                          {t('common.cancel')}
                         </Button>
                         <Button size="sm" onClick={handleSave} disabled={saveMutation.isPending} data-testid={`button-save-${level}`}>
                           {saveMutation.isPending ? <i className="fas fa-spinner fa-spin mr-1"></i> : null}
-                          저장
+                          {t('common.save')}
                         </Button>
                       </>
                     ) : (
