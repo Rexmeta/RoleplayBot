@@ -38,7 +38,8 @@ Preferred communication style: Simple, everyday language.
 ## Data Storage
 - **ORM**: Drizzle ORM (PostgreSQL dialect)
 - **Database**: PostgreSQL (Neon serverless)
-- **Schema**: `conversations`, `feedbacks`, `users`, `categories`, `system_settings`, `ai_usage_logs`, `supported_languages`, `scenario_translations`, `persona_translations` tables.
+- **Schema**: `conversations`, `feedbacks`, `users`, `categories`, `system_settings`, `ai_usage_logs`, `supported_languages`, `scenario_translations`, `persona_translations`, `scenarios`, `mbti_personas` tables.
+- **Data Persistence**: Scenarios and MBTI personas are stored in the PostgreSQL database to persist across Replit deployments. FileManagerService uses database as primary source with JSON file fallback.
 
 ## Features
 - **4-Level Difficulty System**: Users select difficulty, influencing AI responses across all conversation modes.
