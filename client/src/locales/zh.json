@@ -323,6 +323,16 @@
       "manageTranslation": "管理翻译",
       "regenerate": "重新生成"
     },
+    "contentManagement": {
+      "title": "内容管理",
+      "subtitle": "创建和管理场景与角色",
+      "tabs": {
+        "scenarios": "场景管理",
+        "difficulty": "对话难度",
+        "personas": "角色管理",
+        "evaluation": "评价标准"
+      }
+    },
     "scenarioManager": {
       "title": "场景管理",
       "description": "创建、编辑和删除场景。",

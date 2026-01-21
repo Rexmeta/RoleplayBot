@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ScenarioManager } from "@/components/admin/ScenarioManager";
 import { PersonaManager } from "@/components/admin/PersonaManager";
@@ -7,23 +8,24 @@ import { EvaluationCriteriaManager } from "@/components/admin/EvaluationCriteria
 import { AppHeader } from "@/components/AppHeader";
 
 export default function AdminManagement() {
+  const { t } = useTranslation();
   const [activeTab, setActiveTab] = useState("manage-scenarios");
 
   return (
     <div className="min-h-screen bg-slate-50">
       <AppHeader 
-        title="콘텐츠 관리"
-        subtitle="시나리오와 페르소나 생성 및 관리"
+        title={t('admin.contentManagement.title')}
+        subtitle={t('admin.contentManagement.subtitle')}
         showBackButton
       />
       <div className="container mx-auto p-6 space-y-6" data-testid="admin-management">
         {/* Management Tabs */}
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
           <TabsList className="grid w-full grid-cols-4">
-            <TabsTrigger value="manage-scenarios" data-testid="tab-manage-scenarios">시나리오 관리</TabsTrigger>
-            <TabsTrigger value="difficulty-settings" data-testid="tab-difficulty-settings">대화 난이도</TabsTrigger>
-            <TabsTrigger value="manage-personas" data-testid="tab-manage-personas">페르소나 관리</TabsTrigger>
-            <TabsTrigger value="evaluation-criteria" data-testid="tab-evaluation-criteria">평가 기준</TabsTrigger>
+            <TabsTrigger value="manage-scenarios" data-testid="tab-manage-scenarios">{t('admin.contentManagement.tabs.scenarios')}</TabsTrigger>
+            <TabsTrigger value="difficulty-settings" data-testid="tab-difficulty-settings">{t('admin.contentManagement.tabs.difficulty')}</TabsTrigger>
+            <TabsTrigger value="manage-personas" data-testid="tab-manage-personas">{t('admin.contentManagement.tabs.personas')}</TabsTrigger>
+            <TabsTrigger value="evaluation-criteria" data-testid="tab-evaluation-criteria">{t('admin.contentManagement.tabs.evaluation')}</TabsTrigger>
           </TabsList>
 
           <TabsContent value="manage-scenarios" className="space-y-6">

@@ -323,6 +323,16 @@
       "manageTranslation": "Manage Translation",
       "regenerate": "Regenerate"
     },
+    "contentManagement": {
+      "title": "Content Management",
+      "subtitle": "Create and manage scenarios and personas",
+      "tabs": {
+        "scenarios": "Scenario Management",
+        "difficulty": "Difficulty Settings",
+        "personas": "Persona Management",
+        "evaluation": "Evaluation Criteria"
+      }
+    },
     "scenarioManager": {
       "title": "Scenario Management",
       "description": "Create, edit, and delete scenarios.",

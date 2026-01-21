@@ -323,6 +323,16 @@
       "manageTranslation": "翻訳管理",
       "regenerate": "再生成"
     },
+    "contentManagement": {
+      "title": "コンテンツ管理",
+      "subtitle": "シナリオとペルソナの作成・管理",
+      "tabs": {
+        "scenarios": "シナリオ管理",
+        "difficulty": "会話難易度",
+        "personas": "ペルソナ管理",
+        "evaluation": "評価基準"
+      }
+    },
     "scenarioManager": {
       "title": "シナリオ管理",
       "description": "シナリオの作成、編集、削除ができます。",
