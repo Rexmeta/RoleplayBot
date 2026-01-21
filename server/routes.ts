@@ -3539,23 +3539,61 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/admin/scenarios", isAuthenticated, isOperatorOrAdmin, async (req, res) => {
     try {
       const scenarios = await fileManager.getAllScenarios();
+      const lang = req.query.lang as string;
       
       // @ts-ignore - req.user는 auth 미들웨어에서 설정됨
       const user = req.user;
       
+      let filteredScenarios = scenarios;
+      
       // 관리자는 모든 시나리오 접근 가능
-      if (user.role === 'admin') {
-        return res.json(scenarios);
-      }
-      
-      // 운영자는 할당된 카테고리의 시나리오만 접근 가능
       if (user.role === 'operator' && user.assignedCategoryId) {
-        const filteredScenarios = scenarios.filter((s: any) => s.categoryId === user.assignedCategoryId);
-        return res.json(filteredScenarios);
+        // 운영자는 할당된 카테고리의 시나리오만 접근 가능
+        filteredScenarios = scenarios.filter((s: any) => s.categoryId === user.assignedCategoryId);
+      } else if (user.role !== 'admin') {
+        // 카테고리 미할당 운영자는 빈 배열
+        return res.json([]);
       }
       
-      // 카테고리 미할당 운영자는 빈 배열
-      res.json([]);
+      // 언어 파라미터가 있고 ko가 아닌 경우 번역 적용
+      if (lang && lang !== 'ko') {
+        const translatedScenarios = await Promise.all(
+          filteredScenarios.map(async (scenario: any) => {
+            try {
+              const translation = await storage.getScenarioTranslation(scenario.id, lang);
+              if (translation) {
+                return {
+                  ...scenario,
+                  title: translation.title || scenario.title,
+                  description: translation.description || scenario.description,
+                  context: {
+                    ...scenario.context,
+                    situation: translation.situation || scenario.context?.situation,
+                    timeline: translation.timeline || scenario.context?.timeline,
+                    stakes: translation.stakes || scenario.context?.stakes,
+                  },
+                  objectives: translation.objectives || scenario.objectives,
+                  successCriteria: {
+                    optimal: translation.successCriteriaOptimal || scenario.successCriteria?.optimal,
+                    good: translation.successCriteriaGood || scenario.successCriteria?.good,
+                    acceptable: translation.successCriteriaAcceptable || scenario.successCriteria?.acceptable,
+                    failure: translation.successCriteriaFailure || scenario.successCriteria?.failure,
+                  },
+                  _translated: true,
+                  _translationLocale: lang,
+                };
+              }
+              return scenario;
+            } catch (err) {
+              console.error(`[Admin Scenarios API] Translation fetch error for ${scenario.id}:`, err);
+              return scenario;
+            }
+          })
+        );
+        return res.json(translatedScenarios);
+      }
+      
+      res.json(filteredScenarios);
     } catch (error) {
       console.error("Error getting scenarios:", error);
       res.status(500).json({ error: "Failed to get scenarios" });

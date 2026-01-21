@@ -70,8 +70,9 @@ interface ScenarioFormData {
 }
 
 export function ScenarioManager() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const { toast } = useToast();
+  const currentLang = i18n.language;
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [editingScenario, setEditingScenario] = useState<ComplexScenario | null>(null);
   const [isGeneratingImage, setIsGeneratingImage] = useState(false);
@@ -116,7 +117,16 @@ export function ScenarioManager() {
   });
 
   const { data: scenarios, isLoading } = useQuery<ComplexScenario[]>({
-    queryKey: ['/api/admin/scenarios'],
+    queryKey: ['/api/admin/scenarios', currentLang],
+    queryFn: async () => {
+      const response = await fetch(`/api/admin/scenarios?lang=${currentLang}`, {
+        credentials: 'include',
+      });
+      if (!response.ok) {
+        throw new Error('Failed to fetch scenarios');
+      }
+      return response.json();
+    },
   });
 
   // 카테고리 목록 조회
