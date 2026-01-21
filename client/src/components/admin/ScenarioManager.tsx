@@ -221,14 +221,14 @@ export function ScenarioManager() {
       setIsCreateOpen(false);
       resetForm();
       toast({
-        title: "시나리오 생성 완료",
-        description: "새로운 시나리오가 성공적으로 생성되었습니다.",
+        title: t('admin.scenarioManager.createSuccess'),
+        description: t('admin.scenarioManager.saveSuccess'),
       });
     },
     onError: () => {
       toast({
-        title: "생성 실패",
-        description: "시나리오 생성 중 오류가 발생했습니다.",
+        title: t('admin.scenarioManager.saveFailed'),
+        description: t('admin.scenarioManager.saveFailed'),
         variant: "destructive",
       });
     }
@@ -243,16 +243,16 @@ export function ScenarioManager() {
       queryClient.invalidateQueries({ queryKey: ['/api/admin/scenarios'] });
       setEditingScenario(null);
       resetForm();
-      setIsCreateOpen(false); // 다이얼로그 닫기
+      setIsCreateOpen(false);
       toast({
-        title: "시나리오 수정 완료",
-        description: "시나리오가 성공적으로 수정되었습니다.",
+        title: t('admin.scenarioManager.updateSuccess'),
+        description: t('admin.scenarioManager.saveSuccess'),
       });
     },
     onError: () => {
       toast({
-        title: "수정 실패",
-        description: "시나리오 수정 중 오류가 발생했습니다.",
+        title: t('admin.scenarioManager.saveFailed'),
+        description: t('admin.scenarioManager.saveFailed'),
         variant: "destructive",
       });
     }
@@ -266,14 +266,14 @@ export function ScenarioManager() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/admin/scenarios'] });
       toast({
-        title: "시나리오 삭제 완료",
-        description: "시나리오가 성공적으로 삭제되었습니다.",
+        title: t('admin.scenarioManager.deleteSuccess'),
+        description: t('admin.scenarioManager.deleteSuccess'),
       });
     },
     onError: () => {
       toast({
-        title: "삭제 실패",
-        description: "시나리오 삭제 중 오류가 발생했습니다.",
+        title: t('admin.scenarioManager.deleteFailed'),
+        description: t('admin.scenarioManager.deleteFailed'),
         variant: "destructive",
       });
     }
@@ -370,8 +370,8 @@ export function ScenarioManager() {
     // 필수 필드 검증
     if (!formData.title) {
       toast({
-        title: "제목 필수",
-        description: "시나리오 제목을 입력하세요.",
+        title: t('admin.scenarioManager.toast.titleRequired'),
+        description: t('admin.scenarioManager.toast.titleRequiredDesc'),
         variant: "destructive",
       });
       return;
@@ -379,8 +379,8 @@ export function ScenarioManager() {
     
     if (!formData.categoryId) {
       toast({
-        title: "카테고리 필수",
-        description: "카테고리를 선택하세요.",
+        title: t('admin.scenarioManager.toast.categoryRequired'),
+        description: t('admin.scenarioManager.toast.categoryRequiredDesc'),
         variant: "destructive",
       });
       return;
@@ -396,8 +396,8 @@ export function ScenarioManager() {
   const handleGenerateImage = async () => {
     if (!formData.title) {
       toast({
-        title: "시나리오 제목 필요",
-        description: "이미지를 생성하려면 시나리오 제목을 먼저 입력하세요.",
+        title: t('admin.scenarioManager.toast.titleNeededForImage'),
+        description: t('admin.scenarioManager.toast.titleNeededForImageDesc'),
         variant: "destructive",
       });
       return;
@@ -416,17 +416,17 @@ export function ScenarioManager() {
       if (data.success && data.imageUrl) {
         setFormData(prev => ({ ...prev, image: data.imageUrl }));
         toast({
-          title: "이미지 생성 완료",
-          description: "시나리오 이미지가 성공적으로 생성되었습니다.",
+          title: t('admin.scenarioManager.toast.imageGenerated'),
+          description: t('admin.scenarioManager.toast.imageGeneratedDesc'),
         });
       } else {
-        throw new Error(data.error || '이미지 생성 실패');
+        throw new Error(data.error || t('admin.scenarioManager.toast.imageGenerateFailed', 'Image generation failed'));
       }
     } catch (error: any) {
-      console.error('이미지 생성 오류:', error);
+      console.error('Image generation error:', error);
       toast({
-        title: "이미지 생성 실패",
-        description: error.message || "이미지 생성 중 오류가 발생했습니다.",
+        title: t('admin.scenarioManager.toast.imageGenerateFailed', 'Image Generation Failed'),
+        description: error.message || t('admin.scenarioManager.toast.imageGenerateFailed', 'An error occurred during image generation.'),
         variant: "destructive",
       });
     } finally {
@@ -437,8 +437,8 @@ export function ScenarioManager() {
   const handleGenerateVideo = async () => {
     if (!editingScenario?.id) {
       toast({
-        title: "시나리오 저장 필요",
-        description: "비디오를 생성하려면 시나리오를 먼저 저장하세요.",
+        title: t('admin.scenarioManager.toast.saveNeededForVideo'),
+        description: t('admin.scenarioManager.toast.saveNeededForVideoDesc'),
         variant: "destructive",
       });
       return;
@@ -446,8 +446,8 @@ export function ScenarioManager() {
 
     if (!formData.title) {
       toast({
-        title: "시나리오 제목 필요",
-        description: "비디오를 생성하려면 시나리오 제목을 먼저 입력하세요.",
+        title: t('admin.scenarioManager.toast.titleNeededForVideo'),
+        description: t('admin.scenarioManager.toast.titleNeededForVideoDesc'),
         variant: "destructive",
       });
       return;
@@ -464,19 +464,18 @@ export function ScenarioManager() {
       if (data.success && data.videoUrl) {
         setFormData(prev => ({ ...prev, introVideoUrl: data.videoUrl }));
         toast({
-          title: "비디오 생성 완료",
-          description: "인트로 비디오가 성공적으로 생성되었습니다.",
+          title: t('admin.scenarioManager.toast.videoGenerated', 'Video Generated'),
+          description: t('admin.scenarioManager.toast.videoGeneratedDesc', 'Intro video generated successfully.'),
         });
-        // 시나리오 목록 갱신
         queryClient.invalidateQueries({ queryKey: ['/api/admin/scenarios'] });
       } else {
-        throw new Error(data.error || '비디오 생성 실패');
+        throw new Error(data.error || t('admin.scenarioManager.toast.videoGenerateFailed', 'Video generation failed'));
       }
     } catch (error: any) {
-      console.error('비디오 생성 오류:', error);
+      console.error('Video generation error:', error);
       toast({
-        title: "비디오 생성 실패",
-        description: error.message || "비디오 생성 중 오류가 발생했습니다.",
+        title: t('admin.scenarioManager.toast.videoGenerateFailed', 'Video Generation Failed'),
+        description: error.message || t('admin.scenarioManager.toast.videoGenerateFailed', 'An error occurred during video generation.'),
         variant: "destructive",
       });
     } finally {
@@ -496,18 +495,18 @@ export function ScenarioManager() {
       if (data.success) {
         setFormData(prev => ({ ...prev, introVideoUrl: '' }));
         toast({
-          title: "비디오 삭제 완료",
-          description: "인트로 비디오가 삭제되었습니다.",
+          title: t('admin.scenarioManager.toast.videoDeleted', 'Video Deleted'),
+          description: t('admin.scenarioManager.toast.videoDeletedDesc', 'Intro video has been deleted.'),
         });
         queryClient.invalidateQueries({ queryKey: ['/api/admin/scenarios'] });
       } else {
-        throw new Error(data.error || '비디오 삭제 실패');
+        throw new Error(data.error || t('admin.scenarioManager.toast.videoDeleteFailed', 'Video deletion failed'));
       }
     } catch (error: any) {
-      console.error('비디오 삭제 오류:', error);
+      console.error('Video deletion error:', error);
       toast({
-        title: "비디오 삭제 실패",
-        description: error.message || "비디오 삭제 중 오류가 발생했습니다.",
+        title: t('admin.scenarioManager.toast.videoDeleteFailed', 'Video Deletion Failed'),
+        description: error.message || t('admin.scenarioManager.toast.videoDeleteFailed', 'An error occurred during video deletion.'),
         variant: "destructive",
       });
     }
@@ -582,35 +581,35 @@ export function ScenarioManager() {
             <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto bg-slate-50">
               <DialogHeader className="bg-white px-6 py-4 -mx-6 -mt-6 border-b border-slate-200">
                 <DialogTitle className="text-xl text-slate-900">
-                  {editingScenario ? (editingScenario.title || '시나리오 편집') : '새 시나리오 생성'}
+                  {editingScenario ? (editingScenario.title || t('admin.scenarioManager.editScenario')) : t('admin.scenarioManager.newScenario')}
                 </DialogTitle>
               </DialogHeader>
             
             <form onSubmit={handleSubmit} className="space-y-6 pt-6">
               {/* 기본 정보 */}
               <div className="space-y-4 bg-white p-6 rounded-lg border border-slate-200">
-                <h3 className="text-lg font-semibold text-slate-900 pb-3 border-b border-slate-200">기본 정보</h3>
+                <h3 className="text-lg font-semibold text-slate-900 pb-3 border-b border-slate-200">{t('common.basicInfo', 'Basic Info')}</h3>
                 
                 {/* 시나리오 이미지 - 최상단으로 이동 */}
                 <div className="space-y-3">
-                  <Label htmlFor="image" className="text-sm font-medium text-slate-700">시나리오 이미지 URL (선택사항)</Label>
+                  <Label htmlFor="image" className="text-sm font-medium text-slate-700">{t('admin.scenarioManager.form.imageUrl')}</Label>
                   <Input
                     id="image"
                     value={formData.image || ''}
                     onChange={(e) => setFormData(prev => ({ ...prev, image: e.target.value }))}
-                    placeholder="이미지 URL을 입력하세요 (예: https://example.com/image.jpg)"
+                    placeholder={t('admin.scenarioManager.form.imageUrlPlaceholder')}
                     data-testid="input-scenario-image"
                     className="bg-white"
                   />
                   
                   {/* 이미지 프롬프트 입력 */}
                   <div className="space-y-2">
-                    <Label htmlFor="imagePrompt" className="text-sm font-medium text-slate-700">이미지 생성 프롬프트 (선택사항)</Label>
+                    <Label htmlFor="imagePrompt" className="text-sm font-medium text-slate-700">{t('admin.scenarioManager.form.imagePrompt', 'Image Prompt (Optional)')}</Label>
                     <Textarea
                       id="imagePrompt"
                       value={formData.imagePrompt || ''}
                       onChange={(e) => setFormData(prev => ({ ...prev, imagePrompt: e.target.value }))}
-                      placeholder="커스텀 이미지 프롬프트를 입력하세요. 비워두면 자동으로 생성됩니다."
+                      placeholder={t('admin.scenarioManager.form.imagePromptPlaceholder', 'Enter custom image prompt. Leave empty to auto-generate.')}
                       className="min-h-[80px] bg-white whitespace-pre-wrap"
                       data-testid="textarea-image-prompt"
                     />
@@ -630,17 +629,17 @@ export function ScenarioManager() {
                     {isGeneratingImage ? (
                       <>
                         <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        이미지 생성 중...
+                        {t('admin.scenarioManager.form.generatingImage')}
                       </>
                     ) : (
-                      '🎨 AI 이미지 생성하기'
+                      `🎨 ${t('admin.scenarioManager.form.generateImage')}`
                     )}
                   </Button>
                   
                   {/* 이미지 미리보기 */}
                   {formData.image && (
                     <div className="mt-3">
-                      <p className="text-sm text-slate-600 mb-2">이미지 미리보기 (클릭하면 전체보기):</p>
+                      <p className="text-sm text-slate-600 mb-2">{t('admin.scenarioManager.form.imagePreview')}:</p>
                       <div 
                         className="relative w-full h-48 bg-slate-100 rounded-lg overflow-hidden border cursor-pointer hover:shadow-lg transition-shadow"
                         onClick={() => setImagePreviewUrl(formData.image || null)}
@@ -648,7 +647,7 @@ export function ScenarioManager() {
                       >
                         <img
                           src={formData.image}
-                          alt="시나리오 이미지 미리보기"
+                          alt={t('admin.scenarioManager.form.imagePreview')}
                           className="w-full h-full object-cover"
                           onError={(e) => {
                             const target = e.target as HTMLImageElement;
@@ -668,7 +667,7 @@ export function ScenarioManager() {
                 {/* 인트로 비디오 생성 섹션 */}
                 <div className="space-y-3 mt-6 pt-6 border-t border-slate-200">
                   <div className="flex items-center justify-between">
-                    <Label className="text-sm font-medium text-slate-700">대화 인트로 비디오 (선택사항)</Label>
+                    <Label className="text-sm font-medium text-slate-700">{t('admin.scenarioManager.form.introVideo')}</Label>
                     {formData.introVideoUrl && (
                       <Button
                         type="button"
@@ -679,12 +678,12 @@ export function ScenarioManager() {
                         data-testid="button-delete-video"
                       >
                         <i className="fas fa-trash mr-1"></i>
-                        비디오 삭제
+                        {t('common.delete')}
                       </Button>
                     )}
                   </div>
                   <p className="text-xs text-slate-500">
-                    대화 시작 시 재생될 8초 인트로 비디오를 AI로 생성합니다. 시나리오를 먼저 저장한 후 생성할 수 있습니다.
+                    {t('admin.scenarioManager.form.introVideoDesc')}
                   </p>
                   
                   {/* 비디오 URL 직접 입력 */}
@@ -699,12 +698,12 @@ export function ScenarioManager() {
                   
                   {/* 비디오 프롬프트 입력 */}
                   <div className="space-y-2">
-                    <Label htmlFor="videoPrompt" className="text-sm font-medium text-slate-700">비디오 생성 프롬프트 (선택사항)</Label>
+                    <Label htmlFor="videoPrompt" className="text-sm font-medium text-slate-700">{t('admin.scenarioManager.form.videoPrompt')}</Label>
                     <Textarea
                       id="videoPrompt"
                       value={formData.videoPrompt || ''}
                       onChange={(e) => setFormData(prev => ({ ...prev, videoPrompt: e.target.value }))}
-                      placeholder="커스텀 비디오 프롬프트를 입력하세요. 비워두면 시나리오 상황에 맞게 자동 생성됩니다."
+                      placeholder={t('admin.scenarioManager.form.videoPromptPlaceholder')}
                       className="min-h-[80px] bg-white whitespace-pre-wrap"
                       data-testid="textarea-video-prompt"
                     />
@@ -725,12 +724,12 @@ export function ScenarioManager() {
                     {isGeneratingVideo ? (
                       <>
                         <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        비디오 생성 중... (약 1-3분 소요)
+                        {t('admin.scenarioManager.form.generatingVideo')}
                       </>
                     ) : editingScenario?.id ? (
-                      '🎬 AI 인트로 비디오 생성하기'
+                      `🎬 ${t('admin.scenarioManager.form.generateVideo')}`
                     ) : (
-                      '시나리오 저장 후 비디오 생성 가능'
+                      t('admin.scenarioManager.form.videoAfterSave')
                     )}
                   </Button>
                   
@@ -765,12 +764,12 @@ export function ScenarioManager() {
                 
                 <div className="grid grid-cols-3 gap-4">
                   <div>
-                    <Label htmlFor="title" className="text-sm font-medium text-slate-700">시나리오 제목</Label>
+                    <Label htmlFor="title" className="text-sm font-medium text-slate-700">{t('admin.scenarioManager.form.scenarioTitle')}</Label>
                     <Input
                       id="title"
                       value={formData.title}
                       onChange={(e) => setFormData(prev => ({ ...prev, title: e.target.value }))}
-                      placeholder="시나리오 제목을 입력하세요"
+                      placeholder={t('admin.scenarioManager.form.scenarioTitlePlaceholder')}
                       required
                       data-testid="input-scenario-title"
                       className="bg-white"
@@ -779,7 +778,7 @@ export function ScenarioManager() {
                   
                   <div>
                     <Label htmlFor="category" className="text-sm font-medium text-slate-700">
-                      카테고리 <span className="text-red-500">*</span>
+                      {t('admin.scenarioManager.form.category')} <span className="text-red-500">*</span>
                     </Label>
                     <Select 
                       value={formData.categoryId || ''} 
@@ -789,7 +788,7 @@ export function ScenarioManager() {
                         className={`bg-white ${!formData.categoryId ? 'border-red-300' : ''}`}
                         data-testid="select-category"
                       >
-                        <SelectValue placeholder="카테고리 선택 (필수)" />
+                        <SelectValue placeholder={t('admin.scenarioManager.form.categoryPlaceholder')} />
                       </SelectTrigger>
                       <SelectContent>
                         {categories?.map(cat => (
@@ -800,17 +799,17 @@ export function ScenarioManager() {
                       </SelectContent>
                     </Select>
                     {!formData.categoryId && (
-                      <p className="text-xs text-red-500 mt-1">카테고리를 선택하세요.</p>
+                      <p className="text-xs text-red-500 mt-1">{t('admin.scenarioManager.form.selectCategory')}</p>
                     )}
                   </div>
                   
                   <div>
-                    <Label htmlFor="estimatedTime" className="text-sm font-medium text-slate-700">예상 소요 시간</Label>
+                    <Label htmlFor="estimatedTime" className="text-sm font-medium text-slate-700">{t('admin.scenarioManager.form.estimatedTime', 'Estimated Time')}</Label>
                     <Input
                       id="estimatedTime"
                       value={formData.estimatedTime}
                       onChange={(e) => setFormData(prev => ({ ...prev, estimatedTime: e.target.value }))}
-                      placeholder="예: 30-45분"
+                      placeholder={t('admin.scenarioManager.form.estimatedTimePlaceholder', 'e.g., 30-45 min')}
                       required
                       data-testid="input-estimated-time"
                       className="bg-white"
@@ -819,12 +818,12 @@ export function ScenarioManager() {
                 </div>
 
                 <div>
-                  <Label htmlFor="description" className="text-sm font-medium text-slate-700">시나리오 설명</Label>
+                  <Label htmlFor="description" className="text-sm font-medium text-slate-700">{t('admin.scenarioManager.form.scenarioDescription')}</Label>
                   <Textarea
                     id="description"
                     value={formData.description}
                     onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
-                    placeholder="시나리오에 대한 자세한 설명을 입력하세요"
+                    placeholder={t('admin.scenarioManager.form.scenarioDescriptionPlaceholder')}
                     className="min-h-[100px] bg-white whitespace-pre-wrap"
                     required
                     data-testid="textarea-scenario-description"
@@ -834,7 +833,7 @@ export function ScenarioManager() {
                 {/* 평가 기준 선택 */}
                 <div>
                   <Label htmlFor="evaluationCriteria" className="text-sm font-medium text-slate-700">
-                    평가 기준 (선택)
+                    {t('admin.scenarioManager.form.evaluationCriteria')}
                   </Label>
                   <Select 
                     value={formData.evaluationCriteriaSetId || 'default'} 
@@ -844,13 +843,13 @@ export function ScenarioManager() {
                       className="bg-white"
                       data-testid="select-evaluation-criteria"
                     >
-                      <SelectValue placeholder="기본 평가 기준 사용" />
+                      <SelectValue placeholder={t('admin.scenarioManager.form.selectEvaluationCriteria')} />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="default">기본 평가 기준 사용</SelectItem>
+                      <SelectItem value="default">{t('admin.scenarioManager.form.defaultCriteria', 'Use default criteria')}</SelectItem>
                       {evaluationCriteriaSets?.map(criteria => (
                         <SelectItem key={criteria.id} value={criteria.id} data-testid={`criteria-option-${criteria.id}`}>
-                          {criteria.name} {criteria.isDefault && '(기본값)'}
+                          {criteria.name} {criteria.isDefault && `(${t('common.default', 'Default')})`}
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -863,10 +862,10 @@ export function ScenarioManager() {
 
               {/* 상황 설정 */}
               <div className="space-y-4 bg-white p-6 rounded-lg border border-slate-200">
-                <h3 className="text-lg font-semibold text-slate-900 pb-3 border-b border-slate-200">상황 설정</h3>
+                <h3 className="text-lg font-semibold text-slate-900 pb-3 border-b border-slate-200">{t('admin.scenarioManager.form.situationSettings', 'Situation Settings')}</h3>
                 
                 <div>
-                  <Label htmlFor="situation" className="text-sm font-medium text-slate-700">상황 설명</Label>
+                  <Label htmlFor="situation" className="text-sm font-medium text-slate-700">{t('admin.scenarioManager.form.situation')}</Label>
                   <Textarea
                     id="situation"
                     value={formData.context.situation}
@@ -874,7 +873,7 @@ export function ScenarioManager() {
                       ...prev, 
                       context: { ...prev.context, situation: e.target.value }
                     }))}
-                    placeholder="현재 상황을 자세히 설명하세요"
+                    placeholder={t('admin.scenarioManager.form.situationPlaceholder')}
                     className="min-h-[80px] bg-white whitespace-pre-wrap"
                     data-testid="textarea-situation"
                   />
@@ -882,7 +881,7 @@ export function ScenarioManager() {
 
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <Label htmlFor="timeline" className="text-sm font-medium text-slate-700">시간 제약</Label>
+                    <Label htmlFor="timeline" className="text-sm font-medium text-slate-700">{t('admin.scenarioManager.form.timeline')}</Label>
                     <Input
                       id="timeline"
                       value={formData.context.timeline}
@@ -890,14 +889,14 @@ export function ScenarioManager() {
                         ...prev, 
                         context: { ...prev.context, timeline: e.target.value }
                       }))}
-                      placeholder="예: 마케팅 발표까지 1주일 남음"
+                      placeholder={t('admin.scenarioManager.form.timelinePlaceholder')}
                       data-testid="input-timeline"
                       className="bg-white"
                     />
                   </div>
                   
                   <div>
-                    <Label htmlFor="stakes" className="text-sm font-medium text-slate-700">이해관계</Label>
+                    <Label htmlFor="stakes" className="text-sm font-medium text-slate-700">{t('admin.scenarioManager.form.stakes')}</Label>
                     <Input
                       id="stakes"
                       value={formData.context.stakes}
@@ -905,7 +904,7 @@ export function ScenarioManager() {
                         ...prev, 
                         context: { ...prev.context, stakes: e.target.value }
                       }))}
-                      placeholder="예: 품질 vs 일정 vs 고객 만족도"
+                      placeholder={t('admin.scenarioManager.form.stakesPlaceholder')}
                       data-testid="input-stakes"
                       className="bg-white"
                     />
@@ -914,7 +913,7 @@ export function ScenarioManager() {
 
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <Label htmlFor="position" className="text-sm font-medium text-slate-700">플레이어 직급</Label>
+                    <Label htmlFor="position" className="text-sm font-medium text-slate-700">{t('admin.scenarioManager.form.playerPosition', 'Player Position')}</Label>
                     <Input
                       id="position"
                       value={formData.context.playerRole.position}
@@ -925,14 +924,14 @@ export function ScenarioManager() {
                           playerRole: { ...prev.context.playerRole, position: e.target.value }
                         }
                       }))}
-                      placeholder="예: 신입 개발자"
+                      placeholder={t('admin.scenarioManager.form.playerPositionPlaceholder', 'e.g., Junior Developer')}
                       data-testid="input-position"
                       className="bg-white"
                     />
                   </div>
                   
                   <div>
-                    <Label htmlFor="playerDepartment" className="text-sm font-medium text-slate-700">플레이어 부서</Label>
+                    <Label htmlFor="playerDepartment" className="text-sm font-medium text-slate-700">{t('admin.scenarioManager.form.playerDepartment', 'Player Department')}</Label>
                     <Input
                       id="playerDepartment"
                       value={formData.context.playerRole.department}
@@ -943,7 +942,7 @@ export function ScenarioManager() {
                           playerRole: { ...prev.context.playerRole, department: e.target.value }
                         }
                       }))}
-                      placeholder="예: 개발팀"
+                      placeholder={t('admin.scenarioManager.form.playerDepartmentPlaceholder', 'e.g., Development Team')}
                       data-testid="input-player-department"
                       className="bg-white"
                     />
@@ -952,7 +951,7 @@ export function ScenarioManager() {
 
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <Label htmlFor="playerExperience" className="text-sm font-medium text-slate-700">플레이어 경력</Label>
+                    <Label htmlFor="playerExperience" className="text-sm font-medium text-slate-700">{t('admin.scenarioManager.form.playerExperience', 'Player Experience')}</Label>
                     <Input
                       id="playerExperience"
                       value={formData.context.playerRole.experience}
@@ -963,14 +962,14 @@ export function ScenarioManager() {
                           playerRole: { ...prev.context.playerRole, experience: e.target.value }
                         }
                       }))}
-                      placeholder="예: 6개월차"
+                      placeholder={t('admin.scenarioManager.form.playerExperiencePlaceholder', 'e.g., 6 months')}
                       data-testid="input-player-experience"
                       className="bg-white"
                     />
                   </div>
                   
                   <div>
-                    <Label htmlFor="responsibility" className="text-sm font-medium text-slate-700">책임 사항</Label>
+                    <Label htmlFor="responsibility" className="text-sm font-medium text-slate-700">{t('admin.scenarioManager.form.playerResponsibility', 'Responsibility')}</Label>
                     <Input
                       id="responsibility"
                       value={formData.context.playerRole.responsibility}
@@ -981,7 +980,7 @@ export function ScenarioManager() {
                           playerRole: { ...prev.context.playerRole, responsibility: e.target.value }
                         }
                       }))}
-                      placeholder="예: 각 부서와 협의하여 최적 해결안 도출"
+                      placeholder={t('admin.scenarioManager.form.playerResponsibilityPlaceholder', 'e.g., Coordinate with departments')}
                       data-testid="input-responsibility"
                       className="bg-white"
                     />
@@ -991,16 +990,16 @@ export function ScenarioManager() {
 
               {/* 목표 및 성공 기준 */}
               <div className="space-y-4 bg-white p-6 rounded-lg border border-slate-200">
-                <h3 className="text-lg font-semibold text-slate-900 pb-3 border-b border-slate-200">목표 및 성공 기준</h3>
+                <h3 className="text-lg font-semibold text-slate-900 pb-3 border-b border-slate-200">{t('admin.scenarioManager.form.objectivesAndCriteria', 'Objectives & Success Criteria')}</h3>
                 
                 <div>
-                  <Label htmlFor="objectiveType" className="text-sm font-medium text-slate-700">목표 유형</Label>
+                  <Label htmlFor="objectiveType" className="text-sm font-medium text-slate-700">{t('admin.scenarioManager.form.objectiveType')}</Label>
                   <Select 
                     value={formData.objectiveType || ''} 
                     onValueChange={(value) => setFormData(prev => ({ ...prev, objectiveType: value }))}
                   >
                     <SelectTrigger className="bg-white">
-                      <SelectValue placeholder="목표 유형 선택" />
+                      <SelectValue placeholder={t('admin.scenarioManager.form.selectObjectiveType')} />
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="역할책임명확화">역할 및 책임 명확화</SelectItem>
@@ -1028,7 +1027,7 @@ export function ScenarioManager() {
                 </div>
                 
                 <div>
-                  <Label htmlFor="objectives" className="text-sm font-medium text-slate-700">목표 (줄바꿈으로 구분)</Label>
+                  <Label htmlFor="objectives" className="text-sm font-medium text-slate-700">{t('admin.scenarioManager.form.objectives')} ({t('admin.scenarioManager.form.separatedByNewline', 'separated by newline')})</Label>
                   <Textarea
                     id="objectives"
                     value={formData.objectives.join('\n')}
@@ -1044,7 +1043,7 @@ export function ScenarioManager() {
 
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <Label htmlFor="optimal" className="text-sm font-medium text-slate-700">최적 결과</Label>
+                    <Label htmlFor="optimal" className="text-sm font-medium text-slate-700">{t('admin.scenarioManager.form.optimal')}</Label>
                     <Textarea
                       id="optimal"
                       value={formData.successCriteria.optimal}
@@ -1059,7 +1058,7 @@ export function ScenarioManager() {
                   </div>
                   
                   <div>
-                    <Label htmlFor="good" className="text-sm font-medium text-slate-700">우수 결과</Label>
+                    <Label htmlFor="good" className="text-sm font-medium text-slate-700">{t('admin.scenarioManager.form.good')}</Label>
                     <Textarea
                       id="good"
                       value={formData.successCriteria.good}
@@ -1076,7 +1075,7 @@ export function ScenarioManager() {
 
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <Label htmlFor="acceptable" className="text-sm font-medium text-slate-700">수용 가능 결과</Label>
+                    <Label htmlFor="acceptable" className="text-sm font-medium text-slate-700">{t('admin.scenarioManager.form.acceptable')}</Label>
                     <Textarea
                       id="acceptable"
                       value={formData.successCriteria.acceptable}
@@ -1091,7 +1090,7 @@ export function ScenarioManager() {
                   </div>
                   
                   <div>
-                    <Label htmlFor="failure" className="text-sm font-medium text-slate-700">실패 기준</Label>
+                    <Label htmlFor="failure" className="text-sm font-medium text-slate-700">{t('admin.scenarioManager.form.failure')}</Label>
                     <Textarea
                       id="failure"
                       value={formData.successCriteria.failure}
@@ -1109,10 +1108,10 @@ export function ScenarioManager() {
 
               {/* 역량 및 페르소나 */}
               <div className="space-y-4 bg-white p-6 rounded-lg border border-slate-200">
-                <h3 className="text-lg font-semibold text-slate-900 pb-3 border-b border-slate-200">역량 및 페르소나</h3>
+                <h3 className="text-lg font-semibold text-slate-900 pb-3 border-b border-slate-200">{t('admin.scenarioManager.form.competenciesAndPersonas')}</h3>
                 
                 <div>
-                  <Label htmlFor="skills" className="text-sm font-medium text-slate-700">주요 역량 (쉼표로 구분)</Label>
+                  <Label htmlFor="skills" className="text-sm font-medium text-slate-700">{t('admin.scenarioManager.form.skills')} ({t('admin.scenarioManager.form.separatedByComma', 'comma-separated')})</Label>
                   <Input
                     id="skills"
                     value={formData.skills.join(', ')}
@@ -1120,7 +1119,7 @@ export function ScenarioManager() {
                       ...prev, 
                       skills: e.target.value.split(',').map(s => s.trim()).filter(s => s)
                     }))}
-                    placeholder="갈등 중재, 이해관계자 관리, 문제 해결, 협상"
+                    placeholder={t('admin.scenarioManager.form.skillsPlaceholder', 'Conflict mediation, stakeholder management, problem solving, negotiation')}
                     data-testid="input-skills"
                     className="bg-white"
                   />
@@ -1143,7 +1142,7 @@ export function ScenarioManager() {
 
                 <div>
                   <div className="flex items-center justify-between mb-3">
-                    <Label className="text-sm font-medium text-slate-700">페르소나 관리</Label>
+                    <Label className="text-sm font-medium text-slate-700">{t('admin.scenarioManager.form.personaManagement')}</Label>
                     <Button
                       type="button"
                       onClick={() => {
@@ -1152,8 +1151,8 @@ export function ScenarioManager() {
                           personas: [...prev.personas, {
                             id: '',
                             name: '',
-                            gender: 'male', // 성별 기본값 추가
-                            mbti: '', // MBTI 기본값 추가
+                            gender: 'male',
+                            mbti: '',
                             department: '',
                             position: '',
                             experience: '',
@@ -1169,7 +1168,7 @@ export function ScenarioManager() {
                       data-testid="add-persona"
                     >
                       <i className="fas fa-plus mr-1"></i>
-                      페르소나 추가
+                      {t('admin.scenarioManager.form.addPersona')}
                     </Button>
                   </div>
                   
@@ -1177,7 +1176,7 @@ export function ScenarioManager() {
                     {formData.personas.map((persona, index) => (
                       <div key={index} className="border border-slate-300 rounded-lg p-4 space-y-3 bg-white shadow-sm">
                         <div className="flex items-center justify-between">
-                          <h4 className="font-medium text-slate-700">페르소나 #{index + 1}</h4>
+                          <h4 className="font-medium text-slate-700">{t('admin.scenarioManager.form.personaNumber', { number: index + 1 })}</h4>
                           <Button
                             type="button"
                             onClick={() => {
@@ -1196,7 +1195,7 @@ export function ScenarioManager() {
                         
                         <div className="grid grid-cols-3 gap-3">
                           <div>
-                            <Label htmlFor={`persona-id-${index}`} className="text-sm font-medium text-slate-700">페르소나 ID *</Label>
+                            <Label htmlFor={`persona-id-${index}`} className="text-sm font-medium text-slate-700">{t('admin.scenarioManager.form.personaId')} *</Label>
                             <Select
                               value={persona.id}
                               onValueChange={(selectedId) => {
@@ -1214,12 +1213,12 @@ export function ScenarioManager() {
                               }}
                             >
                               <SelectTrigger data-testid={`select-persona-id-${index}`} className="bg-white">
-                                <SelectValue placeholder="페르소나 선택" />
+                                <SelectValue placeholder={t('admin.scenarioManager.form.selectPersona')} />
                               </SelectTrigger>
                               <SelectContent>
                                 {getAvailablePersonasForSlot(index).length === 0 ? (
                                   <div className="py-2 px-3 text-sm text-slate-500">
-                                    선택 가능한 페르소나가 없습니다
+                                    {t('admin.scenarioManager.form.noPersonasAvailable')}
                                   </div>
                                 ) : (
                                   getAvailablePersonasForSlot(index).map((p) => (
@@ -1236,7 +1235,7 @@ export function ScenarioManager() {
                           </div>
                           
                           <div>
-                            <Label htmlFor={`persona-name-${index}`} className="text-sm font-medium text-slate-700">이름 *</Label>
+                            <Label htmlFor={`persona-name-${index}`} className="text-sm font-medium text-slate-700">{t('admin.scenarioManager.form.personaName', 'Name')} *</Label>
                             <Input
                               id={`persona-name-${index}`}
                               value={persona.name}
@@ -1245,14 +1244,14 @@ export function ScenarioManager() {
                                 newPersonas[index] = { ...persona, name: e.target.value };
                                 setFormData(prev => ({ ...prev, personas: newPersonas }));
                               }}
-                              placeholder="김민수, 이지영 등"
+                              placeholder={t('admin.scenarioManager.form.personaNamePlaceholder', 'e.g., John Doe')}
                               data-testid={`input-persona-name-${index}`}
                               className="bg-white"
                             />
                           </div>
 
                           <div>
-                            <Label htmlFor={`persona-gender-${index}`} className="text-sm font-medium text-slate-700">성별 *</Label>
+                            <Label htmlFor={`persona-gender-${index}`} className="text-sm font-medium text-slate-700">{t('admin.scenarioManager.form.personaGender', 'Gender')} *</Label>
                             <Select
                               value={persona.gender}
                               onValueChange={(value: 'male' | 'female') => {
@@ -1262,17 +1261,17 @@ export function ScenarioManager() {
                               }}
                             >
                               <SelectTrigger data-testid={`select-persona-gender-${index}`} className="bg-white">
-                                <SelectValue placeholder="성별 선택" />
+                                <SelectValue placeholder={t('admin.scenarioManager.form.selectGender', 'Select gender')} />
                               </SelectTrigger>
                               <SelectContent>
-                                <SelectItem value="male">남성</SelectItem>
-                                <SelectItem value="female">여성</SelectItem>
+                                <SelectItem value="male">{t('admin.personaManager.male')}</SelectItem>
+                                <SelectItem value="female">{t('admin.personaManager.female')}</SelectItem>
                               </SelectContent>
                             </Select>
                           </div>
                           
                           <div>
-                            <Label htmlFor={`persona-department-${index}`} className="text-sm font-medium text-slate-700">부서 *</Label>
+                            <Label htmlFor={`persona-department-${index}`} className="text-sm font-medium text-slate-700">{t('admin.scenarioManager.form.personaDepartment')} *</Label>
                             <Input
                               id={`persona-department-${index}`}
                               value={persona.department}
@@ -1281,14 +1280,14 @@ export function ScenarioManager() {
                                 newPersonas[index] = { ...persona, department: e.target.value };
                                 setFormData(prev => ({ ...prev, personas: newPersonas }));
                               }}
-                              placeholder="개발팀, 마케팅팀, QA팀 등"
+                              placeholder={t('admin.scenarioManager.form.personaDepartmentPlaceholder')}
                               data-testid={`input-persona-department-${index}`}
                               className="bg-white"
                             />
                           </div>
                           
                           <div>
-                            <Label htmlFor={`persona-position-${index}`} className="text-sm font-medium text-slate-700">직책 *</Label>
+                            <Label htmlFor={`persona-position-${index}`} className="text-sm font-medium text-slate-700">{t('admin.scenarioManager.form.personaPosition')} *</Label>
                             <Input
                               id={`persona-position-${index}`}
                               value={persona.position}
@@ -1297,14 +1296,14 @@ export function ScenarioManager() {
                                 newPersonas[index] = { ...persona, position: e.target.value };
                                 setFormData(prev => ({ ...prev, personas: newPersonas }));
                               }}
-                              placeholder="선임 개발자, 매니저 등"
+                              placeholder={t('admin.scenarioManager.form.personaPositionPlaceholder')}
                               data-testid={`input-persona-position-${index}`}
                               className="bg-white"
                             />
                           </div>
                           
                           <div>
-                            <Label htmlFor={`persona-experience-${index}`} className="text-sm font-medium text-slate-700">경력</Label>
+                            <Label htmlFor={`persona-experience-${index}`} className="text-sm font-medium text-slate-700">{t('admin.scenarioManager.form.personaExperience', 'Experience')}</Label>
                             <Input
                               id={`persona-experience-${index}`}
                               value={persona.experience}
@@ -1313,7 +1312,7 @@ export function ScenarioManager() {
                                 newPersonas[index] = { ...persona, experience: e.target.value };
                                 setFormData(prev => ({ ...prev, personas: newPersonas }));
                               }}
-                              placeholder="8년차, 신입, 5년차 등"
+                              placeholder={t('admin.scenarioManager.form.personaExperiencePlaceholder', 'e.g., 8 years, junior, 5 years')}
                               data-testid={`input-persona-experience-${index}`}
                               className="bg-white"
                             />
@@ -1321,7 +1320,7 @@ export function ScenarioManager() {
                         </div>
                         
                         <div>
-                          <Label htmlFor={`persona-stance-${index}`} className="text-sm font-medium text-slate-700">입장/태도 *</Label>
+                          <Label htmlFor={`persona-stance-${index}`} className="text-sm font-medium text-slate-700">{t('admin.scenarioManager.form.personaStance')} *</Label>
                           <Textarea
                             id={`persona-stance-${index}`}
                             value={persona.stance}
@@ -1330,7 +1329,7 @@ export function ScenarioManager() {
                               newPersonas[index] = { ...persona, stance: e.target.value };
                               setFormData(prev => ({ ...prev, personas: newPersonas }));
                             }}
-                            placeholder="이 상황에 대한 구체적인 입장과 의견"
+                            placeholder={t('admin.scenarioManager.form.personaStancePlaceholder')}
                             rows={2}
                             data-testid={`input-persona-stance-${index}`}
                             className="bg-white whitespace-pre-wrap"
@@ -1338,7 +1337,7 @@ export function ScenarioManager() {
                         </div>
                         
                         <div>
-                          <Label htmlFor={`persona-goal-${index}`} className="text-sm font-medium text-slate-700">목표 *</Label>
+                          <Label htmlFor={`persona-goal-${index}`} className="text-sm font-medium text-slate-700">{t('admin.scenarioManager.form.personaGoal')} *</Label>
                           <Textarea
                             id={`persona-goal-${index}`}
                             value={persona.goal}
@@ -1347,7 +1346,7 @@ export function ScenarioManager() {
                               newPersonas[index] = { ...persona, goal: e.target.value };
                               setFormData(prev => ({ ...prev, personas: newPersonas }));
                             }}
-                            placeholder="개인적인 목표와 원하는 결과"
+                            placeholder={t('admin.scenarioManager.form.personaGoalPlaceholder')}
                             rows={2}
                             data-testid={`input-persona-goal-${index}`}
                             className="bg-white whitespace-pre-wrap"
@@ -1355,7 +1354,7 @@ export function ScenarioManager() {
                         </div>
                         
                         <div>
-                          <Label htmlFor={`persona-tradeoff-${index}`} className="text-sm font-medium text-slate-700">양보 조건</Label>
+                          <Label htmlFor={`persona-tradeoff-${index}`} className="text-sm font-medium text-slate-700">{t('admin.scenarioManager.form.personaTradeoff')}</Label>
                           <Textarea
                             id={`persona-tradeoff-${index}`}
                             value={persona.tradeoff}
@@ -1364,7 +1363,7 @@ export function ScenarioManager() {
                               newPersonas[index] = { ...persona, tradeoff: e.target.value };
                               setFormData(prev => ({ ...prev, personas: newPersonas }));
                             }}
-                            placeholder="양보할 수 있는 부분이나 조건"
+                            placeholder={t('admin.scenarioManager.form.personaTradeoffPlaceholder')}
                             rows={2}
                             data-testid={`input-persona-tradeoff-${index}`}
                             className="bg-white whitespace-pre-wrap"
@@ -1376,7 +1375,7 @@ export function ScenarioManager() {
                     {formData.personas.length === 0 && (
                       <div className="text-center py-8 text-slate-500">
                         <i className="fas fa-users text-4xl mb-2"></i>
-                        <p>페르소나를 추가해주세요</p>
+                        <p>{t('admin.scenarioManager.form.personaRequired')}</p>
                       </div>
                     )}
                   </div>
@@ -1553,7 +1552,7 @@ export function ScenarioManager() {
                   </div>
                   
                   <div>
-                    <h4 className="text-xs font-medium text-slate-500 uppercase tracking-wide mb-2">페르소나</h4>
+                    <h4 className="text-xs font-medium text-slate-500 uppercase tracking-wide mb-2">{t('admin.scenarioManager.personas')}</h4>
                     <div className="flex flex-wrap gap-1.5">
                       {(scenario.personas || []).map((persona, index) => {
                         if (typeof persona === 'string') {
@@ -1569,7 +1568,7 @@ export function ScenarioManager() {
                         }
                         const p = persona as any;
                         const department = p.department || '';
-                        const name = p.name || p.id || '알 수 없는 페르소나';
+                        const name = p.name || p.id || t('admin.scenarioManager.unknownPersona', 'Unknown persona');
                         const mbti = p.mbti ? `(${p.mbti})` : '';
                         const displayText = [department, name, mbti].filter(Boolean).join(' ');
                         return (
@@ -1594,8 +1593,8 @@ export function ScenarioManager() {
       {scenarios?.length === 0 && (
         <div className="text-center py-12">
           <div className="text-6xl mb-4">📋</div>
-          <h3 className="text-xl font-medium text-slate-600 mb-2">시나리오가 없습니다</h3>
-          <p className="text-slate-500 mb-4">새로운 훈련 시나리오를 생성해보세요</p>
+          <h3 className="text-xl font-medium text-slate-600 mb-2">{t('admin.scenarioManager.noScenarios')}</h3>
+          <p className="text-slate-500 mb-4">{t('admin.scenarioManager.createNewScenarioDesc')}</p>
           <Button
             onClick={() => {
               resetForm();
@@ -1613,12 +1612,12 @@ export function ScenarioManager() {
       <Dialog open={!!imagePreviewUrl} onOpenChange={(open) => !open && setImagePreviewUrl(null)}>
         <DialogContent className="max-w-4xl w-full" data-testid="image-preview-modal">
           <DialogHeader>
-            <DialogTitle>이미지 전체보기</DialogTitle>
+            <DialogTitle>{t('admin.scenarioManager.imageFullView')}</DialogTitle>
           </DialogHeader>
           <div className="flex items-center justify-center bg-slate-100 rounded-lg overflow-hidden max-h-[70vh]">
             <img
               src={imagePreviewUrl || ''}
-              alt="전체보기"
+              alt={t('admin.scenarioManager.imageFullView')}
               className="max-w-full max-h-[70vh] object-contain"
             />
           </div>
@@ -1629,7 +1628,7 @@ export function ScenarioManager() {
       <Dialog open={!!videoPreviewUrl} onOpenChange={(open) => !open && setVideoPreviewUrl(null)}>
         <DialogContent className="max-w-4xl w-full" data-testid="video-preview-modal">
           <DialogHeader>
-            <DialogTitle>비디오 전체보기</DialogTitle>
+            <DialogTitle>{t('admin.scenarioManager.videoFullView')}</DialogTitle>
           </DialogHeader>
           <div className="flex items-center justify-center bg-slate-900 rounded-lg overflow-hidden max-h-[70vh]">
             <video
