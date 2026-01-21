@@ -1,4 +1,4 @@
-import { type Conversation, type InsertConversation, type Feedback, type InsertFeedback, type PersonaSelection, type StrategyChoice, type SequenceAnalysis, type User, type UpsertUser, type ScenarioRun, type InsertScenarioRun, type PersonaRun, type InsertPersonaRun, type ChatMessage, type InsertChatMessage, type Category, type InsertCategory, type SystemSetting, type AiUsageLog, type InsertAiUsageLog, type AiUsageSummary, type AiUsageByFeature, type AiUsageByModel, type AiUsageDaily, type EvaluationCriteriaSet, type InsertEvaluationCriteriaSet, type EvaluationDimension, type InsertEvaluationDimension, type EvaluationCriteriaSetWithDimensions, type SupportedLanguage, type InsertSupportedLanguage, type ScenarioTranslation, type InsertScenarioTranslation, type PersonaTranslation, type InsertPersonaTranslation, type CategoryTranslation, type InsertCategoryTranslation, conversations, feedbacks, users, scenarioRuns, personaRuns, chatMessages, categories, systemSettings, aiUsageLogs, evaluationCriteriaSets, evaluationDimensions, supportedLanguages, scenarioTranslations, personaTranslations, categoryTranslations } from "@shared/schema";
+import { type Conversation, type InsertConversation, type Feedback, type InsertFeedback, type PersonaSelection, type StrategyChoice, type SequenceAnalysis, type User, type UpsertUser, type ScenarioRun, type InsertScenarioRun, type PersonaRun, type InsertPersonaRun, type ChatMessage, type InsertChatMessage, type Category, type InsertCategory, type SystemSetting, type AiUsageLog, type InsertAiUsageLog, type AiUsageSummary, type AiUsageByFeature, type AiUsageByModel, type AiUsageDaily, type EvaluationCriteriaSet, type InsertEvaluationCriteriaSet, type EvaluationDimension, type InsertEvaluationDimension, type EvaluationCriteriaSetWithDimensions, type SupportedLanguage, type InsertSupportedLanguage, type ScenarioTranslation, type InsertScenarioTranslation, type PersonaTranslation, type InsertPersonaTranslation, type CategoryTranslation, type InsertCategoryTranslation, type Scenario, type InsertScenario, type MbtiPersona, type InsertMbtiPersona, conversations, feedbacks, users, scenarioRuns, personaRuns, chatMessages, categories, systemSettings, aiUsageLogs, evaluationCriteriaSets, evaluationDimensions, supportedLanguages, scenarioTranslations, personaTranslations, categoryTranslations, scenarios, mbtiPersonas } from "@shared/schema";
 import { randomUUID } from "crypto";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { Pool } from "pg";
@@ -160,6 +160,21 @@ export interface IStorage {
   getCategoryTranslations(categoryId: string): Promise<CategoryTranslation[]>;
   upsertCategoryTranslation(translation: InsertCategoryTranslation): Promise<CategoryTranslation>;
   deleteCategoryTranslation(categoryId: string, locale: string): Promise<void>;
+  
+  // Scenarios - 시나리오 (DB 기반)
+  getScenario(id: string): Promise<Scenario | undefined>;
+  getAllScenarios(): Promise<Scenario[]>;
+  getScenariosByCategory(categoryId: string): Promise<Scenario[]>;
+  createScenario(scenario: InsertScenario): Promise<Scenario>;
+  updateScenario(id: string, updates: Partial<InsertScenario>): Promise<Scenario>;
+  deleteScenario(id: string): Promise<void>;
+  
+  // MBTI Personas - MBTI 페르소나 (DB 기반)
+  getMbtiPersona(id: string): Promise<MbtiPersona | undefined>;
+  getAllMbtiPersonas(): Promise<MbtiPersona[]>;
+  createMbtiPersona(persona: InsertMbtiPersona): Promise<MbtiPersona>;
+  updateMbtiPersona(id: string, updates: Partial<InsertMbtiPersona>): Promise<MbtiPersona>;
+  deleteMbtiPersona(id: string): Promise<void>;
 }
 
 export class MemStorage implements IStorage {
@@ -686,6 +701,21 @@ export class MemStorage implements IStorage {
   async getCategoryTranslations(_categoryId: string): Promise<CategoryTranslation[]> { return []; }
   async upsertCategoryTranslation(_translation: InsertCategoryTranslation): Promise<CategoryTranslation> { throw new Error("Not implemented"); }
   async deleteCategoryTranslation(_categoryId: string, _locale: string): Promise<void> {}
+  
+  // Scenarios - stub implementations
+  async getScenario(_id: string): Promise<Scenario | undefined> { return undefined; }
+  async getAllScenarios(): Promise<Scenario[]> { return []; }
+  async getScenariosByCategory(_categoryId: string): Promise<Scenario[]> { return []; }
+  async createScenario(_scenario: InsertScenario): Promise<Scenario> { throw new Error("Not implemented"); }
+  async updateScenario(_id: string, _updates: Partial<InsertScenario>): Promise<Scenario> { throw new Error("Not implemented"); }
+  async deleteScenario(_id: string): Promise<void> {}
+  
+  // MBTI Personas - stub implementations
+  async getMbtiPersona(_id: string): Promise<MbtiPersona | undefined> { return undefined; }
+  async getAllMbtiPersonas(): Promise<MbtiPersona[]> { return []; }
+  async createMbtiPersona(_persona: InsertMbtiPersona): Promise<MbtiPersona> { throw new Error("Not implemented"); }
+  async updateMbtiPersona(_id: string, _updates: Partial<InsertMbtiPersona>): Promise<MbtiPersona> { throw new Error("Not implemented"); }
+  async deleteMbtiPersona(_id: string): Promise<void> {}
 }
 
 export class PostgreSQLStorage implements IStorage {
@@ -1720,6 +1750,72 @@ export class PostgreSQLStorage implements IStorage {
         eq(categoryTranslations.categoryId, categoryId),
         eq(categoryTranslations.locale, locale)
       ));
+  }
+  
+  // Scenarios - 시나리오 (DB 기반)
+  async getScenario(id: string): Promise<Scenario | undefined> {
+    const [scenario] = await db.select().from(scenarios).where(eq(scenarios.id, id));
+    return scenario;
+  }
+  
+  async getAllScenarios(): Promise<Scenario[]> {
+    return await db.select().from(scenarios).orderBy(desc(scenarios.createdAt));
+  }
+  
+  async getScenariosByCategory(categoryId: string): Promise<Scenario[]> {
+    return await db.select().from(scenarios)
+      .where(eq(scenarios.categoryId, categoryId))
+      .orderBy(desc(scenarios.createdAt));
+  }
+  
+  async createScenario(scenario: InsertScenario): Promise<Scenario> {
+    const [created] = await db.insert(scenarios).values(scenario as any).returning();
+    return created;
+  }
+  
+  async updateScenario(id: string, updates: Partial<InsertScenario>): Promise<Scenario> {
+    const [updated] = await db.update(scenarios)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(scenarios.id, id))
+      .returning();
+    if (!updated) {
+      throw new Error("Scenario not found");
+    }
+    return updated;
+  }
+  
+  async deleteScenario(id: string): Promise<void> {
+    await db.delete(scenarios).where(eq(scenarios.id, id));
+  }
+  
+  // MBTI Personas - MBTI 페르소나 (DB 기반)
+  async getMbtiPersona(id: string): Promise<MbtiPersona | undefined> {
+    const [persona] = await db.select().from(mbtiPersonas).where(eq(mbtiPersonas.id, id));
+    return persona;
+  }
+  
+  async getAllMbtiPersonas(): Promise<MbtiPersona[]> {
+    return await db.select().from(mbtiPersonas).orderBy(asc(mbtiPersonas.mbti));
+  }
+  
+  async createMbtiPersona(persona: InsertMbtiPersona): Promise<MbtiPersona> {
+    const [created] = await db.insert(mbtiPersonas).values(persona as any).returning();
+    return created;
+  }
+  
+  async updateMbtiPersona(id: string, updates: Partial<InsertMbtiPersona>): Promise<MbtiPersona> {
+    const [updated] = await db.update(mbtiPersonas)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(mbtiPersonas.id, id))
+      .returning();
+    if (!updated) {
+      throw new Error("MbtiPersona not found");
+    }
+    return updated;
+  }
+  
+  async deleteMbtiPersona(id: string): Promise<void> {
+    await db.delete(mbtiPersonas).where(eq(mbtiPersonas.id, id));
   }
 }
 
