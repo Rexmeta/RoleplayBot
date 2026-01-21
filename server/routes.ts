@@ -5046,6 +5046,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
         ? [playerRoleObj?.position, playerRoleObj?.department, playerRoleObj?.experience, playerRoleObj?.responsibility].filter(Boolean).join(' / ')
         : (playerRoleObj || '');
       
+      // 시나리오의 페르소나 컨텍스트 데이터 추출
+      const scenarioPersonas = (scenario as any).personas || [];
+      const personaContextsSource = scenarioPersonas.map((p: any) => ({
+        personaId: p.id || p.personaRef || '',
+        personaName: p.name || p.id || '',
+        position: p.position || '',
+        department: p.department || '',
+        role: p.role || '',
+        stance: p.stance || '',
+        goal: p.goal || '',
+        tradeoff: p.tradeoff || '',
+      })).filter((p: any) => p.personaId);
+      sourceData.personaContexts = personaContextsSource;
+      
       if (sourceLocale !== 'ko') {
         const sourceTranslation = await storage.getScenarioTranslation(scenarioId, sourceLocale);
         if (!sourceTranslation) {
@@ -5063,9 +5077,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
           successCriteriaGood: sourceTranslation.successCriteriaGood || '',
           successCriteriaAcceptable: sourceTranslation.successCriteriaAcceptable || '',
           successCriteriaFailure: sourceTranslation.successCriteriaFailure || '',
+          personaContexts: (sourceTranslation as any).personaContexts || personaContextsSource,
         };
       }
       
+      // 페르소나 컨텍스트 프롬프트 구성
+      const personaContextsPrompt = sourceData.personaContexts?.length > 0 
+        ? `\nPersona Contexts (translate position, department, role, stance, goal, tradeoff for each persona):\n${JSON.stringify(sourceData.personaContexts, null, 2)}`
+        : '';
+      
+      const personaContextsJsonFormat = sourceData.personaContexts?.length > 0
+        ? `,
+  "personaContexts": [
+    {
+      "personaId": "keep the original personaId unchanged",
+      "position": "translated position",
+      "department": "translated department",
+      "role": "translated role",
+      "stance": "translated stance",
+      "goal": "translated goal",
+      "tradeoff": "translated tradeoff"
+    }
+  ]`
+        : '';
+
       const prompt = `Translate the following ${languageNames[sourceLocale] || sourceLocale} roleplay scenario into ${languageNames[targetLocale] || targetLocale}. 
 Maintain the professional tone and context. Provide translations in JSON format.
 
@@ -5080,7 +5115,7 @@ Objectives: ${JSON.stringify(sourceData.objectives)}
 Success Criteria (Optimal): ${sourceData.successCriteriaOptimal}
 Success Criteria (Good): ${sourceData.successCriteriaGood}
 Success Criteria (Acceptable): ${sourceData.successCriteriaAcceptable}
-Success Criteria (Failure): ${sourceData.successCriteriaFailure}
+Success Criteria (Failure): ${sourceData.successCriteriaFailure}${personaContextsPrompt}
 
 Return ONLY valid JSON in this exact format:
 {
@@ -5094,7 +5129,7 @@ Return ONLY valid JSON in this exact format:
   "successCriteriaOptimal": "translated optimal criteria",
   "successCriteriaGood": "translated good criteria",
   "successCriteriaAcceptable": "translated acceptable criteria",
-  "successCriteriaFailure": "translated failure criteria"
+  "successCriteriaFailure": "translated failure criteria"${personaContextsJsonFormat}
 }`;
 
       const apiKey = process.env.GOOGLE_API_KEY || process.env.GEMINI_API_KEY;
