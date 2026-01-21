@@ -14,6 +14,17 @@ import { apiRequest, queryClient } from '@/lib/queryClient';
 import { Loader2, Languages, CheckCircle, AlertCircle, Bot, Save, Trash2, Plus, X } from 'lucide-react';
 import { SupportedLanguage } from '@shared/schema';
 
+// 시나리오별 페르소나 컨텍스트 번역 타입
+interface PersonaContextTranslation {
+  personaId: string;
+  position?: string;
+  department?: string;
+  role?: string;
+  stance?: string;
+  goal?: string;
+  tradeoff?: string;
+}
+
 interface ScenarioTranslation {
   id: number;
   scenarioId: string;
@@ -29,6 +40,7 @@ interface ScenarioTranslation {
   successCriteriaGood: string | null;
   successCriteriaAcceptable: string | null;
   successCriteriaFailure: string | null;
+  personaContexts: PersonaContextTranslation[] | null;
   isMachineTranslated: boolean;
   isReviewed: boolean;
 }
@@ -47,6 +59,18 @@ interface ScenarioSuccessCriteria {
   failure?: string;
 }
 
+// 시나리오에 포함된 페르소나 정보
+interface ScenarioPersonaInfo {
+  id: string;
+  name: string;
+  position?: string;
+  department?: string;
+  role?: string;
+  stance?: string;
+  goal?: string;
+  tradeoff?: string;
+}
+
 interface ScenarioTranslationEditorProps {
   scenarioId: string;
   scenarioTitle: string;
@@ -54,6 +78,7 @@ interface ScenarioTranslationEditorProps {
   scenarioContext?: ScenarioContext;
   scenarioObjectives?: string[];
   scenarioSuccessCriteria?: ScenarioSuccessCriteria;
+  scenarioPersonas?: ScenarioPersonaInfo[];
 }
 
 export function ScenarioTranslationEditor({ 
@@ -62,7 +87,8 @@ export function ScenarioTranslationEditor({
   scenarioDescription,
   scenarioContext = {},
   scenarioObjectives = [],
-  scenarioSuccessCriteria = {}
+  scenarioSuccessCriteria = {},
+  scenarioPersonas = []
 }: ScenarioTranslationEditorProps) {
   const { toast } = useToast();
   const [activeTab, setActiveTab] = useState<string>('');
@@ -229,6 +255,35 @@ export function ScenarioTranslationEditor({
         },
       };
     });
+  };
+
+  // 페르소나 컨텍스트 번역 핸들러
+  const handlePersonaContextChange = (locale: string, personaId: string, field: string, value: string) => {
+    setTranslationData(prev => {
+      const currentContexts = prev[locale]?.personaContexts || [];
+      const existingIndex = currentContexts.findIndex(c => c.personaId === personaId);
+      
+      let newContexts: PersonaContextTranslation[];
+      if (existingIndex >= 0) {
+        newContexts = [...currentContexts];
+        newContexts[existingIndex] = { ...newContexts[existingIndex], [field]: value };
+      } else {
+        newContexts = [...currentContexts, { personaId, [field]: value }];
+      }
+      
+      return {
+        ...prev,
+        [locale]: {
+          ...prev[locale],
+          personaContexts: newContexts,
+        },
+      };
+    });
+  };
+
+  const getPersonaContext = (locale: string, personaId: string): PersonaContextTranslation => {
+    const contexts = translationData[locale]?.personaContexts || [];
+    return contexts.find(c => c.personaId === personaId) || { personaId };
   };
 
   if (languagesLoading || translationsLoading) {
@@ -619,6 +674,128 @@ export function ScenarioTranslationEditor({
                         </div>
                       </div>
                     </div>
+
+                    {/* 시나리오별 페르소나 컨텍스트 번역 섹션 */}
+                    {scenarioPersonas.length > 0 && (
+                      <>
+                        <Separator />
+                        <div className="space-y-4">
+                          <h4 className="font-semibold text-sm text-slate-700 border-b pb-2">
+                            페르소나 컨텍스트 번역 (Persona Contexts)
+                          </h4>
+                          <p className="text-xs text-muted-foreground">
+                            시나리오에서 정의된 페르소나의 직책, 부서, 역할, 입장, 목표, 협상범위를 번역합니다.
+                          </p>
+                          
+                          {scenarioPersonas.map((persona) => {
+                            const ctx = getPersonaContext(lang.code, persona.id);
+                            return (
+                              <div key={persona.id} className="border rounded-lg p-4 space-y-3 bg-slate-50">
+                                <div className="flex items-center gap-2 text-sm font-medium text-slate-700">
+                                  <span className="bg-primary/10 text-primary px-2 py-1 rounded">{persona.name || persona.id}</span>
+                                </div>
+                                
+                                <div className="grid grid-cols-2 gap-3">
+                                  <div className="space-y-1">
+                                    <Label className="text-muted-foreground text-xs">원본 직책</Label>
+                                    <div className="p-2 bg-white border rounded text-sm min-h-[32px]">{persona.position || '-'}</div>
+                                  </div>
+                                  <div className="space-y-1">
+                                    <Label className="text-xs">직책 ({lang.nativeName})</Label>
+                                    <Input
+                                      value={ctx.position || ''}
+                                      onChange={(e) => handlePersonaContextChange(lang.code, persona.id, 'position', e.target.value)}
+                                      placeholder={`${lang.nativeName} 직책...`}
+                                      className="h-8"
+                                    />
+                                  </div>
+                                </div>
+
+                                <div className="grid grid-cols-2 gap-3">
+                                  <div className="space-y-1">
+                                    <Label className="text-muted-foreground text-xs">원본 부서</Label>
+                                    <div className="p-2 bg-white border rounded text-sm min-h-[32px]">{persona.department || '-'}</div>
+                                  </div>
+                                  <div className="space-y-1">
+                                    <Label className="text-xs">부서 ({lang.nativeName})</Label>
+                                    <Input
+                                      value={ctx.department || ''}
+                                      onChange={(e) => handlePersonaContextChange(lang.code, persona.id, 'department', e.target.value)}
+                                      placeholder={`${lang.nativeName} 부서...`}
+                                      className="h-8"
+                                    />
+                                  </div>
+                                </div>
+
+                                <div className="grid grid-cols-2 gap-3">
+                                  <div className="space-y-1">
+                                    <Label className="text-muted-foreground text-xs">원본 역할</Label>
+                                    <div className="p-2 bg-white border rounded text-sm min-h-[32px]">{persona.role || '-'}</div>
+                                  </div>
+                                  <div className="space-y-1">
+                                    <Label className="text-xs">역할 ({lang.nativeName})</Label>
+                                    <Input
+                                      value={ctx.role || ''}
+                                      onChange={(e) => handlePersonaContextChange(lang.code, persona.id, 'role', e.target.value)}
+                                      placeholder={`${lang.nativeName} 역할...`}
+                                      className="h-8"
+                                    />
+                                  </div>
+                                </div>
+
+                                <div className="grid grid-cols-2 gap-3">
+                                  <div className="space-y-1">
+                                    <Label className="text-muted-foreground text-xs">원본 입장/태도</Label>
+                                    <div className="p-2 bg-white border rounded text-sm min-h-[40px] whitespace-pre-wrap">{persona.stance || '-'}</div>
+                                  </div>
+                                  <div className="space-y-1">
+                                    <Label className="text-xs">입장/태도 ({lang.nativeName})</Label>
+                                    <Textarea
+                                      value={ctx.stance || ''}
+                                      onChange={(e) => handlePersonaContextChange(lang.code, persona.id, 'stance', e.target.value)}
+                                      placeholder={`${lang.nativeName} 입장/태도...`}
+                                      rows={2}
+                                    />
+                                  </div>
+                                </div>
+
+                                <div className="grid grid-cols-2 gap-3">
+                                  <div className="space-y-1">
+                                    <Label className="text-muted-foreground text-xs">원본 목표</Label>
+                                    <div className="p-2 bg-white border rounded text-sm min-h-[40px] whitespace-pre-wrap">{persona.goal || '-'}</div>
+                                  </div>
+                                  <div className="space-y-1">
+                                    <Label className="text-xs">목표 ({lang.nativeName})</Label>
+                                    <Textarea
+                                      value={ctx.goal || ''}
+                                      onChange={(e) => handlePersonaContextChange(lang.code, persona.id, 'goal', e.target.value)}
+                                      placeholder={`${lang.nativeName} 목표...`}
+                                      rows={2}
+                                    />
+                                  </div>
+                                </div>
+
+                                <div className="grid grid-cols-2 gap-3">
+                                  <div className="space-y-1">
+                                    <Label className="text-muted-foreground text-xs">원본 협상 가능 범위</Label>
+                                    <div className="p-2 bg-white border rounded text-sm min-h-[40px] whitespace-pre-wrap">{persona.tradeoff || '-'}</div>
+                                  </div>
+                                  <div className="space-y-1">
+                                    <Label className="text-xs">협상 가능 범위 ({lang.nativeName})</Label>
+                                    <Textarea
+                                      value={ctx.tradeoff || ''}
+                                      onChange={(e) => handlePersonaContextChange(lang.code, persona.id, 'tradeoff', e.target.value)}
+                                      placeholder={`${lang.nativeName} 협상 가능 범위...`}
+                                      rows={2}
+                                    />
+                                  </div>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </>
+                    )}
                   </div>
                 </ScrollArea>
               </TabsContent>

@@ -1664,6 +1664,16 @@ export function ScenarioManager() {
                 acceptable: translatingScenario.successCriteria?.acceptable || '',
                 failure: translatingScenario.successCriteria?.failure || '',
               }}
+              scenarioPersonas={(translatingScenario.personas || []).map((p: any) => ({
+                id: p.id || p.personaRef || '',
+                name: p.name || '',
+                position: p.position || '',
+                department: p.department || '',
+                role: p.role || '',
+                stance: p.stance || '',
+                goal: p.goal || '',
+                tradeoff: p.tradeoff || '',
+              }))}
             />
           )}
         </DialogContent>
