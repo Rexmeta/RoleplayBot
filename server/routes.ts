@@ -4905,7 +4905,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
   
-  // Admin: Upsert scenario translation
+  // Admin: Upsert scenario translation (시나리오별 페르소나 컨텍스트 번역 포함)
   app.put("/api/admin/scenarios/:scenarioId/translations/:locale", isAuthenticated, isOperatorOrAdmin, async (req, res) => {
     try {
       const { scenarioId, locale } = req.params;
@@ -4921,6 +4921,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         successCriteriaGood,
         successCriteriaAcceptable,
         successCriteriaFailure,
+        personaContexts, // 시나리오별 페르소나 컨텍스트 번역 (position, department, role, stance, goal, tradeoff)
         isMachineTranslated 
       } = req.body;
       
@@ -4942,6 +4943,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         successCriteriaGood,
         successCriteriaAcceptable,
         successCriteriaFailure,
+        personaContexts: personaContexts || null,
         isMachineTranslated: isMachineTranslated || false,
         isReviewed: false,
       });
