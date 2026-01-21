@@ -14,6 +14,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { AppHeader } from "@/components/AppHeader";
 import { useTranslation } from "react-i18next";
+import i18n from "@/lib/i18n";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -59,6 +60,9 @@ export default function Home() {
   const [isHeaderVisible, setIsHeaderVisible] = useState(false); // 상세 페이지에서 헤더 표시 상태
   const [showExitConversationDialog, setShowExitConversationDialog] = useState(false); // 대화 중 홈 이동 경고 다이얼로그
 
+  // 현재 언어 코드 (한국어가 기본이므로 'ko'가 아닐 때만 번역 적용)
+  const currentLang = i18n.language || 'ko';
+
   // 동적으로 시나리오와 페르소나 데이터 로드
   const { data: scenarios = [] } = useQuery({
     queryKey: ['/api/scenarios'],
@@ -71,6 +75,46 @@ export default function Home() {
     staleTime: 1000 * 60 * 30, // 30분간 캐시 유지 (시나리오는 자주 변경되지 않음)
     gcTime: 1000 * 60 * 60,     // 1시간 메모리 유지
   });
+
+  // 선택된 시나리오의 번역 데이터 조회 (현재 언어가 한국어가 아닐 때만)
+  const { data: scenarioTranslation } = useQuery({
+    queryKey: ['/api/scenarios', selectedScenario?.id, 'translations', currentLang],
+    queryFn: async () => {
+      if (!selectedScenario?.id || currentLang === 'ko') return null;
+      const token = localStorage.getItem("authToken");
+      const headers: Record<string, string> = {};
+      if (token) headers["Authorization"] = `Bearer ${token}`;
+      const res = await fetch(`/api/scenarios/${selectedScenario.id}/translations/${currentLang}`, { 
+        credentials: 'include', 
+        headers 
+      });
+      if (!res.ok) return null;
+      return res.json();
+    },
+    enabled: !!selectedScenario?.id && currentLang !== 'ko',
+    staleTime: 1000 * 60 * 10, // 10분 캐시
+  });
+
+  // 페르소나 컨텍스트에 번역 적용하는 헬퍼 함수
+  const applyPersonaContextTranslation = (persona: any) => {
+    if (!scenarioTranslation?.personaContexts || currentLang === 'ko') {
+      return persona;
+    }
+    const ctx = scenarioTranslation.personaContexts.find(
+      (c: any) => c.personaId === persona.id || c.personaId === persona.personaRef
+    );
+    if (!ctx) return persona;
+    
+    return {
+      ...persona,
+      position: ctx.position || persona.position,
+      department: ctx.department || persona.department,
+      role: ctx.role || persona.role,
+      stance: ctx.stance || persona.stance,
+      goal: ctx.goal || persona.goal,
+      tradeoff: ctx.tradeoff || persona.tradeoff,
+    };
+  };
 
   // ⚡ 최적화: 불필요한 전체 페르소나 조회 제거 (성능 개선)
   // ScenarioSelector에서 시나리오별 페르소나를 직접 전달받음
@@ -544,48 +588,51 @@ export default function Home() {
         
         {currentView === "persona-selection" && selectedScenario && selectedScenario.personas && (
           <SimplePersonaSelector
-            personas={selectedScenario.personas.map((p: any) => ({
-              id: p.id,
-              name: p.name,
-              role: p.position || p.role,
-              department: p.department,
-              experience: p.experience,
-              gender: p.gender,
-              personality: {
-                traits: [],
-                communicationStyle: p.stance || '',
-                motivation: p.goal || '',
-                fears: []
-              },
-              background: {
-                education: '',
-                previousExperience: p.experience || '',
-                majorProjects: [],
-                expertise: []
-              },
-              currentSituation: {
-                workload: '',
-                pressure: '',
-                concerns: [],
-                position: p.stance || ''
-              },
-              communicationPatterns: {
-                openingStyle: '',
-                keyPhrases: [],
-                responseToArguments: {},
-                winConditions: []
-              },
-              image: `https://ui-avatars.com/api/?name=${encodeURIComponent(p.name)}&background=6366f1&color=fff&size=150`,
-              voice: {
-                tone: '',
-                pace: '',
-                emotion: ''
-              },
-              stance: p.stance,
-              goal: p.goal,
-              tradeoff: p.tradeoff,
-              mbti: p.mbti || p.id?.toUpperCase()
-            }))}
+            personas={selectedScenario.personas.map((p: any) => {
+              const translated = applyPersonaContextTranslation(p);
+              return {
+                id: p.id,
+                name: p.name,
+                role: translated.position || translated.role,
+                department: translated.department,
+                experience: p.experience,
+                gender: p.gender,
+                personality: {
+                  traits: [],
+                  communicationStyle: translated.stance || '',
+                  motivation: translated.goal || '',
+                  fears: []
+                },
+                background: {
+                  education: '',
+                  previousExperience: p.experience || '',
+                  majorProjects: [],
+                  expertise: []
+                },
+                currentSituation: {
+                  workload: '',
+                  pressure: '',
+                  concerns: [],
+                  position: translated.stance || ''
+                },
+                communicationPatterns: {
+                  openingStyle: '',
+                  keyPhrases: [],
+                  responseToArguments: {},
+                  winConditions: []
+                },
+                image: `https://ui-avatars.com/api/?name=${encodeURIComponent(p.name)}&background=6366f1&color=fff&size=150`,
+                voice: {
+                  tone: '',
+                  pace: '',
+                  emotion: ''
+                },
+                stance: translated.stance,
+                goal: translated.goal,
+                tradeoff: translated.tradeoff,
+                mbti: p.mbti || p.id?.toUpperCase()
+              };
+            })}
             completedPersonaIds={completedPersonaIds}
             onPersonaSelect={handlePersonaSelect}
             scenarioTitle={selectedScenario.title}
@@ -634,48 +681,51 @@ export default function Home() {
           
           return (
             <StrategyReflection
-              personas={selectedScenario.personas.map((p: any) => ({
-              id: p.id,
-              name: p.name,
-              role: p.position || p.role,
-              department: p.department,
-              experience: p.experience,
-              gender: p.gender,
-              personality: {
-                traits: [],
-                communicationStyle: p.stance || '',
-                motivation: p.goal || '',
-                fears: []
-              },
-              background: {
-                education: '',
-                previousExperience: p.experience || '',
-                majorProjects: [],
-                expertise: []
-              },
-              currentSituation: {
-                workload: '',
-                pressure: '',
-                concerns: [],
-                position: p.stance || ''
-              },
-              communicationPatterns: {
-                openingStyle: '',
-                keyPhrases: [],
-                responseToArguments: {},
-                winConditions: []
-              },
-              image: `https://ui-avatars.com/api/?name=${encodeURIComponent(p.name)}&background=6366f1&color=fff&size=150`,
-              voice: {
-                tone: '',
-                pace: '',
-                emotion: ''
-              },
-              stance: p.stance,
-              goal: p.goal,
-              tradeoff: p.tradeoff,
-              mbti: p.mbti || p.id?.toUpperCase()
-            }))}
+              personas={selectedScenario.personas.map((p: any) => {
+                const translated = applyPersonaContextTranslation(p);
+                return {
+                  id: p.id,
+                  name: p.name,
+                  role: translated.position || translated.role,
+                  department: translated.department,
+                  experience: p.experience,
+                  gender: p.gender,
+                  personality: {
+                    traits: [],
+                    communicationStyle: translated.stance || '',
+                    motivation: translated.goal || '',
+                    fears: []
+                  },
+                  background: {
+                    education: '',
+                    previousExperience: p.experience || '',
+                    majorProjects: [],
+                    expertise: []
+                  },
+                  currentSituation: {
+                    workload: '',
+                    pressure: '',
+                    concerns: [],
+                    position: translated.stance || ''
+                  },
+                  communicationPatterns: {
+                    openingStyle: '',
+                    keyPhrases: [],
+                    responseToArguments: {},
+                    winConditions: []
+                  },
+                  image: `https://ui-avatars.com/api/?name=${encodeURIComponent(p.name)}&background=6366f1&color=fff&size=150`,
+                  voice: {
+                    tone: '',
+                    pace: '',
+                    emotion: ''
+                  },
+                  stance: translated.stance,
+                  goal: translated.goal,
+                  tradeoff: translated.tradeoff,
+                  mbti: p.mbti || p.id?.toUpperCase()
+                };
+              })}
             completedPersonaIds={completedPersonaIds}
             onSubmit={async (reflection) => {
               // 전략 회고를 scenario run에 저장
