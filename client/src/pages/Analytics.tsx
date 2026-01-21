@@ -1,10 +1,12 @@
 import { useQuery } from "@tanstack/react-query";
+import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Tooltip as UITooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { TrendingUp, TrendingDown, Minus, Award, Target, BarChart3, Calendar, HelpCircle, MessageSquare } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { TrendingUp, TrendingDown, Minus, Award, Target, BarChart3, Calendar, HelpCircle, MessageSquare, Filter } from "lucide-react";
 import { Link } from "wouter";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts";
 
@@ -27,12 +29,29 @@ type EvaluationCriteriaSet = {
   dimensions: EvaluationDimension[];
 };
 
+type CriteriaDetail = {
+  key: string;
+  name: string;
+  icon: string;
+  color: string;
+  averageScore: number;
+  evaluationCount: number;
+};
+
+type UsedCriteria = {
+  key: string;
+  name: string;
+  count: number;
+};
+
 type AnalyticsSummary = {
   totalSessions: number;
   completedSessions?: number;
   totalFeedbacks?: number;
   averageScore: number;
   categoryAverages: Record<string, number>;
+  criteriaDetails?: CriteriaDetail[];
+  usedCriteria?: UsedCriteria[];
   scoreHistory: Array<{
     date: string;
     time?: string;
@@ -63,6 +82,8 @@ const DEFAULT_DIMENSION_NAMES: Record<string, string> = {
 };
 
 export default function Analytics() {
+  const [selectedCriteria, setSelectedCriteria] = useState<string>("all");
+  
   const { data: analytics, isLoading } = useQuery<AnalyticsSummary>({
     queryKey: ['/api/analytics/summary'],
     staleTime: 1000 * 60,
@@ -73,6 +94,12 @@ export default function Analytics() {
     queryKey: ['/api/evaluation-criteria/active'],
     staleTime: 1000 * 60 * 10,
   });
+  
+  const getFilteredCriteriaDetails = () => {
+    if (!analytics?.criteriaDetails) return [];
+    if (selectedCriteria === "all") return analytics.criteriaDetails;
+    return analytics.criteriaDetails.filter(c => c.key === selectedCriteria);
+  };
 
   const getDimensionName = (key: string): string => {
     const dimension = evaluationCriteria?.dimensions?.find(d => d.key === key);
@@ -290,30 +317,80 @@ export default function Analytics() {
         </div>
         </TooltipProvider>
 
-        {/* Category Breakdown */}
+        {/* Category Breakdown with Filter */}
         <Card className="mb-8" data-testid="card-categories">
           <CardHeader>
-            <CardTitle>카테고리별 평균 점수</CardTitle>
-            <CardDescription>5개 평가 항목별 종합 분석 (5점 만점)</CardDescription>
+            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+              <div>
+                <CardTitle>평가 기준별 분석</CardTitle>
+                <CardDescription>
+                  {analytics.criteriaDetails && analytics.criteriaDetails.length > 0 
+                    ? `${analytics.criteriaDetails.length}개 평가 기준 종합 분석 (5점 만점)`
+                    : '평가 항목별 종합 분석 (5점 만점)'}
+                </CardDescription>
+              </div>
+              {analytics.usedCriteria && analytics.usedCriteria.length > 1 && (
+                <div className="flex items-center gap-2">
+                  <Filter className="w-4 h-4 text-slate-500" />
+                  <Select value={selectedCriteria} onValueChange={setSelectedCriteria}>
+                    <SelectTrigger className="w-[200px]">
+                      <SelectValue placeholder="평가 기준 선택" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">전체 평가 기준</SelectItem>
+                      {analytics.usedCriteria.map((criteria) => (
+                        <SelectItem key={criteria.key} value={criteria.key}>
+                          {criteria.name} ({criteria.count}회)
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+            </div>
           </CardHeader>
           <CardContent>
             <div className="space-y-6">
-              {Object.entries(analytics.categoryAverages).map(([key, value]) => (
-                <div key={key} data-testid={`category-${key}`}>
-                  <div className="flex items-center justify-between mb-2">
-                    <div className="flex items-center gap-2">
-                      <span className="text-xl">{getDimensionIcon(key)}</span>
-                      <span className="font-medium text-slate-900">
-                        {getDimensionName(key)}
+              {/* 새로운 criteriaDetails 사용 (있는 경우) */}
+              {analytics.criteriaDetails && analytics.criteriaDetails.length > 0 ? (
+                getFilteredCriteriaDetails().map((criteria) => (
+                  <div key={criteria.key} data-testid={`category-${criteria.key}`}>
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="flex items-center gap-2">
+                        <span className="text-xl">{criteria.icon}</span>
+                        <span className="font-medium text-slate-900">
+                          {criteria.name}
+                        </span>
+                        <Badge variant="outline" className="text-xs">
+                          {criteria.evaluationCount}회 평가
+                        </Badge>
+                      </div>
+                      <span className="text-lg font-semibold text-slate-900" data-testid={`score-${criteria.key}`}>
+                        {criteria.averageScore.toFixed(1)} / 5.0
                       </span>
                     </div>
-                    <span className="text-lg font-semibold text-slate-900" data-testid={`score-${key}`}>
-                      {value.toFixed(1)} / 5.0
-                    </span>
+                    <Progress value={criteria.averageScore * 20} className="h-3" />
                   </div>
-                  <Progress value={value * 20} className="h-3" />
-                </div>
-              ))}
+                ))
+              ) : (
+                /* 기존 categoryAverages 호환 (구버전 데이터) */
+                Object.entries(analytics.categoryAverages).map(([key, value]) => (
+                  <div key={key} data-testid={`category-${key}`}>
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="flex items-center gap-2">
+                        <span className="text-xl">{getDimensionIcon(key)}</span>
+                        <span className="font-medium text-slate-900">
+                          {getDimensionName(key)}
+                        </span>
+                      </div>
+                      <span className="text-lg font-semibold text-slate-900" data-testid={`score-${key}`}>
+                        {value.toFixed(1)} / 5.0
+                      </span>
+                    </div>
+                    <Progress value={value * 20} className="h-3" />
+                  </div>
+                ))
+              )}
             </div>
           </CardContent>
         </Card>

@@ -2013,31 +2013,61 @@ export async function registerRoutes(app: Express): Promise<Server> {
         userFeedbacks.reduce((acc, f) => acc + f.overallScore, 0) / userFeedbacks.length
       );
       
-      // 2. 카테고리별 평균 점수 계산
-      const categoryTotals = {
-        clarityLogic: 0,
-        listeningEmpathy: 0,
-        appropriatenessAdaptability: 0,
-        persuasivenessImpact: 0,
-        strategicCommunication: 0,
-      };
+      // 2. 동적 평가 기준별 점수 집계 (다양한 평가 기준 지원)
+      // 평가 기준별 총점, 횟수, 메타데이터 수집
+      const criteriaStats: Record<string, {
+        total: number;
+        count: number;
+        name: string;
+        icon: string;
+        color: string;
+      }> = {};
       
+      // 피드백의 scores 배열에서 동적으로 평가 기준 집계
       userFeedbacks.forEach(feedback => {
-        const scores = (feedback.detailedFeedback as any).scores || {};
-        categoryTotals.clarityLogic += scores.clarityLogic || 0;
-        categoryTotals.listeningEmpathy += scores.listeningEmpathy || 0;
-        categoryTotals.appropriatenessAdaptability += scores.appropriatenessAdaptability || 0;
-        categoryTotals.persuasivenessImpact += scores.persuasivenessImpact || 0;
-        categoryTotals.strategicCommunication += scores.strategicCommunication || 0;
+        const scoresArray = feedback.scores as any[];
+        if (Array.isArray(scoresArray)) {
+          scoresArray.forEach(scoreItem => {
+            const key = scoreItem.category;
+            if (!criteriaStats[key]) {
+              criteriaStats[key] = {
+                total: 0,
+                count: 0,
+                name: scoreItem.name || key,
+                icon: scoreItem.icon || '📊',
+                color: scoreItem.color || 'blue'
+              };
+            }
+            criteriaStats[key].total += scoreItem.score || 0;
+            criteriaStats[key].count += 1;
+          });
+        }
       });
       
-      const categoryAverages = {
-        clarityLogic: Number((categoryTotals.clarityLogic / userFeedbacks.length).toFixed(2)),
-        listeningEmpathy: Number((categoryTotals.listeningEmpathy / userFeedbacks.length).toFixed(2)),
-        appropriatenessAdaptability: Number((categoryTotals.appropriatenessAdaptability / userFeedbacks.length).toFixed(2)),
-        persuasivenessImpact: Number((categoryTotals.persuasivenessImpact / userFeedbacks.length).toFixed(2)),
-        strategicCommunication: Number((categoryTotals.strategicCommunication / userFeedbacks.length).toFixed(2)),
-      };
+      // categoryAverages 계산 (기존 호환성 유지 + 동적 기준)
+      const categoryAverages: Record<string, number> = {};
+      Object.entries(criteriaStats).forEach(([key, stats]) => {
+        if (stats.count > 0) {
+          categoryAverages[key] = Number((stats.total / stats.count).toFixed(2));
+        }
+      });
+      
+      // 상세 평가 기준 정보 (평가 횟수 포함)
+      const criteriaDetails = Object.entries(criteriaStats).map(([key, stats]) => ({
+        key,
+        name: stats.name,
+        icon: stats.icon,
+        color: stats.color,
+        averageScore: stats.count > 0 ? Number((stats.total / stats.count).toFixed(2)) : 0,
+        evaluationCount: stats.count
+      })).sort((a, b) => b.evaluationCount - a.evaluationCount);
+      
+      // 사용된 모든 평가 기준 목록 (필터 UI용)
+      const usedCriteria = criteriaDetails.map(c => ({
+        key: c.key,
+        name: c.name,
+        count: c.evaluationCount
+      }));
       
       // 3. 시간순 스코어 이력 (성장 추이 분석용)
       const scoreHistory = userFeedbacks
@@ -2201,6 +2231,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         totalFeedbacks: userFeedbacks.length, // ✨ 총 피드백
         averageScore,
         categoryAverages,
+        criteriaDetails, // ✨ 동적 평가 기준 상세 (이름, 아이콘, 평가 횟수 포함)
+        usedCriteria, // ✨ 필터 UI용 사용된 평가 기준 목록
         scoreHistory,
         topStrengths,
         topImprovements,
