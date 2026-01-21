@@ -2,9 +2,13 @@ import * as fs from 'fs/promises';
 import * as path from 'path';
 import { ComplexScenario, ScenarioPersona } from '@/lib/scenario-system';
 import { enrichPersonaWithMBTI, enrichPersonaWithBasicMBTI } from '../utils/mbtiLoader';
+import { storage } from '../storage';
 
 const SCENARIOS_DIR = 'scenarios';
 const PERSONAS_DIR = 'personas';
+
+// 데이터베이스 우선 모드 - JSON 파일은 폴백/이미지용으로만 사용
+const USE_DATABASE = true;
 
 // 시나리오 카운트 캐시 (카테고리별)
 interface ScenarioCountCache {
@@ -21,7 +25,7 @@ const scenarioCountCache: ScenarioCountCache = {
 
 export class FileManagerService {
   
-  // 🚀 경량화된 시나리오 카운트 조회 (캐시 사용)
+  // 🚀 경량화된 시나리오 카운트 조회 (캐시 사용) - 데이터베이스 기반
   async getScenarioCountsByCategory(): Promise<Map<string, number>> {
     const now = Date.now();
     
@@ -31,21 +35,36 @@ export class FileManagerService {
       return scenarioCountCache.counts;
     }
     
-    // 캐시 갱신: 파일에서 categoryId만 추출 (경량 파싱)
     try {
+      if (USE_DATABASE) {
+        // 데이터베이스에서 시나리오 목록 조회 후 카운트
+        const dbScenarios = await storage.getAllScenarios();
+        const counts = new Map<string, number>();
+        
+        for (const scenario of dbScenarios) {
+          const categoryId = scenario.categoryId || 'uncategorized';
+          counts.set(categoryId, (counts.get(categoryId) || 0) + 1);
+        }
+        
+        // 캐시 업데이트
+        scenarioCountCache.counts = counts;
+        scenarioCountCache.lastUpdated = now;
+        
+        return counts;
+      }
+      
+      // 폴백: 파일에서 categoryId만 추출 (경량 파싱)
       const files = await fs.readdir(SCENARIOS_DIR);
       const counts = new Map<string, number>();
       
       for (const file of files.filter(f => f.endsWith('.json'))) {
         try {
           const content = await fs.readFile(path.join(SCENARIOS_DIR, file), 'utf-8');
-          // 빠른 파싱: categoryId만 추출
           const categoryMatch = content.match(/"categoryId"\s*:\s*"([^"]+)"/);
           if (categoryMatch) {
             const categoryId = categoryMatch[1];
             counts.set(categoryId, (counts.get(categoryId) || 0) + 1);
           } else {
-            // categoryId가 없는 시나리오는 'uncategorized'로 카운트
             counts.set('uncategorized', (counts.get('uncategorized') || 0) + 1);
           }
         } catch (error) {
@@ -69,9 +88,24 @@ export class FileManagerService {
     scenarioCountCache.lastUpdated = 0;
   }
   
-  // 시나리오 관리
+  // 시나리오 관리 - 데이터베이스 기반
   async getAllScenarios(): Promise<ComplexScenario[]> {
     try {
+      if (USE_DATABASE) {
+        const dbScenarios = await storage.getAllScenarios();
+        const scenarios: ComplexScenario[] = [];
+        
+        for (const dbScenario of dbScenarios) {
+          const scenario = this.convertDbScenarioToComplex(dbScenario);
+          await this.processScenarioImage(scenario);
+          await this.enrichScenarioPersonas(scenario);
+          scenarios.push(scenario);
+        }
+        
+        return scenarios;
+      }
+      
+      // 폴백: 파일 시스템에서 로드
       const files = await fs.readdir(SCENARIOS_DIR);
       const scenarios: ComplexScenario[] = [];
       
@@ -79,63 +113,8 @@ export class FileManagerService {
         try {
           const content = await fs.readFile(path.join(SCENARIOS_DIR, file), 'utf-8');
           const scenario = JSON.parse(content);
-          
-          // 🚀 성능 최적화: 시나리오 목록 조회 시 이미지 처리
-          const defaultPlaceholder = 'https://images.unsplash.com/photo-1557804506-669a67965ba0?w=800&h=400&fit=crop&auto=format';
-          
-          if (scenario.image) {
-            // base64 이미지는 placeholder로 대체
-            if (scenario.image.length > 200) {
-              scenario.image = defaultPlaceholder;
-              scenario.thumbnail = defaultPlaceholder;
-            } 
-            // 로컬 이미지는 썸네일 경로로 변환 (존재하는 경우)
-            else if (scenario.image.startsWith('/scenarios/images/')) {
-              // PNG/JPG 파일의 경우 WebP 썸네일 경로 생성
-              if (scenario.image.match(/\.(png|jpg|jpeg)$/i)) {
-                const thumbnailPath = scenario.image.replace(/\.(png|jpg|jpeg)$/i, '-thumb.webp');
-                const fullThumbPath = path.join(process.cwd(), thumbnailPath.slice(1)); // /scenarios... -> scenarios...
-                try {
-                  await fs.access(fullThumbPath);
-                  scenario.thumbnail = thumbnailPath;
-                } catch {
-                  // 썸네일이 없으면 원본 사용
-                  scenario.thumbnail = scenario.image;
-                }
-              }
-              // WebP 파일의 경우 썸네일 경로 생성
-              else if (scenario.image.endsWith('.webp') && !scenario.image.includes('-thumb')) {
-                scenario.thumbnail = scenario.image.replace('.webp', '-thumb.webp');
-              }
-              // 이미 썸네일이거나 기타 형식
-              else {
-                scenario.thumbnail = scenario.image;
-              }
-            }
-            // 외부 URL인 경우 그대로 사용
-            else {
-              scenario.thumbnail = scenario.image;
-            }
-          } else {
-            // 이미지가 없는 경우 placeholder 사용
-            scenario.image = defaultPlaceholder;
-            scenario.thumbnail = defaultPlaceholder;
-          }
-          
-          // 시나리오 목록 조회 시에는 가벼운 MBTI 정보만 포함 (mbti만)
-          // 실제 대화 시작 시점에 선택된 페르소나의 전체 MBTI 데이터를 로드
-          if (scenario.personas && Array.isArray(scenario.personas)) {
-            const enrichedPersonas = await Promise.all(
-              scenario.personas.map(async (persona: any) => {
-                if (typeof persona === 'object' && persona.personaRef) {
-                  return await enrichPersonaWithBasicMBTI(persona, persona.personaRef);
-                }
-                return persona;
-              })
-            );
-            scenario.personas = enrichedPersonas;
-          }
-          
+          await this.processScenarioImage(scenario);
+          await this.enrichScenarioPersonas(scenario);
           scenarios.push(scenario);
         } catch (error) {
           console.warn(`Failed to load scenario file ${file}:`, error);
@@ -144,14 +123,96 @@ export class FileManagerService {
       
       return scenarios;
     } catch (error) {
-      console.error('Failed to read scenarios directory:', error);
+      console.error('Failed to read scenarios:', error);
       return [];
+    }
+  }
+  
+  // DB 스키마를 ComplexScenario 형식으로 변환
+  private convertDbScenarioToComplex(dbScenario: any): ComplexScenario {
+    return {
+      id: dbScenario.id,
+      title: dbScenario.title,
+      description: dbScenario.description,
+      difficulty: dbScenario.difficulty,
+      estimatedTime: dbScenario.estimatedTime || undefined,
+      skills: dbScenario.skills || [],
+      categoryId: dbScenario.categoryId || undefined,
+      image: dbScenario.image || undefined,
+      imagePrompt: dbScenario.imagePrompt || undefined,
+      introVideoUrl: dbScenario.introVideoUrl || undefined,
+      videoPrompt: dbScenario.videoPrompt || undefined,
+      objectiveType: dbScenario.objectiveType || undefined,
+      context: dbScenario.context || undefined,
+      objectives: dbScenario.objectives || [],
+      successCriteria: dbScenario.successCriteria || undefined,
+      personas: dbScenario.personas || [],
+      recommendedFlow: dbScenario.recommendedFlow || [],
+    };
+  }
+  
+  // 시나리오 이미지 처리 (썸네일 생성 등)
+  private async processScenarioImage(scenario: any): Promise<void> {
+    const defaultPlaceholder = 'https://images.unsplash.com/photo-1557804506-669a67965ba0?w=800&h=400&fit=crop&auto=format';
+    
+    if (scenario.image) {
+      if (scenario.image.length > 200) {
+        scenario.image = defaultPlaceholder;
+        scenario.thumbnail = defaultPlaceholder;
+      } else if (scenario.image.startsWith('/scenarios/images/')) {
+        if (scenario.image.match(/\.(png|jpg|jpeg)$/i)) {
+          const thumbnailPath = scenario.image.replace(/\.(png|jpg|jpeg)$/i, '-thumb.webp');
+          const fullThumbPath = path.join(process.cwd(), thumbnailPath.slice(1));
+          try {
+            await fs.access(fullThumbPath);
+            scenario.thumbnail = thumbnailPath;
+          } catch {
+            scenario.thumbnail = scenario.image;
+          }
+        } else if (scenario.image.endsWith('.webp') && !scenario.image.includes('-thumb')) {
+          scenario.thumbnail = scenario.image.replace('.webp', '-thumb.webp');
+        } else {
+          scenario.thumbnail = scenario.image;
+        }
+      } else {
+        scenario.thumbnail = scenario.image;
+      }
+    } else {
+      scenario.image = defaultPlaceholder;
+      scenario.thumbnail = defaultPlaceholder;
+    }
+  }
+  
+  // 시나리오 페르소나에 MBTI 정보 추가
+  private async enrichScenarioPersonas(scenario: any): Promise<void> {
+    if (scenario.personas && Array.isArray(scenario.personas)) {
+      const enrichedPersonas = await Promise.all(
+        scenario.personas.map(async (persona: any) => {
+          if (typeof persona === 'object' && persona.personaRef) {
+            return await enrichPersonaWithBasicMBTI(persona, persona.personaRef);
+          }
+          return persona;
+        })
+      );
+      scenario.personas = enrichedPersonas;
     }
   }
 
   // 시나리오의 원본 페르소나 정보 가져오기 (MBTI 참조 및 성별 정보 포함)
   async getScenarioPersonas(scenarioId: string): Promise<any[]> {
     try {
+      if (USE_DATABASE) {
+        const dbScenario = await storage.getScenario(scenarioId);
+        if (dbScenario && dbScenario.personas && Array.isArray(dbScenario.personas)) {
+          return (dbScenario.personas as any[]).map((persona: any) => ({
+            ...persona,
+            gender: persona.gender || 'male'
+          }));
+        }
+        return [];
+      }
+      
+      // 폴백: 파일 시스템
       const files = await fs.readdir(SCENARIOS_DIR);
       
       for (const file of files.filter(f => f.endsWith('.json'))) {
@@ -160,11 +221,10 @@ export class FileManagerService {
           const scenario = JSON.parse(content);
           
           if (scenario.id === scenarioId && scenario.personas && Array.isArray(scenario.personas)) {
-            // 새 구조의 페르소나 정보 반환 (성별 정보 포함)
             if (typeof scenario.personas[0] === 'object') {
               return scenario.personas.map((persona: any) => ({
                 ...persona,
-                gender: persona.gender || 'male' // 기본값 설정
+                gender: persona.gender || 'male'
               }));
             }
           }
@@ -184,17 +244,70 @@ export class FileManagerService {
     const id = this.generateId(scenario.title);
     const newScenario: ComplexScenario = { ...scenario, id };
     
+    if (USE_DATABASE) {
+      await storage.createScenario({
+        id,
+        title: scenario.title,
+        description: scenario.description,
+        difficulty: scenario.difficulty || 2,
+        estimatedTime: scenario.estimatedTime || null,
+        skills: scenario.skills || [],
+        categoryId: scenario.categoryId || null,
+        image: scenario.image || null,
+        imagePrompt: scenario.imagePrompt || null,
+        introVideoUrl: scenario.introVideoUrl || null,
+        videoPrompt: scenario.videoPrompt || null,
+        objectiveType: scenario.objectiveType || null,
+        context: scenario.context || null,
+        objectives: scenario.objectives || [],
+        successCriteria: scenario.successCriteria || null,
+        personas: scenario.personas || [],
+        recommendedFlow: scenario.recommendedFlow || [],
+      });
+      this.invalidateScenarioCountCache();
+      return newScenario;
+    }
+    
+    // 폴백: 파일 시스템
     const fileName = `${id}.json`;
     const filePath = path.join(SCENARIOS_DIR, fileName);
-    
     await fs.writeFile(filePath, JSON.stringify(newScenario, null, 2), 'utf-8');
-    this.invalidateScenarioCountCache(); // 캐시 무효화
+    this.invalidateScenarioCountCache();
     return newScenario;
   }
 
   async updateScenario(id: string, scenario: Partial<ComplexScenario>): Promise<ComplexScenario> {
     try {
-      // 모든 시나리오 파일을 검색해서 ID가 일치하는 파일 찾기
+      if (USE_DATABASE) {
+        const existingScenario = await storage.getScenario(id);
+        if (!existingScenario) {
+          throw new Error(`Scenario ${id} not found`);
+        }
+        
+        const updates: any = {};
+        if (scenario.title !== undefined) updates.title = scenario.title;
+        if (scenario.description !== undefined) updates.description = scenario.description;
+        if (scenario.difficulty !== undefined) updates.difficulty = scenario.difficulty;
+        if (scenario.estimatedTime !== undefined) updates.estimatedTime = scenario.estimatedTime;
+        if (scenario.skills !== undefined) updates.skills = scenario.skills;
+        if (scenario.categoryId !== undefined) updates.categoryId = scenario.categoryId;
+        if (scenario.image !== undefined) updates.image = scenario.image;
+        if (scenario.imagePrompt !== undefined) updates.imagePrompt = scenario.imagePrompt;
+        if (scenario.introVideoUrl !== undefined) updates.introVideoUrl = scenario.introVideoUrl;
+        if (scenario.videoPrompt !== undefined) updates.videoPrompt = scenario.videoPrompt;
+        if (scenario.objectiveType !== undefined) updates.objectiveType = scenario.objectiveType;
+        if (scenario.context !== undefined) updates.context = scenario.context;
+        if (scenario.objectives !== undefined) updates.objectives = scenario.objectives;
+        if (scenario.successCriteria !== undefined) updates.successCriteria = scenario.successCriteria;
+        if (scenario.personas !== undefined) updates.personas = scenario.personas;
+        if (scenario.recommendedFlow !== undefined) updates.recommendedFlow = scenario.recommendedFlow;
+        
+        const updated = await storage.updateScenario(id, updates);
+        this.invalidateScenarioCountCache();
+        return this.convertDbScenarioToComplex(updated);
+      }
+      
+      // 폴백: 파일 시스템
       const files = await fs.readdir(SCENARIOS_DIR);
       let foundFile: string | null = null;
       let existingScenario: ComplexScenario | null = null;
@@ -219,9 +332,8 @@ export class FileManagerService {
       
       const updatedScenario = { ...existingScenario, ...scenario, id };
       const filePath = path.join(SCENARIOS_DIR, foundFile);
-      
       await fs.writeFile(filePath, JSON.stringify(updatedScenario, null, 2), 'utf-8');
-      this.invalidateScenarioCountCache(); // 캐시 무효화
+      this.invalidateScenarioCountCache();
       return updatedScenario;
     } catch (error) {
       throw new Error(`Scenario ${id} not found: ${error}`);
@@ -230,7 +342,13 @@ export class FileManagerService {
 
   async deleteScenario(id: string): Promise<void> {
     try {
-      // 모든 시나리오 파일을 검색해서 ID가 일치하는 파일 찾기
+      if (USE_DATABASE) {
+        await storage.deleteScenario(id);
+        this.invalidateScenarioCountCache();
+        return;
+      }
+      
+      // 폴백: 파일 시스템
       const files = await fs.readdir(SCENARIOS_DIR);
       let foundFile: string | null = null;
       
@@ -253,7 +371,7 @@ export class FileManagerService {
       
       const filePath = path.join(SCENARIOS_DIR, foundFile);
       await fs.unlink(filePath);
-      this.invalidateScenarioCountCache(); // 캐시 무효화
+      this.invalidateScenarioCountCache();
     } catch (error) {
       throw new Error(`Failed to delete scenario ${id}: ${error}`);
     }
@@ -294,9 +412,15 @@ export class FileManagerService {
     }
   }
 
-  // MBTI 페르소나 관리 (관리자용)
+  // MBTI 페르소나 관리 (관리자용) - 데이터베이스 기반
   async getAllMBTIPersonas(): Promise<any[]> {
     try {
+      if (USE_DATABASE) {
+        const dbPersonas = await storage.getAllMbtiPersonas();
+        return dbPersonas.map(p => this.convertDbPersonaToLegacy(p));
+      }
+      
+      // 폴백: 파일 시스템
       const files = await fs.readdir(PERSONAS_DIR);
       const personas: any[] = [];
       
@@ -312,18 +436,55 @@ export class FileManagerService {
       
       return personas;
     } catch (error) {
-      console.error('Failed to read personas directory:', error);
+      console.error('Failed to read personas:', error);
       return [];
     }
+  }
+  
+  // DB 페르소나를 레거시 형식으로 변환
+  private convertDbPersonaToLegacy(dbPersona: any): any {
+    return {
+      id: dbPersona.id,
+      mbti: dbPersona.mbti,
+      gender: dbPersona.gender,
+      personality_traits: dbPersona.personalityTraits || [],
+      communication_style: dbPersona.communicationStyle,
+      motivation: dbPersona.motivation,
+      fears: dbPersona.fears || [],
+      background: dbPersona.background,
+      communication_patterns: dbPersona.communicationPatterns,
+      voice: dbPersona.voice,
+    };
   }
 
   // MBTI 페르소나 생성
   async createMBTIPersona(personaData: any): Promise<any> {
     try {
+      if (USE_DATABASE) {
+        const existing = await storage.getMbtiPersona(personaData.id);
+        if (existing) {
+          throw new Error(`Persona ${personaData.id} already exists`);
+        }
+        
+        await storage.createMbtiPersona({
+          id: personaData.id,
+          mbti: personaData.mbti || personaData.id.toUpperCase(),
+          gender: personaData.gender || null,
+          personalityTraits: personaData.personality_traits || [],
+          communicationStyle: personaData.communication_style || null,
+          motivation: personaData.motivation || null,
+          fears: personaData.fears || [],
+          background: personaData.background || null,
+          communicationPatterns: personaData.communication_patterns || null,
+          voice: personaData.voice || null,
+        });
+        return personaData;
+      }
+      
+      // 폴백: 파일 시스템
       const fileName = `${personaData.id}.json`;
       const filePath = path.join(PERSONAS_DIR, fileName);
       
-      // 이미 존재하는지 확인
       try {
         await fs.access(filePath);
         throw new Error(`Persona ${personaData.id} already exists`);
@@ -343,19 +504,30 @@ export class FileManagerService {
   // MBTI 페르소나 업데이트
   async updateMBTIPersona(id: string, personaData: any): Promise<any> {
     try {
+      if (USE_DATABASE) {
+        await storage.updateMbtiPersona(id, {
+          mbti: personaData.mbti,
+          gender: personaData.gender,
+          personalityTraits: personaData.personality_traits,
+          communicationStyle: personaData.communication_style,
+          motivation: personaData.motivation,
+          fears: personaData.fears,
+          background: personaData.background,
+          communicationPatterns: personaData.communication_patterns,
+          voice: personaData.voice,
+        });
+        return personaData;
+      }
+      
+      // 폴백: 파일 시스템
       const fileName = `${id}.json`;
       const filePath = path.join(PERSONAS_DIR, fileName);
-      
-      // 파일이 존재하는지 확인
       await fs.access(filePath);
       
-      // ID가 변경된 경우 파일 이름도 변경
       const newFileName = `${personaData.id}.json`;
       const newFilePath = path.join(PERSONAS_DIR, newFileName);
-      
       await fs.writeFile(newFilePath, JSON.stringify(personaData, null, 2));
       
-      // ID가 변경된 경우 기존 파일 삭제
       if (id !== personaData.id) {
         await fs.unlink(filePath);
       }
@@ -369,9 +541,14 @@ export class FileManagerService {
   // MBTI 페르소나 삭제
   async deleteMBTIPersona(id: string): Promise<void> {
     try {
+      if (USE_DATABASE) {
+        await storage.deleteMbtiPersona(id);
+        return;
+      }
+      
+      // 폴백: 파일 시스템
       const fileName = `${id}.json`;
       const filePath = path.join(PERSONAS_DIR, fileName);
-      
       await fs.unlink(filePath);
       
       // 페르소나 이미지 디렉토리도 삭제
