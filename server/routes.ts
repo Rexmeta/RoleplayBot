@@ -2013,8 +2013,58 @@ export async function registerRoutes(app: Express): Promise<Server> {
         userFeedbacks.reduce((acc, f) => acc + f.overallScore, 0) / userFeedbacks.length
       );
       
-      // 2. 동적 평가 기준별 점수 집계 (다양한 평가 기준 지원)
-      // 평가 기준별 총점, 횟수, 메타데이터 수집
+      // 2. 평가 기준 세트별로 그룹화 및 집계
+      // criteriaSetId별 피드백 수집
+      const criteriaSetStats: Record<string, {
+        setId: string;
+        setName: string;
+        feedbackCount: number;
+        criteria: Record<string, { total: number; count: number; name: string; icon: string; color: string; }>;
+      }> = {};
+      
+      // 피드백의 scores 배열에서 동적으로 평가 기준 집계 (세트별로)
+      userFeedbacks.forEach(feedback => {
+        const detailedFb = feedback.detailedFeedback as any;
+        const setId = detailedFb?.evaluationCriteriaSetId || 'default-criteria-set';
+        const setName = detailedFb?.evaluationCriteriaSetName || '기본 평가 기준';
+        
+        if (!criteriaSetStats[setId]) {
+          criteriaSetStats[setId] = {
+            setId,
+            setName,
+            feedbackCount: 0,
+            criteria: {}
+          };
+        }
+        criteriaSetStats[setId].feedbackCount += 1;
+        
+        const scoresArray = feedback.scores as any[];
+        if (Array.isArray(scoresArray)) {
+          scoresArray.forEach(scoreItem => {
+            const key = scoreItem.category;
+            if (!criteriaSetStats[setId].criteria[key]) {
+              criteriaSetStats[setId].criteria[key] = {
+                total: 0,
+                count: 0,
+                name: scoreItem.name || key,
+                icon: scoreItem.icon || '📊',
+                color: scoreItem.color || 'blue'
+              };
+            }
+            criteriaSetStats[setId].criteria[key].total += scoreItem.score || 0;
+            criteriaSetStats[setId].criteria[key].count += 1;
+          });
+        }
+      });
+      
+      // 사용된 평가 기준 세트 목록 (필터 UI용)
+      const usedCriteriaSets = Object.entries(criteriaSetStats).map(([setId, stats]) => ({
+        id: setId,
+        name: stats.setName,
+        feedbackCount: stats.feedbackCount
+      })).sort((a, b) => b.feedbackCount - a.feedbackCount);
+      
+      // 전체 기준별 통계도 유지 (호환성)
       const criteriaStats: Record<string, {
         total: number;
         count: number;
@@ -2023,25 +2073,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
         color: string;
       }> = {};
       
-      // 피드백의 scores 배열에서 동적으로 평가 기준 집계
-      userFeedbacks.forEach(feedback => {
-        const scoresArray = feedback.scores as any[];
-        if (Array.isArray(scoresArray)) {
-          scoresArray.forEach(scoreItem => {
-            const key = scoreItem.category;
-            if (!criteriaStats[key]) {
-              criteriaStats[key] = {
-                total: 0,
-                count: 0,
-                name: scoreItem.name || key,
-                icon: scoreItem.icon || '📊',
-                color: scoreItem.color || 'blue'
-              };
-            }
-            criteriaStats[key].total += scoreItem.score || 0;
-            criteriaStats[key].count += 1;
-          });
-        }
+      // 모든 세트의 criteria를 합산
+      Object.values(criteriaSetStats).forEach(setStats => {
+        Object.entries(setStats.criteria).forEach(([key, stats]) => {
+          if (!criteriaStats[key]) {
+            criteriaStats[key] = { total: 0, count: 0, name: stats.name, icon: stats.icon, color: stats.color };
+          }
+          criteriaStats[key].total += stats.total;
+          criteriaStats[key].count += stats.count;
+        });
       });
       
       // categoryAverages 계산 (기존 호환성 유지 + 동적 기준)
@@ -2225,8 +2265,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
         ? completedScenarioRuns.sort((a, b) => new Date(b.startedAt).getTime() - new Date(a.startedAt).getTime())[0]
         : null;
       
-      console.log(`📊 Analytics Summary - criteriaDetails: ${criteriaDetails.length} items, usedCriteria: ${usedCriteria.length} items`);
-      console.log(`📊 CriteriaDetails:`, JSON.stringify(criteriaDetails.slice(0, 2), null, 2));
+      // 평가 기준 세트별 criteriaDetails 생성
+      const criteriaDetailsBySet: Record<string, typeof criteriaDetails> = {};
+      Object.entries(criteriaSetStats).forEach(([setId, setStats]) => {
+        criteriaDetailsBySet[setId] = Object.entries(setStats.criteria).map(([key, stats]) => ({
+          key,
+          name: stats.name,
+          icon: stats.icon,
+          color: stats.color,
+          averageScore: stats.count > 0 ? Number((stats.total / stats.count).toFixed(2)) : 0,
+          evaluationCount: stats.count
+        })).sort((a, b) => b.evaluationCount - a.evaluationCount);
+      });
+      
+      console.log(`📊 Analytics Summary - criteriaDetails: ${criteriaDetails.length} items, usedCriteriaSets: ${usedCriteriaSets.length} sets`);
+      console.log(`📊 UsedCriteriaSets:`, JSON.stringify(usedCriteriaSets, null, 2));
       
       res.json({
         totalSessions: userScenarioRuns.length, // ✨ 진행한 시나리오 (모든 scenarioRuns)
@@ -2234,8 +2287,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         totalFeedbacks: userFeedbacks.length, // ✨ 총 피드백
         averageScore,
         categoryAverages,
-        criteriaDetails, // ✨ 동적 평가 기준 상세 (이름, 아이콘, 평가 횟수 포함)
-        usedCriteria, // ✨ 필터 UI용 사용된 평가 기준 목록
+        criteriaDetails, // ✨ 동적 평가 기준 상세 (전체 합산)
+        criteriaDetailsBySet, // ✨ 세트별 평가 기준 상세
+        usedCriteriaSets, // ✨ 필터 UI용 사용된 평가 기준 세트 목록
         scoreHistory,
         topStrengths,
         topImprovements,

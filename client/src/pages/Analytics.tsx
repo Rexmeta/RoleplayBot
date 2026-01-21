@@ -38,10 +38,10 @@ type CriteriaDetail = {
   evaluationCount: number;
 };
 
-type UsedCriteria = {
-  key: string;
+type UsedCriteriaSet = {
+  id: string;
   name: string;
-  count: number;
+  feedbackCount: number;
 };
 
 type AnalyticsSummary = {
@@ -51,7 +51,8 @@ type AnalyticsSummary = {
   averageScore: number;
   categoryAverages: Record<string, number>;
   criteriaDetails?: CriteriaDetail[];
-  usedCriteria?: UsedCriteria[];
+  criteriaDetailsBySet?: Record<string, CriteriaDetail[]>;
+  usedCriteriaSets?: UsedCriteriaSet[];
   scoreHistory: Array<{
     date: string;
     time?: string;
@@ -103,7 +104,7 @@ const getDisplayIcon = (icon: string): string => {
 };
 
 export default function Analytics() {
-  const [selectedCriteria, setSelectedCriteria] = useState<string>("all");
+  const [selectedCriteriaSet, setSelectedCriteriaSet] = useState<string>("all");
   
   const { data: analytics, isLoading } = useQuery<AnalyticsSummary>({
     queryKey: ['/api/analytics/summary'],
@@ -117,9 +118,10 @@ export default function Analytics() {
   });
   
   const getFilteredCriteriaDetails = () => {
-    if (!analytics?.criteriaDetails) return [];
-    if (selectedCriteria === "all") return analytics.criteriaDetails;
-    return analytics.criteriaDetails.filter(c => c.key === selectedCriteria);
+    if (selectedCriteriaSet === "all") {
+      return analytics?.criteriaDetails || [];
+    }
+    return analytics?.criteriaDetailsBySet?.[selectedCriteriaSet] || [];
   };
 
   const getDimensionName = (key: string): string => {
@@ -350,18 +352,18 @@ export default function Analytics() {
                     : '평가 항목별 종합 분석 (5점 만점)'}
                 </CardDescription>
               </div>
-              {analytics.usedCriteria && analytics.usedCriteria.length > 1 && (
+              {analytics.usedCriteriaSets && analytics.usedCriteriaSets.length > 1 && (
                 <div className="flex items-center gap-2">
                   <Filter className="w-4 h-4 text-slate-500" />
-                  <Select value={selectedCriteria} onValueChange={setSelectedCriteria}>
-                    <SelectTrigger className="w-[200px]">
-                      <SelectValue placeholder="평가 기준 선택" />
+                  <Select value={selectedCriteriaSet} onValueChange={setSelectedCriteriaSet}>
+                    <SelectTrigger className="w-[240px]">
+                      <SelectValue placeholder="평가 기준 세트 선택" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="all">전체 평가 기준</SelectItem>
-                      {analytics.usedCriteria.map((criteria) => (
-                        <SelectItem key={criteria.key} value={criteria.key}>
-                          {criteria.name} ({criteria.count}회)
+                      <SelectItem value="all">전체 평가 기준 ({analytics.totalFeedbacks}회)</SelectItem>
+                      {analytics.usedCriteriaSets.map((criteriaSet) => (
+                        <SelectItem key={criteriaSet.id} value={criteriaSet.id}>
+                          {criteriaSet.name} ({criteriaSet.feedbackCount}회)
                         </SelectItem>
                       ))}
                     </SelectContent>
