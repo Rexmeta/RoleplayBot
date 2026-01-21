@@ -119,7 +119,13 @@ export function ScenarioManager() {
   const { data: scenarios, isLoading } = useQuery<ComplexScenario[]>({
     queryKey: ['/api/admin/scenarios', currentLang],
     queryFn: async () => {
+      const token = localStorage.getItem('authToken');
+      const headers: Record<string, string> = {};
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+      }
       const response = await fetch(`/api/admin/scenarios?lang=${currentLang}`, {
+        headers,
         credentials: 'include',
       });
       if (!response.ok) {
