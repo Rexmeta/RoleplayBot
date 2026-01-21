@@ -81,6 +81,27 @@ const DEFAULT_DIMENSION_NAMES: Record<string, string> = {
   strategicCommunication: "전략적 커뮤니케이션"
 };
 
+const FA_TO_EMOJI: Record<string, string> = {
+  'fa-solid fa-bullseye': '🎯',
+  'fa-solid fa-heart': '❤️',
+  'fa-solid fa-arrows-rotate': '🔄',
+  'fa-solid fa-chart-line': '📈',
+  'fa-solid fa-chess': '♟️',
+  'fa-solid fa-comments': '💬',
+  'fa-solid fa-handshake': '🤝',
+  'fa-solid fa-brain': '🧠',
+  'fa-solid fa-lightbulb': '💡',
+  'fa-solid fa-star': '⭐',
+};
+
+const getDisplayIcon = (icon: string): string => {
+  if (!icon) return '📊';
+  if (icon.startsWith('fa-')) {
+    return FA_TO_EMOJI[icon] || '📊';
+  }
+  return icon;
+};
+
 export default function Analytics() {
   const [selectedCriteria, setSelectedCriteria] = useState<string>("all");
   
@@ -357,11 +378,11 @@ export default function Analytics() {
                   <div key={criteria.key} data-testid={`category-${criteria.key}`}>
                     <div className="flex items-center justify-between mb-2">
                       <div className="flex items-center gap-2">
-                        <span className="text-xl">{criteria.icon}</span>
+                        <span className="text-xl">{getDisplayIcon(criteria.icon)}</span>
                         <span className="font-medium text-slate-900">
                           {criteria.name}
                         </span>
-                        <Badge variant="outline" className="text-xs">
+                        <Badge variant="outline" className="text-xs bg-slate-50">
                           {criteria.evaluationCount}회 평가
                         </Badge>
                       </div>

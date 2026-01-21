@@ -2225,6 +2225,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         ? completedScenarioRuns.sort((a, b) => new Date(b.startedAt).getTime() - new Date(a.startedAt).getTime())[0]
         : null;
       
+      console.log(`📊 Analytics Summary - criteriaDetails: ${criteriaDetails.length} items, usedCriteria: ${usedCriteria.length} items`);
+      console.log(`📊 CriteriaDetails:`, JSON.stringify(criteriaDetails.slice(0, 2), null, 2));
+      
       res.json({
         totalSessions: userScenarioRuns.length, // ✨ 진행한 시나리오 (모든 scenarioRuns)
         completedSessions: completedScenarioRuns.length, // ✨ 완료한 시나리오
