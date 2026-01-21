@@ -61,6 +61,92 @@ export const categories = pgTable("categories", {
   createdAt: timestamp("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
 });
 
+// 시나리오 테이블 - JSON 파일에서 DB로 마이그레이션
+export const scenarios = pgTable("scenarios", {
+  id: varchar("id").primaryKey(), // 시나리오 ID (예: "골든타임-4시간-긴급-2025-12-17T22-43-28")
+  title: text("title").notNull(),
+  description: text("description").notNull(),
+  difficulty: integer("difficulty").notNull().default(2), // 1-4 난이도
+  estimatedTime: text("estimated_time"), // 예: "60-90분"
+  skills: text("skills").array(), // 주요 역량 배열
+  categoryId: varchar("category_id").references(() => categories.id),
+  image: text("image"), // 이미지 경로
+  imagePrompt: text("image_prompt"),
+  introVideoUrl: text("intro_video_url"),
+  videoPrompt: text("video_prompt"),
+  objectiveType: text("objective_type"),
+  context: jsonb("context").$type<{
+    situation: string;
+    timeline: string;
+    stakes: string;
+    playerRole: {
+      position: string;
+      department: string;
+      experience: string;
+      responsibility: string;
+    };
+  }>(), // 상황, 타임라인, 이해관계, 플레이어 역할
+  objectives: text("objectives").array(), // 목표 배열
+  successCriteria: jsonb("success_criteria").$type<{
+    optimal: string;
+    good: string;
+    acceptable: string;
+    failure: string;
+  }>(), // 성공 기준
+  personas: jsonb("personas").$type<Array<{
+    id: string;
+    name: string;
+    department: string;
+    position: string;
+    experience: string;
+    personaRef: string;
+    stance: string;
+    goal: string;
+    tradeoff: string;
+    gender?: string;
+    mbti?: string;
+  }>>(), // 시나리오별 페르소나 설정
+  recommendedFlow: text("recommended_flow").array(), // 추천 순서
+  createdAt: timestamp("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+  updatedAt: timestamp("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+}, (table) => [
+  index("idx_scenarios_category_id").on(table.categoryId),
+  index("idx_scenarios_difficulty").on(table.difficulty),
+]);
+
+// MBTI 페르소나 테이블 - personas 폴더에서 DB로 마이그레이션
+export const mbtiPersonas = pgTable("mbti_personas", {
+  id: varchar("id").primaryKey(), // MBTI 유형 (예: "enfj", "istp")
+  mbti: varchar("mbti").notNull(), // MBTI 유형 대문자 (예: "ENFJ")
+  gender: varchar("gender"), // male, female
+  personalityTraits: text("personality_traits").array(), // 성격 특성 배열
+  communicationStyle: text("communication_style"), // 커뮤니케이션 스타일
+  motivation: text("motivation"), // 동기
+  fears: text("fears").array(), // 두려움 배열
+  background: jsonb("background").$type<{
+    personal_values: string[];
+    hobbies: string[];
+    social: {
+      preference: string;
+      behavior: string;
+    };
+  }>(), // 배경 정보
+  communicationPatterns: jsonb("communication_patterns").$type<{
+    opening_style: string;
+    key_phrases: string[];
+    response_to_arguments: Record<string, string>;
+    win_conditions: string[];
+  }>(), // 커뮤니케이션 패턴
+  voice: jsonb("voice").$type<{
+    tone: string;
+    pace: string;
+    volume?: string;
+    pitch?: string;
+  }>(), // 음성 특성
+  createdAt: timestamp("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+  updatedAt: timestamp("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+});
+
 // 시스템 설정 테이블 (키-값 저장)
 export const systemSettings = pgTable("system_settings", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
@@ -398,6 +484,24 @@ export const insertCategorySchema = createInsertSchema(categories).omit({
 
 export type InsertCategory = z.infer<typeof insertCategorySchema>;
 export type Category = typeof categories.$inferSelect;
+
+// Scenario types
+export const insertScenarioSchema = createInsertSchema(scenarios).omit({
+  createdAt: true,
+  updatedAt: true,
+});
+
+export type InsertScenario = z.infer<typeof insertScenarioSchema>;
+export type Scenario = typeof scenarios.$inferSelect;
+
+// MBTI Persona types
+export const insertMbtiPersonaSchema = createInsertSchema(mbtiPersonas).omit({
+  createdAt: true,
+  updatedAt: true,
+});
+
+export type InsertMbtiPersona = z.infer<typeof insertMbtiPersonaSchema>;
+export type MbtiPersona = typeof mbtiPersonas.$inferSelect;
 
 // System Settings types
 export const insertSystemSettingSchema = createInsertSchema(systemSettings).omit({
