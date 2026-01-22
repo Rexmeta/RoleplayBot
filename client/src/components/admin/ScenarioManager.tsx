@@ -81,6 +81,7 @@ export function ScenarioManager() {
   const [imagePreviewUrl, setImagePreviewUrl] = useState<string | null>(null);
   const [videoPreviewUrl, setVideoPreviewUrl] = useState<string | null>(null);
   const [translatingScenario, setTranslatingScenario] = useState<ComplexScenario | null>(null);
+  const [imageLoadFailed, setImageLoadFailed] = useState(false);
   const [formData, setFormData] = useState<ScenarioFormData>({
     title: '',
     description: '',
@@ -314,10 +315,12 @@ export function ScenarioManager() {
       personas: [],
       recommendedFlow: []
     });
+    setImageLoadFailed(false);
   };
 
   const handleEdit = (scenario: ComplexScenario) => {
     setEditingScenario(scenario);
+    setImageLoadFailed(false);
     setFormData({
       title: scenario.title,
       description: scenario.description,
@@ -416,6 +419,7 @@ export function ScenarioManager() {
       
       if (data.success && data.imageUrl) {
         setFormData(prev => ({ ...prev, image: data.imageUrl }));
+        setImageLoadFailed(false);
         toast({
           title: t('admin.scenarioManager.toast.imageGenerated'),
           description: t('admin.scenarioManager.toast.imageGeneratedDesc'),
@@ -643,26 +647,45 @@ export function ScenarioManager() {
                   {/* 이미지 미리보기 */}
                   {formData.image && (
                     <div className="mt-3">
-                      <p className="text-sm text-slate-600 mb-2">{t('admin.scenarioManager.form.imagePreview')}:</p>
+                      <div className="flex items-center justify-between mb-2">
+                        <p className="text-sm text-slate-600">{t('admin.scenarioManager.form.imagePreview')}:</p>
+                        {imageLoadFailed && (
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => {
+                              setFormData(prev => ({ ...prev, image: '' }));
+                              setImageLoadFailed(false);
+                            }}
+                            className="text-red-600 hover:text-red-700 hover:bg-red-50 text-xs"
+                          >
+                            <i className="fas fa-trash mr-1"></i>
+                            이미지 URL 삭제
+                          </Button>
+                        )}
+                      </div>
                       <div 
                         className="relative w-full h-48 bg-slate-100 rounded-lg overflow-hidden border cursor-pointer hover:shadow-lg transition-shadow"
-                        onClick={() => setImagePreviewUrl(formData.image || null)}
+                        onClick={() => !imageLoadFailed && setImagePreviewUrl(formData.image || null)}
                         data-testid="image-preview-container"
                       >
-                        <img
-                          src={formData.image}
-                          alt={t('admin.scenarioManager.form.imagePreview')}
-                          className="w-full h-full object-cover"
-                          onError={(e) => {
-                            const target = e.target as HTMLImageElement;
-                            target.style.display = 'none';
-                            const parent = target.parentElement;
-                            if (parent) {
-                              parent.innerHTML = '<div class="flex items-center justify-center h-full text-slate-500 text-sm"><i class="fas fa-exclamation-triangle mr-2"></i>이미지를 불러올 수 없습니다</div>';
-                            }
-                          }}
-                          data-testid="scenario-image-preview"
-                        />
+                        {imageLoadFailed ? (
+                          <div className="flex flex-col items-center justify-center h-full text-slate-500 text-sm gap-2">
+                            <i className="fas fa-exclamation-triangle text-amber-500 text-2xl"></i>
+                            <span>이미지 파일을 찾을 수 없습니다</span>
+                            <span className="text-xs text-slate-400">위 버튼으로 이미지를 다시 생성하세요</span>
+                          </div>
+                        ) : (
+                          <img
+                            src={formData.image}
+                            alt={t('admin.scenarioManager.form.imagePreview')}
+                            className="w-full h-full object-cover"
+                            onError={() => setImageLoadFailed(true)}
+                            onLoad={() => setImageLoadFailed(false)}
+                            data-testid="scenario-image-preview"
+                          />
+                        )}
                       </div>
                     </div>
                   )}
