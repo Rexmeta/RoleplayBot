@@ -186,7 +186,7 @@ export default function Home() {
         setConversationIds([]);
         setStrategyReflectionSubmitted(false);
         setStrategyEvaluation(null);
-        setSelectedDifficulty(scenario.difficulty === 2 ? 4 : (scenario.difficulty || 4));
+        setSelectedDifficulty(4); // 기본 난이도 4 (고난도)
         
         // ✅ personaId가 있으면 해당 페르소나를 즉시 선택 (미완료 페르소나 "대화하기" 클릭 시)
         if (personaIdParam) {
@@ -194,7 +194,7 @@ export default function Home() {
           if (targetPersona && !isCreatingConversation) {
             setIsCreatingConversation(true);
             setLoadingPersonaId(personaIdParam);
-            const userSelectedDifficulty = scenario.difficulty === 2 ? 4 : (scenario.difficulty || 4);
+            const userSelectedDifficulty = 4; // 기본 난이도 4 (고난도)
             setSelectedDifficulty(userSelectedDifficulty);
             
             const conversationData = {
@@ -288,7 +288,7 @@ export default function Home() {
     setScenarioRunId(null); // ✅ null로 설정 → forceNewRun=true → 새 scenario_run 생성
     setStrategyReflectionSubmitted(false);
     setStrategyEvaluation(null);
-    setSelectedDifficulty(scenario.difficulty || 4);
+    setSelectedDifficulty(4); // 기본 난이도 4 (고난도)
     
     // 모든 시나리오에서 페르소나 선택 화면으로 이동
     setCurrentView("persona-selection");
