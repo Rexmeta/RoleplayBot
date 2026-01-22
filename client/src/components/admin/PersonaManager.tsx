@@ -16,6 +16,20 @@ import { apiRequest, queryClient } from '@/lib/queryClient';
 import { MoreVertical, RefreshCw, Languages } from 'lucide-react';
 import { PersonaTranslationEditor } from './PersonaTranslationEditor';
 
+// 한글 감정명을 번역 키로 매핑
+const emotionKeyMap: Record<string, string> = {
+  '중립': 'neutral',
+  '기쁨': 'joy',
+  '슬픔': 'sadness',
+  '분노': 'anger',
+  '놀람': 'surprise',
+  '호기심': 'curiosity',
+  '불안': 'anxiety',
+  '단호': 'determination',
+  '실망': 'disappointment',
+  '당혹': 'embarrassment'
+};
+
 // MBTI 페르소나 타입 정의
 interface MBTIPersona {
   id: string;
@@ -310,14 +324,14 @@ export function PersonaManager() {
       setIsCreateOpen(false);
       resetForm();
       toast({
-        title: "성공",
-        description: "MBTI 페르소나가 생성되었습니다."
+        title: t('admin.personaManager.toast.createSuccess'),
+        description: t('admin.personaManager.toast.createSuccessDesc')
       });
     },
     onError: () => {
       toast({
-        title: "오류",
-        description: "페르소나 생성에 실패했습니다.",
+        title: t('admin.personaManager.toast.createError'),
+        description: t('admin.personaManager.toast.createErrorDesc'),
         variant: "destructive"
       });
     }
@@ -336,8 +350,8 @@ export function PersonaManager() {
         setEditingPersona(null);
         resetForm();
         toast({
-          title: "성공",
-          description: "MBTI 페르소나가 수정되었습니다."
+          title: t('admin.personaManager.toast.updateSuccess'),
+          description: t('admin.personaManager.toast.updateSuccessDesc')
         });
       } else {
         autoSavingRef.current = false;
@@ -345,8 +359,8 @@ export function PersonaManager() {
     },
     onError: () => {
       toast({
-        title: "오류",
-        description: "페르소나 수정에 실패했습니다.",
+        title: t('admin.personaManager.toast.updateError'),
+        description: t('admin.personaManager.toast.updateErrorDesc'),
         variant: "destructive"
       });
       autoSavingRef.current = false;
@@ -362,14 +376,14 @@ export function PersonaManager() {
       queryClient.invalidateQueries({ queryKey: ['/api/admin/personas'] });
       setDeletingPersona(null);
       toast({
-        title: "성공",
-        description: "MBTI 페르소나가 삭제되었습니다."
+        title: t('admin.personaManager.toast.deleteSuccess'),
+        description: t('admin.personaManager.toast.deleteSuccessDesc')
       });
     },
     onError: () => {
       toast({
-        title: "오류",
-        description: "페르소나 삭제에 실패했습니다.",
+        title: t('admin.personaManager.toast.deleteError'),
+        description: t('admin.personaManager.toast.deleteErrorDesc'),
         variant: "destructive"
       });
     }
@@ -415,17 +429,17 @@ export function PersonaManager() {
 
         // 자동 저장
         toast({
-          title: "저장 중",
-          description: "기본 이미지가 생성되었습니다. 자동으로 저장 중입니다..."
+          title: t('admin.personaManager.toast.saving'),
+          description: t('admin.personaManager.toast.baseImageCreated')
         });
-        
+
         autoSavingRef.current = true;
         updateMutation.mutate(updatedFormData);
       }
     } catch (error: any) {
       toast({
-        title: "오류",
-        description: error.message || "기본 이미지 생성에 실패했습니다.",
+        title: t('admin.personaManager.toast.createError'),
+        description: error.message || t('admin.personaManager.toast.baseImageError'),
         variant: "destructive"
       });
     } finally {
@@ -437,8 +451,8 @@ export function PersonaManager() {
   const handleGenerateBaseImage = () => {
     if (!formData.id || !formData.mbti || !formData.gender) {
       toast({
-        title: "오류",
-        description: "페르소나 ID, MBTI, 성별이 필요합니다. 먼저 페르소나를 저장해주세요.",
+        title: t('admin.personaManager.toast.createError'),
+        description: t('admin.personaManager.toast.requireIdMbtiGender'),
         variant: "destructive"
       });
       return;
@@ -462,8 +476,8 @@ export function PersonaManager() {
   const handleGenerateExpressions = async () => {
     if (!formData.id || !formData.mbti || !formData.gender) {
       toast({
-        title: "오류",
-        description: "페르소나 ID, MBTI, 성별이 필요합니다. 먼저 페르소나를 저장해주세요.",
+        title: t('admin.personaManager.toast.createError'),
+        description: t('admin.personaManager.toast.requireIdMbtiGender'),
         variant: "destructive"
       });
       return;
@@ -514,17 +528,17 @@ export function PersonaManager() {
 
         // 자동 저장
         toast({
-          title: "저장 중",
-          description: `${result.totalGenerated}개의 표정 이미지가 생성되었습니다. 자동으로 저장 중입니다...`
+          title: t('admin.personaManager.toast.saving'),
+          description: t('admin.personaManager.toast.expressionCreated', { count: result.totalGenerated })
         });
-        
+
         autoSavingRef.current = true;
         updateMutation.mutate(updatedFormData);
       }
     } catch (error: any) {
       toast({
-        title: "오류",
-        description: error.message || "표정 이미지 생성에 실패했습니다.",
+        title: t('admin.personaManager.toast.createError'),
+        description: error.message || t('admin.personaManager.toast.expressionError'),
         variant: "destructive"
       });
     } finally {
@@ -537,8 +551,8 @@ export function PersonaManager() {
   const handleGenerateSingleExpression = async (emotion: string) => {
     if (!formData.id || !formData.mbti || !formData.gender) {
       toast({
-        title: "오류",
-        description: "페르소나 ID, MBTI, 성별이 필요합니다.",
+        title: t('admin.personaManager.toast.createError'),
+        description: t('admin.personaManager.toast.requireIdMbtiGenderShort'),
         variant: "destructive"
       });
       return;
@@ -584,17 +598,17 @@ export function PersonaManager() {
         setFormData(updatedFormData);
 
         toast({
-          title: "저장 중",
-          description: `${emotion} 표정 이미지가 생성되었습니다. 자동으로 저장 중입니다...`
+          title: t('admin.personaManager.toast.saving'),
+          description: t('admin.personaManager.toast.singleExpressionCreated', { emotion })
         });
-        
+
         autoSavingRef.current = true;
         updateMutation.mutate(updatedFormData);
       }
     } catch (error: any) {
       toast({
-        title: "오류",
-        description: error.message || `${emotion} 표정 이미지 생성에 실패했습니다.`,
+        title: t('admin.personaManager.toast.createError'),
+        description: error.message || t('admin.personaManager.toast.singleExpressionError', { emotion }),
         variant: "destructive"
       });
     } finally {
@@ -733,11 +747,11 @@ export function PersonaManager() {
   };
 
   if (isLoading) {
-    return <div className="text-center py-8">로딩 중...</div>;
+    return <div className="text-center py-8">{t('admin.personaManager.loading')}</div>;
   }
 
   if (error) {
-    return <div className="text-center py-8 text-red-600">페르소나 데이터를 불러올 수 없습니다.</div>;
+    return <div className="text-center py-8 text-red-600">{t('admin.personaManager.loadError')}</div>;
   }
 
   return (
@@ -781,11 +795,11 @@ export function PersonaManager() {
               <div className="bg-white rounded-lg p-5 shadow-sm border border-slate-200">
                 <h3 className="text-base font-bold text-slate-900 mb-4 flex items-center gap-2 pb-2 border-b border-slate-200">
                   <i className="fas fa-id-card text-indigo-600"></i>
-                  기본 정보
+                  {t('admin.personaManager.section.basicInfo')}
                 </h3>
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <Label htmlFor="id" className="text-sm font-semibold text-slate-700 mb-1.5 block">페르소나 ID (영문 소문자만)</Label>
+                    <Label htmlFor="id" className="text-sm font-semibold text-slate-700 mb-1.5 block">{t('admin.personaManager.form.personaId')}</Label>
                     <Input
                       id="id"
                       value={formData.id}
@@ -793,14 +807,14 @@ export function PersonaManager() {
                         const value = e.target.value.replace(/[^a-z]/g, '');
                         setFormData(prev => ({ ...prev, id: value }));
                       }}
-                      placeholder="istj, enfp, intp 등"
+                      placeholder={t('admin.personaManager.form.personaIdPlaceholder')}
                       required
                       className="border-slate-300 focus:border-indigo-500 focus:ring-indigo-500 bg-white"
                       data-testid="input-persona-id"
                     />
                   </div>
                   <div>
-                    <Label htmlFor="mbti" className="text-sm font-semibold text-slate-700 mb-1.5 block">페르소나 유형 (영문 대문자만)</Label>
+                    <Label htmlFor="mbti" className="text-sm font-semibold text-slate-700 mb-1.5 block">{t('admin.personaManager.form.personaType')}</Label>
                     <Input
                       id="mbti"
                       value={formData.mbti}
@@ -808,7 +822,7 @@ export function PersonaManager() {
                         const value = e.target.value.replace(/[^A-Z]/g, '');
                         setFormData(prev => ({ ...prev, mbti: value }));
                       }}
-                      placeholder="ISTJ, ENFP, INTP 등"
+                      placeholder={t('admin.personaManager.form.personaTypePlaceholder')}
                       required
                       className="border-slate-300 focus:border-indigo-500 focus:ring-indigo-500 bg-white"
                       data-testid="input-mbti"
@@ -821,60 +835,60 @@ export function PersonaManager() {
               <div className="bg-white rounded-lg p-5 shadow-sm border border-slate-200">
                 <h3 className="text-base font-bold text-slate-900 mb-4 flex items-center gap-2 pb-2 border-b border-slate-200">
                   <i className="fas fa-brain text-purple-600"></i>
-                  성격 특성
+                  {t('admin.personaManager.section.personalityTraits')}
                 </h3>
                 <div className="space-y-4">
                   <div>
-                    <Label htmlFor="personality_traits" className="text-sm font-semibold text-slate-700 mb-1.5 block">성격 특성 (쉼표로 구분)</Label>
+                    <Label htmlFor="personality_traits" className="text-sm font-semibold text-slate-700 mb-1.5 block">{t('admin.personaManager.form.personalityTraits')}</Label>
                     <Textarea
                       id="personality_traits"
                       value={rawInputs.personality_traits}
                       onChange={(e) => setRawInputs(prev => ({ ...prev, personality_traits: e.target.value }))}
-                      onBlur={(e) => setFormData(prev => ({ 
-                        ...prev, 
+                      onBlur={(e) => setFormData(prev => ({
+                        ...prev,
                         personality_traits: e.target.value.split(',').map(s => s.trim()).filter(s => s)
                       }))}
-                      placeholder="경험 기반 사고, 현실적, 해결책 지향"
+                      placeholder={t('admin.personaManager.form.personalityTraitsPlaceholder')}
                       className="min-h-[80px] border-slate-300 focus:border-indigo-500 focus:ring-indigo-500 bg-white"
                       data-testid="textarea-personality-traits"
                     />
                   </div>
 
                   <div>
-                    <Label htmlFor="communication_style" className="text-sm font-semibold text-slate-700 mb-1.5 block">의사소통 스타일</Label>
+                    <Label htmlFor="communication_style" className="text-sm font-semibold text-slate-700 mb-1.5 block">{t('admin.personaManager.form.communicationStyle')}</Label>
                     <Textarea
                       id="communication_style"
                       value={formData.communication_style}
                       onChange={(e) => setFormData(prev => ({ ...prev, communication_style: e.target.value }))}
-                      placeholder="차분하고 논리적이며, 구체적 사례를 중시함"
+                      placeholder={t('admin.personaManager.form.communicationStylePlaceholder')}
                       className="min-h-[60px] border-slate-300 focus:border-indigo-500 focus:ring-indigo-500 bg-white"
                       data-testid="textarea-communication-style"
                     />
                   </div>
 
                   <div>
-                    <Label htmlFor="motivation" className="text-sm font-semibold text-slate-700 mb-1.5 block">동기</Label>
+                    <Label htmlFor="motivation" className="text-sm font-semibold text-slate-700 mb-1.5 block">{t('admin.personaManager.form.motivation')}</Label>
                     <Textarea
                       id="motivation"
                       value={formData.motivation}
                       onChange={(e) => setFormData(prev => ({ ...prev, motivation: e.target.value }))}
-                      placeholder="효율적 문제 해결과 신뢰 구축"
+                      placeholder={t('admin.personaManager.form.motivationPlaceholder')}
                       className="border-slate-300 focus:border-indigo-500 focus:ring-indigo-500 bg-white"
                       data-testid="input-motivation"
                     />
                   </div>
 
                   <div>
-                    <Label htmlFor="fears" className="text-sm font-semibold text-slate-700 mb-1.5 block">두려움/우려사항 (쉼표로 구분)</Label>
+                    <Label htmlFor="fears" className="text-sm font-semibold text-slate-700 mb-1.5 block">{t('admin.personaManager.form.fears')}</Label>
                     <Input
                       id="fears"
                       value={rawInputs.fears}
                       onChange={(e) => setRawInputs(prev => ({ ...prev, fears: e.target.value }))}
-                      onBlur={(e) => setFormData(prev => ({ 
-                        ...prev, 
+                      onBlur={(e) => setFormData(prev => ({
+                        ...prev,
                         fears: e.target.value.split(',').map(s => s.trim()).filter(s => s)
                       }))}
-                      placeholder="통제 불가능한 상황, 과부하, 혼란"
+                      placeholder={t('admin.personaManager.form.fearsPlaceholder')}
                       className="border-slate-300 focus:border-indigo-500 focus:ring-indigo-500 bg-white"
                       data-testid="input-fears"
                     />
@@ -886,43 +900,43 @@ export function PersonaManager() {
               <div className="bg-white rounded-lg p-5 shadow-sm border border-slate-200">
                 <h3 className="text-base font-bold text-slate-900 mb-4 flex items-center gap-2 pb-2 border-b border-slate-200">
                   <i className="fas fa-user-circle text-green-600"></i>
-                  배경 정보
+                  {t('admin.personaManager.section.backgroundInfo')}
                 </h3>
-                
+
                 <div className="space-y-4">
                   <div>
-                    <Label htmlFor="personal_values" className="text-sm font-semibold text-slate-700 mb-1.5 block">개인 가치관 (쉼표로 구분)</Label>
+                    <Label htmlFor="personal_values" className="text-sm font-semibold text-slate-700 mb-1.5 block">{t('admin.personaManager.form.personalValues')}</Label>
                     <Input
                       id="personal_values"
                       value={rawInputs.personal_values}
                       onChange={(e) => setRawInputs(prev => ({ ...prev, personal_values: e.target.value }))}
-                      onBlur={(e) => setFormData(prev => ({ 
-                        ...prev, 
+                      onBlur={(e) => setFormData(prev => ({
+                        ...prev,
                         background: {
                           ...prev.background,
                           personal_values: e.target.value.split(',').map(s => s.trim()).filter(s => s)
                         }
                       }))}
-                      placeholder="협력, 공감, 조화, 자유, 즐거움"
+                      placeholder={t('admin.personaManager.form.personalValuesPlaceholder')}
                       className="border-slate-300 focus:border-indigo-500 focus:ring-indigo-500 bg-white"
                       data-testid="input-personal-values"
                     />
                   </div>
 
                   <div>
-                    <Label htmlFor="hobbies" className="text-sm font-semibold text-slate-700 mb-1.5 block">취미 (쉼표로 구분)</Label>
+                    <Label htmlFor="hobbies" className="text-sm font-semibold text-slate-700 mb-1.5 block">{t('admin.personaManager.form.hobbies')}</Label>
                     <Input
                       id="hobbies"
                       value={rawInputs.hobbies}
                       onChange={(e) => setRawInputs(prev => ({ ...prev, hobbies: e.target.value }))}
-                      onBlur={(e) => setFormData(prev => ({ 
-                        ...prev, 
+                      onBlur={(e) => setFormData(prev => ({
+                        ...prev,
                         background: {
                           ...prev.background,
                           hobbies: e.target.value.split(',').map(s => s.trim()).filter(s => s)
                         }
                       }))}
-                      placeholder="리더십 활동, 멘토링, 파티, 여행"
+                      placeholder={t('admin.personaManager.form.hobbiesPlaceholder')}
                       className="border-slate-300 focus:border-indigo-500 focus:ring-indigo-500 bg-white"
                       data-testid="input-hobbies"
                     />
@@ -930,12 +944,12 @@ export function PersonaManager() {
 
                   <div className="grid grid-cols-2 gap-3">
                     <div>
-                      <Label htmlFor="social_preference" className="text-sm font-semibold text-slate-700 mb-1.5 block">사회적 선호</Label>
+                      <Label htmlFor="social_preference" className="text-sm font-semibold text-slate-700 mb-1.5 block">{t('admin.personaManager.form.socialPreference')}</Label>
                       <Input
                         id="social_preference"
                         value={formData.background?.social?.preference || ''}
-                        onChange={(e) => setFormData(prev => ({ 
-                          ...prev, 
+                        onChange={(e) => setFormData(prev => ({
+                          ...prev,
                           background: {
                             ...prev.background,
                             social: {
@@ -944,19 +958,19 @@ export function PersonaManager() {
                             }
                           }
                         }))}
-                        placeholder="넓은 관계 유지"
+                        placeholder={t('admin.personaManager.form.socialPreferencePlaceholder')}
                         className="border-slate-300 focus:border-indigo-500 focus:ring-indigo-500 bg-white"
                         data-testid="input-social-preference"
                       />
                     </div>
 
                     <div>
-                      <Label htmlFor="social_behavior" className="text-sm font-semibold text-slate-700 mb-1.5 block">사회적 행동</Label>
+                      <Label htmlFor="social_behavior" className="text-sm font-semibold text-slate-700 mb-1.5 block">{t('admin.personaManager.form.socialBehavior')}</Label>
                       <Input
                         id="social_behavior"
                         value={formData.background?.social?.behavior || ''}
-                        onChange={(e) => setFormData(prev => ({ 
-                          ...prev, 
+                        onChange={(e) => setFormData(prev => ({
+                          ...prev,
                           background: {
                             ...prev.background,
                             social: {
@@ -965,7 +979,7 @@ export function PersonaManager() {
                             }
                           }
                         }))}
-                        placeholder="협력과 조율 강조"
+                        placeholder={t('admin.personaManager.form.socialBehaviorPlaceholder')}
                         className="border-slate-300 focus:border-indigo-500 focus:ring-indigo-500 bg-white"
                         data-testid="input-social-behavior"
                       />
@@ -978,60 +992,60 @@ export function PersonaManager() {
               <div className="bg-white rounded-lg p-5 shadow-sm border border-slate-200">
                 <h3 className="text-base font-bold text-slate-900 mb-4 flex items-center gap-2 pb-2 border-b border-slate-200">
                   <i className="fas fa-comments text-blue-600"></i>
-                  의사소통 패턴
+                  {t('admin.personaManager.section.communicationPatterns')}
                 </h3>
                 <div className="space-y-4">
                   <div>
-                    <Label htmlFor="opening_style" className="text-sm font-semibold text-slate-700 mb-1.5 block">대화 시작 스타일</Label>
+                    <Label htmlFor="opening_style" className="text-sm font-semibold text-slate-700 mb-1.5 block">{t('admin.personaManager.form.openingStyle')}</Label>
                     <Input
                       id="opening_style"
                       value={formData.communication_patterns?.opening_style || ''}
-                      onChange={(e) => setFormData(prev => ({ 
-                        ...prev, 
+                      onChange={(e) => setFormData(prev => ({
+                        ...prev,
                         communication_patterns: {
                           ...prev.communication_patterns,
                           opening_style: e.target.value
                         }
                       }))}
-                      placeholder="바로 핵심 주제로 직행 / 유머나 경험 공유로 시작"
+                      placeholder={t('admin.personaManager.form.openingStylePlaceholder')}
                       className="border-slate-300 focus:border-indigo-500 focus:ring-indigo-500 bg-white"
                       data-testid="input-opening-style"
                     />
                   </div>
 
                   <div>
-                    <Label htmlFor="key_phrases" className="text-sm font-semibold text-slate-700 mb-1.5 block">주요 표현 (쉼표로 구분)</Label>
+                    <Label htmlFor="key_phrases" className="text-sm font-semibold text-slate-700 mb-1.5 block">{t('admin.personaManager.form.keyPhrases')}</Label>
                     <Textarea
                       id="key_phrases"
                       value={rawInputs.key_phrases}
                       onChange={(e) => setRawInputs(prev => ({ ...prev, key_phrases: e.target.value }))}
-                      onBlur={(e) => setFormData(prev => ({ 
-                        ...prev, 
+                      onBlur={(e) => setFormData(prev => ({
+                        ...prev,
                         communication_patterns: {
                           ...prev.communication_patterns,
                           key_phrases: e.target.value.split(',').map(s => s.trim()).filter(s => s)
                         }
                       }))}
-                      placeholder="솔직히 말씀드리면..., 이거 재미있지 않아요?, 논리적으로 맞지 않습니다."
+                      placeholder={t('admin.personaManager.form.keyPhrasesPlaceholder')}
                       className="min-h-[60px] border-slate-300 focus:border-indigo-500 focus:ring-indigo-500 bg-white"
                       data-testid="textarea-key-phrases"
                     />
                   </div>
 
                   <div>
-                    <Label htmlFor="win_conditions" className="text-sm font-semibold text-slate-700 mb-1.5 block">승리 조건 (쉼표로 구분)</Label>
+                    <Label htmlFor="win_conditions" className="text-sm font-semibold text-slate-700 mb-1.5 block">{t('admin.personaManager.form.winConditions')}</Label>
                     <Textarea
                       id="win_conditions"
                       value={rawInputs.win_conditions}
                       onChange={(e) => setRawInputs(prev => ({ ...prev, win_conditions: e.target.value }))}
-                      onBlur={(e) => setFormData(prev => ({ 
-                        ...prev, 
+                      onBlur={(e) => setFormData(prev => ({
+                        ...prev,
                         communication_patterns: {
                           ...prev.communication_patterns,
                           win_conditions: e.target.value.split(',').map(s => s.trim()).filter(s => s)
                         }
                       }))}
-                      placeholder="상대가 논리적 허점을 인정, 즐거움과 합리적 해결책 균형"
+                      placeholder={t('admin.personaManager.form.winConditionsPlaceholder')}
                       className="min-h-[60px] border-slate-300 focus:border-indigo-500 focus:ring-indigo-500 bg-white"
                       data-testid="textarea-win-conditions"
                     />
@@ -1043,50 +1057,50 @@ export function PersonaManager() {
               <div className="bg-white rounded-lg p-5 shadow-sm border border-slate-200">
                 <h3 className="text-base font-bold text-slate-900 mb-4 flex items-center gap-2 pb-2 border-b border-slate-200">
                   <i className="fas fa-microphone text-orange-600"></i>
-                  음성 특성 및 성별
+                  {t('admin.personaManager.section.voiceAndGender')}
                 </h3>
                 <div className="space-y-4">
                   <div className="grid grid-cols-3 gap-3">
                     <div>
-                      <Label htmlFor="voice_tone" className="text-sm font-semibold text-slate-700 mb-1.5 block">톤</Label>
+                      <Label htmlFor="voice_tone" className="text-sm font-semibold text-slate-700 mb-1.5 block">{t('admin.personaManager.form.voiceTone')}</Label>
                       <Input
                         id="voice_tone"
                         value={formData.voice?.tone || ''}
-                        onChange={(e) => setFormData(prev => ({ 
-                          ...prev, 
+                        onChange={(e) => setFormData(prev => ({
+                          ...prev,
                           voice: { ...prev.voice, tone: e.target.value }
                         }))}
-                        placeholder="따뜻하고 설득적"
+                        placeholder={t('admin.personaManager.form.voiceTonePlaceholder')}
                         className="border-slate-300 focus:border-indigo-500 focus:ring-indigo-500 bg-white"
                         data-testid="input-voice-tone"
                       />
                     </div>
 
                     <div>
-                      <Label htmlFor="voice_pace" className="text-sm font-semibold text-slate-700 mb-1.5 block">속도</Label>
+                      <Label htmlFor="voice_pace" className="text-sm font-semibold text-slate-700 mb-1.5 block">{t('admin.personaManager.form.voicePace')}</Label>
                       <Input
                         id="voice_pace"
                         value={formData.voice?.pace || ''}
-                        onChange={(e) => setFormData(prev => ({ 
-                          ...prev, 
+                        onChange={(e) => setFormData(prev => ({
+                          ...prev,
                           voice: { ...prev.voice, pace: e.target.value }
                         }))}
-                        placeholder="중간 / 빠름"
+                        placeholder={t('admin.personaManager.form.voicePacePlaceholder')}
                         className="border-slate-300 focus:border-indigo-500 focus:ring-indigo-500 bg-white"
                         data-testid="input-voice-pace"
                       />
                     </div>
 
                     <div>
-                      <Label htmlFor="voice_emotion" className="text-sm font-semibold text-slate-700 mb-1.5 block">감정</Label>
+                      <Label htmlFor="voice_emotion" className="text-sm font-semibold text-slate-700 mb-1.5 block">{t('admin.personaManager.form.voiceEmotion')}</Label>
                       <Input
                         id="voice_emotion"
                         value={formData.voice?.emotion || ''}
-                        onChange={(e) => setFormData(prev => ({ 
-                          ...prev, 
+                        onChange={(e) => setFormData(prev => ({
+                          ...prev,
                           voice: { ...prev.voice, emotion: e.target.value }
                         }))}
-                        placeholder="공감과 진지함"
+                        placeholder={t('admin.personaManager.form.voiceEmotionPlaceholder')}
                         className="border-slate-300 focus:border-indigo-500 focus:ring-indigo-500 bg-white"
                         data-testid="input-voice-emotion"
                       />
@@ -1094,15 +1108,15 @@ export function PersonaManager() {
                   </div>
 
                   <div>
-                    <Label htmlFor="gender" className="text-sm font-semibold text-slate-700 mb-1.5 block">성별</Label>
+                    <Label htmlFor="gender" className="text-sm font-semibold text-slate-700 mb-1.5 block">{t('admin.personaManager.gender')}</Label>
                     <Select value={formData.gender} onValueChange={(value: 'male' | 'female') => {
                       setFormData(prev => {
-                        const neutralImage = value === 'male' 
+                        const neutralImage = value === 'male'
                           ? prev.images?.male?.expressions?.['중립']
                           : prev.images?.female?.expressions?.['중립'];
-                        
+
                         return {
-                          ...prev, 
+                          ...prev,
                           gender: value,
                           images: {
                             ...prev.images,
@@ -1112,11 +1126,11 @@ export function PersonaManager() {
                       });
                     }}>
                       <SelectTrigger data-testid="select-gender" className="border-slate-300 focus:border-indigo-500 focus:ring-indigo-500 bg-white">
-                        <SelectValue placeholder="성별 선택" />
+                        <SelectValue placeholder={t('admin.personaManager.form.selectGender')} />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="male">남성</SelectItem>
-                        <SelectItem value="female">여성</SelectItem>
+                        <SelectItem value="male">{t('admin.personaManager.male')}</SelectItem>
+                        <SelectItem value="female">{t('admin.personaManager.female')}</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
@@ -1127,47 +1141,47 @@ export function PersonaManager() {
               <div className="bg-white rounded-lg p-5 shadow-sm border border-slate-200">
                 <h3 className="text-base font-bold text-slate-900 mb-4 flex items-center gap-2 pb-2 border-b border-slate-200">
                   <i className="fas fa-image text-pink-600"></i>
-                  이미지 정보
+                  {t('admin.personaManager.section.imageInfo')}
                 </h3>
                 <div className="space-y-4">
                   <div className="grid grid-cols-2 gap-3">
                     <div>
-                      <Label htmlFor="images_base" className="text-sm font-semibold text-slate-700 mb-1.5 block">기본 이미지 URL</Label>
+                      <Label htmlFor="images_base" className="text-sm font-semibold text-slate-700 mb-1.5 block">{t('admin.personaManager.form.baseImageUrl')}</Label>
                       <Input
                         id="images_base"
                         value={formData.images?.base || ''}
-                        onChange={(e) => setFormData(prev => ({ 
-                          ...prev, 
-                          images: { 
-                            ...prev.images, 
-                            base: e.target.value, 
+                        onChange={(e) => setFormData(prev => ({
+                          ...prev,
+                          images: {
+                            ...prev.images,
+                            base: e.target.value,
                             style: prev.images.style || '',
                             male: prev.images.male,
                             female: prev.images.female
                           }
                         }))}
-                        placeholder="https://picsum.photos/seed/mbti/150/150"
+                        placeholder={t('admin.personaManager.form.baseImageUrlPlaceholder')}
                         className="border-slate-300 focus:border-indigo-500 focus:ring-indigo-500 bg-white"
                         data-testid="input-images-base"
                       />
                     </div>
 
                     <div>
-                      <Label htmlFor="images_style" className="text-sm font-semibold text-slate-700 mb-1.5 block">이미지 스타일</Label>
+                      <Label htmlFor="images_style" className="text-sm font-semibold text-slate-700 mb-1.5 block">{t('admin.personaManager.form.imageStyle')}</Label>
                       <Input
                         id="images_style"
                         value={formData.images?.style || ''}
-                        onChange={(e) => setFormData(prev => ({ 
-                          ...prev, 
-                          images: { 
-                            ...prev.images, 
-                            style: e.target.value, 
+                        onChange={(e) => setFormData(prev => ({
+                          ...prev,
+                          images: {
+                            ...prev.images,
+                            style: e.target.value,
                             base: prev.images.base || '',
                             male: prev.images.male,
                             female: prev.images.female
                           }
                         }))}
-                        placeholder="실제 인물 사진 느낌"
+                        placeholder={t('admin.personaManager.form.imageStylePlaceholder')}
                         className="border-slate-300 focus:border-indigo-500 focus:ring-indigo-500 bg-white"
                         data-testid="input-images-style"
                       />
@@ -1181,7 +1195,7 @@ export function PersonaManager() {
                 <div className="flex items-center justify-between mb-4 pb-2 border-b border-slate-200">
                   <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
                     <i className="fas fa-magic text-amber-600"></i>
-                    표정 이미지 생성
+                    {t('admin.personaManager.section.expressionImages')}
                   </h3>
                   <div className="flex gap-2">
                     <Button
@@ -1192,7 +1206,7 @@ export function PersonaManager() {
                       disabled={isGeneratingBase || !editingPersona}
                       data-testid="button-generate-base-image"
                     >
-                      {isGeneratingBase ? '생성 중...' : '기본 이미지 생성'}
+                      {isGeneratingBase ? t('admin.personaManager.image.generating') : t('admin.personaManager.image.generateBase')}
                     </Button>
                     <Button
                       type="button"
@@ -1202,19 +1216,19 @@ export function PersonaManager() {
                       disabled={isGeneratingExpressions || !editingPersona}
                       data-testid="button-generate-expressions"
                     >
-                      {isGeneratingExpressions ? `생성 중... (${generationProgress.current}/${generationProgress.total})` : '전체 표정 생성'}
+                      {isGeneratingExpressions ? `${t('admin.personaManager.image.generating')} (${generationProgress.current}/${generationProgress.total})` : t('admin.personaManager.image.generateAll')}
                     </Button>
                   </div>
                 </div>
-                
+
                 {!editingPersona && (
                   <p className="text-sm text-slate-500">
-                    이미지 생성은 페르소나를 먼저 저장한 후 수정 모드에서 사용할 수 있습니다.
+                    {t('admin.personaManager.image.saveFirstMessage')}
                   </p>
                 )}
 
                 <div className="mb-4">
-                  <p className="text-sm text-slate-600 mb-3">현재 선택: <span className="font-semibold">{formData.gender === 'male' ? '남성' : '여성'} 표정 이미지</span></p>
+                  <p className="text-sm text-slate-600 mb-3">{t('admin.personaManager.image.currentSelection')}: <span className="font-semibold">{formData.gender === 'male' ? t('admin.personaManager.image.maleExpressions') : t('admin.personaManager.image.femaleExpressions')}</span></p>
                 </div>
 
                 <div className="grid grid-cols-5 gap-3">
@@ -1250,11 +1264,11 @@ export function PersonaManager() {
                               className="w-full h-full object-cover"
                             />
                           ) : (
-                            <span className="text-xs text-slate-400">없음</span>
+                            <span className="text-xs text-slate-400">{t('admin.personaManager.image.noImage')}</span>
                           )}
                         </div>
                         <div className="flex items-center gap-1">
-                          <span className="text-xs text-slate-600 font-medium">{emotion}</span>
+                          <span className="text-xs text-slate-600 font-medium">{t(`admin.personaManager.emotions.${emotionKeyMap[emotion]}`)}</span>
                           {editingPersona && (
                             <button
                               type="button"
@@ -1264,7 +1278,7 @@ export function PersonaManager() {
                               }}
                               disabled={isGenerating || isGeneratingExpressions}
                               className="p-0.5 rounded hover:bg-slate-200 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                              title={`${emotion} 이미지 재생성`}
+                              title={t('admin.personaManager.image.regenerateTooltip')}
                               data-testid={`button-regenerate-${emotion}`}
                             >
                               <RefreshCw className={`w-3 h-3 text-slate-500 ${isGenerating ? 'animate-spin' : ''}`} />
@@ -1321,7 +1335,7 @@ export function PersonaManager() {
                     <p className="text-sm text-slate-600 mb-2">{persona.communication_style}</p>
                     <div className="flex items-center gap-2">
                       <Badge variant="outline" className="bg-green-100 text-green-800">
-                        {scenarioUsage.length}개 시나리오에서 사용
+                        {t('admin.personaManager.usedInScenarios', { count: scenarioUsage.length })}
                       </Badge>
                     </div>
                   </div>
@@ -1392,7 +1406,7 @@ export function PersonaManager() {
               <CardContent>
                 <div className="space-y-3">
                   <div>
-                    <h4 className="font-medium text-slate-700 mb-1">성격 특성</h4>
+                    <h4 className="font-medium text-slate-700 mb-1">{t('admin.personaManager.card.personalityTraits')}</h4>
                     <div className="flex flex-wrap gap-1">
                       {(persona.personality_traits || []).map((trait, index) => (
                         <Badge key={index} variant="secondary" className="text-xs">
@@ -1401,15 +1415,15 @@ export function PersonaManager() {
                       ))}
                     </div>
                   </div>
-                  
+
                   <div>
-                    <h4 className="font-medium text-slate-700 mb-1">동기</h4>
+                    <h4 className="font-medium text-slate-700 mb-1">{t('admin.personaManager.card.motivation')}</h4>
                     <p className="text-sm text-slate-600">{persona.motivation}</p>
                   </div>
 
                   {persona.fears && persona.fears.length > 0 && (
                     <div>
-                      <h4 className="font-medium text-slate-700 mb-1">두려움</h4>
+                      <h4 className="font-medium text-slate-700 mb-1">{t('admin.personaManager.card.fears')}</h4>
                       <div className="flex flex-wrap gap-1">
                         {persona.fears.map((fear, index) => (
                           <Badge key={index} variant="outline" className="text-xs bg-red-50 text-red-700">
@@ -1422,10 +1436,10 @@ export function PersonaManager() {
 
                   {persona.background && (
                     <div>
-                      <h4 className="font-medium text-slate-700 mb-1">배경</h4>
+                      <h4 className="font-medium text-slate-700 mb-1">{t('admin.personaManager.card.background')}</h4>
                       {persona.background.personal_values && persona.background.personal_values.length > 0 && (
                         <div className="mb-2">
-                          <p className="text-xs text-slate-500 mb-1">가치관:</p>
+                          <p className="text-xs text-slate-500 mb-1">{t('admin.personaManager.card.values')}:</p>
                           <div className="flex flex-wrap gap-1">
                             {persona.background.personal_values.map((value, index) => (
                               <Badge key={index} variant="outline" className="text-xs bg-blue-50 text-blue-700">
@@ -1437,7 +1451,7 @@ export function PersonaManager() {
                       )}
                       {persona.background.hobbies && persona.background.hobbies.length > 0 && (
                         <div className="mb-2">
-                          <p className="text-xs text-slate-500 mb-1">취미:</p>
+                          <p className="text-xs text-slate-500 mb-1">{t('admin.personaManager.card.hobbies')}:</p>
                           <div className="flex flex-wrap gap-1">
                             {persona.background.hobbies.map((hobby, index) => (
                               <Badge key={index} variant="outline" className="text-xs bg-green-50 text-green-700">
@@ -1449,7 +1463,7 @@ export function PersonaManager() {
                       )}
                       {persona.background.social && (
                         <div>
-                          <p className="text-xs text-slate-500 mb-1">사회적 특성:</p>
+                          <p className="text-xs text-slate-500 mb-1">{t('admin.personaManager.card.socialTraits')}:</p>
                           <p className="text-xs text-slate-600">{persona.background.social.preference} - {persona.background.social.behavior}</p>
                         </div>
                       )}
@@ -1458,16 +1472,16 @@ export function PersonaManager() {
 
                   {persona.communication_patterns && (
                     <div>
-                      <h4 className="font-medium text-slate-700 mb-1">의사소통 패턴</h4>
+                      <h4 className="font-medium text-slate-700 mb-1">{t('admin.personaManager.card.communicationPatterns')}</h4>
                       {persona.communication_patterns.opening_style && (
                         <div className="mb-2">
-                          <p className="text-xs text-slate-500">대화 시작 스타일:</p>
+                          <p className="text-xs text-slate-500">{t('admin.personaManager.card.openingStyle')}:</p>
                           <p className="text-xs text-slate-600">{persona.communication_patterns.opening_style}</p>
                         </div>
                       )}
                       {persona.communication_patterns.key_phrases && persona.communication_patterns.key_phrases.length > 0 && (
                         <div className="mb-2">
-                          <p className="text-xs text-slate-500 mb-1">주요 표현:</p>
+                          <p className="text-xs text-slate-500 mb-1">{t('admin.personaManager.card.keyPhrases')}:</p>
                           <div className="flex flex-wrap gap-1">
                             {persona.communication_patterns.key_phrases.slice(0, 2).map((phrase, index) => (
                               <Badge key={index} variant="outline" className="text-xs bg-purple-50 text-purple-700">
@@ -1476,7 +1490,7 @@ export function PersonaManager() {
                             ))}
                             {persona.communication_patterns.key_phrases.length > 2 && (
                               <Badge variant="outline" className="text-xs">
-                                +{persona.communication_patterns.key_phrases.length - 2}개 더
+                                {t('admin.personaManager.card.more', { count: persona.communication_patterns.key_phrases.length - 2 })}
                               </Badge>
                             )}
                           </div>
@@ -1484,7 +1498,7 @@ export function PersonaManager() {
                       )}
                       {persona.communication_patterns.win_conditions && persona.communication_patterns.win_conditions.length > 0 && (
                         <div>
-                          <p className="text-xs text-slate-500 mb-1">승리 조건:</p>
+                          <p className="text-xs text-slate-500 mb-1">{t('admin.personaManager.card.winConditions')}:</p>
                           <div className="flex flex-wrap gap-1">
                             {persona.communication_patterns.win_conditions.map((condition, index) => (
                               <Badge key={index} variant="outline" className="text-xs bg-yellow-50 text-yellow-700">
@@ -1499,23 +1513,23 @@ export function PersonaManager() {
 
                   {persona.voice && (
                     <div>
-                      <h4 className="font-medium text-slate-700 mb-1">음성 특성</h4>
+                      <h4 className="font-medium text-slate-700 mb-1">{t('admin.personaManager.card.voiceTraits')}</h4>
                       <div className="grid grid-cols-3 gap-2">
                         {persona.voice.tone && (
                           <div>
-                            <p className="text-xs text-slate-500">톤:</p>
+                            <p className="text-xs text-slate-500">{t('admin.personaManager.card.tone')}:</p>
                             <p className="text-xs text-slate-600">{persona.voice.tone}</p>
                           </div>
                         )}
                         {persona.voice.pace && (
                           <div>
-                            <p className="text-xs text-slate-500">속도:</p>
+                            <p className="text-xs text-slate-500">{t('admin.personaManager.card.pace')}:</p>
                             <p className="text-xs text-slate-600">{persona.voice.pace}</p>
                           </div>
                         )}
                         {persona.voice.emotion && (
                           <div>
-                            <p className="text-xs text-slate-500">감정:</p>
+                            <p className="text-xs text-slate-500">{t('admin.personaManager.card.emotion')}:</p>
                             <p className="text-xs text-slate-600">{persona.voice.emotion}</p>
                           </div>
                         )}
@@ -1525,7 +1539,7 @@ export function PersonaManager() {
 
                   {scenarioUsage.length > 0 && (
                     <div>
-                      <h4 className="font-medium text-slate-700 mb-1">사용 현황</h4>
+                      <h4 className="font-medium text-slate-700 mb-1">{t('admin.personaManager.card.usageStatus')}</h4>
                       <div className="space-y-1">
                         {scenarioUsage.slice(0, 2).map((usage, index) => (
                           <div key={index} className="text-xs text-slate-600 bg-slate-50 p-2 rounded">
@@ -1534,7 +1548,7 @@ export function PersonaManager() {
                           </div>
                         ))}
                         {scenarioUsage.length > 2 && (
-                          <p className="text-xs text-slate-500">+{scenarioUsage.length - 2}개 시나리오 더</p>
+                          <p className="text-xs text-slate-500">{t('admin.personaManager.moreScenarios', { count: scenarioUsage.length - 2 })}</p>
                         )}
                       </div>
                     </div>
@@ -1569,7 +1583,7 @@ export function PersonaManager() {
         <Dialog open={!!viewingImage} onOpenChange={() => setViewingImage(null)}>
           <DialogContent className="max-w-4xl">
             <DialogHeader>
-              <DialogTitle>{viewingImage.emotion} 표정 이미지</DialogTitle>
+              <DialogTitle>{t(`admin.personaManager.emotions.${emotionKeyMap[viewingImage.emotion] || viewingImage.emotion}`)} {t('admin.personaManager.image.expressionTitle')}</DialogTitle>
             </DialogHeader>
             <div className="flex items-center justify-center p-4 bg-slate-50 rounded-lg">
               <img 
@@ -1615,7 +1629,7 @@ export function PersonaManager() {
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Languages className="h-5 w-5" />
-              번역 관리 - {translatingPersona?.mbti}
+              {t('admin.personaManager.translationManage', { mbti: translatingPersona?.mbti })}
             </DialogTitle>
           </DialogHeader>
           {translatingPersona && (

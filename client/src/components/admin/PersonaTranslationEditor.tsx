@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useQuery, useMutation } from '@tanstack/react-query';
+import { useTranslation } from 'react-i18next';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -61,12 +62,13 @@ interface PersonaTranslationEditorProps {
   sourceData?: PersonaSourceData;
 }
 
-export function PersonaTranslationEditor({ 
-  personaId, 
-  personaMbti, 
+export function PersonaTranslationEditor({
+  personaId,
+  personaMbti,
   personaTraits,
   sourceData
 }: PersonaTranslationEditorProps) {
+  const { t } = useTranslation();
   const { toast } = useToast();
   const [activeTab, setActiveTab] = useState<string>('');
   const [translationData, setTranslationData] = useState<Record<string, Partial<PersonaTranslation>>>({});
@@ -112,10 +114,10 @@ export function PersonaTranslationEditor({
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/personas', personaId, 'translations'] });
-      toast({ title: '저장 완료', description: '번역이 저장되었습니다.' });
+      toast({ title: t('admin.personaTranslationEditor.toast.saveSuccess'), description: t('admin.personaTranslationEditor.toast.saveSuccessDesc') });
     },
     onError: (error: Error) => {
-      toast({ title: '저장 실패', description: error.message, variant: 'destructive' });
+      toast({ title: t('admin.personaTranslationEditor.toast.saveError'), description: error.message, variant: 'destructive' });
     },
   });
 
@@ -126,10 +128,10 @@ export function PersonaTranslationEditor({
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/personas', personaId, 'translations'] });
-      toast({ title: '검토 완료', description: '번역이 검토됨으로 표시되었습니다.' });
+      toast({ title: t('admin.personaTranslationEditor.toast.reviewSuccess'), description: t('admin.personaTranslationEditor.toast.reviewSuccessDesc') });
     },
     onError: (error: Error) => {
-      toast({ title: '검토 실패', description: error.message, variant: 'destructive' });
+      toast({ title: t('admin.personaTranslationEditor.toast.reviewError'), description: error.message, variant: 'destructive' });
     },
   });
 
@@ -145,10 +147,10 @@ export function PersonaTranslationEditor({
         delete newData[locale];
         return newData;
       });
-      toast({ title: '삭제 완료', description: '번역이 삭제되었습니다.' });
+      toast({ title: t('admin.personaTranslationEditor.toast.deleteSuccess'), description: t('admin.personaTranslationEditor.toast.deleteSuccessDesc') });
     },
     onError: (error: Error) => {
-      toast({ title: '삭제 실패', description: error.message, variant: 'destructive' });
+      toast({ title: t('admin.personaTranslationEditor.toast.deleteError'), description: error.message, variant: 'destructive' });
     },
   });
 
@@ -170,12 +172,12 @@ export function PersonaTranslationEditor({
             isReviewed: false,
           },
         }));
-        toast({ title: 'AI 번역 생성 완료', description: `${locale} 번역이 생성되었습니다.` });
+        toast({ title: t('admin.personaTranslationEditor.toast.generateSuccess'), description: t('admin.personaTranslationEditor.toast.generateSuccessDesc') });
       } else {
-        throw new Error(data.error || '번역 생성 실패');
+        throw new Error(data.error || t('admin.personaTranslationEditor.toast.generateError'));
       }
     } catch (error: any) {
-      toast({ title: 'AI 번역 실패', description: error.message, variant: 'destructive' });
+      toast({ title: t('admin.personaTranslationEditor.toast.generateError'), description: error.message, variant: 'destructive' });
     } finally {
       setIsGenerating(null);
     }
@@ -222,8 +224,8 @@ export function PersonaTranslationEditor({
       <Card>
         <CardContent className="py-8 text-center text-muted-foreground">
           <Languages className="h-8 w-8 mx-auto mb-2" />
-          <p>번역할 언어가 없습니다.</p>
-          <p className="text-sm">시스템 설정에서 지원 언어를 추가하세요.</p>
+          <p>{t('admin.personaTranslationEditor.noLanguages')}</p>
+          <p className="text-sm">{t('admin.personaTranslationEditor.addLanguagesHint')}</p>
         </CardContent>
       </Card>
     );
@@ -234,10 +236,10 @@ export function PersonaTranslationEditor({
     if (typeof sourceData.background === 'string') return sourceData.background;
     const bg = sourceData.background as any;
     const parts: string[] = [];
-    if (bg.education) parts.push(`학력: ${bg.education}`);
-    if (bg.previousExperience) parts.push(`경력: ${bg.previousExperience}`);
-    if (bg.majorProjects?.length) parts.push(`주요 프로젝트: ${bg.majorProjects.join(', ')}`);
-    if (bg.expertise?.length) parts.push(`전문분야: ${bg.expertise.join(', ')}`);
+    if (bg.education) parts.push(`${t('admin.personaTranslationEditor.helper.educationPrefix')}${bg.education}`);
+    if (bg.previousExperience) parts.push(`${t('admin.personaTranslationEditor.helper.experiencePrefix')}${bg.previousExperience}`);
+    if (bg.majorProjects?.length) parts.push(`${t('admin.personaTranslationEditor.helper.projectsPrefix')}${bg.majorProjects.join(', ')}`);
+    if (bg.expertise?.length) parts.push(`${t('admin.personaTranslationEditor.helper.expertisePrefix')}${bg.expertise.join(', ')}`);
     return parts.join('\n');
   };
 
@@ -246,7 +248,7 @@ export function PersonaTranslationEditor({
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <Languages className="h-5 w-5" />
-          다국어 번역 - {personaMbti} ({sourceData?.name || ''})
+          {t('admin.personaTranslationEditor.title', { mbti: personaMbti })} ({sourceData?.name || ''})
         </CardTitle>
       </CardHeader>
       <CardContent>
@@ -293,13 +295,13 @@ export function PersonaTranslationEditor({
                             {isReviewed && (
                               <Badge variant="outline" className="text-green-600 border-green-200">
                                 <CheckCircle className="h-3 w-3 mr-1" />
-                                검토됨
+                                {t('admin.personaTranslationEditor.badge.reviewed')}
                               </Badge>
                             )}
                             {isMachine && !isReviewed && (
                               <Badge variant="outline" className="text-amber-600 border-amber-200">
                                 <Bot className="h-3 w-3 mr-1" />
-                                AI 번역
+                                {t('admin.personaTranslationEditor.badge.aiTranslated')}
                               </Badge>
                             )}
                           </>
@@ -317,7 +319,7 @@ export function PersonaTranslationEditor({
                           ) : (
                             <Bot className="h-4 w-4 mr-2" />
                           )}
-                          AI 번역 생성
+                          {t('admin.personaTranslationEditor.button.generateAI')}
                         </Button>
                         {translation.name && !isReviewed && (
                           <Button
@@ -327,7 +329,7 @@ export function PersonaTranslationEditor({
                             disabled={reviewMutation.isPending}
                           >
                             <CheckCircle className="h-4 w-4 mr-2" />
-                            검토 완료
+                            {t('admin.personaTranslationEditor.button.markReviewed')}
                           </Button>
                         )}
                         <Button
@@ -337,7 +339,7 @@ export function PersonaTranslationEditor({
                           disabled={saveMutation.isPending}
                         >
                           <Save className="h-4 w-4 mr-2" />
-                          저장
+                          {t('admin.personaTranslationEditor.button.save')}
                         </Button>
                         {translation.name && (
                           <Button
@@ -355,25 +357,25 @@ export function PersonaTranslationEditor({
                     <Collapsible open={openSections.basic} onOpenChange={() => toggleSection('basic')}>
                       <CollapsibleTrigger className="flex items-center gap-2 w-full p-2 bg-muted rounded-t hover:bg-muted/80">
                         {openSections.basic ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-                        <span className="font-medium">기본 정보</span>
+                        <span className="font-medium">{t('admin.personaTranslationEditor.section.basicInfo')}</span>
                       </CollapsibleTrigger>
                       <CollapsibleContent className="border border-t-0 rounded-b p-4 space-y-4">
                         <div className="grid grid-cols-2 gap-4">
                           <div className="space-y-2">
-                            <Label className="text-muted-foreground text-xs">원본 MBTI 유형명</Label>
+                            <Label className="text-muted-foreground text-xs">{t('admin.personaTranslationEditor.label.originalMbtiName')}</Label>
                             <div className="p-2 bg-muted rounded text-sm">{sourceData?.name || personaMbti}</div>
                           </div>
                           <div className="space-y-2">
-                            <Label>MBTI 유형명 ({lang.nativeName}) *</Label>
+                            <Label>{t('admin.personaTranslationEditor.label.mbtiName')} ({lang.nativeName}) *</Label>
                             <Input
                               value={translation.name || ''}
                               onChange={(e) => handleFieldChange(lang.code, 'name', e.target.value)}
-                              placeholder={`예: The Analyst, 分析家 등...`}
+                              placeholder={t('admin.personaTranslationEditor.placeholder.mbtiName')}
                             />
                           </div>
                         </div>
                         <p className="text-xs text-muted-foreground">
-                          ※ 직책, 부서, 역할, 입장, 목표, 협상범위는 시나리오별로 다르게 정의되므로 시나리오 번역에서 관리합니다.
+                          {t('admin.personaTranslationEditor.note.scenarioManaged')}
                         </p>
                       </CollapsibleContent>
                     </Collapsible>
@@ -381,22 +383,22 @@ export function PersonaTranslationEditor({
                     <Collapsible open={openSections.personality} onOpenChange={() => toggleSection('personality')}>
                       <CollapsibleTrigger className="flex items-center gap-2 w-full p-2 bg-muted rounded-t hover:bg-muted/80">
                         {openSections.personality ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-                        <span className="font-medium">성격 정보</span>
+                        <span className="font-medium">{t('admin.personaTranslationEditor.section.personalityInfo')}</span>
                       </CollapsibleTrigger>
                       <CollapsibleContent className="border border-t-0 rounded-b p-4 space-y-4">
                         <div className="grid grid-cols-2 gap-4">
                           <div className="space-y-2">
-                            <Label className="text-muted-foreground text-xs">원본 성격 특성</Label>
+                            <Label className="text-muted-foreground text-xs">{t('admin.personaTranslationEditor.label.originalPersonality')}</Label>
                             <div className="p-2 bg-muted rounded text-sm min-h-[60px]">
                               {(sourceData?.personality?.traits || personaTraits || []).join('\n') || '-'}
                             </div>
                           </div>
                           <div className="space-y-2">
-                            <Label>성격 특성 ({lang.nativeName}) - 줄바꿈으로 구분</Label>
+                            <Label>{t('admin.personaTranslationEditor.label.personality')} ({lang.nativeName}) - {t('admin.personaTranslationEditor.label.separateByLine')}</Label>
                             <Textarea
                               value={(translation.personalityTraits || []).join('\n')}
                               onChange={(e) => handleArrayFieldChange(lang.code, 'personalityTraits', e.target.value)}
-                              placeholder={`특성1\n특성2\n특성3`}
+                              placeholder={`${t('admin.personaTranslationEditor.placeholder.trait')}1\n${t('admin.personaTranslationEditor.placeholder.trait')}2\n${t('admin.personaTranslationEditor.placeholder.trait')}3`}
                               rows={3}
                             />
                           </div>
@@ -404,17 +406,17 @@ export function PersonaTranslationEditor({
 
                         <div className="grid grid-cols-2 gap-4">
                           <div className="space-y-2">
-                            <Label className="text-muted-foreground text-xs">원본 커뮤니케이션 스타일</Label>
+                            <Label className="text-muted-foreground text-xs">{t('admin.personaTranslationEditor.label.originalCommunication')}</Label>
                             <div className="p-2 bg-muted rounded text-sm min-h-[60px] whitespace-pre-wrap">
                               {sourceData?.personality?.communicationStyle || '-'}
                             </div>
                           </div>
                           <div className="space-y-2">
-                            <Label>커뮤니케이션 스타일 ({lang.nativeName})</Label>
+                            <Label>{t('admin.personaTranslationEditor.label.communication')} ({lang.nativeName})</Label>
                             <Textarea
                               value={translation.communicationStyle || ''}
                               onChange={(e) => handleFieldChange(lang.code, 'communicationStyle', e.target.value)}
-                              placeholder={`${lang.nativeName} 커뮤니케이션 스타일...`}
+                              placeholder={`${lang.nativeName} ${t('admin.personaTranslationEditor.label.communication')}...`}
                               rows={2}
                             />
                           </div>
@@ -422,17 +424,17 @@ export function PersonaTranslationEditor({
 
                         <div className="grid grid-cols-2 gap-4">
                           <div className="space-y-2">
-                            <Label className="text-muted-foreground text-xs">원본 동기</Label>
+                            <Label className="text-muted-foreground text-xs">{t('admin.personaTranslationEditor.label.originalMotivation')}</Label>
                             <div className="p-2 bg-muted rounded text-sm min-h-[60px] whitespace-pre-wrap">
                               {sourceData?.personality?.motivation || '-'}
                             </div>
                           </div>
                           <div className="space-y-2">
-                            <Label>동기 ({lang.nativeName})</Label>
+                            <Label>{t('admin.personaTranslationEditor.label.motivationLabel')} ({lang.nativeName})</Label>
                             <Textarea
                               value={translation.motivation || ''}
                               onChange={(e) => handleFieldChange(lang.code, 'motivation', e.target.value)}
-                              placeholder={`${lang.nativeName} 동기...`}
+                              placeholder={`${lang.nativeName} ${t('admin.personaTranslationEditor.label.motivationLabel')}...`}
                               rows={2}
                             />
                           </div>
@@ -440,17 +442,17 @@ export function PersonaTranslationEditor({
 
                         <div className="grid grid-cols-2 gap-4">
                           <div className="space-y-2">
-                            <Label className="text-muted-foreground text-xs">원본 두려움</Label>
+                            <Label className="text-muted-foreground text-xs">{t('admin.personaTranslationEditor.label.originalFears')}</Label>
                             <div className="p-2 bg-muted rounded text-sm min-h-[60px]">
                               {(sourceData?.personality?.fears || []).join('\n') || '-'}
                             </div>
                           </div>
                           <div className="space-y-2">
-                            <Label>두려움 ({lang.nativeName}) - 줄바꿈으로 구분</Label>
+                            <Label>{t('admin.personaTranslationEditor.label.fearsLabel')} ({lang.nativeName}) - {t('admin.personaTranslationEditor.label.separateByLine')}</Label>
                             <Textarea
                               value={(translation.fears || []).join('\n')}
                               onChange={(e) => handleArrayFieldChange(lang.code, 'fears', e.target.value)}
-                              placeholder={`두려움1\n두려움2`}
+                              placeholder={`${t('admin.personaTranslationEditor.placeholder.fear')}1\n${t('admin.personaTranslationEditor.placeholder.fear')}2`}
                               rows={2}
                             />
                           </div>
@@ -458,17 +460,17 @@ export function PersonaTranslationEditor({
 
                         <div className="grid grid-cols-2 gap-4">
                           <div className="space-y-2">
-                            <Label className="text-muted-foreground text-xs">원본 성격 설명 (요약)</Label>
+                            <Label className="text-muted-foreground text-xs">{t('admin.personaTranslationEditor.label.originalPersonalityDesc')}</Label>
                             <div className="p-2 bg-muted rounded text-sm min-h-[60px] whitespace-pre-wrap">
                               {(sourceData?.personality?.traits || personaTraits || []).join(', ') || '-'}
                             </div>
                           </div>
                           <div className="space-y-2">
-                            <Label>성격 설명 ({lang.nativeName})</Label>
+                            <Label>{t('admin.personaTranslationEditor.label.personalityDesc')} ({lang.nativeName})</Label>
                             <Textarea
                               value={translation.personalityDescription || ''}
                               onChange={(e) => handleFieldChange(lang.code, 'personalityDescription', e.target.value)}
-                              placeholder={`${lang.nativeName} 성격 설명...`}
+                              placeholder={`${lang.nativeName} ${t('admin.personaTranslationEditor.label.personalityDesc')}...`}
                               rows={2}
                             />
                           </div>
@@ -479,39 +481,39 @@ export function PersonaTranslationEditor({
                     <Collapsible open={openSections.background} onOpenChange={() => toggleSection('background')}>
                       <CollapsibleTrigger className="flex items-center gap-2 w-full p-2 bg-muted rounded-t hover:bg-muted/80">
                         {openSections.background ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-                        <span className="font-medium">배경 정보</span>
+                        <span className="font-medium">{t('admin.personaTranslationEditor.section.backgroundInfo')}</span>
                       </CollapsibleTrigger>
                       <CollapsibleContent className="border border-t-0 rounded-b p-4 space-y-4">
                         <div className="grid grid-cols-2 gap-4">
                           <div className="space-y-2">
-                            <Label className="text-muted-foreground text-xs">원본 학력</Label>
+                            <Label className="text-muted-foreground text-xs">{t('admin.personaTranslationEditor.label.originalEducation')}</Label>
                             <div className="p-2 bg-muted rounded text-sm min-h-[38px]">
                               {(typeof sourceData?.background === 'object' ? sourceData?.background?.education : '') || '-'}
                             </div>
                           </div>
                           <div className="space-y-2">
-                            <Label>학력 ({lang.nativeName})</Label>
+                            <Label>{t('admin.personaTranslationEditor.label.education')} ({lang.nativeName})</Label>
                             <Input
                               value={translation.education || ''}
                               onChange={(e) => handleFieldChange(lang.code, 'education', e.target.value)}
-                              placeholder={`${lang.nativeName} 학력...`}
+                              placeholder={`${lang.nativeName} ${t('admin.personaTranslationEditor.label.education')}...`}
                             />
                           </div>
                         </div>
 
                         <div className="grid grid-cols-2 gap-4">
                           <div className="space-y-2">
-                            <Label className="text-muted-foreground text-xs">원본 이전 경력</Label>
+                            <Label className="text-muted-foreground text-xs">{t('admin.personaTranslationEditor.label.originalExperience')}</Label>
                             <div className="p-2 bg-muted rounded text-sm min-h-[60px] whitespace-pre-wrap">
                               {(typeof sourceData?.background === 'object' ? sourceData?.background?.previousExperience : '') || '-'}
                             </div>
                           </div>
                           <div className="space-y-2">
-                            <Label>이전 경력 ({lang.nativeName})</Label>
+                            <Label>{t('admin.personaTranslationEditor.label.experience')} ({lang.nativeName})</Label>
                             <Textarea
                               value={translation.previousExperience || ''}
                               onChange={(e) => handleFieldChange(lang.code, 'previousExperience', e.target.value)}
-                              placeholder={`${lang.nativeName} 이전 경력...`}
+                              placeholder={`${lang.nativeName} ${t('admin.personaTranslationEditor.label.experience')}...`}
                               rows={2}
                             />
                           </div>
@@ -519,17 +521,17 @@ export function PersonaTranslationEditor({
 
                         <div className="grid grid-cols-2 gap-4">
                           <div className="space-y-2">
-                            <Label className="text-muted-foreground text-xs">원본 주요 프로젝트</Label>
+                            <Label className="text-muted-foreground text-xs">{t('admin.personaTranslationEditor.label.originalProjects')}</Label>
                             <div className="p-2 bg-muted rounded text-sm min-h-[60px]">
                               {(typeof sourceData?.background === 'object' ? (sourceData?.background?.majorProjects || []).join('\n') : '') || '-'}
                             </div>
                           </div>
                           <div className="space-y-2">
-                            <Label>주요 프로젝트 ({lang.nativeName}) - 줄바꿈으로 구분</Label>
+                            <Label>{t('admin.personaTranslationEditor.label.projects')} ({lang.nativeName}) - {t('admin.personaTranslationEditor.label.separateByLine')}</Label>
                             <Textarea
                               value={(translation.majorProjects || []).join('\n')}
                               onChange={(e) => handleArrayFieldChange(lang.code, 'majorProjects', e.target.value)}
-                              placeholder={`프로젝트1\n프로젝트2`}
+                              placeholder={`${t('admin.personaTranslationEditor.placeholder.project')}1\n${t('admin.personaTranslationEditor.placeholder.project')}2`}
                               rows={2}
                             />
                           </div>
@@ -537,17 +539,17 @@ export function PersonaTranslationEditor({
 
                         <div className="grid grid-cols-2 gap-4">
                           <div className="space-y-2">
-                            <Label className="text-muted-foreground text-xs">원본 전문분야</Label>
+                            <Label className="text-muted-foreground text-xs">{t('admin.personaTranslationEditor.label.originalExpertise')}</Label>
                             <div className="p-2 bg-muted rounded text-sm min-h-[60px]">
                               {(typeof sourceData?.background === 'object' ? (sourceData?.background?.expertise || []).join('\n') : '') || '-'}
                             </div>
                           </div>
                           <div className="space-y-2">
-                            <Label>전문분야 ({lang.nativeName}) - 줄바꿈으로 구분</Label>
+                            <Label>{t('admin.personaTranslationEditor.label.expertise')} ({lang.nativeName}) - {t('admin.personaTranslationEditor.label.separateByLine')}</Label>
                             <Textarea
                               value={(translation.expertise || []).join('\n')}
                               onChange={(e) => handleArrayFieldChange(lang.code, 'expertise', e.target.value)}
-                              placeholder={`전문분야1\n전문분야2`}
+                              placeholder={`${t('admin.personaTranslationEditor.placeholder.expertiseItem')}1\n${t('admin.personaTranslationEditor.placeholder.expertiseItem')}2`}
                               rows={2}
                             />
                           </div>
@@ -555,17 +557,17 @@ export function PersonaTranslationEditor({
 
                         <div className="grid grid-cols-2 gap-4">
                           <div className="space-y-2">
-                            <Label className="text-muted-foreground text-xs">원본 배경 (요약)</Label>
+                            <Label className="text-muted-foreground text-xs">{t('admin.personaTranslationEditor.label.originalBackground')}</Label>
                             <div className="p-2 bg-muted rounded text-sm min-h-[80px] whitespace-pre-wrap">
                               {getSourceBackground() || '-'}
                             </div>
                           </div>
                           <div className="space-y-2">
-                            <Label>배경 ({lang.nativeName})</Label>
+                            <Label>{t('admin.personaTranslationEditor.label.backgroundLabel')} ({lang.nativeName})</Label>
                             <Textarea
                               value={translation.background || ''}
                               onChange={(e) => handleFieldChange(lang.code, 'background', e.target.value)}
-                              placeholder={`${lang.nativeName} 배경 정보...`}
+                              placeholder={`${lang.nativeName} ${t('admin.personaTranslationEditor.label.backgroundLabel')}...`}
                               rows={3}
                             />
                           </div>
