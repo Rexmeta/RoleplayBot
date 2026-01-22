@@ -409,6 +409,7 @@ export class RealtimeVoiceService {
       reconnectAttempts: 0,
       systemInstructions: systemInstructions, // 재연결시 필요
       voiceGender: gender, // 재연결시 필요
+      selectedVoice: null, // 초기값 null, connectToGemini에서 선택 후 저장됨
       goAwayWarningTime: null,
       pendingClientReady: null, // client.ready 메시지 버퍼 초기화
       userLanguage, // 사용자 선택 언어 저장

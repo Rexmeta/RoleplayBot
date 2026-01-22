@@ -457,6 +457,7 @@ export class FileManagerService {
       background: dbPersona.background,
       communication_patterns: dbPersona.communicationPatterns,
       voice: dbPersona.voice,
+      images: dbPersona.images || null, // 이미지 필드 추가
     };
   }
 
