@@ -185,6 +185,7 @@ interface RealtimeSession {
   reconnectAttempts: number; // 재연결 시도 횟수
   systemInstructions: string; // 재연결시 사용할 시스템 인스트럭션
   voiceGender: 'male' | 'female'; // 재연결시 사용할 음성 성별
+  selectedVoice: string | null; // 세션 시작 시 선택된 음성 (재연결 시 동일 음성 유지)
   goAwayWarningTime: number | null; // GoAway 경고 수신 시간
   // 버퍼링된 메시지 (Gemini 연결 전에 도착한 메시지)
   pendingClientReady: any | null; // client.ready 메시지 버퍼 (연결 전 도착시)
@@ -597,10 +598,16 @@ export class RealtimeVoiceService {
     console.log(`⏱️ [TIMING] connectToGemini 시작: ${new Date(connectStartTime).toISOString()}`);
 
     try {
-      // 성별에 따라 랜덤하게 음성 선택
-      const voiceName = this.getRandomVoice(gender);
-      
-      console.log(`🎤 Setting voice for ${gender}: ${voiceName} (랜덤 선택)`);
+      // 세션에 이미 선택된 음성이 있으면 재사용, 없으면 새로 선택 후 저장
+      let voiceName: string;
+      if (session.selectedVoice) {
+        voiceName = session.selectedVoice;
+        console.log(`🎤 Reusing session voice for ${gender}: ${voiceName} (세션 음성 유지)`);
+      } else {
+        voiceName = this.getRandomVoice(gender);
+        session.selectedVoice = voiceName; // 세션에 저장하여 재연결 시에도 동일 음성 사용
+        console.log(`🎤 Setting voice for ${gender}: ${voiceName} (초기 선택, 세션에 저장)`);
+      }
       
       const config = {
         responseModalities: [Modality.AUDIO],
