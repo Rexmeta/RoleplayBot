@@ -1064,6 +1064,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           turnIndex,
           emotion: msg.emotion || null,
           emotionReason: msg.emotionReason || null,
+          interrupted: msg.interrupted || false, // Barge-in 플래그 저장
           createdAt: msg.timestamp ? new Date(msg.timestamp) : undefined
         });
         turnIndex++;

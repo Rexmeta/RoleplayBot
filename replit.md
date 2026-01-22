@@ -49,6 +49,9 @@ Preferred communication style: Simple, everyday language.
   - Scenario-specific data: stance, goal, tradeoff (negotiation limits), experience, department
 - **4-Level Difficulty System**: Users select difficulty, influencing AI responses across all conversation modes.
 - **Analytics and Reporting**: Comprehensive user conversation history analytics including scores, category breakdowns, growth tracking, and pattern recognition. Uses a ComOn Check research-based 5-point scoring system (converted to 0-100).
+- **Automatic Score Adjustments**: The feedback system applies automatic score adjustments based on:
+  - **Non-verbal expression penalty**: Short responses (<3 chars: -2pts), silence ("...": -3pts), hesitation sounds ("음...", "uh": -2pts), skips (-5pts). Max penalty: -20pts.
+  - **Barge-in analysis**: Interrupting AI while asking a question = -3pts (poor listening). Interrupting with substantial response (>30 chars) = +2pts (active participation). Net adjustment range: -15 to +10pts.
 - **Real-time Emotion Analysis**: AI characters display emotions with visual indicators.
 - **Role-Based Access Control**: `시스템관리자 (admin)`, `운영자 (operator)`, `일반유저 (user)` roles with distinct permissions for system admin, operator dashboard, and content management.
 - **Category System**: Scenarios are organized by categories, with operators assigned to manage specific categories.
