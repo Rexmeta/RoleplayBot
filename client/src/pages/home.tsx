@@ -186,7 +186,7 @@ export default function Home() {
         setConversationIds([]);
         setStrategyReflectionSubmitted(false);
         setStrategyEvaluation(null);
-        setSelectedDifficulty(scenario.difficulty || 4);
+        setSelectedDifficulty(scenario.difficulty === 2 ? 4 : (scenario.difficulty || 4));
         
         // ✅ personaId가 있으면 해당 페르소나를 즉시 선택 (미완료 페르소나 "대화하기" 클릭 시)
         if (personaIdParam) {
@@ -194,7 +194,7 @@ export default function Home() {
           if (targetPersona && !isCreatingConversation) {
             setIsCreatingConversation(true);
             setLoadingPersonaId(personaIdParam);
-            const userSelectedDifficulty = scenario.difficulty || 4;
+            const userSelectedDifficulty = scenario.difficulty === 2 ? 4 : (scenario.difficulty || 4);
             setSelectedDifficulty(userSelectedDifficulty);
             
             const conversationData = {
