@@ -80,13 +80,13 @@ export function DifficultySettingsTab() {
       return res.json();
     },
     onSuccess: () => {
-      toast({ title: '저장 완료', description: '대화 난이도 설정이 저장되었습니다.' });
+      toast({ title: t('admin.difficultySettings.saveComplete'), description: t('admin.difficultySettings.saveCompleteDesc') });
       queryClient.invalidateQueries({ queryKey: ['/api/admin/difficulty-settings'] });
       setEditingLevel(null);
       setEditForm(null);
     },
     onError: (error: any) => {
-      toast({ title: '저장 실패', description: error.message || '대화 난이도 설정 저장에 실패했습니다.', variant: 'destructive' });
+      toast({ title: t('admin.difficultySettings.saveFailed'), description: error.message || t('admin.difficultySettings.saveFailedDesc'), variant: 'destructive' });
     }
   });
 
@@ -96,11 +96,11 @@ export function DifficultySettingsTab() {
       return res.json();
     },
     onSuccess: () => {
-      toast({ title: '초기화 완료', description: '대화 난이도 설정이 기본값으로 복원되었습니다.' });
+      toast({ title: t('admin.difficultySettings.resetComplete'), description: t('admin.difficultySettings.resetCompleteDesc') });
       queryClient.invalidateQueries({ queryKey: ['/api/admin/difficulty-settings'] });
     },
     onError: (error: any) => {
-      toast({ title: '초기화 실패', description: error.message || '초기화에 실패했습니다.', variant: 'destructive' });
+      toast({ title: t('admin.difficultySettings.resetFailed'), description: error.message || t('admin.difficultySettings.resetFailedDesc'), variant: 'destructive' });
     }
   });
 
@@ -167,9 +167,9 @@ export function DifficultySettingsTab() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-xl font-bold text-slate-800">{t('admin.difficultySettings')}</h2>
+          <h2 className="text-xl font-bold text-slate-800">{t('admin.difficultySettings.title')}</h2>
           <p className="text-sm text-slate-600 mt-1">
-            AI 캐릭터의 대화 스타일을 난이도별로 설정합니다. 이 설정은 텍스트, TTS, 실시간 음성 모든 대화 모드에 적용됩니다.
+            {t('admin.difficultySettings.tabDescription')}
           </p>
         </div>
         <Button 
@@ -227,7 +227,7 @@ export function DifficultySettingsTab() {
               </CardHeader>
               <CardContent className="space-y-4">
                 <div>
-                  <Label className="text-xs font-semibold text-slate-600">설명</Label>
+                  <Label className="text-xs font-semibold text-slate-600">{t('admin.difficultySettings.form.description')}</Label>
                   {isEditing ? (
                     <Input 
                       value={formData?.description || ''} 
@@ -241,7 +241,7 @@ export function DifficultySettingsTab() {
                 </div>
 
                 <div>
-                  <Label className="text-xs font-semibold text-slate-600">응답 길이</Label>
+                  <Label className="text-xs font-semibold text-slate-600">{t('admin.difficultySettings.form.responseLength')}</Label>
                   {isEditing ? (
                     <Input 
                       value={formData?.responseLength || ''} 
@@ -255,7 +255,7 @@ export function DifficultySettingsTab() {
                 </div>
 
                 <div>
-                  <Label className="text-xs font-semibold text-slate-600">말투/톤</Label>
+                  <Label className="text-xs font-semibold text-slate-600">{t('admin.difficultySettings.form.tone')}</Label>
                   {isEditing ? (
                     <Textarea 
                       value={formData?.tone || ''} 
@@ -270,7 +270,7 @@ export function DifficultySettingsTab() {
                 </div>
 
                 <div>
-                  <Label className="text-xs font-semibold text-slate-600">압박감</Label>
+                  <Label className="text-xs font-semibold text-slate-600">{t('admin.difficultySettings.form.pressure')}</Label>
                   {isEditing ? (
                     <Textarea 
                       value={formData?.pressure || ''} 
@@ -285,7 +285,7 @@ export function DifficultySettingsTab() {
                 </div>
 
                 <div>
-                  <Label className="text-xs font-semibold text-slate-600">피드백 방식</Label>
+                  <Label className="text-xs font-semibold text-slate-600">{t('admin.difficultySettings.form.feedback')}</Label>
                   {isEditing ? (
                     <Textarea 
                       value={formData?.feedback || ''} 
@@ -300,7 +300,7 @@ export function DifficultySettingsTab() {
                 </div>
 
                 <div>
-                  <Label className="text-xs font-semibold text-slate-600">제약사항 ({formData?.constraints?.length || 0}개)</Label>
+                  <Label className="text-xs font-semibold text-slate-600">{t('admin.difficultySettings.form.constraintsCount', { count: formData?.constraints?.length || 0 })}</Label>
                   {isEditing ? (
                     <div className="space-y-2 mt-2">
                       {formData?.constraints?.map((constraint, index) => (
@@ -321,15 +321,15 @@ export function DifficultySettingsTab() {
                           </Button>
                         </div>
                       ))}
-                      <Button 
-                        size="sm" 
-                        variant="outline" 
+                      <Button
+                        size="sm"
+                        variant="outline"
                         onClick={handleAddConstraint}
                         className="w-full"
                         data-testid={`button-add-constraint-${level}`}
                       >
                         <i className="fas fa-plus mr-2"></i>
-                        제약사항 추가
+                        {t('admin.difficultySettings.form.addConstraint')}
                       </Button>
                     </div>
                   ) : (
@@ -341,7 +341,7 @@ export function DifficultySettingsTab() {
                         </li>
                       ))}
                       {(settings?.constraints?.length || 0) > 3 && (
-                        <li className="text-slate-500 text-xs">+{(settings?.constraints?.length || 0) - 3}개 더...</li>
+                        <li className="text-slate-500 text-xs">{t('admin.difficultySettings.form.moreConstraints', { count: (settings?.constraints?.length || 0) - 3 })}</li>
                       )}
                     </ul>
                   )}
@@ -357,15 +357,15 @@ export function DifficultySettingsTab() {
           <div className="flex items-start gap-3">
             <i className="fas fa-info-circle text-blue-500 mt-1"></i>
             <div>
-              <h4 className="font-semibold text-blue-800">난이도 설정 안내</h4>
+              <h4 className="font-semibold text-blue-800">{t('admin.difficultySettings.guide.title')}</h4>
               <ul className="text-sm text-blue-700 mt-2 space-y-1">
-                <li>• <strong>Level 1</strong>: 처음 사용자를 위한 친절한 튜토리얼 모드</li>
-                <li>• <strong>Level 2</strong>: 기본적인 대화 연습 (기본 선택 난이도)</li>
-                <li>• <strong>Level 3</strong>: 논리적 근거와 설득력을 요구하는 도전 모드</li>
-                <li>• <strong>Level 4</strong>: 실전과 같은 압박감, 빠른 대응이 필요한 고급 모드</li>
+                <li>• <strong>Level 1</strong>: {t('admin.difficultySettings.guide.level1')}</li>
+                <li>• <strong>Level 2</strong>: {t('admin.difficultySettings.guide.level2')}</li>
+                <li>• <strong>Level 3</strong>: {t('admin.difficultySettings.guide.level3')}</li>
+                <li>• <strong>Level 4</strong>: {t('admin.difficultySettings.guide.level4')}</li>
               </ul>
               <p className="text-sm text-blue-600 mt-2">
-                변경된 설정은 새로 시작되는 대화부터 적용됩니다.
+                {t('admin.difficultySettings.guide.applyNote')}
               </p>
             </div>
           </div>

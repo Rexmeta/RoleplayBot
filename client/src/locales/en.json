@@ -652,7 +652,69 @@
       "title": "Difficulty Settings",
       "description": "Manage difficulty level settings.",
       "resetToDefault": "Reset to Default",
-      "saveSuccess": "Difficulty settings saved successfully."
+      "saveSuccess": "Difficulty settings saved successfully.",
+      "tabDescription": "Configure AI character's conversation style for each difficulty level. These settings apply to text, TTS, and real-time voice modes.",
+      "saveComplete": "Save Complete",
+      "saveCompleteDesc": "Difficulty settings have been saved.",
+      "saveFailed": "Save Failed",
+      "saveFailedDesc": "Failed to save difficulty settings.",
+      "resetComplete": "Reset Complete",
+      "resetCompleteDesc": "Difficulty settings have been restored to defaults.",
+      "resetFailed": "Reset Failed",
+      "resetFailedDesc": "Failed to reset settings.",
+      "form": {
+        "description": "Description",
+        "responseLength": "Response Length",
+        "tone": "Tone/Style",
+        "pressure": "Pressure Level",
+        "feedback": "Feedback Style",
+        "constraints": "Constraints",
+        "constraintsCount": "Constraints ({{count}})",
+        "addConstraint": "Add Constraint",
+        "moreConstraints": "+{{count}} more..."
+      },
+      "guide": {
+        "title": "Difficulty Settings Guide",
+        "level1": "Friendly tutorial mode for first-time users",
+        "level2": "Basic conversation practice (default difficulty)",
+        "level3": "Challenge mode requiring logical arguments and persuasion",
+        "level4": "Advanced mode with real-world pressure requiring quick responses",
+        "applyNote": "Changed settings will apply to new conversations."
+      },
+      "levels": {
+        "1": {
+          "name": "Beginner Difficulty",
+          "description": "Very friendly and safe practice conversation. Helps users feel comfortable even when making mistakes, suggesting correct answers or better expressions first.",
+          "responseLength": "2-3 sentences. Explain key points simply, rephrasing difficult expressions in easier terms.",
+          "tone": "Gentle and encouraging. Praise first even for mistakes, then softly suggest corrections.",
+          "pressure": "Almost no conflict or pressure. Only present everyday or low-risk situations.",
+          "feedback": "Explain first, then gently encourage participation."
+        },
+        "2": {
+          "name": "Basic Difficulty",
+          "description": "Friendly but realistic conversation. Users experience workplace-level feedback and light conflicts while practicing independent thinking.",
+          "responseLength": "2-4 sentences, clear and realistic.",
+          "tone": "Basically friendly but honestly points out issues when needed.",
+          "pressure": "Mild conflicts and pressure exist. Constantly reminds of realistic constraints.",
+          "feedback": "Provides explanations but accompanies questions to encourage self-reflection."
+        },
+        "3": {
+          "name": "Challenge Difficulty",
+          "description": "Conversation with workplace-level pressure and conflicts. Users must present in-depth judgment and logic to resolve situations.",
+          "responseLength": "3-5 sentences. Includes situation explanation + problem identification + additional demands.",
+          "tone": "Polite but objective and results-focused. Demands logic and evidence.",
+          "pressure": "Clear conflicts and moderate to high pressure.",
+          "feedback": "Specifically points out mistakes and omissions, requiring corrections and improvements."
+        },
+        "4": {
+          "name": "Extreme Difficulty",
+          "description": "Includes near-extreme crisis and conflict situations. Users must respond coolly under high pressure.",
+          "responseLength": "1-5 sentences. Direct when short, detailed strong demands when long.",
+          "tone": "Very demanding and direct, may feel cold at times.",
+          "pressure": "Maximum pressure and emotional tension.",
+          "feedback": "Immediate strong feedback on mistakes and contradictions. Retry demands are delivered with pressure."
+        }
+      }
     },
     "aiGenerator": {
       "title": "AI Scenario Generator",
