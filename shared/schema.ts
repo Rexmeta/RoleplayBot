@@ -143,6 +143,16 @@ export const mbtiPersonas = pgTable("mbti_personas", {
     volume?: string;
     pitch?: string;
   }>(), // 음성 특성
+  images: jsonb("images").$type<{
+    base?: string;
+    style?: string;
+    male?: {
+      expressions?: Record<string, string>;
+    };
+    female?: {
+      expressions?: Record<string, string>;
+    };
+  }>(), // 표정 이미지 데이터
   createdAt: timestamp("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
   updatedAt: timestamp("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`),
 });

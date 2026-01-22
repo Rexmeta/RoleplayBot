@@ -477,6 +477,7 @@ export class FileManagerService {
           background: personaData.background || null,
           communicationPatterns: personaData.communication_patterns || null,
           voice: personaData.voice || null,
+          images: personaData.images || null,
         });
         return personaData;
       }
@@ -515,6 +516,7 @@ export class FileManagerService {
           background: personaData.background,
           communicationPatterns: personaData.communication_patterns,
           voice: personaData.voice,
+          images: personaData.images,
         });
         return personaData;
       }
