@@ -4,6 +4,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import sharp from 'sharp';
 import { trackImageUsage } from '../services/aiUsageTracker';
+import { fileManager } from '../services/fileManager';
 
 // 이미지 최적화 설정
 const IMAGE_CONFIG = {
@@ -26,7 +27,7 @@ const router = Router();
 // 시나리오 이미지 생성 엔드포인트
 router.post('/generate-scenario-image', async (req, res) => {
   try {
-    const { scenarioTitle, description, theme, industry, customPrompt } = req.body;
+    const { scenarioId, scenarioTitle, description, theme, industry, customPrompt } = req.body;
 
     if (!scenarioTitle) {
       return res.status(400).json({ 
@@ -88,6 +89,19 @@ router.post('/generate-scenario-image', async (req, res) => {
       metadata: { type: 'scenario', scenarioTitle }
     });
 
+    // 시나리오 ID가 제공된 경우 데이터베이스에 이미지 URL 저장
+    if (scenarioId) {
+      try {
+        await fileManager.updateScenario(scenarioId, {
+          image: localImagePath,
+          imagePrompt: customPrompt || null
+        } as any);
+        console.log(`✅ 시나리오 이미지 URL 데이터베이스 저장 완료: ${scenarioId}`);
+      } catch (dbError) {
+        console.error('❌ 시나리오 이미지 URL 데이터베이스 저장 실패:', dbError);
+      }
+    }
+
     res.json({
       success: true,
       imageUrl: localImagePath, // 로컬 파일 경로 반환
@@ -96,7 +110,8 @@ router.post('/generate-scenario-image', async (req, res) => {
       metadata: {
         model: "gemini-2.5-flash-image",
         provider: "gemini",
-        savedLocally: true
+        savedLocally: true,
+        savedToDatabase: !!scenarioId
       }
     });
 

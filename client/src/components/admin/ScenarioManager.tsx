@@ -406,6 +406,7 @@ export function ScenarioManager() {
     setIsGeneratingImage(true);
     try {
       const response = await apiRequest('POST', '/api/image/generate-scenario-image', {
+        scenarioId: editingScenario?.id || undefined,
         scenarioTitle: formData.title,
         description: formData.description,
         customPrompt: formData.imagePrompt || undefined,
@@ -419,6 +420,9 @@ export function ScenarioManager() {
           title: t('admin.scenarioManager.toast.imageGenerated'),
           description: t('admin.scenarioManager.toast.imageGeneratedDesc'),
         });
+        if (editingScenario?.id) {
+          queryClient.invalidateQueries({ queryKey: ['/api/admin/scenarios'] });
+        }
       } else {
         throw new Error(data.error || t('admin.scenarioManager.toast.imageGenerateFailed', 'Image generation failed'));
       }
