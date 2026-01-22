@@ -42,6 +42,11 @@ Preferred communication style: Simple, everyday language.
 - **Data Persistence**: Scenarios and MBTI personas are stored in the PostgreSQL database to persist across Replit deployments. FileManagerService uses database as primary source with JSON file fallback.
 
 ## Features
+- **Comprehensive Persona Reflection**: AI conversations fully reflect persona definitions including:
+  - MBTI personality traits, communication style, motivation, fears
+  - Characteristic phrases (key_phrases) and argument response patterns (response_to_arguments)
+  - Personal values from background data
+  - Scenario-specific data: stance, goal, tradeoff (negotiation limits), experience, department
 - **4-Level Difficulty System**: Users select difficulty, influencing AI responses across all conversation modes.
 - **Analytics and Reporting**: Comprehensive user conversation history analytics including scores, category breakdowns, growth tracking, and pattern recognition. Uses a ComOn Check research-based 5-point scoring system (converted to 0-100).
 - **Real-time Emotion Analysis**: AI characters display emotions with visual indicators.
