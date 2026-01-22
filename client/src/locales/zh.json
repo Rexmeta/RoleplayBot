@@ -652,7 +652,69 @@
       "title": "难度设置",
       "description": "管理各难度级别的设置。",
       "resetToDefault": "恢复默认",
-      "saveSuccess": "难度设置已保存。"
+      "saveSuccess": "难度设置已保存。",
+      "tabDescription": "按难度级别设置AI角色的对话风格。此设置适用于文本、TTS和实时语音所有对话模式。",
+      "saveComplete": "保存成功",
+      "saveCompleteDesc": "对话难度设置已保存。",
+      "saveFailed": "保存失败",
+      "saveFailedDesc": "对话难度设置保存失败。",
+      "resetComplete": "重置成功",
+      "resetCompleteDesc": "对话难度设置已恢复为默认值。",
+      "resetFailed": "重置失败",
+      "resetFailedDesc": "重置失败。",
+      "form": {
+        "description": "描述",
+        "responseLength": "响应长度",
+        "tone": "语气/风格",
+        "pressure": "压力程度",
+        "feedback": "反馈方式",
+        "constraints": "约束条件",
+        "constraintsCount": "约束条件 ({{count}}个)",
+        "addConstraint": "添加约束条件",
+        "moreConstraints": "+{{count}}个..."
+      },
+      "guide": {
+        "title": "难度设置指南",
+        "level1": "为初次用户准备的友好教程模式",
+        "level2": "基本对话练习（默认难度）",
+        "level3": "需要逻辑论据和说服力的挑战模式",
+        "level4": "如实战般有压力、需要快速反应的高级模式",
+        "applyNote": "更改的设置将从新开始的对话生效。"
+      },
+      "levels": {
+        "1": {
+          "name": "入门难度",
+          "description": "非常友好安全的练习对话。帮助用户即使出错也不感到负担，先提供正确答案或更好的表达方式。",
+          "responseLength": "2-3句。简洁说明要点，用更简单的方式解释困难的表达。",
+          "tone": "温和且鼓励为主。即使出错也先表扬，然后温和地建议修正。",
+          "pressure": "几乎没有冲突和压力。只呈现日常或低风险情况。",
+          "feedback": "先解释，然后轻松地引导参与。"
+        },
+        "2": {
+          "name": "基础难度",
+          "description": "友好但现实的对话。用户体验职场级别的反馈和轻微冲突，同时练习独立思考。",
+          "responseLength": "2-4句，清晰且现实。",
+          "tone": "基本友好，但会诚实指出需要改进的地方。",
+          "pressure": "存在轻微冲突和压力。不断提醒现实约束。",
+          "feedback": "提供解释但伴随问题以鼓励自我反思。"
+        },
+        "3": {
+          "name": "挑战难度",
+          "description": "具有职场级别压力和冲突的对话。用户必须展示深入的判断和逻辑才能解决情况。",
+          "responseLength": "3-5句。包括情况说明+问题指出+额外要求。",
+          "tone": "礼貌但客观、注重结果。要求逻辑和证据。",
+          "pressure": "明确的冲突和中等以上压力。",
+          "feedback": "具体指出错误和遗漏，要求修正和改进。"
+        },
+        "4": {
+          "name": "极限难度",
+          "description": "包括接近极端的危机和冲突情况。用户必须冷静应对高压。",
+          "responseLength": "1-5句。简短时直接，较长时详细列出强烈要求。",
+          "tone": "非常苛刻和直接，有时可能感觉冷淡。",
+          "pressure": "最高级别的压力和情绪紧张。",
+          "feedback": "对错误和矛盾立即给出强烈反馈。重试要求也带有压力传达。"
+        }
+      }
     },
     "aiGenerator": {
       "title": "AI场景生成",
