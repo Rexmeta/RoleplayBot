@@ -213,6 +213,9 @@ export function PersonaManager() {
   // 개별 표정 이미지 생성 상태
   const [generatingSingleEmotion, setGeneratingSingleEmotion] = useState<string | null>(null);
   
+  // 이미지 로드 실패 상태 추적
+  const [failedImages, setFailedImages] = useState<Set<string>>(new Set());
+  
   // 쉼표로 구분된 입력 필드의 원시 텍스트 상태 (타이핑 중 쉼표 유지)
   const [rawInputs, setRawInputs] = useState({
     personality_traits: '',
@@ -426,6 +429,13 @@ export function PersonaManager() {
         updatedImages.base = imageUrlWithTimestamp;
         updatedFormData.images = updatedImages as any;
         setFormData(updatedFormData);
+        
+        // 기본 이미지(중립) 생성 성공 시 해당 실패 상태 제거
+        setFailedImages(prev => {
+          const newSet = new Set(prev);
+          newSet.delete('중립');
+          return newSet;
+        });
 
         // 자동 저장
         toast({
@@ -525,6 +535,9 @@ export function PersonaManager() {
 
         updatedFormData.images = updatedImages as any;
         setFormData(updatedFormData);
+        
+        // 모든 표정 이미지 생성 성공 시 실패 상태 초기화
+        setFailedImages(new Set());
 
         // 자동 저장
         toast({
@@ -596,6 +609,13 @@ export function PersonaManager() {
         
         updatedFormData.images = updatedImages as any;
         setFormData(updatedFormData);
+        
+        // 새 이미지 생성 성공 시 실패 상태 제거
+        setFailedImages(prev => {
+          const newSet = new Set(prev);
+          newSet.delete(emotion);
+          return newSet;
+        });
 
         toast({
           title: t('admin.personaManager.toast.saving'),
@@ -659,9 +679,11 @@ export function PersonaManager() {
       key_phrases: '',
       win_conditions: ''
     });
+    setFailedImages(new Set());
   };
 
   const handleEdit = (persona: MBTIPersona) => {
+    setFailedImages(new Set());
     setFormData({
       id: persona.id,
       mbti: persona.mbti,
@@ -1248,23 +1270,26 @@ export function PersonaManager() {
                     return (
                       <div key={emotion} className="flex flex-col items-center gap-1">
                         <div 
-                          className={`w-20 h-20 rounded-lg border-2 border-slate-200 overflow-hidden bg-slate-50 flex items-center justify-center ${imageUrl ? 'cursor-pointer hover:border-blue-400 transition-colors' : ''}`}
+                          className={`w-20 h-20 rounded-lg border-2 border-slate-200 overflow-hidden bg-slate-50 flex items-center justify-center ${imageUrl && !failedImages.has(emotion) ? 'cursor-pointer hover:border-blue-400 transition-colors' : ''}`}
                           onClick={() => {
-                            if (imageUrl) {
+                            if (imageUrl && !failedImages.has(emotion)) {
                               setViewingImage({ url: imageUrl, emotion });
                             }
                           }}
                         >
                           {isGenerating ? (
                             <RefreshCw className="w-5 h-5 text-slate-400 animate-spin" />
-                          ) : imageUrl ? (
+                          ) : imageUrl && !failedImages.has(emotion) ? (
                             <img 
                               src={imageUrl} 
                               alt={emotion} 
                               className="w-full h-full object-cover"
+                              onError={() => {
+                                setFailedImages(prev => new Set(prev).add(emotion));
+                              }}
                             />
                           ) : (
-                            <span className="text-xs text-slate-400">{t('admin.personaManager.image.noImage')}</span>
+                            <span className="text-xs text-slate-400 text-center px-1">{t('admin.personaManager.image.noImage')}</span>
                           )}
                         </div>
                         <div className="flex items-center gap-1">
