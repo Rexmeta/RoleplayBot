@@ -66,7 +66,7 @@ export const scenarios = pgTable("scenarios", {
   id: varchar("id").primaryKey(), // 시나리오 ID (예: "골든타임-4시간-긴급-2025-12-17T22-43-28")
   title: text("title").notNull(),
   description: text("description").notNull(),
-  difficulty: integer("difficulty").notNull().default(2), // 1-4 난이도
+  difficulty: integer("difficulty").notNull().default(4), // 1-4 난이도, 기본값 4로 변경
   estimatedTime: text("estimated_time"), // 예: "60-90분"
   skills: text("skills").array(), // 주요 역량 배열
   categoryId: varchar("category_id").references(() => categories.id),

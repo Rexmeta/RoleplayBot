@@ -84,7 +84,7 @@ export function ScenarioManager() {
   const [formData, setFormData] = useState<ScenarioFormData>({
     title: '',
     description: '',
-    difficulty: 2, // 기본값으로 고정 (유저가 시나리오 상세 화면에서 선택)
+    difficulty: 4, // 기본값을 4로 설정 (최고 난이도)
     estimatedTime: '',
     skills: [],
     categoryId: '', // 카테고리 ID 초기값 추가
@@ -176,7 +176,7 @@ export function ScenarioManager() {
     setFormData({
       title: scenario.title || '',
       description: scenario.description || '',
-      difficulty: 2, // 난이도는 항상 기본값으로 고정
+      difficulty: 4, // 기본값을 4로 설정 (최고 난이도)
       estimatedTime: scenario.estimatedTime || '',
       skills: scenario.skills || [],
       categoryId: scenario.categoryId ? String(scenario.categoryId) : '',
@@ -321,7 +321,7 @@ export function ScenarioManager() {
     setFormData({
       title: scenario.title,
       description: scenario.description,
-      difficulty: 2, // 난이도는 항상 기본값으로 고정 (유저가 대화 시작 시 선택)
+      difficulty: 4, // 기본값을 4로 설정 (최고 난이도)
       estimatedTime: scenario.estimatedTime,
       skills: scenario.skills,
       categoryId: (scenario as any).categoryId ? String((scenario as any).categoryId) : '', // 기존 시나리오의 카테고리 ID 로드
