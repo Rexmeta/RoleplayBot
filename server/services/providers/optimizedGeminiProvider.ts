@@ -197,6 +197,11 @@ export class OptimizedGeminiProvider implements AIServiceInterface {
     const stance = (persona as any).stance || '신중한 접근';
     const goal = (persona as any).goal || '최적의 결과 도출';
     
+    // 시나리오별 페르소나 추가 정보
+    const tradeoff = (persona as any).tradeoff || '';
+    const experience = (persona as any).experience || '';
+    const department = (persona as any).department || '';
+    
     // 성격 특성 준비
     const personalityTraits = mbtiData?.personality_traits 
       ? mbtiData.personality_traits.join(', ')
@@ -236,6 +241,37 @@ ${fears ? `- 당신이 두려워하는 것: ${fears}` : ''}
 - 놀랄 때: ${reactionPhrases.surprise?.slice(0, 2).join(', ') || '어머, 정말요?'}
 - 생각할 때: ${reactionPhrases.thinking?.slice(0, 2).join(', ') || '음...'}` : '';
     
+    // 의사소통 패턴 (key_phrases, response_to_arguments) 준비
+    const communicationPatterns = mbtiData?.communication_patterns;
+    const keyPhrasesGuide = communicationPatterns?.key_phrases?.length ? `
+**특징적 표현 (대화에 자연스럽게 사용할 것)**:
+${communicationPatterns.key_phrases.map((phrase: string) => `- "${phrase}"`).join('\n')}` : '';
+    
+    const responseToArgumentsGuide = communicationPatterns?.response_to_arguments ? `
+**상황별 대응 방식**:
+${Object.entries(communicationPatterns.response_to_arguments).map(([argType, response]) => 
+  `- ${argType}에 대해: "${response}"`).join('\n')}` : '';
+    
+    // 배경 정보 (personal_values) 준비
+    const background = mbtiData?.background;
+    const personalValuesGuide = background?.personal_values?.length ? `
+**핵심 가치관 (대화 판단 기준)**:
+${background.personal_values.map((value: string) => `- ${value}`).join(', ')}
+- 이 가치관과 충돌하는 제안에는 불편함을 표현하세요` : '';
+    
+    // 협상 가능 범위 (시나리오별 tradeoff)
+    const tradeoffGuide = tradeoff ? `
+**협상/타협 가능 범위**:
+${tradeoff}
+- 이 범위 내에서는 유연하게 대응하되, 범위를 넘어서는 요구에는 명확히 선을 그으세요` : '';
+    
+    // 경력 및 부서 정보
+    const experienceGuide = (experience || department) ? `
+**직업적 배경**:
+${department ? `- 소속: ${department}` : ''}
+${experience ? `- 경력: ${experience}` : ''}
+- 이 경력과 전문성이 대화 톤과 자신감에 반영되어야 합니다` : '';
+    
     // 의사소통 스타일 상세 가이드 (행동 지침으로 변환)
     const communicationBehaviorGuide = `
 **의사소통 행동 지침 (반드시 따를 것)**:
@@ -261,10 +297,15 @@ ${communicationStyle}
 목표: ${objectives}
 당신의 입장: ${stance}
 당신의 목표: ${goal}
+${experienceGuide}
+${personalValuesGuide}
+${tradeoffGuide}
 
 **핵심 성격 특성**: ${personalityTraits}
 ${psychologicalGuide}
 ${communicationBehaviorGuide}
+${keyPhrasesGuide}
+${responseToArgumentsGuide}
 ${speechStyleGuide}
 ${reactionGuide}
 
@@ -276,9 +317,11 @@ ${conversationHistory ? `이전 대화:\n${conversationHistory}\n` : ''}
 1. 위에 명시된 성격 특성, 심리적 동기, 의사소통 스타일을 반드시 대화에 반영하세요
 2. 당신의 "두려움"과 관련된 상황이 발생하면 방어적/저항적으로 반응하세요
 3. 당신의 "동기"와 충돌하는 제안에는 거부감이나 저항을 보이세요
-4. 딱딱한 문어체가 아닌, 실제 대화처럼 자연스러운 구어체를 사용하세요
-5. 감탄사나 짧은 리액션 후에 본론을 말하세요
-6. 위 대화 난이도 설정을 정확히 따르세요
+4. **특징적 표현**을 대화에 자연스럽게 녹여서 사용하세요
+5. **협상 가능 범위** 내에서만 유연하게 대응하고, 범위를 넘는 요구는 거절하세요
+6. 딱딱한 문어체가 아닌, 실제 대화처럼 자연스러운 구어체를 사용하세요
+7. 감탄사나 짧은 리액션 후에 본론을 말하세요
+8. 위 대화 난이도 설정을 정확히 따르세요
 
 **중요 언어 지시**: ${languageInstruction}
 
