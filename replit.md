@@ -70,3 +70,16 @@ Preferred communication style: Simple, everyday language.
 - **Database**: Drizzle ORM.
 - **Validation**: Zod.
 - **Development Tools**: Vite, TypeScript, Tailwind CSS.
+
+# Maintenance Scripts
+
+## Persona Image Sync
+When persona expression images exist in the file system (`attached_assets/personas/{personaId}/{gender}/*.webp`) but are missing from the database `images` JSONB column, run:
+```bash
+npx tsx server/scripts/syncPersonaImages.ts
+```
+This script:
+- Scans `attached_assets/personas/` for webp image files
+- Maps English filenames (angry, anxious, neutral, etc.) to Korean emotion names (분노, 불안, 중립, etc.)
+- Updates the `mbti_personas.images` JSONB column with proper URLs
+- Skips personas that already have valid image data in the database
