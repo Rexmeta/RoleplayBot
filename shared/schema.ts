@@ -270,6 +270,7 @@ export const chatMessages = pgTable("chat_messages", {
   message: text("message").notNull(),
   emotion: text("emotion"), // AI 감정 (😊, 😢, 😠, 😲, 😐)
   emotionReason: text("emotion_reason"), // 감정 이유
+  interrupted: boolean("interrupted").default(false), // AI 발화가 사용자에 의해 중단됨 (barge-in)
   createdAt: timestamp("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
 }, (table) => [
   index("idx_chat_messages_persona_run_id").on(table.personaRunId),
@@ -282,6 +283,7 @@ export type ConversationMessage = {
   emotion?: string;
   emotionReason?: string;
   personaId?: string; // 다중 페르소나 대화용
+  interrupted?: boolean; // AI 발화가 사용자에 의해 중단됨 (barge-in)
 };
 
 export type EvaluationScore = {

@@ -393,7 +393,7 @@ JSON 형식으로 응답:
         durationMs: totalTime,
       });
       
-      return this.parseFeedbackResponse(responseText, conversation, evaluationCriteria);
+      return this.parseFeedbackResponse(responseText, messages, conversation, evaluationCriteria);
 
     } catch (error) {
       console.error("Optimized feedback error:", error);
@@ -405,33 +405,121 @@ JSON 형식으로 응답:
    * 상세 피드백 프롬프트 (행동가이드, 대화가이드, 개발계획 포함)
    * 동적 평가 기준 지원
    */
+  /**
+   * 비언어적 표현 분석 결과 타입
+   */
+  private analyzeNonVerbalPatterns(userMessages: ConversationMessage[]): {
+    count: number;
+    patterns: string[];
+    penaltyPoints: number;
+  } {
+    const nonVerbalPatterns: string[] = [];
+    let penaltyPoints = 0;
+    
+    userMessages.forEach(msg => {
+      const text = msg.message.trim().toLowerCase();
+      if (text.length < 3) {
+        nonVerbalPatterns.push(`짧은 응답: "${msg.message}"`);
+        penaltyPoints += 2; // 짧은 응답 -2점
+      } else if (text === '...' || text.match(/^\.+$/)) {
+        nonVerbalPatterns.push(`침묵 표시: "${msg.message}"`);
+        penaltyPoints += 3; // 침묵 -3점
+      } else if (text.match(/^(음+|어+|그+|아+|uh+|um+|hmm+|흠+)\.*/i)) {
+        nonVerbalPatterns.push(`비언어적 표현: "${msg.message}"`);
+        penaltyPoints += 2; // 비언어적 표현 -2점
+      } else if (text === '침묵' || text === 'skip' || text === '스킵') {
+        nonVerbalPatterns.push(`스킵: "${msg.message}"`);
+        penaltyPoints += 5; // 스킵 -5점
+      }
+    });
+    
+    return {
+      count: nonVerbalPatterns.length,
+      patterns: nonVerbalPatterns,
+      penaltyPoints: Math.min(penaltyPoints, 20) // 최대 20점 감점
+    };
+  }
+
+  /**
+   * 말 끊기(Barge-in) 분석 결과 타입
+   */
+  private analyzeBargeIn(messages: ConversationMessage[]): {
+    count: number;
+    contexts: Array<{ aiMessage: string; userMessage: string; assessment: 'positive' | 'negative' | 'neutral' }>;
+    netScoreAdjustment: number;
+  } {
+    const contexts: Array<{ aiMessage: string; userMessage: string; assessment: 'positive' | 'negative' | 'neutral' }> = [];
+    let positiveCount = 0;
+    let negativeCount = 0;
+    
+    // 중단된 AI 메시지 찾기
+    messages.forEach((msg, idx) => {
+      if (msg.sender === 'ai' && msg.interrupted) {
+        const nextUserMsg = messages[idx + 1];
+        if (nextUserMsg && nextUserMsg.sender === 'user') {
+          const aiText = msg.message;
+          const userText = nextUserMsg.message;
+          
+          // 상황별 평가
+          let assessment: 'positive' | 'negative' | 'neutral' = 'neutral';
+          
+          // AI가 질문하는 중 끊음 → 경청 부족 (부정적)
+          if (aiText.includes('?') || aiText.match(/어떻|무엇|왜|어디|누가|언제|how|what|why|where|who|when/i)) {
+            assessment = 'negative';
+            negativeCount++;
+          }
+          // 사용자가 적극적인 응답으로 끊음 → 적극적 참여 (긍정적)
+          else if (userText.length > 30 && !userText.match(/^(네|아니|음|어|uh|um)/i)) {
+            assessment = 'positive';
+            positiveCount++;
+          }
+          // 단순한 끊기 → 중립
+          else {
+            assessment = 'neutral';
+          }
+          
+          contexts.push({
+            aiMessage: aiText.substring(0, 100) + (aiText.length > 100 ? '...' : ''),
+            userMessage: userText.substring(0, 100) + (userText.length > 100 ? '...' : ''),
+            assessment
+          });
+        }
+      }
+    });
+    
+    // 순 점수 조정: 긍정적 +2점, 부정적 -3점
+    const netScoreAdjustment = (positiveCount * 2) - (negativeCount * 3);
+    
+    return {
+      count: contexts.length,
+      contexts,
+      netScoreAdjustment: Math.max(-15, Math.min(10, netScoreAdjustment)) // -15 ~ +10 범위 제한
+    };
+  }
+
   private buildCompactFeedbackPrompt(scenario: string, messages: ConversationMessage[], persona: ScenarioPersona, conversation?: Partial<import("@shared/schema").Conversation>, evaluationCriteria?: EvaluationCriteriaWithDimensions, language: SupportedLanguage = 'ko'): string {
     const languageInstruction = LANGUAGE_INSTRUCTIONS[language] || LANGUAGE_INSTRUCTIONS.ko;
     // 사용자 메시지만 필터링하여 평가 대상으로 설정
     const userMessages = messages.filter(msg => msg.sender === 'user');
     
     // 전체 대화 맥락 (AI 응답 포함) - 참고용으로만 사용
-    const fullConversationContext = messages.map((msg, idx) => 
-      `${idx + 1}. ${msg.sender === 'user' ? '사용자' : persona.name}: ${msg.message}`
-    ).join('\n');
+    const fullConversationContext = messages.map((msg, idx) => {
+      const interruptedMarker = msg.interrupted ? ' [중단됨]' : '';
+      return `${idx + 1}. ${msg.sender === 'user' ? '사용자' : persona.name}${interruptedMarker}: ${msg.message}`;
+    }).join('\n');
     
     // 사용자 발화만 별도로 표시 (평가 대상)
     const userMessagesText = userMessages.map((msg, idx) => 
       `${idx + 1}. 사용자: ${msg.message}`
     ).join('\n');
 
-    // 비언어적 표현 및 스킵 감지
-    const nonVerbalPatterns = userMessages.filter(msg => {
-      const text = msg.message.trim().toLowerCase();
-      return text.length < 3 || 
-             text === '...' || 
-             text.match(/^(음+|어+|그+|아+|uh+|um+|hmm+)\.*/i) ||
-             text === '침묵' ||
-             text === 'skip' ||
-             text === '스킵';
-    });
-
-    const hasNonVerbalIssues = nonVerbalPatterns.length > 0;
+    // 비언어적 표현 분석 (개선된 버전)
+    const nonVerbalAnalysis = this.analyzeNonVerbalPatterns(userMessages);
+    const hasNonVerbalIssues = nonVerbalAnalysis.count > 0;
+    
+    // 말 끊기(Barge-in) 분석
+    const bargeInAnalysis = this.analyzeBargeIn(messages);
+    const hasBargeInIssues = bargeInAnalysis.count > 0;
 
     // 전략 회고가 있는 경우 추가 평가 수행
     const hasStrategyReflection = conversation?.strategyReflection && conversation?.conversationOrder;
@@ -488,8 +576,12 @@ ${fullConversationContext}
 **평가 대상 - 사용자 발화만**:
 ${userMessagesText}
 
-${hasNonVerbalIssues ? `\n⚠️ 비언어적 표현 감지: ${nonVerbalPatterns.length}개의 비언어적/무의미한 응답 발견 ("...", "음...", "침묵", 짧은 응답 등)
-이러한 응답들은 의사소통 능력에 네가티브한 영향을 미치므로 점수를 낮춰야 합니다.\n` : ''}
+${hasNonVerbalIssues ? `\n⚠️ 비언어적 표현 감지: ${nonVerbalAnalysis.count}개 발견
+${nonVerbalAnalysis.patterns.map(p => `  - ${p}`).join('\n')}
+→ 자동 감점: -${nonVerbalAnalysis.penaltyPoints}점 (시스템이 별도 적용)\n` : ''}
+${hasBargeInIssues ? `\n🎤 말 끊기(Barge-in) 감지: ${bargeInAnalysis.count}회 발생
+${bargeInAnalysis.contexts.map(c => `  - [${c.assessment === 'positive' ? '✅ 적극적 참여' : c.assessment === 'negative' ? '❌ 경청 부족' : '➖ 중립'}] AI: "${c.aiMessage}" → 사용자: "${c.userMessage}"`).join('\n')}
+→ 순 점수 조정: ${bargeInAnalysis.netScoreAdjustment >= 0 ? '+' : ''}${bargeInAnalysis.netScoreAdjustment}점 (시스템이 별도 적용)\n` : ''}
 ${strategySection}
 
 **평가 기준**:
@@ -497,6 +589,7 @@ ${strategySection}
 - 비언어적 표현("...", "음...", "침묵")은 명확성과 설득력 점수를 크게 낮춥니다
 - 매우 짧거나 무의미한 응답은 점수를 낮춥니다
 - 스킵한 대화는 참여도와 전략적 커뮤니케이션 점수를 낮춥니다
+- 말 끊기(Barge-in) 평가: AI 질문 중 끊기는 경청 부족, 적극적 발언으로 끊기는 참여도 가점
 
 **평가 영역** (1-5점):
 ${dimensionsList}
@@ -536,9 +629,9 @@ JSON 형식${hasStrategyReflection ? ' (sequenceAnalysis 포함)' : ''}:
   }
 
   /**
-   * 피드백 응답 파싱 (동적 평가 기준 지원)
+   * 피드백 응답 파싱 (동적 평가 기준 지원 + 자동 감점 적용)
    */
-  private parseFeedbackResponse(responseText: string, conversation?: Partial<import("@shared/schema").Conversation>, evaluationCriteria?: EvaluationCriteriaWithDimensions): DetailedFeedback {
+  private parseFeedbackResponse(responseText: string, messages: ConversationMessage[], conversation?: Partial<import("@shared/schema").Conversation>, evaluationCriteria?: EvaluationCriteriaWithDimensions): DetailedFeedback {
     try {
       // 빈 응답이나 JSON이 아닌 응답 처리
       if (!responseText || responseText.trim() === '' || responseText === '{}') {
@@ -578,11 +671,45 @@ JSON 형식${hasStrategyReflection ? ' (sequenceAnalysis 포함)' : ''}:
       
       const scores = parsed.scores || this.getDefaultScores(evaluationCriteria);
       
+      // AI가 계산한 기본 점수
+      let baseOverallScore = this.calculateWeightedOverallScore(scores, evaluationCriteria);
+      
+      // 자동 감점/가점 적용
+      const userMessages = messages.filter(msg => msg.sender === 'user');
+      const nonVerbalAnalysis = this.analyzeNonVerbalPatterns(userMessages);
+      const bargeInAnalysis = this.analyzeBargeIn(messages);
+      
+      // 점수 조정 계산
+      const totalAdjustment = -nonVerbalAnalysis.penaltyPoints + bargeInAnalysis.netScoreAdjustment;
+      const adjustedScore = Math.max(0, Math.min(100, baseOverallScore + totalAdjustment));
+      
+      // 로깅
+      if (totalAdjustment !== 0) {
+        console.log(`📊 점수 자동 조정: ${baseOverallScore} → ${adjustedScore}`);
+        console.log(`   - 비언어적 표현 감점: -${nonVerbalAnalysis.penaltyPoints}점 (${nonVerbalAnalysis.count}개)`);
+        console.log(`   - 말 끊기 조정: ${bargeInAnalysis.netScoreAdjustment >= 0 ? '+' : ''}${bargeInAnalysis.netScoreAdjustment}점 (${bargeInAnalysis.count}회)`);
+      }
+      
+      // 개선사항에 자동 감점 관련 피드백 추가
+      let improvements = parsed.improvements || ["더 구체적인 표현"];
+      if (nonVerbalAnalysis.count > 0) {
+        improvements = [
+          `비언어적 표현(${nonVerbalAnalysis.count}개)을 줄이고 명확하게 표현하세요`,
+          ...improvements
+        ];
+      }
+      if (bargeInAnalysis.contexts.filter(c => c.assessment === 'negative').length > 0) {
+        improvements = [
+          `상대방의 질문에 끝까지 경청한 후 응답하세요`,
+          ...improvements
+        ];
+      }
+      
       const feedback: DetailedFeedback = {
-        overallScore: this.calculateWeightedOverallScore(scores, evaluationCriteria),
+        overallScore: adjustedScore,
         scores: scores,
         strengths: parsed.strengths || ["대화 참여"],
-        improvements: parsed.improvements || ["더 구체적인 표현"],
+        improvements: improvements,
         nextSteps: parsed.nextSteps || ["연습 지속"],
         summary: parsed.summary || "전반적으로 무난한 대화",
         conversationDuration: parsed.conversationDuration || 10,
