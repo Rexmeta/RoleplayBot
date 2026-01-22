@@ -202,6 +202,22 @@ export class OptimizedGeminiProvider implements AIServiceInterface {
       ? mbtiData.personality_traits.join(', ')
       : '균형 잡힌 성격';
     
+    // 의사소통 스타일 (상세하게)
+    const communicationStyle = mbtiData?.communication_style || '균형 잡힌 의사소통';
+    
+    // 동기와 두려움 (성격 차이에 핵심적인 요소)
+    const motivation = mbtiData?.motivation || '';
+    const fears = mbtiData?.fears ? (Array.isArray(mbtiData.fears) ? mbtiData.fears.join(', ') : mbtiData.fears) : '';
+    
+    // 심리적 동기 가이드 (성격 차이를 드러내는 핵심)
+    const psychologicalGuide = (motivation || fears) ? `
+**심리적 동기 (대화에 반드시 반영할 것)**:
+${motivation ? `- 당신이 원하는 것: ${motivation}` : ''}
+${fears ? `- 당신이 두려워하는 것: ${fears}` : ''}
+- 이 동기와 두려움이 모든 대화 반응에 자연스럽게 드러나야 합니다
+- 두려움과 관련된 상황이 발생하면 방어적/경계적/회피적으로 반응하세요
+- 동기와 부합하는 제안에는 긍정적으로, 동기와 충돌하는 제안에는 저항적으로 반응하세요` : '';
+    
     // 구어체 스타일 준비
     const speechStyle = mbtiData?.speech_style;
     const speechStyleGuide = speechStyle ? `
@@ -220,6 +236,19 @@ export class OptimizedGeminiProvider implements AIServiceInterface {
 - 놀랄 때: ${reactionPhrases.surprise?.slice(0, 2).join(', ') || '어머, 정말요?'}
 - 생각할 때: ${reactionPhrases.thinking?.slice(0, 2).join(', ') || '음...'}` : '';
     
+    // 의사소통 스타일 상세 가이드 (행동 지침으로 변환)
+    const communicationBehaviorGuide = `
+**의사소통 행동 지침 (반드시 따를 것)**:
+${communicationStyle}
+
+위 의사소통 스타일을 다음과 같이 구체적으로 실행하세요:
+- "명령조" 스타일이면: "~하세요", "~해야 합니다", "당연히~" 등의 표현 사용
+- "형식적/정중" 스타일이면: "~인 것 같습니다", "확인이 필요할 것 같은데요" 등 완곡한 표현 사용
+- "직설적" 스타일이면: 돌려 말하지 않고 핵심을 바로 말하기
+- "침묵을 압박 수단으로" 사용한다면: 대화 중 "..." 또는 "(잠시 침묵)" 후 말하기
+- "두괄식" 스타일이면: 결론을 먼저 말하고 이유는 나중에
+- "질문으로 압박" 스타일이면: "그게 맞습니까?", "근거가 있습니까?" 등 추궁형 질문 사용`;
+    
     // 대화 난이도 레벨 가져오기 (사용자가 선택한 난이도 사용, 기본값 2)
     const difficultyLevel = validateDifficultyLevel(scenario.difficulty);
     console.log(`🎯 대화 난이도: Level ${difficultyLevel} (사용자 선택)`)
@@ -233,8 +262,9 @@ export class OptimizedGeminiProvider implements AIServiceInterface {
 당신의 입장: ${stance}
 당신의 목표: ${goal}
 
-성격 특성: ${personalityTraits}
-의사소통 스타일: ${mbtiData?.communication_style || '균형 잡힌 의사소통'}
+**핵심 성격 특성**: ${personalityTraits}
+${psychologicalGuide}
+${communicationBehaviorGuide}
 ${speechStyleGuide}
 ${reactionGuide}
 
@@ -242,14 +272,13 @@ ${difficultyGuidelines}
 
 ${conversationHistory ? `이전 대화:\n${conversationHistory}\n` : ''}
 
-역할:
-- ${persona.name}의 관점에서 자연스럽게 대화하세요
-- 딱딱한 문어체가 아닌, 실제 대화처럼 자연스러운 구어체를 사용하세요
-- 감탄사나 짧은 리액션(예: "아~", "음...", "그렇군요") 후에 본론을 말하세요
-- 위 말투 스타일과 리액션 표현을 적극 활용하세요
-- 위 성격 특성과 의사소통 스타일을 반영하여 대화하세요
-- 위 대화 난이도 설정(응답 길이, 말투, 압박감, 제약사항)을 정확히 따라주세요
-- 난이도가 낮으면 친절하고 격려적으로, 난이도가 높으면 압박적이고 비판적으로 대응하세요
+**역할 수행 필수 사항**:
+1. 위에 명시된 성격 특성, 심리적 동기, 의사소통 스타일을 반드시 대화에 반영하세요
+2. 당신의 "두려움"과 관련된 상황이 발생하면 방어적/저항적으로 반응하세요
+3. 당신의 "동기"와 충돌하는 제안에는 거부감이나 저항을 보이세요
+4. 딱딱한 문어체가 아닌, 실제 대화처럼 자연스러운 구어체를 사용하세요
+5. 감탄사나 짧은 리액션 후에 본론을 말하세요
+6. 위 대화 난이도 설정을 정확히 따르세요
 
 **중요 언어 지시**: ${languageInstruction}
 
