@@ -19,14 +19,16 @@ if (!apiKey) {
 
 const genAI = new GoogleGenAI({ apiKey });
 
-async function translateJapaneseToKorean(text: string): Promise<string> {
+async function translateToKorean(text: string, sourceLang: string): Promise<string> {
   if (!text || text.trim() === "") return text;
   
-  const prompt = `Translate the following Japanese text to natural Korean. 
+  const langName = sourceLang === 'ja' ? 'Japanese' : sourceLang === 'zh' ? 'Chinese' : 'English';
+  
+  const prompt = `Translate the following ${langName} text to natural Korean. 
 This is content for a workplace training scenario, so use appropriate business Korean.
 Only return the translated text, nothing else.
 
-Japanese text:
+${langName} text:
 ${text}`;
 
   const result = await genAI.models.generateContent({
@@ -36,7 +38,7 @@ ${text}`;
   return (result.text || "").trim();
 }
 
-async function translateArrayToKorean(arr: unknown): Promise<string[] | null> {
+async function translateArrayToKorean(arr: unknown, sourceLang: string): Promise<string[] | null> {
   if (!arr) return null;
   
   let items: string[] = [];
@@ -62,58 +64,58 @@ async function translateArrayToKorean(arr: unknown): Promise<string[] | null> {
   if (items.length === 0) return null;
   
   const translated = await Promise.all(
-    items.map(item => translateJapaneseToKorean(String(item)))
+    items.map(item => translateToKorean(String(item), sourceLang))
   );
   
   return translated;
 }
 
-async function restoreScenario(scenarioId: string) {
-  console.log(`\n=== Processing scenario: ${scenarioId} ===`);
+async function restoreScenario(scenarioId: string, sourceLang: string) {
+  console.log(`\n=== Processing scenario: ${scenarioId} (from ${sourceLang}) ===`);
   
-  const jaTranslation = await db.select().from(scenarioTranslations)
+  const sourceTranslation = await db.select().from(scenarioTranslations)
     .where(and(
       eq(scenarioTranslations.scenarioId, scenarioId),
-      eq(scenarioTranslations.locale, "ja")
+      eq(scenarioTranslations.locale, sourceLang)
     ));
   
-  if (!jaTranslation || jaTranslation.length === 0) {
-    console.log(`No Japanese translation found for ${scenarioId}`);
+  if (!sourceTranslation || sourceTranslation.length === 0) {
+    console.log(`No ${sourceLang} translation found for ${scenarioId}`);
     return null;
   }
   
-  const ja = jaTranslation[0];
-  console.log(`Found Japanese translation: ${ja.title}`);
+  const source = sourceTranslation[0];
+  console.log(`Found ${sourceLang} translation: ${source.title}`);
   
   console.log("Translating title...");
-  const koTitle = await translateJapaneseToKorean(ja.title || "");
+  const koTitle = await translateToKorean(source.title || "", sourceLang);
   console.log(`  -> ${koTitle}`);
   
   console.log("Translating description...");
-  const koDescription = await translateJapaneseToKorean(ja.description || "");
+  const koDescription = await translateToKorean(source.description || "", sourceLang);
   console.log(`  -> ${koDescription.substring(0, 50)}...`);
   
   console.log("Translating situation...");
-  const koSituation = await translateJapaneseToKorean(ja.situation || "");
+  const koSituation = await translateToKorean(source.situation || "", sourceLang);
   
   console.log("Translating player role...");
-  const koPlayerRole = await translateJapaneseToKorean(ja.playerRole || "");
+  const koPlayerRole = await translateToKorean(source.playerRole || "", sourceLang);
   
   console.log("Translating objectives...");
-  const koObjectivesArr = await translateArrayToKorean(ja.objectives);
-  const koObjectives = koObjectivesArr || (ja.objectives as string[] | null);
+  const koObjectivesArr = await translateArrayToKorean(source.objectives, sourceLang);
+  const koObjectives = koObjectivesArr || (source.objectives as string[] | null);
   
   console.log("Translating timeline...");
-  const koTimeline = await translateJapaneseToKorean(ja.timeline || "");
+  const koTimeline = await translateToKorean(source.timeline || "", sourceLang);
   
   console.log("Translating stakes...");
-  const koStakes = await translateJapaneseToKorean(ja.stakes || "");
+  const koStakes = await translateToKorean(source.stakes || "", sourceLang);
   
   console.log("Translating success criteria...");
-  const koOptimal = await translateJapaneseToKorean(ja.successCriteriaOptimal || "");
-  const koGood = await translateJapaneseToKorean(ja.successCriteriaGood || "");
-  const koAcceptable = await translateJapaneseToKorean(ja.successCriteriaAcceptable || "");
-  const koFailure = await translateJapaneseToKorean(ja.successCriteriaFailure || "");
+  const koOptimal = await translateToKorean(source.successCriteriaOptimal || "", sourceLang);
+  const koGood = await translateToKorean(source.successCriteriaGood || "", sourceLang);
+  const koAcceptable = await translateToKorean(source.successCriteriaAcceptable || "", sourceLang);
+  const koFailure = await translateToKorean(source.successCriteriaFailure || "", sourceLang);
   
   console.log("Updating Korean translation in database...");
   await db.update(scenarioTranslations)
@@ -151,17 +153,18 @@ async function restoreScenario(scenarioId: string) {
 }
 
 async function main() {
-  const scenariosToRestore = [
-    "launch-6주-대형-2025-12-17T04-51-16"
+  const scenariosToRestore: { id: string, sourceLang: string }[] = [
+    { id: "new-product-론칭-임박-2025-11-18T04-43-28", sourceLang: "en" },
+    { id: "코드-리뷰-터진-2026-01-21T04-34-21", sourceLang: "en" }
   ];
   
-  console.log("Starting Korean original restoration from Japanese translations...\n");
+  console.log("Starting Korean restoration from English translations...\n");
   
-  for (const scenarioId of scenariosToRestore) {
+  for (const { id, sourceLang } of scenariosToRestore) {
     try {
-      await restoreScenario(scenarioId);
+      await restoreScenario(id, sourceLang);
     } catch (error) {
-      console.error(`Error restoring ${scenarioId}:`, error);
+      console.error(`Error restoring ${id}:`, error);
     }
   }
   
