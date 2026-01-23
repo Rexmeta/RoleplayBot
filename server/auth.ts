@@ -7,6 +7,11 @@ import { z } from "zod";
 // JWT_SECRET 필수 - 환경 변수가 없으면 서버 시작 시 에러 발생
 const JWT_SECRET = process.env.JWT_SECRET;
 if (!JWT_SECRET) {
+  console.error("⛔ CRITICAL: JWT_SECRET environment variable is required.");
+  console.error("📋 For local development: Copy .env.example to .env and set JWT_SECRET");
+  console.error("☁️  For Cloud Run deployment: Set JWT_SECRET using Secret Manager or environment variables");
+  console.error("   Example: gcloud run services update SERVICE_NAME --set-env-vars JWT_SECRET=your-secret-key");
+  console.error("   Or use Secret Manager: gcloud secrets create jwt-secret --data-file=-");
   throw new Error("⛔ CRITICAL: JWT_SECRET environment variable is required. Server cannot start without it.");
 }
 const JWT_EXPIRES_IN = "7d"; // 7일
