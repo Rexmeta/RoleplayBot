@@ -422,7 +422,7 @@ export function EvaluationCriteriaManager() {
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <div>
-          <h2 className="text-2xl font-bold">{t('admin.evaluationCriteria')}</h2>
+          <h2 className="text-2xl font-bold">{t('admin.evaluationCriteria.title')}</h2>
           <p className="text-slate-600">사용자 대화 피드백에 사용될 평가 기준을 설정합니다.</p>
         </div>
         <Button onClick={() => { resetFormData(); setIsCreateDialogOpen(true); }}>

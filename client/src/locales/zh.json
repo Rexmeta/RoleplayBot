@@ -237,7 +237,6 @@
     "personas": "角色管理",
     "categories": "分类管理",
     "settings": "系统设置",
-    "evaluationCriteria": "评估标准",
     "difficultySettings": "难度设置",
     "aiUsage": "AI使用量",
     "translations": "翻译管理",
@@ -638,15 +637,6 @@
         "projectsPrefix": "主要项目：",
         "expertisePrefix": "专业领域："
       }
-    },
-    "evaluationCriteria": {
-      "title": "评价标准管理",
-      "description": "创建、编辑和删除评价标准集。",
-      "newCriteriaSet": "新建评价标准集",
-      "createFirstSet": "创建第一个评价标准集",
-      "deleteConfirm": "确定要删除此评价标准集吗？",
-      "deleteSuccess": "评价标准集已删除。",
-      "saveSuccess": "评价标准集已保存。"
     },
     "difficultySettings": {
       "title": "难度设置",

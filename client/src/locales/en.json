@@ -237,7 +237,6 @@
     "personas": "Persona Management",
     "categories": "Category Management",
     "settings": "System Settings",
-    "evaluationCriteria": "Evaluation Criteria",
     "difficultySettings": "Difficulty Settings",
     "aiUsage": "AI Usage",
     "translations": "Translation Management",
@@ -638,15 +637,6 @@
         "projectsPrefix": "Major Projects: ",
         "expertisePrefix": "Expertise: "
       }
-    },
-    "evaluationCriteria": {
-      "title": "Evaluation Criteria Management",
-      "description": "Create, edit, and delete evaluation criteria sets.",
-      "newCriteriaSet": "New Criteria Set",
-      "createFirstSet": "Create First Criteria Set",
-      "deleteConfirm": "Are you sure you want to delete this criteria set?",
-      "deleteSuccess": "Criteria set deleted successfully.",
-      "saveSuccess": "Criteria set saved successfully."
     },
     "difficultySettings": {
       "title": "Difficulty Settings",

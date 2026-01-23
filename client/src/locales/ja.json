@@ -237,7 +237,6 @@
     "personas": "ペルソナ管理",
     "categories": "カテゴリー管理",
     "settings": "システム設定",
-    "evaluationCriteria": "評価基準",
     "difficultySettings": "難易度設定",
     "aiUsage": "AI使用量",
     "translations": "翻訳管理",
@@ -638,15 +637,6 @@
         "projectsPrefix": "主要プロジェクト：",
         "expertisePrefix": "専門分野："
       }
-    },
-    "evaluationCriteria": {
-      "title": "評価基準管理",
-      "description": "評価基準セットの作成、編集、削除ができます。",
-      "newCriteriaSet": "新しい評価基準セット",
-      "createFirstSet": "最初の評価基準セットを作成",
-      "deleteConfirm": "この評価基準セットを削除しますか？",
-      "deleteSuccess": "評価基準セットが削除されました。",
-      "saveSuccess": "評価基準セットが保存されました。"
     },
     "difficultySettings": {
       "title": "難易度設定",

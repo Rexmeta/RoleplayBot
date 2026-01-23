@@ -237,7 +237,6 @@
     "personas": "페르소나 관리",
     "categories": "카테고리 관리",
     "settings": "시스템 설정",
-    "evaluationCriteria": "평가 기준",
     "difficultySettings": "난이도 설정",
     "aiUsage": "AI 사용량",
     "translations": "번역 관리",
@@ -638,15 +637,6 @@
         "projectsPrefix": "주요 프로젝트: ",
         "expertisePrefix": "전문분야: "
       }
-    },
-    "evaluationCriteria": {
-      "title": "평가 기준 관리",
-      "description": "평가 기준 세트를 생성, 수정, 삭제할 수 있습니다.",
-      "newCriteriaSet": "새 평가 기준 세트",
-      "createFirstSet": "첫 평가 기준 세트 만들기",
-      "deleteConfirm": "이 평가 기준 세트를 삭제하시겠습니까?",
-      "deleteSuccess": "평가 기준 세트가 삭제되었습니다.",
-      "saveSuccess": "평가 기준 세트가 저장되었습니다."
     },
     "difficultySettings": {
       "title": "난이도 설정",
