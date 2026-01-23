@@ -216,7 +216,29 @@ npm install <package-name>
 
 ## 🌐 배포
 
-### Replit 배포 (권장)
+### Google Cloud Run 배포 (프로덕션)
+
+Docker 기반 Cloud Run 배포를 지원합니다.
+
+#### 배포 가이드
+- **CLI 사용**: [DEPLOYMENT.md](./DEPLOYMENT.md) 참고
+- **웹 콘솔 사용**: [DEPLOYMENT-WEB-CONSOLE.md](./DEPLOYMENT-WEB-CONSOLE.md) 참고
+
+#### 빠른 시작 (기존 시크릿이 있는 경우)
+```bash
+# 다른 서비스의 시크릿 확인 후 mothle에 적용
+./scripts/check-other-service-secrets.sh
+
+# 또는 기존 시크릿 자동 감지 및 연결
+./scripts/connect-existing-secrets.sh
+```
+
+**필수 환경 변수:**
+- `JWT_SECRET` - JWT 인증 비밀 키
+- `DATABASE_URL` - PostgreSQL 연결 문자열
+- `GOOGLE_API_KEY` - Gemini API 키
+
+### Replit 배포
 1. Replit에서 프로젝트 import
 2. 환경 변수 설정 (Secrets 탭)
 3. Deploy 버튼 클릭
