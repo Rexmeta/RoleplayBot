@@ -59,6 +59,7 @@ export interface ComplexScenario {
   introVideoUrl?: string;
   videoPrompt?: string;
   objectiveType?: string;
+  sourceLocale?: string;
   context: {
     situation: string;
     timeline: string;

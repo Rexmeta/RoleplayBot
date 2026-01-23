@@ -1736,6 +1736,7 @@ export function ScenarioManager() {
                 goal: p.goal || '',
                 tradeoff: p.tradeoff || '',
               }))}
+              sourceLocale={translatingScenario.sourceLocale || 'ko'}
             />
           )}
         </DialogContent>

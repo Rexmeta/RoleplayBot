@@ -11,7 +11,7 @@ import { Separator } from '@/components/ui/separator';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useToast } from '@/hooks/use-toast';
 import { apiRequest, queryClient } from '@/lib/queryClient';
-import { Loader2, Languages, CheckCircle, AlertCircle, Bot, Save, Trash2, Plus, X } from 'lucide-react';
+import { Loader2, Languages, CheckCircle, AlertCircle, Bot, Save, Trash2, Plus, X, Star } from 'lucide-react';
 import { SupportedLanguage } from '@shared/schema';
 
 // 시나리오별 페르소나 컨텍스트 번역 타입
@@ -81,6 +81,7 @@ interface ScenarioTranslationEditorProps {
   scenarioSkills?: string[];
   scenarioSuccessCriteria?: ScenarioSuccessCriteria;
   scenarioPersonas?: ScenarioPersonaInfo[];
+  sourceLocale?: string;
 }
 
 export function ScenarioTranslationEditor({ 
@@ -91,7 +92,8 @@ export function ScenarioTranslationEditor({
   scenarioObjectives = [],
   scenarioSkills = [],
   scenarioSuccessCriteria = {},
-  scenarioPersonas = []
+  scenarioPersonas = [],
+  sourceLocale = 'ko'
 }: ScenarioTranslationEditorProps) {
   const { toast } = useToast();
   const [activeTab, setActiveTab] = useState<string>('');
@@ -109,12 +111,14 @@ export function ScenarioTranslationEditor({
 
   useEffect(() => {
     if (languages.length > 0 && !activeTab) {
-      const nonDefault = languages.filter(l => !l.isDefault);
-      if (nonDefault.length > 0) {
-        setActiveTab(nonDefault[0].code);
+      const targetLanguages = languages.filter(l => l.code !== sourceLocale);
+      if (targetLanguages.length > 0) {
+        setActiveTab(targetLanguages[0].code);
+      } else if (languages.length > 0) {
+        setActiveTab(sourceLocale);
       }
     }
-  }, [languages, activeTab]);
+  }, [languages, activeTab, sourceLocale]);
 
   useEffect(() => {
     if (translations.length > 0) {
@@ -339,14 +343,16 @@ export function ScenarioTranslationEditor({
     );
   }
 
-  const nonDefaultLanguages = languages.filter(l => !l.isDefault);
+  const sourceLanguage = languages.find(l => l.code === sourceLocale);
+  const targetLanguages = languages.filter(l => l.code !== sourceLocale);
+  const originalTranslation = translationData[sourceLocale] || {};
 
-  if (nonDefaultLanguages.length === 0) {
+  if (languages.length === 0) {
     return (
       <Card>
         <CardContent className="py-8 text-center text-muted-foreground">
           <Languages className="h-8 w-8 mx-auto mb-2" />
-          <p>번역할 언어가 없습니다.</p>
+          <p>지원 언어가 없습니다.</p>
           <p className="text-sm">시스템 설정에서 지원 언어를 추가하세요.</p>
         </CardContent>
       </Card>
@@ -363,8 +369,18 @@ export function ScenarioTranslationEditor({
       </CardHeader>
       <CardContent>
         <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <TabsList className="mb-4">
-            {nonDefaultLanguages.map((lang) => {
+          <TabsList className="mb-4 flex-wrap">
+            {sourceLanguage && (
+              <TabsTrigger
+                value={sourceLocale}
+                className="flex items-center gap-2"
+              >
+                <Star className="h-3 w-3 text-yellow-500 fill-yellow-500" />
+                {sourceLanguage.nativeName}
+                <Badge variant="secondary" className="text-xs px-1.5 py-0">원어</Badge>
+              </TabsTrigger>
+            )}
+            {targetLanguages.map((lang) => {
               const translation = translationData[lang.code];
               const hasTranslation = !!translation?.title;
               const isReviewed = translation?.isReviewed;
@@ -389,11 +405,147 @@ export function ScenarioTranslationEditor({
             })}
           </TabsList>
 
-          {nonDefaultLanguages.map((lang) => {
+          {sourceLanguage && (
+            <TabsContent key={sourceLocale} value={sourceLocale} className="space-y-4">
+              <div className="flex items-center justify-between mb-4">
+                <Badge variant="secondary" className="text-yellow-700 bg-yellow-100 border-yellow-200">
+                  <Star className="h-3 w-3 mr-1 fill-yellow-500" />
+                  원어 (원본 데이터)
+                </Badge>
+                <Button
+                  variant="default"
+                  size="sm"
+                  onClick={() => handleSave(sourceLocale)}
+                  disabled={saveMutation.isPending}
+                >
+                  <Save className="h-4 w-4 mr-2" />
+                  저장
+                </Button>
+              </div>
+
+              <ScrollArea className="h-[60vh] pr-4">
+                <div className="grid gap-6">
+                  <div className="space-y-4">
+                    <h4 className="font-semibold text-sm text-slate-700 border-b pb-2">기본 정보</h4>
+                    
+                    <div className="space-y-2">
+                      <Label>제목</Label>
+                      <Input
+                        value={originalTranslation.title || scenarioTitle || ''}
+                        onChange={(e) => handleFieldChange(sourceLocale, 'title', e.target.value)}
+                        placeholder="제목 입력..."
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label>설명</Label>
+                      <Textarea
+                        value={originalTranslation.description || scenarioDescription || ''}
+                        onChange={(e) => handleFieldChange(sourceLocale, 'description', e.target.value)}
+                        placeholder="설명 입력..."
+                        rows={3}
+                      />
+                    </div>
+                  </div>
+
+                  <Separator />
+
+                  <div className="space-y-4">
+                    <h4 className="font-semibold text-sm text-slate-700 border-b pb-2">상황 설정 (Context)</h4>
+                    
+                    <div className="space-y-2">
+                      <Label>상황 설명</Label>
+                      <Textarea
+                        value={originalTranslation.situation || scenarioContext?.situation || ''}
+                        onChange={(e) => handleFieldChange(sourceLocale, 'situation', e.target.value)}
+                        placeholder="상황 설명..."
+                        rows={2}
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label>시간적 제약</Label>
+                      <Input
+                        value={originalTranslation.timeline || scenarioContext?.timeline || ''}
+                        onChange={(e) => handleFieldChange(sourceLocale, 'timeline', e.target.value)}
+                        placeholder="시간적 제약..."
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label>이해관계</Label>
+                      <Input
+                        value={originalTranslation.stakes || scenarioContext?.stakes || ''}
+                        onChange={(e) => handleFieldChange(sourceLocale, 'stakes', e.target.value)}
+                        placeholder="이해관계..."
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label>플레이어 역할</Label>
+                      <Input
+                        value={originalTranslation.playerRole || scenarioContext?.playerRole || ''}
+                        onChange={(e) => handleFieldChange(sourceLocale, 'playerRole', e.target.value)}
+                        placeholder="플레이어 역할..."
+                      />
+                    </div>
+                  </div>
+
+                  <Separator />
+
+                  <div className="space-y-4">
+                    <h4 className="font-semibold text-sm text-slate-700 border-b pb-2">목표 (Objectives)</h4>
+                    <div className="flex items-center justify-between">
+                      <Label>목표 목록</Label>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handleAddObjective(sourceLocale)}
+                        className="h-6 px-2"
+                      >
+                        <Plus className="h-3 w-3 mr-1" />
+                        추가
+                      </Button>
+                    </div>
+                    <div className="space-y-2">
+                      {(originalTranslation.objectives || scenarioObjectives || []).map((obj, idx) => (
+                        <div key={idx} className="flex items-center gap-2">
+                          <span className="text-xs text-muted-foreground w-4">{idx + 1}.</span>
+                          <Input
+                            value={obj}
+                            onChange={(e) => handleObjectiveChange(sourceLocale, idx, e.target.value)}
+                            placeholder={`목표 ${idx + 1}...`}
+                            className="flex-1"
+                          />
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleRemoveObjective(sourceLocale, idx)}
+                            className="h-8 w-8 p-0"
+                          >
+                            <X className="h-3 w-3" />
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </ScrollArea>
+            </TabsContent>
+          )}
+
+          {targetLanguages.map((lang) => {
             const translation = translationData[lang.code] || {};
             const isReviewed = translation.isReviewed;
             const isMachine = translation.isMachineTranslated;
             const objectives = translation.objectives || [];
+            const origTitle = originalTranslation.title || scenarioTitle;
+            const origDescription = originalTranslation.description || scenarioDescription;
+            const origSituation = originalTranslation.situation || scenarioContext?.situation;
+            const origTimeline = originalTranslation.timeline || scenarioContext?.timeline;
+            const origStakes = originalTranslation.stakes || scenarioContext?.stakes;
+            const origPlayerRole = originalTranslation.playerRole || scenarioContext?.playerRole;
+            const origObjectives = originalTranslation.objectives || scenarioObjectives || [];
 
             return (
               <TabsContent key={lang.code} value={lang.code} className="space-y-4">
@@ -470,8 +622,8 @@ export function ScenarioTranslationEditor({
                       
                       <div className="grid grid-cols-2 gap-4">
                         <div className="space-y-2">
-                          <Label className="text-muted-foreground text-xs">원본 제목 (한국어)</Label>
-                          <div className="p-2 bg-muted rounded text-sm">{scenarioTitle}</div>
+                          <Label className="text-muted-foreground text-xs">원본 제목 ({sourceLanguage?.nativeName})</Label>
+                          <div className="p-2 bg-muted rounded text-sm">{origTitle}</div>
                         </div>
                         <div className="space-y-2">
                           <Label>번역 제목 ({lang.name})</Label>
@@ -485,8 +637,8 @@ export function ScenarioTranslationEditor({
 
                       <div className="grid grid-cols-2 gap-4">
                         <div className="space-y-2">
-                          <Label className="text-muted-foreground text-xs">원본 설명 (한국어)</Label>
-                          <div className="p-2 bg-muted rounded text-sm min-h-[80px] whitespace-pre-wrap">{scenarioDescription}</div>
+                          <Label className="text-muted-foreground text-xs">원본 설명 ({sourceLanguage?.nativeName})</Label>
+                          <div className="p-2 bg-muted rounded text-sm min-h-[80px] whitespace-pre-wrap">{origDescription}</div>
                         </div>
                         <div className="space-y-2">
                           <Label>번역 설명 ({lang.name})</Label>
@@ -509,7 +661,7 @@ export function ScenarioTranslationEditor({
                         <div className="space-y-2">
                           <Label className="text-muted-foreground text-xs">원본 상황 설명</Label>
                           <div className="p-2 bg-muted rounded text-sm min-h-[60px] whitespace-pre-wrap">
-                            {scenarioContext?.situation || '(미설정)'}
+                            {origSituation || '(미설정)'}
                           </div>
                         </div>
                         <div className="space-y-2">
@@ -527,7 +679,7 @@ export function ScenarioTranslationEditor({
                         <div className="space-y-2">
                           <Label className="text-muted-foreground text-xs">원본 시간적 제약</Label>
                           <div className="p-2 bg-muted rounded text-sm min-h-[40px]">
-                            {scenarioContext?.timeline || '(미설정)'}
+                            {origTimeline || '(미설정)'}
                           </div>
                         </div>
                         <div className="space-y-2">
