@@ -241,7 +241,7 @@ export class FileManagerService {
     }
   }
 
-  async createScenario(scenario: Omit<ComplexScenario, 'id'>): Promise<ComplexScenario> {
+  async createScenario(scenario: Omit<ComplexScenario, 'id'> & { sourceLocale?: string }): Promise<ComplexScenario> {
     const id = this.generateId(scenario.title);
     const newScenario: ComplexScenario = { ...scenario, id };
     
@@ -250,6 +250,7 @@ export class FileManagerService {
         id,
         title: scenario.title,
         description: scenario.description,
+        sourceLocale: scenario.sourceLocale || 'ko', // 원본 작성 언어
         difficulty: scenario.difficulty || 2,
         estimatedTime: scenario.estimatedTime || null,
         skills: scenario.skills || [],

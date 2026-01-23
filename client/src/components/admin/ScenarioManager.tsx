@@ -135,6 +135,26 @@ export function ScenarioManager() {
       return response.json();
     },
   });
+  
+  // 편집용 원본 데이터 조회 (번역 적용 안됨)
+  const { data: originalScenarios } = useQuery<ComplexScenario[]>({
+    queryKey: ['/api/admin/scenarios', 'edit'],
+    queryFn: async () => {
+      const token = localStorage.getItem('authToken');
+      const headers: Record<string, string> = {};
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+      }
+      const response = await fetch(`/api/admin/scenarios?mode=edit`, {
+        headers,
+        credentials: 'include',
+      });
+      if (!response.ok) {
+        throw new Error('Failed to fetch original scenarios');
+      }
+      return response.json();
+    },
+  });
 
   // 카테고리 목록 조회
   const { data: categories } = useQuery<{ id: string; name: string; description?: string }[]>({
@@ -319,27 +339,30 @@ export function ScenarioManager() {
   };
 
   const handleEdit = (scenario: ComplexScenario) => {
-    setEditingScenario(scenario);
+    // 번역된 데이터 대신 원본 데이터 사용
+    const originalScenario = originalScenarios?.find((s: any) => s.id === scenario.id) || scenario;
+    
+    setEditingScenario(originalScenario);
     setImageLoadFailed(false);
     setFormData({
-      title: scenario.title,
-      description: scenario.description,
-      difficulty: scenario.difficulty || 4, // 기존 난이도 사용 또는 기본값 4
-      estimatedTime: scenario.estimatedTime,
-      skills: scenario.skills,
-      categoryId: (scenario as any).categoryId ? String((scenario as any).categoryId) : '', // 기존 시나리오의 카테고리 ID 로드
-      evaluationCriteriaSetId: (scenario as any).evaluationCriteriaSetId || '', // 기존 시나리오의 평가 기준 세트 ID 로드
-      image: scenario.image || '', // 기존 시나리오의 이미지 URL 로드
-      imagePrompt: (scenario as any).imagePrompt || '', // 기존 시나리오의 이미지 프롬프트 로드
-      introVideoUrl: (scenario as any).introVideoUrl || '', // 기존 시나리오의 인트로 비디오 URL 로드
-      videoPrompt: (scenario as any).videoPrompt || '', // 기존 시나리오의 비디오 프롬프트 로드
-      objectiveType: (scenario as any).objectiveType || '', // 기존 시나리오의 목표 유형 로드
-      context: scenario.context,
-      objectives: scenario.objectives,
-      successCriteria: scenario.successCriteria,
+      title: originalScenario.title,
+      description: originalScenario.description,
+      difficulty: originalScenario.difficulty || 4, // 기존 난이도 사용 또는 기본값 4
+      estimatedTime: originalScenario.estimatedTime,
+      skills: originalScenario.skills,
+      categoryId: (originalScenario as any).categoryId ? String((originalScenario as any).categoryId) : '', // 기존 시나리오의 카테고리 ID 로드
+      evaluationCriteriaSetId: (originalScenario as any).evaluationCriteriaSetId || '', // 기존 시나리오의 평가 기준 세트 ID 로드
+      image: originalScenario.image || '', // 기존 시나리오의 이미지 URL 로드
+      imagePrompt: (originalScenario as any).imagePrompt || '', // 기존 시나리오의 이미지 프롬프트 로드
+      introVideoUrl: (originalScenario as any).introVideoUrl || '', // 기존 시나리오의 인트로 비디오 URL 로드
+      videoPrompt: (originalScenario as any).videoPrompt || '', // 기존 시나리오의 비디오 프롬프트 로드
+      objectiveType: (originalScenario as any).objectiveType || '', // 기존 시나리오의 목표 유형 로드
+      context: originalScenario.context,
+      objectives: originalScenario.objectives,
+      successCriteria: originalScenario.successCriteria,
       // personas가 객체 배열인 경우 ID만 추출, 문자열 배열인 경우 그대로 사용
-      personas: Array.isArray(scenario.personas) 
-        ? scenario.personas.map((p: any) => {
+      personas: Array.isArray(originalScenario.personas) 
+        ? originalScenario.personas.map((p: any) => {
             if (typeof p === 'string') {
               return {
                 id: p,
@@ -362,7 +385,7 @@ export function ScenarioManager() {
             } as ScenarioPersona;
           })
         : [],
-      recommendedFlow: scenario.recommendedFlow
+      recommendedFlow: originalScenario.recommendedFlow
     });
     setIsCreateOpen(true);
   };

@@ -3541,6 +3541,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const scenarios = await fileManager.getAllScenarios();
       const lang = req.query.lang as string;
+      const mode = req.query.mode as string; // 'edit' = 원본 반환, 그 외 = 번역 적용
       
       // @ts-ignore - req.user는 auth 미들웨어에서 설정됨
       const user = req.user;
@@ -3556,13 +3557,54 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.json([]);
       }
       
-      // 언어 파라미터가 있고 ko가 아닌 경우 번역 적용
-      if (lang && lang !== 'ko') {
+      // 편집 모드: 원본 데이터만 반환 (번역 적용 안함)
+      if (mode === 'edit') {
+        // 원본 번역이 있으면 그것을 사용, 없으면 시나리오 기본값 사용
+        const scenariosWithOriginal = await Promise.all(
+          filteredScenarios.map(async (scenario: any) => {
+            try {
+              const original = await storage.getOriginalScenarioTranslation(scenario.id);
+              if (original) {
+                return {
+                  ...scenario,
+                  title: original.title,
+                  description: original.description || scenario.description,
+                  context: {
+                    ...scenario.context,
+                    situation: original.situation || scenario.context?.situation,
+                    timeline: original.timeline || scenario.context?.timeline,
+                    stakes: original.stakes || scenario.context?.stakes,
+                  },
+                  objectives: original.objectives || scenario.objectives,
+                  successCriteria: {
+                    optimal: original.successCriteriaOptimal || scenario.successCriteria?.optimal,
+                    good: original.successCriteriaGood || scenario.successCriteria?.good,
+                    acceptable: original.successCriteriaAcceptable || scenario.successCriteria?.acceptable,
+                    failure: original.successCriteriaFailure || scenario.successCriteria?.failure,
+                  },
+                  _isOriginal: true,
+                  _sourceLocale: scenario.sourceLocale || 'ko',
+                };
+              }
+              return { ...scenario, _sourceLocale: scenario.sourceLocale || 'ko' };
+            } catch (err) {
+              console.error(`[Admin Scenarios API] Original fetch error for ${scenario.id}:`, err);
+              return scenario;
+            }
+          })
+        );
+        return res.json(scenariosWithOriginal);
+      }
+      
+      // 표시 모드: 언어에 따라 번역 적용
+      if (lang) {
         const translatedScenarios = await Promise.all(
           filteredScenarios.map(async (scenario: any) => {
             try {
-              const translation = await storage.getScenarioTranslation(scenario.id, lang);
+              // 새 구조: 번역 테이블에서 우선 조회, 없으면 원본 폴백
+              const translation = await storage.getScenarioTranslationWithFallback(scenario.id, lang);
               if (translation) {
+                const isOriginal = translation.isOriginal || translation.locale === scenario.sourceLocale;
                 return {
                   ...scenario,
                   title: translation.title || scenario.title,
@@ -3580,11 +3622,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
                     acceptable: translation.successCriteriaAcceptable || scenario.successCriteria?.acceptable,
                     failure: translation.successCriteriaFailure || scenario.successCriteria?.failure,
                   },
-                  _translated: true,
-                  _translationLocale: lang,
+                  _translated: !isOriginal,
+                  _translationLocale: translation.locale,
+                  _sourceLocale: scenario.sourceLocale || 'ko',
                 };
               }
-              return scenario;
+              return { ...scenario, _sourceLocale: scenario.sourceLocale || 'ko' };
             } catch (err) {
               console.error(`[Admin Scenarios API] Translation fetch error for ${scenario.id}:`, err);
               return scenario;
@@ -3607,6 +3650,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const user = req.user;
       
       let scenarioData = req.body;
+      const sourceLocale = scenarioData.sourceLocale || user.preferredLanguage || 'ko';
       
       // 운영자는 자신의 카테고리에만 시나리오 생성 가능
       if (user.role === 'operator') {
@@ -3616,7 +3660,38 @@ export async function registerRoutes(app: Express): Promise<Server> {
         scenarioData.categoryId = user.assignedCategoryId;
       }
       
+      // sourceLocale 설정
+      scenarioData.sourceLocale = sourceLocale;
+      
       const scenario = await fileManager.createScenario(scenarioData);
+      
+      // 원본 콘텐츠를 번역 테이블에도 저장 (isOriginal=true)
+      try {
+        await storage.upsertScenarioTranslation({
+          scenarioId: scenario.id,
+          locale: sourceLocale,
+          sourceLocale: sourceLocale,
+          isOriginal: true,
+          title: scenario.title,
+          description: scenario.description,
+          situation: scenario.context?.situation || null,
+          timeline: scenario.context?.timeline || null,
+          stakes: scenario.context?.stakes || null,
+          playerRole: scenario.context?.playerRole ? 
+            `${scenario.context.playerRole.position} / ${scenario.context.playerRole.department}` : null,
+          objectives: scenario.objectives || null,
+          skills: scenario.skills || null,
+          successCriteriaOptimal: scenario.successCriteria?.optimal || null,
+          successCriteriaGood: scenario.successCriteria?.good || null,
+          successCriteriaAcceptable: scenario.successCriteria?.acceptable || null,
+          successCriteriaFailure: scenario.successCriteria?.failure || null,
+          isMachineTranslated: false,
+          isReviewed: true, // 원본은 검토 완료 상태
+        });
+      } catch (translationError) {
+        console.error("Error saving original translation:", translationError);
+      }
+      
       res.json(scenario);
     } catch (error) {
       console.error("Error creating scenario:", error);
@@ -3629,6 +3704,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // @ts-ignore - req.user는 auth 미들웨어에서 설정됨
       const user = req.user;
       const scenarioId = req.params.id;
+      
+      // 번역된 데이터가 원본을 덮어쓰는 것 방지
+      if (req.body._translated) {
+        return res.status(400).json({ 
+          error: "Cannot save translated content as original. Please edit in original language mode." 
+        });
+      }
       
       // 운영자는 자신의 카테고리 시나리오만 수정 가능
       if (user.role === 'operator') {
@@ -3643,7 +3725,40 @@ export async function registerRoutes(app: Express): Promise<Server> {
         req.body.categoryId = user.assignedCategoryId;
       }
       
+      // 기존 시나리오의 sourceLocale 유지
+      const existingScenarios = await fileManager.getAllScenarios();
+      const existingScenario = existingScenarios.find((s: any) => s.id === scenarioId);
+      const sourceLocale = req.body.sourceLocale || existingScenario?.sourceLocale || 'ko';
+      
       const scenario = await fileManager.updateScenario(scenarioId, req.body);
+      
+      // 원본 콘텐츠 번역 테이블도 업데이트 (isOriginal=true)
+      try {
+        await storage.upsertScenarioTranslation({
+          scenarioId: scenario.id,
+          locale: sourceLocale,
+          sourceLocale: sourceLocale,
+          isOriginal: true,
+          title: scenario.title,
+          description: scenario.description,
+          situation: scenario.context?.situation || null,
+          timeline: scenario.context?.timeline || null,
+          stakes: scenario.context?.stakes || null,
+          playerRole: scenario.context?.playerRole ? 
+            `${scenario.context.playerRole.position} / ${scenario.context.playerRole.department}` : null,
+          objectives: scenario.objectives || null,
+          skills: scenario.skills || null,
+          successCriteriaOptimal: scenario.successCriteria?.optimal || null,
+          successCriteriaGood: scenario.successCriteria?.good || null,
+          successCriteriaAcceptable: scenario.successCriteria?.acceptable || null,
+          successCriteriaFailure: scenario.successCriteria?.failure || null,
+          isMachineTranslated: false,
+          isReviewed: true,
+        });
+      } catch (translationError) {
+        console.error("Error updating original translation:", translationError);
+      }
+      
       res.json(scenario);
     } catch (error) {
       console.error("Error updating scenario:", error);

@@ -64,8 +64,9 @@ export const categories = pgTable("categories", {
 // 시나리오 테이블 - JSON 파일에서 DB로 마이그레이션
 export const scenarios = pgTable("scenarios", {
   id: varchar("id").primaryKey(), // 시나리오 ID (예: "골든타임-4시간-긴급-2025-12-17T22-43-28")
-  title: text("title").notNull(),
-  description: text("description").notNull(),
+  title: text("title").notNull(), // 기본 표시용 제목 (원본 언어)
+  description: text("description").notNull(), // 기본 표시용 설명 (원본 언어)
+  sourceLocale: varchar("source_locale", { length: 10 }).notNull().default('ko'), // 원본 작성 언어
   difficulty: integer("difficulty").notNull().default(4), // 1-4 난이도, 기본값 4로 변경
   estimatedTime: text("estimated_time"), // 예: "60-90분"
   skills: text("skills").array(), // 주요 역량 배열
@@ -653,8 +654,9 @@ export const supportedLanguages = pgTable("supported_languages", {
 export const scenarioTranslations = pgTable("scenario_translations", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   scenarioId: text("scenario_id").notNull(), // JSON 시나리오 ID 참조
-  sourceLocale: varchar("source_locale", { length: 10 }).notNull().default('ko').references(() => supportedLanguages.code), // 원문 언어
-  locale: varchar("locale", { length: 10 }).notNull().references(() => supportedLanguages.code), // 번역 대상 언어
+  sourceLocale: varchar("source_locale", { length: 10 }).notNull().default('ko').references(() => supportedLanguages.code), // 원문 언어 (번역 소스)
+  locale: varchar("locale", { length: 10 }).notNull().references(() => supportedLanguages.code), // 이 번역의 언어
+  isOriginal: boolean("is_original").notNull().default(false), // 원본 콘텐츠 여부 (작성자가 직접 작성한 언어)
   title: text("title").notNull(),
   description: text("description"),
   situation: text("situation"), // context.situation

@@ -143,6 +143,8 @@ export interface IStorage {
   getScenarioTranslation(scenarioId: string, locale: string): Promise<ScenarioTranslation | undefined>;
   getScenarioTranslations(scenarioId: string): Promise<ScenarioTranslation[]>;
   getAllScenarioTranslations(locale: string): Promise<ScenarioTranslation[]>;
+  getOriginalScenarioTranslation(scenarioId: string): Promise<ScenarioTranslation | undefined>; // 원본 번역 조회
+  getScenarioTranslationWithFallback(scenarioId: string, locale: string): Promise<ScenarioTranslation | undefined>; // 번역 조회 (원본 폴백)
   upsertScenarioTranslation(translation: InsertScenarioTranslation): Promise<ScenarioTranslation>;
   deleteScenarioTranslation(scenarioId: string, locale: string): Promise<void>;
   markScenarioTranslationReviewed(scenarioId: string, locale: string, reviewerId: string): Promise<ScenarioTranslation>;
@@ -686,6 +688,8 @@ export class MemStorage implements IStorage {
   async getScenarioTranslation(_scenarioId: string, _locale: string): Promise<ScenarioTranslation | undefined> { return undefined; }
   async getScenarioTranslations(_scenarioId: string): Promise<ScenarioTranslation[]> { return []; }
   async getAllScenarioTranslations(_locale: string): Promise<ScenarioTranslation[]> { return []; }
+  async getOriginalScenarioTranslation(_scenarioId: string): Promise<ScenarioTranslation | undefined> { return undefined; }
+  async getScenarioTranslationWithFallback(_scenarioId: string, _locale: string): Promise<ScenarioTranslation | undefined> { return undefined; }
   async upsertScenarioTranslation(_translation: InsertScenarioTranslation): Promise<ScenarioTranslation> { throw new Error("Not implemented"); }
   async deleteScenarioTranslation(_scenarioId: string, _locale: string): Promise<void> {}
   async markScenarioTranslationReviewed(_scenarioId: string, _locale: string, _reviewerId: string): Promise<ScenarioTranslation> { throw new Error("Not implemented"); }
@@ -1618,6 +1622,21 @@ export class PostgreSQLStorage implements IStorage {
   async getAllScenarioTranslations(locale: string): Promise<ScenarioTranslation[]> {
     return await db.select().from(scenarioTranslations)
       .where(eq(scenarioTranslations.locale, locale));
+  }
+  
+  async getOriginalScenarioTranslation(scenarioId: string): Promise<ScenarioTranslation | undefined> {
+    const results = await db.select().from(scenarioTranslations)
+      .where(and(
+        eq(scenarioTranslations.scenarioId, scenarioId),
+        eq(scenarioTranslations.isOriginal, true)
+      ));
+    return results[0];
+  }
+  
+  async getScenarioTranslationWithFallback(scenarioId: string, locale: string): Promise<ScenarioTranslation | undefined> {
+    const translation = await this.getScenarioTranslation(scenarioId, locale);
+    if (translation) return translation;
+    return await this.getOriginalScenarioTranslation(scenarioId);
   }
   
   async upsertScenarioTranslation(translation: InsertScenarioTranslation): Promise<ScenarioTranslation> {

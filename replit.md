@@ -60,9 +60,16 @@ Preferred communication style: Simple, everyday language.
 - **Configurable Difficulty Settings**: Difficulty levels are editable via the operator dashboard, allowing customization of name, description, response length, tone, pressure, feedback style, and constraints.
 - **Intro Video Generation**: Integration with Gemini Veo 3.1 API for generating 8-second intro videos for scenarios, stored as WebM files.
 - **Multilingual Translation System**: Comprehensive translation management with AI-powered translation generation (Gemini 2.5 Flash), manual editing/review workflow, batch translation tools, and translation status dashboard. Supports Korean, English, Japanese, and Chinese with extensible language database.
+  - **Language-Agnostic Architecture**: Scenarios can be written in ANY language (not just Korean). The system uses:
+    - `scenarios.sourceLocale`: Tracks the original writing language of each scenario
+    - `scenario_translations.isOriginal`: Marks which translation is the original content
+    - **Original content is stored in both `scenarios` table AND `scenario_translations` with `isOriginal=true`**
   - **Translation Data Architecture**:
     - **Master Persona Translations** (`personaTranslations`): MBTI type identity only (name, personalityTraits, communicationStyle, motivation, fears, background info). Reusable across all scenarios.
     - **Scenario Context Translations** (`scenarioTranslations.personaContexts`): Scenario-specific persona details (position, department, role, stance, goal, tradeoff). Each persona can have different context in different scenarios.
+  - **Edit Mode vs Display Mode**:
+    - **Edit mode** (`?mode=edit`): Always returns original content regardless of language setting
+    - **Display mode** (`?lang=xx`): Returns translated content with fallback to original
 
 # External Dependencies
 
