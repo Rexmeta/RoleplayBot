@@ -15,10 +15,21 @@ CREATE TABLE IF NOT EXISTS "users" (
   "is_active" boolean DEFAULT true NOT NULL,
   "last_login_at" timestamp,
   "assigned_category_id" varchar,
+  "preferred_language" varchar DEFAULT 'ko' NOT NULL,
   "created_at" timestamp DEFAULT now(),
   "updated_at" timestamp DEFAULT now(),
   CONSTRAINT "users_email_unique" UNIQUE("email")
 );
+
+-- 기존 users 테이블에 preferred_language 컬럼이 없으면 추가
+DO $$ BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns 
+    WHERE table_name = 'users' AND column_name = 'preferred_language'
+  ) THEN
+    ALTER TABLE "users" ADD COLUMN "preferred_language" varchar DEFAULT 'ko' NOT NULL;
+  END IF;
+END $$;
 
 -- 2. Categories
 CREATE TABLE IF NOT EXISTS "categories" (
