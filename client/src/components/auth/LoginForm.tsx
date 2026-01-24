@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
+import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -11,13 +12,11 @@ import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, Mail, Lock } from "lucide-react";
 
-const loginSchema = z.object({
-  email: z.string().email("유효한 이메일을 입력해주세요"),
-  password: z.string().min(1, "비밀번호를 입력해주세요"),
-  rememberMe: z.boolean().default(false),
-});
-
-type LoginFormData = z.infer<typeof loginSchema>;
+type LoginFormData = {
+  email: string;
+  password: string;
+  rememberMe: boolean;
+};
 
 interface LoginFormProps {
   onSwitchToRegister: () => void;
@@ -26,7 +25,14 @@ interface LoginFormProps {
 export function LoginForm({ onSwitchToRegister }: LoginFormProps) {
   const { login } = useAuth();
   const { toast } = useToast();
+  const { t } = useTranslation();
   const [isLoading, setIsLoading] = useState(false);
+
+  const loginSchema = z.object({
+    email: z.string().email(t('auth.emailInvalid')),
+    password: z.string().min(1, t('auth.passwordRequired')),
+    rememberMe: z.boolean().default(false),
+  });
 
   const {
     register,
@@ -50,14 +56,14 @@ export function LoginForm({ onSwitchToRegister }: LoginFormProps) {
       setIsLoading(true);
       await login(data.email, data.password, data.rememberMe);
       toast({
-        title: "로그인 성공",
-        description: "환영합니다!",
+        title: t('auth.loginSuccess'),
+        description: t('auth.welcomeBack'),
       });
     } catch (error: any) {
       console.error("Login error:", error);
       toast({
-        title: "로그인 실패",
-        description: error.message || "로그인 중 오류가 발생했습니다.",
+        title: t('auth.loginError'),
+        description: error.message || t('auth.loginErrorMessage'),
         variant: "destructive",
       });
     } finally {
@@ -69,24 +75,24 @@ export function LoginForm({ onSwitchToRegister }: LoginFormProps) {
     <Card className="w-full max-w-md mx-auto" data-testid="card-login">
       <CardHeader className="space-y-1">
         <CardTitle className="text-2xl text-center" data-testid="text-login-title">
-          로그인
+          {t('auth.loginTitle')}
         </CardTitle>
         <CardDescription className="text-center" data-testid="text-login-description">
-          이메일과 비밀번호를 입력해주세요
+          {t('auth.loginDescription')}
         </CardDescription>
       </CardHeader>
       <CardContent>
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
           <div className="space-y-2">
             <Label htmlFor="email" data-testid="label-email">
-              이메일
+              {t('auth.email')}
             </Label>
             <div className="relative">
               <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
               <Input
                 id="email"
                 type="email"
-                placeholder="example@email.com"
+                placeholder={t('auth.emailPlaceholder')}
                 className="pl-10"
                 data-testid="input-email"
                 {...register("email")}
@@ -101,14 +107,14 @@ export function LoginForm({ onSwitchToRegister }: LoginFormProps) {
 
           <div className="space-y-2">
             <Label htmlFor="password" data-testid="label-password">
-              비밀번호
+              {t('auth.password')}
             </Label>
             <div className="relative">
               <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
               <Input
                 id="password"
                 type="password"
-                placeholder="비밀번호를 입력하세요"
+                placeholder={t('auth.passwordPlaceholder')}
                 className="pl-10"
                 data-testid="input-password"
                 {...register("password")}
@@ -133,7 +139,7 @@ export function LoginForm({ onSwitchToRegister }: LoginFormProps) {
               className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
               data-testid="label-remember-me"
             >
-              자동 로그인
+              {t('auth.rememberMe')}
             </Label>
           </div>
 
@@ -146,22 +152,22 @@ export function LoginForm({ onSwitchToRegister }: LoginFormProps) {
             {isLoading ? (
               <>
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                로그인 중...
+                {t('auth.loggingIn')}
               </>
             ) : (
-              "로그인"
+              t('auth.loginButton')
             )}
           </Button>
 
           <div className="text-center text-sm">
-            <span className="text-gray-600">계정이 없으신가요? </span>
+            <span className="text-gray-600">{t('auth.noAccount')} </span>
             <button
               type="button"
               onClick={onSwitchToRegister}
               className="text-blue-600 hover:underline font-medium"
               data-testid="button-switch-to-register"
             >
-              회원가입
+              {t('auth.registerButton')}
             </button>
           </div>
         </form>

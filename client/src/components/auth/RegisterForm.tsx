@@ -3,6 +3,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useQuery } from "@tanstack/react-query";
+import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -11,7 +12,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, Mail, Lock, User, Folder, Globe } from "lucide-react";
-import { useTranslation } from "react-i18next";
 import { SUPPORTED_LANGUAGES } from "@/lib/i18n";
 
 interface Category {
@@ -20,22 +20,12 @@ interface Category {
   description?: string;
 }
 
-const registerSchema = z.object({
-  name: z.string().min(1, "이름을 입력해주세요").max(50, "이름은 50자 이하여야 합니다"),
-  email: z.string().email("유효한 이메일을 입력해주세요"),
-  password: z.string()
-    .min(8, "비밀번호는 최소 8자 이상이어야 합니다")
-    .regex(/[A-Z]/, "비밀번호에 대문자를 포함해야 합니다")
-    .regex(/[a-z]/, "비밀번호에 소문자를 포함해야 합니다")
-    .regex(/[0-9]/, "비밀번호에 숫자를 포함해야 합니다")
-    .regex(/[!@#$%^&*(),.?":{}|<>]/, "비밀번호에 특수문자를 포함해야 합니다"),
-  confirmPassword: z.string().min(1, "비밀번호 확인을 입력해주세요"),
-}).refine((data) => data.password === data.confirmPassword, {
-  message: "비밀번호가 일치하지 않습니다",
-  path: ["confirmPassword"],
-});
-
-type RegisterFormData = z.infer<typeof registerSchema>;
+type RegisterFormData = {
+  name: string;
+  email: string;
+  password: string;
+  confirmPassword: string;
+};
 
 interface RegisterFormProps {
   onSwitchToLogin: () => void;
@@ -48,6 +38,21 @@ export function RegisterForm({ onSwitchToLogin }: RegisterFormProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [selectedCategoryId, setSelectedCategoryId] = useState<string>("");
   const [selectedLanguage, setSelectedLanguage] = useState<string>(i18n.language || 'ko');
+
+  const registerSchema = z.object({
+    name: z.string().min(1, t('auth.nameRequired')).max(50, t('auth.nameMax')),
+    email: z.string().email(t('auth.emailInvalid')),
+    password: z.string()
+      .min(8, t('auth.passwordMinLength'))
+      .regex(/[A-Z]/, t('auth.passwordUppercase'))
+      .regex(/[a-z]/, t('auth.passwordLowercase'))
+      .regex(/[0-9]/, t('auth.passwordNumber'))
+      .regex(/[!@#$%^&*(),.?":{}|<>]/, t('auth.passwordSpecial')),
+    confirmPassword: z.string().min(1, t('auth.confirmPasswordRequired')),
+  }).refine((data) => data.password === data.confirmPassword, {
+    message: t('auth.passwordMismatch'),
+    path: ["confirmPassword"],
+  });
 
   const { data: categories = [] } = useQuery<Category[]>({
     queryKey: ['/api/categories'],
@@ -83,7 +88,7 @@ export function RegisterForm({ onSwitchToLogin }: RegisterFormProps) {
       localStorage.setItem('preferredLanguage', selectedLanguage);
       toast({
         title: t('auth.registerSuccess'),
-        description: t('auth.welcomeMessage') || "계정이 생성되었습니다. 환영합니다!",
+        description: t('auth.welcomeMessage'),
       });
     } catch (error: any) {
       console.error("Register error:", error);
@@ -101,24 +106,24 @@ export function RegisterForm({ onSwitchToLogin }: RegisterFormProps) {
     <Card className="w-full max-w-md mx-auto" data-testid="card-register">
       <CardHeader className="space-y-1">
         <CardTitle className="text-2xl text-center" data-testid="text-register-title">
-          회원가입
+          {t('auth.registerTitle')}
         </CardTitle>
         <CardDescription className="text-center" data-testid="text-register-description">
-          새로운 계정을 만들어보세요
+          {t('auth.registerDescription')}
         </CardDescription>
       </CardHeader>
       <CardContent>
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
           <div className="space-y-2">
             <Label htmlFor="name" data-testid="label-name">
-              이름
+              {t('auth.name')}
             </Label>
             <div className="relative">
               <User className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
               <Input
                 id="name"
                 type="text"
-                placeholder="이름을 입력하세요"
+                placeholder={t('auth.namePlaceholder')}
                 className="pl-10"
                 data-testid="input-name"
                 {...register("name")}
@@ -163,7 +168,7 @@ export function RegisterForm({ onSwitchToLogin }: RegisterFormProps) {
 
           <div className="space-y-2">
             <Label htmlFor="category" data-testid="label-category">
-              관심 카테고리 (선택)
+              {t('auth.category')}
             </Label>
             <div className="relative">
               <Folder className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4 z-10" />
@@ -174,7 +179,7 @@ export function RegisterForm({ onSwitchToLogin }: RegisterFormProps) {
                 }}
               >
                 <SelectTrigger className="pl-10" data-testid="select-category">
-                  <SelectValue placeholder="카테고리를 선택하세요" />
+                  <SelectValue placeholder={t('auth.categoryPlaceholder')} />
                 </SelectTrigger>
                 <SelectContent>
                   {categories.map((category) => (
@@ -189,14 +194,14 @@ export function RegisterForm({ onSwitchToLogin }: RegisterFormProps) {
 
           <div className="space-y-2">
             <Label htmlFor="email" data-testid="label-email">
-              이메일
+              {t('auth.email')}
             </Label>
             <div className="relative">
               <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
               <Input
                 id="email"
                 type="email"
-                placeholder="example@email.com"
+                placeholder={t('auth.emailPlaceholder')}
                 className="pl-10"
                 data-testid="input-email"
                 {...register("email")}
@@ -211,14 +216,14 @@ export function RegisterForm({ onSwitchToLogin }: RegisterFormProps) {
 
           <div className="space-y-2">
             <Label htmlFor="password" data-testid="label-password">
-              비밀번호
+              {t('auth.password')}
             </Label>
             <div className="relative">
               <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
               <Input
                 id="password"
                 type="password"
-                placeholder="8자 이상, 대/소문자, 숫자, 특수문자 포함"
+                placeholder={t('auth.passwordHint')}
                 className="pl-10"
                 data-testid="input-password"
                 {...register("password")}
@@ -233,14 +238,14 @@ export function RegisterForm({ onSwitchToLogin }: RegisterFormProps) {
 
           <div className="space-y-2">
             <Label htmlFor="confirmPassword" data-testid="label-confirm-password">
-              비밀번호 확인
+              {t('auth.confirmPassword')}
             </Label>
             <div className="relative">
               <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
               <Input
                 id="confirmPassword"
                 type="password"
-                placeholder="비밀번호를 다시 입력하세요"
+                placeholder={t('auth.confirmPasswordPlaceholder')}
                 className="pl-10"
                 data-testid="input-confirm-password"
                 {...register("confirmPassword")}
@@ -262,22 +267,22 @@ export function RegisterForm({ onSwitchToLogin }: RegisterFormProps) {
             {isLoading ? (
               <>
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                회원가입 중...
+                {t('auth.registering')}
               </>
             ) : (
-              "회원가입"
+              t('auth.registerButton')
             )}
           </Button>
 
           <div className="text-center text-sm">
-            <span className="text-gray-600">이미 계정이 있으신가요? </span>
+            <span className="text-gray-600">{t('auth.hasAccount')} </span>
             <button
               type="button"
               onClick={onSwitchToLogin}
               className="text-blue-600 hover:underline font-medium"
               data-testid="button-switch-to-login"
             >
-              로그인
+              {t('auth.loginButton')}
             </button>
           </div>
         </form>
