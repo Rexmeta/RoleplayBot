@@ -52,6 +52,8 @@
     "backToHome": "홈으로"
   },
   "auth": {
+    "appTitle": "AI 역할극 훈련 시스템",
+    "appDescription": "커뮤니케이션 스킬 향상을 위한 전문적인 AI 대화 훈련",
     "loginTitle": "로그인",
     "registerTitle": "회원가입",
     "email": "이메일",

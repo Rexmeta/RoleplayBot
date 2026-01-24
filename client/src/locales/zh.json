@@ -52,6 +52,8 @@
     "backToHome": "返回首页"
   },
   "auth": {
+    "appTitle": "AI角色扮演训练系统",
+    "appDescription": "提升沟通技能的专业AI对话训练",
     "loginTitle": "登录",
     "registerTitle": "注册",
     "email": "邮箱",

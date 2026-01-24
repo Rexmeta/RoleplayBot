@@ -52,6 +52,8 @@
     "backToHome": "Back to Home"
   },
   "auth": {
+    "appTitle": "AI Roleplay Training System",
+    "appDescription": "Professional AI conversation training to improve communication skills",
     "loginTitle": "Login",
     "registerTitle": "Register",
     "email": "Email",

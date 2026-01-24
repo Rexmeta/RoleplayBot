@@ -52,6 +52,8 @@
     "backToHome": "ホームに戻る"
   },
   "auth": {
+    "appTitle": "AIロールプレイ訓練システム",
+    "appDescription": "コミュニケーションスキル向上のための専門的なAI対話訓練",
     "loginTitle": "ログイン",
     "registerTitle": "会員登録",
     "email": "メールアドレス",
