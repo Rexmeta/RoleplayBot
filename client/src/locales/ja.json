@@ -1,4 +1,15 @@
 {
+  "guest": {
+    "demoBanner": "🎯 デモ体験モード",
+    "demoBannerDesc": "1回無料体験中です。すべての機能を使うには会員登録してください。",
+    "demoCompleted": "デモ体験完了！",
+    "demoCompletedDesc": "シナリオ体験を完了しました。より多くのシナリオを体験するには会員登録してください。",
+    "registerNow": "今すぐ登録",
+    "viewFeedback": "フィードバックを見る",
+    "demoLimitReached": "体験制限",
+    "demoLimitReachedDesc": "ゲストアカウントは1回のみ体験できます。",
+    "continueAsGuest": "ゲストとして続ける"
+  },
   "common": {
     "appName": "RoleplayX",
     "tagline": "Skill based HRD",
@@ -373,6 +384,7 @@
         "stakesPlaceholder": "利害関係を説明",
         "objectiveType": "目標タイプ",
         "selectObjectiveType": "目標タイプを選択",
+        "isDemo": "ゲストデモシナリオ",
         "evaluationCriteria": "評価基準セット",
         "selectEvaluationCriteria": "評価基準を選択",
         "skills": "必要スキル",

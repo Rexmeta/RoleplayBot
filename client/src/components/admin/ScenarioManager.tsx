@@ -10,6 +10,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import { apiRequest, queryClient } from '@/lib/queryClient';
@@ -47,6 +48,7 @@ interface ScenarioFormData {
   introVideoUrl?: string; // 인트로 비디오 URL 필드 추가
   videoPrompt?: string; // 비디오 생성 프롬프트 필드 추가
   objectiveType?: string; // 목표 유형 추가
+  isDemo?: boolean; // 게스트 데모용 시나리오 여부
   context: {
     situation: string;
     timeline: string;
@@ -95,6 +97,7 @@ export function ScenarioManager() {
     introVideoUrl: '', // 인트로 비디오 URL 초기값 추가
     videoPrompt: '', // 비디오 프롬프트 초기값 추가
     objectiveType: '', // 목표 유형 초기값 추가
+    isDemo: false, // 게스트 데모용 시나리오 초기값 추가
     context: {
       situation: '',
       timeline: '',
@@ -207,6 +210,7 @@ export function ScenarioManager() {
       introVideoUrl: scenario.introVideoUrl || '',
       videoPrompt: scenario.videoPrompt || '',
       objectiveType: scenario.objectiveType || '',
+      isDemo: scenario.isDemo || false,
       context: scenario.context || {
         situation: '',
         timeline: '',
@@ -357,6 +361,7 @@ export function ScenarioManager() {
       introVideoUrl: (originalScenario as any).introVideoUrl || '', // 기존 시나리오의 인트로 비디오 URL 로드
       videoPrompt: (originalScenario as any).videoPrompt || '', // 기존 시나리오의 비디오 프롬프트 로드
       objectiveType: (originalScenario as any).objectiveType || '', // 기존 시나리오의 목표 유형 로드
+      isDemo: (originalScenario as any).isDemo || false, // 기존 시나리오의 데모 여부 로드
       context: originalScenario.context,
       objectives: originalScenario.objectives,
       successCriteria: originalScenario.successCriteria,
@@ -864,6 +869,17 @@ export function ScenarioManager() {
                       data-testid="input-estimated-time"
                       className="bg-white"
                     />
+                  </div>
+                  
+                  <div className="flex items-center gap-3">
+                    <Switch
+                      id="isDemo"
+                      checked={formData.isDemo || false}
+                      onCheckedChange={(checked) => setFormData(prev => ({ ...prev, isDemo: checked }))}
+                    />
+                    <Label htmlFor="isDemo" className="text-sm font-medium text-slate-700 cursor-pointer">
+                      {t('admin.scenarioManager.form.isDemo', 'Guest Demo Scenario')}
+                    </Label>
                   </div>
                 </div>
 

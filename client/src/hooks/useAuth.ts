@@ -9,6 +9,8 @@ export interface User {
   tier?: string; // 회원 등급: bronze, silver, gold, platinum, diamond
   assignedCategoryId?: string | null; // 운영자가 담당하는 카테고리 ID
   preferredLanguage?: string; // 선호 언어: ko, en, ja, zh
+  isGuest?: boolean; // 게스트 계정 여부 (guest@mothle.com)
+  hasCompletedDemo?: boolean; // 게스트가 데모 시나리오를 완료했는지 여부
 }
 
 export interface AuthContextType {

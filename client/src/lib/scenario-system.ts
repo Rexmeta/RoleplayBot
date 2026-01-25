@@ -86,6 +86,8 @@ export interface ComplexScenario {
   difficulty: number;
   estimatedTime: string;
   skills: string[];
+  evaluationCriteriaSetId?: string;
+  isDemo?: boolean;
 }
 
 export interface PlayerProfile {

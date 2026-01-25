@@ -478,6 +478,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ error: "User not found" });
       }
 
+      // 게스트 계정 체크 및 데모 완료 여부 확인
+      const isGuest = user.email === 'guest@mothle.com';
+      let hasCompletedDemo = false;
+      
+      if (isGuest) {
+        // 게스트가 완료한 시나리오 실행이 있는지 확인
+        const scenarioRuns = await storage.getUserScenarioRuns(userId);
+        hasCompletedDemo = scenarioRuns.some((run: any) => run.status === 'completed');
+      }
+      
       res.json({
         id: user.id,
         email: user.email,
@@ -487,6 +497,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         tier: user.tier,
         createdAt: user.createdAt,
         updatedAt: user.updatedAt,
+        isGuest,
+        hasCompletedDemo,
       });
     } catch (error: any) {
       console.error("Error fetching user profile:", error);
@@ -499,6 +511,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       // @ts-ignore - req.user는 auth 미들웨어에서 설정됨
       const userId = req.user?.id;
+      
+      // 게스트 계정 1회 체험 제한 체크
+      const user = await storage.getUser(userId);
+      if (user && user.email === 'guest@mothle.com') {
+        const existingRuns = await storage.getUserScenarioRuns(userId);
+        const hasCompletedDemo = existingRuns.some((run: any) => run.status === 'completed');
+        if (hasCompletedDemo) {
+          return res.status(403).json({ 
+            error: "게스트 계정은 1회만 체험할 수 있습니다. 회원가입 후 계속 이용해주세요.",
+            errorCode: "GUEST_DEMO_LIMIT_REACHED"
+          });
+        }
+      }
       
       console.log('📥 클라이언트 요청 body:', JSON.stringify(req.body));
       
@@ -3326,8 +3351,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
           if (user) {
             userLanguage = (user as any).preferredLanguage || 'ko';
             
+            // 게스트 계정 체크 (guest@mothle.com)
+            const isGuestAccount = user.email === 'guest@mothle.com';
+            if (isGuestAccount) {
+              // 게스트는 데모 시나리오만 볼 수 있음
+              filteredScenarios = scenarios.filter((s: any) => s.isDemo === true);
+              console.log(`[Scenarios API] Guest user - returning ${filteredScenarios.length} demo scenarios`);
+            }
             // 시스템관리자(admin)는 모든 시나리오 접근 가능 (카테고리 필터 선택 가능)
-            if (user.role === 'admin') {
+            else if (user.role === 'admin') {
               if (categoryIdParam) {
                 filteredScenarios = scenarios.filter((s: any) => 
                   String(s.categoryId) === String(categoryIdParam)

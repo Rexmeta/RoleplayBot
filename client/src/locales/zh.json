@@ -1,4 +1,15 @@
 {
+  "guest": {
+    "demoBanner": "🎯 演示体验模式",
+    "demoBannerDesc": "您正在进行一次免费体验。注册后可使用所有功能。",
+    "demoCompleted": "演示体验完成！",
+    "demoCompletedDesc": "您已完成场景体验。注册后可体验更多场景。",
+    "registerNow": "立即注册",
+    "viewFeedback": "查看反馈",
+    "demoLimitReached": "体验次数已用完",
+    "demoLimitReachedDesc": "访客账户只能体验一次。",
+    "continueAsGuest": "以访客身份继续"
+  },
   "common": {
     "appName": "RoleplayX",
     "tagline": "Skill based HRD",
@@ -373,6 +384,7 @@
         "stakesPlaceholder": "描述利害关系",
         "objectiveType": "目标类型",
         "selectObjectiveType": "选择目标类型",
+        "isDemo": "访客演示场景",
         "evaluationCriteria": "评价标准集",
         "selectEvaluationCriteria": "选择评价标准",
         "skills": "所需技能",

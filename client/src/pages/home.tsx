@@ -13,6 +13,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { AppHeader } from "@/components/AppHeader";
+import { GuestDemoBanner } from "@/components/GuestDemoBanner";
 import { useTranslation } from "react-i18next";
 import i18n from "@/lib/i18n";
 import {
@@ -545,6 +546,9 @@ export default function Home() {
 
   return (
     <div className="min-h-screen bg-slate-50">
+      {/* 게스트 데모 배너 */}
+      <GuestDemoBanner />
+      
       {/* 시나리오 목록에서는 항상 헤더 표시 */}
       {!isDetailPage && (
         <AppHeader 

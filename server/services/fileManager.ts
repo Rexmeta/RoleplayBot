@@ -149,6 +149,7 @@ export class FileManagerService {
       personas: dbScenario.personas || [],
       recommendedFlow: dbScenario.recommendedFlow || [],
       evaluationCriteriaSetId: dbScenario.evaluationCriteriaSetId || undefined,
+      isDemo: dbScenario.isDemo || false,
     };
   }
   
@@ -266,6 +267,7 @@ export class FileManagerService {
         personas: scenario.personas || [],
         recommendedFlow: scenario.recommendedFlow || [],
         evaluationCriteriaSetId: scenario.evaluationCriteriaSetId || null,
+        isDemo: scenario.isDemo || false,
       });
       this.invalidateScenarioCountCache();
       return newScenario;
@@ -305,6 +307,7 @@ export class FileManagerService {
         if (scenario.personas !== undefined) updates.personas = scenario.personas;
         if (scenario.recommendedFlow !== undefined) updates.recommendedFlow = scenario.recommendedFlow;
         if (scenario.evaluationCriteriaSetId !== undefined) updates.evaluationCriteriaSetId = scenario.evaluationCriteriaSetId;
+        if (scenario.isDemo !== undefined) updates.isDemo = scenario.isDemo;
         
         const updated = await storage.updateScenario(id, updates);
         this.invalidateScenarioCountCache();

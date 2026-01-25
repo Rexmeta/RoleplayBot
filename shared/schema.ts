@@ -109,6 +109,7 @@ export const scenarios = pgTable("scenarios", {
   }>>(), // 시나리오별 페르소나 설정
   recommendedFlow: text("recommended_flow").array(), // 추천 순서
   evaluationCriteriaSetId: varchar("evaluation_criteria_set_id"), // 평가 기준 세트 ID
+  isDemo: boolean("is_demo").notNull().default(false), // 게스트 데모용 시나리오 여부
   createdAt: timestamp("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
   updatedAt: timestamp("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`),
 }, (table) => [

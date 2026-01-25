@@ -1,4 +1,15 @@
 {
+  "guest": {
+    "demoBanner": "🎯 Demo Mode",
+    "demoBannerDesc": "You are on a free trial. Sign up to access all features.",
+    "demoCompleted": "Demo Completed!",
+    "demoCompletedDesc": "You have completed the demo scenario. Sign up to experience more scenarios.",
+    "registerNow": "Register Now",
+    "viewFeedback": "View Feedback",
+    "demoLimitReached": "Trial Limit Reached",
+    "demoLimitReachedDesc": "Guest accounts can only try one scenario.",
+    "continueAsGuest": "Continue as Guest"
+  },
   "common": {
     "appName": "RoleplayX",
     "tagline": "Skill based HRD",
@@ -373,6 +384,7 @@
         "stakesPlaceholder": "Describe what's at stake",
         "objectiveType": "Objective Type",
         "selectObjectiveType": "Select objective type",
+        "isDemo": "Guest Demo Scenario",
         "evaluationCriteria": "Evaluation Criteria Set",
         "selectEvaluationCriteria": "Select evaluation criteria",
         "skills": "Required Skills",
