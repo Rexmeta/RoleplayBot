@@ -116,6 +116,35 @@ export default function Home() {
     };
   };
 
+  // 시나리오에 번역 적용하는 헬퍼 함수 (playerRole, objectives 등)
+  const applyScenarioTranslation = (scenario: ComplexScenario | null): ComplexScenario | null => {
+    if (!scenario || !scenarioTranslation || currentLang === 'ko') {
+      return scenario;
+    }
+    
+    return {
+      ...scenario,
+      title: scenarioTranslation.title || scenario.title,
+      description: scenarioTranslation.description || scenario.description,
+      objectives: scenarioTranslation.objectives || scenario.objectives,
+      context: scenario.context ? {
+        ...scenario.context,
+        situation: scenarioTranslation.situation || scenario.context.situation,
+        timeline: scenarioTranslation.timeline || scenario.context.timeline,
+        stakes: scenarioTranslation.stakes || scenario.context.stakes,
+        playerRoleText: scenarioTranslation.playerRole || scenario.context.playerRoleText,
+        playerRole: scenario.context.playerRole ? {
+          ...scenario.context.playerRole,
+          position: scenarioTranslation.playerRole ? undefined : scenario.context.playerRole.position,
+          responsibility: scenarioTranslation.playerRole || scenario.context.playerRole.responsibility,
+        } : undefined,
+      } : undefined,
+    } as ComplexScenario;
+  };
+
+  // 번역이 적용된 시나리오
+  const translatedScenario = applyScenarioTranslation(selectedScenario);
+
   // ⚡ 최적화: 불필요한 전체 페르소나 조회 제거 (성능 개선)
   // ScenarioSelector에서 시나리오별 페르소나를 직접 전달받음
 
@@ -953,8 +982,8 @@ export default function Home() {
 
         {currentView === "chat" && selectedScenario && selectedPersona && conversationId && (
           <ChatWindow
-            scenario={selectedScenario}
-            persona={selectedPersona}
+            scenario={translatedScenario || selectedScenario}
+            persona={applyPersonaContextTranslation(selectedPersona)}
             conversationId={conversationId}
             onChatComplete={handleChatComplete}
             onExit={handleReturnToScenarios}
