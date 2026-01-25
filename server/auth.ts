@@ -347,4 +347,80 @@ export function setupAuth(app: Express) {
       res.status(500).json({ message: "토큰 생성 오류" });
     }
   });
+
+  // 게스트 로그인 (비밀번호 없이 서버에서 직접 세션 생성)
+  // POST 메서드 사용 (상태 변경 작업), rate limiting 적용
+  app.post("/api/auth/guest-login", async (req, res) => {
+    try {
+      const GUEST_EMAIL = 'guest@mothle.com';
+      
+      // Rate Limiting 체크 (IP 기반)
+      const clientIp = req.ip || req.socket.remoteAddress || 'unknown';
+      const rateLimitKey = `${clientIp}:guest-login`;
+      const rateCheck = checkRateLimit(rateLimitKey);
+      
+      if (!rateCheck.allowed) {
+        return res.status(429).json({ 
+          message: `로그인 시도가 너무 많습니다. ${rateCheck.remainingTime}초 후에 다시 시도해주세요.` 
+        });
+      }
+      
+      // 게스트 사용자 찾기
+      const guestUser = await storage.getUserByEmail(GUEST_EMAIL);
+      if (!guestUser) {
+        recordLoginAttempt(rateLimitKey);
+        return res.status(404).json({ 
+          message: "게스트 계정이 설정되지 않았습니다. 관리자에게 문의하세요." 
+        });
+      }
+
+      // 게스트 데모 완료 여부 확인
+      const existingRuns = await storage.getUserScenarioRuns(guestUser.id);
+      const hasCompletedDemo = existingRuns.some((run: any) => run.status === 'completed');
+      
+      if (hasCompletedDemo) {
+        return res.status(403).json({ 
+          message: "게스트 체험이 이미 완료되었습니다. 정식 회원가입을 해주세요.",
+          demoCompleted: true
+        });
+      }
+
+      // 로그인 성공 시 실패 횟수 초기화
+      clearLoginAttempts(rateLimitKey);
+
+      // JWT 토큰 생성 (게스트용 - 24시간 유효)
+      const token = jwt.sign(
+        { userId: guestUser.id },
+        JWT_SECRET,
+        { expiresIn: '24h' }
+      );
+
+      // 마지막 로그인 시간 업데이트
+      await storage.updateUserLastLogin(guestUser.id);
+
+      // 쿠키 설정 (24시간) - httpOnly로만 저장, localStorage 사용 안 함
+      res.cookie('token', token, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'strict',
+        maxAge: 24 * 60 * 60 * 1000, // 24시간
+      });
+
+      // 사용자 정보 반환 (토큰은 httpOnly 쿠키로만 전달, 클라이언트에 노출하지 않음)
+      res.json({
+        message: "게스트 로그인이 완료되었습니다",
+        user: {
+          id: guestUser.id,
+          email: guestUser.email,
+          name: guestUser.name,
+          role: guestUser.role || 'user',
+          isGuest: true,
+          hasCompletedDemo: false,
+        },
+      });
+    } catch (error) {
+      console.error("Guest login error:", error);
+      res.status(500).json({ message: "게스트 로그인 중 오류가 발생했습니다" });
+    }
+  });
 }

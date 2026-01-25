@@ -3,6 +3,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useTranslation } from "react-i18next";
+import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -10,7 +11,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Mail, Lock } from "lucide-react";
+import { Loader2, Mail, Lock, UserCircle } from "lucide-react";
 
 type LoginFormData = {
   email: string;
@@ -23,10 +24,12 @@ interface LoginFormProps {
 }
 
 export function LoginForm({ onSwitchToRegister }: LoginFormProps) {
-  const { login } = useAuth();
+  const { login, guestLogin } = useAuth();
   const { toast } = useToast();
   const { t } = useTranslation();
+  const [, setLocation] = useLocation();
   const [isLoading, setIsLoading] = useState(false);
+  const [isGuestLoading, setIsGuestLoading] = useState(false);
 
   const loginSchema = z.object({
     email: z.string().email(t('auth.emailInvalid')),
@@ -68,6 +71,42 @@ export function LoginForm({ onSwitchToRegister }: LoginFormProps) {
       });
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const handleGuestLogin = async () => {
+    try {
+      setIsGuestLoading(true);
+      const result = await guestLogin();
+      
+      if (result.success) {
+        toast({
+          title: t('auth.guestLoginSuccess'),
+          description: t('auth.guestWelcome'),
+        });
+        setLocation('/');
+      } else if (result.demoCompleted) {
+        toast({
+          title: t('guest.demoCompleted'),
+          description: t('guest.demoCompletedDesc'),
+          variant: "destructive",
+        });
+      } else {
+        toast({
+          title: t('auth.loginError'),
+          description: result.message || t('auth.loginErrorMessage'),
+          variant: "destructive",
+        });
+      }
+    } catch (error: any) {
+      console.error("Guest login error:", error);
+      toast({
+        title: t('auth.loginError'),
+        description: error.message || t('auth.loginErrorMessage'),
+        variant: "destructive",
+      });
+    } finally {
+      setIsGuestLoading(false);
     }
   };
 
@@ -146,7 +185,7 @@ export function LoginForm({ onSwitchToRegister }: LoginFormProps) {
           <Button
             type="submit"
             className="w-full"
-            disabled={isLoading}
+            disabled={isLoading || isGuestLoading}
             data-testid="button-login"
           >
             {isLoading ? (
@@ -156,6 +195,36 @@ export function LoginForm({ onSwitchToRegister }: LoginFormProps) {
               </>
             ) : (
               t('auth.loginButton')
+            )}
+          </Button>
+
+          <div className="relative my-4">
+            <div className="absolute inset-0 flex items-center">
+              <span className="w-full border-t" />
+            </div>
+            <div className="relative flex justify-center text-xs uppercase">
+              <span className="bg-white px-2 text-muted-foreground">{t('auth.or')}</span>
+            </div>
+          </div>
+
+          <Button
+            type="button"
+            variant="outline"
+            className="w-full"
+            onClick={handleGuestLogin}
+            disabled={isLoading || isGuestLoading}
+            data-testid="button-guest-login"
+          >
+            {isGuestLoading ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                {t('auth.guestLoading')}
+              </>
+            ) : (
+              <>
+                <UserCircle className="mr-2 h-4 w-4" />
+                {t('auth.guestLogin')}
+              </>
             )}
           </Button>
 

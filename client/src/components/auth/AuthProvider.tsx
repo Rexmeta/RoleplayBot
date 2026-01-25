@@ -129,6 +129,38 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     },
   });
 
+  // 게스트 로그인 mutation (POST 메서드, httpOnly 쿠키만 사용)
+  const guestLoginMutation = useMutation({
+    mutationFn: async () => {
+      const response = await fetch("/api/auth/guest-login", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        credentials: "include",
+      });
+      
+      const data = await response.json();
+      
+      if (!response.ok) {
+        return { 
+          success: false, 
+          demoCompleted: data.demoCompleted || false,
+          message: data.message 
+        };
+      }
+      
+      return { success: true, user: data.user };
+    },
+    onSuccess: (result) => {
+      if (result.success && result.user) {
+        setUser(result.user);
+        // 토큰은 httpOnly 쿠키로만 저장되므로 localStorage 사용 안 함
+        queryClient.invalidateQueries({ queryKey: ["/api/auth/user"] });
+      }
+    },
+  });
+
   // 현재 사용자 정보 업데이트 및 언어 동기화
   useEffect(() => {
     if (currentUser) {
@@ -157,6 +189,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     await logoutMutation.mutateAsync();
   };
 
+  const guestLogin = async () => {
+    const result = await guestLoginMutation.mutateAsync();
+    return result;
+  };
+
   const contextValue: AuthContextType = {
     user,
     isLoading: isUserLoading, // 초기 사용자 로딩만 포함, mutation pending은 제외
@@ -164,6 +201,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     login,
     register,
     logout,
+    guestLogin,
   };
 
   return (
