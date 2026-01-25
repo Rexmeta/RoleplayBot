@@ -976,5 +976,282 @@
     "notAllowed": "마이크 권한이 거부되었습니다. 브라우저 설정에서 마이크 권한을 허용해주세요.",
     "networkError": "네트워크 오류로 음성 인식에 실패했습니다.",
     "inputInProgress": "음성 입력 중..."
+  },
+  "systemAdmin": {
+    "title": "시스템 관리자",
+    "subtitle": "사용자 계정, 권한 및 카테고리 관리",
+    "tabs": {
+      "users": "사용자 관리",
+      "categories": "카테고리 관리",
+      "languages": "언어 관리",
+      "settings": "시스템 설정",
+      "aiUsage": "AI 사용량"
+    },
+    "users": {
+      "title": "사용자 관리",
+      "total": "전체 사용자",
+      "admins": "시스템 관리자",
+      "operators": "운영자",
+      "activeUsers": "활성 사용자",
+      "searchPlaceholder": "이름 또는 이메일로 검색",
+      "roleFilter": "역할 필터",
+      "tierFilter": "등급 필터",
+      "allRoles": "모든 역할",
+      "allTiers": "모든 등급",
+      "noResults": "검색 결과가 없습니다.",
+      "table": {
+        "profile": "프로필",
+        "name": "이름",
+        "email": "이메일",
+        "role": "역할",
+        "category": "담당 카테고리",
+        "tier": "등급",
+        "status": "상태",
+        "lastLogin": "최근 접속",
+        "actions": "관리"
+      },
+      "edit": "수정",
+      "resetPassword": "비밀번호 재설정",
+      "active": "활성",
+      "inactive": "비활성"
+    },
+    "roles": {
+      "admin": "시스템관리자",
+      "operator": "운영자",
+      "user": "일반유저"
+    },
+    "tiers": {
+      "bronze": "브론즈",
+      "silver": "실버",
+      "gold": "골드",
+      "platinum": "플래티넘",
+      "diamond": "다이아몬드"
+    },
+    "categories": {
+      "title": "카테고리 관리",
+      "add": "카테고리 추가",
+      "empty": "등록된 카테고리가 없습니다.",
+      "addFirst": "새 카테고리를 추가해주세요.",
+      "table": {
+        "order": "순서",
+        "name": "카테고리명",
+        "description": "설명",
+        "scenarioCount": "시나리오 수",
+        "assignedOperators": "담당 운영자",
+        "actions": "관리"
+      },
+      "form": {
+        "name": "카테고리명",
+        "namePlaceholder": "예: 온보딩, 리더십",
+        "description": "설명",
+        "descriptionPlaceholder": "카테고리에 대한 간단한 설명",
+        "order": "정렬 순서",
+        "orderHint": "낮은 숫자가 먼저 표시됩니다."
+      },
+      "createTitle": "새 카테고리 추가",
+      "createDesc": "시나리오를 분류할 새 카테고리를 추가합니다.",
+      "editTitle": "카테고리 수정",
+      "editDesc": "{{name}} 카테고리 정보를 수정합니다.",
+      "deleteTitle": "카테고리 삭제",
+      "deleteConfirm": "\"{{name}}\" 카테고리를 삭제하시겠습니까?",
+      "deleteWarning": "이 카테고리에 연결된 시나리오나 담당 운영자가 있으면 삭제할 수 없습니다."
+    },
+    "settings": {
+      "aiModelStatus": "기능별 AI 모델 사용 현황",
+      "aiModelStatusDesc": "각 기능에서 사용 중인 AI 모델을 확인할 수 있습니다.",
+      "aiModelConfig": "기능별 AI 모델 설정",
+      "aiModelConfigDesc": "각 기능에 사용할 AI 모델을 개별적으로 설정할 수 있습니다. 모델별 비용과 특성을 확인하세요.",
+      "table": {
+        "feature": "기능",
+        "description": "설명",
+        "model": "사용 모델",
+        "configurable": "설정 가능"
+      },
+      "fixedModels": "고정 모델 (변경 불가)",
+      "recommended": "추천",
+      "preparing": "준비 중",
+      "unsupported": "미지원",
+      "onlySupported": "{{provider}}만 지원",
+      "saving": "저장 중...",
+      "save": "저장",
+      "hasChanges": "변경사항이 있습니다",
+      "saveSuccess": "저장 완료",
+      "saveSuccessDesc": "AI 모델 설정이 저장되었습니다.",
+      "saveFailed": "저장 실패",
+      "saveFailedDesc": "설정 저장에 실패했습니다.",
+      "cannotSave": "저장 불가",
+      "unsupportedModel": "선택한 모델 중 지원되지 않는 모델이 있습니다. 다른 모델을 선택해 주세요.",
+      "apiKeyStatus": "API Key 상태",
+      "apiKeyStatusDesc": "외부 서비스 연동에 필요한 API Key 설정 상태입니다.",
+      "geminiApi": "Google Gemini API",
+      "geminiApiDesc": "AI 대화 생성에 사용",
+      "openaiApi": "OpenAI API",
+      "openaiApiDesc": "실시간 음성 대화에 사용",
+      "elevenlabsApi": "ElevenLabs API",
+      "elevenlabsApiDesc": "TTS 음성 합성에 사용",
+      "configured": "설정됨",
+      "notConfigured": "미설정",
+      "apiKeySecurityNote": "API Key는 보안을 위해 Secrets 탭에서 관리됩니다. 변경이 필요한 경우 Replit의 Secrets 메뉴를 이용해 주세요."
+    },
+    "aiUsage": {
+      "dateRange": "조회 기간",
+      "startDate": "시작일",
+      "endDate": "종료일",
+      "last7Days": "최근 7일",
+      "last30Days": "최근 30일",
+      "last90Days": "최근 90일",
+      "refresh": "새로고침",
+      "totalRequests": "총 요청 수",
+      "totalTokens": "총 토큰 사용량",
+      "estimatedCost": "예상 비용 (USD)",
+      "avgCostPerRequest": "요청당 평균 비용",
+      "input": "입력",
+      "output": "출력",
+      "usageByFeature": "기능별 사용량",
+      "usageByModel": "모델별 사용량",
+      "dailyUsage": "일별 사용량",
+      "noData": "선택한 기간에 사용 데이터가 없습니다.",
+      "table": {
+        "feature": "기능",
+        "model": "모델",
+        "provider": "제공자",
+        "date": "날짜",
+        "requests": "요청 수",
+        "tokens": "토큰 사용량",
+        "cost": "예상 비용 (USD)"
+      },
+      "features": {
+        "conversation": "대화 응답",
+        "feedback": "피드백 생성",
+        "strategy": "전략 분석",
+        "scenario": "시나리오 생성",
+        "realtime": "실시간 음성",
+        "image": "이미지 생성"
+      },
+      "showingLast14Days": "최근 14일 데이터만 표시됩니다. 전체 {{total}}일 데이터 중."
+    },
+    "dialogs": {
+      "editUser": {
+        "title": "사용자 정보 수정",
+        "role": "역할",
+        "assignedCategory": "담당 카테고리",
+        "selectCategory": "카테고리 선택",
+        "noCategory": "카테고리 없음",
+        "categoryHint": "운영자는 담당 카테고리 내에서만 시나리오를 관리할 수 있습니다.",
+        "tier": "등급",
+        "accountStatus": "계정 상태",
+        "accountStatusHint": "비활성화하면 로그인이 차단됩니다"
+      },
+      "resetPassword": {
+        "title": "비밀번호 재설정",
+        "description": "{{name}} ({{email}})의 새 비밀번호를 설정합니다.",
+        "newPassword": "새 비밀번호",
+        "placeholder": "6자 이상 입력",
+        "hint": "임시 비밀번호 설정 후 사용자에게 직접 알려주세요.",
+        "resetting": "재설정 중...",
+        "reset": "비밀번호 재설정"
+      }
+    },
+    "toast": {
+      "updateSuccess": "수정 완료",
+      "updateSuccessDesc": "사용자 정보가 성공적으로 수정되었습니다.",
+      "error": "오류",
+      "updateFailed": "사용자 정보 수정에 실패했습니다.",
+      "passwordResetSuccess": "비밀번호 재설정 완료",
+      "passwordResetSuccessDesc": "임시 비밀번호가 설정되었습니다. 사용자에게 알려주세요.",
+      "passwordResetFailed": "비밀번호 재설정에 실패했습니다.",
+      "categoryCreateSuccess": "카테고리 생성 완료",
+      "categoryCreateSuccessDesc": "새 카테고리가 추가되었습니다.",
+      "categoryCreateFailed": "카테고리 생성에 실패했습니다.",
+      "categoryUpdateSuccess": "수정 완료",
+      "categoryUpdateSuccessDesc": "카테고리가 수정되었습니다.",
+      "categoryUpdateFailed": "카테고리 수정에 실패했습니다.",
+      "categoryDeleteSuccess": "삭제 완료",
+      "categoryDeleteSuccessDesc": "카테고리가 삭제되었습니다.",
+      "categoryDeleteFailed": "삭제 실패",
+      "categoryDeleteFailedDesc": "카테고리 삭제에 실패했습니다.",
+      "noChanges": "알림",
+      "noChangesDesc": "변경된 내용이 없습니다."
+    },
+    "common": {
+      "cancel": "취소",
+      "save": "저장",
+      "saving": "저장 중...",
+      "add": "추가",
+      "delete": "삭제",
+      "deleting": "삭제 중..."
+    },
+    "features": {
+      "conversation": {
+        "name": "대화 응답 생성",
+        "description": "시나리오에서 AI 페르소나가 사용자에게 응답"
+      },
+      "feedback": {
+        "name": "피드백 생성",
+        "description": "대화 완료 후 사용자 성과 평가"
+      },
+      "strategy": {
+        "name": "전략 회고 평가",
+        "description": "대화 순서 전략에 대한 AI 평가"
+      },
+      "scenario": {
+        "name": "시나리오 생성",
+        "description": "AI 기반 훈련 시나리오 자동 생성"
+      },
+      "realtime": {
+        "name": "실시간 음성 대화",
+        "description": "Gemini Live API 기반 음성 대화"
+      },
+      "emotion": {
+        "name": "페르소나 감성 표현",
+        "description": "AI 페르소나의 감정 분석 및 표현"
+      },
+      "image": {
+        "name": "이미지 생성",
+        "description": "시나리오/페르소나 이미지 자동 생성"
+      },
+      "video": {
+        "name": "인트로 비디오 생성",
+        "description": "시나리오 인트로 비디오 AI 생성"
+      }
+    },
+    "models": {
+      "gemini20flashexp": {
+        "label": "Gemini 2.0 Flash (Exp)",
+        "description": "실험적 빠른 모델, 감정 분석용",
+        "pricing": "입력 $0.10/1M 토큰, 출력 $0.40/1M 토큰"
+      },
+      "gemini25flash": {
+        "label": "Gemini 2.5 Flash",
+        "description": "빠른 응답 속도, 일반 대화용",
+        "pricing": "입력 $0.30/1M 토큰, 출력 $2.50/1M 토큰"
+      },
+      "gemini25pro": {
+        "label": "Gemini 2.5 Pro",
+        "description": "높은 품질, 복잡한 대화용",
+        "pricing": "입력 $1.25/1M 토큰, 출력 $10.00/1M 토큰"
+      },
+      "gpt4o": {
+        "label": "GPT-4o",
+        "description": "OpenAI 최신 멀티모달 모델",
+        "pricing": "입력 $2.50/1M 토큰, 출력 $10.00/1M 토큰"
+      },
+      "gpt4omini": {
+        "label": "GPT-4o Mini",
+        "description": "경제적인 OpenAI 모델",
+        "pricing": "입력 $0.15/1M 토큰, 출력 $0.60/1M 토큰"
+      },
+      "geminiLiveNativeAudio": {
+        "label": "Gemini 2.5 Flash Native Audio",
+        "description": "실시간 음성 대화 기본 모델 (2025.09)",
+        "pricing": "입력 $0.35/1M, 출력 $1.50/1M 토큰"
+      },
+      "geminiFlashImage": {
+        "label": "Gemini 2.5 Flash Image"
+      },
+      "geminiVeo31": {
+        "label": "Gemini Veo 3.1"
+      }
+    }
   }
 }

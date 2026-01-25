@@ -976,5 +976,282 @@
     "notAllowed": "Microphone permission denied. Please allow microphone access in browser settings.",
     "networkError": "Voice recognition failed due to network error.",
     "inputInProgress": "Voice input in progress..."
+  },
+  "systemAdmin": {
+    "title": "System Admin",
+    "subtitle": "Manage user accounts, permissions, and categories",
+    "tabs": {
+      "users": "User Management",
+      "categories": "Category Management",
+      "languages": "Language Management",
+      "settings": "System Settings",
+      "aiUsage": "AI Usage"
+    },
+    "users": {
+      "title": "User Management",
+      "total": "Total Users",
+      "admins": "System Admins",
+      "operators": "Operators",
+      "activeUsers": "Active Users",
+      "searchPlaceholder": "Search by name or email",
+      "roleFilter": "Role filter",
+      "tierFilter": "Tier filter",
+      "allRoles": "All roles",
+      "allTiers": "All tiers",
+      "noResults": "No search results.",
+      "table": {
+        "profile": "Profile",
+        "name": "Name",
+        "email": "Email",
+        "role": "Role",
+        "category": "Assigned Category",
+        "tier": "Tier",
+        "status": "Status",
+        "lastLogin": "Last Login",
+        "actions": "Actions"
+      },
+      "edit": "Edit",
+      "resetPassword": "Reset Password",
+      "active": "Active",
+      "inactive": "Inactive"
+    },
+    "roles": {
+      "admin": "System Admin",
+      "operator": "Operator",
+      "user": "User"
+    },
+    "tiers": {
+      "bronze": "Bronze",
+      "silver": "Silver",
+      "gold": "Gold",
+      "platinum": "Platinum",
+      "diamond": "Diamond"
+    },
+    "categories": {
+      "title": "Category Management",
+      "add": "Add Category",
+      "empty": "No categories registered.",
+      "addFirst": "Please add a new category.",
+      "table": {
+        "order": "Order",
+        "name": "Category Name",
+        "description": "Description",
+        "scenarioCount": "Scenarios",
+        "assignedOperators": "Assigned Operators",
+        "actions": "Actions"
+      },
+      "form": {
+        "name": "Category Name",
+        "namePlaceholder": "e.g., Onboarding, Leadership",
+        "description": "Description",
+        "descriptionPlaceholder": "Brief description of the category",
+        "order": "Sort Order",
+        "orderHint": "Lower numbers appear first."
+      },
+      "createTitle": "Add New Category",
+      "createDesc": "Add a new category to classify scenarios.",
+      "editTitle": "Edit Category",
+      "editDesc": "Edit {{name}} category information.",
+      "deleteTitle": "Delete Category",
+      "deleteConfirm": "Delete \"{{name}}\" category?",
+      "deleteWarning": "Cannot delete if there are scenarios or operators assigned to this category."
+    },
+    "settings": {
+      "aiModelStatus": "AI Model Usage by Feature",
+      "aiModelStatusDesc": "View the AI model used for each feature.",
+      "aiModelConfig": "AI Model Configuration",
+      "aiModelConfigDesc": "Configure AI models for each feature individually. Check model costs and characteristics.",
+      "table": {
+        "feature": "Feature",
+        "description": "Description",
+        "model": "Model",
+        "configurable": "Configurable"
+      },
+      "fixedModels": "Fixed Models (Not Configurable)",
+      "recommended": "Recommended",
+      "preparing": "Preparing",
+      "unsupported": "Unsupported",
+      "onlySupported": "{{provider}} only",
+      "saving": "Saving...",
+      "save": "Save",
+      "hasChanges": "You have unsaved changes",
+      "saveSuccess": "Saved",
+      "saveSuccessDesc": "AI model settings saved successfully.",
+      "saveFailed": "Save Failed",
+      "saveFailedDesc": "Failed to save settings.",
+      "cannotSave": "Cannot Save",
+      "unsupportedModel": "One or more selected models are not supported. Please select different models.",
+      "apiKeyStatus": "API Key Status",
+      "apiKeyStatusDesc": "API key configuration status for external services.",
+      "geminiApi": "Google Gemini API",
+      "geminiApiDesc": "Used for AI conversation generation",
+      "openaiApi": "OpenAI API",
+      "openaiApiDesc": "Used for real-time voice conversation",
+      "elevenlabsApi": "ElevenLabs API",
+      "elevenlabsApiDesc": "Used for TTS voice synthesis",
+      "configured": "Configured",
+      "notConfigured": "Not Configured",
+      "apiKeySecurityNote": "API keys are managed in the Secrets tab for security. Use Replit's Secrets menu to make changes."
+    },
+    "aiUsage": {
+      "dateRange": "Date Range",
+      "startDate": "Start Date",
+      "endDate": "End Date",
+      "last7Days": "Last 7 days",
+      "last30Days": "Last 30 days",
+      "last90Days": "Last 90 days",
+      "refresh": "Refresh",
+      "totalRequests": "Total Requests",
+      "totalTokens": "Total Token Usage",
+      "estimatedCost": "Estimated Cost (USD)",
+      "avgCostPerRequest": "Avg Cost per Request",
+      "input": "Input",
+      "output": "Output",
+      "usageByFeature": "Usage by Feature",
+      "usageByModel": "Usage by Model",
+      "dailyUsage": "Daily Usage",
+      "noData": "No usage data for the selected period.",
+      "table": {
+        "feature": "Feature",
+        "model": "Model",
+        "provider": "Provider",
+        "date": "Date",
+        "requests": "Requests",
+        "tokens": "Token Usage",
+        "cost": "Estimated Cost (USD)"
+      },
+      "features": {
+        "conversation": "Conversation Response",
+        "feedback": "Feedback Generation",
+        "strategy": "Strategy Analysis",
+        "scenario": "Scenario Generation",
+        "realtime": "Real-time Voice",
+        "image": "Image Generation"
+      },
+      "showingLast14Days": "Showing last 14 days. Total {{total}} days of data."
+    },
+    "dialogs": {
+      "editUser": {
+        "title": "Edit User Information",
+        "role": "Role",
+        "assignedCategory": "Assigned Category",
+        "selectCategory": "Select category",
+        "noCategory": "No category",
+        "categoryHint": "Operators can only manage scenarios within their assigned category.",
+        "tier": "Tier",
+        "accountStatus": "Account Status",
+        "accountStatusHint": "Deactivating will block login"
+      },
+      "resetPassword": {
+        "title": "Reset Password",
+        "description": "Set a new password for {{name}} ({{email}}).",
+        "newPassword": "New Password",
+        "placeholder": "Enter at least 6 characters",
+        "hint": "Please inform the user of the temporary password after setting it.",
+        "resetting": "Resetting...",
+        "reset": "Reset Password"
+      }
+    },
+    "toast": {
+      "updateSuccess": "Updated",
+      "updateSuccessDesc": "User information updated successfully.",
+      "error": "Error",
+      "updateFailed": "Failed to update user information.",
+      "passwordResetSuccess": "Password Reset Complete",
+      "passwordResetSuccessDesc": "Temporary password has been set. Please inform the user.",
+      "passwordResetFailed": "Failed to reset password.",
+      "categoryCreateSuccess": "Category Created",
+      "categoryCreateSuccessDesc": "New category has been added.",
+      "categoryCreateFailed": "Failed to create category.",
+      "categoryUpdateSuccess": "Updated",
+      "categoryUpdateSuccessDesc": "Category has been updated.",
+      "categoryUpdateFailed": "Failed to update category.",
+      "categoryDeleteSuccess": "Deleted",
+      "categoryDeleteSuccessDesc": "Category has been deleted.",
+      "categoryDeleteFailed": "Delete Failed",
+      "categoryDeleteFailedDesc": "Failed to delete category.",
+      "noChanges": "Notice",
+      "noChangesDesc": "No changes were made."
+    },
+    "common": {
+      "cancel": "Cancel",
+      "save": "Save",
+      "saving": "Saving...",
+      "add": "Add",
+      "delete": "Delete",
+      "deleting": "Deleting..."
+    },
+    "features": {
+      "conversation": {
+        "name": "Conversation Response Generation",
+        "description": "AI persona responds to users in scenarios"
+      },
+      "feedback": {
+        "name": "Feedback Generation",
+        "description": "Evaluate user performance after conversation"
+      },
+      "strategy": {
+        "name": "Strategy Review Evaluation",
+        "description": "AI evaluation of conversation strategy"
+      },
+      "scenario": {
+        "name": "Scenario Generation",
+        "description": "AI-based training scenario auto-generation"
+      },
+      "realtime": {
+        "name": "Real-time Voice Conversation",
+        "description": "Voice conversation based on Gemini Live API"
+      },
+      "emotion": {
+        "name": "Persona Emotion Expression",
+        "description": "AI persona emotion analysis and expression"
+      },
+      "image": {
+        "name": "Image Generation",
+        "description": "Scenario/persona image auto-generation"
+      },
+      "video": {
+        "name": "Intro Video Generation",
+        "description": "AI generation of scenario intro videos"
+      }
+    },
+    "models": {
+      "gemini20flashexp": {
+        "label": "Gemini 2.0 Flash (Exp)",
+        "description": "Experimental fast model for emotion analysis",
+        "pricing": "Input $0.10/1M tokens, Output $0.40/1M tokens"
+      },
+      "gemini25flash": {
+        "label": "Gemini 2.5 Flash",
+        "description": "Fast response speed for general conversations",
+        "pricing": "Input $0.30/1M tokens, Output $2.50/1M tokens"
+      },
+      "gemini25pro": {
+        "label": "Gemini 2.5 Pro",
+        "description": "High quality for complex conversations",
+        "pricing": "Input $1.25/1M tokens, Output $10.00/1M tokens"
+      },
+      "gpt4o": {
+        "label": "GPT-4o",
+        "description": "OpenAI's latest multimodal model",
+        "pricing": "Input $2.50/1M tokens, Output $10.00/1M tokens"
+      },
+      "gpt4omini": {
+        "label": "GPT-4o Mini",
+        "description": "Economical OpenAI model",
+        "pricing": "Input $0.15/1M tokens, Output $0.60/1M tokens"
+      },
+      "geminiLiveNativeAudio": {
+        "label": "Gemini 2.5 Flash Native Audio",
+        "description": "Real-time voice conversation base model (2025.09)",
+        "pricing": "Input $0.35/1M, Output $1.50/1M tokens"
+      },
+      "geminiFlashImage": {
+        "label": "Gemini 2.5 Flash Image"
+      },
+      "geminiVeo31": {
+        "label": "Gemini Veo 3.1"
+      }
+    }
   }
 }

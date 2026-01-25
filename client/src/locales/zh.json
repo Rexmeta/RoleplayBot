@@ -976,5 +976,282 @@
     "notAllowed": "麦克风权限被拒绝，请在浏览器设置中允许麦克风访问。",
     "networkError": "由于网络错误，语音识别失败。",
     "inputInProgress": "语音输入中..."
+  },
+  "systemAdmin": {
+    "title": "系统管理员",
+    "subtitle": "管理用户账户、权限和分类",
+    "tabs": {
+      "users": "用户管理",
+      "categories": "分类管理",
+      "languages": "语言管理",
+      "settings": "系统设置",
+      "aiUsage": "AI使用量"
+    },
+    "users": {
+      "title": "用户管理",
+      "total": "全部用户",
+      "admins": "系统管理员",
+      "operators": "运营者",
+      "activeUsers": "活跃用户",
+      "searchPlaceholder": "按姓名或邮箱搜索",
+      "roleFilter": "角色筛选",
+      "tierFilter": "等级筛选",
+      "allRoles": "所有角色",
+      "allTiers": "所有等级",
+      "noResults": "没有搜索结果。",
+      "table": {
+        "profile": "头像",
+        "name": "姓名",
+        "email": "邮箱",
+        "role": "角色",
+        "category": "负责分类",
+        "tier": "等级",
+        "status": "状态",
+        "lastLogin": "最近登录",
+        "actions": "操作"
+      },
+      "edit": "编辑",
+      "resetPassword": "重置密码",
+      "active": "活跃",
+      "inactive": "非活跃"
+    },
+    "roles": {
+      "admin": "系统管理员",
+      "operator": "运营者",
+      "user": "普通用户"
+    },
+    "tiers": {
+      "bronze": "青铜",
+      "silver": "白银",
+      "gold": "黄金",
+      "platinum": "铂金",
+      "diamond": "钻石"
+    },
+    "categories": {
+      "title": "分类管理",
+      "add": "添加分类",
+      "empty": "没有注册的分类。",
+      "addFirst": "请添加新分类。",
+      "table": {
+        "order": "顺序",
+        "name": "分类名称",
+        "description": "描述",
+        "scenarioCount": "场景数",
+        "assignedOperators": "负责运营者",
+        "actions": "操作"
+      },
+      "form": {
+        "name": "分类名称",
+        "namePlaceholder": "例：入职培训、领导力",
+        "description": "描述",
+        "descriptionPlaceholder": "分类的简单描述",
+        "order": "排序顺序",
+        "orderHint": "较小的数字先显示。"
+      },
+      "createTitle": "添加新分类",
+      "createDesc": "添加用于分类场景的新分类。",
+      "editTitle": "编辑分类",
+      "editDesc": "编辑{{name}}分类信息。",
+      "deleteTitle": "删除分类",
+      "deleteConfirm": "确定要删除\"{{name}}\"分类吗？",
+      "deleteWarning": "如果有场景或运营者关联到此分类，则无法删除。"
+    },
+    "settings": {
+      "aiModelStatus": "各功能AI模型使用状况",
+      "aiModelStatusDesc": "查看各功能使用中的AI模型。",
+      "aiModelConfig": "各功能AI模型设置",
+      "aiModelConfigDesc": "可以为每个功能单独设置AI模型。请查看各模型的费用和特性。",
+      "table": {
+        "feature": "功能",
+        "description": "描述",
+        "model": "使用模型",
+        "configurable": "可设置"
+      },
+      "fixedModels": "固定模型（不可更改）",
+      "recommended": "推荐",
+      "preparing": "准备中",
+      "unsupported": "不支持",
+      "onlySupported": "仅支持{{provider}}",
+      "saving": "保存中...",
+      "save": "保存",
+      "hasChanges": "有未保存的更改",
+      "saveSuccess": "保存成功",
+      "saveSuccessDesc": "AI模型设置已保存。",
+      "saveFailed": "保存失败",
+      "saveFailedDesc": "设置保存失败。",
+      "cannotSave": "无法保存",
+      "unsupportedModel": "选择的模型中有不支持的模型。请选择其他模型。",
+      "apiKeyStatus": "API密钥状态",
+      "apiKeyStatusDesc": "外部服务连接所需的API密钥设置状态。",
+      "geminiApi": "Google Gemini API",
+      "geminiApiDesc": "用于AI对话生成",
+      "openaiApi": "OpenAI API",
+      "openaiApiDesc": "用于实时语音对话",
+      "elevenlabsApi": "ElevenLabs API",
+      "elevenlabsApiDesc": "用于TTS语音合成",
+      "configured": "已设置",
+      "notConfigured": "未设置",
+      "apiKeySecurityNote": "为了安全，API密钥在Secrets标签页中管理。如需更改，请使用Replit的Secrets菜单。"
+    },
+    "aiUsage": {
+      "dateRange": "查询期间",
+      "startDate": "开始日期",
+      "endDate": "结束日期",
+      "last7Days": "最近7天",
+      "last30Days": "最近30天",
+      "last90Days": "最近90天",
+      "refresh": "刷新",
+      "totalRequests": "总请求数",
+      "totalTokens": "总令牌使用量",
+      "estimatedCost": "预估费用（USD）",
+      "avgCostPerRequest": "每请求平均费用",
+      "input": "输入",
+      "output": "输出",
+      "usageByFeature": "按功能使用量",
+      "usageByModel": "按模型使用量",
+      "dailyUsage": "每日使用量",
+      "noData": "所选期间没有使用数据。",
+      "table": {
+        "feature": "功能",
+        "model": "模型",
+        "provider": "提供商",
+        "date": "日期",
+        "requests": "请求数",
+        "tokens": "令牌使用量",
+        "cost": "预估费用（USD）"
+      },
+      "features": {
+        "conversation": "对话响应",
+        "feedback": "反馈生成",
+        "strategy": "策略分析",
+        "scenario": "场景生成",
+        "realtime": "实时语音",
+        "image": "图片生成"
+      },
+      "showingLast14Days": "仅显示最近14天数据。共{{total}}天数据。"
+    },
+    "dialogs": {
+      "editUser": {
+        "title": "编辑用户信息",
+        "role": "角色",
+        "assignedCategory": "负责分类",
+        "selectCategory": "选择分类",
+        "noCategory": "无分类",
+        "categoryHint": "运营者只能在其负责的分类内管理场景。",
+        "tier": "等级",
+        "accountStatus": "账户状态",
+        "accountStatusHint": "禁用将阻止登录"
+      },
+      "resetPassword": {
+        "title": "重置密码",
+        "description": "为{{name}}（{{email}}）设置新密码。",
+        "newPassword": "新密码",
+        "placeholder": "请输入至少6个字符",
+        "hint": "设置临时密码后，请直接通知用户。",
+        "resetting": "重置中...",
+        "reset": "重置密码"
+      }
+    },
+    "toast": {
+      "updateSuccess": "更新成功",
+      "updateSuccessDesc": "用户信息已成功更新。",
+      "error": "错误",
+      "updateFailed": "用户信息更新失败。",
+      "passwordResetSuccess": "密码重置完成",
+      "passwordResetSuccessDesc": "临时密码已设置。请通知用户。",
+      "passwordResetFailed": "密码重置失败。",
+      "categoryCreateSuccess": "分类创建成功",
+      "categoryCreateSuccessDesc": "新分类已添加。",
+      "categoryCreateFailed": "分类创建失败。",
+      "categoryUpdateSuccess": "更新成功",
+      "categoryUpdateSuccessDesc": "分类已更新。",
+      "categoryUpdateFailed": "分类更新失败。",
+      "categoryDeleteSuccess": "删除成功",
+      "categoryDeleteSuccessDesc": "分类已删除。",
+      "categoryDeleteFailed": "删除失败",
+      "categoryDeleteFailedDesc": "分类删除失败。",
+      "noChanges": "提示",
+      "noChangesDesc": "没有进行任何更改。"
+    },
+    "common": {
+      "cancel": "取消",
+      "save": "保存",
+      "saving": "保存中...",
+      "add": "添加",
+      "delete": "删除",
+      "deleting": "删除中..."
+    },
+    "features": {
+      "conversation": {
+        "name": "对话响应生成",
+        "description": "场景中AI角色对用户的响应"
+      },
+      "feedback": {
+        "name": "反馈生成",
+        "description": "对话完成后的用户绩效评估"
+      },
+      "strategy": {
+        "name": "策略回顾评估",
+        "description": "对对话策略的AI评估"
+      },
+      "scenario": {
+        "name": "场景生成",
+        "description": "基于AI的培训场景自动生成"
+      },
+      "realtime": {
+        "name": "实时语音对话",
+        "description": "基于Gemini Live API的语音对话"
+      },
+      "emotion": {
+        "name": "角色情感表达",
+        "description": "AI角色的情感分析和表达"
+      },
+      "image": {
+        "name": "图片生成",
+        "description": "场景/角色图片自动生成"
+      },
+      "video": {
+        "name": "介绍视频生成",
+        "description": "场景介绍视频的AI生成"
+      }
+    },
+    "models": {
+      "gemini20flashexp": {
+        "label": "Gemini 2.0 Flash (Exp)",
+        "description": "用于情感分析的实验性快速模型",
+        "pricing": "输入 $0.10/百万令牌，输出 $0.40/百万令牌"
+      },
+      "gemini25flash": {
+        "label": "Gemini 2.5 Flash",
+        "description": "快速响应，适用于一般对话",
+        "pricing": "输入 $0.30/百万令牌，输出 $2.50/百万令牌"
+      },
+      "gemini25pro": {
+        "label": "Gemini 2.5 Pro",
+        "description": "高质量，适用于复杂对话",
+        "pricing": "输入 $1.25/百万令牌，输出 $10.00/百万令牌"
+      },
+      "gpt4o": {
+        "label": "GPT-4o",
+        "description": "OpenAI最新多模态模型",
+        "pricing": "输入 $2.50/百万令牌，输出 $10.00/百万令牌"
+      },
+      "gpt4omini": {
+        "label": "GPT-4o Mini",
+        "description": "经济型OpenAI模型",
+        "pricing": "输入 $0.15/百万令牌，输出 $0.60/百万令牌"
+      },
+      "geminiLiveNativeAudio": {
+        "label": "Gemini 2.5 Flash Native Audio",
+        "description": "实时语音对话基础模型 (2025.09)",
+        "pricing": "输入 $0.35/百万，输出 $1.50/百万令牌"
+      },
+      "geminiFlashImage": {
+        "label": "Gemini 2.5 Flash Image"
+      },
+      "geminiVeo31": {
+        "label": "Gemini Veo 3.1"
+      }
+    }
   }
 }

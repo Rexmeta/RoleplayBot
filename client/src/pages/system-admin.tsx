@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
+import { useTranslation } from "react-i18next";
 import { AppHeader } from "@/components/AppHeader";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -105,47 +106,32 @@ interface AiUsageDaily {
 const AI_MODELS = [
   { 
     value: "gemini-2.0-flash-exp", 
-    label: "Gemini 2.0 Flash (Exp)", 
+    modelKey: "gemini20flashexp",
     provider: "Google",
-    description: "실험적 빠른 모델, 감정 분석용",
-    pricing: "입력 $0.10/1M 토큰, 출력 $0.40/1M 토큰",
-    features: "빠른 속도, 비용 효율적",
     recommended: false
   },
   { 
     value: "gemini-2.5-flash", 
-    label: "Gemini 2.5 Flash", 
+    modelKey: "gemini25flash",
     provider: "Google",
-    description: "빠른 응답 속도, 일반 대화용",
-    pricing: "입력 $0.30/1M 토큰, 출력 $2.50/1M 토큰",
-    features: "텍스트 생성, 멀티모달 지원",
     recommended: true
   },
   { 
     value: "gemini-2.5-pro", 
-    label: "Gemini 2.5 Pro", 
+    modelKey: "gemini25pro",
     provider: "Google",
-    description: "높은 품질, 복잡한 대화용",
-    pricing: "입력 $1.25/1M 토큰, 출력 $10.00/1M 토큰",
-    features: "최고 품질 텍스트, 복잡한 추론",
     recommended: false
   },
   { 
     value: "gpt-4o", 
-    label: "GPT-4o", 
+    modelKey: "gpt4o",
     provider: "OpenAI",
-    description: "OpenAI 최신 멀티모달 모델",
-    pricing: "입력 $2.50/1M 토큰, 출력 $10.00/1M 토큰",
-    features: "고품질 텍스트, 이미지 이해",
     recommended: false
   },
   { 
     value: "gpt-4o-mini", 
-    label: "GPT-4o Mini", 
+    modelKey: "gpt4omini",
     provider: "OpenAI",
-    description: "경제적인 OpenAI 모델",
-    pricing: "입력 $0.15/1M 토큰, 출력 $0.60/1M 토큰",
-    features: "빠른 속도, 비용 효율적",
     recommended: false
   },
 ];
@@ -153,11 +139,8 @@ const AI_MODELS = [
 const GEMINI_LIVE_MODELS = [
   { 
     value: "gemini-2.5-flash-native-audio-preview-09-2025", 
-    label: "Gemini 2.5 Flash Native Audio", 
+    modelKey: "geminiLiveNativeAudio",
     provider: "Google Live",
-    description: "실시간 음성 대화 기본 모델 (2025.09)",
-    pricing: "입력 $0.35/1M, 출력 $1.50/1M 토큰",
-    features: "저지연 스트리밍, VAD 지원, 네이티브 오디오",
     recommended: true
   },
 ];
@@ -165,8 +148,6 @@ const GEMINI_LIVE_MODELS = [
 const FEATURE_MODEL_INFO = [
   {
     id: "conversation",
-    feature: "대화 응답 생성",
-    description: "시나리오에서 AI 페르소나가 사용자에게 응답",
     settingKey: "model_conversation",
     defaultModel: "gemini-2.5-flash",
     configurable: true,
@@ -174,8 +155,6 @@ const FEATURE_MODEL_INFO = [
   },
   {
     id: "feedback",
-    feature: "피드백 생성",
-    description: "대화 완료 후 사용자 성과 평가",
     settingKey: "model_feedback",
     defaultModel: "gemini-2.5-flash",
     configurable: true,
@@ -183,52 +162,40 @@ const FEATURE_MODEL_INFO = [
   },
   {
     id: "strategy",
-    feature: "전략 회고 평가",
-    description: "대화 순서 전략에 대한 AI 평가",
     settingKey: "model_strategy",
     defaultModel: "gemini-2.5-flash",
     configurable: true,
-    supportedProviders: ["Google"] // Gemini만 지원
+    supportedProviders: ["Google"]
   },
   {
     id: "scenario",
-    feature: "시나리오 생성",
-    description: "AI 기반 훈련 시나리오 자동 생성",
     settingKey: "model_scenario",
     defaultModel: "gemini-2.5-flash",
     configurable: true,
-    supportedProviders: ["Google"] // Gemini만 지원 (Google SDK 사용)
+    supportedProviders: ["Google"]
   },
   {
     id: "realtime",
-    feature: "실시간 음성 대화",
-    description: "Gemini Live API 기반 음성 대화",
     settingKey: "model_realtime",
     defaultModel: "gemini-2.5-flash-native-audio-preview-09-2025",
     configurable: true,
-    supportedProviders: ["Google Live"] // Gemini Live API만 지원
+    supportedProviders: ["Google Live"]
   },
   {
     id: "emotion",
-    feature: "페르소나 감성 표현",
-    description: "AI 페르소나의 감정 분석 및 표현",
     settingKey: "model_emotion",
     defaultModel: "gemini-2.0-flash-exp",
     configurable: true,
-    supportedProviders: ["Google"] // Gemini만 지원
+    supportedProviders: ["Google"]
   },
   {
     id: "image",
-    feature: "이미지 생성",
-    description: "시나리오/페르소나 이미지 자동 생성",
-    fixedModel: "Gemini 2.5 Flash Image",
+    fixedModelKey: "geminiFlashImage",
     configurable: false
   },
   {
     id: "video",
-    feature: "인트로 비디오 생성",
-    description: "시나리오 인트로 비디오 AI 생성",
-    fixedModel: "Gemini Veo 3.1",
+    fixedModelKey: "geminiVeo31",
     configurable: false
   }
 ];
@@ -239,21 +206,22 @@ interface ApiKeyStatus {
   elevenlabs: boolean;
 }
 
-const roleConfig: Record<string, { label: string; color: string; bgColor: string }> = {
-  admin: { label: "시스템관리자", color: "text-red-700", bgColor: "bg-red-100" },
-  operator: { label: "운영자", color: "text-blue-700", bgColor: "bg-blue-100" },
-  user: { label: "일반유저", color: "text-slate-700", bgColor: "bg-slate-100" },
+const roleColorConfig: Record<string, { color: string; bgColor: string }> = {
+  admin: { color: "text-red-700", bgColor: "bg-red-100" },
+  operator: { color: "text-blue-700", bgColor: "bg-blue-100" },
+  user: { color: "text-slate-700", bgColor: "bg-slate-100" },
 };
 
-const tierConfig: Record<string, { label: string; color: string; bgColor: string }> = {
-  bronze: { label: "브론즈", color: "text-amber-700", bgColor: "bg-amber-100" },
-  silver: { label: "실버", color: "text-slate-600", bgColor: "bg-slate-100" },
-  gold: { label: "골드", color: "text-yellow-600", bgColor: "bg-yellow-100" },
-  platinum: { label: "플래티넘", color: "text-cyan-600", bgColor: "bg-cyan-100" },
-  diamond: { label: "다이아몬드", color: "text-purple-600", bgColor: "bg-purple-100" },
+const tierColorConfig: Record<string, { color: string; bgColor: string }> = {
+  bronze: { color: "text-amber-700", bgColor: "bg-amber-100" },
+  silver: { color: "text-slate-600", bgColor: "bg-slate-100" },
+  gold: { color: "text-yellow-600", bgColor: "bg-yellow-100" },
+  platinum: { color: "text-cyan-600", bgColor: "bg-cyan-100" },
+  diamond: { color: "text-purple-600", bgColor: "bg-purple-100" },
 };
 
 export default function SystemAdminPage() {
+  const { t, i18n } = useTranslation();
   const { toast } = useToast();
   const [activeTab, setActiveTab] = useState("users");
   
@@ -402,16 +370,16 @@ export default function SystemAdminPage() {
     },
     onSuccess: () => {
       toast({
-        title: "수정 완료",
-        description: "사용자 정보가 성공적으로 수정되었습니다.",
+        title: t('systemAdmin.toast.updateSuccess'),
+        description: t('systemAdmin.toast.updateSuccessDesc'),
       });
       queryClient.invalidateQueries({ queryKey: ["/api/system-admin/users"] });
       setEditingUser(null);
     },
     onError: (error: any) => {
       toast({
-        title: "오류",
-        description: error.message || "사용자 정보 수정에 실패했습니다.",
+        title: t('systemAdmin.toast.error'),
+        description: error.message || t('systemAdmin.toast.updateFailed'),
         variant: "destructive",
       });
     },
@@ -423,8 +391,8 @@ export default function SystemAdminPage() {
     },
     onSuccess: () => {
       toast({
-        title: "비밀번호 재설정 완료",
-        description: "임시 비밀번호가 설정되었습니다. 사용자에게 알려주세요.",
+        title: t('systemAdmin.toast.passwordResetSuccess'),
+        description: t('systemAdmin.toast.passwordResetSuccessDesc'),
       });
       setResetPasswordUser(null);
       setNewPassword("");
@@ -432,8 +400,8 @@ export default function SystemAdminPage() {
     },
     onError: (error: any) => {
       toast({
-        title: "오류",
-        description: error.message || "비밀번호 재설정에 실패했습니다.",
+        title: t('systemAdmin.toast.error'),
+        description: error.message || t('systemAdmin.toast.passwordResetFailed'),
         variant: "destructive",
       });
     },
@@ -445,8 +413,8 @@ export default function SystemAdminPage() {
     },
     onSuccess: () => {
       toast({
-        title: "카테고리 생성 완료",
-        description: "새 카테고리가 추가되었습니다.",
+        title: t('systemAdmin.toast.categoryCreateSuccess'),
+        description: t('systemAdmin.toast.categoryCreateSuccessDesc'),
       });
       queryClient.invalidateQueries({ queryKey: ["/api/categories"] });
       setIsCreatingCategory(false);
@@ -454,8 +422,8 @@ export default function SystemAdminPage() {
     },
     onError: (error: any) => {
       toast({
-        title: "오류",
-        description: error.message || "카테고리 생성에 실패했습니다.",
+        title: t('systemAdmin.toast.error'),
+        description: error.message || t('systemAdmin.toast.categoryCreateFailed'),
         variant: "destructive",
       });
     },
@@ -467,16 +435,16 @@ export default function SystemAdminPage() {
     },
     onSuccess: () => {
       toast({
-        title: "수정 완료",
-        description: "카테고리가 수정되었습니다.",
+        title: t('systemAdmin.toast.categoryUpdateSuccess'),
+        description: t('systemAdmin.toast.categoryUpdateSuccessDesc'),
       });
       queryClient.invalidateQueries({ queryKey: ["/api/categories"] });
       setEditingCategory(null);
     },
     onError: (error: any) => {
       toast({
-        title: "오류",
-        description: error.message || "카테고리 수정에 실패했습니다.",
+        title: t('systemAdmin.toast.error'),
+        description: error.message || t('systemAdmin.toast.categoryUpdateFailed'),
         variant: "destructive",
       });
     },
@@ -488,16 +456,16 @@ export default function SystemAdminPage() {
     },
     onSuccess: () => {
       toast({
-        title: "삭제 완료",
-        description: "카테고리가 삭제되었습니다.",
+        title: t('systemAdmin.toast.categoryDeleteSuccess'),
+        description: t('systemAdmin.toast.categoryDeleteSuccessDesc'),
       });
       queryClient.invalidateQueries({ queryKey: ["/api/categories"] });
       setDeletingCategory(null);
     },
     onError: (error: any) => {
       toast({
-        title: "삭제 실패",
-        description: error.message || "카테고리 삭제에 실패했습니다.",
+        title: t('systemAdmin.toast.categoryDeleteFailed'),
+        description: error.message || t('systemAdmin.toast.categoryDeleteFailedDesc'),
         variant: "destructive",
       });
     },
@@ -514,16 +482,16 @@ export default function SystemAdminPage() {
     },
     onSuccess: () => {
       toast({
-        title: "저장 완료",
-        description: "AI 모델 설정이 저장되었습니다.",
+        title: t('systemAdmin.settings.saveSuccess'),
+        description: t('systemAdmin.settings.saveSuccessDesc'),
       });
       queryClient.invalidateQueries({ queryKey: ["/api/system-admin/settings"] });
       setHasSettingsChanges(false);
     },
     onError: (error: any) => {
       toast({
-        title: "저장 실패",
-        description: error.message || "설정 저장에 실패했습니다.",
+        title: t('systemAdmin.settings.saveFailed'),
+        description: error.message || t('systemAdmin.settings.saveFailedDesc'),
         variant: "destructive",
       });
     },
@@ -535,31 +503,23 @@ export default function SystemAdminPage() {
   };
 
   const handleSaveSettings = () => {
-    // 비활성화된 모델 선택 방지
     for (const [key, value] of Object.entries(featureModels)) {
       const modelInfo = AI_MODELS.find(m => m.value === value);
       if (modelInfo && 'disabled' in modelInfo && modelInfo.disabled) {
         toast({
-          title: "저장 불가",
-          description: "선택한 모델 중 지원되지 않는 모델이 있습니다. 다른 모델을 선택해 주세요.",
+          title: t('systemAdmin.settings.cannotSave'),
+          description: t('systemAdmin.settings.unsupportedModel'),
           variant: "destructive",
         });
         return;
       }
     }
 
-    const featureDescriptions: Record<string, string> = {
-      model_conversation: "대화 응답 생성에 사용할 모델",
-      model_feedback: "피드백 생성에 사용할 모델",
-      model_strategy: "전략 회고 평가에 사용할 모델",
-      model_emotion: "페르소나 감성 표현에 사용할 모델",
-    };
-
     const settings = Object.entries(featureModels).map(([key, value]) => ({
       category: "ai",
       key,
       value,
-      description: featureDescriptions[key] || "",
+      description: "",
     }));
 
     saveSettingsMutation.mutate(settings);
@@ -616,8 +576,8 @@ export default function SystemAdminPage() {
 
     if (Object.keys(updates).length === 0) {
       toast({
-        title: "알림",
-        description: "변경된 내용이 없습니다.",
+        title: t('systemAdmin.toast.noChanges'),
+        description: t('systemAdmin.toast.noChangesDesc'),
       });
       return;
     }
@@ -645,8 +605,8 @@ export default function SystemAdminPage() {
 
       if (Object.keys(updates).length === 0) {
         toast({
-          title: "알림",
-          description: "변경된 내용이 없습니다.",
+          title: t('systemAdmin.toast.noChanges'),
+          description: t('systemAdmin.toast.noChangesDesc'),
         });
         return;
       }
@@ -671,8 +631,8 @@ export default function SystemAdminPage() {
   return (
     <div className="min-h-screen bg-slate-50">
       <AppHeader
-        title="시스템 관리자"
-        subtitle="사용자 계정, 권한 및 카테고리 관리"
+        title={t('systemAdmin.title')}
+        subtitle={t('systemAdmin.subtitle')}
         showBackButton
       />
 
@@ -681,23 +641,23 @@ export default function SystemAdminPage() {
           <TabsList className="grid w-full max-w-4xl grid-cols-5">
             <TabsTrigger value="users" className="flex items-center gap-2" data-testid="tab-users">
               <Users className="h-4 w-4" />
-              사용자 관리
+              {t('systemAdmin.tabs.users')}
             </TabsTrigger>
             <TabsTrigger value="categories" className="flex items-center gap-2" data-testid="tab-categories">
               <FolderTree className="h-4 w-4" />
-              카테고리 관리
+              {t('systemAdmin.tabs.categories')}
             </TabsTrigger>
             <TabsTrigger value="languages" className="flex items-center gap-2" data-testid="tab-languages">
               <Languages className="h-4 w-4" />
-              언어 관리
+              {t('systemAdmin.tabs.languages')}
             </TabsTrigger>
             <TabsTrigger value="settings" className="flex items-center gap-2" data-testid="tab-settings">
               <Settings className="h-4 w-4" />
-              시스템 설정
+              {t('systemAdmin.tabs.settings')}
             </TabsTrigger>
             <TabsTrigger value="ai-usage" className="flex items-center gap-2" data-testid="tab-ai-usage">
               <Activity className="h-4 w-4" />
-              AI 사용량
+              {t('systemAdmin.tabs.aiUsage')}
             </TabsTrigger>
           </TabsList>
 
@@ -705,7 +665,7 @@ export default function SystemAdminPage() {
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
               <Card data-testid="card-total-users">
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">전체 사용자</CardTitle>
+                  <CardTitle className="text-sm font-medium">{t('systemAdmin.users.total')}</CardTitle>
                   <Users className="h-4 w-4 text-muted-foreground" />
                 </CardHeader>
                 <CardContent>
@@ -715,7 +675,7 @@ export default function SystemAdminPage() {
 
               <Card data-testid="card-admin-count">
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">시스템 관리자</CardTitle>
+                  <CardTitle className="text-sm font-medium">{t('systemAdmin.users.admins')}</CardTitle>
                   <Shield className="h-4 w-4 text-red-600" />
                 </CardHeader>
                 <CardContent>
@@ -725,7 +685,7 @@ export default function SystemAdminPage() {
 
               <Card data-testid="card-operator-count">
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">운영자</CardTitle>
+                  <CardTitle className="text-sm font-medium">{t('systemAdmin.users.operators')}</CardTitle>
                   <UserCog className="h-4 w-4 text-blue-600" />
                 </CardHeader>
                 <CardContent>
@@ -735,7 +695,7 @@ export default function SystemAdminPage() {
 
               <Card data-testid="card-active-users">
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">활성 사용자</CardTitle>
+                  <CardTitle className="text-sm font-medium">{t('systemAdmin.users.activeUsers')}</CardTitle>
                   <User className="h-4 w-4 text-green-600" />
                 </CardHeader>
                 <CardContent>
@@ -746,14 +706,14 @@ export default function SystemAdminPage() {
 
             <Card>
               <CardHeader>
-                <CardTitle>사용자 관리</CardTitle>
+                <CardTitle>{t('systemAdmin.users.title')}</CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="flex flex-wrap gap-4 mb-6">
                   <div className="relative flex-1 min-w-[200px]">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                     <Input
-                      placeholder="이름 또는 이메일로 검색"
+                      placeholder={t('systemAdmin.users.searchPlaceholder')}
                       value={searchQuery}
                       onChange={(e) => setSearchQuery(e.target.value)}
                       className="pl-10"
@@ -763,27 +723,27 @@ export default function SystemAdminPage() {
 
                   <Select value={roleFilter} onValueChange={setRoleFilter}>
                     <SelectTrigger className="w-[150px]" data-testid="select-role-filter">
-                      <SelectValue placeholder="역할 필터" />
+                      <SelectValue placeholder={t('systemAdmin.users.roleFilter')} />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="all">모든 역할</SelectItem>
-                      <SelectItem value="admin">시스템관리자</SelectItem>
-                      <SelectItem value="operator">운영자</SelectItem>
-                      <SelectItem value="user">일반유저</SelectItem>
+                      <SelectItem value="all">{t('systemAdmin.users.allRoles')}</SelectItem>
+                      <SelectItem value="admin">{t('systemAdmin.roles.admin')}</SelectItem>
+                      <SelectItem value="operator">{t('systemAdmin.roles.operator')}</SelectItem>
+                      <SelectItem value="user">{t('systemAdmin.roles.user')}</SelectItem>
                     </SelectContent>
                   </Select>
 
                   <Select value={tierFilter} onValueChange={setTierFilter}>
                     <SelectTrigger className="w-[150px]" data-testid="select-tier-filter">
-                      <SelectValue placeholder="등급 필터" />
+                      <SelectValue placeholder={t('systemAdmin.users.tierFilter')} />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="all">모든 등급</SelectItem>
-                      <SelectItem value="bronze">브론즈</SelectItem>
-                      <SelectItem value="silver">실버</SelectItem>
-                      <SelectItem value="gold">골드</SelectItem>
-                      <SelectItem value="platinum">플래티넘</SelectItem>
-                      <SelectItem value="diamond">다이아몬드</SelectItem>
+                      <SelectItem value="all">{t('systemAdmin.users.allTiers')}</SelectItem>
+                      <SelectItem value="bronze">{t('systemAdmin.tiers.bronze')}</SelectItem>
+                      <SelectItem value="silver">{t('systemAdmin.tiers.silver')}</SelectItem>
+                      <SelectItem value="gold">{t('systemAdmin.tiers.gold')}</SelectItem>
+                      <SelectItem value="platinum">{t('systemAdmin.tiers.platinum')}</SelectItem>
+                      <SelectItem value="diamond">{t('systemAdmin.tiers.diamond')}</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -797,22 +757,22 @@ export default function SystemAdminPage() {
                     <Table>
                       <TableHeader>
                         <TableRow>
-                          <TableHead className="w-[60px]">프로필</TableHead>
-                          <TableHead>이름</TableHead>
-                          <TableHead>이메일</TableHead>
-                          <TableHead>역할</TableHead>
-                          <TableHead>담당 카테고리</TableHead>
-                          <TableHead>등급</TableHead>
-                          <TableHead>상태</TableHead>
-                          <TableHead>최근 접속</TableHead>
-                          <TableHead className="w-[120px]">관리</TableHead>
+                          <TableHead className="w-[60px]">{t('systemAdmin.users.table.profile')}</TableHead>
+                          <TableHead>{t('systemAdmin.users.table.name')}</TableHead>
+                          <TableHead>{t('systemAdmin.users.table.email')}</TableHead>
+                          <TableHead>{t('systemAdmin.users.table.role')}</TableHead>
+                          <TableHead>{t('systemAdmin.users.table.category')}</TableHead>
+                          <TableHead>{t('systemAdmin.users.table.tier')}</TableHead>
+                          <TableHead>{t('systemAdmin.users.table.status')}</TableHead>
+                          <TableHead>{t('systemAdmin.users.table.lastLogin')}</TableHead>
+                          <TableHead className="w-[120px]">{t('systemAdmin.users.table.actions')}</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
                         {filteredUsers.length === 0 ? (
                           <TableRow>
                             <TableCell colSpan={9} className="text-center py-8 text-muted-foreground">
-                              검색 결과가 없습니다.
+                              {t('systemAdmin.users.noResults')}
                             </TableCell>
                           </TableRow>
                         ) : (
@@ -835,9 +795,9 @@ export default function SystemAdminPage() {
                               <TableCell className="text-muted-foreground">{user.email}</TableCell>
                               <TableCell>
                                 <Badge
-                                  className={`${roleConfig[user.role]?.bgColor} ${roleConfig[user.role]?.color}`}
+                                  className={`${roleColorConfig[user.role]?.bgColor} ${roleColorConfig[user.role]?.color}`}
                                 >
-                                  {roleConfig[user.role]?.label}
+                                  {t(`systemAdmin.roles.${user.role}`)}
                                 </Badge>
                               </TableCell>
                               <TableCell className="text-sm">
@@ -851,9 +811,9 @@ export default function SystemAdminPage() {
                               </TableCell>
                               <TableCell>
                                 <Badge
-                                  className={`${tierConfig[user.tier]?.bgColor} ${tierConfig[user.tier]?.color}`}
+                                  className={`${tierColorConfig[user.tier]?.bgColor} ${tierColorConfig[user.tier]?.color}`}
                                 >
-                                  {tierConfig[user.tier]?.label}
+                                  {t(`systemAdmin.tiers.${user.tier}`)}
                                 </Badge>
                               </TableCell>
                               <TableCell>
@@ -861,7 +821,7 @@ export default function SystemAdminPage() {
                                   variant={user.isActive ? "default" : "secondary"}
                                   className={user.isActive ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-500"}
                                 >
-                                  {user.isActive ? "활성" : "비활성"}
+                                  {user.isActive ? t('systemAdmin.users.active') : t('systemAdmin.users.inactive')}
                                 </Badge>
                               </TableCell>
                               <TableCell className="text-sm text-muted-foreground">
@@ -877,14 +837,14 @@ export default function SystemAdminPage() {
                                     onClick={() => openEditUserDialog(user)}
                                     data-testid={`button-edit-${user.id}`}
                                   >
-                                    수정
+                                    {t('systemAdmin.users.edit')}
                                   </Button>
                                   <Button
                                     variant="ghost"
                                     size="sm"
                                     onClick={() => setResetPasswordUser(user)}
                                     data-testid={`button-reset-password-${user.id}`}
-                                    title="비밀번호 재설정"
+                                    title={t('systemAdmin.users.resetPassword')}
                                   >
                                     <KeyRound className="h-4 w-4" />
                                   </Button>
@@ -904,7 +864,7 @@ export default function SystemAdminPage() {
           <TabsContent value="categories" className="space-y-6 mt-6">
             <Card>
               <CardHeader className="flex flex-row items-center justify-between">
-                <CardTitle>카테고리 관리</CardTitle>
+                <CardTitle>{t('systemAdmin.categories.title')}</CardTitle>
                 <Button
                   onClick={() => {
                     setIsCreatingCategory(true);
@@ -913,7 +873,7 @@ export default function SystemAdminPage() {
                   data-testid="button-add-category"
                 >
                   <Plus className="h-4 w-4 mr-2" />
-                  카테고리 추가
+                  {t('systemAdmin.categories.add')}
                 </Button>
               </CardHeader>
               <CardContent>
@@ -924,20 +884,20 @@ export default function SystemAdminPage() {
                 ) : categories.length === 0 ? (
                   <div className="text-center py-12">
                     <FolderTree className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-                    <p className="text-muted-foreground">등록된 카테고리가 없습니다.</p>
-                    <p className="text-sm text-muted-foreground mt-1">새 카테고리를 추가해주세요.</p>
+                    <p className="text-muted-foreground">{t('systemAdmin.categories.empty')}</p>
+                    <p className="text-sm text-muted-foreground mt-1">{t('systemAdmin.categories.addFirst')}</p>
                   </div>
                 ) : (
                   <div className="rounded-md border">
                     <Table>
                       <TableHeader>
                         <TableRow>
-                          <TableHead className="w-[50px]">순서</TableHead>
-                          <TableHead>카테고리명</TableHead>
-                          <TableHead>설명</TableHead>
-                          <TableHead>시나리오 수</TableHead>
-                          <TableHead>담당 운영자</TableHead>
-                          <TableHead className="w-[120px]">관리</TableHead>
+                          <TableHead className="w-[50px]">{t('systemAdmin.categories.table.order')}</TableHead>
+                          <TableHead>{t('systemAdmin.categories.table.name')}</TableHead>
+                          <TableHead>{t('systemAdmin.categories.table.description')}</TableHead>
+                          <TableHead>{t('systemAdmin.categories.table.scenarioCount')}</TableHead>
+                          <TableHead>{t('systemAdmin.categories.table.assignedOperators')}</TableHead>
+                          <TableHead className="w-[120px]">{t('systemAdmin.categories.table.actions')}</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
@@ -1015,12 +975,11 @@ export default function SystemAdminPage() {
           </TabsContent>
 
           <TabsContent value="settings" className="space-y-6 mt-6">
-            {/* 기능별 AI 모델 사용 현황 - 최상단 */}
             <Card>
               <CardHeader>
-                <CardTitle>기능별 AI 모델 사용 현황</CardTitle>
+                <CardTitle>{t('systemAdmin.settings.aiModelStatus')}</CardTitle>
                 <p className="text-sm text-muted-foreground">
-                  각 기능에서 사용 중인 AI 모델을 확인할 수 있습니다.
+                  {t('systemAdmin.settings.aiModelStatusDesc')}
                 </p>
               </CardHeader>
               <CardContent>
@@ -1028,24 +987,27 @@ export default function SystemAdminPage() {
                   <Table>
                     <TableHeader>
                       <TableRow>
-                        <TableHead>기능</TableHead>
-                        <TableHead>설명</TableHead>
-                        <TableHead>사용 모델</TableHead>
-                        <TableHead className="text-center">설정 가능</TableHead>
+                        <TableHead>{t('systemAdmin.settings.table.feature')}</TableHead>
+                        <TableHead>{t('systemAdmin.settings.table.description')}</TableHead>
+                        <TableHead>{t('systemAdmin.settings.table.model')}</TableHead>
+                        <TableHead className="text-center">{t('systemAdmin.settings.table.configurable')}</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
                       {FEATURE_MODEL_INFO.map((item) => (
                         <TableRow key={item.id}>
-                          <TableCell className="font-medium">{item.feature}</TableCell>
-                          <TableCell className="text-muted-foreground text-sm">{item.description}</TableCell>
+                          <TableCell className="font-medium">{t(`systemAdmin.features.${item.id}.name`)}</TableCell>
+                          <TableCell className="text-muted-foreground text-sm">{t(`systemAdmin.features.${item.id}.description`)}</TableCell>
                           <TableCell>
                             {item.configurable && 'settingKey' in item ? (
                               <Badge variant="outline" className="text-blue-600 border-blue-200">
-                                {AI_MODELS.find(m => m.value === featureModels[item.settingKey!])?.label || item.defaultModel}
+                                {(() => {
+                                  const selectedModel = AI_MODELS.find(m => m.value === featureModels[item.settingKey!]);
+                                  return selectedModel ? t(`systemAdmin.models.${selectedModel.modelKey}.label`) : item.defaultModel;
+                                })()}
                               </Badge>
                             ) : (
-                              <span className="text-sm text-gray-600">{item.fixedModel}</span>
+                              <span className="text-sm text-gray-600">{t(`systemAdmin.models.${item.fixedModelKey}.label`)}</span>
                             )}
                           </TableCell>
                           <TableCell className="text-center">
@@ -1063,12 +1025,11 @@ export default function SystemAdminPage() {
               </CardContent>
             </Card>
 
-            {/* 기능별 AI 모델 설정 */}
             <Card>
               <CardHeader>
-                <CardTitle>기능별 AI 모델 설정</CardTitle>
+                <CardTitle>{t('systemAdmin.settings.aiModelConfig')}</CardTitle>
                 <p className="text-sm text-muted-foreground">
-                  각 기능에 사용할 AI 모델을 개별적으로 설정할 수 있습니다. 모델별 비용과 특성을 확인하세요.
+                  {t('systemAdmin.settings.aiModelConfigDesc')}
                 </p>
               </CardHeader>
               <CardContent>
@@ -1085,11 +1046,11 @@ export default function SystemAdminPage() {
                       return (
                       <div key={feature.id} className="space-y-3">
                         <div className="flex items-center gap-2">
-                          <h4 className="font-medium text-base">{feature.feature}</h4>
-                          <Badge variant="secondary" className="text-xs">{feature.description}</Badge>
+                          <h4 className="font-medium text-base">{t(`systemAdmin.features.${feature.id}.name`)}</h4>
+                          <Badge variant="secondary" className="text-xs">{t(`systemAdmin.features.${feature.id}.description`)}</Badge>
                           {supportedProviders.length === 1 && (
                             <Badge variant="outline" className="text-xs text-amber-600 border-amber-300">
-                              {supportedProviders[0]}만 지원
+                              {t('systemAdmin.settings.onlySupported', { provider: supportedProviders[0] })}
                             </Badge>
                           )}
                         </div>
@@ -1128,19 +1089,19 @@ export default function SystemAdminPage() {
                                   </div>
                                   <div className="flex-1 min-w-0">
                                     <div className="flex items-center gap-1 flex-wrap">
-                                      <span className="font-medium text-sm">{model.label}</span>
+                                      <span className="font-medium text-sm">{t(`systemAdmin.models.${model.modelKey}.label`)}</span>
                                       {'recommended' in model && model.recommended && (
-                                        <Badge className="text-[10px] px-1 py-0 bg-green-100 text-green-700 hover:bg-green-100">추천</Badge>
+                                        <Badge className="text-[10px] px-1 py-0 bg-green-100 text-green-700 hover:bg-green-100">{t('systemAdmin.settings.recommended')}</Badge>
                                       )}
                                       {Boolean(isModelDisabled) && (
-                                        <Badge variant="secondary" className="text-[10px] px-1 py-0">준비 중</Badge>
+                                        <Badge variant="secondary" className="text-[10px] px-1 py-0">{t('systemAdmin.settings.preparing')}</Badge>
                                       )}
                                       {!isProviderSupported && !isModelDisabled && (
-                                        <Badge variant="outline" className="text-[10px] px-1 py-0 text-gray-500">미지원</Badge>
+                                        <Badge variant="outline" className="text-[10px] px-1 py-0 text-gray-500">{t('systemAdmin.settings.unsupported')}</Badge>
                                       )}
                                     </div>
-                                    <p className="text-xs text-muted-foreground mt-1 line-clamp-1">{model.description}</p>
-                                    <p className="text-[10px] text-blue-600 font-mono mt-1">{model.pricing}</p>
+                                    <p className="text-xs text-muted-foreground mt-1 line-clamp-1">{t(`systemAdmin.models.${model.modelKey}.description`)}</p>
+                                    <p className="text-[10px] text-blue-600 font-mono mt-1">{t(`systemAdmin.models.${model.modelKey}.pricing`)}</p>
                                   </div>
                                 </div>
                               </div>
@@ -1151,17 +1112,16 @@ export default function SystemAdminPage() {
                     );
                   })}
                     
-                    {/* 고정 모델 안내 */}
                     <div className="pt-4 border-t">
-                      <h4 className="font-medium text-sm text-muted-foreground mb-2">고정 모델 (변경 불가)</h4>
+                      <h4 className="font-medium text-sm text-muted-foreground mb-2">{t('systemAdmin.settings.fixedModels')}</h4>
                       <div className="grid gap-2 md:grid-cols-2">
                         {FEATURE_MODEL_INFO.filter(f => !f.configurable).map((feature) => (
                           <div key={feature.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
                             <div>
-                              <p className="font-medium text-sm">{feature.feature}</p>
-                              <p className="text-xs text-muted-foreground">{feature.description}</p>
+                              <p className="font-medium text-sm">{t(`systemAdmin.features.${feature.id}.name`)}</p>
+                              <p className="text-xs text-muted-foreground">{t(`systemAdmin.features.${feature.id}.description`)}</p>
                             </div>
-                            <Badge variant="outline" className="text-gray-600">{feature.fixedModel}</Badge>
+                            <Badge variant="outline" className="text-gray-600">{t(`systemAdmin.models.${feature.fixedModelKey}.label`)}</Badge>
                           </div>
                         ))}
                       </div>
@@ -1176,17 +1136,17 @@ export default function SystemAdminPage() {
                         {saveSettingsMutation.isPending ? (
                           <>
                             <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                            저장 중...
+                            {t('systemAdmin.settings.saving')}
                           </>
                         ) : (
                           <>
                             <Save className="h-4 w-4 mr-2" />
-                            저장
+                            {t('systemAdmin.settings.save')}
                           </>
                         )}
                       </Button>
                       {hasSettingsChanges && (
-                        <span className="text-sm text-amber-600">변경사항이 있습니다</span>
+                        <span className="text-sm text-amber-600">{t('systemAdmin.settings.hasChanges')}</span>
                       )}
                     </div>
                   </div>
@@ -1196,9 +1156,9 @@ export default function SystemAdminPage() {
 
             <Card>
               <CardHeader>
-                <CardTitle>API Key 상태</CardTitle>
+                <CardTitle>{t('systemAdmin.settings.apiKeyStatus')}</CardTitle>
                 <p className="text-sm text-muted-foreground">
-                  외부 서비스 연동에 필요한 API Key 설정 상태입니다.
+                  {t('systemAdmin.settings.apiKeyStatusDesc')}
                 </p>
               </CardHeader>
               <CardContent>
@@ -1216,12 +1176,12 @@ export default function SystemAdminPage() {
                           <XCircle className="h-5 w-5 text-red-500" />
                         )}
                         <div>
-                          <p className="font-medium">Google Gemini API</p>
-                          <p className="text-sm text-muted-foreground">AI 대화 생성에 사용</p>
+                          <p className="font-medium">{t('systemAdmin.settings.geminiApi')}</p>
+                          <p className="text-sm text-muted-foreground">{t('systemAdmin.settings.geminiApiDesc')}</p>
                         </div>
                       </div>
                       <Badge variant={apiKeyStatus?.gemini ? "default" : "destructive"}>
-                        {apiKeyStatus?.gemini ? "설정됨" : "미설정"}
+                        {apiKeyStatus?.gemini ? t('systemAdmin.settings.configured') : t('systemAdmin.settings.notConfigured')}
                       </Badge>
                     </div>
 
@@ -1233,12 +1193,12 @@ export default function SystemAdminPage() {
                           <XCircle className="h-5 w-5 text-red-500" />
                         )}
                         <div>
-                          <p className="font-medium">OpenAI API</p>
-                          <p className="text-sm text-muted-foreground">실시간 음성 대화에 사용</p>
+                          <p className="font-medium">{t('systemAdmin.settings.openaiApi')}</p>
+                          <p className="text-sm text-muted-foreground">{t('systemAdmin.settings.openaiApiDesc')}</p>
                         </div>
                       </div>
                       <Badge variant={apiKeyStatus?.openai ? "default" : "destructive"}>
-                        {apiKeyStatus?.openai ? "설정됨" : "미설정"}
+                        {apiKeyStatus?.openai ? t('systemAdmin.settings.configured') : t('systemAdmin.settings.notConfigured')}
                       </Badge>
                     </div>
 
@@ -1250,19 +1210,18 @@ export default function SystemAdminPage() {
                           <XCircle className="h-5 w-5 text-red-500" />
                         )}
                         <div>
-                          <p className="font-medium">ElevenLabs API</p>
-                          <p className="text-sm text-muted-foreground">TTS 음성 합성에 사용</p>
+                          <p className="font-medium">{t('systemAdmin.settings.elevenlabsApi')}</p>
+                          <p className="text-sm text-muted-foreground">{t('systemAdmin.settings.elevenlabsApiDesc')}</p>
                         </div>
                       </div>
                       <Badge variant={apiKeyStatus?.elevenlabs ? "default" : "destructive"}>
-                        {apiKeyStatus?.elevenlabs ? "설정됨" : "미설정"}
+                        {apiKeyStatus?.elevenlabs ? t('systemAdmin.settings.configured') : t('systemAdmin.settings.notConfigured')}
                       </Badge>
                     </div>
 
                     <div className="mt-4 p-3 bg-amber-50 border border-amber-200 rounded-lg">
                       <p className="text-sm text-amber-800">
-                        API Key는 보안을 위해 Secrets 탭에서 관리됩니다. 
-                        변경이 필요한 경우 Replit의 Secrets 메뉴를 이용해 주세요.
+                        {t('systemAdmin.settings.apiKeySecurityNote')}
                       </p>
                     </div>
                   </div>
@@ -1271,20 +1230,18 @@ export default function SystemAdminPage() {
             </Card>
           </TabsContent>
 
-          {/* AI Usage Tab */}
           <TabsContent value="ai-usage" className="space-y-6 mt-6">
-            {/* Date Range Filter */}
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <Calendar className="h-5 w-5" />
-                  조회 기간
+                  {t('systemAdmin.aiUsage.dateRange')}
                 </CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="flex flex-wrap gap-4 items-center">
                   <div className="flex items-center gap-2">
-                    <label className="text-sm font-medium">시작일</label>
+                    <label className="text-sm font-medium">{t('systemAdmin.aiUsage.startDate')}</label>
                     <Input
                       type="date"
                       value={usageDateRange.start}
@@ -1294,7 +1251,7 @@ export default function SystemAdminPage() {
                     />
                   </div>
                   <div className="flex items-center gap-2">
-                    <label className="text-sm font-medium">종료일</label>
+                    <label className="text-sm font-medium">{t('systemAdmin.aiUsage.endDate')}</label>
                     <Input
                       type="date"
                       value={usageDateRange.end}
@@ -1317,7 +1274,7 @@ export default function SystemAdminPage() {
                       }}
                       data-testid="button-usage-7days"
                     >
-                      최근 7일
+                      {t('systemAdmin.aiUsage.last7Days')}
                     </Button>
                     <Button
                       variant="outline"
@@ -1332,7 +1289,7 @@ export default function SystemAdminPage() {
                       }}
                       data-testid="button-usage-30days"
                     >
-                      최근 30일
+                      {t('systemAdmin.aiUsage.last30Days')}
                     </Button>
                     <Button
                       variant="outline"
@@ -1347,7 +1304,7 @@ export default function SystemAdminPage() {
                       }}
                       data-testid="button-usage-90days"
                     >
-                      최근 90일
+                      {t('systemAdmin.aiUsage.last90Days')}
                     </Button>
                   </div>
                   <div className="ml-auto">
@@ -1359,18 +1316,17 @@ export default function SystemAdminPage() {
                       data-testid="button-refresh-usage"
                     >
                       <RefreshCw className={`h-4 w-4 mr-1 ${(usageSummaryLoading || usageByFeatureLoading || usageByModelLoading || dailyUsageLoading) ? 'animate-spin' : ''}`} />
-                      새로고침
+                      {t('systemAdmin.aiUsage.refresh')}
                     </Button>
                   </div>
                 </div>
               </CardContent>
             </Card>
 
-            {/* Summary Cards */}
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
               <Card data-testid="card-total-requests">
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">총 요청 수</CardTitle>
+                  <CardTitle className="text-sm font-medium">{t('systemAdmin.aiUsage.totalRequests')}</CardTitle>
                   <Zap className="h-4 w-4 text-blue-500" />
                 </CardHeader>
                 <CardContent>
@@ -1384,7 +1340,7 @@ export default function SystemAdminPage() {
 
               <Card data-testid="card-total-tokens">
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">총 토큰 사용량</CardTitle>
+                  <CardTitle className="text-sm font-medium">{t('systemAdmin.aiUsage.totalTokens')}</CardTitle>
                   <Activity className="h-4 w-4 text-green-500" />
                 </CardHeader>
                 <CardContent>
@@ -1394,7 +1350,7 @@ export default function SystemAdminPage() {
                     <>
                       <div className="text-2xl font-bold">{((usageSummary?.totalTokens || 0) / 1000).toFixed(1)}K</div>
                       <p className="text-xs text-muted-foreground mt-1">
-                        입력: {((usageSummary?.promptTokens || 0) / 1000).toFixed(1)}K / 출력: {((usageSummary?.completionTokens || 0) / 1000).toFixed(1)}K
+                        {t('systemAdmin.aiUsage.input')}: {((usageSummary?.promptTokens || 0) / 1000).toFixed(1)}K / {t('systemAdmin.aiUsage.output')}: {((usageSummary?.completionTokens || 0) / 1000).toFixed(1)}K
                       </p>
                     </>
                   )}
@@ -1403,7 +1359,7 @@ export default function SystemAdminPage() {
 
               <Card data-testid="card-total-cost">
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">예상 비용 (USD)</CardTitle>
+                  <CardTitle className="text-sm font-medium">{t('systemAdmin.aiUsage.estimatedCost')}</CardTitle>
                   <DollarSign className="h-4 w-4 text-amber-500" />
                 </CardHeader>
                 <CardContent>
@@ -1417,7 +1373,7 @@ export default function SystemAdminPage() {
 
               <Card data-testid="card-avg-cost-per-request">
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">요청당 평균 비용</CardTitle>
+                  <CardTitle className="text-sm font-medium">{t('systemAdmin.aiUsage.avgCostPerRequest')}</CardTitle>
                   <TrendingUp className="h-4 w-4 text-purple-500" />
                 </CardHeader>
                 <CardContent>
@@ -1434,10 +1390,9 @@ export default function SystemAdminPage() {
               </Card>
             </div>
 
-            {/* Usage by Feature */}
             <Card>
               <CardHeader>
-                <CardTitle>기능별 사용량</CardTitle>
+                <CardTitle>{t('systemAdmin.aiUsage.usageByFeature')}</CardTitle>
               </CardHeader>
               <CardContent>
                 {usageByFeatureLoading ? (
@@ -1446,16 +1401,16 @@ export default function SystemAdminPage() {
                   </div>
                 ) : usageByFeature.length === 0 ? (
                   <div className="text-center py-8 text-muted-foreground">
-                    선택한 기간에 사용 데이터가 없습니다.
+                    {t('systemAdmin.aiUsage.noData')}
                   </div>
                 ) : (
                   <Table>
                     <TableHeader>
                       <TableRow>
-                        <TableHead>기능</TableHead>
-                        <TableHead className="text-right">요청 수</TableHead>
-                        <TableHead className="text-right">토큰 사용량</TableHead>
-                        <TableHead className="text-right">예상 비용 (USD)</TableHead>
+                        <TableHead>{t('systemAdmin.aiUsage.table.feature')}</TableHead>
+                        <TableHead className="text-right">{t('systemAdmin.aiUsage.table.requests')}</TableHead>
+                        <TableHead className="text-right">{t('systemAdmin.aiUsage.table.tokens')}</TableHead>
+                        <TableHead className="text-right">{t('systemAdmin.aiUsage.table.cost')}</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -1463,13 +1418,7 @@ export default function SystemAdminPage() {
                         <TableRow key={row.feature} data-testid={`row-feature-${row.feature}`}>
                           <TableCell className="font-medium">
                             <Badge variant="outline">
-                              {row.feature === 'conversation' ? '대화 응답' :
-                               row.feature === 'feedback' ? '피드백 생성' :
-                               row.feature === 'strategy' ? '전략 분석' :
-                               row.feature === 'scenario' ? '시나리오 생성' :
-                               row.feature === 'realtime' ? '실시간 음성' :
-                               row.feature === 'image' ? '이미지 생성' :
-                               row.feature}
+                              {t(`systemAdmin.aiUsage.features.${row.feature}`, row.feature)}
                             </Badge>
                           </TableCell>
                           <TableCell className="text-right">{row.requestCount.toLocaleString()}</TableCell>
@@ -1483,10 +1432,9 @@ export default function SystemAdminPage() {
               </CardContent>
             </Card>
 
-            {/* Usage by Model */}
             <Card>
               <CardHeader>
-                <CardTitle>모델별 사용량</CardTitle>
+                <CardTitle>{t('systemAdmin.aiUsage.usageByModel')}</CardTitle>
               </CardHeader>
               <CardContent>
                 {usageByModelLoading ? (
@@ -1495,17 +1443,17 @@ export default function SystemAdminPage() {
                   </div>
                 ) : usageByModel.length === 0 ? (
                   <div className="text-center py-8 text-muted-foreground">
-                    선택한 기간에 사용 데이터가 없습니다.
+                    {t('systemAdmin.aiUsage.noData')}
                   </div>
                 ) : (
                   <Table>
                     <TableHeader>
                       <TableRow>
-                        <TableHead>모델</TableHead>
-                        <TableHead>제공자</TableHead>
-                        <TableHead className="text-right">요청 수</TableHead>
-                        <TableHead className="text-right">토큰 사용량</TableHead>
-                        <TableHead className="text-right">예상 비용 (USD)</TableHead>
+                        <TableHead>{t('systemAdmin.aiUsage.table.model')}</TableHead>
+                        <TableHead>{t('systemAdmin.aiUsage.table.provider')}</TableHead>
+                        <TableHead className="text-right">{t('systemAdmin.aiUsage.table.requests')}</TableHead>
+                        <TableHead className="text-right">{t('systemAdmin.aiUsage.table.tokens')}</TableHead>
+                        <TableHead className="text-right">{t('systemAdmin.aiUsage.table.cost')}</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -1539,10 +1487,9 @@ export default function SystemAdminPage() {
               </CardContent>
             </Card>
 
-            {/* Daily Usage */}
             <Card>
               <CardHeader>
-                <CardTitle>일별 사용량</CardTitle>
+                <CardTitle>{t('systemAdmin.aiUsage.dailyUsage')}</CardTitle>
               </CardHeader>
               <CardContent>
                 {dailyUsageLoading ? (
@@ -1551,17 +1498,17 @@ export default function SystemAdminPage() {
                   </div>
                 ) : dailyUsage.length === 0 ? (
                   <div className="text-center py-8 text-muted-foreground">
-                    선택한 기간에 사용 데이터가 없습니다.
+                    {t('systemAdmin.aiUsage.noData')}
                   </div>
                 ) : (
                   <div className="overflow-x-auto">
                     <Table>
                       <TableHeader>
                         <TableRow>
-                          <TableHead>날짜</TableHead>
-                          <TableHead className="text-right">요청 수</TableHead>
-                          <TableHead className="text-right">토큰 사용량</TableHead>
-                          <TableHead className="text-right">예상 비용 (USD)</TableHead>
+                          <TableHead>{t('systemAdmin.aiUsage.table.date')}</TableHead>
+                          <TableHead className="text-right">{t('systemAdmin.aiUsage.table.requests')}</TableHead>
+                          <TableHead className="text-right">{t('systemAdmin.aiUsage.table.tokens')}</TableHead>
+                          <TableHead className="text-right">{t('systemAdmin.aiUsage.table.cost')}</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
@@ -1577,7 +1524,7 @@ export default function SystemAdminPage() {
                     </Table>
                     {dailyUsage.length > 14 && (
                       <p className="text-sm text-muted-foreground mt-2 text-center">
-                        최근 14일 데이터만 표시됩니다. 전체 {dailyUsage.length}일 데이터 중.
+                        {t('systemAdmin.aiUsage.showingLast14Days', { total: dailyUsage.length })}
                       </p>
                     )}
                   </div>
@@ -1588,11 +1535,10 @@ export default function SystemAdminPage() {
         </Tabs>
       </div>
 
-      {/* User Edit Dialog */}
       <Dialog open={!!editingUser} onOpenChange={(open) => !open && setEditingUser(null)}>
         <DialogContent data-testid="dialog-edit-user">
           <DialogHeader>
-            <DialogTitle>사용자 정보 수정</DialogTitle>
+            <DialogTitle>{t('systemAdmin.dialogs.editUser.title')}</DialogTitle>
             <DialogDescription>
               {editingUser?.name} ({editingUser?.email})
             </DialogDescription>
@@ -1600,7 +1546,7 @@ export default function SystemAdminPage() {
 
           <div className="space-y-6 py-4">
             <div className="space-y-2">
-              <label className="text-sm font-medium">역할</label>
+              <label className="text-sm font-medium">{t('systemAdmin.dialogs.editUser.role')}</label>
               <Select
                 value={editFormData.role}
                 onValueChange={(value) => setEditFormData((prev) => ({ ...prev, role: value }))}
@@ -1609,16 +1555,16 @@ export default function SystemAdminPage() {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="admin">시스템관리자</SelectItem>
-                  <SelectItem value="operator">운영자</SelectItem>
-                  <SelectItem value="user">일반유저</SelectItem>
+                  <SelectItem value="admin">{t('systemAdmin.roles.admin')}</SelectItem>
+                  <SelectItem value="operator">{t('systemAdmin.roles.operator')}</SelectItem>
+                  <SelectItem value="user">{t('systemAdmin.roles.user')}</SelectItem>
                 </SelectContent>
               </Select>
             </div>
 
             {editFormData.role === "operator" && (
               <div className="space-y-2">
-                <label className="text-sm font-medium">담당 카테고리</label>
+                <label className="text-sm font-medium">{t('systemAdmin.dialogs.editUser.assignedCategory')}</label>
                 <Select
                   value={editFormData.assignedCategoryId || "none"}
                   onValueChange={(value) =>
@@ -1629,10 +1575,10 @@ export default function SystemAdminPage() {
                   }
                 >
                   <SelectTrigger data-testid="select-edit-category">
-                    <SelectValue placeholder="카테고리 선택" />
+                    <SelectValue placeholder={t('systemAdmin.dialogs.editUser.selectCategory')} />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="none">카테고리 없음</SelectItem>
+                    <SelectItem value="none">{t('systemAdmin.dialogs.editUser.noCategory')}</SelectItem>
                     {categories.map((cat) => (
                       <SelectItem key={cat.id} value={cat.id}>
                         {cat.name}
@@ -1641,13 +1587,13 @@ export default function SystemAdminPage() {
                   </SelectContent>
                 </Select>
                 <p className="text-xs text-muted-foreground">
-                  운영자는 담당 카테고리 내에서만 시나리오를 관리할 수 있습니다.
+                  {t('systemAdmin.dialogs.editUser.categoryHint')}
                 </p>
               </div>
             )}
 
             <div className="space-y-2">
-              <label className="text-sm font-medium">등급</label>
+              <label className="text-sm font-medium">{t('systemAdmin.dialogs.editUser.tier')}</label>
               <Select
                 value={editFormData.tier}
                 onValueChange={(value) => setEditFormData((prev) => ({ ...prev, tier: value }))}
@@ -1656,20 +1602,20 @@ export default function SystemAdminPage() {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="bronze">브론즈</SelectItem>
-                  <SelectItem value="silver">실버</SelectItem>
-                  <SelectItem value="gold">골드</SelectItem>
-                  <SelectItem value="platinum">플래티넘</SelectItem>
-                  <SelectItem value="diamond">다이아몬드</SelectItem>
+                  <SelectItem value="bronze">{t('systemAdmin.tiers.bronze')}</SelectItem>
+                  <SelectItem value="silver">{t('systemAdmin.tiers.silver')}</SelectItem>
+                  <SelectItem value="gold">{t('systemAdmin.tiers.gold')}</SelectItem>
+                  <SelectItem value="platinum">{t('systemAdmin.tiers.platinum')}</SelectItem>
+                  <SelectItem value="diamond">{t('systemAdmin.tiers.diamond')}</SelectItem>
                 </SelectContent>
               </Select>
             </div>
 
             <div className="flex items-center justify-between">
               <div className="space-y-1">
-                <label className="text-sm font-medium">계정 상태</label>
+                <label className="text-sm font-medium">{t('systemAdmin.dialogs.editUser.accountStatus')}</label>
                 <p className="text-sm text-muted-foreground">
-                  비활성화하면 로그인이 차단됩니다
+                  {t('systemAdmin.dialogs.editUser.accountStatusHint')}
                 </p>
               </div>
               <Switch
@@ -1684,7 +1630,7 @@ export default function SystemAdminPage() {
 
           <DialogFooter>
             <Button variant="outline" onClick={() => setEditingUser(null)} data-testid="button-cancel-edit">
-              취소
+              {t('systemAdmin.common.cancel')}
             </Button>
             <Button
               onClick={handleSaveUser}
@@ -1694,17 +1640,16 @@ export default function SystemAdminPage() {
               {updateUserMutation.isPending ? (
                 <>
                   <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                  저장 중...
+                  {t('systemAdmin.common.saving')}
                 </>
               ) : (
-                "저장"
+                t('systemAdmin.common.save')
               )}
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      {/* Password Reset Dialog */}
       <Dialog open={!!resetPasswordUser} onOpenChange={(open) => {
         if (!open) {
           setResetPasswordUser(null);
@@ -1714,21 +1659,21 @@ export default function SystemAdminPage() {
       }}>
         <DialogContent data-testid="dialog-reset-password">
           <DialogHeader>
-            <DialogTitle>비밀번호 재설정</DialogTitle>
+            <DialogTitle>{t('systemAdmin.dialogs.resetPassword.title')}</DialogTitle>
             <DialogDescription>
-              {resetPasswordUser?.name} ({resetPasswordUser?.email})의 새 비밀번호를 설정합니다.
+              {t('systemAdmin.dialogs.resetPassword.description', { name: resetPasswordUser?.name, email: resetPasswordUser?.email })}
             </DialogDescription>
           </DialogHeader>
 
           <div className="space-y-4 py-4">
             <div className="space-y-2">
-              <label className="text-sm font-medium">새 비밀번호</label>
+              <label className="text-sm font-medium">{t('systemAdmin.dialogs.resetPassword.newPassword')}</label>
               <div className="relative">
                 <Input
                   type={showPassword ? "text" : "password"}
                   value={newPassword}
                   onChange={(e) => setNewPassword(e.target.value)}
-                  placeholder="6자 이상 입력"
+                  placeholder={t('systemAdmin.dialogs.resetPassword.placeholder')}
                   data-testid="input-new-password"
                 />
                 <button
@@ -1740,7 +1685,7 @@ export default function SystemAdminPage() {
                 </button>
               </div>
               <p className="text-xs text-muted-foreground">
-                임시 비밀번호 설정 후 사용자에게 직접 알려주세요.
+                {t('systemAdmin.dialogs.resetPassword.hint')}
               </p>
             </div>
           </div>
@@ -1755,7 +1700,7 @@ export default function SystemAdminPage() {
               }}
               data-testid="button-cancel-reset"
             >
-              취소
+              {t('systemAdmin.common.cancel')}
             </Button>
             <Button
               onClick={() => {
@@ -1769,17 +1714,16 @@ export default function SystemAdminPage() {
               {resetPasswordMutation.isPending ? (
                 <>
                   <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                  재설정 중...
+                  {t('systemAdmin.dialogs.resetPassword.resetting')}
                 </>
               ) : (
-                "비밀번호 재설정"
+                t('systemAdmin.dialogs.resetPassword.reset')
               )}
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      {/* Category Create/Edit Dialog */}
       <Dialog
         open={isCreatingCategory || !!editingCategory}
         onOpenChange={(open) => {
@@ -1793,39 +1737,39 @@ export default function SystemAdminPage() {
         <DialogContent data-testid="dialog-category">
           <DialogHeader>
             <DialogTitle>
-              {isCreatingCategory ? "새 카테고리 추가" : "카테고리 수정"}
+              {isCreatingCategory ? t('systemAdmin.categories.createTitle') : t('systemAdmin.categories.editTitle')}
             </DialogTitle>
             <DialogDescription>
               {isCreatingCategory
-                ? "시나리오를 분류할 새 카테고리를 추가합니다."
-                : `${editingCategory?.name} 카테고리 정보를 수정합니다.`}
+                ? t('systemAdmin.categories.createDesc')
+                : t('systemAdmin.categories.editDesc', { name: editingCategory?.name })}
             </DialogDescription>
           </DialogHeader>
 
           <div className="space-y-4 py-4">
             <div className="space-y-2">
-              <label className="text-sm font-medium">카테고리명 *</label>
+              <label className="text-sm font-medium">{t('systemAdmin.categories.form.name')} *</label>
               <Input
                 value={categoryFormData.name}
                 onChange={(e) => setCategoryFormData((prev) => ({ ...prev, name: e.target.value }))}
-                placeholder="예: 온보딩, 리더십"
+                placeholder={t('systemAdmin.categories.form.namePlaceholder')}
                 data-testid="input-category-name"
               />
             </div>
 
             <div className="space-y-2">
-              <label className="text-sm font-medium">설명</label>
+              <label className="text-sm font-medium">{t('systemAdmin.categories.form.description')}</label>
               <Textarea
                 value={categoryFormData.description}
                 onChange={(e) => setCategoryFormData((prev) => ({ ...prev, description: e.target.value }))}
-                placeholder="카테고리에 대한 간단한 설명"
+                placeholder={t('systemAdmin.categories.form.descriptionPlaceholder')}
                 rows={3}
                 data-testid="input-category-description"
               />
             </div>
 
             <div className="space-y-2">
-              <label className="text-sm font-medium">정렬 순서</label>
+              <label className="text-sm font-medium">{t('systemAdmin.categories.form.order')}</label>
               <Input
                 type="number"
                 value={categoryFormData.order}
@@ -1834,7 +1778,7 @@ export default function SystemAdminPage() {
                 data-testid="input-category-order"
               />
               <p className="text-xs text-muted-foreground">
-                낮은 숫자가 먼저 표시됩니다.
+                {t('systemAdmin.categories.form.orderHint')}
               </p>
             </div>
           </div>
@@ -1849,7 +1793,7 @@ export default function SystemAdminPage() {
               }}
               data-testid="button-cancel-category"
             >
-              취소
+              {t('systemAdmin.common.cancel')}
             </Button>
             <Button
               onClick={handleSaveCategory}
@@ -1863,37 +1807,36 @@ export default function SystemAdminPage() {
               {(createCategoryMutation.isPending || updateCategoryMutation.isPending) ? (
                 <>
                   <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                  저장 중...
+                  {t('systemAdmin.common.saving')}
                 </>
               ) : isCreatingCategory ? (
-                "추가"
+                t('systemAdmin.common.add')
               ) : (
-                "저장"
+                t('systemAdmin.common.save')
               )}
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      {/* Category Delete Confirmation Dialog */}
       <Dialog open={!!deletingCategory} onOpenChange={(open) => !open && setDeletingCategory(null)}>
         <DialogContent data-testid="dialog-delete-category">
           <DialogHeader>
-            <DialogTitle>카테고리 삭제</DialogTitle>
+            <DialogTitle>{t('systemAdmin.categories.deleteTitle')}</DialogTitle>
             <DialogDescription>
-              "{deletingCategory?.name}" 카테고리를 삭제하시겠습니까?
+              {t('systemAdmin.categories.deleteConfirm', { name: deletingCategory?.name })}
             </DialogDescription>
           </DialogHeader>
 
           <div className="py-4">
             <p className="text-sm text-muted-foreground">
-              이 카테고리에 연결된 시나리오나 담당 운영자가 있으면 삭제할 수 없습니다.
+              {t('systemAdmin.categories.deleteWarning')}
             </p>
           </div>
 
           <DialogFooter>
             <Button variant="outline" onClick={() => setDeletingCategory(null)} data-testid="button-cancel-delete">
-              취소
+              {t('systemAdmin.common.cancel')}
             </Button>
             <Button
               variant="destructive"
@@ -1904,10 +1847,10 @@ export default function SystemAdminPage() {
               {deleteCategoryMutation.isPending ? (
                 <>
                   <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                  삭제 중...
+                  {t('systemAdmin.common.deleting')}
                 </>
               ) : (
-                "삭제"
+                t('systemAdmin.common.delete')
               )}
             </Button>
           </DialogFooter>

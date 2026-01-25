@@ -976,5 +976,282 @@
     "notAllowed": "マイクの権限が拒否されました。ブラウザ設定でマイクを許可してください。",
     "networkError": "ネットワークエラーにより音声認識に失敗しました。",
     "inputInProgress": "音声入力中..."
+  },
+  "systemAdmin": {
+    "title": "システム管理者",
+    "subtitle": "ユーザーアカウント、権限、カテゴリの管理",
+    "tabs": {
+      "users": "ユーザー管理",
+      "categories": "カテゴリ管理",
+      "languages": "言語管理",
+      "settings": "システム設定",
+      "aiUsage": "AI使用量"
+    },
+    "users": {
+      "title": "ユーザー管理",
+      "total": "全ユーザー",
+      "admins": "システム管理者",
+      "operators": "運営者",
+      "activeUsers": "アクティブユーザー",
+      "searchPlaceholder": "名前またはメールで検索",
+      "roleFilter": "役割フィルター",
+      "tierFilter": "等級フィルター",
+      "allRoles": "すべての役割",
+      "allTiers": "すべての等級",
+      "noResults": "検索結果がありません。",
+      "table": {
+        "profile": "プロフィール",
+        "name": "名前",
+        "email": "メール",
+        "role": "役割",
+        "category": "担当カテゴリ",
+        "tier": "等級",
+        "status": "状態",
+        "lastLogin": "最終ログイン",
+        "actions": "管理"
+      },
+      "edit": "編集",
+      "resetPassword": "パスワードリセット",
+      "active": "アクティブ",
+      "inactive": "非アクティブ"
+    },
+    "roles": {
+      "admin": "システム管理者",
+      "operator": "運営者",
+      "user": "一般ユーザー"
+    },
+    "tiers": {
+      "bronze": "ブロンズ",
+      "silver": "シルバー",
+      "gold": "ゴールド",
+      "platinum": "プラチナ",
+      "diamond": "ダイヤモンド"
+    },
+    "categories": {
+      "title": "カテゴリ管理",
+      "add": "カテゴリ追加",
+      "empty": "登録されたカテゴリがありません。",
+      "addFirst": "新しいカテゴリを追加してください。",
+      "table": {
+        "order": "順序",
+        "name": "カテゴリ名",
+        "description": "説明",
+        "scenarioCount": "シナリオ数",
+        "assignedOperators": "担当運営者",
+        "actions": "管理"
+      },
+      "form": {
+        "name": "カテゴリ名",
+        "namePlaceholder": "例：オンボーディング、リーダーシップ",
+        "description": "説明",
+        "descriptionPlaceholder": "カテゴリの簡単な説明",
+        "order": "ソート順",
+        "orderHint": "小さい数字が先に表示されます。"
+      },
+      "createTitle": "新規カテゴリ追加",
+      "createDesc": "シナリオを分類する新しいカテゴリを追加します。",
+      "editTitle": "カテゴリ編集",
+      "editDesc": "{{name}}カテゴリ情報を編集します。",
+      "deleteTitle": "カテゴリ削除",
+      "deleteConfirm": "「{{name}}」カテゴリを削除しますか？",
+      "deleteWarning": "このカテゴリに関連するシナリオや担当運営者がいる場合は削除できません。"
+    },
+    "settings": {
+      "aiModelStatus": "機能別AIモデル使用状況",
+      "aiModelStatusDesc": "各機能で使用中のAIモデルを確認できます。",
+      "aiModelConfig": "機能別AIモデル設定",
+      "aiModelConfigDesc": "各機能に使用するAIモデルを個別に設定できます。モデル別のコストと特性を確認してください。",
+      "table": {
+        "feature": "機能",
+        "description": "説明",
+        "model": "使用モデル",
+        "configurable": "設定可能"
+      },
+      "fixedModels": "固定モデル（変更不可）",
+      "recommended": "推奨",
+      "preparing": "準備中",
+      "unsupported": "非対応",
+      "onlySupported": "{{provider}}のみ対応",
+      "saving": "保存中...",
+      "save": "保存",
+      "hasChanges": "変更があります",
+      "saveSuccess": "保存完了",
+      "saveSuccessDesc": "AIモデル設定が保存されました。",
+      "saveFailed": "保存失敗",
+      "saveFailedDesc": "設定の保存に失敗しました。",
+      "cannotSave": "保存不可",
+      "unsupportedModel": "選択したモデルの中にサポートされていないモデルがあります。別のモデルを選択してください。",
+      "apiKeyStatus": "APIキー状態",
+      "apiKeyStatusDesc": "外部サービス連携に必要なAPIキー設定状態です。",
+      "geminiApi": "Google Gemini API",
+      "geminiApiDesc": "AI会話生成に使用",
+      "openaiApi": "OpenAI API",
+      "openaiApiDesc": "リアルタイム音声会話に使用",
+      "elevenlabsApi": "ElevenLabs API",
+      "elevenlabsApiDesc": "TTS音声合成に使用",
+      "configured": "設定済み",
+      "notConfigured": "未設定",
+      "apiKeySecurityNote": "APIキーはセキュリティのためSecretsタブで管理されています。変更が必要な場合はReplitのSecretsメニューをご利用ください。"
+    },
+    "aiUsage": {
+      "dateRange": "期間",
+      "startDate": "開始日",
+      "endDate": "終了日",
+      "last7Days": "過去7日",
+      "last30Days": "過去30日",
+      "last90Days": "過去90日",
+      "refresh": "更新",
+      "totalRequests": "総リクエスト数",
+      "totalTokens": "総トークン使用量",
+      "estimatedCost": "推定コスト（USD）",
+      "avgCostPerRequest": "リクエスト当たり平均コスト",
+      "input": "入力",
+      "output": "出力",
+      "usageByFeature": "機能別使用量",
+      "usageByModel": "モデル別使用量",
+      "dailyUsage": "日別使用量",
+      "noData": "選択した期間の使用データがありません。",
+      "table": {
+        "feature": "機能",
+        "model": "モデル",
+        "provider": "プロバイダー",
+        "date": "日付",
+        "requests": "リクエスト数",
+        "tokens": "トークン使用量",
+        "cost": "推定コスト（USD）"
+      },
+      "features": {
+        "conversation": "会話応答",
+        "feedback": "フィードバック生成",
+        "strategy": "戦略分析",
+        "scenario": "シナリオ生成",
+        "realtime": "リアルタイム音声",
+        "image": "画像生成"
+      },
+      "showingLast14Days": "過去14日間のデータのみ表示。全{{total}}日分のデータ中。"
+    },
+    "dialogs": {
+      "editUser": {
+        "title": "ユーザー情報編集",
+        "role": "役割",
+        "assignedCategory": "担当カテゴリ",
+        "selectCategory": "カテゴリ選択",
+        "noCategory": "カテゴリなし",
+        "categoryHint": "運営者は担当カテゴリ内でのみシナリオを管理できます。",
+        "tier": "等級",
+        "accountStatus": "アカウント状態",
+        "accountStatusHint": "無効にするとログインがブロックされます"
+      },
+      "resetPassword": {
+        "title": "パスワードリセット",
+        "description": "{{name}}（{{email}}）の新しいパスワードを設定します。",
+        "newPassword": "新しいパスワード",
+        "placeholder": "6文字以上入力",
+        "hint": "仮パスワード設定後、ユーザーに直接お知らせください。",
+        "resetting": "リセット中...",
+        "reset": "パスワードリセット"
+      }
+    },
+    "toast": {
+      "updateSuccess": "更新完了",
+      "updateSuccessDesc": "ユーザー情報が正常に更新されました。",
+      "error": "エラー",
+      "updateFailed": "ユーザー情報の更新に失敗しました。",
+      "passwordResetSuccess": "パスワードリセット完了",
+      "passwordResetSuccessDesc": "仮パスワードが設定されました。ユーザーにお知らせください。",
+      "passwordResetFailed": "パスワードリセットに失敗しました。",
+      "categoryCreateSuccess": "カテゴリ作成完了",
+      "categoryCreateSuccessDesc": "新しいカテゴリが追加されました。",
+      "categoryCreateFailed": "カテゴリの作成に失敗しました。",
+      "categoryUpdateSuccess": "更新完了",
+      "categoryUpdateSuccessDesc": "カテゴリが更新されました。",
+      "categoryUpdateFailed": "カテゴリの更新に失敗しました。",
+      "categoryDeleteSuccess": "削除完了",
+      "categoryDeleteSuccessDesc": "カテゴリが削除されました。",
+      "categoryDeleteFailed": "削除失敗",
+      "categoryDeleteFailedDesc": "カテゴリの削除に失敗しました。",
+      "noChanges": "お知らせ",
+      "noChangesDesc": "変更はありませんでした。"
+    },
+    "common": {
+      "cancel": "キャンセル",
+      "save": "保存",
+      "saving": "保存中...",
+      "add": "追加",
+      "delete": "削除",
+      "deleting": "削除中..."
+    },
+    "features": {
+      "conversation": {
+        "name": "会話応答生成",
+        "description": "シナリオでAIペルソナがユーザーに応答"
+      },
+      "feedback": {
+        "name": "フィードバック生成",
+        "description": "会話完了後のユーザーパフォーマンス評価"
+      },
+      "strategy": {
+        "name": "戦略レビュー評価",
+        "description": "会話戦略に対するAI評価"
+      },
+      "scenario": {
+        "name": "シナリオ生成",
+        "description": "AIベースのトレーニングシナリオ自動生成"
+      },
+      "realtime": {
+        "name": "リアルタイム音声会話",
+        "description": "Gemini Live APIベースの音声会話"
+      },
+      "emotion": {
+        "name": "ペルソナ感情表現",
+        "description": "AIペルソナの感情分析と表現"
+      },
+      "image": {
+        "name": "画像生成",
+        "description": "シナリオ/ペルソナ画像の自動生成"
+      },
+      "video": {
+        "name": "イントロビデオ生成",
+        "description": "シナリオイントロビデオのAI生成"
+      }
+    },
+    "models": {
+      "gemini20flashexp": {
+        "label": "Gemini 2.0 Flash (Exp)",
+        "description": "感情分析用の実験的高速モデル",
+        "pricing": "入力 $0.10/100万トークン、出力 $0.40/100万トークン"
+      },
+      "gemini25flash": {
+        "label": "Gemini 2.5 Flash",
+        "description": "一般会話向けの高速応答モデル",
+        "pricing": "入力 $0.30/100万トークン、出力 $2.50/100万トークン"
+      },
+      "gemini25pro": {
+        "label": "Gemini 2.5 Pro",
+        "description": "複雑な会話向けの高品質モデル",
+        "pricing": "入力 $1.25/100万トークン、出力 $10.00/100万トークン"
+      },
+      "gpt4o": {
+        "label": "GPT-4o",
+        "description": "OpenAI最新マルチモーダルモデル",
+        "pricing": "入力 $2.50/100万トークン、出力 $10.00/100万トークン"
+      },
+      "gpt4omini": {
+        "label": "GPT-4o Mini",
+        "description": "経済的なOpenAIモデル",
+        "pricing": "入力 $0.15/100万トークン、出力 $0.60/100万トークン"
+      },
+      "geminiLiveNativeAudio": {
+        "label": "Gemini 2.5 Flash Native Audio",
+        "description": "リアルタイム音声会話基本モデル (2025.09)",
+        "pricing": "入力 $0.35/100万、出力 $1.50/100万トークン"
+      },
+      "geminiFlashImage": {
+        "label": "Gemini 2.5 Flash Image"
+      },
+      "geminiVeo31": {
+        "label": "Gemini Veo 3.1"
+      }
+    }
   }
 }
