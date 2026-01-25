@@ -122,6 +122,8 @@ export default function Home() {
       return scenario;
     }
     
+    const hasPlayerRoleTranslation = !!scenarioTranslation.playerRole;
+    
     return {
       ...scenario,
       title: scenarioTranslation.title || scenario.title,
@@ -135,7 +137,8 @@ export default function Home() {
         playerRoleText: scenarioTranslation.playerRole || scenario.context.playerRoleText,
         playerRole: scenario.context.playerRole ? {
           ...scenario.context.playerRole,
-          position: scenarioTranslation.playerRole ? undefined : scenario.context.playerRole.position,
+          position: hasPlayerRoleTranslation ? '' : scenario.context.playerRole.position,
+          experience: hasPlayerRoleTranslation ? '' : scenario.context.playerRole.experience,
           responsibility: scenarioTranslation.playerRole || scenario.context.playerRole.responsibility,
         } : undefined,
       } : undefined,
