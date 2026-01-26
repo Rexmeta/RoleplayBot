@@ -4276,6 +4276,112 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // ========== 카테고리 관리 API (관리자/운영자용 - organizationId 지원) ==========
+  
+  // 모든 카테고리 조회 (조직 정보 포함)
+  app.get("/api/admin/categories", isAuthenticated, isOperatorOrAdmin, async (req, res) => {
+    try {
+      const allCategories = await storage.getAllCategories();
+      const organizations = await storage.getAllOrganizations();
+      const companies = await storage.getAllCompanies();
+      
+      const categoriesWithHierarchy = allCategories.map(category => {
+        const org = organizations.find(o => o.id === category.organizationId);
+        const company = org ? companies.find(c => c.id === org.companyId) : null;
+        return {
+          ...category,
+          organization: org ? { id: org.id, name: org.name, code: org.code } : null,
+          company: company ? { id: company.id, name: company.name, code: company.code } : null,
+        };
+      });
+      
+      res.json(categoriesWithHierarchy);
+    } catch (error: any) {
+      console.error("Error getting categories with hierarchy:", error);
+      res.status(500).json({ error: error.message || "Failed to get categories" });
+    }
+  });
+
+  // 카테고리 생성 (organizationId 지원)
+  app.post("/api/admin/categories", isAuthenticated, isOperatorOrAdmin, async (req, res) => {
+    try {
+      const { name, description, organizationId, order } = req.body;
+      
+      if (!name || name.trim() === "") {
+        return res.status(400).json({ error: "Category name is required" });
+      }
+      
+      const category = await storage.createCategory({
+        name: name.trim(),
+        description: description || null,
+        organizationId: organizationId || null,
+        order: order || 0,
+      });
+      
+      res.json(category);
+    } catch (error: any) {
+      console.error("Error creating category:", error);
+      if (error.message?.includes("unique") || error.code === "23505") {
+        res.status(400).json({ error: "Category name already exists" });
+      } else {
+        res.status(500).json({ error: error.message || "Failed to create category" });
+      }
+    }
+  });
+
+  // 카테고리 수정 (organizationId 지원)
+  app.patch("/api/admin/categories/:id", isAuthenticated, isOperatorOrAdmin, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { name, description, organizationId, order, isActive } = req.body;
+      
+      const updates: any = {};
+      if (name !== undefined) updates.name = name.trim();
+      if (description !== undefined) updates.description = description;
+      if (organizationId !== undefined) updates.organizationId = organizationId;
+      if (order !== undefined) updates.order = order;
+      if (isActive !== undefined) updates.isActive = isActive;
+      
+      if (Object.keys(updates).length === 0) {
+        return res.status(400).json({ error: "No valid updates provided" });
+      }
+      
+      const category = await storage.updateCategory(id, updates);
+      res.json(category);
+    } catch (error: any) {
+      console.error("Error updating category:", error);
+      if (error.message?.includes("unique") || error.code === "23505") {
+        res.status(400).json({ error: "Category name already exists" });
+      } else {
+        res.status(500).json({ error: error.message || "Failed to update category" });
+      }
+    }
+  });
+
+  // 카테고리 삭제
+  app.delete("/api/admin/categories/:id", isAuthenticated, isOperatorOrAdmin, async (req, res) => {
+    try {
+      const { id } = req.params;
+      
+      // 해당 카테고리에 연결된 시나리오가 있는지 확인
+      const scenarios = await fileManager.getAllScenarios();
+      const connectedScenarios = scenarios.filter((s: any) => s.categoryId === id);
+      
+      if (connectedScenarios.length > 0) {
+        return res.status(400).json({
+          error: "Cannot delete category with connected scenarios",
+          connectedScenarios: connectedScenarios.map((s: any) => ({ id: s.id, title: s.title })),
+        });
+      }
+      
+      await storage.deleteCategory(id);
+      res.json({ success: true });
+    } catch (error: any) {
+      console.error("Error deleting category:", error);
+      res.status(500).json({ error: error.message || "Failed to delete category" });
+    }
+  });
+
   // ========== 3단 계층 구조 API: 회사 > 조직 > 카테고리 ==========
   
   // ========== 회사 관리 API (시스템 관리자 전용) ==========

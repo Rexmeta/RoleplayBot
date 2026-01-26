@@ -159,9 +159,15 @@ export function ScenarioManager() {
     },
   });
 
-  // 카테고리 목록 조회
-  const { data: categories } = useQuery<{ id: string; name: string; description?: string }[]>({
-    queryKey: ['/api/categories'],
+  // 카테고리 목록 조회 (조직/회사 정보 포함)
+  const { data: categories } = useQuery<{ 
+    id: string; 
+    name: string; 
+    description?: string;
+    organization?: { id: string; name: string; code?: string } | null;
+    company?: { id: string; name: string; code?: string } | null;
+  }[]>({
+    queryKey: ['/api/admin/categories'],
   });
 
   // 평가 기준 세트 목록 조회
@@ -846,11 +852,18 @@ export function ScenarioManager() {
                         <SelectValue placeholder={t('admin.scenarioManager.form.categoryPlaceholder')} />
                       </SelectTrigger>
                       <SelectContent>
-                        {categories?.map(cat => (
-                          <SelectItem key={cat.id} value={String(cat.id)} data-testid={`category-option-${cat.id}`}>
-                            {cat.name}
-                          </SelectItem>
-                        ))}
+                        {categories?.map(cat => {
+                          const hierarchyLabel = cat.company && cat.organization 
+                            ? `${cat.company.name} > ${cat.organization.name} > ${cat.name}`
+                            : cat.organization 
+                            ? `${cat.organization.name} > ${cat.name}`
+                            : cat.name;
+                          return (
+                            <SelectItem key={cat.id} value={String(cat.id)} data-testid={`category-option-${cat.id}`}>
+                              {hierarchyLabel}
+                            </SelectItem>
+                          );
+                        })}
                       </SelectContent>
                     </Select>
                     {!formData.categoryId && (
