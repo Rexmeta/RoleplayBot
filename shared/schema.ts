@@ -249,6 +249,8 @@ export const users = pgTable("users", {
   organizationId: varchar("organization_id").references(() => organizations.id), // 소속 조직 (nullable: 회사 레벨 사용자)
   // 레거시 필드 (deprecated - operator_assignments로 대체)
   assignedCategoryId: varchar("assigned_category_id").references(() => categories.id), // 운영자가 담당하는 카테고리 (운영자만 해당)
+  // 새로운 조직 기반 운영자 할당
+  assignedOrganizationId: varchar("assigned_organization_id").references(() => organizations.id), // 운영자가 담당하는 조직
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 }, (table) => [

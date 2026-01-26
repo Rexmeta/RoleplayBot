@@ -49,9 +49,18 @@ interface UserData {
   isActive: boolean;
   profileImage?: string | null;
   lastLoginAt?: string | null;
-  assignedCategoryId?: string | null;
+  assignedCategoryId?: string | null; // deprecated
+  assignedOrganizationId?: string | null;
   createdAt: string;
   updatedAt: string;
+}
+
+interface OrganizationWithHierarchy {
+  id: string;
+  name: string;
+  code?: string | null;
+  companyId: string;
+  company?: { id: string; name: string; code?: string | null } | null;
 }
 
 interface Category {
@@ -235,8 +244,8 @@ export default function SystemAdminPage() {
     role: string;
     tier: string;
     isActive: boolean;
-    assignedCategoryId: string | null;
-  }>({ role: "", tier: "", isActive: true, assignedCategoryId: null });
+    assignedOrganizationId: string | null;
+  }>({ role: "", tier: "", isActive: true, assignedOrganizationId: null });
   const [resetPasswordUser, setResetPasswordUser] = useState<UserData | null>(null);
   const [newPassword, setNewPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -268,6 +277,10 @@ export default function SystemAdminPage() {
 
   const { data: categories = [], isLoading: categoriesLoading } = useQuery<Category[]>({
     queryKey: ["/api/categories"],
+  });
+
+  const { data: organizationsWithHierarchy = [] } = useQuery<OrganizationWithHierarchy[]>({
+    queryKey: ["/api/admin/organizations-with-hierarchy"],
   });
 
   const { data: systemSettings = [], isLoading: settingsLoading } = useQuery<SystemSetting[]>({
@@ -560,7 +573,7 @@ export default function SystemAdminPage() {
       role: user.role,
       tier: user.tier,
       isActive: user.isActive,
-      assignedCategoryId: user.assignedCategoryId || null,
+      assignedOrganizationId: user.assignedOrganizationId || null,
     });
   };
 
@@ -571,8 +584,8 @@ export default function SystemAdminPage() {
     if (editFormData.role !== editingUser.role) updates.role = editFormData.role;
     if (editFormData.tier !== editingUser.tier) updates.tier = editFormData.tier;
     if (editFormData.isActive !== editingUser.isActive) updates.isActive = editFormData.isActive;
-    if (editFormData.assignedCategoryId !== editingUser.assignedCategoryId) {
-      updates.assignedCategoryId = editFormData.assignedCategoryId;
+    if (editFormData.assignedOrganizationId !== editingUser.assignedOrganizationId) {
+      updates.assignedOrganizationId = editFormData.assignedOrganizationId;
     }
 
     if (Object.keys(updates).length === 0) {
@@ -620,6 +633,13 @@ export default function SystemAdminPage() {
     if (!categoryId) return "-";
     const category = categories.find((c) => c.id === categoryId);
     return category?.name || "-";
+  };
+
+  const getOrganizationName = (organizationId: string | null | undefined) => {
+    if (!organizationId) return "-";
+    const org = organizationsWithHierarchy.find((o) => o.id === organizationId);
+    if (!org) return "-";
+    return org.company ? `${org.company.name} > ${org.name}` : org.name;
   };
 
   const userStats = {
@@ -808,7 +828,7 @@ export default function SystemAdminPage() {
                               <TableCell className="text-sm">
                                 {user.role === "operator" ? (
                                   <Badge variant="outline" className="bg-slate-50">
-                                    {getCategoryName(user.assignedCategoryId)}
+                                    {getOrganizationName(user.assignedOrganizationId)}
                                   </Badge>
                                 ) : (
                                   <span className="text-muted-foreground">-</span>
@@ -1573,30 +1593,30 @@ export default function SystemAdminPage() {
 
             {editFormData.role === "operator" && (
               <div className="space-y-2">
-                <label className="text-sm font-medium">{t('systemAdmin.dialogs.editUser.assignedCategory')}</label>
+                <label className="text-sm font-medium">{t('systemAdmin.dialogs.editUser.assignedOrganization', '담당 조직')}</label>
                 <Select
-                  value={editFormData.assignedCategoryId || "none"}
+                  value={editFormData.assignedOrganizationId || "none"}
                   onValueChange={(value) =>
                     setEditFormData((prev) => ({
                       ...prev,
-                      assignedCategoryId: value === "none" ? null : value,
+                      assignedOrganizationId: value === "none" ? null : value,
                     }))
                   }
                 >
-                  <SelectTrigger data-testid="select-edit-category">
-                    <SelectValue placeholder={t('systemAdmin.dialogs.editUser.selectCategory')} />
+                  <SelectTrigger data-testid="select-edit-organization">
+                    <SelectValue placeholder={t('systemAdmin.dialogs.editUser.selectOrganization', '조직을 선택하세요')} />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="none">{t('systemAdmin.dialogs.editUser.noCategory')}</SelectItem>
-                    {categories.map((cat) => (
-                      <SelectItem key={cat.id} value={cat.id}>
-                        {cat.name}
+                    <SelectItem value="none">{t('systemAdmin.dialogs.editUser.noOrganization', '미지정')}</SelectItem>
+                    {organizationsWithHierarchy.map((org) => (
+                      <SelectItem key={org.id} value={org.id}>
+                        {org.company ? `${org.company.name} > ${org.name}` : org.name}
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
                 <p className="text-xs text-muted-foreground">
-                  {t('systemAdmin.dialogs.editUser.categoryHint')}
+                  {t('systemAdmin.dialogs.editUser.organizationHint', '운영자가 담당할 조직을 선택하세요. 해당 조직의 모든 카테고리와 시나리오를 관리할 수 있습니다.')}
                 </p>
               </div>
             )}

@@ -4072,6 +4072,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         profileImage: user.profileImage,
         lastLoginAt: user.lastLoginAt,
         assignedCategoryId: user.assignedCategoryId,
+        assignedOrganizationId: user.assignedOrganizationId,
         createdAt: user.createdAt,
         updatedAt: user.updatedAt,
       }));
@@ -4087,7 +4088,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.patch("/api/system-admin/users/:id", isAuthenticated, isSystemAdmin, async (req, res) => {
     try {
       const { id } = req.params;
-      const { role, tier, isActive } = req.body;
+      const { role, tier, isActive, assignedOrganizationId } = req.body;
       
       // 자기 자신의 역할 변경 방지 (안전장치)
       // @ts-ignore
@@ -4095,7 +4096,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "Cannot change your own admin role" });
       }
       
-      const updates: { role?: string; tier?: string; isActive?: boolean } = {};
+      const updates: { role?: string; tier?: string; isActive?: boolean; assignedOrganizationId?: string | null } = {};
       
       if (role !== undefined) {
         if (!['admin', 'operator', 'user'].includes(role)) {
@@ -4115,6 +4116,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         updates.isActive = isActive;
       }
       
+      // 운영자 담당 조직 할당
+      if (assignedOrganizationId !== undefined) {
+        updates.assignedOrganizationId = assignedOrganizationId;
+      }
+      
       if (Object.keys(updates).length === 0) {
         return res.status(400).json({ error: "No valid updates provided" });
       }
@@ -4130,6 +4136,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         isActive: updatedUser.isActive ?? true,
         profileImage: updatedUser.profileImage,
         lastLoginAt: updatedUser.lastLoginAt,
+        assignedOrganizationId: updatedUser.assignedOrganizationId,
         createdAt: updatedUser.createdAt,
         updatedAt: updatedUser.updatedAt,
       });
@@ -4273,6 +4280,29 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error: any) {
       console.error("Error deleting category:", error);
       res.status(500).json({ error: error.message || "Failed to delete category" });
+    }
+  });
+
+  // ========== 조직 계층 조회 API ==========
+  
+  // 모든 조직 조회 (회사 정보 포함)
+  app.get("/api/admin/organizations-with-hierarchy", isAuthenticated, isOperatorOrAdmin, async (req, res) => {
+    try {
+      const organizations = await storage.getAllOrganizations();
+      const companies = await storage.getAllCompanies();
+      
+      const organizationsWithHierarchy = organizations.map(org => {
+        const company = companies.find(c => c.id === org.companyId);
+        return {
+          ...org,
+          company: company ? { id: company.id, name: company.name, code: company.code } : null,
+        };
+      });
+      
+      res.json(organizationsWithHierarchy);
+    } catch (error: any) {
+      console.error("Error getting organizations with hierarchy:", error);
+      res.status(500).json({ error: error.message || "Failed to get organizations" });
     }
   });
 
