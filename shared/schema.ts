@@ -58,6 +58,7 @@ export const sessions = pgTable(
 export const companies = pgTable("companies", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   name: varchar("name").notNull().unique(), // 회사 이름
+  code: varchar("code", { length: 50 }).unique(), // 회사 코드 (약칭)
   description: text("description"), // 회사 설명
   logo: text("logo"), // 로고 이미지 URL
   isActive: boolean("is_active").notNull().default(true), // 활성화 상태
@@ -70,6 +71,7 @@ export const organizations = pgTable("organizations", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   companyId: varchar("company_id").notNull().references(() => companies.id, { onDelete: 'cascade' }), // 소속 회사
   name: varchar("name").notNull(), // 조직 이름
+  code: varchar("code", { length: 50 }), // 조직 코드 (약칭)
   description: text("description"), // 조직 설명
   isActive: boolean("is_active").notNull().default(true), // 활성화 상태
   createdAt: timestamp("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),

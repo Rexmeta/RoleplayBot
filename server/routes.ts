@@ -4305,7 +4305,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // 회사 생성
   app.post("/api/system-admin/companies", isAuthenticated, isSystemAdmin, async (req, res) => {
     try {
-      const { name, description, logo, isActive } = req.body;
+      const { name, code, description, logo, isActive } = req.body;
       
       if (!name || name.trim() === "") {
         return res.status(400).json({ error: "Company name is required" });
@@ -4313,6 +4313,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       const company = await storage.createCompany({
         name: name.trim(),
+        code: code?.trim() || null,
         description: description || null,
         logo: logo || null,
         isActive: isActive !== false,
@@ -4322,7 +4323,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error: any) {
       console.error("Error creating company:", error);
       if (error.message?.includes("unique") || error.code === "23505") {
-        res.status(400).json({ error: "Company name already exists" });
+        res.status(400).json({ error: "Company name or code already exists" });
       } else {
         res.status(500).json({ error: error.message || "Failed to create company" });
       }
@@ -4333,10 +4334,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.patch("/api/system-admin/companies/:id", isAuthenticated, isSystemAdmin, async (req, res) => {
     try {
       const { id } = req.params;
-      const { name, description, logo, isActive } = req.body;
+      const { name, code, description, logo, isActive } = req.body;
       
       const updates: any = {};
       if (name !== undefined) updates.name = name.trim();
+      if (code !== undefined) updates.code = code?.trim() || null;
       if (description !== undefined) updates.description = description;
       if (logo !== undefined) updates.logo = logo;
       if (isActive !== undefined) updates.isActive = isActive;
@@ -4415,7 +4417,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // 조직 생성
   app.post("/api/system-admin/organizations", isAuthenticated, isSystemAdmin, async (req, res) => {
     try {
-      const { companyId, name, description, isActive } = req.body;
+      const { companyId, name, code, description, isActive } = req.body;
       
       if (!companyId) {
         return res.status(400).json({ error: "Company ID is required" });
@@ -4427,6 +4429,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const organization = await storage.createOrganization({
         companyId,
         name: name.trim(),
+        code: code?.trim() || null,
         description: description || null,
         isActive: isActive !== false,
       });
@@ -4442,10 +4445,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.patch("/api/system-admin/organizations/:id", isAuthenticated, isSystemAdmin, async (req, res) => {
     try {
       const { id } = req.params;
-      const { name, description, isActive } = req.body;
+      const { name, code, description, isActive } = req.body;
       
       const updates: any = {};
       if (name !== undefined) updates.name = name.trim();
+      if (code !== undefined) updates.code = code?.trim() || null;
       if (description !== undefined) updates.description = description;
       if (isActive !== undefined) updates.isActive = isActive;
       
