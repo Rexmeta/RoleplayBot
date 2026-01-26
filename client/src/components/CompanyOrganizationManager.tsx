@@ -78,15 +78,15 @@ export function CompanyOrganizationManager() {
   });
 
   const { data: companies = [], isLoading: companiesLoading } = useQuery<Company[]>({
-    queryKey: ["/api/companies"],
+    queryKey: ["/api/system-admin/companies"],
   });
 
   const { data: organizations = [], isLoading: orgsLoading } = useQuery<Organization[]>({
-    queryKey: ["/api/organizations", selectedCompanyId],
+    queryKey: ["/api/system-admin/organizations", selectedCompanyId],
     queryFn: async () => {
       const url = selectedCompanyId 
-        ? `/api/organizations?companyId=${selectedCompanyId}` 
-        : "/api/organizations";
+        ? `/api/system-admin/organizations?companyId=${selectedCompanyId}` 
+        : "/api/system-admin/organizations";
       const res = await fetch(url, {
         headers: { Authorization: `Bearer ${localStorage.getItem("authToken")}` },
         credentials: "include",
@@ -98,11 +98,11 @@ export function CompanyOrganizationManager() {
 
   const createCompanyMutation = useMutation({
     mutationFn: async (data: typeof companyFormData) => {
-      const res = await apiRequest("POST", "/api/companies", data);
+      const res = await apiRequest("POST", "/api/system-admin/companies", data);
       return res.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/companies"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/system-admin/companies"] });
       queryClient.invalidateQueries({ queryKey: ["/api/public/companies"] });
       setIsCompanyDialogOpen(false);
       resetCompanyForm();
@@ -115,11 +115,11 @@ export function CompanyOrganizationManager() {
 
   const updateCompanyMutation = useMutation({
     mutationFn: async ({ id, updates }: { id: string; updates: Partial<Company> }) => {
-      const res = await apiRequest("PUT", `/api/companies/${id}`, updates);
+      const res = await apiRequest("PATCH", `/api/system-admin/companies/${id}`, updates);
       return res.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/companies"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/system-admin/companies"] });
       queryClient.invalidateQueries({ queryKey: ["/api/public/companies"] });
       setIsCompanyDialogOpen(false);
       setEditingCompany(null);
@@ -133,11 +133,11 @@ export function CompanyOrganizationManager() {
 
   const deleteCompanyMutation = useMutation({
     mutationFn: async (id: string) => {
-      const res = await apiRequest("DELETE", `/api/companies/${id}`);
+      const res = await apiRequest("DELETE", `/api/system-admin/companies/${id}`);
       return res.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/companies"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/system-admin/companies"] });
       queryClient.invalidateQueries({ queryKey: ["/api/public/companies"] });
       toast({ title: t('common.success', '성공'), description: t('companyOrg.companyDeleted', '회사가 삭제되었습니다.') });
     },
@@ -148,11 +148,11 @@ export function CompanyOrganizationManager() {
 
   const createOrgMutation = useMutation({
     mutationFn: async (data: typeof orgFormData) => {
-      const res = await apiRequest("POST", "/api/organizations", data);
+      const res = await apiRequest("POST", "/api/system-admin/organizations", data);
       return res.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/organizations"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/system-admin/organizations"] });
       queryClient.invalidateQueries({ queryKey: ["/api/public/organizations"] });
       setIsOrgDialogOpen(false);
       resetOrgForm();
@@ -165,11 +165,11 @@ export function CompanyOrganizationManager() {
 
   const updateOrgMutation = useMutation({
     mutationFn: async ({ id, updates }: { id: string; updates: Partial<Organization> }) => {
-      const res = await apiRequest("PUT", `/api/organizations/${id}`, updates);
+      const res = await apiRequest("PATCH", `/api/system-admin/organizations/${id}`, updates);
       return res.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/organizations"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/system-admin/organizations"] });
       queryClient.invalidateQueries({ queryKey: ["/api/public/organizations"] });
       setIsOrgDialogOpen(false);
       setEditingOrg(null);
@@ -183,11 +183,11 @@ export function CompanyOrganizationManager() {
 
   const deleteOrgMutation = useMutation({
     mutationFn: async (id: string) => {
-      const res = await apiRequest("DELETE", `/api/organizations/${id}`);
+      const res = await apiRequest("DELETE", `/api/system-admin/organizations/${id}`);
       return res.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/organizations"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/system-admin/organizations"] });
       queryClient.invalidateQueries({ queryKey: ["/api/public/organizations"] });
       toast({ title: t('common.success', '성공'), description: t('companyOrg.orgDeleted', '조직이 삭제되었습니다.') });
     },
