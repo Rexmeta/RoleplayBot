@@ -34,8 +34,9 @@ import {
 import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { Search, Users, Shield, UserCog, Loader2, User, KeyRound, Eye, EyeOff, FolderTree, Plus, Pencil, Trash2, GripVertical, Settings, Save, CheckCircle, XCircle, ExternalLink, Activity, DollarSign, Zap, TrendingUp, Calendar, RefreshCw, Languages } from "lucide-react";
+import { Search, Users, Shield, UserCog, Loader2, User, KeyRound, Eye, EyeOff, FolderTree, Plus, Pencil, Trash2, GripVertical, Settings, Save, CheckCircle, XCircle, ExternalLink, Activity, DollarSign, Zap, TrendingUp, Calendar, RefreshCw, Languages, Building2 } from "lucide-react";
 import { LanguageManager } from "@/components/LanguageManager";
+import { CompanyOrganizationManager } from "@/components/CompanyOrganizationManager";
 import { format } from "date-fns";
 import { ko } from "date-fns/locale";
 
@@ -638,10 +639,14 @@ export default function SystemAdminPage() {
 
       <div className="container mx-auto p-6 space-y-6" data-testid="system-admin-page">
         <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <TabsList className="grid w-full max-w-4xl grid-cols-5">
+          <TabsList className="grid w-full max-w-5xl grid-cols-6">
             <TabsTrigger value="users" className="flex items-center gap-2" data-testid="tab-users">
               <Users className="h-4 w-4" />
               {t('systemAdmin.tabs.users')}
+            </TabsTrigger>
+            <TabsTrigger value="companies" className="flex items-center gap-2" data-testid="tab-companies">
+              <Building2 className="h-4 w-4" />
+              {t('systemAdmin.tabs.companies', '회사/조직')}
             </TabsTrigger>
             <TabsTrigger value="categories" className="flex items-center gap-2" data-testid="tab-categories">
               <FolderTree className="h-4 w-4" />
@@ -859,6 +864,10 @@ export default function SystemAdminPage() {
                 )}
               </CardContent>
             </Card>
+          </TabsContent>
+
+          <TabsContent value="companies" className="space-y-6 mt-6">
+            <CompanyOrganizationManager />
           </TabsContent>
 
           <TabsContent value="categories" className="space-y-6 mt-6">
