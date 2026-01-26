@@ -52,14 +52,45 @@ export const sessions = pgTable(
   (table) => [index("IDX_session_expire").on(table.expire)],
 );
 
-// 시나리오 카테고리 테이블
+// ==================== 3단 계층 구조: 회사 > 조직 > 카테고리 ====================
+
+// 회사 테이블
+export const companies = pgTable("companies", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: varchar("name").notNull().unique(), // 회사 이름
+  description: text("description"), // 회사 설명
+  logo: text("logo"), // 로고 이미지 URL
+  isActive: boolean("is_active").notNull().default(true), // 활성화 상태
+  createdAt: timestamp("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+  updatedAt: timestamp("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+});
+
+// 조직 테이블 (회사 하위)
+export const organizations = pgTable("organizations", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  companyId: varchar("company_id").notNull().references(() => companies.id, { onDelete: 'cascade' }), // 소속 회사
+  name: varchar("name").notNull(), // 조직 이름
+  description: text("description"), // 조직 설명
+  isActive: boolean("is_active").notNull().default(true), // 활성화 상태
+  createdAt: timestamp("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+  updatedAt: timestamp("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+}, (table) => [
+  index("idx_organizations_company_id").on(table.companyId),
+]);
+
+// 시나리오 카테고리 테이블 (조직 하위)
 export const categories = pgTable("categories", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  name: varchar("name").notNull().unique(), // 카테고리 이름 (예: 온보딩, 리더십, 경영지원, 기타)
+  organizationId: varchar("organization_id").references(() => organizations.id, { onDelete: 'cascade' }), // 소속 조직 (nullable: 기존 데이터 호환)
+  name: varchar("name").notNull(), // 카테고리 이름 - unique 제약 조건 제거 (같은 이름이 다른 조직에 있을 수 있음)
   description: text("description"), // 카테고리 설명
   order: integer("order").notNull().default(0), // 정렬 순서
+  isActive: boolean("is_active").notNull().default(true), // 활성화 상태
   createdAt: timestamp("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
-});
+  updatedAt: timestamp("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+}, (table) => [
+  index("idx_categories_organization_id").on(table.organizationId),
+]);
 
 // 시나리오 테이블 - JSON 파일에서 DB로 마이그레이션
 export const scenarios = pgTable("scenarios", {
@@ -211,10 +242,31 @@ export const users = pgTable("users", {
   preferredLanguage: varchar("preferred_language").notNull().default("ko"), // 선호 언어: ko, en, ja, zh
   isActive: boolean("is_active").notNull().default(true), // 계정 활성화 상태
   lastLoginAt: timestamp("last_login_at"), // 마지막 로그인 시간
+  // 3단 계층 구조: 사용자 소속
+  companyId: varchar("company_id").references(() => companies.id), // 소속 회사 (nullable: 시스템 관리자는 소속 없음)
+  organizationId: varchar("organization_id").references(() => organizations.id), // 소속 조직 (nullable: 회사 레벨 사용자)
+  // 레거시 필드 (deprecated - operator_assignments로 대체)
   assignedCategoryId: varchar("assigned_category_id").references(() => categories.id), // 운영자가 담당하는 카테고리 (운영자만 해당)
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
-});
+}, (table) => [
+  index("idx_users_company_id").on(table.companyId),
+  index("idx_users_organization_id").on(table.organizationId),
+]);
+
+// 운영자 권한 할당 테이블 (복합 할당: 회사 또는 조직 단위)
+export const operatorAssignments = pgTable("operator_assignments", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: 'cascade' }), // 운영자 사용자
+  companyId: varchar("company_id").references(() => companies.id, { onDelete: 'cascade' }), // 회사 단위 할당 (nullable)
+  organizationId: varchar("organization_id").references(() => organizations.id, { onDelete: 'cascade' }), // 조직 단위 할당 (nullable)
+  // companyId만 있으면 해당 회사 전체 관리, organizationId만 있으면 해당 조직만 관리
+  createdAt: timestamp("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+}, (table) => [
+  index("idx_operator_assignments_user_id").on(table.userId),
+  index("idx_operator_assignments_company_id").on(table.companyId),
+  index("idx_operator_assignments_organization_id").on(table.organizationId),
+]);
 
 // 새로운 데이터 구조: 시나리오 실행 (1회 플레이)
 export const scenarioRuns = pgTable("scenario_runs", {
@@ -491,14 +543,44 @@ export type CreateUser = {
 export type UpsertUser = typeof users.$inferInsert;
 export type User = typeof users.$inferSelect;
 
+// Company types
+export const insertCompanySchema = createInsertSchema(companies).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export type InsertCompany = z.infer<typeof insertCompanySchema>;
+export type Company = typeof companies.$inferSelect;
+
+// Organization types
+export const insertOrganizationSchema = createInsertSchema(organizations).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export type InsertOrganization = z.infer<typeof insertOrganizationSchema>;
+export type Organization = typeof organizations.$inferSelect;
+
 // Category types
 export const insertCategorySchema = createInsertSchema(categories).omit({
   id: true,
   createdAt: true,
+  updatedAt: true,
 });
 
 export type InsertCategory = z.infer<typeof insertCategorySchema>;
 export type Category = typeof categories.$inferSelect;
+
+// Operator Assignment types
+export const insertOperatorAssignmentSchema = createInsertSchema(operatorAssignments).omit({
+  id: true,
+  createdAt: true,
+});
+
+export type InsertOperatorAssignment = z.infer<typeof insertOperatorAssignmentSchema>;
+export type OperatorAssignment = typeof operatorAssignments.$inferSelect;
 
 // Scenario types
 export const insertScenarioSchema = createInsertSchema(scenarios).omit({

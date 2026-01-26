@@ -4239,6 +4239,294 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // ========== 3단 계층 구조 API: 회사 > 조직 > 카테고리 ==========
+  
+  // ========== 회사 관리 API (시스템 관리자 전용) ==========
+  
+  // 모든 회사 조회
+  app.get("/api/system-admin/companies", isAuthenticated, isSystemAdmin, async (req, res) => {
+    try {
+      const allCompanies = await storage.getAllCompanies();
+      res.json(allCompanies);
+    } catch (error: any) {
+      console.error("Error getting companies:", error);
+      res.status(500).json({ error: error.message || "Failed to get companies" });
+    }
+  });
+  
+  // 활성 회사 목록 조회 (회원가입용 - 인증 불필요)
+  app.get("/api/public/companies", async (req, res) => {
+    try {
+      const activeCompanies = await storage.getActiveCompanies();
+      res.json(activeCompanies);
+    } catch (error: any) {
+      console.error("Error getting active companies:", error);
+      res.status(500).json({ error: error.message || "Failed to get companies" });
+    }
+  });
+  
+  // 회사 생성
+  app.post("/api/system-admin/companies", isAuthenticated, isSystemAdmin, async (req, res) => {
+    try {
+      const { name, description, logo, isActive } = req.body;
+      
+      if (!name || name.trim() === "") {
+        return res.status(400).json({ error: "Company name is required" });
+      }
+      
+      const company = await storage.createCompany({
+        name: name.trim(),
+        description: description || null,
+        logo: logo || null,
+        isActive: isActive !== false,
+      });
+      
+      res.json(company);
+    } catch (error: any) {
+      console.error("Error creating company:", error);
+      if (error.message?.includes("unique") || error.code === "23505") {
+        res.status(400).json({ error: "Company name already exists" });
+      } else {
+        res.status(500).json({ error: error.message || "Failed to create company" });
+      }
+    }
+  });
+  
+  // 회사 수정
+  app.patch("/api/system-admin/companies/:id", isAuthenticated, isSystemAdmin, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { name, description, logo, isActive } = req.body;
+      
+      const updates: any = {};
+      if (name !== undefined) updates.name = name.trim();
+      if (description !== undefined) updates.description = description;
+      if (logo !== undefined) updates.logo = logo;
+      if (isActive !== undefined) updates.isActive = isActive;
+      
+      if (Object.keys(updates).length === 0) {
+        return res.status(400).json({ error: "No valid updates provided" });
+      }
+      
+      const company = await storage.updateCompany(id, updates);
+      res.json(company);
+    } catch (error: any) {
+      console.error("Error updating company:", error);
+      res.status(500).json({ error: error.message || "Failed to update company" });
+    }
+  });
+  
+  // 회사 삭제
+  app.delete("/api/system-admin/companies/:id", isAuthenticated, isSystemAdmin, async (req, res) => {
+    try {
+      const { id } = req.params;
+      
+      // 해당 회사에 조직이 있는지 확인
+      const organizations = await storage.getOrganizationsByCompany(id);
+      if (organizations.length > 0) {
+        return res.status(400).json({
+          error: "Cannot delete company with organizations",
+          organizations: organizations.map(o => ({ id: o.id, name: o.name })),
+        });
+      }
+      
+      await storage.deleteCompany(id);
+      res.json({ success: true });
+    } catch (error: any) {
+      console.error("Error deleting company:", error);
+      res.status(500).json({ error: error.message || "Failed to delete company" });
+    }
+  });
+  
+  // ========== 조직 관리 API ==========
+  
+  // 회사별 조직 목록 조회 (시스템 관리자)
+  app.get("/api/system-admin/companies/:companyId/organizations", isAuthenticated, isSystemAdmin, async (req, res) => {
+    try {
+      const { companyId } = req.params;
+      const organizations = await storage.getOrganizationsByCompany(companyId);
+      res.json(organizations);
+    } catch (error: any) {
+      console.error("Error getting organizations:", error);
+      res.status(500).json({ error: error.message || "Failed to get organizations" });
+    }
+  });
+  
+  // 활성 조직 목록 조회 (회원가입용 - 인증 불필요)
+  app.get("/api/public/companies/:companyId/organizations", async (req, res) => {
+    try {
+      const { companyId } = req.params;
+      const activeOrganizations = await storage.getActiveOrganizationsByCompany(companyId);
+      res.json(activeOrganizations);
+    } catch (error: any) {
+      console.error("Error getting active organizations:", error);
+      res.status(500).json({ error: error.message || "Failed to get organizations" });
+    }
+  });
+  
+  // 모든 조직 조회 (시스템 관리자)
+  app.get("/api/system-admin/organizations", isAuthenticated, isSystemAdmin, async (req, res) => {
+    try {
+      const organizations = await storage.getAllOrganizations();
+      res.json(organizations);
+    } catch (error: any) {
+      console.error("Error getting all organizations:", error);
+      res.status(500).json({ error: error.message || "Failed to get organizations" });
+    }
+  });
+  
+  // 조직 생성
+  app.post("/api/system-admin/organizations", isAuthenticated, isSystemAdmin, async (req, res) => {
+    try {
+      const { companyId, name, description, isActive } = req.body;
+      
+      if (!companyId) {
+        return res.status(400).json({ error: "Company ID is required" });
+      }
+      if (!name || name.trim() === "") {
+        return res.status(400).json({ error: "Organization name is required" });
+      }
+      
+      const organization = await storage.createOrganization({
+        companyId,
+        name: name.trim(),
+        description: description || null,
+        isActive: isActive !== false,
+      });
+      
+      res.json(organization);
+    } catch (error: any) {
+      console.error("Error creating organization:", error);
+      res.status(500).json({ error: error.message || "Failed to create organization" });
+    }
+  });
+  
+  // 조직 수정
+  app.patch("/api/system-admin/organizations/:id", isAuthenticated, isSystemAdmin, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { name, description, isActive } = req.body;
+      
+      const updates: any = {};
+      if (name !== undefined) updates.name = name.trim();
+      if (description !== undefined) updates.description = description;
+      if (isActive !== undefined) updates.isActive = isActive;
+      
+      if (Object.keys(updates).length === 0) {
+        return res.status(400).json({ error: "No valid updates provided" });
+      }
+      
+      const organization = await storage.updateOrganization(id, updates);
+      res.json(organization);
+    } catch (error: any) {
+      console.error("Error updating organization:", error);
+      res.status(500).json({ error: error.message || "Failed to update organization" });
+    }
+  });
+  
+  // 조직 삭제
+  app.delete("/api/system-admin/organizations/:id", isAuthenticated, isSystemAdmin, async (req, res) => {
+    try {
+      const { id } = req.params;
+      
+      // 해당 조직에 카테고리가 있는지 확인
+      const categories = await storage.getCategoriesByOrganization(id);
+      if (categories.length > 0) {
+        return res.status(400).json({
+          error: "Cannot delete organization with categories",
+          categories: categories.map(c => ({ id: c.id, name: c.name })),
+        });
+      }
+      
+      await storage.deleteOrganization(id);
+      res.json({ success: true });
+    } catch (error: any) {
+      console.error("Error deleting organization:", error);
+      res.status(500).json({ error: error.message || "Failed to delete organization" });
+    }
+  });
+  
+  // ========== 운영자 권한 할당 API ==========
+  
+  // 사용자별 운영자 권한 조회
+  app.get("/api/system-admin/users/:userId/operator-assignments", isAuthenticated, isSystemAdmin, async (req, res) => {
+    try {
+      const { userId } = req.params;
+      const assignments = await storage.getOperatorAssignmentsByUser(userId);
+      res.json(assignments);
+    } catch (error: any) {
+      console.error("Error getting operator assignments:", error);
+      res.status(500).json({ error: error.message || "Failed to get operator assignments" });
+    }
+  });
+  
+  // 운영자 권한 할당
+  app.post("/api/system-admin/operator-assignments", isAuthenticated, isSystemAdmin, async (req, res) => {
+    try {
+      const { userId, companyId, organizationId } = req.body;
+      
+      if (!userId) {
+        return res.status(400).json({ error: "User ID is required" });
+      }
+      if (!companyId && !organizationId) {
+        return res.status(400).json({ error: "Either company ID or organization ID is required" });
+      }
+      
+      const assignment = await storage.createOperatorAssignment({
+        userId,
+        companyId: companyId || null,
+        organizationId: organizationId || null,
+      });
+      
+      res.json(assignment);
+    } catch (error: any) {
+      console.error("Error creating operator assignment:", error);
+      res.status(500).json({ error: error.message || "Failed to create operator assignment" });
+    }
+  });
+  
+  // 운영자 권한 삭제
+  app.delete("/api/system-admin/operator-assignments/:id", isAuthenticated, isSystemAdmin, async (req, res) => {
+    try {
+      const { id } = req.params;
+      await storage.deleteOperatorAssignment(id);
+      res.json({ success: true });
+    } catch (error: any) {
+      console.error("Error deleting operator assignment:", error);
+      res.status(500).json({ error: error.message || "Failed to delete operator assignment" });
+    }
+  });
+  
+  // 사용자의 운영자 권한 전체 삭제
+  app.delete("/api/system-admin/users/:userId/operator-assignments", isAuthenticated, isSystemAdmin, async (req, res) => {
+    try {
+      const { userId } = req.params;
+      await storage.deleteOperatorAssignmentsByUser(userId);
+      res.json({ success: true });
+    } catch (error: any) {
+      console.error("Error deleting operator assignments:", error);
+      res.status(500).json({ error: error.message || "Failed to delete operator assignments" });
+    }
+  });
+  
+  // 사용자 소속 회사/조직 업데이트
+  app.patch("/api/system-admin/users/:userId/organization", isAuthenticated, isSystemAdmin, async (req, res) => {
+    try {
+      const { userId } = req.params;
+      const { companyId, organizationId } = req.body;
+      
+      const user = await storage.updateUserCompanyOrganization(
+        userId, 
+        companyId || null, 
+        organizationId || null
+      );
+      res.json(user);
+    } catch (error: any) {
+      console.error("Error updating user organization:", error);
+      res.status(500).json({ error: error.message || "Failed to update user organization" });
+    }
+  });
+
   // ========== 시스템 설정 API (시스템 관리자 전용) ==========
   
   // 모든 시스템 설정 조회

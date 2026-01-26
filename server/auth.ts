@@ -72,6 +72,8 @@ const registerSchema = z.object({
   password: passwordSchema,
   name: z.string().min(1, "이름을 입력해주세요").max(50, "이름은 50자 이하여야 합니다"),
   categoryId: z.string().uuid().optional(),
+  companyId: z.string().uuid().optional(),  // 소속 회사
+  organizationId: z.string().uuid().optional(),  // 소속 조직
   preferredLanguage: z.enum(['ko', 'en', 'ja', 'zh']).optional().default('ko'),
 });
 
@@ -143,7 +145,7 @@ export function setupAuth(app: Express) {
   // 회원가입
   app.post("/api/auth/register", async (req, res) => {
     try {
-      const { email, password, name, categoryId, preferredLanguage } = registerSchema.parse(req.body);
+      const { email, password, name, categoryId, companyId, organizationId, preferredLanguage } = registerSchema.parse(req.body);
 
       // 이미 존재하는 사용자 확인
       const existingUser = await storage.getUserByEmail(email);
@@ -158,12 +160,14 @@ export function setupAuth(app: Express) {
       const allUsers = await storage.getAllUsers();
       const isFirstUser = allUsers.length === 0;
 
-      // 사용자 생성 (categoryId, preferredLanguage는 선택사항으로 저장)
+      // 사용자 생성 (회사/조직/카테고리는 선택사항으로 저장)
       const user = await storage.createUser({
         email,
         password: hashedPassword,
         name,
         assignedCategoryId: categoryId || null,
+        companyId: companyId || null,
+        organizationId: organizationId || null,
         preferredLanguage: preferredLanguage || 'ko',
       });
 

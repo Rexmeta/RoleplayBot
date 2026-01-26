@@ -1,4 +1,4 @@
-import { type Conversation, type InsertConversation, type Feedback, type InsertFeedback, type PersonaSelection, type StrategyChoice, type SequenceAnalysis, type User, type UpsertUser, type ScenarioRun, type InsertScenarioRun, type PersonaRun, type InsertPersonaRun, type ChatMessage, type InsertChatMessage, type Category, type InsertCategory, type SystemSetting, type AiUsageLog, type InsertAiUsageLog, type AiUsageSummary, type AiUsageByFeature, type AiUsageByModel, type AiUsageDaily, type EvaluationCriteriaSet, type InsertEvaluationCriteriaSet, type EvaluationDimension, type InsertEvaluationDimension, type EvaluationCriteriaSetWithDimensions, type SupportedLanguage, type InsertSupportedLanguage, type ScenarioTranslation, type InsertScenarioTranslation, type PersonaTranslation, type InsertPersonaTranslation, type CategoryTranslation, type InsertCategoryTranslation, type Scenario, type InsertScenario, type MbtiPersona, type InsertMbtiPersona, conversations, feedbacks, users, scenarioRuns, personaRuns, chatMessages, categories, systemSettings, aiUsageLogs, evaluationCriteriaSets, evaluationDimensions, supportedLanguages, scenarioTranslations, personaTranslations, categoryTranslations, scenarios, mbtiPersonas } from "@shared/schema";
+import { type Conversation, type InsertConversation, type Feedback, type InsertFeedback, type PersonaSelection, type StrategyChoice, type SequenceAnalysis, type User, type UpsertUser, type ScenarioRun, type InsertScenarioRun, type PersonaRun, type InsertPersonaRun, type ChatMessage, type InsertChatMessage, type Category, type InsertCategory, type SystemSetting, type AiUsageLog, type InsertAiUsageLog, type AiUsageSummary, type AiUsageByFeature, type AiUsageByModel, type AiUsageDaily, type EvaluationCriteriaSet, type InsertEvaluationCriteriaSet, type EvaluationDimension, type InsertEvaluationDimension, type EvaluationCriteriaSetWithDimensions, type SupportedLanguage, type InsertSupportedLanguage, type ScenarioTranslation, type InsertScenarioTranslation, type PersonaTranslation, type InsertPersonaTranslation, type CategoryTranslation, type InsertCategoryTranslation, type Scenario, type InsertScenario, type MbtiPersona, type InsertMbtiPersona, type Company, type InsertCompany, type Organization, type InsertOrganization, type OperatorAssignment, type InsertOperatorAssignment, conversations, feedbacks, users, scenarioRuns, personaRuns, chatMessages, categories, systemSettings, aiUsageLogs, evaluationCriteriaSets, evaluationDimensions, supportedLanguages, scenarioTranslations, personaTranslations, categoryTranslations, scenarios, mbtiPersonas, companies, organizations, operatorAssignments } from "@shared/schema";
 import { randomUUID } from "crypto";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { Pool } from "pg";
@@ -77,7 +77,7 @@ export interface IStorage {
   // User operations - 이메일 기반 인증 시스템
   getUser(id: string): Promise<User | undefined>;
   getUserByEmail(email: string): Promise<User | undefined>;
-  createUser(user: { email: string; password: string; name: string; assignedCategoryId?: string | null; preferredLanguage?: string }): Promise<User>;
+  createUser(user: { email: string; password: string; name: string; assignedCategoryId?: string | null; companyId?: string | null; organizationId?: string | null; preferredLanguage?: string }): Promise<User>;
   updateUser(id: string, updates: { name?: string; password?: string; profileImage?: string; tier?: string }): Promise<User>;
   updateUserLanguage(id: string, language: string): Promise<User>;
   upsertUser(user: UpsertUser): Promise<User>;
@@ -177,6 +177,52 @@ export interface IStorage {
   createMbtiPersona(persona: InsertMbtiPersona): Promise<MbtiPersona>;
   updateMbtiPersona(id: string, updates: Partial<InsertMbtiPersona>): Promise<MbtiPersona>;
   deleteMbtiPersona(id: string): Promise<void>;
+  
+  // ==================== 3단 계층 구조: 회사 > 조직 > 카테고리 ====================
+  
+  // Companies - 회사 관리
+  getCompany(id: string): Promise<Company | undefined>;
+  getCompanyByName(name: string): Promise<Company | undefined>;
+  getAllCompanies(): Promise<Company[]>;
+  getActiveCompanies(): Promise<Company[]>;
+  createCompany(company: InsertCompany): Promise<Company>;
+  updateCompany(id: string, updates: Partial<InsertCompany>): Promise<Company>;
+  deleteCompany(id: string): Promise<void>;
+  
+  // Organizations - 조직 관리
+  getOrganization(id: string): Promise<Organization | undefined>;
+  getOrganizationsByCompany(companyId: string): Promise<Organization[]>;
+  getActiveOrganizationsByCompany(companyId: string): Promise<Organization[]>;
+  getAllOrganizations(): Promise<Organization[]>;
+  createOrganization(organization: InsertOrganization): Promise<Organization>;
+  updateOrganization(id: string, updates: Partial<InsertOrganization>): Promise<Organization>;
+  deleteOrganization(id: string): Promise<void>;
+  
+  // Categories (확장) - 조직별 카테고리
+  getCategoriesByOrganization(organizationId: string): Promise<Category[]>;
+  getActiveCategoriesByOrganization(organizationId: string): Promise<Category[]>;
+  
+  // Operator Assignments - 운영자 권한 할당
+  getOperatorAssignment(id: string): Promise<OperatorAssignment | undefined>;
+  getOperatorAssignmentsByUser(userId: string): Promise<OperatorAssignment[]>;
+  getOperatorAssignmentsByCompany(companyId: string): Promise<OperatorAssignment[]>;
+  getOperatorAssignmentsByOrganization(organizationId: string): Promise<OperatorAssignment[]>;
+  createOperatorAssignment(assignment: InsertOperatorAssignment): Promise<OperatorAssignment>;
+  deleteOperatorAssignment(id: string): Promise<void>;
+  deleteOperatorAssignmentsByUser(userId: string): Promise<void>;
+  
+  // 운영자 권한 확인 헬퍼
+  canOperatorManageCompany(userId: string, companyId: string): Promise<boolean>;
+  canOperatorManageOrganization(userId: string, organizationId: string): Promise<boolean>;
+  canOperatorManageCategory(userId: string, categoryId: string): Promise<boolean>;
+  getOperatorManagedCompanyIds(userId: string): Promise<string[]>;
+  getOperatorManagedOrganizationIds(userId: string): Promise<string[]>;
+  getOperatorManagedCategoryIds(userId: string): Promise<string[]>;
+  
+  // 사용자 소속 관리
+  getUsersByCompany(companyId: string): Promise<User[]>;
+  getUsersByOrganization(organizationId: string): Promise<User[]>;
+  updateUserCompanyOrganization(userId: string, companyId: string | null, organizationId: string | null): Promise<User>;
 }
 
 export class MemStorage implements IStorage {
@@ -467,7 +513,7 @@ export class MemStorage implements IStorage {
     return undefined;
   }
 
-  async createUser(userData: { email: string; password: string; name: string; assignedCategoryId?: string | null; preferredLanguage?: string }): Promise<User> {
+  async createUser(userData: { email: string; password: string; name: string; assignedCategoryId?: string | null; companyId?: string | null; organizationId?: string | null; preferredLanguage?: string }): Promise<User> {
     const id = randomUUID();
     const user: User = {
       id,
@@ -480,6 +526,8 @@ export class MemStorage implements IStorage {
       preferredLanguage: userData.preferredLanguage || 'ko',
       isActive: true,
       lastLoginAt: null,
+      companyId: userData.companyId || null,
+      organizationId: userData.organizationId || null,
       assignedCategoryId: userData.assignedCategoryId || null,
       createdAt: new Date(),
       updatedAt: new Date(),
@@ -538,6 +586,8 @@ export class MemStorage implements IStorage {
       preferredLanguage: existingUser?.preferredLanguage || 'ko',
       isActive: existingUser?.isActive ?? true,
       lastLoginAt: existingUser?.lastLoginAt || null,
+      companyId: existingUser?.companyId || null,
+      organizationId: existingUser?.organizationId || null,
       assignedCategoryId: existingUser?.assignedCategoryId || null,
       createdAt: existingUser?.createdAt || new Date(),
       updatedAt: new Date(),
@@ -720,6 +770,45 @@ export class MemStorage implements IStorage {
   async createMbtiPersona(_persona: InsertMbtiPersona): Promise<MbtiPersona> { throw new Error("Not implemented"); }
   async updateMbtiPersona(_id: string, _updates: Partial<InsertMbtiPersona>): Promise<MbtiPersona> { throw new Error("Not implemented"); }
   async deleteMbtiPersona(_id: string): Promise<void> {}
+  
+  // 3단 계층 구조 - stub implementations
+  async getCompany(_id: string): Promise<Company | undefined> { return undefined; }
+  async getCompanyByName(_name: string): Promise<Company | undefined> { return undefined; }
+  async getAllCompanies(): Promise<Company[]> { return []; }
+  async getActiveCompanies(): Promise<Company[]> { return []; }
+  async createCompany(_company: InsertCompany): Promise<Company> { throw new Error("Not implemented"); }
+  async updateCompany(_id: string, _updates: Partial<InsertCompany>): Promise<Company> { throw new Error("Not implemented"); }
+  async deleteCompany(_id: string): Promise<void> {}
+  
+  async getOrganization(_id: string): Promise<Organization | undefined> { return undefined; }
+  async getOrganizationsByCompany(_companyId: string): Promise<Organization[]> { return []; }
+  async getActiveOrganizationsByCompany(_companyId: string): Promise<Organization[]> { return []; }
+  async getAllOrganizations(): Promise<Organization[]> { return []; }
+  async createOrganization(_organization: InsertOrganization): Promise<Organization> { throw new Error("Not implemented"); }
+  async updateOrganization(_id: string, _updates: Partial<InsertOrganization>): Promise<Organization> { throw new Error("Not implemented"); }
+  async deleteOrganization(_id: string): Promise<void> {}
+  
+  async getCategoriesByOrganization(_organizationId: string): Promise<Category[]> { return []; }
+  async getActiveCategoriesByOrganization(_organizationId: string): Promise<Category[]> { return []; }
+  
+  async getOperatorAssignment(_id: string): Promise<OperatorAssignment | undefined> { return undefined; }
+  async getOperatorAssignmentsByUser(_userId: string): Promise<OperatorAssignment[]> { return []; }
+  async getOperatorAssignmentsByCompany(_companyId: string): Promise<OperatorAssignment[]> { return []; }
+  async getOperatorAssignmentsByOrganization(_organizationId: string): Promise<OperatorAssignment[]> { return []; }
+  async createOperatorAssignment(_assignment: InsertOperatorAssignment): Promise<OperatorAssignment> { throw new Error("Not implemented"); }
+  async deleteOperatorAssignment(_id: string): Promise<void> {}
+  async deleteOperatorAssignmentsByUser(_userId: string): Promise<void> {}
+  
+  async canOperatorManageCompany(_userId: string, _companyId: string): Promise<boolean> { return false; }
+  async canOperatorManageOrganization(_userId: string, _organizationId: string): Promise<boolean> { return false; }
+  async canOperatorManageCategory(_userId: string, _categoryId: string): Promise<boolean> { return false; }
+  async getOperatorManagedCompanyIds(_userId: string): Promise<string[]> { return []; }
+  async getOperatorManagedOrganizationIds(_userId: string): Promise<string[]> { return []; }
+  async getOperatorManagedCategoryIds(_userId: string): Promise<string[]> { return []; }
+  
+  async getUsersByCompany(_companyId: string): Promise<User[]> { return []; }
+  async getUsersByOrganization(_organizationId: string): Promise<User[]> { return []; }
+  async updateUserCompanyOrganization(_userId: string, _companyId: string | null, _organizationId: string | null): Promise<User> { throw new Error("Not implemented"); }
 }
 
 export class PostgreSQLStorage implements IStorage {
@@ -886,10 +975,12 @@ export class PostgreSQLStorage implements IStorage {
     return user;
   }
 
-  async createUser(userData: { email: string; password: string; name: string; assignedCategoryId?: string | null; preferredLanguage?: string }): Promise<User> {
+  async createUser(userData: { email: string; password: string; name: string; assignedCategoryId?: string | null; companyId?: string | null; organizationId?: string | null; preferredLanguage?: string }): Promise<User> {
     const [user] = await db.insert(users).values({
       ...userData,
       preferredLanguage: userData.preferredLanguage || 'ko',
+      companyId: userData.companyId || null,
+      organizationId: userData.organizationId || null,
     }).returning();
     return user;
   }
@@ -1835,6 +1926,246 @@ export class PostgreSQLStorage implements IStorage {
   
   async deleteMbtiPersona(id: string): Promise<void> {
     await db.delete(mbtiPersonas).where(eq(mbtiPersonas.id, id));
+  }
+  
+  // ==================== 3단 계층 구조: 회사 > 조직 > 카테고리 ====================
+  
+  // Companies - 회사 관리
+  async getCompany(id: string): Promise<Company | undefined> {
+    const [company] = await db.select().from(companies).where(eq(companies.id, id));
+    return company;
+  }
+  
+  async getCompanyByName(name: string): Promise<Company | undefined> {
+    const [company] = await db.select().from(companies).where(eq(companies.name, name));
+    return company;
+  }
+  
+  async getAllCompanies(): Promise<Company[]> {
+    return await db.select().from(companies).orderBy(asc(companies.name));
+  }
+  
+  async getActiveCompanies(): Promise<Company[]> {
+    return await db.select().from(companies)
+      .where(eq(companies.isActive, true))
+      .orderBy(asc(companies.name));
+  }
+  
+  async createCompany(company: InsertCompany): Promise<Company> {
+    const [created] = await db.insert(companies).values(company).returning();
+    return created;
+  }
+  
+  async updateCompany(id: string, updates: Partial<InsertCompany>): Promise<Company> {
+    const [updated] = await db.update(companies)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(companies.id, id))
+      .returning();
+    if (!updated) {
+      throw new Error("Company not found");
+    }
+    return updated;
+  }
+  
+  async deleteCompany(id: string): Promise<void> {
+    await db.delete(companies).where(eq(companies.id, id));
+  }
+  
+  // Organizations - 조직 관리
+  async getOrganization(id: string): Promise<Organization | undefined> {
+    const [organization] = await db.select().from(organizations).where(eq(organizations.id, id));
+    return organization;
+  }
+  
+  async getOrganizationsByCompany(companyId: string): Promise<Organization[]> {
+    return await db.select().from(organizations)
+      .where(eq(organizations.companyId, companyId))
+      .orderBy(asc(organizations.name));
+  }
+  
+  async getActiveOrganizationsByCompany(companyId: string): Promise<Organization[]> {
+    return await db.select().from(organizations)
+      .where(and(
+        eq(organizations.companyId, companyId),
+        eq(organizations.isActive, true)
+      ))
+      .orderBy(asc(organizations.name));
+  }
+  
+  async getAllOrganizations(): Promise<Organization[]> {
+    return await db.select().from(organizations).orderBy(asc(organizations.name));
+  }
+  
+  async createOrganization(organization: InsertOrganization): Promise<Organization> {
+    const [created] = await db.insert(organizations).values(organization).returning();
+    return created;
+  }
+  
+  async updateOrganization(id: string, updates: Partial<InsertOrganization>): Promise<Organization> {
+    const [updated] = await db.update(organizations)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(organizations.id, id))
+      .returning();
+    if (!updated) {
+      throw new Error("Organization not found");
+    }
+    return updated;
+  }
+  
+  async deleteOrganization(id: string): Promise<void> {
+    await db.delete(organizations).where(eq(organizations.id, id));
+  }
+  
+  // Categories (확장) - 조직별 카테고리
+  async getCategoriesByOrganization(organizationId: string): Promise<Category[]> {
+    return await db.select().from(categories)
+      .where(eq(categories.organizationId, organizationId))
+      .orderBy(asc(categories.order));
+  }
+  
+  async getActiveCategoriesByOrganization(organizationId: string): Promise<Category[]> {
+    return await db.select().from(categories)
+      .where(and(
+        eq(categories.organizationId, organizationId),
+        eq(categories.isActive, true)
+      ))
+      .orderBy(asc(categories.order));
+  }
+  
+  // Operator Assignments - 운영자 권한 할당
+  async getOperatorAssignment(id: string): Promise<OperatorAssignment | undefined> {
+    const [assignment] = await db.select().from(operatorAssignments).where(eq(operatorAssignments.id, id));
+    return assignment;
+  }
+  
+  async getOperatorAssignmentsByUser(userId: string): Promise<OperatorAssignment[]> {
+    return await db.select().from(operatorAssignments)
+      .where(eq(operatorAssignments.userId, userId));
+  }
+  
+  async getOperatorAssignmentsByCompany(companyId: string): Promise<OperatorAssignment[]> {
+    return await db.select().from(operatorAssignments)
+      .where(eq(operatorAssignments.companyId, companyId));
+  }
+  
+  async getOperatorAssignmentsByOrganization(organizationId: string): Promise<OperatorAssignment[]> {
+    return await db.select().from(operatorAssignments)
+      .where(eq(operatorAssignments.organizationId, organizationId));
+  }
+  
+  async createOperatorAssignment(assignment: InsertOperatorAssignment): Promise<OperatorAssignment> {
+    const [created] = await db.insert(operatorAssignments).values(assignment).returning();
+    return created;
+  }
+  
+  async deleteOperatorAssignment(id: string): Promise<void> {
+    await db.delete(operatorAssignments).where(eq(operatorAssignments.id, id));
+  }
+  
+  async deleteOperatorAssignmentsByUser(userId: string): Promise<void> {
+    await db.delete(operatorAssignments).where(eq(operatorAssignments.userId, userId));
+  }
+  
+  // 운영자 권한 확인 헬퍼
+  async canOperatorManageCompany(userId: string, companyId: string): Promise<boolean> {
+    const assignments = await this.getOperatorAssignmentsByUser(userId);
+    return assignments.some(a => a.companyId === companyId && !a.organizationId);
+  }
+  
+  async canOperatorManageOrganization(userId: string, organizationId: string): Promise<boolean> {
+    const assignments = await this.getOperatorAssignmentsByUser(userId);
+    // 직접 조직 할당 또는 상위 회사 할당 확인
+    if (assignments.some(a => a.organizationId === organizationId)) {
+      return true;
+    }
+    // 상위 회사 전체 관리 권한 확인
+    const organization = await this.getOrganization(organizationId);
+    if (organization) {
+      return assignments.some(a => a.companyId === organization.companyId && !a.organizationId);
+    }
+    return false;
+  }
+  
+  async canOperatorManageCategory(userId: string, categoryId: string): Promise<boolean> {
+    const category = await this.getCategory(categoryId);
+    if (!category || !category.organizationId) {
+      return false;
+    }
+    return this.canOperatorManageOrganization(userId, category.organizationId);
+  }
+  
+  async getOperatorManagedCompanyIds(userId: string): Promise<string[]> {
+    const assignments = await this.getOperatorAssignmentsByUser(userId);
+    // 회사 레벨 할당만 반환 (조직 없이 회사만 할당된 경우)
+    return assignments
+      .filter(a => a.companyId && !a.organizationId)
+      .map(a => a.companyId as string);
+  }
+  
+  async getOperatorManagedOrganizationIds(userId: string): Promise<string[]> {
+    const assignments = await this.getOperatorAssignmentsByUser(userId);
+    const managedOrgIds: string[] = [];
+    
+    // 직접 조직 할당
+    assignments.forEach(a => {
+      if (a.organizationId) {
+        managedOrgIds.push(a.organizationId);
+      }
+    });
+    
+    // 회사 레벨 할당의 경우 해당 회사 하위 모든 조직 포함
+    for (const assignment of assignments) {
+      if (assignment.companyId && !assignment.organizationId) {
+        const orgs = await this.getOrganizationsByCompany(assignment.companyId);
+        orgs.forEach(org => {
+          if (!managedOrgIds.includes(org.id)) {
+            managedOrgIds.push(org.id);
+          }
+        });
+      }
+    }
+    
+    return managedOrgIds;
+  }
+  
+  async getOperatorManagedCategoryIds(userId: string): Promise<string[]> {
+    const managedOrgIds = await this.getOperatorManagedOrganizationIds(userId);
+    const categoryIds: string[] = [];
+    
+    for (const orgId of managedOrgIds) {
+      const cats = await this.getCategoriesByOrganization(orgId);
+      cats.forEach(cat => categoryIds.push(cat.id));
+    }
+    
+    return categoryIds;
+  }
+  
+  // 사용자 소속 관리
+  async getUsersByCompany(companyId: string): Promise<User[]> {
+    return await db.select().from(users)
+      .where(eq(users.companyId, companyId))
+      .orderBy(asc(users.name));
+  }
+  
+  async getUsersByOrganization(organizationId: string): Promise<User[]> {
+    return await db.select().from(users)
+      .where(eq(users.organizationId, organizationId))
+      .orderBy(asc(users.name));
+  }
+  
+  async updateUserCompanyOrganization(userId: string, companyId: string | null, organizationId: string | null): Promise<User> {
+    const [updated] = await db.update(users)
+      .set({ 
+        companyId: companyId, 
+        organizationId: organizationId,
+        updatedAt: new Date() 
+      })
+      .where(eq(users.id, userId))
+      .returning();
+    if (!updated) {
+      throw new Error("User not found");
+    }
+    return updated;
   }
 }
 

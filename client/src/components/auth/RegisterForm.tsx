@@ -11,13 +11,28 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Mail, Lock, User, Folder, Globe } from "lucide-react";
+import { Loader2, Mail, Lock, User, Folder, Globe, Building2, Users } from "lucide-react";
 import { SUPPORTED_LANGUAGES } from "@/lib/i18n";
 
 interface Category {
   id: string;
   name: string;
   description?: string;
+}
+
+interface Company {
+  id: string;
+  name: string;
+  code: string;
+  isActive: boolean;
+}
+
+interface Organization {
+  id: string;
+  name: string;
+  code: string;
+  companyId: string;
+  isActive: boolean;
 }
 
 type RegisterFormData = {
@@ -37,6 +52,8 @@ export function RegisterForm({ onSwitchToLogin }: RegisterFormProps) {
   const { i18n, t } = useTranslation();
   const [isLoading, setIsLoading] = useState(false);
   const [selectedCategoryId, setSelectedCategoryId] = useState<string>("");
+  const [selectedCompanyId, setSelectedCompanyId] = useState<string>("");
+  const [selectedOrganizationId, setSelectedOrganizationId] = useState<string>("");
   const [selectedLanguage, setSelectedLanguage] = useState<string>(i18n.language || 'ko');
 
   const registerSchema = z.object({
@@ -52,6 +69,30 @@ export function RegisterForm({ onSwitchToLogin }: RegisterFormProps) {
   }).refine((data) => data.password === data.confirmPassword, {
     message: t('auth.passwordMismatch'),
     path: ["confirmPassword"],
+  });
+
+  const { data: companies = [] } = useQuery<Company[]>({
+    queryKey: ['/api/public/companies'],
+    queryFn: async () => {
+      const res = await fetch('/api/public/companies');
+      if (!res.ok) return [];
+      const data = await res.json();
+      return Array.isArray(data) ? data.filter((c: Company) => c.isActive) : [];
+    },
+    staleTime: 1000 * 60 * 30,
+  });
+
+  const { data: organizations = [] } = useQuery<Organization[]>({
+    queryKey: ['/api/public/organizations', selectedCompanyId],
+    queryFn: async () => {
+      if (!selectedCompanyId) return [];
+      const res = await fetch(`/api/public/organizations?companyId=${selectedCompanyId}`);
+      if (!res.ok) return [];
+      const data = await res.json();
+      return Array.isArray(data) ? data.filter((o: Organization) => o.isActive) : [];
+    },
+    enabled: !!selectedCompanyId,
+    staleTime: 1000 * 60 * 30,
   });
 
   const { data: categories = [] } = useQuery<Category[]>({
@@ -83,7 +124,9 @@ export function RegisterForm({ onSwitchToLogin }: RegisterFormProps) {
     try {
       setIsLoading(true);
       const categoryToSubmit = selectedCategoryId && selectedCategoryId.length > 0 ? selectedCategoryId : undefined;
-      await registerUser(data.email, data.password, data.name, categoryToSubmit, selectedLanguage);
+      const companyToSubmit = selectedCompanyId && selectedCompanyId.length > 0 ? selectedCompanyId : undefined;
+      const organizationToSubmit = selectedOrganizationId && selectedOrganizationId.length > 0 ? selectedOrganizationId : undefined;
+      await registerUser(data.email, data.password, data.name, categoryToSubmit, companyToSubmit, organizationToSubmit, selectedLanguage);
       i18n.changeLanguage(selectedLanguage);
       localStorage.setItem('preferredLanguage', selectedLanguage);
       toast({
@@ -100,6 +143,11 @@ export function RegisterForm({ onSwitchToLogin }: RegisterFormProps) {
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const handleCompanyChange = (value: string) => {
+    setSelectedCompanyId(value);
+    setSelectedOrganizationId("");
   };
 
   return (
@@ -165,6 +213,56 @@ export function RegisterForm({ onSwitchToLogin }: RegisterFormProps) {
               </Select>
             </div>
           </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="company" data-testid="label-company">
+              {t('auth.company', '소속 회사')}
+            </Label>
+            <div className="relative">
+              <Building2 className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4 z-10" />
+              <Select
+                value={selectedCompanyId}
+                onValueChange={handleCompanyChange}
+              >
+                <SelectTrigger className="pl-10" data-testid="select-company">
+                  <SelectValue placeholder={t('auth.companyPlaceholder', '회사를 선택하세요')} />
+                </SelectTrigger>
+                <SelectContent>
+                  {companies.map((company) => (
+                    <SelectItem key={company.id} value={company.id}>
+                      {company.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          {selectedCompanyId && (
+            <div className="space-y-2">
+              <Label htmlFor="organization" data-testid="label-organization">
+                {t('auth.organization', '소속 조직')}
+              </Label>
+              <div className="relative">
+                <Users className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4 z-10" />
+                <Select
+                  value={selectedOrganizationId}
+                  onValueChange={setSelectedOrganizationId}
+                >
+                  <SelectTrigger className="pl-10" data-testid="select-organization">
+                    <SelectValue placeholder={t('auth.organizationPlaceholder', '조직을 선택하세요')} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {organizations.map((org) => (
+                      <SelectItem key={org.id} value={org.id}>
+                        {org.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          )}
 
           <div className="space-y-2">
             <Label htmlFor="category" data-testid="label-category">

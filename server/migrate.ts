@@ -197,6 +197,94 @@ CREATE TABLE IF NOT EXISTS "evaluation_dimensions" (
   "is_active" boolean DEFAULT true NOT NULL,
   "created_at" timestamp DEFAULT CURRENT_TIMESTAMP NOT NULL
 );
+
+-- 13. Companies (회사 - 3단 계층 구조 최상위)
+CREATE TABLE IF NOT EXISTS "companies" (
+  "id" varchar PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+  "name" varchar NOT NULL,
+  "description" text,
+  "logo" text,
+  "is_active" boolean DEFAULT true NOT NULL,
+  "created_at" timestamp DEFAULT CURRENT_TIMESTAMP NOT NULL,
+  "updated_at" timestamp DEFAULT CURRENT_TIMESTAMP NOT NULL,
+  CONSTRAINT "companies_name_unique" UNIQUE("name")
+);
+
+-- 14. Organizations (조직 - 회사 하위)
+CREATE TABLE IF NOT EXISTS "organizations" (
+  "id" varchar PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+  "company_id" varchar NOT NULL,
+  "name" varchar NOT NULL,
+  "description" text,
+  "is_active" boolean DEFAULT true NOT NULL,
+  "created_at" timestamp DEFAULT CURRENT_TIMESTAMP NOT NULL,
+  "updated_at" timestamp DEFAULT CURRENT_TIMESTAMP NOT NULL
+);
+
+-- 15. Operator Assignments (운영자 권한 할당 - 복합 할당)
+CREATE TABLE IF NOT EXISTS "operator_assignments" (
+  "id" varchar PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+  "user_id" varchar NOT NULL,
+  "company_id" varchar,
+  "organization_id" varchar,
+  "created_at" timestamp DEFAULT CURRENT_TIMESTAMP NOT NULL
+);
+
+-- Categories 테이블에 organization_id, is_active, updated_at 컬럼 추가 (마이그레이션)
+DO $$ BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns 
+    WHERE table_name = 'categories' AND column_name = 'organization_id'
+  ) THEN
+    ALTER TABLE "categories" ADD COLUMN "organization_id" varchar;
+  END IF;
+END $$;
+
+DO $$ BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns 
+    WHERE table_name = 'categories' AND column_name = 'is_active'
+  ) THEN
+    ALTER TABLE "categories" ADD COLUMN "is_active" boolean DEFAULT true NOT NULL;
+  END IF;
+END $$;
+
+DO $$ BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns 
+    WHERE table_name = 'categories' AND column_name = 'updated_at'
+  ) THEN
+    ALTER TABLE "categories" ADD COLUMN "updated_at" timestamp DEFAULT CURRENT_TIMESTAMP NOT NULL;
+  END IF;
+END $$;
+
+-- Users 테이블에 company_id, organization_id 컬럼 추가 (마이그레이션)
+DO $$ BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns 
+    WHERE table_name = 'users' AND column_name = 'company_id'
+  ) THEN
+    ALTER TABLE "users" ADD COLUMN "company_id" varchar;
+  END IF;
+END $$;
+
+DO $$ BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns 
+    WHERE table_name = 'users' AND column_name = 'organization_id'
+  ) THEN
+    ALTER TABLE "users" ADD COLUMN "organization_id" varchar;
+  END IF;
+END $$;
+
+-- categories_name_unique 제약 조건 삭제 (같은 이름이 다른 조직에 있을 수 있음)
+DO $$ BEGIN
+  IF EXISTS (
+    SELECT 1 FROM pg_constraint WHERE conname = 'categories_name_unique'
+  ) THEN
+    ALTER TABLE "categories" DROP CONSTRAINT "categories_name_unique";
+  END IF;
+END $$;
 `;
 
 const foreignKeysSQL = `
@@ -265,6 +353,48 @@ DO $$ BEGIN
   ALTER TABLE "evaluation_dimensions" ADD CONSTRAINT "evaluation_dimensions_criteria_set_id_fk" 
     FOREIGN KEY ("criteria_set_id") REFERENCES "public"."evaluation_criteria_sets"("id") ON DELETE cascade;
 EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+-- Organizations FK to Companies
+DO $$ BEGIN
+  ALTER TABLE "organizations" ADD CONSTRAINT "organizations_company_id_companies_id_fk" 
+    FOREIGN KEY ("company_id") REFERENCES "public"."companies"("id") ON DELETE cascade;
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+-- Categories FK to Organizations
+DO $$ BEGIN
+  ALTER TABLE "categories" ADD CONSTRAINT "categories_organization_id_organizations_id_fk" 
+    FOREIGN KEY ("organization_id") REFERENCES "public"."organizations"("id") ON DELETE cascade;
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+-- Users FK to Companies
+DO $$ BEGIN
+  ALTER TABLE "users" ADD CONSTRAINT "users_company_id_companies_id_fk" 
+    FOREIGN KEY ("company_id") REFERENCES "public"."companies"("id");
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+-- Users FK to Organizations
+DO $$ BEGIN
+  ALTER TABLE "users" ADD CONSTRAINT "users_organization_id_organizations_id_fk" 
+    FOREIGN KEY ("organization_id") REFERENCES "public"."organizations"("id");
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+-- Operator Assignments FK to Users
+DO $$ BEGIN
+  ALTER TABLE "operator_assignments" ADD CONSTRAINT "operator_assignments_user_id_users_id_fk" 
+    FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE cascade;
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+-- Operator Assignments FK to Companies
+DO $$ BEGIN
+  ALTER TABLE "operator_assignments" ADD CONSTRAINT "operator_assignments_company_id_companies_id_fk" 
+    FOREIGN KEY ("company_id") REFERENCES "public"."companies"("id") ON DELETE cascade;
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+-- Operator Assignments FK to Organizations
+DO $$ BEGIN
+  ALTER TABLE "operator_assignments" ADD CONSTRAINT "operator_assignments_organization_id_organizations_id_fk" 
+    FOREIGN KEY ("organization_id") REFERENCES "public"."organizations"("id") ON DELETE cascade;
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 `;
 
 const indexesSQL = `
@@ -288,6 +418,15 @@ CREATE INDEX IF NOT EXISTS "idx_criteria_sets_category" ON "evaluation_criteria_
 CREATE INDEX IF NOT EXISTS "idx_criteria_sets_default" ON "evaluation_criteria_sets" USING btree ("is_default");
 CREATE INDEX IF NOT EXISTS "idx_dimensions_criteria_set" ON "evaluation_dimensions" USING btree ("criteria_set_id");
 CREATE INDEX IF NOT EXISTS "idx_dimensions_key" ON "evaluation_dimensions" USING btree ("key");
+
+-- 3단 계층 구조 인덱스
+CREATE INDEX IF NOT EXISTS "idx_organizations_company_id" ON "organizations" USING btree ("company_id");
+CREATE INDEX IF NOT EXISTS "idx_categories_organization_id" ON "categories" USING btree ("organization_id");
+CREATE INDEX IF NOT EXISTS "idx_users_company_id" ON "users" USING btree ("company_id");
+CREATE INDEX IF NOT EXISTS "idx_users_organization_id" ON "users" USING btree ("organization_id");
+CREATE INDEX IF NOT EXISTS "idx_operator_assignments_user_id" ON "operator_assignments" USING btree ("user_id");
+CREATE INDEX IF NOT EXISTS "idx_operator_assignments_company_id" ON "operator_assignments" USING btree ("company_id");
+CREATE INDEX IF NOT EXISTS "idx_operator_assignments_organization_id" ON "operator_assignments" USING btree ("organization_id");
 `;
 
 // 기본 평가 기준 세트 시딩 SQL
