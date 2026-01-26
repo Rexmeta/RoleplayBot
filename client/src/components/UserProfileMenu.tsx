@@ -221,6 +221,8 @@ export function UserProfileMenu() {
             role: user.role,
             profileImage: user.profileImage,
             tier: user.tier,
+            organization: (user as any).organization,
+            company: (user as any).company,
           }}
         />
       )}
