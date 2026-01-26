@@ -23,7 +23,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { Loader2, Eye, EyeOff, Camera, User } from "lucide-react";
+import { Loader2, Eye, EyeOff, Camera, User, Building2, Building } from "lucide-react";
 
 const profileFormSchema = z.object({
   name: z.string().min(1, "이름을 입력해주세요").max(50, "이름은 50자 이내로 입력해주세요"),
@@ -76,6 +76,8 @@ interface ProfileEditDialogProps {
     role?: string;
     profileImage?: string | null;
     tier?: string;
+    organization?: { id: string; name: string; code?: string | null } | null;
+    company?: { id: string; name: string; code?: string | null } | null;
   };
 }
 
@@ -258,6 +260,32 @@ export function ProfileEditDialog({ open, onOpenChange, currentUser }: ProfileEd
                 />
                 <p className="text-xs text-slate-500">이메일은 변경할 수 없습니다</p>
               </div>
+
+              {(currentUser.company || currentUser.organization) && (
+                <div className="space-y-3 p-3 bg-slate-50 rounded-lg border">
+                  <label className="text-sm font-medium text-slate-600">소속 정보</label>
+                  {currentUser.company && (
+                    <div className="flex items-center gap-2 text-sm">
+                      <Building className="w-4 h-4 text-slate-400" />
+                      <span className="text-slate-500">회사:</span>
+                      <span className="font-medium">{currentUser.company.name}</span>
+                      {currentUser.company.code && (
+                        <span className="text-xs text-slate-400">({currentUser.company.code})</span>
+                      )}
+                    </div>
+                  )}
+                  {currentUser.organization && (
+                    <div className="flex items-center gap-2 text-sm">
+                      <Building2 className="w-4 h-4 text-slate-400" />
+                      <span className="text-slate-500">조직:</span>
+                      <span className="font-medium">{currentUser.organization.name}</span>
+                      {currentUser.organization.code && (
+                        <span className="text-xs text-slate-400">({currentUser.organization.code})</span>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
 
               <FormField
                 control={form.control}

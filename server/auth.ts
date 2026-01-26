@@ -284,10 +284,38 @@ export function setupAuth(app: Express) {
     res.json({ message: "로그아웃이 완료되었습니다" });
   });
 
-  // 현재 사용자 정보 조회
-  app.get("/api/auth/user", isAuthenticated, (req: any, res) => {
-    const { password, ...userWithoutPassword } = req.user;
-    res.json(userWithoutPassword);
+  // 현재 사용자 정보 조회 (조직 정보 포함)
+  app.get("/api/auth/user", isAuthenticated, async (req: any, res) => {
+    try {
+      const { password, ...userWithoutPassword } = req.user;
+      
+      let organizationInfo = null;
+      let companyInfo = null;
+      
+      if (userWithoutPassword.assignedOrganizationId) {
+        const organization = await storage.getOrganization(userWithoutPassword.assignedOrganizationId);
+        if (organization) {
+          organizationInfo = { id: organization.id, name: organization.name, code: organization.code };
+          
+          if (organization.companyId) {
+            const company = await storage.getCompany(organization.companyId);
+            if (company) {
+              companyInfo = { id: company.id, name: company.name, code: company.code };
+            }
+          }
+        }
+      }
+      
+      res.json({
+        ...userWithoutPassword,
+        organization: organizationInfo,
+        company: companyInfo,
+      });
+    } catch (error) {
+      console.error("Error fetching user info:", error);
+      const { password, ...userWithoutPassword } = req.user;
+      res.json(userWithoutPassword);
+    }
   });
 
   // 사용자 언어 설정 업데이트
