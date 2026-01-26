@@ -4308,12 +4308,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // ========== 카테고리 관리 API (관리자/운영자용 - organizationId 지원) ==========
   
-  // 모든 카테고리 조회 (조직 정보 포함)
+  // 모든 카테고리 조회 (조직 정보 포함 - 운영자는 자기 조직 카테고리만 조회)
   app.get("/api/admin/categories", isAuthenticated, isOperatorOrAdmin, async (req, res) => {
     try {
-      const allCategories = await storage.getAllCategories();
+      // @ts-ignore
+      const user = req.user;
+      
+      let allCategories = await storage.getAllCategories();
       const organizations = await storage.getAllOrganizations();
       const companies = await storage.getAllCompanies();
+      
+      // 운영자는 자신의 담당 조직 카테고리만 조회 가능
+      if (user.role === 'operator') {
+        if (!user.assignedOrganizationId) {
+          return res.json([]); // 조직이 할당되지 않은 운영자는 빈 배열 반환
+        }
+        allCategories = allCategories.filter(cat => cat.organizationId === user.assignedOrganizationId);
+      }
       
       const categoriesWithHierarchy = allCategories.map(category => {
         const org = organizations.find(o => o.id === category.organizationId);
@@ -4332,19 +4343,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // 카테고리 생성 (organizationId 지원)
+  // 카테고리 생성 (organizationId 지원 - 운영자는 자기 조직에만 생성 가능)
   app.post("/api/admin/categories", isAuthenticated, isOperatorOrAdmin, async (req, res) => {
     try {
       const { name, description, organizationId, order } = req.body;
+      // @ts-ignore
+      const user = req.user;
       
       if (!name || name.trim() === "") {
         return res.status(400).json({ error: "Category name is required" });
       }
       
+      // 운영자는 자신의 담당 조직에만 카테고리 생성 가능
+      let effectiveOrganizationId = organizationId || null;
+      if (user.role === 'operator') {
+        if (!user.assignedOrganizationId) {
+          return res.status(403).json({ error: "Operator must be assigned to an organization to create categories" });
+        }
+        effectiveOrganizationId = user.assignedOrganizationId;
+      }
+      
       const category = await storage.createCategory({
         name: name.trim(),
         description: description || null,
-        organizationId: organizationId || null,
+        organizationId: effectiveOrganizationId,
         order: order || 0,
       });
       
@@ -4359,16 +4381,35 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // 카테고리 수정 (organizationId 지원)
+  // 카테고리 수정 (organizationId 지원 - 운영자는 자기 조직 카테고리만 수정 가능)
   app.patch("/api/admin/categories/:id", isAuthenticated, isOperatorOrAdmin, async (req, res) => {
     try {
       const { id } = req.params;
       const { name, description, organizationId, order, isActive } = req.body;
+      // @ts-ignore
+      const user = req.user;
+      
+      // 운영자는 자신의 담당 조직 카테고리만 수정 가능
+      if (user.role === 'operator') {
+        if (!user.assignedOrganizationId) {
+          return res.status(403).json({ error: "Operator must be assigned to an organization to manage categories" });
+        }
+        const existingCategory = await storage.getCategory(id);
+        if (!existingCategory) {
+          return res.status(404).json({ error: "Category not found" });
+        }
+        if (existingCategory.organizationId !== user.assignedOrganizationId) {
+          return res.status(403).json({ error: "You can only update categories in your assigned organization" });
+        }
+      }
       
       const updates: any = {};
       if (name !== undefined) updates.name = name.trim();
       if (description !== undefined) updates.description = description;
-      if (organizationId !== undefined) updates.organizationId = organizationId;
+      // 운영자는 organizationId 변경 불가
+      if (organizationId !== undefined && user.role === 'admin') {
+        updates.organizationId = organizationId;
+      }
       if (order !== undefined) updates.order = order;
       if (isActive !== undefined) updates.isActive = isActive;
       
@@ -4388,10 +4429,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // 카테고리 삭제
+  // 카테고리 삭제 (운영자는 자기 조직 카테고리만 삭제 가능)
   app.delete("/api/admin/categories/:id", isAuthenticated, isOperatorOrAdmin, async (req, res) => {
     try {
       const { id } = req.params;
+      // @ts-ignore
+      const user = req.user;
+      
+      // 운영자는 자신의 담당 조직 카테고리만 삭제 가능
+      if (user.role === 'operator') {
+        if (!user.assignedOrganizationId) {
+          return res.status(403).json({ error: "Operator must be assigned to an organization to manage categories" });
+        }
+        const existingCategory = await storage.getCategory(id);
+        if (!existingCategory) {
+          return res.status(404).json({ error: "Category not found" });
+        }
+        if (existingCategory.organizationId !== user.assignedOrganizationId) {
+          return res.status(403).json({ error: "You can only delete categories in your assigned organization" });
+        }
+      }
       
       // 해당 카테고리에 연결된 시나리오가 있는지 확인
       const scenarios = await fileManager.getAllScenarios();

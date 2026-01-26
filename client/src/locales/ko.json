@@ -397,6 +397,7 @@
       "title": "콘텐츠 관리",
       "subtitle": "시나리오와 페르소나 생성 및 관리",
       "tabs": {
+        "categories": "카테고리",
         "scenarios": "시나리오 관리",
         "difficulty": "대화 난이도",
         "personas": "페르소나 관리",
