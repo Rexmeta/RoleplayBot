@@ -2341,37 +2341,40 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const allFeedbacks = await storage.getAllFeedbacks();
       const allScenarios = await fileManager.getAllScenarios();
       
-      // 카테고리 필터링 결정
-      let targetCategoryId: string | null = null;
-      let restrictToEmpty = false; // 운영자인데 카테고리 없으면 빈 결과
+      // 카테고리 필터링 결정 (계층적 권한 지원)
+      let accessibleCategoryIds: string[] = [];
+      let restrictToEmpty = false;
       
       if (user.role === 'admin') {
         // 관리자: categoryId 파라미터가 있으면 해당 카테고리만, 없으면 전체
-        targetCategoryId = categoryIdParam || null;
-      } else if (user.role === 'operator') {
-        // 운영자: assignedCategoryId가 있으면 해당 카테고리만, 없으면 빈 결과
-        if (user.assignedCategoryId) {
-          targetCategoryId = user.assignedCategoryId;
+        if (categoryIdParam) {
+          accessibleCategoryIds = [categoryIdParam];
         } else {
+          accessibleCategoryIds = []; // 빈 배열 = 전체 접근
+        }
+      } else if (user.role === 'operator') {
+        // 운영자: 계층적 권한에 따라 접근 가능한 카테고리 목록 결정
+        accessibleCategoryIds = await getOperatorAccessibleCategoryIds(user);
+        if (accessibleCategoryIds.length === 0) {
           restrictToEmpty = true;
         }
       } else if (user.assignedCategoryId) {
         // 일반유저: assignedCategoryId가 있으면 해당 카테고리만
-        targetCategoryId = user.assignedCategoryId;
+        accessibleCategoryIds = [user.assignedCategoryId];
       }
       
       // 시나리오 필터링
       const scenarios = restrictToEmpty 
         ? []
-        : targetCategoryId 
-          ? allScenarios.filter((s: any) => String(s.categoryId) === String(targetCategoryId))
+        : accessibleCategoryIds.length > 0
+          ? allScenarios.filter((s: any) => accessibleCategoryIds.includes(String(s.categoryId)))
           : allScenarios;
       const scenarioIds = new Set(scenarios.map((s: any) => s.id));
       
       // scenarioRuns 필터링 (해당 카테고리 시나리오만)
       const scenarioRuns = restrictToEmpty 
         ? []
-        : targetCategoryId
+        : accessibleCategoryIds.length > 0
           ? allScenarioRuns.filter(sr => scenarioIds.has(sr.scenarioId))
           : allScenarioRuns;
       const scenarioRunIds = new Set(scenarioRuns.map(sr => sr.id));
@@ -2379,7 +2382,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // personaRuns 필터링
       const personaRuns = restrictToEmpty 
         ? []
-        : targetCategoryId
+        : accessibleCategoryIds.length > 0
           ? allPersonaRuns.filter(pr => scenarioRunIds.has(pr.scenarioRunId))
           : allPersonaRuns;
       const personaRunIds = new Set(personaRuns.map(pr => pr.id));
@@ -2387,7 +2390,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // feedbacks 필터링
       const feedbacks = restrictToEmpty 
         ? []
-        : targetCategoryId
+        : accessibleCategoryIds.length > 0
           ? allFeedbacks.filter(f => personaRunIds.has(f.personaRunId))
           : allFeedbacks;
       
@@ -2699,34 +2702,37 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const allFeedbacks = await storage.getAllFeedbacks();
       const allScenarios = await fileManager.getAllScenarios();
       
-      // 카테고리 필터링 결정
-      let targetCategoryId: string | null = null;
+      // 카테고리 필터링 결정 (계층적 권한 지원)
+      let accessibleCategoryIds: string[] = [];
       let restrictToEmpty = false;
       
       if (user.role === 'admin') {
-        targetCategoryId = categoryIdParam || null;
-      } else if (user.role === 'operator') {
-        if (user.assignedCategoryId) {
-          targetCategoryId = user.assignedCategoryId;
+        if (categoryIdParam) {
+          accessibleCategoryIds = [categoryIdParam];
         } else {
+          accessibleCategoryIds = [];
+        }
+      } else if (user.role === 'operator') {
+        accessibleCategoryIds = await getOperatorAccessibleCategoryIds(user);
+        if (accessibleCategoryIds.length === 0) {
           restrictToEmpty = true;
         }
       } else if (user.assignedCategoryId) {
-        targetCategoryId = user.assignedCategoryId;
+        accessibleCategoryIds = [user.assignedCategoryId];
       }
       
       // 시나리오 필터링
       const scenarios = restrictToEmpty 
         ? []
-        : targetCategoryId 
-          ? allScenarios.filter((s: any) => String(s.categoryId) === String(targetCategoryId))
+        : accessibleCategoryIds.length > 0
+          ? allScenarios.filter((s: any) => accessibleCategoryIds.includes(String(s.categoryId)))
           : allScenarios;
       const scenarioIds = new Set(scenarios.map((s: any) => s.id));
       
       // scenarioRuns 필터링
       const scenarioRuns = restrictToEmpty 
         ? []
-        : targetCategoryId
+        : accessibleCategoryIds.length > 0
           ? allScenarioRuns.filter(sr => scenarioIds.has(sr.scenarioId))
           : allScenarioRuns;
       const scenarioRunIds = new Set(scenarioRuns.map(sr => sr.id));
@@ -2734,7 +2740,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // personaRuns 필터링
       const personaRuns = restrictToEmpty 
         ? []
-        : targetCategoryId
+        : accessibleCategoryIds.length > 0
           ? allPersonaRuns.filter(pr => scenarioRunIds.has(pr.scenarioRunId))
           : allPersonaRuns;
       const personaRunIds = new Set(personaRuns.map(pr => pr.id));
@@ -2742,7 +2748,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // feedbacks 필터링
       const feedbacks = restrictToEmpty 
         ? []
-        : targetCategoryId
+        : accessibleCategoryIds.length > 0
           ? allFeedbacks.filter(f => personaRunIds.has(f.personaRunId))
           : allFeedbacks;
       
@@ -2932,34 +2938,37 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const allScenarios = await fileManager.getAllScenarios();
       const allPersonaRuns = await storage.getAllPersonaRuns();
       
-      // 카테고리 필터링 결정
-      let targetCategoryId: string | null = null;
+      // 카테고리 필터링 결정 (계층적 권한 지원)
+      let accessibleCategoryIds: string[] = [];
       let restrictToEmpty = false;
       
       if (user.role === 'admin') {
-        targetCategoryId = categoryIdParam || null;
-      } else if (user.role === 'operator') {
-        if (user.assignedCategoryId) {
-          targetCategoryId = user.assignedCategoryId;
+        if (categoryIdParam) {
+          accessibleCategoryIds = [categoryIdParam];
         } else {
+          accessibleCategoryIds = [];
+        }
+      } else if (user.role === 'operator') {
+        accessibleCategoryIds = await getOperatorAccessibleCategoryIds(user);
+        if (accessibleCategoryIds.length === 0) {
           restrictToEmpty = true;
         }
       } else if (user.assignedCategoryId) {
-        targetCategoryId = user.assignedCategoryId;
+        accessibleCategoryIds = [user.assignedCategoryId];
       }
       
       // 시나리오 필터링
       const scenarios = restrictToEmpty 
         ? []
-        : targetCategoryId 
-          ? allScenarios.filter((s: any) => String(s.categoryId) === String(targetCategoryId))
+        : accessibleCategoryIds.length > 0
+          ? allScenarios.filter((s: any) => accessibleCategoryIds.includes(String(s.categoryId)))
           : allScenarios;
       const scenarioIds = new Set(scenarios.map((s: any) => s.id));
       
       // scenarioRuns 필터링
       const scenarioRuns = restrictToEmpty 
         ? []
-        : targetCategoryId
+        : accessibleCategoryIds.length > 0
           ? allScenarioRuns.filter(sr => scenarioIds.has(sr.scenarioId))
           : allScenarioRuns;
       const scenarioRunIds = new Set(scenarioRuns.map(sr => sr.id));
@@ -2967,7 +2976,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // personaRuns 필터링
       const personaRuns = restrictToEmpty 
         ? []
-        : targetCategoryId
+        : accessibleCategoryIds.length > 0
           ? allPersonaRuns.filter(pr => scenarioRunIds.has(pr.scenarioRunId))
           : allPersonaRuns;
       const personaRunIds = new Set(personaRuns.map(pr => pr.id));
@@ -2975,7 +2984,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // feedbacks 필터링
       const feedbacks = restrictToEmpty 
         ? []
-        : targetCategoryId
+        : accessibleCategoryIds.length > 0
           ? allFeedbacks.filter(f => personaRunIds.has(f.personaRunId))
           : allFeedbacks;
       
@@ -4600,9 +4609,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const updates: any = {};
       if (name !== undefined) updates.name = name.trim();
       if (description !== undefined) updates.description = description;
-      // 운영자는 organizationId 변경 불가
-      if (organizationId !== undefined && user.role === 'admin') {
-        updates.organizationId = organizationId;
+      // 조직 변경: admin은 무제한, 회사 레벨 운영자는 자신의 회사 내 조직만 가능
+      if (organizationId !== undefined) {
+        if (user.role === 'admin') {
+          updates.organizationId = organizationId;
+        } else if (user.role === 'operator' && user.assignedCompanyId && !user.assignedOrganizationId && !user.assignedCategoryId) {
+          // 회사 레벨 운영자: 해당 회사 내 조직인지 확인
+          const accessibleOrgIds = await getOperatorAccessibleOrganizations(user);
+          if (accessibleOrgIds.includes(organizationId)) {
+            updates.organizationId = organizationId;
+          } else {
+            return res.status(403).json({ error: "You can only move categories to organizations within your assigned company" });
+          }
+        }
+        // 조직/카테고리 레벨 운영자는 조직 변경 불가 (기존 동작 유지)
       }
       if (order !== undefined) updates.order = order;
       if (isActive !== undefined) updates.isActive = isActive;

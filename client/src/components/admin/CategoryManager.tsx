@@ -92,7 +92,7 @@ export function CategoryManager() {
   });
 
   const updateMutation = useMutation({
-    mutationFn: async ({ id, updates }: { id: string; updates: { name?: string; description?: string; order?: number } }) => {
+    mutationFn: async ({ id, updates }: { id: string; updates: { name?: string; description?: string; order?: number; organizationId?: string } }) => {
       return await apiRequest('PATCH', `/api/admin/categories/${id}`, updates);
     },
     onSuccess: () => {
@@ -144,7 +144,20 @@ export function CategoryManager() {
 
   const handleUpdate = () => {
     if (!editingCategory) return;
-    const { organizationId, ...updates } = formData;
+    
+    const updates: { name?: string; description?: string; order?: number; organizationId?: string } = {
+      name: formData.name,
+      description: formData.description,
+      order: formData.order,
+    };
+    
+    // admin과 회사 레벨 운영자는 조직 변경 가능
+    if (currentUser?.role === 'admin' || isCompanyLevelOperator) {
+      if (formData.organizationId) {
+        updates.organizationId = formData.organizationId;
+      }
+    }
+    
     updateMutation.mutate({ id: editingCategory.id, updates });
   };
 
@@ -305,6 +318,27 @@ export function CategoryManager() {
             <DialogTitle>{t('admin.categoryManager.editDialog.title', '카테고리 수정')}</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
+            {(currentUser?.role === 'admin' || isCompanyLevelOperator) && accessibleOrganizations.length > 0 && (
+              <div>
+                <Label>{t('admin.categoryManager.form.organization', '조직')}</Label>
+                <Select
+                  value={formData.organizationId}
+                  onValueChange={(value) => setFormData(prev => ({ ...prev, organizationId: value }))}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder={t('admin.categoryManager.form.selectOrganization', '조직을 선택하세요')} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {accessibleOrganizations.map(org => (
+                      <SelectItem key={org.id} value={org.id}>{org.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground mt-1">
+                  {t('admin.categoryManager.form.organizationHint', '카테고리가 속할 조직을 변경할 수 있습니다.')}
+                </p>
+              </div>
+            )}
             <div>
               <Label>{t('admin.categoryManager.form.name', '카테고리 이름')}</Label>
               <Input
