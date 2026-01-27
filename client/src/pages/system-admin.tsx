@@ -49,10 +49,23 @@ interface UserData {
   isActive: boolean;
   profileImage?: string | null;
   lastLoginAt?: string | null;
-  assignedCategoryId?: string | null; // deprecated
+  assignedCompanyId?: string | null;
   assignedOrganizationId?: string | null;
+  assignedCategoryId?: string | null;
   createdAt: string;
   updatedAt: string;
+}
+
+interface Company {
+  id: string;
+  name: string;
+  code?: string | null;
+}
+
+interface CategoryWithOrg {
+  id: string;
+  name: string;
+  organizationId?: string | null;
 }
 
 interface OrganizationWithHierarchy {
@@ -244,8 +257,10 @@ export default function SystemAdminPage() {
     role: string;
     tier: string;
     isActive: boolean;
+    assignedCompanyId: string | null;
     assignedOrganizationId: string | null;
-  }>({ role: "", tier: "", isActive: true, assignedOrganizationId: null });
+    assignedCategoryId: string | null;
+  }>({ role: "", tier: "", isActive: true, assignedCompanyId: null, assignedOrganizationId: null, assignedCategoryId: null });
   const [resetPasswordUser, setResetPasswordUser] = useState<UserData | null>(null);
   const [newPassword, setNewPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -281,6 +296,14 @@ export default function SystemAdminPage() {
 
   const { data: organizationsWithHierarchy = [] } = useQuery<OrganizationWithHierarchy[]>({
     queryKey: ["/api/admin/organizations-with-hierarchy"],
+  });
+
+  const { data: companies = [] } = useQuery<Company[]>({
+    queryKey: ["/api/system-admin/companies"],
+  });
+
+  const { data: allCategoriesWithOrg = [] } = useQuery<CategoryWithOrg[]>({
+    queryKey: ["/api/admin/categories"],
   });
 
   const { data: systemSettings = [], isLoading: settingsLoading } = useQuery<SystemSetting[]>({
@@ -573,7 +596,9 @@ export default function SystemAdminPage() {
       role: user.role,
       tier: user.tier,
       isActive: user.isActive,
+      assignedCompanyId: user.assignedCompanyId || null,
       assignedOrganizationId: user.assignedOrganizationId || null,
+      assignedCategoryId: user.assignedCategoryId || null,
     });
   };
 
@@ -584,8 +609,14 @@ export default function SystemAdminPage() {
     if (editFormData.role !== editingUser.role) updates.role = editFormData.role;
     if (editFormData.tier !== editingUser.tier) updates.tier = editFormData.tier;
     if (editFormData.isActive !== editingUser.isActive) updates.isActive = editFormData.isActive;
+    if (editFormData.assignedCompanyId !== editingUser.assignedCompanyId) {
+      updates.assignedCompanyId = editFormData.assignedCompanyId;
+    }
     if (editFormData.assignedOrganizationId !== editingUser.assignedOrganizationId) {
       updates.assignedOrganizationId = editFormData.assignedOrganizationId;
+    }
+    if (editFormData.assignedCategoryId !== editingUser.assignedCategoryId) {
+      updates.assignedCategoryId = editFormData.assignedCategoryId;
     }
 
     if (Object.keys(updates).length === 0) {
@@ -1592,32 +1623,113 @@ export default function SystemAdminPage() {
             </div>
 
             {editFormData.role === "operator" && (
-              <div className="space-y-2">
-                <label className="text-sm font-medium">{t('systemAdmin.dialogs.editUser.assignedOrganization', '담당 조직')}</label>
-                <Select
-                  value={editFormData.assignedOrganizationId || "none"}
-                  onValueChange={(value) =>
-                    setEditFormData((prev) => ({
-                      ...prev,
-                      assignedOrganizationId: value === "none" ? null : value,
-                    }))
-                  }
-                >
-                  <SelectTrigger data-testid="select-edit-organization">
-                    <SelectValue placeholder={t('systemAdmin.dialogs.editUser.selectOrganization', '조직을 선택하세요')} />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">{t('systemAdmin.dialogs.editUser.noOrganization', '미지정')}</SelectItem>
-                    {organizationsWithHierarchy.map((org) => (
-                      <SelectItem key={org.id} value={org.id}>
-                        {org.company ? `${org.company.name} > ${org.name}` : org.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <p className="text-xs text-muted-foreground">
-                  {t('systemAdmin.dialogs.editUser.organizationHint', '운영자가 담당할 조직을 선택하세요. 해당 조직의 모든 카테고리와 시나리오를 관리할 수 있습니다.')}
+              <div className="space-y-4 p-4 border rounded-lg bg-slate-50">
+                <h4 className="text-sm font-semibold text-slate-700">
+                  {t('systemAdmin.dialogs.editUser.permissionScope', '권한 범위 설정')}
+                </h4>
+                <p className="text-xs text-muted-foreground mb-3">
+                  {t('systemAdmin.dialogs.editUser.permissionScopeHint', '회사만 선택하면 해당 회사의 모든 조직/카테고리에 접근 가능합니다. 조직을 선택하면 해당 조직의 모든 카테고리에 접근 가능합니다. 카테고리까지 선택하면 해당 카테고리만 접근 가능합니다.')}
                 </p>
+                
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">{t('systemAdmin.dialogs.editUser.assignedCompany', '담당 회사')}</label>
+                  <Select
+                    value={editFormData.assignedCompanyId || "none"}
+                    onValueChange={(value) =>
+                      setEditFormData((prev) => ({
+                        ...prev,
+                        assignedCompanyId: value === "none" ? null : value,
+                        assignedOrganizationId: null,
+                        assignedCategoryId: null,
+                      }))
+                    }
+                  >
+                    <SelectTrigger data-testid="select-edit-company">
+                      <SelectValue placeholder={t('systemAdmin.dialogs.editUser.selectCompany', '회사를 선택하세요')} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">{t('systemAdmin.dialogs.editUser.noAssignment', '미지정')}</SelectItem>
+                      {companies.map((company) => (
+                        <SelectItem key={company.id} value={company.id}>
+                          {company.name} {company.code && `(${company.code})`}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                
+                {editFormData.assignedCompanyId && (
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium">{t('systemAdmin.dialogs.editUser.assignedOrganization', '담당 조직')} <span className="text-muted-foreground">(선택)</span></label>
+                    <Select
+                      value={editFormData.assignedOrganizationId || "none"}
+                      onValueChange={(value) =>
+                        setEditFormData((prev) => ({
+                          ...prev,
+                          assignedOrganizationId: value === "none" ? null : value,
+                          assignedCategoryId: null,
+                        }))
+                      }
+                    >
+                      <SelectTrigger data-testid="select-edit-organization">
+                        <SelectValue placeholder={t('systemAdmin.dialogs.editUser.selectOrganization', '조직을 선택하세요')} />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">{t('systemAdmin.dialogs.editUser.allOrganizations', '전체 조직 (회사 레벨)')}</SelectItem>
+                        {organizationsWithHierarchy
+                          .filter((org) => org.companyId === editFormData.assignedCompanyId)
+                          .map((org) => (
+                            <SelectItem key={org.id} value={org.id}>
+                              {org.name} {org.code && `(${org.code})`}
+                            </SelectItem>
+                          ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+                
+                {editFormData.assignedCompanyId && editFormData.assignedOrganizationId && (
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium">{t('systemAdmin.dialogs.editUser.assignedCategory', '담당 카테고리')} <span className="text-muted-foreground">(선택)</span></label>
+                    <Select
+                      value={editFormData.assignedCategoryId || "none"}
+                      onValueChange={(value) =>
+                        setEditFormData((prev) => ({
+                          ...prev,
+                          assignedCategoryId: value === "none" ? null : value,
+                        }))
+                      }
+                    >
+                      <SelectTrigger data-testid="select-edit-category">
+                        <SelectValue placeholder={t('systemAdmin.dialogs.editUser.selectCategory', '카테고리를 선택하세요')} />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">{t('systemAdmin.dialogs.editUser.allCategories', '전체 카테고리 (조직 레벨)')}</SelectItem>
+                        {allCategoriesWithOrg
+                          .filter((cat) => cat.organizationId === editFormData.assignedOrganizationId)
+                          .map((cat) => (
+                            <SelectItem key={cat.id} value={cat.id}>
+                              {cat.name}
+                            </SelectItem>
+                          ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+                
+                <div className="mt-3 p-2 bg-blue-50 rounded text-xs text-blue-700">
+                  <strong>현재 권한 범위:</strong>{' '}
+                  {!editFormData.assignedCompanyId && '미지정'}
+                  {editFormData.assignedCompanyId && !editFormData.assignedOrganizationId && (
+                    <>회사 전체 ({companies.find(c => c.id === editFormData.assignedCompanyId)?.name})</>
+                  )}
+                  {editFormData.assignedCompanyId && editFormData.assignedOrganizationId && !editFormData.assignedCategoryId && (
+                    <>조직 전체 ({organizationsWithHierarchy.find(o => o.id === editFormData.assignedOrganizationId)?.name})</>
+                  )}
+                  {editFormData.assignedCompanyId && editFormData.assignedOrganizationId && editFormData.assignedCategoryId && (
+                    <>카테고리 ({allCategoriesWithOrg.find(c => c.id === editFormData.assignedCategoryId)?.name})</>
+                  )}
+                </div>
               </div>
             )}
 

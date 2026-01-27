@@ -85,7 +85,7 @@ export interface IStorage {
   
   // System Admin operations - 시스템 관리자 전용
   getAllUsers(): Promise<User[]>;
-  adminUpdateUser(id: string, updates: { role?: string; tier?: string; isActive?: boolean; assignedCategoryId?: string | null; assignedOrganizationId?: string | null }): Promise<User>;
+  adminUpdateUser(id: string, updates: { role?: string; tier?: string; isActive?: boolean; assignedCompanyId?: string | null; assignedCategoryId?: string | null; assignedOrganizationId?: string | null }): Promise<User>;
   
   // Category operations - 카테고리 관리
   createCategory(category: InsertCategory): Promise<Category>;
@@ -611,7 +611,7 @@ export class MemStorage implements IStorage {
     return Array.from(this.users.values());
   }
 
-  async adminUpdateUser(id: string, updates: { role?: string; tier?: string; isActive?: boolean; assignedCategoryId?: string | null; assignedOrganizationId?: string | null }): Promise<User> {
+  async adminUpdateUser(id: string, updates: { role?: string; tier?: string; isActive?: boolean; assignedCompanyId?: string | null; assignedCategoryId?: string | null; assignedOrganizationId?: string | null }): Promise<User> {
     const user = this.users.get(id);
     if (!user) throw new Error("User not found");
     
@@ -1034,7 +1034,7 @@ export class PostgreSQLStorage implements IStorage {
     return await db.select().from(users).orderBy(desc(users.createdAt));
   }
 
-  async adminUpdateUser(id: string, updates: { role?: string; tier?: string; isActive?: boolean; assignedCategoryId?: string | null; assignedOrganizationId?: string | null }): Promise<User> {
+  async adminUpdateUser(id: string, updates: { role?: string; tier?: string; isActive?: boolean; assignedCompanyId?: string | null; assignedCategoryId?: string | null; assignedOrganizationId?: string | null }): Promise<User> {
     const [user] = await db.update(users)
       .set({ ...updates, updatedAt: new Date() })
       .where(eq(users.id, id))

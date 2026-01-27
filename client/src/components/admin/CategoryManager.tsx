@@ -9,6 +9,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
 import { apiRequest, queryClient } from '@/lib/queryClient';
 import { Loader2, Plus, Pencil, Trash2, FolderTree, Building2 } from 'lucide-react';
@@ -23,10 +24,19 @@ interface CategoryWithHierarchy {
   company?: { id: string; name: string; code?: string | null } | null;
 }
 
+interface Organization {
+  id: string;
+  name: string;
+  code?: string | null;
+  companyId?: string | null;
+}
+
 interface UserInfo {
   id: string;
   role: string;
+  assignedCompanyId?: string | null;
   assignedOrganizationId?: string | null;
+  assignedCategoryId?: string | null;
 }
 
 export function CategoryManager() {
@@ -36,7 +46,7 @@ export function CategoryManager() {
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [editingCategory, setEditingCategory] = useState<CategoryWithHierarchy | null>(null);
   const [deletingCategory, setDeletingCategory] = useState<CategoryWithHierarchy | null>(null);
-  const [formData, setFormData] = useState({ name: '', description: '', order: 0 });
+  const [formData, setFormData] = useState({ name: '', description: '', order: 0, organizationId: '' });
 
   const { data: currentUser } = useQuery<UserInfo>({
     queryKey: ['/api/auth/user'],
@@ -45,14 +55,25 @@ export function CategoryManager() {
   const { data: categories = [], isLoading } = useQuery<CategoryWithHierarchy[]>({
     queryKey: ['/api/admin/categories'],
   });
-
-  const filteredCategories = categories.filter(cat => {
+  
+  const { data: organizations = [] } = useQuery<Organization[]>({
+    queryKey: ['/api/admin/organizations'],
+    enabled: currentUser?.role === 'admin' || (currentUser?.role === 'operator' && !!currentUser?.assignedCompanyId && !currentUser?.assignedOrganizationId),
+  });
+  
+  const isCompanyLevelOperator = currentUser?.role === 'operator' && currentUser?.assignedCompanyId && !currentUser?.assignedOrganizationId && !currentUser?.assignedCategoryId;
+  const isCategoryLevelOperator = currentUser?.role === 'operator' && currentUser?.assignedCategoryId;
+  const canCreateDelete = currentUser?.role === 'admin' || (currentUser?.role === 'operator' && !isCategoryLevelOperator);
+  
+  const accessibleOrganizations = organizations.filter(org => {
     if (currentUser?.role === 'admin') return true;
-    if (currentUser?.role === 'operator' && currentUser.assignedOrganizationId) {
-      return cat.organizationId === currentUser.assignedOrganizationId;
+    if (isCompanyLevelOperator && currentUser?.assignedCompanyId) {
+      return org.companyId === currentUser.assignedCompanyId;
     }
     return false;
   });
+
+  const filteredCategories = categories;
 
   const createMutation = useMutation({
     mutationFn: async (data: { name: string; description: string; order: number; organizationId?: string }) => {
@@ -62,7 +83,7 @@ export function CategoryManager() {
       queryClient.invalidateQueries({ queryKey: ['/api/admin/categories'] });
       queryClient.invalidateQueries({ queryKey: ['/api/categories'] });
       setIsCreateDialogOpen(false);
-      setFormData({ name: '', description: '', order: 0 });
+      setFormData({ name: '', description: '', order: 0, organizationId: '' });
       toast({ title: t('admin.categoryManager.toast.created', '카테고리가 생성되었습니다.') });
     },
     onError: (error: any) => {
@@ -101,13 +122,30 @@ export function CategoryManager() {
   });
 
   const handleCreate = () => {
-    const organizationId = currentUser?.role === 'operator' ? currentUser.assignedOrganizationId : undefined;
-    createMutation.mutate({ ...formData, organizationId: organizationId || undefined });
+    let organizationId: string | undefined;
+    
+    if (currentUser?.role === 'admin') {
+      organizationId = formData.organizationId || undefined;
+    } else if (currentUser?.role === 'operator') {
+      if (currentUser.assignedOrganizationId) {
+        organizationId = currentUser.assignedOrganizationId;
+      } else if (isCompanyLevelOperator && formData.organizationId) {
+        organizationId = formData.organizationId;
+      }
+    }
+    
+    createMutation.mutate({ 
+      name: formData.name, 
+      description: formData.description, 
+      order: formData.order, 
+      organizationId 
+    });
   };
 
   const handleUpdate = () => {
     if (!editingCategory) return;
-    updateMutation.mutate({ id: editingCategory.id, updates: formData });
+    const { organizationId, ...updates } = formData;
+    updateMutation.mutate({ id: editingCategory.id, updates });
   };
 
   const openEditDialog = (category: CategoryWithHierarchy) => {
@@ -116,6 +154,7 @@ export function CategoryManager() {
       name: category.name,
       description: category.description || '',
       order: category.order,
+      organizationId: category.organizationId || '',
     });
   };
 
@@ -136,16 +175,22 @@ export function CategoryManager() {
             {t('admin.categoryManager.title', '카테고리 관리')}
           </CardTitle>
           <p className="text-sm text-muted-foreground mt-1">
-            {currentUser?.role === 'operator' 
-              ? t('admin.categoryManager.operatorHint', '담당 조직의 카테고리를 관리합니다.')
-              : t('admin.categoryManager.adminHint', '모든 카테고리를 관리합니다.')
+            {currentUser?.role === 'admin' 
+              ? t('admin.categoryManager.adminHint', '모든 카테고리를 관리합니다.')
+              : isCategoryLevelOperator
+                ? t('admin.categoryManager.categoryOperatorHint', '담당 카테고리만 수정할 수 있습니다.')
+                : isCompanyLevelOperator
+                  ? t('admin.categoryManager.companyOperatorHint', '담당 회사의 모든 조직 카테고리를 관리합니다.')
+                  : t('admin.categoryManager.operatorHint', '담당 조직의 카테고리를 관리합니다.')
             }
           </p>
         </div>
-        <Button onClick={() => setIsCreateDialogOpen(true)} size="sm">
-          <Plus className="w-4 h-4 mr-1" />
-          {t('admin.categoryManager.addCategory', '카테고리 추가')}
-        </Button>
+        {canCreateDelete && (
+          <Button onClick={() => setIsCreateDialogOpen(true)} size="sm">
+            <Plus className="w-4 h-4 mr-1" />
+            {t('admin.categoryManager.addCategory', '카테고리 추가')}
+          </Button>
+        )}
       </CardHeader>
       <CardContent>
         {filteredCategories.length === 0 ? (
@@ -178,9 +223,11 @@ export function CategoryManager() {
                   <Button variant="ghost" size="sm" onClick={() => openEditDialog(category)}>
                     <Pencil className="w-4 h-4" />
                   </Button>
-                  <Button variant="ghost" size="sm" onClick={() => setDeletingCategory(category)}>
-                    <Trash2 className="w-4 h-4 text-red-500" />
-                  </Button>
+                  {canCreateDelete && (
+                    <Button variant="ghost" size="sm" onClick={() => setDeletingCategory(category)}>
+                      <Trash2 className="w-4 h-4 text-red-500" />
+                    </Button>
+                  )}
                 </div>
               </div>
             ))}
@@ -194,6 +241,24 @@ export function CategoryManager() {
             <DialogTitle>{t('admin.categoryManager.createDialog.title', '새 카테고리 생성')}</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
+            {(currentUser?.role === 'admin' || isCompanyLevelOperator) && accessibleOrganizations.length > 0 && (
+              <div>
+                <Label>{t('admin.categoryManager.form.organization', '조직')}</Label>
+                <Select
+                  value={formData.organizationId}
+                  onValueChange={(value) => setFormData(prev => ({ ...prev, organizationId: value }))}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder={t('admin.categoryManager.form.selectOrganization', '조직을 선택하세요')} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {accessibleOrganizations.map(org => (
+                      <SelectItem key={org.id} value={org.id}>{org.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
             <div>
               <Label>{t('admin.categoryManager.form.name', '카테고리 이름')}</Label>
               <Input
@@ -223,7 +288,10 @@ export function CategoryManager() {
             <Button variant="outline" onClick={() => setIsCreateDialogOpen(false)}>
               {t('common.cancel', '취소')}
             </Button>
-            <Button onClick={handleCreate} disabled={!formData.name || createMutation.isPending}>
+            <Button 
+              onClick={handleCreate} 
+              disabled={!formData.name || createMutation.isPending || (!!isCompanyLevelOperator && !formData.organizationId)}
+            >
               {createMutation.isPending && <Loader2 className="w-4 h-4 mr-1 animate-spin" />}
               {t('common.create', '생성')}
             </Button>

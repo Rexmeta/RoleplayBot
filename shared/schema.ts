@@ -247,10 +247,13 @@ export const users = pgTable("users", {
   // 3단 계층 구조: 사용자 소속
   companyId: varchar("company_id").references(() => companies.id), // 소속 회사 (nullable: 시스템 관리자는 소속 없음)
   organizationId: varchar("organization_id").references(() => organizations.id), // 소속 조직 (nullable: 회사 레벨 사용자)
-  // 레거시 필드 (deprecated - operator_assignments로 대체)
-  assignedCategoryId: varchar("assigned_category_id").references(() => categories.id), // 운영자가 담당하는 카테고리 (운영자만 해당)
-  // 새로운 조직 기반 운영자 할당
+  // 운영자 계층적 권한 할당 (3단계: 회사 > 조직 > 카테고리)
+  // - 회사만 할당: 해당 회사의 모든 조직/카테고리 접근 가능
+  // - 회사+조직 할당: 해당 조직의 모든 카테고리 접근 가능
+  // - 회사+조직+카테고리 할당: 해당 카테고리만 접근 가능
+  assignedCompanyId: varchar("assigned_company_id").references(() => companies.id), // 운영자가 담당하는 회사
   assignedOrganizationId: varchar("assigned_organization_id").references(() => organizations.id), // 운영자가 담당하는 조직
+  assignedCategoryId: varchar("assigned_category_id").references(() => categories.id), // 운영자가 담당하는 카테고리
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 }, (table) => [
