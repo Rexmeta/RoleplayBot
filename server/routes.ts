@@ -3327,6 +3327,37 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // ===== 운영자 권한 헬퍼 함수들 (시나리오 API보다 먼저 정의되어야 함) =====
+  // 운영자가 접근 가능한 카테고리 ID 목록 가져오기
+  const getOperatorAccessibleCategoryIds = async (user: any): Promise<string[]> => {
+    if (user.role === 'admin') {
+      const allCategories = await storage.getAllCategories();
+      return allCategories.map(c => c.id);
+    }
+    if (user.role !== 'operator') return [];
+    
+    // 카테고리 레벨: 해당 카테고리만
+    if (user.assignedCategoryId) {
+      return [user.assignedCategoryId];
+    }
+    
+    // 조직 레벨: 해당 조직의 모든 카테고리
+    if (user.assignedOrganizationId) {
+      const allCategories = await storage.getAllCategories();
+      return allCategories.filter(c => c.organizationId === user.assignedOrganizationId).map(c => c.id);
+    }
+    
+    // 회사 레벨: 해당 회사의 모든 조직의 모든 카테고리
+    if (user.assignedCompanyId) {
+      const allOrgs = await storage.getAllOrganizations();
+      const companyOrgIds = allOrgs.filter(o => o.companyId === user.assignedCompanyId).map(o => o.id);
+      const allCategories = await storage.getAllCategories();
+      return allCategories.filter(c => c.organizationId && companyOrgIds.includes(c.organizationId)).map(c => c.id);
+    }
+    
+    return [];
+  };
+
   // 메인 사용자용 시나리오/페르소나 API
   app.get("/api/scenarios", async (req, res) => {
     try {
@@ -3369,49 +3400,80 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 console.log(`[Scenarios API] Admin user - returning all ${scenarios.length} scenarios`);
               }
             } else {
-              // 일반 사용자/운영자: 조직 기반 필터링 우선 적용
-              let accessibleCategoryIds: string[] = [];
+              // 운영자/일반 사용자: 계층적 권한에 따라 필터링
+              const userWithAssignments = user as any;
               
-              // 1. 사용자에게 할당된 카테고리가 있으면 포함
-              if (user.assignedCategoryId) {
-                accessibleCategoryIds.push(user.assignedCategoryId);
-              }
-              
-              // 2. 사용자의 조직/회사에 속한 카테고리 찾기
-              const userWithOrg = user as any;
-              if (userWithOrg.organizationId || userWithOrg.companyId) {
-                try {
-                  const allCategories = await storage.getAllCategories();
-                  
-                  for (const cat of allCategories) {
-                    const catAny = cat as any;
-                    // 조직이 일치하면 해당 카테고리 포함
-                    if (userWithOrg.organizationId && catAny.organizationId === userWithOrg.organizationId) {
-                      if (!accessibleCategoryIds.includes(cat.id)) {
-                        accessibleCategoryIds.push(cat.id);
-                      }
+              // 운영자: 할당된 회사/조직/카테고리 기반 필터링
+              if (user.role === 'operator') {
+                const accessibleCategoryIds = await getOperatorAccessibleCategoryIds(user);
+                
+                if (accessibleCategoryIds.length > 0) {
+                  // 카테고리 파라미터가 있으면 추가 필터링
+                  if (categoryIdParam) {
+                    if (accessibleCategoryIds.includes(String(categoryIdParam))) {
+                      filteredScenarios = scenarios.filter((s: any) => 
+                        String(s.categoryId) === String(categoryIdParam)
+                      );
+                      console.log(`[Scenarios API] Operator filtered by category param: ${filteredScenarios.length}/${scenarios.length} scenarios`);
+                    } else {
+                      filteredScenarios = [];
+                      console.log(`[Scenarios API] Operator has no access to category ${categoryIdParam}`);
                     }
-                    // 회사가 일치하면 해당 카테고리 포함 (조직 미지정인 경우)
-                    else if (userWithOrg.companyId && catAny.companyId === userWithOrg.companyId) {
-                      if (!accessibleCategoryIds.includes(cat.id)) {
-                        accessibleCategoryIds.push(cat.id);
-                      }
-                    }
+                  } else {
+                    filteredScenarios = scenarios.filter((s: any) => 
+                      accessibleCategoryIds.includes(String(s.categoryId))
+                    );
+                    console.log(`[Scenarios API] Operator filtered: ${filteredScenarios.length}/${scenarios.length} scenarios (categories: ${accessibleCategoryIds.join(', ')})`);
                   }
-                } catch (err) {
-                  console.error('[Scenarios API] Error fetching categories for org filtering:', err);
+                } else {
+                  filteredScenarios = [];
+                  console.log(`[Scenarios API] Operator has no category assignments - returning empty list`);
                 }
               }
-              
-              // 3. 접근 가능한 카테고리가 있으면 필터링
-              if (accessibleCategoryIds.length > 0) {
-                filteredScenarios = scenarios.filter((s: any) => 
-                  accessibleCategoryIds.includes(String(s.categoryId))
-                );
-                console.log(`[Scenarios API] Filtered by organization/category: ${filteredScenarios.length}/${scenarios.length} scenarios (categories: ${accessibleCategoryIds.join(', ')})`);
-              } else {
-                // 조직/카테고리 할당이 없으면 모든 시나리오 접근 가능
-                console.log(`[Scenarios API] User has no organization/category assignment - returning all ${scenarios.length} scenarios`);
+              // 일반 사용자: 자신이 속한 조직/회사 기반 필터링
+              else {
+                let accessibleCategoryIds: string[] = [];
+                
+                // 사용자에게 할당된 카테고리가 있으면 포함
+                if (userWithAssignments.assignedCategoryId) {
+                  accessibleCategoryIds.push(userWithAssignments.assignedCategoryId);
+                }
+                
+                // 사용자의 조직/회사에 속한 카테고리 찾기
+                if (userWithAssignments.organizationId || userWithAssignments.companyId) {
+                  try {
+                    const allCategories = await storage.getAllCategories();
+                    
+                    for (const cat of allCategories) {
+                      const catAny = cat as any;
+                      // 조직이 일치하면 해당 카테고리 포함
+                      if (userWithAssignments.organizationId && catAny.organizationId === userWithAssignments.organizationId) {
+                        if (!accessibleCategoryIds.includes(cat.id)) {
+                          accessibleCategoryIds.push(cat.id);
+                        }
+                      }
+                      // 회사가 일치하면 해당 카테고리 포함 (조직 미지정인 경우)
+                      else if (userWithAssignments.companyId && catAny.companyId === userWithAssignments.companyId) {
+                        if (!accessibleCategoryIds.includes(cat.id)) {
+                          accessibleCategoryIds.push(cat.id);
+                        }
+                      }
+                    }
+                  } catch (err) {
+                    console.error('[Scenarios API] Error fetching categories for org filtering:', err);
+                  }
+                }
+                
+                // 접근 가능한 카테고리가 있으면 필터링
+                if (accessibleCategoryIds.length > 0) {
+                  filteredScenarios = scenarios.filter((s: any) => 
+                    accessibleCategoryIds.includes(String(s.categoryId))
+                  );
+                  console.log(`[Scenarios API] User filtered by organization/category: ${filteredScenarios.length}/${scenarios.length} scenarios`);
+                } else {
+                  // 조직/카테고리 할당이 없으면 모든 시나리오 접근 가능
+                  console.log(`[Scenarios API] User has no organization/category assignment - returning all ${scenarios.length} scenarios`);
+                }
               }
             }
           }
@@ -3606,36 +3668,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
   };
 
   // 시나리오 관리 API
-  // 운영자가 접근 가능한 카테고리 ID 목록 가져오기 (시나리오 필터링용)
-  const getOperatorAccessibleCategoryIds = async (user: any): Promise<string[]> => {
-    if (user.role === 'admin') {
-      const allCategories = await storage.getAllCategories();
-      return allCategories.map(c => c.id);
-    }
-    if (user.role !== 'operator') return [];
-    
-    // 카테고리 레벨: 해당 카테고리만
-    if (user.assignedCategoryId) {
-      return [user.assignedCategoryId];
-    }
-    
-    // 조직 레벨: 해당 조직의 모든 카테고리
-    if (user.assignedOrganizationId) {
-      const allCategories = await storage.getAllCategories();
-      return allCategories.filter(c => c.organizationId === user.assignedOrganizationId).map(c => c.id);
-    }
-    
-    // 회사 레벨: 해당 회사의 모든 조직의 모든 카테고리
-    if (user.assignedCompanyId) {
-      const allOrgs = await storage.getAllOrganizations();
-      const companyOrgIds = allOrgs.filter(o => o.companyId === user.assignedCompanyId).map(o => o.id);
-      const allCategories = await storage.getAllCategories();
-      return allCategories.filter(c => c.organizationId && companyOrgIds.includes(c.organizationId)).map(c => c.id);
-    }
-    
-    return [];
-  };
-  
   // 운영자가 시나리오에 접근 가능한지 확인
   const checkOperatorScenarioAccess = async (user: any, scenarioId: string): Promise<{ hasAccess: boolean; error?: string }> => {
     if (user.role === 'admin') return { hasAccess: true };
@@ -4440,27 +4472,36 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // @ts-ignore
       const user = req.user;
       
+      console.log(`[Categories API] User: ${user.email}, role: ${user.role}, assignedCompanyId: ${user.assignedCompanyId}, assignedOrgId: ${user.assignedOrganizationId}, assignedCatId: ${user.assignedCategoryId}`);
+      
       let allCategories = await storage.getAllCategories();
       const organizations = await storage.getAllOrganizations();
       const companies = await storage.getAllCompanies();
+      
+      console.log(`[Categories API] Total categories: ${allCategories.length}, Total orgs: ${organizations.length}`);
       
       // 운영자는 계층적 권한에 따라 카테고리 필터링
       if (user.role === 'operator') {
         // 카테고리 레벨 할당: 해당 카테고리만
         if (user.assignedCategoryId) {
           allCategories = allCategories.filter(cat => cat.id === user.assignedCategoryId);
+          console.log(`[Categories API] Category-level filter applied: ${allCategories.length} categories`);
         }
         // 조직 레벨 할당: 해당 조직의 모든 카테고리
         else if (user.assignedOrganizationId) {
           allCategories = allCategories.filter(cat => cat.organizationId === user.assignedOrganizationId);
+          console.log(`[Categories API] Org-level filter applied: ${allCategories.length} categories`);
         }
         // 회사 레벨 할당: 해당 회사의 모든 조직의 카테고리
         else if (user.assignedCompanyId) {
           const companyOrgIds = organizations.filter(o => o.companyId === user.assignedCompanyId).map(o => o.id);
+          console.log(`[Categories API] Company ${user.assignedCompanyId} has orgs: ${companyOrgIds.join(', ')}`);
           allCategories = allCategories.filter(cat => cat.organizationId && companyOrgIds.includes(cat.organizationId));
+          console.log(`[Categories API] Company-level filter applied: ${allCategories.length} categories`);
         }
         // 어떤 권한도 없으면 빈 배열
         else {
+          console.log(`[Categories API] No assignments - returning empty array`);
           return res.json([]);
         }
       }
