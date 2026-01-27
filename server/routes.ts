@@ -4413,6 +4413,162 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // ========== 조직 관리 API (운영자용 - 회사 레벨 운영자만) ==========
+  
+  // 회사 레벨 운영자 권한 체크 헬퍼
+  const isCompanyLevelOperator = (user: any): boolean => {
+    return user.role === 'operator' && 
+           user.assignedCompanyId && 
+           !user.assignedOrganizationId && 
+           !user.assignedCategoryId;
+  };
+  
+  // 운영자용 조직 목록 조회 (회사 레벨 운영자: 자신의 회사 조직만)
+  app.get("/api/admin/organizations", isAuthenticated, isOperatorOrAdmin, async (req, res) => {
+    try {
+      const user = req.user as any;
+      const organizations = await storage.getAllOrganizations();
+      const companies = await storage.getAllCompanies();
+      
+      let filteredOrgs = organizations;
+      
+      // 회사 레벨 운영자인 경우 해당 회사의 조직만 반환
+      if (user.role === 'operator') {
+        if (isCompanyLevelOperator(user)) {
+          filteredOrgs = organizations.filter(org => org.companyId === user.assignedCompanyId);
+        } else if (user.assignedOrganizationId) {
+          // 조직/카테고리 레벨 운영자는 자신의 조직만
+          filteredOrgs = organizations.filter(org => org.id === user.assignedOrganizationId);
+        } else {
+          filteredOrgs = [];
+        }
+      }
+      
+      const organizationsWithHierarchy = filteredOrgs.map(org => {
+        const company = companies.find(c => c.id === org.companyId);
+        return {
+          ...org,
+          company: company ? { id: company.id, name: company.name, code: company.code } : null,
+        };
+      });
+      
+      res.json(organizationsWithHierarchy);
+    } catch (error: any) {
+      console.error("Error getting organizations for operator:", error);
+      res.status(500).json({ error: error.message || "Failed to get organizations" });
+    }
+  });
+  
+  // 운영자용 조직 생성 (회사 레벨 운영자만)
+  app.post("/api/admin/organizations", isAuthenticated, isOperatorOrAdmin, async (req, res) => {
+    try {
+      const user = req.user as any;
+      const { name, code, description, isActive } = req.body;
+      
+      // 권한 체크: admin 또는 회사 레벨 운영자만 가능
+      if (user.role === 'operator' && !isCompanyLevelOperator(user)) {
+        return res.status(403).json({ error: "Only company-level operators can create organizations" });
+      }
+      
+      // 운영자인 경우 companyId는 자동으로 할당된 회사로 설정
+      const companyId = user.role === 'admin' ? req.body.companyId : user.assignedCompanyId;
+      
+      if (!companyId) {
+        return res.status(400).json({ error: "Company ID is required" });
+      }
+      if (!name || name.trim() === "") {
+        return res.status(400).json({ error: "Organization name is required" });
+      }
+      
+      const organization = await storage.createOrganization({
+        companyId,
+        name: name.trim(),
+        code: code?.trim() || null,
+        description: description || null,
+        isActive: isActive !== false,
+      });
+      
+      res.json(organization);
+    } catch (error: any) {
+      console.error("Error creating organization:", error);
+      res.status(500).json({ error: error.message || "Failed to create organization" });
+    }
+  });
+  
+  // 운영자용 조직 수정 (회사 레벨 운영자만, 자신의 회사 조직만)
+  app.patch("/api/admin/organizations/:id", isAuthenticated, isOperatorOrAdmin, async (req, res) => {
+    try {
+      const user = req.user as any;
+      const { id } = req.params;
+      const { name, code, description, isActive } = req.body;
+      
+      // 권한 체크
+      if (user.role === 'operator') {
+        if (!isCompanyLevelOperator(user)) {
+          return res.status(403).json({ error: "Only company-level operators can update organizations" });
+        }
+        
+        // 해당 조직이 운영자의 회사에 속하는지 확인
+        const organization = await storage.getOrganization(id);
+        if (!organization || organization.companyId !== user.assignedCompanyId) {
+          return res.status(403).json({ error: "You can only update organizations in your assigned company" });
+        }
+      }
+      
+      const updates: any = {};
+      if (name !== undefined) updates.name = name.trim();
+      if (code !== undefined) updates.code = code?.trim() || null;
+      if (description !== undefined) updates.description = description;
+      if (isActive !== undefined) updates.isActive = isActive;
+      
+      if (Object.keys(updates).length === 0) {
+        return res.status(400).json({ error: "No valid updates provided" });
+      }
+      
+      const organization = await storage.updateOrganization(id, updates);
+      res.json(organization);
+    } catch (error: any) {
+      console.error("Error updating organization:", error);
+      res.status(500).json({ error: error.message || "Failed to update organization" });
+    }
+  });
+  
+  // 운영자용 조직 삭제 (회사 레벨 운영자만, 자신의 회사 조직만)
+  app.delete("/api/admin/organizations/:id", isAuthenticated, isOperatorOrAdmin, async (req, res) => {
+    try {
+      const user = req.user as any;
+      const { id } = req.params;
+      
+      // 권한 체크
+      if (user.role === 'operator') {
+        if (!isCompanyLevelOperator(user)) {
+          return res.status(403).json({ error: "Only company-level operators can delete organizations" });
+        }
+        
+        // 해당 조직이 운영자의 회사에 속하는지 확인
+        const organization = await storage.getOrganization(id);
+        if (!organization || organization.companyId !== user.assignedCompanyId) {
+          return res.status(403).json({ error: "You can only delete organizations in your assigned company" });
+        }
+      }
+      
+      // 해당 조직에 카테고리가 있는지 확인
+      const categories = await storage.getCategoriesByOrganization(id);
+      if (categories.length > 0) {
+        return res.status(400).json({
+          error: "Cannot delete organization with categories",
+          categories: categories.map(c => ({ id: c.id, name: c.name })),
+        });
+      }
+      
+      await storage.deleteOrganization(id);
+      res.json({ success: true });
+    } catch (error: any) {
+      console.error("Error deleting organization:", error);
+      res.status(500).json({ error: error.message || "Failed to delete organization" });
+    }
+  });
+
   // ========== 카테고리 관리 API (관리자/운영자용 - 계층적 권한 지원) ==========
   
   // 운영자 계층적 권한 체크 헬퍼 함수
