@@ -592,12 +592,37 @@ export default function SystemAdminPage() {
 
   const openEditUserDialog = (user: UserData) => {
     setEditingUser(user);
+    
+    // 기존 권한 정보에서 회사/조직 ID 복원 (카테고리나 조직만 설정된 경우 상위 정보 추론)
+    let companyId = user.assignedCompanyId || null;
+    let orgId = user.assignedOrganizationId || null;
+    
+    // 조직이 설정되어 있는데 회사가 없으면 조직에서 회사 추론
+    if (orgId && !companyId) {
+      const org = organizationsWithHierarchy.find(o => o.id === orgId);
+      if (org?.companyId) {
+        companyId = org.companyId;
+      }
+    }
+    
+    // 카테고리가 설정되어 있는데 조직/회사가 없으면 카테고리에서 추론
+    if (user.assignedCategoryId && !orgId) {
+      const category = allCategoriesWithOrg.find(c => c.id === user.assignedCategoryId);
+      if (category?.organizationId) {
+        orgId = category.organizationId;
+        const org = organizationsWithHierarchy.find(o => o.id === orgId);
+        if (org?.companyId && !companyId) {
+          companyId = org.companyId;
+        }
+      }
+    }
+    
     setEditFormData({
       role: user.role,
       tier: user.tier,
       isActive: user.isActive,
-      assignedCompanyId: user.assignedCompanyId || null,
-      assignedOrganizationId: user.assignedOrganizationId || null,
+      assignedCompanyId: companyId,
+      assignedOrganizationId: orgId,
       assignedCategoryId: user.assignedCategoryId || null,
     });
   };
@@ -671,6 +696,45 @@ export default function SystemAdminPage() {
     const org = organizationsWithHierarchy.find((o) => o.id === organizationId);
     if (!org) return "-";
     return org.company ? `${org.company.name} > ${org.name}` : org.name;
+  };
+
+  // 운영자 권한 경로 표시 (회사 > 조직 > 카테고리)
+  const getOperatorPermissionPath = (user: UserData) => {
+    const parts: string[] = [];
+    
+    // 회사 정보
+    if (user.assignedCompanyId) {
+      const company = companies.find(c => c.id === user.assignedCompanyId);
+      if (company) parts.push(company.name);
+    }
+    
+    // 조직 정보
+    if (user.assignedOrganizationId) {
+      const org = organizationsWithHierarchy.find(o => o.id === user.assignedOrganizationId);
+      if (org) {
+        // 회사 정보가 없으면 조직에서 회사 정보 추가
+        if (parts.length === 0 && org.company) {
+          parts.push(org.company.name);
+        }
+        parts.push(org.name);
+      }
+    }
+    
+    // 카테고리 정보
+    if (user.assignedCategoryId) {
+      const category = allCategoriesWithOrg.find(c => c.id === user.assignedCategoryId);
+      if (category) {
+        // 조직 정보가 없으면 카테고리에서 조직/회사 정보 추가
+        if (parts.length === 0 && category.organizationId) {
+          const org = organizationsWithHierarchy.find(o => o.id === category.organizationId);
+          if (org?.company) parts.push(org.company.name);
+          if (org) parts.push(org.name);
+        }
+        parts.push(category.name);
+      }
+    }
+    
+    return parts.length > 0 ? parts.join(' > ') : '-';
   };
 
   const userStats = {
@@ -859,7 +923,7 @@ export default function SystemAdminPage() {
                               <TableCell className="text-sm">
                                 {user.role === "operator" ? (
                                   <Badge variant="outline" className="bg-slate-50">
-                                    {getOrganizationName(user.assignedOrganizationId)}
+                                    {getOperatorPermissionPath(user)}
                                   </Badge>
                                 ) : (
                                   <span className="text-muted-foreground">-</span>
