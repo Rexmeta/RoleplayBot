@@ -4160,8 +4160,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         isActive: user.isActive ?? true,
         profileImage: user.profileImage,
         lastLoginAt: user.lastLoginAt,
-        assignedCategoryId: user.assignedCategoryId,
+        assignedCompanyId: user.assignedCompanyId,
         assignedOrganizationId: user.assignedOrganizationId,
+        assignedCategoryId: user.assignedCategoryId,
         createdAt: user.createdAt,
         updatedAt: user.updatedAt,
       }));
@@ -4231,7 +4232,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         isActive: updatedUser.isActive ?? true,
         profileImage: updatedUser.profileImage,
         lastLoginAt: updatedUser.lastLoginAt,
+        assignedCompanyId: updatedUser.assignedCompanyId,
         assignedOrganizationId: updatedUser.assignedOrganizationId,
+        assignedCategoryId: updatedUser.assignedCategoryId,
         createdAt: updatedUser.createdAt,
         updatedAt: updatedUser.updatedAt,
       });
