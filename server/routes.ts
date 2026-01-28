@@ -1791,18 +1791,52 @@ export async function registerRoutes(app: Express, httpServer: Server): Promise<
       const totalUserWords = userMessages.reduce((sum, msg) => sum + msg.message.length, 0);
       const averageResponseTime = userMessages.length > 0 ? Math.round(conversationDurationSeconds / userMessages.length) : 0; // 초 단위
 
+      // 사용자 언어 설정 먼저 가져오기 (번역 적용에 필요)
+      const feedbackUser = await storage.getUser(userId);
+      const feedbackUserLanguage = (feedbackUser?.preferredLanguage as 'ko' | 'en' | 'ja' | 'zh') || 'ko';
+
       // ✨ 시나리오에 설정된 평가 기준 세트 조회
       let evaluationCriteria: any = null;
       if ((scenarioObj as any).evaluationCriteriaSetId) {
         const criteriaSet = await storage.getEvaluationCriteriaSetWithDimensions((scenarioObj as any).evaluationCriteriaSetId);
         if (criteriaSet && criteriaSet.dimensions && criteriaSet.dimensions.length > 0) {
+          // 번역 적용
+          let translatedName = criteriaSet.name;
+          let translatedDescription = criteriaSet.description;
+          
+          if (feedbackUserLanguage !== 'ko') {
+            const setTranslation = await storage.getEvaluationCriteriaSetTranslation(criteriaSet.id, feedbackUserLanguage);
+            if (setTranslation) {
+              translatedName = setTranslation.name;
+              translatedDescription = setTranslation.description || criteriaSet.description;
+            }
+          }
+          
+          // 차원별 번역 적용
+          const translatedDimensions = await Promise.all(
+            criteriaSet.dimensions.filter((d: any) => d.isActive).map(async (dim: any) => {
+              if (feedbackUserLanguage !== 'ko') {
+                const dimTranslation = await storage.getEvaluationDimensionTranslation(dim.id, feedbackUserLanguage);
+                if (dimTranslation) {
+                  return {
+                    ...dim,
+                    name: dimTranslation.name,
+                    description: dimTranslation.description || dim.description,
+                    scoringRubric: dimTranslation.scoringRubric || dim.scoringRubric,
+                  };
+                }
+              }
+              return dim;
+            })
+          );
+          
           evaluationCriteria = {
             id: criteriaSet.id,
-            name: criteriaSet.name,
-            description: criteriaSet.description,
-            dimensions: criteriaSet.dimensions.filter((d: any) => d.isActive)
+            name: translatedName,
+            description: translatedDescription,
+            dimensions: translatedDimensions
           };
-          console.log(`📊 시나리오 평가 기준 사용: ${criteriaSet.name} (${evaluationCriteria.dimensions.length}개 차원)`);
+          console.log(`📊 시나리오 평가 기준 사용: ${criteriaSet.name} -> ${translatedName} (${evaluationCriteria.dimensions.length}개 차원, lang: ${feedbackUserLanguage})`);
         }
       }
       
@@ -1810,19 +1844,45 @@ export async function registerRoutes(app: Express, httpServer: Server): Promise<
       if (!evaluationCriteria) {
         const defaultCriteria = await storage.getActiveEvaluationCriteriaSetWithDimensions();
         if (defaultCriteria && defaultCriteria.dimensions) {
+          // 번역 적용
+          let translatedName = defaultCriteria.name;
+          let translatedDescription = defaultCriteria.description;
+          
+          if (feedbackUserLanguage !== 'ko') {
+            const setTranslation = await storage.getEvaluationCriteriaSetTranslation(defaultCriteria.id, feedbackUserLanguage);
+            if (setTranslation) {
+              translatedName = setTranslation.name;
+              translatedDescription = setTranslation.description || defaultCriteria.description;
+            }
+          }
+          
+          // 차원별 번역 적용
+          const translatedDimensions = await Promise.all(
+            defaultCriteria.dimensions.filter((d: any) => d.isActive).map(async (dim: any) => {
+              if (feedbackUserLanguage !== 'ko') {
+                const dimTranslation = await storage.getEvaluationDimensionTranslation(dim.id, feedbackUserLanguage);
+                if (dimTranslation) {
+                  return {
+                    ...dim,
+                    name: dimTranslation.name,
+                    description: dimTranslation.description || dim.description,
+                    scoringRubric: dimTranslation.scoringRubric || dim.scoringRubric,
+                  };
+                }
+              }
+              return dim;
+            })
+          );
+          
           evaluationCriteria = {
             id: defaultCriteria.id,
-            name: defaultCriteria.name,
-            description: defaultCriteria.description,
-            dimensions: defaultCriteria.dimensions.filter((d: any) => d.isActive)
+            name: translatedName,
+            description: translatedDescription,
+            dimensions: translatedDimensions
           };
-          console.log(`📊 기본 평가 기준 사용: ${defaultCriteria.name} (${evaluationCriteria.dimensions.length}개 차원)`);
+          console.log(`📊 기본 평가 기준 사용: ${defaultCriteria.name} -> ${translatedName} (${evaluationCriteria.dimensions.length}개 차원, lang: ${feedbackUserLanguage})`);
         }
       }
-
-      // 사용자 언어 설정 가져오기
-      const feedbackUser = await storage.getUser(userId);
-      const feedbackUserLanguage = (feedbackUser?.preferredLanguage as 'ko' | 'en' | 'ja' | 'zh') || 'ko';
       
       const feedbackData = await generateFeedback(
         scenarioObj, // 전체 시나리오 객체 전달

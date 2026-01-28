@@ -923,24 +923,41 @@ export function ScenarioManager() {
                     </Label>
                   </div>
                   
-                  {!editingScenario && (
-                    <div className="flex items-center gap-3 border-t pt-3 mt-3">
-                      <Switch
-                        id="autoTranslate"
-                        checked={formData.autoTranslate || false}
-                        onCheckedChange={(checked) => setFormData(prev => ({ ...prev, autoTranslate: checked }))}
-                      />
-                      <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-3 border-t pt-3 mt-3">
+                    {!editingScenario ? (
+                      <>
+                        <Switch
+                          id="autoTranslate"
+                          checked={formData.autoTranslate || false}
+                          onCheckedChange={(checked) => setFormData(prev => ({ ...prev, autoTranslate: checked }))}
+                        />
+                        <div className="flex items-center gap-2">
+                          <Sparkles className="h-4 w-4 text-amber-500" />
+                          <Label htmlFor="autoTranslate" className="text-sm font-medium text-slate-700 cursor-pointer">
+                            {t('admin.evaluationCriteria.autoTranslate')}
+                          </Label>
+                        </div>
+                        <span className="text-xs text-slate-500">
+                          {t('admin.evaluationCriteria.autoTranslateDescription')}
+                        </span>
+                      </>
+                    ) : (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => editingScenario?.id && autoTranslateMutation.mutate(editingScenario.id)}
+                        disabled={autoTranslateMutation.isPending}
+                        className="flex items-center gap-2"
+                      >
                         <Sparkles className="h-4 w-4 text-amber-500" />
-                        <Label htmlFor="autoTranslate" className="text-sm font-medium text-slate-700 cursor-pointer">
-                          {t('admin.evaluationCriteria.autoTranslate')}
-                        </Label>
-                      </div>
-                      <span className="text-xs text-slate-500">
-                        {t('admin.evaluationCriteria.autoTranslateDescription')}
-                      </span>
-                    </div>
-                  )}
+                        {autoTranslateMutation.isPending 
+                          ? t('admin.common.loading')
+                          : t('admin.evaluationCriteria.triggerAutoTranslate')
+                        }
+                      </Button>
+                    )}
+                  </div>
                 </div>
 
                 <div>
