@@ -959,7 +959,12 @@
       "score": "分数",
       "status": "状态",
       "actions": "操作",
-      "active": "启用"
+      "active": "启用",
+      "autoTranslate": "AI自动翻译",
+      "autoTranslateDescription": "创建时自动翻译为所有支持的语言（韩/英/日/中）",
+      "translationSuccess": "翻译完成",
+      "translationFailed": "翻译失败",
+      "triggerAutoTranslate": "执行自动翻译"
     }
   },
   "scenario": {

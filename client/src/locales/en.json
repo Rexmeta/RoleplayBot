@@ -959,7 +959,12 @@
       "score": "Score",
       "status": "Status",
       "actions": "Actions",
-      "active": "Active"
+      "active": "Active",
+      "autoTranslate": "AI Auto-Translation",
+      "autoTranslateDescription": "Automatically translate to all supported languages on creation (KO/EN/JA/ZH)",
+      "translationSuccess": "Translation Complete",
+      "translationFailed": "Translation Failed",
+      "triggerAutoTranslate": "Run Auto-Translation"
     }
   },
   "scenario": {

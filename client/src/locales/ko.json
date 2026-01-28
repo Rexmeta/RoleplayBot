@@ -981,7 +981,12 @@
       "score": "점수",
       "status": "상태",
       "actions": "작업",
-      "active": "활성"
+      "active": "활성",
+      "autoTranslate": "AI 자동 번역",
+      "autoTranslateDescription": "생성 시 모든 지원 언어로 자동 번역합니다 (한/영/일/중)",
+      "translationSuccess": "번역 완료",
+      "translationFailed": "번역 실패",
+      "triggerAutoTranslate": "자동 번역 실행"
     }
   },
   "scenario": {

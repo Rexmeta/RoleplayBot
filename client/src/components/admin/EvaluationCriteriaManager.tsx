@@ -120,6 +120,7 @@ export function EvaluationCriteriaManager() {
     isActive: true,
     categoryId: '',
     useDefaultDimensions: true,
+    autoTranslate: true,
   });
 
   const [dimensionFormData, setDimensionFormData] = useState({
@@ -170,13 +171,31 @@ export function EvaluationCriteriaManager() {
     queryKey: ['/api/categories'],
   });
 
+  const autoTranslateMutation = useMutation({
+    mutationFn: async (criteriaSetId: string) => {
+      return apiRequest('POST', `/api/admin/evaluation-criteria/${criteriaSetId}/auto-translate`, { sourceLocale: 'ko' });
+    },
+    onSuccess: (data: any) => {
+      toast({ title: t('admin.evaluationCriteria.translationSuccess'), description: data.message });
+    },
+    onError: (error: any) => {
+      toast({ title: t('admin.evaluationCriteria.translationFailed'), description: error.message, variant: "destructive" });
+    },
+  });
+
   const createMutation = useMutation({
     mutationFn: async (data: any) => {
-      return apiRequest('POST', '/api/admin/evaluation-criteria', data);
+      const response = await apiRequest('POST', '/api/admin/evaluation-criteria', data);
+      return response;
     },
-    onSuccess: () => {
+    onSuccess: async (response: any) => {
       queryClient.invalidateQueries({ queryKey: ['/api/admin/evaluation-criteria'] });
       toast({ title: "평가 기준 세트가 생성되었습니다" });
+      
+      if (formData.autoTranslate && response?.id) {
+        autoTranslateMutation.mutate(response.id);
+      }
+      
       setIsCreateDialogOpen(false);
       resetFormData();
     },
@@ -277,6 +296,7 @@ export function EvaluationCriteriaManager() {
       isActive: true,
       categoryId: '',
       useDefaultDimensions: true,
+      autoTranslate: true,
     });
   };
 
@@ -552,6 +572,22 @@ export function EvaluationCriteriaManager() {
                 id="useDefault"
                 checked={formData.useDefaultDimensions}
                 onCheckedChange={(checked) => setFormData({ ...formData, useDefaultDimensions: checked })}
+              />
+            </div>
+            <div className="flex items-center justify-between border-t pt-4 mt-4">
+              <div>
+                <Label htmlFor="autoTranslate" className="flex items-center gap-2">
+                  <Sparkles className="h-4 w-4 text-amber-500" />
+                  {t('admin.evaluationCriteria.autoTranslate')}
+                </Label>
+                <p className="text-xs text-slate-500 mt-1">
+                  {t('admin.evaluationCriteria.autoTranslateDescription')}
+                </p>
+              </div>
+              <Switch
+                id="autoTranslate"
+                checked={formData.autoTranslate}
+                onCheckedChange={(checked) => setFormData({ ...formData, autoTranslate: checked })}
               />
             </div>
           </div>

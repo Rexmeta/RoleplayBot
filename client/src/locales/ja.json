@@ -959,7 +959,12 @@
       "score": "点数",
       "status": "状態",
       "actions": "操作",
-      "active": "有効"
+      "active": "有効",
+      "autoTranslate": "AI自動翻訳",
+      "autoTranslateDescription": "作成時にすべての対応言語に自動翻訳します（韓/英/日/中）",
+      "translationSuccess": "翻訳完了",
+      "translationFailed": "翻訳失敗",
+      "triggerAutoTranslate": "自動翻訳を実行"
     }
   },
   "scenario": {
