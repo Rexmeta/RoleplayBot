@@ -1,4 +1,4 @@
-import { type Conversation, type InsertConversation, type Feedback, type InsertFeedback, type PersonaSelection, type StrategyChoice, type SequenceAnalysis, type User, type UpsertUser, type ScenarioRun, type InsertScenarioRun, type PersonaRun, type InsertPersonaRun, type ChatMessage, type InsertChatMessage, type Category, type InsertCategory, type SystemSetting, type AiUsageLog, type InsertAiUsageLog, type AiUsageSummary, type AiUsageByFeature, type AiUsageByModel, type AiUsageDaily, type EvaluationCriteriaSet, type InsertEvaluationCriteriaSet, type EvaluationDimension, type InsertEvaluationDimension, type EvaluationCriteriaSetWithDimensions, type SupportedLanguage, type InsertSupportedLanguage, type ScenarioTranslation, type InsertScenarioTranslation, type PersonaTranslation, type InsertPersonaTranslation, type CategoryTranslation, type InsertCategoryTranslation, type Scenario, type InsertScenario, type MbtiPersona, type InsertMbtiPersona, type Company, type InsertCompany, type Organization, type InsertOrganization, type OperatorAssignment, type InsertOperatorAssignment, conversations, feedbacks, users, scenarioRuns, personaRuns, chatMessages, categories, systemSettings, aiUsageLogs, evaluationCriteriaSets, evaluationDimensions, supportedLanguages, scenarioTranslations, personaTranslations, categoryTranslations, scenarios, mbtiPersonas, companies, organizations, operatorAssignments } from "@shared/schema";
+import { type Conversation, type InsertConversation, type Feedback, type InsertFeedback, type PersonaSelection, type StrategyChoice, type SequenceAnalysis, type User, type UpsertUser, type ScenarioRun, type InsertScenarioRun, type PersonaRun, type InsertPersonaRun, type ChatMessage, type InsertChatMessage, type Category, type InsertCategory, type SystemSetting, type AiUsageLog, type InsertAiUsageLog, type AiUsageSummary, type AiUsageByFeature, type AiUsageByModel, type AiUsageDaily, type EvaluationCriteriaSet, type InsertEvaluationCriteriaSet, type EvaluationDimension, type InsertEvaluationDimension, type EvaluationCriteriaSetWithDimensions, type SupportedLanguage, type InsertSupportedLanguage, type ScenarioTranslation, type InsertScenarioTranslation, type PersonaTranslation, type InsertPersonaTranslation, type CategoryTranslation, type InsertCategoryTranslation, type EvaluationCriteriaSetTranslation, type InsertEvaluationCriteriaSetTranslation, type EvaluationDimensionTranslation, type InsertEvaluationDimensionTranslation, type Scenario, type InsertScenario, type MbtiPersona, type InsertMbtiPersona, type Company, type InsertCompany, type Organization, type InsertOrganization, type OperatorAssignment, type InsertOperatorAssignment, conversations, feedbacks, users, scenarioRuns, personaRuns, chatMessages, categories, systemSettings, aiUsageLogs, evaluationCriteriaSets, evaluationDimensions, supportedLanguages, scenarioTranslations, personaTranslations, categoryTranslations, evaluationCriteriaSetTranslations, evaluationDimensionTranslations, scenarios, mbtiPersonas, companies, organizations, operatorAssignments } from "@shared/schema";
 import { randomUUID } from "crypto";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { Pool } from "pg";
@@ -217,6 +217,18 @@ export interface IStorage {
   getCategoryTranslations(categoryId: string): Promise<CategoryTranslation[]>;
   upsertCategoryTranslation(translation: InsertCategoryTranslation): Promise<CategoryTranslation>;
   deleteCategoryTranslation(categoryId: string, locale: string): Promise<void>;
+  
+  // Evaluation Criteria Set Translations - 평가 기준 세트 번역
+  getEvaluationCriteriaSetTranslation(criteriaSetId: string, locale: string): Promise<EvaluationCriteriaSetTranslation | undefined>;
+  getEvaluationCriteriaSetTranslations(criteriaSetId: string): Promise<EvaluationCriteriaSetTranslation[]>;
+  upsertEvaluationCriteriaSetTranslation(translation: InsertEvaluationCriteriaSetTranslation): Promise<EvaluationCriteriaSetTranslation>;
+  deleteEvaluationCriteriaSetTranslation(criteriaSetId: string, locale: string): Promise<void>;
+  
+  // Evaluation Dimension Translations - 평가 차원 번역
+  getEvaluationDimensionTranslation(dimensionId: string, locale: string): Promise<EvaluationDimensionTranslation | undefined>;
+  getEvaluationDimensionTranslations(dimensionId: string): Promise<EvaluationDimensionTranslation[]>;
+  upsertEvaluationDimensionTranslation(translation: InsertEvaluationDimensionTranslation): Promise<EvaluationDimensionTranslation>;
+  deleteEvaluationDimensionTranslation(dimensionId: string, locale: string): Promise<void>;
   
   // Scenarios - 시나리오 (DB 기반)
   getScenario(id: string): Promise<Scenario | undefined>;
@@ -812,6 +824,16 @@ export class MemStorage implements IStorage {
   async getCategoryTranslations(_categoryId: string): Promise<CategoryTranslation[]> { return []; }
   async upsertCategoryTranslation(_translation: InsertCategoryTranslation): Promise<CategoryTranslation> { throw new Error("Not implemented"); }
   async deleteCategoryTranslation(_categoryId: string, _locale: string): Promise<void> {}
+  
+  async getEvaluationCriteriaSetTranslation(_criteriaSetId: string, _locale: string): Promise<EvaluationCriteriaSetTranslation | undefined> { return undefined; }
+  async getEvaluationCriteriaSetTranslations(_criteriaSetId: string): Promise<EvaluationCriteriaSetTranslation[]> { return []; }
+  async upsertEvaluationCriteriaSetTranslation(_translation: InsertEvaluationCriteriaSetTranslation): Promise<EvaluationCriteriaSetTranslation> { throw new Error("Not implemented"); }
+  async deleteEvaluationCriteriaSetTranslation(_criteriaSetId: string, _locale: string): Promise<void> {}
+  
+  async getEvaluationDimensionTranslation(_dimensionId: string, _locale: string): Promise<EvaluationDimensionTranslation | undefined> { return undefined; }
+  async getEvaluationDimensionTranslations(_dimensionId: string): Promise<EvaluationDimensionTranslation[]> { return []; }
+  async upsertEvaluationDimensionTranslation(_translation: InsertEvaluationDimensionTranslation): Promise<EvaluationDimensionTranslation> { throw new Error("Not implemented"); }
+  async deleteEvaluationDimensionTranslation(_dimensionId: string, _locale: string): Promise<void> {}
   
   // Scenarios - stub implementations
   async getScenario(_id: string): Promise<Scenario | undefined> { return undefined; }
@@ -1916,6 +1938,88 @@ export class PostgreSQLStorage implements IStorage {
       .where(and(
         eq(categoryTranslations.categoryId, categoryId),
         eq(categoryTranslations.locale, locale)
+      ));
+  }
+  
+  // ================================
+  // Evaluation Criteria Set Translations
+  // ================================
+  
+  async getEvaluationCriteriaSetTranslation(criteriaSetId: string, locale: string): Promise<EvaluationCriteriaSetTranslation | undefined> {
+    const results = await db.select().from(evaluationCriteriaSetTranslations)
+      .where(and(
+        eq(evaluationCriteriaSetTranslations.criteriaSetId, criteriaSetId),
+        eq(evaluationCriteriaSetTranslations.locale, locale)
+      ));
+    return results[0];
+  }
+  
+  async getEvaluationCriteriaSetTranslations(criteriaSetId: string): Promise<EvaluationCriteriaSetTranslation[]> {
+    return await db.select().from(evaluationCriteriaSetTranslations)
+      .where(eq(evaluationCriteriaSetTranslations.criteriaSetId, criteriaSetId));
+  }
+  
+  async upsertEvaluationCriteriaSetTranslation(translation: InsertEvaluationCriteriaSetTranslation): Promise<EvaluationCriteriaSetTranslation> {
+    const existing = await this.getEvaluationCriteriaSetTranslation(translation.criteriaSetId, translation.locale);
+    
+    if (existing) {
+      const [updated] = await db.update(evaluationCriteriaSetTranslations)
+        .set({ ...translation, updatedAt: new Date() })
+        .where(eq(evaluationCriteriaSetTranslations.id, existing.id))
+        .returning();
+      return updated;
+    } else {
+      const [created] = await db.insert(evaluationCriteriaSetTranslations).values(translation).returning();
+      return created;
+    }
+  }
+  
+  async deleteEvaluationCriteriaSetTranslation(criteriaSetId: string, locale: string): Promise<void> {
+    await db.delete(evaluationCriteriaSetTranslations)
+      .where(and(
+        eq(evaluationCriteriaSetTranslations.criteriaSetId, criteriaSetId),
+        eq(evaluationCriteriaSetTranslations.locale, locale)
+      ));
+  }
+  
+  // ================================
+  // Evaluation Dimension Translations
+  // ================================
+  
+  async getEvaluationDimensionTranslation(dimensionId: string, locale: string): Promise<EvaluationDimensionTranslation | undefined> {
+    const results = await db.select().from(evaluationDimensionTranslations)
+      .where(and(
+        eq(evaluationDimensionTranslations.dimensionId, dimensionId),
+        eq(evaluationDimensionTranslations.locale, locale)
+      ));
+    return results[0];
+  }
+  
+  async getEvaluationDimensionTranslations(dimensionId: string): Promise<EvaluationDimensionTranslation[]> {
+    return await db.select().from(evaluationDimensionTranslations)
+      .where(eq(evaluationDimensionTranslations.dimensionId, dimensionId));
+  }
+  
+  async upsertEvaluationDimensionTranslation(translation: InsertEvaluationDimensionTranslation): Promise<EvaluationDimensionTranslation> {
+    const existing = await this.getEvaluationDimensionTranslation(translation.dimensionId, translation.locale);
+    
+    if (existing) {
+      const [updated] = await db.update(evaluationDimensionTranslations)
+        .set({ ...translation, updatedAt: new Date() })
+        .where(eq(evaluationDimensionTranslations.id, existing.id))
+        .returning();
+      return updated;
+    } else {
+      const [created] = await db.insert(evaluationDimensionTranslations).values(translation).returning();
+      return created;
+    }
+  }
+  
+  async deleteEvaluationDimensionTranslation(dimensionId: string, locale: string): Promise<void> {
+    await db.delete(evaluationDimensionTranslations)
+      .where(and(
+        eq(evaluationDimensionTranslations.dimensionId, dimensionId),
+        eq(evaluationDimensionTranslations.locale, locale)
       ));
   }
   
