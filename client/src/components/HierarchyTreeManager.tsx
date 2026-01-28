@@ -30,8 +30,13 @@ import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { 
   Loader2, Plus, Pencil, Trash2, Building2, Users, FolderTree, 
-  ChevronRight, ChevronDown, MoreHorizontal
+  ChevronRight, ChevronDown, MoreHorizontal, UserCircle
 } from "lucide-react";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import { useTranslation } from "react-i18next";
 import {
   DropdownMenu,
@@ -69,6 +74,16 @@ interface Category {
   createdAt: string;
 }
 
+interface User {
+  id: string;
+  name: string;
+  email: string;
+  role: 'admin' | 'operator' | 'user';
+  assignedCompanyId: string | null;
+  assignedOrganizationId: string | null;
+  assignedCategoryId: string | null;
+}
+
 type DialogType = 'company' | 'organization' | 'category' | null;
 type DialogMode = 'create' | 'edit';
 
@@ -103,6 +118,31 @@ export function HierarchyTreeManager() {
   const { data: categories = [] } = useQuery<Category[]>({
     queryKey: ["/api/admin/categories"],
   });
+
+  const { data: users = [] } = useQuery<User[]>({
+    queryKey: ["/api/system-admin/users"],
+  });
+
+  const operators = users.filter(u => u.role === 'operator');
+
+  const getOperatorsForCompany = (companyId: string) => {
+    return operators.filter(op => 
+      op.assignedCompanyId === companyId && 
+      !op.assignedOrganizationId && 
+      !op.assignedCategoryId
+    );
+  };
+
+  const getOperatorsForOrg = (orgId: string) => {
+    return operators.filter(op => 
+      op.assignedOrganizationId === orgId && 
+      !op.assignedCategoryId
+    );
+  };
+
+  const getOperatorsForCategory = (categoryId: string) => {
+    return operators.filter(op => op.assignedCategoryId === categoryId);
+  };
 
   const createCompanyMutation = useMutation({
     mutationFn: async (data: { name: string; code: string; description: string }) => {
@@ -395,6 +435,66 @@ export function HierarchyTreeManager() {
   const collapseAll = () => {
     setExpandedCompanies(new Set());
     setExpandedOrgs(new Set());
+  };
+
+  const OperatorBadge = ({ operators: ops, level }: { operators: User[]; level: 'company' | 'org' | 'category' }) => {
+    if (ops.length === 0) return null;
+    
+    const sizeClasses = level === 'category' ? 'text-xs' : 'text-xs';
+    
+    return (
+      <>
+        <div className="hidden md:flex items-center gap-1 flex-wrap max-w-[200px]">
+          <UserCircle className="h-3 w-3 text-muted-foreground flex-shrink-0" />
+          {ops.slice(0, 2).map((op) => (
+            <Badge key={op.id} variant="outline" className={`${sizeClasses} py-0 px-1`}>
+              {op.name}
+            </Badge>
+          ))}
+          {ops.length > 2 && (
+            <Popover>
+              <PopoverTrigger asChild>
+                <Badge variant="secondary" className={`${sizeClasses} py-0 px-1 cursor-pointer hover:bg-slate-200`}>
+                  +{ops.length - 2}
+                </Badge>
+              </PopoverTrigger>
+              <PopoverContent className="w-48 p-2">
+                <div className="text-sm font-medium mb-2">{t('hierarchy.assignedOperators', '할당된 운영자')}</div>
+                <div className="space-y-1">
+                  {ops.map((op) => (
+                    <div key={op.id} className="text-sm flex items-center gap-2">
+                      <UserCircle className="h-3 w-3 text-muted-foreground" />
+                      <span>{op.name}</span>
+                    </div>
+                  ))}
+                </div>
+              </PopoverContent>
+            </Popover>
+          )}
+        </div>
+        <div className="md:hidden">
+          <Popover>
+            <PopoverTrigger asChild>
+              <Badge variant="outline" className={`${sizeClasses} py-0 px-1.5 cursor-pointer hover:bg-slate-100`}>
+                <UserCircle className="h-3 w-3 mr-1" />
+                {ops.length}
+              </Badge>
+            </PopoverTrigger>
+            <PopoverContent className="w-48 p-2">
+              <div className="text-sm font-medium mb-2">{t('hierarchy.assignedOperators', '할당된 운영자')}</div>
+              <div className="space-y-1">
+                {ops.map((op) => (
+                  <div key={op.id} className="text-sm flex items-center gap-2">
+                    <UserCircle className="h-3 w-3 text-muted-foreground" />
+                    <span>{op.name}</span>
+                  </div>
+                ))}
+              </div>
+            </PopoverContent>
+          </Popover>
+        </div>
+      </>
+    );
   };
 
   return (
