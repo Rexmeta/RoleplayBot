@@ -387,6 +387,32 @@
     "conversationCreateFailed": "无法创建下一个对话。",
     "feedbackLoadError": "加载反馈时出错。请重试。"
   },
+  "evaluationDimensions": {
+    "clarityLogic": {
+      "name": "清晰度与逻辑性",
+      "description": "表达的清晰性和逻辑结构"
+    },
+    "listeningEmpathy": {
+      "name": "倾听与共情",
+      "description": "倾听他人并产生共情的能力"
+    },
+    "appropriatenessAdaptability": {
+      "name": "适当性与适应性",
+      "description": "针对情况做出适当回应"
+    },
+    "persuasivenessImpact": {
+      "name": "说服力与影响力",
+      "description": "说服并影响他人的能力"
+    },
+    "strategicCommunication": {
+      "name": "战略沟通",
+      "description": "为实现目标的战略性沟通"
+    },
+    "TA": {
+      "name": "Adult主导性",
+      "description": "交互分析理论中Adult自我的优势度"
+    }
+  },
   "mypage": {
     "title": "我的页面",
     "titleSuffix": "的个人页面",

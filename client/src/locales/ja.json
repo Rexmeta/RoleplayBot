@@ -387,6 +387,32 @@
     "conversationCreateFailed": "次の会話を作成できませんでした。",
     "feedbackLoadError": "フィードバックの読み込み中にエラーが発生しました。もう一度お試しください。"
   },
+  "evaluationDimensions": {
+    "clarityLogic": {
+      "name": "明確性と論理性",
+      "description": "意思表現の明確さと論理的構成"
+    },
+    "listeningEmpathy": {
+      "name": "傾聴と共感",
+      "description": "相手の話を聞き、共感する能力"
+    },
+    "appropriatenessAdaptability": {
+      "name": "適切性と状況対応",
+      "description": "状況に適した対応"
+    },
+    "persuasivenessImpact": {
+      "name": "説得力と影響力",
+      "description": "相手を説得し影響を与える能力"
+    },
+    "strategicCommunication": {
+      "name": "戦略的コミュニケーション",
+      "description": "目標達成のための戦略的なコミュニケーション"
+    },
+    "TA": {
+      "name": "Adult主導性",
+      "description": "交流分析理論におけるAdult自我の優位性"
+    }
+  },
   "mypage": {
     "title": "マイページ",
     "titleSuffix": "さんのマイページ",

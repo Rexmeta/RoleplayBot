@@ -408,6 +408,32 @@
     "conversationCreateFailed": "다음 대화를 생성할 수 없습니다.",
     "feedbackLoadError": "피드백을 불러오는 중 오류가 발생했습니다. 다시 시도해주세요."
   },
+  "evaluationDimensions": {
+    "clarityLogic": {
+      "name": "명확성 & 논리성",
+      "description": "의사 표현의 명확성과 논리적 구성"
+    },
+    "listeningEmpathy": {
+      "name": "경청 & 공감",
+      "description": "상대방의 말을 듣고 공감하는 능력"
+    },
+    "appropriatenessAdaptability": {
+      "name": "적절성 & 상황대응",
+      "description": "상황에 맞는 적절한 대응"
+    },
+    "persuasivenessImpact": {
+      "name": "설득력 & 영향력",
+      "description": "상대방을 설득하고 영향을 미치는 능력"
+    },
+    "strategicCommunication": {
+      "name": "전략적 커뮤니케이션",
+      "description": "목표 달성을 위한 전략적 소통"
+    },
+    "TA": {
+      "name": "Adult 주도성",
+      "description": "교류분석 이론의 Adult 자아 우세도"
+    }
+  },
   "mypage": {
     "title": "마이페이지",
     "titleSuffix": "님의 마이페이지",

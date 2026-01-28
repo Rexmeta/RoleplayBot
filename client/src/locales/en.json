@@ -387,6 +387,32 @@
     "conversationCreateFailed": "Failed to create the next conversation.",
     "feedbackLoadError": "An error occurred while loading feedback. Please try again."
   },
+  "evaluationDimensions": {
+    "clarityLogic": {
+      "name": "Clarity & Logic",
+      "description": "Clarity and logical structure of expression"
+    },
+    "listeningEmpathy": {
+      "name": "Listening & Empathy",
+      "description": "Ability to listen and empathize with others"
+    },
+    "appropriatenessAdaptability": {
+      "name": "Appropriateness & Adaptability",
+      "description": "Appropriate responses suited to the situation"
+    },
+    "persuasivenessImpact": {
+      "name": "Persuasiveness & Influence",
+      "description": "Ability to persuade and influence others"
+    },
+    "strategicCommunication": {
+      "name": "Strategic Communication",
+      "description": "Strategic communication for goal achievement"
+    },
+    "TA": {
+      "name": "Adult Dominance",
+      "description": "Adult ego dominance in Transactional Analysis theory"
+    }
+  },
   "mypage": {
     "title": "My Page",
     "titleSuffix": "'s My Page",
