@@ -550,13 +550,14 @@ export function HierarchyTreeManager() {
                             )}
                           </Button>
                         </CollapsibleTrigger>
-                        <div className="flex items-center gap-2">
-                          <Badge variant={company.isActive ? "default" : "secondary"}>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <Badge variant={company.isActive ? "default" : "secondary"} className="hidden sm:inline-flex">
                             {company.isActive ? t('common.active', '활성') : t('common.inactive', '비활성')}
                           </Badge>
-                          <span className="text-sm text-muted-foreground">
+                          <span className="text-sm text-muted-foreground hidden sm:inline">
                             {t('hierarchy.orgCount', '{{count}}개 조직', { count: orgs.length })}
                           </span>
+                          <OperatorBadge operators={getOperatorsForCompany(company.id)} level="company" />
                           <DropdownMenu>
                             <DropdownMenuTrigger asChild>
                               <Button variant="ghost" size="icon" className="h-8 w-8">
@@ -613,13 +614,14 @@ export function HierarchyTreeManager() {
                                           )}
                                         </Button>
                                       </CollapsibleTrigger>
-                                      <div className="flex items-center gap-2">
-                                        <Badge variant={org.isActive ? "default" : "secondary"} className="text-xs">
+                                      <div className="flex items-center gap-2 flex-wrap">
+                                        <Badge variant={org.isActive ? "default" : "secondary"} className="text-xs hidden sm:inline-flex">
                                           {org.isActive ? t('common.active', '활성') : t('common.inactive', '비활성')}
                                         </Badge>
-                                        <span className="text-xs text-muted-foreground">
+                                        <span className="text-xs text-muted-foreground hidden sm:inline">
                                           {t('hierarchy.catCount', '{{count}}개 카테고리', { count: cats.length })}
                                         </span>
+                                        <OperatorBadge operators={getOperatorsForOrg(org.id)} level="org" />
                                         <DropdownMenu>
                                           <DropdownMenuTrigger asChild>
                                             <Button variant="ghost" size="icon" className="h-7 w-7">
@@ -664,10 +666,11 @@ export function HierarchyTreeManager() {
                                                 <FolderTree className="h-4 w-4 text-orange-500" />
                                                 <span className="text-sm">{cat.name}</span>
                                               </div>
-                                              <div className="flex items-center gap-2">
-                                                <Badge variant={cat.isActive ? "default" : "secondary"} className="text-xs">
+                                              <div className="flex items-center gap-2 flex-wrap">
+                                                <Badge variant={cat.isActive ? "default" : "secondary"} className="text-xs hidden sm:inline-flex">
                                                   {cat.isActive ? t('common.active', '활성') : t('common.inactive', '비활성')}
                                                 </Badge>
+                                                <OperatorBadge operators={getOperatorsForCategory(cat.id)} level="category" />
                                                 <DropdownMenu>
                                                   <DropdownMenuTrigger asChild>
                                                     <Button variant="ghost" size="icon" className="h-6 w-6">
@@ -729,7 +732,8 @@ export function HierarchyTreeManager() {
                         <FolderTree className="h-4 w-4 text-orange-500" />
                         <span className="text-sm">{cat.name}</span>
                       </div>
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <OperatorBadge operators={getOperatorsForCategory(cat.id)} level="category" />
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
                             <Button variant="ghost" size="icon" className="h-6 w-6">
