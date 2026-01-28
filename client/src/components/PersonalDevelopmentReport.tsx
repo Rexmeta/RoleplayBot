@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
+import { useTranslation } from "react-i18next";
 
 import type { ComplexScenario, ScenarioPersona } from "@/lib/scenario-system";
 import type { Feedback } from "@shared/schema";
@@ -40,6 +41,7 @@ export default function PersonalDevelopmentReport({
   onReady
 }: PersonalDevelopmentReportProps) {
   const { toast } = useToast();
+  const { t } = useTranslation();
   const [showDetailedFeedback, setShowDetailedFeedback] = useState(true); // 애니메이션 없이 바로 표시
   const [hasRequestedFeedback, setHasRequestedFeedback] = useState(false); // 피드백 생성 요청 여부
   const [isExportingPdf, setIsExportingPdf] = useState(false); // PDF 내보내기 중
@@ -104,7 +106,7 @@ export default function PersonalDevelopmentReport({
     queryKey: ['/api/auth/user'],
   });
 
-  const userName = userProfile?.name || '사용자';
+  const userName = userProfile?.name || t('report.defaultUser', '사용자');
 
   // 다음 페르소나 확인 (서버에서 온 scenario는 personas가 객체 배열)
   const getNextPersona = () => {
@@ -133,7 +135,7 @@ export default function PersonalDevelopmentReport({
   // 다음 대화 상대와 대화 생성
   const createNextConversationMutation = useMutation({
     mutationFn: async () => {
-      if (!nextPersona) throw new Error("다음 대화 상대가 없습니다");
+      if (!nextPersona) throw new Error("NO_NEXT_PERSONA");
       
       const response = await apiRequest('POST', '/api/conversations', {
         scenarioId: scenario.id,
@@ -142,7 +144,7 @@ export default function PersonalDevelopmentReport({
       });
 
       if (!response.ok) {
-        throw new Error('대화 생성 실패');
+        throw new Error('CREATE_FAILED');
       }
 
       return response.json();
@@ -152,9 +154,12 @@ export default function PersonalDevelopmentReport({
       window.location.href = `/chat/${data.id}`;
     },
     onError: (error) => {
+      const errorKey = error.message === 'NO_NEXT_PERSONA' 
+        ? 'report.noNextPersonaError'
+        : 'report.conversationCreateFailed';
       toast({
-        title: "오류",
-        description: `다음 대화를 생성할 수 없습니다: ${error.message}`,
+        title: t('report.error', 'Error'),
+        description: t(errorKey, 'Failed to create the next conversation.'),
         variant: "destructive"
       });
     }
@@ -320,7 +325,7 @@ export default function PersonalDevelopmentReport({
     const timePerformance = feedback.detailedFeedback?.timePerformance;
     
     const userProfile = userConversations.length > 0 ? userConversations[0].user : null;
-    const userName = userProfile?.name || '사용자';
+    const userName = userProfile?.name || t('report.defaultUser', '사용자');
 
     return `
       <div style="font-family: 'Noto Sans KR', sans-serif; padding: 20px; max-width: 800px; margin: 0 auto;">
@@ -790,8 +795,8 @@ export default function PersonalDevelopmentReport({
     return (
       <div className="text-center py-16" data-testid="feedback-loading">
         <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-corporate-600 mx-auto mb-4"></div>
-        <h2 className="text-xl font-semibold text-slate-900 mb-2">개인 맞춤 분석 중...</h2>
-        <p className="text-slate-600">AI가 대화를 심층 분석하여 맞춤형 개발 계획을 수립하고 있습니다.</p>
+        <h2 className="text-xl font-semibold text-slate-900 mb-2">{t('report.analyzing', '개인 맞춤 분석 중...')}</h2>
+        <p className="text-slate-600">{t('report.analyzingDesc', 'AI가 대화를 심층 분석하여 맞춤형 개발 계획을 수립하고 있습니다.')}</p>
       </div>
     );
   }
@@ -806,22 +811,22 @@ export default function PersonalDevelopmentReport({
         <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
           <i className="fas fa-clipboard-list text-blue-600 text-xl"></i>
         </div>
-        <h2 className="text-xl font-semibold text-slate-900 mb-2">피드백이 아직 생성되지 않았습니다</h2>
-        <p className="text-slate-600 mb-4">대화를 완료한 후 피드백을 생성할 수 있습니다.</p>
+        <h2 className="text-xl font-semibold text-slate-900 mb-2">{t('report.notGenerated', '피드백이 아직 생성되지 않았습니다')}</h2>
+        <p className="text-slate-600 mb-4">{t('report.notGeneratedDesc', '대화를 완료한 후 피드백을 생성할 수 있습니다.')}</p>
         <div className="space-y-2">
           <Button 
             onClick={handleGenerateFeedback} 
             data-testid="generate-feedback"
             disabled={generateFeedbackMutation.isPending}
           >
-            {generateFeedbackMutation.isPending ? "피드백 생성 중..." : "피드백 생성하기"}
+            {generateFeedbackMutation.isPending ? t('report.generating', '피드백 생성 중...') : t('report.generate', '피드백 생성하기')}
           </Button>
           <Button 
             variant="outline" 
             onClick={() => window.location.href = '/mypage'} 
             data-testid="back-to-mypage"
           >
-            마이페이지로 돌아가기
+            {t('report.backToMyPage', '마이페이지로 돌아가기')}
           </Button>
         </div>
       </div>
@@ -835,18 +840,18 @@ export default function PersonalDevelopmentReport({
         <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
           <i className="fas fa-exclamation-triangle text-red-600 text-xl"></i>
         </div>
-        <h2 className="text-xl font-semibold text-slate-900 mb-2">오류가 발생했습니다</h2>
-        <p className="text-slate-600 mb-4">{error.message || "알 수 없는 오류가 발생했습니다."}</p>
+        <h2 className="text-xl font-semibold text-slate-900 mb-2">{t('report.error', '오류가 발생했습니다')}</h2>
+        <p className="text-slate-600 mb-4">{t('report.feedbackLoadError', '피드백을 불러오는 중 오류가 발생했습니다. 다시 시도해주세요.')}</p>
         <div className="space-y-2">
           <Button onClick={() => refetch()} data-testid="refetch-feedback">
-            다시 시도
+            {t('common.retry', '다시 시도')}
           </Button>
           <Button 
             variant="outline" 
             onClick={() => window.location.href = '/mypage'} 
             data-testid="back-to-mypage"
           >
-            마이페이지로 돌아가기
+            {t('report.backToMyPage', '마이페이지로 돌아가기')}
           </Button>
         </div>
       </div>
@@ -861,11 +866,11 @@ export default function PersonalDevelopmentReport({
   };
 
   const getScoreLabel = (score: number) => {
-    if (score >= 5) return "탁월";
-    if (score >= 4) return "우수";
-    if (score >= 3) return "보통";
-    if (score >= 2) return "개선 필요";
-    return "미흡";
+    if (score >= 5) return t('report.scoreExcellent', '탁월');
+    if (score >= 4) return t('report.scoreGood', '우수');
+    if (score >= 3) return t('report.scoreAverage', '보통');
+    if (score >= 2) return t('report.scoreNeedsImprovement', '개선 필요');
+    return t('report.scorePoor', '미흡');
   };
 
   const getOverallGrade = (score: number) => {
@@ -889,8 +894,8 @@ export default function PersonalDevelopmentReport({
           <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-corporate-600 mx-auto"></div>
           <div className="animate-pulse absolute inset-0 rounded-full h-16 w-16 border-2 border-corporate-200 mx-auto"></div>
         </div>
-        <h2 className="text-xl font-semibold text-slate-900 mb-2 animate-pulse-gentle">개인 맞춤 분석 중...</h2>
-        <p className="text-slate-600 mb-4">AI가 대화를 심층 분석하여 맞춤형 개발 계획을 수립하고 있습니다.</p>
+        <h2 className="text-xl font-semibold text-slate-900 mb-2 animate-pulse-gentle">{t('report.analyzing', '개인 맞춤 분석 중...')}</h2>
+        <p className="text-slate-600 mb-4">{t('report.analyzingDesc', 'AI가 대화를 심층 분석하여 맞춤형 개발 계획을 수립하고 있습니다.')}</p>
         <div className="flex justify-center space-x-1 mt-6">
           <div className="w-2 h-2 bg-corporate-500 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
           <div className="w-2 h-2 bg-corporate-500 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
@@ -904,7 +909,7 @@ export default function PersonalDevelopmentReport({
     <div ref={reportRef} className="max-w-6xl mx-auto space-y-6 print-report-container" data-testid="personal-development-report">
       {/* PDF 전용 헤더 (인쇄/PDF 시에만 표시) */}
       <div className="pdf-header hidden print:block">
-        개인 맞춤 개발 보고서 - {scenario.title}
+        {t('report.pdfTitle', '개인 맞춤 개발 보고서')} - {scenario.title}
       </div>
       
       {/* 화면용 헤더 */}
@@ -925,7 +930,7 @@ export default function PersonalDevelopmentReport({
             data-testid="mypage-button"
           >
             <i className="fas fa-user mr-2"></i>
-            마이페이지로
+            {t('report.toMyPage', '마이페이지로')}
           </Button>
         </div>
         <div className="flex items-center justify-between">
@@ -935,12 +940,12 @@ export default function PersonalDevelopmentReport({
               animation: `slideInRight 0.8s ease-out 0.3s forwards`
             }}
           >
-            <h1 className="text-2xl font-bold mb-2" data-testid="report-title">{userName}님 맞춤 보고서</h1>
-            <p className="text-corporate-100">시나리오 : {scenario.title}</p>
-            <p className="text-corporate-100 text-sm mt-1">대화 상대 : {getPersonaFullInfo()}</p>
+            <h1 className="text-2xl font-bold mb-2" data-testid="report-title">{t('report.title', '{{name}}님 맞춤 보고서', { name: userName })}</h1>
+            <p className="text-corporate-100">{t('report.scenario', '시나리오')} : {scenario.title}</p>
+            <p className="text-corporate-100 text-sm mt-1">{t('report.conversationPartner', '대화 상대')} : {getPersonaFullInfo()}</p>
             <div className="mt-3 text-sm text-corporate-200">
               <i className="fas fa-history mr-2"></i>
-              대화 일시: {new Date().toLocaleString('ko-KR')}
+              {t('report.conversationDate', '대화 일시')}: {new Date().toLocaleString()}
             </div>
           </div>
           <div 
@@ -951,8 +956,8 @@ export default function PersonalDevelopmentReport({
             }}
           >
             <div className="text-3xl font-bold transition-all duration-500" data-testid="overall-grade">{overallGrade.grade}</div>
-            <div className="text-sm font-medium transition-all duration-1000">{displayOverallScore}점</div>
-            <div className="text-xs">종합 점수</div>
+            <div className="text-sm font-medium transition-all duration-1000">{displayOverallScore}{t('report.points', '점')}</div>
+            <div className="text-xs">{t('report.overallScore', '종합 점수')}</div>
           </div>
         </div>
       </div>
@@ -963,7 +968,7 @@ export default function PersonalDevelopmentReport({
           <CardHeader>
             <CardTitle className="text-lg flex items-center text-blue-800">
               <i className="fas fa-clock mr-2"></i>
-              대화 시간 분석
+              {t('report.timeAnalysis', '대화 시간 분석')}
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -976,14 +981,14 @@ export default function PersonalDevelopmentReport({
                     return `${minutes}:${seconds.toString().padStart(2, '0')}`;
                   })()}
                 </div>
-                <div className="text-sm text-slate-600">총 대화 시간</div>
+                <div className="text-sm text-slate-600">{t('report.totalDuration', '총 대화 시간')}</div>
               </div>
               {feedback?.detailedFeedback?.averageResponseTime && (
                 <div className="bg-white rounded-lg p-4">
                   <div className="text-2xl font-bold text-green-600">
                     {feedback.detailedFeedback.averageResponseTime}초
                   </div>
-                  <div className="text-sm text-slate-600">평균 응답 시간</div>
+                  <div className="text-sm text-slate-600">{t('report.avgResponseTime', '평균 응답 시간')}</div>
                 </div>
               )}
               {feedback?.detailedFeedback?.timePerformance && (
@@ -993,9 +998,9 @@ export default function PersonalDevelopmentReport({
                     feedback.detailedFeedback.timePerformance.rating === 'good' ? 'text-blue-600' :
                     feedback.detailedFeedback.timePerformance.rating === 'average' ? 'text-yellow-600' : 'text-red-600'
                   }`}>
-                    {feedback.detailedFeedback.timePerformance.rating === 'excellent' ? '🎯 우수' :
-                     feedback.detailedFeedback.timePerformance.rating === 'good' ? '✅ 좋음' :
-                     feedback.detailedFeedback.timePerformance.rating === 'average' ? '🔶 보통' : '⚠️ 개선필요'}
+                    {feedback.detailedFeedback.timePerformance.rating === 'excellent' ? t('report.ratingExcellent', '🎯 우수') :
+                     feedback.detailedFeedback.timePerformance.rating === 'good' ? t('report.ratingGood', '✅ 좋음') :
+                     feedback.detailedFeedback.timePerformance.rating === 'average' ? t('report.ratingAverage', '🔶 보통') : t('report.ratingNeedsWork', '⚠️ 개선필요')}
                   </div>
                   <div className="text-xs text-slate-600 mt-1">
                     {feedback.detailedFeedback.timePerformance.feedback}
@@ -1015,18 +1020,18 @@ export default function PersonalDevelopmentReport({
             animation: `fadeInUp 0.6s ease-out 1s forwards`
           }}
         >
-          <TabsTrigger value="scores" data-testid="tab-scores" className="transition-all duration-300 hover:scale-105">성과 분석</TabsTrigger>
-          <TabsTrigger value="behavior" data-testid="tab-behavior" className="transition-all duration-300 hover:scale-105">행동 가이드</TabsTrigger>
-          <TabsTrigger value="conversation" data-testid="tab-conversation" className="transition-all duration-300 hover:scale-105">대화 가이드</TabsTrigger>
-          <TabsTrigger value="development" data-testid="tab-development" className="transition-all duration-300 hover:scale-105">개발 계획</TabsTrigger>
+          <TabsTrigger value="scores" data-testid="tab-scores" className="transition-all duration-300 hover:scale-105">{t('report.tabs.scores', '성과 분석')}</TabsTrigger>
+          <TabsTrigger value="behavior" data-testid="tab-behavior" className="transition-all duration-300 hover:scale-105">{t('report.tabs.behavior', '행동 가이드')}</TabsTrigger>
+          <TabsTrigger value="conversation" data-testid="tab-conversation" className="transition-all duration-300 hover:scale-105">{t('report.tabs.conversation', '대화 가이드')}</TabsTrigger>
+          <TabsTrigger value="development" data-testid="tab-development" className="transition-all duration-300 hover:scale-105">{t('report.tabs.development', '개발 계획')}</TabsTrigger>
           {feedback?.detailedFeedback?.sequenceAnalysis && (
-            <TabsTrigger value="strategy" data-testid="tab-strategy" className="transition-all duration-300 hover:scale-105">전략 평가</TabsTrigger>
+            <TabsTrigger value="strategy" data-testid="tab-strategy" className="transition-all duration-300 hover:scale-105">{t('report.tabs.strategy', '전략 평가')}</TabsTrigger>
           )}
         </TabsList>
 
         {/* 성과 분석 */}
         <TabsContent value="scores" className="space-y-6 print-show-all">
-          <h2 className="print-section-title hidden print:block">📊 성과 분석</h2>
+          <h2 className="print-section-title hidden print:block">📊 {t('report.tabs.scores', '성과 분석')}</h2>
           
           {/* 사용된 평가 기준 세트 정보 */}
           {feedback?.detailedFeedback?.evaluationCriteriaSetName && (
@@ -1034,7 +1039,7 @@ export default function PersonalDevelopmentReport({
               <div className="flex items-center gap-2">
                 <i className="fas fa-clipboard-check text-indigo-600"></i>
                 <span className="text-sm font-medium text-indigo-800">
-                  평가 기준: {feedback.detailedFeedback.evaluationCriteriaSetName}
+                  {t('report.evaluationCriteria', '평가 기준')}: {feedback.detailedFeedback.evaluationCriteriaSetName}
                 </span>
               </div>
             </div>
@@ -1106,7 +1111,7 @@ export default function PersonalDevelopmentReport({
             <CardHeader>
               <CardTitle className="flex items-center">
                 <i className="fas fa-chart-line text-corporate-600 mr-2 transition-transform duration-300 hover:scale-110"></i>
-                종합 평가
+                {t('report.overallEvaluation', '종합 평가')}
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -1114,7 +1119,7 @@ export default function PersonalDevelopmentReport({
                 <div>
                   <h4 className="font-semibold text-green-700 mb-2 flex items-center">
                     <i className="fas fa-thumbs-up mr-2"></i>
-                    주요 강점
+                    {t('report.mainStrengths', '주요 강점')}
                   </h4>
                   <ul className="space-y-2" data-testid="strengths-list">
                     {feedback?.detailedFeedback?.strengths?.map((strength, index) => (
@@ -1128,7 +1133,7 @@ export default function PersonalDevelopmentReport({
                 <div>
                   <h4 className="font-semibold text-orange-700 mb-2 flex items-center">
                     <i className="fas fa-arrow-up mr-2"></i>
-                    개선 포인트
+                    {t('report.improvementPoints', '개선 포인트')}
                   </h4>
                   <ul className="space-y-2" data-testid="improvements-list">
                     {feedback?.detailedFeedback?.improvements?.map((improvement, index) => (
@@ -1142,7 +1147,7 @@ export default function PersonalDevelopmentReport({
                 <div>
                   <h4 className="font-semibold text-blue-700 mb-2 flex items-center">
                     <i className="fas fa-forward mr-2"></i>
-                    다음 단계
+                    {t('report.nextSteps', '다음 단계')}
                   </h4>
                   <ul className="space-y-2" data-testid="next-steps-list">
                     {feedback?.detailedFeedback?.nextSteps?.map((step, index) => (
@@ -1156,7 +1161,7 @@ export default function PersonalDevelopmentReport({
               </div>
               <div className="pt-4 border-t border-slate-200">
                 <p className="text-slate-700 leading-relaxed" data-testid="ranking-summary">
-                  <strong>전문가 의견:</strong> {feedback?.detailedFeedback?.ranking}
+                  <strong>{t('report.expertOpinion', '전문가 의견')}:</strong> {feedback?.detailedFeedback?.ranking}
                 </p>
               </div>
             </CardContent>
@@ -1165,7 +1170,7 @@ export default function PersonalDevelopmentReport({
 
         {/* 행동 가이드 */}
         <TabsContent value="behavior" className="space-y-6 print-show-all print-section-break">
-          <h2 className="print-section-title hidden print:block">🎯 행동 가이드</h2>
+          <h2 className="print-section-title hidden print:block">🎯 {t('report.tabs.behavior', '행동 가이드')}</h2>
           <div className="grid grid-cols-1 gap-6">
             {feedback?.detailedFeedback?.behaviorGuides?.map((guide, index) => (
               <Card key={index} className="hover:shadow-md transition-shadow" data-testid={`behavior-guide-${index}`}>
@@ -1177,17 +1182,17 @@ export default function PersonalDevelopmentReport({
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <div>
-                    <h4 className="font-semibold text-corporate-700 mb-2">권장 행동</h4>
+                    <h4 className="font-semibold text-corporate-700 mb-2">{t('report.recommendedAction', '권장 행동')}</h4>
                     <p className="text-slate-700 bg-corporate-50 p-3 rounded-lg">{guide.action}</p>
                   </div>
                   <div>
-                    <h4 className="font-semibold text-green-700 mb-2">구체적 예시</h4>
+                    <h4 className="font-semibold text-green-700 mb-2">{t('report.specificExample', '구체적 예시')}</h4>
                     <div className="bg-green-50 border-l-4 border-green-400 p-3 rounded">
                       <p className="text-green-800 italic">"{guide.example}"</p>
                     </div>
                   </div>
                   <div>
-                    <h4 className="font-semibold text-blue-700 mb-2">기대 효과</h4>
+                    <h4 className="font-semibold text-blue-700 mb-2">{t('report.expectedEffect', '기대 효과')}</h4>
                     <div className="flex items-center space-x-2">
                       <i className="fas fa-chart-line text-blue-500"></i>
                       <p className="text-slate-700">{guide.impact}</p>
@@ -1199,7 +1204,7 @@ export default function PersonalDevelopmentReport({
               <Card>
                 <CardContent className="text-center py-8">
                   <i className="fas fa-info-circle text-slate-400 text-2xl mb-2"></i>
-                  <p className="text-slate-500">구체적인 행동 가이드가 준비 중입니다.</p>
+                  <p className="text-slate-500">{t('report.behaviorGuideLoading', '구체적인 행동 가이드가 준비 중입니다.')}</p>
                 </CardContent>
               </Card>
             )}
@@ -1208,7 +1213,7 @@ export default function PersonalDevelopmentReport({
 
         {/* 대화 가이드 */}
         <TabsContent value="conversation" className="space-y-6 print-show-all print-section-break">
-          <h2 className="print-section-title hidden print:block">💬 대화 가이드</h2>
+          <h2 className="print-section-title hidden print:block">💬 {t('report.tabs.conversation', '대화 가이드')}</h2>
           <div className="grid grid-cols-1 gap-6">
             {feedback?.detailedFeedback?.conversationGuides?.map((guide, index) => (
               <Card key={index} className="hover:shadow-md transition-shadow" data-testid={`conversation-guide-${index}`}>
@@ -1223,7 +1228,7 @@ export default function PersonalDevelopmentReport({
                     <div>
                       <h4 className="font-semibold text-green-700 mb-2 flex items-center">
                         <i className="fas fa-check-circle text-green-500 mr-2"></i>
-                        좋은 예시
+                        {t('report.goodExample', '좋은 예시')}
                       </h4>
                       <div className="bg-green-50 border border-green-200 p-3 rounded-lg">
                         <p className="text-green-800 text-sm">{guide.goodExample}</p>
@@ -1232,7 +1237,7 @@ export default function PersonalDevelopmentReport({
                     <div>
                       <h4 className="font-semibold text-red-700 mb-2 flex items-center">
                         <i className="fas fa-times-circle text-red-500 mr-2"></i>
-                        피해야 할 예시
+                        {t('report.badExample', '피해야 할 예시')}
                       </h4>
                       <div className="bg-red-50 border border-red-200 p-3 rounded-lg">
                         <p className="text-red-800 text-sm">{guide.badExample}</p>
@@ -1242,7 +1247,7 @@ export default function PersonalDevelopmentReport({
                   <div>
                     <h4 className="font-semibold text-corporate-700 mb-2 flex items-center">
                       <i className="fas fa-key text-corporate-500 mr-2"></i>
-                      핵심 포인트
+                      {t('report.keyPoints', '핵심 포인트')}
                     </h4>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
                       {guide.keyPoints.map((point, pointIndex) => (
@@ -1259,7 +1264,7 @@ export default function PersonalDevelopmentReport({
               <Card>
                 <CardContent className="text-center py-8">
                   <i className="fas fa-info-circle text-slate-400 text-2xl mb-2"></i>
-                  <p className="text-slate-500">맞춤형 대화 가이드가 준비 중입니다.</p>
+                  <p className="text-slate-500">{t('report.conversationGuideLoading', '맞춤형 대화 가이드가 준비 중입니다.')}</p>
                 </CardContent>
               </Card>
             )}
@@ -1268,7 +1273,7 @@ export default function PersonalDevelopmentReport({
 
         {/* 개발 계획 */}
         <TabsContent value="development" className="space-y-6 print-show-all print-section-break">
-          <h2 className="print-section-title hidden print:block">📈 개발 계획</h2>
+          <h2 className="print-section-title hidden print:block">📈 {t('report.tabs.development', '개발 계획')}</h2>
           {feedback?.detailedFeedback?.developmentPlan && (
             <>
               {/* 단기/중기/장기 계획 */}
@@ -1277,7 +1282,7 @@ export default function PersonalDevelopmentReport({
                   <CardHeader>
                     <CardTitle className="text-green-700 flex items-center">
                       <i className="fas fa-calendar-week mr-2"></i>
-                      단기 목표 (1-2주)
+                      {t('report.shortTermGoal', '단기 목표 (1-2주)')}
                     </CardTitle>
                   </CardHeader>
                   <CardContent className="space-y-4">
@@ -1293,7 +1298,7 @@ export default function PersonalDevelopmentReport({
                           ))}
                         </ul>
                         <div className="text-xs text-green-600 bg-green-100 px-2 py-1 rounded">
-                          측정지표: {item.measurable}
+                          {t('report.measurable', '측정지표')}: {item.measurable}
                         </div>
                       </div>
                     ))}
@@ -1304,7 +1309,7 @@ export default function PersonalDevelopmentReport({
                   <CardHeader>
                     <CardTitle className="text-blue-700 flex items-center">
                       <i className="fas fa-calendar-alt mr-2"></i>
-                      중기 목표 (1-2개월)
+                      {t('report.mediumTermGoal', '중기 목표 (1-2개월)')}
                     </CardTitle>
                   </CardHeader>
                   <CardContent className="space-y-4">
@@ -1320,7 +1325,7 @@ export default function PersonalDevelopmentReport({
                           ))}
                         </ul>
                         <div className="text-xs text-blue-600 bg-blue-100 px-2 py-1 rounded">
-                          측정지표: {item.measurable}
+                          {t('report.measurable', '측정지표')}: {item.measurable}
                         </div>
                       </div>
                     ))}
@@ -1331,7 +1336,7 @@ export default function PersonalDevelopmentReport({
                   <CardHeader>
                     <CardTitle className="text-purple-700 flex items-center">
                       <i className="fas fa-calendar mr-2"></i>
-                      장기 목표 (3-6개월)
+                      {t('report.longTermGoal', '장기 목표 (3-6개월)')}
                     </CardTitle>
                   </CardHeader>
                   <CardContent className="space-y-4">
@@ -1347,7 +1352,7 @@ export default function PersonalDevelopmentReport({
                           ))}
                         </ul>
                         <div className="text-xs text-purple-600 bg-purple-100 px-2 py-1 rounded">
-                          측정지표: {item.measurable}
+                          {t('report.measurable', '측정지표')}: {item.measurable}
                         </div>
                       </div>
                     ))}
@@ -1360,7 +1365,7 @@ export default function PersonalDevelopmentReport({
                 <CardHeader>
                   <CardTitle className="flex items-center">
                     <i className="fas fa-book-open text-corporate-600 mr-2"></i>
-                    추천 학습 자료 및 리소스
+                    {t('report.recommendedResources', '추천 학습 자료 및 리소스')}
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
@@ -1381,25 +1386,25 @@ export default function PersonalDevelopmentReport({
         {/* 전략 평가 */}
         {feedback?.detailedFeedback?.sequenceAnalysis && (
           <TabsContent value="strategy" className="space-y-6 print-show-all print-section-break">
-            <h2 className="print-section-title hidden print:block">🎮 전략 평가</h2>
+            <h2 className="print-section-title hidden print:block">🎮 {t('report.tabs.strategy', '전략 평가')}</h2>
             <Card className="border-l-4 border-l-purple-500">
               <CardHeader>
                 <CardTitle className="flex items-center text-xl">
                   <i className="fas fa-chess text-purple-600 mr-3"></i>
-                  전략적 선택 분석
+                  {t('report.strategicAnalysis', '전략적 선택 분석')}
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-6">
                 {/* 전략 점수 */}
                 <div className="bg-purple-50 p-6 rounded-lg">
                   <div className="flex items-center justify-between mb-4">
-                    <h3 className="text-lg font-semibold text-purple-900">전략 점수</h3>
+                    <h3 className="text-lg font-semibold text-purple-900">{t('report.strategyScore', '전략 점수')}</h3>
                     <Badge variant="outline" className="text-2xl font-bold bg-purple-100 text-purple-700 px-4 py-2">
-                      {feedback.detailedFeedback.sequenceAnalysis.strategicScore ?? '평가 대기중'}
+                      {feedback.detailedFeedback.sequenceAnalysis.strategicScore ?? t('report.awaitingEvaluation', '평가 대기중')}
                     </Badge>
                   </div>
                   <p className="text-purple-700">
-                    {feedback.detailedFeedback.sequenceAnalysis.strategicRationale || '전략 평가가 아직 생성되지 않았습니다.'}
+                    {feedback.detailedFeedback.sequenceAnalysis.strategicRationale || t('report.strategyNotGenerated', '전략 평가가 아직 생성되지 않았습니다.')}
                   </p>
                 </div>
 
@@ -1408,7 +1413,7 @@ export default function PersonalDevelopmentReport({
                   <div>
                     <h3 className="text-lg font-semibold text-slate-900 mb-3 flex items-center">
                       <i className="fas fa-bullseye text-blue-500 mr-2"></i>
-                      순서 선택의 효과성
+                      {t('report.sequenceEffectiveness', '순서 선택의 효과성')}
                     </h3>
                     <p className="text-slate-700 bg-slate-50 p-4 rounded-lg">
                       {feedback.detailedFeedback.sequenceAnalysis.sequenceEffectiveness}
@@ -1421,7 +1426,7 @@ export default function PersonalDevelopmentReport({
                   <div>
                     <h3 className="text-lg font-semibold text-slate-900 mb-3 flex items-center">
                       <i className="fas fa-lightbulb text-yellow-500 mr-2"></i>
-                      전략적 통찰
+                      {t('report.strategicInsights', '전략적 통찰')}
                     </h3>
                     <p className="text-slate-700 bg-yellow-50 p-4 rounded-lg border-l-4 border-yellow-400">
                       {feedback.detailedFeedback.sequenceAnalysis.strategicInsights}
@@ -1435,7 +1440,7 @@ export default function PersonalDevelopmentReport({
                   <div>
                     <h3 className="text-lg font-semibold text-slate-900 mb-3 flex items-center">
                       <i className="fas fa-route text-green-500 mr-2"></i>
-                      대안적 접근법
+                      {t('report.alternativeApproaches', '대안적 접근법')}
                     </h3>
                     <div className="space-y-3">
                       {feedback.detailedFeedback.sequenceAnalysis.alternativeApproaches.map((approach: string, index: number) => (
@@ -1462,7 +1467,7 @@ export default function PersonalDevelopmentReport({
           data-testid="back-to-mypage-button"
         >
           <i className="fas fa-home mr-2"></i>
-          마이페이지
+          {t('report.myPage', '마이페이지')}
         </Button>
         
         {/* Home.tsx에서 전달된 다음 페르소나 버튼 (우선순위 높음) */}
@@ -1473,7 +1478,7 @@ export default function PersonalDevelopmentReport({
             data-testid="next-persona-button"
           >
             <i className="fas fa-arrow-right mr-2"></i>
-            다음 페르소나와 대화하기
+            {t('report.nextPersona', '다음 페르소나와 대화하기')}
           </Button>
         )}
         
@@ -1485,7 +1490,7 @@ export default function PersonalDevelopmentReport({
             data-testid="strategy-reflection-button"
           >
             <i className="fas fa-clipboard-list mr-2"></i>
-            전략 평가 보기
+            {t('report.viewStrategyEvaluation', '전략 평가 보기')}
           </Button>
         )}
         
@@ -1498,7 +1503,7 @@ export default function PersonalDevelopmentReport({
             disabled={createNextConversationMutation.isPending}
           >
             <i className="fas fa-arrow-right mr-2"></i>
-            {createNextConversationMutation.isPending ? '생성 중...' : `다음 대화 상대: ${nextPersona.name}`}
+            {createNextConversationMutation.isPending ? t('report.creating', '생성 중...') : t('report.nextConversationPartner', '다음 대화 상대: {{name}}', { name: nextPersona.name })}
           </Button>
         )}
         
@@ -1509,7 +1514,7 @@ export default function PersonalDevelopmentReport({
           data-testid="new-scenario-button"
         >
           <i className="fas fa-redo mr-2"></i>
-          새로운 훈련
+          {t('report.newTraining', '새로운 훈련')}
         </Button>
         <Button 
           onClick={onRetry}
@@ -1517,7 +1522,7 @@ export default function PersonalDevelopmentReport({
           data-testid="retry-scenario-button"
         >
           <i className="fas fa-sync-alt mr-2"></i>
-          같은 시나리오 재도전
+          {t('report.retryScenario', '같은 시나리오 재도전')}
         </Button>
         <Button 
           variant="secondary"
@@ -1526,7 +1531,7 @@ export default function PersonalDevelopmentReport({
           data-testid="print-report-button"
         >
           <i className="fas fa-print mr-2"></i>
-          보고서 인쇄
+          {t('report.printReport', '보고서 인쇄')}
         </Button>
         <Button 
           variant="outline"
@@ -1538,12 +1543,12 @@ export default function PersonalDevelopmentReport({
           {isExportingPdf ? (
             <>
               <i className="fas fa-spinner fa-spin mr-2"></i>
-              다운로드 중...
+              {t('report.downloading', '다운로드 중...')}
             </>
           ) : (
             <>
               <i className="fas fa-download mr-2"></i>
-              HTML 다운로드
+              {t('report.downloadHtml', 'HTML 다운로드')}
             </>
           )}
         </Button>
@@ -1562,7 +1567,7 @@ export default function PersonalDevelopmentReport({
                   data-testid="mobile-next-persona-button"
                 >
                   <i className="fas fa-arrow-right mr-1"></i>
-                  다음 페르소나
+                  {t('report.nextPersonaShort', '다음 페르소나')}
                 </Button>
               )}
               
@@ -1573,7 +1578,7 @@ export default function PersonalDevelopmentReport({
                   data-testid="mobile-strategy-button"
                 >
                   <i className="fas fa-clipboard-list mr-1"></i>
-                  전략 평가
+                  {t('report.tabs.strategy', '전략 평가')}
                 </Button>
               )}
               
@@ -1585,7 +1590,7 @@ export default function PersonalDevelopmentReport({
                   data-testid="mobile-next-legacy-button"
                 >
                   <i className="fas fa-arrow-right mr-1"></i>
-                  다음 대화
+                  {t('report.nextConversationShort', '다음 대화')}
                 </Button>
               )}
               
@@ -1596,7 +1601,7 @@ export default function PersonalDevelopmentReport({
                 data-testid="mobile-new-scenario-button"
               >
                 <i className="fas fa-redo mr-1"></i>
-                새 훈련
+                {t('report.newTrainingShort', '새 훈련')}
               </Button>
               
               <Button 
@@ -1605,7 +1610,7 @@ export default function PersonalDevelopmentReport({
                 data-testid="mobile-retry-button"
               >
                 <i className="fas fa-sync-alt mr-1"></i>
-                재도전
+                {t('report.retryShort', '재도전')}
               </Button>
               
               <Button 
@@ -1615,7 +1620,7 @@ export default function PersonalDevelopmentReport({
                 data-testid="mobile-print-button"
               >
                 <i className="fas fa-print mr-1"></i>
-                인쇄
+                {t('report.print', '인쇄')}
               </Button>
               
               <Button 
@@ -1626,7 +1631,7 @@ export default function PersonalDevelopmentReport({
                 data-testid="mobile-download-button"
               >
                 <i className="fas fa-download mr-1"></i>
-                다운로드
+                {t('report.download', '다운로드')}
               </Button>
             </div>
           </div>
@@ -1641,7 +1646,7 @@ export default function PersonalDevelopmentReport({
             data-testid="mobile-mypage-button"
           >
             <i className="fas fa-home mr-2"></i>
-            마이페이지
+            {t('report.myPage', '마이페이지')}
           </Button>
           
           <Button 
@@ -1650,7 +1655,7 @@ export default function PersonalDevelopmentReport({
             data-testid="mobile-menu-toggle"
           >
             <i className={`fas ${showMobileMenu ? 'fa-times' : 'fa-th-large'} mr-2`}></i>
-            {showMobileMenu ? '닫기' : '더보기'}
+            {showMobileMenu ? t('report.close', '닫기') : t('report.more', '더보기')}
           </Button>
         </div>
       </div>
