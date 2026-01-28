@@ -832,6 +832,45 @@ export const categoryTranslations = pgTable("category_translations", {
   index("idx_category_translations_locale").on(table.locale),
 ]);
 
+// 평가 기준 세트 번역 테이블
+export const evaluationCriteriaSetTranslations = pgTable("evaluation_criteria_set_translations", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  criteriaSetId: varchar("criteria_set_id").notNull().references(() => evaluationCriteriaSets.id, { onDelete: 'cascade' }),
+  sourceLocale: varchar("source_locale", { length: 10 }).notNull().default('ko').references(() => supportedLanguages.code),
+  locale: varchar("locale", { length: 10 }).notNull().references(() => supportedLanguages.code),
+  isOriginal: boolean("is_original").notNull().default(false),
+  name: varchar("name").notNull(),
+  description: text("description"),
+  isMachineTranslated: boolean("is_machine_translated").notNull().default(false),
+  isReviewed: boolean("is_reviewed").notNull().default(false),
+  reviewedBy: varchar("reviewed_by").references(() => users.id),
+  createdAt: timestamp("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+  updatedAt: timestamp("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+}, (table) => [
+  index("idx_criteria_set_translations_set_id").on(table.criteriaSetId),
+  index("idx_criteria_set_translations_locale").on(table.locale),
+]);
+
+// 평가 차원 번역 테이블
+export const evaluationDimensionTranslations = pgTable("evaluation_dimension_translations", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  dimensionId: varchar("dimension_id").notNull().references(() => evaluationDimensions.id, { onDelete: 'cascade' }),
+  sourceLocale: varchar("source_locale", { length: 10 }).notNull().default('ko').references(() => supportedLanguages.code),
+  locale: varchar("locale", { length: 10 }).notNull().references(() => supportedLanguages.code),
+  isOriginal: boolean("is_original").notNull().default(false),
+  name: varchar("name").notNull(),
+  description: text("description"),
+  scoringRubric: jsonb("scoring_rubric").$type<ScoringRubric[]>(),
+  isMachineTranslated: boolean("is_machine_translated").notNull().default(false),
+  isReviewed: boolean("is_reviewed").notNull().default(false),
+  reviewedBy: varchar("reviewed_by").references(() => users.id),
+  createdAt: timestamp("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+  updatedAt: timestamp("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+}, (table) => [
+  index("idx_dimension_translations_dimension_id").on(table.dimensionId),
+  index("idx_dimension_translations_locale").on(table.locale),
+]);
+
 // 지원 언어 타입
 export const insertSupportedLanguageSchema = createInsertSchema(supportedLanguages);
 export type InsertSupportedLanguage = z.infer<typeof insertSupportedLanguageSchema>;
@@ -863,6 +902,24 @@ export const insertCategoryTranslationSchema = createInsertSchema(categoryTransl
 });
 export type InsertCategoryTranslation = z.infer<typeof insertCategoryTranslationSchema>;
 export type CategoryTranslation = typeof categoryTranslations.$inferSelect;
+
+// 평가 기준 세트 번역 타입
+export const insertEvaluationCriteriaSetTranslationSchema = createInsertSchema(evaluationCriteriaSetTranslations).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+export type InsertEvaluationCriteriaSetTranslation = z.infer<typeof insertEvaluationCriteriaSetTranslationSchema>;
+export type EvaluationCriteriaSetTranslation = typeof evaluationCriteriaSetTranslations.$inferSelect;
+
+// 평가 차원 번역 타입
+export const insertEvaluationDimensionTranslationSchema = createInsertSchema(evaluationDimensionTranslations).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+export type InsertEvaluationDimensionTranslation = z.infer<typeof insertEvaluationDimensionTranslationSchema>;
+export type EvaluationDimensionTranslation = typeof evaluationDimensionTranslations.$inferSelect;
 
 // 번역 상태 통계 타입 (대시보드용)
 export type TranslationStats = {
