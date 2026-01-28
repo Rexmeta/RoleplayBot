@@ -265,16 +265,6 @@ export default function SystemAdminPage() {
   const [newPassword, setNewPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
 
-  // Category management state
-  const [editingCategory, setEditingCategory] = useState<Category | null>(null);
-  const [isCreatingCategory, setIsCreatingCategory] = useState(false);
-  const [categoryFormData, setCategoryFormData] = useState<{
-    name: string;
-    description: string;
-    order: number;
-  }>({ name: "", description: "", order: 0 });
-  const [deletingCategory, setDeletingCategory] = useState<Category | null>(null);
-
   // System settings state - per-feature model selection
   const [featureModels, setFeatureModels] = useState<Record<string, string>>({
     model_conversation: "gemini-2.5-flash",
@@ -290,7 +280,7 @@ export default function SystemAdminPage() {
     queryKey: ["/api/system-admin/users"],
   });
 
-  const { data: categories = [], isLoading: categoriesLoading } = useQuery<Category[]>({
+  const { data: categories = [] } = useQuery<Category[]>({
     queryKey: ["/api/categories"],
   });
 
@@ -444,70 +434,6 @@ export default function SystemAdminPage() {
     },
   });
 
-  const createCategoryMutation = useMutation({
-    mutationFn: async (data: { name: string; description: string; order: number }) => {
-      return await apiRequest("POST", "/api/system-admin/categories", data);
-    },
-    onSuccess: () => {
-      toast({
-        title: t('systemAdmin.toast.categoryCreateSuccess'),
-        description: t('systemAdmin.toast.categoryCreateSuccessDesc'),
-      });
-      queryClient.invalidateQueries({ queryKey: ["/api/categories"] });
-      setIsCreatingCategory(false);
-      setCategoryFormData({ name: "", description: "", order: 0 });
-    },
-    onError: (error: any) => {
-      toast({
-        title: t('systemAdmin.toast.error'),
-        description: error.message || t('systemAdmin.toast.categoryCreateFailed'),
-        variant: "destructive",
-      });
-    },
-  });
-
-  const updateCategoryMutation = useMutation({
-    mutationFn: async ({ id, updates }: { id: string; updates: any }) => {
-      return await apiRequest("PATCH", `/api/system-admin/categories/${id}`, updates);
-    },
-    onSuccess: () => {
-      toast({
-        title: t('systemAdmin.toast.categoryUpdateSuccess'),
-        description: t('systemAdmin.toast.categoryUpdateSuccessDesc'),
-      });
-      queryClient.invalidateQueries({ queryKey: ["/api/categories"] });
-      setEditingCategory(null);
-    },
-    onError: (error: any) => {
-      toast({
-        title: t('systemAdmin.toast.error'),
-        description: error.message || t('systemAdmin.toast.categoryUpdateFailed'),
-        variant: "destructive",
-      });
-    },
-  });
-
-  const deleteCategoryMutation = useMutation({
-    mutationFn: async (id: string) => {
-      return await apiRequest("DELETE", `/api/system-admin/categories/${id}`);
-    },
-    onSuccess: () => {
-      toast({
-        title: t('systemAdmin.toast.categoryDeleteSuccess'),
-        description: t('systemAdmin.toast.categoryDeleteSuccessDesc'),
-      });
-      queryClient.invalidateQueries({ queryKey: ["/api/categories"] });
-      setDeletingCategory(null);
-    },
-    onError: (error: any) => {
-      toast({
-        title: t('systemAdmin.toast.categoryDeleteFailed'),
-        description: error.message || t('systemAdmin.toast.categoryDeleteFailedDesc'),
-        variant: "destructive",
-      });
-    },
-  });
-
   const saveSettingsMutation = useMutation({
     mutationFn: async (settings: { category: string; key: string; value: string; description?: string }[]) => {
       const results = [];
@@ -655,36 +581,6 @@ export default function SystemAdminPage() {
     updateUserMutation.mutate({ id: editingUser.id, updates });
   };
 
-  const openEditCategoryDialog = (category: Category) => {
-    setEditingCategory(category);
-    setCategoryFormData({
-      name: category.name,
-      description: category.description || "",
-      order: category.order,
-    });
-  };
-
-  const handleSaveCategory = () => {
-    if (isCreatingCategory) {
-      createCategoryMutation.mutate(categoryFormData);
-    } else if (editingCategory) {
-      const updates: any = {};
-      if (categoryFormData.name !== editingCategory.name) updates.name = categoryFormData.name;
-      if (categoryFormData.description !== (editingCategory.description || "")) updates.description = categoryFormData.description;
-      if (categoryFormData.order !== editingCategory.order) updates.order = categoryFormData.order;
-
-      if (Object.keys(updates).length === 0) {
-        toast({
-          title: t('systemAdmin.toast.noChanges'),
-          description: t('systemAdmin.toast.noChangesDesc'),
-        });
-        return;
-      }
-
-      updateCategoryMutation.mutate({ id: editingCategory.id, updates });
-    }
-  };
-
   const getCategoryName = (categoryId: string | null | undefined) => {
     if (!categoryId) return "-";
     const category = categories.find((c) => c.id === categoryId);
@@ -754,18 +650,14 @@ export default function SystemAdminPage() {
 
       <div className="container mx-auto p-6 space-y-6" data-testid="system-admin-page">
         <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <TabsList className="grid w-full max-w-5xl grid-cols-6">
+          <TabsList className="grid w-full max-w-5xl grid-cols-5">
             <TabsTrigger value="users" className="flex items-center gap-2" data-testid="tab-users">
               <Users className="h-4 w-4" />
               {t('systemAdmin.tabs.users')}
             </TabsTrigger>
             <TabsTrigger value="companies" className="flex items-center gap-2" data-testid="tab-companies">
               <FolderTree className="h-4 w-4" />
-              {t('systemAdmin.tabs.hierarchy', '조직 구조')}
-            </TabsTrigger>
-            <TabsTrigger value="categories" className="flex items-center gap-2" data-testid="tab-categories">
-              <FolderTree className="h-4 w-4" />
-              {t('systemAdmin.tabs.categories')}
+              {t('systemAdmin.tabs.hierarchy', '조직/카테고리')}
             </TabsTrigger>
             <TabsTrigger value="languages" className="flex items-center gap-2" data-testid="tab-languages">
               <Languages className="h-4 w-4" />
@@ -983,115 +875,6 @@ export default function SystemAdminPage() {
 
           <TabsContent value="companies" className="space-y-6 mt-6">
             <HierarchyTreeManager />
-          </TabsContent>
-
-          <TabsContent value="categories" className="space-y-6 mt-6">
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between">
-                <CardTitle>{t('systemAdmin.categories.title')}</CardTitle>
-                <Button
-                  onClick={() => {
-                    setIsCreatingCategory(true);
-                    setCategoryFormData({ name: "", description: "", order: categories.length });
-                  }}
-                  data-testid="button-add-category"
-                >
-                  <Plus className="h-4 w-4 mr-2" />
-                  {t('systemAdmin.categories.add')}
-                </Button>
-              </CardHeader>
-              <CardContent>
-                {categoriesLoading ? (
-                  <div className="flex items-center justify-center py-12">
-                    <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-                  </div>
-                ) : categories.length === 0 ? (
-                  <div className="text-center py-12">
-                    <FolderTree className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-                    <p className="text-muted-foreground">{t('systemAdmin.categories.empty')}</p>
-                    <p className="text-sm text-muted-foreground mt-1">{t('systemAdmin.categories.addFirst')}</p>
-                  </div>
-                ) : (
-                  <div className="rounded-md border">
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead className="w-[50px]">{t('systemAdmin.categories.table.order')}</TableHead>
-                          <TableHead>{t('systemAdmin.categories.table.name')}</TableHead>
-                          <TableHead>{t('systemAdmin.categories.table.description')}</TableHead>
-                          <TableHead>{t('systemAdmin.categories.table.scenarioCount')}</TableHead>
-                          <TableHead>{t('systemAdmin.categories.table.assignedOperators')}</TableHead>
-                          <TableHead className="w-[120px]">{t('systemAdmin.categories.table.actions')}</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {categories.map((category) => {
-                          const assignedOperators = users.filter(
-                            (u) => u.role === "operator" && u.assignedCategoryId === category.id
-                          );
-                          return (
-                            <TableRow key={category.id} data-testid={`row-category-${category.id}`}>
-                              <TableCell>
-                                <div className="flex items-center gap-2">
-                                  <GripVertical className="h-4 w-4 text-muted-foreground" />
-                                  <span>{category.order + 1}</span>
-                                </div>
-                              </TableCell>
-                              <TableCell className="font-medium">{category.name}</TableCell>
-                              <TableCell className="text-muted-foreground max-w-[200px] truncate">
-                                {category.description || "-"}
-                              </TableCell>
-                              <TableCell>
-                                <Badge variant="secondary">{category.scenarioCount ?? 0}</Badge>
-                              </TableCell>
-                              <TableCell>
-                                {assignedOperators.length > 0 ? (
-                                  <div className="flex flex-wrap gap-1">
-                                    {assignedOperators.slice(0, 2).map((op) => (
-                                      <Badge key={op.id} variant="outline" className="text-xs">
-                                        {op.name}
-                                      </Badge>
-                                    ))}
-                                    {assignedOperators.length > 2 && (
-                                      <Badge variant="outline" className="text-xs">
-                                        +{assignedOperators.length - 2}
-                                      </Badge>
-                                    )}
-                                  </div>
-                                ) : (
-                                  <span className="text-muted-foreground text-sm">-</span>
-                                )}
-                              </TableCell>
-                              <TableCell>
-                                <div className="flex gap-1">
-                                  <Button
-                                    variant="outline"
-                                    size="sm"
-                                    onClick={() => openEditCategoryDialog(category)}
-                                    data-testid={`button-edit-category-${category.id}`}
-                                  >
-                                    <Pencil className="h-4 w-4" />
-                                  </Button>
-                                  <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    onClick={() => setDeletingCategory(category)}
-                                    data-testid={`button-delete-category-${category.id}`}
-                                    className="text-red-600 hover:text-red-700 hover:bg-red-50"
-                                  >
-                                    <Trash2 className="h-4 w-4" />
-                                  </Button>
-                                </div>
-                              </TableCell>
-                            </TableRow>
-                          );
-                        })}
-                      </TableBody>
-                    </Table>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
           </TabsContent>
 
           <TabsContent value="languages" className="space-y-6 mt-6">
@@ -1929,138 +1712,6 @@ export default function SystemAdminPage() {
         </DialogContent>
       </Dialog>
 
-      <Dialog
-        open={isCreatingCategory || !!editingCategory}
-        onOpenChange={(open) => {
-          if (!open) {
-            setIsCreatingCategory(false);
-            setEditingCategory(null);
-            setCategoryFormData({ name: "", description: "", order: 0 });
-          }
-        }}
-      >
-        <DialogContent data-testid="dialog-category">
-          <DialogHeader>
-            <DialogTitle>
-              {isCreatingCategory ? t('systemAdmin.categories.createTitle') : t('systemAdmin.categories.editTitle')}
-            </DialogTitle>
-            <DialogDescription>
-              {isCreatingCategory
-                ? t('systemAdmin.categories.createDesc')
-                : t('systemAdmin.categories.editDesc', { name: editingCategory?.name })}
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="space-y-4 py-4">
-            <div className="space-y-2">
-              <label className="text-sm font-medium">{t('systemAdmin.categories.form.name')} *</label>
-              <Input
-                value={categoryFormData.name}
-                onChange={(e) => setCategoryFormData((prev) => ({ ...prev, name: e.target.value }))}
-                placeholder={t('systemAdmin.categories.form.namePlaceholder')}
-                data-testid="input-category-name"
-              />
-            </div>
-
-            <div className="space-y-2">
-              <label className="text-sm font-medium">{t('systemAdmin.categories.form.description')}</label>
-              <Textarea
-                value={categoryFormData.description}
-                onChange={(e) => setCategoryFormData((prev) => ({ ...prev, description: e.target.value }))}
-                placeholder={t('systemAdmin.categories.form.descriptionPlaceholder')}
-                rows={3}
-                data-testid="input-category-description"
-              />
-            </div>
-
-            <div className="space-y-2">
-              <label className="text-sm font-medium">{t('systemAdmin.categories.form.order')}</label>
-              <Input
-                type="number"
-                value={categoryFormData.order}
-                onChange={(e) => setCategoryFormData((prev) => ({ ...prev, order: parseInt(e.target.value) || 0 }))}
-                min={0}
-                data-testid="input-category-order"
-              />
-              <p className="text-xs text-muted-foreground">
-                {t('systemAdmin.categories.form.orderHint')}
-              </p>
-            </div>
-          </div>
-
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => {
-                setIsCreatingCategory(false);
-                setEditingCategory(null);
-                setCategoryFormData({ name: "", description: "", order: 0 });
-              }}
-              data-testid="button-cancel-category"
-            >
-              {t('systemAdmin.common.cancel')}
-            </Button>
-            <Button
-              onClick={handleSaveCategory}
-              disabled={
-                !categoryFormData.name.trim() ||
-                createCategoryMutation.isPending ||
-                updateCategoryMutation.isPending
-              }
-              data-testid="button-save-category"
-            >
-              {(createCategoryMutation.isPending || updateCategoryMutation.isPending) ? (
-                <>
-                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                  {t('systemAdmin.common.saving')}
-                </>
-              ) : isCreatingCategory ? (
-                t('systemAdmin.common.add')
-              ) : (
-                t('systemAdmin.common.save')
-              )}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      <Dialog open={!!deletingCategory} onOpenChange={(open) => !open && setDeletingCategory(null)}>
-        <DialogContent data-testid="dialog-delete-category">
-          <DialogHeader>
-            <DialogTitle>{t('systemAdmin.categories.deleteTitle')}</DialogTitle>
-            <DialogDescription>
-              {t('systemAdmin.categories.deleteConfirm', { name: deletingCategory?.name })}
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="py-4">
-            <p className="text-sm text-muted-foreground">
-              {t('systemAdmin.categories.deleteWarning')}
-            </p>
-          </div>
-
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setDeletingCategory(null)} data-testid="button-cancel-delete">
-              {t('systemAdmin.common.cancel')}
-            </Button>
-            <Button
-              variant="destructive"
-              onClick={() => deletingCategory && deleteCategoryMutation.mutate(deletingCategory.id)}
-              disabled={deleteCategoryMutation.isPending}
-              data-testid="button-confirm-delete"
-            >
-              {deleteCategoryMutation.isPending ? (
-                <>
-                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                  {t('systemAdmin.common.deleting')}
-                </>
-              ) : (
-                t('systemAdmin.common.delete')
-              )}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }
