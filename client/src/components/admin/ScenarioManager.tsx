@@ -15,7 +15,7 @@ import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import { apiRequest, queryClient } from '@/lib/queryClient';
 import { ComplexScenario } from '@/lib/scenario-system';
-import { Loader2, MoreVertical, ChevronDown, ChevronUp, Clock, Users, Target, Languages, Search } from 'lucide-react';
+import { Loader2, MoreVertical, ChevronDown, ChevronUp, Clock, Users, Target, Languages, Search, Sparkles } from 'lucide-react';
 import { AIScenarioGenerator } from './AIScenarioGenerator';
 import { ScenarioTranslationEditor } from './ScenarioTranslationEditor';
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
@@ -49,6 +49,7 @@ interface ScenarioFormData {
   videoPrompt?: string; // 비디오 생성 프롬프트 필드 추가
   objectiveType?: string; // 목표 유형 추가
   isDemo?: boolean; // 게스트 데모용 시나리오 여부
+  autoTranslate?: boolean; // AI 자동 번역 여부
   context: {
     situation: string;
     timeline: string;
@@ -98,6 +99,7 @@ export function ScenarioManager() {
     videoPrompt: '', // 비디오 프롬프트 초기값 추가
     objectiveType: '', // 목표 유형 초기값 추가
     isDemo: false, // 게스트 데모용 시나리오 초기값 추가
+    autoTranslate: true, // AI 자동 번역 기본값 true
     context: {
       situation: '',
       timeline: '',
@@ -242,14 +244,39 @@ export function ScenarioManager() {
     setIsCreateOpen(true);
   };
 
+  const autoTranslateMutation = useMutation({
+    mutationFn: async (scenarioId: string) => {
+      return apiRequest('POST', `/api/admin/scenarios/${scenarioId}/auto-translate`, { sourceLocale: 'ko' });
+    },
+    onSuccess: async (response: any) => {
+      const data = await response.json();
+      toast({ 
+        title: t('admin.evaluationCriteria.translationSuccess'), 
+        description: data.message 
+      });
+    },
+    onError: (error: any) => {
+      toast({ 
+        title: t('admin.evaluationCriteria.translationFailed'), 
+        description: error.message, 
+        variant: "destructive" 
+      });
+    },
+  });
+
   const createMutation = useMutation({
     mutationFn: async (data: ScenarioFormData) => {
       const response = await apiRequest('POST', '/api/admin/scenarios', data);
       return response.json();
     },
-    onSuccess: () => {
+    onSuccess: async (responseData: any) => {
       queryClient.invalidateQueries({ queryKey: ['/api/admin/scenarios'] });
       setIsCreateOpen(false);
+      
+      if (formData.autoTranslate && responseData?.id) {
+        autoTranslateMutation.mutate(responseData.id);
+      }
+      
       resetForm();
       toast({
         title: t('admin.scenarioManager.createSuccess'),
@@ -324,6 +351,7 @@ export function ScenarioManager() {
       introVideoUrl: '', // 인트로 비디오 URL 초기화 추가
       videoPrompt: '', // 비디오 프롬프트 초기화 추가
       objectiveType: '', // 목표 유형 초기화
+      autoTranslate: true, // 자동 번역 기본값 true
       context: {
         situation: '',
         timeline: '',
@@ -894,6 +922,25 @@ export function ScenarioManager() {
                       {t('admin.scenarioManager.form.isDemo', 'Guest Demo Scenario')}
                     </Label>
                   </div>
+                  
+                  {!editingScenario && (
+                    <div className="flex items-center gap-3 border-t pt-3 mt-3">
+                      <Switch
+                        id="autoTranslate"
+                        checked={formData.autoTranslate || false}
+                        onCheckedChange={(checked) => setFormData(prev => ({ ...prev, autoTranslate: checked }))}
+                      />
+                      <div className="flex items-center gap-2">
+                        <Sparkles className="h-4 w-4 text-amber-500" />
+                        <Label htmlFor="autoTranslate" className="text-sm font-medium text-slate-700 cursor-pointer">
+                          {t('admin.evaluationCriteria.autoTranslate')}
+                        </Label>
+                      </div>
+                      <span className="text-xs text-slate-500">
+                        {t('admin.evaluationCriteria.autoTranslateDescription')}
+                      </span>
+                    </div>
+                  )}
                 </div>
 
                 <div>

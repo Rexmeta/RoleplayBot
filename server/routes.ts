@@ -6334,6 +6334,164 @@ Return ONLY valid JSON in this exact format:
       res.status(500).json({ message: "AI 번역 생성 실패" });
     }
   });
+
+  // Auto-translate scenario to all supported languages at once
+  app.post("/api/admin/scenarios/:scenarioId/auto-translate", isAuthenticated, isOperatorOrAdmin, async (req: any, res) => {
+    try {
+      const { scenarioId } = req.params;
+      const { sourceLocale = 'ko' } = req.body;
+      
+      const allScenarios = await fileManager.getAllScenarios();
+      const scenario = allScenarios.find(s => s.id === scenarioId);
+      if (!scenario) {
+        return res.status(404).json({ message: "시나리오를 찾을 수 없습니다" });
+      }
+      
+      const languages = await storage.getActiveSupportedLanguages();
+      const targetLocales = languages.filter(l => l.code !== sourceLocale).map(l => l.code);
+      
+      const languageNames: Record<string, string> = {
+        'ko': 'Korean (한국어)',
+        'en': 'English',
+        'ja': 'Japanese (日本語)',
+        'zh': 'Chinese Simplified (简体中文)',
+      };
+      
+      let translatedCount = 0;
+      
+      // Save original content first
+      const playerRoleObj = (scenario as any).context?.playerRole;
+      const playerRoleStr = typeof playerRoleObj === 'object' 
+        ? [playerRoleObj?.position, playerRoleObj?.department, playerRoleObj?.experience, playerRoleObj?.responsibility].filter(Boolean).join(' / ')
+        : (playerRoleObj || '');
+      
+      const scenarioPersonas = (scenario as any).personas || [];
+      const personaContexts = scenarioPersonas.map((p: any) => ({
+        personaId: p.id || p.personaRef || '',
+        position: p.position || '',
+        department: p.department || '',
+        role: p.role || '',
+        stance: p.stance || '',
+        goal: p.goal || '',
+        tradeoff: p.tradeoff || '',
+      })).filter((p: any) => p.personaId);
+      
+      await storage.upsertScenarioTranslation({
+        scenarioId,
+        locale: sourceLocale,
+        sourceLocale,
+        isOriginal: true,
+        title: scenario.title,
+        description: scenario.description,
+        situation: (scenario as any).context?.situation || '',
+        timeline: (scenario as any).context?.timeline || '',
+        stakes: (scenario as any).context?.stakes || '',
+        playerRole: playerRoleStr,
+        objectives: (scenario as any).objectives || [],
+        successCriteriaOptimal: (scenario as any).successCriteria?.optimal || '',
+        successCriteriaGood: (scenario as any).successCriteria?.good || '',
+        successCriteriaAcceptable: (scenario as any).successCriteria?.acceptable || '',
+        successCriteriaFailure: (scenario as any).successCriteria?.failure || '',
+        personaContexts,
+        isMachineTranslated: false,
+        isReviewed: true,
+      });
+      
+      // Translate to all other languages
+      for (const targetLocale of targetLocales) {
+        const personaContextsPrompt = personaContexts.length > 0 
+          ? `\nPersona Contexts (translate position, department, role, stance, goal, tradeoff for each persona):\n${JSON.stringify(personaContexts, null, 2)}`
+          : '';
+        
+        const personaContextsJsonFormat = personaContexts.length > 0
+          ? `,
+  "personaContexts": [
+    {
+      "personaId": "keep the original personaId unchanged",
+      "position": "translated position",
+      "department": "translated department",
+      "role": "translated role",
+      "stance": "translated stance",
+      "goal": "translated goal",
+      "tradeoff": "translated tradeoff"
+    }
+  ]`
+          : '';
+        
+        const prompt = `Translate the following ${languageNames[sourceLocale] || sourceLocale} roleplay scenario into ${languageNames[targetLocale] || targetLocale}. 
+Maintain the professional tone and context. Provide translations in JSON format.
+
+Source scenario:
+Title: ${scenario.title}
+Description: ${scenario.description}
+Situation: ${(scenario as any).context?.situation || ''}
+Timeline: ${(scenario as any).context?.timeline || ''}
+Stakes: ${(scenario as any).context?.stakes || ''}
+Player Role: ${playerRoleStr}
+Objectives: ${JSON.stringify((scenario as any).objectives || [])}
+Success Criteria - Optimal: ${(scenario as any).successCriteria?.optimal || ''}
+Success Criteria - Good: ${(scenario as any).successCriteria?.good || ''}
+Success Criteria - Acceptable: ${(scenario as any).successCriteria?.acceptable || ''}
+Success Criteria - Failure: ${(scenario as any).successCriteria?.failure || ''}${personaContextsPrompt}
+
+Return ONLY valid JSON:
+{
+  "title": "translated title",
+  "description": "translated description",
+  "situation": "translated situation",
+  "timeline": "translated timeline",
+  "stakes": "translated stakes",
+  "playerRole": "translated player role",
+  "objectives": ["translated objective 1", "translated objective 2"],
+  "successCriteriaOptimal": "translated optimal criteria",
+  "successCriteriaGood": "translated good criteria",
+  "successCriteriaAcceptable": "translated acceptable criteria",
+  "successCriteriaFailure": "translated failure criteria"${personaContextsJsonFormat}
+}`;
+
+        try {
+          const response = await generateAIResponse('gemini-2.5-flash-preview-05-20', prompt, 'translate');
+          const jsonMatch = response.match(/\{[\s\S]*\}/);
+          if (jsonMatch) {
+            const translation = JSON.parse(jsonMatch[0]);
+            await storage.upsertScenarioTranslation({
+              scenarioId,
+              locale: targetLocale,
+              sourceLocale,
+              isOriginal: false,
+              title: translation.title,
+              description: translation.description,
+              situation: translation.situation,
+              timeline: translation.timeline,
+              stakes: translation.stakes,
+              playerRole: translation.playerRole,
+              objectives: translation.objectives || [],
+              successCriteriaOptimal: translation.successCriteriaOptimal,
+              successCriteriaGood: translation.successCriteriaGood,
+              successCriteriaAcceptable: translation.successCriteriaAcceptable,
+              successCriteriaFailure: translation.successCriteriaFailure,
+              personaContexts: translation.personaContexts || personaContexts,
+              isMachineTranslated: true,
+              isReviewed: false,
+            });
+            translatedCount++;
+          }
+        } catch (e) {
+          console.error(`Failed to translate scenario ${scenarioId} to ${targetLocale}:`, e);
+        }
+      }
+      
+      res.json({ 
+        success: true, 
+        message: `${translatedCount}개 언어로 번역 완료`,
+        translatedCount,
+        targetLocales 
+      });
+    } catch (error) {
+      console.error("Error auto-translating scenario:", error);
+      res.status(500).json({ message: "자동 번역 실패" });
+    }
+  });
   
   // ================================
   // Persona Translations API
