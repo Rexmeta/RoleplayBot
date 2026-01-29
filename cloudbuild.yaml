@@ -37,6 +37,7 @@ steps:
       - '10'
       - '--port'
       - '8080'
+      - '--startup-cpu-boost'
       - '--set-env-vars'
       - 'NODE_ENV=production'
       # Secret Manager에서 시크릿 주입

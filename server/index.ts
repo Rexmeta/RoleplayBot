@@ -72,24 +72,12 @@ app.use((req, res, next) => {
   console.log('🚀 Starting server initialization...');
   console.log(`📋 Environment: ${process.env.NODE_ENV || 'development'}`);
   console.log(`🔌 PORT: ${process.env.PORT || '5000'}`);
-  
-  // 🗄️ 데이터베이스 마이그레이션 실행 (테이블 자동 생성)
-  try {
-    console.log('🗄️ Running database migrations...');
-    await runMigrations();
-  } catch (error) {
-    console.error('⚠️ Database migration failed (non-fatal):', error);
-  }
-  
-  // 🚀 MBTI 캐시 프리로드 (성능 최적화) - 실패해도 서버 시작 계속
-  try {
-    console.log('📦 Loading MBTI cache...');
-    const mbtiCache = GlobalMBTICache.getInstance();
-    await mbtiCache.preloadAllMBTIData();
-    console.log('✅ MBTI cache loaded successfully');
-  } catch (error) {
-    console.error('⚠️ MBTI cache preload failed (non-fatal):', error);
-  }
+
+  // ALWAYS serve the app on the port specified in the environment variable PORT
+  // Cloud Run requires the container to listen on PORT within the startup timeout.
+  // We register routes and start listening FIRST, then do background initialization.
+  const port = parseInt(process.env.PORT || '5000', 10);
+  const host = "0.0.0.0"; // Cloud Run requires 0.0.0.0, not localhost
 
   console.log('📡 Registering routes...');
   const server = await registerRoutes(app);
@@ -117,24 +105,22 @@ app.use((req, res, next) => {
     console.log('✅ Static file serving configured');
   }
 
-  // ALWAYS serve the app on the port specified in the environment variable PORT
-  // Other ports are firewalled. Default to 5000 if not specified.
-  // this serves both the API and the client.
-  // It is the only port that is not firewalled.
-  const port = parseInt(process.env.PORT || '5000', 10);
-  const host = "0.0.0.0"; // Cloud Run requires 0.0.0.0, not localhost
-  
   console.log(`🌐 Starting server on ${host}:${port}...`);
-  
+
   // Cloud Run 호환성을 위해 reusePort 옵션 제거
+  // Listen on the port FIRST so Cloud Run health checks pass immediately.
   server.listen(port, host, () => {
     console.log('✅ Server started successfully!');
     console.log(`🎉 Application ready at http://${host}:${port}`);
     log(`serving on port ${port} (host: ${host})`);
     log(`platform: ${process.platform}`);
     log(`Network access: http://${host}:${port}`);
+
+    // Run background initialization AFTER the server is listening.
+    // This ensures Cloud Run sees the port open and the health check passes.
+    initializeAsync();
   });
-  
+
   // 서버 시작 오류 핸들링
   server.on('error', (err: NodeJS.ErrnoException) => {
     if (err.code === 'EADDRINUSE') {
@@ -147,3 +133,28 @@ app.use((req, res, next) => {
     process.exit(1);
   });
 })();
+
+// Background initialization: database migrations and cache warming.
+// These run after the server is already listening so they don't block startup.
+async function initializeAsync() {
+  // 🗄️ 데이터베이스 마이그레이션 실행 (테이블 자동 생성)
+  try {
+    console.log('🗄️ Running database migrations...');
+    await runMigrations();
+    console.log('✅ Database migrations completed');
+  } catch (error) {
+    console.error('⚠️ Database migration failed (non-fatal):', error);
+  }
+
+  // 🚀 MBTI 캐시 프리로드 (성능 최적화) - 실패해도 서버 계속 동작
+  try {
+    console.log('📦 Loading MBTI cache...');
+    const mbtiCache = GlobalMBTICache.getInstance();
+    await mbtiCache.preloadAllMBTIData();
+    console.log('✅ MBTI cache loaded successfully');
+  } catch (error) {
+    console.error('⚠️ MBTI cache preload failed (non-fatal):', error);
+  }
+
+  console.log('🏁 Background initialization complete');
+}
