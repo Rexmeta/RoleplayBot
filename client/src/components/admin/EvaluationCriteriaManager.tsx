@@ -362,6 +362,7 @@ export function EvaluationCriteriaManager() {
       isActive: set.isActive,
       categoryId: set.categoryId || '',
       useDefaultDimensions: false,
+      autoTranslate: false,
     });
     setIsEditDialogOpen(true);
   };
@@ -654,6 +655,29 @@ export function EvaluationCriteriaManager() {
                 checked={formData.isDefault}
                 onCheckedChange={(checked) => setFormData({ ...formData, isDefault: checked })}
               />
+            </div>
+            <div className="flex items-center justify-between border-t pt-4 mt-4">
+              <div>
+                <Label className="flex items-center gap-2">
+                  <Sparkles className="h-4 w-4 text-amber-500" />
+                  {t('admin.evaluationCriteria.autoTranslate')}
+                </Label>
+                <p className="text-xs text-slate-500 mt-1">
+                  {t('admin.evaluationCriteria.autoTranslateDescription')}
+                </p>
+              </div>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => selectedSet?.id && autoTranslateMutation.mutate(selectedSet.id)}
+                disabled={autoTranslateMutation.isPending || !selectedSet?.id}
+              >
+                {autoTranslateMutation.isPending 
+                  ? t('admin.common.loading')
+                  : t('admin.evaluationCriteria.triggerAutoTranslate')
+                }
+              </Button>
             </div>
           </div>
           <DialogFooter>
