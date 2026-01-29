@@ -4,15 +4,18 @@ import type { Express, RequestHandler } from "express";
 import { storage } from "./storage";
 import { z } from "zod";
 
-// JWT_SECRET 필수 - 환경 변수가 없으면 서버 시작 시 에러 발생
+// JWT_SECRET - read at module load time but only enforce at first use.
+// This prevents the server from crashing before it can open the port.
 const JWT_SECRET = process.env.JWT_SECRET;
 if (!JWT_SECRET) {
-  console.error("⛔ CRITICAL: JWT_SECRET environment variable is required.");
-  console.error("📋 For local development: Copy .env.example to .env and set JWT_SECRET");
-  console.error("☁️  For Cloud Run deployment: Set JWT_SECRET using Secret Manager or environment variables");
-  console.error("   Example: gcloud run services update SERVICE_NAME --set-env-vars JWT_SECRET=your-secret-key");
-  console.error("   Or use Secret Manager: gcloud secrets create jwt-secret --data-file=-");
-  throw new Error("⛔ CRITICAL: JWT_SECRET environment variable is required. Server cannot start without it.");
+  console.error("WARNING: JWT_SECRET environment variable is not set. Auth will fail at request time.");
+}
+
+function getJwtSecret(): string {
+  if (!JWT_SECRET) {
+    throw new Error("JWT_SECRET environment variable is required but not set.");
+  }
+  return JWT_SECRET;
 }
 const JWT_EXPIRES_IN = "7d"; // 7일
 
@@ -87,13 +90,13 @@ const loginSchema = z.object({
 // JWT 토큰 생성
 export function generateToken(userId: string, rememberMe: boolean = false) {
   const expiresIn = rememberMe ? "30d" : JWT_EXPIRES_IN; // 자동로그인시 30일
-  return jwt.sign({ userId }, JWT_SECRET, { expiresIn });
+  return jwt.sign({ userId }, getJwtSecret(), { expiresIn });
 }
 
 // JWT 토큰 검증
 export function verifyToken(token: string): { userId: string } | null {
   try {
-    const decoded = jwt.verify(token, JWT_SECRET) as { userId: string };
+    const decoded = jwt.verify(token, getJwtSecret()) as { userId: string };
     return decoded;
   } catch (error) {
     return null;
@@ -366,7 +369,7 @@ export function setupAuth(app: Express) {
       // 5분 유효 WebSocket 전용 토큰 생성
       const realtimeToken = jwt.sign(
         { userId: user.id, type: 'realtime' },
-        JWT_SECRET,
+        getJwtSecret(),
         { expiresIn: '5m' }
       );
 
@@ -423,7 +426,7 @@ export function setupAuth(app: Express) {
       // JWT 토큰 생성 (게스트용 - 24시간 유효)
       const token = jwt.sign(
         { userId: guestUser.id },
-        JWT_SECRET,
+        getJwtSecret(),
         { expiresIn: '24h' }
       );
 

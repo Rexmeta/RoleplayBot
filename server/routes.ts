@@ -1,5 +1,5 @@
 import type { Express } from "express";
-import { createServer, type Server } from "http";
+import type { Server } from "http";
 import WebSocket, { WebSocketServer } from "ws";
 import { storage } from "./storage";
 // Replit Auth 제거됨
@@ -21,7 +21,7 @@ import { realtimeVoiceService } from "./services/realtimeVoiceService";
 import { generateIntroVideo, deleteIntroVideo, getVideoGenerationStatus } from "./services/gemini-video-generator";
 import { GlobalMBTICache } from "./utils/globalMBTICache";
 
-export async function registerRoutes(app: Express): Promise<Server> {
+export async function registerRoutes(app: Express, httpServer: Server): Promise<void> {
   // 이메일 기반 인증 시스템 설정
   const cookieParser = (await import('cookie-parser')).default;
   app.use(cookieParser());
@@ -5819,8 +5819,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   }
 
-  const httpServer = createServer(app);
-  
   // WebSocket server for OpenAI Realtime API
   const wss = new WebSocketServer({ 
     server: httpServer,
@@ -6934,7 +6932,6 @@ Return JSON: {"name": "translated name", "description": "translated description"
     }
   });
   
-  return httpServer;
 }
 
 /**

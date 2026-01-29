@@ -6,12 +6,15 @@ import { eq, asc, desc, inArray, and, gte, lte, sql as sqlBuilder, count, sum, i
 const sql = sqlBuilder;
 
 // Initialize database connection using node-postgres
-const databaseUrl = process.env.DATABASE_URL!;
+const databaseUrl = process.env.DATABASE_URL || '';
+if (!databaseUrl) {
+  console.error('WARNING: DATABASE_URL is not set. Database operations will fail.');
+}
 const isUnixSocket = databaseUrl.includes('/cloudsql/');
 const disableSsl = databaseUrl.includes('sslmode=disable') || isUnixSocket;
 
 const pool = new Pool({
-  connectionString: databaseUrl,
+  connectionString: databaseUrl || undefined,
   ssl: disableSsl ? false : { rejectUnauthorized: false },
   connectionTimeoutMillis: 10000,
   idle_in_transaction_session_timeout: 30000,
