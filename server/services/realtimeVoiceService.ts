@@ -1377,21 +1377,21 @@ export class RealtimeVoiceService {
     }
 
     try {
+      const prompt = `AI 캐릭터(${personaName})의 응답에서 감정을 분석하세요.
+
+응답: "${aiResponse}"
+
+감정은 다음 중 하나: 중립, 기쁨, 슬픔, 분노, 놀람, 호기심, 불안, 피로, 실망, 당혹
+
+반드시 아래 JSON 형식으로만 답변하세요 (다른 텍스트 없이):
+{"emotion": "감정", "emotionReason": "이유"}`;
+
       const result = await this.genAI.models.generateContent({
         model: 'gemini-2.5-flash',
-        contents: `다음 AI 캐릭터(${personaName})의 응답에서 드러나는 감정을 분석하세요.\n\n응답: "${aiResponse}"\n\n감정은 다음 중 하나여야 합니다: 중립, 기쁨, 슬픔, 분노, 놀람, 호기심, 불안, 피로, 실망, 당혹\n감정 이유는 간단하게 한 문장으로 설명하세요.`,
+        contents: prompt,
         config: {
-          responseMimeType: "application/json",
-          responseSchema: {
-            type: "object",
-            properties: {
-              emotion: { type: "string" },
-              emotionReason: { type: "string" }
-            },
-            required: ["emotion", "emotionReason"]
-          },
-          maxOutputTokens: 200,
-          temperature: 0.5
+          maxOutputTokens: 150,
+          temperature: 0.3
         }
       });
 
@@ -1399,18 +1399,24 @@ export class RealtimeVoiceService {
       console.log('📊 Gemini emotion analysis response:', responseText);
       
       // JSON 추출: 응답에서 JSON 객체 부분만 추출
-      let jsonStr = responseText;
-      const jsonMatch = responseText.match(/\{[\s\S]*\}/);
+      const jsonMatch = responseText.match(/\{[\s\S]*?\}/);
       if (jsonMatch) {
-        jsonStr = jsonMatch[0];
+        const emotionData = JSON.parse(jsonMatch[0]);
+        return {
+          emotion: emotionData.emotion || '중립',
+          emotionReason: emotionData.emotionReason || '감정 분석 실패'
+        };
       }
       
-      const emotionData = JSON.parse(jsonStr);
+      // 직접 감정 키워드 탐지
+      const emotions = ['분노', '불안', '기쁨', '슬픔', '놀람', '호기심', '피로', '실망', '당혹'];
+      for (const em of emotions) {
+        if (responseText.includes(em)) {
+          return { emotion: em, emotionReason: '감정 키워드 감지됨' };
+        }
+      }
 
-      return {
-        emotion: emotionData.emotion || '중립',
-        emotionReason: emotionData.emotionReason || '감정 분석 실패'
-      };
+      return { emotion: '중립', emotionReason: '감정 분석 실패' };
     } catch (error) {
       console.error('❌ Emotion analysis error:', error);
       return { emotion: '중립', emotionReason: '감정 분석 중 오류가 발생했습니다.' };
