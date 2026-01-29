@@ -1403,9 +1403,10 @@ export class RealtimeVoiceService {
       // Chinese
       '中立': 'neutral', '喜悦': 'happy', '悲伤': 'sad', '愤怒': 'angry', '惊讶': 'surprised',
       '好奇': 'curious', '焦虑': 'anxious', '疲劳': 'tired', '失望': 'disappointed', '困惑': 'confused',
-      // Japanese
+      // Japanese (中立, 疲労, 失望, 困惑 shared with Chinese)
       '喜び': 'happy', '悲しみ': 'sad', '怒り': 'angry', '驚き': 'surprised',
       '好奇心': 'curious', '不安': 'anxious'
+      // Note: Japanese 中立, 疲労, 失望, 困惑 are same as Chinese and already mapped above
     };
 
     const emotions = emotionsByLang[lang];
