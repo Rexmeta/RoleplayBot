@@ -986,7 +986,10 @@
       "autoTranslateDescription": "생성 시 모든 지원 언어로 자동 번역합니다 (한/영/일/중)",
       "translationSuccess": "번역 완료",
       "translationFailed": "번역 실패",
-      "triggerAutoTranslate": "자동 번역 실행"
+      "triggerAutoTranslate": "자동 번역 실행",
+      "translateAll": "모든 세트 번역",
+      "batchTranslateComplete": "일괄 번역 완료",
+      "setsTranslated": "개 세트 번역됨"
     }
   },
   "scenario": {

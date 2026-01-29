@@ -14,7 +14,7 @@ import { Badge } from "@/components/ui/badge";
 import { Slider } from "@/components/ui/slider";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { Plus, Edit, Trash2, Star, Check, GripVertical, Copy, Settings, MessageCircle, Target, Lightbulb, Heart, Users, Award, Brain, Zap, Shield, TrendingUp, Eye, Ear, HandHeart, Compass, Flag, ThumbsUp, Megaphone, PenTool, BookOpen, Sparkles, AlertCircle } from "lucide-react";
+import { Plus, Edit, Trash2, Star, Check, GripVertical, Copy, Settings, MessageCircle, Target, Lightbulb, Heart, Users, Award, Brain, Zap, Shield, TrendingUp, Eye, Ear, HandHeart, Compass, Flag, ThumbsUp, Megaphone, PenTool, BookOpen, Sparkles, AlertCircle, Languages } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 
 const AVAILABLE_ICONS = [
@@ -183,6 +183,39 @@ export function EvaluationCriteriaManager() {
     },
     onError: (error: any) => {
       toast({ title: t('admin.evaluationCriteria.translationFailed'), description: error.message, variant: "destructive" });
+    },
+  });
+
+  const [batchTranslateProgress, setBatchTranslateProgress] = useState<{ current: number; total: number } | null>(null);
+  
+  const batchTranslateMutation = useMutation({
+    mutationFn: async (criteriaSetIds: string[]) => {
+      setBatchTranslateProgress({ current: 0, total: criteriaSetIds.length });
+      const results = [];
+      for (let i = 0; i < criteriaSetIds.length; i++) {
+        const id = criteriaSetIds[i];
+        try {
+          const result = await apiRequest('POST', `/api/admin/evaluation-criteria/${id}/auto-translate`, { sourceLocale: 'ko' });
+          results.push({ id, success: true, result });
+        } catch (error) {
+          results.push({ id, success: false, error });
+        }
+        setBatchTranslateProgress({ current: i + 1, total: criteriaSetIds.length });
+      }
+      return results;
+    },
+    onSuccess: (results: any[]) => {
+      const successCount = results.filter(r => r.success).length;
+      queryClient.invalidateQueries({ queryKey: ['/api/admin/evaluation-criteria'] });
+      toast({ 
+        title: t('admin.evaluationCriteria.batchTranslateComplete'), 
+        description: `${successCount}/${results.length} ${t('admin.evaluationCriteria.setsTranslated')}`
+      });
+      setBatchTranslateProgress(null);
+    },
+    onError: (error: any) => {
+      toast({ title: t('admin.evaluationCriteria.translationFailed'), description: error.message, variant: "destructive" });
+      setBatchTranslateProgress(null);
     },
   });
 
@@ -449,10 +482,26 @@ export function EvaluationCriteriaManager() {
           <h2 className="text-2xl font-bold">{t('admin.evaluationCriteria.title')}</h2>
           <p className="text-slate-600">사용자 대화 피드백에 사용될 평가 기준을 설정합니다.</p>
         </div>
-        <Button onClick={() => { resetFormData(); setIsCreateDialogOpen(true); }}>
-          <Plus className="h-4 w-4 mr-2" />
-          {t('admin.evaluationCriteria.newCriteriaSet')}
-        </Button>
+        <div className="flex gap-2">
+          {criteriaSets.length > 0 && (
+            <Button 
+              variant="outline"
+              onClick={() => batchTranslateMutation.mutate(criteriaSets.map(s => s.id))}
+              disabled={batchTranslateMutation.isPending}
+            >
+              <Languages className="h-4 w-4 mr-2" />
+              {batchTranslateMutation.isPending 
+                ? (batchTranslateProgress 
+                    ? `${batchTranslateProgress.current}/${batchTranslateProgress.total}...`
+                    : t('admin.common.loading'))
+                : t('admin.evaluationCriteria.translateAll')}
+            </Button>
+          )}
+          <Button onClick={() => { resetFormData(); setIsCreateDialogOpen(true); }}>
+            <Plus className="h-4 w-4 mr-2" />
+            {t('admin.evaluationCriteria.newCriteriaSet')}
+          </Button>
+        </div>
       </div>
 
       {criteriaSets.length === 0 ? (

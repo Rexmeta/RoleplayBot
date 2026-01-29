@@ -5707,7 +5707,7 @@ export async function registerRoutes(app: Express, httpServer: Server): Promise<
   app.post("/api/admin/evaluation-criteria", isAuthenticated, isOperatorOrAdmin, async (req, res) => {
     try {
       const user = req.user as any;
-      const { name, description, isDefault, isActive, categoryId, dimensions } = req.body;
+      const { name, description, isDefault, isActive, categoryId, dimensions, autoTranslate } = req.body;
       
       if (!name || name.trim() === "") {
         return res.status(400).json({ error: "Name is required" });
@@ -5752,6 +5752,123 @@ export async function registerRoutes(app: Express, httpServer: Server): Promise<
           });
           createdDimensions.push(dimension);
         }
+      }
+      
+      // Auto-translate if requested
+      if (autoTranslate) {
+        const sourceLocale = 'ko';
+        const criteriaSetWithDims = { ...criteriaSet, dimensions: createdDimensions };
+        
+        const languages = await storage.getActiveSupportedLanguages();
+        const targetLocales = languages.filter(l => l.code !== sourceLocale).map(l => l.code);
+        
+        const languageNames: Record<string, string> = {
+          'ko': 'Korean (한국어)',
+          'en': 'English',
+          'ja': 'Japanese (日本語)',
+          'zh': 'Chinese Simplified (简体中文)',
+        };
+        
+        // Save original content first
+        await storage.upsertEvaluationCriteriaSetTranslation({
+          criteriaSetId: criteriaSet.id,
+          locale: sourceLocale,
+          sourceLocale: sourceLocale,
+          isOriginal: true,
+          name: criteriaSet.name,
+          description: criteriaSet.description || null,
+          isMachineTranslated: false,
+          isReviewed: true,
+        });
+        
+        for (const dim of createdDimensions) {
+          await storage.upsertEvaluationDimensionTranslation({
+            dimensionId: dim.id,
+            locale: sourceLocale,
+            sourceLocale: sourceLocale,
+            isOriginal: true,
+            name: dim.name,
+            description: dim.description || null,
+            scoringRubric: dim.scoringRubric || null,
+            isMachineTranslated: false,
+            isReviewed: true,
+          });
+        }
+        
+        // Translate to all other languages (async, non-blocking)
+        (async () => {
+          for (const targetLocale of targetLocales) {
+            try {
+              const setPrompt = `Translate the following ${languageNames[sourceLocale] || sourceLocale} evaluation criteria set into ${languageNames[targetLocale] || targetLocale}. 
+This is for a workplace communication training system. Maintain professional tone.
+Return ONLY valid JSON.
+
+Source:
+Name: ${criteriaSet.name}
+Description: ${criteriaSet.description || ''}
+
+Return JSON: {"name": "translated name", "description": "translated description"}`;
+
+              const setResponse = await generateAIResponse('gemini-2.5-flash-preview-05-20', setPrompt, 'translate');
+              const setJsonMatch = setResponse.match(/\{[\s\S]*\}/);
+              if (setJsonMatch) {
+                const setTranslation = JSON.parse(setJsonMatch[0]);
+                await storage.upsertEvaluationCriteriaSetTranslation({
+                  criteriaSetId: criteriaSet.id,
+                  locale: targetLocale,
+                  sourceLocale: sourceLocale,
+                  isOriginal: false,
+                  name: setTranslation.name,
+                  description: setTranslation.description,
+                  isMachineTranslated: true,
+                  isReviewed: false,
+                });
+              }
+              
+              for (const dim of createdDimensions) {
+                const rubricText = dim.scoringRubric?.map((r: any) => 
+                  `Score ${r.score} (${r.label}): ${r.description}`
+                ).join('\n') || '';
+                
+                const dimPrompt = `Translate the following ${languageNames[sourceLocale] || sourceLocale} evaluation dimension into ${languageNames[targetLocale] || targetLocale}. 
+This is for a workplace communication training system. Maintain professional tone.
+Return ONLY valid JSON.
+
+Source:
+Name: ${dim.name}
+Description: ${dim.description || ''}
+Scoring Rubric:
+${rubricText}
+
+Return JSON: {
+  "name": "translated name",
+  "description": "translated description",
+  "scoringRubric": [{"score": 1, "label": "label", "description": "description"}, ...]
+}`;
+
+                const dimResponse = await generateAIResponse('gemini-2.5-flash-preview-05-20', dimPrompt, 'translate');
+                const dimJsonMatch = dimResponse.match(/\{[\s\S]*\}/);
+                if (dimJsonMatch) {
+                  const dimTranslation = JSON.parse(dimJsonMatch[0]);
+                  await storage.upsertEvaluationDimensionTranslation({
+                    dimensionId: dim.id,
+                    locale: targetLocale,
+                    sourceLocale: sourceLocale,
+                    isOriginal: false,
+                    name: dimTranslation.name,
+                    description: dimTranslation.description,
+                    scoringRubric: dimTranslation.scoringRubric,
+                    isMachineTranslated: true,
+                    isReviewed: false,
+                  });
+                }
+              }
+            } catch (e) {
+              console.error(`Failed to auto-translate criteria set ${criteriaSet.id} to ${targetLocale}:`, e);
+            }
+          }
+          console.log(`✅ Auto-translation completed for criteria set: ${criteriaSet.name}`);
+        })();
       }
       
       res.json({ ...criteriaSet, dimensions: createdDimensions });

@@ -964,7 +964,10 @@
       "autoTranslateDescription": "Automatically translate to all supported languages on creation (KO/EN/JA/ZH)",
       "translationSuccess": "Translation Complete",
       "translationFailed": "Translation Failed",
-      "triggerAutoTranslate": "Run Auto-Translation"
+      "triggerAutoTranslate": "Run Auto-Translation",
+      "translateAll": "Translate All Sets",
+      "batchTranslateComplete": "Batch Translation Complete",
+      "setsTranslated": "sets translated"
     }
   },
   "scenario": {
