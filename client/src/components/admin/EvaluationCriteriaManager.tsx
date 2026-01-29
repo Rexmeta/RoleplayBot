@@ -103,7 +103,8 @@ const DIMENSION_TYPE_OPTIONS = [
 ];
 
 export function EvaluationCriteriaManager() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const currentLang = i18n.language;
   const { toast } = useToast();
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
@@ -157,12 +158,12 @@ export function EvaluationCriteriaManager() {
   ];
 
   const { data: criteriaSets = [], isLoading } = useQuery<EvaluationCriteriaSet[]>({
-    queryKey: ['/api/admin/evaluation-criteria'],
+    queryKey: ['/api/admin/evaluation-criteria', currentLang],
     queryFn: async () => {
       const token = localStorage.getItem("authToken");
       const headers: Record<string, string> = {};
       if (token) headers["Authorization"] = `Bearer ${token}`;
-      const res = await fetch('/api/admin/evaluation-criteria', { credentials: 'include', headers });
+      const res = await fetch(`/api/admin/evaluation-criteria?lang=${currentLang}`, { credentials: 'include', headers });
       return res.json();
     },
   });
@@ -176,6 +177,8 @@ export function EvaluationCriteriaManager() {
       return apiRequest('POST', `/api/admin/evaluation-criteria/${criteriaSetId}/auto-translate`, { sourceLocale: 'ko' });
     },
     onSuccess: (data: any) => {
+      // Invalidate query to refresh with translated content
+      queryClient.invalidateQueries({ queryKey: ['/api/admin/evaluation-criteria'] });
       toast({ title: t('admin.evaluationCriteria.translationSuccess'), description: data.message });
     },
     onError: (error: any) => {
@@ -421,7 +424,7 @@ export function EvaluationCriteriaManager() {
     const token = localStorage.getItem("authToken");
     const headers: Record<string, string> = {};
     if (token) headers["Authorization"] = `Bearer ${token}`;
-    const res = await fetch(`/api/admin/evaluation-criteria/${id}`, { credentials: 'include', headers });
+    const res = await fetch(`/api/admin/evaluation-criteria/${id}?lang=${currentLang}`, { credentials: 'include', headers });
     return res.json();
   };
 
@@ -952,9 +955,10 @@ function CriteriaSetDetail({
   onDeleteDimension: (dimId: string) => void;
   isDefault: boolean;
 }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const currentLang = i18n.language;
   const { data: setWithDimensions, isLoading } = useQuery({
-    queryKey: ['/api/admin/evaluation-criteria', setId],
+    queryKey: ['/api/admin/evaluation-criteria', setId, currentLang],
     queryFn: () => fetchSetWithDimensions(setId),
   });
 

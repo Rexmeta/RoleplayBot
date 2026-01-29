@@ -5590,9 +5590,27 @@ export async function registerRoutes(app: Express, httpServer: Server): Promise<
   // ===== Evaluation Criteria APIs (운영자/관리자 접근 가능) =====
   
   // 모든 평가 기준 세트 조회
-  app.get("/api/admin/evaluation-criteria", isAuthenticated, isOperatorOrAdmin, async (req, res) => {
+  app.get("/api/admin/evaluation-criteria", isAuthenticated, isOperatorOrAdmin, async (req: any, res) => {
     try {
+      const lang = req.query.lang as string | undefined;
       const criteriaSets = await storage.getAllEvaluationCriteriaSets();
+      
+      // If language is specified and not Korean (source), apply translations
+      if (lang && lang !== 'ko') {
+        const translatedSets = await Promise.all(criteriaSets.map(async (set) => {
+          const translation = await storage.getEvaluationCriteriaSetTranslation(set.id, lang);
+          if (translation) {
+            return {
+              ...set,
+              name: translation.name || set.name,
+              description: translation.description || set.description,
+            };
+          }
+          return set;
+        }));
+        return res.json(translatedSets);
+      }
+      
       res.json(criteriaSets);
     } catch (error: any) {
       console.error("Error getting evaluation criteria sets:", error);
@@ -5612,13 +5630,42 @@ export async function registerRoutes(app: Express, httpServer: Server): Promise<
   });
   
   // 특정 평가 기준 세트 조회 (차원 포함)
-  app.get("/api/admin/evaluation-criteria/:id", isAuthenticated, isOperatorOrAdmin, async (req, res) => {
+  app.get("/api/admin/evaluation-criteria/:id", isAuthenticated, isOperatorOrAdmin, async (req: any, res) => {
     try {
       const { id } = req.params;
+      const lang = req.query.lang as string | undefined;
       const criteriaSetWithDimensions = await storage.getEvaluationCriteriaSetWithDimensions(id);
       
       if (!criteriaSetWithDimensions) {
         return res.status(404).json({ error: "Evaluation criteria set not found" });
+      }
+      
+      // Apply translations if language is specified and not Korean
+      if (lang && lang !== 'ko') {
+        const setTranslation = await storage.getEvaluationCriteriaSetTranslation(id, lang);
+        
+        // Translate dimensions
+        const translatedDimensions = await Promise.all(
+          (criteriaSetWithDimensions.dimensions || []).map(async (dim: any) => {
+            const dimTranslation = await storage.getEvaluationDimensionTranslation(dim.id, lang);
+            if (dimTranslation) {
+              return {
+                ...dim,
+                name: dimTranslation.name || dim.name,
+                description: dimTranslation.description || dim.description,
+                scoringRubric: dimTranslation.scoringRubric || dim.scoringRubric,
+              };
+            }
+            return dim;
+          })
+        );
+        
+        return res.json({
+          ...criteriaSetWithDimensions,
+          name: setTranslation?.name || criteriaSetWithDimensions.name,
+          description: setTranslation?.description || criteriaSetWithDimensions.description,
+          dimensions: translatedDimensions,
+        });
       }
       
       res.json(criteriaSetWithDimensions);
