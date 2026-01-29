@@ -204,9 +204,12 @@ export function setupAuth(app: Express) {
           errors: errorMessages,
         });
       }
-      // 더 자세한 오류 메시지 제공
-      const errorMessage = error?.message || "알 수 없는 오류가 발생했습니다";
-      res.status(500).json({ message: `서버 오류: ${errorMessage}` });
+      // 데이터베이스 연결 오류를 사용자에게 친화적으로 전달
+      const msg = error?.message || '';
+      if (msg.includes('ECONNREFUSED') || msg.includes('connect') && msg.includes('5432')) {
+        return res.status(503).json({ message: "데이터베이스에 연결할 수 없습니다. 잠시 후 다시 시도해주세요." });
+      }
+      res.status(500).json({ message: "서버 오류가 발생했습니다. 잠시 후 다시 시도해주세요." });
     }
   });
 
