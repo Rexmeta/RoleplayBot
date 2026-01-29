@@ -20,6 +20,7 @@ import { generateScenarioWithAI, enhanceScenarioWithAI } from "./services/aiScen
 import { realtimeVoiceService } from "./services/realtimeVoiceService";
 import { generateIntroVideo, deleteIntroVideo, getVideoGenerationStatus } from "./services/gemini-video-generator";
 import { GlobalMBTICache } from "./utils/globalMBTICache";
+import { registerObjectStorageRoutes } from "./replit_integrations/object_storage";
 
 export async function registerRoutes(app: Express, httpServer: Server): Promise<void> {
   // 이메일 기반 인증 시스템 설정
@@ -6045,6 +6046,9 @@ Return JSON: {
 
   // 이미지 생성 라우트
   app.use("/api/image", imageGenerationRoutes);
+
+  // Object Storage routes (미디어 파일 영구 저장)
+  registerObjectStorageRoutes(app);
 
   // Create sample data for development
   if (process.env.NODE_ENV === "development") {

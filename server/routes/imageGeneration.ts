@@ -5,6 +5,7 @@ import * as path from 'path';
 import sharp from 'sharp';
 import { trackImageUsage } from '../services/aiUsageTracker';
 import { fileManager } from '../services/fileManager';
+import { mediaStorage } from '../services/mediaStorage';
 
 // 이미지 최적화 설정
 const IMAGE_CONFIG = {
@@ -77,10 +78,10 @@ router.post('/generate-scenario-image', async (req, res) => {
       throw new Error('이미지가 생성되지 않았습니다. Gemini API 응답에서 이미지 데이터를 찾을 수 없습니다.');
     }
 
-    // base64 이미지를 로컬 파일로 저장
-    const localImagePath = await saveImageToLocal(imageUrl, scenarioTitle);
+    // Object Storage에 이미지 저장
+    const { imagePath: localImagePath } = await mediaStorage.saveScenarioImage(imageUrl, scenarioTitle);
     
-    console.log(`✅ Gemini 이미지 생성 성공, 로컬 저장 완료: ${localImagePath}`);
+    console.log(`✅ Gemini 이미지 생성 성공, Object Storage 저장 완료: ${localImagePath}`);
 
     // AI 사용량 추적
     trackImageUsage({
@@ -305,8 +306,8 @@ router.post('/generate-preview', async (req, res) => {
       throw new Error('미리보기 이미지가 생성되지 않았습니다. Gemini API가 이미지를 반환하지 않았습니다.');
     }
 
-    // 미리보기 이미지도 로컬에 저장
-    const localImagePath = await saveImageToLocal(imageUrl, scenarioTitle);
+    // 미리보기 이미지도 Object Storage에 저장
+    const { imagePath: localImagePath } = await mediaStorage.saveScenarioImage(imageUrl, scenarioTitle);
     
     // AI 사용량 추적
     trackImageUsage({
@@ -395,8 +396,8 @@ router.post('/generate-persona-base', async (req, res) => {
       throw new Error('이미지가 생성되지 않았습니다. Gemini API가 이미지를 반환하지 않았습니다.');
     }
 
-    // base64 이미지를 로컬 파일로 저장 (성별별 폴더)
-    const localImagePath = await savePersonaImageToLocal(imageUrl, personaId, 'neutral', gender);
+    // Object Storage에 이미지 저장 (성별별 폴더)
+    const { imagePath: localImagePath } = await mediaStorage.savePersonaImage(imageUrl, personaId, 'neutral', gender);
     
     console.log(`✅ 페르소나 기본 이미지 생성 성공: ${localImagePath}`);
 
@@ -695,7 +696,7 @@ router.post('/generate-persona-expressions', async (req, res) => {
         }
 
         if (imageUrl) {
-          const localImagePath = await savePersonaImageToLocal(imageUrl, personaId, emotion.korean, gender);
+          const { imagePath: localImagePath } = await mediaStorage.savePersonaImage(imageUrl, personaId, emotion.korean, gender);
           generatedImages.push({
             emotion: emotion.english,
             emotionKorean: emotion.korean,
@@ -830,7 +831,7 @@ router.post('/generate-persona-single-expression', async (req, res) => {
         throw new Error('이미지가 생성되지 않았습니다.');
       }
 
-      const localImagePath = await savePersonaImageToLocal(imageUrl, personaId, emotion, gender);
+      const { imagePath: localImagePath } = await mediaStorage.savePersonaImage(imageUrl, personaId, emotion, gender);
       
       trackImageUsage({
         model: 'gemini-2.5-flash-image',
@@ -847,7 +848,7 @@ router.post('/generate-persona-single-expression', async (req, res) => {
       });
     }
 
-    // 다른 표정의 경우 기본 이미지를 참조로 사용
+    // 다른 표정의 경우 기본 이미지를 참조로 사용 (Object Storage에서 조회 시도)
     const baseDir = path.join(process.cwd(), 'attached_assets', 'personas', personaId, gender);
     const fallbackDir = path.join(process.cwd(), 'attached_assets', 'personas', personaId);
     
@@ -910,7 +911,7 @@ router.post('/generate-persona-single-expression', async (req, res) => {
       throw new Error('이미지가 생성되지 않았습니다.');
     }
 
-    const localImagePath = await savePersonaImageToLocal(imageUrl, personaId, emotion, gender);
+    const { imagePath: localImagePath } = await mediaStorage.savePersonaImage(imageUrl, personaId, emotion, gender);
     
     trackImageUsage({
       model: 'gemini-2.5-flash-image',
@@ -918,7 +919,7 @@ router.post('/generate-persona-single-expression', async (req, res) => {
       metadata: { type: 'persona-single-expression', personaId, emotion, gender }
     });
 
-    console.log(`✅ ${emotion} 표정 이미지 생성 완료: ${localImagePath}`);
+    console.log(`✅ ${emotion} 표정 이미지 Object Storage 저장 완료: ${localImagePath}`);
 
     res.json({
       success: true,

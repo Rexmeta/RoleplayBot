@@ -4,6 +4,7 @@ import * as path from 'path';
 import { exec } from 'child_process';
 import { promisify } from 'util';
 import { trackVideoUsage } from './aiUsageTracker';
+import { mediaStorage } from './mediaStorage';
 
 const execAsync = promisify(exec);
 
@@ -164,9 +165,9 @@ export async function generateIntroVideo(request: VideoGenerationRequest): Promi
       };
     }
 
-    const localVideoPath = await saveVideoToLocal(videoBytes, request.scenarioId, request.scenarioTitle);
+    const localVideoPath = await mediaStorage.saveVideo(videoBytes, request.scenarioId, request.scenarioTitle);
     
-    console.log(`✅ Gemini Veo 비디오 생성 성공, 로컬 저장 완료: ${localVideoPath}`);
+    console.log(`✅ Gemini Veo 비디오 생성 성공, Object Storage 저장 완료: ${localVideoPath}`);
 
     // AI 사용량 추적 (비디오 생성은 토큰이 아닌 건당 비용)
     trackVideoUsage({
