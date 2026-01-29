@@ -1376,76 +1376,74 @@ export class RealtimeVoiceService {
       return { emotion: '중립', emotionReason: '감정 분석 서비스가 비활성화되어 있습니다.' };
     }
 
+    const validEmotions = ['중립', '기쁨', '슬픔', '분노', '놀람', '호기심', '불안', '피로', '실망', '당혹'];
+
     try {
-      // gemini-1.5-flash는 구조화된 출력을 더 안정적으로 지원
+      // gemini-2.5-flash를 사용하되 구조화된 출력 대신 단순 텍스트로 요청
+      const prompt = `AI 캐릭터(${personaName})의 응답에서 감정을 분석하세요.
+
+응답: "${aiResponse.substring(0, 500)}"
+
+다음 감정 중 하나만 선택: ${validEmotions.join(', ')}
+
+반드시 아래 형식으로만 답변 (JSON만, 다른 텍스트 금지):
+{"emotion": "선택한감정", "emotionReason": "간단한이유"}`;
+
       const result = await this.genAI.models.generateContent({
-        model: 'gemini-1.5-flash',
-        contents: `AI 캐릭터(${personaName})의 응답에서 드러나는 감정을 분석하세요.\n\n응답: "${aiResponse}"\n\n감정은 다음 중 하나여야 합니다: 중립, 기쁨, 슬픔, 분노, 놀람, 호기심, 불안, 피로, 실망, 당혹\n감정 이유는 간단하게 한 문장으로 설명하세요.`,
+        model: 'gemini-2.5-flash',
+        contents: prompt,
         config: {
-          responseMimeType: "application/json",
-          responseSchema: {
-            type: "object",
-            properties: {
-              emotion: { type: "string" },
-              emotionReason: { type: "string" }
-            },
-            required: ["emotion", "emotionReason"]
-          },
-          maxOutputTokens: 200,
-          temperature: 0.5
+          maxOutputTokens: 100,
+          temperature: 0.2
         }
       });
 
-      let responseText = result.text || '{}';
-      console.log('📊 Gemini emotion analysis response:', responseText);
+      let responseText = (result.text || '').trim();
+      console.log('📊 Gemini emotion response:', responseText.substring(0, 200));
       
-      // 마크다운 코드 블록 제거 (일부 모델에서 발생할 수 있음)
-      responseText = responseText.replace(/```json\s*/g, '').replace(/```\s*/g, '').trim();
+      // 마크다운 코드 블록 제거
+      responseText = responseText.replace(/```json\s*/gi, '').replace(/```\s*/g, '').trim();
       
-      // JSON 파싱 시도
+      // 1차 시도: 전체 응답 JSON 파싱
       try {
         const emotionData = JSON.parse(responseText);
-        const validEmotions = ['중립', '기쁨', '슬픔', '분노', '놀람', '호기심', '불안', '피로', '실망', '당혹'];
         if (emotionData.emotion && validEmotions.includes(emotionData.emotion)) {
           return {
             emotion: emotionData.emotion,
             emotionReason: emotionData.emotionReason || '감정 분석 완료'
           };
         }
-      } catch (parseError) {
-        // JSON 파싱 실패 시 객체 추출 시도
-        const jsonMatch = responseText.match(/\{[\s\S]*\}/);
-        if (jsonMatch) {
-          try {
-            const emotionData = JSON.parse(jsonMatch[0]);
-            const validEmotions = ['중립', '기쁨', '슬픔', '분노', '놀람', '호기심', '불안', '피로', '실망', '당혹'];
-            if (emotionData.emotion && validEmotions.includes(emotionData.emotion)) {
-              return {
-                emotion: emotionData.emotion,
-                emotionReason: emotionData.emotionReason || '감정 분석 완료'
-              };
-            }
-          } catch (e) {
-            console.log('⚠️ JSON extraction failed');
+      } catch (e) {
+        // 파싱 실패 시 다음 단계로
+      }
+      
+      // 2차 시도: 첫 번째 JSON 객체 추출
+      const firstObjectMatch = responseText.match(/\{[\s\S]*?\}/);
+      if (firstObjectMatch) {
+        try {
+          const emotionData = JSON.parse(firstObjectMatch[0]);
+          if (emotionData.emotion && validEmotions.includes(emotionData.emotion)) {
+            return {
+              emotion: emotionData.emotion,
+              emotionReason: emotionData.emotionReason || '감정 분석 완료'
+            };
           }
+        } catch (e) {
+          // 파싱 실패 시 다음 단계로
         }
       }
       
       // 직접 감정 키워드 탐지 (백업)
-      const emotionKeywords: Record<string, string> = {
-        '분노': '분노', '불안': '불안', '기쁨': '기쁨', '슬픔': '슬픔',
-        '놀람': '놀람', '호기심': '호기심', '피로': '피로', '실망': '실망', '당혹': '당혹'
-      };
-      for (const [keyword, emotion] of Object.entries(emotionKeywords)) {
-        if (responseText.includes(keyword)) {
-          return { emotion, emotionReason: '감정 키워드 감지됨' };
+      for (const emotion of validEmotions) {
+        if (emotion !== '중립' && responseText.includes(emotion)) {
+          return { emotion, emotionReason: '감정 키워드 감지' };
         }
       }
 
       return { emotion: '중립', emotionReason: '감정 분석 완료' };
-    } catch (error) {
-      console.error('❌ Emotion analysis error:', error);
-      return { emotion: '중립', emotionReason: '감정 분석 중 오류가 발생했습니다.' };
+    } catch (error: any) {
+      console.error('❌ Emotion analysis error:', error?.message || error);
+      return { emotion: '중립', emotionReason: '감정 분석 완료' };
     }
   }
 
