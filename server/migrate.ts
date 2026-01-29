@@ -537,20 +537,48 @@ SELECT
 WHERE NOT EXISTS (SELECT 1 FROM "evaluation_dimensions" WHERE "id" = 'dim-strategic-comm');
 `;
 
+/**
+ * Build pg Pool config – handles Cloud SQL Unix socket URLs.
+ * See storage.ts for detailed explanation.
+ */
+function buildPoolConfig(url: string): import('pg').PoolConfig {
+  try {
+    const parsed = new URL(url);
+    const hostParam = parsed.searchParams.get('host');
+
+    if (hostParam && hostParam.startsWith('/cloudsql/')) {
+      console.log(`[migrate] Using Cloud SQL Unix socket: ${hostParam}`);
+      return {
+        host: hostParam,
+        user: parsed.username,
+        password: parsed.password,
+        database: parsed.pathname.slice(1),
+        ssl: false,
+      };
+    }
+  } catch {
+    // fall through
+  }
+
+  const isUnixSocket = url.includes('/cloudsql/');
+  const disableSsl = url.includes('sslmode=disable') || isUnixSocket;
+
+  return {
+    connectionString: url,
+    ssl: disableSsl ? false : { rejectUnauthorized: false },
+  };
+}
+
 export async function runMigrations(): Promise<void> {
   const databaseUrl = process.env.DATABASE_URL;
-  
+
   if (!databaseUrl) {
     console.log('⚠️ DATABASE_URL not set, skipping migrations');
     return;
   }
 
-  const isUnixSocket = databaseUrl.includes('/cloudsql/');
-  const disableSsl = databaseUrl.includes('sslmode=disable') || isUnixSocket;
-
   const pool = new Pool({
-    connectionString: databaseUrl,
-    ssl: disableSsl ? false : { rejectUnauthorized: false },
+    ...buildPoolConfig(databaseUrl),
     connectionTimeoutMillis: 10000,
   });
 

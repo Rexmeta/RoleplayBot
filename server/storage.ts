@@ -10,12 +10,55 @@ const databaseUrl = process.env.DATABASE_URL || '';
 if (!databaseUrl) {
   console.error('WARNING: DATABASE_URL is not set. Database operations will fail.');
 }
-const isUnixSocket = databaseUrl.includes('/cloudsql/');
-const disableSsl = databaseUrl.includes('sslmode=disable') || isUnixSocket;
+
+/**
+ * Build pg Pool config from a DATABASE_URL.
+ *
+ * node-postgres parses the *hostname* portion of a PostgreSQL URL
+ * (e.g. `@localhost`) and connects via TCP.  When Cloud SQL is used
+ * with a Unix socket the URL typically looks like:
+ *
+ *   postgresql://user:pass@localhost/db?host=/cloudsql/PROJECT:REGION:INSTANCE
+ *
+ * The `?host=` query-parameter is a libpq convention that node-postgres
+ * does NOT honour – it still tries `localhost:5432` via TCP and fails
+ * with ECONNREFUSED.
+ *
+ * This helper detects the pattern and returns explicit connection
+ * parameters so that the Pool connects through the Unix socket instead.
+ */
+function buildPoolConfig(url: string): import('pg').PoolConfig {
+  if (!url) return {};
+
+  try {
+    const parsed = new URL(url);
+    const hostParam = parsed.searchParams.get('host');
+
+    if (hostParam && hostParam.startsWith('/cloudsql/')) {
+      console.log(`Using Cloud SQL Unix socket: ${hostParam}`);
+      return {
+        host: hostParam,
+        user: parsed.username,
+        password: parsed.password,
+        database: parsed.pathname.slice(1), // strip leading '/'
+        ssl: false,
+      };
+    }
+  } catch {
+    // URL parsing failed – fall through to connection-string path
+  }
+
+  const isUnixSocket = url.includes('/cloudsql/');
+  const disableSsl = url.includes('sslmode=disable') || isUnixSocket;
+
+  return {
+    connectionString: url,
+    ssl: disableSsl ? false : { rejectUnauthorized: false },
+  };
+}
 
 const pool = new Pool({
-  connectionString: databaseUrl || undefined,
-  ssl: disableSsl ? false : { rejectUnauthorized: false },
+  ...buildPoolConfig(databaseUrl),
   connectionTimeoutMillis: 10000,
   idle_in_transaction_session_timeout: 30000,
 });
