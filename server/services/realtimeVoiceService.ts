@@ -1409,7 +1409,7 @@ Reply with ONLY this JSON format (no other text):
         model: 'gemini-2.5-flash',
         contents: prompt,
         config: {
-          maxOutputTokens: 80,
+          maxOutputTokens: 150,
           temperature: 0.1
         }
       });
@@ -1419,6 +1419,17 @@ Reply with ONLY this JSON format (no other text):
       
       // 마크다운 코드 블록 제거
       responseText = responseText.replace(/```json\s*/gi, '').replace(/```\s*/g, '').trim();
+      
+      // API 응답이 비어있으면 바로 텍스트 분석으로 폴백
+      if (!responseText || responseText.length < 5) {
+        console.log('📊 Empty API response, falling back to text analysis');
+        const directAnalysis = this.analyzeEmotionFromText(aiResponse);
+        if (directAnalysis) {
+          console.log('📊 Direct text analysis (empty API):', directAnalysis.emotion);
+          return directAnalysis;
+        }
+        return { emotion: '중립', emotionReason: '감정 분석 완료' };
+      }
       
       // JSON 파싱 시도
       const parseAndMapEmotion = (jsonStr: string): { emotion: string; emotionReason: string } | null => {
@@ -1478,42 +1489,68 @@ Reply with ONLY this JSON format (no other text):
     
     const lowerText = text.toLowerCase();
     
-    // 감정별 키워드 패턴 (우선순위 순서)
+    // 감정별 키워드 패턴 (우선순위 순서) - 비즈니스 대화체 및 실제 대화 표현 포함
     const emotionPatterns: Array<{ emotion: string; patterns: RegExp[]; keywords: string[] }> = [
       { 
         emotion: '분노', 
-        patterns: [/왜.*안|어떻게.*이런|도대체|짜증|화나|열받|불쾌/i],
-        keywords: ['frustrated', 'angry', 'annoyed', 'irritated', 'upset', '화가', '짜증', '답답', '큰일']
+        patterns: [
+          /왜.*안|어떻게.*이런|도대체|짜증|화나|열받|불쾌/i,
+          /지나치십니다|무책임|정신.*차|그러지.*마|말도.*안|황당/i,
+          /어이.*없|기가.*막|뭘.*하자는|용납.*안|참을.*수/i,
+          /비합리적|무작정|밀어붙이|그만하십시오|그만.*해/i,
+          /책임.*져|무리하|납득.*안|이해.*안.*되|받아들일.*수.*없/i,
+          /감정적.*대응|논리적.*생각|얼마나.*큰.*손해/i
+        ],
+        keywords: ['frustrated', 'angry', 'annoyed', 'irritated', 'upset', '화가', '짜증', '답답', '큰일', '무책임', '황당', '어이없', '비합리', '무리', '납득']
       },
       { 
         emotion: '불안', 
-        patterns: [/걱정|우려|불안|초조|조급|어쩌|큰일/i],
-        keywords: ['worried', 'anxious', 'nervous', 'concerned', 'uneasy', '걱정', '우려', '불안', '급하']
+        patterns: [
+          /걱정|우려|불안|초조|조급|어쩌|큰일/i,
+          /심각|위험|문제.*생|잘못.*되|어떡/i,
+          /심각성|파악.*안.*되|회의.*전|시간.*없/i
+        ],
+        keywords: ['worried', 'anxious', 'nervous', 'concerned', 'uneasy', '걱정', '우려', '불안', '급하', '심각', '위험', '심각성']
       },
       { 
         emotion: '실망', 
-        patterns: [/실망|아쉽|유감|안타깝/i],
-        keywords: ['disappointed', 'let down', '실망', '아쉽']
+        patterns: [
+          /실망|아쉽|유감|안타깝/i,
+          /기대.*못|생각.*달|믿었는데/i
+        ],
+        keywords: ['disappointed', 'let down', '실망', '아쉽', '유감', '안타깝']
       },
       { 
         emotion: '놀람', 
-        patterns: [/정말요\?|뭐라고|어떻게.*그런|갑자기|충격/i],
-        keywords: ['surprised', 'shocked', 'what?', '놀라', '충격', '갑자기']
+        patterns: [
+          /정말요\?|뭐라고|어떻게.*그런|갑자기|충격/i,
+          /믿기.*어렵|예상.*못|처음.*듣/i
+        ],
+        keywords: ['surprised', 'shocked', 'what?', '놀라', '충격', '갑자기', '믿기 어렵']
       },
       { 
         emotion: '호기심', 
-        patterns: [/궁금|왜.*그런|어떻게.*되|알고\s*싶/i],
-        keywords: ['curious', 'interested', 'wondering', '궁금', '흥미']
+        patterns: [
+          /궁금|왜.*그런|어떻게.*되|알고\s*싶/i,
+          /무슨.*뜻|설명.*해|자세히/i
+        ],
+        keywords: ['curious', 'interested', 'wondering', '궁금', '흥미', '자세히']
       },
       { 
         emotion: '기쁨', 
-        patterns: [/좋아|잘됐|다행|기쁘|감사|고마워/i],
-        keywords: ['happy', 'glad', 'pleased', 'great', 'thank', '좋', '다행', '감사']
+        patterns: [
+          /좋아|잘됐|다행|기쁘|감사|고마워/i,
+          /훌륭|대단|멋지|성공|축하/i
+        ],
+        keywords: ['happy', 'glad', 'pleased', 'great', 'thank', '좋', '다행', '감사', '훌륭', '대단']
       },
       { 
         emotion: '당혹', 
-        patterns: [/뭐지|이상하|어색|곤란|난처/i],
-        keywords: ['confused', 'awkward', 'embarrassed', '당황', '곤란']
+        patterns: [
+          /뭐지|이상하|어색|곤란|난처/i,
+          /당황|어떻게.*해야|뭐라고.*해야/i
+        ],
+        keywords: ['confused', 'awkward', 'embarrassed', '당황', '곤란', '난처', '어색']
       },
       { 
         emotion: '슬픔', 
