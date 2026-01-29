@@ -36,18 +36,22 @@ const getSpeechSynthesisLang = (langCode: string): string => {
   return langMap[langCode] || 'ko-KR';
 };
 
-// 표정 한글 → 영어 매핑
+// 다국어 감정명 → 영어 이미지 파일명 매핑
 const emotionToEnglish: Record<string, string> = {
-  '중립': 'neutral',
-  '기쁨': 'joy',
-  '슬픔': 'sad',
-  '분노': 'angry',
-  '놀람': 'surprise',
-  '호기심': 'curious',
-  '불안': 'anxious',
+  // Korean
+  '중립': 'neutral', '기쁨': 'happy', '슬픔': 'sad', '분노': 'angry', '놀람': 'surprised',
+  '호기심': 'curious', '불안': 'anxious', '피로': 'tired', '실망': 'disappointed', '당혹': 'confused',
   '단호': 'determined',
-  '실망': 'disappointed',
-  '당혹': 'confused'
+  // English (passthrough)
+  'neutral': 'neutral', 'happy': 'happy', 'sad': 'sad', 'angry': 'angry', 'surprised': 'surprised',
+  'curious': 'curious', 'anxious': 'anxious', 'tired': 'tired', 'disappointed': 'disappointed', 'confused': 'confused',
+  // Chinese
+  '中立': 'neutral', '喜悦': 'happy', '悲伤': 'sad', '愤怒': 'angry', '惊讶': 'surprised',
+  '好奇': 'curious', '焦虑': 'anxious', '疲劳': 'tired', '失望': 'disappointed', '困惑': 'confused',
+  // Japanese
+  '喜び': 'happy', '悲しみ': 'sad', '怒り': 'angry', '驚き': 'surprised',
+  '好奇心': 'curious', '不安': 'anxious'
+  // Note: Japanese 中立, 疲労, 失望, 困惑 are same as Chinese and already mapped above
 };
 
 // Web Speech API 타입 확장
@@ -58,18 +62,20 @@ declare global {
   }
 }
 
-// 감정 이모지 매핑
+// 다국어 감정 이모지 매핑
 const emotionEmojis: { [key: string]: string } = {
-  '기쁨': '😊',
-  '슬픔': '😢',
-  '분노': '😠',
-  '놀람': '😲',
-  '중립': '😐',
-  '호기심': '🤔',
-  '불안': '😰',
-  '단호': '😤',
-  '실망': '😞',
-  '당혹': '😕'
+  // Korean
+  '기쁨': '😊', '슬픔': '😢', '분노': '😠', '놀람': '😲', '중립': '😐',
+  '호기심': '🤔', '불안': '😰', '피로': '😩', '실망': '😞', '당혹': '😕', '단호': '😤',
+  // English
+  'happy': '😊', 'sad': '😢', 'angry': '😠', 'surprised': '😲', 'neutral': '😐',
+  'curious': '🤔', 'anxious': '😰', 'tired': '😩', 'disappointed': '😞', 'confused': '😕',
+  // Chinese
+  '喜悦': '😊', '悲伤': '😢', '愤怒': '😠', '惊讶': '😲', '中立': '😐',
+  '好奇': '🤔', '焦虑': '😰', '疲劳': '😩', '失望': '😞', '困惑': '😕',
+  // Japanese
+  '喜び': '😊', '悲しみ': '😢', '怒り': '😠', '驚き': '😲',
+  '好奇心': '🤔', '不安': '😰'
 };
 
 // 경과 시간 포맷팅 함수
@@ -222,8 +228,9 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
     const genderFolder = persona.gender || 'male';
     const mbtiId = persona.mbti?.toLowerCase() || persona.id;
     
-    // 페르소나별 이미지가 사용 가능한지 확인 (WebP 최적화 이미지 사용)
-    if (personaImagesAvailable[emotion]) {
+    // 영어 파일명 기준으로 이미지 가용성 확인 (다국어 감정명 지원)
+    // personaImagesAvailable은 영어 파일명으로 인덱싱됨
+    if (personaImagesAvailable[emotionEn]) {
       return `/personas/${mbtiId}/${genderFolder}/${emotionEn}.webp`;
     }
     
@@ -231,27 +238,29 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
     return null;
   };
   
-  // 모든 감정에 대해 이미지가 없는지 확인
+  // 모든 감정에 대해 이미지가 없는지 확인 (영어 파일명 기준 11개)
+  const uniqueEmotionCount = new Set(Object.values(emotionToEnglish)).size;
   const hasNoPersonaImages = Object.values(personaImagesAvailable).every(v => v === false) && 
-    Object.keys(personaImagesAvailable).length === Object.keys(emotionToEnglish).length;
+    Object.keys(personaImagesAvailable).length === uniqueEmotionCount;
 
   // 페르소나별 이미지 체크 (conversationId도 의존성에 포함하여 대화 재개 시에도 체크 실행)
   useEffect(() => {
     const checkPersonaImages = async () => {
       const genderFolder = persona.gender || 'male';
       const mbtiId = persona.mbti?.toLowerCase() || persona.id;
-      // 페르소나별 이미지 체크
-      const checkPromises = Object.entries(emotionToEnglish).map(([emotionKr, emotionEn]) => {
+      // 영어 파일명 기준으로 중복 제거하여 체크
+      const uniqueEmotionEns = Array.from(new Set(Object.values(emotionToEnglish)));
+      const checkPromises = uniqueEmotionEns.map((emotionEn) => {
         return new Promise<void>((resolve) => {
           const img = new Image();
           img.onload = () => {
-            setPersonaImagesAvailable(prev => ({ ...prev, [emotionKr]: true }));
-            console.log(`✅ 페르소나별 이미지 로딩 성공: ${emotionKr} (${mbtiId}/${genderFolder})`);
+            setPersonaImagesAvailable(prev => ({ ...prev, [emotionEn]: true }));
+            console.log(`✅ 페르소나별 이미지 로딩 성공: ${emotionEn} (${mbtiId}/${genderFolder})`);
             resolve();
           };
           img.onerror = () => {
-            setPersonaImagesAvailable(prev => ({ ...prev, [emotionKr]: false }));
-            console.log(`⚠️ 페르소나별 이미지 없음: ${emotionKr}`);
+            setPersonaImagesAvailable(prev => ({ ...prev, [emotionEn]: false }));
+            console.log(`⚠️ 페르소나별 이미지 없음: ${emotionEn}`);
             resolve();
           };
           img.src = `/personas/${mbtiId}/${genderFolder}/${emotionEn}.webp`;
@@ -315,7 +324,7 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
   useEffect(() => {
     if (initialLoadCompletedRef.current) return;
     
-    const allEmotionsChecked = Object.keys(personaImagesAvailable).length === Object.keys(emotionToEnglish).length;
+    const allEmotionsChecked = Object.keys(personaImagesAvailable).length === uniqueEmotionCount;
     if (!allEmotionsChecked) return;
 
     const initialImageUrl = getCharacterImage('중립');
