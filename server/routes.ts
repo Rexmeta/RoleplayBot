@@ -2060,6 +2060,64 @@ export async function registerRoutes(app: Express, httpServer: Server): Promise<
       if (!feedback) {
         return res.status(404).json({ error: "Feedback not found" });
       }
+      
+      // 사용자의 현재 언어 설정 가져오기
+      const currentUser = await storage.getUser(userId);
+      const userLanguage = (currentUser?.preferredLanguage as 'ko' | 'en' | 'ja' | 'zh') || 'ko';
+      
+      // 피드백에 저장된 평가 기준 세트 ID 가져오기
+      const detailedFeedback = feedback.detailedFeedback as any;
+      const criteriaSetId = detailedFeedback?.evaluationCriteriaSetId;
+      
+      // 번역이 필요한 경우 (한국어가 아닌 경우)
+      if (userLanguage !== 'ko' && criteriaSetId) {
+        // 평가 기준 세트 번역 가져오기
+        const setTranslation = await storage.getEvaluationCriteriaSetTranslation(criteriaSetId, userLanguage);
+        
+        // 평가 기준 세트의 모든 차원 가져오기
+        const criteriaSet = await storage.getEvaluationCriteriaSetWithDimensions(criteriaSetId);
+        
+        if (criteriaSet && criteriaSet.dimensions) {
+          // 차원 ID와 키를 매핑하는 객체 생성
+          const dimensionTranslations: Record<string, { name: string; description?: string }> = {};
+          
+          for (const dim of criteriaSet.dimensions) {
+            const dimTranslation = await storage.getEvaluationDimensionTranslation(dim.id, userLanguage);
+            if (dimTranslation) {
+              dimensionTranslations[dim.key] = {
+                name: dimTranslation.name,
+                description: dimTranslation.description || undefined
+              };
+            }
+          }
+          
+          // scores 배열의 차원 이름들 번역
+          const scores = detailedFeedback?.scores || [];
+          const translatedScores = scores.map((score: any) => {
+            const translation = dimensionTranslations[score.category];
+            if (translation) {
+              return {
+                ...score,
+                name: translation.name
+              };
+            }
+            return score;
+          });
+          
+          // 번역 적용된 피드백 생성
+          const translatedFeedback = {
+            ...feedback,
+            detailedFeedback: {
+              ...detailedFeedback,
+              scores: translatedScores,
+              evaluationCriteriaSetName: setTranslation?.name || detailedFeedback.evaluationCriteriaSetName
+            }
+          };
+          
+          return res.json(translatedFeedback);
+        }
+      }
+      
       res.json(feedback);
     } catch (error) {
       res.status(500).json({ error: "Failed to fetch feedback" });
