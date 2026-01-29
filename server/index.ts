@@ -8,6 +8,21 @@ import { runMigrations } from "./migrate";
 import { checkDatabaseConnection } from "./storage";
 import * as pathModule from "path";
 
+// ====================================================================
+// Global crash handlers – prevent silent process exits that Cloud Run
+// would surface as 503 errors with no log output.
+// ====================================================================
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('Unhandled Rejection at:', promise, 'reason:', reason);
+  // Don't exit – let the request error handler deal with individual failures.
+});
+
+process.on('uncaughtException', (err) => {
+  console.error('Uncaught Exception:', err);
+  // Give pending I/O a moment to flush, then exit so Cloud Run restarts us.
+  setTimeout(() => process.exit(1), 1000);
+});
+
 const app = express();
 
 // ====================================================================
@@ -54,6 +69,22 @@ app.use((req, res, next) => {
   );
 });
 
+// Request timeout: prevent a single slow request from starving the
+// container and causing cascading 503 errors for other requests.
+const REQUEST_TIMEOUT_MS = 30_000; // 30 seconds
+app.use((req, res, next) => {
+  // Skip health checks
+  if (req.path.startsWith('/_ah/')) return next();
+
+  res.setTimeout(REQUEST_TIMEOUT_MS, () => {
+    if (!res.headersSent) {
+      console.error(`Request timeout (${REQUEST_TIMEOUT_MS}ms): ${req.method} ${req.path}`);
+      res.status(504).json({ message: 'Request timeout' });
+    }
+  });
+  next();
+});
+
 const server = createServer(app);
 
 console.log(`Starting server on ${host}:${port}...`);
@@ -78,6 +109,36 @@ server.on('error', (err: NodeJS.ErrnoException) => {
   }
   process.exit(1);
 });
+
+// ====================================================================
+// Graceful shutdown – Cloud Run sends SIGTERM before killing the
+// container. We stop accepting new connections and let in-flight
+// requests finish (up to 10 s) to avoid 503 errors during scale-down.
+// ====================================================================
+let shuttingDown = false;
+
+function gracefulShutdown(signal: string) {
+  if (shuttingDown) return;
+  shuttingDown = true;
+  console.log(`${signal} received – starting graceful shutdown`);
+
+  // Stop the readiness probe from advertising this instance.
+  appReady = false;
+
+  server.close(() => {
+    console.log('HTTP server closed');
+    process.exit(0);
+  });
+
+  // Force-exit after 10 seconds if connections don't drain.
+  setTimeout(() => {
+    console.error('Graceful shutdown timed out – forcing exit');
+    process.exit(1);
+  }, 10_000);
+}
+
+process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+process.on('SIGINT', () => gracefulShutdown('SIGINT'));
 
 // ====================================================================
 // Full application initialization - runs AFTER the port is open.

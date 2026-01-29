@@ -569,6 +569,25 @@ function buildPoolConfig(url: string): import('pg').PoolConfig {
   };
 }
 
+/** Run a query with a per-statement timeout to prevent migrations from hanging. */
+async function queryWithTimeout(
+  client: import('pg').PoolClient,
+  label: string,
+  queryText: string,
+  timeoutMs = 30_000,
+): Promise<void> {
+  await client.query(`SET statement_timeout = ${timeoutMs}`);
+  try {
+    await client.query(queryText);
+    console.log(`✅ ${label}`);
+  } catch (err) {
+    console.error(`❌ ${label} failed:`, err);
+    throw err;
+  } finally {
+    await client.query('SET statement_timeout = 0');
+  }
+}
+
 export async function runMigrations(): Promise<void> {
   const databaseUrl = process.env.DATABASE_URL;
 
@@ -584,26 +603,22 @@ export async function runMigrations(): Promise<void> {
 
   try {
     console.log('🔄 Running database migrations...');
-    
+
     const client = await pool.connect();
-    
+
     try {
       // 테이블 생성
-      await client.query(migrationSQL);
-      console.log('✅ Tables created/verified');
-      
+      await queryWithTimeout(client, 'Tables created/verified', migrationSQL);
+
       // Foreign Keys 추가
-      await client.query(foreignKeysSQL);
-      console.log('✅ Foreign keys created/verified');
-      
+      await queryWithTimeout(client, 'Foreign keys created/verified', foreignKeysSQL);
+
       // Indexes 추가
-      await client.query(indexesSQL);
-      console.log('✅ Indexes created/verified');
-      
+      await queryWithTimeout(client, 'Indexes created/verified', indexesSQL);
+
       // 기본 평가 기준 시딩
-      await client.query(seedDefaultEvaluationCriteriaSQL);
-      console.log('✅ Default evaluation criteria seeded');
-      
+      await queryWithTimeout(client, 'Default evaluation criteria seeded', seedDefaultEvaluationCriteriaSQL);
+
       console.log('✅ Database migrations completed successfully');
     } finally {
       client.release();
