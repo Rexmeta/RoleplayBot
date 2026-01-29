@@ -41,6 +41,19 @@ Preferred communication style: Simple, everyday language.
 - **Schema**: `conversations`, `feedbacks`, `users`, `categories`, `system_settings`, `ai_usage_logs`, `supported_languages`, `scenario_translations`, `persona_translations`, `scenarios`, `mbti_personas` tables.
 - **Data Persistence**: Scenarios and MBTI personas are stored in the PostgreSQL database to persist across Replit deployments. FileManagerService uses database as primary source with JSON file fallback.
 
+## Media Storage (Object Storage)
+- **Provider**: Replit Object Storage (Google Cloud Storage backend)
+- **Purpose**: Persistent storage for media files (images, videos) that survives Replit deployments
+- **URL Format**: `/objects/uploads/{uuid}` for serving uploaded files
+- **Services**:
+  - `server/services/mediaStorage.ts`: High-level media upload service
+  - `server/replit_integrations/object_storage/index.ts`: Object Storage API wrapper
+- **Features**:
+  - Public/private ACL policies
+  - Presigned upload URLs for direct browser uploads
+  - Automatic content-type detection
+- **Migration**: Run `npx tsx server/scripts/migrateToObjectStorage.ts` to migrate existing local files
+
 ## Features
 - **Comprehensive Persona Reflection**: AI conversations fully reflect persona definitions including:
   - MBTI personality traits, communication style, motivation, fears
