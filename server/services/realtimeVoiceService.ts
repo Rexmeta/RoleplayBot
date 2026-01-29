@@ -1489,78 +1489,128 @@ Reply with ONLY this JSON format (no other text):
     
     const lowerText = text.toLowerCase();
     
-    // 감정별 키워드 패턴 (우선순위 순서) - 비즈니스 대화체 및 실제 대화 표현 포함
+    // 감정별 키워드 패턴 (우선순위 순서) - 비즈니스 대화체 및 실제 대화 표현 포함 (한국어 + 영어)
     const emotionPatterns: Array<{ emotion: string; patterns: RegExp[]; keywords: string[] }> = [
       { 
         emotion: '분노', 
         patterns: [
+          // Korean patterns
           /왜.*안|어떻게.*이런|도대체|짜증|화나|열받|불쾌/i,
           /지나치십니다|무책임|정신.*차|그러지.*마|말도.*안|황당/i,
           /어이.*없|기가.*막|뭘.*하자는|용납.*안|참을.*수/i,
           /비합리적|무작정|밀어붙이|그만하십시오|그만.*해/i,
           /책임.*져|무리하|납득.*안|이해.*안.*되|받아들일.*수.*없/i,
-          /감정적.*대응|논리적.*생각|얼마나.*큰.*손해/i
+          /감정적.*대응|논리적.*생각|얼마나.*큰.*손해/i,
+          // English patterns
+          /unacceptable|ridiculous|absurd|outrageous|irresponsible/i,
+          /can'?t\s+accept|won'?t\s+tolerate|this\s+is\s+wrong/i,
+          /how\s+dare|stop\s+this|enough\s+is\s+enough/i,
+          /makes?\s+no\s+sense|completely\s+wrong|totally\s+unacceptable/i
         ],
-        keywords: ['frustrated', 'angry', 'annoyed', 'irritated', 'upset', '화가', '짜증', '답답', '큰일', '무책임', '황당', '어이없', '비합리', '무리', '납득']
+        keywords: ['frustrated', 'angry', 'annoyed', 'irritated', 'upset', 'furious', 'outraged', 'unacceptable', 'ridiculous', 'absurd', '화가', '짜증', '답답', '큰일', '무책임', '황당', '어이없', '비합리', '무리', '납득']
       },
       { 
         emotion: '불안', 
         patterns: [
+          // Korean patterns
           /걱정|우려|불안|초조|조급|어쩌|큰일/i,
           /심각|위험|문제.*생|잘못.*되|어떡/i,
-          /심각성|파악.*안.*되|회의.*전|시간.*없/i
+          /심각성|파악.*안.*되|회의.*전|시간.*없/i,
+          // English patterns
+          /worried\s+about|concerns?\s+about|i'?m\s+concerned/i,
+          /serious\s+issue|serious\s+problem|major\s+problem/i,
+          /we\s+need\s+to\s+address|running\s+out\s+of\s+time/i,
+          /deadline|urgent|critical\s+issue|risk|at\s+stake/i,
+          /can'?t\s+afford|pressure|tight\s+timeline/i
         ],
-        keywords: ['worried', 'anxious', 'nervous', 'concerned', 'uneasy', '걱정', '우려', '불안', '급하', '심각', '위험', '심각성']
+        keywords: ['worried', 'anxious', 'nervous', 'concerned', 'uneasy', 'concerns', 'serious', 'urgent', 'critical', 'deadline', 'pressure', 'risk', 'timeline', 'constraints', '걱정', '우려', '불안', '급하', '심각', '위험', '심각성']
       },
       { 
         emotion: '실망', 
         patterns: [
+          // Korean patterns
           /실망|아쉽|유감|안타깝/i,
-          /기대.*못|생각.*달|믿었는데/i
+          /기대.*못|생각.*달|믿었는데/i,
+          // English patterns
+          /i'?m\s+disappointed|this\s+is\s+disappointing|let\s+me\s+down/i,
+          /expected\s+better|not\s+what\s+i\s+expected|fell\s+short/i,
+          /unfortunately|regrettably|sadly/i
         ],
-        keywords: ['disappointed', 'let down', '실망', '아쉽', '유감', '안타깝']
+        keywords: ['disappointed', 'let down', 'disappointing', 'expected better', 'unfortunately', 'regret', '실망', '아쉽', '유감', '안타깝']
       },
       { 
         emotion: '놀람', 
         patterns: [
+          // Korean patterns
           /정말요\?|뭐라고|어떻게.*그런|갑자기|충격/i,
-          /믿기.*어렵|예상.*못|처음.*듣/i
+          /믿기.*어렵|예상.*못|처음.*듣/i,
+          // English patterns
+          /are\s+you\s+serious|i\s+can'?t\s+believe|that'?s\s+shocking/i,
+          /wait,?\s+what|how\s+is\s+that\s+possible|unexpected/i,
+          /never\s+expected|out\s+of\s+nowhere|suddenly/i
         ],
-        keywords: ['surprised', 'shocked', 'what?', '놀라', '충격', '갑자기', '믿기 어렵']
+        keywords: ['surprised', 'shocked', 'what?', 'unexpected', 'unbelievable', 'suddenly', 'amazing', '놀라', '충격', '갑자기', '믿기 어렵']
       },
       { 
         emotion: '호기심', 
         patterns: [
+          // Korean patterns
           /궁금|왜.*그런|어떻게.*되|알고\s*싶/i,
-          /무슨.*뜻|설명.*해|자세히/i
+          /무슨.*뜻|설명.*해|자세히/i,
+          // English patterns
+          /i'?m\s+curious|can\s+you\s+explain|tell\s+me\s+more/i,
+          /how\s+does\s+that\s+work|what\s+do\s+you\s+mean|interesting/i,
+          /i'?d\s+like\s+to\s+know|wondering\s+about/i
         ],
-        keywords: ['curious', 'interested', 'wondering', '궁금', '흥미', '자세히']
+        keywords: ['curious', 'interested', 'wondering', 'intriguing', 'fascinating', 'explain', '궁금', '흥미', '자세히']
       },
       { 
         emotion: '기쁨', 
         patterns: [
+          // Korean patterns
           /좋아|잘됐|다행|기쁘|감사|고마워/i,
-          /훌륭|대단|멋지|성공|축하/i
+          /훌륭|대단|멋지|성공|축하/i,
+          // English patterns
+          /that'?s\s+great|wonderful|excellent|fantastic|amazing/i,
+          /i'?m\s+happy|so\s+glad|thank\s+you|appreciate/i,
+          /well\s+done|good\s+job|congratulations|success/i
         ],
-        keywords: ['happy', 'glad', 'pleased', 'great', 'thank', '좋', '다행', '감사', '훌륭', '대단']
+        keywords: ['happy', 'glad', 'pleased', 'great', 'thank', 'wonderful', 'excellent', 'fantastic', 'appreciate', '좋', '다행', '감사', '훌륭', '대단']
       },
       { 
         emotion: '당혹', 
         patterns: [
+          // Korean patterns
           /뭐지|이상하|어색|곤란|난처/i,
-          /당황|어떻게.*해야|뭐라고.*해야/i
+          /당황|어떻게.*해야|뭐라고.*해야/i,
+          // English patterns
+          /i'?m\s+confused|don'?t\s+understand|makes\s+no\s+sense/i,
+          /not\s+sure\s+what\s+to|awkward\s+situation|uncomfortable/i,
+          /put\s+me\s+in\s+a\s+difficult|hard\s+to\s+say/i
         ],
-        keywords: ['confused', 'awkward', 'embarrassed', '당황', '곤란', '난처', '어색']
+        keywords: ['confused', 'awkward', 'embarrassed', 'uncomfortable', 'puzzled', 'perplexed', '당황', '곤란', '난처', '어색']
       },
       { 
         emotion: '슬픔', 
-        patterns: [/슬프|우울|힘들|서글|눈물/i],
-        keywords: ['sad', 'unhappy', '슬프', '우울', '힘들']
+        patterns: [
+          // Korean patterns
+          /슬프|우울|힘들|서글|눈물/i,
+          // English patterns
+          /i'?m\s+sad|feeling\s+down|heartbroken|unfortunate/i,
+          /it'?s\s+hard|difficult\s+time|struggling/i
+        ],
+        keywords: ['sad', 'unhappy', 'heartbroken', 'depressed', 'down', '슬프', '우울', '힘들']
       },
       { 
         emotion: '피로', 
-        patterns: [/지치|피곤|힘들|녹초|기진맥진/i],
-        keywords: ['tired', 'exhausted', '피곤', '지치']
+        patterns: [
+          // Korean patterns
+          /지치|피곤|힘들|녹초|기진맥진/i,
+          // English patterns
+          /i'?m\s+tired|exhausted|worn\s+out|burned\s+out/i,
+          /need\s+a\s+break|overwhelmed|too\s+much/i
+        ],
+        keywords: ['tired', 'exhausted', 'worn out', 'burned out', 'overwhelmed', '피곤', '지치']
       }
     ];
 
