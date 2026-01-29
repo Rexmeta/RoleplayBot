@@ -16,10 +16,31 @@ const app = express();
 const port = parseInt(process.env.PORT || '5000', 10);
 const host = "0.0.0.0"; // Cloud Run requires 0.0.0.0, not localhost
 
+// Track whether the app has finished initializing.
+let appReady = false;
+
 // Minimal health check - available before any routes are registered.
 // Cloud Run startup probe hits this endpoint to verify the container is alive.
 app.get('/_ah/health', (_req, res) => {
   res.status(200).send('OK');
+});
+
+// Readiness gate: while the app is initializing, serve a loading page for
+// browser requests and 503 for API requests. This prevents "Cannot GET /"
+// errors during the startup window before routes are registered.
+app.use((req, res, next) => {
+  if (appReady) {
+    return next();
+  }
+  if (req.path.startsWith('/api')) {
+    return res.status(503).json({ message: 'Service is starting' });
+  }
+  res.status(503).set('Retry-After', '5').send(
+    '<!DOCTYPE html><html><head><meta charset="utf-8"><title>Starting up…</title>' +
+    '<meta http-equiv="refresh" content="3"></head>' +
+    '<body style="display:flex;justify-content:center;align-items:center;height:100vh;margin:0;font-family:system-ui">' +
+    '<p>Service is starting up&hellip;</p></body></html>'
+  );
 });
 
 const server = createServer(app);
@@ -113,6 +134,9 @@ async function initializeApp() {
   } else {
     serveStatic(app);
   }
+
+  // All routes and middleware are registered - open the gate.
+  appReady = true;
 
   log(`serving on port ${port} (host: ${host})`);
   console.log('Application ready');
