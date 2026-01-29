@@ -5796,10 +5796,13 @@ export async function registerRoutes(app: Express, httpServer: Server): Promise<
         }
         
         // Translate to all other languages (async, non-blocking)
-        (async () => {
-          for (const targetLocale of targetLocales) {
-            try {
-              const setPrompt = `Translate the following ${languageNames[sourceLocale] || sourceLocale} evaluation criteria set into ${languageNames[targetLocale] || targetLocale}. 
+        const translateApiKey = process.env.GOOGLE_API_KEY || process.env.GEMINI_API_KEY;
+        if (translateApiKey) {
+          const translateGenAI = new GoogleGenAI({ apiKey: translateApiKey });
+          (async () => {
+            for (const targetLocale of targetLocales) {
+              try {
+                const setPrompt = `Translate the following ${languageNames[sourceLocale] || sourceLocale} evaluation criteria set into ${languageNames[targetLocale] || targetLocale}. 
 This is for a workplace communication training system. Maintain professional tone.
 Return ONLY valid JSON.
 
@@ -5809,28 +5812,32 @@ Description: ${criteriaSet.description || ''}
 
 Return JSON: {"name": "translated name", "description": "translated description"}`;
 
-              const setResponse = await generateAIResponse('gemini-2.5-flash-preview-05-20', setPrompt, 'translate');
-              const setJsonMatch = setResponse.match(/\{[\s\S]*\}/);
-              if (setJsonMatch) {
-                const setTranslation = JSON.parse(setJsonMatch[0]);
-                await storage.upsertEvaluationCriteriaSetTranslation({
-                  criteriaSetId: criteriaSet.id,
-                  locale: targetLocale,
-                  sourceLocale: sourceLocale,
-                  isOriginal: false,
-                  name: setTranslation.name,
-                  description: setTranslation.description,
-                  isMachineTranslated: true,
-                  isReviewed: false,
+                const setResult = await translateGenAI.models.generateContent({
+                  model: 'gemini-2.5-flash',
+                  contents: setPrompt,
                 });
-              }
-              
-              for (const dim of createdDimensions) {
-                const rubricText = dim.scoringRubric?.map((r: any) => 
-                  `Score ${r.score} (${r.label}): ${r.description}`
-                ).join('\n') || '';
+                const setResponse = setResult.text || '';
+                const setJsonMatch = setResponse.match(/\{[\s\S]*\}/);
+                if (setJsonMatch) {
+                  const setTranslation = JSON.parse(setJsonMatch[0]);
+                  await storage.upsertEvaluationCriteriaSetTranslation({
+                    criteriaSetId: criteriaSet.id,
+                    locale: targetLocale,
+                    sourceLocale: sourceLocale,
+                    isOriginal: false,
+                    name: setTranslation.name,
+                    description: setTranslation.description,
+                    isMachineTranslated: true,
+                    isReviewed: false,
+                  });
+                }
                 
-                const dimPrompt = `Translate the following ${languageNames[sourceLocale] || sourceLocale} evaluation dimension into ${languageNames[targetLocale] || targetLocale}. 
+                for (const dim of createdDimensions) {
+                  const rubricText = dim.scoringRubric?.map((r: any) => 
+                    `Score ${r.score} (${r.label}): ${r.description}`
+                  ).join('\n') || '';
+                  
+                  const dimPrompt = `Translate the following ${languageNames[sourceLocale] || sourceLocale} evaluation dimension into ${languageNames[targetLocale] || targetLocale}. 
 This is for a workplace communication training system. Maintain professional tone.
 Return ONLY valid JSON.
 
@@ -5846,29 +5853,34 @@ Return JSON: {
   "scoringRubric": [{"score": 1, "label": "label", "description": "description"}, ...]
 }`;
 
-                const dimResponse = await generateAIResponse('gemini-2.5-flash-preview-05-20', dimPrompt, 'translate');
-                const dimJsonMatch = dimResponse.match(/\{[\s\S]*\}/);
-                if (dimJsonMatch) {
-                  const dimTranslation = JSON.parse(dimJsonMatch[0]);
-                  await storage.upsertEvaluationDimensionTranslation({
-                    dimensionId: dim.id,
-                    locale: targetLocale,
-                    sourceLocale: sourceLocale,
-                    isOriginal: false,
-                    name: dimTranslation.name,
-                    description: dimTranslation.description,
-                    scoringRubric: dimTranslation.scoringRubric,
-                    isMachineTranslated: true,
-                    isReviewed: false,
+                  const dimResult = await translateGenAI.models.generateContent({
+                    model: 'gemini-2.5-flash',
+                    contents: dimPrompt,
                   });
+                  const dimResponse = dimResult.text || '';
+                  const dimJsonMatch = dimResponse.match(/\{[\s\S]*\}/);
+                  if (dimJsonMatch) {
+                    const dimTranslation = JSON.parse(dimJsonMatch[0]);
+                    await storage.upsertEvaluationDimensionTranslation({
+                      dimensionId: dim.id,
+                      locale: targetLocale,
+                      sourceLocale: sourceLocale,
+                      isOriginal: false,
+                      name: dimTranslation.name,
+                      description: dimTranslation.description,
+                      scoringRubric: dimTranslation.scoringRubric,
+                      isMachineTranslated: true,
+                      isReviewed: false,
+                    });
+                  }
                 }
+              } catch (e) {
+                console.error(`Failed to auto-translate criteria set ${criteriaSet.id} to ${targetLocale}:`, e);
               }
-            } catch (e) {
-              console.error(`Failed to auto-translate criteria set ${criteriaSet.id} to ${targetLocale}:`, e);
             }
-          }
-          console.log(`✅ Auto-translation completed for criteria set: ${criteriaSet.name}`);
-        })();
+            console.log(`✅ Auto-translation completed for criteria set: ${criteriaSet.name}`);
+          })();
+        }
       }
       
       res.json({ ...criteriaSet, dimensions: createdDimensions });
@@ -7175,6 +7187,13 @@ Return ONLY valid JSON in this exact format (include all fields, use null for un
         });
       }
       
+      // Get API key for direct Gemini API calls
+      const apiKey = process.env.GOOGLE_API_KEY || process.env.GEMINI_API_KEY;
+      if (!apiKey) {
+        return res.status(500).json({ message: "API 키가 설정되지 않았습니다" });
+      }
+      const genAI = new GoogleGenAI({ apiKey });
+      
       // Translate to all other languages
       for (const targetLocale of targetLocales) {
         // Translate criteria set name and description
@@ -7189,7 +7208,11 @@ Description: ${criteriaSet.description || ''}
 Return JSON: {"name": "translated name", "description": "translated description"}`;
 
         try {
-          const setResponse = await generateAIResponse('gemini-2.5-flash-preview-05-20', setPrompt, 'translate');
+          const setResult = await genAI.models.generateContent({
+            model: 'gemini-2.5-flash',
+            contents: setPrompt,
+          });
+          const setResponse = setResult.text || '';
           const setJsonMatch = setResponse.match(/\{[\s\S]*\}/);
           if (setJsonMatch) {
             const setTranslation = JSON.parse(setJsonMatch[0]);
@@ -7232,7 +7255,11 @@ Return JSON: {
 }`;
 
           try {
-            const dimResponse = await generateAIResponse('gemini-2.5-flash-preview-05-20', dimPrompt, 'translate');
+            const dimResult = await genAI.models.generateContent({
+              model: 'gemini-2.5-flash',
+              contents: dimPrompt,
+            });
+            const dimResponse = dimResult.text || '';
             const dimJsonMatch = dimResponse.match(/\{[\s\S]*\}/);
             if (dimJsonMatch) {
               const dimTranslation = JSON.parse(dimJsonMatch[0]);
