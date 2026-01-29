@@ -4,14 +4,14 @@ steps:
     args:
       - 'build'
       - '-t'
-      - 'gcr.io/$PROJECT_ID/ai-roleplay-training:$COMMIT_SHA'
+      - 'gcr.io/$PROJECT_ID/roleplaybot:$COMMIT_SHA'
       - '.'
 
   # 2. Container Registry에 이미지 푸시
   - name: 'gcr.io/cloud-builders/docker'
     args:
       - 'push'
-      - 'gcr.io/$PROJECT_ID/ai-roleplay-training:$COMMIT_SHA'
+      - 'gcr.io/$PROJECT_ID/roleplaybot:$COMMIT_SHA'
 
   # 3. Cloud Run에 배포
   - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
@@ -19,11 +19,11 @@ steps:
     args:
       - 'run'
       - 'deploy'
-      - 'ai-roleplay-training'
+      - 'role'
       - '--image'
-      - 'gcr.io/$PROJECT_ID/ai-roleplay-training:$COMMIT_SHA'
+      - 'gcr.io/$PROJECT_ID/roleplaybot:$COMMIT_SHA'
       - '--region'
-      - 'asia-northeast3'
+      - 'us-east1'
       - '--platform'
       - 'managed'
       - '--allow-unauthenticated'
@@ -60,7 +60,7 @@ steps:
       - 'JWT_SECRET=jwt-secret:latest,DATABASE_URL=database-url:latest,GOOGLE_API_KEY=google-api-key:latest'
 
 images:
-  - 'gcr.io/$PROJECT_ID/ai-roleplay-training:$COMMIT_SHA'
+  - 'gcr.io/$PROJECT_ID/roleplaybot:$COMMIT_SHA'
 
 options:
   logging: CLOUD_LOGGING_ONLY

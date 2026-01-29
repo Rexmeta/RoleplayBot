@@ -150,7 +150,52 @@ async function initializeApp() {
   // Database readiness: run migrations and warm the connection pool
   // BEFORE accepting traffic.  This prevents 503 errors caused by
   // requests arriving before tables exist or the pool has connected.
+  //
+  // The Cloud SQL Auth Proxy sidecar may take a few seconds to start,
+  // so we retry the connection several times before giving up.
   // ----------------------------------------------------------------
+  const DB_MAX_RETRIES = 8;
+  const DB_RETRY_DELAY_MS = 3000;
+
+  if (!process.env.DATABASE_URL) {
+    console.error('FATAL: DATABASE_URL is not set. Ensure the secret is configured on the Cloud Run service.');
+    console.error('Deploy with: gcloud builds submit --config cloudbuild.yaml');
+    // Do NOT mark as ready — the startup probe will fail and Cloud Run
+    // will show a clear deployment error instead of silently broken requests.
+    return;
+  }
+
+  let dbConnected = false;
+
+  for (let attempt = 1; attempt <= DB_MAX_RETRIES; attempt++) {
+    try {
+      console.log(`Database connection attempt ${attempt}/${DB_MAX_RETRIES}...`);
+      const dbOk = await checkDatabaseConnection();
+      if (dbOk) {
+        console.log('Database connection verified');
+        dbConnected = true;
+        break;
+      }
+      console.warn(`Database connection attempt ${attempt} returned false`);
+    } catch (error: any) {
+      console.warn(`Database connection attempt ${attempt} failed: ${error.message}`);
+    }
+
+    if (attempt < DB_MAX_RETRIES) {
+      console.log(`Retrying in ${DB_RETRY_DELAY_MS / 1000}s...`);
+      await new Promise(resolve => setTimeout(resolve, DB_RETRY_DELAY_MS));
+    }
+  }
+
+  if (!dbConnected) {
+    console.error(`FATAL: Could not connect to database after ${DB_MAX_RETRIES} attempts.`);
+    console.error('Check: 1) DATABASE_URL secret value  2) Cloud SQL Auth Proxy (--add-cloudsql-instances)  3) Cloud SQL instance status');
+    // Do NOT mark as ready — the startup probe will fail and Cloud Run
+    // will restart the container. This avoids serving requests that will
+    // always fail with "cannot connect to database".
+    return;
+  }
+
   try {
     console.log('Running database migrations...');
     await runMigrations();
@@ -158,18 +203,6 @@ async function initializeApp() {
   } catch (error) {
     // Non-fatal: tables likely already exist from a previous deployment.
     console.error('Database migration failed (non-fatal):', error);
-  }
-
-  try {
-    console.log('Warming database connection pool...');
-    const dbOk = await checkDatabaseConnection();
-    if (dbOk) {
-      console.log('Database connection verified');
-    } else {
-      console.warn('Database connection check returned false — requests that need the DB may fail');
-    }
-  } catch (error) {
-    console.error('Database warmup error (non-fatal):', error);
   }
 
   // All routes, middleware, and database are ready - open the gate.
