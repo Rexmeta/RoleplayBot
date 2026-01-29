@@ -1397,7 +1397,15 @@ export class RealtimeVoiceService {
 
       const responseText = result.text || '{}';
       console.log('📊 Gemini emotion analysis response:', responseText);
-      const emotionData = JSON.parse(responseText);
+      
+      // JSON 추출: 응답에서 JSON 객체 부분만 추출
+      let jsonStr = responseText;
+      const jsonMatch = responseText.match(/\{[\s\S]*\}/);
+      if (jsonMatch) {
+        jsonStr = jsonMatch[0];
+      }
+      
+      const emotionData = JSON.parse(jsonStr);
 
       return {
         emotion: emotionData.emotion || '중립',
