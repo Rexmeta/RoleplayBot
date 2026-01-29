@@ -1447,7 +1447,7 @@ Reply with ONLY this JSON format (no other text):
         if (result2) return result2;
       }
       
-      // 3차: 감정 키워드 직접 탐지 (영어 + 한국어)
+      // 3차: API 응답에서 감정 키워드 탐지
       const lowerResponse = responseText.toLowerCase();
       for (const [keyword, koreanEmotion] of Object.entries(emotionMap)) {
         if (keyword !== 'neutral' && keyword !== '중립' && lowerResponse.includes(keyword)) {
@@ -1455,11 +1455,94 @@ Reply with ONLY this JSON format (no other text):
         }
       }
 
+      // 4차: 원본 AI 응답에서 감정 패턴 직접 분석 (API 실패 시 폴백)
+      const directAnalysis = this.analyzeEmotionFromText(aiResponse);
+      if (directAnalysis) {
+        console.log('📊 Direct text analysis:', directAnalysis.emotion);
+        return directAnalysis;
+      }
+
       return { emotion: '중립', emotionReason: '감정 분석 완료' };
     } catch (error: any) {
       console.error('❌ Emotion analysis error:', error?.message || error);
+      // API 오류 시에도 원본 텍스트에서 감정 분석 시도
+      const fallbackAnalysis = this.analyzeEmotionFromText(aiResponse);
+      if (fallbackAnalysis) return fallbackAnalysis;
       return { emotion: '중립', emotionReason: '감정 분석 완료' };
     }
+  }
+
+  // AI 응답 텍스트에서 직접 감정 패턴을 분석하는 헬퍼 함수
+  private analyzeEmotionFromText(text: string): { emotion: string; emotionReason: string } | null {
+    if (!text || text.length < 5) return null;
+    
+    const lowerText = text.toLowerCase();
+    
+    // 감정별 키워드 패턴 (우선순위 순서)
+    const emotionPatterns: Array<{ emotion: string; patterns: RegExp[]; keywords: string[] }> = [
+      { 
+        emotion: '분노', 
+        patterns: [/왜.*안|어떻게.*이런|도대체|짜증|화나|열받|불쾌/i],
+        keywords: ['frustrated', 'angry', 'annoyed', 'irritated', 'upset', '화가', '짜증', '답답', '큰일']
+      },
+      { 
+        emotion: '불안', 
+        patterns: [/걱정|우려|불안|초조|조급|어쩌|큰일/i],
+        keywords: ['worried', 'anxious', 'nervous', 'concerned', 'uneasy', '걱정', '우려', '불안', '급하']
+      },
+      { 
+        emotion: '실망', 
+        patterns: [/실망|아쉽|유감|안타깝/i],
+        keywords: ['disappointed', 'let down', '실망', '아쉽']
+      },
+      { 
+        emotion: '놀람', 
+        patterns: [/정말요\?|뭐라고|어떻게.*그런|갑자기|충격/i],
+        keywords: ['surprised', 'shocked', 'what?', '놀라', '충격', '갑자기']
+      },
+      { 
+        emotion: '호기심', 
+        patterns: [/궁금|왜.*그런|어떻게.*되|알고\s*싶/i],
+        keywords: ['curious', 'interested', 'wondering', '궁금', '흥미']
+      },
+      { 
+        emotion: '기쁨', 
+        patterns: [/좋아|잘됐|다행|기쁘|감사|고마워/i],
+        keywords: ['happy', 'glad', 'pleased', 'great', 'thank', '좋', '다행', '감사']
+      },
+      { 
+        emotion: '당혹', 
+        patterns: [/뭐지|이상하|어색|곤란|난처/i],
+        keywords: ['confused', 'awkward', 'embarrassed', '당황', '곤란']
+      },
+      { 
+        emotion: '슬픔', 
+        patterns: [/슬프|우울|힘들|서글|눈물/i],
+        keywords: ['sad', 'unhappy', '슬프', '우울', '힘들']
+      },
+      { 
+        emotion: '피로', 
+        patterns: [/지치|피곤|힘들|녹초|기진맥진/i],
+        keywords: ['tired', 'exhausted', '피곤', '지치']
+      }
+    ];
+
+    for (const { emotion, patterns, keywords } of emotionPatterns) {
+      // 정규식 패턴 체크
+      for (const pattern of patterns) {
+        if (pattern.test(text)) {
+          return { emotion, emotionReason: '텍스트 패턴 감지' };
+        }
+      }
+      // 키워드 체크
+      for (const keyword of keywords) {
+        if (lowerText.includes(keyword.toLowerCase())) {
+          return { emotion, emotionReason: '감정 키워드 감지' };
+        }
+      }
+    }
+
+    return null;
   }
 
   private sendToClient(session: RealtimeSession, message: any): void {
