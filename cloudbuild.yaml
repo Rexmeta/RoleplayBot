@@ -38,6 +38,13 @@ steps:
       - '--port'
       - '8080'
       - '--startup-cpu-boost'
+      # Startup probe: Cloud Run will not route traffic until /_ah/ready
+      # returns HTTP 200.  This prevents 503 errors during cold start while
+      # routes and the database connection are still initialising.
+      - '--startup-probe-http-get-path=/_ah/ready'
+      - '--startup-probe-period=2'
+      - '--startup-probe-failure-threshold=30'
+      - '--startup-probe-timeout=3'
       - '--set-env-vars'
       - 'NODE_ENV=production'
       # Secret Manager에서 시크릿 주입

@@ -62,6 +62,13 @@ const pool = new Pool({
   connectionTimeoutMillis: 10000,
   idle_in_transaction_session_timeout: 30000,
 });
+
+// Log pool-level errors so connection problems surface in Cloud Run logs
+// rather than silently dropping connections.
+pool.on('error', (err) => {
+  console.error('Unexpected database pool error:', err.message);
+});
+
 const db = drizzle(pool);
 
 export interface IStorage {
@@ -2221,3 +2228,18 @@ export class PostgreSQLStorage implements IStorage {
 
 // Use PostgreSQL storage instead of memory storage
 export const storage = new PostgreSQLStorage();
+
+/**
+ * Verify that the database is reachable by executing a lightweight query.
+ * Used during startup to warm the connection pool and confirm connectivity
+ * before the application begins accepting traffic.
+ */
+export async function checkDatabaseConnection(): Promise<boolean> {
+  try {
+    await pool.query('SELECT 1');
+    return true;
+  } catch (error) {
+    console.error('Database connection check failed:', error);
+    return false;
+  }
+}

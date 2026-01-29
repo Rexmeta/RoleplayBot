@@ -4,6 +4,48 @@ import type { Express, RequestHandler } from "express";
 import { storage } from "./storage";
 import { z } from "zod";
 
+/**
+ * Detect whether an error originates from the database layer (pg / network).
+ * These are transient failures that should be surfaced as HTTP 503 so
+ * Cloud Run and clients can retry.
+ */
+function isDatabaseError(error: any): boolean {
+  const msg: string = error?.message || '';
+  const code: string = error?.code || '';
+
+  // node-postgres error codes (e.g. ECONNREFUSED, ECONNRESET, ETIMEDOUT)
+  if (['ECONNREFUSED', 'ECONNRESET', 'ETIMEDOUT', 'EPIPE', 'EAI_AGAIN'].includes(code)) {
+    return true;
+  }
+
+  // Connection timeout from pg Pool
+  if (msg.includes('timeout') && (msg.includes('connect') || msg.includes('pool') || msg.includes('acquiring'))) {
+    return true;
+  }
+
+  // Cloud SQL socket errors
+  if (msg.includes('/cloudsql/') || msg.includes('UNIX socket')) {
+    return true;
+  }
+
+  // Generic connection-related messages from pg
+  if (msg.includes('ECONNREFUSED') || msg.includes('ECONNRESET') || msg.includes('ETIMEDOUT')) {
+    return true;
+  }
+
+  // pg "Connection terminated" (server closed the connection)
+  if (msg.includes('Connection terminated') || msg.includes('connection terminated')) {
+    return true;
+  }
+
+  // Pool ended while a query was running
+  if (msg.includes('Cannot use a pool after calling end')) {
+    return true;
+  }
+
+  return false;
+}
+
 // JWT_SECRET - read at module load time but only enforce at first use.
 // This prevents the server from crashing before it can open the port.
 const JWT_SECRET = process.env.JWT_SECRET;
@@ -204,9 +246,9 @@ export function setupAuth(app: Express) {
           errors: errorMessages,
         });
       }
-      // 데이터베이스 연결 오류를 사용자에게 친화적으로 전달
-      const msg = error?.message || '';
-      if (msg.includes('ECONNREFUSED') || msg.includes('connect') && msg.includes('5432')) {
+      // Detect database / infrastructure errors and surface as 503 so
+      // Cloud Run (and clients) know the failure is transient.
+      if (isDatabaseError(error)) {
         return res.status(503).json({ message: "데이터베이스에 연결할 수 없습니다. 잠시 후 다시 시도해주세요." });
       }
       res.status(500).json({ message: "서버 오류가 발생했습니다. 잠시 후 다시 시도해주세요." });
@@ -279,6 +321,9 @@ export function setupAuth(app: Express) {
           message: "입력 오류",
           errors: error.errors.map(e => e.message),
         });
+      }
+      if (isDatabaseError(error)) {
+        return res.status(503).json({ message: "데이터베이스에 연결할 수 없습니다. 잠시 후 다시 시도해주세요." });
       }
       res.status(500).json({ message: "서버 오류가 발생했습니다" });
     }

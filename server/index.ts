@@ -5,6 +5,7 @@ import { registerRoutes } from "./routes";
 import { serveStatic, log } from "./static";
 import { GlobalMBTICache } from "./utils/globalMBTICache";
 import { runMigrations } from "./migrate";
+import { checkDatabaseConnection } from "./storage";
 import * as pathModule from "path";
 
 const app = express();
@@ -19,10 +20,20 @@ const host = "0.0.0.0"; // Cloud Run requires 0.0.0.0, not localhost
 // Track whether the app has finished initializing.
 let appReady = false;
 
-// Minimal health check - available before any routes are registered.
-// Cloud Run startup probe hits this endpoint to verify the container is alive.
+// Liveness probe - always returns 200 so Cloud Run knows the process is alive.
 app.get('/_ah/health', (_req, res) => {
   res.status(200).send('OK');
+});
+
+// Readiness / startup probe - returns 200 only after full initialisation
+// (routes registered, database reachable). Cloud Run should be configured
+// to use this endpoint as the startup probe so that traffic is not routed
+// to the container until it is genuinely ready to serve requests.
+app.get('/_ah/ready', (_req, res) => {
+  if (appReady) {
+    return res.status(200).send('READY');
+  }
+  res.status(503).send('NOT READY');
 });
 
 // Readiness gate: while the app is initializing, serve a loading page for
@@ -135,14 +146,40 @@ async function initializeApp() {
     serveStatic(app);
   }
 
-  // All routes and middleware are registered - open the gate.
+  // ----------------------------------------------------------------
+  // Database readiness: run migrations and warm the connection pool
+  // BEFORE accepting traffic.  This prevents 503 errors caused by
+  // requests arriving before tables exist or the pool has connected.
+  // ----------------------------------------------------------------
+  try {
+    console.log('Running database migrations...');
+    await runMigrations();
+    console.log('Database migrations completed');
+  } catch (error) {
+    // Non-fatal: tables likely already exist from a previous deployment.
+    console.error('Database migration failed (non-fatal):', error);
+  }
+
+  try {
+    console.log('Warming database connection pool...');
+    const dbOk = await checkDatabaseConnection();
+    if (dbOk) {
+      console.log('Database connection verified');
+    } else {
+      console.warn('Database connection check returned false — requests that need the DB may fail');
+    }
+  } catch (error) {
+    console.error('Database warmup error (non-fatal):', error);
+  }
+
+  // All routes, middleware, and database are ready - open the gate.
   appReady = true;
 
   log(`serving on port ${port} (host: ${host})`);
   console.log('Application ready');
 
-  // Background initialization: database migrations and cache warming.
-  initializeAsync();
+  // Background: non-essential cache warming.
+  warmCacheInBackground();
 }
 
 function sanitizeLogData(data: Record<string, any> | undefined): string {
@@ -157,23 +194,16 @@ function sanitizeLogData(data: Record<string, any> | undefined): string {
   return JSON.stringify(sanitized);
 }
 
-async function initializeAsync() {
-  try {
-    console.log('Running database migrations...');
-    await runMigrations();
-    console.log('Database migrations completed');
-  } catch (error) {
-    console.error('Database migration failed (non-fatal):', error);
-  }
-
-  try {
-    console.log('Loading MBTI cache...');
-    const mbtiCache = GlobalMBTICache.getInstance();
-    await mbtiCache.preloadAllMBTIData();
-    console.log('MBTI cache loaded');
-  } catch (error) {
-    console.error('MBTI cache preload failed (non-fatal):', error);
-  }
-
-  console.log('Background initialization complete');
+function warmCacheInBackground() {
+  (async () => {
+    try {
+      console.log('Loading MBTI cache...');
+      const mbtiCache = GlobalMBTICache.getInstance();
+      await mbtiCache.preloadAllMBTIData();
+      console.log('MBTI cache loaded');
+    } catch (error) {
+      console.error('MBTI cache preload failed (non-fatal):', error);
+    }
+    console.log('Background initialization complete');
+  })();
 }
