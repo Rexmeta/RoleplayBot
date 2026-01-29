@@ -12,7 +12,9 @@ const disableSsl = databaseUrl.includes('sslmode=disable') || isUnixSocket;
 
 const pool = new Pool({
   connectionString: databaseUrl,
-  ssl: disableSsl ? false : { rejectUnauthorized: false }
+  ssl: disableSsl ? false : { rejectUnauthorized: false },
+  connectionTimeoutMillis: 10000,
+  idle_in_transaction_session_timeout: 30000,
 });
 const db = drizzle(pool);
 
