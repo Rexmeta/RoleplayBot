@@ -1041,7 +1041,7 @@ export class RealtimeVoiceService {
             // setImmediate로 감정 분석을 비동기화하여 이벤트 루프 블로킹 방지
             // 대화 품질에 영향 없이 동시 접속 처리량 향상
             setImmediate(() => {
-              this.analyzeEmotion(filteredTranscript, session.personaName)
+              this.analyzeEmotion(filteredTranscript, session.personaName, session.userLanguage)
                 .then(({ emotion, emotionReason }) => {
                   console.log(`😊 Emotion analyzed: ${emotion} (${emotionReason})`);
                   this.sendToClient(session, {
@@ -1371,72 +1371,87 @@ export class RealtimeVoiceService {
     }
   }
 
-  private async analyzeEmotion(aiResponse: string, personaName: string): Promise<{ emotion: string; emotionReason: string }> {
+  private async analyzeEmotion(aiResponse: string, personaName: string, userLanguage: 'ko' | 'en' | 'ja' | 'zh' = 'ko'): Promise<{ emotion: string; emotionReason: string }> {
     if (!this.genAI) {
       return { emotion: '중립', emotionReason: '감정 분석 서비스가 비활성화되어 있습니다.' };
     }
 
-    const validEmotions = ['중립', '기쁨', '슬픔', '분노', '놀람', '호기심', '불안', '피로', '실망', '당혹'];
+    // 영어 감정을 한국어로 매핑 (다양한 동의어 포함)
+    const emotionMap: Record<string, string> = {
+      'neutral': '중립', 'calm': '중립', 'normal': '중립',
+      'happy': '기쁨', 'joy': '기쁨', 'excited': '기쁨', 'pleased': '기쁨', 'glad': '기쁨', 'cheerful': '기쁨',
+      'sad': '슬픔', 'sadness': '슬픔', 'unhappy': '슬픔', 'melancholy': '슬픔',
+      'angry': '분노', 'anger': '분노', 'frustrated': '분노', 'irritated': '분노', 'annoyed': '분노', 'upset': '분노',
+      'surprise': '놀람', 'surprised': '놀람', 'shocked': '놀람', 'astonished': '놀람',
+      'curious': '호기심', 'curiosity': '호기심', 'interested': '호기심', 'intrigued': '호기심',
+      'anxious': '불안', 'anxiety': '불안', 'worried': '불안', 'nervous': '불안', 'uneasy': '불안', 'concerned': '불안',
+      'tired': '피로', 'exhausted': '피로', 'fatigue': '피로', 'weary': '피로',
+      'disappointed': '실망', 'disappointment': '실망', 'let down': '실망',
+      'embarrassed': '당혹', 'confused': '당혹', 'awkward': '당혹', 'perplexed': '당혹', 'bewildered': '당혹',
+      '중립': '중립', '기쁨': '기쁨', '슬픔': '슬픔', '분노': '분노', '놀람': '놀람',
+      '호기심': '호기심', '불안': '불안', '피로': '피로', '실망': '실망', '당혹': '당혹'
+    };
+    const validKoreanEmotions = ['중립', '기쁨', '슬픔', '분노', '놀람', '호기심', '불안', '피로', '실망', '당혹'];
 
     try {
-      // gemini-2.5-flash를 사용하되 구조화된 출력 대신 단순 텍스트로 요청
-      const prompt = `AI 캐릭터(${personaName})의 응답에서 감정을 분석하세요.
+      // 영어 프롬프트 사용 (더 안정적인 JSON 응답)
+      const prompt = `Analyze the emotion in this AI character's response.
 
-응답: "${aiResponse.substring(0, 500)}"
+Character: ${personaName}
+Response: "${aiResponse.substring(0, 400)}"
 
-다음 감정 중 하나만 선택: ${validEmotions.join(', ')}
+Choose ONE emotion from: neutral, happy, sad, angry, surprised, curious, anxious, tired, disappointed, embarrassed
 
-반드시 아래 형식으로만 답변 (JSON만, 다른 텍스트 금지):
-{"emotion": "선택한감정", "emotionReason": "간단한이유"}`;
+Reply with ONLY this JSON format (no other text):
+{"emotion": "chosen_emotion", "reason": "brief reason"}`;
 
       const result = await this.genAI.models.generateContent({
         model: 'gemini-2.5-flash',
         contents: prompt,
         config: {
-          maxOutputTokens: 100,
-          temperature: 0.2
+          maxOutputTokens: 80,
+          temperature: 0.1
         }
       });
 
       let responseText = (result.text || '').trim();
-      console.log('📊 Gemini emotion response:', responseText.substring(0, 200));
+      console.log('📊 Emotion response:', responseText.substring(0, 150));
       
       // 마크다운 코드 블록 제거
       responseText = responseText.replace(/```json\s*/gi, '').replace(/```\s*/g, '').trim();
       
-      // 1차 시도: 전체 응답 JSON 파싱
-      try {
-        const emotionData = JSON.parse(responseText);
-        if (emotionData.emotion && validEmotions.includes(emotionData.emotion)) {
-          return {
-            emotion: emotionData.emotion,
-            emotionReason: emotionData.emotionReason || '감정 분석 완료'
-          };
-        }
-      } catch (e) {
-        // 파싱 실패 시 다음 단계로
-      }
-      
-      // 2차 시도: 첫 번째 JSON 객체 추출
-      const firstObjectMatch = responseText.match(/\{[\s\S]*?\}/);
-      if (firstObjectMatch) {
+      // JSON 파싱 시도
+      const parseAndMapEmotion = (jsonStr: string): { emotion: string; emotionReason: string } | null => {
         try {
-          const emotionData = JSON.parse(firstObjectMatch[0]);
-          if (emotionData.emotion && validEmotions.includes(emotionData.emotion)) {
+          const data = JSON.parse(jsonStr);
+          const rawEmotion = (data.emotion || '').toLowerCase().trim();
+          const mappedEmotion = emotionMap[rawEmotion];
+          if (mappedEmotion && validKoreanEmotions.includes(mappedEmotion)) {
             return {
-              emotion: emotionData.emotion,
-              emotionReason: emotionData.emotionReason || '감정 분석 완료'
+              emotion: mappedEmotion,
+              emotionReason: data.reason || data.emotionReason || '감정 분석 완료'
             };
           }
-        } catch (e) {
-          // 파싱 실패 시 다음 단계로
-        }
+        } catch (e) {}
+        return null;
+      };
+      
+      // 1차: 전체 응답 파싱
+      let result1 = parseAndMapEmotion(responseText);
+      if (result1) return result1;
+      
+      // 2차: JSON 객체 추출
+      const jsonMatch = responseText.match(/\{[^{}]*\}/);
+      if (jsonMatch) {
+        let result2 = parseAndMapEmotion(jsonMatch[0]);
+        if (result2) return result2;
       }
       
-      // 직접 감정 키워드 탐지 (백업)
-      for (const emotion of validEmotions) {
-        if (emotion !== '중립' && responseText.includes(emotion)) {
-          return { emotion, emotionReason: '감정 키워드 감지' };
+      // 3차: 감정 키워드 직접 탐지 (영어 + 한국어)
+      const lowerResponse = responseText.toLowerCase();
+      for (const [keyword, koreanEmotion] of Object.entries(emotionMap)) {
+        if (keyword !== 'neutral' && keyword !== '중립' && lowerResponse.includes(keyword)) {
+          return { emotion: koreanEmotion, emotionReason: '감정 키워드 감지' };
         }
       }
 
