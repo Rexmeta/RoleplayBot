@@ -1377,54 +1377,67 @@ export class RealtimeVoiceService {
     }
 
     try {
-      const prompt = `AI 캐릭터(${personaName})의 응답에서 감정을 분석하세요.
-
-응답: "${aiResponse}"
-
-감정은 다음 중 하나: 중립, 기쁨, 슬픔, 분노, 놀람, 호기심, 불안, 피로, 실망, 당혹
-
-반드시 아래 JSON 형식으로만 답변하세요 (다른 텍스트 없이):
-{"emotion": "감정", "emotionReason": "이유"}`;
-
+      // gemini-1.5-flash는 구조화된 출력을 더 안정적으로 지원
       const result = await this.genAI.models.generateContent({
-        model: 'gemini-2.5-flash',
-        contents: prompt,
+        model: 'gemini-1.5-flash',
+        contents: `AI 캐릭터(${personaName})의 응답에서 드러나는 감정을 분석하세요.\n\n응답: "${aiResponse}"\n\n감정은 다음 중 하나여야 합니다: 중립, 기쁨, 슬픔, 분노, 놀람, 호기심, 불안, 피로, 실망, 당혹\n감정 이유는 간단하게 한 문장으로 설명하세요.`,
         config: {
-          maxOutputTokens: 150,
-          temperature: 0.3
+          responseMimeType: "application/json",
+          responseSchema: {
+            type: "object",
+            properties: {
+              emotion: { type: "string" },
+              emotionReason: { type: "string" }
+            },
+            required: ["emotion", "emotionReason"]
+          },
+          maxOutputTokens: 200,
+          temperature: 0.5
         }
       });
 
       let responseText = result.text || '{}';
       console.log('📊 Gemini emotion analysis response:', responseText);
       
-      // 마크다운 코드 블록 제거
+      // 마크다운 코드 블록 제거 (일부 모델에서 발생할 수 있음)
       responseText = responseText.replace(/```json\s*/g, '').replace(/```\s*/g, '').trim();
       
-      // JSON 추출: 응답에서 JSON 객체 부분만 추출
-      const jsonMatch = responseText.match(/\{[^{}]*"emotion"[^{}]*\}/);
-      if (jsonMatch) {
-        try {
-          const emotionData = JSON.parse(jsonMatch[0]);
-          const validEmotions = ['중립', '기쁨', '슬픔', '분노', '놀람', '호기심', '불안', '피로', '실망', '당혹'];
-          if (emotionData.emotion && validEmotions.includes(emotionData.emotion)) {
-            return {
-              emotion: emotionData.emotion,
-              emotionReason: emotionData.emotionReason || '감정 분석 완료'
-            };
+      // JSON 파싱 시도
+      try {
+        const emotionData = JSON.parse(responseText);
+        const validEmotions = ['중립', '기쁨', '슬픔', '분노', '놀람', '호기심', '불안', '피로', '실망', '당혹'];
+        if (emotionData.emotion && validEmotions.includes(emotionData.emotion)) {
+          return {
+            emotion: emotionData.emotion,
+            emotionReason: emotionData.emotionReason || '감정 분석 완료'
+          };
+        }
+      } catch (parseError) {
+        // JSON 파싱 실패 시 객체 추출 시도
+        const jsonMatch = responseText.match(/\{[\s\S]*\}/);
+        if (jsonMatch) {
+          try {
+            const emotionData = JSON.parse(jsonMatch[0]);
+            const validEmotions = ['중립', '기쁨', '슬픔', '분노', '놀람', '호기심', '불안', '피로', '실망', '당혹'];
+            if (emotionData.emotion && validEmotions.includes(emotionData.emotion)) {
+              return {
+                emotion: emotionData.emotion,
+                emotionReason: emotionData.emotionReason || '감정 분석 완료'
+              };
+            }
+          } catch (e) {
+            console.log('⚠️ JSON extraction failed');
           }
-        } catch (parseError) {
-          console.log('⚠️ JSON parse failed, trying keyword detection');
         }
       }
       
-      // 직접 감정 키워드 탐지
-      const emotionMap: Record<string, string> = {
+      // 직접 감정 키워드 탐지 (백업)
+      const emotionKeywords: Record<string, string> = {
         '분노': '분노', '불안': '불안', '기쁨': '기쁨', '슬픔': '슬픔',
         '놀람': '놀람', '호기심': '호기심', '피로': '피로', '실망': '실망', '당혹': '당혹'
       };
-      for (const [key, emotion] of Object.entries(emotionMap)) {
-        if (responseText.includes(key)) {
+      for (const [keyword, emotion] of Object.entries(emotionKeywords)) {
+        if (responseText.includes(keyword)) {
           return { emotion, emotionReason: '감정 키워드 감지됨' };
         }
       }
