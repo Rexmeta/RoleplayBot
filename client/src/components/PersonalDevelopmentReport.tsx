@@ -1021,18 +1021,18 @@ export default function PersonalDevelopmentReport({
 
       <Tabs defaultValue="scores" className="space-y-6">
         <TabsList 
-          className={`grid w-full ${feedback?.detailedFeedback?.sequenceAnalysis ? 'grid-cols-5' : 'grid-cols-4'} transform transition-all duration-500 screen-only`}
+          className={`flex flex-wrap justify-center gap-1 sm:grid sm:w-full ${feedback?.detailedFeedback?.sequenceAnalysis ? 'sm:grid-cols-5' : 'sm:grid-cols-4'} transform transition-all duration-500 screen-only h-auto p-1`}
           style={{ 
             opacity: 0,
             animation: `fadeInUp 0.6s ease-out 1s forwards`
           }}
         >
-          <TabsTrigger value="scores" data-testid="tab-scores" className="transition-all duration-300 hover:scale-105">{t('report.tabs.scores', '성과 분석')}</TabsTrigger>
-          <TabsTrigger value="behavior" data-testid="tab-behavior" className="transition-all duration-300 hover:scale-105">{t('report.tabs.behavior', '행동 가이드')}</TabsTrigger>
-          <TabsTrigger value="conversation" data-testid="tab-conversation" className="transition-all duration-300 hover:scale-105">{t('report.tabs.conversation', '대화 가이드')}</TabsTrigger>
-          <TabsTrigger value="development" data-testid="tab-development" className="transition-all duration-300 hover:scale-105">{t('report.tabs.development', '개발 계획')}</TabsTrigger>
+          <TabsTrigger value="scores" data-testid="tab-scores" className="transition-all duration-300 hover:scale-105 text-xs sm:text-sm px-2 sm:px-3 py-1.5 whitespace-nowrap">{t('report.tabs.scores', '성과 분석')}</TabsTrigger>
+          <TabsTrigger value="behavior" data-testid="tab-behavior" className="transition-all duration-300 hover:scale-105 text-xs sm:text-sm px-2 sm:px-3 py-1.5 whitespace-nowrap">{t('report.tabs.behavior', '행동 가이드')}</TabsTrigger>
+          <TabsTrigger value="conversation" data-testid="tab-conversation" className="transition-all duration-300 hover:scale-105 text-xs sm:text-sm px-2 sm:px-3 py-1.5 whitespace-nowrap">{t('report.tabs.conversation', '대화 가이드')}</TabsTrigger>
+          <TabsTrigger value="development" data-testid="tab-development" className="transition-all duration-300 hover:scale-105 text-xs sm:text-sm px-2 sm:px-3 py-1.5 whitespace-nowrap">{t('report.tabs.development', '개발 계획')}</TabsTrigger>
           {feedback?.detailedFeedback?.sequenceAnalysis && (
-            <TabsTrigger value="strategy" data-testid="tab-strategy" className="transition-all duration-300 hover:scale-105">{t('report.tabs.strategy', '전략 평가')}</TabsTrigger>
+            <TabsTrigger value="strategy" data-testid="tab-strategy" className="transition-all duration-300 hover:scale-105 text-xs sm:text-sm px-2 sm:px-3 py-1.5 whitespace-nowrap">{t('report.tabs.strategy', '전략 평가')}</TabsTrigger>
           )}
         </TabsList>
 
