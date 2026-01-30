@@ -15,6 +15,7 @@ export function log(message: string, source = "express") {
 
 export function serveStatic(app: Express) {
   const distPath = path.resolve(import.meta.dirname, "public");
+  console.log(`Static file serving from: ${distPath}`);
 
   if (!fs.existsSync(distPath)) {
     throw new Error(
