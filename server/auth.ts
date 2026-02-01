@@ -185,6 +185,56 @@ export const isAuthenticated: RequestHandler = async (req: any, res, next) => {
   }
 };
 
+// 기본 회사/조직/카테고리 생성 또는 가져오기 (추후 입력)
+const DEFAULT_PLACEHOLDER_NAME = "추후 입력";
+
+async function getOrCreateDefaultHierarchy(): Promise<{ companyId: string; organizationId: string; categoryId: string }> {
+  // 기본 회사 가져오기 또는 생성
+  let company = await storage.getCompanyByName(DEFAULT_PLACEHOLDER_NAME);
+  if (!company) {
+    company = await storage.createCompany({
+      name: DEFAULT_PLACEHOLDER_NAME,
+      code: "TBD",
+      description: "기본 회사 - 추후 입력",
+      isActive: true,
+    });
+    console.log(`📦 Created default company: ${DEFAULT_PLACEHOLDER_NAME}`);
+  }
+
+  // 기본 조직 가져오기 또는 생성
+  const organizations = await storage.getOrganizationsByCompany(company.id);
+  let organization = organizations.find(org => org.name === DEFAULT_PLACEHOLDER_NAME);
+  if (!organization) {
+    organization = await storage.createOrganization({
+      companyId: company.id,
+      name: DEFAULT_PLACEHOLDER_NAME,
+      description: "기본 조직 - 추후 입력",
+      isActive: true,
+    });
+    console.log(`🏢 Created default organization: ${DEFAULT_PLACEHOLDER_NAME}`);
+  }
+
+  // 기본 카테고리 가져오기 또는 생성
+  const categories = await storage.getCategoriesByOrganization(organization.id);
+  let category = categories.find(cat => cat.name === DEFAULT_PLACEHOLDER_NAME);
+  if (!category) {
+    category = await storage.createCategory({
+      organizationId: organization.id,
+      name: DEFAULT_PLACEHOLDER_NAME,
+      description: "기본 카테고리 - 추후 입력",
+      isActive: true,
+      order: 0,
+    });
+    console.log(`📂 Created default category: ${DEFAULT_PLACEHOLDER_NAME}`);
+  }
+
+  return {
+    companyId: company.id,
+    organizationId: organization.id,
+    categoryId: category.id,
+  };
+}
+
 // 인증 라우트 설정
 export function setupAuth(app: Express) {
   // 회원가입
@@ -205,14 +255,20 @@ export function setupAuth(app: Express) {
       const allUsers = await storage.getAllUsers();
       const isFirstUser = allUsers.length === 0;
 
-      // 사용자 생성 (회사/조직/카테고리는 선택사항으로 저장)
+      // 기본 회사/조직/카테고리 가져오기 (지정되지 않은 경우)
+      const defaults = await getOrCreateDefaultHierarchy();
+      const finalCompanyId = companyId || defaults.companyId;
+      const finalOrganizationId = organizationId || defaults.organizationId;
+      const finalCategoryId = categoryId || defaults.categoryId;
+
+      // 사용자 생성 (회사/조직/카테고리는 기본값으로 설정)
       const user = await storage.createUser({
         email,
         password: hashedPassword,
         name,
-        assignedCategoryId: categoryId || null,
-        companyId: companyId || null,
-        organizationId: organizationId || null,
+        assignedCategoryId: finalCategoryId,
+        companyId: finalCompanyId,
+        organizationId: finalOrganizationId,
         preferredLanguage: preferredLanguage || 'ko',
       });
 
