@@ -12,10 +12,14 @@ CREATE TABLE IF NOT EXISTS "users" (
   "role" varchar DEFAULT 'user' NOT NULL,
   "profile_image" varchar,
   "tier" varchar DEFAULT 'bronze' NOT NULL,
+  "preferred_language" varchar DEFAULT 'ko' NOT NULL,
   "is_active" boolean DEFAULT true NOT NULL,
   "last_login_at" timestamp,
+  "company_id" varchar,
+  "organization_id" varchar,
+  "assigned_company_id" varchar,
+  "assigned_organization_id" varchar,
   "assigned_category_id" varchar,
-  "preferred_language" varchar DEFAULT 'ko' NOT NULL,
   "created_at" timestamp DEFAULT now(),
   "updated_at" timestamp DEFAULT now(),
   CONSTRAINT "users_email_unique" UNIQUE("email")
@@ -681,6 +685,26 @@ export async function runMigrations(): Promise<void> {
     try {
       // 테이블 생성
       await queryWithTimeout(client, 'Tables created/verified', migrationSQL);
+
+      // Critical columns patch: ensure users table has all required columns
+      // even if the main migration failed partway through on a previous run.
+      // Each ALTER TABLE runs independently so one failure doesn't block others.
+      const criticalColumnPatches = [
+        { table: 'users', column: 'preferred_language', sql: `DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='users' AND column_name='preferred_language') THEN ALTER TABLE "users" ADD COLUMN "preferred_language" varchar DEFAULT 'ko' NOT NULL; END IF; END $$;` },
+        { table: 'users', column: 'company_id', sql: `DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='users' AND column_name='company_id') THEN ALTER TABLE "users" ADD COLUMN "company_id" varchar; END IF; END $$;` },
+        { table: 'users', column: 'organization_id', sql: `DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='users' AND column_name='organization_id') THEN ALTER TABLE "users" ADD COLUMN "organization_id" varchar; END IF; END $$;` },
+        { table: 'users', column: 'assigned_company_id', sql: `DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='users' AND column_name='assigned_company_id') THEN ALTER TABLE "users" ADD COLUMN "assigned_company_id" varchar; END IF; END $$;` },
+        { table: 'users', column: 'assigned_organization_id', sql: `DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='users' AND column_name='assigned_organization_id') THEN ALTER TABLE "users" ADD COLUMN "assigned_organization_id" varchar; END IF; END $$;` },
+      ];
+
+      for (const patch of criticalColumnPatches) {
+        try {
+          await client.query(patch.sql);
+        } catch (err) {
+          console.warn(`⚠️ Failed to ensure ${patch.table}.${patch.column}:`, err);
+        }
+      }
+      console.log('✅ Critical column patches verified');
 
       // Foreign Keys 추가
       await queryWithTimeout(client, 'Foreign keys created/verified', foreignKeysSQL);
