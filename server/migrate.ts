@@ -285,6 +285,66 @@ DO $$ BEGIN
     ALTER TABLE "categories" DROP CONSTRAINT "categories_name_unique";
   END IF;
 END $$;
+
+-- Companies 테이블에 code 컬럼 추가 (마이그레이션)
+DO $$ BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_name = 'companies' AND column_name = 'code'
+  ) THEN
+    ALTER TABLE "companies" ADD COLUMN "code" varchar(50);
+    ALTER TABLE "companies" ADD CONSTRAINT "companies_code_unique" UNIQUE ("code");
+  END IF;
+END $$;
+
+-- Organizations 테이블에 code 컬럼 추가 (마이그레이션)
+DO $$ BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_name = 'organizations' AND column_name = 'code'
+  ) THEN
+    ALTER TABLE "organizations" ADD COLUMN "code" varchar(50);
+  END IF;
+END $$;
+
+-- Users 테이블에 assigned_company_id, assigned_organization_id 컬럼 추가 (마이그레이션)
+DO $$ BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_name = 'users' AND column_name = 'assigned_company_id'
+  ) THEN
+    ALTER TABLE "users" ADD COLUMN "assigned_company_id" varchar;
+  END IF;
+END $$;
+
+DO $$ BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_name = 'users' AND column_name = 'assigned_organization_id'
+  ) THEN
+    ALTER TABLE "users" ADD COLUMN "assigned_organization_id" varchar;
+  END IF;
+END $$;
+
+-- Chat Messages 테이블에 interrupted 컬럼 추가 (마이그레이션)
+DO $$ BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_name = 'chat_messages' AND column_name = 'interrupted'
+  ) THEN
+    ALTER TABLE "chat_messages" ADD COLUMN "interrupted" boolean DEFAULT false;
+  END IF;
+END $$;
+
+-- Evaluation Dimensions 테이블에 dimension_type 컬럼 추가 (마이그레이션)
+DO $$ BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_name = 'evaluation_dimensions' AND column_name = 'dimension_type'
+  ) THEN
+    ALTER TABLE "evaluation_dimensions" ADD COLUMN "dimension_type" varchar DEFAULT 'standard' NOT NULL;
+  END IF;
+END $$;
 `;
 
 const foreignKeysSQL = `
@@ -392,8 +452,20 @@ EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
 -- Operator Assignments FK to Organizations
 DO $$ BEGIN
-  ALTER TABLE "operator_assignments" ADD CONSTRAINT "operator_assignments_organization_id_organizations_id_fk" 
+  ALTER TABLE "operator_assignments" ADD CONSTRAINT "operator_assignments_organization_id_organizations_id_fk"
     FOREIGN KEY ("organization_id") REFERENCES "public"."organizations"("id") ON DELETE cascade;
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+-- Users FK to Companies (assigned_company_id)
+DO $$ BEGIN
+  ALTER TABLE "users" ADD CONSTRAINT "users_assigned_company_id_companies_id_fk"
+    FOREIGN KEY ("assigned_company_id") REFERENCES "public"."companies"("id");
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+-- Users FK to Organizations (assigned_organization_id)
+DO $$ BEGIN
+  ALTER TABLE "users" ADD CONSTRAINT "users_assigned_organization_id_organizations_id_fk"
+    FOREIGN KEY ("assigned_organization_id") REFERENCES "public"."organizations"("id");
 EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 `;
 
