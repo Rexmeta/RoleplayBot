@@ -13,8 +13,8 @@
 #   gcloud builds submit --config=cloudbuild.yaml .
 
 substitutions:
-  _SERVICE_NAME: 'my-service'           # Cloud Run 서비스 이름
-  _REGION: 'asia-northeast3'            # 배포 리전 (서울: asia-northeast3)
+  _SERVICE_NAME: 'role'                 # Cloud Run 서비스 이름
+  _REGION: 'us-east1'                   # 배포 리전
   _MEMORY: '1Gi'                        # 메모리 할당
   _CPU: '1'                             # CPU 할당
   _MIN_INSTANCES: '0'                   # 최소 인스턴스 (0 = 콜드스타트 허용)

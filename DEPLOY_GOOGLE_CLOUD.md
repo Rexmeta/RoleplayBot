@@ -65,8 +65,8 @@ gcloud services enable \
 ## 3단계: Artifact Registry 저장소 생성
 
 ```bash
-# 리전 설정 (서울: asia-northeast3, 도쿄: asia-northeast1)
-export REGION="asia-northeast3"
+# 리전 설정
+export REGION="us-east1"
 
 # Docker 이미지 저장소 생성
 gcloud artifacts repositories create cloud-run-source-deploy \
@@ -124,8 +124,8 @@ gcloud secrets add-iam-policy-binding google-api-key \
 
 ```yaml
 substitutions:
-  _SERVICE_NAME: 'your-service-name'    # 서비스 이름
-  _REGION: 'asia-northeast3'            # 배포 리전
+  _SERVICE_NAME: 'role'                 # 서비스 이름
+  _REGION: 'us-east1'                   # 배포 리전
 ```
 
 ### 5.2 Cloud Build로 배포
