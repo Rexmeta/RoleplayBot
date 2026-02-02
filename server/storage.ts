@@ -2337,13 +2337,12 @@ export const storage = new PostgreSQLStorage();
  * Verify that the database is reachable by executing a lightweight query.
  * Used during startup to warm the connection pool and confirm connectivity
  * before the application begins accepting traffic.
+ *
+ * Throws on failure so the caller (retry loop) can inspect and log the
+ * specific error code (e.g. ENOENT when the Cloud SQL socket is missing,
+ * ECONNREFUSED when the proxy hasn't started yet).
  */
 export async function checkDatabaseConnection(): Promise<boolean> {
-  try {
-    await pool.query('SELECT 1');
-    return true;
-  } catch (error) {
-    console.error('Database connection check failed:', error);
-    return false;
-  }
+  await pool.query('SELECT 1');
+  return true;
 }

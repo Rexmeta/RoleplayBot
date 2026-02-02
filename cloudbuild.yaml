@@ -43,7 +43,7 @@ steps:
       # returns HTTP 200.  This prevents 503 errors during cold start while
       # routes and the database connection are still initialising.
       # Budget: period(2s) × threshold(60) = 120s max startup time.
-      # DB retry loop: 5 attempts × (5s timeout + 2s delay) = 35s.
+      # DB retry loop: 15 attempts with exponential backoff (1s→5s cap) ≈ 55s.
       - '--startup-probe-http-get-path=/_ah/ready'
       - '--startup-probe-period=2'
       - '--startup-probe-failure-threshold=60'
