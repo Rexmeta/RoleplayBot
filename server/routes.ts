@@ -15,6 +15,7 @@ import { GoogleGenAI } from "@google/genai";
 import { createSampleData } from "./sampleData";
 import ttsRoutes from "./routes/tts.js";
 import imageGenerationRoutes, { saveImageToLocal } from "./routes/imageGeneration.js";
+import mediaRoutes from "./routes/media.js";
 import { fileManager } from "./services/fileManager";
 import { generateScenarioWithAI, enhanceScenarioWithAI } from "./services/aiScenarioGenerator";
 import { realtimeVoiceService } from "./services/realtimeVoiceService";
@@ -6046,6 +6047,9 @@ Return JSON: {
 
   // 이미지 생성 라우트
   app.use("/api/image", imageGenerationRoutes);
+
+  // GCS 미디어 라우트 (Signed URL)
+  app.use("/api/media", mediaRoutes);
 
   // Object Storage routes (미디어 파일 영구 저장)
   registerObjectStorageRoutes(app);

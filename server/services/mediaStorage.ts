@@ -48,7 +48,7 @@ export class MediaStorageService {
     const storageType = getStorageType();
 
     if (storageType === 'gcs') {
-      return await uploadToGCS(buffer, objectPath, contentType);
+      return await uploadToGCS(buffer, objectPath, contentType, false);
     }
 
     if (storageType === 'replit') {
