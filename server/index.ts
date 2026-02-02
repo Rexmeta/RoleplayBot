@@ -339,7 +339,7 @@ async function initializeApp() {
   // so we retry the connection several times before giving up.
   //
   // TIMING: Must complete within the startup probe window.
-  // Probe config: period=2s, threshold=60 → 120s max.
+  // Probe config: period=5s, threshold=24 → 120s max.
   // Retry config: 15 attempts with exponential backoff (1s→5s cap) ≈ 55s max.
   // ----------------------------------------------------------------
   const DB_MAX_RETRIES = 15;
