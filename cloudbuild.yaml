@@ -13,8 +13,23 @@ steps:
       - 'push'
       - 'gcr.io/$PROJECT_ID/roleplaybot:$COMMIT_SHA'
 
-  # 3. Cloud Run에 배포
-  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+  # 3. 기존 Cloud Run 서비스에서 잘못된 시크릿 참조 제거
+  # 이전 배포에서 남아있는 JWT_SECRET, OPENAI_API_KEY 등 잘못된 시크릿 참조를
+  # 제거하여 배포 실패를 방지합니다.
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk:slim'
+    entrypoint: bash
+    args:
+      - '-c'
+      - |
+        echo "Clearing stale secret references from Cloud Run service..."
+        gcloud run services update role \
+          --region us-east1 \
+          --platform managed \
+          --clear-secrets \
+          --quiet 2>/dev/null || echo "No existing service or secrets to clear (first deploy)"
+
+  # 4. Cloud Run에 배포
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk:slim'
     entrypoint: gcloud
     args:
       - 'run'
@@ -58,15 +73,14 @@ steps:
       # /cloudsql/INSTANCE_CONNECTION_NAME Unix 소켓을 통해 연결합니다.
       - '--add-cloudsql-instances=role-20260129:us-east1:dbrole'
       - '--set-env-vars'
-      - 'NODE_ENV=production'
+      - 'NODE_ENV=production,AI_PROVIDER=gemini'
       # Secret Manager에서 시크릿 주입
       # 사전에 Google Cloud Secret Manager에 아래 시크릿들을 생성해야 합니다:
       # - jwt-secret: JWT 인증용 시크릿 키
       # - database-url: PostgreSQL 연결 문자열
-      # - google-api-key: Gemini API 키
-      # (선택) elevenlabs-api-key: TTS 기능용 - 필요시 아래 줄에 추가
+      # - google-api-key: Gemini API 키 (GOOGLE_API_KEY, GEMINI_API_KEY 모두 매핑)
       - '--set-secrets'
-      - 'JWT_SECRET=jwt-secret:latest,DATABASE_URL=database-url:latest,GOOGLE_API_KEY=google-api-key:latest'
+      - 'JWT_SECRET=jwt-secret:latest,DATABASE_URL=database-url:latest,GOOGLE_API_KEY=google-api-key:latest,GEMINI_API_KEY=google-api-key:latest'
 
 images:
   - 'gcr.io/$PROJECT_ID/roleplaybot:$COMMIT_SHA'
