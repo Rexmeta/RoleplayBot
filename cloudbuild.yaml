@@ -1,60 +1,82 @@
+# Google Cloud Build 설정 파일
+# 
+# 첫 배포 전 필수 설정:
+# 1. 아래 substitutions 섹션의 값들을 실제 프로젝트에 맞게 수정하세요
+# 2. Secret Manager에 필수 시크릿을 생성하세요 (./scripts/setup-cloud-run-env.sh 사용)
+# 3. Artifact Registry 저장소를 생성하세요:
+#    gcloud artifacts repositories create cloud-run-source-deploy \
+#      --repository-format=docker \
+#      --location=${_REGION} \
+#      --project=${PROJECT_ID}
+#
+# 배포 명령어:
+#   gcloud builds submit --config=cloudbuild.yaml .
+
+substitutions:
+  _SERVICE_NAME: 'my-service'           # Cloud Run 서비스 이름
+  _REGION: 'asia-northeast3'            # 배포 리전 (서울: asia-northeast3)
+  _MEMORY: '1Gi'                        # 메모리 할당
+  _CPU: '1'                             # CPU 할당
+  _MIN_INSTANCES: '0'                   # 최소 인스턴스 (0 = 콜드스타트 허용)
+  _MAX_INSTANCES: '10'                  # 최대 인스턴스
+
 steps:
-  # 1. Build Docker image
+  # Step 1: Docker 이미지 빌드
   - name: 'gcr.io/cloud-builders/docker'
-    id: Build
+    id: 'Build'
     args:
       - 'build'
       - '-t'
-      - 'us-east1-docker.pkg.dev/$PROJECT_ID/cloud-run-source-deploy/roleplaybot/role:$COMMIT_SHA'
+      - '${_REGION}-docker.pkg.dev/${PROJECT_ID}/cloud-run-source-deploy/${_SERVICE_NAME}:${COMMIT_SHA}'
+      - '-t'
+      - '${_REGION}-docker.pkg.dev/${PROJECT_ID}/cloud-run-source-deploy/${_SERVICE_NAME}:latest'
       - '.'
 
-  # 2. Push to Artifact Registry
+  # Step 2: Artifact Registry에 이미지 푸시
   - name: 'gcr.io/cloud-builders/docker'
-    id: Push
+    id: 'Push'
     args:
       - 'push'
-      - 'us-east1-docker.pkg.dev/$PROJECT_ID/cloud-run-source-deploy/roleplaybot/role:$COMMIT_SHA'
+      - '--all-tags'
+      - '${_REGION}-docker.pkg.dev/${PROJECT_ID}/cloud-run-source-deploy/${_SERVICE_NAME}'
 
-  # 3. Deploy to Cloud Run
-  # --set-secrets replaces ALL existing secret-backed env vars on the service,
-  # which automatically removes stale references to non-existent secrets
-  # (e.g., uppercase JWT_SECRET, OPENAI_API_KEY in Secret Manager).
-  # No separate cleanup step is needed; previous approaches using
-  # --remove-secrets / --clear-secrets failed because those intermediate
-  # service updates also create revisions that can't start.
+  # Step 3: Cloud Run에 배포
   - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk:slim'
-    id: Deploy
-    entrypoint: bash
+    id: 'Deploy'
+    entrypoint: 'bash'
     args:
       - '-c'
       - |
         set -e
-        gcloud run deploy role \
-          --image us-east1-docker.pkg.dev/$PROJECT_ID/cloud-run-source-deploy/roleplaybot/role:$COMMIT_SHA \
-          --region us-east1 \
+        echo "🚀 Deploying to Cloud Run..."
+        
+        gcloud run deploy ${_SERVICE_NAME} \
+          --image ${_REGION}-docker.pkg.dev/${PROJECT_ID}/cloud-run-source-deploy/${_SERVICE_NAME}:${COMMIT_SHA} \
+          --region ${_REGION} \
           --platform managed \
           --allow-unauthenticated \
-          --memory 2Gi \
-          --cpu 1 \
-          --min-instances 1 \
-          --max-instances 10 \
+          --memory ${_MEMORY} \
+          --cpu ${_CPU} \
+          --min-instances ${_MIN_INSTANCES} \
+          --max-instances ${_MAX_INSTANCES} \
           --port 8080 \
-          --startup-cpu-boost \
-          --cpu-throttling \
-          --startup-probe-http-get-path=/_ah/ready \
-          --startup-probe-period=5 \
-          --startup-probe-failure-threshold=24 \
-          --startup-probe-timeout=3 \
-          --liveness-probe-http-get-path=/_ah/health \
-          --liveness-probe-period=15 \
-          --liveness-probe-failure-threshold=3 \
-          --liveness-probe-timeout=5 \
-          --add-cloudsql-instances=role-20260129:us-east1:dbrole \
-          --set-env-vars=NODE_ENV=production,AI_PROVIDER=gemini \
-          --set-secrets=JWT_SECRET=jwt-secret:latest,DATABASE_URL=database-url:latest,GOOGLE_API_KEY=google-api-key:latest,GEMINI_API_KEY=google-api-key:latest
+          --timeout 300 \
+          --set-env-vars NODE_ENV=production,AI_PROVIDER=gemini \
+          --set-secrets JWT_SECRET=jwt-secret:latest,DATABASE_URL=database-url:latest,GOOGLE_API_KEY=google-api-key:latest
+        
+        echo "✅ Deployment complete!"
+        
+        # 배포된 서비스 URL 출력
+        gcloud run services describe ${_SERVICE_NAME} \
+          --region ${_REGION} \
+          --format 'value(status.url)'
 
 images:
-  - 'us-east1-docker.pkg.dev/$PROJECT_ID/cloud-run-source-deploy/roleplaybot/role:$COMMIT_SHA'
+  - '${_REGION}-docker.pkg.dev/${PROJECT_ID}/cloud-run-source-deploy/${_SERVICE_NAME}:${COMMIT_SHA}'
+  - '${_REGION}-docker.pkg.dev/${PROJECT_ID}/cloud-run-source-deploy/${_SERVICE_NAME}:latest'
 
 options:
   logging: CLOUD_LOGGING_ONLY
+  machineType: 'E2_HIGHCPU_8'
+
+timeout: '1200s'
