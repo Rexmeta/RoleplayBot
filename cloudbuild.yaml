@@ -19,7 +19,7 @@ substitutions:
   _CPU: '1'                             # CPU 할당
   _MIN_INSTANCES: '0'                   # 최소 인스턴스 (0 = 콜드스타트 허용)
   _MAX_INSTANCES: '10'                  # 최대 인스턴스
-  _GCS_BUCKET_NAME: ''                  # GCS 버킷 이름 (이미지/비디오 저장용)
+  _GCS_BUCKET_NAME: 'roleplay-bucket'   # GCS 버킷 이름 (이미지/비디오 저장용)
 
 steps:
   # Step 1: Docker 이미지 빌드

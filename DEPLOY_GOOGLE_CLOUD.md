@@ -155,7 +155,7 @@ gcloud secrets add-iam-policy-binding google-api-key \
 substitutions:
   _SERVICE_NAME: 'role'                 # 서비스 이름
   _REGION: 'us-east1'                   # 배포 리전
-  _GCS_BUCKET_NAME: 'your-project-media' # GCS 버킷 이름 (4단계에서 생성)
+  _GCS_BUCKET_NAME: 'roleplay-bucket'    # GCS 버킷 이름
 ```
 
 ### 6.2 Cloud Build로 배포
