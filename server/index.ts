@@ -340,10 +340,12 @@ async function initializeApp() {
   //
   // TIMING: Must complete within the startup probe window.
   // Probe config: period=2s, threshold=60 → 120s max.
-  // Retry config: 5 attempts × (5s timeout + 2s delay) = 35s max.
+  // Retry config: 15 attempts with exponential backoff (1s→5s cap) ≈ 55s max.
   // ----------------------------------------------------------------
-  const DB_MAX_RETRIES = 5;
-  const DB_RETRY_DELAY_MS = 2000;
+  const DB_MAX_RETRIES = 15;
+  const DB_INITIAL_DELAY_MS = 1000;
+  const DB_MAX_DELAY_MS = 5000;
+  const DB_BACKOFF_FACTOR = 1.5;
 
   if (!process.env.DATABASE_URL) {
     initStatus = 'failed_no_database_url';
@@ -363,12 +365,14 @@ async function initializeApp() {
   initStatus = 'connecting_to_database';
   let dbConnected = false;
 
+  let currentDelay = DB_INITIAL_DELAY_MS;
+
   for (let attempt = 1; attempt <= DB_MAX_RETRIES; attempt++) {
     try {
       console.log(`Database connection attempt ${attempt}/${DB_MAX_RETRIES}...`);
       const dbOk = await checkDatabaseConnection();
       if (dbOk) {
-        console.log('Database connection verified');
+        console.log(`Database connection verified on attempt ${attempt}`);
         dbConnected = true;
         break;
       }
@@ -379,8 +383,9 @@ async function initializeApp() {
     }
 
     if (attempt < DB_MAX_RETRIES) {
-      console.log(`Retrying in ${DB_RETRY_DELAY_MS / 1000}s...`);
-      await new Promise(resolve => setTimeout(resolve, DB_RETRY_DELAY_MS));
+      console.log(`Retrying in ${(currentDelay / 1000).toFixed(1)}s... (attempt ${attempt + 1} next)`);
+      await new Promise(resolve => setTimeout(resolve, currentDelay));
+      currentDelay = Math.min(currentDelay * DB_BACKOFF_FACTOR, DB_MAX_DELAY_MS);
     }
   }
 
