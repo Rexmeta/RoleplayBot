@@ -42,8 +42,8 @@ steps:
           --startup-cpu-boost \
           --cpu-throttling \
           --startup-probe-http-get-path=/_ah/ready \
-          --startup-probe-period=2 \
-          --startup-probe-failure-threshold=60 \
+          --startup-probe-period=5 \
+          --startup-probe-failure-threshold=24 \
           --startup-probe-timeout=3 \
           --liveness-probe-http-get-path=/_ah/health \
           --liveness-probe-period=15 \
