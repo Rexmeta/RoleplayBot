@@ -2,68 +2,77 @@
 
 # 기존 Secret Manager 시크릿을 Cloud Run 서비스에 연결하는 스크립트
 # 이미 다른 서비스에서 사용 중인 시크릿을 재사용합니다.
+#
+# 사용법:
+#   ./scripts/connect-existing-secrets.sh
+#   또는 환경변수 지정:
+#   PROJECT_ID=my-project SERVICE_NAME=my-service REGION=asia-northeast3 ./scripts/connect-existing-secrets.sh
 
 set -e
 
-# 설정 변수
-PROJECT_ID="${PROJECT_ID:-roleplay-469506}"
-SERVICE_NAME="${SERVICE_NAME:-mothle}"
-REGION="${REGION:-europe-west1}"
+echo "=============================================="
+echo "🔗 기존 시크릿 연결 스크립트"
+echo "=============================================="
+echo ""
 
-echo "🔍 기존 시크릿 확인 중..."
-echo "📋 Project ID: $PROJECT_ID"
-echo "🎯 Service Name: $SERVICE_NAME"
-echo "🌍 Region: $REGION"
+# 환경 변수 설정 (미지정시 사용자 입력 요청)
+if [ -z "$PROJECT_ID" ]; then
+  read -p "📋 Google Cloud Project ID: " PROJECT_ID
+fi
+
+if [ -z "$SERVICE_NAME" ]; then
+  read -p "🎯 Cloud Run 서비스 이름: " SERVICE_NAME
+fi
+
+if [ -z "$REGION" ]; then
+  echo "🌍 사용 가능한 리전 예시: asia-northeast3 (서울), us-central1, europe-west1"
+  read -p "🌍 배포 리전: " REGION
+fi
+
+if [ -z "$PROJECT_ID" ] || [ -z "$SERVICE_NAME" ] || [ -z "$REGION" ]; then
+  echo "❌ 모든 값을 입력해야 합니다."
+  exit 1
+fi
+
+echo ""
+echo "📋 설정 확인:"
+echo "   Project ID: $PROJECT_ID"
+echo "   Service Name: $SERVICE_NAME"
+echo "   Region: $REGION"
 echo ""
 
 # 1. 현재 프로젝트의 시크릿 목록 확인
+echo "=============================================="
 echo "📦 Step 1: 프로젝트의 시크릿 목록"
-echo "----------------------------------------"
-gcloud secrets list --project=$PROJECT_ID --format="table(name,createTime)" || {
-  echo "⚠️  gcloud 명령어 실행 실패. 수동으로 확인이 필요합니다."
-  echo "   https://console.cloud.google.com/security/secret-manager?project=$PROJECT_ID"
+echo "=============================================="
+gcloud secrets list --project=$PROJECT_ID --format="table(name,createTime)" 2>/dev/null || {
+  echo "⚠️  gcloud 명령어 실행 실패. 인증을 확인하세요:"
+  echo "   gcloud auth login"
+  exit 1
 }
 echo ""
 
-# 2. mothle 서비스의 현재 환경 변수 확인
-echo "⚙️  Step 2: mothle 서비스의 현재 설정"
-echo "----------------------------------------"
-gcloud run services describe $SERVICE_NAME \
-  --region=$REGION \
-  --project=$PROJECT_ID \
-  --format="value(spec.template.spec.containers[0].env)" 2>/dev/null || {
-  echo "⚠️  서비스 정보를 가져올 수 없습니다."
-}
-echo ""
+# 2. 필요한 시크릿 확인
+echo "=============================================="
+echo "🔍 Step 2: 필수 시크릿 확인"
+echo "=============================================="
 
-# 3. 일반적인 시크릿 이름 패턴 확인
-echo "🔍 Step 3: 일반적인 시크릿 이름 확인"
-echo "----------------------------------------"
+# 일반적인 시크릿 이름 패턴 확인
 SECRET_NAMES=("jwt-secret" "JWT_SECRET" "database-url" "DATABASE_URL" "google-api-key" "GOOGLE_API_KEY" "gemini-api-key" "GEMINI_API_KEY")
 
-FOUND_SECRETS=""
-
+echo "필수 시크릿 확인 중..."
 for secret in "${SECRET_NAMES[@]}"; do
   if gcloud secrets describe "$secret" --project=$PROJECT_ID &>/dev/null; then
     echo "   ✅ $secret 존재"
-    FOUND_SECRETS="$FOUND_SECRETS $secret"
   fi
 done
 echo ""
 
-# 4. 시크릿 연결 명령어 생성
-echo "🔗 Step 4: mothle 서비스에 시크릿 연결"
-echo "----------------------------------------"
+# 3. 시크릿 매핑 구성
+echo "=============================================="
+echo "🔗 Step 3: 시크릿 연결 설정"
+echo "=============================================="
 
-# 사용자에게 어떤 시크릿을 사용할지 확인
-echo "다음 명령어를 실행하여 시크릿을 연결하세요:"
-echo ""
-echo "gcloud run services update $SERVICE_NAME \\"
-echo "  --project=$PROJECT_ID \\"
-echo "  --region=$REGION \\"
-echo "  --set-env-vars NODE_ENV=production \\"
-
-# 발견된 시크릿에 따라 명령어 구성
 SECRET_MAPPINGS=""
 
 # JWT_SECRET
@@ -98,10 +107,17 @@ elif gcloud secrets describe "GEMINI_API_KEY" --project=$PROJECT_ID &>/dev/null;
 fi
 
 if [ -n "$SECRET_MAPPINGS" ]; then
+  echo "발견된 시크릿 매핑: $SECRET_MAPPINGS"
+  echo ""
+  echo "실행할 명령어:"
+  echo "gcloud run services update $SERVICE_NAME \\"
+  echo "  --project=$PROJECT_ID \\"
+  echo "  --region=$REGION \\"
+  echo "  --set-env-vars NODE_ENV=production \\"
   echo "  --set-secrets $SECRET_MAPPINGS"
   echo ""
-  echo "📝 자동 실행하시겠습니까? (y/N)"
-  read -r response
+  
+  read -p "이 명령어를 실행하시겠습니까? (y/N): " response
 
   if [[ "$response" =~ ^[Yy]$ ]]; then
     echo ""
@@ -120,28 +136,23 @@ if [ -n "$SECRET_MAPPINGS" ]; then
       --allow-unauthenticated
 
     echo ""
+    echo "=============================================="
     echo "✅ 시크릿 연결 완료!"
-    echo ""
-    echo "🔄 다음 배포 시 컨테이너가 정상적으로 시작됩니다."
+    echo "=============================================="
   else
-    echo ""
-    echo "위 명령어를 복사하여 수동으로 실행하세요."
+    echo "취소되었습니다. 위 명령어를 복사하여 수동으로 실행하세요."
   fi
 else
-  echo "  ⚠️  필수 시크릿을 찾을 수 없습니다."
+  echo "❌ 필수 시크릿을 찾을 수 없습니다."
   echo ""
-  echo "다음 시크릿들이 필요합니다:"
-  echo "  - JWT_SECRET (또는 jwt-secret)"
-  echo "  - DATABASE_URL (또는 database-url)"
-  echo "  - GOOGLE_API_KEY (또는 google-api-key, gemini-api-key)"
+  echo "다음 시크릿 중 하나 이상이 필요합니다:"
+  echo "  - jwt-secret 또는 JWT_SECRET"
+  echo "  - database-url 또는 DATABASE_URL"
+  echo "  - google-api-key 또는 GOOGLE_API_KEY"
   echo ""
-  echo "기존 서비스의 시크릿 이름을 확인하려면:"
-  echo "  gcloud run services describe YOUR_OTHER_SERVICE --region=YOUR_REGION --project=$PROJECT_ID"
+  echo "시크릿을 먼저 생성하려면 ./scripts/setup-cloud-run-env.sh 를 실행하세요."
 fi
 
 echo ""
 echo "📊 Secret Manager 콘솔:"
 echo "   https://console.cloud.google.com/security/secret-manager?project=$PROJECT_ID"
-echo ""
-echo "🔍 mothle 서비스 상태 확인:"
-echo "   gcloud run services describe $SERVICE_NAME --region=$REGION --project=$PROJECT_ID"

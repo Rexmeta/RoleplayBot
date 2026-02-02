@@ -1,5 +1,36 @@
 #!/bin/bash
-echo "Running database schema migration..."
-npx drizzle-kit push --force
-echo "Building application..."
+
+# 배포 빌드 스크립트
+# 데이터베이스 스키마 마이그레이션과 애플리케이션 빌드를 순차적으로 실행합니다.
+#
+# 사용법:
+#   Replit 배포 설정에서 Build Command를 다음으로 설정:
+#   sh scripts/deploy-build.sh
+
+set -e
+
+echo "=============================================="
+echo "🚀 배포 빌드 시작"
+echo "=============================================="
+echo ""
+
+# Step 1: 데이터베이스 스키마 마이그레이션
+echo "📊 Step 1: 데이터베이스 스키마 마이그레이션..."
+echo "----------------------------------------------"
+if npx drizzle-kit push --force 2>&1; then
+  echo "✅ 스키마 마이그레이션 완료"
+else
+  echo "⚠️  스키마 마이그레이션 실패 또는 건너뜀"
+  echo "   (데이터베이스 연결이 없으면 무시됩니다)"
+fi
+echo ""
+
+# Step 2: 애플리케이션 빌드
+echo "🔨 Step 2: 애플리케이션 빌드..."
+echo "----------------------------------------------"
 npm run build
+echo ""
+
+echo "=============================================="
+echo "✅ 배포 빌드 완료!"
+echo "=============================================="
