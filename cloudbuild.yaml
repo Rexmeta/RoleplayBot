@@ -13,74 +13,68 @@ steps:
       - 'push'
       - 'gcr.io/$PROJECT_ID/roleplaybot:$COMMIT_SHA'
 
-  # 3. 기존 Cloud Run 서비스에서 잘못된 시크릿 참조 제거
+  # 3. 기존 서비스에서 잘못된 시크릿 참조 제거 후 Cloud Run에 배포
   # 이전 배포에서 남아있는 JWT_SECRET, OPENAI_API_KEY 등 잘못된 시크릿 참조를
-  # 제거하여 배포 실패를 방지합니다.
+  # 명시적으로 제거한 뒤 올바른 시크릿으로 배포합니다.
+  # 단일 bash 스크립트로 실행하여 중간 실패 시 에러가 노출되도록 합니다.
   - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk:slim'
+    id: Deploy
     entrypoint: bash
     args:
       - '-c'
       - |
-        echo "Clearing stale secret references from Cloud Run service..."
+        set -e
+
+        echo "=== Step 1: Remove stale secret references ==="
+        # Explicitly remove known stale Secret Manager references that use
+        # uppercase names (JWT_SECRET, OPENAI_API_KEY) which don't exist.
+        # --remove-secrets is more targeted than --clear-secrets and won't
+        # fail when the secret env var is already absent.
+        gcloud run services describe role \
+          --region us-east1 \
+          --platform managed \
+          --format='yaml(spec.template.spec.containers[0].env)' 2>/dev/null \
+          && echo "Current service found, checking for stale secrets..." \
+          || { echo "No existing service found (first deploy), skipping cleanup."; }
+
+        # Try to remove stale secrets; ignore errors if they don't exist
+        gcloud run services update role \
+          --region us-east1 \
+          --platform managed \
+          --remove-secrets=JWT_SECRET,OPENAI_API_KEY \
+          --quiet 2>&1 || echo "Note: Could not remove stale secrets (may not exist). Continuing..."
+
+        # Also clear any remaining unknown stale secret references
         gcloud run services update role \
           --region us-east1 \
           --platform managed \
           --clear-secrets \
-          --quiet 2>/dev/null || echo "No existing service or secrets to clear (first deploy)"
+          --quiet 2>&1 || echo "Note: Could not clear secrets (may be first deploy). Continuing..."
 
-  # 4. Cloud Run에 배포
-  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk:slim'
-    entrypoint: gcloud
-    args:
-      - 'run'
-      - 'deploy'
-      - 'role'
-      - '--image'
-      - 'gcr.io/$PROJECT_ID/roleplaybot:$COMMIT_SHA'
-      - '--region'
-      - 'us-east1'
-      - '--platform'
-      - 'managed'
-      - '--allow-unauthenticated'
-      - '--memory'
-      - '2Gi'
-      - '--cpu'
-      - '1'
-      - '--min-instances'
-      - '1'
-      - '--max-instances'
-      - '10'
-      - '--port'
-      - '8080'
-      - '--startup-cpu-boost'
-      - '--cpu-throttling'
-      # Startup probe: Cloud Run will not route traffic until /_ah/ready
-      # returns HTTP 200.  This prevents 503 errors during cold start while
-      # routes and the database connection are still initialising.
-      # Budget: period(2s) × threshold(60) = 120s max startup time.
-      # DB retry loop: 15 attempts with exponential backoff (1s→5s cap) ≈ 55s.
-      - '--startup-probe-http-get-path=/_ah/ready'
-      - '--startup-probe-period=2'
-      - '--startup-probe-failure-threshold=60'
-      - '--startup-probe-timeout=3'
-      # Liveness probe: detect stuck/unresponsive containers and restart them
-      # rather than continuing to serve 503 errors.
-      - '--liveness-probe-http-get-path=/_ah/health'
-      - '--liveness-probe-period=15'
-      - '--liveness-probe-failure-threshold=3'
-      - '--liveness-probe-timeout=5'
-      # Cloud SQL 연결: Cloud SQL Auth Proxy 사이드카를 활성화하여
-      # /cloudsql/INSTANCE_CONNECTION_NAME Unix 소켓을 통해 연결합니다.
-      - '--add-cloudsql-instances=role-20260129:us-east1:dbrole'
-      - '--set-env-vars'
-      - 'NODE_ENV=production,AI_PROVIDER=gemini'
-      # Secret Manager에서 시크릿 주입
-      # 사전에 Google Cloud Secret Manager에 아래 시크릿들을 생성해야 합니다:
-      # - jwt-secret: JWT 인증용 시크릿 키
-      # - database-url: PostgreSQL 연결 문자열
-      # - google-api-key: Gemini API 키 (GOOGLE_API_KEY, GEMINI_API_KEY 모두 매핑)
-      - '--set-secrets'
-      - 'JWT_SECRET=jwt-secret:latest,DATABASE_URL=database-url:latest,GOOGLE_API_KEY=google-api-key:latest,GEMINI_API_KEY=google-api-key:latest'
+        echo "=== Step 2: Deploy to Cloud Run ==="
+        gcloud run deploy role \
+          --image gcr.io/$PROJECT_ID/roleplaybot:$COMMIT_SHA \
+          --region us-east1 \
+          --platform managed \
+          --allow-unauthenticated \
+          --memory 2Gi \
+          --cpu 1 \
+          --min-instances 1 \
+          --max-instances 10 \
+          --port 8080 \
+          --startup-cpu-boost \
+          --cpu-throttling \
+          --startup-probe-http-get-path=/_ah/ready \
+          --startup-probe-period=2 \
+          --startup-probe-failure-threshold=60 \
+          --startup-probe-timeout=3 \
+          --liveness-probe-http-get-path=/_ah/health \
+          --liveness-probe-period=15 \
+          --liveness-probe-failure-threshold=3 \
+          --liveness-probe-timeout=5 \
+          --add-cloudsql-instances=role-20260129:us-east1:dbrole \
+          --set-env-vars=NODE_ENV=production,AI_PROVIDER=gemini \
+          --set-secrets=JWT_SECRET=jwt-secret:latest,DATABASE_URL=database-url:latest,GOOGLE_API_KEY=google-api-key:latest,GEMINI_API_KEY=google-api-key:latest
 
 images:
   - 'gcr.io/$PROJECT_ID/roleplaybot:$COMMIT_SHA'
