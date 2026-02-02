@@ -56,7 +56,7 @@ steps:
       - '--liveness-probe-timeout=5'
       # Cloud SQL 연결: Cloud SQL Auth Proxy 사이드카를 활성화하여
       # /cloudsql/INSTANCE_CONNECTION_NAME Unix 소켓을 통해 연결합니다.
-      - '--add-cloudsql-instances=role-20260129:us-central1:role'
+      - '--add-cloudsql-instances=role-20260129:us-east1:dbrole'
       - '--set-env-vars'
       - 'NODE_ENV=production'
       # Secret Manager에서 시크릿 주입
