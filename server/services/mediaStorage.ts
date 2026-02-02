@@ -1,7 +1,32 @@
-import { ObjectStorageService } from '../replit_integrations/object_storage';
 import sharp from 'sharp';
+import { isGCSAvailable, uploadToGCS } from './gcsStorage';
 
-const objectStorage = new ObjectStorageService();
+let ObjectStorageService: any = null;
+let objectStorage: any = null;
+
+async function initReplitObjectStorage() {
+  if (objectStorage) return objectStorage;
+  
+  try {
+    const module = await import('../replit_integrations/object_storage');
+    ObjectStorageService = module.ObjectStorageService;
+    objectStorage = new ObjectStorageService();
+    return objectStorage;
+  } catch (error) {
+    console.log('Replit Object Storage not available');
+    return null;
+  }
+}
+
+function getStorageType(): 'gcs' | 'replit' | 'none' {
+  if (isGCSAvailable()) {
+    return 'gcs';
+  }
+  if (process.env.REPL_ID && process.env.PRIVATE_OBJECT_DIR) {
+    return 'replit';
+  }
+  return 'none';
+}
 
 const IMAGE_CONFIG = {
   scenario: {
@@ -15,33 +40,51 @@ const IMAGE_CONFIG = {
 };
 
 export class MediaStorageService {
-  private async uploadToObjectStorage(
+  private async uploadToStorage(
     buffer: Buffer,
     objectPath: string,
     contentType: string
   ): Promise<string> {
-    const uploadURL = await objectStorage.getObjectEntityUploadURL();
-    
-    const response = await fetch(uploadURL, {
-      method: 'PUT',
-      body: buffer,
-      headers: {
-        'Content-Type': contentType,
-      },
-    });
+    const storageType = getStorageType();
 
-    if (!response.ok) {
-      throw new Error(`Failed to upload to object storage: ${response.status}`);
+    if (storageType === 'gcs') {
+      return await uploadToGCS(buffer, objectPath, contentType);
     }
 
-    const normalizedPath = objectStorage.normalizeObjectEntityPath(uploadURL);
-    
-    await objectStorage.trySetObjectEntityAclPolicy(uploadURL, {
-      owner: 'system',
-      visibility: 'public',
-    });
+    if (storageType === 'replit') {
+      const storage = await initReplitObjectStorage();
+      if (!storage) {
+        throw new Error('Replit Object Storage initialization failed');
+      }
 
-    return normalizedPath;
+      const uploadURL = await storage.getObjectEntityUploadURL();
+      
+      const response = await fetch(uploadURL, {
+        method: 'PUT',
+        body: buffer,
+        headers: {
+          'Content-Type': contentType,
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error(`Failed to upload to object storage: ${response.status}`);
+      }
+
+      const normalizedPath = storage.normalizeObjectEntityPath(uploadURL);
+      
+      await storage.trySetObjectEntityAclPolicy(uploadURL, {
+        owner: 'system',
+        visibility: 'public',
+      });
+
+      return normalizedPath;
+    }
+
+    throw new Error(
+      'No storage backend available. Set GCS_BUCKET_NAME for Google Cloud Storage, ' +
+      'or run on Replit with Object Storage configured.'
+    );
   }
 
   async saveScenarioImage(
@@ -78,13 +121,13 @@ export class MediaStorageService {
       .webp({ quality: IMAGE_CONFIG.scenario.thumbnail.quality })
       .toBuffer();
 
-    const imagePath = await this.uploadToObjectStorage(
+    const imagePath = await this.uploadToStorage(
       optimizedBuffer,
       `scenarios/${safeTitle}-${timestamp}.webp`,
       'image/webp'
     );
 
-    const thumbnailPath = await this.uploadToObjectStorage(
+    const thumbnailPath = await this.uploadToStorage(
       thumbnailBuffer,
       `scenarios/${safeTitle}-${timestamp}-thumb.webp`,
       'image/webp'
@@ -92,7 +135,7 @@ export class MediaStorageService {
 
     const originalSize = buffer.length;
     const optimizedSize = optimizedBuffer.length;
-    console.log(`📁 시나리오 이미지 Object Storage 저장 완료:`);
+    console.log(`📁 시나리오 이미지 저장 완료 (${getStorageType().toUpperCase()}):`);
     console.log(`   원본: ${(originalSize / 1024).toFixed(0)}KB → 최적화: ${(optimizedSize / 1024).toFixed(0)}KB`);
 
     return { imagePath, thumbnailPath };
@@ -147,13 +190,13 @@ export class MediaStorageService {
       .webp({ quality: IMAGE_CONFIG.persona.thumbnail.quality })
       .toBuffer();
 
-    const imagePath = await this.uploadToObjectStorage(
+    const imagePath = await this.uploadToStorage(
       optimizedBuffer,
       `personas/${personaId}/${gender}/${emotionEn}.webp`,
       'image/webp'
     );
 
-    const thumbnailPath = await this.uploadToObjectStorage(
+    const thumbnailPath = await this.uploadToStorage(
       thumbnailBuffer,
       `personas/${personaId}/${gender}/${emotionEn}-thumb.webp`,
       'image/webp'
@@ -161,7 +204,7 @@ export class MediaStorageService {
 
     const originalSize = buffer.length;
     const optimizedSize = optimizedBuffer.length;
-    console.log(`📁 페르소나 이미지 Object Storage 저장: ${emotionEn}`);
+    console.log(`📁 페르소나 이미지 저장 (${getStorageType().toUpperCase()}): ${emotionEn}`);
     console.log(`   원본: ${(originalSize / 1024).toFixed(0)}KB → 최적화: ${(optimizedSize / 1024).toFixed(0)}KB`);
 
     return { imagePath, thumbnailPath };
@@ -178,13 +221,13 @@ export class MediaStorageService {
       .substring(0, 50);
     const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
 
-    const videoPath = await this.uploadToObjectStorage(
+    const videoPath = await this.uploadToStorage(
       Buffer.from(videoBytes),
       `videos/${scenarioId}-${safeTitle}-${timestamp}.webm`,
       'video/webm'
     );
 
-    console.log(`📁 비디오 Object Storage 저장 완료: ${videoPath}`);
+    console.log(`📁 비디오 저장 완료 (${getStorageType().toUpperCase()}): ${videoPath}`);
 
     return videoPath;
   }
@@ -198,15 +241,23 @@ export class MediaStorageService {
     const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
     const safeFilename = filename.replace(/[^a-zA-Z0-9가-힣.\-_]/g, '');
     
-    const filePath = await this.uploadToObjectStorage(
+    const filePath = await this.uploadToStorage(
       buffer,
       `${folder}/${timestamp}-${safeFilename}`,
       contentType
     );
 
-    console.log(`📁 파일 Object Storage 저장 완료: ${filePath}`);
+    console.log(`📁 파일 저장 완료 (${getStorageType().toUpperCase()}): ${filePath}`);
 
     return filePath;
+  }
+
+  getStorageInfo(): { type: string; available: boolean } {
+    const storageType = getStorageType();
+    return {
+      type: storageType,
+      available: storageType !== 'none'
+    };
   }
 }
 

@@ -9,10 +9,11 @@
 2. [1단계: Google Cloud 프로젝트 설정](#1단계-google-cloud-프로젝트-설정)
 3. [2단계: 필수 API 활성화](#2단계-필수-api-활성화)
 4. [3단계: Artifact Registry 저장소 생성](#3단계-artifact-registry-저장소-생성)
-5. [4단계: Secret Manager 시크릿 생성](#4단계-secret-manager-시크릿-생성)
-6. [5단계: 배포](#5단계-배포)
-7. [6단계: 배포 확인](#6단계-배포-확인)
-8. [문제 해결](#문제-해결)
+5. [4단계: Cloud Storage 버킷 생성](#4단계-cloud-storage-버킷-생성)
+6. [5단계: Secret Manager 시크릿 생성](#5단계-secret-manager-시크릿-생성)
+7. [6단계: 배포](#6단계-배포)
+8. [7단계: 배포 확인](#7단계-배포-확인)
+9. [문제 해결](#문제-해결)
 
 ---
 
@@ -77,26 +78,54 @@ gcloud artifacts repositories create cloud-run-source-deploy \
 
 ---
 
-## 4단계: Secret Manager 시크릿 생성
+## 4단계: Cloud Storage 버킷 생성
 
-### 4.1 JWT_SECRET 생성 (자동 생성)
+이미지와 비디오 파일을 저장할 GCS 버킷을 생성합니다.
+
+```bash
+# 버킷 이름 설정 (전역적으로 고유해야 함)
+export GCS_BUCKET_NAME="${PROJECT_ID}-media"
+
+# 버킷 생성
+gcloud storage buckets create gs://${GCS_BUCKET_NAME} \
+  --location=${REGION} \
+  --uniform-bucket-level-access
+
+# 공개 읽기 권한 설정 (이미지/비디오 제공용)
+gcloud storage buckets add-iam-policy-binding gs://${GCS_BUCKET_NAME} \
+  --member="allUsers" \
+  --role="roles/storage.objectViewer"
+
+# Cloud Run 서비스 계정에 쓰기 권한 부여
+PROJECT_NUMBER=$(gcloud projects describe $PROJECT_ID --format='value(projectNumber)')
+
+gcloud storage buckets add-iam-policy-binding gs://${GCS_BUCKET_NAME} \
+  --member="serviceAccount:${PROJECT_NUMBER}-compute@developer.gserviceaccount.com" \
+  --role="roles/storage.objectAdmin"
+```
+
+---
+
+## 5단계: Secret Manager 시크릿 생성
+
+### 5.1 JWT_SECRET 생성 (자동 생성)
 ```bash
 openssl rand -base64 48 | gcloud secrets create jwt-secret --data-file=-
 ```
 
-### 4.2 DATABASE_URL 생성
+### 5.2 DATABASE_URL 생성
 ```bash
 # Neon Database URL 예시
 echo "postgresql://user:password@host.neon.tech/dbname?sslmode=require" | \
   gcloud secrets create database-url --data-file=-
 ```
 
-### 4.3 GOOGLE_API_KEY 생성 (Gemini API)
+### 5.3 GOOGLE_API_KEY 생성 (Gemini API)
 ```bash
 echo "your-gemini-api-key" | gcloud secrets create google-api-key --data-file=-
 ```
 
-### 4.4 Cloud Build 서비스 계정에 시크릿 접근 권한 부여
+### 5.4 Cloud Build 서비스 계정에 시크릿 접근 권한 부여
 ```bash
 # 프로젝트 번호 확인
 PROJECT_NUMBER=$(gcloud projects describe $PROJECT_ID --format='value(projectNumber)')
@@ -117,18 +146,19 @@ gcloud secrets add-iam-policy-binding google-api-key \
 
 ---
 
-## 5단계: 배포
+## 6단계: 배포
 
-### 5.1 cloudbuild.yaml 수정
+### 6.1 cloudbuild.yaml 수정
 `cloudbuild.yaml` 파일의 `substitutions` 섹션을 수정하세요:
 
 ```yaml
 substitutions:
   _SERVICE_NAME: 'role'                 # 서비스 이름
   _REGION: 'us-east1'                   # 배포 리전
+  _GCS_BUCKET_NAME: 'your-project-media' # GCS 버킷 이름 (4단계에서 생성)
 ```
 
-### 5.2 Cloud Build로 배포
+### 6.2 Cloud Build로 배포
 ```bash
 # 프로젝트 루트에서 실행
 gcloud builds submit --config=cloudbuild.yaml .
@@ -136,17 +166,17 @@ gcloud builds submit --config=cloudbuild.yaml .
 
 ---
 
-## 6단계: 배포 확인
+## 7단계: 배포 확인
 
 ```bash
 # 서비스 상태 확인
-gcloud run services describe your-service-name --region=$REGION
+gcloud run services describe role --region=$REGION
 
 # 서비스 URL 확인
-gcloud run services describe your-service-name --region=$REGION --format='value(status.url)'
+gcloud run services describe role --region=$REGION --format='value(status.url)'
 
 # 로그 확인
-gcloud run services logs read your-service-name --region=$REGION --limit=50
+gcloud run services logs read role --region=$REGION --limit=50
 ```
 
 ---
