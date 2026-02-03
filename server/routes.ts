@@ -3945,6 +3945,13 @@ export async function registerRoutes(app: Express, httpServer: Server): Promise<
       const user = req.user;
       const scenarioId = req.params.id;
       
+      // Debug logging for image/video updates
+      console.log(`[Scenario Update] ID: ${scenarioId}`);
+      console.log(`[Scenario Update] image received: ${req.body.image || '(empty)'}`);
+      console.log(`[Scenario Update] introVideoUrl received: ${req.body.introVideoUrl || '(empty)'}`);
+      console.log(`[Scenario Update] imagePrompt received: ${req.body.imagePrompt || '(empty)'}`);
+      console.log(`[Scenario Update] videoPrompt received: ${req.body.videoPrompt || '(empty)'}`);
+      
       // 번역된 데이터가 원본을 덮어쓰는 것 방지
       if (req.body._translated) {
         return res.status(400).json({ 
