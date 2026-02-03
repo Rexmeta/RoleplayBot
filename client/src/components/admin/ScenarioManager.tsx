@@ -91,6 +91,8 @@ export function ScenarioManager() {
   const [existingVideos, setExistingVideos] = useState<{ path: string; url: string; updatedAt: string }[]>([]);
   const [loadingImages, setLoadingImages] = useState(false);
   const [loadingVideos, setLoadingVideos] = useState(false);
+  const [selectedImageSignedUrl, setSelectedImageSignedUrl] = useState<string | null>(null);
+  const [selectedVideoSignedUrl, setSelectedVideoSignedUrl] = useState<string | null>(null);
   const [formData, setFormData] = useState<ScenarioFormData>({
     title: '',
     description: '',
@@ -380,6 +382,8 @@ export function ScenarioManager() {
       recommendedFlow: []
     });
     setImageLoadFailed(false);
+    setSelectedImageSignedUrl(null);
+    setSelectedVideoSignedUrl(null);
   };
 
   const handleEdit = (scenario: ComplexScenario) => {
@@ -388,6 +392,8 @@ export function ScenarioManager() {
     
     setEditingScenario(originalScenario);
     setImageLoadFailed(false);
+    setSelectedImageSignedUrl(null);
+    setSelectedVideoSignedUrl(null);
     setFormData({
       title: originalScenario.title,
       description: originalScenario.description,
@@ -486,7 +492,8 @@ export function ScenarioManager() {
       const data = await response.json();
       
       if (data.success && data.imageUrl) {
-        setFormData(prev => ({ ...prev, image: data.imageUrl }));
+        setFormData(prev => ({ ...prev, image: data.storagePath || data.imageUrl }));
+        setSelectedImageSignedUrl(data.imageUrl);
         setImageLoadFailed(false);
         toast({
           title: t('admin.scenarioManager.toast.imageGenerated'),
@@ -642,8 +649,9 @@ export function ScenarioManager() {
   };
 
   // 이미지 선택
-  const handleSelectImage = (imagePath: string) => {
+  const handleSelectImage = (imagePath: string, signedUrl: string) => {
     setFormData(prev => ({ ...prev, image: imagePath }));
+    setSelectedImageSignedUrl(signedUrl);
     setImageLoadFailed(false);
     setShowImageSelector(false);
     toast({
@@ -653,8 +661,9 @@ export function ScenarioManager() {
   };
 
   // 비디오 선택
-  const handleSelectVideo = (videoPath: string) => {
+  const handleSelectVideo = (videoPath: string, signedUrl: string) => {
     setFormData(prev => ({ ...prev, introVideoUrl: videoPath }));
+    setSelectedVideoSignedUrl(signedUrl);
     setShowVideoSelector(false);
     toast({
       title: t('admin.scenarioManager.toast.videoSelected', '비디오 선택됨'),
@@ -898,7 +907,7 @@ export function ScenarioManager() {
                       </div>
                       <div 
                         className="relative w-full h-48 bg-slate-100 rounded-lg overflow-hidden border cursor-pointer hover:shadow-lg transition-shadow"
-                        onClick={() => !imageLoadFailed && setImagePreviewUrl(formData.image || null)}
+                        onClick={() => !imageLoadFailed && setImagePreviewUrl(selectedImageSignedUrl || formData.image || null)}
                         data-testid="image-preview-container"
                       >
                         {imageLoadFailed ? (
@@ -909,7 +918,7 @@ export function ScenarioManager() {
                           </div>
                         ) : (
                           <img
-                            src={formData.image}
+                            src={selectedImageSignedUrl || formData.image}
                             alt={t('admin.scenarioManager.form.imagePreview')}
                             className="w-full h-full object-cover"
                             onError={() => setImageLoadFailed(true)}
@@ -2049,7 +2058,7 @@ export function ScenarioManager() {
                   <div
                     key={idx}
                     className="relative border rounded-lg overflow-hidden cursor-pointer hover:ring-2 hover:ring-blue-500 transition-all"
-                    onClick={() => handleSelectImage(img.path)}
+                    onClick={() => handleSelectImage(img.path, img.url)}
                   >
                     <img
                       src={img.url}
@@ -2092,7 +2101,7 @@ export function ScenarioManager() {
                   <div
                     key={idx}
                     className="relative border rounded-lg overflow-hidden cursor-pointer hover:ring-2 hover:ring-blue-500 transition-all"
-                    onClick={() => handleSelectVideo(vid.path)}
+                    onClick={() => handleSelectVideo(vid.path, vid.url)}
                   >
                     <video
                       src={vid.url}
