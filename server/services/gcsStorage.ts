@@ -201,3 +201,62 @@ export async function transformScenariosMedia(scenarios: any[]): Promise<any[]> 
   
   return Promise.all(scenarios.map(scenario => transformScenarioMedia(scenario)));
 }
+
+/**
+ * Transform persona images object to signed URLs
+ * Handles the nested structure: images.male.expressions, images.female.expressions
+ */
+export async function transformPersonaImages(images: any): Promise<any> {
+  if (!images || !isGCSAvailable()) return images;
+  
+  const result: any = { ...images };
+  
+  // Transform male expressions
+  if (images.male?.expressions) {
+    const maleExpressions: Record<string, string> = {};
+    for (const [emotion, path] of Object.entries(images.male.expressions)) {
+      if (typeof path === 'string') {
+        const signedUrl = await transformToSignedUrl(path);
+        maleExpressions[emotion] = signedUrl || path;
+      }
+    }
+    result.male = { ...images.male, expressions: maleExpressions };
+  }
+  
+  // Transform female expressions
+  if (images.female?.expressions) {
+    const femaleExpressions: Record<string, string> = {};
+    for (const [emotion, path] of Object.entries(images.female.expressions)) {
+      if (typeof path === 'string') {
+        const signedUrl = await transformToSignedUrl(path);
+        femaleExpressions[emotion] = signedUrl || path;
+      }
+    }
+    result.female = { ...images.female, expressions: femaleExpressions };
+  }
+  
+  return result;
+}
+
+/**
+ * Transform a persona object's image fields to signed URLs
+ */
+export async function transformPersonaMedia(persona: any): Promise<any> {
+  if (!persona) return persona;
+  
+  const transformedImages = await transformPersonaImages(persona.images);
+  
+  return {
+    ...persona,
+    images: transformedImages
+  };
+}
+
+/**
+ * Transform multiple personas' image fields to signed URLs
+ */
+export async function transformPersonasMedia(personas: any[]): Promise<any[]> {
+  if (!personas || !Array.isArray(personas)) return personas;
+  
+  return Promise.all(personas.map(persona => transformPersonaMedia(persona)));
+}

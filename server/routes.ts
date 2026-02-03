@@ -22,6 +22,7 @@ import { realtimeVoiceService } from "./services/realtimeVoiceService";
 import { generateIntroVideo, deleteIntroVideo, getVideoGenerationStatus } from "./services/gemini-video-generator";
 import { GlobalMBTICache } from "./utils/globalMBTICache";
 import { registerObjectStorageRoutes } from "./replit_integrations/object_storage";
+import { transformScenariosMedia, transformScenarioMedia, transformToSignedUrl, isGCSAvailable, transformPersonasMedia, transformPersonaMedia } from "./services/gcsStorage";
 
 export async function registerRoutes(app: Express, httpServer: Server): Promise<void> {
   // 이메일 기반 인증 시스템 설정
@@ -3592,12 +3593,16 @@ export async function registerRoutes(app: Express, httpServer: Server): Promise<
             }
           })
         );
-        return res.json(translatedScenarios);
+        // Transform media URLs to signed URLs for GCS environment
+        const transformedScenarios = await transformScenariosMedia(translatedScenarios);
+        return res.json(transformedScenarios);
       }
       
       // 비로그인 사용자 또는 카테고리 미할당 사용자는 전체 시나리오 접근 가능
       console.log(`[Scenarios API] Returning ${filteredScenarios.length} scenarios (language: ${userLanguage})`);
-      res.json(filteredScenarios);
+      // Transform media URLs to signed URLs for GCS environment
+      const transformedScenarios = await transformScenariosMedia(filteredScenarios);
+      res.json(transformedScenarios);
     } catch (error) {
       console.error("Failed to fetch scenarios:", error);
       res.status(500).json({ error: "Failed to fetch scenarios" });
@@ -3849,10 +3854,14 @@ export async function registerRoutes(app: Express, httpServer: Server): Promise<
             }
           })
         );
-        return res.json(translatedScenarios);
+        // Transform media URLs to signed URLs for GCS environment
+        const transformedScenarios = await transformScenariosMedia(translatedScenarios);
+        return res.json(transformedScenarios);
       }
       
-      res.json(filteredScenarios);
+      // Transform media URLs to signed URLs for GCS environment
+      const transformedScenarios = await transformScenariosMedia(filteredScenarios);
+      res.json(transformedScenarios);
     } catch (error) {
       console.error("Error getting scenarios:", error);
       res.status(500).json({ error: "Failed to get scenarios" });
@@ -3920,7 +3929,9 @@ export async function registerRoutes(app: Express, httpServer: Server): Promise<
         console.error("Error saving original translation:", translationError);
       }
       
-      res.json(scenario);
+      // Transform media URLs to signed URLs for GCS environment
+      const transformedScenario = await transformScenarioMedia(scenario);
+      res.json(transformedScenario);
     } catch (error) {
       console.error("Error creating scenario:", error);
       res.status(500).json({ error: "Failed to create scenario" });
@@ -3990,7 +4001,9 @@ export async function registerRoutes(app: Express, httpServer: Server): Promise<
         console.error("Error updating original translation:", translationError);
       }
       
-      res.json(scenario);
+      // Transform media URLs to signed URLs for GCS environment
+      const transformedScenario = await transformScenarioMedia(scenario);
+      res.json(transformedScenario);
     } catch (error) {
       console.error("Error updating scenario:", error);
       res.status(500).json({ error: "Failed to update scenario" });
@@ -4151,7 +4164,9 @@ export async function registerRoutes(app: Express, httpServer: Server): Promise<
   app.get("/api/admin/personas", async (req, res) => {
     try {
       const personas = await fileManager.getAllMBTIPersonas();
-      res.json(personas);
+      // Transform persona image URLs to signed URLs for GCS environment
+      const transformedPersonas = await transformPersonasMedia(personas);
+      res.json(transformedPersonas);
     } catch (error) {
       console.error("Error getting MBTI personas:", error);
       res.status(500).json({ error: "Failed to get MBTI personas" });
@@ -4161,7 +4176,9 @@ export async function registerRoutes(app: Express, httpServer: Server): Promise<
   app.post("/api/admin/personas", async (req, res) => {
     try {
       const persona = await fileManager.createMBTIPersona(req.body);
-      res.json(persona);
+      // Transform persona image URLs to signed URLs for GCS environment
+      const transformedPersona = await transformPersonaMedia(persona);
+      res.json(transformedPersona);
     } catch (error) {
       console.error("Error creating MBTI persona:", error);
       res.status(500).json({ error: "Failed to create MBTI persona" });
@@ -4171,7 +4188,9 @@ export async function registerRoutes(app: Express, httpServer: Server): Promise<
   app.put("/api/admin/personas/:id", async (req, res) => {
     try {
       const persona = await fileManager.updateMBTIPersona(req.params.id, req.body);
-      res.json(persona);
+      // Transform persona image URLs to signed URLs for GCS environment
+      const transformedPersona = await transformPersonaMedia(persona);
+      res.json(transformedPersona);
     } catch (error) {
       console.error("Error updating MBTI persona:", error);
       res.status(500).json({ error: "Failed to update MBTI persona" });
