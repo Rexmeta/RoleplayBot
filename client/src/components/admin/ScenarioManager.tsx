@@ -85,6 +85,12 @@ export function ScenarioManager() {
   const [videoPreviewUrl, setVideoPreviewUrl] = useState<string | null>(null);
   const [translatingScenario, setTranslatingScenario] = useState<ComplexScenario | null>(null);
   const [imageLoadFailed, setImageLoadFailed] = useState(false);
+  const [showImageSelector, setShowImageSelector] = useState(false);
+  const [showVideoSelector, setShowVideoSelector] = useState(false);
+  const [existingImages, setExistingImages] = useState<{ path: string; url: string; updatedAt: string }[]>([]);
+  const [existingVideos, setExistingVideos] = useState<{ path: string; url: string; updatedAt: string }[]>([]);
+  const [loadingImages, setLoadingImages] = useState(false);
+  const [loadingVideos, setLoadingVideos] = useState(false);
   const [formData, setFormData] = useState<ScenarioFormData>({
     title: '',
     description: '',
@@ -591,6 +597,71 @@ export function ScenarioManager() {
     }
   };
 
+  // 기존 이미지 목록 로드
+  const handleLoadExistingImages = async () => {
+    setLoadingImages(true);
+    try {
+      const response = await apiRequest('GET', '/api/admin/scenarios/images');
+      const data = await response.json();
+      if (data.success && data.images) {
+        setExistingImages(data.images);
+      }
+    } catch (error) {
+      console.error('Error loading existing images:', error);
+    } finally {
+      setLoadingImages(false);
+    }
+  };
+
+  // 기존 비디오 목록 로드
+  const handleLoadExistingVideos = async () => {
+    setLoadingVideos(true);
+    try {
+      const response = await apiRequest('GET', '/api/admin/scenarios/videos');
+      const data = await response.json();
+      if (data.success && data.videos) {
+        setExistingVideos(data.videos);
+      }
+    } catch (error) {
+      console.error('Error loading existing videos:', error);
+    } finally {
+      setLoadingVideos(false);
+    }
+  };
+
+  // 이미지 선택 다이얼로그 열기
+  const handleOpenImageSelector = () => {
+    setShowImageSelector(true);
+    handleLoadExistingImages();
+  };
+
+  // 비디오 선택 다이얼로그 열기
+  const handleOpenVideoSelector = () => {
+    setShowVideoSelector(true);
+    handleLoadExistingVideos();
+  };
+
+  // 이미지 선택
+  const handleSelectImage = (imagePath: string) => {
+    setFormData(prev => ({ ...prev, image: imagePath }));
+    setImageLoadFailed(false);
+    setShowImageSelector(false);
+    toast({
+      title: t('admin.scenarioManager.toast.imageSelected', '이미지 선택됨'),
+      description: t('admin.scenarioManager.toast.imageSelectedDesc', '기존 이미지가 선택되었습니다.'),
+    });
+  };
+
+  // 비디오 선택
+  const handleSelectVideo = (videoPath: string) => {
+    setFormData(prev => ({ ...prev, introVideoUrl: videoPath }));
+    setShowVideoSelector(false);
+    toast({
+      title: t('admin.scenarioManager.toast.videoSelected', '비디오 선택됨'),
+      description: t('admin.scenarioManager.toast.videoSelectedDesc', '기존 비디오가 선택되었습니다.'),
+    });
+  };
+
   // 기본 비디오 프롬프트 로드
   const handleLoadDefaultVideoPrompt = async () => {
     if (!formData.title) {
@@ -737,7 +808,18 @@ export function ScenarioManager() {
                 
                 {/* 시나리오 이미지 - 최상단으로 이동 */}
                 <div className="space-y-3">
-                  <Label htmlFor="image" className="text-sm font-medium text-slate-700">{t('admin.scenarioManager.form.imageUrl')}</Label>
+                  <div className="flex items-center justify-between">
+                    <Label htmlFor="image" className="text-sm font-medium text-slate-700">{t('admin.scenarioManager.form.imageUrl')}</Label>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={handleOpenImageSelector}
+                      className="text-xs"
+                    >
+                      📁 {t('admin.scenarioManager.form.selectExisting', '기존 이미지 선택')}
+                    </Button>
+                  </div>
                   <Input
                     id="image"
                     value={formData.image || ''}
@@ -843,7 +925,18 @@ export function ScenarioManager() {
                 {/* 인트로 비디오 생성 섹션 */}
                 <div className="space-y-3 mt-6 pt-6 border-t border-slate-200">
                   <div className="flex items-center justify-between">
-                    <Label className="text-sm font-medium text-slate-700">{t('admin.scenarioManager.form.introVideo')}</Label>
+                    <div className="flex items-center gap-2">
+                      <Label className="text-sm font-medium text-slate-700">{t('admin.scenarioManager.form.introVideo')}</Label>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={handleOpenVideoSelector}
+                        className="text-xs"
+                      >
+                        📁 {t('admin.scenarioManager.form.selectExistingVideo', '기존 비디오 선택')}
+                      </Button>
+                    </div>
                     {formData.introVideoUrl && (
                       <Button
                         type="button"
@@ -1931,6 +2024,95 @@ export function ScenarioManager() {
               sourceLocale={translatingScenario.sourceLocale || 'ko'}
             />
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* 기존 이미지 선택 다이얼로그 */}
+      <Dialog open={showImageSelector} onOpenChange={setShowImageSelector}>
+        <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>{t('admin.scenarioManager.form.selectExisting', '기존 이미지 선택')}</DialogTitle>
+          </DialogHeader>
+          <div className="py-4">
+            {loadingImages ? (
+              <div className="flex items-center justify-center py-8">
+                <Loader2 className="h-8 w-8 animate-spin text-slate-400" />
+                <span className="ml-2 text-slate-500">이미지 목록 로드 중...</span>
+              </div>
+            ) : existingImages.length === 0 ? (
+              <div className="text-center py-8 text-slate-500">
+                생성된 이미지가 없습니다. 먼저 이미지를 생성해주세요.
+              </div>
+            ) : (
+              <div className="grid grid-cols-3 gap-4">
+                {existingImages.map((img, idx) => (
+                  <div
+                    key={idx}
+                    className="relative border rounded-lg overflow-hidden cursor-pointer hover:ring-2 hover:ring-blue-500 transition-all"
+                    onClick={() => handleSelectImage(img.path)}
+                  >
+                    <img
+                      src={img.url}
+                      alt={img.path}
+                      className="w-full h-32 object-cover"
+                      onError={(e) => {
+                        (e.target as HTMLImageElement).src = 'https://via.placeholder.com/300x200?text=Error';
+                      }}
+                    />
+                    <div className="absolute bottom-0 left-0 right-0 bg-black/60 text-white text-xs p-2 truncate">
+                      {img.path.split('/').pop()}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* 기존 비디오 선택 다이얼로그 */}
+      <Dialog open={showVideoSelector} onOpenChange={setShowVideoSelector}>
+        <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>{t('admin.scenarioManager.form.selectExistingVideo', '기존 비디오 선택')}</DialogTitle>
+          </DialogHeader>
+          <div className="py-4">
+            {loadingVideos ? (
+              <div className="flex items-center justify-center py-8">
+                <Loader2 className="h-8 w-8 animate-spin text-slate-400" />
+                <span className="ml-2 text-slate-500">비디오 목록 로드 중...</span>
+              </div>
+            ) : existingVideos.length === 0 ? (
+              <div className="text-center py-8 text-slate-500">
+                생성된 비디오가 없습니다. 먼저 비디오를 생성해주세요.
+              </div>
+            ) : (
+              <div className="grid grid-cols-2 gap-4">
+                {existingVideos.map((vid, idx) => (
+                  <div
+                    key={idx}
+                    className="relative border rounded-lg overflow-hidden cursor-pointer hover:ring-2 hover:ring-blue-500 transition-all"
+                    onClick={() => handleSelectVideo(vid.path)}
+                  >
+                    <video
+                      src={vid.url}
+                      className="w-full h-40 object-cover"
+                      muted
+                      onMouseEnter={(e) => (e.target as HTMLVideoElement).play()}
+                      onMouseLeave={(e) => {
+                        const video = e.target as HTMLVideoElement;
+                        video.pause();
+                        video.currentTime = 0;
+                      }}
+                    />
+                    <div className="absolute bottom-0 left-0 right-0 bg-black/60 text-white text-xs p-2 truncate">
+                      {vid.path.split('/').pop()}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
         </DialogContent>
       </Dialog>
     </div>
