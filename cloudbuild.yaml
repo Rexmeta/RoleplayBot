@@ -51,7 +51,7 @@ steps:
           --image ${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_AR_REPO}/${_SERVICE_NAME}:${COMMIT_SHA} \
           --region ${_REGION} \
           --platform managed \
-          ${ALLOW_FLAG} \
+          $${ALLOW_FLAG} \
           --service-account ${_RUNTIME_SA} \
           --memory ${_MEMORY} \
           --cpu ${_CPU} \
