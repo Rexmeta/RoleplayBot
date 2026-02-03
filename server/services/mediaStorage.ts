@@ -1,5 +1,5 @@
 import sharp from 'sharp';
-import { isGCSAvailable, uploadToGCS } from './gcsStorage';
+import { isGCSAvailable, uploadToGCS, deleteFromGCS, normalizeObjectPath } from './gcsStorage';
 
 let ObjectStorageService: any = null;
 let objectStorage: any = null;
@@ -258,6 +258,76 @@ export class MediaStorageService {
       type: storageType,
       available: storageType !== 'none'
     };
+  }
+
+  async deleteFromStorage(objectPath: string | null | undefined): Promise<boolean> {
+    if (!objectPath) return false;
+    
+    const storageType = getStorageType();
+    
+    // Normalize the path (remove gcs:// prefix if present, remove leading slash)
+    let normalizedPath = normalizeObjectPath(objectPath);
+    if (!normalizedPath) return false;
+    
+    if (normalizedPath.startsWith('/')) {
+      normalizedPath = normalizedPath.substring(1);
+    }
+    
+    // Skip if it's already a full URL (shouldn't be deleted via path)
+    if (normalizedPath.startsWith('http://') || 
+        normalizedPath.startsWith('https://') || 
+        normalizedPath.startsWith('data:')) {
+      console.log(`⏭️ Skipping deletion of URL: ${normalizedPath.substring(0, 50)}...`);
+      return false;
+    }
+    
+    // Validate path prefix for safety
+    const validPrefixes = ['scenarios/', 'videos/', 'personas/', 'uploads/'];
+    const isValidPath = validPrefixes.some(prefix => normalizedPath!.startsWith(prefix));
+    
+    if (!isValidPath) {
+      console.log(`⏭️ Skipping deletion of invalid path: ${normalizedPath}`);
+      return false;
+    }
+
+    try {
+      if (storageType === 'gcs') {
+        await deleteFromGCS(normalizedPath);
+        console.log(`🗑️ GCS 파일 삭제 완료: ${normalizedPath}`);
+        return true;
+      }
+
+      if (storageType === 'replit') {
+        const storage = await initReplitObjectStorage();
+        if (storage) {
+          try {
+            await storage.deleteObjectEntity(normalizedPath);
+            console.log(`🗑️ Replit Object Storage 파일 삭제 완료: ${normalizedPath}`);
+            return true;
+          } catch (deleteError: any) {
+            if (deleteError.code !== 'NOT_FOUND' && deleteError.message !== 'Object not found') {
+              console.error(`Failed to delete from Replit Object Storage: ${normalizedPath}`, deleteError);
+            }
+            return false;
+          }
+        }
+      }
+      
+      return false;
+    } catch (error) {
+      console.error(`Failed to delete from storage: ${normalizedPath}`, error);
+      return false;
+    }
+  }
+
+  async deleteMultipleFromStorage(paths: (string | null | undefined)[]): Promise<number> {
+    let deletedCount = 0;
+    for (const path of paths) {
+      if (await this.deleteFromStorage(path)) {
+        deletedCount++;
+      }
+    }
+    return deletedCount;
   }
 }
 
