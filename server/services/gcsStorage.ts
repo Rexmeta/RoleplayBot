@@ -37,7 +37,10 @@ export async function uploadToGCS(
   const bucket = storage.bucket(bucketName);
   const file = bucket.file(objectPath);
 
+  // Use resumable: false to avoid delete permission issues when overwriting
+  // With resumable uploads, GCS may try to delete the old object which requires delete permissions
   await file.save(buffer, {
+    resumable: false,
     contentType,
     metadata: {
       cacheControl: isPublic ? "public, max-age=31536000" : "private, max-age=0",
