@@ -8,9 +8,9 @@
 #   - Preflight(리소스/시크릿 상태 체크) 추가
 #   - secret 버전 변수화
 #
-# 주의:
-# - Cloud Build는 YAML에서 ${...} 패턴을 substitutions로 해석할 수 있으므로
-#   Bash 변수는 ${VAR} 대신 $VAR 형태로 사용(Preflight/Deploy 스크립트 내부).
+# 중요:
+# - Cloud Build는 $VAR / ${VAR} 형태를 substitutions로 해석할 수 있음
+# - Bash 변수는 반드시 $$VAR 형태로 출력/참조해야 함(Cloud Build escaping)
 
 substitutions:
   _SERVICE_NAME: 'role'
@@ -73,13 +73,13 @@ steps:
         DB_STATE=$(gcloud secrets versions describe ${_DATABASE_URL_VER} --secret=database-url --format='value(state)')
         KEY_STATE=$(gcloud secrets versions describe ${_GOOGLE_API_KEY_VER} --secret=google-api-key --format='value(state)')
 
-        echo "   jwt-secret:${_JWT_SECRET_VER} => $JWT_STATE"
-        echo "   database-url:${_DATABASE_URL_VER} => $DB_STATE"
-        echo "   google-api-key:${_GOOGLE_API_KEY_VER} => $KEY_STATE"
+        echo "   jwt-secret:${_JWT_SECRET_VER} => $$JWT_STATE"
+        echo "   database-url:${_DATABASE_URL_VER} => $$DB_STATE"
+        echo "   google-api-key:${_GOOGLE_API_KEY_VER} => $$KEY_STATE"
 
-        test "$JWT_STATE" = "ENABLED"
-        test "$DB_STATE" = "ENABLED"
-        test "$KEY_STATE" = "ENABLED"
+        test "$$JWT_STATE" = "ENABLED"
+        test "$$DB_STATE" = "ENABLED"
+        test "$$KEY_STATE" = "ENABLED"
 
         echo "✅ Preflight OK"
 
@@ -93,7 +93,7 @@ steps:
         set -euo pipefail
         echo "🚀 Deploying to Cloud Run..."
 
-        # runtime service account는 Deploy step에서 조립 (substitution 치환 리스크 제거)
+        # runtime service account는 Deploy step에서 조립
         RUNTIME_SA="runtime-sa@${PROJECT_ID}.iam.gserviceaccount.com"
 
         ALLOW_FLAG=""
@@ -106,7 +106,7 @@ steps:
           --region ${_REGION} \
           --platform managed \
           $${ALLOW_FLAG} \
-          --service-account $RUNTIME_SA \
+          --service-account $${RUNTIME_SA} \
           --memory ${_MEMORY} \
           --cpu ${_CPU} \
           --min-instances ${_MIN_INSTANCES} \
