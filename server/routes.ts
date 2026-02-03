@@ -4092,9 +4092,13 @@ export async function registerRoutes(app: Express, httpServer: Server): Promise<
       
       console.log(`✅ 시나리오 인트로 비디오 생성 완료: ${result.videoUrl}`);
       
+      // GCS 환경에서는 Signed URL로 변환하여 응답
+      const signedVideoUrl = await transformToSignedUrl(result.videoUrl) || result.videoUrl;
+      
       res.json({
         success: true,
-        videoUrl: result.videoUrl,
+        videoUrl: signedVideoUrl,
+        storagePath: result.videoUrl,
         prompt: result.prompt,
         metadata: result.metadata
       });
