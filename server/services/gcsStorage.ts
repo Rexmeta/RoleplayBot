@@ -266,42 +266,111 @@ export async function transformPersonasMedia(personas: any[]): Promise<any[]> {
 }
 
 /**
- * List files in GCS with given prefix
+ * List files in storage (GCS or Replit Object Storage) with given prefix
  */
 export async function listGCSFiles(prefix: string): Promise<{ name: string; signedUrl: string; updatedAt: Date }[]> {
-  if (!isGCSAvailable()) {
-    return [];
-  }
+  // If GCS is available, use it
+  if (isGCSAvailable()) {
+    try {
+      const bucketName = getGCSBucketName();
+      const storage = getStorageClient();
+      const bucket = storage.bucket(bucketName);
 
-  try {
-    const bucketName = getGCSBucketName();
-    const storage = getStorageClient();
-    const bucket = storage.bucket(bucketName);
+      const [files] = await bucket.getFiles({ prefix });
 
-    const [files] = await bucket.getFiles({ prefix });
+      const results: { name: string; signedUrl: string; updatedAt: Date }[] = [];
 
-    const results: { name: string; signedUrl: string; updatedAt: Date }[] = [];
+      for (const file of files) {
+        // Skip directories (files ending with /)
+        if (file.name.endsWith('/')) continue;
+        
+        const signedUrlResult = await getSignedUrl(file.name);
+        const metadata = file.metadata;
+        
+        results.push({
+          name: file.name,
+          signedUrl: signedUrlResult.url,
+          updatedAt: metadata.updated ? new Date(metadata.updated) : new Date()
+        });
+      }
 
-    for (const file of files) {
-      // Skip directories (files ending with /)
-      if (file.name.endsWith('/')) continue;
-      
-      const signedUrlResult = await getSignedUrl(file.name);
-      const metadata = file.metadata;
-      
-      results.push({
-        name: file.name,
-        signedUrl: signedUrlResult.url,
-        updatedAt: metadata.updated ? new Date(metadata.updated) : new Date()
-      });
+      // Sort by updatedAt descending (newest first)
+      results.sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime());
+
+      return results;
+    } catch (error) {
+      console.error('GCS 파일 목록 조회 실패:', error);
+      return [];
     }
-
-    // Sort by updatedAt descending (newest first)
-    results.sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime());
-
-    return results;
-  } catch (error) {
-    console.error('GCS 파일 목록 조회 실패:', error);
-    return [];
   }
+
+  // Replit Object Storage fallback
+  const privateObjectDir = process.env.PRIVATE_OBJECT_DIR;
+  if (process.env.REPL_ID && privateObjectDir) {
+    try {
+      const { objectStorageClient } = await import("../replit_integrations/object_storage/objectStorage");
+      
+      // Parse the private object dir to get bucket name
+      // Format: /<bucket_name>/path
+      const pathParts = privateObjectDir.split('/').filter(p => p);
+      if (pathParts.length < 1) {
+        console.error('Invalid PRIVATE_OBJECT_DIR format');
+        return [];
+      }
+      const bucketName = pathParts[0];
+      const bucket = objectStorageClient.bucket(bucketName);
+      
+      // Determine the full prefix path
+      // For scenarios/, we look in the private object directory
+      const basePath = pathParts.slice(1).join('/');
+      const fullPrefix = basePath ? `${basePath}/${prefix}` : prefix;
+      
+      console.log(`📁 Replit Object Storage 파일 목록 조회: bucket=${bucketName}, prefix=${fullPrefix}`);
+      
+      const [files] = await bucket.getFiles({ prefix: fullPrefix });
+      
+      const results: { name: string; signedUrl: string; updatedAt: Date }[] = [];
+
+      for (const file of files) {
+        // Skip directories (files ending with /)
+        if (file.name.endsWith('/')) continue;
+        
+        try {
+          // Generate signed URL for the file
+          const [signedUrl] = await file.getSignedUrl({
+            version: 'v4',
+            action: 'read',
+            expires: Date.now() + 3600 * 1000, // 1 hour
+          });
+          
+          const metadata = file.metadata;
+          
+          // Store the path relative to private object dir for consistency
+          const relativePath = file.name.startsWith(basePath + '/') 
+            ? file.name.substring(basePath.length + 1) 
+            : file.name;
+          
+          results.push({
+            name: relativePath,
+            signedUrl: signedUrl,
+            updatedAt: metadata.updated ? new Date(metadata.updated) : new Date()
+          });
+        } catch (signError) {
+          console.error(`Signed URL 생성 실패: ${file.name}`, signError);
+        }
+      }
+
+      // Sort by updatedAt descending (newest first)
+      results.sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime());
+      
+      console.log(`📁 Found ${results.length} files with prefix: ${prefix}`);
+
+      return results;
+    } catch (error) {
+      console.error('Replit Object Storage 파일 목록 조회 실패:', error);
+      return [];
+    }
+  }
+
+  return [];
 }
