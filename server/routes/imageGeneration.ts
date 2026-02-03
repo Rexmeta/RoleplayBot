@@ -36,6 +36,17 @@ router.post('/generate-scenario-image', async (req, res) => {
       });
     }
 
+    // 기존 이미지 경로 조회 (재생성 시 삭제를 위해)
+    let oldImagePath: string | null = null;
+    if (scenarioId) {
+      try {
+        const existingScenario = await fileManager.getScenarioById(scenarioId);
+        oldImagePath = existingScenario?.image || null;
+      } catch (e) {
+        // 기존 시나리오를 찾지 못해도 진행
+      }
+    }
+
     // 커스텀 프롬프트 처리: 짧은 한국어 프롬프트를 영어로 변환하고 상세화
     let imagePrompt: string;
     if (customPrompt && customPrompt.trim()) {
@@ -98,6 +109,15 @@ router.post('/generate-scenario-image', async (req, res) => {
           imagePrompt: customPrompt || null
         } as any);
         console.log(`✅ 시나리오 이미지 URL 데이터베이스 저장 완료: ${scenarioId}`);
+        
+        // 기존 이미지 삭제 (새 이미지 저장 성공 후)
+        if (oldImagePath && oldImagePath !== localImagePath) {
+          const oldThumbPath = oldImagePath.replace('.webp', '-thumb.webp');
+          const deleted = await mediaStorage.deleteMultipleFromStorage([oldImagePath, oldThumbPath]);
+          if (deleted > 0) {
+            console.log(`🗑️ 기존 시나리오 이미지 삭제 완료: ${deleted}개 파일`);
+          }
+        }
       } catch (dbError) {
         console.error('❌ 시나리오 이미지 URL 데이터베이스 저장 실패:', dbError);
       }
@@ -105,8 +125,8 @@ router.post('/generate-scenario-image', async (req, res) => {
 
     res.json({
       success: true,
-      imageUrl: localImagePath, // 로컬 파일 경로 반환
-      originalImageUrl: imageUrl, // 원본 base64 URL도 포함
+      imageUrl: localImagePath,
+      originalImageUrl: imageUrl,
       prompt: imagePrompt,
       metadata: {
         model: "gemini-2.5-flash-image",

@@ -4055,6 +4055,9 @@ export async function registerRoutes(app: Express, httpServer: Server): Promise<
         });
       }
       
+      // 기존 비디오 경로 저장 (재생성 시 삭제를 위해)
+      const oldVideoPath = scenario.introVideoUrl || null;
+      
       console.log(`🎬 시나리오 인트로 비디오 생성 시작: ${scenario.title}`);
       
       // 비디오 생성 요청
@@ -4077,15 +4080,15 @@ export async function registerRoutes(app: Express, httpServer: Server): Promise<
         });
       }
       
-      // 기존 비디오가 있으면 삭제
-      if (scenario.introVideoUrl && scenario.introVideoUrl.startsWith('/scenarios/videos/')) {
-        await deleteIntroVideo(scenario.introVideoUrl);
-      }
-      
       // 시나리오에 비디오 URL만 업데이트 (부분 업데이트)
       await fileManager.updateScenario(scenarioId, {
         introVideoUrl: result.videoUrl
       } as any);
+      
+      // 기존 비디오 삭제 (새 비디오 저장 성공 후)
+      if (oldVideoPath && oldVideoPath !== result.videoUrl) {
+        await deleteIntroVideo(oldVideoPath);
+      }
       
       console.log(`✅ 시나리오 인트로 비디오 생성 완료: ${result.videoUrl}`);
       

@@ -341,20 +341,31 @@ async function convertToWebM(inputPath: string, outputPath: string): Promise<str
 
 export async function deleteIntroVideo(videoUrl: string): Promise<boolean> {
   try {
-    if (!videoUrl.startsWith('/scenarios/videos/')) {
-      console.log('외부 URL이므로 삭제하지 않음:', videoUrl);
+    // Skip if empty or null
+    if (!videoUrl) return true;
+    
+    // Skip if it's a full URL (http/https) - external videos
+    if (videoUrl.startsWith('http://') || videoUrl.startsWith('https://')) {
+      console.log('외부 URL이므로 삭제하지 않음:', videoUrl.substring(0, 50));
       return true;
     }
     
-    const filePath = path.join(process.cwd(), videoUrl.slice(1));
-    
-    if (fs.existsSync(filePath)) {
-      fs.unlinkSync(filePath);
-      console.log(`🗑️ 비디오 파일 삭제 완료: ${filePath}`);
+    // Use mediaStorage for cloud storage deletion (GCS/Replit Object Storage)
+    const deleted = await mediaStorage.deleteFromStorage(videoUrl);
+    if (deleted) {
       return true;
     }
     
-    console.log('삭제할 파일이 존재하지 않음:', filePath);
+    // Fallback: Try local filesystem deletion for legacy paths
+    if (videoUrl.startsWith('/scenarios/videos/')) {
+      const filePath = path.join(process.cwd(), videoUrl.slice(1));
+      if (fs.existsSync(filePath)) {
+        fs.unlinkSync(filePath);
+        console.log(`🗑️ 비디오 파일 삭제 완료 (로컬): ${filePath}`);
+        return true;
+      }
+    }
+    
     return true;
     
   } catch (error) {
