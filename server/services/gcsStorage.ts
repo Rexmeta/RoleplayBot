@@ -142,10 +142,10 @@ export async function transformToSignedUrl(path: string | null | undefined): Pro
   if (!path) return null;
   
   // Normalize the path (remove gcs:// if present)
-  const objectPath = normalizeObjectPath(path);
+  let objectPath = normalizeObjectPath(path);
   if (!objectPath) return null;
   
-  // If not in GCS environment or path is already a full URL, return as-is
+  // If not in GCS environment, return as-is
   if (!isGCSAvailable()) {
     return path;
   }
@@ -153,9 +153,13 @@ export async function transformToSignedUrl(path: string | null | undefined): Pro
   // Skip if it's already a full URL (public GCS, HTTP, data:, etc.)
   if (objectPath.startsWith('http://') || 
       objectPath.startsWith('https://') || 
-      objectPath.startsWith('data:') ||
-      objectPath.startsWith('/')) {
+      objectPath.startsWith('data:')) {
     return objectPath;
+  }
+  
+  // Remove leading slash if present (e.g., /scenarios/... -> scenarios/...)
+  if (objectPath.startsWith('/')) {
+    objectPath = objectPath.substring(1);
   }
   
   // Check if it's a valid GCS object path (scenarios/, videos/, personas/, uploads/)
@@ -163,7 +167,7 @@ export async function transformToSignedUrl(path: string | null | undefined): Pro
   const isValidPath = validPrefixes.some(prefix => objectPath.startsWith(prefix));
   
   if (!isValidPath) {
-    return objectPath;
+    return path; // Return original path for non-GCS paths
   }
   
   try {
@@ -171,7 +175,7 @@ export async function transformToSignedUrl(path: string | null | undefined): Pro
     return url;
   } catch (error) {
     console.error(`Failed to generate signed URL for ${objectPath}:`, error);
-    return null;
+    return path; // Return original path on error instead of null
   }
 }
 
