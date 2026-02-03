@@ -390,6 +390,14 @@ export function ScenarioManager() {
     // 번역된 데이터 대신 원본 데이터 사용
     const originalScenario = originalScenarios?.find((s: any) => s.id === scenario.id) || scenario;
     
+    console.log('[ScenarioManager] Loading scenario for edit:', {
+      id: originalScenario.id,
+      image: originalScenario.image,
+      introVideoUrl: (originalScenario as any).introVideoUrl,
+      imagePrompt: (originalScenario as any).imagePrompt,
+      videoPrompt: (originalScenario as any).videoPrompt
+    });
+    
     setEditingScenario(originalScenario);
     setImageLoadFailed(false);
     setSelectedImageSignedUrl(null);
@@ -443,6 +451,15 @@ export function ScenarioManager() {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    
+    // Debug: log form data being submitted
+    console.log('[ScenarioManager] Submitting form data:', {
+      image: formData.image,
+      introVideoUrl: formData.introVideoUrl,
+      imagePrompt: formData.imagePrompt,
+      videoPrompt: formData.videoPrompt,
+      editingScenarioId: editingScenario?.id
+    });
     
     // 필수 필드 검증
     if (!formData.title) {
@@ -650,6 +667,7 @@ export function ScenarioManager() {
 
   // 이미지 선택
   const handleSelectImage = (imagePath: string, signedUrl: string) => {
+    console.log('[ScenarioManager] Image selected:', { imagePath, signedUrl });
     setFormData(prev => ({ ...prev, image: imagePath }));
     setSelectedImageSignedUrl(signedUrl);
     setImageLoadFailed(false);
@@ -662,6 +680,7 @@ export function ScenarioManager() {
 
   // 비디오 선택
   const handleSelectVideo = (videoPath: string, signedUrl: string) => {
+    console.log('[ScenarioManager] Video selected:', { videoPath, signedUrl });
     setFormData(prev => ({ ...prev, introVideoUrl: videoPath }));
     setSelectedVideoSignedUrl(signedUrl);
     setShowVideoSelector(false);
