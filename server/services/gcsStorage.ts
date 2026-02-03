@@ -264,3 +264,44 @@ export async function transformPersonasMedia(personas: any[]): Promise<any[]> {
   
   return Promise.all(personas.map(persona => transformPersonaMedia(persona)));
 }
+
+/**
+ * List files in GCS with given prefix
+ */
+export async function listGCSFiles(prefix: string): Promise<{ name: string; signedUrl: string; updatedAt: Date }[]> {
+  if (!isGCSAvailable()) {
+    return [];
+  }
+
+  try {
+    const bucketName = getGCSBucketName();
+    const storage = getStorageClient();
+    const bucket = storage.bucket(bucketName);
+
+    const [files] = await bucket.getFiles({ prefix });
+
+    const results: { name: string; signedUrl: string; updatedAt: Date }[] = [];
+
+    for (const file of files) {
+      // Skip directories (files ending with /)
+      if (file.name.endsWith('/')) continue;
+      
+      const signedUrlResult = await getSignedUrl(file.name);
+      const metadata = file.metadata;
+      
+      results.push({
+        name: file.name,
+        signedUrl: signedUrlResult.url,
+        updatedAt: metadata.updated ? new Date(metadata.updated) : new Date()
+      });
+    }
+
+    // Sort by updatedAt descending (newest first)
+    results.sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime());
+
+    return results;
+  } catch (error) {
+    console.error('GCS 파일 목록 조회 실패:', error);
+    return [];
+  }
+}

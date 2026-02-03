@@ -23,7 +23,7 @@ import { generateIntroVideo, deleteIntroVideo, getVideoGenerationStatus, getDefa
 import { generateImagePrompt } from "./routes/imageGeneration";
 import { GlobalMBTICache } from "./utils/globalMBTICache";
 import { registerObjectStorageRoutes } from "./replit_integrations/object_storage";
-import { transformScenariosMedia, transformScenarioMedia, transformToSignedUrl, isGCSAvailable, transformPersonasMedia, transformPersonaMedia } from "./services/gcsStorage";
+import { transformScenariosMedia, transformScenarioMedia, transformToSignedUrl, isGCSAvailable, transformPersonasMedia, transformPersonaMedia, listGCSFiles } from "./services/gcsStorage";
 
 export async function registerRoutes(app: Express, httpServer: Server): Promise<void> {
   // 이메일 기반 인증 시스템 설정
@@ -4068,6 +4068,54 @@ export async function registerRoutes(app: Express, httpServer: Server): Promise<
     } catch (error: any) {
       console.error("Error generating default video prompt:", error);
       res.status(500).json({ error: "Failed to generate default prompt", details: error.message });
+    }
+  });
+
+  // 기존 시나리오 이미지 목록 조회 API
+  app.get("/api/admin/scenarios/images", isAuthenticated, isOperatorOrAdmin, async (req, res) => {
+    try {
+      const files = await listGCSFiles('scenarios/');
+      
+      // 이미지 파일만 필터링 (.webp, .png, .jpg, .jpeg)
+      const imageFiles = files.filter(f => 
+        /\.(webp|png|jpg|jpeg)$/i.test(f.name)
+      );
+      
+      res.json({ 
+        success: true, 
+        images: imageFiles.map(f => ({
+          path: f.name,
+          url: f.signedUrl,
+          updatedAt: f.updatedAt
+        }))
+      });
+    } catch (error: any) {
+      console.error("Error listing scenario images:", error);
+      res.status(500).json({ error: "Failed to list images", details: error.message });
+    }
+  });
+
+  // 기존 시나리오 비디오 목록 조회 API
+  app.get("/api/admin/scenarios/videos", isAuthenticated, isOperatorOrAdmin, async (req, res) => {
+    try {
+      const files = await listGCSFiles('videos/');
+      
+      // 비디오 파일만 필터링 (.webm, .mp4)
+      const videoFiles = files.filter(f => 
+        /\.(webm|mp4)$/i.test(f.name)
+      );
+      
+      res.json({ 
+        success: true, 
+        videos: videoFiles.map(f => ({
+          path: f.name,
+          url: f.signedUrl,
+          updatedAt: f.updatedAt
+        }))
+      });
+    } catch (error: any) {
+      console.error("Error listing scenario videos:", error);
+      res.status(500).json({ error: "Failed to list videos", details: error.message });
     }
   });
 
