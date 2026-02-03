@@ -1130,6 +1130,6 @@ router.post('/optimize-existing-images', async (req, res) => {
 });
 
 // saveImageToLocal 함수도 export
-export { saveImageToLocal, savePersonaImageToLocal, getThumbnailPath };
+export { saveImageToLocal, savePersonaImageToLocal, getThumbnailPath, generateImagePrompt };
 
 export default router;

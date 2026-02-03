@@ -386,3 +386,15 @@ export function getVideoGenerationStatus(): { available: boolean; reason?: strin
     available: true
   };
 }
+
+export function getDefaultVideoPrompt(request: {
+  scenarioTitle: string;
+  description?: string;
+  context?: {
+    situation?: string;
+    stakes?: string;
+    timeline?: string;
+  };
+}): string {
+  return generateVideoPrompt(request as VideoGenerationRequest);
+}

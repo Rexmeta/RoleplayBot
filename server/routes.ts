@@ -19,7 +19,8 @@ import mediaRoutes from "./routes/media.js";
 import { fileManager } from "./services/fileManager";
 import { generateScenarioWithAI, enhanceScenarioWithAI } from "./services/aiScenarioGenerator";
 import { realtimeVoiceService } from "./services/realtimeVoiceService";
-import { generateIntroVideo, deleteIntroVideo, getVideoGenerationStatus } from "./services/gemini-video-generator";
+import { generateIntroVideo, deleteIntroVideo, getVideoGenerationStatus, getDefaultVideoPrompt } from "./services/gemini-video-generator";
+import { generateImagePrompt } from "./routes/imageGeneration";
 import { GlobalMBTICache } from "./utils/globalMBTICache";
 import { registerObjectStorageRoutes } from "./replit_integrations/object_storage";
 import { transformScenariosMedia, transformScenarioMedia, transformToSignedUrl, isGCSAvailable, transformPersonasMedia, transformPersonaMedia } from "./services/gcsStorage";
@@ -4029,6 +4030,44 @@ export async function registerRoutes(app: Express, httpServer: Server): Promise<
     } catch (error) {
       console.error("Error deleting scenario:", error);
       res.status(500).json({ error: "Failed to delete scenario" });
+    }
+  });
+
+  // 시나리오 이미지 기본 프롬프트 조회 API
+  app.post("/api/admin/scenarios/default-image-prompt", isAuthenticated, isOperatorOrAdmin, async (req, res) => {
+    try {
+      const { scenarioTitle, description, theme, industry } = req.body;
+      
+      if (!scenarioTitle) {
+        return res.status(400).json({ error: "scenarioTitle is required" });
+      }
+      
+      const prompt = generateImagePrompt(scenarioTitle, description, theme, industry);
+      res.json({ success: true, prompt });
+    } catch (error: any) {
+      console.error("Error generating default image prompt:", error);
+      res.status(500).json({ error: "Failed to generate default prompt", details: error.message });
+    }
+  });
+
+  // 시나리오 비디오 기본 프롬프트 조회 API
+  app.post("/api/admin/scenarios/default-video-prompt", isAuthenticated, isOperatorOrAdmin, async (req, res) => {
+    try {
+      const { scenarioTitle, description, context } = req.body;
+      
+      if (!scenarioTitle) {
+        return res.status(400).json({ error: "scenarioTitle is required" });
+      }
+      
+      const prompt = getDefaultVideoPrompt({
+        scenarioTitle,
+        description,
+        context
+      });
+      res.json({ success: true, prompt });
+    } catch (error: any) {
+      console.error("Error generating default video prompt:", error);
+      res.status(500).json({ error: "Failed to generate default prompt", details: error.message });
     }
   });
 
