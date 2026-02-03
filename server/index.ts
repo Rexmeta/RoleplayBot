@@ -161,13 +161,24 @@ app.use((req, res, next) => {
 // Request timeout: prevent a single slow request from starving the
 // container and causing cascading 503 errors for other requests.
 const REQUEST_TIMEOUT_MS = 30_000; // 30 seconds
+const LONG_REQUEST_TIMEOUT_MS = 120_000; // 2 minutes for image/video generation
 app.use((req, res, next) => {
   // Skip health checks
   if (req.path.startsWith('/_ah/')) return next();
 
-  res.setTimeout(REQUEST_TIMEOUT_MS, () => {
+  // Use longer timeout for image and video generation endpoints
+  const isSlowEndpoint = 
+    req.path.includes('/api/image/') || 
+    req.path.includes('/api/video/') ||
+    req.path.includes('/generate-persona') ||
+    req.path.includes('/generate-scenario-image') ||
+    req.path.includes('/generate-intro-video');
+  
+  const timeoutMs = isSlowEndpoint ? LONG_REQUEST_TIMEOUT_MS : REQUEST_TIMEOUT_MS;
+
+  res.setTimeout(timeoutMs, () => {
     if (!res.headersSent) {
-      console.error(`Request timeout (${REQUEST_TIMEOUT_MS}ms): ${req.method} ${req.path}`);
+      console.error(`Request timeout (${timeoutMs}ms): ${req.method} ${req.path}`);
       res.status(504).json({ message: 'Request timeout' });
     }
   });
