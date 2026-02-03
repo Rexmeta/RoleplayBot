@@ -283,6 +283,12 @@ export class FileManagerService {
 
   async updateScenario(id: string, scenario: Partial<ComplexScenario>): Promise<ComplexScenario> {
     try {
+      console.log(`[FileManager.updateScenario] id=${id}`);
+      console.log(`[FileManager.updateScenario] scenario.image=${scenario.image}`);
+      console.log(`[FileManager.updateScenario] scenario.introVideoUrl=${scenario.introVideoUrl}`);
+      console.log(`[FileManager.updateScenario] scenario.imagePrompt=${scenario.imagePrompt}`);
+      console.log(`[FileManager.updateScenario] scenario.videoPrompt=${scenario.videoPrompt}`);
+      
       if (USE_DATABASE) {
         const existingScenario = await storage.getScenario(id);
         if (!existingScenario) {
@@ -308,6 +314,10 @@ export class FileManagerService {
         if (scenario.recommendedFlow !== undefined) updates.recommendedFlow = scenario.recommendedFlow;
         if (scenario.evaluationCriteriaSetId !== undefined) updates.evaluationCriteriaSetId = scenario.evaluationCriteriaSetId;
         if (scenario.isDemo !== undefined) updates.isDemo = scenario.isDemo;
+        
+        console.log(`[FileManager.updateScenario] updates.image=${updates.image}`);
+        console.log(`[FileManager.updateScenario] updates.introVideoUrl=${updates.introVideoUrl}`);
+        console.log(`[FileManager.updateScenario] All update keys: ${Object.keys(updates).join(', ')}`);
         
         const updated = await storage.updateScenario(id, updates);
         this.invalidateScenarioCountCache();

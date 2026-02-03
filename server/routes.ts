@@ -3982,6 +3982,10 @@ export async function registerRoutes(app: Express, httpServer: Server): Promise<
       
       const scenario = await fileManager.updateScenario(scenarioId, req.body);
       
+      // Debug: log what was saved
+      console.log(`[Scenario Update] After save - image: ${scenario.image || '(empty)'}`);
+      console.log(`[Scenario Update] After save - introVideoUrl: ${(scenario as any).introVideoUrl || '(empty)'}`);
+      
       // 원본 콘텐츠 번역 테이블도 업데이트 (isOriginal=true)
       try {
         await storage.upsertScenarioTranslation({

@@ -302,10 +302,27 @@ export function ScenarioManager() {
 
   const updateMutation = useMutation({
     mutationFn: async ({ id, data }: { id: string; data: ScenarioFormData }) => {
+      console.log('[ScenarioManager] Sending PUT request with data:', {
+        image: data.image,
+        introVideoUrl: data.introVideoUrl,
+        imagePrompt: data.imagePrompt,
+        videoPrompt: data.videoPrompt
+      });
       const response = await apiRequest('PUT', `/api/admin/scenarios/${id}`, data);
-      return response.json();
+      const result = await response.json();
+      console.log('[ScenarioManager] Received response:', {
+        id: result.id,
+        image: result.image,
+        introVideoUrl: result.introVideoUrl
+      });
+      return result;
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
+      console.log('[ScenarioManager] Update success, saved data:', {
+        id: data.id,
+        image: data.image,
+        introVideoUrl: data.introVideoUrl
+      });
       queryClient.invalidateQueries({ queryKey: ['/api/admin/scenarios'] });
       setEditingScenario(null);
       resetForm();

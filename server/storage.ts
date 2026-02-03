@@ -2045,6 +2045,10 @@ export class PostgreSQLStorage implements IStorage {
   }
   
   async updateScenario(id: string, updates: Partial<InsertScenario>): Promise<Scenario> {
+    console.log(`[DatabaseStorage.updateScenario] id=${id}`);
+    console.log(`[DatabaseStorage.updateScenario] updates.image=${updates.image}`);
+    console.log(`[DatabaseStorage.updateScenario] updates.introVideoUrl=${updates.introVideoUrl}`);
+    
     const [updated] = await db.update(scenarios)
       .set({ ...updates, updatedAt: new Date() })
       .where(eq(scenarios.id, id))
@@ -2052,6 +2056,8 @@ export class PostgreSQLStorage implements IStorage {
     if (!updated) {
       throw new Error("Scenario not found");
     }
+    
+    console.log(`[DatabaseStorage.updateScenario] Saved - image=${updated.image}, introVideoUrl=${updated.introVideoUrl}`);
     return updated;
   }
   
