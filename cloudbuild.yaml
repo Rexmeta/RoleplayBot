@@ -1,21 +1,34 @@
 # Google Cloud Build 설정 파일
 # - Docker build -> Artifact Registry push -> Cloud Run deploy
-# - 안정성 개선: repo 변수화 / update-env-vars / update-secrets / allow-unauth 옵션화 / secret 버전 고정
+# - 안정성 개선:
+#   - repo 변수화
+#   - update-env-vars / update-secrets 사용 (기존 설정 덮어쓰기 최소화)
+#   - allow-unauth 옵션화
+#   - runtime service account 고정
+#   - Preflight(리소스/시크릿 상태 체크) 추가
+#   - secret 버전 변수화
 
 substitutions:
   _SERVICE_NAME: 'role'
   _REGION: 'us-east1'
   _AR_REPO: 'cloud-run-source-deploy'
+
   _MEMORY: '1Gi'
   _CPU: '1'
   _MIN_INSTANCES: '0'
   _MAX_INSTANCES: '10'
+
   _GCS_BUCKET_NAME: 'roleplay-bucket'
   _ALLOW_UNAUTH: 'true'
-  _RUNTIME_SA: 'runtime-sa@${PROJECT_ID}.iam.gserviceaccount.com'
   _SIGNED_URL_TTL_MINUTES: '30'
 
+  # Secret versions (ENABLED 버전으로 유지)
+  _JWT_SECRET_VER: '1'
+  _DATABASE_URL_VER: '15'
+  _GOOGLE_API_KEY_VER: '1'
+
 steps:
+  # Step 1: Docker 이미지 빌드
   - name: 'gcr.io/cloud-builders/docker'
     id: 'Build'
     args:
@@ -26,6 +39,7 @@ steps:
       - '${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_AR_REPO}/${_SERVICE_NAME}:latest'
       - '.'
 
+  # Step 2: Artifact Registry에 이미지 푸시
   - name: 'gcr.io/cloud-builders/docker'
     id: 'Push'
     args:
@@ -33,6 +47,39 @@ steps:
       - '--all-tags'
       - '${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_AR_REPO}/${_SERVICE_NAME}'
 
+  # Step 3: Preflight 체크 (배포 전에 필수 리소스/시크릿 상태 점검)
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk:slim'
+    id: 'Preflight'
+    entrypoint: 'bash'
+    args:
+      - '-c'
+      - |
+        set -euo pipefail
+        echo "🔎 Preflight checks..."
+
+        echo "1) Artifact Registry repo exists"
+        gcloud artifacts repositories describe ${_AR_REPO} \
+          --location ${_REGION} >/dev/null
+
+        echo "2) GCS bucket exists"
+        gcloud storage buckets describe gs://${_GCS_BUCKET_NAME} >/dev/null
+
+        echo "3) Secret versions are ENABLED"
+        JWT_STATE="$(gcloud secrets versions describe ${_JWT_SECRET_VER} --secret=jwt-secret --format='value(state)')"
+        DB_STATE="$(gcloud secrets versions describe ${_DATABASE_URL_VER} --secret=database-url --format='value(state)')"
+        KEY_STATE="$(gcloud secrets versions describe ${_GOOGLE_API_KEY_VER} --secret=google-api-key --format='value(state)')"
+
+        echo "   jwt-secret:${_JWT_SECRET_VER} => ${JWT_STATE}"
+        echo "   database-url:${_DATABASE_URL_VER} => ${DB_STATE}"
+        echo "   google-api-key:${_GOOGLE_API_KEY_VER} => ${KEY_STATE}"
+
+        test "${JWT_STATE}" = "ENABLED"
+        test "${DB_STATE}" = "ENABLED"
+        test "${KEY_STATE}" = "ENABLED"
+
+        echo "✅ Preflight OK"
+
+  # Step 4: Cloud Run 배포
   - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk:slim'
     id: 'Deploy'
     entrypoint: 'bash'
@@ -41,6 +88,9 @@ steps:
       - |
         set -euo pipefail
         echo "🚀 Deploying to Cloud Run..."
+
+        # runtime service account는 여기서 조립 (substitution 치환 리스크 제거)
+        RUNTIME_SA="runtime-sa@${PROJECT_ID}.iam.gserviceaccount.com"
 
         ALLOW_FLAG=""
         if [ "${_ALLOW_UNAUTH}" = "true" ]; then
@@ -52,7 +102,7 @@ steps:
           --region ${_REGION} \
           --platform managed \
           $${ALLOW_FLAG} \
-          --service-account ${_RUNTIME_SA} \
+          --service-account ${RUNTIME_SA} \
           --memory ${_MEMORY} \
           --cpu ${_CPU} \
           --min-instances ${_MIN_INSTANCES} \
@@ -60,12 +110,18 @@ steps:
           --port 8080 \
           --timeout 300 \
           --update-env-vars NODE_ENV=production,AI_PROVIDER=gemini,GCS_BUCKET_NAME=${_GCS_BUCKET_NAME},SIGNED_URL_TTL_MINUTES=${_SIGNED_URL_TTL_MINUTES} \
-          --update-secrets JWT_SECRET=jwt-secret:1,DATABASE_URL=database-url:1,GOOGLE_API_KEY=google-api-key:1
+          --update-secrets JWT_SECRET=jwt-secret:${_JWT_SECRET_VER},DATABASE_URL=database-url:${_DATABASE_URL_VER},GOOGLE_API_KEY=google-api-key:${_GOOGLE_API_KEY_VER}
 
+        echo "✅ Deployment complete!"
+        echo "Service URL:"
         gcloud run services describe ${_SERVICE_NAME} \
           --region ${_REGION} \
           --format 'value(status.url)'
 
+        echo "Runtime service account:"
+        gcloud run services describe ${_SERVICE_NAME} \
+          --region ${_REGION} \
+          --format 'value(spec.template.spec.serviceAccountName)'
 
 images:
   - '${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_AR_REPO}/${_SERVICE_NAME}:${COMMIT_SHA}'
