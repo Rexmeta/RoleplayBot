@@ -51,9 +51,10 @@ export async function uploadToGCS(
     return publicUrl;
   }
 
-  const gcsPath = `gcs://${objectPath}`;
-  console.log(`📁 GCS 비공개 업로드 완료: ${gcsPath}`);
-  return gcsPath;
+  // Return only the objectPath for private files (no gcs:// prefix)
+  // This allows consistent handling when generating signed URLs
+  console.log(`📁 GCS 비공개 업로드 완료: ${objectPath}`);
+  return objectPath;
 }
 
 export async function getSignedUrl(objectPath: string): Promise<{ url: string; expiresIn: number }> {
@@ -115,4 +116,88 @@ export async function checkGCSConnection(): Promise<boolean> {
     console.error("GCS 연결 확인 실패:", error);
     return false;
   }
+}
+
+/**
+ * Normalize object path by removing gcs:// prefix if present
+ * Handles backward compatibility with old format
+ */
+export function normalizeObjectPath(path: string | null | undefined): string | null {
+  if (!path) return null;
+  
+  // Remove gcs:// prefix if present (backward compatibility)
+  if (path.startsWith('gcs://')) {
+    return path.substring(6);
+  }
+  
+  // Already a clean object path
+  return path;
+}
+
+/**
+ * Transform a media path to a signed URL for GCS
+ * Returns the original path for Replit environment or non-GCS paths
+ */
+export async function transformToSignedUrl(path: string | null | undefined): Promise<string | null> {
+  if (!path) return null;
+  
+  // Normalize the path (remove gcs:// if present)
+  const objectPath = normalizeObjectPath(path);
+  if (!objectPath) return null;
+  
+  // If not in GCS environment or path is already a full URL, return as-is
+  if (!isGCSAvailable()) {
+    return path;
+  }
+  
+  // Skip if it's already a full URL (public GCS, HTTP, data:, etc.)
+  if (objectPath.startsWith('http://') || 
+      objectPath.startsWith('https://') || 
+      objectPath.startsWith('data:') ||
+      objectPath.startsWith('/')) {
+    return objectPath;
+  }
+  
+  // Check if it's a valid GCS object path (scenarios/, videos/, personas/, uploads/)
+  const validPrefixes = ['scenarios/', 'videos/', 'personas/', 'uploads/'];
+  const isValidPath = validPrefixes.some(prefix => objectPath.startsWith(prefix));
+  
+  if (!isValidPath) {
+    return objectPath;
+  }
+  
+  try {
+    const { url } = await getSignedUrl(objectPath);
+    return url;
+  } catch (error) {
+    console.error(`Failed to generate signed URL for ${objectPath}:`, error);
+    return null;
+  }
+}
+
+/**
+ * Transform a scenario object's media fields to signed URLs
+ */
+export async function transformScenarioMedia(scenario: any): Promise<any> {
+  if (!scenario) return scenario;
+  
+  const [imageUrl, introVideoUrl] = await Promise.all([
+    transformToSignedUrl(scenario.image),
+    transformToSignedUrl(scenario.introVideoUrl)
+  ]);
+  
+  return {
+    ...scenario,
+    image: imageUrl,
+    introVideoUrl: introVideoUrl
+  };
+}
+
+/**
+ * Transform multiple scenarios' media fields to signed URLs
+ */
+export async function transformScenariosMedia(scenarios: any[]): Promise<any[]> {
+  if (!scenarios || !Array.isArray(scenarios)) return scenarios;
+  
+  return Promise.all(scenarios.map(scenario => transformScenarioMedia(scenario)));
 }

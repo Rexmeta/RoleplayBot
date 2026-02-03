@@ -1,25 +1,22 @@
 # Google Cloud Build 설정 파일
-# 
-# 첫 배포 전 필수 설정:
-# 1. 아래 substitutions 섹션의 값들을 실제 프로젝트에 맞게 수정하세요
-# 2. Secret Manager에 필수 시크릿을 생성하세요 (./scripts/setup-cloud-run-env.sh 사용)
-# 3. Artifact Registry 저장소를 생성하세요:
-#    gcloud artifacts repositories create cloud-run-source-deploy \
-#      --repository-format=docker \
-#      --location=${_REGION} \
-#      --project=${PROJECT_ID}
-#
-# 배포 명령어:
-#   gcloud builds submit --config=cloudbuild.yaml .
+# - Docker build -> Artifact Registry push -> Cloud Run deploy
+# - 안정성 개선: repo 변수화 / update-env-vars / update-secrets / allow-unauth 옵션화 / secret 버전 고정
 
 substitutions:
   _SERVICE_NAME: 'role'                 # Cloud Run 서비스 이름
   _REGION: 'us-east1'                   # 배포 리전
+  _AR_REPO: 'cloud-run-source-deploy'   # Artifact Registry 저장소 이름
   _MEMORY: '1Gi'                        # 메모리 할당
   _CPU: '1'                             # CPU 할당
-  _MIN_INSTANCES: '0'                   # 최소 인스턴스 (0 = 콜드스타트 허용)
+  _MIN_INSTANCES: '0'                   # 최소 인스턴스
   _MAX_INSTANCES: '10'                  # 최대 인스턴스
-  _GCS_BUCKET_NAME: 'roleplay-bucket'   # GCS 버킷 이름 (이미지/비디오 저장용)
+  _GCS_BUCKET_NAME: 'roleplay-bucket'   # GCS 버킷 이름
+  _ALLOW_UNAUTH: 'true'                 # 공개 서비스 여부 (true/false)
+
+  # Secret Manager 버전 (프로젝트에 맞게 조정)
+  _JWT_SECRET_VER: '1'
+  _DATABASE_URL_VER: '1'
+  _GOOGLE_API_KEY_VER: '1'
 
 steps:
   # Step 1: Docker 이미지 빌드
@@ -28,9 +25,9 @@ steps:
     args:
       - 'build'
       - '-t'
-      - '${_REGION}-docker.pkg.dev/${PROJECT_ID}/cloud-run-source-deploy/${_SERVICE_NAME}:${COMMIT_SHA}'
+      - '${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_AR_REPO}/${_SERVICE_NAME}:${COMMIT_SHA}'
       - '-t'
-      - '${_REGION}-docker.pkg.dev/${PROJECT_ID}/cloud-run-source-deploy/${_SERVICE_NAME}:latest'
+      - '${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_AR_REPO}/${_SERVICE_NAME}:latest'
       - '.'
 
   # Step 2: Artifact Registry에 이미지 푸시
@@ -39,7 +36,7 @@ steps:
     args:
       - 'push'
       - '--all-tags'
-      - '${_REGION}-docker.pkg.dev/${PROJECT_ID}/cloud-run-source-deploy/${_SERVICE_NAME}'
+      - '${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_AR_REPO}/${_SERVICE_NAME}'
 
   # Step 3: Cloud Run에 배포
   - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk:slim'
@@ -48,33 +45,43 @@ steps:
     args:
       - '-c'
       - |
-        set -e
+        set -euo pipefail
+
         echo "🚀 Deploying to Cloud Run..."
-        
+        echo "Service: ${_SERVICE_NAME}"
+        echo "Region:  ${_REGION}"
+        echo "Repo:    ${_AR_REPO}"
+        echo "Image:   ${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_AR_REPO}/${_SERVICE_NAME}:${COMMIT_SHA}"
+
+        ALLOW_FLAG=""
+        if [ "${_ALLOW_UNAUTH}" = "true" ]; then
+          ALLOW_FLAG="--allow-unauthenticated"
+        fi
+
         gcloud run deploy ${_SERVICE_NAME} \
-          --image ${_REGION}-docker.pkg.dev/${PROJECT_ID}/cloud-run-source-deploy/${_SERVICE_NAME}:${COMMIT_SHA} \
+          --image ${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_AR_REPO}/${_SERVICE_NAME}:${COMMIT_SHA} \
           --region ${_REGION} \
           --platform managed \
-          --allow-unauthenticated \
+          ${ALLOW_FLAG} \
           --memory ${_MEMORY} \
           --cpu ${_CPU} \
           --min-instances ${_MIN_INSTANCES} \
           --max-instances ${_MAX_INSTANCES} \
           --port 8080 \
           --timeout 300 \
-          --set-env-vars NODE_ENV=production,AI_PROVIDER=gemini,GCS_BUCKET_NAME=${_GCS_BUCKET_NAME} \
-          --set-secrets JWT_SECRET=jwt-secret:latest,DATABASE_URL=database-url:latest,GOOGLE_API_KEY=google-api-key:latest
-        
+          --update-env-vars NODE_ENV=production,AI_PROVIDER=gemini,GCS_BUCKET_NAME=${_GCS_BUCKET_NAME} \
+          --update-secrets JWT_SECRET=jwt-secret:${_JWT_SECRET_VER},DATABASE_URL=database-url:${_DATABASE_URL_VER},GOOGLE_API_KEY=google-api-key:${_GOOGLE_API_KEY_VER}
+
         echo "✅ Deployment complete!"
-        
-        # 배포된 서비스 URL 출력
+
+        echo "🌐 Service URL:"
         gcloud run services describe ${_SERVICE_NAME} \
           --region ${_REGION} \
           --format 'value(status.url)'
 
 images:
-  - '${_REGION}-docker.pkg.dev/${PROJECT_ID}/cloud-run-source-deploy/${_SERVICE_NAME}:${COMMIT_SHA}'
-  - '${_REGION}-docker.pkg.dev/${PROJECT_ID}/cloud-run-source-deploy/${_SERVICE_NAME}:latest'
+  - '${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_AR_REPO}/${_SERVICE_NAME}:${COMMIT_SHA}'
+  - '${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_AR_REPO}/${_SERVICE_NAME}:latest'
 
 options:
   logging: CLOUD_LOGGING_ONLY
