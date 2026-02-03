@@ -1,16 +1,10 @@
-# Google Cloud Build 설정 파일
-# - Docker build -> Artifact Registry push -> (Preflight) -> Cloud Run deploy
-# - 안정성 개선:
-#   - repo 변수화
-#   - update-env-vars / update-secrets 사용
-#   - allow-unauth 옵션화
-#   - runtime service account 고정(Deploy step에서 조립)
-#   - Preflight(리소스/시크릿 상태 체크) 추가
-#   - secret 버전 변수화
+# Cloud Build: Build -> Push -> Preflight(검증만) -> Deploy
+# A안: IAM 권한 변경은 cloudbuild에서 자동으로 하지 않음 (안전/감사/운영 목적)
+#     대신 Preflight에서 누락 시 "어떤 커맨드로 고치면 되는지"만 안내하고 빌드를 실패시킴.
 #
-# 중요:
-# - Cloud Build는 $VAR / ${VAR} 형태를 substitutions로 해석할 수 있음
-# - Bash 변수는 반드시 $$VAR 형태로 출력/참조해야 함(Cloud Build escaping)
+# IMPORTANT:
+# - Cloud Build는 $VAR / ${VAR} 패턴을 substitutions로 해석할 수 있음
+# - Bash 변수는 반드시 $$VAR 형태로 참조(escape)해야 함
 
 substitutions:
   _SERVICE_NAME: 'role'
@@ -26,13 +20,13 @@ substitutions:
   _ALLOW_UNAUTH: 'true'
   _SIGNED_URL_TTL_MINUTES: '30'
 
-  # Secret versions (반드시 ENABLED 상태의 버전으로 설정)
+  # Secrets (반드시 ENABLED 버전)
   _JWT_SECRET_VER: '1'
   _DATABASE_URL_VER: '15'
   _GOOGLE_API_KEY_VER: '1'
 
 steps:
-  # Step 1: Docker 이미지 빌드
+  # Step 1: Docker build
   - name: 'gcr.io/cloud-builders/docker'
     id: 'Build'
     args:
@@ -43,7 +37,7 @@ steps:
       - '${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_AR_REPO}/${_SERVICE_NAME}:latest'
       - '.'
 
-  # Step 2: Artifact Registry에 이미지 푸시
+  # Step 2: Push to Artifact Registry
   - name: 'gcr.io/cloud-builders/docker'
     id: 'Push'
     args:
@@ -51,7 +45,7 @@ steps:
       - '--all-tags'
       - '${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_AR_REPO}/${_SERVICE_NAME}'
 
-  # Step 3: Preflight 체크 (배포 전에 필수 리소스/시크릿 상태 점검)
+  # Step 3: Preflight checks (NO IAM mutation)
   - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk:slim'
     id: 'Preflight'
     entrypoint: 'bash'
@@ -59,16 +53,33 @@ steps:
       - '-c'
       - |
         set -euo pipefail
+
         echo "🔎 Preflight checks..."
+        RUNTIME_SA="runtime-sa@${PROJECT_ID}.iam.gserviceaccount.com"
 
+        fail() {
+          echo ""
+          echo "❌ Preflight failed: $$1"
+          exit 1
+        }
+
+        echo ""
         echo "1) Artifact Registry repo exists"
-        gcloud artifacts repositories describe ${_AR_REPO} \
-          --location ${_REGION} >/dev/null
+        gcloud artifacts repositories describe ${_AR_REPO} --location ${_REGION} >/dev/null \
+          || fail "Artifact Registry repo '${_AR_REPO}' not found in ${_REGION}. Create it first."
 
+        echo ""
         echo "2) GCS bucket exists"
-        gcloud storage buckets describe gs://${_GCS_BUCKET_NAME} >/dev/null
+        gcloud storage buckets describe gs://${_GCS_BUCKET_NAME} >/dev/null \
+          || fail "Bucket gs://${_GCS_BUCKET_NAME} not found."
 
-        echo "3) Secret versions are ENABLED"
+        echo ""
+        echo "3) runtime service account exists: $$RUNTIME_SA"
+        gcloud iam service-accounts describe $$RUNTIME_SA >/dev/null \
+          || fail "Service account $$RUNTIME_SA not found. Create it first."
+
+        echo ""
+        echo "4) Secret versions are ENABLED"
         JWT_STATE=$(gcloud secrets versions describe ${_JWT_SECRET_VER} --secret=jwt-secret --format='value(state)')
         DB_STATE=$(gcloud secrets versions describe ${_DATABASE_URL_VER} --secret=database-url --format='value(state)')
         KEY_STATE=$(gcloud secrets versions describe ${_GOOGLE_API_KEY_VER} --secret=google-api-key --format='value(state)')
@@ -77,13 +88,112 @@ steps:
         echo "   database-url:${_DATABASE_URL_VER} => $$DB_STATE"
         echo "   google-api-key:${_GOOGLE_API_KEY_VER} => $$KEY_STATE"
 
-        test "$$JWT_STATE" = "ENABLED"
-        test "$$DB_STATE" = "ENABLED"
-        test "$$KEY_STATE" = "ENABLED"
+        test "$$JWT_STATE" = "ENABLED" || fail "jwt-secret:${_JWT_SECRET_VER} is not ENABLED."
+        test "$$DB_STATE"  = "ENABLED" || fail "database-url:${_DATABASE_URL_VER} is not ENABLED."
+        test "$$KEY_STATE" = "ENABLED" || fail "google-api-key:${_GOOGLE_API_KEY_VER} is not ENABLED."
 
+        echo ""
+        echo "5) IAM sanity checks for runtime-sa (NO mutation)"
+        echo "   - roles/cloudsql.client"
+        echo "   - roles/secretmanager.secretAccessor"
+        echo "   - bucket roles: roles/storage.objectViewer, roles/storage.objectCreator"
+        echo "   - self token creator: roles/iam.serviceAccountTokenCreator"
+
+        # 5-1) Project IAM: cloudsql.client
+        HAS_CLOUDSQL=$(
+          gcloud projects get-iam-policy ${PROJECT_ID} \
+            --flatten="bindings[].members" \
+            --filter="bindings.role=roles/cloudsql.client AND bindings.members:serviceAccount:$$RUNTIME_SA" \
+            --format="value(bindings.role)" || true
+        )
+        if [ -z "$$HAS_CLOUDSQL" ]; then
+          echo ""
+          echo "Missing: roles/cloudsql.client on $$RUNTIME_SA"
+          echo "Fix:"
+          echo "  gcloud projects add-iam-policy-binding ${PROJECT_ID} \\"
+          echo "    --member=\"serviceAccount:$$RUNTIME_SA\" \\"
+          echo "    --role=\"roles/cloudsql.client\""
+          fail "runtime-sa lacks Cloud SQL Client role."
+        fi
+
+        # 5-2) Project IAM: secretAccessor
+        HAS_SECRETACCESS=$(
+          gcloud projects get-iam-policy ${PROJECT_ID} \
+            --flatten="bindings[].members" \
+            --filter="bindings.role=roles/secretmanager.secretAccessor AND bindings.members:serviceAccount:$$RUNTIME_SA" \
+            --format="value(bindings.role)" || true
+        )
+        if [ -z "$$HAS_SECRETACCESS" ]; then
+          echo ""
+          echo "Missing: roles/secretmanager.secretAccessor on $$RUNTIME_SA"
+          echo "Fix:"
+          echo "  gcloud projects add-iam-policy-binding ${PROJECT_ID} \\"
+          echo "    --member=\"serviceAccount:$$RUNTIME_SA\" \\"
+          echo "    --role=\"roles/secretmanager.secretAccessor\""
+          fail "runtime-sa lacks Secret Manager accessor role."
+        fi
+
+        # 5-3) Bucket IAM: objectViewer
+        HAS_OBJVIEW=$(
+          gcloud storage buckets get-iam-policy gs://${_GCS_BUCKET_NAME} \
+            --flatten="bindings[].members" \
+            --filter="bindings.role=roles/storage.objectViewer AND bindings.members:serviceAccount:$$RUNTIME_SA" \
+            --format="value(bindings.role)" || true
+        )
+        if [ -z "$$HAS_OBJVIEW" ]; then
+          echo ""
+          echo "Missing: roles/storage.objectViewer on bucket gs://${_GCS_BUCKET_NAME} for $$RUNTIME_SA"
+          echo "Fix:"
+          echo "  gcloud storage buckets add-iam-policy-binding gs://${_GCS_BUCKET_NAME} \\"
+          echo "    --member=\"serviceAccount:$$RUNTIME_SA\" \\"
+          echo "    --role=\"roles/storage.objectViewer\""
+          fail "runtime-sa lacks bucket read permission."
+        fi
+
+        # 5-4) Bucket IAM: objectCreator (upload)
+        HAS_OBJCREATE=$(
+          gcloud storage buckets get-iam-policy gs://${_GCS_BUCKET_NAME} \
+            --flatten="bindings[].members" \
+            --filter="bindings.role=roles/storage.objectCreator AND bindings.members:serviceAccount:$$RUNTIME_SA" \
+            --format="value(bindings.role)" || true
+        )
+        if [ -z "$$HAS_OBJCREATE" ]; then
+          echo ""
+          echo "Missing: roles/storage.objectCreator on bucket gs://${_GCS_BUCKET_NAME} for $$RUNTIME_SA"
+          echo "Fix:"
+          echo "  gcloud storage buckets add-iam-policy-binding gs://${_GCS_BUCKET_NAME} \\"
+          echo "    --member=\"serviceAccount:$$RUNTIME_SA\" \\"
+          echo "    --role=\"roles/storage.objectCreator\""
+          fail "runtime-sa lacks bucket write permission."
+        fi
+
+        # 5-5) SA IAM: self token creator (for signed URLs)
+        HAS_TOKENCREATOR=$(
+          gcloud iam service-accounts get-iam-policy $$RUNTIME_SA --format="yaml" \
+            | grep -q "roles/iam.serviceAccountTokenCreator" && echo "yes" || true
+        )
+        if [ -z "$$HAS_TOKENCREATOR" ]; then
+          echo ""
+          echo "Missing: roles/iam.serviceAccountTokenCreator on $$RUNTIME_SA (self-bind) for signed URLs"
+          echo "Fix:"
+          echo "  gcloud iam service-accounts add-iam-policy-binding $$RUNTIME_SA \\"
+          echo "    --member=\"serviceAccount:$$RUNTIME_SA\" \\"
+          echo "    --role=\"roles/iam.serviceAccountTokenCreator\""
+          fail "runtime-sa cannot sign blobs (signed URL generation will fail)."
+        fi
+
+        echo ""
+        echo "6) (Optional) Cloud Run has cloudsql-instances annotation (should exist for unix socket host=/cloudsql/...)"
+        ANNO=$(gcloud run services describe ${_SERVICE_NAME} --region ${_REGION} \
+          --format="value(spec.template.metadata.annotations)" || true)
+        echo "   annotations: $$ANNO"
+        echo "$$ANNO" | grep -q "run.googleapis.com/cloudsql-instances=" \
+          || echo "   ⚠️  Warning: cloudsql-instances annotation not found. If DATABASE_URL uses /cloudsql/, DB connect may fail."
+
+        echo ""
         echo "✅ Preflight OK"
 
-  # Step 4: Cloud Run 배포
+  # Step 4: Deploy
   - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk:slim'
     id: 'Deploy'
     entrypoint: 'bash'
@@ -93,7 +203,6 @@ steps:
         set -euo pipefail
         echo "🚀 Deploying to Cloud Run..."
 
-        # runtime service account는 Deploy step에서 조립
         RUNTIME_SA="runtime-sa@${PROJECT_ID}.iam.gserviceaccount.com"
 
         ALLOW_FLAG=""
@@ -117,15 +226,8 @@ steps:
           --update-secrets JWT_SECRET=jwt-secret:${_JWT_SECRET_VER},DATABASE_URL=database-url:${_DATABASE_URL_VER},GOOGLE_API_KEY=google-api-key:${_GOOGLE_API_KEY_VER}
 
         echo "✅ Deployment complete!"
-        echo "Service URL:"
-        gcloud run services describe ${_SERVICE_NAME} \
-          --region ${_REGION} \
-          --format 'value(status.url)'
-
-        echo "Runtime service account:"
-        gcloud run services describe ${_SERVICE_NAME} \
-          --region ${_REGION} \
-          --format 'value(spec.template.spec.serviceAccountName)'
+        gcloud run services describe ${_SERVICE_NAME} --region ${_REGION} --format 'value(status.url)'
+        gcloud run services describe ${_SERVICE_NAME} --region ${_REGION} --format 'value(spec.template.spec.serviceAccountName)'
 
 images:
   - '${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_AR_REPO}/${_SERVICE_NAME}:${COMMIT_SHA}'
