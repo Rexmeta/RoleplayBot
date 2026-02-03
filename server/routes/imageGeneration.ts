@@ -6,6 +6,7 @@ import sharp from 'sharp';
 import { trackImageUsage } from '../services/aiUsageTracker';
 import { fileManager } from '../services/fileManager';
 import { mediaStorage } from '../services/mediaStorage';
+import { transformToSignedUrl } from '../services/gcsStorage';
 
 // 이미지 최적화 설정
 const IMAGE_CONFIG = {
@@ -123,9 +124,13 @@ router.post('/generate-scenario-image', async (req, res) => {
       }
     }
 
+    // GCS 환경에서는 Signed URL로 변환하여 응답
+    const signedImageUrl = await transformToSignedUrl(localImagePath) || localImagePath;
+
     res.json({
       success: true,
-      imageUrl: localImagePath,
+      imageUrl: signedImageUrl,
+      storagePath: localImagePath,
       originalImageUrl: imageUrl,
       prompt: imagePrompt,
       metadata: {
@@ -336,10 +341,14 @@ router.post('/generate-preview', async (req, res) => {
       metadata: { type: 'preview', scenarioTitle }
     });
 
+    // GCS 환경에서는 Signed URL로 변환하여 응답
+    const signedImageUrl = await transformToSignedUrl(localImagePath) || localImagePath;
+
     res.json({
       success: true,
-      imageUrl: localImagePath, // 로컬 파일 경로 반환
-      originalImageUrl: imageUrl, // 원본 base64 URL도 포함
+      imageUrl: signedImageUrl,
+      storagePath: localImagePath,
+      originalImageUrl: imageUrl,
       prompt: simplePrompt,
       isPreview: true,
       metadata: {
@@ -428,9 +437,13 @@ router.post('/generate-persona-base', async (req, res) => {
       metadata: { type: 'persona-base', personaId, mbti, gender }
     });
 
+    // GCS 환경에서는 Signed URL로 변환하여 응답
+    const signedImageUrl = await transformToSignedUrl(localImagePath) || localImagePath;
+
     res.json({
       success: true,
-      imageUrl: localImagePath,
+      imageUrl: signedImageUrl,
+      storagePath: localImagePath,
       originalImageUrl: imageUrl,
       prompt: imagePrompt,
       metadata: {
@@ -717,10 +730,15 @@ router.post('/generate-persona-expressions', async (req, res) => {
 
         if (imageUrl) {
           const { imagePath: localImagePath } = await mediaStorage.savePersonaImage(imageUrl, personaId, emotion.korean, gender);
+          
+          // GCS 환경에서는 Signed URL로 변환
+          const signedImageUrl = await transformToSignedUrl(localImagePath) || localImagePath;
+          
           generatedImages.push({
             emotion: emotion.english,
             emotionKorean: emotion.korean,
-            imageUrl: localImagePath,
+            imageUrl: signedImageUrl,
+            storagePath: localImagePath,
             success: true
           });
           
@@ -859,11 +877,15 @@ router.post('/generate-persona-single-expression', async (req, res) => {
         metadata: { type: 'persona-single-expression', personaId, emotion, gender }
       });
 
+      // GCS 환경에서는 Signed URL로 변환
+      const signedImageUrl = await transformToSignedUrl(localImagePath) || localImagePath;
+
       return res.json({
         success: true,
         emotion,
         emotionEnglish: emotionInfo.english,
-        imageUrl: localImagePath,
+        imageUrl: signedImageUrl,
+        storagePath: localImagePath,
         metadata: { personaId, mbti, gender, model: "gemini-2.5-flash-image" }
       });
     }
@@ -941,11 +963,15 @@ router.post('/generate-persona-single-expression', async (req, res) => {
 
     console.log(`✅ ${emotion} 표정 이미지 Object Storage 저장 완료: ${localImagePath}`);
 
+    // GCS 환경에서는 Signed URL로 변환
+    const signedImageUrl = await transformToSignedUrl(localImagePath) || localImagePath;
+
     res.json({
       success: true,
       emotion,
       emotionEnglish: emotionInfo.english,
-      imageUrl: localImagePath,
+      imageUrl: signedImageUrl,
+      storagePath: localImagePath,
       metadata: { personaId, mbti, gender, model: "gemini-2.5-flash-image" }
     });
 
