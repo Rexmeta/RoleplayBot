@@ -553,6 +553,81 @@ export function ScenarioManager() {
     }
   };
 
+  // 기본 이미지 프롬프트 로드
+  const handleLoadDefaultImagePrompt = async () => {
+    if (!formData.title) {
+      toast({
+        title: t('admin.scenarioManager.toast.titleNeededForImage'),
+        description: t('admin.scenarioManager.toast.titleNeededForImageDesc'),
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      const response = await apiRequest('POST', '/api/admin/scenarios/default-image-prompt', {
+        scenarioTitle: formData.title,
+        description: formData.description,
+        theme: formData.theme,
+        industry: formData.industry,
+      });
+      
+      const data = await response.json();
+      
+      if (data.success && data.prompt) {
+        setFormData(prev => ({ ...prev, imagePrompt: data.prompt }));
+        toast({
+          title: t('admin.scenarioManager.toast.promptLoaded', '프롬프트 로드됨'),
+          description: t('admin.scenarioManager.toast.promptLoadedDesc', '기본 프롬프트가 로드되었습니다. 편집 후 사용하세요.'),
+        });
+      }
+    } catch (error: any) {
+      console.error('Error loading default image prompt:', error);
+      toast({
+        title: t('admin.scenarioManager.toast.promptLoadFailed', '프롬프트 로드 실패'),
+        description: error.message,
+        variant: "destructive",
+      });
+    }
+  };
+
+  // 기본 비디오 프롬프트 로드
+  const handleLoadDefaultVideoPrompt = async () => {
+    if (!formData.title) {
+      toast({
+        title: t('admin.scenarioManager.toast.titleNeededForVideo'),
+        description: t('admin.scenarioManager.toast.titleNeededForVideoDesc'),
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      const response = await apiRequest('POST', '/api/admin/scenarios/default-video-prompt', {
+        scenarioTitle: formData.title,
+        description: formData.description,
+        context: formData.context,
+      });
+      
+      const data = await response.json();
+      
+      if (data.success && data.prompt) {
+        setFormData(prev => ({ ...prev, videoPrompt: data.prompt }));
+        toast({
+          title: t('admin.scenarioManager.toast.promptLoaded', '프롬프트 로드됨'),
+          description: t('admin.scenarioManager.toast.promptLoadedDesc', '기본 프롬프트가 로드되었습니다. 편집 후 사용하세요.'),
+        });
+      }
+    } catch (error: any) {
+      console.error('Error loading default video prompt:', error);
+      toast({
+        title: t('admin.scenarioManager.toast.promptLoadFailed', '프롬프트 로드 실패'),
+        description: error.message,
+        variant: "destructive",
+      });
+    }
+  };
+
   const handleDeleteVideo = async () => {
     if (!editingScenario?.id) {
       return;
@@ -674,7 +749,19 @@ export function ScenarioManager() {
                   
                   {/* 이미지 프롬프트 입력 */}
                   <div className="space-y-2">
-                    <Label htmlFor="imagePrompt" className="text-sm font-medium text-slate-700">{t('admin.scenarioManager.form.imagePrompt', 'Image Prompt (Optional)')}</Label>
+                    <div className="flex items-center justify-between">
+                      <Label htmlFor="imagePrompt" className="text-sm font-medium text-slate-700">{t('admin.scenarioManager.form.imagePrompt', 'Image Prompt (Optional)')}</Label>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={handleLoadDefaultImagePrompt}
+                        disabled={!formData.title}
+                        className="text-xs"
+                      >
+                        {t('admin.scenarioManager.form.loadDefaultPrompt', '기본 프롬프트 로드')}
+                      </Button>
+                    </div>
                     <Textarea
                       id="imagePrompt"
                       value={formData.imagePrompt || ''}
@@ -787,7 +874,19 @@ export function ScenarioManager() {
                   
                   {/* 비디오 프롬프트 입력 */}
                   <div className="space-y-2">
-                    <Label htmlFor="videoPrompt" className="text-sm font-medium text-slate-700">{t('admin.scenarioManager.form.videoPrompt')}</Label>
+                    <div className="flex items-center justify-between">
+                      <Label htmlFor="videoPrompt" className="text-sm font-medium text-slate-700">{t('admin.scenarioManager.form.videoPrompt')}</Label>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={handleLoadDefaultVideoPrompt}
+                        disabled={!formData.title}
+                        className="text-xs"
+                      >
+                        {t('admin.scenarioManager.form.loadDefaultPrompt', '기본 프롬프트 로드')}
+                      </Button>
+                    </div>
                     <Textarea
                       id="videoPrompt"
                       value={formData.videoPrompt || ''}
