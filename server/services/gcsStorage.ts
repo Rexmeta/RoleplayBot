@@ -86,12 +86,19 @@ export async function uploadToGCS(
 }
 
 export async function getSignedUrl(objectPath: string): Promise<{ url: string; expiresIn: number }> {
+  // CRITICAL: Normalize path to remove query strings (?t=timestamp) that break GCS lookups
+  const cleanPath = normalizeObjectPath(objectPath);
+  if (!cleanPath) {
+    throw new Error("Invalid object path");
+  }
+  
   const bucketName = getGCSBucketName();
   const storage = getStorageClient();
-  const file = storage.bucket(bucketName).file(objectPath);
+  const file = storage.bucket(bucketName).file(cleanPath);
 
   const [exists] = await file.exists();
   if (!exists) {
+    console.error(`[GCS] File not found: "${cleanPath}" (original: "${objectPath}")`);
     throw new Error("File not found");
   }
 
@@ -153,13 +160,32 @@ export async function checkGCSConnection(): Promise<boolean> {
 export function normalizeObjectPath(path: string | null | undefined): string | null {
   if (!path) return null;
   
+  let cleanPath = path;
+  
   // Remove gcs:// prefix if present (backward compatibility)
-  if (path.startsWith('gcs://')) {
-    return path.substring(6);
+  if (cleanPath.startsWith('gcs://')) {
+    cleanPath = cleanPath.substring(6);
   }
   
-  // Already a clean object path
-  return path;
+  // Handle URL format (extract pathname)
+  try {
+    // Check if it's a full URL (signed URL or http URL)
+    if (cleanPath.startsWith('http://') || cleanPath.startsWith('https://')) {
+      const url = new URL(cleanPath);
+      cleanPath = url.pathname.replace(/^\/+/, ''); // Remove leading slashes
+    }
+  } catch {
+    // Not a URL, continue with path processing
+  }
+  
+  // CRITICAL: Remove query strings (?t=timestamp, etc.) - these break GCS lookups
+  // GCS object keys must be exact matches without query parameters
+  const queryIndex = cleanPath.indexOf('?');
+  if (queryIndex !== -1) {
+    cleanPath = cleanPath.substring(0, queryIndex);
+  }
+  
+  return cleanPath;
 }
 
 /**
@@ -208,60 +234,93 @@ export async function transformToSignedUrl(path: string | null | undefined): Pro
 }
 
 /**
+ * Safely transform a single path to signed URL
+ * Returns original path on failure instead of throwing
+ */
+async function safeTransformToSignedUrl(path: string): Promise<string> {
+  if (!path) return path;
+  try {
+    const signedUrl = await transformToSignedUrl(path);
+    return signedUrl || path;
+  } catch (error) {
+    console.error(`[GCS] Failed to generate signed URL for ${path}:`, error);
+    return path; // Return original path as fallback
+  }
+}
+
+/**
  * Transform a scenario object's media fields to signed URLs
+ * Uses safe transformation to prevent failures from breaking scenario
  */
 export async function transformScenarioMedia(scenario: any): Promise<any> {
   if (!scenario) return scenario;
   
-  const [imageUrl, introVideoUrl] = await Promise.all([
-    transformToSignedUrl(scenario.image),
-    transformToSignedUrl(scenario.introVideoUrl)
-  ]);
-  
-  return {
-    ...scenario,
-    image: imageUrl,
-    introVideoUrl: introVideoUrl
-  };
+  try {
+    const [imageUrl, introVideoUrl] = await Promise.all([
+      safeTransformToSignedUrl(scenario.image || ''),
+      safeTransformToSignedUrl(scenario.introVideoUrl || '')
+    ]);
+    
+    return {
+      ...scenario,
+      image: imageUrl || scenario.image,
+      introVideoUrl: introVideoUrl || scenario.introVideoUrl
+    };
+  } catch (error) {
+    console.error(`[GCS] Failed to transform scenario media for ${scenario?.id || 'unknown'}:`, error);
+    return scenario; // Return original scenario on failure
+  }
 }
 
 /**
  * Transform multiple scenarios' media fields to signed URLs
+ * Uses Promise.allSettled for partial failure tolerance
  */
 export async function transformScenariosMedia(scenarios: any[]): Promise<any[]> {
   if (!scenarios || !Array.isArray(scenarios)) return scenarios;
   
-  return Promise.all(scenarios.map(scenario => transformScenarioMedia(scenario)));
+  // Use Promise.allSettled for partial failure tolerance
+  const results = await Promise.allSettled(
+    scenarios.map(scenario => transformScenarioMedia(scenario))
+  );
+  
+  return results.map((result, index) => {
+    if (result.status === 'fulfilled') {
+      return result.value;
+    } else {
+      console.error(`[GCS] Scenario media transform failed:`, result.reason);
+      return scenarios[index]; // Return original on failure
+    }
+  });
 }
 
 /**
  * Transform persona images object to signed URLs
  * Handles the nested structure: images.male.expressions, images.female.expressions
+ * Uses safe transformation to prevent single image failures from breaking entire persona
  */
 export async function transformPersonaImages(images: any): Promise<any> {
   if (!images || !isGCSAvailable()) return images;
   
   const result: any = { ...images };
   
-  // Transform male expressions
+  // Transform male expressions with safe error handling
   if (images.male?.expressions) {
     const maleExpressions: Record<string, string> = {};
     for (const [emotion, path] of Object.entries(images.male.expressions)) {
       if (typeof path === 'string') {
-        const signedUrl = await transformToSignedUrl(path);
-        maleExpressions[emotion] = signedUrl || path;
+        maleExpressions[emotion] = await safeTransformToSignedUrl(path);
       }
     }
     result.male = { ...images.male, expressions: maleExpressions };
   }
   
-  // Transform female expressions
+  // Transform female expressions with safe error handling
   if (images.female?.expressions) {
     const femaleExpressions: Record<string, string> = {};
     for (const [emotion, path] of Object.entries(images.female.expressions)) {
       if (typeof path === 'string') {
-        const signedUrl = await transformToSignedUrl(path);
-        femaleExpressions[emotion] = signedUrl || path;
+        femaleExpressions[emotion] = await safeTransformToSignedUrl(path);
       }
     }
     result.female = { ...images.female, expressions: femaleExpressions };
@@ -276,21 +335,39 @@ export async function transformPersonaImages(images: any): Promise<any> {
 export async function transformPersonaMedia(persona: any): Promise<any> {
   if (!persona) return persona;
   
-  const transformedImages = await transformPersonaImages(persona.images);
-  
-  return {
-    ...persona,
-    images: transformedImages
-  };
+  try {
+    const transformedImages = await transformPersonaImages(persona.images);
+    
+    return {
+      ...persona,
+      images: transformedImages
+    };
+  } catch (error) {
+    console.error(`[GCS] Failed to transform persona media for ${persona?.id || 'unknown'}:`, error);
+    return persona; // Return original persona on failure
+  }
 }
 
 /**
  * Transform multiple personas' image fields to signed URLs
+ * Uses safe transformation to prevent single persona failure from breaking entire list
  */
 export async function transformPersonasMedia(personas: any[]): Promise<any[]> {
   if (!personas || !Array.isArray(personas)) return personas;
   
-  return Promise.all(personas.map(persona => transformPersonaMedia(persona)));
+  // Use Promise.allSettled for partial failure tolerance
+  const results = await Promise.allSettled(
+    personas.map(persona => transformPersonaMedia(persona))
+  );
+  
+  return results.map((result, index) => {
+    if (result.status === 'fulfilled') {
+      return result.value;
+    } else {
+      console.error(`[GCS] Persona media transform failed:`, result.reason);
+      return personas[index]; // Return original on failure
+    }
+  });
 }
 
 /**
