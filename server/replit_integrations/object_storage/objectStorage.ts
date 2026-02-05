@@ -11,24 +11,49 @@ import {
 
 const REPLIT_SIDECAR_ENDPOINT = "http://127.0.0.1:1106";
 
+// Check if running on Cloud Run (set before any Replit-specific code runs)
+function isCloudRunEnv(): boolean {
+  return !!process.env.K_SERVICE || !!process.env.K_REVISION;
+}
+
 // The object storage client is used to interact with the object storage service.
-export const objectStorageClient = new Storage({
-  credentials: {
-    audience: "replit",
-    subject_token_type: "access_token",
-    token_url: `${REPLIT_SIDECAR_ENDPOINT}/token`,
-    type: "external_account",
-    credential_source: {
-      url: `${REPLIT_SIDECAR_ENDPOINT}/credential`,
-      format: {
-        type: "json",
-        subject_token_field_name: "access_token",
+// CRITICAL: This client uses Replit's sidecar endpoint and MUST NOT be used on Cloud Run
+let objectStorageClient: Storage | null = null;
+
+function getObjectStorageClient(): Storage {
+  if (isCloudRunEnv()) {
+    throw new Error(
+      "Replit Object Storage is not available on Cloud Run. " +
+      "Use GCS (Google Cloud Storage) directly instead. " +
+      "Set GCS_BUCKET_NAME environment variable."
+    );
+  }
+  
+  if (!objectStorageClient) {
+    objectStorageClient = new Storage({
+      credentials: {
+        audience: "replit",
+        subject_token_type: "access_token",
+        token_url: `${REPLIT_SIDECAR_ENDPOINT}/token`,
+        type: "external_account",
+        credential_source: {
+          url: `${REPLIT_SIDECAR_ENDPOINT}/credential`,
+          format: {
+            type: "json",
+            subject_token_field_name: "access_token",
+          },
+        },
+        universe_domain: "googleapis.com",
       },
-    },
-    universe_domain: "googleapis.com",
-  },
-  projectId: "",
-});
+      projectId: "",
+    });
+  }
+  
+  return objectStorageClient;
+}
+
+// Export the getter function for backwards compatibility (but will throw on Cloud Run)
+export { getObjectStorageClient };
 
 export class ObjectNotFoundError extends Error {
   constructor() {
@@ -39,8 +64,18 @@ export class ObjectNotFoundError extends Error {
 }
 
 // The object storage service is used to interact with the object storage service.
+// CRITICAL: This class is for Replit Object Storage ONLY. Do NOT use on Cloud Run.
 export class ObjectStorageService {
-  constructor() {}
+  constructor() {
+    // Block instantiation on Cloud Run
+    if (isCloudRunEnv()) {
+      console.error('[ObjectStorageService] BLOCKED: Cannot use Replit Object Storage on Cloud Run');
+      throw new Error(
+        "ObjectStorageService is not available on Cloud Run. " +
+        "Use GCS storage functions from gcsStorage.ts instead."
+      );
+    }
+  }
 
   // Gets the public object search paths.
   getPublicObjectSearchPaths(): Array<string> {
@@ -81,7 +116,7 @@ export class ObjectStorageService {
 
       // Full path format: /<bucket_name>/<object_name>
       const { bucketName, objectName } = parseObjectPath(fullPath);
-      const bucket = objectStorageClient.bucket(bucketName);
+      const bucket = getObjectStorageClient().bucket(bucketName);
       const file = bucket.file(objectName);
 
       // Check if file exists
@@ -172,7 +207,7 @@ export class ObjectStorageService {
     }
     const objectEntityPath = `${entityDir}${entityId}`;
     const { bucketName, objectName } = parseObjectPath(objectEntityPath);
-    const bucket = objectStorageClient.bucket(bucketName);
+    const bucket = getObjectStorageClient().bucket(bucketName);
     const objectFile = bucket.file(objectName);
     const [exists] = await objectFile.exists();
     if (!exists) {

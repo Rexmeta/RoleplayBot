@@ -42,17 +42,51 @@ Preferred communication style: Simple, everyday language.
 - **Data Persistence**: Scenarios and MBTI personas are stored in the PostgreSQL database to persist across Replit deployments. FileManagerService uses database as primary source with JSON file fallback.
 
 ## Media Storage (Object Storage)
-- **Provider**: Replit Object Storage (Google Cloud Storage backend)
-- **Purpose**: Persistent storage for media files (images, videos) that survives Replit deployments
+
+### Dual Deployment Support
+The system supports two completely separate storage backends:
+
+#### Replit Environment (development)
+- **Provider**: Replit Object Storage (via sidecar at 127.0.0.1:1106)
 - **URL Format**: `/objects/uploads/{uuid}` for serving uploaded files
-- **Services**:
-  - `server/services/mediaStorage.ts`: High-level media upload service
-  - `server/replit_integrations/object_storage/index.ts`: Object Storage API wrapper
-- **Features**:
-  - Public/private ACL policies
-  - Presigned upload URLs for direct browser uploads
-  - Automatic content-type detection
-- **Migration**: Run `npx tsx server/scripts/migrateToObjectStorage.ts` to migrate existing local files
+- **Detection**: `REPL_ID` environment variable present
+- **Routes**: `/objects/*` routes ENABLED for file serving
+
+#### Cloud Run Environment (production)
+- **Provider**: Google Cloud Storage (GCS)
+- **URL Format**: GCS Signed URLs (1-hour expiration)
+- **Detection**: `K_SERVICE` or `K_REVISION` environment variable present
+- **Required Env Vars**:
+  - `GCS_BUCKET_NAME`: Your GCS bucket name (e.g., `roleplay-bucket`)
+- **Routes**: `/objects/*` routes DISABLED (returns 400 error with guidance)
+- **IMPORTANT**: Remove Replit-specific env vars from Cloud Run:
+  - `PRIVATE_OBJECT_DIR` - causes Replit fallback attempts
+  - `PUBLIC_OBJECT_SEARCH_PATHS` - not needed
+  
+#### Cloud Run Setup Commands
+```bash
+# Set GCS bucket and remove Replit env vars
+gcloud run services update SERVICE_NAME \
+  --region REGION \
+  --update-env-vars GCS_BUCKET_NAME=your-bucket \
+  --clear-env-vars PRIVATE_OBJECT_DIR,PUBLIC_OBJECT_SEARCH_PATHS
+
+# Grant storage permissions to runtime service account
+gcloud storage buckets add-iam-policy-binding gs://your-bucket \
+  --member=serviceAccount:runtime-sa@PROJECT.iam.gserviceaccount.com \
+  --role=roles/storage.objectAdmin
+```
+
+### Path Normalization
+Object paths are automatically normalized:
+- Query strings (`?t=timestamp`) are stripped before GCS lookup
+- `/objects/` paths are handled differently per environment
+- Signed URLs are generated for GCS paths on Cloud Run
+
+### Services
+- `server/services/gcsStorage.ts`: GCS operations, signed URLs, path normalization
+- `server/services/mediaStorage.ts`: High-level media upload service (auto-selects backend)
+- `server/replit_integrations/object_storage/`: Replit-only storage (blocked on Cloud Run)
 
 ## Features
 - **Comprehensive Persona Reflection**: AI conversations fully reflect persona definitions including:

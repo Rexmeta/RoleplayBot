@@ -5,6 +5,12 @@ let ObjectStorageService: any = null;
 let objectStorage: any = null;
 
 async function initReplitObjectStorage() {
+  // CRITICAL: Never initialize Replit Object Storage on Cloud Run
+  if (isCloudRun()) {
+    console.error('[MediaStorage] BLOCKED: Attempted to initialize Replit Object Storage on Cloud Run');
+    return null;
+  }
+  
   if (objectStorage) return objectStorage;
   
   try {

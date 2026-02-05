@@ -1,8 +1,12 @@
 import type { Express } from "express";
 import { ObjectStorageService, ObjectNotFoundError } from "./objectStorage";
+import { isCloudRun } from "../../services/gcsStorage";
 
 /**
  * Register object storage routes for file uploads.
+ *
+ * IMPORTANT: These routes are for Replit Object Storage ONLY.
+ * On Cloud Run/GCS, these routes return errors - use GCS Signed URLs instead.
  *
  * This provides example routes for the presigned URL upload flow:
  * 1. POST /api/uploads/request-url - Get a presigned URL for uploading
@@ -14,6 +18,32 @@ import { ObjectStorageService, ObjectNotFoundError } from "./objectStorage";
  * - Add ACL policies for access control
  */
 export function registerObjectStorageRoutes(app: Express): void {
+  // Skip registration entirely on Cloud Run - these routes are Replit-only
+  if (isCloudRun()) {
+    console.log('[Object Storage Routes] Cloud Run detected - Replit Object Storage routes DISABLED');
+    console.log('[Object Storage Routes] Use GCS Signed URLs instead of /objects/* paths');
+    
+    // Register error handlers for /objects/* on Cloud Run
+    app.all("/objects/*", (req, res) => {
+      console.error(`[Object Storage] Blocked Replit path on Cloud Run: ${req.path}`);
+      return res.status(400).json({
+        error: "Replit Object Storage not available on Cloud Run",
+        message: "Use GCS Signed URLs instead of /objects/* paths",
+        hint: "Check that your image/video URLs are GCS Signed URLs, not /objects/ paths"
+      });
+    });
+    
+    app.post("/api/uploads/request-url", (req, res) => {
+      console.error('[Object Storage] Blocked Replit upload request on Cloud Run');
+      return res.status(400).json({
+        error: "Replit Object Storage not available on Cloud Run",
+        message: "Use GCS upload endpoints instead"
+      });
+    });
+    
+    return; // Don't register Replit-specific routes
+  }
+
   const objectStorageService = new ObjectStorageService();
 
   /**

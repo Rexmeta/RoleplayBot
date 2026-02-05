@@ -11,8 +11,40 @@ console.log(`  - K_SERVICE: ${process.env.K_SERVICE ? 'SET (Cloud Run)' : 'NOT S
 console.log(`  - REPL_ID: ${process.env.REPL_ID ? 'SET (Replit)' : 'NOT SET'}`);
 console.log(`  - GCS_BUCKET_NAME: ${GCS_BUCKET_NAME ? `"${GCS_BUCKET_NAME}"` : 'NOT SET'}`);
 console.log(`  - PRIVATE_OBJECT_DIR: ${process.env.PRIVATE_OBJECT_DIR ? 'SET' : 'NOT SET'}`);
-if (process.env.K_SERVICE && !GCS_BUCKET_NAME) {
-  console.error(`[Storage Config] CRITICAL: Cloud Run detected but GCS_BUCKET_NAME is not configured!`);
+
+// Determine and log the active storage mode
+const isCloudRunEnv = !!process.env.K_SERVICE || !!process.env.K_REVISION;
+const isReplitEnv = !!process.env.REPL_ID;
+
+if (isCloudRunEnv) {
+  console.log(`[Storage Config] ========================================`);
+  console.log(`[Storage Config] CLOUD RUN MODE ACTIVE`);
+  console.log(`[Storage Config] ========================================`);
+  if (GCS_BUCKET_NAME) {
+    console.log(`[Storage Config] ✅ Storage Backend: Google Cloud Storage`);
+    console.log(`[Storage Config]    Bucket: ${GCS_BUCKET_NAME}`);
+    console.log(`[Storage Config]    /objects/* routes: DISABLED (use GCS Signed URLs)`);
+  } else {
+    console.error(`[Storage Config] ❌ CRITICAL: GCS_BUCKET_NAME not configured!`);
+    console.error(`[Storage Config]    Media uploads/downloads will FAIL`);
+    console.error(`[Storage Config]    Set: gcloud run services update SERVICE --update-env-vars GCS_BUCKET_NAME=your-bucket`);
+  }
+} else if (isReplitEnv) {
+  console.log(`[Storage Config] ========================================`);
+  console.log(`[Storage Config] REPLIT MODE ACTIVE`);
+  console.log(`[Storage Config] ========================================`);
+  if (GCS_BUCKET_NAME) {
+    console.log(`[Storage Config] ✅ Storage Backend: Google Cloud Storage`);
+  } else if (process.env.PRIVATE_OBJECT_DIR) {
+    console.log(`[Storage Config] ✅ Storage Backend: Replit Object Storage`);
+    console.log(`[Storage Config]    /objects/* routes: ENABLED`);
+  } else {
+    console.log(`[Storage Config] ⚠️ No storage backend configured`);
+  }
+} else {
+  console.log(`[Storage Config] ========================================`);
+  console.log(`[Storage Config] LOCAL/UNKNOWN MODE`);
+  console.log(`[Storage Config] ========================================`);
 }
 
 function getStorageClient(): Storage {
@@ -195,11 +227,11 @@ export function normalizeObjectPath(path: string | null | undefined): string | n
 export async function transformToSignedUrl(path: string | null | undefined): Promise<string | null> {
   if (!path) return null;
   
-  // Normalize the path (remove gcs:// if present)
+  // Normalize the path (remove gcs://, query strings, etc.)
   let objectPath = normalizeObjectPath(path);
   if (!objectPath) return null;
   
-  // If not in GCS environment, return as-is
+  // If not in GCS environment, return as-is (for Replit)
   if (!isGCSAvailable()) {
     return path;
   }
@@ -214,6 +246,26 @@ export async function transformToSignedUrl(path: string | null | undefined): Pro
   // Remove leading slash if present (e.g., /scenarios/... -> scenarios/...)
   if (objectPath.startsWith('/')) {
     objectPath = objectPath.substring(1);
+  }
+  
+  // Handle Replit Object Storage paths (/objects/...) on Cloud Run
+  // These paths cannot be served on Cloud Run - return null or try to extract useful path
+  if (objectPath.startsWith('objects/')) {
+    // On Cloud Run, /objects/* paths are not valid - these are Replit-only
+    if (isCloudRun()) {
+      console.warn(`[GCS] Replit Object Storage path detected on Cloud Run: ${path}`);
+      console.warn('[GCS] This path cannot be served on Cloud Run. Data migration may be needed.');
+      // Try to extract uploads/ or other prefixes from the path
+      const uploadsMatch = objectPath.match(/objects\/uploads\/(.+)/);
+      if (uploadsMatch) {
+        // Try to serve from uploads/ in GCS
+        objectPath = `uploads/${uploadsMatch[1]}`;
+      } else {
+        return null; // Cannot serve this path on Cloud Run
+      }
+    } else {
+      return path; // On Replit, return as-is for /objects/* route
+    }
   }
   
   // Check if it's a valid GCS object path (scenarios/, videos/, personas/, uploads/)
@@ -418,7 +470,8 @@ export async function listGCSFiles(prefix: string): Promise<{ name: string; sign
   const privateObjectDir = process.env.PRIVATE_OBJECT_DIR;
   if (process.env.REPL_ID && privateObjectDir) {
     try {
-      const { objectStorageClient } = await import("../replit_integrations/object_storage/objectStorage");
+      const { getObjectStorageClient } = await import("../replit_integrations/object_storage/objectStorage");
+      const storageClient = getObjectStorageClient();
       
       // Parse the private object dir to get bucket name
       // Format: /<bucket_name>/path
@@ -428,7 +481,7 @@ export async function listGCSFiles(prefix: string): Promise<{ name: string; sign
         return [];
       }
       const bucketName = pathParts[0];
-      const bucket = objectStorageClient.bucket(bucketName);
+      const bucket = storageClient.bucket(bucketName);
       
       // Determine the full prefix path
       // For scenarios/, we look in the private object directory
