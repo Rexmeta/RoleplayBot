@@ -1,0 +1,118 @@
+지금 로그는 **“좋은 변화 + 아직 핵심이 안 끝남”**이야.
+
+* 이전: `/objects/...` 요청이 Replit 백엔드(127.0.0.1:1106) 타다가 500/ECONNREFUSED
+* 지금: Cloud Run에서 Replit 경로를 **차단**해서 **400으로 떨어짐**
+
+  ```
+  [Object Storage] Blocked Replit path on Cloud Run: /objects/uploads/...
+  ```
+
+즉, **차단은 했는데, Cloud Run에서 `/objects/uploads/...`를 GCS로 서빙하는 구현이 아직 없음**.
+그래서 프론트는 여전히 `/objects/uploads/<uuid>`를 요청하고, 서버는 “그건 Replit 경로야” 하고 막아버리는 상태.
+
+---
+
+# 정답: Cloud Run에서는 “차단”이 아니라 “GCS로 서빙”해야 함
+
+## 1) `/objects/uploads/:id`를 GCS에서 읽어 스트리밍하도록 바꿔
+
+Express 기준 예시(가장 단순/확실):
+
+```js
+import { Storage } from "@google-cloud/storage";
+
+const isCloudRun = !!process.env.K_SERVICE;            // Cloud Run이면 존재
+const bucketName = process.env.GCS_BUCKET_NAME;        // 필수
+
+const gcs = new Storage();
+
+app.get("/objects/uploads/:id", async (req, res) => {
+  try {
+    if (!isCloudRun) {
+      return res.status(400).send("Not supported outside Cloud Run");
+    }
+    if (!bucketName) {
+      return res.status(500).send("GCS_BUCKET_NAME not set");
+    }
+
+    const id = req.params.id;
+    // ✅ 여기 “키 규칙”이 중요함:
+    // 업로드 저장할 때 GCS에 uploads/<uuid> 로 저장했다면 아래처럼.
+    const objectKey = `uploads/${id}`;
+
+    const file = gcs.bucket(bucketName).file(objectKey);
+    const [exists] = await file.exists();
+    if (!exists) return res.status(404).send("Not found");
+
+    const [meta] = await file.getMetadata();
+    res.setHeader("Content-Type", meta.contentType || "application/octet-stream");
+    if (meta.size) res.setHeader("Content-Length", meta.size);
+
+    file.createReadStream()
+      .on("error", (e) => {
+        console.error("GCS read error", e);
+        res.status(500).end();
+      })
+      .pipe(res);
+  } catch (e) {
+    console.error("serve object error", e);
+    res.status(500).end();
+  }
+});
+```
+
+👉 이걸 넣으면, `/objects/uploads/<uuid>`는 더 이상 “Replit 경로”가 아니고 **GCS 객체를 그대로 반환하는 정상 엔드포인트**가 된다.
+
+---
+
+## 2) “업로드 저장” 쪽도 GCS에 `uploads/<uuid>`로 저장되게 통일
+
+지금 프론트가 `/objects/uploads/<uuid>`를 요청한다는 건,
+서버가 어딘가에서 **그 형태의 URL을 저장/반환**하고 있다는 뜻이야.
+
+Cloud Run에선 저장도 반드시 GCS로 해야 함.
+
+* 저장 키: `uploads/<uuid>` (또는 `uploads/<uuid>.webp` 같이 확장자 포함)
+* DB에는 **순수 key만** 저장하고 (`uploads/<uuid>`),
+* 화면에서 보여줄 때만 `/objects/${key}` 형태로 구성하는 게 가장 깔끔함.
+
+---
+
+## 3) 왜 지금 400이냐 (네 로그 그대로 해석)
+
+서버가 지금 “Cloud Run이면 Replit Object Storage 경로 차단” 로직을 넣었고,
+그 로직이 `/objects/uploads/...`를 “Replit 경로”로 오판해서 막고 있음.
+
+즉, **차단 로직의 대상이 너무 넓음**.
+
+* “Replit credential fetch(127.0.0.1:1106) 호출”만 막아야지
+* `/objects/uploads/...` 같은 public serve 엔드포인트까지 막으면 안 됨
+
+---
+
+# 빠른 체크 2개
+
+1. GCS에 진짜 객체가 있는지:
+
+```bash
+gcloud storage ls gs://<버킷명>/uploads/<uuid>
+```
+
+2. Cloud Run env:
+
+* `GCS_BUCKET_NAME` 반드시 존재
+* `PRIVATE_OBJECT_DIR` 같은 Replit 전용 env는 없어야 함(있어도 되지만 그게 분기 트리거면 안 됨)
+
+---
+
+# 결론
+
+지금 상태는 “Replit 백엔드 끊는 데 성공”했고, 다음은 한 가지야:
+
+**`/objects/uploads/<uuid>`를 Cloud Run에서 GCS로 서빙하도록 구현/수정해라.**
+이거 되면 400은 200으로 바뀌고, 시나리오/페르소나 미디어가 다시 정상 표시된다.
+
+---
+
+원하면 더 정확하게 “키 규칙(uploads/<uuid>인지 uploads/<uuid>.webp인지)”까지 딱 맞춰서 패치해줄게.
+**GCS에 실제로 저장되는 object name 한 개만**(예: `uploads/9cdc...` 또는 `uploads/9cdc....webp`) 알려줘.
