@@ -469,14 +469,23 @@ export function ScenarioManager() {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     
-    // Debug: log form data being submitted
-    console.log('[ScenarioManager] Submitting form data:', {
+    // Debug: log complete form data being submitted
+    console.log('[ScenarioManager] ===== FORM SUBMIT START =====');
+    console.log('[ScenarioManager] Form data media fields:', {
+      image: formData.image || '(EMPTY)',
+      introVideoUrl: formData.introVideoUrl || '(EMPTY)',
+      imagePrompt: formData.imagePrompt || '(EMPTY)',
+      videoPrompt: formData.videoPrompt || '(EMPTY)',
+      editingScenarioId: editingScenario?.id || '(NEW)'
+    });
+    console.log('[ScenarioManager] Full formData JSON:', JSON.stringify({
+      title: formData.title,
       image: formData.image,
       introVideoUrl: formData.introVideoUrl,
       imagePrompt: formData.imagePrompt,
-      videoPrompt: formData.videoPrompt,
-      editingScenarioId: editingScenario?.id
-    });
+      videoPrompt: formData.videoPrompt
+    }, null, 2));
+    console.log('[ScenarioManager] ===== FORM SUBMIT END =====');
     
     // 필수 필드 검증
     if (!formData.title) {
@@ -2136,20 +2145,37 @@ export function ScenarioManager() {
                 {existingVideos.map((vid, idx) => (
                   <div
                     key={idx}
-                    className="relative border rounded-lg overflow-hidden cursor-pointer hover:ring-2 hover:ring-blue-500 transition-all"
-                    onClick={() => handleSelectVideo(vid.path, vid.url)}
+                    className="relative border rounded-lg overflow-hidden cursor-pointer hover:ring-2 hover:ring-blue-500 transition-all group"
                   >
                     <video
                       src={vid.url}
                       className="w-full h-40 object-cover"
                       muted
-                      onMouseEnter={(e) => (e.target as HTMLVideoElement).play()}
+                      preload="metadata"
+                      onMouseEnter={(e) => (e.target as HTMLVideoElement).play().catch(() => {})}
                       onMouseLeave={(e) => {
                         const video = e.target as HTMLVideoElement;
                         video.pause();
                         video.currentTime = 0;
                       }}
                     />
+                    {/* Overlay button for reliable selection */}
+                    <div 
+                      className="absolute inset-0 flex items-center justify-center bg-black/0 group-hover:bg-black/30 transition-all"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        console.log('[VideoSelector] Clicked video:', { path: vid.path, url: vid.url });
+                        handleSelectVideo(vid.path, vid.url);
+                      }}
+                    >
+                      <button
+                        type="button"
+                        className="opacity-0 group-hover:opacity-100 bg-blue-600 text-white px-3 py-1.5 rounded-md text-sm font-medium transition-opacity"
+                      >
+                        선택
+                      </button>
+                    </div>
                     <div className="absolute bottom-0 left-0 right-0 bg-black/60 text-white text-xs p-2 truncate">
                       {vid.path.split('/').pop()}
                     </div>

@@ -3946,11 +3946,20 @@ export async function registerRoutes(app: Express, httpServer: Server): Promise<
       const scenarioId = req.params.id;
       
       // Debug logging for image/video updates
+      console.log(`[Scenario Update] ===== REQUEST RECEIVED =====`);
       console.log(`[Scenario Update] ID: ${scenarioId}`);
-      console.log(`[Scenario Update] image received: ${req.body.image || '(empty)'}`);
-      console.log(`[Scenario Update] introVideoUrl received: ${req.body.introVideoUrl || '(empty)'}`);
-      console.log(`[Scenario Update] imagePrompt received: ${req.body.imagePrompt || '(empty)'}`);
-      console.log(`[Scenario Update] videoPrompt received: ${req.body.videoPrompt || '(empty)'}`);
+      console.log(`[Scenario Update] Body keys: ${Object.keys(req.body).join(', ')}`);
+      console.log(`[Scenario Update] image: "${req.body.image || '(EMPTY)'}"`);
+      console.log(`[Scenario Update] introVideoUrl: "${req.body.introVideoUrl || '(EMPTY)'}"`);
+      console.log(`[Scenario Update] imagePrompt: "${req.body.imagePrompt || '(EMPTY)'}"`);
+      console.log(`[Scenario Update] videoPrompt: "${req.body.videoPrompt || '(EMPTY)'}"`);
+      console.log(`[Scenario Update] Full media fields JSON:`, JSON.stringify({
+        image: req.body.image,
+        introVideoUrl: req.body.introVideoUrl,
+        imagePrompt: req.body.imagePrompt,
+        videoPrompt: req.body.videoPrompt
+      }));
+      console.log(`[Scenario Update] ===== END REQUEST =====`);
       
       // 번역된 데이터가 원본을 덮어쓰는 것 방지
       if (req.body._translated) {
@@ -3985,6 +3994,12 @@ export async function registerRoutes(app: Express, httpServer: Server): Promise<
       // Debug: log what was saved
       console.log(`[Scenario Update] After save - image: ${scenario.image || '(empty)'}`);
       console.log(`[Scenario Update] After save - introVideoUrl: ${(scenario as any).introVideoUrl || '(empty)'}`);
+      
+      // Verify by fetching directly from database
+      const verifyScenario = await storage.getScenario(scenarioId);
+      console.log(`[Scenario Update] DB Verification - image: "${verifyScenario?.image || '(NULL)'}"`);
+      console.log(`[Scenario Update] DB Verification - introVideoUrl: "${verifyScenario?.introVideoUrl || '(NULL)'}"`);
+      console.log(`[Scenario Update] ===== UPDATE COMPLETE =====`);
       
       // 원본 콘텐츠 번역 테이블도 업데이트 (isOriginal=true)
       try {
