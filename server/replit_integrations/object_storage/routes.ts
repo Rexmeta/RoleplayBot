@@ -1,49 +1,60 @@
 import type { Express } from "express";
 import { ObjectStorageService, ObjectNotFoundError } from "./objectStorage";
-import { isCloudRun } from "../../services/gcsStorage";
+import { isCloudRun, streamFromGCS, isGCSAvailable } from "../../services/gcsStorage";
+
+const GCS_BUCKET_NAME = process.env.GCS_BUCKET_NAME;
 
 /**
  * Register object storage routes for file uploads.
  *
- * IMPORTANT: These routes are for Replit Object Storage ONLY.
- * On Cloud Run/GCS, these routes return errors - use GCS Signed URLs instead.
+ * DUAL ENVIRONMENT SUPPORT:
+ * - Replit: Uses Replit Object Storage (127.0.0.1:1106 sidecar)
+ * - Cloud Run: Serves files directly from GCS bucket via streamFromGCS
  *
  * This provides example routes for the presigned URL upload flow:
  * 1. POST /api/uploads/request-url - Get a presigned URL for uploading
  * 2. The client then uploads directly to the presigned URL
- *
- * IMPORTANT: These are example routes. Customize based on your use case:
- * - Add authentication middleware for protected uploads
- * - Add file metadata storage (save to database after upload)
- * - Add ACL policies for access control
  */
 export function registerObjectStorageRoutes(app: Express): void {
-  // Skip registration entirely on Cloud Run - these routes are Replit-only
+  // Cloud Run: Serve /objects/* from GCS instead of Replit sidecar
   if (isCloudRun()) {
-    console.log('[Object Storage Routes] Cloud Run detected - Replit Object Storage routes DISABLED');
-    console.log('[Object Storage Routes] Use GCS Signed URLs instead of /objects/* paths');
+    console.log('[Object Storage Routes] Cloud Run detected - serving /objects/* from GCS');
     
-    // Register error handlers for /objects/* on Cloud Run
-    app.all("/objects/*", (req, res) => {
-      console.error(`[Object Storage] Blocked Replit path on Cloud Run: ${req.path}`);
-      return res.status(400).json({
-        error: "Replit Object Storage not available on Cloud Run",
-        message: "Use GCS Signed URLs instead of /objects/* paths",
-        hint: "Check that your image/video URLs are GCS Signed URLs, not /objects/ paths"
-      });
+    if (!GCS_BUCKET_NAME) {
+      console.error('[Object Storage Routes] WARNING: GCS_BUCKET_NAME not set!');
+      console.error('[Object Storage Routes] /objects/* requests will fail');
+    } else {
+      console.log(`[Object Storage Routes] GCS bucket: ${GCS_BUCKET_NAME}`);
+    }
+    
+    // Serve objects from GCS on Cloud Run using the shared streaming function
+    // Support both GET and HEAD for media playback compatibility
+    app.get("/objects/*", async (req, res) => {
+      console.log(`[Object Storage] GET from GCS: ${req.path}`);
+      await streamFromGCS(req.path, res);
     });
     
+    app.head("/objects/*", async (req, res) => {
+      // HEAD request - return metadata only without streaming content
+      console.log(`[Object Storage] HEAD from GCS: ${req.path}`);
+      await streamFromGCS(req.path, res, true); // headOnly = true
+    });
+    
+    // Upload endpoint - presigned URLs are Replit-specific
+    // On Cloud Run, uploads go through server-side routes (e.g., image generation, MediaStorageService)
     app.post("/api/uploads/request-url", (req, res) => {
-      console.error('[Object Storage] Blocked Replit upload request on Cloud Run');
+      console.log('[Object Storage] Upload request on Cloud Run - presigned URLs not available');
       return res.status(400).json({
-        error: "Replit Object Storage not available on Cloud Run",
-        message: "Use GCS upload endpoints instead"
+        error: "Presigned URLs not available on Cloud Run",
+        message: "File uploads are handled server-side on Cloud Run. Use the appropriate API endpoint for your upload type.",
+        hint: "For images, the server generates and uploads them directly via the image generation API."
       });
     });
     
     return; // Don't register Replit-specific routes
   }
 
+  // Replit: Use the sidecar-based Object Storage
   const objectStorageService = new ObjectStorageService();
 
   /**

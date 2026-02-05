@@ -23,7 +23,7 @@ if (isCloudRunEnv) {
   if (GCS_BUCKET_NAME) {
     console.log(`[Storage Config] ✅ Storage Backend: Google Cloud Storage`);
     console.log(`[Storage Config]    Bucket: ${GCS_BUCKET_NAME}`);
-    console.log(`[Storage Config]    /objects/* routes: DISABLED (use GCS Signed URLs)`);
+    console.log(`[Storage Config]    /objects/* routes: ENABLED (streaming from GCS)`);
   } else {
     console.error(`[Storage Config] ❌ CRITICAL: GCS_BUCKET_NAME not configured!`);
     console.error(`[Storage Config]    Media uploads/downloads will FAIL`);
@@ -186,8 +186,122 @@ export async function checkGCSConnection(): Promise<boolean> {
 }
 
 /**
+ * Stream a file from GCS directly to an HTTP response
+ * Used for serving /objects/* routes on Cloud Run
+ * 
+ * Accepts various path formats:
+ * - /objects/uploads/abc123 -> uploads/abc123
+ * - /objects/scenarios/path/to/file.webp -> scenarios/path/to/file.webp
+ * - uploads/abc123?t=timestamp -> uploads/abc123 (query strings stripped)
+ * - Full URLs (signed URLs) - pathname is extracted
+ * - gcs:// prefix paths - prefix is stripped
+ * 
+ * @param urlPath - The URL path (e.g., /objects/uploads/abc123)
+ * @param res - Express Response object to stream to
+ * @param headOnly - If true, only set headers (for HEAD requests)
+ * @returns Promise<boolean> - true if file was streamed, false if not found
+ */
+export async function streamFromGCS(urlPath: string, res: import("express").Response, headOnly: boolean = false): Promise<boolean> {
+  if (!GCS_BUCKET_NAME) {
+    console.error('[GCS Stream] GCS_BUCKET_NAME not configured');
+    res.status(500).json({ error: "GCS_BUCKET_NAME not configured" });
+    return false;
+  }
+
+  // Use normalizeObjectPath for consistent handling of all formats
+  // This handles: gcs://, full URLs, query strings, etc.
+  let objectPath = normalizeObjectPath(urlPath);
+  
+  if (!objectPath) {
+    console.warn(`[GCS Stream] Invalid object path: ${urlPath}`);
+    res.status(400).json({ error: "Invalid object path", path: urlPath });
+    return false;
+  }
+  
+  // Remove /objects/ prefix if present (not handled by normalizeObjectPath)
+  if (objectPath.startsWith('/objects/')) {
+    objectPath = objectPath.substring(9); // length of '/objects/'
+  } else if (objectPath.startsWith('objects/')) {
+    objectPath = objectPath.substring(8); // length of 'objects/'
+  }
+  
+  // Remove leading slash if still present
+  if (objectPath.startsWith('/')) {
+    objectPath = objectPath.substring(1);
+  }
+  
+  // Basic sanity check - path should not be empty or contain dangerous patterns
+  if (!objectPath || objectPath.includes('..')) {
+    console.warn(`[GCS Stream] Invalid object path after normalization: ${objectPath}`);
+    res.status(400).json({ error: "Invalid object path", path: objectPath });
+    return false;
+  }
+
+  try {
+    const storage = getStorageClient();
+    const file = storage.bucket(GCS_BUCKET_NAME).file(objectPath);
+    
+    const [exists] = await file.exists();
+    if (!exists) {
+      console.warn(`[GCS Stream] Object not found: gs://${GCS_BUCKET_NAME}/${objectPath}`);
+      res.status(404).json({ error: "Object not found", path: objectPath });
+      return false;
+    }
+
+    const [metadata] = await file.getMetadata();
+    
+    // Set appropriate headers
+    res.setHeader("Content-Type", metadata.contentType || "application/octet-stream");
+    if (metadata.size) {
+      res.setHeader("Content-Length", String(metadata.size));
+    }
+    // Cache for 1 hour
+    res.setHeader("Cache-Control", "public, max-age=3600");
+    // Add ETag for caching
+    if (metadata.etag) {
+      res.setHeader("ETag", metadata.etag);
+    }
+
+    // For HEAD requests, only return headers without body
+    if (headOnly) {
+      res.status(200).end();
+      return true;
+    }
+
+    // Stream the file to response (GET requests)
+    return new Promise<boolean>((resolve) => {
+      file.createReadStream()
+        .on("error", (err) => {
+          console.error(`[GCS Stream] Stream error for ${objectPath}:`, err);
+          if (!res.headersSent) {
+            res.status(500).json({ error: "Failed to stream file" });
+          }
+          resolve(false);
+        })
+        .on("end", () => {
+          resolve(true);
+        })
+        .pipe(res);
+    });
+      
+  } catch (error) {
+    console.error(`[GCS Stream] Error serving ${objectPath}:`, error);
+    if (!res.headersSent) {
+      res.status(500).json({ error: "Failed to serve file from GCS" });
+    }
+    return false;
+  }
+}
+
+/**
  * Normalize object path by removing gcs:// prefix if present
  * Handles backward compatibility with old format
+ * 
+ * Handles:
+ * - gcs:// prefix: gcs://uploads/abc -> uploads/abc
+ * - Full URLs: https://storage.googleapis.com/bucket/uploads/abc -> uploads/abc
+ * - Query strings: uploads/abc?t=123 -> uploads/abc
+ * - /objects/ prefix: /objects/uploads/abc -> uploads/abc
  */
 export function normalizeObjectPath(path: string | null | undefined): string | null {
   if (!path) return null;
@@ -199,12 +313,22 @@ export function normalizeObjectPath(path: string | null | undefined): string | n
     cleanPath = cleanPath.substring(6);
   }
   
-  // Handle URL format (extract pathname)
+  // Handle URL format (extract pathname and remove bucket name)
   try {
     // Check if it's a full URL (signed URL or http URL)
     if (cleanPath.startsWith('http://') || cleanPath.startsWith('https://')) {
       const url = new URL(cleanPath);
       cleanPath = url.pathname.replace(/^\/+/, ''); // Remove leading slashes
+      
+      // For GCS URLs like storage.googleapis.com/<bucket>/path, remove the bucket segment
+      // The pathname would be: <bucket>/uploads/abc -> need to strip bucket
+      if (url.hostname === 'storage.googleapis.com' && GCS_BUCKET_NAME) {
+        // Check if path starts with bucket name
+        const bucketPrefix = GCS_BUCKET_NAME + '/';
+        if (cleanPath.startsWith(bucketPrefix)) {
+          cleanPath = cleanPath.substring(bucketPrefix.length);
+        }
+      }
     }
   } catch {
     // Not a URL, continue with path processing

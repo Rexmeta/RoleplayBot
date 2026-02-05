@@ -54,11 +54,13 @@ The system supports two completely separate storage backends:
 
 #### Cloud Run Environment (production)
 - **Provider**: Google Cloud Storage (GCS)
-- **URL Format**: GCS Signed URLs (1-hour expiration)
+- **URL Format**: Both `/objects/*` paths AND GCS Signed URLs are supported
 - **Detection**: `K_SERVICE` or `K_REVISION` environment variable present
 - **Required Env Vars**:
   - `GCS_BUCKET_NAME`: Your GCS bucket name (e.g., `roleplay-bucket`)
-- **Routes**: `/objects/*` routes DISABLED (returns 400 error with guidance)
+- **Routes**: `/objects/*` routes serve files directly from GCS bucket
+  - `/objects/uploads/<uuid>` → streams `gs://bucket/uploads/<uuid>`
+  - `/objects/scenarios/<path>` → streams `gs://bucket/scenarios/<path>`
 - **IMPORTANT**: Remove Replit-specific env vars from Cloud Run:
   - `PRIVATE_OBJECT_DIR` - causes Replit fallback attempts
   - `PUBLIC_OBJECT_SEARCH_PATHS` - not needed
