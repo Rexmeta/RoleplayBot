@@ -5,6 +5,16 @@ const GCS_URL_TTL = Number(process.env.GCS_URL_TTL || 3600);
 
 let storageClient: Storage | null = null;
 
+// Startup environment logging
+console.log(`[Storage Config] Environment detection:`);
+console.log(`  - K_SERVICE: ${process.env.K_SERVICE ? 'SET (Cloud Run)' : 'NOT SET'}`);
+console.log(`  - REPL_ID: ${process.env.REPL_ID ? 'SET (Replit)' : 'NOT SET'}`);
+console.log(`  - GCS_BUCKET_NAME: ${GCS_BUCKET_NAME ? `"${GCS_BUCKET_NAME}"` : 'NOT SET'}`);
+console.log(`  - PRIVATE_OBJECT_DIR: ${process.env.PRIVATE_OBJECT_DIR ? 'SET' : 'NOT SET'}`);
+if (process.env.K_SERVICE && !GCS_BUCKET_NAME) {
+  console.error(`[Storage Config] CRITICAL: Cloud Run detected but GCS_BUCKET_NAME is not configured!`);
+}
+
 function getStorageClient(): Storage {
   if (!storageClient) {
     storageClient = new Storage();
@@ -12,7 +22,22 @@ function getStorageClient(): Storage {
   return storageClient;
 }
 
+export function isCloudRun(): boolean {
+  return !!process.env.K_SERVICE || !!process.env.K_REVISION;
+}
+
+export function isReplitEnvironment(): boolean {
+  return !!process.env.REPL_ID;
+}
+
 export function isGCSAvailable(): boolean {
+  if (isCloudRun()) {
+    if (!GCS_BUCKET_NAME) {
+      console.error("[GCS] Cloud Run detected but GCS_BUCKET_NAME is not set!");
+      return false;
+    }
+    return true;
+  }
   return !!GCS_BUCKET_NAME && !process.env.REPL_ID;
 }
 
@@ -307,7 +332,12 @@ export async function listGCSFiles(prefix: string): Promise<{ name: string; sign
     }
   }
 
-  // Replit Object Storage fallback
+  // Replit Object Storage fallback - ONLY in Replit environment, NOT on Cloud Run
+  if (isCloudRun()) {
+    console.error('[GCS] Cloud Run detected but GCS is not available. Check GCS_BUCKET_NAME env var.');
+    return [];
+  }
+  
   const privateObjectDir = process.env.PRIVATE_OBJECT_DIR;
   if (process.env.REPL_ID && privateObjectDir) {
     try {

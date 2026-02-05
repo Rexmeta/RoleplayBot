@@ -1,5 +1,5 @@
 import sharp from 'sharp';
-import { isGCSAvailable, uploadToGCS, deleteFromGCS, normalizeObjectPath } from './gcsStorage';
+import { isGCSAvailable, uploadToGCS, deleteFromGCS, normalizeObjectPath, isCloudRun } from './gcsStorage';
 
 let ObjectStorageService: any = null;
 let objectStorage: any = null;
@@ -21,6 +21,11 @@ async function initReplitObjectStorage() {
 function getStorageType(): 'gcs' | 'replit' | 'none' {
   if (isGCSAvailable()) {
     return 'gcs';
+  }
+  // On Cloud Run, never fall back to Replit Object Storage
+  if (isCloudRun()) {
+    console.error('[MediaStorage] Cloud Run detected but GCS not available. Check GCS_BUCKET_NAME.');
+    return 'none';
   }
   if (process.env.REPL_ID && process.env.PRIVATE_OBJECT_DIR) {
     return 'replit';
