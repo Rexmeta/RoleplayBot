@@ -1,0 +1,182 @@
+좋아, 이제 **문제의 마지막 퍼즐 조각**이 정확히 드러났어.
+지금 상황을 **원인 → 왜 연쇄로 터졌는지 → 정확한 수정 포인트** 순서로 딱 정리해줄게.
+
+---
+
+## 🔴 최종 원인 요약 (확정)
+
+### ❌ 현재 에러의 본질
+
+```
+Failed to generate signed URL for
+personas/infj/female/anxious.webp?t=1769070935782
+Error: File not found
+```
+
+👉 **GCS 객체 키에 `?t=timestamp`(쿼리 스트링)가 붙은 채로 signed URL을 만들려고 해서 실패**하고 있음.
+
+* GCS의 파일 이름(object key)은 **정확히 일치해야 함**
+* `personas/infj/female/anxious.webp` ✅
+* `personas/infj/female/anxious.webp?t=...` ❌ → 존재하지 않는 파일
+
+그래서:
+
+* `transformPersonaImages`
+* `transformPersonaMedia`
+* `Promise.all(...)`
+
+이 줄줄이 터지면서 **시나리오/페르소나 전체가 500으로 깨짐**
+
+---
+
+## 🔥 왜 이게 지금 한꺼번에 폭발했냐?
+
+### 1️⃣ 프론트 또는 DB에 **캐시 무효화용 `?t=`가 포함된 경로를 저장**
+
+* 원래 `?t=`는 **브라우저 캐시 회피용**
+* ❌ 스토리지 키로 저장하면 안 됨
+
+### 2️⃣ 서버에서 그 값을 그대로 GCS signed URL 생성에 사용
+
+```ts
+getSignedUrl("personas/...webp?t=123") // ❌
+```
+
+### 3️⃣ Promise.all 구조라서
+
+* 이미지 하나라도 실패 → **전체 페르소나 변환 실패**
+* 그 결과:
+
+  * 시나리오 리스트
+  * 시나리오 수정 진입
+  * 이미지/비디오 미리보기
+    전부 연쇄 실패
+
+---
+
+## ✅ 지금 당장 해야 할 “정답 수정” (2단계)
+
+---
+
+## ✅ 1단계 (필수): **Signed URL 만들기 전에 경로 정규화**
+
+### 🔧 반드시 들어가야 하는 함수
+
+```ts
+function normalizeObjectPath(input: string): string {
+  if (!input) return input;
+
+  // URL 형태일 수도 있고, 그냥 path일 수도 있음
+  try {
+    const u = new URL(input);
+    return u.pathname.replace(/^\/+/, ""); // "/personas/..." → "personas/..."
+  } catch {
+    return input.split("?")[0]; // "xxx.webp?t=123" → "xxx.webp"
+  }
+}
+```
+
+### 🔧 적용 위치 (핵심)
+
+`getSignedUrl`, `transformToSignedUrl` 호출 **직전**
+
+```ts
+const cleanPath = normalizeObjectPath(rawPath);
+const signedUrl = await getSignedUrl(cleanPath);
+```
+
+👉 이거 하나로 **지금 뜨는 File not found 에러는 바로 끝남**
+
+---
+
+## ✅ 2단계 (강력 권장): Promise.all에서 “부분 실패 허용”
+
+지금 구조:
+
+```ts
+await Promise.all(images.map(transformToSignedUrl)); // ❌ 하나라도 실패하면 전체 실패
+```
+
+운영에서 이건 너무 위험함.
+
+### 🔧 안전한 패턴
+
+```ts
+const safeTransform = async (path) => {
+  try {
+    return await transformToSignedUrl(path);
+  } catch (e) {
+    console.error("❌ signed url failed:", path, e);
+    return null; // 또는 fallback 이미지
+  }
+};
+
+const results = await Promise.all(images.map(safeTransform));
+```
+
+👉 **이미지 하나 깨졌다고 서비스 전체가 죽지 않게 하는 최소 방어선**
+
+---
+
+## 🚨 구조적으로 반드시 고쳐야 할 설계 원칙 (중요)
+
+### ❌ 하면 안 되는 것
+
+* DB / Scenario / Persona에
+
+  ```text
+  personas/infj/female/anxious.webp?t=123
+  ```
+
+  저장 ❌
+
+### ✅ 반드시 지킬 것
+
+* **DB에는 항상 순수 object key만 저장**
+
+  ```text
+  personas/infj/female/anxious.webp
+  ```
+
+* `?t=` 같은 캐시 버스터는
+
+  * 프론트 렌더링 시
+  * 또는 signed URL 자체의 만료시간으로 해결
+
+---
+
+## 🔍 보너스 체크 (혹시 다음으로 터질 수 있는 것)
+
+아래 커맨드로 **실제 파일 존재 여부**도 한 번만 확인해봐:
+
+```bash
+gcloud storage ls gs://roleplay-bucket/personas/infj/female/anxious.webp
+```
+
+* ❌ 없으면 → 업로드/마이그레이션 누락
+* ✅ 있으면 → 위 수정으로 100% 해결
+
+---
+
+## 🎯 최종 결론
+
+지금 문제는 복잡해 보였지만, **핵심은 딱 하나**야:
+
+> **“스토리지 키에 절대 `?t=`를 섞지 말고, signed URL 만들기 전에 반드시 정규화해라.”**
+
+이거 고치면:
+
+* 페르소나 이미지 500 ❌ → 정상
+* 시나리오 리스트 이미지 안 보임 ❌ → 정상
+* 수정 들어가면 이미지 사라짐 ❌ → 정상
+* 이미지 생성/선택/저장 흐름 안정화 ✅
+
+---
+
+원하면 다음 단계로:
+
+* **프론트에서 언제 `?t=`가 붙기 시작했는지**
+* **DB에 이미 저장된 잘못된 경로 일괄 정리 SQL**
+  까지 같이 정리해줄게.
+
+지금은 위 **2단계 패치부터 바로 적용**해. 이건 100% 맞는 수술이야.
