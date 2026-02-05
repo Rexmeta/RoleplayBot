@@ -1,0 +1,133 @@
+지금 증상/로그를 한 줄로 요약하면 이거야:
+
+**Cloud Run에서 “Replit Object Storage” 코드 경로를 타고 있고, GCS 경로는 제대로 활성화되지 않아서**
+
+* `/objects/...` GET이 500(객체 서빙 실패)
+* 시나리오에 이미지/비디오를 “선택”은 되는데 “저장/조회” 단계에서 깨짐(결과적으로 다시 들어가면 비어 보임)
+* `127.0.0.1:1106/credential` 같은 **Replit 전용 로컬 크리덴셜 엔드포인트**를 두드리다 ECONNREFUSED
+  가 동시에 터지고 있어.
+
+아래 순서대로 하면 “당장” 정상화된다.
+
+---
+
+## 1) Cloud Run에서 Replit용 env var **전부 제거**
+
+네 로그에 `PRIVATE_OBJECT_DIR not set`가 뜬 건, 앱이 “Replit Object Storage 백엔드”를 기대하고 있다는 뜻이야. Cloud Run에서는 이거 쓰면 안 돼.
+
+Cloud Run 서비스 환경변수에서 아래 같은 Replit 계열(이름이 정확히 뭐든 간에) **관련 env를 제거**해:
+
+* `PRIVATE_OBJECT_DIR`
+* `PUBLIC_OBJECT_DIR`
+* `OBJECT_STORAGE_*` 류
+* (혹시 넣었다면) `REPLIT_*` 류
+
+> 이게 남아있으면 앱이 계속 Replit 경로를 타고, 결국 `127.0.0.1:1106/credential`을 호출하다가 죽는다.
+
+---
+
+## 2) Cloud Run에 GCS_BUCKET_NAME “정확히” 세팅
+
+네 에러 메시지가 딱 말해줌: **“Set GCS_BUCKET_NAME …”**.
+
+Cloud Run에 아래를 넣어:
+
+* `GCS_BUCKET_NAME=roleplay-bucket` (네 버킷명으로)
+
+gcloud 예시(서비스명이 `role`, 리전 `us-east1` 기준):
+
+```bash
+gcloud run services update role \
+  --region us-east1 \
+  --set-env-vars GCS_BUCKET_NAME=roleplay-bucket \
+  --clear-env-vars PRIVATE_OBJECT_DIR,PUBLIC_OBJECT_DIR
+```
+
+(Cloud Console에서 UI로 설정해도 되지만, 핵심은 “Replit 변수 제거 + GCS_BUCKET_NAME 추가” 두 가지야.)
+
+---
+
+## 3) runtime-sa 권한: **버킷 Object Admin + (Signed URL이면) TokenCreator**
+
+### (A) 버킷 권한
+
+이미지/비디오 업로드/삭제/조회까지 하려면 최소 버킷에 아래가 필요:
+
+* `roles/storage.objectAdmin` (간단히 끝내려면 이게 제일 확실)
+
+```bash
+gcloud storage buckets add-iam-policy-binding gs://roleplay-bucket \
+  --member=serviceAccount:runtime-sa@role-20260129.iam.gserviceaccount.com \
+  --role=roles/storage.objectAdmin
+```
+
+### (B) Signed URL을 코드에서 생성한다면
+
+Signed URL 생성이 “서비스 계정으로 서명(signBlob)”을 필요로 하면 아래가 추가로 필요할 수 있어:
+
+* `roles/iam.serviceAccountTokenCreator` (대개 “자기 자신에게” 부여)
+
+```bash
+gcloud iam service-accounts add-iam-policy-binding runtime-sa@role-20260129.iam.gserviceaccount.com \
+  --member=serviceAccount:runtime-sa@role-20260129.iam.gserviceaccount.com \
+  --role=roles/iam.serviceAccountTokenCreator
+```
+
+---
+
+## 4) **“File not found”의 진짜 원인: 객체 키에 `?t=...`가 붙어서 조회**
+
+네 로그에 이게 결정타야:
+
+`personas/infj/female/anxious.webp?t=1769070935782`
+
+즉, **쿼리스트링까지 “파일명”으로 취급해서** GCS에서 당연히 못 찾는다(실제 객체명은 `.../anxious.webp`인데, 코드는 `.../anxious.webp?t=...`를 찾는 꼴).
+
+➡️ 해결: **Signed URL 생성/존재확인/서빙 로직에서 key를 무조건 정규화**해야 해.
+
+예: (개념)
+
+* `const cleanKey = key.split("?")[0];`
+
+이거 하나만 고쳐도 “persona signed url file not found”류 에러가 대거 사라진다.
+
+---
+
+## 5) “시나리오 저장이 안 남는 것처럼 보이는” 이유 2가지
+
+### (A) 이미지가 data URL(너무 긴 문자열)로 저장되면 리스트에서 강제로 placeholder로 바뀜
+
+코드에 이런 로직이 있어: 이미지 문자열이 너무 길면 기본 placeholder로 대체함. 
+즉, **저장은 됐는데 목록에서 덮어써서 안 보이는 것처럼** 느낄 수 있어.
+
+➡️ 해결: 시나리오 `image` 필드에는 dataURL을 저장하지 말고,
+
+* `/objects/...` 같은 짧은 경로
+* 또는 `gs://bucket/key` / `https://storage.googleapis.com/...` 같은 참조만 저장
+
+### (B) `/objects/...` 서빙이 500이라서 “있어도 못 불러옴”
+
+네가 올린 로그처럼 `/objects/uploads/<uuid>` GET이 500이면, 프론트는 이미지를 못 그린다 → “없는 것처럼” 보임 → 수정 화면에서도 다시 로드할 때 비어 보임.
+
+➡️ 그래서 **1~3번(백엔드 저장소 경로 정상화)**가 먼저고, 그 다음에 UI/저장값을 다듬어야 한다.
+
+---
+
+## 6) “기존 비디오를 불러와도 선택이 안 됨”
+
+이건 대부분 **비디오 목록/메타데이터를 불러오는 API가 /objects 서빙 실패 때문에 깨져서** 발생한다. (목록은 뜨는데 선택이 안 되는 케이스도 결국 URL이 500/404라 선택 확정이 막히는 경우가 많음)
+
+**일단 /objects 서빙이 200으로 정상화되면** 이 증상도 같이 사라질 확률이 높아.
+
+---
+
+# 결론: 지금 당장 해야 할 최소 조치
+
+1. Cloud Run env에서 `PRIVATE_OBJECT_DIR` 같은 Replit용 변수 제거
+2. `GCS_BUCKET_NAME` 정확히 세팅
+3. runtime-sa에 버킷 `roles/storage.objectAdmin` 부여 (+ 필요시 tokenCreator)
+4. 코드에서 객체키 `?t=...` 제거(split) 후 signed url/서빙
+
+---
+
+원하면, 네가 **Cloud Run의 현재 env var 목록(스크린샷/텍스트)**이랑 **사용 중인 버킷명**, 그리고 “signed url 만드는 함수 코드 조각(그 부분만)”을 주면, **어디를 어떻게 고쳐야 `127.0.0.1:1106` 호출이 100% 끊기는지** 정확히 짚어서 패치 포인트를 딱 지정해줄게.
