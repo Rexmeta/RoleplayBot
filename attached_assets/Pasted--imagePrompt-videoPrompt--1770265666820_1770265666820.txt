@@ -1,0 +1,134 @@
+원인 거의 확정이야.
+
+지금 로그는 **“시나리오 업데이트 요청이 들어왔는데 `imagePrompt`, `videoPrompt`가 비어 있다”**고 찍고 있어.
+즉, **편집 화면에서 네가 선택/미리보기 한 값이 “업데이트 API 요청 바디에 실려서” 서버로 안 넘어오고 있음.**
+그래서 DB에 저장될 게 없고 → 리스트에도 반영 안 되고 → 다시 편집 들어가면 당연히 비어 있음.
+
+그리고 “기존 비디오 불러와도 선택 안 됨”도 같은 계열일 가능성이 높아: **선택 UI는 바뀌는데 form payload에 반영이 안 되거나, 반대로 payload 필드명이 서버가 기대하는 것과 다름.**
+
+---
+
+## 지금 당장 체크/수정 포인트 (우선순위 순)
+
+### 1) 서버가 지금 “prompt”만 업데이트 대상으로 보고 있는지 확인
+
+로그가 `imagePrompt`, `videoPrompt`만 찍는 걸 보면, 업데이트 스키마/DTO가 대충 이런 형태일 가능성이 커:
+
+* `title, content, imagePrompt, videoPrompt ...`
+
+그런데 너가 UI에서 하는 건 “기존 생성된 이미지/비디오 **선택**”이잖아?
+이건 prompt가 아니라 보통 이런 필드로 저장해야 해:
+
+* `imageObjectId` / `imageKey` / `imageUrl`
+* `videoObjectId` / `videoKey` / `videoUrl`
+
+**결론:**
+지금 저장 로직이 “프롬프트 기반 생성”만 커버하고, “기존 객체 선택”을 저장하는 필드가 없거나 업데이트에서 누락됐을 확률이 높다.
+
+✅ 해결 방향
+
+* Scenario 테이블(또는 ScenarioMedia 매핑)에
+
+  * `imageObjectId`, `videoObjectId` (권장: object id FK)
+    를 추가/확인
+* scenario update API가 이 필드들을 **받고(update set 포함)**
+* scenario get/list API가 이 필드들을 **반환**
+
+---
+
+### 2) 프론트에서 PATCH payload에 해당 필드가 실제로 들어가는지 확인
+
+서버 로그가 “prompt empty”만 보여서 단정은 못 하지만, 보통은 둘 중 하나야:
+
+* (A) 프론트가 **prompt만 보내고 있고**, image/video 선택은 payload에 포함 안 됨
+* (B) 프론트는 `imageId` 같은 걸 보내는데 서버는 `imageObjectId`를 기대해서 **무시됨**
+
+✅ 즉시 확인법(가장 빠름)
+
+* 개발자도구 Network → scenario update 요청의 **Request Payload** 확인
+
+  * 거기에 `imageObjectId`/`videoObjectId` 또는 비슷한 키가 **있어야 정상**
+  * 없다면 프론트 폼 바인딩 문제
+
+✅ 프론트에서 자주 터지는 지점
+
+* React Hook Form 쓴 경우:
+
+  * `setValue('imageObjectId', selected.id)` 했지만,
+  * 저장할 때 `getValues()`가 아니라 별도 state로 patch body 만들다가 누락
+* “저장” 버튼이 `dirtyFields` 기반인데,
+
+  * image/video 선택 변경이 form에 반영이 안 되어 dirty로 안 잡힘
+
+---
+
+### 3) “선택은 되는데 저장이 안 됨”을 확실히 잡는 최소 수정(권장 패치)
+
+시나리오 업데이트 요청 바디를 아래처럼 통일해.
+
+#### PATCH /scenarios/:id
+
+```json
+{
+  "title": "...",
+  "content": "...",
+  "imagePrompt": "",
+  "videoPrompt": "",
+  "imageObjectId": "uuid-or-object-id",
+  "videoObjectId": "uuid-or-object-id"
+}
+```
+
+서버는:
+
+* prompt는 생성용(옵션)
+* objectId는 “선택/첨부용”(옵션)
+* 둘 다 들어오면 objectId 우선(보통 UX상 더 직관적)
+
+---
+
+## 왜 “시나리오 수정에서 기존 생성된 비디오를 불러와도 선택이 안 되나?”
+
+이건 두 갈래야.
+
+1. **UI에서 선택 토글 자체가 안 되는 경우**
+
+* selectable 조건이 `type === 'video'` 또는 `status === 'READY'` 같은 필터에 걸려서 클릭이 막힘
+* 그런데 너는 “불러와도 선택 되지 않는다”라 했으니 이 가능성도 있음
+
+2. **선택은 되는 것처럼 보이는데 저장이 안 되는 경우**
+
+* 지금 이미지랑 같은 문제: payload에 안 실림
+
+로그가 prompt만 찍히는 걸로 봐선, 지금은 2번(저장 payload 문제)이 더 유력.
+
+---
+
+## 너가 지금 보내줘야 “바로 단정” 가능한 2가지
+
+(이건 질문이라기보다, 붙여주면 내가 정확히 수정 코드를 지시할 수 있음)
+
+1. scenario update 요청의 **Request Payload JSON** (Network에서 복사)
+2. 백엔드의 scenario update 핸들러에서 `req.body`를 찍는 로그 한 줄 더:
+
+   * `imageObjectId`, `videoObjectId`, 또는 네가 쓰는 실제 키들
+
+---
+
+## 바로 적용 가능한 백엔드 로그 추가 (1분 컷)
+
+시나리오 update 핸들러에 아래처럼 찍어:
+
+```js
+console.log("[Scenario Update] body:", JSON.stringify(req.body));
+```
+
+그리고 실제로 클릭/저장해봐.
+여기서 **image/video 선택 값이 body에 없으면 100% 프론트 문제**고,
+있는데도 DB에 남지 않으면 **백엔드 update set / schema 문제**다.
+
+---
+
+정리: 지금 로그만으로도 **“프롬프트가 비어 있다”는 건 정상일 수 있지만(기존 선택이면 prompt 비움), 핵심은 ‘선택된 이미지/비디오의 ID/키가 업데이트 요청에 실려야 한다’**는 거야. 지금 구조상 그게 안 되고 있다.
+
+Network payload를 그대로 붙여줘. 그걸 기준으로 “프론트에서 어떤 키로 보내야 하고, 백엔드에서 어떤 컬럼/DTO/update set을 고쳐야 하는지”를 딱 맞춰서 지시할게.
