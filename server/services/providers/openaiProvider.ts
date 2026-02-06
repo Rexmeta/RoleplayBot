@@ -137,6 +137,17 @@ JSON 형식으로 응답하세요: {"emotion": "감정", "reason": "감정을 �
     }
   }
 
+  private validateFeedbackQuality(feedback: DetailedFeedback): { isValid: boolean; reason: string } {
+    const issues: string[] = [];
+    if ((feedback.summary || '').length < 30) issues.push(`summary too short`);
+    if (!feedback.dimensionFeedback || Object.keys(feedback.dimensionFeedback).length === 0) issues.push('missing dimensionFeedback');
+    if (!feedback.strengths || feedback.strengths.length < 2) issues.push('insufficient strengths');
+    if (!feedback.ranking || feedback.ranking.length < 20) issues.push('ranking too short');
+    const scoreValues = Object.values(feedback.scores || {}).filter(v => typeof v === 'number') as number[];
+    if (scoreValues.length > 1 && scoreValues.every(s => s === scoreValues[0])) issues.push('all scores identical');
+    return issues.length > 0 ? { isValid: false, reason: issues.join('; ') } : { isValid: true, reason: 'OK' };
+  }
+
   async generateFeedback(
     scenario: string, 
     messages: ConversationMessage[], 
@@ -146,43 +157,58 @@ JSON 형식으로 응답하세요: {"emotion": "감정", "reason": "감정을 �
     language: SupportedLanguage = 'ko'
   ): Promise<DetailedFeedback> {
     const startTime = Date.now();
-    const languageInstruction = LANGUAGE_INSTRUCTIONS[language] || LANGUAGE_INSTRUCTIONS.ko;
-    
-    try {
-      const conversationText = messages.map(msg => 
-        `${msg.sender === 'user' ? '사용자' : persona.name}: ${msg.message}`
-      ).join('\n');
+    const maxRetries = 2;
+    let lastFeedback: DetailedFeedback | null = null;
+    let lastReason = '';
 
-      // 동적 평가 기준 기반 프롬프트 생성 (언어 설정 포함)
-      const feedbackPrompt = this.buildFeedbackPrompt(conversationText, persona, evaluationCriteria, language);
+    for (let attempt = 0; attempt <= maxRetries; attempt++) {
+      try {
+        const conversationText = messages.map(msg => 
+          `${msg.sender === 'user' ? '사용자' : persona.name}: ${msg.message}`
+        ).join('\n');
 
-      const response = await this.client.chat.completions.create({
-        model: this.model,
-        messages: [{ role: 'user', content: feedbackPrompt }],
-        response_format: { type: "json_object" },
-        temperature: 0.3
-      });
+        const feedbackPrompt = this.buildFeedbackPrompt(conversationText, persona, evaluationCriteria, language);
 
-      const totalTime = Date.now() - startTime;
-      
-      // Track usage asynchronously (fire and forget)
-      const tokens = extractOpenAITokens(response);
-      trackUsage({
-        feature: 'feedback',
-        model: getModelPricingKey(this.model),
-        provider: 'openai',
-        promptTokens: tokens.promptTokens,
-        completionTokens: tokens.completionTokens,
-        durationMs: totalTime,
-      });
+        const response = await this.client.chat.completions.create({
+          model: this.model,
+          messages: [{ role: 'user', content: feedbackPrompt }],
+          response_format: { type: "json_object" },
+          temperature: attempt === 0 ? 0.3 : 0.5 + (attempt * 0.1),
+          max_tokens: 16384
+        });
 
-      const feedbackData = JSON.parse(response.choices[0]?.message?.content || '{}');
-      
-      return this.parseFeedbackResponse(feedbackData, evaluationCriteria);
-    } catch (error) {
-      console.error("Feedback generation error:", error);
-      return this.getFallbackFeedback(evaluationCriteria);
+        const totalTime = Date.now() - startTime;
+        
+        const tokens = extractOpenAITokens(response);
+        trackUsage({
+          feature: 'feedback',
+          model: getModelPricingKey(this.model),
+          provider: 'openai',
+          promptTokens: tokens.promptTokens,
+          completionTokens: tokens.completionTokens,
+          durationMs: totalTime,
+        });
+
+        const feedbackData = JSON.parse(response.choices[0]?.message?.content || '{}');
+        const feedback = this.parseFeedbackResponse(feedbackData, evaluationCriteria);
+        
+        const validation = this.validateFeedbackQuality(feedback);
+        if (validation.isValid) {
+          if (attempt > 0) console.log(`✅ OpenAI feedback quality validated on attempt ${attempt + 1}`);
+          return feedback;
+        }
+        
+        console.warn(`⚠️ OpenAI feedback quality check failed (attempt ${attempt + 1}): ${validation.reason}`);
+        lastFeedback = feedback;
+        lastReason = validation.reason;
+      } catch (error) {
+        console.error(`OpenAI feedback error (attempt ${attempt + 1}):`, error);
+        if (attempt >= maxRetries) return this.getFallbackFeedback(evaluationCriteria);
+      }
     }
+    
+    console.warn(`⚠️ Using best available OpenAI feedback. Issues: ${lastReason}`);
+    return lastFeedback || this.getFallbackFeedback(evaluationCriteria);
   }
 
   private getDefaultDimensions(): EvaluationCriteriaWithDimensions['dimensions'] {

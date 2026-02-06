@@ -183,8 +183,9 @@ export default function PersonalDevelopmentReport({
   };
 
   const generateFeedbackMutation = useMutation({
-    mutationFn: async () => {
-      console.log("피드백 생성 요청 시작:", conversationId);
+    mutationFn: async (options?: { force?: boolean }) => {
+      const isForce = options?.force === true;
+      console.log(`피드백 ${isForce ? '재생성' : '생성'} 요청 시작:`, conversationId);
       try {
         const token = localStorage.getItem("authToken");
         const headers: Record<string, string> = {
@@ -199,6 +200,7 @@ export default function PersonalDevelopmentReport({
           method: 'POST',
           headers,
           credentials: "include",
+          body: JSON.stringify(isForce ? { force: true } : {}),
         });
         
         console.log("피드백 생성 응답 상태:", response.status);
@@ -219,13 +221,12 @@ export default function PersonalDevelopmentReport({
     },
     onSuccess: (data) => {
       console.log("피드백 생성 완료, 캐시 즉시 업데이트");
-      // 캐시에 즉시 피드백 데이터 설정 (에러 상태를 덮어씀)
       queryClient.setQueryData(["/api/conversations", conversationId, "feedback"], data);
-      onFeedbackGeneratingChange?.(false); // 부모에게 피드백 생성 완료 알림
+      onFeedbackGeneratingChange?.(false);
     },
     onError: (error) => {
       console.error("피드백 생성 오류:", error);
-      onFeedbackGeneratingChange?.(false); // 에러 시에도 부모에게 알림
+      onFeedbackGeneratingChange?.(false);
       toast({
         title: "오류",
         description: `피드백을 생성할 수 없습니다: ${error.message}`,
@@ -234,11 +235,15 @@ export default function PersonalDevelopmentReport({
     }
   });
 
-  // 피드백 생성 버튼 클릭 핸들러
   const handleGenerateFeedback = () => {
     setHasRequestedFeedback(true);
-    onFeedbackGeneratingChange?.(true); // 부모에게 피드백 생성 시작 알림
+    onFeedbackGeneratingChange?.(true);
     generateFeedbackMutation.mutate();
+  };
+
+  const handleRegenerateFeedback = () => {
+    onFeedbackGeneratingChange?.(true);
+    generateFeedbackMutation.mutate({ force: true });
   };
 
   // HTML 이스케이프 함수 (XSS 방지)
@@ -1542,6 +1547,25 @@ export default function PersonalDevelopmentReport({
         </Button>
         <Button 
           variant="outline"
+          onClick={handleRegenerateFeedback}
+          disabled={generateFeedbackMutation.isPending}
+          className="min-w-[120px] text-orange-600 border-orange-300 hover:bg-orange-50"
+          data-testid="regenerate-feedback-button"
+        >
+          {generateFeedbackMutation.isPending ? (
+            <>
+              <i className="fas fa-spinner fa-spin mr-2"></i>
+              {t('report.regenerating', '재생성 중...')}
+            </>
+          ) : (
+            <>
+              <i className="fas fa-redo-alt mr-2"></i>
+              {t('report.regenerateFeedback', '피드백 재생성')}
+            </>
+          )}
+        </Button>
+        <Button 
+          variant="outline"
           onClick={handleDownloadHtml}
           disabled={isExportingPdf}
           className="min-w-[120px]"
@@ -1628,6 +1652,17 @@ export default function PersonalDevelopmentReport({
               >
                 <i className="fas fa-print mr-1"></i>
                 {t('report.print', '인쇄')}
+              </Button>
+              
+              <Button 
+                variant="outline"
+                onClick={() => { setShowMobileMenu(false); handleRegenerateFeedback(); }}
+                disabled={generateFeedbackMutation.isPending}
+                className="w-full text-sm text-orange-600 border-orange-300"
+                data-testid="mobile-regenerate-button"
+              >
+                <i className="fas fa-redo-alt mr-1"></i>
+                {t('report.regenerateFeedback', '피드백 재생성')}
               </Button>
               
               <Button 

@@ -1721,10 +1721,16 @@ export async function registerRoutes(app: Express, httpServer: Server): Promise<
       }
 
       // Check if feedback already exists
+      const forceRegenerate = req.body?.force === true;
       const existingFeedback = await storage.getFeedbackByConversationId(req.params.id);
-      if (existingFeedback) {
+      if (existingFeedback && !forceRegenerate) {
         console.log("기존 피드백 발견, 반환");
         return res.json(existingFeedback);
+      }
+      
+      if (existingFeedback && forceRegenerate) {
+        console.log("🔄 피드백 강제 재생성 요청 - 기존 피드백 삭제");
+        await storage.deleteFeedback(existingFeedback.id);
       }
 
       console.log("새 피드백 생성 시작");

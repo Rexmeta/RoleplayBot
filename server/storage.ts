@@ -83,6 +83,7 @@ export interface IStorage {
   // Feedback
   createFeedback(feedback: InsertFeedback): Promise<Feedback>;
   getFeedbackByConversationId(conversationId: string): Promise<Feedback | undefined>;
+  deleteFeedback(id: string): Promise<void>;
   getAllFeedbacks(): Promise<Feedback[]>;
   getUserFeedbacks(userId: string): Promise<Feedback[]>;
   
@@ -375,6 +376,10 @@ export class MemStorage implements IStorage {
     return Array.from(this.feedbacks.values()).find(
       (feedback) => feedback.conversationId === conversationId
     );
+  }
+
+  async deleteFeedback(id: string): Promise<void> {
+    this.feedbacks.delete(id);
   }
 
   async getAllConversations(): Promise<Conversation[]> {
@@ -940,6 +945,10 @@ export class PostgreSQLStorage implements IStorage {
     // 레거시 지원: conversationId로도 조회
     const [feedbackByConversation] = await db.select().from(feedbacks).where(eq(feedbacks.conversationId, conversationId));
     return feedbackByConversation;
+  }
+
+  async deleteFeedback(id: string): Promise<void> {
+    await db.delete(feedbacks).where(eq(feedbacks.id, id));
   }
 
   async getAllFeedbacks(): Promise<Feedback[]> {

@@ -417,6 +417,17 @@ JSON 형식으로 응답:
     };
   }
 
+  private validateFeedbackQuality(feedback: DetailedFeedback): { isValid: boolean; reason: string } {
+    const issues: string[] = [];
+    if ((feedback.summary || '').length < 30) issues.push('summary too short');
+    if (!feedback.dimensionFeedback || Object.keys(feedback.dimensionFeedback).length === 0) issues.push('missing dimensionFeedback');
+    if (!feedback.strengths || feedback.strengths.length < 2) issues.push('insufficient strengths');
+    if (!feedback.ranking || feedback.ranking.length < 20) issues.push('ranking too short');
+    const scoreValues = Object.values(feedback.scores || {}).filter(v => typeof v === 'number') as number[];
+    if (scoreValues.length > 1 && scoreValues.every(s => s === scoreValues[0])) issues.push('all scores identical');
+    return issues.length > 0 ? { isValid: false, reason: issues.join('; ') } : { isValid: true, reason: 'OK' };
+  }
+
   async generateFeedback(
     scenario: string, 
     messages: ConversationMessage[], 
@@ -424,50 +435,66 @@ JSON 형식으로 응답:
     conversation?: any,
     evaluationCriteria?: EvaluationCriteriaWithDimensions
   ): Promise<DetailedFeedback> {
-    try {
-      const conversationText = messages.map(msg => 
-        `${msg.sender === 'user' ? '사용자' : persona.name}: ${msg.message}`
-      ).join('\n');
+    const conversationText = messages.map(msg => 
+      `${msg.sender === 'user' ? '사용자' : persona.name}: ${msg.message}`
+    ).join('\n');
 
-      // 테스트 모드이거나 커스텀 API 형식일 때 기본 피드백 반환
-      if (this.config.apiKey === 'test-key' || this.config.apiFormat === 'custom') {
-        console.log('🧪 Custom provider feedback in test/custom mode');
-        return this.generateCustomFeedback(conversationText, persona, conversation, evaluationCriteria);
-      }
-
-      // 동적 평가 기준 기반 프롬프트 생성
-      const feedbackPrompt = this.buildFeedbackPrompt(conversationText, persona, evaluationCriteria);
-
-      // OpenAI 호환 API만 사용
-      const requestBody = {
-        model: this.config.model,
-        messages: [{ role: "user", content: feedbackPrompt }],
-        temperature: 0.3
-      };
-
-      const response = await fetch(`${this.config.baseUrl}/chat/completions`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${this.config.apiKey}`,
-          ...this.config.headers
-        },
-        body: JSON.stringify(requestBody)
-      });
-
-      if (!response.ok) {
-        throw new Error(`Feedback generation failed: ${response.status}`);
-      }
-
-      const data = await response.json();
-      const feedbackText = data.choices?.[0]?.message?.content || '{}';
-      const feedbackData = JSON.parse(feedbackText);
-      
-      return this.parseFeedbackResponse(feedbackData, evaluationCriteria);
-    } catch (error) {
-      console.error("Feedback generation error:", error);
-      return this.getFallbackFeedback(evaluationCriteria);
+    if (this.config.apiKey === 'test-key' || this.config.apiFormat === 'custom') {
+      console.log('🧪 Custom provider feedback in test/custom mode');
+      return this.generateCustomFeedback(conversationText, persona, conversation, evaluationCriteria);
     }
+
+    const maxRetries = 2;
+    let lastFeedback: DetailedFeedback | null = null;
+    let lastReason = '';
+
+    for (let attempt = 0; attempt <= maxRetries; attempt++) {
+      try {
+        const feedbackPrompt = this.buildFeedbackPrompt(conversationText, persona, evaluationCriteria);
+
+        const requestBody = {
+          model: this.config.model,
+          messages: [{ role: "user", content: feedbackPrompt }],
+          temperature: attempt === 0 ? 0.3 : 0.5 + (attempt * 0.1),
+          max_tokens: 16384
+        };
+
+        const response = await fetch(`${this.config.baseUrl}/chat/completions`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${this.config.apiKey}`,
+            ...this.config.headers
+          },
+          body: JSON.stringify(requestBody)
+        });
+
+        if (!response.ok) {
+          throw new Error(`Feedback generation failed: ${response.status}`);
+        }
+
+        const data = await response.json();
+        const feedbackText = data.choices?.[0]?.message?.content || '{}';
+        const feedbackData = JSON.parse(feedbackText);
+        const feedback = this.parseFeedbackResponse(feedbackData, evaluationCriteria);
+        
+        const validation = this.validateFeedbackQuality(feedback);
+        if (validation.isValid) {
+          if (attempt > 0) console.log(`✅ Custom feedback quality validated on attempt ${attempt + 1}`);
+          return feedback;
+        }
+        
+        console.warn(`⚠️ Custom feedback quality check failed (attempt ${attempt + 1}): ${validation.reason}`);
+        lastFeedback = feedback;
+        lastReason = validation.reason;
+      } catch (error) {
+        console.error(`Custom feedback error (attempt ${attempt + 1}):`, error);
+        if (attempt >= maxRetries) return this.getFallbackFeedback(evaluationCriteria);
+      }
+    }
+    
+    console.warn(`⚠️ Using best available custom feedback. Issues: ${lastReason}`);
+    return lastFeedback || this.getFallbackFeedback(evaluationCriteria);
   }
 
   private generatePersonaMockResponse(

@@ -349,6 +349,35 @@ JSON 형식으로 응답:
     return generateStream();
   }
 
+  private validateFeedbackQuality(feedback: DetailedFeedback): { isValid: boolean; reason: string } {
+    const issues: string[] = [];
+    
+    if ((feedback.summary || '').length < 30) {
+      issues.push(`summary too short (${(feedback.summary || '').length} chars)`);
+    }
+    if (!feedback.dimensionFeedback || Object.keys(feedback.dimensionFeedback).length === 0) {
+      issues.push('missing dimensionFeedback');
+    }
+    if (!feedback.strengths || feedback.strengths.length < 2) {
+      issues.push(`insufficient strengths (${(feedback.strengths || []).length})`);
+    }
+    if (!feedback.ranking || feedback.ranking.length < 20) {
+      issues.push(`ranking too short (${(feedback.ranking || '').length} chars)`);
+    }
+    
+    const scores = feedback.scores || {};
+    const scoreValues = Object.values(scores).filter(v => typeof v === 'number') as number[];
+    const allSameScore = scoreValues.length > 1 && scoreValues.every(s => s === scoreValues[0]);
+    if (allSameScore) {
+      issues.push(`all scores identical (${scoreValues[0]})`);
+    }
+    
+    if (issues.length > 0) {
+      return { isValid: false, reason: issues.join('; ') };
+    }
+    return { isValid: true, reason: 'OK' };
+  }
+
   async generateFeedback(
     scenario: string, 
     messages: ConversationMessage[], 
@@ -360,45 +389,70 @@ JSON 형식으로 응답:
     console.log(`🔥 Optimized feedback generation... (language: ${language})`, evaluationCriteria ? `(Criteria: ${evaluationCriteria.name})` : "(Default criteria)");
     const startTime = Date.now();
 
-    try {
-      // 압축된 피드백 프롬프트 - 동적 평가 기준 지원 (언어 설정 포함)
-      const feedbackPrompt = this.buildCompactFeedbackPrompt(scenario, messages, persona, conversation, evaluationCriteria, language);
+    const maxRetries = 2;
+    let lastFeedback: DetailedFeedback | null = null;
+    let lastReason = '';
 
-      const response = await this.genAI.models.generateContent({
-        model: this.model,
-        config: {
-          responseMimeType: "application/json",
-          maxOutputTokens: 8192,
-          temperature: 0.3
-        },
-        contents: [
-          { role: "user", parts: [{ text: feedbackPrompt }] }
-        ],
-      });
+    for (let attempt = 0; attempt <= maxRetries; attempt++) {
+      try {
+        const feedbackPrompt = this.buildCompactFeedbackPrompt(scenario, messages, persona, conversation, evaluationCriteria, language);
 
-      const totalTime = Date.now() - startTime;
-      console.log(`✓ Optimized feedback completed in ${totalTime}ms`);
+        const response = await this.genAI.models.generateContent({
+          model: this.model,
+          config: {
+            responseMimeType: "application/json",
+            maxOutputTokens: 16384,
+            temperature: attempt === 0 ? 0.3 : 0.5 + (attempt * 0.1)
+          },
+          contents: [
+            { role: "user", parts: [{ text: feedbackPrompt }] }
+          ],
+        });
 
-      const responseText = this.extractResponseText(response);
-      console.log("📝 Feedback response (first 500 chars):", responseText.substring(0, 500));
-      
-      // Track usage asynchronously (fire and forget)
-      const tokens = extractGeminiTokens(response);
-      trackUsage({
-        feature: 'feedback',
-        model: getModelPricingKey(this.model),
-        provider: 'gemini',
-        promptTokens: tokens.promptTokens,
-        completionTokens: tokens.completionTokens,
-        durationMs: totalTime,
-      });
-      
-      return this.parseFeedbackResponse(responseText, messages, conversation, evaluationCriteria);
+        const totalTime = Date.now() - startTime;
+        console.log(`✓ Optimized feedback attempt ${attempt + 1} completed in ${totalTime}ms`);
 
-    } catch (error) {
-      console.error("Optimized feedback error:", error);
-      return this.getFallbackFeedback(evaluationCriteria);
+        const responseText = this.extractResponseText(response);
+        console.log(`📝 Feedback response attempt ${attempt + 1} (first 500 chars):`, responseText.substring(0, 500));
+        
+        const tokens = extractGeminiTokens(response);
+        trackUsage({
+          feature: 'feedback',
+          model: getModelPricingKey(this.model),
+          provider: 'gemini',
+          promptTokens: tokens.promptTokens,
+          completionTokens: tokens.completionTokens,
+          durationMs: totalTime,
+        });
+        
+        const feedback = this.parseFeedbackResponse(responseText, messages, conversation, evaluationCriteria);
+        
+        const validation = this.validateFeedbackQuality(feedback);
+        if (validation.isValid) {
+          if (attempt > 0) {
+            console.log(`✅ Feedback quality validated on attempt ${attempt + 1}`);
+          }
+          return feedback;
+        }
+        
+        console.warn(`⚠️ Feedback quality check failed (attempt ${attempt + 1}/${maxRetries + 1}): ${validation.reason}`);
+        lastFeedback = feedback;
+        lastReason = validation.reason;
+        
+        if (attempt < maxRetries) {
+          console.log(`🔄 Retrying feedback generation (attempt ${attempt + 2})...`);
+        }
+
+      } catch (error) {
+        console.error(`Optimized feedback error (attempt ${attempt + 1}):`, error);
+        if (attempt >= maxRetries) {
+          return this.getFallbackFeedback(evaluationCriteria);
+        }
+      }
     }
+    
+    console.warn(`⚠️ Using best available feedback after ${maxRetries + 1} attempts. Issues: ${lastReason}`);
+    return lastFeedback || this.getFallbackFeedback(evaluationCriteria);
   }
 
   /**
