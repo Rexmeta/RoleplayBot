@@ -537,7 +537,7 @@ export function ScenarioManager() {
       
       if (data.success && data.imageUrl) {
         setFormData(prev => ({ ...prev, image: data.storagePath || data.imageUrl }));
-        setSelectedImageSignedUrl(data.imageUrl);
+        setSelectedImageSignedUrl(toMediaUrl(data.storagePath || data.imageUrl));
         setImageLoadFailed(false);
         toast({
           title: t('admin.scenarioManager.toast.imageGenerated'),
@@ -696,7 +696,7 @@ export function ScenarioManager() {
   const handleSelectImage = (imagePath: string, signedUrl: string) => {
     console.log('[ScenarioManager] Image selected:', { imagePath, signedUrl });
     setFormData(prev => ({ ...prev, image: imagePath }));
-    setSelectedImageSignedUrl(signedUrl);
+    setSelectedImageSignedUrl(signedUrl && /^https?:\/\//i.test(signedUrl) ? signedUrl : toMediaUrl(imagePath));
     setImageLoadFailed(false);
     setShowImageSelector(false);
     toast({

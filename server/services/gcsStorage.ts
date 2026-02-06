@@ -607,68 +607,59 @@ export async function listGCSFiles(prefix: string): Promise<{ name: string; sign
     return [];
   }
   
-  const privateObjectDir = process.env.PRIVATE_OBJECT_DIR;
-  if (process.env.REPL_ID && privateObjectDir) {
+  const publicSearchPaths = process.env.PUBLIC_OBJECT_SEARCH_PATHS;
+  if (process.env.REPL_ID && publicSearchPaths) {
     try {
       const { getObjectStorageClient } = await import("../replit_integrations/object_storage/objectStorage");
       const storageClient = getObjectStorageClient();
       
-      // Parse the private object dir to get bucket name
-      // Format: /<bucket_name>/path
-      const pathParts = privateObjectDir.split('/').filter(p => p);
-      if (pathParts.length < 1) {
-        console.error('Invalid PRIVATE_OBJECT_DIR format');
+      const searchPaths = publicSearchPaths.split(',').map(p => p.trim()).filter(p => p.length > 0);
+      if (searchPaths.length === 0) {
+        console.error('PUBLIC_OBJECT_SEARCH_PATHS is empty');
         return [];
       }
-      const bucketName = pathParts[0];
-      const bucket = storageClient.bucket(bucketName);
       
-      // Determine the full prefix path
-      // For scenarios/, we look in the private object directory
-      const basePath = pathParts.slice(1).join('/');
-      const fullPrefix = basePath ? `${basePath}/${prefix}` : prefix;
+      const allResults: { name: string; signedUrl: string; updatedAt: Date }[] = [];
       
-      console.log(`📁 Replit Object Storage 파일 목록 조회: bucket=${bucketName}, prefix=${fullPrefix}`);
-      
-      const [files] = await bucket.getFiles({ prefix: fullPrefix });
-      
-      const results: { name: string; signedUrl: string; updatedAt: Date }[] = [];
-
-      for (const file of files) {
-        // Skip directories (files ending with /)
-        if (file.name.endsWith('/')) continue;
+      for (const searchPath of searchPaths) {
+        const cleanPath = searchPath.startsWith('/') ? searchPath.slice(1) : searchPath;
+        const parts = cleanPath.split('/');
+        if (parts.length < 1) continue;
         
-        try {
-          // Generate signed URL for the file
-          const [signedUrl] = await file.getSignedUrl({
-            version: 'v4',
-            action: 'read',
-            expires: Date.now() + 3600 * 1000, // 1 hour
-          });
+        const bucketName = parts[0];
+        const bucket = storageClient.bucket(bucketName);
+        const basePath = parts.slice(1).join('/');
+        const fullPrefix = basePath ? `${basePath}/${prefix}` : prefix;
+        
+        console.log(`📁 Replit Object Storage 파일 목록 조회: bucket=${bucketName}, prefix=${fullPrefix}`);
+        
+        const [files] = await bucket.getFiles({ prefix: fullPrefix });
+        
+        for (const file of files) {
+          if (file.name.endsWith('/')) continue;
           
-          const metadata = file.metadata;
-          
-          // Store the path relative to private object dir for consistency
-          const relativePath = file.name.startsWith(basePath + '/') 
-            ? file.name.substring(basePath.length + 1) 
-            : file.name;
-          
-          results.push({
-            name: relativePath,
-            signedUrl: signedUrl,
-            updatedAt: metadata.updated ? new Date(metadata.updated) : new Date()
-          });
-        } catch (signError) {
-          console.error(`Signed URL 생성 실패: ${file.name}`, signError);
+          try {
+            const metadata = file.metadata;
+            const relativePath = file.name.startsWith(basePath + '/') 
+              ? file.name.substring(basePath.length + 1) 
+              : file.name;
+            
+            allResults.push({
+              name: relativePath,
+              signedUrl: `/objects?key=${encodeURIComponent(relativePath)}`,
+              updatedAt: metadata.updated ? new Date(metadata.updated) : new Date()
+            });
+          } catch (signError) {
+            console.error(`파일 처리 실패: ${file.name}`, signError);
+          }
         }
       }
 
-      // Sort by updatedAt descending (newest first)
-      results.sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime());
+      allResults.sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime());
       
-      console.log(`📁 Found ${results.length} files with prefix: ${prefix}`);
+      console.log(`📁 Found ${allResults.length} files with prefix: ${prefix}`);
 
-      return results;
+      return allResults;
     } catch (error) {
       console.error('Replit Object Storage 파일 목록 조회 실패:', error);
       return [];

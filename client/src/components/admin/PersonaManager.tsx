@@ -216,6 +216,7 @@ export function PersonaManager() {
   
   // 이미지 로드 실패 상태 추적
   const [failedImages, setFailedImages] = useState<Set<string>>(new Set());
+  const [imageCacheBuster, setImageCacheBuster] = useState<number>(Date.now());
   
   // 쉼표로 구분된 입력 필드의 원시 텍스트 상태 (타이핑 중 쉼표 유지)
   const [rawInputs, setRawInputs] = useState({
@@ -427,14 +428,13 @@ export function PersonaManager() {
         updatedFormData.images = updatedImages as any;
         setFormData(updatedFormData);
         
-        // 기본 이미지(중립) 생성 성공 시 해당 실패 상태 제거
         setFailedImages(prev => {
           const newSet = new Set(prev);
           newSet.delete('중립');
           return newSet;
         });
+        setImageCacheBuster(Date.now());
 
-        // 자동 저장
         toast({
           title: t('admin.personaManager.toast.saving'),
           description: t('admin.personaManager.toast.baseImageCreated')
@@ -533,8 +533,8 @@ export function PersonaManager() {
         
         // 모든 표정 이미지 생성 성공 시 실패 상태 초기화
         setFailedImages(new Set());
+        setImageCacheBuster(Date.now());
 
-        // 자동 저장
         toast({
           title: t('admin.personaManager.toast.saving'),
           description: t('admin.personaManager.toast.expressionCreated', { count: result.totalGenerated })
@@ -604,12 +604,12 @@ export function PersonaManager() {
         updatedFormData.images = updatedImages as any;
         setFormData(updatedFormData);
         
-        // 새 이미지 생성 성공 시 실패 상태 제거
         setFailedImages(prev => {
           const newSet = new Set(prev);
           newSet.delete(emotion);
           return newSet;
         });
+        setImageCacheBuster(Date.now());
 
         toast({
           title: t('admin.personaManager.toast.saving'),
@@ -1274,14 +1274,17 @@ export function PersonaManager() {
                           {isGenerating ? (
                             <RefreshCw className="w-5 h-5 text-slate-400 animate-spin" />
                           ) : imageUrl && !failedImages.has(emotion) ? (
-                            <img 
-                              src={toMediaUrl(imageUrl)} 
-                              alt={emotion} 
-                              className="w-full h-full object-cover"
-                              onError={() => {
-                                setFailedImages(prev => new Set(prev).add(emotion));
-                              }}
-                            />
+                            (() => {
+                              const mediaSrc = toMediaUrl(imageUrl);
+                              return <img 
+                                src={`${mediaSrc}${mediaSrc.includes('?') ? '&' : '?'}v=${imageCacheBuster}`} 
+                                alt={emotion} 
+                                className="w-full h-full object-cover"
+                                onError={() => {
+                                  setFailedImages(prev => new Set(prev).add(emotion));
+                                }}
+                              />;
+                            })()
                           ) : (
                             <span className="text-xs text-slate-400 text-center px-1">{t('admin.personaManager.image.noImage')}</span>
                           )}
