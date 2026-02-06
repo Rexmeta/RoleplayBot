@@ -266,13 +266,13 @@ export async function registerRoutes(app: Express, httpServer: Server): Promise<
     feedbackData.averageResponseTime = averageResponseTime;
     feedbackData.timePerformance = timePerformance;
 
-    // EvaluationScore 배열 생성
+    const dimFeedback = feedbackData.dimensionFeedback || {};
     const evaluationScores = [
       {
         category: "clarityLogic",
         name: "명확성 & 논리성",
         score: feedbackData.scores.clarityLogic,
-        feedback: "발언의 구조화, 핵심 전달, 모호성 최소화",
+        feedback: dimFeedback.clarityLogic || "발언의 구조화, 핵심 전달, 모호성 최소화",
         icon: "🎯",
         color: "blue"
       },
@@ -280,7 +280,7 @@ export async function registerRoutes(app: Express, httpServer: Server): Promise<
         category: "listeningEmpathy", 
         name: "경청 & 공감",
         score: feedbackData.scores.listeningEmpathy,
-        feedback: "재진술·요약, 감정 인식, 우려 존중",
+        feedback: dimFeedback.listeningEmpathy || "재진술·요약, 감정 인식, 우려 존중",
         icon: "👂",
         color: "green"
       },
@@ -288,7 +288,7 @@ export async function registerRoutes(app: Express, httpServer: Server): Promise<
         category: "appropriatenessAdaptability",
         name: "적절성 & 상황 대응", 
         score: feedbackData.scores.appropriatenessAdaptability,
-        feedback: "맥락 적합한 표현, 유연한 갈등 대응",
+        feedback: dimFeedback.appropriatenessAdaptability || "맥락 적합한 표현, 유연한 갈등 대응",
         icon: "⚡",
         color: "yellow"
       },
@@ -296,7 +296,7 @@ export async function registerRoutes(app: Express, httpServer: Server): Promise<
         category: "persuasivenessImpact",
         name: "설득력 & 영향력",
         score: feedbackData.scores.persuasivenessImpact, 
-        feedback: "논리적 근거, 사례 활용, 행동 변화 유도",
+        feedback: dimFeedback.persuasivenessImpact || "논리적 근거, 사례 활용, 행동 변화 유도",
         icon: "🎪",
         color: "purple"
       },
@@ -304,7 +304,7 @@ export async function registerRoutes(app: Express, httpServer: Server): Promise<
         category: "strategicCommunication",
         name: "전략적 커뮤니케이션",
         score: feedbackData.scores.strategicCommunication,
-        feedback: "목표 지향적 대화, 협상·조율, 주도성", 
+        feedback: dimFeedback.strategicCommunication || "목표 지향적 대화, 협상·조율, 주도성", 
         icon: "🎲",
         color: "red"
       }
@@ -1946,28 +1946,26 @@ export async function registerRoutes(app: Express, httpServer: Server): Promise<
 
       console.log("피드백 데이터 생성 완료:", feedbackData);
 
-      // ✨ EvaluationScore 배열 동적 생성
+      const dimFb = feedbackData.dimensionFeedback || {};
       let evaluationScores: any[];
       
       if (evaluationCriteria && evaluationCriteria.dimensions && evaluationCriteria.dimensions.length > 0) {
-        // 동적 평가 차원 사용
         evaluationScores = evaluationCriteria.dimensions.map((dim: any) => ({
           category: dim.key,
           name: dim.name,
           score: feedbackData.scores[dim.key] || 3,
-          feedback: dim.description || dim.name,
+          feedback: dimFb[dim.key] || dim.description || dim.name,
           icon: dim.icon || '📊',
           color: dim.color || '#6366f1'
         }));
         console.log(`📊 동적 evaluationScores 생성: ${evaluationScores.length}개`);
       } else {
-        // 기본 하드코딩된 평가 기준 (폴백)
         evaluationScores = [
           {
             category: "clarityLogic",
             name: "명확성 & 논리성",
             score: feedbackData.scores.clarityLogic,
-            feedback: "발언의 구조화, 핵심 전달, 모호성 최소화",
+            feedback: dimFb.clarityLogic || "발언의 구조화, 핵심 전달, 모호성 최소화",
             icon: "🎯",
             color: "blue"
           },
@@ -1975,7 +1973,7 @@ export async function registerRoutes(app: Express, httpServer: Server): Promise<
             category: "listeningEmpathy", 
             name: "경청 & 공감",
             score: feedbackData.scores.listeningEmpathy,
-            feedback: "재진술·요약, 감정 인식, 우려 존중",
+            feedback: dimFb.listeningEmpathy || "재진술·요약, 감정 인식, 우려 존중",
             icon: "👂",
             color: "green"
           },
@@ -1983,7 +1981,7 @@ export async function registerRoutes(app: Express, httpServer: Server): Promise<
             category: "appropriatenessAdaptability",
             name: "적절성 & 상황 대응", 
             score: feedbackData.scores.appropriatenessAdaptability,
-            feedback: "맥락 적합한 표현, 유연한 갈등 대응",
+            feedback: dimFb.appropriatenessAdaptability || "맥락 적합한 표현, 유연한 갈등 대응",
             icon: "⚡",
             color: "yellow"
           },
@@ -1991,7 +1989,7 @@ export async function registerRoutes(app: Express, httpServer: Server): Promise<
             category: "persuasivenessImpact",
             name: "설득력 & 영향력",
             score: feedbackData.scores.persuasivenessImpact, 
-            feedback: "논리적 근거, 사례 활용, 행동 변화 유도",
+            feedback: dimFb.persuasivenessImpact || "논리적 근거, 사례 활용, 행동 변화 유도",
             icon: "🎪",
             color: "purple"
           },
@@ -1999,7 +1997,7 @@ export async function registerRoutes(app: Express, httpServer: Server): Promise<
             category: "strategicCommunication",
             name: "전략적 커뮤니케이션",
             score: feedbackData.scores.strategicCommunication,
-            feedback: "목표 지향적 대화, 협상·조율, 주도성", 
+            feedback: dimFb.strategicCommunication || "목표 지향적 대화, 협상·조율, 주도성", 
             icon: "🎲",
             color: "red"
           }

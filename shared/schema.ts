@@ -365,8 +365,9 @@ export type DetailedFeedback = {
     persuasivenessImpact: number;
     strategicCommunication: number;
     strategicSelection?: number;
-    [key: string]: number | undefined; // 동적 평가 기준 지원
+    [key: string]: number | undefined;
   };
+  dimensionFeedback?: Record<string, string>;
   strengths: string[];
   improvements: string[];
   nextSteps: string[];

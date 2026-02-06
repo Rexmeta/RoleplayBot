@@ -231,7 +231,9 @@ JSON 형식으로 응답하세요: {"emotion": "감정", "reason": "감정을 �
       return `"${dim.key}": ${exampleScore}`;
     }).join(',\n    ');
 
-    return `당신은 커뮤니케이션 평가 전문가입니다.
+    const dimensionFeedbackFormat = dimensions.map(d => `"${d.key}": "이 영역에서 사용자가 보인 구체적 행동과 근거를 2문장 이상 서술"`).join(', ');
+
+    return `당신은 커뮤니케이션 평가 전문가입니다. 아래 대화를 분석하여 상세한 피드백 리포트를 JSON 형식으로 작성해주세요.
 
 ## 평가 기준 세트: ${criteriaName}
 
@@ -247,36 +249,61 @@ ${conversationText}
 ${dimensionsList}
 
 ## ⚠️ 독립 평가 필수 원칙:
-- **각 평가 차원은 반드시 독립적으로 평가하세요. 모든 차원에 동일한 점수를 부여하는 것은 금지합니다.**
-- 각 차원마다 대화에서 해당 차원과 관련된 구체적 근거(발화 내용, 행동 패턴)를 찾아 점수를 결정하세요
-- 사용자가 특정 차원에서 잘했지만 다른 차원에서 부족할 수 있습니다. 예: 공감 능력은 높지만 논리적 설득력은 낮을 수 있음
-- 점수 범위를 고르게 활용하세요. 1점부터 5점까지 다양하게 부여하세요
+- **각 평가 차원은 반드시 독립적으로 평가하세요. 모든 차원에 동일한 점수를 부여하는 것은 절대 금지합니다.**
+- **반드시 dimensionFeedback에서 각 영역별 구체적 근거(실제 발화 인용)를 먼저 작성한 후, 그 근거를 바탕으로 점수를 결정하세요**
+- 사용자의 각 발화를 분석하여 어떤 차원과 관련되는지 매핑하세요
+- 예: 공감 표현이 있으면 경청&공감 점수를 높이고, 논리적 근거 없이 주장만 하면 설득력 점수를 낮추세요
+- 점수 범위(1-5)를 고르게 활용하세요. 1점(매우 부족)~5점(탁월)까지 대화 내용에 따라 차등 부여
+- 각 평가 차원에 "평가 지침"이 있는 경우, 반드시 해당 지침에 따라 채점하세요
 
-## 평가 지침:
-1. 각 차원별로 지정된 점수 범위 내에서 독립적으로 평가
-2. 전체 점수는 0-100점
-3. 각 평가 차원에 "평가 지침"이 있는 경우, 반드시 해당 지침에 따라 채점하세요
-4. 종합평가(summary)는 가중치가 높은 차원의 결과를 중심으로 작성하세요
-5. strengths/improvements도 가중치가 높은 차원을 우선적으로 반영하세요
-6. **중요**: ${languageInstruction}
+## 📝 콘텐츠 품질 요구사항:
+- **summary**: 3문장 이상으로 대화의 전체적인 흐름, 사용자의 핵심 강점, 주요 개선 영역을 구체적으로 서술
+- **strengths/improvements/nextSteps**: 각각 3개 이상, 각 항목은 대화 내용을 직접 인용하거나 참조하는 구체적 문장
+- **dimensionFeedback**: 각 차원별로 2문장 이상, 해당 차원에서 사용자가 보인 구체적 행동과 그 효과를 서술
+- **behaviorGuides**: 3개 이상의 상황별 행동 가이드, 이 대화 맥락에 맞게 구체적으로 작성
+- **conversationGuides**: 2개 이상, goodExample과 badExample은 실제 사용 가능한 구체적 대화문으로 작성
+- **developmentPlan**: 단기/중기/장기 각 1개 이상, 이 대화에서 드러난 약점을 기반으로 구체적이고 측정 가능한 목표 설정
+- **ranking**: 전문가 관점의 심층 분석 의견을 3문장 이상으로 서술
+
+## 가중치 반영 지침:
+- 종합평가(summary)는 가중치가 높은 차원의 결과를 중심으로 작성하세요
+- strengths/improvements도 가중치가 높은 차원을 우선적으로 반영하세요
+
+**중요**: ${languageInstruction}
 
 JSON 형식으로 응답:
 {
-  "overallScore": 전체점수(0-100),
+  "overallScore": 72,
   "scores": {
     ${scoresStructure}
   },
-  "strengths": ["강점1", "강점2", "강점3"],
-  "improvements": ["개선점1", "개선점2", "개선점3"],
-  "nextSteps": ["다음단계1", "다음단계2", "다음단계3"],
-  "summary": "종합평가요약 (가중치가 높은 차원을 중심으로 서술)"
+  "dimensionFeedback": {${dimensionFeedbackFormat}},
+  "strengths": ["대화 초반 상대방의 입장을 경청하며 공감을 표현한 점이 신뢰 형성에 효과적이었습니다", "구체적인 데이터를 활용하여 논거를 뒷받침한 점이 설득력을 높였습니다", "상대방의 반론에 감정적으로 대응하지 않고 차분하게 대안을 제시한 점이 인상적이었습니다"],
+  "improvements": ["핵심 주장을 먼저 제시하는 두괄식 구조가 부족하여 메시지 전달력이 떨어졌습니다", "상대방의 비언어적 신호에 대한 대응이 부족하여 대화의 흐름을 놓치는 순간이 있었습니다", "대화 마무리 단계에서 구체적인 합의 사항을 정리하지 않아 다음 단계가 불명확했습니다"],
+  "nextSteps": ["PREP 구조를 활용하여 논리적으로 의견을 전달하는 연습을 해보세요", "상대방이 망설일 때 개방형 질문을 사용하는 습관을 들이세요", "대화 마무리 시 합의 내용을 요약하고 다음 액션 아이템을 정리하세요"],
+  "summary": "이번 대화에서 사용자는 기본적인 공감 능력을 보여주었으나, 논리적 설득과 전략적 대화 구조화에서 개선이 필요합니다. 특히 핵심 주장의 명확한 전달과 협상 마무리 기술이 부족했습니다. 구조화된 논증 방식과 적극적 경청 기법을 훈련하면 커뮤니케이션 역량이 크게 향상될 것으로 기대됩니다.",
+  "ranking": "전반적으로 기본적인 대화 역량은 갖추고 있으나, 전략적 소통 능력이 부족합니다. 공감 능력은 평균 이상이나, 이를 설득력 있는 논거와 결합하는 통합적 커뮤니케이션 역량 개발이 필요합니다. 체계적인 훈련을 통해 단기간 내 의미 있는 성장이 가능할 것으로 판단됩니다.",
+  "behaviorGuides": [
+    {"situation": "상대방이 강하게 반대 의견을 표명할 때", "action": "감정적 반응을 자제하고, 상대방의 핵심 우려사항을 먼저 인정한 후 대안을 제시합니다", "example": "'말씀하신 우려는 충분히 이해합니다. 그 점을 고려하여 단계적 도입 방안을 준비했는데 검토해 주시겠습니까?'", "impact": "상대방이 자신의 의견이 존중받았다고 느끼게 되어 방어적 태도가 줄어듭니다"},
+    {"situation": "대화가 교착 상태에 빠졌을 때", "action": "공통 목표를 재확인하고 개방형 질문으로 새로운 가능성을 탐색합니다", "example": "'우리 모두 프로젝트 성공이라는 같은 목표를 갖고 있잖아요. 두 가지 방안의 장점을 결합할 수 있을까요?'", "impact": "대립에서 협력 구도로 전환되어 창의적 해결책 도출 가능성이 높아집니다"},
+    {"situation": "중요한 정보를 전달해야 할 때", "action": "PREP 구조로 핵심 메시지를 명확히 전달합니다", "example": "'결론적으로 A방안을 추천합니다. 이유는 비용 절감 20%, 호환성 확보이며, B팀에서 성공한 사례가 있습니다.'", "impact": "의사결정 속도가 빨라지고 전문성 있는 인상을 줍니다"}
+  ],
+  "conversationGuides": [
+    {"scenario": "갈등 상황에서의 대화", "goodExample": "'팀장님의 우려를 충분히 이해합니다. 기존 업무에 영향을 최소화하면서 시범 적용할 수 있는 방법을 생각해 보았습니다.'", "badExample": "'아니요, 그건 아닙니다. 제 방안이 더 효율적이에요.'", "keyPoints": ["상대방 감정 인정", "우려사항 구체적 언급", "부담 줄이는 대안 제시", "비난 대신 협력의 자세"]},
+    {"scenario": "합의 도출이 필요한 상황", "goodExample": "'지금까지 논의를 정리하면, 1) 일정 유지, 2) 리스크 부분 추가 검토입니다. 다음 주까지 세부 계획을 공유드리겠습니다.'", "badExample": "'네, 알겠습니다. 그럼 그렇게 하죠.' (합의 내용 없이 마무리)", "keyPoints": ["합의 내용 구체적 요약", "액션 아이템과 기한 명시", "추가 의견 확인", "문서화"]}
+  ],
+  "developmentPlan": {
+    "shortTerm": [{"goal": "구조화된 논증 능력 향상 (1-2주)", "actions": ["PREP 구조 사용 연습", "두괄식 의견 전달 훈련", "대화 후 복기 및 개선점 기록"], "measurable": "PREP 구조 사용 비율 80% 이상"}],
+    "mediumTerm": [{"goal": "갈등 대응력 강화 (1-2개월)", "actions": ["갈등 시나리오 롤플레이 월 3회", "반영적 경청 기법 훈련", "Win-Win 협상 기법 학습"], "measurable": "갈등 해결 성공률 70% 이상"}],
+    "longTerm": [{"goal": "전략적 커뮤니케이션 리더십 (3-6개월)", "actions": ["퍼실리테이터 역할 수행", "부서 간 조율자 역할", "전문 교육 이수"], "measurable": "팀 커뮤니케이션 만족도 80점 이상"}],
+    "recommendedResources": ["'어떻게 원하는 것을 얻는가' - 협상 기법 서적", "'비폭력 대화' - 갈등 해결 커뮤니케이션", "커뮤니케이션 스킬 온라인 강의", "롤플레이 실전 훈련 과정"]
+  }
 }`;
   }
 
   private parseFeedbackResponse(feedbackData: any, evaluationCriteria?: EvaluationCriteriaWithDimensions): DetailedFeedback {
     const dimensions = evaluationCriteria?.dimensions || this.getDefaultDimensions();
     
-    // 동적 scores 객체 생성
     const scores: Record<string, number> = {};
     for (const dim of dimensions) {
       const rawScore = feedbackData.scores?.[dim.key];
@@ -286,14 +313,15 @@ JSON 형식으로 응답:
     return {
       overallScore: this.calculateWeightedOverallScore(scores, evaluationCriteria),
       scores: scores as any,
+      dimensionFeedback: feedbackData.dimensionFeedback || {},
       strengths: feedbackData.strengths || ["기본적인 대화 능력", "적절한 언어 사용", "상황 이해도"],
       improvements: feedbackData.improvements || ["더 구체적인 표현", "감정 교감 증진", "논리적 구조화"],
       nextSteps: feedbackData.nextSteps || ["추가 연습 필요", "전문가 피드백 받기", "실무 경험 쌓기"],
       summary: feedbackData.summary || "전반적으로 무난한 대화였습니다. 지속적인 연습을 통해 발전할 수 있습니다.",
-      ranking: "전문가 분석을 통한 종합 평가 결과입니다.",
-      behaviorGuides: this.generateBehaviorGuides(),
-      conversationGuides: this.generateConversationGuides(), 
-      developmentPlan: this.generateDevelopmentPlan(feedbackData.overallScore || 60),
+      ranking: feedbackData.ranking || feedbackData.summary || "전문가 분석을 통한 종합 평가 결과입니다.",
+      behaviorGuides: feedbackData.behaviorGuides || this.generateBehaviorGuides(),
+      conversationGuides: feedbackData.conversationGuides || this.generateConversationGuides(), 
+      developmentPlan: feedbackData.developmentPlan || this.generateDevelopmentPlan(feedbackData.overallScore || 60),
       evaluationCriteriaSetName: evaluationCriteria?.name
     };
   }
