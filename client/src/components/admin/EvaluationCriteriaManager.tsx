@@ -554,8 +554,6 @@ export function EvaluationCriteriaManager() {
                   onDelete={() => { setSetToDelete(set); setIsDeleteConfirmOpen(true); }}
                   onSetDefault={() => setDefaultMutation.mutate(set.id)}
                   onAddDimension={() => handleAddDimension(set)}
-                  onEditDimension={(dim) => handleEditDimension(set, dim)}
-                  onDeleteDimension={(dimId) => deleteDimensionMutation.mutate(dimId)}
                   isDefault={set.isDefault}
                 />
               </AccordionContent>
@@ -983,6 +981,222 @@ export function EvaluationCriteriaManager() {
   );
 }
 
+function InlineDimensionEditor({
+  dimension,
+  onSave,
+  onCancel,
+  onDelete,
+  isSaving,
+}: {
+  dimension: EvaluationDimension;
+  onSave: (data: any) => void;
+  onCancel: () => void;
+  onDelete: () => void;
+  isSaving: boolean;
+}) {
+  const { t } = useTranslation();
+  const [editData, setEditData] = useState({
+    name: dimension.name,
+    description: dimension.description || '',
+    weight: dimension.weight,
+    dimensionType: (dimension as any).dimensionType || 'standard' as 'core' | 'standard' | 'bonus',
+    minScore: dimension.minScore,
+    maxScore: dimension.maxScore,
+    icon: dimension.icon || 'Star',
+    color: dimension.color || '#6366f1',
+    isActive: dimension.isActive,
+    scoringRubric: dimension.scoringRubric || [],
+  });
+
+  const PRESET_COLORS_INLINE = [
+    '#6366f1', '#3b82f6', '#0ea5e9', '#06b6d4',
+    '#10b981', '#22c55e', '#eab308', '#f97316',
+    '#ef4444', '#ec4899', '#d946ef', '#a855f7',
+  ];
+
+  const handleSave = () => {
+    onSave({
+      key: dimension.key,
+      name: editData.name,
+      description: editData.description || null,
+      weight: editData.weight,
+      dimensionType: editData.dimensionType,
+      minScore: editData.minScore,
+      maxScore: editData.maxScore,
+      icon: editData.icon || 'Star',
+      color: editData.color || '#6366f1',
+      isActive: editData.isActive,
+      scoringRubric: editData.scoringRubric.length > 0 ? editData.scoringRubric : null,
+    });
+  };
+
+  return (
+    <div className="bg-slate-50 border border-slate-200 rounded-lg p-4 space-y-4">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <span className="text-xs font-mono text-slate-400 bg-slate-100 px-2 py-0.5 rounded">{dimension.key}</span>
+          <Switch
+            checked={editData.isActive}
+            onCheckedChange={(checked) => setEditData({ ...editData, isActive: checked })}
+          />
+          <span className="text-xs text-slate-500">{editData.isActive ? t('admin.evaluationCriteria.active') : t('admin.evaluationCriteria.inactive')}</span>
+        </div>
+        <div className="flex items-center gap-1">
+          <Button variant="ghost" size="sm" onClick={onCancel} className="h-7 text-xs">
+            {t('common.cancel')}
+          </Button>
+          <Button size="sm" onClick={handleSave} disabled={!editData.name || isSaving} className="h-7 text-xs">
+            {isSaving ? t('admin.common.loading') : t('common.save')}
+          </Button>
+          <Button variant="ghost" size="icon" className="h-7 w-7 text-red-500 hover:text-red-700 hover:bg-red-50" onClick={onDelete}>
+            <Trash2 className="h-3.5 w-3.5" />
+          </Button>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+        <div>
+          <Label className="text-xs">{t('admin.evaluationCriteria.name')}</Label>
+          <Input
+            value={editData.name}
+            onChange={(e) => setEditData({ ...editData, name: e.target.value })}
+            className="h-8 text-sm mt-1"
+          />
+        </div>
+        <div>
+          <Label className="text-xs">{t('admin.evaluationCriteria.type')}</Label>
+          <Select
+            value={editData.dimensionType}
+            onValueChange={(value: 'core' | 'standard' | 'bonus') => setEditData({ ...editData, dimensionType: value })}
+          >
+            <SelectTrigger className="h-8 text-sm mt-1">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {DIMENSION_TYPE_OPTIONS.map(opt => (
+                <SelectItem key={opt.value} value={opt.value}>
+                  <span className={opt.color}>{opt.label}</span>
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
+
+      <div>
+        <Label className="text-xs">{t('admin.evaluationCriteria.descriptionLabel')}</Label>
+        <Textarea
+          value={editData.description}
+          onChange={(e) => setEditData({ ...editData, description: e.target.value })}
+          className="text-sm mt-1 min-h-[60px]"
+          rows={2}
+        />
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+        <div>
+          <div className="flex items-center justify-between mb-1">
+            <Label className="text-xs">{t('admin.evaluationCriteria.weight')}</Label>
+            <span className="text-sm font-bold text-blue-600">{editData.weight}%</span>
+          </div>
+          <Slider
+            min={0}
+            max={100}
+            step={5}
+            value={[editData.weight]}
+            onValueChange={(values) => setEditData({ ...editData, weight: values[0] })}
+          />
+        </div>
+        <div className="grid grid-cols-2 gap-2">
+          <div>
+            <Label className="text-xs">{t('admin.evaluationCriteria.score')} (min)</Label>
+            <Input
+              type="number"
+              value={editData.minScore}
+              onChange={(e) => setEditData({ ...editData, minScore: parseInt(e.target.value) || 1 })}
+              className="h-8 text-sm mt-1"
+            />
+          </div>
+          <div>
+            <Label className="text-xs">{t('admin.evaluationCriteria.score')} (max)</Label>
+            <Input
+              type="number"
+              value={editData.maxScore}
+              onChange={(e) => setEditData({ ...editData, maxScore: parseInt(e.target.value) || 5 })}
+              className="h-8 text-sm mt-1"
+            />
+          </div>
+        </div>
+        <div>
+          <Label className="text-xs">아이콘 / 색상</Label>
+          <div className="flex items-center gap-2 mt-1">
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button variant="outline" size="sm" className="h-8 w-8 p-0">
+                  {(() => {
+                    const IconComp = getIconComponent(editData.icon || 'Star');
+                    return <IconComp className="h-4 w-4" />;
+                  })()}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-64 p-2" align="start">
+                <div className="grid grid-cols-6 gap-1">
+                  {AVAILABLE_ICONS.map(({ name, icon: IconComp }) => (
+                    <Button
+                      key={name}
+                      variant={editData.icon === name ? "default" : "ghost"}
+                      size="icon"
+                      className="h-8 w-8"
+                      onClick={() => setEditData({ ...editData, icon: name })}
+                    >
+                      <IconComp className="h-3.5 w-3.5" />
+                    </Button>
+                  ))}
+                </div>
+              </PopoverContent>
+            </Popover>
+            <Popover>
+              <PopoverTrigger asChild>
+                <button
+                  className="h-8 w-8 rounded-md border border-slate-200 shrink-0 hover:ring-2 hover:ring-slate-300 transition-all"
+                  style={{ backgroundColor: editData.color || '#6366f1' }}
+                />
+              </PopoverTrigger>
+              <PopoverContent className="w-[200px] p-2" align="start">
+                <div className="grid grid-cols-4 gap-1.5">
+                  {PRESET_COLORS_INLINE.map((color) => (
+                    <button
+                      key={color}
+                      className={`w-7 h-7 rounded-md border border-slate-200 hover:scale-110 transition-transform ${editData.color === color ? 'ring-2 ring-slate-950 ring-offset-1' : ''}`}
+                      style={{ backgroundColor: color }}
+                      onClick={() => setEditData({ ...editData, color })}
+                    />
+                  ))}
+                </div>
+                <div className="flex items-center gap-1.5 pt-2 mt-2 border-t">
+                  <Input
+                    type="color"
+                    value={editData.color || '#6366f1'}
+                    onChange={(e) => setEditData({ ...editData, color: e.target.value })}
+                    className="w-8 h-7 p-0.5 cursor-pointer shrink-0 border-none bg-transparent"
+                  />
+                  <Input
+                    type="text"
+                    value={editData.color || '#6366f1'}
+                    onChange={(e) => setEditData({ ...editData, color: e.target.value })}
+                    className="h-7 text-xs font-mono"
+                    placeholder="#000000"
+                  />
+                </div>
+              </PopoverContent>
+            </Popover>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function CriteriaSetDetail({
   setId,
   fetchSetWithDimensions,
@@ -990,8 +1204,6 @@ function CriteriaSetDetail({
   onDelete,
   onSetDefault,
   onAddDimension,
-  onEditDimension,
-  onDeleteDimension,
   isDefault,
 }: {
   setId: string;
@@ -1000,15 +1212,46 @@ function CriteriaSetDetail({
   onDelete: () => void;
   onSetDefault: () => void;
   onAddDimension: () => void;
-  onEditDimension: (dim: EvaluationDimension) => void;
-  onDeleteDimension: (dimId: string) => void;
   isDefault: boolean;
 }) {
   const { t, i18n } = useTranslation();
   const currentLang = i18n.language;
+  const { toast } = useToast();
+  const [editingDimId, setEditingDimId] = useState<string | null>(null);
+  const [deleteConfirmDimId, setDeleteConfirmDimId] = useState<string | null>(null);
+
   const { data: setWithDimensions, isLoading } = useQuery({
     queryKey: ['/api/admin/evaluation-criteria', setId, currentLang],
     queryFn: () => fetchSetWithDimensions(setId),
+  });
+
+  const updateDimInlineMutation = useMutation({
+    mutationFn: async ({ id, data }: { id: string; data: any }) => {
+      return apiRequest('PUT', `/api/admin/evaluation-dimensions/${id}`, data);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/admin/evaluation-criteria'] });
+      toast({ title: "평가 차원이 수정되었습니다" });
+      setEditingDimId(null);
+    },
+    onError: (error: any) => {
+      toast({ title: "수정 실패", description: error.message, variant: "destructive" });
+    },
+  });
+
+  const deleteDimInlineMutation = useMutation({
+    mutationFn: async (id: string) => {
+      return apiRequest('DELETE', `/api/admin/evaluation-dimensions/${id}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/admin/evaluation-criteria'] });
+      toast({ title: "평가 차원이 삭제되었습니다" });
+      setDeleteConfirmDimId(null);
+      setEditingDimId(null);
+    },
+    onError: (error: any) => {
+      toast({ title: "삭제 실패", description: error.message, variant: "destructive" });
+    },
   });
 
   if (isLoading) {
@@ -1033,8 +1276,8 @@ function CriteriaSetDetail({
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <div className="flex gap-2">
+      <div className="flex items-center justify-between flex-wrap gap-2">
+        <div className="flex gap-2 flex-wrap">
           <Button variant="outline" size="sm" onClick={onEdit}>
             <Edit className="h-4 w-4 mr-1" />
             {t('admin.evaluationCriteria.edit')}
@@ -1068,60 +1311,75 @@ function CriteriaSetDetail({
           <p>{t('admin.evaluationCriteria.noDimensions')}</p>
         </div>
       ) : (
-        <div className="border rounded-lg overflow-hidden">
-          <table className="w-full text-sm">
-            <thead className="bg-slate-50">
-              <tr>
-                <th className="text-left px-3 py-2">{t('admin.evaluationCriteria.order')}</th>
-                <th className="text-left px-3 py-2">{t('admin.evaluationCriteria.type')}</th>
-                <th className="text-left px-3 py-2">{t('admin.evaluationCriteria.name')}</th>
-                <th className="text-left px-3 py-2">{t('admin.evaluationCriteria.descriptionLabel')}</th>
-                <th className="text-center px-3 py-2">{t('admin.evaluationCriteria.weight')}</th>
-                <th className="text-center px-3 py-2">{t('admin.evaluationCriteria.score')}</th>
-                <th className="text-center px-3 py-2">{t('admin.evaluationCriteria.status')}</th>
-                <th className="text-right px-3 py-2">{t('admin.evaluationCriteria.actions')}</th>
-              </tr>
-            </thead>
-            <tbody>
-              {dimensions.map((dim, index) => (
-                <tr key={dim.id} className="border-t">
-                  <td className="px-3 py-2 text-slate-500">{index + 1}</td>
-                  <td className="px-3 py-2">{getDimensionTypeBadge((dim as any).dimensionType || 'standard')}</td>
-                  <td className="px-3 py-2">
-                    <div className="flex items-center gap-1">
-                      {dim.icon && <span className="mr-1">{dim.icon}</span>}
-                      <span className="font-medium">{dim.name}</span>
+        <div className="space-y-2">
+          {dimensions.map((dim, index) => {
+            const isEditing = editingDimId === dim.id;
+            const IconComp = getIconComponent(dim.icon || 'Star');
+
+            if (isEditing) {
+              return (
+                <div key={dim.id}>
+                  <InlineDimensionEditor
+                    dimension={dim}
+                    onSave={(data) => updateDimInlineMutation.mutate({ id: dim.id, data })}
+                    onCancel={() => setEditingDimId(null)}
+                    onDelete={() => setDeleteConfirmDimId(dim.id)}
+                    isSaving={updateDimInlineMutation.isPending}
+                  />
+                  {deleteConfirmDimId === dim.id && (
+                    <div className="mt-2 bg-red-50 border border-red-200 rounded-lg p-3 flex items-center justify-between">
+                      <div className="flex items-center gap-2 text-sm text-red-700">
+                        <AlertCircle className="h-4 w-4" />
+                        <span>"{dim.name}" 차원을 삭제하시겠습니까?</span>
+                      </div>
+                      <div className="flex gap-1">
+                        <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => setDeleteConfirmDimId(null)}>
+                          {t('common.cancel')}
+                        </Button>
+                        <Button variant="destructive" size="sm" className="h-7 text-xs" onClick={() => deleteDimInlineMutation.mutate(dim.id)} disabled={deleteDimInlineMutation.isPending}>
+                          {deleteDimInlineMutation.isPending ? t('admin.common.loading') : t('common.delete')}
+                        </Button>
+                      </div>
                     </div>
-                    <span className="text-xs text-slate-400 font-mono">{dim.key}</span>
-                  </td>
-                  <td className="px-3 py-2 text-slate-500 max-w-[200px] truncate">
-                    {dim.description}
-                  </td>
-                  <td className="px-3 py-2 text-center">
+                  )}
+                </div>
+              );
+            }
+
+            return (
+              <div
+                key={dim.id}
+                className={`border rounded-lg p-3 flex items-center gap-3 cursor-pointer transition-colors hover:bg-slate-50 ${!dim.isActive ? 'opacity-60 bg-slate-50' : 'bg-white'}`}
+                onClick={() => setEditingDimId(dim.id)}
+              >
+                <div className="flex items-center justify-center w-7 h-7 rounded-md shrink-0" style={{ backgroundColor: (dim.color || '#6366f1') + '1A' }}>
+                  <IconComp className="h-4 w-4" style={{ color: dim.color || '#6366f1' }} />
+                </div>
+                <div className="text-xs text-slate-400 w-5 text-center shrink-0">{index + 1}</div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="font-medium text-sm">{dim.name}</span>
+                    {getDimensionTypeBadge((dim as any).dimensionType || 'standard')}
+                    {!dim.isActive && <Badge variant="secondary" className="text-xs">{t('admin.evaluationCriteria.inactive')}</Badge>}
+                  </div>
+                  {dim.description && (
+                    <p className="text-xs text-slate-500 mt-0.5 truncate">{dim.description}</p>
+                  )}
+                </div>
+                <div className="flex items-center gap-4 shrink-0 text-sm">
+                  <div className="text-center">
                     <span className="font-bold text-blue-600">{dim.weight}%</span>
-                  </td>
-                  <td className="px-3 py-2 text-center">{dim.minScore}-{dim.maxScore}</td>
-                  <td className="px-3 py-2 text-center">
-                    {dim.isActive ? (
-                      <Badge variant="default" className="bg-green-100 text-green-700">{t('admin.evaluationCriteria.active')}</Badge>
-                    ) : (
-                      <Badge variant="secondary">{t('admin.evaluationCriteria.inactive')}</Badge>
-                    )}
-                  </td>
-                  <td className="px-3 py-2 text-right">
-                    <div className="flex justify-end gap-1">
-                      <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => onEditDimension(dim)}>
-                        <Edit className="h-3 w-3" />
-                      </Button>
-                      <Button variant="ghost" size="icon" className="h-7 w-7 text-red-600" onClick={() => onDeleteDimension(dim.id)}>
-                        <Trash2 className="h-3 w-3" />
-                      </Button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+                  </div>
+                  <div className="text-center text-slate-500">
+                    {dim.minScore}-{dim.maxScore}
+                  </div>
+                  <Button variant="ghost" size="icon" className="h-7 w-7" onClick={(e) => { e.stopPropagation(); setEditingDimId(dim.id); }}>
+                    <Edit className="h-3.5 w-3.5" />
+                  </Button>
+                </div>
+              </div>
+            );
+          })}
         </div>
       )}
     </div>
