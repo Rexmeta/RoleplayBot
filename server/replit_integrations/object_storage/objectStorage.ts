@@ -10,15 +10,56 @@ import {
 } from "./objectAcl";
 
 const REPLIT_SIDECAR_ENDPOINT = "http://127.0.0.1:1106";
+const SIDECAR_HEALTH_CHECK_INTERVAL_MS = 30_000;
+const SIDECAR_OPERATION_TIMEOUT_MS = 10_000;
+const SIDECAR_MAX_RETRIES = 2;
 
-// Check if running on Cloud Run (set before any Replit-specific code runs)
 function isCloudRunEnv(): boolean {
   return !!process.env.K_SERVICE || !!process.env.K_REVISION;
 }
 
-// The object storage client is used to interact with the object storage service.
-// CRITICAL: This client uses Replit's sidecar endpoint and MUST NOT be used on Cloud Run
 let objectStorageClient: Storage | null = null;
+let sidecarAvailable: boolean | null = null;
+let lastHealthCheck = 0;
+
+async function checkSidecarHealth(): Promise<boolean> {
+  const now = Date.now();
+  if (sidecarAvailable !== null && now - lastHealthCheck < SIDECAR_HEALTH_CHECK_INTERVAL_MS) {
+    return sidecarAvailable;
+  }
+
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 3000);
+    const res = await fetch(`${REPLIT_SIDECAR_ENDPOINT}/`, {
+      method: "GET",
+      signal: controller.signal,
+    });
+    clearTimeout(timeout);
+    sidecarAvailable = res.status < 500;
+    lastHealthCheck = now;
+    if (!sidecarAvailable) {
+      console.warn(`[ObjectStorage] Sidecar health check failed: HTTP ${res.status}`);
+    }
+  } catch (err: any) {
+    sidecarAvailable = false;
+    lastHealthCheck = now;
+    console.warn(`[ObjectStorage] Sidecar unreachable: ${err.code || err.message}`);
+  }
+
+  return sidecarAvailable;
+}
+
+export async function isSidecarAvailable(): Promise<boolean> {
+  if (isCloudRunEnv()) return false;
+  return checkSidecarHealth();
+}
+
+export function resetSidecarStatus(): void {
+  sidecarAvailable = null;
+  lastHealthCheck = 0;
+  objectStorageClient = null;
+}
 
 function getObjectStorageClient(): Storage {
   if (isCloudRunEnv()) {
@@ -52,8 +93,15 @@ function getObjectStorageClient(): Storage {
   return objectStorageClient;
 }
 
-// Export the getter function for backwards compatibility (but will throw on Cloud Run)
 export { getObjectStorageClient };
+
+export class SidecarUnavailableError extends Error {
+  constructor(detail?: string) {
+    super(`Replit Object Storage sidecar is unavailable${detail ? ': ' + detail : ''}`);
+    this.name = "SidecarUnavailableError";
+    Object.setPrototypeOf(this, SidecarUnavailableError.prototype);
+  }
+}
 
 export class ObjectNotFoundError extends Error {
   constructor() {
@@ -63,11 +111,50 @@ export class ObjectNotFoundError extends Error {
   }
 }
 
-// The object storage service is used to interact with the object storage service.
-// CRITICAL: This class is for Replit Object Storage ONLY. Do NOT use on Cloud Run.
+async function withRetry<T>(
+  operation: () => Promise<T>,
+  label: string
+): Promise<T> {
+  let lastError: any;
+  for (let attempt = 0; attempt <= SIDECAR_MAX_RETRIES; attempt++) {
+    try {
+      const result = await Promise.race([
+        operation(),
+        new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error(`Timeout after ${SIDECAR_OPERATION_TIMEOUT_MS}ms`)), SIDECAR_OPERATION_TIMEOUT_MS)
+        ),
+      ]);
+      return result;
+    } catch (err: any) {
+      lastError = err;
+      const isConnectionError =
+        err.code === 'ECONNREFUSED' ||
+        err.code === 'ECONNRESET' ||
+        err.code === 'ETIMEDOUT' ||
+        err.code === 'EPIPE' ||
+        err.message?.includes('Timeout after') ||
+        err.message?.includes('ECONNREFUSED') ||
+        err.message?.includes('socket hang up');
+
+      if (isConnectionError) {
+        resetSidecarStatus();
+        if (attempt < SIDECAR_MAX_RETRIES) {
+          const delay = Math.min(1000 * Math.pow(2, attempt), 3000);
+          console.warn(`[ObjectStorage] ${label} attempt ${attempt + 1} failed (${err.code || err.message}), retrying in ${delay}ms...`);
+          await new Promise(r => setTimeout(r, delay));
+          continue;
+        }
+        throw new SidecarUnavailableError(err.message);
+      }
+
+      throw err;
+    }
+  }
+  throw lastError;
+}
+
 export class ObjectStorageService {
   constructor() {
-    // Block instantiation on Cloud Run
     if (isCloudRunEnv()) {
       console.error('[ObjectStorageService] BLOCKED: Cannot use Replit Object Storage on Cloud Run');
       throw new Error(
@@ -77,7 +164,6 @@ export class ObjectStorageService {
     }
   }
 
-  // Gets the public object search paths.
   getPublicObjectSearchPaths(): Array<string> {
     const pathsStr = process.env.PUBLIC_OBJECT_SEARCH_PATHS || "";
     const paths = Array.from(
@@ -97,7 +183,6 @@ export class ObjectStorageService {
     return paths;
   }
 
-  // Gets the private object directory.
   getPrivateObjectDir(): string {
     const dir = process.env.PRIVATE_OBJECT_DIR || "";
     if (!dir) {
@@ -109,35 +194,35 @@ export class ObjectStorageService {
     return dir;
   }
 
-  // Search for a public object from the search paths.
   async searchPublicObject(filePath: string): Promise<File | null> {
-    for (const searchPath of this.getPublicObjectSearchPaths()) {
-      const fullPath = `${searchPath}/${filePath}`;
-
-      // Full path format: /<bucket_name>/<object_name>
-      const { bucketName, objectName } = parseObjectPath(fullPath);
-      const bucket = getObjectStorageClient().bucket(bucketName);
-      const file = bucket.file(objectName);
-
-      // Check if file exists
-      const [exists] = await file.exists();
-      if (exists) {
-        return file;
-      }
+    const available = await checkSidecarHealth();
+    if (!available) {
+      throw new SidecarUnavailableError('health check failed before search');
     }
 
-    return null;
+    return withRetry(async () => {
+      for (const searchPath of this.getPublicObjectSearchPaths()) {
+        const fullPath = `${searchPath}/${filePath}`;
+        const { bucketName, objectName } = parseObjectPath(fullPath);
+        const bucket = getObjectStorageClient().bucket(bucketName);
+        const file = bucket.file(objectName);
+        const [exists] = await file.exists();
+        if (exists) {
+          return file;
+        }
+      }
+      return null;
+    }, `searchPublicObject(${filePath})`);
   }
 
-  // Downloads an object to the response.
   async downloadObject(file: File, res: Response, cacheTtlSec: number = 3600) {
     try {
-      // Get file metadata
-      const [metadata] = await file.getMetadata();
-      // Get the ACL policy for the object.
+      const [metadata] = await withRetry(
+        () => file.getMetadata(),
+        'getMetadata'
+      );
       const aclPolicy = await getObjectAclPolicy(file);
       const isPublic = aclPolicy?.visibility === "public";
-      // Set appropriate headers
       res.set({
         "Content-Type": metadata.contentType || "application/octet-stream",
         "Content-Length": metadata.size,
@@ -146,11 +231,10 @@ export class ObjectStorageService {
         }, max-age=${cacheTtlSec}`,
       });
 
-      // Stream the file to the response
       const stream = file.createReadStream();
 
       stream.on("error", (err) => {
-        console.error("Stream error:", err);
+        console.error("[ObjectStorage] Stream error:", err);
         if (!res.headersSent) {
           res.status(500).json({ error: "Error streaming file" });
         }
@@ -158,14 +242,17 @@ export class ObjectStorageService {
 
       stream.pipe(res);
     } catch (error) {
-      console.error("Error downloading file:", error);
+      console.error("[ObjectStorage] Download error:", error);
       if (!res.headersSent) {
-        res.status(500).json({ error: "Error downloading file" });
+        if (error instanceof SidecarUnavailableError) {
+          res.status(503).json({ error: "Storage service temporarily unavailable" });
+        } else {
+          res.status(500).json({ error: "Error downloading file" });
+        }
       }
     }
   }
 
-  // Gets the upload URL for an object entity.
   async getObjectEntityUploadURL(): Promise<string> {
     const privateObjectDir = this.getPrivateObjectDir();
     if (!privateObjectDir) {
@@ -180,7 +267,6 @@ export class ObjectStorageService {
 
     const { bucketName, objectName } = parseObjectPath(fullPath);
 
-    // Sign URL for PUT method with TTL
     return signObjectURL({
       bucketName,
       objectName,
@@ -189,7 +275,6 @@ export class ObjectStorageService {
     });
   }
 
-  // Gets the object entity file from the object path.
   async getObjectEntityFile(objectPath: string): Promise<File> {
     if (!objectPath.startsWith("/objects/")) {
       throw new ObjectNotFoundError();
@@ -207,13 +292,16 @@ export class ObjectStorageService {
     }
     const objectEntityPath = `${entityDir}${entityId}`;
     const { bucketName, objectName } = parseObjectPath(objectEntityPath);
-    const bucket = getObjectStorageClient().bucket(bucketName);
-    const objectFile = bucket.file(objectName);
-    const [exists] = await objectFile.exists();
-    if (!exists) {
-      throw new ObjectNotFoundError();
-    }
-    return objectFile;
+
+    return withRetry(async () => {
+      const bucket = getObjectStorageClient().bucket(bucketName);
+      const objectFile = bucket.file(objectName);
+      const [exists] = await objectFile.exists();
+      if (!exists) {
+        throw new ObjectNotFoundError();
+      }
+      return objectFile;
+    }, `getObjectEntityFile(${objectPath})`);
   }
 
   normalizeObjectEntityPath(
@@ -223,7 +311,6 @@ export class ObjectStorageService {
       return rawPath;
     }
   
-    // Extract the path from the URL by removing query parameters and domain
     const url = new URL(rawPath);
     const rawObjectPath = url.pathname;
   
@@ -236,12 +323,10 @@ export class ObjectStorageService {
       return rawObjectPath;
     }
   
-    // Extract the entity ID from the path
     const entityId = rawObjectPath.slice(objectEntityDir.length);
     return `/objects/${entityId}`;
   }
 
-  // Tries to set the ACL policy for the object entity and return the normalized path.
   async trySetObjectEntityAclPolicy(
     rawPath: string,
     aclPolicy: ObjectAclPolicy
@@ -256,7 +341,6 @@ export class ObjectStorageService {
     return normalizedPath;
   }
 
-  // Checks if the user can access the object entity.
   async canAccessObjectEntity({
     userId,
     objectFile,
@@ -306,30 +390,31 @@ async function signObjectURL({
   method: "GET" | "PUT" | "DELETE" | "HEAD";
   ttlSec: number;
 }): Promise<string> {
-  const request = {
-    bucket_name: bucketName,
-    object_name: objectName,
-    method,
-    expires_at: new Date(Date.now() + ttlSec * 1000).toISOString(),
-  };
-  const response = await fetch(
-    `${REPLIT_SIDECAR_ENDPOINT}/object-storage/signed-object-url`,
-    {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(request),
-    }
-  );
-  if (!response.ok) {
-    throw new Error(
-      `Failed to sign object URL, errorcode: ${response.status}, ` +
-        `make sure you're running on Replit`
+  return withRetry(async () => {
+    const request = {
+      bucket_name: bucketName,
+      object_name: objectName,
+      method,
+      expires_at: new Date(Date.now() + ttlSec * 1000).toISOString(),
+    };
+    const response = await fetch(
+      `${REPLIT_SIDECAR_ENDPOINT}/object-storage/signed-object-url`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(request),
+      }
     );
-  }
+    if (!response.ok) {
+      throw new Error(
+        `Failed to sign object URL, errorcode: ${response.status}, ` +
+          `make sure you're running on Replit`
+      );
+    }
 
-  const { signed_url: signedURL } = await response.json();
-  return signedURL;
+    const { signed_url: signedURL } = await response.json();
+    return signedURL;
+  }, `signObjectURL(${objectName})`);
 }
-

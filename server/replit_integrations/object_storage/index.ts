@@ -1,6 +1,9 @@
 export {
   ObjectStorageService,
   ObjectNotFoundError,
+  SidecarUnavailableError,
+  isSidecarAvailable,
+  resetSidecarStatus,
   getObjectStorageClient,
 } from "./objectStorage";
 

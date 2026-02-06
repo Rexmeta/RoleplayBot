@@ -1,5 +1,5 @@
 import type { Express } from "express";
-import { ObjectStorageService, ObjectNotFoundError } from "./objectStorage";
+import { ObjectStorageService, ObjectNotFoundError, SidecarUnavailableError, isSidecarAvailable } from "./objectStorage";
 import { isCloudRun, streamFromGCS, isGCSAvailable } from "../../services/gcsStorage";
 
 const GCS_BUCKET_NAME = process.env.GCS_BUCKET_NAME;
@@ -29,7 +29,15 @@ export function registerObjectStorageRoutes(app: Express): void {
         }
         await svc.downloadObject(file, res);
       } catch (error) {
-        console.error("[Object Storage] GET /objects?key= error:", error);
+        if (error instanceof SidecarUnavailableError) {
+          console.error(`[Object Storage] Sidecar unavailable for key="${key}":`, error.message);
+          return res.status(503).json({
+            error: "Storage service temporarily unavailable",
+            message: "The file storage backend is not reachable. Please try again later.",
+            key,
+          });
+        }
+        console.error(`[Object Storage] GET /objects?key=${key} error:`, error);
         return res.status(500).json({ error: "Failed to serve object" });
       }
     }
@@ -62,10 +70,23 @@ export function registerObjectStorageRoutes(app: Express): void {
         res.setHeader("Cache-Control", "public, max-age=3600");
         res.status(200).end();
       } catch (error) {
+        if (error instanceof SidecarUnavailableError) {
+          console.error(`[Object Storage] Sidecar unavailable (HEAD) key="${key}":`, error.message);
+          return res.status(503).end();
+        }
         console.error("[Object Storage] HEAD /objects?key= error:", error);
         return res.status(500).json({ error: "Failed to serve object" });
       }
     }
+  });
+
+  app.get("/api/storage/health", async (_req, res) => {
+    const available = await isSidecarAvailable();
+    res.json({
+      sidecar: available ? "connected" : "unavailable",
+      environment: isCloudRun() ? "cloud_run" : "replit",
+      timestamp: new Date().toISOString(),
+    });
   });
 
   // ── /api/objects/resolve – legacy UUID resolver ──
@@ -151,6 +172,10 @@ export function registerObjectStorageRoutes(app: Express): void {
         metadata: { name, size, contentType },
       });
     } catch (error) {
+      if (error instanceof SidecarUnavailableError) {
+        console.error("[Object Storage] Sidecar unavailable for upload URL:", error.message);
+        return res.status(503).json({ error: "Storage service temporarily unavailable" });
+      }
       console.error("Error generating upload URL:", error);
       res.status(500).json({ error: "Failed to generate upload URL" });
     }
@@ -161,6 +186,10 @@ export function registerObjectStorageRoutes(app: Express): void {
       const objectFile = await objectStorageService.getObjectEntityFile(req.path);
       await objectStorageService.downloadObject(objectFile, res);
     } catch (error) {
+      if (error instanceof SidecarUnavailableError) {
+        console.error("[Object Storage] Sidecar unavailable for path:", req.path, error.message);
+        return res.status(503).json({ error: "Storage service temporarily unavailable" });
+      }
       console.error("Error serving object:", error);
       if (error instanceof ObjectNotFoundError) {
         return res.status(404).json({ error: "Object not found" });
@@ -169,4 +198,3 @@ export function registerObjectStorageRoutes(app: Express): void {
     }
   });
 }
-
