@@ -599,6 +599,11 @@ ${strategySection}
 ${dimensionsList}
 ${scoringRubricsSection}
 
+**가중치 반영 지침**:
+- 각 평가 영역에 "평가 지침"이 있는 경우, 반드시 해당 지침에 따라 채점하세요
+- 종합평가(summary)는 가중치가 높은 영역의 결과를 중심으로 작성하세요
+- strengths/improvements도 가중치가 높은 영역을 우선적으로 반영하세요
+
 **중요 언어 지시**: ${languageInstruction}
 
 JSON 형식${hasStrategyReflection ? ' (sequenceAnalysis 포함)' : ''}:
