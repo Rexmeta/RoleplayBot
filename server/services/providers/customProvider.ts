@@ -1,5 +1,6 @@
 import type { ConversationMessage, DetailedFeedback } from "@shared/schema";
 import type { AIServiceInterface, ScenarioPersona, AIServiceConfig, EvaluationCriteriaWithDimensions } from "../aiService";
+import { retryWithBackoff, conversationSemaphore, feedbackSemaphore } from "../../utils/concurrency";
 
 export class CustomProvider implements AIServiceInterface {
   private config: AIServiceConfig;
@@ -88,15 +89,21 @@ ${conversationHistory}
       console.log(`🔗 Custom API calling: ${apiUrl}`);
       console.log(`📝 Request format: ${this.config.apiFormat || 'openai'}`);
 
-      const response = await fetch(apiUrl, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify(requestBody)
-      });
-
-      if (!response.ok) {
-        throw new Error(`API request failed: ${response.status} ${response.statusText}`);
-      }
+      const response = await conversationSemaphore.run(() =>
+        retryWithBackoff(async () => {
+          const res = await fetch(apiUrl, {
+            method: 'POST',
+            headers,
+            body: JSON.stringify(requestBody)
+          });
+          if (!res.ok) {
+            const err: any = new Error(`API request failed: ${res.status} ${res.statusText}`);
+            err.status = res.status;
+            throw err;
+          }
+          return res;
+        }, { maxRetries: 2, baseDelayMs: 1000 })
+      );
 
       const data = await response.json();
       console.log(`📥 API Response:`, JSON.stringify(data, null, 2));
@@ -443,6 +450,16 @@ JSON 형식으로 응답:
       return this.generateCustomFeedback(conversationText, persona, conversation, evaluationCriteria);
     }
 
+    console.log(`📊 Feedback semaphore: ${feedbackSemaphore.active} active, ${feedbackSemaphore.pending} queued`);
+
+    return feedbackSemaphore.run(() => this._generateFeedbackInner(conversationText, persona, evaluationCriteria));
+  }
+
+  private async _generateFeedbackInner(
+    conversationText: string,
+    persona: ScenarioPersona,
+    evaluationCriteria?: EvaluationCriteriaWithDimensions
+  ): Promise<DetailedFeedback> {
     const maxRetries = 2;
     let lastFeedback: DetailedFeedback | null = null;
     let lastReason = '';
@@ -458,19 +475,23 @@ JSON 형식으로 응답:
           max_tokens: 16384
         };
 
-        const response = await fetch(`${this.config.baseUrl}/chat/completions`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${this.config.apiKey}`,
-            ...this.config.headers
-          },
-          body: JSON.stringify(requestBody)
-        });
-
-        if (!response.ok) {
-          throw new Error(`Feedback generation failed: ${response.status}`);
-        }
+        const response = await retryWithBackoff(async () => {
+          const res = await fetch(`${this.config.baseUrl}/chat/completions`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${this.config.apiKey}`,
+              ...this.config.headers
+            },
+            body: JSON.stringify(requestBody)
+          });
+          if (!res.ok) {
+            const err: any = new Error(`Feedback generation failed: ${res.status}`);
+            err.status = res.status;
+            throw err;
+          }
+          return res;
+        }, { maxRetries: 3, baseDelayMs: 2000 });
 
         const data = await response.json();
         const feedbackText = data.choices?.[0]?.message?.content || '{}';

@@ -6,6 +6,7 @@ import { enrichPersonaWithMBTI } from "../../utils/mbtiLoader";
 import { GlobalMBTICache } from "../../utils/globalMBTICache";
 import { getTextModeGuidelines, validateDifficultyLevel } from "../conversationDifficultyPolicy";
 import { trackUsage, extractGeminiTokens, getModelPricingKey } from "../aiUsageTracker";
+import { retryWithBackoff, conversationSemaphore, feedbackSemaphore } from "../../utils/concurrency";
 
 /**
  * 최적화된 Gemini Provider
@@ -71,27 +72,32 @@ export class OptimizedGeminiProvider implements AIServiceInterface {
       
       console.log(`🎭 Persona: ${enrichedPersona.name} (${(enrichedPersona as any).mbti || 'Unknown'})`);
 
-      // Gemini API 호출 (정확한 SDK 방식)
-      const response = await this.genAI.models.generateContent({
-        model: this.model,
-        config: {
-          responseMimeType: "application/json",
-          responseSchema: {
-            type: "object",
-            properties: {
-              content: { type: "string" },
-              emotion: { type: "string" },
-              emotionReason: { type: "string" }
+      // Gemini API 호출 (재시도 + 동시 실행 제한 적용)
+      const response = await conversationSemaphore.run(() =>
+        retryWithBackoff(() =>
+          this.genAI.models.generateContent({
+            model: this.model,
+            config: {
+              responseMimeType: "application/json",
+              responseSchema: {
+                type: "object",
+                properties: {
+                  content: { type: "string" },
+                  emotion: { type: "string" },
+                  emotionReason: { type: "string" }
+                },
+                required: ["content", "emotion", "emotionReason"]
+              },
+              maxOutputTokens: 1500,
+              temperature: 0.7
             },
-            required: ["content", "emotion", "emotionReason"]
-          },
-          maxOutputTokens: 1500,
-          temperature: 0.7
-        },
-        contents: [
-          { role: "user", parts: [{ text: compactPrompt + "\n\n사용자: " + prompt }] }
-        ],
-      });
+            contents: [
+              { role: "user", parts: [{ text: compactPrompt + "\n\n사용자: " + prompt }] }
+            ],
+          }),
+          { maxRetries: 2, baseDelayMs: 1000 }
+        )
+      );
 
       const responseText = this.extractResponseText(response);
       const responseData = JSON.parse(responseText || '{"content": "죄송합니다. 응답을 생성할 수 없습니다.", "emotion": "중립", "emotionReason": "시스템 오류"}');
@@ -387,6 +393,19 @@ JSON 형식으로 응답:
     language: SupportedLanguage = 'ko'
   ): Promise<DetailedFeedback> {
     console.log(`🔥 Optimized feedback generation... (language: ${language})`, evaluationCriteria ? `(Criteria: ${evaluationCriteria.name})` : "(Default criteria)");
+    console.log(`📊 Feedback semaphore: ${feedbackSemaphore.active} active, ${feedbackSemaphore.pending} queued`);
+
+    return feedbackSemaphore.run(() => this._generateFeedbackInner(scenario, messages, persona, conversation, evaluationCriteria, language));
+  }
+
+  private async _generateFeedbackInner(
+    scenario: string,
+    messages: ConversationMessage[],
+    persona: ScenarioPersona,
+    conversation?: Partial<import("@shared/schema").Conversation>,
+    evaluationCriteria?: EvaluationCriteriaWithDimensions,
+    language: SupportedLanguage = 'ko'
+  ): Promise<DetailedFeedback> {
     const startTime = Date.now();
 
     const maxRetries = 2;
@@ -397,17 +416,20 @@ JSON 형식으로 응답:
       try {
         const feedbackPrompt = this.buildCompactFeedbackPrompt(scenario, messages, persona, conversation, evaluationCriteria, language);
 
-        const response = await this.genAI.models.generateContent({
-          model: this.model,
-          config: {
-            responseMimeType: "application/json",
-            maxOutputTokens: 16384,
-            temperature: attempt === 0 ? 0.3 : 0.5 + (attempt * 0.1)
-          },
-          contents: [
-            { role: "user", parts: [{ text: feedbackPrompt }] }
-          ],
-        });
+        const response = await retryWithBackoff(() =>
+          this.genAI.models.generateContent({
+            model: this.model,
+            config: {
+              responseMimeType: "application/json",
+              maxOutputTokens: 16384,
+              temperature: attempt === 0 ? 0.3 : 0.5 + (attempt * 0.1)
+            },
+            contents: [
+              { role: "user", parts: [{ text: feedbackPrompt }] }
+            ],
+          }),
+          { maxRetries: 3, baseDelayMs: 2000 }
+        );
 
         const totalTime = Date.now() - startTime;
         console.log(`✓ Optimized feedback attempt ${attempt + 1} completed in ${totalTime}ms`);

@@ -153,7 +153,7 @@ function filterThinkingText(text: string, userLanguage: 'ko' | 'en' | 'ja' | 'zh
 }
 
 // 동시 접속 최적화 설정
-const SESSION_TIMEOUT_MS = 30 * 60 * 1000; // 30분 비활성 타임아웃
+const SESSION_TIMEOUT_MS = 15 * 60 * 1000; // 15분 비활성 타임아웃 (동시 접속 최적화)
 const MAX_TRANSCRIPT_LENGTH = 50000; // 트랜스크립트 최대 길이 (약 25,000자)
 const CLEANUP_INTERVAL_MS = 60 * 1000; // 1분마다 정리
 const MAX_CONCURRENT_SESSIONS = 100; // 최대 동시 세션 수 (Gemini Tier 2 기준)

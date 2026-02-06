@@ -3,6 +3,7 @@ import type { ConversationMessage, DetailedFeedback } from "@shared/schema";
 import type { AIServiceInterface, ScenarioPersona, EvaluationCriteriaWithDimensions, SupportedLanguage } from "../aiService";
 import { LANGUAGE_INSTRUCTIONS } from "../aiService";
 import { trackUsage, extractOpenAITokens, getModelPricingKey } from "../aiUsageTracker";
+import { retryWithBackoff, conversationSemaphore, feedbackSemaphore } from "../../utils/concurrency";
 
 export class OpenAIProvider implements AIServiceInterface {
   private client: OpenAI;
@@ -50,16 +51,21 @@ export class OpenAIProvider implements AIServiceInterface {
       // 건너뛰기 시 자연스럽게 대화 이어가기
       const userMessageContent = userMessage ? userMessage : "앞서 이야기를 자연스럽게 이어가거나 새로운 주제를 제시해주세요.";
 
-      const response = await this.client.chat.completions.create({
-        model: this.model,
-        messages: [
-          systemMessage,
-          ...conversationHistory,
-          { role: 'user', content: userMessageContent }
-        ],
-        max_tokens: 200,
-        temperature: 0.8
-      });
+      const response = await conversationSemaphore.run(() =>
+        retryWithBackoff(() =>
+          this.client.chat.completions.create({
+            model: this.model,
+            messages: [
+              systemMessage,
+              ...conversationHistory,
+              { role: 'user', content: userMessageContent }
+            ],
+            max_tokens: 200,
+            temperature: 0.8
+          }),
+          { maxRetries: 2, baseDelayMs: 1000 }
+        )
+      );
 
       const totalTime = Date.now() - startTime;
       
@@ -156,6 +162,19 @@ JSON 형식으로 응답하세요: {"emotion": "감정", "reason": "감정을 �
     evaluationCriteria?: EvaluationCriteriaWithDimensions,
     language: SupportedLanguage = 'ko'
   ): Promise<DetailedFeedback> {
+    console.log(`📊 Feedback semaphore: ${feedbackSemaphore.active} active, ${feedbackSemaphore.pending} queued`);
+
+    return feedbackSemaphore.run(() => this._generateFeedbackInner(scenario, messages, persona, conversation, evaluationCriteria, language));
+  }
+
+  private async _generateFeedbackInner(
+    scenario: string,
+    messages: ConversationMessage[],
+    persona: ScenarioPersona,
+    conversation?: any,
+    evaluationCriteria?: EvaluationCriteriaWithDimensions,
+    language: SupportedLanguage = 'ko'
+  ): Promise<DetailedFeedback> {
     const startTime = Date.now();
     const maxRetries = 2;
     let lastFeedback: DetailedFeedback | null = null;
@@ -169,13 +188,16 @@ JSON 형식으로 응답하세요: {"emotion": "감정", "reason": "감정을 �
 
         const feedbackPrompt = this.buildFeedbackPrompt(conversationText, persona, evaluationCriteria, language);
 
-        const response = await this.client.chat.completions.create({
-          model: this.model,
-          messages: [{ role: 'user', content: feedbackPrompt }],
-          response_format: { type: "json_object" },
-          temperature: attempt === 0 ? 0.3 : 0.5 + (attempt * 0.1),
-          max_tokens: 16384
-        });
+        const response = await retryWithBackoff(() =>
+          this.client.chat.completions.create({
+            model: this.model,
+            messages: [{ role: 'user', content: feedbackPrompt }],
+            response_format: { type: "json_object" },
+            temperature: attempt === 0 ? 0.3 : 0.5 + (attempt * 0.1),
+            max_tokens: 16384
+          }),
+          { maxRetries: 3, baseDelayMs: 2000 }
+        );
 
         const totalTime = Date.now() - startTime;
         

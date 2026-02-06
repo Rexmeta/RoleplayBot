@@ -59,8 +59,12 @@ function buildPoolConfig(url: string): import('pg').PoolConfig {
 
 const pool = new Pool({
   ...buildPoolConfig(databaseUrl),
-  connectionTimeoutMillis: 5000,
+  max: 25,
+  min: 5,
+  connectionTimeoutMillis: 10000,
+  idleTimeoutMillis: 30000,
   idle_in_transaction_session_timeout: 30000,
+  allowExitOnIdle: false,
 });
 
 // Log pool-level errors so connection problems surface in Cloud Run logs
