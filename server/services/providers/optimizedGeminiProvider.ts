@@ -647,24 +647,45 @@ JSON 형식${hasStrategyReflection ? ' (sequenceAnalysis 포함)' : ''}:
         console.error("JSON parse failed, response text:", responseText.substring(0, 1000));
         console.error("Parse error:", parseError);
         
-        // 불완전한 JSON을 복구 시도
         try {
-          // 잘린 JSON을 감지하고 닫기 시도
+          console.log("Attempting to fix incomplete JSON...");
           let fixedText = responseText.trim();
           
-          // 배열이나 객체가 닫히지 않은 경우 닫기
+          if (fixedText.endsWith(',')) {
+            fixedText = fixedText.slice(0, -1);
+          }
+          
+          const inString = (() => {
+            let inStr = false;
+            let escaped = false;
+            for (const ch of fixedText) {
+              if (escaped) { escaped = false; continue; }
+              if (ch === '\\') { escaped = true; continue; }
+              if (ch === '"') inStr = !inStr;
+            }
+            return inStr;
+          })();
+          
+          if (inString) {
+            fixedText += '"';
+          }
+          
+          const openBrackets = (fixedText.match(/\[/g) || []).length;
+          const closeBrackets = (fixedText.match(/\]/g) || []).length;
+          if (openBrackets > closeBrackets) {
+            fixedText += ']'.repeat(openBrackets - closeBrackets);
+          }
+          
           const openBraces = (fixedText.match(/{/g) || []).length;
           const closeBraces = (fixedText.match(/}/g) || []).length;
-          
           if (openBraces > closeBraces) {
             fixedText += '}'.repeat(openBraces - closeBraces);
-            console.log("Attempting to fix incomplete JSON...");
-            parsed = JSON.parse(fixedText);
-            console.log("✓ JSON fixed successfully");
-          } else {
-            throw parseError;
           }
+          
+          parsed = JSON.parse(fixedText);
+          console.log("✓ JSON fixed successfully");
         } catch (fixError) {
+          console.error("JSON fix also failed:", fixError);
           return this.getFallbackFeedback(evaluationCriteria);
         }
       }

@@ -166,13 +166,13 @@ app.use((req, res, next) => {
   // Skip health checks
   if (req.path.startsWith('/_ah/')) return next();
 
-  // Use longer timeout for image and video generation endpoints
   const isSlowEndpoint = 
     req.path.includes('/api/image/') || 
     req.path.includes('/api/video/') ||
     req.path.includes('/generate-persona') ||
     req.path.includes('/generate-scenario-image') ||
-    req.path.includes('/generate-intro-video');
+    req.path.includes('/generate-intro-video') ||
+    (req.method === 'POST' && req.path.includes('/feedback'));
   
   const timeoutMs = isSlowEndpoint ? LONG_REQUEST_TIMEOUT_MS : REQUEST_TIMEOUT_MS;
 

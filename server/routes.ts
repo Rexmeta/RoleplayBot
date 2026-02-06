@@ -2031,14 +2031,18 @@ export async function registerRoutes(app: Express, httpServer: Server): Promise<
           console.error("전략 분석 오류 (무시):", error);
         });
 
-      res.json(feedback);
+      if (!res.headersSent) {
+        res.json(feedback);
+      }
     } catch (error) {
       console.error("Feedback generation error:", error);
-      res.status(500).json({ 
-        error: "Failed to generate feedback",
-        details: error instanceof Error ? error.message : String(error),
-        stack: process.env.NODE_ENV === 'development' && error instanceof Error ? error.stack : undefined
-      });
+      if (!res.headersSent) {
+        res.status(500).json({ 
+          error: "Failed to generate feedback",
+          details: error instanceof Error ? error.message : String(error),
+          stack: process.env.NODE_ENV === 'development' && error instanceof Error ? error.stack : undefined
+        });
+      }
     }
   });
 
