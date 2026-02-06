@@ -216,9 +216,13 @@ JSON 형식으로 응답하세요: {"emotion": "감정", "reason": "감정을 �
     const languageInstruction = LANGUAGE_INSTRUCTIONS[language] || LANGUAGE_INSTRUCTIONS.ko;
     
     // 동적 평가 차원 목록 생성 (가중치 포함)
-    const dimensionsList = dimensions.map((dim, idx) => 
-      `${idx + 1}. ${dim.name} (${dim.key}): ${dim.description} [${dim.minScore}-${dim.maxScore}점, 가중치: ${dim.weight}%]`
-    ).join('\n');
+    const dimensionsList = dimensions.map((dim, idx) => {
+      let line = `${idx + 1}. ${dim.name} (${dim.key}): ${dim.description} [${dim.minScore}-${dim.maxScore}점, 가중치: ${dim.weight}%]`;
+      if (dim.evaluationPrompt) {
+        line += `\n   평가 지침: ${dim.evaluationPrompt}`;
+      }
+      return line;
+    }).join('\n');
 
     // 동적 scores 구조 생성
     const scoresStructure = dimensions.map(dim => `"${dim.key}": 점수${dim.minScore}-${dim.maxScore}`).join(',\n    ');

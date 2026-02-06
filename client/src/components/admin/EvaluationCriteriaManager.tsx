@@ -68,6 +68,7 @@ interface EvaluationDimension {
   color?: string | null;
   displayOrder: number;
   scoringRubric?: ScoringRubric[] | null;
+  evaluationPrompt?: string | null;
   isActive: boolean;
 }
 
@@ -136,6 +137,7 @@ export function EvaluationCriteriaManager() {
     color: '#6366f1',
     isActive: true,
     scoringRubric: [] as ScoringRubric[],
+    evaluationPrompt: '',
   });
 
   const PRESET_COLORS = [
@@ -349,6 +351,7 @@ export function EvaluationCriteriaManager() {
       color: '',
       isActive: true,
       scoringRubric: [],
+      evaluationPrompt: '',
     });
   };
 
@@ -425,6 +428,7 @@ export function EvaluationCriteriaManager() {
       color: dimension.color || '',
       isActive: dimension.isActive,
       scoringRubric: dimension.scoringRubric || [],
+      evaluationPrompt: dimension.evaluationPrompt || '',
     });
     setIsDimensionDialogOpen(true);
   };
@@ -444,6 +448,7 @@ export function EvaluationCriteriaManager() {
       color: dimensionFormData.color || '#6366f1',
       isActive: dimensionFormData.isActive,
       scoringRubric: dimensionFormData.scoringRubric.length > 0 ? dimensionFormData.scoringRubric : null,
+      evaluationPrompt: dimensionFormData.evaluationPrompt || null,
     };
 
     if (selectedDimension) {
@@ -913,6 +918,21 @@ export function EvaluationCriteriaManager() {
                 </Popover>
               </div>
             </div>
+            <div>
+              <div className="flex items-center gap-2 mb-1">
+                <Label htmlFor="dim-evaluationPrompt">평가 요청 스크립트</Label>
+                <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-4 border-amber-300 text-amber-600 bg-amber-50">AI 전용</Badge>
+              </div>
+              <Textarea
+                id="dim-evaluationPrompt"
+                value={dimensionFormData.evaluationPrompt}
+                onChange={(e) => setDimensionFormData({ ...dimensionFormData, evaluationPrompt: e.target.value })}
+                className="font-mono text-xs bg-slate-50 border-dashed"
+                rows={3}
+                placeholder="AI 모델에 전달할 평가 지침을 입력하세요. 이 내용은 피드백 생성 시 AI에 전달되며 일반 유저에게는 보이지 않습니다."
+              />
+              <p className="text-[11px] text-slate-400 mt-1">이 스크립트는 AI가 해당 차원을 평가할 때 참고하는 지침입니다. 일반 유저에게 노출되지 않습니다.</p>
+            </div>
             <div className="flex items-center justify-between">
               <Label htmlFor="dim-isActive">활성화</Label>
               <Switch
@@ -1006,6 +1026,7 @@ function InlineDimensionEditor({
     color: dimension.color || '#6366f1',
     isActive: dimension.isActive,
     scoringRubric: dimension.scoringRubric || [],
+    evaluationPrompt: dimension.evaluationPrompt || '',
   });
 
   const PRESET_COLORS_INLINE = [
@@ -1027,6 +1048,7 @@ function InlineDimensionEditor({
       color: editData.color || '#6366f1',
       isActive: editData.isActive,
       scoringRubric: editData.scoringRubric.length > 0 ? editData.scoringRubric : null,
+      evaluationPrompt: editData.evaluationPrompt || null,
     });
   };
 
@@ -1091,6 +1113,21 @@ function InlineDimensionEditor({
           className="text-sm mt-1 min-h-[60px]"
           rows={2}
         />
+      </div>
+
+      <div>
+        <div className="flex items-center gap-2 mb-1">
+          <Label className="text-xs">평가 요청 스크립트</Label>
+          <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-4 border-amber-300 text-amber-600 bg-amber-50">AI 전용</Badge>
+        </div>
+        <Textarea
+          value={editData.evaluationPrompt}
+          onChange={(e) => setEditData({ ...editData, evaluationPrompt: e.target.value })}
+          className="text-sm mt-1 min-h-[80px] font-mono text-xs bg-slate-100 border-dashed"
+          rows={3}
+          placeholder="AI 모델에 전달할 평가 지침을 입력하세요. 이 내용은 피드백 생성 시 AI에 전달되며 일반 유저에게는 보이지 않습니다."
+        />
+        <p className="text-[11px] text-slate-400 mt-1">이 스크립트는 AI가 해당 차원을 평가할 때 참고하는 지침입니다. 일반 유저에게 노출되지 않습니다.</p>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-3">

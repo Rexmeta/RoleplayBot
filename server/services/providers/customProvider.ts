@@ -292,9 +292,13 @@ JSON 형식으로 응답하세요: {"emotion": "감정", "reason": "감정을 �
     const dimensions = evaluationCriteria?.dimensions || this.getDefaultDimensions();
     const criteriaName = evaluationCriteria?.name || '기본 평가 기준';
     
-    const dimensionsList = dimensions.map((dim, idx) => 
-      `${idx + 1}. ${dim.name} (${dim.key}): ${dim.description} [${dim.minScore}-${dim.maxScore}점]`
-    ).join('\n');
+    const dimensionsList = dimensions.map((dim, idx) => {
+      let line = `${idx + 1}. ${dim.name} (${dim.key}): ${dim.description} [${dim.minScore}-${dim.maxScore}점]`;
+      if (dim.evaluationPrompt) {
+        line += `\n   평가 지침: ${dim.evaluationPrompt}`;
+      }
+      return line;
+    }).join('\n');
 
     const scoresStructure = dimensions.map(dim => `"${dim.key}": 점수${dim.minScore}-${dim.maxScore}`).join(',\n    ');
 

@@ -5831,7 +5831,11 @@ export async function registerRoutes(app: Express, httpServer: Server): Promise<
   app.get("/api/evaluation-criteria", isAuthenticated, async (req, res) => {
     try {
       const criteriaSets = await storage.getAllEvaluationCriteriaSets();
-      res.json(criteriaSets);
+      const sanitized = criteriaSets.map((set: any) => ({
+        ...set,
+        dimensions: set.dimensions?.map(({ evaluationPrompt, ...dim }: any) => dim),
+      }));
+      res.json(sanitized);
     } catch (error: any) {
       console.error("Error getting evaluation criteria sets:", error);
       res.status(500).json({ error: error.message || "Failed to get evaluation criteria sets" });
@@ -5848,7 +5852,11 @@ export async function registerRoutes(app: Express, httpServer: Server): Promise<
         return res.status(404).json({ error: "No active evaluation criteria set found" });
       }
       
-      res.json(criteriaSet);
+      const sanitized = {
+        ...criteriaSet,
+        dimensions: (criteriaSet as any).dimensions?.map(({ evaluationPrompt, ...dim }: any) => dim),
+      };
+      res.json(sanitized);
     } catch (error: any) {
       console.error("Error getting active evaluation criteria set:", error);
       res.status(500).json({ error: error.message || "Failed to get active evaluation criteria set" });
@@ -5896,10 +5904,11 @@ export async function registerRoutes(app: Express, httpServer: Server): Promise<
             weight: dim.weight || 1,
             minScore: dim.minScore || 0,
             maxScore: dim.maxScore || 100,
-            icon: dim.icon || '📊', // 기본 아이콘
-            color: dim.color || 'blue', // 기본 색상
+            icon: dim.icon || '📊',
+            color: dim.color || 'blue',
             displayOrder: dim.displayOrder ?? i,
             scoringRubric: dim.scoringRubric || null,
+            evaluationPrompt: dim.evaluationPrompt || null,
             isActive: dim.isActive !== false,
           });
           createdDimensions.push(dimension);
@@ -6118,7 +6127,7 @@ Return JSON: {
   app.post("/api/admin/evaluation-criteria/:criteriaSetId/dimensions", isAuthenticated, isOperatorOrAdmin, async (req, res) => {
     try {
       const { criteriaSetId } = req.params;
-      const { key, name, description, weight, minScore, maxScore, icon, color, displayOrder, scoringRubric, isActive } = req.body;
+      const { key, name, description, weight, minScore, maxScore, icon, color, displayOrder, scoringRubric, evaluationPrompt, isActive } = req.body;
       
       if (!key || !name) {
         return res.status(400).json({ error: "Key and name are required" });
@@ -6145,6 +6154,7 @@ Return JSON: {
         color: color || null,
         displayOrder: displayOrder ?? existingDimensions.length,
         scoringRubric: scoringRubric || null,
+        evaluationPrompt: evaluationPrompt || null,
         isActive: isActive !== false,
       });
       

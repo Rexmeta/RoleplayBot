@@ -22,6 +22,7 @@ export interface EvaluationCriteriaWithDimensions {
       label: string;
       description: string;
     }> | null;
+    evaluationPrompt?: string | null;
   }>;
 }
 

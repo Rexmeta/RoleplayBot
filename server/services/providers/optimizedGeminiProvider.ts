@@ -550,10 +550,14 @@ sequenceAnalysis 필드에 다음 형식으로 포함:
     // 동적 평가 기준이 있는 경우 사용, 없으면 기본 기준 사용
     const dimensions = evaluationCriteria?.dimensions || this.getDefaultDimensions();
     
-    // 평가 기준 설명 생성 (가중치 포함)
-    const dimensionsList = dimensions.map((dim, idx) => 
-      `${idx + 1}. ${dim.name} (${dim.key}): ${dim.description || dim.name} [가중치: ${dim.weight}%]`
-    ).join('\n');
+    // 평가 기준 설명 생성 (가중치 포함, evaluationPrompt 반영)
+    const dimensionsList = dimensions.map((dim, idx) => {
+      let line = `${idx + 1}. ${dim.name} (${dim.key}): ${dim.description || dim.name} [가중치: ${dim.weight}%]`;
+      if (dim.evaluationPrompt) {
+        line += `\n   평가 지침: ${dim.evaluationPrompt}`;
+      }
+      return line;
+    }).join('\n');
     
     // 점수 형식 생성 (동적)
     const scoresFormat = dimensions.map(dim => `"${dim.key}": ${Math.ceil(dim.maxScore / 2)}`).join(', ');

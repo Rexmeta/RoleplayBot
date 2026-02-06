@@ -655,6 +655,7 @@ export const evaluationDimensions = pgTable("evaluation_dimensions", {
   minScore: integer("min_score").notNull().default(1), // 최소 점수
   maxScore: integer("max_score").notNull().default(5), // 최대 점수
   scoringRubric: jsonb("scoring_rubric").$type<ScoringRubric[]>(), // 점수별 평가 기준
+  evaluationPrompt: text("evaluation_prompt"), // AI 모델에 전달할 평가 요청 스크립트 (운영자/관리자만 볼 수 있음)
   displayOrder: integer("display_order").notNull().default(0), // 표시 순서
   isActive: boolean("is_active").notNull().default(true),
   createdAt: timestamp("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
