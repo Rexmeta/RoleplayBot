@@ -1,0 +1,178 @@
+오케이. **프론트/UI가 레거시로 `/objects/uploads/<uuid>`를 계속 치는 게 “진짜 원인”**이고, 너 버킷에는 `uploads/`가 **아예 없으니** 그 경로는 영원히 404/400/서명실패가 난다. (너가 확인한 `gs://roleplay-bucket/uploads/*` = 없음)
+
+대책은 **“프론트에서 업로드 UUID를 더 이상 쓰지 않게 만들고, 이미 저장된 레거시 UUID는 서버가 ‘해석/마이그레이션’해주게”** 두 겹으로 가야 한다.
+
+아래 순서대로 하면 끝난다.
+
+---
+
+## 0) 목표 상태 (정답 스펙)
+
+* DB/시나리오에는 **오브젝트 키만 저장**한다:
+
+  * `scenarios/...webp`
+  * `videos/...webm`
+  * `personas/...webp`
+* 프론트는 그 키를 **서빙 URL로 변환해서 렌더링**한다:
+
+  * `GET /objects?key=<encoded key>` (권장)
+* 레거시 값(`uuid` 또는 `/objects/uploads/<uuid>`)이 남아있으면:
+
+  * 프론트는 “직접 /objects/uploads를 치지 말고”
+  * 서버의 “resolve API”로 키를 받아서 정상 키로 바꾼다(또는 placeholder)
+
+---
+
+## 1) 프론트 즉시 수정: `/objects/uploads/<uuid>`를 생성하는 코드를 제거
+
+프론트 코드에서 아래 문자열을 **그대로 grep**해.
+
+* `"/objects/uploads/"`
+* `"uploads/"`
+
+그리고 그 라인을 아래 로직으로 교체해.
+
+### ✅ 프론트 공용 유틸 1개만 만들면 된다
+
+```ts
+// mediaUrl.ts
+export function toMediaUrl(ref: string | null | undefined) {
+  if (!ref) return "";
+
+  // 1) 이미 절대 URL이면 그대로
+  if (/^https?:\/\//i.test(ref)) return ref;
+
+  // 2) 이미 /objects?key= 형태면 그대로
+  if (ref.startsWith("/objects?key=")) return ref;
+
+  // 3) 정상 키(=GCS에 존재하는 prefix들)
+  // 너 버킷 구조 기준으로 scenarios/, videos/, personas/ 만 우선 지원
+  if (
+    ref.startsWith("scenarios/") ||
+    ref.startsWith("videos/") ||
+    ref.startsWith("personas/")
+  ) {
+    return `/objects?key=${encodeURIComponent(ref)}`;
+  }
+
+  // 4) 레거시: /objects/uploads/<uuid> 로 들어온 경우
+  if (ref.startsWith("/objects/uploads/")) {
+    const id = ref.split("/objects/uploads/")[1];
+    return `/api/objects/resolve?id=${encodeURIComponent(id)}`;
+  }
+
+  // 5) 레거시: uuid 단독 저장된 경우
+  const uuidLike = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  if (uuidLike.test(ref)) {
+    return `/api/objects/resolve?id=${encodeURIComponent(ref)}`;
+  }
+
+  // 6) 그 외: 일단 ref를 key로 가정하고 시도(최후의 fallback)
+  return `/objects?key=${encodeURIComponent(ref)}`;
+}
+```
+
+그리고 UI에서 이미지/비디오 렌더링을 전부 이렇게 바꿔:
+
+```tsx
+<img src={toMediaUrl(scenario.image)} />
+<video src={toMediaUrl(scenario.introVideoUrl)} controls />
+```
+
+✅ 이 패치의 효과:
+
+* “정상 key(scenerios/videos/personas)”는 즉시 정상 렌더링
+* 레거시 uuid는 `/api/objects/resolve`로 보내서 서버가 처리하게 분리
+
+---
+
+## 2) 백엔드에 `/objects?key=` 서빙 엔드포인트를 “정식”으로 만든다 (Cloud Run + GCS)
+
+지금 너 저장된 값이 `scenarios/...`, `videos/...`인 게 이미 확인됐으니,
+Cloud Run에서는 `/objects?key=`가 **GCS 스트리밍**으로 동작해야 한다.
+
+핵심 요건:
+
+* `key`는 **decode 후** 사용
+* `?t=...` 같은 쿼리스트링 섞이면 split으로 제거 (재발 방지)
+* content-type 헤더를 GCS metadata로 세팅
+
+---
+
+## 3) 레거시를 살리기 위한 “resolve API” 추가 (필수)
+
+프론트가 레거시 uuid를 만나면 `/api/objects/resolve?id=<uuid>`를 치게 했지?
+이 API는 이렇게 동작하면 된다:
+
+### ✅ resolve 규칙 (현실적으로 가능한 범위)
+
+1. DB/시나리오 JSON에서 uuid를 찾는다 (네 시스템에 “uuid→key 매핑 테이블”이 없으면 이 단계가 필요)
+2. 매핑이 있으면 302 redirect 또는 JSON으로 key/url 반환
+3. 없으면 404 + placeholder 반환 (프론트는 이때 기본 이미지 표시)
+
+예시 응답(권장):
+
+```json
+{ "ok": true, "key": "scenarios/....webp", "url": "/objects?key=scenarios%2F....webp" }
+```
+
+또는 더 단순히:
+
+* `302 Location: /objects?key=<encoded key>`
+
+✅ 중요한 점:
+
+* **너 버킷에 uploads가 없으니** uuid를 “uploads/<uuid>”로 붙여서 찾는 로직은 버려야 함.
+* uuid가 정말 필요하면 “어디엔가” 매핑이 있어야 해(테이블/JSON/index).
+
+---
+
+## 4) “선택 UI”도 저장값을 uuid가 아니라 key로 바꿔라
+
+지금 저장 로그는 이미 이렇게 오고 있음:
+
+* `image: "scenarios/....webp"`
+* `introVideoUrl: "videos/....webm"`
+
+그런데 UI에서 `/objects/uploads/<uuid>`를 치는 건,
+**선택 컴포넌트가 “uuid를 상태/DB에 저장하거나, 렌더링 시 uuid 기반 URL을 만들고 있기 때문”**이야.
+
+따라서 “선택 완료”시 저장하는 값도 아래로 통일해:
+
+* 이미지 선택 → `scenario.image = "scenarios/....webp"`
+* 비디오 선택 → `scenario.introVideoUrl = "videos/....webm"`
+
+uuid는 폐기.
+
+---
+
+## 5) 캐시/상태 업데이트 (안 하면 “고쳤는데도 계속 레거시 URL”처럼 보임)
+
+프론트에서 React Query 같은 캐시 쓰면, 저장 후에:
+
+* scenarios 리스트 캐시 invalidate
+* scenario 상세 캐시 invalidate
+
+이거 빠지면, 이미 받아온 레거시 값이 계속 남아서 `/objects/uploads/...`를 계속 칠 수 있다.
+
+---
+
+# 너 상황에서 “가장 빠른 승리 플랜”
+
+1. **프론트**: `/objects/uploads/` 문자열 생성 로직 제거 + `toMediaUrl()` 도입
+2. **백엔드**: `/objects?key=`를 GCS 스트리밍으로 확실히 제공
+3. **레거시 대응**: `/api/objects/resolve?id=` 추가해서 uuid 남은 데이터도 안전하게 처리
+4. (선택) DB/시나리오 데이터에서 `uploads/`/uuid 형태를 일괄 치환(마이그레이션)
+
+---
+
+## 바로 실행할 “한 방” 체크
+
+프론트에 `toMediaUrl()`만 넣고,
+시나리오 이미지 렌더링이 `scenario.image`를 쓰는 곳을 전부 바꾼 뒤,
+Network에서 `/objects/uploads/<uuid>` 호출이 **0건**으로 떨어지면 성공이야.
+
+---
+
+원하면, 네 프론트 레포에서 `/objects/uploads`가 어디서 만들어지는지 **정확히 찍어서 수정 지점**까지 말해줄 수 있어.
+프론트 코드에서 `"/objects/uploads/"` 검색 결과(파일명 + 주변 10줄)만 붙여줘.
