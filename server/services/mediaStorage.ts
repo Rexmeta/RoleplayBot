@@ -1,5 +1,5 @@
 import sharp from 'sharp';
-import { isGCSAvailable, uploadToGCS, deleteFromGCS, normalizeObjectPath, isCloudRun } from './gcsStorage';
+import { isGCSAvailable, uploadToGCS, deleteFromGCS, normalizeObjectPath, isCloudRun, downloadBufferFromGCS } from './gcsStorage';
 
 let ObjectStorageService: any = null;
 let objectStorage: any = null;
@@ -269,6 +269,29 @@ export class MediaStorageService {
       type: storageType,
       available: storageType !== 'none'
     };
+  }
+
+  async readImageBuffer(objectKey: string): Promise<Buffer | null> {
+    const storageType = getStorageType();
+
+    try {
+      if (storageType === 'gcs') {
+        return await downloadBufferFromGCS(objectKey);
+      }
+
+      if (storageType === 'replit') {
+        const storage = await initReplitObjectStorage();
+        if (!storage) return null;
+        const file = await storage.searchPublicObject(objectKey);
+        if (!file) return null;
+        const [buffer] = await file.download();
+        return buffer;
+      }
+    } catch (error) {
+      console.error(`[MediaStorage] Failed to read image buffer: ${objectKey}`, error);
+    }
+
+    return null;
   }
 
   async deleteFromStorage(objectPath: string | null | undefined): Promise<boolean> {

@@ -15,6 +15,7 @@ import { useToast } from '@/hooks/use-toast';
 import { apiRequest, queryClient } from '@/lib/queryClient';
 import { MoreVertical, RefreshCw, Languages } from 'lucide-react';
 import { PersonaTranslationEditor } from './PersonaTranslationEditor';
+import { toMediaUrl } from '@/lib/mediaUrl';
 
 // 한글 감정명을 번역 키로 매핑
 const emotionKeyMap: Record<string, string> = {
@@ -407,26 +408,22 @@ export function PersonaManager() {
       const result = await response.json();
       
       if (result.success) {
-        // 타임스탬프를 추가하여 브라우저 캐시 우회
-        const timestamp = Date.now();
-        const imageUrlWithTimestamp = `${result.imageUrl}?t=${timestamp}`;
+        const storagePath = result.storagePath || result.imageUrl;
         const currentGender = formData.gender;
         
-        // formData 업데이트 (편집 모드 유지, 즉시 화면 반영) - 성별별로 저장
         const updatedFormData = { ...formData };
         const updatedImages = { ...updatedFormData.images };
         const maleExpressions = { ...((updatedImages.male?.expressions as Record<string, string>) || {}) };
         const femaleExpressions = { ...((updatedImages.female?.expressions as Record<string, string>) || {}) };
         
         if (currentGender === 'male') {
-          maleExpressions['중립'] = imageUrlWithTimestamp;
+          maleExpressions['중립'] = storagePath;
           updatedImages.male = { expressions: maleExpressions as any };
         } else {
-          femaleExpressions['중립'] = imageUrlWithTimestamp;
+          femaleExpressions['중립'] = storagePath;
           updatedImages.female = { expressions: femaleExpressions as any };
         }
-        // base 필드도 함께 업데이트 (성별 폴더 포함)
-        updatedImages.base = imageUrlWithTimestamp;
+        updatedImages.base = storagePath;
         updatedFormData.images = updatedImages as any;
         setFormData(updatedFormData);
         
@@ -508,8 +505,6 @@ export function PersonaManager() {
       const result = await response.json();
       
       if (result.success) {
-        // 타임스탬프를 추가하여 브라우저 캐시 우회
-        const timestamp = Date.now();
         const currentGender = formData.gender;
         
         const updatedFormData = { ...formData };
@@ -518,7 +513,7 @@ export function PersonaManager() {
         
         result.images.forEach((img: any) => {
           if (img.success && img.emotionKorean) {
-            newExpressions[img.emotionKorean] = `${img.imageUrl}?t=${timestamp}`;
+            newExpressions[img.emotionKorean] = img.storagePath || img.imageUrl;
           }
         });
 
@@ -586,8 +581,7 @@ export function PersonaManager() {
       const result = await response.json();
       
       if (result.success) {
-        const timestamp = Date.now();
-        const imageUrlWithTimestamp = `${result.imageUrl}?t=${timestamp}`;
+        const storagePath = result.storagePath || result.imageUrl;
         const currentGender = formData.gender;
         
         const updatedFormData = { ...formData };
@@ -595,16 +589,16 @@ export function PersonaManager() {
         
         if (currentGender === 'male') {
           const maleExpressions = { ...((updatedImages.male?.expressions as Record<string, string>) || {}) };
-          maleExpressions[emotion] = imageUrlWithTimestamp;
+          maleExpressions[emotion] = storagePath;
           updatedImages.male = { expressions: maleExpressions as any };
         } else {
           const femaleExpressions = { ...((updatedImages.female?.expressions as Record<string, string>) || {}) };
-          femaleExpressions[emotion] = imageUrlWithTimestamp;
+          femaleExpressions[emotion] = storagePath;
           updatedImages.female = { expressions: femaleExpressions as any };
         }
         
         if (emotion === '중립') {
-          updatedImages.base = imageUrlWithTimestamp;
+          updatedImages.base = storagePath;
         }
         
         updatedFormData.images = updatedImages as any;
@@ -1281,7 +1275,7 @@ export function PersonaManager() {
                             <RefreshCw className="w-5 h-5 text-slate-400 animate-spin" />
                           ) : imageUrl && !failedImages.has(emotion) ? (
                             <img 
-                              src={imageUrl} 
+                              src={toMediaUrl(imageUrl)} 
                               alt={emotion} 
                               className="w-full h-full object-cover"
                               onError={() => {
@@ -1612,7 +1606,7 @@ export function PersonaManager() {
             </DialogHeader>
             <div className="flex items-center justify-center p-4 bg-slate-50 rounded-lg">
               <img 
-                src={viewingImage.url} 
+                src={toMediaUrl(viewingImage.url)} 
                 alt={viewingImage.emotion}
                 className="max-w-full max-h-[70vh] object-contain rounded-lg shadow-lg"
               />

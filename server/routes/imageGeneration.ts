@@ -630,38 +630,40 @@ router.post('/generate-persona-expressions', async (req, res) => {
 
     console.log(`🎨 페르소나 표정 이미지 일괄 생성 시작: ${personaId} (${mbti}, ${gender})`);
 
-    // 기본(중립) 이미지 읽기 (참조용) - 성별별 폴더 경로 포함, WebP 우선
-    const baseDir = path.join(process.cwd(), 'attached_assets', 'personas', personaId, gender);
-    const fallbackDir = path.join(process.cwd(), 'attached_assets', 'personas', personaId);
+    // 기본(중립) 이미지 읽기 (참조용) - Object Storage/GCS에서 조회
+    const storageKey = `personas/${personaId}/${gender}/neutral.webp`;
+    console.log(`📷 기본 이미지 조회: ${storageKey}`);
     
-    // WebP 파일 우선 확인, PNG 폴백
-    let imagePathToUse = '';
-    const possiblePaths = [
-      path.join(baseDir, 'neutral.webp'),
-      path.join(baseDir, 'neutral.png'),
-      path.join(fallbackDir, 'neutral.webp'),
-      path.join(fallbackDir, 'neutral.png')
-    ];
+    let batchBaseBuffer = await mediaStorage.readImageBuffer(storageKey);
     
-    for (const p of possiblePaths) {
-      if (fs.existsSync(p)) {
-        imagePathToUse = p;
-        break;
+    if (!batchBaseBuffer) {
+      // 로컬 파일시스템 폴백 (레거시 호환)
+      const baseDir = path.join(process.cwd(), 'attached_assets', 'personas', personaId, gender);
+      const fallbackDir = path.join(process.cwd(), 'attached_assets', 'personas', personaId);
+      let localPath = '';
+      for (const p of [
+        path.join(baseDir, 'neutral.webp'),
+        path.join(baseDir, 'neutral.png'),
+        path.join(fallbackDir, 'neutral.webp'),
+        path.join(fallbackDir, 'neutral.png')
+      ]) {
+        if (fs.existsSync(p)) { localPath = p; break; }
       }
+      
+      if (!localPath) {
+        return res.status(400).json({
+          error: '기본 이미지가 없습니다.',
+          details: `먼저 ${gender} 성별의 기본(중립) 이미지를 생성해주세요.`
+        });
+      }
+      
+      batchBaseBuffer = fs.readFileSync(localPath);
+      console.log(`📷 로컬 폴백 기본 이미지: ${localPath}`);
+    } else {
+      console.log(`📷 Object Storage 기본 이미지 로드 성공: ${storageKey}`);
     }
     
-    if (!imagePathToUse) {
-      return res.status(400).json({
-        error: '기본 이미지가 없습니다.',
-        details: `먼저 ${gender} 성별의 기본 이미지를 생성해주세요.`
-      });
-    }
-    
-    console.log(`📷 기본 이미지 경로: ${imagePathToUse}`);
-
-    // 기본 이미지를 base64로 인코딩
-    const baseImageBuffer = fs.readFileSync(imagePathToUse);
-    const baseImageBase64 = baseImageBuffer.toString('base64');
+    const baseImageBase64 = batchBaseBuffer.toString('base64');
 
     // 생성할 표정 리스트 (중립 제외)
     const emotions = [
@@ -890,34 +892,40 @@ router.post('/generate-persona-single-expression', async (req, res) => {
       });
     }
 
-    // 다른 표정의 경우 기본 이미지를 참조로 사용 (Object Storage에서 조회 시도)
-    const baseDir = path.join(process.cwd(), 'attached_assets', 'personas', personaId, gender);
-    const fallbackDir = path.join(process.cwd(), 'attached_assets', 'personas', personaId);
+    // 다른 표정의 경우 기본 이미지를 참조로 사용 - Object Storage/GCS에서 조회
+    const singleStorageKey = `personas/${personaId}/${gender}/neutral.webp`;
+    console.log(`📷 단일 표정 생성 - 기본 이미지 조회: ${singleStorageKey}`);
     
-    let imagePathToUse = '';
-    const possiblePaths = [
-      path.join(baseDir, 'neutral.webp'),
-      path.join(baseDir, 'neutral.png'),
-      path.join(fallbackDir, 'neutral.webp'),
-      path.join(fallbackDir, 'neutral.png')
-    ];
+    let baseImageBase64 = '';
+    const singleBaseBuffer = await mediaStorage.readImageBuffer(singleStorageKey);
     
-    for (const p of possiblePaths) {
-      if (fs.existsSync(p)) {
-        imagePathToUse = p;
-        break;
+    if (singleBaseBuffer) {
+      baseImageBase64 = singleBaseBuffer.toString('base64');
+      console.log(`📷 Object Storage 기본 이미지 로드 성공: ${singleStorageKey}`);
+    } else {
+      // 로컬 파일시스템 폴백 (레거시 호환)
+      const baseDir = path.join(process.cwd(), 'attached_assets', 'personas', personaId, gender);
+      const fallbackDir = path.join(process.cwd(), 'attached_assets', 'personas', personaId);
+      let localPath = '';
+      for (const p of [
+        path.join(baseDir, 'neutral.webp'),
+        path.join(baseDir, 'neutral.png'),
+        path.join(fallbackDir, 'neutral.webp'),
+        path.join(fallbackDir, 'neutral.png')
+      ]) {
+        if (fs.existsSync(p)) { localPath = p; break; }
       }
+      
+      if (!localPath) {
+        return res.status(400).json({
+          error: '기본 이미지가 없습니다.',
+          details: `먼저 ${gender} 성별의 기본(중립) 이미지를 생성해주세요.`
+        });
+      }
+      
+      baseImageBase64 = fs.readFileSync(localPath).toString('base64');
+      console.log(`📷 로컬 폴백 기본 이미지: ${localPath}`);
     }
-    
-    if (!imagePathToUse) {
-      return res.status(400).json({
-        error: '기본 이미지가 없습니다.',
-        details: `먼저 ${gender} 성별의 기본(중립) 이미지를 생성해주세요.`
-      });
-    }
-
-    const baseImageBuffer = fs.readFileSync(imagePathToUse);
-    const baseImageBase64 = baseImageBuffer.toString('base64');
 
     const imagePrompt = generateExpressionImagePrompt(
       mbti,

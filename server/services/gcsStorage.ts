@@ -143,6 +143,22 @@ export async function getSignedUrl(objectPath: string): Promise<{ url: string; e
   return { url, expiresIn: GCS_URL_TTL };
 }
 
+export async function downloadBufferFromGCS(objectPath: string): Promise<Buffer | null> {
+  if (!GCS_BUCKET_NAME) return null;
+  try {
+    const storage = getStorageClient();
+    const bucket = storage.bucket(GCS_BUCKET_NAME);
+    const file = bucket.file(objectPath);
+    const [exists] = await file.exists();
+    if (!exists) return null;
+    const [buffer] = await file.download();
+    return buffer;
+  } catch (error) {
+    console.error(`[GCS] Failed to download buffer: ${objectPath}`, error);
+    return null;
+  }
+}
+
 export async function checkFileExists(objectPath: string): Promise<boolean> {
   const bucketName = getGCSBucketName();
   const storage = getStorageClient();
