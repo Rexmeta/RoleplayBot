@@ -505,6 +505,7 @@ export function useRealtimeVoice({
               console.log('✅ Response complete');
               setIsAISpeaking(false);
               isAISpeakingRef.current = false;
+              setGreetingFailed(false);
               // 오디오-텍스트 동기화 상태 초기화 (다음 응답을 위해)
               audioResponseStartTimeRef.current = null;
               totalScheduledAudioDurationRef.current = 0;
@@ -558,9 +559,14 @@ export function useRealtimeVoice({
               
             case 'greeting.failed':
               // 3회 시도 후에도 AI 인사 실패 - 사용자가 먼저 시작하도록 안내
-              console.log('❌ Greeting failed after 3 retries - user should start first');
+              // 단, 이미 대화가 진행 중이면 무시
               setIsWaitingForGreeting(false);
-              setGreetingFailed(true);
+              if (hasConversationStartedRef.current) {
+                console.log('⚠️ Greeting failed but conversation already started - ignoring');
+              } else {
+                console.log('❌ Greeting failed after 3 retries - user should start first');
+                setGreetingFailed(true);
+              }
               break;
 
             case 'session.terminated':
