@@ -57,8 +57,13 @@ router.post('/generate', async (req, res) => {
       });
     }
 
-    // 텍스트 정리 (HTML 태그, 특수 문자 제거)
-    const cleanText = text.replace(/<[^>]*>/g, '').replace(/[*#_`]/g, '').trim();
+    // 텍스트 정리 (HTML 태그, 특수 문자, 괄호 행동 묘사 제거)
+    const cleanText = text
+      .replace(/<[^>]*>/g, '')
+      .replace(/[*#_`]/g, '')
+      .replace(/\([^)]{1,30}\)/g, '')
+      .replace(/\s+/g, ' ')
+      .trim();
     
     if (!cleanText) {
       return res.status(400).json({ 

@@ -39,9 +39,12 @@ function isThinkingText(text: string): boolean {
 function filterThinkingText(text: string, userLanguage: 'ko' | 'en' | 'ja' | 'zh' = 'ko'): string {
   if (!text) return '';
   
+  // 패턴 0: 괄호로 감싼 행동/상태 묘사 제거 (예: "(잠시 침묵)", "(한숨)", "(고개를 끄덕이며)")
+  let filtered = text.replace(/\([^)]{1,30}\)/g, '');
+  
   // 패턴 1: **제목** 형식의 thinking 블록 제거
   // 예: "**Beginning the Briefing**\nI've initiated..."
-  let filtered = text.replace(/\*\*[^*]+\*\*\s*/g, '');
+  filtered = filtered.replace(/\*\*[^*]+\*\*\s*/g, '');
   
   // 언어별 문자 패턴 정의
   const languagePatterns: Record<string, RegExp> = {
@@ -535,7 +538,7 @@ export class RealtimeVoiceService {
       `- 자주 쓰는 표현: ${mbtiPersona?.communication_patterns?.key_phrases?.slice(0, 3).join(', ') || '자연스러운 일상 표현'}`,
       `- "명령조" 스타일이면: "~하세요", "당연히~" 등 사용`,
       `- "형식적/정중" 스타일이면: "~인 것 같습니다" 등 완곡하게`,
-      `- "침묵을 압박 수단으로" 사용하면: "(잠시 침묵)..." 후 말하기`,
+      `- "침묵을 압박 수단으로" 사용하면: 실제로 말을 멈추고 2-3초 잠시 쉬었다가 다시 말하세요. "(잠시 침묵)" 같은 행동 묘사를 소리내어 말하지 마세요.`,
       ``,
       `## 대화 목표`,
       ...(mbtiPersona?.communication_patterns?.win_conditions || ['상호 이해 증진', '문제 해결']).map((w: string) => `- ${w}`),
@@ -558,6 +561,8 @@ export class RealtimeVoiceService {
       `- 내면의 생각이나 사고 과정을 말로 표현하지 마세요.`,
       `- "Initiating", "Thinking", "I'm focusing" 등의 메타 표현 절대 금지.`,
       `- 별표(**) 로 감싼 제목이나 메타 텍스트 절대 금지.`,
+      `- 괄호로 감싼 행동/상태 묘사를 절대 소리내어 말하지 마세요! 예: "(잠시 침묵)", "(한숨)", "(고개를 끄덕이며)", "(미소를 지으며)" 등을 읽지 마세요.`,
+      `- 대신 실제 목소리 톤과 말투, 말의 속도로 감정을 표현하세요. 침묵이 필요하면 실제로 잠깐 멈추세요.`,
       ``,
       `## ✅ 필수사항`,
       `- ${langInst.requirement}`,

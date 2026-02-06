@@ -865,8 +865,8 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
     speechSynthesisRef.current.cancel();
     
     try {
-      // 텍스트 정리
-      const cleanText = text.replace(/<[^>]*>/g, '').replace(/[*#_`]/g, '');
+      // 텍스트 정리 (HTML 태그, 마크다운, 괄호 행동 묘사 제거)
+      const cleanText = text.replace(/<[^>]*>/g, '').replace(/[*#_`]/g, '').replace(/\([^)]{1,30}\)/g, '').replace(/\s+/g, ' ').trim();
       const gender = getPersonaGender();
       const voiceSettings = getVoiceSettings(emotion, gender);
       
