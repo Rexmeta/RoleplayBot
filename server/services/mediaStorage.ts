@@ -63,33 +63,32 @@ export class MediaStorageService {
     }
 
     if (storageType === 'replit') {
-      const storage = await initReplitObjectStorage();
-      if (!storage) {
-        throw new Error('Replit Object Storage initialization failed');
+      const module = await import('../replit_integrations/object_storage');
+      const client = module.getObjectStorageClient();
+
+      const pathsStr = process.env.PUBLIC_OBJECT_SEARCH_PATHS || '';
+      const searchPaths = pathsStr.split(',').map(p => p.trim()).filter(p => p.length > 0);
+      if (searchPaths.length === 0) {
+        throw new Error('PUBLIC_OBJECT_SEARCH_PATHS not set');
       }
 
-      const uploadURL = await storage.getObjectEntityUploadURL();
-      
-      const response = await fetch(uploadURL, {
-        method: 'PUT',
-        body: buffer,
-        headers: {
-          'Content-Type': contentType,
-        },
+      const publicPath = searchPaths[0];
+      const fullPath = publicPath.startsWith('/') ? publicPath.slice(1) : publicPath;
+      const parts = fullPath.split('/');
+      const bucketName = parts[0];
+      const objectPrefix = parts.slice(1).join('/');
+      const objectName = objectPrefix ? `${objectPrefix}/${objectPath}` : objectPath;
+
+      const file = client.bucket(bucketName).file(objectName);
+      await file.save(buffer, {
+        contentType,
+        resumable: false,
+        metadata: { contentType },
       });
 
-      if (!response.ok) {
-        throw new Error(`Failed to upload to object storage: ${response.status}`);
-      }
+      console.log(`📁 Replit Object Storage 업로드: ${objectPath} (bucket: ${bucketName}, object: ${objectName})`);
 
-      const normalizedPath = storage.normalizeObjectEntityPath(uploadURL);
-      
-      await storage.trySetObjectEntityAclPolicy(uploadURL, {
-        owner: 'system',
-        visibility: 'public',
-      });
-
-      return normalizedPath;
+      return objectPath;
     }
 
     throw new Error(
@@ -335,11 +334,15 @@ export class MediaStorageService {
         const storage = await initReplitObjectStorage();
         if (storage) {
           try {
-            await storage.deleteObjectEntity(normalizedPath);
-            console.log(`🗑️ Replit Object Storage 파일 삭제 완료: ${normalizedPath}`);
-            return true;
+            const file = await storage.searchPublicObject(normalizedPath);
+            if (file) {
+              await file.delete();
+              console.log(`🗑️ Replit Object Storage 파일 삭제 완료: ${normalizedPath}`);
+              return true;
+            }
+            return false;
           } catch (deleteError: any) {
-            if (deleteError.code !== 'NOT_FOUND' && deleteError.message !== 'Object not found') {
+            if (deleteError.code !== 404) {
               console.error(`Failed to delete from Replit Object Storage: ${normalizedPath}`, deleteError);
             }
             return false;

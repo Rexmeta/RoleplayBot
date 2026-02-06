@@ -14,7 +14,8 @@ import { generateAIResponse, generateFeedback, generateStrategyReflectionFeedbac
 import { GoogleGenAI } from "@google/genai";
 import { createSampleData } from "./sampleData";
 import ttsRoutes from "./routes/tts.js";
-import imageGenerationRoutes, { saveImageToLocal } from "./routes/imageGeneration.js";
+import imageGenerationRoutes from "./routes/imageGeneration.js";
+import { mediaStorage } from "./services/mediaStorage";
 import mediaRoutes from "./routes/media.js";
 import { fileManager } from "./services/fileManager";
 import { generateScenarioWithAI, enhanceScenarioWithAI } from "./services/aiScenarioGenerator";
@@ -3679,9 +3680,15 @@ export async function registerRoutes(app: Express, httpServer: Server): Promise<
           }
         }
         
-        // 생성된 이미지를 로컬에 저장
         if (base64ImageUrl) {
-          scenarioImage = await saveImageToLocal(base64ImageUrl, result.scenario.title);
+          const base64Data = base64ImageUrl.split(',')[1];
+          const mimeMatch = base64ImageUrl.match(/data:([^;]+);/);
+          const mimeType = mimeMatch ? mimeMatch[1] : 'image/png';
+          const ext = mimeType.includes('png') ? 'png' : 'webp';
+          const buffer = Buffer.from(base64Data, 'base64');
+          const safeName = result.scenario.title.replace(/[^a-zA-Z0-9가-힣]/g, '_').slice(0, 50);
+          const objectPath = `scenarios/${safeName}_${Date.now()}.${ext}`;
+          scenarioImage = await mediaStorage.uploadToStorage(buffer, objectPath, mimeType);
         }
         
       } catch (error) {

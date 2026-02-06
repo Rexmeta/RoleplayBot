@@ -5,17 +5,19 @@ export function toMediaUrl(ref: string | null | undefined): string {
 
   if (ref.startsWith("/objects?key=")) return ref;
 
+  const stripped = ref.startsWith("/") ? ref.slice(1) : ref;
+
   if (
-    ref.startsWith("scenarios/") ||
-    ref.startsWith("videos/") ||
-    ref.startsWith("personas/")
+    stripped.startsWith("scenarios/") ||
+    stripped.startsWith("videos/") ||
+    stripped.startsWith("personas/")
   ) {
-    return `/objects?key=${encodeURIComponent(ref)}`;
+    const clean = stripped.split("?")[0];
+    return `/objects?key=${encodeURIComponent(clean)}`;
   }
 
   if (ref.startsWith("/objects/uploads/")) {
-    const id = ref.split("/objects/uploads/")[1];
-    return `/api/objects/resolve?id=${encodeURIComponent(id)}`;
+    return ref;
   }
 
   const uuidLike = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
