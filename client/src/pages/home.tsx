@@ -8,6 +8,7 @@ import { StrategyReflection } from "@/components/StrategyReflection";
 import { VideoIntro } from "@/components/VideoIntro";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
+import { toMediaUrl } from "@/lib/mediaUrl";
 import { type ComplexScenario, type ScenarioPersona } from "@/lib/scenario-system";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useAuth } from "@/hooks/useAuth";
@@ -980,10 +981,10 @@ export default function Home() {
         
         {currentView === "video-intro" && selectedScenario && selectedScenario.introVideoUrl && (
           <VideoIntro
-            videoSrc={selectedScenario.introVideoUrl}
+            videoSrc={toMediaUrl(selectedScenario.introVideoUrl)}
             onComplete={handleVideoComplete}
             onSkip={handleVideoSkip}
-            preloadImageUrl={selectedPersona ? `/personas/${(selectedPersona.mbti?.toLowerCase() || selectedPersona.id)}/${selectedPersona.gender || 'male'}/neutral.webp` : undefined}
+            preloadImageUrl={selectedPersona ? toMediaUrl(`personas/${(selectedPersona.mbti?.toLowerCase() || selectedPersona.id)}/${selectedPersona.gender || 'male'}/neutral.webp`) : undefined}
           />
         )}
 

@@ -8,6 +8,7 @@ import { CheckCircle2, Users, MessageCircle, Target, Clock, Lightbulb, AlertCirc
 import { type ScenarioPersona, type ComplexScenario } from "@/lib/scenario-system";
 import { useTranslation } from "react-i18next";
 import i18n from "@/lib/i18n";
+import { toMediaUrl } from "@/lib/mediaUrl";
 
 interface SimplePersonaSelectorProps {
   personas: ScenarioPersona[];
@@ -83,7 +84,7 @@ export function SimplePersonaSelector({
   const getPersonaImage = (persona: ScenarioPersona) => {
     const genderFolder = persona.gender || 'male';
     const mbtiId = persona.mbti?.toLowerCase() || 'default';
-    return `/personas/${mbtiId}/${genderFolder}/neutral.webp`;
+    return toMediaUrl(`personas/${mbtiId}/${genderFolder}/neutral.webp`);
   };
 
   return (
@@ -94,7 +95,7 @@ export function SimplePersonaSelector({
         <div 
           className="absolute inset-0 bg-cover bg-center"
           style={{
-            backgroundImage: `url(${(scenario as any)?.thumbnail || (scenario as any)?.image || 'https://images.unsplash.com/photo-1557804506-669a67965ba0?w=1200&h=400&fit=crop&auto=format'})`,
+            backgroundImage: `url(${toMediaUrl((scenario as any)?.thumbnail || (scenario as any)?.image) || 'https://images.unsplash.com/photo-1557804506-669a67965ba0?w=1200&h=400&fit=crop&auto=format'})`,
           }}
         />
         <div className="absolute inset-0 bg-gradient-to-r from-slate-900/95 via-slate-900/85 to-slate-900/70" />

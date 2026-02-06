@@ -9,6 +9,7 @@ import { ComplexScenario, getDifficultyLabel } from "@/lib/scenario-system";
 import { Loader2, Search, Filter, ChevronDown, ChevronUp, Folder } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import i18n from "@/lib/i18n";
+import { toMediaUrl } from "@/lib/mediaUrl";
 
 interface Category {
   id: string;
@@ -474,7 +475,7 @@ export default function ScenarioSelector({ onScenarioSelect, playerProfile }: Sc
                   <div
                     className="absolute inset-0 bg-cover bg-center bg-no-repeat transition-all duration-700 ease-out group-hover:scale-110 group-hover:brightness-110"
                     style={{
-                      backgroundImage: `url(${(scenario as any).thumbnail || scenario.image || 'https://images.unsplash.com/photo-1557804506-669a67965ba0?w=800&h=400&fit=crop&auto=format'})`,
+                      backgroundImage: `url(${toMediaUrl((scenario as any).thumbnail || scenario.image) || 'https://images.unsplash.com/photo-1557804506-669a67965ba0?w=800&h=400&fit=crop&auto=format'})`,
                     }}
                   />
                   

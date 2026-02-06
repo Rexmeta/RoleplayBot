@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
+import { toMediaUrl } from "@/lib/mediaUrl";
 import { Button } from "@/components/ui/button";
 import { MessageSquare, User } from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
@@ -231,7 +232,7 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
     // 영어 파일명 기준으로 이미지 가용성 확인 (다국어 감정명 지원)
     // personaImagesAvailable은 영어 파일명으로 인덱싱됨
     if (personaImagesAvailable[emotionEn]) {
-      return `/personas/${mbtiId}/${genderFolder}/${emotionEn}.webp`;
+      return toMediaUrl(`personas/${mbtiId}/${genderFolder}/${emotionEn}.webp`);
     }
     
     // 페르소나별 이미지가 없으면 null 반환
@@ -263,7 +264,7 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
             console.log(`⚠️ 페르소나별 이미지 없음: ${emotionEn}`);
             resolve();
           };
-          img.src = `/personas/${mbtiId}/${genderFolder}/${emotionEn}.webp`;
+          img.src = toMediaUrl(`personas/${mbtiId}/${genderFolder}/${emotionEn}.webp`);
         });
       });
       
@@ -1282,7 +1283,7 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
               >
                 <div className="w-14 h-14 sm:w-12 sm:h-12 rounded-xl border-2 border-white/30 overflow-hidden bg-gradient-to-br from-slate-100 to-slate-200 shadow-lg">
                   <img 
-                    src={getCharacterImage(currentEmotion) || persona.image} 
+                    src={getCharacterImage(currentEmotion) || toMediaUrl(persona.image)} 
                     alt={persona.name} 
                     className="w-full h-full object-cover object-[center_15%] transition-all duration-200 scale-110" 
                     onError={(e) => {
@@ -1382,7 +1383,7 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
                     <div className="relative flex-shrink-0 self-stretch flex items-end">
                       <div className="w-16 h-full min-h-[4rem] rounded-xl ring-2 ring-white shadow-lg overflow-hidden bg-slate-100">
                         <img 
-                          src={getCharacterImage(message.emotion || '중립') || persona.image} 
+                          src={getCharacterImage(message.emotion || '중립') || toMediaUrl(persona.image)} 
                           alt={persona.name} 
                           className="w-full h-full object-cover object-top" 
                         />
@@ -1438,7 +1439,7 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
               {isLoading && (
                 <div className="flex items-start space-x-3">
                   <div className="w-14 h-14 rounded-xl ring-2 ring-white shadow-lg overflow-hidden bg-slate-100 flex-shrink-0">
-                    <img src={getCharacterImage('중립') || persona.image} alt={persona.name} className="w-full h-full object-cover object-top scale-110" />
+                    <img src={getCharacterImage('중립') || toMediaUrl(persona.image)} alt={persona.name} className="w-full h-full object-cover object-top scale-110" />
                   </div>
                   <div className="bg-white rounded-2xl rounded-bl-md px-4 py-3 shadow-md border border-slate-100 mt-1">
                     <div className="flex space-x-1.5">
@@ -1454,7 +1455,7 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
               {pendingAiMessage && (
                 <div className="flex items-end space-x-3 animate-in fade-in duration-300">
                   <div className="w-10 h-10 rounded-xl ring-2 ring-white shadow-lg overflow-hidden bg-slate-100 flex-shrink-0">
-                    <img src={getCharacterImage(currentEmotion) || persona.image} alt={persona.name} className="w-full h-full object-cover object-top scale-110" />
+                    <img src={getCharacterImage(currentEmotion) || toMediaUrl(persona.image)} alt={persona.name} className="w-full h-full object-cover object-top scale-110" />
                   </div>
                   <div className="flex flex-col max-w-[75%]">
                     <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-2xl rounded-bl-md px-4 py-3 shadow-md border border-blue-100 mt-1">

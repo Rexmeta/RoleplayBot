@@ -15,6 +15,7 @@ import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import { apiRequest, queryClient } from '@/lib/queryClient';
 import { ComplexScenario } from '@/lib/scenario-system';
+import { toMediaUrl } from '@/lib/mediaUrl';
 import { Loader2, MoreVertical, ChevronDown, ChevronUp, Clock, Users, Target, Languages, Search, Sparkles } from 'lucide-react';
 import { AIScenarioGenerator } from './AIScenarioGenerator';
 import { ScenarioTranslationEditor } from './ScenarioTranslationEditor';
@@ -952,7 +953,7 @@ export function ScenarioManager() {
                       </div>
                       <div 
                         className="relative w-full h-48 bg-slate-100 rounded-lg overflow-hidden border cursor-pointer hover:shadow-lg transition-shadow"
-                        onClick={() => !imageLoadFailed && setImagePreviewUrl(selectedImageSignedUrl || formData.image || null)}
+                        onClick={() => !imageLoadFailed && setImagePreviewUrl(selectedImageSignedUrl || toMediaUrl(formData.image) || null)}
                         data-testid="image-preview-container"
                       >
                         {imageLoadFailed ? (
@@ -963,7 +964,7 @@ export function ScenarioManager() {
                           </div>
                         ) : (
                           <img
-                            src={selectedImageSignedUrl || formData.image}
+                            src={selectedImageSignedUrl || toMediaUrl(formData.image)}
                             alt={t('admin.scenarioManager.form.imagePreview')}
                             className="w-full h-full object-cover"
                             onError={() => setImageLoadFailed(true)}
@@ -1074,11 +1075,11 @@ export function ScenarioManager() {
                       <p className="text-sm text-slate-600 mb-2">비디오 미리보기 (클릭하면 전체보기):</p>
                       <div 
                         className="relative w-full bg-slate-900 rounded-lg overflow-hidden border cursor-pointer hover:shadow-lg transition-shadow"
-                        onClick={() => setVideoPreviewUrl(formData.introVideoUrl || null)}
+                        onClick={() => setVideoPreviewUrl(toMediaUrl(formData.introVideoUrl) || null)}
                         data-testid="video-preview-container"
                       >
                         <video
-                          src={formData.introVideoUrl}
+                          src={toMediaUrl(formData.introVideoUrl)}
                           controls
                           className="w-full max-h-64 object-contain"
                           preload="metadata"

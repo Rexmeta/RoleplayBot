@@ -43,24 +43,31 @@ Preferred communication style: Simple, everyday language.
 
 ## Media Storage (Object Storage)
 
+### Media URL Architecture
+- **DB stores GCS keys**: `scenarios/...webp`, `videos/...webm`, `personas/...webp`
+- **Frontend utility**: `toMediaUrl()` in `client/src/lib/mediaUrl.ts` converts keys to serving URLs
+  - Normal keys → `/objects?key=<encoded key>`
+  - Absolute URLs → passed through
+  - Legacy UUIDs → `/api/objects/resolve?id=<uuid>` (302 redirect or 404)
+- **Backend endpoints**:
+  - `GET /objects?key=<key>` → serves file from GCS (Cloud Run) or Replit Object Storage
+  - `GET /objects/*` → path-based serving (Cloud Run only, legacy compatibility)
+  - `GET /api/objects/resolve?id=<uuid>` → resolves legacy UUIDs by searching scenario data
+
 ### Dual Deployment Support
 The system supports two completely separate storage backends:
 
 #### Replit Environment (development)
 - **Provider**: Replit Object Storage (via sidecar at 127.0.0.1:1106)
-- **URL Format**: `/objects/uploads/{uuid}` for serving uploaded files
+- **Serving**: `GET /objects?key=<key>` searches public object paths
 - **Detection**: `REPL_ID` environment variable present
-- **Routes**: `/objects/*` routes ENABLED for file serving
 
 #### Cloud Run Environment (production)
 - **Provider**: Google Cloud Storage (GCS)
-- **URL Format**: Both `/objects/*` paths AND GCS Signed URLs are supported
+- **Serving**: `GET /objects?key=<key>` streams from GCS bucket
 - **Detection**: `K_SERVICE` or `K_REVISION` environment variable present
 - **Required Env Vars**:
   - `GCS_BUCKET_NAME`: Your GCS bucket name (e.g., `roleplay-bucket`)
-- **Routes**: `/objects/*` routes serve files directly from GCS bucket
-  - `/objects/uploads/<uuid>` → streams `gs://bucket/uploads/<uuid>`
-  - `/objects/scenarios/<path>` → streams `gs://bucket/scenarios/<path>`
 - **IMPORTANT**: Remove Replit-specific env vars from Cloud Run:
   - `PRIVATE_OBJECT_DIR` - causes Replit fallback attempts
   - `PUBLIC_OBJECT_SEARCH_PATHS` - not needed
@@ -82,13 +89,14 @@ gcloud storage buckets add-iam-policy-binding gs://your-bucket \
 ### Path Normalization
 Object paths are automatically normalized:
 - Query strings (`?t=timestamp`) are stripped before GCS lookup
-- `/objects/` paths are handled differently per environment
-- Signed URLs are generated for GCS paths on Cloud Run
+- Signed URLs have bucket name stripped for proper key extraction
+- `/objects/` prefix removed before GCS lookup
 
 ### Services
-- `server/services/gcsStorage.ts`: GCS operations, signed URLs, path normalization
+- `client/src/lib/mediaUrl.ts`: Frontend URL converter (toMediaUrl)
+- `server/services/gcsStorage.ts`: GCS operations, signed URLs, streamFromGCS
 - `server/services/mediaStorage.ts`: High-level media upload service (auto-selects backend)
-- `server/replit_integrations/object_storage/`: Replit-only storage (blocked on Cloud Run)
+- `server/replit_integrations/object_storage/routes.ts`: /objects?key=, /objects/*, /api/objects/resolve
 
 ## Features
 - **Comprehensive Persona Reflection**: AI conversations fully reflect persona definitions including:

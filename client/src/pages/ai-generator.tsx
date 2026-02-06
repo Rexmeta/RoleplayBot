@@ -10,6 +10,7 @@ import { useToast } from '@/hooks/use-toast';
 import { apiRequest } from '@/lib/queryClient';
 import { Loader2 } from 'lucide-react';
 import { Link } from 'wouter';
+import { toMediaUrl } from "@/lib/mediaUrl";
 
 export default function AIGeneratorPage() {
   const { toast } = useToast();
@@ -207,7 +208,7 @@ export default function AIGeneratorPage() {
                     <h4 className="font-semibold text-slate-800 mb-2">생성된 시나리오 이미지</h4>
                     <div className="relative w-full h-48 bg-slate-100 rounded-lg overflow-hidden">
                       <img
-                        src={generatedResult.scenario.image}
+                        src={toMediaUrl(generatedResult.scenario.image)}
                         alt={generatedResult.scenario.title}
                         className="w-full h-full object-cover"
                         onError={(e) => {
