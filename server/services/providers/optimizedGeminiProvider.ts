@@ -867,7 +867,7 @@ JSON 형식${hasStrategyReflection ? ' (sequenceAnalysis 포함)' : ''}:
     const dimensions = evaluationCriteria?.dimensions || this.getDefaultDimensions();
     const totalWeight = dimensions.reduce((sum, d) => sum + d.weight, 0);
     
-    if (totalWeight === 0) return 75;
+    if (totalWeight === 0) return 50;
     
     const weightedSum = dimensions.reduce((sum, d) => {
       const score = scores[d.key] || 3;
@@ -975,9 +975,10 @@ JSON 형식${hasStrategyReflection ? ' (sequenceAnalysis 포함)' : ''}:
    * 폴백 피드백 (동적 평가 기준 지원)
    */
   private getFallbackFeedback(evaluationCriteria?: EvaluationCriteriaWithDimensions): DetailedFeedback {
+    const defaultScores = this.getDefaultScores(evaluationCriteria);
     const feedback: DetailedFeedback = {
-      overallScore: 75,
-      scores: this.getDefaultScores(evaluationCriteria) as any,
+      overallScore: this.calculateWeightedOverallScore(defaultScores, evaluationCriteria),
+      scores: defaultScores as any,
       strengths: ["대화 참여", "적극적인 자세"],
       improvements: ["더 구체적인 표현", "논리적 구조화"],
       nextSteps: ["더 많은 연습", "다양한 시나리오 경험"],

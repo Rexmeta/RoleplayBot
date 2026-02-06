@@ -164,6 +164,21 @@ export async function registerRoutes(app: Express, httpServer: Server): Promise<
     }
   }
 
+  function recalculateOverallScore(evaluationScores: any[]): number {
+    const totalWeight = evaluationScores.reduce((sum: number, s: any) => sum + (s.weight || 20), 0);
+    if (totalWeight === 0) return 50;
+    
+    const weightedSum = evaluationScores.reduce((sum: number, s: any) => {
+      const minScore = 1;
+      const maxScore = 5;
+      const weight = s.weight || 20;
+      const normalizedScore = (s.score - minScore) / (maxScore - minScore);
+      return sum + normalizedScore * weight;
+    }, 0);
+    
+    return Math.round((weightedSum / totalWeight) * 100);
+  }
+
   // Helper function to generate and save feedback automatically
   async function generateAndSaveFeedback(
     conversationId: string, 
@@ -267,54 +282,34 @@ export async function registerRoutes(app: Express, httpServer: Server): Promise<
     feedbackData.timePerformance = timePerformance;
 
     const dimFeedback = feedbackData.dimensionFeedback || {};
-    const evaluationScores = [
-      {
-        category: "clarityLogic",
-        name: "명확성 & 논리성",
-        score: feedbackData.scores.clarityLogic,
-        feedback: dimFeedback.clarityLogic || "발언의 구조화, 핵심 전달, 모호성 최소화",
-        icon: "🎯",
-        color: "blue"
-      },
-      {
-        category: "listeningEmpathy", 
-        name: "경청 & 공감",
-        score: feedbackData.scores.listeningEmpathy,
-        feedback: dimFeedback.listeningEmpathy || "재진술·요약, 감정 인식, 우려 존중",
-        icon: "👂",
-        color: "green"
-      },
-      {
-        category: "appropriatenessAdaptability",
-        name: "적절성 & 상황 대응", 
-        score: feedbackData.scores.appropriatenessAdaptability,
-        feedback: dimFeedback.appropriatenessAdaptability || "맥락 적합한 표현, 유연한 갈등 대응",
-        icon: "⚡",
-        color: "yellow"
-      },
-      {
-        category: "persuasivenessImpact",
-        name: "설득력 & 영향력",
-        score: feedbackData.scores.persuasivenessImpact, 
-        feedback: dimFeedback.persuasivenessImpact || "논리적 근거, 사례 활용, 행동 변화 유도",
-        icon: "🎪",
-        color: "purple"
-      },
-      {
-        category: "strategicCommunication",
-        name: "전략적 커뮤니케이션",
-        score: feedbackData.scores.strategicCommunication,
-        feedback: dimFeedback.strategicCommunication || "목표 지향적 대화, 협상·조율, 주도성", 
-        icon: "🎲",
-        color: "red"
-      }
+    const defaultDimensions = [
+      { key: 'clarityLogic', name: '명확성 & 논리성', weight: 20, minScore: 1, maxScore: 5, icon: '🎯', color: 'blue', description: '발언의 구조화, 핵심 전달, 모호성 최소화' },
+      { key: 'listeningEmpathy', name: '경청 & 공감', weight: 20, minScore: 1, maxScore: 5, icon: '👂', color: 'green', description: '재진술·요약, 감정 인식, 우려 존중' },
+      { key: 'appropriatenessAdaptability', name: '적절성 & 상황 대응', weight: 20, minScore: 1, maxScore: 5, icon: '⚡', color: 'yellow', description: '맥락 적합한 표현, 유연한 갈등 대응' },
+      { key: 'persuasivenessImpact', name: '설득력 & 영향력', weight: 20, minScore: 1, maxScore: 5, icon: '🎪', color: 'purple', description: '논리적 근거, 사례 활용, 행동 변화 유도' },
+      { key: 'strategicCommunication', name: '전략적 커뮤니케이션', weight: 20, minScore: 1, maxScore: 5, icon: '🎲', color: 'red', description: '목표 지향적 대화, 협상·조율, 주도성' },
     ];
+    const evaluationScores = defaultDimensions.map(dim => ({
+      category: dim.key,
+      name: dim.name,
+      score: feedbackData.scores[dim.key] || 3,
+      feedback: dimFeedback[dim.key] || dim.description,
+      icon: dim.icon,
+      color: dim.color,
+      weight: dim.weight
+    }));
+
+    const verifiedOverallScore = recalculateOverallScore(evaluationScores);
+    if (verifiedOverallScore !== feedbackData.overallScore) {
+      console.log(`📊 종합 점수 보정: AI=${feedbackData.overallScore} → 가중치 계산=${verifiedOverallScore}`);
+      feedbackData.overallScore = verifiedOverallScore;
+    }
 
     // 피드백 저장
     const feedback = await storage.createFeedback({
       conversationId,
       personaRunId: conversationId,
-      overallScore: feedbackData.overallScore,
+      overallScore: verifiedOverallScore,
       scores: evaluationScores,
       detailedFeedback: feedbackData,
     });
@@ -324,9 +319,9 @@ export async function registerRoutes(app: Express, httpServer: Server): Promise<
       const personaRun = await storage.getPersonaRun(conversationId);
       if (personaRun) {
         await storage.updatePersonaRun(conversationId, {
-          score: feedbackData.overallScore
+          score: verifiedOverallScore
         });
-        console.log(`✅ PersonaRun ${conversationId} score 업데이트: ${feedbackData.overallScore}`);
+        console.log(`✅ PersonaRun ${conversationId} score 업데이트: ${verifiedOverallScore}`);
       }
     } catch (error) {
       console.warn(`PersonaRun score 업데이트 실패: ${error}`);
@@ -1962,58 +1957,39 @@ export async function registerRoutes(app: Express, httpServer: Server): Promise<
           score: feedbackData.scores[dim.key] || 3,
           feedback: dimFb[dim.key] || dim.description || dim.name,
           icon: dim.icon || '📊',
-          color: dim.color || '#6366f1'
+          color: dim.color || '#6366f1',
+          weight: dim.weight || 20
         }));
         console.log(`📊 동적 evaluationScores 생성: ${evaluationScores.length}개`);
       } else {
-        evaluationScores = [
-          {
-            category: "clarityLogic",
-            name: "명확성 & 논리성",
-            score: feedbackData.scores.clarityLogic,
-            feedback: dimFb.clarityLogic || "발언의 구조화, 핵심 전달, 모호성 최소화",
-            icon: "🎯",
-            color: "blue"
-          },
-          {
-            category: "listeningEmpathy", 
-            name: "경청 & 공감",
-            score: feedbackData.scores.listeningEmpathy,
-            feedback: dimFb.listeningEmpathy || "재진술·요약, 감정 인식, 우려 존중",
-            icon: "👂",
-            color: "green"
-          },
-          {
-            category: "appropriatenessAdaptability",
-            name: "적절성 & 상황 대응", 
-            score: feedbackData.scores.appropriatenessAdaptability,
-            feedback: dimFb.appropriatenessAdaptability || "맥락 적합한 표현, 유연한 갈등 대응",
-            icon: "⚡",
-            color: "yellow"
-          },
-          {
-            category: "persuasivenessImpact",
-            name: "설득력 & 영향력",
-            score: feedbackData.scores.persuasivenessImpact, 
-            feedback: dimFb.persuasivenessImpact || "논리적 근거, 사례 활용, 행동 변화 유도",
-            icon: "🎪",
-            color: "purple"
-          },
-          {
-            category: "strategicCommunication",
-            name: "전략적 커뮤니케이션",
-            score: feedbackData.scores.strategicCommunication,
-            feedback: dimFb.strategicCommunication || "목표 지향적 대화, 협상·조율, 주도성", 
-            icon: "🎲",
-            color: "red"
-          }
+        const defaultDims = [
+          { key: 'clarityLogic', name: '명확성 & 논리성', weight: 20, icon: '🎯', color: 'blue', desc: '발언의 구조화, 핵심 전달, 모호성 최소화' },
+          { key: 'listeningEmpathy', name: '경청 & 공감', weight: 20, icon: '👂', color: 'green', desc: '재진술·요약, 감정 인식, 우려 존중' },
+          { key: 'appropriatenessAdaptability', name: '적절성 & 상황 대응', weight: 20, icon: '⚡', color: 'yellow', desc: '맥락 적합한 표현, 유연한 갈등 대응' },
+          { key: 'persuasivenessImpact', name: '설득력 & 영향력', weight: 20, icon: '🎪', color: 'purple', desc: '논리적 근거, 사례 활용, 행동 변화 유도' },
+          { key: 'strategicCommunication', name: '전략적 커뮤니케이션', weight: 20, icon: '🎲', color: 'red', desc: '목표 지향적 대화, 협상·조율, 주도성' },
         ];
+        evaluationScores = defaultDims.map(dim => ({
+          category: dim.key,
+          name: dim.name,
+          score: feedbackData.scores[dim.key] || 3,
+          feedback: dimFb[dim.key] || dim.desc,
+          icon: dim.icon,
+          color: dim.color,
+          weight: dim.weight
+        }));
+      }
+
+      const verifiedOverallScore = recalculateOverallScore(evaluationScores);
+      if (verifiedOverallScore !== feedbackData.overallScore) {
+        console.log(`📊 종합 점수 보정: AI=${feedbackData.overallScore} → 가중치 계산=${verifiedOverallScore}`);
+        feedbackData.overallScore = verifiedOverallScore;
       }
 
       const feedback = await storage.createFeedback({
         conversationId: null, // 레거시 지원 (nullable)
         personaRunId: personaRunId, // ✨ 새 구조: persona_run ID 저장
-        overallScore: feedbackData.overallScore,
+        overallScore: verifiedOverallScore,
         scores: evaluationScores,
         detailedFeedback: feedbackData,
       });
@@ -2022,7 +1998,7 @@ export async function registerRoutes(app: Express, httpServer: Server): Promise<
 
       // ✨ PersonaRun의 score도 업데이트 (통계 계산용)
       await storage.updatePersonaRun(personaRunId, {
-        score: feedbackData.overallScore
+        score: verifiedOverallScore
       });
       console.log(`✅ PersonaRun score updated: ${feedbackData.overallScore}`);
 

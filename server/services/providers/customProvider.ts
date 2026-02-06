@@ -381,7 +381,7 @@ JSON 형식으로 응답:
     const dimensions = evaluationCriteria?.dimensions || this.getDefaultDimensions();
     const totalWeight = dimensions.reduce((sum, d) => sum + d.weight, 0);
     
-    if (totalWeight === 0) return 75;
+    if (totalWeight === 0) return 50;
     
     const weightedSum = dimensions.reduce((sum, d) => {
       const score = scores[d.key] || Math.ceil((d.minScore + d.maxScore) / 2);
@@ -757,7 +757,7 @@ JSON 형식으로 응답:
     }
 
     return {
-      overallScore: 60,
+      overallScore: this.calculateWeightedOverallScore(scores, evaluationCriteria),
       scores: scores as any,
       strengths: ["기본적인 대화 참여", "적절한 언어 사용", "상황에 맞는 응답"],
       improvements: ["시스템 안정성 확보 후 재평가 필요", "더 많은 대화 기회 필요", "기술적 문제 해결 후 재시도"],

@@ -409,7 +409,7 @@ export default function PersonalDevelopmentReport({
             ${scores.map(score => `
               <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 16px;">
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-                  <span style="font-weight: 600; color: #374151;">${escapeHtml(score.icon)} ${escapeHtml(getTranslatedDimensionName(score.category, score.name))}</span>
+                  <span style="font-weight: 600; color: #374151;">${escapeHtml(score.icon)} ${escapeHtml(getTranslatedDimensionName(score.category, score.name))}${score.weight ? ` <span style="font-weight: 400; color: #94a3b8; font-size: 11px;">(${score.weight}%)</span>` : ''}</span>
                   <span style="background: #dbeafe; color: #1e40af; padding: 4px 8px; border-radius: 4px; font-size: 12px;">${score.score || 0}/5</span>
                 </div>
                 <p style="font-size: 13px; color: #6b7280;">${escapeHtml(score.feedback)}</p>
@@ -1078,7 +1078,10 @@ export default function PersonalDevelopmentReport({
                     <div className="flex items-center justify-between">
                       <div className="flex items-center space-x-2">
                         <i className={`${score.icon} text-xl text-${score.color}-600 transition-transform duration-300 hover:scale-110`}></i>
-                        <CardTitle className="text-sm">{getTranslatedDimensionName(score.category, score.name)}</CardTitle>
+                        <CardTitle className="text-sm">
+                          {getTranslatedDimensionName(score.category, score.name)}
+                          {score.weight && <span className="ml-1 text-xs font-normal text-slate-400">({score.weight}%)</span>}
+                        </CardTitle>
                       </div>
                       <Badge 
                         variant="secondary" 
