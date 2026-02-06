@@ -169,11 +169,9 @@ export async function registerRoutes(app: Express, httpServer: Server): Promise<
     if (totalWeight === 0) return 50;
     
     const weightedSum = evaluationScores.reduce((sum: number, s: any) => {
-      const minScore = 1;
       const maxScore = 5;
       const weight = s.weight || 20;
-      const normalizedScore = (s.score - minScore) / (maxScore - minScore);
-      return sum + normalizedScore * weight;
+      return sum + (s.score / maxScore) * weight;
     }, 0);
     
     return Math.round((weightedSum / totalWeight) * 100);

@@ -385,8 +385,7 @@ JSON 형식으로 응답:
     
     const weightedSum = dimensions.reduce((sum, d) => {
       const score = scores[d.key] || Math.ceil((d.minScore + d.maxScore) / 2);
-      const normalizedScore = (score - d.minScore) / (d.maxScore - d.minScore);
-      return sum + normalizedScore * d.weight;
+      return sum + (score / d.maxScore) * d.weight;
     }, 0);
     
     return Math.round((weightedSum / totalWeight) * 100);

@@ -871,8 +871,7 @@ JSON 형식${hasStrategyReflection ? ' (sequenceAnalysis 포함)' : ''}:
     
     const weightedSum = dimensions.reduce((sum, d) => {
       const score = scores[d.key] || 3;
-      const normalizedScore = (score - d.minScore) / (d.maxScore - d.minScore);
-      return sum + normalizedScore * d.weight;
+      return sum + (score / d.maxScore) * d.weight;
     }, 0);
     
     return Math.round((weightedSum / totalWeight) * 100);

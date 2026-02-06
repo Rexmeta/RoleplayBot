@@ -106,6 +106,7 @@ Object paths are automatically normalized:
   - Scenario-specific data: stance, goal, tradeoff (negotiation limits), experience, department
 - **4-Level Difficulty System**: Users select difficulty, influencing AI responses across all conversation modes.
 - **Analytics and Reporting**: Comprehensive user conversation history analytics including scores, category breakdowns, growth tracking, and pattern recognition. Uses a ComOn Check research-based 5-point scoring system (converted to 0-100).
+  - **Overall Score Formula**: `overallScore = Σ((score / maxScore) × weight) / totalWeight × 100`. For example, score 3/5 with weight 50% contributes 30 points (3/5 × 50 = 30). Server-side `recalculateOverallScore()` verifies and corrects AI-provided scores before storage.
 - **Automatic Score Adjustments**: The feedback system applies automatic score adjustments based on:
   - **Non-verbal expression penalty**: Short responses (<3 chars: -2pts), silence ("...": -3pts), hesitation sounds ("음...", "uh": -2pts), skips (-5pts). Max penalty: -20pts.
   - **Barge-in analysis**: Interrupting AI while asking a question = -3pts (poor listening). Interrupting with substantial response (>30 chars) = +2pts (active participation). Net adjustment range: -15 to +10pts.
