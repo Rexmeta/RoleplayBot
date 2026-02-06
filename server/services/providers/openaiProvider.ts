@@ -224,8 +224,12 @@ JSON 형식으로 응답하세요: {"emotion": "감정", "reason": "감정을 �
       return line;
     }).join('\n');
 
-    // 동적 scores 구조 생성
-    const scoresStructure = dimensions.map(dim => `"${dim.key}": 점수${dim.minScore}-${dim.maxScore}`).join(',\n    ');
+    // 동적 scores 구조 생성 - 다양한 예시 점수로 AI의 동일 점수 반환 방지
+    const exampleScores = [2, 4, 3, 5, 1, 3, 4, 2, 5, 3];
+    const scoresStructure = dimensions.map((dim, idx) => {
+      const exampleScore = Math.min(dim.maxScore, Math.max(dim.minScore, exampleScores[idx % exampleScores.length]));
+      return `"${dim.key}": ${exampleScore}`;
+    }).join(',\n    ');
 
     return `당신은 커뮤니케이션 평가 전문가입니다.
 
@@ -242,8 +246,14 @@ ${conversationText}
 ## 평가 차원 (${dimensions.length}개):
 ${dimensionsList}
 
+## ⚠️ 독립 평가 필수 원칙:
+- **각 평가 차원은 반드시 독립적으로 평가하세요. 모든 차원에 동일한 점수를 부여하는 것은 금지합니다.**
+- 각 차원마다 대화에서 해당 차원과 관련된 구체적 근거(발화 내용, 행동 패턴)를 찾아 점수를 결정하세요
+- 사용자가 특정 차원에서 잘했지만 다른 차원에서 부족할 수 있습니다. 예: 공감 능력은 높지만 논리적 설득력은 낮을 수 있음
+- 점수 범위를 고르게 활용하세요. 1점부터 5점까지 다양하게 부여하세요
+
 ## 평가 지침:
-1. 각 차원별로 지정된 점수 범위 내에서 평가
+1. 각 차원별로 지정된 점수 범위 내에서 독립적으로 평가
 2. 전체 점수는 0-100점
 3. 각 평가 차원에 "평가 지침"이 있는 경우, 반드시 해당 지침에 따라 채점하세요
 4. 종합평가(summary)는 가중치가 높은 차원의 결과를 중심으로 작성하세요

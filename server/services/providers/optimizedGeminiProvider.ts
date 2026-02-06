@@ -559,8 +559,12 @@ sequenceAnalysis 필드에 다음 형식으로 포함:
       return line;
     }).join('\n');
     
-    // 점수 형식 생성 (동적)
-    const scoresFormat = dimensions.map(dim => `"${dim.key}": ${Math.ceil(dim.maxScore / 2)}`).join(', ');
+    // 점수 형식 생성 (동적) - 다양한 예시 점수로 AI의 동일 점수 반환 방지
+    const exampleScores = [2, 4, 3, 5, 1, 3, 4, 2, 5, 3];
+    const scoresFormat = dimensions.map((dim, idx) => {
+      const exampleScore = Math.min(dim.maxScore, Math.max(dim.minScore, exampleScores[idx % exampleScores.length]));
+      return `"${dim.key}": ${exampleScore}`;
+    }).join(', ');
     
     // 채점 기준 설명 생성 (있는 경우)
     let scoringRubricsSection = '';
@@ -599,8 +603,14 @@ ${strategySection}
 ${dimensionsList}
 ${scoringRubricsSection}
 
-**가중치 반영 지침**:
+**⚠️ 독립 평가 필수 원칙**:
+- **각 평가 영역은 반드시 독립적으로 평가하세요. 모든 영역에 동일한 점수를 부여하는 것은 금지합니다.**
+- 각 영역마다 대화에서 해당 영역과 관련된 구체적 근거(발화 내용, 행동 패턴)를 찾아 점수를 결정하세요
+- 사용자가 특정 영역에서 잘했지만 다른 영역에서 부족할 수 있습니다. 예: 공감 능력은 높지만 논리적 설득력은 낮을 수 있음
+- 점수 범위(1-5)를 고르게 활용하세요. 1점부터 5점까지 다양하게 부여하세요
 - 각 평가 영역에 "평가 지침"이 있는 경우, 반드시 해당 지침에 따라 채점하세요
+
+**가중치 반영 지침**:
 - 종합평가(summary)는 가중치가 높은 영역의 결과를 중심으로 작성하세요
 - strengths/improvements도 가중치가 높은 영역을 우선적으로 반영하세요
 
