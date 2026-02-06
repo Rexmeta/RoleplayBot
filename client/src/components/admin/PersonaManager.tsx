@@ -1608,11 +1608,14 @@ export function PersonaManager() {
               <DialogTitle>{t(`admin.personaManager.emotions.${emotionKeyMap[viewingImage.emotion] || viewingImage.emotion}`)} {t('admin.personaManager.image.expressionTitle')}</DialogTitle>
             </DialogHeader>
             <div className="flex items-center justify-center p-4 bg-slate-50 rounded-lg">
-              <img 
-                src={toMediaUrl(viewingImage.url)} 
-                alt={viewingImage.emotion}
-                className="max-w-full max-h-[70vh] object-contain rounded-lg shadow-lg"
-              />
+              {(() => {
+                const mediaSrc = toMediaUrl(viewingImage.url);
+                return <img 
+                  src={`${mediaSrc}${mediaSrc.includes('?') ? '&' : '?'}v=${imageCacheBuster}`} 
+                  alt={viewingImage.emotion}
+                  className="max-w-full max-h-[70vh] object-contain rounded-lg shadow-lg"
+                />;
+              })()}
             </div>
             <div className="flex justify-end">
               <Button onClick={() => setViewingImage(null)}>{t('common.close')}</Button>
