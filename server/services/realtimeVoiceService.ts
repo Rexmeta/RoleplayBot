@@ -452,36 +452,36 @@ export class RealtimeVoiceService {
     }> = {
       ko: {
         langName: '한국어',
-        prohibition: '영어 사용 절대 금지! 모든 응답은 반드시 한국어로만 하세요.',
-        requirement: '모든 대화는 100% 한국어로만 진행하세요.',
-        greetingInstruction: '세션이 시작되면 반드시 한국어로 먼저 인사를 건네며 대화를 시작하세요.',
+        prohibition: '영어 사용 절대 금지! 모든 응답은 반드시 한국어로만 하세요. 괄호로 감싼 행동 묘사 절대 금지!',
+        requirement: '모든 대화는 100% 한국어로만 진행하세요. 괄호 안 행동 묘사를 절대 출력하지 마세요.',
+        greetingInstruction: '세션이 시작되면 반드시 한국어로 먼저 인사를 건네며 대화를 시작하세요. 괄호 행동 묘사 없이 자연스럽게 말하세요.',
         greetingExample: userRoleInfo 
           ? `"${userRoleInfo.name}님, 안녕하세요. 급한 건으로 찾아뵙게 됐습니다." 또는 "${userRoleInfo.position}님 오셨군요, 지금 상황이 좀 급합니다."`
           : `"안녕하세요, 급한 건으로 찾아뵙게 됐습니다." 또는 "오셨군요, 지금 상황이 좀 급합니다."`
       },
       en: {
         langName: 'English',
-        prohibition: 'Always respond in English only. Do not use Korean or other languages.',
-        requirement: 'Conduct all conversations 100% in English.',
-        greetingInstruction: 'When the session starts, greet in English first and begin the conversation.',
+        prohibition: 'Always respond in English only. Do not use Korean or other languages. NEVER output parenthesized stage directions!',
+        requirement: 'Conduct all conversations 100% in English. Never output action descriptions in parentheses like (silence) or (sighs).',
+        greetingInstruction: 'When the session starts, greet in English first and begin the conversation. Do NOT include any parenthesized actions.',
         greetingExample: userRoleInfo
           ? `"Hello ${userRoleInfo.name}, I need to speak with you about an urgent matter." or "Good to see you, ${userRoleInfo.position}. We have an urgent situation."`
           : `"Hello, I need to speak with you about an urgent matter." or "Good to see you. We have an urgent situation."`
       },
       ja: {
         langName: '日本語',
-        prohibition: '必ず日本語だけで応答してください。韓国語や英語は使用禁止です。',
-        requirement: 'すべての会話は100%日本語で行ってください。',
-        greetingInstruction: 'セッションが始まったら、必ず日本語で挨拶をして会話を始めてください。',
+        prohibition: '必ず日本語だけで応答してください。韓国語や英語は使用禁止です。括弧で囲んだ行動描写は絶対に出力しないでください！',
+        requirement: 'すべての会話は100%日本語で行ってください。（沈黙）（ため息）のような括弧付き行動描写は絶対に出力しないでください。',
+        greetingInstruction: 'セッションが始まったら、必ず日本語で挨拶をして会話を始めてください。括弧付きの行動描写なしで自然に話してください。',
         greetingExample: userRoleInfo
           ? `"${userRoleInfo.name}さん、こんにちは。急ぎの件でお伺いしました。" または "${userRoleInfo.position}さん、いらっしゃいましたか。今、状況が急です。"`
           : `"こんにちは、急ぎの件でお伺いしました。" または "いらっしゃいましたか。今、状況が急です。"`
       },
       zh: {
         langName: '中文',
-        prohibition: '必须只用中文回答。禁止使用韩语或英语。',
-        requirement: '所有对话必须100%使用中文。',
-        greetingInstruction: '会话开始时，请务必用中文先打招呼并开始对话。',
+        prohibition: '必须只用中文回答。禁止使用韩语或英语。绝对不要输出括号里的动作描写！',
+        requirement: '所有对话必须100%使用中文。绝对不要输出（沉默）（叹气）等括号动作描写。',
+        greetingInstruction: '会话开始时，请务必用中文先打招呼并开始对话。不要使用括号动作描写，自然地说话。',
         greetingExample: userRoleInfo
           ? `"${userRoleInfo.name}，您好。有紧急事情需要和您商量。" 或 "${userRoleInfo.position}来了啊，现在情况有些紧急。"`
           : `"您好，有紧急事情需要商量。" 或 "来了啊，现在情况有些紧急。"`
@@ -538,7 +538,7 @@ export class RealtimeVoiceService {
       `- 자주 쓰는 표현: ${mbtiPersona?.communication_patterns?.key_phrases?.slice(0, 3).join(', ') || '자연스러운 일상 표현'}`,
       `- "명령조" 스타일이면: "~하세요", "당연히~" 등 사용`,
       `- "형식적/정중" 스타일이면: "~인 것 같습니다" 등 완곡하게`,
-      `- "침묵을 압박 수단으로" 사용하면: 실제로 말을 멈추고 2-3초 잠시 쉬었다가 다시 말하세요. "(잠시 침묵)" 같은 행동 묘사를 소리내어 말하지 마세요.`,
+      `- "침묵을 압박 수단으로" 사용하면: 실제로 말을 멈추고 2-3초 잠시 쉬었다가 다시 말하세요.`,
       ``,
       `## 대화 목표`,
       ...(mbtiPersona?.communication_patterns?.win_conditions || ['상호 이해 증진', '문제 해결']).map((w: string) => `- ${w}`),
@@ -561,8 +561,25 @@ export class RealtimeVoiceService {
       `- 내면의 생각이나 사고 과정을 말로 표현하지 마세요.`,
       `- "Initiating", "Thinking", "I'm focusing" 등의 메타 표현 절대 금지.`,
       `- 별표(**) 로 감싼 제목이나 메타 텍스트 절대 금지.`,
-      `- 괄호로 감싼 행동/상태 묘사를 절대 소리내어 말하지 마세요! 예: "(잠시 침묵)", "(한숨)", "(고개를 끄덕이며)", "(미소를 지으며)" 등을 읽지 마세요.`,
-      `- 대신 실제 목소리 톤과 말투, 말의 속도로 감정을 표현하세요. 침묵이 필요하면 실제로 잠깐 멈추세요.`,
+      ``,
+      `## 🔴 음성 출력 최우선 금지 규칙 (이 규칙을 절대 어기지 마세요!)`,
+      `이것은 음성 대화입니다. 당신의 모든 출력은 소리로 변환됩니다.`,
+      `괄호 안의 행동/상태 묘사를 절대로 출력하지 마세요!`,
+      ``,
+      `### 출력 금지 예시 (이런 텍스트를 절대 생성하지 마세요):`,
+      `❌ "(잠시 침묵)" ❌ "(한숨)" ❌ "(고개를 끄덕이며)" ❌ "(미소를 지으며)"`,
+      `❌ "(회의실로 향하며)" ❌ "(서류를 넘기며)" ❌ "(잠시 생각하며)"`,
+      `❌ "(눈을 마주치며)" ❌ "(걱정스러운 표정으로)" ❌ "(단호하게)"`,
+      `❌ "(silence)" ❌ "(sighs)" ❌ "(nodding)" ❌ "(walking to the meeting room)"`,
+      `❌ "(沈黙)" ❌ "(ため息)" ❌ "(うなずきながら)" ❌ "(沉默)" ❌ "(叹气)"`,
+      ``,
+      `### 올바른 표현 방법:`,
+      `✅ 침묵이 필요하면 → 실제로 잠깐 말을 멈추세요 (텍스트를 출력하지 마세요)`,
+      `✅ 한숨을 표현하려면 → "하..." 또는 "아..." 같은 감탄사를 직접 말하세요`,
+      `✅ 감정을 표현하려면 → 목소리 톤과 말투로 표현하세요`,
+      `✅ 행동을 나타내려면 → "잠깐만요" "제가 확인해 보겠습니다" 등 말로 표현하세요`,
+      ``,
+      `기억하세요: 괄호()로 감싸인 어떤 내용도 절대 출력하지 마세요. 모든 출력이 그대로 음성으로 읽힙니다.`,
       ``,
       `## ✅ 필수사항`,
       `- ${langInst.requirement}`,
