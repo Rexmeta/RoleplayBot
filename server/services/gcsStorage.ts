@@ -13,8 +13,16 @@ console.log(`  - GCS_BUCKET_NAME: ${GCS_BUCKET_NAME ? `"${GCS_BUCKET_NAME}"` : '
 console.log(`  - PRIVATE_OBJECT_DIR: ${process.env.PRIVATE_OBJECT_DIR ? 'SET' : 'NOT SET'}`);
 
 // Determine and log the active storage mode
-const isCloudRunEnv = !!process.env.K_SERVICE || !!process.env.K_REVISION;
+// IMPORTANT: Replit autoscale deployments also set K_SERVICE/K_REVISION.
+// To distinguish from real Cloud Run: REPL_ID is present only in Replit environments.
+const hasKService = !!process.env.K_SERVICE || !!process.env.K_REVISION;
 const isReplitEnv = !!process.env.REPL_ID;
+const isCloudRunEnv = hasKService && !isReplitEnv;
+
+if (hasKService && isReplitEnv) {
+  console.log(`[Storage Config] NOTE: K_SERVICE is set but REPL_ID is also present.`);
+  console.log(`[Storage Config]   → Replit autoscale deployment detected, NOT Cloud Run.`);
+}
 
 if (isCloudRunEnv) {
   console.log(`[Storage Config] ========================================`);
@@ -55,7 +63,9 @@ function getStorageClient(): Storage {
 }
 
 export function isCloudRun(): boolean {
-  return !!process.env.K_SERVICE || !!process.env.K_REVISION;
+  const hasKService = !!process.env.K_SERVICE || !!process.env.K_REVISION;
+  const isReplit = !!process.env.REPL_ID;
+  return hasKService && !isReplit;
 }
 
 export function isReplitEnvironment(): boolean {

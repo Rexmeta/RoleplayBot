@@ -15,7 +15,9 @@ const SIDECAR_OPERATION_TIMEOUT_MS = 10_000;
 const SIDECAR_MAX_RETRIES = 2;
 
 function isCloudRunEnv(): boolean {
-  return !!process.env.K_SERVICE || !!process.env.K_REVISION;
+  const hasKService = !!process.env.K_SERVICE || !!process.env.K_REVISION;
+  const isReplit = !!process.env.REPL_ID;
+  return hasKService && !isReplit;
 }
 
 let objectStorageClient: Storage | null = null;
