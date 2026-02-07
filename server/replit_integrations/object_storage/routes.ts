@@ -22,9 +22,11 @@ export function registerObjectStorageRoutes(app: Express): void {
       await streamFromGCS(key, res);
     } else {
       try {
+        console.log(`[Object Storage] Serving key="${key}" via sidecar`);
         const svc = new ObjectStorageService();
         const file = await svc.searchPublicObject(key);
         if (!file) {
+          console.warn(`[Object Storage] Key not found: "${key}"`);
           return res.status(404).json({ error: "Object not found", key });
         }
         await svc.downloadObject(file, res);
@@ -82,11 +84,82 @@ export function registerObjectStorageRoutes(app: Express): void {
 
   app.get("/api/storage/health", async (_req, res) => {
     const available = await isSidecarAvailable();
-    res.json({
+    const envInfo: Record<string, any> = {
       sidecar: available ? "connected" : "unavailable",
       environment: isCloudRun() ? "cloud_run" : "replit",
       timestamp: new Date().toISOString(),
-    });
+      nodeEnv: process.env.NODE_ENV || "(not set)",
+      replId: process.env.REPL_ID ? "SET" : "NOT SET",
+      replitDeployment: process.env.REPLIT_DEPLOYMENT || "(not set)",
+      publicSearchPaths: process.env.PUBLIC_OBJECT_SEARCH_PATHS ? "SET" : "NOT SET",
+      privateObjectDir: process.env.PRIVATE_OBJECT_DIR ? "SET" : "NOT SET",
+    };
+
+    if (available && !isCloudRun()) {
+      try {
+        const svc = new ObjectStorageService();
+        const paths = svc.getPublicObjectSearchPaths();
+        envInfo.searchPaths = paths;
+
+        const testKey = "scenarios/test-probe.webp";
+        const testResult = await svc.searchPublicObject(testKey);
+        envInfo.probeResult = testResult ? "found" : "not_found (expected for test file)";
+        envInfo.storageAccessible = true;
+      } catch (err: any) {
+        envInfo.storageAccessible = false;
+        envInfo.storageError = err.message;
+      }
+    }
+
+    res.json(envInfo);
+  });
+
+  app.get("/api/storage/test-image", async (req, res) => {
+    const key = String(req.query.key || "");
+    if (!key) {
+      return res.status(400).json({ error: "Usage: /api/storage/test-image?key=scenarios/filename.webp" });
+    }
+
+    const result: Record<string, any> = { key, steps: [] };
+
+    try {
+      result.steps.push("1. checking sidecar health...");
+      const available = await isSidecarAvailable();
+      result.sidecarAvailable = available;
+
+      if (!available) {
+        result.steps.push("FAILED: sidecar not available");
+        return res.json(result);
+      }
+
+      result.steps.push("2. creating ObjectStorageService...");
+      const svc = new ObjectStorageService();
+      const paths = svc.getPublicObjectSearchPaths();
+      result.searchPaths = paths;
+
+      result.steps.push(`3. searching for key in ${paths.length} search path(s)...`);
+      const file = await svc.searchPublicObject(key);
+      result.fileFound = !!file;
+
+      if (file) {
+        result.steps.push("4. getting file metadata...");
+        const [metadata] = await file.getMetadata();
+        result.metadata = {
+          contentType: metadata.contentType,
+          size: metadata.size,
+          updated: metadata.updated,
+        };
+        result.steps.push("SUCCESS: file is accessible");
+      } else {
+        result.steps.push("FAILED: file not found in any search path");
+      }
+    } catch (err: any) {
+      result.error = err.message;
+      result.errorName = err.name;
+      result.steps.push(`ERROR: ${err.name}: ${err.message}`);
+    }
+
+    res.json(result);
   });
 
   // ── /api/objects/resolve – legacy UUID resolver ──

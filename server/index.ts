@@ -143,7 +143,7 @@ app.use((req, res, next) => {
   if (req.path.startsWith('/_ah/')) {
     return next();
   }
-  if (req.path.startsWith('/api')) {
+  if (req.path.startsWith('/api') || req.path.startsWith('/objects')) {
     return res.status(503).json({ message: 'Service is starting', initStatus, initError });
   }
   res.status(503).set('Retry-After', '5').send(
@@ -291,13 +291,16 @@ async function initializeApp() {
 
     res.on("finish", () => {
       const duration = Date.now() - start;
-      if (path.startsWith("/api")) {
+      if (path.startsWith("/api") || path.startsWith("/objects")) {
         let logLine = `${req.method} ${path} ${res.statusCode} in ${duration}ms`;
+        if (path.startsWith("/objects")) {
+          logLine += ` key=${req.query?.key || '(none)'}`;
+        }
         if (capturedJsonResponse) {
           logLine += ` :: ${sanitizeLogData(capturedJsonResponse)}`;
         }
-        if (logLine.length > 80) {
-          logLine = logLine.slice(0, 79) + "\u2026";
+        if (logLine.length > 120) {
+          logLine = logLine.slice(0, 119) + "\u2026";
         }
         log(logLine);
       }
