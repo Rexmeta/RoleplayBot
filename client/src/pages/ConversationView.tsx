@@ -1,6 +1,7 @@
 import { useRoute } from "wouter";
 import { useQuery } from "@tanstack/react-query";
-import { type Conversation, type ConversationMessage } from "@shared/schema";
+import { useMemo } from "react";
+import { type ConversationMessage } from "@shared/schema";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -13,21 +14,54 @@ export default function ConversationView() {
   const [, params] = useRoute("/chat/:conversationId");
   const conversationId = params?.conversationId;
 
-  const { data: conversation, isLoading: conversationLoading } = useQuery<Conversation>({
+  const { data: conversation, isLoading: conversationLoading } = useQuery<any>({
     queryKey: ["/api/conversations", conversationId],
     enabled: !!conversationId,
     staleTime: 1000 * 60 * 5,
     gcTime: 1000 * 60 * 10,
   });
 
-  const { data: scenario, isLoading: scenarioLoading } = useQuery<any>({
+  const { data: scenario, isLoading: scenarioLoading, isError: scenarioError } = useQuery<any>({
     queryKey: ["/api/scenarios", conversation?.scenarioId],
     enabled: !!conversation?.scenarioId,
     staleTime: 1000 * 60 * 30,
     gcTime: 1000 * 60 * 60,
+    retry: false,
   });
 
-  const isLoading = conversationLoading || scenarioLoading;
+  const isLoading = conversationLoading || (scenarioLoading && !scenarioError);
+
+  const { effectiveTitle, effectivePersonaLabel, isScenarioMissing } = useMemo(() => {
+    if (!conversation) return { effectiveTitle: '', effectivePersonaLabel: '', isScenarioMissing: false };
+
+    let title = '';
+    let personaLabel = '';
+    let missing = false;
+
+    if (scenario) {
+      title = scenario.title;
+      const persona = scenario.personas?.find((p: any) => p.id === conversation.personaId);
+      if (persona) {
+        personaLabel = [persona.department, persona.name, persona.role].filter(Boolean).join(' ');
+      }
+    }
+
+    if (!title) {
+      title = conversation.scenarioName || conversation.scenarioId || '삭제된 시나리오';
+      missing = true;
+    }
+
+    if (!personaLabel && conversation.personaSnapshot) {
+      const ps = conversation.personaSnapshot;
+      personaLabel = [ps.department, ps.name, ps.role].filter(Boolean).join(' ');
+    }
+
+    if (!personaLabel) {
+      personaLabel = t('common.unknown');
+    }
+
+    return { effectiveTitle: title, effectivePersonaLabel: personaLabel, isScenarioMissing: missing };
+  }, [conversation, scenario, t]);
 
   if (isLoading || !conversation) {
     return (
@@ -40,12 +74,12 @@ export default function ConversationView() {
     );
   }
 
-  const persona = scenario?.personas?.find((p: any) => p.id === conversation.personaId);
+  const showDeletedBanner = scenario?.isDeleted || isScenarioMissing;
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
       <div className="max-w-4xl mx-auto p-6">
-        {scenario?.isDeleted && (
+        {showDeletedBanner && (
           <div className="mb-4 bg-yellow-50 border border-yellow-200 rounded-lg px-4 py-2 text-center">
             <Badge variant="outline" className="bg-red-50 text-red-700 border-red-200 mr-2">삭제된 시나리오</Badge>
             <span className="text-sm text-yellow-800">이 시나리오는 삭제되었지만, 대화 기록은 계속 열람할 수 있습니다.</span>
@@ -74,10 +108,10 @@ export default function ConversationView() {
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <MessageSquare className="w-5 h-5" />
-              {t('conversation.history')} - {scenario?.title || conversation.scenarioId || t('scenario.select')}
+              {t('conversation.history')} - {effectiveTitle}
             </CardTitle>
             <div className="text-sm text-slate-600">
-              {t('conversation.partner')}: {persona ? [persona.department, persona.name, persona.role].filter(Boolean).join(' ') : t('common.unknown')}
+              {t('conversation.partner')}: {effectivePersonaLabel}
             </div>
             <div className="text-xs text-slate-500">
               {format(new Date(conversation.createdAt), 'yyyy년 MM월 dd일 HH:mm')}
@@ -107,7 +141,7 @@ export default function ConversationView() {
                     >
                       {message.sender !== 'user' && (
                         <div className="font-semibold text-sm mb-1">
-                          {persona ? [persona.department, persona.name, persona.role].filter(Boolean).join(' ') : t('conversation.partner')}
+                          {effectivePersonaLabel}
                         </div>
                       )}
                       <div className="whitespace-pre-wrap">{message.message}</div>

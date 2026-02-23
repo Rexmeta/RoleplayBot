@@ -1,9 +1,9 @@
 import { useRoute } from "wouter";
 import { useQuery } from "@tanstack/react-query";
+import { useMemo } from "react";
 import PersonalDevelopmentReport from "@/components/PersonalDevelopmentReport";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { type Conversation } from "@shared/schema";
 import { useTranslation } from "react-i18next";
 
 export default function FeedbackView() {
@@ -11,21 +11,54 @@ export default function FeedbackView() {
   const [, params] = useRoute("/feedback/:conversationId");
   const conversationId = params?.conversationId;
 
-  const { data: conversation, isLoading: conversationLoading } = useQuery<Conversation>({
+  const { data: conversation, isLoading: conversationLoading } = useQuery<any>({
     queryKey: ["/api/conversations", conversationId],
     enabled: !!conversationId,
     staleTime: 1000 * 60 * 5,
     gcTime: 1000 * 60 * 10,
   });
 
-  const { data: scenario, isLoading: scenarioLoading } = useQuery<any>({
+  const { data: scenario, isLoading: scenarioLoading, isError: scenarioError } = useQuery<any>({
     queryKey: ["/api/scenarios", conversation?.scenarioId],
     enabled: !!conversation?.scenarioId,
     staleTime: 1000 * 60 * 30,
     gcTime: 1000 * 60 * 60,
+    retry: false,
   });
 
-  const isLoading = conversationLoading || scenarioLoading;
+  const isLoading = conversationLoading || (scenarioLoading && !scenarioError);
+
+  const { effectiveScenario, effectivePersona, isScenarioMissing } = useMemo(() => {
+    if (!conversation) return { effectiveScenario: null, effectivePersona: null, isScenarioMissing: false };
+
+    if (scenario) {
+      const persona = scenario.personas?.find((p: any) => p.id === conversation.personaId);
+      if (persona) {
+        return { effectiveScenario: scenario, effectivePersona: persona, isScenarioMissing: false };
+      }
+      if (conversation.personaSnapshot) {
+        return { effectiveScenario: scenario, effectivePersona: conversation.personaSnapshot, isScenarioMissing: false };
+      }
+    }
+
+    if (conversation.personaSnapshot || conversation.scenarioName) {
+      const fallbackScenario = {
+        id: conversation.scenarioId,
+        title: conversation.scenarioName || conversation.scenarioId || '삭제된 시나리오',
+        description: '',
+        difficulty: conversation.difficulty || 2,
+        personas: conversation.personaSnapshot ? [conversation.personaSnapshot] : [],
+        isDeleted: true,
+      };
+      const fallbackPersona = conversation.personaSnapshot || {
+        id: conversation.personaId,
+        name: '알 수 없는 페르소나',
+      };
+      return { effectiveScenario: fallbackScenario, effectivePersona: fallbackPersona, isScenarioMissing: true };
+    }
+
+    return { effectiveScenario: null, effectivePersona: null, isScenarioMissing: true };
+  }, [conversation, scenario]);
 
   if (isLoading || !conversation) {
     return (
@@ -38,9 +71,7 @@ export default function FeedbackView() {
     );
   }
 
-  const persona = scenario?.personas?.find((p: any) => p.id === conversation.personaId);
-
-  if (!scenario || !persona) {
+  if (!effectiveScenario || !effectivePersona) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100">
         <div className="text-center">
@@ -59,17 +90,19 @@ export default function FeedbackView() {
     );
   }
 
+  const showDeletedBanner = effectiveScenario.isDeleted || isScenarioMissing;
+
   return (
     <div>
-      {scenario.isDeleted && (
+      {showDeletedBanner && (
         <div className="bg-yellow-50 border-b border-yellow-200 px-4 py-2 text-center">
           <Badge variant="outline" className="bg-red-50 text-red-700 border-red-200 mr-2">삭제된 시나리오</Badge>
           <span className="text-sm text-yellow-800">이 시나리오는 삭제되었지만, 피드백 리포트는 계속 열람할 수 있습니다.</span>
         </div>
       )}
       <PersonalDevelopmentReport
-        scenario={scenario}
-        persona={persona}
+        scenario={effectiveScenario}
+        persona={effectivePersona}
         conversationId={conversationId || ""}
         onRetry={() => window.location.reload()}
         onSelectNewScenario={() => window.location.href = '/home'}
