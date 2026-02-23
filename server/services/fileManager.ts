@@ -201,6 +201,38 @@ export class FileManagerService {
     }
   }
 
+  async getScenarioById(scenarioId: string): Promise<ComplexScenario | null> {
+    try {
+      if (USE_DATABASE) {
+        const dbScenario = await storage.getScenario(scenarioId);
+        if (!dbScenario) return null;
+        const scenario = this.convertDbScenarioToComplex(dbScenario);
+        await this.processScenarioImage(scenario);
+        await this.enrichScenarioPersonas(scenario);
+        return scenario;
+      }
+
+      const files = await fs.readdir(SCENARIOS_DIR);
+      for (const file of files.filter(f => f.endsWith('.json'))) {
+        try {
+          const content = await fs.readFile(path.join(SCENARIOS_DIR, file), 'utf-8');
+          const scenario = JSON.parse(content);
+          if (scenario.id === scenarioId) {
+            await this.processScenarioImage(scenario);
+            await this.enrichScenarioPersonas(scenario);
+            return scenario;
+          }
+        } catch (error) {
+          console.warn(`Failed to read scenario file ${file}:`, error);
+        }
+      }
+      return null;
+    } catch (error) {
+      console.error('Failed to get scenario by ID:', error);
+      return null;
+    }
+  }
+
   // 시나리오의 원본 페르소나 정보 가져오기 (MBTI 참조 및 성별 정보 포함)
   async getScenarioPersonas(scenarioId: string): Promise<any[]> {
     try {

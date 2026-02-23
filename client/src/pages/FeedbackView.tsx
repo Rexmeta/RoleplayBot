@@ -1,8 +1,8 @@
 import { useRoute } from "wouter";
 import { useQuery } from "@tanstack/react-query";
-import { useMemo } from "react";
 import PersonalDevelopmentReport from "@/components/PersonalDevelopmentReport";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { type Conversation } from "@shared/schema";
 import { useTranslation } from "react-i18next";
 
@@ -14,24 +14,18 @@ export default function FeedbackView() {
   const { data: conversation, isLoading: conversationLoading } = useQuery<Conversation>({
     queryKey: ["/api/conversations", conversationId],
     enabled: !!conversationId,
-    staleTime: 1000 * 60 * 5, // 5분간 캐시 유지
-    gcTime: 1000 * 60 * 10,   // 10분간 메모리 유지
+    staleTime: 1000 * 60 * 5,
+    gcTime: 1000 * 60 * 10,
   });
 
-  // 서버에서 모든 시나리오 데이터 가져오기
-  const { data: scenarios = [], isLoading: scenariosLoading } = useQuery<any[]>({
-    queryKey: ["/api/scenarios"],
-    staleTime: 1000 * 60 * 30, // 30분간 캐시 유지 (시나리오는 자주 변경되지 않음)
-    gcTime: 1000 * 60 * 60,     // 1시간 메모리 유지
+  const { data: scenario, isLoading: scenarioLoading } = useQuery<any>({
+    queryKey: ["/api/scenarios", conversation?.scenarioId],
+    enabled: !!conversation?.scenarioId,
+    staleTime: 1000 * 60 * 30,
+    gcTime: 1000 * 60 * 60,
   });
 
-  // ⚡ 성능 최적화: Map 기반 O(1) 조회
-  const scenariosMap = useMemo(() => 
-    new Map(scenarios.map(s => [s.id, s])),
-    [scenarios]
-  );
-
-  const isLoading = conversationLoading || scenariosLoading;
+  const isLoading = conversationLoading || scenarioLoading;
 
   if (isLoading || !conversation) {
     return (
@@ -44,8 +38,6 @@ export default function FeedbackView() {
     );
   }
 
-  // ⚡ 서버 데이터에서 시나리오와 페르소나 찾기 (O(1) 조회)
-  const scenario = scenariosMap.get(conversation.scenarioId);
   const persona = scenario?.personas?.find((p: any) => p.id === conversation.personaId);
 
   if (!scenario || !persona) {
@@ -68,12 +60,20 @@ export default function FeedbackView() {
   }
 
   return (
-    <PersonalDevelopmentReport
-      scenario={scenario}
-      persona={persona}
-      conversationId={conversationId || ""}
-      onRetry={() => window.location.reload()}
-      onSelectNewScenario={() => window.location.href = '/home'}
-    />
+    <div>
+      {scenario.isDeleted && (
+        <div className="bg-yellow-50 border-b border-yellow-200 px-4 py-2 text-center">
+          <Badge variant="outline" className="bg-red-50 text-red-700 border-red-200 mr-2">삭제된 시나리오</Badge>
+          <span className="text-sm text-yellow-800">이 시나리오는 삭제되었지만, 피드백 리포트는 계속 열람할 수 있습니다.</span>
+        </div>
+      )}
+      <PersonalDevelopmentReport
+        scenario={scenario}
+        persona={persona}
+        conversationId={conversationId || ""}
+        onRetry={() => window.location.reload()}
+        onSelectNewScenario={() => window.location.href = '/home'}
+      />
+    </div>
   );
 }

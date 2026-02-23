@@ -3618,6 +3618,19 @@ export async function registerRoutes(app: Express, httpServer: Server): Promise<
     }
   });
 
+  app.get("/api/scenarios/:scenarioId", isAuthenticated, async (req, res) => {
+    try {
+      const scenario = await fileManager.getScenarioById(req.params.scenarioId);
+      if (!scenario) {
+        return res.status(404).json({ error: "Scenario not found" });
+      }
+      res.json(scenario);
+    } catch (error) {
+      console.error("Failed to fetch scenario:", error);
+      res.status(500).json({ error: "Failed to fetch scenario" });
+    }
+  });
+
   // ❌ 비효율적인 /api/personas 엔드포인트 제거됨 
   // (34개 전체 시나리오 처리 방지 최적화)
   // 이제 시나리오별 개별 페르소나 처리만 사용
