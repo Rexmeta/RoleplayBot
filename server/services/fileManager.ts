@@ -150,6 +150,7 @@ export class FileManagerService {
       recommendedFlow: dbScenario.recommendedFlow || [],
       evaluationCriteriaSetId: dbScenario.evaluationCriteriaSetId || undefined,
       isDemo: dbScenario.isDemo || false,
+      isDeleted: dbScenario.isDeleted || false,
     };
   }
   

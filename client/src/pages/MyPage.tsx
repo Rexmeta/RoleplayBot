@@ -418,6 +418,9 @@ export default function MyPage() {
                                 <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">
                                   #{attemptNumber}회 시도
                                 </Badge>
+                                {(scenarioRun as any).isScenarioDeleted && (
+                                  <Badge variant="outline" className="bg-red-50 text-red-600 border-red-200">삭제된 시나리오</Badge>
+                                )}
                                 {isScenarioCompleted ? (
                                   <Badge className="bg-green-600">완료</Badge>
                                 ) : (
@@ -439,6 +442,7 @@ export default function MyPage() {
                               scenarioInfo={scenarioInfo}
                               personaRuns={scenarioRun.personaRuns || []}
                               setStrategyReflectionRunId={setStrategyReflectionRunId}
+                              isScenarioDeleted={(scenarioRun as any).isScenarioDeleted || false}
                             />
                           </AccordionContent>
                         </AccordionItem>
@@ -841,12 +845,14 @@ function ScenarioRunDetails({
   scenarioRun, 
   scenarioInfo, 
   personaRuns,
-  setStrategyReflectionRunId
+  setStrategyReflectionRunId,
+  isScenarioDeleted = false
 }: { 
   scenarioRun: ScenarioRun; 
   scenarioInfo: any; 
   personaRuns: PersonaRun[];
   setStrategyReflectionRunId: (id: string) => void;
+  isScenarioDeleted?: boolean;
 }) {
   const [showStrategyFeedback, setShowStrategyFeedback] = useState(false);
   
@@ -1070,14 +1076,92 @@ function ScenarioRunDetails({
         </DialogContent>
       </Dialog>
       
+      {/* 삭제된 시나리오 안내 메시지 */}
+      {isScenarioDeleted && (
+        <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-3">
+          <div className="flex items-center gap-2 text-red-700">
+            <AlertCircle className="w-4 h-4" />
+            <span className="text-sm font-medium">이 시나리오는 삭제되어 새로운 대화를 시작할 수 없습니다. 기존 대화 기록과 피드백은 계속 확인할 수 있습니다.</span>
+          </div>
+        </div>
+      )}
+
       {/* 모든 페르소나들 (시작 전/진행 중/완료) */}
       <div className="space-y-2">
         <h5 className="text-sm font-semibold text-slate-700 flex items-center gap-2">
           <Users className="w-4 h-4 text-blue-600" />
-          페르소나 목록 ({scenario?.personas?.length || 0}개)
+          페르소나 목록 ({isScenarioDeleted ? personaRuns.length : (scenario?.personas?.length || 0)}개)
         </h5>
         <div className="space-y-2">
-          {scenario?.personas?.map((persona: any, index: number) => {
+          {isScenarioDeleted ? (
+            personaRuns.map((personaRun: PersonaRun) => {
+              const isCompleted = personaRun.status === 'completed';
+              const isActive = personaRun.status === 'active';
+              const snapshot = personaRun.personaSnapshot as any;
+              
+              return (
+                <div 
+                  key={personaRun.id}
+                  className="flex items-center justify-between p-3 bg-white border rounded-lg hover:bg-slate-50 transition-colors"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${
+                      isCompleted ? 'bg-green-100 text-green-600' :
+                      isActive ? 'bg-yellow-100 text-yellow-600' :
+                      'bg-gray-100 text-gray-600'
+                    }`}>
+                      {personaRun.phase || '?'}
+                    </div>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="font-medium text-slate-900">
+                        {personaRun.personaName || snapshot?.name || personaRun.personaId}
+                      </span>
+                      {personaRun.mbtiType && (
+                        <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
+                          {personaRun.mbtiType}
+                        </Badge>
+                      )}
+                      <Badge variant="outline" className="text-xs">
+                        {personaRun.turnCount}턴
+                      </Badge>
+                      <Badge className={isCompleted ? 'bg-green-600' : isActive ? 'bg-yellow-600' : 'bg-gray-400'}>
+                        {isCompleted ? '완료' : isActive ? '진행 중' : '시작 전'}
+                      </Badge>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    {personaRun.score !== null && personaRun.score !== undefined && (
+                      <div className="flex items-center gap-1">
+                        <Star className="w-4 h-4 text-yellow-500" />
+                        <span className={`font-semibold ${personaRun.score >= 80 ? 'text-green-600' : personaRun.score >= 60 ? 'text-yellow-600' : 'text-red-600'}`}>
+                          {personaRun.score}점
+                        </span>
+                      </div>
+                    )}
+                    <div className="flex gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => window.location.href = `/chat/${personaRun.id}`}
+                      >
+                        대화 보기
+                      </Button>
+                      {isCompleted && (
+                        <Button
+                          variant="default"
+                          size="sm"
+                          onClick={() => window.location.href = `/feedback/${personaRun.id}`}
+                        >
+                          피드백 보기
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              );
+            })
+          ) : (
+            scenario?.personas?.map((persona: any, index: number) => {
             const personaRun = personaRuns.find(pr => pr.personaId === persona.id);
             const isCompleted = personaRun?.status === 'completed';
             const isActive = personaRun?.status === 'active';
@@ -1187,8 +1271,9 @@ function ScenarioRunDetails({
                 </div>
               </div>
             );
-          })}
-          {(!scenario?.personas || scenario.personas.length === 0) && (
+          })
+          )}
+          {!isScenarioDeleted && (!scenario?.personas || scenario.personas.length === 0) && (
             <div className="text-center py-4 text-slate-500">
               시나리오 정보를 불러올 수 없습니다.
             </div>

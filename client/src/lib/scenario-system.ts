@@ -88,6 +88,7 @@ export interface ComplexScenario {
   skills: string[];
   evaluationCriteriaSetId?: string;
   isDemo?: boolean;
+  isDeleted?: boolean;
 }
 
 export interface PlayerProfile {

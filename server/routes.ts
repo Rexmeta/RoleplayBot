@@ -567,6 +567,14 @@ export async function registerRoutes(app: Express, httpServer: Server): Promise<
       const personaId = validatedData.personaId || validatedData.scenarioId;
       
       // 시나리오에서 페르소나 정보 가져오기
+      const scenarioFromDb = await storage.getScenario(validatedData.scenarioId);
+      if (!scenarioFromDb) {
+        return res.status(404).json({ error: "시나리오를 찾을 수 없습니다.", errorCode: "SCENARIO_NOT_FOUND" });
+      }
+      if (scenarioFromDb.isDeleted) {
+        return res.status(410).json({ error: "이 시나리오는 삭제되어 더 이상 이용할 수 없습니다.", errorCode: "SCENARIO_DELETED" });
+      }
+      
       const scenarios = await fileManager.getAllScenarios();
       const scenarioObj = scenarios.find(s => s.id === validatedData.scenarioId);
       if (!scenarioObj) {
@@ -1435,14 +1443,31 @@ export async function registerRoutes(app: Express, httpServer: Server): Promise<
       
       // ✨ 개선: personaRuns와 함께 조회하여 프론트엔드에서 추가 쿼리 불필요
       const scenarioRunsWithPersonas = await storage.getUserScenarioRunsWithPersonaRuns(userId);
-      console.log(`📊 Scenario runs for user ${userId}:`, scenarioRunsWithPersonas.map(sr => ({
+      
+      // 시나리오 삭제 상태 확인하여 추가
+      const scenarioIds = [...new Set(scenarioRunsWithPersonas.map(sr => sr.scenarioId))];
+      const deletedScenarioIds = new Set<string>();
+      for (const scenarioId of scenarioIds) {
+        const scenario = await storage.getScenario(scenarioId);
+        if (!scenario || scenario.isDeleted) {
+          deletedScenarioIds.add(scenarioId);
+        }
+      }
+      
+      const enrichedRuns = scenarioRunsWithPersonas.map(sr => ({
+        ...sr,
+        isScenarioDeleted: deletedScenarioIds.has(sr.scenarioId),
+      }));
+      
+      console.log(`📊 Scenario runs for user ${userId}:`, enrichedRuns.map(sr => ({
         id: sr.id,
         scenarioId: sr.scenarioId,
         status: sr.status,
+        isScenarioDeleted: sr.isScenarioDeleted,
         personaRunsCount: sr.personaRuns?.length || 0,
         personaRuns: sr.personaRuns?.map(pr => ({ id: pr.id, personaId: pr.personaId, status: pr.status, score: pr.score }))
       })));
-      res.json(scenarioRunsWithPersonas);
+      res.json(enrichedRuns);
     } catch (error) {
       res.status(500).json({ error: "Failed to fetch scenario runs" });
     }

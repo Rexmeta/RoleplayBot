@@ -143,11 +143,14 @@ export const scenarios = pgTable("scenarios", {
   recommendedFlow: text("recommended_flow").array(), // 추천 순서
   evaluationCriteriaSetId: varchar("evaluation_criteria_set_id"), // 평가 기준 세트 ID
   isDemo: boolean("is_demo").notNull().default(false), // 게스트 데모용 시나리오 여부
+  isDeleted: boolean("is_deleted").notNull().default(false), // 소프트 삭제 플래그 (삭제된 시나리오의 대화 기록/레포트 보존)
+  deletedAt: timestamp("deleted_at"), // 삭제 시간
   createdAt: timestamp("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
   updatedAt: timestamp("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`),
 }, (table) => [
   index("idx_scenarios_category_id").on(table.categoryId),
   index("idx_scenarios_difficulty").on(table.difficulty),
+  index("idx_scenarios_is_deleted").on(table.isDeleted),
 ]);
 
 // MBTI 페르소나 테이블 - personas 폴더에서 DB로 마이그레이션
@@ -592,6 +595,8 @@ export type OperatorAssignment = typeof operatorAssignments.$inferSelect;
 
 // Scenario types
 export const insertScenarioSchema = createInsertSchema(scenarios).omit({
+  isDeleted: true,
+  deletedAt: true,
   createdAt: true,
   updatedAt: true,
 });

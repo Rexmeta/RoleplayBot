@@ -33,6 +33,7 @@ export interface ComplexScenario {
   difficulty: number;
   estimatedTime: string;
   skills: string[];
+  isDeleted?: boolean;
 }
 
 export interface ScenarioPersona {

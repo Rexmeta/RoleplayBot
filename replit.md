@@ -40,6 +40,7 @@ Preferred communication style: Simple, everyday language.
 - **Database**: PostgreSQL (Neon serverless)
 - **Schema**: `conversations`, `feedbacks`, `users`, `categories`, `system_settings`, `ai_usage_logs`, `supported_languages`, `scenario_translations`, `persona_translations`, `scenarios`, `mbti_personas` tables.
 - **Data Persistence**: Scenarios and MBTI personas are stored in the PostgreSQL database to persist across Replit deployments. FileManagerService uses database as primary source with JSON file fallback.
+- **Scenario Soft Delete**: Scenarios use soft deletion (`is_deleted` flag + `deleted_at` timestamp). When deleted, existing conversations, feedbacks, and reports are preserved. Users can view past chat history and feedback but cannot start new conversations. MyPage displays "삭제된 시나리오" badge and blocks resume/start buttons while keeping view-only access. API returns 410 for new conversation attempts on deleted scenarios.
 
 ## Media Storage (Object Storage)
 

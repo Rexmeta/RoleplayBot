@@ -237,7 +237,7 @@ export interface IStorage {
   
   // Scenarios - 시나리오 (DB 기반)
   getScenario(id: string): Promise<Scenario | undefined>;
-  getAllScenarios(): Promise<Scenario[]>;
+  getAllScenarios(includeDeleted?: boolean): Promise<Scenario[]>;
   getScenariosByCategory(categoryId: string): Promise<Scenario[]>;
   createScenario(scenario: InsertScenario): Promise<Scenario>;
   updateScenario(id: string, updates: Partial<InsertScenario>): Promise<Scenario>;
@@ -846,7 +846,7 @@ export class MemStorage implements IStorage {
   
   // Scenarios - stub implementations
   async getScenario(_id: string): Promise<Scenario | undefined> { return undefined; }
-  async getAllScenarios(): Promise<Scenario[]> { return []; }
+  async getAllScenarios(_includeDeleted?: boolean): Promise<Scenario[]> { return []; }
   async getScenariosByCategory(_categoryId: string): Promise<Scenario[]> { return []; }
   async createScenario(_scenario: InsertScenario): Promise<Scenario> { throw new Error("Not implemented"); }
   async updateScenario(_id: string, _updates: Partial<InsertScenario>): Promise<Scenario> { throw new Error("Not implemented"); }
@@ -2042,13 +2042,18 @@ export class PostgreSQLStorage implements IStorage {
     return scenario;
   }
   
-  async getAllScenarios(): Promise<Scenario[]> {
-    return await db.select().from(scenarios).orderBy(desc(scenarios.createdAt));
+  async getAllScenarios(includeDeleted: boolean = false): Promise<Scenario[]> {
+    if (includeDeleted) {
+      return await db.select().from(scenarios).orderBy(desc(scenarios.createdAt));
+    }
+    return await db.select().from(scenarios)
+      .where(eq(scenarios.isDeleted, false))
+      .orderBy(desc(scenarios.createdAt));
   }
   
   async getScenariosByCategory(categoryId: string): Promise<Scenario[]> {
     return await db.select().from(scenarios)
-      .where(eq(scenarios.categoryId, categoryId))
+      .where(and(eq(scenarios.categoryId, categoryId), eq(scenarios.isDeleted, false)))
       .orderBy(desc(scenarios.createdAt));
   }
   
@@ -2075,7 +2080,9 @@ export class PostgreSQLStorage implements IStorage {
   }
   
   async deleteScenario(id: string): Promise<void> {
-    await db.delete(scenarios).where(eq(scenarios.id, id));
+    await db.update(scenarios)
+      .set({ isDeleted: true, deletedAt: new Date() })
+      .where(eq(scenarios.id, id));
   }
   
   // MBTI Personas - MBTI 페르소나 (DB 기반)
