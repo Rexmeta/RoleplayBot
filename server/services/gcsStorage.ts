@@ -41,7 +41,11 @@ if (isCloudRunEnv) {
   console.log(`[Storage Config] ========================================`);
   console.log(`[Storage Config] REPLIT MODE ACTIVE`);
   console.log(`[Storage Config] ========================================`);
-  if (GCS_BUCKET_NAME) {
+  if (GCS_BUCKET_NAME && process.env.PRIVATE_OBJECT_DIR) {
+    console.log(`[Storage Config] ✅ Storage Backend: DUAL (Replit OS + GCS)`);
+    console.log(`[Storage Config]    GCS Bucket: ${GCS_BUCKET_NAME}`);
+    console.log(`[Storage Config]    /objects/* routes: Replit OS (serving), GCS (sync)`);
+  } else if (GCS_BUCKET_NAME) {
     console.log(`[Storage Config] ✅ Storage Backend: Google Cloud Storage`);
   } else if (process.env.PRIVATE_OBJECT_DIR) {
     console.log(`[Storage Config] ✅ Storage Backend: Replit Object Storage`);
@@ -57,7 +61,22 @@ if (isCloudRunEnv) {
 
 function getStorageClient(): Storage {
   if (!storageClient) {
-    storageClient = new Storage();
+    const serviceAccountKey = process.env.GCS_SERVICE_ACCOUNT_KEY;
+    if (serviceAccountKey) {
+      try {
+        const credentials = JSON.parse(serviceAccountKey);
+        storageClient = new Storage({
+          projectId: credentials.project_id,
+          credentials,
+        });
+        console.log(`[GCS] Initialized with service account: ${credentials.client_email}`);
+      } catch (e) {
+        console.error('[GCS] Failed to parse GCS_SERVICE_ACCOUNT_KEY, falling back to default credentials');
+        storageClient = new Storage();
+      }
+    } else {
+      storageClient = new Storage();
+    }
   }
   return storageClient;
 }
@@ -80,7 +99,10 @@ export function isGCSAvailable(): boolean {
     }
     return true;
   }
-  return !!GCS_BUCKET_NAME && !process.env.REPL_ID;
+  if (!!GCS_BUCKET_NAME && (!!process.env.GCS_SERVICE_ACCOUNT_KEY || !process.env.REPL_ID)) {
+    return true;
+  }
+  return false;
 }
 
 export function getGCSBucketName(): string {

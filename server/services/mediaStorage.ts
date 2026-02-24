@@ -24,16 +24,21 @@ async function initReplitObjectStorage() {
   }
 }
 
-function getStorageType(): 'gcs' | 'replit' | 'none' {
-  if (isGCSAvailable()) {
+function getStorageType(): 'gcs' | 'replit' | 'dual' | 'none' {
+  const gcsAvailable = isGCSAvailable();
+  const replitAvailable = !!process.env.REPL_ID && !!process.env.PRIVATE_OBJECT_DIR && !isCloudRun();
+
+  if (gcsAvailable && replitAvailable) {
+    return 'dual';
+  }
+  if (gcsAvailable) {
     return 'gcs';
   }
-  // On Cloud Run, never fall back to Replit Object Storage
   if (isCloudRun()) {
     console.error('[MediaStorage] Cloud Run detected but GCS not available. Check GCS_BUCKET_NAME.');
     return 'none';
   }
-  if (process.env.REPL_ID && process.env.PRIVATE_OBJECT_DIR) {
+  if (replitAvailable) {
     return 'replit';
   }
   return 'none';
@@ -51,6 +56,33 @@ const IMAGE_CONFIG = {
 };
 
 export class MediaStorageService {
+  private async uploadToReplitOS(buffer: Buffer, objectPath: string, contentType: string): Promise<void> {
+    const module = await import('../replit_integrations/object_storage');
+    const client = module.getObjectStorageClient();
+
+    const pathsStr = process.env.PUBLIC_OBJECT_SEARCH_PATHS || '';
+    const searchPaths = pathsStr.split(',').map(p => p.trim()).filter(p => p.length > 0);
+    if (searchPaths.length === 0) {
+      throw new Error('PUBLIC_OBJECT_SEARCH_PATHS not set');
+    }
+
+    const publicPath = searchPaths[0];
+    const fullPath = publicPath.startsWith('/') ? publicPath.slice(1) : publicPath;
+    const parts = fullPath.split('/');
+    const bucketName = parts[0];
+    const objectPrefix = parts.slice(1).join('/');
+    const objectName = objectPrefix ? `${objectPrefix}/${objectPath}` : objectPath;
+
+    const file = client.bucket(bucketName).file(objectName);
+    await file.save(buffer, {
+      contentType,
+      resumable: false,
+      metadata: { contentType },
+    });
+
+    console.log(`📁 Replit OS 업로드: ${objectPath} (bucket: ${bucketName}, object: ${objectName})`);
+  }
+
   private async uploadToStorage(
     buffer: Buffer,
     objectPath: string,
@@ -58,36 +90,36 @@ export class MediaStorageService {
   ): Promise<string> {
     const storageType = getStorageType();
 
+    if (storageType === 'dual') {
+      const results = await Promise.allSettled([
+        this.uploadToReplitOS(buffer, objectPath, contentType),
+        uploadToGCS(buffer, objectPath, contentType, false),
+      ]);
+
+      const replitResult = results[0];
+      const gcsResult = results[1];
+
+      if (replitResult.status === 'rejected') {
+        console.error(`[MediaStorage] Replit OS upload failed (GCS succeeded): ${replitResult.reason}`);
+      }
+      if (gcsResult.status === 'rejected') {
+        console.error(`[MediaStorage] GCS upload failed (Replit OS succeeded): ${gcsResult.reason}`);
+      }
+
+      if (replitResult.status === 'rejected' && gcsResult.status === 'rejected') {
+        throw new Error(`Both storage backends failed. Replit: ${replitResult.reason}, GCS: ${gcsResult.reason}`);
+      }
+
+      console.log(`📁 듀얼 라이팅 완료: ${objectPath} (Replit: ${replitResult.status}, GCS: ${gcsResult.status})`);
+      return objectPath;
+    }
+
     if (storageType === 'gcs') {
       return await uploadToGCS(buffer, objectPath, contentType, false);
     }
 
     if (storageType === 'replit') {
-      const module = await import('../replit_integrations/object_storage');
-      const client = module.getObjectStorageClient();
-
-      const pathsStr = process.env.PUBLIC_OBJECT_SEARCH_PATHS || '';
-      const searchPaths = pathsStr.split(',').map(p => p.trim()).filter(p => p.length > 0);
-      if (searchPaths.length === 0) {
-        throw new Error('PUBLIC_OBJECT_SEARCH_PATHS not set');
-      }
-
-      const publicPath = searchPaths[0];
-      const fullPath = publicPath.startsWith('/') ? publicPath.slice(1) : publicPath;
-      const parts = fullPath.split('/');
-      const bucketName = parts[0];
-      const objectPrefix = parts.slice(1).join('/');
-      const objectName = objectPrefix ? `${objectPrefix}/${objectPath}` : objectPath;
-
-      const file = client.bucket(bucketName).file(objectName);
-      await file.save(buffer, {
-        contentType,
-        resumable: false,
-        metadata: { contentType },
-      });
-
-      console.log(`📁 Replit Object Storage 업로드: ${objectPath} (bucket: ${bucketName}, object: ${objectName})`);
-
+      await this.uploadToReplitOS(buffer, objectPath, contentType);
       return objectPath;
     }
 
@@ -274,17 +306,23 @@ export class MediaStorageService {
     const storageType = getStorageType();
 
     try {
-      if (storageType === 'gcs') {
-        return await downloadBufferFromGCS(objectKey);
+      if (storageType === 'dual' || storageType === 'replit') {
+        const storage = await initReplitObjectStorage();
+        if (storage) {
+          const file = await storage.searchPublicObject(objectKey);
+          if (file) {
+            const [buffer] = await file.download();
+            return buffer;
+          }
+        }
+        if (storageType === 'dual') {
+          return await downloadBufferFromGCS(objectKey);
+        }
+        return null;
       }
 
-      if (storageType === 'replit') {
-        const storage = await initReplitObjectStorage();
-        if (!storage) return null;
-        const file = await storage.searchPublicObject(objectKey);
-        if (!file) return null;
-        const [buffer] = await file.download();
-        return buffer;
+      if (storageType === 'gcs') {
+        return await downloadBufferFromGCS(objectKey);
       }
     } catch (error) {
       console.error(`[MediaStorage] Failed to read image buffer: ${objectKey}`, error);
@@ -324,6 +362,22 @@ export class MediaStorageService {
     }
 
     try {
+      if (storageType === 'dual') {
+        const results = await Promise.allSettled([
+          (async () => {
+            const storage = await initReplitObjectStorage();
+            if (storage) {
+              const file = await storage.searchPublicObject(normalizedPath!);
+              if (file) { await file.delete(); return true; }
+            }
+            return false;
+          })(),
+          deleteFromGCS(normalizedPath),
+        ]);
+        console.log(`🗑️ 듀얼 삭제: ${normalizedPath} (Replit: ${results[0].status}, GCS: ${results[1].status})`);
+        return true;
+      }
+
       if (storageType === 'gcs') {
         await deleteFromGCS(normalizedPath);
         console.log(`🗑️ GCS 파일 삭제 완료: ${normalizedPath}`);

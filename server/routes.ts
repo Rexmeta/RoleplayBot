@@ -3635,6 +3635,32 @@ export async function registerRoutes(app: Express, httpServer: Server): Promise<
   // (34개 전체 시나리오 처리 방지 최적화)
   // 이제 시나리오별 개별 페르소나 처리만 사용
 
+  // Replit OS → GCS 미디어 동기화 API (관리자 전용)
+  app.post("/api/admin/sync-media-to-gcs", isAuthenticated, async (req: any, res) => {
+    try {
+      if (req.user?.role !== 'admin') {
+        return res.status(403).json({ message: "관리자 권한이 필요합니다" });
+      }
+
+      if (!process.env.GCS_BUCKET_NAME) {
+        return res.status(400).json({ message: "GCS_BUCKET_NAME이 설정되지 않았습니다" });
+      }
+
+      console.log(`[Admin] Media sync to GCS triggered by user: ${req.user.email}`);
+
+      const { syncToGCS } = await import("./scripts/syncToGCS");
+      const result = await syncToGCS();
+
+      res.json({
+        message: "미디어 동기화 완료",
+        ...result,
+      });
+    } catch (error: any) {
+      console.error("[Admin] Media sync failed:", error);
+      res.status(500).json({ message: "동기화 실패", error: error.message });
+    }
+  });
+
   // AI 시나리오 생성 API
   app.post("/api/admin/generate-scenario", async (req, res) => {
     try {
