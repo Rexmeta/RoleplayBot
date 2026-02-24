@@ -72,12 +72,16 @@ The system supports two completely separate storage backends:
 #### Cloud Run Environment (production)
 - **Provider**: Google Cloud Storage (GCS)
 - **Serving**: `GET /objects?key=<key>` streams from GCS bucket
-- **Detection**: `K_SERVICE` or `K_REVISION` environment variable present
+- **Auth**: Default ADC (Application Default Credentials) from runtime service account. `GCS_SERVICE_ACCOUNT_KEY` is ignored on Cloud Run.
+- **Detection**: `K_SERVICE` or `K_REVISION` environment variable present (without `REPL_ID`)
+- **Signed URLs**: Generated with 3-second per-call timeout; overall batch has 5-second timeout. On failure, original paths are returned and frontend uses `/objects?key=` streaming fallback.
+- **Startup Diagnostics**: GCS connectivity test runs 2 seconds after startup, logging bucket access and file availability.
 - **Required Env Vars**:
   - `GCS_BUCKET_NAME`: Your GCS bucket name (e.g., `roleplay-bucket`)
 - **IMPORTANT**: Remove Replit-specific env vars from Cloud Run:
   - `PRIVATE_OBJECT_DIR` - causes Replit fallback attempts
   - `PUBLIC_OBJECT_SEARCH_PATHS` - not needed
+  - `GCS_SERVICE_ACCOUNT_KEY` - not needed (Cloud Run uses runtime SA via ADC)
   
 #### Cloud Run Setup Commands
 ```bash

@@ -28,10 +28,29 @@ if (isCloudRunEnv) {
   console.log(`[Storage Config] ========================================`);
   console.log(`[Storage Config] CLOUD RUN MODE ACTIVE`);
   console.log(`[Storage Config] ========================================`);
+  console.log(`  - GCS_SERVICE_ACCOUNT_KEY: ${process.env.GCS_SERVICE_ACCOUNT_KEY ? 'SET (ignored on Cloud Run, using ADC)' : 'NOT SET'}`);
+  console.log(`  - PRIVATE_OBJECT_DIR should NOT be set: ${process.env.PRIVATE_OBJECT_DIR ? '⚠️ STILL SET (remove it!)' : '✅ correctly unset'}`);
   if (GCS_BUCKET_NAME) {
     console.log(`[Storage Config] ✅ Storage Backend: Google Cloud Storage`);
     console.log(`[Storage Config]    Bucket: ${GCS_BUCKET_NAME}`);
+    console.log(`[Storage Config]    Auth: Default ADC (runtime service account)`);
     console.log(`[Storage Config]    /objects/* routes: ENABLED (streaming from GCS)`);
+    
+    setTimeout(async () => {
+      try {
+        const testStorage = new Storage();
+        const [exists] = await testStorage.bucket(GCS_BUCKET_NAME).exists();
+        if (exists) {
+          const [files] = await testStorage.bucket(GCS_BUCKET_NAME).getFiles({ prefix: 'scenarios/', maxResults: 1 });
+          console.log(`[Storage Config] ✅ GCS connectivity test PASSED (bucket exists, ${files.length > 0 ? 'files found' : 'no files in scenarios/'})`);
+        } else {
+          console.error(`[Storage Config] ❌ GCS connectivity test FAILED: bucket "${GCS_BUCKET_NAME}" not found or no access`);
+        }
+      } catch (error: any) {
+        console.error(`[Storage Config] ❌ GCS connectivity test FAILED:`, error.message);
+        console.error(`[Storage Config]    Check: runtime service account has storage.objectAdmin on gs://${GCS_BUCKET_NAME}`);
+      }
+    }, 2000);
   } else {
     console.error(`[Storage Config] ❌ CRITICAL: GCS_BUCKET_NAME not configured!`);
     console.error(`[Storage Config]    Media uploads/downloads will FAIL`);
@@ -76,21 +95,26 @@ function parseServiceAccountKey(raw: string): any | null {
 
 function getStorageClient(): Storage {
   if (!storageClient) {
-    const serviceAccountKey = process.env.GCS_SERVICE_ACCOUNT_KEY;
-    if (serviceAccountKey) {
-      const credentials = parseServiceAccountKey(serviceAccountKey);
-      if (credentials?.client_email) {
-        storageClient = new Storage({
-          projectId: credentials.project_id,
-          credentials,
-        });
-        console.log(`[GCS] Initialized with service account: ${credentials.client_email}`);
+    if (isCloudRun()) {
+      storageClient = new Storage();
+      console.log(`[GCS] Cloud Run: initialized with default ADC (runtime service account)`);
+    } else {
+      const serviceAccountKey = process.env.GCS_SERVICE_ACCOUNT_KEY;
+      if (serviceAccountKey) {
+        const credentials = parseServiceAccountKey(serviceAccountKey);
+        if (credentials?.client_email) {
+          storageClient = new Storage({
+            projectId: credentials.project_id,
+            credentials,
+          });
+          console.log(`[GCS] Initialized with service account: ${credentials.client_email}`);
+        } else {
+          console.error('[GCS] Failed to parse GCS_SERVICE_ACCOUNT_KEY, falling back to default credentials');
+          storageClient = new Storage();
+        }
       } else {
-        console.error('[GCS] Failed to parse GCS_SERVICE_ACCOUNT_KEY, falling back to default credentials');
         storageClient = new Storage();
       }
-    } else {
-      storageClient = new Storage();
     }
   }
   return storageClient;
@@ -165,7 +189,6 @@ export async function uploadToGCS(
 }
 
 export async function getSignedUrl(objectPath: string): Promise<{ url: string; expiresIn: number }> {
-  // CRITICAL: Normalize path to remove query strings (?t=timestamp) that break GCS lookups
   const cleanPath = normalizeObjectPath(objectPath);
   if (!cleanPath) {
     throw new Error("Invalid object path");
@@ -175,17 +198,17 @@ export async function getSignedUrl(objectPath: string): Promise<{ url: string; e
   const storage = getStorageClient();
   const file = storage.bucket(bucketName).file(cleanPath);
 
-  const [exists] = await file.exists();
-  if (!exists) {
-    console.error(`[GCS] File not found: "${cleanPath}" (original: "${objectPath}")`);
-    throw new Error("File not found");
-  }
-
-  const [url] = await file.getSignedUrl({
+  const signedUrlPromise = file.getSignedUrl({
     version: "v4",
     action: "read",
     expires: Date.now() + GCS_URL_TTL * 1000,
   });
+
+  const timeoutPromise = new Promise<never>((_, reject) =>
+    setTimeout(() => reject(new Error(`Signed URL timeout for ${cleanPath}`)), 3000)
+  );
+
+  const [url] = await Promise.race([signedUrlPromise, timeoutPromise]) as [string];
 
   return { url, expiresIn: GCS_URL_TTL };
 }
@@ -441,22 +464,19 @@ export async function transformToSignedUrl(path: string | null | undefined): Pro
   }
   
   // Handle Replit Object Storage paths (/objects/...) on Cloud Run
-  // These paths cannot be served on Cloud Run - return null or try to extract useful path
   if (objectPath.startsWith('objects/')) {
-    // On Cloud Run, /objects/* paths are not valid - these are Replit-only
     if (isCloudRun()) {
-      console.warn(`[GCS] Replit Object Storage path detected on Cloud Run: ${path}`);
-      console.warn('[GCS] This path cannot be served on Cloud Run. Data migration may be needed.');
-      // Try to extract uploads/ or other prefixes from the path
-      const uploadsMatch = objectPath.match(/objects\/uploads\/(.+)/);
-      if (uploadsMatch) {
-        // Try to serve from uploads/ in GCS
-        objectPath = `uploads/${uploadsMatch[1]}`;
+      const innerPath = objectPath.replace(/^objects\//, '');
+      const validPrefixesForExtract = ['scenarios/', 'videos/', 'personas/', 'uploads/'];
+      const hasValidPrefix = validPrefixesForExtract.some(p => innerPath.startsWith(p));
+      if (hasValidPrefix) {
+        objectPath = innerPath;
       } else {
-        return null; // Cannot serve this path on Cloud Run
+        console.warn(`[GCS] Unrecoverable Replit-only path on Cloud Run: ${path}`);
+        return null;
       }
     } else {
-      return path; // On Replit, return as-is for /objects/* route
+      return path;
     }
   }
   
@@ -518,24 +538,36 @@ export async function transformScenarioMedia(scenario: any): Promise<any> {
 
 /**
  * Transform multiple scenarios' media fields to signed URLs
- * Uses Promise.allSettled for partial failure tolerance
+ * Uses Promise.allSettled for partial failure tolerance with overall timeout
  */
 export async function transformScenariosMedia(scenarios: any[]): Promise<any[]> {
   if (!scenarios || !Array.isArray(scenarios)) return scenarios;
   
-  // Use Promise.allSettled for partial failure tolerance
-  const results = await Promise.allSettled(
-    scenarios.map(scenario => transformScenarioMedia(scenario))
-  );
+  if (!isCloudRun()) return scenarios;
   
-  return results.map((result, index) => {
-    if (result.status === 'fulfilled') {
-      return result.value;
-    } else {
-      console.error(`[GCS] Scenario media transform failed:`, result.reason);
-      return scenarios[index]; // Return original on failure
-    }
-  });
+  const transformPromise = (async () => {
+    const results = await Promise.allSettled(
+      scenarios.map(scenario => transformScenarioMedia(scenario))
+    );
+    
+    return results.map((result, index) => {
+      if (result.status === 'fulfilled') {
+        return result.value;
+      } else {
+        console.error(`[GCS] Scenario media transform failed:`, result.reason);
+        return scenarios[index];
+      }
+    });
+  })();
+
+  const timeoutPromise = new Promise<any[]>((resolve) =>
+    setTimeout(() => {
+      console.warn(`[GCS] transformScenariosMedia timed out after 5s, returning original scenarios`);
+      resolve(scenarios);
+    }, 5000)
+  );
+
+  return Promise.race([transformPromise, timeoutPromise]);
 }
 
 /**
@@ -594,24 +626,36 @@ export async function transformPersonaMedia(persona: any): Promise<any> {
 
 /**
  * Transform multiple personas' image fields to signed URLs
- * Uses safe transformation to prevent single persona failure from breaking entire list
+ * Uses safe transformation with overall timeout protection
  */
 export async function transformPersonasMedia(personas: any[]): Promise<any[]> {
   if (!personas || !Array.isArray(personas)) return personas;
   
-  // Use Promise.allSettled for partial failure tolerance
-  const results = await Promise.allSettled(
-    personas.map(persona => transformPersonaMedia(persona))
-  );
+  if (!isCloudRun()) return personas;
   
-  return results.map((result, index) => {
-    if (result.status === 'fulfilled') {
-      return result.value;
-    } else {
-      console.error(`[GCS] Persona media transform failed:`, result.reason);
-      return personas[index]; // Return original on failure
-    }
-  });
+  const transformPromise = (async () => {
+    const results = await Promise.allSettled(
+      personas.map(persona => transformPersonaMedia(persona))
+    );
+    
+    return results.map((result, index) => {
+      if (result.status === 'fulfilled') {
+        return result.value;
+      } else {
+        console.error(`[GCS] Persona media transform failed:`, result.reason);
+        return personas[index];
+      }
+    });
+  })();
+
+  const timeoutPromise = new Promise<any[]>((resolve) =>
+    setTimeout(() => {
+      console.warn(`[GCS] transformPersonasMedia timed out after 5s, returning original personas`);
+      resolve(personas);
+    }, 5000)
+  );
+
+  return Promise.race([transformPromise, timeoutPromise]);
 }
 
 /**
