@@ -234,6 +234,160 @@ CREATE TABLE IF NOT EXISTS "operator_assignments" (
   "created_at" timestamp DEFAULT CURRENT_TIMESTAMP NOT NULL
 );
 
+-- 16. Scenarios (시나리오)
+CREATE TABLE IF NOT EXISTS "scenarios" (
+  "id" varchar PRIMARY KEY NOT NULL,
+  "title" text NOT NULL,
+  "description" text NOT NULL,
+  "source_locale" varchar(10) DEFAULT 'ko' NOT NULL,
+  "difficulty" integer DEFAULT 4 NOT NULL,
+  "estimated_time" text,
+  "skills" text[],
+  "category_id" varchar,
+  "image" text,
+  "image_prompt" text,
+  "intro_video_url" text,
+  "video_prompt" text,
+  "objective_type" text,
+  "context" jsonb,
+  "objectives" text[],
+  "success_criteria" jsonb,
+  "personas" jsonb,
+  "recommended_flow" text[],
+  "evaluation_criteria_set_id" varchar,
+  "is_demo" boolean DEFAULT false NOT NULL,
+  "is_deleted" boolean DEFAULT false NOT NULL,
+  "deleted_at" timestamp,
+  "created_at" timestamp DEFAULT CURRENT_TIMESTAMP NOT NULL,
+  "updated_at" timestamp DEFAULT CURRENT_TIMESTAMP NOT NULL
+);
+
+-- 17. MBTI Personas (MBTI 페르소나)
+CREATE TABLE IF NOT EXISTS "mbti_personas" (
+  "id" varchar PRIMARY KEY NOT NULL,
+  "mbti" varchar NOT NULL,
+  "gender" varchar,
+  "personality_traits" text[],
+  "communication_style" text,
+  "motivation" text,
+  "fears" text[],
+  "background" jsonb,
+  "communication_patterns" jsonb,
+  "voice" jsonb,
+  "images" jsonb,
+  "created_at" timestamp DEFAULT CURRENT_TIMESTAMP NOT NULL,
+  "updated_at" timestamp DEFAULT CURRENT_TIMESTAMP NOT NULL
+);
+
+-- 18. Supported Languages (지원 언어)
+CREATE TABLE IF NOT EXISTS "supported_languages" (
+  "code" varchar(10) PRIMARY KEY NOT NULL,
+  "name" varchar NOT NULL,
+  "native_name" varchar NOT NULL,
+  "is_active" boolean DEFAULT true NOT NULL,
+  "is_default" boolean DEFAULT false NOT NULL,
+  "display_order" integer DEFAULT 0 NOT NULL,
+  "created_at" timestamp DEFAULT CURRENT_TIMESTAMP NOT NULL
+);
+
+-- 19. Scenario Translations (시나리오 번역)
+CREATE TABLE IF NOT EXISTS "scenario_translations" (
+  "id" varchar PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+  "scenario_id" text NOT NULL,
+  "source_locale" varchar(10) DEFAULT 'ko' NOT NULL,
+  "locale" varchar(10) NOT NULL,
+  "is_original" boolean DEFAULT false NOT NULL,
+  "title" text NOT NULL,
+  "description" text,
+  "situation" text,
+  "timeline" text,
+  "stakes" text,
+  "player_role" text,
+  "objectives" text[],
+  "success_criteria_optimal" text,
+  "success_criteria_good" text,
+  "success_criteria_acceptable" text,
+  "success_criteria_failure" text,
+  "skills" text[],
+  "persona_contexts" jsonb,
+  "is_machine_translated" boolean DEFAULT false NOT NULL,
+  "is_reviewed" boolean DEFAULT false NOT NULL,
+  "reviewed_by" varchar,
+  "created_at" timestamp DEFAULT CURRENT_TIMESTAMP NOT NULL,
+  "updated_at" timestamp DEFAULT CURRENT_TIMESTAMP NOT NULL
+);
+
+-- 20. Persona Translations (페르소나 번역)
+CREATE TABLE IF NOT EXISTS "persona_translations" (
+  "id" varchar PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+  "persona_id" text NOT NULL,
+  "source_locale" varchar(10) DEFAULT 'ko' NOT NULL,
+  "locale" varchar(10) NOT NULL,
+  "name" varchar NOT NULL,
+  "personality_traits" text[],
+  "communication_style" text,
+  "motivation" text,
+  "fears" text[],
+  "personality_description" text,
+  "education" text,
+  "previous_experience" text,
+  "major_projects" text[],
+  "expertise" text[],
+  "background" text,
+  "is_machine_translated" boolean DEFAULT false NOT NULL,
+  "is_reviewed" boolean DEFAULT false NOT NULL,
+  "reviewed_by" varchar,
+  "created_at" timestamp DEFAULT CURRENT_TIMESTAMP NOT NULL,
+  "updated_at" timestamp DEFAULT CURRENT_TIMESTAMP NOT NULL
+);
+
+-- 21. Category Translations (카테고리 번역)
+CREATE TABLE IF NOT EXISTS "category_translations" (
+  "id" varchar PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+  "category_id" varchar NOT NULL,
+  "source_locale" varchar(10) DEFAULT 'ko' NOT NULL,
+  "locale" varchar(10) NOT NULL,
+  "name" varchar NOT NULL,
+  "description" text,
+  "is_machine_translated" boolean DEFAULT false NOT NULL,
+  "is_reviewed" boolean DEFAULT false NOT NULL,
+  "created_at" timestamp DEFAULT CURRENT_TIMESTAMP NOT NULL,
+  "updated_at" timestamp DEFAULT CURRENT_TIMESTAMP NOT NULL
+);
+
+-- 22. Evaluation Criteria Set Translations (평가 기준 세트 번역)
+CREATE TABLE IF NOT EXISTS "evaluation_criteria_set_translations" (
+  "id" varchar PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+  "criteria_set_id" varchar NOT NULL,
+  "source_locale" varchar(10) DEFAULT 'ko' NOT NULL,
+  "locale" varchar(10) NOT NULL,
+  "is_original" boolean DEFAULT false NOT NULL,
+  "name" varchar NOT NULL,
+  "description" text,
+  "is_machine_translated" boolean DEFAULT false NOT NULL,
+  "is_reviewed" boolean DEFAULT false NOT NULL,
+  "reviewed_by" varchar,
+  "created_at" timestamp DEFAULT CURRENT_TIMESTAMP NOT NULL,
+  "updated_at" timestamp DEFAULT CURRENT_TIMESTAMP NOT NULL
+);
+
+-- 23. Evaluation Dimension Translations (평가 차원 번역)
+CREATE TABLE IF NOT EXISTS "evaluation_dimension_translations" (
+  "id" varchar PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+  "dimension_id" varchar NOT NULL,
+  "source_locale" varchar(10) DEFAULT 'ko' NOT NULL,
+  "locale" varchar(10) NOT NULL,
+  "is_original" boolean DEFAULT false NOT NULL,
+  "name" varchar NOT NULL,
+  "description" text,
+  "scoring_rubric" jsonb,
+  "is_machine_translated" boolean DEFAULT false NOT NULL,
+  "is_reviewed" boolean DEFAULT false NOT NULL,
+  "reviewed_by" varchar,
+  "created_at" timestamp DEFAULT CURRENT_TIMESTAMP NOT NULL,
+  "updated_at" timestamp DEFAULT CURRENT_TIMESTAMP NOT NULL
+);
+
 -- Categories 테이블에 organization_id, is_active, updated_at 컬럼 추가 (마이그레이션)
 DO $$ BEGIN
   IF NOT EXISTS (
@@ -471,6 +625,108 @@ DO $$ BEGIN
   ALTER TABLE "users" ADD CONSTRAINT "users_assigned_organization_id_organizations_id_fk"
     FOREIGN KEY ("assigned_organization_id") REFERENCES "public"."organizations"("id");
 EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+-- Scenarios FK to Categories
+DO $$ BEGIN
+  ALTER TABLE "scenarios" ADD CONSTRAINT "scenarios_category_id_categories_id_fk"
+    FOREIGN KEY ("category_id") REFERENCES "public"."categories"("id");
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+-- Scenario Translations FK
+DO $$ BEGIN
+  ALTER TABLE "scenario_translations" ADD CONSTRAINT "scenario_translations_source_locale_fk"
+    FOREIGN KEY ("source_locale") REFERENCES "public"."supported_languages"("code");
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+DO $$ BEGIN
+  ALTER TABLE "scenario_translations" ADD CONSTRAINT "scenario_translations_locale_fk"
+    FOREIGN KEY ("locale") REFERENCES "public"."supported_languages"("code");
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+-- Persona Translations FK
+DO $$ BEGIN
+  ALTER TABLE "persona_translations" ADD CONSTRAINT "persona_translations_source_locale_fk"
+    FOREIGN KEY ("source_locale") REFERENCES "public"."supported_languages"("code");
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+DO $$ BEGIN
+  ALTER TABLE "persona_translations" ADD CONSTRAINT "persona_translations_locale_fk"
+    FOREIGN KEY ("locale") REFERENCES "public"."supported_languages"("code");
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+-- Category Translations FK
+DO $$ BEGIN
+  ALTER TABLE "category_translations" ADD CONSTRAINT "category_translations_category_id_fk"
+    FOREIGN KEY ("category_id") REFERENCES "public"."categories"("id") ON DELETE cascade;
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+DO $$ BEGIN
+  ALTER TABLE "category_translations" ADD CONSTRAINT "category_translations_source_locale_fk"
+    FOREIGN KEY ("source_locale") REFERENCES "public"."supported_languages"("code");
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+DO $$ BEGIN
+  ALTER TABLE "category_translations" ADD CONSTRAINT "category_translations_locale_fk"
+    FOREIGN KEY ("locale") REFERENCES "public"."supported_languages"("code");
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+-- Evaluation Criteria Set Translations FK
+DO $$ BEGIN
+  ALTER TABLE "evaluation_criteria_set_translations" ADD CONSTRAINT "eval_criteria_set_translations_set_id_fk"
+    FOREIGN KEY ("criteria_set_id") REFERENCES "public"."evaluation_criteria_sets"("id") ON DELETE cascade;
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+-- Evaluation Dimension Translations FK
+DO $$ BEGIN
+  ALTER TABLE "evaluation_dimension_translations" ADD CONSTRAINT "eval_dimension_translations_dimension_id_fk"
+    FOREIGN KEY ("dimension_id") REFERENCES "public"."evaluation_dimensions"("id") ON DELETE cascade;
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+-- Evaluation Criteria Set Translations locale FKs
+DO $$ BEGIN
+  ALTER TABLE "evaluation_criteria_set_translations" ADD CONSTRAINT "eval_criteria_set_translations_source_locale_fk"
+    FOREIGN KEY ("source_locale") REFERENCES "public"."supported_languages"("code");
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+DO $$ BEGIN
+  ALTER TABLE "evaluation_criteria_set_translations" ADD CONSTRAINT "eval_criteria_set_translations_locale_fk"
+    FOREIGN KEY ("locale") REFERENCES "public"."supported_languages"("code");
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+-- Evaluation Dimension Translations locale FKs
+DO $$ BEGIN
+  ALTER TABLE "evaluation_dimension_translations" ADD CONSTRAINT "eval_dimension_translations_source_locale_fk"
+    FOREIGN KEY ("source_locale") REFERENCES "public"."supported_languages"("code");
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+DO $$ BEGIN
+  ALTER TABLE "evaluation_dimension_translations" ADD CONSTRAINT "eval_dimension_translations_locale_fk"
+    FOREIGN KEY ("locale") REFERENCES "public"."supported_languages"("code");
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+-- Scenario Translations reviewed_by FK
+DO $$ BEGIN
+  ALTER TABLE "scenario_translations" ADD CONSTRAINT "scenario_translations_reviewed_by_fk"
+    FOREIGN KEY ("reviewed_by") REFERENCES "public"."users"("id");
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+-- Persona Translations reviewed_by FK
+DO $$ BEGIN
+  ALTER TABLE "persona_translations" ADD CONSTRAINT "persona_translations_reviewed_by_fk"
+    FOREIGN KEY ("reviewed_by") REFERENCES "public"."users"("id");
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+-- Evaluation Criteria Set Translations reviewed_by FK
+DO $$ BEGIN
+  ALTER TABLE "evaluation_criteria_set_translations" ADD CONSTRAINT "eval_criteria_set_translations_reviewed_by_fk"
+    FOREIGN KEY ("reviewed_by") REFERENCES "public"."users"("id");
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+-- Evaluation Dimension Translations reviewed_by FK
+DO $$ BEGIN
+  ALTER TABLE "evaluation_dimension_translations" ADD CONSTRAINT "eval_dimension_translations_reviewed_by_fk"
+    FOREIGN KEY ("reviewed_by") REFERENCES "public"."users"("id");
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 `;
 
 const indexesSQL = `
@@ -503,6 +759,21 @@ CREATE INDEX IF NOT EXISTS "idx_users_organization_id" ON "users" USING btree ("
 CREATE INDEX IF NOT EXISTS "idx_operator_assignments_user_id" ON "operator_assignments" USING btree ("user_id");
 CREATE INDEX IF NOT EXISTS "idx_operator_assignments_company_id" ON "operator_assignments" USING btree ("company_id");
 CREATE INDEX IF NOT EXISTS "idx_operator_assignments_organization_id" ON "operator_assignments" USING btree ("organization_id");
+
+-- 시나리오 및 번역 인덱스
+CREATE INDEX IF NOT EXISTS "idx_scenarios_category_id" ON "scenarios" USING btree ("category_id");
+CREATE INDEX IF NOT EXISTS "idx_scenarios_difficulty" ON "scenarios" USING btree ("difficulty");
+CREATE INDEX IF NOT EXISTS "idx_scenarios_is_deleted" ON "scenarios" USING btree ("is_deleted");
+CREATE INDEX IF NOT EXISTS "idx_scenario_translations_scenario_id" ON "scenario_translations" USING btree ("scenario_id");
+CREATE INDEX IF NOT EXISTS "idx_scenario_translations_locale" ON "scenario_translations" USING btree ("locale");
+CREATE INDEX IF NOT EXISTS "idx_persona_translations_persona_id" ON "persona_translations" USING btree ("persona_id");
+CREATE INDEX IF NOT EXISTS "idx_persona_translations_locale" ON "persona_translations" USING btree ("locale");
+CREATE INDEX IF NOT EXISTS "idx_category_translations_category_id" ON "category_translations" USING btree ("category_id");
+CREATE INDEX IF NOT EXISTS "idx_category_translations_locale" ON "category_translations" USING btree ("locale");
+CREATE INDEX IF NOT EXISTS "idx_criteria_set_translations_set_id" ON "evaluation_criteria_set_translations" USING btree ("criteria_set_id");
+CREATE INDEX IF NOT EXISTS "idx_criteria_set_translations_locale" ON "evaluation_criteria_set_translations" USING btree ("locale");
+CREATE INDEX IF NOT EXISTS "idx_dimension_translations_dimension_id" ON "evaluation_dimension_translations" USING btree ("dimension_id");
+CREATE INDEX IF NOT EXISTS "idx_dimension_translations_locale" ON "evaluation_dimension_translations" USING btree ("locale");
 `;
 
 // 기본 평가 기준 세트 시딩 SQL
@@ -695,6 +966,12 @@ export async function runMigrations(): Promise<void> {
         { table: 'users', column: 'organization_id', sql: `DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='users' AND column_name='organization_id') THEN ALTER TABLE "users" ADD COLUMN "organization_id" varchar; END IF; END $$;` },
         { table: 'users', column: 'assigned_company_id', sql: `DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='users' AND column_name='assigned_company_id') THEN ALTER TABLE "users" ADD COLUMN "assigned_company_id" varchar; END IF; END $$;` },
         { table: 'users', column: 'assigned_organization_id', sql: `DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='users' AND column_name='assigned_organization_id') THEN ALTER TABLE "users" ADD COLUMN "assigned_organization_id" varchar; END IF; END $$;` },
+        { table: 'scenarios', column: 'is_deleted', sql: `DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='scenarios' AND column_name='is_deleted') THEN ALTER TABLE "scenarios" ADD COLUMN "is_deleted" boolean DEFAULT false NOT NULL; END IF; END $$;` },
+        { table: 'scenarios', column: 'deleted_at', sql: `DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='scenarios' AND column_name='deleted_at') THEN ALTER TABLE "scenarios" ADD COLUMN "deleted_at" timestamp; END IF; END $$;` },
+        { table: 'scenarios', column: 'source_locale', sql: `DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='scenarios' AND column_name='source_locale') THEN ALTER TABLE "scenarios" ADD COLUMN "source_locale" varchar(10) DEFAULT 'ko' NOT NULL; END IF; END $$;` },
+        { table: 'scenarios', column: 'is_demo', sql: `DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='scenarios' AND column_name='is_demo') THEN ALTER TABLE "scenarios" ADD COLUMN "is_demo" boolean DEFAULT false NOT NULL; END IF; END $$;` },
+        { table: 'scenarios', column: 'evaluation_criteria_set_id', sql: `DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='scenarios' AND column_name='evaluation_criteria_set_id') THEN ALTER TABLE "scenarios" ADD COLUMN "evaluation_criteria_set_id" varchar; END IF; END $$;` },
+        { table: 'evaluation_dimensions', column: 'dimension_type', sql: `DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='evaluation_dimensions' AND column_name='dimension_type') THEN ALTER TABLE "evaluation_dimensions" ADD COLUMN "dimension_type" varchar DEFAULT 'standard' NOT NULL; END IF; END $$;` },
       ];
 
       for (const patch of criticalColumnPatches) {
