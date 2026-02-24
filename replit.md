@@ -58,10 +58,16 @@ Preferred communication style: Simple, everyday language.
 ### Dual Deployment Support
 The system supports two completely separate storage backends:
 
-#### Replit Environment (development)
-- **Provider**: Replit Object Storage (via sidecar at 127.0.0.1:1106)
-- **Serving**: `GET /objects?key=<key>` searches public object paths
+#### Replit Environment (development) - DUAL MODE
+- **Provider**: Replit Object Storage + GCS (dual writing when `GCS_BUCKET_NAME` and `GCS_SERVICE_ACCOUNT_KEY` are set)
+- **Serving**: `GET /objects?key=<key>` serves from Replit Object Storage
+- **Upload**: Files saved to BOTH Replit OS and GCS simultaneously
 - **Detection**: `REPL_ID` environment variable present
+- **Required Secrets for Dual Mode**:
+  - `GCS_BUCKET_NAME`: GCS bucket name (e.g., `roleplay-bucket`)
+  - `GCS_SERVICE_ACCOUNT_KEY`: Full JSON service account key with Storage Object Admin role
+- **Sync Script**: `npx tsx server/scripts/syncToGCS.ts` - syncs existing Replit OS files to GCS
+- **Admin API**: `POST /api/admin/sync-media-to-gcs` - triggers sync via admin dashboard
 
 #### Cloud Run Environment (production)
 - **Provider**: Google Cloud Storage (GCS)

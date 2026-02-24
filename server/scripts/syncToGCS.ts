@@ -11,14 +11,29 @@ if (!GCS_BUCKET_NAME) {
   process.exit(1);
 }
 
+function parseServiceAccountKey(raw: string): any | null {
+  let trimmed = raw.trim();
+  if (!trimmed.startsWith('{')) {
+    trimmed = `{${trimmed}`;
+  }
+  if (!trimmed.endsWith('}')) {
+    trimmed = `${trimmed}}`;
+  }
+  try {
+    return JSON.parse(trimmed);
+  } catch {
+    return null;
+  }
+}
+
 function getGCSClient(): Storage {
   if (GCS_SERVICE_ACCOUNT_KEY) {
-    try {
-      const credentials = JSON.parse(GCS_SERVICE_ACCOUNT_KEY);
+    const credentials = parseServiceAccountKey(GCS_SERVICE_ACCOUNT_KEY);
+    if (credentials?.client_email) {
+      console.log(`[GCS] Using service account: ${credentials.client_email}`);
       return new Storage({ projectId: credentials.project_id, credentials });
-    } catch {
-      console.error("Failed to parse GCS_SERVICE_ACCOUNT_KEY, using default credentials");
     }
+    console.error("Failed to parse GCS_SERVICE_ACCOUNT_KEY, using default credentials");
   }
   return new Storage();
 }
@@ -170,12 +185,18 @@ async function syncToGCS() {
     process.exit(1);
   }
 
-  const [bucketExists] = await gcsStorage.bucket(GCS_BUCKET_NAME!).exists();
-  if (!bucketExists) {
-    console.error(`❌ GCS bucket "${GCS_BUCKET_NAME}" does not exist or is not accessible.`);
-    process.exit(1);
+  try {
+    const testFile = gcsStorage.bucket(GCS_BUCKET_NAME!).file('.sync-test');
+    const [exists] = await testFile.exists();
+    console.log(`✅ GCS bucket "${GCS_BUCKET_NAME}" is accessible (test file exists: ${exists})`);
+  } catch (error: any) {
+    if (error.code === 403) {
+      console.warn(`⚠️  GCS bucket access limited, but will try individual file operations`);
+    } else {
+      console.error(`❌ GCS bucket "${GCS_BUCKET_NAME}" access error:`, error.message);
+      process.exit(1);
+    }
   }
-  console.log(`✅ GCS bucket "${GCS_BUCKET_NAME}" is accessible`);
 
   const mediaKeys = await collectMediaKeys();
 

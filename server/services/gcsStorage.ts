@@ -59,18 +59,33 @@ if (isCloudRunEnv) {
   console.log(`[Storage Config] ========================================`);
 }
 
+function parseServiceAccountKey(raw: string): any | null {
+  let trimmed = raw.trim();
+  if (!trimmed.startsWith('{')) {
+    trimmed = `{${trimmed}`;
+  }
+  if (!trimmed.endsWith('}')) {
+    trimmed = `${trimmed}}`;
+  }
+  try {
+    return JSON.parse(trimmed);
+  } catch {
+    return null;
+  }
+}
+
 function getStorageClient(): Storage {
   if (!storageClient) {
     const serviceAccountKey = process.env.GCS_SERVICE_ACCOUNT_KEY;
     if (serviceAccountKey) {
-      try {
-        const credentials = JSON.parse(serviceAccountKey);
+      const credentials = parseServiceAccountKey(serviceAccountKey);
+      if (credentials?.client_email) {
         storageClient = new Storage({
           projectId: credentials.project_id,
           credentials,
         });
         console.log(`[GCS] Initialized with service account: ${credentials.client_email}`);
-      } catch (e) {
+      } else {
         console.error('[GCS] Failed to parse GCS_SERVICE_ACCOUNT_KEY, falling back to default credentials');
         storageClient = new Storage();
       }
