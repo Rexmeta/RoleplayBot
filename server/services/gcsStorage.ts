@@ -418,7 +418,12 @@ export async function transformToSignedUrl(path: string | null | undefined): Pro
   let objectPath = normalizeObjectPath(path);
   if (!objectPath) return null;
   
-  // If not in GCS environment, return as-is (for Replit)
+  // In Replit environment, serve media from Replit OS (not GCS signed URLs)
+  // Only generate GCS signed URLs on Cloud Run
+  if (!isCloudRun()) {
+    return path;
+  }
+  
   if (!isGCSAvailable()) {
     return path;
   }
@@ -539,7 +544,7 @@ export async function transformScenariosMedia(scenarios: any[]): Promise<any[]> 
  * Uses safe transformation to prevent single image failures from breaking entire persona
  */
 export async function transformPersonaImages(images: any): Promise<any> {
-  if (!images || !isGCSAvailable()) return images;
+  if (!images || !isCloudRun()) return images;
   
   const result: any = { ...images };
   
