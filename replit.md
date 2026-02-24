@@ -167,3 +167,20 @@ This script:
 - Maps English filenames (angry, anxious, neutral, etc.) to Korean emotion names (분노, 불안, 중립, etc.)
 - Updates the `mbti_personas.images` JSONB column with proper URLs
 - Skips personas that already have valid image data in the database
+
+## Neon DB → Cloud SQL Data Export
+To sync data from the Replit Neon DB to Cloud SQL for production deployment:
+```bash
+TARGET_DATABASE_URL=postgresql://user:pass@host:5432/db npx tsx server/scripts/exportToCloudSQL.ts
+```
+This script:
+- Exports all core tables (scenarios, personas, translations, categories, users, etc.)
+- Uses UPSERT (ON CONFLICT DO UPDATE) for tables with primary keys
+- Automatically detects common columns between source and target
+- Safe to run multiple times (idempotent)
+
+## Database Migration Notes
+- `server/migrate.ts` runs automatically on server startup
+- Includes CREATE TABLE IF NOT EXISTS for ALL tables (including scenarios, mbti_personas, translation tables)
+- Critical column patches ensure schema compatibility (e.g., scenarios.is_deleted, scenarios.deleted_at added by soft delete feature)
+- When adding new columns to existing tables, always add a critical column patch in migrate.ts to ensure Cloud SQL compatibility
