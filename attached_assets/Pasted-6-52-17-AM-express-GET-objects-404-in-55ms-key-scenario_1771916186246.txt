@@ -1,0 +1,48 @@
+6:52:17 AM [express] GET /objects 404 in 55ms key=scenarios/images/천재지변으로-인한-생산-차질-긴급-납기-관리-및-손해-배상-협상-2025-11-21T09-46-15-thumb.webp :: {"e…
+{
+insertId: "699d4aa100024c9bccf27d26"
+labels: {6}
+logName: "projects/role-20260129/logs/run.googleapis.com%2Fstdout"
+payload: "textPayload"
+receiveLocation: "us-east1"
+receiveTimestamp: "2026-02-24T06:52:17.364516194Z"
+resource: {2}
+severity: "DEFAULT"
+textPayload: "6:52:17 AM [express] GET /objects 404 in 55ms key=scenarios/images/천재지변으로-인한-생산-차질-긴급-납기-관리-및-손해-배상-협상-2025-11-21T09-46-15-thumb.webp :: {"e…"
+timestamp: "2026-02-24T06:52:17.150683Z"
+traceSampled: false
+}
+2026-02-24 15:52:17.153 JST
+[GCS Stream] Object not found: gs://roleplay-bucket/scenarios/images/보직-해임에-불만인-핵심-리더의-이직-방지-협상-2025-12-17T00-32-57-thumb.webp
+2026-02-24 15:52:17.155 JST
+6:52:17 AM [express] GET /objects 404 in 77ms key=scenarios/images/보직-해임에-불만인-핵심-리더의-이직-방지-협상-2025-12-17T00-32-57-thumb.webp :: {"error":"Ob…
+2026-02-24 15:52:17.192 JST
+[GCS Stream] Object not found: gs://roleplay-bucket/scenarios/images/출시-6주-차-대형-고객-장애와-리콜-위기-2025-12-17T07-30-11-thumb.webp
+2026-02-24 15:52:17.196 JST
+6:52:17 AM [express] GET /objects 404 in 105ms key=scenarios/images/출시-6주-차-대형-고객-장애와-리콜-위기-2025-12-17T07-30-11-thumb.webp :: {"error":"Obje…
+2026-02-24 15:52:17.198 JST
+[GCS Stream] Object not found: gs://roleplay-bucket/scenarios/images/마케팅팀의-보이지-않는-전쟁-성과-측정과-업무-분담-갈등-해결하기-2025-12-17T02-27-49-thumb.webp
+2026-02-24 15:52:17.198 JST
+6:52:17 AM [express] GET /objects 404 in 116ms key=scenarios/images/마케팅팀의-보이지-않는-전쟁-성과-측정과-업무-분담-갈등-해결하기-2025-12-17T02-27-49-thumb.webp :: {…
+2026-02-24 15:52:17.200 JST
+[GCS Stream] Object not found: gs://roleplay-bucket/scenarios/images/제조업-협력사-신규-부품-단가-협상-품질-가격-납기-균형점-찾기-2025-11-21T09-25-03-thumb.webp
+2026-02-24 15:52:17.201 JST
+6:52:17 AM [express] GET /objects 404 in 100ms key=scenarios/images/제조업-협력사-신규-부품-단가-협상-품질-가격-납기-균형점-찾기-2025-11-21T09-25-03-thumb.webp :: {"…
+2026-02-24 15:52:17.204 JST
+[GCS Stream] Object not found: gs://roleplay-bucket/scenarios/images/골든타임-4시간-긴급-패치와-롤백-사이의-리더십-2025-12-17T22-42-22-thumb.webp
+2026-02-24 15:52:17.205 JST
+6:52:17 AM [express] GET /objects 404 in 101ms key=scenarios/images/골든타임-4시간-긴급-패치와-롤백-사이의-리더십-2025-12-17T22-42-22-thumb.webp :: {"error":"O…
+2026-02-24 15:52:17.210 JST
+[GCS Stream] Object not found: gs://roleplay-bucket/scenarios/images/팀-내-갈등으로-인한-프로젝트-지연-론칭-D7-위기-관리-2025-11-21T09-23-49-thumb.webp
+2026-02-24 15:52:17.210 JST
+6:52:17 AM [express] GET /objects 404 in 81ms key=scenarios/images/팀-내-갈등으로-인한-프로젝트-지연-론칭-D7-위기-관리-2025-11-21T09-23-49-thumb.webp :: {"error…
+2026-02-24 15:52:17.263 JST
+6:52:17 AM [express] GET /objects 200 in 143ms key=scenarios/갈등-중재-신제품-출시-임박-품질-문제-대-일정-준수-2026-02-06T06-59-12.webp
+2026-02-24 15:52:17.268 JST
+6:52:17 AM [express] GET /objects 200 in 206ms key=scenarios/설비-장애-조치-보고-절차와-결과-사이의-딜레마-2026-02-03T13-35-46-thumb.webp
+2026-02-24 15:52:17.302 JST
+6:52:17 AM [express] GET /objects 200 in 227ms key=scenarios/설비-장애-조치-보고-절차와-결과-사이의-딜레마-2026-02-05T07-15-26.webp
+2026-02-24 15:52:17.325 JST
+6:52:17 AM [express] GET /objects 200 in 256ms key=scenarios/설비-장애-조치-보고-절차와-결과-사이의-딜레마-2026-02-02T08-21-54.webp
+2026-02-24 15:52:21.474 JST
+[GCS] transformScenariosMedia timed out after 5s, returning original scenarios
