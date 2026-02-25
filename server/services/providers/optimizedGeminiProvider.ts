@@ -484,11 +484,46 @@ JSON 형식으로 응답:
   /**
    * 비언어적 표현 분석 결과 타입
    */
-  private analyzeNonVerbalPatterns(userMessages: ConversationMessage[]): {
+  /**
+   * 음성 모드 여부 확인 — realtime_voice, tts 는 음성 기반 대화
+   */
+  private isVoiceMode(conversation?: Partial<import("@shared/schema").Conversation>): boolean {
+    const mode = (conversation as any)?.mode;
+    return mode === 'realtime_voice' || mode === 'tts';
+  }
+
+  /**
+   * 음성 대화 전사본에서 명백한 노이즈/잡음 메시지를 필터링
+   * AI 평가 대상에서 제외하되, 실제 의미있는 발화는 보존
+   */
+  private filterVoiceNoise(userMessages: ConversationMessage[]): ConversationMessage[] {
+    return userMessages.filter(msg => {
+      const text = msg.message.trim();
+      // 1자 이하 (전사 오류)
+      if (text.length <= 1) return false;
+      // 완전 비한국어·비영어 짧은 조각 (2-4글자 중 의미있는 음절 없음)
+      if (text.length <= 4 && /^[^가-힣a-zA-Z0-9]+$/.test(text)) return false;
+      // 명시적 스킵
+      if (/^(skip|스킵|침묵)$/i.test(text)) return false;
+      // 점으로만 구성된 침묵 표시
+      if (/^\.+$/.test(text)) return false;
+      return true;
+    });
+  }
+
+  private analyzeNonVerbalPatterns(
+    userMessages: ConversationMessage[],
+    conversation?: Partial<import("@shared/schema").Conversation>
+  ): {
     count: number;
     patterns: string[];
     penaltyPoints: number;
   } {
+    // 음성 모드에서는 전사 노이즈/비언어적 패턴 분석 비활성화
+    if (this.isVoiceMode(conversation)) {
+      return { count: 0, patterns: [], penaltyPoints: 0 };
+    }
+
     const nonVerbalPatterns: string[] = [];
     let penaltyPoints = 0;
     
@@ -496,23 +531,23 @@ JSON 형식으로 응답:
       const text = msg.message.trim().toLowerCase();
       if (text.length < 3) {
         nonVerbalPatterns.push(`짧은 응답: "${msg.message}"`);
-        penaltyPoints += 2; // 짧은 응답 -2점
+        penaltyPoints += 2;
       } else if (text === '...' || text.match(/^\.+$/)) {
         nonVerbalPatterns.push(`침묵 표시: "${msg.message}"`);
-        penaltyPoints += 3; // 침묵 -3점
+        penaltyPoints += 3;
       } else if (text.match(/^(음+|어+|그+|아+|uh+|um+|hmm+|흠+)\.*/i)) {
         nonVerbalPatterns.push(`비언어적 표현: "${msg.message}"`);
-        penaltyPoints += 2; // 비언어적 표현 -2점
+        penaltyPoints += 2;
       } else if (text === '침묵' || text === 'skip' || text === '스킵') {
         nonVerbalPatterns.push(`스킵: "${msg.message}"`);
-        penaltyPoints += 5; // 스킵 -5점
+        penaltyPoints += 5;
       }
     });
     
     return {
       count: nonVerbalPatterns.length,
       patterns: nonVerbalPatterns,
-      penaltyPoints: Math.min(penaltyPoints, 20) // 최대 20점 감점
+      penaltyPoints: Math.min(penaltyPoints, 20)
     };
   }
 
@@ -575,8 +610,12 @@ JSON 형식으로 응답:
 
   private buildCompactFeedbackPrompt(scenario: string, messages: ConversationMessage[], persona: ScenarioPersona, conversation?: Partial<import("@shared/schema").Conversation>, evaluationCriteria?: EvaluationCriteriaWithDimensions, language: SupportedLanguage = 'ko'): string {
     const languageInstruction = LANGUAGE_INSTRUCTIONS[language] || LANGUAGE_INSTRUCTIONS.ko;
+    const voiceMode = this.isVoiceMode(conversation);
+
     // 사용자 메시지만 필터링하여 평가 대상으로 설정
-    const userMessages = messages.filter(msg => msg.sender === 'user');
+    const rawUserMessages = messages.filter(msg => msg.sender === 'user');
+    // 음성 모드: 명백한 노이즈/잡음 메시지 제거 후 평가
+    const userMessages = voiceMode ? this.filterVoiceNoise(rawUserMessages) : rawUserMessages;
     
     // 전체 대화 맥락 (AI 응답 포함) - 참고용으로만 사용
     const fullConversationContext = messages.map((msg, idx) => {
@@ -589,8 +628,8 @@ JSON 형식으로 응답:
       `${idx + 1}. 사용자: ${msg.message}`
     ).join('\n');
 
-    // 비언어적 표현 분석 (개선된 버전)
-    const nonVerbalAnalysis = this.analyzeNonVerbalPatterns(userMessages);
+    // 비언어적 표현 분석 — 음성 모드에서는 비활성화
+    const nonVerbalAnalysis = this.analyzeNonVerbalPatterns(userMessages, conversation);
     const hasNonVerbalIssues = nonVerbalAnalysis.count > 0;
     
     // 말 끊기(Barge-in) 분석
@@ -653,7 +692,7 @@ sequenceAnalysis 필드에 다음 형식으로 포함:
     }
 
     return `**중요**: 아래 평가는 오직 피평가자의 발화만을 대상으로 수행합니다. AI(${persona.name})의 응답은 평가 대상이 아닙니다.
-
+${voiceMode ? '\n⚠️ **음성 대화 전사본 안내**: 이 대화는 실시간 음성 인식(STT)으로 전사된 결과입니다. 배경 소음, 다른 사람의 발화, 전사 오류, 짧은 소리 조각(예: "음", "어", 이상한 외국어 등)이 섞여 있을 수 있습니다. 이러한 노이즈성 텍스트는 피평가자의 실제 발화로 간주하지 말고 평가에서 완전히 무시하세요. 의미있는 발화만을 대상으로 평가하세요.\n' : ''}
 **전체 대화 맥락** (참고용):
 ${fullConversationContext}
 
@@ -670,9 +709,13 @@ ${strategySection}
 
 **평가 기준**:
 - 오직 피평가자의 발화만 평가합니다 (AI 응답은 제외)
-- 비언어적 표현("...", "음...", "침묵")은 명확성과 설득력 점수를 크게 낮춥니다
+${voiceMode
+  ? `- 음성 전사본 특성상 "음", "어", "흠" 등 짧은 소리, 외국어 단편, 무의미한 텍스트는 전사 노이즈로 처리하고 감점하지 마세요
+- 배경 소음·다른 사람의 말소리가 전사된 텍스트도 피평가자의 발화로 간주하지 마세요
+- 실질적인 의사소통 내용(문장 단위의 발화)만을 기준으로 평가하세요`
+  : `- 비언어적 표현("...", "음...", "침묵")은 명확성과 설득력 점수를 크게 낮춥니다
 - 매우 짧거나 무의미한 응답은 점수를 낮춥니다
-- 스킵한 대화는 참여도와 전략적 커뮤니케이션 점수를 낮춥니다
+- 스킵한 대화는 참여도와 전략적 커뮤니케이션 점수를 낮춥니다`}
 - 말 끊기(Barge-in) 평가: AI 질문 중 끊기는 경청 부족, 적극적 발언으로 끊기는 참여도 가점
 
 **평가 영역** (1-5점):
@@ -806,24 +849,26 @@ JSON 형식${hasStrategyReflection ? ' (sequenceAnalysis 포함)' : ''}:
       let baseOverallScore = this.calculateWeightedOverallScore(scores, evaluationCriteria);
       
       // 자동 감점/가점 적용
-      const userMessages = messages.filter(msg => msg.sender === 'user');
-      const nonVerbalAnalysis = this.analyzeNonVerbalPatterns(userMessages);
+      const voiceMode = this.isVoiceMode(conversation);
+      const rawUserMessages = messages.filter(msg => msg.sender === 'user');
+      const userMessages = voiceMode ? this.filterVoiceNoise(rawUserMessages) : rawUserMessages;
+      const nonVerbalAnalysis = this.analyzeNonVerbalPatterns(userMessages, conversation);
       const bargeInAnalysis = this.analyzeBargeIn(messages);
       
-      // 점수 조정 계산
+      // 점수 조정 계산 (음성 모드에서는 비언어적 감점 없음)
       const totalAdjustment = -nonVerbalAnalysis.penaltyPoints + bargeInAnalysis.netScoreAdjustment;
       const adjustedScore = Math.max(0, Math.min(100, baseOverallScore + totalAdjustment));
       
       // 로깅
-      if (totalAdjustment !== 0) {
-        console.log(`📊 점수 자동 조정: ${baseOverallScore} → ${adjustedScore}`);
-        console.log(`   - 비언어적 표현 감점: -${nonVerbalAnalysis.penaltyPoints}점 (${nonVerbalAnalysis.count}개)`);
+      if (totalAdjustment !== 0 || voiceMode) {
+        console.log(`📊 점수 자동 조정: ${baseOverallScore} → ${adjustedScore}${voiceMode ? ' [음성모드: 비언어 감점 비활성화]' : ''}`);
+        if (!voiceMode) console.log(`   - 비언어적 표현 감점: -${nonVerbalAnalysis.penaltyPoints}점 (${nonVerbalAnalysis.count}개)`);
         console.log(`   - 말 끊기 조정: ${bargeInAnalysis.netScoreAdjustment >= 0 ? '+' : ''}${bargeInAnalysis.netScoreAdjustment}점 (${bargeInAnalysis.count}회)`);
       }
       
-      // 개선사항에 자동 감점 관련 피드백 추가
+      // 개선사항에 자동 감점 관련 피드백 추가 (음성 모드에서는 노이즈 관련 항목 제외)
       let improvements = parsed.improvements || ["더 구체적인 표현"];
-      if (nonVerbalAnalysis.count > 0) {
+      if (nonVerbalAnalysis.count > 0 && !voiceMode) {
         improvements = [
           `비언어적 표현(${nonVerbalAnalysis.count}개)을 줄이고 명확하게 표현하세요`,
           ...improvements
