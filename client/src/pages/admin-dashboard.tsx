@@ -178,6 +178,156 @@ export default function AdminDashboard() {
     strategicSelection: '전략적 선택',
   };
 
+  const buildReportHtml = (r: any): string => {
+    const safe = (v: any): string => String(v == null ? '' : v)
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+    const df = r.detailedFeedback || {};
+    const scores: any[] = Array.isArray(r.scores) ? r.scores : [];
+    const now = new Date().toLocaleDateString('ko-KR');
+
+    const scoreRows = scores.map((s: any) => {
+      const label = safe(s.name || s.criterionName || s.category || '항목');
+      const val = Number(s.score ?? 0);
+      const pct = Math.round((val / 5) * 100);
+      return '<tr>'
+        + '<td style="padding:8px 12px;font-size:13px;color:#475569;">' + label + '</td>'
+        + '<td style="padding:8px 12px;text-align:center;font-weight:700;color:#1e3a5f;">' + val + ' / 5</td>'
+        + '<td style="padding:8px 12px;width:160px;">'
+        + '<div style="height:8px;background:#e2e8f0;border-radius:4px;overflow:hidden;">'
+        + '<div style="height:100%;width:' + pct + '%;background:#3b82f6;border-radius:4px;"></div>'
+        + '</div></td>'
+        + '</tr>';
+    }).join('');
+
+    const listItems = (arr: string[], icon: string) => arr
+      .map((s: string) => '<li style="margin-bottom:6px;line-height:1.6;">' + icon + ' ' + safe(s) + '</li>')
+      .join('');
+
+    const parts: string[] = [];
+    parts.push('<!DOCTYPE html>');
+    parts.push('<html lang="ko">');
+    parts.push('<head>');
+    parts.push('<meta charset="UTF-8">');
+    parts.push('<meta name="color-scheme" content="light only">');
+    parts.push('<meta name="viewport" content="width=device-width, initial-scale=1.0">');
+    parts.push('<title>피드백 리포트 - ' + safe(r.user?.name) + '</title>');
+    parts.push('<style>');
+    parts.push('* { box-sizing: border-box; }');
+    parts.push('html { background: #f1f5f9; }');
+    parts.push('body { font-family: "Apple SD Gothic Neo","Malgun Gothic","Noto Sans KR",sans-serif;');
+    parts.push('  background: #f1f5f9; color: #1e293b; margin: 0; padding: 32px 16px; }');
+    parts.push('.wrap { max-width: 800px; margin: 0 auto; }');
+    parts.push('.header { background: #1e3a5f; color: #fff; border-radius: 12px; padding: 28px 32px; margin-bottom: 24px; }');
+    parts.push('.header h1 { margin: 0 0 4px; font-size: 22px; }');
+    parts.push('.header .sub { font-size: 13px; opacity: 0.75; }');
+    parts.push('.score-hero { float: right; text-align: center; }');
+    parts.push('.score-num { font-size: 52px; font-weight: 900; line-height: 1; }');
+    parts.push('.score-lbl { font-size: 12px; opacity: 0.8; }');
+    parts.push('.card { background: #ffffff; border-radius: 12px; padding: 24px 28px; margin-bottom: 16px;');
+    parts.push('  box-shadow: 0 1px 3px rgba(0,0,0,0.08); }');
+    parts.push('.card-title { font-size: 14px; font-weight: 700; color: #3b82f6;');
+    parts.push('  border-left: 3px solid #3b82f6; padding-left: 10px; margin: 0 0 16px; }');
+    parts.push('.meta-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }');
+    parts.push('.meta-item { font-size: 12px; color: #64748b; }');
+    parts.push('.meta-item strong { display: block; color: #334155; font-size: 14px; margin-top: 2px; }');
+    parts.push('.summary { background: #f0f9ff; border-left: 4px solid #3b82f6; border-radius: 6px;');
+    parts.push('  padding: 14px 16px; font-size: 13px; line-height: 1.8; color: #334155; }');
+    parts.push('table { width: 100%; border-collapse: collapse; }');
+    parts.push('th { text-align: left; font-size: 12px; color: #94a3b8; padding: 8px 12px;');
+    parts.push('  border-bottom: 1px solid #e2e8f0; }');
+    parts.push('ul { margin: 0; padding-left: 0; list-style: none; font-size: 13px; color: #334155; }');
+    parts.push('@media print { body { background: white; padding: 0; }');
+    parts.push('  .card { box-shadow: none; border: 1px solid #e2e8f0; page-break-inside: avoid; } }');
+    parts.push('</style>');
+    parts.push('</head>');
+    parts.push('<body>');
+    parts.push('<div class="wrap">');
+
+    // Header
+    parts.push('<div class="header">');
+    parts.push('<div class="score-hero">');
+    parts.push('<div class="score-num">' + (r.overallScore ?? '-') + '</div>');
+    parts.push('<div class="score-lbl">종합 점수</div>');
+    parts.push('</div>');
+    parts.push('<h1>' + safe(r.user?.name) + '</h1>');
+    parts.push('<div class="sub">' + safe(r.user?.email) + '</div>');
+    parts.push('<div style="margin-top:8px;font-size:12px;opacity:0.8;">생성일: ' + now + '</div>');
+    parts.push('</div>');
+
+    // Meta info
+    parts.push('<div class="card">');
+    parts.push('<div class="meta-grid">');
+    parts.push('<div class="meta-item">시나리오<strong>' + safe(r.scenarioTitle) + '</strong></div>');
+    parts.push('<div class="meta-item">페르소나<strong>' + safe(r.personaName) + '</strong></div>');
+    parts.push('<div class="meta-item">완료일<strong>' + (r.completedAt ? new Date(r.completedAt).toLocaleDateString('ko-KR') : '-') + '</strong></div>');
+    parts.push('</div>');
+    parts.push('</div>');
+
+    // Summary
+    if (df.summary) {
+      parts.push('<div class="card">');
+      parts.push('<div class="card-title">종합 피드백</div>');
+      parts.push('<div class="summary">' + safe(df.summary) + '</div>');
+      parts.push('</div>');
+    }
+
+    // Scores
+    if (scoreRows) {
+      parts.push('<div class="card">');
+      parts.push('<div class="card-title">세부 평가 점수</div>');
+      parts.push('<table><thead><tr>');
+      parts.push('<th>평가 항목</th><th style="text-align:center;">점수</th><th>달성도</th>');
+      parts.push('</tr></thead><tbody>');
+      parts.push(scoreRows);
+      parts.push('</tbody></table>');
+      parts.push('</div>');
+    }
+
+    // Strengths
+    if (Array.isArray(df.strengths) && df.strengths.length > 0) {
+      parts.push('<div class="card">');
+      parts.push('<div class="card-title">강점</div>');
+      parts.push('<ul>' + listItems(df.strengths, '✅') + '</ul>');
+      parts.push('</div>');
+    }
+
+    // Improvements
+    if (Array.isArray(df.improvements) && df.improvements.length > 0) {
+      parts.push('<div class="card">');
+      parts.push('<div class="card-title">개선 필요 사항</div>');
+      parts.push('<ul>' + listItems(df.improvements, '📌') + '</ul>');
+      parts.push('</div>');
+    }
+
+    // Next steps
+    if (Array.isArray(df.nextSteps) && df.nextSteps.length > 0) {
+      parts.push('<div class="card">');
+      parts.push('<div class="card-title">다음 단계</div>');
+      parts.push('<ul>' + listItems(df.nextSteps, '▶') + '</ul>');
+      parts.push('</div>');
+    }
+
+    parts.push('</div>');
+    parts.push('</body>');
+    parts.push('</html>');
+    return parts.join('\n');
+  };
+
+  const triggerDownload = (html: string, filename: string) => {
+    const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(() => {
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }, 200);
+  };
+
   const handleBulkDownload = async () => {
     if (selectedParticipantIds.size === 0) return;
     setIsBulkDownloading(true);
@@ -199,110 +349,18 @@ export default function AdminDashboard() {
         return;
       }
 
-      const now = new Date().toLocaleDateString('ko-KR', { year: 'numeric', month: '2-digit', day: '2-digit' }).replace(/\. /g, '-').replace('.', '');
-      const html = `<!DOCTYPE html>
-<html lang="ko">
-<head>
-<meta charset="UTF-8">
-<meta name="color-scheme" content="light">
-<title>피드백 리포트 — ${now}</title>
-<style>
-  html, body { background-color: #ffffff !important; color: #1e293b !important; color-scheme: light; }
-  body { font-family: 'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif; margin: 0; padding: 24px; }
-  h1 { font-size: 22px; color: #1e3a5f; border-bottom: 3px solid #1e3a5f; padding-bottom: 10px; margin-bottom: 6px; }
-  .meta { font-size: 12px; color: #64748b; margin-bottom: 32px; }
-  .card { background: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 24px; margin-bottom: 32px; page-break-inside: avoid; }
-  .card-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 16px; }
-  .user-name { font-size: 20px; font-weight: 700; color: #1e3a5f; }
-  .user-email { font-size: 13px; color: #64748b; margin-top: 2px; }
-  .score-big { font-size: 40px; font-weight: 800; color: #1e3a5f; }
-  .score-label { font-size: 12px; color: #94a3b8; margin-top: 2px; }
-  .section-title { font-size: 14px; font-weight: 700; color: #475569; margin: 20px 0 10px; border-left: 3px solid #3b82f6; padding-left: 8px; }
-  .score-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 10px; }
-  .score-item { background: #f8fafc; border-radius: 8px; padding: 12px; }
-  .score-item-label { font-size: 12px; color: #64748b; }
-  .score-item-value { font-size: 20px; font-weight: 700; color: #1e3a5f; margin-top: 4px; }
-  .score-bar { height: 6px; border-radius: 3px; background: #e2e8f0; margin-top: 6px; overflow: hidden; }
-  .score-bar-fill { height: 100%; border-radius: 3px; background: linear-gradient(90deg, #3b82f6, #6366f1); }
-  .list-section { margin-top: 8px; }
-  .list-item { display: flex; gap: 8px; margin-bottom: 6px; font-size: 13px; line-height: 1.5; color: #334155; }
-  .list-icon { flex-shrink: 0; font-size: 14px; }
-  .summary-box { background: #f0f9ff; border-radius: 8px; padding: 14px; font-size: 13px; line-height: 1.7; color: #334155; border-left: 4px solid #3b82f6; }
-  .info-row { display: flex; gap: 16px; font-size: 12px; color: #64748b; margin-bottom: 16px; flex-wrap: wrap; }
-  .info-item span { font-weight: 600; color: #334155; }
-  @media print { html, body { background: white !important; } body { padding: 0; } .card { page-break-after: always; box-shadow: none; } }
-</style>
-</head>
-<body>
-<h1>피드백 리포트</h1>
-<div class="meta">생성일: ${now} &nbsp;|&nbsp; 총 ${results.length}명</div>
-${results.map((r: any) => {
-  const df = (r.detailedFeedback || {}) as any;
-  const scoreEntries: any[] = Array.isArray(r.scores) ? r.scores : [];
-  const safe = (v: any) => String(v ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-  return [
-    '<div class="card">',
-    '  <div class="card-header">',
-    '    <div>',
-    '      <div class="user-name">' + safe(r.user?.name) + '</div>',
-    '      <div class="user-email">' + safe(r.user?.email) + '</div>',
-    '    </div>',
-    '    <div style="text-align:right">',
-    '      <div class="score-big">' + (r.overallScore ?? '-') + '<span style="font-size:20px;color:#94a3b8">점</span></div>',
-    '      <div class="score-label">종합 점수</div>',
-    '    </div>',
-    '  </div>',
-    '  <div class="info-row">',
-    '    <div class="info-item">시나리오: <span>' + safe(r.scenarioTitle) + '</span></div>',
-    '    <div class="info-item">페르소나: <span>' + safe(r.personaName) + '</span></div>',
-    '    <div class="info-item">완료일: <span>' + (r.completedAt ? new Date(r.completedAt).toLocaleDateString('ko-KR') : '-') + '</span></div>',
-    '  </div>',
-    df.summary ? '<div class="summary-box">' + safe(df.summary) + '</div>' : '',
-    '<div class="section-title">세부 평가 점수</div>',
-    '<div class="score-grid">',
-    scoreEntries.map((s: any) => {
-      const label = safe(s.name || s.criterionName || s.category || '');
-      const val = Number(s.score ?? 0);
-      const max = 5;
-      const pct = Math.round((val / max) * 100);
-      return '<div class="score-item">'
-        + '<div class="score-item-label">' + label + '</div>'
-        + '<div class="score-item-value">' + val + '<span style="font-size:12px;color:#94a3b8">/' + max + '</span></div>'
-        + '<div class="score-bar"><div class="score-bar-fill" style="width:' + pct + '%"></div></div>'
-        + '</div>';
-    }).join(''),
-    '</div>',
-    Array.isArray(df.strengths) && df.strengths.length > 0
-      ? '<div class="section-title">강점</div><div class="list-section">'
-        + df.strengths.map((s: string) => '<div class="list-item"><span class="list-icon">✅</span><span>' + safe(s) + '</span></div>').join('')
-        + '</div>'
-      : '',
-    Array.isArray(df.improvements) && df.improvements.length > 0
-      ? '<div class="section-title">개선 필요 사항</div><div class="list-section">'
-        + df.improvements.map((s: string) => '<div class="list-item"><span class="list-icon">📌</span><span>' + safe(s) + '</span></div>').join('')
-        + '</div>'
-      : '',
-    Array.isArray(df.nextSteps) && df.nextSteps.length > 0
-      ? '<div class="section-title">다음 단계</div><div class="list-section">'
-        + df.nextSteps.map((s: string) => '<div class="list-item"><span class="list-icon">▶</span><span>' + safe(s) + '</span></div>').join('')
-        + '</div>'
-      : '',
-    '</div>',
-  ].join('\n');
-}).join('\n')}
-</body>
-</html>`;
-
-      const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `피드백리포트_${now}.html`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-      toast({ title: '다운로드 완료', description: `${results.length}명의 피드백 리포트가 다운로드되었습니다.` });
+      const dateStr = new Date().toISOString().slice(0, 10);
+      for (let i = 0; i < results.length; i++) {
+        const r = results[i];
+        const html = buildReportHtml(r);
+        const safeName = String(r.user?.name ?? 'unknown').replace(/[^a-zA-Z0-9가-힣]/g, '_');
+        const filename = '피드백리포트_' + safeName + '_' + dateStr + '.html';
+        await new Promise<void>(resolve => setTimeout(() => {
+          triggerDownload(html, filename);
+          resolve();
+        }, i * 400));
+      }
+      toast({ title: '다운로드 완료', description: results.length + '명의 피드백 리포트가 다운로드되었습니다.' });
     } catch (err) {
       console.error(err);
       toast({ title: '다운로드 실패', description: '피드백 리포트를 가져오는 중 오류가 발생했습니다.', variant: 'destructive' });
