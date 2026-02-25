@@ -3658,6 +3658,85 @@ export async function registerRoutes(app: Express, httpServer: Server): Promise<
     }
   });
 
+  // 일괄 피드백 내보내기 — 선택한 사용자들의 최신 완료 피드백 반환
+  app.post("/api/admin/bulk-feedback-export", isAuthenticated, async (req: any, res) => {
+    try {
+      const requestUser = req.user;
+      if (requestUser.role !== 'admin' && requestUser.role !== 'operator') {
+        return res.status(403).json({ error: "Access denied" });
+      }
+      const { userIds } = req.body as { userIds: string[] };
+      if (!Array.isArray(userIds) || userIds.length === 0) {
+        return res.status(400).json({ error: "userIds required" });
+      }
+
+      const results: any[] = [];
+
+      for (const userId of userIds) {
+        try {
+          const user = await storage.getUser(userId);
+          if (!user) continue;
+
+          const scenarioRunsWithPersonas = await storage.getUserScenarioRunsWithPersonaRuns(userId);
+          
+          // 완료된 persona run 중 가장 최근 것(completedAt 기준) 찾기
+          let latestPersonaRun: any = null;
+          let latestCompletedAt: Date | null = null;
+          let matchedScenarioRun: any = null;
+
+          for (const sr of scenarioRunsWithPersonas) {
+            for (const pr of sr.personaRuns) {
+              if (pr.status === 'completed' && pr.score !== null) {
+                const completedAt = pr.completedAt ? new Date(pr.completedAt) : new Date(pr.createdAt);
+                if (!latestCompletedAt || completedAt > latestCompletedAt) {
+                  latestCompletedAt = completedAt;
+                  latestPersonaRun = pr;
+                  matchedScenarioRun = sr;
+                }
+              }
+            }
+          }
+
+          if (!latestPersonaRun) continue;
+
+          const feedback = await storage.getFeedbackByConversationId(latestPersonaRun.id);
+          if (!feedback) continue;
+
+          // 시나리오 이름 조회
+          let scenarioTitle = '알 수 없는 시나리오';
+          try {
+            const scenario = await storage.getScenario(matchedScenarioRun.scenarioId);
+            if (scenario) scenarioTitle = (scenario as any).title || scenarioTitle;
+          } catch {}
+
+          // 페르소나 이름 조회
+          let personaName = '알 수 없는 페르소나';
+          try {
+            const persona = await storage.getMbtiPersona(latestPersonaRun.personaId);
+            if (persona) personaName = persona.name || personaName;
+          } catch {}
+
+          results.push({
+            user: { id: user.id, name: user.name, email: user.email },
+            scenarioTitle,
+            personaName,
+            completedAt: latestCompletedAt?.toISOString(),
+            overallScore: feedback.overallScore,
+            scores: feedback.scores,
+            detailedFeedback: feedback.detailedFeedback,
+          });
+        } catch (userError) {
+          console.error(`Error processing userId ${userId}:`, userError);
+        }
+      }
+
+      res.json({ results });
+    } catch (error) {
+      console.error("Error in bulk feedback export:", error);
+      res.status(500).json({ error: "Failed to export feedback" });
+    }
+  });
+
   // 메인 사용자용 시나리오/페르소나 API
   app.get("/api/scenarios", async (req, res) => {
     try {
