@@ -158,6 +158,7 @@ interface Participant {
 
 export default function AdminDashboard() {
   const { user } = useAuth();
+  const { toast } = useToast();
   const [showMobileTabMenu, setShowMobileTabMenu] = useState(false);
   const [selectedCategoryId, setSelectedCategoryId] = useState<string>('all');
   const [participantSearch, setParticipantSearch] = useState('');
@@ -203,89 +204,92 @@ export default function AdminDashboard() {
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
+<meta name="color-scheme" content="light">
 <title>피드백 리포트 — ${now}</title>
 <style>
-  body { font-family: 'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif; background: #f8fafc; color: #1e293b; margin: 0; padding: 24px; }
+  html, body { background-color: #ffffff !important; color: #1e293b !important; color-scheme: light; }
+  body { font-family: 'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif; margin: 0; padding: 24px; }
   h1 { font-size: 22px; color: #1e3a5f; border-bottom: 3px solid #1e3a5f; padding-bottom: 10px; margin-bottom: 6px; }
   .meta { font-size: 12px; color: #64748b; margin-bottom: 32px; }
-  .card { background: #fff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 24px; margin-bottom: 32px; page-break-inside: avoid; }
+  .card { background: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 24px; margin-bottom: 32px; page-break-inside: avoid; }
   .card-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 16px; }
   .user-name { font-size: 20px; font-weight: 700; color: #1e3a5f; }
   .user-email { font-size: 13px; color: #64748b; margin-top: 2px; }
-  .badge { display: inline-block; padding: 4px 12px; border-radius: 99px; font-size: 12px; font-weight: 600; background: #e0f2fe; color: #0369a1; }
   .score-big { font-size: 40px; font-weight: 800; color: #1e3a5f; }
   .score-label { font-size: 12px; color: #94a3b8; margin-top: 2px; }
   .section-title { font-size: 14px; font-weight: 700; color: #475569; margin: 20px 0 10px; border-left: 3px solid #3b82f6; padding-left: 8px; }
-  .score-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 10px; }
+  .score-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 10px; }
   .score-item { background: #f8fafc; border-radius: 8px; padding: 12px; }
   .score-item-label { font-size: 12px; color: #64748b; }
   .score-item-value { font-size: 20px; font-weight: 700; color: #1e3a5f; margin-top: 4px; }
   .score-bar { height: 6px; border-radius: 3px; background: #e2e8f0; margin-top: 6px; overflow: hidden; }
   .score-bar-fill { height: 100%; border-radius: 3px; background: linear-gradient(90deg, #3b82f6, #6366f1); }
   .list-section { margin-top: 8px; }
-  .list-item { display: flex; gap: 8px; margin-bottom: 6px; font-size: 13px; line-height: 1.5; }
+  .list-item { display: flex; gap: 8px; margin-bottom: 6px; font-size: 13px; line-height: 1.5; color: #334155; }
   .list-icon { flex-shrink: 0; font-size: 14px; }
   .summary-box { background: #f0f9ff; border-radius: 8px; padding: 14px; font-size: 13px; line-height: 1.7; color: #334155; border-left: 4px solid #3b82f6; }
   .info-row { display: flex; gap: 16px; font-size: 12px; color: #64748b; margin-bottom: 16px; flex-wrap: wrap; }
   .info-item span { font-weight: 600; color: #334155; }
-  @media print { body { background: white; padding: 0; } .card { page-break-after: always; box-shadow: none; } }
+  @media print { html, body { background: white !important; } body { padding: 0; } .card { page-break-after: always; box-shadow: none; } }
 </style>
 </head>
 <body>
 <h1>피드백 리포트</h1>
 <div class="meta">생성일: ${now} &nbsp;|&nbsp; 총 ${results.length}명</div>
 ${results.map((r: any) => {
-  const df = r.detailedFeedback || {};
-  const scoreEntries = r.scores || [];
-  return `
-<div class="card">
-  <div class="card-header">
-    <div>
-      <div class="user-name">${r.user.name}</div>
-      <div class="user-email">${r.user.email}</div>
-    </div>
-    <div style="text-align:right">
-      <div class="score-big">${r.overallScore}<span style="font-size:20px;color:#94a3b8">점</span></div>
-      <div class="score-label">종합 점수</div>
-    </div>
-  </div>
-  <div class="info-row">
-    <div class="info-item">시나리오: <span>${r.scenarioTitle}</span></div>
-    <div class="info-item">페르소나: <span>${r.personaName}</span></div>
-    <div class="info-item">완료일: <span>${r.completedAt ? new Date(r.completedAt).toLocaleDateString('ko-KR') : '-'}</span></div>
-  </div>
-  ${df.summary ? `<div class="summary-box">${df.summary}</div>` : ''}
-  <div class="section-title">세부 평가 점수</div>
-  <div class="score-grid">
-    ${scoreEntries.map((s: any) => {
-      const label = scoreLabels[s.criterionKey || s.key] || s.criterionName || s.criterionKey || s.key || '';
-      const val = s.score ?? 0;
-      const max = s.maxScore ?? 5;
+  const df = (r.detailedFeedback || {}) as any;
+  const scoreEntries: any[] = Array.isArray(r.scores) ? r.scores : [];
+  const safe = (v: any) => String(v ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  return [
+    '<div class="card">',
+    '  <div class="card-header">',
+    '    <div>',
+    '      <div class="user-name">' + safe(r.user?.name) + '</div>',
+    '      <div class="user-email">' + safe(r.user?.email) + '</div>',
+    '    </div>',
+    '    <div style="text-align:right">',
+    '      <div class="score-big">' + (r.overallScore ?? '-') + '<span style="font-size:20px;color:#94a3b8">점</span></div>',
+    '      <div class="score-label">종합 점수</div>',
+    '    </div>',
+    '  </div>',
+    '  <div class="info-row">',
+    '    <div class="info-item">시나리오: <span>' + safe(r.scenarioTitle) + '</span></div>',
+    '    <div class="info-item">페르소나: <span>' + safe(r.personaName) + '</span></div>',
+    '    <div class="info-item">완료일: <span>' + (r.completedAt ? new Date(r.completedAt).toLocaleDateString('ko-KR') : '-') + '</span></div>',
+    '  </div>',
+    df.summary ? '<div class="summary-box">' + safe(df.summary) + '</div>' : '',
+    '<div class="section-title">세부 평가 점수</div>',
+    '<div class="score-grid">',
+    scoreEntries.map((s: any) => {
+      const label = safe(s.name || s.criterionName || s.category || '');
+      const val = Number(s.score ?? 0);
+      const max = 5;
       const pct = Math.round((val / max) * 100);
-      return `<div class="score-item">
-        <div class="score-item-label">${label}</div>
-        <div class="score-item-value">${val}<span style="font-size:12px;color:#94a3b8">/${max}</span></div>
-        <div class="score-bar"><div class="score-bar-fill" style="width:${pct}%"></div></div>
-      </div>`;
-    }).join('')}
-  </div>
-  ${df.strengths && df.strengths.length > 0 ? `
-  <div class="section-title">강점</div>
-  <div class="list-section">
-    ${df.strengths.map((s: string) => `<div class="list-item"><span class="list-icon">✅</span><span>${s}</span></div>`).join('')}
-  </div>` : ''}
-  ${df.improvements && df.improvements.length > 0 ? `
-  <div class="section-title">개선 필요 사항</div>
-  <div class="list-section">
-    ${df.improvements.map((s: string) => `<div class="list-item"><span class="list-icon">📌</span><span>${s}</span></div>`).join('')}
-  </div>` : ''}
-  ${df.nextSteps && df.nextSteps.length > 0 ? `
-  <div class="section-title">다음 단계</div>
-  <div class="list-section">
-    ${df.nextSteps.map((s: string) => `<div class="list-item"><span class="list-icon">▶</span><span>${s}</span></div>`).join('')}
-  </div>` : ''}
-</div>`;
-}).join('')}
+      return '<div class="score-item">'
+        + '<div class="score-item-label">' + label + '</div>'
+        + '<div class="score-item-value">' + val + '<span style="font-size:12px;color:#94a3b8">/' + max + '</span></div>'
+        + '<div class="score-bar"><div class="score-bar-fill" style="width:' + pct + '%"></div></div>'
+        + '</div>';
+    }).join(''),
+    '</div>',
+    Array.isArray(df.strengths) && df.strengths.length > 0
+      ? '<div class="section-title">강점</div><div class="list-section">'
+        + df.strengths.map((s: string) => '<div class="list-item"><span class="list-icon">✅</span><span>' + safe(s) + '</span></div>').join('')
+        + '</div>'
+      : '',
+    Array.isArray(df.improvements) && df.improvements.length > 0
+      ? '<div class="section-title">개선 필요 사항</div><div class="list-section">'
+        + df.improvements.map((s: string) => '<div class="list-item"><span class="list-icon">📌</span><span>' + safe(s) + '</span></div>').join('')
+        + '</div>'
+      : '',
+    Array.isArray(df.nextSteps) && df.nextSteps.length > 0
+      ? '<div class="section-title">다음 단계</div><div class="list-section">'
+        + df.nextSteps.map((s: string) => '<div class="list-item"><span class="list-icon">▶</span><span>' + safe(s) + '</span></div>').join('')
+        + '</div>'
+      : '',
+    '</div>',
+  ].join('\n');
+}).join('\n')}
 </body>
 </html>`;
 
