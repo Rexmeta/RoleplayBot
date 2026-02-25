@@ -330,7 +330,7 @@ export default function ParticipantHistory() {
                                         <Button
                                           variant="outline"
                                           size="sm"
-                                          onClick={() => navigate(`/chat/${pr.id}`)}
+                                          onClick={() => navigate(`/chat/${pr.id}?returnTo=/admin/participant/${userId}`)}
                                         >
                                           대화 보기
                                         </Button>
@@ -339,7 +339,7 @@ export default function ParticipantHistory() {
                                             variant="default"
                                             size="sm"
                                             className="bg-corporate-600 hover:bg-corporate-700"
-                                            onClick={() => navigate(`/feedback/${pr.id}`)}
+                                            onClick={() => navigate(`/feedback/${pr.id}?returnTo=/admin/participant/${userId}`)}
                                           >
                                             피드백 보기
                                           </Button>

@@ -12,8 +12,10 @@ import { AppHeader } from "@/components/AppHeader";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useState, useEffect } from "react";
-import { Filter, ExternalLink } from "lucide-react";
+import { Filter, ExternalLink, Download, Printer } from "lucide-react";
 import { Link } from "wouter";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { TranslationDashboard } from "@/components/admin/TranslationDashboard";
 
 // 마우스 오버 카드 설명 헬퍼
@@ -164,6 +166,8 @@ export default function AdminDashboard() {
   const [participantDateTo, setParticipantDateTo] = useState('');
   const [participantSortKey, setParticipantSortKey] = useState<keyof Participant>('lastTrainingAt');
   const [participantSortAsc, setParticipantSortAsc] = useState(false);
+  const [selectedParticipantIds, setSelectedParticipantIds] = useState<Set<string>>(new Set());
+  const [showBulkReportDialog, setShowBulkReportDialog] = useState(false);
 
   // 카테고리 목록 가져오기
   const { data: categories = [] } = useQuery<Category[]>({
@@ -401,9 +405,10 @@ export default function AdminDashboard() {
       )}
       
       {/* Detailed Analytics */}
-      <Tabs defaultValue="overview" className="space-y-6" onValueChange={(value) => setShowMobileTabMenu(false)}>
+      <Tabs defaultValue="participants" className="space-y-6" onValueChange={(value) => setShowMobileTabMenu(false)}>
         {/* 데스크톱 탭 */}
         <TabsList className="hidden md:grid w-full grid-cols-9">
+          <TabsTrigger value="participants" data-testid="tab-participants">참석자 관리</TabsTrigger>
           <TabsTrigger value="overview" data-testid="tab-overview">개요</TabsTrigger>
           <TabsTrigger value="performance" data-testid="tab-performance">성과 분석</TabsTrigger>
           <TabsTrigger value="scenarios" data-testid="tab-scenarios">시나리오 분석</TabsTrigger>
@@ -411,16 +416,15 @@ export default function AdminDashboard() {
           <TabsTrigger value="emotions" data-testid="tab-emotions">감정 분석</TabsTrigger>
           <TabsTrigger value="trends" data-testid="tab-trends">트렌드 분석</TabsTrigger>
           <TabsTrigger value="content" data-testid="tab-content">컨텐츠 현황</TabsTrigger>
-          <TabsTrigger value="participants" data-testid="tab-participants">참석자 관리</TabsTrigger>
           <TabsTrigger value="translations" data-testid="tab-translations">번역 관리</TabsTrigger>
         </TabsList>
         
         {/* 모바일 탭 (스마트 버튼 포함) */}
         <div className="md:hidden space-y-2">
           <TabsList className="grid w-full grid-cols-4">
+            <TabsTrigger value="participants" data-testid="mobile-tab-participants-primary">참석자</TabsTrigger>
             <TabsTrigger value="overview" data-testid="mobile-tab-overview">개요</TabsTrigger>
             <TabsTrigger value="performance" data-testid="mobile-tab-performance">성과</TabsTrigger>
-            <TabsTrigger value="scenarios" data-testid="mobile-tab-scenarios">시나리오</TabsTrigger>
             <button
               type="button"
               onClick={() => setShowMobileTabMenu(!showMobileTabMenu)}
@@ -436,11 +440,11 @@ export default function AdminDashboard() {
           {showMobileTabMenu && (
             <div className="bg-slate-100 rounded-lg p-2 animate-in slide-in-from-top duration-200">
               <TabsList className="grid w-full grid-cols-6 gap-2 bg-transparent">
+                <TabsTrigger value="scenarios" className="bg-white" data-testid="mobile-tab-scenarios">시나리오</TabsTrigger>
                 <TabsTrigger value="mbti" className="bg-white" data-testid="mobile-tab-mbti">MBTI</TabsTrigger>
                 <TabsTrigger value="emotions" className="bg-white" data-testid="mobile-tab-emotions">감정</TabsTrigger>
                 <TabsTrigger value="trends" className="bg-white" data-testid="mobile-tab-trends">트렌드</TabsTrigger>
                 <TabsTrigger value="content" className="bg-white" data-testid="mobile-tab-content">컨텐츠</TabsTrigger>
-                <TabsTrigger value="participants" className="bg-white" data-testid="mobile-tab-participants">참석자</TabsTrigger>
                 <TabsTrigger value="translations" className="bg-white" data-testid="mobile-tab-translations">번역</TabsTrigger>
               </TabsList>
             </div>
@@ -1666,21 +1670,60 @@ export default function AdminDashboard() {
 
                 return (
                   <>
-                    <div className="text-sm text-slate-500 mb-3 flex flex-wrap items-center gap-2">
-                      <span>총 <span className="font-semibold text-slate-700">{sorted.length}</span>명의 참석자</span>
-                      {participantSearch && (
-                        <span className="px-2 py-0.5 bg-slate-100 rounded text-xs">검색: "{participantSearch}"</span>
-                      )}
-                      {(participantDateFrom || participantDateTo) && (
-                        <span className="px-2 py-0.5 bg-blue-50 text-blue-700 rounded text-xs">
-                          훈련일: {participantDateFrom || '∞'} ~ {participantDateTo || '∞'}
-                        </span>
+                    <div className="text-sm text-slate-500 mb-3 flex flex-wrap items-center justify-between gap-2">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span>총 <span className="font-semibold text-slate-700">{sorted.length}</span>명의 참석자</span>
+                        {participantSearch && (
+                          <span className="px-2 py-0.5 bg-slate-100 rounded text-xs">검색: "{participantSearch}"</span>
+                        )}
+                        {(participantDateFrom || participantDateTo) && (
+                          <span className="px-2 py-0.5 bg-blue-50 text-blue-700 rounded text-xs">
+                            훈련일: {participantDateFrom || '∞'} ~ {participantDateTo || '∞'}
+                          </span>
+                        )}
+                      </div>
+                      {selectedParticipantIds.size > 0 && (
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs text-corporate-700 font-medium bg-corporate-50 px-2 py-1 rounded">
+                            {selectedParticipantIds.size}명 선택됨
+                          </span>
+                          <Button
+                            size="sm"
+                            variant="default"
+                            className="bg-corporate-600 hover:bg-corporate-700 h-8 text-xs"
+                            onClick={() => setShowBulkReportDialog(true)}
+                          >
+                            <Download className="w-3 h-3 mr-1" />
+                            피드백 리포트 다운로드
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="h-8 text-xs text-slate-500"
+                            onClick={() => setSelectedParticipantIds(new Set())}
+                          >
+                            선택 해제
+                          </Button>
+                        </div>
                       )}
                     </div>
                     <div className="overflow-x-auto rounded-lg border border-slate-200">
                       <table className="w-full text-sm">
                         <thead className="bg-slate-50 border-b border-slate-200">
                           <tr>
+                            <th className="p-3 w-10">
+                              <Checkbox
+                                checked={sorted.length > 0 && sorted.every(p => selectedParticipantIds.has(p.userId))}
+                                onCheckedChange={(checked) => {
+                                  if (checked) {
+                                    setSelectedParticipantIds(new Set(sorted.map(p => p.userId)));
+                                  } else {
+                                    setSelectedParticipantIds(new Set());
+                                  }
+                                }}
+                                aria-label="전체 선택"
+                              />
+                            </th>
                             <th className="p-3 text-left font-medium text-slate-600 cursor-pointer hover:text-slate-800" onClick={() => handleSort('name')}>
                               이름 <SortIcon col="name" />
                             </th>
@@ -1708,12 +1751,24 @@ export default function AdminDashboard() {
                         <tbody>
                           {sorted.length === 0 ? (
                             <tr>
-                              <td colSpan={8} className="p-8 text-center text-slate-400">
+                              <td colSpan={9} className="p-8 text-center text-slate-400">
                                 {(participantSearch || participantDateFrom || participantDateTo) ? '조건에 맞는 참석자가 없습니다.' : '아직 훈련에 참여한 사용자가 없습니다.'}
                               </td>
                             </tr>
                           ) : sorted.map((p, idx) => (
-                            <tr key={p.userId} className={`border-b hover:bg-slate-50 transition-colors ${idx % 2 === 0 ? '' : 'bg-slate-50/40'}`} data-testid={`participant-row-${idx}`}>
+                            <tr key={p.userId} className={`border-b hover:bg-slate-50 transition-colors ${selectedParticipantIds.has(p.userId) ? 'bg-corporate-50/40' : idx % 2 === 0 ? '' : 'bg-slate-50/40'}`} data-testid={`participant-row-${idx}`}>
+                              <td className="p-3">
+                                <Checkbox
+                                  checked={selectedParticipantIds.has(p.userId)}
+                                  onCheckedChange={(checked) => {
+                                    const next = new Set(selectedParticipantIds);
+                                    if (checked) next.add(p.userId);
+                                    else next.delete(p.userId);
+                                    setSelectedParticipantIds(next);
+                                  }}
+                                  aria-label={`${p.name} 선택`}
+                                />
+                              </td>
                               <td className="p-3">
                                 <Link href={`/admin/participant/${p.userId}`} className="font-medium text-corporate-600 hover:text-corporate-700 hover:underline flex items-center gap-1">
                                   {p.name}
@@ -1758,6 +1813,78 @@ export default function AdminDashboard() {
                         </tbody>
                       </table>
                     </div>
+
+                    {/* 일괄 피드백 리포트 다운로드 다이얼로그 */}
+                    <Dialog open={showBulkReportDialog} onOpenChange={setShowBulkReportDialog}>
+                      <DialogContent className="max-w-4xl max-h-[85vh] overflow-y-auto">
+                        <DialogHeader>
+                          <DialogTitle className="flex items-center gap-2">
+                            <Printer className="w-5 h-5" />
+                            피드백 리포트 — {selectedParticipantIds.size}명 선택
+                          </DialogTitle>
+                        </DialogHeader>
+                        <div className="flex justify-end mb-4">
+                          <Button onClick={() => window.print()} className="bg-corporate-600 hover:bg-corporate-700">
+                            <Printer className="w-4 h-4 mr-2" />
+                            인쇄 / PDF 저장
+                          </Button>
+                        </div>
+                        <div id="bulk-report-print-area" className="space-y-6">
+                          {sorted.filter(p => selectedParticipantIds.has(p.userId)).map((p, idx) => (
+                            <div key={p.userId} className={`p-5 rounded-lg border border-slate-200 bg-white ${idx > 0 ? 'page-break-before' : ''}`}>
+                              <div className="flex items-start justify-between mb-4">
+                                <div>
+                                  <h3 className="text-lg font-bold text-slate-800">{p.name}</h3>
+                                  <p className="text-sm text-slate-500">{p.email}</p>
+                                  {p.categories.length > 0 && (
+                                    <div className="flex flex-wrap gap-1 mt-1">
+                                      {p.categories.map((cat, ci) => (
+                                        <span key={ci} className="px-2 py-0.5 bg-blue-50 text-blue-700 rounded text-xs">{cat}</span>
+                                      ))}
+                                    </div>
+                                  )}
+                                </div>
+                                <span className={`px-3 py-1 rounded-full text-sm font-semibold ${tierColors[p.tier] || 'bg-slate-100 text-slate-600'}`}>
+                                  {p.tier}
+                                </span>
+                              </div>
+                              <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+                                <div className="bg-slate-50 rounded-lg p-3 text-center">
+                                  <div className="text-xs text-slate-500 mb-1">완료 세션</div>
+                                  <div className="text-xl font-bold text-corporate-600">{p.completedSessions}</div>
+                                  <div className="text-xs text-slate-400">/ {p.totalSessions}개</div>
+                                </div>
+                                <div className="bg-slate-50 rounded-lg p-3 text-center">
+                                  <div className="text-xs text-slate-500 mb-1">평균 점수</div>
+                                  <div className={`text-xl font-bold ${scoreColor(p.averageScore)}`}>
+                                    {p.averageScore !== null ? `${p.averageScore}점` : '-'}
+                                  </div>
+                                </div>
+                                <div className="bg-slate-50 rounded-lg p-3 text-center">
+                                  <div className="text-xs text-slate-500 mb-1">최근 점수</div>
+                                  <div className={`text-xl font-bold ${scoreColor(p.latestScore)}`}>
+                                    {p.latestScore !== null ? `${p.latestScore}점` : '-'}
+                                  </div>
+                                </div>
+                                <div className="bg-slate-50 rounded-lg p-3 text-center">
+                                  <div className="text-xs text-slate-500 mb-1">최근 훈련일</div>
+                                  <div className="text-sm font-semibold text-slate-700">
+                                    {p.lastTrainingAt
+                                      ? new Date(p.lastTrainingAt).toLocaleDateString('ko-KR', { year: 'numeric', month: '2-digit', day: '2-digit' })
+                                      : '-'}
+                                  </div>
+                                </div>
+                              </div>
+                              <div className="text-right">
+                                <Link href={`/admin/participant/${p.userId}`} className="text-xs text-corporate-600 hover:underline">
+                                  상세 이력 보기 →
+                                </Link>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </DialogContent>
+                    </Dialog>
                   </>
                 );
               })()}

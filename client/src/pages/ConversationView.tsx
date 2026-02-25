@@ -1,4 +1,4 @@
-import { useRoute } from "wouter";
+import { useRoute, useLocation } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import { useMemo } from "react";
 import { type ConversationMessage } from "@shared/schema";
@@ -14,7 +14,9 @@ export default function ConversationView() {
   const { t } = useTranslation();
   const { user: currentUser } = useAuth();
   const [, params] = useRoute("/chat/:conversationId");
+  const [, navigate] = useLocation();
   const conversationId = params?.conversationId;
+  const returnTo = new URLSearchParams(window.location.search).get('returnTo') || null;
 
   const { data: conversation, isLoading: conversationLoading } = useQuery<any>({
     queryKey: ["/api/conversations", conversationId],
@@ -86,7 +88,7 @@ export default function ConversationView() {
       {isAdminView && (
         <div className="bg-blue-50 border-b border-blue-200 px-4 py-2 flex items-center justify-between">
           <span className="text-sm text-blue-800">관리자 열람 모드 — 읽기 전용입니다.</span>
-          <Button size="sm" variant="outline" onClick={() => window.history.back()}>뒤로 가기</Button>
+          <Button size="sm" variant="outline" onClick={() => returnTo ? navigate(returnTo) : window.history.back()}>뒤로 가기</Button>
         </div>
       )}
       <div className="max-w-4xl mx-auto p-6">
@@ -100,7 +102,7 @@ export default function ConversationView() {
           {isAdminView ? (
             <Button
               variant="outline"
-              onClick={() => window.history.back()}
+              onClick={() => returnTo ? navigate(returnTo) : window.history.back()}
               data-testid="back-button"
             >
               <ArrowLeft className="w-4 h-4 mr-2" />

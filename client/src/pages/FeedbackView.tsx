@@ -1,4 +1,4 @@
-import { useRoute } from "wouter";
+import { useRoute, useLocation } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import { useMemo } from "react";
 import PersonalDevelopmentReport from "@/components/PersonalDevelopmentReport";
@@ -11,7 +11,9 @@ export default function FeedbackView() {
   const { t } = useTranslation();
   const { user: currentUser } = useAuth();
   const [, params] = useRoute("/feedback/:conversationId");
+  const [, navigate] = useLocation();
   const conversationId = params?.conversationId;
+  const returnTo = new URLSearchParams(window.location.search).get('returnTo') || null;
 
   const { data: conversation, isLoading: conversationLoading } = useQuery<any>({
     queryKey: ["/api/conversations", conversationId],
@@ -103,7 +105,7 @@ export default function FeedbackView() {
       {isAdminView && (
         <div className="bg-blue-50 border-b border-blue-200 px-4 py-2 flex items-center justify-between">
           <span className="text-sm text-blue-800">관리자 열람 모드 — 읽기 전용입니다.</span>
-          <Button size="sm" variant="outline" onClick={() => window.history.back()}>뒤로 가기</Button>
+          <Button size="sm" variant="outline" onClick={() => returnTo ? navigate(returnTo) : window.history.back()}>뒤로 가기</Button>
         </div>
       )}
       {showDeletedBanner && (
