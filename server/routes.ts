@@ -3439,6 +3439,176 @@ export async function registerRoutes(app: Express, httpServer: Server): Promise<
     return [];
   };
 
+  // ===== 참석자 관리 API =====
+  app.get("/api/admin/analytics/participants", isAuthenticated, async (req: any, res) => {
+    try {
+      const user = req.user;
+      const categoryIdParam = req.query.categoryId as string | undefined;
+      const search = (req.query.search as string || '').toLowerCase().trim();
+
+      const allScenarioRuns = await storage.getAllScenarioRuns();
+      const allPersonaRuns = await storage.getAllPersonaRuns();
+      const allFeedbacks = await storage.getAllFeedbacks();
+      const allScenarios = await fileManager.getAllScenarios();
+      const allUsers = await storage.getAllUsers();
+      const allCategories = await storage.getAllCategories();
+
+      // 접근 가능한 카테고리 결정
+      let accessibleCategoryIds: string[] = [];
+      let restrictToEmpty = false;
+
+      if (user.role === 'admin') {
+        if (categoryIdParam) {
+          accessibleCategoryIds = [categoryIdParam];
+        } else {
+          accessibleCategoryIds = [];
+        }
+      } else if (user.role === 'operator') {
+        accessibleCategoryIds = await getOperatorAccessibleCategoryIds(user);
+        if (accessibleCategoryIds.length === 0) {
+          restrictToEmpty = true;
+        }
+      }
+
+      if (restrictToEmpty) {
+        return res.json({ participants: [] });
+      }
+
+      // 접근 가능한 시나리오 필터링
+      const scenarios = accessibleCategoryIds.length > 0
+        ? allScenarios.filter((s: any) => accessibleCategoryIds.includes(String(s.categoryId)))
+        : allScenarios;
+      const scenarioIds = new Set(scenarios.map((s: any) => s.id));
+
+      // scenarioRuns 필터링
+      const scenarioRuns = accessibleCategoryIds.length > 0
+        ? allScenarioRuns.filter(sr => scenarioIds.has(sr.scenarioId))
+        : allScenarioRuns;
+
+      // personaRuns 필터링
+      const scenarioRunIds = new Set(scenarioRuns.map(sr => sr.id));
+      const personaRuns = accessibleCategoryIds.length > 0
+        ? allPersonaRuns.filter(pr => scenarioRunIds.has(pr.scenarioRunId))
+        : allPersonaRuns;
+      const personaRunIds = new Set(personaRuns.map(pr => pr.id));
+
+      // feedbacks 필터링
+      const feedbacks = allFeedbacks.filter(f => f.personaRunId && personaRunIds.has(f.personaRunId));
+
+      // 사용자 ID 기준으로 통계 집계
+      const scenarioRunsByUser = new Map<string, typeof scenarioRuns>();
+      for (const sr of scenarioRuns) {
+        if (!scenarioRunsByUser.has(sr.userId)) {
+          scenarioRunsByUser.set(sr.userId, []);
+        }
+        scenarioRunsByUser.get(sr.userId)!.push(sr);
+      }
+
+      // personaRun → scenarioRun → userId 매핑을 위한 빠른 조회 맵
+      const scenarioRunMap = new Map(scenarioRuns.map(sr => [sr.id, sr]));
+
+      // personaRunId → userId 맵
+      const personaRunToUserId = new Map<string, string>();
+      for (const pr of personaRuns) {
+        const sr = scenarioRunMap.get(pr.scenarioRunId);
+        if (sr) personaRunToUserId.set(pr.id, sr.userId);
+      }
+
+      // 사용자별 피드백 그룹화
+      const feedbacksByUser = new Map<string, typeof feedbacks>();
+      for (const f of feedbacks) {
+        if (!f.personaRunId) continue;
+        const uid = personaRunToUserId.get(f.personaRunId);
+        if (!uid) continue;
+        if (!feedbacksByUser.has(uid)) feedbacksByUser.set(uid, []);
+        feedbacksByUser.get(uid)!.push(f);
+      }
+
+      // 사용자별 마지막 훈련일 (scenarioRun.completedAt 기준)
+      const lastTrainingByUser = new Map<string, Date>();
+      for (const sr of scenarioRuns) {
+        if (!sr.completedAt) continue;
+        const existing = lastTrainingByUser.get(sr.userId);
+        if (!existing || sr.completedAt > existing) {
+          lastTrainingByUser.set(sr.userId, sr.completedAt);
+        }
+      }
+
+      // 사용자별 카테고리 목록 (시나리오 categoryId 기준)
+      const scenarioToCategoryName = new Map<string, string>();
+      for (const s of scenarios) {
+        const cat = allCategories.find(c => c.id === String((s as any).categoryId));
+        if (cat) scenarioToCategoryName.set(s.id, cat.name);
+      }
+
+      const userCategoriesMap = new Map<string, Set<string>>();
+      for (const sr of scenarioRuns) {
+        const catName = scenarioToCategoryName.get(sr.scenarioId);
+        if (!catName) continue;
+        if (!userCategoriesMap.has(sr.userId)) userCategoriesMap.set(sr.userId, new Set());
+        userCategoriesMap.get(sr.userId)!.add(catName);
+      }
+
+      // 참여자 목록 생성 (personaRuns가 1개 이상인 사용자만)
+      const participantUserIds = new Set(personaRuns.map(pr => {
+        const sr = scenarioRunMap.get(pr.scenarioRunId);
+        return sr?.userId;
+      }).filter(Boolean) as string[]);
+
+      const participants = [];
+      for (const uid of participantUserIds) {
+        const u = allUsers.find(u => u.id === uid);
+        if (!u) continue;
+
+        // 검색 필터
+        if (search) {
+          const nameMatch = u.name.toLowerCase().includes(search);
+          const emailMatch = u.email.toLowerCase().includes(search);
+          if (!nameMatch && !emailMatch) continue;
+        }
+
+        const userScenarioRuns = scenarioRunsByUser.get(uid) || [];
+        const completedRuns = userScenarioRuns.filter(sr => sr.status === 'completed');
+        const userFeedbacks = feedbacksByUser.get(uid) || [];
+        const avgScore = userFeedbacks.length > 0
+          ? Math.round(userFeedbacks.reduce((acc, f) => acc + f.overallScore, 0) / userFeedbacks.length)
+          : null;
+        const latestFeedback = userFeedbacks.sort((a, b) =>
+          new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+        )[0];
+        const lastTraining = lastTrainingByUser.get(uid);
+        const categories = Array.from(userCategoriesMap.get(uid) || []);
+
+        participants.push({
+          userId: uid,
+          name: u.name,
+          email: u.email,
+          role: u.role,
+          tier: u.tier,
+          totalSessions: userScenarioRuns.length,
+          completedSessions: completedRuns.length,
+          averageScore: avgScore,
+          latestScore: latestFeedback?.overallScore ?? null,
+          lastTrainingAt: lastTraining?.toISOString() ?? null,
+          categories,
+        });
+      }
+
+      // 최근 훈련일 내림차순 정렬
+      participants.sort((a, b) => {
+        if (!a.lastTrainingAt && !b.lastTrainingAt) return 0;
+        if (!a.lastTrainingAt) return 1;
+        if (!b.lastTrainingAt) return -1;
+        return new Date(b.lastTrainingAt).getTime() - new Date(a.lastTrainingAt).getTime();
+      });
+
+      res.json({ participants });
+    } catch (error) {
+      console.error("Error getting participants:", error);
+      res.status(500).json({ error: "Failed to get participants" });
+    }
+  });
+
   // 메인 사용자용 시나리오/페르소나 API
   app.get("/api/scenarios", async (req, res) => {
     try {

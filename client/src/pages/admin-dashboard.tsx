@@ -140,10 +140,27 @@ interface Category {
   name: string;
 }
 
+interface Participant {
+  userId: string;
+  name: string;
+  email: string;
+  role: string;
+  tier: string;
+  totalSessions: number;
+  completedSessions: number;
+  averageScore: number | null;
+  latestScore: number | null;
+  lastTrainingAt: string | null;
+  categories: string[];
+}
+
 export default function AdminDashboard() {
   const { user } = useAuth();
   const [showMobileTabMenu, setShowMobileTabMenu] = useState(false);
   const [selectedCategoryId, setSelectedCategoryId] = useState<string>('all');
+  const [participantSearch, setParticipantSearch] = useState('');
+  const [participantSortKey, setParticipantSortKey] = useState<keyof Participant>('lastTrainingAt');
+  const [participantSortAsc, setParticipantSortAsc] = useState(false);
 
   // 카테고리 목록 가져오기
   const { data: categories = [] } = useQuery<Category[]>({
@@ -244,6 +261,19 @@ export default function AdminDashboard() {
     queryFn: () => fetch('/api/admin/personas').then(res => res.json()),
     staleTime: 1000 * 60 * 30,
     gcTime: 1000 * 60 * 60,
+  });
+
+  // 참석자 목록 가져오기
+  const { data: participantsData, isLoading: participantsLoading } = useQuery<{ participants: Participant[] }>({
+    queryKey: ['/api/admin/analytics/participants', selectedCategoryId],
+    queryFn: () => {
+      const token = localStorage.getItem("authToken");
+      const headers: Record<string, string> = {};
+      if (token) headers["Authorization"] = `Bearer ${token}`;
+      return fetch(`/api/admin/analytics/participants${categoryParam}`, { credentials: 'include', headers }).then(res => res.json());
+    },
+    staleTime: 1000 * 60 * 5,
+    gcTime: 1000 * 60 * 15,
   });
 
   if (overviewLoading || performanceLoading || trendsLoading || emotionsLoading) {
@@ -370,7 +400,7 @@ export default function AdminDashboard() {
       {/* Detailed Analytics */}
       <Tabs defaultValue="overview" className="space-y-6" onValueChange={(value) => setShowMobileTabMenu(false)}>
         {/* 데스크톱 탭 */}
-        <TabsList className="hidden md:grid w-full grid-cols-8">
+        <TabsList className="hidden md:grid w-full grid-cols-9">
           <TabsTrigger value="overview" data-testid="tab-overview">개요</TabsTrigger>
           <TabsTrigger value="performance" data-testid="tab-performance">성과 분석</TabsTrigger>
           <TabsTrigger value="scenarios" data-testid="tab-scenarios">시나리오 분석</TabsTrigger>
@@ -378,6 +408,7 @@ export default function AdminDashboard() {
           <TabsTrigger value="emotions" data-testid="tab-emotions">감정 분석</TabsTrigger>
           <TabsTrigger value="trends" data-testid="tab-trends">트렌드 분석</TabsTrigger>
           <TabsTrigger value="content" data-testid="tab-content">컨텐츠 현황</TabsTrigger>
+          <TabsTrigger value="participants" data-testid="tab-participants">참석자 관리</TabsTrigger>
           <TabsTrigger value="translations" data-testid="tab-translations">번역 관리</TabsTrigger>
         </TabsList>
         
@@ -401,11 +432,12 @@ export default function AdminDashboard() {
           {/* 확장 메뉴 */}
           {showMobileTabMenu && (
             <div className="bg-slate-100 rounded-lg p-2 animate-in slide-in-from-top duration-200">
-              <TabsList className="grid w-full grid-cols-5 gap-2 bg-transparent">
+              <TabsList className="grid w-full grid-cols-6 gap-2 bg-transparent">
                 <TabsTrigger value="mbti" className="bg-white" data-testid="mobile-tab-mbti">MBTI</TabsTrigger>
                 <TabsTrigger value="emotions" className="bg-white" data-testid="mobile-tab-emotions">감정</TabsTrigger>
                 <TabsTrigger value="trends" className="bg-white" data-testid="mobile-tab-trends">트렌드</TabsTrigger>
                 <TabsTrigger value="content" className="bg-white" data-testid="mobile-tab-content">컨텐츠</TabsTrigger>
+                <TabsTrigger value="participants" className="bg-white" data-testid="mobile-tab-participants">참석자</TabsTrigger>
                 <TabsTrigger value="translations" className="bg-white" data-testid="mobile-tab-translations">번역</TabsTrigger>
               </TabsList>
             </div>
@@ -1511,6 +1543,169 @@ export default function AdminDashboard() {
               </CardContent>
             </Card>
           </div>
+        </TabsContent>
+
+        {/* 참석자 관리 탭 */}
+        <TabsContent value="participants" className="space-y-6">
+          <Card className="card-enhanced">
+            <CardHeader>
+              <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+                <CardTitle className="text-lg font-semibold text-slate-800">참석자 관리</CardTitle>
+                <div className="flex items-center gap-2">
+                  <Input
+                    placeholder="이름 또는 이메일 검색..."
+                    value={participantSearch}
+                    onChange={e => setParticipantSearch(e.target.value)}
+                    className="w-56 h-9 text-sm"
+                    data-testid="participant-search"
+                  />
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent>
+              {participantsLoading ? (
+                <div className="flex items-center justify-center py-12">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-corporate-600"></div>
+                </div>
+              ) : (() => {
+                const allParticipants = participantsData?.participants || [];
+                const filtered = participantSearch
+                  ? allParticipants.filter(p =>
+                      p.name.toLowerCase().includes(participantSearch.toLowerCase()) ||
+                      p.email.toLowerCase().includes(participantSearch.toLowerCase())
+                    )
+                  : allParticipants;
+
+                const sorted = [...filtered].sort((a, b) => {
+                  const av = a[participantSortKey];
+                  const bv = b[participantSortKey];
+                  if (av === null || av === undefined) return 1;
+                  if (bv === null || bv === undefined) return -1;
+                  if (typeof av === 'string' && typeof bv === 'string') {
+                    return participantSortAsc ? av.localeCompare(bv) : bv.localeCompare(av);
+                  }
+                  if (typeof av === 'number' && typeof bv === 'number') {
+                    return participantSortAsc ? av - bv : bv - av;
+                  }
+                  return 0;
+                });
+
+                const handleSort = (key: keyof Participant) => {
+                  if (participantSortKey === key) {
+                    setParticipantSortAsc(!participantSortAsc);
+                  } else {
+                    setParticipantSortKey(key);
+                    setParticipantSortAsc(false);
+                  }
+                };
+
+                const SortIcon = ({ col }: { col: keyof Participant }) => (
+                  <span className="ml-1 text-xs text-slate-400">
+                    {participantSortKey === col ? (participantSortAsc ? '▲' : '▼') : '⇅'}
+                  </span>
+                );
+
+                const tierColors: Record<string, string> = {
+                  bronze: 'bg-orange-100 text-orange-700',
+                  silver: 'bg-slate-100 text-slate-600',
+                  gold: 'bg-yellow-100 text-yellow-700',
+                  platinum: 'bg-cyan-100 text-cyan-700',
+                  diamond: 'bg-purple-100 text-purple-700',
+                };
+
+                const scoreColor = (score: number | null) => {
+                  if (score === null) return 'text-slate-400';
+                  if (score >= 90) return 'text-emerald-600 font-bold';
+                  if (score >= 70) return 'text-blue-600 font-semibold';
+                  if (score >= 50) return 'text-amber-600';
+                  return 'text-red-500';
+                };
+
+                return (
+                  <>
+                    <div className="text-sm text-slate-500 mb-3">
+                      총 <span className="font-semibold text-slate-700">{sorted.length}</span>명의 참석자
+                      {participantSearch && ` (검색: "${participantSearch}")`}
+                    </div>
+                    <div className="overflow-x-auto rounded-lg border border-slate-200">
+                      <table className="w-full text-sm">
+                        <thead className="bg-slate-50 border-b border-slate-200">
+                          <tr>
+                            <th className="p-3 text-left font-medium text-slate-600 cursor-pointer hover:text-slate-800" onClick={() => handleSort('name')}>
+                              이름 <SortIcon col="name" />
+                            </th>
+                            <th className="p-3 text-left font-medium text-slate-600 cursor-pointer hover:text-slate-800" onClick={() => handleSort('email')}>
+                              이메일 <SortIcon col="email" />
+                            </th>
+                            <th className="p-3 text-left font-medium text-slate-600">카테고리</th>
+                            <th className="p-3 text-center font-medium text-slate-600 cursor-pointer hover:text-slate-800" onClick={() => handleSort('completedSessions')}>
+                              완료 세션 <SortIcon col="completedSessions" />
+                            </th>
+                            <th className="p-3 text-center font-medium text-slate-600 cursor-pointer hover:text-slate-800" onClick={() => handleSort('averageScore')}>
+                              평균 점수 <SortIcon col="averageScore" />
+                            </th>
+                            <th className="p-3 text-center font-medium text-slate-600 cursor-pointer hover:text-slate-800" onClick={() => handleSort('latestScore')}>
+                              최근 점수 <SortIcon col="latestScore" />
+                            </th>
+                            <th className="p-3 text-center font-medium text-slate-600 cursor-pointer hover:text-slate-800" onClick={() => handleSort('lastTrainingAt')}>
+                              최근 훈련일 <SortIcon col="lastTrainingAt" />
+                            </th>
+                            <th className="p-3 text-center font-medium text-slate-600 cursor-pointer hover:text-slate-800" onClick={() => handleSort('tier')}>
+                              등급 <SortIcon col="tier" />
+                            </th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {sorted.length === 0 ? (
+                            <tr>
+                              <td colSpan={8} className="p-8 text-center text-slate-400">
+                                {participantSearch ? '검색 결과가 없습니다.' : '아직 훈련에 참여한 사용자가 없습니다.'}
+                              </td>
+                            </tr>
+                          ) : sorted.map((p, idx) => (
+                            <tr key={p.userId} className={`border-b hover:bg-slate-50 transition-colors ${idx % 2 === 0 ? '' : 'bg-slate-50/40'}`} data-testid={`participant-row-${idx}`}>
+                              <td className="p-3 font-medium text-slate-800">{p.name}</td>
+                              <td className="p-3 text-slate-500 text-xs">{p.email}</td>
+                              <td className="p-3">
+                                <div className="flex flex-wrap gap-1">
+                                  {p.categories.length > 0
+                                    ? p.categories.map((cat, ci) => (
+                                        <span key={ci} className="px-2 py-0.5 bg-blue-50 text-blue-700 rounded text-xs">{cat}</span>
+                                      ))
+                                    : <span className="text-slate-400 text-xs">-</span>
+                                  }
+                                </div>
+                              </td>
+                              <td className="p-3 text-center">
+                                <span className="font-semibold text-slate-700">{p.completedSessions}</span>
+                                <span className="text-slate-400 text-xs"> / {p.totalSessions}</span>
+                              </td>
+                              <td className={`p-3 text-center ${scoreColor(p.averageScore)}`}>
+                                {p.averageScore !== null ? `${p.averageScore}점` : '-'}
+                              </td>
+                              <td className={`p-3 text-center ${scoreColor(p.latestScore)}`}>
+                                {p.latestScore !== null ? `${p.latestScore}점` : '-'}
+                              </td>
+                              <td className="p-3 text-center text-slate-500 text-xs">
+                                {p.lastTrainingAt
+                                  ? new Date(p.lastTrainingAt).toLocaleDateString('ko-KR', { year: 'numeric', month: '2-digit', day: '2-digit' })
+                                  : '-'}
+                              </td>
+                              <td className="p-3 text-center">
+                                <span className={`px-2 py-0.5 rounded text-xs font-medium ${tierColors[p.tier] || 'bg-slate-100 text-slate-600'}`}>
+                                  {p.tier}
+                                </span>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </>
+                );
+              })()}
+            </CardContent>
+          </Card>
         </TabsContent>
 
         <TabsContent value="translations" className="space-y-6">
