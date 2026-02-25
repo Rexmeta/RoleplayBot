@@ -1690,9 +1690,11 @@ export async function registerRoutes(app: Express, httpServer: Server): Promise<
         return res.status(404).json({ error: "Conversation not found" });
       }
 
-      // ✨ scenario_run 조회하여 권한 확인
+      // ✨ scenario_run 조회하여 권한 확인 (관리자/운영자는 모든 피드백 생성 가능)
       const scenarioRun = await storage.getScenarioRun(personaRun.scenarioRunId);
-      if (!scenarioRun || scenarioRun.userId !== userId) {
+      const feedbackReqUser = req.user as any;
+      const isFeedbackAdminOrOp = feedbackReqUser?.role === 'admin' || feedbackReqUser?.role === 'operator';
+      if (!scenarioRun || (!isFeedbackAdminOrOp && scenarioRun.userId !== userId)) {
         return res.status(403).json({ error: "Unauthorized access" });
       }
 

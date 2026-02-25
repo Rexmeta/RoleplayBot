@@ -5,9 +5,11 @@ import PersonalDevelopmentReport from "@/components/PersonalDevelopmentReport";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useTranslation } from "react-i18next";
+import { useAuth } from "@/hooks/useAuth";
 
 export default function FeedbackView() {
   const { t } = useTranslation();
+  const { user: currentUser } = useAuth();
   const [, params] = useRoute("/feedback/:conversationId");
   const conversationId = params?.conversationId;
 
@@ -92,8 +94,18 @@ export default function FeedbackView() {
 
   const showDeletedBanner = effectiveScenario.isDeleted || isScenarioMissing;
 
+  const isAdminOrOperator = currentUser?.role === 'admin' || currentUser?.role === 'operator';
+  const isViewingOtherUser = isAdminOrOperator && conversation?.userId && conversation.userId !== currentUser?.id;
+  const isAdminView = !!isViewingOtherUser;
+
   return (
     <div>
+      {isAdminView && (
+        <div className="bg-blue-50 border-b border-blue-200 px-4 py-2 flex items-center justify-between">
+          <span className="text-sm text-blue-800">관리자 열람 모드 — 읽기 전용입니다.</span>
+          <Button size="sm" variant="outline" onClick={() => window.close()}>창 닫기</Button>
+        </div>
+      )}
       {showDeletedBanner && (
         <div className="bg-yellow-50 border-b border-yellow-200 px-4 py-2 text-center">
           <Badge variant="outline" className="bg-red-50 text-red-700 border-red-200 mr-2">삭제된 시나리오</Badge>
@@ -106,6 +118,7 @@ export default function FeedbackView() {
         conversationId={conversationId || ""}
         onRetry={() => window.location.reload()}
         onSelectNewScenario={() => window.location.href = '/home'}
+        isAdminView={isAdminView}
       />
     </div>
   );

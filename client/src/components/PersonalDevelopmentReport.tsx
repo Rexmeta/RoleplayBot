@@ -22,6 +22,7 @@ interface PersonalDevelopmentReportProps {
   onNextPersona?: () => void;
   onFeedbackGeneratingChange?: (isGenerating: boolean) => void;
   onReady?: () => void;
+  isAdminView?: boolean;
 }
 
 // 애니메이션 없이 바로 값 표시 (hooks 오류 방지)
@@ -38,7 +39,8 @@ export default function PersonalDevelopmentReport({
   allPersonasCompleted,
   onNextPersona,
   onFeedbackGeneratingChange,
-  onReady
+  onReady,
+  isAdminView = false
 }: PersonalDevelopmentReportProps) {
   const { toast } = useToast();
   const { t } = useTranslation();
@@ -825,22 +827,24 @@ export default function PersonalDevelopmentReport({
         </div>
         <h2 className="text-xl font-semibold text-slate-900 mb-2">{t('report.notGenerated', '피드백이 아직 생성되지 않았습니다')}</h2>
         <p className="text-slate-600 mb-4">{t('report.notGeneratedDesc', '대화를 완료한 후 피드백을 생성할 수 있습니다.')}</p>
-        <div className="space-y-2">
-          <Button 
-            onClick={handleGenerateFeedback} 
-            data-testid="generate-feedback"
-            disabled={generateFeedbackMutation.isPending}
-          >
-            {generateFeedbackMutation.isPending ? t('report.generating', '피드백 생성 중...') : t('report.generate', '피드백 생성하기')}
-          </Button>
-          <Button 
-            variant="outline" 
-            onClick={() => window.location.href = '/mypage'} 
-            data-testid="back-to-mypage"
-          >
-            {t('report.backToMyPage', '마이페이지로 돌아가기')}
-          </Button>
-        </div>
+        {!isAdminView && (
+          <div className="space-y-2">
+            <Button 
+              onClick={handleGenerateFeedback} 
+              data-testid="generate-feedback"
+              disabled={generateFeedbackMutation.isPending}
+            >
+              {generateFeedbackMutation.isPending ? t('report.generating', '피드백 생성 중...') : t('report.generate', '피드백 생성하기')}
+            </Button>
+            <Button 
+              variant="outline" 
+              onClick={() => window.location.href = '/mypage'} 
+              data-testid="back-to-mypage"
+            >
+              {t('report.backToMyPage', '마이페이지로 돌아가기')}
+            </Button>
+          </div>
+        )}
       </div>
     );
   }
@@ -858,13 +862,13 @@ export default function PersonalDevelopmentReport({
           <Button onClick={() => refetch()} data-testid="refetch-feedback">
             {t('common.retry', '다시 시도')}
           </Button>
-          <Button 
+          {!isAdminView && <Button 
             variant="outline" 
             onClick={() => window.location.href = '/mypage'} 
             data-testid="back-to-mypage"
           >
             {t('report.backToMyPage', '마이페이지로 돌아가기')}
-          </Button>
+          </Button>}
         </div>
       </div>
     );
@@ -934,7 +938,7 @@ export default function PersonalDevelopmentReport({
       >
         <div className="flex items-center justify-between mb-4">
           <div></div>
-          <Button 
+          {!isAdminView && <Button 
             onClick={() => window.location.href = '/mypage'}
             variant="ghost"
             size="sm"
@@ -943,7 +947,7 @@ export default function PersonalDevelopmentReport({
           >
             <i className="fas fa-user mr-2"></i>
             {t('report.toMyPage', '마이페이지로')}
-          </Button>
+          </Button>}
         </div>
         <div className="flex items-center justify-between">
           <div 
@@ -1475,7 +1479,7 @@ export default function PersonalDevelopmentReport({
 
       {/* 액션 버튼 - 데스크톱 */}
       <div className="hidden md:flex justify-center flex-wrap gap-3 pt-6 border-t border-slate-200 no-print">
-        <Button 
+        {!isAdminView && <Button 
           onClick={() => window.location.href = '/mypage'}
           variant="outline"
           className="min-w-[120px]"
@@ -1483,10 +1487,10 @@ export default function PersonalDevelopmentReport({
         >
           <i className="fas fa-home mr-2"></i>
           {t('report.myPage', '마이페이지')}
-        </Button>
+        </Button>}
         
-        {/* Home.tsx에서 전달된 다음 페르소나 버튼 (우선순위 높음) */}
-        {hasMorePersonas && onNextPersona && (
+        {/* Home.tsx에서 전달된 다음 페르소나 버튼 (우선순위 높음) - 관리자 보기에서는 숨김 */}
+        {!isAdminView && hasMorePersonas && onNextPersona && (
           <Button 
             onClick={onNextPersona}
             className="min-w-[120px] bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700"
@@ -1497,8 +1501,8 @@ export default function PersonalDevelopmentReport({
           </Button>
         )}
         
-        {/* 모든 페르소나 완료 시 전략 평가 버튼 */}
-        {allPersonasCompleted && onNextPersona && (
+        {/* 모든 페르소나 완료 시 전략 평가 버튼 - 관리자 보기에서는 숨김 */}
+        {!isAdminView && allPersonasCompleted && onNextPersona && (
           <Button 
             onClick={onNextPersona}
             className="min-w-[120px] bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700"
@@ -1509,8 +1513,8 @@ export default function PersonalDevelopmentReport({
           </Button>
         )}
         
-        {/* FeedbackView에서 사용하는 기존 순차적 다음 페르소나 버튼 */}
-        {!hasMorePersonas && !allPersonasCompleted && nextPersona && !isNextConversationCompleted() && (
+        {/* FeedbackView에서 사용하는 기존 순차적 다음 페르소나 버튼 - 관리자 보기에서는 숨김 */}
+        {!isAdminView && !hasMorePersonas && !allPersonasCompleted && nextPersona && !isNextConversationCompleted() && (
           <Button 
             onClick={handleNextConversation}
             className="min-w-[120px] bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700"
@@ -1522,7 +1526,7 @@ export default function PersonalDevelopmentReport({
           </Button>
         )}
         
-        <Button 
+        {!isAdminView && <Button 
           onClick={onSelectNewScenario}
           variant="outline"
           className="min-w-[120px]"
@@ -1530,15 +1534,15 @@ export default function PersonalDevelopmentReport({
         >
           <i className="fas fa-redo mr-2"></i>
           {t('report.newTraining', '새로운 훈련')}
-        </Button>
-        <Button 
+        </Button>}
+        {!isAdminView && <Button 
           onClick={onRetry}
           className="min-w-[120px]"
           data-testid="retry-scenario-button"
         >
           <i className="fas fa-sync-alt mr-2"></i>
           {t('report.retryScenario', '같은 시나리오 재도전')}
-        </Button>
+        </Button>}
         <Button 
           variant="secondary"
           onClick={handlePrint}
@@ -1684,7 +1688,7 @@ export default function PersonalDevelopmentReport({
         
         {/* 하단 스마트 버튼 바 */}
         <div className="flex items-center justify-between p-3">
-          <Button 
+          {!isAdminView && <Button 
             onClick={() => window.location.href = '/mypage'}
             variant="outline"
             className="flex-1 mr-2"
@@ -1692,7 +1696,7 @@ export default function PersonalDevelopmentReport({
           >
             <i className="fas fa-home mr-2"></i>
             {t('report.myPage', '마이페이지')}
-          </Button>
+          </Button>}
           
           <Button 
             onClick={() => setShowMobileMenu(!showMobileMenu)}

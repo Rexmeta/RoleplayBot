@@ -30,8 +30,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       });
       
       if (!response.ok) {
-        // 토큰이 유효하지 않으면 localStorage에서 제거
-        if (token) {
+        // 401(인증 실패)일 때만 토큰 제거 — 서버 오류(5xx) 등 일시적 오류 시 토큰 유지
+        // (localStorage는 탭 간 공유되므로, 새 탭 오류가 원래 탭 세션을 끊지 않도록 방지)
+        if (token && response.status === 401) {
           localStorage.removeItem("authToken");
         }
         return null;

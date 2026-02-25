@@ -8,9 +8,11 @@ import { Badge } from "@/components/ui/badge";
 import { ArrowLeft, MessageSquare } from "lucide-react";
 import { format } from "date-fns";
 import { useTranslation } from "react-i18next";
+import { useAuth } from "@/hooks/useAuth";
 
 export default function ConversationView() {
   const { t } = useTranslation();
+  const { user: currentUser } = useAuth();
   const [, params] = useRoute("/chat/:conversationId");
   const conversationId = params?.conversationId;
 
@@ -76,8 +78,17 @@ export default function ConversationView() {
 
   const showDeletedBanner = scenario?.isDeleted || isScenarioMissing;
 
+  const isAdminOrOperator = currentUser?.role === 'admin' || currentUser?.role === 'operator';
+  const isAdminView = isAdminOrOperator && conversation?.userId && conversation.userId !== currentUser?.id;
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
+      {isAdminView && (
+        <div className="bg-blue-50 border-b border-blue-200 px-4 py-2 flex items-center justify-between">
+          <span className="text-sm text-blue-800">관리자 열람 모드 — 읽기 전용입니다.</span>
+          <Button size="sm" variant="outline" onClick={() => window.close()}>창 닫기</Button>
+        </div>
+      )}
       <div className="max-w-4xl mx-auto p-6">
         {showDeletedBanner && (
           <div className="mb-4 bg-yellow-50 border border-yellow-200 rounded-lg px-4 py-2 text-center">
@@ -86,15 +97,26 @@ export default function ConversationView() {
           </div>
         )}
         <div className="mb-6 flex items-center justify-between">
-          <Button
-            variant="outline"
-            onClick={() => window.location.href = '/mypage'}
-            data-testid="back-button"
-          >
-            <ArrowLeft className="w-4 h-4 mr-2" />
-            {t('conversation.backToMyPage')}
-          </Button>
-          {conversation.status === 'completed' && (
+          {isAdminView ? (
+            <Button
+              variant="outline"
+              onClick={() => window.close()}
+              data-testid="back-button"
+            >
+              <ArrowLeft className="w-4 h-4 mr-2" />
+              창 닫기
+            </Button>
+          ) : (
+            <Button
+              variant="outline"
+              onClick={() => window.location.href = '/mypage'}
+              data-testid="back-button"
+            >
+              <ArrowLeft className="w-4 h-4 mr-2" />
+              {t('conversation.backToMyPage')}
+            </Button>
+          )}
+          {!isAdminView && conversation.status === 'completed' && (
             <Button
               onClick={() => window.location.href = `/feedback/${conversationId}`}
               data-testid="view-feedback-button"
