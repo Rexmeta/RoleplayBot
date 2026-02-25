@@ -103,7 +103,7 @@ export default function FeedbackView() {
       {isAdminView && (
         <div className="bg-blue-50 border-b border-blue-200 px-4 py-2 flex items-center justify-between">
           <span className="text-sm text-blue-800">관리자 열람 모드 — 읽기 전용입니다.</span>
-          <Button size="sm" variant="outline" onClick={() => window.close()}>창 닫기</Button>
+          <Button size="sm" variant="outline" onClick={() => window.history.back()}>뒤로 가기</Button>
         </div>
       )}
       {showDeletedBanner && (

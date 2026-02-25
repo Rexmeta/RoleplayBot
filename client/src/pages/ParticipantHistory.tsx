@@ -330,7 +330,7 @@ export default function ParticipantHistory() {
                                         <Button
                                           variant="outline"
                                           size="sm"
-                                          onClick={() => window.open(`/chat/${pr.id}`, "_blank")}
+                                          onClick={() => navigate(`/chat/${pr.id}`)}
                                         >
                                           대화 보기
                                         </Button>
@@ -339,7 +339,7 @@ export default function ParticipantHistory() {
                                             variant="default"
                                             size="sm"
                                             className="bg-corporate-600 hover:bg-corporate-700"
-                                            onClick={() => window.open(`/feedback/${pr.id}`, "_blank")}
+                                            onClick={() => navigate(`/feedback/${pr.id}`)}
                                           >
                                             피드백 보기
                                           </Button>

@@ -86,7 +86,7 @@ export default function ConversationView() {
       {isAdminView && (
         <div className="bg-blue-50 border-b border-blue-200 px-4 py-2 flex items-center justify-between">
           <span className="text-sm text-blue-800">관리자 열람 모드 — 읽기 전용입니다.</span>
-          <Button size="sm" variant="outline" onClick={() => window.close()}>창 닫기</Button>
+          <Button size="sm" variant="outline" onClick={() => window.history.back()}>뒤로 가기</Button>
         </div>
       )}
       <div className="max-w-4xl mx-auto p-6">
@@ -100,11 +100,11 @@ export default function ConversationView() {
           {isAdminView ? (
             <Button
               variant="outline"
-              onClick={() => window.close()}
+              onClick={() => window.history.back()}
               data-testid="back-button"
             >
               <ArrowLeft className="w-4 h-4 mr-2" />
-              창 닫기
+              뒤로 가기
             </Button>
           ) : (
             <Button
