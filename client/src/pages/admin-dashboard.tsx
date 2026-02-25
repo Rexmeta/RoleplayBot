@@ -184,134 +184,298 @@ export default function AdminDashboard() {
 
     const df = r.detailedFeedback || {};
     const scores: any[] = Array.isArray(r.scores) ? r.scores : [];
+    const behaviorGuides: any[] = Array.isArray(df.behaviorGuides) ? df.behaviorGuides : [];
+    const conversationGuides: any[] = Array.isArray(df.conversationGuides) ? df.conversationGuides : [];
+    const developmentPlan: any = df.developmentPlan || null;
+    const sequenceAnalysis: any = df.sequenceAnalysis || null;
     const now = new Date().toLocaleDateString('ko-KR');
 
-    const scoreRows = scores.map((s: any) => {
-      const label = safe(s.name || s.criterionName || s.category || '항목');
-      const val = Number(s.score ?? 0);
-      const pct = Math.round((val / 5) * 100);
-      return '<tr>'
-        + '<td style="padding:8px 12px;font-size:13px;color:#475569;">' + label + '</td>'
-        + '<td style="padding:8px 12px;text-align:center;font-weight:700;color:#1e3a5f;">' + val + ' / 5</td>'
-        + '<td style="padding:8px 12px;width:160px;">'
-        + '<div style="height:8px;background:#e2e8f0;border-radius:4px;overflow:hidden;">'
-        + '<div style="height:100%;width:' + pct + '%;background:#3b82f6;border-radius:4px;"></div>'
-        + '</div></td>'
-        + '</tr>';
-    }).join('');
+    const overallScore = Number(r.overallScore ?? 0);
+    const grade = overallScore >= 90 ? { letter: 'S', color: '#7c3aed' }
+      : overallScore >= 80 ? { letter: 'A', color: '#16a34a' }
+      : overallScore >= 70 ? { letter: 'B', color: '#2563eb' }
+      : overallScore >= 60 ? { letter: 'C', color: '#d97706' }
+      : { letter: 'D', color: '#dc2626' };
 
-    const listItems = (arr: string[], icon: string) => arr
-      .map((s: string) => '<li style="margin-bottom:6px;line-height:1.6;">' + icon + ' ' + safe(s) + '</li>')
-      .join('');
+    const p: string[] = [];
 
-    const parts: string[] = [];
-    parts.push('<!DOCTYPE html>');
-    parts.push('<html lang="ko">');
-    parts.push('<head>');
-    parts.push('<meta charset="UTF-8">');
-    parts.push('<meta name="color-scheme" content="light only">');
-    parts.push('<meta name="viewport" content="width=device-width, initial-scale=1.0">');
-    parts.push('<title>피드백 리포트 - ' + safe(r.user?.name) + '</title>');
-    parts.push('<style>');
-    parts.push('* { box-sizing: border-box; }');
-    parts.push('html { background: #f1f5f9; }');
-    parts.push('body { font-family: "Apple SD Gothic Neo","Malgun Gothic","Noto Sans KR",sans-serif;');
-    parts.push('  background: #f1f5f9; color: #1e293b; margin: 0; padding: 32px 16px; }');
-    parts.push('.wrap { max-width: 800px; margin: 0 auto; }');
-    parts.push('.header { background: #1e3a5f; color: #fff; border-radius: 12px; padding: 28px 32px; margin-bottom: 24px; }');
-    parts.push('.header h1 { margin: 0 0 4px; font-size: 22px; }');
-    parts.push('.header .sub { font-size: 13px; opacity: 0.75; }');
-    parts.push('.score-hero { float: right; text-align: center; }');
-    parts.push('.score-num { font-size: 52px; font-weight: 900; line-height: 1; }');
-    parts.push('.score-lbl { font-size: 12px; opacity: 0.8; }');
-    parts.push('.card { background: #ffffff; border-radius: 12px; padding: 24px 28px; margin-bottom: 16px;');
-    parts.push('  box-shadow: 0 1px 3px rgba(0,0,0,0.08); }');
-    parts.push('.card-title { font-size: 14px; font-weight: 700; color: #3b82f6;');
-    parts.push('  border-left: 3px solid #3b82f6; padding-left: 10px; margin: 0 0 16px; }');
-    parts.push('.meta-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }');
-    parts.push('.meta-item { font-size: 12px; color: #64748b; }');
-    parts.push('.meta-item strong { display: block; color: #334155; font-size: 14px; margin-top: 2px; }');
-    parts.push('.summary { background: #f0f9ff; border-left: 4px solid #3b82f6; border-radius: 6px;');
-    parts.push('  padding: 14px 16px; font-size: 13px; line-height: 1.8; color: #334155; }');
-    parts.push('table { width: 100%; border-collapse: collapse; }');
-    parts.push('th { text-align: left; font-size: 12px; color: #94a3b8; padding: 8px 12px;');
-    parts.push('  border-bottom: 1px solid #e2e8f0; }');
-    parts.push('ul { margin: 0; padding-left: 0; list-style: none; font-size: 13px; color: #334155; }');
-    parts.push('@media print { body { background: white; padding: 0; }');
-    parts.push('  .card { box-shadow: none; border: 1px solid #e2e8f0; page-break-inside: avoid; } }');
-    parts.push('</style>');
-    parts.push('</head>');
-    parts.push('<body>');
-    parts.push('<div class="wrap">');
+    p.push('<!DOCTYPE html>');
+    p.push('<html lang="ko">');
+    p.push('<head>');
+    p.push('<meta charset="UTF-8">');
+    p.push('<meta name="color-scheme" content="light only">');
+    p.push('<meta name="viewport" content="width=device-width,initial-scale=1.0">');
+    p.push('<title>' + safe(r.user?.name) + ' 피드백 리포트 - ' + safe(r.scenarioTitle) + '</title>');
+    p.push('<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;600;700&display=swap" rel="stylesheet">');
+    p.push('<style>');
+    p.push('*{box-sizing:border-box;margin:0;padding:0;}');
+    p.push('html,body{background:#f8fafc;color:#1e293b;}');
+    p.push('body{font-family:"Noto Sans KR","Apple SD Gothic Neo","Malgun Gothic",sans-serif;padding:40px 20px;max-width:900px;margin:0 auto;}');
+    p.push('.print-tip{background:linear-gradient(135deg,#4f46e5,#6366f1);color:#fff;padding:16px 24px;border-radius:10px;margin-bottom:28px;display:flex;align-items:center;justify-content:space-between;}');
+    p.push('.print-tip p{font-size:13px;opacity:.9;}');
+    p.push('.print-tip button{background:#fff;color:#4f46e5;border:none;padding:8px 18px;border-radius:6px;font-size:14px;font-weight:600;cursor:pointer;}');
+    p.push('.hdr{background:linear-gradient(135deg,#4f46e5,#6366f1);color:#fff;padding:24px 28px;border-radius:12px;margin-bottom:20px;display:flex;justify-content:space-between;align-items:flex-start;}');
+    p.push('.hdr h1{font-size:22px;font-weight:700;margin-bottom:4px;}');
+    p.push('.hdr .sub{font-size:13px;opacity:.8;margin-bottom:2px;}');
+    p.push('.grade-box{background:#fff;border-radius:8px;padding:12px 20px;text-align:center;min-width:80px;}');
+    p.push('.grade-letter{font-size:36px;font-weight:900;line-height:1;}');
+    p.push('.grade-score{font-size:13px;color:#4b5563;margin-top:2px;}');
+    p.push('.sec{background:#fff;border-radius:10px;padding:22px 26px;margin-bottom:16px;box-shadow:0 1px 3px rgba(0,0,0,.07);}');
+    p.push('.sec-title{font-size:18px;font-weight:700;color:#1f2937;border-bottom:2px solid #4f46e5;padding-bottom:8px;margin-bottom:16px;}');
+    p.push('.info-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;}');
+    p.push('.info-item{font-size:12px;color:#64748b;}');
+    p.push('.info-item strong{display:block;font-size:14px;color:#334155;margin-top:2px;}');
+    p.push('.score-card{background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:14px;}');
+    p.push('.score-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:12px;margin-bottom:20px;}');
+    p.push('.score-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;}');
+    p.push('.score-name{font-size:13px;font-weight:600;color:#374151;}');
+    p.push('.score-badge{background:#dbeafe;color:#1e40af;padding:3px 8px;border-radius:4px;font-size:12px;font-weight:600;}');
+    p.push('.score-bar-bg{height:6px;background:#e2e8f0;border-radius:3px;overflow:hidden;margin-bottom:6px;}');
+    p.push('.score-bar-fill{height:100%;border-radius:3px;background:linear-gradient(90deg,#3b82f6,#6366f1);}');
+    p.push('.score-fb{font-size:12px;color:#6b7280;line-height:1.5;}');
+    p.push('.summary-box{background:#f0f9ff;border-left:4px solid #3b82f6;border-radius:0 6px 6px 0;padding:14px 16px;font-size:13px;line-height:1.8;color:#334155;}');
+    p.push('.tri-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;}');
+    p.push('.expert-box{border-top:1px solid #e2e8f0;padding-top:14px;margin-top:14px;font-size:13px;color:#374151;line-height:1.6;}');
+    p.push('.list-item{font-size:13px;color:#4b5563;margin-bottom:5px;line-height:1.5;}');
+    p.push('.guide-card{background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:14px;margin-bottom:12px;}');
+    p.push('.guide-card-teal{background:#f0fdfa;border:1px solid #99f6e4;}');
+    p.push('.eg-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin:10px 0;}');
+    p.push('.eg-good{background:#dcfce7;border:1px solid #86efac;padding:10px;border-radius:4px;}');
+    p.push('.eg-bad{background:#fef2f2;border:1px solid #fecaca;padding:10px;border-radius:4px;}');
+    p.push('.dev-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;}');
+    p.push('@media print{.print-tip{display:none!important;}body{background:#fff;padding:20px;}}');
+    p.push('</style>');
+    p.push('</head>');
+    p.push('<body>');
+
+    // Print tip bar
+    p.push('<div class="print-tip">');
+    p.push('<p>이 파일을 PDF로 저장하려면 Ctrl+P (Mac: Cmd+P)를 누르세요.</p>');
+    p.push('<button onclick="window.print()">인쇄 / PDF 저장</button>');
+    p.push('</div>');
 
     // Header
-    parts.push('<div class="header">');
-    parts.push('<div class="score-hero">');
-    parts.push('<div class="score-num">' + (r.overallScore ?? '-') + '</div>');
-    parts.push('<div class="score-lbl">종합 점수</div>');
-    parts.push('</div>');
-    parts.push('<h1>' + safe(r.user?.name) + '</h1>');
-    parts.push('<div class="sub">' + safe(r.user?.email) + '</div>');
-    parts.push('<div style="margin-top:8px;font-size:12px;opacity:0.8;">생성일: ' + now + '</div>');
-    parts.push('</div>');
+    p.push('<div class="hdr">');
+    p.push('<div>');
+    p.push('<h1>' + safe(r.user?.name) + '님 피드백 리포트</h1>');
+    p.push('<div class="sub">시나리오: ' + safe(r.scenarioTitle) + '</div>');
+    p.push('<div class="sub">대화 상대: ' + safe(r.personaName) + '</div>');
+    p.push('<div style="font-size:12px;opacity:.7;margin-top:6px;">완료일: ' + (r.completedAt ? new Date(r.completedAt).toLocaleDateString('ko-KR') : '-') + ' · 생성: ' + now + '</div>');
+    p.push('</div>');
+    p.push('<div class="grade-box">');
+    p.push('<div class="grade-letter" style="color:' + grade.color + ';">' + grade.letter + '</div>');
+    p.push('<div class="grade-score">' + overallScore + '점</div>');
+    p.push('</div>');
+    p.push('</div>');
 
-    // Meta info
-    parts.push('<div class="card">');
-    parts.push('<div class="meta-grid">');
-    parts.push('<div class="meta-item">시나리오<strong>' + safe(r.scenarioTitle) + '</strong></div>');
-    parts.push('<div class="meta-item">페르소나<strong>' + safe(r.personaName) + '</strong></div>');
-    parts.push('<div class="meta-item">완료일<strong>' + (r.completedAt ? new Date(r.completedAt).toLocaleDateString('ko-KR') : '-') + '</strong></div>');
-    parts.push('</div>');
-    parts.push('</div>');
+    // Evaluation criteria set
+    if (df.evaluationCriteriaSetName) {
+      p.push('<div style="background:#eef2ff;border:1px solid #c7d2fe;border-radius:8px;padding:10px 14px;margin-bottom:16px;font-size:13px;color:#4338ca;">📋 평가 기준: ' + safe(df.evaluationCriteriaSetName) + '</div>');
+    }
+
+    // Conversation time
+    if (df.conversationDuration) {
+      const dur = Number(df.conversationDuration);
+      const timeRating = df.timePerformance;
+      p.push('<div class="sec">');
+      p.push('<div class="sec-title">⏱️ 대화 시간 분석</div>');
+      p.push('<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:14px;">');
+      p.push('<div style="background:#f0f9ff;border:1px solid #bae6fd;border-radius:8px;padding:14px;text-align:center;">');
+      p.push('<div style="font-size:22px;font-weight:700;color:#0284c7;">' + Math.floor(dur / 60) + ':' + String(dur % 60).padStart(2, '0') + '</div>');
+      p.push('<div style="font-size:12px;color:#0369a1;">총 대화 시간</div></div>');
+      if (df.averageResponseTime) {
+        p.push('<div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:14px;text-align:center;">');
+        p.push('<div style="font-size:22px;font-weight:700;color:#16a34a;">' + df.averageResponseTime + '초</div>');
+        p.push('<div style="font-size:12px;color:#15803d;">평균 응답 시간</div></div>');
+      }
+      if (timeRating) {
+        const rtColor = timeRating.rating === 'excellent' ? '#16a34a' : timeRating.rating === 'good' ? '#2563eb' : timeRating.rating === 'average' ? '#d97706' : '#dc2626';
+        const rtLabel = timeRating.rating === 'excellent' ? '🎯 우수' : timeRating.rating === 'good' ? '✅ 좋음' : timeRating.rating === 'average' ? '🔶 보통' : '⚠️ 개선필요';
+        p.push('<div style="background:#fff7ed;border:1px solid #ffedd5;border-radius:8px;padding:14px;text-align:center;">');
+        p.push('<div style="font-size:16px;font-weight:600;color:' + rtColor + ';">' + rtLabel + '</div>');
+        p.push('<div style="font-size:11px;color:#9a3412;margin-top:4px;">' + safe(timeRating.feedback) + '</div></div>');
+      }
+      p.push('</div></div>');
+    }
+
+    // Performance analysis (scores)
+    if (scores.length > 0) {
+      p.push('<div class="sec">');
+      p.push('<div class="sec-title">📊 성과 분석</div>');
+      p.push('<div class="score-grid">');
+      scores.forEach((s: any) => {
+        const val = Number(s.score ?? 0);
+        const pct = Math.round((val / 5) * 100);
+        p.push('<div class="score-card">');
+        p.push('<div class="score-header">');
+        p.push('<span class="score-name">' + safe(s.icon || '') + ' ' + safe(s.name || s.category || '') + (s.weight ? ' <span style="font-weight:400;color:#94a3b8;font-size:11px;">(' + s.weight + '%)</span>' : '') + '</span>');
+        p.push('<span class="score-badge">' + val + '/5</span>');
+        p.push('</div>');
+        p.push('<div class="score-bar-bg"><div class="score-bar-fill" style="width:' + pct + '%;"></div></div>');
+        if (s.feedback) {
+          p.push('<div class="score-fb">' + safe(s.feedback) + '</div>');
+        }
+        p.push('</div>');
+      });
+      p.push('</div>');
+
+      // Strengths / improvements / next steps
+      const strengths: string[] = Array.isArray(df.strengths) ? df.strengths : [];
+      const improvements: string[] = Array.isArray(df.improvements) ? df.improvements : [];
+      const nextSteps: string[] = Array.isArray(df.nextSteps) ? df.nextSteps : [];
+      if (strengths.length || improvements.length || nextSteps.length) {
+        p.push('<div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:18px;">');
+        p.push('<div style="font-size:15px;font-weight:600;color:#374151;margin-bottom:14px;">📈 종합 평가</div>');
+        p.push('<div class="tri-grid">');
+        p.push('<div><div style="font-size:13px;font-weight:600;color:#16a34a;margin-bottom:8px;">✅ 주요 강점</div>');
+        strengths.forEach(s => p.push('<div class="list-item">• ' + safe(s) + '</div>'));
+        p.push('</div>');
+        p.push('<div><div style="font-size:13px;font-weight:600;color:#ea580c;margin-bottom:8px;">⬆️ 개선 포인트</div>');
+        improvements.forEach(s => p.push('<div class="list-item">• ' + safe(s) + '</div>'));
+        p.push('</div>');
+        p.push('<div><div style="font-size:13px;font-weight:600;color:#2563eb;margin-bottom:8px;">➡️ 다음 단계</div>');
+        nextSteps.forEach(s => p.push('<div class="list-item">• ' + safe(s) + '</div>'));
+        p.push('</div>');
+        p.push('</div>');
+        if (df.ranking) {
+          p.push('<div class="expert-box"><strong>전문가 의견:</strong> ' + safe(df.ranking) + '</div>');
+        }
+        p.push('</div>');
+      }
+      p.push('</div>');
+    }
 
     // Summary
     if (df.summary) {
-      parts.push('<div class="card">');
-      parts.push('<div class="card-title">종합 피드백</div>');
-      parts.push('<div class="summary">' + safe(df.summary) + '</div>');
-      parts.push('</div>');
+      p.push('<div class="sec">');
+      p.push('<div class="sec-title">💬 종합 피드백 요약</div>');
+      p.push('<div class="summary-box">' + safe(df.summary) + '</div>');
+      p.push('</div>');
     }
 
-    // Scores
-    if (scoreRows) {
-      parts.push('<div class="card">');
-      parts.push('<div class="card-title">세부 평가 점수</div>');
-      parts.push('<table><thead><tr>');
-      parts.push('<th>평가 항목</th><th style="text-align:center;">점수</th><th>달성도</th>');
-      parts.push('</tr></thead><tbody>');
-      parts.push(scoreRows);
-      parts.push('</tbody></table>');
-      parts.push('</div>');
+    // Behavior guides
+    if (behaviorGuides.length > 0) {
+      p.push('<div class="sec">');
+      p.push('<div class="sec-title">🎯 행동 가이드</div>');
+      behaviorGuides.forEach((g: any) => {
+        p.push('<div class="guide-card">');
+        p.push('<div style="font-size:15px;font-weight:600;color:#92400e;margin-bottom:10px;">💡 ' + safe(g.situation) + '</div>');
+        p.push('<div style="margin-bottom:8px;"><div style="font-size:13px;font-weight:600;color:#4f46e5;margin-bottom:4px;">권장 행동</div>');
+        p.push('<div style="font-size:13px;color:#374151;background:#f0f9ff;padding:8px;border-radius:4px;">' + safe(g.action) + '</div></div>');
+        if (g.example) {
+          p.push('<div style="margin-bottom:8px;"><div style="font-size:13px;font-weight:600;color:#16a34a;margin-bottom:4px;">구체적 예시</div>');
+          p.push('<div style="font-size:13px;color:#166534;background:#dcfce7;padding:8px;border-radius:4px;font-style:italic;">"' + safe(g.example) + '"</div></div>');
+        }
+        if (g.impact) {
+          p.push('<div><div style="font-size:13px;font-weight:600;color:#2563eb;margin-bottom:4px;">기대 효과</div>');
+          p.push('<div style="font-size:13px;color:#374151;">' + safe(g.impact) + '</div></div>');
+        }
+        p.push('</div>');
+      });
+      p.push('</div>');
     }
 
-    // Strengths
-    if (Array.isArray(df.strengths) && df.strengths.length > 0) {
-      parts.push('<div class="card">');
-      parts.push('<div class="card-title">강점</div>');
-      parts.push('<ul>' + listItems(df.strengths, '✅') + '</ul>');
-      parts.push('</div>');
+    // Conversation guides
+    if (conversationGuides.length > 0) {
+      p.push('<div class="sec">');
+      p.push('<div class="sec-title">💬 대화 가이드</div>');
+      conversationGuides.forEach((g: any) => {
+        p.push('<div class="guide-card guide-card-teal">');
+        p.push('<div style="font-size:15px;font-weight:600;color:#0f766e;margin-bottom:10px;">💭 ' + safe(g.scenario) + '</div>');
+        p.push('<div class="eg-grid">');
+        p.push('<div class="eg-good"><div style="font-size:12px;font-weight:600;color:#16a34a;margin-bottom:4px;">✅ 좋은 예시</div><div style="font-size:12px;color:#166534;">' + safe(g.goodExample) + '</div></div>');
+        p.push('<div class="eg-bad"><div style="font-size:12px;font-weight:600;color:#dc2626;margin-bottom:4px;">❌ 피해야 할 예시</div><div style="font-size:12px;color:#991b1b;">' + safe(g.badExample) + '</div></div>');
+        p.push('</div>');
+        if (Array.isArray(g.keyPoints) && g.keyPoints.length > 0) {
+          p.push('<div style="font-size:12px;font-weight:600;color:#4f46e5;margin-bottom:4px;">🔑 핵심 포인트</div>');
+          p.push('<div style="display:grid;grid-template-columns:repeat(2,1fr);gap:4px;">');
+          g.keyPoints.forEach((pt: string) => p.push('<div style="font-size:12px;color:#4b5563;">• ' + safe(pt) + '</div>'));
+          p.push('</div>');
+        }
+        p.push('</div>');
+      });
+      p.push('</div>');
     }
 
-    // Improvements
-    if (Array.isArray(df.improvements) && df.improvements.length > 0) {
-      parts.push('<div class="card">');
-      parts.push('<div class="card-title">개선 필요 사항</div>');
-      parts.push('<ul>' + listItems(df.improvements, '📌') + '</ul>');
-      parts.push('</div>');
+    // Development plan
+    if (developmentPlan) {
+      p.push('<div class="sec">');
+      p.push('<div class="sec-title">📈 개발 계획</div>');
+      p.push('<div class="dev-grid">');
+      const planSections = [
+        { key: 'shortTerm', label: '📅 단기 목표 (1-2주)', bg: '#f0fdf4', border: '#22c55e', hColor: '#16a34a', measBg: '#dcfce7', measColor: '#166534' },
+        { key: 'mediumTerm', label: '📆 중기 목표 (1-2개월)', bg: '#eff6ff', border: '#3b82f6', hColor: '#2563eb', measBg: '#dbeafe', measColor: '#1e40af' },
+        { key: 'longTerm', label: '🗓️ 장기 목표 (3-6개월)', bg: '#faf5ff', border: '#a855f7', hColor: '#7c3aed', measBg: '#f3e8ff', measColor: '#6b21a8' },
+      ];
+      planSections.forEach(ps => {
+        const items: any[] = Array.isArray(developmentPlan[ps.key]) ? developmentPlan[ps.key] : [];
+        p.push('<div style="background:' + ps.bg + ';border-left:4px solid ' + ps.border + ';padding:14px;border-radius:0 8px 8px 0;">');
+        p.push('<div style="font-size:14px;font-weight:600;color:' + ps.hColor + ';margin-bottom:10px;">' + ps.label + '</div>');
+        items.forEach(item => {
+          p.push('<div style="background:#fff;padding:10px;border-radius:4px;margin-bottom:8px;">');
+          p.push('<div style="font-size:13px;font-weight:600;color:' + ps.hColor + ';margin-bottom:6px;">' + safe(item.goal) + '</div>');
+          (Array.isArray(item.actions) ? item.actions : []).forEach((a: string) =>
+            p.push('<div style="font-size:12px;color:#4b5563;">→ ' + safe(a) + '</div>')
+          );
+          if (item.measurable) {
+            p.push('<div style="font-size:11px;background:' + ps.measBg + ';padding:3px 8px;border-radius:4px;color:' + ps.measColor + ';margin-top:6px;">측정지표: ' + safe(item.measurable) + '</div>');
+          }
+          p.push('</div>');
+        });
+        p.push('</div>');
+      });
+      p.push('</div>');
+      const resources: string[] = Array.isArray(developmentPlan.recommendedResources) ? developmentPlan.recommendedResources : [];
+      if (resources.length > 0) {
+        p.push('<div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:14px;margin-top:14px;">');
+        p.push('<div style="font-size:14px;font-weight:600;color:#374151;margin-bottom:10px;">📚 추천 학습 자료</div>');
+        p.push('<div style="display:grid;grid-template-columns:repeat(2,1fr);gap:8px;">');
+        resources.forEach(res => p.push('<div style="background:#fff;padding:8px 12px;border-radius:4px;font-size:13px;color:#4b5563;">📖 ' + safe(res) + '</div>'));
+        p.push('</div></div>');
+      }
+      p.push('</div>');
     }
 
-    // Next steps
-    if (Array.isArray(df.nextSteps) && df.nextSteps.length > 0) {
-      parts.push('<div class="card">');
-      parts.push('<div class="card-title">다음 단계</div>');
-      parts.push('<ul>' + listItems(df.nextSteps, '▶') + '</ul>');
-      parts.push('</div>');
+    // Sequence analysis (strategic evaluation)
+    if (sequenceAnalysis) {
+      p.push('<div class="sec">');
+      p.push('<div class="sec-title">🎮 전략 평가</div>');
+      p.push('<div style="background:#fdf4ff;border-left:4px solid #a855f7;padding:18px;border-radius:0 8px 8px 0;">');
+      p.push('<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">');
+      p.push('<span style="font-size:15px;font-weight:600;color:#7c3aed;">전략 점수</span>');
+      p.push('<span style="background:#e9d5ff;color:#7c3aed;padding:6px 14px;border-radius:8px;font-size:17px;font-weight:700;">' + safe(String(sequenceAnalysis.strategicScore ?? '평가 대기중')) + '</span>');
+      p.push('</div>');
+      if (sequenceAnalysis.strategicRationale) {
+        p.push('<div style="font-size:13px;color:#6b21a8;margin-bottom:12px;">' + safe(sequenceAnalysis.strategicRationale) + '</div>');
+      }
+      if (sequenceAnalysis.sequenceEffectiveness) {
+        p.push('<div style="font-size:13px;font-weight:600;color:#2563eb;margin-bottom:4px;">🎯 순서 선택의 효과성</div>');
+        p.push('<div style="font-size:13px;color:#374151;background:#fff;padding:10px;border-radius:4px;margin-bottom:12px;">' + safe(sequenceAnalysis.sequenceEffectiveness) + '</div>');
+      }
+      if (sequenceAnalysis.strategicInsights) {
+        p.push('<div style="font-size:13px;font-weight:600;color:#eab308;margin-bottom:4px;">💡 전략적 통찰</div>');
+        p.push('<div style="font-size:13px;color:#374151;background:#fef9c3;padding:10px;border-radius:4px;border-left:4px solid #eab308;margin-bottom:12px;">' + safe(sequenceAnalysis.strategicInsights) + '</div>');
+      }
+      const altApproaches: string[] = Array.isArray(sequenceAnalysis.alternativeApproaches) ? sequenceAnalysis.alternativeApproaches : [];
+      if (altApproaches.length > 0) {
+        p.push('<div style="font-size:13px;font-weight:600;color:#16a34a;margin-bottom:6px;">🛤️ 대안적 접근법</div>');
+        altApproaches.forEach((a, i) => {
+          p.push('<div style="display:flex;align-items:flex-start;gap:8px;background:#dcfce7;padding:10px;border-radius:4px;margin-bottom:6px;">');
+          p.push('<span style="background:#22c55e;color:#fff;padding:2px 7px;border-radius:4px;font-size:12px;">' + (i + 1) + '</span>');
+          p.push('<div style="font-size:13px;color:#166534;">' + safe(a) + '</div></div>');
+        });
+      }
+      p.push('</div></div>');
     }
 
-    parts.push('</div>');
-    parts.push('</body>');
-    parts.push('</html>');
-    return parts.join('\n');
+    // Footer
+    p.push('<div style="text-align:center;padding-top:20px;border-top:1px solid #e2e8f0;color:#9ca3af;font-size:12px;margin-top:20px;">');
+    p.push('생성일: ' + now + ' · AI 기반 개인 맞춤 피드백 리포트');
+    p.push('</div>');
+
+    p.push('</body>');
+    p.push('</html>');
+    return p.join('\n');
   };
 
   const triggerDownload = (html: string, filename: string) => {
