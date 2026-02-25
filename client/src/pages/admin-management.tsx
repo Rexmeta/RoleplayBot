@@ -10,7 +10,7 @@ import { AppHeader } from "@/components/AppHeader";
 
 export default function AdminManagement() {
   const { t } = useTranslation();
-  const [activeTab, setActiveTab] = useState("manage-structure");
+  const [activeTab, setActiveTab] = useState("manage-scenarios");
 
   return (
     <div className="min-h-screen bg-slate-50">
@@ -22,25 +22,15 @@ export default function AdminManagement() {
       <div className="container mx-auto p-6 space-y-6" data-testid="admin-management">
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
           <TabsList className="grid w-full grid-cols-5">
-            <TabsTrigger value="manage-structure" data-testid="tab-manage-structure">
-              {t('admin.contentManagement.tabs.structure', '조직/카테고리')}
-            </TabsTrigger>
-            <TabsTrigger value="manage-scenarios" data-testid="tab-manage-scenarios">{t('admin.contentManagement.tabs.scenarios')}</TabsTrigger>
-            <TabsTrigger value="difficulty-settings" data-testid="tab-difficulty-settings">{t('admin.contentManagement.tabs.difficulty')}</TabsTrigger>
-            <TabsTrigger value="manage-personas" data-testid="tab-manage-personas">{t('admin.contentManagement.tabs.personas')}</TabsTrigger>
-            <TabsTrigger value="evaluation-criteria" data-testid="tab-evaluation-criteria">{t('admin.contentManagement.tabs.evaluation')}</TabsTrigger>
+            <TabsTrigger value="manage-scenarios" data-testid="tab-manage-scenarios">시나리오</TabsTrigger>
+            <TabsTrigger value="manage-personas" data-testid="tab-manage-personas">페르소나</TabsTrigger>
+            <TabsTrigger value="evaluation-criteria" data-testid="tab-evaluation-criteria">평가기준</TabsTrigger>
+            <TabsTrigger value="manage-structure" data-testid="tab-manage-structure">조직/카테고리</TabsTrigger>
+            <TabsTrigger value="difficulty-settings" data-testid="tab-difficulty-settings">대화 난이도</TabsTrigger>
           </TabsList>
-
-          <TabsContent value="manage-structure" className="space-y-6">
-            <OrganizationCategoryTree />
-          </TabsContent>
 
           <TabsContent value="manage-scenarios" className="space-y-6">
             <ScenarioManager />
-          </TabsContent>
-
-          <TabsContent value="difficulty-settings" className="space-y-6">
-            <DifficultySettingsTab />
           </TabsContent>
 
           <TabsContent value="manage-personas" className="space-y-6">
@@ -49,6 +39,14 @@ export default function AdminManagement() {
 
           <TabsContent value="evaluation-criteria" className="space-y-6">
             <EvaluationCriteriaManager />
+          </TabsContent>
+
+          <TabsContent value="manage-structure" className="space-y-6">
+            <OrganizationCategoryTree />
+          </TabsContent>
+
+          <TabsContent value="difficulty-settings" className="space-y-6">
+            <DifficultySettingsTab />
           </TabsContent>
         </Tabs>
       </div>
