@@ -752,16 +752,18 @@ export async function registerRoutes(app: Express, httpServer: Server): Promise<
         return res.status(404).json({ error: "Conversation not found" });
       }
 
-      // ✨ scenario_run 조회하여 권한 확인
+      // ✨ scenario_run 조회하여 권한 확인 (관리자/운영자는 모든 대화 열람 가능)
       const scenarioRun = await storage.getScenarioRun(personaRun.scenarioRunId);
-      if (!scenarioRun || scenarioRun.userId !== userId) {
+      const requestUser = req.user as any;
+      const isAdminOrOperator = requestUser?.role === 'admin' || requestUser?.role === 'operator';
+      if (!scenarioRun || (!isAdminOrOperator && scenarioRun.userId !== userId)) {
         return res.status(403).json({ error: "Unauthorized access" });
       }
 
       // ✨ chat_messages 조회
       const chatMessages = await storage.getChatMessagesByPersonaRun(personaRunId);
 
-      // 레거시 conversations 구조로 변환하여 반환
+      // 레거시 conversations 구조로 변환하여 반환 (GET /api/conversations/:id)
       const messages = chatMessages.map(msg => ({
         sender: msg.sender,
         message: msg.message,
@@ -2062,9 +2064,11 @@ export async function registerRoutes(app: Express, httpServer: Server): Promise<
         return res.status(404).json({ error: "Conversation not found" });
       }
 
-      // ✨ scenario_run 조회하여 권한 확인
+      // ✨ scenario_run 조회하여 권한 확인 (관리자/운영자는 모든 피드백 열람 가능)
       const scenarioRun = await storage.getScenarioRun(personaRun.scenarioRunId);
-      if (!scenarioRun || scenarioRun.userId !== userId) {
+      const reqUser = req.user as any;
+      const isAdminOrOp = reqUser?.role === 'admin' || reqUser?.role === 'operator';
+      if (!scenarioRun || (!isAdminOrOp && scenarioRun.userId !== userId)) {
         return res.status(403).json({ error: "Unauthorized access" });
       }
       
@@ -3606,6 +3610,49 @@ export async function registerRoutes(app: Express, httpServer: Server): Promise<
     } catch (error) {
       console.error("Error getting participants:", error);
       res.status(500).json({ error: "Failed to get participants" });
+    }
+  });
+
+  // ===== 관리자/운영자: 특정 사용자 이력 조회 API =====
+  app.get("/api/admin/users/:userId/scenario-runs", isAuthenticated, async (req: any, res) => {
+    try {
+      const requestUser = req.user;
+      if (requestUser.role !== 'admin' && requestUser.role !== 'operator') {
+        return res.status(403).json({ error: "Access denied" });
+      }
+      const { userId } = req.params;
+      const scenarioRunsWithPersonas = await storage.getUserScenarioRunsWithPersonaRuns(userId);
+
+      // 시나리오 삭제 상태 체크
+      const scenarioIds = [...new Set(scenarioRunsWithPersonas.map(sr => sr.scenarioId))];
+      const deletedScenarioIds = new Set<string>();
+      for (const scenarioId of scenarioIds) {
+        const scenario = await storage.getScenario(scenarioId);
+        if (!scenario || scenario.isDeleted) deletedScenarioIds.add(scenarioId);
+      }
+      const enriched = scenarioRunsWithPersonas.map(sr => ({
+        ...sr,
+        isScenarioDeleted: deletedScenarioIds.has(sr.scenarioId),
+      }));
+      res.json(enriched);
+    } catch (error) {
+      console.error("Error fetching user scenario runs for admin:", error);
+      res.status(500).json({ error: "Failed to fetch scenario runs" });
+    }
+  });
+
+  app.get("/api/admin/users/:userId/feedbacks", isAuthenticated, async (req: any, res) => {
+    try {
+      const requestUser = req.user;
+      if (requestUser.role !== 'admin' && requestUser.role !== 'operator') {
+        return res.status(403).json({ error: "Access denied" });
+      }
+      const { userId } = req.params;
+      const feedbacks = await storage.getUserFeedbacks(userId);
+      res.json(feedbacks);
+    } catch (error) {
+      console.error("Error fetching user feedbacks for admin:", error);
+      res.status(500).json({ error: "Failed to fetch feedbacks" });
     }
   });
 

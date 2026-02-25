@@ -12,7 +12,8 @@ import { AppHeader } from "@/components/AppHeader";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useState, useEffect } from "react";
-import { Filter } from "lucide-react";
+import { Filter, ExternalLink } from "lucide-react";
+import { Link } from "wouter";
 import { TranslationDashboard } from "@/components/admin/TranslationDashboard";
 
 // 마우스 오버 카드 설명 헬퍼
@@ -1713,7 +1714,12 @@ export default function AdminDashboard() {
                             </tr>
                           ) : sorted.map((p, idx) => (
                             <tr key={p.userId} className={`border-b hover:bg-slate-50 transition-colors ${idx % 2 === 0 ? '' : 'bg-slate-50/40'}`} data-testid={`participant-row-${idx}`}>
-                              <td className="p-3 font-medium text-slate-800">{p.name}</td>
+                              <td className="p-3">
+                                <Link href={`/admin/participant/${p.userId}`} className="font-medium text-corporate-600 hover:text-corporate-700 hover:underline flex items-center gap-1">
+                                  {p.name}
+                                  <ExternalLink className="w-3 h-3 opacity-50" />
+                                </Link>
+                              </td>
                               <td className="p-3 text-slate-500 text-xs">{p.email}</td>
                               <td className="p-3">
                                 <div className="flex flex-wrap gap-1">
@@ -1726,8 +1732,10 @@ export default function AdminDashboard() {
                                 </div>
                               </td>
                               <td className="p-3 text-center">
-                                <span className="font-semibold text-slate-700">{p.completedSessions}</span>
-                                <span className="text-slate-400 text-xs"> / {p.totalSessions}</span>
+                                <Link href={`/admin/participant/${p.userId}`} className="inline-flex items-center gap-1 group">
+                                  <span className="font-semibold text-corporate-600 group-hover:underline">{p.completedSessions}</span>
+                                  <span className="text-slate-400 text-xs"> / {p.totalSessions}</span>
+                                </Link>
                               </td>
                               <td className={`p-3 text-center ${scoreColor(p.averageScore)}`}>
                                 {p.averageScore !== null ? `${p.averageScore}점` : '-'}

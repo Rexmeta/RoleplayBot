@@ -16,6 +16,7 @@ import AIGeneratorPage from "@/pages/ai-generator";
 import SystemAdminPage from "@/pages/system-admin";
 import ConversationView from "@/pages/ConversationView";
 import FeedbackView from "@/pages/FeedbackView";
+import ParticipantHistory from "@/pages/ParticipantHistory";
 import HelpPage from "@/pages/HelpPage";
 import PrivacyPolicy from "@/pages/privacy-policy";
 import NotFound from "@/pages/not-found";
@@ -50,6 +51,7 @@ function ProtectedRouter() {
       <Route path="/analytics" component={Analytics} />
       <Route path="/chat/:conversationId" component={ConversationView} />
       <Route path="/feedback/:conversationId" component={FeedbackView} />
+      <Route path="/admin/participant/:userId" component={ParticipantHistory} />
       <Route path="/admin" component={AdminDashboard} />
       <Route path="/admin-dashboard" component={AdminDashboard} />
       <Route path="/admin-management" component={AdminManagement} />
