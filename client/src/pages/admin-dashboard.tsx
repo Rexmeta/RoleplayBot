@@ -159,6 +159,8 @@ export default function AdminDashboard() {
   const [showMobileTabMenu, setShowMobileTabMenu] = useState(false);
   const [selectedCategoryId, setSelectedCategoryId] = useState<string>('all');
   const [participantSearch, setParticipantSearch] = useState('');
+  const [participantDateFrom, setParticipantDateFrom] = useState('');
+  const [participantDateTo, setParticipantDateTo] = useState('');
   const [participantSortKey, setParticipantSortKey] = useState<keyof Participant>('lastTrainingAt');
   const [participantSortAsc, setParticipantSortAsc] = useState(false);
 
@@ -1549,9 +1551,9 @@ export default function AdminDashboard() {
         <TabsContent value="participants" className="space-y-6">
           <Card className="card-enhanced">
             <CardHeader>
-              <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
-                <CardTitle className="text-lg font-semibold text-slate-800">참석자 관리</CardTitle>
-                <div className="flex items-center gap-2">
+              <div className="flex flex-col gap-3">
+                <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+                  <CardTitle className="text-lg font-semibold text-slate-800">참석자 관리</CardTitle>
                   <Input
                     placeholder="이름 또는 이메일 검색..."
                     value={participantSearch}
@@ -1559,6 +1561,37 @@ export default function AdminDashboard() {
                     className="w-56 h-9 text-sm"
                     data-testid="participant-search"
                   />
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-sm text-slate-500 font-medium whitespace-nowrap">최근 훈련일:</span>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <Input
+                      type="date"
+                      value={participantDateFrom}
+                      onChange={e => setParticipantDateFrom(e.target.value)}
+                      className="h-9 text-sm w-40"
+                      data-testid="participant-date-from"
+                    />
+                    <span className="text-slate-400 text-sm">~</span>
+                    <Input
+                      type="date"
+                      value={participantDateTo}
+                      onChange={e => setParticipantDateTo(e.target.value)}
+                      className="h-9 text-sm w-40"
+                      data-testid="participant-date-to"
+                    />
+                    {(participantDateFrom || participantDateTo) && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-9 px-3 text-slate-500 hover:text-slate-700"
+                        onClick={() => { setParticipantDateFrom(''); setParticipantDateTo(''); }}
+                        data-testid="participant-date-reset"
+                      >
+                        초기화
+                      </Button>
+                    )}
+                  </div>
                 </div>
               </div>
             </CardHeader>
@@ -1569,12 +1602,21 @@ export default function AdminDashboard() {
                 </div>
               ) : (() => {
                 const allParticipants = participantsData?.participants || [];
-                const filtered = participantSearch
-                  ? allParticipants.filter(p =>
-                      p.name.toLowerCase().includes(participantSearch.toLowerCase()) ||
-                      p.email.toLowerCase().includes(participantSearch.toLowerCase())
-                    )
-                  : allParticipants;
+                const dateFromTs = participantDateFrom ? new Date(participantDateFrom).setHours(0, 0, 0, 0) : null;
+                const dateToTs = participantDateTo ? new Date(participantDateTo).setHours(23, 59, 59, 999) : null;
+                const filtered = allParticipants.filter(p => {
+                  if (participantSearch) {
+                    const s = participantSearch.toLowerCase();
+                    if (!p.name.toLowerCase().includes(s) && !p.email.toLowerCase().includes(s)) return false;
+                  }
+                  if (dateFromTs !== null || dateToTs !== null) {
+                    if (!p.lastTrainingAt) return false;
+                    const t = new Date(p.lastTrainingAt).getTime();
+                    if (dateFromTs !== null && t < dateFromTs) return false;
+                    if (dateToTs !== null && t > dateToTs) return false;
+                  }
+                  return true;
+                });
 
                 const sorted = [...filtered].sort((a, b) => {
                   const av = a[participantSortKey];
@@ -1623,9 +1665,16 @@ export default function AdminDashboard() {
 
                 return (
                   <>
-                    <div className="text-sm text-slate-500 mb-3">
-                      총 <span className="font-semibold text-slate-700">{sorted.length}</span>명의 참석자
-                      {participantSearch && ` (검색: "${participantSearch}")`}
+                    <div className="text-sm text-slate-500 mb-3 flex flex-wrap items-center gap-2">
+                      <span>총 <span className="font-semibold text-slate-700">{sorted.length}</span>명의 참석자</span>
+                      {participantSearch && (
+                        <span className="px-2 py-0.5 bg-slate-100 rounded text-xs">검색: "{participantSearch}"</span>
+                      )}
+                      {(participantDateFrom || participantDateTo) && (
+                        <span className="px-2 py-0.5 bg-blue-50 text-blue-700 rounded text-xs">
+                          훈련일: {participantDateFrom || '∞'} ~ {participantDateTo || '∞'}
+                        </span>
+                      )}
                     </div>
                     <div className="overflow-x-auto rounded-lg border border-slate-200">
                       <table className="w-full text-sm">
@@ -1659,7 +1708,7 @@ export default function AdminDashboard() {
                           {sorted.length === 0 ? (
                             <tr>
                               <td colSpan={8} className="p-8 text-center text-slate-400">
-                                {participantSearch ? '검색 결과가 없습니다.' : '아직 훈련에 참여한 사용자가 없습니다.'}
+                                {(participantSearch || participantDateFrom || participantDateTo) ? '조건에 맞는 참석자가 없습니다.' : '아직 훈련에 참여한 사용자가 없습니다.'}
                               </td>
                             </tr>
                           ) : sorted.map((p, idx) => (
