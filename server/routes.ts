@@ -3996,55 +3996,10 @@ export async function registerRoutes(app: Express, httpServer: Server): Promise<
         personaCount: Number(personaCount) || 3
       });
 
-      // 자동으로 시나리오 이미지 생성 및 로컬 저장
-      let scenarioImage = null;
-      try {
-        const { GoogleGenAI } = await import("@google/genai");
-        const ai = new GoogleGenAI({ apiKey: process.env.GOOGLE_API_KEY || process.env.GEMINI_API_KEY });
-        
-        const imagePrompt = `A professional, cinematic business scene representing "${result.scenario.title}". Context: ${result.scenario.description}. Industry: ${industry || 'General business'}. Style: Clean, corporate, professional illustration with modern design elements, suitable for business training materials. Colors: Professional palette with blues, grays, and accent colors.`;
-        
-        console.log(`🎨 Gemini 시나리오 이미지 생성 시도: ${result.scenario.title}`);
-        
-        const imageResponse = await ai.models.generateContent({
-          model: "gemini-2.5-flash-image-preview",
-          contents: [{ role: 'user', parts: [{ text: imagePrompt }] }]
-        });
-        
-        // 응답에서 이미지 데이터 추출
-        let base64ImageUrl = null;
-        if (imageResponse.candidates && imageResponse.candidates[0] && imageResponse.candidates[0].content && imageResponse.candidates[0].content.parts) {
-          for (const part of imageResponse.candidates[0].content.parts) {
-            if (part.inlineData) {
-              const imageData = part.inlineData;
-              base64ImageUrl = `data:${imageData.mimeType};base64,${imageData.data}`;
-              console.log('✅ AI 시나리오 이미지 자동 생성 성공');
-              break;
-            }
-          }
-        }
-        
-        if (base64ImageUrl) {
-          const base64Data = base64ImageUrl.split(',')[1];
-          const mimeMatch = base64ImageUrl.match(/data:([^;]+);/);
-          const mimeType = mimeMatch ? mimeMatch[1] : 'image/png';
-          const ext = mimeType.includes('png') ? 'png' : 'webp';
-          const buffer = Buffer.from(base64Data, 'base64');
-          const safeName = result.scenario.title.replace(/[^a-zA-Z0-9가-힣]/g, '_').slice(0, 50);
-          const objectPath = `scenarios/${safeName}_${Date.now()}.${ext}`;
-          scenarioImage = await mediaStorage.uploadToStorage(buffer, objectPath, mimeType);
-        }
-        
-      } catch (error) {
-        console.warn('시나리오 이미지 자동 생성 실패:', error);
-        // 이미지 생성 실패해도 시나리오 생성은 계속 진행
-      }
-
-      // AI 생성된 시나리오에 페르소나 객체와 이미지를 포함 (저장하지 않음 - 폼에서 저장)
+      // AI 생성된 시나리오에 페르소나 객체를 포함 (저장하지 않음 - 폼에서 저장)
       const scenarioWithPersonas = {
         ...result.scenario,
-        image: scenarioImage, // 자동 생성된 이미지 추가
-        personas: result.personas // 페르소나 객체를 직접 포함
+        personas: result.personas
       };
       
       // 저장하지 않고 데이터만 반환 - 사용자가 폼에서 저장 버튼 클릭 시 저장됨

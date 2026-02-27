@@ -49,7 +49,15 @@ export interface ScenarioPersona {
 }
 
 // the newest Gemini model is "gemini-2.5-flash" which was released August 7, 2025. do not change this unless explicitly requested by the user
-const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || "" });
+const ai = new GoogleGenAI({ apiKey: process.env.GOOGLE_API_KEY || process.env.GEMINI_API_KEY || "" });
+
+function extractText(response: any): string {
+  if (typeof response.text === 'function') return response.text();
+  if (typeof response.text === 'string') return response.text;
+  const candidate = response.candidates?.[0];
+  if (candidate?.content?.parts?.[0]?.text) return candidate.content.parts[0].text;
+  return '';
+}
 
 export interface AIScenarioGenerationRequest {
   theme: string; // 주제 (예: "프로젝트 지연", "갈등 해결", "협상")
@@ -344,7 +352,7 @@ ${request.skills ? `필요 역량: ${request.skills}` : ''}
       contents: prompt
     });
 
-    const rawJson = response.text;
+    const rawJson = extractText(response);
     if (!rawJson) {
       throw new Error("AI에서 응답을 받을 수 없습니다");
     }
@@ -470,7 +478,7 @@ ${enhancementType === 'improve' ?
       contents: prompt
     });
 
-    const rawJson = response.text;
+    const rawJson = extractText(response);
     if (!rawJson) {
       throw new Error("AI에서 응답을 받을 수 없습니다");
     }
