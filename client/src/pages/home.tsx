@@ -1089,7 +1089,9 @@ export default function Home() {
         <div className="max-w-6xl mx-auto px-4">
           <div className="flex flex-col md:flex-row items-center justify-between">
             <div className="text-sm text-slate-600 mb-4 md:mb-0">
-              © {t('home.footerCopyright')}
+              <Link href="/about" className="hover:text-corporate-600 hover:underline cursor-pointer transition-colors">
+                © {t('home.footerCopyright')}
+              </Link>
             </div>
             <div className="flex items-center space-x-6 text-sm text-slate-600">
               <a href="/help" className="hover:text-corporate-600" data-testid="link-help">{t('home.footerHelp')}</a>

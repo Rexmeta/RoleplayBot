@@ -19,6 +19,7 @@ import FeedbackView from "@/pages/FeedbackView";
 import ParticipantHistory from "@/pages/ParticipantHistory";
 import HelpPage from "@/pages/HelpPage";
 import PrivacyPolicy from "@/pages/privacy-policy";
+import AboutPage from "@/pages/AboutPage";
 import NotFound from "@/pages/not-found";
 import { AuthPage } from "@/pages/AuthPage";
 
@@ -59,6 +60,7 @@ function ProtectedRouter() {
       <Route path="/system-admin" component={SystemAdminPage} />
       <Route path="/help" component={HelpPage} />
       <Route path="/privacy-policy" component={PrivacyPolicy} />
+      <Route path="/about" component={AboutPage} />
       <Route component={NotFound} />
     </Switch>
   );
