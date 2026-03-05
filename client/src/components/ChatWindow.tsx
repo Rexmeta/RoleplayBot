@@ -1564,12 +1564,14 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
                     )}
                     
                     {/* 연결 중 상태 */}
-                    {realtimeVoice.status === 'connecting' && (
+                    {(realtimeVoice.status === 'connecting' || realtimeVoice.status === 'reconnecting') && (
                       <div className="flex items-center justify-center space-x-2 py-4">
                         <div className="w-3 h-3 bg-purple-400 rounded-full animate-bounce"></div>
                         <div className="w-3 h-3 bg-purple-400 rounded-full animate-bounce" style={{ animationDelay: "0.1s" }}></div>
                         <div className="w-3 h-3 bg-purple-400 rounded-full animate-bounce" style={{ animationDelay: "0.2s" }}></div>
-                        <span className="ml-2 text-slate-600">{t('chat.connectingVoice')}</span>
+                        <span className="ml-2 text-slate-600">
+                          {realtimeVoice.status === 'reconnecting' ? '재연결 중...' : t('chat.connectingVoice')}
+                        </span>
                       </div>
                     )}
                     
@@ -2275,13 +2277,15 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
                       )}
                       
                       {/* 연결 중 상태 */}
-                      {realtimeVoice.status === 'connecting' && (
+                      {(realtimeVoice.status === 'connecting' || realtimeVoice.status === 'reconnecting') && (
                         <div className="p-4 bg-[#ffffff9c]">
                           <div className="flex items-center justify-center space-x-2 py-4">
                             <div className="w-3 h-3 bg-purple-400 rounded-full animate-bounce"></div>
                             <div className="w-3 h-3 bg-purple-400 rounded-full animate-bounce" style={{ animationDelay: "0.1s" }}></div>
                             <div className="w-3 h-3 bg-purple-400 rounded-full animate-bounce" style={{ animationDelay: "0.2s" }}></div>
-                            <span className="ml-2 text-slate-600">{t('chat.connectingVoice')}</span>
+                            <span className="ml-2 text-slate-600">
+                              {realtimeVoice.status === 'reconnecting' ? '재연결 중...' : t('chat.connectingVoice')}
+                            </span>
                           </div>
                         </div>
                       )}

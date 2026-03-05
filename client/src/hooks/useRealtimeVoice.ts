@@ -2,7 +2,8 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 
 export type RealtimeVoiceStatus = 
   | 'disconnected' 
-  | 'connecting' 
+  | 'connecting'
+  | 'reconnecting'
   | 'connected' 
   | 'error';
 
@@ -112,6 +113,15 @@ export function useRealtimeVoice({
   const lastTextDisplayTimeRef = useRef<number>(0); // 마지막 텍스트 표시 시간
   const textSyncIntervalRef = useRef<NodeJS.Timeout | null>(null); // 텍스트 동기화 인터벌
   
+  // 자동 재연결 관련 refs
+  const autoReconnectCountRef = useRef(0);
+  const autoReconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const accumulatedMessagesRef = useRef<PreviousMessage[]>([]); // 대화 중 누적 메시지 (자동 재연결용)
+  const conversationPhaseRef = useRef<ConversationPhase>('idle'); // 현재 phase ref (클로저에서 접근용)
+  const connectRef = useRef<((previousMessages?: PreviousMessage[]) => Promise<void>) | null>(null);
+
+  const MAX_AUTO_RECONNECT = 3;
+
   // Store callbacks in refs to avoid recreating connect() on every render
   const onMessageRef = useRef(onMessage);
   const onMessageCompleteRef = useRef(onMessageComplete);
@@ -135,6 +145,11 @@ export function useRealtimeVoice({
     onErrorRef.current = onError;
     onSessionTerminatedRef.current = onSessionTerminated;
   }, [onMessage, onMessageComplete, onUserTranscription, onUserTranscriptionDelta, onAiSpeakingStart, onUserSpeakingStart, onError, onSessionTerminated]);
+
+  // conversationPhase 상태를 ref로 동기화 (ws.onclose 클로저에서 접근용)
+  useEffect(() => {
+    conversationPhaseRef.current = conversationPhase;
+  }, [conversationPhase]);
 
   const getWebSocketUrl = useCallback((token: string) => {
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
@@ -287,6 +302,12 @@ export function useRealtimeVoice({
       rawMicStreamRef.current.getTracks().forEach(track => track.stop());
       rawMicStreamRef.current = null;
     }
+    // 자동 재연결 타이머 취소 (의도적 disconnect는 자동 재연결 방지)
+    if (autoReconnectTimerRef.current) {
+      clearTimeout(autoReconnectTimerRef.current);
+      autoReconnectTimerRef.current = null;
+    }
+    autoReconnectCountRef.current = MAX_AUTO_RECONNECT; // 의도적 종료 시 자동 재연결 방지
     setStatus('disconnected');
     setIsRecording(false);
     setIsAISpeaking(false);
@@ -345,6 +366,7 @@ export function useRealtimeVoice({
         console.log('🎙️ WebSocket connected for realtime voice');
         setStatus('connected');
         setConversationPhase('active'); // 연결 성공 시 active 상태로
+        autoReconnectCountRef.current = 0; // 재연결 성공 시 카운터 리셋
         
         // 재연결 시에는 첫 인사 대기 안함
         const resuming = previousMessagesRef.current && previousMessagesRef.current.length > 0;
@@ -392,6 +414,11 @@ export function useRealtimeVoice({
               if (data.transcript && onUserTranscriptionRef.current) {
                 console.log('🎤 User said:', data.transcript);
                 onUserTranscriptionRef.current(data.transcript);
+              }
+              // 자동 재연결용 누적 메시지 추적
+              if (data.transcript) {
+                accumulatedMessagesRef.current.push({ role: 'user', content: data.transcript });
+                if (accumulatedMessagesRef.current.length > 10) accumulatedMessagesRef.current.shift();
               }
               // Reset server voice detection after transcription is complete
               serverVoiceDetectedTimeRef.current = null;
@@ -496,6 +523,11 @@ export function useRealtimeVoice({
               // 완전한 메시지와 감정 정보를 onMessageComplete로 전달
               if (data.text && onMessageCompleteRef.current) {
                 onMessageCompleteRef.current(data.text, data.emotion, data.emotionReason);
+              }
+              // 자동 재연결용 누적 메시지 추적
+              if (data.text) {
+                accumulatedMessagesRef.current.push({ role: 'ai', content: data.text });
+                if (accumulatedMessagesRef.current.length > 10) accumulatedMessagesRef.current.shift();
               }
               // 버퍼 초기화
               aiMessageBufferRef.current = '';
@@ -608,11 +640,10 @@ export function useRealtimeVoice({
 
       ws.onclose = (event) => {
         console.log('🔌 WebSocket closed:', event.code, event.reason);
-        setStatus('disconnected');
         setIsRecording(false);
-        setIsWaitingForGreeting(false); // 연결 종료 시 리셋
-        setGreetingRetryCount(0); // 연결 종료 시 리셋
-        setGreetingFailed(false); // 연결 종료 시 리셋
+        setIsWaitingForGreeting(false);
+        setGreetingRetryCount(0);
+        setGreetingFailed(false);
         
         // phase가 이미 ended면 덮어쓰지 않음 (정상 종료)
         // 대화가 시작된 적 있고 ended가 아니면 interrupted로 변경 (중간 끊김)
@@ -627,6 +658,37 @@ export function useRealtimeVoice({
           }
           return 'idle';
         });
+        
+        // 자동 재연결 시도: 대화 진행 중에 끊긴 경우
+        const currentPhase = conversationPhaseRef.current;
+        const shouldAutoReconnect = 
+          hasConversationStartedRef.current &&
+          currentPhase !== 'ended' &&
+          autoReconnectCountRef.current < MAX_AUTO_RECONNECT &&
+          connectRef.current !== null;
+        
+        if (shouldAutoReconnect) {
+          console.log(`🔄 자동 재연결 예약 (시도 ${autoReconnectCountRef.current + 1}/${MAX_AUTO_RECONNECT})...`);
+          setStatus('reconnecting');
+          
+          autoReconnectTimerRef.current = setTimeout(() => {
+            autoReconnectCountRef.current += 1;
+            
+            // 이전 메시지 + 대화 중 누적된 메시지를 합쳐서 재연결
+            const combined: PreviousMessage[] = [
+              ...(previousMessagesRef.current || []),
+              ...accumulatedMessagesRef.current,
+            ];
+            console.log(`🔄 자동 재연결 시도 (${autoReconnectCountRef.current}/${MAX_AUTO_RECONNECT}), 메시지: ${combined.length}개`);
+            
+            if (connectRef.current) {
+              connectRef.current(combined.length > 0 ? combined : undefined);
+            }
+          }, 1500);
+          return; // 'disconnected' 상태 설정하지 않음
+        }
+        
+        setStatus('disconnected');
       };
 
     } catch (err) {
@@ -641,6 +703,11 @@ export function useRealtimeVoice({
       }
     }
   }, [enabled, getRealtimeToken, getWebSocketUrl, disconnect]);
+
+  // connectRef를 항상 최신 connect 함수로 유지
+  useEffect(() => {
+    connectRef.current = connect;
+  }, [connect]);
 
   // 음량 분석 루프 시작 (실제 오디오 파형에서 직접 측정)
   const startAmplitudeAnalysis = useCallback(() => {
@@ -1119,6 +1186,12 @@ export function useRealtimeVoice({
   const resetPhase = useCallback(() => {
     setConversationPhase('idle');
     hasConversationStartedRef.current = false;
+    accumulatedMessagesRef.current = []; // 누적 메시지 초기화
+    autoReconnectCountRef.current = 0; // 재연결 카운터 초기화
+    if (autoReconnectTimerRef.current) {
+      clearTimeout(autoReconnectTimerRef.current);
+      autoReconnectTimerRef.current = null;
+    }
     console.log('📍 Conversation phase reset to idle');
   }, []);
 

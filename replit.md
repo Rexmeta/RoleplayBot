@@ -18,6 +18,7 @@ Preferred communication style: Simple, everyday language.
     - **Text Input**: Standard text-based chat.
     - **Text-to-Speech (TTS)**: User text input, AI voice response via ElevenLabs API, voice selection based on MBTI persona.
     - **Real-time Voice**: Full-duplex voice conversation via Gemini Live API, WebSocket streaming, server-side VAD, Web Audio API playback, barge-in support (turnSeq-based interruption handling).
+    - **Voice Session Resilience**: Auto-reconnect on disconnect (client: up to 3 attempts with 1.5s delay, server: up to 5 attempts for non-normal close codes). Conversation history (`recentMessages`, last 10 entries) passed to Gemini on reconnect for context recovery. Session timeout: 30 min. `RealtimeVoiceStatus` includes `'reconnecting'` state shown in UI.
 
 ## Backend
 - **Runtime**: Node.js with Express.js

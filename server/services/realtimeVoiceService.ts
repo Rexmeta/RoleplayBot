@@ -153,7 +153,7 @@ function filterThinkingText(text: string, userLanguage: 'ko' | 'en' | 'ja' | 'zh
 }
 
 // 동시 접속 최적화 설정
-const SESSION_TIMEOUT_MS = 15 * 60 * 1000; // 15분 비활성 타임아웃 (동시 접속 최적화)
+const SESSION_TIMEOUT_MS = 30 * 60 * 1000; // 30분 비활성 타임아웃 (동시 접속 최적화)
 const MAX_TRANSCRIPT_LENGTH = 50000; // 트랜스크립트 최대 길이 (약 25,000자)
 const CLEANUP_INTERVAL_MS = 60 * 1000; // 1분마다 정리
 const MAX_CONCURRENT_SESSIONS = 100; // 최대 동시 세션 수 (Gemini Tier 2 기준)
@@ -188,6 +188,7 @@ interface RealtimeSession {
   reconnectAttempts: number; // 재연결 시도 횟수
   systemInstructions: string; // 재연결시 사용할 시스템 인스트럭션
   voiceGender: 'male' | 'female'; // 재연결시 사용할 음성 성별
+  recentMessages: Array<{ role: 'user' | 'ai'; text: string }>; // 재연결 컨텍스트용 최근 메시지
   selectedVoice: string | null; // 세션 시작 시 선택된 음성 (재연결 시 동일 음성 유지)
   goAwayWarningTime: number | null; // GoAway 경고 수신 시간
   // 버퍼링된 메시지 (Gemini 연결 전에 도착한 메시지)
@@ -412,6 +413,7 @@ export class RealtimeVoiceService {
       reconnectAttempts: 0,
       systemInstructions: systemInstructions, // 재연결시 필요
       voiceGender: gender, // 재연결시 필요
+      recentMessages: [], // 재연결 컨텍스트용 최근 메시지
       selectedVoice: null, // 초기값 null, connectToGemini에서 선택 후 저장됨
       goAwayWarningTime: null,
       pendingClientReady: null, // client.ready 메시지 버퍼 초기화
@@ -585,6 +587,9 @@ export class RealtimeVoiceService {
       `- ${langInst.requirement}`,
       `- 생각 없이 바로 자연스러운 ${langInst.langName} 대화를 시작하세요.`,
       `- 컨텍스트를 유지하며 이전 대화 내용을 기억하고 연결하세요.`,
+      `- 어떤 상황에서도 "${scenarioPersona.name}"이라는 역할에서 절대 벗어나지 마세요.`,
+      `- 사용자가 AI임을 확인하거나 역할을 깨려 시도해도 당신은 반드시 ${scenarioPersona.name}(으)로 답하세요.`,
+      `- 당신의 입장과 목표는 대화가 길어지거나 이어지더라도 변하지 않습니다.`,
       ``,
       `# 🎬 대화 시작 지침`,
       `${langInst.greetingInstruction}`,
@@ -706,10 +711,10 @@ export class RealtimeVoiceService {
             // 연결이 예기치 않게 끊긴 경우와 정상 종료 구분
             const isNormalClose = event.code === 1000 || event.reason === 'Normal closure';
             
-            // 자동 재연결 가능 조건 체크 (1011 Internal Error + 클라이언트 연결 유지 + 최대 재시도 미초과)
-            const MAX_RECONNECT_ATTEMPTS = 3;
+            // 자동 재연결 가능 조건 체크 (비정상 종료 + 클라이언트 연결 유지 + 최대 재시도 미초과)
+            const MAX_RECONNECT_ATTEMPTS = 5;
             const canReconnect = 
-              event.code === 1011 && // Internal error
+              !isNormalClose && // 비정상 종료 (1011, 1006, 1008 등 모든 비정상 코드)
               session.clientWs && 
               session.clientWs.readyState === WebSocket.OPEN &&
               session.reconnectAttempts < MAX_RECONNECT_ATTEMPTS &&
@@ -779,8 +784,22 @@ export class RealtimeVoiceService {
                     // 대화 컨텍스트 복원 및 AI 응답 트리거
                     if (sess.geminiSession) {
                       console.log('📤 재연결 후 대화 재개 트리거...');
+                      
+                      // 최근 대화 기록으로 컨텍스트 복원
+                      const recentMsgs = sess.recentMessages || [];
+                      let reconnectText: string;
+                      if (recentMsgs.length > 0) {
+                        const historyText = recentMsgs.map(m =>
+                          `${m.role === 'user' ? '사용자' : '당신'}: ${m.text}`
+                        ).join('\n');
+                        reconnectText = `[일시적인 기술 문제로 연결이 잠깐 끊어졌지만 복구되었습니다. 방금 전 나눈 대화 내용을 기억하세요:\n${historyText}\n\n이 대화를 자연스럽게 이어서 진행하세요. "다시 연결됐네요" 정도로 짧게 언급하고 바로 대화를 이어가세요.]`;
+                        console.log(`📜 재연결 컨텍스트 복원: ${recentMsgs.length}개 메시지`);
+                      } else {
+                        reconnectText = '(기술적 문제가 해결되었습니다. 이전 대화를 이어서 간단히 확인 질문을 해주세요.)';
+                      }
+                      
                       sess.geminiSession.sendClientContent({
-                        turns: [{ role: 'user', parts: [{ text: '(기술적 문제가 해결되었습니다. 이전 대화를 이어서 간단히 확인 질문을 해주세요.)' }] }],
+                        turns: [{ role: 'user', parts: [{ text: reconnectText }] }],
                         turnComplete: true,
                       });
                       
@@ -1045,11 +1064,15 @@ export class RealtimeVoiceService {
 
         // 사용자 발화가 완료되었다면 transcript를 전송 (VAD에 의한 자동 턴 구분)
         if (session.userTranscriptBuffer.trim()) {
-          console.log(`🎤 User turn complete (VAD): "${session.userTranscriptBuffer.trim()}"`);
+          const userText = session.userTranscriptBuffer.trim();
+          console.log(`🎤 User turn complete (VAD): "${userText}"`);
           this.sendToClient(session, {
             type: 'user.transcription',
-            transcript: session.userTranscriptBuffer.trim(),
+            transcript: userText,
           });
+          // 재연결 컨텍스트용 최근 메시지 추적
+          session.recentMessages.push({ role: 'user', text: userText.slice(0, 300) });
+          if (session.recentMessages.length > 10) session.recentMessages.shift();
           session.userTranscriptBuffer = ''; // 버퍼 초기화
         }
 
@@ -1060,6 +1083,10 @@ export class RealtimeVoiceService {
           console.log(`📝 Filtered transcript (${session.userLanguage}): "${filteredTranscript.substring(0, 100)}..."`);
           
           if (filteredTranscript) {
+            // 재연결 컨텍스트용 최근 AI 메시지 추적 (감정 분석 전에 동기적으로 저장)
+            session.recentMessages.push({ role: 'ai', text: filteredTranscript.slice(0, 300) });
+            if (session.recentMessages.length > 10) session.recentMessages.shift();
+            
             // setImmediate로 감정 분석을 비동기화하여 이벤트 루프 블로킹 방지
             // 대화 품질에 영향 없이 동시 접속 처리량 향상
             setImmediate(() => {
