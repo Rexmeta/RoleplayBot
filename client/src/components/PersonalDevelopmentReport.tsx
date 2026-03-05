@@ -448,52 +448,86 @@ export default function PersonalDevelopmentReport({
           </div>
         </div>
 
-        <!-- 2. 행동 가이드 -->
-        <div style="margin-bottom: 32px; page-break-inside: avoid;">
-          <h2 style="font-size: 20px; font-weight: bold; color: #1f2937; border-bottom: 2px solid #eab308; padding-bottom: 8px; margin-bottom: 16px;">🎯 행동 가이드</h2>
-          ${behaviorGuides.length > 0 ? behaviorGuides.map(guide => `
-            <div style="background: #fffbeb; border: 1px solid #fde68a; border-radius: 8px; padding: 16px; margin-bottom: 16px;">
-              <h3 style="font-size: 16px; font-weight: 600; color: #92400e; margin-bottom: 12px;">💡 ${escapeHtml(guide.situation)}</h3>
-              <div style="margin-bottom: 12px;">
-                <h4 style="font-size: 14px; font-weight: 600; color: #4f46e5; margin-bottom: 4px;">권장 행동</h4>
-                <p style="font-size: 13px; color: #374151; background: #f0f9ff; padding: 8px; border-radius: 4px;">${escapeHtml(guide.action)}</p>
-              </div>
-              <div style="margin-bottom: 12px;">
-                <h4 style="font-size: 14px; font-weight: 600; color: #16a34a; margin-bottom: 4px;">구체적 예시</h4>
-                <p style="font-size: 13px; color: #166534; background: #dcfce7; padding: 8px; border-radius: 4px; font-style: italic;">"${escapeHtml(guide.example)}"</p>
-              </div>
-              <div>
-                <h4 style="font-size: 14px; font-weight: 600; color: #2563eb; margin-bottom: 4px;">기대 효과</h4>
-                <p style="font-size: 13px; color: #374151;">${escapeHtml(guide.impact)}</p>
-              </div>
-            </div>
-          `).join('') : '<p style="color: #6b7280;">구체적인 행동 가이드가 준비 중입니다.</p>'}
-        </div>
+        <!-- 2. 실천 가이드 (행동 개선 포인트 + 대화 스크립트 예시) -->
+        <div style="margin-bottom: 32px;">
+          <h2 style="font-size: 20px; font-weight: bold; color: #1f2937; border-bottom: 2px solid #f59e0b; padding-bottom: 8px; margin-bottom: 20px;">🗂️ 실천 가이드</h2>
 
-        <!-- 3. 대화 가이드 -->
-        <div style="margin-bottom: 32px; page-break-inside: avoid;">
-          <h2 style="font-size: 20px; font-weight: bold; color: #1f2937; border-bottom: 2px solid #06b6d4; padding-bottom: 8px; margin-bottom: 16px;">💬 대화 가이드</h2>
-          ${conversationGuides.length > 0 ? conversationGuides.map(guide => `
-            <div style="background: #f0fdfa; border: 1px solid #99f6e4; border-radius: 8px; padding: 16px; margin-bottom: 16px;">
-              <h3 style="font-size: 16px; font-weight: 600; color: #0f766e; margin-bottom: 12px;">💭 ${escapeHtml(guide.scenario)}</h3>
-              <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin-bottom: 12px;">
-                <div style="background: #dcfce7; border: 1px solid #86efac; padding: 12px; border-radius: 4px;">
-                  <h4 style="font-size: 13px; font-weight: 600; color: #16a34a; margin-bottom: 4px;">✅ 좋은 예시</h4>
-                  <p style="font-size: 12px; color: #166534;">${escapeHtml(guide.goodExample)}</p>
-                </div>
-                <div style="background: #fef2f2; border: 1px solid #fecaca; padding: 12px; border-radius: 4px;">
-                  <h4 style="font-size: 13px; font-weight: 600; color: #dc2626; margin-bottom: 4px;">❌ 피해야 할 예시</h4>
-                  <p style="font-size: 12px; color: #991b1b;">${escapeHtml(guide.badExample)}</p>
-                </div>
-              </div>
+          <!-- 2-1. 행동 개선 포인트 -->
+          <div style="margin-bottom: 24px;">
+            <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 14px;">
+              <div style="width: 32px; height: 32px; background: #fef3c7; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 16px; flex-shrink: 0;">💡</div>
               <div>
-                <h4 style="font-size: 13px; font-weight: 600; color: #4f46e5; margin-bottom: 4px;">🔑 핵심 포인트</h4>
-                <ul style="list-style: none; padding: 0; margin: 0; display: grid; grid-template-columns: repeat(2, 1fr); gap: 4px;">
-                  ${(guide.keyPoints || []).map(point => `<li style="font-size: 12px; color: #4b5563;">• ${escapeHtml(point)}</li>`).join('')}
-                </ul>
+                <h3 style="font-size: 15px; font-weight: 700; color: #1f2937; margin: 0 0 2px 0;">행동 개선 포인트</h3>
+                <p style="font-size: 11px; color: #6b7280; margin: 0;">이번 대화에서 발견된 상황별 구체적 행동 가이드입니다.</p>
               </div>
             </div>
-          `).join('') : '<p style="color: #6b7280;">맞춤형 대화 가이드가 준비 중입니다.</p>'}
+            ${behaviorGuides.length > 0 ? behaviorGuides.map((guide, idx) => `
+              <div style="background: #fffbeb; border: 1px solid #fde68a; border-radius: 8px; padding: 14px; margin-bottom: 12px; page-break-inside: avoid;">
+                <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 10px;">
+                  <span style="display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px; background: #f59e0b; color: white; border-radius: 50%; font-size: 11px; font-weight: 700; flex-shrink: 0;">${idx + 1}</span>
+                  <h4 style="font-size: 14px; font-weight: 600; color: #92400e; margin: 0;">${escapeHtml(guide.situation)}</h4>
+                </div>
+                <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin-bottom: 10px;">
+                  <div style="background: #eff6ff; border: 1px solid #bfdbfe; padding: 10px; border-radius: 6px;">
+                    <p style="font-size: 11px; font-weight: 700; color: #4f46e5; margin: 0 0 4px 0; text-transform: uppercase; letter-spacing: 0.05em;">권장 행동</p>
+                    <p style="font-size: 12px; color: #374151; margin: 0; line-height: 1.5;">${escapeHtml(guide.action)}</p>
+                  </div>
+                  <div style="background: #f0fdf4; border: 1px solid #bbf7d0; padding: 10px; border-radius: 6px;">
+                    <p style="font-size: 11px; font-weight: 700; color: #16a34a; margin: 0 0 4px 0; text-transform: uppercase; letter-spacing: 0.05em;">실제 예시</p>
+                    <p style="font-size: 12px; color: #166534; margin: 0; line-height: 1.5; font-style: italic;">"${escapeHtml(guide.example)}"</p>
+                  </div>
+                </div>
+                <div style="border-top: 1px solid #fde68a; padding-top: 8px; display: flex; align-items: flex-start; gap: 6px;">
+                  <span style="color: #3b82f6; font-size: 12px; flex-shrink: 0;">↑</span>
+                  <p style="font-size: 12px; color: #374151; margin: 0;"><strong style="color: #2563eb;">기대 효과: </strong>${escapeHtml(guide.impact)}</p>
+                </div>
+              </div>
+            `).join('') : '<p style="color: #6b7280; font-size: 13px;">구체적인 행동 가이드가 준비 중입니다.</p>'}
+          </div>
+
+          <!-- 구분선 -->
+          <div style="display: flex; align-items: center; gap: 12px; margin: 20px 0;">
+            <div style="flex: 1; height: 1px; background: linear-gradient(to right, transparent, #e2e8f0);"></div>
+            <span style="font-size: 11px; font-weight: 600; color: #94a3b8; background: #f8fafc; padding: 4px 12px; border-radius: 20px; border: 1px solid #e2e8f0;">💬 대화 스크립트 예시</span>
+            <div style="flex: 1; height: 1px; background: linear-gradient(to left, transparent, #e2e8f0);"></div>
+          </div>
+
+          <!-- 2-2. 대화 스크립트 예시 -->
+          <div>
+            <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 14px;">
+              <div style="width: 32px; height: 32px; background: #cffafe; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 16px; flex-shrink: 0;">💬</div>
+              <div>
+                <h3 style="font-size: 15px; font-weight: 700; color: #1f2937; margin: 0 0 2px 0;">대화 스크립트 예시</h3>
+                <p style="font-size: 11px; color: #6b7280; margin: 0;">좋은 표현과 피해야 할 표현을 비교하여 실전 대화력을 높이세요.</p>
+              </div>
+            </div>
+            ${conversationGuides.length > 0 ? conversationGuides.map((guide, idx) => `
+              <div style="background: #f0fdfa; border: 1px solid #99f6e4; border-radius: 8px; padding: 14px; margin-bottom: 12px; page-break-inside: avoid;">
+                <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 10px;">
+                  <span style="display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px; background: #06b6d4; color: white; border-radius: 50%; font-size: 11px; font-weight: 700; flex-shrink: 0;">${idx + 1}</span>
+                  <h4 style="font-size: 14px; font-weight: 600; color: #0f766e; margin: 0;">${escapeHtml(guide.scenario)}</h4>
+                </div>
+                <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin-bottom: 10px;">
+                  <div style="background: #dcfce7; border: 1px solid #86efac; padding: 10px; border-radius: 6px;">
+                    <p style="font-size: 11px; font-weight: 700; color: #16a34a; margin: 0 0 4px 0;">✅ 이렇게 말하세요</p>
+                    <p style="font-size: 12px; color: #166534; margin: 0; line-height: 1.5;">${escapeHtml(guide.goodExample)}</p>
+                  </div>
+                  <div style="background: #fef2f2; border: 1px solid #fecaca; padding: 10px; border-radius: 6px;">
+                    <p style="font-size: 11px; font-weight: 700; color: #dc2626; margin: 0 0 4px 0;">❌ 이런 표현은 피하세요</p>
+                    <p style="font-size: 12px; color: #991b1b; margin: 0; line-height: 1.5;">${escapeHtml(guide.badExample)}</p>
+                  </div>
+                </div>
+                ${(guide.keyPoints || []).length > 0 ? `
+                  <div style="border-top: 1px solid #99f6e4; padding-top: 8px;">
+                    <p style="font-size: 11px; font-weight: 700; color: #6b7280; margin: 0 0 6px 0;">🔑 핵심 포인트</p>
+                    <div style="display: flex; flex-wrap: wrap; gap: 6px;">
+                      ${(guide.keyPoints || []).map(point => `<span style="font-size: 11px; background: #e0f2fe; color: #0369a1; border: 1px solid #bae6fd; padding: 3px 10px; border-radius: 20px;">${escapeHtml(point)}</span>`).join('')}
+                    </div>
+                  </div>
+                ` : ''}
+              </div>
+            `).join('') : '<p style="color: #6b7280; font-size: 13px;">맞춤형 대화 가이드가 준비 중입니다.</p>'}
+          </div>
         </div>
 
         <!-- 4. 개발 계획 -->
@@ -1037,8 +1071,7 @@ export default function PersonalDevelopmentReport({
           }}
         >
           <TabsTrigger value="scores" data-testid="tab-scores" className="transition-all duration-300 hover:scale-105 text-xs sm:text-sm px-2 sm:px-3 py-1.5 whitespace-nowrap">{t('report.tabs.scores', '성과 분석')}</TabsTrigger>
-          <TabsTrigger value="behavior" data-testid="tab-behavior" className="transition-all duration-300 hover:scale-105 text-xs sm:text-sm px-2 sm:px-3 py-1.5 whitespace-nowrap">{t('report.tabs.behavior', '행동 가이드')}</TabsTrigger>
-          <TabsTrigger value="conversation" data-testid="tab-conversation" className="transition-all duration-300 hover:scale-105 text-xs sm:text-sm px-2 sm:px-3 py-1.5 whitespace-nowrap">{t('report.tabs.conversation', '대화 가이드')}</TabsTrigger>
+          <TabsTrigger value="behavior" data-testid="tab-behavior" className="transition-all duration-300 hover:scale-105 text-xs sm:text-sm px-2 sm:px-3 py-1.5 whitespace-nowrap">{t('report.tabs.practiceGuide', '실천 가이드')}</TabsTrigger>
           <TabsTrigger value="development" data-testid="tab-development" className="transition-all duration-300 hover:scale-105 text-xs sm:text-sm px-2 sm:px-3 py-1.5 whitespace-nowrap">{t('report.tabs.development', '개발 계획')}</TabsTrigger>
           {feedback?.detailedFeedback?.sequenceAnalysis && (
             <TabsTrigger value="strategy" data-testid="tab-strategy" className="transition-all duration-300 hover:scale-105 text-xs sm:text-sm px-2 sm:px-3 py-1.5 whitespace-nowrap">{t('report.tabs.strategy', '전략 평가')}</TabsTrigger>
@@ -1187,106 +1220,152 @@ export default function PersonalDevelopmentReport({
           </Card>
         </TabsContent>
 
-        {/* 행동 가이드 */}
-        <TabsContent value="behavior" className="space-y-6 print-show-all print-section-break">
-          <h2 className="print-section-title hidden print:block">🎯 {t('report.tabs.behavior', '행동 가이드')}</h2>
-          <div className="grid grid-cols-1 gap-6">
-            {feedback?.detailedFeedback?.behaviorGuides?.map((guide, index) => (
-              <Card key={index} className="hover:shadow-md transition-shadow" data-testid={`behavior-guide-${index}`}>
-                <CardHeader>
-                  <CardTitle className="text-lg flex items-center">
-                    <i className="fas fa-lightbulb text-yellow-500 mr-2"></i>
-                    {guide.situation}
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div>
-                    <h4 className="font-semibold text-corporate-700 mb-2">{t('report.recommendedAction', '권장 행동')}</h4>
-                    <p className="text-slate-700 bg-corporate-50 p-3 rounded-lg">{guide.action}</p>
-                  </div>
-                  <div>
-                    <h4 className="font-semibold text-green-700 mb-2">{t('report.specificExample', '구체적 예시')}</h4>
-                    <div className="bg-green-50 border-l-4 border-green-400 p-3 rounded">
-                      <p className="text-green-800 italic">"{guide.example}"</p>
-                    </div>
-                  </div>
-                  <div>
-                    <h4 className="font-semibold text-blue-700 mb-2">{t('report.expectedEffect', '기대 효과')}</h4>
-                    <div className="flex items-center space-x-2">
-                      <i className="fas fa-chart-line text-blue-500"></i>
-                      <p className="text-slate-700">{guide.impact}</p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            )) || (
-              <Card>
-                <CardContent className="text-center py-8">
-                  <i className="fas fa-info-circle text-slate-400 text-2xl mb-2"></i>
-                  <p className="text-slate-500">{t('report.behaviorGuideLoading', '구체적인 행동 가이드가 준비 중입니다.')}</p>
-                </CardContent>
-              </Card>
-            )}
-          </div>
-        </TabsContent>
+        {/* 실천 가이드 (행동 가이드 + 대화 가이드 통합) */}
+        <TabsContent value="behavior" className="space-y-8 print-show-all print-section-break">
+          <h2 className="print-section-title hidden print:block">🗂️ {t('report.tabs.practiceGuide', '실천 가이드')}</h2>
 
-        {/* 대화 가이드 */}
-        <TabsContent value="conversation" className="space-y-6 print-show-all print-section-break">
-          <h2 className="print-section-title hidden print:block">💬 {t('report.tabs.conversation', '대화 가이드')}</h2>
-          <div className="grid grid-cols-1 gap-6">
-            {feedback?.detailedFeedback?.conversationGuides?.map((guide, index) => (
-              <Card key={index} className="hover:shadow-md transition-shadow" data-testid={`conversation-guide-${index}`}>
-                <CardHeader>
-                  <CardTitle className="text-lg flex items-center">
-                    <i className="fas fa-comments text-corporate-500 mr-2"></i>
-                    {guide.scenario}
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                      <h4 className="font-semibold text-green-700 mb-2 flex items-center">
-                        <i className="fas fa-check-circle text-green-500 mr-2"></i>
-                        {t('report.goodExample', '좋은 예시')}
-                      </h4>
-                      <div className="bg-green-50 border border-green-200 p-3 rounded-lg">
-                        <p className="text-green-800 text-sm">{guide.goodExample}</p>
+          {/* 섹션 1: 행동 개선 포인트 */}
+          <div>
+            <div className="flex items-center gap-3 mb-4">
+              <div className="flex items-center justify-center w-9 h-9 rounded-full bg-amber-100">
+                <i className="fas fa-lightbulb text-amber-500 text-base"></i>
+              </div>
+              <div>
+                <h3 className="text-lg font-bold text-slate-800">{t('report.section.behaviorPoints', '행동 개선 포인트')}</h3>
+                <p className="text-xs text-slate-500">{t('report.section.behaviorPointsDesc', '이번 대화에서 발견된 상황별 구체적 행동 가이드입니다.')}</p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 gap-5">
+              {(feedback?.detailedFeedback?.behaviorGuides?.length ?? 0) > 0
+                ? feedback!.detailedFeedback!.behaviorGuides!.map((guide, index) => (
+                  <Card key={index} className="border border-amber-100 shadow-sm hover:shadow-md transition-shadow" data-testid={`behavior-guide-${index}`}>
+                    <CardContent className="p-5 space-y-4">
+                      {/* 상단: 번호 + 상황명 */}
+                      <div className="flex items-center gap-3">
+                        <span className="flex-shrink-0 inline-flex items-center justify-center w-7 h-7 rounded-full bg-amber-500 text-white text-xs font-bold">
+                          {index + 1}
+                        </span>
+                        <h4 className="font-semibold text-slate-800 text-base leading-snug">{guide.situation}</h4>
                       </div>
-                    </div>
-                    <div>
-                      <h4 className="font-semibold text-red-700 mb-2 flex items-center">
-                        <i className="fas fa-times-circle text-red-500 mr-2"></i>
-                        {t('report.badExample', '피해야 할 예시')}
-                      </h4>
-                      <div className="bg-red-50 border border-red-200 p-3 rounded-lg">
-                        <p className="text-red-800 text-sm">{guide.badExample}</p>
-                      </div>
-                    </div>
-                  </div>
-                  <div>
-                    <h4 className="font-semibold text-corporate-700 mb-2 flex items-center">
-                      <i className="fas fa-key text-corporate-500 mr-2"></i>
-                      {t('report.keyPoints', '핵심 포인트')}
-                    </h4>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                      {guide.keyPoints.map((point, pointIndex) => (
-                        <div key={pointIndex} className="flex items-center space-x-2 text-sm">
-                          <i className="fas fa-circle text-corporate-400 text-xs"></i>
-                          <span className="text-slate-700">{point}</span>
+
+                      {/* 중단 2열: 권장 행동 + 구체적 예시 */}
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        <div className="bg-corporate-50 rounded-lg p-3 border border-corporate-100">
+                          <p className="text-xs font-semibold text-corporate-600 mb-1.5 uppercase tracking-wide">{t('report.recommendedAction', '권장 행동')}</p>
+                          <p className="text-sm text-slate-700 leading-relaxed">{guide.action}</p>
                         </div>
-                      ))}
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            )) || (
-              <Card>
-                <CardContent className="text-center py-8">
-                  <i className="fas fa-info-circle text-slate-400 text-2xl mb-2"></i>
-                  <p className="text-slate-500">{t('report.conversationGuideLoading', '맞춤형 대화 가이드가 준비 중입니다.')}</p>
-                </CardContent>
-              </Card>
-            )}
+                        <div className="bg-green-50 rounded-lg p-3 border border-green-100 relative">
+                          <p className="text-xs font-semibold text-green-600 mb-1.5 uppercase tracking-wide">{t('report.specificExample', '실제 예시')}</p>
+                          <p className="text-sm text-green-800 italic leading-relaxed">"{guide.example}"</p>
+                        </div>
+                      </div>
+
+                      {/* 하단: 기대 효과 */}
+                      <div className="flex items-start gap-2 pt-1 border-t border-slate-100">
+                        <i className="fas fa-arrow-trend-up text-blue-400 mt-0.5 flex-shrink-0"></i>
+                        <p className="text-sm text-slate-600"><span className="font-medium text-blue-700">{t('report.expectedEffect', '기대 효과')}: </span>{guide.impact}</p>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))
+                : (
+                  <Card className="border-dashed">
+                    <CardContent className="text-center py-8 text-slate-400">
+                      <i className="fas fa-info-circle text-2xl mb-2 block"></i>
+                      <p className="text-sm">{t('report.behaviorGuideLoading', '구체적인 행동 가이드가 준비 중입니다.')}</p>
+                    </CardContent>
+                  </Card>
+                )
+              }
+            </div>
+          </div>
+
+          {/* 섹션 구분선 */}
+          <div className="relative flex items-center gap-4 py-2">
+            <div className="flex-1 h-px bg-gradient-to-r from-transparent via-slate-200 to-slate-200"></div>
+            <span className="flex-shrink-0 inline-flex items-center gap-2 px-4 py-1.5 bg-slate-100 rounded-full text-xs font-medium text-slate-500">
+              <i className="fas fa-comments text-slate-400"></i>
+              {t('report.section.conversationExamples', '대화 스크립트 예시')}
+            </span>
+            <div className="flex-1 h-px bg-gradient-to-l from-transparent via-slate-200 to-slate-200"></div>
+          </div>
+
+          {/* 섹션 2: 대화 스크립트 예시 */}
+          <div>
+            <div className="flex items-center gap-3 mb-4">
+              <div className="flex items-center justify-center w-9 h-9 rounded-full bg-cyan-100">
+                <i className="fas fa-comments text-cyan-500 text-base"></i>
+              </div>
+              <div>
+                <h3 className="text-lg font-bold text-slate-800">{t('report.section.conversationScript', '대화 스크립트 예시')}</h3>
+                <p className="text-xs text-slate-500">{t('report.section.conversationScriptDesc', '좋은 표현과 피해야 할 표현을 비교하여 실전 대화력을 높이세요.')}</p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 gap-5">
+              {(feedback?.detailedFeedback?.conversationGuides?.length ?? 0) > 0
+                ? feedback!.detailedFeedback!.conversationGuides!.map((guide, index) => (
+                  <Card key={index} className="border border-cyan-100 shadow-sm hover:shadow-md transition-shadow" data-testid={`conversation-guide-${index}`}>
+                    <CardContent className="p-5 space-y-4">
+                      {/* 상단: 번호 + 시나리오명 */}
+                      <div className="flex items-center gap-3">
+                        <span className="flex-shrink-0 inline-flex items-center justify-center w-7 h-7 rounded-full bg-cyan-500 text-white text-xs font-bold">
+                          {index + 1}
+                        </span>
+                        <h4 className="font-semibold text-slate-800 text-base leading-snug">{guide.scenario}</h4>
+                      </div>
+
+                      {/* 중단 2열: 좋은 예시 vs 피해야 할 예시 */}
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        <div className="bg-green-50 border border-green-200 rounded-lg p-3">
+                          <p className="text-xs font-semibold text-green-700 mb-2 flex items-center gap-1">
+                            <i className="fas fa-check-circle"></i>
+                            {t('report.goodExample', '이렇게 말하세요')}
+                          </p>
+                          <p className="text-sm text-green-800 leading-relaxed">{guide.goodExample}</p>
+                        </div>
+                        <div className="bg-red-50 border border-red-200 rounded-lg p-3">
+                          <p className="text-xs font-semibold text-red-700 mb-2 flex items-center gap-1">
+                            <i className="fas fa-times-circle"></i>
+                            {t('report.badExample', '이런 표현은 피하세요')}
+                          </p>
+                          <p className="text-sm text-red-800 leading-relaxed">{guide.badExample}</p>
+                        </div>
+                      </div>
+
+                      {/* 하단: 핵심 포인트 pill 태그 */}
+                      {(guide.keyPoints?.length ?? 0) > 0 && (
+                        <div className="pt-1 border-t border-slate-100">
+                          <p className="text-xs font-semibold text-slate-500 mb-2 flex items-center gap-1">
+                            <i className="fas fa-key text-slate-400"></i>
+                            {t('report.keyPoints', '핵심 포인트')}
+                          </p>
+                          <div className="flex flex-wrap gap-2">
+                            {guide.keyPoints.map((point, pointIndex) => (
+                              <span
+                                key={pointIndex}
+                                className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-corporate-100 text-corporate-700 border border-corporate-200"
+                              >
+                                {point}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+                ))
+                : (
+                  <Card className="border-dashed">
+                    <CardContent className="text-center py-8 text-slate-400">
+                      <i className="fas fa-info-circle text-2xl mb-2 block"></i>
+                      <p className="text-sm">{t('report.conversationGuideLoading', '맞춤형 대화 가이드가 준비 중입니다.')}</p>
+                    </CardContent>
+                  </Card>
+                )
+              }
+            </div>
           </div>
         </TabsContent>
 
