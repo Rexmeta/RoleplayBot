@@ -407,43 +407,89 @@ export default function PersonalDevelopmentReport({
           ` : ''}
           
           <!-- 카테고리별 점수 -->
-          <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; margin-bottom: 24px;">
-            ${scores.map(score => `
-              <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 16px;">
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-                  <span style="font-weight: 600; color: #374151;">${escapeHtml(score.icon)} ${escapeHtml(getTranslatedDimensionName(score.category, score.name))}${score.weight ? ` <span style="font-weight: 400; color: #94a3b8; font-size: 11px;">(${score.weight}%)</span>` : ''}</span>
-                  <span style="background: #dbeafe; color: #1e40af; padding: 4px 8px; border-radius: 4px; font-size: 12px;">${score.score || 0}/5</span>
+          <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px; margin-bottom: 24px;">
+            ${scores.map((score, idx) => {
+              const sNum = typeof score.score === 'number' ? score.score : 0;
+              const statusLabel = sNum >= 4 ? '✅ 역량 확인됨' : sNum === 3 ? '🔶 기본 수준' : '⚠️ 집중 개선 필요';
+              const statusBg = sNum >= 4 ? '#dcfce7' : sNum === 3 ? '#ffedd5' : '#fee2e2';
+              const statusColor = sNum >= 4 ? '#166534' : sNum === 3 ? '#9a3412' : '#991b1b';
+              const statusBorder = sNum >= 4 ? '#86efac' : sNum === 3 ? '#fdba74' : '#fca5a5';
+              return `
+              <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 14px;">
+                <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 6px; gap: 8px;">
+                  <div style="display: flex; align-items: center; gap: 6px; min-width: 0;">
+                    <span style="flex-shrink: 0; display: inline-flex; align-items: center; justify-content: center; width: 18px; height: 18px; background: #e2e8f0; color: #64748b; border-radius: 50%; font-size: 10px; font-weight: 700;">${idx + 1}</span>
+                    <span style="font-size: 13px; font-weight: 600; color: #374151;">${escapeHtml(getTranslatedDimensionName(score.category, score.name))}${score.weight ? ` <span style="font-weight: 400; color: #94a3b8; font-size: 10px;">(${score.weight}%)</span>` : ''}</span>
+                  </div>
+                  <span style="flex-shrink: 0; background: #dbeafe; color: #1e40af; padding: 2px 7px; border-radius: 4px; font-size: 12px; font-weight: 600;">${score.score || 0}/5</span>
                 </div>
-                <p style="font-size: 13px; color: #6b7280;">${escapeHtml(score.feedback)}</p>
+                <span style="display: inline-block; font-size: 10px; font-weight: 600; color: ${statusColor}; background: ${statusBg}; border: 1px solid ${statusBorder}; border-radius: 20px; padding: 1px 8px; margin-bottom: 6px;">${statusLabel}</span>
+                <p style="font-size: 12px; color: #4b5563; line-height: 1.5; margin: 0;">${escapeHtml(score.feedback)}</p>
               </div>
-            `).join('')}
+            `}).join('')}
           </div>
 
           <!-- 종합 평가 -->
-          <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 20px;">
-            <h3 style="font-size: 16px; font-weight: 600; color: #374151; margin-bottom: 16px;">📈 종합 평가</h3>
-            <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 16px;">
-              <div>
-                <h4 style="font-size: 14px; font-weight: 600; color: #16a34a; margin-bottom: 8px;">✅ 주요 강점</h4>
-                <ul style="list-style: none; padding: 0; margin: 0;">
-                  ${strengths.map(s => `<li style="font-size: 13px; color: #4b5563; margin-bottom: 4px;">• ${escapeHtml(s)}</li>`).join('')}
-                </ul>
-              </div>
-              <div>
-                <h4 style="font-size: 14px; font-weight: 600; color: #ea580c; margin-bottom: 8px;">⬆️ 개선 포인트</h4>
-                <ul style="list-style: none; padding: 0; margin: 0;">
-                  ${improvements.map(i => `<li style="font-size: 13px; color: #4b5563; margin-bottom: 4px;">• ${escapeHtml(i)}</li>`).join('')}
-                </ul>
-              </div>
-              <div>
-                <h4 style="font-size: 14px; font-weight: 600; color: #2563eb; margin-bottom: 8px;">➡️ 다음 단계</h4>
-                <ul style="list-style: none; padding: 0; margin: 0;">
-                  ${nextSteps.map(s => `<li style="font-size: 13px; color: #4b5563; margin-bottom: 4px;">• ${escapeHtml(s)}</li>`).join('')}
-                </ul>
-              </div>
+          <div style="margin-bottom: 16px;">
+            <h3 style="font-size: 16px; font-weight: 600; color: #374151; margin-bottom: 12px;">📈 종합 평가</h3>
+
+            <!-- 주요 강점 -->
+            <div style="background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px; padding: 14px; margin-bottom: 10px;">
+              <h4 style="font-size: 13px; font-weight: 700; color: #166534; margin: 0 0 10px 0; display: flex; align-items: center; gap: 6px;">
+                <span style="display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; background: #22c55e; color: white; border-radius: 50%; font-size: 10px;">👍</span>
+                주요 강점
+              </h4>
+              <ul style="list-style: none; padding: 0; margin: 0;">
+                ${strengths.map((s, i) => `
+                  <li style="display: flex; align-items: flex-start; gap: 8px; margin-bottom: 6px;">
+                    <span style="flex-shrink: 0; display: inline-flex; align-items: center; justify-content: center; width: 18px; height: 18px; background: #bbf7d0; color: #166534; border-radius: 50%; font-size: 10px; font-weight: 700;">${i + 1}</span>
+                    <span style="font-size: 12px; color: #166534; line-height: 1.5;">${escapeHtml(s)}</span>
+                  </li>
+                `).join('')}
+              </ul>
             </div>
-            <div style="border-top: 1px solid #e2e8f0; padding-top: 12px;">
-              <p style="font-size: 14px; color: #374151;"><strong>전문가 의견:</strong> ${escapeHtml(feedback.detailedFeedback?.ranking)}</p>
+
+            <!-- 개선 포인트 -->
+            <div style="background: #fff7ed; border: 1px solid #fed7aa; border-radius: 8px; padding: 14px; margin-bottom: 10px;">
+              <h4 style="font-size: 13px; font-weight: 700; color: #9a3412; margin: 0 0 10px 0; display: flex; align-items: center; gap: 6px;">
+                <span style="display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; background: #f97316; color: white; border-radius: 50%; font-size: 10px;">⬆</span>
+                개선 포인트
+              </h4>
+              <ul style="list-style: none; padding: 0; margin: 0;">
+                ${improvements.map((item, i) => {
+                  const labels = ['즉시 실천', '단기', '지속'];
+                  const label = labels[i] ?? '지속';
+                  return `
+                    <li style="display: flex; align-items: flex-start; gap: 8px; margin-bottom: 6px;">
+                      <span style="flex-shrink: 0; display: inline-flex; align-items: center; justify-content: center; width: 18px; height: 18px; background: #fed7aa; color: #9a3412; border-radius: 50%; font-size: 10px; font-weight: 700;">${i + 1}</span>
+                      <span style="font-size: 12px; color: #7c2d12; line-height: 1.5; flex: 1;">${escapeHtml(item)}</span>
+                      <span style="flex-shrink: 0; font-size: 10px; background: #fef3c7; color: #92400e; border: 1px solid #fde68a; border-radius: 10px; padding: 1px 6px;">${label}</span>
+                    </li>
+                  `;
+                }).join('')}
+              </ul>
+            </div>
+
+            <!-- 다음 단계 -->
+            <div style="background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 8px; padding: 14px; margin-bottom: 12px;">
+              <h4 style="font-size: 13px; font-weight: 700; color: #1e40af; margin: 0 0 10px 0; display: flex; align-items: center; gap: 6px;">
+                <span style="display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; background: #3b82f6; color: white; border-radius: 50%; font-size: 10px;">▶</span>
+                다음 단계
+              </h4>
+              <ul style="list-style: none; padding: 0; margin: 0;">
+                ${nextSteps.map((s, i) => `
+                  <li style="display: flex; align-items: flex-start; gap: 8px; margin-bottom: 6px;">
+                    <span style="flex-shrink: 0; background: #3b82f6; color: white; font-size: 9px; font-weight: 700; padding: 1px 5px; border-radius: 4px; margin-top: 2px;">Step ${i + 1}</span>
+                    <span style="font-size: 12px; color: #1e3a8a; line-height: 1.5;">${escapeHtml(s)}</span>
+                  </li>
+                `).join('')}
+              </ul>
+            </div>
+
+            <!-- 종합 의견 -->
+            <div style="background: #eef2ff; border-left: 4px solid #6366f1; border-radius: 0 8px 8px 0; padding: 14px;">
+              <p style="font-size: 12px; font-weight: 700; color: #4338ca; margin: 0 0 6px 0;">💬 종합 의견</p>
+              <p style="font-size: 13px; color: #312e81; line-height: 1.6; margin: 0;">${escapeHtml(feedback.detailedFeedback?.ranking)}</p>
             </div>
           </div>
         </div>
@@ -1099,6 +1145,12 @@ export default function PersonalDevelopmentReport({
             {feedback?.scores?.map((score, index) => {
               const displayScore = getDisplayValue(score.score);
               const progressWidth = getProgressWidth((score.score / 5) * 100);
+              const scoreNum = typeof score.score === 'number' ? score.score : 0;
+              const statusBadge = scoreNum >= 4
+                ? { label: '✅ 역량 확인됨', cls: 'bg-green-100 text-green-700 border-green-200' }
+                : scoreNum === 3
+                  ? { label: '🔶 기본 수준', cls: 'bg-orange-100 text-orange-700 border-orange-200' }
+                  : { label: '⚠️ 집중 개선 필요', cls: 'bg-red-100 text-red-700 border-red-200' };
               
               return (
                 <Card 
@@ -1111,41 +1163,42 @@ export default function PersonalDevelopmentReport({
                     animation: `fadeInUp 0.6s ease-out ${index * 200}ms forwards`
                   }}
                 >
-                  <CardHeader className="pb-3">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center space-x-2">
-                        <i className={`${score.icon} text-xl text-${score.color}-600 transition-transform duration-300 hover:scale-110`}></i>
-                        <CardTitle className="text-sm">
+                  <CardHeader className="pb-2">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex items-center space-x-2 min-w-0">
+                        <span className="flex-shrink-0 inline-flex items-center justify-center w-5 h-5 rounded-full bg-slate-100 text-slate-500 text-xs font-bold">{index + 1}</span>
+                        <i className={`${score.icon} text-lg text-${score.color}-600 flex-shrink-0 transition-transform duration-300 hover:scale-110`}></i>
+                        <CardTitle className="text-sm leading-tight">
                           {getTranslatedDimensionName(score.category, score.name)}
                           {score.weight && <span className="ml-1 text-xs font-normal text-slate-400">({score.weight}%)</span>}
                         </CardTitle>
                       </div>
                       <Badge 
                         variant="secondary" 
-                        className={`bg-${getScoreColor(score.score)}-100 text-${getScoreColor(score.score)}-800 transition-all duration-300 hover:scale-105`}
+                        className={`flex-shrink-0 bg-${getScoreColor(score.score)}-100 text-${getScoreColor(score.score)}-800 transition-all duration-300 hover:scale-105`}
                       >
                         {displayScore}/5
                       </Badge>
                     </div>
+                    {/* 상태 수준 뱃지 */}
+                    <span className={`mt-1.5 inline-block text-xs font-medium px-2 py-0.5 rounded-full border ${statusBadge.cls}`}>
+                      {statusBadge.label}
+                    </span>
                   </CardHeader>
-                  <CardContent>
+                  <CardContent className="pt-0">
                     <div className="flex items-center mb-3">
-                      <div className={`h-3 bg-${getScoreColor(score.score)}-200 rounded-full flex-1 mr-3 overflow-hidden`}>
+                      <div className={`h-2.5 bg-${getScoreColor(score.score)}-200 rounded-full flex-1 mr-3 overflow-hidden`}>
                         <div 
                           className={`h-full bg-gradient-to-r from-${getScoreColor(score.score)}-400 to-${getScoreColor(score.score)}-600 rounded-full transition-all duration-1000 ease-out`}
                           style={{ width: `${progressWidth}%` }}
                         />
                       </div>
-                      <span className={`text-sm font-medium text-${getScoreColor(score.score)}-600 transition-colors duration-300`}>
+                      <span className={`text-xs font-medium text-${getScoreColor(score.score)}-600 transition-colors duration-300`}>
                         {getScoreLabel(score.score)}
                       </span>
                     </div>
-                    <div 
-                      className={`transition-all duration-500 ${showDetailedFeedback ? 'opacity-100 max-h-none' : 'opacity-0 max-h-0 overflow-hidden'}`}
-                      style={{ transitionDelay: `${2000 + index * 300}ms` }}
-                    >
-                      <p className="text-sm text-slate-600" data-testid={`score-feedback-${index}`}>{score.feedback}</p>
-                    </div>
+                    {/* 핵심 피드백 — 항상 표시 */}
+                    <p className="text-sm text-slate-600 leading-relaxed" data-testid={`score-feedback-${index}`}>{score.feedback}</p>
                   </CardContent>
                 </Card>
               );
@@ -1160,60 +1213,95 @@ export default function PersonalDevelopmentReport({
               animation: `fadeInUp 0.8s ease-out 2.5s forwards`
             }}
           >
-            <CardHeader>
+            <CardHeader className="pb-3">
               <CardTitle className="flex items-center">
                 <i className="fas fa-chart-line text-corporate-600 mr-2 transition-transform duration-300 hover:scale-110"></i>
                 {t('report.overallEvaluation', '종합 평가')}
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <div>
-                  <h4 className="font-semibold text-green-700 mb-2 flex items-center">
-                    <i className="fas fa-thumbs-up mr-2"></i>
+              {/* 3개 섹션 세로 배치 */}
+              <div className="grid grid-cols-1 gap-4">
+
+                {/* 주요 강점 */}
+                <div className="bg-green-50 border border-green-200 rounded-xl p-4">
+                  <h4 className="font-bold text-green-800 mb-3 flex items-center gap-2">
+                    <span className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-green-500 text-white text-xs">
+                      <i className="fas fa-thumbs-up"></i>
+                    </span>
                     {t('report.mainStrengths', '주요 강점')}
                   </h4>
                   <ul className="space-y-2" data-testid="strengths-list">
-                    {feedback?.detailedFeedback?.strengths?.map((strength, index) => (
-                      <li key={index} className="text-sm text-slate-600 flex items-start">
-                        <i className="fas fa-check text-green-500 mr-2 mt-1 text-xs"></i>
-                        {strength}
+                    {feedback?.detailedFeedback?.strengths?.map((strength, idx) => (
+                      <li key={idx} className="flex items-start gap-3">
+                        <span className="flex-shrink-0 inline-flex items-center justify-center w-5 h-5 mt-0.5 rounded-full bg-green-200 text-green-700 text-xs font-bold">{idx + 1}</span>
+                        <span className="text-sm text-green-900 leading-relaxed">{strength}</span>
                       </li>
                     ))}
                   </ul>
                 </div>
-                <div>
-                  <h4 className="font-semibold text-orange-700 mb-2 flex items-center">
-                    <i className="fas fa-arrow-up mr-2"></i>
+
+                {/* 개선 포인트 */}
+                <div className="bg-orange-50 border border-orange-200 rounded-xl p-4">
+                  <h4 className="font-bold text-orange-800 mb-3 flex items-center gap-2">
+                    <span className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-orange-500 text-white text-xs">
+                      <i className="fas fa-arrow-up"></i>
+                    </span>
                     {t('report.improvementPoints', '개선 포인트')}
                   </h4>
                   <ul className="space-y-2" data-testid="improvements-list">
-                    {feedback?.detailedFeedback?.improvements?.map((improvement, index) => (
-                      <li key={index} className="text-sm text-slate-600 flex items-start">
-                        <i className="fas fa-exclamation-circle text-orange-500 mr-2 mt-1 text-xs"></i>
-                        {improvement}
-                      </li>
-                    ))}
+                    {feedback?.detailedFeedback?.improvements?.map((improvement, idx) => {
+                      const priorityLabels = ['즉시 실천', '단기', '지속'];
+                      const priorityColors = [
+                        'bg-red-100 text-red-700 border-red-200',
+                        'bg-yellow-100 text-yellow-700 border-yellow-200',
+                        'bg-slate-100 text-slate-600 border-slate-200'
+                      ];
+                      const priorityLabel = priorityLabels[idx] ?? '지속';
+                      const priorityColor = priorityColors[idx] ?? priorityColors[2];
+                      return (
+                        <li key={idx} className="flex items-start gap-3">
+                          <span className="flex-shrink-0 inline-flex items-center justify-center w-5 h-5 mt-0.5 rounded-full bg-orange-200 text-orange-700 text-xs font-bold">{idx + 1}</span>
+                          <div className="flex-1 min-w-0">
+                            <span className="text-sm text-orange-900 leading-relaxed">{improvement}</span>
+                            <span className={`ml-2 inline-block text-xs px-1.5 py-0.5 rounded border ${priorityColor} font-medium align-middle`}>{priorityLabel}</span>
+                          </div>
+                        </li>
+                      );
+                    })}
                   </ul>
                 </div>
-                <div>
-                  <h4 className="font-semibold text-blue-700 mb-2 flex items-center">
-                    <i className="fas fa-forward mr-2"></i>
+
+                {/* 다음 단계 */}
+                <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
+                  <h4 className="font-bold text-blue-800 mb-3 flex items-center gap-2">
+                    <span className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-blue-500 text-white text-xs">
+                      <i className="fas fa-forward"></i>
+                    </span>
                     {t('report.nextSteps', '다음 단계')}
                   </h4>
                   <ul className="space-y-2" data-testid="next-steps-list">
-                    {feedback?.detailedFeedback?.nextSteps?.map((step, index) => (
-                      <li key={index} className="text-sm text-slate-600 flex items-start">
-                        <i className="fas fa-play text-blue-500 mr-2 mt-1 text-xs"></i>
-                        {step}
+                    {feedback?.detailedFeedback?.nextSteps?.map((step, idx) => (
+                      <li key={idx} className="flex items-start gap-3">
+                        <span className="flex-shrink-0 inline-flex items-center justify-center h-5 px-1.5 mt-0.5 rounded bg-blue-500 text-white text-xs font-bold whitespace-nowrap">Step {idx + 1}</span>
+                        <span className="text-sm text-blue-900 leading-relaxed">{step}</span>
+                        {idx < (feedback?.detailedFeedback?.nextSteps?.length ?? 0) - 1 && (
+                          <i className="fas fa-arrow-down text-blue-300 text-xs mt-1 flex-shrink-0"></i>
+                        )}
                       </li>
                     ))}
                   </ul>
                 </div>
               </div>
-              <div className="pt-4 border-t border-slate-200">
-                <p className="text-slate-700 leading-relaxed" data-testid="ranking-summary">
-                  <strong>{t('report.expertOpinion', '전문가 의견')}:</strong> {feedback?.detailedFeedback?.ranking}
+
+              {/* 종합 의견 — 인용 박스 */}
+              <div className="bg-indigo-50 border-l-4 border-indigo-500 rounded-r-xl p-4" data-testid="ranking-summary">
+                <div className="flex items-center gap-2 mb-2">
+                  <i className="fas fa-comment-dots text-indigo-500"></i>
+                  <span className="text-sm font-bold text-indigo-800">{t('report.overallOpinion', '종합 의견')}</span>
+                </div>
+                <p className="text-sm text-indigo-900 leading-relaxed">
+                  {feedback?.detailedFeedback?.ranking}
                 </p>
               </div>
             </CardContent>
