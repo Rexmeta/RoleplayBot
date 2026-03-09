@@ -5,6 +5,7 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { ComplexScenario, getDifficultyLabel } from "@/lib/scenario-system";
 import { Loader2, Search, Filter, ChevronDown, ChevronUp, Folder } from "lucide-react";
 import { useTranslation } from "react-i18next";
@@ -46,6 +47,9 @@ export default function ScenarioSelector({ onScenarioSelect, playerProfile }: Sc
   
   // 펼쳐진 시나리오 상태 관리 (한 번에 하나만 펼치기)
   const [expandedScenarioId, setExpandedScenarioId] = useState<string | number | null>(null);
+
+  // 상세 보기 Sheet 상태
+  const [detailScenario, setDetailScenario] = useState<ComplexScenario | null>(null);
   
   const toggleScenarioExpand = (scenarioId: string | number, e: React.MouseEvent) => {
     e.stopPropagation();
@@ -551,118 +555,86 @@ export default function ScenarioSelector({ onScenarioSelect, playerProfile }: Sc
                     </div>
                   </div>
                   
-                  {/* 펼쳐지는 상세 정보 영역 */}
+                  {/* 펼쳐지는 요약 정보 영역 */}
                   <div 
                     className={`relative transition-all duration-500 ease-in-out ${
-                      isExpanded ? 'max-h-[2000px] opacity-100' : 'max-h-0 opacity-0 overflow-hidden'
+                      isExpanded ? 'max-h-[800px] opacity-100' : 'max-h-0 opacity-0 overflow-hidden'
                     }`}
                   >
-                    <div className="bg-gradient-to-b from-slate-900 to-slate-800 p-6 text-white">
-                      {/* 시나리오 개요 - 모바일에서는 300자 제한 */}
+                    <div className="bg-gradient-to-b from-slate-900 to-slate-800 p-5 text-white">
+                      {/* 시나리오 개요 요약 (150자) */}
                       {scenario.description && (() => {
                         const desc = getTranslatedDescription(scenario.id, scenario.description);
+                        const isTruncated = desc.length > 150;
                         return (
-                          <div className="bg-white/5 rounded-lg p-4 mb-5">
-                            <h4 className="font-medium text-white mb-3 flex items-center text-sm">
+                          <div className="bg-white/5 rounded-lg p-3 mb-4">
+                            <h4 className="font-medium text-white mb-2 flex items-center text-xs">
                               <i className="fas fa-file-alt mr-2 text-blue-400"></i>
                               {t('scenario.overview')}
                             </h4>
-                            {/* 데스크탑: 전체 표시, 모바일: 300자 제한 */}
-                            <p className="text-sm text-gray-200 leading-relaxed whitespace-pre-wrap hidden md:block">
-                              {desc}
+                            <p className="text-gray-300 text-xs leading-relaxed">
+                              {isTruncated ? desc.substring(0, 150) + '...' : desc}
                             </p>
-                            <div className="md:hidden">
-                              <p className="text-sm text-gray-200 leading-relaxed whitespace-pre-wrap">
-                                {desc.length > 300 
-                                  ? desc.substring(0, 300) + '...' 
-                                  : desc}
-                              </p>
-                              {desc.length > 300 && (
-                                <p className="text-xs text-blue-300 mt-2 flex items-center gap-1">
-                                  <i className="fas fa-info-circle"></i>
-                                  {t('scenario.mobileHint')}
-                                </p>
-                              )}
-                            </div>
                           </div>
                         );
                       })()}
-                      
-                      {/* 상황 정보 */}
-                      <div className="space-y-4 mb-5">
-                        <div className="bg-white/5 rounded-lg p-4">
-                          <h4 className="font-medium text-white mb-2 flex items-center text-sm">
+
+                      {/* 상황 요약 (3줄 제한) */}
+                      {scenario.context?.situation && (
+                        <div className="bg-white/5 rounded-lg p-3 mb-4">
+                          <h4 className="font-medium text-white mb-2 flex items-center text-xs">
                             <i className="fas fa-exclamation-triangle mr-2 text-yellow-400"></i>
                             {t('scenario.situation')}
                           </h4>
-                          <p className="text-gray-300 text-xs leading-relaxed whitespace-pre-wrap">
-                            {getTranslatedSituation(scenario.id, scenario.context?.situation) || t('scenario.noSituation')}
+                          <p className="text-gray-300 text-xs leading-relaxed line-clamp-3">
+                            {getTranslatedSituation(scenario.id, scenario.context?.situation)}
                           </p>
                         </div>
-                        
-                        <div className="grid grid-cols-2 gap-3">
-                          <div className="bg-white/5 rounded-lg p-3">
-                            <h4 className="font-medium text-white mb-1 flex items-center text-xs">
-                              <i className="fas fa-user-tie mr-2 text-blue-400"></i>
-                              {t('scenario.yourRole')}
-                            </h4>
-                            {scenario.context?.playerRoleText ? (
-                              <p className="text-gray-300 text-xs line-clamp-2">
-                                {scenario.context.playerRoleText}
-                              </p>
-                            ) : (
-                              <>
-                                <p className="text-gray-300 text-xs">
-                                  {scenario.context?.playerRole?.position || t('scenario.noRole')}
-                                </p>
-                                <p className="text-gray-400 text-xs mt-0.5">
-                                  {scenario.context?.playerRole?.experience || ''}
-                                </p>
-                              </>
+                      )}
+
+                      {/* 역량 태그 (최대 4개) */}
+                      {(() => {
+                        const allSkills = sortSkillsByImportance(getTranslatedSkills(scenario.id, scenario.skills || []));
+                        const visibleSkills = allSkills.slice(0, 4);
+                        const remaining = allSkills.length - 4;
+                        return (
+                          <div className="flex flex-wrap gap-1.5 mb-4">
+                            {visibleSkills.map((skill: string, index: number) => (
+                              <Badge
+                                key={index}
+                                variant="secondary"
+                                className={`text-xs ${index < 2 ? 'bg-blue-500/40 text-blue-100 border-blue-400/50' : 'bg-white/10 text-white border-white/20'}`}
+                              >
+                                {skill}
+                              </Badge>
+                            ))}
+                            {remaining > 0 && (
+                              <Badge variant="secondary" className="text-xs bg-white/10 text-gray-300 border-white/20">
+                                +{remaining}
+                              </Badge>
                             )}
                           </div>
-                          
-                          <div className="bg-white/5 rounded-lg p-3">
-                            <h4 className="font-medium text-white mb-1 flex items-center text-xs">
-                              <i className="fas fa-clock mr-2 text-purple-400"></i>
-                              {t('scenario.estimatedTime')}
-                            </h4>
-                            <p className="text-gray-300 text-xs">{scenario.estimatedTime}</p>
-                          </div>
-                        </div>
-                      </div>
+                        );
+                      })()}
 
-                      {/* 주요 역량 */}
-                      <div>
-                        <h4 className="font-medium text-white mb-3 flex items-center text-sm">
-                          <i className="fas fa-lightbulb mr-2 text-green-400"></i>
-                          {t('scenario.keyCompetencies')}
-                        </h4>
-                        <div className="flex flex-wrap gap-2">
-                          {sortSkillsByImportance(getTranslatedSkills(scenario.id, scenario.skills || [])).map((skill: string, index: number) => (
-                            <Badge 
-                              key={index} 
-                              variant="secondary" 
-                              className={`text-xs transition-all duration-300 ${
-                                index < 2 
-                                  ? 'bg-blue-500/40 text-blue-100 border-blue-400/50 hover:bg-blue-500/60' 
-                                  : 'bg-white/10 text-white border-white/20 hover:bg-white/20'
-                              }`}
-                            >
-                              {skill}
-                            </Badge>
-                          ))}
-                        </div>
-                      </div>
-                      
-                      {/* 시작 버튼 */}
-                      <div className="mt-5 pt-4 border-t border-white/10">
-                        <Button 
-                          onClick={() => handleScenarioClick(scenario)}
-                          className="w-full bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white font-medium shadow-lg hover:shadow-xl transition-all duration-300"
+                      {/* 버튼 영역 */}
+                      <div className="flex gap-2 pt-3 border-t border-white/10">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={(e) => { e.stopPropagation(); setDetailScenario(scenario); }}
+                          className="flex-1 text-xs text-gray-300 hover:text-white hover:bg-white/10 border border-white/20"
+                        >
+                          <i className="fas fa-expand-alt mr-1.5"></i>
+                          {t('scenario.viewDetail', '상세 내용 보기')}
+                        </Button>
+                        <Button
+                          onClick={(e) => { e.stopPropagation(); handleScenarioClick(scenario); }}
+                          size="sm"
+                          className="flex-1 text-xs bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white shadow-lg"
                           data-testid={`button-start-scenario-${scenario.id}`}
                         >
-                          <i className="fas fa-play mr-2"></i>
+                          <i className="fas fa-play mr-1.5"></i>
                           {t('scenario.startScenario')}
                         </Button>
                       </div>
@@ -675,6 +647,133 @@ export default function ScenarioSelector({ onScenarioSelect, playerProfile }: Sc
           </div>
         </div>
       </div>
+
+      {/* 상세 내용 보기 Sheet */}
+      <Sheet open={!!detailScenario} onOpenChange={(open) => !open && setDetailScenario(null)}>
+        <SheetContent side="right" className="w-full sm:max-w-lg overflow-y-auto p-0">
+          {detailScenario && (() => {
+            const desc = getTranslatedDescription(detailScenario.id, detailScenario.description);
+            const situation = getTranslatedSituation(detailScenario.id, detailScenario.context?.situation);
+            const allSkills = sortSkillsByImportance(getTranslatedSkills(detailScenario.id, detailScenario.skills || []));
+            return (
+              <>
+                {/* 상단 이미지 헤더 */}
+                <div className="relative h-44 w-full flex-shrink-0">
+                  <div
+                    className="absolute inset-0 bg-cover bg-center"
+                    style={{ backgroundImage: `url(${toMediaUrl((detailScenario as any).thumbnail || detailScenario.image) || 'https://images.unsplash.com/photo-1557804506-669a67965ba0?w=800&h=400&fit=crop&auto=format'})` }}
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent" />
+                  <div className="absolute bottom-0 left-0 right-0 p-5">
+                    <SheetHeader>
+                      <SheetTitle className="text-white text-xl font-bold drop-shadow leading-tight text-left">
+                        {getTranslatedTitle(detailScenario.id, detailScenario.title)}
+                      </SheetTitle>
+                    </SheetHeader>
+                    {getCategoryName((detailScenario as any).categoryId) && (
+                      <Badge className="mt-1.5 bg-blue-600/90 text-white text-xs w-fit">
+                        <Folder className="h-3 w-3 mr-1" />
+                        {getCategoryName((detailScenario as any).categoryId)}
+                      </Badge>
+                    )}
+                  </div>
+                </div>
+
+                {/* 상세 내용 */}
+                <div className="p-5 space-y-5">
+                  {/* 메타 정보 */}
+                  <div className="flex gap-3 text-sm">
+                    <div className="flex items-center gap-1.5 bg-slate-100 rounded-full px-3 py-1.5">
+                      <i className="fas fa-users text-slate-500 text-xs"></i>
+                      <span className="text-slate-700 font-medium">{t('scenario.personaCountN', { count: (detailScenario.personas || []).length })}</span>
+                    </div>
+                    <div className="flex items-center gap-1.5 bg-slate-100 rounded-full px-3 py-1.5">
+                      <i className="fas fa-clock text-slate-500 text-xs"></i>
+                      <span className="text-slate-700 font-medium">{detailScenario.estimatedTime}</span>
+                    </div>
+                  </div>
+
+                  {/* 시나리오 개요 */}
+                  {desc && (
+                    <div>
+                      <h4 className="font-semibold text-slate-800 mb-2 flex items-center text-sm">
+                        <i className="fas fa-file-alt mr-2 text-blue-500"></i>
+                        {t('scenario.overview')}
+                      </h4>
+                      <p className="text-sm text-slate-600 leading-relaxed whitespace-pre-wrap bg-slate-50 rounded-lg p-3">{desc}</p>
+                    </div>
+                  )}
+
+                  {/* 상황 정보 */}
+                  {situation && (
+                    <div>
+                      <h4 className="font-semibold text-slate-800 mb-2 flex items-center text-sm">
+                        <i className="fas fa-exclamation-triangle mr-2 text-yellow-500"></i>
+                        {t('scenario.situation')}
+                      </h4>
+                      <p className="text-sm text-slate-600 leading-relaxed whitespace-pre-wrap bg-yellow-50 rounded-lg p-3 border border-yellow-100">{situation}</p>
+                    </div>
+                  )}
+
+                  {/* 내 역할 */}
+                  {(detailScenario.context?.playerRoleText || detailScenario.context?.playerRole?.position) && (
+                    <div>
+                      <h4 className="font-semibold text-slate-800 mb-2 flex items-center text-sm">
+                        <i className="fas fa-user-tie mr-2 text-corporate-500"></i>
+                        {t('scenario.yourRole')}
+                      </h4>
+                      <div className="bg-corporate-50 rounded-lg p-3 border border-corporate-100">
+                        {detailScenario.context?.playerRoleText ? (
+                          <p className="text-sm text-slate-700 leading-relaxed">{detailScenario.context.playerRoleText}</p>
+                        ) : (
+                          <>
+                            <p className="text-sm font-medium text-slate-700">{detailScenario.context?.playerRole?.position}</p>
+                            {detailScenario.context?.playerRole?.experience && (
+                              <p className="text-xs text-slate-500 mt-0.5">{detailScenario.context.playerRole.experience}</p>
+                            )}
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* 주요 역량 전체 */}
+                  {allSkills.length > 0 && (
+                    <div>
+                      <h4 className="font-semibold text-slate-800 mb-2 flex items-center text-sm">
+                        <i className="fas fa-lightbulb mr-2 text-green-500"></i>
+                        {t('scenario.keyCompetencies')}
+                      </h4>
+                      <div className="flex flex-wrap gap-2">
+                        {allSkills.map((skill: string, index: number) => (
+                          <Badge
+                            key={index}
+                            variant="secondary"
+                            className={`text-xs ${index < 2 ? 'bg-blue-100 text-blue-700 border-blue-200' : 'bg-slate-100 text-slate-600 border-slate-200'}`}
+                          >
+                            {skill}
+                          </Badge>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* 시작 버튼 */}
+                  <div className="pt-2 pb-safe">
+                    <Button
+                      onClick={() => { setDetailScenario(null); handleScenarioClick(detailScenario); }}
+                      className="w-full bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white font-medium shadow-lg"
+                    >
+                      <i className="fas fa-play mr-2"></i>
+                      {t('scenario.startScenario')}
+                    </Button>
+                  </div>
+                </div>
+              </>
+            );
+          })()}
+        </SheetContent>
+      </Sheet>
     </div>
   );
 }
