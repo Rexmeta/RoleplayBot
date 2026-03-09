@@ -1388,7 +1388,7 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
                           className="w-full h-full object-cover object-top" 
                         />
                       </div>
-                      {message.emotion && (
+                      {user?.role === 'admin' && message.emotion && (
                         <div 
                           className="absolute -bottom-1 -right-1 text-xs bg-white rounded-lg w-6 h-6 flex items-center justify-center shadow-sm border-2 border-white"
                           title={message.emotionReason || message.emotion}
@@ -1954,7 +1954,7 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
                 <div className="bg-white rounded-xl px-4 py-3 shadow-sm border border-slate-100 mb-4">
                   <div className="flex items-center space-x-2">
                     <span className="text-sm font-semibold text-slate-800">{persona.department} {persona.role} {persona.name}</span>
-                    {latestAiMessage?.emotion && (
+                    {user?.role === 'admin' && latestAiMessage?.emotion && (
                       <span className="text-lg">{emotionEmojis[latestAiMessage.emotion] || '😐'}</span>
                     )}
                   </div>
@@ -2053,7 +2053,7 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
                   <div className="flex items-center space-x-3">
                     <div className="flex items-center space-x-2">
                       <span className="text-sm font-medium text-slate-700">{persona.department} {persona.role} {persona.name}</span>
-                      {latestAiMessage?.emotion && (
+                      {user?.role === 'admin' && latestAiMessage?.emotion && (
                         <span className="text-lg">
                           {emotionEmojis[latestAiMessage.emotion] || '😐'}
                         </span>
