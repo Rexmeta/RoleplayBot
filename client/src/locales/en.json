@@ -1383,20 +1383,35 @@
       }
     },
     "models": {
-      "gemini20flashexp": {
-        "label": "Gemini 2.0 Flash (Exp)",
-        "description": "Experimental fast model for emotion analysis",
-        "pricing": "Input $0.10/1M tokens, Output $0.40/1M tokens"
-      },
       "gemini25flash": {
         "label": "Gemini 2.5 Flash",
-        "description": "Fast response speed for general conversations",
+        "description": "Fast response speed for general conversations (Recommended)",
         "pricing": "Input $0.30/1M tokens, Output $2.50/1M tokens"
+      },
+      "gemini25flashLite": {
+        "label": "Gemini 2.5 Flash-Lite",
+        "description": "Fastest and most cost-efficient model in the 2.5 series",
+        "pricing": "Input $0.10/1M tokens, Output $0.40/1M tokens"
       },
       "gemini25pro": {
         "label": "Gemini 2.5 Pro",
         "description": "High quality for complex conversations",
         "pricing": "Input $1.25/1M tokens, Output $10.00/1M tokens"
+      },
+      "gemini3flashPreview": {
+        "label": "Gemini 3 Flash (Preview)",
+        "description": "Gemini 3 generation, high-performance multimodal model",
+        "pricing": "Preview — pricing TBD"
+      },
+      "gemini31proPreview": {
+        "label": "Gemini 3.1 Pro (Preview)",
+        "description": "Gemini 3.1 top reasoning performance for agentic workflows",
+        "pricing": "Preview — pricing TBD"
+      },
+      "gemini31flashLitePreview": {
+        "label": "Gemini 3.1 Flash-Lite (Preview)",
+        "description": "Gemini 3.1 lightweight, high-speed model",
+        "pricing": "Preview — pricing TBD"
       },
       "gpt4o": {
         "label": "GPT-4o",
@@ -1410,7 +1425,7 @@
       },
       "geminiLiveNativeAudio": {
         "label": "Gemini 2.5 Flash Native Audio",
-        "description": "Real-time voice conversation base model (2025.09)",
+        "description": "Real-time voice conversation base model (2025.12)",
         "pricing": "Input $0.35/1M, Output $1.50/1M tokens"
       },
       "geminiFlashImage": {

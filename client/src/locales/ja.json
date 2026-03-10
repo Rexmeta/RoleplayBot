@@ -1380,20 +1380,35 @@
       }
     },
     "models": {
-      "gemini20flashexp": {
-        "label": "Gemini 2.0 Flash (Exp)",
-        "description": "感情分析用の実験的高速モデル",
-        "pricing": "入力 $0.10/100万トークン、出力 $0.40/100万トークン"
-      },
       "gemini25flash": {
         "label": "Gemini 2.5 Flash",
-        "description": "一般会話向けの高速応答モデル",
+        "description": "一般会話向けの高速応答モデル（推奨）",
         "pricing": "入力 $0.30/100万トークン、出力 $2.50/100万トークン"
+      },
+      "gemini25flashLite": {
+        "label": "Gemini 2.5 Flash-Lite",
+        "description": "2.5シリーズで最も高速かつコスト効率の高いモデル",
+        "pricing": "入力 $0.10/100万トークン、出力 $0.40/100万トークン"
       },
       "gemini25pro": {
         "label": "Gemini 2.5 Pro",
         "description": "複雑な会話向けの高品質モデル",
         "pricing": "入力 $1.25/100万トークン、出力 $10.00/100万トークン"
+      },
+      "gemini3flashPreview": {
+        "label": "Gemini 3 Flash (Preview)",
+        "description": "Gemini 3世代、高性能マルチモーダルモデル",
+        "pricing": "Preview — 価格未定"
+      },
+      "gemini31proPreview": {
+        "label": "Gemini 3.1 Pro (Preview)",
+        "description": "Gemini 3.1最高推論性能、エージェントワークフロー向け",
+        "pricing": "Preview — 価格未定"
+      },
+      "gemini31flashLitePreview": {
+        "label": "Gemini 3.1 Flash-Lite (Preview)",
+        "description": "Gemini 3.1軽量高速モデル",
+        "pricing": "Preview — 価格未定"
       },
       "gpt4o": {
         "label": "GPT-4o",
@@ -1407,7 +1422,7 @@
       },
       "geminiLiveNativeAudio": {
         "label": "Gemini 2.5 Flash Native Audio",
-        "description": "リアルタイム音声会話基本モデル (2025.09)",
+        "description": "リアルタイム音声会話基本モデル (2025.12)",
         "pricing": "入力 $0.35/100万、出力 $1.50/100万トークン"
       },
       "geminiFlashImage": {

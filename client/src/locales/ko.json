@@ -1410,20 +1410,35 @@
       }
     },
     "models": {
-      "gemini20flashexp": {
-        "label": "Gemini 2.0 Flash (Exp)",
-        "description": "실험적 빠른 모델, 감정 분석용",
-        "pricing": "입력 $0.10/1M 토큰, 출력 $0.40/1M 토큰"
-      },
       "gemini25flash": {
         "label": "Gemini 2.5 Flash",
-        "description": "빠른 응답 속도, 일반 대화용",
+        "description": "빠른 응답 속도, 일반 대화용 (추천)",
         "pricing": "입력 $0.30/1M 토큰, 출력 $2.50/1M 토큰"
+      },
+      "gemini25flashLite": {
+        "label": "Gemini 2.5 Flash-Lite",
+        "description": "2.5 시리즈 중 가장 빠르고 저렴한 모델",
+        "pricing": "입력 $0.10/1M 토큰, 출력 $0.40/1M 토큰"
       },
       "gemini25pro": {
         "label": "Gemini 2.5 Pro",
         "description": "높은 품질, 복잡한 대화용",
         "pricing": "입력 $1.25/1M 토큰, 출력 $10.00/1M 토큰"
+      },
+      "gemini3flashPreview": {
+        "label": "Gemini 3 Flash (Preview)",
+        "description": "Gemini 3 세대, 멀티모달 고성능 모델",
+        "pricing": "Preview — 가격 미정"
+      },
+      "gemini31proPreview": {
+        "label": "Gemini 3.1 Pro (Preview)",
+        "description": "Gemini 3.1 최고 추론 성능, 에이전트 워크플로용",
+        "pricing": "Preview — 가격 미정"
+      },
+      "gemini31flashLitePreview": {
+        "label": "Gemini 3.1 Flash-Lite (Preview)",
+        "description": "Gemini 3.1 경량 고속 모델",
+        "pricing": "Preview — 가격 미정"
       },
       "gpt4o": {
         "label": "GPT-4o",
@@ -1437,7 +1452,7 @@
       },
       "geminiLiveNativeAudio": {
         "label": "Gemini 2.5 Flash Native Audio",
-        "description": "실시간 음성 대화 기본 모델 (2025.09)",
+        "description": "실시간 음성 대화 기본 모델 (2025.12)",
         "pricing": "입력 $0.35/1M, 출력 $1.50/1M 토큰"
       },
       "geminiFlashImage": {
