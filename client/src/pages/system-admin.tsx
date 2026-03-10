@@ -128,20 +128,38 @@ interface AiUsageDaily {
 
 const AI_MODELS = [
   { 
-    value: "gemini-2.0-flash-exp", 
-    modelKey: "gemini20flashexp",
-    provider: "Google",
-    recommended: false
-  },
-  { 
     value: "gemini-2.5-flash", 
     modelKey: "gemini25flash",
     provider: "Google",
     recommended: true
   },
   { 
+    value: "gemini-2.5-flash-lite", 
+    modelKey: "gemini25flashLite",
+    provider: "Google",
+    recommended: false
+  },
+  { 
     value: "gemini-2.5-pro", 
     modelKey: "gemini25pro",
+    provider: "Google",
+    recommended: false
+  },
+  { 
+    value: "gemini-3-flash-preview", 
+    modelKey: "gemini3flashPreview",
+    provider: "Google",
+    recommended: false
+  },
+  { 
+    value: "gemini-3.1-pro-preview", 
+    modelKey: "gemini31proPreview",
+    provider: "Google",
+    recommended: false
+  },
+  { 
+    value: "gemini-3.1-flash-lite-preview", 
+    modelKey: "gemini31flashLitePreview",
     provider: "Google",
     recommended: false
   },
@@ -161,7 +179,7 @@ const AI_MODELS = [
 
 const GEMINI_LIVE_MODELS = [
   { 
-    value: "gemini-2.5-flash-native-audio-preview-09-2025", 
+    value: "gemini-2.5-flash-native-audio-preview-12-2025", 
     modelKey: "geminiLiveNativeAudio",
     provider: "Google Live",
     recommended: true
@@ -200,14 +218,14 @@ const FEATURE_MODEL_INFO = [
   {
     id: "realtime",
     settingKey: "model_realtime",
-    defaultModel: "gemini-2.5-flash-native-audio-preview-09-2025",
+    defaultModel: "gemini-2.5-flash-native-audio-preview-12-2025",
     configurable: true,
     supportedProviders: ["Google Live"]
   },
   {
     id: "emotion",
     settingKey: "model_emotion",
-    defaultModel: "gemini-2.0-flash-exp",
+    defaultModel: "gemini-2.5-flash",
     configurable: true,
     supportedProviders: ["Google"]
   },
@@ -271,8 +289,8 @@ export default function SystemAdminPage() {
     model_feedback: "gemini-2.5-flash",
     model_strategy: "gemini-2.5-flash",
     model_scenario: "gemini-2.5-flash",
-    model_realtime: "gemini-2.5-flash-native-audio-preview-09-2025",
-    model_emotion: "gemini-2.0-flash-exp",
+    model_realtime: "gemini-2.5-flash-native-audio-preview-12-2025",
+    model_emotion: "gemini-2.5-flash",
   });
   const [hasSettingsChanges, setHasSettingsChanges] = useState(false);
 
