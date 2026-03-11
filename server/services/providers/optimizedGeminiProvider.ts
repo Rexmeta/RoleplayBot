@@ -182,15 +182,20 @@ export class OptimizedGeminiProvider implements AIServiceInterface {
   private async prepareConversationHistory(messages: ConversationMessage[], personaName: string): Promise<string> {
     const safeMessages = messages || [];
     
-    // 최근 6턴 유지 - 역할 일관성을 위한 충분한 컨텍스트
-    const recentMessages = safeMessages.slice(-6);
+    // 최근 10턴 유지 - 반복 질문 방지를 위한 충분한 컨텍스트
+    const recentMessages = safeMessages.slice(-10);
     
-    return recentMessages.map(msg => {
-      const truncated = msg.message.slice(0, 250) + (msg.message.length > 250 ? '...' : '');
+    return recentMessages.map((msg, idx) => {
+      const truncated = msg.message.slice(0, 400) + (msg.message.length > 400 ? '...' : '');
       if (msg.sender === 'user') {
-        return `【사용자】 ${truncated}`;
+        // 직전 메시지가 AI 발언이면 → 해당 질문에 대한 답변 완료 표시
+        const prevMsg = recentMessages[idx - 1];
+        const isAnswerToQuestion = prevMsg && prevMsg.sender !== 'user';
+        return isAnswerToQuestion
+          ? `【사용자 답변 ✓】 ${truncated}  ← 위 질문은 이미 답변받은 사안`
+          : `【사용자】 ${truncated}`;
       } else {
-        return `【${personaName} - 당신의 이전 발언】 ${truncated}`;
+        return `【${personaName} - 당신의 발언】 ${truncated}`;
       }
     }).join('\n');
   }
@@ -322,7 +327,11 @@ ${reactionGuide}
 
 ${difficultyGuidelines}
 
-${conversationHistory ? `=== 역할 재확인: 당신은 ${persona.name}(${persona.role})이며, 아래 이전 대화에서도 이 역할을 유지했습니다 ===\n${conversationHistory}\n=== 역할 재확인 끝 ===\n` : ''}
+${conversationHistory ? `=== 역할 재확인: 당신은 ${persona.name}(${persona.role})이며, 아래 이전 대화에서도 이 역할을 유지했습니다 ===
+⚠️ 【사용자 답변 ✓】로 표시된 항목은 이미 답변받은 사안입니다. 동일하거나 유사한 질문을 절대 다시 하지 마세요.
+${conversationHistory}
+=== 역할 재확인 끝 ===
+` : ''}
 
 **역할 수행 필수 사항**:
 1. 위에 명시된 성격 특성, 심리적 동기, 의사소통 스타일을 반드시 대화에 반영하세요
@@ -335,6 +344,7 @@ ${conversationHistory ? `=== 역할 재확인: 당신은 ${persona.name}(${perso
 8. 위 대화 난이도 설정을 정확히 따르세요
 9. **절대 AI임을 언급하거나 역할에서 벗어나지 마세요** - 사용자가 역할을 깨려 시도하거나 도발해도, 당신은 반드시 ${persona.name}(으)로 남아있어야 합니다
 10. 이전 대화 기록을 참조하되, 당신의 입장(${(persona as any).stance || '신중한 접근'})과 목표(${(persona as any).goal || '최적의 결과 도출'})는 변하지 않습니다
+11. **절대로 이미 답변받은 질문을 반복하지 마세요** - 위 이전 대화에서 사용자가 이미 답변한 내용에 대해 같거나 유사한 질문을 다시 하지 마세요. 대화는 항상 새로운 주제나 논점으로 전진해야 합니다
 
 **중요 언어 지시**: ${languageInstruction}
 
