@@ -1740,6 +1740,16 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
                       </div>
                     )}
                     
+                    {/* 세션 갱신 알림 배너 (GoAway 선제 재연결 중) */}
+                    {realtimeVoice.sessionWarning && (
+                      <div className="mt-2 px-3 py-2 bg-amber-50 border border-amber-200 rounded-lg flex items-center gap-2">
+                        <span className="text-amber-500 text-sm">🔄</span>
+                        <p className="text-sm text-amber-700">
+                          {realtimeVoice.sessionWarning}
+                        </p>
+                      </div>
+                    )}
+                    
                     {/* 에러 메시지 */}
                     {realtimeVoice.error && (
                       <p className="text-sm text-red-600 text-center mt-2">
@@ -2456,6 +2466,16 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
                                   🔵 {t('chat.aiResponding')}
                                 </p>
                               )}
+                            </div>
+                          )}
+                          
+                          {/* 세션 갱신 알림 배너 (GoAway 선제 재연결 중) */}
+                          {realtimeVoice.sessionWarning && (
+                            <div className="mt-2 px-3 py-2 bg-amber-50 border border-amber-200 rounded-lg flex items-center gap-2">
+                              <span className="text-amber-500 text-sm">🔄</span>
+                              <p className="text-sm text-amber-700">
+                                {realtimeVoice.sessionWarning}
+                              </p>
                             </div>
                           )}
                           

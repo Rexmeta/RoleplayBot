@@ -51,6 +51,7 @@ interface UseRealtimeVoiceReturn {
   sendTextMessage: (text: string) => void;
   resetPhase: () => void; // 대화 단계 리셋 (새 대화 시작시)
   error: string | null;
+  sessionWarning: string | null; // GoAway 경고 메시지 (자동 갱신 중 등)
 }
 
 export function useRealtimeVoice({
@@ -77,6 +78,7 @@ export function useRealtimeVoice({
   const [greetingFailed, setGreetingFailed] = useState(false);
   const [audioAmplitude, setAudioAmplitude] = useState(0); // AI 음성 볼륨 레벨
   const [userAudioAmplitude, setUserAudioAmplitude] = useState(0); // 사용자 음성 볼륨 레벨
+  const [sessionWarning, setSessionWarning] = useState<string | null>(null); // GoAway 경고 메시지
   
   // 대화가 실제로 시작되었는지 추적 (AI가 한번이라도 응답했으면 true)
   const hasConversationStartedRef = useRef<boolean>(false);
@@ -566,9 +568,15 @@ export function useRealtimeVoice({
               break;
 
             case 'session.warning':
-              // GoAway 경고 - 세션이 곧 종료됨
+              // GoAway 경고 - 세션이 곧 종료됨 (선제 재연결 실패 등 예외 상황)
               console.log(`⚠️ Session warning: ${data.message} (${data.timeLeft}s left)`);
-              // 사용자에게 경고 표시 가능
+              setSessionWarning(data.message || '연결이 곧 종료됩니다. 대화를 마무리해 주세요.');
+              break;
+            
+            case 'session.refreshing':
+              // GoAway 선제 재연결 중 - 부드러운 UI 알림
+              console.log(`🔄 Session refreshing: ${data.message}`);
+              setSessionWarning('연결을 자동으로 갱신하고 있습니다...');
               break;
             
             case 'session.reconnecting':
@@ -580,7 +588,8 @@ export function useRealtimeVoice({
             case 'session.reconnected':
               // Gemini 재연결 성공
               console.log('✅ Session reconnected successfully');
-              setError(null); // 에러 상태 클리어
+              setError(null);
+              setSessionWarning(null); // 경고 배너 해제
               break;
 
             case 'greeting.retry':
@@ -1212,5 +1221,6 @@ export function useRealtimeVoice({
     sendTextMessage,
     resetPhase,
     error,
+    sessionWarning,
   };
 }

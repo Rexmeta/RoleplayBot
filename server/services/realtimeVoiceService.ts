@@ -637,7 +637,7 @@ export class RealtimeVoiceService {
         console.log(`🎤 Setting voice for ${gender}: ${voiceName} (초기 선택, 세션에 저장)`);
       }
       
-      const config = {
+      const config: any = {
         responseModalities: [Modality.AUDIO],
         systemInstruction: systemInstructions,
         // Enable transcription for both input and output audio
@@ -651,6 +651,12 @@ export class RealtimeVoiceService {
         thinkingConfig: {
           thinkingBudget: 0,
         },
+        // 컨텍스트 윈도우 압축: 오디오 토큰 누적 방지, 세션 15분 제한 → 무제한 연장
+        contextWindowCompression: { slidingWindow: {} },
+        // Session Resumption: 재연결 시 컨텍스트 복원을 위한 재개 토큰 발급
+        sessionResumption: session.sessionResumptionToken
+          ? { handle: session.sessionResumptionToken }
+          : {},
         // Gemini Live API uses 16kHz input, 24kHz output
       };
 
@@ -662,6 +668,8 @@ export class RealtimeVoiceService {
       console.log('🔊 응답 모달리티:', config.responseModalities.join(', '));
       console.log('📝 입력 음성 텍스트 변환: 활성화');
       console.log('📝 출력 음성 텍스트 변환: 활성화');
+      console.log('🗜️  컨텍스트 윈도우 압축: 활성화 (slidingWindow)');
+      console.log('🔑 세션 재개 토큰:', session.sessionResumptionToken ? '있음 (재개)' : '없음 (새 세션)');
       console.log('='.repeat(80) + '\n');
 
       // Get model from DB settings (use cached value from session if available)
@@ -940,12 +948,27 @@ export class RealtimeVoiceService {
       console.log(`⚠️ GoAway 경고 수신: ${timeLeft}초 후 연결 종료 예정`);
       session.goAwayWarningTime = Date.now();
       
-      // 클라이언트에 알림
-      this.sendToClient(session, {
-        type: 'session.warning',
-        message: `연결이 ${timeLeft}초 후 종료됩니다. 대화를 마무리해 주세요.`,
-        timeLeft: timeLeft,
-      });
+      if (timeLeft > 3 && !session.isReconnecting) {
+        // 연결 종료 전 여유가 있으면 선제 재연결 (사용자가 끊김을 느끼지 않도록)
+        console.log(`🔄 GoAway 선제 재연결 시작 (${timeLeft}s 여유)`);
+        
+        // 클라이언트에 부드러운 갱신 알림 (에러가 아닌 info 메시지)
+        this.sendToClient(session, {
+          type: 'session.refreshing',
+          message: '연결을 자동으로 갱신하고 있습니다...',
+          timeLeft: timeLeft,
+        });
+        
+        // 선제 재연결 (현재 세션의 resumption token 활용)
+        this.proactiveReconnect(session);
+      } else {
+        // 시간이 너무 짧거나 이미 재연결 중이면 단순 경고
+        this.sendToClient(session, {
+          type: 'session.warning',
+          message: `연결이 ${timeLeft}초 후 종료됩니다. 대화를 마무리해 주세요.`,
+          timeLeft: timeLeft,
+        });
+      }
       return;
     }
     
@@ -1812,6 +1835,58 @@ ${promptConfig.replyFormat}`;
     if (session.clientWs && session.clientWs.readyState === WebSocket.OPEN) {
       session.clientWs.send(JSON.stringify(message));
     }
+  }
+
+  // GoAway 수신 시 선제 재연결: 연결이 끊기기 전에 새 Gemini 세션을 미리 준비
+  private proactiveReconnect(session: RealtimeSession): void {
+    if (session.isReconnecting) {
+      console.log('⚠️ proactiveReconnect: 이미 재연결 중');
+      return;
+    }
+    
+    session.isReconnecting = true;
+    const sessionId = session.id;
+    
+    console.log(`🔄 proactiveReconnect: 새 Gemini 세션 준비 시작 (sessionId=${sessionId})`);
+    
+    // 기존 Gemini 세션 닫기 (정상 종료)
+    if (session.geminiSession) {
+      try {
+        session.geminiSession.close();
+      } catch (e) {
+        // ignore
+      }
+      session.geminiSession = null;
+    }
+    
+    // 새 Gemini 세션 연결 (resumption token 자동 활용)
+    this.connectToGemini(session, session.systemInstructions, session.voiceGender)
+      .then(() => {
+        const currentSession = this.sessions.get(sessionId);
+        if (!currentSession) return;
+        
+        currentSession.isReconnecting = false;
+        currentSession.reconnectAttempts = 0;
+        console.log(`✅ proactiveReconnect 성공: 새 Gemini 세션 활성화`);
+        
+        this.sendToClient(currentSession, {
+          type: 'session.reconnected',
+        });
+      })
+      .catch((error) => {
+        const currentSession = this.sessions.get(sessionId);
+        if (!currentSession) return;
+        
+        currentSession.isReconnecting = false;
+        console.error(`❌ proactiveReconnect 실패:`, error);
+        
+        // 선제 재연결 실패 시 경고만 표시 (기존 연결이 아직 살아있을 수 있음)
+        this.sendToClient(currentSession, {
+          type: 'session.warning',
+          message: '연결 갱신에 실패했습니다. 잠시 후 자동으로 재시도합니다.',
+          timeLeft: 0,
+        });
+      });
   }
 
   // 세션 사용량 추적 헬퍼 메서드 (중복 방지를 위해 한 번만 호출)
