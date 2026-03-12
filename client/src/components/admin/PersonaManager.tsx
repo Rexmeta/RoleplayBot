@@ -1342,9 +1342,40 @@ export function PersonaManager() {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {personas.map((persona: MBTIPersona) => {
           const scenarioUsage = getPersonaUsageInScenarios(persona.id);
-          
+
+          const maleNeutralKey = persona.images?.male?.expressions?.['중립']
+            || persona.images?.expressions?.['중립'];
+          const femaleNeutralKey = persona.images?.female?.expressions?.['중립'];
+          const maleNeutralUrl = maleNeutralKey ? toMediaUrl(maleNeutralKey) : null;
+          const femaleNeutralUrl = femaleNeutralKey ? toMediaUrl(femaleNeutralKey) : null;
+
           return (
             <Card key={persona.id} className="overflow-hidden">
+              {/* 남/여 이미지 배너 */}
+              <div className="flex items-end justify-center gap-6 px-4 pt-4 pb-3 bg-gradient-to-b from-slate-100 to-white border-b border-slate-100">
+                {[
+                  { url: maleNeutralUrl, label: '남', border: 'border-blue-200', bg: 'bg-blue-50', text: 'text-blue-500' },
+                  { url: femaleNeutralUrl, label: '여', border: 'border-pink-200', bg: 'bg-pink-50', text: 'text-pink-500' },
+                ].map(({ url, label, border, bg, text }) => (
+                  <div key={label} className="flex flex-col items-center gap-1.5">
+                    <div className={`w-[72px] h-24 rounded-xl overflow-hidden border-2 ${border} ${bg} relative`}>
+                      {url ? (
+                        <img
+                          src={url}
+                          alt={`${persona.id} ${label}`}
+                          className="w-full h-full object-cover object-top"
+                          onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; (e.target as HTMLImageElement).parentElement!.classList.add('flex', 'items-center', 'justify-center'); }}
+                        />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center">
+                          <span className={`text-4xl font-bold ${text} opacity-20`}>{label}</span>
+                        </div>
+                      )}
+                    </div>
+                    <span className={`text-xs font-semibold ${text}`}>{label}</span>
+                  </div>
+                ))}
+              </div>
               <CardHeader>
                 <div className="flex items-start justify-between">
                   <div className="flex-1">
