@@ -752,6 +752,7 @@ ${scoringRubricsSection}
 - strengths/improvements도 가중치가 높은 영역을 우선적으로 반영하세요
 
 **📝 콘텐츠 품질 요구사항**:
+- **⛔ 절대 금지**: "(사용자1)", "(발화1)", "(사용자 2)", "(발화 3)" 등 번호 참조 표현을 절대 사용하지 마세요. 발화를 인용할 때는 항상 실제 내용을 따옴표로 직접 인용하세요. (예: '충분히 이해합니다'라고 말한 점이 효과적이었습니다)
 - **summary**: 3문장 이상으로 대화의 전체적인 흐름, 피평가자의 핵심 강점, 주요 개선 영역을 구체적으로 서술
 - **strengths/improvements/nextSteps**: 각각 3개 이상, 각 항목은 대화 내용을 직접 인용하거나 참조하는 구체적 문장 (예: "상대방의 우려사항에 대해 '충분히 이해합니다'라며 공감을 표현한 점이 효과적이었습니다")
 - **dimensionFeedback**: 각 영역별로 2문장 이상, 해당 영역에서 피평가자가 보인 구체적 행동과 그 효과를 서술
@@ -924,11 +925,47 @@ JSON 형식${hasStrategyReflection ? ' (sequenceAnalysis 포함)' : ''}:
         feedback.evaluationCriteriaSetName = evaluationCriteria.name;
       }
       
-      return feedback;
+      return this.sanitizeFeedbackText(feedback);
     } catch (error) {
       console.error("Feedback parsing error:", error);
       return this.getFallbackFeedback(evaluationCriteria);
     }
+  }
+
+  /**
+   * AI가 생성한 피드백 텍스트에서 "(사용자N)", "(발화N)" 등 내부 번호 참조 표현 제거
+   */
+  private sanitizeFeedbackText(feedback: DetailedFeedback): DetailedFeedback {
+    const clean = (text: string): string =>
+      text.replace(/\(사용자\s*\d+\)/g, '').replace(/\(발화\s*\d+\)/g, '').replace(/\s{2,}/g, ' ').trim();
+
+    const cleanArr = (arr: string[]): string[] => arr.map(clean);
+
+    return {
+      ...feedback,
+      summary: clean(feedback.summary || ''),
+      ranking: clean(feedback.ranking || ''),
+      strengths: cleanArr(feedback.strengths || []),
+      improvements: cleanArr(feedback.improvements || []),
+      nextSteps: cleanArr(feedback.nextSteps || []),
+      dimensionFeedback: Object.fromEntries(
+        Object.entries(feedback.dimensionFeedback || {}).map(([k, v]) => [k, clean(v as string)])
+      ),
+      behaviorGuides: (feedback.behaviorGuides || []).map(g => ({
+        ...g,
+        situation: clean(g.situation || ''),
+        action: clean(g.action || ''),
+        example: clean(g.example || ''),
+        impact: clean(g.impact || ''),
+      })),
+      conversationGuides: (feedback.conversationGuides || []).map(g => ({
+        ...g,
+        scenario: clean(g.scenario || ''),
+        goodExample: clean(g.goodExample || ''),
+        badExample: clean(g.badExample || ''),
+        keyPoints: cleanArr(g.keyPoints || []),
+      })),
+    };
   }
 
   /**
