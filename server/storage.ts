@@ -60,9 +60,9 @@ function buildPoolConfig(url: string): import('pg').PoolConfig {
 const pool = new Pool({
   ...buildPoolConfig(databaseUrl),
   max: 25,
-  min: 5,
+  min: 0,
   connectionTimeoutMillis: 10000,
-  idleTimeoutMillis: 30000,
+  idleTimeoutMillis: 10000,
   idle_in_transaction_session_timeout: 30000,
   allowExitOnIdle: false,
 });
