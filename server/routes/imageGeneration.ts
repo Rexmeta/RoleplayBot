@@ -146,9 +146,22 @@ router.post('/generate-scenario-image', async (req, res) => {
     
     // Gemini API 오류 처리
     if (error.message?.includes('quota') || error.status === 429) {
+      let retryAfter: string | null = null;
+      let isFreeTierLimit = false;
+      try {
+        const parsed = JSON.parse(error.message);
+        const violations = parsed?.error?.details?.find((d: any) => d['@type']?.includes('QuotaFailure'))?.violations || [];
+        isFreeTierLimit = violations.some((v: any) => v.quotaId?.includes('FreeTier'));
+        const retryInfo = parsed?.error?.details?.find((d: any) => d['@type']?.includes('RetryInfo'));
+        if (retryInfo?.retryDelay) retryAfter = retryInfo.retryDelay;
+      } catch {}
       return res.status(429).json({
         error: '요청 한도 초과',
-        details: 'API 요청 한도를 초과했습니다. 잠시 후 다시 시도해주세요.',
+        details: isFreeTierLimit
+          ? 'Gemini 이미지 생성 모델은 유료 API 키가 필요합니다. Google AI Studio에서 결제를 활성화해주세요.'
+          : `API 요청 한도를 초과했습니다. ${retryAfter ? retryAfter + ' 후 다시' : '잠시 후'} 시도해주세요.`,
+        retryAfter,
+        isFreeTierLimit,
         fallbackImageUrl: 'https://images.unsplash.com/photo-1557804506-669a67965ba0?w=1024&h=1024&fit=crop&auto=format'
       });
     }
@@ -460,9 +473,22 @@ router.post('/generate-persona-base', async (req, res) => {
     console.error('페르소나 기본 이미지 생성 오류:', error);
     
     if (error.message?.includes('quota') || error.status === 429) {
+      let retryAfter: string | null = null;
+      let isFreeTierLimit = false;
+      try {
+        const parsed = JSON.parse(error.message);
+        const violations = parsed?.error?.details?.find((d: any) => d['@type']?.includes('QuotaFailure'))?.violations || [];
+        isFreeTierLimit = violations.some((v: any) => v.quotaId?.includes('FreeTier'));
+        const retryInfo = parsed?.error?.details?.find((d: any) => d['@type']?.includes('RetryInfo'));
+        if (retryInfo?.retryDelay) retryAfter = retryInfo.retryDelay;
+      } catch {}
       return res.status(429).json({
         error: '요청 한도 초과',
-        details: 'API 요청 한도를 초과했습니다. 잠시 후 다시 시도해주세요.'
+        details: isFreeTierLimit
+          ? 'Gemini 이미지 생성 모델은 유료 API 키가 필요합니다. Google AI Studio에서 결제를 활성화해주세요.'
+          : `API 요청 한도를 초과했습니다. ${retryAfter ? retryAfter + ' 후 다시' : '잠시 후'} 시도해주세요.`,
+        retryAfter,
+        isFreeTierLimit
       });
     }
 
