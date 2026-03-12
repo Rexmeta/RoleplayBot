@@ -1,5 +1,6 @@
 import { readFileSync } from 'fs';
 import { join } from 'path';
+import { GlobalMBTICache } from './globalMBTICache';
 
 // MBTI 페르소나 데이터 타입 정의
 export interface MBTIPersona {
@@ -80,23 +81,29 @@ export async function loadMBTIPersona(personaRef: string): Promise<MBTIPersona |
       return null;
     }
     
-    // 캐시에서 먼저 확인
-    if (mbtiCache.has(personaRef)) {
-      return mbtiCache.get(personaRef)!;
+    const normalizedRef = `${baseFileName}.json`;
+
+    // 로컬 캐시에서 먼저 확인
+    if (mbtiCache.has(normalizedRef)) {
+      return mbtiCache.get(normalizedRef)!;
     }
 
-    // personas 폴더 경로 설정 (정규화된 파일명 사용)
-    const normalizedRef = `${baseFileName}.json`;
+    // GlobalMBTICache 확인 (서버 시작 시 프리로드된 데이터 재사용)
+    const globalCache = GlobalMBTICache.getInstance();
+    if (globalCache.isWarmUp()) {
+      const cached = globalCache.getMBTIPersona(normalizedRef);
+      if (cached) {
+        mbtiCache.set(normalizedRef, cached);
+        return cached;
+      }
+    }
+
+    // 폴백: 파일에서 직접 읽기
     const personasPath = join(process.cwd(), 'personas', normalizedRef);
-    
-    // JSON 파일 읽기
     const fileContent = readFileSync(personasPath, 'utf-8');
     const mbtiPersona: MBTIPersona = JSON.parse(fileContent);
     
-    // 캐시에 저장 (정규화된 키 사용)
     mbtiCache.set(normalizedRef, mbtiPersona);
-    
-    console.log(`✅ MBTI Persona loaded: ${mbtiPersona.mbti} (${mbtiPersona.id})`);
     return mbtiPersona;
     
   } catch (error) {
