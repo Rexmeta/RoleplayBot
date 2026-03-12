@@ -1351,30 +1351,44 @@ export function PersonaManager() {
 
           return (
             <Card key={persona.id} className="overflow-hidden">
-              {/* 남/여 이미지 배너 */}
-              <div className="flex items-end justify-center gap-6 px-4 pt-4 pb-3 bg-gradient-to-b from-slate-100 to-white border-b border-slate-100">
-                {[
-                  { url: maleNeutralUrl, label: '남', border: 'border-blue-200', bg: 'bg-blue-50', text: 'text-blue-500' },
-                  { url: femaleNeutralUrl, label: '여', border: 'border-pink-200', bg: 'bg-pink-50', text: 'text-pink-500' },
-                ].map(({ url, label, border, bg, text }) => (
-                  <div key={label} className="flex flex-col items-center gap-1.5">
-                    <div className={`w-[72px] h-24 rounded-xl overflow-hidden border-2 ${border} ${bg} relative`}>
-                      {url ? (
-                        <img
-                          src={url}
-                          alt={`${persona.id} ${label}`}
-                          className="w-full h-full object-cover object-top"
-                          onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; (e.target as HTMLImageElement).parentElement!.classList.add('flex', 'items-center', 'justify-center'); }}
-                        />
-                      ) : (
-                        <div className="w-full h-full flex items-center justify-center">
-                          <span className={`text-4xl font-bold ${text} opacity-20`}>{label}</span>
-                        </div>
-                      )}
-                    </div>
-                    <span className={`text-xs font-semibold ${text}`}>{label}</span>
+              {/* 남/여 이미지 배너 - 풀블리드 */}
+              <div className="relative h-40 overflow-hidden bg-gradient-to-br from-slate-800 to-slate-900">
+                <div className="absolute inset-0 flex">
+                  {/* 남성 */}
+                  <div className="w-1/2 h-full relative overflow-hidden">
+                    {maleNeutralUrl ? (
+                      <img
+                        src={maleNeutralUrl}
+                        alt={`${persona.id} male`}
+                        className="w-full h-full object-cover object-top scale-105"
+                      />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-blue-900/50 to-slate-900">
+                        <span className="text-5xl text-blue-300/20 font-bold">♂</span>
+                      </div>
+                    )}
+                    <div className="absolute inset-0 bg-gradient-to-r from-transparent via-transparent to-black/40 pointer-events-none" />
                   </div>
-                ))}
+                  {/* 여성 */}
+                  <div className="w-1/2 h-full relative overflow-hidden">
+                    {femaleNeutralUrl ? (
+                      <img
+                        src={femaleNeutralUrl}
+                        alt={`${persona.id} female`}
+                        className="w-full h-full object-cover object-top scale-105"
+                      />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center bg-gradient-to-bl from-pink-900/50 to-slate-900">
+                        <span className="text-5xl text-pink-300/20 font-bold">♀</span>
+                      </div>
+                    )}
+                    <div className="absolute inset-0 bg-gradient-to-l from-transparent via-transparent to-black/40 pointer-events-none" />
+                  </div>
+                </div>
+                {/* 중앙 구분선 */}
+                <div className="absolute top-0 bottom-0 left-1/2 -translate-x-px w-px bg-white/15" />
+                {/* 하단 페이드 */}
+                <div className="absolute bottom-0 inset-x-0 h-10 bg-gradient-to-t from-white to-transparent pointer-events-none" />
               </div>
               <CardHeader>
                 <div className="flex items-start justify-between">
