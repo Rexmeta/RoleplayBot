@@ -76,8 +76,11 @@ export async function loadMBTIPersona(personaRef: string): Promise<MBTIPersona |
     const allowedTypes = getAvailableMBTITypes();
     const baseFileName = personaRef.replace('.json', '');
     
-    if (!allowedTypes.includes(baseFileName) || personaRef.includes('..') || personaRef.includes('/')) {
-      console.error(`❌ Invalid personaRef: ${personaRef}`);
+    if (personaRef.includes('..') || personaRef.includes('/')) {
+      console.error(`❌ Invalid personaRef (path traversal): ${personaRef}`);
+      return null;
+    }
+    if (!allowedTypes.includes(baseFileName)) {
       return null;
     }
     

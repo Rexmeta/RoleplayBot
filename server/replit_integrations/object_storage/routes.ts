@@ -22,7 +22,6 @@ export function registerObjectStorageRoutes(app: Express): void {
       await streamFromGCS(key, res);
     } else {
       try {
-        console.log(`[Object Storage] Serving key="${key}" via sidecar`);
         const svc = new ObjectStorageService();
         const file = await svc.searchPublicObject(key);
         if (!file) {

@@ -400,15 +400,12 @@ export function useRealtimeVoice({
       ws.onmessage = (event) => {
         try {
           const data = JSON.parse(event.data);
-          console.log('📨 WebSocket message:', data.type);
 
           switch (data.type) {
             case 'session.created':
-              console.log('✅ Session created:', data.session);
               break;
 
             case 'conversation.item.created':
-              console.log('💬 Conversation item created:', data.item);
               break;
 
             // 🎤 사용자 음성 전사 (텍스트 변환) - 완료 시
@@ -429,7 +426,6 @@ export function useRealtimeVoice({
             // 🎤 사용자 음성 전사 delta (실시간 업데이트)
             case 'user.transcription.delta':
               if (data.accumulated && onUserTranscriptionDeltaRef.current) {
-                console.log('🎤 User speaking (delta):', data.text, '→ accumulated:', data.accumulated);
                 onUserTranscriptionDeltaRef.current(data.text, data.accumulated);
               }
               break;
@@ -879,7 +875,6 @@ export function useRealtimeVoice({
       }
       totalScheduledAudioDurationRef.current += chunkDuration;
       
-      console.log('🔊 Playing audio chunk:', float32.length, 'samples', 'at', startTime.toFixed(3), `(total: ${totalScheduledAudioDurationRef.current.toFixed(2)}s)`);
     } catch (err) {
       console.error('Error playing audio delta:', err);
     }

@@ -452,8 +452,11 @@ export class FileManagerService {
 
   // ⚡ 최적화: 특정 MBTI 유형만 로드 (성능 개선)
   async getPersonaByMBTI(mbtiType: string): Promise<ScenarioPersona | null> {
+    const standardMBTI = ['istj','isfj','infj','intj','istp','isfp','infp','intp','estp','esfp','enfp','entp','estj','esfj','enfj','entj'];
+    const normalizedType = mbtiType.toLowerCase();
+    if (!standardMBTI.includes(normalizedType)) return null;
     try {
-      const filePath = path.join(PERSONAS_DIR, `${mbtiType.toLowerCase()}.json`);
+      const filePath = path.join(PERSONAS_DIR, `${normalizedType}.json`);
       const content = await fs.readFile(filePath, 'utf-8');
       return JSON.parse(content) as ScenarioPersona;
     } catch (error) {

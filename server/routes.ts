@@ -523,10 +523,7 @@ export async function registerRoutes(app: Express, httpServer: Server): Promise<
         }
       }
       
-      console.log('📥 클라이언트 요청 body:', JSON.stringify(req.body));
-      
       const validatedData = insertConversationSchema.parse(req.body);
-      console.log('✅ 검증된 데이터:', JSON.stringify(validatedData));
       
       // ✨ forceNewRun 플래그 확인 - true이면 항상 새 scenario_run 생성
       // @ts-ignore - forceNewRun은 옵션 필드
@@ -3745,7 +3742,6 @@ export async function registerRoutes(app: Express, httpServer: Server): Promise<
       
       // 인증된 사용자인지 확인 (토큰이 있는 경우)
       const token = req.cookies?.token || req.headers.authorization?.split(' ')[1];
-      console.log(`[Scenarios API] Token exists: ${!!token}, categoryIdParam: ${categoryIdParam}`);
       
       let userLanguage = 'ko'; // 기본 언어
       let filteredScenarios = scenarios;
@@ -3756,7 +3752,6 @@ export async function registerRoutes(app: Express, httpServer: Server): Promise<
           const decoded = jwt.default.verify(token, process.env.JWT_SECRET!) as any;
           const user = await storage.getUser(decoded.userId);
           
-          console.log(`[Scenarios API] User found: ${!!user}, role: ${user?.role}, assignedCategoryId: ${user?.assignedCategoryId}`);
           
           if (user) {
             userLanguage = (user as any).preferredLanguage || 'ko';
@@ -3766,7 +3761,6 @@ export async function registerRoutes(app: Express, httpServer: Server): Promise<
             if (isGuestAccount) {
               // 게스트는 데모 시나리오만 볼 수 있음
               filteredScenarios = scenarios.filter((s: any) => s.isDemo === true);
-              console.log(`[Scenarios API] Guest user - returning ${filteredScenarios.length} demo scenarios`);
             }
             // 시스템관리자(admin)는 모든 시나리오 접근 가능 (카테고리 필터 선택 가능)
             else if (user.role === 'admin') {
@@ -3774,9 +3768,7 @@ export async function registerRoutes(app: Express, httpServer: Server): Promise<
                 filteredScenarios = scenarios.filter((s: any) => 
                   String(s.categoryId) === String(categoryIdParam)
                 );
-                console.log(`[Scenarios API] Admin user with filter - returning ${filteredScenarios.length}/${scenarios.length} scenarios for category ${categoryIdParam}`);
               } else {
-                console.log(`[Scenarios API] Admin user - returning all ${scenarios.length} scenarios`);
               }
             } else {
               // 운영자/일반 사용자: 계층적 권한에 따라 필터링
@@ -3793,20 +3785,16 @@ export async function registerRoutes(app: Express, httpServer: Server): Promise<
                       filteredScenarios = scenarios.filter((s: any) => 
                         String(s.categoryId) === String(categoryIdParam)
                       );
-                      console.log(`[Scenarios API] Operator filtered by category param: ${filteredScenarios.length}/${scenarios.length} scenarios`);
                     } else {
                       filteredScenarios = [];
-                      console.log(`[Scenarios API] Operator has no access to category ${categoryIdParam}`);
                     }
                   } else {
                     filteredScenarios = scenarios.filter((s: any) => 
                       accessibleCategoryIds.includes(String(s.categoryId))
                     );
-                    console.log(`[Scenarios API] Operator filtered: ${filteredScenarios.length}/${scenarios.length} scenarios (categories: ${accessibleCategoryIds.join(', ')})`);
                   }
                 } else {
                   filteredScenarios = [];
-                  console.log(`[Scenarios API] Operator has no category assignments - returning empty list`);
                 }
               }
               // 일반 사용자: 자신이 속한 조직/회사 기반 필터링
@@ -3848,23 +3836,19 @@ export async function registerRoutes(app: Express, httpServer: Server): Promise<
                   filteredScenarios = scenarios.filter((s: any) => 
                     accessibleCategoryIds.includes(String(s.categoryId))
                   );
-                  console.log(`[Scenarios API] User filtered by organization/category: ${filteredScenarios.length}/${scenarios.length} scenarios`);
                 } else {
                   // 조직/카테고리 할당이 없으면 모든 시나리오 접근 가능
-                  console.log(`[Scenarios API] User has no organization/category assignment - returning all ${scenarios.length} scenarios`);
                 }
               }
             }
           }
         } catch (tokenError) {
-          console.log(`[Scenarios API] Token verification failed:`, tokenError);
           // 토큰 검증 실패 시 전체 시나리오 반환 (비로그인 사용자와 동일 처리)
         }
       }
       
       // 사용자 언어에 따라 번역 적용
       if (userLanguage !== 'ko') {
-        console.log(`[Scenarios API] Applying translations for language: ${userLanguage}`);
         const translatedScenarios = await Promise.all(
           filteredScenarios.map(async (scenario: any) => {
             try {

@@ -146,8 +146,6 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
     personaId: persona.id,
     enabled: false, // 자동 연결 비활성화, 수동 시작
     onMessageComplete: (message, emotion, emotionReason) => {
-      console.log('✅ AI message complete:', message);
-      console.log('😊 Emotion received:', emotion, '|', emotionReason);
       
       // AI placeholder 숨기기 (텍스트 도착)
       setPendingAiMessage(false);
@@ -174,7 +172,6 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
       }
     },
     onUserTranscription: (transcript) => {
-      console.log('🎤 User transcript:', transcript);
       // User placeholder 숨기기 (전사 완료)
       setPendingUserMessage(false);
       setPendingUserText(''); // 실시간 텍스트 리셋
@@ -185,18 +182,15 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
         timestamp: new Date().toISOString(),
       }]);
     },
-    onUserTranscriptionDelta: (delta, accumulated) => {
-      console.log('🎤 User transcription delta:', delta, '→', accumulated);
+    onUserTranscriptionDelta: (_delta, accumulated) => {
       // 실시간 전사 텍스트 업데이트
       setPendingUserText(accumulated);
     },
     onAiSpeakingStart: () => {
-      console.log('🔊 AI speaking started - showing placeholder');
       // AI가 말하기 시작하면 placeholder 표시
       setPendingAiMessage(true);
     },
     onUserSpeakingStart: () => {
-      console.log('🎤 User speaking started - showing placeholder');
       // 사용자가 말하기 시작하면 placeholder 표시
       setPendingUserMessage(true);
       setPendingUserText(''); // 새 발화 시작 시 리셋
@@ -256,12 +250,10 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
           const img = new Image();
           img.onload = () => {
             setPersonaImagesAvailable(prev => ({ ...prev, [emotionEn]: true }));
-            console.log(`✅ 페르소나별 이미지 로딩 성공: ${emotionEn} (${mbtiId}/${genderFolder})`);
             resolve();
           };
           img.onerror = () => {
             setPersonaImagesAvailable(prev => ({ ...prev, [emotionEn]: false }));
-            console.log(`⚠️ 페르소나별 이미지 없음: ${emotionEn}`);
             resolve();
           };
           img.src = toMediaUrl(`personas/${mbtiId}/${genderFolder}/${emotionEn}.webp`);
@@ -269,7 +261,6 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
       });
       
       await Promise.all(checkPromises);
-      console.log('🎨 페르소나 이미지 체크 완료');
     };
     
     checkPersonaImages();
@@ -329,7 +320,6 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
     if (!allEmotionsChecked) return;
 
     const initialImageUrl = getCharacterImage('중립');
-    console.log(`🖼️ 초기 이미지 설정: ${initialImageUrl}`);
     
     const completeInitialLoad = (imageUrl?: string) => {
       if (initialLoadCompletedRef.current) return;
@@ -347,19 +337,14 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
 
     if (initialImageUrl) {
       const img = new Image();
-      img.onload = () => {
-        console.log('✅ ChatWindow: 초기 페르소나 이미지 로드 완료, 오버레이 페이드아웃');
-        completeInitialLoad(initialImageUrl);
-      };
+      img.onload = () => { completeInitialLoad(initialImageUrl); };
       img.onerror = () => {
-        console.log('⚠️ ChatWindow: 초기 페르소나 이미지 로드 실패, 폴백 이미지 사용');
         const fallbackUrl = `https://ui-avatars.com/api/?name=${encodeURIComponent(persona.name)}&background=6366f1&color=fff&size=400`;
         setLoadedImageUrl(fallbackUrl);
         completeInitialLoad();
       };
       img.src = initialImageUrl;
     } else {
-      console.log('⚠️ ChatWindow: 페르소나 이미지 없음, 폴백 이미지 사용');
       const fallbackUrl = `https://ui-avatars.com/api/?name=${encodeURIComponent(persona.name)}&background=6366f1&color=fff&size=400`;
       setLoadedImageUrl(fallbackUrl);
       completeInitialLoad();
@@ -371,7 +356,6 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
   useEffect(() => {
     if (currentEmotion) {
       const newImageUrl = getCharacterImage(currentEmotion);
-      console.log(`🖼️ 감정 변화 이미지: ${currentEmotion} → ${newImageUrl}`);
       if (newImageUrl) {
         preloadImage(newImageUrl);
       }
@@ -511,7 +495,6 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
       
       // localMessages를 DB에 일괄 저장
       if (localMessages.length > 0) {
-        console.log(`💾 Saving ${localMessages.length} realtime messages to database...`);
         
         // 새로운 일괄 저장 엔드포인트 사용
         const res = await apiRequest(
@@ -528,14 +511,10 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
           }
         );
         
-        const result = await res.json();
-        console.log(`✅ Saved ${result.messagesSaved} messages, turn count: ${result.turnCount}`);
+        await res.json();
         
-        // 캐시 무효화하여 최신 대화 내용 반영
         await queryClient.invalidateQueries({ queryKey: [`/api/conversations/${conversationId}`] });
-        // ✅ MyPage에서 업데이트된 대화 기록을 보여주기 위해 scenario-runs 캐시도 무효화
         await queryClient.invalidateQueries({ queryKey: ['/api/scenario-runs'] });
-        console.log('🔄 캐시 무효화 완료: conversations, scenario-runs');
       }
       
       // 대화 완료 처리 - 피드백 생성
@@ -631,7 +610,6 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
   // 페르소나별 성별 정보 - 시나리오 JSON에서 gender 필드 가져오기
   const getPersonaGender = (): 'male' | 'female' => {
     if (persona.gender) {
-      console.log(`👤 성별 정보 사용: ${persona.name} (${persona.id}) → ${persona.gender}`);
       return persona.gender;
     }
     
@@ -681,7 +659,6 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
     try {
       setIsSpeaking(true);
       
-      console.log(`🎤 ElevenLabs TTS 요청: ${persona.name}, 감정: ${emotion}`);
       
       // ElevenLabs API 호출
       const response = await fetch('/api/tts/generate', {
@@ -703,8 +680,6 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
 
       const data = await response.json();
       
-      // TTS 제공자 정보 로깅
-      console.log(`🎵 TTS 제공자: ${data.metadata?.provider || 'unknown'}`);
       
       // Base64 오디오 데이터를 Blob으로 변환
       const audioBlob = new Blob(
@@ -749,7 +724,6 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
       console.error('ElevenLabs TTS 오류:', error);
       
       // 백업: Web Speech API 사용
-      console.log('백업 TTS 사용 중...');
       try {
         await fallbackToWebSpeechAPI(text, emotion);
       } catch (fallbackError) {
@@ -797,7 +771,6 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
       voice.lang === 'ko-KR' || voice.lang.startsWith('ko')
     );
 
-    console.log(`🎯 한국어 음성 ${koreanVoices.length}개 발견:`, koreanVoices.map(v => v.name));
 
     if (koreanVoices.length === 0) {
       console.log('⚠️ 한국어 음성이 없습니다. 기본 음성을 사용합니다.');
@@ -816,7 +789,6 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
                name.includes('man');
       }) || null;
       
-      console.log(`👨 남성 음성 선택 시도:`, selectedVoice?.name || '남성 음성 없음');
     } else {
       // 여성 음성 우선 선택  
       selectedVoice = koreanVoices.find(voice => {
@@ -829,13 +801,11 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
                name.includes('google');
       }) || null;
 
-      console.log(`👩 여성 음성 선택 시도:`, selectedVoice?.name || '여성 음성 없음');
     }
 
     // 성별별 음성이 없으면 첫 번째 한국어 음성 사용
     if (!selectedVoice) {
       selectedVoice = koreanVoices[0];
-      console.log(`🔄 기본 한국어 음성 사용:`, selectedVoice.name);
     }
 
     return selectedVoice;
@@ -843,7 +813,6 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
 
   // 백업 TTS (개선된 Web Speech API)
   const fallbackToWebSpeechAPI = async (text: string, emotion?: string) => {
-    console.log('🔧 브라우저 TTS 백업 시작');
     
     // speechSynthesis 브라우저 지원 확인
     if (typeof window === 'undefined' || !('speechSynthesis' in window) || !window.speechSynthesis) {
@@ -870,12 +839,7 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
       const gender = getPersonaGender();
       const voiceSettings = getVoiceSettings(emotion, gender);
       
-      console.log(`🎭 캐릭터 성별: ${gender}, 감정: ${emotion || '중립'}`);
-      
-      // 음성 로딩 대기
-      console.log('⏳ 음성 목록 로딩 중...');
       const voices = await waitForVoices();
-      console.log(`🎵 총 ${voices.length}개 음성 사용 가능`);
       
       // 성별에 맞는 한국어 음성 선택
       const selectedVoice = selectKoreanVoice(voices, gender);
@@ -890,21 +854,11 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
       // 선택된 음성 적용
       if (selectedVoice) {
         utterance.voice = selectedVoice;
-        console.log(`🎯 선택된 음성: ${selectedVoice.name} (${gender === 'male' ? '남성' : '여성'})`);
-      } else {
-        console.log('🔄 기본 브라우저 음성 사용');
       }
       
       // 이벤트 핸들러 설정
-      utterance.onstart = () => {
-        console.log('🎤 음성 재생 시작');
-        setIsSpeaking(true);
-      };
-      
-      utterance.onend = () => {
-        console.log('✅ 음성 재생 완료');
-        setIsSpeaking(false);
-      };
+      utterance.onstart = () => { setIsSpeaking(true); };
+      utterance.onend = () => { setIsSpeaking(false); };
       
       utterance.onerror = (event) => {
         console.error('❌ 음성 재생 오류:', event);
@@ -916,8 +870,6 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
         });
       };
       
-      // 음성 재생 시작
-      console.log('🚀 음성 재생 시작');
       speechSynthesisRef.current.speak(utterance);
       
     } catch (error) {
@@ -959,27 +911,6 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
     if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
       speechSynthesisRef.current = window.speechSynthesis;
       
-      // 사용 가능한 음성 목록 로깅 (디버깅용)
-      const logAvailableVoices = () => {
-        const voices = speechSynthesisRef.current?.getVoices() || [];
-        console.log('사용 가능한 TTS 음성 목록:');
-        voices.forEach((voice, index) => {
-          console.log(`${index + 1}. ${voice.name} (${voice.lang})`);
-        });
-        
-        const koreanVoices = voices.filter(voice => voice.lang.includes('ko'));
-        console.log('한국어 음성:', koreanVoices.length, '개');
-        koreanVoices.forEach(voice => {
-          console.log(`- ${voice.name} (${voice.lang})`);
-        });
-      };
-      
-      // 음성 목록이 로드될 때까지 기다림
-      if (speechSynthesisRef.current.getVoices().length === 0) {
-        speechSynthesisRef.current.addEventListener('voiceschanged', logAvailableVoices);
-      } else {
-        logAvailableVoices();
-      }
     }
   }, []);
 
@@ -1246,7 +1177,6 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
   const preloadImage = (imageUrl: string) => {
     const img = new Image();
     img.onload = () => {
-      console.log(`✅ 표정 이미지 로드 완료: ${imageUrl}`);
       // 약간의 지연으로 부드러운 전환 효과 적용
       setTimeout(() => {
         setLoadedImageUrl(imageUrl); // 로드 완료 후 배경 이미지 업데이트
@@ -1254,7 +1184,6 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
       }, 100);
     };
     img.onerror = () => {
-      console.log(`⚠️ 표정 이미지 로드 실패: ${imageUrl}, 기존 이미지 유지`);
       setIsEmotionTransitioning(false); // 로드 실패해도 전환 종료
     };
     img.src = imageUrl;
