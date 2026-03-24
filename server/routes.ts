@@ -177,6 +177,60 @@ export async function registerRoutes(app: Express, httpServer: Server): Promise<
     return Math.round((weightedSum / totalWeight) * 100);
   }
 
+  // ─── 공통 헬퍼: 시나리오/카테고리/기본 순으로 평가 기준 로드 + 번역 적용 ───
+  async function loadEvaluationCriteria(
+    scenarioObj: any,
+    userLanguage: 'ko' | 'en' | 'ja' | 'zh' = 'ko'
+  ): Promise<any | null> {
+    const applyTranslations = async (criteriaSet: any): Promise<any> => {
+      let translatedName = criteriaSet.name;
+      let translatedDescription = criteriaSet.description;
+      if (userLanguage !== 'ko') {
+        const setTr = await storage.getEvaluationCriteriaSetTranslation(criteriaSet.id, userLanguage);
+        if (setTr) {
+          translatedName = setTr.name;
+          translatedDescription = setTr.description || criteriaSet.description;
+        }
+      }
+      const translatedDimensions = await Promise.all(
+        (criteriaSet.dimensions || []).filter((d: any) => d.isActive).map(async (dim: any) => {
+          if (userLanguage !== 'ko') {
+            const dimTr = await storage.getEvaluationDimensionTranslation(dim.id, userLanguage);
+            if (dimTr) {
+              return { ...dim, name: dimTr.name, description: dimTr.description || dim.description, scoringRubric: dimTr.scoringRubric || dim.scoringRubric };
+            }
+          }
+          return dim;
+        })
+      );
+      return { id: criteriaSet.id, name: translatedName, description: translatedDescription, dimensions: translatedDimensions };
+    };
+
+    // 1순위: 시나리오에 직접 연결된 평가 기준
+    if (scenarioObj?.evaluationCriteriaSetId) {
+      const cs = await storage.getEvaluationCriteriaSetWithDimensions(scenarioObj.evaluationCriteriaSetId);
+      if (cs && cs.dimensions && cs.dimensions.length > 0) {
+        const result = await applyTranslations(cs);
+        console.log(`📊 [평가기준] 시나리오 직접 연결: ${cs.name} (${result.dimensions.length}개 차원)`);
+        return result;
+      }
+    }
+
+    // 2순위: 시나리오 카테고리에 연결된 평가 기준
+    const categoryId = scenarioObj?.categoryId;
+    const cs2 = await storage.getActiveEvaluationCriteriaSetWithDimensions(categoryId || undefined);
+    if (cs2 && cs2.dimensions && cs2.dimensions.length > 0) {
+      const result = await applyTranslations(cs2);
+      const source = categoryId ? `카테고리(${categoryId})` : '시스템 기본';
+      console.log(`📊 [평가기준] ${source}: ${cs2.name} (${result.dimensions.length}개 차원)`);
+      return result;
+    }
+
+    console.log('📊 [평가기준] 사용 가능한 기준 없음 → AI 내장 기본값 사용');
+    return null;
+  }
+  // ──────────────────────────────────────────────────────────────────────────
+
   // Helper function to generate and save feedback automatically
   async function generateAndSaveFeedback(
     conversationId: string, 
@@ -232,13 +286,16 @@ export async function registerRoutes(app: Express, httpServer: Server): Promise<
     const totalUserWords = userMessages.reduce((sum: number, msg: any) => sum + msg.message.length, 0);
     const averageResponseTime = userMessages.length > 0 ? Math.round(conversationDurationSeconds / userMessages.length) : 0;
 
+    // 평가 기준 로드 (시나리오 → 카테고리 → 기본 순)
+    const evaluationCriteria = await loadEvaluationCriteria(scenarioObj, userLanguage);
+
     // 피드백 데이터 생성 (사용자 언어 전달)
     const feedbackData = await generateFeedback(
       scenarioObj,
       conversation.messages,
       persona,
       conversation,
-      undefined, // evaluationDimensions - 이 함수에서는 기본값 사용
+      evaluationCriteria, // ✨ 동적 평가 기준 세트 전달
       userLanguage
     );
 
@@ -1825,94 +1882,8 @@ export async function registerRoutes(app: Express, httpServer: Server): Promise<
       const feedbackUser = await storage.getUser(userId);
       const feedbackUserLanguage = (feedbackUser?.preferredLanguage as 'ko' | 'en' | 'ja' | 'zh') || 'ko';
 
-      // ✨ 시나리오에 설정된 평가 기준 세트 조회
-      let evaluationCriteria: any = null;
-      if ((scenarioObj as any).evaluationCriteriaSetId) {
-        const criteriaSet = await storage.getEvaluationCriteriaSetWithDimensions((scenarioObj as any).evaluationCriteriaSetId);
-        if (criteriaSet && criteriaSet.dimensions && criteriaSet.dimensions.length > 0) {
-          // 번역 적용
-          let translatedName = criteriaSet.name;
-          let translatedDescription = criteriaSet.description;
-          
-          if (feedbackUserLanguage !== 'ko') {
-            const setTranslation = await storage.getEvaluationCriteriaSetTranslation(criteriaSet.id, feedbackUserLanguage);
-            if (setTranslation) {
-              translatedName = setTranslation.name;
-              translatedDescription = setTranslation.description || criteriaSet.description;
-            }
-          }
-          
-          // 차원별 번역 적용
-          const translatedDimensions = await Promise.all(
-            criteriaSet.dimensions.filter((d: any) => d.isActive).map(async (dim: any) => {
-              if (feedbackUserLanguage !== 'ko') {
-                const dimTranslation = await storage.getEvaluationDimensionTranslation(dim.id, feedbackUserLanguage);
-                if (dimTranslation) {
-                  return {
-                    ...dim,
-                    name: dimTranslation.name,
-                    description: dimTranslation.description || dim.description,
-                    scoringRubric: dimTranslation.scoringRubric || dim.scoringRubric,
-                  };
-                }
-              }
-              return dim;
-            })
-          );
-          
-          evaluationCriteria = {
-            id: criteriaSet.id,
-            name: translatedName,
-            description: translatedDescription,
-            dimensions: translatedDimensions
-          };
-          console.log(`📊 시나리오 평가 기준 사용: ${criteriaSet.name} -> ${translatedName} (${evaluationCriteria.dimensions.length}개 차원, lang: ${feedbackUserLanguage})`);
-        }
-      }
-      
-      // 평가 기준이 없으면 기본값 사용
-      if (!evaluationCriteria) {
-        const defaultCriteria = await storage.getActiveEvaluationCriteriaSetWithDimensions();
-        if (defaultCriteria && defaultCriteria.dimensions) {
-          // 번역 적용
-          let translatedName = defaultCriteria.name;
-          let translatedDescription = defaultCriteria.description;
-          
-          if (feedbackUserLanguage !== 'ko') {
-            const setTranslation = await storage.getEvaluationCriteriaSetTranslation(defaultCriteria.id, feedbackUserLanguage);
-            if (setTranslation) {
-              translatedName = setTranslation.name;
-              translatedDescription = setTranslation.description || defaultCriteria.description;
-            }
-          }
-          
-          // 차원별 번역 적용
-          const translatedDimensions = await Promise.all(
-            defaultCriteria.dimensions.filter((d: any) => d.isActive).map(async (dim: any) => {
-              if (feedbackUserLanguage !== 'ko') {
-                const dimTranslation = await storage.getEvaluationDimensionTranslation(dim.id, feedbackUserLanguage);
-                if (dimTranslation) {
-                  return {
-                    ...dim,
-                    name: dimTranslation.name,
-                    description: dimTranslation.description || dim.description,
-                    scoringRubric: dimTranslation.scoringRubric || dim.scoringRubric,
-                  };
-                }
-              }
-              return dim;
-            })
-          );
-          
-          evaluationCriteria = {
-            id: defaultCriteria.id,
-            name: translatedName,
-            description: translatedDescription,
-            dimensions: translatedDimensions
-          };
-          console.log(`📊 기본 평가 기준 사용: ${defaultCriteria.name} -> ${translatedName} (${evaluationCriteria.dimensions.length}개 차원, lang: ${feedbackUserLanguage})`);
-        }
-      }
+      // ✨ 평가 기준 로드 (시나리오 직접 연결 → 카테고리 → 시스템 기본 순)
+      const evaluationCriteria = await loadEvaluationCriteria(scenarioObj, feedbackUserLanguage);
       
       const feedbackData = await generateFeedback(
         scenarioObj, // 전체 시나리오 객체 전달

@@ -14,139 +14,46 @@ Preferred communication style: Simple, everyday language.
 - **Routing**: Wouter
 - **State Management**: TanStack React Query
 - **Forms**: React Hook Form with Zod validation
-- **Conversation Modes**:
-    - **Text Input**: Standard text-based chat.
-    - **Text-to-Speech (TTS)**: User text input, AI voice response via ElevenLabs API, voice selection based on MBTI persona.
-    - **Real-time Voice**: Full-duplex voice conversation via Gemini Live API, WebSocket streaming, server-side VAD, Web Audio API playback, barge-in support (turnSeq-based interruption handling).
-    - **Voice Session Resilience**: Auto-reconnect on disconnect (client: up to 3 attempts with 1.5s delay, server: up to 5 attempts for non-normal close codes). Conversation history (`recentMessages`, last 10 entries) passed to Gemini on reconnect for context recovery. Session timeout: 30 min. `RealtimeVoiceStatus` includes `'reconnecting'` state shown in UI.
+- **Conversation Modes**: Text Input, Text-to-Speech (TTS) via ElevenLabs API, and Real-time Voice via Gemini Live API with full-duplex communication and barge-in support. Voice sessions include resilience features like auto-reconnect and context recovery.
 
 ## Backend
 - **Runtime**: Node.js with Express.js
 - **Language**: TypeScript (ES modules)
 - **API Design**: RESTful for conversations and feedback, WebSocket for real-time voice.
-- **Authentication**: JWT (JSON Web Tokens) - JWT_SECRET 환경 변수 필수.
+- **Authentication**: JWT (JSON Web Tokens).
 - **Authorization**: Resource ownership verification and role-based access control (admin, operator, user).
-- **User Isolation**: All data queries filtered by authenticated user ID.
-- **Security**: 
-  - JWT_SECRET 필수 (미설정시 서버 시작 차단)
-  - Cookie sameSite=strict로 CSRF 방지
-  - API 키 로깅 금지
-  - 로그인 Rate Limiting (5분 내 5회 실패 시 차단)
-  - 비밀번호 복잡성 정책 (8자+대문자+소문자+숫자+특수문자)
-  - 업로드 파일 인증 필수 + Path Traversal 방지
-  - API 응답 로그에서 민감정보 자동 제거
+- **Security**: Robust measures including JWT_SECRET enforcement, CSRF protection, API key logging prevention, login rate limiting, strong password policies, and file upload authentication with path traversal prevention.
 
 ## Data Storage
-- **ORM**: Drizzle ORM (PostgreSQL dialect)
-- **Database**: PostgreSQL (Neon serverless)
-- **Schema**: `conversations`, `feedbacks`, `users`, `categories`, `system_settings`, `ai_usage_logs`, `supported_languages`, `scenario_translations`, `persona_translations`, `scenarios`, `mbti_personas` tables.
-- **Data Persistence**: Scenarios and MBTI personas are stored in the PostgreSQL database to persist across Replit deployments. FileManagerService uses database as primary source with JSON file fallback.
-- **Scenario Soft Delete**: Scenarios use soft deletion (`is_deleted` flag + `deleted_at` timestamp). When deleted, existing conversations, feedbacks, and reports are preserved. Users can view past chat history and feedback but cannot start new conversations. MyPage displays "삭제된 시나리오" badge and blocks resume/start buttons while keeping view-only access. API returns 410 for new conversation attempts on deleted scenarios.
+- **ORM**: Drizzle ORM (PostgreSQL dialect).
+- **Database**: PostgreSQL (Neon serverless) with schema for `conversations`, `feedbacks`, `users`, `categories`, `system_settings`, `ai_usage_logs`, and comprehensive multilingual scenario and persona data.
+- **Data Persistence**: Scenarios and MBTI personas are stored in the PostgreSQL database.
+- **Scenario Soft Delete**: Scenarios use soft deletion (`is_deleted` flag) to preserve historical data while blocking new interactions.
 
 ## Media Storage (Object Storage)
-
-### Media URL Architecture
-- **DB stores GCS keys**: `scenarios/...webp`, `videos/...webm`, `personas/...webp`
-- **Frontend utility**: `toMediaUrl()` in `client/src/lib/mediaUrl.ts` converts keys to serving URLs
-  - Normal keys → `/objects?key=<encoded key>`
-  - Absolute URLs → passed through
-  - Legacy UUIDs → `/api/objects/resolve?id=<uuid>` (302 redirect or 404)
-- **Backend endpoints**:
-  - `GET /objects?key=<key>` → serves file from GCS (Cloud Run) or Replit Object Storage
-  - `GET /objects/*` → path-based serving (Cloud Run only, legacy compatibility)
-  - `GET /api/objects/resolve?id=<uuid>` → resolves legacy UUIDs by searching scenario data
-
-### Dual Deployment Support
-The system supports two completely separate storage backends:
-
-#### Replit Environment (development) - DUAL MODE
-- **Provider**: Replit Object Storage + GCS (dual writing when `GCS_BUCKET_NAME` and `GCS_SERVICE_ACCOUNT_KEY` are set)
-- **Serving**: `GET /objects?key=<key>` serves from Replit Object Storage
-- **Upload**: Files saved to BOTH Replit OS and GCS simultaneously
-- **Detection**: `REPL_ID` environment variable present
-- **Required Secrets for Dual Mode**:
-  - `GCS_BUCKET_NAME`: GCS bucket name (e.g., `roleplay-bucket`)
-  - `GCS_SERVICE_ACCOUNT_KEY`: Full JSON service account key with Storage Object Admin role
-- **Sync Script**: `npx tsx server/scripts/syncToGCS.ts` - syncs existing Replit OS files to GCS
-- **Admin API**: `POST /api/admin/sync-media-to-gcs` - triggers sync via admin dashboard
-
-#### Cloud Run Environment (production)
-- **Provider**: Google Cloud Storage (GCS)
-- **Serving**: `GET /objects?key=<key>` streams from GCS bucket
-- **Auth**: Default ADC (Application Default Credentials) from runtime service account. `GCS_SERVICE_ACCOUNT_KEY` is ignored on Cloud Run.
-- **Detection**: `K_SERVICE` or `K_REVISION` environment variable present (without `REPL_ID`)
-- **Signed URLs**: Generated with 3-second per-call timeout; overall batch has 5-second timeout. On failure, original paths are returned and frontend uses `/objects?key=` streaming fallback.
-- **Startup Diagnostics**: GCS connectivity test runs 2 seconds after startup, logging bucket access and file availability.
-- **Required Env Vars**:
-  - `GCS_BUCKET_NAME`: Your GCS bucket name (e.g., `roleplay-bucket`)
-- **IMPORTANT**: Remove Replit-specific env vars from Cloud Run:
-  - `PRIVATE_OBJECT_DIR` - causes Replit fallback attempts
-  - `PUBLIC_OBJECT_SEARCH_PATHS` - not needed
-  - `GCS_SERVICE_ACCOUNT_KEY` - not needed (Cloud Run uses runtime SA via ADC)
-  
-#### Cloud Run Setup Commands
-```bash
-# Set GCS bucket and remove Replit env vars
-gcloud run services update SERVICE_NAME \
-  --region REGION \
-  --update-env-vars GCS_BUCKET_NAME=your-bucket \
-  --clear-env-vars PRIVATE_OBJECT_DIR,PUBLIC_OBJECT_SEARCH_PATHS
-
-# Grant storage permissions to runtime service account
-gcloud storage buckets add-iam-policy-binding gs://your-bucket \
-  --member=serviceAccount:runtime-sa@PROJECT.iam.gserviceaccount.com \
-  --role=roles/storage.objectAdmin
-```
-
-### Path Normalization
-Object paths are automatically normalized:
-- Query strings (`?t=timestamp`) are stripped before GCS lookup
-- Signed URLs have bucket name stripped for proper key extraction
-- `/objects/` prefix removed before GCS lookup
-
-### Services
-- `client/src/lib/mediaUrl.ts`: Frontend URL converter (toMediaUrl)
-- `server/services/gcsStorage.ts`: GCS operations, signed URLs, streamFromGCS
-- `server/services/mediaStorage.ts`: High-level media upload service (auto-selects backend)
-- `server/replit_integrations/object_storage/routes.ts`: /objects?key=, /objects/*, /api/objects/resolve
+- **Architecture**: Database stores GCS keys; frontend utility `toMediaUrl()` converts keys to serving URLs. Backend endpoints serve files from storage.
+- **Dual Deployment Support**: Supports both Replit Object Storage (development with optional dual-writing to GCS) and Google Cloud Storage (production).
+- **Path Normalization**: Object paths are automatically normalized by stripping query strings and prefixes.
 
 ## Features
-- **Comprehensive Persona Reflection**: AI conversations fully reflect persona definitions including:
-  - MBTI personality traits, communication style, motivation, fears
-  - Characteristic phrases (key_phrases) and argument response patterns (response_to_arguments)
-  - Personal values from background data
-  - Scenario-specific data: stance, goal, tradeoff (negotiation limits), experience, department
-- **4-Level Difficulty System**: Users select difficulty, influencing AI responses across all conversation modes.
-- **Analytics and Reporting**: Comprehensive user conversation history analytics including scores, category breakdowns, growth tracking, and pattern recognition. Uses a ComOn Check research-based 5-point scoring system (converted to 0-100).
-  - **Overall Score Formula**: `overallScore = Σ((score / maxScore) × weight) / totalWeight × 100`. For example, score 3/5 with weight 50% contributes 30 points (3/5 × 50 = 30). Server-side `recalculateOverallScore()` verifies and corrects AI-provided scores before storage.
-- **Automatic Score Adjustments**: The feedback system applies automatic score adjustments based on:
-  - **Non-verbal expression penalty**: Short responses (<3 chars: -2pts), silence ("...": -3pts), hesitation sounds ("음...", "uh": -2pts), skips (-5pts). Max penalty: -20pts.
-  - **Barge-in analysis**: Interrupting AI while asking a question = -3pts (poor listening). Interrupting with substantial response (>30 chars) = +2pts (active participation). Net adjustment range: -15 to +10pts.
-  - **Scenario context in feedback**: Feedback prompt now includes AI persona's `stance`, `goal`, `tradeoff`, `department`, `experience` so the evaluator AI can assess whether the user achieved the scenario objective. Also includes AI emotion progression timeline (e.g., 중립 → 분노 → 중립) so the evaluator AI assesses the user's impact on the AI persona. Both Gemini and OpenAI providers updated. Full conversation context now shows `[감정: X]` tags on AI messages.
-- **Real-time Emotion Analysis**: AI characters display emotions with visual indicators.
-- **Role-Based Access Control**: `시스템관리자 (admin)`, `운영자 (operator)`, `일반유저 (user)` roles with distinct permissions for system admin, operator dashboard, and content management.
-- **Category System**: Scenarios are organized by categories, with operators assigned to manage specific categories.
-- **System Settings Management**: Configurable system parameters stored in `system_settings` table, including per-feature AI model selection (e.g., Gemini, OpenAI for conversation/feedback, Gemini Live for real-time voice).
-- **AI Usage Tracking**: Logs AI API usage data (feature, model, token usage, cost) for cost analysis.
-- **Configurable Difficulty Settings**: Difficulty levels are editable via the operator dashboard, allowing customization of name, description, response length, tone, pressure, feedback style, and constraints.
-- **Intro Video Generation**: Integration with Gemini Veo 3.1 API for generating 8-second intro videos for scenarios, stored as WebM files.
-- **Multilingual Translation System**: Comprehensive translation management with AI-powered translation generation (Gemini 2.5 Flash), manual editing/review workflow, batch translation tools, and translation status dashboard. Supports Korean, English, Japanese, and Chinese with extensible language database.
-  - **Language-Agnostic Architecture**: Scenarios can be written in ANY language (not just Korean). The system uses:
-    - `scenarios.sourceLocale`: Tracks the original writing language of each scenario
-    - `scenario_translations.isOriginal`: Marks which translation is the original content
-    - **Original content is stored in both `scenarios` table AND `scenario_translations` with `isOriginal=true`**
-  - **Translation Data Architecture**:
-    - **Master Persona Translations** (`personaTranslations`): MBTI type identity only (name, personalityTraits, communicationStyle, motivation, fears, background info). Reusable across all scenarios.
-    - **Scenario Context Translations** (`scenarioTranslations.personaContexts`): Scenario-specific persona details (position, department, role, stance, goal, tradeoff). Each persona can have different context in different scenarios.
-  - **Edit Mode vs Display Mode**:
-    - **Edit mode** (`?mode=edit`): Always returns original content regardless of language setting
-    - **Display mode** (`?lang=xx`): Returns translated content with fallback to original
+- **Comprehensive Persona Reflection**: AI conversations accurately reflect detailed persona definitions including MBTI traits, communication style, motivations, fears, and scenario-specific data.
+- **4-Level Difficulty System**: Influences AI responses across all conversation modes.
+- **Analytics and Reporting**: Comprehensive user conversation history analytics, including scores, category breakdowns, growth tracking, and pattern recognition, using a research-based 5-point scoring system.
+- **Automatic Score Adjustments**: Feedback system applies score adjustments based on non-verbal expressions, barge-in analysis, and scenario context.
+- **Real-time Emotion Analysis**: AI characters display emotions visually.
+- **Role-Based Access Control**: `admin`, `operator`, `user` roles with distinct permissions.
+- **Category System**: Scenarios organized by categories with operator assignments.
+- **System Settings Management**: Configurable system parameters, including per-feature AI model selection.
+- **AI Usage Tracking**: Logs AI API usage for cost analysis.
+- **Configurable Difficulty Settings**: Editable difficulty levels via operator dashboard.
+- **Intro Video Generation**: Integration with Gemini Veo 3.1 API for scenario intro videos.
+- **Multilingual Translation System**: Comprehensive translation management with AI-powered translation generation, manual editing workflow, and support for multiple languages with a language-agnostic architecture.
 
 # External Dependencies
 
 ## Third-party Services
-- **Google Gemini API**: Gemini 2.5 Flash/Pro for AI conversation responses, feedback, strategy, scenario generation, and Gemini Veo 3.1 for intro video generation.
-- **Google Gemini Live API**: Real-time voice conversations with barge-in support.
+- **Google Gemini API**: Gemini 2.5 Flash/Pro for AI conversations, feedback, strategy, scenario generation; Gemini Veo 3.1 for intro video generation.
+- **Google Gemini Live API**: Real-time voice conversations.
 - **ElevenLabs API**: Text-to-speech synthesis.
 - **Neon Database**: Serverless PostgreSQL hosting.
 
@@ -156,33 +63,3 @@ Object paths are automatically normalized:
 - **Database**: Drizzle ORM.
 - **Validation**: Zod.
 - **Development Tools**: Vite, TypeScript, Tailwind CSS.
-
-# Maintenance Scripts
-
-## Persona Image Sync
-When persona expression images exist in the file system (`attached_assets/personas/{personaId}/{gender}/*.webp`) but are missing from the database `images` JSONB column, run:
-```bash
-npx tsx server/scripts/syncPersonaImages.ts
-```
-This script:
-- Scans `attached_assets/personas/` for webp image files
-- Maps English filenames (angry, anxious, neutral, etc.) to Korean emotion names (분노, 불안, 중립, etc.)
-- Updates the `mbti_personas.images` JSONB column with proper URLs
-- Skips personas that already have valid image data in the database
-
-## Neon DB → Cloud SQL Data Export
-To sync data from the Replit Neon DB to Cloud SQL for production deployment:
-```bash
-TARGET_DATABASE_URL=postgresql://user:pass@host:5432/db npx tsx server/scripts/exportToCloudSQL.ts
-```
-This script:
-- Exports all core tables (scenarios, personas, translations, categories, users, etc.)
-- Uses UPSERT (ON CONFLICT DO UPDATE) for tables with primary keys
-- Automatically detects common columns between source and target
-- Safe to run multiple times (idempotent)
-
-## Database Migration Notes
-- `server/migrate.ts` runs automatically on server startup
-- Includes CREATE TABLE IF NOT EXISTS for ALL tables (including scenarios, mbti_personas, translation tables)
-- Critical column patches ensure schema compatibility (e.g., scenarios.is_deleted, scenarios.deleted_at added by soft delete feature)
-- When adding new columns to existing tables, always add a critical column patch in migrate.ts to ensure Cloud SQL compatibility
