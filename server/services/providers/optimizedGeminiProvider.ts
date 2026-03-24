@@ -688,12 +688,26 @@ JSON 형식으로 응답:
     const nonVerbalAnalysis = this.analyzeNonVerbalPatterns(userMessages, conversation);
     const hasNonVerbalIssues = nonVerbalAnalysis.count > 0;
 
-    // 대화 완성도 계산
-    const EXPECTED_TURNS = 10;
+    // 대화 완성도 계산 (모드별 기준 분리)
+    const EXPECTED_TURNS_TEXT  = 10;
+    const EXPECTED_TURNS_VOICE = 7;   // 음성: 지연·재연결·STT 필터링 고려해 낮게 설정
+    const BASELINE_CHARS_PER_TURN = 40; // 텍스트 1턴 기준 글자 수
+    const EXPECTED_TURNS = voiceMode ? EXPECTED_TURNS_VOICE : EXPECTED_TURNS_TEXT;
+
     const actualUserTurns = userMessages.length;
-    const completionRatio = actualUserTurns / EXPECTED_TURNS;
-    const completionPct = Math.round(completionRatio * 100);
-    const isIncomplete = completionRatio < 0.7;
+    const turnRatio = actualUserTurns / EXPECTED_TURNS;
+
+    // 음성 모드: 내용 밀도(B) 보정 — 턴이 적어도 발화가 길면 실질 완성도 인정
+    let effectiveRatio = turnRatio;
+    if (voiceMode) {
+      const totalChars = userMessages.reduce((sum, msg) => sum + msg.message.length, 0);
+      const expectedChars = EXPECTED_TURNS_VOICE * BASELINE_CHARS_PER_TURN; // 7 × 40 = 280
+      const contentRatio = Math.min(1.0, totalChars / expectedChars);
+      effectiveRatio = Math.min(1.0, Math.max(turnRatio, contentRatio)); // 둘 중 유리한 값 채택
+    }
+
+    const completionPct = Math.round(effectiveRatio * 100);
+    const isIncomplete = effectiveRatio < 0.7;
     
     // 말 끊기(Barge-in) 분석
     const bargeInAnalysis = this.analyzeBargeIn(messages);
@@ -772,8 +786,16 @@ ${nonVerbalAnalysis.patterns.map(p => `  - ${p}`).join('\n')}
 ${hasBargeInIssues ? `\n🎤 말 끊기(Barge-in) 감지: ${bargeInAnalysis.count}회 발생
 ${bargeInAnalysis.contexts.map(c => `  - [${c.assessment === 'positive' ? '✅ 적극적 참여' : c.assessment === 'negative' ? '❌ 경청 부족' : '➖ 중립'}] AI: "${c.aiMessage}" → 사용자: "${c.userMessage}"`).join('\n')}
 → 순 점수 조정: ${bargeInAnalysis.netScoreAdjustment >= 0 ? '+' : ''}${bargeInAnalysis.netScoreAdjustment}점 (시스템이 별도 적용)\n` : ''}
-${isIncomplete ? `\n📉 대화 완성도 부족: ${actualUserTurns}/${EXPECTED_TURNS}턴 완료 (${completionPct}%)
-→ 시스템이 완성도 패널티를 별도 적용합니다. 참여도·적극성 관련 영역은 낮게 평가하세요.\n` : `\n✅ 대화 완성도: ${actualUserTurns}/${EXPECTED_TURNS}턴 완료 (${completionPct}%)\n`}
+${isIncomplete
+  ? voiceMode
+    ? `\n📉 음성 대화 완성도 부족: 실질 완성도 ${completionPct}% (${actualUserTurns}턴 / 기준 ${EXPECTED_TURNS}턴, 발화량 보정 포함)
+→ 시스템이 완성도 패널티를 별도 적용합니다 (음성 모드 상한 15점). 참여도·적극성 관련 영역은 낮게 평가하세요.\n`
+    : `\n📉 대화 완성도 부족: ${actualUserTurns}/${EXPECTED_TURNS}턴 완료 (${completionPct}%)
+→ 시스템이 완성도 패널티를 별도 적용합니다. 참여도·적극성 관련 영역은 낮게 평가하세요.\n`
+  : voiceMode
+    ? `\n✅ 음성 대화 완성도 충분: 실질 완성도 ${completionPct}% (${actualUserTurns}턴 / 기준 ${EXPECTED_TURNS}턴, 발화량 보정 포함)\n`
+    : `\n✅ 대화 완성도: ${actualUserTurns}/${EXPECTED_TURNS}턴 완료 (${completionPct}%)\n`
+}
 ${strategySection}
 
 **평가 기준**:
@@ -927,18 +949,33 @@ JSON 형식${hasStrategyReflection ? ' (sequenceAnalysis 포함)' : ''}:
       const nonVerbalAnalysis = this.analyzeNonVerbalPatterns(userMessages, conversation);
       const bargeInAnalysis = this.analyzeBargeIn(messages);
       
-      // 대화 완성도 패널티 계산
-      const EXPECTED_TURNS = 10;
+      // ── 대화 완성도 패널티 계산 (모드별 A+B 하이브리드) ────────────────
+      const EXPECTED_TURNS_TEXT_P  = 10;
+      const EXPECTED_TURNS_VOICE_P = 7;
+      const BASELINE_CHARS_P = 40;
+      const expectedTurnsP = voiceMode ? EXPECTED_TURNS_VOICE_P : EXPECTED_TURNS_TEXT_P;
+
       const actualUserTurns = userMessages.length;
-      const completionRatio = actualUserTurns / EXPECTED_TURNS;
-      let completionPenalty = 0;
-      if (completionRatio < 0.3) {
-        completionPenalty = 25; // 3턴 미만: 심각한 미완성
-      } else if (completionRatio < 0.5) {
-        completionPenalty = 15; // 5턴 미만: 절반도 못 채움
-      } else if (completionRatio < 0.7) {
-        completionPenalty = 8;  // 7턴 미만: 다소 부족
+      const turnRatioP = actualUserTurns / expectedTurnsP;
+
+      // 음성 B-보정: 발화 밀도가 높으면 실질 완성도 상향
+      let effectiveRatioP = turnRatioP;
+      if (voiceMode) {
+        const totalChars = userMessages.reduce((sum, msg) => sum + msg.message.length, 0);
+        const contentRatio = Math.min(1.0, totalChars / (EXPECTED_TURNS_VOICE_P * BASELINE_CHARS_P));
+        effectiveRatioP = Math.min(1.0, Math.max(turnRatioP, contentRatio));
       }
+
+      // 패널티 테이블 (음성: 최대 15pt, 텍스트: 최대 25pt)
+      let completionPenalty = 0;
+      if (effectiveRatioP < 0.3) {
+        completionPenalty = voiceMode ? 15 : 25;
+      } else if (effectiveRatioP < 0.5) {
+        completionPenalty = voiceMode ? 10 : 15;
+      } else if (effectiveRatioP < 0.7) {
+        completionPenalty = voiceMode ? 5  : 8;
+      }
+      // ────────────────────────────────────────────────────────────────────
 
       // 점수 조정 계산 (음성 모드에서는 비언어적 감점 없음)
       const totalAdjustment = -nonVerbalAnalysis.penaltyPoints + bargeInAnalysis.netScoreAdjustment - completionPenalty;
@@ -946,10 +983,13 @@ JSON 형식${hasStrategyReflection ? ' (sequenceAnalysis 포함)' : ''}:
       
       // 로깅
       if (totalAdjustment !== 0 || voiceMode) {
-        console.log(`📊 점수 자동 조정: ${baseOverallScore} → ${adjustedScore}${voiceMode ? ' [음성모드: 비언어 감점 비활성화]' : ''}`);
+        const modeTag = voiceMode
+          ? ` [음성: 기준${expectedTurnsP}턴, 실질완성도${Math.round(effectiveRatioP * 100)}%]`
+          : '';
+        console.log(`📊 점수 자동 조정: ${baseOverallScore} → ${adjustedScore}${modeTag}`);
         if (!voiceMode) console.log(`   - 비언어적 표현 감점: -${nonVerbalAnalysis.penaltyPoints}점 (${nonVerbalAnalysis.count}개)`);
         console.log(`   - 말 끊기 조정: ${bargeInAnalysis.netScoreAdjustment >= 0 ? '+' : ''}${bargeInAnalysis.netScoreAdjustment}점 (${bargeInAnalysis.count}회)`);
-        if (completionPenalty > 0) console.log(`   - 완성도 패널티: -${completionPenalty}점 (${actualUserTurns}/${EXPECTED_TURNS}턴, ${Math.round(completionRatio * 100)}%)`);
+        if (completionPenalty > 0) console.log(`   - 완성도 패널티: -${completionPenalty}점 (실질완성도 ${Math.round(effectiveRatioP * 100)}%, 상한 ${voiceMode ? 15 : 25}pt)`);
       }
       
       // 개선사항에 자동 감점 관련 피드백 추가 (음성 모드에서는 노이즈 관련 항목 제외)
@@ -967,10 +1007,10 @@ JSON 형식${hasStrategyReflection ? ' (sequenceAnalysis 포함)' : ''}:
         ];
       }
       if (completionPenalty > 0) {
-        improvements = [
-          `대화를 끝까지 완수하세요 (${actualUserTurns}/${EXPECTED_TURNS}턴만 참여, -${completionPenalty}점 감점)`,
-          ...improvements
-        ];
+        const completionMsg = voiceMode
+          ? `음성 대화를 더 충분히 진행하세요 (실질 완성도 ${Math.round(effectiveRatioP * 100)}%, -${completionPenalty}점 감점)`
+          : `대화를 끝까지 완수하세요 (${actualUserTurns}/${expectedTurnsP}턴만 참여, -${completionPenalty}점 감점)`;
+        improvements = [completionMsg, ...improvements];
       }
       
       const feedback: DetailedFeedback = {
