@@ -549,6 +549,10 @@ JSON 형식으로 응답:
       if (text.length < 3) {
         nonVerbalPatterns.push(`짧은 응답: "${msg.message}"`);
         penaltyPoints += 2;
+      } else if (text.length < 6 && text.match(/^[가-힣a-z\s'"'"""''.,!?~ㅋㅎ]{1,5}$/) && !text.match(/[가-힣]{2,}/)) {
+        // 3~5글자인데 의미없는 단음절 반복/기호 혼합 (예: "네'네'", "ㅋㅋ", "응응")
+        nonVerbalPatterns.push(`무의미한 단답: "${msg.message}"`);
+        penaltyPoints += 1;
       } else if (text === '...' || text.match(/^\.+$/)) {
         nonVerbalPatterns.push(`침묵 표시: "${msg.message}"`);
         penaltyPoints += 3;
@@ -648,6 +652,13 @@ JSON 형식으로 응답:
     // 비언어적 표현 분석 — 음성 모드에서는 비활성화
     const nonVerbalAnalysis = this.analyzeNonVerbalPatterns(userMessages, conversation);
     const hasNonVerbalIssues = nonVerbalAnalysis.count > 0;
+
+    // 대화 완성도 계산
+    const EXPECTED_TURNS = 10;
+    const actualUserTurns = userMessages.length;
+    const completionRatio = actualUserTurns / EXPECTED_TURNS;
+    const completionPct = Math.round(completionRatio * 100);
+    const isIncomplete = completionRatio < 0.7;
     
     // 말 끊기(Barge-in) 분석
     const bargeInAnalysis = this.analyzeBargeIn(messages);
@@ -722,6 +733,8 @@ ${nonVerbalAnalysis.patterns.map(p => `  - ${p}`).join('\n')}
 ${hasBargeInIssues ? `\n🎤 말 끊기(Barge-in) 감지: ${bargeInAnalysis.count}회 발생
 ${bargeInAnalysis.contexts.map(c => `  - [${c.assessment === 'positive' ? '✅ 적극적 참여' : c.assessment === 'negative' ? '❌ 경청 부족' : '➖ 중립'}] AI: "${c.aiMessage}" → 사용자: "${c.userMessage}"`).join('\n')}
 → 순 점수 조정: ${bargeInAnalysis.netScoreAdjustment >= 0 ? '+' : ''}${bargeInAnalysis.netScoreAdjustment}점 (시스템이 별도 적용)\n` : ''}
+${isIncomplete ? `\n📉 대화 완성도 부족: ${actualUserTurns}/${EXPECTED_TURNS}턴 완료 (${completionPct}%)
+→ 시스템이 완성도 패널티를 별도 적용합니다. 참여도·적극성 관련 영역은 낮게 평가하세요.\n` : `\n✅ 대화 완성도: ${actualUserTurns}/${EXPECTED_TURNS}턴 완료 (${completionPct}%)\n`}
 ${strategySection}
 
 **평가 기준**:
@@ -873,8 +886,21 @@ JSON 형식${hasStrategyReflection ? ' (sequenceAnalysis 포함)' : ''}:
       const nonVerbalAnalysis = this.analyzeNonVerbalPatterns(userMessages, conversation);
       const bargeInAnalysis = this.analyzeBargeIn(messages);
       
+      // 대화 완성도 패널티 계산
+      const EXPECTED_TURNS = 10;
+      const actualUserTurns = userMessages.length;
+      const completionRatio = actualUserTurns / EXPECTED_TURNS;
+      let completionPenalty = 0;
+      if (completionRatio < 0.3) {
+        completionPenalty = 25; // 3턴 미만: 심각한 미완성
+      } else if (completionRatio < 0.5) {
+        completionPenalty = 15; // 5턴 미만: 절반도 못 채움
+      } else if (completionRatio < 0.7) {
+        completionPenalty = 8;  // 7턴 미만: 다소 부족
+      }
+
       // 점수 조정 계산 (음성 모드에서는 비언어적 감점 없음)
-      const totalAdjustment = -nonVerbalAnalysis.penaltyPoints + bargeInAnalysis.netScoreAdjustment;
+      const totalAdjustment = -nonVerbalAnalysis.penaltyPoints + bargeInAnalysis.netScoreAdjustment - completionPenalty;
       const adjustedScore = Math.max(0, Math.min(100, baseOverallScore + totalAdjustment));
       
       // 로깅
@@ -882,6 +908,7 @@ JSON 형식${hasStrategyReflection ? ' (sequenceAnalysis 포함)' : ''}:
         console.log(`📊 점수 자동 조정: ${baseOverallScore} → ${adjustedScore}${voiceMode ? ' [음성모드: 비언어 감점 비활성화]' : ''}`);
         if (!voiceMode) console.log(`   - 비언어적 표현 감점: -${nonVerbalAnalysis.penaltyPoints}점 (${nonVerbalAnalysis.count}개)`);
         console.log(`   - 말 끊기 조정: ${bargeInAnalysis.netScoreAdjustment >= 0 ? '+' : ''}${bargeInAnalysis.netScoreAdjustment}점 (${bargeInAnalysis.count}회)`);
+        if (completionPenalty > 0) console.log(`   - 완성도 패널티: -${completionPenalty}점 (${actualUserTurns}/${EXPECTED_TURNS}턴, ${Math.round(completionRatio * 100)}%)`);
       }
       
       // 개선사항에 자동 감점 관련 피드백 추가 (음성 모드에서는 노이즈 관련 항목 제외)
@@ -895,6 +922,12 @@ JSON 형식${hasStrategyReflection ? ' (sequenceAnalysis 포함)' : ''}:
       if (bargeInAnalysis.contexts.filter(c => c.assessment === 'negative').length > 0) {
         improvements = [
           `상대방의 질문에 끝까지 경청한 후 응답하세요`,
+          ...improvements
+        ];
+      }
+      if (completionPenalty > 0) {
+        improvements = [
+          `대화를 끝까지 완수하세요 (${actualUserTurns}/${EXPECTED_TURNS}턴만 참여, -${completionPenalty}점 감점)`,
           ...improvements
         ];
       }
