@@ -638,10 +638,45 @@ JSON 형식으로 응답:
     // 음성 모드: 명백한 노이즈/잡음 메시지 제거 후 평가
     const userMessages = voiceMode ? this.filterVoiceNoise(rawUserMessages) : rawUserMessages;
     
+    // ─── 시나리오 컨텍스트 (페르소나 입장/목표/협상범위) ────────────────
+    const personaStance    = (persona as any).stance    || '';
+    const personaGoal      = (persona as any).goal      || '';
+    const personaTradeoff  = (persona as any).tradeoff  || '';
+    const personaExp       = (persona as any).experience || '';
+    const personaDept      = (persona as any).department || '';
+
+    // AI 감정 변화 추이 분석
+    const aiMessages = messages.filter(msg => msg.sender === 'ai' && msg.emotion);
+    const emotionTimeline = aiMessages.map((msg, idx) => {
+      const turnLabel = `턴${idx + 1}`;
+      return `${turnLabel}: ${msg.emotion}${msg.emotionReason ? ` (${msg.emotionReason})` : ''}`;
+    });
+    const startEmotion = aiMessages[0]?.emotion || '';
+    const endEmotion   = aiMessages[aiMessages.length - 1]?.emotion || '';
+    const negativeEmotions = ['분노', '실망', '불안', '피로', '당혹'];
+    const positiveEmotions = ['기쁨', '호기심'];
+    const endIsNegative = negativeEmotions.some(e => endEmotion.includes(e));
+    const endIsPositive = positiveEmotions.some(e => endEmotion.includes(e));
+    const emotionTrend = endIsNegative ? '부정적으로 마무리' : endIsPositive ? '긍정적으로 마무리' : '중립적으로 마무리';
+
+    const scenarioContextSection = [
+      personaStance   ? `- AI 페르소나의 입장: ${personaStance}` : '',
+      personaGoal     ? `- AI 페르소나의 목표: ${personaGoal}` : '',
+      personaTradeoff ? `- 협상/타협 가능 범위: ${personaTradeoff}` : '',
+      personaDept     ? `- 소속: ${personaDept}` : '',
+      personaExp      ? `- 경력: ${personaExp}` : '',
+    ].filter(Boolean).join('\n');
+
+    const emotionSection = emotionTimeline.length > 0
+      ? `AI 페르소나 감정 변화 (${emotionTimeline.length}턴): ${emotionTimeline.join(' → ')}\n전반적 결과: ${startEmotion || '?'} → ${endEmotion || '?'} (${emotionTrend})`
+      : '';
+    // ──────────────────────────────────────────────────────────────────────
+
     // 전체 대화 맥락 (AI 응답 포함) - 참고용으로만 사용
     const fullConversationContext = messages.map((msg, idx) => {
       const interruptedMarker = msg.interrupted ? ' [중단됨]' : '';
-      return `${idx + 1}. ${msg.sender === 'user' ? '사용자' : persona.name}${interruptedMarker}: ${msg.message}`;
+      const emotionTag = msg.sender === 'ai' && msg.emotion ? ` [감정: ${msg.emotion}]` : '';
+      return `${idx + 1}. ${msg.sender === 'user' ? '사용자' : persona.name}${interruptedMarker}${emotionTag}: ${msg.message}`;
     }).join('\n');
     
     // 사용자 발화만 별도로 표시 (평가 대상)
@@ -721,7 +756,11 @@ sequenceAnalysis 필드에 다음 형식으로 포함:
 
     return `**중요**: 아래 평가는 오직 피평가자의 발화만을 대상으로 수행합니다. AI(${persona.name})의 응답은 평가 대상이 아닙니다.
 ${voiceMode ? '\n⚠️ **음성 대화 전사본 안내**: 이 대화는 실시간 음성 인식(STT)으로 전사된 결과입니다. 배경 소음, 다른 사람의 발화, 전사 오류, 짧은 소리 조각(예: "음", "어", 이상한 외국어 등)이 섞여 있을 수 있습니다. 이러한 노이즈성 텍스트는 피평가자의 실제 발화로 간주하지 말고 평가에서 완전히 무시하세요. 의미있는 발화만을 대상으로 평가하세요.\n' : ''}
-**전체 대화 맥락** (참고용):
+**📋 시나리오 컨텍스트 (피평가자가 상대한 AI 페르소나 정보)**:
+${scenarioContextSection || '(별도 설정 없음)'}
+${emotionSection ? `\n**🎭 AI 페르소나 감정 변화 기록**:\n${emotionSection}\n→ 이 감정 변화를 통해 피평가자의 대화가 상대방에게 어떤 영향을 미쳤는지 평가하세요. 긍정적 마무리라면 설득·공감 능력을, 부정적 마무리라면 갈등 심화 요인을 분석하세요.` : ''}
+
+**전체 대화 맥락** (참고용, AI 발화에 [감정] 태그 포함):
 ${fullConversationContext}
 
 **평가 대상 - 피평가자 발화만**:
@@ -747,6 +786,8 @@ ${voiceMode
 - 매우 짧거나 무의미한 응답은 점수를 낮춥니다
 - 스킵한 대화는 참여도와 전략적 커뮤니케이션 점수를 낮춥니다`}
 - 말 끊기(Barge-in) 평가: AI 질문 중 끊기는 경청 부족, 적극적 발언으로 끊기는 참여도 가점
+${scenarioContextSection ? `- **시나리오 목표 달성도**: 위에 제시된 AI 페르소나의 입장·목표·협상 범위를 참고하여, 피평가자가 실제로 원하는 결과(설득, 협의, 합의 등)를 도출해냈는지 평가하세요. 목표 달성 여부를 strengths/improvements에 반드시 언급하세요.` : ''}
+${emotionSection ? `- **감정 영향 평가**: AI 페르소나의 감정이 ${emotionTrend}. 이 결과가 피평가자의 대화 방식 때문인지 분석하고, 긍정적 결과면 가점 요인으로, 부정적 결과면 개선 포인트로 피드백에 반영하세요.` : ''}
 
 **평가 영역** (1-5점):
 ${dimensionsList}

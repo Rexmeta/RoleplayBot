@@ -122,6 +122,7 @@ Object paths are automatically normalized:
 - **Automatic Score Adjustments**: The feedback system applies automatic score adjustments based on:
   - **Non-verbal expression penalty**: Short responses (<3 chars: -2pts), silence ("...": -3pts), hesitation sounds ("음...", "uh": -2pts), skips (-5pts). Max penalty: -20pts.
   - **Barge-in analysis**: Interrupting AI while asking a question = -3pts (poor listening). Interrupting with substantial response (>30 chars) = +2pts (active participation). Net adjustment range: -15 to +10pts.
+  - **Scenario context in feedback**: Feedback prompt now includes AI persona's `stance`, `goal`, `tradeoff`, `department`, `experience` so the evaluator AI can assess whether the user achieved the scenario objective. Also includes AI emotion progression timeline (e.g., 중립 → 분노 → 중립) so the evaluator AI assesses the user's impact on the AI persona. Both Gemini and OpenAI providers updated. Full conversation context now shows `[감정: X]` tags on AI messages.
 - **Real-time Emotion Analysis**: AI characters display emotions with visual indicators.
 - **Role-Based Access Control**: `시스템관리자 (admin)`, `운영자 (operator)`, `일반유저 (user)` roles with distinct permissions for system admin, operator dashboard, and content management.
 - **Category System**: Scenarios are organized by categories, with operators assigned to manage specific categories.
