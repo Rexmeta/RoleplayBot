@@ -95,9 +95,10 @@ interface ChatWindowProps {
   onPersonaChange?: () => void;
   onReady?: () => void;
   onConversationEnding?: () => void;
+  isPersonaMode?: boolean;
 }
 
-export default function ChatWindow({ scenario, persona, conversationId, onChatComplete, onExit, onPersonaChange, onReady, onConversationEnding }: ChatWindowProps) {
+export default function ChatWindow({ scenario, persona, conversationId, onChatComplete, onExit, onPersonaChange, onReady, onConversationEnding, isPersonaMode = false }: ChatWindowProps) {
   const [location, setLocation] = useLocation();
   const [userInput, setUserInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -473,6 +474,20 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
   };
 
   const handleEndRealtimeConversation = () => {
+    if (isPersonaMode) {
+      // 페르소나 모드: 모달 없이 바로 종료 후 나가기
+      realtimeVoice.disconnect();
+      if (localMessages.length > 0) {
+        apiRequest('POST', `/api/conversations/${conversationId}/realtime-messages`, {
+          messages: localMessages.map(msg => ({
+            sender: msg.sender, message: msg.message,
+            timestamp: msg.timestamp, emotion: msg.emotion, emotionReason: msg.emotionReason,
+          })),
+        }).catch(console.error);
+      }
+      onExit();
+      return;
+    }
     // 실시간 음성 대화 종료 확인 다이얼로그 표시
     setShowEndConversationDialog(true);
   };
@@ -1422,7 +1437,20 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
               </div>
 
               {/* Chat Input Area */}
-              <div className="border-t border-slate-100 bg-white p-6 shadow-[0_-4px_20px_-8px_rgba(0,0,0,0.1)]">
+              <div className="border-t border-slate-100 bg-white shadow-[0_-4px_20px_-8px_rgba(0,0,0,0.1)]">
+                {/* 페르소나 모드 나가기 버튼 바 */}
+                {isPersonaMode && conversation.turnCount < maxTurns && (
+                  <div className="flex justify-end px-4 pt-2 pb-1 border-b border-slate-50">
+                    <button
+                      onClick={onExit}
+                      className="flex items-center gap-1.5 text-xs text-slate-400 hover:text-slate-600 transition-colors"
+                    >
+                      <i className="fas fa-sign-out-alt"></i>
+                      대화방 나가기
+                    </button>
+                  </div>
+                )}
+                <div className="p-6">
                 {conversation.turnCount >= maxTurns ? (
                   <div className="text-center space-y-4">
                     <div className="text-lg font-semibold text-slate-700">
@@ -1433,21 +1461,23 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
                       <div>대화 시간: {formatElapsedTime(elapsedTime)}</div>
                     </div>
                     <div className="flex justify-center space-x-4">
-                      <Button
-                        onClick={handleGoToFeedback}
-                        className="bg-corporate-600 hover:bg-corporate-700"
-                        data-testid="button-final-feedback"
-                      >
-                        <i className="fas fa-chart-bar mr-2"></i>
-                        최종 피드백 보기
-                      </Button>
+                      {!isPersonaMode && (
+                        <Button
+                          onClick={handleGoToFeedback}
+                          className="bg-corporate-600 hover:bg-corporate-700"
+                          data-testid="button-final-feedback"
+                        >
+                          <i className="fas fa-chart-bar mr-2"></i>
+                          최종 피드백 보기
+                        </Button>
+                      )}
                       <Button
                         onClick={onExit}
                         variant="outline"
                         data-testid="button-exit-completed"
                       >
-                        <i className="fas fa-home mr-2"></i>
-                        홈으로 이동
+                        <i className={`fas ${isPersonaMode ? 'fa-sign-out-alt' : 'fa-home'} mr-2`}></i>
+                        {isPersonaMode ? '대화방 나가기' : '홈으로 이동'}
                       </Button>
                     </div>
                   </div>
@@ -1757,7 +1787,8 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
                     </div>
                   </div>
                 )}
-              </div>
+                </div>{/* closes p-6 */}
+              </div>{/* closes input area outer div */}
 
               {/* Chat Controls & Info */}
               <div className="mt-8 space-y-5 px-2">
@@ -2538,7 +2569,7 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
                         {t('chat.conversationComplete', { count: conversation.turnCount })}
                       </div>
                       <div className="flex justify-center space-x-3">
-                        {onPersonaChange && (
+                        {!isPersonaMode && onPersonaChange && (
                           <Button
                             onClick={onPersonaChange}
                             className="bg-blue-600 hover:bg-blue-700 text-white"
@@ -2549,23 +2580,25 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
                             {t('chat.chatWithAnother')}
                           </Button>
                         )}
-                        <Button
-                          onClick={handleGoToFeedback}
-                          className="bg-purple-600 hover:bg-purple-700 text-white"
-                          data-testid="button-final-feedback"
-                          size="sm"
-                        >
-                          <i className="fas fa-chart-bar mr-1"></i>
-                          {t('chat.finalFeedback')}
-                        </Button>
+                        {!isPersonaMode && (
+                          <Button
+                            onClick={handleGoToFeedback}
+                            className="bg-purple-600 hover:bg-purple-700 text-white"
+                            data-testid="button-final-feedback"
+                            size="sm"
+                          >
+                            <i className="fas fa-chart-bar mr-1"></i>
+                            {t('chat.finalFeedback')}
+                          </Button>
+                        )}
                         <Button
                           onClick={onExit}
                           variant="outline"
                           data-testid="button-exit-completed"
                           size="sm"
                         >
-                          <i className="fas fa-home mr-1"></i>
-                          {t('chat.goHome')}
+                          <i className={`fas ${isPersonaMode ? 'fa-sign-out-alt' : 'fa-home'} mr-1`}></i>
+                          {isPersonaMode ? '대화방 나가기' : t('chat.goHome')}
                         </Button>
                       </div>
                     </div>

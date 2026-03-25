@@ -363,11 +363,18 @@ export default function FreeChatPage() {
     },
   });
 
+  // localStorage helpers for conversation resume
+  const PERSONA_CONV_KEY = (personaId: string) => `persona_conv:${personaId}`;
+  const getSavedConvId = (personaId: string): string | null => localStorage.getItem(PERSONA_CONV_KEY(personaId));
+  const saveConvId = (personaId: string, convId: string) => localStorage.setItem(PERSONA_CONV_KEY(personaId), convId);
+  const clearSavedConvId = (personaId: string) => localStorage.removeItem(PERSONA_CONV_KEY(personaId));
+
   // Start user persona chat
   const startUserChatMutation = useMutation({
     mutationFn: (payload: { personaId: string; mode: string; difficulty: number }) =>
       apiRequest("POST", `/api/user-personas/${payload.personaId}/start-chat`, { mode: payload.mode, difficulty: payload.difficulty }).then(r => r.json()),
-    onSuccess: (data) => {
+    onSuccess: (data, variables) => {
+      saveConvId(variables.personaId, data.id);
       setConversationId(data.id);
       setMainView("chat");
     },
@@ -387,13 +394,28 @@ export default function FreeChatPage() {
 
   const handleStartChat = () => {
     if (selectedUserPersona) {
-      startUserChatMutation.mutate({ personaId: selectedUserPersona.id, mode: chatMode, difficulty: chatDifficulty });
+      // 저장된 대화가 있으면 바로 재개
+      const savedId = getSavedConvId(selectedUserPersona.id);
+      if (savedId) {
+        setConversationId(savedId);
+        setMainView("chat");
+      } else {
+        startUserChatMutation.mutate({ personaId: selectedUserPersona.id, mode: chatMode, difficulty: chatDifficulty });
+      }
     } else if (selectedMbtiPersona) {
       startMbtiChatMutation.mutate({ personaId: selectedMbtiPersona.id, mode: chatMode, difficulty: chatDifficulty, gender: selectedMbtiGender });
     }
   };
 
+  const handleStartNewChat = () => {
+    if (selectedUserPersona) {
+      clearSavedConvId(selectedUserPersona.id);
+      startUserChatMutation.mutate({ personaId: selectedUserPersona.id, mode: chatMode, difficulty: chatDifficulty });
+    }
+  };
+
   const handleExitChat = () => {
+    // localStorage는 유지 (재진입 시 이어하기 가능)
     setMainView("browse");
     setConversationId(null);
   };
@@ -433,6 +455,7 @@ export default function FreeChatPage() {
           conversationId={conversationId}
           onChatComplete={handleExitChat}
           onExit={handleExitChat}
+          isPersonaMode={true}
         />
       );
     }
@@ -763,15 +786,38 @@ export default function FreeChatPage() {
                 </div>
               </div>
 
-              <button
-                onClick={handleStartChat}
-                disabled={isPending}
-                className="w-full flex items-center justify-center gap-2 py-3.5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white rounded-xl font-semibold text-sm transition-colors"
-              >
-                {isPending
-                  ? <><div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />대화 준비 중...</>
-                  : <><MessageSquare className="w-4 h-4" />대화 시작</>}
-              </button>
+              {/* 유저 페르소나 — 이어하기/새 대화 분기 */}
+              {selectedUserPersona && getSavedConvId(selectedUserPersona.id) ? (
+                <div className="space-y-2">
+                  <button
+                    onClick={handleStartChat}
+                    disabled={isPending}
+                    className="w-full flex items-center justify-center gap-2 py-3.5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white rounded-xl font-semibold text-sm transition-colors"
+                  >
+                    {isPending
+                      ? <><div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />대화 준비 중...</>
+                      : <><MessageSquare className="w-4 h-4" />이어서 대화하기</>}
+                  </button>
+                  <button
+                    onClick={handleStartNewChat}
+                    disabled={isPending}
+                    className="w-full flex items-center justify-center gap-2 py-2 bg-slate-100 hover:bg-slate-200 disabled:opacity-50 text-slate-600 rounded-xl text-sm transition-colors"
+                  >
+                    <i className="fas fa-plus text-xs"></i>
+                    새 대화 시작
+                  </button>
+                </div>
+              ) : (
+                <button
+                  onClick={handleStartChat}
+                  disabled={isPending}
+                  className="w-full flex items-center justify-center gap-2 py-3.5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white rounded-xl font-semibold text-sm transition-colors"
+                >
+                  {isPending
+                    ? <><div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />대화 준비 중...</>
+                    : <><MessageSquare className="w-4 h-4" />대화 시작</>}
+                </button>
+              )}
 
               <button onClick={() => { setSelectedUserPersona(null); setSelectedMbtiPersona(null); }}
                 className="w-full mt-2 py-2 text-sm text-slate-400 hover:text-slate-600 transition-colors">
