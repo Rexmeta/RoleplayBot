@@ -368,7 +368,7 @@ export default function FreeChatPage() {
     mutationFn: (payload: { personaId: string; mode: string; difficulty: number }) =>
       apiRequest("POST", `/api/user-personas/${payload.personaId}/start-chat`, { mode: payload.mode, difficulty: payload.difficulty }).then(r => r.json()),
     onSuccess: (data) => {
-      setConversationId(data.conversationId);
+      setConversationId(data.id);
       setMainView("chat");
     },
     onError: (err: any) => toast({ title: "대화 시작 실패", description: err.message, variant: "destructive" }),

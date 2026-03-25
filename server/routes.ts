@@ -842,61 +842,98 @@ export async function registerRoutes(app: Express, httpServer: Server): Promise<
         return res.status(403).json({ error: "Access denied" });
       }
 
-      const { v4: uuid } = await import("uuid");
-      const conversationId = uuid();
-      const scenarioRunId = uuid();
-      const personaRunId = uuid();
+      const scenarioId = `__user_persona__:${persona.id}`;
+      const scenarioName = `${persona.name}와의 대화`;
 
-      await storage.createConversation({
-        id: conversationId,
+      // ScenarioRun 생성 (free-chat 패턴과 동일)
+      const existingRuns = await storage.getUserScenarioRuns(userId);
+      const prevAttempts = existingRuns.filter(r => r.scenarioId === scenarioId).length;
+
+      const scenarioRun = await storage.createScenarioRun({
         userId,
-        scenarioId: `__user_persona__:${persona.id}`,
-        personaId: persona.id,
+        scenarioId,
+        scenarioName,
+        attemptNumber: prevAttempts + 1,
+        mode,
         difficulty,
-        conversationMode: mode,
-        turnCount: 0,
-        isCompleted: false,
+        status: "active",
       });
 
-      await storage.createScenarioRun({
-        id: scenarioRunId,
-        userId,
-        scenarioId: `__user_persona__:${persona.id}`,
-        startedAt: new Date(),
-        status: "in_progress",
-      });
+      // PersonaSnapshot 구성
+      const pers = (persona.personality as any) || {};
+      const personaSnapshot = {
+        id: persona.id,
+        name: persona.name,
+        avatarUrl: persona.avatarUrl,
+        description: persona.description,
+        greeting: persona.greeting,
+        personality: pers,
+        tags: persona.tags,
+      };
 
-      await storage.createPersonaRun({
-        id: personaRunId,
-        scenarioRunId,
+      // PersonaRun 생성
+      const personaRun = await storage.createPersonaRun({
+        scenarioRunId: scenarioRun.id,
         personaId: persona.id,
-        conversationId,
+        personaName: persona.name,
+        personaSnapshot,
+        phase: 1,
+        mode,
+        difficulty,
+        status: "active",
       });
 
       await storage.incrementUserPersonaChatCount(persona.id);
 
-      // 첫 인사 메시지 생성
       const greetingText = persona.greeting || `안녕하세요! 저는 ${persona.name}입니다. 무슨 이야기든 편하게 나눠요.`;
+
+      // 실시간 음성 모드는 WebSocket 연결 후 첫 메시지 수신
+      if (mode === "realtime_voice") {
+        return res.json({
+          id: personaRun.id,
+          scenarioRunId: scenarioRun.id,
+          scenarioId,
+          scenarioName,
+          personaId: persona.id,
+          personaSnapshot,
+          turnCount: 0,
+          status: "active",
+          mode,
+          difficulty,
+          userId,
+          messages: [],
+        });
+      }
+
+      // 텍스트/TTS: 첫 인사말 저장
       await storage.createChatMessage({
-        conversationId,
-        role: "assistant",
-        content: greetingText,
+        personaRunId: personaRun.id,
+        sender: "ai",
+        message: greetingText,
+        turnIndex: 0,
         emotion: "중립",
         emotionReason: "인사",
       });
 
       res.json({
-        conversationId,
-        scenarioRunId,
-        personaRunId,
-        greeting: greetingText,
-        persona: {
-          id: persona.id,
-          name: persona.name,
-          avatarUrl: persona.avatarUrl,
-          description: persona.description,
-          personality: persona.personality,
-        },
+        id: personaRun.id,
+        scenarioRunId: scenarioRun.id,
+        scenarioId,
+        scenarioName,
+        personaId: persona.id,
+        personaSnapshot,
+        turnCount: 0,
+        status: "active",
+        mode,
+        difficulty,
+        userId,
+        messages: [{
+          sender: "ai",
+          message: greetingText,
+          timestamp: new Date().toISOString(),
+          emotion: "중립",
+          emotionReason: "인사",
+        }],
       });
     } catch (error: any) {
       console.error("User persona chat start error:", error);
