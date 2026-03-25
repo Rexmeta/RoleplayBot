@@ -310,6 +310,91 @@ export class RealtimeVoiceService {
 
     console.log(`🎙️ Creating realtime voice session: ${sessionId} (${currentSessionCount + 1}/${MAX_CONCURRENT_SESSIONS})`);
 
+    // ── 사용자 제작 페르소나 분기 ────────────────────────────────────────────
+    if (scenarioId.startsWith('__user_persona__:')) {
+      const userPersonaId = scenarioId.split(':')[1];
+      const userPersonaData = await storage.getUserPersonaById(userPersonaId);
+      if (!userPersonaData) throw new Error(`UserPersona not found: ${userPersonaId}`);
+
+      let userName = '사용자';
+      try {
+        const user = await storage.getUser(userId);
+        if (user?.name) userName = user.name;
+      } catch {}
+
+      const p = (userPersonaData.personality as any) || {};
+      const greetingText = userPersonaData.greeting || `안녕하세요! 저는 ${userPersonaData.name}입니다.`;
+
+      const langProhibition: Record<string, string> = {
+        ko: '모든 응답은 반드시 한국어로만 하세요. 괄호로 감싼 행동 묘사 절대 금지!',
+        en: 'Always respond in English only. NEVER output parenthesized stage directions!',
+        ja: '必ず日本語だけで応答してください。括弧で囲んだ行動描写は絶対に出力しないでください！',
+        zh: '必须只用中文回答。绝对不要输出括号里的动作描写！',
+      };
+
+      const systemInstructions = [
+        `당신은 "${userPersonaData.name}"라는 AI 캐릭터입니다.`,
+        userPersonaData.description ? `캐릭터 설명: ${userPersonaData.description}` : '',
+        p.background ? `배경: ${p.background}` : '',
+        p.traits?.length ? `성격 특성: ${p.traits.join(', ')}` : '',
+        p.communicationStyle ? `대화 방식: ${p.communicationStyle}` : '',
+        p.speechStyle ? `말투: ${p.speechStyle}` : '',
+        ``,
+        `위 캐릭터로서 자연스럽게 대화하세요. 캐릭터의 성격, 말투, 배경을 일관되게 유지하세요.`,
+        `사용자(이름: ${userName})와 편안하고 자유롭게 대화하세요.`,
+        `세션이 시작되면 반드시 먼저 이렇게 인사하세요: "${greetingText}"`,
+        ``,
+        `⚠️ ${langProhibition[userLanguage] || langProhibition.ko}`,
+      ].filter(Boolean).join('\n');
+
+      console.log('🎭 [UserPersona] 실시간 음성 세션:', userPersonaData.name);
+
+      const gender: 'male' | 'female' = 'male';
+      const realtimeModel = await this.getRealtimeModel();
+
+      const session: RealtimeSession = {
+        id: sessionId,
+        conversationId,
+        scenarioId,
+        personaId,
+        personaName: userPersonaData.name,
+        userId,
+        clientWs,
+        geminiSession: null,
+        isConnected: false,
+        currentTranscript: '',
+        userTranscriptBuffer: '',
+        audioBuffer: [],
+        startTime: Date.now(),
+        lastActivityTime: Date.now(),
+        totalUserTranscriptLength: 0,
+        totalAiTranscriptLength: 0,
+        realtimeModel,
+        hasReceivedFirstAIResponse: false,
+        hasTriggeredFirstGreeting: false,
+        firstGreetingRetryCount: 0,
+        isInterrupted: false,
+        turnSeq: 0,
+        cancelledTurnSeq: -1,
+        sessionResumptionToken: null,
+        isReconnecting: false,
+        reconnectAttempts: 0,
+        systemInstructions,
+        voiceGender: gender,
+        recentMessages: [],
+        selectedVoice: null,
+        goAwayWarningTime: null,
+        pendingClientReady: null,
+        userLanguage,
+      };
+
+      this.sessions.set(sessionId, session);
+      await this.connectToGemini(session, systemInstructions, gender);
+      console.log(`⏱️ [TIMING] UserPersona createSession 완료: ${Date.now() - sessionStartTime}ms`);
+      return;
+    }
+    // ────────────────────────────────────────────────────────────────────────
+
     // Load scenario and persona data
     const scenarios = await fileManager.getAllScenarios();
     const scenarioObj = scenarios.find(s => s.id === scenarioId);
