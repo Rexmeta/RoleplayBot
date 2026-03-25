@@ -246,6 +246,7 @@ export interface IStorage {
   // MBTI Personas - MBTI 페르소나 (DB 기반)
   getMbtiPersona(id: string): Promise<MbtiPersona | undefined>;
   getAllMbtiPersonas(): Promise<MbtiPersona[]>;
+  getFreeChatPersonas(): Promise<MbtiPersona[]>;
   createMbtiPersona(persona: InsertMbtiPersona): Promise<MbtiPersona>;
   updateMbtiPersona(id: string, updates: Partial<InsertMbtiPersona>): Promise<MbtiPersona>;
   deleteMbtiPersona(id: string): Promise<void>;
@@ -855,6 +856,7 @@ export class MemStorage implements IStorage {
   // MBTI Personas - stub implementations
   async getMbtiPersona(_id: string): Promise<MbtiPersona | undefined> { return undefined; }
   async getAllMbtiPersonas(): Promise<MbtiPersona[]> { return []; }
+  async getFreeChatPersonas(): Promise<MbtiPersona[]> { return []; }
   async createMbtiPersona(_persona: InsertMbtiPersona): Promise<MbtiPersona> { throw new Error("Not implemented"); }
   async updateMbtiPersona(_id: string, _updates: Partial<InsertMbtiPersona>): Promise<MbtiPersona> { throw new Error("Not implemented"); }
   async deleteMbtiPersona(_id: string): Promise<void> {}
@@ -2093,6 +2095,12 @@ export class PostgreSQLStorage implements IStorage {
   
   async getAllMbtiPersonas(): Promise<MbtiPersona[]> {
     return await db.select().from(mbtiPersonas).orderBy(asc(mbtiPersonas.mbti));
+  }
+
+  async getFreeChatPersonas(): Promise<MbtiPersona[]> {
+    return await db.select().from(mbtiPersonas)
+      .where(eq(mbtiPersonas.freeChatAvailable, true))
+      .orderBy(asc(mbtiPersonas.mbti));
   }
   
   async createMbtiPersona(persona: InsertMbtiPersona): Promise<MbtiPersona> {

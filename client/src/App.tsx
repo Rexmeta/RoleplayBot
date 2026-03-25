@@ -22,6 +22,7 @@ import PrivacyPolicy from "@/pages/privacy-policy";
 import AboutPage from "@/pages/AboutPage";
 import NotFound from "@/pages/not-found";
 import { AuthPage } from "@/pages/AuthPage";
+import FreeChatPage from "@/pages/FreeChatPage";
 
 function ProtectedRouter() {
   const { isAuthenticated, isLoading } = useAuth();
@@ -58,6 +59,7 @@ function ProtectedRouter() {
       <Route path="/admin-management" component={AdminManagement} />
       <Route path="/ai-generator" component={AIGeneratorPage} />
       <Route path="/system-admin" component={SystemAdminPage} />
+      <Route path="/free-chat" component={FreeChatPage} />
       <Route path="/help" component={HelpPage} />
       <Route path="/privacy-policy" component={PrivacyPolicy} />
       <Route path="/about" component={AboutPage} />

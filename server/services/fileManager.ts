@@ -571,6 +571,8 @@ export class FileManagerService {
           communicationPatterns: personaData.communication_patterns,
           voice: personaData.voice,
           images: personaData.images,
+          freeChatAvailable: personaData.freeChatAvailable ?? false,
+          freeChatDescription: personaData.freeChatDescription ?? '',
         });
         return personaData;
       }

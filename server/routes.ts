@@ -561,6 +561,174 @@ export async function registerRoutes(app: Express, httpServer: Server): Promise<
     }
   });
 
+  // ============================== 자유 대화 (Free Chat) ==============================
+
+  /** MBTI 페르소나에서 ScenarioPersona 형식의 객체 생성 */
+  function buildFreeChatPersona(mbtiPersona: any): any {
+    return {
+      id: mbtiPersona.id,
+      name: mbtiPersona.mbti,
+      role: "동료",
+      department: "팀",
+      mbti: mbtiPersona.mbti,
+      gender: mbtiPersona.gender,
+      personality: mbtiPersona.communicationStyle || mbtiPersona.communication_style || '균형 잡힌 의사소통',
+      responseStyle: mbtiPersona.communicationPatterns?.opening_style || mbtiPersona.communication_patterns?.opening_style || '자연스럽게 대화 시작',
+      goals: mbtiPersona.communicationPatterns?.win_conditions || mbtiPersona.communication_patterns?.win_conditions || ['편안한 대화'],
+      background: (mbtiPersona.background?.personal_values || []).join(', ') || '다양한 경험',
+    };
+  }
+
+  /** 자유 대화용 합성 시나리오 객체 생성 (AI에 컨텍스트 제공용) */
+  function buildFreeChatScenario(mbtiPersona: any, difficulty: number): any {
+    return {
+      id: "__free_chat__",
+      title: `${mbtiPersona.mbti || mbtiPersona.id} 유형과의 자유 대화`,
+      description: `${mbtiPersona.mbti || mbtiPersona.id} 유형의 페르소나와 자유롭게 대화를 나눕니다`,
+      isFreeChat: true, // AI 프롬프트에서 시나리오 목표 없이 자유 대화임을 알림
+      context: {
+        situation: "직장 내 자연스러운 대화 상황. 별도의 협상 목표나 시나리오 없이 상대방과 편안하게 대화합니다.",
+        timeline: "현재",
+        stakes: "상호 이해와 커뮤니케이션 능력 향상",
+        playerRole: {
+          position: "직원",
+          department: "팀",
+          experience: "근무 중",
+          responsibility: "자유롭게 대화하기"
+        }
+      },
+      objectives: [
+        "자연스러운 대화를 통해 상대방을 이해하고 소통하기",
+        "상대방의 MBTI 유형에 맞는 커뮤니케이션 스타일 연습하기"
+      ],
+      personas: [],
+      difficulty: difficulty || 2,
+    };
+  }
+
+  /** GET /api/free-chat/personas — 자유 대화 가능한 MBTI 페르소나 목록 */
+  app.get("/api/free-chat/personas", isAuthenticated, async (_req, res) => {
+    try {
+      const personas = await storage.getFreeChatPersonas();
+      res.json(personas);
+    } catch (error: any) {
+      console.error("Free chat personas fetch error:", error);
+      res.status(500).json({ error: "Failed to fetch free chat personas" });
+    }
+  });
+
+  /** POST /api/free-chat/start — 자유 대화 시작 */
+  app.post("/api/free-chat/start", isAuthenticated, async (req, res) => {
+    try {
+      // @ts-ignore
+      const userId = req.user?.id;
+      const { personaId, mode = "text", difficulty = 2, gender } = req.body;
+
+      if (!personaId) return res.status(400).json({ error: "personaId is required" });
+
+      const mbtiPersona = await storage.getMbtiPersona(personaId);
+      if (!mbtiPersona) return res.status(404).json({ error: "Persona not found" });
+      if (!mbtiPersona.freeChatAvailable) return res.status(403).json({ error: "This persona is not available for free chat" });
+
+      const user = await storage.getUser(userId);
+
+      // ScenarioRun 생성 (__free_chat__ 센티넬 값)
+      const existingRuns = await storage.getUserScenarioRuns(userId);
+      const freeChatAttempts = existingRuns.filter(r => r.scenarioId === "__free_chat__").length;
+      const scenarioRun = await storage.createScenarioRun({
+        userId,
+        scenarioId: "__free_chat__",
+        scenarioName: `자유 대화 - ${mbtiPersona.mbti}`,
+        attemptNumber: freeChatAttempts + 1,
+        mode,
+        difficulty,
+        status: "active"
+      });
+
+      // PersonaSnapshot 구성 (ChatWindow 이미지 렌더링에 필요한 필드 포함)
+      const effectiveGender = gender || mbtiPersona.gender || "male";
+      const personaSnapshot = {
+        id: mbtiPersona.id,
+        name: mbtiPersona.mbti,
+        mbti: mbtiPersona.mbti,
+        gender: effectiveGender,
+        images: mbtiPersona.images,
+        freeChatDescription: mbtiPersona.freeChatDescription,
+        communicationStyle: mbtiPersona.communicationStyle,
+        personalityTraits: mbtiPersona.personalityTraits,
+        motivation: mbtiPersona.motivation,
+        background: mbtiPersona.background,
+        communicationPatterns: mbtiPersona.communicationPatterns,
+      };
+
+      // PersonaRun 생성
+      const personaRun = await storage.createPersonaRun({
+        scenarioRunId: scenarioRun.id,
+        personaId: mbtiPersona.id,
+        personaName: mbtiPersona.mbti,
+        personaSnapshot,
+        mbtiType: mbtiPersona.id,
+        phase: 1,
+        mode,
+        difficulty,
+        status: "active"
+      });
+
+      const responseBase = {
+        id: personaRun.id,
+        scenarioRunId: scenarioRun.id,
+        scenarioId: "__free_chat__",
+        scenarioName: `자유 대화 - ${mbtiPersona.mbti}`,
+        personaId: mbtiPersona.id,
+        personaSnapshot,
+        turnCount: 0,
+        status: "active",
+        mode,
+        difficulty,
+        userId,
+        createdAt: scenarioRun.startedAt,
+      };
+
+      // 실시간 음성 모드는 WebSocket 연결 후 첫 메시지 수신
+      if (mode === "realtime_voice") {
+        return res.json({ ...responseBase, messages: [] });
+      }
+
+      // 텍스트/TTS: 첫 AI 인사말 생성
+      const persona = buildFreeChatPersona(mbtiPersona);
+      const freeChatScenario = buildFreeChatScenario(mbtiPersona, difficulty);
+      const userLanguage = (user?.preferredLanguage as "ko" | "en" | "ja" | "zh") || "ko";
+
+      const aiResult = await generateAIResponse(freeChatScenario as any, [], persona, undefined, userLanguage);
+
+      await storage.createChatMessage({
+        personaRunId: personaRun.id,
+        sender: "ai",
+        message: aiResult.content,
+        turnIndex: 0,
+        emotion: aiResult.emotion || null,
+        emotionReason: aiResult.emotionReason || null
+      });
+      await storage.updatePersonaRun(personaRun.id, { actualStartedAt: new Date() });
+
+      return res.json({
+        ...responseBase,
+        messages: [{
+          sender: "ai",
+          message: aiResult.content,
+          timestamp: new Date().toISOString(),
+          emotion: aiResult.emotion,
+          emotionReason: aiResult.emotionReason,
+        }],
+      });
+    } catch (error: any) {
+      console.error("Free chat start error:", error);
+      res.status(500).json({ error: error.message || "Failed to start free chat" });
+    }
+  });
+
+  // ============================== / 자유 대화 ==============================
+
   // Create new conversation (scenario_run + persona_run 구조)
   app.post("/api/conversations", isAuthenticated, async (req, res) => {
     try {
@@ -987,41 +1155,45 @@ export async function registerRoutes(app: Express, httpServer: Server): Promise<
 
       // Generate AI response
       const personaId = personaRun.personaId;
-      
-      // 시나리오에서 페르소나 정보와 MBTI 특성 결합
-      const scenarios = await fileManager.getAllScenarios();
-      const scenarioObj = scenarios.find(s => s.id === scenarioRun.scenarioId);
-      if (!scenarioObj) {
-        throw new Error(`Scenario not found: ${scenarioRun.scenarioId}`);
-      }
-      
-      // 시나리오에서 해당 페르소나 객체 찾기
-      const scenarioPersona: any = scenarioObj.personas.find((p: any) => p.id === personaId);
-      if (!scenarioPersona) {
-        throw new Error(`Persona not found in scenario: ${personaId}`);
-      }
-      
-      // ⚡ 최적화: 특정 MBTI 유형만 로드 (전체 로드 대신)
-      const mbtiType = scenarioPersona.personaRef?.replace('.json', '');
-      const mbtiPersona: any = mbtiType ? await fileManager.getPersonaByMBTI(mbtiType) : null;
-      
-      // 시나리오 정보와 MBTI 특성 결합
-      const persona = {
-        id: scenarioPersona.id,
-        name: scenarioPersona.name,
-        role: scenarioPersona.position,
-        department: scenarioPersona.department,
-        personality: mbtiPersona?.communication_style || '균형 잡힌 의사소통',
-        responseStyle: mbtiPersona?.communication_patterns?.opening_style || '상황에 맞는 방식으로 대화 시작',
-        goals: mbtiPersona?.communication_patterns?.win_conditions || ['목표 달성'],
-        background: mbtiPersona?.background?.personal_values?.join(', ') || '전문성'
-      };
 
-      // 사용자가 선택한 난이도를 시나리오 객체에 적용
-      const scenarioWithUserDifficulty = {
-        ...scenarioObj,
-        difficulty: personaRun.difficulty || scenarioRun.difficulty // 사용자가 선택한 난이도 사용
-      };
+      // ── 자유 대화 vs 시나리오 대화 분기 ────────────────────────────────────
+      let persona: any;
+      let scenarioWithUserDifficulty: any;
+
+      if (scenarioRun.scenarioId === "__free_chat__") {
+        // 자유 대화: personaRun.personaSnapshot에서 페르소나 구성
+        const snapshot = personaRun.personaSnapshot as any || {};
+        persona = buildFreeChatPersona(snapshot);
+        scenarioWithUserDifficulty = buildFreeChatScenario(snapshot, personaRun.difficulty || scenarioRun.difficulty || 2);
+      } else {
+        // 시나리오 기반 대화: 기존 로직
+        const scenarios = await fileManager.getAllScenarios();
+        const scenarioObj = scenarios.find(s => s.id === scenarioRun.scenarioId);
+        if (!scenarioObj) throw new Error(`Scenario not found: ${scenarioRun.scenarioId}`);
+
+        const scenarioPersona: any = scenarioObj.personas.find((p: any) => p.id === personaId);
+        if (!scenarioPersona) throw new Error(`Persona not found in scenario: ${personaId}`);
+
+        const mbtiType = scenarioPersona.personaRef?.replace('.json', '');
+        const mbtiPersonaData: any = mbtiType ? await fileManager.getPersonaByMBTI(mbtiType) : null;
+
+        persona = {
+          id: scenarioPersona.id,
+          name: scenarioPersona.name,
+          role: scenarioPersona.position,
+          department: scenarioPersona.department,
+          personality: mbtiPersonaData?.communication_style || '균형 잡힌 의사소통',
+          responseStyle: mbtiPersonaData?.communication_patterns?.opening_style || '상황에 맞는 방식으로 대화 시작',
+          goals: mbtiPersonaData?.communication_patterns?.win_conditions || ['목표 달성'],
+          background: mbtiPersonaData?.background?.personal_values?.join(', ') || '전문성'
+        };
+
+        scenarioWithUserDifficulty = {
+          ...scenarioObj,
+          difficulty: personaRun.difficulty || scenarioRun.difficulty
+        };
+      }
+      // ────────────────────────────────────────────────────────────────────────
 
       // ✨ 메시지를 ConversationMessage 형식으로 변환
       const messagesForAI = (isSkipTurn ? existingMessages : [...existingMessages, {

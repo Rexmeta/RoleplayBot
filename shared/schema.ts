@@ -192,6 +192,8 @@ export const mbtiPersonas = pgTable("mbti_personas", {
       expressions?: Record<string, string>;
     };
   }>(), // 표정 이미지 데이터
+  freeChatAvailable: boolean("free_chat_available").notNull().default(false), // 자유 대화 페이지에서 선택 가능 여부
+  freeChatDescription: text("free_chat_description"), // 자유 대화용 소개 문구
   createdAt: timestamp("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
   updatedAt: timestamp("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`),
 });

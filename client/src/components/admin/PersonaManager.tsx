@@ -11,6 +11,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Switch } from '@/components/ui/switch';
 import { useToast } from '@/hooks/use-toast';
 import { apiRequest, queryClient } from '@/lib/queryClient';
 import { MoreVertical, RefreshCw, Languages } from 'lucide-react';
@@ -189,6 +190,8 @@ interface MBTIPersonaFormData {
       당혹: string;
     };
   };
+  freeChatAvailable: boolean;
+  freeChatDescription: string;
 }
 
 export function PersonaManager() {
@@ -255,6 +258,8 @@ export function PersonaManager() {
       pace: '',
       emotion: ''
     },
+    freeChatAvailable: false,
+    freeChatDescription: '',
     images: {
       base: '',
       style: '',
@@ -658,6 +663,8 @@ export function PersonaManager() {
         pace: '',
         emotion: ''
       },
+      freeChatAvailable: false,
+      freeChatDescription: '',
       images: {
         base: '',
         style: '',
@@ -738,7 +745,9 @@ export function PersonaManager() {
             당혹: persona.images?.female?.expressions?.당혹 || ''
           }
         }
-      }
+      },
+      freeChatAvailable: (persona as any).freeChatAvailable ?? false,
+      freeChatDescription: (persona as any).freeChatDescription ?? ''
     });
     // rawInputs도 설정 (쉼표로 구분된 필드들)
     setRawInputs({
@@ -1150,6 +1159,41 @@ export function PersonaManager() {
                       </SelectContent>
                     </Select>
                   </div>
+                </div>
+              </div>
+
+              {/* 자유 대화 설정 섹션 */}
+              <div className="bg-white rounded-lg p-5 shadow-sm border border-slate-200">
+                <h3 className="text-base font-bold text-slate-900 mb-4 flex items-center gap-2 pb-2 border-b border-slate-200">
+                  <i className="fas fa-comments text-emerald-600"></i>
+                  자유 대화 설정
+                </h3>
+                <div className="space-y-4">
+                  <div className="flex items-center gap-3">
+                    <Switch
+                      id="freeChatAvailable"
+                      checked={formData.freeChatAvailable ?? false}
+                      onCheckedChange={(checked) => setFormData(prev => ({ ...prev, freeChatAvailable: checked }))}
+                    />
+                    <Label htmlFor="freeChatAvailable" className="text-sm font-semibold text-slate-700">
+                      자유 대화 활성화
+                    </Label>
+                  </div>
+                  {formData.freeChatAvailable && (
+                    <div>
+                      <Label htmlFor="freeChatDescription" className="text-sm font-semibold text-slate-700 mb-1.5 block">
+                        자유 대화 설명
+                      </Label>
+                      <Textarea
+                        id="freeChatDescription"
+                        value={formData.freeChatDescription || ''}
+                        onChange={(e) => setFormData(prev => ({ ...prev, freeChatDescription: e.target.value }))}
+                        placeholder="이 페르소나와의 자유 대화에 대한 설명을 입력하세요."
+                        className="border-slate-300 focus:border-indigo-500 focus:ring-indigo-500 bg-white"
+                        rows={3}
+                      />
+                    </div>
+                  )}
                 </div>
               </div>
 
