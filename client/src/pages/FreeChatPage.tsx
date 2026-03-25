@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useLocation } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -305,8 +305,15 @@ function UserPersonaCard({ persona, isSelected, isMine, onSelect, onEdit, onDele
 // ────────── Main Page ──────────
 export default function FreeChatPage() {
   const [, navigate] = useLocation();
-  const { user } = useAuth();
+  const { user, isLoading } = useAuth();
   const { toast } = useToast();
+
+  // admin 전용 페이지 — 권한 없으면 홈으로
+  useEffect(() => {
+    if (!isLoading && user?.role !== 'admin') {
+      navigate('/home');
+    }
+  }, [isLoading, user]);
 
   const [sidebarTab, setSidebarTab] = useState<SidebarTab>("discover");
   const [mainView, setMainView] = useState<MainView>("browse");
@@ -442,6 +449,9 @@ export default function FreeChatPage() {
 
   const currentPersonaName = selectedUserPersona?.name || selectedMbtiPersona?.mbti || null;
   const isPending = startUserChatMutation.isPending || startMbtiChatMutation.isPending;
+
+  // admin 아닌 경우 렌더링 차단 (useEffect에서 리다이렉트 중)
+  if (isLoading || user?.role !== 'admin') return null;
 
   // ── Chat view ──────────────────────────────────────────────────────
   if (mainView === "chat" && conversationId) {
