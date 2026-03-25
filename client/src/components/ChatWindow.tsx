@@ -2625,10 +2625,8 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
               {t('chat.endConversationDesc2')}
             </AlertDialogDescription>
           </AlertDialogHeader>
-          <AlertDialogFooter className="flex-col sm:flex-row gap-2">
-            <AlertDialogCancel data-testid="button-cancel-end-conversation">
-              {t('chat.cancel')}
-            </AlertDialogCancel>
+          <div className="flex flex-col gap-2 sm:flex-row sm:justify-between mt-4">
+            {/* 실수 방지: 대화 초기화 버튼을 맨 왼쪽에 배치 */}
             <Button
               variant="outline"
               onClick={handleResetConversation}
@@ -2638,14 +2636,19 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
               <i className="fas fa-redo mr-1"></i>
               {t('chat.resetConversation')}
             </Button>
-            <AlertDialogAction 
-              onClick={confirmEndConversation}
-              data-testid="button-confirm-end-conversation"
-              className="bg-purple-600 hover:bg-purple-700"
-            >
-              {t('chat.yesGenerateFeedback')}
-            </AlertDialogAction>
-          </AlertDialogFooter>
+            <div className="flex gap-2 justify-end">
+              <AlertDialogCancel data-testid="button-cancel-end-conversation">
+                {t('chat.cancel')}
+              </AlertDialogCancel>
+              <AlertDialogAction 
+                onClick={confirmEndConversation}
+                data-testid="button-confirm-end-conversation"
+                className="bg-purple-600 hover:bg-purple-700"
+              >
+                {t('chat.yesGenerateFeedback')}
+              </AlertDialogAction>
+            </div>
+          </div>
         </AlertDialogContent>
       </AlertDialog>
     </div>
