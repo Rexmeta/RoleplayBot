@@ -606,8 +606,11 @@ export async function registerRoutes(app: Express, httpServer: Server): Promise<
     };
   }
 
-  /** GET /api/free-chat/personas — 자유 대화 가능한 MBTI 페르소나 목록 */
-  app.get("/api/free-chat/personas", isAuthenticated, async (_req, res) => {
+  /** GET /api/free-chat/personas — 자유 대화 가능한 MBTI 페르소나 목록 (시스템 관리자 전용) */
+  app.get("/api/free-chat/personas", isAuthenticated, async (req: any, res) => {
+    if (req.user?.role !== 'admin') {
+      return res.status(403).json({ error: "Access denied. System admin only." });
+    }
     try {
       const personas = await storage.getFreeChatPersonas();
       res.json(personas);
@@ -617,8 +620,11 @@ export async function registerRoutes(app: Express, httpServer: Server): Promise<
     }
   });
 
-  /** POST /api/free-chat/start — 자유 대화 시작 */
-  app.post("/api/free-chat/start", isAuthenticated, async (req, res) => {
+  /** POST /api/free-chat/start — 자유 대화 시작 (시스템 관리자 전용) */
+  app.post("/api/free-chat/start", isAuthenticated, async (req: any, res) => {
+    if (req.user?.role !== 'admin') {
+      return res.status(403).json({ error: "Access denied. System admin only." });
+    }
     try {
       // @ts-ignore
       const userId = req.user?.id;
@@ -729,8 +735,11 @@ export async function registerRoutes(app: Express, httpServer: Server): Promise<
 
   // ============================== 사용자 제작 페르소나 ==============================
 
-  /** GET /api/user-personas — 내가 만든 페르소나 목록 */
+  /** GET /api/user-personas — 내가 만든 페르소나 목록 (시스템 관리자 전용) */
   app.get("/api/user-personas", isAuthenticated, async (req: any, res) => {
+    if (req.user?.role !== 'admin') {
+      return res.status(403).json({ error: "Access denied. System admin only." });
+    }
     try {
       const userId = req.user?.id;
       const personas = await storage.getUserPersonasByCreator(userId);
@@ -740,8 +749,11 @@ export async function registerRoutes(app: Express, httpServer: Server): Promise<
     }
   });
 
-  /** GET /api/user-personas/discover — 공개 페르소나 탐색 */
-  app.get("/api/user-personas/discover", isAuthenticated, async (req, res) => {
+  /** GET /api/user-personas/discover — 공개 페르소나 탐색 (시스템 관리자 전용) */
+  app.get("/api/user-personas/discover", isAuthenticated, async (req: any, res) => {
+    if (req.user?.role !== 'admin') {
+      return res.status(403).json({ error: "Access denied. System admin only." });
+    }
     try {
       const sortBy = (req.query.sort as string) === 'recent' ? 'recent' : 'likes';
       const limit = Math.min(parseInt(req.query.limit as string) || 50, 100);
@@ -753,8 +765,11 @@ export async function registerRoutes(app: Express, httpServer: Server): Promise<
     }
   });
 
-  /** GET /api/user-personas/:id — 특정 페르소나 조회 */
+  /** GET /api/user-personas/:id — 특정 페르소나 조회 (시스템 관리자 전용) */
   app.get("/api/user-personas/:id", isAuthenticated, async (req: any, res) => {
+    if (req.user?.role !== 'admin') {
+      return res.status(403).json({ error: "Access denied. System admin only." });
+    }
     try {
       const persona = await storage.getUserPersonaById(req.params.id);
       if (!persona) return res.status(404).json({ error: "Persona not found" });
@@ -768,8 +783,11 @@ export async function registerRoutes(app: Express, httpServer: Server): Promise<
     }
   });
 
-  /** POST /api/user-personas — 페르소나 생성 */
+  /** POST /api/user-personas — 페르소나 생성 (시스템 관리자 전용) */
   app.post("/api/user-personas", isAuthenticated, async (req: any, res) => {
+    if (req.user?.role !== 'admin') {
+      return res.status(403).json({ error: "Access denied. System admin only." });
+    }
     try {
       const userId = req.user?.id;
       const { name, description, greeting, avatarUrl, personality, tags, isPublic } = req.body;
@@ -790,8 +808,11 @@ export async function registerRoutes(app: Express, httpServer: Server): Promise<
     }
   });
 
-  /** PUT /api/user-personas/:id — 페르소나 수정 (본인만) */
+  /** PUT /api/user-personas/:id — 페르소나 수정 (시스템 관리자 전용) */
   app.put("/api/user-personas/:id", isAuthenticated, async (req: any, res) => {
+    if (req.user?.role !== 'admin') {
+      return res.status(403).json({ error: "Access denied. System admin only." });
+    }
     try {
       const userId = req.user?.id;
       const { name, description, greeting, avatarUrl, personality, tags, isPublic } = req.body;
@@ -811,8 +832,11 @@ export async function registerRoutes(app: Express, httpServer: Server): Promise<
     }
   });
 
-  /** DELETE /api/user-personas/:id — 페르소나 삭제 (본인만) */
+  /** DELETE /api/user-personas/:id — 페르소나 삭제 (시스템 관리자 전용) */
   app.delete("/api/user-personas/:id", isAuthenticated, async (req: any, res) => {
+    if (req.user?.role !== 'admin') {
+      return res.status(403).json({ error: "Access denied. System admin only." });
+    }
     try {
       await storage.deleteUserPersona(req.params.id, req.user?.id);
       res.json({ success: true });
@@ -821,8 +845,11 @@ export async function registerRoutes(app: Express, httpServer: Server): Promise<
     }
   });
 
-  /** POST /api/user-personas/:id/like — 좋아요 토글 */
+  /** POST /api/user-personas/:id/like — 좋아요 토글 (시스템 관리자 전용) */
   app.post("/api/user-personas/:id/like", isAuthenticated, async (req: any, res) => {
+    if (req.user?.role !== 'admin') {
+      return res.status(403).json({ error: "Access denied. System admin only." });
+    }
     try {
       const result = await storage.toggleUserPersonaLike(req.user?.id, req.params.id);
       res.json(result);
@@ -831,8 +858,11 @@ export async function registerRoutes(app: Express, httpServer: Server): Promise<
     }
   });
 
-  /** POST /api/user-personas/:id/start-chat — 채팅 시작 */
+  /** POST /api/user-personas/:id/start-chat — 채팅 시작 (시스템 관리자 전용) */
   app.post("/api/user-personas/:id/start-chat", isAuthenticated, async (req: any, res) => {
+    if (req.user?.role !== 'admin') {
+      return res.status(403).json({ error: "Access denied. System admin only." });
+    }
     try {
       const userId = req.user?.id;
       const { mode = "text", difficulty = 2 } = req.body;

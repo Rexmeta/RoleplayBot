@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Link, useLocation } from "wouter";
 import { UserProfileMenu } from "@/components/UserProfileMenu";
 import { useTranslation } from "react-i18next";
+import { useAuth } from "@/hooks/useAuth";
 
 interface AppHeaderProps {
   title?: string;
@@ -20,6 +21,8 @@ function SwitchingLogo({ onRoleplayClick }: { onRoleplayClick?: () => void }) {
   const [location, navigate] = useLocation();
   const isPersonaMode = location === '/free-chat';
   const [isContainerHovered, setIsContainerHovered] = useState(false);
+  const { user } = useAuth();
+  const isAdmin = user?.role === 'admin';
 
   const handleRoleplayClick = () => {
     if (onRoleplayClick) {
@@ -57,23 +60,25 @@ function SwitchingLogo({ onRoleplayClick }: { onRoleplayClick?: () => void }) {
           <span className="text-base">🎭</span>
           <span>RoleplayX</span>
         </button>
-        {/* PersonaX: hover시 항상 보임 / 기본은 PersonaX모드일 때만 */}
-        <button
-          onClick={handlePersonaClick}
-          className={`
-            flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-bold transition-all duration-200
-            ${isPersonaMode
-              ? 'bg-emerald-600 text-white shadow-sm'
-              : isContainerHovered
-                ? 'text-emerald-600 hover:bg-emerald-50'
-                : 'hidden'
-            }
-          `}
-          data-testid="logo-persona"
-        >
-          <span className="text-base">💬</span>
-          <span>PersonaX</span>
-        </button>
+        {/* PersonaX: 시스템 관리자(admin)에게만 노출 */}
+        {isAdmin && (
+          <button
+            onClick={handlePersonaClick}
+            className={`
+              flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-bold transition-all duration-200
+              ${isPersonaMode
+                ? 'bg-emerald-600 text-white shadow-sm'
+                : isContainerHovered
+                  ? 'text-emerald-600 hover:bg-emerald-50'
+                  : 'hidden'
+              }
+            `}
+            data-testid="logo-persona"
+          >
+            <span className="text-base">💬</span>
+            <span>PersonaX</span>
+          </button>
+        )}
       </div>
     </div>
   );
