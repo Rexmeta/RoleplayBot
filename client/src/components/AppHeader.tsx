@@ -19,7 +19,7 @@ interface AppHeaderProps {
 function SwitchingLogo({ onRoleplayClick }: { onRoleplayClick?: () => void }) {
   const [location, navigate] = useLocation();
   const isPersonaMode = location === '/free-chat';
-  const [hovered, setHovered] = useState<'roleplay' | 'persona' | null>(null);
+  const [isContainerHovered, setIsContainerHovered] = useState(false);
 
   const handleRoleplayClick = () => {
     if (onRoleplayClick) {
@@ -34,19 +34,22 @@ function SwitchingLogo({ onRoleplayClick }: { onRoleplayClick?: () => void }) {
   };
 
   return (
-    <div className="flex items-center">
-      <div className="flex items-center bg-slate-100 rounded-xl p-1 gap-0.5">
+    <div
+      className="flex items-center"
+      onMouseEnter={() => setIsContainerHovered(true)}
+      onMouseLeave={() => setIsContainerHovered(false)}
+    >
+      <div className={`flex items-center rounded-xl p-1 gap-0.5 transition-all duration-200 ${isContainerHovered ? 'bg-slate-100' : 'bg-transparent'}`}>
+        {/* RoleplayX: hover시 항상 보임 / 기본은 PersonaX모드가 아닐 때만 */}
         <button
           onClick={handleRoleplayClick}
-          onMouseEnter={() => setHovered('roleplay')}
-          onMouseLeave={() => setHovered(null)}
           className={`
             flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-bold transition-all duration-200
             ${!isPersonaMode
               ? 'bg-white text-slate-900 shadow-sm'
-              : hovered === 'roleplay'
-                ? 'text-slate-600 bg-slate-200'
-                : 'text-slate-400'
+              : isContainerHovered
+                ? 'text-slate-500 hover:bg-slate-200 hover:text-slate-700'
+                : 'hidden'
             }
           `}
           data-testid="logo-roleplay"
@@ -54,17 +57,16 @@ function SwitchingLogo({ onRoleplayClick }: { onRoleplayClick?: () => void }) {
           <span className="text-base">🎭</span>
           <span>RoleplayX</span>
         </button>
+        {/* PersonaX: hover시 항상 보임 / 기본은 PersonaX모드일 때만 */}
         <button
           onClick={handlePersonaClick}
-          onMouseEnter={() => setHovered('persona')}
-          onMouseLeave={() => setHovered(null)}
           className={`
             flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-bold transition-all duration-200
             ${isPersonaMode
               ? 'bg-emerald-600 text-white shadow-sm'
-              : hovered === 'persona'
-                ? 'text-emerald-600 bg-emerald-50'
-                : 'text-slate-400'
+              : isContainerHovered
+                ? 'text-emerald-600 hover:bg-emerald-50'
+                : 'hidden'
             }
           `}
           data-testid="logo-persona"
