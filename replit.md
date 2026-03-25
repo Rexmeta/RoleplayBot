@@ -48,6 +48,7 @@ Preferred communication style: Simple, everyday language.
 - **Configurable Difficulty Settings**: Editable difficulty levels via operator dashboard.
 - **Intro Video Generation**: Integration with Gemini Veo 3.1 API for scenario intro videos.
 - **Multilingual Translation System**: Comprehensive translation management with AI-powered translation generation, manual editing workflow, and support for multiple languages with a language-agnostic architecture.
+- **PersonaX Free Chat**: Messenger-style 3-column UI at `/free-chat`. Users create, manage, and share custom AI personas (stored in `user_personas` DB table). Features: public/private toggle, like system (`user_persona_likes` table), chat count tracking, persona editor modal, and MBTI persona tab. Sentinel `__user_persona__:<id>` distinguishes user-created persona chats from MBTI-based free chats in the AI message handler.
 
 # External Dependencies
 

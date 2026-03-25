@@ -468,6 +468,46 @@ export type SequenceAnalysis = {
   strategicInsights?: string; // 전략적 통찰
 };
 
+// ============================================================
+// 사용자 제작 페르소나 (기존 시나리오 페르소나와 완전 독립)
+// ============================================================
+export const userPersonas = pgTable("user_personas", {
+  id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
+  creatorId: varchar("creator_id", { length: 36 }).notNull(),
+  name: text("name").notNull(),
+  description: text("description").notNull().default(""),
+  greeting: text("greeting").notNull().default(""),
+  avatarUrl: text("avatar_url"),
+  personality: jsonb("personality").$type<{
+    traits: string[];
+    communicationStyle: string;
+    background: string;
+    speechStyle: string;
+  }>().default({ traits: [], communicationStyle: "", background: "", speechStyle: "" }),
+  tags: text("tags").array().default([]),
+  isPublic: boolean("is_public").notNull().default(false),
+  likeCount: integer("like_count").notNull().default(0),
+  chatCount: integer("chat_count").notNull().default(0),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+export const userPersonaLikes = pgTable("user_persona_likes", {
+  userId: varchar("user_id", { length: 36 }).notNull(),
+  personaId: varchar("persona_id", { length: 36 }).notNull(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const insertUserPersonaSchema = createInsertSchema(userPersonas).omit({
+  id: true,
+  likeCount: true,
+  chatCount: true,
+  createdAt: true,
+  updatedAt: true,
+});
+export type InsertUserPersona = z.infer<typeof insertUserPersonaSchema>;
+export type UserPersona = typeof userPersonas.$inferSelect;
+
 export const insertConversationSchema = createInsertSchema(conversations).omit({
   id: true,
   createdAt: true,

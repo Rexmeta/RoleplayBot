@@ -727,6 +727,185 @@ export async function registerRoutes(app: Express, httpServer: Server): Promise<
     }
   });
 
+  // ============================== 사용자 제작 페르소나 ==============================
+
+  /** GET /api/user-personas — 내가 만든 페르소나 목록 */
+  app.get("/api/user-personas", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.userId;
+      const personas = await storage.getUserPersonasByCreator(userId);
+      res.json(personas);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch user personas" });
+    }
+  });
+
+  /** GET /api/user-personas/discover — 공개 페르소나 탐색 */
+  app.get("/api/user-personas/discover", isAuthenticated, async (req, res) => {
+    try {
+      const sortBy = (req.query.sort as string) === 'recent' ? 'recent' : 'likes';
+      const limit = Math.min(parseInt(req.query.limit as string) || 50, 100);
+      const offset = parseInt(req.query.offset as string) || 0;
+      const personas = await storage.getPublicUserPersonas(sortBy, limit, offset);
+      res.json(personas);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch public personas" });
+    }
+  });
+
+  /** GET /api/user-personas/:id — 특정 페르소나 조회 */
+  app.get("/api/user-personas/:id", isAuthenticated, async (req: any, res) => {
+    try {
+      const persona = await storage.getUserPersonaById(req.params.id);
+      if (!persona) return res.status(404).json({ error: "Persona not found" });
+      if (!persona.isPublic && persona.creatorId !== req.user.userId) {
+        return res.status(403).json({ error: "Access denied" });
+      }
+      const liked = await storage.getUserPersonaLike(req.user.userId, persona.id);
+      res.json({ ...persona, liked });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch persona" });
+    }
+  });
+
+  /** POST /api/user-personas — 페르소나 생성 */
+  app.post("/api/user-personas", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.userId;
+      const { name, description, greeting, avatarUrl, personality, tags, isPublic } = req.body;
+      if (!name || !name.trim()) return res.status(400).json({ error: "Name is required" });
+      const persona = await storage.createUserPersona({
+        creatorId: userId,
+        name: name.trim(),
+        description: description?.trim() || "",
+        greeting: greeting?.trim() || `안녕하세요! 저는 ${name.trim()}입니다.`,
+        avatarUrl: avatarUrl || null,
+        personality: personality || { traits: [], communicationStyle: "", background: "", speechStyle: "" },
+        tags: tags || [],
+        isPublic: isPublic ?? false,
+      });
+      res.status(201).json(persona);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message || "Failed to create persona" });
+    }
+  });
+
+  /** PUT /api/user-personas/:id — 페르소나 수정 (본인만) */
+  app.put("/api/user-personas/:id", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.userId;
+      const { name, description, greeting, avatarUrl, personality, tags, isPublic } = req.body;
+      const persona = await storage.updateUserPersona(req.params.id, userId, {
+        ...(name !== undefined && { name: name.trim() }),
+        ...(description !== undefined && { description: description.trim() }),
+        ...(greeting !== undefined && { greeting: greeting.trim() }),
+        ...(avatarUrl !== undefined && { avatarUrl }),
+        ...(personality !== undefined && { personality }),
+        ...(tags !== undefined && { tags }),
+        ...(isPublic !== undefined && { isPublic }),
+      });
+      res.json(persona);
+    } catch (error: any) {
+      if (error.message?.includes("not found or unauthorized")) return res.status(403).json({ error: error.message });
+      res.status(500).json({ error: "Failed to update persona" });
+    }
+  });
+
+  /** DELETE /api/user-personas/:id — 페르소나 삭제 (본인만) */
+  app.delete("/api/user-personas/:id", isAuthenticated, async (req: any, res) => {
+    try {
+      await storage.deleteUserPersona(req.params.id, req.user.userId);
+      res.json({ success: true });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to delete persona" });
+    }
+  });
+
+  /** POST /api/user-personas/:id/like — 좋아요 토글 */
+  app.post("/api/user-personas/:id/like", isAuthenticated, async (req: any, res) => {
+    try {
+      const result = await storage.toggleUserPersonaLike(req.user.userId, req.params.id);
+      res.json(result);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to toggle like" });
+    }
+  });
+
+  /** POST /api/user-personas/:id/start-chat — 채팅 시작 */
+  app.post("/api/user-personas/:id/start-chat", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.userId;
+      const { mode = "text", difficulty = 2 } = req.body;
+      const persona = await storage.getUserPersonaById(req.params.id);
+      if (!persona) return res.status(404).json({ error: "Persona not found" });
+      if (!persona.isPublic && persona.creatorId !== userId) {
+        return res.status(403).json({ error: "Access denied" });
+      }
+
+      const { v4: uuid } = await import("uuid");
+      const conversationId = uuid();
+      const scenarioRunId = uuid();
+      const personaRunId = uuid();
+
+      await storage.createConversation({
+        id: conversationId,
+        userId,
+        scenarioId: `__user_persona__:${persona.id}`,
+        personaId: persona.id,
+        difficulty,
+        conversationMode: mode,
+        turnCount: 0,
+        isCompleted: false,
+      });
+
+      await storage.createScenarioRun({
+        id: scenarioRunId,
+        userId,
+        scenarioId: `__user_persona__:${persona.id}`,
+        startedAt: new Date(),
+        status: "in_progress",
+      });
+
+      await storage.createPersonaRun({
+        id: personaRunId,
+        scenarioRunId,
+        personaId: persona.id,
+        conversationId,
+      });
+
+      await storage.incrementUserPersonaChatCount(persona.id);
+
+      // 첫 인사 메시지 생성
+      const greetingText = persona.greeting || `안녕하세요! 저는 ${persona.name}입니다. 무슨 이야기든 편하게 나눠요.`;
+      await storage.createChatMessage({
+        conversationId,
+        role: "assistant",
+        content: greetingText,
+        emotion: "중립",
+        emotionReason: "인사",
+      });
+
+      res.json({
+        conversationId,
+        scenarioRunId,
+        personaRunId,
+        greeting: greetingText,
+        persona: {
+          id: persona.id,
+          name: persona.name,
+          avatarUrl: persona.avatarUrl,
+          description: persona.description,
+          personality: persona.personality,
+        },
+      });
+    } catch (error: any) {
+      console.error("User persona chat start error:", error);
+      res.status(500).json({ error: error.message || "Failed to start chat" });
+    }
+  });
+
+  // ============================== / 사용자 제작 페르소나 ==============================
+
   // ============================== / 자유 대화 ==============================
 
   // Create new conversation (scenario_run + persona_run 구조)
@@ -1165,6 +1344,56 @@ export async function registerRoutes(app: Express, httpServer: Server): Promise<
         const snapshot = personaRun.personaSnapshot as any || {};
         persona = buildFreeChatPersona(snapshot);
         scenarioWithUserDifficulty = buildFreeChatScenario(snapshot, personaRun.difficulty || scenarioRun.difficulty || 2);
+      } else if (scenarioRun.scenarioId?.startsWith("__user_persona__:")) {
+        // 사용자 제작 페르소나 대화
+        const userPersonaId = scenarioRun.scenarioId.split(":")[1];
+        const userPersonaData = await storage.getUserPersonaById(userPersonaId);
+        if (!userPersonaData) throw new Error(`UserPersona not found: ${userPersonaId}`);
+        const p = userPersonaData.personality as any || {};
+        persona = {
+          id: userPersonaData.id,
+          name: userPersonaData.name,
+          role: "대화 상대",
+          department: "",
+          mbti: "",
+          gender: "neutral",
+          image: userPersonaData.avatarUrl || undefined,
+          personality: {
+            traits: p.traits || [],
+            communicationStyle: p.communicationStyle || "",
+            motivation: p.background || "",
+            fears: [],
+          },
+          rawPersonality: p,
+          description: userPersonaData.description,
+          greeting: userPersonaData.greeting,
+        };
+        scenarioWithUserDifficulty = {
+          id: `__user_persona__:${userPersonaData.id}`,
+          title: `${userPersonaData.name}와의 대화`,
+          description: userPersonaData.description,
+          context: {
+            situation: userPersonaData.description || "자유로운 대화 상황",
+            timeline: "현재",
+            stakes: "자유 대화",
+            playerRole: { position: "대화 참여자", department: "", experience: "", responsibility: "편하게 대화하기" },
+          },
+          objectives: ["자유롭게 대화하기"],
+          personas: [],
+          difficulty: personaRun.difficulty || scenarioRun.difficulty || 2,
+          successCriteria: { optimal: "자연스러운 대화", good: "적극적인 소통", acceptable: "기본 대화 유지", failure: "대화 거부" },
+          _userPersonaMode: true,
+          _userPersonaSystemPrompt: `당신은 "${userPersonaData.name}"라는 AI 캐릭터입니다.
+
+${userPersonaData.description ? `캐릭터 설명: ${userPersonaData.description}` : ""}
+${p.background ? `배경: ${p.background}` : ""}
+${p.traits?.length ? `성격 특성: ${p.traits.join(", ")}` : ""}
+${p.communicationStyle ? `대화 방식: ${p.communicationStyle}` : ""}
+${p.speechStyle ? `말투: ${p.speechStyle}` : ""}
+
+위 캐릭터로서 자연스럽게 대화하세요. 캐릭터의 성격, 말투, 배경을 일관되게 유지하세요.
+사용자와 자유롭게 대화하고, 사용자가 묻는 것에 캐릭터에 맞게 답변하세요.`,
+        };
       } else {
         // 시나리오 기반 대화: 기존 로직
         const scenarios = await fileManager.getAllScenarios();

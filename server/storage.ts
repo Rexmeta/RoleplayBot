@@ -1,4 +1,4 @@
-import { type Conversation, type InsertConversation, type Feedback, type InsertFeedback, type PersonaSelection, type StrategyChoice, type SequenceAnalysis, type User, type UpsertUser, type ScenarioRun, type InsertScenarioRun, type PersonaRun, type InsertPersonaRun, type ChatMessage, type InsertChatMessage, type Category, type InsertCategory, type SystemSetting, type AiUsageLog, type InsertAiUsageLog, type AiUsageSummary, type AiUsageByFeature, type AiUsageByModel, type AiUsageDaily, type EvaluationCriteriaSet, type InsertEvaluationCriteriaSet, type EvaluationDimension, type InsertEvaluationDimension, type EvaluationCriteriaSetWithDimensions, type SupportedLanguage, type InsertSupportedLanguage, type ScenarioTranslation, type InsertScenarioTranslation, type PersonaTranslation, type InsertPersonaTranslation, type CategoryTranslation, type InsertCategoryTranslation, type EvaluationCriteriaSetTranslation, type InsertEvaluationCriteriaSetTranslation, type EvaluationDimensionTranslation, type InsertEvaluationDimensionTranslation, type Scenario, type InsertScenario, type MbtiPersona, type InsertMbtiPersona, type Company, type InsertCompany, type Organization, type InsertOrganization, type OperatorAssignment, type InsertOperatorAssignment, conversations, feedbacks, users, scenarioRuns, personaRuns, chatMessages, categories, systemSettings, aiUsageLogs, evaluationCriteriaSets, evaluationDimensions, supportedLanguages, scenarioTranslations, personaTranslations, categoryTranslations, evaluationCriteriaSetTranslations, evaluationDimensionTranslations, scenarios, mbtiPersonas, companies, organizations, operatorAssignments } from "@shared/schema";
+import { type Conversation, type InsertConversation, type Feedback, type InsertFeedback, type PersonaSelection, type StrategyChoice, type SequenceAnalysis, type User, type UpsertUser, type ScenarioRun, type InsertScenarioRun, type PersonaRun, type InsertPersonaRun, type ChatMessage, type InsertChatMessage, type Category, type InsertCategory, type SystemSetting, type AiUsageLog, type InsertAiUsageLog, type AiUsageSummary, type AiUsageByFeature, type AiUsageByModel, type AiUsageDaily, type EvaluationCriteriaSet, type InsertEvaluationCriteriaSet, type EvaluationDimension, type InsertEvaluationDimension, type EvaluationCriteriaSetWithDimensions, type SupportedLanguage, type InsertSupportedLanguage, type ScenarioTranslation, type InsertScenarioTranslation, type PersonaTranslation, type InsertPersonaTranslation, type CategoryTranslation, type InsertCategoryTranslation, type EvaluationCriteriaSetTranslation, type InsertEvaluationCriteriaSetTranslation, type EvaluationDimensionTranslation, type InsertEvaluationDimensionTranslation, type Scenario, type InsertScenario, type MbtiPersona, type InsertMbtiPersona, type Company, type InsertCompany, type Organization, type InsertOrganization, type OperatorAssignment, type InsertOperatorAssignment, type UserPersona, type InsertUserPersona, conversations, feedbacks, users, scenarioRuns, personaRuns, chatMessages, categories, systemSettings, aiUsageLogs, evaluationCriteriaSets, evaluationDimensions, supportedLanguages, scenarioTranslations, personaTranslations, categoryTranslations, evaluationCriteriaSetTranslations, evaluationDimensionTranslations, scenarios, mbtiPersonas, companies, organizations, operatorAssignments, userPersonas, userPersonaLikes } from "@shared/schema";
 import { randomUUID } from "crypto";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { Pool } from "pg";
@@ -250,6 +250,17 @@ export interface IStorage {
   createMbtiPersona(persona: InsertMbtiPersona): Promise<MbtiPersona>;
   updateMbtiPersona(id: string, updates: Partial<InsertMbtiPersona>): Promise<MbtiPersona>;
   deleteMbtiPersona(id: string): Promise<void>;
+
+  // 사용자 제작 페르소나 (UserPersonas)
+  createUserPersona(data: InsertUserPersona): Promise<UserPersona>;
+  getUserPersonaById(id: string): Promise<UserPersona | undefined>;
+  getUserPersonasByCreator(creatorId: string): Promise<UserPersona[]>;
+  getPublicUserPersonas(sortBy?: 'likes' | 'recent', limit?: number, offset?: number): Promise<UserPersona[]>;
+  updateUserPersona(id: string, creatorId: string, data: Partial<InsertUserPersona>): Promise<UserPersona>;
+  deleteUserPersona(id: string, creatorId: string): Promise<void>;
+  toggleUserPersonaLike(userId: string, personaId: string): Promise<{ liked: boolean; likeCount: number }>;
+  getUserPersonaLike(userId: string, personaId: string): Promise<boolean>;
+  incrementUserPersonaChatCount(id: string): Promise<void>;
   
   // ==================== 3단 계층 구조: 회사 > 조직 > 카테고리 ====================
   
@@ -860,7 +871,18 @@ export class MemStorage implements IStorage {
   async createMbtiPersona(_persona: InsertMbtiPersona): Promise<MbtiPersona> { throw new Error("Not implemented"); }
   async updateMbtiPersona(_id: string, _updates: Partial<InsertMbtiPersona>): Promise<MbtiPersona> { throw new Error("Not implemented"); }
   async deleteMbtiPersona(_id: string): Promise<void> {}
-  
+
+  // UserPersonas stubs
+  async createUserPersona(_data: InsertUserPersona): Promise<UserPersona> { throw new Error("Not implemented"); }
+  async getUserPersonaById(_id: string): Promise<UserPersona | undefined> { return undefined; }
+  async getUserPersonasByCreator(_creatorId: string): Promise<UserPersona[]> { return []; }
+  async getPublicUserPersonas(_sortBy?: 'likes' | 'recent', _limit?: number, _offset?: number): Promise<UserPersona[]> { return []; }
+  async updateUserPersona(_id: string, _creatorId: string, _data: Partial<InsertUserPersona>): Promise<UserPersona> { throw new Error("Not implemented"); }
+  async deleteUserPersona(_id: string, _creatorId: string): Promise<void> {}
+  async toggleUserPersonaLike(_userId: string, _personaId: string): Promise<{ liked: boolean; likeCount: number }> { return { liked: false, likeCount: 0 }; }
+  async getUserPersonaLike(_userId: string, _personaId: string): Promise<boolean> { return false; }
+  async incrementUserPersonaChatCount(_id: string): Promise<void> {}
+
   // 3단 계층 구조 - stub implementations
   async getCompany(_id: string): Promise<Company | undefined> { return undefined; }
   async getCompanyByName(_name: string): Promise<Company | undefined> { return undefined; }
@@ -2122,7 +2144,82 @@ export class PostgreSQLStorage implements IStorage {
   async deleteMbtiPersona(id: string): Promise<void> {
     await db.delete(mbtiPersonas).where(eq(mbtiPersonas.id, id));
   }
-  
+
+  // ==================== 사용자 제작 페르소나 ====================
+  async createUserPersona(data: InsertUserPersona): Promise<UserPersona> {
+    const [created] = await db.insert(userPersonas).values(data as any).returning();
+    return created;
+  }
+
+  async getUserPersonaById(id: string): Promise<UserPersona | undefined> {
+    const [persona] = await db.select().from(userPersonas).where(eq(userPersonas.id, id));
+    return persona;
+  }
+
+  async getUserPersonasByCreator(creatorId: string): Promise<UserPersona[]> {
+    return await db.select().from(userPersonas)
+      .where(eq(userPersonas.creatorId, creatorId))
+      .orderBy(desc(userPersonas.createdAt));
+  }
+
+  async getPublicUserPersonas(sortBy: 'likes' | 'recent' = 'likes', limit = 50, offset = 0): Promise<UserPersona[]> {
+    const orderCol = sortBy === 'likes'
+      ? desc(userPersonas.likeCount)
+      : desc(userPersonas.createdAt);
+    return await db.select().from(userPersonas)
+      .where(eq(userPersonas.isPublic, true))
+      .orderBy(orderCol)
+      .limit(limit)
+      .offset(offset);
+  }
+
+  async updateUserPersona(id: string, creatorId: string, data: Partial<InsertUserPersona>): Promise<UserPersona> {
+    const [updated] = await db.update(userPersonas)
+      .set({ ...data, updatedAt: new Date() })
+      .where(and(eq(userPersonas.id, id), eq(userPersonas.creatorId, creatorId)))
+      .returning();
+    if (!updated) throw new Error("UserPersona not found or unauthorized");
+    return updated;
+  }
+
+  async deleteUserPersona(id: string, creatorId: string): Promise<void> {
+    await db.delete(userPersonas)
+      .where(and(eq(userPersonas.id, id), eq(userPersonas.creatorId, creatorId)));
+  }
+
+  async toggleUserPersonaLike(userId: string, personaId: string): Promise<{ liked: boolean; likeCount: number }> {
+    const existing = await db.select().from(userPersonaLikes)
+      .where(and(eq(userPersonaLikes.userId, userId), eq(userPersonaLikes.personaId, personaId)));
+    if (existing.length > 0) {
+      await db.delete(userPersonaLikes)
+        .where(and(eq(userPersonaLikes.userId, userId), eq(userPersonaLikes.personaId, personaId)));
+      const [updated] = await db.update(userPersonas)
+        .set({ likeCount: sqlBuilder`GREATEST(like_count - 1, 0)` })
+        .where(eq(userPersonas.id, personaId))
+        .returning();
+      return { liked: false, likeCount: updated?.likeCount ?? 0 };
+    } else {
+      await db.insert(userPersonaLikes).values({ userId, personaId });
+      const [updated] = await db.update(userPersonas)
+        .set({ likeCount: sqlBuilder`like_count + 1` })
+        .where(eq(userPersonas.id, personaId))
+        .returning();
+      return { liked: true, likeCount: updated?.likeCount ?? 0 };
+    }
+  }
+
+  async getUserPersonaLike(userId: string, personaId: string): Promise<boolean> {
+    const [row] = await db.select().from(userPersonaLikes)
+      .where(and(eq(userPersonaLikes.userId, userId), eq(userPersonaLikes.personaId, personaId)));
+    return !!row;
+  }
+
+  async incrementUserPersonaChatCount(id: string): Promise<void> {
+    await db.update(userPersonas)
+      .set({ chatCount: sqlBuilder`chat_count + 1` })
+      .where(eq(userPersonas.id, id));
+  }
+
   // ==================== 3단 계층 구조: 회사 > 조직 > 카테고리 ====================
   
   // Companies - 회사 관리
