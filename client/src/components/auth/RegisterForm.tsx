@@ -52,6 +52,7 @@ export function RegisterForm({ onSwitchToLogin }: RegisterFormProps) {
   const { i18n, t } = useTranslation();
   const [isLoading, setIsLoading] = useState(false);
   const [selectedCategoryId, setSelectedCategoryId] = useState<string>("");
+  const [categoryError, setCategoryError] = useState<string>("");
   const [selectedCompanyId, setSelectedCompanyId] = useState<string>("");
   const [selectedOrganizationId, setSelectedOrganizationId] = useState<string>("");
   const [selectedLanguage, setSelectedLanguage] = useState<string>(i18n.language || 'ko');
@@ -121,9 +122,13 @@ export function RegisterForm({ onSwitchToLogin }: RegisterFormProps) {
   });
 
   const onSubmit = async (data: RegisterFormData) => {
+    if (!selectedCategoryId) {
+      setCategoryError(t('auth.categoryRequired'));
+      return;
+    }
     try {
       setIsLoading(true);
-      const categoryToSubmit = selectedCategoryId && selectedCategoryId.length > 0 ? selectedCategoryId : undefined;
+      const categoryToSubmit = selectedCategoryId;
       const companyToSubmit = selectedCompanyId && selectedCompanyId.length > 0 ? selectedCompanyId : undefined;
       const organizationToSubmit = selectedOrganizationId && selectedOrganizationId.length > 0 ? selectedOrganizationId : undefined;
       await registerUser(data.email, data.password, data.name, categoryToSubmit, companyToSubmit, organizationToSubmit, selectedLanguage);
@@ -266,7 +271,7 @@ export function RegisterForm({ onSwitchToLogin }: RegisterFormProps) {
 
           <div className="space-y-2">
             <Label htmlFor="category" data-testid="label-category">
-              {t('auth.category')}
+              {t('auth.category')} <span className="text-red-500">*</span>
             </Label>
             <div className="relative">
               <Folder className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4 z-10" />
@@ -274,9 +279,13 @@ export function RegisterForm({ onSwitchToLogin }: RegisterFormProps) {
                 value={selectedCategoryId}
                 onValueChange={(value) => {
                   setSelectedCategoryId(value);
+                  setCategoryError("");
                 }}
               >
-                <SelectTrigger className="pl-10" data-testid="select-category">
+                <SelectTrigger
+                  className={`pl-10 ${categoryError ? "border-red-500" : ""}`}
+                  data-testid="select-category"
+                >
                   <SelectValue placeholder={t('auth.categoryPlaceholder')} />
                 </SelectTrigger>
                 <SelectContent>
@@ -288,6 +297,11 @@ export function RegisterForm({ onSwitchToLogin }: RegisterFormProps) {
                 </SelectContent>
               </Select>
             </div>
+            {categoryError && (
+              <p className="text-sm text-red-500" data-testid="error-category">
+                {categoryError}
+              </p>
+            )}
           </div>
 
           <div className="space-y-2">
