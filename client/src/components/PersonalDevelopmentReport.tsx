@@ -23,6 +23,7 @@ interface PersonalDevelopmentReportProps {
   onFeedbackGeneratingChange?: (isGenerating: boolean) => void;
   onReady?: () => void;
   isAdminView?: boolean;
+  autoGenerateFeedback?: boolean;
 }
 
 // 애니메이션 없이 바로 값 표시 (hooks 오류 방지)
@@ -40,7 +41,8 @@ export default function PersonalDevelopmentReport({
   onNextPersona,
   onFeedbackGeneratingChange,
   onReady,
-  isAdminView = false
+  isAdminView = false,
+  autoGenerateFeedback = false
 }: PersonalDevelopmentReportProps) {
   const { toast } = useToast();
   const { t } = useTranslation();
@@ -247,6 +249,23 @@ export default function PersonalDevelopmentReport({
     onFeedbackGeneratingChange?.(true);
     generateFeedbackMutation.mutate({ force: true });
   };
+
+  // 대화 종료 후 피드백 뷰 진입 시 자동으로 피드백 생성 시작
+  useEffect(() => {
+    if (
+      autoGenerateFeedback &&
+      !isLoading &&
+      !feedback &&
+      !hasRequestedFeedback &&
+      !generateFeedbackMutation.isPending &&
+      error?.message === "FEEDBACK_NOT_FOUND"
+    ) {
+      setHasRequestedFeedback(true);
+      onFeedbackGeneratingChange?.(true);
+      generateFeedbackMutation.mutate();
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoGenerateFeedback, isLoading, feedback, hasRequestedFeedback, error?.message, generateFeedbackMutation.isPending]);
 
   // HTML 이스케이프 함수 (XSS 방지)
   const escapeHtml = (text: string | null | undefined): string => {

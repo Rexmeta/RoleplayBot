@@ -59,6 +59,7 @@ export default function Home() {
   const [isVideoTransitioning, setIsVideoTransitioning] = useState(false); // 인트로 영상 → 대화 전환 중 상태
   const [isFeedbackGenerating, setIsFeedbackGenerating] = useState(false); // 피드백 생성 중 상태
   const [isTransitioningToFeedback, setIsTransitioningToFeedback] = useState(false); // 대화 종료 → 피드백 전환 중 상태
+  const [autoGenerateFeedback, setAutoGenerateFeedback] = useState(false); // 대화 종료 후 자동 피드백 생성 여부
   const [isHeaderVisible, setIsHeaderVisible] = useState(false); // 상세 페이지에서 헤더 표시 상태
   const [showExitConversationDialog, setShowExitConversationDialog] = useState(false); // 대화 중 홈 이동 경고 다이얼로그
 
@@ -466,6 +467,9 @@ export default function Home() {
     // ✅ MyPage에서 업데이트된 대화 기록을 보여주기 위해 scenario-runs 캐시 무효화
     queryClient.invalidateQueries({ queryKey: ['/api/scenario-runs'] });
     console.log('🔄 대화 완료: scenario-runs 캐시 무효화');
+    
+    // 대화 종료 후 피드백 뷰로 이동 시 자동 생성 플래그 설정
+    setAutoGenerateFeedback(true);
     
     // 대화 완료 후 무조건 피드백을 먼저 보여줌
     setCurrentView("feedback");
@@ -1051,6 +1055,7 @@ export default function Home() {
               }}
               onFeedbackGeneratingChange={setIsFeedbackGenerating}
               onReady={handleFeedbackReady}
+              autoGenerateFeedback={autoGenerateFeedback}
             />
           );
         })()}
