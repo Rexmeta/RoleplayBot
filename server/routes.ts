@@ -732,7 +732,7 @@ export async function registerRoutes(app: Express, httpServer: Server): Promise<
   /** GET /api/user-personas — 내가 만든 페르소나 목록 */
   app.get("/api/user-personas", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.userId;
+      const userId = req.user?.id;
       const personas = await storage.getUserPersonasByCreator(userId);
       res.json(personas);
     } catch (error) {
@@ -758,10 +758,10 @@ export async function registerRoutes(app: Express, httpServer: Server): Promise<
     try {
       const persona = await storage.getUserPersonaById(req.params.id);
       if (!persona) return res.status(404).json({ error: "Persona not found" });
-      if (!persona.isPublic && persona.creatorId !== req.user.userId) {
+      if (!persona.isPublic && persona.creatorId !== req.user?.id) {
         return res.status(403).json({ error: "Access denied" });
       }
-      const liked = await storage.getUserPersonaLike(req.user.userId, persona.id);
+      const liked = await storage.getUserPersonaLike(req.user?.id, persona.id);
       res.json({ ...persona, liked });
     } catch (error) {
       res.status(500).json({ error: "Failed to fetch persona" });
@@ -771,7 +771,7 @@ export async function registerRoutes(app: Express, httpServer: Server): Promise<
   /** POST /api/user-personas — 페르소나 생성 */
   app.post("/api/user-personas", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.userId;
+      const userId = req.user?.id;
       const { name, description, greeting, avatarUrl, personality, tags, isPublic } = req.body;
       if (!name || !name.trim()) return res.status(400).json({ error: "Name is required" });
       const persona = await storage.createUserPersona({
@@ -793,7 +793,7 @@ export async function registerRoutes(app: Express, httpServer: Server): Promise<
   /** PUT /api/user-personas/:id — 페르소나 수정 (본인만) */
   app.put("/api/user-personas/:id", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.userId;
+      const userId = req.user?.id;
       const { name, description, greeting, avatarUrl, personality, tags, isPublic } = req.body;
       const persona = await storage.updateUserPersona(req.params.id, userId, {
         ...(name !== undefined && { name: name.trim() }),
@@ -814,7 +814,7 @@ export async function registerRoutes(app: Express, httpServer: Server): Promise<
   /** DELETE /api/user-personas/:id — 페르소나 삭제 (본인만) */
   app.delete("/api/user-personas/:id", isAuthenticated, async (req: any, res) => {
     try {
-      await storage.deleteUserPersona(req.params.id, req.user.userId);
+      await storage.deleteUserPersona(req.params.id, req.user?.id);
       res.json({ success: true });
     } catch (error) {
       res.status(500).json({ error: "Failed to delete persona" });
@@ -824,7 +824,7 @@ export async function registerRoutes(app: Express, httpServer: Server): Promise<
   /** POST /api/user-personas/:id/like — 좋아요 토글 */
   app.post("/api/user-personas/:id/like", isAuthenticated, async (req: any, res) => {
     try {
-      const result = await storage.toggleUserPersonaLike(req.user.userId, req.params.id);
+      const result = await storage.toggleUserPersonaLike(req.user?.id, req.params.id);
       res.json(result);
     } catch (error) {
       res.status(500).json({ error: "Failed to toggle like" });
@@ -834,7 +834,7 @@ export async function registerRoutes(app: Express, httpServer: Server): Promise<
   /** POST /api/user-personas/:id/start-chat — 채팅 시작 */
   app.post("/api/user-personas/:id/start-chat", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.userId;
+      const userId = req.user?.id;
       const { mode = "text", difficulty = 2 } = req.body;
       const persona = await storage.getUserPersonaById(req.params.id);
       if (!persona) return res.status(404).json({ error: "Persona not found" });
