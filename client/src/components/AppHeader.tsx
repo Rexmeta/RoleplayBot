@@ -1,4 +1,5 @@
-import { Link } from "wouter";
+import { useState } from "react";
+import { Link, useLocation } from "wouter";
 import { UserProfileMenu } from "@/components/UserProfileMenu";
 import { useTranslation } from "react-i18next";
 
@@ -15,6 +16,67 @@ interface AppHeaderProps {
   userEmail?: string;
 }
 
+function SwitchingLogo({ onRoleplayClick }: { onRoleplayClick?: () => void }) {
+  const [location, navigate] = useLocation();
+  const isPersonaMode = location === '/free-chat';
+  const [hovered, setHovered] = useState<'roleplay' | 'persona' | null>(null);
+
+  const handleRoleplayClick = () => {
+    if (onRoleplayClick) {
+      onRoleplayClick();
+    } else {
+      navigate('/home');
+    }
+  };
+
+  const handlePersonaClick = () => {
+    navigate('/free-chat');
+  };
+
+  return (
+    <div className="flex items-center">
+      <div className="flex items-center bg-slate-100 rounded-xl p-1 gap-0.5">
+        <button
+          onClick={handleRoleplayClick}
+          onMouseEnter={() => setHovered('roleplay')}
+          onMouseLeave={() => setHovered(null)}
+          className={`
+            flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-bold transition-all duration-200
+            ${!isPersonaMode
+              ? 'bg-white text-slate-900 shadow-sm'
+              : hovered === 'roleplay'
+                ? 'text-slate-600 bg-slate-200'
+                : 'text-slate-400'
+            }
+          `}
+          data-testid="logo-roleplay"
+        >
+          <span className="text-base">🎭</span>
+          <span>RoleplayX</span>
+        </button>
+        <button
+          onClick={handlePersonaClick}
+          onMouseEnter={() => setHovered('persona')}
+          onMouseLeave={() => setHovered(null)}
+          className={`
+            flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-bold transition-all duration-200
+            ${isPersonaMode
+              ? 'bg-emerald-600 text-white shadow-sm'
+              : hovered === 'persona'
+                ? 'text-emerald-600 bg-emerald-50'
+                : 'text-slate-400'
+            }
+          `}
+          data-testid="logo-persona"
+        >
+          <span className="text-base">💬</span>
+          <span>PersonaX</span>
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export function AppHeader({
   title,
   subtitle,
@@ -29,16 +91,8 @@ export function AppHeader({
 }: AppHeaderProps) {
   const { t } = useTranslation();
   
-  const displayTitle = title || `🎭 ${t('common.appName')}`;
   const displaySubtitle = subtitle || t('common.tagline');
   const displayBackLabel = backLabel || t('nav.backToHome');
-
-  const LogoContent = (
-    <div>
-      <h1 className="text-xl font-bold text-slate-900">{displayTitle}</h1>
-      <p className="text-sm text-slate-600">{displaySubtitle}</p>
-    </div>
-  );
 
   if (variant === 'mypage') {
     return (
@@ -86,26 +140,12 @@ export function AppHeader({
                 <span className="text-sm">{displayBackLabel}</span>
               </Link>
               <div className="border-l border-slate-300 pl-4">
-                <h1 className="text-3xl font-bold text-slate-900" data-testid="page-title">{displayTitle}</h1>
-                <p className="text-slate-600 mt-2">{displaySubtitle}</p>
+                <SwitchingLogo onRoleplayClick={onLogoClick} />
+                <p className="text-slate-600 mt-1 text-sm">{displaySubtitle}</p>
               </div>
             </div>
-          ) : onLogoClick ? (
-            <button 
-              onClick={onLogoClick}
-              className="flex items-center space-x-3 hover:opacity-80 transition-opacity cursor-pointer bg-transparent border-none" 
-              data-testid="home-link"
-            >
-              {LogoContent}
-            </button>
           ) : (
-            <Link 
-              href="/home" 
-              className="flex items-center space-x-3 hover:opacity-80 transition-opacity" 
-              data-testid="home-link"
-            >
-              {LogoContent}
-            </Link>
+            <SwitchingLogo onRoleplayClick={onLogoClick} />
           )}
           <div className="flex items-center space-x-2">
             {rightContent}

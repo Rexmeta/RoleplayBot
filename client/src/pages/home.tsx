@@ -616,18 +616,6 @@ export default function Home() {
       <main className={`${currentView === "scenarios" ? "py-8 bg-slate-50" : "max-w-6xl mx-auto px-4 py-8"}`}>
         {currentView === "scenarios" && (
           <div className="max-w-6xl mx-auto px-4">
-            <div className="mb-4 flex justify-end">
-              <Link
-                href="/free-chat"
-                className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-medium transition-colors shadow-sm"
-                data-testid="link-free-chat"
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
-                </svg>
-                자유 대화
-              </Link>
-            </div>
             <ScenarioSelector 
               onScenarioSelect={handleScenarioSelect}
               playerProfile={playerProfile}

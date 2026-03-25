@@ -172,12 +172,7 @@ export default function FreeChatPage() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-indigo-50">
-      <AppHeader
-        showBackButton
-        backHref="/home"
-        title="자유 대화 연습"
-        subtitle="원하는 페르소나를 선택해 자유롭게 대화해 보세요"
-      />
+      <AppHeader />
 
       <div className="max-w-6xl mx-auto px-4 py-8">
 
