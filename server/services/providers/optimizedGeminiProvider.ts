@@ -1079,6 +1079,27 @@ JSON 형식${hasStrategyReflection ? ' (sequenceAnalysis 포함)' : ''}:
         badExample: clean(g.badExample || ''),
         keyPoints: cleanArr(g.keyPoints || []),
       })),
+      developmentPlan: feedback.developmentPlan ? {
+        shortTerm: (feedback.developmentPlan.shortTerm || []).map(p => ({
+          ...p,
+          goal: clean(p.goal || ''),
+          actions: cleanArr(p.actions || []),
+          measurable: clean(p.measurable || ''),
+        })),
+        mediumTerm: (feedback.developmentPlan.mediumTerm || []).map(p => ({
+          ...p,
+          goal: clean(p.goal || ''),
+          actions: cleanArr(p.actions || []),
+          measurable: clean(p.measurable || ''),
+        })),
+        longTerm: (feedback.developmentPlan.longTerm || []).map(p => ({
+          ...p,
+          goal: clean(p.goal || ''),
+          actions: cleanArr(p.actions || []),
+          measurable: clean(p.measurable || ''),
+        })),
+        recommendedResources: cleanArr(feedback.developmentPlan.recommendedResources || []),
+      } : feedback.developmentPlan,
     };
   }
 
