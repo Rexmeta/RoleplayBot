@@ -118,6 +118,7 @@ export function useRealtimeVoice({
   // 자동 재연결 관련 refs
   const autoReconnectCountRef = useRef(0);
   const autoReconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const heartbeatTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const accumulatedMessagesRef = useRef<PreviousMessage[]>([]); // 대화 중 누적 메시지 (자동 재연결용)
   const conversationPhaseRef = useRef<ConversationPhase>('idle'); // 현재 phase ref (클로저에서 접근용)
   const connectRef = useRef<((previousMessages?: PreviousMessage[]) => Promise<void>) | null>(null);
@@ -209,28 +210,20 @@ export function useRealtimeVoice({
     }
     scheduledSourcesRef.current = [];
     
-    // Suspend and close playback AudioContext to immediately halt all audio
-    // This ensures no queued audio chunks can play
-    // Note: Only close playback context, keep capture context intact for microphone
-    if (playbackContextRef.current && playbackContextRef.current.state !== 'closed') {
+    // IMPORTANT: Only SUSPEND (do not close) the playback AudioContext.
+    // Closing the AudioContext can cascade into a WebSocket 1005 error because
+    // in-flight audio processing errors propagate up to the WS message handler.
+    // Suspending is sufficient to halt all audio output immediately while keeping
+    // the context (and all connected nodes) alive for the next AI response.
+    if (playbackContextRef.current && playbackContextRef.current.state === 'running') {
       try {
-        // Suspend immediately stops all processing
         playbackContextRef.current.suspend();
-        // Close and create fresh context for next playback
-        playbackContextRef.current.close();
-        playbackContextRef.current = null;
-        
-        // AnalyserNode와 GainNode도 함께 정리 (새 context와 호환되지 않음)
-        analyserNodeRef.current = null;
-        gainNodeRef.current = null;
-        
-        console.log('🔇 Playback AudioContext closed to flush audio queue');
+        console.log('🔇 Playback AudioContext suspended to halt audio (WS kept alive)');
       } catch (err) {
-        console.warn('Error closing playback AudioContext:', err);
+        console.warn('Error suspending playback AudioContext:', err);
       }
     }
-    
-    // Reset playback timing
+    // Reset playback timing so next audio chunk starts fresh
     nextPlayTimeRef.current = 0;
     
     // Reset AI message buffer
@@ -308,6 +301,11 @@ export function useRealtimeVoice({
     if (autoReconnectTimerRef.current) {
       clearTimeout(autoReconnectTimerRef.current);
       autoReconnectTimerRef.current = null;
+    }
+    // heartbeat 타이머 정리
+    if (heartbeatTimerRef.current) {
+      clearInterval(heartbeatTimerRef.current);
+      heartbeatTimerRef.current = null;
     }
     autoReconnectCountRef.current = MAX_AUTO_RECONNECT; // 의도적 종료 시 자동 재연결 방지
     setStatus('disconnected');
@@ -395,6 +393,17 @@ export function useRealtimeVoice({
             ws.send(JSON.stringify(readyMessage));
           }
         }, 100); // 100ms 딜레이로 WebSocket 안정화 후 전송
+
+        // 💓 Heartbeat: Replit 프록시 유휴 타임아웃(4~5분) 방지
+        // 25초마다 ping 메시지를 전송해 프록시가 연결을 유휴로 판단하지 않도록 함
+        if (heartbeatTimerRef.current) {
+          clearInterval(heartbeatTimerRef.current);
+        }
+        heartbeatTimerRef.current = setInterval(() => {
+          if (ws.readyState === WebSocket.OPEN) {
+            ws.send(JSON.stringify({ type: 'ping' }));
+          }
+        }, 25000);
       };
 
       ws.onmessage = (event) => {
@@ -402,6 +411,10 @@ export function useRealtimeVoice({
           const data = JSON.parse(event.data);
 
           switch (data.type) {
+            case 'pong':
+              // Heartbeat 응답 - 연결 유지 확인 (로그 없음, 노이즈 방지)
+              break;
+
             case 'session.created':
               break;
 
@@ -645,6 +658,11 @@ export function useRealtimeVoice({
 
       ws.onclose = (event) => {
         console.log('🔌 WebSocket closed:', event.code, event.reason);
+        // heartbeat 타이머 정리
+        if (heartbeatTimerRef.current) {
+          clearInterval(heartbeatTimerRef.current);
+          heartbeatTimerRef.current = null;
+        }
         setIsRecording(false);
         setIsWaitingForGreeting(false);
         setGreetingRetryCount(0);

@@ -1524,6 +1524,11 @@ export class RealtimeVoiceService {
         // The audio input will take priority and Gemini will stop generating
         break;
 
+      case 'ping':
+        // Heartbeat: 클라이언트 연결 유지 확인 (Replit 프록시 유휴 타임아웃 방지)
+        this.sendToClient(session, { type: 'pong' });
+        break;
+
       default:
         console.log(`Unknown client message type: ${message.type}`);
     }

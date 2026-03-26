@@ -705,7 +705,12 @@ export async function registerRoutes(app: Express, httpServer: Server): Promise<
       const freeChatScenario = buildFreeChatScenario(mbtiPersona, difficulty);
       const userLanguage = (user?.preferredLanguage as "ko" | "en" | "ja" | "zh") || "ko";
 
-      const aiResult = await generateAIResponse(freeChatScenario as any, [], persona, undefined, userLanguage);
+      const aiResult = await Promise.race([
+        generateAIResponse(freeChatScenario as any, [], persona, undefined, userLanguage),
+        new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error('AI 응답 시간 초과 (25초). 다시 시도해 주세요.')), 25000)
+        )
+      ]);
 
       await storage.createChatMessage({
         personaRunId: personaRun.id,
@@ -1120,13 +1125,19 @@ export async function registerRoutes(app: Express, httpServer: Server): Promise<
         const user = await storage.getUser(userId);
         const userLanguage = (user?.preferredLanguage as 'ko' | 'en' | 'ja' | 'zh') || 'ko';
         
-        const aiResult = await generateAIResponse(
-          scenarioWithUserDifficulty as any,
-          [],
-          persona,
-          undefined,
-          userLanguage
-        );
+        const AI_TIMEOUT_MS = 25000;
+        const aiResult = await Promise.race([
+          generateAIResponse(
+            scenarioWithUserDifficulty as any,
+            [],
+            persona,
+            undefined,
+            userLanguage
+          ),
+          new Promise<never>((_, reject) =>
+            setTimeout(() => reject(new Error('AI 응답 시간 초과 (25초). 다시 시도해 주세요.')), AI_TIMEOUT_MS)
+          )
+        ]);
 
         // ✨ 새로운 구조: chat_messages에 첫 AI 메시지 저장
         await storage.createChatMessage({
@@ -1513,13 +1524,18 @@ ${p.speechStyle ? `말투: ${p.speechStyle}` : ""}
       const user = await storage.getUser(scenarioRun.userId);
       const userLanguage = (user?.preferredLanguage as 'ko' | 'en' | 'ja' | 'zh') || 'ko';
       
-      const aiResult = await generateAIResponse(
-        scenarioWithUserDifficulty,
-        messagesForAI,
-        persona,
-        isSkipTurn ? undefined : message,
-        userLanguage
-      );
+      const aiResult = await Promise.race([
+        generateAIResponse(
+          scenarioWithUserDifficulty,
+          messagesForAI,
+          persona,
+          isSkipTurn ? undefined : message,
+          userLanguage
+        ),
+        new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error('AI 응답 시간 초과 (25초). 다시 시도해 주세요.')), 25000)
+        )
+      ]);
 
       // ✨ 새 구조: AI 메시지를 chat_messages에 저장
       await storage.createChatMessage({
@@ -7067,6 +7083,20 @@ Return JSON: {
       }));
       ws.close();
     }
+  });
+
+  // 💓 Heartbeat: Replit 프록시 유휴 타임아웃(4~5분) 방지
+  // 25초마다 native WebSocket ping 프레임을 전송해 프록시가 연결을 유휴로 판단하지 않도록 함
+  const wsHeartbeatInterval = setInterval(() => {
+    wss.clients.forEach((client) => {
+      if (client.readyState === WebSocket.OPEN) {
+        client.ping();
+      }
+    });
+  }, 25000);
+
+  wss.on('close', () => {
+    clearInterval(wsHeartbeatInterval);
   });
 
   console.log('✅ WebSocket server initialized at /api/realtime-voice');
