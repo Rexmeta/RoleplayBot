@@ -723,15 +723,26 @@ export class RealtimeVoiceService {
         console.log(`🎤 Setting voice for ${gender}: ${voiceName} (초기 선택, 세션에 저장)`);
       }
       
+      // 언어 코드 매핑 (STT 오인식 방지: 자동 감지 대신 언어 고정)
+      const langCodeMap: Record<'ko' | 'en' | 'ja' | 'zh', string> = {
+        ko: 'ko-KR',
+        en: 'en-US',
+        ja: 'ja-JP',
+        zh: 'zh-CN',
+      };
+      const langCode = langCodeMap[session.userLanguage] || 'ko-KR';
+
       const config: any = {
         responseModalities: [Modality.AUDIO],
         systemInstruction: systemInstructions,
         // Enable transcription for both input and output audio
-        inputAudioTranscription: {},
+        // languageCode를 명시해 STT 자동 감지 오류 방지 (한국어 → 외국어 오인식 차단)
+        inputAudioTranscription: { languageCode: langCode },
         outputAudioTranscription: {},
         // 음성 설정: 성별에 맞는 랜덤 음성 (발화 속도는 기본값 사용)
         speechConfig: {
           voiceConfig: { prebuiltVoiceConfig: { voiceName } },
+          languageCode: langCode,
         },
         // Thinking 모드 비활성화 - 영어로 된 생각 과정 출력 방지
         thinkingConfig: {
@@ -752,7 +763,7 @@ export class RealtimeVoiceService {
       console.log('🎤 음성:', voiceName, `(${gender}, 랜덤 선택)`);
       console.log('⏱️  발화 속도: 기본값 (1.0x)');
       console.log('🔊 응답 모달리티:', config.responseModalities.join(', '));
-      console.log('📝 입력 음성 텍스트 변환: 활성화');
+      console.log(`📝 입력 음성 텍스트 변환: 활성화 (언어 고정: ${langCode})`);
       console.log('📝 출력 음성 텍스트 변환: 활성화');
       console.log('🗜️  컨텍스트 윈도우 압축: 활성화 (slidingWindow)');
       console.log('🔑 세션 재개 토큰:', session.sessionResumptionToken ? '있음 (재개)' : '없음 (새 세션)');
