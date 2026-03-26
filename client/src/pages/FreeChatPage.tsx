@@ -3,6 +3,7 @@ import { useLocation } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { toMediaUrl } from "@/lib/mediaUrl";
+import { useUpload } from "@/hooks/use-upload";
 import { AppHeader } from "@/components/AppHeader";
 import ChatWindow from "@/components/ChatWindow";
 import { Button } from "@/components/ui/button";
@@ -16,7 +17,8 @@ import { useAuth } from "@/hooks/useAuth";
 import {
   Search, Plus, MessageSquare, Compass, User, Heart,
   MoreVertical, Pencil, Trash2, Globe, Lock, X, Check,
-  MessageCircle, Mic, Volume2, ChevronRight, Users, Sparkles
+  MessageCircle, Mic, Volume2, ChevronRight, Users, Sparkles,
+  Camera, ImageIcon
 } from "lucide-react";
 import type { ComplexScenario, ScenarioPersona } from "@/lib/scenario-system";
 
@@ -146,6 +148,14 @@ function PersonaEditorModal({ persona, onClose, onSaved }: {
   onSaved: (p: UserPersona) => void;
 }) {
   const { toast } = useToast();
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const { uploadFile, isUploading } = useUpload();
+
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(persona?.avatarUrl || null);
+  const [avatarPreview, setAvatarPreview] = useState<string | null>(
+    persona?.avatarUrl ? toMediaUrl(persona.avatarUrl) : null
+  );
+
   const [form, setForm] = useState<EditorForm>(() => {
     if (!persona) return EMPTY_FORM;
     const pers = persona.personality || { traits: [], communicationStyle: "", background: "", speechStyle: "" };
@@ -160,6 +170,20 @@ function PersonaEditorModal({ persona, onClose, onSaved }: {
     };
   });
   const set = (k: keyof EditorForm, v: any) => setForm(prev => ({ ...prev, [k]: v }));
+
+  const handleImageSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => setAvatarPreview(ev.target?.result as string);
+    reader.readAsDataURL(file);
+    const result = await uploadFile(file);
+    if (result) {
+      setAvatarUrl(result.objectPath);
+    } else {
+      toast({ title: "이미지 업로드 실패", variant: "destructive" });
+    }
+  };
 
   const saveMutation = useMutation({
     mutationFn: (payload: any) => persona
@@ -181,6 +205,7 @@ function PersonaEditorModal({ persona, onClose, onSaved }: {
       name: form.name.trim(),
       description: form.description.trim(),
       greeting: form.greeting.trim() || `안녕하세요! 저는 ${form.name.trim()}입니다.`,
+      avatarUrl: avatarUrl,
       personality: {
         traits: form.traits.split(",").map(t => t.trim()).filter(Boolean),
         communicationStyle: form.communicationStyle.trim(),
@@ -192,6 +217,8 @@ function PersonaEditorModal({ persona, onClose, onSaved }: {
     });
   };
 
+  const initials = form.name.slice(0, 2).toUpperCase() || "?";
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
       <div className="bg-white rounded-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto shadow-2xl">
@@ -200,6 +227,41 @@ function PersonaEditorModal({ persona, onClose, onSaved }: {
           <button onClick={onClose} className="text-slate-400 hover:text-slate-600"><X className="w-5 h-5" /></button>
         </div>
         <form onSubmit={handleSubmit} className="p-5 space-y-4">
+
+          {/* 이미지 업로드 */}
+          <div className="flex flex-col items-center gap-2 pb-2">
+            <div className="relative group cursor-pointer" onClick={() => fileInputRef.current?.click()}>
+              {avatarPreview ? (
+                <img src={avatarPreview} alt="avatar" className="w-20 h-20 rounded-full object-cover border-2 border-slate-200" />
+              ) : (
+                <div className="w-20 h-20 rounded-full bg-gradient-to-br from-emerald-400 to-teal-600 flex items-center justify-center text-white font-bold text-xl">
+                  {initials}
+                </div>
+              )}
+              <div className="absolute inset-0 rounded-full bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                {isUploading
+                  ? <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  : <Camera className="w-5 h-5 text-white" />}
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={isUploading}
+              className="text-xs text-emerald-600 hover:text-emerald-700 font-medium flex items-center gap-1 disabled:opacity-50"
+            >
+              <ImageIcon className="w-3 h-3" />
+              {isUploading ? "업로드 중..." : avatarPreview ? "이미지 변경" : "이미지 추가"}
+            </button>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={handleImageSelect}
+            />
+          </div>
+
           <div>
             <Label>이름 *</Label>
             <Input value={form.name} onChange={e => set("name", e.target.value)} placeholder="예: 친절한 멘토, 역사학자 김박사" className="mt-1" required />
@@ -241,7 +303,7 @@ function PersonaEditorModal({ persona, onClose, onSaved }: {
           </div>
           <div className="flex gap-3 pt-2">
             <Button type="button" variant="outline" className="flex-1" onClick={onClose}>취소</Button>
-            <Button type="submit" className="flex-1 bg-emerald-600 hover:bg-emerald-700" disabled={saveMutation.isPending}>
+            <Button type="submit" className="flex-1 bg-emerald-600 hover:bg-emerald-700" disabled={saveMutation.isPending || isUploading}>
               {saveMutation.isPending ? "저장 중..." : persona ? "수정 완료" : "만들기"}
             </Button>
           </div>
@@ -423,6 +485,12 @@ export default function FreeChatPage() {
   const selectUserPersona = (p: UserPersona) => {
     setSelectedUserPersona(p);
     setSelectedMbtiPersona(null);
+    // 대화 이력이 있으면 정보 페이지를 건너뛰고 바로 채팅으로 진입
+    const savedId = getSavedConvId(p.id);
+    if (savedId) {
+      setConversationId(savedId);
+      setMainView("chat");
+    }
   };
 
   const selectMbtiPersona = (p: FreeChatMbtiPersona) => {
