@@ -86,6 +86,7 @@ export function ScenarioManager() {
   const [videoPreviewUrl, setVideoPreviewUrl] = useState<string | null>(null);
   const [translatingScenario, setTranslatingScenario] = useState<ComplexScenario | null>(null);
   const [imageLoadFailed, setImageLoadFailed] = useState(false);
+  const [videoLoadFailed, setVideoLoadFailed] = useState(false);
   const [showImageSelector, setShowImageSelector] = useState(false);
   const [showVideoSelector, setShowVideoSelector] = useState(false);
   const [existingImages, setExistingImages] = useState<{ path: string; url: string; updatedAt: string }[]>([]);
@@ -210,6 +211,7 @@ export function ScenarioManager() {
       setExpandedScenarios(new Set(scenarios.map(s => s.id)));
     }
   }, [scenarios]);
+
 
   const handleAIGenerated = (result: any) => {
     // AI 생성 결과를 폼에 자동 입력 - 모든 필드 완전 복사
@@ -400,6 +402,7 @@ export function ScenarioManager() {
       recommendedFlow: []
     });
     setImageLoadFailed(false);
+    setVideoLoadFailed(false);
     setSelectedImageSignedUrl(null);
     setSelectedVideoSignedUrl(null);
   };
@@ -418,6 +421,7 @@ export function ScenarioManager() {
     
     setEditingScenario(originalScenario);
     setImageLoadFailed(false);
+    setVideoLoadFailed(false);
     setSelectedImageSignedUrl(null);
     setSelectedVideoSignedUrl(null);
     setFormData({
@@ -581,6 +585,7 @@ export function ScenarioManager() {
     }
 
     setIsGeneratingVideo(true);
+    setVideoLoadFailed(false);
     try {
       const response = await apiRequest('POST', `/api/admin/scenarios/${editingScenario.id}/generate-intro-video`, {
         customPrompt: formData.videoPrompt || undefined,
@@ -709,6 +714,7 @@ export function ScenarioManager() {
   const handleSelectVideo = (videoPath: string, signedUrl: string) => {
     console.log('[ScenarioManager] Video selected:', { videoPath, signedUrl });
     setFormData(prev => ({ ...prev, introVideoUrl: videoPath }));
+    setVideoLoadFailed(false);
     setSelectedVideoSignedUrl(signedUrl);
     setShowVideoSelector(false);
     toast({
@@ -1014,7 +1020,10 @@ export function ScenarioManager() {
                   <Input
                     id="introVideoUrl"
                     value={formData.introVideoUrl || ''}
-                    onChange={(e) => setFormData(prev => ({ ...prev, introVideoUrl: e.target.value }))}
+                    onChange={(e) => {
+                      setFormData(prev => ({ ...prev, introVideoUrl: e.target.value }));
+                      if (e.target.value) setVideoLoadFailed(false);
+                    }}
                     placeholder="비디오 URL을 입력하세요 (예: /scenarios/videos/intro.mp4)"
                     data-testid="input-intro-video-url"
                     className="bg-white"
@@ -1070,7 +1079,22 @@ export function ScenarioManager() {
                   </Button>
                   
                   {/* 비디오 미리보기 */}
-                  {formData.introVideoUrl && (
+                  {isGeneratingVideo && (
+                    <div className="mt-3">
+                      <div className="flex items-center justify-center h-32 bg-slate-900 rounded-lg border text-slate-400 text-sm">
+                        <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                        비디오 생성 중...
+                      </div>
+                    </div>
+                  )}
+                  {!isGeneratingVideo && videoLoadFailed && (
+                    <div className="mt-3">
+                      <div className="flex items-center justify-center h-32 bg-slate-900 rounded-lg border text-slate-400 text-sm">
+                        <span className="mr-2">⚠️</span>비디오를 불러올 수 없습니다. 새로 생성해 주세요.
+                      </div>
+                    </div>
+                  )}
+                  {!isGeneratingVideo && !videoLoadFailed && formData.introVideoUrl && (
                     <div className="mt-3">
                       <p className="text-sm text-slate-600 mb-2">비디오 미리보기 (클릭하면 전체보기):</p>
                       <div 
@@ -1079,17 +1103,14 @@ export function ScenarioManager() {
                         data-testid="video-preview-container"
                       >
                         <video
+                          key={formData.introVideoUrl}
                           src={toMediaUrl(formData.introVideoUrl)}
                           controls
                           className="w-full max-h-64 object-contain"
                           preload="metadata"
-                          onError={(e) => {
-                            const target = e.target as HTMLVideoElement;
-                            target.style.display = 'none';
-                            const parent = target.parentElement;
-                            if (parent) {
-                              parent.innerHTML = '<div class="flex items-center justify-center h-32 text-slate-400 text-sm"><i class="fas fa-exclamation-triangle mr-2"></i>비디오를 불러올 수 없습니다</div>';
-                            }
+                          onError={() => {
+                            setVideoLoadFailed(true);
+                            setFormData(prev => ({ ...prev, introVideoUrl: '' }));
                           }}
                           data-testid="scenario-video-preview"
                         />
