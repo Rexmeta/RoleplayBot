@@ -6,7 +6,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { toMediaUrl } from "@/lib/mediaUrl";
 import { Button } from "@/components/ui/button";
-import { MessageSquare, User, MessageCircle, X, ChevronRight, ChevronUp } from "lucide-react";
+import { MessageSquare, User, MessageCircle, X, ChevronRight, ChevronDown, ChevronUp, LogOut, BarChart2 } from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
 import { Card } from "@/components/ui/card";
 import { AspectRatio } from "@/components/ui/aspect-ratio";
@@ -26,7 +26,6 @@ import type { Conversation, ConversationMessage } from "@shared/schema";
 import { useRealtimeVoice } from "@/hooks/useRealtimeVoice";
 import { AISpeechParticleLayer } from "@/components/AISpeechParticleLayer";
 import { UserSpeechParticleLayer } from "@/components/UserSpeechParticleLayer";
-import { AppHeader } from "@/components/AppHeader";
 
 const getSpeechSynthesisLang = (langCode: string): string => {
   const langMap: Record<string, string> = {
@@ -129,7 +128,7 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
   const [pendingUserText, setPendingUserText] = useState(''); // 실시간 사용자 전사 텍스트
   const [isBargeInFlash, setIsBargeInFlash] = useState(false); // Barge-in 플래시 애니메이션
   const [isTranscriptPanelOpen, setIsTranscriptPanelOpen] = useState(false); // 트랜스크립트 슬라이드 패널
-  const [isHeaderOpen, setIsHeaderOpen] = useState(false); // 상단 헤더 슬라이드 패널
+  const [isTopMenuOpen, setIsTopMenuOpen] = useState(false); // 상단 메뉴 슬라이드 패널
   const [isSilenceIdle, setIsSilenceIdle] = useState(false); // 침묵 구간 대기 중 애니메이션
   const [isSessionEnding, setIsSessionEnding] = useState(false); // 세션 종료 시네마틱 전환 중
   const isAISpeakingForBargeInRef = useRef(false); // AI 발화 중 여부 (barge-in 감지용)
@@ -1855,33 +1854,6 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
               className="fixed inset-0 z-10 flex"
               data-testid="character-mode"
             >
-              {/* ── 상단 헤더 오버레이 ── */}
-              {isHeaderOpen && (
-                <div
-                  className="fixed inset-0 z-40"
-                  onClick={() => setIsHeaderOpen(false)}
-                />
-              )}
-              <div
-                className={`fixed left-0 right-0 top-0 z-50 shadow-lg transition-transform duration-300 ease-in-out ${isHeaderOpen ? "translate-y-0" : "-translate-y-full"}`}
-              >
-                <AppHeader />
-              </div>
-              {/* 상단 트리거 핸들 */}
-              <button
-                onClick={() => setIsHeaderOpen(v => !v)}
-                className="fixed top-0 left-1/2 -translate-x-1/2 z-50 flex items-center justify-center gap-1.5 px-4 h-5 bg-white/90 backdrop-blur border border-t-0 border-slate-200 rounded-b-xl shadow-md hover:h-6 hover:bg-white transition-all group"
-                title="상단 메뉴 열기/닫기"
-              >
-                {isHeaderOpen
-                  ? <ChevronUp className="w-3 h-3 text-emerald-500" />
-                  : <>
-                      <span className="w-3 h-0.5 bg-slate-400 group-hover:bg-blue-500 rounded-full transition-colors" />
-                      <span className="w-3 h-0.5 bg-slate-400 group-hover:bg-blue-500 rounded-full transition-colors" />
-                      <span className="w-3 h-0.5 bg-slate-400 group-hover:bg-blue-500 rounded-full transition-colors" />
-                    </>
-                }
-              </button>
               {/* Wide Screen Left Sidebar - Goals Panel (visible on xl+) */}
               <div className="hidden xl:flex flex-col w-[480px] 2xl:w-[560px] bg-gradient-to-b from-slate-50 to-slate-100 border-r border-slate-200 p-4 overflow-y-auto z-30">
                 {/* Character Info */}
@@ -2183,6 +2155,98 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
                     <User className="w-4 h-4" />
                   </button>
                 </div>
+              </div>
+
+              {/* Top Center - 상단 메뉴 핸들 및 슬라이드 패널 */}
+              <div
+                className="absolute top-0 left-0 z-40 flex flex-col items-center pointer-events-none transition-all duration-300"
+                style={{ right: isTranscriptPanelOpen ? '300px' : '0' }}
+              >
+                {/* 핸들 버튼 */}
+                <button
+                  onClick={() => setIsTopMenuOpen(v => !v)}
+                  className="pointer-events-auto mt-3 flex items-center gap-1.5 px-4 py-1.5 bg-white/25 backdrop-blur-sm hover:bg-white/40 rounded-full shadow-md border border-white/30 text-white transition-all duration-200"
+                  data-testid="button-toggle-top-menu"
+                  title={isTopMenuOpen ? '메뉴 닫기' : '메뉴 열기'}
+                >
+                  <div className="w-8 h-1 bg-white/70 rounded-full" />
+                  {isTopMenuOpen ? <ChevronUp className="w-3.5 h-3.5 opacity-70" /> : <ChevronDown className="w-3.5 h-3.5 opacity-70" />}
+                </button>
+
+                {/* 슬라이드 다운 메뉴 패널 */}
+                <div
+                  className={`pointer-events-auto w-full max-w-lg mx-auto transition-all duration-300 overflow-hidden ${
+                    isTopMenuOpen ? 'max-h-64 opacity-100 translate-y-0' : 'max-h-0 opacity-0 -translate-y-2'
+                  }`}
+                >
+                  <div className="mx-4 mt-2 bg-white/90 backdrop-blur-md rounded-2xl shadow-2xl border border-white/40 overflow-hidden">
+                    {/* 패널 헤더 - 페르소나 & 시나리오 정보 */}
+                    <div className="flex items-center justify-between px-4 py-3 border-b border-slate-200/50">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm font-semibold text-slate-800 truncate">
+                            {persona.department} {persona.role} {persona.name}
+                          </span>
+                          {user?.role === 'admin' && latestAiMessage?.emotion && (
+                            <span className="text-base">{emotionEmojis[latestAiMessage.emotion] || '😐'}</span>
+                          )}
+                        </div>
+                        {scenario?.title && (
+                          <div className="text-xs text-slate-500 truncate mt-0.5">{scenario.title}</div>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-2 ml-3 shrink-0">
+                        <span className="flex items-center text-xs text-slate-500 bg-slate-100 rounded-full px-2.5 py-1">
+                          <i className="fas fa-clock mr-1 text-[10px]"></i>
+                          {formatElapsedTime(elapsedTime)}
+                        </span>
+                        <button
+                          onClick={() => setIsTopMenuOpen(false)}
+                          className="w-6 h-6 flex items-center justify-center rounded-full hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition-colors"
+                        >
+                          <X className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </div>
+                    {/* 액션 버튼들 */}
+                    <div className="flex items-center gap-2 px-4 py-3">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="flex-1 text-xs h-9 border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700"
+                        onClick={() => {
+                          setIsTopMenuOpen(false);
+                          handleEndRealtimeConversation();
+                        }}
+                        data-testid="button-top-menu-end-conversation"
+                      >
+                        <LogOut className="w-3.5 h-3.5 mr-1.5" />
+                        대화 종료
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="flex-1 text-xs h-9 border-corporate-200 text-corporate-700 hover:bg-corporate-50"
+                        onClick={() => {
+                          setIsTopMenuOpen(false);
+                          handleGoToFeedback();
+                        }}
+                        data-testid="button-top-menu-go-feedback"
+                      >
+                        <BarChart2 className="w-3.5 h-3.5 mr-1.5" />
+                        피드백 보기
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+
+                {/* 패널 외부 클릭 오버레이 */}
+                {isTopMenuOpen && (
+                  <div
+                    className="pointer-events-auto fixed inset-0 z-[-1]"
+                    onClick={() => setIsTopMenuOpen(false)}
+                  />
+                )}
               </div>
 
               {/* 트랜스크립트 슬라이드 패널 */}
