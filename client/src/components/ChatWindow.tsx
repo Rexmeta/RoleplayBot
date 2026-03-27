@@ -6,7 +6,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { toMediaUrl } from "@/lib/mediaUrl";
 import { Button } from "@/components/ui/button";
-import { MessageSquare, User, MessageCircle, X, ChevronRight } from "lucide-react";
+import { MessageSquare, User, MessageCircle, X, ChevronRight, ChevronUp } from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
 import { Card } from "@/components/ui/card";
 import { AspectRatio } from "@/components/ui/aspect-ratio";
@@ -26,6 +26,7 @@ import type { Conversation, ConversationMessage } from "@shared/schema";
 import { useRealtimeVoice } from "@/hooks/useRealtimeVoice";
 import { AISpeechParticleLayer } from "@/components/AISpeechParticleLayer";
 import { UserSpeechParticleLayer } from "@/components/UserSpeechParticleLayer";
+import { AppHeader } from "@/components/AppHeader";
 
 const getSpeechSynthesisLang = (langCode: string): string => {
   const langMap: Record<string, string> = {
@@ -128,6 +129,7 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
   const [pendingUserText, setPendingUserText] = useState(''); // 실시간 사용자 전사 텍스트
   const [isBargeInFlash, setIsBargeInFlash] = useState(false); // Barge-in 플래시 애니메이션
   const [isTranscriptPanelOpen, setIsTranscriptPanelOpen] = useState(false); // 트랜스크립트 슬라이드 패널
+  const [isHeaderOpen, setIsHeaderOpen] = useState(false); // 상단 헤더 슬라이드 패널
   const [isSilenceIdle, setIsSilenceIdle] = useState(false); // 침묵 구간 대기 중 애니메이션
   const [isSessionEnding, setIsSessionEnding] = useState(false); // 세션 종료 시네마틱 전환 중
   const isAISpeakingForBargeInRef = useRef(false); // AI 발화 중 여부 (barge-in 감지용)
@@ -1853,6 +1855,33 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
               className="fixed inset-0 z-10 flex"
               data-testid="character-mode"
             >
+              {/* ── 상단 헤더 오버레이 ── */}
+              {isHeaderOpen && (
+                <div
+                  className="fixed inset-0 z-40"
+                  onClick={() => setIsHeaderOpen(false)}
+                />
+              )}
+              <div
+                className={`fixed left-0 right-0 top-0 z-50 shadow-lg transition-transform duration-300 ease-in-out ${isHeaderOpen ? "translate-y-0" : "-translate-y-full"}`}
+              >
+                <AppHeader />
+              </div>
+              {/* 상단 트리거 핸들 */}
+              <button
+                onClick={() => setIsHeaderOpen(v => !v)}
+                className="fixed top-0 left-1/2 -translate-x-1/2 z-50 flex items-center justify-center gap-1.5 px-4 h-5 bg-white/90 backdrop-blur border border-t-0 border-slate-200 rounded-b-xl shadow-md hover:h-6 hover:bg-white transition-all group"
+                title="상단 메뉴 열기/닫기"
+              >
+                {isHeaderOpen
+                  ? <ChevronUp className="w-3 h-3 text-emerald-500" />
+                  : <>
+                      <span className="w-3 h-0.5 bg-slate-400 group-hover:bg-blue-500 rounded-full transition-colors" />
+                      <span className="w-3 h-0.5 bg-slate-400 group-hover:bg-blue-500 rounded-full transition-colors" />
+                      <span className="w-3 h-0.5 bg-slate-400 group-hover:bg-blue-500 rounded-full transition-colors" />
+                    </>
+                }
+              </button>
               {/* Wide Screen Left Sidebar - Goals Panel (visible on xl+) */}
               <div className="hidden xl:flex flex-col w-[480px] 2xl:w-[560px] bg-gradient-to-b from-slate-50 to-slate-100 border-r border-slate-200 p-4 overflow-y-auto z-30">
                 {/* Character Info */}
