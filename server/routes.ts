@@ -4590,6 +4590,7 @@ ${p.speechStyle ? `말투: ${p.speechStyle}` : ""}
   app.post("/api/admin/generate-scenario", async (req, res) => {
     try {
       const { 
+        idea,
         theme, 
         industry, 
         situation,
@@ -4604,12 +4605,13 @@ ${p.speechStyle ? `말투: ${p.speechStyle}` : ""}
         personaCount 
       } = req.body;
       
-      if (!theme) {
-        return res.status(400).json({ error: "주제는 필수입니다" });
+      if (!idea && !theme) {
+        return res.status(400).json({ error: "시나리오 아이디어 또는 주제는 필수입니다" });
       }
 
       const result = await generateScenarioWithAI({
-        theme,
+        idea,
+        theme: theme || idea,
         industry,
         situation,
         timeline,

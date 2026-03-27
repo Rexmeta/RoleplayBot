@@ -60,7 +60,8 @@ function extractText(response: any): string {
 }
 
 export interface AIScenarioGenerationRequest {
-  theme: string; // 주제 (예: "프로젝트 지연", "갈등 해결", "협상")
+  idea?: string; // 시나리오 아이디어 (자유 입력 텍스트) — 최우선 입력값
+  theme?: string; // 주제 (예: "프로젝트 지연", "갈등 해결", "협상")
   industry?: string; // 업종 (예: "IT", "제조업", "서비스업")
   situation?: string; // 구체적 상황 설명
   timeline?: string; // 시간적 제약
@@ -135,21 +136,26 @@ export async function generateScenarioWithAI(request: AIScenarioGenerationReques
   // personaCount에 맞는 MBTI 유형 선택 (중복 없이)
   const selectedMBTI = availableMBTITypes.slice(0, request.personaCount || 3);
 
+  // idea가 있으면 그것을 핵심 입력으로 사용
+  const coreIdea = request.idea || request.theme || '';
+
   const prompt = `당신은 기업 교육용 롤플레이 시나리오를 설계하는 전문가입니다. 피평가자가 상황을 충분히 이해하고 몰입할 수 있도록 풍부하고 체계적인 시나리오를 작성해주세요.
 
 ## 시나리오 생성 조건
-주제: ${request.theme}
-${request.industry ? `업종: ${request.industry}` : ''}
-${request.situation ? `상황: ${request.situation}` : ''}
-${request.timeline ? `시간적 제약: ${request.timeline}` : ''}
-${request.stakes ? `이해관계: ${request.stakes}` : ''}
-${request.playerRole ? `참가자 역할: ${request.playerRole.position} (${request.playerRole.department}, ${request.playerRole.experience})` : ''}
-${request.conflictType ? `갈등 유형: ${request.conflictType}` : ''}
-${request.objectiveType ? `목표 유형: ${request.objectiveType}` : ''}
-${request.skills ? `필요 역량: ${request.skills}` : ''}
+시나리오 아이디어: ${coreIdea}
+${request.playerRole ? `참가자 역할: ${request.playerRole.position} (${request.playerRole.department}, ${request.playerRole.experience}), 핵심 책임: ${request.playerRole.responsibility}` : ''}
+${request.industry ? `업종: ${request.industry}` : '업종: (아이디어를 바탕으로 가장 적합한 업종을 자동 추론하세요)'}
+${request.situation ? `상황 설명: ${request.situation}` : '상황 설명: (아이디어를 바탕으로 구체적인 상황을 자동 생성하세요)'}
+${request.timeline ? `시간적 제약: ${request.timeline}` : '시간적 제약: (아이디어에 맞는 현실적인 시간 제약을 자동 설정하세요)'}
+${request.stakes ? `이해관계: ${request.stakes}` : '이해관계: (아이디어에 관련된 현실적인 이해관계를 자동 추론하세요)'}
+${request.conflictType ? `갈등 유형: ${request.conflictType}` : '갈등 유형: (아이디어에서 가장 자연스럽게 도출되는 갈등 유형을 선택하세요)'}
+${request.objectiveType ? `목표 유형: ${request.objectiveType}` : '목표 유형: (아이디어에 맞는 핵심 목표 유형을 자동 설정하세요)'}
+${request.skills ? `필요 역량: ${request.skills}` : '필요 역량: (이 시나리오에서 연습할 수 있는 핵심 역량을 자동 도출하세요)'}
 난이도: ${request.difficulty || 3}/4
 페르소나 수: ${request.personaCount || 3}명
 사용 가능한 MBTI 유형: ${selectedMBTI.join(', ')} (이 유형들만 사용하세요)
+
+## 중요: 위에서 "자동 추론/생성/설정/도출"이라고 표시된 항목들은 "시나리오 아이디어"와 "참가자 역할"을 바탕으로 AI가 직접 창의적으로 설정합니다. 별도 입력 없이도 완전한 시나리오가 생성되어야 합니다.
 
 ## 필수 작성 기준 (매우 중요!)
 1. **description (시나리오 설명)**: 반드시 1000자 이상으로 작성하세요!
