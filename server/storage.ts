@@ -315,6 +315,19 @@ export interface IStorage {
 
   // 시나리오 완료 통계
   getScenarioStats(scenarioIds?: string[]): Promise<ScenarioStats[]>;
+
+  // 개인화 대시보드 요약
+  getDashboardSummary(userId: string, accessibleScenarioIds?: string[] | null): Promise<{
+    resumeScenario: { scenarioRunId: string; scenarioId: string; scenarioName: string; startedAt: Date } | null;
+    lastCompletedScenario: { scenarioRunId: string; scenarioId: string; scenarioName: string; completedAt: Date; score: number | null } | null;
+    recommendedScenarioId: string | null;
+    isRecommendationRechallenge: boolean;
+    totalCompleted: number;
+    totalScenarios: number;
+    averageScore: number | null;
+    totalPracticeCount: number;
+    categoryScores: { categoryId: string; categoryName: string; averageScore: number; count: number }[];
+  }>;
 }
 
 export class MemStorage implements IStorage {
@@ -937,6 +950,31 @@ export class MemStorage implements IStorage {
 
   // 시나리오 통계 - stub
   async getScenarioStats(_scenarioIds?: string[]): Promise<ScenarioStats[]> { return []; }
+
+  // 개인화 대시보드 요약 - stub
+  async getDashboardSummary(_userId: string, _accessibleScenarioIds?: string[] | null): Promise<{
+    resumeScenario: { scenarioRunId: string; scenarioId: string; scenarioName: string; startedAt: Date } | null;
+    lastCompletedScenario: { scenarioRunId: string; scenarioId: string; scenarioName: string; completedAt: Date; score: number | null } | null;
+    recommendedScenarioId: string | null;
+    isRecommendationRechallenge: boolean;
+    totalCompleted: number;
+    totalScenarios: number;
+    averageScore: number | null;
+    totalPracticeCount: number;
+    categoryScores: { categoryId: string; categoryName: string; averageScore: number; count: number }[];
+  }> {
+    return {
+      resumeScenario: null,
+      lastCompletedScenario: null,
+      recommendedScenarioId: null,
+      isRecommendationRechallenge: false,
+      totalCompleted: 0,
+      totalScenarios: 0,
+      averageScore: null,
+      totalPracticeCount: 0,
+      categoryScores: [],
+    };
+  }
 }
 
 export class PostgreSQLStorage implements IStorage {
@@ -2520,6 +2558,175 @@ export class PostgreSQLStorage implements IStorage {
       completionCount: Number(r.completionCount) || 0,
       averageScore: r.averageScore != null ? Math.round(Number(r.averageScore)) : null,
     }));
+  }
+
+  async getDashboardSummary(userId: string, accessibleScenarioIds?: string[] | null): Promise<{
+    resumeScenario: { scenarioRunId: string; scenarioId: string; scenarioName: string; startedAt: Date } | null;
+    lastCompletedScenario: { scenarioRunId: string; scenarioId: string; scenarioName: string; completedAt: Date; score: number | null } | null;
+    recommendedScenarioId: string | null;
+    isRecommendationRechallenge: boolean;
+    totalCompleted: number;
+    totalScenarios: number;
+    averageScore: number | null;
+    totalPracticeCount: number;
+    categoryScores: { categoryId: string; categoryName: string; averageScore: number; count: number }[];
+  }> {
+    const allUserScenarioRunsRaw = await db
+      .select()
+      .from(scenarioRuns)
+      .where(eq(scenarioRuns.userId, userId))
+      .orderBy(desc(scenarioRuns.startedAt));
+
+    // Exclude PersonaX (MBTI free chat) runs — dashboard reflects RoleplayX only
+    const allUserScenarioRuns = allUserScenarioRunsRaw.filter(sr => sr.scenarioId !== '__free_chat__');
+
+    // Compute accessible scenario scope first, then scope all metrics consistently
+    // Use accessibleScenarioIds if provided (from fileManager + access control), else fall back to DB
+    let allScopeScenarios: { id: string; categoryId: string | null }[];
+    if (accessibleScenarioIds) {
+      const dbScenarios = await db
+        .select({ id: scenarios.id, categoryId: scenarios.categoryId })
+        .from(scenarios)
+        .where(and(eq(scenarios.isDeleted, false), inArray(scenarios.id, accessibleScenarioIds.length > 0 ? accessibleScenarioIds : ['__none__'])));
+      allScopeScenarios = dbScenarios;
+    } else {
+      allScopeScenarios = await db
+        .select({ id: scenarios.id, categoryId: scenarios.categoryId })
+        .from(scenarios)
+        .where(eq(scenarios.isDeleted, false));
+    }
+    const totalScenarios = allScopeScenarios.length;
+    const scopeScenarioIdSet = new Set(allScopeScenarios.map(s => s.id));
+
+    // Scope all run metrics to accessible scenarios only (prevents completed > total, wrong stats)
+    const userScenarioRuns = accessibleScenarioIds !== null && accessibleScenarioIds !== undefined
+      ? allUserScenarioRuns.filter(sr => scopeScenarioIdSet.has(sr.scenarioId))
+      : allUserScenarioRuns;
+
+    const completedRuns = userScenarioRuns.filter(sr => sr.status === 'completed');
+    // Support both 'active' (runtime default written by routes) and 'in_progress' (schema default)
+    const activeRuns = userScenarioRuns.filter(sr => sr.status === 'active' || sr.status === 'in_progress');
+
+    const resumeRun = activeRuns.length > 0 ? activeRuns[0] : null;
+    const resumeScenario = resumeRun
+      ? { scenarioRunId: resumeRun.id, scenarioId: resumeRun.scenarioId, scenarioName: resumeRun.scenarioName, startedAt: resumeRun.startedAt }
+      : null;
+
+    const completedRunsSortedByCompletion = [...completedRuns]
+      .filter(sr => sr.completedAt !== null)
+      .sort((a, b) => new Date(b.completedAt!).getTime() - new Date(a.completedAt!).getTime());
+    const lastCompleted = completedRunsSortedByCompletion.length > 0 ? completedRunsSortedByCompletion[0] : null;
+    const lastCompletedScenario = lastCompleted
+      ? {
+          scenarioRunId: lastCompleted.id,
+          scenarioId: lastCompleted.scenarioId,
+          scenarioName: lastCompleted.scenarioName,
+          completedAt: lastCompleted.completedAt!,
+          score: lastCompleted.totalScore ?? null,
+        }
+      : null;
+
+    const totalPracticeCount = userScenarioRuns.length;
+    const totalCompleted = new Set(completedRuns.map(sr => sr.scenarioId)).size;
+
+    const scoresWithValues = completedRuns.filter(sr => sr.totalScore !== null && sr.totalScore !== undefined);
+    const averageScore = scoresWithValues.length > 0
+      ? Math.round(scoresWithValues.reduce((sum, sr) => sum + (sr.totalScore || 0), 0) / scoresWithValues.length)
+      : null;
+
+    const completedScenarioIds = new Set(completedRuns.map(sr => sr.scenarioId));
+    const lowestScoreByScenario = new Map<string, number>();
+    for (const sr of completedRuns) {
+      if (sr.totalScore !== null && sr.totalScore !== undefined) {
+        const prev = lowestScoreByScenario.get(sr.scenarioId);
+        if (prev === undefined || sr.totalScore < prev) {
+          lowestScoreByScenario.set(sr.scenarioId, sr.totalScore);
+        }
+      }
+    }
+
+    let recommendedScenarioId: string | null = null;
+    let isRecommendationRechallenge = false;
+    const notCompletedScenarios = allScopeScenarios.filter(s => !completedScenarioIds.has(s.id));
+    if (notCompletedScenarios.length > 0) {
+      const categoryGroups = new Map<string, string>();
+      for (const scenario of notCompletedScenarios) {
+        const catKey = scenario.categoryId || 'uncategorized';
+        if (!categoryGroups.has(catKey)) {
+          categoryGroups.set(catKey, scenario.id);
+        }
+      }
+      const categoryKeys = Array.from(categoryGroups.keys());
+      const completedCategories = new Set(
+        allScopeScenarios
+          .filter(s => completedScenarioIds.has(s.id))
+          .map(s => s.categoryId || 'uncategorized')
+      );
+      const untriedCategory = categoryKeys.find(c => !completedCategories.has(c));
+      const pickedCategory = untriedCategory || categoryKeys[0];
+      recommendedScenarioId = categoryGroups.get(pickedCategory) || null;
+      isRecommendationRechallenge = false;
+    } else if (lowestScoreByScenario.size > 0) {
+      let minScore = Infinity;
+      let minId: string | null = null;
+      for (const [id, score] of lowestScoreByScenario) {
+        if (score < minScore) {
+          minScore = score;
+          minId = id;
+        }
+      }
+      if (minId && scopeScenarioIdSet.has(minId)) {
+        recommendedScenarioId = minId;
+        isRecommendationRechallenge = true;
+      }
+    }
+
+    const categoryScoreMap = new Map<string, { total: number; count: number; name: string }>();
+    if (completedRuns.length > 0) {
+      const completedScenarioIdsList = [...new Set(completedRuns.map(sr => sr.scenarioId))];
+      const scenarioCategories = await db
+        .select({ id: scenarios.id, categoryId: scenarios.categoryId })
+        .from(scenarios)
+        .where(inArray(scenarios.id, completedScenarioIdsList));
+
+      const scenarioCategoryMap = new Map(scenarioCategories.map(s => [s.id, s.categoryId]));
+
+      const catIds = [...new Set(scenarioCategories.map(s => s.categoryId).filter(Boolean))] as string[];
+      let catNameMap = new Map<string, string>();
+      if (catIds.length > 0) {
+        const catRows = await db.select({ id: categories.id, name: categories.name }).from(categories).where(inArray(categories.id, catIds));
+        catNameMap = new Map(catRows.map(c => [c.id, c.name]));
+      }
+
+      for (const sr of completedRuns) {
+        if (sr.totalScore === null || sr.totalScore === undefined) continue;
+        const catId = scenarioCategoryMap.get(sr.scenarioId) || 'uncategorized';
+        const catName = catId !== 'uncategorized' ? (catNameMap.get(catId) || catId) : '기타';
+        const existing = categoryScoreMap.get(catId) || { total: 0, count: 0, name: catName };
+        existing.total += sr.totalScore;
+        existing.count += 1;
+        categoryScoreMap.set(catId, existing);
+      }
+    }
+
+    const categoryScores = Array.from(categoryScoreMap.entries()).map(([categoryId, data]) => ({
+      categoryId,
+      categoryName: data.name,
+      averageScore: Math.round(data.total / data.count),
+      count: data.count,
+    })).sort((a, b) => b.averageScore - a.averageScore);
+
+    return {
+      resumeScenario,
+      lastCompletedScenario,
+      recommendedScenarioId,
+      isRecommendationRechallenge,
+      totalCompleted,
+      totalScenarios,
+      averageScore,
+      totalPracticeCount,
+      categoryScores,
+    };
   }
 }
 

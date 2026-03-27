@@ -17,6 +17,7 @@ import { AppHeader } from "@/components/AppHeader";
 import { GuestDemoBanner } from "@/components/GuestDemoBanner";
 import { useTranslation } from "react-i18next";
 import i18n from "@/lib/i18n";
+import PersonalizedDashboard from "@/components/PersonalizedDashboard";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -67,7 +68,7 @@ export default function Home() {
   const currentLang = i18n.language || 'ko';
 
   // 동적으로 시나리오와 페르소나 데이터 로드
-  const { data: scenarios = [] } = useQuery({
+  const { data: scenarios = [] } = useQuery<ComplexScenario[]>({
     queryKey: ['/api/scenarios'],
     queryFn: () => {
       const token = localStorage.getItem("authToken");
@@ -620,6 +621,44 @@ export default function Home() {
       <main className={`${currentView === "scenarios" ? "py-8 bg-slate-50" : "max-w-6xl mx-auto px-4 py-8"}`}>
         {currentView === "scenarios" && (
           <div className="max-w-6xl mx-auto px-4">
+            {user && !user.isGuest && (
+              <PersonalizedDashboard
+                onResumeScenario={(scenarioRunId, scenarioId) => {
+                  const foundScenario = scenarios.find((s) => s.id === scenarioId);
+                  if (foundScenario) {
+                    setSelectedScenario(foundScenario);
+                    setScenarioRunId(scenarioRunId);
+                    setCompletedPersonaIds([]);
+                    setConversationIds([]);
+                    setStrategyReflectionSubmitted(false);
+                    setStrategyEvaluation(null);
+                    setSelectedDifficulty(4);
+                    apiRequest('GET', '/api/scenario-runs')
+                      .then(res => res.json())
+                      .then((runs: Array<{ id: string; personaRuns: Array<{ status: string; personaId: string; difficulty: number }> }>) => {
+                        const run = runs.find((r) => r.id === scenarioRunId);
+                        if (run) {
+                          const completedIds = (run.personaRuns || [])
+                            .filter((pr) => pr.status === 'completed')
+                            .map((pr) => pr.personaId);
+                          setCompletedPersonaIds(completedIds);
+                          if (run.personaRuns && run.personaRuns.length > 0) {
+                            const firstDifficulty = run.personaRuns[0].difficulty;
+                            if (firstDifficulty) setSelectedDifficulty(firstDifficulty);
+                          }
+                        }
+                      })
+                      .catch(() => {});
+                    setCurrentView('persona-selection');
+                  }
+                }}
+                onRecommendedScenario={(scenarioId) => {
+                  const foundScenario = scenarios.find((s) => s.id === scenarioId);
+                  if (foundScenario) handleScenarioSelect(foundScenario);
+                }}
+                scenarios={scenarios}
+              />
+            )}
             <ScenarioSelector 
               onScenarioSelect={handleScenarioSelect}
               playerProfile={playerProfile}

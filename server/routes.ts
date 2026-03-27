@@ -2167,6 +2167,72 @@ ${p.speechStyle ? `말투: ${p.speechStyle}` : ""}
     }
   });
 
+  // 개인화 대시보드 요약 API
+  app.get("/api/dashboard/summary", isAuthenticated, async (req, res) => {
+    try {
+      // @ts-ignore - req.user는 auth 미들웨어에서 설정됨
+      const user = req.user;
+      const userId = user?.id;
+      if (!userId) {
+        return res.status(401).json({ error: "Unauthorized" });
+      }
+
+      // Compute the same accessible scenario set used by /api/scenarios
+      // We load from fileManager to match the same source of truth
+      const allFileScenarios = await fileManager.getAllScenarios();
+      let accessibleScenarioIds: string[] | null = null;
+
+      const isGuestAccount = user.email === 'guest@mothle.com';
+      if (isGuestAccount) {
+        // Guest sees only demo scenarios
+        accessibleScenarioIds = allFileScenarios
+          .filter((s: any) => s.isDemo === true)
+          .map((s: any) => s.id);
+      } else if (user.role !== 'admin') {
+        const userWithAssignments = user as any;
+        if (user.role === 'operator') {
+          const opCategoryIds = await getOperatorAccessibleCategoryIds(user);
+          if (opCategoryIds.length > 0) {
+            accessibleScenarioIds = allFileScenarios
+              .filter((s: any) => opCategoryIds.includes(String(s.categoryId)))
+              .map((s: any) => s.id);
+          } else {
+            accessibleScenarioIds = [];
+          }
+        } else {
+          let categoryIds: string[] = [];
+          if (userWithAssignments.assignedCategoryId) {
+            categoryIds.push(userWithAssignments.assignedCategoryId);
+          }
+          if (userWithAssignments.organizationId || userWithAssignments.companyId) {
+            const allCategories = await storage.getAllCategories();
+            for (const cat of allCategories) {
+              const catAny = cat as any;
+              if (userWithAssignments.organizationId && catAny.organizationId === userWithAssignments.organizationId) {
+                if (!categoryIds.includes(cat.id)) categoryIds.push(cat.id);
+              } else if (userWithAssignments.companyId && catAny.companyId === userWithAssignments.companyId) {
+                if (!categoryIds.includes(cat.id)) categoryIds.push(cat.id);
+              }
+            }
+          }
+          if (categoryIds.length > 0) {
+            accessibleScenarioIds = allFileScenarios
+              .filter((s: any) => categoryIds.includes(String(s.categoryId)))
+              .map((s: any) => s.id);
+          }
+          // If no org/company/category constraints: null = all scenarios
+        }
+      }
+      // admin: null = all scenarios
+
+      const summary = await storage.getDashboardSummary(userId, accessibleScenarioIds);
+      res.json(summary);
+    } catch (error) {
+      console.error("Error fetching dashboard summary:", error);
+      res.status(500).json({ error: "Failed to fetch dashboard summary" });
+    }
+  });
+
   // Get chat messages for a persona run
   app.get("/api/persona-runs/:id/messages", isAuthenticated, async (req, res) => {
     try {
