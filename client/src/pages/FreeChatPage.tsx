@@ -391,6 +391,9 @@ export default function FreeChatPage() {
   const [editorOpen, setEditorOpen] = useState(false);
   const [editingPersona, setEditingPersona] = useState<UserPersona | null>(null);
 
+  // 채팅 화면에서 슬라이드 사이드바
+  const [chatSidebarOpen, setChatSidebarOpen] = useState(false);
+
   // Data queries
   const { data: discoverPersonas = [] } = useQuery<UserPersona[]>({
     queryKey: ["/api/user-personas/discover", discoverSort],
@@ -513,10 +516,11 @@ export default function FreeChatPage() {
 
   // ── Chat view ──────────────────────────────────────────────────────
   if (mainView === "chat" && conversationId) {
+    let chatWindow: React.ReactNode = null;
     if (selectedUserPersona) {
       const scenario = buildUserPersonaScenario(selectedUserPersona, chatDifficulty);
       const persona = buildUserPersonaForChat(selectedUserPersona);
-      return (
+      chatWindow = (
         <ChatWindow
           scenario={scenario}
           persona={persona}
@@ -526,8 +530,7 @@ export default function FreeChatPage() {
           isPersonaMode={true}
         />
       );
-    }
-    if (selectedMbtiPersona) {
+    } else if (selectedMbtiPersona) {
       const scenario = buildMbtiScenario(
         selectedMbtiPersona.mbti,
         selectedMbtiPersona.freeChatDescription || `${selectedMbtiPersona.mbti} 유형과의 자유 대화`,
@@ -541,7 +544,7 @@ export default function FreeChatPage() {
         image: img || undefined,
         personality: { traits: [], communicationStyle: selectedMbtiPersona.communicationStyle || "", motivation: "", fears: [] },
       } as any;
-      return (
+      chatWindow = (
         <ChatWindow
           scenario={scenario}
           persona={persona}
@@ -549,6 +552,168 @@ export default function FreeChatPage() {
           onChatComplete={handleExitChat}
           onExit={handleExitChat}
         />
+      );
+    }
+
+    if (chatWindow) {
+      return (
+        <div className="relative h-screen overflow-hidden">
+          {/* Full-screen chat */}
+          {chatWindow}
+
+          {/* Sidebar trigger handle */}
+          <button
+            onClick={() => setChatSidebarOpen(true)}
+            className="fixed left-0 top-1/2 -translate-y-1/2 z-40 flex flex-col items-center justify-center gap-1 w-5 h-20 bg-white/90 backdrop-blur border border-l-0 border-slate-200 rounded-r-xl shadow-md hover:w-6 hover:bg-white transition-all group"
+            title="메뉴 열기"
+          >
+            <span className="w-0.5 h-3 bg-slate-400 group-hover:bg-emerald-500 rounded-full transition-colors" />
+            <span className="w-0.5 h-3 bg-slate-400 group-hover:bg-emerald-500 rounded-full transition-colors" />
+            <span className="w-0.5 h-3 bg-slate-400 group-hover:bg-emerald-500 rounded-full transition-colors" />
+          </button>
+
+          {/* Backdrop */}
+          {chatSidebarOpen && (
+            <div
+              className="fixed inset-0 z-40 bg-black/30 backdrop-blur-[1px]"
+              onClick={() => setChatSidebarOpen(false)}
+            />
+          )}
+
+          {/* Sliding sidebar */}
+          <aside
+            className={`fixed left-0 top-0 h-full w-64 bg-white shadow-2xl z-50 flex flex-col transition-transform duration-300 ease-in-out ${chatSidebarOpen ? "translate-x-0" : "-translate-x-full"}`}
+          >
+            {/* Header */}
+            <div className="flex items-center justify-between p-3 border-b border-slate-100">
+              <button
+                onClick={() => { setEditingPersona(null); setEditorOpen(true); }}
+                className="flex-1 flex items-center gap-2 px-3 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-sm font-semibold transition-colors"
+              >
+                <Plus className="w-4 h-4" />
+                페르소나 만들기
+              </button>
+              <button
+                onClick={() => setChatSidebarOpen(false)}
+                className="ml-2 p-2 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Tabs */}
+            <div className="flex border-b border-slate-100">
+              {([
+                { key: "discover", icon: Compass, label: "탐색" },
+                { key: "my", icon: User, label: "내 것" },
+                { key: "mbti", icon: Users, label: "MBTI" },
+              ] as const).map(tab => (
+                <button
+                  key={tab.key}
+                  onClick={() => {
+                    setSidebarTab(tab.key);
+                    if (tab.key === "discover") {
+                      handleExitChat();
+                      setSelectedUserPersona(null);
+                      setSelectedMbtiPersona(null);
+                      setChatSidebarOpen(false);
+                    }
+                  }}
+                  className={`flex-1 flex flex-col items-center gap-0.5 py-2.5 text-xs font-medium transition-colors border-b-2 ${sidebarTab === tab.key ? "text-emerald-600 border-emerald-600" : "text-slate-500 border-transparent hover:text-slate-700"}`}
+                >
+                  <tab.icon className="w-4 h-4" />
+                  {tab.label}
+                </button>
+              ))}
+            </div>
+
+            {/* Search */}
+            {sidebarTab !== "discover" && (
+              <div className="px-3 pt-3 pb-2">
+                <div className="relative">
+                  <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
+                  <Input
+                    value={searchQuery}
+                    onChange={e => setSearchQuery(e.target.value)}
+                    placeholder="검색..."
+                    className="pl-8 h-8 text-sm bg-slate-50 border-slate-200"
+                  />
+                </div>
+              </div>
+            )}
+
+            {/* Persona list */}
+            <div className="flex-1 overflow-y-auto px-2 pb-3 space-y-0.5 mt-1">
+              {sidebarTab === "discover" && (
+                <div className="text-center py-6 px-3">
+                  <Compass className="w-7 h-7 text-slate-300 mx-auto mb-2" />
+                  <p className="text-xs text-slate-400">탐색 탭을 선택하면<br />홈 화면으로 돌아갑니다</p>
+                </div>
+              )}
+
+              {sidebarTab === "my" && (
+                filteredMy.length === 0 ? (
+                  <div className="text-center py-8 px-3">
+                    <Sparkles className="w-8 h-8 text-slate-300 mx-auto mb-2" />
+                    <p className="text-xs text-slate-400">아직 만든 페르소나가 없어요</p>
+                  </div>
+                ) : filteredMy.map(p => (
+                  <UserPersonaCard
+                    key={p.id}
+                    persona={p}
+                    isSelected={selectedUserPersona?.id === p.id}
+                    isMine
+                    onSelect={() => {
+                      setChatSidebarOpen(false);
+                      handleExitChat();
+                      setTimeout(() => selectUserPersona(p), 50);
+                    }}
+                    onEdit={() => { setEditingPersona(p); setEditorOpen(true); }}
+                    onDelete={() => deleteMutation.mutate(p.id)}
+                    onLike={() => likeMutation.mutate(p.id)}
+                  />
+                ))
+              )}
+
+              {sidebarTab === "mbti" && filteredMbti.map(p => {
+                const img = getMbtiImage(p, selectedMbtiGender);
+                const isSelected = selectedMbtiPersona?.id === p.id;
+                return (
+                  <button
+                    key={p.id}
+                    onClick={() => {
+                      setChatSidebarOpen(false);
+                      handleExitChat();
+                      setTimeout(() => selectMbtiPersona(p), 50);
+                    }}
+                    className={`w-full flex items-center gap-3 px-3 py-3 rounded-xl transition-all text-left ${isSelected ? "bg-indigo-50 border border-indigo-200" : "hover:bg-slate-50"}`}
+                  >
+                    <div className="w-10 h-10 rounded-full overflow-hidden bg-slate-100 flex-shrink-0 flex items-center justify-center">
+                      {img ? <img src={img} alt={p.mbti} className="w-full h-full object-cover" />
+                        : <span className="text-xs font-bold text-slate-400">{p.mbti.slice(0, 2)}</span>}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-semibold text-slate-800 text-sm">{p.mbti}</p>
+                      {p.freeChatDescription && <p className="text-xs text-slate-500 truncate">{p.freeChatDescription}</p>}
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          </aside>
+
+          {/* Persona Editor Modal (accessible from chat sidebar too) */}
+          {editorOpen && (
+            <PersonaEditorModal
+              persona={editingPersona}
+              onClose={() => setEditorOpen(false)}
+              onSaved={(p) => {
+                setEditorOpen(false);
+                setSidebarTab("my");
+              }}
+            />
+          )}
+        </div>
       );
     }
   }
