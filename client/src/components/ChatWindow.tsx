@@ -1261,7 +1261,7 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
   };
 
   return (
-    <div className="chat-window relative">
+    <div className={`chat-window relative${chatMode === 'messenger' ? ' flex flex-col lg:flex-row gap-4 lg:items-start' : ''}`}>
       {isInitialLoading && (
         <div 
           className={`fixed inset-0 z-50 bg-black flex items-center justify-center transition-opacity duration-500 ${
@@ -1272,7 +1272,7 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
           <div className="w-12 h-12 border-4 border-white/20 border-t-white rounded-full animate-spin" />
         </div>
       )}
-      <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+      <div className={`bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden${chatMode === 'messenger' ? ' flex flex-col h-[calc(100vh-8rem)] lg:flex-1 lg:min-w-0' : ''}`}>
         {/* Chat Header */}
         <div className="bg-gradient-to-r from-corporate-600 to-corporate-700 px-4 sm:px-6 py-3 sm:py-4 text-white">
           <div className="flex items-center justify-between gap-3">
@@ -1367,11 +1367,11 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
         </div>
 
         {/* Main Content Area */}
-        <div className="relative flex-1 flex flex-col">
+        <div className="relative flex-1 min-h-0 flex flex-col overflow-hidden">
           {/* Chat Messages Area */}
           {chatMode === 'messenger' && (
             <>
-              <div className="h-96 overflow-y-auto p-6 space-y-5 bg-gradient-to-b from-slate-50 to-white scroll-smooth" data-testid="chat-messages">
+              <div className="flex-1 min-h-0 overflow-y-auto p-6 space-y-5 bg-gradient-to-b from-slate-50 to-white scroll-smooth" data-testid="chat-messages">
                 {localMessages.map((message: ConversationMessage, index: number) => (
                 <div
                   key={index}
@@ -1845,127 +1845,6 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
                 )}
                 </div>{/* closes p-6 */}
               </div>{/* closes input area outer div */}
-
-              {/* Chat Controls & Info */}
-              <div className="mt-8 space-y-5 px-2">
-                <div className="grid md:grid-cols-3 gap-4">
-                  <div className="bg-white rounded-2xl p-5 border border-slate-100 shadow-sm hover:shadow-md transition-all duration-300 group">
-                    <div className="flex items-center justify-between mb-3">
-                      <h4 className="font-semibold text-slate-700 text-sm flex items-center">
-                        <div className="w-8 h-8 bg-blue-100 rounded-xl flex items-center justify-center mr-2 group-hover:scale-110 transition-transform duration-300">
-                          <i className="fas fa-stopwatch text-blue-600 text-sm"></i>
-                        </div>
-                        {t('chat.elapsedTime')}
-                      </h4>
-                    </div>
-                    <p className="text-3xl font-bold bg-gradient-to-r from-blue-600 to-blue-500 bg-clip-text text-transparent" data-testid="sidebar-elapsed-time">
-                      {formatElapsedTime(elapsedTime)}
-                    </p>
-                    <p className="text-xs text-slate-500 mt-2 flex items-center gap-1">
-                      <span className={`w-2 h-2 rounded-full ${
-                        elapsedTime < 300 ? 'bg-green-400' : 
-                        elapsedTime < 600 ? 'bg-blue-400' : 
-                        elapsedTime < 900 ? 'bg-amber-400' : 'bg-red-400'
-                      }`}></span>
-                      {elapsedTime < 300 ? t('chat.efficientProgress') : 
-                       elapsedTime < 600 ? t('chat.appropriateSpeed') : 
-                       elapsedTime < 900 ? t('chat.timeManagementNeeded') : t('chat.quickFinishRecommended')}
-                    </p>
-                  </div>
-                  <div className="bg-white rounded-2xl p-5 border border-slate-100 shadow-sm hover:shadow-md transition-all duration-300 group">
-                    <div className="flex items-center justify-between mb-3">
-                      <h4 className="font-semibold text-slate-700 text-sm flex items-center">
-                        <div className="w-8 h-8 bg-amber-100 rounded-xl flex items-center justify-center mr-2 group-hover:scale-110 transition-transform duration-300">
-                          <i className="fas fa-sync-alt text-amber-600 text-sm"></i>
-                        </div>
-                        {t('chat.remainingTurns')}
-                      </h4>
-                    </div>
-                    <p className="text-3xl font-bold bg-gradient-to-r from-amber-600 to-amber-500 bg-clip-text text-transparent">{maxTurns - conversation.turnCount}</p>
-                    <p className="text-xs text-slate-500 mt-2">{t('chat.autoEvaluateOnEnd')}</p>
-                  </div>
-                  <div className="bg-white rounded-2xl p-5 border border-slate-100 shadow-sm hover:shadow-md transition-all duration-300 group">
-                    <div className="flex items-center justify-between mb-3">
-                      <h4 className="font-semibold text-slate-700 text-sm flex items-center">
-                        <div className="w-8 h-8 bg-green-100 rounded-xl flex items-center justify-center mr-2 group-hover:scale-110 transition-transform duration-300">
-                          <i className="fas fa-chart-line text-green-600 text-sm"></i>
-                        </div>
-                        {t('chat.currentScore')}
-                      </h4>
-                      <span className={`text-xs font-medium px-2 py-1 rounded-full ${
-                        currentScore >= 80 ? 'bg-green-100 text-green-700' :
-                        currentScore >= 60 ? 'bg-blue-100 text-blue-700' :
-                        currentScore >= 40 ? 'bg-yellow-100 text-yellow-700' : 'bg-red-100 text-red-700'
-                      }`}>
-                        {currentScore >= 80 ? t('chat.scoreExcellent') :
-                         currentScore >= 60 ? t('chat.scoreAverage') :
-                         currentScore >= 40 ? t('chat.scoreNeedsImprovement') : t('chat.scorePoor')}
-                      </span>
-                    </div>
-                    <div className="space-y-2">
-                      <p className="text-3xl font-bold bg-gradient-to-r from-green-600 to-green-500 bg-clip-text text-transparent">{currentScore}<span className="text-lg text-slate-400">/100</span></p>
-                      <div className="w-full bg-slate-100 rounded-full h-2.5 overflow-hidden">
-                        <div 
-                          className={`h-2.5 rounded-full transition-all duration-700 ease-out ${
-                            currentScore >= 80 ? 'bg-gradient-to-r from-green-400 to-green-500' :
-                            currentScore >= 60 ? 'bg-gradient-to-r from-blue-400 to-blue-500' :
-                            currentScore >= 40 ? 'bg-gradient-to-r from-yellow-400 to-yellow-500' : 'bg-gradient-to-r from-red-400 to-red-500'
-                          }`}
-                          style={{ width: `${Math.max(3, currentScore)}%` }}
-                        ></div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-                <div className="bg-white rounded-2xl p-5 border border-slate-100 shadow-sm hover:shadow-md transition-all duration-300">
-                  <h4 className="font-semibold text-slate-700 mb-4 flex items-center text-sm">
-                    <div className="w-8 h-8 bg-corporate-100 rounded-xl flex items-center justify-center mr-2">
-                      <i className="fas fa-user-tie text-corporate-600 text-sm"></i>
-                    </div>
-                    {t('chat.yourRoleAndGoals')}
-                  </h4>
-                  <div className="text-sm grid md:grid-cols-2 gap-4">
-                    {(scenario.context?.playerRoleText || scenario.context?.playerRole?.responsibility) && (
-                      <div className="bg-gradient-to-br from-slate-50 to-slate-100/50 rounded-xl p-4">
-                        <div className="text-xs font-semibold text-corporate-600 mb-2 flex items-center justify-between">
-                          <span className="flex items-center gap-1.5">
-                            <i className="fas fa-id-badge"></i>
-                            {t('chat.yourRole')}
-                          </span>
-                          <span className="text-slate-500 font-normal bg-white px-2 py-0.5 rounded-full">
-                            {scenario.context?.playerRole?.position}
-                          </span>
-                        </div>
-                        <div className="text-slate-700 leading-relaxed">
-                          {scenario.context?.playerRoleText || scenario.context?.playerRole?.responsibility}
-                        </div>
-                      </div>
-                    )}
-                    
-                    {scenario.objectives && scenario.objectives.length > 0 && (
-                      <div className="bg-gradient-to-br from-blue-50 to-blue-100/30 rounded-xl p-4">
-                        <div className="text-xs font-semibold text-blue-600 mb-2 flex items-center gap-1.5">
-                          <i className="fas fa-bullseye"></i>
-                          {t('chat.achievementGoals')}
-                        </div>
-                        <div className="space-y-2">
-                          {scenario.objectives.slice(0, 2).map((objective: string, index: number) => (
-                            <div key={index} className="flex items-start gap-2">
-                              <span className="w-5 h-5 bg-blue-500 text-white rounded-full flex items-center justify-center text-xs flex-shrink-0 mt-0.5">{index + 1}</span>
-                              <span className="flex-1 text-slate-700 leading-relaxed">{objective}</span>
-                            </div>
-                          ))}
-                          {scenario.objectives.length > 2 && (
-                            <div className="text-xs text-slate-500 pl-7">
-                              {t('chat.moreGoals', { count: scenario.objectives.length - 2 })}
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
             </>
           )}
 
@@ -2805,6 +2684,93 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
           )}
         </div>
       </div>
+
+      {/* Chat Info Cards - Outside messenger area */}
+      {chatMode === 'messenger' && (
+        <div className="lg:w-[22rem] xl:w-[26rem] flex-shrink-0 space-y-3 lg:h-[calc(100vh-8rem)] lg:overflow-y-auto">
+          <div className="bg-white rounded-2xl p-4 border border-slate-100 shadow-sm hover:shadow-md transition-all duration-300">
+            <h4 className="font-semibold text-slate-700 mb-3 flex items-center text-sm">
+              <div className="w-7 h-7 bg-corporate-100 rounded-lg flex items-center justify-center mr-2">
+                <i className="fas fa-user-tie text-corporate-600 text-xs"></i>
+              </div>
+              {t('chat.yourRoleAndGoals')}
+            </h4>
+            <div className="text-sm grid grid-cols-1 gap-3">
+              {(scenario.context?.playerRoleText || scenario.context?.playerRole?.responsibility) && (
+                <div className="bg-gradient-to-br from-slate-50 to-slate-100/50 rounded-xl p-3">
+                  <div className="text-xs font-semibold text-corporate-600 mb-1.5 flex items-center justify-between">
+                    <span className="flex items-center gap-1.5">
+                      <i className="fas fa-id-badge"></i>
+                      {t('chat.yourRole')}
+                    </span>
+                    <span className="text-slate-500 font-normal bg-white px-2 py-0.5 rounded-full text-xs">
+                      {scenario.context?.playerRole?.position}
+                    </span>
+                  </div>
+                  <div className="text-slate-700 leading-relaxed text-sm">
+                    {scenario.context?.playerRoleText || scenario.context?.playerRole?.responsibility}
+                  </div>
+                </div>
+              )}
+              
+              {scenario.objectives && scenario.objectives.length > 0 && (
+                <div className="bg-gradient-to-br from-blue-50 to-blue-100/30 rounded-xl p-3">
+                  <div className="text-xs font-semibold text-blue-600 mb-1.5 flex items-center gap-1.5">
+                    <i className="fas fa-bullseye"></i>
+                    {t('chat.achievementGoals')}
+                  </div>
+                  <div className="space-y-1.5">
+                    {scenario.objectives.slice(0, 2).map((objective: string, index: number) => (
+                      <div key={index} className="flex items-start gap-2">
+                        <span className="w-5 h-5 bg-blue-500 text-white rounded-full flex items-center justify-center text-xs flex-shrink-0 mt-0.5">{index + 1}</span>
+                        <span className="flex-1 text-slate-700 leading-relaxed text-sm">{objective}</span>
+                      </div>
+                    ))}
+                    {scenario.objectives.length > 2 && (
+                      <div className="text-xs text-slate-500 pl-7">
+                        {t('chat.moreGoals', { count: scenario.objectives.length - 2 })}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+          <div className="grid grid-cols-2 lg:grid-cols-1 gap-3">
+            <div className="bg-white rounded-2xl p-4 border border-slate-100 shadow-sm hover:shadow-md transition-all duration-300 group">
+              <div className="flex items-center gap-2 mb-2">
+                <div className="w-7 h-7 bg-blue-100 rounded-lg flex items-center justify-center group-hover:scale-110 transition-transform duration-300">
+                  <i className="fas fa-stopwatch text-blue-600 text-xs"></i>
+                </div>
+                <h4 className="font-semibold text-slate-700 text-xs">{t('chat.elapsedTime')}</h4>
+              </div>
+              <p className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-blue-500 bg-clip-text text-transparent" data-testid="sidebar-elapsed-time">
+                {formatElapsedTime(elapsedTime)}
+              </p>
+              <p className="text-xs text-slate-500 mt-1.5 flex items-center gap-1">
+                <span className={`w-1.5 h-1.5 rounded-full ${
+                  elapsedTime < 300 ? 'bg-green-400' : 
+                  elapsedTime < 600 ? 'bg-blue-400' : 
+                  elapsedTime < 900 ? 'bg-amber-400' : 'bg-red-400'
+                }`}></span>
+                {elapsedTime < 300 ? t('chat.efficientProgress') : 
+                 elapsedTime < 600 ? t('chat.appropriateSpeed') : 
+                 elapsedTime < 900 ? t('chat.timeManagementNeeded') : t('chat.quickFinishRecommended')}
+              </p>
+            </div>
+            <div className="bg-white rounded-2xl p-4 border border-slate-100 shadow-sm hover:shadow-md transition-all duration-300 group">
+              <div className="flex items-center gap-2 mb-2">
+                <div className="w-7 h-7 bg-amber-100 rounded-lg flex items-center justify-center group-hover:scale-110 transition-transform duration-300">
+                  <i className="fas fa-sync-alt text-amber-600 text-xs"></i>
+                </div>
+                <h4 className="font-semibold text-slate-700 text-xs">{t('chat.remainingTurns')}</h4>
+              </div>
+              <p className="text-2xl font-bold bg-gradient-to-r from-amber-600 to-amber-500 bg-clip-text text-transparent">{maxTurns - conversation.turnCount}</p>
+              <p className="text-xs text-slate-500 mt-1.5">{t('chat.autoEvaluateOnEnd')}</p>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* 대화 종료 확인 다이얼로그 */}
       <AlertDialog open={showEndConversationDialog} onOpenChange={setShowEndConversationDialog}>
