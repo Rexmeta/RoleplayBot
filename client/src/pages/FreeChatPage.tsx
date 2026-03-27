@@ -18,7 +18,7 @@ import {
   Search, Plus, MessageSquare, Compass, User, Heart,
   MoreVertical, Pencil, Trash2, Globe, Lock, X, Check,
   MessageCircle, Mic, Volume2, ChevronRight, Users, Sparkles,
-  Camera, ImageIcon
+  Camera, ImageIcon, ChevronDown, ChevronUp
 } from "lucide-react";
 import type { ComplexScenario, ScenarioPersona } from "@/lib/scenario-system";
 
@@ -391,8 +391,9 @@ export default function FreeChatPage() {
   const [editorOpen, setEditorOpen] = useState(false);
   const [editingPersona, setEditingPersona] = useState<UserPersona | null>(null);
 
-  // 채팅 화면에서 슬라이드 사이드바
+  // 채팅 화면에서 슬라이드 사이드바 / 상단 헤더
   const [chatSidebarOpen, setChatSidebarOpen] = useState(false);
+  const [chatHeaderOpen, setChatHeaderOpen] = useState(false);
 
   // Data queries
   const { data: discoverPersonas = [] } = useQuery<UserPersona[]>({
@@ -561,10 +562,40 @@ export default function FreeChatPage() {
           {/* Full-screen chat */}
           {chatWindow}
 
-          {/* Sidebar trigger handle */}
+          {/* ── Top header overlay ─────────────────────── */}
+          {/* Backdrop for header */}
+          {chatHeaderOpen && (
+            <div
+              className="fixed inset-0 z-40"
+              onClick={() => setChatHeaderOpen(false)}
+            />
+          )}
+          {/* Sliding AppHeader */}
+          <div
+            className={`fixed left-0 right-0 top-0 z-50 shadow-lg transition-transform duration-300 ease-in-out ${chatHeaderOpen ? "translate-y-0" : "-translate-y-full"}`}
+          >
+            <AppHeader />
+          </div>
+          {/* Top trigger handle — z-50 so it stays on top of backdrops */}
+          <button
+            onClick={() => setChatHeaderOpen(v => !v)}
+            className="fixed top-0 left-1/2 -translate-x-1/2 z-50 flex items-center justify-center gap-1.5 px-4 h-5 bg-white/90 backdrop-blur border border-t-0 border-slate-200 rounded-b-xl shadow-md hover:h-6 hover:bg-white transition-all group"
+            title="상단 메뉴 열기"
+          >
+            {chatHeaderOpen
+              ? <ChevronUp className="w-3 h-3 text-emerald-500" />
+              : <>
+                  <span className="w-3 h-0.5 bg-slate-400 group-hover:bg-emerald-500 rounded-full transition-colors" />
+                  <span className="w-3 h-0.5 bg-slate-400 group-hover:bg-emerald-500 rounded-full transition-colors" />
+                  <span className="w-3 h-0.5 bg-slate-400 group-hover:bg-emerald-500 rounded-full transition-colors" />
+                </>
+            }
+          </button>
+
+          {/* ── Left sidebar trigger handle ─────────────── */}
           <button
             onClick={() => setChatSidebarOpen(true)}
-            className="fixed left-0 top-1/2 -translate-y-1/2 z-40 flex flex-col items-center justify-center gap-1 w-5 h-20 bg-white/90 backdrop-blur border border-l-0 border-slate-200 rounded-r-xl shadow-md hover:w-6 hover:bg-white transition-all group"
+            className="fixed left-0 top-1/2 -translate-y-1/2 z-50 flex flex-col items-center justify-center gap-1 w-5 h-20 bg-white/90 backdrop-blur border border-l-0 border-slate-200 rounded-r-xl shadow-md hover:w-6 hover:bg-white transition-all group"
             title="메뉴 열기"
           >
             <span className="w-0.5 h-3 bg-slate-400 group-hover:bg-emerald-500 rounded-full transition-colors" />
