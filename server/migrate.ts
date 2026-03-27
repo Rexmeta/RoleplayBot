@@ -647,12 +647,6 @@ DO $$ BEGIN
     FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE cascade;
 EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
--- User Bookmarks unique constraint (user_id, scenario_id)
-DO $$ BEGIN
-  ALTER TABLE "user_bookmarks" ADD CONSTRAINT "user_bookmarks_user_scenario_unique"
-    UNIQUE ("user_id", "scenario_id");
-EXCEPTION WHEN duplicate_object THEN NULL; END $$;
-
 -- Scenario Translations FK
 DO $$ BEGIN
   ALTER TABLE "scenario_translations" ADD CONSTRAINT "scenario_translations_source_locale_fk"
