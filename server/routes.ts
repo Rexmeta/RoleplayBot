@@ -2529,6 +2529,65 @@ ${p.speechStyle ? `말투: ${p.speechStyle}` : ""}
     }
   });
 
+  // 피드백 히스토리 - 동일 시나리오+페르소나 과거 피드백 목록 (벤치마킹용)
+  app.get("/api/users/me/feedback-history", isAuthenticated, async (req, res) => {
+    try {
+      // @ts-ignore
+      const userId = req.user?.id;
+      const { scenarioId, personaId } = req.query;
+
+      if (!scenarioId || !personaId) {
+        return res.status(400).json({ error: "scenarioId and personaId are required" });
+      }
+
+      // 사용자의 모든 scenarioRuns에서 동일 시나리오 필터
+      const userScenarioRuns = await storage.getUserScenarioRuns(userId);
+      const matchingScenarioRuns = userScenarioRuns.filter(sr => sr.scenarioId === scenarioId);
+
+      if (matchingScenarioRuns.length === 0) {
+        return res.json([]);
+      }
+
+      const scenarioRunIds = matchingScenarioRuns.map(sr => sr.id);
+
+      // 해당 scenarioRun들의 모든 personaRun 조회
+      const allPersonaRuns: any[] = [];
+      for (const srId of scenarioRunIds) {
+        const pRuns = await storage.getPersonaRunsByScenarioRun(srId);
+        allPersonaRuns.push(...pRuns);
+      }
+
+      // 동일 personaId 필터 (최근 5건)
+      const matchingPersonaRuns = allPersonaRuns
+        .filter(pr => pr.personaId === personaId && pr.status === 'completed')
+        .sort((a, b) => new Date(b.completedAt || b.startedAt).getTime() - new Date(a.completedAt || a.startedAt).getTime())
+        .slice(0, 5);
+
+      if (matchingPersonaRuns.length === 0) {
+        return res.json([]);
+      }
+
+      // 각 personaRun의 피드백 조회
+      const historyItems = [];
+      for (const pr of matchingPersonaRuns) {
+        const fb = await storage.getFeedbackByConversationId(pr.id);
+        if (fb) {
+          historyItems.push({
+            personaRunId: pr.id,
+            completedAt: pr.completedAt || pr.startedAt,
+            overallScore: fb.overallScore,
+            scores: fb.scores,
+          });
+        }
+      }
+
+      res.json(historyItems);
+    } catch (error) {
+      console.error("Error fetching feedback history:", error);
+      res.status(500).json({ error: "Failed to fetch feedback history" });
+    }
+  });
+
   // User Analytics - 사용자 전체 피드백 종합 분석
   app.get("/api/analytics/summary", isAuthenticated, async (req, res) => {
     try {

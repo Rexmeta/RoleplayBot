@@ -7,6 +7,14 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { useTranslation } from "react-i18next";
+import {
+  RadarChart,
+  PolarGrid,
+  PolarAngleAxis,
+  Radar,
+  ResponsiveContainer,
+  Tooltip,
+} from "recharts";
 
 import type { ComplexScenario, ScenarioPersona } from "@/lib/scenario-system";
 import type { Feedback } from "@shared/schema";
@@ -50,12 +58,23 @@ export default function PersonalDevelopmentReport({
   const [hasRequestedFeedback, setHasRequestedFeedback] = useState(false); // 피드백 생성 요청 여부
   const [isExportingPdf, setIsExportingPdf] = useState(false); // PDF 내보내기 중
   const [showMobileMenu, setShowMobileMenu] = useState(false); // 모바일 스마트 메뉴 상태
+  const [checkedItems, setCheckedItems] = useState<Record<string, boolean>>(() => {
+    try {
+      const stored = localStorage.getItem(`checklist_${conversationId}`);
+      return stored ? JSON.parse(stored) : {};
+    } catch {
+      return {};
+    }
+  });
   const reportRef = useRef<HTMLDivElement>(null); // 보고서 컨테이너 참조
 
   // 사용자의 모든 대화 기록 조회
   const { data: userConversations = [] } = useQuery<any[]>({
     queryKey: ['/api/conversations'],
   });
+
+  // 현재 대화 찾기 (모드 정보 등 활용)
+  const currentConversation = userConversations.find((c: any) => c.id === conversationId) || null;
 
   // 피드백 조회 - 한번 가져온 피드백은 캐시에서 사용 (피드백은 변경되지 않음)
   const { data: feedback, isLoading, error, refetch } = useQuery<Feedback>({
@@ -111,6 +130,24 @@ export default function PersonalDevelopmentReport({
   });
 
   const userName = userProfile?.name || t('report.defaultUser', '사용자');
+
+  // 피드백 히스토리 조회 (동일 시나리오+페르소나 과거 세션)
+  const { data: feedbackHistory = [] } = useQuery<any[]>({
+    queryKey: ['/api/users/me/feedback-history', scenario.id, persona.id],
+    queryFn: async () => {
+      const token = localStorage.getItem("authToken");
+      const headers: Record<string, string> = {};
+      if (token) headers["Authorization"] = `Bearer ${token}`;
+      const response = await fetch(
+        `/api/users/me/feedback-history?scenarioId=${encodeURIComponent(scenario.id)}&personaId=${encodeURIComponent(persona.id)}`,
+        { headers, credentials: "include" }
+      );
+      if (!response.ok) return [];
+      return response.json();
+    },
+    enabled: !!scenario.id && !!persona.id,
+    staleTime: 60000,
+  });
 
   // 다음 페르소나 확인 (서버에서 온 scenario는 personas가 객체 배열)
   const getNextPersona = () => {
@@ -358,13 +395,52 @@ export default function PersonalDevelopmentReport({
     const timePerformance = feedback.detailedFeedback?.timePerformance;
     
     const userProfile = userConversations.length > 0 ? userConversations[0].user : null;
-    const userName = userProfile?.name || t('report.defaultUser', '사용자');
+    const printUserName = userProfile?.name || userName;
 
     return `
-      <div style="font-family: 'Noto Sans KR', sans-serif; padding: 20px; max-width: 800px; margin: 0 auto;">
-        <!-- 헤더 -->
+      <div style="font-family: 'Noto Sans KR', sans-serif; max-width: 800px; margin: 0 auto;">
+
+        <!-- 커버 페이지 -->
+        <div style="page-break-after: always; min-height: 100vh; display: flex; flex-direction: column; justify-content: center; align-items: center; background: linear-gradient(135deg, #4f46e5 0%, #6366f1 60%, #8b5cf6 100%); color: white; padding: 60px 40px; text-align: center;">
+          <div style="font-size: 13px; letter-spacing: 0.15em; text-transform: uppercase; opacity: 0.7; margin-bottom: 24px;">Personal Development Report</div>
+          <h1 style="font-size: 36px; font-weight: 800; margin-bottom: 16px; line-height: 1.2;">${escapeHtml(printUserName)}님 맞춤 개발 보고서</h1>
+          <div style="width: 60px; height: 3px; background: rgba(255,255,255,0.5); margin: 24px auto;"></div>
+          <p style="font-size: 16px; opacity: 0.9; margin-bottom: 8px;">시나리오: ${escapeHtml(scenario.title)}</p>
+          <p style="font-size: 14px; opacity: 0.75; margin-bottom: 40px;">대화 상대: ${escapeHtml(getPersonaFullInfo())}</p>
+          <div style="background: rgba(255,255,255,0.15); border-radius: 16px; padding: 24px 40px; margin-bottom: 40px;">
+            <div style="font-size: 48px; font-weight: 900; margin-bottom: 4px;">${escapeHtml(overallGrade.grade)}</div>
+            <div style="font-size: 20px; font-weight: 600;">${feedback.overallScore || 0}점</div>
+            <div style="font-size: 12px; opacity: 0.75; margin-top: 4px;">종합 점수</div>
+          </div>
+          <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; text-align: left; max-width: 400px; width: 100%;">
+            <div style="background: rgba(255,255,255,0.1); border-radius: 8px; padding: 12px;">
+              <div style="font-size: 10px; opacity: 0.6; text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 4px;">발행 일시</div>
+              <div style="font-size: 12px;">${feedback.createdAt ? new Date(feedback.createdAt).toLocaleString('ko-KR') : new Date().toLocaleString('ko-KR')}</div>
+            </div>
+            <div style="background: rgba(255,255,255,0.1); border-radius: 8px; padding: 12px;">
+              <div style="font-size: 10px; opacity: 0.6; text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 4px;">보고서 ID</div>
+              <div style="font-size: 12px; font-family: monospace;">${conversationId.slice(0, 8).toUpperCase()}</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 목차 -->
+        <div style="page-break-after: always; padding: 40px;">
+          <h2 style="font-size: 22px; font-weight: 700; color: #1e293b; border-bottom: 2px solid #4f46e5; padding-bottom: 12px; margin-bottom: 24px;">목차</h2>
+          <ol style="list-style: none; padding: 0; margin: 0; space-y: 12px;">
+            ${conversationDuration ? `<li style="display: flex; justify-content: space-between; align-items: center; padding: 10px 0; border-bottom: 1px dashed #e2e8f0; font-size: 14px; color: #374151;"><span>⏱️ 대화 시간 분석</span><span style="color: #94a3b8;">Section 1</span></li>` : ''}
+            <li style="display: flex; justify-content: space-between; align-items: center; padding: 10px 0; border-bottom: 1px dashed #e2e8f0; font-size: 14px; color: #374151;"><span>📊 성과 분석</span><span style="color: #94a3b8;">Section ${conversationDuration ? '2' : '1'}</span></li>
+            <li style="display: flex; justify-content: space-between; align-items: center; padding: 10px 0; border-bottom: 1px dashed #e2e8f0; font-size: 14px; color: #374151;"><span>🗂️ 실천 가이드</span><span style="color: #94a3b8;">Section ${conversationDuration ? '3' : '2'}</span></li>
+            <li style="display: flex; justify-content: space-between; align-items: center; padding: 10px 0; border-bottom: 1px dashed #e2e8f0; font-size: 14px; color: #374151;"><span>📈 개발 계획</span><span style="color: #94a3b8;">Section ${conversationDuration ? '4' : '3'}</span></li>
+            ${sequenceAnalysis ? `<li style="display: flex; justify-content: space-between; align-items: center; padding: 10px 0; border-bottom: 1px dashed #e2e8f0; font-size: 14px; color: #374151;"><span>🎮 전략 평가</span><span style="color: #94a3b8;">Section ${conversationDuration ? '5' : '4'}</span></li>` : ''}
+          </ol>
+        </div>
+
+        <!-- 본문 -->
+        <div style="padding: 20px;">
+        <!-- 헤더 (본문용 요약) -->
         <div style="background: linear-gradient(135deg, #4f46e5, #6366f1); color: white; padding: 24px; border-radius: 12px; margin-bottom: 24px;">
-          <h1 style="font-size: 24px; font-weight: bold; margin-bottom: 8px;">${escapeHtml(userName)}님 맞춤 보고서</h1>
+          <h1 style="font-size: 24px; font-weight: bold; margin-bottom: 8px;">${escapeHtml(printUserName)}님 맞춤 보고서</h1>
           <p style="opacity: 0.9; margin-bottom: 4px;">시나리오 : ${escapeHtml(scenario.title)}</p>
           <p style="font-size: 14px; opacity: 0.8; margin-bottom: 12px;">대화 상대 : ${escapeHtml(getPersonaFullInfo())}</p>
           <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 16px;">
@@ -416,7 +492,7 @@ export default function PersonalDevelopmentReport({
         ` : ''}
 
         <!-- 1. 성과 분석 -->
-        <div style="margin-bottom: 32px; page-break-inside: avoid;">
+        <div style="margin-bottom: 32px; page-break-before: always;">
           <h2 style="font-size: 20px; font-weight: bold; color: #1f2937; border-bottom: 2px solid #4f46e5; padding-bottom: 8px; margin-bottom: 16px;">📊 성과 분석</h2>
           
           ${feedback.detailedFeedback?.evaluationCriteriaSetName ? `
@@ -514,7 +590,7 @@ export default function PersonalDevelopmentReport({
         </div>
 
         <!-- 2. 실천 가이드 (행동 개선 포인트 + 대화 스크립트 예시) -->
-        <div style="margin-bottom: 32px;">
+        <div style="margin-bottom: 32px; page-break-before: always;">
           <h2 style="font-size: 20px; font-weight: bold; color: #1f2937; border-bottom: 2px solid #f59e0b; padding-bottom: 8px; margin-bottom: 20px;">🗂️ 실천 가이드</h2>
 
           <!-- 2-1. 행동 개선 포인트 -->
@@ -596,7 +672,7 @@ export default function PersonalDevelopmentReport({
         </div>
 
         <!-- 4. 개발 계획 -->
-        <div style="margin-bottom: 32px; page-break-inside: avoid;">
+        <div style="margin-bottom: 32px; page-break-before: always;">
           <h2 style="font-size: 20px; font-weight: bold; color: #1f2937; border-bottom: 2px solid #8b5cf6; padding-bottom: 8px; margin-bottom: 16px;">📈 개발 계획</h2>
           ${developmentPlan ? `
             <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 20px;">
@@ -701,8 +777,9 @@ export default function PersonalDevelopmentReport({
 
         <!-- 푸터 -->
         <div style="text-align: center; padding-top: 20px; border-top: 1px solid #e2e8f0; color: #9ca3af; font-size: 12px;">
-          생성일: ${new Date().toLocaleDateString('ko-KR')} · AI 기반 개인 맞춤 개발 보고서
+          발행: ${feedback.createdAt ? new Date(feedback.createdAt).toLocaleDateString('ko-KR') : new Date().toLocaleDateString('ko-KR')} · 보고서 ID: ${conversationId.slice(0, 8).toUpperCase()} · AI 기반 개인 맞춤 개발 보고서
         </div>
+        </div><!-- /본문 -->
       </div>
     `;
   };
@@ -988,6 +1065,50 @@ export default function PersonalDevelopmentReport({
     return t('report.scorePoor', '미흡');
   };
 
+  const toggleCheckItem = (key: string) => {
+    setCheckedItems(prev => {
+      const next = { ...prev, [key]: !prev[key] };
+      try {
+        localStorage.setItem(`checklist_${conversationId}`, JSON.stringify(next));
+      } catch {}
+      return next;
+    });
+  };
+
+  const getPrevSessionDelta = (category: string): number | null => {
+    if (feedbackHistory.length < 2) return null;
+    // 현재 보고서의 conversationId로 history 내 위치를 정확히 찾아 직전 세션과 비교
+    const currentIdx = feedbackHistory.findIndex((h: any) => h.personaRunId === conversationId);
+    // 현재 보고서가 history에 없으면 (최근 5건 밖) 비교 불가 처리
+    if (currentIdx < 0) return null;
+    const currentSession = feedbackHistory[currentIdx];
+    const prevSession = feedbackHistory[currentIdx + 1];
+    if (!prevSession || !currentSession) return null;
+    const prevScore = prevSession.scores?.find((s: any) => s.category === category)?.score;
+    const currScore = currentSession.scores?.find((s: any) => s.category === category)?.score;
+    if (prevScore === undefined || currScore === undefined) return null;
+    return currScore - prevScore;
+  };
+
+  // 현재 세션이 history에 포함되어 있는지 여부 (비교 가능 여부 판단)
+  const isCurrentSessionInHistory = feedbackHistory.some((h: any) => h.personaRunId === conversationId);
+
+  const extractSentences = (text: string, maxSentences: number = 2): string => {
+    if (!text) return '';
+    const sentenceEndings = /(?<=[.!?。。！？])\s+/g;
+    const sentences = text.split(sentenceEndings).filter(s => s.trim());
+    if (sentences.length <= maxSentences) return text;
+    return sentences.slice(0, maxSentences).join(' ');
+  };
+
+  const getDifficultyTag = (item: { goal: string; actions: string[] }) => {
+    const totalLen = item.goal.length + item.actions.join('').length;
+    const actionCount = item.actions.length;
+    if (totalLen > 150 || actionCount >= 4) return { label: '도전', cls: 'bg-red-100 text-red-700 border-red-200' };
+    if (totalLen > 80 || actionCount >= 3) return { label: '보통', cls: 'bg-yellow-100 text-yellow-700 border-yellow-200' };
+    return { label: '쉬움', cls: 'bg-green-100 text-green-700 border-green-200' };
+  };
+
   const getOverallGrade = (score: number) => {
     if (score >= 90) return { grade: "A+", color: "text-green-600", bg: "bg-green-50" };
     if (score >= 80) return { grade: "A", color: "text-green-600", bg: "bg-green-50" };
@@ -1027,7 +1148,7 @@ export default function PersonalDevelopmentReport({
         {t('report.pdfTitle', '개인 맞춤 개발 보고서')} - {scenario.title}
       </div>
       
-      {/* 화면용 헤더 */}
+      {/* 화면용 헤더 (메타정보 강화) */}
       <div 
         className="bg-gradient-to-r from-corporate-600 to-corporate-700 rounded-xl p-6 text-white transform transition-all duration-700 hover:shadow-2xl screen-only"
         style={{ 
@@ -1058,10 +1179,6 @@ export default function PersonalDevelopmentReport({
             <h1 className="text-2xl font-bold mb-2" data-testid="report-title">{t('report.title', '{{name}}님 맞춤 보고서', { name: userName })}</h1>
             <p className="text-corporate-100">{t('report.scenario', '시나리오')} : {scenario.title}</p>
             <p className="text-corporate-100 text-sm mt-1">{t('report.conversationPartner', '대화 상대')} : {getPersonaFullInfo()}</p>
-            <div className="mt-3 text-sm text-corporate-200">
-              <i className="fas fa-history mr-2"></i>
-              {t('report.conversationDate', '대화 일시')}: {new Date().toLocaleString()}
-            </div>
           </div>
           <div 
             className={`${overallGrade.bg} ${overallGrade.color} px-6 py-4 rounded-lg text-center min-w-[120px] transform transition-all duration-1000 hover:scale-110 hover:shadow-lg`}
@@ -1075,7 +1192,83 @@ export default function PersonalDevelopmentReport({
             <div className="text-xs">{t('report.overallScore', '종합 점수')}</div>
           </div>
         </div>
+        {/* 메타정보 행 */}
+        <div className="mt-4 pt-4 border-t border-white/20 grid grid-cols-2 md:grid-cols-4 gap-3 text-xs text-white/80">
+          <div className="flex flex-col gap-0.5">
+            <span className="font-semibold text-white/60 uppercase tracking-wide">발행 일시</span>
+            <span>{feedback?.createdAt ? new Date(feedback.createdAt).toLocaleString('ko-KR') : new Date().toLocaleString('ko-KR')}</span>
+          </div>
+          <div className="flex flex-col gap-0.5">
+            <span className="font-semibold text-white/60 uppercase tracking-wide">보고서 ID</span>
+            <span className="font-mono">{conversationId.slice(0, 8).toUpperCase()}</span>
+          </div>
+          <div className="flex flex-col gap-0.5">
+            <span className="font-semibold text-white/60 uppercase tracking-wide">난이도</span>
+            <span>{['', '입문', '기본', '심화', '전문가'][scenario.difficulty as number] || '기본'}</span>
+          </div>
+          <div className="flex flex-col gap-0.5">
+            <span className="font-semibold text-white/60 uppercase tracking-wide">대화 모드</span>
+            <span>{
+              currentConversation?.mode === 'realtime_voice' ? '실시간 음성' :
+              currentConversation?.mode === 'tts' ? 'TTS 음성' :
+              '텍스트'
+            }</span>
+          </div>
+        </div>
       </div>
+
+      {/* 이그제큐티브 서머리 카드 */}
+      {feedback && (() => {
+        const scores = feedback.scores || [];
+        const maxScore = scores.reduce((best: any, s: any) => (!best || s.score > best.score) ? s : best, null);
+        const minScore = scores.reduce((worst: any, s: any) => (!worst || s.score < worst.score) ? s : worst, null);
+        const summary = feedback.detailedFeedback?.summary || feedback.detailedFeedback?.ranking || '';
+        const topImprovement = feedback.detailedFeedback?.improvements?.[0] || '';
+        return (
+          <Card className="border-0 shadow-lg bg-gradient-to-br from-indigo-50 to-purple-50 screen-only" data-testid="executive-summary">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-base font-bold text-indigo-800 flex items-center gap-2">
+                <span className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-indigo-600 text-white text-xs">★</span>
+                이 보고서의 핵심 (Executive Summary)
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="bg-white rounded-xl p-4 border border-indigo-100">
+                  <div className="text-xs font-bold text-indigo-600 mb-2 uppercase tracking-wide flex items-center gap-1">
+                    <i className="fas fa-align-left text-indigo-400"></i> 총평 요약
+                  </div>
+                  <p className="text-sm text-slate-700 leading-relaxed">{extractSentences(summary, 2) || '종합 평가를 확인하세요.'}</p>
+                </div>
+                <div className="bg-white rounded-xl p-4 border border-green-100">
+                  <div className="text-xs font-bold text-green-600 mb-2 uppercase tracking-wide flex items-center gap-1">
+                    <i className="fas fa-star text-green-400"></i> 핵심 강점
+                  </div>
+                  {maxScore && (
+                    <>
+                      <div className="text-lg font-bold text-green-700 mb-1">{getTranslatedDimensionName(maxScore.category, maxScore.name)}</div>
+                      <div className="inline-flex items-center gap-1 bg-green-100 text-green-800 text-xs font-semibold px-2 py-0.5 rounded-full mb-2">점수 {maxScore.score}/5</div>
+                      <p className="text-xs text-slate-600 leading-relaxed">{extractSentences(maxScore.feedback, 2)}</p>
+                    </>
+                  )}
+                </div>
+                <div className="bg-white rounded-xl p-4 border border-orange-100">
+                  <div className="text-xs font-bold text-orange-600 mb-2 uppercase tracking-wide flex items-center gap-1">
+                    <i className="fas fa-bullseye text-orange-400"></i> 1순위 개선 과제
+                  </div>
+                  {minScore && (
+                    <>
+                      <div className="text-sm font-bold text-orange-700 mb-1">{getTranslatedDimensionName(minScore.category, minScore.name)}</div>
+                      <div className="inline-flex items-center gap-1 bg-orange-100 text-orange-800 text-xs font-semibold px-2 py-0.5 rounded-full mb-2">점수 {minScore.score}/5</div>
+                    </>
+                  )}
+                  <p className="text-xs text-slate-600 leading-relaxed">{extractSentences(topImprovement, 2) || '개선 포인트를 확인하세요.'}</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        );
+      })()}
 
       {/* 대화 시간 분석 카드 (새로 추가) */}
       {feedback?.detailedFeedback?.conversationDuration && (
@@ -1146,6 +1339,46 @@ export default function PersonalDevelopmentReport({
         {/* 성과 분석 */}
         <TabsContent value="scores" className="space-y-6 print-show-all">
           <h2 className="print-section-title hidden print:block">📊 {t('report.tabs.scores', '성과 분석')}</h2>
+
+          {/* 레이더 차트 - 5개 역량 시각화 */}
+          {(feedback?.scores?.length ?? 0) > 0 && (
+            <Card className="shadow-sm" data-testid="radar-chart-card">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-base flex items-center gap-2">
+                  <i className="fas fa-spider text-indigo-500"></i>
+                  역량 레이더 차트
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="h-80">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <RadarChart
+                      data={(feedback?.scores || []).map(s => ({
+                        subject: getTranslatedDimensionName(s.category, s.name),
+                        value: s.score,
+                        fullMark: 5,
+                      }))}
+                      cx="50%"
+                      cy="50%"
+                      outerRadius="65%"
+                    >
+                      <PolarGrid />
+                      <PolarAngleAxis dataKey="subject" tick={{ fontSize: 11, fill: '#475569' }} />
+                      <Radar
+                        name="역량"
+                        dataKey="value"
+                        stroke="#4f46e5"
+                        fill="#4f46e5"
+                        fillOpacity={0.25}
+                        strokeWidth={2}
+                      />
+                      <Tooltip formatter={(value: any) => [`${value}/5`, '점수']} />
+                    </RadarChart>
+                  </ResponsiveContainer>
+                </div>
+              </CardContent>
+            </Card>
+          )}
           
           {/* 사용된 평가 기준 세트 정보 */}
           {feedback?.detailedFeedback?.evaluationCriteriaSetName && (
@@ -1170,6 +1403,7 @@ export default function PersonalDevelopmentReport({
                 : scoreNum === 3
                   ? { label: '🔶 기본 수준', cls: 'bg-orange-100 text-orange-700 border-orange-200' }
                   : { label: '⚠️ 집중 개선 필요', cls: 'bg-red-100 text-red-700 border-red-200' };
+              const delta = getPrevSessionDelta(score.category);
               
               return (
                 <Card 
@@ -1192,12 +1426,31 @@ export default function PersonalDevelopmentReport({
                           {score.weight && <span className="ml-1 text-xs font-normal text-slate-400">({score.weight}%)</span>}
                         </CardTitle>
                       </div>
-                      <Badge 
-                        variant="secondary" 
-                        className={`flex-shrink-0 bg-${getScoreColor(score.score)}-100 text-${getScoreColor(score.score)}-800 transition-all duration-300 hover:scale-105`}
-                      >
-                        {displayScore}/5
-                      </Badge>
+                      <div className="flex items-center gap-1 flex-shrink-0">
+                        {delta !== null ? (
+                          <span className={`text-xs font-bold px-1.5 py-0.5 rounded ${
+                            delta > 0 ? 'bg-green-100 text-green-700' :
+                            delta < 0 ? 'bg-red-100 text-red-700' :
+                            'bg-slate-100 text-slate-500'
+                          }`} title="직전 세션 대비 변화">
+                            {delta > 0 ? `↑+${delta.toFixed(1)}` : delta < 0 ? `↓${delta.toFixed(1)}` : '→0'}
+                          </span>
+                        ) : !isCurrentSessionInHistory && feedbackHistory.length > 0 ? (
+                          <span className="text-xs font-medium px-1.5 py-0.5 rounded bg-slate-100 text-slate-500" title="비교 데이터 범위 밖">
+                            -
+                          </span>
+                        ) : (
+                          <span className="text-xs font-medium px-1.5 py-0.5 rounded bg-indigo-100 text-indigo-600" title="첫 번째 세션">
+                            신규
+                          </span>
+                        )}
+                        <Badge 
+                          variant="secondary" 
+                          className={`bg-${getScoreColor(score.score)}-100 text-${getScoreColor(score.score)}-800 transition-all duration-300 hover:scale-105`}
+                        >
+                          {displayScore}/5
+                        </Badge>
+                      </div>
                     </div>
                     {/* 상태 수준 뱃지 */}
                     <span className={`mt-1.5 inline-block text-xs font-medium px-2 py-0.5 rounded-full border ${statusBadge.cls}`}>
@@ -1479,113 +1732,134 @@ export default function PersonalDevelopmentReport({
         {/* 개발 계획 */}
         <TabsContent value="development" className="space-y-6 print-show-all print-section-break">
           <h2 className="print-section-title hidden print:block">📈 {t('report.tabs.development', '개발 계획')}</h2>
-          {feedback?.detailedFeedback?.developmentPlan && (
-            <>
-              {/* 단기/중기/장기 계획 */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <Card className="border-l-4 border-l-green-500" data-testid="short-term-plan">
+          {feedback?.detailedFeedback?.developmentPlan && (() => {
+            const plan = feedback.detailedFeedback.developmentPlan;
+            const sections = [
+              {
+                key: 'short',
+                label: '단기 목표 (1-2주)',
+                timeLabel: '1-2주',
+                icon: 'fas fa-calendar-week',
+                items: plan.shortTerm || [],
+                accentColor: 'green',
+                testId: 'short-term-plan',
+              },
+              {
+                key: 'medium',
+                label: '중기 목표 (1-2개월)',
+                timeLabel: '1-2개월',
+                icon: 'fas fa-calendar-alt',
+                items: plan.mediumTerm || [],
+                accentColor: 'blue',
+                testId: 'medium-term-plan',
+              },
+              {
+                key: 'long',
+                label: '장기 목표 (3-6개월)',
+                timeLabel: '3-6개월',
+                icon: 'fas fa-calendar',
+                items: plan.longTerm || [],
+                accentColor: 'purple',
+                testId: 'long-term-plan',
+              },
+            ];
+            const accentMap: Record<string, { hdr: string; badge: string; bg: string; check: string; row: string }> = {
+              green: { hdr: 'text-green-700', badge: 'bg-green-100 text-green-700 border-green-200', bg: 'bg-green-50', check: 'text-green-600', row: 'border-green-100' },
+              blue: { hdr: 'text-blue-700', badge: 'bg-blue-100 text-blue-700 border-blue-200', bg: 'bg-blue-50', check: 'text-blue-600', row: 'border-blue-100' },
+              purple: { hdr: 'text-purple-700', badge: 'bg-purple-100 text-purple-700 border-purple-200', bg: 'bg-purple-50', check: 'text-purple-600', row: 'border-purple-100' },
+            };
+            return (
+              <>
+                {sections.map(section => {
+                  const ac = accentMap[section.accentColor];
+                  return (
+                    <Card key={section.key} className={`border-l-4 border-l-${section.accentColor}-500`} data-testid={section.testId}>
+                      <CardHeader className="pb-3">
+                        <CardTitle className={`${ac.hdr} flex items-center gap-2`}>
+                          <i className={`${section.icon}`}></i>
+                          {section.label}
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent className="space-y-3">
+                        {section.items.map((item, idx) => {
+                          const itemKey = `${section.key}_${idx}`;
+                          const isChecked = !!checkedItems[itemKey];
+                          const diff = getDifficultyTag(item);
+                          return (
+                            <div
+                              key={idx}
+                              className={`rounded-xl border p-4 transition-all ${ac.row} ${isChecked ? 'opacity-60' : ''}`}
+                            >
+                              <div className="flex items-start gap-3">
+                                <button
+                                  onClick={() => toggleCheckItem(itemKey)}
+                                  className={`mt-0.5 flex-shrink-0 w-5 h-5 rounded border-2 flex items-center justify-center transition-colors ${
+                                    isChecked
+                                      ? `bg-${section.accentColor}-500 border-${section.accentColor}-500`
+                                      : `border-slate-300 hover:border-${section.accentColor}-400`
+                                  }`}
+                                  aria-label={isChecked ? '완료 취소' : '완료 표시'}
+                                >
+                                  {isChecked && <i className="fas fa-check text-white text-xs"></i>}
+                                </button>
+                                <div className="flex-1 min-w-0">
+                                  <div className="flex flex-wrap items-center gap-2 mb-2">
+                                    <h4 className={`font-semibold text-sm ${isChecked ? 'line-through text-slate-400' : 'text-slate-800'}`}>
+                                      {item.goal}
+                                    </h4>
+                                    <span className={`inline-flex items-center text-xs font-medium px-2 py-0.5 rounded-full border ${diff.cls}`}>
+                                      {diff.label}
+                                    </span>
+                                    <span className={`inline-flex items-center text-xs font-medium px-2 py-0.5 rounded-full border ${ac.badge}`}>
+                                      {section.timeLabel}
+                                    </span>
+                                  </div>
+                                  <ul className="space-y-1 mb-2">
+                                    {item.actions.map((action, aIdx) => (
+                                      <li key={aIdx} className="text-xs text-slate-600 flex items-start gap-1.5">
+                                        <i className="fas fa-chevron-right mt-0.5 text-slate-400 flex-shrink-0" style={{ fontSize: '0.6rem' }}></i>
+                                        {action}
+                                      </li>
+                                    ))}
+                                  </ul>
+                                  <div className={`text-xs ${ac.check} ${ac.bg} px-2 py-1 rounded inline-block`}>
+                                    측정지표: {item.measurable}
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                        {section.items.length === 0 && (
+                          <p className="text-sm text-slate-400 text-center py-4">목표 항목이 없습니다.</p>
+                        )}
+                      </CardContent>
+                    </Card>
+                  );
+                })}
+
+                {/* 추천 리소스 */}
+                <Card>
                   <CardHeader>
-                    <CardTitle className="text-green-700 flex items-center">
-                      <i className="fas fa-calendar-week mr-2"></i>
-                      {t('report.shortTermGoal', '단기 목표 (1-2주)')}
+                    <CardTitle className="flex items-center">
+                      <i className="fas fa-book-open text-corporate-600 mr-2"></i>
+                      {t('report.recommendedResources', '추천 학습 자료 및 리소스')}
                     </CardTitle>
                   </CardHeader>
-                  <CardContent className="space-y-4">
-                    {feedback?.detailedFeedback?.developmentPlan?.shortTerm?.map((item, index) => (
-                      <div key={index} className="bg-green-50 p-3 rounded-lg">
-                        <h4 className="font-medium text-green-800 mb-2">{item.goal}</h4>
-                        <ul className="space-y-1 mb-2">
-                          {item.actions.map((action, actionIndex) => (
-                            <li key={actionIndex} className="text-sm text-green-700 flex items-start">
-                              <i className="fas fa-chevron-right mr-2 mt-1 text-xs"></i>
-                              {action}
-                            </li>
-                          ))}
-                        </ul>
-                        <div className="text-xs text-green-600 bg-green-100 px-2 py-1 rounded">
-                          {t('report.measurable', '측정지표')}: {item.measurable}
+                  <CardContent>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4" data-testid="recommended-resources">
+                      {(plan.recommendedResources || []).map((resource, index) => (
+                        <div key={index} className="flex items-start space-x-3 p-3 bg-slate-50 rounded-lg">
+                          <i className="fas fa-bookmark text-corporate-500 mt-1"></i>
+                          <p className="text-slate-700 text-sm">{resource}</p>
                         </div>
-                      </div>
-                    ))}
+                      ))}
+                    </div>
                   </CardContent>
                 </Card>
-
-                <Card className="border-l-4 border-l-blue-500" data-testid="medium-term-plan">
-                  <CardHeader>
-                    <CardTitle className="text-blue-700 flex items-center">
-                      <i className="fas fa-calendar-alt mr-2"></i>
-                      {t('report.mediumTermGoal', '중기 목표 (1-2개월)')}
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    {feedback?.detailedFeedback?.developmentPlan?.mediumTerm?.map((item, index) => (
-                      <div key={index} className="bg-blue-50 p-3 rounded-lg">
-                        <h4 className="font-medium text-blue-800 mb-2">{item.goal}</h4>
-                        <ul className="space-y-1 mb-2">
-                          {item.actions.map((action, actionIndex) => (
-                            <li key={actionIndex} className="text-sm text-blue-700 flex items-start">
-                              <i className="fas fa-chevron-right mr-2 mt-1 text-xs"></i>
-                              {action}
-                            </li>
-                          ))}
-                        </ul>
-                        <div className="text-xs text-blue-600 bg-blue-100 px-2 py-1 rounded">
-                          {t('report.measurable', '측정지표')}: {item.measurable}
-                        </div>
-                      </div>
-                    ))}
-                  </CardContent>
-                </Card>
-
-                <Card className="border-l-4 border-l-purple-500" data-testid="long-term-plan">
-                  <CardHeader>
-                    <CardTitle className="text-purple-700 flex items-center">
-                      <i className="fas fa-calendar mr-2"></i>
-                      {t('report.longTermGoal', '장기 목표 (3-6개월)')}
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    {feedback?.detailedFeedback?.developmentPlan?.longTerm?.map((item, index) => (
-                      <div key={index} className="bg-purple-50 p-3 rounded-lg">
-                        <h4 className="font-medium text-purple-800 mb-2">{item.goal}</h4>
-                        <ul className="space-y-1 mb-2">
-                          {item.actions.map((action, actionIndex) => (
-                            <li key={actionIndex} className="text-sm text-purple-700 flex items-start">
-                              <i className="fas fa-chevron-right mr-2 mt-1 text-xs"></i>
-                              {action}
-                            </li>
-                          ))}
-                        </ul>
-                        <div className="text-xs text-purple-600 bg-purple-100 px-2 py-1 rounded">
-                          {t('report.measurable', '측정지표')}: {item.measurable}
-                        </div>
-                      </div>
-                    ))}
-                  </CardContent>
-                </Card>
-              </div>
-
-              {/* 추천 리소스 */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center">
-                    <i className="fas fa-book-open text-corporate-600 mr-2"></i>
-                    {t('report.recommendedResources', '추천 학습 자료 및 리소스')}
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4" data-testid="recommended-resources">
-                    {feedback?.detailedFeedback?.developmentPlan?.recommendedResources?.map((resource, index) => (
-                      <div key={index} className="flex items-start space-x-3 p-3 bg-slate-50 rounded-lg">
-                        <i className="fas fa-bookmark text-corporate-500 mt-1"></i>
-                        <p className="text-slate-700 text-sm">{resource}</p>
-                      </div>
-                    ))}
-                  </div>
-                </CardContent>
-              </Card>
-            </>
-          )}
+              </>
+            );
+          })()}
         </TabsContent>
 
         {/* 전략 평가 */}
