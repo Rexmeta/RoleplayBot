@@ -754,6 +754,19 @@ export async function registerRoutes(app: Express, httpServer: Server): Promise<
     }
   });
 
+  /** GET /api/user-personas/featured — 인기 페르소나 (좋아요 순 상위 5개, 시스템 관리자 전용) */
+  app.get("/api/user-personas/featured", isAuthenticated, async (req: any, res) => {
+    if (req.user?.role !== 'admin') {
+      return res.status(403).json({ error: "Access denied. System admin only." });
+    }
+    try {
+      const personas = await storage.getPublicUserPersonas('likes', 5, 0);
+      res.json(personas);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch featured personas" });
+    }
+  });
+
   /** GET /api/user-personas/discover — 공개 페르소나 탐색 (시스템 관리자 전용) */
   app.get("/api/user-personas/discover", isAuthenticated, async (req: any, res) => {
     if (req.user?.role !== 'admin') {
@@ -763,7 +776,9 @@ export async function registerRoutes(app: Express, httpServer: Server): Promise<
       const sortBy = (req.query.sort as string) === 'recent' ? 'recent' : 'likes';
       const limit = Math.min(parseInt(req.query.limit as string) || 50, 100);
       const offset = parseInt(req.query.offset as string) || 0;
-      const personas = await storage.getPublicUserPersonas(sortBy, limit, offset);
+      const tag = req.query.tag as string | undefined;
+      const mbti = req.query.mbti as string | undefined;
+      const personas = await storage.getPublicUserPersonas(sortBy, limit, offset, tag, mbti);
       res.json(personas);
     } catch (error) {
       res.status(500).json({ error: "Failed to fetch public personas" });
@@ -782,7 +797,8 @@ export async function registerRoutes(app: Express, httpServer: Server): Promise<
         return res.status(403).json({ error: "Access denied" });
       }
       const liked = await storage.getUserPersonaLike(req.user?.id, persona.id);
-      res.json({ ...persona, liked });
+      const creator = await storage.getUser(persona.creatorId);
+      res.json({ ...persona, liked, creatorName: creator?.name ?? null });
     } catch (error) {
       res.status(500).json({ error: "Failed to fetch persona" });
     }

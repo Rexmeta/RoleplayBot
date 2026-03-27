@@ -91,6 +91,12 @@ export interface ComplexScenario {
   isDeleted?: boolean;
 }
 
+// 사용자 제작 페르소나 자유 대화용 ComplexScenario 확장 타입
+export interface UserPersonaScenario extends ComplexScenario {
+  _userPersonaMode: true;
+  _userPersonaSystemPrompt: string;
+}
+
 export interface PlayerProfile {
   position: string;
   department: string;

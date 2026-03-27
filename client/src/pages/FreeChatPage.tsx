@@ -1,5 +1,5 @@
 import { useState, useRef } from "react";
-import { useLocation } from "wouter";
+import { useLocation, Link } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { toMediaUrl } from "@/lib/mediaUrl";
@@ -864,6 +864,11 @@ export default function FreeChatPage() {
                 <MessageCircle className="w-14 h-14 text-emerald-500 mx-auto mb-3" />
                 <h1 className="text-2xl font-bold text-slate-800 mb-2">PersonaX</h1>
                 <p className="text-slate-500">AI 캐릭터와 자유롭게 대화하세요. 직접 나만의 캐릭터를 만들어 공유할 수도 있어요.</p>
+                <Link href="/persona">
+                  <Button variant="outline" size="sm" className="mt-3 gap-1.5 text-emerald-700 border-emerald-200 hover:bg-emerald-50">
+                    <Compass className="w-3.5 h-3.5" />PersonaX 탐색 허브
+                  </Button>
+                </Link>
               </div>
 
               {discoverPersonas.length > 0 && (

@@ -255,7 +255,7 @@ export interface IStorage {
   createUserPersona(data: InsertUserPersona): Promise<UserPersona>;
   getUserPersonaById(id: string): Promise<UserPersona | undefined>;
   getUserPersonasByCreator(creatorId: string): Promise<UserPersona[]>;
-  getPublicUserPersonas(sortBy?: 'likes' | 'recent', limit?: number, offset?: number): Promise<UserPersona[]>;
+  getPublicUserPersonas(sortBy?: 'likes' | 'recent', limit?: number, offset?: number, tag?: string, mbti?: string): Promise<UserPersona[]>;
   updateUserPersona(id: string, creatorId: string, data: Partial<InsertUserPersona>): Promise<UserPersona>;
   deleteUserPersona(id: string, creatorId: string): Promise<void>;
   toggleUserPersonaLike(userId: string, personaId: string): Promise<{ liked: boolean; likeCount: number }>;
@@ -897,7 +897,7 @@ export class MemStorage implements IStorage {
   async createUserPersona(_data: InsertUserPersona): Promise<UserPersona> { throw new Error("Not implemented"); }
   async getUserPersonaById(_id: string): Promise<UserPersona | undefined> { return undefined; }
   async getUserPersonasByCreator(_creatorId: string): Promise<UserPersona[]> { return []; }
-  async getPublicUserPersonas(_sortBy?: 'likes' | 'recent', _limit?: number, _offset?: number): Promise<UserPersona[]> { return []; }
+  async getPublicUserPersonas(_sortBy?: 'likes' | 'recent', _limit?: number, _offset?: number, _tag?: string, _mbti?: string): Promise<UserPersona[]> { return []; }
   async updateUserPersona(_id: string, _creatorId: string, _data: Partial<InsertUserPersona>): Promise<UserPersona> { throw new Error("Not implemented"); }
   async deleteUserPersona(_id: string, _creatorId: string): Promise<void> {}
   async toggleUserPersonaLike(_userId: string, _personaId: string): Promise<{ liked: boolean; likeCount: number }> { return { liked: false, likeCount: 0 }; }
@@ -2216,12 +2216,19 @@ export class PostgreSQLStorage implements IStorage {
       .orderBy(desc(userPersonas.createdAt));
   }
 
-  async getPublicUserPersonas(sortBy: 'likes' | 'recent' = 'likes', limit = 50, offset = 0): Promise<UserPersona[]> {
+  async getPublicUserPersonas(sortBy: 'likes' | 'recent' = 'likes', limit = 50, offset = 0, tag?: string, mbti?: string): Promise<UserPersona[]> {
     const orderCol = sortBy === 'likes'
       ? desc(userPersonas.likeCount)
       : desc(userPersonas.createdAt);
+    let whereCondition = eq(userPersonas.isPublic, true) as ReturnType<typeof and>;
+    if (tag) {
+      whereCondition = and(whereCondition, sqlBuilder`EXISTS (SELECT 1 FROM unnest(${userPersonas.tags}) AS t WHERE t ILIKE ${'%' + tag + '%'})`);
+    }
+    if (mbti) {
+      whereCondition = and(whereCondition, sqlBuilder`EXISTS (SELECT 1 FROM unnest(${userPersonas.tags}) AS t WHERE t ILIKE ${'%' + mbti + '%'})`);
+    }
     return await db.select().from(userPersonas)
-      .where(eq(userPersonas.isPublic, true))
+      .where(whereCondition)
       .orderBy(orderCol)
       .limit(limit)
       .offset(offset);

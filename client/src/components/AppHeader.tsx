@@ -19,7 +19,7 @@ interface AppHeaderProps {
 
 function SwitchingLogo({ onRoleplayClick }: { onRoleplayClick?: () => void }) {
   const [location, navigate] = useLocation();
-  const isPersonaMode = location === '/free-chat';
+  const isPersonaMode = location === '/free-chat' || location === '/persona' || location.startsWith('/persona/');
   const [isContainerHovered, setIsContainerHovered] = useState(false);
   const { user } = useAuth();
   const isAdmin = user?.role === 'admin';
@@ -33,7 +33,7 @@ function SwitchingLogo({ onRoleplayClick }: { onRoleplayClick?: () => void }) {
   };
 
   const handlePersonaClick = () => {
-    navigate('/free-chat');
+    navigate('/persona');
   };
 
   return (
