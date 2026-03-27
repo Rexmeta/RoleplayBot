@@ -6,7 +6,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { toMediaUrl } from "@/lib/mediaUrl";
 import { Button } from "@/components/ui/button";
-import { MessageSquare, User } from "lucide-react";
+import { MessageSquare, User, MessageCircle, X, ChevronRight } from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
 import { Card } from "@/components/ui/card";
 import { AspectRatio } from "@/components/ui/aspect-ratio";
@@ -126,6 +126,12 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
   const [pendingAiMessage, setPendingAiMessage] = useState(false); // AI가 말하는 중 placeholder 표시
   const [pendingUserMessage, setPendingUserMessage] = useState(false); // 사용자 음성 인식 중 placeholder 표시
   const [pendingUserText, setPendingUserText] = useState(''); // 실시간 사용자 전사 텍스트
+  const [isBargeInFlash, setIsBargeInFlash] = useState(false); // Barge-in 플래시 애니메이션
+  const [isTranscriptPanelOpen, setIsTranscriptPanelOpen] = useState(false); // 트랜스크립트 슬라이드 패널
+  const [isSilenceIdle, setIsSilenceIdle] = useState(false); // 침묵 구간 대기 중 애니메이션
+  const [isSessionEnding, setIsSessionEnding] = useState(false); // 세션 종료 시네마틱 전환 중
+  const isAISpeakingForBargeInRef = useRef(false); // AI 발화 중 여부 (barge-in 감지용)
+  const silenceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null); // 침묵 감지 타이머
   const hasUserSpokenRef = useRef(false); // 사용자가 마이크를 사용했는지 추적
   const initialLoadCompletedRef = useRef(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -150,6 +156,7 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
       
       // AI placeholder 숨기기 (텍스트 도착)
       setPendingAiMessage(false);
+      isAISpeakingForBargeInRef.current = false;
       
       // 감정 상태 업데이트 (캐릭터 이미지 변경)
       if (emotion) {
@@ -190,6 +197,7 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
     onAiSpeakingStart: () => {
       // AI가 말하기 시작하면 placeholder 표시
       setPendingAiMessage(true);
+      isAISpeakingForBargeInRef.current = true;
     },
     onUserSpeakingStart: () => {
       // 사용자가 말하기 시작하면 placeholder 표시
@@ -197,6 +205,12 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
       setPendingUserText(''); // 새 발화 시작 시 리셋
       hasUserSpokenRef.current = true;
       setShowMicPrompt(false);
+      // Barge-in 플래시: AI가 말하는 도중 사용자가 끊으면 플래시 효과
+      if (isAISpeakingForBargeInRef.current) {
+        setIsBargeInFlash(true);
+        isAISpeakingForBargeInRef.current = false;
+        setTimeout(() => setIsBargeInFlash(false), 400);
+      }
     },
     onError: (error) => {
       toast({
@@ -502,11 +516,20 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
     try {
       setShowEndConversationDialog(false);
       
+      // 캐릭터 모드: 시네마틱 종료 전환 (작별 이미지 페이드아웃 + 요약 카드 페이드인)
+      if (chatMode === 'character') {
+        setIsSessionEnding(true);
+        realtimeVoice.disconnect();
+        
+        // 1.8초 페이드아웃 후 피드백 화면으로 전환
+        await new Promise(resolve => setTimeout(resolve, 1800));
+        setIsSessionEnding(false);
+      } else {
+        realtimeVoice.disconnect();
+      }
+      
       // 즉시 전환 오버레이 표시 (부모에게 알림)
       onConversationEnding?.();
-      
-      // 실시간 음성 연결 해제
-      realtimeVoice.disconnect();
       
       // localMessages를 DB에 일괄 저장
       if (localMessages.length > 0) {
@@ -1034,6 +1057,39 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
   // 최신 AI 메시지 찾기 (캐릭터 모드용) - hooks 순서 보장을 위해 early return 이전에 위치
   const latestAiMessage = localMessages.slice().reverse().find(msg => msg.sender === 'ai');
   
+  // AI 발화 상태를 ref로 동기화 (barge-in 감지 안정성 보장)
+  useEffect(() => {
+    isAISpeakingForBargeInRef.current = realtimeVoice.isAISpeaking;
+  }, [realtimeVoice.isAISpeaking]);
+
+  // 침묵 구간 감지: AI 응답 완료 후 유저가 5초간 말하지 않으면 대기 애니메이션 표시
+  useEffect(() => {
+    if (silenceTimerRef.current) {
+      clearTimeout(silenceTimerRef.current);
+      silenceTimerRef.current = null;
+    }
+    setIsSilenceIdle(false);
+
+    const isIdle = realtimeVoice.status === 'connected'
+      && !realtimeVoice.isAISpeaking
+      && !realtimeVoice.isRecording
+      && !realtimeVoice.isWaitingForGreeting
+      && !pendingAiMessage
+      && !pendingUserMessage;
+
+    if (isIdle && chatMode === 'character') {
+      silenceTimerRef.current = setTimeout(() => {
+        setIsSilenceIdle(true);
+      }, 5000);
+    }
+
+    return () => {
+      if (silenceTimerRef.current) {
+        clearTimeout(silenceTimerRef.current);
+      }
+    };
+  }, [realtimeVoice.status, realtimeVoice.isAISpeaking, realtimeVoice.isRecording, realtimeVoice.isWaitingForGreeting, pendingAiMessage, pendingUserMessage, chatMode]);
+
   // 감정 변화 감지 및 전환 처리 - hooks 순서 보장을 위해 early return 이전에 위치
   useEffect(() => {
     const newEmotion = latestAiMessage?.emotion || '중립';
@@ -1980,24 +2036,102 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
               </div>
 
               {/* Character Image Area with max-width constraint */}
-              <div className="flex-1 flex justify-center bg-slate-100">
+              <div className="flex-1 flex justify-center bg-slate-100 relative">
+                {/* Barge-in 엣지 플래시 효과 */}
+                {isBargeInFlash && (
+                  <div
+                    className="absolute inset-0 z-50 pointer-events-none rounded-none"
+                    style={{
+                      background: 'radial-gradient(ellipse at center, transparent 30%, rgba(147, 197, 253, 0.35) 70%, rgba(99, 102, 241, 0.55) 100%)',
+                      animation: 'bargeInFlash 0.4s ease-out forwards',
+                    }}
+                  />
+                )}
+
+                {/* 세션 종료 시네마틱 전환 오버레이 */}
+                {isSessionEnding && (
+                  <div className="absolute inset-0 z-[60] pointer-events-none flex items-center justify-center" style={{ animation: 'sessionEndFadeIn 1.8s ease-out forwards' }}>
+                    <div className="absolute inset-0 bg-gradient-to-b from-slate-900/80 via-slate-800/60 to-slate-900/80" />
+                    <div className="relative z-10 text-center px-8" style={{ animation: 'sessionEndCardSlide 1.8s ease-out forwards' }}>
+                      <div className="text-5xl mb-4" style={{ animation: 'sessionEndEmoji 1.8s ease-out forwards' }}>👋</div>
+                      <h3 className="text-xl font-semibold text-white mb-2">대화를 마치겠습니다</h3>
+                      <p className="text-sm text-slate-300">{persona.name}과의 대화를 정리하고 있습니다...</p>
+                      <div className="mt-4 flex items-center justify-center gap-2">
+                        <div className="w-2 h-2 bg-purple-400 rounded-full animate-bounce"></div>
+                        <div className="w-2 h-2 bg-purple-400 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
+                        <div className="w-2 h-2 bg-purple-400 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
                 <div 
                   className={`relative w-full max-w-[800px] xl:max-w-[900px] h-full bg-cover bg-center bg-no-repeat transition-all duration-300 ${
                     isEmotionTransitioning ? 'brightness-95 scale-[1.02]' : 'brightness-110 scale-100'
-                  }`}
+                  } ${isSessionEnding ? 'opacity-30 scale-95 blur-sm' : ''}`}
                   style={{
                     backgroundImage: loadedImageUrl ? `url(${loadedImageUrl})` : 'none',
-                    backgroundColor: '#f5f5f5'
+                    backgroundColor: '#f5f5f5',
+                    transition: isSessionEnding ? 'all 1.5s ease-out' : 'all 0.3s',
                   }}
                 >
+
+              {/* 감정 색조 오버레이 (항상 렌더링하여 neutral↔emotion 간 부드러운 페이드 보장) */}
+              {(() => {
+                const englishEmotion = emotionToEnglish[latestAiMessage?.emotion || currentEmotion || '중립'] || 'neutral';
+                const emotionOverlayColors: Record<string, string> = {
+                  happy: 'rgba(251, 191, 36, 0.18)',
+                  angry: 'rgba(239, 68, 68, 0.18)',
+                  sad: 'rgba(59, 130, 246, 0.18)',
+                  anxious: 'rgba(139, 92, 246, 0.15)',
+                  surprised: 'rgba(249, 115, 22, 0.15)',
+                  curious: 'rgba(6, 182, 212, 0.12)',
+                  tired: 'rgba(100, 116, 139, 0.15)',
+                  disappointed: 'rgba(99, 102, 241, 0.12)',
+                  confused: 'rgba(168, 85, 247, 0.12)',
+                  determined: 'rgba(234, 88, 12, 0.12)',
+                  neutral: 'rgba(0, 0, 0, 0)',
+                };
+                const overlayColor = emotionOverlayColors[englishEmotion] || 'rgba(0, 0, 0, 0)';
+                return (
+                  <div
+                    className="absolute inset-0 pointer-events-none z-[11]"
+                    style={{ backgroundColor: overlayColor, transition: 'background-color 300ms ease' }}
+                  />
+                );
+              })()}
               
-              {/* AI 음성 파티클 시각화 레이어 (상단) */}
+              {/* 발화 전환 빔 효과 - AI 발화 시 상단 빔 */}
+              {realtimeVoice.isAISpeaking && (
+                <div
+                  className="absolute top-0 left-0 right-0 pointer-events-none z-[12]"
+                  style={{
+                    height: '45%',
+                    background: 'linear-gradient(to bottom, rgba(139, 92, 246, 0.22) 0%, rgba(99, 102, 241, 0.10) 40%, transparent 100%)',
+                    animation: 'beamPulse 2.5s ease-in-out infinite',
+                  }}
+                />
+              )}
+
+              {/* 발화 전환 빔 효과 - 사용자 발화 시 하단 빔 */}
+              {realtimeVoice.isRecording && !realtimeVoice.isAISpeaking && (
+                <div
+                  className="absolute bottom-0 left-0 right-0 pointer-events-none z-[12]"
+                  style={{
+                    height: '40%',
+                    background: 'linear-gradient(to top, rgba(34, 197, 94, 0.20) 0%, rgba(16, 185, 129, 0.08) 40%, transparent 100%)',
+                    animation: 'beamPulse 2s ease-in-out infinite',
+                  }}
+                />
+              )}
+              
+              {/* AI 음성 오로라 글로우 레이어 (상단) */}
               <AISpeechParticleLayer 
                 amplitude={realtimeVoice.audioAmplitude} 
                 isActive={realtimeVoice.isAISpeaking} 
               />
               
-              {/* 사용자 음성 파티클 시각화 레이어 (하단 마이크 중심) */}
+              {/* 사용자 음성 오로라 글로우 레이어 (하단 마이크 중심) */}
               <UserSpeechParticleLayer 
                 amplitude={realtimeVoice.userAudioAmplitude} 
                 isActive={realtimeVoice.isRecording && !realtimeVoice.isAISpeaking} 
@@ -2143,62 +2277,86 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
                 </div>
               </div>
 
-              {/* Bottom Interactive Box - AI Message Focused */}
-              <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 z-20 w-full max-w-4xl lg:max-w-6xl xl:max-w-[90%] px-4 bg-[#00000000]">
-                {/* 최근 대화 내용 (최대 5턴) */}
-                {(localMessages.length > 0 || pendingAiMessage || pendingUserMessage) && (
-                  <div className="mb-2 space-y-1 max-h-32 overflow-y-auto px-2">
-                    {localMessages.slice(-5).map((msg, index) => (
+              {/* 트랜스크립트 슬라이드 패널 */}
+              <div
+                className="absolute top-0 right-0 bottom-0 z-30 flex flex-col pointer-events-none"
+                style={{ width: isTranscriptPanelOpen ? '300px' : '48px' }}
+              >
+                {/* 토글 버튼 */}
+                <button
+                  onClick={() => setIsTranscriptPanelOpen(v => !v)}
+                  className="pointer-events-auto absolute top-1/2 -translate-y-1/2 left-0 w-10 h-10 flex items-center justify-center bg-white/80 backdrop-blur-sm rounded-l-xl shadow-lg border border-white/30 text-slate-600 hover:text-slate-800 hover:bg-white transition-all duration-200 z-10"
+                  title={isTranscriptPanelOpen ? '대화 내역 닫기' : '대화 내역 보기'}
+                  data-testid="button-toggle-transcript"
+                >
+                  {isTranscriptPanelOpen ? <ChevronRight className="w-4 h-4" /> : <MessageCircle className="w-4 h-4" />}
+                </button>
+
+                {/* 패널 본체 */}
+                <div
+                  className={`pointer-events-auto absolute top-0 right-0 bottom-0 bg-white/85 backdrop-blur-md border-l border-white/30 shadow-2xl flex flex-col transition-all duration-300 ${
+                    isTranscriptPanelOpen ? 'opacity-100 translate-x-0' : 'opacity-0 translate-x-full'
+                  }`}
+                  style={{ width: '300px' }}
+                >
+                  <div className="flex items-center justify-between px-4 py-3 border-b border-slate-200/50">
+                    <span className="text-sm font-semibold text-slate-700 flex items-center gap-1.5">
+                      <MessageCircle className="w-3.5 h-3.5 text-purple-500" />
+                      대화 내역
+                    </span>
+                    <button
+                      onClick={() => setIsTranscriptPanelOpen(false)}
+                      className="w-6 h-6 flex items-center justify-center rounded-full hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition-colors"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                  <div className="flex-1 overflow-y-auto p-3 space-y-2">
+                    {localMessages.filter(m => m.sender === 'user' || m.sender === 'ai').map((msg, index) => (
                       <div
                         key={index}
-                        className={`text-sm ${
+                        className={`text-xs rounded-lg px-3 py-2 ${
                           msg.sender === 'user'
-                            ? 'text-right'
-                            : 'text-left'
+                            ? 'bg-blue-50 text-blue-800 ml-4'
+                            : 'bg-slate-50 text-slate-800 mr-4'
                         }`}
                       >
-                        <span className={`inline-block max-w-[85%] ${
-                          msg.sender === 'user'
-                            ? 'text-blue-600'
-                            : 'text-purple-700'
-                        }`}>
-                          <span className="font-semibold text-xs opacity-70">
-                            {msg.sender === 'user' ? t('chat.me') : persona.name}:
-                          </span>{' '}
-                          <span className="drop-shadow-sm">{msg.message}</span>
-                        </span>
+                        <div className="font-semibold mb-0.5 opacity-60 text-[10px]">
+                          {msg.sender === 'user' ? t('chat.me') : persona.name}
+                        </div>
+                        <div className="leading-relaxed">{msg.message}</div>
                       </div>
                     ))}
-                    {/* AI 말하는 중 placeholder (캐릭터 모드) */}
+                    {/* AI 말하는 중 placeholder */}
                     {pendingAiMessage && (
-                      <div className="text-sm text-left animate-in fade-in duration-300">
-                        <span className="inline-block max-w-[85%] text-purple-700">
-                          <span className="font-semibold text-xs opacity-70">{persona.name}:</span>{' '}
-                          <span className="drop-shadow-sm flex items-center space-x-1">
-                            <i className="fas fa-volume-up animate-pulse text-blue-500"></i>
-                            <span className="text-blue-600">{t('chat.aiSpeaking') || 'AI가 말하는 중...'}</span>
-                          </span>
-                        </span>
+                      <div className="text-xs rounded-lg px-3 py-2 bg-slate-50 text-slate-600 mr-4 animate-in fade-in duration-300">
+                        <div className="font-semibold mb-0.5 opacity-60 text-[10px]">{persona.name}</div>
+                        <div className="flex items-center gap-1">
+                          <i className="fas fa-volume-up animate-pulse text-blue-400 text-[10px]"></i>
+                          <span className="text-blue-500">{t('chat.aiSpeaking') || 'AI가 말하는 중...'}</span>
+                        </div>
                       </div>
                     )}
-                    {/* 사용자 음성 인식 중 placeholder (캐릭터 모드 - 실시간 텍스트 표시) */}
+                    {/* 사용자 음성 인식 중 placeholder */}
                     {pendingUserMessage && (
-                      <div className="text-sm text-right animate-in fade-in duration-300">
-                        <span className="inline-block max-w-[85%] text-blue-600">
-                          <span className="font-semibold text-xs opacity-70">{t('chat.me')}:</span>{' '}
-                          {pendingUserText ? (
-                            <span className="drop-shadow-sm">{pendingUserText}</span>
-                          ) : (
-                            <span className="drop-shadow-sm flex items-center justify-end space-x-1">
-                              <i className="fas fa-microphone animate-pulse text-purple-500"></i>
-                              <span className="text-purple-600">{t('chat.recognizing') || '음성 인식 중...'}</span>
-                            </span>
-                          )}
-                        </span>
+                      <div className="text-xs rounded-lg px-3 py-2 bg-blue-50 text-blue-700 ml-4 animate-in fade-in duration-300">
+                        <div className="font-semibold mb-0.5 opacity-60 text-[10px]">{t('chat.me')}</div>
+                        {pendingUserText ? (
+                          <div className="leading-relaxed">{pendingUserText}</div>
+                        ) : (
+                          <div className="flex items-center gap-1">
+                            <i className="fas fa-microphone animate-pulse text-purple-400 text-[10px]"></i>
+                            <span className="text-purple-500">{t('chat.recognizing') || '음성 인식 중...'}</span>
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>
-                )}
+                </div>
+              </div>
+
+              {/* Bottom Interactive Box - AI Message Focused */}
+              <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 z-20 w-full max-w-4xl lg:max-w-6xl xl:max-w-[90%] px-4 bg-[#00000000]">
                 <Card className="rounded-2xl overflow-hidden text-card-foreground backdrop-blur-sm shadow-xl border border-white/10 bg-[#ffffff9c]">
                   
                   {/* 실시간 음성 모드 */}
@@ -2320,46 +2478,75 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
                               {t('chat.end')}
                             </Button>
                             
-                            {/* 중앙 마이크 버튼 - 크고 강조 */}
-                            <button
-                              onClick={() => {
-                                if (realtimeVoice.isRecording) {
-                                  realtimeVoice.stopRecording();
-                                } else {
-                                  hasUserSpokenRef.current = true;
-                                  setShowMicPrompt(false);
-                                  setIsInputExpanded(false);
-                                  realtimeVoice.startRecording();
-                                }
-                              }}
-                              disabled={realtimeVoice.isAISpeaking}
-                              className={`relative w-16 h-16 rounded-full flex items-center justify-center transition-all duration-300 shadow-lg ${
-                                realtimeVoice.isRecording 
-                                  ? 'bg-red-500 text-white scale-110' 
-                                  : realtimeVoice.isAISpeaking
-                                  ? 'bg-blue-500 text-white'
-                                  : showMicPrompt
-                                  ? 'bg-gradient-to-r from-blue-500 to-purple-500 text-white animate-bounce'
-                                  : 'bg-gradient-to-r from-purple-500 to-indigo-500 text-white hover:scale-105'
-                              }`}
-                              data-testid="button-realtime-voice-record"
-                              title={realtimeVoice.isRecording ? t('chat.stopRecording') : t('chat.startRecording')}
-                            >
-                              {/* 펄스 링 효과 */}
-                              {(showMicPrompt || realtimeVoice.isRecording) && !realtimeVoice.isAISpeaking && (
+                            {/* 중앙 마이크 버튼 - 크고 강조 + 볼륨 반응 테두리 */}
+                            <div className="relative">
+                              {/* 침묵 구간 대기 중 호흡 애니메이션 */}
+                              {isSilenceIdle && !realtimeVoice.isRecording && !realtimeVoice.isAISpeaking && (
                                 <>
-                                  <span className="absolute inset-0 rounded-full bg-current animate-ping opacity-20"></span>
-                                  <span className="absolute -inset-2 rounded-full bg-current opacity-10 blur-md animate-pulse"></span>
+                                  <span className="absolute -inset-3 rounded-full border-2 border-purple-300/50 pointer-events-none" style={{ animation: 'silenceBreathe 3s ease-in-out infinite' }}></span>
+                                  <span className="absolute -inset-5 rounded-full border border-purple-200/30 pointer-events-none" style={{ animation: 'silenceBreathe 3s ease-in-out infinite 0.5s' }}></span>
                                 </>
                               )}
-                              <i className={`fas text-2xl ${
-                                realtimeVoice.isRecording 
-                                  ? 'fa-stop' 
-                                  : realtimeVoice.isAISpeaking
-                                  ? 'fa-volume-up animate-pulse'
-                                  : 'fa-microphone'
-                              }`}></i>
-                            </button>
+                              {/* 마이크 볼륨 실시간 표시 링 */}
+                              {realtimeVoice.isRecording && (
+                                <span
+                                  className="absolute rounded-full pointer-events-none transition-all duration-100"
+                                  style={{
+                                    inset: `${-4 - realtimeVoice.userAudioAmplitude * 10}px`,
+                                    border: `${2 + realtimeVoice.userAudioAmplitude * 3}px solid rgba(239, 68, 68, ${0.2 + realtimeVoice.userAudioAmplitude * 0.4})`,
+                                    boxShadow: `0 0 ${8 + realtimeVoice.userAudioAmplitude * 20}px rgba(239, 68, 68, ${0.1 + realtimeVoice.userAudioAmplitude * 0.25})`,
+                                  }}
+                                />
+                              )}
+                              <button
+                                onClick={() => {
+                                  if (realtimeVoice.isRecording) {
+                                    realtimeVoice.stopRecording();
+                                  } else {
+                                    hasUserSpokenRef.current = true;
+                                    setShowMicPrompt(false);
+                                    setIsInputExpanded(false);
+                                    realtimeVoice.startRecording();
+                                  }
+                                }}
+                                disabled={realtimeVoice.isAISpeaking}
+                                className={`relative w-16 h-16 rounded-full flex items-center justify-center transition-all duration-300 shadow-lg ${
+                                  realtimeVoice.isRecording 
+                                    ? 'bg-red-500 text-white scale-110' 
+                                    : realtimeVoice.isAISpeaking
+                                    ? 'bg-blue-500 text-white'
+                                    : showMicPrompt
+                                    ? 'bg-gradient-to-r from-blue-500 to-purple-500 text-white animate-bounce'
+                                    : isSilenceIdle
+                                    ? 'bg-gradient-to-r from-purple-400 to-indigo-400 text-white'
+                                    : 'bg-gradient-to-r from-purple-500 to-indigo-500 text-white hover:scale-105'
+                                }`}
+                                data-testid="button-realtime-voice-record"
+                                title={realtimeVoice.isRecording ? t('chat.stopRecording') : t('chat.startRecording')}
+                              >
+                                {/* 펄스 링 효과 */}
+                                {(showMicPrompt || realtimeVoice.isRecording) && !realtimeVoice.isAISpeaking && (
+                                  <>
+                                    <span className="absolute inset-0 rounded-full bg-current animate-ping opacity-20"></span>
+                                    <span className="absolute -inset-2 rounded-full bg-current opacity-10 blur-md animate-pulse"></span>
+                                  </>
+                                )}
+                                {/* 마이크 아이콘 - 볼륨에 따라 스케일 반응 */}
+                                <i
+                                  className={`fas text-2xl ${
+                                    realtimeVoice.isRecording 
+                                      ? 'fa-stop' 
+                                      : realtimeVoice.isAISpeaking
+                                      ? 'fa-volume-up animate-pulse'
+                                      : 'fa-microphone'
+                                  }`}
+                                  style={realtimeVoice.isRecording ? {
+                                    transform: `scale(${1 + realtimeVoice.userAudioAmplitude * 0.3})`,
+                                    transition: 'transform 100ms ease',
+                                  } : undefined}
+                                ></i>
+                              </button>
+                            </div>
                             
                             {/* 텍스트 입력 영역 - 동적 확장 (브라우저 너비에 맞춤) */}
                             <div className={`flex items-center gap-2 transition-all duration-300 ease-in-out overflow-hidden flex-1 ${
@@ -2414,7 +2601,7 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
                           </div>
                           
                           {/* 상태 표시 */}
-                          {(realtimeVoice.isRecording || realtimeVoice.isAISpeaking) && (
+                          {(realtimeVoice.isRecording || realtimeVoice.isAISpeaking || isSilenceIdle) && (
                             <div className="text-center mt-3">
                               {realtimeVoice.isRecording && (
                                 <p className="text-sm text-red-600 font-medium animate-pulse">
@@ -2424,6 +2611,11 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
                               {realtimeVoice.isAISpeaking && (
                                 <p className="text-sm text-blue-600 font-medium animate-pulse">
                                   🔵 {t('chat.aiResponding')}
+                                </p>
+                              )}
+                              {isSilenceIdle && !realtimeVoice.isRecording && !realtimeVoice.isAISpeaking && (
+                                <p className="text-xs text-slate-400" style={{ animation: 'silenceBreathe 3s ease-in-out infinite' }}>
+                                  🎤 말씀해 주세요...
                                 </p>
                               )}
                             </div>
