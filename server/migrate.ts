@@ -503,6 +503,15 @@ DO $$ BEGIN
     ALTER TABLE "evaluation_dimensions" ADD COLUMN "dimension_type" varchar DEFAULT 'standard' NOT NULL;
   END IF;
 END $$;
+
+-- 사용자 북마크 테이블 생성 (즐겨찾기)
+CREATE TABLE IF NOT EXISTS "user_bookmarks" (
+  "id" varchar PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+  "user_id" varchar NOT NULL,
+  "scenario_id" text NOT NULL,
+  "created_at" timestamp DEFAULT CURRENT_TIMESTAMP NOT NULL,
+  CONSTRAINT "user_bookmarks_user_scenario_unique" UNIQUE("user_id", "scenario_id")
+);
 `;
 
 const foreignKeysSQL = `
@@ -630,6 +639,18 @@ EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 DO $$ BEGIN
   ALTER TABLE "scenarios" ADD CONSTRAINT "scenarios_category_id_categories_id_fk"
     FOREIGN KEY ("category_id") REFERENCES "public"."categories"("id");
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+-- User Bookmarks FK to Users
+DO $$ BEGIN
+  ALTER TABLE "user_bookmarks" ADD CONSTRAINT "user_bookmarks_user_id_users_id_fk"
+    FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE cascade;
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+-- User Bookmarks unique constraint (user_id, scenario_id)
+DO $$ BEGIN
+  ALTER TABLE "user_bookmarks" ADD CONSTRAINT "user_bookmarks_user_scenario_unique"
+    UNIQUE ("user_id", "scenario_id");
 EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
 -- Scenario Translations FK
@@ -774,6 +795,10 @@ CREATE INDEX IF NOT EXISTS "idx_criteria_set_translations_set_id" ON "evaluation
 CREATE INDEX IF NOT EXISTS "idx_criteria_set_translations_locale" ON "evaluation_criteria_set_translations" USING btree ("locale");
 CREATE INDEX IF NOT EXISTS "idx_dimension_translations_dimension_id" ON "evaluation_dimension_translations" USING btree ("dimension_id");
 CREATE INDEX IF NOT EXISTS "idx_dimension_translations_locale" ON "evaluation_dimension_translations" USING btree ("locale");
+
+-- 사용자 북마크 인덱스
+CREATE INDEX IF NOT EXISTS "idx_user_bookmarks_user_id" ON "user_bookmarks" USING btree ("user_id");
+CREATE INDEX IF NOT EXISTS "idx_user_bookmarks_scenario_id" ON "user_bookmarks" USING btree ("scenario_id");
 `;
 
 // 기본 평가 기준 세트 시딩 SQL

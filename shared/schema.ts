@@ -498,6 +498,17 @@ export const userPersonaLikes = pgTable("user_persona_likes", {
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
+// 사용자 북마크 테이블 (즐겨찾기)
+export const userBookmarks = pgTable("user_bookmarks", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: 'cascade' }),
+  scenarioId: text("scenario_id").notNull(),
+  createdAt: timestamp("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+}, (table) => [
+  index("idx_user_bookmarks_user_id").on(table.userId),
+  index("idx_user_bookmarks_scenario_id").on(table.scenarioId),
+]);
+
 export const insertUserPersonaSchema = createInsertSchema(userPersonas).omit({
   id: true,
   likeCount: true,
@@ -507,6 +518,19 @@ export const insertUserPersonaSchema = createInsertSchema(userPersonas).omit({
 });
 export type InsertUserPersona = z.infer<typeof insertUserPersonaSchema>;
 export type UserPersona = typeof userPersonas.$inferSelect;
+
+export const insertUserBookmarkSchema = createInsertSchema(userBookmarks).omit({
+  id: true,
+  createdAt: true,
+});
+export type InsertUserBookmark = z.infer<typeof insertUserBookmarkSchema>;
+export type UserBookmark = typeof userBookmarks.$inferSelect;
+
+export type ScenarioStats = {
+  scenarioId: string;
+  completionCount: number;
+  averageScore: number | null;
+};
 
 export const insertConversationSchema = createInsertSchema(conversations).omit({
   id: true,

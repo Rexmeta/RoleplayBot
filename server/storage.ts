@@ -1,4 +1,4 @@
-import { type Conversation, type InsertConversation, type Feedback, type InsertFeedback, type PersonaSelection, type StrategyChoice, type SequenceAnalysis, type User, type UpsertUser, type ScenarioRun, type InsertScenarioRun, type PersonaRun, type InsertPersonaRun, type ChatMessage, type InsertChatMessage, type Category, type InsertCategory, type SystemSetting, type AiUsageLog, type InsertAiUsageLog, type AiUsageSummary, type AiUsageByFeature, type AiUsageByModel, type AiUsageDaily, type EvaluationCriteriaSet, type InsertEvaluationCriteriaSet, type EvaluationDimension, type InsertEvaluationDimension, type EvaluationCriteriaSetWithDimensions, type SupportedLanguage, type InsertSupportedLanguage, type ScenarioTranslation, type InsertScenarioTranslation, type PersonaTranslation, type InsertPersonaTranslation, type CategoryTranslation, type InsertCategoryTranslation, type EvaluationCriteriaSetTranslation, type InsertEvaluationCriteriaSetTranslation, type EvaluationDimensionTranslation, type InsertEvaluationDimensionTranslation, type Scenario, type InsertScenario, type MbtiPersona, type InsertMbtiPersona, type Company, type InsertCompany, type Organization, type InsertOrganization, type OperatorAssignment, type InsertOperatorAssignment, type UserPersona, type InsertUserPersona, conversations, feedbacks, users, scenarioRuns, personaRuns, chatMessages, categories, systemSettings, aiUsageLogs, evaluationCriteriaSets, evaluationDimensions, supportedLanguages, scenarioTranslations, personaTranslations, categoryTranslations, evaluationCriteriaSetTranslations, evaluationDimensionTranslations, scenarios, mbtiPersonas, companies, organizations, operatorAssignments, userPersonas, userPersonaLikes } from "@shared/schema";
+import { type Conversation, type InsertConversation, type Feedback, type InsertFeedback, type PersonaSelection, type StrategyChoice, type SequenceAnalysis, type User, type UpsertUser, type ScenarioRun, type InsertScenarioRun, type PersonaRun, type InsertPersonaRun, type ChatMessage, type InsertChatMessage, type Category, type InsertCategory, type SystemSetting, type AiUsageLog, type InsertAiUsageLog, type AiUsageSummary, type AiUsageByFeature, type AiUsageByModel, type AiUsageDaily, type EvaluationCriteriaSet, type InsertEvaluationCriteriaSet, type EvaluationDimension, type InsertEvaluationDimension, type EvaluationCriteriaSetWithDimensions, type SupportedLanguage, type InsertSupportedLanguage, type ScenarioTranslation, type InsertScenarioTranslation, type PersonaTranslation, type InsertPersonaTranslation, type CategoryTranslation, type InsertCategoryTranslation, type EvaluationCriteriaSetTranslation, type InsertEvaluationCriteriaSetTranslation, type EvaluationDimensionTranslation, type InsertEvaluationDimensionTranslation, type Scenario, type InsertScenario, type MbtiPersona, type InsertMbtiPersona, type Company, type InsertCompany, type Organization, type InsertOrganization, type OperatorAssignment, type InsertOperatorAssignment, type UserPersona, type InsertUserPersona, type UserBookmark, type ScenarioStats, conversations, feedbacks, users, scenarioRuns, personaRuns, chatMessages, categories, systemSettings, aiUsageLogs, evaluationCriteriaSets, evaluationDimensions, supportedLanguages, scenarioTranslations, personaTranslations, categoryTranslations, evaluationCriteriaSetTranslations, evaluationDimensionTranslations, scenarios, mbtiPersonas, companies, organizations, operatorAssignments, userPersonas, userPersonaLikes, userBookmarks } from "@shared/schema";
 import { randomUUID } from "crypto";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { Pool } from "pg";
@@ -307,6 +307,14 @@ export interface IStorage {
   getUsersByCompany(companyId: string): Promise<User[]>;
   getUsersByOrganization(organizationId: string): Promise<User[]>;
   updateUserCompanyOrganization(userId: string, companyId: string | null, organizationId: string | null): Promise<User>;
+
+  // 북마크(즐겨찾기)
+  addBookmark(userId: string, scenarioId: string): Promise<UserBookmark>;
+  removeBookmark(userId: string, scenarioId: string): Promise<void>;
+  getUserBookmarks(userId: string): Promise<UserBookmark[]>;
+
+  // 시나리오 완료 통계
+  getScenarioStats(scenarioIds?: string[]): Promise<ScenarioStats[]>;
 }
 
 export class MemStorage implements IStorage {
@@ -921,6 +929,14 @@ export class MemStorage implements IStorage {
   async getUsersByCompany(_companyId: string): Promise<User[]> { return []; }
   async getUsersByOrganization(_organizationId: string): Promise<User[]> { return []; }
   async updateUserCompanyOrganization(_userId: string, _companyId: string | null, _organizationId: string | null): Promise<User> { throw new Error("Not implemented"); }
+
+  // 북마크(즐겨찾기) - stub
+  async addBookmark(_userId: string, _scenarioId: string): Promise<UserBookmark> { throw new Error("Not implemented"); }
+  async removeBookmark(_userId: string, _scenarioId: string): Promise<void> {}
+  async getUserBookmarks(_userId: string): Promise<UserBookmark[]> { return []; }
+
+  // 시나리오 통계 - stub
+  async getScenarioStats(_scenarioIds?: string[]): Promise<ScenarioStats[]> { return []; }
 }
 
 export class PostgreSQLStorage implements IStorage {
@@ -2458,6 +2474,52 @@ export class PostgreSQLStorage implements IStorage {
       throw new Error("User not found");
     }
     return updated;
+  }
+
+  // 북마크(즐겨찾기)
+  async addBookmark(userId: string, scenarioId: string): Promise<UserBookmark> {
+    const existing = await db.select().from(userBookmarks)
+      .where(and(eq(userBookmarks.userId, userId), eq(userBookmarks.scenarioId, scenarioId)));
+    if (existing.length > 0) {
+      return existing[0];
+    }
+    const [bookmark] = await db.insert(userBookmarks).values({ userId, scenarioId }).returning();
+    return bookmark;
+  }
+
+  async removeBookmark(userId: string, scenarioId: string): Promise<void> {
+    await db.delete(userBookmarks)
+      .where(and(eq(userBookmarks.userId, userId), eq(userBookmarks.scenarioId, scenarioId)));
+  }
+
+  async getUserBookmarks(userId: string): Promise<UserBookmark[]> {
+    return await db.select().from(userBookmarks)
+      .where(eq(userBookmarks.userId, userId))
+      .orderBy(desc(userBookmarks.createdAt));
+  }
+
+  // 시나리오 완료 통계
+  async getScenarioStats(scenarioIds?: string[]): Promise<ScenarioStats[]> {
+    let query = db.select({
+      scenarioId: scenarioRuns.scenarioId,
+      completionCount: count(scenarioRuns.id),
+      averageScore: sql<number | null>`AVG(${scenarioRuns.totalScore})`,
+    })
+    .from(scenarioRuns)
+    .where(eq(scenarioRuns.status, 'completed'))
+    .groupBy(scenarioRuns.scenarioId);
+
+    const rows = await query;
+
+    const filtered = scenarioIds && scenarioIds.length > 0
+      ? rows.filter(r => scenarioIds.includes(r.scenarioId))
+      : rows;
+
+    return filtered.map(r => ({
+      scenarioId: r.scenarioId,
+      completionCount: Number(r.completionCount) || 0,
+      averageScore: r.averageScore != null ? Math.round(Number(r.averageScore)) : null,
+    }));
   }
 }
 

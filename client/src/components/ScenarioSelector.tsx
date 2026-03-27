@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -7,10 +7,13 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { ComplexScenario, getDifficultyLabel } from "@/lib/scenario-system";
-import { Loader2, Search, Filter, ChevronDown, ChevronUp, Folder } from "lucide-react";
+import { Loader2, Search, Filter, ChevronDown, ChevronUp, Folder, Bookmark, BookmarkCheck, Star, Users } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import i18n from "@/lib/i18n";
 import { toMediaUrl } from "@/lib/mediaUrl";
+import { queryClient } from "@/lib/queryClient";
+import { useAuth } from "@/hooks/useAuth";
+import { useToast } from "@/hooks/use-toast";
 
 interface Category {
   id: string;
@@ -30,6 +33,8 @@ interface ScenarioSelectorProps {
 
 export default function ScenarioSelector({ onScenarioSelect, playerProfile }: ScenarioSelectorProps) {
   const { t } = useTranslation();
+  const { user } = useAuth();
+  const { toast } = useToast();
   const currentLang = i18n.language || 'ko';
   
   // 필터 상태
@@ -39,7 +44,8 @@ export default function ScenarioSelector({ onScenarioSelect, playerProfile }: Sc
     searchText: '',
     department: '',
     skillType: '',
-    categoryId: ''
+    categoryId: '',
+    bookmarkedOnly: false,
   });
   
   // 상세 검색 표시 여부
@@ -159,6 +165,73 @@ export default function ScenarioSelector({ onScenarioSelect, playerProfile }: Sc
     return originalSituation;
   };
 
+  // 사용자 북마크 목록 조회 (로그인 시에만, 사용자별 캐시 키로 계정 전환 시 교차 오염 방지)
+  const { data: bookmarks = [] } = useQuery<{ id: string; userId: string; scenarioId: string }[]>({
+    queryKey: ['/api/bookmarks', user?.id],
+    queryFn: () => {
+      const token = localStorage.getItem("authToken");
+      const headers: Record<string, string> = {};
+      if (token) headers["Authorization"] = `Bearer ${token}`;
+      return fetch('/api/bookmarks', { credentials: 'include', headers }).then(res => {
+        if (!res.ok) return [];
+        return res.json();
+      });
+    },
+    enabled: !!user,
+    staleTime: 1000 * 60 * 5,
+  });
+
+  // 시나리오 완료 통계 조회
+  const { data: scenarioStats = [] } = useQuery<{ scenarioId: string; completionCount: number; averageScore: number | null }[]>({
+    queryKey: ['/api/scenarios/stats'],
+    queryFn: () => fetch('/api/scenarios/stats').then(res => res.json()),
+    staleTime: 1000 * 60 * 10,
+  });
+
+  // 북마크된 scenarioId Set
+  const bookmarkedIds = new Set(bookmarks.map((b) => b.scenarioId));
+
+  // 북마크 통계 맵
+  const statsMap = new Map(scenarioStats.map((s) => [s.scenarioId, s] as const));
+
+  // 북마크 토글 mutation
+  const bookmarkMutation = useMutation({
+    mutationFn: async ({ scenarioId, isBookmarked }: { scenarioId: string; isBookmarked: boolean }) => {
+      const token = localStorage.getItem("authToken");
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (token) headers["Authorization"] = `Bearer ${token}`;
+      if (isBookmarked) {
+        const res = await fetch(`/api/bookmarks/${encodeURIComponent(scenarioId)}`, {
+          method: 'DELETE',
+          credentials: 'include',
+          headers,
+        });
+        if (!res.ok) throw new Error('북마크 삭제에 실패했습니다.');
+      } else {
+        const res = await fetch('/api/bookmarks', {
+          method: 'POST',
+          credentials: 'include',
+          headers,
+          body: JSON.stringify({ scenarioId }),
+        });
+        if (!res.ok) throw new Error('북마크 추가에 실패했습니다.');
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/bookmarks', user?.id] });
+    },
+    onError: () => {
+      toast({ title: '오류', description: '북마크 처리 중 오류가 발생했습니다.', variant: 'destructive' });
+    },
+  });
+
+  const handleBookmarkToggle = (e: React.MouseEvent, scenarioId: string) => {
+    e.stopPropagation();
+    if (!user) return;
+    const isBookmarked = bookmarkedIds.has(scenarioId);
+    bookmarkMutation.mutate({ scenarioId, isBookmarked });
+  };
+
   // MBTI 기본 특성을 시나리오 내에서 직접 처리 (외부 API 호출 없이)
   const personasLoading = false; // 로딩 상태 제거
 
@@ -215,6 +288,13 @@ export default function ScenarioSelector({ onScenarioSelect, playerProfile }: Sc
 
   // 필터링된 시나리오 목록
   const filteredScenarios = scenarios.filter((scenario: ComplexScenario) => {
+    // 북마크 필터
+    if (filters.bookmarkedOnly) {
+      if (!bookmarkedIds.has(String(scenario.id))) {
+        return false;
+      }
+    }
+
     // 카테고리 필터
     if (filters.categoryId && filters.categoryId !== 'all') {
       if ((scenario as any).categoryId !== filters.categoryId) {
@@ -268,7 +348,8 @@ export default function ScenarioSelector({ onScenarioSelect, playerProfile }: Sc
       searchText: '',
       department: '',
       skillType: '',
-      categoryId: 'all'
+      categoryId: 'all',
+      bookmarkedOnly: false,
     });
   };
 
@@ -337,6 +418,18 @@ export default function ScenarioSelector({ onScenarioSelect, playerProfile }: Sc
                 <h3 className="text-sm font-medium text-slate-700">{t('scenario.totalCount', { count: filteredScenarios.length })}</h3>
               </div>
               <div className="flex items-center gap-2">
+                {user && (
+                  <Button
+                    variant={filters.bookmarkedOnly ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => setFilters(prev => ({ ...prev, bookmarkedOnly: !prev.bookmarkedOnly }))}
+                    className={`h-7 px-2 text-xs flex items-center gap-1 ${filters.bookmarkedOnly ? 'bg-amber-500 hover:bg-amber-600 text-white border-amber-500' : 'text-slate-600 hover:text-slate-900'}`}
+                    data-testid="filter-bookmarked"
+                  >
+                    <Bookmark className="h-3 w-3" />
+                    즐겨찾기
+                  </Button>
+                )}
                 <Button
                   variant="outline"
                   size="sm"
@@ -446,7 +539,7 @@ export default function ScenarioSelector({ onScenarioSelect, playerProfile }: Sc
             )}
             
             {/* 필터 적용 상태 표시 */}
-            {(filters.searchText || filters.personaCount || filters.department || filters.skillType || (filters.categoryId && filters.categoryId !== 'all')) && (
+            {(filters.searchText || filters.personaCount || filters.department || filters.skillType || (filters.categoryId && filters.categoryId !== 'all') || filters.bookmarkedOnly) && (
               <div className="mt-3 pt-3 border-t border-slate-200">
                 <div className="flex items-center justify-center">
                   <span className="text-xs text-blue-600">{t('scenario.filterApplied')}</span>
@@ -502,20 +595,39 @@ export default function ScenarioSelector({ onScenarioSelect, playerProfile }: Sc
                         </Badge>
                       )}
                       
-                      {/* 펼치기/접기 버튼 */}
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={(e) => toggleScenarioExpand(scenario.id, e)}
-                        className="w-8 h-8 p-0 bg-white/20 hover:bg-white/40 backdrop-blur-md rounded-full transition-all duration-300"
-                        data-testid={`button-expand-scenario-${scenario.id}`}
-                      >
-                        {isExpanded ? (
-                          <ChevronUp className="w-4 h-4 text-white" />
-                        ) : (
-                          <ChevronDown className="w-4 h-4 text-white" />
+                      <div className="flex items-center gap-1.5">
+                        {/* 북마크 버튼 (로그인 시에만) */}
+                        {user && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={(e) => handleBookmarkToggle(e, String(scenario.id))}
+                            className="w-8 h-8 p-0 bg-white/20 hover:bg-white/40 backdrop-blur-md rounded-full transition-all duration-300"
+                            data-testid={`button-bookmark-${scenario.id}`}
+                          >
+                            {bookmarkedIds.has(String(scenario.id)) ? (
+                              <BookmarkCheck className="w-4 h-4 text-amber-400" />
+                            ) : (
+                              <Bookmark className="w-4 h-4 text-white" />
+                            )}
+                          </Button>
                         )}
-                      </Button>
+
+                        {/* 펼치기/접기 버튼 */}
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={(e) => toggleScenarioExpand(scenario.id, e)}
+                          className="w-8 h-8 p-0 bg-white/20 hover:bg-white/40 backdrop-blur-md rounded-full transition-all duration-300"
+                          data-testid={`button-expand-scenario-${scenario.id}`}
+                        >
+                          {isExpanded ? (
+                            <ChevronUp className="w-4 h-4 text-white" />
+                          ) : (
+                            <ChevronDown className="w-4 h-4 text-white" />
+                          )}
+                        </Button>
+                      </div>
                     </div>
                     
                     {/* 메인 콘텐츠 - 항상 보이는 영역 */}
@@ -539,7 +651,7 @@ export default function ScenarioSelector({ onScenarioSelect, playerProfile }: Sc
                         );
                       })()}
                       
-                      <div className="flex items-center gap-3 text-sm">
+                      <div className="flex items-center gap-3 text-sm flex-wrap">
                         <div className="flex items-center gap-1.5 bg-white/20 backdrop-blur-md rounded-full px-3 py-1.5 shadow-sm">
                           <i className="fas fa-users text-xs"></i>
                           <span className="font-medium">{t('scenario.personaCountN', { count: (scenario.personas || []).length })}</span>
@@ -548,6 +660,25 @@ export default function ScenarioSelector({ onScenarioSelect, playerProfile }: Sc
                           <i className="fas fa-clock text-xs"></i>
                           <span className="font-medium">{scenario.estimatedTime}</span>
                         </div>
+                        {/* 완료 통계 배지 */}
+                        {(() => {
+                          const stats = statsMap.get(String(scenario.id));
+                          if (!stats || stats.completionCount === 0) return null;
+                          return (
+                            <>
+                              <div className="flex items-center gap-1.5 bg-green-500/30 backdrop-blur-md rounded-full px-3 py-1.5 shadow-sm">
+                                <Users className="h-3 w-3" />
+                                <span className="font-medium text-xs">{stats.completionCount}회 완료</span>
+                              </div>
+                              {stats.averageScore != null && (
+                                <div className="flex items-center gap-1.5 bg-yellow-500/30 backdrop-blur-md rounded-full px-3 py-1.5 shadow-sm">
+                                  <Star className="h-3 w-3" />
+                                  <span className="font-medium text-xs">평균 {stats.averageScore}점</span>
+                                </div>
+                              )}
+                            </>
+                          );
+                        })()}
                         <Badge variant="outline" className="bg-white/20 text-white border-white/40 backdrop-blur-md">
                           {recommendation.level}
                         </Badge>

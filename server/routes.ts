@@ -4182,6 +4182,60 @@ ${p.speechStyle ? `말투: ${p.speechStyle}` : ""}
     }
   });
 
+  // ===== 북마크(즐겨찾기) API =====
+  // 사용자 북마크 목록 조회
+  app.get("/api/bookmarks", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user?.id;
+      if (!userId) return res.status(401).json({ error: "Unauthorized" });
+      const bookmarks = await storage.getUserBookmarks(userId);
+      res.json(bookmarks);
+    } catch (error: any) {
+      console.error("Error fetching bookmarks:", error);
+      res.status(500).json({ error: error.message || "Failed to fetch bookmarks" });
+    }
+  });
+
+  // 북마크 추가
+  app.post("/api/bookmarks", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user?.id;
+      if (!userId) return res.status(401).json({ error: "Unauthorized" });
+      const { scenarioId } = req.body;
+      if (!scenarioId) return res.status(400).json({ error: "scenarioId is required" });
+      const bookmark = await storage.addBookmark(userId, scenarioId);
+      res.json(bookmark);
+    } catch (error: any) {
+      console.error("Error adding bookmark:", error);
+      res.status(500).json({ error: error.message || "Failed to add bookmark" });
+    }
+  });
+
+  // 북마크 삭제
+  app.delete("/api/bookmarks/:scenarioId", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user?.id;
+      if (!userId) return res.status(401).json({ error: "Unauthorized" });
+      const { scenarioId } = req.params;
+      await storage.removeBookmark(userId, scenarioId);
+      res.json({ success: true });
+    } catch (error: any) {
+      console.error("Error removing bookmark:", error);
+      res.status(500).json({ error: error.message || "Failed to remove bookmark" });
+    }
+  });
+
+  // 시나리오 완료 통계 조회
+  app.get("/api/scenarios/stats", async (req, res) => {
+    try {
+      const stats = await storage.getScenarioStats();
+      res.json(stats);
+    } catch (error: any) {
+      console.error("Error fetching scenario stats:", error);
+      res.status(500).json({ error: error.message || "Failed to fetch scenario stats" });
+    }
+  });
+
   // 메인 사용자용 시나리오/페르소나 API
   app.get("/api/scenarios", async (req, res) => {
     try {
