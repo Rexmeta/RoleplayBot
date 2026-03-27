@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import { createPortal } from "react-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { apiRequest } from "@/lib/queryClient";
@@ -1265,17 +1266,17 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
   return (
     <>
     {/* ── 캐릭터 모드 전용: 상단 핸들 + AppHeader 오버레이 ── */}
-    {/* filter/transform이 있는 조상 div 바깥에 렌더링해야 fixed 위치가 뷰포트 기준이 됨 */}
-    {chatMode === 'character' && (
+    {/* createPortal로 document.body에 직접 마운트 → filter/transform 조상의 영향 없음 */}
+    {chatMode === 'character' && createPortal(
       <>
         {isTopMenuOpen && (
           <div
-            className="fixed inset-0 z-40"
+            className="fixed inset-0 z-[9998]"
             onClick={() => setIsTopMenuOpen(false)}
           />
         )}
         <div
-          className={`fixed left-0 right-0 top-0 z-50 shadow-lg transition-transform duration-300 ease-in-out ${
+          className={`fixed left-0 right-0 top-0 z-[9999] shadow-lg transition-transform duration-300 ease-in-out ${
             isTopMenuOpen ? 'translate-y-0' : '-translate-y-full'
           }`}
         >
@@ -1285,7 +1286,7 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
           onClick={() => setIsTopMenuOpen(v => !v)}
           data-testid="button-toggle-top-menu"
           title={isTopMenuOpen ? '메뉴 닫기' : '메뉴 열기'}
-          className={`fixed top-0 left-1/2 -translate-x-1/2 z-50 flex flex-col items-center justify-center gap-[3px] px-5 h-[18px] rounded-b-xl shadow-md transition-all duration-200 border border-t-0 group
+          className={`fixed top-0 left-1/2 -translate-x-1/2 z-[9999] flex flex-col items-center justify-center gap-[3px] px-5 h-[18px] rounded-b-xl shadow-md transition-all duration-200 border border-t-0 group
             ${isTopMenuOpen
               ? 'bg-emerald-500 border-emerald-400'
               : 'bg-white/90 backdrop-blur border-slate-200 hover:bg-emerald-50 hover:border-emerald-300'
@@ -1301,7 +1302,8 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
             </>
           )}
         </button>
-      </>
+      </>,
+      document.body
     )}
     <div className={`chat-window relative${chatMode === 'messenger' ? ' flex flex-col lg:flex-row gap-4 lg:items-start' : ''}`}>
       {isInitialLoading && (
