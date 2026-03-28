@@ -374,15 +374,9 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
                               isRecording={isRecording} speechSupported={speechSupported}
                               mode="realtime-voice" realtimeVoiceProps={rvBarProps} variant="character" />
                           </div>
-                          {realtimeVoice.status === 'connected' && !realtimeVoice.isWaitingForGreeting && (realtimeVoice.isRecording || realtimeVoice.isAISpeaking || isSilenceIdle) && (
-                            <div className="border-t border-slate-200/30 p-4">
-                              <div className="text-center">
-                                {realtimeVoice.isRecording && <p className="text-sm text-red-600 font-medium animate-pulse">🔴 {t('chat.recording')}</p>}
-                                {realtimeVoice.isAISpeaking && <p className="text-sm text-blue-600 font-medium animate-pulse">🔵 {t('chat.aiResponding')}</p>}
-                                {isSilenceIdle && !realtimeVoice.isRecording && !realtimeVoice.isAISpeaking && (
-                                  <p className="text-xs text-slate-400" style={{ animation: 'silenceBreathe 3s ease-in-out infinite' }}>🎤 말씀해 주세요...</p>
-                                )}
-                              </div>
+                          {isSilenceIdle && realtimeVoice.status === 'connected' && !realtimeVoice.isWaitingForGreeting && !realtimeVoice.isRecording && !realtimeVoice.isAISpeaking && (
+                            <div className="border-t border-slate-200/30 px-4 py-2 text-center">
+                              <p className="text-xs text-slate-400" style={{ animation: 'silenceBreathe 3s ease-in-out infinite' }}>🎤 말씀해 주세요...</p>
                             </div>
                           )}
                         </>
