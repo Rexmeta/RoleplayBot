@@ -1,14 +1,27 @@
+import { Request, Response, NextFunction } from "express";
 import { storage } from "../storage";
 import { fileManager } from "../services/fileManager";
 import { generateFeedback, generateStrategyReflectionFeedback } from "../services/geminiService";
 
+export function asyncHandler(fn: (req: any, res: Response, next: NextFunction) => Promise<any>) {
+  return (req: Request, res: Response, next: NextFunction) => {
+    Promise.resolve(fn(req, res, next)).catch(next);
+  };
+}
+
+export function createHttpError(status: number, message: string): Error {
+  const err: any = new Error(message);
+  err.status = status;
+  return err;
+}
+
 export async function verifyConversationOwnership(conversationId: string, userId: string) {
   const conversation = await storage.getConversation(conversationId);
   if (!conversation) {
-    return { error: "Conversation not found", status: 404 };
+    throw createHttpError(404, "Conversation not found");
   }
   if (conversation.userId !== userId) {
-    return { error: "Unauthorized access", status: 403 };
+    throw createHttpError(403, "Unauthorized access");
   }
   return { conversation };
 }
@@ -16,12 +29,12 @@ export async function verifyConversationOwnership(conversationId: string, userId
 export async function verifyPersonaRunOwnership(personaRunId: string, userId: string) {
   const personaRun = await storage.getPersonaRun(personaRunId);
   if (!personaRun) {
-    return { error: "Persona run not found", status: 404 };
+    throw createHttpError(404, "Persona run not found");
   }
 
   const scenarioRun = await storage.getScenarioRun(personaRun.scenarioRunId);
   if (!scenarioRun || scenarioRun.userId !== userId) {
-    return { error: "Unauthorized access", status: 403 };
+    throw createHttpError(403, "Unauthorized access");
   }
 
   return { personaRun, scenarioRun };

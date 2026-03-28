@@ -325,10 +325,40 @@ async function initializeApp() {
 
   // Step 5: Error handler (must be after routes)
   app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
+    // Handle Zod validation errors → 400
+    if (err?.constructor?.name === 'ZodError' || (err?.issues && Array.isArray(err.issues))) {
+      if (!res.headersSent) {
+        return res.status(400).json({
+          message: "Validation error",
+          errors: err.issues ?? err.errors
+        });
+      }
+      return;
+    }
+
     const status = err.status || err.statusCode || 500;
     const message = err.message || "Internal Server Error";
-    res.status(status).json({ message });
-    throw err;
+    if (status >= 500) {
+      console.error(`[Error] ${status} ${message}`, err);
+    }
+    if (!res.headersSent) {
+      // For 4xx errors, forward any extra structured fields attached to the error
+      // (e.g. connectedScenarios, assignedOperators, errorCode, etc.) so that
+      // clients can use them to explain blocking constraints.
+      const SAFE_EXTRA_KEYS = [
+        'error', 'errorCode', 'details', 'reason', 'prompt',
+        'connectedScenarios', 'assignedOperators', 'categories', 'organizations',
+        'retryAfter', 'isFreeTierLimit', 'fallbackImageUrl', 'validEmotions',
+        'code', 'field',
+      ];
+      const body: Record<string, any> = { message };
+      for (const key of SAFE_EXTRA_KEYS) {
+        if (err[key] !== undefined) {
+          body[key] = err[key];
+        }
+      }
+      res.status(status).json(body);
+    }
   });
 
   // Step 6: Static file serving / Vite dev server (must be last - has catch-all)
