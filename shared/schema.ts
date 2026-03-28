@@ -30,7 +30,7 @@ export const conversations = pgTable("conversations", {
 
 export const feedbacks = pgTable("feedbacks", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  conversationId: varchar("conversation_id").references(() => conversations.id), // 레거시 지원 (nullable)
+  conversationId: varchar("conversation_id"), // 레거시 지원 (nullable, FK 제약 조건 제거됨)
   personaRunId: varchar("persona_run_id").references(() => personaRuns.id, { onDelete: 'cascade' }), // 새 구조 (nullable, 마이그레이션 후 non-null로 전환)
   overallScore: integer("overall_score").notNull(), // 0-100
   scores: jsonb("scores").notNull().$type<EvaluationScore[]>(),

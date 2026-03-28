@@ -542,11 +542,6 @@ DO $$ BEGIN
 EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
 DO $$ BEGIN
-  ALTER TABLE "feedbacks" ADD CONSTRAINT "feedbacks_conversation_id_conversations_id_fk" 
-    FOREIGN KEY ("conversation_id") REFERENCES "public"."conversations"("id");
-EXCEPTION WHEN duplicate_object THEN NULL; END $$;
-
-DO $$ BEGIN
   ALTER TABLE "feedbacks" ADD CONSTRAINT "feedbacks_persona_run_id_persona_runs_id_fk" 
     FOREIGN KEY ("persona_run_id") REFERENCES "public"."persona_runs"("id") ON DELETE cascade;
 EXCEPTION WHEN duplicate_object THEN NULL; END $$;
@@ -1004,6 +999,14 @@ export async function runMigrations(): Promise<void> {
 
       // Foreign Keys 추가
       await queryWithTimeout(client, 'Foreign keys created/verified', foreignKeysSQL);
+
+      // feedbacks.conversation_id FK 제약 조건 제거 (레거시 컬럼, nullable로 유지)
+      try {
+        await client.query(`ALTER TABLE feedbacks DROP CONSTRAINT IF EXISTS feedbacks_conversation_id_conversations_id_fk`);
+        console.log('✅ Dropped legacy feedbacks FK constraint (if existed)');
+      } catch (err) {
+        console.warn('⚠️ Failed to drop feedbacks FK constraint:', err);
+      }
 
       // Indexes 추가
       await queryWithTimeout(client, 'Indexes created/verified', indexesSQL);

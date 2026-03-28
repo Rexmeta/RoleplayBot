@@ -116,7 +116,6 @@ export async function createSampleData() {
         const overallScore = Math.floor((variedScores.reduce((acc, s) => acc + s.score, 0) / 5) * 20);
 
         const feedback = await storage.createFeedback({
-          conversationId: conversation.id,
           overallScore,
           scores: variedScores,
           detailedFeedback: sampleFeedback

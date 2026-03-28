@@ -256,7 +256,6 @@ export async function generateAndSaveFeedback(
   }
 
   const feedback = await storage.createFeedback({
-    conversationId: null,
     personaRunId: conversationId,
     overallScore: verifiedOverallScore,
     scores: evaluationScores,
