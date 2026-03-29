@@ -3,6 +3,7 @@ import { Link, useLocation } from "wouter";
 import { UserProfileMenu } from "@/components/UserProfileMenu";
 import { useTranslation } from "react-i18next";
 import { useAuth } from "@/hooks/useAuth";
+import { LayoutDashboard } from "lucide-react";
 
 interface AppHeaderProps {
   title?: string;
@@ -97,9 +98,11 @@ export function AppHeader({
   userEmail
 }: AppHeaderProps) {
   const { t } = useTranslation();
+  const { user } = useAuth();
   
   const displaySubtitle = subtitle || t('common.tagline');
   const displayBackLabel = backLabel || t('nav.backToHome');
+  const isAdminOrOperator = user?.role === 'admin' || user?.role === 'operator';
 
   if (variant === 'mypage') {
     return (
@@ -122,8 +125,18 @@ export function AppHeader({
                 <p className="text-xs text-slate-600" data-testid="user-email">{userEmail}</p>
               </div>
             </div>
-            <div className="flex gap-3">
+            <div className="flex gap-3 items-center">
               {rightContent}
+              {isAdminOrOperator && (
+                <Link
+                  href="/admin-management"
+                  className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-corporate-600 border border-corporate-200 bg-corporate-50 hover:bg-corporate-100 hover:border-corporate-400 rounded-full transition-all duration-200 shadow-sm"
+                  data-testid="content-management-btn"
+                >
+                  <LayoutDashboard className="w-3.5 h-3.5" />
+                  콘텐츠 관리
+                </Link>
+              )}
               <UserProfileMenu />
             </div>
           </div>
@@ -156,6 +169,16 @@ export function AppHeader({
           )}
           <div className="flex items-center space-x-2">
             {rightContent}
+            {isAdminOrOperator && (
+              <Link
+                href="/admin-management"
+                className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-corporate-600 border border-corporate-200 bg-corporate-50 hover:bg-corporate-100 hover:border-corporate-400 rounded-full transition-all duration-200 shadow-sm"
+                data-testid="content-management-btn"
+              >
+                <LayoutDashboard className="w-3.5 h-3.5" />
+                콘텐츠 관리
+              </Link>
+            )}
             <UserProfileMenu />
           </div>
         </div>
