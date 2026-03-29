@@ -276,6 +276,7 @@ async function initializeApp() {
   app.use('/scenarios/images', express.static(pathModule.join(process.cwd(), 'scenarios', 'images')));
   app.use('/scenarios/videos', express.static(pathModule.join(process.cwd(), 'scenarios', 'videos')));
   app.use('/personas', express.static(pathModule.join(process.cwd(), 'attached_assets', 'personas')));
+  app.use('/uploads/persona-avatars', express.static(pathModule.join(process.cwd(), 'public', 'uploads', 'persona-avatars')));
   recordStep('static_assets', 'done');
 
   // Step 3: Request logging middleware

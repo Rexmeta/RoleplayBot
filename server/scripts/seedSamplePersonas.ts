@@ -160,7 +160,7 @@ export async function seedSamplePersonas() {
         name: persona.name,
         description: persona.description,
         greeting: persona.greeting,
-        avatarUrl: null,
+        avatarUrl: `/uploads/persona-avatars/${persona.id}.png`,
         personality: persona.personality,
         tags: persona.tags,
         isPublic: true,
