@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
+import { useSearch } from "wouter";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { OrganizationCategoryTree } from "@/components/admin/OrganizationCategoryTree";
 import { ScenarioManager } from "@/components/admin/ScenarioManager";
@@ -10,7 +11,9 @@ import { AppHeader } from "@/components/AppHeader";
 
 export default function AdminManagement() {
   const { t } = useTranslation();
-  const [activeTab, setActiveTab] = useState("manage-scenarios");
+  const search = useSearch();
+  const urlTab = new URLSearchParams(search).get("tab");
+  const [activeTab, setActiveTab] = useState(urlTab || "manage-scenarios");
 
   return (
     <div className="min-h-screen bg-slate-50">

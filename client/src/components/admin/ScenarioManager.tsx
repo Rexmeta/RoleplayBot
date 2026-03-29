@@ -1,5 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { useQuery, useMutation } from '@tanstack/react-query';
+import { useLocation } from 'wouter';
 import { useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -76,6 +77,7 @@ interface ScenarioFormData {
 export function ScenarioManager() {
   const { t, i18n } = useTranslation();
   const { toast } = useToast();
+  const [, setLocation] = useLocation();
   const currentLang = i18n.language;
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [editingScenario, setEditingScenario] = useState<ComplexScenario | null>(null);
@@ -515,6 +517,29 @@ export function ScenarioManager() {
       updateMutation.mutate({ id: editingScenario.id, data: formData });
     } else {
       createMutation.mutate(formData);
+    }
+  };
+
+  const handleSaveAndGoToPersona = () => {
+    if (!formData.title) {
+      toast({
+        title: '시나리오 제목이 필요합니다',
+        description: '시나리오 제목을 먼저 입력해 주세요.',
+        variant: 'destructive',
+      });
+      return;
+    }
+    const afterSave = () => {
+      toast({
+        title: '시나리오 저장됨',
+        description: '페르소나 생성 화면으로 이동합니다.',
+      });
+      setLocation('/admin-management?tab=manage-personas');
+    };
+    if (editingScenario) {
+      updateMutation.mutate({ id: editingScenario.id, data: formData }, { onSuccess: afterSave });
+    } else {
+      createMutation.mutate(formData, { onSuccess: afterSave });
     }
   };
 
@@ -1610,6 +1635,10 @@ export function ScenarioManager() {
                             <Select
                               value={persona.id}
                               onValueChange={(selectedId) => {
+                                if (selectedId === '__new_persona__') {
+                                  handleSaveAndGoToPersona();
+                                  return;
+                                }
                                 const selectedPersona = availablePersonas.find(p => p.id === selectedId);
                                 if (selectedPersona) {
                                   const newPersonas = [...formData.personas];
@@ -1627,6 +1656,12 @@ export function ScenarioManager() {
                                 <SelectValue placeholder={t('admin.scenarioManager.form.selectPersona')} />
                               </SelectTrigger>
                               <SelectContent>
+                                <SelectItem value="__new_persona__">
+                                  <div className="flex items-center gap-2 text-indigo-600 font-medium">
+                                    <span>＋</span>
+                                    <span>페르소나 신규 생성</span>
+                                  </div>
+                                </SelectItem>
                                 {getAvailablePersonasForSlot(index).length === 0 ? (
                                   <div className="py-2 px-3 text-sm text-slate-500">
                                     {t('admin.scenarioManager.form.noPersonasAvailable')}
