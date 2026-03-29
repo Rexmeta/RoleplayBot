@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/button';
@@ -194,10 +194,23 @@ interface MBTIPersonaFormData {
   freeChatDescription: string;
 }
 
-export function PersonaManager() {
+interface PersonaManagerProps {
+  openCreateTrigger?: number;
+}
+
+export function PersonaManager({ openCreateTrigger = 0 }: PersonaManagerProps = {}) {
   const { t } = useTranslation();
   const { toast } = useToast();
   const [isCreateOpen, setIsCreateOpen] = useState(false);
+  const prevTriggerRef = useRef(0);
+
+  useEffect(() => {
+    if (openCreateTrigger > prevTriggerRef.current) {
+      prevTriggerRef.current = openCreateTrigger;
+      setIsCreateOpen(true);
+    }
+  }, [openCreateTrigger]);
+
   const [editingPersona, setEditingPersona] = useState<MBTIPersona | null>(null);
   const [deletingPersona, setDeletingPersona] = useState<MBTIPersona | null>(null);
   const [translatingPersona, setTranslatingPersona] = useState<MBTIPersona | null>(null);

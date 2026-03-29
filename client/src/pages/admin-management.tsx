@@ -14,6 +14,7 @@ export default function AdminManagement() {
   const search = useSearch();
   const urlTab = new URLSearchParams(search).get("tab");
   const [activeTab, setActiveTab] = useState(urlTab || "manage-scenarios");
+  const [personaCreateTrigger, setPersonaCreateTrigger] = useState(0);
 
   return (
     <div className="min-h-screen bg-slate-50">
@@ -33,11 +34,14 @@ export default function AdminManagement() {
           </TabsList>
 
           <TabsContent value="manage-scenarios" className="space-y-6">
-            <ScenarioManager onGoToPersonas={() => setActiveTab('manage-personas')} />
+            <ScenarioManager onGoToPersonas={() => {
+              setActiveTab('manage-personas');
+              setPersonaCreateTrigger(prev => prev + 1);
+            }} />
           </TabsContent>
 
           <TabsContent value="manage-personas" className="space-y-6">
-            <PersonaManager />
+            <PersonaManager openCreateTrigger={personaCreateTrigger} />
           </TabsContent>
 
           <TabsContent value="evaluation-criteria" className="space-y-6">
