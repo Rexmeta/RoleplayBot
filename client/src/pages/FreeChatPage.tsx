@@ -72,6 +72,12 @@ function buildUserPersonaScenario(p: UserPersona, difficulty: number): ComplexSc
 }
 
 function buildUserPersonaForChat(p: UserPersona): ScenarioPersona {
+  let expressions: Record<string, string> | undefined = p.expressions || undefined;
+  if (!expressions && p.avatarUrl) {
+    expressions = { neutral: p.avatarUrl };
+  } else if (expressions && !expressions.neutral && p.avatarUrl) {
+    expressions = { ...expressions, neutral: p.avatarUrl };
+  }
   return {
     id: p.id,
     name: p.name,
@@ -80,7 +86,7 @@ function buildUserPersonaForChat(p: UserPersona): ScenarioPersona {
     mbti: "" as any,
     gender: "male" as any,
     image: p.avatarUrl ? toMediaUrl(p.avatarUrl) : undefined,
-    expressions: p.expressions || undefined,
+    expressions,
     personality: {
       traits: p.personality?.traits || [],
       communicationStyle: p.personality?.communicationStyle || "",
