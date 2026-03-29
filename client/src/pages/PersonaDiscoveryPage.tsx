@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import {
-  Search, Heart, MessageSquare, Plus, Sparkles, Users,
+  Search, Heart, MessageSquare, Plus, Sparkles,
   ChevronRight, Star, Compass, User, Globe
 } from "lucide-react";
 
@@ -28,27 +28,10 @@ interface UserPersona {
   liked?: boolean;
 }
 
-interface FreeChatMbtiPersona {
-  id: string;
-  mbti: string;
-  gender: string | null;
-  communicationStyle: string | null;
-  freeChatDescription: string | null;
-  images: { male?: { expressions?: Record<string, string> }; female?: { expressions?: Record<string, string> } } | null;
-}
-
-function getMbtiImage(persona: FreeChatMbtiPersona, gender: "male" | "female"): string | null {
-  const exps = persona.images?.[gender]?.expressions;
-  if (!exps) return null;
-  const key = Object.keys(exps).find(k => k === "중립" || k === "neutral") ?? Object.keys(exps)[0];
-  return key ? toMediaUrl(exps[key]) : null;
-}
-
-type CategoryTab = "all" | "mbti" | "community" | "mine";
+type CategoryTab = "all" | "community" | "mine";
 
 const CATEGORY_TABS: { key: CategoryTab; label: string; icon: React.ElementType }[] = [
   { key: "all", label: "전체", icon: Compass },
-  { key: "mbti", label: "MBTI", icon: Users },
   { key: "community", label: "커뮤니티", icon: Globe },
   { key: "mine", label: "내 캐릭터", icon: User },
 ];
@@ -63,7 +46,7 @@ export default function PersonaDiscoveryPage() {
   const [featuredIndex, setFeaturedIndex] = useState(0);
 
   useEffect(() => {
-    if (tabFromUrl && ["all", "mbti", "community", "mine"].includes(tabFromUrl)) {
+    if (tabFromUrl && ["all", "community", "mine"].includes(tabFromUrl)) {
       setActiveTab(tabFromUrl);
     }
   }, [tabFromUrl]);
@@ -89,10 +72,6 @@ export default function PersonaDiscoveryPage() {
     queryFn: () => apiRequest("GET", "/api/user-personas").then(r => r.json()),
   });
 
-  const { data: mbtiPersonas = [] } = useQuery<FreeChatMbtiPersona[]>({
-    queryKey: ["/api/free-chat/personas"],
-  });
-
   const likeMutation = useMutation({
     mutationFn: (id: string) => apiRequest("POST", `/api/user-personas/${id}/like`).then(r => r.json()),
     onSuccess: () => {
@@ -110,10 +89,6 @@ export default function PersonaDiscoveryPage() {
 
   const filteredMine = myPersonas.filter(p =>
     !q || p.name.toLowerCase().includes(q)
-  );
-
-  const filteredMbti = mbtiPersonas.filter(p =>
-    !q || p.mbti.toLowerCase().includes(q) || p.freeChatDescription?.toLowerCase().includes(q)
   );
 
   const featured = featuredPersonas[featuredIndex];
@@ -230,34 +205,10 @@ export default function PersonaDiscoveryPage() {
                 </div>
               </div>
             )}
-            {filteredMbti.length > 0 && (
-              <div>
-                <h3 className="text-sm font-bold text-slate-700 mb-3 flex items-center gap-2">
-                  <Users className="w-4 h-4 text-indigo-500" />MBTI 캐릭터
-                </h3>
-                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
-                  {filteredMbti.map(p => (
-                    <MbtiPersonaCard key={p.id} persona={p} />
-                  ))}
-                </div>
-              </div>
-            )}
-            {filteredCommunity.length === 0 && filteredMbti.length === 0 && (
+            {filteredCommunity.length === 0 && (
               <EmptyState message="검색 결과가 없어요" />
             )}
           </div>
-        )}
-
-        {activeTab === "mbti" && (
-          filteredMbti.length === 0 ? (
-            <EmptyState message="MBTI 캐릭터가 없어요" />
-          ) : (
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
-              {filteredMbti.map(p => (
-                <MbtiPersonaCard key={p.id} persona={p} />
-              ))}
-            </div>
-          )
         )}
 
         {activeTab === "community" && (
@@ -364,32 +315,6 @@ function PersonaCard({ persona, onLike, isMine }: {
             <span className="flex items-center gap-0.5"><Heart className="w-3 h-3" />{persona.likeCount}</span>
             <span className="flex items-center gap-0.5"><MessageSquare className="w-3 h-3" />{persona.chatCount}</span>
           </div>
-        </div>
-      </div>
-    </Link>
-  );
-}
-
-function MbtiPersonaCard({ persona }: { persona: FreeChatMbtiPersona }) {
-  const img = getMbtiImage(persona, "male");
-  return (
-    <Link href={`/persona/mbti-${persona.id}`}>
-      <div className="group bg-white rounded-2xl border border-slate-200 overflow-hidden hover:border-indigo-300 hover:shadow-md transition-all cursor-pointer">
-        <div className="aspect-[3/4] bg-gradient-to-br from-indigo-100 to-purple-100 relative overflow-hidden">
-          {img ? (
-            <img src={img} alt={persona.mbti} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
-          ) : (
-            <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-indigo-400 to-purple-600">
-              <span className="text-white font-bold text-2xl">{persona.mbti}</span>
-            </div>
-          )}
-          <div className="absolute top-2 left-2">
-            <Badge className="bg-indigo-600 text-white text-[10px] px-1.5 py-0.5">{persona.mbti}</Badge>
-          </div>
-        </div>
-        <div className="p-3">
-          <h4 className="font-semibold text-slate-800 text-sm">{persona.mbti}</h4>
-          <p className="text-xs text-slate-500 truncate mt-0.5">{persona.freeChatDescription ?? "MBTI 캐릭터"}</p>
         </div>
       </div>
     </Link>

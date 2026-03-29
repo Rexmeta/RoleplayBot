@@ -6,7 +6,7 @@ import { toMediaUrl } from "@/lib/mediaUrl";
 import { Input } from "@/components/ui/input";
 import { UserProfileMenu } from "@/components/UserProfileMenu";
 import {
-  Home, Plus, User, Users, Search, MessageSquare,
+  Home, Plus, User, Search,
   PanelLeftClose, PanelLeft, Clock,
   Menu, X
 } from "lucide-react";
@@ -31,13 +31,11 @@ const NAV_ITEMS: NavItem[] = [
   { key: "home", label: "홈", icon: Home, href: "/persona" },
   { key: "create", label: "만들기", icon: Plus, href: "/persona/create" },
   { key: "mine", label: "내 캐릭터", icon: User, href: "/persona?tab=mine" },
-  { key: "mbti", label: "MBTI", icon: Users, href: "/persona?tab=mbti" },
 ];
 
 function getActiveNav(location: string): string {
   if (location === "/persona/create") return "create";
   if (location.includes("tab=mine")) return "mine";
-  if (location.includes("tab=mbti")) return "mbti";
   if (location === "/persona" || location.startsWith("/persona/")) return "home";
   return "home";
 }
@@ -50,7 +48,6 @@ function chatDisplayName(c: RecentChat): string {
 
 function chatPersonaId(c: RecentChat): string {
   if (c.scenarioId.startsWith("__user_persona__:")) return c.scenarioId.replace("__user_persona__:", "");
-  if (c.scenarioId.startsWith("__mbti_persona__:")) return c.scenarioId.replace("__mbti_persona__:", "");
   return c.id;
 }
 
@@ -128,7 +125,7 @@ export default function PersonaLayout({ children, chatMode = false }: { children
   });
 
   const recentChats = allConversations
-    .filter(c => c.scenarioId.startsWith("__user_persona__:") || c.scenarioId.startsWith("__mbti_persona__:"))
+    .filter(c => c.scenarioId.startsWith("__user_persona__:"))
     .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
     .slice(0, 15);
 
@@ -226,8 +223,7 @@ export default function PersonaLayout({ children, chatMode = false }: { children
                 const name = chatDisplayName(c);
                 const pId = chatPersonaId(c);
                 const avatarUrl = c.personaSnapshot?.avatarUrl || null;
-                const isMbti = c.scenarioId.startsWith("__mbti_persona__:");
-                const href = isMbti ? `/persona/mbti-${pId}` : `/persona/${pId}`;
+                const href = `/persona/${pId}`;
                 return (
                   <Link key={c.id} href={href}>
                     <div
@@ -258,8 +254,7 @@ export default function PersonaLayout({ children, chatMode = false }: { children
               const name = chatDisplayName(c);
               const pId = chatPersonaId(c);
               const avatarUrl = c.personaSnapshot?.avatarUrl || null;
-              const isMbti = c.scenarioId.startsWith("__mbti_persona__:");
-              const href = isMbti ? `/persona/mbti-${pId}` : `/persona/${pId}`;
+              const href = `/persona/${pId}`;
               return (
                 <Link key={c.id} href={href}>
                   <div className="p-1.5 rounded-xl hover:bg-white/10 cursor-pointer" title={name}>
