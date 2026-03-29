@@ -187,43 +187,44 @@ export default function PersonaEditorModal({ persona, onClose, onSaved }: {
   const handleGenerateExpressions = async () => {
     if (!persona?.id || isGeneratingExpressions || !avatarUrl) return;
     setIsGeneratingExpressions(true);
-    setExpressionProgress({ done: 0, total: 9 });
     if (!showExpressions) setShowExpressions(true);
-    try {
-      const res = await apiRequest("POST", `/api/user-personas/${persona.id}/generate-expressions`, {});
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(err.details || err.error || "표정 생성에 실패했습니다.");
-      }
-      const data = await res.json();
 
-      const newPreviews: Record<string, string> = {};
-      const newExpressions: Record<string, string> = {};
+    const EMOTIONS = ['happy', 'sad', 'angry', 'surprised', 'curious', 'anxious', 'tired', 'disappointed', 'confused'];
+    const total = EMOTIONS.length;
+    setExpressionProgress({ done: 0, total });
 
-      for (const [key, path] of Object.entries(data.expressions as Record<string, string>)) {
-        if (path) {
-          newExpressions[key] = path;
-          newPreviews[key] = toMediaUrl(path);
+    let successCount = 0;
+    let lastError: string | null = null;
+
+    for (let i = 0; i < EMOTIONS.length; i++) {
+      const emotion = EMOTIONS[i];
+      try {
+        const res = await apiRequest("POST", `/api/user-personas/${persona.id}/generate-expression/${emotion}`, {});
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          throw new Error(err.details || err.error || `${emotion} 생성 실패`);
         }
+        const data = await res.json();
+        setExpressions(prev => ({ ...prev, [emotion]: data.objectPath }));
+        setExpressionPreviews(prev => ({ ...prev, [emotion]: toMediaUrl(data.objectPath) }));
+        successCount++;
+      } catch (err: any) {
+        lastError = err.message;
       }
-      
+      setExpressionProgress({ done: i + 1, total });
+    }
 
-      setExpressions(prev => ({ ...prev, ...newExpressions }));
-      setExpressionPreviews(prev => ({ ...prev, ...newPreviews }));
-      setExpressionProgress({ done: data.generated, total: data.total });
-      queryClient.invalidateQueries({ queryKey: ["/api/user-personas"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/user-personas/discover"] });
-      toast({ title: `표정 이미지 ${data.generated}개 생성 완료!` });
-    } catch (err: any) {
-      queryClient.invalidateQueries({ queryKey: ["/api/user-personas"] });
-      toast({
-        title: "표정 생성 실패",
-        description: err.message || "잠시 후 다시 시도해주세요.",
-        variant: "destructive"
-      });
-    } finally {
-      setIsGeneratingExpressions(false);
-      setExpressionProgress(null);
+    queryClient.invalidateQueries({ queryKey: ["/api/user-personas"] });
+    queryClient.invalidateQueries({ queryKey: ["/api/user-personas/discover"] });
+    setIsGeneratingExpressions(false);
+    setExpressionProgress(null);
+
+    if (successCount === total) {
+      toast({ title: `표정 이미지 ${successCount}개 생성 완료!` });
+    } else if (successCount > 0) {
+      toast({ title: `표정 이미지 ${successCount}/${total}개 생성 완료`, description: lastError || undefined, variant: "destructive" });
+    } else {
+      toast({ title: "표정 생성 실패", description: lastError || "잠시 후 다시 시도해주세요.", variant: "destructive" });
     }
   };
 
