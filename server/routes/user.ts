@@ -214,7 +214,7 @@ export default function createUserRouter(isAuthenticated: any) {
       throw createHttpError(403, "Access denied. System admin only.");
     }
     const userId = req.user?.id;
-    const { name, description, greeting, avatarUrl, personality, tags, isPublic } = req.body;
+    const { name, description, greeting, avatarUrl, expressions, personality, tags, isPublic } = req.body;
     if (!name || !name.trim()) throw createHttpError(400, "Name is required");
     const persona = await storage.createUserPersona({
       creatorId: userId,
@@ -222,6 +222,7 @@ export default function createUserRouter(isAuthenticated: any) {
       description: description?.trim() || "",
       greeting: greeting?.trim() || `안녕하세요! 저는 ${name.trim()}입니다.`,
       avatarUrl: avatarUrl || null,
+      expressions: expressions || null,
       personality: personality || { traits: [], communicationStyle: "", background: "", speechStyle: "" },
       tags: tags || [],
       isPublic: isPublic ?? false,
@@ -234,12 +235,13 @@ export default function createUserRouter(isAuthenticated: any) {
       throw createHttpError(403, "Access denied. System admin only.");
     }
     const userId = req.user?.id;
-    const { name, description, greeting, avatarUrl, personality, tags, isPublic } = req.body;
+    const { name, description, greeting, avatarUrl, expressions, personality, tags, isPublic } = req.body;
     const persona = await storage.updateUserPersona(req.params.id, userId, {
       ...(name !== undefined && { name: name.trim() }),
       ...(description !== undefined && { description: description.trim() }),
       ...(greeting !== undefined && { greeting: greeting.trim() }),
       ...(avatarUrl !== undefined && { avatarUrl }),
+      ...(expressions !== undefined && { expressions }),
       ...(personality !== undefined && { personality }),
       ...(tags !== undefined && { tags }),
       ...(isPublic !== undefined && { isPublic }),

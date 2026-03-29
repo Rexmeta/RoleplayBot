@@ -78,7 +78,7 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
   const { currentEmotion, setCurrentEmotion, isEmotionTransitioning, setIsEmotionTransitioning,
     loadedImageUrl, isInitialLoading, isOverlayFading, hasNoPersonaImages,
     getCharacterImage, preloadImage } = useEmotionState({
-    persona: { id: persona.id, mbti: persona.mbti, gender: persona.gender, name: persona.name, image: persona.image },
+    persona: { id: persona.id, mbti: persona.mbti, gender: persona.gender, name: persona.name, image: persona.image, expressions: persona.expressions },
     conversationId, onReady,
   });
 

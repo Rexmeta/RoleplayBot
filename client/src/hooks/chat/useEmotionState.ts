@@ -24,7 +24,8 @@ export const emotionEmojis: { [key: string]: string } = {
   '好奇心': '🤔', '不安': '😰'
 };
 
-const uniqueEmotionCount = new Set(Object.values(emotionToEnglish)).size;
+const UNIQUE_EMOTION_ENS = Array.from(new Set(Object.values(emotionToEnglish)));
+const uniqueEmotionCount = UNIQUE_EMOTION_ENS.length;
 
 interface PersonaInfo {
   id: string;
@@ -32,7 +33,7 @@ interface PersonaInfo {
   gender?: string;
   name: string;
   image?: string;
-  expressions?: Record<string, string>; // user persona 표정 맵
+  expressions?: Record<string, string>;
 }
 
 interface UseEmotionStateOptions {
@@ -44,7 +45,7 @@ interface UseEmotionStateOptions {
 export function useEmotionState({ persona, conversationId, onReady }: UseEmotionStateOptions) {
   const [currentEmotion, setCurrentEmotion] = useState<string>('중립');
   const [isEmotionTransitioning, setIsEmotionTransitioning] = useState(false);
-  const [personaImagesAvailable, setPersonaImagesAvailable] = useState<{ [key: string]: boolean }>({});
+  const [personaImagesAvailable, setPersonaImagesAvailable] = useState<Record<string, boolean>>({});
   const [loadedImageUrl, setLoadedImageUrl] = useState<string>('');
   const [isInitialLoading, setIsInitialLoading] = useState(true);
   const [isOverlayFading, setIsOverlayFading] = useState(false);
@@ -55,16 +56,12 @@ export function useEmotionState({ persona, conversationId, onReady }: UseEmotion
     onReadyRef.current = onReady;
   }, [onReady]);
 
-  // user persona: expressions 맵에서 직접 URL 반환
-  // MBTI persona: 기존 GCS 파일 경로 패턴 사용
   const getCharacterImage = (emotion: string): string | null => {
     const emotionEn = emotionToEnglish[emotion] || 'neutral';
-
     if (persona.expressions) {
       const url = persona.expressions[emotionEn];
       return url ? toMediaUrl(url) : null;
     }
-
     const genderFolder = persona.gender || 'male';
     const mbtiId = persona.mbti?.toLowerCase() || persona.id;
     if (personaImagesAvailable[emotionEn]) {
@@ -90,104 +87,98 @@ export function useEmotionState({ persona, conversationId, onReady }: UseEmotion
     img.src = imageUrl;
   };
 
-  // user persona: expressions 맵에서 이미지 가용성 즉시 결정
-  // MBTI persona: HTTP 검사로 파일 존재 여부 확인
-  useEffect(() => {
-    if (persona.expressions) {
-      const availability: { [key: string]: boolean } = {};
-      const uniqueEmotionEns = Array.from(new Set(Object.values(emotionToEnglish)));
-      for (const emotionEn of uniqueEmotionEns) {
-        availability[emotionEn] = !!(persona.expressions[emotionEn]);
-      }
-      setPersonaImagesAvailable(availability);
-      return;
-    }
-
-    const checkPersonaImages = async () => {
-      const genderFolder = persona.gender || 'male';
-      const mbtiId = persona.mbti?.toLowerCase() || persona.id;
-      const uniqueEmotionEns = Array.from(new Set(Object.values(emotionToEnglish)));
-      const checkPromises = uniqueEmotionEns.map((emotionEn) => {
-        return new Promise<void>((resolve) => {
-          const img = new Image();
-          img.onload = () => {
-            setPersonaImagesAvailable(prev => ({ ...prev, [emotionEn]: true }));
-            resolve();
-          };
-          img.onerror = () => {
-            setPersonaImagesAvailable(prev => ({ ...prev, [emotionEn]: false }));
-            resolve();
-          };
-          img.src = toMediaUrl(`personas/${mbtiId}/${genderFolder}/${emotionEn}.webp`);
-        });
-      });
-      await Promise.all(checkPromises);
-    };
-
-    checkPersonaImages();
-  }, [persona.id, persona.mbti, persona.gender, persona.expressions, conversationId]);
-
+  // 단일 Effect: 리셋 + 이미지 가용성 체크 (타이밍 충돌 방지)
   useEffect(() => {
     initialLoadCompletedRef.current = false;
     setIsInitialLoading(true);
     setIsOverlayFading(false);
-    setPersonaImagesAvailable({});
     setLoadedImageUrl('');
 
-    const timeoutId = setTimeout(() => {
-      if (!initialLoadCompletedRef.current) {
-        initialLoadCompletedRef.current = true;
-        const fallbackUrl = `https://ui-avatars.com/api/?name=${encodeURIComponent(persona.name)}&background=6366f1&color=fff&size=400`;
-        setLoadedImageUrl(fallbackUrl);
-        setIsOverlayFading(true);
-        onReadyRef.current?.();
-        setTimeout(() => {
-          setIsInitialLoading(false);
-        }, 500);
-      }
-    }, 3000);
+    const fallbackUrl = `https://ui-avatars.com/api/?name=${encodeURIComponent(persona.name)}&background=6366f1&color=fff&size=400`;
 
-    return () => clearTimeout(timeoutId);
-  }, [persona.id, persona.name, conversationId]);
-
-  useEffect(() => {
-    if (initialLoadCompletedRef.current) return;
-
-    const allEmotionsChecked = Object.keys(personaImagesAvailable).length === uniqueEmotionCount;
-    if (!allEmotionsChecked) return;
-
-    const initialImageUrl = getCharacterImage('중립');
-
-    const completeInitialLoad = (imageUrl?: string) => {
+    const completeFallback = () => {
       if (initialLoadCompletedRef.current) return;
       initialLoadCompletedRef.current = true;
-
-      if (imageUrl) {
-        setLoadedImageUrl(imageUrl);
-      }
+      setLoadedImageUrl(fallbackUrl);
       setIsOverlayFading(true);
       onReadyRef.current?.();
-      setTimeout(() => {
-        setIsInitialLoading(false);
-      }, 500);
+      setTimeout(() => setIsInitialLoading(false), 500);
     };
 
-    if (initialImageUrl) {
-      const img = new Image();
-      img.onload = () => { completeInitialLoad(initialImageUrl); };
-      img.onerror = () => {
-        const fallbackUrl = `https://ui-avatars.com/api/?name=${encodeURIComponent(persona.name)}&background=6366f1&color=fff&size=400`;
-        setLoadedImageUrl(fallbackUrl);
-        completeInitialLoad();
-      };
-      img.src = initialImageUrl;
-    } else {
-      const fallbackUrl = `https://ui-avatars.com/api/?name=${encodeURIComponent(persona.name)}&background=6366f1&color=fff&size=400`;
-      setLoadedImageUrl(fallbackUrl);
-      completeInitialLoad();
-    }
-  }, [personaImagesAvailable, persona.id, persona.gender, persona.mbti, persona.name]);
+    const completeWithImage = (url: string) => {
+      if (initialLoadCompletedRef.current) return;
+      initialLoadCompletedRef.current = true;
+      setLoadedImageUrl(url);
+      setIsOverlayFading(true);
+      onReadyRef.current?.();
+      setTimeout(() => setIsInitialLoading(false), 500);
+    };
 
+    const fallbackTimer = setTimeout(completeFallback, 3000);
+
+    if (persona.expressions) {
+      // user persona: expressions 맵에서 즉시 가용성 결정
+      const availability: Record<string, boolean> = {};
+      for (const emotionEn of UNIQUE_EMOTION_ENS) {
+        availability[emotionEn] = !!(persona.expressions[emotionEn]);
+      }
+      setPersonaImagesAvailable(availability);
+
+      // neutral 표정으로 초기 로딩
+      const neutralUrl = persona.expressions['neutral'];
+      if (neutralUrl) {
+        const fullUrl = toMediaUrl(neutralUrl);
+        const img = new Image();
+        img.onload = () => { clearTimeout(fallbackTimer); completeWithImage(fullUrl); };
+        img.onerror = () => { clearTimeout(fallbackTimer); completeFallback(); };
+        img.src = fullUrl;
+      } else {
+        clearTimeout(fallbackTimer);
+        completeFallback();
+      }
+    } else {
+      // MBTI persona: HTTP 검사로 파일 존재 여부 확인
+      setPersonaImagesAvailable({});
+      const genderFolder = persona.gender || 'male';
+      const mbtiId = persona.mbti?.toLowerCase() || persona.id;
+      let checkedCount = 0;
+      const newAvailability: Record<string, boolean> = {};
+
+      const onAllChecked = () => {
+        setPersonaImagesAvailable(newAvailability);
+        const neutralAvail = newAvailability['neutral'];
+        if (neutralAvail) {
+          const imgUrl = toMediaUrl(`personas/${mbtiId}/${genderFolder}/neutral.webp`);
+          const img = new Image();
+          img.onload = () => { clearTimeout(fallbackTimer); completeWithImage(imgUrl); };
+          img.onerror = () => { clearTimeout(fallbackTimer); completeFallback(); };
+          img.src = imgUrl;
+        } else {
+          clearTimeout(fallbackTimer);
+          completeFallback();
+        }
+      };
+
+      for (const emotionEn of UNIQUE_EMOTION_ENS) {
+        const img = new Image();
+        img.onload = () => {
+          newAvailability[emotionEn] = true;
+          checkedCount++;
+          if (checkedCount === uniqueEmotionCount) onAllChecked();
+        };
+        img.onerror = () => {
+          newAvailability[emotionEn] = false;
+          checkedCount++;
+          if (checkedCount === uniqueEmotionCount) onAllChecked();
+        };
+        img.src = toMediaUrl(`personas/${mbtiId}/${genderFolder}/${emotionEn}.webp`);
+      }
+    }
+
+    return () => clearTimeout(fallbackTimer);
+  }, [persona.id, persona.name, persona.mbti, persona.gender, persona.expressions, conversationId]);
+
+  // 감정 변경 시 이미지 프리로드
   useEffect(() => {
     if (currentEmotion) {
       const newImageUrl = getCharacterImage(currentEmotion);

@@ -31,6 +31,7 @@ interface UserPersona {
   description: string;
   greeting: string;
   avatarUrl: string | null;
+  expressions: Record<string, string> | null;
   personality: { traits: string[]; communicationStyle: string; background: string; speechStyle: string } | null;
   tags: string[];
   isPublic: boolean;
@@ -83,6 +84,7 @@ function buildUserPersonaForChat(p: UserPersona): ScenarioPersona {
     mbti: "" as any,
     gender: "male" as any,
     image: p.avatarUrl ? toMediaUrl(p.avatarUrl) : undefined,
+    expressions: p.expressions || undefined,
     personality: {
       traits: p.personality?.traits || [],
       communicationStyle: p.personality?.communicationStyle || "",
@@ -115,6 +117,19 @@ const EMPTY_FORM: EditorForm = {
   background: "", speechStyle: "", traits: "", tags: "", isPublic: false,
 };
 
+const EXPRESSION_KEYS = [
+  { key: 'neutral', label: '중립', emoji: '😐' },
+  { key: 'happy', label: '기쁨', emoji: '😊' },
+  { key: 'sad', label: '슬픔', emoji: '😢' },
+  { key: 'angry', label: '분노', emoji: '😠' },
+  { key: 'surprised', label: '놀람', emoji: '😲' },
+  { key: 'curious', label: '호기심', emoji: '🤔' },
+  { key: 'anxious', label: '불안', emoji: '😰' },
+  { key: 'tired', label: '피로', emoji: '😩' },
+  { key: 'disappointed', label: '실망', emoji: '😞' },
+  { key: 'confused', label: '당혹', emoji: '😕' },
+];
+
 function PersonaEditorModal({ persona, onClose, onSaved }: {
   persona: UserPersona | null;
   onClose: () => void;
@@ -122,11 +137,29 @@ function PersonaEditorModal({ persona, onClose, onSaved }: {
 }) {
   const { toast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const expressionInputRef = useRef<HTMLInputElement>(null);
+  const uploadingEmotionRef = useRef<string | null>(null);
   const { uploadFile, isUploading } = useUpload();
 
   const [avatarUrl, setAvatarUrl] = useState<string | null>(persona?.avatarUrl || null);
   const [avatarPreview, setAvatarPreview] = useState<string | null>(
     persona?.avatarUrl ? toMediaUrl(persona.avatarUrl) : null
+  );
+
+  const [expressions, setExpressions] = useState<Record<string, string>>(
+    persona?.expressions || {}
+  );
+  const [expressionPreviews, setExpressionPreviews] = useState<Record<string, string>>(() => {
+    if (!persona?.expressions) return {};
+    const previews: Record<string, string> = {};
+    for (const [k, v] of Object.entries(persona.expressions)) {
+      previews[k] = toMediaUrl(v);
+    }
+    return previews;
+  });
+  const [uploadingEmotion, setUploadingEmotion] = useState<string | null>(null);
+  const [showExpressions, setShowExpressions] = useState(
+    !!(persona?.expressions && Object.keys(persona.expressions).length > 0)
   );
 
   const [form, setForm] = useState<EditorForm>(() => {
@@ -156,6 +189,47 @@ function PersonaEditorModal({ persona, onClose, onSaved }: {
     } else {
       toast({ title: "이미지 업로드 실패", variant: "destructive" });
     }
+    e.target.value = "";
+  };
+
+  const handleExpressionSlotClick = (emotionKey: string) => {
+    uploadingEmotionRef.current = emotionKey;
+    expressionInputRef.current?.click();
+  };
+
+  const handleExpressionSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    const emotionKey = uploadingEmotionRef.current;
+    if (!file || !emotionKey) return;
+
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      setExpressionPreviews(prev => ({ ...prev, [emotionKey]: ev.target?.result as string }));
+    };
+    reader.readAsDataURL(file);
+
+    setUploadingEmotion(emotionKey);
+    const result = await uploadFile(file);
+    setUploadingEmotion(null);
+
+    if (result) {
+      setExpressions(prev => ({ ...prev, [emotionKey]: result.objectPath }));
+    } else {
+      toast({ title: "표정 이미지 업로드 실패", variant: "destructive" });
+      setExpressionPreviews(prev => {
+        const updated = { ...prev };
+        delete updated[emotionKey];
+        return updated;
+      });
+    }
+    e.target.value = "";
+    uploadingEmotionRef.current = null;
+  };
+
+  const handleRemoveExpression = (emotionKey: string, ev: React.MouseEvent) => {
+    ev.stopPropagation();
+    setExpressions(prev => { const n = { ...prev }; delete n[emotionKey]; return n; });
+    setExpressionPreviews(prev => { const n = { ...prev }; delete n[emotionKey]; return n; });
   };
 
   const saveMutation = useMutation({
@@ -179,6 +253,7 @@ function PersonaEditorModal({ persona, onClose, onSaved }: {
       description: form.description.trim(),
       greeting: form.greeting.trim() || `안녕하세요! 저는 ${form.name.trim()}입니다.`,
       avatarUrl: avatarUrl,
+      expressions: Object.keys(expressions).length > 0 ? expressions : null,
       personality: {
         traits: form.traits.split(",").map(t => t.trim()).filter(Boolean),
         communicationStyle: form.communicationStyle.trim(),
@@ -191,6 +266,7 @@ function PersonaEditorModal({ persona, onClose, onSaved }: {
   };
 
   const initials = form.name.slice(0, 2).toUpperCase() || "?";
+  const expressionCount = Object.keys(expressions).length;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
@@ -201,7 +277,7 @@ function PersonaEditorModal({ persona, onClose, onSaved }: {
         </div>
         <form onSubmit={handleSubmit} className="p-5 space-y-4">
 
-          {/* 이미지 업로드 */}
+          {/* 아바타 업로드 */}
           <div className="flex flex-col items-center gap-2 pb-2">
             <div className="relative group cursor-pointer" onClick={() => fileInputRef.current?.click()}>
               {avatarPreview ? (
@@ -212,7 +288,7 @@ function PersonaEditorModal({ persona, onClose, onSaved }: {
                 </div>
               )}
               <div className="absolute inset-0 rounded-full bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                {isUploading
+                {isUploading && !uploadingEmotion
                   ? <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
                   : <Camera className="w-5 h-5 text-white" />}
               </div>
@@ -224,15 +300,10 @@ function PersonaEditorModal({ persona, onClose, onSaved }: {
               className="text-xs text-emerald-600 hover:text-emerald-700 font-medium flex items-center gap-1 disabled:opacity-50"
             >
               <ImageIcon className="w-3 h-3" />
-              {isUploading ? "업로드 중..." : avatarPreview ? "이미지 변경" : "이미지 추가"}
+              {isUploading && !uploadingEmotion ? "업로드 중..." : avatarPreview ? "이미지 변경" : "이미지 추가"}
             </button>
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept="image/*"
-              className="hidden"
-              onChange={handleImageSelect}
-            />
+            <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleImageSelect} />
+            <input ref={expressionInputRef} type="file" accept="image/*" className="hidden" onChange={handleExpressionSelect} />
           </div>
 
           <div>
@@ -267,6 +338,74 @@ function PersonaEditorModal({ persona, onClose, onSaved }: {
             <Label>태그</Label>
             <Input value={form.tags} onChange={e => set("tags", e.target.value)} placeholder="예: 멘토, 역사, 철학 (쉼표로 구분)" className="mt-1" />
           </div>
+
+          {/* ── 표정 이미지 설정 ── */}
+          <div className="border border-slate-200 rounded-xl overflow-hidden">
+            <button
+              type="button"
+              onClick={() => setShowExpressions(v => !v)}
+              className="w-full flex items-center justify-between px-4 py-3 bg-slate-50 hover:bg-slate-100 transition-colors"
+            >
+              <span className="text-sm font-medium text-slate-700 flex items-center gap-2">
+                <Sparkles className="w-4 h-4 text-violet-500" />
+                표정 이미지 설정
+                {expressionCount > 0 && (
+                  <span className="text-xs bg-violet-100 text-violet-600 px-1.5 py-0.5 rounded-full">{expressionCount}/10</span>
+                )}
+              </span>
+              {showExpressions ? <ChevronUp className="w-4 h-4 text-slate-400" /> : <ChevronDown className="w-4 h-4 text-slate-400" />}
+            </button>
+            {showExpressions && (
+              <div className="p-4 space-y-3">
+                <p className="text-xs text-slate-500">각 감정에 맞는 캐릭터 이미지를 업로드하면 대화 중 AI 감정에 따라 자동으로 전환됩니다.</p>
+                <div className="grid grid-cols-5 gap-2">
+                  {EXPRESSION_KEYS.map(({ key, label, emoji }) => {
+                    const preview = expressionPreviews[key];
+                    const isThisUploading = uploadingEmotion === key;
+                    return (
+                      <div
+                        key={key}
+                        onClick={() => !isThisUploading && handleExpressionSlotClick(key)}
+                        className="relative group cursor-pointer flex flex-col items-center gap-1"
+                      >
+                        <div className="relative w-full aspect-[3/4] rounded-lg overflow-hidden border-2 border-dashed border-slate-200 hover:border-violet-400 transition-colors bg-slate-50">
+                          {preview ? (
+                            <img src={preview} alt={label} className="w-full h-full object-cover" />
+                          ) : (
+                            <div className="w-full h-full flex flex-col items-center justify-center gap-1">
+                              <span className="text-lg">{emoji}</span>
+                              <Plus className="w-3 h-3 text-slate-300" />
+                            </div>
+                          )}
+                          {isThisUploading && (
+                            <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
+                              <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                            </div>
+                          )}
+                          {preview && !isThisUploading && (
+                            <>
+                              <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                                <Camera className="w-4 h-4 text-white" />
+                              </div>
+                              <button
+                                type="button"
+                                onClick={(ev) => handleRemoveExpression(key, ev)}
+                                className="absolute top-0.5 right-0.5 w-4 h-4 bg-red-500 rounded-full text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-600"
+                              >
+                                <X className="w-2.5 h-2.5" />
+                              </button>
+                            </>
+                          )}
+                        </div>
+                        <span className="text-[10px] text-slate-500 text-center leading-tight">{label}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+          </div>
+
           <div className="flex items-center gap-3 pt-1">
             <Switch id="isPublic" checked={form.isPublic} onCheckedChange={v => set("isPublic", v)} />
             <Label htmlFor="isPublic" className="cursor-pointer">
