@@ -33,7 +33,7 @@ export default function AdminManagement() {
           </TabsList>
 
           <TabsContent value="manage-scenarios" className="space-y-6">
-            <ScenarioManager />
+            <ScenarioManager onGoToPersonas={() => setActiveTab('manage-personas')} />
           </TabsContent>
 
           <TabsContent value="manage-personas" className="space-y-6">

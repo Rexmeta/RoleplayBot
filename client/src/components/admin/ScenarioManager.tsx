@@ -1,6 +1,5 @@
 import React, { useState, useMemo } from 'react';
 import { useQuery, useMutation } from '@tanstack/react-query';
-import { useLocation } from 'wouter';
 import { useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -74,10 +73,13 @@ interface ScenarioFormData {
   recommendedFlow: string[];
 }
 
-export function ScenarioManager() {
+interface ScenarioManagerProps {
+  onGoToPersonas?: () => void;
+}
+
+export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
   const { t, i18n } = useTranslation();
   const { toast } = useToast();
-  const [, setLocation] = useLocation();
   const currentLang = i18n.language;
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [editingScenario, setEditingScenario] = useState<ComplexScenario | null>(null);
@@ -534,7 +536,7 @@ export function ScenarioManager() {
         title: '시나리오 저장됨',
         description: '페르소나 생성 화면으로 이동합니다.',
       });
-      setLocation('/admin-management?tab=manage-personas');
+      onGoToPersonas?.();
     };
     if (editingScenario) {
       updateMutation.mutate({ id: editingScenario.id, data: formData }, { onSuccess: afterSave });
