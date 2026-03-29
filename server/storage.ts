@@ -73,7 +73,7 @@ pool.on('error', (err) => {
   console.error('Unexpected database pool error:', err.message);
 });
 
-const db = drizzle(pool);
+export const db = drizzle(pool);
 
 export interface IStorage {
   // Conversations (레거시)

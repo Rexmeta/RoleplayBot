@@ -461,6 +461,18 @@ async function initializeApp() {
     console.error('Database migration failed (non-fatal):', error);
   }
 
+  // Step 9: Seed sample personas (idempotent)
+  recordStep('seed_sample_personas', 'start');
+  initStatus = 'seeding_sample_personas';
+  try {
+    const { seedSamplePersonas } = await import('./scripts/seedSamplePersonas');
+    await seedSamplePersonas();
+    recordStep('seed_sample_personas', 'done');
+  } catch (error: any) {
+    recordStep('seed_sample_personas', 'error', error?.message);
+    console.error('Sample persona seeding failed (non-fatal):', error);
+  }
+
   // All routes, middleware, and database are ready - open the gate.
   appReady = true;
   initStatus = 'ready';
