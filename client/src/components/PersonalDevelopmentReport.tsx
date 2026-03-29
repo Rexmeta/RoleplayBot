@@ -1323,7 +1323,7 @@ export default function PersonalDevelopmentReport({
 
       <Tabs defaultValue="scores" className="space-y-6">
         <TabsList 
-          className={`flex flex-wrap justify-center gap-1 sm:grid sm:w-full ${feedback?.detailedFeedback?.sequenceAnalysis ? 'sm:grid-cols-5' : 'sm:grid-cols-4'} transform transition-all duration-500 screen-only h-auto p-1`}
+          className={`flex flex-wrap justify-center gap-1 sm:grid sm:w-full ${feedback?.detailedFeedback?.sequenceAnalysis ? 'sm:grid-cols-4' : 'sm:grid-cols-3'} transform transition-all duration-500 screen-only h-auto p-1`}
           style={{ 
             opacity: 0,
             animation: `fadeInUp 0.6s ease-out 1s forwards`
