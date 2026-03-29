@@ -11,6 +11,7 @@ import {
   RadarChart,
   PolarGrid,
   PolarAngleAxis,
+  PolarRadiusAxis,
   Radar,
   ResponsiveContainer,
   Tooltip,
@@ -1364,6 +1365,7 @@ export default function PersonalDevelopmentReport({
                     >
                       <PolarGrid />
                       <PolarAngleAxis dataKey="subject" tick={{ fontSize: 11, fill: '#475569' }} />
+                      <PolarRadiusAxis domain={[0, 5]} tick={false} axisLine={false} />
                       <Radar
                         name="역량"
                         dataKey="value"
