@@ -5,12 +5,14 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 import { toMediaUrl } from "@/lib/mediaUrl";
 import PersonaLayout from "@/components/PersonaLayout";
 import ChatWindow from "@/components/ChatWindow";
+import PersonaEditorModal, { type PersonaEditData } from "@/components/PersonaEditorModal";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/hooks/useAuth";
 import {
   Heart, MessageSquare, Globe, Lock,
-  Sparkles, MessageCircle
+  Sparkles, MessageCircle, Pencil
 } from "lucide-react";
 import type { ScenarioPersona } from "@/lib/scenario-system";
 
@@ -22,6 +24,7 @@ interface UserPersona {
   description: string;
   greeting: string;
   avatarUrl: string | null;
+  expressions?: Record<string, string> | null;
   personality: { traits: string[]; communicationStyle: string; background: string; speechStyle: string } | null;
   tags: string[];
   isPublic: boolean;
@@ -107,9 +110,11 @@ export default function PersonaProfilePage() {
   const isMbti = Boolean(id?.startsWith("mbti-"));
   const mbtiId = isMbti ? id!.replace("mbti-", "") : null;
 
+  const { user } = useAuth();
   const [chatWindow, setChatWindow] = useState<React.ReactNode | null>(null);
   const [isPending, setIsPending] = useState(false);
   const [mbtiGender, setMbtiGender] = useState<"male" | "female">("male");
+  const [editorOpen, setEditorOpen] = useState(false);
 
   const { data: persona, isLoading: personaLoading } = useQuery<UserPersona>({
     queryKey: ["/api/user-personas", id],
@@ -325,6 +330,7 @@ export default function PersonaProfilePage() {
     : { background: "linear-gradient(135deg, #059669, #0d9488)" };
 
   return (
+    <>
     <PersonaLayout>
       <div className="max-w-2xl mx-auto w-full px-6 py-6">
         <div className="relative rounded-2xl overflow-hidden mb-6">
@@ -352,6 +358,15 @@ export default function PersonaProfilePage() {
             </div>
             {p.creatorName && (
               <p className="text-xs text-emerald-200 mt-2">제작: {p.creatorName}</p>
+            )}
+            {user?.id === p.creatorId && (
+              <button
+                onClick={() => setEditorOpen(true)}
+                className="mt-3 flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/20 hover:bg-white/30 text-white text-xs font-medium transition-colors"
+              >
+                <Pencil className="w-3 h-3" />
+                편집
+              </button>
             )}
             {p.tags?.length > 0 && (
               <div className="flex flex-wrap gap-1.5 mt-3 justify-center">
@@ -431,5 +446,16 @@ export default function PersonaProfilePage() {
         )}
       </div>
     </PersonaLayout>
+    {editorOpen && (
+      <PersonaEditorModal
+        persona={p as PersonaEditData}
+        onClose={() => setEditorOpen(false)}
+        onSaved={() => {
+          setEditorOpen(false);
+          queryClient.invalidateQueries({ queryKey: ["/api/user-personas", id] });
+        }}
+      />
+    )}
+    </>
   );
 }

@@ -4,12 +4,13 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { toMediaUrl } from "@/lib/mediaUrl";
 import PersonaLayout from "@/components/PersonaLayout";
+import PersonaEditorModal, { type PersonaEditData } from "@/components/PersonaEditorModal";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import {
   Search, Heart, MessageSquare, Plus, Sparkles,
-  ChevronRight, Star, Compass, User, Globe
+  ChevronRight, Star, Compass, User, Globe, Pencil
 } from "lucide-react";
 
 interface UserPersona {
@@ -19,6 +20,7 @@ interface UserPersona {
   description: string;
   greeting: string;
   avatarUrl: string | null;
+  expressions?: Record<string, string> | null;
   personality: { traits: string[]; communicationStyle: string; background: string; speechStyle: string } | null;
   tags: string[];
   isPublic: boolean;
@@ -44,6 +46,7 @@ export default function PersonaDiscoveryPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [tagFilter, setTagFilter] = useState("");
   const [featuredIndex, setFeaturedIndex] = useState(0);
+  const [editingPersona, setEditingPersona] = useState<UserPersona | null>(null);
 
   useEffect(() => {
     if (tabFromUrl && ["all", "community", "mine"].includes(tabFromUrl)) {
@@ -100,6 +103,7 @@ export default function PersonaDiscoveryPage() {
   };
 
   return (
+    <>
     <PersonaLayout>
       <div className="max-w-6xl mx-auto w-full px-6 py-6 space-y-8">
 
@@ -258,7 +262,7 @@ export default function PersonaDiscoveryPage() {
           ) : (
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
               {filteredMine.map(p => (
-                <PersonaCard key={p.id} persona={p} onLike={handleLike} isMine />
+                <PersonaCard key={p.id} persona={p} onLike={handleLike} isMine onEdit={(e) => { e.preventDefault(); e.stopPropagation(); setEditingPersona(p); }} />
               ))}
             </div>
           )
@@ -266,13 +270,25 @@ export default function PersonaDiscoveryPage() {
 
       </div>
     </PersonaLayout>
+    {editingPersona && (
+      <PersonaEditorModal
+        persona={editingPersona as PersonaEditData}
+        onClose={() => setEditingPersona(null)}
+        onSaved={() => {
+          setEditingPersona(null);
+          queryClient.invalidateQueries({ queryKey: ["/api/user-personas"] });
+        }}
+      />
+    )}
+    </>
   );
 }
 
-function PersonaCard({ persona, onLike, isMine }: {
+function PersonaCard({ persona, onLike, isMine, onEdit }: {
   persona: UserPersona;
   onLike: (e: React.MouseEvent, id: string) => void;
   isMine?: boolean;
+  onEdit?: (e: React.MouseEvent) => void;
 }) {
   return (
     <Link href={`/persona/${persona.id}`}>
@@ -296,8 +312,17 @@ function PersonaCard({ persona, onLike, isMine }: {
             <Heart className={`w-3.5 h-3.5 ${persona.liked ? "fill-red-400 text-red-400" : ""}`} />
           </button>
           {isMine && (
-            <div className="absolute top-2 left-2">
+            <div className="absolute top-2 left-2 flex items-center gap-1">
               <Badge className="bg-emerald-600 text-white text-[10px] px-1.5 py-0.5">내 캐릭터</Badge>
+              {onEdit && (
+                <button
+                  onClick={onEdit}
+                  className="p-1 rounded-full bg-white/90 text-emerald-700 hover:bg-white shadow-sm transition-colors"
+                  title="편집"
+                >
+                  <Pencil className="w-2.5 h-2.5" />
+                </button>
+              )}
             </div>
           )}
         </div>

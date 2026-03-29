@@ -3,23 +3,19 @@ import { useLocation, Link } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { toMediaUrl } from "@/lib/mediaUrl";
-import { useUpload } from "@/hooks/use-upload";
 import { AppHeader } from "@/components/AppHeader";
 import ChatWindow from "@/components/ChatWindow";
+import PersonaEditorModal from "@/components/PersonaEditorModal";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
-import { Switch } from "@/components/ui/switch";
-import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import {
   Search, Plus, MessageSquare, Compass, User, Heart,
   MoreVertical, Pencil, Trash2, Globe, Lock, X, Check,
   MessageCircle, Mic, Volume2, ChevronRight, Sparkles,
-  Camera, ImageIcon, ChevronDown, ChevronUp, Flame, Star, Play,
-  Clock, ArrowRight
+  ChevronUp, Flame, Star, Play, Clock, ArrowRight
 } from "lucide-react";
 import type { ComplexScenario, ScenarioPersona } from "@/lib/scenario-system";
 
@@ -102,325 +98,6 @@ function PersonaAvatar({ url, name, size = 10 }: { url?: string | null; name: st
   return (
     <div className={`w-${size} h-${size} rounded-full bg-gradient-to-br from-emerald-400 to-teal-600 flex items-center justify-center text-white font-bold text-xs flex-shrink-0`}>
       {initials}
-    </div>
-  );
-}
-
-// ────────── PersonaEditorModal ──────────
-interface EditorForm {
-  name: string; description: string; greeting: string;
-  communicationStyle: string; background: string; speechStyle: string;
-  traits: string; tags: string; isPublic: boolean;
-}
-const EMPTY_FORM: EditorForm = {
-  name: "", description: "", greeting: "", communicationStyle: "",
-  background: "", speechStyle: "", traits: "", tags: "", isPublic: false,
-};
-
-const EXPRESSION_KEYS = [
-  { key: 'neutral', label: '중립', emoji: '😐' },
-  { key: 'happy', label: '기쁨', emoji: '😊' },
-  { key: 'sad', label: '슬픔', emoji: '😢' },
-  { key: 'angry', label: '분노', emoji: '😠' },
-  { key: 'surprised', label: '놀람', emoji: '😲' },
-  { key: 'curious', label: '호기심', emoji: '🤔' },
-  { key: 'anxious', label: '불안', emoji: '😰' },
-  { key: 'tired', label: '피로', emoji: '😩' },
-  { key: 'disappointed', label: '실망', emoji: '😞' },
-  { key: 'confused', label: '당혹', emoji: '😕' },
-];
-
-function PersonaEditorModal({ persona, onClose, onSaved }: {
-  persona: UserPersona | null;
-  onClose: () => void;
-  onSaved: (p: UserPersona) => void;
-}) {
-  const { toast } = useToast();
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const expressionInputRef = useRef<HTMLInputElement>(null);
-  const uploadingEmotionRef = useRef<string | null>(null);
-  const { uploadFile, isUploading } = useUpload();
-
-  const [avatarUrl, setAvatarUrl] = useState<string | null>(persona?.avatarUrl || null);
-  const [avatarPreview, setAvatarPreview] = useState<string | null>(
-    persona?.avatarUrl ? toMediaUrl(persona.avatarUrl) : null
-  );
-
-  const [expressions, setExpressions] = useState<Record<string, string>>(
-    persona?.expressions || {}
-  );
-  const [expressionPreviews, setExpressionPreviews] = useState<Record<string, string>>(() => {
-    if (!persona?.expressions) return {};
-    const previews: Record<string, string> = {};
-    for (const [k, v] of Object.entries(persona.expressions)) {
-      previews[k] = toMediaUrl(v);
-    }
-    return previews;
-  });
-  const [uploadingEmotion, setUploadingEmotion] = useState<string | null>(null);
-  const [showExpressions, setShowExpressions] = useState(
-    !!(persona?.expressions && Object.keys(persona.expressions).length > 0)
-  );
-
-  const [form, setForm] = useState<EditorForm>(() => {
-    if (!persona) return EMPTY_FORM;
-    const pers = persona.personality || { traits: [], communicationStyle: "", background: "", speechStyle: "" };
-    return {
-      name: persona.name, description: persona.description, greeting: persona.greeting,
-      communicationStyle: pers.communicationStyle || "",
-      background: pers.background || "",
-      speechStyle: pers.speechStyle || "",
-      traits: (pers.traits || []).join(", "),
-      tags: (persona.tags || []).join(", "),
-      isPublic: persona.isPublic,
-    };
-  });
-  const set = (k: keyof EditorForm, v: any) => setForm(prev => ({ ...prev, [k]: v }));
-
-  const handleImageSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = (ev) => setAvatarPreview(ev.target?.result as string);
-    reader.readAsDataURL(file);
-    const result = await uploadFile(file);
-    if (result) {
-      setAvatarUrl(result.objectPath);
-    } else {
-      toast({ title: "이미지 업로드 실패", variant: "destructive" });
-    }
-    e.target.value = "";
-  };
-
-  const handleExpressionSlotClick = (emotionKey: string) => {
-    uploadingEmotionRef.current = emotionKey;
-    expressionInputRef.current?.click();
-  };
-
-  const handleExpressionSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    const emotionKey = uploadingEmotionRef.current;
-    if (!file || !emotionKey) return;
-
-    const reader = new FileReader();
-    reader.onload = (ev) => {
-      setExpressionPreviews(prev => ({ ...prev, [emotionKey]: ev.target?.result as string }));
-    };
-    reader.readAsDataURL(file);
-
-    setUploadingEmotion(emotionKey);
-    const result = await uploadFile(file);
-    setUploadingEmotion(null);
-
-    if (result) {
-      setExpressions(prev => ({ ...prev, [emotionKey]: result.objectPath }));
-    } else {
-      toast({ title: "표정 이미지 업로드 실패", variant: "destructive" });
-      setExpressionPreviews(prev => {
-        const updated = { ...prev };
-        delete updated[emotionKey];
-        return updated;
-      });
-    }
-    e.target.value = "";
-    uploadingEmotionRef.current = null;
-  };
-
-  const handleRemoveExpression = (emotionKey: string, ev: React.MouseEvent) => {
-    ev.stopPropagation();
-    setExpressions(prev => { const n = { ...prev }; delete n[emotionKey]; return n; });
-    setExpressionPreviews(prev => { const n = { ...prev }; delete n[emotionKey]; return n; });
-  };
-
-  const saveMutation = useMutation({
-    mutationFn: (payload: any) => persona
-      ? apiRequest("PUT", `/api/user-personas/${persona.id}`, payload).then(r => r.json())
-      : apiRequest("POST", "/api/user-personas", payload).then(r => r.json()),
-    onSuccess: (data: UserPersona) => {
-      queryClient.invalidateQueries({ queryKey: ["/api/user-personas"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/user-personas/discover"] });
-      toast({ title: persona ? "페르소나가 수정됐어요" : "페르소나가 만들어졌어요!" });
-      onSaved(data);
-    },
-    onError: () => toast({ title: "저장 실패", variant: "destructive" }),
-  });
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!form.name.trim()) return;
-    saveMutation.mutate({
-      name: form.name.trim(),
-      description: form.description.trim(),
-      greeting: form.greeting.trim() || `안녕하세요! 저는 ${form.name.trim()}입니다.`,
-      avatarUrl: avatarUrl,
-      expressions: Object.keys(expressions).length > 0 ? expressions : null,
-      personality: {
-        traits: form.traits.split(",").map(t => t.trim()).filter(Boolean),
-        communicationStyle: form.communicationStyle.trim(),
-        background: form.background.trim(),
-        speechStyle: form.speechStyle.trim(),
-      },
-      tags: form.tags.split(",").map(t => t.trim()).filter(Boolean),
-      isPublic: form.isPublic,
-    });
-  };
-
-  const initials = form.name.slice(0, 2).toUpperCase() || "?";
-  const expressionCount = Object.keys(expressions).length;
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-      <div className="bg-white rounded-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto shadow-2xl">
-        <div className="flex items-center justify-between p-5 border-b">
-          <h2 className="text-lg font-bold text-slate-900">{persona ? "페르소나 수정" : "새 페르소나 만들기"}</h2>
-          <button onClick={onClose} className="text-slate-400 hover:text-slate-600"><X className="w-5 h-5" /></button>
-        </div>
-        <form onSubmit={handleSubmit} className="p-5 space-y-4">
-
-          {/* 아바타 업로드 */}
-          <div className="flex flex-col items-center gap-2 pb-2">
-            <div className="relative group cursor-pointer" onClick={() => fileInputRef.current?.click()}>
-              {avatarPreview ? (
-                <img src={avatarPreview} alt="avatar" className="w-20 h-20 rounded-full object-cover border-2 border-slate-200" />
-              ) : (
-                <div className="w-20 h-20 rounded-full bg-gradient-to-br from-emerald-400 to-teal-600 flex items-center justify-center text-white font-bold text-xl">
-                  {initials}
-                </div>
-              )}
-              <div className="absolute inset-0 rounded-full bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                {isUploading && !uploadingEmotion
-                  ? <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                  : <Camera className="w-5 h-5 text-white" />}
-              </div>
-            </div>
-            <button
-              type="button"
-              onClick={() => fileInputRef.current?.click()}
-              disabled={isUploading}
-              className="text-xs text-emerald-600 hover:text-emerald-700 font-medium flex items-center gap-1 disabled:opacity-50"
-            >
-              <ImageIcon className="w-3 h-3" />
-              {isUploading && !uploadingEmotion ? "업로드 중..." : avatarPreview ? "이미지 변경" : "이미지 추가"}
-            </button>
-            <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleImageSelect} />
-            <input ref={expressionInputRef} type="file" accept="image/*" className="hidden" onChange={handleExpressionSelect} />
-          </div>
-
-          <div>
-            <Label>이름 *</Label>
-            <Input value={form.name} onChange={e => set("name", e.target.value)} placeholder="예: 친절한 멘토, 역사학자 김박사" className="mt-1" required />
-          </div>
-          <div>
-            <Label>소개</Label>
-            <Textarea value={form.description} onChange={e => set("description", e.target.value)} placeholder="이 페르소나는 어떤 캐릭터인가요?" className="mt-1" rows={2} />
-          </div>
-          <div>
-            <Label>첫 인사말</Label>
-            <Textarea value={form.greeting} onChange={e => set("greeting", e.target.value)} placeholder="대화 시작 시 AI가 먼저 하는 말" className="mt-1" rows={2} />
-          </div>
-          <div>
-            <Label>배경 스토리</Label>
-            <Textarea value={form.background} onChange={e => set("background", e.target.value)} placeholder="캐릭터의 직업, 경험, 세계관 등" className="mt-1" rows={2} />
-          </div>
-          <div>
-            <Label>성격 특성</Label>
-            <Input value={form.traits} onChange={e => set("traits", e.target.value)} placeholder="예: 유머러스, 직설적, 공감 능력 뛰어남 (쉼표로 구분)" className="mt-1" />
-          </div>
-          <div>
-            <Label>대화 방식</Label>
-            <Input value={form.communicationStyle} onChange={e => set("communicationStyle", e.target.value)} placeholder="예: 따뜻하고 격려적인 말투로 소통" className="mt-1" />
-          </div>
-          <div>
-            <Label>말투 스타일</Label>
-            <Input value={form.speechStyle} onChange={e => set("speechStyle", e.target.value)} placeholder='예: "~네요", "~죠?" 같은 편안한 존댓말 사용' className="mt-1" />
-          </div>
-          <div>
-            <Label>태그</Label>
-            <Input value={form.tags} onChange={e => set("tags", e.target.value)} placeholder="예: 멘토, 역사, 철학 (쉼표로 구분)" className="mt-1" />
-          </div>
-
-          {/* ── 표정 이미지 설정 ── */}
-          <div className="border border-slate-200 rounded-xl overflow-hidden">
-            <button
-              type="button"
-              onClick={() => setShowExpressions(v => !v)}
-              className="w-full flex items-center justify-between px-4 py-3 bg-slate-50 hover:bg-slate-100 transition-colors"
-            >
-              <span className="text-sm font-medium text-slate-700 flex items-center gap-2">
-                <Sparkles className="w-4 h-4 text-violet-500" />
-                표정 이미지 설정
-                {expressionCount > 0 && (
-                  <span className="text-xs bg-violet-100 text-violet-600 px-1.5 py-0.5 rounded-full">{expressionCount}/10</span>
-                )}
-              </span>
-              {showExpressions ? <ChevronUp className="w-4 h-4 text-slate-400" /> : <ChevronDown className="w-4 h-4 text-slate-400" />}
-            </button>
-            {showExpressions && (
-              <div className="p-4 space-y-3">
-                <p className="text-xs text-slate-500">각 감정에 맞는 캐릭터 이미지를 업로드하면 대화 중 AI 감정에 따라 자동으로 전환됩니다.</p>
-                <div className="grid grid-cols-5 gap-2">
-                  {EXPRESSION_KEYS.map(({ key, label, emoji }) => {
-                    const preview = expressionPreviews[key];
-                    const isThisUploading = uploadingEmotion === key;
-                    return (
-                      <div
-                        key={key}
-                        onClick={() => !isThisUploading && handleExpressionSlotClick(key)}
-                        className="relative group cursor-pointer flex flex-col items-center gap-1"
-                      >
-                        <div className="relative w-full aspect-[3/4] rounded-lg overflow-hidden border-2 border-dashed border-slate-200 hover:border-violet-400 transition-colors bg-slate-50">
-                          {preview ? (
-                            <img src={preview} alt={label} className="w-full h-full object-cover" />
-                          ) : (
-                            <div className="w-full h-full flex flex-col items-center justify-center gap-1">
-                              <span className="text-lg">{emoji}</span>
-                              <Plus className="w-3 h-3 text-slate-300" />
-                            </div>
-                          )}
-                          {isThisUploading && (
-                            <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
-                              <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                            </div>
-                          )}
-                          {preview && !isThisUploading && (
-                            <>
-                              <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                                <Camera className="w-4 h-4 text-white" />
-                              </div>
-                              <button
-                                type="button"
-                                onClick={(ev) => handleRemoveExpression(key, ev)}
-                                className="absolute top-0.5 right-0.5 w-4 h-4 bg-red-500 rounded-full text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-600"
-                              >
-                                <X className="w-2.5 h-2.5" />
-                              </button>
-                            </>
-                          )}
-                        </div>
-                        <span className="text-[10px] text-slate-500 text-center leading-tight">{label}</span>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
-          </div>
-
-          <div className="flex items-center gap-3 pt-1">
-            <Switch id="isPublic" checked={form.isPublic} onCheckedChange={v => set("isPublic", v)} />
-            <Label htmlFor="isPublic" className="cursor-pointer">
-              {form.isPublic ? <span className="text-emerald-600 flex items-center gap-1"><Globe className="w-3.5 h-3.5" />공개 — 누구나 대화 가능</span>
-                : <span className="text-slate-500 flex items-center gap-1"><Lock className="w-3.5 h-3.5" />비공개 — 나만 사용</span>}
-            </Label>
-          </div>
-          <div className="flex gap-3 pt-2">
-            <Button type="button" variant="outline" className="flex-1" onClick={onClose}>취소</Button>
-            <Button type="submit" className="flex-1 bg-emerald-600 hover:bg-emerald-700" disabled={saveMutation.isPending || isUploading}>
-              {saveMutation.isPending ? "저장 중..." : persona ? "수정 완료" : "만들기"}
-            </Button>
-          </div>
-        </form>
-      </div>
     </div>
   );
 }
@@ -909,7 +586,7 @@ export default function FreeChatPage() {
               onSaved={(p) => {
                 setEditorOpen(false);
                 setSidebarTab("my");
-                if (selectedUserPersona?.id === p.id) setSelectedUserPersona(p);
+                if (selectedUserPersona?.id === p.id) setSelectedUserPersona(p as UserPersona);
               }}
             />
           )}
@@ -1182,11 +859,11 @@ export default function FreeChatPage() {
                   )}
 
                   {/* Personality traits chips */}
-                  {selectedUserPersona.personality?.traits?.length > 0 && (
+                  {(selectedUserPersona.personality?.traits?.length ?? 0) > 0 && (
                     <div className="mb-4">
                       <p className="text-xs font-semibold text-slate-500 mb-2">성격 특성</p>
                       <div className="flex flex-wrap gap-1.5">
-                        {selectedUserPersona.personality.traits.map((trait, i) => {
+                        {(selectedUserPersona.personality?.traits ?? []).map((trait, i) => {
                           const colors = ["bg-blue-50 text-blue-700 border-blue-100", "bg-purple-50 text-purple-700 border-purple-100", "bg-pink-50 text-pink-700 border-pink-100", "bg-amber-50 text-amber-700 border-amber-100", "bg-teal-50 text-teal-700 border-teal-100"];
                           return (
                             <span key={trait} className={`text-xs border px-2.5 py-1 rounded-full font-medium ${colors[i % colors.length]}`}>{trait}</span>
@@ -1304,7 +981,7 @@ export default function FreeChatPage() {
           onClose={() => setEditorOpen(false)}
           onSaved={(p) => {
             setEditorOpen(false);
-            selectUserPersona(p);
+            selectUserPersona(p as UserPersona);
             setSidebarTab("my");
           }}
         />
