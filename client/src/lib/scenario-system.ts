@@ -88,6 +88,7 @@ export interface ComplexScenario {
   skills: string[];
   evaluationCriteriaSetId?: string;
   isDemo?: boolean;
+  isPublic?: boolean;
   isDeleted?: boolean;
 }
 

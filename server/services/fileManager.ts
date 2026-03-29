@@ -150,6 +150,7 @@ export class FileManagerService {
       recommendedFlow: dbScenario.recommendedFlow || [],
       evaluationCriteriaSetId: dbScenario.evaluationCriteriaSetId || undefined,
       isDemo: dbScenario.isDemo || false,
+      isPublic: dbScenario.isPublic || false,
       isDeleted: dbScenario.isDeleted || false,
     };
   }
@@ -301,6 +302,7 @@ export class FileManagerService {
         recommendedFlow: scenario.recommendedFlow || [],
         evaluationCriteriaSetId: scenario.evaluationCriteriaSetId || null,
         isDemo: scenario.isDemo || false,
+        isPublic: scenario.isPublic || false,
       });
       this.invalidateScenarioCountCache();
       return newScenario;
@@ -347,6 +349,7 @@ export class FileManagerService {
         if (scenario.recommendedFlow !== undefined) updates.recommendedFlow = scenario.recommendedFlow;
         if (scenario.evaluationCriteriaSetId !== undefined) updates.evaluationCriteriaSetId = scenario.evaluationCriteriaSetId;
         if (scenario.isDemo !== undefined) updates.isDemo = scenario.isDemo;
+        if (scenario.isPublic !== undefined) updates.isPublic = scenario.isPublic;
         
         console.log(`[FileManager.updateScenario] updates.image=${updates.image}`);
         console.log(`[FileManager.updateScenario] updates.introVideoUrl=${updates.introVideoUrl}`);

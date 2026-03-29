@@ -13,12 +13,14 @@ export default function createScenariosRouter(isAuthenticated: any) {
   }));
 
   router.get("/", asyncHandler(async (req, res) => {
-    const scenarios = await fileManager.getAllScenarios();
+    const allScenarios = await fileManager.getAllScenarios();
     const categoryIdParam = req.query.categoryId as string | undefined;
 
     const token = (req as any).cookies?.token || (req.headers.authorization?.split(' ')[1]);
 
     let userLanguage = 'ko';
+    // 일반 사용자에게는 공개 시나리오만 노출
+    let scenarios = allScenarios.filter((s: any) => s.isPublic === true);
     let filteredScenarios = scenarios;
 
     if (token) {
@@ -150,6 +152,11 @@ export default function createScenariosRouter(isAuthenticated: any) {
   router.get("/:scenarioId", isAuthenticated, asyncHandler(async (req, res) => {
     const scenario = await fileManager.getScenarioById(req.params.scenarioId);
     if (!scenario) {
+      throw createHttpError(404, "Scenario not found");
+    }
+    const user = (req as any).user;
+    const isAdminOrOperator = user && (user.role === 'admin' || user.role === 'operator');
+    if (!isAdminOrOperator && !(scenario as any).isPublic) {
       throw createHttpError(404, "Scenario not found");
     }
     res.json(scenario);

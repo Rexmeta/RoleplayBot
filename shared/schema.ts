@@ -143,6 +143,7 @@ export const scenarios = pgTable("scenarios", {
   recommendedFlow: text("recommended_flow").array(), // 추천 순서
   evaluationCriteriaSetId: varchar("evaluation_criteria_set_id"), // 평가 기준 세트 ID
   isDemo: boolean("is_demo").notNull().default(false), // 게스트 데모용 시나리오 여부
+  isPublic: boolean("is_public").notNull().default(false), // 공개 여부 (false: 비공개, true: 공개)
   isDeleted: boolean("is_deleted").notNull().default(false), // 소프트 삭제 플래그 (삭제된 시나리오의 대화 기록/레포트 보존)
   deletedAt: timestamp("deleted_at"), // 삭제 시간
   createdAt: timestamp("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),

@@ -50,6 +50,7 @@ interface ScenarioFormData {
   videoPrompt?: string; // 비디오 생성 프롬프트 필드 추가
   objectiveType?: string; // 목표 유형 추가
   isDemo?: boolean; // 게스트 데모용 시나리오 여부
+  isPublic?: boolean; // 공개 여부
   autoTranslate?: boolean; // AI 자동 번역 여부
   context: {
     situation: string;
@@ -113,6 +114,7 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
     videoPrompt: '', // 비디오 프롬프트 초기값 추가
     objectiveType: '', // 목표 유형 초기값 추가
     isDemo: false, // 게스트 데모용 시나리오 초기값 추가
+    isPublic: false, // 공개 여부 초기값 (기본 비공개)
     autoTranslate: true, // AI 자동 번역 기본값 true
     context: {
       situation: '',
@@ -234,6 +236,7 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
       videoPrompt: scenario.videoPrompt || '',
       objectiveType: scenario.objectiveType || '',
       isDemo: scenario.isDemo || false,
+      isPublic: scenario.isPublic || false,
       context: scenario.context || {
         situation: '',
         timeline: '',
@@ -383,6 +386,7 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
       introVideoUrl: '', // 인트로 비디오 URL 초기화 추가
       videoPrompt: '', // 비디오 프롬프트 초기화 추가
       objectiveType: '', // 목표 유형 초기화
+      isPublic: false, // 공개 여부 초기화 (기본 비공개)
       autoTranslate: true, // 자동 번역 기본값 true
       context: {
         situation: '',
@@ -442,6 +446,7 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
       videoPrompt: (originalScenario as any).videoPrompt || '', // 기존 시나리오의 비디오 프롬프트 로드
       objectiveType: (originalScenario as any).objectiveType || '', // 기존 시나리오의 목표 유형 로드
       isDemo: (originalScenario as any).isDemo || false, // 기존 시나리오의 데모 여부 로드
+      isPublic: (originalScenario as any).isPublic || false, // 기존 시나리오의 공개 여부 로드
       context: originalScenario.context,
       objectives: originalScenario.objectives,
       successCriteria: originalScenario.successCriteria,
@@ -1217,6 +1222,22 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
                       {t('admin.scenarioManager.form.isDemo', 'Guest Demo Scenario')}
                     </Label>
                   </div>
+
+                  <div className="flex items-center gap-3">
+                    <Switch
+                      id="isPublic"
+                      checked={formData.isPublic || false}
+                      onCheckedChange={(checked) => setFormData(prev => ({ ...prev, isPublic: checked }))}
+                    />
+                    <Label htmlFor="isPublic" className="text-sm font-medium text-slate-700 cursor-pointer">
+                      {t('admin.scenarioManager.form.isPublic', '공개 시나리오')}
+                    </Label>
+                    <span className="text-xs text-slate-500">
+                      {formData.isPublic
+                        ? t('admin.scenarioManager.form.isPublicOn', '일반 사용자에게 노출됩니다')
+                        : t('admin.scenarioManager.form.isPublicOff', '관리자/운영자만 접근 가능합니다')}
+                    </span>
+                  </div>
                   
                   <div className="flex items-center gap-3 border-t pt-3 mt-3">
                     {!editingScenario ? (
@@ -1890,6 +1911,15 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
                       {categories && (scenario as any).categoryId && (
                         <Badge variant="outline" className="text-xs bg-slate-50 text-slate-700 border-slate-200">
                           {categories.find(c => String(c.id) === String((scenario as any).categoryId))?.name || '미분류'}
+                        </Badge>
+                      )}
+                      {(scenario as any).isPublic ? (
+                        <Badge variant="outline" className="text-xs bg-green-50 text-green-700 border-green-200">
+                          {t('admin.scenarioManager.badge.public', '공개')}
+                        </Badge>
+                      ) : (
+                        <Badge variant="outline" className="text-xs bg-slate-100 text-slate-500 border-slate-300">
+                          {t('admin.scenarioManager.badge.private', '비공개')}
                         </Badge>
                       )}
                       <div className="flex items-center gap-1.5">
