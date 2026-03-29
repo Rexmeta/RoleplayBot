@@ -986,6 +986,7 @@ export async function runMigrations(): Promise<void> {
         { table: 'scenarios', column: 'is_demo', sql: `DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='scenarios' AND column_name='is_demo') THEN ALTER TABLE "scenarios" ADD COLUMN "is_demo" boolean DEFAULT false NOT NULL; END IF; END $$;` },
         { table: 'scenarios', column: 'evaluation_criteria_set_id', sql: `DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='scenarios' AND column_name='evaluation_criteria_set_id') THEN ALTER TABLE "scenarios" ADD COLUMN "evaluation_criteria_set_id" varchar; END IF; END $$;` },
         { table: 'evaluation_dimensions', column: 'dimension_type', sql: `DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='evaluation_dimensions' AND column_name='dimension_type') THEN ALTER TABLE "evaluation_dimensions" ADD COLUMN "dimension_type" varchar DEFAULT 'standard' NOT NULL; END IF; END $$;` },
+        { table: 'user_personas', column: 'expressions', sql: `DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='user_personas' AND column_name='expressions') THEN ALTER TABLE "user_personas" ADD COLUMN "expressions" jsonb; END IF; END $$;` },
       ];
 
       for (const patch of criticalColumnPatches) {

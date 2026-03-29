@@ -394,6 +394,7 @@ export default function createConversationsRouter(isAuthenticated: any) {
         mbti: "",
         gender: "neutral",
         image: userPersonaData.avatarUrl || undefined,
+        expressions: (userPersonaData.expressions as Record<string, string>) || undefined,
         personality: {
           traits: p.traits || [],
           communicationStyle: p.communicationStyle || "",

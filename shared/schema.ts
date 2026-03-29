@@ -479,6 +479,7 @@ export const userPersonas = pgTable("user_personas", {
   description: text("description").notNull().default(""),
   greeting: text("greeting").notNull().default(""),
   avatarUrl: text("avatar_url"),
+  expressions: jsonb("expressions").$type<Record<string, string>>(),
   personality: jsonb("personality").$type<{
     traits: string[];
     communicationStyle: string;

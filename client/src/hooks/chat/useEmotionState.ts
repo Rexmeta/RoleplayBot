@@ -32,6 +32,7 @@ interface PersonaInfo {
   gender?: string;
   name: string;
   image?: string;
+  expressions?: Record<string, string>; // user persona 표정 맵
 }
 
 interface UseEmotionStateOptions {
@@ -54,15 +55,21 @@ export function useEmotionState({ persona, conversationId, onReady }: UseEmotion
     onReadyRef.current = onReady;
   }, [onReady]);
 
+  // user persona: expressions 맵에서 직접 URL 반환
+  // MBTI persona: 기존 GCS 파일 경로 패턴 사용
   const getCharacterImage = (emotion: string): string | null => {
     const emotionEn = emotionToEnglish[emotion] || 'neutral';
+
+    if (persona.expressions) {
+      const url = persona.expressions[emotionEn];
+      return url ? toMediaUrl(url) : null;
+    }
+
     const genderFolder = persona.gender || 'male';
     const mbtiId = persona.mbti?.toLowerCase() || persona.id;
-
     if (personaImagesAvailable[emotionEn]) {
       return toMediaUrl(`personas/${mbtiId}/${genderFolder}/${emotionEn}.webp`);
     }
-
     return null;
   };
 
@@ -83,7 +90,19 @@ export function useEmotionState({ persona, conversationId, onReady }: UseEmotion
     img.src = imageUrl;
   };
 
+  // user persona: expressions 맵에서 이미지 가용성 즉시 결정
+  // MBTI persona: HTTP 검사로 파일 존재 여부 확인
   useEffect(() => {
+    if (persona.expressions) {
+      const availability: { [key: string]: boolean } = {};
+      const uniqueEmotionEns = Array.from(new Set(Object.values(emotionToEnglish)));
+      for (const emotionEn of uniqueEmotionEns) {
+        availability[emotionEn] = !!(persona.expressions[emotionEn]);
+      }
+      setPersonaImagesAvailable(availability);
+      return;
+    }
+
     const checkPersonaImages = async () => {
       const genderFolder = persona.gender || 'male';
       const mbtiId = persona.mbti?.toLowerCase() || persona.id;
@@ -102,12 +121,11 @@ export function useEmotionState({ persona, conversationId, onReady }: UseEmotion
           img.src = toMediaUrl(`personas/${mbtiId}/${genderFolder}/${emotionEn}.webp`);
         });
       });
-
       await Promise.all(checkPromises);
     };
 
     checkPersonaImages();
-  }, [persona.id, persona.mbti, persona.gender, conversationId]);
+  }, [persona.id, persona.mbti, persona.gender, persona.expressions, conversationId]);
 
   useEffect(() => {
     initialLoadCompletedRef.current = false;

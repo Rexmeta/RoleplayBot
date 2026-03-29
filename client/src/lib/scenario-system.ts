@@ -18,6 +18,7 @@ export interface ScenarioPersona {
   // 레거시 호환성을 위한 필드들 (하드코딩 시나리오)
   role?: string;            // 역할 설명 (예: "개발팀 선임")
   image?: string;
+  expressions?: Record<string, string>; // user persona 표정 이미지 맵 {emotion: url}
   personality?: {
     traits: string[];
     communicationStyle: string;
