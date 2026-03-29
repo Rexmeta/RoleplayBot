@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useMemo } from "react";
 import { useLocation, Link } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -18,7 +18,8 @@ import {
   Search, Plus, MessageSquare, Compass, User, Heart,
   MoreVertical, Pencil, Trash2, Globe, Lock, X, Check,
   MessageCircle, Mic, Volume2, ChevronRight, Users, Sparkles,
-  Camera, ImageIcon, ChevronDown, ChevronUp
+  Camera, ImageIcon, ChevronDown, ChevronUp, Flame, Star, Play,
+  Clock, ArrowRight
 } from "lucide-react";
 import type { ComplexScenario, ScenarioPersona } from "@/lib/scenario-system";
 
@@ -364,7 +365,93 @@ function UserPersonaCard({ persona, isSelected, isMine, onSelect, onEdit, onDele
   );
 }
 
-// ────────── Main Page ──────────
+// ────────── PosterPersonaCard ──────────
+function PosterPersonaCard({ persona, onClick }: { persona: UserPersona; onClick: () => void }) {
+  const avatarUrl = persona.avatarUrl ? toMediaUrl(persona.avatarUrl) : null;
+  const initials = persona.name.slice(0, 2).toUpperCase();
+  return (
+    <div
+      onClick={onClick}
+      className="relative group cursor-pointer rounded-2xl overflow-hidden bg-gradient-to-br from-emerald-400 to-teal-600 shadow-md hover:shadow-xl transition-all duration-300"
+      style={{ aspectRatio: "3/4" }}
+    >
+      {avatarUrl ? (
+        <img src={avatarUrl} alt={persona.name} className="absolute inset-0 w-full h-full object-cover" />
+      ) : (
+        <div className="absolute inset-0 flex items-center justify-center">
+          <span className="text-5xl font-bold text-white/30">{initials}</span>
+        </div>
+      )}
+      <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/20 to-transparent" />
+      <div className="absolute top-2 right-2 flex gap-1">
+        {persona.chatCount > 10 && (
+          <span className="flex items-center gap-0.5 bg-orange-500/90 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-full">
+            <Flame className="w-2.5 h-2.5" />HOT
+          </span>
+        )}
+      </div>
+      <div className="absolute bottom-0 left-0 right-0 p-3">
+        <p className="font-bold text-white text-sm truncate">{persona.name}</p>
+        {persona.greeting && (
+          <p className="text-white/70 text-[11px] line-clamp-2 mt-0.5 leading-tight">"{persona.greeting}"</p>
+        )}
+        <div className="flex items-center gap-2 mt-1.5 text-white/55 text-[10px]">
+          <span className="flex items-center gap-0.5"><Heart className="w-2.5 h-2.5" />{persona.likeCount}</span>
+          <span className="flex items-center gap-0.5"><MessageSquare className="w-2.5 h-2.5" />{persona.chatCount}</span>
+        </div>
+      </div>
+      <div className="absolute inset-0 bg-emerald-600/90 flex flex-col items-center justify-center opacity-0 group-hover:opacity-100 transition-all duration-200">
+        <div className="w-12 h-12 bg-white/20 rounded-full flex items-center justify-center mb-2 ring-2 ring-white/40">
+          <Play className="w-5 h-5 text-white ml-0.5" />
+        </div>
+        <p className="text-white font-semibold text-sm">대화 시작</p>
+        {persona.tags?.length > 0 && (
+          <div className="flex flex-wrap gap-1 mt-2 justify-center px-3">
+            {persona.tags.slice(0, 2).map(tag => (
+              <span key={tag} className="text-[9px] bg-white/20 text-white px-1.5 py-0.5 rounded-full">{tag}</span>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ────────── FeaturedBanner ──────────
+function FeaturedBanner({ persona, onClick }: { persona: UserPersona; onClick: () => void }) {
+  const avatarUrl = persona.avatarUrl ? toMediaUrl(persona.avatarUrl) : null;
+  return (
+    <div
+      onClick={onClick}
+      className="relative cursor-pointer rounded-2xl overflow-hidden h-44 bg-gradient-to-br from-emerald-600 to-teal-800 shadow-lg hover:shadow-xl transition-all group mb-5"
+    >
+      {avatarUrl && (
+        <img src={avatarUrl} alt={persona.name} className="absolute inset-0 w-full h-full object-cover opacity-50 group-hover:opacity-60 transition-opacity object-top" />
+      )}
+      <div className="absolute inset-0 bg-gradient-to-r from-black/75 via-black/40 to-transparent" />
+      <div className="absolute inset-0 flex items-center px-5">
+        <div className="flex-1">
+          <div className="flex items-center gap-1.5 mb-2">
+            <Star className="w-3 h-3 text-yellow-400 fill-yellow-400" />
+            <span className="text-yellow-400 text-[10px] font-bold uppercase tracking-wider">오늘의 추천</span>
+          </div>
+          <h3 className="text-xl font-bold text-white mb-1">{persona.name}</h3>
+          <p className="text-white/75 text-xs line-clamp-2 leading-relaxed">{persona.description}</p>
+          <div className="flex items-center gap-3 mt-2 text-white/55 text-[10px]">
+            <span className="flex items-center gap-1"><Heart className="w-3 h-3" />{persona.likeCount}</span>
+            <span className="flex items-center gap-1"><MessageSquare className="w-3 h-3" />{persona.chatCount}번 대화</span>
+          </div>
+        </div>
+      </div>
+      <div className="absolute right-4 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-all duration-200 translate-x-2 group-hover:translate-x-0">
+        <div className="bg-white rounded-full p-2.5 shadow-lg">
+          <ArrowRight className="w-4 h-4 text-emerald-600" />
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function FreeChatPage() {
   const [, navigate] = useLocation();
   const { user } = useAuth();
@@ -374,6 +461,7 @@ export default function FreeChatPage() {
   const [mainView, setMainView] = useState<MainView>("browse");
   const [searchQuery, setSearchQuery] = useState("");
   const [discoverSort, setDiscoverSort] = useState<"likes" | "recent">("likes");
+  const [categoryFilter, setCategoryFilter] = useState<string | null>(null);
 
   // 선택된 페르소나 (UserPersona 또는 MbtiPersona)
   const [selectedUserPersona, setSelectedUserPersona] = useState<UserPersona | null>(null);
@@ -512,6 +600,31 @@ export default function FreeChatPage() {
     !searchQuery || p.mbti.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
+  // Discovery 강화: 카테고리 필터, 추천, 최근 대화
+  const allTags = useMemo(() => {
+    const tagSet = new Set<string>();
+    discoverPersonas.forEach(p => p.tags?.forEach(t => tagSet.add(t)));
+    return Array.from(tagSet).slice(0, 8);
+  }, [discoverPersonas]);
+
+  const filteredDiscoverByCategory = categoryFilter
+    ? filteredDiscover.filter(p => p.tags?.includes(categoryFilter))
+    : filteredDiscover;
+
+  const featuredPersona = discoverPersonas.length > 0
+    ? [...discoverPersonas].sort((a, b) => b.likeCount - a.likeCount)[0]
+    : null;
+
+  const recentConversations = useMemo(() => {
+    const all = [...discoverPersonas, ...myPersonas];
+    const seen = new Set<string>();
+    return all.filter(p => {
+      if (seen.has(p.id)) return false;
+      seen.add(p.id);
+      return localStorage.getItem(`persona_conv:${p.id}`) !== null;
+    }).slice(0, 5);
+  }, [discoverPersonas, myPersonas]);
+
   const currentPersonaName = selectedUserPersona?.name || selectedMbtiPersona?.mbti || null;
   const isPending = startUserChatMutation.isPending || startMbtiChatMutation.isPending;
 
@@ -557,10 +670,34 @@ export default function FreeChatPage() {
     }
 
     if (chatWindow) {
+      // Character mini-banner data
+      const chatAvatarUrl = selectedUserPersona?.avatarUrl
+        ? toMediaUrl(selectedUserPersona.avatarUrl)
+        : selectedMbtiPersona ? getMbtiImage(selectedMbtiPersona, selectedMbtiGender) : null;
+      const chatPersonaName = selectedUserPersona?.name || selectedMbtiPersona?.mbti || "";
+      const chatPersonaDesc = selectedUserPersona?.description || selectedMbtiPersona?.freeChatDescription || "";
+      const isMbtiChat = !!selectedMbtiPersona;
+
       return (
         <div className="relative h-screen overflow-hidden">
           {/* Full-screen chat */}
           {chatWindow}
+
+          {/* ── Character mini identity banner ────────── */}
+          <div className="fixed top-5 left-1/2 -translate-x-1/2 z-30 pointer-events-none">
+            <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full shadow-lg border backdrop-blur-sm ${isMbtiChat ? "bg-indigo-900/80 border-indigo-700/50" : "bg-slate-900/80 border-slate-700/50"}`}>
+              <div className="w-5 h-5 rounded-full overflow-hidden flex-shrink-0 ring-1 ring-white/30">
+                {chatAvatarUrl
+                  ? <img src={chatAvatarUrl} alt={chatPersonaName} className="w-full h-full object-cover" />
+                  : <div className={`w-full h-full flex items-center justify-center text-[8px] font-bold text-white ${isMbtiChat ? "bg-indigo-600" : "bg-emerald-600"}`}>{chatPersonaName.slice(0, 2)}</div>
+                }
+              </div>
+              <span className="text-white text-xs font-semibold">{chatPersonaName}</span>
+              {chatPersonaDesc && (
+                <span className="text-white/50 text-[10px] max-w-[120px] truncate hidden sm:block">{chatPersonaDesc}</span>
+              )}
+            </div>
+          </div>
 
           {/* ── Top header overlay ─────────────────────── */}
           {/* Backdrop for header */}
@@ -769,6 +906,36 @@ export default function FreeChatPage() {
             </button>
           </div>
 
+          {/* 최근 대화 섹션 (Feature 5) */}
+          {recentConversations.length > 0 && (
+            <div className="px-3 py-2.5 border-b border-slate-100">
+              <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                <Clock className="w-3 h-3" />최근 대화
+              </p>
+              <div className="space-y-0.5">
+                {recentConversations.map(p => (
+                  <button
+                    key={p.id}
+                    onClick={() => selectUserPersona(p)}
+                    className="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-emerald-50 transition-colors text-left group"
+                  >
+                    <div className="w-7 h-7 rounded-full overflow-hidden flex-shrink-0 bg-gradient-to-br from-emerald-400 to-teal-600">
+                      {p.avatarUrl
+                        ? <img src={toMediaUrl(p.avatarUrl)} alt={p.name} className="w-full h-full object-cover" />
+                        : <span className="w-full h-full flex items-center justify-center text-[9px] font-bold text-white">{p.name.slice(0, 2)}</span>
+                      }
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-medium text-slate-700 truncate group-hover:text-emerald-700">{p.name}</p>
+                      <p className="text-[10px] text-slate-400">이어서 대화하기</p>
+                    </div>
+                    <ArrowRight className="w-3 h-3 text-slate-300 group-hover:text-emerald-500 flex-shrink-0" />
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* Tabs */}
           <div className="flex border-b border-slate-100">
             {([
@@ -871,12 +1038,41 @@ export default function FreeChatPage() {
                 </Link>
               </div>
 
+              {/* Feature 1+2: Discovery 허브 */}
               {discoverPersonas.length > 0 && (
                 <div>
+                  {/* Featured Banner */}
+                  {featuredPersona && !categoryFilter && (
+                    <FeaturedBanner persona={featuredPersona} onClick={() => selectUserPersona(featuredPersona)} />
+                  )}
+
+                  {/* Category filter chips */}
+                  {allTags.length > 0 && (
+                    <div className="flex gap-1.5 flex-wrap mb-4">
+                      <button
+                        onClick={() => setCategoryFilter(null)}
+                        className={`px-3 py-1 rounded-full text-xs font-medium border transition-all ${!categoryFilter ? "bg-emerald-600 text-white border-emerald-600" : "bg-white text-slate-500 border-slate-200 hover:border-slate-300"}`}
+                      >
+                        전체
+                      </button>
+                      {allTags.map(tag => (
+                        <button
+                          key={tag}
+                          onClick={() => setCategoryFilter(categoryFilter === tag ? null : tag)}
+                          className={`px-3 py-1 rounded-full text-xs font-medium border transition-all ${categoryFilter === tag ? "bg-emerald-600 text-white border-emerald-600" : "bg-white text-slate-500 border-slate-200 hover:border-slate-300"}`}
+                        >
+                          {tag}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Sort toggle + section label */}
                   <div className="flex items-center justify-between mb-3">
                     <h2 className="text-sm font-bold text-slate-700 flex items-center gap-2">
-                      <Compass className="w-4 h-4 text-emerald-500" />
-                      {discoverSort === "likes" ? "인기 페르소나" : "최신 페르소나"}
+                      {discoverSort === "likes"
+                        ? <><Flame className="w-4 h-4 text-orange-500" />인기 페르소나</>
+                        : <><Sparkles className="w-4 h-4 text-emerald-500" />최신 페르소나</>}
                     </h2>
                     <div className="flex gap-1 bg-slate-100 rounded-lg p-0.5">
                       {([["likes", "인기"], ["recent", "최신"]] as const).map(([val, label]) => (
@@ -890,25 +1086,20 @@ export default function FreeChatPage() {
                       ))}
                     </div>
                   </div>
-                  <div className="grid grid-cols-2 gap-3">
-                    {discoverPersonas.map(p => (
-                      <button
-                        key={p.id}
-                        onClick={() => selectUserPersona(p)}
-                        className="flex items-center gap-3 p-3 bg-white rounded-xl border border-slate-200 hover:border-emerald-300 hover:shadow-sm transition-all text-left"
-                      >
-                        <PersonaAvatar url={p.avatarUrl} name={p.name} size={10} />
-                        <div className="flex-1 min-w-0">
-                          <p className="font-semibold text-slate-800 text-sm truncate">{p.name}</p>
-                          <p className="text-xs text-slate-500 truncate">{p.description}</p>
-                          <div className="flex items-center gap-1 mt-1 text-slate-400 text-[10px]">
-                            <Heart className="w-3 h-3" />{p.likeCount}
-                            <MessageSquare className="w-3 h-3 ml-1" />{p.chatCount}
-                          </div>
-                        </div>
-                      </button>
-                    ))}
-                  </div>
+
+                  {/* Poster card grid */}
+                  {filteredDiscoverByCategory.length === 0 ? (
+                    <div className="text-center py-12 text-slate-400">
+                      <Compass className="w-8 h-8 mx-auto mb-2 text-slate-300" />
+                      <p className="text-sm">해당 카테고리의 페르소나가 없어요</p>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-3 gap-3">
+                      {filteredDiscoverByCategory.map(p => (
+                        <PosterPersonaCard key={p.id} persona={p} onClick={() => selectUserPersona(p)} />
+                      ))}
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -943,45 +1134,97 @@ export default function FreeChatPage() {
             <div className="max-w-lg mx-auto px-6 py-8">
               {selectedUserPersona && (
                 <div>
-                  <div className="flex items-start gap-4 mb-6">
-                    <PersonaAvatar url={selectedUserPersona.avatarUrl} name={selectedUserPersona.name} size={20} />
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2 mb-1">
-                        <h2 className="text-2xl font-bold text-slate-900">{selectedUserPersona.name}</h2>
-                        {selectedUserPersona.isPublic
-                          ? <Badge variant="secondary" className="text-emerald-700 bg-emerald-50"><Globe className="w-3 h-3 mr-1" />공개</Badge>
-                          : <Badge variant="secondary" className="text-slate-500"><Lock className="w-3 h-3 mr-1" />비공개</Badge>}
+                  {/* Cover banner */}
+                  <div className="relative -mx-6 -mt-8 mb-5 h-36 bg-gradient-to-br from-emerald-500 to-teal-700 overflow-hidden">
+                    {selectedUserPersona.avatarUrl && (
+                      <img
+                        src={toMediaUrl(selectedUserPersona.avatarUrl)}
+                        alt={selectedUserPersona.name}
+                        className="absolute inset-0 w-full h-full object-cover object-top opacity-50"
+                      />
+                    )}
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
+                    <div className="absolute bottom-4 left-4 flex items-end gap-3">
+                      <div className="w-14 h-14 rounded-2xl overflow-hidden border-2 border-white/60 shadow-lg flex-shrink-0">
+                        <PersonaAvatar url={selectedUserPersona.avatarUrl} name={selectedUserPersona.name} size={14} />
                       </div>
-                      <p className="text-slate-500 text-sm">{selectedUserPersona.description}</p>
-                      {selectedUserPersona.tags?.length > 0 && (
-                        <div className="flex flex-wrap gap-1 mt-2">
-                          {selectedUserPersona.tags.map(tag => (
-                            <span key={tag} className="text-xs bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full">{tag}</span>
-                          ))}
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <h2 className="text-xl font-bold text-white">{selectedUserPersona.name}</h2>
+                          {selectedUserPersona.isPublic
+                            ? <span className="text-[9px] bg-emerald-500/80 text-white px-1.5 py-0.5 rounded-full font-medium">공개</span>
+                            : <span className="text-[9px] bg-slate-500/80 text-white px-1.5 py-0.5 rounded-full font-medium">비공개</span>}
                         </div>
-                      )}
-                      <div className="flex items-center gap-4 mt-3 text-sm text-slate-500">
-                        <span className="flex items-center gap-1"><Heart className="w-3.5 h-3.5" />{selectedUserPersona.likeCount}</span>
-                        <span className="flex items-center gap-1"><MessageSquare className="w-3.5 h-3.5" />{selectedUserPersona.chatCount}번 대화</span>
+                        <div className="flex items-center gap-3 mt-1 text-white/70 text-[11px]">
+                          <span className="flex items-center gap-1"><Heart className="w-3 h-3" />{selectedUserPersona.likeCount}</span>
+                          <span className="flex items-center gap-1"><MessageSquare className="w-3 h-3" />{selectedUserPersona.chatCount}번 대화</span>
+                        </div>
                       </div>
                     </div>
                   </div>
 
-                  {selectedUserPersona.greeting && (
-                    <div className="bg-emerald-50 rounded-xl p-4 mb-6 border border-emerald-100">
-                      <p className="text-xs text-emerald-600 font-medium mb-1">첫 인사</p>
-                      <p className="text-slate-700 text-sm italic">"{selectedUserPersona.greeting}"</p>
+                  {/* Description */}
+                  {selectedUserPersona.description && (
+                    <p className="text-slate-600 text-sm leading-relaxed mb-4">{selectedUserPersona.description}</p>
+                  )}
+
+                  {/* Tags */}
+                  {selectedUserPersona.tags?.length > 0 && (
+                    <div className="flex flex-wrap gap-1.5 mb-5">
+                      {selectedUserPersona.tags.map(tag => (
+                        <span key={tag} className="text-xs bg-emerald-50 text-emerald-700 border border-emerald-100 px-2.5 py-1 rounded-full font-medium">#{tag}</span>
+                      ))}
                     </div>
                   )}
 
-                  {selectedUserPersona.personality && (
-                    <div className="bg-slate-50 rounded-xl p-4 mb-6">
-                      <p className="text-xs text-slate-500 font-medium mb-2">페르소나 정보</p>
-                      {selectedUserPersona.personality.traits?.length > 0 && (
-                        <p className="text-xs text-slate-600 mb-1"><span className="font-medium">성격:</span> {selectedUserPersona.personality.traits.join(", ")}</p>
+                  {/* Greeting bubble */}
+                  {selectedUserPersona.greeting && (
+                    <div className="flex gap-3 mb-5">
+                      <div className="w-8 h-8 rounded-full overflow-hidden flex-shrink-0 mt-1">
+                        <PersonaAvatar url={selectedUserPersona.avatarUrl} name={selectedUserPersona.name} size={8} />
+                      </div>
+                      <div className="flex-1 bg-slate-100 rounded-2xl rounded-tl-none p-3">
+                        <p className="text-xs text-slate-500 font-medium mb-1">{selectedUserPersona.name}</p>
+                        <p className="text-slate-700 text-sm leading-relaxed">"{selectedUserPersona.greeting}"</p>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Personality traits chips */}
+                  {selectedUserPersona.personality?.traits?.length > 0 && (
+                    <div className="mb-4">
+                      <p className="text-xs font-semibold text-slate-500 mb-2">성격 특성</p>
+                      <div className="flex flex-wrap gap-1.5">
+                        {selectedUserPersona.personality.traits.map((trait, i) => {
+                          const colors = ["bg-blue-50 text-blue-700 border-blue-100", "bg-purple-50 text-purple-700 border-purple-100", "bg-pink-50 text-pink-700 border-pink-100", "bg-amber-50 text-amber-700 border-amber-100", "bg-teal-50 text-teal-700 border-teal-100"];
+                          return (
+                            <span key={trait} className={`text-xs border px-2.5 py-1 rounded-full font-medium ${colors[i % colors.length]}`}>{trait}</span>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Communication style */}
+                  {(selectedUserPersona.personality?.communicationStyle || selectedUserPersona.personality?.speechStyle || selectedUserPersona.personality?.background) && (
+                    <div className="bg-slate-50 rounded-xl p-3 mb-5 space-y-2">
+                      {selectedUserPersona.personality?.communicationStyle && (
+                        <div>
+                          <p className="text-[10px] font-semibold text-slate-400 uppercase">대화 스타일</p>
+                          <p className="text-xs text-slate-600 mt-0.5">{selectedUserPersona.personality.communicationStyle}</p>
+                        </div>
                       )}
-                      {selectedUserPersona.personality.background && (
-                        <p className="text-xs text-slate-600"><span className="font-medium">배경:</span> {selectedUserPersona.personality.background}</p>
+                      {selectedUserPersona.personality?.speechStyle && (
+                        <div>
+                          <p className="text-[10px] font-semibold text-slate-400 uppercase">말투</p>
+                          <p className="text-xs text-slate-600 mt-0.5">{selectedUserPersona.personality.speechStyle}</p>
+                        </div>
+                      )}
+                      {selectedUserPersona.personality?.background && (
+                        <div>
+                          <p className="text-[10px] font-semibold text-slate-400 uppercase">배경</p>
+                          <p className="text-xs text-slate-600 mt-0.5">{selectedUserPersona.personality.background}</p>
+                        </div>
                       )}
                     </div>
                   )}
