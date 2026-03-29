@@ -5,6 +5,7 @@ import { storage } from "./storage";
 import { createSampleData } from "./sampleData";
 import ttsRoutes from "./routes/tts.js";
 import imageGenerationRoutes from "./routes/imageGeneration.js";
+import userPersonaImageRoutes from "./routes/userPersonaImage.js";
 import mediaRoutes from "./routes/media.js";
 import { realtimeVoiceService } from "./services/realtimeVoiceService";
 import { registerObjectStorageRoutes } from "./replit_integrations/object_storage";
@@ -78,6 +79,7 @@ export async function registerRoutes(app: Express, httpServer: Server): Promise<
   // ================================
   app.use("/api/tts", ttsRoutes);
   app.use("/api/image", imageGenerationRoutes);
+  app.use("/api/user-personas", userPersonaImageRoutes);
   app.use("/api/media", mediaRoutes);
   registerObjectStorageRoutes(app);
 

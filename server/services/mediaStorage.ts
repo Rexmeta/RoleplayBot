@@ -252,6 +252,47 @@ export class MediaStorageService {
     return { imagePath, thumbnailPath };
   }
 
+  async saveUserPersonaImage(
+    base64ImageUrl: string,
+    personaId: string,
+    emotion: string
+  ): Promise<string> {
+    if (personaId.includes('..') || personaId.includes('/') || personaId.includes('\\')) {
+      throw new Error('Invalid persona ID');
+    }
+
+    const matches = base64ImageUrl.match(/^data:([A-Za-z-+\/]+);base64,(.+)$/);
+    if (!matches) {
+      throw new Error('Invalid base64 image format');
+    }
+
+    const imageData = matches[2];
+    const buffer = Buffer.from(imageData, 'base64');
+
+    const safeEmotion = emotion.replace(/[^a-zA-Z0-9_-]/g, '') || 'neutral';
+
+    const optimizedBuffer = await sharp(buffer)
+      .resize(IMAGE_CONFIG.persona.original.width, IMAGE_CONFIG.persona.original.height, {
+        fit: 'cover',
+        position: 'center'
+      })
+      .webp({ quality: IMAGE_CONFIG.persona.original.quality })
+      .toBuffer();
+
+    const imagePath = await this.uploadToStorage(
+      optimizedBuffer,
+      `user-personas/${personaId}/${safeEmotion}.webp`,
+      'image/webp'
+    );
+
+    const originalSize = buffer.length;
+    const optimizedSize = optimizedBuffer.length;
+    console.log(`📁 유저 페르소나 이미지 저장 (${getStorageType().toUpperCase()}): ${safeEmotion}`);
+    console.log(`   원본: ${(originalSize / 1024).toFixed(0)}KB → 최적화: ${(optimizedSize / 1024).toFixed(0)}KB`);
+
+    return imagePath;
+  }
+
   async saveVideo(
     videoBytes: Uint8Array,
     scenarioId: string,
