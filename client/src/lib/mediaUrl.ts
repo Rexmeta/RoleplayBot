@@ -10,7 +10,9 @@ export function toMediaUrl(ref: string | null | undefined): string {
   if (
     stripped.startsWith("scenarios/") ||
     stripped.startsWith("videos/") ||
-    stripped.startsWith("personas/")
+    stripped.startsWith("personas/") ||
+    stripped.startsWith("user-personas/") ||
+    stripped.startsWith("uploads/")
   ) {
     const clean = stripped.split("?")[0];
     return `/objects?key=${encodeURIComponent(clean)}`;

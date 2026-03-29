@@ -171,7 +171,7 @@ export default function PersonaEditorModal({ persona, onClose, onSaved }: {
       }
       const data = await res.json();
       setAvatarUrl(data.objectPath);
-      setAvatarPreview(data.imageUrl);
+      setAvatarPreview(toMediaUrl(data.objectPath));
       toast({ title: "AI 초상화 생성 완료!" });
     } catch (err: any) {
       toast({
@@ -206,11 +206,7 @@ export default function PersonaEditorModal({ persona, onClose, onSaved }: {
           newPreviews[key] = toMediaUrl(path);
         }
       }
-      if (data.results) {
-        for (const [key, result] of Object.entries(data.results as Record<string, { imageUrl: string; success: boolean }>)) {
-          if (result.success && result.imageUrl) newPreviews[key] = result.imageUrl;
-        }
-      }
+      
 
       setExpressions(prev => ({ ...prev, ...newExpressions }));
       setExpressionPreviews(prev => ({ ...prev, ...newPreviews }));
@@ -240,7 +236,7 @@ export default function PersonaEditorModal({ persona, onClose, onSaved }: {
       }
       const data = await res.json();
       setExpressions(prev => ({ ...prev, [emotionKey]: data.objectPath }));
-      setExpressionPreviews(prev => ({ ...prev, [emotionKey]: data.imageUrl }));
+      setExpressionPreviews(prev => ({ ...prev, [emotionKey]: toMediaUrl(data.objectPath) }));
       toast({ title: "표정 이미지 재생성 완료" });
     } catch (err: any) {
       toast({
