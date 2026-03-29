@@ -17,7 +17,7 @@ import { useAuth } from "@/hooks/useAuth";
 import {
   Search, Plus, MessageSquare, Compass, User, Heart,
   MoreVertical, Pencil, Trash2, Globe, Lock, X, Check,
-  MessageCircle, Mic, Volume2, ChevronRight, Users, Sparkles,
+  MessageCircle, Mic, Volume2, ChevronRight, Sparkles,
   Camera, ImageIcon, ChevronDown, ChevronUp, Flame, Star, Play,
   Clock, ArrowRight
 } from "lucide-react";
@@ -40,16 +40,7 @@ interface UserPersona {
   liked?: boolean;
 }
 
-interface FreeChatMbtiPersona {
-  id: string;
-  mbti: string;
-  gender: string | null;
-  communicationStyle: string | null;
-  freeChatDescription: string | null;
-  images: { male?: { expressions?: Record<string, string> }; female?: { expressions?: Record<string, string> } } | null;
-}
-
-type SidebarTab = "discover" | "my" | "mbti";
+type SidebarTab = "discover" | "my";
 type MainView = "browse" | "chat";
 type ChatMode = "text" | "tts" | "realtime_voice";
 
@@ -99,25 +90,6 @@ function buildUserPersonaForChat(p: UserPersona): ScenarioPersona {
       fears: [],
     },
   } as any;
-}
-
-function buildMbtiScenario(mbti: string, desc: string, difficulty: number): ComplexScenario {
-  return {
-    id: "__free_chat__",
-    title: `${mbti}와의 자유 대화`,
-    description: desc,
-    context: { situation: "자유 대화", timeline: "현재", stakes: "소통 연습", playerRole: { position: "직원", department: "", experience: "", responsibility: "대화" } },
-    objectives: ["자유롭게 소통하기"],
-    personas: [], difficulty,
-    successCriteria: { optimal: "깊이 있는 대화", good: "적극적 소통", acceptable: "기본 대화 유지", failure: "대화 거부" },
-  } as any;
-}
-
-function getMbtiImage(persona: FreeChatMbtiPersona, gender: "male" | "female") {
-  const exps = persona.images?.[gender]?.expressions;
-  if (!exps) return null;
-  const key = Object.keys(exps).find(k => k === "중립" || k === "neutral") || Object.keys(exps)[0];
-  return key ? toMediaUrl(exps[key]) : null;
 }
 
 // ────────── PersonaAvatar ──────────
@@ -463,10 +435,8 @@ export default function FreeChatPage() {
   const [discoverSort, setDiscoverSort] = useState<"likes" | "recent">("likes");
   const [categoryFilter, setCategoryFilter] = useState<string | null>(null);
 
-  // 선택된 페르소나 (UserPersona 또는 MbtiPersona)
+  // 선택된 페르소나
   const [selectedUserPersona, setSelectedUserPersona] = useState<UserPersona | null>(null);
-  const [selectedMbtiPersona, setSelectedMbtiPersona] = useState<FreeChatMbtiPersona | null>(null);
-  const [selectedMbtiGender, setSelectedMbtiGender] = useState<"male" | "female">("male");
 
   // 채팅 설정
   const [chatMode, setChatMode] = useState<ChatMode>("text");
@@ -492,10 +462,6 @@ export default function FreeChatPage() {
   const { data: myPersonas = [] } = useQuery<UserPersona[]>({
     queryKey: ["/api/user-personas"],
     queryFn: () => apiRequest("GET", "/api/user-personas").then(r => r.json()),
-  });
-
-  const { data: mbtiPersonas = [] } = useQuery<FreeChatMbtiPersona[]>({
-    queryKey: ["/api/free-chat/personas"],
   });
 
   // Like mutation
@@ -535,20 +501,8 @@ export default function FreeChatPage() {
     onError: (err: any) => toast({ title: "대화 시작 실패", description: err.message, variant: "destructive" }),
   });
 
-  // Start MBTI free chat
-  const startMbtiChatMutation = useMutation({
-    mutationFn: (payload: { personaId: string; mode: string; difficulty: number; gender: string }) =>
-      apiRequest("POST", "/api/free-chat/start", payload).then(r => r.json()),
-    onSuccess: (data) => {
-      setConversationId(data.id);
-      setMainView("chat");
-    },
-    onError: (err: any) => toast({ title: "대화 시작 실패", description: err.message, variant: "destructive" }),
-  });
-
   const handleStartChat = () => {
     if (selectedUserPersona) {
-      // 저장된 대화가 있으면 바로 재개
       const savedId = getSavedConvId(selectedUserPersona.id);
       if (savedId) {
         setConversationId(savedId);
@@ -556,8 +510,6 @@ export default function FreeChatPage() {
       } else {
         startUserChatMutation.mutate({ personaId: selectedUserPersona.id, mode: chatMode, difficulty: chatDifficulty });
       }
-    } else if (selectedMbtiPersona) {
-      startMbtiChatMutation.mutate({ personaId: selectedMbtiPersona.id, mode: chatMode, difficulty: chatDifficulty, gender: selectedMbtiGender });
     }
   };
 
@@ -576,8 +528,6 @@ export default function FreeChatPage() {
 
   const selectUserPersona = (p: UserPersona) => {
     setSelectedUserPersona(p);
-    setSelectedMbtiPersona(null);
-    // 대화 이력이 있으면 정보 페이지를 건너뛰고 바로 채팅으로 진입
     const savedId = getSavedConvId(p.id);
     if (savedId) {
       setConversationId(savedId);
@@ -585,19 +535,11 @@ export default function FreeChatPage() {
     }
   };
 
-  const selectMbtiPersona = (p: FreeChatMbtiPersona) => {
-    setSelectedMbtiPersona(p);
-    setSelectedUserPersona(null);
-  };
-
   const filteredDiscover = discoverPersonas.filter(p =>
     !searchQuery || p.name.toLowerCase().includes(searchQuery.toLowerCase()) || p.description?.toLowerCase().includes(searchQuery.toLowerCase())
   );
   const filteredMy = myPersonas.filter(p =>
     !searchQuery || p.name.toLowerCase().includes(searchQuery.toLowerCase())
-  );
-  const filteredMbti = mbtiPersonas.filter(p =>
-    !searchQuery || p.mbti.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
   // Discovery 강화: 카테고리 필터, 추천, 최근 대화
@@ -625,8 +567,8 @@ export default function FreeChatPage() {
     }).slice(0, 5);
   }, [discoverPersonas, myPersonas]);
 
-  const currentPersonaName = selectedUserPersona?.name || selectedMbtiPersona?.mbti || null;
-  const isPending = startUserChatMutation.isPending || startMbtiChatMutation.isPending;
+  const currentPersonaName = selectedUserPersona?.name || null;
+  const isPending = startUserChatMutation.isPending;
 
   // ── Chat view ──────────────────────────────────────────────────────
   if (mainView === "chat" && conversationId) {
@@ -644,39 +586,15 @@ export default function FreeChatPage() {
           isPersonaMode={true}
         />
       );
-    } else if (selectedMbtiPersona) {
-      const scenario = buildMbtiScenario(
-        selectedMbtiPersona.mbti,
-        selectedMbtiPersona.freeChatDescription || `${selectedMbtiPersona.mbti} 유형과의 자유 대화`,
-        chatDifficulty
-      );
-      const img = getMbtiImage(selectedMbtiPersona, selectedMbtiGender);
-      const persona: ScenarioPersona = {
-        id: selectedMbtiPersona.id, name: selectedMbtiPersona.mbti,
-        role: "동료", department: "", mbti: selectedMbtiPersona.mbti as any,
-        gender: selectedMbtiGender,
-        image: img || undefined,
-        personality: { traits: [], communicationStyle: selectedMbtiPersona.communicationStyle || "", motivation: "", fears: [] },
-      } as any;
-      chatWindow = (
-        <ChatWindow
-          scenario={scenario}
-          persona={persona}
-          conversationId={conversationId}
-          onChatComplete={handleExitChat}
-          onExit={handleExitChat}
-        />
-      );
     }
 
     if (chatWindow) {
       // Character mini-banner data
       const chatAvatarUrl = selectedUserPersona?.avatarUrl
         ? toMediaUrl(selectedUserPersona.avatarUrl)
-        : selectedMbtiPersona ? getMbtiImage(selectedMbtiPersona, selectedMbtiGender) : null;
-      const chatPersonaName = selectedUserPersona?.name || selectedMbtiPersona?.mbti || "";
-      const chatPersonaDesc = selectedUserPersona?.description || selectedMbtiPersona?.freeChatDescription || "";
-      const isMbtiChat = !!selectedMbtiPersona;
+        : null;
+      const chatPersonaName = selectedUserPersona?.name || "";
+      const chatPersonaDesc = selectedUserPersona?.description || "";
 
       return (
         <div className="relative h-screen overflow-hidden">
@@ -685,11 +603,11 @@ export default function FreeChatPage() {
 
           {/* ── Character mini identity banner ────────── */}
           <div className="fixed top-5 left-1/2 -translate-x-1/2 z-30 pointer-events-none">
-            <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full shadow-lg border backdrop-blur-sm ${isMbtiChat ? "bg-indigo-900/80 border-indigo-700/50" : "bg-slate-900/80 border-slate-700/50"}`}>
+            <div className="flex items-center gap-2 px-3 py-1.5 rounded-full shadow-lg border backdrop-blur-sm bg-slate-900/80 border-slate-700/50">
               <div className="w-5 h-5 rounded-full overflow-hidden flex-shrink-0 ring-1 ring-white/30">
                 {chatAvatarUrl
                   ? <img src={chatAvatarUrl} alt={chatPersonaName} className="w-full h-full object-cover" />
-                  : <div className={`w-full h-full flex items-center justify-center text-[8px] font-bold text-white ${isMbtiChat ? "bg-indigo-600" : "bg-emerald-600"}`}>{chatPersonaName.slice(0, 2)}</div>
+                  : <div className="w-full h-full flex items-center justify-center text-[8px] font-bold text-white bg-emerald-600">{chatPersonaName.slice(0, 2)}</div>
                 }
               </div>
               <span className="text-white text-xs font-semibold">{chatPersonaName}</span>
@@ -774,7 +692,6 @@ export default function FreeChatPage() {
               {([
                 { key: "discover", icon: Compass, label: "탐색" },
                 { key: "my", icon: User, label: "내 것" },
-                { key: "mbti", icon: Users, label: "MBTI" },
               ] as const).map(tab => (
                 <button
                   key={tab.key}
@@ -783,7 +700,6 @@ export default function FreeChatPage() {
                     if (tab.key === "discover") {
                       handleExitChat();
                       setSelectedUserPersona(null);
-                      setSelectedMbtiPersona(null);
                       setChatSidebarOpen(false);
                     }
                   }}
@@ -843,30 +759,6 @@ export default function FreeChatPage() {
                 ))
               )}
 
-              {sidebarTab === "mbti" && filteredMbti.map(p => {
-                const img = getMbtiImage(p, selectedMbtiGender);
-                const isSelected = selectedMbtiPersona?.id === p.id;
-                return (
-                  <button
-                    key={p.id}
-                    onClick={() => {
-                      setChatSidebarOpen(false);
-                      handleExitChat();
-                      setTimeout(() => selectMbtiPersona(p), 50);
-                    }}
-                    className={`w-full flex items-center gap-3 px-3 py-3 rounded-xl transition-all text-left ${isSelected ? "bg-indigo-50 border border-indigo-200" : "hover:bg-slate-50"}`}
-                  >
-                    <div className="w-10 h-10 rounded-full overflow-hidden bg-slate-100 flex-shrink-0 flex items-center justify-center">
-                      {img ? <img src={img} alt={p.mbti} className="w-full h-full object-cover" />
-                        : <span className="text-xs font-bold text-slate-400">{p.mbti.slice(0, 2)}</span>}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="font-semibold text-slate-800 text-sm">{p.mbti}</p>
-                      {p.freeChatDescription && <p className="text-xs text-slate-500 truncate">{p.freeChatDescription}</p>}
-                    </div>
-                  </button>
-                );
-              })}
             </div>
           </aside>
 
@@ -941,7 +833,6 @@ export default function FreeChatPage() {
             {([
               { key: "discover", icon: Compass, label: "탐색" },
               { key: "my", icon: User, label: "내 것" },
-              { key: "mbti", icon: Users, label: "MBTI" },
             ] as const).map(tab => (
               <button
                 key={tab.key}
@@ -949,7 +840,6 @@ export default function FreeChatPage() {
                   setSidebarTab(tab.key);
                   if (tab.key === "discover") {
                     setSelectedUserPersona(null);
-                    setSelectedMbtiPersona(null);
                   }
                 }}
                 className={`flex-1 flex flex-col items-center gap-0.5 py-2.5 text-xs font-medium transition-colors border-b-2 ${sidebarTab === tab.key ? "text-emerald-600 border-emerald-600" : "text-slate-500 border-transparent hover:text-slate-700"}`}
@@ -960,8 +850,8 @@ export default function FreeChatPage() {
             ))}
           </div>
 
-          {/* Search — only for my / mbti */}
-          {sidebarTab !== "discover" && (
+          {/* Search — only for my */}
+          {sidebarTab === "my" && (
             <div className="px-3 pt-3 pb-2">
               <div className="relative">
                 <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
@@ -975,56 +865,33 @@ export default function FreeChatPage() {
             </div>
           )}
 
-          {/* Persona list — only for my / mbti */}
-          {sidebarTab !== "discover" && (
+          {/* Persona list — only for my */}
+          {sidebarTab === "my" && (
             <div className="flex-1 overflow-y-auto px-2 pb-3 space-y-0.5">
-              {sidebarTab === "my" && (
-                filteredMy.length === 0 ? (
-                  <div className="text-center py-8 px-3">
-                    <Sparkles className="w-8 h-8 text-slate-300 mx-auto mb-2" />
-                    <p className="text-xs text-slate-400">아직 만든 페르소나가 없어요</p>
-                  </div>
-                ) : filteredMy.map(p => (
-                  <UserPersonaCard
-                    key={p.id}
-                    persona={p}
-                    isSelected={selectedUserPersona?.id === p.id}
-                    isMine
-                    onSelect={() => selectUserPersona(p)}
-                    onEdit={() => { setEditingPersona(p); setEditorOpen(true); }}
-                    onDelete={() => deleteMutation.mutate(p.id)}
-                    onLike={() => likeMutation.mutate(p.id)}
-                  />
-                ))
-              )}
-
-              {sidebarTab === "mbti" && filteredMbti.map(p => {
-                const img = getMbtiImage(p, selectedMbtiGender);
-                const isSelected = selectedMbtiPersona?.id === p.id;
-                return (
-                  <button
-                    key={p.id}
-                    onClick={() => selectMbtiPersona(p)}
-                    className={`w-full flex items-center gap-3 px-3 py-3 rounded-xl transition-all text-left ${isSelected ? "bg-indigo-50 border border-indigo-200" : "hover:bg-slate-50"}`}
-                  >
-                    <div className="w-10 h-10 rounded-full overflow-hidden bg-slate-100 flex-shrink-0 flex items-center justify-center">
-                      {img ? <img src={img} alt={p.mbti} className="w-full h-full object-cover" />
-                        : <span className="text-xs font-bold text-slate-400">{p.mbti.slice(0, 2)}</span>}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="font-semibold text-slate-800 text-sm">{p.mbti}</p>
-                      {p.freeChatDescription && <p className="text-xs text-slate-500 truncate">{p.freeChatDescription}</p>}
-                    </div>
-                  </button>
-                );
-              })}
+              {filteredMy.length === 0 ? (
+                <div className="text-center py-8 px-3">
+                  <Sparkles className="w-8 h-8 text-slate-300 mx-auto mb-2" />
+                  <p className="text-xs text-slate-400">아직 만든 페르소나가 없어요</p>
+                </div>
+              ) : filteredMy.map(p => (
+                <UserPersonaCard
+                  key={p.id}
+                  persona={p}
+                  isSelected={selectedUserPersona?.id === p.id}
+                  isMine
+                  onSelect={() => selectUserPersona(p)}
+                  onEdit={() => { setEditingPersona(p); setEditorOpen(true); }}
+                  onDelete={() => deleteMutation.mutate(p.id)}
+                  onLike={() => likeMutation.mutate(p.id)}
+                />
+              ))}
             </div>
           )}
         </aside>
 
         {/* ── Center: Browse / Detail ───────────────────── */}
         <main className="flex-1 overflow-y-auto">
-          {(sidebarTab === "discover" && !selectedUserPersona && !selectedMbtiPersona) || (!selectedUserPersona && !selectedMbtiPersona) ? (
+          {!selectedUserPersona ? (
             /* Welcome / discovery grid */
             <div className="max-w-3xl mx-auto px-6 py-10">
               <div className="text-center mb-10">
@@ -1103,31 +970,6 @@ export default function FreeChatPage() {
                 </div>
               )}
 
-              {mbtiPersonas.length > 0 && (
-                <div className="mt-8">
-                  <h2 className="text-sm font-bold text-slate-700 mb-3 flex items-center gap-2">
-                    <Users className="w-4 h-4 text-indigo-500" />MBTI 페르소나
-                  </h2>
-                  <div className="grid grid-cols-3 gap-2">
-                    {mbtiPersonas.slice(0, 6).map(p => {
-                      const img = getMbtiImage(p, "male");
-                      return (
-                        <button
-                          key={p.id}
-                          onClick={() => selectMbtiPersona(p)}
-                          className="flex flex-col items-center gap-2 p-3 bg-white rounded-xl border border-slate-200 hover:border-indigo-300 hover:shadow-sm transition-all"
-                        >
-                          <div className="w-12 h-12 rounded-full overflow-hidden bg-slate-100 flex items-center justify-center">
-                            {img ? <img src={img} alt={p.mbti} className="w-full h-full object-cover" />
-                              : <span className="text-xs font-bold text-slate-400">{p.mbti.slice(0, 2)}</span>}
-                          </div>
-                          <span className="text-xs font-semibold text-slate-700">{p.mbti}</span>
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
             </div>
           ) : (
             /* Persona detail + start chat */
@@ -1231,36 +1073,6 @@ export default function FreeChatPage() {
                 </div>
               )}
 
-              {selectedMbtiPersona && (
-                <div>
-                  <div className="flex items-start gap-4 mb-6">
-                    <div className="w-20 h-20 rounded-full overflow-hidden bg-slate-100 flex items-center justify-center flex-shrink-0">
-                      {getMbtiImage(selectedMbtiPersona, selectedMbtiGender)
-                        ? <img src={getMbtiImage(selectedMbtiPersona, selectedMbtiGender)!} alt={selectedMbtiPersona.mbti} className="w-full h-full object-cover" />
-                        : <span className="text-lg font-bold text-slate-400">{selectedMbtiPersona.mbti.slice(0, 2)}</span>}
-                    </div>
-                    <div>
-                      <h2 className="text-2xl font-bold text-slate-900 mb-1">{selectedMbtiPersona.mbti}</h2>
-                      {selectedMbtiPersona.freeChatDescription && <p className="text-slate-500 text-sm">{selectedMbtiPersona.freeChatDescription}</p>}
-                      {selectedMbtiPersona.communicationStyle && <p className="text-xs text-slate-400 mt-1">{selectedMbtiPersona.communicationStyle}</p>}
-                    </div>
-                  </div>
-
-                  {/* Gender selection for MBTI */}
-                  <div className="mb-4">
-                    <p className="text-sm font-medium text-slate-700 mb-2">성별 선택</p>
-                    <div className="flex gap-2">
-                      {(["male", "female"] as const).map(g => (
-                        <button key={g} onClick={() => setSelectedMbtiGender(g)}
-                          className={`flex-1 py-2 rounded-lg text-sm font-medium transition-all ${selectedMbtiGender === g ? "bg-indigo-600 text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"}`}>
-                          {g === "male" ? "남성" : "여성"}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              )}
-
               {/* Chat settings */}
               <div className="bg-white rounded-xl border border-slate-200 p-4 mb-5">
                 <p className="text-sm font-semibold text-slate-800 mb-3">대화 설정</p>
@@ -1327,7 +1139,7 @@ export default function FreeChatPage() {
                 </button>
               )}
 
-              <button onClick={() => { setSelectedUserPersona(null); setSelectedMbtiPersona(null); }}
+              <button onClick={() => setSelectedUserPersona(null)}
                 className="w-full mt-2 py-2 text-sm text-slate-400 hover:text-slate-600 transition-colors">
                 취소
               </button>
