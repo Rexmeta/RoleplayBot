@@ -499,5 +499,62 @@ export default function createAdminScenariosRouter(isAuthenticated: any) {
     res.json(status);
   }));
 
+  router.post("/api/admin/scenarios/:id/duplicate", isAuthenticated, isOperatorOrAdmin, asyncHandler(async (req, res) => {
+    const user = (req as any).user;
+    const scenarioId = req.params.id;
+
+    if (user.role === 'operator') {
+      const accessCheck = await checkOperatorScenarioAccess(user, scenarioId);
+      if (!accessCheck.hasAccess) {
+        throw createHttpError(403, accessCheck.error || "Access denied.");
+      }
+    }
+
+    const scenarios = await fileManager.getAllScenarios();
+    const original = scenarios.find((s: any) => s.id === scenarioId);
+    if (!original) {
+      throw createHttpError(404, "Scenario not found");
+    }
+
+    const duplicateData: any = {
+      ...original,
+      title: `${original.title} (복사본)`,
+      isPublic: false,
+    };
+    delete duplicateData.id;
+
+    const created = await fileManager.createScenario(duplicateData);
+
+    try {
+      await storage.upsertScenarioTranslation({
+        scenarioId: created.id,
+        locale: (original as any).sourceLocale || 'ko',
+        sourceLocale: (original as any).sourceLocale || 'ko',
+        isOriginal: true,
+        title: created.title,
+        description: created.description,
+        situation: created.context?.situation || null,
+        timeline: created.context?.timeline || null,
+        stakes: created.context?.stakes || null,
+        playerRole: created.context?.playerRole
+          ? `${(created.context.playerRole as any).position} / ${(created.context.playerRole as any).department}`
+          : null,
+        objectives: created.objectives || null,
+        skills: created.skills || null,
+        successCriteriaOptimal: created.successCriteria?.optimal || null,
+        successCriteriaGood: created.successCriteria?.good || null,
+        successCriteriaAcceptable: created.successCriteria?.acceptable || null,
+        successCriteriaFailure: created.successCriteria?.failure || null,
+        isMachineTranslated: false,
+        isReviewed: true,
+      });
+    } catch (translationError) {
+      console.error("Error saving duplicate translation:", translationError);
+    }
+
+    const transformedScenario = await transformScenarioMedia(created);
+    res.json(transformedScenario);
+  }));
+
   return router;
 }

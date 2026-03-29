@@ -1,22 +1,23 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef } from 'react';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
+import { Progress } from '@/components/ui/progress';
 import { useToast } from '@/hooks/use-toast';
 import { apiRequest, queryClient } from '@/lib/queryClient';
 import { ComplexScenario } from '@/lib/scenario-system';
 import { toMediaUrl } from '@/lib/mediaUrl';
-import { Loader2, MoreVertical, ChevronDown, ChevronUp, Clock, Users, Target, Languages, Search, Sparkles } from 'lucide-react';
+import { Loader2, MoreVertical, ChevronDown, ChevronUp, Clock, Users, Target, Languages, Search, Sparkles, Eye, Copy, Download, Upload, ImageOff, UserX, ListX, BarChart2, Star, Folder } from 'lucide-react';
 import { AIScenarioGenerator } from './AIScenarioGenerator';
 import { ScenarioTranslationEditor } from './ScenarioTranslationEditor';
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
@@ -90,6 +91,9 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
   const [imagePreviewUrl, setImagePreviewUrl] = useState<string | null>(null);
   const [videoPreviewUrl, setVideoPreviewUrl] = useState<string | null>(null);
   const [translatingScenario, setTranslatingScenario] = useState<ComplexScenario | null>(null);
+  const [previewScenario, setPreviewScenario] = useState<ComplexScenario | null>(null);
+  const [isImporting, setIsImporting] = useState(false);
+  const importFileRef = useRef<HTMLInputElement>(null);
   const [imageLoadFailed, setImageLoadFailed] = useState(false);
   const [videoLoadFailed, setVideoLoadFailed] = useState(false);
   const [showImageSelector, setShowImageSelector] = useState(false);
@@ -197,6 +201,14 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
   const { data: availablePersonas = [] } = useQuery<{ id: string; mbti: string; personality_traits?: string[]; communication_style?: string }[]>({
     queryKey: ['/api/admin/personas'],
   });
+
+  // 시나리오 완료 통계 조회
+  const { data: scenarioStats = [] } = useQuery<{ scenarioId: string; completionCount: number; averageScore: number | null }[]>({
+    queryKey: ['/api/scenarios/stats'],
+    queryFn: () => fetch('/api/scenarios/stats').then(res => res.json()),
+    staleTime: 1000 * 60 * 10,
+  });
+  const statsMap = useMemo(() => new Map(scenarioStats.map(s => [s.scenarioId, s] as const)), [scenarioStats]);
 
   // 시나리오 내 이미 선택된 페르소나 ID 목록
   const selectedPersonaIds = useMemo(() => {
@@ -391,6 +403,20 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
         variant: 'destructive',
       });
     }
+  });
+
+  const duplicateMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const response = await apiRequest('POST', `/api/admin/scenarios/${id}/duplicate`, {});
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/admin/scenarios'] });
+      toast({ title: '시나리오 복제 완료', description: '시나리오가 복제되었습니다.' });
+    },
+    onError: () => {
+      toast({ title: '복제 실패', description: '시나리오를 복제하지 못했습니다.', variant: 'destructive' });
+    },
   });
 
   const resetForm = () => {
@@ -874,6 +900,89 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
     }));
   };
 
+  // 완성도 계산 헬퍼
+  const getCompleteness = (scenario: ComplexScenario) => {
+    const checks = [
+      { key: 'image', label: '이미지', icon: ImageOff, ok: !!(scenario.image && !scenario.image.includes('unsplash')) },
+      { key: 'personas', label: '페르소나', icon: UserX, ok: (scenario.personas || []).length > 0 },
+      { key: 'objectives', label: '목표', icon: ListX, ok: (scenario.objectives || []).length > 0 },
+      { key: 'evaluationCriteria', label: '평가기준', icon: BarChart2, ok: !!(scenario as any).evaluationCriteriaSetId },
+    ];
+    const score = checks.filter(c => c.ok).length;
+    const percent = Math.round((score / checks.length) * 100);
+    return { checks, score, percent };
+  };
+
+  // 미사용 여부 확인 (완료 횟수 0인 경우)
+  const isUnused = (scenarioId: string) => {
+    const stats = statsMap.get(String(scenarioId));
+    return !stats || stats.completionCount === 0;
+  };
+
+  // Export: 전체 시나리오를 JSON으로 다운로드
+  const handleExport = () => {
+    if (!scenarios || scenarios.length === 0) {
+      toast({ title: '내보낼 시나리오가 없습니다', variant: 'destructive' });
+      return;
+    }
+    const exportData = scenarios.map(s => {
+      const { id, title, description, difficulty, estimatedTime, skills, context, objectives, successCriteria, personas, recommendedFlow, image, imagePrompt, introVideoUrl, videoPrompt, objectiveType, isDemo, isPublic } = s as any;
+      return { id, title, description, difficulty, estimatedTime, skills, context, objectives, successCriteria, personas, recommendedFlow, image, imagePrompt, introVideoUrl, videoPrompt, objectiveType, isDemo, isPublic, categoryId: (s as any).categoryId, evaluationCriteriaSetId: (s as any).evaluationCriteriaSetId };
+    });
+    const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `scenarios-export-${new Date().toISOString().slice(0, 10)}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+    toast({ title: `${exportData.length}개 시나리오를 내보냈습니다` });
+  };
+
+  // Import: JSON 파일 파싱 후 시나리오 생성
+  const handleImportFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (importFileRef.current) importFileRef.current.value = '';
+    
+    let parsed: any[];
+    try {
+      const text = await file.text();
+      parsed = JSON.parse(text);
+      if (!Array.isArray(parsed)) throw new Error('배열 형식이 아닙니다');
+    } catch (err: any) {
+      toast({ title: '파일 파싱 실패', description: err.message, variant: 'destructive' });
+      return;
+    }
+
+    setIsImporting(true);
+    let successCount = 0;
+    let failCount = 0;
+
+    for (const item of parsed) {
+      try {
+        if (!item.title || typeof item.title !== 'string') { failCount++; continue; }
+        if (item.description !== undefined && typeof item.description !== 'string') { failCount++; continue; }
+        if (item.objectives !== undefined && !Array.isArray(item.objectives)) { failCount++; continue; }
+        if (item.personas !== undefined && !Array.isArray(item.personas)) { failCount++; continue; }
+        if (item.skills !== undefined && !Array.isArray(item.skills)) { failCount++; continue; }
+        const { id: _id, ...scenarioData } = item;
+        await apiRequest('POST', '/api/admin/scenarios', scenarioData);
+        successCount++;
+      } catch {
+        failCount++;
+      }
+    }
+
+    setIsImporting(false);
+    queryClient.invalidateQueries({ queryKey: ['/api/admin/scenarios'] });
+    toast({
+      title: '가져오기 완료',
+      description: `성공 ${successCount}개, 실패 ${failCount}개`,
+      variant: failCount > 0 ? 'destructive' : 'default',
+    });
+  };
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center py-12">
@@ -890,7 +999,33 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
           <p className="text-slate-600 mt-1">{t('admin.scenarioManager.description')}</p>
         </div>
         
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
+          <input
+            ref={importFileRef}
+            type="file"
+            accept=".json"
+            className="hidden"
+            onChange={handleImportFile}
+          />
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => importFileRef.current?.click()}
+            disabled={isImporting}
+            data-testid="button-import-scenarios"
+          >
+            {isImporting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Upload className="mr-2 h-4 w-4" />}
+            가져오기
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleExport}
+            data-testid="button-export-scenarios"
+          >
+            <Download className="mr-2 h-4 w-4" />
+            내보내기
+          </Button>
           <AIScenarioGenerator onGenerated={handleAIGenerated} />
           <Button 
             className="bg-corporate-600 hover:bg-corporate-700"
@@ -1915,6 +2050,10 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
             });
           };
           
+          const completeness = getCompleteness(scenario);
+          const stats = statsMap.get(String(scenario.id));
+          const unused = isUnused(String(scenario.id));
+          
           return (
             <Card 
               key={scenario.id} 
@@ -1925,12 +2064,39 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
               <CardHeader className="pb-3 pl-5">
                 <div className="flex items-start justify-between gap-3">
                   <div className="flex-1 min-w-0">
-                    <CardTitle className="text-base font-semibold text-slate-800 line-clamp-2 leading-tight mb-2">
-                      {scenario.title}
-                    </CardTitle>
-                    <div className="flex items-center flex-wrap gap-3 text-sm text-slate-500">
+                    <div className="flex items-start gap-2 mb-2">
+                      <CardTitle className="text-base font-semibold text-slate-800 line-clamp-2 leading-tight flex-1">
+                        {scenario.title}
+                      </CardTitle>
+                      {unused && (
+                        <Badge variant="secondary" className="text-xs bg-slate-100 text-slate-500 border-slate-200 whitespace-nowrap shrink-0">
+                          미사용
+                        </Badge>
+                      )}
+                    </div>
+                    
+                    {/* 완성도 표시기 */}
+                    <div className="mb-2">
+                      <div className="flex items-center gap-2 mb-1">
+                        <Progress value={completeness.percent} className="h-1.5 flex-1" />
+                        <span className={`text-xs font-medium ${completeness.percent === 100 ? 'text-green-600' : completeness.percent >= 75 ? 'text-amber-600' : 'text-red-500'}`}>
+                          {completeness.percent}%
+                        </span>
+                      </div>
+                      <div className="flex gap-1 flex-wrap">
+                        {completeness.checks.filter(c => !c.ok).map(c => (
+                          <span key={c.key} className="inline-flex items-center gap-0.5 text-xs text-red-500 bg-red-50 rounded px-1 py-0.5">
+                            <c.icon className="w-3 h-3" />
+                            {c.label} 없음
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                    
+                    <div className="flex items-center flex-wrap gap-2 text-sm text-slate-500">
                       {categories && (scenario as any).categoryId && (
                         <Badge variant="outline" className="text-xs bg-slate-50 text-slate-700 border-slate-200">
+                          <Folder className="w-3 h-3 mr-1" />
                           {categories.find(c => String(c.id) === String((scenario as any).categoryId))?.name || '미분류'}
                         </Badge>
                       )}
@@ -1958,10 +2124,21 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
                         <Users className="w-3.5 h-3.5" />
                         <span>{(scenario.personas || []).length}명</span>
                       </div>
-                      <div className="flex items-center gap-1.5">
-                        <Target className="w-3.5 h-3.5" />
-                        <span>{(scenario.skills || []).length}개 역량</span>
-                      </div>
+                      {/* 통계 뱃지 */}
+                      {stats && stats.completionCount > 0 && (
+                        <>
+                          <div className="flex items-center gap-1 text-xs text-green-700 bg-green-50 rounded px-1.5 py-0.5">
+                            <Users className="w-3 h-3" />
+                            {stats.completionCount}회
+                          </div>
+                          {stats.averageScore != null && (
+                            <div className="flex items-center gap-1 text-xs text-amber-700 bg-amber-50 rounded px-1.5 py-0.5">
+                              <Star className="w-3 h-3" />
+                              {stats.averageScore}점
+                            </div>
+                          )}
+                        </>
+                      )}
                     </div>
                   </div>
                   
@@ -1979,11 +2156,27 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
                         <DropdownMenuItem
+                          onClick={() => setPreviewScenario(scenario)}
+                          data-testid={`button-preview-scenario-${scenario.id}`}
+                        >
+                          <Eye className="mr-2 w-4 h-4" />
+                          미리보기
+                        </DropdownMenuItem>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem
                           onClick={() => handleEdit(scenario)}
                           data-testid={`button-edit-scenario-${scenario.id}`}
                         >
                           <i className="fas fa-edit mr-2 w-4 h-4 text-center"></i>
                           {t('admin.common.edit')}
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          onClick={() => duplicateMutation.mutate(scenario.id as string)}
+                          disabled={duplicateMutation.isPending}
+                          data-testid={`button-duplicate-scenario-${scenario.id}`}
+                        >
+                          <Copy className="mr-2 w-4 h-4" />
+                          복제
                         </DropdownMenuItem>
                         <DropdownMenuItem
                           onClick={() => setTranslatingScenario(scenario)}
@@ -1992,6 +2185,7 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
                           <Languages className="mr-2 w-4 h-4" />
                           {t('admin.common.manageTranslation')}
                         </DropdownMenuItem>
+                        <DropdownMenuSeparator />
                         <AlertDialog>
                           <AlertDialogTrigger asChild>
                             <DropdownMenuItem
@@ -2144,6 +2338,79 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
               autoPlay
             />
           </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* 미리보기 모달 (학습자 화면 카드 스타일) */}
+      <Dialog open={!!previewScenario} onOpenChange={(open) => !open && setPreviewScenario(null)}>
+        <DialogContent className="max-w-lg" data-testid="scenario-preview-modal">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Eye className="h-5 w-5" />
+              학습자 화면 미리보기
+            </DialogTitle>
+          </DialogHeader>
+          {previewScenario && (() => {
+            const s = previewScenario;
+            const catName = categories?.find(c => String(c.id) === String((s as any).categoryId))?.name;
+            const previewStats = statsMap.get(String(s.id));
+            return (
+              <div className="mt-2">
+                <div className="overflow-hidden rounded-xl border-0 shadow-lg relative group">
+                  <div
+                    className="absolute inset-0 bg-cover bg-center bg-no-repeat"
+                    style={{
+                      backgroundImage: `url(${toMediaUrl((s as any).thumbnail || s.image) || 'https://images.unsplash.com/photo-1557804506-669a67965ba0?w=800&h=400&fit=crop&auto=format'})`,
+                    }}
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/40 to-black/20" />
+                  <div className="relative min-h-[14rem]">
+                    <div className="absolute top-4 left-4 right-4 flex items-start justify-between z-10">
+                      {catName && (
+                        <Badge className="bg-blue-600/90 text-white text-xs backdrop-blur-md shadow-lg">
+                          <Folder className="h-3 w-3 mr-1" />
+                          {catName}
+                        </Badge>
+                      )}
+                    </div>
+                    <div className="absolute bottom-0 left-0 right-0 p-5 text-white">
+                      <h2 className="text-xl font-bold mb-2 drop-shadow-lg line-clamp-2">{s.title}</h2>
+                      {s.description && (
+                        <p className="text-xs text-gray-200 mb-3 leading-relaxed line-clamp-3 drop-shadow-md">
+                          {s.description.length > 300 ? s.description.substring(0, 300) + '...' : s.description}
+                        </p>
+                      )}
+                      <div className="flex items-center gap-3 text-sm flex-wrap">
+                        <div className="flex items-center gap-1.5 bg-white/20 backdrop-blur-md rounded-full px-3 py-1.5 shadow-sm">
+                          <Users className="h-3 w-3" />
+                          <span className="font-medium">{(s.personas || []).length}명</span>
+                        </div>
+                        <div className="flex items-center gap-1.5 bg-white/20 backdrop-blur-md rounded-full px-3 py-1.5 shadow-sm">
+                          <Clock className="h-3 w-3" />
+                          <span className="font-medium">{s.estimatedTime}</span>
+                        </div>
+                        {previewStats && previewStats.completionCount > 0 && (
+                          <>
+                            <div className="flex items-center gap-1.5 bg-green-500/30 backdrop-blur-md rounded-full px-3 py-1.5 shadow-sm">
+                              <Users className="h-3 w-3" />
+                              <span className="font-medium text-xs">{previewStats.completionCount}회 완료</span>
+                            </div>
+                            {previewStats.averageScore != null && (
+                              <div className="flex items-center gap-1.5 bg-yellow-500/30 backdrop-blur-md rounded-full px-3 py-1.5 shadow-sm">
+                                <Star className="h-3 w-3" />
+                                <span className="font-medium text-xs">평균 {previewStats.averageScore}점</span>
+                              </div>
+                            )}
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <div className="mt-3 text-xs text-slate-500 text-center">위 카드가 학습자 시나리오 선택 화면에서 보여지는 방식입니다.</div>
+              </div>
+            );
+          })()}
         </DialogContent>
       </Dialog>
 
