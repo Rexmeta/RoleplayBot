@@ -1052,10 +1052,24 @@ export default function PersonalDevelopmentReport({
   }
 
   const getScoreColor = (score: number) => {
-    if (score >= 4) return "green";
-    if (score >= 3) return "blue"; 
-    if (score >= 2) return "yellow";
-    return "red";
+    if (score >= 4) return "indigo";
+    if (score >= 3) return "sky";
+    if (score >= 2) return "amber";
+    return "rose";
+  };
+
+  const getScoreBorderColor = (score: number) => {
+    if (score >= 4) return "border-l-indigo-500";
+    if (score >= 3) return "border-l-sky-400";
+    if (score >= 2) return "border-l-amber-400";
+    return "border-l-rose-400";
+  };
+
+  const getScoreHex = (score: number) => {
+    if (score >= 4) return "#4f46e5";
+    if (score >= 3) return "#0ea5e9";
+    if (score >= 2) return "#f59e0b";
+    return "#f43f5e";
   };
 
   const getScoreLabel = (score: number) => {
@@ -1122,6 +1136,26 @@ export default function PersonalDevelopmentReport({
   
   // 애니메이션 제거하고 바로 값 표시 (hooks 오류 방지)
   const displayOverallScore = getDisplayValue(feedback?.overallScore || 0);
+
+  const radarData = (feedback?.scores || []).map(s => ({
+    subject: getTranslatedDimensionName(s.category, s.name),
+    value: s.score ?? 0,
+    fullMark: 5,
+  }));
+
+  const CustomRadarTick = ({ payload, x, y, cx, cy }: any) => {
+    const item = radarData.find(d => d.subject === payload.value);
+    const score = item?.value ?? 0;
+    const color = getScoreHex(score);
+    const midX = cx ?? 0;
+    const anchor = Math.abs(x - midX) < 10 ? 'middle' : x > midX ? 'start' : 'end';
+    return (
+      <g>
+        <text x={x} y={y - 7} textAnchor={anchor} fill="#64748b" fontSize={10}>{payload.value}</text>
+        <text x={x} y={y + 8} textAnchor={anchor} fill={color} fontSize={12} fontWeight="700">{score}/5</text>
+      </g>
+    );
+  };
 
   // feedback가 없으면 로딩 화면을 표시
   if (!feedback) {
@@ -1216,6 +1250,27 @@ export default function PersonalDevelopmentReport({
             }</span>
           </div>
         </div>
+
+        {/* 역량 미니 KPI 바 */}
+        {(feedback?.scores?.length ?? 0) > 0 && (
+          <div className="mt-4 pt-4 border-t border-white/20">
+            <p className="text-[10px] font-semibold text-white/50 uppercase tracking-widest mb-2">역량별 점수 요약</p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-1.5">
+              {feedback!.scores.map((s, i) => (
+                <div key={i} className="flex items-center gap-2">
+                  <span className="text-[11px] text-white/70 truncate w-24 flex-shrink-0">{getTranslatedDimensionName(s.category, s.name)}</span>
+                  <div className="flex-1 h-1.5 bg-white/20 rounded-full overflow-hidden">
+                    <div
+                      className="h-full rounded-full transition-all duration-1000"
+                      style={{ width: `${((s.score ?? 0) / 5) * 100}%`, backgroundColor: 'rgba(255,255,255,0.75)' }}
+                    />
+                  </div>
+                  <span className="text-[11px] font-bold text-white/90 w-5 text-right flex-shrink-0">{s.score ?? 0}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* 이그제큐티브 서머리 카드 */}
@@ -1341,142 +1396,126 @@ export default function PersonalDevelopmentReport({
         <TabsContent value="scores" className="space-y-6 print-show-all">
           <h2 className="print-section-title hidden print:block">📊 {t('report.tabs.scores', '성과 분석')}</h2>
 
-          {/* 레이더 차트 - 5개 역량 시각화 */}
-          {(feedback?.scores?.length ?? 0) > 0 && (
-            <Card className="shadow-sm" data-testid="radar-chart-card">
-              <CardHeader className="pb-2">
-                <CardTitle className="text-base flex items-center gap-2">
-                  <i className="fas fa-spider text-indigo-500"></i>
-                  역량 레이더 차트
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="h-80">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <RadarChart
-                      data={(feedback?.scores || []).map(s => ({
-                        subject: getTranslatedDimensionName(s.category, s.name),
-                        value: s.score,
-                        fullMark: 5,
-                      }))}
-                      cx="50%"
-                      cy="50%"
-                      outerRadius="65%"
-                    >
-                      <PolarGrid />
-                      <PolarAngleAxis dataKey="subject" tick={{ fontSize: 11, fill: '#475569' }} />
-                      <PolarRadiusAxis domain={[0, 5]} tick={false} axisLine={false} />
-                      <Radar
-                        name="역량"
-                        dataKey="value"
-                        stroke="#4f46e5"
-                        fill="#4f46e5"
-                        fillOpacity={0.25}
-                        strokeWidth={2}
-                      />
-                      <Tooltip formatter={(value: any) => [`${value}/5`, '점수']} />
-                    </RadarChart>
-                  </ResponsiveContainer>
-                </div>
-              </CardContent>
-            </Card>
-          )}
-          
-          {/* 사용된 평가 기준 세트 정보 */}
-          {feedback?.detailedFeedback?.evaluationCriteriaSetName && (
-            <div className="bg-indigo-50 border border-indigo-200 rounded-lg p-4 mb-4 screen-only">
-              <div className="flex items-center gap-2">
-                <i className="fas fa-clipboard-check text-indigo-600"></i>
-                <span className="text-sm font-medium text-indigo-800">
-                  {t('report.evaluationCriteria', '평가 기준')}: {feedback.detailedFeedback.evaluationCriteriaSetName}
-                </span>
-              </div>
-            </div>
-          )}
-          
-          {/* 카테고리별 점수 */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {feedback?.scores?.map((score, index) => {
-              const displayScore = getDisplayValue(score.score);
-              const progressWidth = getProgressWidth((score.score / 5) * 100);
-              const scoreNum = typeof score.score === 'number' ? score.score : 0;
-              const statusBadge = scoreNum >= 4
-                ? { label: '✅ 역량 확인됨', cls: 'bg-green-100 text-green-700 border-green-200' }
-                : scoreNum === 3
-                  ? { label: '🔶 기본 수준', cls: 'bg-orange-100 text-orange-700 border-orange-200' }
-                  : { label: '⚠️ 집중 개선 필요', cls: 'bg-red-100 text-red-700 border-red-200' };
-              const delta = getPrevSessionDelta(score.category);
-              
-              return (
-                <Card 
-                  key={index} 
-                  className="card-enhanced" 
-                  data-testid={`score-card-${index}`}
-                  style={{ 
-                    animationDelay: `${index * 200}ms`,
-                    opacity: 0,
-                    animation: `fadeInUp 0.6s ease-out ${index * 200}ms forwards`
-                  }}
-                >
-                  <CardHeader className="pb-2">
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="flex items-center space-x-2 min-w-0">
-                        <span className="flex-shrink-0 inline-flex items-center justify-center w-5 h-5 rounded-full bg-slate-100 text-slate-500 text-xs font-bold">{index + 1}</span>
-                        <i className={`${score.icon} text-lg text-${score.color}-600 flex-shrink-0 transition-transform duration-300 hover:scale-110`}></i>
-                        <CardTitle className="text-sm leading-tight">
-                          {getTranslatedDimensionName(score.category, score.name)}
-                          {score.weight && <span className="ml-1 text-xs font-normal text-slate-400">({score.weight}%)</span>}
-                        </CardTitle>
-                      </div>
-                      <div className="flex items-center gap-1 flex-shrink-0">
-                        {delta !== null ? (
-                          <span className={`text-xs font-bold px-1.5 py-0.5 rounded ${
-                            delta > 0 ? 'bg-green-100 text-green-700' :
-                            delta < 0 ? 'bg-red-100 text-red-700' :
-                            'bg-slate-100 text-slate-500'
-                          }`} title="직전 세션 대비 변화">
-                            {delta > 0 ? `↑+${delta.toFixed(1)}` : delta < 0 ? `↓${delta.toFixed(1)}` : '→0'}
-                          </span>
-                        ) : !isCurrentSessionInHistory && feedbackHistory.length > 0 ? (
-                          <span className="text-xs font-medium px-1.5 py-0.5 rounded bg-slate-100 text-slate-500" title="비교 데이터 범위 밖">
-                            -
-                          </span>
-                        ) : (
-                          <span className="text-xs font-medium px-1.5 py-0.5 rounded bg-indigo-100 text-indigo-600" title="첫 번째 세션">
-                            신규
-                          </span>
-                        )}
-                        <Badge 
-                          variant="secondary" 
-                          className={`bg-${getScoreColor(score.score)}-100 text-${getScoreColor(score.score)}-800 transition-all duration-300 hover:scale-105`}
-                        >
-                          {displayScore}/5
-                        </Badge>
-                      </div>
-                    </div>
-                    {/* 상태 수준 뱃지 */}
-                    <span className={`mt-1.5 inline-block text-xs font-medium px-2 py-0.5 rounded-full border ${statusBadge.cls}`}>
-                      {statusBadge.label}
-                    </span>
+          {/* 2단 레이아웃: 레이더 차트(좌) + 역량 카드(우) */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
+
+            {/* 좌: 레이더 차트 + 평가 기준 뱃지 */}
+            <div className="space-y-3">
+              {(feedback?.scores?.length ?? 0) > 0 && (
+                <Card className="shadow-sm" data-testid="radar-chart-card">
+                  <CardHeader className="pb-1 pt-4 px-4">
+                    <CardTitle className="text-sm font-semibold text-slate-600 uppercase tracking-wide flex items-center gap-2">
+                      <i className="fas fa-chart-area text-indigo-400"></i>
+                      역량 레이더 차트
+                    </CardTitle>
                   </CardHeader>
-                  <CardContent className="pt-0">
-                    <div className="flex items-center mb-3">
-                      <div className={`h-2.5 bg-${getScoreColor(score.score)}-200 rounded-full flex-1 mr-3 overflow-hidden`}>
-                        <div 
-                          className={`h-full bg-gradient-to-r from-${getScoreColor(score.score)}-400 to-${getScoreColor(score.score)}-600 rounded-full transition-all duration-1000 ease-out`}
-                          style={{ width: `${progressWidth}%` }}
-                        />
-                      </div>
-                      <span className={`text-xs font-medium text-${getScoreColor(score.score)}-600 transition-colors duration-300`}>
-                        {getScoreLabel(score.score)}
-                      </span>
+                  <CardContent className="pt-2 px-2 pb-4">
+                    <div className="h-72">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <RadarChart
+                          data={radarData}
+                          cx="50%"
+                          cy="50%"
+                          outerRadius="55%"
+                        >
+                          <PolarGrid stroke="#e2e8f0" />
+                          <PolarAngleAxis dataKey="subject" tick={<CustomRadarTick />} />
+                          <PolarRadiusAxis domain={[0, 5]} tick={false} axisLine={false} />
+                          <Radar
+                            name="역량"
+                            dataKey="value"
+                            stroke="#4f46e5"
+                            fill="#4f46e5"
+                            fillOpacity={0.2}
+                            strokeWidth={2}
+                            dot={{ r: 3, fill: '#4f46e5', strokeWidth: 0 }}
+                          />
+                          <Tooltip
+                            formatter={(value: any) => [`${value}/5점`, '역량 점수']}
+                            contentStyle={{ fontSize: 12, borderRadius: 8 }}
+                          />
+                        </RadarChart>
+                      </ResponsiveContainer>
                     </div>
-                    {/* 핵심 피드백 — 항상 표시 */}
-                    <p className="text-sm text-slate-600 leading-relaxed" data-testid={`score-feedback-${index}`}>{score.feedback}</p>
                   </CardContent>
                 </Card>
-              );
-            })}
+              )}
+              {feedback?.detailedFeedback?.evaluationCriteriaSetName && (
+                <div className="bg-slate-50 border border-slate-200 rounded-lg px-4 py-2.5 flex items-center gap-2 screen-only">
+                  <i className="fas fa-clipboard-check text-indigo-500 text-sm"></i>
+                  <span className="text-xs font-medium text-slate-600">
+                    {t('report.evaluationCriteria', '평가 기준')}: <span className="text-indigo-700">{feedback.detailedFeedback.evaluationCriteriaSetName}</span>
+                  </span>
+                </div>
+              )}
+            </div>
+
+            {/* 우: 역량별 점수 카드 (세로 스택) */}
+            <div className="space-y-3">
+              {feedback?.scores?.map((score, index) => {
+                const scoreNum = typeof score.score === 'number' ? score.score : 0;
+                const progressPct = (scoreNum / 5) * 100;
+                const delta = getPrevSessionDelta(score.category);
+                const hexColor = getScoreHex(scoreNum);
+                const levelLabel = scoreNum >= 4 ? '우수' : scoreNum >= 3 ? '보통' : scoreNum >= 2 ? '개선 필요' : '미흡';
+
+                return (
+                  <div
+                    key={index}
+                    className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden"
+                    style={{
+                      borderLeftWidth: 4,
+                      borderLeftColor: hexColor,
+                      opacity: 0,
+                      animation: `fadeInUp 0.5s ease-out ${index * 150}ms forwards`
+                    }}
+                    data-testid={`score-card-${index}`}
+                  >
+                    <div className="px-4 pt-3 pb-2">
+                      {/* 헤더 행 */}
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <i className={`${score.icon} text-sm flex-shrink-0`} style={{ color: hexColor }}></i>
+                          <span className="text-sm font-semibold text-slate-800 truncate">
+                            {getTranslatedDimensionName(score.category, score.name)}
+                          </span>
+                          {score.weight && <span className="text-xs text-slate-400 flex-shrink-0">({score.weight}%)</span>}
+                        </div>
+                        <div className="flex items-center gap-1.5 flex-shrink-0 ml-2">
+                          {delta !== null && (
+                            <span className={`text-[11px] font-bold px-1.5 py-0.5 rounded ${
+                              delta > 0 ? 'bg-emerald-50 text-emerald-700' :
+                              delta < 0 ? 'bg-rose-50 text-rose-700' :
+                              'bg-slate-100 text-slate-500'
+                            }`}>
+                              {delta > 0 ? `↑+${delta.toFixed(1)}` : delta < 0 ? `↓${delta.toFixed(1)}` : '→'}
+                            </span>
+                          )}
+                          <span
+                            className="text-sm font-bold px-2 py-0.5 rounded-full text-white"
+                            style={{ backgroundColor: hexColor }}
+                          >
+                            {scoreNum}/5
+                          </span>
+                        </div>
+                      </div>
+                      {/* 프로그레스 바 */}
+                      <div className="flex items-center gap-2 mb-2">
+                        <div className="flex-1 h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                          <div
+                            className="h-full rounded-full transition-all duration-1000 ease-out"
+                            style={{ width: `${progressPct}%`, backgroundColor: hexColor, opacity: 0.75 }}
+                          />
+                        </div>
+                        <span className="text-[11px] text-slate-400 w-14 text-right flex-shrink-0">{levelLabel}</span>
+                      </div>
+                      {/* 피드백 텍스트 */}
+                      <p className="text-xs text-slate-600 leading-relaxed" data-testid={`score-feedback-${index}`}>{score.feedback}</p>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
           </div>
 
           {/* 종합 평가 */}
