@@ -62,6 +62,9 @@ export function useEmotionState({ persona, conversationId, onReady }: UseEmotion
       const url = persona.expressions[emotionEn];
       return url ? toMediaUrl(url) : null;
     }
+    if (!persona.mbti && persona.image) {
+      return emotionEn === 'neutral' ? persona.image : null;
+    }
     const genderFolder = persona.gender || 'male';
     const mbtiId = persona.mbti?.toLowerCase() || persona.id;
     if (personaImagesAvailable[emotionEn]) {
@@ -136,6 +139,18 @@ export function useEmotionState({ persona, conversationId, onReady }: UseEmotion
         clearTimeout(fallbackTimer);
         completeFallback();
       }
+    } else if (!persona.mbti && persona.image) {
+      // user persona: expressions 없지만 image(아바타)가 있는 경우 → neutral로 사용
+      const availability: Record<string, boolean> = {};
+      for (const emotionEn of UNIQUE_EMOTION_ENS) {
+        availability[emotionEn] = false;
+      }
+      availability['neutral'] = true;
+      setPersonaImagesAvailable(availability);
+      const img = new Image();
+      img.onload = () => { clearTimeout(fallbackTimer); completeWithImage(persona.image!); };
+      img.onerror = () => { clearTimeout(fallbackTimer); completeFallback(); };
+      img.src = persona.image;
     } else {
       // MBTI persona: HTTP 검사로 파일 존재 여부 확인
       setPersonaImagesAvailable({});
