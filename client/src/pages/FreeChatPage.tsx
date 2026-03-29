@@ -1,4 +1,4 @@
-import { useState, useRef, useMemo } from "react";
+import { useState, useRef, useMemo, useEffect } from "react";
 import { useLocation, Link } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -279,6 +279,14 @@ export default function FreeChatPage() {
     queryKey: ["/api/user-personas"],
     queryFn: () => apiRequest("GET", "/api/user-personas").then(r => r.json()),
   });
+
+  useEffect(() => {
+    if (!selectedUserPersona) return;
+    const fresh = myPersonas.find(p => p.id === selectedUserPersona.id);
+    if (fresh && JSON.stringify(fresh.expressions) !== JSON.stringify(selectedUserPersona.expressions)) {
+      setSelectedUserPersona(fresh);
+    }
+  }, [myPersonas]);
 
   // Like mutation
   const likeMutation = useMutation({

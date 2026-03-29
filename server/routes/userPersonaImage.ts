@@ -221,6 +221,11 @@ router.post('/:id/generate-expressions', isAuthenticated, asyncHandler(async (re
   const successCount = Object.values(results).filter(r => r.success).length;
   console.log(`✅ [UserPersonaImage] 표정 일괄 생성 완료: ${successCount}/${emotionEntries.length}`);
 
+  if (res.headersSent) {
+    console.warn('[UserPersonaImage] 응답이 이미 전송됨 (타임아웃?), DB는 정상 업데이트됨');
+    return;
+  }
+
   res.json({
     success: true,
     generated: successCount,

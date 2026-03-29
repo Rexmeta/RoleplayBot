@@ -211,8 +211,11 @@ export default function PersonaEditorModal({ persona, onClose, onSaved }: {
       setExpressions(prev => ({ ...prev, ...newExpressions }));
       setExpressionPreviews(prev => ({ ...prev, ...newPreviews }));
       setExpressionProgress({ done: data.generated, total: data.total });
+      queryClient.invalidateQueries({ queryKey: ["/api/user-personas"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/user-personas/discover"] });
       toast({ title: `표정 이미지 ${data.generated}개 생성 완료!` });
     } catch (err: any) {
+      queryClient.invalidateQueries({ queryKey: ["/api/user-personas"] });
       toast({
         title: "표정 생성 실패",
         description: err.message || "잠시 후 다시 시도해주세요.",
