@@ -79,12 +79,14 @@ export function useEmotionState({ persona, conversationId, onReady }: UseEmotion
   const preloadImage = (imageUrl: string) => {
     const img = new Image();
     img.onload = () => {
+      console.log('[EmotionState] image loaded ✓', imageUrl);
       setTimeout(() => {
         setLoadedImageUrl(imageUrl);
         setIsEmotionTransitioning(false);
       }, 100);
     };
     img.onerror = () => {
+      console.log('[EmotionState] image FAILED ✗', imageUrl);
       setIsEmotionTransitioning(false);
     };
     img.src = imageUrl;
@@ -197,6 +199,7 @@ export function useEmotionState({ persona, conversationId, onReady }: UseEmotion
   useEffect(() => {
     if (currentEmotion) {
       const newImageUrl = getCharacterImage(currentEmotion);
+      console.log('[EmotionState] emotion changed:', currentEmotion, '→ url:', newImageUrl, '| expressions?', !!persona.expressions);
       if (newImageUrl) {
         preloadImage(newImageUrl);
       }

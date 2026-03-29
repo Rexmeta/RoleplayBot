@@ -93,7 +93,13 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
     onMessageComplete: (message, emotion, emotionReason) => {
       setPendingAiMessage(false);
       isAISpeakingForBargeInRef.current = false;
-      if (emotion) { setIsEmotionTransitioning(true); setCurrentEmotion(emotion); setTimeout(() => setIsEmotionTransitioning(false), 150); }
+      if (emotion) {
+        setIsEmotionTransitioning(true);
+        setCurrentEmotion(emotion);
+        setTimeout(() => setIsEmotionTransitioning(false), 150);
+        const newUrl = getCharacterImage(emotion);
+        if (newUrl) preloadImage(newUrl);
+      }
       setLocalMessages(prev => [...prev, { sender: 'ai', message, timestamp: new Date().toISOString(), emotion: emotion || '중립', emotionReason: emotionReason || '' }]);
       if (!hasUserSpokenRef.current) setShowMicPrompt(true);
     },
