@@ -372,6 +372,27 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
     }
   });
 
+  const togglePublicMutation = useMutation({
+    mutationFn: async ({ id, isPublic }: { id: string; isPublic: boolean }) => {
+      const response = await apiRequest('PATCH', `/api/admin/scenarios/${id}/visibility`, { isPublic });
+      return response.json();
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['/api/admin/scenarios'] });
+      toast({
+        title: variables.isPublic ? '시나리오가 공개되었습니다' : '시나리오가 비공개로 변경되었습니다',
+        description: variables.isPublic ? '일반 사용자에게 노출됩니다' : '관리자/운영자만 접근 가능합니다',
+      });
+    },
+    onError: () => {
+      toast({
+        title: '변경 실패',
+        description: '공개 설정을 변경하지 못했습니다.',
+        variant: 'destructive',
+      });
+    }
+  });
+
   const resetForm = () => {
     setFormData({
       title: '',
@@ -1913,15 +1934,22 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
                           {categories.find(c => String(c.id) === String((scenario as any).categoryId))?.name || '미분류'}
                         </Badge>
                       )}
-                      {(scenario as any).isPublic ? (
-                        <Badge variant="outline" className="text-xs bg-green-50 text-green-700 border-green-200">
-                          {t('admin.scenarioManager.badge.public', '공개')}
-                        </Badge>
-                      ) : (
-                        <Badge variant="outline" className="text-xs bg-slate-100 text-slate-500 border-slate-300">
-                          {t('admin.scenarioManager.badge.private', '비공개')}
-                        </Badge>
-                      )}
+                      <div
+                        className="flex items-center gap-1.5"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <Switch
+                          checked={(scenario as any).isPublic || false}
+                          onCheckedChange={(checked) =>
+                            togglePublicMutation.mutate({ id: scenario.id as string, isPublic: checked })
+                          }
+                          disabled={togglePublicMutation.isPending}
+                          className="scale-75 origin-left"
+                        />
+                        <span className={`text-xs font-medium ${(scenario as any).isPublic ? 'text-green-700' : 'text-slate-400'}`}>
+                          {(scenario as any).isPublic ? '공개' : '비공개'}
+                        </span>
+                      </div>
                       <div className="flex items-center gap-1.5">
                         <Clock className="w-3.5 h-3.5" />
                         <span>{scenario.estimatedTime}</span>

@@ -326,6 +326,16 @@ export default function createAdminScenariosRouter(isAuthenticated: any) {
     res.json(transformedScenario);
   }));
 
+  router.patch("/api/admin/scenarios/:id/visibility", isAuthenticated, isOperatorOrAdmin, asyncHandler(async (req, res) => {
+    const scenarioId = req.params.id;
+    const { isPublic } = req.body;
+    if (typeof isPublic !== 'boolean') {
+      throw createHttpError(400, "isPublic must be a boolean");
+    }
+    const scenario = await fileManager.updateScenario(scenarioId, { isPublic });
+    res.json({ id: scenario.id, isPublic: (scenario as any).isPublic });
+  }));
+
   router.delete("/api/admin/scenarios/:id", isAuthenticated, isOperatorOrAdmin, asyncHandler(async (req, res) => {
     const user = (req as any).user;
     const scenarioId = req.params.id;
