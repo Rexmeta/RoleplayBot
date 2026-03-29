@@ -456,7 +456,7 @@ function UserPersonaCard({ persona, isSelected, isMine, onSelect, onEdit, onDele
         </button>
         {isMine && (
           <div className="relative" ref={menuRef}>
-            <button onClick={() => setMenuOpen(v => !v)} className="p-1 rounded-lg text-slate-400 hover:text-slate-600 opacity-0 group-hover:opacity-100 transition-opacity">
+            <button onClick={() => setMenuOpen(v => !v)} className="p-1 rounded-lg text-slate-400 hover:text-slate-600 transition-colors">
               <MoreVertical className="w-4 h-4" />
             </button>
             {menuOpen && (
@@ -909,6 +909,7 @@ export default function FreeChatPage() {
               onSaved={(p) => {
                 setEditorOpen(false);
                 setSidebarTab("my");
+                if (selectedUserPersona?.id === p.id) setSelectedUserPersona(p);
               }}
             />
           )}
@@ -1125,6 +1126,15 @@ export default function FreeChatPage() {
                       />
                     )}
                     <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
+                    {myPersonas.some(p => p.id === selectedUserPersona.id) && (
+                      <button
+                        onClick={() => { setEditingPersona(selectedUserPersona); setEditorOpen(true); }}
+                        className="absolute top-3 right-3 flex items-center gap-1.5 px-3 py-1.5 bg-white/20 hover:bg-white/30 backdrop-blur-sm text-white rounded-lg text-xs font-medium transition-colors border border-white/30"
+                      >
+                        <Pencil className="w-3 h-3" />
+                        이미지·정보 편집
+                      </button>
+                    )}
                     <div className="absolute bottom-4 left-4 flex items-end gap-3">
                       <div className="w-14 h-14 rounded-2xl overflow-hidden border-2 border-white/60 shadow-lg flex-shrink-0">
                         <PersonaAvatar url={selectedUserPersona.avatarUrl} name={selectedUserPersona.name} size={14} />
