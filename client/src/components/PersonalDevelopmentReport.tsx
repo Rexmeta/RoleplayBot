@@ -1397,26 +1397,26 @@ export default function PersonalDevelopmentReport({
           <h2 className="print-section-title hidden print:block">📊 {t('report.tabs.scores', '성과 분석')}</h2>
 
           {/* 2단 레이아웃: 레이더 차트(좌) + 역량 카드(우) */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-stretch">
 
-            {/* 좌: 레이더 차트 + 평가 기준 뱃지 */}
-            <div className="space-y-3">
+            {/* 좌: 레이더 차트 + 평가 기준 뱃지 — 우측 카드 높이에 맞게 stretch */}
+            <div className="flex flex-col gap-3">
               {(feedback?.scores?.length ?? 0) > 0 && (
-                <Card className="shadow-sm" data-testid="radar-chart-card">
-                  <CardHeader className="pb-1 pt-4 px-4">
+                <Card className="flex flex-col flex-1 shadow-sm" data-testid="radar-chart-card">
+                  <CardHeader className="pb-1 pt-4 px-4 flex-shrink-0">
                     <CardTitle className="text-sm font-semibold text-slate-600 uppercase tracking-wide flex items-center gap-2">
                       <i className="fas fa-chart-area text-indigo-400"></i>
                       역량 레이더 차트
                     </CardTitle>
                   </CardHeader>
-                  <CardContent className="pt-2 px-2 pb-4">
-                    <div className="h-72">
+                  <CardContent className="flex flex-col flex-1 min-h-0 pt-2 px-2 pb-4">
+                    <div className="flex-1 min-h-[220px]">
                       <ResponsiveContainer width="100%" height="100%">
                         <RadarChart
                           data={radarData}
                           cx="50%"
                           cy="50%"
-                          outerRadius="55%"
+                          outerRadius="52%"
                         >
                           <PolarGrid stroke="#e2e8f0" />
                           <PolarAngleAxis dataKey="subject" tick={<CustomRadarTick />} />
@@ -1426,7 +1426,7 @@ export default function PersonalDevelopmentReport({
                             dataKey="value"
                             stroke="#4f46e5"
                             fill="#4f46e5"
-                            fillOpacity={0.2}
+                            fillOpacity={0.15}
                             strokeWidth={2}
                             dot={{ r: 3, fill: '#4f46e5', strokeWidth: 0 }}
                           />
@@ -1441,7 +1441,7 @@ export default function PersonalDevelopmentReport({
                 </Card>
               )}
               {feedback?.detailedFeedback?.evaluationCriteriaSetName && (
-                <div className="bg-slate-50 border border-slate-200 rounded-lg px-4 py-2.5 flex items-center gap-2 screen-only">
+                <div className="bg-slate-50 border border-slate-200 rounded-lg px-4 py-2.5 flex items-center gap-2 flex-shrink-0 screen-only">
                   <i className="fas fa-clipboard-check text-indigo-500 text-sm"></i>
                   <span className="text-xs font-medium text-slate-600">
                     {t('report.evaluationCriteria', '평가 기준')}: <span className="text-indigo-700">{feedback.detailedFeedback.evaluationCriteriaSetName}</span>
