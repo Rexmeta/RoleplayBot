@@ -233,6 +233,91 @@ body {
 
 .border-corporate-600 { border-color: var(--corporate-600); }
 
+/* Aurora blob 배경 애니메이션 */
+@keyframes aurora-move-1 {
+  0%, 100% { transform: translate(0px, 0px) scale(1); }
+  33% { transform: translate(40px, -30px) scale(1.08); }
+  66% { transform: translate(-20px, 20px) scale(0.95); }
+}
+
+@keyframes aurora-move-2 {
+  0%, 100% { transform: translate(0px, 0px) scale(1); }
+  40% { transform: translate(-50px, 30px) scale(1.1); }
+  70% { transform: translate(30px, -20px) scale(0.92); }
+}
+
+@keyframes aurora-move-3 {
+  0%, 100% { transform: translate(0px, 0px) scale(1); }
+  30% { transform: translate(20px, 40px) scale(1.05); }
+  60% { transform: translate(-40px, -15px) scale(0.97); }
+}
+
+.aurora-blob-1 {
+  background: radial-gradient(ellipse, hsl(238 90% 70%), hsl(270 85% 65%));
+  animation: aurora-move-1 18s ease-in-out infinite;
+}
+
+.aurora-blob-2 {
+  background: radial-gradient(ellipse, hsl(262 80% 70%), hsl(185 80% 65%));
+  animation: aurora-move-2 22s ease-in-out infinite;
+}
+
+.aurora-blob-3 {
+  background: radial-gradient(ellipse, hsl(185 80% 65%), hsl(220 85% 68%));
+  animation: aurora-move-3 26s ease-in-out infinite;
+}
+
+/* 떠다니는 통계 뱃지 애니메이션 */
+@keyframes float-badge-1 {
+  0%, 100% { transform: translateY(0px); }
+  50% { transform: translateY(-8px); }
+}
+
+@keyframes float-badge-2 {
+  0%, 100% { transform: translateY(0px); }
+  50% { transform: translateY(-10px); }
+}
+
+@keyframes float-badge-3 {
+  0%, 100% { transform: translateY(0px); }
+  50% { transform: translateY(-7px); }
+}
+
+@keyframes float-badge-4 {
+  0%, 100% { transform: translateY(0px); }
+  50% { transform: translateY(-9px); }
+}
+
+@keyframes float-badge-5 {
+  0%, 100% { transform: translateY(0px); }
+  50% { transform: translateY(-6px); }
+}
+
+.animate-float-badge-1 {
+  animation: float-badge-1 4s ease-in-out infinite;
+  animation-delay: 0s;
+}
+
+.animate-float-badge-2 {
+  animation: float-badge-2 5s ease-in-out infinite;
+  animation-delay: 0.8s;
+}
+
+.animate-float-badge-3 {
+  animation: float-badge-3 4.5s ease-in-out infinite;
+  animation-delay: 1.5s;
+}
+
+.animate-float-badge-4 {
+  animation: float-badge-4 5.5s ease-in-out infinite;
+  animation-delay: 0.4s;
+}
+
+.animate-float-badge-5 {
+  animation: float-badge-5 4.2s ease-in-out infinite;
+  animation-delay: 2s;
+}
+
 /* 인트로 페이지 애니메이션 효과 */
 @keyframes pulse-glow {
   0%, 100% {
