@@ -142,11 +142,17 @@ export default function PersonaProfilePage() {
   const startUserChatMutation = useMutation({
     mutationFn: (payload: { personaId: string; mode: string; difficulty: number }) =>
       apiRequest("POST", `/api/user-personas/${payload.personaId}/start-chat`, { mode: payload.mode, difficulty: payload.difficulty }).then(r => r.json()),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/conversations"] });
+    },
   });
 
   const startMbtiChatMutation = useMutation({
     mutationFn: (payload: { personaId: string; mode: string; difficulty: number; gender: string }) =>
       apiRequest("POST", "/api/free-chat/start", { personaId: payload.personaId, mode: payload.mode, difficulty: payload.difficulty, gender: payload.gender }).then(r => r.json()),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/conversations"] });
+    },
   });
 
   const handleStartChat = async () => {

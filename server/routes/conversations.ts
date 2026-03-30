@@ -1,13 +1,16 @@
 import { Router } from "express";
-import { storage } from "../storage";
+import { storage, db } from "../storage";
 import { fileManager } from "../services/fileManager";
 import { generateAIResponse } from "../services/geminiService";
 import {
   insertConversationSchema,
   insertPersonaSelectionSchema,
   insertStrategyChoiceSchema,
-  insertSequenceAnalysisSchema
+  insertSequenceAnalysisSchema,
+  scenarioRuns,
+  personaRuns,
 } from "@shared/schema";
+import { eq, inArray } from "drizzle-orm";
 import {
   verifyConversationOwnership,
   verifyPersonaRunOwnership,
@@ -226,8 +229,48 @@ export default function createConversationsRouter(isAuthenticated: any) {
 
   router.get("/", isAuthenticated, asyncHandler(async (req: any, res) => {
     const userId = req.user?.id;
-    const conversations = await storage.getUserConversations(userId);
-    res.json(conversations);
+
+    const oldConversations = await storage.getUserConversations(userId);
+
+    const personaScenarioRuns = await db
+      .select()
+      .from(scenarioRuns)
+      .where(
+        eq(scenarioRuns.userId, userId)
+      );
+
+    const personaOnlyRuns = personaScenarioRuns.filter(
+      sr => sr.scenarioId.startsWith("__user_persona__:") || sr.scenarioId.startsWith("__mbti_persona__:")
+    );
+
+    const personaRunsData = personaOnlyRuns.length > 0
+      ? await db
+          .select()
+          .from(personaRuns)
+          .where(inArray(personaRuns.scenarioRunId, personaOnlyRuns.map(sr => sr.id)))
+      : [];
+
+    const scenarioRunMap = new Map(personaOnlyRuns.map(sr => [sr.id, sr]));
+
+    const personaConversations = personaRunsData.map(pr => {
+      const sr = scenarioRunMap.get(pr.scenarioRunId);
+      return {
+        id: pr.id,
+        scenarioId: sr?.scenarioId ?? "",
+        scenarioName: sr?.scenarioName ?? "",
+        personaSnapshot: pr.personaSnapshot as { name?: string; avatarUrl?: string } | null,
+        createdAt: pr.startedAt?.toISOString() ?? new Date().toISOString(),
+        status: pr.status,
+      };
+    });
+
+    const oldConvIds = new Set(oldConversations.map((c: any) => c.id));
+    const mergedConversations = [
+      ...oldConversations,
+      ...personaConversations.filter(pc => !oldConvIds.has(pc.id)),
+    ];
+
+    res.json(mergedConversations);
   }));
 
   router.get("/:id", isAuthenticated, asyncHandler(async (req: any, res) => {

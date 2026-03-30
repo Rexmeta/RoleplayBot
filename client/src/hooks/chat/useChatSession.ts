@@ -99,6 +99,7 @@ export function useChatSession({
 
         await queryClient.invalidateQueries({ queryKey: [`/api/conversations/${conversationId}`] });
         await queryClient.invalidateQueries({ queryKey: ['/api/scenario-runs'] });
+        await queryClient.invalidateQueries({ queryKey: ['/api/conversations'] });
       }
 
       onChatComplete();

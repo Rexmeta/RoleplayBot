@@ -51,6 +51,7 @@ export function useChatMessages({ conversationId, serverMessages }: UseChatMessa
       }
 
       queryClient.invalidateQueries({ queryKey: ["/api/conversations", conversationId] });
+      queryClient.invalidateQueries({ queryKey: ["/api/conversations"] });
     },
     onError: () => {
       setLocalMessages(prev => {
