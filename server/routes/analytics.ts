@@ -60,13 +60,30 @@ export default function createAnalyticsRouter(isAuthenticated: any) {
     const userId = req.user?.id;
 
     const userScenarioRuns = await storage.getUserScenarioRuns(userId);
-    const completedScenarioRuns = userScenarioRuns.filter(sr => sr.status === 'completed');
 
-    const userFeedbacks = await storage.getUserFeedbacks(userId);
+    // 롤플레이X 전용 분석: __free_chat__ 및 __user_persona__:* 등 특수 ID 제외
+    const roleplayScenarioRuns = userScenarioRuns.filter(sr => !sr.scenarioId.startsWith('__'));
+    const completedScenarioRuns = roleplayScenarioRuns.filter(sr => sr.status === 'completed');
+
+    // 롤플레이X 페르소나 런 ID 세트 구성 (feedbacks 필터링용)
+    const roleplayPersonaRunIds = await (async () => {
+      const runIdSets = await Promise.all(
+        roleplayScenarioRuns.map(sr => storage.getPersonaRunsByScenarioRun(sr.id))
+      );
+      const ids = new Set<string>();
+      runIdSets.forEach(runs => runs.forEach(pr => ids.add(pr.id)));
+      return ids;
+    })();
+
+    const allUserFeedbacks = await storage.getUserFeedbacks(userId);
+    // 롤플레이X 피드백만 사용 (자유 대화 제외)
+    const userFeedbacks = allUserFeedbacks.filter(
+      f => f.personaRunId != null && roleplayPersonaRunIds.has(f.personaRunId)
+    );
 
     if (userFeedbacks.length === 0) {
       return res.json({
-        totalSessions: userScenarioRuns.length,
+        totalSessions: roleplayScenarioRuns.length,
         completedSessions: completedScenarioRuns.length,
         totalFeedbacks: 0,
         averageScore: 0,

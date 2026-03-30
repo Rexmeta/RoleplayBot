@@ -6,14 +6,178 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   CalendarDays, Star, Users, ArrowLeft, Target, Lightbulb,
-  CheckCircle, AlertCircle, ArrowRight, History, Award
+  CheckCircle, AlertCircle, ArrowRight, History, Award, MessageSquare
 } from "lucide-react";
 import { format } from "date-fns";
 import { AppHeader } from "@/components/AppHeader";
 import { useAuth } from "@/hooks/useAuth";
 import { type ScenarioRun, type PersonaRun } from "@shared/schema";
+
+type ScenarioPersona = {
+  id: string;
+  name: string;
+  department?: string;
+  position?: string;
+  mbti?: string;
+};
+
+type SequenceAnalysis = {
+  strategicScore?: number;
+  strategicRationale?: string;
+  sequenceEffectiveness?: string;
+  strengths?: string[];
+  improvements?: string[];
+  strategicInsights?: string;
+};
+
+type RunAccordionContentProps = {
+  scenarioRun: ScenarioRun & { personaRuns: PersonaRun[]; isScenarioDeleted?: boolean; sequenceAnalysis?: SequenceAnalysis };
+  scenarioInfo: { title: string; difficulty: number; personas: ScenarioPersona[] };
+  personaRuns: PersonaRun[];
+  userId: string | undefined;
+  navigate: (to: string) => void;
+  strategyDialogRunId: string | null;
+  setStrategyDialogRunId: (id: string | null) => void;
+  sequenceAnalysis: SequenceAnalysis | null;
+};
+
+function RunAccordionContent({
+  scenarioRun,
+  scenarioInfo,
+  personaRuns,
+  userId,
+  navigate,
+  strategyDialogRunId,
+  setStrategyDialogRunId,
+  sequenceAnalysis,
+}: RunAccordionContentProps) {
+  return (
+    <div className="space-y-4 pt-3">
+      {scenarioRun.strategyReflection && (
+        <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+          <div className="flex items-start justify-between gap-4">
+            <div className="flex-1">
+              <h5 className="text-sm font-semibold text-slate-700 mb-2 flex items-center gap-2">
+                <Target className="w-4 h-4 text-green-600" />
+                전략 회고
+              </h5>
+              <p className="text-sm text-slate-600 whitespace-pre-wrap leading-relaxed">
+                {scenarioRun.strategyReflection}
+              </p>
+            </div>
+            {sequenceAnalysis && strategyDialogRunId === scenarioRun.id ? null : (
+              scenarioRun.sequenceAnalysis && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setStrategyDialogRunId(scenarioRun.id)}
+                  className="text-xs shrink-0 border-purple-300 text-purple-700 hover:bg-purple-50"
+                >
+                  <Lightbulb className="w-3 h-3 mr-1" />
+                  AI 전략 평가
+                </Button>
+              )
+            )}
+          </div>
+        </div>
+      )}
+
+      {scenarioRun.isScenarioDeleted && (
+        <div className="bg-red-50 border border-red-200 rounded-lg p-3">
+          <div className="flex items-center gap-2 text-red-700 text-sm">
+            <AlertCircle className="w-4 h-4 shrink-0" />
+            이 시나리오는 삭제되었습니다. 대화 기록과 피드백은 계속 열람 가능합니다.
+          </div>
+        </div>
+      )}
+
+      <div className="space-y-2">
+        <h5 className="text-sm font-semibold text-slate-700 flex items-center gap-2">
+          <Users className="w-4 h-4 text-blue-600" />
+          페르소나 목록 ({personaRuns.length}개)
+        </h5>
+        <div className="space-y-2">
+          {personaRuns.map(pr => {
+            const isRunCompleted = pr.status === "completed";
+            const isRunActive = pr.status === "active";
+            const snapshot = pr.personaSnapshot as Record<string, string | undefined>;
+            const matchedPersona = scenarioInfo.personas?.find((p) => p.id === pr.personaId);
+            const displayName = matchedPersona
+              ? `${matchedPersona.department ? matchedPersona.department + " " : ""}${matchedPersona.name}${matchedPersona.position ? " " + matchedPersona.position : ""}`
+              : (pr.personaName || snapshot?.name || pr.personaId);
+
+            return (
+              <div
+                key={pr.id}
+                className="flex items-center justify-between p-3 bg-white border rounded-lg hover:bg-slate-50"
+              >
+                <div className="flex items-center gap-3">
+                  <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold shrink-0 ${
+                    isRunCompleted ? "bg-green-100 text-green-600" :
+                    isRunActive ? "bg-yellow-100 text-yellow-600" :
+                    "bg-gray-100 text-gray-600"
+                  }`}>
+                    {pr.phase || "?"}
+                  </div>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="font-medium text-slate-900">{displayName}</span>
+                    {(pr.mbtiType || matchedPersona?.mbti) && (
+                      <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
+                        {pr.mbtiType || matchedPersona?.mbti}
+                      </Badge>
+                    )}
+                    <Badge variant="outline" className="text-xs">{pr.turnCount}턴</Badge>
+                    <Badge className={
+                      isRunCompleted ? "bg-green-600" :
+                      isRunActive ? "bg-yellow-600" : "bg-gray-400"
+                    }>
+                      {isRunCompleted ? "완료" : isRunActive ? "진행 중" : "시작 전"}
+                    </Badge>
+                  </div>
+                </div>
+                <div className="flex items-center gap-3 shrink-0">
+                  {pr.score !== null && pr.score !== undefined && (
+                    <div className="flex items-center gap-1">
+                      <Star className="w-4 h-4 text-yellow-500" />
+                      <span className={`font-semibold text-sm ${
+                        pr.score >= 80 ? "text-green-600" :
+                        pr.score >= 60 ? "text-yellow-600" : "text-red-600"
+                      }`}>
+                        {pr.score}점
+                      </span>
+                    </div>
+                  )}
+                  <div className="flex gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => navigate(`/chat/${pr.id}?returnTo=/admin/participant/${userId}`)}
+                    >
+                      대화 보기
+                    </Button>
+                    {isRunCompleted && (
+                      <Button
+                        variant="default"
+                        size="sm"
+                        className="bg-corporate-600 hover:bg-corporate-700"
+                        onClick={() => navigate(`/feedback/${pr.id}?returnTo=/admin/participant/${userId}`)}
+                      >
+                        피드백 보기
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+}
 
 export default function ParticipantHistory() {
   const [, params] = useRoute("/admin/participant/:userId");
@@ -22,6 +186,7 @@ export default function ParticipantHistory() {
   const userId = params?.userId;
 
   const [strategyDialogRunId, setStrategyDialogRunId] = useState<string | null>(null);
+  const [historySubTab, setHistorySubTab] = useState<"roleplay" | "personax">("roleplay");
 
   const token = localStorage.getItem("authToken");
   const authHeaders: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {};
@@ -82,6 +247,10 @@ export default function ParticipantHistory() {
       .sort((a, b) => new Date(b.startedAt).getTime() - new Date(a.startedAt).getTime()),
     [scenarioRuns]
   );
+
+  // PersonaX: __free_chat__ 또는 __user_persona__:* (특수 prefix로 시작하는 모든 ID)
+  const roleplayRuns = useMemo(() => displayable.filter(sr => !sr.scenarioId.startsWith('__')), [displayable]);
+  const personaXRuns = useMemo(() => displayable.filter(sr => sr.scenarioId.startsWith('__')), [displayable]);
 
   const getScenarioInfo = useCallback((scenarioId: string) => {
     const s = scenariosMap.get(scenarioId);
@@ -172,194 +341,172 @@ export default function ParticipantHistory() {
           </div>
         </div>
 
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base font-semibold text-slate-700 flex items-center gap-2">
-              <Award className="w-4 h-4 text-corporate-600" />
-              대화 기록 ({displayable.length}개)
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            {displayable.length === 0 ? (
-              <div className="text-center py-12 text-slate-400">
-                <History className="w-12 h-12 mx-auto mb-3 opacity-30" />
-                <p>아직 훈련 기록이 없습니다.</p>
-              </div>
-            ) : (
-              <Accordion type="multiple" className="w-full">
-                {displayable.map(scenarioRun => {
-                  const scenarioInfo = getScenarioInfo(scenarioRun.scenarioId);
-                  const attemptNumber = scenarioAttemptNumbers.get(scenarioRun.id) || 1;
-                  const hasMultiplePersonas = scenarioInfo.personas?.length > 1;
-                  const isCompleted = hasMultiplePersonas
-                    ? scenarioRun.status === "completed" && !!scenarioRun.strategyReflection
-                    : scenarioRun.status === "completed";
-                  const personaRuns = scenarioRun.personaRuns || [];
-                  const runScores = personaRuns.filter(pr => pr.score !== null && pr.score !== undefined);
-                  const runAvg = runScores.length > 0
-                    ? Math.round(runScores.reduce((a, pr) => a + (pr.score || 0), 0) / runScores.length)
-                    : null;
+        <Tabs value={historySubTab} onValueChange={(v) => setHistorySubTab(v as "roleplay" | "personax")}>
+          <TabsList className="grid w-full grid-cols-2">
+            <TabsTrigger value="roleplay" className="flex items-center gap-2">
+              <MessageSquare className="w-4 h-4" />
+              롤플레이X
+            </TabsTrigger>
+            <TabsTrigger value="personax" className="flex items-center gap-2">
+              <Users className="w-4 h-4" />
+              페르소나X
+            </TabsTrigger>
+          </TabsList>
 
-                  return (
-                    <AccordionItem key={scenarioRun.id} value={scenarioRun.id}>
-                      <AccordionTrigger className="hover:no-underline">
-                        <div className="flex items-center gap-3 flex-wrap text-left">
-                          <CalendarDays className="w-4 h-4 text-slate-400 shrink-0" />
-                          <span className="text-sm text-slate-500">
-                            {format(new Date(scenarioRun.startedAt), "yyyy년 MM월 dd일 HH:mm")}
-                          </span>
-                          <span className="font-semibold text-slate-900">{scenarioInfo.title}</span>
-                          <Badge variant="outline" className="bg-purple-50 text-purple-700 border-purple-200">
-                            난이도 {scenarioRun.difficulty || scenarioInfo.difficulty}
-                          </Badge>
-                          <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">
-                            #{attemptNumber}회 시도
-                          </Badge>
-                          {(scenarioRun as any).isScenarioDeleted && (
-                            <Badge variant="outline" className="bg-red-50 text-red-600 border-red-200">삭제된 시나리오</Badge>
-                          )}
-                          {isCompleted ? (
-                            <Badge className="bg-green-600">완료</Badge>
-                          ) : (
-                            <Badge className="bg-yellow-600">진행 중</Badge>
-                          )}
-                          {runAvg !== null && (
-                            <span className={`text-sm font-bold ${runAvg >= 80 ? "text-green-600" : runAvg >= 60 ? "text-yellow-600" : "text-red-500"}`}>
-                              {runAvg}점
-                            </span>
-                          )}
-                        </div>
-                      </AccordionTrigger>
-                      <AccordionContent>
-                        <div className="space-y-4 pt-3">
-                          {scenarioRun.strategyReflection && (
-                            <div className="bg-green-50 border border-green-200 rounded-lg p-4">
-                              <div className="flex items-start justify-between gap-4">
-                                <div className="flex-1">
-                                  <h5 className="text-sm font-semibold text-slate-700 mb-2 flex items-center gap-2">
-                                    <Target className="w-4 h-4 text-green-600" />
-                                    전략 회고
-                                  </h5>
-                                  <p className="text-sm text-slate-600 whitespace-pre-wrap leading-relaxed">
-                                    {scenarioRun.strategyReflection}
-                                  </p>
-                                </div>
-                                {sequenceAnalysis && strategyDialogRunId === scenarioRun.id ? null : (
-                                  scenarioRun.sequenceAnalysis && (
-                                    <Button
-                                      variant="outline"
-                                      size="sm"
-                                      onClick={() => setStrategyDialogRunId(scenarioRun.id)}
-                                      className="text-xs shrink-0 border-purple-300 text-purple-700 hover:bg-purple-50"
-                                    >
-                                      <Lightbulb className="w-3 h-3 mr-1" />
-                                      AI 전략 평가
-                                    </Button>
-                                  )
-                                )}
-                              </div>
+          {/* 롤플레이X 탭 */}
+          <TabsContent value="roleplay">
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base font-semibold text-slate-700 flex items-center gap-2">
+                  <Award className="w-4 h-4 text-corporate-600" />
+                  롤플레이X 대화 기록 ({roleplayRuns.length}개)
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {roleplayRuns.length === 0 ? (
+                  <div className="text-center py-12 text-slate-400">
+                    <History className="w-12 h-12 mx-auto mb-3 opacity-30" />
+                    <p>아직 롤플레이X 훈련 기록이 없습니다.</p>
+                  </div>
+                ) : (
+                  <Accordion type="multiple" className="w-full">
+                    {roleplayRuns.map(scenarioRun => {
+                      const scenarioInfo = getScenarioInfo(scenarioRun.scenarioId);
+                      const attemptNumber = scenarioAttemptNumbers.get(scenarioRun.id) || 1;
+                      const hasMultiplePersonas = scenarioInfo.personas?.length > 1;
+                      const isCompleted = hasMultiplePersonas
+                        ? scenarioRun.status === "completed" && !!scenarioRun.strategyReflection
+                        : scenarioRun.status === "completed";
+                      const personaRuns = scenarioRun.personaRuns || [];
+                      const runScores = personaRuns.filter(pr => pr.score !== null && pr.score !== undefined);
+                      const runAvg = runScores.length > 0
+                        ? Math.round(runScores.reduce((a, pr) => a + (pr.score || 0), 0) / runScores.length)
+                        : null;
+
+                      return (
+                        <AccordionItem key={scenarioRun.id} value={scenarioRun.id}>
+                          <AccordionTrigger className="hover:no-underline">
+                            <div className="flex items-center gap-3 flex-wrap text-left">
+                              <CalendarDays className="w-4 h-4 text-slate-400 shrink-0" />
+                              <span className="text-sm text-slate-500">
+                                {format(new Date(scenarioRun.startedAt), "yyyy년 MM월 dd일 HH:mm")}
+                              </span>
+                              <span className="font-semibold text-slate-900">{scenarioInfo.title}</span>
+                              <Badge variant="outline" className="bg-purple-50 text-purple-700 border-purple-200">
+                                난이도 {scenarioRun.difficulty || scenarioInfo.difficulty}
+                              </Badge>
+                              <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">
+                                #{attemptNumber}회 시도
+                              </Badge>
+                              {scenarioRun.isScenarioDeleted && (
+                                <Badge variant="outline" className="bg-red-50 text-red-600 border-red-200">삭제된 시나리오</Badge>
+                              )}
+                              {isCompleted ? (
+                                <Badge className="bg-green-600">완료</Badge>
+                              ) : (
+                                <Badge className="bg-yellow-600">진행 중</Badge>
+                              )}
+                              {runAvg !== null && (
+                                <span className={`text-sm font-bold ${runAvg >= 80 ? "text-green-600" : runAvg >= 60 ? "text-yellow-600" : "text-red-500"}`}>
+                                  {runAvg}점
+                                </span>
+                              )}
                             </div>
-                          )}
+                          </AccordionTrigger>
+                          <AccordionContent>
+                            <RunAccordionContent
+                              scenarioRun={scenarioRun}
+                              scenarioInfo={scenarioInfo}
+                              personaRuns={personaRuns}
+                              userId={userId}
+                              navigate={navigate}
+                              strategyDialogRunId={strategyDialogRunId}
+                              setStrategyDialogRunId={setStrategyDialogRunId}
+                              sequenceAnalysis={strategyDialogRunId === scenarioRun.id ? (scenarioRun.sequenceAnalysis as SequenceAnalysis ?? null) : null}
+                            />
+                          </AccordionContent>
+                        </AccordionItem>
+                      );
+                    })}
+                  </Accordion>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
 
-                          {(scenarioRun as any).isScenarioDeleted && (
-                            <div className="bg-red-50 border border-red-200 rounded-lg p-3">
-                              <div className="flex items-center gap-2 text-red-700 text-sm">
-                                <AlertCircle className="w-4 h-4 shrink-0" />
-                                이 시나리오는 삭제되었습니다. 대화 기록과 피드백은 계속 열람 가능합니다.
-                              </div>
+          {/* 페르소나X 탭 */}
+          <TabsContent value="personax">
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base font-semibold text-slate-700 flex items-center gap-2">
+                  <Award className="w-4 h-4 text-corporate-600" />
+                  페르소나X 대화 기록 ({personaXRuns.length}개)
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {personaXRuns.length === 0 ? (
+                  <div className="text-center py-12 text-slate-400">
+                    <History className="w-12 h-12 mx-auto mb-3 opacity-30" />
+                    <p>아직 페르소나X 대화 기록이 없습니다.</p>
+                  </div>
+                ) : (
+                  <Accordion type="multiple" className="w-full">
+                    {personaXRuns.map(scenarioRun => {
+                      const attemptNumber = scenarioAttemptNumbers.get(scenarioRun.id) || 1;
+                      const personaRuns = scenarioRun.personaRuns || [];
+                      const firstPersonaRun = personaRuns[0];
+                      const personaDisplayName = firstPersonaRun?.personaName || firstPersonaRun?.personaId || '페르소나';
+                      const isCompleted = scenarioRun.status === "completed";
+                      const runScores = personaRuns.filter(pr => pr.score !== null && pr.score !== undefined);
+                      const runAvg = runScores.length > 0
+                        ? Math.round(runScores.reduce((a, pr) => a + (pr.score || 0), 0) / runScores.length)
+                        : null;
+
+                      return (
+                        <AccordionItem key={scenarioRun.id} value={scenarioRun.id}>
+                          <AccordionTrigger className="hover:no-underline">
+                            <div className="flex items-center gap-3 flex-wrap text-left">
+                              <CalendarDays className="w-4 h-4 text-slate-400 shrink-0" />
+                              <span className="text-sm text-slate-500">
+                                {format(new Date(scenarioRun.startedAt), "yyyy년 MM월 dd일 HH:mm")}
+                              </span>
+                              <span className="font-semibold text-slate-900">{personaDisplayName}</span>
+                              <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">
+                                #{attemptNumber}회 시도
+                              </Badge>
+                              {isCompleted ? (
+                                <Badge className="bg-green-600">완료</Badge>
+                              ) : (
+                                <Badge className="bg-yellow-600">진행 중</Badge>
+                              )}
+                              {runAvg !== null && (
+                                <span className={`text-sm font-bold ${runAvg >= 80 ? "text-green-600" : runAvg >= 60 ? "text-yellow-600" : "text-red-500"}`}>
+                                  {runAvg}점
+                                </span>
+                              )}
                             </div>
-                          )}
-
-                          <div className="space-y-2">
-                            <h5 className="text-sm font-semibold text-slate-700 flex items-center gap-2">
-                              <Users className="w-4 h-4 text-blue-600" />
-                              페르소나 목록 ({personaRuns.length}개)
-                            </h5>
-                            <div className="space-y-2">
-                              {personaRuns.map(pr => {
-                                const isRunCompleted = pr.status === "completed";
-                                const isRunActive = pr.status === "active";
-                                const snapshot = pr.personaSnapshot as any;
-                                const matchedPersona = scenarioInfo.personas?.find((p: any) => p.id === pr.personaId);
-                                const displayName = matchedPersona
-                                  ? `${matchedPersona.department ? matchedPersona.department + " " : ""}${matchedPersona.name}${matchedPersona.position ? " " + matchedPersona.position : ""}`
-                                  : (pr.personaName || snapshot?.name || pr.personaId);
-
-                                return (
-                                  <div
-                                    key={pr.id}
-                                    className="flex items-center justify-between p-3 bg-white border rounded-lg hover:bg-slate-50"
-                                  >
-                                    <div className="flex items-center gap-3">
-                                      <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold shrink-0 ${
-                                        isRunCompleted ? "bg-green-100 text-green-600" :
-                                        isRunActive ? "bg-yellow-100 text-yellow-600" :
-                                        "bg-gray-100 text-gray-600"
-                                      }`}>
-                                        {pr.phase || "?"}
-                                      </div>
-                                      <div className="flex items-center gap-2 flex-wrap">
-                                        <span className="font-medium text-slate-900">{displayName}</span>
-                                        {(pr.mbtiType || matchedPersona?.mbti) && (
-                                          <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
-                                            {pr.mbtiType || matchedPersona?.mbti}
-                                          </Badge>
-                                        )}
-                                        <Badge variant="outline" className="text-xs">{pr.turnCount}턴</Badge>
-                                        <Badge className={
-                                          isRunCompleted ? "bg-green-600" :
-                                          isRunActive ? "bg-yellow-600" : "bg-gray-400"
-                                        }>
-                                          {isRunCompleted ? "완료" : isRunActive ? "진행 중" : "시작 전"}
-                                        </Badge>
-                                      </div>
-                                    </div>
-                                    <div className="flex items-center gap-3 shrink-0">
-                                      {pr.score !== null && pr.score !== undefined && (
-                                        <div className="flex items-center gap-1">
-                                          <Star className="w-4 h-4 text-yellow-500" />
-                                          <span className={`font-semibold text-sm ${
-                                            pr.score >= 80 ? "text-green-600" :
-                                            pr.score >= 60 ? "text-yellow-600" : "text-red-600"
-                                          }`}>
-                                            {pr.score}점
-                                          </span>
-                                        </div>
-                                      )}
-                                      <div className="flex gap-2">
-                                        <Button
-                                          variant="outline"
-                                          size="sm"
-                                          onClick={() => navigate(`/chat/${pr.id}?returnTo=/admin/participant/${userId}`)}
-                                        >
-                                          대화 보기
-                                        </Button>
-                                        {isRunCompleted && (
-                                          <Button
-                                            variant="default"
-                                            size="sm"
-                                            className="bg-corporate-600 hover:bg-corporate-700"
-                                            onClick={() => navigate(`/feedback/${pr.id}?returnTo=/admin/participant/${userId}`)}
-                                          >
-                                            피드백 보기
-                                          </Button>
-                                        )}
-                                      </div>
-                                    </div>
-                                  </div>
-                                );
-                              })}
-                            </div>
-                          </div>
-                        </div>
-                      </AccordionContent>
-                    </AccordionItem>
-                  );
-                })}
-              </Accordion>
-            )}
-          </CardContent>
-        </Card>
+                          </AccordionTrigger>
+                          <AccordionContent>
+                            <RunAccordionContent
+                              scenarioRun={scenarioRun}
+                              scenarioInfo={{ title: personaDisplayName, difficulty: 1, personas: [] }}
+                              personaRuns={personaRuns}
+                              userId={userId}
+                              navigate={navigate}
+                              strategyDialogRunId={strategyDialogRunId}
+                              setStrategyDialogRunId={setStrategyDialogRunId}
+                              sequenceAnalysis={null}
+                            />
+                          </AccordionContent>
+                        </AccordionItem>
+                      );
+                    })}
+                  </Accordion>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+        </Tabs>
       </main>
 
       {/* AI 전략 평가 다이얼로그 */}
