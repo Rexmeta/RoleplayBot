@@ -466,8 +466,9 @@ async function initializeApp() {
   recordStep('seed_sample_personas', 'start');
   initStatus = 'seeding_sample_personas';
   try {
-    const { seedSamplePersonas } = await import('./scripts/seedSamplePersonas');
+    const { seedSamplePersonas, migrateSamplePersonaAvatars } = await import('./scripts/seedSamplePersonas');
     await seedSamplePersonas();
+    await migrateSamplePersonaAvatars();
     recordStep('seed_sample_personas', 'done');
   } catch (error: any) {
     recordStep('seed_sample_personas', 'error', error?.message);

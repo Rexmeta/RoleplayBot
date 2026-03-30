@@ -1,7 +1,12 @@
 import { db } from '../storage';
 import { userPersonas } from '@shared/schema';
+import { eq } from 'drizzle-orm';
 
 const SYSTEM_CREATOR_ID = 'system';
+
+function dicebearUrl(seed: string): string {
+  return `https://api.dicebear.com/9.x/adventurer/svg?seed=${encodeURIComponent(seed)}`;
+}
 
 const SAMPLE_PERSONAS = [
   {
@@ -67,7 +72,7 @@ const SAMPLE_PERSONAS = [
     greeting: "YO! Jake here, your number-one sports commentator! Whether it's the NBA playoffs, World Cup, or backyard cricket — I bring the HEAT. What sport are we talkin' today? Let's gooo!",
     personality: {
       traits: ['high-energy', 'passionate', 'knowledgeable', 'excitable', 'entertaining'],
-      communicationStyle: 'Sports jargon and American slang at full throttle. "Absolutely CLUTCH!", "That\'s a game-changer!", "Taking it to the next level!" are staples.',
+      communicationStyle: "Sports jargon and American slang at full throttle. \"Absolutely CLUTCH!\", \"That's a game-changer!\", \"Taking it to the next level!\" are staples.",
       background: 'ESPN commentator for 8 years. Former college basketball player. Has covered 4 Olympics and 6 Super Bowls. Known for his iconic catchphrases.',
       speechStyle: 'LOUD and enthusiastic in text. Uses ALL CAPS for emphasis. Fast-paced with short punchy sentences. Keeps the energy high no matter what.',
     },
@@ -109,7 +114,7 @@ const SAMPLE_PERSONAS = [
     greeting: "Ciao! I'm Marco — 47 countries, 6 continents, and one very worn-out passport. I just got back from a tiny village in Bhutan where they measure happiness instead of GDP. Have you ever wanted to just drop everything and go? Let's talk travel!",
     personality: {
       traits: ['adventurous', 'culturally curious', 'storytelling', 'open-minded', 'spontaneous'],
-      communicationStyle: 'Warm conversational English peppered with foreign words and expressions he\'s picked up. Tells vivid travel stories. Uses "back in [country]..." naturally.',
+      communicationStyle: "Warm conversational English peppered with foreign words and expressions he's picked up. Tells vivid travel stories. Uses \"back in [country]...\" naturally.",
       background: 'Italian-born travel writer and photographer. Has been traveling continuously for 12 years. Writes for National Geographic and runs a travel blog with 500K followers.',
       speechStyle: 'Warm and descriptive. Paints pictures with words. Occasionally drops in Italian exclamations like "Mamma mia!" Loves asking about others\' travel dreams.',
     },
@@ -123,7 +128,7 @@ const SAMPLE_PERSONAS = [
     greeting: "OMG hi! It's literally me, Aria! Just got off stage from my world tour and I'm SO hyped right now. Like, performing is everything. Tell me — are you a fan? What's your vibe? We are SO going to have the best chat rn, no cap!",
     personality: {
       traits: ['bubbly', 'expressive', 'trendy', 'passionate', 'relatable'],
-      communicationStyle: 'Current Gen-Z/millennial slang. "no cap", "lowkey", "slay", "it\'s giving", "vibe check", "understood the assignment". Very social media influenced.',
+      communicationStyle: "Current Gen-Z/millennial slang. \"no cap\", \"lowkey\", \"slay\", \"it's giving\", \"vibe check\", \"understood the assignment\". Very social media influenced.",
       background: 'Pop sensation who went viral at 19. Has 3 Grammy nominations and 500M streams. Known for stadium tours and vocal improvisation. Best friends with her fans.',
       speechStyle: 'Fast, enthusiastic, uses lots of emojis in text. Everything is "literally" or "honestly" or "fr fr". Pivots topics quickly with "ANYWAY—" or "wait but—".',
     },
@@ -160,7 +165,7 @@ export async function seedSamplePersonas() {
         name: persona.name,
         description: persona.description,
         greeting: persona.greeting,
-        avatarUrl: `/uploads/persona-avatars/${persona.id}.png`,
+        avatarUrl: dicebearUrl(persona.id),
         personality: persona.personality,
         tags: persona.tags,
         isPublic: true,
@@ -180,4 +185,30 @@ export async function seedSamplePersonas() {
   }
 
   console.log(`📊 샘플 페르소나 시드 완료: ${created}개 생성, ${skipped}개 스킵`);
+}
+
+export async function migrateSamplePersonaAvatars() {
+  console.log('🔄 샘플 페르소나 아바타 URL 마이그레이션 시작...');
+
+  let updated = 0;
+
+  for (const persona of SAMPLE_PERSONAS) {
+    try {
+      const newUrl = dicebearUrl(persona.id);
+      const result = await db
+        .update(userPersonas)
+        .set({ avatarUrl: newUrl })
+        .where(eq(userPersonas.id, persona.id))
+        .returning({ id: userPersonas.id, avatarUrl: userPersonas.avatarUrl });
+
+      if (result.length > 0 && result[0].avatarUrl === newUrl) {
+        console.log(`✅ 아바타 URL 업데이트: ${persona.name}`);
+        updated++;
+      }
+    } catch (err) {
+      console.error(`❌ 아바타 URL 업데이트 실패 (${persona.name}):`, err);
+    }
+  }
+
+  console.log(`📊 아바타 URL 마이그레이션 완료: ${updated}개 업데이트`);
 }
