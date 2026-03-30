@@ -10,6 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { useToast } from '@/hooks/use-toast';
 import { apiRequest } from '@/lib/queryClient';
 import { Loader2, ChevronDown, ChevronUp } from 'lucide-react';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
 interface AIGeneratorProps {
   onGenerated: (data: any) => void;
@@ -87,16 +88,23 @@ export function AIScenarioGenerator({ onGenerated }: AIGeneratorProps) {
 
   return (
     <Dialog open={isOpen} onOpenChange={setIsOpen}>
-      <DialogTrigger asChild>
-        <Button 
-          variant="outline" 
-          className="border-purple-600 text-purple-600 hover:bg-purple-50"
-          data-testid="button-ai-generate"
-        >
-          <i className="fas fa-magic mr-2"></i>
-          {t('admin.aiGenerator.generateWithAI')}
-        </Button>
-      </DialogTrigger>
+      <TooltipProvider>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <DialogTrigger asChild>
+              <Button 
+                variant="outline" 
+                className="border-purple-600 text-purple-600 hover:bg-purple-50"
+                data-testid="button-ai-generate"
+              >
+                <i className="fas fa-magic mr-2"></i>
+                {t('admin.aiGenerator.generateWithAI')}
+              </Button>
+            </DialogTrigger>
+          </TooltipTrigger>
+          <TooltipContent side="bottom">AI를 사용해 시나리오를 자동 생성합니다</TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
       
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto bg-slate-50">
         <DialogHeader className="bg-purple-600 -m-6 mb-4 p-6 rounded-t-lg">

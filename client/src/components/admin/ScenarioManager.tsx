@@ -22,6 +22,7 @@ import { AIScenarioGenerator } from './AIScenarioGenerator';
 import { ScenarioTranslationEditor } from './ScenarioTranslationEditor';
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
 interface ScenarioPersona {
   id: string;
@@ -1007,38 +1008,55 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
             className="hidden"
             onChange={handleImportFile}
           />
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => importFileRef.current?.click()}
-            disabled={isImporting}
-            data-testid="button-import-scenarios"
-          >
-            {isImporting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Upload className="mr-2 h-4 w-4" />}
-            가져오기
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handleExport}
-            data-testid="button-export-scenarios"
-          >
-            <Download className="mr-2 h-4 w-4" />
-            내보내기
-          </Button>
-          <AIScenarioGenerator onGenerated={handleAIGenerated} />
-          <Button 
-            className="bg-corporate-600 hover:bg-corporate-700"
-            onClick={() => {
-              resetForm();
-              setEditingScenario(null);
-              setIsCreateOpen(true);
-            }}
-            data-testid="button-create-scenario"
-          >
-            <i className="fas fa-plus mr-2"></i>
-            {t('admin.scenarioManager.createManually')}
-          </Button>
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => importFileRef.current?.click()}
+                  disabled={isImporting}
+                  data-testid="button-import-scenarios"
+                >
+                  {isImporting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Upload className="mr-2 h-4 w-4" />}
+                  가져오기
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="bottom">JSON 파일에서 시나리오를 가져옵니다</TooltipContent>
+            </Tooltip>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleExport}
+                  data-testid="button-export-scenarios"
+                >
+                  <Download className="mr-2 h-4 w-4" />
+                  내보내기
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="bottom">시나리오 전체를 JSON 파일로 내보냅니다</TooltipContent>
+            </Tooltip>
+            <AIScenarioGenerator onGenerated={handleAIGenerated} />
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button 
+                  className="bg-corporate-600 hover:bg-corporate-700"
+                  onClick={() => {
+                    resetForm();
+                    setEditingScenario(null);
+                    setIsCreateOpen(true);
+                  }}
+                  data-testid="button-create-scenario"
+                >
+                  <i className="fas fa-plus mr-2"></i>
+                  {t('admin.scenarioManager.createManually')}
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="bottom">새 시나리오를 직접 작성합니다</TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
         </div>
 
         <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
