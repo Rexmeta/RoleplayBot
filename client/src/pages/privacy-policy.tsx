@@ -18,7 +18,7 @@ export default function PrivacyPolicy() {
           돌아가기
         </Button>
 
-        <ScrollArea className="h-[calc(100vh-120px)]">
+        <ScrollArea className="h-[calc(100dvh-120px)]">
           <div className="bg-slate-50 rounded-2xl p-8 text-slate-800 border border-slate-200">
             <h1 className="text-3xl font-bold mb-8 text-center text-slate-900">개인정보처리방침</h1>
             

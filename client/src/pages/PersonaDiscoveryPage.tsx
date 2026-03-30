@@ -109,7 +109,7 @@ export default function PersonaDiscoveryPage() {
   return (
     <>
     <PersonaLayout>
-      <div className="max-w-6xl mx-auto w-full px-6 py-6 space-y-8">
+      <div className="max-w-6xl mx-auto w-full px-3 sm:px-6 py-6 space-y-8">
 
         {/* ── Featured Banner ── */}
         {featuredPersonas.length > 0 && activeTab === "all" && (
@@ -184,7 +184,7 @@ export default function PersonaDiscoveryPage() {
         </div>
 
         {/* ── Category Tabs ── */}
-        <div className="flex gap-1 bg-white rounded-xl border border-slate-200 p-1 w-fit">
+        <div className="flex gap-1 bg-white rounded-xl border border-slate-200 p-1 w-full sm:w-fit overflow-x-auto">
           {CATEGORY_TABS.map(tab => (
             <button
               key={tab.key}

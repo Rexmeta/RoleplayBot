@@ -33,7 +33,7 @@ export function MessageList({
   const { t } = useTranslation();
 
   return (
-    <div className="flex-1 min-h-0 overflow-y-auto p-6 space-y-5 bg-gradient-to-b from-slate-50 to-white scroll-smooth" data-testid="chat-messages">
+    <div className="flex-1 min-h-0 overflow-y-auto p-3 sm:p-6 space-y-5 bg-gradient-to-b from-slate-50 to-white scroll-smooth" data-testid="chat-messages">
       {messages.map((message: ConversationMessage, index: number) => (
         <div
           key={index}
@@ -43,7 +43,7 @@ export function MessageList({
         >
           {message.sender === "ai" && (
             <div className="relative flex-shrink-0 self-stretch flex items-end">
-              <div className="w-16 h-full min-h-[4rem] rounded-xl ring-2 ring-white shadow-lg overflow-hidden bg-slate-100">
+              <div className="w-10 sm:w-16 h-full min-h-[3rem] sm:min-h-[4rem] rounded-xl ring-2 ring-white shadow-lg overflow-hidden bg-slate-100">
                 <img
                   src={getCharacterImage(message.emotion || '중립') || toMediaUrl(personaImage || '')}
                   alt={personaName}
@@ -61,7 +61,7 @@ export function MessageList({
             </div>
           )}
 
-          <div className={`flex flex-col ${message.sender === "user" ? "items-end" : "items-start"} max-w-[70%]`}>
+          <div className={`flex flex-col ${message.sender === "user" ? "items-end" : "items-start"} max-w-[85%] sm:max-w-[70%]`}>
             {message.sender === "ai" && (
               <span className="text-xs text-slate-500 mb-1 ml-1 font-medium">{personaName}</span>
             )}

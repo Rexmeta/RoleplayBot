@@ -34,7 +34,7 @@ export function GoalsSidebar({
 
   if (variant === 'sidebar') {
     return (
-      <div className="hidden xl:flex flex-col w-[480px] 2xl:w-[560px] bg-gradient-to-b from-slate-50 to-slate-100 border-r border-slate-200 p-4 overflow-y-auto z-30">
+      <div className="hidden lg:flex flex-col w-[480px] 2xl:w-[560px] bg-gradient-to-b from-slate-50 to-slate-100 border-r border-slate-200 p-4 overflow-y-auto z-30">
         <div className="bg-white rounded-xl px-4 py-3 shadow-sm border border-slate-100 mb-4">
           <div className="flex items-center space-x-2">
             <span className="text-sm font-semibold text-slate-800">{personaDept} {personaRole} {personaName}</span>
@@ -86,11 +86,11 @@ export function GoalsSidebar({
   }
 
   return (
-    <div className="absolute top-4 left-4 z-20 space-y-3 xl:hidden">
+    <div className="absolute top-4 left-4 z-20 space-y-3 lg:hidden" style={{ maxWidth: 'min(100vw - 32px, 384px)' }}>
       <div className="bg-white/90 backdrop-blur-sm rounded-full px-4 py-2 shadow-lg">
         <div className="flex items-center space-x-3">
           <div className="flex items-center space-x-2">
-            <span className="text-sm font-medium text-slate-700">{personaDept} {personaRole} {personaName}</span>
+            <span className="text-sm font-medium text-slate-700 truncate max-w-[140px] sm:max-w-none">{personaDept} {personaRole} {personaName}</span>
             {isAdmin && latestEmotion && (
               <span className="text-lg">{emotionEmojis[latestEmotion] || '😐'}</span>
             )}
@@ -106,7 +106,7 @@ export function GoalsSidebar({
       </div>
 
       {hasGoals && (
-        <div className="bg-white/80 backdrop-blur-sm rounded-lg shadow-lg transition-all duration-300 max-w-sm xl:hidden">
+        <div className="bg-white/80 backdrop-blur-sm rounded-lg shadow-lg transition-all duration-300 lg:hidden">
           <button
             onClick={onToggleGoals}
             className="w-full p-2 flex items-center justify-between hover:bg-white/90 transition-all duration-200 rounded-lg"

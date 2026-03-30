@@ -13,7 +13,7 @@ export function MessengerInfoCards({ scenario, elapsedTime, turnCount, maxTurns 
   const { t } = useTranslation();
 
   return (
-    <div className="lg:w-[22rem] xl:w-[26rem] flex-shrink-0 space-y-3 lg:h-[calc(100vh-8rem)] lg:overflow-y-auto">
+    <div className="lg:w-[22rem] xl:w-[26rem] flex-shrink-0 space-y-3 lg:h-[calc(100dvh-8rem)] lg:overflow-y-auto">
       <div className="bg-white rounded-2xl p-4 border border-slate-100 shadow-sm hover:shadow-md transition-all duration-300">
         <h4 className="font-semibold text-slate-700 mb-3 flex items-center text-sm">
           <div className="w-7 h-7 bg-corporate-100 rounded-lg flex items-center justify-center mr-2">

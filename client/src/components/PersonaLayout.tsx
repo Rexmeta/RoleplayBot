@@ -271,7 +271,7 @@ export default function PersonaLayout({ children, chatMode = false }: { children
 
   if (chatMode) {
     return (
-      <div className="relative h-screen overflow-hidden bg-slate-50">
+      <div className="relative h-[100dvh] overflow-hidden bg-slate-50">
         {/* Floating menu handle */}
         <button
           onClick={() => setDrawerOpen(true)}
@@ -326,24 +326,61 @@ export default function PersonaLayout({ children, chatMode = false }: { children
   }
 
   return (
-    <div className="flex flex-col h-screen overflow-hidden bg-slate-50">
+    <div className="flex flex-col h-[100dvh] overflow-hidden bg-slate-50">
       <SwitchingHeader />
 
-      <div className="flex flex-1 overflow-hidden">
-        {/* ── Sidebar ── */}
+      <div className="flex flex-1 overflow-hidden min-h-0">
+        {/* ── Sidebar — hidden on mobile, shown md+ ── */}
         <aside
-          className={`flex flex-col bg-slate-900 text-white transition-all duration-300 ease-in-out flex-shrink-0 ${
+          className={`hidden md:flex flex-col bg-slate-900 text-white transition-all duration-300 ease-in-out flex-shrink-0 ${
             collapsed ? "w-[68px]" : "w-[260px]"
           }`}
         >
           {sidebarContent(false)}
         </aside>
 
+        {/* ── Mobile drawer overlay (md-) ── */}
+        {drawerOpen && (
+          <div className="fixed inset-0 bg-black/40 z-40 md:hidden" onClick={() => setDrawerOpen(false)} />
+        )}
+        <div
+          ref={drawerRef}
+          className={`fixed top-0 left-0 h-full z-50 flex flex-col bg-slate-900 text-white shadow-2xl transition-transform duration-300 ease-in-out w-[280px] md:hidden ${
+            drawerOpen ? "translate-x-0" : "-translate-x-full"
+          }`}
+        >
+          {sidebarContent(true)}
+        </div>
+
         {/* ── Main Content ── */}
-        <main className="flex-1 overflow-y-auto">
+        <main className="flex-1 overflow-y-auto pb-16 md:pb-0">
           {children}
         </main>
       </div>
+
+      {/* ── Mobile Bottom Tab Bar (md-) ── */}
+      <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-white border-t border-slate-200 flex items-center justify-around px-2 py-1 safe-area-inset-bottom">
+        {NAV_ITEMS.map(item => {
+          const isActive = activeNav === item.key;
+          return (
+            <Link key={item.key} href={item.href}>
+              <div className={`flex flex-col items-center gap-0.5 px-4 py-2 rounded-xl min-w-[44px] min-h-[44px] justify-center transition-colors ${
+                isActive ? "text-emerald-600" : "text-slate-400"
+              }`}>
+                <item.icon className="w-5 h-5" />
+                <span className="text-[10px] font-medium">{item.label}</span>
+              </div>
+            </Link>
+          );
+        })}
+        <button
+          onClick={() => setDrawerOpen(true)}
+          className="flex flex-col items-center gap-0.5 px-4 py-2 rounded-xl min-w-[44px] min-h-[44px] justify-center text-slate-400"
+        >
+          <Menu className="w-5 h-5" />
+          <span className="text-[10px] font-medium">더보기</span>
+        </button>
+      </nav>
     </div>
   );
 }

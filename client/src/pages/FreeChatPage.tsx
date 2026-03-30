@@ -133,13 +133,13 @@ function UserPersonaCard({ persona, isSelected, isMine, onSelect, onEdit, onDele
         )}
       </div>
       <div className="flex-shrink-0 flex items-center gap-1" onClick={e => e.stopPropagation()}>
-        <button onClick={onLike} className={`flex items-center gap-0.5 px-1.5 py-1 rounded-lg text-xs transition-colors ${persona.liked ? "text-red-500" : "text-slate-400 hover:text-red-400"}`}>
+        <button onClick={onLike} className={`flex items-center gap-0.5 px-2 py-2.5 rounded-lg text-xs transition-colors min-w-[44px] min-h-[44px] ${persona.liked ? "text-red-500" : "text-slate-400 hover:text-red-400"}`}>
           <Heart className={`w-3 h-3 ${persona.liked ? "fill-red-500" : ""}`} />
           <span>{persona.likeCount}</span>
         </button>
         {isMine && (
           <div className="relative" ref={menuRef}>
-            <button onClick={() => setMenuOpen(v => !v)} className="p-1 rounded-lg text-slate-400 hover:text-slate-600 transition-colors">
+            <button onClick={() => setMenuOpen(v => !v)} className="p-2.5 rounded-lg text-slate-400 hover:text-slate-600 transition-colors min-w-[44px] min-h-[44px] flex items-center justify-center">
               <MoreVertical className="w-4 h-4" />
             </button>
             {menuOpen && (
@@ -217,7 +217,7 @@ function FeaturedBanner({ persona, onClick }: { persona: UserPersona; onClick: (
   return (
     <div
       onClick={onClick}
-      className="relative cursor-pointer rounded-2xl overflow-hidden h-44 bg-gradient-to-br from-emerald-600 to-teal-800 shadow-lg hover:shadow-xl transition-all group mb-5"
+      className="relative cursor-pointer rounded-2xl overflow-hidden h-36 sm:h-44 bg-gradient-to-br from-emerald-600 to-teal-800 shadow-lg hover:shadow-xl transition-all group mb-5"
     >
       {avatarUrl && (
         <img src={avatarUrl} alt={persona.name} className="absolute inset-0 w-full h-full object-cover opacity-50 group-hover:opacity-60 transition-opacity object-top" />
@@ -427,12 +427,12 @@ export default function FreeChatPage() {
       const chatPersonaDesc = selectedUserPersona?.description || "";
 
       return (
-        <div className="relative h-screen overflow-hidden">
+        <div className="relative h-[100dvh] overflow-hidden">
           {/* Full-screen chat */}
           {chatWindow}
 
           {/* ── Character mini identity banner ────────── */}
-          <div className="fixed top-5 left-1/2 -translate-x-1/2 z-30 pointer-events-none">
+          <div className="fixed top-12 sm:top-5 left-1/2 -translate-x-1/2 z-30 pointer-events-none">
             <div className="flex items-center gap-2 px-3 py-1.5 rounded-full shadow-lg border backdrop-blur-sm bg-slate-900/80 border-slate-700/50">
               <div className="w-5 h-5 rounded-full overflow-hidden flex-shrink-0 ring-1 ring-white/30">
                 {chatAvatarUrl
@@ -611,13 +611,13 @@ export default function FreeChatPage() {
 
   // ── Main 3-column layout ───────────────────────────────────────────
   return (
-    <div className="flex flex-col h-screen bg-slate-50">
+    <div className="flex flex-col h-[100dvh] bg-slate-50">
       <AppHeader />
 
       <div className="flex flex-1 overflow-hidden">
 
         {/* ── Left Sidebar ─────────────────────────────── */}
-        <aside className="w-64 bg-white border-r border-slate-200 flex flex-col flex-shrink-0">
+        <aside className="hidden sm:flex w-64 bg-white border-r border-slate-200 flex-col flex-shrink-0">
           {/* Create button */}
           <div className="p-3 border-b border-slate-100">
             <button
@@ -724,7 +724,25 @@ export default function FreeChatPage() {
         <main className="flex-1 overflow-y-auto">
           {!selectedUserPersona ? (
             /* Welcome / discovery grid */
-            <div className="max-w-3xl mx-auto px-6 py-10">
+            <div className="max-w-3xl mx-auto px-3 sm:px-6 py-6 sm:py-10">
+              {/* Mobile-only create button bar */}
+              <div className="sm:hidden flex gap-2 mb-5">
+                <button
+                  onClick={() => { setEditingPersona(null); setEditorOpen(true); }}
+                  className="flex-1 flex items-center justify-center gap-2 py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-sm font-semibold transition-colors min-h-[44px]"
+                >
+                  <Plus className="w-4 h-4" />
+                  페르소나 만들기
+                </button>
+                <button
+                  onClick={() => setChatSidebarOpen(true)}
+                  className="flex items-center justify-center gap-2 px-4 py-3 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 rounded-xl text-sm font-medium transition-colors min-h-[44px]"
+                >
+                  <User className="w-4 h-4" />
+                  내 것
+                </button>
+              </div>
+
               <div className="text-center mb-10">
                 <MessageCircle className="w-14 h-14 text-emerald-500 mx-auto mb-3" />
                 <h1 className="text-2xl font-bold text-slate-800 mb-2">PersonaX</h1>
@@ -746,7 +764,7 @@ export default function FreeChatPage() {
 
                   {/* Category filter chips */}
                   {allTags.length > 0 && (
-                    <div className="flex gap-1.5 flex-wrap mb-4">
+                    <div className="flex gap-1.5 flex-wrap mb-4 overflow-x-auto">
                       <button
                         onClick={() => setCategoryFilter(null)}
                         className={`px-3 py-1 rounded-full text-xs font-medium border transition-all ${!categoryFilter ? "bg-emerald-600 text-white border-emerald-600" : "bg-white text-slate-500 border-slate-200 hover:border-slate-300"}`}
@@ -792,7 +810,7 @@ export default function FreeChatPage() {
                       <p className="text-sm">해당 카테고리의 페르소나가 없어요</p>
                     </div>
                   ) : (
-                    <div className="grid grid-cols-3 gap-3">
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                       {filteredDiscoverByCategory.map(p => (
                         <PosterPersonaCard key={p.id} persona={p} onClick={() => selectUserPersona(p)} />
                       ))}
@@ -804,11 +822,11 @@ export default function FreeChatPage() {
             </div>
           ) : (
             /* Persona detail + start chat */
-            <div className="max-w-lg mx-auto px-6 py-8">
+            <div className="max-w-lg mx-auto px-3 sm:px-6 py-4 sm:py-8">
               {selectedUserPersona && (
                 <div>
                   {/* Cover banner */}
-                  <div className="relative -mx-6 -mt-8 mb-5 h-36 bg-gradient-to-br from-emerald-500 to-teal-700 overflow-hidden">
+                  <div className="relative -mx-3 sm:-mx-6 -mt-4 sm:-mt-8 mb-5 h-36 bg-gradient-to-br from-emerald-500 to-teal-700 overflow-hidden">
                     {selectedUserPersona.avatarUrl && (
                       <img
                         src={toMediaUrl(selectedUserPersona.avatarUrl)}

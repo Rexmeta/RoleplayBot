@@ -234,7 +234,7 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
           </div>
         )}
 
-        <div className={`bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden${chatMode === 'messenger' ? ' flex flex-col h-[calc(100vh-8rem)] lg:flex-1 lg:min-w-0' : ''}`}>
+        <div className={`bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden${chatMode === 'messenger' ? ' flex flex-col h-[calc(100dvh-8rem)] lg:flex-1 lg:min-w-0' : ''}`}>
           {/* Chat Header */}
           <div className="bg-gradient-to-r from-corporate-600 to-corporate-700 px-4 sm:px-6 py-3 sm:py-4 text-white">
             <div className="flex items-center justify-between gap-3">

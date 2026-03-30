@@ -25,14 +25,16 @@ export function TranscriptPanel({
 }: TranscriptPanelProps) {
   const { t } = useTranslation();
 
+  const panelWidth = 'min(80vw, 300px)';
+
   return (
     <div
       className="absolute top-0 right-0 bottom-0 z-30 flex flex-col pointer-events-none"
-      style={{ width: isOpen ? '300px' : '48px' }}
+      style={{ width: isOpen ? panelWidth : '48px' }}
     >
       <button
         onClick={onToggle}
-        className="pointer-events-auto absolute top-1/2 -translate-y-1/2 left-0 w-10 h-10 flex items-center justify-center bg-white/80 backdrop-blur-sm rounded-l-xl shadow-lg border border-white/30 text-slate-600 hover:text-slate-800 hover:bg-white transition-all duration-200 z-10"
+        className="pointer-events-auto absolute top-1/2 -translate-y-1/2 left-0 w-11 h-11 flex items-center justify-center bg-white/80 backdrop-blur-sm rounded-l-xl shadow-lg border border-white/30 text-slate-600 hover:text-slate-800 hover:bg-white transition-all duration-200 z-10"
         title={isOpen ? '대화 내역 닫기' : '대화 내역 보기'}
         data-testid="button-toggle-transcript"
       >
@@ -43,7 +45,7 @@ export function TranscriptPanel({
         className={`pointer-events-auto absolute top-0 right-0 bottom-0 bg-white/85 backdrop-blur-md border-l border-white/30 shadow-2xl flex flex-col transition-all duration-300 ${
           isOpen ? 'opacity-100 translate-x-0' : 'opacity-0 translate-x-full'
         }`}
-        style={{ width: '300px' }}
+        style={{ width: panelWidth }}
       >
         <div className="flex items-center justify-between px-4 py-3 border-b border-slate-200/50">
           <span className="text-sm font-semibold text-slate-700 flex items-center gap-1.5">
@@ -52,9 +54,9 @@ export function TranscriptPanel({
           </span>
           <button
             onClick={onClose}
-            className="w-6 h-6 flex items-center justify-center rounded-full hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition-colors"
+            className="w-11 h-11 flex items-center justify-center rounded-full hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition-colors"
           >
-            <X className="w-3.5 h-3.5" />
+            <X className="w-5 h-5" />
           </button>
         </div>
         <div className="flex-1 overflow-y-auto p-3 space-y-2">

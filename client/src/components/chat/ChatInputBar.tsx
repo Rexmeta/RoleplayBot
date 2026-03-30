@@ -143,7 +143,7 @@ export function ChatInputBar({
               onClick={rv.onEndConversation}
               disabled={rv.isRecording || rv.isAISpeaking}
               data-testid={variant === 'character' ? "button-end-conversation-realtime" : "button-end-conversation-messenger"}
-              className="text-red-600 border-red-200 hover:bg-red-50 shrink-0"
+              className="text-red-600 border-red-200 hover:bg-red-50 shrink-0 min-h-[44px] min-w-[44px]"
             >
               <i className="fas fa-stop-circle mr-1"></i>
               {t('chat.end')}
@@ -185,9 +185,7 @@ export function ChatInputBar({
               }`}></i>
             </button>
 
-            <div className={`flex items-center gap-2 transition-all duration-300 ease-in-out overflow-hidden flex-1 ${
-              rv.isInputExpanded ? 'max-w-full' : 'max-w-[200px]'
-            }`}>
+            <div className="flex items-center gap-2 flex-1 overflow-hidden">
               <div className="relative flex-1">
                 <input
                   type="text"
@@ -207,7 +205,7 @@ export function ChatInputBar({
                     }
                   }}
                   placeholder={rv.isInputExpanded ? "메시지 입력... (Enter로 전송)" : "텍스트로 대화"}
-                  className={`w-full px-3 py-2 text-sm border rounded-full bg-white focus:outline-none focus:ring-2 focus:ring-purple-400 transition-all ${
+                  className={`w-full px-3 py-2 text-sm border rounded-full bg-white focus:outline-none focus:ring-2 focus:ring-purple-400 transition-colors ${
                     rv.isInputExpanded ? 'border-purple-300' : 'border-slate-200'
                   }`}
                   disabled={rv.isRecording || rv.isAISpeaking}
@@ -303,7 +301,7 @@ export function ChatInputBar({
         <Button
           onClick={onSendMessage}
           disabled={!userInput.trim() || isLoading}
-          className="bg-gradient-to-r from-corporate-600 to-corporate-700 hover:from-corporate-700 hover:to-corporate-800 shadow-md hover:shadow-lg transition-all duration-200 rounded-xl h-12"
+          className="bg-gradient-to-r from-corporate-600 to-corporate-700 hover:from-corporate-700 hover:to-corporate-800 shadow-md hover:shadow-lg transition-all duration-200 rounded-xl min-h-[44px] h-12"
           data-testid="button-send-message"
         >
           <i className="fas fa-paper-plane mr-2"></i>
@@ -313,7 +311,7 @@ export function ChatInputBar({
           variant="outline"
           onClick={onVoiceInput}
           disabled={isLoading || !speechSupported}
-          className={`rounded-xl h-10 transition-all duration-200 ${
+          className={`rounded-xl min-h-[44px] h-10 transition-all duration-200 ${
             isRecording
               ? 'bg-red-50 border-red-300 text-red-700 animate-pulse shadow-md'
               : 'hover:bg-slate-50 hover:border-slate-300 hover:shadow-sm'
@@ -328,7 +326,7 @@ export function ChatInputBar({
           variant="ghost"
           onClick={onSkipTurn}
           disabled={isLoading}
-          className="rounded-xl h-10 text-slate-500 hover:text-slate-700 hover:bg-slate-100"
+          className="rounded-xl min-h-[44px] h-10 text-slate-500 hover:text-slate-700 hover:bg-slate-100"
           data-testid="button-skip-turn"
         >
           <i className="fas fa-forward mr-2"></i>
