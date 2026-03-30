@@ -104,6 +104,11 @@ export default function PersonaEditorModal({ persona, onClose, onSaved }: {
   });
   const set = (k: keyof EditorForm, v: any) => setForm(prev => ({ ...prev, [k]: v }));
 
+  const syncNeutralExpression = (objectPath: string, previewSrc: string) => {
+    setExpressions(prev => ({ ...prev, neutral: objectPath }));
+    setExpressionPreviews(prev => ({ ...prev, neutral: previewSrc }));
+  };
+
   const handleImageSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -113,6 +118,7 @@ export default function PersonaEditorModal({ persona, onClose, onSaved }: {
     const result = await uploadFile(file);
     if (result) {
       setAvatarUrl(result.objectPath);
+      syncNeutralExpression(result.objectPath, toMediaUrl(result.objectPath));
     } else {
       toast({ title: "이미지 업로드 실패", variant: "destructive" });
     }
@@ -172,6 +178,11 @@ export default function PersonaEditorModal({ persona, onClose, onSaved }: {
       const data = await res.json();
       setAvatarUrl(data.objectPath);
       setAvatarPreview(toMediaUrl(data.objectPath));
+      syncNeutralExpression(data.objectPath, toMediaUrl(data.objectPath));
+      queryClient.invalidateQueries({ queryKey: ["/api/user-personas"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/user-personas/discover"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/user-personas/featured"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/user-personas", persona.id] });
       toast({ title: "AI 초상화 생성 완료!" });
     } catch (err: any) {
       toast({
@@ -260,6 +271,7 @@ export default function PersonaEditorModal({ persona, onClose, onSaved }: {
     onSuccess: (data: PersonaEditData) => {
       queryClient.invalidateQueries({ queryKey: ["/api/user-personas"] });
       queryClient.invalidateQueries({ queryKey: ["/api/user-personas/discover"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/user-personas/featured"] });
       queryClient.invalidateQueries({ queryKey: ["/api/user-personas", persona?.id] });
       toast({ title: persona ? "페르소나가 수정됐어요" : "페르소나가 만들어졌어요!" });
       onSaved(data);

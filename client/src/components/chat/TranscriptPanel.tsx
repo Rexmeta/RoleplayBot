@@ -28,24 +28,25 @@ export function TranscriptPanel({
   const panelWidth = 'min(80vw, 300px)';
 
   return (
-    <div
-      className="absolute top-0 right-0 bottom-0 z-30 flex flex-col pointer-events-none"
-      style={{ width: isOpen ? panelWidth : '48px' }}
-    >
-      <button
-        onClick={onToggle}
-        className="pointer-events-auto absolute top-1/2 -translate-y-1/2 left-0 w-11 h-11 flex items-center justify-center bg-white/80 backdrop-blur-sm rounded-l-xl shadow-lg border border-white/30 text-slate-600 hover:text-slate-800 hover:bg-white transition-all duration-200 z-10"
-        title={isOpen ? '대화 내역 닫기' : '대화 내역 보기'}
-        data-testid="button-toggle-transcript"
-      >
-        {isOpen ? <ChevronRight className="w-4 h-4" /> : <MessageCircle className="w-4 h-4" />}
-      </button>
+    <div className="absolute top-0 right-0 bottom-0 z-30 pointer-events-none flex">
+      {/* ── 손잡이: 항상 패널 바깥(왼쪽)에 위치, 세로 중앙 정렬 ── */}
+      <div className="flex flex-col justify-center pointer-events-none">
+        <button
+          onClick={onToggle}
+          className="pointer-events-auto w-11 h-11 flex items-center justify-center bg-white/80 backdrop-blur-sm rounded-l-xl shadow-lg border border-white/30 text-slate-600 hover:text-slate-800 hover:bg-white transition-all duration-200"
+          title={isOpen ? '대화 내역 닫기' : '대화 내역 보기'}
+          data-testid="button-toggle-transcript"
+        >
+          {isOpen ? <ChevronRight className="w-4 h-4" /> : <MessageCircle className="w-4 h-4" />}
+        </button>
+      </div>
 
+      {/* ── 패널 본체 ── */}
       <div
-        className={`pointer-events-auto absolute top-0 right-0 bottom-0 bg-white/85 backdrop-blur-md border-l border-white/30 shadow-2xl flex flex-col transition-all duration-300 ${
-          isOpen ? 'opacity-100 translate-x-0' : 'opacity-0 translate-x-full'
+        className={`pointer-events-auto bg-white/85 backdrop-blur-md border-l border-white/30 shadow-2xl flex flex-col transition-all duration-300 overflow-hidden ${
+          isOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'
         }`}
-        style={{ width: panelWidth }}
+        style={{ width: isOpen ? panelWidth : '0px' }}
       >
         <div className="flex items-center justify-between px-4 py-3 border-b border-slate-200/50">
           <span className="text-sm font-semibold text-slate-700 flex items-center gap-1.5">

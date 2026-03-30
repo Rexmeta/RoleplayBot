@@ -65,7 +65,12 @@ export function useEmotionState({ persona, conversationId, onReady }: UseEmotion
     // 1순위: expressions prop에서 직접 URL 사용 (API에서 받아온 경우)
     if (persona.expressions) {
       const url = persona.expressions[emotionEn];
-      return url ? toMediaUrl(url) : null;
+      if (url) return toMediaUrl(url);
+      // 해당 감정 슬롯이 없으면 neutral → avatarUrl 순으로 fallback
+      const neutralUrl = persona.expressions['neutral'];
+      if (neutralUrl) return toMediaUrl(neutralUrl);
+      if (persona.image) return persona.image;
+      return null;
     }
 
     // 2순위: 유저 페르소나 - personaImagesAvailable state 사용 (HTTP 체크 결과)
@@ -73,6 +78,11 @@ export function useEmotionState({ persona, conversationId, onReady }: UseEmotion
       if (personaImagesAvailable[emotionEn]) {
         return toMediaUrl(`user-personas/${persona.id}/${emotionEn}.webp`);
       }
+      // 해당 감정 없으면 neutral 시도, 그 다음 avatarUrl fallback
+      if (personaImagesAvailable['neutral']) {
+        return toMediaUrl(`user-personas/${persona.id}/neutral.webp`);
+      }
+      if (persona.image) return persona.image;
       return null;
     }
 
@@ -81,6 +91,10 @@ export function useEmotionState({ persona, conversationId, onReady }: UseEmotion
     const mbtiId = persona.mbti?.toLowerCase() || persona.id;
     if (personaImagesAvailable[emotionEn]) {
       return toMediaUrl(`personas/${mbtiId}/${genderFolder}/${emotionEn}.webp`);
+    }
+    // MBTI도 해당 감정 없으면 neutral fallback
+    if (personaImagesAvailable['neutral']) {
+      return toMediaUrl(`personas/${mbtiId}/${genderFolder}/neutral.webp`);
     }
     return null;
   };

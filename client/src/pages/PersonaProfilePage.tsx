@@ -167,6 +167,29 @@ export default function PersonaProfilePage() {
     setIsPending(false);
   };
 
+  function buildPersonaForChat(p: UserPersona) {
+    let expressions: Record<string, string> | undefined = p.expressions || undefined;
+    if (!expressions && p.avatarUrl) {
+      expressions = { neutral: p.avatarUrl };
+    } else if (expressions && !expressions.neutral && p.avatarUrl) {
+      expressions = { ...expressions, neutral: p.avatarUrl };
+    }
+    return {
+      id: p.id,
+      name: p.name,
+      role: "대화 상대",
+      department: "",
+      image: p.avatarUrl ? toMediaUrl(p.avatarUrl) : undefined,
+      expressions,
+      personality: {
+        traits: p.personality?.traits ?? [],
+        communicationStyle: p.personality?.communicationStyle ?? "",
+        motivation: p.personality?.background ?? "",
+        fears: [],
+      },
+    } as any as ScenarioPersona;
+  }
+
   const isLoading = isMbti ? mbtiLoading : personaLoading;
 
   if (!chatWindow && (startUserChatMutation.isSuccess || startMbtiChatMutation.isSuccess)) {
@@ -174,20 +197,7 @@ export default function PersonaProfilePage() {
     if (convData) {
       if (persona) {
         const scenario = buildUserPersonaScenario(persona, 2);
-        const imgUrl = persona.avatarUrl ? toMediaUrl(persona.avatarUrl) : undefined;
-        const chatPersona = {
-          id: persona.id,
-          name: persona.name,
-          role: "대화 상대",
-          department: "",
-          image: imgUrl,
-          personality: {
-            traits: persona.personality?.traits ?? [],
-            communicationStyle: persona.personality?.communicationStyle ?? "",
-            motivation: persona.personality?.background ?? "",
-            fears: [],
-          },
-        } as any as ScenarioPersona;
+        const chatPersona = buildPersonaForChat(persona);
         setChatWindow(
           <ChatWindow
             conversationId={convData.id}
@@ -453,6 +463,9 @@ export default function PersonaProfilePage() {
         onSaved={() => {
           setEditorOpen(false);
           queryClient.invalidateQueries({ queryKey: ["/api/user-personas", id] });
+          queryClient.invalidateQueries({ queryKey: ["/api/user-personas"] });
+          queryClient.invalidateQueries({ queryKey: ["/api/user-personas/discover"] });
+          queryClient.invalidateQueries({ queryKey: ["/api/user-personas/featured"] });
         }}
       />
     )}
