@@ -42,14 +42,6 @@ integrations = ["javascript_gemini:1.0.0", "javascript_openai:1.0.0", "javascrip
 localPort = 5000
 externalPort = 80
 
-[[ports]]
-localPort = 5001
-externalPort = 3001
-
-[[ports]]
-localPort = 5904
-externalPort = 3000
-
 [postMerge]
 path = "scripts/post-merge.sh"
 timeoutMs = 30000

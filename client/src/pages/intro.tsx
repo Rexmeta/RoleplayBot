@@ -3,10 +3,10 @@ import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { ChevronRight, ChevronLeft, Users, MessageCircle, Target, Award, Zap, Brain, BarChart3 } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import scenarioImg from "@assets/intro-card-scenario.png";
-import personaImg from "@assets/intro-card-persona.png";
-import emotionImg from "@assets/intro-card-emotion.png";
-import feedbackImg from "@assets/intro-card-feedback.png";
+import scenarioImg from "@assets/intro-card-scenario.webp";
+import personaImg from "@assets/intro-card-persona.webp";
+import emotionImg from "@assets/intro-card-emotion.webp";
+import feedbackImg from "@assets/intro-card-feedback.webp";
 
 export default function Intro() {
   const [, setLocation] = useLocation();
@@ -18,6 +18,13 @@ export default function Intro() {
 
   useEffect(() => {
     setIsVisible(true);
+  }, []);
+
+  useEffect(() => {
+    [scenarioImg, personaImg, emotionImg, feedbackImg].forEach((src) => {
+      const img = new Image();
+      img.src = src;
+    });
   }, []);
 
   const features = [
@@ -107,7 +114,7 @@ export default function Intro() {
         <div className="aurora-blob-3 absolute w-[400px] h-[400px] rounded-full opacity-20 blur-3xl" style={{ bottom: '-5%', left: '30%' }} />
       </div>
 
-      <div className="absolute inset-0 pointer-events-none overflow-hidden">
+      <div className="absolute inset-0 pointer-events-none overflow-hidden hidden sm:block">
         <div className="absolute animate-float-badge-1" style={{ top: '18%', left: '6%' }}>
           <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-xs font-medium shadow-sm ${badges[0].color}`}>
             {badges[0].icon}
@@ -140,12 +147,12 @@ export default function Intro() {
         </div>
       </div>
 
-      <div className="relative z-10 min-h-screen flex flex-col items-center justify-center px-4 py-16">
-        <div className={`text-center mb-8 transition-all duration-1000 transform ${isVisible ? 'translate-y-0 opacity-100' : 'translate-y-10 opacity-0'}`}>
-          <h1 className="text-5xl md:text-6xl font-bold mb-4 bg-gradient-to-r from-indigo-600 via-violet-600 to-purple-600 bg-clip-text text-transparent leading-tight">
+      <div className="relative z-10 min-h-screen flex flex-col items-center justify-center px-4 py-8 sm:py-12 md:py-16">
+        <div className={`text-center mb-6 sm:mb-8 transition-all duration-1000 transform ${isVisible ? 'translate-y-0 opacity-100' : 'translate-y-10 opacity-0'}`}>
+          <h1 className="text-3xl sm:text-4xl md:text-6xl font-bold mb-3 sm:mb-4 bg-gradient-to-r from-indigo-600 via-violet-600 to-purple-600 bg-clip-text text-transparent leading-tight">
             {t('intro.title')}
           </h1>
-          <p className="text-lg md:text-xl text-slate-500 mb-6 max-w-2xl mx-auto leading-relaxed">
+          <p className="text-base sm:text-lg md:text-xl text-slate-500 mb-5 sm:mb-6 max-w-2xl mx-auto leading-relaxed">
             {t('intro.subtitle')}
           </p>
           <div className="w-16 h-1 bg-gradient-to-r from-indigo-500 to-violet-500 mx-auto rounded-full" />
@@ -153,10 +160,12 @@ export default function Intro() {
 
         <div className={`w-full max-w-sm transition-all duration-1000 delay-300 transform ${isVisible ? 'translate-y-0 opacity-100' : 'translate-y-10 opacity-0'}`}>
           <div className={`bg-white rounded-2xl border shadow-md overflow-hidden transition-all duration-300 ease-out ${feature.borderColor} ${slideClass}`}>
-            <div className="w-full h-52 overflow-hidden bg-slate-50">
+            <div className="w-full h-36 sm:h-44 md:h-52 overflow-hidden bg-slate-50">
               <img
+                key={currentStep}
                 src={feature.image}
                 alt={feature.title}
+                loading="eager"
                 className="w-full h-full object-cover"
               />
             </div>
@@ -194,7 +203,7 @@ export default function Intro() {
             <Button
               onClick={handlePrev}
               variant="outline"
-              className="px-5 py-3 border-slate-200 text-slate-500 hover:text-slate-700 hover:bg-slate-50 rounded-xl transition-all duration-200"
+              className="min-w-[48px] min-h-[48px] px-5 py-3 border-slate-200 text-slate-500 hover:text-slate-700 hover:bg-slate-50 rounded-xl transition-all duration-200"
               disabled={currentStep === 0}
             >
               <ChevronLeft className="w-5 h-5" />
@@ -202,7 +211,7 @@ export default function Intro() {
             </Button>
             <Button
               onClick={handleNext}
-              className="px-8 py-3 bg-gradient-to-r from-indigo-500 to-violet-600 hover:from-indigo-600 hover:to-violet-700 text-white font-semibold rounded-xl transition-all duration-300 hover:scale-105 shadow-lg shadow-indigo-200 hover:shadow-indigo-300 hover:shadow-xl"
+              className="min-w-[48px] min-h-[48px] px-8 py-3 bg-gradient-to-r from-indigo-500 to-violet-600 hover:from-indigo-600 hover:to-violet-700 text-white font-semibold rounded-xl transition-all duration-300 hover:scale-105 shadow-lg shadow-indigo-200 hover:shadow-indigo-300 hover:shadow-xl"
               data-testid="button-next"
             >
               {currentStep === features.length - 1 ? t('common.start') : t('common.next')}
