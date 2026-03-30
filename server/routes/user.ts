@@ -170,7 +170,7 @@ export default function createUserRouter(isAuthenticated: any) {
       throw createHttpError(403, "Access denied. System admin only.");
     }
     const userId = req.user?.id;
-    const personas = await storage.getUserPersonasByCreator(userId);
+    const personas = await storage.getUserPersonasByCreator(userId, true);
     res.json(personas);
   }));
 
@@ -234,6 +234,7 @@ export default function createUserRouter(isAuthenticated: any) {
     if (req.user?.role !== 'admin') {
       throw createHttpError(403, "Access denied. System admin only.");
     }
+    const isAdmin = req.user?.role === 'admin';
     const userId = req.user?.id;
     const { name, description, greeting, avatarUrl, expressions, personality, tags, isPublic } = req.body;
     const persona = await storage.updateUserPersona(req.params.id, userId, {
@@ -245,7 +246,7 @@ export default function createUserRouter(isAuthenticated: any) {
       ...(personality !== undefined && { personality }),
       ...(tags !== undefined && { tags }),
       ...(isPublic !== undefined && { isPublic }),
-    });
+    }, isAdmin);
     res.json(persona);
   }));
 
@@ -253,8 +254,25 @@ export default function createUserRouter(isAuthenticated: any) {
     if (req.user?.role !== 'admin') {
       throw createHttpError(403, "Access denied. System admin only.");
     }
-    await storage.deleteUserPersona(req.params.id, req.user?.id);
+    const isAdmin = req.user?.role === 'admin';
+    await storage.deleteUserPersona(req.params.id, req.user?.id, isAdmin);
     res.json({ success: true });
+  }));
+
+  router.post("/api/user-personas/generate-sample-images", isAuthenticated, asyncHandler(async (req: any, res) => {
+    if (req.user?.role !== 'admin') {
+      throw createHttpError(403, "Access denied. System admin only.");
+    }
+    const force = req.body?.force === true;
+    res.json({ started: true, message: '백그라운드에서 샘플 페르소나 이미지 생성을 시작했습니다.' });
+    setImmediate(async () => {
+      try {
+        const { generateSamplePersonaImages } = await import('../scripts/generateSamplePersonaImages');
+        await generateSamplePersonaImages(force);
+      } catch (err: any) {
+        console.error('[샘플 이미지 생성] 오류:', err.message);
+      }
+    });
   }));
 
   router.post("/api/user-personas/:id/like", isAuthenticated, asyncHandler(async (req: any, res) => {

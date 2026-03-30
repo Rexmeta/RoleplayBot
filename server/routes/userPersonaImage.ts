@@ -136,7 +136,7 @@ router.post('/:id/generate-image', isAuthenticated, asyncHandler(async (req: any
 
   const objectPath = await mediaStorage.saveUserPersonaImage(imageDataUrl!, id, 'neutral');
 
-  await storage.updateUserPersona(id, persona.creatorId, { avatarUrl: objectPath });
+  await storage.updateUserPersona(id, persona.creatorId, { avatarUrl: objectPath }, req.user?.role === 'admin');
 
   trackImageUsage({
     model: 'gemini-2.5-flash-image',
@@ -216,7 +216,7 @@ router.post('/:id/generate-expressions', isAuthenticated, asyncHandler(async (re
     }
   }
 
-  await storage.updateUserPersona(id, persona.creatorId, { expressions: newExpressions });
+  await storage.updateUserPersona(id, persona.creatorId, { expressions: newExpressions }, req.user?.role === 'admin');
 
   const successCount = Object.values(results).filter(r => r.success).length;
   console.log(`✅ [UserPersonaImage] 표정 일괄 생성 완료: ${successCount}/${emotionEntries.length}`);
@@ -294,7 +294,7 @@ router.post('/:id/generate-expression/:emotion', isAuthenticated, asyncHandler(a
   const updates: any = { expressions: newExpressions };
   if (emotion === 'neutral') updates.avatarUrl = objectPath;
 
-  await storage.updateUserPersona(id, persona.creatorId, updates);
+  await storage.updateUserPersona(id, persona.creatorId, updates, req.user?.role === 'admin');
 
   trackImageUsage({
     model: 'gemini-2.5-flash-image',

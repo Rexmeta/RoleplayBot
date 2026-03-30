@@ -8,6 +8,7 @@ import PersonaEditorModal, { type PersonaEditData } from "@/components/PersonaEd
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { useAuth } from "@/hooks/useAuth";
 import {
   Search, Heart, MessageSquare, Plus, Sparkles,
   ChevronRight, Star, Compass, User, Globe, Pencil
@@ -39,6 +40,9 @@ const CATEGORY_TABS: { key: CategoryTab; label: string; icon: React.ElementType 
 ];
 
 export default function PersonaDiscoveryPage() {
+  const { user } = useAuth();
+  const isAdmin = user?.role === 'admin';
+
   const urlParams = new URLSearchParams(window.location.search);
   const tabFromUrl = urlParams.get("tab") as CategoryTab | null;
 
@@ -204,7 +208,13 @@ export default function PersonaDiscoveryPage() {
                 </h3>
                 <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
                   {filteredCommunity.map(p => (
-                    <PersonaCard key={p.id} persona={p} onLike={handleLike} />
+                    <PersonaCard
+                      key={p.id}
+                      persona={p}
+                      onLike={handleLike}
+                      isMine={isAdmin && p.creatorId === 'system'}
+                      onEdit={isAdmin && p.creatorId === 'system' ? (e) => { e.preventDefault(); e.stopPropagation(); setEditingPersona(p); } : undefined}
+                    />
                   ))}
                 </div>
               </div>
@@ -241,7 +251,13 @@ export default function PersonaDiscoveryPage() {
             ) : (
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
                 {filteredCommunity.map(p => (
-                  <PersonaCard key={p.id} persona={p} onLike={handleLike} />
+                  <PersonaCard
+                    key={p.id}
+                    persona={p}
+                    onLike={handleLike}
+                    isMine={isAdmin && p.creatorId === 'system'}
+                    onEdit={isAdmin && p.creatorId === 'system' ? (e) => { e.preventDefault(); e.stopPropagation(); setEditingPersona(p); } : undefined}
+                  />
                 ))}
               </div>
             )}
@@ -262,7 +278,13 @@ export default function PersonaDiscoveryPage() {
           ) : (
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
               {filteredMine.map(p => (
-                <PersonaCard key={p.id} persona={p} onLike={handleLike} isMine onEdit={(e) => { e.preventDefault(); e.stopPropagation(); setEditingPersona(p); }} />
+                <PersonaCard
+                  key={p.id}
+                  persona={p}
+                  onLike={handleLike}
+                  isMine
+                  onEdit={(e) => { e.preventDefault(); e.stopPropagation(); setEditingPersona(p); }}
+                />
               ))}
             </div>
           )
@@ -277,6 +299,8 @@ export default function PersonaDiscoveryPage() {
         onSaved={() => {
           setEditingPersona(null);
           queryClient.invalidateQueries({ queryKey: ["/api/user-personas"] });
+          queryClient.invalidateQueries({ queryKey: ["/api/user-personas/discover"] });
+          queryClient.invalidateQueries({ queryKey: ["/api/user-personas/featured"] });
         }}
       />
     )}
@@ -290,6 +314,7 @@ function PersonaCard({ persona, onLike, isMine, onEdit }: {
   isMine?: boolean;
   onEdit?: (e: React.MouseEvent) => void;
 }) {
+  const isSystem = persona.creatorId === 'system';
   return (
     <Link href={`/persona/${persona.id}`}>
       <div className="group bg-white rounded-2xl border border-slate-200 overflow-hidden hover:border-emerald-300 hover:shadow-md transition-all cursor-pointer">
@@ -313,7 +338,9 @@ function PersonaCard({ persona, onLike, isMine, onEdit }: {
           </button>
           {isMine && (
             <div className="absolute top-2 left-2 flex items-center gap-1">
-              <Badge className="bg-emerald-600 text-white text-[10px] px-1.5 py-0.5">내 캐릭터</Badge>
+              <Badge className={`${isSystem ? "bg-violet-600" : "bg-emerald-600"} text-white text-[10px] px-1.5 py-0.5`}>
+                {isSystem ? "샘플" : "내 캐릭터"}
+              </Badge>
               {onEdit && (
                 <button
                   onClick={onEdit}

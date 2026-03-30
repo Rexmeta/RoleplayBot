@@ -2,7 +2,7 @@ import { type Conversation, type InsertConversation, type Feedback, type InsertF
 import { randomUUID } from "crypto";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { Pool } from "pg";
-import { eq, asc, desc, inArray, and, gte, lte, sql as sqlBuilder, count, sum, isNotNull } from "drizzle-orm";
+import { eq, asc, desc, inArray, and, or, gte, lte, sql as sqlBuilder, count, sum, isNotNull } from "drizzle-orm";
 const sql = sqlBuilder;
 
 // Initialize database connection using node-postgres
@@ -254,10 +254,10 @@ export interface IStorage {
   // 사용자 제작 페르소나 (UserPersonas)
   createUserPersona(data: InsertUserPersona): Promise<UserPersona>;
   getUserPersonaById(id: string): Promise<UserPersona | undefined>;
-  getUserPersonasByCreator(creatorId: string): Promise<UserPersona[]>;
+  getUserPersonasByCreator(creatorId: string, includeSystem?: boolean): Promise<UserPersona[]>;
   getPublicUserPersonas(sortBy?: 'likes' | 'recent', limit?: number, offset?: number, tag?: string, mbti?: string): Promise<UserPersona[]>;
-  updateUserPersona(id: string, creatorId: string, data: Partial<InsertUserPersona>): Promise<UserPersona>;
-  deleteUserPersona(id: string, creatorId: string): Promise<void>;
+  updateUserPersona(id: string, creatorId: string, data: Partial<InsertUserPersona>, isAdmin?: boolean): Promise<UserPersona>;
+  deleteUserPersona(id: string, creatorId: string, isAdmin?: boolean): Promise<void>;
   toggleUserPersonaLike(userId: string, personaId: string): Promise<{ liked: boolean; likeCount: number }>;
   getUserPersonaLike(userId: string, personaId: string): Promise<boolean>;
   incrementUserPersonaChatCount(id: string): Promise<void>;
@@ -896,10 +896,10 @@ export class MemStorage implements IStorage {
   // UserPersonas stubs
   async createUserPersona(_data: InsertUserPersona): Promise<UserPersona> { throw new Error("Not implemented"); }
   async getUserPersonaById(_id: string): Promise<UserPersona | undefined> { return undefined; }
-  async getUserPersonasByCreator(_creatorId: string): Promise<UserPersona[]> { return []; }
+  async getUserPersonasByCreator(_creatorId: string, _includeSystem?: boolean): Promise<UserPersona[]> { return []; }
   async getPublicUserPersonas(_sortBy?: 'likes' | 'recent', _limit?: number, _offset?: number, _tag?: string, _mbti?: string): Promise<UserPersona[]> { return []; }
-  async updateUserPersona(_id: string, _creatorId: string, _data: Partial<InsertUserPersona>): Promise<UserPersona> { throw new Error("Not implemented"); }
-  async deleteUserPersona(_id: string, _creatorId: string): Promise<void> {}
+  async updateUserPersona(_id: string, _creatorId: string, _data: Partial<InsertUserPersona>, _isAdmin?: boolean): Promise<UserPersona> { throw new Error("Not implemented"); }
+  async deleteUserPersona(_id: string, _creatorId: string, _isAdmin?: boolean): Promise<void> {}
   async toggleUserPersonaLike(_userId: string, _personaId: string): Promise<{ liked: boolean; likeCount: number }> { return { liked: false, likeCount: 0 }; }
   async getUserPersonaLike(_userId: string, _personaId: string): Promise<boolean> { return false; }
   async incrementUserPersonaChatCount(_id: string): Promise<void> {}
@@ -2210,7 +2210,12 @@ export class PostgreSQLStorage implements IStorage {
     return persona;
   }
 
-  async getUserPersonasByCreator(creatorId: string): Promise<UserPersona[]> {
+  async getUserPersonasByCreator(creatorId: string, includeSystem?: boolean): Promise<UserPersona[]> {
+    if (includeSystem) {
+      return await db.select().from(userPersonas)
+        .where(or(eq(userPersonas.creatorId, creatorId), eq(userPersonas.creatorId, 'system')))
+        .orderBy(desc(userPersonas.createdAt));
+    }
     return await db.select().from(userPersonas)
       .where(eq(userPersonas.creatorId, creatorId))
       .orderBy(desc(userPersonas.createdAt));
@@ -2234,18 +2239,23 @@ export class PostgreSQLStorage implements IStorage {
       .offset(offset);
   }
 
-  async updateUserPersona(id: string, creatorId: string, data: Partial<InsertUserPersona>): Promise<UserPersona> {
+  async updateUserPersona(id: string, creatorId: string, data: Partial<InsertUserPersona>, isAdmin?: boolean): Promise<UserPersona> {
+    const whereClause = isAdmin
+      ? eq(userPersonas.id, id)
+      : and(eq(userPersonas.id, id), eq(userPersonas.creatorId, creatorId));
     const [updated] = await db.update(userPersonas)
       .set({ ...data, updatedAt: new Date() })
-      .where(and(eq(userPersonas.id, id), eq(userPersonas.creatorId, creatorId)))
+      .where(whereClause)
       .returning();
     if (!updated) throw new Error("UserPersona not found or unauthorized");
     return updated;
   }
 
-  async deleteUserPersona(id: string, creatorId: string): Promise<void> {
-    await db.delete(userPersonas)
-      .where(and(eq(userPersonas.id, id), eq(userPersonas.creatorId, creatorId)));
+  async deleteUserPersona(id: string, creatorId: string, isAdmin?: boolean): Promise<void> {
+    const whereClause = isAdmin
+      ? eq(userPersonas.id, id)
+      : and(eq(userPersonas.id, id), eq(userPersonas.creatorId, creatorId));
+    await db.delete(userPersonas).where(whereClause);
   }
 
   async toggleUserPersonaLike(userId: string, personaId: string): Promise<{ liked: boolean; likeCount: number }> {

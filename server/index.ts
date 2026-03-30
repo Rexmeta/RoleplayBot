@@ -469,6 +469,10 @@ async function initializeApp() {
     const { seedSamplePersonas, migrateSamplePersonaAvatars } = await import('./scripts/seedSamplePersonas');
     await seedSamplePersonas();
     await migrateSamplePersonaAvatars();
+    const { generateSamplePersonaImages } = await import('./scripts/generateSamplePersonaImages');
+    generateSamplePersonaImages(false).catch((err: any) => {
+      console.warn('샘플 페르소나 이미지 생성 건너뜀 (non-fatal):', err.message);
+    });
     recordStep('seed_sample_personas', 'done');
   } catch (error: any) {
     recordStep('seed_sample_personas', 'error', error?.message);

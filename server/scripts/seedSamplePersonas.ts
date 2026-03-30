@@ -4,9 +4,18 @@ import { eq } from 'drizzle-orm';
 
 const SYSTEM_CREATOR_ID = 'system';
 
-function dicebearUrl(seed: string): string {
-  return `https://api.dicebear.com/9.x/adventurer/svg?seed=${encodeURIComponent(seed)}`;
-}
+const AVATAR_URLS: Record<string, string> = {
+  'sample-alex': 'https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?w=400&h=500&fit=crop&crop=face',
+  'sample-emma': 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=400&h=500&fit=crop&crop=face',
+  'sample-kai': 'https://images.unsplash.com/photo-1531746020798-e6953c6e8e04?w=400&h=500&fit=crop&crop=face',
+  'sample-sophia': 'https://images.unsplash.com/photo-1580489944761-15a19d654956?w=400&h=500&fit=crop&crop=face',
+  'sample-jake': 'https://images.unsplash.com/photo-1568602471122-7832951cc4c5?w=400&h=500&fit=crop&crop=face',
+  'sample-luna': 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=400&h=500&fit=crop&crop=face',
+  'sample-dr-chen': 'https://images.unsplash.com/photo-1537368910025-700350fe46c7?w=400&h=500&fit=crop&crop=face',
+  'sample-marco': 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=400&h=500&fit=crop&crop=face',
+  'sample-aria': 'https://images.unsplash.com/photo-1529626455594-4ff0802cfb7e?w=400&h=500&fit=crop&crop=face',
+  'sample-captain-blackwood': 'https://images.unsplash.com/photo-1504257432389-52343af06ae3?w=400&h=500&fit=crop&crop=face',
+};
 
 const SAMPLE_PERSONAS = [
   {
@@ -165,7 +174,7 @@ export async function seedSamplePersonas() {
         name: persona.name,
         description: persona.description,
         greeting: persona.greeting,
-        avatarUrl: dicebearUrl(persona.id),
+        avatarUrl: AVATAR_URLS[persona.id] || null,
         personality: persona.personality,
         tags: persona.tags,
         isPublic: true,
@@ -191,17 +200,34 @@ export async function migrateSamplePersonaAvatars() {
   console.log('🔄 샘플 페르소나 아바타 URL 마이그레이션 시작...');
 
   let updated = 0;
+  let skipped = 0;
 
   for (const persona of SAMPLE_PERSONAS) {
     try {
-      const newUrl = dicebearUrl(persona.id);
+      const existing = await db.select({ avatarUrl: userPersonas.avatarUrl })
+        .from(userPersonas)
+        .where(eq(userPersonas.id, persona.id));
+
+      if (!existing.length) continue;
+
+      const currentUrl = existing[0].avatarUrl;
+
+      if (currentUrl && currentUrl.startsWith('user-personas/')) {
+        console.log(`⏭ 오브젝트 스토리지 이미지 보존: ${persona.name}`);
+        skipped++;
+        continue;
+      }
+
+      const newUrl = AVATAR_URLS[persona.id] || null;
+      if (!newUrl) continue;
+
       const result = await db
         .update(userPersonas)
         .set({ avatarUrl: newUrl })
         .where(eq(userPersonas.id, persona.id))
         .returning({ id: userPersonas.id, avatarUrl: userPersonas.avatarUrl });
 
-      if (result.length > 0 && result[0].avatarUrl === newUrl) {
+      if (result.length > 0) {
         console.log(`✅ 아바타 URL 업데이트: ${persona.name}`);
         updated++;
       }
@@ -210,5 +236,5 @@ export async function migrateSamplePersonaAvatars() {
     }
   }
 
-  console.log(`📊 아바타 URL 마이그레이션 완료: ${updated}개 업데이트`);
+  console.log(`📊 아바타 URL 마이그레이션 완료: ${updated}개 업데이트, ${skipped}개 보존`);
 }
