@@ -1,5 +1,5 @@
 import type { ConversationMessage, DetailedFeedback } from "@shared/schema";
-import type { AIServiceInterface, ScenarioPersona, AIServiceConfig, EvaluationCriteriaWithDimensions } from "../aiService";
+import type { AIServiceInterface, ScenarioPersona, AIServiceConfig, EvaluationCriteriaWithDimensions, RoleplayScenario } from "../aiService";
 import { retryWithBackoff, conversationSemaphore, feedbackSemaphore } from "../../utils/concurrency";
 
 export class CustomProvider implements AIServiceInterface {
@@ -10,7 +10,7 @@ export class CustomProvider implements AIServiceInterface {
   }
 
   async generateResponse(
-    scenario: string, 
+    scenario: RoleplayScenario | string, 
     messages: ConversationMessage[], 
     persona: ScenarioPersona,
     userMessage?: string
@@ -435,7 +435,7 @@ JSON 형식으로 응답:
   }
 
   async generateFeedback(
-    scenario: string, 
+    scenario: RoleplayScenario | string, 
     messages: ConversationMessage[], 
     persona: ScenarioPersona,
     conversation?: any,

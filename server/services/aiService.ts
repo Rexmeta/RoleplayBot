@@ -37,10 +37,41 @@ export const LANGUAGE_INSTRUCTIONS: Record<SupportedLanguage, string> = {
   zh: '请务必用中文回复。'
 };
 
+// 롤플레이 시나리오 타입 (AI 서비스 레이어에서 사용)
+export interface RoleplayScenario {
+  id?: string;
+  difficulty?: number;
+  objectives?: string[];
+  context?: {
+    situation?: string;
+    timeline?: string;
+    stakes?: string;
+    playerRole?: {
+      position?: string;
+      department?: string;
+      experience?: string;
+      responsibility?: string;
+    };
+  };
+  personas?: Array<{
+    id: string;
+    name: string;
+    personaRef?: string;
+    stance?: string;
+    goal?: string;
+    tradeoff?: string;
+    department?: string;
+    experience?: string;
+    gender?: string;
+    mbti?: string;
+  }>;
+  [key: string]: unknown;
+}
+
 // AI 서비스 공통 인터페이스
 export interface AIServiceInterface {
   generateResponse(
-    scenario: string, 
+    scenario: RoleplayScenario | string, 
     messages: ConversationMessage[], 
     persona: ScenarioPersona,
     userMessage?: string,
@@ -48,7 +79,7 @@ export interface AIServiceInterface {
   ): Promise<{ content: string; emotion: string; emotionReason: string }>;
   
   generateFeedback(
-    scenario: string, 
+    scenario: RoleplayScenario | string, 
     messages: ConversationMessage[], 
     persona: ScenarioPersona,
     conversation?: Partial<Conversation>,
