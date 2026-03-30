@@ -56,15 +56,27 @@ export function useEmotionState({ persona, conversationId, onReady }: UseEmotion
     onReadyRef.current = onReady;
   }, [onReady]);
 
+  // ── 유저 페르소나 여부: mbti가 없고 ID가 있으면 user persona
+  const isUserPersona = !persona.mbti && !!persona.id;
+
   const getCharacterImage = (emotion: string): string | null => {
     const emotionEn = emotionToEnglish[emotion] || 'neutral';
+
+    // 1순위: expressions prop에서 직접 URL 사용 (API에서 받아온 경우)
     if (persona.expressions) {
       const url = persona.expressions[emotionEn];
       return url ? toMediaUrl(url) : null;
     }
-    if (!persona.mbti && persona.image) {
-      return emotionEn === 'neutral' ? persona.image : null;
+
+    // 2순위: 유저 페르소나 - personaImagesAvailable state 사용 (HTTP 체크 결과)
+    if (isUserPersona) {
+      if (personaImagesAvailable[emotionEn]) {
+        return toMediaUrl(`user-personas/${persona.id}/${emotionEn}.webp`);
+      }
+      return null;
     }
+
+    // 3순위: MBTI 페르소나 - personaImagesAvailable state 사용
     const genderFolder = persona.gender || 'male';
     const mbtiId = persona.mbti?.toLowerCase() || persona.id;
     if (personaImagesAvailable[emotionEn]) {
@@ -79,14 +91,12 @@ export function useEmotionState({ persona, conversationId, onReady }: UseEmotion
   const preloadImage = (imageUrl: string) => {
     const img = new Image();
     img.onload = () => {
-      console.log('[EmotionState] image loaded ✓', imageUrl);
       setTimeout(() => {
         setLoadedImageUrl(imageUrl);
         setIsEmotionTransitioning(false);
       }, 100);
     };
     img.onerror = () => {
-      console.log('[EmotionState] image FAILED ✗', imageUrl);
       setIsEmotionTransitioning(false);
     };
     img.src = imageUrl;
@@ -122,14 +132,13 @@ export function useEmotionState({ persona, conversationId, onReady }: UseEmotion
     const fallbackTimer = setTimeout(completeFallback, 3000);
 
     if (persona.expressions) {
-      // user persona: expressions 맵에서 즉시 가용성 결정
+      // ── 케이스 1: expressions prop이 있는 경우 (API에서 받아온 경우)
       const availability: Record<string, boolean> = {};
       for (const emotionEn of UNIQUE_EMOTION_ENS) {
         availability[emotionEn] = !!(persona.expressions[emotionEn]);
       }
       setPersonaImagesAvailable(availability);
 
-      // neutral 표정으로 초기 로딩
       const neutralUrl = persona.expressions['neutral'];
       if (neutralUrl) {
         const fullUrl = toMediaUrl(neutralUrl);
@@ -141,20 +150,62 @@ export function useEmotionState({ persona, conversationId, onReady }: UseEmotion
         clearTimeout(fallbackTimer);
         completeFallback();
       }
-    } else if (!persona.mbti && persona.image) {
-      // user persona: expressions 없지만 image(아바타)가 있는 경우 → neutral로 사용
-      const availability: Record<string, boolean> = {};
+    } else if (isUserPersona) {
+      // ── 케이스 2: 유저 페르소나 (expressions prop 없음) - HTTP 체크로 가용성 확인
+      // 롤플레이 MBTI 구조와 동일: user-personas/{id}/{emotion}.webp 경로 HTTP 체크
+      setPersonaImagesAvailable({});
+      const baseObjectPath = `user-personas/${persona.id}`;
+      let checkedCount = 0;
+      const newAvailability: Record<string, boolean> = {};
+
+      const onAllChecked = () => {
+        setPersonaImagesAvailable(newAvailability);
+        const neutralAvail = newAvailability['neutral'];
+        if (neutralAvail) {
+          const imgUrl = toMediaUrl(`${baseObjectPath}/neutral.webp`);
+          const img = new Image();
+          img.onload = () => { clearTimeout(fallbackTimer); completeWithImage(imgUrl); };
+          img.onerror = () => {
+            // neutral HTTP 체크 성공했지만 로드 실패 → avatarUrl fallback
+            if (persona.image) {
+              const fallbackImg = new Image();
+              fallbackImg.onload = () => { clearTimeout(fallbackTimer); completeWithImage(persona.image!); };
+              fallbackImg.onerror = () => { clearTimeout(fallbackTimer); completeFallback(); };
+              fallbackImg.src = persona.image;
+            } else {
+              clearTimeout(fallbackTimer);
+              completeFallback();
+            }
+          };
+          img.src = imgUrl;
+        } else if (persona.image) {
+          // neutral 이미지 없음 → avatarUrl로 폴백
+          const img = new Image();
+          img.onload = () => { clearTimeout(fallbackTimer); completeWithImage(persona.image!); };
+          img.onerror = () => { clearTimeout(fallbackTimer); completeFallback(); };
+          img.src = persona.image;
+        } else {
+          clearTimeout(fallbackTimer);
+          completeFallback();
+        }
+      };
+
       for (const emotionEn of UNIQUE_EMOTION_ENS) {
-        availability[emotionEn] = false;
+        const img = new Image();
+        img.onload = () => {
+          newAvailability[emotionEn] = true;
+          checkedCount++;
+          if (checkedCount === uniqueEmotionCount) onAllChecked();
+        };
+        img.onerror = () => {
+          newAvailability[emotionEn] = false;
+          checkedCount++;
+          if (checkedCount === uniqueEmotionCount) onAllChecked();
+        };
+        img.src = toMediaUrl(`${baseObjectPath}/${emotionEn}.webp`);
       }
-      availability['neutral'] = true;
-      setPersonaImagesAvailable(availability);
-      const img = new Image();
-      img.onload = () => { clearTimeout(fallbackTimer); completeWithImage(persona.image!); };
-      img.onerror = () => { clearTimeout(fallbackTimer); completeFallback(); };
-      img.src = persona.image;
     } else {
-      // MBTI persona: HTTP 검사로 파일 존재 여부 확인
+      // ── 케이스 3: MBTI 페르소나 - HTTP 체크로 가용성 확인
       setPersonaImagesAvailable({});
       const genderFolder = persona.gender || 'male';
       const mbtiId = persona.mbti?.toLowerCase() || persona.id;
@@ -196,15 +247,15 @@ export function useEmotionState({ persona, conversationId, onReady }: UseEmotion
   }, [persona.id, persona.name, persona.mbti, persona.gender, persona.expressions, conversationId]);
 
   // 감정 변경 시 이미지 프리로드
+  // personaImagesAvailable을 의존성에 포함 → 항상 최신 가용성 참조
   useEffect(() => {
     if (currentEmotion) {
       const newImageUrl = getCharacterImage(currentEmotion);
-      console.log('[EmotionState] emotion changed:', currentEmotion, '→ url:', newImageUrl, '| expressions?', !!persona.expressions);
       if (newImageUrl) {
         preloadImage(newImageUrl);
       }
     }
-  }, [currentEmotion]);
+  }, [currentEmotion, personaImagesAvailable]);
 
   return {
     currentEmotion,
