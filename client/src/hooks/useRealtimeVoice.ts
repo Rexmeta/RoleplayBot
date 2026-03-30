@@ -123,7 +123,10 @@ export function useRealtimeVoice({
   const conversationPhaseRef = useRef<ConversationPhase>('idle'); // 현재 phase ref (클로저에서 접근용)
   const connectRef = useRef<((previousMessages?: PreviousMessage[]) => Promise<void>) | null>(null);
 
-  const MAX_AUTO_RECONNECT = 3;
+  const MAX_AUTO_RECONNECT = 8;
+  const sessionStorageKeyRef = useRef(`realtime_voice_messages_${conversationId}`);
+  // conversationId가 변경될 때 key도 업데이트
+  sessionStorageKeyRef.current = `realtime_voice_messages_${conversationId}`;
 
   // Store callbacks in refs to avoid recreating connect() on every render
   const onMessageRef = useRef(onMessage);
@@ -308,6 +311,8 @@ export function useRealtimeVoice({
       heartbeatTimerRef.current = null;
     }
     autoReconnectCountRef.current = MAX_AUTO_RECONNECT; // 의도적 종료 시 자동 재연결 방지
+    // 정상 종료 시 sessionStorage 대화 보존 데이터 삭제
+    try { sessionStorage.removeItem(sessionStorageKeyRef.current); } catch {}
     setStatus('disconnected');
     setIsRecording(false);
     setIsAISpeaking(false);
@@ -431,6 +436,7 @@ export function useRealtimeVoice({
               if (data.transcript) {
                 accumulatedMessagesRef.current.push({ role: 'user', content: data.transcript });
                 if (accumulatedMessagesRef.current.length > 10) accumulatedMessagesRef.current.shift();
+                try { sessionStorage.setItem(sessionStorageKeyRef.current, JSON.stringify(accumulatedMessagesRef.current)); } catch {}
               }
               // Reset server voice detection after transcription is complete
               serverVoiceDetectedTimeRef.current = null;
@@ -539,6 +545,7 @@ export function useRealtimeVoice({
               if (data.text) {
                 accumulatedMessagesRef.current.push({ role: 'ai', content: data.text });
                 if (accumulatedMessagesRef.current.length > 10) accumulatedMessagesRef.current.shift();
+                try { sessionStorage.setItem(sessionStorageKeyRef.current, JSON.stringify(accumulatedMessagesRef.current)); } catch {}
               }
               // 버퍼 초기화
               aiMessageBufferRef.current = '';
@@ -691,23 +698,35 @@ export function useRealtimeVoice({
           connectRef.current !== null;
         
         if (shouldAutoReconnect) {
-          console.log(`🔄 자동 재연결 예약 (시도 ${autoReconnectCountRef.current + 1}/${MAX_AUTO_RECONNECT})...`);
+          // 지수 백오프: 1.5s → 3s → 6s → 12s → 24s → 48s → 60s(max) → 60s(max)
+          const backoffDelay = Math.min(1500 * Math.pow(2, autoReconnectCountRef.current), 60000);
+          console.log(`🔄 자동 재연결 예약 (시도 ${autoReconnectCountRef.current + 1}/${MAX_AUTO_RECONNECT}), 대기: ${backoffDelay}ms`);
           setStatus('reconnecting');
           
           autoReconnectTimerRef.current = setTimeout(() => {
             autoReconnectCountRef.current += 1;
             
-            // 이전 메시지 + 대화 중 누적된 메시지를 합쳐서 재연결
-            const combined: PreviousMessage[] = [
-              ...(previousMessagesRef.current || []),
-              ...accumulatedMessagesRef.current,
-            ];
-            console.log(`🔄 자동 재연결 시도 (${autoReconnectCountRef.current}/${MAX_AUTO_RECONNECT}), 메시지: ${combined.length}개`);
+            // 이전 메시지 + sessionStorage 보존 메시지를 합쳐서 재연결 (중복 제거)
+            let savedMessages: PreviousMessage[] = [];
+            try {
+              const saved = sessionStorage.getItem(sessionStorageKeyRef.current);
+              if (saved) {
+                const parsed = JSON.parse(saved);
+                if (Array.isArray(parsed)) savedMessages = parsed;
+              }
+            } catch {}
+            
+            // previousMessages(세션 전 히스토리) + savedMessages(세션 중 누적)를 합산
+            // savedMessages가 이미 accumulatedMessagesRef와 동일하므로 savedMessages 우선 사용
+            const base = previousMessagesRef.current || [];
+            const accumulated = savedMessages.length > 0 ? savedMessages : accumulatedMessagesRef.current;
+            const combined: PreviousMessage[] = [...base, ...accumulated];
+            console.log(`🔄 자동 재연결 시도 (${autoReconnectCountRef.current}/${MAX_AUTO_RECONNECT}), 메시지: ${combined.length}개 (base: ${base.length}, accumulated: ${accumulated.length})`);
             
             if (connectRef.current) {
               connectRef.current(combined.length > 0 ? combined : undefined);
             }
-          }, 1500);
+          }, backoffDelay);
           return; // 'disconnected' 상태 설정하지 않음
         }
         
@@ -731,6 +750,60 @@ export function useRealtimeVoice({
   useEffect(() => {
     connectRef.current = connect;
   }, [connect]);
+
+  // 화면 잠금 해제 감지: visibilitychange 이벤트로 즉시 재연결 및 AudioContext 재개
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState !== 'visible') return;
+
+      // AudioContext가 잠금 중 정지된 경우 즉시 재개
+      if (playbackContextRef.current?.state === 'suspended') {
+        console.log('🔊 화면 잠금 해제: AudioContext 재개');
+        playbackContextRef.current.resume().catch(() => {});
+      }
+
+      // WebSocket이 끊겼고 활성 대화 중이면 즉시 재연결
+      const wsState = wsRef.current?.readyState;
+      const isClosed = wsState === WebSocket.CLOSED || wsState === WebSocket.CLOSING || wsRef.current === null;
+      const isActiveConversation =
+        hasConversationStartedRef.current &&
+        conversationPhaseRef.current !== 'ended';
+
+      if (isClosed && isActiveConversation && connectRef.current !== null) {
+        console.log('📱 화면 잠금 해제: WebSocket 재연결 시작');
+        // 재연결 카운터 리셋 (visibilitychange 트리거 재연결은 새로운 시도로 간주)
+        autoReconnectCountRef.current = 0;
+        // 기존 재연결 타이머 취소 후 즉시 재시도
+        if (autoReconnectTimerRef.current) {
+          clearTimeout(autoReconnectTimerRef.current);
+          autoReconnectTimerRef.current = null;
+        }
+        setStatus('reconnecting');
+
+        let savedMessages: PreviousMessage[] = [];
+        try {
+          const saved = sessionStorage.getItem(sessionStorageKeyRef.current);
+          if (saved) {
+            const parsed = JSON.parse(saved);
+            if (Array.isArray(parsed)) savedMessages = parsed;
+          }
+        } catch {}
+
+        // previousMessages(세션 전 히스토리) + savedMessages(세션 중 누적)를 합산
+        const base = previousMessagesRef.current || [];
+        const accumulated = savedMessages.length > 0 ? savedMessages : accumulatedMessagesRef.current;
+        const combined: PreviousMessage[] = [...base, ...accumulated];
+
+        autoReconnectCountRef.current = 1;
+        connectRef.current(combined.length > 0 ? combined : undefined);
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps -- refs are stable
 
   // 음량 분석 루프 시작 (실제 오디오 파형에서 직접 측정)
   const startAmplitudeAnalysis = useCallback(() => {
@@ -1209,6 +1282,7 @@ export function useRealtimeVoice({
     setConversationPhase('idle');
     hasConversationStartedRef.current = false;
     accumulatedMessagesRef.current = []; // 누적 메시지 초기화
+    try { sessionStorage.removeItem(sessionStorageKeyRef.current); } catch {} // sessionStorage 정리
     autoReconnectCountRef.current = 0; // 재연결 카운터 초기화
     if (autoReconnectTimerRef.current) {
       clearTimeout(autoReconnectTimerRef.current);
