@@ -147,18 +147,18 @@ export default function Intro() {
         </div>
       </div>
 
-      <div className="relative z-10 min-h-screen flex flex-col items-center justify-center px-4 py-8 sm:py-12 md:py-16">
+      <div className="relative z-10 min-h-screen flex flex-col items-center justify-center px-4 py-10 sm:py-16">
         <div className={`text-center mb-6 sm:mb-8 transition-all duration-1000 transform ${isVisible ? 'translate-y-0 opacity-100' : 'translate-y-10 opacity-0'}`}>
-          <h1 className="text-3xl sm:text-4xl md:text-6xl font-bold mb-3 sm:mb-4 bg-gradient-to-r from-indigo-600 via-violet-600 to-purple-600 bg-clip-text text-transparent leading-tight">
+          <h1 className="text-4xl sm:text-5xl md:text-6xl font-bold mb-4 bg-gradient-to-r from-indigo-600 via-violet-600 to-purple-600 bg-clip-text text-transparent leading-tight">
             {t('intro.title')}
           </h1>
-          <p className="text-base sm:text-lg md:text-xl text-slate-500 mb-5 sm:mb-6 max-w-2xl mx-auto leading-relaxed">
+          <p className="text-base sm:text-lg md:text-xl text-slate-500 mb-6 max-w-2xl mx-auto leading-relaxed">
             {t('intro.subtitle')}
           </p>
           <div className="w-16 h-1 bg-gradient-to-r from-indigo-500 to-violet-500 mx-auto rounded-full" />
         </div>
 
-        <div className={`w-full max-w-sm transition-all duration-1000 delay-300 transform ${isVisible ? 'translate-y-0 opacity-100' : 'translate-y-10 opacity-0'}`}>
+        <div className={`w-full sm:max-w-sm sm:mx-auto px-4 sm:px-0 transition-all duration-1000 delay-300 transform ${isVisible ? 'translate-y-0 opacity-100' : 'translate-y-10 opacity-0'}`}>
           <div className={`bg-white rounded-2xl border shadow-md overflow-hidden transition-all duration-300 ease-out ${feature.borderColor} ${slideClass}`}>
             <div className="w-full h-36 sm:h-44 md:h-52 overflow-hidden bg-slate-50">
               <img
@@ -203,7 +203,7 @@ export default function Intro() {
             <Button
               onClick={handlePrev}
               variant="outline"
-              className="min-w-[48px] min-h-[48px] px-5 py-3 border-slate-200 text-slate-500 hover:text-slate-700 hover:bg-slate-50 rounded-xl transition-all duration-200"
+              className="px-5 min-h-[44px] border-slate-200 text-slate-500 hover:text-slate-700 active:text-slate-700 hover:bg-slate-50 active:bg-slate-100 rounded-xl transition-all duration-200"
               disabled={currentStep === 0}
             >
               <ChevronLeft className="w-5 h-5" />
@@ -211,7 +211,7 @@ export default function Intro() {
             </Button>
             <Button
               onClick={handleNext}
-              className="min-w-[48px] min-h-[48px] px-8 py-3 bg-gradient-to-r from-indigo-500 to-violet-600 hover:from-indigo-600 hover:to-violet-700 text-white font-semibold rounded-xl transition-all duration-300 hover:scale-105 shadow-lg shadow-indigo-200 hover:shadow-indigo-300 hover:shadow-xl"
+              className="px-8 min-h-[44px] bg-gradient-to-r from-indigo-500 to-violet-600 hover:from-indigo-600 hover:to-violet-700 active:from-indigo-700 active:to-violet-800 text-white font-semibold rounded-xl transition-all duration-300 hover:scale-105 active:scale-100 shadow-lg shadow-indigo-200 hover:shadow-indigo-300 hover:shadow-xl"
               data-testid="button-next"
             >
               {currentStep === features.length - 1 ? t('common.start') : t('common.next')}

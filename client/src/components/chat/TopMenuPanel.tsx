@@ -1,5 +1,6 @@
+import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
-import { ChevronUp } from "lucide-react";
+import { ChevronUp, Menu, X } from "lucide-react";
 import { AppHeader } from "@/components/AppHeader";
 
 interface TopMenuPanelProps {
@@ -9,6 +10,58 @@ interface TopMenuPanelProps {
 }
 
 export function TopMenuPanel({ isOpen, onToggle, onClose }: TopMenuPanelProps) {
+  const [isMobile, setIsMobile] = useState(() =>
+    typeof window !== 'undefined' ? window.innerWidth < 640 : false
+  );
+
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 639px)');
+    const handler = (e: MediaQueryListEvent) => setIsMobile(e.matches);
+    mq.addEventListener('change', handler);
+    setIsMobile(mq.matches);
+    return () => mq.removeEventListener('change', handler);
+  }, []);
+
+  if (isMobile) {
+    return createPortal(
+      <>
+        {isOpen && (
+          <div
+            className="fixed inset-0 z-[9998] bg-black/40 backdrop-blur-sm"
+            onClick={onClose}
+          />
+        )}
+
+        <div
+          className={`fixed bottom-0 left-0 right-0 z-[9999] bg-white rounded-t-2xl shadow-2xl transition-transform duration-300 ease-out ${
+            isOpen ? 'translate-y-0' : 'translate-y-full'
+          }`}
+          style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
+        >
+          <div className="flex justify-center pt-2 pb-1">
+            <div className="w-10 h-1 bg-slate-300 rounded-full" />
+          </div>
+          <AppHeader />
+        </div>
+
+        <button
+          onClick={onToggle}
+          data-testid="button-toggle-top-menu"
+          title={isOpen ? '메뉴 닫기' : '메뉴 열기'}
+          className={`fixed right-4 z-[9999] w-12 h-12 flex items-center justify-center rounded-full shadow-lg transition-all duration-200 active:scale-95 ${
+            isOpen
+              ? 'bg-emerald-500 text-white'
+              : 'bg-white/90 backdrop-blur text-slate-600 border border-slate-200'
+          }`}
+          style={{ bottom: 'calc(1rem + env(safe-area-inset-bottom, 0px))' }}
+        >
+          {isOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+        </button>
+      </>,
+      document.body
+    );
+  }
+
   return createPortal(
     <>
       {isOpen && (

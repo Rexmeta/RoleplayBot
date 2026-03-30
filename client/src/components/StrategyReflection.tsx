@@ -43,11 +43,11 @@ export function StrategyReflection({
   const isValid = reflection.trim().length >= 50; // 최소 50자 이상
 
   return (
-    <div className="max-w-4xl mx-auto p-6 space-y-6">
+    <div className="max-w-4xl mx-auto p-4 sm:p-6 space-y-4 sm:space-y-6">
       {/* 헤더 */}
-      <div className="text-center mb-8">
-        <h1 className="text-3xl font-bold text-gray-900 mb-2">대화 전략 회고</h1>
-        <p className="text-lg text-gray-600">
+      <div className="text-center mb-6 sm:mb-8">
+        <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-2">대화 전략 회고</h1>
+        <p className="text-base sm:text-lg text-gray-600 break-words">
           {scenarioTitle}에서의 대화 순서와 전략을 되돌아봅니다
         </p>
       </div>
@@ -61,22 +61,24 @@ export function StrategyReflection({
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="space-y-3">
+          <div className="flex flex-col gap-3">
             {completedPersonas.map((persona, index) => (
               <div 
                 key={persona.id} 
-                className="flex items-center gap-4 p-4 bg-gray-50 rounded-lg"
+                className="flex flex-col sm:flex-row items-start sm:items-center gap-3 p-4 bg-gray-50 rounded-lg"
                 data-testid={`completed-conversation-${index}`}
               >
-                <div className="w-10 h-10 bg-blue-600 rounded-full flex items-center justify-center text-white font-bold flex-shrink-0">
-                  {index + 1}
-                </div>
-                <div className="flex-1">
-                  <h3 className="font-semibold text-gray-900">{persona.name}</h3>
-                  <p className="text-sm text-gray-600">{persona.role} · {persona.department}</p>
+                <div className="flex items-center gap-3 w-full sm:w-auto">
+                  <div className="w-10 h-10 bg-blue-600 rounded-full flex items-center justify-center text-white font-bold flex-shrink-0">
+                    {index + 1}
+                  </div>
+                  <div className="flex-1">
+                    <h3 className="font-semibold text-gray-900">{persona.name}</h3>
+                    <p className="text-sm text-gray-600 break-words">{persona.role} · {persona.department}</p>
+                  </div>
                 </div>
                 {index < completedPersonas.length - 1 && (
-                  <ArrowRight className="w-5 h-5 text-gray-400" />
+                  <ArrowRight className="w-5 h-5 text-gray-400 hidden sm:block ml-auto" />
                 )}
               </div>
             ))}
@@ -98,7 +100,7 @@ export function StrategyReflection({
               placeholder="이 순서로 대화를 진행한 이유와 전략을 자세히 작성해주세요. (최소 50자)"
               value={reflection}
               onChange={(e) => setReflection(e.target.value)}
-              className="min-h-[200px] text-base"
+              className="min-h-[150px] max-h-[40vh] text-base resize-none"
               data-testid="strategy-reflection-input"
             />
             <p className="text-sm text-gray-500 mt-2">

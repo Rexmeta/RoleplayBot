@@ -404,7 +404,7 @@ export default function ScenarioSelector({ onScenarioSelect, playerProfile }: Sc
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 p-6">
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 p-3 sm:p-6">
       <div className="max-w-7xl mx-auto">
         {/* Header */}       
 
@@ -423,28 +423,28 @@ export default function ScenarioSelector({ onScenarioSelect, playerProfile }: Sc
                     variant={filters.bookmarkedOnly ? "default" : "outline"}
                     size="sm"
                     onClick={() => setFilters(prev => ({ ...prev, bookmarkedOnly: !prev.bookmarkedOnly }))}
-                    className={`h-7 px-2 text-xs flex items-center gap-1 ${filters.bookmarkedOnly ? 'bg-amber-500 hover:bg-amber-600 text-white border-amber-500' : 'text-slate-600 hover:text-slate-900'}`}
+                    className={`min-h-[44px] min-w-[44px] px-3 text-xs flex items-center gap-1 ${filters.bookmarkedOnly ? 'bg-amber-500 hover:bg-amber-600 active:bg-amber-600 text-white border-amber-500' : 'text-slate-600 hover:text-slate-900 active:bg-slate-100'}`}
                     data-testid="filter-bookmarked"
                   >
-                    <Bookmark className="h-3 w-3" />
-                    즐겨찾기
+                    <Bookmark className="h-4 w-4" />
+                    <span className="hidden sm:inline">즐겨찾기</span>
                   </Button>
                 )}
                 <Button
                   variant="outline"
                   size="sm"
                   onClick={() => setShowAdvancedFilters(!showAdvancedFilters)}
-                  className="text-slate-600 hover:text-slate-900 h-7 px-2 text-xs flex items-center gap-1"
+                  className="text-slate-600 hover:text-slate-900 active:bg-slate-100 min-h-[44px] min-w-[44px] px-3 text-xs flex items-center gap-1"
                   data-testid="toggle-advanced-filters"
                 >
-                  {t('scenario.advancedSearch')}
-                  {showAdvancedFilters ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+                  <span className="hidden sm:inline">{t('scenario.advancedSearch')}</span>
+                  {showAdvancedFilters ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
                 </Button>
                 <Button
                   variant="outline"
                   size="sm"
                   onClick={resetFilters}
-                  className="text-slate-600 hover:text-slate-900 h-7 px-2 text-xs"
+                  className="text-slate-600 hover:text-slate-900 active:bg-slate-100 min-h-[44px] min-w-[44px] px-3 text-xs"
                   data-testid="reset-filters"
                 >
                   {t('scenario.reset')}
@@ -581,34 +581,36 @@ export default function ScenarioSelector({ onScenarioSelect, playerProfile }: Sc
                   
                   {/* 시나리오 카드 콘텐츠 */}
                   <div
-                    className="relative cursor-pointer min-h-[14rem]"
+                    className="relative cursor-pointer flex flex-col justify-between min-h-[14rem]"
                     onClick={() => toggleScenarioExpand(scenario.id, { stopPropagation: () => {} } as React.MouseEvent)}
                     data-testid={`scenario-card-${scenario.id}`}
                   >
                     {/* 상단 배지 영역 */}
-                    <div className="absolute top-4 left-4 right-4 flex items-start justify-between z-10">
+                    <div className="flex items-start justify-between p-3 sm:p-4 z-10">
                       {/* 카테고리 배지 */}
-                      {getCategoryName((scenario as any).categoryId) && (
-                        <Badge className={`${getCategoryBadgeColor((scenario as any).categoryId)} text-white text-xs backdrop-blur-md shadow-lg`}>
-                          <Folder className="h-3 w-3 mr-1" />
-                          {getCategoryName((scenario as any).categoryId)}
-                        </Badge>
-                      )}
+                      <div className="flex-1 min-w-0 mr-2">
+                        {getCategoryName((scenario as any).categoryId) && (
+                          <Badge className={`${getCategoryBadgeColor((scenario as any).categoryId)} text-white text-xs backdrop-blur-md shadow-lg max-w-full truncate`}>
+                            <Folder className="h-3 w-3 mr-1 flex-shrink-0" />
+                            <span className="truncate">{getCategoryName((scenario as any).categoryId)}</span>
+                          </Badge>
+                        )}
+                      </div>
                       
-                      <div className="flex items-center gap-1.5">
+                      <div className="flex items-center gap-1 flex-shrink-0">
                         {/* 북마크 버튼 (로그인 시에만) */}
                         {user && (
                           <Button
                             variant="ghost"
                             size="sm"
                             onClick={(e) => handleBookmarkToggle(e, String(scenario.id))}
-                            className="w-8 h-8 p-0 bg-white/20 hover:bg-white/40 backdrop-blur-md rounded-full transition-all duration-300"
+                            className="w-10 h-10 sm:w-11 sm:h-11 p-0 bg-white/20 hover:bg-white/40 active:bg-white/50 backdrop-blur-md rounded-full transition-all duration-300"
                             data-testid={`button-bookmark-${scenario.id}`}
                           >
                             {bookmarkedIds.has(String(scenario.id)) ? (
-                              <BookmarkCheck className="w-4 h-4 text-amber-400" />
+                              <BookmarkCheck className="w-4 h-4 sm:w-5 sm:h-5 text-amber-400" />
                             ) : (
-                              <Bookmark className="w-4 h-4 text-white" />
+                              <Bookmark className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
                             )}
                           </Button>
                         )}
@@ -618,7 +620,7 @@ export default function ScenarioSelector({ onScenarioSelect, playerProfile }: Sc
                           variant="ghost"
                           size="sm"
                           onClick={(e) => toggleScenarioExpand(scenario.id, e)}
-                          className="w-8 h-8 p-0 bg-white/20 hover:bg-white/40 backdrop-blur-md rounded-full transition-all duration-300"
+                          className="w-10 h-10 sm:w-11 sm:h-11 p-0 bg-white/20 hover:bg-white/40 active:bg-white/50 backdrop-blur-md rounded-full transition-all duration-300"
                           data-testid={`button-expand-scenario-${scenario.id}`}
                         >
                           {isExpanded ? (
@@ -631,16 +633,16 @@ export default function ScenarioSelector({ onScenarioSelect, playerProfile }: Sc
                     </div>
                     
                     {/* 메인 콘텐츠 - 항상 보이는 영역 */}
-                    <div className="absolute bottom-0 left-0 right-0 p-5 text-white">
-                      <h2 className="text-xl font-bold mb-2 drop-shadow-lg line-clamp-2 group-hover:text-white transition-colors duration-300">
+                    <div className="p-3 sm:p-5 text-white mt-auto">
+                      <h2 className="text-base sm:text-xl font-bold mb-1.5 sm:mb-2 drop-shadow-lg line-clamp-2 group-hover:text-white transition-colors duration-300 break-words">
                         {getTranslatedTitle(scenario.id, scenario.title)}
                       </h2>
                       
-                      {/* 설명 미리보기 (500자 제한) */}
+                      {/* 설명 미리보기 - 모바일에서 line-clamp-2 */}
                       {!isExpanded && scenario.description && (() => {
                         const desc = getTranslatedDescription(scenario.id, scenario.description);
                         return (
-                          <p className="text-xs text-gray-200 mb-3 leading-relaxed line-clamp-3 drop-shadow-md">
+                          <p className="text-xs text-gray-200 mb-2 sm:mb-3 leading-relaxed line-clamp-2 sm:line-clamp-3 drop-shadow-md">
                             {desc.length > 500 
                               ? desc.substring(0, 500) + '...' 
                               : desc}
@@ -651,27 +653,27 @@ export default function ScenarioSelector({ onScenarioSelect, playerProfile }: Sc
                         );
                       })()}
                       
-                      <div className="flex items-center gap-3 text-sm flex-wrap">
-                        <div className="flex items-center gap-1.5 bg-white/20 backdrop-blur-md rounded-full px-3 py-1.5 shadow-sm">
+                      <div className="flex items-center gap-1.5 sm:gap-3 text-xs sm:text-sm flex-wrap">
+                        <div className="flex items-center gap-1 sm:gap-1.5 bg-white/20 backdrop-blur-md rounded-full px-2 sm:px-3 py-1 sm:py-1.5 shadow-sm">
                           <i className="fas fa-users text-xs"></i>
                           <span className="font-medium">{t('scenario.personaCountN', { count: (scenario.personas || []).length })}</span>
                         </div>
-                        <div className="flex items-center gap-1.5 bg-white/20 backdrop-blur-md rounded-full px-3 py-1.5 shadow-sm">
+                        <div className="flex items-center gap-1 sm:gap-1.5 bg-white/20 backdrop-blur-md rounded-full px-2 sm:px-3 py-1 sm:py-1.5 shadow-sm">
                           <i className="fas fa-clock text-xs"></i>
                           <span className="font-medium">{scenario.estimatedTime}</span>
                         </div>
-                        {/* 완료 통계 배지 */}
+                        {/* 완료 통계 배지 - 모바일에서는 숨김 */}
                         {(() => {
                           const stats = statsMap.get(String(scenario.id));
                           if (!stats || stats.completionCount === 0) return null;
                           return (
                             <>
-                              <div className="flex items-center gap-1.5 bg-green-500/30 backdrop-blur-md rounded-full px-3 py-1.5 shadow-sm">
+                              <div className="hidden sm:flex items-center gap-1.5 bg-green-500/30 backdrop-blur-md rounded-full px-3 py-1.5 shadow-sm">
                                 <Users className="h-3 w-3" />
                                 <span className="font-medium text-xs">{stats.completionCount}회 완료</span>
                               </div>
                               {stats.averageScore != null && (
-                                <div className="flex items-center gap-1.5 bg-yellow-500/30 backdrop-blur-md rounded-full px-3 py-1.5 shadow-sm">
+                                <div className="hidden sm:flex items-center gap-1.5 bg-yellow-500/30 backdrop-blur-md rounded-full px-3 py-1.5 shadow-sm">
                                   <Star className="h-3 w-3" />
                                   <span className="font-medium text-xs">평균 {stats.averageScore}점</span>
                                 </div>
@@ -679,7 +681,7 @@ export default function ScenarioSelector({ onScenarioSelect, playerProfile }: Sc
                             </>
                           );
                         })()}
-                        <Badge variant="outline" className="bg-white/20 text-white border-white/40 backdrop-blur-md">
+                        <Badge variant="outline" className="bg-white/20 text-white border-white/40 backdrop-blur-md text-xs px-2 py-0.5">
                           {recommendation.level}
                         </Badge>
                       </div>

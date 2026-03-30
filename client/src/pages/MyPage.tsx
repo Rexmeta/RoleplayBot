@@ -412,6 +412,7 @@ export default function MyPage() {
                               key={scenarioRun.id} 
                               value={scenarioRun.id} 
                               data-testid={`scenario-run-${scenarioRun.id}`}
+                              className="border rounded-xl mb-3 overflow-hidden shadow-sm"
                             >
                               <div className="flex items-center justify-between border-b">
                                 <AccordionTrigger className="hover:no-underline flex-1 py-3">
@@ -441,7 +442,7 @@ export default function MyPage() {
                                 </AccordionTrigger>
                                 <button
                                   onClick={(e) => handleDeleteClick(scenarioRun.id, e)}
-                                  className="p-2 text-red-600 hover:text-red-700 hover:bg-red-50 rounded transition-colors mr-2 flex-shrink-0"
+                                  className="min-w-[44px] min-h-[44px] flex items-center justify-center text-red-600 hover:text-red-700 active:text-red-800 hover:bg-red-50 active:bg-red-100 rounded transition-colors mr-1"
                                   data-testid={`delete-scenario-run-${scenarioRun.id}`}
                                 >
                                   <Trash2 className="w-4 h-4" />
@@ -475,43 +476,43 @@ export default function MyPage() {
             ) : (
               <>
                 <TooltipProvider>
-                  <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4 sm:gap-6">
                     {/* Overall Score */}
                     <Card>
-                      <CardHeader className="pb-3">
-                        <CardTitle className="text-sm font-medium text-slate-600 flex items-center gap-2">
-                          <Award className="w-4 h-4" />
-                          종합 점수
+                      <CardHeader className="pb-2 sm:pb-3">
+                        <CardTitle className="text-xs sm:text-sm font-medium text-slate-600 flex items-center gap-1.5">
+                          <Award className="w-3.5 h-3.5 sm:w-4 sm:h-4 flex-shrink-0" />
+                          <span className="truncate">종합 점수</span>
                         </CardTitle>
                       </CardHeader>
-                      <CardContent>
-                        <div className="flex items-end gap-3">
-                          <div className="text-4xl font-bold text-slate-900">
+                      <CardContent className="pt-0">
+                        <div className="flex flex-wrap items-end gap-2">
+                          <div className="text-3xl sm:text-4xl font-bold text-slate-900">
                             {analyticsData.averageScore}
                           </div>
-                          <div className={`px-3 py-1 rounded-full text-sm font-semibold mb-1 ${analyticsData.overallGrade?.startsWith('A') ? 'text-green-600 bg-green-50' : analyticsData.overallGrade === 'B' ? 'text-blue-600 bg-blue-50' : analyticsData.overallGrade === 'C' ? 'text-yellow-600 bg-yellow-50' : 'text-red-600 bg-red-50'}`}>
+                          <div className={`px-2 py-0.5 rounded-full text-xs font-semibold mb-1 ${analyticsData.overallGrade?.startsWith('A') ? 'text-green-600 bg-green-50' : analyticsData.overallGrade === 'B' ? 'text-blue-600 bg-blue-50' : analyticsData.overallGrade === 'C' ? 'text-yellow-600 bg-yellow-50' : 'text-red-600 bg-red-50'}`}>
                             {analyticsData.overallGrade} 등급
                           </div>
                         </div>
-                        <Progress value={analyticsData.averageScore} className="mt-4" />
+                        <Progress value={analyticsData.averageScore} className="mt-3" />
                       </CardContent>
                     </Card>
 
                     {/* Sessions Count */}
                     <Card>
-                      <CardHeader className="pb-3">
-                        <CardTitle className="text-sm font-medium text-slate-600 flex items-center gap-2">
-                          <BarChart3 className="w-4 h-4" />
-                          완료한 시나리오
+                      <CardHeader className="pb-2 sm:pb-3">
+                        <CardTitle className="text-xs sm:text-sm font-medium text-slate-600 flex items-center gap-1.5">
+                          <BarChart3 className="w-3.5 h-3.5 sm:w-4 sm:h-4 flex-shrink-0" />
+                          <span className="truncate">완료 시나리오</span>
                         </CardTitle>
                       </CardHeader>
-                      <CardContent>
-                        <div className="text-4xl font-bold text-slate-900">
+                      <CardContent className="pt-0">
+                        <div className="text-2xl sm:text-4xl font-bold text-slate-900 tabular-nums">
                           {analyticsData.completedSessions !== undefined ? `${analyticsData.completedSessions}/${analyticsData.totalSessions}` : analyticsData.totalSessions}
                         </div>
-                        <p className="text-sm text-slate-500 mt-2">
+                        <p className="text-xs text-slate-500 mt-2 truncate">
                           {analyticsData.lastSessionDate && (
-                            <>마지막 세션: {new Date(analyticsData.lastSessionDate).toLocaleDateString('ko-KR')}</>
+                            <>마지막: {new Date(analyticsData.lastSessionDate).toLocaleDateString('ko-KR')}</>
                           )}
                         </p>
                       </CardContent>
@@ -519,38 +520,38 @@ export default function MyPage() {
 
                     {/* Progress Trend */}
                     <Card>
-                      <CardHeader className="pb-3">
-                        <CardTitle className="text-sm font-medium text-slate-600 flex items-center gap-2">
-                          <Target className="w-4 h-4" />
-                          성장 추세
+                      <CardHeader className="pb-2 sm:pb-3">
+                        <CardTitle className="text-xs sm:text-sm font-medium text-slate-600 flex items-center gap-1.5">
+                          <Target className="w-3.5 h-3.5 sm:w-4 sm:h-4 flex-shrink-0" />
+                          <span className="truncate">성장 추세</span>
                         </CardTitle>
                       </CardHeader>
-                      <CardContent>
-                        <div className="flex items-center gap-3">
-                          {analyticsData.progressTrend === 'improving' ? <TrendingUp className="w-5 h-5 text-green-600" /> : analyticsData.progressTrend === 'declining' ? <TrendingDown className="w-5 h-5 text-red-600" /> : <Minus className="w-5 h-5 text-slate-600" />}
-                          <div className={`px-3 py-1 rounded-full text-sm font-semibold ${analyticsData.progressTrend === 'improving' ? 'text-green-600 bg-green-50' : analyticsData.progressTrend === 'declining' ? 'text-red-600 bg-red-50' : 'text-slate-600 bg-slate-50'}`}>
+                      <CardContent className="pt-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          {analyticsData.progressTrend === 'improving' ? <TrendingUp className="w-4 h-4 sm:w-5 sm:h-5 text-green-600 flex-shrink-0" /> : analyticsData.progressTrend === 'declining' ? <TrendingDown className="w-4 h-4 sm:w-5 sm:h-5 text-red-600 flex-shrink-0" /> : <Minus className="w-4 h-4 sm:w-5 sm:h-5 text-slate-600 flex-shrink-0" />}
+                          <div className={`px-2 py-0.5 rounded-full text-xs font-semibold ${analyticsData.progressTrend === 'improving' ? 'text-green-600 bg-green-50' : analyticsData.progressTrend === 'declining' ? 'text-red-600 bg-red-50' : 'text-slate-600 bg-slate-50'}`}>
                             {analyticsData.progressTrend === 'improving' ? '성장 중' : analyticsData.progressTrend === 'declining' ? '하락 중' : analyticsData.progressTrend === 'stable' ? '안정적' : '중립'}
                           </div>
                         </div>
-                        <p className="text-sm text-slate-500 mt-3">
-                          {analyticsData.progressTrend === 'improving' && '최근 실력이 향상되고 있습니다'}
-                          {analyticsData.progressTrend === 'declining' && '추가 연습이 필요합니다'}
-                          {analyticsData.progressTrend === 'stable' && '안정적인 수준을 유지하고 있습니다'}
-                          {analyticsData.progressTrend === 'neutral' && '데이터가 더 필요합니다'}
+                        <p className="text-xs text-slate-500 mt-2">
+                          {analyticsData.progressTrend === 'improving' && '실력 향상 중'}
+                          {analyticsData.progressTrend === 'declining' && '연습 필요'}
+                          {analyticsData.progressTrend === 'stable' && '안정적 수준'}
+                          {analyticsData.progressTrend === 'neutral' && '데이터 수집 중'}
                         </p>
                       </CardContent>
                     </Card>
 
                     {/* Total Feedbacks */}
                     <Card>
-                      <CardHeader className="pb-3">
-                        <CardTitle className="text-sm font-medium text-slate-600 flex items-center gap-2">
-                          <MessageSquare className="w-4 h-4" />
-                          총 피드백
+                      <CardHeader className="pb-2 sm:pb-3">
+                        <CardTitle className="text-xs sm:text-sm font-medium text-slate-600 flex items-center gap-1.5">
+                          <MessageSquare className="w-3.5 h-3.5 sm:w-4 sm:h-4 flex-shrink-0" />
+                          <span className="truncate">총 피드백</span>
                         </CardTitle>
                       </CardHeader>
-                      <CardContent>
-                        <div className="text-4xl font-bold text-slate-900">
+                      <CardContent className="pt-0">
+                        <div className="text-3xl sm:text-4xl font-bold text-slate-900 tabular-nums">
                           {analyticsData.totalFeedbacks || 0}
                         </div>
                       </CardContent>

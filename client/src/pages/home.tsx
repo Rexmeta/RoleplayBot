@@ -618,7 +618,7 @@ export default function Home() {
       )}
       
       {/* Main Content */}
-      <main className={`${currentView === "scenarios" ? "py-8 bg-slate-50" : "max-w-6xl mx-auto px-4 py-8"}`}>
+      <main className={`${currentView === "scenarios" ? "py-8 bg-slate-50" : "max-w-6xl mx-auto px-4 py-4 sm:py-8"}`}>
         {currentView === "scenarios" && (
           <div className="max-w-6xl mx-auto px-4">
             {user && !user.isGuest && (

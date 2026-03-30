@@ -60,6 +60,8 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
   const [isTranscriptPanelOpen, setIsTranscriptPanelOpen] = useState(false);
   const [isTopMenuOpen, setIsTopMenuOpen] = useState(false);
   const [isSilenceIdle, setIsSilenceIdle] = useState(false);
+  const [viewportHeight, setViewportHeight] = useState<number | null>(null);
+  const [viewportOffsetTop, setViewportOffsetTop] = useState<number>(0);
 
   const isAISpeakingForBargeInRef = useRef(false);
   const silenceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -155,6 +157,22 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
 
   useEffect(() => { return () => { cleanupTTS(); cleanupVoiceRecording(); }; }, []);
 
+  useEffect(() => {
+    const vv = window.visualViewport;
+    if (!vv) return;
+    const update = () => {
+      setViewportHeight(vv.height);
+      setViewportOffsetTop(vv.offsetTop);
+    };
+    update();
+    vv.addEventListener('resize', update);
+    vv.addEventListener('scroll', update);
+    return () => {
+      vv.removeEventListener('resize', update);
+      vv.removeEventListener('scroll', update);
+    };
+  }, []);
+
   useEffect(() => { isAISpeakingForBargeInRef.current = realtimeVoice.isAISpeaking; }, [realtimeVoice.isAISpeaking]);
 
   useEffect(() => {
@@ -234,7 +252,14 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
           </div>
         )}
 
-        <div className={`bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden${chatMode === 'messenger' ? ' flex flex-col h-[calc(100dvh-8rem)] lg:flex-1 lg:min-w-0' : ''}`}>
+        <div
+          className={`bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden${chatMode === 'messenger' ? ' flex flex-col lg:flex-1 lg:min-w-0' : ''}`}
+          style={chatMode === 'messenger' && viewportHeight
+            ? { height: `calc(${viewportHeight}px - 8rem)` }
+            : chatMode === 'messenger'
+              ? { height: 'calc(100dvh - 8rem)' }
+              : undefined}
+        >
           {/* Chat Header */}
           <div className="bg-gradient-to-r from-corporate-600 to-corporate-700 px-4 sm:px-6 py-3 sm:py-4 text-white">
             <div className="flex items-center justify-between gap-3">
@@ -256,12 +281,12 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
               <div className="flex items-center">
                 <div className="flex items-center bg-white/10 rounded-lg p-0.5">
                   <button onClick={() => { if (!isTransitioning && chatMode === 'character') setChatMode('messenger'); }}
-                    className={`p-2 rounded-md transition-all duration-200 ${chatMode === 'messenger' ? 'bg-white text-corporate-600 shadow-sm' : 'text-white/70 hover:text-white hover:bg-white/10'}`}
+                    className={`p-2.5 rounded-md transition-all duration-200 min-w-[44px] min-h-[44px] flex items-center justify-center ${chatMode === 'messenger' ? 'bg-white text-corporate-600 shadow-sm' : 'text-white/70 hover:text-white active:text-white hover:bg-white/10 active:bg-white/20'}`}
                     disabled={isTransitioning || chatMode === 'messenger'} data-testid="button-messenger-mode" title="메신저 모드">
                     <MessageSquare className="w-4 h-4" />
                   </button>
                   <button onClick={() => { if (!isTransitioning && chatMode === 'messenger') handleCharacterModeTransition(); }}
-                    className={`p-2 rounded-md transition-all duration-200 ${chatMode === 'character' ? 'bg-white text-corporate-600 shadow-sm' : 'text-white/70 hover:text-white hover:bg-white/10'}`}
+                    className={`p-2.5 rounded-md transition-all duration-200 min-w-[44px] min-h-[44px] flex items-center justify-center ${chatMode === 'character' ? 'bg-white text-corporate-600 shadow-sm' : 'text-white/70 hover:text-white active:text-white hover:bg-white/10 active:bg-white/20'}`}
                     disabled={isTransitioning || chatMode === 'character'} data-testid="button-character-mode" title="캐릭터 모드">
                     <User className="w-4 h-4" />
                   </button>
@@ -289,12 +314,12 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
                 <div className="border-t border-slate-100 bg-white shadow-[0_-4px_20px_-8px_rgba(0,0,0,0.1)]">
                   {isPersonaMode && conversation.turnCount < MAX_TURNS && (
                     <div className="flex justify-end px-4 pt-2 pb-1 border-b border-slate-50">
-                      <button onClick={onExit} className="flex items-center gap-1.5 text-xs text-slate-400 hover:text-slate-600 transition-colors">
+                      <button onClick={onExit} className="flex items-center gap-1.5 text-xs text-slate-400 hover:text-slate-600 active:text-slate-800 transition-colors min-h-[44px]">
                         <i className="fas fa-sign-out-alt"></i>대화방 나가기
                       </button>
                     </div>
                   )}
-                  <div className="p-6">
+                  <div className="p-3 sm:p-6">
                     {conversation.turnCount >= MAX_TURNS ? (
                       <div className="text-center space-y-4">
                         <div className="text-lg font-semibold text-slate-700">대화가 완료되었습니다!</div>
@@ -317,7 +342,13 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
             )}
 
             {chatMode === 'character' && (
-              <div className="fixed inset-0 z-10 flex" data-testid="character-mode">
+              <div
+                className="fixed left-0 right-0 z-10 flex"
+                data-testid="character-mode"
+                style={viewportHeight
+                  ? { top: `${viewportOffsetTop}px`, height: `${viewportHeight}px` }
+                  : { top: 0, bottom: 0 }}
+              >
                 <GoalsSidebar scenario={scenario} personaName={persona.name} personaDept={persona.department} personaRole={persona.role}
                   latestEmotion={latestAiMessage?.emotion} elapsedTime={elapsedTime} isAdmin={user?.role === 'admin'}
                   isGoalsExpanded={isGoalsExpanded} onToggleGoals={() => setIsGoalsExpanded(v => !v)} variant="sidebar" />
@@ -358,9 +389,9 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
 
                   <div className="absolute top-4 right-4 z-20 flex items-center">
                     <div className="flex items-center bg-white/20 backdrop-blur-sm rounded-lg p-0.5 shadow-lg">
-                      <button onClick={() => setChatMode('messenger')} className="p-2 rounded-md transition-all duration-200 text-white/80 hover:text-white hover:bg-white/20"
+                      <button onClick={() => setChatMode('messenger')} className="p-2.5 rounded-md transition-all duration-200 text-white/80 hover:text-white active:text-white hover:bg-white/20 active:bg-white/30 min-w-[44px] min-h-[44px] flex items-center justify-center"
                         disabled={isTransitioning} data-testid="button-messenger-mode" title={t('chat.messengerMode')}><MessageSquare className="w-4 h-4" /></button>
-                      <button className="p-2 rounded-md transition-all duration-200 bg-white text-corporate-600 shadow-sm"
+                      <button className="p-2.5 rounded-md transition-all duration-200 bg-white text-corporate-600 shadow-sm min-w-[44px] min-h-[44px] flex items-center justify-center"
                         disabled={true} data-testid="button-character-mode" title={t('chat.characterMode')}><User className="w-4 h-4" /></button>
                     </div>
                   </div>
