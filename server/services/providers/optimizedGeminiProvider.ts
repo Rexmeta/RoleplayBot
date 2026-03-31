@@ -1257,7 +1257,7 @@ JSON 형식${hasStrategyReflection ? ' (sequenceAnalysis 포함)' : ''}:
     if (totalWeight === 0) return 50;
     
     const weightedSum = dimensions.reduce((sum, d) => {
-      const score = scores[d.key] || 3;
+      const score = scores[d.key] || d.minScore;
       return sum + (score / d.maxScore) * d.weight;
     }, 0);
     
@@ -1271,7 +1271,7 @@ JSON 형식${hasStrategyReflection ? ' (sequenceAnalysis 포함)' : ''}:
     const dimensions = evaluationCriteria?.dimensions || this.getDefaultDimensions();
     const scores: Record<string, number> = {};
     for (const dim of dimensions) {
-      scores[dim.key] = Math.ceil((dim.minScore + dim.maxScore) / 2);
+      scores[dim.key] = dim.minScore;
     }
     return scores;
   }
@@ -1361,14 +1361,20 @@ JSON 형식${hasStrategyReflection ? ' (sequenceAnalysis 포함)' : ''}:
    * 폴백 피드백 (동적 평가 기준 지원)
    */
   private getFallbackFeedback(evaluationCriteria?: EvaluationCriteriaWithDimensions): DetailedFeedback {
-    const defaultScores = this.getDefaultScores(evaluationCriteria);
+    const dimensions = evaluationCriteria?.dimensions || this.getDefaultDimensions();
+    const scores: Record<string, number> = {};
+    const baseScores = [1, 2, 1, 2, 1];
+    dimensions.forEach((dim, idx) => {
+      scores[dim.key] = baseScores[idx % baseScores.length];
+    });
+    const defaultScores = scores;
     const feedback: DetailedFeedback = {
       overallScore: this.calculateWeightedOverallScore(defaultScores, evaluationCriteria),
       scores: defaultScores as any,
-      strengths: ["대화 참여", "적극적인 자세"],
-      improvements: ["더 구체적인 표현", "논리적 구조화"],
-      nextSteps: ["더 많은 연습", "다양한 시나리오 경험"],
-      summary: "전반적으로 무난한 대화 진행",
+      strengths: ["기본적인 대화 참여"],
+      improvements: ["시스템 안정성 확보 후 재평가 필요", "더 많은 대화 기회 필요", "기술적 문제 해결 후 재시도"],
+      nextSteps: ["시스템 점검 완료 후 재도전", "안정적인 환경에서 재시도"],
+      summary: "시스템 오류로 인해 정확한 평가가 어렵습니다. 기술적 문제 해결 후 다시 시도해주세요.",
       conversationDuration: 10,
       behaviorGuides: this.getDefaultBehaviorGuides(),
       conversationGuides: this.getDefaultConversationGuides(),

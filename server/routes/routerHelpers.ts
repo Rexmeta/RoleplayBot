@@ -164,6 +164,55 @@ function calculateActualConversationTime(messages: any[]): number {
   return Math.floor(totalActiveTime / 1000);
 }
 
+const INSUFFICIENT_CONVERSATION_THRESHOLD_MESSAGES = 3;
+const INSUFFICIENT_CONVERSATION_THRESHOLD_CHARS = 50;
+
+function generateInsufficientConversationFeedback(
+  evaluationCriteria: any,
+  userMessageCount: number,
+  totalChars: number
+): any {
+  const dimensions = evaluationCriteria?.dimensions || [
+    { key: 'clarityLogic', name: '명확성 & 논리성', weight: 20, minScore: 1, maxScore: 5 },
+    { key: 'listeningEmpathy', name: '경청 & 공감', weight: 20, minScore: 1, maxScore: 5 },
+    { key: 'appropriatenessAdaptability', name: '적절성 & 상황 대응', weight: 20, minScore: 1, maxScore: 5 },
+    { key: 'persuasivenessImpact', name: '설득력 & 영향력', weight: 20, minScore: 1, maxScore: 5 },
+    { key: 'strategicCommunication', name: '전략적 커뮤니케이션', weight: 20, minScore: 1, maxScore: 5 },
+  ];
+  const insufficientMsg = '대화 내용이 부족하여 정확한 평가가 어렵습니다';
+  const baseScores = [1, 2, 1, 2, 1];
+  const scores: Record<string, number> = {};
+  const dimensionFeedback: Record<string, string> = {};
+  dimensions.forEach((dim: any, idx: number) => {
+    scores[dim.key] = baseScores[idx % baseScores.length];
+    dimensionFeedback[dim.key] = insufficientMsg;
+  });
+
+  const totalWeight = dimensions.reduce((sum: any, d: any) => sum + (d.weight || 20), 0) || 100;
+  const weightedSum = dimensions.reduce((sum: any, d: any, idx: number) => {
+    const s = baseScores[idx % baseScores.length];
+    const maxScore = d.maxScore || 5;
+    return sum + (s / maxScore) * (d.weight || 20);
+  }, 0);
+  const overallScore = Math.round((weightedSum / totalWeight) * 100);
+
+  return {
+    overallScore,
+    scores,
+    dimensionFeedback,
+    strengths: ['대화 참여 시도'],
+    improvements: ['더 많은 발화 필요', '구체적인 응답 작성 필요', '대화를 충분히 진행해 주세요'],
+    nextSteps: ['더 긴 대화 후 평가를 시도하세요', '각 역량 영역별로 충분한 발화를 해 주세요'],
+    summary: `대화 내용이 부족하여 정확한 역량 분석이 어렵습니다. (발화 수: ${userMessageCount}회, 총 글자 수: ${totalChars}자) 더 충분한 대화를 나눈 후 다시 평가해 주세요.`,
+    ranking: insufficientMsg,
+    behaviorGuides: [],
+    conversationGuides: [],
+    developmentPlan: { shortTerm: [], mediumTerm: [], longTerm: [], recommendedResources: [] },
+    evaluationCriteriaSetName: evaluationCriteria?.name,
+    insufficientConversation: true,
+  };
+}
+
 export async function generateAndSaveFeedback(
   conversationId: string,
   conversation: any,
@@ -187,14 +236,24 @@ export async function generateAndSaveFeedback(
 
   const evaluationCriteria = await loadEvaluationCriteria(scenarioObj, userLanguage);
 
-  const feedbackData = await generateFeedback(
-    scenarioObj,
-    conversation.messages,
-    persona,
-    conversation,
-    evaluationCriteria,
-    userLanguage
-  );
+  const isInsufficientConversation =
+    userMessages.length < INSUFFICIENT_CONVERSATION_THRESHOLD_MESSAGES ||
+    totalUserWords < INSUFFICIENT_CONVERSATION_THRESHOLD_CHARS;
+
+  let feedbackData: any;
+  if (isInsufficientConversation) {
+    console.log(`⚠️ 대화 부족 감지 (발화 수: ${userMessages.length}, 글자 수: ${totalUserWords}) → AI 호출 없이 평가 불가 피드백 생성`);
+    feedbackData = generateInsufficientConversationFeedback(evaluationCriteria, userMessages.length, totalUserWords);
+  } else {
+    feedbackData = await generateFeedback(
+      scenarioObj,
+      conversation.messages,
+      persona,
+      conversation,
+      evaluationCriteria,
+      userLanguage
+    );
+  }
 
   const timePerformance = (() => {
     if (userMessages.length === 0 || totalUserWords === 0) {
@@ -242,12 +301,33 @@ export async function generateAndSaveFeedback(
   const evaluationScores = defaultDimensions.map(dim => ({
     category: dim.key,
     name: dim.name,
-    score: feedbackData.scores[dim.key] || 3,
+    score: feedbackData.scores[dim.key] || dim.minScore,
     feedback: dimFeedback[dim.key] || dim.description,
     icon: dim.icon,
     color: dim.color,
     weight: dim.weight
   }));
+
+  if (!isInsufficientConversation) {
+    const scoreValues = evaluationScores.map(s => s.score);
+    const allSameScore = scoreValues.length > 1 && scoreValues.every(s => s === scoreValues[0]);
+    const isLowConversation =
+      userMessages.length < INSUFFICIENT_CONVERSATION_THRESHOLD_MESSAGES * 2 ||
+      totalUserWords < INSUFFICIENT_CONVERSATION_THRESHOLD_CHARS * 3;
+    if (allSameScore && isLowConversation) {
+      console.log(`⚠️ 동일 점수 감지 (모두 ${scoreValues[0]}점) + 대화량 부족 → 점수 보정`);
+      const correctedScores = [1, 2, 1, 2, 1];
+      evaluationScores.forEach((s, idx) => {
+        s.score = correctedScores[idx % correctedScores.length];
+        if (feedbackData.scores && feedbackData.scores[s.category] !== undefined) {
+          feedbackData.scores[s.category] = s.score;
+        }
+      });
+      if (!feedbackData.summary || !feedbackData.summary.includes('대화 내용이 충분하지 않아')) {
+        feedbackData.summary = '대화 내용이 충분하지 않아 정확한 역량 분석이 어렵습니다. ' + (feedbackData.summary || '');
+      }
+    }
+  }
 
   const verifiedOverallScore = recalculateOverallScore(evaluationScores);
   if (verifiedOverallScore !== feedbackData.overallScore) {
