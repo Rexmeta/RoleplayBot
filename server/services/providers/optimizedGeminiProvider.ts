@@ -1099,7 +1099,7 @@ JSON 형식${hasStrategyReflection ? ' (sequenceAnalysis 포함)' : ''}:
           _effectiveRatio = Math.min(1.0, Math.max(_turnRatio, _contentRatio));
         }
         if (_effectiveRatio < 0.7) {
-          const maxScore = _effectiveRatio < 0.3 ? 2 : _effectiveRatio < 0.5 ? 3 : 4;
+          const maxScore = _effectiveRatio < 0.3 ? 3 : _effectiveRatio < 0.5 ? 5 : 7;
           const dims = evaluationCriteria?.dimensions || this.getDefaultDimensions();
           for (const dim of dims) {
             if (scores[dim.key] !== undefined && scores[dim.key] > maxScore) {

@@ -191,7 +191,7 @@ function generateInsufficientConversationFeedback(
   const totalWeight = dimensions.reduce((sum: any, d: any) => sum + (d.weight || 20), 0) || 100;
   const weightedSum = dimensions.reduce((sum: any, d: any, idx: number) => {
     const s = baseScores[idx % baseScores.length];
-    const maxScore = d.maxScore || 5;
+    const maxScore = d.maxScore || 10;
     return sum + (s / maxScore) * (d.weight || 20);
   }, 0);
   const overallScore = Math.round((weightedSum / totalWeight) * 100);
@@ -291,22 +291,30 @@ export async function generateAndSaveFeedback(
   feedbackData.timePerformance = timePerformance;
 
   const dimFeedback = feedbackData.dimensionFeedback || {};
-  const defaultDimensions = [
+  const fallbackDimensions = [
     { key: 'clarityLogic', name: '명확성 & 논리성', weight: 20, minScore: 1, maxScore: 10, icon: '🎯', color: 'blue', description: '발언의 구조화, 핵심 전달, 모호성 최소화' },
     { key: 'listeningEmpathy', name: '경청 & 공감', weight: 20, minScore: 1, maxScore: 10, icon: '👂', color: 'green', description: '재진술·요약, 감정 인식, 우려 존중' },
     { key: 'appropriatenessAdaptability', name: '적절성 & 상황 대응', weight: 20, minScore: 1, maxScore: 10, icon: '⚡', color: 'yellow', description: '맥락 적합한 표현, 유연한 갈등 대응' },
     { key: 'persuasivenessImpact', name: '설득력 & 영향력', weight: 20, minScore: 1, maxScore: 10, icon: '🎪', color: 'purple', description: '논리적 근거, 사례 활용, 행동 변화 유도' },
     { key: 'strategicCommunication', name: '전략적 커뮤니케이션', weight: 20, minScore: 1, maxScore: 10, icon: '🎲', color: 'red', description: '목표 지향적 대화, 협상·조율, 주도성' },
   ];
-  const evaluationScores = defaultDimensions.map(dim => ({
+  const activeDimensions = (evaluationCriteria?.dimensions && evaluationCriteria.dimensions.length > 0)
+    ? evaluationCriteria.dimensions
+    : fallbackDimensions;
+  if (evaluationCriteria?.dimensions && evaluationCriteria.dimensions.length > 0) {
+    console.log(`📊 [점수매핑] 시나리오 평가기준 적용: ${evaluationCriteria.name} (${evaluationCriteria.dimensions.length}개 차원: ${evaluationCriteria.dimensions.map((d: any) => d.key).join(', ')})`);
+  } else {
+    console.log(`📊 [점수매핑] 기본 평가기준 적용 (5개 차원)`);
+  }
+  const evaluationScores = activeDimensions.map((dim: any) => ({
     category: dim.key,
     name: dim.name,
-    score: feedbackData.scores[dim.key] || dim.minScore,
-    feedback: dimFeedback[dim.key] || dim.description,
-    icon: dim.icon,
-    color: dim.color,
-    weight: dim.weight,
-    maxScore: dim.maxScore,
+    score: feedbackData.scores?.[dim.key] || dim.minScore || 1,
+    feedback: dimFeedback[dim.key] || dim.description || '',
+    icon: dim.icon || '📊',
+    color: dim.color || 'blue',
+    weight: dim.weight || 20,
+    maxScore: dim.maxScore || 10,
   }));
 
   if (!isInsufficientConversation) {

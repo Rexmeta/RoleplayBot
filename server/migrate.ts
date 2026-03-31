@@ -816,7 +816,7 @@ SELECT
   '메시지의 명확한 전달과 논리적인 구조로 효과적으로 의사를 표현하는 능력',
   1.0,
   1,
-  5,
+  10,
   'fa-solid fa-bullseye',
   'blue',
   1,
@@ -834,7 +834,7 @@ SELECT
   '상대방의 말을 주의 깊게 듣고 감정을 이해하며 적절히 반응하는 능력',
   1.0,
   1,
-  5,
+  10,
   'fa-solid fa-heart',
   'pink',
   2,
@@ -852,7 +852,7 @@ SELECT
   '상황과 맥락에 맞게 커뮤니케이션 스타일을 조절하고 적절하게 대응하는 능력',
   1.0,
   1,
-  5,
+  10,
   'fa-solid fa-arrows-rotate',
   'green',
   3,
@@ -870,7 +870,7 @@ SELECT
   '상대방을 효과적으로 설득하고 원하는 방향으로 영향력을 발휘하는 능력',
   1.0,
   1,
-  5,
+  10,
   'fa-solid fa-chart-line',
   'orange',
   4,
@@ -888,7 +888,7 @@ SELECT
   '목표 달성을 위해 체계적이고 전략적으로 대화를 이끌어가는 능력',
   1.0,
   1,
-  5,
+  10,
   'fa-solid fa-chess',
   'purple',
   5,
@@ -1014,6 +1014,19 @@ export async function runMigrations(): Promise<void> {
 
       // 기본 평가 기준 시딩
       await queryWithTimeout(client, 'Default evaluation criteria seeded', seedDefaultEvaluationCriteriaSQL);
+
+      // 기본 평가 차원 max_score 5→10 업데이트 (10점 척도 전환)
+      try {
+        await client.query(`
+          UPDATE evaluation_dimensions
+          SET max_score = 10
+          WHERE criteria_set_id = 'default-criteria-set'
+            AND max_score = 5
+        `);
+        console.log('✅ Default evaluation dimensions max_score updated to 10');
+      } catch (err) {
+        console.warn('⚠️ Failed to update evaluation_dimensions max_score:', err);
+      }
 
       console.log('✅ Database migrations completed successfully');
     } finally {
