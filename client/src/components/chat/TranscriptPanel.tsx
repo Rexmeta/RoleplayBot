@@ -102,28 +102,30 @@ export function TranscriptPanel({
         />
       )}
 
-      <div
-        className="fixed sm:absolute top-0 right-0 bottom-0 z-30 flex flex-col pointer-events-none"
-        style={{ width: isOpen ? `calc(${panelWidth} + 44px)` : '48px' }}
+      <button
+        onClick={onToggle}
+        className="pointer-events-auto fixed sm:absolute top-1/2 -translate-y-1/2 z-30 w-11 h-11 flex items-center justify-center bg-white/80 backdrop-blur-sm rounded-l-xl shadow-lg border border-white/30 text-slate-600 hover:text-slate-800 active:bg-white hover:bg-white"
+        style={{
+          right: isOpen ? panelWidth : '0',
+          transition: 'right 300ms cubic-bezier(0.4, 0, 0.2, 1)',
+        }}
+        title={isOpen ? '대화 내역 닫기' : '대화 내역 보기'}
+        data-testid="button-toggle-transcript"
       >
-        <button
-          onClick={onToggle}
-          className="pointer-events-auto absolute top-1/2 -translate-y-1/2 left-0 w-11 h-11 flex items-center justify-center bg-white/80 backdrop-blur-sm rounded-l-xl shadow-lg border border-white/30 text-slate-600 hover:text-slate-800 active:bg-white hover:bg-white transition-all duration-200 z-10"
-          title={isOpen ? '대화 내역 닫기' : '대화 내역 보기'}
-          data-testid="button-toggle-transcript"
-        >
-          {isOpen ? <ChevronRight className="w-4 h-4" /> : <MessageCircle className="w-4 h-4" />}
-        </button>
+        {isOpen ? <ChevronRight className="w-4 h-4" /> : <MessageCircle className="w-4 h-4" />}
+      </button>
 
-        <div
-          className={`pointer-events-auto absolute top-0 right-0 bottom-0 bg-white/95 backdrop-blur-md border-l border-white/30 shadow-2xl flex flex-col transition-all duration-300 ${
-            isOpen ? 'opacity-100 translate-x-0' : 'opacity-0 translate-x-full'
-          }`}
-          style={{ width: panelWidth }}
-        >
-          {renderHeader()}
-          {renderMessages()}
-        </div>
+      <div
+        className={`pointer-events-auto fixed sm:absolute top-0 right-0 bottom-0 z-30 bg-white/95 backdrop-blur-md border-l border-white/30 shadow-2xl flex flex-col ${
+          isOpen ? 'opacity-100 translate-x-0' : 'opacity-0 translate-x-full'
+        }`}
+        style={{
+          width: panelWidth,
+          transition: 'transform 300ms cubic-bezier(0.4, 0, 0.2, 1), opacity 300ms cubic-bezier(0.4, 0, 0.2, 1)',
+        }}
+      >
+        {renderHeader()}
+        {renderMessages()}
       </div>
     </>
   );
