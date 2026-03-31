@@ -78,7 +78,7 @@ export function recalculateOverallScore(evaluationScores: any[]): number {
   if (totalWeight === 0) return 50;
 
   const weightedSum = evaluationScores.reduce((sum: number, s: any) => {
-    const maxScore = 5;
+    const maxScore = s.maxScore || 10;
     const weight = s.weight || 20;
     return sum + (s.score / maxScore) * weight;
   }, 0);
@@ -173,14 +173,14 @@ function generateInsufficientConversationFeedback(
   totalChars: number
 ): any {
   const dimensions = evaluationCriteria?.dimensions || [
-    { key: 'clarityLogic', name: '명확성 & 논리성', weight: 20, minScore: 1, maxScore: 5 },
-    { key: 'listeningEmpathy', name: '경청 & 공감', weight: 20, minScore: 1, maxScore: 5 },
-    { key: 'appropriatenessAdaptability', name: '적절성 & 상황 대응', weight: 20, minScore: 1, maxScore: 5 },
-    { key: 'persuasivenessImpact', name: '설득력 & 영향력', weight: 20, minScore: 1, maxScore: 5 },
-    { key: 'strategicCommunication', name: '전략적 커뮤니케이션', weight: 20, minScore: 1, maxScore: 5 },
+    { key: 'clarityLogic', name: '명확성 & 논리성', weight: 20, minScore: 1, maxScore: 10 },
+    { key: 'listeningEmpathy', name: '경청 & 공감', weight: 20, minScore: 1, maxScore: 10 },
+    { key: 'appropriatenessAdaptability', name: '적절성 & 상황 대응', weight: 20, minScore: 1, maxScore: 10 },
+    { key: 'persuasivenessImpact', name: '설득력 & 영향력', weight: 20, minScore: 1, maxScore: 10 },
+    { key: 'strategicCommunication', name: '전략적 커뮤니케이션', weight: 20, minScore: 1, maxScore: 10 },
   ];
   const insufficientMsg = '대화 내용이 부족하여 정확한 평가가 어렵습니다';
-  const baseScores = [1, 2, 1, 2, 1];
+  const baseScores = [2, 4, 3, 5, 2];
   const scores: Record<string, number> = {};
   const dimensionFeedback: Record<string, string> = {};
   dimensions.forEach((dim: any, idx: number) => {
@@ -292,11 +292,11 @@ export async function generateAndSaveFeedback(
 
   const dimFeedback = feedbackData.dimensionFeedback || {};
   const defaultDimensions = [
-    { key: 'clarityLogic', name: '명확성 & 논리성', weight: 20, minScore: 1, maxScore: 5, icon: '🎯', color: 'blue', description: '발언의 구조화, 핵심 전달, 모호성 최소화' },
-    { key: 'listeningEmpathy', name: '경청 & 공감', weight: 20, minScore: 1, maxScore: 5, icon: '👂', color: 'green', description: '재진술·요약, 감정 인식, 우려 존중' },
-    { key: 'appropriatenessAdaptability', name: '적절성 & 상황 대응', weight: 20, minScore: 1, maxScore: 5, icon: '⚡', color: 'yellow', description: '맥락 적합한 표현, 유연한 갈등 대응' },
-    { key: 'persuasivenessImpact', name: '설득력 & 영향력', weight: 20, minScore: 1, maxScore: 5, icon: '🎪', color: 'purple', description: '논리적 근거, 사례 활용, 행동 변화 유도' },
-    { key: 'strategicCommunication', name: '전략적 커뮤니케이션', weight: 20, minScore: 1, maxScore: 5, icon: '🎲', color: 'red', description: '목표 지향적 대화, 협상·조율, 주도성' },
+    { key: 'clarityLogic', name: '명확성 & 논리성', weight: 20, minScore: 1, maxScore: 10, icon: '🎯', color: 'blue', description: '발언의 구조화, 핵심 전달, 모호성 최소화' },
+    { key: 'listeningEmpathy', name: '경청 & 공감', weight: 20, minScore: 1, maxScore: 10, icon: '👂', color: 'green', description: '재진술·요약, 감정 인식, 우려 존중' },
+    { key: 'appropriatenessAdaptability', name: '적절성 & 상황 대응', weight: 20, minScore: 1, maxScore: 10, icon: '⚡', color: 'yellow', description: '맥락 적합한 표현, 유연한 갈등 대응' },
+    { key: 'persuasivenessImpact', name: '설득력 & 영향력', weight: 20, minScore: 1, maxScore: 10, icon: '🎪', color: 'purple', description: '논리적 근거, 사례 활용, 행동 변화 유도' },
+    { key: 'strategicCommunication', name: '전략적 커뮤니케이션', weight: 20, minScore: 1, maxScore: 10, icon: '🎲', color: 'red', description: '목표 지향적 대화, 협상·조율, 주도성' },
   ];
   const evaluationScores = defaultDimensions.map(dim => ({
     category: dim.key,
@@ -305,7 +305,8 @@ export async function generateAndSaveFeedback(
     feedback: dimFeedback[dim.key] || dim.description,
     icon: dim.icon,
     color: dim.color,
-    weight: dim.weight
+    weight: dim.weight,
+    maxScore: dim.maxScore,
   }));
 
   if (!isInsufficientConversation) {
@@ -316,7 +317,7 @@ export async function generateAndSaveFeedback(
       totalUserWords < INSUFFICIENT_CONVERSATION_THRESHOLD_CHARS * 3;
     if (allSameScore && isLowConversation) {
       console.log(`⚠️ 동일 점수 감지 (모두 ${scoreValues[0]}점) + 대화량 부족 → 점수 보정`);
-      const correctedScores = [1, 2, 1, 2, 1];
+      const correctedScores = [3, 6, 4, 7, 3];
       evaluationScores.forEach((s, idx) => {
         s.score = correctedScores[idx % correctedScores.length];
         if (feedbackData.scores && feedbackData.scores[s.category] !== undefined) {
