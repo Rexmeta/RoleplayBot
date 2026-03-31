@@ -23,6 +23,7 @@ import createAdminOrganizationsRouter from "./routes/adminOrganizations";
 import createSystemAdminRouter from "./routes/systemAdmin";
 import createEvaluationCriteriaRouter from "./routes/evaluationCriteria";
 import createTranslationsRouter from "./routes/translations";
+import createPersonaScenesRouter from "./routes/personaScenes";
 
 export async function registerRoutes(app: Express, httpServer: Server): Promise<void> {
   const cookieParser = (await import('cookie-parser')).default;
@@ -67,6 +68,7 @@ export async function registerRoutes(app: Express, httpServer: Server): Promise<
   app.use(createAdminOrganizationsRouter(isAuthenticated));
   app.use(createEvaluationCriteriaRouter(isAuthenticated));
   app.use(createTranslationsRouter(isAuthenticated));
+  app.use(createPersonaScenesRouter(isAuthenticated));
 
   // Routers that use relative paths — mount at their domain prefix
   app.use('/api/bookmarks', createBookmarksRouter(isAuthenticated));

@@ -463,7 +463,21 @@ export default function createConversationsRouter(isAuthenticated: any) {
         difficulty: personaRun!.difficulty || scenarioRun!.difficulty || 2,
         successCriteria: { optimal: "자연스러운 대화", good: "적극적인 소통", acceptable: "기본 대화 유지", failure: "대화 거부" },
         _userPersonaMode: true,
-        _userPersonaSystemPrompt: `당신은 "${userPersonaData.name}"라는 AI 캐릭터입니다.
+        _userPersonaSystemPrompt: (() => {
+          const snapshot = personaRun!.personaSnapshot as any || {};
+          const sceneData = snapshot.scene || null;
+          const sceneBlock = sceneData
+            ? [
+                "## 현재 장면 설정 (반드시 따를 것)",
+                `배경: ${sceneData.setting}`,
+                `분위기: ${sceneData.mood}`,
+                sceneData.genre ? `장르: ${sceneData.genre}` : "",
+                "",
+                "위 장면 설정에 완전히 몰입하여 대화를 진행하세요. 장면의 배경·분위기가 대화 전반에 걸쳐 일관되게 반영되어야 합니다.",
+              ].filter(Boolean).join("\n")
+            : "";
+          const scenePrefix = sceneBlock ? `${sceneBlock}\n\n` : "";
+          return `${scenePrefix}당신은 "${userPersonaData.name}"라는 AI 캐릭터입니다.
 
 ${userPersonaData.description ? `캐릭터 설명: ${userPersonaData.description}` : ""}
 ${p.background ? `배경: ${p.background}` : ""}
@@ -472,7 +486,8 @@ ${p.communicationStyle ? `대화 방식: ${p.communicationStyle}` : ""}
 ${p.speechStyle ? `말투: ${p.speechStyle}` : ""}
 
 위 캐릭터로서 자연스럽게 대화하세요. 캐릭터의 성격, 말투, 배경을 일관되게 유지하세요.
-사용자와 자유롭게 대화하고, 사용자가 묻는 것에 캐릭터에 맞게 답변하세요.`,
+사용자와 자유롭게 대화하고, 사용자가 묻는 것에 캐릭터에 맞게 답변하세요.`;
+        })(),
       };
     } else {
       const scenarios = await fileManager.getAllScenarios();

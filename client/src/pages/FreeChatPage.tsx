@@ -6,6 +6,7 @@ import { toMediaUrl } from "@/lib/mediaUrl";
 import { AppHeader } from "@/components/AppHeader";
 import ChatWindow from "@/components/ChatWindow";
 import PersonaEditorModal from "@/components/PersonaEditorModal";
+import SceneSetupModal, { type PersonaScene } from "@/components/persona/SceneSetupModal";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -15,7 +16,8 @@ import {
   Search, Plus, MessageSquare, Compass, User, Heart,
   MoreVertical, Pencil, Trash2, Globe, Lock, X, Check,
   MessageCircle, Mic, Volume2, ChevronRight, Sparkles,
-  ChevronUp, Flame, Star, Play, Clock, ArrowRight
+  ChevronUp, Flame, Star, Play, Clock, ArrowRight,
+  MapPin, Wind, ChevronDown
 } from "lucide-react";
 import type { ComplexScenario, ScenarioPersona } from "@/lib/scenario-system";
 
@@ -275,6 +277,11 @@ export default function FreeChatPage() {
   const [chatSidebarOpen, setChatSidebarOpen] = useState(false);
   const [chatHeaderOpen, setChatHeaderOpen] = useState(false);
 
+  // 장면 설정
+  const [sceneModalOpen, setSceneModalOpen] = useState(false);
+  const [activeScene, setActiveScene] = useState<PersonaScene | null>(null);
+  const [sceneCardOpen, setSceneCardOpen] = useState(true);
+
   // Data queries
   const { data: discoverPersonas = [] } = useQuery<UserPersona[]>({
     queryKey: ["/api/user-personas/discover", discoverSort],
@@ -321,11 +328,13 @@ export default function FreeChatPage() {
 
   // Start user persona chat
   const startUserChatMutation = useMutation({
-    mutationFn: (payload: { personaId: string; mode: string; difficulty: number }) =>
-      apiRequest("POST", `/api/user-personas/${payload.personaId}/start-chat`, { mode: payload.mode, difficulty: payload.difficulty }).then(r => r.json()),
+    mutationFn: (payload: { personaId: string; mode: string; difficulty: number; scene?: PersonaScene | null }) =>
+      apiRequest("POST", `/api/user-personas/${payload.personaId}/start-chat`, { mode: payload.mode, difficulty: payload.difficulty, scene: payload.scene || null }).then(r => r.json()),
     onSuccess: (data, variables) => {
       saveConvId(variables.personaId, data.id);
       setConversationId(data.id);
+      setActiveScene(variables.scene || null);
+      setSceneCardOpen(true);
       setMainView("chat");
     },
     onError: (err: any) => toast({ title: "대화 시작 실패", description: err.message, variant: "destructive" }),
@@ -335,10 +344,9 @@ export default function FreeChatPage() {
     if (selectedUserPersona) {
       const savedId = getSavedConvId(selectedUserPersona.id);
       if (savedId) {
-        setConversationId(savedId);
-        setMainView("chat");
+        selectUserPersona(selectedUserPersona);
       } else {
-        startUserChatMutation.mutate({ personaId: selectedUserPersona.id, mode: chatMode, difficulty: chatDifficulty });
+        setSceneModalOpen(true);
       }
     }
   };
@@ -346,7 +354,19 @@ export default function FreeChatPage() {
   const handleStartNewChat = () => {
     if (selectedUserPersona) {
       clearSavedConvId(selectedUserPersona.id);
-      startUserChatMutation.mutate({ personaId: selectedUserPersona.id, mode: chatMode, difficulty: chatDifficulty });
+      setSceneModalOpen(true);
+    }
+  };
+
+  const handleSceneConfirmed = (scene: PersonaScene | null) => {
+    setSceneModalOpen(false);
+    if (selectedUserPersona) {
+      startUserChatMutation.mutate({
+        personaId: selectedUserPersona.id,
+        mode: chatMode,
+        difficulty: chatDifficulty,
+        scene,
+      });
     }
   };
 
@@ -356,12 +376,23 @@ export default function FreeChatPage() {
     setConversationId(null);
   };
 
-  const selectUserPersona = (p: UserPersona) => {
+  const selectUserPersona = async (p: UserPersona) => {
     setSelectedUserPersona(p);
     const savedId = getSavedConvId(p.id);
     if (savedId) {
       setConversationId(savedId);
+      setActiveScene(null);
+      setSceneCardOpen(true);
       setMainView("chat");
+      try {
+        const data = await apiRequest("GET", `/api/conversations/${savedId}`).then(r => r.json());
+        const snap = data?.personaSnapshot as any;
+        if (snap?.scene) {
+          setActiveScene(snap.scene);
+        }
+      } catch {
+        toast({ title: "장면 정보를 불러오지 못했습니다.", variant: "destructive", duration: 3000 });
+      }
     }
   };
 
@@ -446,6 +477,38 @@ export default function FreeChatPage() {
               )}
             </div>
           </div>
+
+          {/* ── Scene Card ─────────────────────────────── */}
+          {activeScene && (
+            <div className="fixed top-20 sm:top-12 left-1/2 -translate-x-1/2 z-30 w-[min(92vw,400px)]">
+              <div className="bg-slate-900/85 backdrop-blur-sm border border-slate-700/50 rounded-xl shadow-xl overflow-hidden">
+                <button
+                  className="w-full flex items-center justify-between px-3 py-2 text-left"
+                  onClick={() => setSceneCardOpen(v => !v)}
+                >
+                  <div className="flex items-center gap-2">
+                    <MapPin className="w-3 h-3 text-emerald-400 flex-shrink-0" />
+                    <span className="text-white text-xs font-semibold">{activeScene.title}</span>
+                    <span className="text-emerald-400/80 text-[10px] hidden sm:block">{activeScene.mood}</span>
+                  </div>
+                  {sceneCardOpen
+                    ? <ChevronUp className="w-3 h-3 text-slate-400" />
+                    : <ChevronDown className="w-3 h-3 text-slate-400" />}
+                </button>
+                {sceneCardOpen && (
+                  <div className="px-3 pb-3 space-y-1.5 border-t border-slate-700/40">
+                    <div className="flex items-start gap-1.5 mt-2">
+                      <Wind className="w-3 h-3 text-slate-400 mt-0.5 flex-shrink-0" />
+                      <p className="text-slate-300 text-[11px] leading-relaxed">{activeScene.setting}</p>
+                    </div>
+                    {activeScene.openingLine && (
+                      <p className="text-emerald-400 text-[11px] italic pl-4.5">"{activeScene.openingLine}"</p>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
 
           {/* ── Top header overlay ─────────────────────── */}
           {/* Backdrop for header */}
@@ -602,6 +665,16 @@ export default function FreeChatPage() {
                 setSidebarTab("my");
                 if (selectedUserPersona?.id === p.id) setSelectedUserPersona(p as UserPersona);
               }}
+            />
+          )}
+
+          {/* Scene Setup Modal (in chat view) */}
+          {sceneModalOpen && selectedUserPersona && (
+            <SceneSetupModal
+              personaName={selectedUserPersona.name}
+              personaDescription={selectedUserPersona.description}
+              onConfirm={handleSceneConfirmed}
+              onClose={() => setSceneModalOpen(false)}
             />
           )}
         </div>
@@ -964,6 +1037,17 @@ export default function FreeChatPage() {
                 </div>
               </div>
 
+              {/* Scene Setup teaser banner */}
+              <div className="bg-gradient-to-br from-emerald-50 to-teal-50 border border-emerald-100 rounded-xl p-3 mb-3">
+                <div className="flex items-center gap-2 mb-1">
+                  <Sparkles className="w-3.5 h-3.5 text-emerald-500 flex-shrink-0" />
+                  <p className="text-xs font-semibold text-emerald-700">장면 설정</p>
+                </div>
+                <p className="text-[11px] text-emerald-600/80 leading-relaxed">
+                  배경·분위기를 설정하면 페르소나가 그 상황에 맞게 반응합니다.
+                </p>
+              </div>
+
               {/* 유저 페르소나 — 이어하기/새 대화 분기 */}
               {selectedUserPersona && getSavedConvId(selectedUserPersona.id) ? (
                 <div className="space-y-2">
@@ -979,22 +1063,32 @@ export default function FreeChatPage() {
                   <button
                     onClick={handleStartNewChat}
                     disabled={isPending}
-                    className="w-full flex items-center justify-center gap-2 py-2 bg-slate-100 hover:bg-slate-200 disabled:opacity-50 text-slate-600 rounded-xl text-sm transition-colors"
+                    className="w-full flex items-center justify-center gap-2 py-2.5 bg-white hover:bg-emerald-50 disabled:opacity-50 text-emerald-700 border border-emerald-200 rounded-xl text-sm font-medium transition-colors"
                   >
-                    <i className="fas fa-plus text-xs"></i>
-                    새 대화 시작
+                    <Sparkles className="w-3.5 h-3.5" />
+                    장면 설정하고 새 대화
                   </button>
                 </div>
               ) : (
-                <button
-                  onClick={handleStartChat}
-                  disabled={isPending}
-                  className="w-full flex items-center justify-center gap-2 py-3.5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white rounded-xl font-semibold text-sm transition-colors"
-                >
-                  {isPending
-                    ? <><div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />대화 준비 중...</>
-                    : <><MessageSquare className="w-4 h-4" />대화 시작</>}
-                </button>
+                <div className="space-y-2">
+                  <button
+                    onClick={handleStartChat}
+                    disabled={isPending}
+                    className="w-full flex items-center justify-center gap-2 py-3.5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white rounded-xl font-semibold text-sm transition-colors"
+                  >
+                    {isPending
+                      ? <><div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />대화 준비 중...</>
+                      : <><Sparkles className="w-4 h-4" />장면 설정하고 시작</>}
+                  </button>
+                  <button
+                    onClick={() => handleSceneConfirmed(null)}
+                    disabled={isPending}
+                    className="w-full flex items-center justify-center gap-2 py-2.5 bg-white hover:bg-slate-50 disabled:opacity-50 text-slate-500 border border-slate-200 rounded-xl text-sm transition-colors"
+                  >
+                    <MessageSquare className="w-3.5 h-3.5" />
+                    바로 시작하기
+                  </button>
+                </div>
               )}
 
               <button onClick={() => setSelectedUserPersona(null)}
@@ -1016,6 +1110,16 @@ export default function FreeChatPage() {
             selectUserPersona(p as UserPersona);
             setSidebarTab("my");
           }}
+        />
+      )}
+
+      {/* Scene Setup Modal */}
+      {sceneModalOpen && selectedUserPersona && (
+        <SceneSetupModal
+          personaName={selectedUserPersona.name}
+          personaDescription={selectedUserPersona.description}
+          onConfirm={handleSceneConfirmed}
+          onClose={() => setSceneModalOpen(false)}
         />
       )}
     </div>

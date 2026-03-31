@@ -2,7 +2,17 @@ import { Router } from "express";
 import { storage } from "../storage";
 import path from "path";
 import fs from "fs";
+import { z } from "zod";
 import { asyncHandler, createHttpError } from "./routerHelpers";
+import { generateSceneOpeningLine } from "../services/personaSceneGenerator";
+
+const sceneSchema = z.object({
+  title: z.string().max(200).optional(),
+  setting: z.string().max(1000),
+  mood: z.string().max(500),
+  openingLine: z.string().max(1000).optional(),
+  genre: z.string().max(100).optional(),
+}).nullable();
 
 export default function createUserRouter(isAuthenticated: any) {
   const router = Router();
@@ -288,7 +298,12 @@ export default function createUserRouter(isAuthenticated: any) {
       throw createHttpError(403, "Access denied. System admin only.");
     }
     const userId = req.user?.id;
-    const { mode = "text", difficulty = 2 } = req.body;
+    const { mode = "text", difficulty = 2, scene: rawScene = null } = req.body;
+    const sceneResult = sceneSchema.safeParse(rawScene ?? null);
+    if (!sceneResult.success && rawScene !== null && rawScene !== undefined) {
+      throw createHttpError(400, "Invalid scene payload");
+    }
+    const scene = sceneResult.success ? sceneResult.data : null;
     const persona = await storage.getUserPersonaById(req.params.id);
     if (!persona) throw createHttpError(404, "Persona not found");
     if (!persona.isPublic && persona.creatorId !== userId) {
@@ -320,6 +335,7 @@ export default function createUserRouter(isAuthenticated: any) {
       greeting: persona.greeting,
       personality: pers,
       tags: persona.tags,
+      scene: scene || null,
     };
 
     const personaRun = await storage.createPersonaRun({
@@ -335,8 +351,6 @@ export default function createUserRouter(isAuthenticated: any) {
 
     await storage.incrementUserPersonaChatCount(persona.id);
 
-    const greetingText = persona.greeting || `안녕하세요! 저는 ${persona.name}입니다. 무슨 이야기든 편하게 나눠요.`;
-
     if (mode === "realtime_voice") {
       return res.json({
         id: personaRun.id,
@@ -351,7 +365,26 @@ export default function createUserRouter(isAuthenticated: any) {
         difficulty,
         userId,
         messages: [],
+        scene: scene || null,
       });
+    }
+
+    // Build scene-aware greeting/opening line (text mode only - after early return for realtime_voice)
+    let greetingText: string;
+    if (scene && scene.openingLine) {
+      greetingText = scene.openingLine;
+    } else if (scene && scene.setting) {
+      try {
+        greetingText = await generateSceneOpeningLine(
+          persona.name,
+          { setting: scene.setting, mood: scene.mood, genre: scene.genre },
+          persona.description ?? undefined
+        );
+      } catch {
+        greetingText = persona.greeting || `안녕하세요! 저는 ${persona.name}입니다. 무슨 이야기든 편하게 나눠요.`;
+      }
+    } else {
+      greetingText = persona.greeting || `안녕하세요! 저는 ${persona.name}입니다. 무슨 이야기든 편하게 나눠요.`;
     }
 
     await storage.createChatMessage({
@@ -359,8 +392,8 @@ export default function createUserRouter(isAuthenticated: any) {
       sender: "ai",
       message: greetingText,
       turnIndex: 0,
-      emotion: "중립",
-      emotionReason: "인사",
+      emotion: scene ? "기대" : "중립",
+      emotionReason: scene ? "장면 시작" : "인사",
     });
 
     res.json({
@@ -375,12 +408,13 @@ export default function createUserRouter(isAuthenticated: any) {
       mode,
       difficulty,
       userId,
+      scene: scene || null,
       messages: [{
         sender: "ai",
         message: greetingText,
         timestamp: new Date().toISOString(),
-        emotion: "중립",
-        emotionReason: "인사",
+        emotion: scene ? "기대" : "중립",
+        emotionReason: scene ? "장면 시작" : "인사",
       }],
     });
   }));
