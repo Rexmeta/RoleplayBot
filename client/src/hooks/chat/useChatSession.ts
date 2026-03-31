@@ -69,6 +69,7 @@ export function useChatSession({
   const confirmEndConversation = async () => {
     try {
       setShowEndConversationDialog(false);
+      setIsGoingToFeedback(true);
 
       if (chatMode === 'character') {
         setIsSessionEnding(true);
