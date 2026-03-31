@@ -104,7 +104,7 @@ export function TranscriptPanel({
 
       <div
         className="fixed sm:absolute top-0 right-0 bottom-0 z-30 flex flex-col pointer-events-none"
-        style={{ width: isOpen ? panelWidth : '48px' }}
+        style={{ width: isOpen ? `calc(${panelWidth} + 48px)` : '48px' }}
       >
         <button
           onClick={onToggle}
