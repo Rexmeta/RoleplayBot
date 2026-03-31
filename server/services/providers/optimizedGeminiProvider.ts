@@ -417,6 +417,81 @@ JSON 형식으로 응답:
     return { isValid: true, reason: 'OK' };
   }
 
+  private differentiateScoresIfNeeded(
+    feedback: DetailedFeedback,
+    messages: ConversationMessage[],
+    evaluationCriteria?: EvaluationCriteriaWithDimensions
+  ): DetailedFeedback {
+    const scores = feedback.scores || {};
+    const scoreValues = Object.values(scores).filter(v => typeof v === 'number') as number[];
+    const allSame = scoreValues.length > 1 && scoreValues.every(s => s === scoreValues[0]);
+    if (!allSame) return feedback;
+
+    console.warn('🔧 Post-processing: differentiating identical scores programmatically');
+
+    const userMessages = messages.filter(msg => msg.sender === 'user');
+    const userText = userMessages.map(m => m.message).join(' ');
+    const totalLength = userText.length;
+    const totalTurns = userMessages.length;
+
+    const positiveSignals = [
+      '이해합니다', '감사합니다', '물론', '공감', '맞습니다', '그렇군요', '알겠습니다',
+      '제안', '방안', '해결', '협력', '함께', '좋습니다', '좋은', '적극'
+    ];
+    const negativeSignals = [
+      '모르겠', '아니요', '없습니다', '힘들', '어렵', '불가능', '그냥', '...', '음', '어'
+    ];
+    const logicalSignals = [
+      '왜냐하면', '이유는', '근거는', '데이터', '결과', '따라서', '그러므로', '분석', '첫째', '둘째'
+    ];
+    const questionSignals = ['?', '어떻게', '왜', '무엇', '언제', '어디', '어떤'];
+
+    const posScore = positiveSignals.filter(s => userText.includes(s)).length;
+    const negScore = negativeSignals.filter(s => userText.includes(s)).length;
+    const logicScore = logicalSignals.filter(s => userText.includes(s)).length;
+    const questionScore = questionSignals.filter(s => userText.includes(s)).length;
+
+    const baseScore = scoreValues[0];
+    const dimensions = evaluationCriteria?.dimensions || this.getDefaultDimensions();
+    const newScores: Record<string, number> = {};
+
+    const adjustments = [0, -1, 1, -2, 2, -1, 1, 0, -2, 2];
+
+    dimensions.forEach((dim, idx) => {
+      let adj = adjustments[idx % adjustments.length];
+
+      const key = dim.key.toLowerCase();
+      if (key.includes('listen') || key.includes('경청') || key.includes('공감')) {
+        adj += posScore > 2 ? 1 : negScore > 2 ? -1 : 0;
+      } else if (key.includes('persuad') || key.includes('설득') || key.includes('logic') || key.includes('논리')) {
+        adj += logicScore > 1 ? 1 : -1;
+      } else if (key.includes('clear') || key.includes('명확') || key.includes('articul')) {
+        adj += totalLength / Math.max(totalTurns, 1) > 50 ? 1 : -1;
+      } else if (key.includes('question') || key.includes('질문') || key.includes('curious')) {
+        adj += questionScore > 2 ? 1 : -1;
+      } else if (key.includes('engage') || key.includes('참여') || key.includes('active') || key.includes('적극')) {
+        adj += totalTurns > 5 ? 1 : -1;
+      }
+
+      const raw = baseScore + adj;
+      const min = dim.minScore ?? 1;
+      const max = dim.maxScore ?? 5;
+      newScores[dim.key] = Math.max(min, Math.min(max, raw));
+    });
+
+    const uniqueValues = new Set(Object.values(newScores));
+    if (uniqueValues.size === 1 && dimensions.length > 1) {
+      const keys = Object.keys(newScores);
+      const min = dimensions[0]?.minScore ?? 1;
+      const max = dimensions[0]?.maxScore ?? 5;
+      newScores[keys[0]] = Math.max(min, baseScore - 1);
+      if (keys.length > 1) newScores[keys[keys.length - 1]] = Math.min(max, baseScore + 1);
+    }
+
+    console.log('🔧 Differentiated scores:', newScores);
+    return { ...feedback, scores: newScores };
+  }
+
   async generateFeedback(
     scenario: RoleplayScenario | string, 
     messages: ConversationMessage[], 
@@ -444,10 +519,11 @@ JSON 형식으로 응답:
     const maxRetries = 2;
     let lastFeedback: DetailedFeedback | null = null;
     let lastReason = '';
+    let hasSameScoreFailure = false;
 
     for (let attempt = 0; attempt <= maxRetries; attempt++) {
       try {
-        const feedbackPrompt = this.buildCompactFeedbackPrompt(scenario, messages, persona, conversation, evaluationCriteria, language);
+        const feedbackPrompt = this.buildCompactFeedbackPrompt(scenario, messages, persona, conversation, evaluationCriteria, language, hasSameScoreFailure);
 
         const response = await retryWithBackoff(() =>
           this.genAI.models.generateContent({
@@ -455,7 +531,7 @@ JSON 형식으로 응답:
             config: {
               responseMimeType: "application/json",
               maxOutputTokens: 16384,
-              temperature: attempt === 0 ? 0.3 : 0.5 + (attempt * 0.1)
+              temperature: attempt === 0 ? 0.5 : 0.6 + (attempt * 0.1)
             },
             contents: [
               { role: "user", parts: [{ text: feedbackPrompt }] }
@@ -493,6 +569,10 @@ JSON 형식으로 응답:
         console.warn(`⚠️ Feedback quality check failed (attempt ${attempt + 1}/${maxRetries + 1}): ${validation.reason}`);
         lastFeedback = feedback;
         lastReason = validation.reason;
+
+        if (validation.reason.includes('all scores identical')) {
+          hasSameScoreFailure = true;
+        }
         
         if (attempt < maxRetries) {
           console.log(`🔄 Retrying feedback generation (attempt ${attempt + 2})...`);
@@ -507,7 +587,8 @@ JSON 형식으로 응답:
     }
     
     console.warn(`⚠️ Using best available feedback after ${maxRetries + 1} attempts. Issues: ${lastReason}`);
-    return lastFeedback || this.getFallbackFeedback(evaluationCriteria);
+    const finalFeedback = lastFeedback || this.getFallbackFeedback(evaluationCriteria);
+    return this.differentiateScoresIfNeeded(finalFeedback, messages, evaluationCriteria);
   }
 
   /**
@@ -645,7 +726,7 @@ JSON 형식으로 응답:
     };
   }
 
-  private buildCompactFeedbackPrompt(scenario: RoleplayScenario | string, messages: ConversationMessage[], persona: ScenarioPersona, conversation?: Partial<import("@shared/schema").Conversation>, evaluationCriteria?: EvaluationCriteriaWithDimensions, language: SupportedLanguage = 'ko'): string {
+  private buildCompactFeedbackPrompt(scenario: RoleplayScenario | string, messages: ConversationMessage[], persona: ScenarioPersona, conversation?: Partial<import("@shared/schema").Conversation>, evaluationCriteria?: EvaluationCriteriaWithDimensions, language: SupportedLanguage = 'ko', hasSameScoreFailure: boolean = false): string {
     const languageInstruction = LANGUAGE_INSTRUCTIONS[language] || LANGUAGE_INSTRUCTIONS.ko;
     const voiceMode = this.isVoiceMode(conversation);
 
@@ -784,7 +865,11 @@ sequenceAnalysis 필드에 다음 형식으로 포함:
       }).join('\n\n');
     }
 
-    return `**중요**: 아래 평가는 오직 피평가자의 발화만을 대상으로 수행합니다. AI(${persona.name})의 응답은 평가 대상이 아닙니다.
+    const sameScoreWarning = hasSameScoreFailure
+      ? `🚨 **[재시도 경고]**: 이전 응답에서 모든 역량 점수가 동일했습니다. 이는 평가 오류입니다. 각 역량의 구체적 근거를 반드시 찾아내어 서로 다른 점수를 부여하세요. 동일한 점수를 반환하는 것은 절대 금지됩니다. 반드시 역량별로 차등 점수를 부여하십시오.\n\n`
+      : '';
+
+    return `${sameScoreWarning}**중요**: 아래 평가는 오직 피평가자의 발화만을 대상으로 수행합니다. AI(${persona.name})의 응답은 평가 대상이 아닙니다.
 ${voiceMode ? '\n⚠️ **음성 대화 전사본 안내**: 이 대화는 실시간 음성 인식(STT)으로 전사된 결과입니다. 배경 소음, 다른 사람의 발화, 전사 오류, 짧은 소리 조각(예: "음", "어", 이상한 외국어 등)이 섞여 있을 수 있습니다. 이러한 노이즈성 텍스트는 피평가자의 실제 발화로 간주하지 말고 평가에서 완전히 무시하세요. 의미있는 발화만을 대상으로 평가하세요.\n' : ''}
 **📋 시나리오 컨텍스트 (피평가자가 상대한 AI 페르소나 정보)**:
 ${scenarioContextSection || '(별도 설정 없음)'}
