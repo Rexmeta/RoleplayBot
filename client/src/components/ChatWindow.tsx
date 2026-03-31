@@ -142,7 +142,7 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
     },
   });
 
-  const { isSessionEnding, showEndConversationDialog, setShowEndConversationDialog, handleGoToFeedback,
+  const { isSessionEnding, isGoingToFeedback, showEndConversationDialog, setShowEndConversationDialog, handleGoToFeedback,
     handleEndRealtimeConversation, confirmEndConversation, handleResetConversation } = useChatSession({
     conversationId, localMessages, chatMode, isPersonaMode, onChatComplete, onExit, onConversationEnding,
     disconnectVoice: realtimeVoice.disconnect, resetPhase: realtimeVoice.resetPhase,
@@ -224,6 +224,16 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
     </div>
   );
   if (!conversation) return <div className="text-center py-8">로딩 중...</div>;
+
+  if (isGoingToFeedback) return (
+    <div className="fixed inset-0 z-50 bg-white flex items-center justify-center">
+      <div className="text-center">
+        <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-corporate-600 mx-auto mb-4"></div>
+        <h2 className="text-xl font-semibold text-slate-900 mb-2">피드백 준비 중...</h2>
+        <p className="text-slate-600">잠시만 기다려 주세요.</p>
+      </div>
+    </div>
+  );
 
   const previousMessages: PreviousMessage[] = localMessages.filter(m => m.sender === 'user' || m.sender === 'ai').map(m => ({ role: m.sender as 'user' | 'ai', content: m.message }));
 

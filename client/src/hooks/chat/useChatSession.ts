@@ -38,11 +38,13 @@ export function useChatSession({
 }: UseChatSessionOptions) {
   const [isSessionEnding, setIsSessionEnding] = useState(false);
   const [showEndConversationDialog, setShowEndConversationDialog] = useState(false);
+  const [isGoingToFeedback, setIsGoingToFeedback] = useState(false);
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const { t } = useTranslation();
 
   const handleGoToFeedback = () => {
+    setIsGoingToFeedback(true);
     onConversationEnding?.();
     onChatComplete();
   };
@@ -148,6 +150,7 @@ export function useChatSession({
 
   return {
     isSessionEnding,
+    isGoingToFeedback,
     showEndConversationDialog,
     setShowEndConversationDialog,
     handleGoToFeedback,
