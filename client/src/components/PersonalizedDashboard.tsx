@@ -188,37 +188,7 @@ export default function PersonalizedDashboard({
           )}
         </div>
 
-        {/* 오늘의 추천 카드 */}
-        <div className="bg-white rounded-xl border border-slate-200 p-4 flex flex-col gap-2 shadow-sm">
-          <div className="flex items-center gap-2 text-amber-600 font-semibold text-sm">
-            <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
-            </svg>
-            오늘의 추천
-          </div>
-          {recommendedScenario ? (
-            <>
-              <p className="text-slate-800 font-medium text-sm leading-tight line-clamp-2">
-                {recommendedScenario.title}
-              </p>
-              <p className="text-xs text-slate-400">
-                {summary.isRecommendationRechallenge ? "재도전 추천" : "미완료 시나리오"}
-              </p>
-              <Button
-                size="sm"
-                variant="outline"
-                className="mt-auto border-amber-300 text-amber-700 hover:bg-amber-50 text-xs"
-                onClick={() =>
-                  onRecommendedScenario?.(recommendedScenario.id)
-                }
-              >
-                도전하기
-              </Button>
-            </>
-          ) : (
-            <p className="text-slate-400 text-sm mt-1">추천할 시나리오가 없습니다</p>
-          )}
-        </div>
+        {/* 오늘의 추천 카드 - 숨김 처리 */}
       </div>
 
       {/* 학습 진행률 통계 칩 */}
