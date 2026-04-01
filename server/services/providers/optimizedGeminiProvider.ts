@@ -502,81 +502,6 @@ JSON 형식으로 응답:
     return { isValid: true, reason: 'OK' };
   }
 
-  private differentiateScoresIfNeeded(
-    feedback: DetailedFeedback,
-    messages: ConversationMessage[],
-    evaluationCriteria?: EvaluationCriteriaWithDimensions
-  ): DetailedFeedback {
-    const scores = feedback.scores || {};
-    const scoreValues = Object.values(scores).filter(v => typeof v === 'number') as number[];
-    const allSame = scoreValues.length > 1 && scoreValues.every(s => s === scoreValues[0]);
-    if (!allSame) return feedback;
-
-    console.warn('🔧 Post-processing: differentiating identical scores programmatically');
-
-    const userMessages = messages.filter(msg => msg.sender === 'user');
-    const userText = userMessages.map(m => m.message).join(' ');
-    const totalLength = userText.length;
-    const totalTurns = userMessages.length;
-
-    const positiveSignals = [
-      '이해합니다', '감사합니다', '물론', '공감', '맞습니다', '그렇군요', '알겠습니다',
-      '제안', '방안', '해결', '협력', '함께', '좋습니다', '좋은', '적극'
-    ];
-    const negativeSignals = [
-      '모르겠', '아니요', '없습니다', '힘들', '어렵', '불가능', '그냥', '...', '음', '어'
-    ];
-    const logicalSignals = [
-      '왜냐하면', '이유는', '근거는', '데이터', '결과', '따라서', '그러므로', '분석', '첫째', '둘째'
-    ];
-    const questionSignals = ['?', '어떻게', '왜', '무엇', '언제', '어디', '어떤'];
-
-    const posScore = positiveSignals.filter(s => userText.includes(s)).length;
-    const negScore = negativeSignals.filter(s => userText.includes(s)).length;
-    const logicScore = logicalSignals.filter(s => userText.includes(s)).length;
-    const questionScore = questionSignals.filter(s => userText.includes(s)).length;
-
-    const baseScore = scoreValues[0];
-    const dimensions = evaluationCriteria?.dimensions || this.getDefaultDimensions();
-    const newScores: Record<string, number> = {};
-
-    const adjustments = [0, -2, 2, -3, 3, -1, 2, -2, 3, -1];
-
-    dimensions.forEach((dim, idx) => {
-      let adj = adjustments[idx % adjustments.length];
-
-      const key = dim.key.toLowerCase();
-      if (key.includes('listen') || key.includes('경청') || key.includes('공감')) {
-        adj += posScore > 2 ? 2 : negScore > 2 ? -2 : 0;
-      } else if (key.includes('persuad') || key.includes('설득') || key.includes('logic') || key.includes('논리')) {
-        adj += logicScore > 1 ? 2 : -2;
-      } else if (key.includes('clear') || key.includes('명확') || key.includes('articul')) {
-        adj += totalLength / Math.max(totalTurns, 1) > 50 ? 1 : -2;
-      } else if (key.includes('question') || key.includes('질문') || key.includes('curious')) {
-        adj += questionScore > 2 ? 2 : -1;
-      } else if (key.includes('engage') || key.includes('참여') || key.includes('active') || key.includes('적극')) {
-        adj += totalTurns > 5 ? 2 : -2;
-      }
-
-      const raw = baseScore + adj;
-      const min = dim.minScore ?? 1;
-      const max = dim.maxScore ?? 10;
-      newScores[dim.key] = Math.max(min, Math.min(max, raw));
-    });
-
-    const uniqueValues = new Set(Object.values(newScores));
-    if (uniqueValues.size === 1 && dimensions.length > 1) {
-      const keys = Object.keys(newScores);
-      const min = dimensions[0]?.minScore ?? 1;
-      const max = dimensions[0]?.maxScore ?? 10;
-      newScores[keys[0]] = Math.max(min, baseScore - 2);
-      if (keys.length > 1) newScores[keys[keys.length - 1]] = Math.min(max, baseScore + 2);
-    }
-
-    console.log('🔧 Differentiated scores:', newScores);
-    return { ...feedback, scores: newScores };
-  }
-
   async generateFeedback(
     scenario: RoleplayScenario | string, 
     messages: ConversationMessage[], 
@@ -616,7 +541,7 @@ JSON 형식으로 응답:
             config: {
               responseMimeType: "application/json",
               maxOutputTokens: 16384,
-              temperature: attempt === 0 ? 0.5 : 0.6 + (attempt * 0.1)
+              temperature: attempt === 0 ? 0.5 : 0.7
             },
             contents: [
               { role: "user", parts: [{ text: feedbackPrompt }] }
@@ -671,9 +596,8 @@ JSON 형식으로 응답:
       }
     }
     
-    console.warn(`⚠️ Using best available feedback after ${maxRetries + 1} attempts. Issues: ${lastReason}`);
-    const finalFeedback = lastFeedback || this.getFallbackFeedback(evaluationCriteria);
-    return this.differentiateScoresIfNeeded(finalFeedback, messages, evaluationCriteria);
+    console.warn(`⚠️ Using best available feedback after ${maxRetries + 1} attempts. Issues: ${lastReason}. Returning last AI-generated result without score manipulation.`);
+    return lastFeedback || this.getFallbackFeedback(evaluationCriteria);
   }
 
   /**
@@ -990,7 +914,13 @@ sequenceAnalysis 필드에 다음 형식으로 포함:
     }
 
     const sameScoreWarning = hasSameScoreFailure
-      ? `🚨 **[재시도 경고]**: 이전 응답에서 모든 역량 점수가 동일했습니다. 이는 평가 오류입니다. 각 역량의 구체적 근거를 반드시 찾아내어 서로 다른 점수를 부여하세요. 동일한 점수를 반환하는 것은 절대 금지됩니다. 반드시 역량별로 차등 점수를 부여하십시오.\n\n`
+      ? `🚨 **[재시도 경고 - 동일 점수 오류]**: 이전 응답에서 모든 역량 점수가 동일했습니다. 아래 절차를 반드시 따르세요:
+
+[A단계] 각 역량별로 피평가자 발화에서 "가장 우수한 발화"와 "가장 부족한 발화"를 각각 직접 인용하세요. 인용이 없으면 채점을 시작하지 마세요.
+[B단계] 인용한 발화를 역량별 채점 루브릭과 대조하여 독립적으로 점수를 결정하세요.
+[C단계] 최고 점수 역량과 최저 점수 역량 사이에 반드시 3점 이상의 차이가 있어야 합니다. 차이가 3점 미만이면 채점을 다시 수행하세요.
+
+이 절차를 따르지 않으면 응답이 무효 처리됩니다. 발화 인용 없이 동일하거나 유사한 점수를 반환하는 것은 절대 금지입니다.\n\n`
       : '';
 
     return `${sameScoreWarning}**중요**: 아래 평가는 오직 피평가자의 발화만을 대상으로 수행합니다. AI(${persona.name})의 응답은 평가 대상이 아닙니다.
