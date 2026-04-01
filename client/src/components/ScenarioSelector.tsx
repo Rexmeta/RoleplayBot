@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -50,6 +50,27 @@ export default function ScenarioSelector({ onScenarioSelect, playerProfile }: Sc
   
   // 상세 검색 표시 여부
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
+
+  // 모바일 필터 패널 열림 상태
+  const [isMobileFilterOpen, setIsMobileFilterOpen] = useState(false);
+  const mobileFilterRef = useRef<HTMLDivElement>(null);
+
+  // 모바일 필터 패널 외부 탭 시 닫기
+  // Radix Select/Popover 등의 포탈 콘텐츠(드롭다운)는 닫기에서 제외
+  useEffect(() => {
+    if (!isMobileFilterOpen) return;
+    const handleClick = (e: MouseEvent) => {
+      const target = e.target as Node;
+      // Radix UI 포탈 내부 클릭은 무시 (Select 옵션 선택 등)
+      const isRadixPortal = (target as Element)?.closest?.('[data-radix-popper-content-wrapper], [data-radix-select-viewport], [role="listbox"], [role="option"]');
+      if (isRadixPortal) return;
+      if (mobileFilterRef.current && !mobileFilterRef.current.contains(target)) {
+        setIsMobileFilterOpen(false);
+      }
+    };
+    document.addEventListener('pointerdown', handleClick);
+    return () => document.removeEventListener('pointerdown', handleClick);
+  }, [isMobileFilterOpen]);
   
   // 펼쳐진 시나리오 상태 관리 (한 번에 하나만 펼치기)
   const [expandedScenarioId, setExpandedScenarioId] = useState<string | number | null>(null);
@@ -353,6 +374,16 @@ export default function ScenarioSelector({ onScenarioSelect, playerProfile }: Sc
     });
   };
 
+  // 활성 필터 개수 계산
+  const activeFilterCount = [
+    filters.searchText,
+    filters.personaCount && filters.personaCount !== 'all' ? filters.personaCount : '',
+    filters.department && filters.department !== 'all' ? filters.department : '',
+    filters.skillType && filters.skillType !== 'all' ? filters.skillType : '',
+    filters.categoryId && filters.categoryId !== 'all' ? filters.categoryId : '',
+    filters.bookmarkedOnly ? 'bookmark' : '',
+  ].filter(Boolean).length;
+
   // 스코어링 가중치 기반 역량 정렬 (높은 가중치 순)
   const sortSkillsByImportance = (skills: string[]): string[] => {
     const skillWeights: Record<string, number> = {
@@ -411,141 +442,164 @@ export default function ScenarioSelector({ onScenarioSelect, playerProfile }: Sc
         <div className="max-w-4xl mx-auto">
           
           {/* 필터 섹션 */}
-          <div className="mb-6 p-4 bg-white rounded-lg border border-slate-300 shadow-sm">
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center gap-2">
-                <Filter className="h-4 w-4 text-slate-600" />
-                <h3 className="text-sm font-medium text-slate-700">{t('scenario.totalCount', { count: filteredScenarios.length })}</h3>
-              </div>
-              <div className="flex items-center gap-2">
-                {user && (
-                  <Button
-                    variant={filters.bookmarkedOnly ? "default" : "outline"}
-                    size="sm"
-                    onClick={() => setFilters(prev => ({ ...prev, bookmarkedOnly: !prev.bookmarkedOnly }))}
-                    className={`min-h-[44px] min-w-[44px] px-3 text-xs flex items-center gap-1 ${filters.bookmarkedOnly ? 'bg-amber-500 hover:bg-amber-600 active:bg-amber-600 text-white border-amber-500' : 'text-slate-600 hover:text-slate-900 active:bg-slate-100'}`}
-                    data-testid="filter-bookmarked"
-                  >
-                    <Bookmark className="h-4 w-4" />
-                    <span className="hidden sm:inline">즐겨찾기</span>
-                  </Button>
+          <div className="mb-6" ref={mobileFilterRef}>
+            {/* 모바일: 필터 아이콘 토글 버튼 (md 미만에서만 표시) */}
+            <div className="flex items-center justify-between md:hidden mb-2">
+              <span className="text-sm text-slate-600">{t('scenario.totalCount', { count: filteredScenarios.length })}</span>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setIsMobileFilterOpen(prev => !prev)}
+                className="relative flex items-center gap-1 min-h-[44px] min-w-[44px] px-3 text-slate-600 hover:text-slate-900 active:bg-slate-100"
+                data-testid="mobile-filter-toggle"
+                aria-label={t('scenario.mobileFilterToggle')}
+              >
+                <Filter className="h-4 w-4" />
+                {activeFilterCount > 0 && (
+                  <span className="absolute -top-1.5 -right-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-blue-600 text-[10px] font-bold text-white">
+                    {activeFilterCount}
+                  </span>
                 )}
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setShowAdvancedFilters(!showAdvancedFilters)}
-                  className="text-slate-600 hover:text-slate-900 active:bg-slate-100 min-h-[44px] min-w-[44px] px-3 text-xs flex items-center gap-1"
-                  data-testid="toggle-advanced-filters"
-                >
-                  <span className="hidden sm:inline">{t('scenario.advancedSearch')}</span>
-                  {showAdvancedFilters ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={resetFilters}
-                  className="text-slate-600 hover:text-slate-900 active:bg-slate-100 min-h-[44px] min-w-[44px] px-3 text-xs"
-                  data-testid="reset-filters"
-                >
-                  {t('scenario.reset')}
-                </Button>
-              </div>
+              </Button>
             </div>
-            
-            {/* 기본 필터 (항상 표시) */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-3">
-              {/* 검색어 */}
-              <div className="relative">
-                <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
-                <Input
-                  placeholder={t('scenario.searchPlaceholder')}
-                  value={filters.searchText}
-                  onChange={(e) => setFilters(prev => ({ ...prev, searchText: e.target.value }))}
-                  className="pl-10 h-9 text-sm"
-                  data-testid="filter-search"
-                />
+
+            {/* 필터 패널: 모바일에서는 isMobileFilterOpen일 때만, 데스크톱에서는 항상 표시 */}
+            <div className={`${isMobileFilterOpen ? 'block' : 'hidden'} md:block p-4 bg-white rounded-lg border border-slate-300 shadow-sm`}>
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-2">
+                  <Filter className="h-4 w-4 text-slate-600" />
+                  <h3 className="text-sm font-medium text-slate-700">{t('scenario.totalCount', { count: filteredScenarios.length })}</h3>
+                </div>
+                <div className="flex items-center gap-2">
+                  {user && (
+                    <Button
+                      variant={filters.bookmarkedOnly ? "default" : "outline"}
+                      size="sm"
+                      onClick={() => setFilters(prev => ({ ...prev, bookmarkedOnly: !prev.bookmarkedOnly }))}
+                      className={`min-h-[44px] min-w-[44px] px-3 text-xs flex items-center gap-1 ${filters.bookmarkedOnly ? 'bg-amber-500 hover:bg-amber-600 active:bg-amber-600 text-white border-amber-500' : 'text-slate-600 hover:text-slate-900 active:bg-slate-100'}`}
+                      data-testid="filter-bookmarked"
+                    >
+                      <Bookmark className="h-4 w-4" />
+                      <span className="hidden sm:inline">즐겨찾기</span>
+                    </Button>
+                  )}
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setShowAdvancedFilters(!showAdvancedFilters)}
+                    className="text-slate-600 hover:text-slate-900 active:bg-slate-100 min-h-[44px] min-w-[44px] px-3 text-xs flex items-center gap-1"
+                    data-testid="toggle-advanced-filters"
+                  >
+                    <span className="hidden sm:inline">{t('scenario.advancedSearch')}</span>
+                    {showAdvancedFilters ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={resetFilters}
+                    className="text-slate-600 hover:text-slate-900 active:bg-slate-100 min-h-[44px] min-w-[44px] px-3 text-xs"
+                    data-testid="reset-filters"
+                  >
+                    {t('scenario.reset')}
+                  </Button>
+                </div>
               </div>
               
-              {/* 카테고리 필터 */}
-              <Select value={filters.categoryId || undefined} onValueChange={(value) => setFilters(prev => ({ ...prev, categoryId: value }))}>
-                <SelectTrigger data-testid="filter-category" className="h-9 text-sm">
-                  <div className="flex items-center gap-2">
-                    <Folder className="h-4 w-4 text-slate-400" />
-                    <SelectValue placeholder={t('scenario.category')} />
-                  </div>
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">{t('scenario.allCategories')}</SelectItem>
-                  {categories.map((category) => (
-                    <SelectItem key={category.id} value={category.id}>
-                      {category.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              
-              {/* 스킬 유형 */}
-              <Select value={filters.skillType || undefined} onValueChange={(value) => setFilters(prev => ({ ...prev, skillType: value }))}>
-                <SelectTrigger data-testid="filter-skill-type" className="h-9 text-sm">
-                  <SelectValue placeholder={t('scenario.coreSkill')} />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">{t('scenario.all')}</SelectItem>
-                  <SelectItem value="협상">{t('scenario.negotiation')}</SelectItem>
-                  <SelectItem value="의사소통">{t('scenario.communication')}</SelectItem>
-                  <SelectItem value="갈등해결">{t('scenario.conflictResolution')}</SelectItem>
-                  <SelectItem value="리더십">{t('scenario.leadership')}</SelectItem>
-                  <SelectItem value="문제해결">{t('scenario.problemSolving')}</SelectItem>
-                  <SelectItem value="팀워크">{t('scenario.teamwork')}</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            
-            {/* 고급 필터 (토글로 표시/숨김) */}
-            {showAdvancedFilters && (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-3 border-t border-slate-200">
-                {/* 페르소나 수 */}
-                <Select value={filters.personaCount || undefined} onValueChange={(value) => setFilters(prev => ({ ...prev, personaCount: value }))}>
-                  <SelectTrigger data-testid="filter-persona-count" className="h-9 text-sm">
-                    <SelectValue placeholder={t('scenario.personaCount')} />
+              {/* 기본 필터 (항상 표시) */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-3">
+                {/* 검색어 */}
+                <div className="relative">
+                  <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
+                  <Input
+                    placeholder={t('scenario.searchPlaceholder')}
+                    value={filters.searchText}
+                    onChange={(e) => setFilters(prev => ({ ...prev, searchText: e.target.value }))}
+                    className="pl-10 h-9 text-sm"
+                    data-testid="filter-search"
+                  />
+                </div>
+                
+                {/* 카테고리 필터 */}
+                <Select value={filters.categoryId || undefined} onValueChange={(value) => setFilters(prev => ({ ...prev, categoryId: value }))}>
+                  <SelectTrigger data-testid="filter-category" className="h-9 text-sm">
+                    <div className="flex items-center gap-2">
+                      <Folder className="h-4 w-4 text-slate-400" />
+                      <SelectValue placeholder={t('scenario.category')} />
+                    </div>
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="all">{t('scenario.all')}</SelectItem>
-                    <SelectItem value="1">{t('scenario.personaCountN', { count: 1 })}</SelectItem>
-                    <SelectItem value="2">{t('scenario.personaCountN', { count: 2 })}</SelectItem>
-                    <SelectItem value="3">{t('scenario.personaCountN', { count: 3 })}</SelectItem>
-                    <SelectItem value="4">{t('scenario.personaCountN', { count: 4 })}</SelectItem>
-                    <SelectItem value="5">{t('scenario.personaCountN', { count: 5 })}</SelectItem>
-                    <SelectItem value="6">{t('scenario.personaCount6Plus')}</SelectItem>
+                    <SelectItem value="all">{t('scenario.allCategories')}</SelectItem>
+                    {categories.map((category) => (
+                      <SelectItem key={category.id} value={category.id}>
+                        {category.name}
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
                 
-                {/* 부서 */}
-                <Select value={filters.department || undefined} onValueChange={(value) => setFilters(prev => ({ ...prev, department: value }))}>
-                  <SelectTrigger data-testid="filter-department" className="h-9 text-sm">
-                    <SelectValue placeholder={t('scenario.department')} />
+                {/* 스킬 유형 */}
+                <Select value={filters.skillType || undefined} onValueChange={(value) => setFilters(prev => ({ ...prev, skillType: value }))}>
+                  <SelectTrigger data-testid="filter-skill-type" className="h-9 text-sm">
+                    <SelectValue placeholder={t('scenario.coreSkill')} />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">{t('scenario.all')}</SelectItem>
-                    <SelectItem value="개발팀">{t('scenario.devTeam')}</SelectItem>
-                    <SelectItem value="마케팅팀">{t('scenario.marketingTeam')}</SelectItem>
-                    <SelectItem value="QA팀">{t('scenario.qaTeam')}</SelectItem>
-                    <SelectItem value="고객서비스팀">{t('scenario.csTeam')}</SelectItem>
-                    <SelectItem value="경영진">{t('scenario.management')}</SelectItem>
-                    <SelectItem value="물류팀">{t('scenario.logisticsTeam')}</SelectItem>
+                    <SelectItem value="협상">{t('scenario.negotiation')}</SelectItem>
+                    <SelectItem value="의사소통">{t('scenario.communication')}</SelectItem>
+                    <SelectItem value="갈등해결">{t('scenario.conflictResolution')}</SelectItem>
+                    <SelectItem value="리더십">{t('scenario.leadership')}</SelectItem>
+                    <SelectItem value="문제해결">{t('scenario.problemSolving')}</SelectItem>
+                    <SelectItem value="팀워크">{t('scenario.teamwork')}</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
-            )}
-            
-            {/* 필터 적용 상태 표시 */}
-            {(filters.searchText || filters.personaCount || filters.department || filters.skillType || (filters.categoryId && filters.categoryId !== 'all') || filters.bookmarkedOnly) && (
-              <div className="mt-3 pt-3 border-t border-slate-200">
-                <div className="flex items-center justify-center">
-                  <span className="text-xs text-blue-600">{t('scenario.filterApplied')}</span>
+              
+              {/* 고급 필터 (토글로 표시/숨김) */}
+              {showAdvancedFilters && (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-3 border-t border-slate-200">
+                  {/* 페르소나 수 */}
+                  <Select value={filters.personaCount || undefined} onValueChange={(value) => setFilters(prev => ({ ...prev, personaCount: value }))}>
+                    <SelectTrigger data-testid="filter-persona-count" className="h-9 text-sm">
+                      <SelectValue placeholder={t('scenario.personaCount')} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">{t('scenario.all')}</SelectItem>
+                      <SelectItem value="1">{t('scenario.personaCountN', { count: 1 })}</SelectItem>
+                      <SelectItem value="2">{t('scenario.personaCountN', { count: 2 })}</SelectItem>
+                      <SelectItem value="3">{t('scenario.personaCountN', { count: 3 })}</SelectItem>
+                      <SelectItem value="4">{t('scenario.personaCountN', { count: 4 })}</SelectItem>
+                      <SelectItem value="5">{t('scenario.personaCountN', { count: 5 })}</SelectItem>
+                      <SelectItem value="6">{t('scenario.personaCount6Plus')}</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  
+                  {/* 부서 */}
+                  <Select value={filters.department || undefined} onValueChange={(value) => setFilters(prev => ({ ...prev, department: value }))}>
+                    <SelectTrigger data-testid="filter-department" className="h-9 text-sm">
+                      <SelectValue placeholder={t('scenario.department')} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">{t('scenario.all')}</SelectItem>
+                      <SelectItem value="개발팀">{t('scenario.devTeam')}</SelectItem>
+                      <SelectItem value="마케팅팀">{t('scenario.marketingTeam')}</SelectItem>
+                      <SelectItem value="QA팀">{t('scenario.qaTeam')}</SelectItem>
+                      <SelectItem value="고객서비스팀">{t('scenario.csTeam')}</SelectItem>
+                      <SelectItem value="경영진">{t('scenario.management')}</SelectItem>
+                      <SelectItem value="물류팀">{t('scenario.logisticsTeam')}</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
-              </div>
-            )}
+              )}
+              
+              {/* 필터 적용 상태 표시 */}
+              {(filters.searchText || filters.personaCount || filters.department || filters.skillType || (filters.categoryId && filters.categoryId !== 'all') || filters.bookmarkedOnly) && (
+                <div className="mt-3 pt-3 border-t border-slate-200">
+                  <div className="flex items-center justify-center">
+                    <span className="text-xs text-blue-600">{t('scenario.filterApplied')}</span>
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
           
           <div className="space-y-4">

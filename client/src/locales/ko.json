@@ -1002,6 +1002,7 @@
     "loading": "시나리오 데이터를 불러오는 중...",
     "totalCount": "총 {{count}}개의 시나리오",
     "advancedSearch": "상세 검색",
+    "mobileFilterToggle": "필터 열기/닫기",
     "reset": "초기화",
     "searchPlaceholder": "시나리오 검색",
     "category": "카테고리",

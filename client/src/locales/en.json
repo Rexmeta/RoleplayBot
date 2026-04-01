@@ -980,6 +980,7 @@
     "loading": "Loading scenario data...",
     "totalCount": "{{count}} scenarios total",
     "advancedSearch": "Advanced Search",
+    "mobileFilterToggle": "Open/Close Filters",
     "reset": "Reset",
     "searchPlaceholder": "Search scenarios",
     "category": "Category",

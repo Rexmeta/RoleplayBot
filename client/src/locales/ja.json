@@ -977,6 +977,7 @@
     "loading": "シナリオデータを読み込み中...",
     "totalCount": "全{{count}}件のシナリオ",
     "advancedSearch": "詳細検索",
+    "mobileFilterToggle": "フィルターを開く/閉じる",
     "reset": "リセット",
     "searchPlaceholder": "シナリオを検索",
     "category": "カテゴリ",

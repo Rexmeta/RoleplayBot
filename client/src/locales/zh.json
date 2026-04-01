@@ -977,6 +977,7 @@
     "loading": "正在加载场景数据...",
     "totalCount": "共{{count}}个场景",
     "advancedSearch": "高级搜索",
+    "mobileFilterToggle": "打开/关闭筛选器",
     "reset": "重置",
     "searchPlaceholder": "搜索场景",
     "category": "类别",
