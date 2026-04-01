@@ -1619,6 +1619,124 @@ export default function PersonalDevelopmentReport({
               </div>
             </CardContent>
           </Card>
+          {/* 점수 산출 내역 */}
+          {feedback?.detailedFeedback?.scoreAdjustments && (() => {
+            const adj = feedback.detailedFeedback.scoreAdjustments;
+            const hasAnyAdjustment =
+              adj.nonVerbalPenalty !== 0 ||
+              adj.bargeInAdjustment !== 0 ||
+              adj.completionPenalty !== 0 ||
+              adj.scoreCap !== null;
+
+            const rows: { label: string; value: number; reason: string; icon: string; colorClass: string }[] = [
+              {
+                label: '비언어적 표현 감점',
+                value: -adj.nonVerbalPenalty,
+                reason: adj.nonVerbalCount != null && adj.nonVerbalCount > 0
+                  ? `${adj.nonVerbalCount}개의 비언어적 표현 감지`
+                  : '해당 없음 (감지된 표현 없음)',
+                icon: 'fas fa-volume-xmark',
+                colorClass: adj.nonVerbalPenalty > 0 ? 'text-rose-600' : 'text-slate-400',
+              },
+              {
+                label: '말 끊기 조정',
+                value: adj.bargeInAdjustment,
+                reason: adj.bargeInCount != null && adj.bargeInCount > 0
+                  ? `${adj.bargeInCount}회 말 끊기 감지`
+                  : '해당 없음 (말 끊기 없음)',
+                icon: 'fas fa-comment-slash',
+                colorClass: adj.bargeInAdjustment < 0 ? 'text-rose-600' : adj.bargeInAdjustment > 0 ? 'text-emerald-600' : 'text-slate-400',
+              },
+              {
+                label: '대화 완성도 패널티',
+                value: -adj.completionPenalty,
+                reason: adj.completionRatio != null
+                  ? `대화 완성도 ${adj.completionRatio}%`
+                  : '해당 없음',
+                icon: 'fas fa-hourglass-half',
+                colorClass: adj.completionPenalty > 0 ? 'text-amber-600' : 'text-slate-400',
+              },
+            ];
+
+            return (
+              <Card
+                className="transform transition-all duration-500 hover:shadow-lg screen-only"
+                style={{ opacity: 0, animation: `fadeInUp 0.8s ease-out 3s forwards` }}
+              >
+                <CardHeader className="pb-3">
+                  <CardTitle className="flex items-center gap-2">
+                    <i className="fas fa-calculator text-indigo-500"></i>
+                    점수 산출 내역
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  {/* AI 기본 점수 */}
+                  <div className="flex items-center justify-between bg-slate-50 border border-slate-200 rounded-xl px-4 py-3">
+                    <div className="flex items-center gap-2">
+                      <i className="fas fa-robot text-indigo-400"></i>
+                      <span className="text-sm font-medium text-slate-700">AI 기본 점수</span>
+                    </div>
+                    <span className="text-sm font-bold text-indigo-700">{adj.baseScore}점</span>
+                  </div>
+
+                  {/* 보정 항목 */}
+                  {rows.map((row) => (
+                    <div
+                      key={row.label}
+                      className={`flex items-center justify-between rounded-xl px-4 py-3 border ${
+                        row.value < 0
+                          ? 'bg-rose-50 border-rose-200'
+                          : row.value > 0
+                          ? 'bg-emerald-50 border-emerald-200'
+                          : 'bg-slate-50 border-slate-200'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2 min-w-0">
+                        <i className={`${row.icon} text-sm flex-shrink-0 ${row.colorClass}`}></i>
+                        <div className="min-w-0">
+                          <p className="text-sm font-medium text-slate-700">{row.label}</p>
+                          <p className="text-xs text-slate-500 truncate">{row.reason}</p>
+                        </div>
+                      </div>
+                      <span className={`text-sm font-bold flex-shrink-0 ml-3 ${row.colorClass}`}>
+                        {row.value === 0 ? '±0' : row.value > 0 ? `+${row.value}` : `${row.value}`}점
+                      </span>
+                    </div>
+                  ))}
+
+                  {/* 대화량 캡 */}
+                  {adj.scoreCap !== null && (
+                    <div className="flex items-center justify-between bg-amber-50 border border-amber-200 rounded-xl px-4 py-3">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <i className="fas fa-arrow-down-wide-short text-amber-500 text-sm flex-shrink-0"></i>
+                        <div className="min-w-0">
+                          <p className="text-sm font-medium text-slate-700">대화량 부족 캡</p>
+                          <p className="text-xs text-slate-500">역량별 최고 점수 {adj.scoreCap}점으로 제한</p>
+                        </div>
+                      </div>
+                      <span className="text-sm font-bold text-amber-600 flex-shrink-0 ml-3">적용됨</span>
+                    </div>
+                  )}
+
+                  {!hasAnyAdjustment && adj.scoreCap === null && (
+                    <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-slate-500">
+                      <i className="fas fa-check-circle text-slate-400"></i>
+                      <span className="text-sm">조정 없음 — 기본 점수가 그대로 적용되었습니다.</span>
+                    </div>
+                  )}
+
+                  {/* 최종 점수 */}
+                  <div className="flex items-center justify-between bg-indigo-50 border border-indigo-300 rounded-xl px-4 py-3 mt-1">
+                    <div className="flex items-center gap-2">
+                      <i className="fas fa-flag-checkered text-indigo-500"></i>
+                      <span className="text-sm font-bold text-indigo-800">최종 점수</span>
+                    </div>
+                    <span className="text-base font-extrabold text-indigo-700">{adj.finalScore}점</span>
+                  </div>
+                </CardContent>
+              </Card>
+            );
+          })()}
         </TabsContent>
 
         {/* 실천 가이드 (행동 가이드 + 대화 가이드 통합) */}

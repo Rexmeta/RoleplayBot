@@ -1096,11 +1096,14 @@ JSON 형식${hasStrategyReflection ? ' (sequenceAnalysis 포함)' : ''}:
       
       const scores = parsed.scores || this.getDefaultScores(evaluationCriteria);
       
-      // AI가 계산한 기본 점수
-      let baseOverallScore = this.calculateWeightedOverallScore(scores, evaluationCriteria);
+      // AI가 계산한 기본 점수 (캡 적용 전 순수 AI 점수)
+      const rawAiBaseScore = this.calculateWeightedOverallScore(scores, evaluationCriteria);
+      let baseOverallScore = rawAiBaseScore;
       
       // ── 대화량 부족 시 개별 역량 점수 캡 적용 ──────────────────────────
       // (effectiveRatioP는 아래 완성도 계산 이후 참조하므로 미리 계산)
+      let _scoreCapApplied = false;
+      let _scoreCapMaxValue: number | null = null;
       {
         const _voiceMode = this.isVoiceMode(conversation);
         const _rawUser = messages.filter(msg => msg.sender === 'user');
@@ -1120,10 +1123,14 @@ JSON 형식${hasStrategyReflection ? ' (sequenceAnalysis 포함)' : ''}:
             if (scores[dim.key] !== undefined && scores[dim.key] > maxScore) {
               console.log(`   - 대화량 캡 적용: ${dim.key} ${scores[dim.key]}점 → ${maxScore}점 (effectiveRatio=${Math.round(_effectiveRatio * 100)}%)`);
               scores[dim.key] = maxScore;
+              _scoreCapApplied = true;
+              _scoreCapMaxValue = maxScore;
             }
           }
-          // 캡 적용 후 종합점수 재계산
-          baseOverallScore = this.calculateWeightedOverallScore(scores, evaluationCriteria);
+          if (_scoreCapApplied) {
+            // 캡 적용 후 종합점수 재계산
+            baseOverallScore = this.calculateWeightedOverallScore(scores, evaluationCriteria);
+          }
         }
       }
       // ────────────────────────────────────────────────────────────────────
@@ -1211,7 +1218,18 @@ JSON 형식${hasStrategyReflection ? ' (sequenceAnalysis 포함)' : ''}:
         conversationDuration: parsed.conversationDuration || 10,
         behaviorGuides: parsed.behaviorGuides || this.getDefaultBehaviorGuides(),
         conversationGuides: parsed.conversationGuides || this.getDefaultConversationGuides(),
-        developmentPlan: parsed.developmentPlan || this.getDefaultDevelopmentPlan()
+        developmentPlan: parsed.developmentPlan || this.getDefaultDevelopmentPlan(),
+        scoreAdjustments: {
+          baseScore: rawAiBaseScore,
+          nonVerbalPenalty: voiceMode ? 0 : nonVerbalAnalysis.penaltyPoints,
+          bargeInAdjustment: bargeInAnalysis.netScoreAdjustment,
+          completionPenalty: completionPenalty,
+          scoreCap: _scoreCapApplied ? _scoreCapMaxValue : null,
+          finalScore: adjustedScore,
+          nonVerbalCount: voiceMode ? 0 : nonVerbalAnalysis.count,
+          bargeInCount: bargeInAnalysis.count,
+          completionRatio: Math.round(effectiveRatioP * 100),
+        },
       };
       
       // 전략 분석이 있는 경우 추가

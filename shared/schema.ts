@@ -391,6 +391,17 @@ export type DetailedFeedback = {
   sequenceAnalysis?: SequenceAnalysis;
   evaluationCriteriaSetId?: string; // 사용된 평가 기준 세트 ID
   evaluationCriteriaSetName?: string; // 사용된 평가 기준 세트 이름
+  scoreAdjustments?: {
+    baseScore: number;
+    nonVerbalPenalty: number;
+    bargeInAdjustment: number;
+    completionPenalty: number;
+    scoreCap: number | null;
+    finalScore: number;
+    nonVerbalCount?: number;
+    bargeInCount?: number;
+    completionRatio?: number;
+  };
 };
 
 export type ActionGuide = {
