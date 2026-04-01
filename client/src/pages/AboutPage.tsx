@@ -44,7 +44,7 @@ export default function AboutPage() {
     {
       icon: <ClipboardList className="h-6 w-6 text-green-600" />,
       title: "ComOn Check 평가 시스템",
-      description: "커뮤니케이션 연구 기반 5점 척도로 경청, 공감, 명료성 등 항목별 세부 점수를 산출합니다.",
+      description: "커뮤니케이션 연구 기반 10점 척도로 경청, 공감, 명료성 등 항목별 세부 점수를 산출합니다.",
       badge: "핵심"
     },
     {
@@ -370,14 +370,14 @@ export default function AboutPage() {
             {/* 평가 시스템 */}
             <section>
               <h3 className="text-2xl font-bold text-slate-800 mb-2 text-center">ComOn Check 평가 시스템</h3>
-              <p className="text-slate-600 text-center mb-8">커뮤니케이션 연구 기반의 체계적인 5점 척도 평가로 객관적인 역량을 측정합니다.</p>
+              <p className="text-slate-600 text-center mb-8">커뮤니케이션 연구 기반의 체계적인 10점 척도 평가로 객관적인 역량을 측정합니다.</p>
               <Card className="border-0 shadow-md overflow-hidden">
                 <div className="bg-gradient-to-r from-blue-600 to-purple-600 p-6 text-white">
                   <div className="flex items-center gap-3 mb-2">
                     <ClipboardList className="h-6 w-6" />
                     <span className="font-bold text-lg">평가 항목 및 채점 방식</span>
                   </div>
-                  <p className="text-blue-100 text-sm">각 항목은 1~5점으로 측정되며, 항목별 가중치를 반영한 종합 점수(0~100점)가 산출됩니다.</p>
+                  <p className="text-blue-100 text-sm">각 항목은 1~10점으로 측정되며, 항목별 가중치를 반영한 종합 점수(0~100점)가 산출됩니다.</p>
                 </div>
                 <CardContent className="p-0">
                   {evaluationItems.map((item, i) => (

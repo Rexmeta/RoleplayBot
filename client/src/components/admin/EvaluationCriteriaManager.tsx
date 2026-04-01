@@ -132,7 +132,7 @@ export function EvaluationCriteriaManager() {
     weight: 20,
     dimensionType: 'standard' as 'core' | 'standard' | 'bonus',
     minScore: 1,
-    maxScore: 5,
+    maxScore: 10,
     icon: '',
     color: '#6366f1',
     isActive: true,
@@ -346,7 +346,7 @@ export function EvaluationCriteriaManager() {
       weight: 20,
       dimensionType: 'standard',
       minScore: 1,
-      maxScore: 5,
+      maxScore: 10,
       icon: '',
       color: '',
       isActive: true,
@@ -362,7 +362,7 @@ export function EvaluationCriteriaManager() {
           weight: dim.weight,
           dimensionType: 'standard',
           minScore: 1,
-          maxScore: 5,
+          maxScore: 10,
           displayOrder: idx,
           isActive: true,
         }))
@@ -836,7 +836,7 @@ export function EvaluationCriteriaManager() {
                   id="dim-maxScore"
                   type="number"
                   value={dimensionFormData.maxScore}
-                  onChange={(e) => setDimensionFormData({ ...dimensionFormData, maxScore: parseInt(e.target.value) || 5 })}
+                  onChange={(e) => setDimensionFormData({ ...dimensionFormData, maxScore: parseInt(e.target.value) || 10 })}
                 />
               </div>
             </div>
@@ -1159,7 +1159,7 @@ function InlineDimensionEditor({
             <Input
               type="number"
               value={editData.maxScore}
-              onChange={(e) => setEditData({ ...editData, maxScore: parseInt(e.target.value) || 5 })}
+              onChange={(e) => setEditData({ ...editData, maxScore: parseInt(e.target.value) || 10 })}
               className="h-8 text-sm mt-1"
             />
           </div>

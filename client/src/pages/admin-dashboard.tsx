@@ -305,11 +305,11 @@ export default function AdminDashboard() {
       p.push('<div class="score-grid">');
       scores.forEach((s: any) => {
         const val = Number(s.score ?? 0);
-        const pct = Math.round((val / 5) * 100);
+        const pct = Math.round((val / 10) * 100);
         p.push('<div class="score-card">');
         p.push('<div class="score-header">');
         p.push('<span class="score-name">' + safe(s.icon || '') + ' ' + safe(s.name || s.category || '') + (s.weight ? ' <span style="font-weight:400;color:#94a3b8;font-size:11px;">(' + s.weight + '%)</span>' : '') + '</span>');
-        p.push('<span class="score-badge">' + val + '/5</span>');
+        p.push('<span class="score-badge">' + val + '/10</span>');
         p.push('</div>');
         p.push('<div class="score-bar-bg"><div class="score-bar-fill" style="width:' + pct + '%;"></div></div>');
         if (s.feedback) {

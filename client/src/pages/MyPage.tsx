@@ -567,8 +567,8 @@ export default function MyPage() {
                         <CardTitle>카테고리별 평균 점수</CardTitle>
                         <CardDescription>
                           {analyticsData.criteriaDetails && analyticsData.criteriaDetails.length > 0 
-                            ? `${analyticsData.criteriaDetails.length}개 평가 기준 종합 분석 (5점 만점)`
-                            : '평가 항목별 종합 분석 (5점 만점)'}
+                            ? `${analyticsData.criteriaDetails.length}개 평가 기준 종합 분석 (10점 만점)`
+                            : '평가 항목별 종합 분석 (10점 만점)'}
                         </CardDescription>
                       </div>
                       {analyticsData.usedCriteriaSets && analyticsData.usedCriteriaSets.length >= 1 && (
@@ -611,10 +611,10 @@ export default function MyPage() {
                                 </Badge>
                               </div>
                               <span className="text-lg font-semibold text-slate-900">
-                                {criteria.averageScore.toFixed(1)} / 5.0
+                                {criteria.averageScore.toFixed(1)} / 10.0
                               </span>
                             </div>
-                            <Progress value={criteria.averageScore * 20} className="h-3" />
+                            <Progress value={criteria.averageScore * 10} className="h-3" />
                           </div>
                         ))
                       ) : (
@@ -629,10 +629,10 @@ export default function MyPage() {
                                 </span>
                               </div>
                               <span className="text-lg font-semibold text-slate-900">
-                                {(value as number).toFixed(1)} / 5.0
+                                {(value as number).toFixed(1)} / 10.0
                               </span>
                             </div>
-                            <Progress value={(value as number) * 20} className="h-3" />
+                            <Progress value={(value as number) * 10} className="h-3" />
                           </div>
                         ))
                       )}

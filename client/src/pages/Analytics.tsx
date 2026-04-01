@@ -348,8 +348,8 @@ export default function Analytics() {
                 <CardTitle>평가 기준별 분석</CardTitle>
                 <CardDescription>
                   {analytics.criteriaDetails && analytics.criteriaDetails.length > 0 
-                    ? `${analytics.criteriaDetails.length}개 평가 기준 종합 분석 (5점 만점)`
-                    : '평가 항목별 종합 분석 (5점 만점)'}
+                    ? `${analytics.criteriaDetails.length}개 평가 기준 종합 분석 (10점 만점)`
+                    : '평가 항목별 종합 분석 (10점 만점)'}
                 </CardDescription>
               </div>
               {analytics.usedCriteriaSets && analytics.usedCriteriaSets.length >= 1 && (
@@ -389,10 +389,10 @@ export default function Analytics() {
                         </Badge>
                       </div>
                       <span className="text-lg font-semibold text-slate-900" data-testid={`score-${criteria.key}`}>
-                        {criteria.averageScore.toFixed(1)} / 5.0
+                        {criteria.averageScore.toFixed(1)} / 10.0
                       </span>
                     </div>
-                    <Progress value={criteria.averageScore * 20} className="h-3" />
+                    <Progress value={criteria.averageScore * 10} className="h-3" />
                   </div>
                 ))
               ) : (
@@ -407,10 +407,10 @@ export default function Analytics() {
                         </span>
                       </div>
                       <span className="text-lg font-semibold text-slate-900" data-testid={`score-${key}`}>
-                        {value.toFixed(1)} / 5.0
+                        {value.toFixed(1)} / 10.0
                       </span>
                     </div>
-                    <Progress value={value * 20} className="h-3" />
+                    <Progress value={value * 10} className="h-3" />
                   </div>
                 ))
               )}

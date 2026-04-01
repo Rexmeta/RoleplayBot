@@ -1431,7 +1431,7 @@ export default function PersonalDevelopmentReport({
                             dot={{ r: 3, fill: '#4f46e5', strokeWidth: 0 }}
                           />
                           <Tooltip
-                            formatter={(value: any) => [`${value}/5점`, '역량 점수']}
+                            formatter={(value: any) => [`${value}/10점`, '역량 점수']}
                             contentStyle={{ fontSize: 12, borderRadius: 8 }}
                           />
                         </RadarChart>
