@@ -1140,7 +1140,7 @@ export default function PersonalDevelopmentReport({
   const radarData = (feedback?.scores || []).map(s => ({
     subject: getTranslatedDimensionName(s.category, s.name),
     value: s.score ?? 0,
-    fullMark: 5,
+    fullMark: (s as any).maxScore || 10,
   }));
 
   const CustomRadarTick = ({ payload, x, y, cx, cy }: any) => {
