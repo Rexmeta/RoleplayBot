@@ -355,7 +355,7 @@ export default function MyPage() {
             onClick={() => window.location.href = '/home'}
             variant="outline"
             data-testid="scenario-list-button"
-            className="flex items-center gap-2"
+            className="hidden sm:flex items-center gap-2"
           >
             <i className="fas fa-list"></i>
             시나리오 리스트
