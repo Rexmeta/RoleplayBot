@@ -831,9 +831,9 @@ export default function FreeChatPage() {
               {discoverPersonas.length > 0 && (
                 <div>
                   {/* Featured Banner */}
-                  {featuredPersona && !categoryFilter && (
+                  {/* featuredPersona && !categoryFilter && (
                     <FeaturedBanner persona={featuredPersona} onClick={() => selectUserPersona(featuredPersona)} />
-                  )}
+                  ) */}
 
                   {/* Category filter chips */}
                   {allTags.length > 0 && (
