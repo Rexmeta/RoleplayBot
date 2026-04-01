@@ -90,7 +90,7 @@ export default function AIGeneratorPage() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 p-6">
+    <div className="min-h-screen bg-slate-50 p-3 md:p-6">
       <div className="max-w-4xl mx-auto">
         <div className="mb-6">
           <div className="flex items-center gap-4 mb-4">
@@ -132,7 +132,7 @@ export default function AIGeneratorPage() {
                 />
               </div>
               
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <Label>난이도</Label>
                   <Select 
@@ -206,7 +206,7 @@ export default function AIGeneratorPage() {
                 {generatedResult.scenario.image && (
                   <div>
                     <h4 className="font-semibold text-slate-800 mb-2">생성된 시나리오 이미지</h4>
-                    <div className="relative w-full h-48 bg-slate-100 rounded-lg overflow-hidden">
+                    <div className="relative w-full h-36 sm:h-48 bg-slate-100 rounded-lg overflow-hidden">
                       <img
                         src={toMediaUrl(generatedResult.scenario.image)}
                         alt={generatedResult.scenario.title}

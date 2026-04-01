@@ -666,9 +666,9 @@ export default function SystemAdminPage() {
         showBackButton
       />
 
-      <div className="container mx-auto p-6 space-y-6" data-testid="system-admin-page">
+      <div className="container mx-auto p-3 md:p-6 space-y-6" data-testid="system-admin-page">
         <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <TabsList className="grid w-full max-w-5xl grid-cols-5">
+          <TabsList className="grid w-full grid-cols-3 sm:grid-cols-5 h-auto p-1 gap-1">
             <TabsTrigger value="users" className="flex items-center gap-2" data-testid="tab-users">
               <Users className="h-4 w-4" />
               {t('systemAdmin.tabs.users')}
@@ -1164,28 +1164,28 @@ export default function SystemAdminPage() {
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="flex flex-wrap gap-4 items-center">
-                  <div className="flex items-center gap-2">
-                    <label className="text-sm font-medium">{t('systemAdmin.aiUsage.startDate')}</label>
+                <div className="flex flex-col sm:flex-row flex-wrap gap-4 items-start sm:items-center">
+                  <div className="flex items-center gap-2 w-full sm:w-auto">
+                    <label className="text-sm font-medium whitespace-nowrap">{t('systemAdmin.aiUsage.startDate')}</label>
                     <Input
                       type="date"
                       value={usageDateRange.start}
                       onChange={(e) => setUsageDateRange(prev => ({ ...prev, start: e.target.value }))}
-                      className="w-40"
+                      className="flex-1 sm:w-40"
                       data-testid="input-usage-start-date"
                     />
                   </div>
-                  <div className="flex items-center gap-2">
-                    <label className="text-sm font-medium">{t('systemAdmin.aiUsage.endDate')}</label>
+                  <div className="flex items-center gap-2 w-full sm:w-auto">
+                    <label className="text-sm font-medium whitespace-nowrap">{t('systemAdmin.aiUsage.endDate')}</label>
                     <Input
                       type="date"
                       value={usageDateRange.end}
                       onChange={(e) => setUsageDateRange(prev => ({ ...prev, end: e.target.value }))}
-                      className="w-40"
+                      className="flex-1 sm:w-40"
                       data-testid="input-usage-end-date"
                     />
                   </div>
-                  <div className="flex gap-2">
+                  <div className="flex flex-wrap gap-2">
                     <Button
                       variant="outline"
                       size="sm"

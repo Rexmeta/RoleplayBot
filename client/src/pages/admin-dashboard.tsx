@@ -730,15 +730,15 @@ export default function AdminDashboard() {
         subtitle="교육 결과 분석 및 성과 현황"
         showBackButton
       />
-      <div className="container mx-auto p-6 space-y-6" data-testid="admin-dashboard">
+      <div className="container mx-auto p-3 md:p-6 space-y-6" data-testid="admin-dashboard">
       
       {/* 관리자용 카테고리 필터 (시스템 관리자만 표시) */}
       {user?.role === 'admin' && (
-        <div className="flex items-center gap-3 p-4 bg-white rounded-lg border shadow-sm">
+        <div className="flex flex-wrap items-center gap-3 p-4 bg-white rounded-lg border shadow-sm">
           <Filter className="w-5 h-5 text-slate-500" />
           <span className="text-sm font-medium text-slate-700">카테고리 필터:</span>
           <Select value={selectedCategoryId} onValueChange={setSelectedCategoryId}>
-            <SelectTrigger className="w-[200px]" data-testid="category-filter-select">
+            <SelectTrigger className="w-full sm:w-[200px]" data-testid="category-filter-select">
               <SelectValue placeholder="전체 카테고리" />
             </SelectTrigger>
             <SelectContent>
@@ -1927,26 +1927,26 @@ export default function AdminDashboard() {
                     placeholder="이름 또는 이메일 검색..."
                     value={participantSearch}
                     onChange={e => setParticipantSearch(e.target.value)}
-                    className="w-56 h-9 text-sm"
+                    className="w-full md:w-56 h-9 text-sm"
                     data-testid="participant-search"
                   />
                 </div>
-                <div className="flex flex-wrap items-center gap-2">
+                <div className="flex flex-col sm:flex-row sm:flex-wrap sm:items-center gap-2">
                   <span className="text-sm text-slate-500 font-medium whitespace-nowrap">최근 훈련일:</span>
-                  <div className="flex items-center gap-2 flex-wrap">
+                  <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 flex-wrap w-full sm:w-auto">
                     <Input
                       type="date"
                       value={participantDateFrom}
                       onChange={e => setParticipantDateFrom(e.target.value)}
-                      className="h-9 text-sm w-40"
+                      className="h-9 text-sm w-full sm:w-40"
                       data-testid="participant-date-from"
                     />
-                    <span className="text-slate-400 text-sm">~</span>
+                    <span className="text-slate-400 text-sm hidden sm:inline">~</span>
                     <Input
                       type="date"
                       value={participantDateTo}
                       onChange={e => setParticipantDateTo(e.target.value)}
-                      className="h-9 text-sm w-40"
+                      className="h-9 text-sm w-full sm:w-40"
                       data-testid="participant-date-to"
                     />
                     {(participantDateFrom || participantDateTo) && (
@@ -2095,23 +2095,23 @@ export default function AdminDashboard() {
                             <th className="p-3 text-left font-medium text-slate-600 cursor-pointer hover:text-slate-800" onClick={() => handleSort('name')}>
                               이름 <SortIcon col="name" />
                             </th>
-                            <th className="p-3 text-left font-medium text-slate-600 cursor-pointer hover:text-slate-800" onClick={() => handleSort('email')}>
+                            <th className="p-3 text-left font-medium text-slate-600 cursor-pointer hover:text-slate-800 hidden md:table-cell" onClick={() => handleSort('email')}>
                               이메일 <SortIcon col="email" />
                             </th>
-                            <th className="p-3 text-left font-medium text-slate-600">카테고리</th>
+                            <th className="p-3 text-left font-medium text-slate-600 hidden md:table-cell">카테고리</th>
                             <th className="p-3 text-center font-medium text-slate-600 cursor-pointer hover:text-slate-800" onClick={() => handleSort('completedSessions')}>
                               완료 세션 <SortIcon col="completedSessions" />
                             </th>
                             <th className="p-3 text-center font-medium text-slate-600 cursor-pointer hover:text-slate-800" onClick={() => handleSort('averageScore')}>
                               평균 점수 <SortIcon col="averageScore" />
                             </th>
-                            <th className="p-3 text-center font-medium text-slate-600 cursor-pointer hover:text-slate-800" onClick={() => handleSort('latestScore')}>
+                            <th className="p-3 text-center font-medium text-slate-600 cursor-pointer hover:text-slate-800 hidden sm:table-cell" onClick={() => handleSort('latestScore')}>
                               최근 점수 <SortIcon col="latestScore" />
                             </th>
-                            <th className="p-3 text-center font-medium text-slate-600 cursor-pointer hover:text-slate-800" onClick={() => handleSort('lastTrainingAt')}>
+                            <th className="p-3 text-center font-medium text-slate-600 cursor-pointer hover:text-slate-800 hidden sm:table-cell" onClick={() => handleSort('lastTrainingAt')}>
                               최근 훈련일 <SortIcon col="lastTrainingAt" />
                             </th>
-                            <th className="p-3 text-center font-medium text-slate-600 cursor-pointer hover:text-slate-800" onClick={() => handleSort('tier')}>
+                            <th className="p-3 text-center font-medium text-slate-600 cursor-pointer hover:text-slate-800 hidden md:table-cell" onClick={() => handleSort('tier')}>
                               등급 <SortIcon col="tier" />
                             </th>
                           </tr>
@@ -2143,8 +2143,8 @@ export default function AdminDashboard() {
                                   <ExternalLink className="w-3 h-3 opacity-50" />
                                 </Link>
                               </td>
-                              <td className="p-3 text-slate-500 text-xs">{p.email}</td>
-                              <td className="p-3">
+                              <td className="p-3 text-slate-500 text-xs hidden md:table-cell">{p.email}</td>
+                              <td className="p-3 hidden md:table-cell">
                                 <div className="flex flex-wrap gap-1">
                                   {p.categories.length > 0
                                     ? p.categories.map((cat, ci) => (
@@ -2163,15 +2163,15 @@ export default function AdminDashboard() {
                               <td className={`p-3 text-center ${scoreColor(p.averageScore)}`}>
                                 {p.averageScore !== null ? `${p.averageScore}점` : '-'}
                               </td>
-                              <td className={`p-3 text-center ${scoreColor(p.latestScore)}`}>
+                              <td className={`p-3 text-center hidden sm:table-cell ${scoreColor(p.latestScore)}`}>
                                 {p.latestScore !== null ? `${p.latestScore}점` : '-'}
                               </td>
-                              <td className="p-3 text-center text-slate-500 text-xs">
+                              <td className="p-3 text-center text-slate-500 text-xs hidden sm:table-cell">
                                 {p.lastTrainingAt
                                   ? new Date(p.lastTrainingAt).toLocaleDateString('ko-KR', { year: 'numeric', month: '2-digit', day: '2-digit' })
                                   : '-'}
                               </td>
-                              <td className="p-3 text-center">
+                              <td className="p-3 text-center hidden md:table-cell">
                                 <span className={`px-2 py-0.5 rounded text-xs font-medium ${tierColors[p.tier] || 'bg-slate-100 text-slate-600'}`}>
                                   {p.tier}
                                 </span>

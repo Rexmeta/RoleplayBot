@@ -23,9 +23,9 @@ export default function AdminManagement() {
         subtitle={t('admin.contentManagement.subtitle')}
         showBackButton
       />
-      <div className="container mx-auto p-6 space-y-6" data-testid="admin-management">
+      <div className="container mx-auto p-3 md:p-6 space-y-6" data-testid="admin-management">
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-          <TabsList className="grid w-full grid-cols-5">
+          <TabsList className="grid w-full grid-cols-2 sm:grid-cols-5 h-auto p-1 gap-1">
             <TabsTrigger value="manage-scenarios" data-testid="tab-manage-scenarios">시나리오</TabsTrigger>
             <TabsTrigger value="manage-personas" data-testid="tab-manage-personas">페르소나</TabsTrigger>
             <TabsTrigger value="evaluation-criteria" data-testid="tab-evaluation-criteria">평가기준</TabsTrigger>
