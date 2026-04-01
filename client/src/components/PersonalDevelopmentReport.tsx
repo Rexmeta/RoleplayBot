@@ -1688,7 +1688,7 @@ export default function PersonalDevelopmentReport({
                   <div className="flex items-center justify-between bg-slate-50 border border-slate-200 rounded-xl px-4 py-3">
                     <div className="flex items-center gap-2">
                       <i className="fas fa-robot text-indigo-400"></i>
-                      <span className="text-sm font-medium text-slate-700">AI 기본 점수</span>
+                      <span className="text-sm font-medium text-slate-700">루브릭 기반 역량 점수</span>
                     </div>
                     <span className="text-sm font-bold text-indigo-700">{adj.baseScore}점</span>
                   </div>
