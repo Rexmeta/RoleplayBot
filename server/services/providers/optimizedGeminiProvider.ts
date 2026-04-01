@@ -204,6 +204,61 @@ export class OptimizedGeminiProvider implements AIServiceInterface {
   }
 
   /**
+   * AI 페르소나와 유저 역할 간의 직위 위계를 판별하는 헬퍼
+   * 반환값: 'ai_superior' | 'ai_subordinate' | 'peer'
+   */
+  private detectRoleHierarchy(aiRole: string, userRole: string): 'ai_superior' | 'ai_subordinate' | 'peer' {
+    const superiorKeywords = ['팀장', '부장', '차장', '과장', '선임', '시니어', '수석', '리드', '매니저', 'manager', 'lead', 'senior', 'director', '대리', '주임', '본부장', '실장', 'cto', 'ceo', '임원', '이사', '상무', '전무', '대표', '사장'];
+    const subordinateKeywords = ['신입', '인턴', '주니어', 'junior', '신규', '초보', '수습', '신입사원', '신입 개발자', '신입개발자', '입문', '초급'];
+    // 고객/외부 관계자는 항상 정중하게 대해야 하므로 ai_subordinate로 처리
+    const externalClientKeywords = ['고객', '클라이언트', 'customer', 'client', '의뢰인', '소비자', '구매자', '방문객', '투자자', '파트너'];
+
+    const normalize = (s: string) => s.toLowerCase().replace(/\s+/g, '');
+
+    const aiRoleNorm = normalize(aiRole);
+    const userRoleNorm = normalize(userRole);
+
+    // 유저가 고객/외부 관계자이면 항상 정중한 말투 (ai_subordinate 처럼 동작)
+    if (externalClientKeywords.some(k => userRoleNorm.includes(normalize(k)))) {
+      return 'ai_subordinate';
+    }
+
+    const aiIsSuperior = superiorKeywords.some(k => aiRoleNorm.includes(normalize(k)));
+    const aiIsSubordinate = subordinateKeywords.some(k => aiRoleNorm.includes(normalize(k)));
+    const userIsSuperior = superiorKeywords.some(k => userRoleNorm.includes(normalize(k)));
+    const userIsSubordinate = subordinateKeywords.some(k => userRoleNorm.includes(normalize(k)));
+
+    // 양측 모두 인식된 직급 키워드가 있을 때만 위계 판별
+    if (aiIsSuperior && userIsSubordinate) {
+      return 'ai_superior';
+    }
+    if (userIsSuperior && aiIsSubordinate) {
+      return 'ai_subordinate';
+    }
+    // 한쪽만 명확히 하위 직급이고 상대는 상위 직급 키워드 보유 시
+    if (aiIsSuperior && userIsSuperior) {
+      return 'peer';
+    }
+    if (aiIsSubordinate && userIsSubordinate) {
+      return 'peer';
+    }
+    if (aiIsSuperior && !userIsSubordinate && !userIsSuperior) {
+      // 상대방 역할이 불명확 → 안전하게 peer 처리
+      return 'peer';
+    }
+    if (userIsSuperior && !aiIsSubordinate && !aiIsSuperior) {
+      return 'ai_subordinate';
+    }
+    if (aiIsSubordinate && !userIsSuperior) {
+      return 'ai_subordinate';
+    }
+    if (userIsSubordinate && !aiIsSubordinate) {
+      return 'ai_superior';
+    }
+    return 'peer';
+  }
+
+  /**
    * 압축된 시스템 프롬프트 생성
    */
   private buildCompactPrompt(scenario: RoleplayScenario, persona: ScenarioPersona, conversationHistory: string, language: SupportedLanguage = 'ko', playerPosition?: string): string {
@@ -299,6 +354,35 @@ ${experience ? `- 경력: ${experience}` : ''}
 - 당신의 대화 상대방(사용자)은 [${playerRoleLabel}]입니다
 - 당신은 ${persona.role}이며, 상대방은 ${playerRoleLabel}입니다. 이 역할 구분은 절대 변하지 않습니다
 - 절대로 ${playerRoleLabel}의 역할을 수행하거나 그 입장에서 발언하지 마세요` : '';
+
+    // 직위 위계에 따른 말투 지시
+    const hierarchySpeechGuide = (() => {
+      if (!playerRoleLabel || !persona.role) return '';
+      const hierarchy = this.detectRoleHierarchy(persona.role, playerRoleLabel);
+      console.log(`📊 직위 위계 판별: AI(${persona.role}) vs 유저(${playerRoleLabel}) → ${hierarchy}`);
+      if (hierarchy === 'ai_superior') {
+        return `
+**【말투 위계 지시 - 최우선 적용】**:
+- 당신(${persona.role})은 상대방(${playerRoleLabel})보다 직위가 높습니다
+- 반드시 윗사람이 아랫사람에게 말하는 어체를 사용하세요
+- 구체적으로: "~해", "~하게", "~하도록", "~봐", "~잖아" 등 반말 또는 직급에 맞는 지시·명령 어체를 사용하세요
+- "찾아뵙겠습니다", "말씀드리려고요", "부탁드립니다" 같은 아랫사람 표현은 절대 사용하지 마세요
+- 격식이 필요한 경우라도 "~하지", "~하면 돼", "~해봐", "자, 그럼" 등 자연스러운 상위자 어투를 유지하세요`;
+      }
+      if (hierarchy === 'ai_subordinate') {
+        return `
+**【말투 위계 지시 - 최우선 적용】**:
+- 당신(${persona.role})은 상대방(${playerRoleLabel})보다 직위가 낮습니다
+- 반드시 아랫사람이 윗사람에게 말하는 정중한 어체를 사용하세요
+- 구체적으로: "~습니다", "~요", "~드리겠습니다", "말씀드리다", "여쭤보다" 등 존댓말과 겸양 표현을 사용하세요
+- 지나치게 편한 반말이나 지시하는 어투는 절대 사용하지 마세요`;
+      }
+      return `
+**【말투 위계 지시 - 최우선 적용】**:
+- 당신(${persona.role})과 상대방(${playerRoleLabel})은 동등한 관계입니다
+- 친근하고 편안한 동료 말투를 사용하세요 (예: "~요", "~죠", "그렇지 않아요?", "같이 해봐요")
+- 지나치게 격식을 차리거나 지나치게 편한 반말보다는 자연스럽고 협력적인 어투를 유지하세요`;
+    })();
     
     // 의사소통 스타일 상세 가이드 (행동 지침으로 변환)
     const communicationBehaviorGuide = `
@@ -329,6 +413,7 @@ ${communicationStyle}
 당신의 목표: ${goal}
 ${experienceGuide}
 ${playerRoleGuide}
+${hierarchySpeechGuide}
 ${personalValuesGuide}
 ${tradeoffGuide}
 
