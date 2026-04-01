@@ -1449,7 +1449,7 @@ export class RealtimeVoiceService {
             `${m.role === 'user' ? '사용자' : '당신'}: ${m.content}`
           ).join('\n');
           
-          const resumeContext = `[이전 대화 내용 - 이 대화를 이어서 진행합니다]\n${conversationSummary}\n\n[대화 재개 - 사용자가 돌아왔습니다. 이전 대화 맥락을 이어서 자연스럽게 대화를 계속하세요. 처음 인사하듯이 하지 말고, 대화가 끊겼다가 다시 연결된 것처럼 "다시 연결되었네요" 또는 "어디까지 얘기했죠?" 같은 자연스러운 반응을 하세요.]`;
+          const resumeContext = `[이전 대화 내용 - 이 대화를 이어서 진행합니다]\n${conversationSummary}\n\n[대화 재개 - 이전 대화 맥락을 기억하세요. 재연결되었음을 언급하거나 인사하지 마세요. "다시 연결되었네요", "어디까지 얘기했죠?" 같은 표현은 절대 하지 마세요. 사용자가 먼저 말할 때까지 침묵을 유지하고, 사용자가 발화하면 이전 대화 맥락을 자연스럽게 이어서 반응하세요.]`;
           
           console.log(`📤 Sending resume context to Gemini (had previous AI response: ${hadPreviousAIResponse})`);
           
