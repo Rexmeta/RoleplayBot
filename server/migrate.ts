@@ -1015,13 +1015,12 @@ export async function runMigrations(): Promise<void> {
       // 기본 평가 기준 시딩
       await queryWithTimeout(client, 'Default evaluation criteria seeded', seedDefaultEvaluationCriteriaSQL);
 
-      // 기본 평가 차원 max_score 5→10 업데이트 (10점 척도 전환)
+      // 모든 평가 차원 max_score 5→10 업데이트 (10점 척도 전환)
       try {
         await client.query(`
           UPDATE evaluation_dimensions
           SET max_score = 10
-          WHERE criteria_set_id = 'default-criteria-set'
-            AND max_score = 5
+          WHERE max_score = 5
         `);
         console.log('✅ Default evaluation dimensions max_score updated to 10');
       } catch (err) {

@@ -39,6 +39,13 @@ interface PersonalDevelopmentReportProps {
 const getDisplayValue = (value: number) => value;
 const getProgressWidth = (value: number) => value;
 
+// 어떤 척도(5점/10점)로 저장된 점수든 10점 기준으로 정규화
+const toTenPoint = (rawScore: number, maxScore: number): number => {
+  const m = maxScore || 10;
+  if (m === 10) return rawScore;
+  return Math.round((rawScore / m) * 10 * 10) / 10; // 소수 1자리
+};
+
 export default function PersonalDevelopmentReport({ 
   scenario, 
   persona,
@@ -505,7 +512,9 @@ export default function PersonalDevelopmentReport({
           <!-- 카테고리별 점수 -->
           <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px; margin-bottom: 24px;">
             ${scores.map((score, idx) => {
-              const sNum = typeof score.score === 'number' ? score.score : 0;
+              const sRaw = typeof score.score === 'number' ? score.score : 0;
+              const sMax = score.maxScore || 10;
+              const sNum = toTenPoint(sRaw, sMax);
               const statusLabel = sNum >= 8 ? '✅ 역량 확인됨' : sNum >= 5 ? '🔶 기본 수준' : '⚠️ 집중 개선 필요';
               const statusBg = sNum >= 8 ? '#dcfce7' : sNum >= 5 ? '#ffedd5' : '#fee2e2';
               const statusColor = sNum >= 8 ? '#166534' : sNum >= 5 ? '#9a3412' : '#991b1b';
@@ -517,7 +526,7 @@ export default function PersonalDevelopmentReport({
                     <span style="flex-shrink: 0; display: inline-flex; align-items: center; justify-content: center; width: 18px; height: 18px; background: #e2e8f0; color: #64748b; border-radius: 50%; font-size: 10px; font-weight: 700;">${idx + 1}</span>
                     <span style="font-size: 13px; font-weight: 600; color: #374151;">${escapeHtml(getTranslatedDimensionName(score.category, score.name))}${score.weight ? ` <span style="font-weight: 400; color: #94a3b8; font-size: 10px;">(${score.weight}%)</span>` : ''}</span>
                   </div>
-                  <span style="flex-shrink: 0; background: #dbeafe; color: #1e40af; padding: 2px 7px; border-radius: 4px; font-size: 12px; font-weight: 600;">${score.score || 0}/${score.maxScore || 10}</span>
+                  <span style="flex-shrink: 0; background: #dbeafe; color: #1e40af; padding: 2px 7px; border-radius: 4px; font-size: 12px; font-weight: 600;">${sNum}/10</span>
                 </div>
                 <span style="display: inline-block; font-size: 10px; font-weight: 600; color: ${statusColor}; background: ${statusBg}; border: 1px solid ${statusBorder}; border-radius: 20px; padding: 1px 8px; margin-bottom: 6px;">${statusLabel}</span>
                 <p style="font-size: 12px; color: #4b5563; line-height: 1.5; margin: 0;">${escapeHtml(score.feedback)}</p>
@@ -1137,11 +1146,14 @@ export default function PersonalDevelopmentReport({
   // 애니메이션 제거하고 바로 값 표시 (hooks 오류 방지)
   const displayOverallScore = getDisplayValue(feedback?.overallScore || 0);
 
-  const radarData = (feedback?.scores || []).map(s => ({
-    subject: getTranslatedDimensionName(s.category, s.name),
-    value: s.score ?? 0,
-    fullMark: (s as any).maxScore || 10,
-  }));
+  const radarData = (feedback?.scores || []).map(s => {
+    const maxScore = (s as any).maxScore || 10;
+    return {
+      subject: getTranslatedDimensionName(s.category, s.name),
+      value: toTenPoint(s.score ?? 0, maxScore),
+      fullMark: 10,
+    };
+  });
 
   const CustomRadarTick = ({ payload, x, y, cx, cy }: any) => {
     const item = radarData.find(d => d.subject === payload.value);
@@ -1262,10 +1274,10 @@ export default function PersonalDevelopmentReport({
                   <div className="flex-1 h-1.5 bg-white/20 rounded-full overflow-hidden">
                     <div
                       className="h-full rounded-full transition-all duration-1000"
-                      style={{ width: `${((s.score ?? 0) / ((s as any).maxScore || 10)) * 100}%`, backgroundColor: 'rgba(255,255,255,0.75)' }}
+                      style={{ width: `${(toTenPoint(s.score ?? 0, (s as any).maxScore || 10) / 10) * 100}%`, backgroundColor: 'rgba(255,255,255,0.75)' }}
                     />
                   </div>
-                  <span className="text-[11px] font-bold text-white/90 w-5 text-right flex-shrink-0">{s.score ?? 0}</span>
+                  <span className="text-[11px] font-bold text-white/90 w-5 text-right flex-shrink-0">{toTenPoint(s.score ?? 0, (s as any).maxScore || 10)}</span>
                 </div>
               ))}
             </div>
@@ -1303,7 +1315,7 @@ export default function PersonalDevelopmentReport({
                   {maxScore && (
                     <>
                       <div className="text-lg font-bold text-green-700 mb-1">{getTranslatedDimensionName(maxScore.category, maxScore.name)}</div>
-                      <div className="inline-flex items-center gap-1 bg-green-100 text-green-800 text-xs font-semibold px-2 py-0.5 rounded-full mb-2">점수 {maxScore.score}/{(maxScore as any).maxScore || 10}</div>
+                      <div className="inline-flex items-center gap-1 bg-green-100 text-green-800 text-xs font-semibold px-2 py-0.5 rounded-full mb-2">점수 {toTenPoint(maxScore.score, (maxScore as any).maxScore || 10)}/10</div>
                       <p className="text-xs text-slate-600 leading-relaxed">{extractSentences(maxScore.feedback, 2)}</p>
                     </>
                   )}
@@ -1315,7 +1327,7 @@ export default function PersonalDevelopmentReport({
                   {minScore && (
                     <>
                       <div className="text-sm font-bold text-orange-700 mb-1">{getTranslatedDimensionName(minScore.category, minScore.name)}</div>
-                      <div className="inline-flex items-center gap-1 bg-orange-100 text-orange-800 text-xs font-semibold px-2 py-0.5 rounded-full mb-2">점수 {minScore.score}/{(minScore as any).maxScore || 10}</div>
+                      <div className="inline-flex items-center gap-1 bg-orange-100 text-orange-800 text-xs font-semibold px-2 py-0.5 rounded-full mb-2">점수 {toTenPoint(minScore.score, (minScore as any).maxScore || 10)}/10</div>
                     </>
                   )}
                   <p className="text-xs text-slate-600 leading-relaxed">{extractSentences(topImprovement, 2) || '개선 포인트를 확인하세요.'}</p>
@@ -1453,8 +1465,10 @@ export default function PersonalDevelopmentReport({
             {/* 우: 역량별 점수 카드 (세로 스택) */}
             <div className="space-y-3">
               {feedback?.scores?.map((score, index) => {
-                const scoreNum = typeof score.score === 'number' ? score.score : 0;
-                const progressPct = (scoreNum / ((score as any).maxScore || 10)) * 100;
+                const rawScore = typeof score.score === 'number' ? score.score : 0;
+                const scoreMax = (score as any).maxScore || 10;
+                const scoreNum = toTenPoint(rawScore, scoreMax);
+                const progressPct = (scoreNum / 10) * 100;
                 const delta = getPrevSessionDelta(score.category);
                 const hexColor = getScoreHex(scoreNum);
                 const levelLabel = scoreNum >= 8 ? '우수' : scoreNum >= 5 ? '보통' : scoreNum >= 3 ? '개선 필요' : '미흡';
@@ -1495,7 +1509,7 @@ export default function PersonalDevelopmentReport({
                             className="text-sm font-bold px-2 py-0.5 rounded-full text-white"
                             style={{ backgroundColor: hexColor }}
                           >
-                            {scoreNum}/{(score as any).maxScore || 10}
+                            {scoreNum}/10
                           </span>
                         </div>
                       </div>
