@@ -124,10 +124,21 @@ export default function PersonaLayout({ children, chatMode = false }: { children
     queryKey: ["/api/conversations"],
   });
 
-  const recentChats = allConversations
-    .filter(c => c.scenarioId.startsWith("__user_persona__:"))
-    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
-    .slice(0, 15);
+  const recentChats = (() => {
+    const personaConvs = allConversations
+      .filter(c => c.scenarioId.startsWith("__user_persona__:"))
+      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+    const seen = new Set<string>();
+    const deduped: RecentChat[] = [];
+    for (const c of personaConvs) {
+      const personaId = c.scenarioId.replace("__user_persona__:", "");
+      if (!seen.has(personaId)) {
+        seen.add(personaId);
+        deduped.push(c);
+      }
+    }
+    return deduped.slice(0, 15);
+  })();
 
   const filteredChats = searchQuery
     ? recentChats.filter(c => {
