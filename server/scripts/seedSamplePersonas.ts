@@ -1,6 +1,6 @@
 import { db } from '../storage';
 import { userPersonas } from '@shared/schema';
-import { eq } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 
 const SYSTEM_CREATOR_ID = 'system';
 
@@ -418,7 +418,7 @@ export async function seedSamplePersonas() {
           name: persona.name,
           description: persona.description,
           greeting: persona.greeting,
-          avatarUrl: AVATAR_URLS[persona.id] || null,
+          avatarUrl: sql`CASE WHEN ${userPersonas.avatarUrl} LIKE 'user-personas/%' THEN ${userPersonas.avatarUrl} ELSE ${AVATAR_URLS[persona.id] || null} END`,
           personality: persona.personality,
           tags: persona.tags,
           likeCount: persona.likeCount,

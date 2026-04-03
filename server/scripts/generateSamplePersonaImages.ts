@@ -1,7 +1,7 @@
 import { db } from '../storage';
 import { userPersonas } from '@shared/schema';
 import { eq } from 'drizzle-orm';
-import { GoogleGenAI } from '@google/genai';
+import { GoogleGenAI, type Part } from '@google/genai';
 import { mediaStorage } from '../services/mediaStorage';
 
 const SYSTEM_CREATOR_ID = 'system';
@@ -19,7 +19,20 @@ const IMAGE_PROMPTS: Record<string, string> = {
   'sample-captain-blackwood': 'Photorealistic portrait of a charismatic male pirate captain in 18th century attire, tricorn hat, weathered distinguished appearance, bold adventurous expression, wooden ship deck background, dramatic golden sunset lighting, high quality digital art',
 };
 
-async function callGeminiImage(prompt: string): Promise<string | null> {
+const EXPRESSION_DESCRIPTIONS: Record<string, string> = {
+  happy:        'joyful, happy, warm smiling broadly',
+  sad:          'sad, downcast, melancholic, sorrowful',
+  angry:        'angry, frustrated, upset, stern',
+  surprised:    'surprised, amazed, astonished, wide-eyed',
+  curious:      'curious, interested, intrigued, thoughtful',
+  anxious:      'anxious, worried, concerned, uneasy',
+  tired:        'tired, weary, exhausted, drooping eyes',
+  disappointed: 'disappointed, let down, discouraged, dejected',
+  confused:     'confused, bewildered, perplexed, puzzled',
+  determined:   'determined, resolute, focused, strong-willed',
+};
+
+async function callGeminiImage(prompt: string, referenceBase64?: string): Promise<string | null> {
   const apiKey = process.env.GOOGLE_API_KEY || process.env.GEMINI_API_KEY;
   if (!apiKey) {
     console.error('No Gemini API key found');
@@ -28,9 +41,15 @@ async function callGeminiImage(prompt: string): Promise<string | null> {
 
   try {
     const ai = new GoogleGenAI({ apiKey });
+    const parts: Part[] = [];
+    if (referenceBase64) {
+      parts.push({ inlineData: { mimeType: 'image/webp', data: referenceBase64 } });
+    }
+    parts.push({ text: prompt + '. Head and shoulders portrait, looking at camera. NO text, NO speech bubbles, NO captions, NO watermarks.' });
+
     const result = await ai.models.generateContent({
       model: 'gemini-2.5-flash-image',
-      contents: [{ role: 'user', parts: [{ text: prompt + '. Head and shoulders portrait, looking at camera. NO text, NO speech bubbles, NO captions, NO watermarks.' }] }],
+      contents: [{ role: 'user', parts }],
     });
 
     if (!result.candidates?.[0]?.content?.parts) return null;
@@ -47,6 +66,17 @@ async function callGeminiImage(prompt: string): Promise<string | null> {
   }
 }
 
+function buildExpressionPrompt(emotionDescription: string): string {
+  let prompt = `Generate an image of the EXACT SAME person from the reference image. `;
+  prompt += `Keep IDENTICAL: face, facial features, hair, skin tone, clothing, and background environment. `;
+  prompt += `ONLY CHANGE: the facial expression to show ${emotionDescription}. `;
+  prompt += `The background must remain the SAME as the reference image. `;
+  prompt += `Head and shoulders portrait, same background as reference, `;
+  prompt += `natural professional lighting, same attire as reference, looking at camera, sharp focus. `;
+  prompt += `NO text, NO speech bubbles, NO captions, NO graphic overlays, NO watermarks.`;
+  return prompt;
+}
+
 export async function generateSamplePersonaImages(forceRegenerate = false): Promise<void> {
   console.log('🎨 샘플 페르소나 AI 이미지 생성 시작...');
 
@@ -54,6 +84,7 @@ export async function generateSamplePersonaImages(forceRegenerate = false): Prom
     id: userPersonas.id,
     name: userPersonas.name,
     avatarUrl: userPersonas.avatarUrl,
+    expressions: userPersonas.expressions,
   }).from(userPersonas).where(eq(userPersonas.creatorId, SYSTEM_CREATOR_ID));
 
   let generated = 0;
@@ -71,35 +102,98 @@ export async function generateSamplePersonaImages(forceRegenerate = false): Prom
     const alreadyInStorage = persona.avatarUrl &&
       persona.avatarUrl.startsWith('user-personas/');
 
+    let neutralBuffer: Buffer | null = null;
+    let neutralPath: string | null = alreadyInStorage ? persona.avatarUrl : null;
+
     if (alreadyInStorage && !forceRegenerate) {
-      console.log(`  ⏭ 이미 오브젝트 스토리지에 있음, 스킵: ${persona.name}`);
+      console.log(`  ⏭ neutral 이미 오브젝트 스토리지에 있음, 스킵: ${persona.name}`);
       skipped++;
-      continue;
-    }
+      try {
+        neutralBuffer = await mediaStorage.readImageBuffer(persona.avatarUrl!);
+      } catch {
+        neutralBuffer = null;
+      }
+    } else {
+      try {
+        console.log(`  🖼 neutral 이미지 생성 중: ${persona.name}...`);
+        const imageDataUrl = await callGeminiImage(prompt);
 
-    try {
-      console.log(`  🖼 이미지 생성 중: ${persona.name}...`);
-      const imageDataUrl = await callGeminiImage(prompt);
+        if (!imageDataUrl) {
+          console.error(`  ❌ neutral 이미지 생성 실패: ${persona.name}`);
+          failed++;
+          continue;
+        }
 
-      if (!imageDataUrl) {
-        console.error(`  ❌ 이미지 생성 실패: ${persona.name}`);
+        neutralPath = await mediaStorage.saveUserPersonaImage(imageDataUrl, persona.id, 'neutral');
+
+        await db.update(userPersonas)
+          .set({ avatarUrl: neutralPath, updatedAt: new Date() })
+          .where(eq(userPersonas.id, persona.id));
+
+        console.log(`  ✅ neutral 이미지 저장 완료: ${persona.name} → ${neutralPath}`);
+        generated++;
+
+        const base64Data = imageDataUrl.replace(/^data:[^;]+;base64,/, '');
+        neutralBuffer = Buffer.from(base64Data, 'base64');
+
+        await new Promise(r => setTimeout(r, 1500));
+      } catch (err: any) {
+        console.error(`  ❌ neutral 오류 발생 (${persona.name}):`, err.message);
         failed++;
         continue;
       }
+    }
 
-      const objectPath = await mediaStorage.saveUserPersonaImage(imageDataUrl, persona.id, 'neutral');
+    if (!neutralBuffer && neutralPath) {
+      try {
+        neutralBuffer = await mediaStorage.readImageBuffer(neutralPath);
+      } catch {
+        neutralBuffer = null;
+      }
+    }
 
-      await db.update(userPersonas)
-        .set({ avatarUrl: objectPath, updatedAt: new Date() })
-        .where(eq(userPersonas.id, persona.id));
+    if (!neutralBuffer) {
+      console.log(`  ⚠ 베이스 이미지 버퍼 없음, 표정 생성 스킵: ${persona.name}`);
+      continue;
+    }
 
-      console.log(`  ✅ 이미지 저장 완료: ${persona.name} → ${objectPath}`);
-      generated++;
+    const existingExpressions: Record<string, string> =
+      persona.expressions !== null && typeof persona.expressions === 'object' && !Array.isArray(persona.expressions)
+        ? (persona.expressions as Record<string, string>)
+        : {};
 
-      await new Promise(r => setTimeout(r, 1500));
-    } catch (err: any) {
-      console.error(`  ❌ 오류 발생 (${persona.name}):`, err.message);
-      failed++;
+    for (const [emotion, description] of Object.entries(EXPRESSION_DESCRIPTIONS)) {
+      if (!forceRegenerate && existingExpressions[emotion]) {
+        console.log(`  ⏭ 표정 이미 존재, 스킵: ${persona.name} / ${emotion}`);
+        continue;
+      }
+
+      try {
+        console.log(`  🖼 표정 이미지 생성 중: ${persona.name} / ${emotion}...`);
+        const expressionPrompt = buildExpressionPrompt(description);
+        const expressionDataUrl = await callGeminiImage(expressionPrompt, neutralBuffer.toString('base64'));
+
+        if (!expressionDataUrl) {
+          console.error(`  ❌ 표정 이미지 생성 실패: ${persona.name} / ${emotion}`);
+          failed++;
+          continue;
+        }
+
+        const expressionPath = await mediaStorage.saveUserPersonaImage(expressionDataUrl, persona.id, emotion);
+
+        existingExpressions[emotion] = expressionPath;
+        await db.update(userPersonas)
+          .set({ expressions: existingExpressions, updatedAt: new Date() })
+          .where(eq(userPersonas.id, persona.id));
+
+        console.log(`  ✅ 표정 이미지 저장 완료: ${persona.name} / ${emotion} → ${expressionPath}`);
+        generated++;
+
+        await new Promise(r => setTimeout(r, 1500));
+      } catch (err: any) {
+        console.error(`  ❌ 표정 오류 발생 (${persona.name} / ${emotion}):`, err.message);
+        failed++;
+      }
     }
   }
 

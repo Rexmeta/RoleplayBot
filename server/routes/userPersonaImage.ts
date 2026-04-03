@@ -272,8 +272,22 @@ router.post('/:id/generate-expression/:emotion', isAuthenticated, asyncHandler(a
 
     let baseBuffer: Buffer | null = null;
     try {
-      baseBuffer = await mediaStorage.readImageBuffer(persona.avatarUrl);
-    } catch {}
+      if (persona.avatarUrl.startsWith('http://') || persona.avatarUrl.startsWith('https://')) {
+        const parsedUrl = new URL(persona.avatarUrl);
+        const allowedHosts = ['images.unsplash.com', 'api.dicebear.com'];
+        if (!allowedHosts.includes(parsedUrl.hostname)) {
+          throw createHttpError(400, '허용되지 않는 이미지 URL입니다.');
+        }
+        const response = await fetch(persona.avatarUrl);
+        if (response.ok) {
+          baseBuffer = Buffer.from(await response.arrayBuffer());
+        }
+      } else {
+        baseBuffer = await mediaStorage.readImageBuffer(persona.avatarUrl);
+      }
+    } catch (e) {
+      if (e && typeof e === 'object' && 'status' in e) throw e;
+    }
 
     if (!baseBuffer) {
       throw createHttpError(400, '기본 이미지를 읽을 수 없습니다.');
