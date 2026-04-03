@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useLocation, useParams, Link } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -15,6 +15,7 @@ import {
   Sparkles, MessageCircle, Pencil
 } from "lucide-react";
 import type { ScenarioPersona } from "@/lib/scenario-system";
+import type { ConversationMessage } from "@shared/schema";
 
 interface UserPersona {
   id: string;
@@ -107,6 +108,8 @@ export default function PersonaProfilePage() {
   const id = params.id;
   const { toast } = useToast();
 
+  const resumeConversationId = new URLSearchParams(window.location.search).get("resume");
+
   const isMbti = Boolean(id?.startsWith("mbti-"));
   const mbtiId = isMbti ? id!.replace("mbti-", "") : null;
 
@@ -115,6 +118,13 @@ export default function PersonaProfilePage() {
   const [isPending, setIsPending] = useState(false);
   const [mbtiGender, setMbtiGender] = useState<"male" | "female">("male");
   const [editorOpen, setEditorOpen] = useState(false);
+  const [resumeHandled, setResumeHandled] = useState(false);
+
+  useEffect(() => {
+    setChatWindow(null);
+    setIsPending(false);
+    setResumeHandled(false);
+  }, [id, resumeConversationId]);
 
   const { data: persona, isLoading: personaLoading } = useQuery<UserPersona>({
     queryKey: ["/api/user-personas", id],
@@ -130,6 +140,116 @@ export default function PersonaProfilePage() {
         .then(list => list.find((p: FreeChatMbtiPersonaDetail) => p.id === mbtiId)),
     enabled: isMbti && !!mbtiId,
   });
+
+  const { data: resumeConversation, isError: resumeError } = useQuery<{
+    id: string;
+    scenarioId: string;
+    messages: ConversationMessage[];
+  }>({
+    queryKey: ["/api/conversations", resumeConversationId],
+    queryFn: () => apiRequest("GET", `/api/conversations/${resumeConversationId}`).then(r => r.json()),
+    enabled: !!resumeConversationId && !resumeHandled,
+    retry: 1,
+  });
+
+  const handleExitChat = () => {
+    setChatWindow(null);
+    setIsPending(false);
+  };
+
+  function buildPersonaForChat(p: UserPersona) {
+    let expressions: Record<string, string> | undefined = p.expressions || undefined;
+    if (!expressions && p.avatarUrl) {
+      expressions = { neutral: p.avatarUrl };
+    } else if (expressions && !expressions.neutral && p.avatarUrl) {
+      expressions = { ...expressions, neutral: p.avatarUrl };
+    }
+    return {
+      id: p.id,
+      name: p.name,
+      role: "대화 상대",
+      department: "",
+      image: p.avatarUrl ? toMediaUrl(p.avatarUrl) : undefined,
+      expressions,
+      personality: {
+        traits: p.personality?.traits ?? [],
+        communicationStyle: p.personality?.communicationStyle ?? "",
+        motivation: p.personality?.background ?? "",
+        fears: [],
+      },
+    } as any as ScenarioPersona;
+  }
+
+  function sortMessagesByTime(msgs: ConversationMessage[]): ConversationMessage[] {
+    return [...msgs].sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+  }
+
+  useEffect(() => {
+    if (resumeError) {
+      setResumeHandled(true);
+      toast({ title: "대화를 불러올 수 없어요", description: "이전 대화를 로드하는 데 실패했습니다.", variant: "destructive" });
+      return;
+    }
+    if (!resumeConversation || resumeHandled || chatWindow) return;
+    if (isMbti) {
+      if (!mbtiPersona) {
+        if (!mbtiLoading) {
+          setResumeHandled(true);
+          toast({ title: "캐릭터를 찾을 수 없어요", description: "이전 대화를 불러올 수 없습니다.", variant: "destructive" });
+        }
+        return;
+      }
+      setResumeHandled(true);
+      const scenario = buildMbtiScenario(mbtiPersona, 2);
+      const img = getMbtiImage(mbtiPersona, mbtiGender);
+      const chatPersona = {
+        id: mbtiPersona.id,
+        name: mbtiPersona.mbti,
+        role: "AI 캐릭터",
+        department: "",
+        gender: mbtiGender,
+        mbti: mbtiPersona.mbti,
+        image: img ?? undefined,
+        personality: {
+          traits: [],
+          communicationStyle: mbtiPersona.communicationStyle ?? "",
+          motivation: "",
+          fears: [],
+        },
+      } as any as ScenarioPersona;
+      setChatWindow(
+        <ChatWindow
+          conversationId={resumeConversation.id}
+          scenario={scenario}
+          persona={chatPersona}
+          initialMessages={sortMessagesByTime(resumeConversation.messages)}
+          onChatComplete={handleExitChat}
+          onExit={handleExitChat}
+        />
+      );
+    } else {
+      if (!persona) {
+        if (!personaLoading) {
+          setResumeHandled(true);
+          toast({ title: "캐릭터를 찾을 수 없어요", description: "이전 대화를 불러올 수 없습니다.", variant: "destructive" });
+        }
+        return;
+      }
+      setResumeHandled(true);
+      const scenario = buildUserPersonaScenario(persona, 2);
+      const chatPersona = buildPersonaForChat(persona);
+      setChatWindow(
+        <ChatWindow
+          conversationId={resumeConversation.id}
+          scenario={scenario}
+          persona={chatPersona}
+          initialMessages={sortMessagesByTime(resumeConversation.messages)}
+          onChatComplete={handleExitChat}
+          onExit={handleExitChat}
+        />
+      );
+    }
+  }, [resumeConversation, resumeError, resumeHandled, chatWindow, persona, personaLoading, mbtiPersona, mbtiLoading, isMbti, mbtiGender, toast]);
 
   const likeMutation = useMutation({
     mutationFn: () => apiRequest("POST", `/api/user-personas/${id}/like`).then(r => r.json()),
@@ -167,34 +287,6 @@ export default function PersonaProfilePage() {
       setIsPending(false);
     }
   };
-
-  const handleExitChat = () => {
-    setChatWindow(null);
-    setIsPending(false);
-  };
-
-  function buildPersonaForChat(p: UserPersona) {
-    let expressions: Record<string, string> | undefined = p.expressions || undefined;
-    if (!expressions && p.avatarUrl) {
-      expressions = { neutral: p.avatarUrl };
-    } else if (expressions && !expressions.neutral && p.avatarUrl) {
-      expressions = { ...expressions, neutral: p.avatarUrl };
-    }
-    return {
-      id: p.id,
-      name: p.name,
-      role: "대화 상대",
-      department: "",
-      image: p.avatarUrl ? toMediaUrl(p.avatarUrl) : undefined,
-      expressions,
-      personality: {
-        traits: p.personality?.traits ?? [],
-        communicationStyle: p.personality?.communicationStyle ?? "",
-        motivation: p.personality?.background ?? "",
-        fears: [],
-      },
-    } as any as ScenarioPersona;
-  }
 
   const isLoading = isMbti ? mbtiLoading : personaLoading;
 
@@ -252,7 +344,7 @@ export default function PersonaProfilePage() {
     );
   }
 
-  if (isLoading) {
+  if (isLoading || (resumeConversationId && !resumeHandled && !chatWindow)) {
     return (
       <PersonaLayout>
         <div className="flex-1 flex items-center justify-center min-h-[60vh]">

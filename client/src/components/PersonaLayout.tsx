@@ -234,7 +234,7 @@ export default function PersonaLayout({ children, chatMode = false }: { children
                 const name = chatDisplayName(c);
                 const pId = chatPersonaId(c);
                 const avatarUrl = c.personaSnapshot?.avatarUrl || null;
-                const href = `/persona/${pId}`;
+                const href = `/persona/${pId}?resume=${c.id}`;
                 return (
                   <Link key={c.id} href={href}>
                     <div
@@ -265,7 +265,7 @@ export default function PersonaLayout({ children, chatMode = false }: { children
               const name = chatDisplayName(c);
               const pId = chatPersonaId(c);
               const avatarUrl = c.personaSnapshot?.avatarUrl || null;
-              const href = `/persona/${pId}`;
+              const href = `/persona/${pId}?resume=${c.id}`;
               return (
                 <Link key={c.id} href={href}>
                   <div className="p-1.5 rounded-xl hover:bg-white/10 cursor-pointer" title={name}>

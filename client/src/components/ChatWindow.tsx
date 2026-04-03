@@ -44,9 +44,10 @@ interface ChatWindowProps {
   onReady?: () => void;
   onConversationEnding?: () => void;
   isPersonaMode?: boolean;
+  initialMessages?: import("@shared/schema").ConversationMessage[];
 }
 
-export default function ChatWindow({ scenario, persona, conversationId, onChatComplete, onExit, onPersonaChange, onReady, onConversationEnding, isPersonaMode = false }: ChatWindowProps) {
+export default function ChatWindow({ scenario, persona, conversationId, onChatComplete, onExit, onPersonaChange, onReady, onConversationEnding, isPersonaMode = false, initialMessages }: ChatWindowProps) {
   const [userInput, setUserInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [inputMode, setInputMode] = useState<'text' | 'tts' | 'realtime-voice'>('realtime-voice');
@@ -75,7 +76,7 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
 
   const { localMessages, setLocalMessages, pendingAiMessage, setPendingAiMessage,
     pendingUserMessage, setPendingUserMessage, pendingUserText, setPendingUserText,
-    messagesEndRef, sendMessageMutation } = useChatMessages({ conversationId, serverMessages: undefined });
+    messagesEndRef, sendMessageMutation } = useChatMessages({ conversationId, serverMessages: initialMessages });
 
   const { currentEmotion, setCurrentEmotion, isEmotionTransitioning, setIsEmotionTransitioning,
     loadedImageUrl, isInitialLoading, isOverlayFading, hasNoPersonaImages,
