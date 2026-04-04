@@ -29,6 +29,18 @@ interface PersonaUserScene {
   createdAt: string;
 }
 
+const GENRE_IMAGE_MAP: Record<string, string> = {
+  "로맨스": "https://images.unsplash.com/photo-1442512595331-e89e73853f31?w=800&h=400&fit=crop&auto=format",
+  "판타지": "https://images.unsplash.com/photo-1448375240586-882707db888b?w=800&h=400&fit=crop&auto=format",
+  "미스터리": "https://images.unsplash.com/photo-1519608487953-e999c86e7455?w=800&h=400&fit=crop&auto=format",
+  "SF": "https://images.unsplash.com/photo-1462331940025-496dfbfc7564?w=800&h=400&fit=crop&auto=format",
+  "일상": "https://images.unsplash.com/photo-1477959858617-67f85cf4f1df?w=800&h=400&fit=crop&auto=format",
+  "직장": "https://images.unsplash.com/photo-1497366216548-37526070297c?w=800&h=400&fit=crop&auto=format",
+  "학교": "https://images.unsplash.com/photo-1580582932707-520aed937b7b?w=800&h=400&fit=crop&auto=format",
+  "역사": "https://images.unsplash.com/photo-1464817739973-0128fe77aaa1?w=800&h=400&fit=crop&auto=format",
+};
+const DEFAULT_SCENE_IMAGE = "https://images.unsplash.com/photo-1477959858617-67f85cf4f1df?w=800&h=400&fit=crop&auto=format";
+
 interface UserPersona {
   id: string;
   name: string;
@@ -136,21 +148,29 @@ export default function PersonaSceneDetailPage() {
 
           {/* Scene Info Card */}
           <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-            {/* Scene header */}
-            <div className="bg-gradient-to-br from-emerald-600 to-teal-700 p-6 text-white">
-              <div className="flex items-center gap-2 mb-3">
-                <Badge className="bg-white/20 text-white text-xs">{scene.genre}</Badge>
-                {scene.isPublic
-                  ? <span className="flex items-center gap-1 text-xs text-white/70"><Globe className="w-3 h-3" />공개</span>
-                  : <span className="flex items-center gap-1 text-xs text-white/70"><Lock className="w-3 h-3" />비공개</span>
-                }
-              </div>
-              <h1 className="text-2xl font-bold mb-1">{scene.title}</h1>
-              {scene.description && (
-                <p className="text-white/80 text-sm">{scene.description}</p>
-              )}
-              <div className="flex items-center gap-3 mt-3 text-white/60 text-xs">
-                <span className="flex items-center gap-1"><MessageSquare className="w-3 h-3" />{scene.useCount}회 사용됨</span>
+            {/* Scene header - 장르 이미지 배경 */}
+            <div className="relative h-52 overflow-hidden">
+              <img
+                src={GENRE_IMAGE_MAP[scene.genre] || DEFAULT_SCENE_IMAGE}
+                alt={scene.genre}
+                className="w-full h-full object-cover"
+              />
+              <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent" />
+              <div className="absolute bottom-0 left-0 right-0 p-6 text-white">
+                <div className="flex items-center gap-2 mb-2">
+                  <Badge className="bg-emerald-500/90 text-white text-xs backdrop-blur-sm">{scene.genre}</Badge>
+                  {scene.isPublic
+                    ? <span className="flex items-center gap-1 text-xs text-white/70"><Globe className="w-3 h-3" />공개</span>
+                    : <span className="flex items-center gap-1 text-xs text-white/70"><Lock className="w-3 h-3" />비공개</span>
+                  }
+                </div>
+                <h1 className="text-2xl font-bold mb-1 drop-shadow">{scene.title}</h1>
+                {scene.description && (
+                  <p className="text-white/80 text-sm line-clamp-2">{scene.description}</p>
+                )}
+                <div className="flex items-center gap-3 mt-2 text-white/60 text-xs">
+                  <span className="flex items-center gap-1"><MessageSquare className="w-3 h-3" />{scene.useCount}회 사용됨</span>
+                </div>
               </div>
             </div>
 

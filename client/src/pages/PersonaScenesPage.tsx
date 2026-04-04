@@ -30,6 +30,18 @@ interface PersonaUserScene {
 
 const GENRES = ["전체", "로맨스", "판타지", "미스터리", "SF", "일상", "직장", "학교", "역사"];
 
+const GENRE_IMAGE_MAP: Record<string, string> = {
+  "로맨스": "https://images.unsplash.com/photo-1442512595331-e89e73853f31?w=600&h=400&fit=crop&auto=format",
+  "판타지": "https://images.unsplash.com/photo-1448375240586-882707db888b?w=600&h=400&fit=crop&auto=format",
+  "미스터리": "https://images.unsplash.com/photo-1519608487953-e999c86e7455?w=600&h=400&fit=crop&auto=format",
+  "SF": "https://images.unsplash.com/photo-1462331940025-496dfbfc7564?w=600&h=400&fit=crop&auto=format",
+  "일상": "https://images.unsplash.com/photo-1477959858617-67f85cf4f1df?w=600&h=400&fit=crop&auto=format",
+  "직장": "https://images.unsplash.com/photo-1497366216548-37526070297c?w=600&h=400&fit=crop&auto=format",
+  "학교": "https://images.unsplash.com/photo-1580582932707-520aed937b7b?w=600&h=400&fit=crop&auto=format",
+  "역사": "https://images.unsplash.com/photo-1464817739973-0128fe77aaa1?w=600&h=400&fit=crop&auto=format",
+};
+const DEFAULT_SCENE_IMAGE = "https://images.unsplash.com/photo-1477959858617-67f85cf4f1df?w=600&h=400&fit=crop&auto=format";
+
 type SceneTab = "all" | "mine";
 
 export default function PersonaScenesPage() {
@@ -204,34 +216,41 @@ function SceneCard({ scene, isMine, onDelete }: {
   return (
     <Link href={`/persona/scene/${scene.id}`}>
       <div className="group bg-white rounded-2xl border border-slate-200 overflow-hidden hover:border-emerald-300 hover:shadow-md transition-all cursor-pointer h-full flex flex-col">
-        <div className="p-4 flex-1">
-          <div className="flex items-start justify-between gap-2 mb-2">
-            <div className="flex items-center gap-2 flex-wrap">
-              <Badge className="bg-emerald-100 text-emerald-700 text-[10px] font-medium">{scene.genre}</Badge>
-              {!scene.isPublic && (
-                <Badge variant="outline" className="text-[10px] text-slate-400 border-slate-200">비공개</Badge>
-              )}
-            </div>
-            {isMine && (
-              <div className="flex items-center gap-1 flex-shrink-0" onClick={e => e.preventDefault()}>
-                <Link href={`/persona/scene/${scene.id}/edit`}>
-                  <button
-                    className="p-1.5 rounded-lg text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 transition-colors"
-                    title="수정"
-                  >
-                    <Pencil className="w-3.5 h-3.5" />
-                  </button>
-                </Link>
-                <button
-                  onClick={onDelete}
-                  className="p-1.5 rounded-lg text-slate-400 hover:text-red-500 hover:bg-red-50 transition-colors"
-                  title="삭제"
-                >
-                  <Trash2 className="w-3.5 h-3.5" />
-                </button>
-              </div>
+        {/* 장르별 이미지 헤더 */}
+        <div className="relative h-36 overflow-hidden flex-shrink-0">
+          <img
+            src={GENRE_IMAGE_MAP[scene.genre] || DEFAULT_SCENE_IMAGE}
+            alt={scene.genre}
+            className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+          />
+          <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent" />
+          <div className="absolute bottom-2 left-3 right-3 flex items-end justify-between">
+            <Badge className="bg-emerald-500/90 text-white text-[10px] font-medium backdrop-blur-sm">{scene.genre}</Badge>
+            {!scene.isPublic && (
+              <Badge variant="outline" className="text-[10px] text-white/80 border-white/30 bg-black/30 backdrop-blur-sm">비공개</Badge>
             )}
           </div>
+        </div>
+        <div className="p-4 flex-1">
+          {isMine && (
+            <div className="flex items-center justify-end gap-1 mb-2" onClick={e => e.preventDefault()}>
+              <Link href={`/persona/scene/${scene.id}/edit`}>
+                <button
+                  className="p-1.5 rounded-lg text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 transition-colors"
+                  title="수정"
+                >
+                  <Pencil className="w-3.5 h-3.5" />
+                </button>
+              </Link>
+              <button
+                onClick={onDelete}
+                className="p-1.5 rounded-lg text-slate-400 hover:text-red-500 hover:bg-red-50 transition-colors"
+                title="삭제"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          )}
 
           <h3 className="font-bold text-slate-800 text-sm mb-1.5 line-clamp-2 group-hover:text-emerald-700 transition-colors">
             {scene.title}
