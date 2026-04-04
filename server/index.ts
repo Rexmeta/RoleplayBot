@@ -479,6 +479,18 @@ async function initializeApp() {
     console.error('Sample persona seeding failed (non-fatal):', error);
   }
 
+  // Step 10: Seed sample scenes (idempotent)
+  recordStep('seed_sample_scenes', 'start');
+  initStatus = 'seeding_sample_scenes';
+  try {
+    const { seedSampleScenes } = await import('./scripts/seedSampleScenes');
+    await seedSampleScenes();
+    recordStep('seed_sample_scenes', 'done');
+  } catch (error: any) {
+    recordStep('seed_sample_scenes', 'error', error?.message);
+    console.error('Sample scene seeding failed (non-fatal):', error);
+  }
+
   // All routes, middleware, and database are ready - open the gate.
   appReady = true;
   initStatus = 'ready';
