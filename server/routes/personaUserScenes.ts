@@ -37,7 +37,6 @@ export default function createPersonaUserScenesRouter(isAuthenticated: any) {
   router.get(
     "/api/persona-user-scenes",
     isAuthenticated,
-    requireAdmin,
     asyncHandler(async (req: any, res) => {
       const genre = typeof req.query.genre === "string" ? req.query.genre : undefined;
       const search = typeof req.query.search === "string" ? req.query.search : undefined;
@@ -76,7 +75,6 @@ export default function createPersonaUserScenesRouter(isAuthenticated: any) {
   router.get(
     "/api/persona-user-scenes/:id",
     isAuthenticated,
-    requireAdmin,
     asyncHandler(async (req: any, res) => {
       const scene = await storage.getPersonaUserSceneById(req.params.id);
       if (!scene) throw createHttpError(404, "장면을 찾을 수 없습니다.");
@@ -140,7 +138,6 @@ export default function createPersonaUserScenesRouter(isAuthenticated: any) {
   router.post(
     "/api/persona-user-scenes/:id/use",
     isAuthenticated,
-    requireAdmin,
     asyncHandler(async (req: any, res) => {
       const scene = await storage.getPersonaUserSceneById(req.params.id);
       if (!scene) throw createHttpError(404, "장면을 찾을 수 없습니다.");
