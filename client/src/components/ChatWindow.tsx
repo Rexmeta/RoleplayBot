@@ -55,6 +55,7 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
   const [showInputMode, setShowInputMode] = useState(false);
   const [isTransitioning, setIsTransitioning] = useState(false);
   const [isGoalsExpanded, setIsGoalsExpanded] = useState(false);
+  const isPersonaX = scenario.id?.startsWith('__');
   const [showMicPrompt, setShowMicPrompt] = useState(false);
   const [isInputExpanded, setIsInputExpanded] = useState(false);
   const [isBargeInFlash, setIsBargeInFlash] = useState(false);
@@ -360,9 +361,11 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
                   ? { top: `${viewportOffsetTop}px`, height: `${viewportHeight}px` }
                   : { top: 0, bottom: 0 }}
               >
-                <GoalsSidebar scenario={scenario} personaName={persona.name} personaDept={persona.department} personaRole={persona.role}
-                  latestEmotion={latestAiMessage?.emotion} elapsedTime={elapsedTime} isAdmin={user?.role === 'admin'}
-                  isGoalsExpanded={isGoalsExpanded} onToggleGoals={() => setIsGoalsExpanded(v => !v)} variant="sidebar" />
+                {!isPersonaX && (
+                  <GoalsSidebar scenario={scenario} personaName={persona.name} personaDept={persona.department} personaRole={persona.role}
+                    latestEmotion={latestAiMessage?.emotion} elapsedTime={elapsedTime} isAdmin={user?.role === 'admin'}
+                    isGoalsExpanded={isGoalsExpanded} onToggleGoals={() => setIsGoalsExpanded(v => !v)} variant="sidebar" />
+                )}
 
                 <div className="relative flex-1 overflow-hidden">
                   <CharacterPortrait loadedImageUrl={loadedImageUrl} personaName={persona.name} personaImage={persona.image}
@@ -394,9 +397,11 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
                     </div>
                   )}
 
-                  <GoalsSidebar scenario={scenario} personaName={persona.name} personaDept={persona.department} personaRole={persona.role}
-                    latestEmotion={latestAiMessage?.emotion} elapsedTime={elapsedTime} isAdmin={user?.role === 'admin'}
-                    isGoalsExpanded={isGoalsExpanded} onToggleGoals={() => setIsGoalsExpanded(v => !v)} variant="overlay" />
+                  {!isPersonaX && (
+                    <GoalsSidebar scenario={scenario} personaName={persona.name} personaDept={persona.department} personaRole={persona.role}
+                      latestEmotion={latestAiMessage?.emotion} elapsedTime={elapsedTime} isAdmin={user?.role === 'admin'}
+                      isGoalsExpanded={isGoalsExpanded} onToggleGoals={() => setIsGoalsExpanded(v => !v)} variant="overlay" />
+                  )}
 
                   <div className="absolute top-4 right-4 z-20 flex items-center">
                     <div className="flex items-center bg-white/20 backdrop-blur-sm rounded-lg p-0.5 shadow-lg">
