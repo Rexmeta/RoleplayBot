@@ -29,17 +29,30 @@ interface PersonaUserScene {
   createdAt: string;
 }
 
-const GENRE_IMAGE_MAP: Record<string, string> = {
-  "로맨스": "https://images.unsplash.com/photo-1442512595331-e89e73853f31?w=800&h=400&fit=crop&auto=format",
-  "판타지": "https://images.unsplash.com/photo-1448375240586-882707db888b?w=800&h=400&fit=crop&auto=format",
-  "미스터리": "https://images.unsplash.com/photo-1519608487953-e999c86e7455?w=800&h=400&fit=crop&auto=format",
-  "SF": "https://images.unsplash.com/photo-1462331940025-496dfbfc7564?w=800&h=400&fit=crop&auto=format",
-  "일상": "https://images.unsplash.com/photo-1477959858617-67f85cf4f1df?w=800&h=400&fit=crop&auto=format",
-  "직장": "https://images.unsplash.com/photo-1497366216548-37526070297c?w=800&h=400&fit=crop&auto=format",
-  "학교": "https://images.unsplash.com/photo-1580582932707-520aed937b7b?w=800&h=400&fit=crop&auto=format",
-  "역사": "https://images.unsplash.com/photo-1464817739973-0128fe77aaa1?w=800&h=400&fit=crop&auto=format",
+const SCENE_IMAGE_MAP: Record<string, string> = {
+  "sample-scene-rainy-cafe": "/scenes/rainy-cafe.png",
+  "sample-scene-midnight-store": "/scenes/midnight-store.png",
+  "sample-scene-magic-library": "/scenes/magic-library.png",
+  "sample-scene-space-observatory": "/scenes/space-observatory.png",
+  "sample-scene-detective-office": "/scenes/detective-office.png",
+  "sample-scene-hangang-night": "/scenes/hangang-night.png",
+  "sample-scene-snowy-lodge": "/scenes/snowy-lodge.png",
+  "sample-scene-deep-sea-lab": "/scenes/deep-sea-lab.png",
+  "sample-scene-jazz-bar": "/scenes/jazz-bar.png",
+  "sample-scene-ruined-kingdom": "/scenes/ruined-kingdom.png",
 };
-const DEFAULT_SCENE_IMAGE = "https://images.unsplash.com/photo-1477959858617-67f85cf4f1df?w=800&h=400&fit=crop&auto=format";
+
+const GENRE_FALLBACK_MAP: Record<string, string> = {
+  "로맨스": "https://images.unsplash.com/photo-1442512595331-e89e73853f31?w=800&h=1400&fit=crop&auto=format",
+  "판타지": "https://images.unsplash.com/photo-1448375240586-882707db888b?w=800&h=1400&fit=crop&auto=format",
+  "미스터리": "https://images.unsplash.com/photo-1519608487953-e999c86e7455?w=800&h=1400&fit=crop&auto=format",
+  "SF": "https://images.unsplash.com/photo-1462331940025-496dfbfc7564?w=800&h=1400&fit=crop&auto=format",
+  "일상": "https://images.unsplash.com/photo-1477959858617-67f85cf4f1df?w=800&h=1400&fit=crop&auto=format",
+  "직장": "https://images.unsplash.com/photo-1497366216548-37526070297c?w=800&h=1400&fit=crop&auto=format",
+  "학교": "https://images.unsplash.com/photo-1580582932707-520aed937b7b?w=800&h=1400&fit=crop&auto=format",
+  "역사": "https://images.unsplash.com/photo-1464817739973-0128fe77aaa1?w=800&h=1400&fit=crop&auto=format",
+};
+const DEFAULT_SCENE_IMAGE = "https://images.unsplash.com/photo-1477959858617-67f85cf4f1df?w=800&h=1400&fit=crop&auto=format";
 
 interface UserPersona {
   id: string;
@@ -112,118 +125,128 @@ export default function PersonaSceneDetailPage() {
     );
   }
 
+  const sceneImage = SCENE_IMAGE_MAP[id!] ?? (
+    Object.entries(GENRE_FALLBACK_MAP).find(([k]) => scene.genre.includes(k))?.[1] ?? DEFAULT_SCENE_IMAGE
+  );
+
   return (
     <>
       <PersonaLayout>
-        <div className="max-w-2xl mx-auto w-full px-4 sm:px-6 py-6 space-y-6">
-          {/* Back */}
-          <div className="flex items-center justify-between">
+        {/* ── 전체화면 히어로 이미지 ─────────────────── */}
+        <div className="relative w-full h-[62svh] min-h-[380px] overflow-hidden">
+          <img
+            src={sceneImage}
+            alt={scene.title}
+            className="w-full h-full object-cover"
+          />
+          {/* 상단 어둠 + 하단 slate-950으로 자연스럽게 연결 */}
+          <div className="absolute inset-0 bg-gradient-to-b from-black/55 via-black/10 to-slate-950" />
+
+          {/* 플로팅 네비게이션 */}
+          <div className="absolute top-0 left-0 right-0 flex items-center justify-between px-4 pt-5 z-10">
             <Link href="/persona/scenes">
-              <button className="flex items-center gap-1.5 text-sm text-slate-500 hover:text-slate-700 transition-colors">
-                <ChevronLeft className="w-4 h-4" />
-                장면 목록
+              <button className="flex items-center gap-1.5 text-sm text-white/90 hover:text-white bg-black/35 backdrop-blur-md px-3.5 py-2 rounded-full border border-white/20 transition-colors">
+                <ChevronLeft className="w-4 h-4" />장면 목록
               </button>
             </Link>
             {isMine && (
               <div className="flex items-center gap-2">
                 <Link href={`/persona/scene/${id}/edit`}>
-                  <Button variant="outline" size="sm" className="gap-1.5">
-                    <Pencil className="w-3.5 h-3.5" />수정
-                  </Button>
+                  <button className="p-2.5 rounded-full bg-black/35 backdrop-blur-md border border-white/20 text-white/80 hover:text-white transition-colors">
+                    <Pencil className="w-4 h-4" />
+                  </button>
                 </Link>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="gap-1.5 text-red-600 border-red-200 hover:bg-red-50"
-                  onClick={() => {
-                    if (confirm("이 장면을 삭제하시겠어요?")) deleteMutation.mutate();
-                  }}
+                <button
+                  className="p-2.5 rounded-full bg-black/35 backdrop-blur-md border border-white/20 text-red-300 hover:text-red-200 transition-colors"
+                  onClick={() => { if (confirm("이 장면을 삭제하시겠어요?")) deleteMutation.mutate(); }}
                   disabled={deleteMutation.isPending}
                 >
-                  <Trash2 className="w-3.5 h-3.5" />삭제
-                </Button>
+                  <Trash2 className="w-4 h-4" />
+                </button>
               </div>
             )}
           </div>
 
-          {/* Scene Info Card */}
-          <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-            {/* Scene header - 장르 이미지 배경 */}
-            <div className="relative h-52 overflow-hidden">
-              <img
-                src={GENRE_IMAGE_MAP[scene.genre] || DEFAULT_SCENE_IMAGE}
-                alt={scene.genre}
-                className="w-full h-full object-cover"
-              />
-              <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent" />
-              <div className="absolute bottom-0 left-0 right-0 p-6 text-white">
-                <div className="flex items-center gap-2 mb-2">
-                  <Badge className="bg-emerald-500/90 text-white text-xs backdrop-blur-sm">{scene.genre}</Badge>
-                  {scene.isPublic
-                    ? <span className="flex items-center gap-1 text-xs text-white/70"><Globe className="w-3 h-3" />공개</span>
-                    : <span className="flex items-center gap-1 text-xs text-white/70"><Lock className="w-3 h-3" />비공개</span>
-                  }
-                </div>
-                <h1 className="text-2xl font-bold mb-1 drop-shadow">{scene.title}</h1>
-                {scene.description && (
-                  <p className="text-white/80 text-sm line-clamp-2">{scene.description}</p>
-                )}
-                <div className="flex items-center gap-3 mt-2 text-white/60 text-xs">
-                  <span className="flex items-center gap-1"><MessageSquare className="w-3 h-3" />{scene.useCount}회 사용됨</span>
-                </div>
-              </div>
+          {/* 이미지 하단 제목 오버레이 */}
+          <div className="absolute bottom-0 left-0 right-0 px-5 pb-7">
+            <div className="flex items-center gap-2.5 mb-3">
+              <Badge className="bg-emerald-500/90 text-white text-xs font-semibold backdrop-blur-sm px-2.5 py-1">
+                {scene.genre}
+              </Badge>
+              {scene.isPublic
+                ? <span className="flex items-center gap-1 text-xs text-white/55"><Globe className="w-3 h-3" />공개</span>
+                : <span className="flex items-center gap-1 text-xs text-white/55"><Lock className="w-3 h-3" />비공개</span>
+              }
+              <span className="flex items-center gap-1 text-xs text-white/40 ml-auto">
+                <MessageSquare className="w-3 h-3" />{scene.useCount}회 사용
+              </span>
             </div>
-
-            <div className="p-6 space-y-4">
-              {scene.setting && (
-                <div>
-                  <h3 className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2 flex items-center gap-1.5">
-                    <MapPin className="w-3.5 h-3.5" />배경 상황
-                  </h3>
-                  <p className="text-sm text-slate-700 leading-relaxed">{scene.setting}</p>
-                </div>
-              )}
-
-              {scene.mood && (
-                <div>
-                  <h3 className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2 flex items-center gap-1.5">
-                    <Wind className="w-3.5 h-3.5" />분위기
-                  </h3>
-                  <p className="text-sm text-slate-700">{scene.mood}</p>
-                </div>
-              )}
-
-              {scene.openingLine && (
-                <div>
-                  <h3 className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2 flex items-center gap-1.5">
-                    <MessageSquare className="w-3.5 h-3.5" />첫 대사
-                  </h3>
-                  <p className="text-sm text-emerald-700 italic bg-emerald-50 rounded-xl px-4 py-3 leading-relaxed">
-                    "{scene.openingLine}"
-                  </p>
-                </div>
-              )}
-
-              {scene.tags && scene.tags.length > 0 && (
-                <div className="flex flex-wrap gap-1.5 pt-2 border-t border-slate-100">
-                  {scene.tags.map(tag => (
-                    <span key={tag} className="text-xs bg-slate-50 text-slate-500 px-2.5 py-1 rounded-full">#{tag}</span>
-                  ))}
-                </div>
-              )}
-            </div>
+            <h1 className="text-[28px] font-bold text-white leading-tight tracking-tight drop-shadow-lg">
+              {scene.title}
+            </h1>
+            {scene.description && (
+              <p className="text-white/65 text-sm mt-2 leading-relaxed line-clamp-2">{scene.description}</p>
+            )}
           </div>
+        </div>
 
-          {/* CTA */}
-          <Button
-            onClick={() => setCharacterModalOpen(true)}
-            className="w-full h-12 bg-emerald-600 hover:bg-emerald-700 text-white text-base font-semibold gap-2"
-          >
-            <Play className="w-5 h-5" />
-            이 장면으로 대화 시작
-          </Button>
+        {/* ── 다크 컨텐츠 영역 ──────────────────────── */}
+        <div className="bg-slate-950 px-5 pt-7 pb-36 space-y-8">
+
+          {/* 분위기 */}
+          {scene.mood && (
+            <div className="flex items-center gap-2.5">
+              <Wind className="w-4 h-4 text-emerald-400 flex-shrink-0" />
+              <span className="text-emerald-400 text-sm font-medium">{scene.mood}</span>
+            </div>
+          )}
+
+          {/* 배경 상황 */}
+          {scene.setting && (
+            <div>
+              <h3 className="text-[10px] font-bold text-slate-600 uppercase tracking-[0.15em] mb-3 flex items-center gap-1.5">
+                <MapPin className="w-3.5 h-3.5" />배경 상황
+              </h3>
+              <p className="text-slate-300 text-sm leading-[1.8] font-light">{scene.setting}</p>
+            </div>
+          )}
+
+          {/* 첫 대사 - 시네마틱 인용구 */}
+          {scene.openingLine && (
+            <div className="relative pl-5 border-l-2 border-emerald-500/50 py-1">
+              <p className="text-[10px] font-bold text-emerald-500 uppercase tracking-[0.15em] mb-2.5">첫 대사</p>
+              <p className="text-white/85 text-[15px] italic leading-[1.85] font-light">
+                "{scene.openingLine}"
+              </p>
+            </div>
+          )}
+
+          {/* 태그 */}
+          {scene.tags && scene.tags.length > 0 && (
+            <div className="flex flex-wrap gap-2 pt-1">
+              {scene.tags.map(tag => (
+                <span
+                  key={tag}
+                  className="text-xs bg-white/[0.07] text-slate-400 px-3 py-1.5 rounded-full border border-white/[0.08]"
+                >
+                  #{tag}
+                </span>
+              ))}
+            </div>
+          )}
         </div>
       </PersonaLayout>
+
+      {/* ── 플로팅 CTA ─────────────────────────────── */}
+      <div className="fixed bottom-[68px] md:bottom-6 left-0 right-0 px-5 z-30 pointer-events-none">
+        <Button
+          onClick={() => setCharacterModalOpen(true)}
+          className="w-full h-14 bg-emerald-500 hover:bg-emerald-400 active:scale-[0.98] text-white text-base font-bold gap-2.5 rounded-2xl shadow-2xl shadow-emerald-500/25 transition-all pointer-events-auto"
+        >
+          <Play className="w-5 h-5 fill-white stroke-none" />
+          이 장면으로 대화 시작
+        </Button>
+      </div>
 
       {/* Character selection modal */}
       {characterModalOpen && (

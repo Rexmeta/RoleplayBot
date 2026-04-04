@@ -30,6 +30,19 @@ interface PersonaUserScene {
 
 const GENRES = ["전체", "로맨스", "판타지", "미스터리", "SF", "일상", "직장", "학교", "역사"];
 
+const SCENE_IMAGE_MAP: Record<string, string> = {
+  "sample-scene-rainy-cafe": "/scenes/rainy-cafe.png",
+  "sample-scene-midnight-store": "/scenes/midnight-store.png",
+  "sample-scene-magic-library": "/scenes/magic-library.png",
+  "sample-scene-space-observatory": "/scenes/space-observatory.png",
+  "sample-scene-detective-office": "/scenes/detective-office.png",
+  "sample-scene-hangang-night": "/scenes/hangang-night.png",
+  "sample-scene-snowy-lodge": "/scenes/snowy-lodge.png",
+  "sample-scene-deep-sea-lab": "/scenes/deep-sea-lab.png",
+  "sample-scene-jazz-bar": "/scenes/jazz-bar.png",
+  "sample-scene-ruined-kingdom": "/scenes/ruined-kingdom.png",
+};
+
 const GENRE_IMAGE_MAP: Record<string, string> = {
   "로맨스": "https://images.unsplash.com/photo-1442512595331-e89e73853f31?w=600&h=400&fit=crop&auto=format",
   "판타지": "https://images.unsplash.com/photo-1448375240586-882707db888b?w=600&h=400&fit=crop&auto=format",
@@ -41,6 +54,12 @@ const GENRE_IMAGE_MAP: Record<string, string> = {
   "역사": "https://images.unsplash.com/photo-1464817739973-0128fe77aaa1?w=600&h=400&fit=crop&auto=format",
 };
 const DEFAULT_SCENE_IMAGE = "https://images.unsplash.com/photo-1477959858617-67f85cf4f1df?w=600&h=400&fit=crop&auto=format";
+
+function getSceneImage(scene: PersonaUserScene): string {
+  if (SCENE_IMAGE_MAP[scene.id]) return SCENE_IMAGE_MAP[scene.id];
+  const genreKey = Object.keys(GENRE_IMAGE_MAP).find(k => scene.genre.includes(k));
+  return genreKey ? GENRE_IMAGE_MAP[genreKey] : DEFAULT_SCENE_IMAGE;
+}
 
 type SceneTab = "all" | "mine";
 
@@ -219,7 +238,7 @@ function SceneCard({ scene, isMine, onDelete }: {
         {/* 장르별 이미지 헤더 */}
         <div className="relative h-36 overflow-hidden flex-shrink-0">
           <img
-            src={GENRE_IMAGE_MAP[scene.genre] || DEFAULT_SCENE_IMAGE}
+            src={getSceneImage(scene)}
             alt={scene.genre}
             className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
           />

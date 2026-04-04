@@ -1,0 +1,62 @@
+uploads = []
+outputs = []
+
+[[generated]]
+id = "c-sonjZfKhxAi5Y6vqDc1"
+uri = "file://client/public/scenes/rainy-cafe.png"
+type = "image"
+title = "generated_image"
+
+[[generated]]
+id = "OQJ71K_8UUasi8buG9La4"
+uri = "file://client/public/scenes/midnight-store.png"
+type = "image"
+title = "generated_image"
+
+[[generated]]
+id = "9lP4qkcEP7UX4SS54g_tv"
+uri = "file://client/public/scenes/magic-library.png"
+type = "image"
+title = "generated_image"
+
+[[generated]]
+id = "WWjBiv0kPgnHjHjnPkBHs"
+uri = "file://client/public/scenes/space-observatory.png"
+type = "image"
+title = "generated_image"
+
+[[generated]]
+id = "cZ7KQkuXf1yu4A44I324k"
+uri = "file://client/public/scenes/detective-office.png"
+type = "image"
+title = "generated_image"
+
+[[generated]]
+id = "Taz9FoFzHhq4_z8lYpFoq"
+uri = "file://client/public/scenes/hangang-night.png"
+type = "image"
+title = "generated_image"
+
+[[generated]]
+id = "hHTwdZoxj2tUm-dU1E1pk"
+uri = "file://client/public/scenes/snowy-lodge.png"
+type = "image"
+title = "generated_image"
+
+[[generated]]
+id = "9UC4wYuUXZWDiKxjQF56-"
+uri = "file://client/public/scenes/deep-sea-lab.png"
+type = "image"
+title = "generated_image"
+
+[[generated]]
+id = "S-fFqhfL6zhdAd8vNeq6x"
+uri = "file://client/public/scenes/jazz-bar.png"
+type = "image"
+title = "generated_image"
+
+[[generated]]
+id = "Bq6PqysGrzntYoY21eq0I"
+uri = "file://client/public/scenes/ruined-kingdom.png"
+type = "image"
+title = "generated_image"
