@@ -6,8 +6,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import {
   X, Wand2, Pen, Sparkles, ChevronRight, Loader2,
-  Heart, Sword, Search, Rocket, Coffee, Briefcase,
-  GraduationCap, BookOpen, Check, Edit3, MapPin, Wind,
+  Check, Edit3, MapPin, Wind,
 } from "lucide-react";
 
 export interface PersonaScene {
@@ -23,85 +22,85 @@ type Tab = "template" | "custom" | "ai";
 interface GenreTemplate {
   genre: string;
   label: string;
-  icon: React.ReactNode;
+  tagline: string;
+  imageUrl: string;
   setting: string;
   mood: string;
   openingLineTemplate: (personaName: string) => string;
-  color: string;
 }
 
 const GENRE_TEMPLATES: GenreTemplate[] = [
   {
     genre: "로맨스",
     label: "로맨스",
-    icon: <Heart className="w-5 h-5" />,
+    tagline: "설레는 카페의 오후",
+    imageUrl: "https://images.unsplash.com/photo-1442512595331-e89e73853f31?w=600&h=400&fit=crop&auto=format",
     setting: "카페 창가 자리, 오후의 햇살이 내려앉는 조용한 공간. 두 사람은 우연히 같은 자리를 예약했다.",
     mood: "설레고 따뜻한",
     openingLineTemplate: (name) => `(당신을 보며 살짝 웃는다) 저도 여기 자주 오는데… 처음 뵙는 것 같네요.`,
-    color: "bg-pink-50 border-pink-200 text-pink-700 hover:bg-pink-100",
   },
   {
     genre: "판타지",
     label: "판타지",
-    icon: <Sword className="w-5 h-5" />,
+    tagline: "마법이 깃든 신비로운 숲",
+    imageUrl: "https://images.unsplash.com/photo-1448375240586-882707db888b?w=600&h=400&fit=crop&auto=format",
     setting: "마법의 숲 끝자락, 고대 유적의 입구 앞. 달빛이 돌기둥 사이로 흘러내린다.",
     mood: "신비롭고 긴장감 넘치는",
     openingLineTemplate: (name) => `오랜 예언대로 당신이 왔군요. 이 유적은 선택받은 자만 들어갈 수 있습니다.`,
-    color: "bg-purple-50 border-purple-200 text-purple-700 hover:bg-purple-100",
   },
   {
     genre: "미스터리",
     label: "미스터리",
-    icon: <Search className="w-5 h-5" />,
+    tagline: "빗소리와 음산한 골목",
+    imageUrl: "https://images.unsplash.com/photo-1519608487953-e999c86e7455?w=600&h=400&fit=crop&auto=format",
     setting: "빗소리가 창을 두드리는 탐정 사무소. 누군가 문을 두드린다.",
     mood: "긴장감 있고 음산한",
     openingLineTemplate: (name) => `(낮은 목소리로) 이 사건, 아무에게도 말하지 않았겠죠? 어서 들어오세요.`,
-    color: "bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100",
   },
   {
     genre: "SF",
     label: "SF",
-    icon: <Rocket className="w-5 h-5" />,
+    tagline: "무한한 우주의 비상경보",
+    imageUrl: "https://images.unsplash.com/photo-1462331940025-496dfbfc7564?w=600&h=400&fit=crop&auto=format",
     setting: "우주 정거장의 관제실. 창밖으로 무수히 많은 별이 펼쳐진다. 비상경보가 울리고 있다.",
     mood: "긴박하고 SF적인",
     openingLineTemplate: (name) => `통신 연결 확인했습니다. 당신이 구출 팀이군요—시간이 없어요, 빨리 상황을 설명하죠.`,
-    color: "bg-blue-50 border-blue-200 text-blue-700 hover:bg-blue-100",
   },
   {
     genre: "일상",
     label: "일상",
-    icon: <Coffee className="w-5 h-5" />,
+    tagline: "따뜻한 도시의 하루",
+    imageUrl: "https://images.unsplash.com/photo-1477959858617-67f85cf4f1df?w=600&h=400&fit=crop&auto=format",
     setting: "동네 작은 카페. 따뜻한 커피 향이 가득하고, 배경에는 잔잔한 음악이 흐른다.",
     mood: "편안하고 유쾌한",
     openingLineTemplate: (name) => `오늘 하루 어땠어요? 얼굴이 좀 피곤해 보이네요—커피 한 잔 어때요?`,
-    color: "bg-amber-50 border-amber-200 text-amber-700 hover:bg-amber-100",
   },
   {
     genre: "직장",
     label: "직장",
-    icon: <Briefcase className="w-5 h-5" />,
+    tagline: "긴장감 넘치는 오피스",
+    imageUrl: "https://images.unsplash.com/photo-1497366216548-37526070297c?w=600&h=400&fit=crop&auto=format",
     setting: "회사 회의실. 내일 오전까지 제출해야 하는 프로젝트 보고서를 두고 팀이 모여 있다.",
     mood: "긴장감 있고 진지한",
     openingLineTemplate: (name) => `이 데이터 맞게 본 거 맞죠? 클라이언트 측에서 이 부분 꼭 짚어볼 것 같아서요.`,
-    color: "bg-emerald-50 border-emerald-200 text-emerald-700 hover:bg-emerald-100",
   },
   {
     genre: "학교",
     label: "학교",
-    icon: <GraduationCap className="w-5 h-5" />,
+    tagline: "시험 기간의 조용한 교실",
+    imageUrl: "https://images.unsplash.com/photo-1580582932707-520aed937b7b?w=600&h=400&fit=crop&auto=format",
     setting: "방과 후 조용한 도서관 한 켠. 창밖으로는 해가 지고 있고, 시험 기간이 한창이다.",
     mood: "조용하고 약간 긴장된",
     openingLineTemplate: (name) => `저기…같이 공부해도 될까요? 이 단원이 너무 어려워서요.`,
-    color: "bg-teal-50 border-teal-200 text-teal-700 hover:bg-teal-100",
   },
   {
     genre: "역사",
     label: "역사",
-    icon: <BookOpen className="w-5 h-5" />,
+    tagline: "달빛 아래 고성의 밤",
+    imageUrl: "https://images.unsplash.com/photo-1464817739973-0128fe77aaa1?w=600&h=400&fit=crop&auto=format",
     setting: "19세기 말 서울의 어느 한옥 사랑채. 촛불이 흔들리고, 창호지 너머 달빛이 비친다.",
     mood: "격조 있고 서정적인",
     openingLineTemplate: (name) => `이 시각에 어인 일로 방문하셨소? 어서 드십시오.`,
-    color: "bg-orange-50 border-orange-200 text-orange-700 hover:bg-orange-100",
   },
 ];
 
@@ -179,6 +178,8 @@ export default function SceneSetupModal({ personaName, personaDescription, onCon
     { key: "ai" as Tab, label: "AI 생성", icon: <Wand2 className="w-3.5 h-3.5" /> },
   ];
 
+  const selectedTmpl = selectedGenre ? GENRE_TEMPLATES.find((t) => t.genre === selectedGenre) : null;
+
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50 backdrop-blur-sm">
       <div className="bg-white rounded-t-2xl sm:rounded-2xl w-full sm:max-w-lg max-h-[90dvh] flex flex-col shadow-2xl overflow-hidden">
@@ -218,47 +219,81 @@ export default function SceneSetupModal({ personaName, personaDescription, onCon
           {tab === "template" && (
             <div className="p-4 space-y-3">
               <p className="text-xs text-slate-500">원하는 장르를 선택하세요. 배경과 오프닝 라인이 자동으로 설정됩니다.</p>
-              <div className="grid grid-cols-2 gap-2">
-                {GENRE_TEMPLATES.map((tmpl) => (
-                  <button
-                    key={tmpl.genre}
-                    onClick={() => setSelectedGenre(selectedGenre === tmpl.genre ? null : tmpl.genre)}
-                    className={`relative flex flex-col items-center gap-2 p-3 rounded-xl border-2 transition-all text-center ${
-                      selectedGenre === tmpl.genre
-                        ? "border-emerald-500 bg-emerald-50 text-emerald-700"
-                        : `border ${tmpl.color}`
-                    }`}
-                  >
-                    {selectedGenre === tmpl.genre && (
-                      <div className="absolute top-1.5 right-1.5 w-4 h-4 bg-emerald-500 rounded-full flex items-center justify-center">
-                        <Check className="w-2.5 h-2.5 text-white" />
+
+              {/* Image card grid */}
+              <div className="grid grid-cols-2 gap-2.5">
+                {GENRE_TEMPLATES.map((tmpl) => {
+                  const isSelected = selectedGenre === tmpl.genre;
+                  return (
+                    <button
+                      key={tmpl.genre}
+                      onClick={() => setSelectedGenre(isSelected ? null : tmpl.genre)}
+                      className={`relative rounded-xl overflow-hidden aspect-[4/3] transition-all duration-300 focus:outline-none ${
+                        isSelected
+                          ? "ring-[3px] ring-emerald-400 shadow-[0_0_16px_4px_rgba(52,211,153,0.45)]"
+                          : "ring-1 ring-transparent hover:ring-slate-300 hover:shadow-md"
+                      }`}
+                    >
+                      {/* Full-bleed background image */}
+                      <div
+                        className="absolute inset-0 bg-cover bg-center transition-transform duration-500 hover:scale-105"
+                        style={{ backgroundImage: `url(${tmpl.imageUrl})` }}
+                      />
+
+                      {/* Gradient overlay */}
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/75 via-black/20 to-transparent" />
+
+                      {/* Selected check badge */}
+                      {isSelected && (
+                        <div className="absolute top-2 right-2 w-6 h-6 bg-emerald-500 rounded-full flex items-center justify-center shadow-lg z-10">
+                          <Check className="w-3.5 h-3.5 text-white" />
+                        </div>
+                      )}
+
+                      {/* Bottom text overlay */}
+                      <div className="absolute bottom-0 left-0 right-0 px-2.5 pb-2.5 pt-4 text-left z-10">
+                        <p className="text-white text-xs font-bold leading-tight drop-shadow-md">{tmpl.label}</p>
+                        <p className="text-white/75 text-[10px] leading-tight mt-0.5 drop-shadow">{tmpl.tagline}</p>
                       </div>
-                    )}
-                    {tmpl.icon}
-                    <span className="text-xs font-semibold">{tmpl.label}</span>
-                  </button>
-                ))}
+                    </button>
+                  );
+                })}
               </div>
 
-              {selectedGenre && (() => {
-                const tmpl = GENRE_TEMPLATES.find((t) => t.genre === selectedGenre)!;
-                return (
-                  <div className="bg-slate-50 rounded-xl p-3 space-y-2 text-xs">
-                    <div className="flex items-start gap-2">
-                      <MapPin className="w-3.5 h-3.5 text-slate-400 mt-0.5 flex-shrink-0" />
-                      <p className="text-slate-600 leading-relaxed">{tmpl.setting}</p>
-                    </div>
-                    <div className="flex items-start gap-2">
-                      <Wind className="w-3.5 h-3.5 text-slate-400 mt-0.5 flex-shrink-0" />
-                      <p className="text-slate-600">{tmpl.mood} 분위기</p>
-                    </div>
-                    <div className="flex items-start gap-2">
-                      <span className="text-slate-400 text-[10px] mt-0.5 flex-shrink-0 font-semibold">첫마디</span>
-                      <p className="text-emerald-700 italic">"{tmpl.openingLineTemplate(personaName)}"</p>
+              {/* Cinematic preview panel */}
+              {selectedTmpl && (
+                <div
+                  className="relative rounded-xl overflow-hidden"
+                  style={{ minHeight: "140px" }}
+                >
+                  {/* Background image */}
+                  <div
+                    className="absolute inset-0 bg-cover bg-center"
+                    style={{ backgroundImage: `url(${selectedTmpl.imageUrl})` }}
+                  />
+                  {/* Dark overlay */}
+                  <div className="absolute inset-0 bg-black/60 backdrop-blur-[1px]" />
+
+                  {/* Glass card content */}
+                  <div className="relative z-10 p-3">
+                    <div className="bg-white/5 backdrop-blur-md border border-white/10 rounded-xl p-3 space-y-2">
+                      <p className="text-emerald-300 text-[10px] font-bold uppercase tracking-widest">{selectedTmpl.label} 장면 미리보기</p>
+                      <div className="flex items-start gap-2">
+                        <MapPin className="w-3.5 h-3.5 text-white/60 mt-0.5 flex-shrink-0" />
+                        <p className="text-white/90 text-xs leading-relaxed">{selectedTmpl.setting}</p>
+                      </div>
+                      <div className="flex items-start gap-2">
+                        <Wind className="w-3.5 h-3.5 text-white/60 mt-0.5 flex-shrink-0" />
+                        <p className="text-white/80 text-xs">{selectedTmpl.mood} 분위기</p>
+                      </div>
+                      <div className="flex items-start gap-2 pt-1 border-t border-white/15">
+                        <span className="text-white/50 text-[10px] mt-0.5 flex-shrink-0 font-semibold uppercase">첫마디</span>
+                        <p className="text-emerald-300 italic text-xs leading-relaxed">"{selectedTmpl.openingLineTemplate(personaName)}"</p>
+                      </div>
                     </div>
                   </div>
-                );
-              })()}
+                </div>
+              )}
             </div>
           )}
 

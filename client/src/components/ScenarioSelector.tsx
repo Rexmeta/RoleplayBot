@@ -620,18 +620,18 @@ export default function ScenarioSelector({ onScenarioSelect, playerProfile }: Sc
               return (
                 <Card 
                   key={scenario.id} 
-                  className="overflow-hidden group relative border-0 shadow-lg hover:shadow-2xl transition-all duration-500"
+                  className="overflow-hidden group relative border-0 shadow-lg hover:shadow-2xl hover:scale-105 transition-all duration-500"
                 >
-                  {/* 배경 이미지 레이어 - 줌 인 효과 */}
+                  {/* 배경 이미지 레이어 - 줌 인 + 밝기 효과 */}
                   <div
-                    className="absolute inset-0 bg-cover bg-center bg-no-repeat transition-all duration-700 ease-out group-hover:scale-110 group-hover:brightness-110"
+                    className="absolute inset-0 bg-cover bg-center bg-no-repeat transition-all duration-700 ease-out group-hover:scale-105 group-hover:brightness-110"
                     style={{
                       backgroundImage: `url(${toMediaUrl((scenario as any).thumbnail || scenario.image) || 'https://images.unsplash.com/photo-1557804506-669a67965ba0?w=800&h=400&fit=crop&auto=format'})`,
                     }}
                   />
                   
-                  {/* 그라데이션 오버레이 - 호버시 밝아지는 효과 */}
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/40 to-black/20 group-hover:from-black/70 group-hover:via-black/30 group-hover:to-transparent transition-all duration-500" />
+                  {/* 시네마틱 그라디언트 오버레이 - 하단 블랙 80%→투명 */}
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/50 to-black/10 group-hover:from-black/65 group-hover:via-black/35 group-hover:to-transparent transition-all duration-500" />
                   
                   {/* 시나리오 카드 콘텐츠 */}
                   <div
@@ -742,21 +742,21 @@ export default function ScenarioSelector({ onScenarioSelect, playerProfile }: Sc
                     </div>
                   </div>
                   
-                  {/* 펼쳐지는 요약 정보 영역 */}
+                  {/* 펼쳐지는 요약 정보 영역 - glass-morphism */}
                   <div 
                     className={`relative transition-all duration-500 ease-in-out ${
                       isExpanded ? 'max-h-[800px] opacity-100' : 'max-h-0 opacity-0 overflow-hidden'
                     }`}
                   >
-                    <div className="bg-gradient-to-b from-slate-900 to-slate-800 p-5 text-white">
+                    <div className="bg-white/5 backdrop-blur-md border-t border-white/10 p-5 text-white">
                       {/* 시나리오 개요 요약 (150자) */}
                       {scenario.description && (() => {
                         const desc = getTranslatedDescription(scenario.id, scenario.description);
                         const isTruncated = desc.length > 150;
                         return (
-                          <div className="bg-white/5 rounded-lg p-3 mb-4">
+                          <div className="bg-white/5 backdrop-blur-md border border-white/10 rounded-xl p-3 mb-3">
                             <h4 className="font-medium text-white mb-2 flex items-center text-xs">
-                              <i className="fas fa-file-alt mr-2 text-blue-400"></i>
+                              <i className="fas fa-file-alt mr-2 text-blue-300"></i>
                               {t('scenario.overview')}
                             </h4>
                             <p className="text-gray-300 text-xs leading-relaxed">
@@ -768,9 +768,9 @@ export default function ScenarioSelector({ onScenarioSelect, playerProfile }: Sc
 
                       {/* 상황 요약 (3줄 제한) */}
                       {scenario.context?.situation && (
-                        <div className="bg-white/5 rounded-lg p-3 mb-4">
+                        <div className="bg-white/5 backdrop-blur-md border border-white/10 rounded-xl p-3 mb-3">
                           <h4 className="font-medium text-white mb-2 flex items-center text-xs">
-                            <i className="fas fa-exclamation-triangle mr-2 text-yellow-400"></i>
+                            <i className="fas fa-exclamation-triangle mr-2 text-yellow-300"></i>
                             {t('scenario.situation')}
                           </h4>
                           <p className="text-gray-300 text-xs leading-relaxed line-clamp-3">
@@ -810,7 +810,7 @@ export default function ScenarioSelector({ onScenarioSelect, playerProfile }: Sc
                           variant="ghost"
                           size="sm"
                           onClick={(e) => { e.stopPropagation(); setDetailScenario(scenario); }}
-                          className="flex-1 text-xs text-gray-300 hover:text-white hover:bg-white/10 border border-white/20"
+                          className="flex-1 text-xs text-gray-300 hover:text-white hover:bg-white/15 border border-white/20 backdrop-blur-sm"
                         >
                           <i className="fas fa-expand-alt mr-1.5"></i>
                           {t('scenario.viewDetail', '상세 내용 보기')}
