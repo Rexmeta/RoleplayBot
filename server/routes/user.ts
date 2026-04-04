@@ -298,12 +298,32 @@ export default function createUserRouter(isAuthenticated: any) {
       throw createHttpError(403, "Access denied. System admin only.");
     }
     const userId = req.user?.id;
-    const { mode = "text", difficulty = 2, scene: rawScene = null } = req.body;
-    const sceneResult = sceneSchema.safeParse(rawScene ?? null);
-    if (!sceneResult.success && rawScene !== null && rawScene !== undefined) {
-      throw createHttpError(400, "Invalid scene payload");
+    const { mode = "text", difficulty = 2, scene: rawScene = null, sceneId: rawSceneId = null } = req.body;
+
+    let scene = null;
+    if (rawSceneId) {
+      // Server-side scene lookup by ID
+      const personaUserScene = await storage.getPersonaUserSceneById(rawSceneId);
+      if (!personaUserScene) throw createHttpError(404, "장면을 찾을 수 없습니다.");
+      if (!personaUserScene.isPublic && personaUserScene.creatorId !== userId) {
+        throw createHttpError(403, "이 장면에 접근할 권한이 없습니다.");
+      }
+      scene = {
+        title: personaUserScene.title,
+        setting: personaUserScene.setting || "",
+        mood: personaUserScene.mood || "",
+        openingLine: personaUserScene.openingLine || "",
+        genre: personaUserScene.genre || "",
+      };
+      // Increment use count when starting a chat with this scene
+      await storage.incrementPersonaUserSceneUseCount(rawSceneId);
+    } else if (rawScene !== null && rawScene !== undefined) {
+      const sceneResult = sceneSchema.safeParse(rawScene);
+      if (!sceneResult.success) {
+        throw createHttpError(400, "Invalid scene payload");
+      }
+      scene = sceneResult.success ? sceneResult.data : null;
     }
-    const scene = sceneResult.success ? sceneResult.data : null;
     const persona = await storage.getUserPersonaById(req.params.id);
     if (!persona) throw createHttpError(404, "Persona not found");
     if (!persona.isPublic && persona.creatorId !== userId) {

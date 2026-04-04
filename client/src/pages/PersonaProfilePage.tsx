@@ -108,7 +108,9 @@ export default function PersonaProfilePage() {
   const id = params.id;
   const { toast } = useToast();
 
-  const resumeConversationId = new URLSearchParams(window.location.search).get("resume");
+  const urlSearch = new URLSearchParams(window.location.search);
+  const resumeConversationId = urlSearch.get("resume");
+  const sceneIdFromUrl = urlSearch.get("sceneId");
 
   const isMbti = Boolean(id?.startsWith("mbti-"));
   const mbtiId = isMbti ? id!.replace("mbti-", "") : null;
@@ -119,12 +121,14 @@ export default function PersonaProfilePage() {
   const [mbtiGender, setMbtiGender] = useState<"male" | "female">("male");
   const [editorOpen, setEditorOpen] = useState(false);
   const [resumeHandled, setResumeHandled] = useState(false);
+  const [sceneAutoStartHandled, setSceneAutoStartHandled] = useState(false);
 
   useEffect(() => {
     setChatWindow(null);
     setIsPending(false);
     setResumeHandled(false);
-  }, [id, resumeConversationId]);
+    setSceneAutoStartHandled(false);
+  }, [id, resumeConversationId, sceneIdFromUrl]);
 
   const { data: persona, isLoading: personaLoading } = useQuery<UserPersona>({
     queryKey: ["/api/user-personas", id],
@@ -150,6 +154,14 @@ export default function PersonaProfilePage() {
     queryFn: () => apiRequest("GET", `/api/conversations/${resumeConversationId}`).then(r => r.json()),
     enabled: !!resumeConversationId && !resumeHandled,
     retry: 1,
+  });
+
+  const { data: sceneData } = useQuery<{
+    id: string; title: string; setting: string; mood: string; openingLine: string; genre: string;
+  }>({
+    queryKey: ["/api/persona-user-scenes", sceneIdFromUrl],
+    queryFn: () => apiRequest("GET", `/api/persona-user-scenes/${sceneIdFromUrl}`).then(r => r.json()),
+    enabled: !!sceneIdFromUrl && !sceneAutoStartHandled,
   });
 
   const handleExitChat = () => {
@@ -250,6 +262,50 @@ export default function PersonaProfilePage() {
       );
     }
   }, [resumeConversation, resumeError, resumeHandled, chatWindow, persona, personaLoading, mbtiPersona, mbtiLoading, isMbti, mbtiGender, toast]);
+
+  const startUserChatWithSceneMutation = useMutation({
+    mutationFn: (payload: { personaId: string; scene: { title: string; setting: string; mood: string; openingLine: string; genre: string } }) =>
+      apiRequest("POST", `/api/user-personas/${payload.personaId}/start-chat`, { mode: "text", difficulty: 2, scene: payload.scene }).then(r => r.json()),
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/conversations"] });
+      if (persona) {
+        const scenario = buildUserPersonaScenario(persona, 2);
+        const chatPersona = buildPersonaForChat(persona);
+        setChatWindow(
+          <ChatWindow
+            conversationId={data.id}
+            scenario={scenario}
+            persona={chatPersona}
+            initialMessages={data.messages || []}
+            onChatComplete={handleExitChat}
+            onExit={handleExitChat}
+          />
+        );
+      }
+      setIsPending(false);
+    },
+    onError: () => {
+      setIsPending(false);
+      setSceneAutoStartHandled(true);
+    },
+  });
+
+  useEffect(() => {
+    if (!sceneIdFromUrl || sceneAutoStartHandled || chatWindow || resumeConversationId) return;
+    if (!sceneData || !persona || personaLoading) return;
+    setSceneAutoStartHandled(true);
+    setIsPending(true);
+    startUserChatWithSceneMutation.mutate({
+      personaId: persona.id,
+      scene: {
+        title: sceneData.title,
+        setting: sceneData.setting,
+        mood: sceneData.mood,
+        openingLine: sceneData.openingLine,
+        genre: sceneData.genre,
+      },
+    });
+  }, [sceneIdFromUrl, sceneData, persona, personaLoading, sceneAutoStartHandled, chatWindow, resumeConversationId]);
 
   const likeMutation = useMutation({
     mutationFn: () => apiRequest("POST", `/api/user-personas/${id}/like`).then(r => r.json()),

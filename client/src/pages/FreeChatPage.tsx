@@ -253,11 +253,17 @@ export default function FreeChatPage() {
   const { user } = useAuth();
   const { toast } = useToast();
 
+  // URL params for scene-driven chat start
+  const urlParams = new URLSearchParams(window.location.search);
+  const sceneIdFromUrl = urlParams.get("sceneId");
+  const personaIdFromUrl = urlParams.get("personaId");
+
   const [sidebarTab, setSidebarTab] = useState<SidebarTab>("discover");
   const [mainView, setMainView] = useState<MainView>("browse");
   const [searchQuery, setSearchQuery] = useState("");
   const [discoverSort, setDiscoverSort] = useState<"likes" | "recent">("likes");
   const [categoryFilter, setCategoryFilter] = useState<string | null>(null);
+  const [sceneAutoStartDone, setSceneAutoStartDone] = useState(false);
 
   // 선택된 페르소나
   const [selectedUserPersona, setSelectedUserPersona] = useState<UserPersona | null>(null);
@@ -293,6 +299,20 @@ export default function FreeChatPage() {
     queryFn: () => apiRequest("GET", "/api/user-personas").then(r => r.json()),
   });
 
+  // Query scene data if sceneId URL param is present
+  const { data: urlScene } = useQuery({
+    queryKey: ["/api/persona-user-scenes", sceneIdFromUrl],
+    queryFn: () => apiRequest("GET", `/api/persona-user-scenes/${sceneIdFromUrl}`).then(r => r.json()),
+    enabled: !!sceneIdFromUrl && !sceneAutoStartDone,
+  });
+
+  // Query target persona if personaId URL param is present
+  const { data: urlPersona } = useQuery({
+    queryKey: ["/api/user-personas", personaIdFromUrl],
+    queryFn: () => apiRequest("GET", `/api/user-personas/${personaIdFromUrl}`).then(r => r.json()),
+    enabled: !!personaIdFromUrl && !sceneAutoStartDone,
+  });
+
   useEffect(() => {
     if (!selectedUserPersona) return;
     const fresh = myPersonas.find(p => p.id === selectedUserPersona.id);
@@ -300,6 +320,34 @@ export default function FreeChatPage() {
       setSelectedUserPersona(fresh);
     }
   }, [myPersonas]);
+
+  // Auto-start chat when navigating from scene detail page with sceneId + personaId
+  useEffect(() => {
+    if (!sceneIdFromUrl || !personaIdFromUrl || sceneAutoStartDone) return;
+    if (!urlScene || !urlPersona) return;
+    setSceneAutoStartDone(true);
+    const scene: PersonaScene = {
+      title: urlScene.title,
+      setting: urlScene.setting || "",
+      mood: urlScene.mood || "",
+      openingLine: urlScene.openingLine || "",
+      genre: urlScene.genre || "일상",
+    };
+    setSelectedUserPersona(urlPersona);
+    apiRequest("POST", `/api/user-personas/${personaIdFromUrl}/start-chat`, {
+      mode: chatMode,
+      difficulty: chatDifficulty,
+      sceneId: sceneIdFromUrl,
+    }).then(r => r.json()).then(data => {
+      localStorage.setItem(`persona_conv:${personaIdFromUrl}`, data.id);
+      setConversationId(data.id);
+      setActiveScene(scene);
+      setSceneCardOpen(true);
+      setMainView("chat");
+    }).catch(err => {
+      toast({ title: "대화 시작 실패", description: err.message, variant: "destructive" });
+    });
+  }, [sceneIdFromUrl, personaIdFromUrl, urlScene, urlPersona, sceneAutoStartDone]);
 
   // Like mutation
   const likeMutation = useMutation({

@@ -1,4 +1,4 @@
-import { type Conversation, type InsertConversation, type Feedback, type InsertFeedback, type PersonaSelection, type StrategyChoice, type SequenceAnalysis, type User, type UpsertUser, type ScenarioRun, type InsertScenarioRun, type PersonaRun, type InsertPersonaRun, type ChatMessage, type InsertChatMessage, type Category, type InsertCategory, type SystemSetting, type AiUsageLog, type InsertAiUsageLog, type AiUsageSummary, type AiUsageByFeature, type AiUsageByModel, type AiUsageDaily, type EvaluationCriteriaSet, type InsertEvaluationCriteriaSet, type EvaluationDimension, type InsertEvaluationDimension, type EvaluationCriteriaSetWithDimensions, type SupportedLanguage, type InsertSupportedLanguage, type ScenarioTranslation, type InsertScenarioTranslation, type PersonaTranslation, type InsertPersonaTranslation, type CategoryTranslation, type InsertCategoryTranslation, type EvaluationCriteriaSetTranslation, type InsertEvaluationCriteriaSetTranslation, type EvaluationDimensionTranslation, type InsertEvaluationDimensionTranslation, type Scenario, type InsertScenario, type MbtiPersona, type InsertMbtiPersona, type Company, type InsertCompany, type Organization, type InsertOrganization, type OperatorAssignment, type InsertOperatorAssignment, type UserPersona, type InsertUserPersona, type UserBookmark, type ScenarioStats, conversations, feedbacks, users, scenarioRuns, personaRuns, chatMessages, categories, systemSettings, aiUsageLogs, evaluationCriteriaSets, evaluationDimensions, supportedLanguages, scenarioTranslations, personaTranslations, categoryTranslations, evaluationCriteriaSetTranslations, evaluationDimensionTranslations, scenarios, mbtiPersonas, companies, organizations, operatorAssignments, userPersonas, userPersonaLikes, userBookmarks } from "@shared/schema";
+import { type Conversation, type InsertConversation, type Feedback, type InsertFeedback, type PersonaSelection, type StrategyChoice, type SequenceAnalysis, type User, type UpsertUser, type ScenarioRun, type InsertScenarioRun, type PersonaRun, type InsertPersonaRun, type ChatMessage, type InsertChatMessage, type Category, type InsertCategory, type SystemSetting, type AiUsageLog, type InsertAiUsageLog, type AiUsageSummary, type AiUsageByFeature, type AiUsageByModel, type AiUsageDaily, type EvaluationCriteriaSet, type InsertEvaluationCriteriaSet, type EvaluationDimension, type InsertEvaluationDimension, type EvaluationCriteriaSetWithDimensions, type SupportedLanguage, type InsertSupportedLanguage, type ScenarioTranslation, type InsertScenarioTranslation, type PersonaTranslation, type InsertPersonaTranslation, type CategoryTranslation, type InsertCategoryTranslation, type EvaluationCriteriaSetTranslation, type InsertEvaluationCriteriaSetTranslation, type EvaluationDimensionTranslation, type InsertEvaluationDimensionTranslation, type Scenario, type InsertScenario, type MbtiPersona, type InsertMbtiPersona, type Company, type InsertCompany, type Organization, type InsertOrganization, type OperatorAssignment, type InsertOperatorAssignment, type UserPersona, type InsertUserPersona, type UserBookmark, type ScenarioStats, type PersonaUserScene, type InsertPersonaUserScene, conversations, feedbacks, users, scenarioRuns, personaRuns, chatMessages, categories, systemSettings, aiUsageLogs, evaluationCriteriaSets, evaluationDimensions, supportedLanguages, scenarioTranslations, personaTranslations, categoryTranslations, evaluationCriteriaSetTranslations, evaluationDimensionTranslations, scenarios, mbtiPersonas, companies, organizations, operatorAssignments, userPersonas, userPersonaLikes, userBookmarks, personaUserScenes } from "@shared/schema";
 import { randomUUID } from "crypto";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { Pool } from "pg";
@@ -261,6 +261,15 @@ export interface IStorage {
   toggleUserPersonaLike(userId: string, personaId: string): Promise<{ liked: boolean; likeCount: number }>;
   getUserPersonaLike(userId: string, personaId: string): Promise<boolean>;
   incrementUserPersonaChatCount(id: string): Promise<void>;
+
+  // Persona X 사용자 장면 (PersonaUserScenes)
+  createPersonaUserScene(data: InsertPersonaUserScene): Promise<PersonaUserScene>;
+  getPersonaUserSceneById(id: string): Promise<PersonaUserScene | undefined>;
+  getPersonaUserScenesByCreator(creatorId: string, search?: string): Promise<PersonaUserScene[]>;
+  getPublicPersonaUserScenes(options?: { genre?: string; search?: string; limit?: number; offset?: number }): Promise<PersonaUserScene[]>;
+  updatePersonaUserScene(id: string, creatorId: string, data: Partial<InsertPersonaUserScene>): Promise<PersonaUserScene>;
+  deletePersonaUserScene(id: string, creatorId: string): Promise<void>;
+  incrementPersonaUserSceneUseCount(id: string): Promise<void>;
   
   // ==================== 3단 계층 구조: 회사 > 조직 > 카테고리 ====================
   
@@ -903,6 +912,15 @@ export class MemStorage implements IStorage {
   async toggleUserPersonaLike(_userId: string, _personaId: string): Promise<{ liked: boolean; likeCount: number }> { return { liked: false, likeCount: 0 }; }
   async getUserPersonaLike(_userId: string, _personaId: string): Promise<boolean> { return false; }
   async incrementUserPersonaChatCount(_id: string): Promise<void> {}
+
+  // Persona X 사용자 장면 stubs
+  async createPersonaUserScene(_data: InsertPersonaUserScene): Promise<PersonaUserScene> { throw new Error("Not implemented"); }
+  async getPersonaUserSceneById(_id: string): Promise<PersonaUserScene | undefined> { return undefined; }
+  async getPersonaUserScenesByCreator(_creatorId: string, _search?: string): Promise<PersonaUserScene[]> { return []; }
+  async getPublicPersonaUserScenes(_options?: { genre?: string; search?: string; limit?: number; offset?: number }): Promise<PersonaUserScene[]> { return []; }
+  async updatePersonaUserScene(_id: string, _creatorId: string, _data: Partial<InsertPersonaUserScene>): Promise<PersonaUserScene> { throw new Error("Not implemented"); }
+  async deletePersonaUserScene(_id: string, _creatorId: string): Promise<void> {}
+  async incrementPersonaUserSceneUseCount(_id: string): Promise<void> {}
 
   // 3단 계층 구조 - stub implementations
   async getCompany(_id: string): Promise<Company | undefined> { return undefined; }
@@ -2289,6 +2307,79 @@ export class PostgreSQLStorage implements IStorage {
     await db.update(userPersonas)
       .set({ chatCount: sqlBuilder`chat_count + 1` })
       .where(eq(userPersonas.id, id));
+  }
+
+  // ==================== Persona X 사용자 장면 ====================
+
+  async createPersonaUserScene(data: InsertPersonaUserScene): Promise<PersonaUserScene> {
+    const [scene] = await db.insert(personaUserScenes).values(data).returning();
+    return scene;
+  }
+
+  async getPersonaUserSceneById(id: string): Promise<PersonaUserScene | undefined> {
+    const [scene] = await db.select().from(personaUserScenes).where(eq(personaUserScenes.id, id));
+    return scene;
+  }
+
+  async getPersonaUserScenesByCreator(creatorId: string, search?: string): Promise<PersonaUserScene[]> {
+    const conditions: any[] = [eq(personaUserScenes.creatorId, creatorId)];
+    if (search) {
+      const q = `%${search.toLowerCase()}%`;
+      conditions.push(
+        or(
+          sql`lower(${personaUserScenes.title}) like ${q}`,
+          sql`lower(${personaUserScenes.description}) like ${q}`,
+        )
+      );
+    }
+    return db.select().from(personaUserScenes)
+      .where(and(...conditions))
+      .orderBy(desc(personaUserScenes.createdAt));
+  }
+
+  async getPublicPersonaUserScenes(options: { genre?: string; search?: string; limit?: number; offset?: number } = {}): Promise<PersonaUserScene[]> {
+    const { genre, search, limit = 50, offset = 0 } = options;
+    const conditions: any[] = [eq(personaUserScenes.isPublic, true)];
+    if (genre) conditions.push(eq(personaUserScenes.genre, genre));
+    if (search) {
+      const q = `%${search.toLowerCase()}%`;
+      conditions.push(
+        or(
+          sql`lower(${personaUserScenes.title}) like ${q}`,
+          sql`lower(${personaUserScenes.description}) like ${q}`,
+        )
+      );
+    }
+    const results = await db.select().from(personaUserScenes)
+      .where(and(...conditions))
+      .orderBy(desc(personaUserScenes.useCount), desc(personaUserScenes.createdAt))
+      .limit(limit)
+      .offset(offset);
+    return results;
+  }
+
+  async updatePersonaUserScene(id: string, creatorId: string, data: Partial<InsertPersonaUserScene>): Promise<PersonaUserScene> {
+    const existing = await this.getPersonaUserSceneById(id);
+    if (!existing) throw new Error("장면을 찾을 수 없습니다.");
+    if (existing.creatorId !== creatorId) throw new Error("권한이 없습니다.");
+    const [updated] = await db.update(personaUserScenes)
+      .set({ ...data, updatedAt: new Date() })
+      .where(eq(personaUserScenes.id, id))
+      .returning();
+    return updated;
+  }
+
+  async deletePersonaUserScene(id: string, creatorId: string): Promise<void> {
+    const existing = await this.getPersonaUserSceneById(id);
+    if (!existing) throw new Error("장면을 찾을 수 없습니다.");
+    if (existing.creatorId !== creatorId) throw new Error("권한이 없습니다.");
+    await db.delete(personaUserScenes).where(eq(personaUserScenes.id, id));
+  }
+
+  async incrementPersonaUserSceneUseCount(id: string): Promise<void> {
+    await db.update(personaUserScenes)
+      .set({ useCount: sqlBuilder`use_count + 1` })
+      .where(eq(personaUserScenes.id, id));
   }
 
   // ==================== 3단 계층 구조: 회사 > 조직 > 카테고리 ====================

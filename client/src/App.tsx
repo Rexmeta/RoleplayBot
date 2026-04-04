@@ -26,6 +26,9 @@ import FreeChatPage from "@/pages/FreeChatPage";
 import PersonaDiscoveryPage from "@/pages/PersonaDiscoveryPage";
 import PersonaProfilePage from "@/pages/PersonaProfilePage";
 import PersonaCreatePage from "@/pages/PersonaCreatePage";
+import PersonaScenesPage from "@/pages/PersonaScenesPage";
+import PersonaSceneCreatePage from "@/pages/PersonaSceneCreatePage";
+import PersonaSceneDetailPage from "@/pages/PersonaSceneDetailPage";
 
 function AdminRoute({ component: Component }: { component: React.ComponentType }) {
   const { user } = useAuth();
@@ -71,6 +74,10 @@ function ProtectedRouter() {
       <Route path="/ai-generator" component={AIGeneratorPage} />
       <Route path="/system-admin" component={SystemAdminPage} />
       <Route path="/free-chat">{() => <AdminRoute component={FreeChatPage} />}</Route>
+      <Route path="/persona/scene/create">{() => <AdminRoute component={PersonaSceneCreatePage} />}</Route>
+      <Route path="/persona/scene/:id/edit">{() => <AdminRoute component={PersonaSceneCreatePage} />}</Route>
+      <Route path="/persona/scene/:id">{() => <AdminRoute component={PersonaSceneDetailPage} />}</Route>
+      <Route path="/persona/scenes">{() => <AdminRoute component={PersonaScenesPage} />}</Route>
       <Route path="/persona/create">{() => <AdminRoute component={PersonaCreatePage} />}</Route>
       <Route path="/persona/:id">{() => <AdminRoute component={PersonaProfilePage} />}</Route>
       <Route path="/persona">{() => <AdminRoute component={PersonaDiscoveryPage} />}</Route>

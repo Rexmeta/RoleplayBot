@@ -8,7 +8,7 @@ import { UserProfileMenu } from "@/components/UserProfileMenu";
 import {
   Home, Plus, User, Search,
   PanelLeftClose, PanelLeft, Clock,
-  Menu, X
+  Menu, X, UserPlus, Clapperboard, ChevronDown, ChevronUp, Film
 } from "lucide-react";
 
 interface RecentChat {
@@ -29,12 +29,19 @@ interface NavItem {
 
 const NAV_ITEMS: NavItem[] = [
   { key: "home", label: "홈", icon: Home, href: "/persona" },
+  { key: "scenes", label: "장면", icon: Film, href: "/persona/scenes" },
   { key: "create", label: "만들기", icon: Plus, href: "/persona/create" },
   { key: "mine", label: "내 캐릭터", icon: User, href: "/persona?tab=mine" },
 ];
 
+const CREATE_SUBITEMS = [
+  { key: "create-character", label: "캐릭터 만들기", icon: UserPlus, href: "/persona/create" },
+  { key: "create-scene", label: "장면 만들기", icon: Clapperboard, href: "/persona/scene/create" },
+];
+
 function getActiveNav(location: string): string {
-  if (location === "/persona/create") return "create";
+  if (location === "/persona/create" || location === "/persona/scene/create") return "create";
+  if (location.startsWith("/persona/scenes") || location.startsWith("/persona/scene/")) return "scenes";
   if (location.includes("tab=mine")) return "mine";
   if (location === "/persona" || location.startsWith("/persona/")) return "home";
   return "home";
@@ -105,6 +112,8 @@ export default function PersonaLayout({ children, chatMode = false }: { children
   const [collapsed, setCollapsed] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [createMenuOpen, setCreateMenuOpen] = useState(false);
+  const [mobileCreateOpen, setMobileCreateOpen] = useState(false);
   const drawerRef = useRef<HTMLDivElement>(null);
 
   const activeNav = getActiveNav(location + window.location.search);
@@ -202,6 +211,55 @@ export default function PersonaLayout({ children, chatMode = false }: { children
       <nav className="px-2 space-y-0.5">
         {NAV_ITEMS.map(item => {
           const isActive = activeNav === item.key;
+          const isCreate = item.key === "create";
+          if (isCreate) {
+            return (
+              <div key={item.key} className="relative">
+                <div
+                  onClick={() => {
+                    if (!isOverlay && collapsed) {
+                      setCreateMenuOpen(v => !v);
+                      return;
+                    }
+                    setCreateMenuOpen(v => !v);
+                  }}
+                  className={`flex items-center gap-3 px-3 py-2.5 rounded-xl cursor-pointer transition-all duration-150 group ${
+                    isActive
+                      ? "bg-emerald-600 text-white shadow-lg shadow-emerald-600/20"
+                      : "text-slate-400 hover:bg-white/8 hover:text-white"
+                  } ${!isOverlay && collapsed ? "justify-center px-0" : ""}`}
+                  title={!isOverlay && collapsed ? item.label : undefined}
+                >
+                  <item.icon className={`w-5 h-5 flex-shrink-0 ${isActive ? "text-white" : "text-slate-400 group-hover:text-white"}`} />
+                  {(isOverlay || !collapsed) && (
+                    <>
+                      <span className="text-sm font-medium flex-1">{item.label}</span>
+                      {createMenuOpen
+                        ? <ChevronUp className="w-3.5 h-3.5 opacity-70" />
+                        : <ChevronDown className="w-3.5 h-3.5 opacity-70" />
+                      }
+                    </>
+                  )}
+                </div>
+                {/* Submenu — shown in expanded, overlay, or collapsed sidebar */}
+                {createMenuOpen && (
+                  <div className={`mt-0.5 space-y-0.5 ${(!isOverlay && collapsed) ? "absolute left-[64px] top-0 bg-slate-800 rounded-xl shadow-xl p-1 w-40 z-50" : "ml-4"}`}>
+                    {CREATE_SUBITEMS.map(sub => (
+                      <Link key={sub.key} href={sub.href}>
+                        <div
+                          onClick={() => { isOverlay && setDrawerOpen(false); setCreateMenuOpen(false); }}
+                          className="flex items-center gap-2.5 px-3 py-2 rounded-xl cursor-pointer text-slate-400 hover:bg-white/8 hover:text-white transition-colors"
+                        >
+                          <sub.icon className="w-4 h-4 flex-shrink-0 text-slate-500" />
+                          <span className="text-sm">{sub.label}</span>
+                        </div>
+                      </Link>
+                    ))}
+                  </div>
+                )}
+              </div>
+            );
+          }
           return (
             <Link key={item.key} href={item.href}>
               <div
@@ -370,9 +428,50 @@ export default function PersonaLayout({ children, chatMode = false }: { children
       </div>
 
       {/* ── Mobile Bottom Tab Bar (md-) ── */}
+      {/* Mobile create submenu popup */}
+      {mobileCreateOpen && (
+        <div
+          className="md:hidden fixed inset-0 z-50"
+          onClick={() => setMobileCreateOpen(false)}
+        >
+          <div
+            className="absolute bottom-16 left-1/2 -translate-x-1/2 bg-white rounded-2xl shadow-2xl border border-slate-100 overflow-hidden w-56"
+            onClick={e => e.stopPropagation()}
+          >
+            {CREATE_SUBITEMS.map(sub => (
+              <Link key={sub.key} href={sub.href}>
+                <div
+                  onClick={() => setMobileCreateOpen(false)}
+                  className="flex items-center gap-3 px-4 py-3.5 hover:bg-slate-50 transition-colors cursor-pointer border-b border-slate-100 last:border-0"
+                >
+                  <div className="w-8 h-8 rounded-xl bg-emerald-50 flex items-center justify-center">
+                    <sub.icon className="w-4 h-4 text-emerald-600" />
+                  </div>
+                  <span className="text-sm font-medium text-slate-800">{sub.label}</span>
+                </div>
+              </Link>
+            ))}
+          </div>
+        </div>
+      )}
       <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-white border-t border-slate-200 flex items-center justify-around px-2 py-1 safe-area-inset-bottom">
         {NAV_ITEMS.map(item => {
           const isActive = activeNav === item.key;
+          const isCreate = item.key === "create";
+          if (isCreate) {
+            return (
+              <button
+                key={item.key}
+                onClick={() => setMobileCreateOpen(v => !v)}
+                className={`flex flex-col items-center gap-0.5 px-4 py-2 rounded-xl min-w-[44px] min-h-[44px] justify-center transition-colors ${
+                  isActive || mobileCreateOpen ? "text-emerald-600" : "text-slate-400"
+                }`}
+              >
+                <item.icon className="w-5 h-5" />
+                <span className="text-[10px] font-medium">{item.label}</span>
+              </button>
+            );
+          }
           return (
             <Link key={item.key} href={item.href}>
               <div className={`flex flex-col items-center gap-0.5 px-4 py-2 rounded-xl min-w-[44px] min-h-[44px] justify-center transition-colors ${

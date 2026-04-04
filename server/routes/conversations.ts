@@ -472,8 +472,9 @@ export default function createConversationsRouter(isAuthenticated: any) {
                 `배경: ${sceneData.setting}`,
                 `분위기: ${sceneData.mood}`,
                 sceneData.genre ? `장르: ${sceneData.genre}` : "",
+                sceneData.openingLine ? `첫 대사 맥락: ${sceneData.openingLine}` : "",
                 "",
-                "위 장면 설정에 완전히 몰입하여 대화를 진행하세요. 장면의 배경·분위기가 대화 전반에 걸쳐 일관되게 반영되어야 합니다.",
+                "위 장면 설정에 완전히 몰입하여 대화를 진행하세요. 장면의 배경·분위기·장르가 대화 전반에 걸쳐 일관되게 반영되어야 합니다.",
               ].filter(Boolean).join("\n")
             : "";
           const scenePrefix = sceneBlock ? `${sceneBlock}\n\n` : "";

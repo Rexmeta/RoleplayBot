@@ -998,6 +998,30 @@ export async function runMigrations(): Promise<void> {
       }
       console.log('✅ Critical column patches verified');
 
+      // Persona X 사용자 장면 테이블 생성
+      try {
+        await client.query(`
+          CREATE TABLE IF NOT EXISTS "persona_user_scenes" (
+            "id" varchar(36) PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+            "creator_id" varchar(36) NOT NULL,
+            "title" text NOT NULL,
+            "description" text NOT NULL DEFAULT '',
+            "setting" text NOT NULL DEFAULT '',
+            "mood" text NOT NULL DEFAULT '',
+            "opening_line" text NOT NULL DEFAULT '',
+            "genre" text NOT NULL DEFAULT '일상',
+            "tags" text[] DEFAULT '{}',
+            "is_public" boolean NOT NULL DEFAULT false,
+            "use_count" integer NOT NULL DEFAULT 0,
+            "created_at" timestamp NOT NULL DEFAULT now(),
+            "updated_at" timestamp NOT NULL DEFAULT now()
+          )
+        `);
+        console.log('✅ persona_user_scenes table created/verified');
+      } catch (err) {
+        console.warn('⚠️ Failed to create persona_user_scenes table:', err);
+      }
+
       // Foreign Keys 추가
       await queryWithTimeout(client, 'Foreign keys created/verified', foreignKeysSQL);
 

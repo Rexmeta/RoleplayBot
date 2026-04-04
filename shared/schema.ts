@@ -511,6 +511,32 @@ export const userPersonaLikes = pgTable("user_persona_likes", {
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
+// Persona X 사용자 장면 테이블 (RoleplayX scenarios와 완전히 분리)
+export const personaUserScenes = pgTable("persona_user_scenes", {
+  id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
+  creatorId: varchar("creator_id", { length: 36 }).notNull(),
+  title: text("title").notNull(),
+  description: text("description").notNull().default(""),
+  setting: text("setting").notNull().default(""),
+  mood: text("mood").notNull().default(""),
+  openingLine: text("opening_line").notNull().default(""),
+  genre: text("genre").notNull().default("일상"),
+  tags: text("tags").array().default([]),
+  isPublic: boolean("is_public").notNull().default(false),
+  useCount: integer("use_count").notNull().default(0),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+export const insertPersonaUserSceneSchema = createInsertSchema(personaUserScenes).omit({
+  id: true,
+  useCount: true,
+  createdAt: true,
+  updatedAt: true,
+});
+export type InsertPersonaUserScene = z.infer<typeof insertPersonaUserSceneSchema>;
+export type PersonaUserScene = typeof personaUserScenes.$inferSelect;
+
 // 사용자 북마크 테이블 (즐겨찾기)
 export const userBookmarks = pgTable("user_bookmarks", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
