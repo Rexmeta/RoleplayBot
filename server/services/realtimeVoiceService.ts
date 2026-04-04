@@ -349,7 +349,7 @@ export class RealtimeVoiceService {
 
       console.log('🎭 [UserPersona] 실시간 음성 세션:', userPersonaData.name);
 
-      const gender: 'male' | 'female' = 'male';
+      const gender: 'male' | 'female' = userPersonaData.gender === 'female' ? 'female' : 'male';
       const realtimeModel = await this.getRealtimeModel();
 
       const session: RealtimeSession = {

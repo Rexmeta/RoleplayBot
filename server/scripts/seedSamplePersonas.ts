@@ -4,6 +4,33 @@ import { eq, sql } from 'drizzle-orm';
 
 const SYSTEM_CREATOR_ID = 'system';
 
+const GENDER_MAP: Record<string, 'male' | 'female'> = {
+  'sample-alex':              'male',
+  'sample-emma':              'female',
+  'sample-kai':               'male',
+  'sample-sophia':            'female',
+  'sample-jake':              'male',
+  'sample-luna':              'female',
+  'sample-dr-chen':           'male',
+  'sample-marco':             'male',
+  'sample-aria':              'female',
+  'sample-captain-blackwood': 'male',
+  'sample-maya':              'female',
+  'sample-detective-rivera':  'male',
+  'sample-chef-antoine':      'male',
+  'sample-zara':              'female',
+  'sample-prof-okonkwo':      'male',
+  'sample-hana':              'female',
+  'sample-dr-reeves':         'female',
+  'sample-robo7':             'male',
+  'sample-sam':               'male',
+  'sample-abuela-rosa':       'female',
+  'sample-stock-mentor':      'male',
+  'sample-mbti-analyst':      'female',
+  'sample-sarah':             'female',
+  'sample-yuki':              'female',
+};
+
 const AVATAR_URLS: Record<string, string> = {
   'sample-alex': 'https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?w=400&h=500&fit=crop&crop=face',
   'sample-emma': 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=400&h=500&fit=crop&crop=face',
@@ -407,6 +434,7 @@ export async function seedSamplePersonas() {
         avatarUrl: AVATAR_URLS[persona.id] || null,
         personality: persona.personality,
         tags: persona.tags,
+        gender: GENDER_MAP[persona.id] || null,
         isPublic: true,
         likeCount: persona.likeCount,
         chatCount: 0,
@@ -421,6 +449,7 @@ export async function seedSamplePersonas() {
           avatarUrl: sql`CASE WHEN ${userPersonas.avatarUrl} LIKE 'user-personas/%' THEN ${userPersonas.avatarUrl} ELSE ${AVATAR_URLS[persona.id] || null} END`,
           personality: persona.personality,
           tags: persona.tags,
+          gender: GENDER_MAP[persona.id] || null,
           likeCount: persona.likeCount,
           isPublic: true,
         },

@@ -470,7 +470,9 @@ async function initializeApp() {
     await seedSamplePersonas();
     await migrateSamplePersonaAvatars();
     const { generateSamplePersonaImages } = await import('./scripts/generateSamplePersonaImages');
-    generateSamplePersonaImages(false).catch((err: any) => {
+    // 표정 이미지 일관성 수정: 현재 neutral 기준으로 모든 표정 재생성 (1회성 수정)
+    const forceExpressionsRegen = process.env.FORCE_EXPRESSIONS_REGEN === 'true';
+    generateSamplePersonaImages(false, forceExpressionsRegen).catch((err: any) => {
       console.warn('샘플 페르소나 이미지 생성 건너뜀 (non-fatal):', err.message);
     });
     recordStep('seed_sample_personas', 'done');

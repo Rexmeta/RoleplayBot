@@ -274,11 +274,12 @@ export default function createUserRouter(isAuthenticated: any) {
       throw createHttpError(403, "Access denied. System admin only.");
     }
     const force = req.body?.force === true;
+    const forceExpressionsOnly = req.body?.forceExpressionsOnly === true;
     res.json({ started: true, message: '백그라운드에서 샘플 페르소나 이미지 생성을 시작했습니다.' });
     setImmediate(async () => {
       try {
         const { generateSamplePersonaImages } = await import('../scripts/generateSamplePersonaImages');
-        await generateSamplePersonaImages(force);
+        await generateSamplePersonaImages(force, forceExpressionsOnly);
       } catch (err: any) {
         console.error('[샘플 이미지 생성] 오류:', err.message);
       }

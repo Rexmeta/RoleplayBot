@@ -32,7 +32,7 @@ const EXPRESSION_DESCRIPTIONS: Record<string, string> = {
   determined:   'determined, resolute, focused, strong-willed',
 };
 
-async function callGeminiImage(prompt: string, referenceBase64?: string): Promise<string | null> {
+async function callGeminiImage(prompt: string, referenceBase64?: string, referenceMimeType?: string): Promise<string | null> {
   const apiKey = process.env.GOOGLE_API_KEY || process.env.GEMINI_API_KEY;
   if (!apiKey) {
     console.error('No Gemini API key found');
@@ -43,7 +43,7 @@ async function callGeminiImage(prompt: string, referenceBase64?: string): Promis
     const ai = new GoogleGenAI({ apiKey });
     const parts: Part[] = [];
     if (referenceBase64) {
-      parts.push({ inlineData: { mimeType: 'image/webp', data: referenceBase64 } });
+      parts.push({ inlineData: { mimeType: (referenceMimeType || 'image/webp') as any, data: referenceBase64 } });
     }
     parts.push({ text: prompt + '. Head and shoulders portrait, looking at camera. NO text, NO speech bubbles, NO captions, NO watermarks.' });
 
@@ -77,8 +77,8 @@ function buildExpressionPrompt(emotionDescription: string): string {
   return prompt;
 }
 
-export async function generateSamplePersonaImages(forceRegenerate = false): Promise<void> {
-  console.log('🎨 샘플 페르소나 AI 이미지 생성 시작...');
+export async function generateSamplePersonaImages(forceRegenerate = false, forceExpressionsOnly = false): Promise<void> {
+  console.log(`🎨 샘플 페르소나 AI 이미지 생성 시작... (forceRegenerate=${forceRegenerate}, forceExpressionsOnly=${forceExpressionsOnly})`);
 
   const personas = await db.select({
     id: userPersonas.id,
@@ -103,13 +103,16 @@ export async function generateSamplePersonaImages(forceRegenerate = false): Prom
       persona.avatarUrl.startsWith('user-personas/');
 
     let neutralBuffer: Buffer | null = null;
+    let neutralMimeType: string = 'image/webp';
     let neutralPath: string | null = alreadyInStorage ? persona.avatarUrl : null;
 
-    if (alreadyInStorage && !forceRegenerate) {
+    // forceExpressionsOnly: neutral 스킵하고 표정만 재생성 (neutral은 항상 storage에서 로드)
+    if (alreadyInStorage && (!forceRegenerate || forceExpressionsOnly)) {
       console.log(`  ⏭ neutral 이미 오브젝트 스토리지에 있음, 스킵: ${persona.name}`);
-      skipped++;
+      if (!forceExpressionsOnly) skipped++;
       try {
         neutralBuffer = await mediaStorage.readImageBuffer(persona.avatarUrl!);
+        neutralMimeType = 'image/webp'; // 스토리지에 저장된 이미지는 항상 webp
       } catch {
         neutralBuffer = null;
       }
@@ -124,13 +127,17 @@ export async function generateSamplePersonaImages(forceRegenerate = false): Prom
           continue;
         }
 
+        // Gemini가 반환한 실제 mimeType을 추출 (이후 표정 생성 시 정확한 타입 전달)
+        const mimeMatch = imageDataUrl.match(/^data:([^;]+);base64,/);
+        neutralMimeType = mimeMatch?.[1] || 'image/webp';
+
         neutralPath = await mediaStorage.saveUserPersonaImage(imageDataUrl, persona.id, 'neutral');
 
         await db.update(userPersonas)
           .set({ avatarUrl: neutralPath, updatedAt: new Date() })
           .where(eq(userPersonas.id, persona.id));
 
-        console.log(`  ✅ neutral 이미지 저장 완료: ${persona.name} → ${neutralPath}`);
+        console.log(`  ✅ neutral 이미지 저장 완료: ${persona.name} → ${neutralPath} (${neutralMimeType})`);
         generated++;
 
         const base64Data = imageDataUrl.replace(/^data:[^;]+;base64,/, '');
@@ -163,7 +170,7 @@ export async function generateSamplePersonaImages(forceRegenerate = false): Prom
         : {};
 
     for (const [emotion, description] of Object.entries(EXPRESSION_DESCRIPTIONS)) {
-      if (!forceRegenerate && existingExpressions[emotion]) {
+      if (!forceRegenerate && !forceExpressionsOnly && existingExpressions[emotion]) {
         console.log(`  ⏭ 표정 이미 존재, 스킵: ${persona.name} / ${emotion}`);
         continue;
       }
@@ -171,7 +178,7 @@ export async function generateSamplePersonaImages(forceRegenerate = false): Prom
       try {
         console.log(`  🖼 표정 이미지 생성 중: ${persona.name} / ${emotion}...`);
         const expressionPrompt = buildExpressionPrompt(description);
-        const expressionDataUrl = await callGeminiImage(expressionPrompt, neutralBuffer.toString('base64'));
+        const expressionDataUrl = await callGeminiImage(expressionPrompt, neutralBuffer.toString('base64'), neutralMimeType);
 
         if (!expressionDataUrl) {
           console.error(`  ❌ 표정 이미지 생성 실패: ${persona.name} / ${emotion}`);
