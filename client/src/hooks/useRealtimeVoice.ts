@@ -122,6 +122,8 @@ export function useRealtimeVoice({
   const accumulatedMessagesRef = useRef<PreviousMessage[]>([]); // 대화 중 누적 메시지 (자동 재연결용)
   const conversationPhaseRef = useRef<ConversationPhase>('idle'); // 현재 phase ref (클로저에서 접근용)
   const connectRef = useRef<((previousMessages?: PreviousMessage[]) => Promise<void>) | null>(null);
+  const wasRecordingBeforeReconnectRef = useRef<boolean>(false); // 재연결 전 녹음 중이었는지 추적
+  const reconnectInProgressRef = useRef<boolean>(false); // 자동 재연결 진행 중 여부 (연결 경로: reconnecting → connecting → connected)
 
   const MAX_AUTO_RECONNECT = 8;
   const sessionStorageKeyRef = useRef(`realtime_voice_messages_${conversationId}`);
@@ -498,6 +500,13 @@ export function useRealtimeVoice({
                   break;
                 }
                 
+                // Fix 3: 새 AI 응답의 첫 오디오 청크 도착 시 isInterruptedRef 초기화
+                // barge-in 이후 다음 AI 응답이 시작되면 interrupt 플래그를 해제해야 오디오가 재생됨
+                if (isInterruptedRef.current) {
+                  console.log('🔊 New AI response started - resetting barge-in interrupted flag');
+                  isInterruptedRef.current = false;
+                }
+                
                 // 첫 오디오 청크 도착 시 AI 말하기 시작 콜백 호출 (턴당 1회)
                 if (!aiSpeakingCallbackFiredRef.current) {
                   aiSpeakingCallbackFiredRef.current = true;
@@ -751,6 +760,36 @@ export function useRealtimeVoice({
     connectRef.current = connect;
   }, [connect]);
 
+  // 재연결 후 자동 녹음 재개
+  // 재연결 경로: reconnecting → (connect() 호출) → connecting → connected
+  // reconnectInProgressRef로 재연결 흐름을 추적하고, connected 도달 시 이전 녹음 상태를 복원
+  const startRecordingRef = useRef<(() => void) | null>(null);
+  useEffect(() => {
+    if (status === 'reconnecting') {
+      // 재연결 시작: 현재 녹음 상태 저장 및 재연결 플래그 설정
+      wasRecordingBeforeReconnectRef.current = isRecordingRef.current;
+      reconnectInProgressRef.current = true;
+      console.log(`🔄 재연결 시작 - 녹음 상태 저장: ${isRecordingRef.current}`);
+    } else if (status === 'connected' && reconnectInProgressRef.current) {
+      // 재연결 완료 (reconnecting → connecting → connected 경로)
+      reconnectInProgressRef.current = false;
+      if (wasRecordingBeforeReconnectRef.current) {
+        wasRecordingBeforeReconnectRef.current = false;
+        console.log('🔄 재연결 완료 - 이전 녹음 상태 복원: startRecording() 자동 호출');
+        // 연결 안정화 후 녹음 시작
+        setTimeout(() => {
+          if (startRecordingRef.current) {
+            startRecordingRef.current();
+          }
+        }, 300);
+      }
+    } else if (status === 'disconnected' || status === 'error') {
+      // 재연결 실패 또는 의도적 종료 시 플래그 초기화
+      reconnectInProgressRef.current = false;
+      wasRecordingBeforeReconnectRef.current = false;
+    }
+  }, [status]);
+
   // 화면 잠금 해제 감지: visibilitychange 이벤트로 즉시 재연결 및 AudioContext 재개
   useEffect(() => {
     const handleVisibilityChange = () => {
@@ -993,6 +1032,13 @@ export function useRealtimeVoice({
       }
     }
 
+    // Fix 2: 이전 마이크 스트림이 남아있으면 명시적으로 정리 (getUserMedia 충돌 방지)
+    if (micStreamRef.current) {
+      console.log('🎙️ Cleaning up previous mic stream before starting new recording');
+      micStreamRef.current.getTracks().forEach(track => track.stop());
+      micStreamRef.current = null;
+    }
+
     try {
       // Single mic stream - shared between Gemini and VAD
       // Note: We use echo cancellation for clean audio, and VAD uses the same stream
@@ -1170,6 +1216,12 @@ export function useRealtimeVoice({
   const stopRecording = useCallback(() => {
     console.log('🎤 Stopping recording...');
     
+    // Fix 2: stopRecording 초입에서 micStreamRef 명시적 정리 (재녹음 시 충돌 방지)
+    if (micStreamRef.current) {
+      micStreamRef.current.getTracks().forEach(track => track.stop());
+      micStreamRef.current = null;
+    }
+    
     // Reset voice activity tracking
     voiceActivityStartRef.current = null;
     bargeInTriggeredRef.current = false;
@@ -1266,6 +1318,11 @@ export function useRealtimeVoice({
 
     console.log('✅ Text message sent and response requested');
   }, []);
+
+  // startRecordingRef를 항상 최신 startRecording으로 유지 (재연결 후 자동 재개에서 사용)
+  useEffect(() => {
+    startRecordingRef.current = startRecording;
+  }, [startRecording]);
 
   useEffect(() => {
     if (enabled) {

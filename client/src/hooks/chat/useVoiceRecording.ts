@@ -38,6 +38,14 @@ export function useVoiceRecording({ onTranscript, onInterimTranscript }: UseVoic
   const { toast } = useToast();
   const { i18n, t } = useTranslation();
 
+  // Fix 4: stale closure 방지 - 콜백을 ref로 감싸서 항상 최신 참조를 사용
+  const onTranscriptRef = useRef(onTranscript);
+  const onInterimTranscriptRef = useRef(onInterimTranscript);
+  useEffect(() => {
+    onTranscriptRef.current = onTranscript;
+    onInterimTranscriptRef.current = onInterimTranscript;
+  }, [onTranscript, onInterimTranscript]);
+
   useEffect(() => {
     if (typeof window !== 'undefined') {
       const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -58,9 +66,9 @@ export function useVoiceRecording({ onTranscript, onInterimTranscript }: UseVoic
           const transcript = result[0].transcript;
 
           if (result.isFinal) {
-            onTranscript(transcript.trim());
+            onTranscriptRef.current(transcript.trim());
           } else {
-            onInterimTranscript(`[${VOICE_INPUT_MARKER}] ${transcript.trim()}`);
+            onInterimTranscriptRef.current(`[${VOICE_INPUT_MARKER}] ${transcript.trim()}`);
           }
         };
 
@@ -83,12 +91,12 @@ export function useVoiceRecording({ onTranscript, onInterimTranscript }: UseVoic
             variant: "destructive"
           });
 
-          onInterimTranscript('');
+          onInterimTranscriptRef.current('');
         };
 
         recognition.onend = () => {
           setIsRecording(false);
-          onInterimTranscript('');
+          onInterimTranscriptRef.current('');
         };
 
         recognitionRef.current = recognition;
