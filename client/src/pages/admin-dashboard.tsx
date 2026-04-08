@@ -629,9 +629,9 @@ export default function AdminDashboard() {
   // MBTI 페르소나 데이터 가져오기
   const { data: personas = [] } = useQuery({
     queryKey: ['/api/admin/personas'],
-    queryFn: () => fetch('/api/admin/personas').then(res => res.json()),
     staleTime: 1000 * 60 * 30,
     gcTime: 1000 * 60 * 60,
+    select: (data: unknown) => Array.isArray(data) ? data : [],
   });
 
   // 참석자 목록 가져오기
