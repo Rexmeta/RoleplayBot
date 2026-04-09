@@ -10,13 +10,14 @@ declare global {
 }
 
 const getSpeechSynthesisLang = (langCode: string): string => {
+  const base = langCode ? langCode.split('-')[0].toLowerCase() : 'ko';
   const langMap: Record<string, string> = {
     'ko': 'ko-KR',
     'en': 'en-US',
     'ja': 'ja-JP',
     'zh': 'zh-CN'
   };
-  return langMap[langCode] || 'ko-KR';
+  return langMap[base] || 'ko-KR';
 };
 
 const VOICE_INPUT_MARKER = '🎤';
@@ -54,7 +55,7 @@ export function useVoiceRecording({ onTranscript, onInterimTranscript }: UseVoic
         const recognition = new SpeechRecognition();
         recognition.continuous = false;
         recognition.interimResults = true;
-        recognition.lang = getSpeechSynthesisLang(i18n.language);
+        recognition.lang = getSpeechSynthesisLang(i18n.resolvedLanguage || i18n.language);
         recognition.maxAlternatives = 1;
 
         recognition.onstart = () => {
@@ -104,7 +105,7 @@ export function useVoiceRecording({ onTranscript, onInterimTranscript }: UseVoic
         setSpeechSupported(false);
       }
     }
-  }, [toast, i18n.language, t]);
+  }, [toast, i18n.language, i18n.resolvedLanguage, t]);
 
   const startRecording = () => {
     if (!speechSupported) {

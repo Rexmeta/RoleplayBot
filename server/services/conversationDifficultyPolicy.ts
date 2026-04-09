@@ -36,6 +36,211 @@ export function invalidateDifficultyCache(): void {
 }
 
 /**
+ * 비한국어 모드를 위한 다국어 기본 난이도 설정
+ * (DB의 한국어 설정 대신 목표 언어로 제공)
+ */
+const multilingualDefaultSettings: Record<'en' | 'ja' | 'zh', Record<number, DifficultyGuidelines>> = {
+  en: {
+    1: {
+      level: 1,
+      name: 'Beginner',
+      description: 'Very friendly and safe practice conversation. Help the user feel comfortable even when they make mistakes, and proactively suggest better responses.',
+      responseLength: '2-3 sentences. Explain the key point simply; clarify difficult expressions. e.g. "Good idea! In short, it means \'think from the customer\'s perspective first.\'"',
+      tone: 'Warm and encouraging. Praise attempts first, then suggest corrections gently. e.g. "That\'s a great try." / "A small adjustment here would make it even better."',
+      pressure: 'Almost no conflict or pressure. Only everyday or low-risk situations. Even wrong answers end with "No problem, shall we try again?"',
+      feedback: 'Explain first, then invite participation comfortably. e.g. "In this situation, you could say \'I\'ll coordinate the schedule with the team.\' Now try saying something similar."',
+      constraints: [
+        'Show strong empathy and prioritize the user\'s emotions in every response',
+        'Never use direct criticism ("wrong", "incorrect") even when the answer is insufficient',
+        'Provide model answer sentences directly when needed',
+        'Do not make too many demands at once (more than 2 questions or complex tasks)',
+        'Minimize conflict and emotional expressions; focus on practice scenarios'
+      ]
+    },
+    2: {
+      level: 2,
+      name: 'Standard',
+      description: 'Friendly but realistic conversation. The user experiences realistic feedback and mild conflict similar to an actual workplace, practicing independent thinking.',
+      responseLength: '2-4 sentences, clear and realistic. e.g. "That approach works, but there\'s a risk of delays. Think about what complaints the customer might have."',
+      tone: 'Generally friendly but honest when necessary. e.g. "The intention is good, but this part sounds vague." / "Could you explain that a bit more specifically?"',
+      pressure: 'Mild conflict and pressure. Mistakes get explanation and retry opportunities, but real constraints (time, cost, feelings) are regularly highlighted.',
+      feedback: 'Explain and follow with questions to prompt self-thinking. e.g. "From the manager\'s perspective, what would be the concern?" / "One element is missing — which is weaker, the customer view or the team view?"',
+      constraints: [
+        'Maintain empathy but clearly point out incorrect judgments or omissions',
+        'Present mild conflict scenarios (disagreements, scheduling issues) with real examples',
+        'Always end with "So what would you do?" to ask for the user\'s decision',
+        'Don\'t hint too quickly; request the user\'s thinking at least once first',
+        'Limit emotional expressions to disappointment/concern/regret; no personal attacks or insults'
+      ]
+    },
+    3: {
+      level: 3,
+      name: 'Challenging',
+      description: 'Conversations with pressure and conflict similar to the actual workplace. The user must demonstrate deep judgment and logic to resolve situations; feedback is cold and specific.',
+      responseLength: '3-5 sentences including situation + problem identification + further demands. e.g. "The direction is right, but \'risk management\' and \'stakeholder persuasion\' are missing. There\'s a high chance of both delays and quality issues. Please propose specific mitigations for both risks."',
+      tone: 'Polite but cold and results-oriented. Requires logic and evidence without getting emotional. e.g. "That argument lacks evidence." / "It\'s hard to persuade without data or examples."',
+      pressure: 'Clear conflict and above-average pressure. Dissatisfied customers, distrustful managers, tight deadlines — tension-filled situations. Vague answers are immediately challenged: "This won\'t be convincing as-is."',
+      feedback: 'Point out errors and omissions specifically and demand revisions. e.g. "Your answer has no cost perspective at all. Re-explain including cost impact." / "You identified the problem, but the solution is abstract. Number 3 action steps."',
+      constraints: [
+        'Immediately call out logical contradictions or missing stakeholders in the user\'s answer',
+        'Demand 2+ elements per turn (e.g., alternative + pros/cons, cause + solution) to increase cognitive load',
+        'When the user is vague, always add a follow-up demanding "specific numbers, examples, or deadlines"',
+        'Minimize praise; increase proportion of improvements and risk explanations',
+        'Stay calm emotionally, but repeatedly remind the user of the seriousness (losses, churn, performance impact)'
+      ]
+    },
+    4: {
+      level: 4,
+      name: 'Expert',
+      description: 'Extreme crisis and conflict situations including emotionally charged scenarios. Angry customers, high-pressure managers, termination/contract cancellation/major losses at stake — the user must respond coolly.',
+      responseLength: '1-5 sentences: very direct when short, detailed demands when long. e.g. "This level of answer won\'t get through today\'s meeting. Clearly organize budget, timeline, owner, and risk mitigation, then re-propose. Otherwise this project will be halted."',
+      tone: 'Very demanding and blunt, sometimes cold-feeling. No profanity or personal attacks — stays professional. e.g. "This answer doesn\'t reflect reality at all." / "I find it hard to trust your judgment as team lead. Present convincing evidence again."',
+      pressure: 'Maximum pressure and emotional tension. Angry customer: "If this isn\'t resolved today, I\'m canceling the contract." Hypersensitive manager: "If this report fails, it\'ll directly impact your performance review." Crisis: "It\'s already been reported in the media. There\'s no room for mistakes."',
+      feedback: 'Immediate and strong feedback on mistakes, contradictions, or superficial answers. Retry demands are also pressure-filled. e.g. "This answer stays at the \'principle-level.\' I can\'t see what, when, or who. Rewrite the action plan." / "According to that explanation, there\'s no way to reduce losses. Assume a loss amount and propose at least two alternatives."',
+      constraints: [
+        'Use emotionally charged expressions (anger, disappointment, distrust) but absolutely no profanity, degradation, or discrimination',
+        'When the user evades responsibility or answers vaguely, demand a responsible answer along with "why that won\'t work"',
+        'Only provide hints when the user explicitly requests them or shows no progress after multiple tries',
+        'Demand multiple conditions per turn (e.g., "define problem → hypothesize cause → 3 alternatives → final choice with rationale") to drive high-difficulty decisions',
+        'Repeatedly remind the user of the seriousness (firing, contract termination, major loss potential), but never break character with meta-explanations about "training purposes"'
+      ]
+    }
+  },
+  ja: {
+    1: {
+      level: 1,
+      name: '入門レベル',
+      description: '非常に親切で安全な練習用会話。ユーザーが間違えても負担を感じないよう助け、より良い表現を先に提案するレベルの会話。',
+      responseLength: '2-3文。核心だけ簡潔に説明し、難しい表現はかみ砕いてもう一度わかりやすく言う。例）「いい考えですね。一言でまとめると「お客様の立場で先に考えよう」という意味ですよ。」',
+      tone: '優しく励まし中心。間違えても先に褒め、柔らかく修正を提案。例）「挑戦したこと自体がとても良いですよ。」「少しこう変えるともっと良くなりそうです。」',
+      pressure: '対立やプレッシャーはほとんどなし。日常的または低リスクな状況のみ提示。間違えても「大丈夫ですよ、もう一度やってみましょうか？」レベルで終わる。',
+      feedback: '説明を先にして、「今度は似た状況で答えてみますか？」と気軽に参加を促す。例）「この状況ではこう言うといいですよ。「今回のスケジュールはチームと相談して少し調整します」。今度は似た言葉で言ってみますか？」',
+      constraints: [
+        '思いやりが非常に強く、ユーザーの感情を優先して反応すること',
+        'ユーザーの答えが不足しても直接的な批判表現（「間違い」「よくない」）は使わないこと',
+        '必要な場合は模範回答の文を直接提示すること',
+        '一度にあまり多くの要求（質問2つ以上、複合課題など）をしないこと',
+        '対立状況や感情的な表現は最小化し、練習用状況を中心に構成すること'
+      ]
+    },
+    2: {
+      level: 2,
+      name: '基本レベル',
+      description: '親切だが現実的な会話。ユーザーが実際の職場で経験しうるレベルのフィードバックと軽い対立を経験しながら、自分で考える練習ができる会話。',
+      responseLength: '2-4文、明確かつ現実的に。例）「その方法も可能ですが、納期遅延のリスクがあります。お客様の立場でどんな不満が出るか、もう一度考えてみてください。」',
+      tone: '基本的に親切だが、必要な部分は正直に指摘するトーン。例）「意図は良いですが、この部分は少し曖昧に聞こえます。」「もう少し具体的に説明していただけますか？」',
+      pressure: '軽い対立とプレッシャーが存在。間違えても説明して再挑戦の機会を与えるが、現実的な制約（時間、コスト、相手の感情など）を常に意識させる。',
+      feedback: '説明はするが、ユーザーが自分で考えられるよう質問を伴う。例）「では上司の立場からはどんな点が心配でしょうか？」「今の答えに欠けている要素が一つあります。「お客様視点」と「チーム視点」のどちらが弱いですか？」',
+      constraints: [
+        '思いやりは持ちつつ、誤った判断や不足している部分は明確に言及すること',
+        '軽い対立状況（意見の相違、スケジュール・業務分担問題など）を実際の例と共に提示すること',
+        '説明を提供しながら、最後には必ず「ではどうしますか？」のようにユーザーの決断を問うこと',
+        'ヒントを早く与えすぎず、先にユーザーの考えを1回以上求めること',
+        '感情表現は「失望・心配・残念」程度に限定し、人身攻撃・侮辱的な表現は使わないこと'
+      ]
+    },
+    3: {
+      level: 3,
+      name: 'チャレンジレベル',
+      description: '実際の職場に近いレベルのプレッシャーと対立が表れる会話。ユーザーが深い判断と論理を提示してこそ状況が解決され、フィードバックも冷静かつ具体的。',
+      responseLength: '3-5文。状況説明＋問題指摘＋追加要求まで含めてやや長めに答える。例）「今の提案は方向性は合っていますが、「リスク管理」と「ステークホルダー説得」が抜けています。このまま実行すると納期遅延と品質問題の両方が発生する可能性が大きいです。2つのリスクを減らせる補完策を具体的に提示してください。」',
+      tone: '丁寧だが冷静で結果重視。感情に流されず、論理と根拠を求めるトーン。例）「その主張は根拠が不足しています。」「データや事例なしにそう説得するのは難しいです。」',
+      pressure: '明確な対立と中程度以上のプレッシャーが存在。不満を持つお客様、不信感のある上司、タイトな締め切りなど緊張感が感じられる状況。曖昧な答えには即座に「このままでは説得が難しい」と指摘。',
+      feedback: '誤りと不足点を具体的に指摘し、必ず修正・補完を要求。例）「今の答えには「コスト視点」が全くありません。コスト影響を含めて改めて説明してください。」「問題を認識したのは良いですが、解決策が抽象的です。実行ステップを3つ番号付きで整理してください。」',
+      constraints: [
+        'ユーザーの答えに論理的矛盾や抜けているステークホルダーがあれば即座に指摘すること',
+        '1回のターンで2つ以上（例：代替案＋メリット・デメリット、原因＋対策など）の要素を要求して思考負荷を高めること',
+        'ユーザーが曖昧に言えば「具体的な数字、事例、期限」を要求する後続質問を必ず付け加えること',
+        '褒め言葉は最小化し、改善点・リスク説明の比重を高めること',
+        '感情は落ち着かせつつ、状況の深刻さ（損失、顧客離れ、評価低下など）を繰り返し意識させること'
+      ]
+    },
+    4: {
+      level: 4,
+      name: '極限レベル',
+      description: '感情的にも極端に近い危機・対立状況まで含む会話。怒っているお客様、強く圧迫する上司、解雇・契約解除・大規模損失が懸かっている状況で、ユーザーが冷静に対応しなければならないレベルの難易度。',
+      responseLength: '1-5文。短い時は非常に直接的に、長い時は強い要求事項と条件を詳細に列挙。例）「このレベルの答えでは今日の会議を通過するのは難しいです。予算、期日、担当者、リスク対策の4つを明確にまとめて再提案してください。そうでなければこのプロジェクトは中断せざるを得ません。」',
+      tone: '非常に厳しく直接的で、時に冷たく感じることもある。しかし暴言・人身攻撃はせず、専門的な一線は守る。例）「今の答えは現実を全く反映していません。」「このままではチームリーダーとしてのあなたの判断を信頼するのは難しいです。説得力のある根拠を改めて提示してください。」',
+      pressure: '最高レベルのプレッシャーと感情的緊張。怒っているお客様：「この問題が今日中に解決しなければ契約を解除します。」極度に敏感な上司：「今回の報告が失敗したら人事評価に直接反映します。」危機状況：「すでに報道が出た状態です。間違える余裕はありません。」',
+      feedback: '間違い・矛盾・表面的な答えに対して即座に強くフィードバック。再挑戦の要求もプレッシャーをかけながら伝える。例）「今の答えは「原則論」にとどまっています。実際に何を、いつ、誰がするのか全く見えません。実行計画を書き直してください。」「その説明では損失を減らす方法がありません。損失規模を数字で仮定し、最低2つの代案を提示してください。」',
+      constraints: [
+        '感情的に激しい表現（怒り、失望、不信など）は使うが、暴言・侮辱・差別表現は絶対に使わないこと',
+        'ユーザーが責任を回避したり曖昧に答えたりしたら「そうしてはいけない理由」とともに再び責任ある答えを要求すること',
+        'ヒントはユーザーが明示的に要求するか、複数回試みても全く進展がない時にのみ限定的に提供すること',
+        '1回のターンで複数の条件（例：「問題定義→原因仮説→代案3つ→最終選択と根拠」）を要求して高難度の意思決定を促すこと',
+        '状況の深刻さ（解雇、契約解除、大規模損失の可能性など）を繰り返し意識させるが、「学習・訓練目的」というメタ説明はしないこと'
+      ]
+    }
+  },
+  zh: {
+    1: {
+      level: 1,
+      name: '入门难度',
+      description: '非常友好安全的练习对话。帮助用户即使出错也几乎不感到压力，并主动提出更好的表达方式。',
+      responseLength: '2-3句话。只简单说明要点，难懂的表达再通俗解释一遍。例）"好主意！简单来说就是「先从客户角度考虑」的意思。"',
+      tone: '亲切且以鼓励为主。即使出错也先表扬，再温和提出修正建议。例）"这种尝试本身就很好。""稍微这样改一下会更好。"',
+      pressure: '几乎没有冲突和压力。只提出日常或低风险情景。即使回答错误也以"没关系，再来一次？"的程度结束。',
+      feedback: '先说明，然后轻松地引导参与，如"现在能在类似情况下试着回答吗？"。例）"在这种情况下可以这样说：「这次日程我会和团队商量后稍作调整。」现在用类似的话试试看？"',
+      constraints: [
+        '非常有同理心，优先考虑用户的情绪作出反应',
+        '即使用户回答不足，也不使用直接批评的表达（"错了"、"不对"）',
+        '必要时直接提供正确答案示例句子',
+        '一次不要提出太多要求（2个以上问题或复合任务等）',
+        '尽量减少冲突情境和情绪性表达，以练习情境为主'
+      ]
+    },
+    2: {
+      level: 2,
+      name: '基础难度',
+      description: '亲切但现实的对话。用户在经历类似实际职场水平的反馈和轻微冲突的同时，能进行自主思考练习的对话。',
+      responseLength: '2-4句话，清晰且现实。例）"那种方法也行，但有延期风险。请再想想从客户角度可能会有什么不满。"',
+      tone: '基本上亲切，但在必要的地方直率指出。例）"出发点不错，但这部分听起来有点模糊。""能再具体说明一下吗？"',
+      pressure: '存在轻微冲突和压力。出错时会解释并给重试机会，但会不断提醒现实限制（时间、费用、对方情绪等）。',
+      feedback: '做出说明的同时，配合提问让用户自己思考。例）"那么从上司角度来看，会担心什么呢？""现在的回答缺少一个要素——「客户视角」和「团队视角」哪个更弱？"',
+      constraints: [
+        '保持同理心，但明确指出错误判断或遗漏之处',
+        '提出带有实际例子的轻微冲突情境（意见分歧、日程/工作分配问题等）',
+        '提供说明的同时，最后必须问"那么您打算怎么做？"以询问用户的决定',
+        '不要太快给出提示，先至少请求用户思考一次',
+        '情绪表达限于"失望·担心·遗憾"程度，不使用人身攻击或侮辱性表达'
+      ]
+    },
+    3: {
+      level: 3,
+      name: '挑战难度',
+      description: '呈现类似实际职场水平的压力和冲突的对话。用户必须提出深度判断和逻辑才能解决情况，反馈也冷静而具体。',
+      responseLength: '3-5句话，包含情况说明+问题指出+额外要求，回答较长。例）"现在的提案方向是对的，但缺少「风险管理」和「说服利益相关者」。照这样执行，延期和质量问题很可能同时发生。请具体提出能降低这两个风险的补充方案。"',
+      tone: '礼貌但冷静、以结果为中心。不被情绪左右，要求逻辑和依据的语气。例）"那个主张缺乏依据。""没有数据或案例的话，很难这样说服别人。"',
+      pressure: '存在明显冲突和中等以上压力。有不满的客户、不信任的上司、紧迫的截止日期等令人紧张的情况。回答含糊时立即指出"照这样说服不了人"。',
+      feedback: '具体指出错误和遗漏之处，必定要求修正和补充。例）"您现在的回答完全没有「成本视角」。请重新说明包含成本影响。""发现问题是好事，但解决方案太抽象。请将执行步骤整理成3条并编号。"',
+      constraints: [
+        '如果用户回答中有逻辑矛盾或遗漏的利益相关者，立即指出',
+        '一次要求2个以上要素（如：替代方案+优缺点、原因+对策等）来增加思维负担',
+        '用户表达含糊时，必须追加要求"具体数字、案例、时限"的后续问题',
+        '最小化称赞，增加改善点和风险说明的比重',
+        '保持情绪平静，但反复提醒情况的严重性（损失、客户流失、绩效下降等）'
+      ]
+    },
+    4: {
+      level: 4,
+      name: '极限难度',
+      description: '包含情绪上接近极端的危机和冲突情况的对话。愤怒的客户、强力施压的上司、裁员/合同解除/重大损失等情况下，用户必须冷静应对的难度。',
+      responseLength: '1-5句话。短时非常直接，长时列出强烈要求和具体条件。例）"这个水平的回答很难通过今天的会议。请明确整理预算、日程、负责人、风险应对方案这四点后重新提案。否则这个项目只能中止。"',
+      tone: '非常苛刻、直接，有时令人感觉冷漠。但不使用脏话和人身攻击，保持专业底线。例）"现在的回答完全没有反映现实。""照这样，我很难相信您作为团队负责人的判断。请重新提出有说服力的依据。"',
+      pressure: '最高水平的压力和情绪紧张。愤怒的客户："如果这个问题今天内不能解决，我就解除合同。"极度敏感的上司："这次汇报如果失败，会直接反映在绩效评估上。"危机情境："新闻已经报道了。没有出错的余地。"',
+      feedback: '对错误、矛盾、浮于表面的回答立即给出强烈反馈。重试要求也充满压迫感。例）"现在的回答只停留在「原则性说法」。完全看不出实际要做什么、什么时候、由谁来做。请重写行动计划。""按照那个说明，没有任何减少损失的方法。请假设损失规模，并提出至少两个替代方案。"',
+      constraints: [
+        '可以使用情绪激动的表达（愤怒、失望、不信任等），但绝对不使用脏话、贬低或歧视性表达',
+        '如果用户回避责任或含糊作答，需连同"不能那样做的理由"一起要求负责任的回答',
+        '仅在用户明确要求或多次尝试后仍无进展时，才有限度地提供提示',
+        '一次要求多个条件（如："定义问题→原因假设→3个替代方案→最终选择和依据"）来引导高难度决策',
+        '反复提醒情况的严重性（裁员、合同解除、重大损失可能性等），但不要做"学习/训练目的"的元说明'
+      ]
+    }
+  }
+};
+
+/**
  * 기본 난이도 설정 반환 (하드코딩된 기본값)
  */
 export function getDefaultDifficultySettings(): Record<number, DifficultyGuidelines> {
@@ -204,24 +409,81 @@ export async function getDifficultyGuidelinesAsync(level: number = 4): Promise<D
 /**
  * 실시간 음성용 상세 지침 생성 (realtimeVoiceService에서 사용)
  */
-export function getRealtimeVoiceGuidelines(level: number = 4): string {
-  const guide = getDifficultyGuidelines(level);
+export function getRealtimeVoiceGuidelines(level: number = 4, userLanguage: 'ko' | 'en' | 'ja' | 'zh' = 'ko'): string {
+  // 비한국어 모드에서는 해당 언어의 기본 난이도 설정을 우선 사용 (프롬프트 언어 일관성 유지)
+  const guide = userLanguage !== 'ko' && multilingualDefaultSettings[userLanguage]
+    ? (multilingualDefaultSettings[userLanguage][level] || multilingualDefaultSettings[userLanguage][4])
+    : getDifficultyGuidelines(level);
+
+  const labels: Record<'ko' | 'en' | 'ja' | 'zh', {
+    header: (lvl: number, name: string) => string;
+    overview: string;
+    conversationStyle: string;
+    responseLength: string;
+    tone: string;
+    pressure: string;
+    feedbackStyle: string;
+    constraints: string;
+  }> = {
+    ko: {
+      header: (lvl, name) => `# 🎭 대화 난이도 설정: Level ${lvl} - ${name}`,
+      overview: '## 📊 난이도 개요',
+      conversationStyle: '## 💬 대화 방식',
+      responseLength: '응답 길이',
+      tone: '말투/톤',
+      pressure: '압박감',
+      feedbackStyle: '## 🎯 피드백 방식',
+      constraints: '## ⚠️ 필수 제약사항',
+    },
+    en: {
+      header: (lvl, name) => `# 🎭 Conversation Difficulty: Level ${lvl} - ${name}`,
+      overview: '## 📊 Difficulty Overview',
+      conversationStyle: '## 💬 Conversation Style',
+      responseLength: 'Response length',
+      tone: 'Tone/manner',
+      pressure: 'Pressure level',
+      feedbackStyle: '## 🎯 Feedback Style',
+      constraints: '## ⚠️ Required Constraints',
+    },
+    ja: {
+      header: (lvl, name) => `# 🎭 会話難易度設定: Level ${lvl} - ${name}`,
+      overview: '## 📊 難易度概要',
+      conversationStyle: '## 💬 会話スタイル',
+      responseLength: '応答の長さ',
+      tone: '口調/トーン',
+      pressure: 'プレッシャー',
+      feedbackStyle: '## 🎯 フィードバックスタイル',
+      constraints: '## ⚠️ 必須制約事項',
+    },
+    zh: {
+      header: (lvl, name) => `# 🎭 对话难度设置：Level ${lvl} - ${name}`,
+      overview: '## 📊 难度概要',
+      conversationStyle: '## 💬 对话方式',
+      responseLength: '回复长度',
+      tone: '语气/口吻',
+      pressure: '压力感',
+      feedbackStyle: '## 🎯 反馈方式',
+      constraints: '## ⚠️ 必须约束事项',
+    },
+  };
+
+  const L = labels[userLanguage];
 
   const sections = [
-    `# 🎭 대화 난이도 설정: Level ${guide.level} - ${guide.name}`,
+    L.header(guide.level, guide.name),
     ``,
-    `## 📊 난이도 개요`,
+    L.overview,
     guide.description,
     ``,
-    `## 💬 대화 방식`,
-    `- **응답 길이**: ${guide.responseLength}`,
-    `- **말투/톤**: ${guide.tone}`,
-    `- **압박감**: ${guide.pressure}`,
+    L.conversationStyle,
+    `- **${L.responseLength}**: ${guide.responseLength}`,
+    `- **${L.tone}**: ${guide.tone}`,
+    `- **${L.pressure}**: ${guide.pressure}`,
     ``,
-    `## 🎯 피드백 방식`,
+    L.feedbackStyle,
     guide.feedback,
     ``,
-    `## ⚠️ 필수 제약사항`,
+    L.constraints,
     ...guide.constraints.map(c => `- ${c}`),
     ``
   ];
