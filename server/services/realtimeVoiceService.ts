@@ -1877,6 +1877,12 @@ export class RealtimeVoiceService {
         break;
 
       case 'response.cancel':
+        // 🔧 Fix 2: 이중 barge-in 방지 - 이미 인터럽트 처리 중이면 무시
+        if (session.isInterrupted) {
+          console.log(`⚡ Barge-in already active (cancelledTurn=${session.cancelledTurnSeq}), ignoring duplicate cancel`);
+          break;
+        }
+
         // User interrupted AI (barge-in) - cancel current response
         console.log(`⚡ Barge-in: Canceling turn ${session.turnSeq}`);
         
@@ -1899,9 +1905,10 @@ export class RealtimeVoiceService {
           }
         }
         
-        // Clear current transcript buffer
-        session.currentTranscript = '';
-        session.userTranscriptBuffer = '';
+        // 🔧 Fix 1: userTranscriptBuffer는 초기화하지 않음 (유저 발화 유실 방지)
+        // barge-in 시 버퍼를 비우면 유저가 말한 내용이 turnComplete 전에 소멸됨
+        // 버퍼는 turnComplete 이벤트에서 user.transcription으로 전송 후 자연스럽게 초기화됨
+        session.currentTranscript = ''; // AI transcript만 초기화
         
         // Send interruption acknowledgment to client
         this.sendToClient(session, {

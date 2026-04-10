@@ -1023,6 +1023,10 @@ export function useRealtimeVoice({
       // Stop audio playback immediately
       stopCurrentPlayback();
       
+      // 🔧 Fix 3: bargeInTriggeredRef를 true로 설정해 VAD가 중복 cancel을 보내지 않도록 방지
+      bargeInTriggeredRef.current = true;
+      expectedTurnSeqRef.current++;
+      
       // Send interrupt signal to server to cancel current AI response
       if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
         wsRef.current.send(JSON.stringify({
