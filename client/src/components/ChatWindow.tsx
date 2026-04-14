@@ -146,7 +146,7 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
 
   const { isSessionEnding, isGoingToFeedback, showEndConversationDialog, setShowEndConversationDialog, handleGoToFeedback,
     handleEndRealtimeConversation, confirmEndConversation, handleResetConversation } = useChatSession({
-    conversationId, localMessages, chatMode, isPersonaMode, onChatComplete, onExit, onConversationEnding,
+    conversationId, localMessages, pendingUserText, chatMode, isPersonaMode, onChatComplete, onExit, onConversationEnding,
     disconnectVoice: realtimeVoice.disconnect, resetPhase: realtimeVoice.resetPhase,
     setLocalMessages, setConversationStartTime, setElapsedTime,
     showMicPromptReset: () => { hasUserSpokenRef.current = false; setShowMicPrompt(false); },
@@ -158,6 +158,50 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
     [localMessages, pendingAiMessage, pendingUserMessage, pendingUserText]);
 
   useEffect(() => { return () => { cleanupTTS(); cleanupVoiceRecording(); }; }, []);
+
+  // 🔧 Fix 2: 탭 닫기/새로고침/페이지 이탈 시 localMessages를 sendBeacon으로 저장
+  // navigator.sendBeacon은 페이지가 닫히는 도중에도 쿠키와 함께 POST 전송 보장
+  const localMessagesRef = useRef(localMessages);
+  const pendingUserTextRef = useRef(pendingUserText);
+  const conversationIdRef = useRef(conversationId);
+  const isGoingToFeedbackRef = useRef(false);
+
+  useEffect(() => { localMessagesRef.current = localMessages; }, [localMessages]);
+  useEffect(() => { pendingUserTextRef.current = pendingUserText; }, [pendingUserText]);
+  useEffect(() => { conversationIdRef.current = conversationId; }, [conversationId]);
+  useEffect(() => { isGoingToFeedbackRef.current = isGoingToFeedback; }, [isGoingToFeedback]);
+
+  useEffect(() => {
+    const handlePageHide = () => {
+      // 정상 종료(피드백 페이지 이동) 중이면 이미 저장 진행 중 → 중복 저장 방지
+      if (isGoingToFeedbackRef.current) return;
+
+      const msgs = localMessagesRef.current;
+      const pending = pendingUserTextRef.current.trim();
+      const convId = conversationIdRef.current;
+
+      const payload: Array<{ sender: string; message: string; timestamp: string; emotion?: string; emotionReason?: string }> = msgs.map(msg => ({
+        sender: msg.sender,
+        message: msg.message,
+        timestamp: msg.timestamp,
+        emotion: msg.emotion,
+        emotionReason: msg.emotionReason,
+      }));
+
+      if (pending) {
+        payload.push({ sender: 'user', message: pending, timestamp: new Date().toISOString() });
+      }
+
+      if (payload.length === 0 || !convId) return;
+
+      console.log(`📤 [pagehide] sendBeacon 저장: ${payload.length}개 메시지`);
+      const blob = new Blob([JSON.stringify({ messages: payload })], { type: 'application/json' });
+      navigator.sendBeacon(`/api/conversations/${convId}/realtime-messages`, blob);
+    };
+
+    window.addEventListener('pagehide', handlePageHide);
+    return () => window.removeEventListener('pagehide', handlePageHide);
+  }, []);
 
   useEffect(() => {
     const vv = window.visualViewport;

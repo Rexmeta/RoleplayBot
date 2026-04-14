@@ -8,6 +8,7 @@ import type { ConversationMessage } from "@shared/schema";
 interface UseChatSessionOptions {
   conversationId: string;
   localMessages: ConversationMessage[];
+  pendingUserText?: string;
   chatMode: 'messenger' | 'character';
   isPersonaMode: boolean;
   onChatComplete: () => void;
@@ -24,6 +25,7 @@ interface UseChatSessionOptions {
 export function useChatSession({
   conversationId,
   localMessages,
+  pendingUserText = '',
   chatMode,
   isPersonaMode,
   onChatComplete,
@@ -49,15 +51,36 @@ export function useChatSession({
     onChatComplete();
   };
 
+  // 🔧 Fix 3: pendingUserText(말하는 도중 종료)가 있으면 마지막 발화로 추가
+  const buildSavePayload = (msgs: ConversationMessage[], pendingText: string) => {
+    const messages = msgs.map(msg => ({
+      sender: msg.sender,
+      message: msg.message,
+      timestamp: msg.timestamp,
+      emotion: msg.emotion,
+      emotionReason: msg.emotionReason,
+    }));
+    const trimmed = pendingText.trim();
+    if (trimmed) {
+      console.log(`🎤 [save] Including pendingUserText as last message: "${trimmed.substring(0, 60)}"`);
+      messages.push({
+        sender: 'user',
+        message: trimmed,
+        timestamp: new Date().toISOString(),
+        emotion: undefined,
+        emotionReason: undefined,
+      });
+    }
+    return messages;
+  };
+
   const handleEndRealtimeConversation = () => {
     if (isPersonaMode) {
       disconnectVoice();
-      if (localMessages.length > 0) {
+      const payload = buildSavePayload(localMessages, pendingUserText);
+      if (payload.length > 0) {
         apiRequest('POST', `/api/conversations/${conversationId}/realtime-messages`, {
-          messages: localMessages.map(msg => ({
-            sender: msg.sender, message: msg.message,
-            timestamp: msg.timestamp, emotion: msg.emotion, emotionReason: msg.emotionReason,
-          })),
+          messages: payload,
         }).catch(console.error);
       }
       onExit();
@@ -83,19 +106,12 @@ export function useChatSession({
 
       onConversationEnding?.();
 
-      if (localMessages.length > 0) {
+      const payload = buildSavePayload(localMessages, pendingUserText);
+      if (payload.length > 0) {
         const res = await apiRequest(
           'POST',
           `/api/conversations/${conversationId}/realtime-messages`,
-          {
-            messages: localMessages.map(msg => ({
-              sender: msg.sender,
-              message: msg.message,
-              timestamp: msg.timestamp,
-              emotion: msg.emotion,
-              emotionReason: msg.emotionReason,
-            })),
-          }
+          { messages: payload }
         );
 
         await res.json();

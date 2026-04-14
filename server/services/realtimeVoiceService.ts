@@ -1491,6 +1491,31 @@ export class RealtimeVoiceService {
       const hasOutputTranscription = !!serverContent.outputTranscription;
       console.log(`📋 serverContent: modelTurn=${hasModelTurn}, turnComplete=${hasTurnComplete}, inputTx=${hasInputTranscription}, outputTx=${hasOutputTranscription}`);
 
+      // 🔧 Fix 4: inputTranscription을 turnComplete보다 먼저 처리
+      // 같은 메시지에 두 이벤트가 함께 오면, 버퍼에 추가 후 플러시해야 마지막 단어 유실 방지
+      if (serverContent.inputTranscription) {
+        const transcript = serverContent.inputTranscription.text || '';
+        console.log(`🎤 User transcript delta: ${transcript}`);
+        
+        if (session.userTranscriptBuffer.length === 0 && transcript.length > 0) {
+          console.log('🎙️ User started speaking - notifying client');
+          this.sendToClient(session, {
+            type: 'user.speaking.started',
+          });
+        }
+        
+        session.userTranscriptBuffer += transcript;
+        session.totalUserTranscriptLength += transcript.length;
+        
+        if (transcript.length > 0) {
+          this.sendToClient(session, {
+            type: 'user.transcription.delta',
+            text: transcript,
+            accumulated: session.userTranscriptBuffer,
+          });
+        }
+      }
+
       // Handle turn completion
       if (serverContent.turnComplete) {
         console.log('✅ Turn complete');
@@ -1674,34 +1699,6 @@ export class RealtimeVoiceService {
               });
             }
           }
-        }
-      }
-
-      // Handle input transcription (user speech)
-      // 실시간 delta를 클라이언트에 전송하여 즉각적인 피드백 제공
-      if (serverContent.inputTranscription) {
-        const transcript = serverContent.inputTranscription.text || '';
-        console.log(`🎤 User transcript delta: ${transcript}`);
-        
-        // Notify client that user started speaking (for barge-in detection)
-        // Send only once per speaking session (when buffer was empty)
-        if (session.userTranscriptBuffer.length === 0 && transcript.length > 0) {
-          console.log('🎙️ User started speaking - notifying client');
-          this.sendToClient(session, {
-            type: 'user.speaking.started',
-          });
-        }
-        
-        session.userTranscriptBuffer += transcript;
-        session.totalUserTranscriptLength += transcript.length; // 누적 길이 추적
-        
-        // 사용자 전사 delta를 클라이언트에 실시간 전송
-        if (transcript.length > 0) {
-          this.sendToClient(session, {
-            type: 'user.transcription.delta',
-            text: transcript,
-            accumulated: session.userTranscriptBuffer, // 누적된 전체 전사도 함께 전송
-          });
         }
       }
 
@@ -2425,6 +2422,38 @@ ${promptConfig.replyFormat}`;
       
       // 세션 사용량 추적
       this.trackSessionUsage(session);
+      
+      // 🔧 Fix 1: WS 끊김 시 미전송 userTranscriptBuffer 처리
+      // 클라이언트 WS가 열려있으면 user.transcription 이벤트로 전송 (재연결 후 저장 가능)
+      // 클라이언트 WS가 닫혀있으면 DB에 직접 저장 (탭 닫기/크래시 시 복구)
+      const pendingUserText = session.userTranscriptBuffer.trim();
+      if (pendingUserText && session.conversationId) {
+        const clientWsOpen = session.clientWs && session.clientWs.readyState === WebSocket.OPEN;
+        if (clientWsOpen) {
+          // 클라이언트가 살아있으면 정상 이벤트로 전송 (accumulatedMessagesRef에 저장됨)
+          console.log(`🎤 [closeSession] Flushing pending user buffer to client: "${pendingUserText.substring(0, 60)}"`);
+          this.sendToClient(session, {
+            type: 'user.transcription',
+            transcript: pendingUserText,
+          });
+          session.recentMessages.push({ role: 'user', text: pendingUserText.slice(0, 300) });
+        } else {
+          // 클라이언트가 끊겼으면 DB에 직접 저장 (탭 닫기/크래시 복구)
+          console.log(`💾 [closeSession] Flushing pending user buffer to DB: "${pendingUserText.substring(0, 60)}"`);
+          storage.getChatMessagesByPersonaRun(session.conversationId).then(existing => {
+            storage.createChatMessage({
+              personaRunId: session.conversationId,
+              sender: 'user',
+              message: pendingUserText,
+              turnIndex: Math.floor(existing.length / 2),
+              emotion: null,
+              emotionReason: null,
+              createdAt: new Date(),
+            }).catch(err => console.error('❌ Failed to save orphaned user transcript:', err));
+          }).catch(err => console.error('❌ Failed to fetch messages for orphan save:', err));
+        }
+        session.userTranscriptBuffer = '';
+      }
       
       if (session.geminiSession) {
         session.geminiSession.close();
