@@ -4,6 +4,7 @@ import type { AIServiceInterface, ScenarioPersona, EvaluationCriteriaWithDimensi
 import { LANGUAGE_INSTRUCTIONS } from "../aiService";
 import { trackUsage, extractOpenAITokens, getModelPricingKey } from "../aiUsageTracker";
 import { retryWithBackoff, conversationSemaphore, feedbackSemaphore } from "../../utils/concurrency";
+import { DEFAULT_DIMENSIONS, calculateWeightedOverallScore } from "../evaluationEngine";
 
 export class OpenAIProvider implements AIServiceInterface {
   private client: OpenAI;
@@ -247,32 +248,8 @@ JSON 형식으로 응답하세요: {"emotion": "감정", "reason": "감정을 �
     return lastFeedback || this.getFallbackFeedback(evaluationCriteria);
   }
 
-  private getDefaultDimensions(): EvaluationCriteriaWithDimensions['dimensions'] {
-    return [
-      { key: 'clarityLogic', name: '명확성 & 논리성', description: '의사 표현의 명확성과 논리적 구성', weight: 20, minScore: 1, maxScore: 10 },
-      { key: 'listeningEmpathy', name: '경청 & 공감', description: '상대방의 말을 듣고 공감하는 능력', weight: 20, minScore: 1, maxScore: 10 },
-      { key: 'appropriatenessAdaptability', name: '적절성 & 상황대응', description: '상황에 맞는 적절한 대응', weight: 20, minScore: 1, maxScore: 10 },
-      { key: 'persuasivenessImpact', name: '설득력 & 영향력', description: '상대방을 설득하고 영향을 미치는 능력', weight: 20, minScore: 1, maxScore: 10 },
-      { key: 'strategicCommunication', name: '전략적 커뮤니케이션', description: '목표 달성을 위한 전략적 소통', weight: 20, minScore: 1, maxScore: 10 },
-    ];
-  }
-
-  private calculateWeightedOverallScore(scores: Record<string, number>, evaluationCriteria?: EvaluationCriteriaWithDimensions): number {
-    const dimensions = evaluationCriteria?.dimensions || this.getDefaultDimensions();
-    const totalWeight = dimensions.reduce((sum, d) => sum + d.weight, 0);
-    
-    if (totalWeight === 0) return 50;
-    
-    const weightedSum = dimensions.reduce((sum, d) => {
-      const score = scores[d.key] || d.minScore;
-      return sum + (score / d.maxScore) * d.weight;
-    }, 0);
-    
-    return Math.round((weightedSum / totalWeight) * 100);
-  }
-
   private buildFeedbackPrompt(conversationText: string, messages: ConversationMessage[], persona: ScenarioPersona, evaluationCriteria?: EvaluationCriteriaWithDimensions, language: SupportedLanguage = 'ko'): string {
-    const dimensions = evaluationCriteria?.dimensions || this.getDefaultDimensions();
+    const dimensions = evaluationCriteria?.dimensions || DEFAULT_DIMENSIONS;
     const criteriaName = evaluationCriteria?.name || '기본 평가 기준';
     const languageInstruction = LANGUAGE_INSTRUCTIONS[language] || LANGUAGE_INSTRUCTIONS.ko;
 
@@ -399,7 +376,7 @@ JSON 형식으로 응답:
   }
 
   private parseFeedbackResponse(feedbackData: any, evaluationCriteria?: EvaluationCriteriaWithDimensions): DetailedFeedback {
-    const dimensions = evaluationCriteria?.dimensions || this.getDefaultDimensions();
+    const dimensions = evaluationCriteria?.dimensions || DEFAULT_DIMENSIONS;
     
     const scores: Record<string, number> = {};
     for (const dim of dimensions) {
@@ -408,7 +385,7 @@ JSON 형식으로 응답:
     }
 
     return {
-      overallScore: this.calculateWeightedOverallScore(scores, evaluationCriteria),
+      overallScore: calculateWeightedOverallScore(scores, evaluationCriteria),
       scores: scores as any,
       dimensionFeedback: feedbackData.dimensionFeedback || {},
       strengths: feedbackData.strengths || ["기본적인 대화 능력", "적절한 언어 사용", "상황 이해도"],
@@ -437,7 +414,7 @@ JSON 형식으로 응답:
   }
 
   private getFallbackFeedback(evaluationCriteria?: EvaluationCriteriaWithDimensions): DetailedFeedback {
-    const dimensions = evaluationCriteria?.dimensions || this.getDefaultDimensions();
+    const dimensions = evaluationCriteria?.dimensions || DEFAULT_DIMENSIONS;
     const scores: Record<string, number> = {};
     const baseScores = [2, 4, 3, 6, 2];
     dimensions.forEach((dim, idx) => {
@@ -445,7 +422,7 @@ JSON 형식으로 응답:
     });
 
     return {
-      overallScore: this.calculateWeightedOverallScore(scores, evaluationCriteria),
+      overallScore: calculateWeightedOverallScore(scores, evaluationCriteria),
       scores: scores as any,
       strengths: ["기본적인 대화 참여"],
       improvements: ["시스템 안정성 확보 후 재평가 필요", "더 많은 대화 기회 필요", "기술적 문제 해결 후 재시도"],
