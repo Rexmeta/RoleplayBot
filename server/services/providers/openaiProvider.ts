@@ -5,6 +5,11 @@ import { LANGUAGE_INSTRUCTIONS } from "../aiService";
 import { trackUsage, extractOpenAITokens, getModelPricingKey } from "../aiUsageTracker";
 import { retryWithBackoff, conversationSemaphore, feedbackSemaphore } from "../../utils/concurrency";
 import { DEFAULT_DIMENSIONS, calculateWeightedOverallScore } from "../evaluationEngine";
+import {
+  detectRoleHierarchy,
+  buildHierarchySpeechGuide,
+  buildDifficultyGuidelines,
+} from "../conversationContextBuilder";
 
 export class OpenAIProvider implements AIServiceInterface {
   private client: OpenAI;
@@ -42,6 +47,16 @@ export class OpenAIProvider implements AIServiceInterface {
 - 당신은 ${persona.role}이며, 상대방은 ${playerPosition}입니다. 이 역할 구분은 절대 변하지 않습니다
 - 절대로 ${playerPosition}의 역할을 수행하거나 그 입장에서 발언하지 마세요` : '';
 
+      // 직위 위계 말투 지시 (conversationContextBuilder 공유 로직)
+      const hierarchySpeechGuide = (() => {
+        if (!playerPosition || !persona.role) return '';
+        const hierarchy = detectRoleHierarchy(persona.role, playerPosition);
+        return buildHierarchySpeechGuide(persona.role, playerPosition, hierarchy);
+      })();
+
+      // 난이도 지침 (conversationContextBuilder 공유 로직)
+      const difficultyGuidelines = buildDifficultyGuidelines(scenarioObj.difficulty);
+
       const systemMessage = {
         role: 'system' as const,
         content: `당신은 ${persona.name}(${persona.role})입니다.
@@ -52,6 +67,9 @@ export class OpenAIProvider implements AIServiceInterface {
 - 배경: ${persona.background}
 - 목표: ${persona.goals.join(', ')}
 ${playerRoleSection}
+${hierarchySpeechGuide}
+
+${difficultyGuidelines}
 
 대화 규칙:
 1. 주어진 페르소나를 정확히 구현하세요

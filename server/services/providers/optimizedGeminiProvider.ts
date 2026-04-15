@@ -4,7 +4,13 @@ import type { AIServiceInterface, ScenarioPersona, EvaluationCriteriaWithDimensi
 import { LANGUAGE_INSTRUCTIONS } from "../aiService";
 import { enrichPersonaWithMBTI } from "../../utils/mbtiLoader";
 import { GlobalMBTICache } from "../../utils/globalMBTICache";
-import { getTextModeGuidelines, validateDifficultyLevel } from "../conversationDifficultyPolicy";
+import {
+  prepareConversationHistory,
+  detectRoleHierarchy,
+  buildHierarchySpeechGuide,
+  buildDifficultyGuidelines,
+  buildMBTIContextGuides,
+} from "../conversationContextBuilder";
 import { trackUsage, extractGeminiTokens, getModelPricingKey } from "../aiUsageTracker";
 import { retryWithBackoff, conversationSemaphore, feedbackSemaphore } from "../../utils/concurrency";
 import {
@@ -70,13 +76,12 @@ export class OptimizedGeminiProvider implements AIServiceInterface {
     const startTime = Date.now();
     
     try {
-      // 병렬 처리: 페르소나 enrichment와 대화 히스토리 준비를 동시에
       const scenarioObj: RoleplayScenario = typeof scenario === 'string' ? {} : scenario;
       const playerPosition = scenarioObj.context?.playerRole?.position;
-      const [enrichedPersona, conversationHistory] = await Promise.all([
-        this.getEnrichedPersona(scenarioObj, persona),
-        this.prepareConversationHistory(messages, persona.name, playerPosition)
-      ]);
+      // 페르소나 enrichment (비동기 캐시 조회)
+      const enrichedPersona = await this.getEnrichedPersona(scenarioObj, persona);
+      // 대화 히스토리 준비 (동기, conversationContextBuilder 공유 함수)
+      const conversationHistory = prepareConversationHistory(messages, persona.name, playerPosition);
       
       const enrichTime = Date.now() - startTime;
       console.log(`⚡ Parallel processing completed in ${enrichTime}ms`);
@@ -194,86 +199,6 @@ export class OptimizedGeminiProvider implements AIServiceInterface {
   }
 
   /**
-   * 대화 히스토리 준비 (병렬 처리용)
-   */
-  private async prepareConversationHistory(messages: ConversationMessage[], personaName: string, playerPosition?: string): Promise<string> {
-    const safeMessages = messages || [];
-    
-    // 최근 10턴 유지 - 반복 질문 방지를 위한 충분한 컨텍스트
-    const recentMessages = safeMessages.slice(-10);
-    const userLabel = playerPosition ? playerPosition : '사용자';
-    
-    return recentMessages.map((msg, idx) => {
-      const truncated = msg.message.slice(0, 400) + (msg.message.length > 400 ? '...' : '');
-      if (msg.sender === 'user') {
-        // 직전 메시지가 AI 발언이면 → 해당 질문에 대한 답변 완료 표시
-        const prevMsg = recentMessages[idx - 1];
-        const isAnswerToQuestion = prevMsg && prevMsg.sender !== 'user';
-        return isAnswerToQuestion
-          ? `【${userLabel} 답변 ✓】 ${truncated}  ← 위 질문은 이미 답변받은 사안`
-          : `【${userLabel}】 ${truncated}`;
-      } else {
-        return `【${personaName} - 당신의 발언】 ${truncated}`;
-      }
-    }).join('\n');
-  }
-
-  /**
-   * AI 페르소나와 유저 역할 간의 직위 위계를 판별하는 헬퍼
-   * 반환값: 'ai_superior' | 'ai_subordinate' | 'peer'
-   */
-  private detectRoleHierarchy(aiRole: string, userRole: string): 'ai_superior' | 'ai_subordinate' | 'peer' {
-    const superiorKeywords = ['팀장', '부장', '차장', '과장', '선임', '시니어', '수석', '리드', '매니저', 'manager', 'lead', 'senior', 'director', '대리', '주임', '본부장', '실장', 'cto', 'ceo', '임원', '이사', '상무', '전무', '대표', '사장'];
-    const subordinateKeywords = ['신입', '인턴', '주니어', 'junior', '신규', '초보', '수습', '신입사원', '신입 개발자', '신입개발자', '입문', '초급'];
-    // 고객/외부 관계자는 항상 정중하게 대해야 하므로 ai_subordinate로 처리
-    const externalClientKeywords = ['고객', '클라이언트', 'customer', 'client', '의뢰인', '소비자', '구매자', '방문객', '투자자', '파트너'];
-
-    const normalize = (s: string) => s.toLowerCase().replace(/\s+/g, '');
-
-    const aiRoleNorm = normalize(aiRole);
-    const userRoleNorm = normalize(userRole);
-
-    // 유저가 고객/외부 관계자이면 항상 정중한 말투 (ai_subordinate 처럼 동작)
-    if (externalClientKeywords.some(k => userRoleNorm.includes(normalize(k)))) {
-      return 'ai_subordinate';
-    }
-
-    const aiIsSuperior = superiorKeywords.some(k => aiRoleNorm.includes(normalize(k)));
-    const aiIsSubordinate = subordinateKeywords.some(k => aiRoleNorm.includes(normalize(k)));
-    const userIsSuperior = superiorKeywords.some(k => userRoleNorm.includes(normalize(k)));
-    const userIsSubordinate = subordinateKeywords.some(k => userRoleNorm.includes(normalize(k)));
-
-    // 양측 모두 인식된 직급 키워드가 있을 때만 위계 판별
-    if (aiIsSuperior && userIsSubordinate) {
-      return 'ai_superior';
-    }
-    if (userIsSuperior && aiIsSubordinate) {
-      return 'ai_subordinate';
-    }
-    // 한쪽만 명확히 하위 직급이고 상대는 상위 직급 키워드 보유 시
-    if (aiIsSuperior && userIsSuperior) {
-      return 'peer';
-    }
-    if (aiIsSubordinate && userIsSubordinate) {
-      return 'peer';
-    }
-    if (aiIsSuperior && !userIsSubordinate && !userIsSuperior) {
-      // 상대방 역할이 불명확 → 안전하게 peer 처리
-      return 'peer';
-    }
-    if (userIsSuperior && !aiIsSubordinate && !aiIsSuperior) {
-      return 'ai_subordinate';
-    }
-    if (aiIsSubordinate && !userIsSuperior) {
-      return 'ai_subordinate';
-    }
-    if (userIsSubordinate && !aiIsSubordinate) {
-      return 'ai_superior';
-    }
-    return 'peer';
-  }
-
-  /**
    * 압축된 시스템 프롬프트 생성
    */
   private buildCompactPrompt(scenario: RoleplayScenario, persona: ScenarioPersona, conversationHistory: string, language: SupportedLanguage = 'ko', playerPosition?: string): string {
@@ -298,40 +223,14 @@ export class OptimizedGeminiProvider implements AIServiceInterface {
       ? mbtiData.personality_traits.join(', ')
       : '균형 잡힌 성격';
     
-    // 의사소통 스타일 (상세하게)
-    const communicationStyle = mbtiData?.communication_style || '균형 잡힌 의사소통';
-    
-    // 동기와 두려움 (성격 차이에 핵심적인 요소)
-    const motivation = mbtiData?.motivation || '';
-    const fears = mbtiData?.fears ? (Array.isArray(mbtiData.fears) ? mbtiData.fears.join(', ') : mbtiData.fears) : '';
-    
-    // 심리적 동기 가이드 (성격 차이를 드러내는 핵심)
-    const psychologicalGuide = (motivation || fears) ? `
-**심리적 동기 (대화에 반드시 반영할 것)**:
-${motivation ? `- 당신이 원하는 것: ${motivation}` : ''}
-${fears ? `- 당신이 두려워하는 것: ${fears}` : ''}
-- 이 동기와 두려움이 모든 대화 반응에 자연스럽게 드러나야 합니다
-- 두려움과 관련된 상황이 발생하면 방어적/경계적/회피적으로 반응하세요
-- 동기와 부합하는 제안에는 긍정적으로, 동기와 충돌하는 제안에는 저항적으로 반응하세요` : '';
-    
-    // 구어체 스타일 준비
-    const speechStyle = mbtiData?.speech_style;
-    const speechStyleGuide = speechStyle ? `
-말투 스타일:
-- 격식: ${speechStyle.formality}
-- 문장 끝: ${speechStyle.sentence_endings?.join(', ') || '~요, ~네요'}
-- 추임새: ${speechStyle.filler_words?.join(', ') || '음, 아'}
-- 특징적 표현: ${speechStyle.characteristic_expressions?.join(', ') || ''}` : '';
-    
-    // 리액션 어휘 준비
-    const reactionPhrases = mbtiData?.reaction_phrases;
-    const reactionGuide = reactionPhrases ? `
-리액션 표현:
-- 동의할 때: ${reactionPhrases.agreement?.slice(0, 2).join(', ') || '네, 맞아요'}
-- 반대할 때: ${reactionPhrases.disagreement?.slice(0, 2).join(', ') || '글쎄요'}
-- 놀랄 때: ${reactionPhrases.surprise?.slice(0, 2).join(', ') || '어머, 정말요?'}
-- 생각할 때: ${reactionPhrases.thinking?.slice(0, 2).join(', ') || '음...'}` : '';
-    
+    // MBTI 컨텍스트 가이드 조립 (conversationContextBuilder에서 중앙 관리)
+    const {
+      psychologicalGuide,
+      communicationBehaviorGuide,
+      speechStyleGuide,
+      reactionGuide,
+    } = buildMBTIContextGuides(mbtiData);
+
     // 의사소통 패턴 (key_phrases, response_to_arguments) 준비
     const communicationPatterns = mbtiData?.communication_patterns;
     const keyPhrasesGuide = communicationPatterns?.key_phrases?.length ? `
@@ -370,53 +269,17 @@ ${experience ? `- 경력: ${experience}` : ''}
 - 당신은 ${persona.role}이며, 상대방은 ${playerRoleLabel}입니다. 이 역할 구분은 절대 변하지 않습니다
 - 절대로 ${playerRoleLabel}의 역할을 수행하거나 그 입장에서 발언하지 마세요` : '';
 
-    // 직위 위계에 따른 말투 지시
+    // 직위 위계에 따른 말투 지시 (conversationContextBuilder에서 중앙 관리)
     const hierarchySpeechGuide = (() => {
       if (!playerRoleLabel || !persona.role) return '';
-      const hierarchy = this.detectRoleHierarchy(persona.role, playerRoleLabel);
+      const hierarchy = detectRoleHierarchy(persona.role, playerRoleLabel);
       console.log(`📊 직위 위계 판별: AI(${persona.role}) vs 유저(${playerRoleLabel}) → ${hierarchy}`);
-      if (hierarchy === 'ai_superior') {
-        return `
-**【말투 위계 지시 - 최우선 적용】**:
-- 당신(${persona.role})은 상대방(${playerRoleLabel})보다 직위가 높습니다
-- 반드시 윗사람이 아랫사람에게 말하는 어체를 사용하세요
-- 구체적으로: "~해", "~하게", "~하도록", "~봐", "~잖아" 등 반말 또는 직급에 맞는 지시·명령 어체를 사용하세요
-- "찾아뵙겠습니다", "말씀드리려고요", "부탁드립니다" 같은 아랫사람 표현은 절대 사용하지 마세요
-- 격식이 필요한 경우라도 "~하지", "~하면 돼", "~해봐", "자, 그럼" 등 자연스러운 상위자 어투를 유지하세요`;
-      }
-      if (hierarchy === 'ai_subordinate') {
-        return `
-**【말투 위계 지시 - 최우선 적용】**:
-- 당신(${persona.role})은 상대방(${playerRoleLabel})보다 직위가 낮습니다
-- 반드시 아랫사람이 윗사람에게 말하는 정중한 어체를 사용하세요
-- 구체적으로: "~습니다", "~요", "~드리겠습니다", "말씀드리다", "여쭤보다" 등 존댓말과 겸양 표현을 사용하세요
-- 지나치게 편한 반말이나 지시하는 어투는 절대 사용하지 마세요`;
-      }
-      return `
-**【말투 위계 지시 - 최우선 적용】**:
-- 당신(${persona.role})과 상대방(${playerRoleLabel})은 동등한 관계입니다
-- 친근하고 편안한 동료 말투를 사용하세요 (예: "~요", "~죠", "그렇지 않아요?", "같이 해봐요")
-- 지나치게 격식을 차리거나 지나치게 편한 반말보다는 자연스럽고 협력적인 어투를 유지하세요`;
+      return buildHierarchySpeechGuide(persona.role, playerRoleLabel, hierarchy);
     })();
-    
-    // 의사소통 스타일 상세 가이드 (행동 지침으로 변환)
-    const communicationBehaviorGuide = `
-**의사소통 행동 지침 (반드시 따를 것)**:
-${communicationStyle}
 
-위 의사소통 스타일을 다음과 같이 구체적으로 실행하세요:
-- "명령조" 스타일이면: "~하세요", "~해야 합니다", "당연히~" 등의 표현 사용
-- "형식적/정중" 스타일이면: "~인 것 같습니다", "확인이 필요할 것 같은데요" 등 완곡한 표현 사용
-- "직설적" 스타일이면: 돌려 말하지 않고 핵심을 바로 말하기
-- "침묵을 압박 수단으로" 사용한다면: 대화 중 "..." 을 사용하여 침묵을 표현하기 (괄호 행동 묘사 금지)
-- "두괄식" 스타일이면: 결론을 먼저 말하고 이유는 나중에
-- "질문으로 압박" 스타일이면: "그게 맞습니까?", "근거가 있습니까?" 등 추궁형 질문 사용`;
-    
-    // 대화 난이도 레벨 가져오기 (사용자가 선택한 난이도 사용, 기본값 2)
-    const difficultyLevel = validateDifficultyLevel(scenario.difficulty);
-    console.log(`🎯 대화 난이도: Level ${difficultyLevel} (사용자 선택)`)
-    
-    const difficultyGuidelines = getTextModeGuidelines(difficultyLevel);
+    // 대화 난이도 지침 (conversationContextBuilder에서 중앙 관리)
+    console.log(`🎯 대화 난이도: Level ${scenario.difficulty ?? 2} (사용자 선택)`);
+    const difficultyGuidelines = buildDifficultyGuidelines(scenario.difficulty);
     
     const userLabelInPrompt = playerRoleLabel || '사용자';
 
