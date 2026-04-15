@@ -8,15 +8,21 @@
 
 ### 단일 진실 원천 (Single Source of Truth)
 - **시나리오 난이도**가 유일한 난이도 설정입니다
-- MBTI 페르소나는 난이도를 저장하지 않습니다
-- 모든 대화 모드(텍스트/TTS/실시간 음성)에서 동일한 난이도 적용
+- MBTI 페르소나는 런타임 난이도 결정에 참여하지 않습니다
+- 난이도 미설정 시 `validateDifficultyLevel()`의 기본값 **2 (기본 난이도)**가 사용됩니다
+- 모든 대화 모드(텍스트/TTS/실시간 음성)에서 동일하게 적용됩니다
+
+> **상세 분석**: 코드 경로별 동작은 → [`docs/difficulty-system-analysis.md`](./difficulty-system-analysis.md) 참조
 
 ```typescript
-// ✅ 올바른 방식
-const difficulty = scenario.difficulty || 4;
+// ✅ 실제 동작 (routes.ts)
+const userSelectedDifficulty = personaRun.difficulty || scenarioRun.difficulty || 2;
 
-// ❌ 잘못된 방식 (제거됨)
-const difficulty = scenario.difficulty || persona.conversationDifficultyLevel || 4;
+// ✅ 실제 동작 (routes/conversations.ts)
+difficulty: validatedData.difficulty || 2
+
+// validateDifficultyLevel() (conversationDifficultyPolicy.ts)
+// undefined / null / 1-4 범위 외 → 2 반환
 ```
 
 ## 📊 난이도 레벨 정의
@@ -145,9 +151,10 @@ AI가 난이도에 맞게 응답 생성
 
 ```typescript
 if (!scenario.difficulty) {
-  console.warn(`⚠️ 시나리오 "${scenario.title}"에 난이도 미설정, 기본값 4 적용`);
+  console.warn(`⚠️ 시나리오 "${scenario.title}"에 난이도 미설정, 기본값 2 적용`);
 }
-const difficultyLevel = validateDifficultyLevel(scenario.difficulty); // → 4
+// validateDifficultyLevel(): undefined/null/범위 외 → 2 반환
+const difficultyLevel = validateDifficultyLevel(scenario.difficulty); // → 2
 ```
 
 ## 🎭 MBTI + 난이도 = 대화 스타일
@@ -182,11 +189,11 @@ const difficultyLevel = validateDifficultyLevel(scenario.difficulty); // → 4
 
 ### 데이터 모델
 - `shared/schema.ts` - 시나리오 스키마 (difficulty 필드)
-- `server/mbti/*.json` - MBTI 페르소나 (난이도 필드 제거됨)
+- `server/mbti/*.json` - MBTI 페르소나 (런타임 난이도 결정에 참여하지 않음)
 
 ### 문서
 - `README.md` - 사용자용 난이도 설명
-- `docs/difficulty-system-analysis.md` - 기술 분석
+- `docs/difficulty-system-analysis.md` - **기준 문서**: 코드 경로별 동작, 런타임 기본값 상세 분석
 - `replit.md` - 프로젝트 개요
 
 ## 🔍 디버깅 팁
