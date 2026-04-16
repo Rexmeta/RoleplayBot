@@ -169,11 +169,6 @@ export default function ConversationView() {
                         </div>
                       )}
                       <div className="whitespace-pre-wrap">{message.message}</div>
-                      {message.emotion && message.sender !== 'user' && (
-                        <div className="text-xs mt-2 opacity-75">
-                          {t('conversation.emotion')}: {message.emotion}
-                        </div>
-                      )}
                     </div>
                   </div>
                 ))
