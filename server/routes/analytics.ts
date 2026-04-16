@@ -414,7 +414,7 @@ export default function createAnalyticsRouter(isAuthenticated: any) {
 
       const scenario = scenarios.find(s => s.id === scenarioRun.scenarioId);
       const scenarioName = scenario?.title || scenarioRun.scenarioId;
-      const userDifficulty = scenarioRun.difficulty || 2;
+      const userDifficulty = scenarioRun.difficulty || 4;
 
       if (!acc[scenarioRun.scenarioId]) {
         acc[scenarioRun.scenarioId] = {
@@ -1091,7 +1091,7 @@ export default function createAnalyticsRouter(isAuthenticated: any) {
           name: (scenario as any).title || scenId,
           average: 0,
           sessionCount: 0,
-          difficulty: (scenario as any).difficulty || 2,
+          difficulty: (scenario as any).difficulty || 4,
           personaCount: ((scenario as any).personas || []).length
         };
       }
@@ -1126,7 +1126,7 @@ export default function createAnalyticsRouter(isAuthenticated: any) {
         mbti,
         userId: scenarioRun.userId,
         completedAt: scenarioRun.completedAt || scenarioRun.startedAt,
-        difficulty: (scenario as any).difficulty || 2,
+        difficulty: (scenario as any).difficulty || 4,
       });
     }
 

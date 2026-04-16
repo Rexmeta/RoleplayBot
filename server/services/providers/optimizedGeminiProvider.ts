@@ -278,7 +278,7 @@ ${experience ? `- 경력: ${experience}` : ''}
     })();
 
     // 대화 난이도 지침 (conversationContextBuilder에서 중앙 관리)
-    console.log(`🎯 대화 난이도: Level ${scenario.difficulty ?? 2} (사용자 선택)`);
+    console.log(`🎯 대화 난이도: Level ${scenario.difficulty ?? 4} (사용자 선택)`);
     const difficultyGuidelines = buildDifficultyGuidelines(scenario.difficulty);
     
     const userLabelInPrompt = playerRoleLabel || '사용자';

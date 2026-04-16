@@ -454,7 +454,7 @@ export function buildFreeChatScenario(mbtiPersona: any, difficulty: number): any
       "상대방의 MBTI 유형에 맞는 커뮤니케이션 스타일 연습하기"
     ],
     personas: [],
-    difficulty: difficulty || 2,
+    difficulty: difficulty || 4,
   };
 }
 

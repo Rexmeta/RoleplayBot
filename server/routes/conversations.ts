@@ -105,7 +105,7 @@ export default function createConversationsRouter(isAuthenticated: any) {
       mbtiType: mbtiType || null,
       phase,
       mode: validatedData.mode,
-      difficulty: validatedData.difficulty || 2,
+      difficulty: validatedData.difficulty || 4,
       status: 'active'
     });
 
@@ -124,7 +124,7 @@ export default function createConversationsRouter(isAuthenticated: any) {
         turnCount: 0,
         status: 'active',
         mode: validatedData.mode,
-        difficulty: validatedData.difficulty || 2,
+        difficulty: validatedData.difficulty || 4,
         userId,
         createdAt: scenarioRun.startedAt,
         updatedAt: scenarioRun.startedAt
@@ -149,7 +149,7 @@ export default function createConversationsRouter(isAuthenticated: any) {
 
       const scenarioWithUserDifficulty = {
         ...scenarioObj,
-        difficulty: validatedData.difficulty || 2
+        difficulty: validatedData.difficulty || 4
       };
 
       const user = await storage.getUser(userId);
@@ -423,7 +423,7 @@ export default function createConversationsRouter(isAuthenticated: any) {
     if (scenarioRun!.scenarioId === "__free_chat__") {
       const snapshot = personaRun!.personaSnapshot as any || {};
       persona = buildFreeChatPersona(snapshot);
-      scenarioWithUserDifficulty = buildFreeChatScenario(snapshot, personaRun!.difficulty || scenarioRun!.difficulty || 2);
+      scenarioWithUserDifficulty = buildFreeChatScenario(snapshot, personaRun!.difficulty || scenarioRun!.difficulty || 4);
     } else if (scenarioRun!.scenarioId?.startsWith("__user_persona__:")) {
       const userPersonaId = scenarioRun!.scenarioId.split(":")[1];
       const userPersonaData = await storage.getUserPersonaById(userPersonaId);
@@ -460,7 +460,7 @@ export default function createConversationsRouter(isAuthenticated: any) {
         },
         objectives: ["자유롭게 대화하기"],
         personas: [],
-        difficulty: personaRun!.difficulty || scenarioRun!.difficulty || 2,
+        difficulty: personaRun!.difficulty || scenarioRun!.difficulty || 4,
         successCriteria: { optimal: "자연스러운 대화", good: "적극적인 소통", acceptable: "기본 대화 유지", failure: "대화 거부" },
         _userPersonaMode: true,
         _userPersonaSystemPrompt: (() => {

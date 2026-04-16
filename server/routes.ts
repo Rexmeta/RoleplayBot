@@ -168,7 +168,7 @@ export async function registerRoutes(app: Express, httpServer: Server): Promise<
     const sessionId = `${userId}-${conversationId}-${Date.now()}`;
 
     try {
-      const userSelectedDifficulty = personaRun.difficulty || scenarioRun.difficulty || 2;
+      const userSelectedDifficulty = personaRun.difficulty || scenarioRun.difficulty || 4;
       console.log(`🎯 실시간 음성 세션 난이도: Level ${userSelectedDifficulty}`);
 
       const voiceUser = await storage.getUser(userId);

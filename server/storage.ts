@@ -363,7 +363,7 @@ export class MemStorage implements IStorage {
       messages: insertConversation.messages as any,
       turnCount: insertConversation.turnCount || 0,
       status: insertConversation.status || "active",
-      difficulty: insertConversation.difficulty || 2,
+      difficulty: insertConversation.difficulty || 4,
       createdAt: new Date(),
       completedAt: null,
       conversationType: insertConversation.conversationType || "single",

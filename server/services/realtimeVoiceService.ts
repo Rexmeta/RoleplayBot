@@ -460,7 +460,7 @@ export class RealtimeVoiceService {
     // 사용자가 선택한 난이도를 시나리오 객체에 적용
     const scenarioWithUserDifficulty = {
       ...scenarioObj,
-      difficulty: userSelectedDifficulty || 2 // 사용자가 선택한 난이도 사용, 기본값 2
+      difficulty: userSelectedDifficulty || 4 // 사용자가 선택한 난이도 사용, 기본값 4
     };
 
     // Create system instructions with user language

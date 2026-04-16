@@ -286,7 +286,7 @@ export class FileManagerService {
         title: scenario.title,
         description: scenario.description,
         sourceLocale: scenario.sourceLocale || 'ko', // 원본 작성 언어
-        difficulty: scenario.difficulty || 2,
+        difficulty: scenario.difficulty || 4,
         estimatedTime: scenario.estimatedTime || null,
         skills: scenario.skills || [],
         categoryId: scenario.categoryId || null,
