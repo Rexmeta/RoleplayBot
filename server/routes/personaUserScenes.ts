@@ -39,6 +39,7 @@ export default function createPersonaUserScenesRouter(isAuthenticated: any) {
     isAuthenticated,
     asyncHandler(async (req: any, res) => {
       const genre = typeof req.query.genre === "string" ? req.query.genre : undefined;
+      const tag = typeof req.query.tag === "string" ? req.query.tag : undefined;
       const search = typeof req.query.search === "string" ? req.query.search : undefined;
       const mine = req.query.mine === "true";
       const userId = req.user?.id;
@@ -48,7 +49,7 @@ export default function createPersonaUserScenesRouter(isAuthenticated: any) {
         return res.json(scenes);
       }
 
-      const scenes = await storage.getPublicPersonaUserScenes({ genre, search });
+      const scenes = await storage.getPublicPersonaUserScenes({ genre, tag, search });
       res.json(scenes);
     })
   );

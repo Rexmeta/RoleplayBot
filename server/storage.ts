@@ -266,7 +266,7 @@ export interface IStorage {
   createPersonaUserScene(data: InsertPersonaUserScene): Promise<PersonaUserScene>;
   getPersonaUserSceneById(id: string): Promise<PersonaUserScene | undefined>;
   getPersonaUserScenesByCreator(creatorId: string, search?: string): Promise<PersonaUserScene[]>;
-  getPublicPersonaUserScenes(options?: { genre?: string; search?: string; limit?: number; offset?: number }): Promise<PersonaUserScene[]>;
+  getPublicPersonaUserScenes(options?: { genre?: string; tag?: string; search?: string; limit?: number; offset?: number }): Promise<PersonaUserScene[]>;
   updatePersonaUserScene(id: string, creatorId: string, data: Partial<InsertPersonaUserScene>): Promise<PersonaUserScene>;
   deletePersonaUserScene(id: string, creatorId: string): Promise<void>;
   incrementPersonaUserSceneUseCount(id: string): Promise<void>;
@@ -917,7 +917,7 @@ export class MemStorage implements IStorage {
   async createPersonaUserScene(_data: InsertPersonaUserScene): Promise<PersonaUserScene> { throw new Error("Not implemented"); }
   async getPersonaUserSceneById(_id: string): Promise<PersonaUserScene | undefined> { return undefined; }
   async getPersonaUserScenesByCreator(_creatorId: string, _search?: string): Promise<PersonaUserScene[]> { return []; }
-  async getPublicPersonaUserScenes(_options?: { genre?: string; search?: string; limit?: number; offset?: number }): Promise<PersonaUserScene[]> { return []; }
+  async getPublicPersonaUserScenes(_options?: { genre?: string; tag?: string; search?: string; limit?: number; offset?: number }): Promise<PersonaUserScene[]> { return []; }
   async updatePersonaUserScene(_id: string, _creatorId: string, _data: Partial<InsertPersonaUserScene>): Promise<PersonaUserScene> { throw new Error("Not implemented"); }
   async deletePersonaUserScene(_id: string, _creatorId: string): Promise<void> {}
   async incrementPersonaUserSceneUseCount(_id: string): Promise<void> {}
@@ -2337,10 +2337,11 @@ export class PostgreSQLStorage implements IStorage {
       .orderBy(desc(personaUserScenes.createdAt));
   }
 
-  async getPublicPersonaUserScenes(options: { genre?: string; search?: string; limit?: number; offset?: number } = {}): Promise<PersonaUserScene[]> {
-    const { genre, search, limit = 50, offset = 0 } = options;
+  async getPublicPersonaUserScenes(options: { genre?: string; tag?: string; search?: string; limit?: number; offset?: number } = {}): Promise<PersonaUserScene[]> {
+    const { genre, tag, search, limit = 50, offset = 0 } = options;
     const conditions: any[] = [eq(personaUserScenes.isPublic, true)];
     if (genre) conditions.push(sql`lower(${personaUserScenes.genre}) like ${`%${genre.toLowerCase()}%`}`);
+    if (tag) conditions.push(sql`${personaUserScenes.tags} @> ${JSON.stringify([tag])}::jsonb`);
     if (search) {
       const q = `%${search.toLowerCase()}%`;
       conditions.push(

@@ -75,6 +75,7 @@ export default function PersonaScenesPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [genreFilter, setGenreFilter] = useState("전체");
+  const [tagFilter, setTagFilter] = useState<string | null>(null);
 
   useEffect(() => {
     if (tabFromUrl && ["all", "mine"].includes(tabFromUrl)) {
@@ -88,14 +89,32 @@ export default function PersonaScenesPage() {
   }, [searchQuery]);
 
   const { data: publicScenes = [], isLoading: loadingPublic } = useQuery<PersonaUserScene[]>({
-    queryKey: ["/api/persona-user-scenes", genreFilter, debouncedSearch],
+    queryKey: ["/api/persona-user-scenes", genreFilter, tagFilter, debouncedSearch],
     queryFn: () => {
       const params = new URLSearchParams();
       if (genreFilter !== "전체") params.set("genre", genreFilter);
+      if (tagFilter) params.set("tag", tagFilter);
       if (debouncedSearch) params.set("search", debouncedSearch);
       return apiRequest("GET", `/api/persona-user-scenes?${params}`).then(r => r.json());
     },
   });
+
+  const popularTags = (() => {
+    const freq: Record<string, number> = {};
+    for (const scene of publicScenes) {
+      for (const tag of scene.tags || []) {
+        freq[tag] = (freq[tag] || 0) + 1;
+      }
+    }
+    return Object.entries(freq)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 15)
+      .map(([tag]) => tag);
+  })();
+
+  const allTagsForFilter = tagFilter && !popularTags.includes(tagFilter)
+    ? [tagFilter, ...popularTags]
+    : popularTags;
 
   const { data: myScenes = [], isLoading: loadingMine } = useQuery<PersonaUserScene[]>({
     queryKey: ["/api/persona-user-scenes", "mine", debouncedSearch],
@@ -168,20 +187,40 @@ export default function PersonaScenesPage() {
 
         {/* Genre filter */}
         {activeTab === "all" && (
-          <div className="flex gap-2 flex-wrap">
-            {GENRES.map(g => (
-              <button
-                key={g}
-                onClick={() => setGenreFilter(g)}
-                className={`text-xs px-3 py-1.5 rounded-full border transition-colors ${
-                  genreFilter === g
-                    ? "bg-emerald-600 text-white border-emerald-600"
-                    : "bg-white text-slate-600 border-slate-200 hover:border-emerald-300"
-                }`}
-              >
-                {g}
-              </button>
-            ))}
+          <div className="space-y-3">
+            <div className="flex gap-2 flex-wrap">
+              {GENRES.map(g => (
+                <button
+                  key={g}
+                  onClick={() => setGenreFilter(g)}
+                  className={`text-xs px-3 py-1.5 rounded-full border transition-colors ${
+                    genreFilter === g
+                      ? "bg-emerald-600 text-white border-emerald-600"
+                      : "bg-white text-slate-600 border-slate-200 hover:border-emerald-300"
+                  }`}
+                >
+                  {g}
+                </button>
+              ))}
+            </div>
+            {allTagsForFilter.length > 0 && (
+              <div className="flex gap-2 flex-wrap items-center">
+                <span className="text-xs text-slate-400 mr-1">태그</span>
+                {allTagsForFilter.map(tag => (
+                  <button
+                    key={tag}
+                    onClick={() => setTagFilter(tagFilter === tag ? null : tag)}
+                    className={`text-xs px-2.5 py-1 rounded-full border transition-colors ${
+                      tagFilter === tag
+                        ? "bg-violet-600 text-white border-violet-600"
+                        : "bg-white text-slate-500 border-slate-200 hover:border-violet-300"
+                    }`}
+                  >
+                    #{tag}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
         )}
 
