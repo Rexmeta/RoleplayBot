@@ -28,7 +28,7 @@ interface PersonaUserScene {
   createdAt: string;
 }
 
-const GENRES = ["전체", "로맨스", "판타지", "미스터리", "SF", "일상", "직장", "학교", "역사"];
+const GENRES = ["전체", "직장/현실", "로맨스", "판타지", "SF", "미스터리", "일상", "학교", "역사"];
 
 const SCENE_IMAGE_MAP: Record<string, string> = {
   "sample-scene-rainy-cafe": "/scenes/rainy-cafe.png",

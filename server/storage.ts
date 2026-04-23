@@ -2340,7 +2340,7 @@ export class PostgreSQLStorage implements IStorage {
   async getPublicPersonaUserScenes(options: { genre?: string; search?: string; limit?: number; offset?: number } = {}): Promise<PersonaUserScene[]> {
     const { genre, search, limit = 50, offset = 0 } = options;
     const conditions: any[] = [eq(personaUserScenes.isPublic, true)];
-    if (genre) conditions.push(eq(personaUserScenes.genre, genre));
+    if (genre) conditions.push(sql`lower(${personaUserScenes.genre}) like ${`%${genre.toLowerCase()}%`}`);
     if (search) {
       const q = `%${search.toLowerCase()}%`;
       conditions.push(
