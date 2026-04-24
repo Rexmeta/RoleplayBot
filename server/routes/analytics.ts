@@ -1184,7 +1184,7 @@ export default function createAnalyticsRouter(isAuthenticated: any) {
       .map(([text, count]) => ({ text, count }));
 
     const totalFeedbacks = feedbacks.length;
-    const averageScore = totalFeedbacks > 0 ? Math.round(totalScore / totalFeedbacks) : 0;
+    const averageScore = totalFeedbacks > 0 ? parseFloat((totalScore / totalFeedbacks).toFixed(1)) : 0;
     const completedPersonaRuns = filteredPersonaRuns.filter(pr => pr.status === 'completed').length;
     const feedbackCompletionRate = completedPersonaRuns > 0
       ? Math.round((totalFeedbacks / completedPersonaRuns) * 100)

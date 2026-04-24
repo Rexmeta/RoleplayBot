@@ -2152,7 +2152,7 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
                           {stats.averageScore != null && (
                             <div className="flex items-center gap-1 text-xs text-amber-700 bg-amber-50 rounded px-1.5 py-0.5">
                               <Star className="w-3 h-3" />
-                              {stats.averageScore}점
+                              {Number(stats.averageScore).toFixed(1)}점
                             </div>
                           )}
                         </>
@@ -2416,7 +2416,7 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
                             {previewStats.averageScore != null && (
                               <div className="flex items-center gap-1.5 bg-yellow-500/30 backdrop-blur-md rounded-full px-3 py-1.5 shadow-sm">
                                 <Star className="h-3 w-3" />
-                                <span className="font-medium text-xs">평균 {previewStats.averageScore}점</span>
+                                <span className="font-medium text-xs">평균 {Number(previewStats.averageScore).toFixed(1)}점</span>
                               </div>
                             )}
                           </>

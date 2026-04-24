@@ -1020,7 +1020,7 @@ export default function AdminDashboard() {
                         </span>
                         <span className="text-sm truncate max-w-[120px]">{scenario.name}</span>
                       </span>
-                      <span className="text-sm font-semibold text-red-600">{scenario.averageScore}점</span>
+                      <span className="text-sm font-semibold text-red-600">{Number(scenario.averageScore).toFixed(1)}점</span>
                     </div>
                   )) || <p className="text-slate-500 text-sm">데이터 없음</p>}
                 </div>
@@ -1039,7 +1039,7 @@ export default function AdminDashboard() {
               </CardHeader>
               <CardContent>
                 <div className="text-3xl font-bold text-blue-600" data-testid="perf-average-value">
-                  {performance?.averageScore || 0}점
+                  {(performance?.averageScore ?? 0).toFixed(1)}점
                 </div>
                 <p className="text-xs text-slate-600 mt-1">전체 {performance?.totalFeedbacks || 0}건 평가 기준</p>
               </CardContent>
@@ -2161,10 +2161,10 @@ export default function AdminDashboard() {
                                 </Link>
                               </td>
                               <td className={`p-3 text-center ${scoreColor(p.averageScore)}`}>
-                                {p.averageScore !== null ? `${p.averageScore}점` : '-'}
+                                {p.averageScore !== null ? `${Number(p.averageScore).toFixed(1)}점` : '-'}
                               </td>
                               <td className={`p-3 text-center hidden sm:table-cell ${scoreColor(p.latestScore)}`}>
-                                {p.latestScore !== null ? `${p.latestScore}점` : '-'}
+                                {p.latestScore !== null ? `${Number(p.latestScore).toFixed(1)}점` : '-'}
                               </td>
                               <td className="p-3 text-center text-slate-500 text-xs hidden sm:table-cell">
                                 {p.lastTrainingAt
