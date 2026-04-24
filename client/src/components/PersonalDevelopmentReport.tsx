@@ -1713,7 +1713,7 @@ export default function PersonalDevelopmentReport({
                         </div>
                       </div>
                       <span className={`text-sm font-bold flex-shrink-0 ml-3 ${row.colorClass}`}>
-                        {row.value === 0 ? '±0' : row.value > 0 ? `+${Number(row.value).toFixed(1)}` : `${Number(row.value).toFixed(1)}`}점
+                        {row.value === 0 ? '±0' : row.value > 0 ? `+${Number.isInteger(row.value) ? row.value : Number(row.value).toFixed(1)}` : `${Number.isInteger(row.value) ? row.value : Number(row.value).toFixed(1)}`}점
                       </span>
                     </div>
                   ))}
