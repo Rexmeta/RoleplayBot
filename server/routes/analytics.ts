@@ -395,7 +395,7 @@ export default function createAnalyticsRouter(isAuthenticated: any) {
     );
 
     const averageScore = completedFeedbacks.length > 0
-      ? Math.round(completedFeedbacks.reduce((acc, f) => acc + f.overallScore, 0) / completedFeedbacks.length)
+      ? parseFloat((completedFeedbacks.reduce((acc, f) => acc + f.overallScore, 0) / completedFeedbacks.length).toFixed(1))
       : 0;
 
     const personaRunUserIds = new Set(personaRuns.map(pr => {

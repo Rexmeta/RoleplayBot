@@ -838,7 +838,7 @@ export default function AdminDashboard() {
                 <i className="fas fa-star text-yellow-600"></i>
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold" data-testid="average-score">{overview?.averageScore || 0}점</div>
+                <div className="text-2xl font-bold" data-testid="average-score">{overview?.averageScore != null ? Number(overview.averageScore).toFixed(1) : '0.0'}점</div>
                 <p className="text-xs text-slate-600">전체 세션 평균</p>
               </CardContent>
             </Card>
