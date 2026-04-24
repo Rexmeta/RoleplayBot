@@ -59,7 +59,7 @@ function ScoreBadge({ score }: { score: number | null }) {
       : "text-red-600 bg-red-50";
   return (
     <span className={`text-sm font-semibold px-2 py-0.5 rounded-full ${color}`}>
-      {score}점
+      {Number(score).toFixed(1)}점
     </span>
   );
 }

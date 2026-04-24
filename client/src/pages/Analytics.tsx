@@ -444,7 +444,7 @@ export default function Analytics() {
                       const [year, month, day] = data.date.split('-');
                       return {
                         date: `${month}.${day}`,
-                        score: Math.round(data.scores.reduce((a, b) => a + b, 0) / data.scores.length),
+                        score: parseFloat((data.scores.reduce((a, b) => a + b, 0) / data.scores.length).toFixed(1)),
                         count: data.scores.length
                       };
                     })}
@@ -469,7 +469,7 @@ export default function Analytics() {
                         padding: '8px 12px'
                       }}
                       formatter={(value, name) => {
-                        if (name === 'score') return [`${value}점`, '평균 점수'];
+                        if (name === 'score') return [`${Number(value).toFixed(1)}점`, '평균 점수'];
                         if (name === 'count') return [`${value}회`, '대화 수'];
                         return value;
                       }}
@@ -495,19 +495,19 @@ export default function Analytics() {
                 <div className="p-3 bg-slate-50 rounded-lg">
                   <div className="text-slate-600 mb-1">최고 점수</div>
                   <div className="text-2xl font-bold text-slate-900">
-                    {Math.max(...analytics.scoreHistory.map(e => e.score))}
+                    {Number(Math.max(...analytics.scoreHistory.map(e => e.score))).toFixed(1)}
                   </div>
                 </div>
                 <div className="p-3 bg-slate-50 rounded-lg">
                   <div className="text-slate-600 mb-1">최저 점수</div>
                   <div className="text-2xl font-bold text-slate-900">
-                    {Math.min(...analytics.scoreHistory.map(e => e.score))}
+                    {Number(Math.min(...analytics.scoreHistory.map(e => e.score))).toFixed(1)}
                   </div>
                 </div>
                 <div className="p-3 bg-slate-50 rounded-lg">
                   <div className="text-slate-600 mb-1">점수 범위</div>
                   <div className="text-2xl font-bold text-slate-900">
-                    {Math.max(...analytics.scoreHistory.map(e => e.score)) - Math.min(...analytics.scoreHistory.map(e => e.score))}
+                    {(Math.max(...analytics.scoreHistory.map(e => e.score)) - Math.min(...analytics.scoreHistory.map(e => e.score))).toFixed(1)}
                   </div>
                 </div>
               </div>

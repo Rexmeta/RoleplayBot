@@ -36,7 +36,7 @@ interface PersonalDevelopmentReportProps {
 }
 
 // 애니메이션 없이 바로 값 표시 (hooks 오류 방지)
-const getDisplayValue = (value: number) => value;
+const getDisplayValue = (value: number) => Number(value).toFixed(1);
 const getProgressWidth = (value: number) => value;
 
 // 어떤 척도(5점/10점)로 저장된 점수든 10점 기준으로 정규화
@@ -417,7 +417,7 @@ export default function PersonalDevelopmentReport({
           <p style="font-size: 14px; opacity: 0.75; margin-bottom: 40px;">대화 상대: ${escapeHtml(getPersonaFullInfo())}</p>
           <div style="background: rgba(255,255,255,0.15); border-radius: 16px; padding: 24px 40px; margin-bottom: 40px;">
             <div style="font-size: 48px; font-weight: 900; margin-bottom: 4px;">${escapeHtml(overallGrade.grade)}</div>
-            <div style="font-size: 20px; font-weight: 600;">${feedback.overallScore || 0}점</div>
+            <div style="font-size: 20px; font-weight: 600;">${Number(feedback.overallScore || 0).toFixed(1)}점</div>
             <div style="font-size: 12px; opacity: 0.75; margin-top: 4px;">종합 점수</div>
           </div>
           <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; text-align: left; max-width: 400px; width: 100%;">
@@ -455,7 +455,7 @@ export default function PersonalDevelopmentReport({
             <div></div>
             <div style="background: white; color: ${overallGrade.color.replace('text-', '')}; padding: 16px 24px; border-radius: 8px; text-align: center;">
               <div style="font-size: 28px; font-weight: bold; color: #16a34a;">${escapeHtml(overallGrade.grade)}</div>
-              <div style="font-size: 14px; color: #4b5563;">${feedback.overallScore || 0}점</div>
+              <div style="font-size: 14px; color: #4b5563;">${Number(feedback.overallScore || 0).toFixed(1)}점</div>
             </div>
           </div>
         </div>
@@ -526,7 +526,7 @@ export default function PersonalDevelopmentReport({
                     <span style="flex-shrink: 0; display: inline-flex; align-items: center; justify-content: center; width: 18px; height: 18px; background: #e2e8f0; color: #64748b; border-radius: 50%; font-size: 10px; font-weight: 700;">${idx + 1}</span>
                     <span style="font-size: 13px; font-weight: 600; color: #374151;">${escapeHtml(getTranslatedDimensionName(score.category, score.name))}${score.weight ? ` <span style="font-weight: 400; color: #94a3b8; font-size: 10px;">(${score.weight}%)</span>` : ''}</span>
                   </div>
-                  <span style="flex-shrink: 0; background: #dbeafe; color: #1e40af; padding: 2px 7px; border-radius: 4px; font-size: 12px; font-weight: 600;">${sNum}/10</span>
+                  <span style="flex-shrink: 0; background: #dbeafe; color: #1e40af; padding: 2px 7px; border-radius: 4px; font-size: 12px; font-weight: 600;">${Number(sNum).toFixed(1)}/10</span>
                 </div>
                 <span style="display: inline-block; font-size: 10px; font-weight: 600; color: ${statusColor}; background: ${statusBg}; border: 1px solid ${statusBorder}; border-radius: 20px; padding: 1px 8px; margin-bottom: 6px;">${statusLabel}</span>
                 <p style="font-size: 12px; color: #4b5563; line-height: 1.5; margin: 0;">${escapeHtml(score.feedback)}</p>
@@ -751,7 +751,7 @@ export default function PersonalDevelopmentReport({
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
               <h3 style="font-size: 16px; font-weight: 600; color: #7c3aed;">전략 점수</h3>
               <span style="background: #e9d5ff; color: #7c3aed; padding: 8px 16px; border-radius: 8px; font-size: 18px; font-weight: bold;">
-                ${escapeHtml(String(sequenceAnalysis.strategicScore ?? '평가 대기중'))}
+                ${escapeHtml(sequenceAnalysis.strategicScore != null ? Number(sequenceAnalysis.strategicScore).toFixed(1) : '평가 대기중')}
               </span>
             </div>
             <p style="font-size: 14px; color: #6b21a8; margin-bottom: 16px;">${escapeHtml(sequenceAnalysis.strategicRationale)}</p>
@@ -1164,7 +1164,7 @@ export default function PersonalDevelopmentReport({
     return (
       <g>
         <text x={x} y={y - 7} textAnchor={anchor} fill="#64748b" fontSize={10}>{payload.value}</text>
-        <text x={x} y={y + 8} textAnchor={anchor} fill={color} fontSize={12} fontWeight="700">{score}/10</text>
+        <text x={x} y={y + 8} textAnchor={anchor} fill={color} fontSize={12} fontWeight="700">{Number(score).toFixed(1)}/10</text>
       </g>
     );
   };
@@ -1277,7 +1277,7 @@ export default function PersonalDevelopmentReport({
                       style={{ width: `${(toTenPoint(s.score ?? 0, (s as any).maxScore || 10) / 10) * 100}%`, backgroundColor: 'rgba(255,255,255,0.75)' }}
                     />
                   </div>
-                  <span className="text-[11px] font-bold text-white/90 w-5 text-right flex-shrink-0">{toTenPoint(s.score ?? 0, (s as any).maxScore || 10)}</span>
+                  <span className="text-[11px] font-bold text-white/90 w-5 text-right flex-shrink-0">{Number(toTenPoint(s.score ?? 0, (s as any).maxScore || 10)).toFixed(1)}</span>
                 </div>
               ))}
             </div>
@@ -1315,7 +1315,7 @@ export default function PersonalDevelopmentReport({
                   {maxScore && (
                     <>
                       <div className="text-lg font-bold text-green-700 mb-1">{getTranslatedDimensionName(maxScore.category, maxScore.name)}</div>
-                      <div className="inline-flex items-center gap-1 bg-green-100 text-green-800 text-xs font-semibold px-2 py-0.5 rounded-full mb-2">점수 {toTenPoint(maxScore.score, (maxScore as any).maxScore || 10)}/10</div>
+                      <div className="inline-flex items-center gap-1 bg-green-100 text-green-800 text-xs font-semibold px-2 py-0.5 rounded-full mb-2">점수 {Number(toTenPoint(maxScore.score, (maxScore as any).maxScore || 10)).toFixed(1)}/10</div>
                       <p className="text-xs text-slate-600 leading-relaxed">{extractSentences(maxScore.feedback, 2)}</p>
                     </>
                   )}
@@ -1327,7 +1327,7 @@ export default function PersonalDevelopmentReport({
                   {minScore && (
                     <>
                       <div className="text-sm font-bold text-orange-700 mb-1">{getTranslatedDimensionName(minScore.category, minScore.name)}</div>
-                      <div className="inline-flex items-center gap-1 bg-orange-100 text-orange-800 text-xs font-semibold px-2 py-0.5 rounded-full mb-2">점수 {toTenPoint(minScore.score, (minScore as any).maxScore || 10)}/10</div>
+                      <div className="inline-flex items-center gap-1 bg-orange-100 text-orange-800 text-xs font-semibold px-2 py-0.5 rounded-full mb-2">점수 {Number(toTenPoint(minScore.score, (minScore as any).maxScore || 10)).toFixed(1)}/10</div>
                     </>
                   )}
                   <p className="text-xs text-slate-600 leading-relaxed">{extractSentences(topImprovement, 2) || '개선 포인트를 확인하세요.'}</p>
@@ -1443,7 +1443,7 @@ export default function PersonalDevelopmentReport({
                             dot={{ r: 3, fill: '#4f46e5', strokeWidth: 0 }}
                           />
                           <Tooltip
-                            formatter={(value: any) => [`${value}/10점`, '역량 점수']}
+                            formatter={(value: any) => [`${Number(value).toFixed(1)}/10점`, '역량 점수']}
                             contentStyle={{ fontSize: 12, borderRadius: 8 }}
                           />
                         </RadarChart>
@@ -1509,7 +1509,7 @@ export default function PersonalDevelopmentReport({
                             className="text-sm font-bold px-2 py-0.5 rounded-full text-white"
                             style={{ backgroundColor: hexColor }}
                           >
-                            {scoreNum}/10
+                            {Number(scoreNum).toFixed(1)}/10
                           </span>
                         </div>
                       </div>
@@ -1690,7 +1690,7 @@ export default function PersonalDevelopmentReport({
                       <i className="fas fa-robot text-indigo-400"></i>
                       <span className="text-sm font-medium text-slate-700">루브릭 기반 역량 점수</span>
                     </div>
-                    <span className="text-sm font-bold text-indigo-700">{adj.baseScore}점</span>
+                    <span className="text-sm font-bold text-indigo-700">{Number(adj.baseScore).toFixed(1)}점</span>
                   </div>
 
                   {/* 보정 항목 */}
@@ -1713,7 +1713,7 @@ export default function PersonalDevelopmentReport({
                         </div>
                       </div>
                       <span className={`text-sm font-bold flex-shrink-0 ml-3 ${row.colorClass}`}>
-                        {row.value === 0 ? '±0' : row.value > 0 ? `+${row.value}` : `${row.value}`}점
+                        {row.value === 0 ? '±0' : row.value > 0 ? `+${Number(row.value).toFixed(1)}` : `${Number(row.value).toFixed(1)}`}점
                       </span>
                     </div>
                   ))}
@@ -1725,7 +1725,7 @@ export default function PersonalDevelopmentReport({
                         <i className="fas fa-arrow-down-wide-short text-amber-500 text-sm flex-shrink-0"></i>
                         <div className="min-w-0">
                           <p className="text-sm font-medium text-slate-700">대화량 부족 캡</p>
-                          <p className="text-xs text-slate-500">역량별 최고 점수 {adj.scoreCap}점으로 제한</p>
+                          <p className="text-xs text-slate-500">역량별 최고 점수 {Number(adj.scoreCap).toFixed(1)}점으로 제한</p>
                         </div>
                       </div>
                       <span className="text-sm font-bold text-amber-600 flex-shrink-0 ml-3">적용됨</span>
@@ -1745,7 +1745,7 @@ export default function PersonalDevelopmentReport({
                       <i className="fas fa-flag-checkered text-indigo-500"></i>
                       <span className="text-sm font-bold text-indigo-800">최종 점수</span>
                     </div>
-                    <span className="text-base font-extrabold text-indigo-700">{adj.finalScore}점</span>
+                    <span className="text-base font-extrabold text-indigo-700">{Number(adj.finalScore).toFixed(1)}점</span>
                   </div>
                 </CardContent>
               </Card>
@@ -2052,7 +2052,7 @@ export default function PersonalDevelopmentReport({
                   <div className="flex items-center justify-between mb-4">
                     <h3 className="text-lg font-semibold text-purple-900">{t('report.strategyScore', '전략 점수')}</h3>
                     <Badge variant="outline" className="text-2xl font-bold bg-purple-100 text-purple-700 px-4 py-2">
-                      {feedback.detailedFeedback.sequenceAnalysis.strategicScore ?? t('report.awaitingEvaluation', '평가 대기중')}
+                      {feedback.detailedFeedback.sequenceAnalysis.strategicScore != null ? Number(feedback.detailedFeedback.sequenceAnalysis.strategicScore).toFixed(1) : t('report.awaitingEvaluation', '평가 대기중')}
                     </Badge>
                   </div>
                   <p className="text-purple-700">
