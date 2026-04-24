@@ -493,6 +493,18 @@ async function initializeApp() {
     console.error('Sample scene seeding failed (non-fatal):', error);
   }
 
+  // Step 11: Upload workplace scene images to object storage (idempotent)
+  recordStep('seed_scene_images', 'start');
+  initStatus = 'seeding_scene_images';
+  try {
+    const { seedSceneImages } = await import('./scripts/seedSceneImages');
+    await seedSceneImages();
+    recordStep('seed_scene_images', 'done');
+  } catch (error: any) {
+    recordStep('seed_scene_images', 'error', error?.message);
+    console.error('Scene image upload failed (non-fatal):', error);
+  }
+
   // All routes, middleware, and database are ready - open the gate.
   appReady = true;
   initStatus = 'ready';

@@ -60,3 +60,63 @@ id = "Bq6PqysGrzntYoY21eq0I"
 uri = "file://client/public/scenes/ruined-kingdom.png"
 type = "image"
 title = "generated_image"
+
+[[generated]]
+id = "V8FADq6hqpwBIR3N8yOag"
+uri = "file://client/public/scenes/ai-interview.png"
+type = "image"
+title = "AI interview room"
+
+[[generated]]
+id = "Tm_BDhXuqPKtf8H_qP12l"
+uri = "file://client/public/scenes/automation-notice.png"
+type = "image"
+title = "automation notice meeting room"
+
+[[generated]]
+id = "aD5lyhtN-cWL9zA-6d73W"
+uri = "file://client/public/scenes/ai-colleague-first-day.png"
+type = "image"
+title = "AI colleague office first day"
+
+[[generated]]
+id = "AmC63hbsdZI0vrhyA86k8"
+uri = "file://client/public/scenes/hr-chatbot-booth.png"
+type = "image"
+title = "HR chatbot consultation booth"
+
+[[generated]]
+id = "oeR2WT4KBiv48WGMGgiBf"
+uri = "file://client/public/scenes/ai-performance-review.png"
+type = "image"
+title = "AI performance review meeting room"
+
+[[generated]]
+id = "0kYwBnkuMWzFRRHJGLZU8"
+uri = "file://client/public/scenes/reskilling-first-day.png"
+type = "image"
+title = "reskilling training classroom"
+
+[[generated]]
+id = "4UhpuVG4IXZU3tnUWxEN3"
+uri = "file://client/public/scenes/team-disbandment-eve.png"
+type = "image"
+title = "late night office team disbandment"
+
+[[generated]]
+id = "Gp7_cRaGZbdj-CTrfy8Lh"
+uri = "file://client/public/scenes/anti-ai-union-meeting.png"
+type = "image"
+title = "union meeting room with banner"
+
+[[generated]]
+id = "an5dJ-ny4_Nzvs9aIkZbk"
+uri = "file://client/public/scenes/ai-onboarding.png"
+type = "image"
+title = "AI onboarding auditorium hologram"
+
+[[generated]]
+id = "_Iwg-xRlVoEGdqtes41BD"
+uri = "file://client/public/scenes/career-counseling.png"
+type = "image"
+title = "HR manager career counseling office"

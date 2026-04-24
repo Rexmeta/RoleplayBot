@@ -41,6 +41,16 @@ const SCENE_IMAGE_MAP: Record<string, string> = {
   "sample-scene-deep-sea-lab": "/scenes/deep-sea-lab.png",
   "sample-scene-jazz-bar": "/scenes/jazz-bar.png",
   "sample-scene-ruined-kingdom": "/scenes/ruined-kingdom.png",
+  "sample-scene-ai-interview": "/objects?key=scenes/ai-interview.png",
+  "sample-scene-automation-notice": "/objects?key=scenes/automation-notice.png",
+  "sample-scene-ai-colleague-first-day": "/objects?key=scenes/ai-colleague-first-day.png",
+  "sample-scene-hr-chatbot-booth": "/objects?key=scenes/hr-chatbot-booth.png",
+  "sample-scene-ai-performance-review": "/objects?key=scenes/ai-performance-review.png",
+  "sample-scene-reskilling-first-day": "/objects?key=scenes/reskilling-first-day.png",
+  "sample-scene-team-disbandment-eve": "/objects?key=scenes/team-disbandment-eve.png",
+  "sample-scene-anti-ai-union-meeting": "/objects?key=scenes/anti-ai-union-meeting.png",
+  "sample-scene-ai-onboarding": "/objects?key=scenes/ai-onboarding.png",
+  "sample-scene-career-counseling": "/objects?key=scenes/career-counseling.png",
 };
 
 const GENRE_IMAGE_MAP: Record<string, string> = {
@@ -59,6 +69,14 @@ function getSceneImage(scene: PersonaUserScene): string {
   if (SCENE_IMAGE_MAP[scene.id]) return SCENE_IMAGE_MAP[scene.id];
   const genreKey = Object.keys(GENRE_IMAGE_MAP).find(k => scene.genre.includes(k));
   return genreKey ? GENRE_IMAGE_MAP[genreKey] : DEFAULT_SCENE_IMAGE;
+}
+
+function getSceneImageFallback(src: string): string | undefined {
+  if (src.startsWith("/objects?key=scenes/")) {
+    const key = src.replace("/objects?key=", "/");
+    return key;
+  }
+  return undefined;
 }
 
 type SceneTab = "all" | "mine";
@@ -280,6 +298,10 @@ function SceneCard({ scene, isMine, onDelete }: {
             src={getSceneImage(scene)}
             alt={scene.genre}
             className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+            onError={(e) => {
+              const fallback = getSceneImageFallback((e.target as HTMLImageElement).src);
+              if (fallback) (e.target as HTMLImageElement).src = fallback;
+            }}
           />
           <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent" />
           <div className="absolute bottom-2 left-3 right-3 flex items-end justify-between">

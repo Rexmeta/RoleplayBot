@@ -40,6 +40,16 @@ const SCENE_IMAGE_MAP: Record<string, string> = {
   "sample-scene-deep-sea-lab": "/scenes/deep-sea-lab.png",
   "sample-scene-jazz-bar": "/scenes/jazz-bar.png",
   "sample-scene-ruined-kingdom": "/scenes/ruined-kingdom.png",
+  "sample-scene-ai-interview": "/objects?key=scenes/ai-interview.png",
+  "sample-scene-automation-notice": "/objects?key=scenes/automation-notice.png",
+  "sample-scene-ai-colleague-first-day": "/objects?key=scenes/ai-colleague-first-day.png",
+  "sample-scene-hr-chatbot-booth": "/objects?key=scenes/hr-chatbot-booth.png",
+  "sample-scene-ai-performance-review": "/objects?key=scenes/ai-performance-review.png",
+  "sample-scene-reskilling-first-day": "/objects?key=scenes/reskilling-first-day.png",
+  "sample-scene-team-disbandment-eve": "/objects?key=scenes/team-disbandment-eve.png",
+  "sample-scene-anti-ai-union-meeting": "/objects?key=scenes/anti-ai-union-meeting.png",
+  "sample-scene-ai-onboarding": "/objects?key=scenes/ai-onboarding.png",
+  "sample-scene-career-counseling": "/objects?key=scenes/career-counseling.png",
 };
 
 const GENRE_FALLBACK_MAP: Record<string, string> = {
@@ -53,6 +63,13 @@ const GENRE_FALLBACK_MAP: Record<string, string> = {
   "역사": "https://images.unsplash.com/photo-1464817739973-0128fe77aaa1?w=800&h=1400&fit=crop&auto=format",
 };
 const DEFAULT_SCENE_IMAGE = "https://images.unsplash.com/photo-1477959858617-67f85cf4f1df?w=800&h=1400&fit=crop&auto=format";
+
+function getSceneImageFallback(src: string): string | undefined {
+  if (src.startsWith("/objects?key=scenes/")) {
+    return src.replace("/objects?key=", "/");
+  }
+  return undefined;
+}
 
 interface UserPersona {
   id: string;
@@ -138,6 +155,10 @@ export default function PersonaSceneDetailPage() {
             src={sceneImage}
             alt={scene.title}
             className="w-full h-full object-cover"
+            onError={(e) => {
+              const fallback = getSceneImageFallback((e.target as HTMLImageElement).src);
+              if (fallback) (e.target as HTMLImageElement).src = fallback;
+            }}
           />
           {/* 상단 어둠 + 하단 slate-950으로 자연스럽게 연결 */}
           <div className="absolute inset-0 bg-gradient-to-b from-black/55 via-black/10 to-slate-950" />
