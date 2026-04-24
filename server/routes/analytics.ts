@@ -447,6 +447,45 @@ export default function createAnalyticsRouter(isAuthenticated: any) {
       return acc;
     }, {} as Record<string, number>);
 
+    const scenarioScoreMap = completedFeedbacks.reduce((acc, f) => {
+      const personaRun = completedPersonaRuns.find(pr => pr.id === f.personaRunId);
+      if (!personaRun) return acc;
+      const scenarioRun = scenarioRuns.find(sr => sr.id === personaRun.scenarioRunId);
+      if (!scenarioRun) return acc;
+      const scenarioId = scenarioRun.scenarioId;
+      if (!acc[scenarioId]) acc[scenarioId] = { scores: [], name: '' };
+      const scenario = scenarios.find((s: any) => s.id === scenarioId);
+      acc[scenarioId].name = scenario?.title || scenarioId;
+      acc[scenarioId].scores.push(f.overallScore);
+      return acc;
+    }, {} as Record<string, { scores: number[]; name: string }>);
+
+    const scenarioAverages = Object.entries(scenarioScoreMap).map(([id, data]) => ({
+      id,
+      name: data.name,
+      averageScore: data.scores.length > 0
+        ? data.scores.reduce((sum, s) => sum + s, 0) / data.scores.length
+        : 0,
+      sessionCount: data.scores.length
+    }));
+
+    const mbtiScoreMap = completedFeedbacks.reduce((acc, f) => {
+      const personaRun = completedPersonaRuns.find(pr => pr.id === f.personaRunId);
+      if (!personaRun) return acc;
+      const mbti = personaRun.personaId;
+      if (!acc[mbti]) acc[mbti] = [];
+      acc[mbti].push(f.overallScore);
+      return acc;
+    }, {} as Record<string, number[]>);
+
+    const mbtiAverages = Object.entries(mbtiScoreMap).map(([mbti, scores]) => ({
+      mbti,
+      averageScore: scores.length > 0
+        ? scores.reduce((sum, s) => sum + s, 0) / scores.length
+        : 0,
+      sessionCount: scores.length
+    }));
+
     res.json({
       totalUsers,
       activeUsers,
@@ -455,7 +494,9 @@ export default function createAnalyticsRouter(isAuthenticated: any) {
       participationRate,
       averageScore,
       scenarioStats,
-      mbtiUsage
+      mbtiUsage,
+      scenarioAverages,
+      mbtiAverages
     });
   }));
 
