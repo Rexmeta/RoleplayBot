@@ -260,7 +260,7 @@ export default function Analytics() {
               <CardContent>
                 <div className="flex items-end gap-3">
                   <div className="text-4xl font-bold text-slate-900" data-testid="text-average-score">
-                    {analytics.averageScore}
+                    {Number(analytics.averageScore).toFixed(1)}
                   </div>
                   <div className={`px-3 py-1 rounded-full text-sm font-semibold mb-1 ${getGradeColor(analytics.overallGrade)}`} data-testid="badge-grade">
                     {analytics.overallGrade} 등급

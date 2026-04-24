@@ -863,7 +863,7 @@ export default function Home() {
                       {t('home.strategicScore')}
                     </h2>
                     <div className="text-4xl font-bold text-blue-600">
-                      {strategyEvaluation.strategicScore}
+                      {Number(strategyEvaluation.strategicScore).toFixed(1)}
                       <span className="text-xl text-gray-500">/100</span>
                     </div>
                   </div>

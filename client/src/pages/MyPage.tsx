@@ -488,7 +488,7 @@ export default function MyPage() {
                       <CardContent className="pt-0">
                         <div className="flex flex-wrap items-end gap-2">
                           <div className="text-3xl sm:text-4xl font-bold text-slate-900">
-                            {analyticsData.averageScore}
+                            {Number(analyticsData.averageScore).toFixed(1)}
                           </div>
                           <div className={`px-2 py-0.5 rounded-full text-xs font-semibold mb-1 ${analyticsData.overallGrade?.startsWith('A') ? 'text-green-600 bg-green-50' : analyticsData.overallGrade === 'B' ? 'text-blue-600 bg-blue-50' : analyticsData.overallGrade === 'C' ? 'text-yellow-600 bg-yellow-50' : 'text-red-600 bg-red-50'}`}>
                             {analyticsData.overallGrade} 등급
@@ -988,7 +988,7 @@ function ScenarioRunDetails({
                 <div className="flex items-center gap-2 flex-wrap">
                   {sequenceAnalysis.strategicScore !== undefined && (
                     <Badge className={`${getScoreGrade(sequenceAnalysis.strategicScore).color} border-0 font-bold`}>
-                      {getScoreGrade(sequenceAnalysis.strategicScore).grade} ({sequenceAnalysis.strategicScore}점)
+                      {getScoreGrade(sequenceAnalysis.strategicScore).grade} ({Number(sequenceAnalysis.strategicScore).toFixed(1)}점)
                     </Badge>
                   )}
                   <Button
@@ -1053,7 +1053,7 @@ function ScenarioRunDetails({
               {sequenceAnalysis.strategicScore !== undefined && (
                 <div className="text-center p-6 bg-gradient-to-r from-purple-50 to-indigo-50 rounded-xl border border-purple-200">
                   <div className="text-5xl font-bold text-purple-700 mb-2">
-                    {sequenceAnalysis.strategicScore}
+                    {Number(sequenceAnalysis.strategicScore).toFixed(1)}
                     <span className="text-2xl text-purple-500">/100</span>
                   </div>
                   <Badge className={`${getScoreGrade(sequenceAnalysis.strategicScore).color} text-sm px-3 py-1`}>
@@ -1218,7 +1218,7 @@ function ScenarioRunDetails({
                       <div className="flex items-center gap-1">
                         <Star className="w-4 h-4 text-yellow-500" />
                         <span className={`font-semibold text-sm ${personaRun.score >= 80 ? 'text-green-600' : personaRun.score >= 60 ? 'text-yellow-600' : 'text-red-600'}`}>
-                          {personaRun.score}점
+                          {Number(personaRun.score).toFixed(1)}점
                         </span>
                       </div>
                     )}
@@ -1295,7 +1295,7 @@ function ScenarioRunDetails({
                     <div className="flex items-center gap-1">
                       <Star className="w-4 h-4 text-yellow-500" />
                       <span className={`font-semibold text-sm ${personaRun.score >= 80 ? 'text-green-600' : personaRun.score >= 60 ? 'text-yellow-600' : 'text-red-600'}`}>
-                        {personaRun.score}점
+                        {Number(personaRun.score).toFixed(1)}점
                       </span>
                     </div>
                   )}

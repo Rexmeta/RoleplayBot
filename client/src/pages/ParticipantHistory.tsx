@@ -146,7 +146,7 @@ function RunAccordionContent({
                         pr.score >= 80 ? "text-green-600" :
                         pr.score >= 60 ? "text-yellow-600" : "text-red-600"
                       }`}>
-                        {pr.score}점
+                        {Number(pr.score).toFixed(1)}점
                       </span>
                     </div>
                   )}
@@ -269,7 +269,7 @@ export default function ParticipantHistory() {
   const allPersonaRuns = scenarioRuns.flatMap(sr => sr.personaRuns || []);
   const scoredRuns = allPersonaRuns.filter(pr => pr.score !== null && pr.score !== undefined);
   const avgScore = scoredRuns.length > 0
-    ? Math.round(scoredRuns.reduce((acc, pr) => acc + (pr.score || 0), 0) / scoredRuns.length)
+    ? scoredRuns.reduce((acc, pr) => acc + (pr.score || 0), 0) / scoredRuns.length
     : null;
 
   const participantName = (rawScenarioRuns[0] as any)?.userName || userId;
@@ -334,7 +334,7 @@ export default function ParticipantHistory() {
             </div>
             {avgScore !== null && (
               <div className="text-center p-3 bg-white rounded-lg border">
-                <div className="text-2xl font-bold text-blue-600">{avgScore}점</div>
+                <div className="text-2xl font-bold text-blue-600">{Number(avgScore).toFixed(1)}점</div>
                 <div className="text-xs text-slate-500">평균 점수</div>
               </div>
             )}
@@ -380,7 +380,7 @@ export default function ParticipantHistory() {
                       const personaRuns = scenarioRun.personaRuns || [];
                       const runScores = personaRuns.filter(pr => pr.score !== null && pr.score !== undefined);
                       const runAvg = runScores.length > 0
-                        ? Math.round(runScores.reduce((a, pr) => a + (pr.score || 0), 0) / runScores.length)
+                        ? runScores.reduce((a, pr) => a + (pr.score || 0), 0) / runScores.length
                         : null;
 
                       return (
@@ -408,7 +408,7 @@ export default function ParticipantHistory() {
                               )}
                               {runAvg !== null && (
                                 <span className={`text-sm font-bold ${runAvg >= 80 ? "text-green-600" : runAvg >= 60 ? "text-yellow-600" : "text-red-500"}`}>
-                                  {runAvg}점
+                                  {runAvg.toFixed(1)}점
                                 </span>
                               )}
                             </div>
@@ -459,7 +459,7 @@ export default function ParticipantHistory() {
                       const isCompleted = scenarioRun.status === "completed";
                       const runScores = personaRuns.filter(pr => pr.score !== null && pr.score !== undefined);
                       const runAvg = runScores.length > 0
-                        ? Math.round(runScores.reduce((a, pr) => a + (pr.score || 0), 0) / runScores.length)
+                        ? runScores.reduce((a, pr) => a + (pr.score || 0), 0) / runScores.length
                         : null;
 
                       return (
@@ -481,7 +481,7 @@ export default function ParticipantHistory() {
                               )}
                               {runAvg !== null && (
                                 <span className={`text-sm font-bold ${runAvg >= 80 ? "text-green-600" : runAvg >= 60 ? "text-yellow-600" : "text-red-500"}`}>
-                                  {runAvg}점
+                                  {runAvg.toFixed(1)}점
                                 </span>
                               )}
                             </div>
@@ -523,7 +523,7 @@ export default function ParticipantHistory() {
               {sequenceAnalysis.strategicScore !== undefined && (
                 <div className="text-center p-6 bg-gradient-to-r from-purple-50 to-indigo-50 rounded-xl border border-purple-200">
                   <div className="text-5xl font-bold text-purple-700 mb-2">
-                    {sequenceAnalysis.strategicScore}
+                    {Number(sequenceAnalysis.strategicScore).toFixed(1)}
                     <span className="text-2xl text-purple-500">/100</span>
                   </div>
                   <Badge className={`${getScoreGrade(sequenceAnalysis.strategicScore).color} text-sm px-3 py-1`}>

@@ -264,7 +264,7 @@ export default function AdminDashboard() {
     p.push('</div>');
     p.push('<div class="grade-box">');
     p.push('<div class="grade-letter" style="color:' + grade.color + ';">' + grade.letter + '</div>');
-    p.push('<div class="grade-score">' + overallScore + '점</div>');
+    p.push('<div class="grade-score">' + overallScore.toFixed(1) + '점</div>');
     p.push('</div>');
     p.push('</div>');
 
@@ -309,7 +309,7 @@ export default function AdminDashboard() {
         p.push('<div class="score-card">');
         p.push('<div class="score-header">');
         p.push('<span class="score-name">' + safe(s.icon || '') + ' ' + safe(s.name || s.category || '') + (s.weight ? ' <span style="font-weight:400;color:#94a3b8;font-size:11px;">(' + s.weight + '%)</span>' : '') + '</span>');
-        p.push('<span class="score-badge">' + val + '/10</span>');
+        p.push('<span class="score-badge">' + val.toFixed(1) + '/10</span>');
         p.push('</div>');
         p.push('<div class="score-bar-bg"><div class="score-bar-fill" style="width:' + pct + '%;"></div></div>');
         if (s.feedback) {
@@ -1239,7 +1239,7 @@ export default function AdminDashboard() {
                                         session.score >= 60 ? 'text-orange-600' : 'text-red-600';
                       return (
                         <tr key={session.id} className="border-b hover:bg-slate-50" data-testid={`session-row-${index}`}>
-                          <td className={`p-3 font-bold ${scoreColor}`}>{session.score}점</td>
+                          <td className={`p-3 font-bold ${scoreColor}`}>{Number(session.score).toFixed(1)}점</td>
                           <td className="p-3 truncate max-w-[150px]">{session.scenarioName}</td>
                           <td className="p-3">
                             <span className="px-2 py-1 bg-purple-100 text-purple-800 rounded text-xs font-bold">
