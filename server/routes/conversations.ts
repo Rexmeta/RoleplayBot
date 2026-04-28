@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { storage, db } from "../storage";
 import { fileManager } from "../services/fileManager";
-import { generateAIResponse } from "../services/geminiService";
+import { generateAIResponse } from "../services/aiServiceFactory";
 import {
   insertConversationSchema,
   insertPersonaSelectionSchema,

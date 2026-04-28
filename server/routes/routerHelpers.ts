@@ -1,7 +1,7 @@
 import { Request, Response, NextFunction } from "express";
 import { storage } from "../storage";
 import { fileManager } from "../services/fileManager";
-import { generateFeedback, generateStrategyReflectionFeedback } from "../services/geminiService";
+import { generateFeedback, generateStrategyReflectionFeedback } from "../services/aiServiceFactory";
 
 export function asyncHandler(fn: (req: any, res: Response, next: NextFunction) => Promise<any>) {
   return (req: Request, res: Response, next: NextFunction) => {

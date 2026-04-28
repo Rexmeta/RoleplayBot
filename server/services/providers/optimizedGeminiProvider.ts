@@ -1,6 +1,6 @@
 import { GoogleGenAI } from "@google/genai";
 import type { ConversationMessage, DetailedFeedback } from "@shared/schema";
-import type { AIServiceInterface, ScenarioPersona, EvaluationCriteriaWithDimensions, SupportedLanguage, RoleplayScenario } from "../aiService";
+import type { AIServiceInterface, ScenarioPersona, EvaluationCriteriaWithDimensions, SupportedLanguage, RoleplayScenario, StrategyEvaluationInput, StrategyReflectionEvaluation } from "../aiService";
 import { LANGUAGE_INSTRUCTIONS } from "../aiService";
 import { enrichPersonaWithMBTI } from "../../utils/mbtiLoader";
 import { GlobalMBTICache } from "../../utils/globalMBTICache";
@@ -1144,5 +1144,98 @@ JSON 형식${hasStrategyReflection ? ' (sequenceAnalysis 포함)' : ''}:
       console.error("Error extracting response text:", error);
       return '{}';
     }
+  }
+
+  /**
+   * 전략 회고 평가 — Gemini JSON 스키마 출력 기능 활용
+   */
+  async generateStrategyEvaluation(input: StrategyEvaluationInput): Promise<StrategyReflectionEvaluation> {
+    const { strategyReflection, conversationOrder, scenarioInfo, language = 'ko' } = input;
+    console.log(`🧠 전략 회고 AI 평가 시작... (모델: ${this.model})`);
+
+    const orderedPersonas = conversationOrder.map((personaId, index) => {
+      const persona = scenarioInfo.personas.find(p => p.id === personaId);
+      return persona
+        ? `${index + 1}. ${persona.name} (${persona.role}, ${persona.department})`
+        : `${index + 1}. 알 수 없는 인물`;
+    }).join('\n');
+
+    const prompt = `당신은 기업 커뮤니케이션 전문가이자 교육 평가자입니다.
+사용자가 역할극 시나리오에서 대화 순서를 선택한 후 작성한 전략 회고를 평가해주세요.
+
+## 시나리오 정보
+제목: ${scenarioInfo.title}
+상황: ${scenarioInfo.context}
+목표: ${scenarioInfo.objectives.join(', ')}
+
+## 등장인물
+${scenarioInfo.personas.map(p => `- ${p.name}: ${p.role} (${p.department})`).join('\n')}
+
+## 사용자가 선택한 대화 순서
+${orderedPersonas}
+
+## 사용자의 전략 회고
+"${strategyReflection}"
+
+## 평가 기준
+1. 전략적 사고력 (0-100): 대화 순서 선택의 논리성과 전략적 근거
+2. 순서 효과성: 선택한 순서가 목표 달성에 얼마나 효과적인지
+3. 대안적 접근법: 다른 효과적인 순서나 전략 제안
+4. 전략적 통찰: 사용자의 사고 과정에서 발견된 인사이트
+
+${language === 'ko' ? '한국어로 친절하고 구체적으로 평가해주세요.' :
+  language === 'en' ? 'Please evaluate kindly and specifically in English.' :
+  language === 'ja' ? '日本語で親切かつ具体的に評価してください。' :
+  '请用中文友好且具体地进行评估。'} 격려적인 톤을 유지하되 구체적인 피드백을 제공하세요.`;
+
+    try {
+      const response = await this.genAI.models.generateContent({
+        model: this.model,
+        config: {
+          responseMimeType: "application/json",
+          responseSchema: {
+            type: "object",
+            properties: {
+              strategicScore: { type: "number" },
+              strategicRationale: { type: "string" },
+              sequenceEffectiveness: { type: "string" },
+              alternativeApproaches: { type: "array", items: { type: "string" } },
+              strategicInsights: { type: "string" },
+              strengths: { type: "array", items: { type: "string" } },
+              improvements: { type: "array", items: { type: "string" } }
+            },
+            required: ["strategicScore", "strategicRationale", "sequenceEffectiveness", "alternativeApproaches", "strategicInsights", "strengths", "improvements"]
+          },
+          maxOutputTokens: 2000,
+          temperature: 0.7
+        },
+        contents: [{ role: "user", parts: [{ text: prompt }] }]
+      });
+
+      const responseText = response.candidates?.[0]?.content?.parts?.[0]?.text;
+      if (!responseText) {
+        console.error("AI 응답이 비어있습니다.");
+        return this.getDefaultStrategyEvaluation();
+      }
+
+      const evaluation = JSON.parse(responseText) as StrategyReflectionEvaluation;
+      console.log("✅ 전략 회고 AI 평가 완료:", evaluation.strategicScore);
+      return evaluation;
+    } catch (error) {
+      console.error("전략 회고 AI 평가 오류:", error);
+      return this.getDefaultStrategyEvaluation();
+    }
+  }
+
+  private getDefaultStrategyEvaluation(): StrategyReflectionEvaluation {
+    return {
+      strategicScore: 70,
+      strategicRationale: "전략 회고를 작성해 주셔서 감사합니다. 시스템 오류로 인해 상세한 평가를 제공하지 못했습니다.",
+      sequenceEffectiveness: "대화 순서 선택에 대한 평가를 수행하지 못했습니다.",
+      alternativeApproaches: ["다양한 순서로 대화를 시도해보세요."],
+      strategicInsights: "다음에 다시 시도해 주세요.",
+      strengths: ["전략 회고를 작성했습니다."],
+      improvements: ["더 구체적인 피드백을 위해 다시 시도해 주세요."]
+    };
   }
 }

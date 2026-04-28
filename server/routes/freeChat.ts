@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { storage } from "../storage";
-import { generateAIResponse } from "../services/geminiService";
+import { generateAIResponse } from "../services/aiServiceFactory";
 import { buildFreeChatPersona, buildFreeChatScenario, asyncHandler, createHttpError } from "./routerHelpers";
 
 export default function createFreeChatRouter(isAuthenticated: any) {

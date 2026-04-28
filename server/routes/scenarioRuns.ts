@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { storage } from "../storage";
 import { fileManager } from "../services/fileManager";
-import { generateStrategyReflectionFeedback } from "../services/geminiService";
+import { generateStrategyReflectionFeedback } from "../services/aiServiceFactory";
 import { getOperatorAccessibleCategoryIds, asyncHandler, createHttpError } from "./routerHelpers";
 
 export default function createScenarioRunsRouter(isAuthenticated: any) {
