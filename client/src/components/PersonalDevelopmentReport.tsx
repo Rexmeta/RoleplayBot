@@ -1672,6 +1672,11 @@ export default function PersonalDevelopmentReport({
               },
             ];
 
+            const flowDelay = (index: number): React.CSSProperties => ({
+              opacity: 0,
+              animation: `fadeInUp 0.5s ease-out ${3.3 + index * 0.13}s forwards`,
+            });
+
             return (
               <Card
                 className="transform transition-all duration-500 hover:shadow-lg screen-only"
@@ -1685,7 +1690,10 @@ export default function PersonalDevelopmentReport({
                 </CardHeader>
                 <CardContent className="space-y-0">
                   {/* AI 기본 점수 */}
-                  <div className="flex items-center justify-between bg-slate-50 border border-slate-200 rounded-xl px-4 py-3">
+                  <div
+                    className="flex items-center justify-between bg-slate-50 border border-slate-200 rounded-xl px-4 py-3"
+                    style={flowDelay(0)}
+                  >
                     <div className="flex items-center gap-2">
                       <i className="fas fa-robot text-indigo-400"></i>
                       <span className="text-sm font-medium text-slate-700">루브릭 기반 역량 점수</span>
@@ -1694,8 +1702,8 @@ export default function PersonalDevelopmentReport({
                   </div>
 
                   {/* 보정 항목 */}
-                  {rows.map((row) => (
-                    <div key={row.label}>
+                  {rows.map((row, rowIndex) => (
+                    <div key={row.label} style={flowDelay(1 + rowIndex)}>
                       {/* Arrow connector */}
                       <div className="flex justify-center items-center py-1">
                         <div className="flex flex-col items-center gap-0">
@@ -1728,7 +1736,7 @@ export default function PersonalDevelopmentReport({
 
                   {/* 대화량 캡 */}
                   {adj.scoreCap !== null && (
-                    <div>
+                    <div style={flowDelay(1 + rows.length)}>
                       <div className="flex justify-center items-center py-1">
                         <div className="flex flex-col items-center gap-0">
                           <div className="w-px h-3 bg-slate-300"></div>
@@ -1749,7 +1757,7 @@ export default function PersonalDevelopmentReport({
                   )}
 
                   {!hasAnyAdjustment && adj.scoreCap === null && (
-                    <div>
+                    <div style={flowDelay(1 + rows.length)}>
                       <div className="flex justify-center items-center py-1">
                         <div className="flex flex-col items-center gap-0">
                           <div className="w-px h-3 bg-slate-300"></div>
@@ -1764,7 +1772,10 @@ export default function PersonalDevelopmentReport({
                   )}
 
                   {/* Arrow to final score */}
-                  <div className="flex justify-center items-center py-1">
+                  <div
+                    className="flex justify-center items-center py-1"
+                    style={flowDelay(2 + rows.length)}
+                  >
                     <div className="flex flex-col items-center gap-0">
                       <div className="w-px h-3 bg-indigo-300"></div>
                       <i className="fas fa-chevron-down text-xs text-indigo-400"></i>
@@ -1772,7 +1783,10 @@ export default function PersonalDevelopmentReport({
                   </div>
 
                   {/* 최종 점수 */}
-                  <div className="flex items-center justify-between bg-indigo-50 border-2 border-indigo-300 rounded-xl px-4 py-3">
+                  <div
+                    className="flex items-center justify-between bg-indigo-50 border-2 border-indigo-300 rounded-xl px-4 py-3"
+                    style={flowDelay(3 + rows.length)}
+                  >
                     <div className="flex items-center gap-2">
                       <i className="fas fa-flag-checkered text-indigo-500"></i>
                       <span className="text-sm font-bold text-indigo-800">최종 점수</span>
