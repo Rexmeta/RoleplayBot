@@ -3,7 +3,7 @@ import * as path from 'path';
 import { ComplexScenario, ScenarioPersona } from '@/lib/scenario-system';
 import { enrichPersonaWithMBTI, enrichPersonaWithBasicMBTI } from '../utils/mbtiLoader';
 import { storage } from '../storage';
-import { assertSafePathSegment } from '../utils/htmlEscape';
+import { assertSafePathSegment, assertSafeJoinedPath } from '../utils/htmlEscape';
 
 const SCENARIOS_DIR = 'scenarios';
 const PERSONAS_DIR = 'personas';
@@ -577,6 +577,7 @@ export class FileManagerService {
       assertSafePathSegment(String(personaData.id), 'MBTI persona ID');
       const fileName = `${personaData.id}.json`;
       const filePath = path.join(PERSONAS_DIR, fileName);
+      assertSafeJoinedPath(filePath, PERSONAS_DIR, 'MBTI persona file path');
       
       try {
         await fs.access(filePath);
@@ -620,10 +621,12 @@ export class FileManagerService {
       assertSafePathSegment(String(personaData.id), 'MBTI persona ID');
       const fileName = `${id}.json`;
       const filePath = path.join(PERSONAS_DIR, fileName);
+      assertSafeJoinedPath(filePath, PERSONAS_DIR, 'MBTI persona file path');
       await fs.access(filePath);
       
       const newFileName = `${personaData.id}.json`;
       const newFilePath = path.join(PERSONAS_DIR, newFileName);
+      assertSafeJoinedPath(newFilePath, PERSONAS_DIR, 'MBTI persona new file path');
       await fs.writeFile(newFilePath, JSON.stringify(personaData, null, 2));
       
       if (id !== personaData.id) {
@@ -648,6 +651,7 @@ export class FileManagerService {
       assertSafePathSegment(id, 'MBTI persona ID');
       const fileName = `${id}.json`;
       const filePath = path.join(PERSONAS_DIR, fileName);
+      assertSafeJoinedPath(filePath, PERSONAS_DIR, 'MBTI persona file path');
       await fs.unlink(filePath);
       
       // 페르소나 이미지 디렉토리도 삭제
@@ -672,7 +676,9 @@ export class FileManagerService {
       }
 
       // 이미지 저장 디렉토리 생성
-      const personaImageDir = path.join('attached_assets', 'personas', personaId);
+      const personaImagesBaseDir = path.join('attached_assets', 'personas');
+      const personaImageDir = path.join(personaImagesBaseDir, personaId);
+      assertSafeJoinedPath(personaImageDir, personaImagesBaseDir, 'persona image directory');
       await fs.mkdir(personaImageDir, { recursive: true });
 
       // base64 데이터에서 실제 이미지 데이터 추출
@@ -720,7 +726,9 @@ export class FileManagerService {
     try {
       assertSafePathSegment(personaId, 'persona ID');
 
-      const personaImageDir = path.join('attached_assets', 'personas', personaId);
+      const personaImagesBaseDir = path.join('attached_assets', 'personas');
+      const personaImageDir = path.join(personaImagesBaseDir, personaId);
+      assertSafeJoinedPath(personaImageDir, personaImagesBaseDir, 'persona image directory');
       const expressions: Record<string, string> = {};
 
       const emotionEnglishMap: Record<string, string> = {
@@ -773,7 +781,9 @@ export class FileManagerService {
     try {
       assertSafePathSegment(personaId, 'persona ID');
 
-      const personaImageDir = path.join('attached_assets', 'personas', personaId);
+      const personaImagesBaseDir = path.join('attached_assets', 'personas');
+      const personaImageDir = path.join(personaImagesBaseDir, personaId);
+      assertSafeJoinedPath(personaImageDir, personaImagesBaseDir, 'persona image directory');
       
       try {
         await fs.rm(personaImageDir, { recursive: true, force: true });
