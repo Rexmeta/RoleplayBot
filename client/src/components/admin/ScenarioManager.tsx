@@ -327,27 +327,11 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
 
   const updateMutation = useMutation({
     mutationFn: async ({ id, data }: { id: string; data: ScenarioFormData }) => {
-      console.log('[ScenarioManager] Sending PUT request with data:', {
-        image: data.image,
-        introVideoUrl: data.introVideoUrl,
-        imagePrompt: data.imagePrompt,
-        videoPrompt: data.videoPrompt
-      });
       const response = await apiRequest('PUT', `/api/admin/scenarios/${id}`, data);
       const result = await response.json();
-      console.log('[ScenarioManager] Received response:', {
-        id: result.id,
-        image: result.image,
-        introVideoUrl: result.introVideoUrl
-      });
       return result;
     },
     onSuccess: (data) => {
-      console.log('[ScenarioManager] Update success, saved data:', {
-        id: data.id,
-        image: data.image,
-        introVideoUrl: data.introVideoUrl
-      });
       queryClient.invalidateQueries({ queryKey: ['/api/admin/scenarios'] });
       setEditingScenario(null);
       resetForm();
@@ -469,14 +453,6 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
     // 번역된 데이터 대신 원본 데이터 사용
     const originalScenario = originalScenarios?.find((s: any) => s.id === scenario.id) || scenario;
     
-    console.log('[ScenarioManager] Loading scenario for edit:', {
-      id: originalScenario.id,
-      image: originalScenario.image,
-      introVideoUrl: (originalScenario as any).introVideoUrl,
-      imagePrompt: (originalScenario as any).imagePrompt,
-      videoPrompt: (originalScenario as any).videoPrompt
-    });
-    
     setEditingScenario(originalScenario);
     setImageLoadFailed(false);
     setVideoLoadFailed(false);
@@ -532,24 +508,6 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    
-    // Debug: log complete form data being submitted
-    console.log('[ScenarioManager] ===== FORM SUBMIT START =====');
-    console.log('[ScenarioManager] Form data media fields:', {
-      image: formData.image || '(EMPTY)',
-      introVideoUrl: formData.introVideoUrl || '(EMPTY)',
-      imagePrompt: formData.imagePrompt || '(EMPTY)',
-      videoPrompt: formData.videoPrompt || '(EMPTY)',
-      editingScenarioId: editingScenario?.id || '(NEW)'
-    });
-    console.log('[ScenarioManager] Full formData JSON:', JSON.stringify({
-      title: formData.title,
-      image: formData.image,
-      introVideoUrl: formData.introVideoUrl,
-      imagePrompt: formData.imagePrompt,
-      videoPrompt: formData.videoPrompt
-    }, null, 2));
-    console.log('[ScenarioManager] ===== FORM SUBMIT END =====');
     
     // 필수 필드 검증
     if (!formData.title) {
@@ -781,7 +739,6 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
 
   // 이미지 선택
   const handleSelectImage = (imagePath: string, signedUrl: string) => {
-    console.log('[ScenarioManager] Image selected:', { imagePath, signedUrl });
     setFormData(prev => ({ ...prev, image: imagePath }));
     setSelectedImageSignedUrl(signedUrl && /^https?:\/\//i.test(signedUrl) ? signedUrl : toMediaUrl(imagePath));
     setImageLoadFailed(false);
@@ -794,7 +751,6 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
 
   // 비디오 선택
   const handleSelectVideo = (videoPath: string, signedUrl: string) => {
-    console.log('[ScenarioManager] Video selected:', { videoPath, signedUrl });
     setFormData(prev => ({ ...prev, introVideoUrl: videoPath }));
     setVideoLoadFailed(false);
     setSelectedVideoSignedUrl(signedUrl);
@@ -2569,7 +2525,6 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
                       onClick={(e) => {
                         e.preventDefault();
                         e.stopPropagation();
-                        console.log('[VideoSelector] Clicked video:', { path: vid.path, url: vid.url });
                         handleSelectVideo(vid.path, vid.url);
                       }}
                     >
