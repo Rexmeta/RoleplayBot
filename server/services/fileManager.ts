@@ -23,6 +23,39 @@ const scenarioCountCache: ScenarioCountCache = {
   ttl: 60 * 1000 // 1분 캐시
 };
 
+/**
+ * Normalise a ScenarioPersona (client type, where all fields are optional) into the
+ * shape expected by the database jsonb column (required string fields present).
+ * Missing required fields fall back to an empty string so no null values are written.
+ */
+function normalisePersonaForDb(persona: ScenarioPersona): {
+  id: string;
+  name: string;
+  department: string;
+  position: string;
+  experience: string;
+  personaRef: string;
+  stance: string;
+  goal: string;
+  tradeoff: string;
+  gender?: string;
+  mbti?: string;
+} {
+  return {
+    id: persona.id,
+    name: persona.name,
+    department: persona.department ?? '',
+    position: persona.position ?? persona.role ?? '',
+    experience: persona.experience ?? '',
+    personaRef: persona.personaRef ?? '',
+    stance: persona.stance ?? '',
+    goal: persona.goal ?? '',
+    tradeoff: persona.tradeoff ?? '',
+    ...(persona.gender !== undefined && { gender: persona.gender }),
+    ...(persona.mbti !== undefined && { mbti: persona.mbti }),
+  };
+}
+
 export class FileManagerService {
   
   // 🚀 경량화된 시나리오 카운트 조회 (캐시 사용) - 데이터베이스 기반
@@ -298,7 +331,7 @@ export class FileManagerService {
         context: scenario.context || null,
         objectives: scenario.objectives || [],
         successCriteria: scenario.successCriteria || null,
-        personas: (scenario.personas || []) as any,
+        personas: (scenario.personas || []).map(normalisePersonaForDb),
         recommendedFlow: scenario.recommendedFlow || [],
         evaluationCriteriaSetId: scenario.evaluationCriteriaSetId || null,
         isDemo: scenario.isDemo || false,
@@ -345,7 +378,7 @@ export class FileManagerService {
         if (scenario.context !== undefined) updates.context = scenario.context;
         if (scenario.objectives !== undefined) updates.objectives = scenario.objectives;
         if (scenario.successCriteria !== undefined) updates.successCriteria = scenario.successCriteria;
-        if (scenario.personas !== undefined) updates.personas = scenario.personas;
+        if (scenario.personas !== undefined) updates.personas = scenario.personas.map(normalisePersonaForDb);
         if (scenario.recommendedFlow !== undefined) updates.recommendedFlow = scenario.recommendedFlow;
         if (scenario.evaluationCriteriaSetId !== undefined) updates.evaluationCriteriaSetId = scenario.evaluationCriteriaSetId;
         if (scenario.isDemo !== undefined) updates.isDemo = scenario.isDemo;
