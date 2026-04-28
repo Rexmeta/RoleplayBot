@@ -8,7 +8,7 @@ import { fileManager } from '../services/fileManager';
 import { mediaStorage } from '../services/mediaStorage';
 import { transformToSignedUrl } from '../services/gcsStorage';
 import { asyncHandler, createHttpError } from './routerHelpers';
-import { escapeHtml, assertSafePathSegment } from '../utils/htmlEscape';
+import { escapeHtml, assertSafePathSegment, assertSafeJoinedPath } from '../utils/htmlEscape';
 
 const IMAGE_CONFIG = {
   scenario: {
@@ -493,6 +493,7 @@ async function savePersonaImageToLocal(
     const imageData = matches[2];
 
     const imageDir = path.join(process.cwd(), 'attached_assets', 'personas', personaId, gender);
+    assertSafeJoinedPath(imageDir, path.join(process.cwd(), 'attached_assets', 'personas'), 'persona image directory');
 
     if (!fs.existsSync(imageDir)) {
       fs.mkdirSync(imageDir, { recursive: true });
@@ -512,6 +513,7 @@ async function savePersonaImageToLocal(
     };
 
     const emotionEn = emotionEnglishMap[emotion] || emotion;
+    assertSafePathSegment(emotionEn, 'emotion');
 
     const buffer = Buffer.from(imageData, 'base64');
     const originalSize = buffer.length;
@@ -520,6 +522,7 @@ async function savePersonaImageToLocal(
 
     const optimizedFilename = `${emotionEn}.webp`;
     const optimizedPath = path.join(imageDir, optimizedFilename);
+    assertSafeJoinedPath(optimizedPath, imageDir, 'optimized persona image path');
     await sharp(buffer)
       .resize(origConfig.width, origConfig.height, { fit: 'cover', position: 'center' })
       .webp({ quality: origConfig.quality })
@@ -527,6 +530,7 @@ async function savePersonaImageToLocal(
 
     const thumbnailFilename = `${emotionEn}-thumb.webp`;
     const thumbnailPath = path.join(imageDir, thumbnailFilename);
+    assertSafeJoinedPath(thumbnailPath, imageDir, 'thumbnail persona image path');
     await sharp(buffer)
       .resize(thumbConfig.width, thumbConfig.height, { fit: 'cover', position: 'center' })
       .webp({ quality: thumbConfig.quality })
@@ -571,6 +575,8 @@ router.post('/generate-persona-expressions', asyncHandler(async (req, res) => {
   if (!batchBaseBuffer) {
     const baseDir = path.join(process.cwd(), 'attached_assets', 'personas', personaId, gender);
     const fallbackDir = path.join(process.cwd(), 'attached_assets', 'personas', personaId);
+    assertSafeJoinedPath(baseDir, path.join(process.cwd(), 'attached_assets', 'personas'), 'persona base directory');
+    assertSafeJoinedPath(fallbackDir, path.join(process.cwd(), 'attached_assets', 'personas'), 'persona fallback directory');
     let localPath = '';
     for (const p of [
       path.join(baseDir, 'neutral.webp'),
@@ -815,6 +821,8 @@ router.post('/generate-persona-single-expression', asyncHandler(async (req, res)
   } else {
     const baseDir = path.join(process.cwd(), 'attached_assets', 'personas', personaId, gender);
     const fallbackDir = path.join(process.cwd(), 'attached_assets', 'personas', personaId);
+    assertSafeJoinedPath(baseDir, path.join(process.cwd(), 'attached_assets', 'personas'), 'persona base directory');
+    assertSafeJoinedPath(fallbackDir, path.join(process.cwd(), 'attached_assets', 'personas'), 'persona fallback directory');
     let localPath = '';
     for (const p of [
       path.join(baseDir, 'neutral.webp'),

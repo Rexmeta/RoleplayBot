@@ -1,3 +1,5 @@
+import path from 'path';
+
 const HTML_ESCAPE_MAP: Record<string, string> = {
   '&': '&amp;',
   '<': '&lt;',
@@ -23,4 +25,23 @@ export function assertSafePathSegment(value: string, label = 'value'): string {
     throw new Error(`Invalid ${label}: contains disallowed characters`);
   }
   return value;
+}
+
+/**
+ * Defense-in-depth boundary check after path.join().
+ * Resolves both paths to absolute form and asserts that `joined` is contained
+ * within `baseDir`, preventing path-traversal even if a segment slipped through
+ * earlier validation.
+ *
+ * @param joined   The result of path.join() that must stay inside baseDir.
+ * @param baseDir  The expected root directory.
+ * @param label    Human-readable name used in the error message.
+ */
+export function assertSafeJoinedPath(joined: string, baseDir: string, label = 'path'): void {
+  const resolvedBase = path.resolve(baseDir);
+  const resolvedJoined = path.resolve(joined);
+  const safePrefix = resolvedBase.endsWith(path.sep) ? resolvedBase : resolvedBase + path.sep;
+  if (resolvedJoined !== resolvedBase && !resolvedJoined.startsWith(safePrefix)) {
+    throw new Error(`Path traversal detected: ${label} is outside the allowed directory`);
+  }
 }
