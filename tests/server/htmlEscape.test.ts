@@ -1,5 +1,6 @@
+import path from 'path';
 import { describe, it, expect } from 'vitest';
-import { escapeHtml, assertSafePathSegment } from '../../server/utils/htmlEscape';
+import { escapeHtml, assertSafePathSegment, assertSafeJoinedPath } from '../../server/utils/htmlEscape';
 
 describe('escapeHtml', () => {
   it('replaces < with &lt;', () => {
@@ -108,5 +109,41 @@ describe('assertSafePathSegment', () => {
 
   it('throws for a full XSS script tag as path segment', () => {
     expect(() => assertSafePathSegment('<script>alert(1)</script>', 'personaId')).toThrow();
+  });
+
+  it('throws for an absolute path segment (leading slash)', () => {
+    expect(() => assertSafePathSegment('/etc/passwd')).toThrow();
+  });
+});
+
+describe('assertSafeJoinedPath', () => {
+  const baseDir = '/tmp/safe-base';
+
+  it('does not throw when the joined path is inside the base directory', () => {
+    const joined = path.join(baseDir, 'subdir', 'file.txt');
+    expect(() => assertSafeJoinedPath(joined, baseDir)).not.toThrow();
+  });
+
+  it('does not throw when the joined path equals the base directory exactly', () => {
+    expect(() => assertSafeJoinedPath(baseDir, baseDir)).not.toThrow();
+  });
+
+  it('throws when a traversal escapes the base directory via ..', () => {
+    const joined = path.join(baseDir, '..', 'secret', 'data.txt');
+    expect(() => assertSafeJoinedPath(joined, baseDir)).toThrow('Path traversal detected');
+  });
+
+  it('throws when an absolute path outside the base is supplied', () => {
+    expect(() => assertSafeJoinedPath('/etc/passwd', baseDir)).toThrow('Path traversal detected');
+  });
+
+  it('throws when the joined path is a sibling directory of the base', () => {
+    const joined = '/tmp/safe-base-evil/file.txt';
+    expect(() => assertSafeJoinedPath(joined, baseDir)).toThrow('Path traversal detected');
+  });
+
+  it('includes "Path traversal detected" in the error message on escape', () => {
+    const joined = path.join(baseDir, '../../etc/passwd');
+    expect(() => assertSafeJoinedPath(joined, baseDir, 'myFile')).toThrow('Path traversal detected');
   });
 });
