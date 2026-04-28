@@ -64,3 +64,26 @@ Preferred communication style: Simple, everyday language.
 - **Database**: Drizzle ORM.
 - **Validation**: Zod.
 - **Development Tools**: Vite, TypeScript, Tailwind CSS.
+
+## Real-time Voice Module Architecture
+
+The real-time voice system is split into focused sub-modules for maintainability:
+
+### Server-side (`server/services/voice/`)
+- `types.ts` — Shared TypeScript types and constants (VoiceSession, event types, timeouts)
+- `textFilter.ts` — Utility to strip Gemini thinking-mode tags from streamed text
+- `prompts/languageInstructions.ts` — Multilingual language instructions and prohibition strings
+- `prompts/sectionText.ts` — Prompt section templates for scenario/persona context
+- `systemPromptBuilder.ts` — Assembles the full system instruction prompt from sub-modules
+- `emotionAnalyzer.ts` — Standalone emotion analysis function using Gemini
+- `geminiMessageHandler.ts` — Handles all incoming Gemini WebSocket messages
+- `clientMessageHandler.ts` — Handles all incoming client WebSocket messages
+- `geminiReconnector.ts` — Manages Gemini session close and proactive reconnection logic
+- `sessionManager.ts` — Session lifecycle helpers: cleanup scheduler, usage tracking, status reporting
+- `prompts/userPersonaPrompt.ts` — System prompt builder for user-created personas (PersonaX free chat)
+- `realtimeVoiceService.ts` — Slim orchestrator (~438 lines) wiring all sub-modules
+
+### Client-side (`client/src/hooks/`)
+- `useAudioPlayback.ts` — AudioContext management, PCM16 decoding, scheduling, analyser, amplitude tracking, stopPlayback, playAudioDelta
+- `useVoiceActivityDetection.ts` — VAD ScriptProcessor setup, RMS-based barge-in detection, userAudioAmplitude state
+- `useRealtimeVoice.ts` — Slim orchestrator (~490 lines) using both sub-hooks for WebSocket state, reconnection, and recording
