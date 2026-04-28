@@ -574,6 +574,7 @@ export class FileManagerService {
       }
       
       // 폴백: 파일 시스템
+      assertSafePathSegment(String(personaData.id), 'MBTI persona ID');
       const fileName = `${personaData.id}.json`;
       const filePath = path.join(PERSONAS_DIR, fileName);
       
@@ -615,6 +616,8 @@ export class FileManagerService {
       }
       
       // 폴백: 파일 시스템
+      assertSafePathSegment(id, 'MBTI persona ID');
+      assertSafePathSegment(String(personaData.id), 'MBTI persona ID');
       const fileName = `${id}.json`;
       const filePath = path.join(PERSONAS_DIR, fileName);
       await fs.access(filePath);
@@ -642,6 +645,7 @@ export class FileManagerService {
       }
       
       // 폴백: 파일 시스템
+      assertSafePathSegment(id, 'MBTI persona ID');
       const fileName = `${id}.json`;
       const filePath = path.join(PERSONAS_DIR, fileName);
       await fs.unlink(filePath);

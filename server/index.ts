@@ -7,6 +7,7 @@ import { GlobalMBTICache } from "./utils/globalMBTICache";
 import { runMigrations } from "./migrate";
 import { checkDatabaseConnection, storage } from "./storage";
 import * as pathModule from "path";
+import { escapeHtml } from "./utils/htmlEscape";
 
 // ====================================================================
 // Global crash handlers – prevent silent process exits that Cloud Run
@@ -147,14 +148,14 @@ app.use((req, res, next) => {
     return res.status(503).json({ message: 'Service is starting', initStatus, initError });
   }
   res.status(503).set('Retry-After', '5').send(
-    '<!DOCTYPE html><html><head><meta charset="utf-8"><title>Starting up…</title>' +
+    '<!DOCTYPE html><html><head><meta charset="utf-8"><title>Starting up\u2026</title>' +
     '<meta http-equiv="refresh" content="3"></head>' +
     '<body style="display:flex;justify-content:center;align-items:center;height:100vh;margin:0;font-family:system-ui">' +
-    `<div style="text-align:center"><p>Service is starting up&hellip;</p>` +
-    `<p style="font-size:0.8em;color:#666">Status: ${initStatus}</p>` +
-    `${initError ? `<p style="font-size:0.8em;color:red">${initError}</p>` : ''}` +
-    `<p style="font-size:0.7em;color:#999">Uptime: ${Math.round((Date.now() - startupTimestamp) / 1000)}s` +
-    ` | <a href="/_ah/debug">Debug Info</a></p></div></body></html>`
+    '<div style="text-align:center"><p>Service is starting up&hellip;</p>' +
+    '<p style="font-size:0.8em;color:#666">Status: ' + escapeHtml(initStatus) + '</p>' +
+    (initError ? '<p style="font-size:0.8em;color:red">' + escapeHtml(initError) + '</p>' : '') +
+    '<p style="font-size:0.7em;color:#999">Uptime: ' + Math.round((Date.now() - startupTimestamp) / 1000) + 's' +
+    ' | <a href="/_ah/debug">Debug Info</a></p></div></body></html>'
   );
 });
 

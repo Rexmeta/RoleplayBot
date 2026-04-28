@@ -357,7 +357,7 @@ export async function deleteIntroVideo(videoUrl: string): Promise<boolean> {
     }
     
     // Fallback: Try local filesystem deletion for legacy paths
-    if (videoUrl.startsWith('/scenarios/videos/')) {
+    if (videoUrl.startsWith('/scenarios/videos/') && !videoUrl.includes('..')) {
       const filePath = path.join(process.cwd(), videoUrl.slice(1));
       if (fs.existsSync(filePath)) {
         fs.unlinkSync(filePath);

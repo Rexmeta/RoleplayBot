@@ -6,6 +6,7 @@ import { transformToSignedUrl } from '../services/gcsStorage';
 import { asyncHandler, createHttpError } from './routerHelpers';
 import { isAuthenticated } from '../auth';
 import { storage } from '../storage';
+import { escapeHtml } from '../utils/htmlEscape';
 
 const router = Router();
 
@@ -41,13 +42,13 @@ function buildBasePrompt(name: string, description: string, traits: string[], ba
   let prompt = `Photorealistic professional portrait photograph of a character`;
 
   if (description) {
-    prompt += `. Character description: ${description}`;
+    prompt += `. Character description: ${escapeHtml(description)}`;
   }
   if (background) {
-    prompt += `. Role and background: ${background}`;
+    prompt += `. Role and background: ${escapeHtml(background)}`;
   }
   if (traits.length > 0) {
-    prompt += `. Key personality traits: ${traits.slice(0, 3).join(', ')}`;
+    prompt += `. Key personality traits: ${traits.slice(0, 3).map(escapeHtml).join(', ')}`;
   }
 
   prompt += `. Head and shoulders portrait, modern office or cozy room background, `;
@@ -122,7 +123,7 @@ router.post('/:id/generate-image', isAuthenticated, asyncHandler(async (req: any
   const personaDesc: string = description || persona.description;
 
   const prompt = customPrompt?.trim()
-    ? `Photorealistic professional portrait: ${customPrompt}. Head and shoulders, modern background, natural lighting, neutral expression, sharp focus. NO text, NO watermarks.`
+    ? `Photorealistic professional portrait: ${escapeHtml(customPrompt)}. Head and shoulders, modern background, natural lighting, neutral expression, sharp focus. NO text, NO watermarks.`
     : buildBasePrompt(personaName, personaDesc, traits, background);
 
   console.log(`🎨 [UserPersonaImage] 기본 이미지 생성: ${id} (${personaName})`);
@@ -257,7 +258,7 @@ router.post('/:id/generate-expression/:emotion', isAuthenticated, asyncHandler(a
     const traits: string[] = bodyPersonality?.traits || persona.personality?.traits || [];
     const background: string = bodyPersonality?.background || persona.personality?.background || '';
     const prompt = customPrompt?.trim()
-      ? `Photorealistic portrait: ${customPrompt}. Head and shoulders, neutral expression. NO text, NO watermarks.`
+      ? `Photorealistic portrait: ${escapeHtml(customPrompt)}. Head and shoulders, neutral expression. NO text, NO watermarks.`
       : buildBasePrompt(persona.name, persona.description, traits, background);
 
     try {
