@@ -64,6 +64,19 @@ Preferred communication style: Simple, everyday language.
 - **Database**: Drizzle ORM.
 - **Validation**: Zod.
 - **Development Tools**: Vite, TypeScript, Tailwind CSS.
+- **Testing**: Vitest (`npx vitest run`) with happy-dom for client hook tests. 88 tests across 4 files covering the real-time voice session flow.
+
+## Testing
+
+Run tests with: `npx vitest run`
+
+Test files:
+- `tests/server/geminiMessageHandler.test.ts` — goAway handling, sessionResumption, audio routing, barge-in suppression, inputTranscription accumulation, turnComplete lifecycle, modelTurn thinking-text detection, outputTranscription filtering
+- `tests/server/geminiReconnector.test.ts` — normal close cleanup, unexpected close reconnection, exponential backoff, session context restoration, max-attempts failure, client-disconnect cancellation
+- `tests/client/useAudioPlayback.test.ts` — initial state, stopPlayback barge-in, playAudioDelta gating, PCM16 decoding math, AnalyserNode/GainNode lifecycle
+- `tests/client/useVoiceActivityDetection.test.ts` — RMS computation, barge-in trigger timing, expectedTurnSeq increment, WebSocket cancel message, double-trigger prevention, auto-reset on silence
+
+Client test files use `// @vitest-environment happy-dom` per-file annotation; server tests run in Node environment. Setup file at `tests/setup.ts`.
 
 ## Real-time Voice Module Architecture
 
