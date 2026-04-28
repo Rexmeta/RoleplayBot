@@ -103,6 +103,7 @@ export class MemStorage {
           const val = (delegate as Record<string, unknown>)[prop];
           if (typeof val === "function") return val.bind(delegate);
         }
+        if (process.env.NODE_ENV === 'production') return undefined;
         throw new Error(
           `MemStorage: no delegate implements method '${String(prop)}'`
         );
