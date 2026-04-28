@@ -34,7 +34,7 @@ type SequenceAnalysis = {
 };
 
 type RunAccordionContentProps = {
-  scenarioRun: ScenarioRun & { personaRuns: PersonaRun[]; isScenarioDeleted?: boolean; sequenceAnalysis?: SequenceAnalysis };
+  scenarioRun: ScenarioRun & { personaRuns: PersonaRun[]; isScenarioDeleted?: boolean; sequenceAnalysis?: SequenceAnalysis | null };
   scenarioInfo: { title: string; difficulty: number; personas: ScenarioPersona[] };
   personaRuns: PersonaRun[];
   userId: string | undefined;

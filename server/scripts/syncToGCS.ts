@@ -207,7 +207,7 @@ async function syncToGCS() {
   const total = mediaKeys.size;
   let processed = 0;
 
-  for (const key of mediaKeys) {
+  for (const key of Array.from(mediaKeys)) {
     processed++;
     const progress = `[${processed}/${total}]`;
 

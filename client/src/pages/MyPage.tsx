@@ -662,12 +662,13 @@ export default function MyPage() {
                               }, {})
                             )
                             .sort((a, b) => a[0].localeCompare(b[0]))
-                            .map(([_, data]: [string, { date: string; scores: number[] }]) => {
-                              const [year, month, day] = data.date.split('-');
+                            .map(([_, data]) => {
+                              const typedData = data as { date: string; scores: number[] };
+                              const [year, month, day] = typedData.date.split('-');
                               return {
                                 date: `${month}.${day}`,
-                                score: Math.round(data.scores.reduce((a: number, b: number) => a + b, 0) / data.scores.length),
-                                count: data.scores.length
+                                score: Math.round(typedData.scores.reduce((a: number, b: number) => a + b, 0) / typedData.scores.length),
+                                count: typedData.scores.length
                               };
                             })}
                             margin={{ top: 5, right: 30, left: 0, bottom: 5 }}

@@ -2,6 +2,7 @@ import { Request, Response, NextFunction } from "express";
 import { storage } from "../storage";
 import { fileManager } from "../services/fileManager";
 import { generateFeedback, generateStrategyReflectionFeedback } from "../services/aiServiceFactory";
+import { EvaluationScore } from "@shared/schema";
 
 export function asyncHandler(fn: (req: any, res: Response, next: NextFunction) => Promise<any>) {
   return (req: Request, res: Response, next: NextFunction) => {
@@ -306,7 +307,7 @@ export async function generateAndSaveFeedback(
   } else {
     console.log(`📊 [점수매핑] 기본 평가기준 적용 (5개 차원)`);
   }
-  const evaluationScores = activeDimensions.map((dim: any) => ({
+  const evaluationScores: EvaluationScore[] = activeDimensions.map((dim: any) => ({
     category: dim.key,
     name: dim.name,
     score: feedbackData.scores?.[dim.key] || dim.minScore || 1,
@@ -403,7 +404,6 @@ export async function performStrategicAnalysis(conversationId: string, conversat
     );
 
     await storage.saveSequenceAnalysis(conversationId, {
-      conversationId,
       strategicScore: reflectionData.strategicScore,
       strategicRationale: reflectionData.strategicRationale,
       sequenceEffectiveness: reflectionData.sequenceEffectiveness,

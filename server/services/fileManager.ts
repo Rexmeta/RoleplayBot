@@ -298,7 +298,7 @@ export class FileManagerService {
         context: scenario.context || null,
         objectives: scenario.objectives || [],
         successCriteria: scenario.successCriteria || null,
-        personas: scenario.personas || [],
+        personas: (scenario.personas || []) as any,
         recommendedFlow: scenario.recommendedFlow || [],
         evaluationCriteriaSetId: scenario.evaluationCriteriaSetId || null,
         isDemo: scenario.isDemo || false,

@@ -25,7 +25,7 @@ export default function createAdminScenariosRouter(isAuthenticated: any) {
     if (!scenario) return { hasAccess: false, error: 'Scenario not found' };
 
     const accessibleCategoryIds = await getOperatorAccessibleCategoryIds(user);
-    return { hasAccess: accessibleCategoryIds.includes(scenario.categoryId) };
+    return { hasAccess: accessibleCategoryIds.includes(scenario.categoryId ?? '') };
   };
 
   router.post("/api/admin/sync-media-to-gcs", isAuthenticated, asyncHandler(async (req: any, res) => {
@@ -108,7 +108,7 @@ export default function createAdminScenariosRouter(isAuthenticated: any) {
       throw createHttpError(404, "시나리오를 찾을 수 없습니다");
     }
 
-    const enhancedData = await enhanceScenarioWithAI(existingScenario, enhancementType);
+    const enhancedData = await enhanceScenarioWithAI(existingScenario as any, enhancementType);
 
     res.json(enhancedData);
   }));

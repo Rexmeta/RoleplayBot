@@ -44,6 +44,8 @@ interface ScenarioFormData {
   difficulty: number;
   estimatedTime: string;
   skills: string[];
+  theme?: string;
+  industry?: string;
   categoryId?: string; // 카테고리 ID 필드 추가
   evaluationCriteriaSetId?: string; // 평가 기준 세트 ID 필드 추가
   image?: string; // 시나리오 이미지 URL 필드 추가

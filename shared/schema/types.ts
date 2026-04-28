@@ -15,6 +15,8 @@ export type EvaluationScore = {
   feedback: string;
   icon: string;
   color: string;
+  maxScore?: number;
+  weight?: number;
 };
 
 export type ActionGuide = {

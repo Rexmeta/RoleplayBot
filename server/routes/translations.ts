@@ -831,7 +831,7 @@ Return JSON: {"name": "translated name", "description": "translated description"
     const languages = await storage.getActiveSupportedLanguages();
     const nonDefaultLanguages = languages.filter((l: any) => !l.isDefault);
     const scenarios = await storage.getAllScenarios();
-    const personas = await storage.getAllPersonas();
+    const personas = await fileManager.getAllPersonas();
     const categories = await storage.getAllCategories();
 
     const scenarioTranslations: Record<string, { count: number; reviewed: number; machine: number }> = {};
