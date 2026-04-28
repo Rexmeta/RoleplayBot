@@ -66,7 +66,7 @@ export function generatePrintableContent(opts: GenerateOptions): string {
           <h3 style="font-size: 15px; font-weight: 600; color: #0369a1; margin-bottom: 10px;">⏱️ 대화 시간 분석</h3>
           <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; text-align: center;">
             <div><div style="font-size: 20px; font-weight: bold; color: #0284c7;">${Math.floor(conversationDuration / 60)}:${(conversationDuration % 60).toString().padStart(2, '0')}</div><div style="font-size: 13px; color: #0369a1;">총 대화 시간</div></div>
-            ${averageResponseTime != null ? `<div><div style="font-size: 20px; font-weight: bold; color: #16a34a;">${averageResponseTime}초</div><div style="font-size: 13px; color: #15803d;">평균 응답 시간</div></div>` : ''}
+            ${averageResponseTime != null ? `<div><div style="font-size: 20px; font-weight: bold; color: #16a34a;">${escapeHtml(String(averageResponseTime))}초</div><div style="font-size: 13px; color: #15803d;">평균 응답 시간</div></div>` : ''}
             ${timePerformance ? `<div><div style="font-size: 16px; font-weight: 600; color: ${timePerformance.rating === 'excellent' ? '#16a34a' : timePerformance.rating === 'good' ? '#2563eb' : timePerformance.rating === 'average' ? '#d97706' : '#dc2626'};">${timePerformance.rating === 'excellent' ? '🎯 우수' : timePerformance.rating === 'good' ? '✅ 좋음' : timePerformance.rating === 'average' ? '🔶 보통' : '⚠️ 개선필요'}</div><div style="font-size: 11px; color: #9a3412;">${escapeHtml(timePerformance.feedback)}</div></div>` : ''}
           </div>
         </div>` : ''}
@@ -82,7 +82,7 @@ export function generatePrintableContent(opts: GenerateOptions): string {
                 <span style="font-size: 13px; font-weight: 600; color: #374151;">${escapeHtml(getTranslatedDimensionName(score.category, score.name))}</span>
                 <span style="background: #dbeafe; color: #1e40af; padding: 2px 7px; border-radius: 4px; font-size: 12px; font-weight: 600;">${Number(sNum).toFixed(1)}/10</span>
               </div>
-              <span style="font-size: 10px; font-weight: 600; color: ${statusColor}; background: ${statusBg}; border-radius: 20px; padding: 1px 8px;">${statusLabel}</span>
+              <span style="font-size: 10px; font-weight: 600; color: ${escapeHtml(statusColor)}; background: ${escapeHtml(statusBg)}; border-radius: 20px; padding: 1px 8px;">${statusLabel}</span>
               <p style="font-size: 12px; color: #4b5563; line-height: 1.5; margin: 6px 0 0 0;">${escapeHtml(score.feedback)}</p>
             </div>`;
           }).join('')}
@@ -230,7 +230,7 @@ export function generatePrintableContent(opts: GenerateOptions): string {
 
       <!-- 푸터 -->
       <div style="text-align: center; padding-top: 20px; border-top: 1px solid #e2e8f0; color: #9ca3af; font-size: 12px;">
-        발행: ${feedback.createdAt ? new Date(feedback.createdAt).toLocaleDateString('ko-KR') : new Date().toLocaleDateString('ko-KR')} · 보고서 ID: ${conversationId.slice(0, 8).toUpperCase()} · AI 기반 개인 맞춤 개발 보고서
+        발행: ${feedback.createdAt ? new Date(feedback.createdAt).toLocaleDateString('ko-KR') : new Date().toLocaleDateString('ko-KR')} · 보고서 ID: ${escapeHtml(conversationId.slice(0, 8).toUpperCase())} · AI 기반 개인 맞춤 개발 보고서
       </div>
     </div>
   `;
