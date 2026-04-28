@@ -1,5 +1,5 @@
 import { GoogleGenAI } from "@google/genai";
-import type { ConversationMessage, DetailedFeedback } from "@shared/schema";
+import type { ConversationMessage, DetailedFeedback, EvaluationScore } from "@shared/schema";
 import type { AIServiceInterface, ScenarioPersona, EvaluationCriteriaWithDimensions, SupportedLanguage, RoleplayScenario, StrategyEvaluationInput, StrategyReflectionEvaluation } from "../aiService";
 import { LANGUAGE_INSTRUCTIONS } from "../aiService";
 import { enrichPersonaWithMBTI } from "../../utils/mbtiLoader";
@@ -367,8 +367,7 @@ JSON 형식으로 응답:
       issues.push(`ranking too short (${(feedback.ranking || '').length} chars)`);
     }
     
-    const scores = feedback.scores || {};
-    const scoreValues = Object.values(scores).filter(v => typeof v === 'number') as number[];
+    const scoreValues = (feedback.scores || []).map(s => s.score);
     const allSameScore = scoreValues.length > 1 && scoreValues.every(s => s === scoreValues[0]);
     if (allSameScore) {
       issues.push(`all scores identical (${scoreValues[0]})`);
@@ -866,9 +865,21 @@ JSON 형식${hasStrategyReflection ? ' (sequenceAnalysis 포함)' : ''}:
         improvements = [completionMsg, ...improvements];
       }
       
+      const dimsForScores = evaluationCriteria?.dimensions || DEFAULT_DIMENSIONS;
+      const evaluationScoreArray: EvaluationScore[] = dimsForScores.map((dim: any) => ({
+        category: dim.key,
+        name: dim.name,
+        score: scores[dim.key] ?? dim.minScore ?? 1,
+        feedback: parsed.dimensionFeedback?.[dim.key] || '',
+        icon: dim.icon || '📊',
+        color: dim.color || 'blue',
+        weight: dim.weight ?? 20,
+        maxScore: dim.maxScore ?? 10,
+      }));
+
       const feedback: DetailedFeedback = {
         overallScore: adjustedScore,
-        scores: scores,
+        scores: evaluationScoreArray,
         dimensionFeedback: parsed.dimensionFeedback || {},
         strengths: parsed.strengths || ["대화 참여"],
         improvements: improvements,
@@ -1053,15 +1064,24 @@ JSON 형식${hasStrategyReflection ? ' (sequenceAnalysis 포함)' : ''}:
    */
   private getFallbackFeedback(evaluationCriteria?: EvaluationCriteriaWithDimensions): DetailedFeedback {
     const dimensions = evaluationCriteria?.dimensions || DEFAULT_DIMENSIONS;
-    const scores: Record<string, number> = {};
+    const rawScores: Record<string, number> = {};
     const baseScores = [2, 4, 3, 6, 2];
     dimensions.forEach((dim, idx) => {
-      scores[dim.key] = baseScores[idx % baseScores.length];
+      rawScores[dim.key] = baseScores[idx % baseScores.length];
     });
-    const defaultScores = scores;
+    const fallbackScores: EvaluationScore[] = dimensions.map((dim, idx) => ({
+      category: dim.key,
+      name: dim.name,
+      score: baseScores[idx % baseScores.length],
+      feedback: '',
+      icon: (dim as any).icon || '📊',
+      color: (dim as any).color || 'blue',
+      weight: dim.weight ?? 20,
+      maxScore: dim.maxScore ?? 10,
+    }));
     const feedback: DetailedFeedback = {
-      overallScore: calculateWeightedOverallScore(defaultScores, evaluationCriteria),
-      scores: defaultScores as any,
+      overallScore: calculateWeightedOverallScore(rawScores, evaluationCriteria),
+      scores: fallbackScores,
       strengths: ["기본적인 대화 참여"],
       improvements: ["시스템 안정성 확보 후 재평가 필요", "더 많은 대화 기회 필요", "기술적 문제 해결 후 재시도"],
       nextSteps: ["시스템 점검 완료 후 재도전", "안정적인 환경에서 재시도"],

@@ -1,4 +1,4 @@
-import type { ConversationMessage, DetailedFeedback } from "@shared/schema";
+import type { ConversationMessage, DetailedFeedback, EvaluationScore } from "@shared/schema";
 import type { AIServiceInterface, ScenarioPersona, AIServiceConfig, EvaluationCriteriaWithDimensions, RoleplayScenario } from "../aiService";
 import { retryWithBackoff, conversationSemaphore, feedbackSemaphore } from "../../utils/concurrency";
 import { DEFAULT_DIMENSIONS, calculateWeightedOverallScore } from "../evaluationEngine";
@@ -378,15 +378,25 @@ JSON 형식으로 응답:
   private parseFeedbackResponse(feedbackData: any, evaluationCriteria?: EvaluationCriteriaWithDimensions): DetailedFeedback {
     const dimensions = evaluationCriteria?.dimensions || DEFAULT_DIMENSIONS;
     
-    const scores: Record<string, number> = {};
+    const rawScores: Record<string, number> = {};
     for (const dim of dimensions) {
       const rawScore = feedbackData.scores?.[dim.key];
-      scores[dim.key] = Math.min(dim.maxScore, Math.max(dim.minScore, rawScore || dim.minScore));
+      rawScores[dim.key] = Math.min(dim.maxScore, Math.max(dim.minScore, rawScore || dim.minScore));
     }
+    const evaluationScoreArray: EvaluationScore[] = dimensions.map((dim: any) => ({
+      category: dim.key,
+      name: dim.name,
+      score: rawScores[dim.key] ?? dim.minScore ?? 1,
+      feedback: feedbackData.dimensionFeedback?.[dim.key] || '',
+      icon: dim.icon || '📊',
+      color: dim.color || 'blue',
+      weight: dim.weight ?? 20,
+      maxScore: dim.maxScore ?? 10,
+    }));
 
     return {
-      overallScore: calculateWeightedOverallScore(scores, evaluationCriteria),
-      scores: scores as any,
+      overallScore: calculateWeightedOverallScore(rawScores, evaluationCriteria),
+      scores: evaluationScoreArray,
       dimensionFeedback: feedbackData.dimensionFeedback || {},
       strengths: feedbackData.strengths || ["기본적인 대화 능력", "적절한 언어 사용", "상황 이해도"],
       improvements: feedbackData.improvements || ["더 구체적인 표현", "감정 교감 증진", "논리적 구조화"],
@@ -406,7 +416,7 @@ JSON 형식으로 응답:
     if (!feedback.dimensionFeedback || Object.keys(feedback.dimensionFeedback).length === 0) issues.push('missing dimensionFeedback');
     if (!feedback.strengths || feedback.strengths.length < 2) issues.push('insufficient strengths');
     if (!feedback.ranking || feedback.ranking.length < 20) issues.push('ranking too short');
-    const scoreValues = Object.values(feedback.scores || {}).filter(v => typeof v === 'number') as number[];
+    const scoreValues = (feedback.scores || []).map(s => s.score);
     if (scoreValues.length > 1 && scoreValues.every(s => s === scoreValues[0])) issues.push('all scores identical');
     return issues.length > 0 ? { isValid: false, reason: issues.join('; ') } : { isValid: true, reason: 'OK' };
   }
@@ -676,9 +686,20 @@ JSON 형식으로 응답:
       }
     }
 
+    const evaluationScoreArrayCustom: EvaluationScore[] = dimensions.map((dim: any) => ({
+      category: dim.key,
+      name: dim.name,
+      score: scores[dim.key] ?? dim.minScore ?? 1,
+      feedback: dimensionFeedback[dim.key] || '',
+      icon: dim.icon || '📊',
+      color: dim.color || 'blue',
+      weight: dim.weight ?? 20,
+      maxScore: dim.maxScore ?? 10,
+    }));
+
     return {
       overallScore: Math.min(100, Math.max(0, overallScore)),
-      scores: scores as any,
+      scores: evaluationScoreArrayCustom,
       dimensionFeedback,
       strengths: scenarioFeedback.strengths,
       improvements: scenarioFeedback.improvements,
@@ -748,15 +769,25 @@ JSON 형식으로 응답:
 
   private getFallbackFeedback(evaluationCriteria?: EvaluationCriteriaWithDimensions): DetailedFeedback {
     const dimensions = evaluationCriteria?.dimensions || DEFAULT_DIMENSIONS;
-    const scores: Record<string, number> = {};
+    const rawScores: Record<string, number> = {};
     const baseScores = [2, 4, 3, 6, 2];
     dimensions.forEach((dim, idx) => {
-      scores[dim.key] = baseScores[idx % baseScores.length];
+      rawScores[dim.key] = baseScores[idx % baseScores.length];
     });
+    const fallbackScores: EvaluationScore[] = dimensions.map((dim: any, idx: number) => ({
+      category: dim.key,
+      name: dim.name,
+      score: baseScores[idx % baseScores.length],
+      feedback: '',
+      icon: dim.icon || '📊',
+      color: dim.color || 'blue',
+      weight: dim.weight ?? 20,
+      maxScore: dim.maxScore ?? 10,
+    }));
 
     return {
-      overallScore: calculateWeightedOverallScore(scores, evaluationCriteria),
-      scores: scores as any,
+      overallScore: calculateWeightedOverallScore(rawScores, evaluationCriteria),
+      scores: fallbackScores,
       strengths: ["기본적인 대화 참여"],
       improvements: ["시스템 안정성 확보 후 재평가 필요", "더 많은 대화 기회 필요", "기술적 문제 해결 후 재시도"],
       nextSteps: ["시스템 점검 완료 후 재도전", "안정적인 환경에서 재시도", "기술 지원팀 문의"],

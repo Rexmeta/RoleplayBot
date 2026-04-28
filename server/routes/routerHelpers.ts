@@ -182,11 +182,19 @@ function generateInsufficientConversationFeedback(
   ];
   const insufficientMsg = '대화 내용이 부족하여 정확한 평가가 어렵습니다';
   const baseScores = [2, 4, 3, 5, 2];
-  const scores: Record<string, number> = {};
   const dimensionFeedback: Record<string, string> = {};
-  dimensions.forEach((dim: any, idx: number) => {
-    scores[dim.key] = baseScores[idx % baseScores.length];
+  const scores: EvaluationScore[] = dimensions.map((dim: any, idx: number) => {
     dimensionFeedback[dim.key] = insufficientMsg;
+    return {
+      category: dim.key,
+      name: dim.name || dim.key,
+      score: baseScores[idx % baseScores.length],
+      feedback: insufficientMsg,
+      icon: dim.icon || '📊',
+      color: dim.color || 'blue',
+      weight: dim.weight ?? 20,
+      maxScore: dim.maxScore ?? 10,
+    };
   });
 
   const totalWeight = dimensions.reduce((sum: any, d: any) => sum + (d.weight || 20), 0) || 100;
@@ -307,16 +315,21 @@ export async function generateAndSaveFeedback(
   } else {
     console.log(`📊 [점수매핑] 기본 평가기준 적용 (5개 차원)`);
   }
-  const evaluationScores: EvaluationScore[] = activeDimensions.map((dim: any) => ({
-    category: dim.key,
-    name: dim.name,
-    score: feedbackData.scores?.[dim.key] || dim.minScore || 1,
-    feedback: dimFeedback[dim.key] || dim.description || '',
-    icon: dim.icon || '📊',
-    color: dim.color || 'blue',
-    weight: dim.weight || 20,
-    maxScore: dim.maxScore || 10,
-  }));
+  const evaluationScores: EvaluationScore[] = activeDimensions.map((dim: any) => {
+    const existingScore = Array.isArray(feedbackData.scores)
+      ? feedbackData.scores.find((s: EvaluationScore) => s.category === dim.key)
+      : undefined;
+    return {
+      category: dim.key,
+      name: dim.name,
+      score: existingScore?.score || dim.minScore || 1,
+      feedback: dimFeedback[dim.key] || dim.description || '',
+      icon: dim.icon || '📊',
+      color: dim.color || 'blue',
+      weight: dim.weight || 20,
+      maxScore: dim.maxScore || 10,
+    };
+  });
 
   if (!isInsufficientConversation) {
     const scoreValues = evaluationScores.map(s => s.score);
@@ -329,8 +342,9 @@ export async function generateAndSaveFeedback(
       const correctedScores = [3, 6, 4, 7, 3];
       evaluationScores.forEach((s, idx) => {
         s.score = correctedScores[idx % correctedScores.length];
-        if (feedbackData.scores && feedbackData.scores[s.category] !== undefined) {
-          feedbackData.scores[s.category] = s.score;
+        if (Array.isArray(feedbackData.scores)) {
+          const existingScoreItem = feedbackData.scores.find((fs: EvaluationScore) => fs.category === s.category);
+          if (existingScoreItem) existingScoreItem.score = s.score;
         }
       });
       if (!feedbackData.summary || !feedbackData.summary.includes('대화 내용이 충분하지 않아')) {

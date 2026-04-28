@@ -48,15 +48,7 @@ export type DevelopmentPlan = {
 
 export type DetailedFeedback = {
   overallScore: number;
-  scores: {
-    clarityLogic: number;
-    listeningEmpathy: number;
-    appropriatenessAdaptability: number;
-    persuasivenessImpact: number;
-    strategicCommunication: number;
-    strategicSelection?: number;
-    [key: string]: number | undefined;
-  };
+  scores: EvaluationScore[];
   dimensionFeedback?: Record<string, string>;
   strengths: string[];
   improvements: string[];

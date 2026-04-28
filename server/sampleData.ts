@@ -30,7 +30,7 @@ export async function createSampleData() {
 
   const sampleFeedback: DetailedFeedback = {
     overallScore: 65,
-    scores: sampleScores as any,
+    scores: sampleScores,
     summary: "전반적으로 체계적이고 전문적인 커뮤니케이션을 보여주었습니다.",
     strengths: [
       "문제 상황에 대해 구체적이고 명확한 설명을 제공했습니다",
