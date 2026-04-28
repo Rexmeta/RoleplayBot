@@ -66,6 +66,8 @@ export default function PersonalDevelopmentReport({
   const [hasRequestedFeedback, setHasRequestedFeedback] = useState(false); // 피드백 생성 요청 여부
   const [isExportingPdf, setIsExportingPdf] = useState(false); // PDF 내보내기 중
   const [showMobileMenu, setShowMobileMenu] = useState(false); // 모바일 스마트 메뉴 상태
+  const [activeReportTab, setActiveReportTab] = useState("scores"); // 현재 활성 탭
+  const [scoreAnimKey, setScoreAnimKey] = useState(0); // 점수 흐름 애니메이션 재생 키
   const [checkedItems, setCheckedItems] = useState<Record<string, boolean>>(() => {
     try {
       const stored = localStorage.getItem(`checklist_${conversationId}`);
@@ -1388,7 +1390,12 @@ export default function PersonalDevelopmentReport({
         </Card>
       )}
 
-      <Tabs defaultValue="scores" className="space-y-6">
+      <Tabs value={activeReportTab} onValueChange={(val) => {
+        if (val === "scores" && activeReportTab !== "scores") {
+          setScoreAnimKey((k) => k + 1);
+        }
+        setActiveReportTab(val);
+      }} className="space-y-6">
         <TabsList 
           className={`flex flex-wrap justify-center gap-1 sm:grid sm:w-full ${feedback?.detailedFeedback?.sequenceAnalysis ? 'sm:grid-cols-4' : 'sm:grid-cols-3'} transform transition-all duration-500 screen-only h-auto p-1`}
           style={{ 
@@ -1672,15 +1679,17 @@ export default function PersonalDevelopmentReport({
               },
             ];
 
+            const isReplay = scoreAnimKey > 0;
             const flowDelay = (index: number): React.CSSProperties => ({
               opacity: 0,
-              animation: `fadeInUp 0.5s ease-out ${3.3 + index * 0.13}s forwards`,
+              animation: `fadeInUp 0.5s ease-out ${isReplay ? 0.6 + index * 0.13 : 3.3 + index * 0.13}s forwards`,
             });
 
             return (
               <Card
+                key={scoreAnimKey}
                 className="transform transition-all duration-500 hover:shadow-lg screen-only"
-                style={{ opacity: 0, animation: `fadeInUp 0.8s ease-out 3s forwards` }}
+                style={{ opacity: 0, animation: `fadeInUp 0.8s ease-out ${isReplay ? 0.3 : 3}s forwards` }}
               >
                 <CardHeader className="pb-3">
                   <CardTitle className="flex items-center gap-2">
