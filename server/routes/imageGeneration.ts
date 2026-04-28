@@ -8,6 +8,7 @@ import { fileManager } from '../services/fileManager';
 import { mediaStorage } from '../services/mediaStorage';
 import { transformToSignedUrl } from '../services/gcsStorage';
 import { asyncHandler, createHttpError } from './routerHelpers';
+import { escapeHtml, assertSafePathSegment } from '../utils/htmlEscape';
 
 const IMAGE_CONFIG = {
   scenario: {
@@ -44,7 +45,7 @@ router.post('/generate-scenario-image', asyncHandler(async (req, res) => {
 
   let imagePrompt: string;
   if (customPrompt && customPrompt.trim()) {
-    imagePrompt = `Photorealistic professional business photograph: ${customPrompt}. `;
+    imagePrompt = `Photorealistic professional business photograph: ${escapeHtml(customPrompt)}. `;
     imagePrompt += `High quality corporate photography, natural lighting, sharp focus, professional setting, modern business environment. `;
     imagePrompt += `NO text, NO speech bubbles, NO captions, NO graphic overlays.`;
   } else {
@@ -272,7 +273,7 @@ router.post('/generate-preview', asyncHandler(async (req, res) => {
     throw createHttpError(400, '시나리오 제목이 필요합니다.');
   }
 
-  const simplePrompt = `A minimal, professional illustration representing "${scenarioTitle}", modern business style, clean composition, corporate colors, vector-like appearance`;
+  const simplePrompt = `A minimal, professional illustration representing "${escapeHtml(scenarioTitle)}", modern business style, clean composition, corporate colors, vector-like appearance`;
 
   const ai = new GoogleGenAI({ apiKey: process.env.GOOGLE_API_KEY || process.env.GEMINI_API_KEY });
   const result = await ai.models.generateContent({
@@ -456,11 +457,11 @@ function generatePersonaImagePrompt(
 
   let traitDescription = '';
   if (personalityTraits && personalityTraits.length > 0) {
-    const traitsEn = personalityTraits.slice(0, 2).join(', ');
+    const traitsEn = personalityTraits.slice(0, 2).map(escapeHtml).join(', ');
     traitDescription = `, showing ${traitsEn}`;
   }
 
-  const styleDesc = imageStyle || 'professional business portrait photography';
+  const styleDesc = escapeHtml(imageStyle || 'professional business portrait photography');
 
   let prompt = `Photorealistic professional portrait photograph of a ${genderEn}, ${visualTrait}${traitDescription}. `;
   prompt += `${styleDesc}. `;
@@ -481,9 +482,8 @@ async function savePersonaImageToLocal(
   gender: 'male' | 'female' = 'male'
 ): Promise<string> {
   try {
-    if (personaId.includes('..') || personaId.includes('/') || personaId.includes('\\')) {
-      throw new Error('Invalid persona ID');
-    }
+    assertSafePathSegment(personaId, 'persona ID');
+    assertSafePathSegment(gender, 'gender');
 
     const matches = base64ImageUrl.match(/^data:([A-Za-z-+\/]+);base64,(.+)$/);
     if (!matches) {
@@ -557,6 +557,9 @@ router.post('/generate-persona-expressions', asyncHandler(async (req, res) => {
   if (!personaId || !mbti || !gender) {
     throw createHttpError(400, '페르소나 ID, MBTI, 성별이 필요합니다.');
   }
+
+  assertSafePathSegment(personaId, 'persona ID');
+  assertSafePathSegment(gender, 'gender');
 
   console.log(`🎨 페르소나 표정 이미지 일괄 생성 시작: ${personaId} (${mbti}, ${gender})`);
 
@@ -725,6 +728,9 @@ router.post('/generate-persona-single-expression', asyncHandler(async (req, res)
   if (!personaId || !mbti || !gender || !emotion) {
     throw createHttpError(400, '페르소나 ID, MBTI, 성별, 표정이 필요합니다.');
   }
+
+  assertSafePathSegment(personaId, 'persona ID');
+  assertSafePathSegment(gender, 'gender');
 
   console.log(`🎨 페르소나 단일 표정 이미지 생성: ${personaId} - ${emotion} (${gender})`);
 

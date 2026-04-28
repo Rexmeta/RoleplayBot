@@ -3,6 +3,7 @@ import * as path from 'path';
 import { ComplexScenario, ScenarioPersona } from '@/lib/scenario-system';
 import { enrichPersonaWithMBTI, enrichPersonaWithBasicMBTI } from '../utils/mbtiLoader';
 import { storage } from '../storage';
+import { assertSafePathSegment } from '../utils/htmlEscape';
 
 const SCENARIOS_DIR = 'scenarios';
 const PERSONAS_DIR = 'personas';
@@ -659,10 +660,7 @@ export class FileManagerService {
     base64Data: string
   ): Promise<string> {
     try {
-      // 보안: personaId 및 emotion 검증 (path traversal 방지)
-      if (personaId.includes('..') || personaId.includes('/') || personaId.includes('\\')) {
-        throw new Error('Invalid persona ID');
-      }
+      assertSafePathSegment(personaId, 'persona ID');
       
       const allowedEmotions = ['중립', '기쁨', '슬픔', '분노', '놀람', '호기심', '불안', '피로', '실망', '당혹'];
       if (!allowedEmotions.includes(emotion)) {
@@ -716,10 +714,7 @@ export class FileManagerService {
   // 페르소나의 모든 표정 이미지 경로 조회
   async getPersonaExpressionImages(personaId: string): Promise<Record<string, string>> {
     try {
-      // 보안: personaId 검증
-      if (personaId.includes('..') || personaId.includes('/') || personaId.includes('\\')) {
-        throw new Error('Invalid persona ID');
-      }
+      assertSafePathSegment(personaId, 'persona ID');
 
       const personaImageDir = path.join('attached_assets', 'personas', personaId);
       const expressions: Record<string, string> = {};
@@ -772,10 +767,7 @@ export class FileManagerService {
   // 페르소나 표정 이미지 디렉토리 삭제
   async deletePersonaExpressionImages(personaId: string): Promise<void> {
     try {
-      // 보안: personaId 검증
-      if (personaId.includes('..') || personaId.includes('/') || personaId.includes('\\')) {
-        throw new Error('Invalid persona ID');
-      }
+      assertSafePathSegment(personaId, 'persona ID');
 
       const personaImageDir = path.join('attached_assets', 'personas', personaId);
       
