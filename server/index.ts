@@ -5,7 +5,7 @@ import { registerRoutes } from "./routes";
 import { serveStatic, log } from "./static";
 import { GlobalMBTICache } from "./utils/globalMBTICache";
 import { runMigrations } from "./migrate";
-import { checkDatabaseConnection } from "./storage";
+import { checkDatabaseConnection, storage } from "./storage";
 import * as pathModule from "path";
 
 // ====================================================================
@@ -264,6 +264,14 @@ async function initializeApp() {
     const len = process.env[key]?.length || 0;
     console.log(`  ${key}: ${present ? `SET (${len} chars)` : 'NOT SET'}`);
   }
+
+  // Step 0: Log which storage implementation is active
+  const storageClassName = storage.constructor.name;
+  recordStep(`storage_class: ${storageClassName}`, 'start');
+  if (process.env.NODE_ENV === 'production' && storageClassName !== 'PostgreSQLStorage') {
+    console.error(`[startup] CRITICAL: Expected PostgreSQLStorage in production but got ${storageClassName}`);
+  }
+  recordStep(`storage_class: ${storageClassName}`, 'done');
 
   // Step 1: Body parser middleware
   recordStep('body_parser', 'start');

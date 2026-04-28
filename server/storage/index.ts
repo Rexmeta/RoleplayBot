@@ -111,4 +111,24 @@ export class MemStorage {
   }
 }
 
-export const storage = new PostgreSQLStorage();
+function createStorage(): IStorage {
+  const isProduction = process.env.NODE_ENV === 'production';
+
+  // To use MemStorage, set USE_MEM_STORAGE=true (for local dev/testing only).
+  if (process.env.USE_MEM_STORAGE === 'true') {
+    if (isProduction) {
+      console.error(
+        '[storage] WARNING: MemStorage is active in a production environment! ' +
+        'Data will NOT be persisted. Set USE_MEM_STORAGE=true only for local dev/testing.'
+      );
+    } else {
+      console.log('[storage] Using MemStorage (in-memory, non-persistent)');
+    }
+    return new MemStorage();
+  }
+
+  console.log('[storage] Using PostgreSQLStorage');
+  return new PostgreSQLStorage();
+}
+
+export const storage = createStorage();
