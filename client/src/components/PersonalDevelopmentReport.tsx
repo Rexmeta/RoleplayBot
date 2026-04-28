@@ -1683,7 +1683,7 @@ export default function PersonalDevelopmentReport({
                     점수 산출 내역
                   </CardTitle>
                 </CardHeader>
-                <CardContent className="space-y-3">
+                <CardContent className="space-y-0">
                   {/* AI 기본 점수 */}
                   <div className="flex items-center justify-between bg-slate-50 border border-slate-200 rounded-xl px-4 py-3">
                     <div className="flex items-center gap-2">
@@ -1695,52 +1695,84 @@ export default function PersonalDevelopmentReport({
 
                   {/* 보정 항목 */}
                   {rows.map((row) => (
-                    <div
-                      key={row.label}
-                      className={`flex items-center justify-between rounded-xl px-4 py-3 border ${
-                        row.value < 0
-                          ? 'bg-rose-50 border-rose-200'
-                          : row.value > 0
-                          ? 'bg-emerald-50 border-emerald-200'
-                          : 'bg-slate-50 border-slate-200'
-                      }`}
-                    >
-                      <div className="flex items-center gap-2 min-w-0">
-                        <i className={`${row.icon} text-sm flex-shrink-0 ${row.colorClass}`}></i>
-                        <div className="min-w-0">
-                          <p className="text-sm font-medium text-slate-700">{row.label}</p>
-                          <p className="text-xs text-slate-500 truncate">{row.reason}</p>
+                    <div key={row.label}>
+                      {/* Arrow connector */}
+                      <div className="flex justify-center items-center py-1">
+                        <div className="flex flex-col items-center gap-0">
+                          <div className="w-px h-3 bg-slate-300"></div>
+                          <i className={`fas fa-chevron-down text-xs ${row.value < 0 ? 'text-rose-400' : row.value > 0 ? 'text-emerald-400' : 'text-slate-300'}`}></i>
                         </div>
                       </div>
-                      <span className={`text-sm font-bold flex-shrink-0 ml-3 ${row.colorClass}`}>
-                        {row.value === 0 ? '±0' : row.value > 0 ? `+${Number.isInteger(row.value) ? row.value : Number(row.value).toFixed(1)}` : `${Number.isInteger(row.value) ? row.value : Number(row.value).toFixed(1)}`}점
-                      </span>
+                      <div
+                        className={`flex items-center justify-between rounded-xl px-4 py-3 border ${
+                          row.value < 0
+                            ? 'bg-rose-50 border-rose-200'
+                            : row.value > 0
+                            ? 'bg-emerald-50 border-emerald-200'
+                            : 'bg-slate-50 border-slate-200'
+                        }`}
+                      >
+                        <div className="flex items-center gap-2 min-w-0">
+                          <i className={`${row.icon} text-sm flex-shrink-0 ${row.colorClass}`}></i>
+                          <div className="min-w-0">
+                            <p className="text-sm font-medium text-slate-700">{row.label}</p>
+                            <p className="text-xs text-slate-500 truncate">{row.reason}</p>
+                          </div>
+                        </div>
+                        <span className={`text-sm font-bold flex-shrink-0 ml-3 ${row.colorClass}`}>
+                          {row.value === 0 ? '±0' : row.value > 0 ? `+${Number.isInteger(row.value) ? row.value : Number(row.value).toFixed(1)}` : `${Number.isInteger(row.value) ? row.value : Number(row.value).toFixed(1)}`}점
+                        </span>
+                      </div>
                     </div>
                   ))}
 
                   {/* 대화량 캡 */}
                   {adj.scoreCap !== null && (
-                    <div className="flex items-center justify-between bg-amber-50 border border-amber-200 rounded-xl px-4 py-3">
-                      <div className="flex items-center gap-2 min-w-0">
-                        <i className="fas fa-arrow-down-wide-short text-amber-500 text-sm flex-shrink-0"></i>
-                        <div className="min-w-0">
-                          <p className="text-sm font-medium text-slate-700">대화량 부족 캡</p>
-                          <p className="text-xs text-slate-500">역량별 최고 점수 {Number(adj.scoreCap).toFixed(1)}점으로 제한</p>
+                    <div>
+                      <div className="flex justify-center items-center py-1">
+                        <div className="flex flex-col items-center gap-0">
+                          <div className="w-px h-3 bg-slate-300"></div>
+                          <i className="fas fa-chevron-down text-xs text-amber-400"></i>
                         </div>
                       </div>
-                      <span className="text-sm font-bold text-amber-600 flex-shrink-0 ml-3">적용됨</span>
+                      <div className="flex items-center justify-between bg-amber-50 border border-amber-200 rounded-xl px-4 py-3">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <i className="fas fa-arrow-down-wide-short text-amber-500 text-sm flex-shrink-0"></i>
+                          <div className="min-w-0">
+                            <p className="text-sm font-medium text-slate-700">대화량 부족 캡</p>
+                            <p className="text-xs text-slate-500">역량별 최고 점수 {Number(adj.scoreCap).toFixed(1)}점으로 제한</p>
+                          </div>
+                        </div>
+                        <span className="text-sm font-bold text-amber-600 flex-shrink-0 ml-3">적용됨</span>
+                      </div>
                     </div>
                   )}
 
                   {!hasAnyAdjustment && adj.scoreCap === null && (
-                    <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-slate-500">
-                      <i className="fas fa-check-circle text-slate-400"></i>
-                      <span className="text-sm">조정 없음 — 기본 점수가 그대로 적용되었습니다.</span>
+                    <div>
+                      <div className="flex justify-center items-center py-1">
+                        <div className="flex flex-col items-center gap-0">
+                          <div className="w-px h-3 bg-slate-300"></div>
+                          <i className="fas fa-chevron-down text-xs text-slate-300"></i>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-slate-500">
+                        <i className="fas fa-check-circle text-slate-400"></i>
+                        <span className="text-sm">조정 없음 — 기본 점수가 그대로 적용되었습니다.</span>
+                      </div>
                     </div>
                   )}
 
+                  {/* Arrow to final score */}
+                  <div className="flex justify-center items-center py-1">
+                    <div className="flex flex-col items-center gap-0">
+                      <div className="w-px h-3 bg-indigo-300"></div>
+                      <i className="fas fa-chevron-down text-xs text-indigo-400"></i>
+                    </div>
+                  </div>
+
                   {/* 최종 점수 */}
-                  <div className="flex items-center justify-between bg-indigo-50 border border-indigo-300 rounded-xl px-4 py-3 mt-1">
+                  <div className="flex items-center justify-between bg-indigo-50 border-2 border-indigo-300 rounded-xl px-4 py-3">
                     <div className="flex items-center gap-2">
                       <i className="fas fa-flag-checkered text-indigo-500"></i>
                       <span className="text-sm font-bold text-indigo-800">최종 점수</span>
