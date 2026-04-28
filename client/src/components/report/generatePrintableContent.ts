@@ -41,6 +41,20 @@ export function generatePrintableContent(opts: GenerateOptions): string {
   const personaInfo = getPersonaFullInfo(opts.persona);
 
   return `
+    <style>
+      .plan-card-short { background: #f0fdf4; border-left: 4px solid #22c55e; padding: 16px; border-radius: 0 8px 8px 0; }
+      .plan-card-short .plan-card-title { color: #16a34a; }
+      .plan-card-short .plan-card-goal { color: #16a34a; }
+      .plan-card-short .plan-card-meas { background: #dcfce7; color: #166534; }
+      .plan-card-medium { background: #eff6ff; border-left: 4px solid #3b82f6; padding: 16px; border-radius: 0 8px 8px 0; }
+      .plan-card-medium .plan-card-title { color: #2563eb; }
+      .plan-card-medium .plan-card-goal { color: #2563eb; }
+      .plan-card-medium .plan-card-meas { background: #dbeafe; color: #1e40af; }
+      .plan-card-long { background: #faf5ff; border-left: 4px solid #a855f7; padding: 16px; border-radius: 0 8px 8px 0; }
+      .plan-card-long .plan-card-title { color: #7c3aed; }
+      .plan-card-long .plan-card-goal { color: #7c3aed; }
+      .plan-card-long .plan-card-meas { background: #f3e8ff; color: #6b21a8; }
+    </style>
     <div style="font-family: 'Noto Sans KR', sans-serif; max-width: 800px; margin: 0 auto;">
 
       <!-- 헤더 -->
@@ -172,19 +186,19 @@ export function generatePrintableContent(opts: GenerateOptions): string {
         <h2 style="font-size: 20px; font-weight: bold; color: #1f2937; border-bottom: 2px solid #8b5cf6; padding-bottom: 8px; margin-bottom: 16px;">📈 개발 계획</h2>
         <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 20px;">
           ${[
-            { key: 'shortTerm', label: '📅 단기 목표 (1-2주)', bg: '#f0fdf4', border: '#22c55e', color: '#16a34a', measBg: '#dcfce7', measColor: '#166534' },
-            { key: 'mediumTerm', label: '📆 중기 목표 (1-2개월)', bg: '#eff6ff', border: '#3b82f6', color: '#2563eb', measBg: '#dbeafe', measColor: '#1e40af' },
-            { key: 'longTerm', label: '🗓️ 장기 목표 (3-6개월)', bg: '#faf5ff', border: '#a855f7', color: '#7c3aed', measBg: '#f3e8ff', measColor: '#6b21a8' },
+            { key: 'shortTerm', label: '📅 단기 목표 (1-2주)', cardClass: 'plan-card-short' },
+            { key: 'mediumTerm', label: '📆 중기 목표 (1-2개월)', cardClass: 'plan-card-medium' },
+            { key: 'longTerm', label: '🗓️ 장기 목표 (3-6개월)', cardClass: 'plan-card-long' },
           ].map(ps => `
-            <div style="background: ${ps.bg}; border-left: 4px solid ${ps.border}; padding: 16px; border-radius: 0 8px 8px 0;">
-              <h3 style="font-size: 15px; font-weight: 600; color: ${ps.color}; margin-bottom: 12px;">${ps.label}</h3>
+            <div class="${ps.cardClass}">
+              <h3 class="plan-card-title" style="font-size: 15px; font-weight: 600; margin-bottom: 12px;">${ps.label}</h3>
               ${((developmentPlan as any)[ps.key] || []).map((item: any) => `
                 <div style="background: white; padding: 12px; border-radius: 4px; margin-bottom: 8px;">
-                  <h4 style="font-size: 13px; font-weight: 600; color: ${ps.color}; margin-bottom: 8px;">${escapeHtml(item.goal)}</h4>
+                  <h4 class="plan-card-goal" style="font-size: 13px; font-weight: 600; margin-bottom: 8px;">${escapeHtml(item.goal)}</h4>
                   <ul style="list-style: none; padding: 0; margin: 0 0 8px 0;">
                     ${(item.actions || []).map((a: string) => `<li style="font-size: 12px; color: #4b5563;">→ ${escapeHtml(a)}</li>`).join('')}
                   </ul>
-                  ${item.measurable ? `<div style="font-size: 11px; background: ${ps.measBg}; padding: 4px 8px; border-radius: 4px; color: ${ps.measColor};">측정지표: ${escapeHtml(item.measurable)}</div>` : ''}
+                  ${item.measurable ? `<div class="plan-card-meas" style="font-size: 11px; padding: 4px 8px; border-radius: 4px;">측정지표: ${escapeHtml(item.measurable)}</div>` : ''}
                 </div>
               `).join('')}
             </div>
