@@ -213,27 +213,40 @@ export default function PersonalDevelopmentReport({
     });
   };
 
-  const handleDownloadHtml = () => {
+  const handleDownloadHtml = async () => {
     if (!feedback) return;
     setIsExportingPdf(true);
+    const container = document.createElement('div');
     try {
       const printableContent = buildPrintContent();
       if (!printableContent?.trim()) throw new Error('보고서 콘텐츠가 비어 있습니다.');
-      const fullHtml = `<!DOCTYPE html><html lang="ko"><head><meta charset="utf-8"><title>${escapeHtml(userName)} 맞춤 보고서</title><link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;600;700&display=swap" rel="stylesheet"><style>*{box-sizing:border-box;margin:0;padding:0;}body{font-family:'Noto Sans KR',sans-serif;padding:40px;background:#f8fafc;max-width:900px;margin:0 auto;}@media print{body{background:white;padding:20px;-webkit-print-color-adjust:exact;print-color-adjust:exact;}.no-print{display:none!important;}}</style></head><body><div class="no-print" style="background:#3b82f6;color:white;padding:20px 30px;border-radius:12px;margin-bottom:30px;text-align:center;"><h2 style="font-size:18px;margin-bottom:10px;">📄 개인 맞춤 개발 보고서</h2><p>Ctrl+P (Mac: Cmd+P)를 눌러 PDF로 저장하세요.</p><button onclick="window.print()" style="background:white;color:#3b82f6;border:none;padding:12px 24px;border-radius:8px;font-size:16px;font-weight:600;cursor:pointer;margin-top:15px;">🖨️ 인쇄 / PDF 저장</button></div>${printableContent}</body></html>`;
+
       const safeFilename = scenario.title.replace(/[<>:"/\\|?*]/g, '_');
-      const blob = new Blob([fullHtml], { type: 'text/html;charset=utf-8' });
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = `개발보고서_${safeFilename}_${new Date().toLocaleDateString('ko-KR').replace(/\./g, '-')}.html`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      URL.revokeObjectURL(url);
-      toast({ title: "HTML 파일 다운로드 완료", description: "다운로드된 파일을 열어서 '인쇄/PDF 저장' 버튼을 클릭하세요." });
+      const filename = `개발보고서_${safeFilename}_${new Date().toLocaleDateString('ko-KR').replace(/\./g, '-')}.pdf`;
+
+      container.style.cssText = 'position:fixed;left:-9999px;top:0;width:800px;background:white;padding:24px;';
+      container.innerHTML = printableContent;
+      document.body.appendChild(container);
+
+      await document.fonts.load('400 16px "Noto Sans KR"').catch(() => {});
+      await document.fonts.ready;
+
+      const html2pdf = (await import('html2pdf.js')).default;
+      await html2pdf()
+        .set({
+          margin: [10, 10, 10, 10],
+          filename,
+          image: { type: 'jpeg', quality: 0.95 },
+          html2canvas: { scale: 2, useCORS: true, letterRendering: true, allowTaint: false },
+          jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
+        })
+        .from(container)
+        .save();
+      toast({ title: "PDF 다운로드 완료", description: `${filename} 파일이 저장되었습니다.` });
     } catch (err) {
-      toast({ title: "다운로드 실패", description: err instanceof Error ? err.message : "파일 다운로드 중 오류가 발생했습니다.", variant: "destructive" });
+      toast({ title: "PDF 생성 실패", description: err instanceof Error ? err.message : "PDF 생성 중 오류가 발생했습니다.", variant: "destructive" });
     } finally {
+      if (container.parentNode) document.body.removeChild(container);
       setIsExportingPdf(false);
     }
   };
@@ -490,8 +503,8 @@ export default function PersonalDevelopmentReport({
         <Button variant="outline" onClick={handleRegenerateFeedback} disabled={generateFeedbackMutation.isPending} className="min-w-[120px] text-orange-600 border-orange-300 hover:bg-orange-50" data-testid="regenerate-feedback-button">
           {generateFeedbackMutation.isPending ? <><i className="fas fa-spinner fa-spin mr-2"></i>{t('report.regenerating', '재생성 중...')}</> : <><i className="fas fa-redo-alt mr-2"></i>{t('report.regenerateFeedback', '피드백 재생성')}</>}
         </Button>
-        <Button variant="outline" onClick={handleDownloadHtml} disabled={isExportingPdf} className="min-w-[120px]" data-testid="export-html-button">
-          {isExportingPdf ? <><i className="fas fa-spinner fa-spin mr-2"></i>{t('report.downloading', '다운로드 중...')}</> : <><i className="fas fa-download mr-2"></i>{t('report.downloadHtml', 'HTML 다운로드')}</>}
+        <Button variant="outline" onClick={handleDownloadHtml} disabled={isExportingPdf} className="min-w-[120px]" data-testid="export-pdf-button">
+          {isExportingPdf ? <><i className="fas fa-spinner fa-spin mr-2"></i>{t('report.downloading', '생성 중...')}</> : <><i className="fas fa-file-pdf mr-2"></i>{t('report.downloadPdf', 'PDF 다운로드')}</>}
         </Button>
       </div>
 
@@ -507,7 +520,7 @@ export default function PersonalDevelopmentReport({
               <Button onClick={() => { setShowMobileMenu(false); onRetry(); }} className="w-full text-sm" data-testid="mobile-retry-button"><i className="fas fa-sync-alt mr-1"></i>{t('report.retryShort', '재도전')}</Button>
               <Button variant="secondary" onClick={() => { setShowMobileMenu(false); handlePrint(); }} className="w-full text-sm" data-testid="mobile-print-button"><i className="fas fa-print mr-1"></i>{t('report.print', '인쇄')}</Button>
               <Button variant="outline" onClick={() => { setShowMobileMenu(false); handleRegenerateFeedback(); }} disabled={generateFeedbackMutation.isPending} className="w-full text-sm text-orange-600 border-orange-300" data-testid="mobile-regenerate-button"><i className="fas fa-redo-alt mr-1"></i>{t('report.regenerateFeedback', '피드백 재생성')}</Button>
-              <Button variant="outline" onClick={() => { setShowMobileMenu(false); handleDownloadHtml(); }} disabled={isExportingPdf} className="w-full text-sm" data-testid="mobile-download-button"><i className="fas fa-download mr-1"></i>{t('report.download', '다운로드')}</Button>
+              <Button variant="outline" onClick={() => { setShowMobileMenu(false); handleDownloadHtml(); }} disabled={isExportingPdf} className="w-full text-sm" data-testid="mobile-download-button"><i className="fas fa-file-pdf mr-1"></i>{t('report.downloadPdf', 'PDF 다운로드')}</Button>
             </div>
           </div>
         )}

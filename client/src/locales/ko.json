@@ -397,6 +397,7 @@
     "printReport": "보고서 인쇄",
     "downloading": "다운로드 중...",
     "downloadHtml": "HTML 다운로드",
+    "downloadPdf": "PDF 다운로드",
     "nextPersonaShort": "다음 페르소나",
     "nextConversationShort": "다음 대화",
     "newTrainingShort": "새 훈련",
