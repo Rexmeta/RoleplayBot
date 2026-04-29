@@ -107,7 +107,7 @@ export default function AdminDashboard() {
     refetchInterval: ANALYTICS_REFETCH_INTERVAL,
   });
 
-  const { data: scenarioEmotions, dataUpdatedAt: scenarioEmotionsUpdatedAt } = useQuery<ScenarioEmotionData>({
+  const { data: scenarioEmotions, isFetching: scenarioEmotionsFetching, dataUpdatedAt: scenarioEmotionsUpdatedAt } = useQuery<ScenarioEmotionData>({
     queryKey: ["/api/admin/analytics/emotions/by-scenario", selectedCategoryId],
     queryFn: () => authFetch(`/api/admin/analytics/emotions/by-scenario${categoryParam}`),
     staleTime: ANALYTICS_STALE_TIME,
@@ -115,7 +115,7 @@ export default function AdminDashboard() {
     refetchInterval: ANALYTICS_REFETCH_INTERVAL,
   });
 
-  const { data: difficultyEmotions, dataUpdatedAt: difficultyEmotionsUpdatedAt } = useQuery<DifficultyEmotionData>({
+  const { data: difficultyEmotions, isFetching: difficultyEmotionsFetching, dataUpdatedAt: difficultyEmotionsUpdatedAt } = useQuery<DifficultyEmotionData>({
     queryKey: ["/api/admin/analytics/emotions/by-difficulty", selectedCategoryId],
     queryFn: () => authFetch(`/api/admin/analytics/emotions/by-difficulty${categoryParam}`),
     staleTime: ANALYTICS_STALE_TIME,
@@ -213,7 +213,8 @@ export default function AdminDashboard() {
   ].filter(t => t > 0);
   const oldestUpdatedAt = analyticsTimestamps.length > 0 ? Math.min(...analyticsTimestamps) : 0;
   const anyAnalyticsFetching =
-    overviewFetching || performanceFetching || trendsFetching || emotionsFetching;
+    overviewFetching || performanceFetching || trendsFetching || emotionsFetching ||
+    scenarioEmotionsFetching || difficultyEmotionsFetching;
 
   return (
     <div className="min-h-screen bg-slate-50">
