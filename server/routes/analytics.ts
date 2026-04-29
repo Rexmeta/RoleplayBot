@@ -336,6 +336,7 @@ export default function createAnalyticsRouter(isAuthenticated: any) {
     const allPersonaRuns = await storage.getAllPersonaRuns();
     const allFeedbacks = await storage.getAllFeedbacks();
     const allScenarios = await fileManager.getAllScenarios();
+    const allUsers = await storage.getAllUsers();
 
     let accessibleCategoryIds: string[] = [];
     let restrictToEmpty = false;
@@ -404,9 +405,13 @@ export default function createAnalyticsRouter(isAuthenticated: any) {
     }).filter(Boolean));
     const activeUsers = personaRunUserIds.size;
 
-    const totalUsers = activeUsers;
+    const totalUsers = restrictToEmpty
+      ? 0
+      : accessibleCategoryIds.length > 0
+        ? allUsers.filter(u => u.assignedCategoryId && accessibleCategoryIds.includes(String(u.assignedCategoryId))).length
+        : allUsers.length;
 
-    const participationRate = activeUsers > 0 ? 100 : 0;
+    const participationRate = totalUsers > 0 ? Math.round((activeUsers / totalUsers) * 100) : 0;
 
     const scenarioStatsRaw = personaRuns.reduce((acc, pr) => {
       const scenarioRun = scenarioRuns.find(sr => sr.id === pr.scenarioRunId);

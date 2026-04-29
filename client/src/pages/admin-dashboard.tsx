@@ -1,10 +1,11 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/useAuth";
 import { AppHeader } from "@/components/AppHeader";
 import { useState } from "react";
-import { Filter } from "lucide-react";
+import { Filter, RefreshCw } from "lucide-react";
 import { authFetch } from "@/lib/authFetch";
 import { TranslationDashboard } from "@/components/admin/TranslationDashboard";
 import { OverviewTab } from "@/components/admin/OverviewTab";
@@ -30,10 +31,26 @@ interface Category {
   name: string;
 }
 
+const ANALYTICS_STALE_TIME = 1000 * 60 * 2;
+const ANALYTICS_REFETCH_INTERVAL = 1000 * 60 * 2;
+
 export default function AdminDashboard() {
   const { user } = useAuth();
+  const queryClient = useQueryClient();
   const [showMobileTabMenu, setShowMobileTabMenu] = useState(false);
   const [selectedCategoryId, setSelectedCategoryId] = useState<string>('all');
+  const [isRefreshing, setIsRefreshing] = useState(false);
+
+  const handleRefresh = async () => {
+    setIsRefreshing(true);
+    await queryClient.invalidateQueries({
+      predicate: (query) => {
+        const key = query.queryKey[0];
+        return typeof key === 'string' && key.startsWith('/api/admin/analytics');
+      },
+    });
+    setIsRefreshing(false);
+  };
 
   const { data: categories = [] } = useQuery<Category[]>({
     queryKey: ['/api/categories'],
@@ -44,43 +61,49 @@ export default function AdminDashboard() {
   const { data: overview, isLoading: overviewLoading } = useQuery<AnalyticsOverview>({
     queryKey: ["/api/admin/analytics/overview", selectedCategoryId],
     queryFn: () => authFetch(`/api/admin/analytics/overview${categoryParam}`),
-    staleTime: 1000 * 60 * 10,
+    staleTime: ANALYTICS_STALE_TIME,
     gcTime: 1000 * 60 * 30,
+    refetchInterval: ANALYTICS_REFETCH_INTERVAL,
   });
 
   const { data: performance, isLoading: performanceLoading } = useQuery<PerformanceData>({
     queryKey: ["/api/admin/analytics/performance", selectedCategoryId],
     queryFn: () => authFetch(`/api/admin/analytics/performance${categoryParam}`),
-    staleTime: 1000 * 60 * 10,
+    staleTime: ANALYTICS_STALE_TIME,
     gcTime: 1000 * 60 * 30,
+    refetchInterval: ANALYTICS_REFETCH_INTERVAL,
   });
 
   const { data: trends, isLoading: trendsLoading } = useQuery<TrendsData>({
     queryKey: ["/api/admin/analytics/trends", selectedCategoryId],
     queryFn: () => authFetch(`/api/admin/analytics/trends${categoryParam}`),
-    staleTime: 1000 * 60 * 10,
+    staleTime: ANALYTICS_STALE_TIME,
     gcTime: 1000 * 60 * 30,
+    refetchInterval: ANALYTICS_REFETCH_INTERVAL,
   });
 
   const { data: emotions, isLoading: emotionsLoading } = useQuery<EmotionData>({
     queryKey: ["/api/admin/analytics/emotions", selectedCategoryId],
     queryFn: () => authFetch(`/api/admin/analytics/emotions${categoryParam}`),
-    staleTime: 1000 * 60 * 10,
+    staleTime: ANALYTICS_STALE_TIME,
     gcTime: 1000 * 60 * 30,
+    refetchInterval: ANALYTICS_REFETCH_INTERVAL,
   });
 
   const { data: scenarioEmotions } = useQuery<ScenarioEmotionData>({
     queryKey: ["/api/admin/analytics/emotions/by-scenario", selectedCategoryId],
     queryFn: () => authFetch(`/api/admin/analytics/emotions/by-scenario${categoryParam}`),
-    staleTime: 1000 * 60 * 10,
+    staleTime: ANALYTICS_STALE_TIME,
     gcTime: 1000 * 60 * 30,
+    refetchInterval: ANALYTICS_REFETCH_INTERVAL,
   });
 
   const { data: difficultyEmotions } = useQuery<DifficultyEmotionData>({
     queryKey: ["/api/admin/analytics/emotions/by-difficulty", selectedCategoryId],
     queryFn: () => authFetch(`/api/admin/analytics/emotions/by-difficulty${categoryParam}`),
-    staleTime: 1000 * 60 * 10,
+    staleTime: ANALYTICS_STALE_TIME,
     gcTime: 1000 * 60 * 30,
+    refetchInterval: ANALYTICS_REFETCH_INTERVAL,
   });
 
   const { data: scenarios = [] } = useQuery({
@@ -171,6 +194,19 @@ export default function AdminDashboard() {
         showBackButton
       />
       <div className="container mx-auto p-3 md:p-6 space-y-6" data-testid="admin-dashboard">
+        <div className="flex justify-end">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleRefresh}
+            disabled={isRefreshing}
+            data-testid="refresh-dashboard-btn"
+            className="flex items-center gap-2"
+          >
+            <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`} />
+            {isRefreshing ? '갱신 중...' : '새로고침'}
+          </Button>
+        </div>
 
         {user?.role === 'admin' && (
           <div className="flex flex-wrap items-center gap-3 p-4 bg-white rounded-lg border shadow-sm">
