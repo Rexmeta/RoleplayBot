@@ -7,6 +7,7 @@ export default defineConfig({
     environment: 'node',
     environmentMatchGlobs: [
       ['tests/client/**', 'happy-dom'],
+      ['client/src/**/__tests__/**', 'happy-dom'],
     ],
     setupFiles: ['tests/setup.ts'],
     coverage: {
