@@ -45,26 +45,86 @@ const buildReportHtml = (r: any): string => {
   p.push('.print-tip p{font-size:13px;opacity:.9;}.print-tip button{background:#fff;color:#4f46e5;border:none;padding:8px 18px;border-radius:6px;font-size:14px;font-weight:600;cursor:pointer;}');
   p.push('.hdr{background:linear-gradient(135deg,#4f46e5,#6366f1);color:#fff;padding:24px 28px;border-radius:12px;margin-bottom:20px;display:flex;justify-content:space-between;align-items:flex-start;}');
   p.push('.hdr h1{font-size:22px;font-weight:700;margin-bottom:4px;}.hdr .sub{font-size:13px;opacity:.8;margin-bottom:2px;}');
+  p.push('.hdr-meta{font-size:12px;opacity:.7;margin-top:6px;}');
   p.push('.grade-box{background:#fff;border-radius:8px;padding:12px 20px;text-align:center;min-width:80px;}');
   p.push('.grade-letter{font-size:36px;font-weight:900;line-height:1;}.grade-score{font-size:13px;color:#4b5563;margin-top:2px;}');
   p.push('.sec{background:#fff;border-radius:10px;padding:22px 26px;margin-bottom:16px;box-shadow:0 1px 3px rgba(0,0,0,.07);}');
   p.push('.sec-title{font-size:18px;font-weight:700;color:#1f2937;border-bottom:2px solid #4f46e5;padding-bottom:8px;margin-bottom:16px;}');
+  p.push('.criteria-box{background:#eef2ff;border:1px solid #c7d2fe;border-radius:8px;padding:10px 14px;margin-bottom:16px;font-size:13px;color:#4338ca;}');
+  p.push('.dur-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;}');
+  p.push('.dur-card{border-radius:8px;padding:14px;text-align:center;}');
+  p.push('.dur-card-blue{background:#f0f9ff;border:1px solid #bae6fd;}');
+  p.push('.dur-val-blue{font-size:22px;font-weight:700;color:#0284c7;}');
+  p.push('.dur-lbl-blue{font-size:12px;color:#0369a1;}');
+  p.push('.dur-card-green{background:#f0fdf4;border:1px solid #bbf7d0;}');
+  p.push('.dur-val-green{font-size:22px;font-weight:700;color:#16a34a;}');
+  p.push('.dur-lbl-green{font-size:12px;color:#15803d;}');
+  p.push('.dur-card-orange{background:#fff7ed;border:1px solid #ffedd5;}');
+  p.push('.dur-rating-lbl{font-size:16px;font-weight:600;}');
+  p.push('.dur-lbl-orange{font-size:11px;color:#9a3412;margin-top:4px;}');
   p.push('.score-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:12px;margin-bottom:20px;}');
   p.push('.score-card{background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:14px;}');
   p.push('.score-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;}');
   p.push('.score-name{font-size:13px;font-weight:600;color:#374151;}.score-badge{background:#dbeafe;color:#1e40af;padding:3px 8px;border-radius:4px;font-size:12px;font-weight:600;}');
+  p.push('.score-weight{font-weight:400;color:#94a3b8;font-size:11px;}');
   p.push('.score-bar-bg{height:6px;background:#e2e8f0;border-radius:3px;overflow:hidden;margin-bottom:6px;}');
   p.push('.score-bar-fill{height:100%;border-radius:3px;background:linear-gradient(90deg,#3b82f6,#6366f1);}');
   p.push('.score-fb{font-size:12px;color:#6b7280;line-height:1.5;}');
+  p.push('.eval-box{background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:18px;}');
+  p.push('.eval-heading{font-size:15px;font-weight:600;color:#374151;margin-bottom:14px;}');
+  p.push('.strength-hdg{font-size:13px;font-weight:600;color:#16a34a;margin-bottom:8px;}');
+  p.push('.improve-hdg{font-size:13px;font-weight:600;color:#ea580c;margin-bottom:8px;}');
+  p.push('.nextstep-hdg{font-size:13px;font-weight:600;color:#2563eb;margin-bottom:8px;}');
   p.push('.tri-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;}');
   p.push('.list-item{font-size:13px;color:#4b5563;margin-bottom:5px;line-height:1.5;}');
   p.push('.expert-box{border-top:1px solid #e2e8f0;padding-top:14px;margin-top:14px;font-size:13px;color:#374151;line-height:1.6;}');
+  p.push('.summary-text{background:#f0f9ff;border-left:4px solid #3b82f6;border-radius:0 6px 6px 0;padding:14px 16px;font-size:13px;line-height:1.8;color:#334155;}');
   p.push('.guide-card{background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:14px;margin-bottom:12px;}');
   p.push('.guide-card-teal{background:#f0fdfa;border:1px solid #99f6e4;}');
+  p.push('.guide-situation{font-size:15px;font-weight:600;color:#92400e;margin-bottom:10px;}');
+  p.push('.guide-section{margin-bottom:8px;}');
+  p.push('.guide-lbl-indigo{font-size:13px;font-weight:600;color:#4f46e5;margin-bottom:4px;}');
+  p.push('.guide-action-text{font-size:13px;color:#374151;background:#f0f9ff;padding:8px;border-radius:4px;}');
+  p.push('.guide-lbl-green{font-size:13px;font-weight:600;color:#16a34a;margin-bottom:4px;}');
+  p.push('.guide-example-text{font-size:13px;color:#166534;background:#dcfce7;padding:8px;border-radius:4px;font-style:italic;}');
+  p.push('.guide-lbl-blue{font-size:13px;font-weight:600;color:#2563eb;margin-bottom:4px;}');
+  p.push('.guide-impact-text{font-size:13px;color:#374151;}');
+  p.push('.cg-scenario{font-size:15px;font-weight:600;color:#0f766e;margin-bottom:10px;}');
   p.push('.eg-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin:10px 0;}');
   p.push('.eg-good{background:#dcfce7;border:1px solid #86efac;padding:10px;border-radius:4px;}');
   p.push('.eg-bad{background:#fef2f2;border:1px solid #fecaca;padding:10px;border-radius:4px;}');
+  p.push('.eg-good-lbl{font-size:12px;font-weight:600;color:#16a34a;margin-bottom:4px;}');
+  p.push('.eg-good-txt{font-size:12px;color:#166534;}');
+  p.push('.eg-bad-lbl{font-size:12px;font-weight:600;color:#dc2626;margin-bottom:4px;}');
+  p.push('.eg-bad-txt{font-size:12px;color:#991b1b;}');
+  p.push('.kp-lbl{font-size:12px;font-weight:600;color:#4f46e5;margin-bottom:4px;}');
+  p.push('.kp-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:4px;}');
+  p.push('.kp-item{font-size:12px;color:#4b5563;}');
   p.push('.dev-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;}');
+  p.push('.dev-card{padding:14px;border-radius:0 8px 8px 0;}');
+  p.push('.dev-card-heading{font-size:14px;font-weight:600;margin-bottom:10px;}');
+  p.push('.dev-item{background:#fff;padding:10px;border-radius:4px;margin-bottom:8px;}');
+  p.push('.dev-item-goal{font-size:13px;font-weight:600;margin-bottom:6px;}');
+  p.push('.dev-action{font-size:12px;color:#4b5563;}');
+  p.push('.dev-measurable{font-size:11px;padding:3px 8px;border-radius:4px;margin-top:6px;}');
+  p.push('.res-box{background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:14px;margin-top:14px;}');
+  p.push('.res-heading{font-size:14px;font-weight:600;color:#374151;margin-bottom:10px;}');
+  p.push('.res-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;}');
+  p.push('.res-item{background:#fff;padding:8px 12px;border-radius:4px;font-size:13px;color:#4b5563;}');
+  p.push('.seq-box{background:#fdf4ff;border-left:4px solid #a855f7;padding:18px;border-radius:0 8px 8px 0;}');
+  p.push('.seq-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;}');
+  p.push('.seq-title{font-size:15px;font-weight:600;color:#7c3aed;}');
+  p.push('.seq-badge{background:#e9d5ff;color:#7c3aed;padding:6px 14px;border-radius:8px;font-size:17px;font-weight:700;}');
+  p.push('.seq-rationale{font-size:13px;color:#6b21a8;margin-bottom:12px;}');
+  p.push('.seq-lbl-blue{font-size:13px;font-weight:600;color:#2563eb;margin-bottom:4px;}');
+  p.push('.seq-text-box{font-size:13px;color:#374151;background:#fff;padding:10px;border-radius:4px;margin-bottom:12px;}');
+  p.push('.seq-lbl-yellow{font-size:13px;font-weight:600;color:#eab308;margin-bottom:4px;}');
+  p.push('.seq-insights-box{font-size:13px;color:#374151;background:#fef9c3;padding:10px;border-radius:4px;border-left:4px solid #eab308;margin-bottom:12px;}');
+  p.push('.seq-lbl-green{font-size:13px;font-weight:600;color:#16a34a;margin-bottom:6px;}');
+  p.push('.alt-item{display:flex;align-items:flex-start;gap:8px;background:#dcfce7;padding:10px;border-radius:4px;margin-bottom:6px;}');
+  p.push('.alt-num{background:#22c55e;color:#fff;padding:2px 7px;border-radius:4px;font-size:12px;}');
+  p.push('.alt-text{font-size:13px;color:#166534;}');
+  p.push('.footer{text-align:center;padding-top:20px;border-top:1px solid #e2e8f0;color:#9ca3af;font-size:12px;margin-top:20px;}');
   p.push('@media print{.print-tip{display:none!important;}body{background:#fff;padding:20px;}}');
   p.push('</style></head><body>');
 
@@ -73,33 +133,33 @@ const buildReportHtml = (r: any): string => {
   p.push('<h1>' + safe(r.user?.name) + '님 피드백 리포트</h1>');
   p.push('<div class="sub">시나리오: ' + safe(r.scenarioTitle) + '</div>');
   p.push('<div class="sub">대화 상대: ' + safe(r.personaName) + '</div>');
-  p.push('<div style="font-size:12px;opacity:.7;margin-top:6px;">완료일: ' + (r.completedAt ? new Date(r.completedAt).toLocaleDateString('ko-KR') : '-') + ' · 생성: ' + now + '</div>');
+  p.push('<div class="hdr-meta">완료일: ' + (r.completedAt ? new Date(r.completedAt).toLocaleDateString('ko-KR') : '-') + ' · 생성: ' + now + '</div>');
   p.push('</div><div class="grade-box">');
   p.push('<div class="grade-letter" style="color:' + grade.color + ';">' + grade.letter + '</div>');
   p.push('<div class="grade-score">' + overallScore.toFixed(1) + '점</div></div></div>');
 
   if (df.evaluationCriteriaSetName) {
-    p.push('<div style="background:#eef2ff;border:1px solid #c7d2fe;border-radius:8px;padding:10px 14px;margin-bottom:16px;font-size:13px;color:#4338ca;">📋 평가 기준: ' + safe(df.evaluationCriteriaSetName) + '</div>');
+    p.push('<div class="criteria-box">📋 평가 기준: ' + safe(df.evaluationCriteriaSetName) + '</div>');
   }
   if (df.conversationDuration) {
     const dur = Number(df.conversationDuration);
     const timeRating = df.timePerformance;
     p.push('<div class="sec"><div class="sec-title">⏱️ 대화 시간 분석</div>');
-    p.push('<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:14px;">');
-    p.push('<div style="background:#f0f9ff;border:1px solid #bae6fd;border-radius:8px;padding:14px;text-align:center;">');
-    p.push('<div style="font-size:22px;font-weight:700;color:#0284c7;">' + Math.floor(dur / 60) + ':' + String(dur % 60).padStart(2, '0') + '</div>');
-    p.push('<div style="font-size:12px;color:#0369a1;">총 대화 시간</div></div>');
+    p.push('<div class="dur-grid">');
+    p.push('<div class="dur-card dur-card-blue">');
+    p.push('<div class="dur-val-blue">' + Math.floor(dur / 60) + ':' + String(dur % 60).padStart(2, '0') + '</div>');
+    p.push('<div class="dur-lbl-blue">총 대화 시간</div></div>');
     if (df.averageResponseTime) {
-      p.push('<div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:14px;text-align:center;">');
-      p.push('<div style="font-size:22px;font-weight:700;color:#16a34a;">' + df.averageResponseTime + '초</div>');
-      p.push('<div style="font-size:12px;color:#15803d;">평균 응답 시간</div></div>');
+      p.push('<div class="dur-card dur-card-green">');
+      p.push('<div class="dur-val-green">' + df.averageResponseTime + '초</div>');
+      p.push('<div class="dur-lbl-green">평균 응답 시간</div></div>');
     }
     if (timeRating) {
       const rtColor = timeRating.rating === 'excellent' ? '#16a34a' : timeRating.rating === 'good' ? '#2563eb' : timeRating.rating === 'average' ? '#d97706' : '#dc2626';
       const rtLabel = timeRating.rating === 'excellent' ? '🎯 우수' : timeRating.rating === 'good' ? '✅ 좋음' : timeRating.rating === 'average' ? '🔶 보통' : '⚠️ 개선필요';
-      p.push('<div style="background:#fff7ed;border:1px solid #ffedd5;border-radius:8px;padding:14px;text-align:center;">');
-      p.push('<div style="font-size:16px;font-weight:600;color:' + rtColor + ';">' + rtLabel + '</div>');
-      p.push('<div style="font-size:11px;color:#9a3412;margin-top:4px;">' + safe(timeRating.feedback) + '</div></div>');
+      p.push('<div class="dur-card dur-card-orange">');
+      p.push('<div class="dur-rating-lbl" style="color:' + rtColor + ';">' + rtLabel + '</div>');
+      p.push('<div class="dur-lbl-orange">' + safe(timeRating.feedback) + '</div></div>');
     }
     p.push('</div></div>');
   }
@@ -109,7 +169,7 @@ const buildReportHtml = (r: any): string => {
       const val = Number(s.score ?? 0);
       const pct = Math.round((val / 10) * 100);
       p.push('<div class="score-card"><div class="score-header">');
-      p.push('<span class="score-name">' + safe(s.icon || '') + ' ' + safe(s.name || s.category || '') + (s.weight ? ' <span style="font-weight:400;color:#94a3b8;font-size:11px;">(' + s.weight + '%)</span>' : '') + '</span>');
+      p.push('<span class="score-name">' + safe(s.icon || '') + ' ' + safe(s.name || s.category || '') + (s.weight ? ' <span class="score-weight">(' + s.weight + '%)</span>' : '') + '</span>');
       p.push('<span class="score-badge">' + val.toFixed(1) + '/10</span></div>');
       p.push('<div class="score-bar-bg"><div class="score-bar-fill" style="width:' + pct + '%;"></div></div>');
       if (s.feedback) p.push('<div class="score-fb">' + safe(s.feedback) + '</div>');
@@ -120,13 +180,13 @@ const buildReportHtml = (r: any): string => {
     const improvements: string[] = Array.isArray(df.improvements) ? df.improvements : [];
     const nextSteps: string[] = Array.isArray(df.nextSteps) ? df.nextSteps : [];
     if (strengths.length || improvements.length || nextSteps.length) {
-      p.push('<div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:18px;">');
-      p.push('<div style="font-size:15px;font-weight:600;color:#374151;margin-bottom:14px;">📈 종합 평가</div><div class="tri-grid">');
-      p.push('<div><div style="font-size:13px;font-weight:600;color:#16a34a;margin-bottom:8px;">✅ 주요 강점</div>');
+      p.push('<div class="eval-box">');
+      p.push('<div class="eval-heading">📈 종합 평가</div><div class="tri-grid">');
+      p.push('<div><div class="strength-hdg">✅ 주요 강점</div>');
       strengths.forEach(s => p.push('<div class="list-item">• ' + safe(s) + '</div>'));
-      p.push('</div><div><div style="font-size:13px;font-weight:600;color:#ea580c;margin-bottom:8px;">⬆️ 개선 포인트</div>');
+      p.push('</div><div><div class="improve-hdg">⬆️ 개선 포인트</div>');
       improvements.forEach(s => p.push('<div class="list-item">• ' + safe(s) + '</div>'));
-      p.push('</div><div><div style="font-size:13px;font-weight:600;color:#2563eb;margin-bottom:8px;">➡️ 다음 단계</div>');
+      p.push('</div><div><div class="nextstep-hdg">➡️ 다음 단계</div>');
       nextSteps.forEach(s => p.push('<div class="list-item">• ' + safe(s) + '</div>'));
       p.push('</div></div>');
       if (df.ranking) p.push('<div class="expert-box"><strong>전문가 의견:</strong> ' + safe(df.ranking) + '</div>');
@@ -136,21 +196,21 @@ const buildReportHtml = (r: any): string => {
   }
   if (df.summary) {
     p.push('<div class="sec"><div class="sec-title">💬 종합 피드백 요약</div>');
-    p.push('<div style="background:#f0f9ff;border-left:4px solid #3b82f6;border-radius:0 6px 6px 0;padding:14px 16px;font-size:13px;line-height:1.8;color:#334155;">' + safe(df.summary) + '</div></div>');
+    p.push('<div class="summary-text">' + safe(df.summary) + '</div></div>');
   }
   if (behaviorGuides.length > 0) {
     p.push('<div class="sec"><div class="sec-title">🎯 행동 가이드</div>');
     behaviorGuides.forEach((g: any) => {
-      p.push('<div class="guide-card"><div style="font-size:15px;font-weight:600;color:#92400e;margin-bottom:10px;">💡 ' + safe(g.situation) + '</div>');
-      p.push('<div style="margin-bottom:8px;"><div style="font-size:13px;font-weight:600;color:#4f46e5;margin-bottom:4px;">권장 행동</div>');
-      p.push('<div style="font-size:13px;color:#374151;background:#f0f9ff;padding:8px;border-radius:4px;">' + safe(g.action) + '</div></div>');
+      p.push('<div class="guide-card"><div class="guide-situation">💡 ' + safe(g.situation) + '</div>');
+      p.push('<div class="guide-section"><div class="guide-lbl-indigo">권장 행동</div>');
+      p.push('<div class="guide-action-text">' + safe(g.action) + '</div></div>');
       if (g.example) {
-        p.push('<div style="margin-bottom:8px;"><div style="font-size:13px;font-weight:600;color:#16a34a;margin-bottom:4px;">구체적 예시</div>');
-        p.push('<div style="font-size:13px;color:#166534;background:#dcfce7;padding:8px;border-radius:4px;font-style:italic;">"' + safe(g.example) + '"</div></div>');
+        p.push('<div class="guide-section"><div class="guide-lbl-green">구체적 예시</div>');
+        p.push('<div class="guide-example-text">"' + safe(g.example) + '"</div></div>');
       }
       if (g.impact) {
-        p.push('<div><div style="font-size:13px;font-weight:600;color:#2563eb;margin-bottom:4px;">기대 효과</div>');
-        p.push('<div style="font-size:13px;color:#374151;">' + safe(g.impact) + '</div></div>');
+        p.push('<div><div class="guide-lbl-blue">기대 효과</div>');
+        p.push('<div class="guide-impact-text">' + safe(g.impact) + '</div></div>');
       }
       p.push('</div>');
     });
@@ -160,15 +220,15 @@ const buildReportHtml = (r: any): string => {
     p.push('<div class="sec"><div class="sec-title">💬 대화 가이드</div>');
     conversationGuides.forEach((g: any) => {
       p.push('<div class="guide-card guide-card-teal">');
-      p.push('<div style="font-size:15px;font-weight:600;color:#0f766e;margin-bottom:10px;">💭 ' + safe(g.scenario) + '</div>');
+      p.push('<div class="cg-scenario">💭 ' + safe(g.scenario) + '</div>');
       p.push('<div class="eg-grid">');
-      p.push('<div class="eg-good"><div style="font-size:12px;font-weight:600;color:#16a34a;margin-bottom:4px;">✅ 좋은 예시</div><div style="font-size:12px;color:#166534;">' + safe(g.goodExample) + '</div></div>');
-      p.push('<div class="eg-bad"><div style="font-size:12px;font-weight:600;color:#dc2626;margin-bottom:4px;">❌ 피해야 할 예시</div><div style="font-size:12px;color:#991b1b;">' + safe(g.badExample) + '</div></div>');
+      p.push('<div class="eg-good"><div class="eg-good-lbl">✅ 좋은 예시</div><div class="eg-good-txt">' + safe(g.goodExample) + '</div></div>');
+      p.push('<div class="eg-bad"><div class="eg-bad-lbl">❌ 피해야 할 예시</div><div class="eg-bad-txt">' + safe(g.badExample) + '</div></div>');
       p.push('</div>');
       if (Array.isArray(g.keyPoints) && g.keyPoints.length > 0) {
-        p.push('<div style="font-size:12px;font-weight:600;color:#4f46e5;margin-bottom:4px;">🔑 핵심 포인트</div>');
-        p.push('<div style="display:grid;grid-template-columns:repeat(2,1fr);gap:4px;">');
-        g.keyPoints.forEach((pt: string) => p.push('<div style="font-size:12px;color:#4b5563;">• ' + safe(pt) + '</div>'));
+        p.push('<div class="kp-lbl">🔑 핵심 포인트</div>');
+        p.push('<div class="kp-grid">');
+        g.keyPoints.forEach((pt: string) => p.push('<div class="kp-item">• ' + safe(pt) + '</div>'));
         p.push('</div>');
       }
       p.push('</div>');
@@ -184,15 +244,15 @@ const buildReportHtml = (r: any): string => {
     ];
     planSections.forEach(ps => {
       const items: any[] = Array.isArray(developmentPlan[ps.key]) ? developmentPlan[ps.key] : [];
-      p.push('<div style="background:' + ps.bg + ';border-left:4px solid ' + ps.border + ';padding:14px;border-radius:0 8px 8px 0;">');
-      p.push('<div style="font-size:14px;font-weight:600;color:' + ps.hColor + ';margin-bottom:10px;">' + ps.label + '</div>');
+      p.push('<div class="dev-card" style="background:' + ps.bg + ';border-left:4px solid ' + ps.border + ';">');
+      p.push('<div class="dev-card-heading" style="color:' + ps.hColor + ';">' + ps.label + '</div>');
       items.forEach(item => {
-        p.push('<div style="background:#fff;padding:10px;border-radius:4px;margin-bottom:8px;">');
-        p.push('<div style="font-size:13px;font-weight:600;color:' + ps.hColor + ';margin-bottom:6px;">' + safe(item.goal) + '</div>');
+        p.push('<div class="dev-item">');
+        p.push('<div class="dev-item-goal" style="color:' + ps.hColor + ';">' + safe(item.goal) + '</div>');
         (Array.isArray(item.actions) ? item.actions : []).forEach((a: string) =>
-          p.push('<div style="font-size:12px;color:#4b5563;">→ ' + safe(a) + '</div>')
+          p.push('<div class="dev-action">→ ' + safe(a) + '</div>')
         );
-        if (item.measurable) p.push('<div style="font-size:11px;background:' + ps.measBg + ';padding:3px 8px;border-radius:4px;color:' + ps.measColor + ';margin-top:6px;">측정지표: ' + safe(item.measurable) + '</div>');
+        if (item.measurable) p.push('<div class="dev-measurable" style="background:' + ps.measBg + ';color:' + ps.measColor + ';">측정지표: ' + safe(item.measurable) + '</div>');
         p.push('</div>');
       });
       p.push('</div>');
@@ -200,42 +260,42 @@ const buildReportHtml = (r: any): string => {
     p.push('</div>');
     const resources: string[] = Array.isArray(developmentPlan.recommendedResources) ? developmentPlan.recommendedResources : [];
     if (resources.length > 0) {
-      p.push('<div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:14px;margin-top:14px;">');
-      p.push('<div style="font-size:14px;font-weight:600;color:#374151;margin-bottom:10px;">📚 추천 학습 자료</div>');
-      p.push('<div style="display:grid;grid-template-columns:repeat(2,1fr);gap:8px;">');
-      resources.forEach(res => p.push('<div style="background:#fff;padding:8px 12px;border-radius:4px;font-size:13px;color:#4b5563;">📖 ' + safe(res) + '</div>'));
+      p.push('<div class="res-box">');
+      p.push('<div class="res-heading">📚 추천 학습 자료</div>');
+      p.push('<div class="res-grid">');
+      resources.forEach(res => p.push('<div class="res-item">📖 ' + safe(res) + '</div>'));
       p.push('</div></div>');
     }
     p.push('</div>');
   }
   if (sequenceAnalysis) {
     p.push('<div class="sec"><div class="sec-title">🎮 전략 평가</div>');
-    p.push('<div style="background:#fdf4ff;border-left:4px solid #a855f7;padding:18px;border-radius:0 8px 8px 0;">');
-    p.push('<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">');
-    p.push('<span style="font-size:15px;font-weight:600;color:#7c3aed;">전략 점수</span>');
-    p.push('<span style="background:#e9d5ff;color:#7c3aed;padding:6px 14px;border-radius:8px;font-size:17px;font-weight:700;">' + safe(String(sequenceAnalysis.strategicScore ?? '평가 대기중')) + '</span>');
+    p.push('<div class="seq-box">');
+    p.push('<div class="seq-header">');
+    p.push('<span class="seq-title">전략 점수</span>');
+    p.push('<span class="seq-badge">' + safe(String(sequenceAnalysis.strategicScore ?? '평가 대기중')) + '</span>');
     p.push('</div>');
-    if (sequenceAnalysis.strategicRationale) p.push('<div style="font-size:13px;color:#6b21a8;margin-bottom:12px;">' + safe(sequenceAnalysis.strategicRationale) + '</div>');
+    if (sequenceAnalysis.strategicRationale) p.push('<div class="seq-rationale">' + safe(sequenceAnalysis.strategicRationale) + '</div>');
     if (sequenceAnalysis.sequenceEffectiveness) {
-      p.push('<div style="font-size:13px;font-weight:600;color:#2563eb;margin-bottom:4px;">🎯 순서 선택의 효과성</div>');
-      p.push('<div style="font-size:13px;color:#374151;background:#fff;padding:10px;border-radius:4px;margin-bottom:12px;">' + safe(sequenceAnalysis.sequenceEffectiveness) + '</div>');
+      p.push('<div class="seq-lbl-blue">🎯 순서 선택의 효과성</div>');
+      p.push('<div class="seq-text-box">' + safe(sequenceAnalysis.sequenceEffectiveness) + '</div>');
     }
     if (sequenceAnalysis.strategicInsights) {
-      p.push('<div style="font-size:13px;font-weight:600;color:#eab308;margin-bottom:4px;">💡 전략적 통찰</div>');
-      p.push('<div style="font-size:13px;color:#374151;background:#fef9c3;padding:10px;border-radius:4px;border-left:4px solid #eab308;margin-bottom:12px;">' + safe(sequenceAnalysis.strategicInsights) + '</div>');
+      p.push('<div class="seq-lbl-yellow">💡 전략적 통찰</div>');
+      p.push('<div class="seq-insights-box">' + safe(sequenceAnalysis.strategicInsights) + '</div>');
     }
     const altApproaches: string[] = Array.isArray(sequenceAnalysis.alternativeApproaches) ? sequenceAnalysis.alternativeApproaches : [];
     if (altApproaches.length > 0) {
-      p.push('<div style="font-size:13px;font-weight:600;color:#16a34a;margin-bottom:6px;">🛤️ 대안적 접근법</div>');
+      p.push('<div class="seq-lbl-green">🛤️ 대안적 접근법</div>');
       altApproaches.forEach((a, i) => {
-        p.push('<div style="display:flex;align-items:flex-start;gap:8px;background:#dcfce7;padding:10px;border-radius:4px;margin-bottom:6px;">');
-        p.push('<span style="background:#22c55e;color:#fff;padding:2px 7px;border-radius:4px;font-size:12px;">' + (i + 1) + '</span>');
-        p.push('<div style="font-size:13px;color:#166534;">' + safe(a) + '</div></div>');
+        p.push('<div class="alt-item">');
+        p.push('<span class="alt-num">' + (i + 1) + '</span>');
+        p.push('<div class="alt-text">' + safe(a) + '</div></div>');
       });
     }
     p.push('</div></div>');
   }
-  p.push('<div style="text-align:center;padding-top:20px;border-top:1px solid #e2e8f0;color:#9ca3af;font-size:12px;margin-top:20px;">');
+  p.push('<div class="footer">');
   p.push('생성일: ' + now + ' · AI 기반 개인 맞춤 피드백 리포트</div>');
   p.push('</body></html>');
   return p.join('\n');
