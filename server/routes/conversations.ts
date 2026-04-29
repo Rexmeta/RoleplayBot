@@ -2,6 +2,7 @@ import { Router } from "express";
 import { storage, db } from "../storage";
 import { fileManager } from "../services/fileManager";
 import { generateAIResponse } from "../services/aiServiceFactory";
+import type { RoleplayScenario } from "../services/aiServiceFactory";
 import {
   insertConversationSchema,
   insertPersonaSelectionSchema,
@@ -377,10 +378,15 @@ export default function createConversationsRouter(isAuthenticated: any) {
 
     const { personaRun, scenarioRun } = await verifyPersonaRunOwnership(personaRunId, userId);
 
-    const { message } = req.body;
+    const { message, previousInputMode } = req.body;
     if (typeof message !== "string") {
       throw createHttpError(400, "Message must be a string");
     }
+
+    const VALID_INPUT_MODES = ['realtime-voice', 'text', 'tts'] as const;
+    const validatedPreviousMode = VALID_INPUT_MODES.includes(previousInputMode)
+      ? (previousInputMode as typeof VALID_INPUT_MODES[number])
+      : undefined;
 
     const isSkipTurn = message.trim() === "";
 
@@ -538,8 +544,17 @@ ${p.speechStyle ? `말투: ${p.speechStyle}` : ""}
     const user = await storage.getUser(userId);
     const userLanguage = (user?.preferredLanguage as 'ko' | 'en' | 'ja' | 'zh') || 'ko';
 
+    const scenarioForAI: RoleplayScenario = scenarioWithUserDifficulty;
+    // Only realtime-voice → text requires a style-continuity hint because it uses a
+    // separate AI model (Gemini Live) that has no shared prompt state with the text model.
+    // text ↔ tts transitions share the same provider and existing history, so no hint needed.
+    if (validatedPreviousMode === 'realtime-voice') {
+      console.log('🔄 Voice→Text mode transition detected: injecting style continuity hint');
+      scenarioForAI.modeTransitionHint = '이전 대화는 음성(voice)으로 이루어졌습니다. 지금부터 텍스트 모드로 전환되었습니다. 이전 대화의 캐릭터와 분위기, 톤을 그대로 유지하며 텍스트로 자연스럽게 이어가세요. 말투나 태도가 갑자기 바뀌지 않도록 주의하세요.';
+    }
+
     const aiResult = await generateAIResponse(
-      scenarioWithUserDifficulty as any,
+      scenarioForAI,
       messagesForAI,
       persona,
       undefined,

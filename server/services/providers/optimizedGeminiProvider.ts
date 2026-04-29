@@ -87,7 +87,8 @@ export class OptimizedGeminiProvider implements AIServiceInterface {
       console.log(`⚡ Parallel processing completed in ${enrichTime}ms`);
 
       // 압축된 시스템 프롬프트 생성 (언어 설정 포함)
-      const compactPrompt = this.buildCompactPrompt(scenarioObj, enrichedPersona, conversationHistory, language, playerPosition);
+      const modeTransitionHint = scenarioObj.modeTransitionHint;
+      const compactPrompt = this.buildCompactPrompt(scenarioObj, enrichedPersona, conversationHistory, language, playerPosition, modeTransitionHint);
       
       // 건너뛰기 처리
       const prompt = userMessage ? userMessage : "이전 대화의 흐름을 자연스럽게 이어가세요.";
@@ -201,7 +202,7 @@ export class OptimizedGeminiProvider implements AIServiceInterface {
   /**
    * 압축된 시스템 프롬프트 생성
    */
-  private buildCompactPrompt(scenario: RoleplayScenario, persona: ScenarioPersona, conversationHistory: string, language: SupportedLanguage = 'ko', playerPosition?: string): string {
+  private buildCompactPrompt(scenario: RoleplayScenario, persona: ScenarioPersona, conversationHistory: string, language: SupportedLanguage = 'ko', playerPosition?: string, modeTransitionHint?: string): string {
     const situation = scenario.context?.situation || '업무 상황';
     const objectives = scenario.objectives?.join(', ') || '문제 해결';
     const playerRole = scenario.context?.playerRole;
@@ -305,7 +306,7 @@ ${reactionGuide}
 
 ${difficultyGuidelines}
 
-${conversationHistory ? `=== 역할 재확인: 당신은 ${persona.name}(${persona.role})이며, 상대방은 ${userLabelInPrompt}입니다. 아래 이전 대화에서도 이 역할을 유지했습니다 ===
+${modeTransitionHint ? `**【모드 전환 안내 - 이번 응답에만 적용】**: ${modeTransitionHint}\n` : ''}${conversationHistory ? `=== 역할 재확인: 당신은 ${persona.name}(${persona.role})이며, 상대방은 ${userLabelInPrompt}입니다. 아래 이전 대화에서도 이 역할을 유지했습니다 ===
 ⚠️ 【${userLabelInPrompt} 답변 ✓】로 표시된 항목은 이미 답변받은 사안입니다. 동일하거나 유사한 질문을 절대 다시 하지 마세요.
 ${conversationHistory}
 === 역할 재확인 끝 ===

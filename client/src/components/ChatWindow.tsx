@@ -66,6 +66,7 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
   const silenceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const hasUserSpokenRef = useRef(false);
   const handleSwitchToTextModeRef = useRef<(() => Promise<void>) | null>(null);
+  const pendingModeTransitionRef = useRef<'realtime-voice' | 'text' | 'tts' | undefined>(undefined);
 
   const { toast } = useToast();
   const { user } = useAuth();
@@ -163,6 +164,7 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
       realtimeVoice.disconnect();
     } finally {
       setIsSwitchingMode(false);
+      pendingModeTransitionRef.current = 'realtime-voice';
       setInputMode('text');
     }
   };
@@ -267,10 +269,36 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
     if (inputMode === 'realtime-voice' && realtimeVoice.status === 'connected') { setUserInput(""); realtimeVoice.sendTextMessage(message); return; }
     setLocalMessages(prev => [...prev, { sender: 'user', message, timestamp: new Date().toISOString() }]);
     setIsLoading(true); setUserInput(""); setShowInputMode(false);
-    sendMessageMutation.mutate(message, { onSuccess: () => setIsLoading(false), onError: () => setIsLoading(false) });
+    const transitionMode = pendingModeTransitionRef.current;
+    pendingModeTransitionRef.current = undefined;
+    sendMessageMutation.mutate(
+      transitionMode ? { message, previousInputMode: transitionMode } : message,
+      {
+        onSuccess: () => setIsLoading(false),
+        onError: () => {
+          setIsLoading(false);
+          if (transitionMode) pendingModeTransitionRef.current = transitionMode;
+        },
+      }
+    );
   };
 
-  const handleSkipTurn = () => { if (isLoading) return; setIsLoading(true); setShowInputMode(false); sendMessageMutation.mutate("", { onSuccess: () => setIsLoading(false), onError: () => setIsLoading(false) }); };
+  const handleSkipTurn = () => {
+    if (isLoading) return;
+    setIsLoading(true); setShowInputMode(false);
+    const transitionMode = pendingModeTransitionRef.current;
+    pendingModeTransitionRef.current = undefined;
+    sendMessageMutation.mutate(
+      transitionMode ? { message: "", previousInputMode: transitionMode } : "",
+      {
+        onSuccess: () => setIsLoading(false),
+        onError: () => {
+          setIsLoading(false);
+          if (transitionMode) pendingModeTransitionRef.current = transitionMode;
+        },
+      }
+    );
+  };
   const handleVoiceInput = () => { if (isRecording) stopRecording(); else startRecording(); };
 
   const progressPercentage = conversation ? (conversation.turnCount / MAX_TURNS) * 100 : 0;

@@ -57,6 +57,12 @@ export class OpenAIProvider implements AIServiceInterface {
       // 난이도 지침 (conversationContextBuilder 공유 로직)
       const difficultyGuidelines = buildDifficultyGuidelines(scenarioObj.difficulty);
 
+      // 모드 전환 힌트 (음성→텍스트 전환 시)
+      const modeTransitionHint = scenarioObj.modeTransitionHint;
+      const modeTransitionSection = modeTransitionHint
+        ? `\n**【모드 전환 안내 - 이번 응답에만 적용】**: ${modeTransitionHint}\n`
+        : '';
+
       const systemMessage = {
         role: 'system' as const,
         content: `당신은 ${persona.name}(${persona.role})입니다.
@@ -68,7 +74,7 @@ export class OpenAIProvider implements AIServiceInterface {
 - 목표: ${persona.goals.join(', ')}
 ${playerRoleSection}
 ${hierarchySpeechGuide}
-
+${modeTransitionSection}
 ${difficultyGuidelines}
 
 대화 규칙:

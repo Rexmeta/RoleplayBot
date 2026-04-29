@@ -65,6 +65,8 @@ export interface RoleplayScenario {
     gender?: string;
     mbti?: string;
   }>;
+  /** 모드 전환 시 AI 스타일 연속성 유지를 위해 일회성으로 주입되는 시스템 힌트 */
+  modeTransitionHint?: string;
   [key: string]: unknown;
 }
 

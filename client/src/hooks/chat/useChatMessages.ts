@@ -36,10 +36,11 @@ export function useChatMessages({ conversationId, serverMessages }: UseChatMessa
   }, [localMessages, pendingAiMessage, pendingUserMessage, pendingUserText]);
 
   const sendMessageMutation = useMutation({
-    mutationFn: async (message: string) => {
-      const response = await apiRequest("POST", `/api/conversations/${conversationId}/messages`, {
-        message
-      });
+    mutationFn: async (payload: string | { message: string; previousInputMode?: 'realtime-voice' | 'text' | 'tts' }) => {
+      const body = typeof payload === 'string'
+        ? { message: payload }
+        : { message: payload.message, previousInputMode: payload.previousInputMode };
+      const response = await apiRequest("POST", `/api/conversations/${conversationId}/messages`, body);
       return response.json();
     },
     onSuccess: (data) => {

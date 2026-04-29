@@ -70,12 +70,12 @@ export function handleClientMessage(
       const previousMessages = message.previousMessages as Array<{ role: 'user' | 'ai'; content: string }> | undefined;
 
       if (hasExistingConversation) {
-        console.log('🔇 Text-to-voice transition: skipping greeting, injecting quiet context');
+        console.log('🔇 Text-to-voice transition: skipping greeting, injecting style continuity context');
 
         session.hasTriggeredFirstGreeting = true;
         session.hasReceivedFirstAIResponse = true;
 
-        const contextMessage = `[이미 텍스트로 대화가 진행 중이었습니다. 사용자가 음성 모드로 전환했습니다. 새로 인사하거나 재연결을 언급하지 마세요. 사용자가 먼저 발화할 때까지 조용히 대기하세요.]`;
+        const contextMessage = `[이미 텍스트로 대화가 진행 중이었습니다. 사용자가 음성 모드로 전환했습니다. 지금까지 텍스트 대화에서 유지해온 캐릭터, 말투, 분위기, 감정 상태를 그대로 이어받아 주세요. 새로 인사하거나 재연결을 언급하지 마세요. 사용자가 먼저 발화할 때까지 조용히 대기하세요. 사용자가 발화하면 이전 대화의 톤과 맥락을 자연스럽게 이어서 음성에 맞게 간결하게 말하세요.]`;
 
         session.geminiSession.sendClientContent({
           turns: [{ role: 'user', parts: [{ text: contextMessage }] }],
