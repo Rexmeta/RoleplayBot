@@ -57,6 +57,10 @@ export function generatePrintableContent(opts: GenerateOptions): string {
       .score-status-high { color: #166534; background: #dcfce7; border-radius: 20px; padding: 1px 8px; font-size: 10px; font-weight: 600; }
       .score-status-mid  { color: #9a3412; background: #ffedd5; border-radius: 20px; padding: 1px 8px; font-size: 10px; font-weight: 600; }
       .score-status-low  { color: #991b1b; background: #fee2e2; border-radius: 20px; padding: 1px 8px; font-size: 10px; font-weight: 600; }
+      .time-rating-excellent { font-size: 16px; font-weight: 600; color: #16a34a; }
+      .time-rating-good      { font-size: 16px; font-weight: 600; color: #2563eb; }
+      .time-rating-average   { font-size: 16px; font-weight: 600; color: #d97706; }
+      .time-rating-poor      { font-size: 16px; font-weight: 600; color: #dc2626; }
     </style>
     <div style="font-family: 'Noto Sans KR', sans-serif; max-width: 800px; margin: 0 auto;">
 
@@ -84,7 +88,7 @@ export function generatePrintableContent(opts: GenerateOptions): string {
           <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; text-align: center;">
             <div><div style="font-size: 20px; font-weight: bold; color: #0284c7;">${Math.floor(conversationDuration / 60)}:${(conversationDuration % 60).toString().padStart(2, '0')}</div><div style="font-size: 13px; color: #0369a1;">총 대화 시간</div></div>
             ${averageResponseTime != null ? `<div><div style="font-size: 20px; font-weight: bold; color: #16a34a;">${escapeHtml(String(averageResponseTime))}초</div><div style="font-size: 13px; color: #15803d;">평균 응답 시간</div></div>` : ''}
-            ${timePerformance ? `<div><div style="font-size: 16px; font-weight: 600; color: ${timePerformance.rating === 'excellent' ? '#16a34a' : timePerformance.rating === 'good' ? '#2563eb' : timePerformance.rating === 'average' ? '#d97706' : '#dc2626'};">${timePerformance.rating === 'excellent' ? '🎯 우수' : timePerformance.rating === 'good' ? '✅ 좋음' : timePerformance.rating === 'average' ? '🔶 보통' : '⚠️ 개선필요'}</div><div style="font-size: 11px; color: #9a3412;">${escapeHtml(timePerformance.feedback)}</div></div>` : ''}
+            ${timePerformance ? `<div><div class="time-rating-${timePerformance.rating === 'excellent' ? 'excellent' : timePerformance.rating === 'good' ? 'good' : timePerformance.rating === 'average' ? 'average' : 'poor'}">${timePerformance.rating === 'excellent' ? '🎯 우수' : timePerformance.rating === 'good' ? '✅ 좋음' : timePerformance.rating === 'average' ? '🔶 보통' : '⚠️ 개선필요'}</div><div style="font-size: 11px; color: #9a3412;">${escapeHtml(timePerformance.feedback)}</div></div>` : ''}
           </div>
         </div>` : ''}
 
