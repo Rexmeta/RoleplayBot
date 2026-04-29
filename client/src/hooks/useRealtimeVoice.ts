@@ -464,6 +464,14 @@ export function useRealtimeVoice({
               setSessionWarning(null);
               break;
 
+            case 'session.ready':
+              if (reconnectInProgressRef.current) {
+                setError(null);
+              }
+              break;
+            case 'session.configured':
+              break;
+
             case 'greeting.retry':
               setGreetingRetryCount(data.retryCount);
               break;

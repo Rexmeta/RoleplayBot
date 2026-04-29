@@ -377,8 +377,32 @@ export class RealtimeVoiceService {
         if (!currentSession) return;
         currentSession.isReconnecting = false;
         currentSession.reconnectAttempts = 0;
+        currentSession.isInterrupted = false;
+        currentSession.cancelledTurnSeq = -1;
+        currentSession.currentTranscript = '';
         console.log(`✅ proactiveReconnect 성공: 새 Gemini 세션 활성화`);
         this.sendToClient(currentSession, { type: 'session.reconnected' });
+
+        if (currentSession.geminiSession) {
+          console.log('📤 proactiveReconnect 후 대화 컨텍스트 복원...');
+          const recentMsgs = currentSession.recentMessages || [];
+          let reconnectText: string;
+          if (recentMsgs.length > 0) {
+            const historyText = recentMsgs.map(m =>
+              `${m.role === 'user' ? '사용자' : '당신'}: ${m.text}`
+            ).join('\n');
+            reconnectText = `[연결이 자동으로 갱신되었습니다. 방금 전 나눈 대화 내용을 기억하세요:\n${historyText}\n\n이 대화를 자연스럽게 이어서 진행하세요. 연결 갱신에 대해 언급하지 말고 바로 대화를 이어가세요.]`;
+            console.log(`📜 proactiveReconnect 컨텍스트 복원: ${recentMsgs.length}개 메시지`);
+          } else {
+            reconnectText = '(연결이 자동으로 갱신되었습니다. 이전 대화를 이어서 사용자의 입력을 기다리세요.)';
+          }
+
+          currentSession.geminiSession.sendClientContent({
+            turns: [{ role: 'user', parts: [{ text: reconnectText }] }],
+            turnComplete: true,
+          });
+          currentSession.geminiSession.sendRealtimeInput({ event: 'END_OF_TURN' });
+        }
       })
       .catch((error) => {
         const currentSession = this.sessions.get(sessionId);

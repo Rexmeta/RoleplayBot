@@ -71,6 +71,9 @@ export function handleGeminiClose(
           .then(() => {
             sess.isReconnecting = false;
             sess.reconnectAttempts = 0;
+            sess.isInterrupted = false;
+            sess.cancelledTurnSeq = -1;
+            sess.currentTranscript = '';
             console.log(`✅ Gemini 재연결 성공!`);
             sendToClient(sess, { type: 'session.reconnected' });
 
