@@ -15,6 +15,7 @@ export default defineConfig({
       include: [
         'server/services/voice/geminiMessageHandler.ts',
         'server/services/voice/geminiReconnector.ts',
+        'server/services/voice/clientMessageHandler.ts',
         'client/src/hooks/useAudioPlayback.ts',
         'client/src/hooks/useVoiceActivityDetection.ts',
         'client/src/components/report/generatePrintableContent.ts',

@@ -7,7 +7,7 @@ type SendToClient = (session: RealtimeSession, message: any) => void;
 
 const CONTEXT_WINDOW_SIZE = 30;
 
-async function summarizeOlderMessages(
+export async function summarizeOlderMessages(
   messages: Array<{ role: 'user' | 'ai'; content: string }>,
   userLanguage: string
 ): Promise<string> {
