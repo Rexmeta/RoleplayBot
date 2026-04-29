@@ -18,6 +18,7 @@ import {
   extractSentences,
 } from "./report/reportUtils";
 import { generatePrintableContent } from "./report/generatePrintableContent";
+import { reportStyles } from "./report/reportStyles";
 import { ScoreOverview } from "./report/ScoreOverview";
 import { PracticeGuidePanel } from "./report/PracticeGuidePanel";
 import { DevelopmentPlan } from "./report/DevelopmentPlan";
@@ -263,7 +264,7 @@ export default function PersonalDevelopmentReport({
       toast({ title: "팝업 차단됨", description: "브라우저에서 팝업을 허용해주세요.", variant: "destructive" });
       return;
     }
-    printWindow.document.write(`<!DOCTYPE html><html lang="ko"><head><meta charset="utf-8"><title>${escapeHtml(userName)} 맞춤 보고서</title><link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;600;700&display=swap" rel="stylesheet"><style>*{box-sizing:border-box;margin:0;padding:0;}body{font-family:'Noto Sans KR',sans-serif;padding:30px;background:white;}</style></head><body><div class="no-print print-toolbar"><h1 class="print-toolbar-title">${escapeHtml(userName)}님 맞춤 보고서</h1><div><button onclick="window.print()" class="print-btn-primary">🖨️ 인쇄 / PDF 저장</button><button onclick="window.close()" class="print-btn-secondary">닫기</button></div></div>${printableContent}</body></html>`);
+    printWindow.document.write(`<!DOCTYPE html><html lang="ko"><head><meta charset="utf-8"><title>${escapeHtml(userName)} 맞춤 보고서</title><link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;600;700&display=swap" rel="stylesheet"><style>*{box-sizing:border-box;margin:0;padding:0;}html,body{background:#f8fafc;color:#1e293b;}body{padding:30px;}${reportStyles}</style></head><body><div class="no-print print-toolbar"><h1 class="print-toolbar-title">${escapeHtml(userName)}님 맞춤 보고서</h1><div><button onclick="window.print()" class="print-btn-primary">🖨️ 인쇄 / PDF 저장</button><button onclick="window.close()" class="print-btn-secondary">닫기</button></div></div>${printableContent}</body></html>`);
     printWindow.document.close();
     toast({ title: "인쇄 창 열림", description: "새 창에서 '인쇄/PDF 저장' 버튼을 클릭하세요." });
   };
