@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { ChevronDown, ChevronUp } from "lucide-react";
 import { AppHeader } from "@/components/AppHeader";
@@ -9,10 +9,19 @@ interface TopMenuPanelProps {
   onClose: () => void;
 }
 
+const DISMISS_THRESHOLD = 80;
+const FLICK_VELOCITY = 0.4;
+
 export function TopMenuPanel({ isOpen, onToggle, onClose }: TopMenuPanelProps) {
   const [isMobile, setIsMobile] = useState(() =>
     typeof window !== 'undefined' ? window.innerWidth < 640 : false
   );
+
+  const [dragY, setDragY] = useState(0);
+  const [isDragging, setIsDragging] = useState(false);
+
+  const touchStartY = useRef(0);
+  const touchStartTime = useRef(0);
 
   useEffect(() => {
     const mq = window.matchMedia('(max-width: 639px)');
@@ -21,6 +30,38 @@ export function TopMenuPanel({ isOpen, onToggle, onClose }: TopMenuPanelProps) {
     setIsMobile(mq.matches);
     return () => mq.removeEventListener('change', handler);
   }, []);
+
+  useEffect(() => {
+    if (!isOpen) {
+      setDragY(0);
+      setIsDragging(false);
+    }
+  }, [isOpen]);
+
+  function handleTouchStart(e: React.TouchEvent) {
+    touchStartY.current = e.touches[0].clientY;
+    touchStartTime.current = Date.now();
+    setIsDragging(true);
+  }
+
+  function handleTouchMove(e: React.TouchEvent) {
+    const delta = e.touches[0].clientY - touchStartY.current;
+    setDragY(Math.max(0, delta));
+  }
+
+  function handleTouchEnd() {
+    const elapsed = Date.now() - touchStartTime.current;
+    const velocity = dragY / elapsed;
+
+    if (dragY >= DISMISS_THRESHOLD || velocity >= FLICK_VELOCITY) {
+      setDragY(0);
+      setIsDragging(false);
+      onClose();
+    } else {
+      setDragY(0);
+      setIsDragging(false);
+    }
+  }
 
   if (isMobile) {
     return createPortal(
@@ -33,12 +74,21 @@ export function TopMenuPanel({ isOpen, onToggle, onClose }: TopMenuPanelProps) {
         )}
 
         <div
-          className={`fixed bottom-0 left-0 right-0 z-[9999] bg-white rounded-t-2xl shadow-2xl transition-transform duration-300 ease-out ${
-            isOpen ? 'translate-y-0' : 'translate-y-full'
-          }`}
-          style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
+          className={`fixed bottom-0 left-0 right-0 z-[9999] bg-white rounded-t-2xl shadow-2xl ${
+            isDragging ? '' : 'transition-transform duration-300 ease-out'
+          } ${isOpen && dragY === 0 ? 'translate-y-0' : !isOpen && dragY === 0 ? 'translate-y-full' : ''}`}
+          style={{
+            paddingBottom: 'env(safe-area-inset-bottom, 0px)',
+            transform: dragY > 0 ? `translateY(${dragY}px)` : undefined,
+          }}
         >
-          <div className="flex justify-center pt-2 pb-1">
+          <div
+            className="flex justify-center pt-2 pb-1 cursor-grab active:cursor-grabbing"
+            style={{ touchAction: 'none' }}
+            onTouchStart={handleTouchStart}
+            onTouchMove={handleTouchMove}
+            onTouchEnd={handleTouchEnd}
+          >
             <div className="w-10 h-1 bg-slate-300 rounded-full" />
           </div>
           <AppHeader />
