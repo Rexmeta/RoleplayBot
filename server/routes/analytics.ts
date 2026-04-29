@@ -491,17 +491,128 @@ export default function createAnalyticsRouter(isAuthenticated: any) {
       sessionCount: scores.length
     }));
 
+    // completionRate
+    const completionRate = totalSessions > 0
+      ? Math.round((completedSessions / totalSessions) * 100)
+      : 0;
+
+    // sessionsPerUser
+    const sessionsPerUser = activeUsers > 0
+      ? Math.round((totalSessions / activeUsers) * 10) / 10
+      : 0;
+
+    // DAU / WAU / MAU based on scenarioRuns.startedAt
+    const now = new Date();
+    const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+    const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+
+    const dauUserIds = new Set<string>();
+    const wauUserIds = new Set<string>();
+    const mauUserIds = new Set<string>();
+
+    for (const sr of scenarioRuns) {
+      if (!sr.userId || !sr.startedAt) continue;
+      const startedAt = new Date(sr.startedAt);
+      if (startedAt >= startOfToday) dauUserIds.add(String(sr.userId));
+      if (startedAt >= sevenDaysAgo) wauUserIds.add(String(sr.userId));
+      if (startedAt >= thirtyDaysAgo) mauUserIds.add(String(sr.userId));
+    }
+
+    const dau = dauUserIds.size;
+    const wau = wauUserIds.size;
+    const mau = mauUserIds.size;
+
+    // newUsers / returningUsers based on completed personaRuns per userId
+    const completedSessionsPerUser = new Map<string, number>();
+    for (const pr of completedPersonaRuns) {
+      const scenarioRun = scenarioRuns.find(sr => sr.id === pr.scenarioRunId);
+      if (!scenarioRun?.userId) continue;
+      const uid = String(scenarioRun.userId);
+      completedSessionsPerUser.set(uid, (completedSessionsPerUser.get(uid) || 0) + 1);
+    }
+
+    let newUsers = 0;
+    let returningUsers = 0;
+    for (const count of completedSessionsPerUser.values()) {
+      if (count === 1) newUsers++;
+      else returningUsers++;
+    }
+
+    const returningRate = activeUsers > 0
+      ? Math.round((returningUsers / activeUsers) * 100)
+      : 0;
+
+    // topActiveUsers: top 5 by session count (using all personaRuns)
+    const sessionCountPerUser = new Map<string, number>();
+    for (const pr of personaRuns) {
+      const scenarioRun = scenarioRuns.find(sr => sr.id === pr.scenarioRunId);
+      if (!scenarioRun?.userId) continue;
+      const uid = String(scenarioRun.userId);
+      sessionCountPerUser.set(uid, (sessionCountPerUser.get(uid) || 0) + 1);
+    }
+
+    const topActiveUsers = Array.from(sessionCountPerUser.entries())
+      .map(([userId, sessionCount]) => ({ userId, sessionCount }))
+      .sort((a, b) => b.sessionCount - a.sessionCount)
+      .slice(0, 5);
+
+    // topScenarios: top 5 by session count from scenarioStats
+    const topScenarios = Object.entries(scenarioStats)
+      .map(([id, data]) => ({ id, name: data.name, count: data.count, difficulty: data.difficulty }))
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 5);
+
+    // hardestScenarios: top 5 by lowest averageScore (min sessions >= 1)
+    const hardestScenarios = scenarioAverages
+      .filter(s => s.sessionCount > 0)
+      .sort((a, b) => a.averageScore - b.averageScore)
+      .slice(0, 5);
+
+    // difficultyUsage: count personaRuns by difficulty level
+    const difficultyMap = new Map<number, number>();
+    for (const pr of personaRuns) {
+      const scenarioRun = scenarioRuns.find(sr => sr.id === pr.scenarioRunId);
+      const level = scenarioRun?.difficulty ?? 4;
+      difficultyMap.set(level, (difficultyMap.get(level) || 0) + 1);
+    }
+    const difficultyUsage = Array.from(difficultyMap.entries())
+      .map(([level, count]) => ({ level, count }))
+      .sort((a, b) => a.level - b.level);
+
+    // totalScenarios and lastContentUpdate
+    const totalScenarios = scenarios.length;
+    const lastContentUpdate: string | null = scenarios.reduce((latest: Date | null, s: any) => {
+      const ts = s.updatedAt ? new Date(s.updatedAt) : null;
+      if (!ts) return latest;
+      return !latest || ts > latest ? ts : latest;
+    }, null as Date | null)?.toISOString() ?? null;
+
     res.json({
       totalUsers,
       activeUsers,
       totalSessions,
       completedSessions,
+      completionRate,
       participationRate,
       averageScore,
+      sessionsPerUser,
+      dau,
+      wau,
+      mau,
+      newUsers,
+      returningUsers,
+      returningRate,
       scenarioStats,
       mbtiUsage,
       scenarioAverages,
-      mbtiAverages
+      mbtiAverages,
+      topActiveUsers,
+      topScenarios,
+      hardestScenarios,
+      difficultyUsage,
+      totalScenarios,
+      lastContentUpdate
     });
   }));
 
