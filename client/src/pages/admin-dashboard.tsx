@@ -83,7 +83,7 @@ export default function AdminDashboard() {
     refetchInterval: ANALYTICS_REFETCH_INTERVAL,
   });
 
-  const { data: performance, isLoading: performanceLoading } = useQuery<PerformanceData>({
+  const { data: performance, isLoading: performanceLoading, isFetching: performanceFetching, dataUpdatedAt: performanceUpdatedAt } = useQuery<PerformanceData>({
     queryKey: ["/api/admin/analytics/performance", selectedCategoryId],
     queryFn: () => authFetch(`/api/admin/analytics/performance${categoryParam}`),
     staleTime: ANALYTICS_STALE_TIME,
@@ -91,7 +91,7 @@ export default function AdminDashboard() {
     refetchInterval: ANALYTICS_REFETCH_INTERVAL,
   });
 
-  const { data: trends, isLoading: trendsLoading } = useQuery<TrendsData>({
+  const { data: trends, isLoading: trendsLoading, isFetching: trendsFetching, dataUpdatedAt: trendsUpdatedAt } = useQuery<TrendsData>({
     queryKey: ["/api/admin/analytics/trends", selectedCategoryId],
     queryFn: () => authFetch(`/api/admin/analytics/trends${categoryParam}`),
     staleTime: ANALYTICS_STALE_TIME,
@@ -99,7 +99,7 @@ export default function AdminDashboard() {
     refetchInterval: ANALYTICS_REFETCH_INTERVAL,
   });
 
-  const { data: emotions, isLoading: emotionsLoading } = useQuery<EmotionData>({
+  const { data: emotions, isLoading: emotionsLoading, isFetching: emotionsFetching, dataUpdatedAt: emotionsUpdatedAt } = useQuery<EmotionData>({
     queryKey: ["/api/admin/analytics/emotions", selectedCategoryId],
     queryFn: () => authFetch(`/api/admin/analytics/emotions${categoryParam}`),
     staleTime: ANALYTICS_STALE_TIME,
@@ -107,7 +107,7 @@ export default function AdminDashboard() {
     refetchInterval: ANALYTICS_REFETCH_INTERVAL,
   });
 
-  const { data: scenarioEmotions } = useQuery<ScenarioEmotionData>({
+  const { data: scenarioEmotions, dataUpdatedAt: scenarioEmotionsUpdatedAt } = useQuery<ScenarioEmotionData>({
     queryKey: ["/api/admin/analytics/emotions/by-scenario", selectedCategoryId],
     queryFn: () => authFetch(`/api/admin/analytics/emotions/by-scenario${categoryParam}`),
     staleTime: ANALYTICS_STALE_TIME,
@@ -115,7 +115,7 @@ export default function AdminDashboard() {
     refetchInterval: ANALYTICS_REFETCH_INTERVAL,
   });
 
-  const { data: difficultyEmotions } = useQuery<DifficultyEmotionData>({
+  const { data: difficultyEmotions, dataUpdatedAt: difficultyEmotionsUpdatedAt } = useQuery<DifficultyEmotionData>({
     queryKey: ["/api/admin/analytics/emotions/by-difficulty", selectedCategoryId],
     queryFn: () => authFetch(`/api/admin/analytics/emotions/by-difficulty${categoryParam}`),
     staleTime: ANALYTICS_STALE_TIME,
@@ -203,6 +203,18 @@ export default function AdminDashboard() {
     return acc;
   }, []).sort((a: any, b: any) => a.personaCount - b.personaCount);
 
+  const analyticsTimestamps = [
+    overviewUpdatedAt,
+    performanceUpdatedAt,
+    trendsUpdatedAt,
+    emotionsUpdatedAt,
+    scenarioEmotionsUpdatedAt,
+    difficultyEmotionsUpdatedAt,
+  ].filter(t => t > 0);
+  const oldestUpdatedAt = analyticsTimestamps.length > 0 ? Math.min(...analyticsTimestamps) : 0;
+  const anyAnalyticsFetching =
+    overviewFetching || performanceFetching || trendsFetching || emotionsFetching;
+
   return (
     <div className="min-h-screen bg-slate-50">
       <AppHeader
@@ -212,25 +224,25 @@ export default function AdminDashboard() {
       />
       <div className="container mx-auto p-3 md:p-6 space-y-6" data-testid="admin-dashboard">
         <div className="flex items-center justify-end gap-3">
-          {overviewUpdatedAt > 0 && (
+          {oldestUpdatedAt > 0 && (
             <span
               className="text-xs text-slate-500 tabular-nums"
               data-testid="last-updated-label"
               aria-live="polite"
             >
-              {overviewFetching || isRefreshing ? '갱신 중...' : getRelativeTime(overviewUpdatedAt)}
+              {anyAnalyticsFetching || isRefreshing ? '갱신 중...' : getRelativeTime(oldestUpdatedAt)}
             </span>
           )}
           <Button
             variant="outline"
             size="sm"
             onClick={handleRefresh}
-            disabled={isRefreshing || overviewFetching}
+            disabled={isRefreshing || anyAnalyticsFetching}
             data-testid="refresh-dashboard-btn"
             className="flex items-center gap-2"
           >
-            <RefreshCw className={`w-4 h-4 ${isRefreshing || overviewFetching ? 'animate-spin' : ''}`} />
-            {isRefreshing || overviewFetching ? '갱신 중...' : '새로고침'}
+            <RefreshCw className={`w-4 h-4 ${isRefreshing || anyAnalyticsFetching ? 'animate-spin' : ''}`} />
+            {isRefreshing || anyAnalyticsFetching ? '갱신 중...' : '새로고침'}
           </Button>
         </div>
 
