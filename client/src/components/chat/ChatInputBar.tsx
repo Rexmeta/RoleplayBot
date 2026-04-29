@@ -35,7 +35,6 @@ interface ChatInputBarProps {
     personaName?: string;
     userName?: string;
   };
-  variant?: 'messenger' | 'character';
 }
 
 export function ChatInputBar({
@@ -49,7 +48,6 @@ export function ChatInputBar({
   speechSupported,
   mode = 'text',
   realtimeVoiceProps,
-  variant = 'messenger',
 }: ChatInputBarProps) {
   const { t } = useTranslation();
 
@@ -65,10 +63,8 @@ export function ChatInputBar({
                 <p className="text-sm text-orange-600">{t('chat.connectionLost')}</p>
                 <Button
                   onClick={() => rv.onConnect(rv.previousMessages)}
-                  className={variant === 'character'
-                    ? "bg-orange-500 hover:bg-orange-600 text-white px-8 py-6 text-lg font-semibold rounded-full shadow-lg"
-                    : "bg-orange-500 hover:bg-orange-600 text-white px-8 py-3 rounded-full shadow-lg"}
-                  data-testid={variant === 'character' ? "button-resume-voice" : "button-resume-voice-messenger"}
+                  className="bg-orange-500 hover:bg-orange-600 text-white px-8 py-6 text-lg font-semibold rounded-full shadow-lg"
+                  data-testid="button-resume-voice"
                 >
                   <i className="fas fa-redo mr-2"></i>
                   {t('chat.resume')}
@@ -79,10 +75,8 @@ export function ChatInputBar({
                 <p className="text-sm text-slate-600">{t('chat.startRealtimeVoice')}</p>
                 <Button
                   onClick={() => rv.onConnect()}
-                  className={variant === 'character'
-                    ? "bg-purple-600 hover:bg-purple-700 text-white px-8 py-6 text-lg font-semibold rounded-full shadow-lg"
-                    : "bg-purple-600 hover:bg-purple-700 text-white px-8 py-3 rounded-full shadow-lg"}
-                  data-testid={variant === 'character' ? "button-start-voice" : "button-start-voice-messenger"}
+                  className="bg-purple-600 hover:bg-purple-700 text-white px-8 py-6 text-lg font-semibold rounded-full shadow-lg"
+                  data-testid="button-start-voice"
                 >
                   <i className="fas fa-phone mr-2"></i>
                   {t('chat.startConversation')}
@@ -119,7 +113,7 @@ export function ChatInputBar({
               onClick={rv.onStartRecording}
               size="sm"
               className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-full text-sm"
-              data-testid={variant === 'character' ? "button-start-greeting-character" : "button-start-greeting-messenger"}
+              data-testid="button-start-greeting"
             >
               <i className="fas fa-microphone mr-1.5"></i>
               {t('chat.startConversation')}
@@ -142,7 +136,7 @@ export function ChatInputBar({
               size="sm"
               onClick={rv.onEndConversation}
               disabled={rv.isRecording || rv.isAISpeaking}
-              data-testid={variant === 'character' ? "button-end-conversation-realtime" : "button-end-conversation-messenger"}
+              data-testid="button-end-conversation-realtime"
               className="text-red-600 border-red-200 hover:bg-red-50 shrink-0 min-h-[44px] min-w-[44px]"
             >
               <i className="fas fa-stop-circle mr-1"></i>
@@ -167,7 +161,7 @@ export function ChatInputBar({
                   ? 'bg-gradient-to-r from-blue-500 to-purple-500 text-white animate-bounce'
                   : 'bg-gradient-to-r from-purple-500 to-indigo-500 text-white hover:scale-105'
               }`}
-              data-testid={variant === 'character' ? "button-realtime-voice-record" : "button-realtime-voice-messenger"}
+              data-testid="button-realtime-voice-record"
               title={rv.isRecording ? "음성 입력을 중지하려면 클릭하세요" : "음성 입력을 시작하려면 클릭하세요"}
             >
               {(rv.showMicPrompt || rv.isRecording) && !rv.isAISpeaking && (
@@ -209,7 +203,7 @@ export function ChatInputBar({
                     rv.isInputExpanded ? 'border-purple-300' : 'border-slate-200'
                   }`}
                   disabled={rv.isRecording || rv.isAISpeaking}
-                  data-testid={variant === 'character' ? "input-message-realtime" : "input-message-realtime-messenger"}
+                  data-testid="input-message-realtime"
                 />
                 {rv.isInputExpanded && userInput.length > 0 && (
                   <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-400">
@@ -226,7 +220,7 @@ export function ChatInputBar({
                   disabled={!userInput.trim() || rv.isRecording || rv.isAISpeaking}
                   className="bg-purple-600 hover:bg-purple-700 text-white rounded-full w-8 h-8 p-0 shrink-0"
                   size="sm"
-                  data-testid={variant === 'character' ? "button-send-message-realtime" : "button-send-message-realtime-messenger"}
+                  data-testid="button-send-message-realtime"
                 >
                   <i className="fas fa-paper-plane text-xs"></i>
                 </Button>
@@ -239,12 +233,12 @@ export function ChatInputBar({
           <div className="text-center mt-2">
             {rv.isRecording && (
               <p className="text-sm text-red-600 font-medium animate-pulse">
-                🔴 {variant === 'character' ? t('chat.recording') : '녹음 중... 말씀이 끝나면 자동으로 전송됩니다'}
+                🔴 {t('chat.recording')}
               </p>
             )}
             {rv.isAISpeaking && (
               <p className="text-sm text-blue-600 font-medium animate-pulse">
-                🔵 {variant === 'character' ? t('chat.aiResponding') : 'AI가 응답하고 있습니다...'}
+                🔵 {t('chat.aiResponding')}
               </p>
             )}
           </div>

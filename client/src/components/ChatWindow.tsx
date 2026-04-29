@@ -5,7 +5,6 @@ import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { toMediaUrl } from "@/lib/mediaUrl";
 import { Button } from "@/components/ui/button";
-import { MessageSquare, User } from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
 import { Card } from "@/components/ui/card";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
@@ -28,7 +27,6 @@ import { TopMenuPanel } from "@/components/chat/TopMenuPanel";
 import { CharacterPortrait } from "@/components/chat/CharacterPortrait";
 import { ChatInputBar } from "@/components/chat/ChatInputBar";
 import { GoalsSidebar } from "@/components/chat/GoalsSidebar";
-import { MessengerInfoCards } from "@/components/chat/MessengerInfoCards";
 
 const MAX_TURNS = 999;
 
@@ -51,9 +49,7 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
   const [userInput, setUserInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [inputMode, setInputMode] = useState<'text' | 'tts' | 'realtime-voice'>('realtime-voice');
-  const [chatMode, setChatMode] = useState<'messenger' | 'character'>('character');
   const [showInputMode, setShowInputMode] = useState(false);
-  const [isTransitioning, setIsTransitioning] = useState(false);
   const [isGoalsExpanded, setIsGoalsExpanded] = useState(false);
   const isPersonaX = scenario.id?.startsWith('__');
   const [showMicPrompt, setShowMicPrompt] = useState(false);
@@ -146,7 +142,7 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
 
   const { isSessionEnding, isGoingToFeedback, showEndConversationDialog, setShowEndConversationDialog, handleGoToFeedback,
     handleEndRealtimeConversation, confirmEndConversation, handleResetConversation } = useChatSession({
-    conversationId, localMessages, pendingUserText, chatMode, isPersonaMode, onChatComplete, onExit, onConversationEnding,
+    conversationId, localMessages, pendingUserText, isPersonaMode, onChatComplete, onExit, onConversationEnding,
     disconnectVoice: realtimeVoice.disconnect, resetPhase: realtimeVoice.resetPhase,
     setLocalMessages, setConversationStartTime, setElapsedTime,
     showMicPromptReset: () => { hasUserSpokenRef.current = false; setShowMicPrompt(false); },
@@ -225,9 +221,9 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
     if (silenceTimerRef.current) { clearTimeout(silenceTimerRef.current); silenceTimerRef.current = null; }
     setIsSilenceIdle(false);
     const isIdle = realtimeVoice.status === 'connected' && !realtimeVoice.isAISpeaking && !realtimeVoice.isRecording && !realtimeVoice.isWaitingForGreeting && !pendingAiMessage && !pendingUserMessage;
-    if (isIdle && chatMode === 'character') silenceTimerRef.current = setTimeout(() => setIsSilenceIdle(true), 5000);
+    if (isIdle) silenceTimerRef.current = setTimeout(() => setIsSilenceIdle(true), 5000);
     return () => { if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current); };
-  }, [realtimeVoice.status, realtimeVoice.isAISpeaking, realtimeVoice.isRecording, realtimeVoice.isWaitingForGreeting, pendingAiMessage, pendingUserMessage, chatMode]);
+  }, [realtimeVoice.status, realtimeVoice.isAISpeaking, realtimeVoice.isRecording, realtimeVoice.isWaitingForGreeting, pendingAiMessage, pendingUserMessage]);
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => { if (e.key === "Enter" && e.ctrlKey) handleSendMessage(); };
@@ -239,15 +235,13 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
   useEffect(() => {
     const newEmotion = latestAiMessage?.emotion || '중립';
     if (newEmotion !== currentEmotion) {
-      if (chatMode === 'character') {
-        setIsEmotionTransitioning(true); setCurrentEmotion(newEmotion);
-        const newUrl = getCharacterImage(newEmotion); if (newUrl) preloadImage(newUrl);
-      } else { setCurrentEmotion(newEmotion); }
+      setIsEmotionTransitioning(true); setCurrentEmotion(newEmotion);
+      const newUrl = getCharacterImage(newEmotion); if (newUrl) preloadImage(newUrl);
     }
     if (inputMode === 'tts' && latestAiMessage?.message) {
       speakText(latestAiMessage.message, true, latestAiMessage.emotion);
     }
-  }, [latestAiMessage?.message, latestAiMessage?.emotion, currentEmotion, chatMode, inputMode]);
+  }, [latestAiMessage?.message, latestAiMessage?.emotion, currentEmotion, inputMode]);
 
   const handleSendMessage = () => {
     const message = userInput.trim(); if (!message || isLoading) return;
@@ -259,7 +253,6 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
 
   const handleSkipTurn = () => { if (isLoading) return; setIsLoading(true); setShowInputMode(false); sendMessageMutation.mutate("", { onSuccess: () => setIsLoading(false), onError: () => setIsLoading(false) }); };
   const handleVoiceInput = () => { if (isRecording) stopRecording(); else startRecording(); };
-  const handleCharacterModeTransition = () => { setIsTransitioning(true); setTimeout(() => { setChatMode('character'); setTimeout(() => setIsTransitioning(false), 300); }, 200); };
 
   const progressPercentage = conversation ? (conversation.turnCount / MAX_TURNS) * 100 : 0;
 
@@ -299,23 +292,16 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
 
   return (
     <>
-      {chatMode === 'character' && <TopMenuPanel isOpen={isTopMenuOpen} onToggle={() => setIsTopMenuOpen(v => !v)} onClose={() => setIsTopMenuOpen(false)} />}
+      <TopMenuPanel isOpen={isTopMenuOpen} onToggle={() => setIsTopMenuOpen(v => !v)} onClose={() => setIsTopMenuOpen(false)} />
 
-      <div className={`chat-window relative${chatMode === 'messenger' ? ' flex flex-col lg:flex-row gap-4 lg:items-start' : ''}`}>
+      <div className="chat-window relative">
         {isInitialLoading && (
           <div className={`fixed inset-0 z-50 bg-black flex items-center justify-center transition-opacity duration-500 ${isOverlayFading ? 'opacity-0' : 'opacity-100'}`} data-testid="chat-loading-overlay">
             <div className="w-12 h-12 border-4 border-white/20 border-t-white rounded-full animate-spin" />
           </div>
         )}
 
-        <div
-          className={`bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden${chatMode === 'messenger' ? ' flex flex-col lg:flex-1 lg:min-w-0' : ''}`}
-          style={chatMode === 'messenger' && viewportHeight
-            ? { height: `calc(${viewportHeight}px - 8rem)` }
-            : chatMode === 'messenger'
-              ? { height: 'calc(100dvh - 8rem)' }
-              : undefined}
-        >
+        <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
           {/* Chat Header */}
           <div className="bg-gradient-to-r from-corporate-600 to-corporate-700 px-4 sm:px-6 py-3 sm:py-4 text-white">
             <div className="flex items-center justify-between gap-3">
@@ -334,20 +320,6 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
                   </div>
                 </div>
               </div>
-              <div className="flex items-center">
-                <div className="flex items-center bg-white/10 rounded-lg p-0.5">
-                  <button onClick={() => { if (!isTransitioning && chatMode === 'character') setChatMode('messenger'); }}
-                    className={`p-2.5 rounded-md transition-all duration-200 min-w-[44px] min-h-[44px] flex items-center justify-center ${chatMode === 'messenger' ? 'bg-white text-corporate-600 shadow-sm' : 'text-white/70 hover:text-white active:text-white hover:bg-white/10 active:bg-white/20'}`}
-                    disabled={isTransitioning || chatMode === 'messenger'} data-testid="button-messenger-mode" title="메신저 모드">
-                    <MessageSquare className="w-4 h-4" />
-                  </button>
-                  <button onClick={() => { if (!isTransitioning && chatMode === 'messenger') handleCharacterModeTransition(); }}
-                    className={`p-2.5 rounded-md transition-all duration-200 min-w-[44px] min-h-[44px] flex items-center justify-center ${chatMode === 'character' ? 'bg-white text-corporate-600 shadow-sm' : 'text-white/70 hover:text-white active:text-white hover:bg-white/10 active:bg-white/20'}`}
-                    disabled={isTransitioning || chatMode === 'character'} data-testid="button-character-mode" title="캐릭터 모드">
-                    <User className="w-4 h-4" />
-                  </button>
-                </div>
-              </div>
             </div>
             <div className="mt-4 flex items-center space-x-3">
               <div className="flex-1 bg-white/20 rounded-full h-2">
@@ -355,56 +327,19 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
               </div>
               <div className="flex items-center space-x-3 text-white/90 text-sm">
                 <div className="flex items-center space-x-1"><i className="fas fa-clock text-xs"></i><span data-testid="elapsed-time">{formatElapsedTime(elapsedTime)}</span></div>
-                {chatMode === 'messenger' && <div className="flex items-center space-x-1"><i className="fas fa-tasks text-xs"></i><span>{conversation.turnCount}/{MAX_TURNS}</span></div>}
               </div>
             </div>
           </div>
 
           {/* Main Content */}
           <div className="relative flex-1 min-h-0 flex flex-col overflow-hidden">
-            {chatMode === 'messenger' && (
-              <>
-                <MessageList messages={localMessages} pendingAiMessage={pendingAiMessage} pendingUserMessage={pendingUserMessage}
-                  pendingUserText={pendingUserText} isLoading={isLoading} personaName={persona.name} personaImage={persona.image}
-                  currentEmotion={currentEmotion} isAdmin={user?.role === 'admin'} getCharacterImage={getCharacterImage} messagesEndRef={messagesEndRef} />
-                <div className="border-t border-slate-100 bg-white shadow-[0_-4px_20px_-8px_rgba(0,0,0,0.1)]">
-                  {isPersonaMode && conversation.turnCount < MAX_TURNS && (
-                    <div className="flex justify-end px-4 pt-2 pb-1 border-b border-slate-50">
-                      <button onClick={onExit} className="flex items-center gap-1.5 text-xs text-slate-400 hover:text-slate-600 active:text-slate-800 transition-colors min-h-[44px]">
-                        <i className="fas fa-sign-out-alt"></i>대화방 나가기
-                      </button>
-                    </div>
-                  )}
-                  <div className="p-3 sm:p-6">
-                    {conversation.turnCount >= MAX_TURNS ? (
-                      <div className="text-center space-y-4">
-                        <div className="text-lg font-semibold text-slate-700">대화가 완료되었습니다!</div>
-                        <div className="text-sm text-slate-500 space-y-1"><div>총 {conversation.turnCount}턴의 대화를 나누었습니다.</div><div>대화 시간: {formatElapsedTime(elapsedTime)}</div></div>
-                        <div className="flex justify-center space-x-4">
-                          {!isPersonaMode && <Button onClick={handleGoToFeedback} className="bg-corporate-600 hover:bg-corporate-700" data-testid="button-final-feedback"><i className="fas fa-chart-bar mr-2"></i>최종 피드백 보기</Button>}
-                          <Button onClick={onExit} variant="outline" data-testid="button-exit-completed"><i className={`fas ${isPersonaMode ? 'fa-sign-out-alt' : 'fa-home'} mr-2`}></i>{isPersonaMode ? '대화방 나가기' : '홈으로 이동'}</Button>
-                        </div>
-                      </div>
-                    ) : (
-                      <ChatInputBar userInput={userInput} onUserInputChange={setUserInput} onSendMessage={handleSendMessage}
-                        onVoiceInput={handleVoiceInput} onSkipTurn={handleSkipTurn} isLoading={isLoading}
-                        isRecording={isRecording} speechSupported={speechSupported}
-                        mode={inputMode === 'realtime-voice' ? 'realtime-voice' : 'text'}
-                        realtimeVoiceProps={inputMode === 'realtime-voice' ? rvBarProps : undefined} variant="messenger" />
-                    )}
-                  </div>
-                </div>
-              </>
-            )}
-
-            {chatMode === 'character' && (
-              <div
-                className="fixed left-0 right-0 z-10 flex"
-                data-testid="character-mode"
-                style={viewportHeight
-                  ? { top: `${viewportOffsetTop}px`, height: `${viewportHeight}px` }
-                  : { top: 0, bottom: 0 }}
-              >
+            <div
+              className="fixed left-0 right-0 z-10 flex"
+              data-testid="character-mode"
+              style={viewportHeight
+                ? { top: `${viewportOffsetTop}px`, height: `${viewportHeight}px` }
+                : { top: 0, bottom: 0 }}
+            >
                 {!isPersonaX && (
                   <GoalsSidebar scenario={scenario} personaName={persona.name} personaDept={persona.department} personaRole={persona.role}
                     latestEmotion={latestAiMessage?.emotion} elapsedTime={elapsedTime} isAdmin={user?.role === 'admin'}
@@ -447,15 +382,6 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
                       isGoalsExpanded={isGoalsExpanded} onToggleGoals={() => setIsGoalsExpanded(v => !v)} variant="overlay" />
                   )}
 
-                  <div className="absolute top-4 right-4 z-20 flex items-center">
-                    <div className="flex items-center bg-white/20 backdrop-blur-sm rounded-lg p-0.5 shadow-lg">
-                      <button onClick={() => setChatMode('messenger')} className="p-2.5 rounded-md transition-all duration-200 text-white/80 hover:text-white active:text-white hover:bg-white/20 active:bg-white/30 min-w-[44px] min-h-[44px] flex items-center justify-center"
-                        disabled={isTransitioning} data-testid="button-messenger-mode" title={t('chat.messengerMode')}><MessageSquare className="w-4 h-4" /></button>
-                      <button className="p-2.5 rounded-md transition-all duration-200 bg-white text-corporate-600 shadow-sm min-w-[44px] min-h-[44px] flex items-center justify-center"
-                        disabled={true} data-testid="button-character-mode" title={t('chat.characterMode')}><User className="w-4 h-4" /></button>
-                    </div>
-                  </div>
-
                   <TranscriptPanel isOpen={isTranscriptPanelOpen} onToggle={() => setIsTranscriptPanelOpen(v => !v)}
                     onClose={() => setIsTranscriptPanelOpen(false)} messages={localMessages}
                     pendingAiMessage={pendingAiMessage} pendingUserMessage={pendingUserMessage}
@@ -469,7 +395,7 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
                             <ChatInputBar userInput={userInput} onUserInputChange={setUserInput} onSendMessage={handleSendMessage}
                               onVoiceInput={handleVoiceInput} onSkipTurn={handleSkipTurn} isLoading={isLoading}
                               isRecording={isRecording} speechSupported={speechSupported}
-                              mode="realtime-voice" realtimeVoiceProps={rvBarProps} variant="character" />
+                              mode="realtime-voice" realtimeVoiceProps={rvBarProps} />
                           </div>
                           {isSilenceIdle && realtimeVoice.status === 'connected' && !realtimeVoice.isWaitingForGreeting && !realtimeVoice.isRecording && !realtimeVoice.isAISpeaking && (
                             <div className="border-t border-slate-200/30 px-4 py-2 text-center">
@@ -528,17 +454,17 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
                                 <div className="flex-1">
                                   <Textarea value={userInput} onChange={(e) => setUserInput(e.target.value)}
                                     placeholder={`${t('chat.messageInputPlaceholder')}${!speechSupported ? ' - ' + t('chat.voiceNotSupported') : ''}`}
-                                    maxLength={200} rows={2} className="resize-none text-sm" disabled={isLoading} data-testid="input-message-character" />
+                                    maxLength={200} rows={2} className="resize-none text-sm" disabled={isLoading} data-testid="input-message-text" />
                                   <div className="text-xs text-slate-500 mt-1">{userInput.length}/200</div>
                                 </div>
                                 <div className="grid grid-cols-2 gap-1 w-20">
-                                  <Button onClick={handleSendMessage} disabled={!userInput.trim() || isLoading} className="bg-purple-600 hover:bg-purple-700 text-white" size="sm" data-testid="button-send-message-character"><i className="fas fa-paper-plane"></i></Button>
+                                  <Button onClick={handleSendMessage} disabled={!userInput.trim() || isLoading} className="bg-purple-600 hover:bg-purple-700 text-white" size="sm" data-testid="button-send-message-text"><i className="fas fa-paper-plane"></i></Button>
                                   <Button variant="outline" size="sm" onClick={handleVoiceInput} disabled={isLoading || !speechSupported}
                                     className={`${isRecording ? 'bg-red-50 border-red-300 text-red-700 animate-pulse' : ''} ${!speechSupported ? 'opacity-50' : ''}`}
-                                    data-testid="button-voice-input-character" title={!speechSupported ? t('voice.notSupported') : isRecording ? t('chat.stopRecording') : t('chat.startRecording')}>
+                                    data-testid="button-voice-input-text" title={!speechSupported ? t('voice.notSupported') : isRecording ? t('chat.stopRecording') : t('chat.startRecording')}>
                                     <i className={`fas ${isRecording ? 'fa-stop' : 'fa-microphone'} ${isRecording ? 'text-red-500' : ''}`}></i>
                                   </Button>
-                                  <Button variant="outline" size="sm" onClick={handleSkipTurn} disabled={isLoading} data-testid="button-skip-turn-character" className="col-span-2">Skip</Button>
+                                  <Button variant="outline" size="sm" onClick={handleSkipTurn} disabled={isLoading} data-testid="button-skip-turn-text" className="col-span-2">Skip</Button>
                                 </div>
                               </div>
                             </div>
@@ -558,14 +484,9 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
                     </Card>
                   </div>
                 </div>
-              </div>
-            )}
+            </div>
           </div>
         </div>
-
-        {chatMode === 'messenger' && (
-          <MessengerInfoCards scenario={scenario} elapsedTime={elapsedTime} turnCount={conversation.turnCount} maxTurns={MAX_TURNS} />
-        )}
 
         <AlertDialog open={showEndConversationDialog} onOpenChange={setShowEndConversationDialog}>
           <AlertDialogContent>

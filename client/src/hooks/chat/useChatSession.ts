@@ -9,7 +9,6 @@ interface UseChatSessionOptions {
   conversationId: string;
   localMessages: ConversationMessage[];
   pendingUserText?: string;
-  chatMode: 'messenger' | 'character';
   isPersonaMode: boolean;
   onChatComplete: () => void;
   onExit: () => void;
@@ -26,7 +25,6 @@ export function useChatSession({
   conversationId,
   localMessages,
   pendingUserText = '',
-  chatMode,
   isPersonaMode,
   onChatComplete,
   onExit,
@@ -94,15 +92,11 @@ export function useChatSession({
       setShowEndConversationDialog(false);
       setIsGoingToFeedback(true);
 
-      if (chatMode === 'character') {
-        setIsSessionEnding(true);
-        disconnectVoice();
+      setIsSessionEnding(true);
+      disconnectVoice();
 
-        await new Promise(resolve => setTimeout(resolve, 1800));
-        setIsSessionEnding(false);
-      } else {
-        disconnectVoice();
-      }
+      await new Promise(resolve => setTimeout(resolve, 1800));
+      setIsSessionEnding(false);
 
       onConversationEnding?.();
 
