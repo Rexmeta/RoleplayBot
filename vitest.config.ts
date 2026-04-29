@@ -19,6 +19,7 @@ export default defineConfig({
         'client/src/hooks/useVoiceActivityDetection.ts',
         'client/src/components/report/generatePrintableContent.ts',
         'client/src/components/report/reportUtils.ts',
+        'client/src/components/report/reportStyles.ts',
       ],
     },
   },
