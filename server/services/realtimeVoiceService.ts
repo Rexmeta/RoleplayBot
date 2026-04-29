@@ -21,6 +21,28 @@ import { buildUserPersonaInstructions } from './voice/prompts/userPersonaPrompt'
 
 const DEFAULT_REALTIME_MODEL = 'gemini-2.5-flash-native-audio-preview-09-2025';
 
+async function preloadRecentMessages(
+  conversationId: string,
+  sessionId: string,
+  label = ''
+): Promise<Array<{ role: 'user' | 'ai'; text: string }>> {
+  try {
+    const dbMessages = await storage.getChatMessagesByPersonaRun(conversationId);
+    const last30 = dbMessages.slice(-30);
+    const messages = last30.map(m => ({
+      role: (m.sender === 'ai' ? 'ai' : 'user') as 'user' | 'ai',
+      text: m.message.slice(0, 300),
+    }));
+    if (messages.length > 0) {
+      console.log(`📚 ${label}Preloaded ${messages.length} messages from DB for session context`);
+    }
+    return messages;
+  } catch (error) {
+    console.warn(`⚠️ ${label}Failed to preload conversation history for session ${sessionId}:`, error);
+    return [];
+  }
+}
+
 export class RealtimeVoiceService {
   private sessions: Map<string, RealtimeSession> = new Map();
   private genAI: GoogleGenAI | null = null;
@@ -155,6 +177,8 @@ export class RealtimeVoiceService {
     const gender: 'male' | 'female' = scenarioPersona.gender === 'female' ? 'female' : 'male';
     console.log(`👤 페르소나 성별 설정: ${scenarioPersona.name} → ${gender} (시나리오 정의값: ${scenarioPersona.gender})`);
 
+    const preloadedMessages = await preloadRecentMessages(conversationId, sessionId);
+
     const session: RealtimeSession = {
       id: sessionId, conversationId, scenarioId, personaId,
       personaName: scenarioPersona.name, userId, clientWs,
@@ -167,7 +191,7 @@ export class RealtimeVoiceService {
       firstGreetingRetryCount: 0, isInterrupted: false,
       turnSeq: 0, cancelledTurnSeq: -1,
       sessionResumptionToken: null, isReconnecting: false, reconnectAttempts: 0,
-      systemInstructions, voiceGender: gender, recentMessages: [],
+      systemInstructions, voiceGender: gender, recentMessages: preloadedMessages,
       selectedVoice: null, goAwayWarningTime: null, pendingClientReady: null,
       userLanguage,
     };
@@ -201,6 +225,8 @@ export class RealtimeVoiceService {
     const gender: 'male' | 'female' = userPersonaData.gender === 'female' ? 'female' : 'male';
     const realtimeModel = await this.getRealtimeModel();
 
+    const preloadedMessagesUserPersona = await preloadRecentMessages(conversationId, sessionId, '[UserPersona] ');
+
     const session: RealtimeSession = {
       id: sessionId, conversationId, scenarioId, personaId,
       personaName: userPersonaData.name, userId, clientWs,
@@ -213,7 +239,7 @@ export class RealtimeVoiceService {
       firstGreetingRetryCount: 0, isInterrupted: false,
       turnSeq: 0, cancelledTurnSeq: -1,
       sessionResumptionToken: null, isReconnecting: false, reconnectAttempts: 0,
-      systemInstructions, voiceGender: gender, recentMessages: [],
+      systemInstructions, voiceGender: gender, recentMessages: preloadedMessagesUserPersona,
       selectedVoice: null, goAwayWarningTime: null, pendingClientReady: null,
       userLanguage,
     };

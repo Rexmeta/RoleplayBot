@@ -109,7 +109,16 @@ export function handleClientMessage(
 
       const hasExistingConversation = message.hasExistingConversation === true;
       const isResuming = message.isResuming === true;
-      const previousMessages = message.previousMessages as Array<{ role: 'user' | 'ai'; content: string }> | undefined;
+      const clientPreviousMessages = message.previousMessages as Array<{ role: 'user' | 'ai'; content: string }> | undefined;
+      const previousMessages: Array<{ role: 'user' | 'ai'; content: string }> | undefined =
+        (clientPreviousMessages && clientPreviousMessages.length > 0)
+          ? clientPreviousMessages
+          : session.recentMessages.length > 0
+            ? session.recentMessages.map(m => ({ role: m.role, content: m.text }))
+            : undefined;
+      if (!clientPreviousMessages?.length && previousMessages?.length) {
+        console.log(`📚 [client.ready] Using ${previousMessages.length} server-preloaded messages as context fallback`);
+      }
 
       if (hasExistingConversation) {
         console.log('🔇 Text-to-voice transition: skipping greeting, injecting context');
