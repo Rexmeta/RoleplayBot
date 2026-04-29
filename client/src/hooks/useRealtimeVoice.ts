@@ -307,7 +307,8 @@ export function useRealtimeVoice({
               console.log(`📤 Sending client.ready with ${previousMessagesRef.current!.length} previous messages (voice resuming)`);
             } else if (isTextToVoice) {
               readyMessage.hasExistingConversation = true;
-              console.log(`📤 Sending client.ready with hasExistingConversation=true (text-to-voice, ${previousMessagesRef.current!.length} messages)`);
+              readyMessage.previousMessages = previousMessagesRef.current;
+              console.log(`📤 Sending client.ready with hasExistingConversation=true + ${previousMessagesRef.current!.length} previous messages (text-to-voice)`);
             } else {
               console.log('📤 Sent client.ready signal to server (fresh voice start)');
             }
@@ -339,7 +340,7 @@ export function useRealtimeVoice({
               }
               if (data.transcript) {
                 accumulatedMessagesRef.current.push({ role: 'user', content: data.transcript });
-                if (accumulatedMessagesRef.current.length > 10) accumulatedMessagesRef.current.shift();
+                if (accumulatedMessagesRef.current.length > 30) accumulatedMessagesRef.current.shift();
                 try { sessionStorage.setItem(sessionStorageKeyRef.current, JSON.stringify(accumulatedMessagesRef.current)); } catch {}
               }
               serverVoiceDetectedTimeRef.current = null;
@@ -416,7 +417,7 @@ export function useRealtimeVoice({
               }
               if (data.text) {
                 accumulatedMessagesRef.current.push({ role: 'ai', content: data.text });
-                if (accumulatedMessagesRef.current.length > 10) accumulatedMessagesRef.current.shift();
+                if (accumulatedMessagesRef.current.length > 30) accumulatedMessagesRef.current.shift();
                 try { sessionStorage.setItem(sessionStorageKeyRef.current, JSON.stringify(accumulatedMessagesRef.current)); } catch {}
               }
               aiMessageBufferRef.current = '';

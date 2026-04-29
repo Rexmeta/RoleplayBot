@@ -148,7 +148,7 @@ export function handleGeminiMessage(
         console.log(`🎤 User turn complete (VAD): "${userText}"`);
         sendToClient(session, { type: 'user.transcription', transcript: userText });
         session.recentMessages.push({ role: 'user', text: userText.slice(0, 300) });
-        if (session.recentMessages.length > 10) session.recentMessages.shift();
+        if (session.recentMessages.length > 30) session.recentMessages.shift();
         session.userTranscriptBuffer = '';
       }
 
@@ -158,7 +158,7 @@ export function handleGeminiMessage(
 
         if (filteredTranscript) {
           session.recentMessages.push({ role: 'ai', text: filteredTranscript.slice(0, 300) });
-          if (session.recentMessages.length > 10) session.recentMessages.shift();
+          if (session.recentMessages.length > 30) session.recentMessages.shift();
 
           setImmediate(() => {
             analyzeEmotion(filteredTranscript, session.personaName, session.userLanguage, genAI)

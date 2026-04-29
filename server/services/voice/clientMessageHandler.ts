@@ -1,8 +1,50 @@
 import WebSocket from 'ws';
+import { GoogleGenAI } from '@google/genai';
 import { RealtimeSession } from './types';
 import { filterThinkingText } from './textFilter';
 
 type SendToClient = (session: RealtimeSession, message: any) => void;
+
+const CONTEXT_WINDOW_SIZE = 30;
+
+async function summarizeOlderMessages(
+  messages: Array<{ role: 'user' | 'ai'; content: string }>,
+  userLanguage: string
+): Promise<string> {
+  const geminiApiKey = process.env.GOOGLE_API_KEY || process.env.GEMINI_API_KEY;
+  if (!geminiApiKey) {
+    console.warn('⚠️ No Gemini API key for summarization, skipping');
+    return messages.map(m => `${m.role === 'user' ? '사용자' : 'AI'}: ${m.content}`).join('\n');
+  }
+
+  const genAI = new GoogleGenAI({ apiKey: geminiApiKey });
+  const conversationText = messages
+    .map(m => `${m.role === 'user' ? '사용자' : 'AI'}: ${m.content}`)
+    .join('\n');
+
+  const langInstruction = userLanguage === 'ko'
+    ? '한국어로 요약해 주세요.'
+    : userLanguage === 'ja'
+      ? '日本語で要約してください。'
+      : userLanguage === 'zh'
+        ? '请用中文总结。'
+        : 'Please summarize in English.';
+
+  const prompt = `다음 대화 내용을 핵심 맥락 중심으로 간결하게 요약해 주세요. AI가 이전 대화를 기억하는 데 필요한 핵심 사실, 감정 흐름, 주요 합의나 갈등 포인트만 포함하세요. ${langInstruction}\n\n대화:\n${conversationText}`;
+
+  try {
+    const response = await genAI.models.generateContent({
+      model: 'gemini-2.0-flash',
+      contents: [{ role: 'user', parts: [{ text: prompt }] }],
+    });
+    const summary = response.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || '';
+    console.log(`📝 [Summarizer] Summarized ${messages.length} messages into ${summary.length} chars`);
+    return summary;
+  } catch (err) {
+    console.error('❌ [Summarizer] Failed to summarize older messages:', err);
+    return messages.map(m => `${m.role === 'user' ? '사용자' : 'AI'}: ${m.content}`).join('\n');
+  }
+}
 
 export function handleClientMessage(
   sessionId: string,
@@ -70,39 +112,91 @@ export function handleClientMessage(
       const previousMessages = message.previousMessages as Array<{ role: 'user' | 'ai'; content: string }> | undefined;
 
       if (hasExistingConversation) {
-        console.log('🔇 Text-to-voice transition: skipping greeting, injecting style continuity context');
+        console.log('🔇 Text-to-voice transition: skipping greeting, injecting context');
 
         session.hasTriggeredFirstGreeting = true;
         session.hasReceivedFirstAIResponse = true;
 
-        const contextMessage = `[이미 텍스트로 대화가 진행 중이었습니다. 사용자가 음성 모드로 전환했습니다. 지금까지 텍스트 대화에서 유지해온 캐릭터, 말투, 분위기, 감정 상태를 그대로 이어받아 주세요. 새로 인사하거나 재연결을 언급하지 마세요. 사용자가 먼저 발화할 때까지 조용히 대기하세요. 사용자가 발화하면 이전 대화의 톤과 맥락을 자연스럽게 이어서 음성에 맞게 간결하게 말하세요.]`;
+        const geminiSessionRef = session.geminiSession;
+        const userLanguage = session.userLanguage;
+        const voiceSwitchInstruction = `[사용자가 음성 모드로 전환했습니다. 지금까지 텍스트 대화에서 유지해온 캐릭터, 말투, 분위기, 감정 상태를 그대로 이어받아 주세요. 새로 인사하거나 재연결을 언급하지 마세요. 사용자가 먼저 발화할 때까지 조용히 대기하세요. 사용자가 발화하면 이전 대화의 톤과 맥락을 자연스럽게 이어서 음성에 맞게 간결하게 말하세요.]`;
 
-        session.geminiSession.sendClientContent({
-          turns: [{ role: 'user', parts: [{ text: contextMessage }] }],
-          turnComplete: true,
-        });
-        session.geminiSession.sendRealtimeInput({ event: 'END_OF_TURN' });
+        (async () => {
+          let contextMessage: string;
+
+          if (previousMessages && previousMessages.length > 0) {
+            if (previousMessages.length > CONTEXT_WINDOW_SIZE) {
+              const olderMessages = previousMessages.slice(0, previousMessages.length - CONTEXT_WINDOW_SIZE);
+              const recentMessages = previousMessages.slice(-CONTEXT_WINDOW_SIZE);
+
+              console.log(`📝 [Summarizer] Text-to-voice: summarizing ${olderMessages.length} older messages`);
+              const summary = await summarizeOlderMessages(olderMessages, userLanguage);
+
+              const recentSummary = recentMessages.map(m =>
+                `${m.role === 'user' ? '사용자' : '당신'}: ${m.content}`
+              ).join('\n');
+
+              contextMessage = `[이전 대화 요약]\n${summary}\n\n[최근 대화 내용]\n${recentSummary}\n\n${voiceSwitchInstruction}`;
+            } else {
+              const conversationSummary = previousMessages.map(m =>
+                `${m.role === 'user' ? '사용자' : '당신'}: ${m.content}`
+              ).join('\n');
+
+              contextMessage = `[이전 텍스트 대화 내용]\n${conversationSummary}\n\n${voiceSwitchInstruction}`;
+            }
+          } else {
+            contextMessage = `[이미 텍스트로 대화가 진행 중이었습니다.]\n\n${voiceSwitchInstruction}`;
+          }
+
+          geminiSessionRef.sendClientContent({
+            turns: [{ role: 'user', parts: [{ text: contextMessage }] }],
+            turnComplete: true,
+          });
+          geminiSessionRef.sendRealtimeInput({ event: 'END_OF_TURN' });
+        })().catch(err => console.error('❌ Failed to build/send text-to-voice context:', err));
       } else if (isResuming && previousMessages && previousMessages.length > 0) {
         console.log(`🔄 Resuming voice conversation with ${previousMessages.length} previous messages`);
         const hadPreviousAIResponse = previousMessages.some(m => m.role === 'ai');
-        const conversationSummary = previousMessages.map(m =>
-          `${m.role === 'user' ? '사용자' : '당신'}: ${m.content}`
-        ).join('\n');
-
-        const resumeContext = `[이전 대화 내용 - 이 대화를 이어서 진행합니다]\n${conversationSummary}\n\n[대화 재개 - 이전 대화 맥락을 기억하세요. 재연결되었음을 언급하거나 인사하지 마세요. "다시 연결되었네요", "어디까지 얘기했죠?" 같은 표현은 절대 하지 마세요. 사용자가 먼저 말할 때까지 침묵을 유지하고, 사용자가 발화하면 이전 대화 맥락을 자연스럽게 이어서 반응하세요.]`;
-
-        console.log(`📤 Sending resume context to Gemini (had previous AI response: ${hadPreviousAIResponse})`);
 
         session.hasTriggeredFirstGreeting = true;
         if (hadPreviousAIResponse) {
           session.hasReceivedFirstAIResponse = true;
         }
 
-        session.geminiSession.sendClientContent({
-          turns: [{ role: 'user', parts: [{ text: resumeContext }] }],
-          turnComplete: true,
-        });
-        session.geminiSession.sendRealtimeInput({ event: 'END_OF_TURN' });
+        const geminiSessionRef = session.geminiSession;
+        const userLanguage = session.userLanguage;
+
+        (async () => {
+          let resumeContext: string;
+
+          if (previousMessages.length > CONTEXT_WINDOW_SIZE) {
+            const olderMessages = previousMessages.slice(0, previousMessages.length - CONTEXT_WINDOW_SIZE);
+            const recentMessages = previousMessages.slice(-CONTEXT_WINDOW_SIZE);
+
+            console.log(`📝 [Summarizer] Messages exceed ${CONTEXT_WINDOW_SIZE} — summarizing ${olderMessages.length} older messages`);
+            const summary = await summarizeOlderMessages(olderMessages, userLanguage);
+
+            const recentSummary = recentMessages.map(m =>
+              `${m.role === 'user' ? '사용자' : '당신'}: ${m.content}`
+            ).join('\n');
+
+            resumeContext = `[이전 대화 요약]\n${summary}\n\n[최근 대화 내용]\n${recentSummary}\n\n[대화 재개 - 이전 대화 맥락을 기억하세요. 재연결되었음을 언급하거나 인사하지 마세요. "다시 연결되었네요", "어디까지 얘기했죠?" 같은 표현은 절대 하지 마세요. 사용자가 먼저 말할 때까지 침묵을 유지하고, 사용자가 발화하면 이전 대화 맥락을 자연스럽게 이어서 반응하세요.]`;
+          } else {
+            const conversationSummary = previousMessages.map(m =>
+              `${m.role === 'user' ? '사용자' : '당신'}: ${m.content}`
+            ).join('\n');
+
+            resumeContext = `[이전 대화 내용 - 이 대화를 이어서 진행합니다]\n${conversationSummary}\n\n[대화 재개 - 이전 대화 맥락을 기억하세요. 재연결되었음을 언급하거나 인사하지 마세요. "다시 연결되었네요", "어디까지 얘기했죠?" 같은 표현은 절대 하지 마세요. 사용자가 먼저 말할 때까지 침묵을 유지하고, 사용자가 발화하면 이전 대화 맥락을 자연스럽게 이어서 반응하세요.]`;
+          }
+
+          console.log(`📤 Sending resume context to Gemini (had previous AI response: ${hadPreviousAIResponse})`);
+
+          geminiSessionRef.sendClientContent({
+            turns: [{ role: 'user', parts: [{ text: resumeContext }] }],
+            turnComplete: true,
+          });
+          geminiSessionRef.sendRealtimeInput({ event: 'END_OF_TURN' });
+        })().catch(err => console.error('❌ Failed to build/send resume context:', err));
       } else {
         console.log('🎬 Client ready signal received - triggering first greeting...');
 
