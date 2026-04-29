@@ -192,6 +192,18 @@ export function generatePrintableContent(opts: GenerateOptions): string {
       .mb-24 { margin-bottom: 24px; }
       .mb-20 { margin-bottom: 20px; }
       .page-no-break { page-break-inside: avoid; }
+
+      /* ── Print toolbar (screen-only) ── */
+      .print-toolbar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; padding-bottom: 15px; border-bottom: 2px solid #e2e8f0; }
+      .print-toolbar-title { font-size: 18px; color: #1e3a5f; margin: 0; }
+      .print-btn-primary { background: #3b82f6; color: white; border: none; padding: 10px 20px; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer; margin-right: 8px; }
+      .print-btn-secondary { background: #6b7280; color: white; border: none; padding: 10px 20px; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer; }
+
+      /* ── Print-specific overrides ── */
+      @media print {
+        body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+        .no-print { display: none !important; }
+      }
     </style>
     <div class="report-container">
 
