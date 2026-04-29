@@ -17,6 +17,8 @@ export default defineConfig({
         'server/services/voice/geminiReconnector.ts',
         'client/src/hooks/useAudioPlayback.ts',
         'client/src/hooks/useVoiceActivityDetection.ts',
+        'client/src/components/report/generatePrintableContent.ts',
+        'client/src/components/report/reportUtils.ts',
       ],
     },
   },
