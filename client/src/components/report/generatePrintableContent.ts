@@ -54,6 +54,9 @@ export function generatePrintableContent(opts: GenerateOptions): string {
       .plan-card-long .plan-card-title { color: #7c3aed; }
       .plan-card-long .plan-card-goal { color: #7c3aed; }
       .plan-card-long .plan-card-meas { background: #f3e8ff; color: #6b21a8; }
+      .score-status-high { color: #166534; background: #dcfce7; border-radius: 20px; padding: 1px 8px; font-size: 10px; font-weight: 600; }
+      .score-status-mid  { color: #9a3412; background: #ffedd5; border-radius: 20px; padding: 1px 8px; font-size: 10px; font-weight: 600; }
+      .score-status-low  { color: #991b1b; background: #fee2e2; border-radius: 20px; padding: 1px 8px; font-size: 10px; font-weight: 600; }
     </style>
     <div style="font-family: 'Noto Sans KR', sans-serif; max-width: 800px; margin: 0 auto;">
 
@@ -89,14 +92,13 @@ export function generatePrintableContent(opts: GenerateOptions): string {
           ${scores.map(score => {
             const sNum = toTenPoint(typeof score.score === 'number' ? score.score : 0, (score as any).maxScore || 10);
             const statusLabel = sNum >= 8 ? '✅ 역량 확인됨' : sNum >= 5 ? '🔶 기본 수준' : '⚠️ 집중 개선 필요';
-            const statusBg = sNum >= 8 ? '#dcfce7' : sNum >= 5 ? '#ffedd5' : '#fee2e2';
-            const statusColor = sNum >= 8 ? '#166534' : sNum >= 5 ? '#9a3412' : '#991b1b';
+            const statusClass = sNum >= 8 ? 'score-status-high' : sNum >= 5 ? 'score-status-mid' : 'score-status-low';
             return `<div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 14px;">
               <div style="display: flex; justify-content: space-between; margin-bottom: 6px;">
                 <span style="font-size: 13px; font-weight: 600; color: #374151;">${escapeHtml(getTranslatedDimensionName(score.category, score.name))}</span>
                 <span style="background: #dbeafe; color: #1e40af; padding: 2px 7px; border-radius: 4px; font-size: 12px; font-weight: 600;">${Number(sNum).toFixed(1)}/10</span>
               </div>
-              <span style="font-size: 10px; font-weight: 600; color: ${escapeHtml(statusColor)}; background: ${escapeHtml(statusBg)}; border-radius: 20px; padding: 1px 8px;">${statusLabel}</span>
+              <span class="${statusClass}">${statusLabel}</span>
               <p style="font-size: 12px; color: #4b5563; line-height: 1.5; margin: 6px 0 0 0;">${escapeHtml(score.feedback)}</p>
             </div>`;
           }).join('')}
