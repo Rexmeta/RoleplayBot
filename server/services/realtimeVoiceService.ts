@@ -317,9 +317,11 @@ export class RealtimeVoiceService {
 
       setTimeout(() => {
         const currentSession = this.sessions.get(session.id);
+        const pendingHasExisting = currentSession?.pendingClientReady?.hasExistingConversation === true;
         if (currentSession &&
           !currentSession.hasTriggeredFirstGreeting &&
           !currentSession.hasReceivedFirstAIResponse &&
+          !pendingHasExisting &&
           currentSession.geminiSession) {
           console.log('⏰ client.ready timeout (3s) - auto-triggering first greeting...');
           currentSession.hasTriggeredFirstGreeting = true;
@@ -331,6 +333,8 @@ export class RealtimeVoiceService {
             turnComplete: true,
           });
           currentSession.geminiSession.sendRealtimeInput({ event: 'END_OF_TURN' });
+        } else if (pendingHasExisting) {
+          console.log('⏭️ Timeout skipped - pending client.ready has hasExistingConversation flag');
         } else if (currentSession?.hasTriggeredFirstGreeting) {
           console.log('⏭️ Timeout skipped - first greeting already triggered');
         }

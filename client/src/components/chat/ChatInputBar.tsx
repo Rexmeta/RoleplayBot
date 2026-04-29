@@ -74,7 +74,7 @@ export function ChatInputBar({
               <>
                 <p className="text-sm text-slate-600">{t('chat.startRealtimeVoice')}</p>
                 <Button
-                  onClick={() => rv.onConnect()}
+                  onClick={() => rv.onConnect(rv.previousMessages && rv.previousMessages.length > 0 ? rv.previousMessages : undefined)}
                   className="bg-purple-600 hover:bg-purple-700 text-white px-8 py-6 text-lg font-semibold rounded-full shadow-lg"
                   data-testid="button-start-voice"
                 >

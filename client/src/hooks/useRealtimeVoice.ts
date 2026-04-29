@@ -291,19 +291,25 @@ export function useRealtimeVoice({
         setConversationPhase('active');
         autoReconnectCountRef.current = 0;
 
-        const resuming = previousMessagesRef.current && previousMessagesRef.current.length > 0;
-        if (!resuming) setIsWaitingForGreeting(true);
+        const hasPreviousMessages = previousMessagesRef.current && previousMessagesRef.current.length > 0;
+        const isVoiceReconnect = hasConversationStartedRef.current && hasPreviousMessages;
+        const isTextToVoice = !hasConversationStartedRef.current && hasPreviousMessages;
+
+        if (!isVoiceReconnect && !isTextToVoice) setIsWaitingForGreeting(true);
         setGreetingRetryCount(0);
 
         setTimeout(() => {
           if (ws.readyState === WebSocket.OPEN) {
             const readyMessage: any = { type: 'client.ready' };
-            if (previousMessagesRef.current && previousMessagesRef.current.length > 0) {
+            if (isVoiceReconnect) {
               readyMessage.previousMessages = previousMessagesRef.current;
               readyMessage.isResuming = true;
-              console.log(`📤 Sending client.ready with ${previousMessagesRef.current.length} previous messages (resuming)`);
+              console.log(`📤 Sending client.ready with ${previousMessagesRef.current!.length} previous messages (voice resuming)`);
+            } else if (isTextToVoice) {
+              readyMessage.hasExistingConversation = true;
+              console.log(`📤 Sending client.ready with hasExistingConversation=true (text-to-voice, ${previousMessagesRef.current!.length} messages)`);
             } else {
-              console.log('📤 Sent client.ready signal to server');
+              console.log('📤 Sent client.ready signal to server (fresh voice start)');
             }
             ws.send(JSON.stringify(readyMessage));
           }

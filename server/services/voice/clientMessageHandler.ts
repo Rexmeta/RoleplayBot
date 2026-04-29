@@ -65,11 +65,25 @@ export function handleClientMessage(
       const clientReadyTime = Date.now();
       console.log(`⏱️ [TIMING] client.ready 수신: ${new Date(clientReadyTime).toISOString()}`);
 
+      const hasExistingConversation = message.hasExistingConversation === true;
       const isResuming = message.isResuming === true;
       const previousMessages = message.previousMessages as Array<{ role: 'user' | 'ai'; content: string }> | undefined;
 
-      if (isResuming && previousMessages && previousMessages.length > 0) {
-        console.log(`🔄 Resuming conversation with ${previousMessages.length} previous messages`);
+      if (hasExistingConversation) {
+        console.log('🔇 Text-to-voice transition: skipping greeting, injecting quiet context');
+
+        session.hasTriggeredFirstGreeting = true;
+        session.hasReceivedFirstAIResponse = true;
+
+        const contextMessage = `[이미 텍스트로 대화가 진행 중이었습니다. 사용자가 음성 모드로 전환했습니다. 새로 인사하거나 재연결을 언급하지 마세요. 사용자가 먼저 발화할 때까지 조용히 대기하세요.]`;
+
+        session.geminiSession.sendClientContent({
+          turns: [{ role: 'user', parts: [{ text: contextMessage }] }],
+          turnComplete: true,
+        });
+        session.geminiSession.sendRealtimeInput({ event: 'END_OF_TURN' });
+      } else if (isResuming && previousMessages && previousMessages.length > 0) {
+        console.log(`🔄 Resuming voice conversation with ${previousMessages.length} previous messages`);
         const hadPreviousAIResponse = previousMessages.some(m => m.role === 'ai');
         const conversationSummary = previousMessages.map(m =>
           `${m.role === 'user' ? '사용자' : '당신'}: ${m.content}`
