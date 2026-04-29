@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
-import { ChevronUp, Menu, X } from "lucide-react";
+import { ChevronDown, ChevronUp } from "lucide-react";
 import { AppHeader } from "@/components/AppHeader";
 
 interface TopMenuPanelProps {
@@ -48,14 +48,17 @@ export function TopMenuPanel({ isOpen, onToggle, onClose }: TopMenuPanelProps) {
           onClick={onToggle}
           data-testid="button-toggle-top-menu"
           title={isOpen ? '메뉴 닫기' : '메뉴 열기'}
-          className={`fixed right-4 z-[9999] w-12 h-12 flex items-center justify-center rounded-full shadow-lg transition-all duration-200 active:scale-95 ${
-            isOpen
-              ? 'bg-emerald-500 text-white'
-              : 'bg-white/90 backdrop-blur text-slate-600 border border-slate-200'
-          }`}
-          style={{ bottom: 'calc(1rem + env(safe-area-inset-bottom, 0px))' }}
+          className={`fixed top-0 left-1/2 -translate-x-1/2 z-[9999] flex flex-col items-center justify-center gap-[3px] px-6 h-[22px] rounded-b-xl shadow-md transition-all duration-200 border border-t-0 group active:scale-95
+            ${isOpen
+              ? 'bg-emerald-500 border-emerald-400'
+              : 'bg-white/90 backdrop-blur border-slate-200'
+            }`}
         >
-          {isOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+          {isOpen ? (
+            <ChevronUp className="w-3.5 h-3.5 text-white" />
+          ) : (
+            <ChevronDown className="w-3.5 h-3.5 text-slate-500 group-active:text-emerald-500" />
+          )}
         </button>
       </>,
       document.body
