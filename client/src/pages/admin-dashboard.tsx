@@ -4,7 +4,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/useAuth";
 import { AppHeader } from "@/components/AppHeader";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Filter, RefreshCw } from "lucide-react";
 import { authFetch } from "@/lib/authFetch";
 import { TranslationDashboard } from "@/components/admin/TranslationDashboard";
@@ -34,12 +34,29 @@ interface Category {
 const ANALYTICS_STALE_TIME = 1000 * 60 * 2;
 const ANALYTICS_REFETCH_INTERVAL = 1000 * 60 * 2;
 
+function getRelativeTime(timestamp: number): string {
+  if (!timestamp) return '';
+  const diffSec = Math.floor((Date.now() - timestamp) / 1000);
+  if (diffSec < 10) return '방금 업데이트됨';
+  if (diffSec < 60) return `${diffSec}초 전 업데이트`;
+  const mins = Math.floor(diffSec / 60);
+  if (mins < 60) return `${mins}분 전 업데이트`;
+  const hours = Math.floor(mins / 60);
+  return `${hours}시간 전 업데이트`;
+}
+
 export default function AdminDashboard() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const [showMobileTabMenu, setShowMobileTabMenu] = useState(false);
   const [selectedCategoryId, setSelectedCategoryId] = useState<string>('all');
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [, setRelativeTick] = useState(0);
+
+  useEffect(() => {
+    const interval = setInterval(() => setRelativeTick(n => n + 1), 30_000);
+    return () => clearInterval(interval);
+  }, []);
 
   const handleRefresh = async () => {
     setIsRefreshing(true);
@@ -58,7 +75,7 @@ export default function AdminDashboard() {
 
   const categoryParam = selectedCategoryId !== 'all' ? `?categoryId=${selectedCategoryId}` : '';
 
-  const { data: overview, isLoading: overviewLoading } = useQuery<AnalyticsOverview>({
+  const { data: overview, isLoading: overviewLoading, isFetching: overviewFetching, dataUpdatedAt: overviewUpdatedAt } = useQuery<AnalyticsOverview>({
     queryKey: ["/api/admin/analytics/overview", selectedCategoryId],
     queryFn: () => authFetch(`/api/admin/analytics/overview${categoryParam}`),
     staleTime: ANALYTICS_STALE_TIME,
@@ -194,17 +211,26 @@ export default function AdminDashboard() {
         showBackButton
       />
       <div className="container mx-auto p-3 md:p-6 space-y-6" data-testid="admin-dashboard">
-        <div className="flex justify-end">
+        <div className="flex items-center justify-end gap-3">
+          {overviewUpdatedAt > 0 && (
+            <span
+              className="text-xs text-slate-500 tabular-nums"
+              data-testid="last-updated-label"
+              aria-live="polite"
+            >
+              {overviewFetching || isRefreshing ? '갱신 중...' : getRelativeTime(overviewUpdatedAt)}
+            </span>
+          )}
           <Button
             variant="outline"
             size="sm"
             onClick={handleRefresh}
-            disabled={isRefreshing}
+            disabled={isRefreshing || overviewFetching}
             data-testid="refresh-dashboard-btn"
             className="flex items-center gap-2"
           >
-            <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`} />
-            {isRefreshing ? '갱신 중...' : '새로고침'}
+            <RefreshCw className={`w-4 h-4 ${isRefreshing || overviewFetching ? 'animate-spin' : ''}`} />
+            {isRefreshing || overviewFetching ? '갱신 중...' : '새로고침'}
           </Button>
         </div>
 
