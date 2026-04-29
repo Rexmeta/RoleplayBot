@@ -51,6 +51,7 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
   const [inputMode, setInputMode] = useState<'text' | 'tts' | 'realtime-voice'>('realtime-voice');
   const [showInputMode, setShowInputMode] = useState(false);
   const [isGoalsExpanded, setIsGoalsExpanded] = useState(false);
+  const [isSwitchingMode, setIsSwitchingMode] = useState(false);
   const isPersonaX = scenario.id?.startsWith('__');
   const [showMicPrompt, setShowMicPrompt] = useState(false);
   const [isInputExpanded, setIsInputExpanded] = useState(false);
@@ -64,6 +65,7 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
   const isAISpeakingForBargeInRef = useRef(false);
   const silenceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const hasUserSpokenRef = useRef(false);
+  const handleSwitchToTextModeRef = useRef<(() => Promise<void>) | null>(null);
 
   const { toast } = useToast();
   const { user } = useAuth();
@@ -120,7 +122,12 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
     onError: (error) => toast({ title: t('voice.connectionError'), description: error, variant: "destructive" }),
     onSessionTerminated: (reason) => {
       toast({ title: t('voice.sessionEnded'), description: reason });
-      setPendingAiMessage(false); setPendingUserMessage(false); setPendingUserText(''); setInputMode('text');
+      setPendingAiMessage(false); setPendingUserMessage(false); setPendingUserText('');
+      if (handleSwitchToTextModeRef.current) {
+        handleSwitchToTextModeRef.current();
+      } else {
+        setInputMode('text');
+      }
     },
   });
 
@@ -141,12 +148,24 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
   });
 
   const { isSessionEnding, isGoingToFeedback, showEndConversationDialog, setShowEndConversationDialog, handleGoToFeedback,
-    handleEndRealtimeConversation, confirmEndConversation, handleResetConversation } = useChatSession({
+    handleEndRealtimeConversation, confirmEndConversation, handleResetConversation, flushRealtimeMessages } = useChatSession({
     conversationId, localMessages, pendingUserText, isPersonaMode, onChatComplete, onExit, onConversationEnding,
     disconnectVoice: realtimeVoice.disconnect, resetPhase: realtimeVoice.resetPhase,
     setLocalMessages, setConversationStartTime, setElapsedTime,
     showMicPromptReset: () => { hasUserSpokenRef.current = false; setShowMicPrompt(false); },
   });
+
+  handleSwitchToTextModeRef.current = async () => {
+    if (isSwitchingMode) return;
+    setIsSwitchingMode(true);
+    try {
+      await flushRealtimeMessages();
+      realtimeVoice.disconnect();
+    } finally {
+      setIsSwitchingMode(false);
+      setInputMode('text');
+    }
+  };
 
   useEffect(() => { if (conversation?.messages) setLocalMessages(conversation.messages); }, [conversation?.messages]);
 
@@ -397,6 +416,14 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
                               isRecording={isRecording} speechSupported={speechSupported}
                               mode="realtime-voice" realtimeVoiceProps={rvBarProps} />
                           </div>
+                          {isSwitchingMode && (
+                            <div className="border-t border-slate-200/30 px-4 py-2 text-center">
+                              <div className="flex items-center justify-center gap-2 text-xs text-slate-500">
+                                <div className="w-3 h-3 border-2 border-slate-400 border-t-transparent rounded-full animate-spin" />
+                                <span>대화 내용 저장 중...</span>
+                              </div>
+                            </div>
+                          )}
                           {isSilenceIdle && realtimeVoice.status === 'connected' && !realtimeVoice.isWaitingForGreeting && !realtimeVoice.isRecording && !realtimeVoice.isAISpeaking && (
                             <div className="border-t border-slate-200/30 px-4 py-2 text-center">
                               <p className="text-xs text-slate-400" style={{ animation: 'silenceBreathe 3s ease-in-out infinite' }}>🎤 말씀해 주세요...</p>

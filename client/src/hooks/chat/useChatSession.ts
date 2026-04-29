@@ -159,6 +159,19 @@ export function useChatSession({
     }
   };
 
+  const flushRealtimeMessages = async (): Promise<void> => {
+    const payload = buildSavePayload(localMessages, pendingUserText);
+    if (payload.length === 0) return;
+    try {
+      await apiRequest('POST', `/api/conversations/${conversationId}/realtime-messages`, {
+        messages: payload,
+      });
+      console.log(`✅ [flushRealtimeMessages] Saved ${payload.length} messages`);
+    } catch (error) {
+      console.error('❌ [flushRealtimeMessages] Failed to save messages:', error);
+    }
+  };
+
   return {
     isSessionEnding,
     isGoingToFeedback,
@@ -168,5 +181,6 @@ export function useChatSession({
     handleEndRealtimeConversation,
     confirmEndConversation,
     handleResetConversation,
+    flushRealtimeMessages,
   };
 }
