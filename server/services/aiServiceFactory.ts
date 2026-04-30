@@ -117,10 +117,11 @@ export async function generateAIResponse(
   messages: ConversationMessage[],
   persona: ScenarioPersona,
   userMessage?: string,
-  language: SupportedLanguage = 'ko'
+  language: SupportedLanguage = 'ko',
+  userName?: string
 ): Promise<{ content: string; emotion: string; emotionReason: string }> {
   const aiService = await getAIServiceForFeature('conversation');
-  return aiService.generateResponse(scenario, messages, persona, userMessage, language);
+  return aiService.generateResponse(scenario, messages, persona, userMessage, language, userName);
 }
 
 export async function generateFeedback(

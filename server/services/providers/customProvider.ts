@@ -2,6 +2,7 @@ import type { ConversationMessage, DetailedFeedback, EvaluationScore } from "@sh
 import type { AIServiceInterface, ScenarioPersona, AIServiceConfig, EvaluationCriteriaWithDimensions, RoleplayScenario } from "../aiService";
 import { retryWithBackoff, conversationSemaphore, feedbackSemaphore } from "../../utils/concurrency";
 import { DEFAULT_DIMENSIONS, calculateWeightedOverallScore } from "../evaluationEngine";
+import { normalizeProfileName } from "../conversationContextBuilder";
 
 export class CustomProvider implements AIServiceInterface {
   private config: AIServiceConfig;
@@ -14,12 +15,22 @@ export class CustomProvider implements AIServiceInterface {
     scenario: RoleplayScenario | string, 
     messages: ConversationMessage[], 
     persona: ScenarioPersona,
-    userMessage?: string
+    userMessage?: string,
+    language?: string,
+    userName?: string
   ): Promise<{ content: string; emotion: string; emotionReason: string }> {
     try {
+      const normalizedUserName = normalizeProfileName(userName) || '';
+      const userLabel = normalizedUserName || '사용자';
+
       const conversationHistory = messages.map(msg => 
-        `${msg.sender === 'user' ? '사용자' : persona.name}: ${msg.message}`
+        `${msg.sender === 'user' ? userLabel : persona.name}: ${msg.message}`
       ).join('\n');
+
+      const userNameSection = normalizedUserName ? `
+상대방 실명 호칭:
+- 대화 상대방의 실제 이름은 [${normalizedUserName}]입니다
+- 대화 중 자연스럽게 "${normalizedUserName} 씨" 또는 "${normalizedUserName}" 등으로 상대방을 호칭하세요` : '';
 
       const systemPrompt = `당신은 ${persona.name}(${persona.role})입니다.
 
@@ -28,7 +39,7 @@ export class CustomProvider implements AIServiceInterface {
 - 응답 스타일: ${persona.responseStyle}
 - 배경: ${persona.background}
 - 목표: ${persona.goals.join(', ')}
-
+${userNameSection}
 대화 규칙:
 1. 주어진 페르소나를 정확히 구현하세요
 2. 자연스럽고 현실적인 대화를 유지하세요

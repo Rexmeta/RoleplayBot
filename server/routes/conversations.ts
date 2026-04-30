@@ -22,6 +22,7 @@ import {
   asyncHandler,
   createHttpError
 } from "./routerHelpers";
+import { normalizeProfileName } from "../services/conversationContextBuilder";
 
 export default function createConversationsRouter(isAuthenticated: any) {
   const router = Router();
@@ -155,6 +156,7 @@ export default function createConversationsRouter(isAuthenticated: any) {
 
       const user = await storage.getUser(userId);
       const userLanguage = (user?.preferredLanguage as 'ko' | 'en' | 'ja' | 'zh') || 'ko';
+      const userName = normalizeProfileName(user?.name);
 
       const AI_TIMEOUT_MS = 25000;
       const aiResult = await Promise.race([
@@ -163,7 +165,8 @@ export default function createConversationsRouter(isAuthenticated: any) {
           [],
           persona,
           undefined,
-          userLanguage
+          userLanguage,
+          userName
         ),
         new Promise<never>((_, reject) =>
           setTimeout(() => reject(new Error('AI 응답 시간 초과 (25초). 다시 시도해 주세요.')), AI_TIMEOUT_MS)
@@ -543,6 +546,7 @@ ${p.speechStyle ? `말투: ${p.speechStyle}` : ""}
 
     const user = await storage.getUser(userId);
     const userLanguage = (user?.preferredLanguage as 'ko' | 'en' | 'ja' | 'zh') || 'ko';
+    const userName = normalizeProfileName(user?.name);
 
     const scenarioForAI: RoleplayScenario = scenarioWithUserDifficulty;
     // Only realtime-voice → text requires a style-continuity hint because it uses a
@@ -558,7 +562,8 @@ ${p.speechStyle ? `말투: ${p.speechStyle}` : ""}
       messagesForAI,
       persona,
       undefined,
-      userLanguage
+      userLanguage,
+      userName
     );
 
     await storage.createChatMessage({

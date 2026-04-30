@@ -101,7 +101,8 @@ export interface AIServiceInterface {
     messages: ConversationMessage[],
     persona: ScenarioPersona,
     userMessage?: string,
-    language?: SupportedLanguage
+    language?: SupportedLanguage,
+    userName?: string
   ): Promise<{ content: string; emotion: string; emotionReason: string }>;
 
   generateFeedback(

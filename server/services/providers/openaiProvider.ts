@@ -9,6 +9,7 @@ import {
   detectRoleHierarchy,
   buildHierarchySpeechGuide,
   buildDifficultyGuidelines,
+  normalizeProfileName,
 } from "../conversationContextBuilder";
 
 export class OpenAIProvider implements AIServiceInterface {
@@ -25,7 +26,8 @@ export class OpenAIProvider implements AIServiceInterface {
     messages: ConversationMessage[], 
     persona: ScenarioPersona,
     userMessage?: string,
-    language: SupportedLanguage = 'ko'
+    language: SupportedLanguage = 'ko',
+    userName?: string
   ): Promise<{ content: string; emotion: string; emotionReason: string }> {
     const startTime = Date.now();
     const languageInstruction = LANGUAGE_INSTRUCTIONS[language] || LANGUAGE_INSTRUCTIONS.ko;
@@ -34,7 +36,10 @@ export class OpenAIProvider implements AIServiceInterface {
       const scenarioObj: RoleplayScenario = typeof scenario === 'string' ? {} : scenario;
       const playerRole = scenarioObj.context?.playerRole;
       const playerPosition = playerRole?.position || '';
-      const userLabel = playerPosition || '사용자';
+      const normalizedUserName = normalizeProfileName(userName) || '';
+      const userLabel = normalizedUserName
+        ? (playerPosition ? `${normalizedUserName}(${playerPosition})` : normalizedUserName)
+        : (playerPosition || '사용자');
 
       const conversationHistory = messages.map(msg => ({
         role: msg.sender === 'user' ? 'user' as const : 'assistant' as const,
@@ -46,6 +51,12 @@ export class OpenAIProvider implements AIServiceInterface {
 - 당신의 대화 상대방(사용자)은 [${playerPosition}]입니다
 - 당신은 ${persona.role}이며, 상대방은 ${playerPosition}입니다. 이 역할 구분은 절대 변하지 않습니다
 - 절대로 ${playerPosition}의 역할을 수행하거나 그 입장에서 발언하지 마세요` : '';
+
+      const userNameSection = normalizedUserName ? `
+상대방 실명 호칭:
+- 대화 상대방의 실제 이름은 [${normalizedUserName}]입니다
+- 대화 중 자연스럽게 "${normalizedUserName} 씨" 또는 "${normalizedUserName}" 등으로 상대방을 호칭하세요
+- 역할 직책과 함께 또는 이름만으로 자연스럽게 부르세요` : '';
 
       // 직위 위계 말투 지시 (conversationContextBuilder 공유 로직)
       const hierarchySpeechGuide = (() => {
@@ -73,6 +84,7 @@ export class OpenAIProvider implements AIServiceInterface {
 - 배경: ${persona.background}
 - 목표: ${persona.goals.join(', ')}
 ${playerRoleSection}
+${userNameSection}
 ${hierarchySpeechGuide}
 ${modeTransitionSection}
 ${difficultyGuidelines}

@@ -38,6 +38,16 @@ export const EXTERNAL_CLIENT_KEYWORDS = [
 // ─────────────────────────────────────────────────────────────────────────────
 
 /**
+ * 프로필 이름 정규화
+ * - 제어문자 제거, 50자 상한 적용
+ * - 빈 문자열이면 undefined 반환
+ */
+export function normalizeProfileName(name: string | undefined | null): string | undefined {
+  const normalized = (name ?? '').trim().replace(/[\r\n\t\x00-\x1f\x7f]/g, '').slice(0, 50);
+  return normalized || undefined;
+}
+
+/**
  * 대화 히스토리 준비
  * - 전체 대화 히스토리 사용 (윈도우 제한 없음)
  * - 사용자 답변 완료 마커(✓) 추가로 AI의 반복 질문 방지
@@ -45,10 +55,14 @@ export const EXTERNAL_CLIENT_KEYWORDS = [
 export function prepareConversationHistory(
   messages: ConversationMessage[],
   personaName: string,
-  playerPosition?: string
+  playerPosition?: string,
+  userName?: string
 ): string {
   const safeMessages = messages || [];
-  const userLabel = playerPosition ? playerPosition : '사용자';
+  const normalizedName = normalizeProfileName(userName) || '';
+  const userLabel = normalizedName
+    ? (playerPosition ? `${normalizedName}(${playerPosition})` : normalizedName)
+    : (playerPosition ? playerPosition : '사용자');
 
   return safeMessages.map((msg, idx) => {
     const truncated = msg.message.slice(0, 400) + (msg.message.length > 400 ? '...' : '');

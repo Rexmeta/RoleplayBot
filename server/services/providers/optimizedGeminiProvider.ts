@@ -10,6 +10,7 @@ import {
   buildHierarchySpeechGuide,
   buildDifficultyGuidelines,
   buildMBTIContextGuides,
+  normalizeProfileName,
 } from "../conversationContextBuilder";
 import { trackUsage, extractGeminiTokens, getModelPricingKey } from "../aiUsageTracker";
 import { retryWithBackoff, conversationSemaphore, feedbackSemaphore } from "../../utils/concurrency";
@@ -70,7 +71,8 @@ export class OptimizedGeminiProvider implements AIServiceInterface {
     messages: ConversationMessage[], 
     persona: ScenarioPersona,
     userMessage?: string,
-    language: SupportedLanguage = 'ko'
+    language: SupportedLanguage = 'ko',
+    userName?: string
   ): Promise<{ content: string; emotion: string; emotionReason: string }> {
     console.log(`🔥 Optimized Gemini API call... (language: ${language})`);
     const startTime = Date.now();
@@ -81,19 +83,25 @@ export class OptimizedGeminiProvider implements AIServiceInterface {
       // 페르소나 enrichment (비동기 캐시 조회)
       const enrichedPersona = await this.getEnrichedPersona(scenarioObj, persona);
       // 대화 히스토리 준비 (동기, conversationContextBuilder 공유 함수)
-      const conversationHistory = prepareConversationHistory(messages, persona.name, playerPosition);
+      const conversationHistory = prepareConversationHistory(messages, persona.name, playerPosition, userName);
       
       const enrichTime = Date.now() - startTime;
       console.log(`⚡ Parallel processing completed in ${enrichTime}ms`);
 
       // 압축된 시스템 프롬프트 생성 (언어 설정 포함)
       const modeTransitionHint = scenarioObj.modeTransitionHint;
-      const compactPrompt = this.buildCompactPrompt(scenarioObj, enrichedPersona, conversationHistory, language, playerPosition, modeTransitionHint);
+      const compactPrompt = this.buildCompactPrompt(scenarioObj, enrichedPersona, conversationHistory, language, playerPosition, modeTransitionHint, userName);
       
       // 건너뛰기 처리
       const prompt = userMessage ? userMessage : "이전 대화의 흐름을 자연스럽게 이어가세요.";
       
       console.log(`🎭 Persona: ${enrichedPersona.name} (${(enrichedPersona as any).mbti || 'Unknown'})`);
+
+      // 콘텐츠 접두어용 사용자 레이블 (실명 우선, 직책 병기)
+      const normalizedName = normalizeProfileName(userName) || '';
+      const contentsUserLabel = normalizedName
+        ? (playerPosition ? `${normalizedName}(${playerPosition})` : normalizedName)
+        : (playerPosition || '사용자');
 
       // Gemini API 호출 (재시도 + 동시 실행 제한 적용)
       const response = await conversationSemaphore.run(() =>
@@ -115,7 +123,7 @@ export class OptimizedGeminiProvider implements AIServiceInterface {
               temperature: 0.7
             },
             contents: [
-              { role: "user", parts: [{ text: compactPrompt + `\n\n${playerPosition || '사용자'}: ` + prompt }] }
+              { role: "user", parts: [{ text: compactPrompt + `\n\n${contentsUserLabel}: ` + prompt }] }
             ],
           }),
           { maxRetries: 2, baseDelayMs: 1000 }
@@ -202,7 +210,7 @@ export class OptimizedGeminiProvider implements AIServiceInterface {
   /**
    * 압축된 시스템 프롬프트 생성
    */
-  private buildCompactPrompt(scenario: RoleplayScenario, persona: ScenarioPersona, conversationHistory: string, language: SupportedLanguage = 'ko', playerPosition?: string, modeTransitionHint?: string): string {
+  private buildCompactPrompt(scenario: RoleplayScenario, persona: ScenarioPersona, conversationHistory: string, language: SupportedLanguage = 'ko', playerPosition?: string, modeTransitionHint?: string, userName?: string): string {
     const situation = scenario.context?.situation || '업무 상황';
     const objectives = scenario.objectives?.join(', ') || '문제 해결';
     const playerRole = scenario.context?.playerRole;
@@ -270,6 +278,14 @@ ${experience ? `- 경력: ${experience}` : ''}
 - 당신은 ${persona.role}이며, 상대방은 ${playerRoleLabel}입니다. 이 역할 구분은 절대 변하지 않습니다
 - 절대로 ${playerRoleLabel}의 역할을 수행하거나 그 입장에서 발언하지 마세요` : '';
 
+    // 사용자 실명 호칭 가이드
+    const normalizedUserName = normalizeProfileName(userName) || '';
+    const userNameGuide = normalizedUserName ? `
+**상대방 실명 호칭 (반드시 따를 것)**:
+- 대화 상대방의 실제 이름은 [${normalizedUserName}]입니다
+- 대화 중 자연스럽게 "${normalizedUserName} 씨" 또는 "${normalizedUserName}" 등으로 상대방을 호칭하세요
+- 역할 직책과 함께 또는 이름만으로 자연스럽게 부르세요` : '';
+
     // 직위 위계에 따른 말투 지시 (conversationContextBuilder에서 중앙 관리)
     const hierarchySpeechGuide = (() => {
       if (!playerRoleLabel || !persona.role) return '';
@@ -282,7 +298,9 @@ ${experience ? `- 경력: ${experience}` : ''}
     console.log(`🎯 대화 난이도: Level ${scenario.difficulty ?? 4} (사용자 선택)`);
     const difficultyGuidelines = buildDifficultyGuidelines(scenario.difficulty);
     
-    const userLabelInPrompt = playerRoleLabel || '사용자';
+    const userLabelInPrompt = normalizedUserName
+      ? (playerRoleLabel ? `${normalizedUserName}(${playerRoleLabel})` : normalizedUserName)
+      : (playerRoleLabel || '사용자');
 
     return `당신은 ${persona.name}(${persona.role})입니다.
 
@@ -292,6 +310,7 @@ ${experience ? `- 경력: ${experience}` : ''}
 당신의 목표: ${goal}
 ${experienceGuide}
 ${playerRoleGuide}
+${userNameGuide}
 ${hierarchySpeechGuide}
 ${personalValuesGuide}
 ${tradeoffGuide}

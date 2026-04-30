@@ -2,6 +2,7 @@ import { Router } from "express";
 import { storage } from "../storage";
 import { generateAIResponse } from "../services/aiServiceFactory";
 import { buildFreeChatPersona, buildFreeChatScenario, asyncHandler, createHttpError } from "./routerHelpers";
+import { normalizeProfileName } from "../services/conversationContextBuilder";
 
 export default function createFreeChatRouter(isAuthenticated: any) {
   const router = Router();
@@ -90,9 +91,10 @@ export default function createFreeChatRouter(isAuthenticated: any) {
     const persona = buildFreeChatPersona(mbtiPersona);
     const freeChatScenario = buildFreeChatScenario(mbtiPersona, difficulty);
     const userLanguage = (user?.preferredLanguage as "ko" | "en" | "ja" | "zh") || "ko";
+    const userName = normalizeProfileName(user?.name);
 
     const aiResult = await Promise.race([
-      generateAIResponse(freeChatScenario as any, [], persona, undefined, userLanguage),
+      generateAIResponse(freeChatScenario as any, [], persona, undefined, userLanguage, userName),
       new Promise<never>((_, reject) =>
         setTimeout(() => reject(new Error('AI 응답 시간 초과 (25초). 다시 시도해 주세요.')), 25000)
       )
