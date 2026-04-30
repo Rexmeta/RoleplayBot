@@ -12,6 +12,7 @@ export interface RealtimeSession {
   personaId: string;
   personaName: string;
   userId: string;
+  userName: string;
   clientWs: WebSocket;
   geminiSession: any | null;
   isConnected: boolean;

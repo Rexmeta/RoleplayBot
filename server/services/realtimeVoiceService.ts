@@ -18,6 +18,7 @@ import {
   getSessionStatus,
 } from './voice/sessionManager';
 import { buildUserPersonaInstructions } from './voice/prompts/userPersonaPrompt';
+import { normalizeProfileName } from './conversationContextBuilder';
 
 const DEFAULT_REALTIME_MODEL = 'gemini-2.5-flash-native-audio-preview-09-2025';
 
@@ -137,7 +138,7 @@ export class RealtimeVoiceService {
     let userName = '사용자';
     try {
       const user = await storage.getUser(userId);
-      if (user?.name) userName = user.name;
+      userName = normalizeProfileName(user?.name) || '사용자';
     } catch (error) {
       console.warn(`⚠️ Failed to load user info for userId ${userId}:`, error);
     }
@@ -181,7 +182,7 @@ export class RealtimeVoiceService {
 
     const session: RealtimeSession = {
       id: sessionId, conversationId, scenarioId, personaId,
-      personaName: scenarioPersona.name, userId, clientWs,
+      personaName: scenarioPersona.name, userId, userName, clientWs,
       geminiSession: null, isConnected: false,
       currentTranscript: '', userTranscriptBuffer: '', audioBuffer: [],
       startTime: Date.now(), lastActivityTime: Date.now(),
@@ -215,7 +216,7 @@ export class RealtimeVoiceService {
     let userName = '사용자';
     try {
       const user = await storage.getUser(userId);
-      if (user?.name) userName = user.name;
+      userName = normalizeProfileName(user?.name) || '사용자';
     } catch {}
 
     const systemInstructions = buildUserPersonaInstructions(userPersonaData, userName, userLanguage);
@@ -229,7 +230,7 @@ export class RealtimeVoiceService {
 
     const session: RealtimeSession = {
       id: sessionId, conversationId, scenarioId, personaId,
-      personaName: userPersonaData.name, userId, clientWs,
+      personaName: userPersonaData.name, userId, userName, clientWs,
       geminiSession: null, isConnected: false,
       currentTranscript: '', userTranscriptBuffer: '', audioBuffer: [],
       startTime: Date.now(), lastActivityTime: Date.now(),

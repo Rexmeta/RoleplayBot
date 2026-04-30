@@ -80,10 +80,11 @@ export function handleGeminiClose(
             if (sess.geminiSession) {
               console.log('📤 재연결 후 대화 재개 트리거...');
               const recentMsgs = sess.recentMessages || [];
+              const reconnectUserLabel = sess.userName && sess.userName !== '사용자' ? sess.userName : '사용자';
               let reconnectText: string;
               if (recentMsgs.length > 0) {
                 const historyText = recentMsgs.map(m =>
-                  `${m.role === 'user' ? '사용자' : '당신'}: ${m.text}`
+                  `${m.role === 'user' ? reconnectUserLabel : '당신'}: ${m.text}`
                 ).join('\n');
                 reconnectText = `[일시적인 기술 문제로 연결이 잠깐 끊어졌지만 복구되었습니다. 방금 전 나눈 대화 내용을 기억하세요:\n${historyText}\n\n이 대화를 자연스럽게 이어서 진행하세요. "다시 연결됐네요" 정도로 짧게 언급하고 바로 대화를 이어가세요.]`;
                 console.log(`📜 재연결 컨텍스트 복원: ${recentMsgs.length}개 메시지`);
