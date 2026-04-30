@@ -3,6 +3,12 @@ import { summarizeOlderMessages } from '../../server/services/voice/clientMessag
 import { handleClientMessage } from '../../server/services/voice/clientMessageHandler';
 import type { RealtimeSession } from '../../server/services/voice/types';
 
+vi.mock('../../server/services/voice/textFilter', () => ({
+  filterThinkingText: vi.fn((text: string) => text),
+}));
+
+import { filterThinkingText } from '../../server/services/voice/textFilter';
+
 const mockGenerateContent = vi.fn();
 
 vi.mock('@google/genai', () => ({
@@ -710,6 +716,446 @@ describe('handleClientMessage — 30-message threshold boundary', () => {
       const contextText = callArg.turns[0].parts[0].text;
       expect(typeof contextText).toBe('string');
       expect(contextText.length).toBeGreaterThan(0);
+    });
+  });
+});
+
+describe('handleClientMessage — guard logic and switch-case branches', () => {
+  let sendToClient: ReturnType<typeof vi.fn>;
+
+  function makeGeminiSession() {
+    return {
+      sendClientContent: vi.fn(),
+      sendRealtimeInput: vi.fn(),
+      close: vi.fn(),
+    };
+  }
+
+  function makeTestSession(overrides: Partial<RealtimeSession> = {}): RealtimeSession {
+    return {
+      id: 'guard-session',
+      conversationId: 'conv-guard',
+      scenarioId: 'scenario-guard',
+      personaId: 'persona-guard',
+      personaName: 'GuardPersona',
+      userId: 'user-guard',
+      userName: '사용자',
+      clientWs: { readyState: 1, send: vi.fn() } as any,
+      geminiSession: null,
+      isConnected: false,
+      currentTranscript: '',
+      userTranscriptBuffer: '',
+      audioBuffer: [],
+      startTime: Date.now(),
+      lastActivityTime: 0,
+      totalUserTranscriptLength: 0,
+      totalAiTranscriptLength: 0,
+      realtimeModel: 'gemini-live',
+      hasReceivedFirstAIResponse: false,
+      hasTriggeredFirstGreeting: false,
+      firstGreetingRetryCount: 0,
+      isInterrupted: false,
+      turnSeq: 1,
+      cancelledTurnSeq: -1,
+      sessionResumptionToken: null,
+      isReconnecting: false,
+      reconnectAttempts: 0,
+      systemInstructions: 'test',
+      voiceGender: 'female',
+      recentMessages: [],
+      selectedVoice: null,
+      goAwayWarningTime: null,
+      pendingClientReady: null,
+      userLanguage: 'ko',
+      ...overrides,
+    };
+  }
+
+  beforeEach(() => {
+    sendToClient = vi.fn();
+    vi.clearAllMocks();
+    vi.mocked(filterThinkingText).mockImplementation((text: string) => text);
+  });
+
+  describe('missing session guard', () => {
+    it('returns early and logs an error when the session does not exist', () => {
+      const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+      const sessions = new Map<string, RealtimeSession>();
+
+      handleClientMessage('no-such-session', { type: 'ping' }, sessions, sendToClient);
+
+      expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining('Session not found'));
+      expect(sendToClient).not.toHaveBeenCalled();
+      consoleSpy.mockRestore();
+    });
+
+    it('does not throw when the session is missing', () => {
+      expect(() =>
+        handleClientMessage('no-such-session', { type: 'ping' }, new Map(), sendToClient)
+      ).not.toThrow();
+    });
+  });
+
+  describe('lastActivityTime is always updated', () => {
+    it('updates lastActivityTime before branching on geminiSession presence', () => {
+      const before = 0;
+      const session = makeTestSession({ geminiSession: makeGeminiSession(), lastActivityTime: before });
+      const sessions = new Map([[session.id, session]]);
+
+      handleClientMessage(session.id, { type: 'ping' }, sessions, sendToClient);
+
+      expect(session.lastActivityTime).toBeGreaterThan(before);
+    });
+  });
+
+  describe('geminiSession absent — buffering vs. dropping', () => {
+    it('buffers client.ready when geminiSession is null', () => {
+      const session = makeTestSession({ geminiSession: null });
+      const sessions = new Map([[session.id, session]]);
+      const msg = { type: 'client.ready' };
+
+      handleClientMessage(session.id, msg, sessions, sendToClient);
+
+      expect(session.pendingClientReady).toBe(msg);
+      expect(sendToClient).not.toHaveBeenCalled();
+    });
+
+    it('buffers client.ready based solely on geminiSession being null, regardless of isConnected', () => {
+      const sessionA = makeTestSession({ geminiSession: null, isConnected: false });
+      const sessionsA = new Map([[sessionA.id, sessionA]]);
+      const msgA = { type: 'client.ready' };
+      handleClientMessage(sessionA.id, msgA, sessionsA, sendToClient);
+      expect(sessionA.pendingClientReady).toBe(msgA);
+
+      const sessionB = makeTestSession({ id: 'guard-session-b', geminiSession: null, isConnected: true });
+      const sessionsB = new Map([[sessionB.id, sessionB]]);
+      const msgB = { type: 'client.ready', hasExistingConversation: false };
+      handleClientMessage(sessionB.id, msgB, sessionsB, sendToClient);
+      expect(sessionB.pendingClientReady).toEqual(msgB);
+
+      expect(sendToClient).not.toHaveBeenCalled();
+    });
+
+    it('drops input_audio_buffer.append (not buffered) when geminiSession is null', () => {
+      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      const session = makeTestSession({ geminiSession: null });
+      const sessions = new Map([[session.id, session]]);
+
+      handleClientMessage(session.id, { type: 'input_audio_buffer.append', audio: 'abc' }, sessions, sendToClient);
+
+      expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('dropping message type'));
+      expect(session.pendingClientReady).toBeNull();
+      expect(sendToClient).not.toHaveBeenCalled();
+      warnSpy.mockRestore();
+    });
+
+    it('drops input_audio_buffer.commit when geminiSession is null', () => {
+      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      const session = makeTestSession({ geminiSession: null });
+      const sessions = new Map([[session.id, session]]);
+
+      handleClientMessage(session.id, { type: 'input_audio_buffer.commit' }, sessions, sendToClient);
+
+      expect(warnSpy).toHaveBeenCalled();
+      expect(sendToClient).not.toHaveBeenCalled();
+      warnSpy.mockRestore();
+    });
+
+    it('drops response.cancel when geminiSession is null', () => {
+      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      const session = makeTestSession({ geminiSession: null });
+      const sessions = new Map([[session.id, session]]);
+
+      handleClientMessage(session.id, { type: 'response.cancel' }, sessions, sendToClient);
+
+      expect(warnSpy).toHaveBeenCalled();
+      expect(sendToClient).not.toHaveBeenCalled();
+      warnSpy.mockRestore();
+    });
+
+    it('drops ping when geminiSession is null (ping is not buffered)', () => {
+      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      const session = makeTestSession({ geminiSession: null });
+      const sessions = new Map([[session.id, session]]);
+
+      handleClientMessage(session.id, { type: 'ping' }, sessions, sendToClient);
+
+      expect(warnSpy).toHaveBeenCalled();
+      expect(sendToClient).not.toHaveBeenCalled();
+      warnSpy.mockRestore();
+    });
+  });
+
+  describe('switch-case: input_audio_buffer.append', () => {
+    it('calls sendRealtimeInput with audio data and correct mimeType', () => {
+      const geminiSession = makeGeminiSession();
+      const session = makeTestSession({ geminiSession });
+      const sessions = new Map([[session.id, session]]);
+
+      handleClientMessage(
+        session.id,
+        { type: 'input_audio_buffer.append', audio: 'base64data' },
+        sessions,
+        sendToClient
+      );
+
+      expect(geminiSession.sendRealtimeInput).toHaveBeenCalledWith({
+        audio: { data: 'base64data', mimeType: 'audio/pcm;rate=16000' },
+      });
+      expect(geminiSession.sendClientContent).not.toHaveBeenCalled();
+    });
+
+    it('does not call sendToClient for audio messages', () => {
+      const geminiSession = makeGeminiSession();
+      const session = makeTestSession({ geminiSession });
+      const sessions = new Map([[session.id, session]]);
+
+      handleClientMessage(
+        session.id,
+        { type: 'input_audio_buffer.append', audio: 'data' },
+        sessions,
+        sendToClient
+      );
+
+      expect(sendToClient).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('switch-case: input_audio_buffer.commit', () => {
+    it('calls sendRealtimeInput with END_OF_TURN event', () => {
+      const geminiSession = makeGeminiSession();
+      const session = makeTestSession({ geminiSession });
+      const sessions = new Map([[session.id, session]]);
+
+      handleClientMessage(session.id, { type: 'input_audio_buffer.commit' }, sessions, sendToClient);
+
+      expect(geminiSession.sendRealtimeInput).toHaveBeenCalledWith({ event: 'END_OF_TURN' });
+      expect(geminiSession.sendClientContent).not.toHaveBeenCalled();
+      expect(sendToClient).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('switch-case: response.create', () => {
+    it('calls sendRealtimeInput with END_OF_TURN event', () => {
+      const geminiSession = makeGeminiSession();
+      const session = makeTestSession({ geminiSession });
+      const sessions = new Map([[session.id, session]]);
+
+      handleClientMessage(session.id, { type: 'response.create' }, sessions, sendToClient);
+
+      expect(geminiSession.sendRealtimeInput).toHaveBeenCalledWith({ event: 'END_OF_TURN' });
+      expect(geminiSession.sendClientContent).not.toHaveBeenCalled();
+      expect(sendToClient).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('switch-case: conversation.item.create', () => {
+    it('calls sendClientContent with the text extracted from item content', () => {
+      const geminiSession = makeGeminiSession();
+      const session = makeTestSession({ geminiSession });
+      const sessions = new Map([[session.id, session]]);
+
+      handleClientMessage(
+        session.id,
+        { type: 'conversation.item.create', item: { content: [{ text: 'hello world' }] } },
+        sessions,
+        sendToClient
+      );
+
+      expect(geminiSession.sendClientContent).toHaveBeenCalledWith({
+        turns: [{ role: 'user', parts: [{ text: 'hello world' }] }],
+        turnComplete: true,
+      });
+      expect(geminiSession.sendRealtimeInput).not.toHaveBeenCalled();
+    });
+
+    it('does not call sendClientContent when item is missing', () => {
+      const geminiSession = makeGeminiSession();
+      const session = makeTestSession({ geminiSession });
+      const sessions = new Map([[session.id, session]]);
+
+      handleClientMessage(session.id, { type: 'conversation.item.create' }, sessions, sendToClient);
+
+      expect(geminiSession.sendClientContent).not.toHaveBeenCalled();
+    });
+
+    it('does not call sendClientContent when item.content is missing', () => {
+      const geminiSession = makeGeminiSession();
+      const session = makeTestSession({ geminiSession });
+      const sessions = new Map([[session.id, session]]);
+
+      handleClientMessage(session.id, { type: 'conversation.item.create', item: {} }, sessions, sendToClient);
+
+      expect(geminiSession.sendClientContent).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('switch-case: client.ready (new session, no prior context)', () => {
+    it('sends greeting text and END_OF_TURN when geminiSession is present', () => {
+      const geminiSession = makeGeminiSession();
+      const session = makeTestSession({ geminiSession });
+      const sessions = new Map([[session.id, session]]);
+
+      handleClientMessage(session.id, { type: 'client.ready' }, sessions, sendToClient);
+
+      expect(geminiSession.sendClientContent).toHaveBeenCalledWith(
+        expect.objectContaining({
+          turns: [{ role: 'user', parts: [{ text: '안녕하세요' }] }],
+          turnComplete: true,
+        })
+      );
+      expect(geminiSession.sendRealtimeInput).toHaveBeenCalledWith({ event: 'END_OF_TURN' });
+    });
+
+    it('marks hasTriggeredFirstGreeting as true after sending the greeting', () => {
+      const geminiSession = makeGeminiSession();
+      const session = makeTestSession({ geminiSession });
+      const sessions = new Map([[session.id, session]]);
+
+      handleClientMessage(session.id, { type: 'client.ready' }, sessions, sendToClient);
+
+      expect(session.hasTriggeredFirstGreeting).toBe(true);
+    });
+
+    it('skips greeting when hasTriggeredFirstGreeting is already true', () => {
+      const geminiSession = makeGeminiSession();
+      const session = makeTestSession({ geminiSession, hasTriggeredFirstGreeting: true });
+      const sessions = new Map([[session.id, session]]);
+
+      handleClientMessage(session.id, { type: 'client.ready' }, sessions, sendToClient);
+
+      expect(geminiSession.sendClientContent).not.toHaveBeenCalled();
+      expect(geminiSession.sendRealtimeInput).not.toHaveBeenCalled();
+    });
+
+    it('skips greeting when hasReceivedFirstAIResponse is already true', () => {
+      const geminiSession = makeGeminiSession();
+      const session = makeTestSession({ geminiSession, hasReceivedFirstAIResponse: true });
+      const sessions = new Map([[session.id, session]]);
+
+      handleClientMessage(session.id, { type: 'client.ready' }, sessions, sendToClient);
+
+      expect(geminiSession.sendClientContent).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('switch-case: response.cancel (barge-in)', () => {
+    it('sets isInterrupted to true', () => {
+      const geminiSession = makeGeminiSession();
+      const session = makeTestSession({ geminiSession });
+      const sessions = new Map([[session.id, session]]);
+
+      handleClientMessage(session.id, { type: 'response.cancel' }, sessions, sendToClient);
+
+      expect(session.isInterrupted).toBe(true);
+    });
+
+    it('records cancelledTurnSeq from current turnSeq', () => {
+      const geminiSession = makeGeminiSession();
+      const session = makeTestSession({ geminiSession, turnSeq: 5 });
+      const sessions = new Map([[session.id, session]]);
+
+      handleClientMessage(session.id, { type: 'response.cancel' }, sessions, sendToClient);
+
+      expect(session.cancelledTurnSeq).toBe(5);
+    });
+
+    it('sends response.interrupted to the client', () => {
+      const geminiSession = makeGeminiSession();
+      const session = makeTestSession({ geminiSession });
+      const sessions = new Map([[session.id, session]]);
+
+      handleClientMessage(session.id, { type: 'response.cancel' }, sessions, sendToClient);
+
+      expect(sendToClient).toHaveBeenCalledWith(session, { type: 'response.interrupted' });
+    });
+
+    it('clears currentTranscript after barge-in', () => {
+      const geminiSession = makeGeminiSession();
+      const session = makeTestSession({ geminiSession, currentTranscript: '안녕하세요' });
+      const sessions = new Map([[session.id, session]]);
+
+      handleClientMessage(session.id, { type: 'response.cancel' }, sessions, sendToClient);
+
+      expect(session.currentTranscript).toBe('');
+    });
+
+    it('sends partial AI transcript when currentTranscript is non-empty and filterThinkingText returns text', () => {
+      const geminiSession = makeGeminiSession();
+      const session = makeTestSession({ geminiSession, currentTranscript: '안녕하세요 반갑습니다' });
+      const sessions = new Map([[session.id, session]]);
+
+      vi.mocked(filterThinkingText).mockReturnValue('안녕하세요 반갑습니다');
+
+      handleClientMessage(session.id, { type: 'response.cancel' }, sessions, sendToClient);
+
+      expect(sendToClient).toHaveBeenCalledWith(
+        session,
+        expect.objectContaining({ type: 'ai.transcription.done', interrupted: true })
+      );
+    });
+
+    it('does not send partial transcript when filterThinkingText returns empty string', () => {
+      const geminiSession = makeGeminiSession();
+      const session = makeTestSession({ geminiSession, currentTranscript: '**thinking**' });
+      const sessions = new Map([[session.id, session]]);
+
+      vi.mocked(filterThinkingText).mockReturnValue('');
+
+      handleClientMessage(session.id, { type: 'response.cancel' }, sessions, sendToClient);
+
+      expect(sendToClient).toHaveBeenCalledTimes(1);
+      expect(sendToClient).toHaveBeenCalledWith(session, { type: 'response.interrupted' });
+    });
+
+    it('ignores duplicate cancel when isInterrupted is already true', () => {
+      const geminiSession = makeGeminiSession();
+      const session = makeTestSession({ geminiSession, isInterrupted: true, cancelledTurnSeq: 2 });
+      const sessions = new Map([[session.id, session]]);
+
+      handleClientMessage(session.id, { type: 'response.cancel' }, sessions, sendToClient);
+
+      expect(sendToClient).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('switch-case: ping', () => {
+    it('calls sendToClient with pong message', () => {
+      const geminiSession = makeGeminiSession();
+      const session = makeTestSession({ geminiSession });
+      const sessions = new Map([[session.id, session]]);
+
+      handleClientMessage(session.id, { type: 'ping' }, sessions, sendToClient);
+
+      expect(sendToClient).toHaveBeenCalledWith(session, { type: 'pong' });
+    });
+
+    it('does not call any geminiSession methods for ping', () => {
+      const geminiSession = makeGeminiSession();
+      const session = makeTestSession({ geminiSession });
+      const sessions = new Map([[session.id, session]]);
+
+      handleClientMessage(session.id, { type: 'ping' }, sessions, sendToClient);
+
+      expect(geminiSession.sendClientContent).not.toHaveBeenCalled();
+      expect(geminiSession.sendRealtimeInput).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('switch-case: unknown message type', () => {
+    it('logs unknown type without calling sendToClient or geminiSession methods', () => {
+      const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+      const geminiSession = makeGeminiSession();
+      const session = makeTestSession({ geminiSession });
+      const sessions = new Map([[session.id, session]]);
+
+      handleClientMessage(session.id, { type: 'some.made.up.type' }, sessions, sendToClient);
+
+      expect(logSpy).toHaveBeenCalledWith(expect.stringContaining('Unknown client message type'));
+      expect(sendToClient).not.toHaveBeenCalled();
+      expect(geminiSession.sendClientContent).not.toHaveBeenCalled();
+      expect(geminiSession.sendRealtimeInput).not.toHaveBeenCalled();
+      logSpy.mockRestore();
     });
   });
 });
