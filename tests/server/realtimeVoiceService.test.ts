@@ -213,6 +213,79 @@ describe('RealtimeVoiceService — session.recentMessages population on createSe
     });
   });
 
+  describe('connectToGemini — 3-second auto-greeting timeout', () => {
+    let mockGeminiSession: any;
+
+    beforeEach(() => {
+      vi.useFakeTimers();
+
+      mockGeminiSession = {
+        sendClientContent: vi.fn(),
+        sendRealtimeInput: vi.fn(),
+        close: vi.fn(),
+      };
+
+      mockLiveConnect.mockImplementation(({ callbacks }: { callbacks: any }) => {
+        setTimeout(() => callbacks?.onopen?.(), 0);
+        return Promise.resolve(mockGeminiSession);
+      });
+
+      mockGetChatMessagesByPersonaRun.mockResolvedValue([]);
+    });
+
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    it('sends greeting after 3 seconds when client.ready never arrives', async () => {
+      const fakeWs = { readyState: 1, send: vi.fn() };
+      await service.createSession(
+        SESSION_ID, CONVERSATION_ID, SCENARIO_ID, PERSONA_ID, USER_ID, fakeWs as any
+      );
+
+      expect(mockGeminiSession.sendClientContent).not.toHaveBeenCalled();
+
+      vi.advanceTimersByTime(3000);
+
+      expect(mockGeminiSession.sendClientContent).toHaveBeenCalledOnce();
+      expect(mockGeminiSession.sendClientContent).toHaveBeenCalledWith(
+        expect.objectContaining({
+          turns: [{ role: 'user', parts: [{ text: '안녕하세요' }] }],
+          turnComplete: true,
+        })
+      );
+      expect(mockGeminiSession.sendRealtimeInput).toHaveBeenCalledWith({ event: 'END_OF_TURN' });
+    });
+
+    it('does NOT send greeting when hasTriggeredFirstGreeting is already true', async () => {
+      const fakeWs = { readyState: 1, send: vi.fn() };
+      await service.createSession(
+        SESSION_ID, CONVERSATION_ID, SCENARIO_ID, PERSONA_ID, USER_ID, fakeWs as any
+      );
+
+      const session = (service as any).sessions.get(SESSION_ID);
+      session.hasTriggeredFirstGreeting = true;
+
+      vi.advanceTimersByTime(3000);
+
+      expect(mockGeminiSession.sendClientContent).not.toHaveBeenCalled();
+    });
+
+    it('does NOT send greeting when pendingClientReady.hasExistingConversation is set', async () => {
+      const fakeWs = { readyState: 1, send: vi.fn() };
+      await service.createSession(
+        SESSION_ID, CONVERSATION_ID, SCENARIO_ID, PERSONA_ID, USER_ID, fakeWs as any
+      );
+
+      const session = (service as any).sessions.get(SESSION_ID);
+      session.pendingClientReady = { hasExistingConversation: true };
+
+      vi.advanceTimersByTime(3000);
+
+      expect(mockGeminiSession.sendClientContent).not.toHaveBeenCalled();
+    });
+  });
+
   describe('buffered client.ready replay (client arrives before Gemini connects)', () => {
     function makeGeminiSession() {
       return {
@@ -401,6 +474,7 @@ describe('RealtimeVoiceService — session.recentMessages population on createSe
       const callArg = mockGeminiSession.sendClientContent.mock.calls[0][0];
       const sentText: string = callArg.turns[0].parts[0].text;
       expect(sentText).toContain('message content 1 from DB');
+      expect(sentText).toContain('message content 2 from DB');
     });
   });
 
