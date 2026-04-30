@@ -87,12 +87,17 @@ export function ChatInputBar({
         )}
 
         {(rv.status === 'connecting' || rv.status === 'reconnecting') && (
-          <div className="flex items-center justify-center space-x-2 py-4">
-            <div className="w-3 h-3 bg-purple-400 rounded-full animate-bounce"></div>
-            <div className="w-3 h-3 bg-purple-400 rounded-full animate-bounce" style={{ animationDelay: "0.1s" }}></div>
-            <div className="w-3 h-3 bg-purple-400 rounded-full animate-bounce" style={{ animationDelay: "0.2s" }}></div>
-            <span className="ml-2 text-slate-600">
-              {rv.status === 'reconnecting' ? '재연결 중...' : t('chat.connectingVoice')}
+          <div className="flex flex-col items-center justify-center gap-2 py-4">
+            <div className="flex items-center justify-center space-x-2">
+              <div className="w-3 h-3 bg-purple-500 rounded-full animate-bounce"></div>
+              <div className="w-3 h-3 bg-purple-500 rounded-full animate-bounce" style={{ animationDelay: "0.15s" }}></div>
+              <div className="w-3 h-3 bg-purple-500 rounded-full animate-bounce" style={{ animationDelay: "0.3s" }}></div>
+            </div>
+            <span className="text-slate-700 font-medium text-sm">
+              {rv.status === 'reconnecting' ? t('chat.reconnectingVoice') : t('chat.connectingVoice')}
+            </span>
+            <span className="text-slate-400 text-xs">
+              {rv.status === 'reconnecting' ? t('chat.reconnectingVoiceHint') : t('chat.connectingVoiceHint')}
             </span>
           </div>
         )}

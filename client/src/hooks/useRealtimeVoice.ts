@@ -286,9 +286,7 @@ export function useRealtimeVoice({
       wsRef.current = ws;
 
       ws.onopen = () => {
-        console.log('🎙️ WebSocket connected for realtime voice');
-        setStatus('connected');
-        setConversationPhase('active');
+        console.log('🎙️ WebSocket connected for realtime voice, waiting for Gemini session.ready...');
         autoReconnectCountRef.current = 0;
 
         const hasPreviousMessages = previousMessagesRef.current && previousMessagesRef.current.length > 0;
@@ -465,6 +463,9 @@ export function useRealtimeVoice({
               break;
 
             case 'session.ready':
+              console.log('✅ Gemini session ready - transitioning to connected state');
+              setStatus('connected');
+              setConversationPhase('active');
               if (reconnectInProgressRef.current) {
                 setError(null);
               }
