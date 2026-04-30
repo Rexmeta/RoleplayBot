@@ -431,6 +431,253 @@ describe('handleClientMessage — 30-message threshold boundary', () => {
     });
   });
 
+  describe('server-preloaded recentMessages fallback (no client previousMessages)', () => {
+    it('isResuming: uses session.recentMessages when client sends no previousMessages', async () => {
+      const geminiSession = makeGeminiSession();
+      const preloadedMessages = [
+        { role: 'user' as const, text: '안녕하세요' },
+        { role: 'ai' as const, text: '네, 반갑습니다' },
+      ];
+      const session = makeSession({
+        geminiSession: geminiSession as any,
+        isConnected: true,
+        userLanguage: 'ko',
+        recentMessages: preloadedMessages,
+      });
+      sessions.set('test-session', session);
+
+      handleClientMessage(
+        'test-session',
+        {
+          type: 'client.ready',
+          isResuming: true,
+          hasExistingConversation: false,
+        },
+        sessions,
+        sendToClient
+      );
+
+      await vi.waitFor(() => {
+        expect(geminiSession.sendClientContent).toHaveBeenCalled();
+      });
+
+      const callArg = geminiSession.sendClientContent.mock.calls[0][0];
+      const contextText = callArg.turns[0].parts[0].text;
+      expect(contextText).toContain('[이전 대화 내용');
+      expect(contextText).toContain('안녕하세요');
+      expect(contextText).toContain('네, 반갑습니다');
+    });
+
+    it('isResuming: uses session.recentMessages when client sends empty previousMessages array', async () => {
+      const geminiSession = makeGeminiSession();
+      const preloadedMessages = [
+        { role: 'user' as const, text: '서버에서 불러온 메시지' },
+        { role: 'ai' as const, text: '서버 응답 내용' },
+      ];
+      const session = makeSession({
+        geminiSession: geminiSession as any,
+        isConnected: true,
+        userLanguage: 'ko',
+        recentMessages: preloadedMessages,
+      });
+      sessions.set('test-session', session);
+
+      handleClientMessage(
+        'test-session',
+        {
+          type: 'client.ready',
+          isResuming: true,
+          hasExistingConversation: false,
+          previousMessages: [],
+        },
+        sessions,
+        sendToClient
+      );
+
+      await vi.waitFor(() => {
+        expect(geminiSession.sendClientContent).toHaveBeenCalled();
+      });
+
+      const callArg = geminiSession.sendClientContent.mock.calls[0][0];
+      const contextText = callArg.turns[0].parts[0].text;
+      expect(contextText).toContain('서버에서 불러온 메시지');
+      expect(contextText).toContain('서버 응답 내용');
+    });
+
+    it('isResuming: client previousMessages take precedence over session.recentMessages', async () => {
+      const geminiSession = makeGeminiSession();
+      const preloadedMessages = [
+        { role: 'user' as const, text: '서버 메시지' },
+      ];
+      const session = makeSession({
+        geminiSession: geminiSession as any,
+        isConnected: true,
+        userLanguage: 'ko',
+        recentMessages: preloadedMessages,
+      });
+      sessions.set('test-session', session);
+
+      handleClientMessage(
+        'test-session',
+        {
+          type: 'client.ready',
+          isResuming: true,
+          hasExistingConversation: false,
+          previousMessages: [
+            { role: 'user', content: '클라이언트 메시지' },
+            { role: 'ai', content: '클라이언트 AI 응답' },
+          ],
+        },
+        sessions,
+        sendToClient
+      );
+
+      await vi.waitFor(() => {
+        expect(geminiSession.sendClientContent).toHaveBeenCalled();
+      });
+
+      const callArg = geminiSession.sendClientContent.mock.calls[0][0];
+      const contextText = callArg.turns[0].parts[0].text;
+      expect(contextText).toContain('클라이언트 메시지');
+      expect(contextText).not.toContain('서버 메시지');
+    });
+
+    it('isResuming: falls back to greeting when both previousMessages and recentMessages are empty', async () => {
+      const geminiSession = makeGeminiSession();
+      const session = makeSession({
+        geminiSession: geminiSession as any,
+        isConnected: true,
+        userLanguage: 'ko',
+        recentMessages: [],
+      });
+      sessions.set('test-session', session);
+
+      handleClientMessage(
+        'test-session',
+        {
+          type: 'client.ready',
+          isResuming: true,
+          hasExistingConversation: false,
+          previousMessages: [],
+        },
+        sessions,
+        sendToClient
+      );
+
+      await vi.waitFor(() => {
+        expect(geminiSession.sendClientContent).toHaveBeenCalled();
+      });
+
+      const callArg = geminiSession.sendClientContent.mock.calls[0][0];
+      const contextText = callArg.turns[0].parts[0].text;
+      expect(contextText).toBe('안녕하세요');
+    });
+
+    it('hasExistingConversation: uses session.recentMessages when client sends no previousMessages', async () => {
+      const geminiSession = makeGeminiSession();
+      const preloadedMessages = [
+        { role: 'user' as const, text: '텍스트 채팅 메시지' },
+        { role: 'ai' as const, text: '텍스트 채팅 AI 응답' },
+      ];
+      const session = makeSession({
+        geminiSession: geminiSession as any,
+        isConnected: true,
+        userLanguage: 'ko',
+        recentMessages: preloadedMessages,
+      });
+      sessions.set('test-session', session);
+
+      handleClientMessage(
+        'test-session',
+        {
+          type: 'client.ready',
+          isResuming: false,
+          hasExistingConversation: true,
+        },
+        sessions,
+        sendToClient
+      );
+
+      await vi.waitFor(() => {
+        expect(geminiSession.sendClientContent).toHaveBeenCalled();
+      });
+
+      const callArg = geminiSession.sendClientContent.mock.calls[0][0];
+      const contextText = callArg.turns[0].parts[0].text;
+      expect(contextText).toContain('[이전 텍스트 대화 내용]');
+      expect(contextText).toContain('텍스트 채팅 메시지');
+      expect(contextText).toContain('텍스트 채팅 AI 응답');
+    });
+
+    it('hasExistingConversation: uses session.recentMessages when client sends empty previousMessages', async () => {
+      const geminiSession = makeGeminiSession();
+      const preloadedMessages = [
+        { role: 'user' as const, text: '서버 텍스트 히스토리' },
+      ];
+      const session = makeSession({
+        geminiSession: geminiSession as any,
+        isConnected: true,
+        userLanguage: 'ko',
+        recentMessages: preloadedMessages,
+      });
+      sessions.set('test-session', session);
+
+      handleClientMessage(
+        'test-session',
+        {
+          type: 'client.ready',
+          isResuming: false,
+          hasExistingConversation: true,
+          previousMessages: [],
+        },
+        sessions,
+        sendToClient
+      );
+
+      await vi.waitFor(() => {
+        expect(geminiSession.sendClientContent).toHaveBeenCalled();
+      });
+
+      const callArg = geminiSession.sendClientContent.mock.calls[0][0];
+      const contextText = callArg.turns[0].parts[0].text;
+      expect(contextText).toContain('서버 텍스트 히스토리');
+    });
+
+    it('hasExistingConversation: client previousMessages take precedence over session.recentMessages', async () => {
+      const geminiSession = makeGeminiSession();
+      const session = makeSession({
+        geminiSession: geminiSession as any,
+        isConnected: true,
+        userLanguage: 'ko',
+        recentMessages: [{ role: 'user' as const, text: '서버 히스토리' }],
+      });
+      sessions.set('test-session', session);
+
+      handleClientMessage(
+        'test-session',
+        {
+          type: 'client.ready',
+          isResuming: false,
+          hasExistingConversation: true,
+          previousMessages: [
+            { role: 'user', content: '클라이언트 텍스트 대화' },
+          ],
+        },
+        sessions,
+        sendToClient
+      );
+
+      await vi.waitFor(() => {
+        expect(geminiSession.sendClientContent).toHaveBeenCalled();
+      });
+
+      const callArg = geminiSession.sendClientContent.mock.calls[0][0];
+      const contextText = callArg.turns[0].parts[0].text;
+      expect(contextText).toContain('클라이언트 텍스트 대화');
+      expect(contextText).not.toContain('서버 히스토리');
+    });
+  });
+
   describe('graceful fallback when summarization fails', () => {
     it('isResuming: still sends context to Gemini even when summarization API fails', async () => {
       process.env.GOOGLE_API_KEY = 'bad-key';
