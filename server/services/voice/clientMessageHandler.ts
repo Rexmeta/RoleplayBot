@@ -60,7 +60,7 @@ export function handleClientMessage(
 
   session.lastActivityTime = Date.now();
 
-  if (!session.isConnected || !session.geminiSession) {
+  if (!session.geminiSession) {
     if (message.type === 'client.ready') {
       console.log(`⏸️ Gemini not ready yet, buffering client.ready message for session: ${sessionId}`);
       session.pendingClientReady = message;

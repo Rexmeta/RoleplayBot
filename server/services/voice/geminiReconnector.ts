@@ -17,6 +17,7 @@ export function handleGeminiClose(
 ): void {
   console.log(`🔌 Gemini WebSocket closed for session: ${session.id}`, event.reason);
   session.isConnected = false;
+  session.geminiSession = null;
 
   const isNormalClose = event.code === 1000 || event.reason === 'Normal closure';
 
