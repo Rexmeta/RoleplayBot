@@ -183,7 +183,7 @@ export class RealtimeVoiceService {
     const session: RealtimeSession = {
       id: sessionId, conversationId, scenarioId, personaId,
       personaName: scenarioPersona.name, userId, userName, clientWs,
-      geminiSession: null, isConnected: false,
+      geminiSession: null,
       currentTranscript: '', userTranscriptBuffer: '', audioBuffer: [],
       startTime: Date.now(), lastActivityTime: Date.now(),
       totalUserTranscriptLength: 0, totalAiTranscriptLength: 0,
@@ -231,7 +231,7 @@ export class RealtimeVoiceService {
     const session: RealtimeSession = {
       id: sessionId, conversationId, scenarioId, personaId,
       personaName: userPersonaData.name, userId, userName, clientWs,
-      geminiSession: null, isConnected: false,
+      geminiSession: null,
       currentTranscript: '', userTranscriptBuffer: '', audioBuffer: [],
       startTime: Date.now(), lastActivityTime: Date.now(),
       totalUserTranscriptLength: 0, totalAiTranscriptLength: 0,
@@ -308,7 +308,6 @@ export class RealtimeVoiceService {
         callbacks: {
           onopen: () => {
             console.log(`✅ Gemini Live API connected for session: ${session.id} (${Date.now() - connectStartTime}ms)`);
-            session.isConnected = true;
             this.sendToClient(session, { type: 'session.ready', sessionId: session.id });
             this.sendToClient(session, { type: 'session.configured' });
           },

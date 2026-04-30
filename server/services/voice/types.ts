@@ -15,7 +15,6 @@ export interface RealtimeSession {
   userName: string;
   clientWs: WebSocket;
   geminiSession: any | null;
-  isConnected: boolean;
   currentTranscript: string;
   userTranscriptBuffer: string;
   audioBuffer: string[];

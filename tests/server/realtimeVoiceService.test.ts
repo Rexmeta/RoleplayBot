@@ -454,7 +454,6 @@ describe('RealtimeVoiceService — session.recentMessages population on createSe
       capturedCallbacks.onopen();
 
       const session = (service as any).sessions.get(SESSION_ID);
-      expect(session.isConnected).toBe(true);
       expect(session.geminiSession).toBeNull();
 
       service.handleClientMessage(SESSION_ID, { type: 'client.ready' });

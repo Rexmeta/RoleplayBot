@@ -85,7 +85,7 @@ export function getSessionStatus(sessions: Map<string, RealtimeSession>): {
       id: session.id.split('-').slice(0, 2).join('-') + '...',
       personaName: session.personaName,
       durationSec: Math.round((now - session.startTime) / 1000),
-      isConnected: session.isConnected,
+      isConnected: session.geminiSession !== null,
     })),
   };
 }

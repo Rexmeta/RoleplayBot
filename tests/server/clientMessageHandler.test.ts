@@ -32,7 +32,6 @@ function makeSession(overrides: Partial<RealtimeSession> = {}): RealtimeSession 
     userId: 'user-1',
     clientWs: {} as any,
     geminiSession: null,
-    isConnected: true,
     currentTranscript: '',
     userTranscriptBuffer: '',
     audioBuffer: [],

@@ -17,7 +17,6 @@ function makeSession(overrides: Partial<RealtimeSession> = {}): RealtimeSession 
       send: vi.fn(),
     } as unknown as WebSocket,
     geminiSession: null,
-    isConnected: true,
     currentTranscript: '',
     userTranscriptBuffer: '',
     audioBuffer: [],
@@ -115,7 +114,8 @@ describe('handleGeminiClose', () => {
   });
 
   describe('unexpected close – reconnection flow', () => {
-    it('sets isConnected to false immediately', () => {
+    it('clears geminiSession immediately on close', () => {
+      session.geminiSession = {} as any;
       handleGeminiClose(
         { code: 1006, reason: 'Abnormal closure' },
         session,
@@ -125,7 +125,7 @@ describe('handleGeminiClose', () => {
         trackSessionUsage
       );
 
-      expect(session.isConnected).toBe(false);
+      expect(session.geminiSession).toBeNull();
     });
 
     it('sends session.reconnecting on first attempt', () => {
