@@ -213,6 +213,197 @@ describe('RealtimeVoiceService — session.recentMessages population on createSe
     });
   });
 
+  describe('buffered client.ready replay (client arrives before Gemini connects)', () => {
+    function makeGeminiSession() {
+      return {
+        sendClientContent: vi.fn(),
+        sendRealtimeInput: vi.fn(),
+        close: vi.fn(),
+      };
+    }
+
+    async function flushMicrotasks() {
+      await new Promise<void>(resolve => setTimeout(resolve, 20));
+    }
+
+    it('sets session.pendingClientReady when client.ready arrives before Gemini session is open', async () => {
+      let connectResolve!: (v: any) => void;
+      let capturedCallbacks: any;
+
+      mockLiveConnect.mockImplementation(({ callbacks }: { callbacks: any }) => {
+        capturedCallbacks = callbacks;
+        return new Promise(resolve => { connectResolve = resolve; });
+      });
+
+      mockGetChatMessagesByPersonaRun.mockResolvedValue([]);
+      const fakeWs = { readyState: 1, send: vi.fn() };
+
+      const createPromise = service.createSession(
+        SESSION_ID, CONVERSATION_ID, SCENARIO_ID, PERSONA_ID, USER_ID, fakeWs as any
+      );
+
+      await flushMicrotasks();
+
+      const session = (service as any).sessions.get(SESSION_ID);
+      expect(session).toBeDefined();
+      expect(session.geminiSession).toBeNull();
+
+      service.handleClientMessage(SESSION_ID, { type: 'client.ready' });
+
+      expect(session.pendingClientReady).toEqual({ type: 'client.ready' });
+
+      capturedCallbacks.onopen();
+      connectResolve(makeGeminiSession());
+      await createPromise;
+    });
+
+    it('clears session.pendingClientReady after Gemini connects and replays the message', async () => {
+      let connectResolve!: (v: any) => void;
+      let capturedCallbacks: any;
+
+      mockLiveConnect.mockImplementation(({ callbacks }: { callbacks: any }) => {
+        capturedCallbacks = callbacks;
+        return new Promise(resolve => { connectResolve = resolve; });
+      });
+
+      mockGetChatMessagesByPersonaRun.mockResolvedValue([]);
+      const fakeWs = { readyState: 1, send: vi.fn() };
+
+      const createPromise = service.createSession(
+        SESSION_ID, CONVERSATION_ID, SCENARIO_ID, PERSONA_ID, USER_ID, fakeWs as any
+      );
+
+      await flushMicrotasks();
+
+      service.handleClientMessage(SESSION_ID, { type: 'client.ready' });
+
+      const session = (service as any).sessions.get(SESSION_ID);
+      expect(session.pendingClientReady).not.toBeNull();
+
+      capturedCallbacks.onopen();
+      connectResolve(makeGeminiSession());
+      await createPromise;
+
+      expect(session.pendingClientReady).toBeNull();
+    });
+
+    it('replayed client.ready triggers greeting via sendClientContent', async () => {
+      let connectResolve!: (v: any) => void;
+      let capturedCallbacks: any;
+      const mockGeminiSession = makeGeminiSession();
+
+      mockLiveConnect.mockImplementation(({ callbacks }: { callbacks: any }) => {
+        capturedCallbacks = callbacks;
+        return new Promise(resolve => { connectResolve = resolve; });
+      });
+
+      mockGetChatMessagesByPersonaRun.mockResolvedValue([]);
+      const fakeWs = { readyState: 1, send: vi.fn() };
+
+      const createPromise = service.createSession(
+        SESSION_ID, CONVERSATION_ID, SCENARIO_ID, PERSONA_ID, USER_ID, fakeWs as any
+      );
+
+      await flushMicrotasks();
+
+      service.handleClientMessage(SESSION_ID, { type: 'client.ready' });
+
+      capturedCallbacks.onopen();
+      connectResolve(mockGeminiSession);
+      await createPromise;
+
+      expect(mockGeminiSession.sendClientContent).toHaveBeenCalled();
+    });
+
+    it('replayed client.ready with isResuming uses session.recentMessages as fallback when no previousMessages sent', async () => {
+      let connectResolve!: (v: any) => void;
+      let capturedCallbacks: any;
+      const mockGeminiSession = makeGeminiSession();
+
+      mockLiveConnect.mockImplementation(({ callbacks }: { callbacks: any }) => {
+        capturedCallbacks = callbacks;
+        return new Promise(resolve => { connectResolve = resolve; });
+      });
+
+      const dbMessages = makeDbMessages(3);
+      mockGetChatMessagesByPersonaRun.mockResolvedValue(dbMessages);
+      const fakeWs = { readyState: 1, send: vi.fn() };
+
+      const createPromise = service.createSession(
+        SESSION_ID, CONVERSATION_ID, SCENARIO_ID, PERSONA_ID, USER_ID, fakeWs as any
+      );
+
+      await flushMicrotasks();
+
+      const session = (service as any).sessions.get(SESSION_ID);
+      expect(session.recentMessages).toHaveLength(3);
+
+      service.handleClientMessage(SESSION_ID, {
+        type: 'client.ready',
+        isResuming: true,
+      });
+
+      expect(session.pendingClientReady).not.toBeNull();
+
+      capturedCallbacks.onopen();
+      connectResolve(mockGeminiSession);
+      await createPromise;
+
+      expect(session.pendingClientReady).toBeNull();
+
+      expect(mockGeminiSession.sendClientContent).toHaveBeenCalledOnce();
+      const callArg = mockGeminiSession.sendClientContent.mock.calls[0][0];
+      const sentText: string = callArg.turns[0].parts[0].text;
+      expect(sentText).toContain('message content 1 from DB');
+      expect(sentText).toContain('message content 2 from DB');
+      expect(sentText).toContain('message content 3 from DB');
+    });
+
+    it('replayed client.ready with hasExistingConversation uses session.recentMessages as fallback', async () => {
+      let connectResolve!: (v: any) => void;
+      let capturedCallbacks: any;
+      const mockGeminiSession = makeGeminiSession();
+
+      mockLiveConnect.mockImplementation(({ callbacks }: { callbacks: any }) => {
+        capturedCallbacks = callbacks;
+        return new Promise(resolve => { connectResolve = resolve; });
+      });
+
+      const dbMessages = makeDbMessages(2);
+      mockGetChatMessagesByPersonaRun.mockResolvedValue(dbMessages);
+      const fakeWs = { readyState: 1, send: vi.fn() };
+
+      const createPromise = service.createSession(
+        SESSION_ID, CONVERSATION_ID, SCENARIO_ID, PERSONA_ID, USER_ID, fakeWs as any
+      );
+
+      await flushMicrotasks();
+
+      const session = (service as any).sessions.get(SESSION_ID);
+      expect(session.recentMessages).toHaveLength(2);
+
+      service.handleClientMessage(SESSION_ID, {
+        type: 'client.ready',
+        hasExistingConversation: true,
+      });
+
+      expect(session.pendingClientReady).not.toBeNull();
+
+      capturedCallbacks.onopen();
+      connectResolve(mockGeminiSession);
+      await createPromise;
+
+      expect(session.pendingClientReady).toBeNull();
+
+      await flushMicrotasks();
+
+      expect(mockGeminiSession.sendClientContent).toHaveBeenCalled();
+      const callArg = mockGeminiSession.sendClientContent.mock.calls[0][0];
+      const sentText: string = callArg.turns[0].parts[0].text;
+      expect(sentText).toContain('message content 1 from DB');
+    });
+  });
+
   describe('createUserPersonaSession', () => {
     const USER_PERSONA_SCENARIO_ID = '__user_persona__:upersona-1';
 
