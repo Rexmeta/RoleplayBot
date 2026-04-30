@@ -117,11 +117,15 @@ export async function generateAIResponse(
   messages: ConversationMessage[],
   persona: ScenarioPersona,
   userMessage?: string,
-  language: SupportedLanguage = 'ko',
+  language?: SupportedLanguage,
   userName?: string
 ): Promise<{ content: string; emotion: string; emotionReason: string }> {
+  if (!language) {
+    console.warn('⚠️ [generateAIResponse] language not provided — defaulting to ko. Check call site.');
+  }
+  const resolvedLanguage: SupportedLanguage = language || 'ko';
   const aiService = await getAIServiceForFeature('conversation');
-  return aiService.generateResponse(scenario, messages, persona, userMessage, language, userName);
+  return aiService.generateResponse(scenario, messages, persona, userMessage, resolvedLanguage, userName);
 }
 
 export async function generateFeedback(
@@ -130,10 +134,14 @@ export async function generateFeedback(
   persona: ScenarioPersona,
   conversation?: Partial<Conversation>,
   evaluationCriteria?: EvaluationCriteriaWithDimensions,
-  language: SupportedLanguage = 'ko'
+  language?: SupportedLanguage
 ): Promise<DetailedFeedback> {
+  if (!language) {
+    console.warn('⚠️ [generateFeedback] language not provided — defaulting to ko. Check call site.');
+  }
+  const resolvedLanguage: SupportedLanguage = language || 'ko';
   const aiService = await getAIServiceForFeature('feedback');
-  return aiService.generateFeedback(scenario, messages, persona, conversation, evaluationCriteria, language);
+  return aiService.generateFeedback(scenario, messages, persona, conversation, evaluationCriteria, resolvedLanguage);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -149,12 +157,16 @@ export async function generateStrategyReflectionFeedback(
     objectives: string[];
     personas: Array<{ id: string; name: string; role: string; department: string }>;
   },
-  language: SupportedLanguage = 'ko'
+  language?: SupportedLanguage
 ): Promise<StrategyReflectionEvaluation> {
+  if (!language) {
+    console.warn('⚠️ [generateStrategyReflectionFeedback] language not provided — defaulting to ko. Check call site.');
+  }
+  const resolvedLanguage: SupportedLanguage = language || 'ko';
   const aiService = await getAIServiceForFeature('strategy');
 
   if (typeof aiService.generateStrategyEvaluation === 'function') {
-    const input: StrategyEvaluationInput = { strategyReflection, conversationOrder, scenarioInfo, language };
+    const input: StrategyEvaluationInput = { strategyReflection, conversationOrder, scenarioInfo, language: resolvedLanguage };
     return aiService.generateStrategyEvaluation(input);
   }
 
@@ -168,7 +180,7 @@ export async function generateStrategyReflectionFeedback(
   const strategyModel = await getModelForFeature('strategy');
   const fallbackModel = strategyModel.startsWith('gemini-') ? strategyModel : 'gemini-2.5-flash';
   const geminiService = new OptimizedGeminiProvider(geminiKey, fallbackModel);
-  const input: StrategyEvaluationInput = { strategyReflection, conversationOrder, scenarioInfo, language };
+  const input: StrategyEvaluationInput = { strategyReflection, conversationOrder, scenarioInfo, language: resolvedLanguage };
   return geminiService.generateStrategyEvaluation!(input);
 }
 

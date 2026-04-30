@@ -380,7 +380,7 @@ export async function generateAndSaveFeedback(
 
   console.log(`피드백 자동 생성 완료: ${conversationId}`);
 
-  performStrategicAnalysis(conversationId, conversation, scenarioObj)
+  performStrategicAnalysis(conversationId, conversation, scenarioObj, userLanguage)
     .catch(error => {
       console.error("전략 분석 오류 (무시):", error);
     });
@@ -388,7 +388,7 @@ export async function generateAndSaveFeedback(
   return feedback;
 }
 
-export async function performStrategicAnalysis(conversationId: string, conversation: any, scenarioObj: any) {
+export async function performStrategicAnalysis(conversationId: string, conversation: any, scenarioObj: any, userLanguage: 'ko' | 'en' | 'ja' | 'zh' = 'ko') {
   try {
     const strategyChoices = await storage.getStrategyChoices(conversationId);
     if (!strategyChoices || strategyChoices.length === 0) {
@@ -414,7 +414,7 @@ export async function performStrategicAnalysis(conversationId: string, conversat
           department: p.department || ''
         }))
       },
-      'ko'
+      userLanguage
     );
 
     await storage.saveSequenceAnalysis(conversationId, {

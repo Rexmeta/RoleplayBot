@@ -31,10 +31,10 @@ export type SupportedLanguage = 'ko' | 'en' | 'ja' | 'zh';
 
 // 언어별 응답 지시문
 export const LANGUAGE_INSTRUCTIONS: Record<SupportedLanguage, string> = {
-  ko: '반드시 한국어로 응답하세요.',
-  en: 'You must respond in English.',
-  ja: '必ず日本語で応答してください。',
-  zh: '请务必用中文回复。'
+  ko: '반드시 한국어로만 응답하세요. 다른 언어(영어, 일본어, 중국어 등) 사용은 절대 금지입니다.',
+  en: 'You MUST respond ONLY in English. Using any other language (Korean, Japanese, Chinese, etc.) is strictly forbidden.',
+  ja: '必ず日本語のみで応答してください。他の言語（韓国語・英語・中国語など）の使用は絶対に禁止です。',
+  zh: '必须只用中文回答。严禁使用任何其他语言（韩语、英语、日语等）。'
 };
 
 // 롤플레이 시나리오 타입 (AI 서비스 레이어에서 사용)

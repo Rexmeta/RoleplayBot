@@ -1223,10 +1223,11 @@ ${orderedPersonas}
 3. 대안적 접근법: 다른 효과적인 순서나 전략 제안
 4. 전략적 통찰: 사용자의 사고 과정에서 발견된 인사이트
 
-${language === 'ko' ? '한국어로 친절하고 구체적으로 평가해주세요.' :
-  language === 'en' ? 'Please evaluate kindly and specifically in English.' :
-  language === 'ja' ? '日本語で親切かつ具体的に評価してください。' :
-  '请用中文友好且具体地进行评估。'} 격려적인 톤을 유지하되 구체적인 피드백을 제공하세요.`;
+⚠️ 언어 지시 (최우선 적용): ${LANGUAGE_INSTRUCTIONS[language] || LANGUAGE_INSTRUCTIONS.ko}
+${language === 'ko' ? '격려적인 톤을 유지하되 구체적인 피드백을 제공하세요.' :
+  language === 'en' ? 'Maintain an encouraging tone while providing specific feedback.' :
+  language === 'ja' ? '励ましのトーンを保ちながら、具体的なフィードバックを提供してください。' :
+  '保持鼓励的语气，同时提供具体的反馈。'}`;
 
     try {
       const response = await this.genAI.models.generateContent({
