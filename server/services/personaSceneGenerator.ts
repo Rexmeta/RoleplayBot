@@ -36,10 +36,15 @@ function extractText(response: any): string {
 export async function generateSceneOpeningLine(
   personaName: string,
   scene: { setting: string; mood: string; genre?: string | null },
-  personaDescription?: string
+  personaDescription?: string,
+  userName?: string
 ): Promise<string> {
+  const userNameLine = userName
+    ? `대화 상대방의 이름은 "${userName}"입니다. 장면 분위기에 자연스럽게 어울린다면 첫 마디에서 이름으로 불러주세요.`
+    : "";
   const prompt = `당신은 "${personaName}"라는 AI 캐릭터입니다.
 ${personaDescription ? `캐릭터 설명: ${personaDescription}` : ""}
+${userNameLine}
 
 지금 다음 장면에서 대화가 시작됩니다:
 배경: ${scene.setting}

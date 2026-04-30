@@ -5,6 +5,7 @@ import fs from "fs";
 import { z } from "zod";
 import { asyncHandler, createHttpError } from "./routerHelpers";
 import { generateSceneOpeningLine } from "../services/personaSceneGenerator";
+import { normalizeProfileName } from "../services/conversationContextBuilder";
 
 const sceneSchema = z.object({
   title: z.string().max(200).optional(),
@@ -372,6 +373,9 @@ export default function createUserRouter(isAuthenticated: any) {
 
     await storage.incrementUserPersonaChatCount(persona.id);
 
+    const chatUser = await storage.getUser(userId);
+    const userName = normalizeProfileName(chatUser?.name);
+
     if (mode === "realtime_voice") {
       return res.json({
         id: personaRun.id,
@@ -399,7 +403,8 @@ export default function createUserRouter(isAuthenticated: any) {
         greetingText = await generateSceneOpeningLine(
           persona.name,
           { setting: scene.setting, mood: scene.mood, genre: scene.genre },
-          persona.description ?? undefined
+          persona.description ?? undefined,
+          userName
         );
       } catch {
         greetingText = persona.greeting || `안녕하세요! 저는 ${persona.name}입니다. 무슨 이야기든 편하게 나눠요.`;

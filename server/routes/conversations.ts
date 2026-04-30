@@ -426,6 +426,10 @@ export default function createConversationsRouter(isAuthenticated: any) {
 
     const personaId = personaRun!.personaId;
 
+    const user = await storage.getUser(userId);
+    const userLanguage = (user?.preferredLanguage as 'ko' | 'en' | 'ja' | 'zh') || 'ko';
+    const userName = normalizeProfileName(user?.name);
+
     let persona: any;
     let scenarioWithUserDifficulty: any;
 
@@ -487,6 +491,7 @@ export default function createConversationsRouter(isAuthenticated: any) {
               ].filter(Boolean).join("\n")
             : "";
           const scenePrefix = sceneBlock ? `${sceneBlock}\n\n` : "";
+          const userNameLine = userName ? `상대방 실명: 대화 상대방의 이름은 [${userName}]입니다. 대화 중 자연스럽게 "${userName}" 또는 "${userName} 씨"로 불러주세요.` : "";
           return `${scenePrefix}당신은 "${userPersonaData.name}"라는 AI 캐릭터입니다.
 
 ${userPersonaData.description ? `캐릭터 설명: ${userPersonaData.description}` : ""}
@@ -494,6 +499,7 @@ ${p.background ? `배경: ${p.background}` : ""}
 ${p.traits?.length ? `성격 특성: ${p.traits.join(", ")}` : ""}
 ${p.communicationStyle ? `대화 방식: ${p.communicationStyle}` : ""}
 ${p.speechStyle ? `말투: ${p.speechStyle}` : ""}
+${userNameLine}
 
 위 캐릭터로서 자연스럽게 대화하세요. 캐릭터의 성격, 말투, 배경을 일관되게 유지하세요.
 사용자와 자유롭게 대화하고, 사용자가 묻는 것에 캐릭터에 맞게 답변하세요.`;
@@ -543,10 +549,6 @@ ${p.speechStyle ? `말투: ${p.speechStyle}` : ""}
       emotion: msg.emotion || undefined,
       emotionReason: msg.emotionReason || undefined
     }));
-
-    const user = await storage.getUser(userId);
-    const userLanguage = (user?.preferredLanguage as 'ko' | 'en' | 'ja' | 'zh') || 'ko';
-    const userName = normalizeProfileName(user?.name);
 
     const scenarioForAI: RoleplayScenario = scenarioWithUserDifficulty;
     // Only realtime-voice → text requires a style-continuity hint because it uses a
