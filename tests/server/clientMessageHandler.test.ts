@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { summarizeOlderMessages } from '../../server/services/voice/clientMessageHandler';
 import { handleClientMessage } from '../../server/services/voice/clientMessageHandler';
 import type { RealtimeSession } from '../../server/services/voice/types';
+import { makeSession } from './helpers/voiceSession';
 
 vi.mock('../../server/services/voice/textFilter', () => ({
   filterThinkingText: vi.fn((text: string) => text),
@@ -28,43 +29,6 @@ function makeMessages(count: number): Array<{ role: 'user' | 'ai'; content: stri
   }));
 }
 
-function makeSession(overrides: Partial<RealtimeSession> = {}): RealtimeSession {
-  return {
-    id: 'test-session',
-    conversationId: 'conv-1',
-    scenarioId: 'scenario-1',
-    personaId: 'persona-1',
-    personaName: 'TestPersona',
-    userId: 'user-1',
-    clientWs: {} as any,
-    geminiSession: null,
-    currentTranscript: '',
-    userTranscriptBuffer: '',
-    audioBuffer: [],
-    startTime: Date.now(),
-    lastActivityTime: Date.now(),
-    totalUserTranscriptLength: 0,
-    totalAiTranscriptLength: 0,
-    realtimeModel: 'gemini-live',
-    hasReceivedFirstAIResponse: false,
-    hasTriggeredFirstGreeting: false,
-    firstGreetingRetryCount: 0,
-    isInterrupted: false,
-    turnSeq: 0,
-    cancelledTurnSeq: 0,
-    sessionResumptionToken: null,
-    isReconnecting: false,
-    reconnectAttempts: 0,
-    systemInstructions: 'instructions',
-    voiceGender: 'female',
-    recentMessages: [],
-    selectedVoice: null,
-    goAwayWarningTime: null,
-    pendingClientReady: null,
-    userLanguage: 'ko',
-    ...overrides,
-  };
-}
 
 describe('summarizeOlderMessages', () => {
   beforeEach(() => {
@@ -254,7 +218,6 @@ describe('handleClientMessage — 30-message threshold boundary', () => {
       const geminiSession = makeGeminiSession();
       const session = makeSession({
         geminiSession: geminiSession as any,
-        isConnected: true,
         userLanguage: 'ko',
       });
       sessions.set('test-session', session);
@@ -286,7 +249,6 @@ describe('handleClientMessage — 30-message threshold boundary', () => {
       const geminiSession = makeGeminiSession();
       const session = makeSession({
         geminiSession: geminiSession as any,
-        isConnected: true,
         userLanguage: 'ko',
       });
       sessions.set('test-session', session);
@@ -317,7 +279,6 @@ describe('handleClientMessage — 30-message threshold boundary', () => {
       const geminiSession = makeGeminiSession();
       const session = makeSession({
         geminiSession: geminiSession as any,
-        isConnected: true,
         userLanguage: 'ko',
       });
       sessions.set('test-session', session);
@@ -346,7 +307,6 @@ describe('handleClientMessage — 30-message threshold boundary', () => {
       const geminiSession = makeGeminiSession();
       const session = makeSession({
         geminiSession: geminiSession as any,
-        isConnected: true,
         userLanguage: 'ko',
       });
       sessions.set('test-session', session);
@@ -376,7 +336,6 @@ describe('handleClientMessage — 30-message threshold boundary', () => {
       const geminiSession = makeGeminiSession();
       const session = makeSession({
         geminiSession: geminiSession as any,
-        isConnected: true,
         userLanguage: 'ko',
       });
       sessions.set('test-session', session);
@@ -408,7 +367,6 @@ describe('handleClientMessage — 30-message threshold boundary', () => {
       const geminiSession = makeGeminiSession();
       const session = makeSession({
         geminiSession: geminiSession as any,
-        isConnected: true,
         userLanguage: 'ko',
       });
       sessions.set('test-session', session);
@@ -445,7 +403,6 @@ describe('handleClientMessage — 30-message threshold boundary', () => {
       ];
       const session = makeSession({
         geminiSession: geminiSession as any,
-        isConnected: true,
         userLanguage: 'ko',
         recentMessages: preloadedMessages,
       });
@@ -481,7 +438,6 @@ describe('handleClientMessage — 30-message threshold boundary', () => {
       ];
       const session = makeSession({
         geminiSession: geminiSession as any,
-        isConnected: true,
         userLanguage: 'ko',
         recentMessages: preloadedMessages,
       });
@@ -516,7 +472,6 @@ describe('handleClientMessage — 30-message threshold boundary', () => {
       ];
       const session = makeSession({
         geminiSession: geminiSession as any,
-        isConnected: true,
         userLanguage: 'ko',
         recentMessages: preloadedMessages,
       });
@@ -551,7 +506,6 @@ describe('handleClientMessage — 30-message threshold boundary', () => {
       const geminiSession = makeGeminiSession();
       const session = makeSession({
         geminiSession: geminiSession as any,
-        isConnected: true,
         userLanguage: 'ko',
         recentMessages: [],
       });
@@ -586,7 +540,6 @@ describe('handleClientMessage — 30-message threshold boundary', () => {
       ];
       const session = makeSession({
         geminiSession: geminiSession as any,
-        isConnected: true,
         userLanguage: 'ko',
         recentMessages: preloadedMessages,
       });
@@ -621,7 +574,6 @@ describe('handleClientMessage — 30-message threshold boundary', () => {
       ];
       const session = makeSession({
         geminiSession: geminiSession as any,
-        isConnected: true,
         userLanguage: 'ko',
         recentMessages: preloadedMessages,
       });
@@ -652,7 +604,6 @@ describe('handleClientMessage — 30-message threshold boundary', () => {
       const geminiSession = makeGeminiSession();
       const session = makeSession({
         geminiSession: geminiSession as any,
-        isConnected: true,
         userLanguage: 'ko',
         recentMessages: [{ role: 'user' as const, text: '서버 히스토리' }],
       });
@@ -691,7 +642,6 @@ describe('handleClientMessage — 30-message threshold boundary', () => {
       const geminiSession = makeGeminiSession();
       const session = makeSession({
         geminiSession: geminiSession as any,
-        isConnected: true,
         userLanguage: 'ko',
       });
       sessions.set('test-session', session);
@@ -731,45 +681,6 @@ describe('handleClientMessage — guard logic and switch-case branches', () => {
     };
   }
 
-  function makeTestSession(overrides: Partial<RealtimeSession> = {}): RealtimeSession {
-    return {
-      id: 'guard-session',
-      conversationId: 'conv-guard',
-      scenarioId: 'scenario-guard',
-      personaId: 'persona-guard',
-      personaName: 'GuardPersona',
-      userId: 'user-guard',
-      userName: '사용자',
-      clientWs: { readyState: 1, send: vi.fn() } as any,
-      geminiSession: null,
-      isConnected: false,
-      currentTranscript: '',
-      userTranscriptBuffer: '',
-      audioBuffer: [],
-      startTime: Date.now(),
-      lastActivityTime: 0,
-      totalUserTranscriptLength: 0,
-      totalAiTranscriptLength: 0,
-      realtimeModel: 'gemini-live',
-      hasReceivedFirstAIResponse: false,
-      hasTriggeredFirstGreeting: false,
-      firstGreetingRetryCount: 0,
-      isInterrupted: false,
-      turnSeq: 1,
-      cancelledTurnSeq: -1,
-      sessionResumptionToken: null,
-      isReconnecting: false,
-      reconnectAttempts: 0,
-      systemInstructions: 'test',
-      voiceGender: 'female',
-      recentMessages: [],
-      selectedVoice: null,
-      goAwayWarningTime: null,
-      pendingClientReady: null,
-      userLanguage: 'ko',
-      ...overrides,
-    };
-  }
 
   beforeEach(() => {
     sendToClient = vi.fn();
@@ -799,7 +710,7 @@ describe('handleClientMessage — guard logic and switch-case branches', () => {
   describe('lastActivityTime is always updated', () => {
     it('updates lastActivityTime before branching on geminiSession presence', () => {
       const before = 0;
-      const session = makeTestSession({ geminiSession: makeGeminiSession(), lastActivityTime: before });
+      const session = makeSession({ geminiSession: makeGeminiSession(), lastActivityTime: before });
       const sessions = new Map([[session.id, session]]);
 
       handleClientMessage(session.id, { type: 'ping' }, sessions, sendToClient);
@@ -810,7 +721,7 @@ describe('handleClientMessage — guard logic and switch-case branches', () => {
 
   describe('geminiSession absent — buffering vs. dropping', () => {
     it('buffers client.ready when geminiSession is null', () => {
-      const session = makeTestSession({ geminiSession: null });
+      const session = makeSession({ geminiSession: null });
       const sessions = new Map([[session.id, session]]);
       const msg = { type: 'client.ready' };
 
@@ -820,14 +731,14 @@ describe('handleClientMessage — guard logic and switch-case branches', () => {
       expect(sendToClient).not.toHaveBeenCalled();
     });
 
-    it('buffers client.ready based solely on geminiSession being null, regardless of isConnected', () => {
-      const sessionA = makeTestSession({ geminiSession: null, isConnected: false });
+    it('buffers client.ready based solely on geminiSession being null', () => {
+      const sessionA = makeSession({ geminiSession: null });
       const sessionsA = new Map([[sessionA.id, sessionA]]);
       const msgA = { type: 'client.ready' };
       handleClientMessage(sessionA.id, msgA, sessionsA, sendToClient);
       expect(sessionA.pendingClientReady).toBe(msgA);
 
-      const sessionB = makeTestSession({ id: 'guard-session-b', geminiSession: null, isConnected: true });
+      const sessionB = makeSession({ id: 'guard-session-b', geminiSession: null });
       const sessionsB = new Map([[sessionB.id, sessionB]]);
       const msgB = { type: 'client.ready', hasExistingConversation: false };
       handleClientMessage(sessionB.id, msgB, sessionsB, sendToClient);
@@ -838,7 +749,7 @@ describe('handleClientMessage — guard logic and switch-case branches', () => {
 
     it('drops input_audio_buffer.append (not buffered) when geminiSession is null', () => {
       const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
-      const session = makeTestSession({ geminiSession: null });
+      const session = makeSession({ geminiSession: null });
       const sessions = new Map([[session.id, session]]);
 
       handleClientMessage(session.id, { type: 'input_audio_buffer.append', audio: 'abc' }, sessions, sendToClient);
@@ -851,7 +762,7 @@ describe('handleClientMessage — guard logic and switch-case branches', () => {
 
     it('drops input_audio_buffer.commit when geminiSession is null', () => {
       const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
-      const session = makeTestSession({ geminiSession: null });
+      const session = makeSession({ geminiSession: null });
       const sessions = new Map([[session.id, session]]);
 
       handleClientMessage(session.id, { type: 'input_audio_buffer.commit' }, sessions, sendToClient);
@@ -863,7 +774,7 @@ describe('handleClientMessage — guard logic and switch-case branches', () => {
 
     it('drops response.cancel when geminiSession is null', () => {
       const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
-      const session = makeTestSession({ geminiSession: null });
+      const session = makeSession({ geminiSession: null });
       const sessions = new Map([[session.id, session]]);
 
       handleClientMessage(session.id, { type: 'response.cancel' }, sessions, sendToClient);
@@ -875,7 +786,7 @@ describe('handleClientMessage — guard logic and switch-case branches', () => {
 
     it('drops ping when geminiSession is null (ping is not buffered)', () => {
       const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
-      const session = makeTestSession({ geminiSession: null });
+      const session = makeSession({ geminiSession: null });
       const sessions = new Map([[session.id, session]]);
 
       handleClientMessage(session.id, { type: 'ping' }, sessions, sendToClient);
@@ -889,7 +800,7 @@ describe('handleClientMessage — guard logic and switch-case branches', () => {
   describe('switch-case: input_audio_buffer.append', () => {
     it('calls sendRealtimeInput with audio data and correct mimeType', () => {
       const geminiSession = makeGeminiSession();
-      const session = makeTestSession({ geminiSession });
+      const session = makeSession({ geminiSession });
       const sessions = new Map([[session.id, session]]);
 
       handleClientMessage(
@@ -907,7 +818,7 @@ describe('handleClientMessage — guard logic and switch-case branches', () => {
 
     it('does not call sendToClient for audio messages', () => {
       const geminiSession = makeGeminiSession();
-      const session = makeTestSession({ geminiSession });
+      const session = makeSession({ geminiSession });
       const sessions = new Map([[session.id, session]]);
 
       handleClientMessage(
@@ -924,7 +835,7 @@ describe('handleClientMessage — guard logic and switch-case branches', () => {
   describe('switch-case: input_audio_buffer.commit', () => {
     it('calls sendRealtimeInput with END_OF_TURN event', () => {
       const geminiSession = makeGeminiSession();
-      const session = makeTestSession({ geminiSession });
+      const session = makeSession({ geminiSession });
       const sessions = new Map([[session.id, session]]);
 
       handleClientMessage(session.id, { type: 'input_audio_buffer.commit' }, sessions, sendToClient);
@@ -938,7 +849,7 @@ describe('handleClientMessage — guard logic and switch-case branches', () => {
   describe('switch-case: response.create', () => {
     it('calls sendRealtimeInput with END_OF_TURN event', () => {
       const geminiSession = makeGeminiSession();
-      const session = makeTestSession({ geminiSession });
+      const session = makeSession({ geminiSession });
       const sessions = new Map([[session.id, session]]);
 
       handleClientMessage(session.id, { type: 'response.create' }, sessions, sendToClient);
@@ -952,7 +863,7 @@ describe('handleClientMessage — guard logic and switch-case branches', () => {
   describe('switch-case: conversation.item.create', () => {
     it('calls sendClientContent with the text extracted from item content', () => {
       const geminiSession = makeGeminiSession();
-      const session = makeTestSession({ geminiSession });
+      const session = makeSession({ geminiSession });
       const sessions = new Map([[session.id, session]]);
 
       handleClientMessage(
@@ -971,7 +882,7 @@ describe('handleClientMessage — guard logic and switch-case branches', () => {
 
     it('does not call sendClientContent when item is missing', () => {
       const geminiSession = makeGeminiSession();
-      const session = makeTestSession({ geminiSession });
+      const session = makeSession({ geminiSession });
       const sessions = new Map([[session.id, session]]);
 
       handleClientMessage(session.id, { type: 'conversation.item.create' }, sessions, sendToClient);
@@ -981,7 +892,7 @@ describe('handleClientMessage — guard logic and switch-case branches', () => {
 
     it('does not call sendClientContent when item.content is missing', () => {
       const geminiSession = makeGeminiSession();
-      const session = makeTestSession({ geminiSession });
+      const session = makeSession({ geminiSession });
       const sessions = new Map([[session.id, session]]);
 
       handleClientMessage(session.id, { type: 'conversation.item.create', item: {} }, sessions, sendToClient);
@@ -993,7 +904,7 @@ describe('handleClientMessage — guard logic and switch-case branches', () => {
   describe('switch-case: client.ready (new session, no prior context)', () => {
     it('sends greeting text and END_OF_TURN when geminiSession is present', () => {
       const geminiSession = makeGeminiSession();
-      const session = makeTestSession({ geminiSession });
+      const session = makeSession({ geminiSession });
       const sessions = new Map([[session.id, session]]);
 
       handleClientMessage(session.id, { type: 'client.ready' }, sessions, sendToClient);
@@ -1009,7 +920,7 @@ describe('handleClientMessage — guard logic and switch-case branches', () => {
 
     it('marks hasTriggeredFirstGreeting as true after sending the greeting', () => {
       const geminiSession = makeGeminiSession();
-      const session = makeTestSession({ geminiSession });
+      const session = makeSession({ geminiSession });
       const sessions = new Map([[session.id, session]]);
 
       handleClientMessage(session.id, { type: 'client.ready' }, sessions, sendToClient);
@@ -1019,7 +930,7 @@ describe('handleClientMessage — guard logic and switch-case branches', () => {
 
     it('skips greeting when hasTriggeredFirstGreeting is already true', () => {
       const geminiSession = makeGeminiSession();
-      const session = makeTestSession({ geminiSession, hasTriggeredFirstGreeting: true });
+      const session = makeSession({ geminiSession, hasTriggeredFirstGreeting: true });
       const sessions = new Map([[session.id, session]]);
 
       handleClientMessage(session.id, { type: 'client.ready' }, sessions, sendToClient);
@@ -1030,7 +941,7 @@ describe('handleClientMessage — guard logic and switch-case branches', () => {
 
     it('skips greeting when hasReceivedFirstAIResponse is already true', () => {
       const geminiSession = makeGeminiSession();
-      const session = makeTestSession({ geminiSession, hasReceivedFirstAIResponse: true });
+      const session = makeSession({ geminiSession, hasReceivedFirstAIResponse: true });
       const sessions = new Map([[session.id, session]]);
 
       handleClientMessage(session.id, { type: 'client.ready' }, sessions, sendToClient);
@@ -1042,7 +953,7 @@ describe('handleClientMessage — guard logic and switch-case branches', () => {
   describe('switch-case: response.cancel (barge-in)', () => {
     it('sets isInterrupted to true', () => {
       const geminiSession = makeGeminiSession();
-      const session = makeTestSession({ geminiSession });
+      const session = makeSession({ geminiSession });
       const sessions = new Map([[session.id, session]]);
 
       handleClientMessage(session.id, { type: 'response.cancel' }, sessions, sendToClient);
@@ -1052,7 +963,7 @@ describe('handleClientMessage — guard logic and switch-case branches', () => {
 
     it('records cancelledTurnSeq from current turnSeq', () => {
       const geminiSession = makeGeminiSession();
-      const session = makeTestSession({ geminiSession, turnSeq: 5 });
+      const session = makeSession({ geminiSession, turnSeq: 5 });
       const sessions = new Map([[session.id, session]]);
 
       handleClientMessage(session.id, { type: 'response.cancel' }, sessions, sendToClient);
@@ -1062,7 +973,7 @@ describe('handleClientMessage — guard logic and switch-case branches', () => {
 
     it('sends response.interrupted to the client', () => {
       const geminiSession = makeGeminiSession();
-      const session = makeTestSession({ geminiSession });
+      const session = makeSession({ geminiSession });
       const sessions = new Map([[session.id, session]]);
 
       handleClientMessage(session.id, { type: 'response.cancel' }, sessions, sendToClient);
@@ -1072,7 +983,7 @@ describe('handleClientMessage — guard logic and switch-case branches', () => {
 
     it('clears currentTranscript after barge-in', () => {
       const geminiSession = makeGeminiSession();
-      const session = makeTestSession({ geminiSession, currentTranscript: '안녕하세요' });
+      const session = makeSession({ geminiSession, currentTranscript: '안녕하세요' });
       const sessions = new Map([[session.id, session]]);
 
       handleClientMessage(session.id, { type: 'response.cancel' }, sessions, sendToClient);
@@ -1082,7 +993,7 @@ describe('handleClientMessage — guard logic and switch-case branches', () => {
 
     it('sends partial AI transcript when currentTranscript is non-empty and filterThinkingText returns text', () => {
       const geminiSession = makeGeminiSession();
-      const session = makeTestSession({ geminiSession, currentTranscript: '안녕하세요 반갑습니다' });
+      const session = makeSession({ geminiSession, currentTranscript: '안녕하세요 반갑습니다' });
       const sessions = new Map([[session.id, session]]);
 
       vi.mocked(filterThinkingText).mockReturnValue('안녕하세요 반갑습니다');
@@ -1097,7 +1008,7 @@ describe('handleClientMessage — guard logic and switch-case branches', () => {
 
     it('does not send partial transcript when filterThinkingText returns empty string', () => {
       const geminiSession = makeGeminiSession();
-      const session = makeTestSession({ geminiSession, currentTranscript: '**thinking**' });
+      const session = makeSession({ geminiSession, currentTranscript: '**thinking**' });
       const sessions = new Map([[session.id, session]]);
 
       vi.mocked(filterThinkingText).mockReturnValue('');
@@ -1110,7 +1021,7 @@ describe('handleClientMessage — guard logic and switch-case branches', () => {
 
     it('ignores duplicate cancel when isInterrupted is already true', () => {
       const geminiSession = makeGeminiSession();
-      const session = makeTestSession({ geminiSession, isInterrupted: true, cancelledTurnSeq: 2 });
+      const session = makeSession({ geminiSession, isInterrupted: true, cancelledTurnSeq: 2 });
       const sessions = new Map([[session.id, session]]);
 
       handleClientMessage(session.id, { type: 'response.cancel' }, sessions, sendToClient);
@@ -1122,7 +1033,7 @@ describe('handleClientMessage — guard logic and switch-case branches', () => {
   describe('switch-case: ping', () => {
     it('calls sendToClient with pong message', () => {
       const geminiSession = makeGeminiSession();
-      const session = makeTestSession({ geminiSession });
+      const session = makeSession({ geminiSession });
       const sessions = new Map([[session.id, session]]);
 
       handleClientMessage(session.id, { type: 'ping' }, sessions, sendToClient);
@@ -1132,7 +1043,7 @@ describe('handleClientMessage — guard logic and switch-case branches', () => {
 
     it('does not call any geminiSession methods for ping', () => {
       const geminiSession = makeGeminiSession();
-      const session = makeTestSession({ geminiSession });
+      const session = makeSession({ geminiSession });
       const sessions = new Map([[session.id, session]]);
 
       handleClientMessage(session.id, { type: 'ping' }, sessions, sendToClient);
@@ -1146,7 +1057,7 @@ describe('handleClientMessage — guard logic and switch-case branches', () => {
     it('logs unknown type without calling sendToClient or geminiSession methods', () => {
       const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
       const geminiSession = makeGeminiSession();
-      const session = makeTestSession({ geminiSession });
+      const session = makeSession({ geminiSession });
       const sessions = new Map([[session.id, session]]);
 
       handleClientMessage(session.id, { type: 'some.made.up.type' }, sessions, sendToClient);
