@@ -632,4 +632,137 @@ describe('handleGeminiMessage', () => {
       expect(session.lastActivityTime).toBeGreaterThan(oldTime);
     });
   });
+
+  describe('barge-in state reset via inputTranscription (VAD-confirmed user speech)', () => {
+    it('resets isInterrupted to false when VAD confirms user speech after barge-in', () => {
+      session.isInterrupted = true;
+      session.cancelledTurnSeq = 2;
+      session.userTranscriptBuffer = '';
+
+      handleGeminiMessage(
+        session,
+        { serverContent: { inputTranscription: { text: '새로운 발화' } } },
+        sendToClient,
+        null,
+        proactiveReconnect
+      );
+
+      expect(session.isInterrupted).toBe(false);
+    });
+
+    it('resets cancelledTurnSeq to -1 when VAD confirms user speech after barge-in', () => {
+      session.isInterrupted = true;
+      session.cancelledTurnSeq = 2;
+      session.userTranscriptBuffer = '';
+
+      handleGeminiMessage(
+        session,
+        { serverContent: { inputTranscription: { text: '새로운 발화' } } },
+        sendToClient,
+        null,
+        proactiveReconnect
+      );
+
+      expect(session.cancelledTurnSeq).toBe(-1);
+    });
+
+    it('does not reset isInterrupted on subsequent transcription chunks (only on first)', () => {
+      session.isInterrupted = false;
+      session.cancelledTurnSeq = -1;
+      session.userTranscriptBuffer = '이미 쌓인';
+
+      handleGeminiMessage(
+        session,
+        { serverContent: { inputTranscription: { text: ' 추가 내용' } } },
+        sendToClient,
+        null,
+        proactiveReconnect
+      );
+
+      expect(session.isInterrupted).toBe(false);
+      expect(session.cancelledTurnSeq).toBe(-1);
+    });
+
+    it('stale cancelled-turn audio (top-level data) is still suppressed while isInterrupted is true', () => {
+      session.isInterrupted = true;
+      session.cancelledTurnSeq = 1;
+
+      handleGeminiMessage(
+        session,
+        { data: 'stale-cancelled-audio==' },
+        sendToClient,
+        null,
+        proactiveReconnect
+      );
+
+      expect(sendToClient).not.toHaveBeenCalled();
+      expect(session.isInterrupted).toBe(true);
+    });
+
+    it('stale cancelled-turn audio is suppressed while isInterrupted is true, regardless of userTranscriptBuffer state', () => {
+      session.isInterrupted = true;
+      session.cancelledTurnSeq = 1;
+      session.userTranscriptBuffer = 'already receiving user transcript';
+
+      handleGeminiMessage(
+        session,
+        { data: 'late-stale-audio==' },
+        sendToClient,
+        null,
+        proactiveReconnect
+      );
+
+      expect(sendToClient).not.toHaveBeenCalled();
+    });
+
+    it('does not reset isInterrupted when inputTranscription text is empty', () => {
+      session.isInterrupted = true;
+      session.cancelledTurnSeq = 3;
+      session.userTranscriptBuffer = '';
+
+      handleGeminiMessage(
+        session,
+        { serverContent: { inputTranscription: { text: '' } } },
+        sendToClient,
+        null,
+        proactiveReconnect
+      );
+
+      expect(session.isInterrupted).toBe(true);
+      expect(session.cancelledTurnSeq).toBe(3);
+    });
+
+    it('turnComplete path: resets cancelledTurnSeq to -1 when clearing isInterrupted', () => {
+      session.isInterrupted = true;
+      session.turnSeq = 1;
+      session.cancelledTurnSeq = 1;
+
+      handleGeminiMessage(
+        session,
+        { serverContent: { turnComplete: true } },
+        sendToClient,
+        null,
+        proactiveReconnect
+      );
+
+      expect(session.isInterrupted).toBe(false);
+      expect(session.cancelledTurnSeq).toBe(-1);
+    });
+
+    it('outputTranscription path: resets cancelledTurnSeq to -1 when clearing isInterrupted', () => {
+      session.isInterrupted = true;
+      session.cancelledTurnSeq = 2;
+
+      handleGeminiMessage(
+        session,
+        { serverContent: { outputTranscription: { text: '새 AI 응답' } } },
+        sendToClient,
+        null,
+        proactiveReconnect
+      );
+
+      expect(session.isInterrupted).toBe(false);
+      expect(session.cancelledTurnSeq).toBe(-1);
+    });
+  });
 });

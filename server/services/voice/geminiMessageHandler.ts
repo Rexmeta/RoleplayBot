@@ -82,6 +82,11 @@ export function handleGeminiMessage(
       console.log(`🎤 User transcript delta: ${transcript}`);
 
       if (session.userTranscriptBuffer.length === 0 && transcript.length > 0) {
+        if (session.isInterrupted) {
+          console.log(`🔄 User speech confirmed by VAD — clearing barge-in state (cancelledTurn=${session.cancelledTurnSeq})`);
+          session.isInterrupted = false;
+          session.cancelledTurnSeq = -1;
+        }
         console.log('🎙️ User started speaking - notifying client');
         sendToClient(session, { type: 'user.speaking.started' });
       }
@@ -107,6 +112,7 @@ export function handleGeminiMessage(
       if (session.isInterrupted && session.turnSeq > session.cancelledTurnSeq) {
         console.log(`🔊 New turn ${session.turnSeq} > cancelled ${session.cancelledTurnSeq} - clearing barge-in flag`);
         session.isInterrupted = false;
+        session.cancelledTurnSeq = -1;
         sendToClient(session, {
           type: 'response.ready',
           turnSeq: session.turnSeq,
@@ -245,6 +251,7 @@ export function handleGeminiMessage(
       if (session.isInterrupted && transcript.length > 0) {
         console.log(`🔊 New AI response started - clearing barge-in flag immediately`);
         session.isInterrupted = false;
+        session.cancelledTurnSeq = -1;
         sendToClient(session, { type: 'response.ready', turnSeq: session.turnSeq });
       }
 

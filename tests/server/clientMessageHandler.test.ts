@@ -830,6 +830,7 @@ describe('handleClientMessage — guard logic and switch-case branches', () => {
 
       expect(sendToClient).not.toHaveBeenCalled();
     });
+
   });
 
   describe('switch-case: input_audio_buffer.commit', () => {
