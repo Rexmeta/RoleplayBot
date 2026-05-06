@@ -29,6 +29,7 @@ import { ChatInputBar } from "@/components/chat/ChatInputBar";
 import { GoalsSidebar } from "@/components/chat/GoalsSidebar";
 
 const MAX_TURNS = 999;
+const SOFT_CLOSE_THRESHOLD = 0.8;
 
 type PreviousMessage = { role: 'user' | 'ai'; content: string };
 
@@ -301,7 +302,10 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
   };
   const handleVoiceInput = () => { if (isRecording) stopRecording(); else startRecording(); };
 
-  const progressPercentage = conversation ? (conversation.turnCount / MAX_TURNS) * 100 : 0;
+  const targetTurns = scenario.targetTurns ?? 10;
+  const currentTurn = conversation ? conversation.turnCount : 0;
+  const progressPercentage = Math.min((currentTurn / targetTurns) * 100, 100);
+  const isNearingEnd = progressPercentage >= SOFT_CLOSE_THRESHOLD * 100;
 
   if (error) return (
     <div className="text-center py-8">
@@ -370,9 +374,19 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
             </div>
             <div className="mt-4 flex items-center space-x-3">
               <div className="flex-1 bg-white/20 rounded-full h-2">
-                <div className="bg-white rounded-full h-2 transition-all duration-300" style={{ width: `${progressPercentage}%` }}></div>
+                <div
+                  className={`rounded-full h-2 transition-all duration-500 ${isNearingEnd ? 'bg-amber-400' : 'bg-white'}`}
+                  style={{ width: `${progressPercentage}%` }}
+                />
               </div>
               <div className="flex items-center space-x-3 text-white/90 text-sm">
+                <div
+                  className={`flex items-center space-x-1 font-medium transition-colors duration-300 ${isNearingEnd ? 'text-amber-300' : 'text-white/90'}`}
+                  data-testid="turn-counter"
+                >
+                  <i className="fas fa-comments text-xs"></i>
+                  <span>{currentTurn} / {targetTurns}</span>
+                </div>
                 <div className="flex items-center space-x-1"><i className="fas fa-clock text-xs"></i><span data-testid="elapsed-time">{formatElapsedTime(elapsedTime)}</span></div>
               </div>
             </div>
