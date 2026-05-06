@@ -78,25 +78,40 @@ export function handleGeminiClose(
             sendToClient(sess, { type: 'session.reconnected' });
 
             if (sess.geminiSession) {
-              console.log('📤 재연결 후 대화 재개 트리거...');
-              const recentMsgs = sess.recentMessages || [];
-              const reconnectUserLabel = sess.userName && sess.userName !== '사용자' ? sess.userName : '사용자';
-              let reconnectText: string;
-              if (recentMsgs.length > 0) {
-                const historyText = recentMsgs.map(m =>
-                  `${m.role === 'user' ? reconnectUserLabel : '당신'}: ${m.text}`
-                ).join('\n');
-                reconnectText = `[일시적인 기술 문제로 연결이 잠깐 끊어졌지만 복구되었습니다. 방금 전 나눈 대화 내용을 기억하세요:\n${historyText}\n\n이 대화를 자연스럽게 이어서 진행하세요. "다시 연결됐네요" 정도로 짧게 언급하고 바로 대화를 이어가세요.]`;
-                console.log(`📜 재연결 컨텍스트 복원: ${recentMsgs.length}개 메시지`);
+              if (sess.pendingMessages.length > 0) {
+                console.log(`📤 재연결 후 미확인 메시지 ${sess.pendingMessages.length}개 재전송...`);
+                for (const pending of sess.pendingMessages) {
+                  try {
+                    if (pending.payload.type === 'realtimeInput') {
+                      sess.geminiSession.sendRealtimeInput(pending.payload.data);
+                    } else if (pending.payload.type === 'clientContent') {
+                      sess.geminiSession.sendClientContent(pending.payload.data);
+                    }
+                  } catch (replayErr) {
+                    console.warn(`⚠️ 메시지 재전송 실패 (index=${pending.index}):`, replayErr);
+                  }
+                }
               } else {
-                reconnectText = '(기술적 문제가 해결되었습니다. 이전 대화를 이어서 간단히 확인 질문을 해주세요.)';
-              }
+                console.log('📤 재연결 후 대화 재개 트리거...');
+                const recentMsgs = sess.recentMessages || [];
+                const reconnectUserLabel = sess.userName && sess.userName !== '사용자' ? sess.userName : '사용자';
+                let reconnectText: string;
+                if (recentMsgs.length > 0) {
+                  const historyText = recentMsgs.map(m =>
+                    `${m.role === 'user' ? reconnectUserLabel : '당신'}: ${m.text}`
+                  ).join('\n');
+                  reconnectText = `[일시적인 기술 문제로 연결이 잠깐 끊어졌지만 복구되었습니다. 방금 전 나눈 대화 내용을 기억하세요:\n${historyText}\n\n이 대화를 자연스럽게 이어서 진행하세요. "다시 연결됐네요" 정도로 짧게 언급하고 바로 대화를 이어가세요.]`;
+                  console.log(`📜 재연결 컨텍스트 복원: ${recentMsgs.length}개 메시지`);
+                } else {
+                  reconnectText = '(기술적 문제가 해결되었습니다. 이전 대화를 이어서 간단히 확인 질문을 해주세요.)';
+                }
 
-              sess.geminiSession.sendClientContent({
-                turns: [{ role: 'user', parts: [{ text: reconnectText }] }],
-                turnComplete: true,
-              });
-              sess.geminiSession.sendRealtimeInput({ event: 'END_OF_TURN' });
+                sess.geminiSession.sendClientContent({
+                  turns: [{ role: 'user', parts: [{ text: reconnectText }] }],
+                  turnComplete: true,
+                });
+                sess.geminiSession.sendRealtimeInput({ event: 'END_OF_TURN' });
+              }
             }
           })
           .catch((error) => {

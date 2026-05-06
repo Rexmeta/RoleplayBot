@@ -35,6 +35,8 @@ export function makeSession(overrides: Partial<RealtimeSession> = {}): RealtimeS
     goAwayWarningTime: null,
     pendingClientReady: null,
     userLanguage: 'ko',
+    pendingMessages: [],
+    outgoingMessageIndex: 0,
     ...overrides,
   };
 }

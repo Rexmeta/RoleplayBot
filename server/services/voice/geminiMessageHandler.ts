@@ -45,6 +45,13 @@ export function handleGeminiMessage(
       session.sessionResumptionToken = token;
       console.log(`🔑 Session resumption token 저장됨`);
     }
+    const lastConsumed = message.sessionResumption.lastConsumedClientMessageIndex
+      ?? message.sessionResumption.last_consumed_client_message_index;
+    if (typeof lastConsumed === 'number') {
+      const before = session.pendingMessages.length;
+      session.pendingMessages = session.pendingMessages.filter(m => m.index > lastConsumed);
+      console.log(`🧹 Pruned ${before - session.pendingMessages.length} acknowledged pending messages (lastConsumed=${lastConsumed}, remaining=${session.pendingMessages.length})`);
+    }
   }
 
   const msgType = message.serverContent ? 'serverContent' : message.data ? 'audio data' : 'other';

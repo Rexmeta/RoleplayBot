@@ -178,11 +178,17 @@ const AI_MODELS = [
 ];
 
 const GEMINI_LIVE_MODELS = [
+  {
+    value: "gemini-live-2.5-flash",
+    modelKey: "geminiLive25Flash",
+    provider: "Google Live",
+    recommended: true
+  },
   { 
     value: "gemini-2.5-flash-native-audio-preview-12-2025", 
     modelKey: "geminiLiveNativeAudio",
     provider: "Google Live",
-    recommended: true
+    recommended: false
   },
 ];
 
@@ -218,7 +224,7 @@ const FEATURE_MODEL_INFO = [
   {
     id: "realtime",
     settingKey: "model_realtime",
-    defaultModel: "gemini-2.5-flash-native-audio-preview-12-2025",
+    defaultModel: "gemini-live-2.5-flash",
     configurable: true,
     supportedProviders: ["Google Live"]
   },
@@ -289,7 +295,7 @@ export default function SystemAdminPage() {
     model_feedback: "gemini-2.5-flash",
     model_strategy: "gemini-2.5-flash",
     model_scenario: "gemini-2.5-flash",
-    model_realtime: "gemini-2.5-flash-native-audio-preview-12-2025",
+    model_realtime: "gemini-live-2.5-flash",
     model_emotion: "gemini-2.5-flash",
   });
   const [hasSettingsChanges, setHasSettingsChanges] = useState(false);

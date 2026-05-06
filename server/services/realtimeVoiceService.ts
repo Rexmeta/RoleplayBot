@@ -20,7 +20,7 @@ import {
 import { buildUserPersonaInstructions } from './voice/prompts/userPersonaPrompt';
 import { normalizeProfileName } from './conversationContextBuilder';
 
-const DEFAULT_REALTIME_MODEL = 'gemini-2.5-flash-native-audio-preview-09-2025';
+const DEFAULT_REALTIME_MODEL = 'gemini-live-2.5-flash';
 
 async function preloadRecentMessages(
   conversationId: string,
@@ -80,7 +80,7 @@ export class RealtimeVoiceService {
       );
       const settingPromise = storage.getSystemSetting('ai', 'model_realtime');
       const setting = await Promise.race([settingPromise, timeoutPromise]);
-      const validModels = ['gemini-2.5-flash-native-audio-preview-09-2025'];
+      const validModels = ['gemini-live-2.5-flash', 'gemini-2.5-flash-native-audio-preview-09-2025', 'gemini-2.5-flash-native-audio-preview-12-2025'];
       const model = setting?.value;
       if (model && validModels.includes(model)) {
         console.log(`🤖 Using realtime model from DB: ${model}`);
@@ -195,6 +195,7 @@ export class RealtimeVoiceService {
       systemInstructions, voiceGender: gender, recentMessages: preloadedMessages,
       selectedVoice: null, goAwayWarningTime: null, pendingClientReady: null,
       userLanguage,
+      pendingMessages: [], outgoingMessageIndex: 0,
     };
 
     this.sessions.set(sessionId, session);
@@ -243,6 +244,7 @@ export class RealtimeVoiceService {
       systemInstructions, voiceGender: gender, recentMessages: preloadedMessagesUserPersona,
       selectedVoice: null, goAwayWarningTime: null, pendingClientReady: null,
       userLanguage,
+      pendingMessages: [], outgoingMessageIndex: 0,
     };
 
     this.sessions.set(sessionId, session);
@@ -291,7 +293,6 @@ export class RealtimeVoiceService {
         outputAudioTranscription: { languageCode: langCode },
         speechConfig: {
           voiceConfig: { prebuiltVoiceConfig: { voiceName } },
-          languageCode: langCode,
         },
         thinkingConfig: { thinkingBudget: 0 },
         contextWindowCompression: { slidingWindow: {} },
@@ -354,11 +355,12 @@ export class RealtimeVoiceService {
 
           const greetingTrigger = `안녕하세요`;
           console.log(`📤 Sending greeting trigger: "${greetingTrigger}"`);
-          currentSession.geminiSession.sendClientContent({
-            turns: [{ role: 'user', parts: [{ text: greetingTrigger }] }],
-            turnComplete: true,
-          });
-          currentSession.geminiSession.sendRealtimeInput({ event: 'END_OF_TURN' });
+          const timeoutGreetingPayload = { turns: [{ role: 'user', parts: [{ text: greetingTrigger }] }], turnComplete: true };
+          currentSession.pendingMessages.push({ index: currentSession.outgoingMessageIndex++, payload: { type: 'clientContent', data: timeoutGreetingPayload } });
+          currentSession.geminiSession.sendClientContent(timeoutGreetingPayload);
+          const timeoutEotPayload = { event: 'END_OF_TURN' };
+          currentSession.pendingMessages.push({ index: currentSession.outgoingMessageIndex++, payload: { type: 'realtimeInput', data: timeoutEotPayload } });
+          currentSession.geminiSession.sendRealtimeInput(timeoutEotPayload);
         } else if (pendingHasExisting) {
           console.log('⏭️ Timeout skipped - pending client.ready has hasExistingConversation flag');
         } else if (currentSession?.hasTriggeredFirstGreeting) {
@@ -410,24 +412,40 @@ export class RealtimeVoiceService {
         this.sendToClient(currentSession, { type: 'session.reconnected' });
 
         if (currentSession.geminiSession) {
-          console.log('📤 proactiveReconnect 후 대화 컨텍스트 복원...');
-          const recentMsgs = currentSession.recentMessages || [];
-          let reconnectText: string;
-          if (recentMsgs.length > 0) {
-            const historyText = recentMsgs.map(m =>
-              `${m.role === 'user' ? '사용자' : '당신'}: ${m.text}`
-            ).join('\n');
-            reconnectText = `[연결이 자동으로 갱신되었습니다. 방금 전 나눈 대화 내용을 기억하세요:\n${historyText}\n\n이 대화를 자연스럽게 이어서 진행하세요. 연결 갱신에 대해 언급하지 말고 바로 대화를 이어가세요.]`;
-            console.log(`📜 proactiveReconnect 컨텍스트 복원: ${recentMsgs.length}개 메시지`);
+          if (currentSession.pendingMessages.length > 0) {
+            console.log(`📤 proactiveReconnect 후 미확인 메시지 ${currentSession.pendingMessages.length}개 재전송...`);
+            for (const pending of currentSession.pendingMessages) {
+              try {
+                if (pending.payload.type === 'realtimeInput') {
+                  currentSession.geminiSession.sendRealtimeInput(pending.payload.data);
+                } else if (pending.payload.type === 'clientContent') {
+                  currentSession.geminiSession.sendClientContent(pending.payload.data);
+                }
+              } catch (replayErr) {
+                console.warn(`⚠️ proactiveReconnect 메시지 재전송 실패 (index=${pending.index}):`, replayErr);
+              }
+            }
           } else {
-            reconnectText = '(연결이 자동으로 갱신되었습니다. 이전 대화를 이어서 사용자의 입력을 기다리세요.)';
-          }
+            console.log('📤 proactiveReconnect 후 대화 컨텍스트 복원...');
+            const recentMsgs = currentSession.recentMessages || [];
+            let reconnectText: string;
+            if (recentMsgs.length > 0) {
+              const historyText = recentMsgs.map(m =>
+                `${m.role === 'user' ? '사용자' : '당신'}: ${m.text}`
+              ).join('\n');
+              reconnectText = `[연결이 자동으로 갱신되었습니다. 방금 전 나눈 대화 내용을 기억하세요:\n${historyText}\n\n이 대화를 자연스럽게 이어서 진행하세요. 연결 갱신에 대해 언급하지 말고 바로 대화를 이어가세요.]`;
+              console.log(`📜 proactiveReconnect 컨텍스트 복원: ${recentMsgs.length}개 메시지`);
+            } else {
+              reconnectText = '(연결이 자동으로 갱신되었습니다. 이전 대화를 이어서 사용자의 입력을 기다리세요.)';
+            }
 
-          currentSession.geminiSession.sendClientContent({
-            turns: [{ role: 'user', parts: [{ text: reconnectText }] }],
-            turnComplete: true,
-          });
-          currentSession.geminiSession.sendRealtimeInput({ event: 'END_OF_TURN' });
+            const proactiveCtxPayload = { turns: [{ role: 'user', parts: [{ text: reconnectText }] }], turnComplete: true };
+            currentSession.pendingMessages.push({ index: currentSession.outgoingMessageIndex++, payload: { type: 'clientContent', data: proactiveCtxPayload } });
+            currentSession.geminiSession.sendClientContent(proactiveCtxPayload);
+            const proactiveEotPayload = { event: 'END_OF_TURN' };
+            currentSession.pendingMessages.push({ index: currentSession.outgoingMessageIndex++, payload: { type: 'realtimeInput', data: proactiveEotPayload } });
+            currentSession.geminiSession.sendRealtimeInput(proactiveEotPayload);
+          }
         }
       })
       .catch((error) => {

@@ -41,6 +41,8 @@ function makeSession(overrides: Partial<RealtimeSession> = {}): RealtimeSession 
     goAwayWarningTime: null,
     pendingClientReady: null,
     userLanguage: 'ko',
+    pendingMessages: [],
+    outgoingMessageIndex: 0,
     ...overrides,
   };
 }
