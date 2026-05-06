@@ -278,7 +278,10 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
         failure: ''
       },
       personas: scenario.personas || [],
-      recommendedFlow: scenario.recommendedFlow || []
+      recommendedFlow: scenario.recommendedFlow || [],
+      targetDurationMinutes: scenario.targetDurationMinutes ?? 7,
+      targetTurns: scenario.targetTurns ?? 10,
+      minValidTurns: scenario.minValidTurns ?? 4,
     });
     
     setIsCreateOpen(true);

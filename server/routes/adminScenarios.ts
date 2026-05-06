@@ -50,6 +50,7 @@ export default function createAdminScenariosRouter(isAuthenticated: any) {
 
   router.post("/api/admin/generate-scenario", isAuthenticated, isOperatorOrAdmin, asyncHandler(async (req, res) => {
     const {
+      idea,
       theme,
       industry,
       situation,
@@ -64,12 +65,13 @@ export default function createAdminScenariosRouter(isAuthenticated: any) {
       personaCount
     } = req.body;
 
-    if (!theme) {
-      throw createHttpError(400, "주제는 필수입니다");
+    if (!idea && !theme) {
+      throw createHttpError(400, "시나리오 아이디어는 필수입니다");
     }
 
     const result = await generateScenarioWithAI({
-      theme,
+      idea: idea || theme,
+      theme: theme || idea,
       industry,
       situation,
       timeline,
