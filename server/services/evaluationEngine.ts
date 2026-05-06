@@ -129,21 +129,25 @@ export const BARGE_IN_NEGATIVE_PENALTY = 3;
 /**
  * 대화 완성도 패널티 테이블
  * effectiveRatio < threshold → penalty (음성/텍스트 구분)
+ * 80% 이상이면 패널티 없음 (정상 완성)
  */
 export const COMPLETION_PENALTY_TIERS = [
   { threshold: 0.3, textPenalty: 25, voicePenalty: 15 },
   { threshold: 0.5, textPenalty: 15, voicePenalty: 10 },
   { threshold: 0.7, textPenalty: 8,  voicePenalty: 5  },
+  { threshold: 0.8, textPenalty: 4,  voicePenalty: 2  },
 ] as const;
 
 /**
  * 대화량 부족 시 개별 역량 점수 캡
  * effectiveRatio에 따라 최대 허용 점수 결정
+ * 80% 이상이면 캡 없음 (정상 완성)
  */
 export const SCORE_CAP_TIERS = [
   { maxRatio: 0.3, maxScore: 3 },
   { maxRatio: 0.5, maxScore: 5 },
   { maxRatio: 0.7, maxScore: 7 },
+  { maxRatio: 0.8, maxScore: 8 },
 ] as const;
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -177,20 +181,45 @@ export function filterVoiceNoise(userMessages: ConversationMessage[]): Conversat
 /**
  * 실질 완성도(effectiveRatio) 계산
  * 음성 모드에서는 발화 밀도(B)로 보정
+ * scenarioTargetTurns가 제공되면 전역 상수 대신 시나리오별 목표값을 사용
  */
 export function calcEffectiveRatio(
   userMessages: ConversationMessage[],
-  voiceMode: boolean
+  voiceMode: boolean,
+  scenarioTargetTurns?: number,
+  actualDurationSeconds?: number,
+  scenarioTargetDurationMinutes?: number
 ): number {
-  const expectedTurns = voiceMode ? EXPECTED_TURNS_VOICE : EXPECTED_TURNS_TEXT;
+  const expectedTurns = scenarioTargetTurns ?? (voiceMode ? EXPECTED_TURNS_VOICE : EXPECTED_TURNS_TEXT);
   const turnRatio = userMessages.length / expectedTurns;
 
-  if (!voiceMode) return turnRatio;
-
+  // 텍스트 및 음성 모두 턴 수 + 문자 수 기반 공정 비교 (최댓값 사용)
   const totalChars = userMessages.reduce((sum, msg) => sum + msg.message.length, 0);
-  const expectedChars = EXPECTED_TURNS_VOICE * BASELINE_CHARS_PER_TURN;
+  const expectedChars = expectedTurns * BASELINE_CHARS_PER_TURN;
   const contentRatio = Math.min(1.0, totalChars / expectedChars);
-  return Math.min(1.0, Math.max(turnRatio, contentRatio));
+
+  // 시나리오별 목표 시간이 있으면 실제 대화 시간 비율도 반영
+  const timeRatio: number =
+    typeof actualDurationSeconds === 'number' &&
+    typeof scenarioTargetDurationMinutes === 'number' &&
+    scenarioTargetDurationMinutes > 0
+      ? Math.min(1.0, actualDurationSeconds / (scenarioTargetDurationMinutes * 60))
+      : 0;
+
+  return Math.min(1.0, Math.max(turnRatio, contentRatio, timeRatio));
+}
+
+/**
+ * 최소 유효 턴 수 충족 여부 확인
+ * @param userMessages 사용자 메시지 목록 (노이즈 필터링 후)
+ * @param minValidTurns 최소 유효 턴 수
+ * @returns true면 평가 가능, false면 대화량 부족
+ */
+export function checkMinValidTurns(
+  userMessages: ConversationMessage[],
+  minValidTurns: number
+): boolean {
+  return userMessages.length >= minValidTurns;
 }
 
 /**

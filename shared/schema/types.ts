@@ -78,6 +78,7 @@ export type DetailedFeedback = {
     bargeInCount?: number;
     completionRatio?: number;
   };
+  insufficientConversation?: boolean;
 };
 
 export type PersonaSelection = {

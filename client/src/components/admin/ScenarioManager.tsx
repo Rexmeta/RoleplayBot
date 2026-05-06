@@ -13,6 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
+import { Slider } from '@/components/ui/slider';
 import { useToast } from '@/hooks/use-toast';
 import { apiRequest, queryClient } from '@/lib/queryClient';
 import { ComplexScenario } from '@/lib/scenario-system';
@@ -53,6 +54,9 @@ interface ScenarioFormData {
   introVideoUrl?: string; // 인트로 비디오 URL 필드 추가
   videoPrompt?: string; // 비디오 생성 프롬프트 필드 추가
   objectiveType?: string; // 목표 유형 추가
+  targetDurationMinutes?: number; // 시나리오별 목표 대화 시간(분)
+  targetTurns?: number; // 시나리오별 목표 턴 수
+  minValidTurns?: number; // 최소 유효 턴 수
   isDemo?: boolean; // 게스트 데모용 시나리오 여부
   isPublic?: boolean; // 공개 여부
   autoTranslate?: boolean; // AI 자동 번역 여부
@@ -120,6 +124,9 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
     introVideoUrl: '', // 인트로 비디오 URL 초기값 추가
     videoPrompt: '', // 비디오 프롬프트 초기값 추가
     objectiveType: '', // 목표 유형 초기값 추가
+    targetDurationMinutes: 7,
+    targetTurns: 10,
+    minValidTurns: 4,
     isDemo: false, // 게스트 데모용 시나리오 초기값 추가
     isPublic: false, // 공개 여부 초기값 (기본 비공개)
     autoTranslate: true, // AI 자동 번역 기본값 true
@@ -420,6 +427,9 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
       introVideoUrl: '', // 인트로 비디오 URL 초기화 추가
       videoPrompt: '', // 비디오 프롬프트 초기화 추가
       objectiveType: '', // 목표 유형 초기화
+      targetDurationMinutes: 7,
+      targetTurns: 10,
+      minValidTurns: 4,
       isPublic: false, // 공개 여부 초기화 (기본 비공개)
       autoTranslate: true, // 자동 번역 기본값 true
       context: {
@@ -471,6 +481,9 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
       introVideoUrl: (originalScenario as any).introVideoUrl || '', // 기존 시나리오의 인트로 비디오 URL 로드
       videoPrompt: (originalScenario as any).videoPrompt || '', // 기존 시나리오의 비디오 프롬프트 로드
       objectiveType: (originalScenario as any).objectiveType || '', // 기존 시나리오의 목표 유형 로드
+      targetDurationMinutes: (originalScenario as any).targetDurationMinutes ?? 7,
+      targetTurns: (originalScenario as any).targetTurns ?? 10,
+      minValidTurns: (originalScenario as any).minValidTurns ?? 4,
       isDemo: (originalScenario as any).isDemo || false, // 기존 시나리오의 데모 여부 로드
       isPublic: (originalScenario as any).isPublic || false, // 기존 시나리오의 공개 여부 로드
       context: originalScenario.context,
@@ -1343,6 +1356,166 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
                       className="bg-white"
                     />
                   </div>
+
+                  {/* 대화 시간 설정 */}
+                  {(() => {
+                    const difficulty = formData.difficulty ?? 4;
+                    const rec = difficulty === 1
+                      ? { durationMin: 5, durationMax: 8, turnsMin: 6, turnsMax: 8, minValid: 3 }
+                      : difficulty === 2
+                      ? { durationMin: 7, durationMax: 10, turnsMin: 8, turnsMax: 12, minValid: 4 }
+                      : difficulty === 3
+                      ? { durationMin: 10, durationMax: 15, turnsMin: 12, turnsMax: 16, minValid: 5 }
+                      : { durationMin: 12, durationMax: 20, turnsMin: 14, turnsMax: 20, minValid: 6 };
+                    const difficultyLabel = ['', '입문', '기본', '심화', '전문가'][difficulty] || '전문가';
+                    const targetDuration = formData.targetDurationMinutes ?? rec.durationMin;
+                    const targetTurns = formData.targetTurns ?? rec.turnsMin;
+                    const minValid = formData.minValidTurns ?? rec.minValid;
+                    const isDurationInRange = targetDuration >= rec.durationMin && targetDuration <= rec.durationMax;
+                    const isTurnsInRange = targetTurns >= rec.turnsMin && targetTurns <= rec.turnsMax;
+                    // compute slider track percentages for recommended band overlay (max scale 30 turns, 60 min)
+                    const durationRecLeft = `${(rec.durationMin / 60) * 100}%`;
+                    const durationRecWidth = `${((rec.durationMax - rec.durationMin) / 60) * 100}%`;
+                    const turnsRecLeft = `${(rec.turnsMin / 30) * 100}%`;
+                    const turnsRecWidth = `${((rec.turnsMax - rec.turnsMin) / 30) * 100}%`;
+                    return (
+                    <TooltipProvider>
+                    <div className="border border-slate-200 rounded-lg p-4 space-y-5 bg-slate-50">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <Clock className="h-4 w-4 text-slate-500" />
+                          <span className="text-sm font-semibold text-slate-700">대화 시간 설정</span>
+                        </div>
+                        <span className="text-xs bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded-full font-medium">
+                          {difficultyLabel} 권장: {rec.durationMin}~{rec.durationMax}분 · {rec.turnsMin}~{rec.turnsMax}턴
+                        </span>
+                      </div>
+
+                      {/* 목표 시간 슬라이더 */}
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-1.5">
+                            <Label className="text-xs font-medium text-slate-600">목표 시간 (분)</Label>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <span className="text-slate-400 cursor-help text-xs">ⓘ</span>
+                              </TooltipTrigger>
+                              <TooltipContent side="top" className="max-w-xs text-xs">
+                                대화의 목표 소요 시간입니다. AI가 평가 시 기준값으로 활용합니다. 권장 범위(초록 구간)는 선택한 난이도에 맞게 자동 계산됩니다.
+                              </TooltipContent>
+                            </Tooltip>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <Input
+                              type="number" min={1} max={60}
+                              value={targetDuration}
+                              onChange={(e) => setFormData(prev => ({ ...prev, targetDurationMinutes: Math.max(1, Math.min(60, parseInt(e.target.value) || rec.durationMin)) }))}
+                              className={`w-16 h-7 text-xs text-center bg-white ${isDurationInRange ? 'border-green-400' : 'border-amber-300'}`}
+                            />
+                            <span className="text-xs text-slate-400">분</span>
+                            {isDurationInRange
+                              ? <span className="text-xs text-green-600 font-medium">✓ 권장 범위</span>
+                              : <span className="text-xs text-amber-600 font-medium">권장: {rec.durationMin}~{rec.durationMax}분</span>
+                            }
+                          </div>
+                        </div>
+                        <div className="relative pt-1">
+                          {/* 권장 범위 초록 밴드 */}
+                          <div className="absolute top-1/2 -translate-y-1/2 h-1.5 rounded bg-green-200 pointer-events-none z-10"
+                            style={{ left: durationRecLeft, width: durationRecWidth }} />
+                          <Slider
+                            min={1} max={60} step={1}
+                            value={[targetDuration]}
+                            onValueChange={([v]) => setFormData(prev => ({ ...prev, targetDurationMinutes: v }))}
+                            className="relative z-20"
+                          />
+                        </div>
+                        <div className="flex justify-between text-[10px] text-slate-400 px-0.5">
+                          <span>1분</span><span>15분</span><span>30분</span><span>60분</span>
+                        </div>
+                      </div>
+
+                      {/* 목표 턴 수 슬라이더 */}
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-1.5">
+                            <Label className="text-xs font-medium text-slate-600">목표 턴 수</Label>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <span className="text-slate-400 cursor-help text-xs">ⓘ</span>
+                              </TooltipTrigger>
+                              <TooltipContent side="top" className="max-w-xs text-xs">
+                                한 턴은 학습자의 발화 1회입니다. 목표 턴의 80%에 도달하면 AI가 자연스러운 마무리를 유도합니다. 점수는 목표 대비 실제 대화량을 기준으로 정규화됩니다.
+                              </TooltipContent>
+                            </Tooltip>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <Input
+                              type="number" min={2} max={30}
+                              value={targetTurns}
+                              onChange={(e) => setFormData(prev => ({ ...prev, targetTurns: Math.max(2, Math.min(30, parseInt(e.target.value) || rec.turnsMin)) }))}
+                              className={`w-16 h-7 text-xs text-center bg-white ${isTurnsInRange ? 'border-green-400' : 'border-amber-300'}`}
+                            />
+                            <span className="text-xs text-slate-400">턴</span>
+                            {isTurnsInRange
+                              ? <span className="text-xs text-green-600 font-medium">✓ 권장 범위</span>
+                              : <span className="text-xs text-amber-600 font-medium">권장: {rec.turnsMin}~{rec.turnsMax}턴</span>
+                            }
+                          </div>
+                        </div>
+                        <div className="relative pt-1">
+                          <div className="absolute top-1/2 -translate-y-1/2 h-1.5 rounded bg-green-200 pointer-events-none z-10"
+                            style={{ left: turnsRecLeft, width: turnsRecWidth }} />
+                          <Slider
+                            min={2} max={30} step={1}
+                            value={[targetTurns]}
+                            onValueChange={([v]) => setFormData(prev => ({ ...prev, targetTurns: v }))}
+                            className="relative z-20"
+                          />
+                        </div>
+                        <div className="flex justify-between text-[10px] text-slate-400 px-0.5">
+                          <span>2턴</span><span>10턴</span><span>20턴</span><span>30턴</span>
+                        </div>
+                      </div>
+
+                      {/* 최소 유효 턴 */}
+                      <div className="space-y-1.5">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-1.5">
+                            <Label className="text-xs font-medium text-slate-600">최소 유효 턴</Label>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <span className="text-slate-400 cursor-help text-xs">ⓘ</span>
+                              </TooltipTrigger>
+                              <TooltipContent side="top" className="max-w-xs text-xs">
+                                이 턴 수에 미달하면 역량 점수 대신 &ldquo;대화 분량 부족&rdquo; 안내가 표시됩니다. 목표 턴 수의 30~40%를 권장합니다.
+                              </TooltipContent>
+                            </Tooltip>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <Input
+                              type="number" min={1} max={targetTurns}
+                              value={minValid}
+                              onChange={(e) => setFormData(prev => ({ ...prev, minValidTurns: Math.max(1, Math.min(targetTurns, parseInt(e.target.value) || rec.minValid)) }))}
+                              className="w-16 h-7 text-xs text-center bg-white"
+                            />
+                            <span className="text-xs text-slate-400">턴 · 권장 {rec.minValid}턴</span>
+                          </div>
+                        </div>
+                        <Slider
+                          min={1} max={targetTurns} step={1}
+                          value={[minValid]}
+                          onValueChange={([v]) => setFormData(prev => ({ ...prev, minValidTurns: v }))}
+                        />
+                      </div>
+
+                      <p className="text-[11px] text-slate-400 italic border-t border-slate-200 pt-3">
+                        목표 턴의 80% 도달 시 AI가 자연스럽게 마무리를 유도합니다. 점수는 목표 대비 실제 발화량(턴 수 + 문자 수)으로 정규화됩니다.
+                      </p>
+                    </div>
+                    </TooltipProvider>
+                    );
+                  })()}
                   
                   <div className="flex items-center gap-3">
                     <Switch

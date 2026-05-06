@@ -367,6 +367,14 @@
     "sequenceEffectiveness": "順序選択の効果性",
     "strategicInsights": "戦略的洞察",
     "alternativeApproaches": "代替アプローチ",
+    "insufficientConversation": {
+      "title": "会話量不足 — 評価できません",
+      "description": "目標の会話量に達しなかったため、AIが能力を十分に測定できませんでした。次の練習ではより充分に会話を続けてください。",
+      "tipsTitle": "より良い評価を受けるために",
+      "tip1": "シナリオで指定された目標ターン数以上会話してください",
+      "tip2": "各発話に十分な内容を盛り込んで回答してください",
+      "tip3": "会話を早く終わらせすぎないでください"
+    },
     "myPage": "マイページ",
     "nextPersona": "次のペルソナと会話",
     "viewStrategyEvaluation": "戦略評価を見る",

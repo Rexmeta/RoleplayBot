@@ -328,6 +328,43 @@ export default function PersonalDevelopmentReport({
     );
   }
 
+  // 대화량 부족 시 점수/평가 화면 전체를 대체
+  if (feedback.detailedFeedback?.insufficientConversation) {
+    return (
+      <div className="max-w-2xl mx-auto py-16 text-center space-y-6" data-testid="insufficient-conversation-report">
+        <div className="w-20 h-20 flex items-center justify-center rounded-full bg-amber-100 mx-auto">
+          <i className="fas fa-comment-slash text-amber-500 text-3xl"></i>
+        </div>
+        <h2 className="text-2xl font-bold text-amber-800">
+          {t('report.insufficientConversation.title', '대화 분량 부족 — 평가가 불가합니다')}
+        </h2>
+        <p className="text-slate-600 max-w-md mx-auto">
+          {t('report.insufficientConversation.description', '목표 대화량에 미달하여 AI가 역량을 충분히 측정하지 못했습니다. 다음 연습 시 대화를 더 충분히 진행해 주세요.')}
+        </p>
+        <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 text-sm text-amber-700 text-left max-w-sm mx-auto">
+          <p className="font-semibold mb-1">{t('report.insufficientConversation.tipsTitle', '더 좋은 평가를 받으려면')}</p>
+          <ul className="list-disc list-inside space-y-1">
+            <li>{t('report.insufficientConversation.tip1', '시나리오에서 제시한 목표 턴 수 이상 대화하세요')}</li>
+            <li>{t('report.insufficientConversation.tip2', '각 발화마다 충분한 내용을 담아 답변하세요')}</li>
+            <li>{t('report.insufficientConversation.tip3', '대화를 너무 일찍 마무리하지 마세요')}</li>
+          </ul>
+        </div>
+        <div className="flex justify-center gap-3 pt-2">
+          {!isAdminView && (
+            <Button onClick={onRetry} className="bg-amber-600 hover:bg-amber-700" data-testid="retry-from-insufficient">
+              <i className="fas fa-redo mr-2"></i>{t('report.retry', '다시 연습하기')}
+            </Button>
+          )}
+          {!isAdminView && (
+            <Button variant="outline" onClick={() => window.location.href = '/mypage'} data-testid="back-to-mypage-insufficient">
+              {t('report.myPage', '마이페이지')}
+            </Button>
+          )}
+        </div>
+      </div>
+    );
+  }
+
   const overallGrade = getOverallGrade(feedback.overallScore || 0);
   const displayOverallScore = Number(feedback.overallScore || 0).toFixed(1);
   const scores = feedback.scores || [];

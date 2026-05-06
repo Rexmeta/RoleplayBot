@@ -91,6 +91,9 @@ export interface ComplexScenario {
   isDemo?: boolean;
   isPublic?: boolean;
   isDeleted?: boolean;
+  targetDurationMinutes?: number;
+  targetTurns?: number;
+  minValidTurns?: number;
 }
 
 // 사용자 제작 페르소나 자유 대화용 ComplexScenario 확장 타입

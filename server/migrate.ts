@@ -990,6 +990,12 @@ export async function runMigrations(): Promise<void> {
         { table: 'user_personas', column: 'gender', sql: `DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='user_personas' AND column_name='gender') THEN ALTER TABLE "user_personas" ADD COLUMN "gender" varchar; END IF; END $$;` },
       ];
 
+      criticalColumnPatches.push(
+        { table: 'scenarios', column: 'target_duration_minutes', sql: `DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='scenarios' AND column_name='target_duration_minutes') THEN ALTER TABLE "scenarios" ADD COLUMN "target_duration_minutes" integer NOT NULL DEFAULT 7; END IF; END $$;` },
+        { table: 'scenarios', column: 'target_turns', sql: `DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='scenarios' AND column_name='target_turns') THEN ALTER TABLE "scenarios" ADD COLUMN "target_turns" integer NOT NULL DEFAULT 10; END IF; END $$;` },
+        { table: 'scenarios', column: 'min_valid_turns', sql: `DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='scenarios' AND column_name='min_valid_turns') THEN ALTER TABLE "scenarios" ADD COLUMN "min_valid_turns" integer NOT NULL DEFAULT 4; END IF; END $$;` }
+      );
+
       for (const patch of criticalColumnPatches) {
         try {
           await client.query(patch.sql);

@@ -22,6 +22,7 @@ import {
   isVoiceMode,
   filterVoiceNoise,
   calcEffectiveRatio,
+  checkMinValidTurns,
   analyzeNonVerbalPatterns,
   analyzeBargeIn,
   calculateCompletionPenalty,
@@ -29,6 +30,7 @@ import {
   calculateWeightedOverallScore,
   getDefaultScores,
 } from "../evaluationEngine";
+import { getSoftClosingInstruction } from "../conversationDifficultyPolicy";
 
 /**
  * 최적화된 Gemini Provider
@@ -90,7 +92,7 @@ export class OptimizedGeminiProvider implements AIServiceInterface {
 
       // 압축된 시스템 프롬프트 생성 (언어 설정 포함)
       const modeTransitionHint = scenarioObj.modeTransitionHint;
-      const compactPrompt = this.buildCompactPrompt(scenarioObj, enrichedPersona, conversationHistory, language, playerPosition, modeTransitionHint, userName);
+      const compactPrompt = this.buildCompactPrompt(scenarioObj, enrichedPersona, conversationHistory, messages, language, playerPosition, modeTransitionHint, userName);
       
       // 건너뛰기 처리
       const prompt = userMessage ? userMessage : "이전 대화의 흐름을 자연스럽게 이어가세요.";
@@ -210,7 +212,7 @@ export class OptimizedGeminiProvider implements AIServiceInterface {
   /**
    * 압축된 시스템 프롬프트 생성
    */
-  private buildCompactPrompt(scenario: RoleplayScenario, persona: ScenarioPersona, conversationHistory: string, language: SupportedLanguage = 'ko', playerPosition?: string, modeTransitionHint?: string, userName?: string): string {
+  private buildCompactPrompt(scenario: RoleplayScenario, persona: ScenarioPersona, conversationHistory: string, messages: ConversationMessage[], language: SupportedLanguage = 'ko', playerPosition?: string, modeTransitionHint?: string, userName?: string): string {
     const situation = scenario.context?.situation || '업무 상황';
     const objectives = scenario.objectives?.join(', ') || '문제 해결';
     const playerRole = scenario.context?.playerRole;
@@ -297,6 +299,13 @@ ${experience ? `- 경력: ${experience}` : ''}
     // 대화 난이도 지침 (conversationContextBuilder에서 중앙 관리)
     console.log(`🎯 대화 난이도: Level ${scenario.difficulty ?? 4} (사용자 선택)`);
     const difficultyGuidelines = buildDifficultyGuidelines(scenario.difficulty);
+
+    // 소프트 마감 유도 지시 (목표 턴 수의 80% 도달 시 주입)
+    const currentUserTurns = messages.filter(m => m.sender === 'user').length;
+    const scenarioTargetTurns = typeof scenario.targetTurns === 'number' ? scenario.targetTurns : null;
+    const softClosingInstruction = scenarioTargetTurns
+      ? getSoftClosingInstruction(currentUserTurns, scenarioTargetTurns, language)
+      : null;
     
     const userLabelInPrompt = normalizedUserName
       ? (playerRoleLabel ? `${normalizedUserName}(${playerRoleLabel})` : normalizedUserName)
@@ -325,7 +334,7 @@ ${reactionGuide}
 
 ${difficultyGuidelines}
 
-${modeTransitionHint ? `**【모드 전환 안내 - 이번 응답에만 적용】**: ${modeTransitionHint}\n` : ''}${conversationHistory ? `=== 역할 재확인: 당신은 ${persona.name}(${persona.role})이며, 상대방은 ${userLabelInPrompt}입니다. 아래 이전 대화에서도 이 역할을 유지했습니다 ===
+${modeTransitionHint ? `**【모드 전환 안내 - 이번 응답에만 적용】**: ${modeTransitionHint}\n` : ''}${softClosingInstruction ? `**【대화 마무리 유도 - 이번 응답에 반영】**: ${softClosingInstruction}\n` : ''}${conversationHistory ? `=== 역할 재확인: 당신은 ${persona.name}(${persona.role})이며, 상대방은 ${userLabelInPrompt}입니다. 아래 이전 대화에서도 이 역할을 유지했습니다 ===
 ⚠️ 【${userLabelInPrompt} 답변 ✓】로 표시된 항목은 이미 답변받은 사안입니다. 동일하거나 유사한 질문을 절대 다시 하지 마세요.
 ${conversationHistory}
 === 역할 재확인 끝 ===
@@ -463,7 +472,24 @@ JSON 형식으로 응답:
           durationMs: totalTime,
         });
         
-        const feedback = this.parseFeedbackResponse(responseText, messages, conversation, evaluationCriteria);
+        const scenarioObj = typeof scenario === 'object' ? scenario : null;
+        // 실제 대화 시간(초) 계산 — messages의 timestamp 기반
+        const geminiMsgTimestamps = messages
+          .map(m => (m as any).timestamp ? new Date((m as any).timestamp).getTime() : 0)
+          .filter(t => t > 0);
+        const geminiActualDurationSeconds: number | undefined = geminiMsgTimestamps.length >= 2
+          ? Math.floor((Math.max(...geminiMsgTimestamps) - Math.min(...geminiMsgTimestamps)) / 1000)
+          : undefined;
+        const feedback = this.parseFeedbackResponse(
+          responseText,
+          messages,
+          conversation,
+          evaluationCriteria,
+          scenarioObj?.targetTurns ?? undefined,
+          scenarioObj?.minValidTurns ?? undefined,
+          geminiActualDurationSeconds,
+          scenarioObj?.targetDurationMinutes ?? undefined
+        );
         
         const validation = this.validateFeedbackQuality(feedback);
         if (validation.isValid) {
@@ -745,7 +771,7 @@ JSON 형식${hasStrategyReflection ? ' (sequenceAnalysis 포함)' : ''}:
   /**
    * 피드백 응답 파싱 (동적 평가 기준 지원 + 자동 감점 적용)
    */
-  private parseFeedbackResponse(responseText: string, messages: ConversationMessage[], conversation?: Partial<import("@shared/schema").Conversation>, evaluationCriteria?: EvaluationCriteriaWithDimensions): DetailedFeedback {
+  private parseFeedbackResponse(responseText: string, messages: ConversationMessage[], conversation?: Partial<import("@shared/schema").Conversation>, evaluationCriteria?: EvaluationCriteriaWithDimensions, scenarioTargetTurns?: number, scenarioMinValidTurns?: number, actualDurationSeconds?: number, scenarioTargetDurationMinutes?: number): DetailedFeedback {
     try {
       // 빈 응답이나 JSON이 아닌 응답 처리
       if (!responseText || responseText.trim() === '' || responseText === '{}') {
@@ -810,6 +836,22 @@ JSON 형식${hasStrategyReflection ? ' (sequenceAnalysis 포함)' : ''}:
       const rawAiBaseScore = calculateWeightedOverallScore(scores, evaluationCriteria);
       let baseOverallScore = rawAiBaseScore;
       
+      // ── 최소 유효 턴 수 미달 시 평가 불가 처리 ─────────────────────────
+      if (scenarioMinValidTurns !== undefined && scenarioMinValidTurns > 0) {
+        const _voiceChk = isVoiceMode(conversation);
+        const _rawChk = messages.filter(msg => msg.sender === 'user');
+        const _userChk = _voiceChk ? filterVoiceNoise(_rawChk) : _rawChk;
+        if (!checkMinValidTurns(_userChk, scenarioMinValidTurns)) {
+          console.warn(`⚠️ 대화량 부족: ${_userChk.length}턴 < 최소 ${scenarioMinValidTurns}턴 → 평가 불가 처리`);
+          const fallback = this.getFallbackFeedback(evaluationCriteria);
+          return {
+            ...fallback,
+            insufficientConversation: true,
+          };
+        }
+      }
+      // ────────────────────────────────────────────────────────────────────
+
       // ── 대화량 부족 시 개별 역량 점수 캡 적용 ──────────────────────────
       let _scoreCapApplied = false;
       let _scoreCapMaxValue: number | null = null;
@@ -817,7 +859,7 @@ JSON 형식${hasStrategyReflection ? ' (sequenceAnalysis 포함)' : ''}:
         const _voiceMode = isVoiceMode(conversation);
         const _rawUser = messages.filter(msg => msg.sender === 'user');
         const _userMsgs = _voiceMode ? filterVoiceNoise(_rawUser) : _rawUser;
-        const _effectiveRatio = calcEffectiveRatio(_userMsgs, _voiceMode);
+        const _effectiveRatio = calcEffectiveRatio(_userMsgs, _voiceMode, scenarioTargetTurns, actualDurationSeconds, scenarioTargetDurationMinutes);
         const maxScore = getScoreCap(_effectiveRatio);
         if (maxScore !== null) {
           const dims = evaluationCriteria?.dimensions || DEFAULT_DIMENSIONS;
@@ -844,9 +886,9 @@ JSON 형식${hasStrategyReflection ? ' (sequenceAnalysis 포함)' : ''}:
       const bargeInAnalysis = analyzeBargeIn(messages);
       
       // ── 대화 완성도 패널티 계산 ─────────────────────────────────────────
-      const effectiveRatioP = calcEffectiveRatio(userMessages, voiceMode);
+      const effectiveRatioP = calcEffectiveRatio(userMessages, voiceMode, scenarioTargetTurns, actualDurationSeconds, scenarioTargetDurationMinutes);
       const completionPenalty = calculateCompletionPenalty(effectiveRatioP, voiceMode);
-      const expectedTurnsP = voiceMode ? EXPECTED_TURNS_VOICE : EXPECTED_TURNS_TEXT;
+      const expectedTurnsP = scenarioTargetTurns ?? (voiceMode ? EXPECTED_TURNS_VOICE : EXPECTED_TURNS_TEXT);
       // ────────────────────────────────────────────────────────────────────
 
       // 점수 조정 계산 (음성 모드에서는 비언어적 감점 없음)

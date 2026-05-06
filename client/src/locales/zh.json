@@ -367,6 +367,14 @@
     "sequenceEffectiveness": "顺序选择效果",
     "strategicInsights": "战略洞察",
     "alternativeApproaches": "替代方案",
+    "insufficientConversation": {
+      "title": "对话内容不足 — 无法评估",
+      "description": "对话量未达到目标，AI无法充分评估您的能力。请在下次练习时进行更充分的对话。",
+      "tipsTitle": "如何获得更好的评价",
+      "tip1": "请完成场景规定的目标回合数",
+      "tip2": "每次发言请给出充分、详细的回答",
+      "tip3": "不要过早结束对话"
+    },
     "myPage": "我的页面",
     "nextPersona": "与下一个角色对话",
     "viewStrategyEvaluation": "查看策略评估",

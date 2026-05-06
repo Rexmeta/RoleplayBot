@@ -367,6 +367,14 @@
     "sequenceEffectiveness": "Sequence Choice Effectiveness",
     "strategicInsights": "Strategic Insights",
     "alternativeApproaches": "Alternative Approaches",
+    "insufficientConversation": {
+      "title": "Insufficient Conversation — Cannot Evaluate",
+      "description": "The conversation was too short for the AI to properly assess your skills. Please engage in longer conversations in future practice sessions.",
+      "tipsTitle": "To get a better evaluation",
+      "tip1": "Complete the target number of turns specified in the scenario",
+      "tip2": "Give detailed, substantive responses in each turn",
+      "tip3": "Don't end the conversation too early"
+    },
     "myPage": "My Page",
     "nextPersona": "Chat with Next Persona",
     "viewStrategyEvaluation": "View Strategy Evaluation",

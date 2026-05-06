@@ -509,6 +509,33 @@ export function getTextModeGuidelines(level: number = 4): string {
 }
 
 /**
+ * 소프트 마감 유도 메시지 반환
+ * 현재 턴 수가 목표 턴 수의 80%에 도달하면 AI에게 대화 마무리 유도 지시를 반환
+ *
+ * @param currentUserTurns 현재까지의 사용자 발화 턴 수
+ * @param targetTurns 목표 턴 수
+ * @param language 대화 언어
+ * @returns 마무리 유도 지시 문자열, 또는 null (아직 마감 시점 아님)
+ */
+export function getSoftClosingInstruction(
+  currentUserTurns: number,
+  targetTurns: number,
+  language: string = 'ko'
+): string | null {
+  const threshold = Math.ceil(targetTurns * 0.8);
+  if (currentUserTurns < threshold) return null;
+
+  const instructions: Record<string, string> = {
+    ko: '대화가 마무리 단계에 접어들었습니다. 자연스럽게 대화를 마무리하는 방향으로 이끌어 주세요. 예: 핵심 합의사항을 정리하거나, 마지막 의견을 정중히 구하는 방식으로 대화를 마무리하세요.',
+    en: 'The conversation is approaching its conclusion. Naturally guide the conversation toward a close. For example, summarize the key agreements or politely ask for a final opinion to wrap up.',
+    ja: '会話がまとめの段階に入りました。自然に会話を締めくくる方向に導いてください。例：主要な合意事項を整理したり、最後の意見を丁寧に求めたりして会話をまとめてください。',
+    zh: '对话已进入收尾阶段。请自然地引导对话走向结束。例如：整理核心达成的共识，或礼貌地征求最后意见，以结束对话。',
+  };
+
+  return instructions[language] || instructions['ko'];
+}
+
+/**
  * 난이도 레벨 검증 (1-4 범위)
  * 기본값: 4 (최고 난이도) - 사용자가 난이도를 선택하지 않은 경우 적용
  */

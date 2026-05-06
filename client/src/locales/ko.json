@@ -388,6 +388,14 @@
     "sequenceEffectiveness": "순서 선택의 효과성",
     "strategicInsights": "전략적 통찰",
     "alternativeApproaches": "대안적 접근법",
+    "insufficientConversation": {
+      "title": "대화 분량 부족 — 평가가 불가합니다",
+      "description": "목표 대화량에 미달하여 AI가 역량을 충분히 측정하지 못했습니다. 다음 연습 시 대화를 더 충분히 진행해 주세요.",
+      "tipsTitle": "더 좋은 평가를 받으려면",
+      "tip1": "시나리오에서 제시한 목표 턴 수 이상 대화하세요",
+      "tip2": "각 발화마다 충분한 내용을 담아 답변하세요",
+      "tip3": "대화를 너무 일찍 마무리하지 마세요"
+    },
     "myPage": "마이페이지",
     "nextPersona": "다음 페르소나와 대화하기",
     "viewStrategyEvaluation": "전략 평가 보기",

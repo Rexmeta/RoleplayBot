@@ -245,9 +245,12 @@ export async function generateAndSaveFeedback(
 
   const evaluationCriteria = await loadEvaluationCriteria(scenarioObj, userLanguage);
 
-  const isInsufficientConversation =
-    userMessages.length < INSUFFICIENT_CONVERSATION_THRESHOLD_MESSAGES ||
-    totalUserWords < INSUFFICIENT_CONVERSATION_THRESHOLD_CHARS;
+  // 시나리오별 minValidTurns 우선, 없으면 전역 기본값 — 턴 수만으로 판정 (단일 소스)
+  const scenarioMinValidTurns: number =
+    typeof scenarioObj?.minValidTurns === 'number'
+      ? scenarioObj.minValidTurns
+      : INSUFFICIENT_CONVERSATION_THRESHOLD_MESSAGES;
+  const isInsufficientConversation = userMessages.length < scenarioMinValidTurns;
 
   let feedbackData: any;
   if (isInsufficientConversation) {
@@ -298,6 +301,18 @@ export async function generateAndSaveFeedback(
   feedbackData.conversationDuration = conversationDurationSeconds;
   feedbackData.averageResponseTime = averageResponseTime;
   feedbackData.timePerformance = timePerformance;
+
+  // 평가 불가(insufficientConversation) 상태이면 점수 재계산 우회 — 상태 중심으로 저장
+  if (feedbackData.insufficientConversation) {
+    console.log(`⚠️ insufficientConversation=true — 점수 재계산 우회, 상태 중심 저장`);
+    const feedback = await storage.createFeedback({
+      personaRunId: conversationId,
+      overallScore: 0,
+      scores: Array.isArray(feedbackData.scores) ? feedbackData.scores : [],
+      detailedFeedback: feedbackData,
+    });
+    return feedback;
+  }
 
   const dimFeedback = feedbackData.dimensionFeedback || {};
   const fallbackDimensions = [
@@ -353,9 +368,12 @@ export async function generateAndSaveFeedback(
     }
   }
 
-  const verifiedOverallScore = recalculateOverallScore(evaluationScores);
+  const baseVerifiedScore = recalculateOverallScore(evaluationScores);
+  // 완성도 패널티는 차원 점수에 반영되지 않으므로 별도 보관된 값을 재적용
+  const storedPenalty: number = feedbackData.scoreAdjustments?.completionPenalty ?? 0;
+  const verifiedOverallScore = Math.max(0, baseVerifiedScore - storedPenalty);
   if (verifiedOverallScore !== feedbackData.overallScore) {
-    console.log(`📊 종합 점수 보정: AI=${feedbackData.overallScore} → 가중치 계산=${verifiedOverallScore}`);
+    console.log(`📊 종합 점수 보정: AI=${feedbackData.overallScore} → 가중치계산${baseVerifiedScore} - 패널티${storedPenalty} = ${verifiedOverallScore}`);
     feedbackData.overallScore = verifiedOverallScore;
   }
 

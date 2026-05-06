@@ -186,6 +186,9 @@ export class FileManagerService {
       isDemo: dbScenario.isDemo || false,
       isPublic: dbScenario.isPublic || false,
       isDeleted: dbScenario.isDeleted || false,
+      targetDurationMinutes: dbScenario.targetDurationMinutes ?? 7,
+      targetTurns: dbScenario.targetTurns ?? 10,
+      minValidTurns: dbScenario.minValidTurns ?? 4,
     };
   }
   
@@ -337,6 +340,9 @@ export class FileManagerService {
         evaluationCriteriaSetId: scenario.evaluationCriteriaSetId || null,
         isDemo: scenario.isDemo || false,
         isPublic: scenario.isPublic || false,
+        targetDurationMinutes: scenario.targetDurationMinutes ?? 7,
+        targetTurns: scenario.targetTurns ?? 10,
+        minValidTurns: scenario.minValidTurns ?? 4,
       });
       this.invalidateScenarioCountCache();
       return newScenario;
@@ -384,6 +390,9 @@ export class FileManagerService {
         if (scenario.evaluationCriteriaSetId !== undefined) updates.evaluationCriteriaSetId = scenario.evaluationCriteriaSetId;
         if (scenario.isDemo !== undefined) updates.isDemo = scenario.isDemo;
         if (scenario.isPublic !== undefined) updates.isPublic = scenario.isPublic;
+        if (scenario.targetDurationMinutes !== undefined) updates.targetDurationMinutes = scenario.targetDurationMinutes;
+        if (scenario.targetTurns !== undefined) updates.targetTurns = scenario.targetTurns;
+        if (scenario.minValidTurns !== undefined) updates.minValidTurns = scenario.minValidTurns;
         
         console.log(`[FileManager.updateScenario] updates.image=${updates.image}`);
         console.log(`[FileManager.updateScenario] updates.introVideoUrl=${updates.introVideoUrl}`);
