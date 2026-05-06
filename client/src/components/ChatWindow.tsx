@@ -149,9 +149,16 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
     },
   });
 
-  const { isSessionEnding, isGoingToFeedback, showEndConversationDialog, setShowEndConversationDialog, handleGoToFeedback,
-    handleEndRealtimeConversation, confirmEndConversation, handleResetConversation, flushRealtimeMessages } = useChatSession({
-    conversationId, localMessages, pendingUserText, isPersonaMode, onChatComplete, onExit, onConversationEnding,
+  const targetTurns = scenario.targetTurns ?? 10;
+  const currentTurn = conversation ? conversation.turnCount : 0;
+  const progressPercentage = Math.min((currentTurn / targetTurns) * 100, 100);
+  const isNearingEnd = progressPercentage >= SOFT_CLOSE_THRESHOLD * 100;
+
+  const { isSessionEnding, isGoingToFeedback, showEndConversationDialog, setShowEndConversationDialog,
+    showAlmostDoneDialog, handleAlmostDoneKeepGoing, handleAlmostDoneConfirmExit,
+    handleGoToFeedback, handleEndRealtimeConversation, confirmEndConversation, handleResetConversation, flushRealtimeMessages } = useChatSession({
+    conversationId, localMessages, pendingUserText, isPersonaMode, isNearingEnd, currentTurn, targetTurns,
+    onChatComplete, onExit, onConversationEnding,
     disconnectVoice: realtimeVoice.disconnect, resetPhase: realtimeVoice.resetPhase,
     setLocalMessages, setConversationStartTime, setElapsedTime,
     showMicPromptReset: () => { hasUserSpokenRef.current = false; setShowMicPrompt(false); },
@@ -301,11 +308,6 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
     );
   };
   const handleVoiceInput = () => { if (isRecording) stopRecording(); else startRecording(); };
-
-  const targetTurns = scenario.targetTurns ?? 10;
-  const currentTurn = conversation ? conversation.turnCount : 0;
-  const progressPercentage = Math.min((currentTurn / targetTurns) * 100, 100);
-  const isNearingEnd = progressPercentage >= SOFT_CLOSE_THRESHOLD * 100;
 
   if (error) return (
     <div className="text-center py-8">
@@ -556,6 +558,37 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
             </div>
           </div>
         </div>
+
+        <AlertDialog open={showAlmostDoneDialog} onOpenChange={(open) => { if (!open) handleAlmostDoneKeepGoing(); }}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle className="flex items-center gap-2">
+                <i className="fas fa-star text-amber-400"></i>
+                {t('chat.almostDoneTitle')}
+              </AlertDialogTitle>
+              <AlertDialogDescription>
+                {t('chat.almostDoneDesc', { current: currentTurn, target: targetTurns })}
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <div className="mt-2">
+              <div className="w-full bg-slate-100 rounded-full h-2">
+                <div
+                  className="bg-amber-400 rounded-full h-2 transition-all duration-300"
+                  style={{ width: `${progressPercentage}%` }}
+                />
+              </div>
+              <p className="text-xs text-slate-500 mt-1 text-right">{currentTurn} / {targetTurns}</p>
+            </div>
+            <div className="flex flex-col gap-2 sm:flex-row sm:justify-end mt-4">
+              <Button variant="outline" onClick={handleAlmostDoneConfirmExit} data-testid="button-almost-done-exit" className="border-slate-300 text-slate-600 hover:bg-slate-50">
+                {t('chat.exitAnyway')}
+              </Button>
+              <Button onClick={handleAlmostDoneKeepGoing} data-testid="button-almost-done-keep-going" className="bg-purple-600 hover:bg-purple-700 text-white">
+                <i className="fas fa-play mr-1"></i>{t('chat.keepGoing')}
+              </Button>
+            </div>
+          </AlertDialogContent>
+        </AlertDialog>
 
         <AlertDialog open={showEndConversationDialog} onOpenChange={setShowEndConversationDialog}>
           <AlertDialogContent>

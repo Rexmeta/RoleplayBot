@@ -10,6 +10,9 @@ interface UseChatSessionOptions {
   localMessages: ConversationMessage[];
   pendingUserText?: string;
   isPersonaMode: boolean;
+  isNearingEnd: boolean;
+  currentTurn: number;
+  targetTurns: number;
   onChatComplete: () => void;
   onExit: () => void;
   onConversationEnding?: () => void;
@@ -26,6 +29,9 @@ export function useChatSession({
   localMessages,
   pendingUserText = '',
   isPersonaMode,
+  isNearingEnd,
+  currentTurn,
+  targetTurns,
   onChatComplete,
   onExit,
   onConversationEnding,
@@ -38,6 +44,7 @@ export function useChatSession({
 }: UseChatSessionOptions) {
   const [isSessionEnding, setIsSessionEnding] = useState(false);
   const [showEndConversationDialog, setShowEndConversationDialog] = useState(false);
+  const [showAlmostDoneDialog, setShowAlmostDoneDialog] = useState(false);
   const [isGoingToFeedback, setIsGoingToFeedback] = useState(false);
   const queryClient = useQueryClient();
   const { toast } = useToast();
@@ -72,6 +79,15 @@ export function useChatSession({
     return messages;
   };
 
+  const handleAlmostDoneKeepGoing = () => {
+    setShowAlmostDoneDialog(false);
+  };
+
+  const handleAlmostDoneConfirmExit = () => {
+    setShowAlmostDoneDialog(false);
+    setShowEndConversationDialog(true);
+  };
+
   const handleEndRealtimeConversation = () => {
     if (isPersonaMode) {
       disconnectVoice();
@@ -82,6 +98,10 @@ export function useChatSession({
         }).catch(console.error);
       }
       onExit();
+      return;
+    }
+    if (isNearingEnd) {
+      setShowAlmostDoneDialog(true);
       return;
     }
     setShowEndConversationDialog(true);
@@ -177,6 +197,9 @@ export function useChatSession({
     isGoingToFeedback,
     showEndConversationDialog,
     setShowEndConversationDialog,
+    showAlmostDoneDialog,
+    handleAlmostDoneKeepGoing,
+    handleAlmostDoneConfirmExit,
     handleGoToFeedback,
     handleEndRealtimeConversation,
     confirmEndConversation,
