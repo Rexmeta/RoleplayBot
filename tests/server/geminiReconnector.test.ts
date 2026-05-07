@@ -351,4 +351,164 @@ describe('handleGeminiClose', () => {
       expect(connectToGemini).not.toHaveBeenCalled();
     });
   });
+
+  describe('pendingMessages replay after reconnect', () => {
+    it('replays a realtimeInput pending message to the new Gemini session', async () => {
+      const realtimePayload = { media: { data: 'audio-chunk-base64' } };
+      session.pendingMessages = [
+        { index: 0, payload: { type: 'realtimeInput', data: realtimePayload } },
+      ];
+
+      const mockGeminiSession = {
+        sendClientContent: vi.fn(),
+        sendRealtimeInput: vi.fn(),
+      };
+      connectToGemini.mockImplementation(async (sess: RealtimeSession) => {
+        sess.geminiSession = mockGeminiSession;
+      });
+
+      handleGeminiClose(
+        { code: 1006, reason: 'Abnormal closure' },
+        session,
+        sessions,
+        sendToClient,
+        connectToGemini,
+        trackSessionUsage
+      );
+
+      await vi.runAllTimersAsync();
+
+      expect(mockGeminiSession.sendRealtimeInput).toHaveBeenCalledWith(realtimePayload);
+      expect(mockGeminiSession.sendClientContent).not.toHaveBeenCalled();
+    });
+
+    it('replays a clientContent pending message to the new Gemini session', async () => {
+      const clientContentPayload = {
+        turns: [{ role: 'user', parts: [{ text: '계속 진행해요' }] }],
+        turnComplete: true,
+      };
+      session.pendingMessages = [
+        { index: 0, payload: { type: 'clientContent', data: clientContentPayload } },
+      ];
+
+      const mockGeminiSession = {
+        sendClientContent: vi.fn(),
+        sendRealtimeInput: vi.fn(),
+      };
+      connectToGemini.mockImplementation(async (sess: RealtimeSession) => {
+        sess.geminiSession = mockGeminiSession;
+      });
+
+      handleGeminiClose(
+        { code: 1006, reason: 'Abnormal closure' },
+        session,
+        sessions,
+        sendToClient,
+        connectToGemini,
+        trackSessionUsage
+      );
+
+      await vi.runAllTimersAsync();
+
+      expect(mockGeminiSession.sendClientContent).toHaveBeenCalledWith(clientContentPayload);
+      expect(mockGeminiSession.sendRealtimeInput).not.toHaveBeenCalled();
+    });
+
+    it('replays multiple pending messages in order', async () => {
+      const payload1 = { media: { data: 'chunk-1' } };
+      const payload2 = { media: { data: 'chunk-2' } };
+      const payload3 = {
+        turns: [{ role: 'user', parts: [{ text: 'hello' }] }],
+        turnComplete: true,
+      };
+      session.pendingMessages = [
+        { index: 0, payload: { type: 'realtimeInput', data: payload1 } },
+        { index: 1, payload: { type: 'realtimeInput', data: payload2 } },
+        { index: 2, payload: { type: 'clientContent', data: payload3 } },
+      ];
+
+      const callOrder: string[] = [];
+      const mockGeminiSession = {
+        sendClientContent: vi.fn(() => callOrder.push('clientContent')),
+        sendRealtimeInput: vi.fn(() => callOrder.push('realtimeInput')),
+      };
+      connectToGemini.mockImplementation(async (sess: RealtimeSession) => {
+        sess.geminiSession = mockGeminiSession;
+      });
+
+      handleGeminiClose(
+        { code: 1006, reason: 'Abnormal closure' },
+        session,
+        sessions,
+        sendToClient,
+        connectToGemini,
+        trackSessionUsage
+      );
+
+      await vi.runAllTimersAsync();
+
+      expect(mockGeminiSession.sendRealtimeInput).toHaveBeenCalledTimes(2);
+      expect(mockGeminiSession.sendClientContent).toHaveBeenCalledTimes(1);
+      expect(mockGeminiSession.sendRealtimeInput).toHaveBeenNthCalledWith(1, payload1);
+      expect(mockGeminiSession.sendRealtimeInput).toHaveBeenNthCalledWith(2, payload2);
+      expect(mockGeminiSession.sendClientContent).toHaveBeenCalledWith(payload3);
+      expect(callOrder).toEqual(['realtimeInput', 'realtimeInput', 'clientContent']);
+    });
+
+    it('falls back to context text when pendingMessages is empty', async () => {
+      session.pendingMessages = [];
+      session.recentMessages = [
+        { role: 'user', text: '안녕하세요' },
+        { role: 'ai', text: '반갑습니다' },
+      ];
+
+      const mockGeminiSession = {
+        sendClientContent: vi.fn(),
+        sendRealtimeInput: vi.fn(),
+      };
+      connectToGemini.mockImplementation(async (sess: RealtimeSession) => {
+        sess.geminiSession = mockGeminiSession;
+      });
+
+      handleGeminiClose(
+        { code: 1006, reason: 'Abnormal closure' },
+        session,
+        sessions,
+        sendToClient,
+        connectToGemini,
+        trackSessionUsage
+      );
+
+      await vi.runAllTimersAsync();
+
+      expect(mockGeminiSession.sendClientContent).toHaveBeenCalledOnce();
+      const [callArg] = mockGeminiSession.sendClientContent.mock.calls[0];
+      expect(callArg.turns[0].parts[0].text).toContain('안녕하세요');
+      expect(callArg.turns[0].parts[0].text).toContain('반갑습니다');
+    });
+
+    it('does not replay pending messages when geminiSession is null after reconnect', async () => {
+      session.pendingMessages = [
+        { index: 0, payload: { type: 'realtimeInput', data: { media: { data: 'x' } } } },
+      ];
+      connectToGemini.mockImplementation(async (_sess: RealtimeSession) => {
+      });
+
+      handleGeminiClose(
+        { code: 1006, reason: 'Abnormal closure' },
+        session,
+        sessions,
+        sendToClient,
+        connectToGemini,
+        trackSessionUsage
+      );
+
+      await vi.runAllTimersAsync();
+
+      expect(sendToClient).toHaveBeenCalledWith(
+        session,
+        expect.objectContaining({ type: 'session.reconnected' })
+      );
+    });
+  });
 });
