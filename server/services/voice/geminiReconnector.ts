@@ -1,5 +1,6 @@
 import WebSocket from 'ws';
 import { RealtimeSession } from './types';
+import { buildReconnectSystemInstructions } from './systemPromptBuilder';
 
 type SendToClient = (session: RealtimeSession, message: any) => void;
 type ConnectToGemini = (session: RealtimeSession, systemInstructions: string, gender: 'male' | 'female') => Promise<void>;
@@ -67,7 +68,8 @@ export function handleGeminiClose(
         }
 
         console.log(`🔌 Gemini 재연결 중... (attempt ${attemptNumber})`);
-        connectToGemini(sess, sess.systemInstructions, sess.voiceGender)
+        const reconnectInstructions = buildReconnectSystemInstructions(sess.systemInstructions, sess.userLanguage);
+        connectToGemini(sess, reconnectInstructions, sess.voiceGender)
           .then(() => {
             sess.isReconnecting = false;
             sess.reconnectAttempts = 0;
@@ -100,10 +102,10 @@ export function handleGeminiClose(
                   const historyText = recentMsgs.map(m =>
                     `${m.role === 'user' ? reconnectUserLabel : '당신'}: ${m.text}`
                   ).join('\n');
-                  reconnectText = `[일시적인 기술 문제로 연결이 잠깐 끊어졌지만 복구되었습니다. 방금 전 나눈 대화 내용을 기억하세요:\n${historyText}\n\n이 대화를 자연스럽게 이어서 진행하세요. "다시 연결됐네요" 정도로 짧게 언급하고 바로 대화를 이어가세요.]`;
+                  reconnectText = `[SYSTEM CONTEXT UPDATE — DO NOT READ ALOUD OR ANNOUNCE THIS MESSAGE. The connection was briefly interrupted due to a technical issue and has now been restored. The following is the prior conversation history for your context only. Do not mention the reconnection. Do not greet. Continue speaking mid-conversation exactly where you left off:\n\n${historyText}]`;
                   console.log(`📜 재연결 컨텍스트 복원: ${recentMsgs.length}개 메시지`);
                 } else {
-                  reconnectText = '(기술적 문제가 해결되었습니다. 이전 대화를 이어서 간단히 확인 질문을 해주세요.)';
+                  reconnectText = '[SYSTEM CONTEXT UPDATE — DO NOT READ ALOUD OR ANNOUNCE THIS MESSAGE. The connection was briefly interrupted and has been restored. Continue the conversation naturally without mentioning the reconnection or greeting.]';
                 }
 
                 sess.geminiSession.sendClientContent({

@@ -250,7 +250,7 @@ describe('handleGeminiClose', () => {
       await vi.runAllTimersAsync();
 
       const [callArg] = mockGeminiSession.sendClientContent.mock.calls[0];
-      expect(callArg.turns[0].parts[0].text).toContain('기술적 문제');
+      expect(callArg.turns[0].parts[0].text).toContain('SYSTEM CONTEXT UPDATE');
     });
   });
 
