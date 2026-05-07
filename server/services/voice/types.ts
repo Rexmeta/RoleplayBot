@@ -4,6 +4,7 @@ export const SESSION_TIMEOUT_MS = 30 * 60 * 1000;
 export const MAX_TRANSCRIPT_LENGTH = 50000;
 export const CLEANUP_INTERVAL_MS = 60 * 1000;
 export const MAX_CONCURRENT_SESSIONS = 100;
+export const MAX_PENDING_MESSAGES = 100;
 
 export interface PendingOutgoingMessage {
   index: number;

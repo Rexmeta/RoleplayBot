@@ -1,7 +1,14 @@
 import WebSocket from 'ws';
 import { GoogleGenAI } from '@google/genai';
-import { RealtimeSession } from './types';
+import { RealtimeSession, PendingOutgoingMessage, MAX_PENDING_MESSAGES } from './types';
 import { filterThinkingText } from './textFilter';
+
+function pushPending(session: RealtimeSession, msg: PendingOutgoingMessage): void {
+  session.pendingMessages.push(msg);
+  if (session.pendingMessages.length > MAX_PENDING_MESSAGES) {
+    session.pendingMessages.splice(0, session.pendingMessages.length - MAX_PENDING_MESSAGES);
+  }
+}
 
 type SendToClient = (session: RealtimeSession, message: any) => void;
 
@@ -77,20 +84,20 @@ export function handleClientMessage(
       const audioPayload = {
         audio: { data: message.audio, mimeType: 'audio/pcm;rate=16000' },
       };
-      session.pendingMessages.push({ index: session.outgoingMessageIndex++, payload: { type: 'realtimeInput', data: audioPayload } });
+      pushPending(session, { index: session.outgoingMessageIndex++, payload: { type: 'realtimeInput', data: audioPayload } });
       session.geminiSession.sendRealtimeInput(audioPayload);
       break;
     }
 
     case 'input_audio_buffer.commit':
       console.log('📤 User stopped recording, sending END_OF_TURN event');
-      session.pendingMessages.push({ index: session.outgoingMessageIndex++, payload: { type: 'realtimeInput', data: { event: 'END_OF_TURN' } } });
+      pushPending(session, { index: session.outgoingMessageIndex++, payload: { type: 'realtimeInput', data: { event: 'END_OF_TURN' } } });
       session.geminiSession.sendRealtimeInput({ event: 'END_OF_TURN' });
       break;
 
     case 'response.create':
       console.log('🔄 Explicit response request, sending END_OF_TURN event');
-      session.pendingMessages.push({ index: session.outgoingMessageIndex++, payload: { type: 'realtimeInput', data: { event: 'END_OF_TURN' } } });
+      pushPending(session, { index: session.outgoingMessageIndex++, payload: { type: 'realtimeInput', data: { event: 'END_OF_TURN' } } });
       session.geminiSession.sendRealtimeInput({ event: 'END_OF_TURN' });
       break;
 
@@ -101,7 +108,7 @@ export function handleClientMessage(
           turns: [{ role: 'user', parts: [{ text }] }],
           turnComplete: true,
         };
-        session.pendingMessages.push({ index: session.outgoingMessageIndex++, payload: { type: 'clientContent', data: clientContentPayload } });
+        pushPending(session, { index: session.outgoingMessageIndex++, payload: { type: 'clientContent', data: clientContentPayload } });
         session.geminiSession.sendClientContent(clientContentPayload);
       }
       break;
@@ -162,10 +169,10 @@ export function handleClientMessage(
           }
 
           const ctxPayload = { turns: [{ role: 'user', parts: [{ text: contextMessage }] }], turnComplete: true };
-          session.pendingMessages.push({ index: session.outgoingMessageIndex++, payload: { type: 'clientContent', data: ctxPayload } });
+          pushPending(session, { index: session.outgoingMessageIndex++, payload: { type: 'clientContent', data: ctxPayload } });
           geminiSessionRef.sendClientContent(ctxPayload);
           const eotPayload1 = { event: 'END_OF_TURN' };
-          session.pendingMessages.push({ index: session.outgoingMessageIndex++, payload: { type: 'realtimeInput', data: eotPayload1 } });
+          pushPending(session, { index: session.outgoingMessageIndex++, payload: { type: 'realtimeInput', data: eotPayload1 } });
           geminiSessionRef.sendRealtimeInput(eotPayload1);
         })().catch(err => console.error('❌ Failed to build/send text-to-voice context:', err));
       } else if (isResuming && previousMessages && previousMessages.length > 0) {
@@ -207,10 +214,10 @@ export function handleClientMessage(
           console.log(`📤 Sending resume context to Gemini (had previous AI response: ${hadPreviousAIResponse})`);
 
           const resumePayload = { turns: [{ role: 'user', parts: [{ text: resumeContext }] }], turnComplete: true };
-          session.pendingMessages.push({ index: session.outgoingMessageIndex++, payload: { type: 'clientContent', data: resumePayload } });
+          pushPending(session, { index: session.outgoingMessageIndex++, payload: { type: 'clientContent', data: resumePayload } });
           geminiSessionRef.sendClientContent(resumePayload);
           const eotPayload2 = { event: 'END_OF_TURN' };
-          session.pendingMessages.push({ index: session.outgoingMessageIndex++, payload: { type: 'realtimeInput', data: eotPayload2 } });
+          pushPending(session, { index: session.outgoingMessageIndex++, payload: { type: 'realtimeInput', data: eotPayload2 } });
           geminiSessionRef.sendRealtimeInput(eotPayload2);
         })().catch(err => console.error('❌ Failed to build/send resume context:', err));
       } else {
@@ -227,12 +234,12 @@ export function handleClientMessage(
         console.log(`📤 Sending greeting trigger: "${greetingText}"`);
 
         const greetingPayload = { turns: [{ role: 'user', parts: [{ text: greetingText }] }], turnComplete: true };
-        session.pendingMessages.push({ index: session.outgoingMessageIndex++, payload: { type: 'clientContent', data: greetingPayload } });
+        pushPending(session, { index: session.outgoingMessageIndex++, payload: { type: 'clientContent', data: greetingPayload } });
         session.geminiSession.sendClientContent(greetingPayload);
 
         console.log('📤 Sending END_OF_TURN to trigger AI greeting response...');
         const eotGreeting = { event: 'END_OF_TURN' };
-        session.pendingMessages.push({ index: session.outgoingMessageIndex++, payload: { type: 'realtimeInput', data: eotGreeting } });
+        pushPending(session, { index: session.outgoingMessageIndex++, payload: { type: 'realtimeInput', data: eotGreeting } });
         session.geminiSession.sendRealtimeInput(eotGreeting);
       }
       break;
