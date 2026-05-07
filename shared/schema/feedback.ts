@@ -45,7 +45,7 @@ export const evaluationDimensions = pgTable("evaluation_dimensions", {
   weight: doublePrecision("weight").notNull().default(20.0),
   dimensionType: varchar("dimension_type").notNull().default("standard"),
   minScore: integer("min_score").notNull().default(1),
-  maxScore: integer("max_score").notNull().default(5),
+  maxScore: integer("max_score").notNull().default(10),
   scoringRubric: jsonb("scoring_rubric").$type<ScoringRubric[]>(),
   evaluationPrompt: text("evaluation_prompt"),
   displayOrder: integer("display_order").notNull().default(0),

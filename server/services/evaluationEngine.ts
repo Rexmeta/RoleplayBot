@@ -387,6 +387,95 @@ export function calculateWeightedOverallScore(
   return Math.round((weightedSum / totalWeight) * 100);
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// 루브릭 저장 검증 함수
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * 개별 평가 차원의 유효성 검사
+ * 점수 범위(1~10)와 루브릭 단계 수(5개 이상)를 검증한다
+ */
+export function validateEvaluationDimension(dim: {
+  key?: string;
+  name?: string;
+  minScore?: number;
+  maxScore?: number;
+  scoringRubric?: { score: number; label: string; description: string }[] | null;
+  evaluationPrompt?: string | null;
+}): { valid: boolean; errors: string[] } {
+  const errors: string[] = [];
+  const label = dim.name || dim.key || '(차원)';
+  const minScore = dim.minScore ?? 1;
+  const maxScore = dim.maxScore ?? 10;
+
+  if (minScore < 1) {
+    errors.push(`"${label}": 최소 점수는 1 이상이어야 합니다 (현재: ${minScore})`);
+  }
+  if (maxScore > 10) {
+    errors.push(`"${label}": 최대 점수는 10 이하이어야 합니다 (현재: ${maxScore})`);
+  }
+  if (minScore >= maxScore) {
+    errors.push(`"${label}": 최소 점수(${minScore})는 최대 점수(${maxScore})보다 작아야 합니다`);
+  }
+
+  if (!dim.scoringRubric || dim.scoringRubric.length < 5) {
+    const count = dim.scoringRubric ? dim.scoringRubric.length : 0;
+    errors.push(`"${label}": 채점 루브릭은 최소 5단계 이상 필요합니다 (현재: ${count}단계)`);
+  }
+
+  if (dim.evaluationPrompt !== null && dim.evaluationPrompt !== undefined && dim.evaluationPrompt.trim().length > 0 && dim.evaluationPrompt.trim().length < 10) {
+    errors.push(`"${label}": 평가 프롬프트는 최소 10자 이상이어야 합니다 (현재: ${dim.evaluationPrompt.trim().length}자)`);
+  }
+
+  return { valid: errors.length === 0, errors };
+}
+
+/**
+ * 평가 기준 세트 전체 유효성 검사
+ * 차원 수(3개 이상), 가중치 합계(100%), 점수 범위, key 중복, 루브릭 단계 수를 검증한다
+ */
+export function validateEvaluationCriteriaSet(dimensions: Array<{
+  key?: string;
+  name?: string;
+  weight?: number;
+  minScore?: number;
+  maxScore?: number;
+  isActive?: boolean;
+  scoringRubric?: { score: number; label: string; description: string }[] | null;
+  evaluationPrompt?: string | null;
+}>): { valid: boolean; errors: string[] } {
+  const errors: string[] = [];
+
+  const activeDims = dimensions.filter(d => d.isActive !== false);
+
+  if (activeDims.length < 3) {
+    errors.push(`평가 차원은 최소 3개 이상 필요합니다 (현재 활성: ${activeDims.length}개)`);
+  }
+
+  const totalWeight = activeDims.reduce((sum, d) => sum + (d.weight ?? 0), 0);
+  if (Math.abs(totalWeight - 100) > 0.5) {
+    errors.push(`가중치 합계는 100%여야 합니다 (현재: ${totalWeight.toFixed(1)}%)`);
+  }
+
+  const keys = dimensions.map(d => d.key).filter(Boolean) as string[];
+  const seen = new Set<string>();
+  const dupes = new Set<string>();
+  for (const k of keys) {
+    if (seen.has(k)) dupes.add(k);
+    seen.add(k);
+  }
+  if (dupes.size > 0) {
+    errors.push(`중복된 차원 키가 있습니다: ${[...dupes].join(', ')}`);
+  }
+
+  for (const dim of dimensions) {
+    const dimResult = validateEvaluationDimension(dim);
+    errors.push(...dimResult.errors);
+  }
+
+  return { valid: errors.length === 0, errors };
+}
+
 /**
  * 기본 점수 객체 생성 (동적 평가 기준 지원)
  * 모든 차원을 minScore로 초기화

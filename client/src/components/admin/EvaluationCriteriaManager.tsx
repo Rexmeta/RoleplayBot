@@ -90,11 +90,56 @@ interface Category {
 }
 
 const DEFAULT_DIMENSIONS = [
-  { key: 'clarityLogic', name: '명확성 & 논리성', description: '의사 표현의 명확성과 논리적 구성', weight: 20 },
-  { key: 'listeningEmpathy', name: '경청 & 공감', description: '상대방의 말을 듣고 공감하는 능력', weight: 20 },
-  { key: 'appropriatenessAdaptability', name: '적절성 & 상황대응', description: '상황에 맞는 적절한 대응', weight: 20 },
-  { key: 'persuasivenessImpact', name: '설득력 & 영향력', description: '상대방을 설득하고 영향을 미치는 능력', weight: 20 },
-  { key: 'strategicCommunication', name: '전략적 커뮤니케이션', description: '목표 달성을 위한 전략적 소통', weight: 20 },
+  {
+    key: 'clarityLogic', name: '명확성 & 논리성', description: '의사 표현의 명확성과 논리적 구성', weight: 20,
+    scoringRubric: [
+      { score: 2, label: '매우 미흡', description: '발화가 거의 없거나 주제와 무관한 단어 나열. 논리 구조 전혀 없음.' },
+      { score: 4, label: '미흡', description: '의도는 파악되나 근거 없이 주장만 하거나 문장이 단편적. 두서없는 구성.' },
+      { score: 6, label: '보통', description: '기본적인 주장과 근거가 있으나 구조가 약하거나 핵심이 불분명한 경우가 있음.' },
+      { score: 8, label: '우수', description: '대체로 명확하고 논리적 근거 제시. 간혹 애매한 표현이나 논리 비약이 있음.' },
+      { score: 10, label: '탁월', description: '명확한 핵심 메시지, 탄탄한 논리 구조, 구체적 사례/데이터 인용, 일관성 탁월.' },
+    ],
+  },
+  {
+    key: 'listeningEmpathy', name: '경청 & 공감', description: '상대방의 말을 듣고 공감하는 능력', weight: 20,
+    scoringRubric: [
+      { score: 2, label: '매우 미흡', description: '상대방 발화를 완전히 무시하거나 엉뚱한 응답. 공감 표현 전무.' },
+      { score: 4, label: '미흡', description: '상대방 말에 최소한 반응하나 내용 반영 없이 자기 이야기만 함.' },
+      { score: 6, label: '보통', description: '상대방 말을 일부 참조하나 요약·재진술 부족. 공감이 형식적("네", "알겠습니다" 수준).' },
+      { score: 8, label: '우수', description: '상대방 발화를 파악하고 관련 반응. 재진술·공감 표현. 감정 인식 시도.' },
+      { score: 10, label: '탁월', description: '상대방 핵심 우려를 정확히 짚어 재진술하고, 감정 인식, 적극적 공감, 니즈 탐색.' },
+    ],
+  },
+  {
+    key: 'appropriatenessAdaptability', name: '적절성 & 상황대응', description: '상황에 맞는 적절한 대응', weight: 20,
+    scoringRubric: [
+      { score: 2, label: '매우 미흡', description: '상황과 전혀 어울리지 않는 발언, 갈등 악화, 역할 혼동.' },
+      { score: 4, label: '미흡', description: '상황 인식이 부족하거나 부적절한 표현이 반복됨. 상황 변화에 둔감.' },
+      { score: 6, label: '보통', description: '대체로 상황에 맞는 발언이나 간혹 어색하거나 타이밍 미스. 대응 유연성 부족.' },
+      { score: 8, label: '우수', description: '상황 변화에 잘 대응하고 적절한 표현 선택. 소소한 실수는 있음.' },
+      { score: 10, label: '탁월', description: '상황별 최적 표현과 어조 선택. 갈등 발생 시 유연하게 전환. 분위기 조율 능숙.' },
+    ],
+  },
+  {
+    key: 'persuasivenessImpact', name: '설득력 & 영향력', description: '상대방을 설득하고 영향을 미치는 능력', weight: 20,
+    scoringRubric: [
+      { score: 2, label: '매우 미흡', description: '설득 시도 없거나 근거 없이 요구·강요만 하여 역효과 발생.' },
+      { score: 4, label: '미흡', description: '일부 주장이 있으나 논리적 근거나 구체적 사례 거의 없음. 상대방 이익 미반영.' },
+      { score: 6, label: '보통', description: '부분적 논거 제시. 상대 입장 일부 반영하나 설득력 약함. 합의 도출 미흡.' },
+      { score: 8, label: '우수', description: '논리적 근거와 상대 이익 제시. 설득 흐름 구축. 타협 여지 제시.' },
+      { score: 10, label: '탁월', description: '체계적 논거, 상대 이익 부각, 감정적 공감과 논리 결합, 구체적 행동 변화 유도.' },
+    ],
+  },
+  {
+    key: 'strategicCommunication', name: '전략적 커뮤니케이션', description: '목표 달성을 위한 전략적 소통', weight: 20,
+    scoringRubric: [
+      { score: 2, label: '매우 미흡', description: '목표 없이 반응형 대화. 주도권 전혀 없음. 대화 방향 조율 불가.' },
+      { score: 4, label: '미흡', description: '목표 의식이 희미하거나 산만하게 대화. 전략적 흐름 없음.' },
+      { score: 6, label: '보통', description: '어느 정도 목표 지향적이나 전략 일관성 부족. 기회 포착 미흡.' },
+      { score: 8, label: '우수', description: '대화 흐름 주도, 목표 지향적 발언, 타협·조율 시도.' },
+      { score: 10, label: '탁월', description: '전략적 순서로 대화 구성. 상대 반응에 따른 전술 조정. 합의 도출 주도.' },
+    ],
+  },
 ];
 
 const DIMENSION_TYPE_OPTIONS = [
@@ -822,24 +867,44 @@ export function EvaluationCriteriaManager() {
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <Label htmlFor="dim-minScore">최소 점수</Label>
+                <Label htmlFor="dim-minScore">최소 점수 <span className="text-slate-400 font-normal text-xs">(1~10점 척도)</span></Label>
                 <Input
                   id="dim-minScore"
                   type="number"
+                  min={1}
+                  max={10}
                   value={dimensionFormData.minScore}
                   onChange={(e) => setDimensionFormData({ ...dimensionFormData, minScore: parseInt(e.target.value) || 1 })}
+                  className={dimensionFormData.minScore < 1 || dimensionFormData.minScore >= dimensionFormData.maxScore ? 'border-red-400 focus-visible:ring-red-400' : ''}
                 />
               </div>
               <div>
-                <Label htmlFor="dim-maxScore">최대 점수</Label>
+                <Label htmlFor="dim-maxScore">최대 점수 <span className="text-slate-400 font-normal text-xs">(1~10점 척도)</span></Label>
                 <Input
                   id="dim-maxScore"
                   type="number"
+                  min={1}
+                  max={10}
                   value={dimensionFormData.maxScore}
                   onChange={(e) => setDimensionFormData({ ...dimensionFormData, maxScore: parseInt(e.target.value) || 10 })}
+                  className={dimensionFormData.maxScore > 10 || dimensionFormData.minScore >= dimensionFormData.maxScore ? 'border-red-400 focus-visible:ring-red-400' : ''}
                 />
               </div>
             </div>
+            {(dimensionFormData.minScore < 1 || dimensionFormData.maxScore > 10 || dimensionFormData.minScore >= dimensionFormData.maxScore) && (
+              <div className="flex items-center gap-2 text-xs text-red-600 bg-red-50 border border-red-200 rounded-md px-3 py-2">
+                <AlertCircle className="h-3.5 w-3.5 shrink-0" />
+                <span>
+                  점수 범위는 최소 1점, 최대 10점이어야 하며 최소 점수는 최대 점수보다 작아야 합니다. 종합 점수는 가중치 환산을 통해 100점으로 표시됩니다.
+                </span>
+              </div>
+            )}
+            {dimensionFormData.scoringRubric.length < 5 && (
+              <div className="flex items-center gap-2 text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded-md px-3 py-2">
+                <AlertCircle className="h-3.5 w-3.5 shrink-0" />
+                <span>채점 루브릭은 최소 5단계 이상 입력해야 합니다 (현재: {dimensionFormData.scoringRubric.length}단계).</span>
+              </div>
+            )}
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <Label htmlFor="dim-icon">아이콘</Label>
@@ -1146,24 +1211,40 @@ function InlineDimensionEditor({
         </div>
         <div className="grid grid-cols-2 gap-2">
           <div>
-            <Label className="text-xs">{t('admin.evaluationCriteria.score')} (min)</Label>
+            <Label className="text-xs">{t('admin.evaluationCriteria.score')} (min) <span className="text-slate-400 font-normal">1~10</span></Label>
             <Input
               type="number"
+              min={1}
+              max={10}
               value={editData.minScore}
               onChange={(e) => setEditData({ ...editData, minScore: parseInt(e.target.value) || 1 })}
-              className="h-8 text-sm mt-1"
+              className={`h-8 text-sm mt-1 ${editData.minScore < 1 || editData.minScore >= editData.maxScore ? 'border-red-400' : ''}`}
             />
           </div>
           <div>
-            <Label className="text-xs">{t('admin.evaluationCriteria.score')} (max)</Label>
+            <Label className="text-xs">{t('admin.evaluationCriteria.score')} (max) <span className="text-slate-400 font-normal">1~10</span></Label>
             <Input
               type="number"
+              min={1}
+              max={10}
               value={editData.maxScore}
               onChange={(e) => setEditData({ ...editData, maxScore: parseInt(e.target.value) || 10 })}
-              className="h-8 text-sm mt-1"
+              className={`h-8 text-sm mt-1 ${editData.maxScore > 10 || editData.minScore >= editData.maxScore ? 'border-red-400' : ''}`}
             />
           </div>
         </div>
+        {(editData.minScore < 1 || editData.maxScore > 10 || editData.minScore >= editData.maxScore) && (
+          <div className="flex items-center gap-1.5 text-xs text-red-600 bg-red-50 border border-red-200 rounded px-2 py-1.5 col-span-full">
+            <AlertCircle className="h-3 w-3 shrink-0" />
+            <span>점수 범위는 최소 1 ~ 최대 10이어야 합니다. 종합 점수는 100점으로 환산됩니다.</span>
+          </div>
+        )}
+        {editData.scoringRubric.length < 5 && (
+          <div className="flex items-center gap-1.5 text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded px-2 py-1.5 col-span-full">
+            <AlertCircle className="h-3 w-3 shrink-0" />
+            <span>채점 루브릭은 최소 5단계 이상 필요합니다 (현재: {editData.scoringRubric.length}단계).</span>
+          </div>
+        )}
         <div>
           <Label className="text-xs">아이콘 / 색상</Label>
           <div className="flex items-center gap-2 mt-1">

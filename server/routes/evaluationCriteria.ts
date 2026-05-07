@@ -3,6 +3,7 @@ import { storage } from "../storage";
 import { isOperatorOrAdmin } from "../middleware/authMiddleware";
 import { GoogleGenAI } from "@google/genai";
 import { asyncHandler, createHttpError } from "./routerHelpers";
+import { validateEvaluationCriteriaSet, validateEvaluationDimension } from "../services/evaluationEngine";
 
 export default function createEvaluationCriteriaRouter(isAuthenticated: any) {
   const router = Router();
@@ -104,6 +105,13 @@ export default function createEvaluationCriteriaRouter(isAuthenticated: any) {
       throw createHttpError(400, "Name is required");
     }
 
+    // Validate BEFORE persisting anything so we can fail fast without orphaning data or clearing the existing default
+    const setValidation = validateEvaluationCriteriaSet(Array.isArray(dimensions) ? dimensions : []);
+    if (!setValidation.valid) {
+      throw createHttpError(400, `평가 기준 유효성 검사 실패:\n${setValidation.errors.join('\n')}`);
+    }
+
+    // Safe to modify default now that validation passed
     if (isDefault) {
       const existingDefault = await storage.getDefaultEvaluationCriteriaSet();
       if (existingDefault) {
@@ -130,8 +138,8 @@ export default function createEvaluationCriteriaRouter(isAuthenticated: any) {
           name: dim.name,
           description: dim.description || null,
           weight: dim.weight || 1,
-          minScore: dim.minScore || 0,
-          maxScore: dim.maxScore || 100,
+          minScore: dim.minScore ?? 1,
+          maxScore: dim.maxScore ?? 10,
           icon: dim.icon || '📊',
           color: dim.color || 'blue',
           displayOrder: dim.displayOrder ?? i,
@@ -272,6 +280,11 @@ Return JSON: {
     res.json({ ...criteriaSet, dimensions: createdDimensions });
   }));
 
+  // POLICY: This endpoint updates set-level metadata only (name, description, isDefault,
+  // isActive, categoryId). It intentionally does NOT run validateEvaluationCriteriaSet()
+  // because changing metadata cannot alter dimension count, weight sum, or rubric state.
+  // All dimension-level invariants are enforced at the dimension create/update/delete
+  // endpoints, which re-validate the full post-change set before every persist.
   router.put("/api/admin/evaluation-criteria/:id", isAuthenticated, isOperatorOrAdmin, asyncHandler(async (req, res) => {
     const { id } = req.params;
     const { name, description, isDefault, isActive, categoryId } = req.body;
@@ -336,7 +349,44 @@ Return JSON: {
       throw createHttpError(404, "Evaluation criteria set not found");
     }
 
+    const resolvedMinScore = minScore ?? 1;
+    const resolvedMaxScore = maxScore ?? 10;
+    const dimValidation = validateEvaluationDimension({
+      key, name,
+      minScore: resolvedMinScore,
+      maxScore: resolvedMaxScore,
+      scoringRubric: scoringRubric || null,
+      evaluationPrompt: evaluationPrompt || null,
+    });
+    if (!dimValidation.valid) {
+      throw createHttpError(400, `평가 차원 유효성 검사 실패:\n${dimValidation.errors.join('\n')}`);
+    }
+
     const existingDimensions = await storage.getEvaluationDimensionsByCriteriaSet(criteriaSetId);
+
+    const duplicateKey = existingDimensions.find((d: any) => d.key === key);
+    if (duplicateKey) {
+      throw createHttpError(400, `평가 차원 키 "${key}"가 이미 존재합니다. 다른 키를 사용하세요.`);
+    }
+
+    // Validate the full post-change set (count ≥ 3, weight sum ≈ 100, rubric ≥ 5 per active dimension)
+    const postAddDims = [
+      ...existingDimensions,
+      {
+        key,
+        name,
+        weight: weight ?? 1,
+        minScore: resolvedMinScore,
+        maxScore: resolvedMaxScore,
+        isActive: isActive !== false,
+        scoringRubric: scoringRubric || null,
+        evaluationPrompt: evaluationPrompt || null,
+      },
+    ];
+    const postAddSetValidation = validateEvaluationCriteriaSet(postAddDims);
+    if (!postAddSetValidation.valid) {
+      throw createHttpError(400, `세트 전체 유효성 검사 실패:\n${postAddSetValidation.errors.join('\n')}`);
+    }
 
     const dimension = await storage.createEvaluationDimension({
       criteriaSetId,
@@ -344,8 +394,8 @@ Return JSON: {
       name,
       description: description || null,
       weight: weight || 1,
-      minScore: minScore || 0,
-      maxScore: maxScore || 100,
+      minScore: resolvedMinScore,
+      maxScore: resolvedMaxScore,
       icon: icon || null,
       color: color || null,
       displayOrder: displayOrder ?? existingDimensions.length,
@@ -366,6 +416,48 @@ Return JSON: {
       throw createHttpError(404, "Evaluation dimension not found");
     }
 
+    const resolvedKey = updates.key ?? existing.key;
+    const dimValidation = validateEvaluationDimension({
+      key: resolvedKey,
+      name: updates.name ?? existing.name,
+      minScore: updates.minScore ?? existing.minScore,
+      maxScore: updates.maxScore ?? existing.maxScore,
+      scoringRubric: updates.scoringRubric !== undefined ? updates.scoringRubric : existing.scoringRubric,
+      evaluationPrompt: updates.evaluationPrompt !== undefined ? updates.evaluationPrompt : existing.evaluationPrompt,
+    });
+    if (!dimValidation.valid) {
+      throw createHttpError(400, `평가 차원 유효성 검사 실패:\n${dimValidation.errors.join('\n')}`);
+    }
+
+    const siblings = await storage.getEvaluationDimensionsByCriteriaSet(existing.criteriaSetId);
+
+    if (updates.key && updates.key !== existing.key) {
+      const duplicateKey = siblings.find((d: any) => d.key === updates.key && d.id !== id);
+      if (duplicateKey) {
+        throw createHttpError(400, `평가 차원 키 "${updates.key}"가 이미 존재합니다. 다른 키를 사용하세요.`);
+      }
+    }
+
+    // Validate the full post-change set (count ≥ 3, weight sum ≈ 100, rubric ≥ 5 per active dimension)
+    const postUpdateDims = siblings.map((d: any) =>
+      d.id === id
+        ? {
+            key: updates.key ?? d.key,
+            name: updates.name ?? d.name,
+            weight: updates.weight ?? d.weight,
+            minScore: updates.minScore ?? d.minScore,
+            maxScore: updates.maxScore ?? d.maxScore,
+            isActive: updates.isActive !== undefined ? updates.isActive : d.isActive,
+            scoringRubric: updates.scoringRubric !== undefined ? updates.scoringRubric : d.scoringRubric,
+            evaluationPrompt: updates.evaluationPrompt !== undefined ? updates.evaluationPrompt : d.evaluationPrompt,
+          }
+        : d
+    );
+    const postUpdateSetValidation = validateEvaluationCriteriaSet(postUpdateDims);
+    if (!postUpdateSetValidation.valid) {
+      throw createHttpError(400, `세트 전체 유효성 검사 실패:\n${postUpdateSetValidation.errors.join('\n')}`);
+    }
+
     const updated = await storage.updateEvaluationDimension(id, updates);
     res.json(updated);
   }));
@@ -376,6 +468,14 @@ Return JSON: {
     const existing = await storage.getEvaluationDimension(id);
     if (!existing) {
       throw createHttpError(404, "Evaluation dimension not found");
+    }
+
+    // Validate the full post-delete set (count ≥ 3, weight sum ≈ 100)
+    const siblings = await storage.getEvaluationDimensionsByCriteriaSet(existing.criteriaSetId);
+    const postDeleteDims = siblings.filter((d: any) => d.id !== id);
+    const postDeleteSetValidation = validateEvaluationCriteriaSet(postDeleteDims);
+    if (!postDeleteSetValidation.valid) {
+      throw createHttpError(400, `삭제 후 세트 유효성 검사 실패:\n${postDeleteSetValidation.errors.join('\n')}`);
     }
 
     await storage.deleteEvaluationDimension(id);
