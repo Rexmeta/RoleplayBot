@@ -30,6 +30,7 @@ export interface RealtimeSession {
   totalAiTranscriptLength: number;
   realtimeModel: string;
   hasReceivedFirstAIResponse: boolean;
+  hasReceivedFirstAIAudio: boolean;
   hasTriggeredFirstGreeting: boolean;
   firstGreetingRetryCount: number;
   isInterrupted: boolean;

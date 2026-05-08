@@ -66,6 +66,11 @@ export function handleGeminiMessage(
       console.log(`🔇 Suppressing audio (barge-in active)`);
       return;
     }
+    if (!session.hasReceivedFirstAIAudio) {
+      session.hasReceivedFirstAIAudio = true;
+      session.hasReceivedFirstAIResponse = true;
+      console.log(`🔊 [TIMING] 첫 AI 오디오 수신 (top-level): ${new Date().toISOString()}`);
+    }
     console.log('🔊 Audio data received (top-level)');
     sendToClient(session, {
       type: 'audio.delta',
@@ -152,6 +157,11 @@ export function handleGeminiMessage(
           const mimeType = part.inlineData.mimeType || 'audio/pcm';
           console.log(`🔊 Audio data received (inlineData), mimeType: ${mimeType}, length: ${audioData?.length || 0}`);
           if (audioData) {
+            if (!session.hasReceivedFirstAIAudio) {
+              session.hasReceivedFirstAIAudio = true;
+              session.hasReceivedFirstAIResponse = true;
+              console.log(`🔊 [TIMING] 첫 AI 오디오 수신 (inlineData): ${new Date().toISOString()}`);
+            }
             sendToClient(session, {
               type: 'audio.delta',
               delta: audioData,
@@ -178,7 +188,7 @@ export function handleGeminiMessage(
         });
       }
 
-      if (!session.hasReceivedFirstAIResponse && !session.currentTranscript && !hasModelTurn && session.firstGreetingRetryCount < 3) {
+      if (!session.hasReceivedFirstAIResponse && !session.hasReceivedFirstAIAudio && !session.currentTranscript && !hasModelTurn && session.firstGreetingRetryCount < 3) {
         session.firstGreetingRetryCount++;
         console.log(`⚠️ 첫 인사 응답 없음, 재시도 ${session.firstGreetingRetryCount}/3...`);
         sendToClient(session, {
@@ -201,7 +211,7 @@ export function handleGeminiMessage(
         return;
       }
 
-      if (!session.hasReceivedFirstAIResponse && !session.currentTranscript && !hasModelTurn && session.firstGreetingRetryCount >= 3) {
+      if (!session.hasReceivedFirstAIResponse && !session.hasReceivedFirstAIAudio && !session.currentTranscript && !hasModelTurn && session.firstGreetingRetryCount >= 3) {
         console.log(`❌ 3회 시도 후에도 AI 인사 응답 없음 - 사용자가 먼저 시작하도록 안내`);
         sendToClient(session, { type: 'greeting.failed' });
       }

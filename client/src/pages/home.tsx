@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Link, useLocation } from "wouter";
 import ScenarioSelector from "@/components/ScenarioSelector";
 import ChatWindow from "@/components/ChatWindow";
@@ -54,6 +54,7 @@ export default function Home() {
     improvements: string[];
   } | null>(null); // AI 전략 회고 평가
   const [isCreatingConversation, setIsCreatingConversation] = useState(false); // 대화 생성 중 상태
+  const urlAutoStartRef = useRef(false); // URL 파라미터 자동 시작 중복 실행 방지
   const [loadingPersonaId, setLoadingPersonaId] = useState<string | null>(null); // 로딩 중인 페르소나 ID
   const [selectedDifficulty, setSelectedDifficulty] = useState<number>(4); // 사용자가 선택한 난이도 (기본값: 4)
   const [isResuming, setIsResuming] = useState(false); // 대화 재개 중 상태
@@ -211,7 +212,7 @@ export default function Home() {
           console.error('대화 재개 실패:', error);
           setIsResuming(false);
         });
-    } else if (scenarioId && scenarios.length > 0 && !isCreatingConversation) {
+    } else if (scenarioId && scenarios.length > 0 && !urlAutoStartRef.current) {
       // 특정 시나리오의 페르소나 선택 화면으로 이동
       const scenario = scenarios.find((s: any) => s.id === scenarioId);
       if (scenario) {
@@ -227,7 +228,8 @@ export default function Home() {
         // ✅ personaId가 있으면 해당 페르소나를 즉시 선택 (미완료 페르소나 "대화하기" 클릭 시)
         if (personaIdParam) {
           const targetPersona = scenario.personas.find((p: any) => p.id === personaIdParam);
-          if (targetPersona && !isCreatingConversation) {
+          if (targetPersona) {
+            urlAutoStartRef.current = true;
             setIsCreatingConversation(true);
             setLoadingPersonaId(personaIdParam);
             const userSelectedDifficulty = 4; // 기본 난이도 4 (고난도)
@@ -312,7 +314,7 @@ export default function Home() {
         window.history.replaceState({}, '', '/home');
       }
     }
-  }, [scenarios, isResuming, isCreatingConversation]);
+  }, [scenarios, isResuming]);
 
   // 시나리오 선택 처리 - 항상 새로운 시도로 시작
   const handleScenarioSelect = async (scenario: ComplexScenario) => {
