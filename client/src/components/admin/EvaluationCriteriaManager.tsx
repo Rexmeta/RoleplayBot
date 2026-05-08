@@ -14,8 +14,9 @@ import { Badge } from "@/components/ui/badge";
 import { Slider } from "@/components/ui/slider";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { Plus, Edit, Trash2, Star, Check, GripVertical, Copy, Settings, MessageCircle, Target, Lightbulb, Heart, Users, Award, Brain, Zap, Shield, TrendingUp, Eye, Ear, HandHeart, Compass, Flag, ThumbsUp, Megaphone, PenTool, BookOpen, Sparkles, AlertCircle, Languages, GitBranch, History, CheckCircle, XCircle, Archive, ClockIcon } from "lucide-react";
+import { Plus, Edit, Trash2, Star, Check, GripVertical, Copy, Settings, MessageCircle, Target, Lightbulb, Heart, Users, Award, Brain, Zap, Shield, TrendingUp, Eye, Ear, HandHeart, Compass, Flag, ThumbsUp, Megaphone, PenTool, BookOpen, Sparkles, AlertCircle, Languages, GitBranch, History, CheckCircle, XCircle, Archive, ClockIcon, Lock } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 const AVAILABLE_ICONS = [
   { name: 'Star', icon: Star },
@@ -1669,6 +1670,17 @@ function CriteriaSetDetail({
         </div>
       </div>
 
+      {currentStatus === 'approved' && (
+        <div className="sticky top-0 z-10 flex items-start gap-3 rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-blue-800">
+          <Lock className="h-4 w-4 mt-0.5 shrink-0 text-blue-600" />
+          <div className="flex-1 text-sm">
+            <span className="font-semibold">승인된 루브릭은 편집이 잠겨 있습니다.</span>{' '}
+            차원을 수정하려면 먼저 <span className="font-semibold">"새 버전"</span> 버튼으로 새 초안을 만드세요.
+          </div>
+          <GitBranch className="h-4 w-4 mt-0.5 shrink-0 text-blue-500" />
+        </div>
+      )}
+
       <Dialog open={showVersionHistory} onOpenChange={(open) => { setShowVersionHistory(open); if (!open) setCompareVersionId(null); }}>
         <DialogContent className="max-w-2xl">
           <DialogHeader>
@@ -1801,11 +1813,13 @@ function CriteriaSetDetail({
               );
             }
 
+            const isApproved = currentStatus === 'approved';
+
             return (
               <div
                 key={dim.id}
-                className={`border rounded-lg p-3 flex items-center gap-3 cursor-pointer transition-colors hover:bg-slate-50 ${!dim.isActive ? 'opacity-60 bg-slate-50' : 'bg-white'}`}
-                onClick={() => setEditingDimId(dim.id)}
+                className={`border rounded-lg p-3 flex items-center gap-3 transition-colors ${isApproved ? 'cursor-default' : 'cursor-pointer hover:bg-slate-50'} ${!dim.isActive ? 'opacity-60 bg-slate-50' : 'bg-white'}`}
+                onClick={() => { if (!isApproved) setEditingDimId(dim.id); }}
               >
                 <div className="flex items-center justify-center w-7 h-7 rounded-md shrink-0" style={{ backgroundColor: (dim.color || '#6366f1') + '1A' }}>
                   <IconComp className="h-4 w-4" style={{ color: dim.color || '#6366f1' }} />
@@ -1828,9 +1842,26 @@ function CriteriaSetDetail({
                   <div className="text-center text-slate-500">
                     {dim.minScore}-{dim.maxScore}
                   </div>
-                  <Button variant="ghost" size="icon" className="h-7 w-7" onClick={(e) => { e.stopPropagation(); setEditingDimId(dim.id); }}>
-                    <Edit className="h-3.5 w-3.5" />
-                  </Button>
+                  {isApproved ? (
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <span className="inline-flex">
+                            <Button variant="ghost" size="icon" className="h-7 w-7 opacity-40 cursor-not-allowed" disabled>
+                              <Lock className="h-3.5 w-3.5" />
+                            </Button>
+                          </span>
+                        </TooltipTrigger>
+                        <TooltipContent side="left" className="text-xs max-w-[200px]">
+                          승인된 루브릭입니다. "새 버전" 버튼으로 포크 후 편집하세요.
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                  ) : (
+                    <Button variant="ghost" size="icon" className="h-7 w-7" onClick={(e) => { e.stopPropagation(); setEditingDimId(dim.id); }}>
+                      <Edit className="h-3.5 w-3.5" />
+                    </Button>
+                  )}
                 </div>
               </div>
             );
