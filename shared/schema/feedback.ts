@@ -15,6 +15,11 @@ export const feedbacks = pgTable("feedbacks", {
   reportStatus: varchar("report_status"),
   scores: jsonb("scores").notNull().$type<EvaluationScore[]>(),
   detailedFeedback: jsonb("detailed_feedback").notNull().$type<DetailedFeedback>(),
+  rubricSnapshot: jsonb("rubric_snapshot").$type<Record<string, any>>(),
+  conversationSnapshot: jsonb("conversation_snapshot").$type<any[]>(),
+  evaluationPromptSnapshot: jsonb("evaluation_prompt_snapshot").$type<Record<string, any>>(),
+  modelSnapshot: jsonb("model_snapshot").$type<Record<string, any>>(),
+  criteriaSetVersion: integer("criteria_set_version"),
   createdAt: timestamp("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
 }, (table) => [
   index("idx_feedbacks_conversation_id").on(table.conversationId),
@@ -29,11 +34,18 @@ export const evaluationCriteriaSets = pgTable("evaluation_criteria_sets", {
   isActive: boolean("is_active").notNull().default(true),
   categoryId: varchar("category_id").references(() => categories.id),
   createdBy: varchar("created_by").references(() => users.id),
+  status: varchar("status").notNull().default("draft"),
+  approvedBy: varchar("approved_by").references(() => users.id),
+  approvedAt: timestamp("approved_at"),
+  version: integer("version").notNull().default(1),
+  parentSetId: varchar("parent_set_id"),
   createdAt: timestamp("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
   updatedAt: timestamp("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`),
 }, (table) => [
   index("idx_criteria_sets_category").on(table.categoryId),
   index("idx_criteria_sets_default").on(table.isDefault),
+  index("idx_criteria_sets_status").on(table.status),
+  index("idx_criteria_sets_parent").on(table.parentSetId),
 ]);
 
 export const evaluationDimensions = pgTable("evaluation_dimensions", {

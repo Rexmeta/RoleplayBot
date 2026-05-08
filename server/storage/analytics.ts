@@ -1,6 +1,6 @@
 import { type AiUsageLog, type InsertAiUsageLog, type AiUsageSummary, type AiUsageByFeature, type AiUsageByModel, type AiUsageDaily, type EvaluationCriteriaSet, type InsertEvaluationCriteriaSet, type EvaluationDimension, type InsertEvaluationDimension, type EvaluationCriteriaSetWithDimensions, aiUsageLogs, evaluationCriteriaSets, evaluationDimensions } from "@shared/schema";
 import { db } from "./db";
-import { eq, asc, desc, and, gte, lte, sql } from "drizzle-orm";
+import { eq, asc, desc, and, gte, lte, or, isNull, sql } from "drizzle-orm";
 
 export interface IAnalyticsStorage {
   createAiUsageLog(log: InsertAiUsageLog): Promise<AiUsageLog>;
@@ -19,6 +19,8 @@ export interface IAnalyticsStorage {
   updateEvaluationCriteriaSet(id: string, updates: Partial<InsertEvaluationCriteriaSet>): Promise<EvaluationCriteriaSet>;
   deleteEvaluationCriteriaSet(id: string): Promise<void>;
   setDefaultEvaluationCriteriaSet(id: string): Promise<void>;
+  updateEvaluationCriteriaSetStatus(id: string, status: string, approvedBy?: string): Promise<EvaluationCriteriaSet>;
+  getEvaluationCriteriaSetVersionHistory(parentSetId: string): Promise<EvaluationCriteriaSet[]>;
 
   createEvaluationDimension(dimension: InsertEvaluationDimension): Promise<EvaluationDimension>;
   getEvaluationDimension(id: string): Promise<EvaluationDimension | undefined>;
@@ -118,12 +120,24 @@ export function AnalyticsMixin<TBase extends Constructor>(Base: TBase) {
     }
 
     async getDefaultEvaluationCriteriaSet(): Promise<EvaluationCriteriaSet | undefined> {
-      const results = await db.select().from(evaluationCriteriaSets).where(and(eq(evaluationCriteriaSets.isDefault, true), eq(evaluationCriteriaSets.isActive, true)));
+      const results = await db.select().from(evaluationCriteriaSets).where(
+        and(
+          eq(evaluationCriteriaSets.isDefault, true),
+          eq(evaluationCriteriaSets.isActive, true),
+          or(eq(evaluationCriteriaSets.status, 'approved'), isNull(evaluationCriteriaSets.status))
+        )
+      );
       return results[0];
     }
 
     async getEvaluationCriteriaSetByCategory(categoryId: string): Promise<EvaluationCriteriaSet | undefined> {
-      const results = await db.select().from(evaluationCriteriaSets).where(and(eq(evaluationCriteriaSets.categoryId, categoryId), eq(evaluationCriteriaSets.isActive, true)));
+      const results = await db.select().from(evaluationCriteriaSets).where(
+        and(
+          eq(evaluationCriteriaSets.categoryId, categoryId),
+          eq(evaluationCriteriaSets.isActive, true),
+          or(eq(evaluationCriteriaSets.status, 'approved'), isNull(evaluationCriteriaSets.status))
+        )
+      );
       return results[0];
     }
 
@@ -139,6 +153,26 @@ export function AnalyticsMixin<TBase extends Constructor>(Base: TBase) {
     async setDefaultEvaluationCriteriaSet(id: string): Promise<void> {
       await db.update(evaluationCriteriaSets).set({ isDefault: false });
       await db.update(evaluationCriteriaSets).set({ isDefault: true, updatedAt: new Date() }).where(eq(evaluationCriteriaSets.id, id));
+    }
+
+    async updateEvaluationCriteriaSetStatus(id: string, status: string, approvedBy?: string): Promise<EvaluationCriteriaSet> {
+      const updates: any = { status, updatedAt: new Date() };
+      if (status === 'approved') {
+        updates.approvedBy = approvedBy || null;
+        updates.approvedAt = new Date();
+      }
+      const [updated] = await db.update(evaluationCriteriaSets).set(updates).where(eq(evaluationCriteriaSets.id, id)).returning();
+      return updated;
+    }
+
+    async getEvaluationCriteriaSetVersionHistory(parentSetId: string): Promise<EvaluationCriteriaSet[]> {
+      const results = await db.select().from(evaluationCriteriaSets).where(
+        or(
+          eq(evaluationCriteriaSets.id, parentSetId),
+          eq(evaluationCriteriaSets.parentSetId, parentSetId)
+        )
+      ).orderBy(asc(evaluationCriteriaSets.version));
+      return results;
     }
 
     async createEvaluationDimension(dimension: InsertEvaluationDimension): Promise<EvaluationDimension> {
@@ -198,6 +232,8 @@ export class MemAnalyticsStorage implements IAnalyticsStorage {
   async updateEvaluationCriteriaSet(_: string, __: Partial<InsertEvaluationCriteriaSet>): Promise<EvaluationCriteriaSet> { throw new Error("Not implemented in MemStorage"); }
   async deleteEvaluationCriteriaSet(_: string): Promise<void> { throw new Error("Not implemented in MemStorage"); }
   async setDefaultEvaluationCriteriaSet(_: string): Promise<void> { throw new Error("Not implemented in MemStorage"); }
+  async updateEvaluationCriteriaSetStatus(_: string, __: string, ___?: string): Promise<EvaluationCriteriaSet> { throw new Error("Not implemented in MemStorage"); }
+  async getEvaluationCriteriaSetVersionHistory(_: string): Promise<EvaluationCriteriaSet[]> { return []; }
   async createEvaluationDimension(_: InsertEvaluationDimension): Promise<EvaluationDimension> { throw new Error("Not implemented in MemStorage"); }
   async getEvaluationDimension(_: string): Promise<EvaluationDimension | undefined> { throw new Error("Not implemented in MemStorage"); }
   async getEvaluationDimensionsByCriteriaSet(_: string): Promise<EvaluationDimension[]> { return []; }

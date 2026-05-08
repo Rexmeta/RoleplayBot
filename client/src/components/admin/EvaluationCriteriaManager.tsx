@@ -14,7 +14,7 @@ import { Badge } from "@/components/ui/badge";
 import { Slider } from "@/components/ui/slider";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { Plus, Edit, Trash2, Star, Check, GripVertical, Copy, Settings, MessageCircle, Target, Lightbulb, Heart, Users, Award, Brain, Zap, Shield, TrendingUp, Eye, Ear, HandHeart, Compass, Flag, ThumbsUp, Megaphone, PenTool, BookOpen, Sparkles, AlertCircle, Languages } from "lucide-react";
+import { Plus, Edit, Trash2, Star, Check, GripVertical, Copy, Settings, MessageCircle, Target, Lightbulb, Heart, Users, Award, Brain, Zap, Shield, TrendingUp, Eye, Ear, HandHeart, Compass, Flag, ThumbsUp, Megaphone, PenTool, BookOpen, Sparkles, AlertCircle, Languages, GitBranch, History, CheckCircle, XCircle, Archive, ClockIcon } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 
 const AVAILABLE_ICONS = [
@@ -82,6 +82,11 @@ interface EvaluationCriteriaSet {
   isDefault: boolean;
   isActive: boolean;
   categoryId?: string | null;
+  status?: string | null;
+  approvedBy?: string | null;
+  approvedAt?: string | null;
+  version?: number | null;
+  parentSetId?: string | null;
   createdAt: string;
   updatedAt: string;
   dimensions?: EvaluationDimension[];
@@ -412,11 +417,16 @@ export function EvaluationCriteriaManager() {
 
   const createDimensionMutation = useMutation({
     mutationFn: async ({ criteriaSetId, data }: { criteriaSetId: string; data: any }) => {
-      return apiRequest('POST', `/api/admin/evaluation-criteria/${criteriaSetId}/dimensions`, data);
+      const res = await apiRequest('POST', `/api/admin/evaluation-criteria/${criteriaSetId}/dimensions`, data);
+      return res.json();
     },
-    onSuccess: () => {
+    onSuccess: (data: any) => {
       queryClient.invalidateQueries({ queryKey: ['/api/admin/evaluation-criteria'] });
-      toast({ title: "평가 차원이 추가되었습니다" });
+      if (data?.autoForked) {
+        toast({ title: "승인된 루브릭이 자동으로 새 초안 버전으로 분기되었습니다. 목록에서 새 버전을 선택해 계속 편집하세요." });
+      } else {
+        toast({ title: "평가 차원이 추가되었습니다" });
+      }
       setIsDimensionDialogOpen(false);
       resetDimensionFormData();
     },
@@ -427,11 +437,16 @@ export function EvaluationCriteriaManager() {
 
   const updateDimensionMutation = useMutation({
     mutationFn: async ({ id, data }: { id: string; data: any }) => {
-      return apiRequest('PUT', `/api/admin/evaluation-dimensions/${id}`, data);
+      const res = await apiRequest('PUT', `/api/admin/evaluation-dimensions/${id}`, data);
+      return res.json();
     },
-    onSuccess: () => {
+    onSuccess: (data: any) => {
       queryClient.invalidateQueries({ queryKey: ['/api/admin/evaluation-criteria'] });
-      toast({ title: "평가 차원이 수정되었습니다" });
+      if (data?.autoForked) {
+        toast({ title: "승인된 루브릭이 자동으로 새 초안 버전으로 분기되었습니다. 목록에서 새 버전을 선택해 계속 편집하세요." });
+      } else {
+        toast({ title: "평가 차원이 수정되었습니다" });
+      }
       setIsDimensionDialogOpen(false);
       setSelectedDimension(null);
     },
@@ -442,11 +457,16 @@ export function EvaluationCriteriaManager() {
 
   const deleteDimensionMutation = useMutation({
     mutationFn: async (id: string) => {
-      return apiRequest('DELETE', `/api/admin/evaluation-dimensions/${id}`);
+      const res = await apiRequest('DELETE', `/api/admin/evaluation-dimensions/${id}`);
+      return res.json();
     },
-    onSuccess: () => {
+    onSuccess: (data: any) => {
       queryClient.invalidateQueries({ queryKey: ['/api/admin/evaluation-criteria'] });
-      toast({ title: "평가 차원이 삭제되었습니다" });
+      if (data?.autoForked) {
+        toast({ title: "승인된 루브릭이 자동으로 새 초안 버전으로 분기되었습니다. 목록에서 새 버전을 선택해 계속 편집하세요." });
+      } else {
+        toast({ title: "평가 차원이 삭제되었습니다" });
+      }
     },
     onError: (error: any) => {
       toast({ title: "삭제 실패", description: error.message, variant: "destructive" });
@@ -657,19 +677,29 @@ export function EvaluationCriteriaManager() {
               <AccordionTrigger className="px-4 hover:no-underline">
                 <div className="flex items-center gap-3 w-full">
                   <div className="flex-1 text-left">
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 flex-wrap">
                       <span className="font-semibold">{set.name}</span>
+                      {set.version && set.version > 1 && (
+                        <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-4 font-mono">v{set.version}</Badge>
+                      )}
+                      {(() => {
+                        const s = set.status;
+                        if (!s || s === 'approved') return <Badge className="bg-green-100 text-green-700 border-green-200 text-[10px] px-1.5 py-0 h-4"><CheckCircle className="h-2.5 w-2.5 mr-0.5" />승인됨</Badge>;
+                        if (s === 'review') return <Badge className="bg-yellow-100 text-yellow-700 border-yellow-200 text-[10px] px-1.5 py-0 h-4"><ClockIcon className="h-2.5 w-2.5 mr-0.5" />검토중</Badge>;
+                        if (s === 'archived') return <Badge className="bg-slate-100 text-slate-500 border-slate-200 text-[10px] px-1.5 py-0 h-4"><Archive className="h-2.5 w-2.5 mr-0.5" />보관됨</Badge>;
+                        return <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-4">초안</Badge>;
+                      })()}
                       {set.isDefault && (
-                        <Badge variant="default" className="bg-blue-600">
-                          <Star className="h-3 w-3 mr-1" />
+                        <Badge variant="default" className="bg-blue-600 text-[10px] px-1.5 py-0 h-4">
+                          <Star className="h-2.5 w-2.5 mr-0.5" />
                           기본
                         </Badge>
                       )}
                       {!set.isActive && (
-                        <Badge variant="secondary">비활성</Badge>
+                        <Badge variant="secondary" className="text-[10px] px-1.5 py-0 h-4">비활성</Badge>
                       )}
                       {set.categoryId && (
-                        <Badge variant="outline">{getCategoryName(set.categoryId)}</Badge>
+                        <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-4">{getCategoryName(set.categoryId)}</Badge>
                       )}
                     </div>
                     {set.description && (
@@ -1463,10 +1493,64 @@ function CriteriaSetDetail({
   const { toast } = useToast();
   const [editingDimId, setEditingDimId] = useState<string | null>(null);
   const [deleteConfirmDimId, setDeleteConfirmDimId] = useState<string | null>(null);
+  const [showVersionHistory, setShowVersionHistory] = useState(false);
+  const [compareVersionId, setCompareVersionId] = useState<string | null>(null);
 
   const { data: setWithDimensions, isLoading } = useQuery({
     queryKey: ['/api/admin/evaluation-criteria', setId, currentLang],
     queryFn: () => fetchSetWithDimensions(setId),
+  });
+
+  const { data: versionHistory = [] } = useQuery<EvaluationCriteriaSet[]>({
+    queryKey: ['/api/admin/evaluation-criteria', setId, 'versions'],
+    queryFn: async () => {
+      const res = await apiRequest('GET', `/api/admin/evaluation-criteria/${setId}/versions`);
+      return res.json();
+    },
+    enabled: showVersionHistory,
+  });
+
+  const { data: compareVersionData } = useQuery<any>({
+    queryKey: ['/api/admin/evaluation-criteria', compareVersionId],
+    queryFn: async () => {
+      const res = await apiRequest('GET', `/api/admin/evaluation-criteria/${compareVersionId}`);
+      return res.json();
+    },
+    enabled: !!compareVersionId && compareVersionId !== setId,
+  });
+
+  const statusMutation = useMutation({
+    mutationFn: async ({ action }: { action: string }) => {
+      const res = await apiRequest('POST', `/api/admin/evaluation-criteria/${setId}/${action}`);
+      return res.json();
+    },
+    onSuccess: (_data, { action }) => {
+      queryClient.invalidateQueries({ queryKey: ['/api/admin/evaluation-criteria'] });
+      const labels: Record<string, string> = {
+        'request-review': '검토 요청이 완료되었습니다',
+        'approve': '루브릭이 승인되었습니다',
+        'reject': '루브릭이 반려되었습니다',
+        'archive': '루브릭이 보관되었습니다',
+      };
+      toast({ title: labels[action] || '상태가 변경되었습니다' });
+    },
+    onError: (error: any) => {
+      toast({ title: '상태 변경 실패', description: error.message, variant: 'destructive' });
+    },
+  });
+
+  const forkVersionMutation = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest('POST', `/api/admin/evaluation-criteria/${setId}/fork-version`);
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/admin/evaluation-criteria'] });
+      toast({ title: '새 버전이 초안으로 생성되었습니다' });
+    },
+    onError: (error: any) => {
+      toast({ title: '버전 분기 실패', description: error.message, variant: 'destructive' });
+    },
   });
 
   const updateDimInlineMutation = useMutation({
@@ -1518,25 +1602,64 @@ function CriteriaSetDetail({
     }
   };
 
+  const currentStatus = setWithDimensions?.status;
+  const isPending = statusMutation.isPending || forkVersionMutation.isPending;
+
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between flex-wrap gap-2">
         <div className="flex gap-2 flex-wrap">
-          <Button variant="outline" size="sm" onClick={onEdit}>
+          <Button variant="outline" size="sm" onClick={onEdit} disabled={currentStatus === 'archived'}>
             <Edit className="h-4 w-4 mr-1" />
             {t('admin.evaluationCriteria.edit')}
           </Button>
           {!isDefault && (
-            <Button variant="outline" size="sm" onClick={onSetDefault}>
+            <Button variant="outline" size="sm" onClick={onSetDefault} disabled={currentStatus !== 'approved' && currentStatus != null}>
               <Star className="h-4 w-4 mr-1" />
               {t('admin.evaluationCriteria.setAsDefault')}
             </Button>
           )}
-          <Button variant="outline" size="sm" onClick={onAddDimension}>
+          <Button variant="outline" size="sm" onClick={onAddDimension} disabled={currentStatus === 'archived' || currentStatus === 'approved'}>
             <Plus className="h-4 w-4 mr-1" />
             {t('admin.evaluationCriteria.addDimension')}
           </Button>
-          <Button variant="destructive" size="sm" onClick={onDelete}>
+          {(currentStatus === 'draft' || !currentStatus) && (
+            <Button variant="outline" size="sm" onClick={() => statusMutation.mutate({ action: 'request-review' })} disabled={isPending} className="text-yellow-700 border-yellow-300 hover:bg-yellow-50">
+              <ClockIcon className="h-4 w-4 mr-1" />
+              검토 요청
+            </Button>
+          )}
+          {currentStatus === 'review' && (
+            <>
+              <Button variant="outline" size="sm" onClick={() => statusMutation.mutate({ action: 'approve' })} disabled={isPending} className="text-green-700 border-green-300 hover:bg-green-50">
+                <CheckCircle className="h-4 w-4 mr-1" />
+                승인
+              </Button>
+              <Button variant="outline" size="sm" onClick={() => statusMutation.mutate({ action: 'reject' })} disabled={isPending} className="text-red-700 border-red-300 hover:bg-red-50">
+                <XCircle className="h-4 w-4 mr-1" />
+                반려
+              </Button>
+            </>
+          )}
+          {currentStatus === 'approved' && (
+            <>
+              <Button variant="outline" size="sm" onClick={() => forkVersionMutation.mutate()} disabled={isPending} className="text-blue-700 border-blue-300 hover:bg-blue-50">
+                <GitBranch className="h-4 w-4 mr-1" />
+                새 버전
+              </Button>
+              {!isDefault && (
+                <Button variant="outline" size="sm" onClick={() => statusMutation.mutate({ action: 'archive' })} disabled={isPending} className="text-slate-600 border-slate-300 hover:bg-slate-50">
+                  <Archive className="h-4 w-4 mr-1" />
+                  보관
+                </Button>
+              )}
+            </>
+          )}
+          <Button variant="outline" size="sm" onClick={() => setShowVersionHistory(true)}>
+            <History className="h-4 w-4 mr-1" />
+            이력
+          </Button>
+          <Button variant="destructive" size="sm" onClick={onDelete} disabled={currentStatus === 'approved'}>
             <Trash2 className="h-4 w-4 mr-1" />
             {t('common.delete')}
           </Button>
@@ -1549,6 +1672,98 @@ function CriteriaSetDetail({
           </span>
         </div>
       </div>
+
+      <Dialog open={showVersionHistory} onOpenChange={(open) => { setShowVersionHistory(open); if (!open) setCompareVersionId(null); }}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <History className="h-5 w-5" />
+              버전 이력
+            </DialogTitle>
+            <DialogDescription>이 루브릭의 모든 버전을 확인하고 비교합니다.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2 max-h-[60vh] overflow-y-auto">
+            {versionHistory.length === 0 ? (
+              <p className="text-sm text-slate-500 text-center py-4">버전 이력이 없습니다.</p>
+            ) : (
+              versionHistory.map((v) => {
+                const s = v.status;
+                const isCurrent = v.id === setId;
+                const isComparing = compareVersionId === v.id;
+                const currentDims: any[] = setWithDimensions?.dimensions ?? [];
+                const compareDims: any[] = isComparing && compareVersionData ? (compareVersionData.dimensions ?? []) : [];
+                const currentKeys = new Set(currentDims.map((d: any) => d.key));
+                const compareKeys = new Set(compareDims.map((d: any) => d.key));
+                return (
+                  <div key={v.id} className={`border rounded-lg p-3 ${isCurrent ? 'border-blue-300 bg-blue-50' : 'border-slate-200'}`}>
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="font-mono text-sm font-bold">v{v.version ?? 1}</span>
+                        {isCurrent && <Badge variant="outline" className="text-[10px] h-4">현재</Badge>}
+                        {(!s || s === 'approved') && <Badge className="bg-green-100 text-green-700 text-[10px] h-4">승인됨</Badge>}
+                        {s === 'review' && <Badge className="bg-yellow-100 text-yellow-700 text-[10px] h-4">검토중</Badge>}
+                        {s === 'draft' && <Badge variant="outline" className="text-[10px] h-4">초안</Badge>}
+                        {s === 'archived' && <Badge className="bg-slate-100 text-slate-500 text-[10px] h-4">보관됨</Badge>}
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-slate-400">{new Date(v.createdAt).toLocaleDateString('ko-KR')}</span>
+                        {!isCurrent && (
+                          <Button
+                            size="sm"
+                            variant={isComparing ? "default" : "outline"}
+                            className="h-6 text-[10px] px-2"
+                            onClick={() => setCompareVersionId(isComparing ? null : v.id)}
+                          >
+                            {isComparing ? '닫기' : '현재와 비교'}
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+                    {v.approvedAt && (
+                      <p className="text-xs text-slate-500 mt-1">승인일: {new Date(v.approvedAt).toLocaleDateString('ko-KR')}</p>
+                    )}
+                    {isComparing && (
+                      <div className="mt-3 pt-3 border-t border-slate-200">
+                        <p className="text-xs font-semibold text-slate-600 mb-2">평가 차원 비교 (왼쪽: v{v.version ?? 1} → 오른쪽: 현재)</p>
+                        <div className="grid grid-cols-2 gap-2 text-xs">
+                          <div className="space-y-1">
+                            <p className="font-medium text-slate-500 mb-1">v{v.version ?? 1} 차원</p>
+                            {compareDims.length === 0 ? (
+                              <p className="text-slate-400 italic">데이터 로딩 중...</p>
+                            ) : compareDims.map((d: any) => (
+                              <div key={d.key} className={`flex items-center justify-between px-2 py-1 rounded ${!currentKeys.has(d.key) ? 'bg-red-50 border border-red-200' : d.weight !== currentDims.find((c: any) => c.key === d.key)?.weight ? 'bg-yellow-50 border border-yellow-200' : 'bg-white border border-slate-200'}`}>
+                                <span className={!currentKeys.has(d.key) ? 'text-red-700 line-through' : 'text-slate-700'}>{d.name}</span>
+                                <span className="text-slate-400 ml-2">w{d.weight}</span>
+                              </div>
+                            ))}
+                          </div>
+                          <div className="space-y-1">
+                            <p className="font-medium text-slate-500 mb-1">현재 차원</p>
+                            {currentDims.map((d: any) => (
+                              <div key={d.key} className={`flex items-center justify-between px-2 py-1 rounded ${!compareKeys.has(d.key) ? 'bg-green-50 border border-green-200' : d.weight !== compareDims.find((c: any) => c.key === d.key)?.weight ? 'bg-yellow-50 border border-yellow-200' : 'bg-white border border-slate-200'}`}>
+                                <span className={!compareKeys.has(d.key) ? 'text-green-700 font-semibold' : 'text-slate-700'}>{d.name}</span>
+                                <span className="text-slate-400 ml-2">w{d.weight}</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                        <div className="flex gap-3 mt-2 text-[10px] text-slate-500">
+                          <span className="flex items-center gap-1"><span className="inline-block w-2 h-2 rounded bg-green-100 border border-green-300"></span>추가됨</span>
+                          <span className="flex items-center gap-1"><span className="inline-block w-2 h-2 rounded bg-red-100 border border-red-300"></span>제거됨</span>
+                          <span className="flex items-center gap-1"><span className="inline-block w-2 h-2 rounded bg-yellow-100 border border-yellow-300"></span>가중치 변경</span>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setShowVersionHistory(false); setCompareVersionId(null); }}>닫기</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {dimensions.length === 0 ? (
         <div className="py-6 text-center text-slate-500">

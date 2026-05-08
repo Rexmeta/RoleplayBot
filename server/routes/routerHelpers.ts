@@ -119,15 +119,26 @@ export async function loadEvaluationCriteria(
         return dim;
       })
     );
-    return { id: criteriaSet.id, name: translatedName, description: translatedDescription, dimensions: translatedDimensions };
+    return {
+      id: criteriaSet.id,
+      name: translatedName,
+      description: translatedDescription,
+      dimensions: translatedDimensions,
+      version: criteriaSet.version ?? null,
+      status: criteriaSet.status ?? null,
+    };
   };
 
   if (scenarioObj?.evaluationCriteriaSetId) {
     const cs = await storage.getEvaluationCriteriaSetWithDimensions(scenarioObj.evaluationCriteriaSetId);
     if (cs && cs.dimensions && cs.dimensions.length > 0) {
-      const result = await applyTranslations(cs);
-      console.log(`📊 [평가기준] 시나리오 직접 연결: ${cs.name} (${result.dimensions.length}개 차원)`);
-      return result;
+      if (cs.status && cs.status !== 'approved') {
+        console.log(`📊 [평가기준] 시나리오 직접 연결 루브릭 '${cs.name}'의 상태가 '${cs.status}'이어서 평가에 사용 불가 → 카테고리/기본값으로 대체`);
+      } else {
+        const result = await applyTranslations(cs);
+        console.log(`📊 [평가기준] 시나리오 직접 연결: ${cs.name} v${cs.version ?? 1} (${result.dimensions.length}개 차원)`);
+        return result;
+      }
     }
   }
 
@@ -235,6 +246,50 @@ export async function generateAndSaveFeedback(
 
   const evaluationCriteria = await loadEvaluationCriteria(scenarioObj, userLanguage);
 
+  let feedbackModelName = 'gemini-2.5-flash';
+  try {
+    const { getModelForFeature } = await import('../services/aiServiceFactory');
+    feedbackModelName = await getModelForFeature('feedback');
+  } catch {
+    // fallback to default
+  }
+
+  const rubricSnapshot = evaluationCriteria ? {
+    id: evaluationCriteria.id,
+    name: evaluationCriteria.name,
+    version: evaluationCriteria.version ?? null,
+    status: evaluationCriteria.status ?? null,
+    dimensions: (evaluationCriteria.dimensions || []).map((d: any) => ({
+      key: d.key,
+      name: d.name,
+      weight: d.weight,
+      minScore: d.minScore,
+      maxScore: d.maxScore,
+      icon: d.icon,
+      color: d.color,
+      scoringRubric: d.scoringRubric,
+    })),
+  } : null;
+
+  const conversationSnapshot = conversation.messages.map((m: any) => ({
+    sender: m.sender,
+    message: m.message,
+    timestamp: m.timestamp,
+  }));
+
+  const evaluationPromptSnapshot = evaluationCriteria ? {
+    criteriaSetId: evaluationCriteria.id,
+    dimensions: (evaluationCriteria.dimensions || []).map((d: any) => ({
+      key: d.key,
+      evaluationPrompt: d.evaluationPrompt || null,
+    })),
+  } : null;
+
+  const modelSnapshot = {
+    model: feedbackModelName,
+    capturedAt: new Date().toISOString(),
+  };
+
   // 시나리오별 minValidTurns 우선, 없으면 전역 기본값 — 턴 수만으로 판정 (단일 소스)
   const scenarioMinValidTurns: number =
     typeof scenarioObj?.minValidTurns === 'number'
@@ -319,6 +374,11 @@ export async function generateAndSaveFeedback(
       reportStatus: 'insufficient_data',
       scores: [],
       detailedFeedback: feedbackData,
+      rubricSnapshot: rubricSnapshot as Record<string, unknown>,
+      conversationSnapshot: conversationSnapshot as unknown[],
+      evaluationPromptSnapshot: evaluationPromptSnapshot as Record<string, unknown>,
+      modelSnapshot: modelSnapshot as Record<string, unknown>,
+      criteriaSetVersion: evaluationCriteria?.version ?? null,
     });
     return feedback;
   }
@@ -427,6 +487,11 @@ export async function generateAndSaveFeedback(
     reportStatus: finalReportStatus,
     scores: savedScores,
     detailedFeedback: feedbackData,
+    rubricSnapshot: rubricSnapshot as Record<string, unknown>,
+    conversationSnapshot: conversationSnapshot as unknown[],
+    evaluationPromptSnapshot: evaluationPromptSnapshot as Record<string, unknown>,
+    modelSnapshot: modelSnapshot as Record<string, unknown>,
+    criteriaSetVersion: evaluationCriteria?.version ?? null,
   });
 
   // insufficient_data 판정 시 PersonaRun score를 업데이트하지 않음 (무점수 상태 유지)

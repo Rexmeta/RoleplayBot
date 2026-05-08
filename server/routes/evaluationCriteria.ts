@@ -5,6 +5,50 @@ import { GoogleGenAI } from "@google/genai";
 import { asyncHandler, createHttpError } from "./routerHelpers";
 import { validateEvaluationCriteriaSet, validateEvaluationDimension } from "../services/evaluationEngine";
 
+async function createForkOfApprovedSet(existingId: string, userId: string | null): Promise<{ forkId: string; forkSet: any; dimKeyToForkId: Map<string, string> }> {
+  const existing = await storage.getEvaluationCriteriaSet(existingId);
+  if (!existing) throw createHttpError(404, "Evaluation criteria set not found");
+
+  const rootId = existing.parentSetId || existingId;
+  const allVersions = await storage.getEvaluationCriteriaSetVersionHistory(rootId);
+  const maxVersion = allVersions.reduce((m: number, v: any) => Math.max(m, v.version ?? 1), 1);
+
+  const forkSet = await storage.createEvaluationCriteriaSet({
+    name: existing.name,
+    description: existing.description,
+    isDefault: false,
+    isActive: existing.isActive,
+    categoryId: existing.categoryId,
+    createdBy: userId,
+    status: 'draft',
+    version: maxVersion + 1,
+    parentSetId: rootId,
+  });
+
+  const existingDimensions = await storage.getEvaluationDimensionsByCriteriaSet(existingId);
+  const dimKeyToForkId = new Map<string, string>();
+  for (const dim of existingDimensions) {
+    const newDim = await storage.createEvaluationDimension({
+      criteriaSetId: forkSet.id,
+      key: dim.key,
+      name: dim.name,
+      description: dim.description,
+      weight: dim.weight,
+      minScore: dim.minScore,
+      maxScore: dim.maxScore,
+      icon: dim.icon,
+      color: dim.color,
+      displayOrder: dim.displayOrder,
+      scoringRubric: dim.scoringRubric,
+      evaluationPrompt: dim.evaluationPrompt,
+      isActive: dim.isActive,
+      dimensionType: dim.dimensionType,
+    });
+    dimKeyToForkId.set(dim.key, newDim.id);
+  }
+  return { forkId: forkSet.id, forkSet, dimKeyToForkId };
+}
+
 export default function createEvaluationCriteriaRouter(isAuthenticated: any) {
   const router = Router();
 
@@ -111,18 +155,14 @@ export default function createEvaluationCriteriaRouter(isAuthenticated: any) {
       throw createHttpError(400, `평가 기준 유효성 검사 실패:\n${setValidation.errors.join('\n')}`);
     }
 
-    // Safe to modify default now that validation passed
     if (isDefault) {
-      const existingDefault = await storage.getDefaultEvaluationCriteriaSet();
-      if (existingDefault) {
-        await storage.updateEvaluationCriteriaSet(existingDefault.id, { isDefault: false });
-      }
+      throw createHttpError(400, "새로 생성된 루브릭은 초안(draft) 상태이므로 기본값으로 설정할 수 없습니다. 루브릭을 승인한 후 기본값으로 지정하세요.");
     }
 
     const criteriaSet = await storage.createEvaluationCriteriaSet({
       name: name.trim(),
       description: description || null,
-      isDefault: isDefault || false,
+      isDefault: false,
       isActive: isActive !== false,
       categoryId: categoryId || null,
       createdBy: user?.id || null,
@@ -294,7 +334,32 @@ Return JSON: {
       throw createHttpError(404, "Evaluation criteria set not found");
     }
 
+    if (existing.status === 'archived' && (name !== undefined || description !== undefined)) {
+      throw createHttpError(409, "보관된 루브릭은 수정할 수 없습니다.");
+    }
+
+    const mutableFieldChanged = (
+      name !== undefined ||
+      description !== undefined ||
+      (categoryId !== undefined && categoryId !== existing.categoryId) ||
+      (isActive !== undefined && isActive !== existing.isActive)
+    );
+
+    if (existing.status === 'approved' && mutableFieldChanged) {
+      const { forkId, forkSet } = await createForkOfApprovedSet(id, (req as any).user?.id ?? null);
+      const updatedFork = await storage.updateEvaluationCriteriaSet(forkId, {
+        name: name?.trim(),
+        description: description !== undefined ? description : undefined,
+        isActive: isActive !== undefined ? isActive : undefined,
+        categoryId: categoryId !== undefined ? categoryId : undefined,
+      });
+      return res.status(201).json({ autoForked: true, forkId, version: forkSet.version, ...updatedFork });
+    }
+
     if (isDefault && !existing.isDefault) {
+      if (existing.status && existing.status !== 'approved') {
+        throw createHttpError(400, "승인된 루브릭만 기본값으로 설정할 수 있습니다.");
+      }
       const existingDefault = await storage.getDefaultEvaluationCriteriaSet();
       if (existingDefault && existingDefault.id !== id) {
         await storage.updateEvaluationCriteriaSet(existingDefault.id, { isDefault: false });
@@ -332,8 +397,107 @@ Return JSON: {
       throw createHttpError(404, "Evaluation criteria set not found");
     }
 
+    if (existing.status && existing.status !== 'approved') {
+      throw createHttpError(400, "승인된 루브릭만 기본값으로 설정할 수 있습니다. 먼저 검토 요청 → 승인 절차를 진행하세요.");
+    }
+
     await storage.setDefaultEvaluationCriteriaSet(id);
     res.json({ success: true });
+  }));
+
+  router.post("/api/admin/evaluation-criteria/:id/request-review", isAuthenticated, isOperatorOrAdmin, asyncHandler(async (req: any, res) => {
+    const { id } = req.params;
+    const existing = await storage.getEvaluationCriteriaSet(id);
+    if (!existing) throw createHttpError(404, "Evaluation criteria set not found");
+    if (existing.status === 'approved') throw createHttpError(400, "이미 승인된 기준은 검토 요청할 수 없습니다");
+    if (existing.status === 'archived') throw createHttpError(400, "보관된 기준은 검토 요청할 수 없습니다");
+    const updated = await storage.updateEvaluationCriteriaSetStatus(id, 'review');
+    res.json(updated);
+  }));
+
+  router.post("/api/admin/evaluation-criteria/:id/approve", isAuthenticated, isOperatorOrAdmin, asyncHandler(async (req: any, res) => {
+    const { id } = req.params;
+    const user = req.user as any;
+    const existing = await storage.getEvaluationCriteriaSet(id);
+    if (!existing) throw createHttpError(404, "Evaluation criteria set not found");
+    if (existing.status !== 'review') throw createHttpError(400, "검토(review) 상태인 기준만 승인할 수 있습니다. 먼저 '검토 요청'을 진행하세요.");
+    const updated = await storage.updateEvaluationCriteriaSetStatus(id, 'approved', user?.id);
+    res.json(updated);
+  }));
+
+  router.post("/api/admin/evaluation-criteria/:id/reject", isAuthenticated, isOperatorOrAdmin, asyncHandler(async (req: any, res) => {
+    const { id } = req.params;
+    const existing = await storage.getEvaluationCriteriaSet(id);
+    if (!existing) throw createHttpError(404, "Evaluation criteria set not found");
+    if (existing.status !== 'review') throw createHttpError(400, "검토 중인 기준만 반려할 수 있습니다");
+    const updated = await storage.updateEvaluationCriteriaSetStatus(id, 'draft');
+    res.json(updated);
+  }));
+
+  router.post("/api/admin/evaluation-criteria/:id/archive", isAuthenticated, isOperatorOrAdmin, asyncHandler(async (req: any, res) => {
+    const { id } = req.params;
+    const existing = await storage.getEvaluationCriteriaSet(id);
+    if (!existing) throw createHttpError(404, "Evaluation criteria set not found");
+    if (existing.isDefault) throw createHttpError(400, "기본 기준으로 설정된 루브릭은 보관할 수 없습니다. 먼저 기본 설정을 해제하세요.");
+    const updated = await storage.updateEvaluationCriteriaSetStatus(id, 'archived');
+    res.json(updated);
+  }));
+
+  router.get("/api/admin/evaluation-criteria/:id/versions", isAuthenticated, isOperatorOrAdmin, asyncHandler(async (req, res) => {
+    const { id } = req.params;
+    const existing = await storage.getEvaluationCriteriaSet(id);
+    if (!existing) throw createHttpError(404, "Evaluation criteria set not found");
+    const rootId = existing.parentSetId || id;
+    const versions = await storage.getEvaluationCriteriaSetVersionHistory(rootId);
+    res.json(versions);
+  }));
+
+  router.post("/api/admin/evaluation-criteria/:id/fork-version", isAuthenticated, isOperatorOrAdmin, asyncHandler(async (req: any, res) => {
+    const { id } = req.params;
+    const user = req.user as any;
+    const existing = await storage.getEvaluationCriteriaSet(id);
+    if (!existing) throw createHttpError(404, "Evaluation criteria set not found");
+    if (existing.status !== 'approved') throw createHttpError(400, "승인된 기준만 새 버전으로 분기할 수 있습니다");
+
+    const rootId = existing.parentSetId || id;
+    const allVersions = await storage.getEvaluationCriteriaSetVersionHistory(rootId);
+    const maxVersion = allVersions.reduce((m, v) => Math.max(m, v.version || 1), 1);
+
+    const newSet = await storage.createEvaluationCriteriaSet({
+      name: existing.name,
+      description: existing.description,
+      isDefault: false,
+      isActive: existing.isActive,
+      categoryId: existing.categoryId,
+      createdBy: user?.id || null,
+      status: 'draft',
+      version: maxVersion + 1,
+      parentSetId: rootId,
+    });
+
+    const existingDimensions = await storage.getEvaluationDimensionsByCriteriaSet(id);
+    const newDimensions = [];
+    for (const dim of existingDimensions) {
+      const newDim = await storage.createEvaluationDimension({
+        criteriaSetId: newSet.id,
+        key: dim.key,
+        name: dim.name,
+        description: dim.description,
+        weight: dim.weight,
+        minScore: dim.minScore,
+        maxScore: dim.maxScore,
+        icon: dim.icon,
+        color: dim.color,
+        displayOrder: dim.displayOrder,
+        scoringRubric: dim.scoringRubric,
+        evaluationPrompt: dim.evaluationPrompt,
+        isActive: dim.isActive,
+        dimensionType: dim.dimensionType,
+      });
+      newDimensions.push(newDim);
+    }
+
+    res.json({ ...newSet, dimensions: newDimensions });
   }));
 
   router.post("/api/admin/evaluation-criteria/:criteriaSetId/dimensions", isAuthenticated, isOperatorOrAdmin, asyncHandler(async (req, res) => {
@@ -347,6 +511,10 @@ Return JSON: {
     const criteriaSet = await storage.getEvaluationCriteriaSet(criteriaSetId);
     if (!criteriaSet) {
       throw createHttpError(404, "Evaluation criteria set not found");
+    }
+
+    if (criteriaSet.status === 'archived') {
+      throw createHttpError(409, "보관된 루브릭에는 차원을 추가할 수 없습니다.");
     }
 
     const resolvedMinScore = minScore ?? 1;
@@ -388,6 +556,27 @@ Return JSON: {
       throw createHttpError(400, `세트 전체 유효성 검사 실패:\n${postAddSetValidation.errors.join('\n')}`);
     }
 
+    if (criteriaSet.status === 'approved') {
+      const { forkId, dimKeyToForkId } = await createForkOfApprovedSet(criteriaSetId, (req as any).user?.id ?? null);
+      const forkDimensions = await storage.getEvaluationDimensionsByCriteriaSet(forkId);
+      const newDim = await storage.createEvaluationDimension({
+        criteriaSetId: forkId,
+        key,
+        name,
+        description: description || null,
+        weight: weight || 1,
+        minScore: resolvedMinScore,
+        maxScore: resolvedMaxScore,
+        icon: icon || null,
+        color: color || null,
+        displayOrder: displayOrder ?? forkDimensions.length,
+        scoringRubric: scoringRubric || null,
+        evaluationPrompt: evaluationPrompt || null,
+        isActive: isActive !== false,
+      });
+      return res.status(201).json({ autoForked: true, forkId, dimension: newDim });
+    }
+
     const dimension = await storage.createEvaluationDimension({
       criteriaSetId,
       key,
@@ -414,6 +603,11 @@ Return JSON: {
     const existing = await storage.getEvaluationDimension(id);
     if (!existing) {
       throw createHttpError(404, "Evaluation dimension not found");
+    }
+
+    const parentSet = await storage.getEvaluationCriteriaSet(existing.criteriaSetId);
+    if (parentSet?.status === 'archived') {
+      throw createHttpError(409, "보관된 루브릭의 차원은 수정할 수 없습니다.");
     }
 
     const resolvedKey = updates.key ?? existing.key;
@@ -458,6 +652,14 @@ Return JSON: {
       throw createHttpError(400, `세트 전체 유효성 검사 실패:\n${postUpdateSetValidation.errors.join('\n')}`);
     }
 
+    if (parentSet?.status === 'approved') {
+      const { forkId, dimKeyToForkId } = await createForkOfApprovedSet(existing.criteriaSetId, (req as any).user?.id ?? null);
+      const forkDimId = dimKeyToForkId.get(existing.key);
+      if (!forkDimId) throw createHttpError(500, "Auto-fork failed: dimension key not found in fork");
+      const updated = await storage.updateEvaluationDimension(forkDimId, updates);
+      return res.status(201).json({ autoForked: true, forkId, dimension: updated });
+    }
+
     const updated = await storage.updateEvaluationDimension(id, updates);
     res.json(updated);
   }));
@@ -470,12 +672,25 @@ Return JSON: {
       throw createHttpError(404, "Evaluation dimension not found");
     }
 
+    const parentSetForDelete = await storage.getEvaluationCriteriaSet(existing.criteriaSetId);
+    if (parentSetForDelete?.status === 'archived') {
+      throw createHttpError(409, "보관된 루브릭의 차원은 삭제할 수 없습니다.");
+    }
+
     // Validate the full post-delete set (count ≥ 3, weight sum ≈ 100)
     const siblings = await storage.getEvaluationDimensionsByCriteriaSet(existing.criteriaSetId);
     const postDeleteDims = siblings.filter((d: any) => d.id !== id);
     const postDeleteSetValidation = validateEvaluationCriteriaSet(postDeleteDims);
     if (!postDeleteSetValidation.valid) {
       throw createHttpError(400, `삭제 후 세트 유효성 검사 실패:\n${postDeleteSetValidation.errors.join('\n')}`);
+    }
+
+    if (parentSetForDelete?.status === 'approved') {
+      const { forkId, dimKeyToForkId } = await createForkOfApprovedSet(existing.criteriaSetId, (req as any).user?.id ?? null);
+      const forkDimId = dimKeyToForkId.get(existing.key);
+      if (!forkDimId) throw createHttpError(500, "Auto-fork failed: dimension key not found in fork");
+      await storage.deleteEvaluationDimension(forkDimId);
+      return res.status(201).json({ autoForked: true, forkId, success: true });
     }
 
     await storage.deleteEvaluationDimension(id);
