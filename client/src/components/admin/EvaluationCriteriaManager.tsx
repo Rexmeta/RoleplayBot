@@ -15,7 +15,7 @@ import { Badge } from "@/components/ui/badge";
 import { Slider } from "@/components/ui/slider";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { Plus, Edit, Trash2, Star, Check, GripVertical, Copy, Settings, MessageCircle, Target, Lightbulb, Heart, Users, Award, Brain, Zap, Shield, TrendingUp, Eye, Ear, HandHeart, Compass, Flag, ThumbsUp, Megaphone, PenTool, BookOpen, Sparkles, AlertCircle, Languages, GitBranch, History, CheckCircle, XCircle, Archive, ClockIcon, Lock } from "lucide-react";
+import { Plus, Edit, Trash2, Star, Check, GripVertical, Copy, Settings, MessageCircle, Target, Lightbulb, Heart, Users, Award, Brain, Zap, Shield, TrendingUp, Eye, Ear, HandHeart, Compass, Flag, ThumbsUp, Megaphone, PenTool, BookOpen, Sparkles, AlertCircle, Languages, GitBranch, History, CheckCircle, XCircle, Archive, ClockIcon, Lock, ArrowLeftRight, UserCheck } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
@@ -84,6 +84,7 @@ interface EvaluationCriteriaSet {
   isDefault: boolean;
   isActive: boolean;
   categoryId?: string | null;
+  ownerOperatorId?: string | null;
   status?: string | null;
   approvedBy?: string | null;
   approvedAt?: string | null;
@@ -97,6 +98,12 @@ interface EvaluationCriteriaSet {
 interface Category {
   id: string;
   name: string;
+}
+
+interface Operator {
+  id: string;
+  name: string;
+  email: string;
 }
 
 const DEFAULT_DIMENSIONS = [
@@ -248,7 +255,10 @@ export function EvaluationCriteriaManager() {
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [isDimensionDialogOpen, setIsDimensionDialogOpen] = useState(false);
   const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
+  const [isTransferDialogOpen, setIsTransferDialogOpen] = useState(false);
   const [setToDelete, setSetToDelete] = useState<EvaluationCriteriaSet | null>(null);
+  const [setToTransfer, setSetToTransfer] = useState<EvaluationCriteriaSet | null>(null);
+  const [transferTargetOperatorId, setTransferTargetOperatorId] = useState<string>('');
   const [selectedSet, setSelectedSet] = useState<EvaluationCriteriaSet | null>(null);
   const [selectedDimension, setSelectedDimension] = useState<EvaluationDimension | null>(null);
   
@@ -309,6 +319,31 @@ export function EvaluationCriteriaManager() {
 
   const { data: categories = [] } = useQuery<Category[]>({
     queryKey: ['/api/categories'],
+  });
+
+  const { data: operators = [] } = useQuery<Operator[]>({
+    queryKey: ['/api/admin/operators'],
+    queryFn: async () => {
+      const res = await apiRequest('GET', '/api/admin/operators');
+      return res.json();
+    },
+    enabled: isAdmin,
+  });
+
+  const transferOwnerMutation = useMutation({
+    mutationFn: async ({ id, ownerOperatorId }: { id: string; ownerOperatorId: string | null }) => {
+      return apiRequest('PATCH', `/api/admin/evaluation-criteria/${id}/transfer-owner`, { ownerOperatorId });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/admin/evaluation-criteria'] });
+      toast({ title: "소유자가 변경되었습니다" });
+      setIsTransferDialogOpen(false);
+      setSetToTransfer(null);
+      setTransferTargetOperatorId('');
+    },
+    onError: (error: any) => {
+      toast({ title: "이관 실패", description: error.message, variant: "destructive" });
+    },
   });
 
   const autoTranslateMutation = useMutation({
@@ -618,6 +653,18 @@ export function EvaluationCriteriaManager() {
     return category?.name;
   };
 
+  const getOperatorName = (operatorId: string | null | undefined) => {
+    if (!operatorId) return null;
+    const op = operators.find(o => o.id === operatorId);
+    return op?.name || operatorId;
+  };
+
+  const handleOpenTransferDialog = (set: EvaluationCriteriaSet) => {
+    setSetToTransfer(set);
+    setTransferTargetOperatorId(set.ownerOperatorId || '');
+    setIsTransferDialogOpen(true);
+  };
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center p-8">
@@ -704,6 +751,11 @@ export function EvaluationCriteriaManager() {
                       {set.categoryId && (
                         <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-4">{getCategoryName(set.categoryId)}</Badge>
                       )}
+                      {isAdmin && set.ownerOperatorId && (
+                        <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-4 border-violet-300 text-violet-700 bg-violet-50">
+                          <UserCheck className="h-2.5 w-2.5 mr-0.5" />{getOperatorName(set.ownerOperatorId)}
+                        </Badge>
+                      )}
                     </div>
                     {set.description && (
                       <p className="text-sm text-slate-500 mt-1">{set.description}</p>
@@ -719,6 +771,7 @@ export function EvaluationCriteriaManager() {
                   onDelete={() => { setSetToDelete(set); setIsDeleteConfirmOpen(true); }}
                   onSetDefault={() => setDefaultMutation.mutate(set.id)}
                   onAddDimension={() => handleAddDimension(set)}
+                  onTransferOwner={isAdmin ? () => handleOpenTransferDialog(set) : undefined}
                   isDefault={set.isDefault}
                   isAdmin={isAdmin}
                   isOperator={isOperator}
@@ -1156,6 +1209,73 @@ export function EvaluationCriteriaManager() {
         </DialogContent>
       </Dialog>
 
+      {/* 소유자 이관 다이얼로그 */}
+      <Dialog open={isTransferDialogOpen} onOpenChange={(open) => { setIsTransferDialogOpen(open); if (!open) { setSetToTransfer(null); setTransferTargetOperatorId(''); } }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <ArrowLeftRight className="h-5 w-5 text-violet-600" />
+              루브릭 소유자 이관
+            </DialogTitle>
+            <DialogDescription>
+              이 루브릭의 담당 운영자를 변경합니다. 소유자가 바뀌어도 루브릭의 접근 범위(카테고리/조직)는 유지됩니다.
+            </DialogDescription>
+          </DialogHeader>
+          {setToTransfer && (
+            <div className="space-y-4">
+              <div className="bg-slate-50 border border-slate-200 rounded-lg p-3">
+                <p className="text-xs text-slate-500 mb-1">루브릭</p>
+                <p className="font-medium text-slate-800">{setToTransfer.name}</p>
+              </div>
+              <div>
+                <Label htmlFor="transfer-operator">새 소유자 운영자</Label>
+                <Select
+                  value={transferTargetOperatorId || 'none'}
+                  onValueChange={(val) => setTransferTargetOperatorId(val === 'none' ? '' : val)}
+                >
+                  <SelectTrigger id="transfer-operator" className="mt-1">
+                    <SelectValue placeholder="운영자 선택" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">소유자 없음 (해제)</SelectItem>
+                    {operators.map((op) => (
+                      <SelectItem key={op.id} value={op.id}>
+                        <div className="flex flex-col">
+                          <span>{op.name}</span>
+                          <span className="text-xs text-slate-400">{op.email}</span>
+                        </div>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-slate-500 mt-1">
+                  현재 소유자: {setToTransfer.ownerOperatorId ? (getOperatorName(setToTransfer.ownerOperatorId) || '알 수 없음') : '없음'}
+                </p>
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setIsTransferDialogOpen(false); setSetToTransfer(null); setTransferTargetOperatorId(''); }}>
+              취소
+            </Button>
+            <Button
+              onClick={() => {
+                if (setToTransfer) {
+                  transferOwnerMutation.mutate({
+                    id: setToTransfer.id,
+                    ownerOperatorId: transferTargetOperatorId || null,
+                  });
+                }
+              }}
+              disabled={transferOwnerMutation.isPending}
+              className="bg-violet-600 hover:bg-violet-700"
+            >
+              {transferOwnerMutation.isPending ? '처리 중...' : '이관 확정'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* 삭제 확인 다이얼로그 */}
       <Dialog open={isDeleteConfirmOpen} onOpenChange={setIsDeleteConfirmOpen}>
         <DialogContent className="max-w-md">
@@ -1483,6 +1603,7 @@ function CriteriaSetDetail({
   onDelete,
   onSetDefault,
   onAddDimension,
+  onTransferOwner,
   isDefault,
   isAdmin,
   isOperator,
@@ -1493,6 +1614,7 @@ function CriteriaSetDetail({
   onDelete: () => void;
   onSetDefault: () => void;
   onAddDimension: () => void;
+  onTransferOwner?: () => void;
   isDefault: boolean;
   isAdmin?: boolean;
   isOperator?: boolean;
@@ -1690,6 +1812,12 @@ function CriteriaSetDetail({
             <History className="h-4 w-4 mr-1" />
             이력
           </Button>
+          {onTransferOwner && (
+            <Button variant="outline" size="sm" onClick={onTransferOwner} className="text-violet-700 border-violet-300 hover:bg-violet-50">
+              <ArrowLeftRight className="h-4 w-4 mr-1" />
+              소유자 이관
+            </Button>
+          )}
           {canDelete && (
             <Button variant="destructive" size="sm" onClick={onDelete} disabled={currentStatus === 'approved'}>
               <Trash2 className="h-4 w-4 mr-1" />

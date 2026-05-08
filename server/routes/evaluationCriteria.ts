@@ -535,6 +535,65 @@ Return JSON: {
     res.json({ success: true });
   }));
 
+  /**
+   * Transfer (reassign) the ownerOperatorId of a rubric set.
+   * - Admins can transfer any rubric to any operator (or clear ownership by passing null).
+   * - Operators can transfer only rubrics they currently own to another operator in their scope.
+   */
+  router.patch("/api/admin/evaluation-criteria/:id/transfer-owner", isAuthenticated, isOperatorOrAdmin, asyncHandler(async (req, res) => {
+    const { id } = req.params;
+    const { ownerOperatorId } = req.body;
+    const reqUser = (req as any).user;
+
+    const existing = await storage.getEvaluationCriteriaSet(id);
+    if (!existing) throw createHttpError(404, "Evaluation criteria set not found");
+
+    if (reqUser.role === 'operator') {
+      // Enforce scope access first (consistent with the rest of the file's scope-authoritative model)
+      await assertOperatorRubricAccess(existing, reqUser);
+      // Additionally, operators may only transfer rubrics they currently own
+      if (existing.ownerOperatorId !== reqUser.id) {
+        throw createHttpError(403, "자신이 소유한 루브릭만 이관할 수 있습니다.");
+      }
+      // Target must still be within the operator's scope
+      if (ownerOperatorId) {
+        const targetUser = await storage.getUser(ownerOperatorId);
+        if (!targetUser || targetUser.role !== 'operator') {
+          throw createHttpError(400, "지정한 사용자는 운영자가 아닙니다.");
+        }
+        // Verify the target operator shares scope with the rubric
+        const targetAllowed = await operatorCanAccessSet(existing, targetUser);
+        if (!targetAllowed) {
+          throw createHttpError(403, "대상 운영자는 이 루브릭의 범위(카테고리/조직)에 속하지 않습니다.");
+        }
+      }
+    } else {
+      // Admin path: validate target if provided
+      if (ownerOperatorId) {
+        const targetUser = await storage.getUser(ownerOperatorId);
+        if (!targetUser || targetUser.role !== 'operator') {
+          throw createHttpError(400, "지정한 사용자는 운영자가 아닙니다.");
+        }
+      }
+    }
+
+    const updated = await storage.updateEvaluationCriteriaSet(id, {
+      ownerOperatorId: ownerOperatorId || null,
+    });
+    res.json(updated);
+  }));
+
+  /**
+   * List all active operators — used by admin to populate the ownership-transfer dropdown.
+   */
+  router.get("/api/admin/operators", isAuthenticated, isSystemAdmin, asyncHandler(async (req, res) => {
+    const allUsers = await storage.getAllUsers();
+    const operators = allUsers
+      .filter((u: any) => u.role === 'operator' && u.isActive !== false)
+      .map((u: any) => ({ id: u.id, name: u.name, email: u.email }));
+    res.json(operators);
+  }));
+
   router.post("/api/admin/evaluation-criteria/:id/set-default", isAuthenticated, isOperatorOrAdmin, asyncHandler(async (req, res) => {
     const { id } = req.params;
 
