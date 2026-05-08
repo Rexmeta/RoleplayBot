@@ -4,7 +4,7 @@ import type { AIServiceInterface, ScenarioPersona, EvaluationCriteriaWithDimensi
 import { LANGUAGE_INSTRUCTIONS } from "../aiService";
 import { trackUsage, extractOpenAITokens, getModelPricingKey } from "../aiUsageTracker";
 import { retryWithBackoff, conversationSemaphore, feedbackSemaphore } from "../../utils/concurrency";
-import { DEFAULT_DIMENSIONS, calculateWeightedOverallScore, checkMinValidTurns, filterVoiceNoise, calcEffectiveRatio, isVoiceMode, getScoreCap, calculateCompletionPenalty } from "../evaluationEngine";
+import { DEFAULT_DIMENSIONS, calculateWeightedOverallScore, checkMinValidTurns, filterVoiceNoise, calcEffectiveRatio, isVoiceMode, getScoreCap, calculateCompletionPenalty, applyEvidenceScoreCap, NO_EVIDENCE_SCORE_CAP, makeInsufficientEvidenceFallback, isValidEvidenceItem } from "../evaluationEngine";
 import { getSoftClosingInstruction } from "../conversationDifficultyPolicy";
 import {
   detectRoleHierarchy,
@@ -406,6 +406,11 @@ ${dimensionsList}
 - 예: 공감 표현이 있으면 경청&공감 점수를 높이고, 논리적 근거 없이 주장만 하면 설득력 점수를 낮추세요
 - 점수 범위(1-10)를 고르게 활용하세요. 1점(매우 부족)~10점(탁월)까지 대화 내용에 따라 차등 부여
 - 각 평가 차원에 "평가 지침"이 있는 경우, 반드시 해당 지침에 따라 채점하세요
+
+## 🔍 근거 발화(evidence) 필수 출력:
+- **각 평가 차원마다 반드시 최소 1개 이상의 근거 발화를 evidence 배열에 포함하세요.**
+- evidence가 없으면 해당 차원은 시스템이 자동으로 최고 ${NO_EVIDENCE_SCORE_CAP}점으로 제한합니다.
+- 각 항목: turnIndex(발화 번호), quote(실제 발화 인용), behaviorObserved(관찰된 행동), rubricBand(채점 구간 레이블), reason(점수 근거)
 ${scenarioContextLines ? `- **시나리오 목표 달성도**: 위에 제시된 AI 페르소나의 입장·목표·협상 범위를 참고하여, 피평가자가 실제로 원하는 결과(설득, 협의, 합의 등)를 도출해냈는지 평가하고 strengths/improvements에 반드시 언급하세요.` : ''}
 ${emotionSection ? `- **감정 영향 평가**: AI 페르소나 감정이 ${emotionTrend}. 이 결과가 피평가자의 대화 방식 때문인지 분석하고, 긍정적 결과면 가점 요인으로, 부정적 결과면 개선 포인트로 피드백에 반영하세요.` : ''}
 
@@ -430,6 +435,7 @@ JSON 형식으로 응답:
   "scores": {
     ${scoresStructure}
   },
+  "evidence": {${dimensions.map(d => `"${d.key}": [{"turnIndex": 1, "quote": "실제 발화 인용", "behaviorObserved": "관찰된 행동", "rubricBand": "보통 (6점)", "reason": "이 점수에 기여한 이유"}]`).join(', ')}},
   "dimensionFeedback": {${dimensionFeedbackFormat}},
   "strengths": ["대화 초반 상대방의 입장을 경청하며 공감을 표현한 점이 신뢰 형성에 효과적이었습니다", "구체적인 데이터를 활용하여 논거를 뒷받침한 점이 설득력을 높였습니다", "상대방의 반론에 감정적으로 대응하지 않고 차분하게 대안을 제시한 점이 인상적이었습니다"],
   "improvements": ["핵심 주장을 먼저 제시하는 두괄식 구조가 부족하여 메시지 전달력이 떨어졌습니다", "상대방의 비언어적 신호에 대한 대응이 부족하여 대화의 흐름을 놓치는 순간이 있었습니다", "대화 마무리 단계에서 구체적인 합의 사항을 정리하지 않아 다음 단계가 불명확했습니다"],
@@ -481,6 +487,17 @@ JSON 형식으로 응답:
       rawScores[dim.key] = Math.min(maxAllowed, Math.max(dim.minScore, rawScore || dim.minScore));
     }
 
+    // evidence 맵 추출 및 캡 적용
+    const evidenceMap: Record<string, { turnIndex: number; quote: string; behaviorObserved: string; rubricBand: string; reason: string }[]> =
+      feedbackData.evidence || {};
+    const evidenceCapResult = applyEvidenceScoreCap(rawScores, evidenceMap, dimensions);
+    for (const key of Object.keys(evidenceCapResult.scores)) {
+      rawScores[key] = evidenceCapResult.scores[key];
+    }
+    if (evidenceCapResult.cappedDimensions.length > 0) {
+      console.log(`📋 OpenAI Evidence 캡 적용: ${evidenceCapResult.cappedDimensions.join(', ')} → 최대 ${NO_EVIDENCE_SCORE_CAP}점`);
+    }
+
     const evaluationScoreArray: EvaluationScore[] = dimensions.map((dim: any) => ({
       category: dim.key,
       name: dim.name,
@@ -490,6 +507,13 @@ JSON 형식으로 응답:
       color: dim.color || 'blue',
       weight: dim.weight ?? 20,
       maxScore: dim.maxScore ?? 10,
+      evidence: (() => {
+        const raw = Array.isArray(evidenceMap[dim.key]) ? evidenceMap[dim.key] : [];
+        const valid = raw.filter(isValidEvidenceItem);
+        if (valid.length > 0) return valid;
+        return [makeInsufficientEvidenceFallback(evidenceCapResult.cappedDimensions.includes(dim.key))];
+      })(),
+      evidenceCapped: evidenceCapResult.cappedDimensions.includes(dim.key),
     }));
 
     const baseOverall = calculateWeightedOverallScore(rawScores, evaluationCriteria);
@@ -556,6 +580,8 @@ JSON 형식으로 응답:
       color: dim.color || 'blue',
       weight: dim.weight ?? 20,
       maxScore: dim.maxScore ?? 10,
+      evidence: [makeInsufficientEvidenceFallback(false)],
+      evidenceCapped: false,
     }));
 
     return {

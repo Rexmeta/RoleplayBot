@@ -1,5 +1,6 @@
 import { GoogleGenAI } from "@google/genai";
 import type { ConversationMessage, DetailedFeedback, EvaluationScore } from "@shared/schema";
+import { normalizeRubricBand } from "@shared/schema/types";
 import type { AIServiceInterface, ScenarioPersona, EvaluationCriteriaWithDimensions, SupportedLanguage, RoleplayScenario, StrategyEvaluationInput, StrategyReflectionEvaluation } from "../aiService";
 import { LANGUAGE_INSTRUCTIONS } from "../aiService";
 import { enrichPersonaWithMBTI } from "../../utils/mbtiLoader";
@@ -29,6 +30,10 @@ import {
   getScoreCap,
   calculateWeightedOverallScore,
   getDefaultScores,
+  applyEvidenceScoreCap,
+  NO_EVIDENCE_SCORE_CAP,
+  makeInsufficientEvidenceFallback,
+  isValidEvidenceItem,
 } from "../evaluationEngine";
 import { getSoftClosingInstruction } from "../conversationDifficultyPolicy";
 
@@ -642,7 +647,7 @@ sequenceAnalysis 필드에 다음 형식으로 포함:
     const dimensionsWithRubric = dimensions.filter(dim => dim.scoringRubric && dim.scoringRubric.length > 0);
     if (dimensionsWithRubric.length > 0) {
       scoringRubricsSection = '\n\n**상세 채점 기준**:\n' + dimensionsWithRubric.map(dim => {
-        const rubricText = dim.scoringRubric!.map(r => `  - ${r.score}점 (${r.label}): ${r.description}`).join('\n');
+        const rubricText = dim.scoringRubric!.map(r => normalizeRubricBand(r)).filter(Boolean).map(r => `  - ${r!.score}점 (${r!.label}): ${r!.description}`).join('\n');
         return `${dim.name} (1-10점):\n${rubricText}`;
       }).join('\n\n');
     } else {
@@ -716,6 +721,12 @@ ${scoringRubricsSection}
 - 각 평가 영역에 "평가 지침"이 있는 경우, 반드시 해당 지침에 따라 채점하세요
 ${isIncomplete ? `- **⛔ 대화량 부족 시 추가 원칙**: 근거가 없는 역량은 반드시 1-3점으로 평가하세요. 부분적 근거가 있는 역량은 최대 5점까지만 허용합니다. 7점 이상은 해당 역량을 명확하게 보여주는 긍정적 발화가 존재할 때만 가능합니다. 점수가 모두 비슷하거나 4-6점대에 몰리지 않도록 반드시 차등을 두어야 합니다. 예시 분포: 근거 없음→2점, 미흡→3점, 부분 근거→5점, 명확 근거→7점, 탁월→9점.` : ''}
 
+**🔍 근거 발화(evidence) 필수 출력 원칙**:
+- **각 평가 영역마다 반드시 최소 1개 이상의 근거 발화를 evidence 배열에 포함하세요.**
+- evidence가 없으면 해당 차원은 시스템이 자동으로 최고 ${NO_EVIDENCE_SCORE_CAP}점으로 제한합니다.
+- 각 evidence 항목: turnIndex(대화 턴 번호, 1부터), quote(실제 발화 인용 — 반드시 대화에 실제 존재하는 문장), behaviorObserved(관찰된 구체적 행동), rubricBand(해당 채점 구간 레이블 예: "우수 (8점)"), reason(점수 근거 한 문장)
+- **turnIndex는 위 "평가 대상 - 피평가자 발화만" 목록의 번호를 사용하세요.**
+
 **가중치 반영 지침**:
 - 종합평가(summary)는 가중치가 높은 영역의 결과를 중심으로 작성하세요
 - strengths/improvements도 가중치가 높은 영역을 우선적으로 반영하세요
@@ -736,6 +747,7 @@ JSON 형식${hasStrategyReflection ? ' (sequenceAnalysis 포함)' : ''}:
 {
   "overallScore": 72,
   "scores": {${scoresFormat}},
+  "evidence": {${dimensions.map(d => `"${d.key}": [{"turnIndex": 2, "quote": "실제 발화 인용", "behaviorObserved": "관찰된 행동 설명", "rubricBand": "우수 (8점)", "reason": "이 발화가 이 점수에 기여한 이유"}]`).join(', ')}},
   "dimensionFeedback": {${dimensions.map(d => `"${d.key}": "이 영역에서 피평가자가 보인 구체적 행동과 근거를 2문장 이상 서술"`).join(', ')}},
   "strengths": ["대화 초반 상대방의 입장을 경청하며 '말씀하신 우려사항을 이해합니다'라고 공감을 표현한 점이 신뢰 형성에 효과적이었습니다", "구체적인 데이터를 활용하여 논거를 뒷받침한 점이 설득력을 높였습니다", "상대방의 반론에 감정적으로 대응하지 않고 차분하게 대안을 제시한 점이 인상적이었습니다"],
   "improvements": ["핵심 주장을 먼저 제시하고 근거를 나열하는 두괄식 구조가 부족하여 메시지 전달력이 떨어졌습니다", "상대방의 비언어적 신호(망설임, 침묵)에 대한 대응이 부족하여 대화의 흐름을 놓치는 순간이 있었습니다", "협상의 마무리 단계에서 구체적인 합의 사항을 정리하지 않아 다음 단계가 불명확했습니다"],
@@ -830,8 +842,28 @@ JSON 형식${hasStrategyReflection ? ' (sequenceAnalysis 포함)' : ''}:
         }
       }
       
-      const scores = parsed.scores || getDefaultScores(evaluationCriteria);
-      
+      const dims = evaluationCriteria?.dimensions || DEFAULT_DIMENSIONS;
+
+      // 모든 차원의 점수를 사전 초기화 (AI 응답에 누락된 차원은 minScore로 채움)
+      const baseScores = getDefaultScores(evaluationCriteria);
+      const rawParsedScores = parsed.scores || {};
+      const scores: Record<string, number> = { ...baseScores, ...rawParsedScores };
+
+      // evidence 맵 추출 (차원별 근거 발화 배열)
+      const evidenceMap: Record<string, { turnIndex: number; quote: string; behaviorObserved: string; rubricBand: string; reason: string }[]> =
+        parsed.evidence || {};
+
+      // Evidence 기반 점수 상한 적용 (evidence 없는 차원은 NO_EVIDENCE_SCORE_CAP 이하)
+      const evidenceCapResult = applyEvidenceScoreCap(scores, evidenceMap, dims);
+      const evidenceCappedDimensions = evidenceCapResult.cappedDimensions;
+      // scores 객체를 캡 적용된 값으로 업데이트
+      for (const key of Object.keys(evidenceCapResult.scores)) {
+        scores[key] = evidenceCapResult.scores[key];
+      }
+      if (evidenceCappedDimensions.length > 0) {
+        console.log(`📋 Evidence 캡 적용: ${evidenceCappedDimensions.join(', ')} → 최대 ${NO_EVIDENCE_SCORE_CAP}점`);
+      }
+
       // AI가 계산한 기본 점수 (캡 적용 전 순수 AI 점수)
       const rawAiBaseScore = calculateWeightedOverallScore(scores, evaluationCriteria);
       let baseOverallScore = rawAiBaseScore;
@@ -937,6 +969,13 @@ JSON 형식${hasStrategyReflection ? ' (sequenceAnalysis 포함)' : ''}:
         color: dim.color || 'blue',
         weight: dim.weight ?? 20,
         maxScore: dim.maxScore ?? 10,
+        evidence: (() => {
+          const raw = Array.isArray(evidenceMap[dim.key]) ? evidenceMap[dim.key] : [];
+          const valid = raw.filter(isValidEvidenceItem);
+          if (valid.length > 0) return valid;
+          return [makeInsufficientEvidenceFallback(evidenceCappedDimensions.includes(dim.key))];
+        })(),
+        evidenceCapped: evidenceCappedDimensions.includes(dim.key),
       }));
 
       const feedback: DetailedFeedback = {
@@ -1140,6 +1179,8 @@ JSON 형식${hasStrategyReflection ? ' (sequenceAnalysis 포함)' : ''}:
       color: (dim as any).color || 'blue',
       weight: dim.weight ?? 20,
       maxScore: dim.maxScore ?? 10,
+      evidence: [makeInsufficientEvidenceFallback(false)],
+      evidenceCapped: false,
     }));
     const feedback: DetailedFeedback = {
       overallScore: calculateWeightedOverallScore(rawScores, evaluationCriteria),

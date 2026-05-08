@@ -52,6 +52,9 @@ interface ScoringRubric {
   score: number;
   label: string;
   description: string;
+  behaviorAnchor?: string;
+  positiveIndicators?: string[];
+  negativeIndicators?: string[];
 }
 
 interface EvaluationDimension {
@@ -93,54 +96,133 @@ const DEFAULT_DIMENSIONS = [
   {
     key: 'clarityLogic', name: '명확성 & 논리성', description: '의사 표현의 명확성과 논리적 구성', weight: 20,
     scoringRubric: [
-      { score: 2, label: '매우 미흡', description: '발화가 거의 없거나 주제와 무관한 단어 나열. 논리 구조 전혀 없음.' },
-      { score: 4, label: '미흡', description: '의도는 파악되나 근거 없이 주장만 하거나 문장이 단편적. 두서없는 구성.' },
-      { score: 6, label: '보통', description: '기본적인 주장과 근거가 있으나 구조가 약하거나 핵심이 불분명한 경우가 있음.' },
-      { score: 8, label: '우수', description: '대체로 명확하고 논리적 근거 제시. 간혹 애매한 표현이나 논리 비약이 있음.' },
-      { score: 10, label: '탁월', description: '명확한 핵심 메시지, 탄탄한 논리 구조, 구체적 사례/데이터 인용, 일관성 탁월.' },
+      { score: 2, label: '매우 미흡', description: '발화가 거의 없거나 주제와 무관한 단어 나열. 논리 구조 전혀 없음.', behaviorAnchor: '발화가 거의 없거나 "어..." "글쎄요" 같은 단편 소리만 내거나 주제와 무관한 말을 늘어놓음. 문장 단위의 의미 전달 불가.' },
+      { score: 4, label: '미흡', description: '의도는 파악되나 근거 없이 주장만 하거나 문장이 단편적. 두서없는 구성.', behaviorAnchor: '"그냥 이게 맞아요"처럼 근거 없이 주장만 반복하거나 주제가 자주 바뀜. 상대가 무엇을 원하는지 파악하기 어려움.' },
+      { score: 6, label: '보통', description: '기본적인 주장과 근거가 있으나 구조가 약하거나 핵심이 불분명한 경우가 있음.', behaviorAnchor: '주장과 이유를 모두 말하지만 핵심이 중간에 묻히거나 결론이 불분명. "여러 가지 이유가 있는데..."로 시작하지만 마무리가 흐릿함.' },
+      { score: 8, label: '우수', description: '대체로 명확하고 논리적 근거 제시. 간혹 애매한 표현이나 논리 비약이 있음.', behaviorAnchor: '핵심 메시지를 먼저 제시하고 2~3가지 근거를 순서대로 설명. 간혹 "그러니까" 수준의 연결어가 부족하거나 세부 근거가 빠짐.' },
+      { score: 10, label: '탁월', description: '명확한 핵심 메시지, 탄탄한 논리 구조, 구체적 사례/데이터 인용, 일관성 탁월.', behaviorAnchor: '"결론은 A입니다. 이유는 첫째…둘째…이며, 실제로 B팀에서 이 방식으로 30% 효율 개선을 달성했습니다"처럼 두괄식 구조에 구체적 근거와 사례를 결합.' },
     ],
   },
   {
     key: 'listeningEmpathy', name: '경청 & 공감', description: '상대방의 말을 듣고 공감하는 능력', weight: 20,
     scoringRubric: [
-      { score: 2, label: '매우 미흡', description: '상대방 발화를 완전히 무시하거나 엉뚱한 응답. 공감 표현 전무.' },
-      { score: 4, label: '미흡', description: '상대방 말에 최소한 반응하나 내용 반영 없이 자기 이야기만 함.' },
-      { score: 6, label: '보통', description: '상대방 말을 일부 참조하나 요약·재진술 부족. 공감이 형식적("네", "알겠습니다" 수준).' },
-      { score: 8, label: '우수', description: '상대방 발화를 파악하고 관련 반응. 재진술·공감 표현. 감정 인식 시도.' },
-      { score: 10, label: '탁월', description: '상대방 핵심 우려를 정확히 짚어 재진술하고, 감정 인식, 적극적 공감, 니즈 탐색.' },
+      { score: 2, label: '매우 미흡', description: '상대방 발화를 완전히 무시하거나 엉뚱한 응답. 공감 표현 전무.', behaviorAnchor: '상대가 불만을 표출하는데 "어쨌든 제 제안이..."처럼 상대 발화를 완전히 무시하고 자기 이야기만 함. 공감 표현이 단 한 번도 없음.' },
+      { score: 4, label: '미흡', description: '상대방 말에 최소한 반응하나 내용 반영 없이 자기 이야기만 함.', behaviorAnchor: '"네, 알겠습니다" 한 마디 후 바로 자기 주장으로 넘어감. 상대 발화 내용을 재진술하거나 구체적으로 반영하지 않음.' },
+      { score: 6, label: '보통', description: '상대방 말을 일부 참조하나 요약·재진술 부족. 공감이 형식적("네", "알겠습니다" 수준).', behaviorAnchor: '"말씀하신 것처럼 비용 문제가 있군요"처럼 상대 말을 한 번 언급하지만 감정·니즈 탐색 없이 바로 해결책 제시로 이동.' },
+      { score: 8, label: '우수', description: '상대방 발화를 파악하고 관련 반응. 재진술·공감 표현. 감정 인식 시도.', behaviorAnchor: '"말씀하시는 우려가 일정 압박 때문이군요. 그 부분이 많이 부담되셨겠어요"처럼 상대 감정을 인식하고 재진술한 뒤 입장을 반영해 답변.' },
+      { score: 10, label: '탁월', description: '상대방 핵심 우려를 정확히 짚어 재진술하고, 감정 인식, 적극적 공감, 니즈 탐색.', behaviorAnchor: '"지금 말씀하시는 걸 들어보면, 일정 문제보다 팀원 부담이 더 큰 걱정이신 것 같아요. 제가 제대로 이해한 건가요?"처럼 핵심 니즈를 짚고 확인 질문.' },
     ],
   },
   {
     key: 'appropriatenessAdaptability', name: '적절성 & 상황대응', description: '상황에 맞는 적절한 대응', weight: 20,
     scoringRubric: [
-      { score: 2, label: '매우 미흡', description: '상황과 전혀 어울리지 않는 발언, 갈등 악화, 역할 혼동.' },
-      { score: 4, label: '미흡', description: '상황 인식이 부족하거나 부적절한 표현이 반복됨. 상황 변화에 둔감.' },
-      { score: 6, label: '보통', description: '대체로 상황에 맞는 발언이나 간혹 어색하거나 타이밍 미스. 대응 유연성 부족.' },
-      { score: 8, label: '우수', description: '상황 변화에 잘 대응하고 적절한 표현 선택. 소소한 실수는 있음.' },
-      { score: 10, label: '탁월', description: '상황별 최적 표현과 어조 선택. 갈등 발생 시 유연하게 전환. 분위기 조율 능숙.' },
+      { score: 2, label: '매우 미흡', description: '상황과 전혀 어울리지 않는 발언, 갈등 악화, 역할 혼동.', behaviorAnchor: '상사에게 반말 사용, 협상 자리에서 감정적 폭발, 상황과 무관한 주제 돌발 제기 등 맥락을 완전히 이탈한 발언.' },
+      { score: 4, label: '미흡', description: '상황 인식이 부족하거나 부적절한 표현이 반복됨. 상황 변화에 둔감.', behaviorAnchor: '상대가 분위기를 전환하는데도 같은 어조 반복, 상황 변화(상대 감정 악화)를 인지하지 못하고 동일 전략 고수.' },
+      { score: 6, label: '보통', description: '대체로 상황에 맞는 발언이나 간혹 어색하거나 타이밍 미스. 대응 유연성 부족.', behaviorAnchor: '일반적으로 적절하지만 상대가 흥분할 때 타이밍 없이 숫자/데이터를 나열하거나 유머가 어색하게 삽입되는 순간 발생.' },
+      { score: 8, label: '우수', description: '상황 변화에 잘 대응하고 적절한 표현 선택. 소소한 실수는 있음.', behaviorAnchor: '상대 감정 변화를 감지해 어조를 낮추거나 화제를 전환. 간혹 한 박자 늦게 대응하는 경우 있지만 전반적으로 상황 파악 우수.' },
+      { score: 10, label: '탁월', description: '상황별 최적 표현과 어조 선택. 갈등 발생 시 유연하게 전환. 분위기 조율 능숙.', behaviorAnchor: '분위기가 경색될 때 "잠깐, 우리가 같은 목표를 갖고 있다는 걸 먼저 확인하죠"처럼 갈등을 즉시 재프레이밍하며 분위기를 조율.' },
     ],
   },
   {
     key: 'persuasivenessImpact', name: '설득력 & 영향력', description: '상대방을 설득하고 영향을 미치는 능력', weight: 20,
     scoringRubric: [
-      { score: 2, label: '매우 미흡', description: '설득 시도 없거나 근거 없이 요구·강요만 하여 역효과 발생.' },
-      { score: 4, label: '미흡', description: '일부 주장이 있으나 논리적 근거나 구체적 사례 거의 없음. 상대방 이익 미반영.' },
-      { score: 6, label: '보통', description: '부분적 논거 제시. 상대 입장 일부 반영하나 설득력 약함. 합의 도출 미흡.' },
-      { score: 8, label: '우수', description: '논리적 근거와 상대 이익 제시. 설득 흐름 구축. 타협 여지 제시.' },
-      { score: 10, label: '탁월', description: '체계적 논거, 상대 이익 부각, 감정적 공감과 논리 결합, 구체적 행동 변화 유도.' },
+      { score: 2, label: '매우 미흡', description: '설득 시도 없거나 근거 없이 요구·강요만 하여 역효과 발생.', behaviorAnchor: '"무조건 제 방식대로 해야 해요"처럼 근거 없이 강압적 요구만 하거나 설득 시도 자체가 없어 상대 반감 유발.' },
+      { score: 4, label: '미흡', description: '일부 주장이 있으나 논리적 근거나 구체적 사례 거의 없음. 상대방 이익 미반영.', behaviorAnchor: '"이게 더 좋은 방법입니다"라고 주장하지만 왜 좋은지 구체적 근거 없음. 상대가 어떤 이익을 얻는지 전혀 언급 안 함.' },
+      { score: 6, label: '보통', description: '부분적 논거 제시. 상대 입장 일부 반영하나 설득력 약함. 합의 도출 미흡.', behaviorAnchor: '한두 가지 근거는 제시하나 상대의 구체적 반론에 재반박하지 못하거나 "한번 생각해 보세요" 수준으로 마무리.' },
+      { score: 8, label: '우수', description: '논리적 근거와 상대 이익 제시. 설득 흐름 구축. 타협 여지 제시.', behaviorAnchor: '"이 방안을 선택하시면 팀 일정 2주 단축과 비용 15% 절감이 가능합니다. 혹시 우려되는 부분이 있다면 조정 여지가 있습니다"처럼 이익 제시 + 타협 가능성 표현.' },
+      { score: 10, label: '탁월', description: '체계적 논거, 상대 이익 부각, 감정적 공감과 논리 결합, 구체적 행동 변화 유도.', behaviorAnchor: '공감으로 시작해 상대 핵심 이익을 명확히 짚고, 데이터·사례로 뒷받침하며, 구체적 다음 단계("그럼 이번 주 안에 파일럿 일정을 잡아볼까요?")까지 이끌어냄.' },
     ],
   },
   {
     key: 'strategicCommunication', name: '전략적 커뮤니케이션', description: '목표 달성을 위한 전략적 소통', weight: 20,
     scoringRubric: [
-      { score: 2, label: '매우 미흡', description: '목표 없이 반응형 대화. 주도권 전혀 없음. 대화 방향 조율 불가.' },
-      { score: 4, label: '미흡', description: '목표 의식이 희미하거나 산만하게 대화. 전략적 흐름 없음.' },
-      { score: 6, label: '보통', description: '어느 정도 목표 지향적이나 전략 일관성 부족. 기회 포착 미흡.' },
-      { score: 8, label: '우수', description: '대화 흐름 주도, 목표 지향적 발언, 타협·조율 시도.' },
-      { score: 10, label: '탁월', description: '전략적 순서로 대화 구성. 상대 반응에 따른 전술 조정. 합의 도출 주도.' },
+      { score: 2, label: '매우 미흡', description: '목표 없이 반응형 대화. 주도권 전혀 없음. 대화 방향 조율 불가.', behaviorAnchor: '상대의 흐름에만 끌려다니며 어젠다 없이 응답만 반복. 대화를 어떤 방향으로도 이끌려는 시도 전혀 없음.' },
+      { score: 4, label: '미흡', description: '목표 의식이 희미하거나 산만하게 대화. 전략적 흐름 없음.', behaviorAnchor: '대화 중 주제가 자주 흔들리거나 목표와 무관한 내용에 시간 소비. 핵심 합의에 이르지 못하고 대화가 표류.' },
+      { score: 6, label: '보통', description: '어느 정도 목표 지향적이나 전략 일관성 부족. 기회 포착 미흡.', behaviorAnchor: '어느 정도 방향성은 있으나 상대가 양보 신호를 보낼 때 이를 포착하지 못하고 기회를 놓치거나 전략 전환이 늦음.' },
+      { score: 8, label: '우수', description: '대화 흐름 주도, 목표 지향적 발언, 타협·조율 시도.', behaviorAnchor: '대화 시작 시 의도를 명확히 하고 흐름을 주도. 교착 상태에서 "다른 접근법을 시도해 보죠"처럼 전략적 전환 실행.' },
+      { score: 10, label: '탁월', description: '전략적 순서로 대화 구성. 상대 반응에 따른 전술 조정. 합의 도출 주도.', behaviorAnchor: '처음부터 끝까지 단계적 전략(공감→공통목표 확인→이익 제시→합의 확인)을 유지하며 상대 반응에 따라 전술을 실시간 조정하고 명확한 합의로 마무리.' },
     ],
   },
 ];
+
+function RubricItemsEditor({
+  rubric,
+  onChange,
+}: {
+  rubric: ScoringRubric[];
+  onChange: (updated: ScoringRubric[]) => void;
+}) {
+  if (rubric.length === 0) return null;
+  const missingAnchorCount = rubric.filter(r => !r.behaviorAnchor?.trim()).length;
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center gap-2">
+        <Label className="text-xs font-semibold">루브릭 행동 기준 (Behavior Anchors)</Label>
+        {missingAnchorCount > 0 && (
+          <span className="text-[10px] text-amber-600 bg-amber-50 border border-amber-200 rounded px-1.5 py-0.5">
+            {missingAnchorCount}개 미입력
+          </span>
+        )}
+      </div>
+      <p className="text-[11px] text-slate-500">각 점수대에서 관찰되는 구체적인 행동 패턴을 입력하세요. 증거 기반 채점에 필수입니다.</p>
+      <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
+        {rubric.map((item, idx) => (
+          <div key={idx} className={`border rounded-md p-2.5 bg-white space-y-1.5 ${!item.behaviorAnchor?.trim() ? 'border-amber-300' : 'border-slate-200'}`}>
+            <div className="flex items-center gap-2">
+              <span className="text-[11px] font-mono bg-slate-100 px-1.5 py-0.5 rounded text-slate-600">{item.score}점</span>
+              <span className="text-xs font-medium text-slate-700">{item.label}</span>
+              {!item.behaviorAnchor?.trim() && (
+                <span className="text-[10px] text-amber-600 ml-auto">행동 기준 필요</span>
+              )}
+            </div>
+            <div>
+              <label className="text-[11px] text-slate-500 font-medium">행동 기준 *</label>
+              <Textarea
+                value={item.behaviorAnchor || ''}
+                onChange={(e) => {
+                  const updated = [...rubric];
+                  updated[idx] = { ...updated[idx], behaviorAnchor: e.target.value };
+                  onChange(updated);
+                }}
+                className={`text-xs mt-0.5 min-h-[48px] resize-none ${!item.behaviorAnchor?.trim() ? 'border-amber-300 focus-visible:ring-amber-300' : ''}`}
+                rows={2}
+                placeholder="이 점수대에서 관찰되는 구체적 행동 패턴 (예: 핵심 메시지를 명확히 전달하고 논리적 근거를 3가지 이상 제시함)"
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label className="text-[11px] text-slate-500">긍정 지표 (쉼표 구분, 선택)</label>
+                <Input
+                  value={(item.positiveIndicators || []).join(', ')}
+                  onChange={(e) => {
+                    const updated = [...rubric];
+                    updated[idx] = { ...updated[idx], positiveIndicators: e.target.value.split(',').map(s => s.trim()).filter(Boolean) };
+                    onChange(updated);
+                  }}
+                  className="h-7 text-xs mt-0.5"
+                  placeholder="구체적 발화, 공감 표현..."
+                />
+              </div>
+              <div>
+                <label className="text-[11px] text-slate-500">부정 지표 (쉼표 구분, 선택)</label>
+                <Input
+                  value={(item.negativeIndicators || []).join(', ')}
+                  onChange={(e) => {
+                    const updated = [...rubric];
+                    updated[idx] = { ...updated[idx], negativeIndicators: e.target.value.split(',').map(s => s.trim()).filter(Boolean) };
+                    onChange(updated);
+                  }}
+                  className="h-7 text-xs mt-0.5"
+                  placeholder="논리 비약, 상대 무시..."
+                />
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
 
 const DIMENSION_TYPE_OPTIONS = [
   { value: 'core', label: '필수 기준', description: '반드시 충족해야 하는 핵심 평가 항목', color: 'text-red-600' },
@@ -905,6 +987,19 @@ export function EvaluationCriteriaManager() {
                 <span>채점 루브릭은 최소 5단계 이상 입력해야 합니다 (현재: {dimensionFormData.scoringRubric.length}단계).</span>
               </div>
             )}
+            {dimensionFormData.scoringRubric.length >= 5 && (() => {
+              const missingBehaviorAnchor = dimensionFormData.scoringRubric.filter(r => !r.behaviorAnchor?.trim()).length;
+              return missingBehaviorAnchor > 0 ? (
+                <div className="flex items-center gap-2 text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded-md px-3 py-2">
+                  <AlertCircle className="h-3.5 w-3.5 shrink-0" />
+                  <span>루브릭 {missingBehaviorAnchor}개 항목에 행동 기준(Behavior Anchor)이 누락되었습니다. 저장 전 모두 입력해 주세요.</span>
+                </div>
+              ) : null;
+            })()}
+            <RubricItemsEditor
+              rubric={dimensionFormData.scoringRubric}
+              onChange={(updated) => setDimensionFormData({ ...dimensionFormData, scoringRubric: updated })}
+            />
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <Label htmlFor="dim-icon">아이콘</Label>
@@ -1011,7 +1106,14 @@ export function EvaluationCriteriaManager() {
             <Button variant="outline" onClick={() => setIsDimensionDialogOpen(false)}>{t('common.cancel')}</Button>
             <Button 
               onClick={handleSaveDimension} 
-              disabled={!dimensionFormData.key || !dimensionFormData.name || createDimensionMutation.isPending || updateDimensionMutation.isPending}
+              disabled={
+                !dimensionFormData.key ||
+                !dimensionFormData.name ||
+                createDimensionMutation.isPending ||
+                updateDimensionMutation.isPending ||
+                (dimensionFormData.scoringRubric.length >= 5 &&
+                  dimensionFormData.scoringRubric.some(r => !r.behaviorAnchor?.trim()))
+              }
             >
               {(createDimensionMutation.isPending || updateDimensionMutation.isPending) ? t('admin.common.loading') : t('common.save')}
             </Button>
@@ -1132,7 +1234,16 @@ function InlineDimensionEditor({
           <Button variant="ghost" size="sm" onClick={onCancel} className="h-7 text-xs">
             {t('common.cancel')}
           </Button>
-          <Button size="sm" onClick={handleSave} disabled={!editData.name || isSaving} className="h-7 text-xs">
+          <Button
+            size="sm"
+            onClick={handleSave}
+            disabled={
+              !editData.name ||
+              isSaving ||
+              (editData.scoringRubric.length >= 5 && editData.scoringRubric.some(r => !r.behaviorAnchor?.trim()))
+            }
+            className="h-7 text-xs"
+          >
             {isSaving ? t('admin.common.loading') : t('common.save')}
           </Button>
           <Button variant="ghost" size="icon" className="h-7 w-7 text-red-500 hover:text-red-700 hover:bg-red-50" onClick={onDelete}>
@@ -1245,6 +1356,21 @@ function InlineDimensionEditor({
             <span>채점 루브릭은 최소 5단계 이상 필요합니다 (현재: {editData.scoringRubric.length}단계).</span>
           </div>
         )}
+        {editData.scoringRubric.length >= 5 && (() => {
+          const missingCount = editData.scoringRubric.filter(r => !r.behaviorAnchor?.trim()).length;
+          return missingCount > 0 ? (
+            <div className="flex items-center gap-1.5 text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded px-2 py-1.5 col-span-full">
+              <AlertCircle className="h-3 w-3 shrink-0" />
+              <span>루브릭 {missingCount}개 항목에 행동 기준이 누락되었습니다.</span>
+            </div>
+          ) : null;
+        })()}
+        <div className="col-span-full">
+          <RubricItemsEditor
+            rubric={editData.scoringRubric}
+            onChange={(updated) => setEditData({ ...editData, scoringRubric: updated })}
+          />
+        </div>
         <div>
           <Label className="text-xs">아이콘 / 색상</Label>
           <div className="flex items-center gap-2 mt-1">

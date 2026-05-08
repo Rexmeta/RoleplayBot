@@ -17,6 +17,8 @@ export type EvaluationScore = {
   color: string;
   maxScore?: number;
   weight?: number;
+  evidence?: EvaluationEvidence[];
+  evidenceCapped?: boolean;
 };
 
 export type ActionGuide = {
@@ -132,7 +134,40 @@ export type ScoringRubric = {
   score: number;
   label: string;
   description: string;
+  behaviorAnchor?: string;
+  positiveIndicators?: string[];
+  negativeIndicators?: string[];
 };
+
+export type EvaluationEvidence = {
+  turnIndex: number;
+  quote: string;
+  behaviorObserved: string;
+  rubricBand: string;
+  reason: string;
+  isSystemFallback?: boolean;
+};
+
+export const EVIDENCE_SCORE_CAP = 4 as const;
+
+export function normalizeRubricBand(band: {
+  score: number;
+  label: string;
+  description: string;
+  behaviorAnchor?: string;
+  positiveIndicators?: string[];
+  negativeIndicators?: string[];
+} | null | undefined): ScoringRubric | null {
+  if (!band) return null;
+  return {
+    score: band.score,
+    label: band.label ?? '',
+    description: band.description ?? '',
+    behaviorAnchor: band.behaviorAnchor ?? '',
+    positiveIndicators: Array.isArray(band.positiveIndicators) ? band.positiveIndicators : [],
+    negativeIndicators: Array.isArray(band.negativeIndicators) ? band.negativeIndicators : [],
+  };
+}
 
 export type AiUsageSummary = {
   totalTokens: number;

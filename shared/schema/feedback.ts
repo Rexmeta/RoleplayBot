@@ -82,4 +82,4 @@ export type EvaluationCriteriaSetWithDimensions = EvaluationCriteriaSet & {
   dimensions: EvaluationDimension[];
 };
 
-export type { EvaluationScore, DetailedFeedback, ActionGuide, ConversationGuide, DevelopmentPlan, PlanItem, ScoringRubric } from "./types";
+export type { EvaluationScore, DetailedFeedback, ActionGuide, ConversationGuide, DevelopmentPlan, PlanItem, ScoringRubric, EvaluationEvidence } from "./types";

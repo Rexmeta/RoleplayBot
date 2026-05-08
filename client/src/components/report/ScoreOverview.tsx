@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -10,6 +11,7 @@ import {
   Tooltip,
 } from "recharts";
 import type { Feedback } from "@shared/schema";
+import { EVIDENCE_SCORE_CAP } from "@shared/schema/types";
 import {
   toTenPoint,
   getScoreHex,
@@ -17,6 +19,63 @@ import {
   getScoreLabel,
   getTranslatedDimensionName,
 } from "./reportUtils";
+
+interface EvidenceItem {
+  turnIndex: number;
+  quote: string;
+  behaviorObserved: string;
+  rubricBand: string;
+  reason: string;
+  isSystemFallback?: boolean;
+}
+
+function EvidenceSection({ evidence, evidenceCapped }: { evidence: EvidenceItem[]; evidenceCapped?: boolean }) {
+  const [isOpen, setIsOpen] = useState(false);
+  if (!evidence || evidence.length === 0) return null;
+  const realItems = evidence.filter(e => !e.isSystemFallback);
+  const hasFallbackOnly = realItems.length === 0;
+  if (hasFallbackOnly) {
+    return (
+      <div className="mt-2 flex items-center gap-1.5 text-[11px] text-amber-600 bg-amber-50 border border-amber-200 rounded px-2 py-1">
+        <span>⚠️</span>
+        <span>
+          근거 발화 미제공{evidenceCapped ? ` — 최대 ${EVIDENCE_SCORE_CAP}점으로 자동 제한됨` : ''}
+        </span>
+      </div>
+    );
+  }
+  return (
+    <div className="mt-2">
+      <button
+        onClick={() => setIsOpen(v => !v)}
+        className="flex items-center gap-1.5 text-[11px] font-medium text-indigo-600 hover:text-indigo-800 transition-colors"
+      >
+        <i className={`fas fa-chevron-${isOpen ? 'up' : 'down'} text-[9px]`}></i>
+        <i className="fas fa-quote-left text-[9px] opacity-70"></i>
+        근거 발화 {realItems.length}건
+      </button>
+      {isOpen && (
+        <div className="mt-2 space-y-2">
+          {realItems.map((ev, idx) => (
+            <div key={idx} className="bg-indigo-50 border border-indigo-100 rounded-lg p-2.5 text-xs">
+              <div className="flex items-start gap-2 mb-1.5">
+                <span className="flex-shrink-0 inline-flex items-center justify-center w-5 h-5 rounded-full bg-indigo-200 text-indigo-700 text-[10px] font-bold">
+                  {ev.turnIndex}
+                </span>
+                <blockquote className="text-slate-700 italic leading-snug flex-1">"{ev.quote}"</blockquote>
+              </div>
+              <div className="pl-7 space-y-0.5">
+                <p className="text-slate-600"><span className="font-medium text-slate-700">관찰:</span> {ev.behaviorObserved}</p>
+                <p className="text-slate-600"><span className="font-medium text-slate-700">기준:</span> <span className="text-indigo-700 font-medium">{ev.rubricBand}</span></p>
+                <p className="text-slate-500 text-[11px]">{ev.reason}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 
 interface ScoreOverviewProps {
   feedback: Feedback;
@@ -222,6 +281,9 @@ export function ScoreOverview({
                   <span className="text-[11px] text-slate-400 w-14 text-right flex-shrink-0">{levelLabel}</span>
                 </div>
                 <p className="text-xs text-slate-600 leading-relaxed" data-testid={`score-feedback-${index}`}>{score.feedback}</p>
+                {score.evidence && score.evidence.length > 0 && (
+                  <EvidenceSection evidence={score.evidence} evidenceCapped={score.evidenceCapped} />
+                )}
               </div>
             );
           })}

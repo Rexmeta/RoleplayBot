@@ -8,6 +8,7 @@
  */
 
 import type { ConversationMessage } from "@shared/schema";
+import { EVIDENCE_SCORE_CAP } from "@shared/schema/types";
 import type { EvaluationCriteriaWithDimensions } from "./aiService";
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -392,15 +393,87 @@ export function calculateWeightedOverallScore(
 // ─────────────────────────────────────────────────────────────────────────────
 
 /**
+ * Evidence가 없는 차원에 적용되는 최대 점수 상한 (증거 없이 고득점 불가)
+ * evidence 배열이 비어있으면 이 값 이하로 점수를 제한한다
+ */
+export const NO_EVIDENCE_SCORE_CAP = EVIDENCE_SCORE_CAP;
+
+/**
+ * 근거 발화가 없을 때 삽입하는 시스템 폴백 evidence 항목
+ * isSystemFallback: true 로 명시적으로 표시되어 UI가 구분 처리할 수 있다
+ */
+export function makeInsufficientEvidenceFallback(wasCapped: boolean): {
+  turnIndex: number;
+  quote: string;
+  behaviorObserved: string;
+  rubricBand: string;
+  reason: string;
+  isSystemFallback: true;
+} {
+  return {
+    turnIndex: -1,
+    quote: '',
+    behaviorObserved: '근거 발화 미제공 (Insufficient Evidence)',
+    rubricBand: wasCapped ? `최대 ${NO_EVIDENCE_SCORE_CAP}점 제한 적용` : '근거 없음',
+    reason: wasCapped
+      ? `AI가 이 차원에 대한 근거 발화를 제공하지 않아 시스템이 점수를 최대 ${NO_EVIDENCE_SCORE_CAP}점으로 자동 제한했습니다.`
+      : 'AI가 이 차원에 대한 구체적인 근거 발화를 제공하지 않았습니다.',
+    isSystemFallback: true,
+  };
+}
+
+/**
+ * 개별 evidence 항목의 품질을 검사한다.
+ * turnIndex >= 0이고 quote 또는 reason 중 하나 이상이 비어있지 않아야 유효하다.
+ * isSystemFallback 항목은 항상 유효하지 않은 것으로 간주 (시스템 생성 마커)
+ */
+export function isValidEvidenceItem(ev: {
+  turnIndex: number;
+  quote?: string;
+  reason?: string;
+  isSystemFallback?: boolean;
+}): boolean {
+  if (ev.isSystemFallback) return false;
+  if (ev.turnIndex < 0) return false;
+  const hasQuote = typeof ev.quote === 'string' && ev.quote.trim().length > 0;
+  const hasReason = typeof ev.reason === 'string' && ev.reason.trim().length > 0;
+  return hasQuote || hasReason;
+}
+
+/**
+ * Evidence 기반 점수 상한 적용
+ * evidence가 없는 차원의 점수를 NO_EVIDENCE_SCORE_CAP 이하로 제한
+ */
+export function applyEvidenceScoreCap(
+  scores: Record<string, number>,
+  evidenceMap: Record<string, { turnIndex: number; quote: string; behaviorObserved: string; rubricBand: string; reason: string }[]>,
+  dimensions: { key: string }[]
+): { scores: Record<string, number>; cappedDimensions: string[] } {
+  const cappedDimensions: string[] = [];
+  const result = { ...scores };
+  for (const dim of dimensions) {
+    const ev = evidenceMap[dim.key];
+    const hasEvidence = Array.isArray(ev) && ev.length > 0;
+    if (!hasEvidence && result[dim.key] !== undefined && result[dim.key] > NO_EVIDENCE_SCORE_CAP) {
+      console.log(`   - 증거 없음 캡 적용: ${dim.key} ${result[dim.key]}점 → ${NO_EVIDENCE_SCORE_CAP}점`);
+      result[dim.key] = NO_EVIDENCE_SCORE_CAP;
+      cappedDimensions.push(dim.key);
+    }
+  }
+  return { scores: result, cappedDimensions };
+}
+
+/**
  * 개별 평가 차원의 유효성 검사
  * 점수 범위(1~10)와 루브릭 단계 수(5개 이상)를 검증한다
+ * 루브릭 항목에 behaviorAnchor가 없으면 저장 차단
  */
 export function validateEvaluationDimension(dim: {
   key?: string;
   name?: string;
   minScore?: number;
   maxScore?: number;
-  scoringRubric?: { score: number; label: string; description: string }[] | null;
+  scoringRubric?: { score: number; label: string; description: string; behaviorAnchor?: string }[] | null;
   evaluationPrompt?: string | null;
 }): { valid: boolean; errors: string[] } {
   const errors: string[] = [];
@@ -421,6 +494,13 @@ export function validateEvaluationDimension(dim: {
   if (!dim.scoringRubric || dim.scoringRubric.length < 5) {
     const count = dim.scoringRubric ? dim.scoringRubric.length : 0;
     errors.push(`"${label}": 채점 루브릭은 최소 5단계 이상 필요합니다 (현재: ${count}단계)`);
+  }
+
+  if (dim.scoringRubric && dim.scoringRubric.length >= 5) {
+    const missingAnchor = dim.scoringRubric.filter(r => !r.behaviorAnchor || r.behaviorAnchor.trim().length === 0);
+    if (missingAnchor.length > 0) {
+      errors.push(`"${label}": 모든 루브릭 단계에 행동 기준(behaviorAnchor)이 필요합니다 (현재 ${missingAnchor.length}개 누락)`);
+    }
   }
 
   if (dim.evaluationPrompt !== null && dim.evaluationPrompt !== undefined && dim.evaluationPrompt.trim().length > 0 && dim.evaluationPrompt.trim().length < 10) {
