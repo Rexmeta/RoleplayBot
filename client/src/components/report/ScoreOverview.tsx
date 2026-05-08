@@ -188,10 +188,14 @@ export function ScoreOverview({
 
   const radarData = (feedback.scores || []).map(s => {
     const maxScore = (s as any).maxScore || 10;
+    const cappedScore = toTenPoint(s.score ?? 0, maxScore);
+    const origScore = s.originalScore != null ? toTenPoint(s.originalScore, maxScore) : null;
     return {
       subject: getTranslatedDimensionName(t, s.category, s.name),
-      value: toTenPoint(s.score ?? 0, maxScore),
+      value: cappedScore,
       fullMark: 10,
+      evidenceCapped: s.evidenceCapped ?? false,
+      originalScore: origScore,
     };
   });
 
@@ -201,11 +205,42 @@ export function ScoreOverview({
     const color = getScoreHex(score);
     const midX = cx ?? 0;
     const anchor = Math.abs(x - midX) < 10 ? 'middle' : x > midX ? 'start' : 'end';
+    const isCapped = item?.evidenceCapped ?? false;
     return (
       <g>
-        <text x={x} y={y - 7} textAnchor={anchor} fill="#64748b" fontSize={10}>{payload.value}</text>
-        <text x={x} y={y + 8} textAnchor={anchor} fill={color} fontSize={12} fontWeight="700">{Number(score).toFixed(1)}/10</text>
+        <text x={x} y={y - 7} textAnchor={anchor} fill={isCapped ? '#d97706' : '#64748b'} fontSize={10}>
+          {payload.value}{isCapped ? ' ⚠' : ''}
+        </text>
+        <text x={x} y={y + 8} textAnchor={anchor} fill={isCapped ? '#d97706' : color} fontSize={12} fontWeight="700">
+          {Number(score).toFixed(1)}/10
+        </text>
       </g>
+    );
+  };
+
+  const CustomRadarTooltip = ({ active, payload }: any) => {
+    if (!active || !payload || payload.length === 0) return null;
+    const entry = payload[0];
+    const item = radarData.find(d => d.subject === entry.payload?.subject);
+    if (!item) return null;
+    return (
+      <div className="bg-white border border-slate-200 rounded-lg shadow-lg px-3 py-2 text-xs min-w-[140px]">
+        <p className="font-semibold text-slate-700 mb-1 truncate">{item.subject}</p>
+        {item.evidenceCapped && item.originalScore != null ? (
+          <div className="space-y-0.5">
+            <div className="flex items-center gap-1.5 text-slate-400">
+              <span>AI:</span>
+              <span className="line-through">{Number(item.originalScore).toFixed(1)}</span>
+            </div>
+            <div className="flex items-center gap-1.5 text-amber-700 font-semibold">
+              <i className="fas fa-circle-exclamation text-[9px]"></i>
+              <span>상한: {Number(item.value).toFixed(1)} / 10</span>
+            </div>
+          </div>
+        ) : (
+          <p className="text-slate-800 font-semibold">{Number(item.value).toFixed(1)} / 10</p>
+        )}
+      </div>
     );
   };
 
@@ -349,9 +384,7 @@ export function ScoreOverview({
                         fillOpacity={0.25}
                         strokeWidth={2}
                       />
-                      <Tooltip
-                        formatter={(value: any) => [Number(value).toFixed(1), '점수']}
-                      />
+                      <Tooltip content={<CustomRadarTooltip />} />
                     </RadarChart>
                   </ResponsiveContainer>
                 </div>
