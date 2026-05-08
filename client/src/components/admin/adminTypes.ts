@@ -62,6 +62,8 @@ export interface PerformanceData {
     userId: string;
     completedAt: string;
     difficulty: number;
+    criteriaSetVersion?: number | null;
+    personaRunId?: string | null;
   }>;
 }
 

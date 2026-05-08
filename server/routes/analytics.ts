@@ -1157,6 +1157,7 @@ export default function createAnalyticsRouter(isAuthenticated: any) {
           feedback: feedback ? {
             overallScore: feedback.overallScore,
             scores: feedback.scores,
+            criteriaSetVersion: feedback.criteriaSetVersion ?? null,
           } : null
         };
       }));
@@ -1295,6 +1296,8 @@ export default function createAnalyticsRouter(isAuthenticated: any) {
         userId: scenarioRun.userId,
         completedAt: scenarioRun.completedAt || scenarioRun.startedAt,
         difficulty: (scenario as any).difficulty || 4,
+        criteriaSetVersion: fb.criteriaSetVersion ?? null,
+        personaRunId: fb.personaRunId ?? null,
       });
     }
 

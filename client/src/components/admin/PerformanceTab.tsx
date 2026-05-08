@@ -13,6 +13,7 @@ import {
   BarChart,
   Bar,
 } from "recharts";
+import { useLocation } from "wouter";
 import { CardInfo } from "./AdminCardInfo";
 import type { PerformanceData, TrendsData } from "./adminTypes";
 
@@ -24,6 +25,7 @@ interface PerformanceTabProps {
 }
 
 export function PerformanceTab({ performance, trends, scoreDistributionData, categoryData }: PerformanceTabProps) {
+  const [, navigate] = useLocation();
   return (
     <div className="space-y-6">
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -213,6 +215,7 @@ export function PerformanceTab({ performance, trends, scoreDistributionData, cat
                   <th className="p-3 text-left font-semibold">시나리오</th>
                   <th className="p-3 text-left font-semibold">MBTI</th>
                   <th className="p-3 text-left font-semibold">난이도</th>
+                  <th className="p-3 text-left font-semibold">루브릭</th>
                   <th className="p-3 text-left font-semibold">사용자</th>
                   <th className="p-3 text-left font-semibold">완료일</th>
                 </tr>
@@ -243,6 +246,29 @@ export function PerformanceTab({ performance, trends, scoreDistributionData, cat
                           {difficultyLabels[session.difficulty] || '기본'}
                         </span>
                       </td>
+                      <td className="p-3">
+                        {session.criteriaSetVersion != null ? (
+                          session.personaRunId ? (
+                            <button
+                              type="button"
+                              onClick={() => navigate(`/feedback/${session.personaRunId}#rubric`)}
+                              title={`루브릭 버전 v${session.criteriaSetVersion} — 클릭하면 루브릭 확인`}
+                              className="text-[10px] px-1.5 py-0.5 rounded border border-indigo-200 text-indigo-600 bg-indigo-50 hover:bg-indigo-100 font-mono transition-colors inline-block cursor-pointer"
+                            >
+                              v{session.criteriaSetVersion}
+                            </button>
+                          ) : (
+                            <span
+                              title={`루브릭 버전 v${session.criteriaSetVersion}`}
+                              className="text-[10px] px-1.5 py-0.5 rounded border border-indigo-200 text-indigo-600 bg-indigo-50 font-mono inline-block"
+                            >
+                              v{session.criteriaSetVersion}
+                            </span>
+                          )
+                        ) : (
+                          <span className="text-slate-300 text-xs">—</span>
+                        )}
+                      </td>
                       <td className="p-3 text-slate-500">{session.userId}...</td>
                       <td className="p-3 text-slate-500">
                         {new Date(session.completedAt).toLocaleDateString('ko-KR', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
@@ -251,7 +277,7 @@ export function PerformanceTab({ performance, trends, scoreDistributionData, cat
                   );
                 })}
                 {(!performance?.recentSessions || performance.recentSessions.length === 0) && (
-                  <tr><td colSpan={6} className="p-4 text-center text-slate-500">최근 세션 데이터가 없습니다.</td></tr>
+                  <tr><td colSpan={7} className="p-4 text-center text-slate-500">최근 세션 데이터가 없습니다.</td></tr>
                 )}
               </tbody>
             </table>

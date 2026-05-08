@@ -33,10 +33,20 @@ type SequenceAnalysis = {
   strategicInsights?: string;
 };
 
+type PersonaRunFeedbackSummary = {
+  overallScore: number | null;
+  scores: unknown;
+  criteriaSetVersion: number | null;
+};
+
+type AdminPersonaRun = PersonaRun & {
+  feedback?: PersonaRunFeedbackSummary | null;
+};
+
 type RunAccordionContentProps = {
-  scenarioRun: ScenarioRun & { personaRuns: PersonaRun[]; isScenarioDeleted?: boolean; sequenceAnalysis?: SequenceAnalysis | null };
+  scenarioRun: ScenarioRun & { personaRuns: AdminPersonaRun[]; isScenarioDeleted?: boolean; sequenceAnalysis?: SequenceAnalysis | null };
   scenarioInfo: { title: string; difficulty: number; personas: ScenarioPersona[] };
-  personaRuns: PersonaRun[];
+  personaRuns: AdminPersonaRun[];
   userId: string | undefined;
   navigate: (to: string) => void;
   strategyDialogRunId: string | null;
@@ -150,7 +160,17 @@ function RunAccordionContent({
                       </span>
                     </div>
                   )}
-                  <div className="flex gap-2">
+                  <div className="flex items-center gap-2">
+                    {isRunCompleted && pr.feedback?.criteriaSetVersion != null && (
+                      <button
+                        type="button"
+                        title={`루브릭 버전 v${pr.feedback.criteriaSetVersion} — 클릭하면 루브릭 확인`}
+                        onClick={() => navigate(`/feedback/${pr.id}?returnTo=/admin/participant/${userId}#rubric`)}
+                        className="text-[10px] px-1.5 py-0.5 rounded border border-indigo-200 text-indigo-600 bg-indigo-50 hover:bg-indigo-100 font-mono transition-colors shrink-0"
+                      >
+                        v{pr.feedback.criteriaSetVersion}
+                      </button>
+                    )}
                     <Button
                       variant="outline"
                       size="sm"
@@ -191,7 +211,7 @@ export default function ParticipantHistory() {
   const token = localStorage.getItem("authToken");
   const authHeaders: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {};
 
-  const { data: rawScenarioRuns = [], isLoading: runsLoading } = useQuery<(ScenarioRun & { personaRuns: PersonaRun[]; isScenarioDeleted?: boolean })[]>({
+  const { data: rawScenarioRuns = [], isLoading: runsLoading } = useQuery<(ScenarioRun & { personaRuns: AdminPersonaRun[]; isScenarioDeleted?: boolean })[]>({
     queryKey: ["/api/admin/users", userId, "scenario-runs"],
     queryFn: () => fetch(`/api/admin/users/${userId}/scenario-runs`, { credentials: "include", headers: authHeaders }).then(r => r.json()),
     enabled: !!userId,

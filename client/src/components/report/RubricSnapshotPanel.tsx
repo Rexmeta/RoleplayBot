@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 
@@ -105,9 +105,21 @@ function DimensionRow({ dim }: { dim: SnapshotDimension }) {
 export function RubricSnapshotPanel({ rubricSnapshot, modelSnapshot, criteriaSetVersion }: RubricSnapshotPanelProps) {
   const dims: SnapshotDimension[] = Array.isArray(rubricSnapshot?.dimensions) ? rubricSnapshot.dimensions : [];
   const anyHasBands = dims.some(d => Array.isArray(d.scoringRubric) && d.scoringRubric.length > 0);
+  const [open, setOpen] = useState(false);
+  const panelRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (window.location.hash === "#rubric") {
+      setOpen(true);
+      setTimeout(() => {
+        panelRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+      }, 100);
+    }
+  }, []);
 
   return (
-    <Collapsible className="no-print">
+    <Collapsible open={open} onOpenChange={setOpen} className="no-print">
+      <div id="rubric" ref={panelRef} />
       <CollapsibleTrigger className="flex items-center gap-2 text-xs text-slate-500 hover:text-slate-700 transition-colors cursor-pointer select-none group w-full">
         <span className="flex items-center justify-center w-5 h-5 rounded bg-indigo-50 border border-indigo-100 flex-shrink-0">
           <i className="fas fa-clipboard-list text-indigo-400 text-[9px]"></i>
