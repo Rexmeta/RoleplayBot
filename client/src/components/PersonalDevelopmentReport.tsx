@@ -2,10 +2,8 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { useEffect, useState, useRef } from "react";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { useToast } from "@/hooks/use-toast";
 import { useTranslation } from "react-i18next";
 
@@ -25,6 +23,7 @@ import { ScoreOverview } from "./report/ScoreOverview";
 import { PracticeGuidePanel } from "./report/PracticeGuidePanel";
 import { DevelopmentPlan } from "./report/DevelopmentPlan";
 import { StrategyPanel } from "./report/StrategyPanel";
+import { RubricSnapshotPanel } from "./report/RubricSnapshotPanel";
 
 interface PersonalDevelopmentReportProps {
   scenario: ComplexScenario;
@@ -562,51 +561,7 @@ export default function PersonalDevelopmentReport({
           <h2 className="print-section-title hidden print:block">📊 {t('report.tabs.scores', '성과 분석')}</h2>
           <ScoreOverview feedback={feedback} feedbackHistory={feedbackHistory} conversationId={conversationId} scoreAnimKey={scoreAnimKey} reportStatus={reportStatus} confidence={confidence} />
           {(feedback.rubricSnapshot || feedback.modelSnapshot) && (
-            <Collapsible className="no-print">
-              <CollapsibleTrigger className="flex items-center gap-2 text-xs text-slate-400 hover:text-slate-600 transition-colors cursor-pointer select-none group">
-                <i className="fas fa-chevron-right group-data-[state=open]:rotate-90 transition-transform text-[10px]"></i>
-                <span>평가에 사용된 루브릭 및 모델 정보</span>
-              </CollapsibleTrigger>
-              <CollapsibleContent>
-                <div className="mt-3 rounded-lg border border-slate-200 bg-slate-50 p-4 space-y-3 text-xs text-slate-600">
-                  {feedback.rubricSnapshot && (
-                    <div>
-                      <div className="flex items-center gap-2 mb-2 font-semibold text-slate-700">
-                        <i className="fas fa-clipboard-list text-indigo-400"></i>
-                        평가 루브릭
-                        {feedback.rubricSnapshot.name && (
-                          <span className="font-normal text-slate-500">— {feedback.rubricSnapshot.name}</span>
-                        )}
-                        {feedback.criteriaSetVersion && (
-                          <Badge variant="outline" className="text-[10px] py-0 h-4 border-indigo-200 text-indigo-600">v{feedback.criteriaSetVersion}</Badge>
-                        )}
-                      </div>
-                      {Array.isArray(feedback.rubricSnapshot.dimensions) && feedback.rubricSnapshot.dimensions.length > 0 && (
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
-                          {feedback.rubricSnapshot.dimensions.map((dim: any, i: number) => (
-                            <div key={i} className="flex items-center gap-1.5 bg-white rounded px-2 py-1 border border-slate-200">
-                              <span className="text-slate-400">{dim.icon || '📌'}</span>
-                              <span className="font-medium text-slate-700">{dim.name}</span>
-                              <span className="ml-auto text-slate-400">가중치 {dim.weight}</span>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  )}
-                  {feedback.modelSnapshot && (
-                    <div className="flex items-center gap-2 pt-2 border-t border-slate-200">
-                      <i className="fas fa-robot text-slate-400"></i>
-                      <span className="text-slate-500">평가 모델:</span>
-                      <span className="font-mono text-slate-700">{feedback.modelSnapshot.model ?? '알 수 없음'}</span>
-                      {feedback.modelSnapshot.capturedAt && (
-                        <span className="ml-auto text-slate-400">{new Date(feedback.modelSnapshot.capturedAt).toLocaleString('ko-KR')}</span>
-                      )}
-                    </div>
-                  )}
-                </div>
-              </CollapsibleContent>
-            </Collapsible>
+            <RubricSnapshotPanel rubricSnapshot={feedback.rubricSnapshot} modelSnapshot={feedback.modelSnapshot} criteriaSetVersion={feedback.criteriaSetVersion} />
           )}
         </TabsContent>
 
