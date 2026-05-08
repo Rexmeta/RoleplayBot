@@ -982,6 +982,9 @@ JSON 형식${hasStrategyReflection ? ' (sequenceAnalysis 포함)' : ''}:
           return [makeInsufficientEvidenceFallback(evidenceCappedDimensions.includes(dim.key))];
         })(),
         evidenceCapped: evidenceCappedDimensions.includes(dim.key),
+        originalScore: evidenceCappedDimensions.includes(dim.key)
+          ? (preEvidenceCapScores[dim.key] ?? undefined)
+          : undefined,
       }));
 
       const feedback: DetailedFeedback = {

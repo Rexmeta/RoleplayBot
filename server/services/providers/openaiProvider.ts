@@ -515,6 +515,9 @@ JSON 형식으로 응답:
         return [makeInsufficientEvidenceFallback(evidenceCapResult.cappedDimensions.includes(dim.key))];
       })(),
       evidenceCapped: evidenceCapResult.cappedDimensions.includes(dim.key),
+      originalScore: evidenceCapResult.cappedDimensions.includes(dim.key)
+        ? (preEvidenceCapScores[dim.key] ?? undefined)
+        : undefined,
     }));
 
     const preEvidenceCapBaseScore = calculateWeightedOverallScore(preEvidenceCapScores, evaluationCriteria);

@@ -34,6 +34,7 @@ export type EvaluationScore = {
   weight?: number;
   evidence?: EvaluationEvidence[];
   evidenceCapped?: boolean;
+  originalScore?: number;
 };
 
 export type ActionGuide = {

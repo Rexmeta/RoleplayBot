@@ -133,6 +133,22 @@ function AdminAdjustmentLog({ adj }: { adj: NonNullable<Feedback['detailedFeedba
   );
 }
 
+interface CappedDimensionItem {
+  key: string;
+  name: string;
+  cappedScore: number;
+  originalScore: number | null;
+}
+
+interface AdjRow {
+  label: string;
+  value: number;
+  reason: string;
+  icon: string;
+  colorClass: string;
+  cappedDimensionItems?: CappedDimensionItem[];
+}
+
 interface ScoreOverviewProps {
   feedback: Feedback;
   feedbackHistory: any[];
@@ -152,6 +168,7 @@ export function ScoreOverview({
 }: ScoreOverviewProps) {
   const { t } = useTranslation();
   const { user } = useAuth();
+  const [evidencePenaltyExpanded, setEvidencePenaltyExpanded] = useState(false);
   const isAdmin = user?.role === 'admin';
 
   const getPrevSessionDelta = (category: string): number | null => {
@@ -210,7 +227,7 @@ export function ScoreOverview({
 
   // noisePenalty is the canonical noise/non-verbal field when present; show only one row
   // to avoid double-counting the same underlying penalty.
-  const adjRows = adj ? [
+  const adjRows: AdjRow[] = adj ? [
     ...(adj.noisePenalty != null ? [{
       label: '노이즈/비언어적 감점',
       value: -adj.noisePenalty,
@@ -256,6 +273,20 @@ export function ScoreOverview({
         : '근거 발화 미제공 차원 있음',
       icon: 'fas fa-file-circle-xmark',
       colorClass: (adj.evidencePenalty ?? 0) > 0 ? 'text-rose-600' : 'text-slate-400',
+      cappedDimensionItems: (adj.evidenceCappedDimensions ?? []).map(dimKey => {
+        const scoreEntry = feedback.scores?.find(s => s.category === dimKey);
+        const maxScore = scoreEntry?.maxScore ?? 10;
+        const cappedScore = toTenPoint(scoreEntry?.score ?? EVIDENCE_SCORE_CAP, maxScore);
+        const originalScore = scoreEntry?.originalScore != null
+          ? toTenPoint(scoreEntry.originalScore, maxScore)
+          : null;
+        return {
+          key: dimKey,
+          name: scoreEntry ? getTranslatedDimensionName(t, scoreEntry.category, scoreEntry.name) : dimKey,
+          cappedScore,
+          originalScore,
+        };
+      }),
     }] : []),
   ] : [];
 
@@ -386,6 +417,12 @@ export function ScoreOverview({
                   </div>
                   <span className="text-[11px] text-slate-400 w-14 text-right flex-shrink-0">{levelLabel}</span>
                 </div>
+                {score.evidenceCapped && (
+                  <div className="flex items-center gap-1.5 mb-1.5 text-[11px] font-medium text-rose-600 bg-rose-50 border border-rose-200 rounded px-2 py-0.5 w-fit">
+                    <i className="fas fa-circle-exclamation text-[10px]"></i>
+                    근거 발화 미제공 — 최대 {EVIDENCE_SCORE_CAP}/10 상한 적용
+                  </div>
+                )}
                 <p className="text-xs text-slate-600 leading-relaxed" data-testid={`score-feedback-${index}`}>{score.feedback}</p>
                 {score.evidence && score.evidence.length > 0 && (
                   <EvidenceSection evidence={score.evidence} evidenceCapped={score.evidenceCapped} />
@@ -509,32 +546,74 @@ export function ScoreOverview({
               <span className="text-sm font-bold text-indigo-700">{Number(adj.baseScore).toFixed(1)}점</span>
             </div>
 
-            {adjRows.map((row, rowIndex) => (
-              <div key={row.label} style={flowDelay(1 + rowIndex)}>
-                <div className="flex justify-center items-center py-1">
-                  <div className="flex flex-col items-center gap-0">
-                    <div className="w-px h-3 bg-slate-300"></div>
-                    <i className={`fas fa-chevron-down text-xs ${row.value < 0 ? 'text-rose-400' : row.value > 0 ? 'text-emerald-400' : 'text-slate-300'}`}></i>
-                  </div>
-                </div>
-                <div className={`flex items-center justify-between rounded-xl px-4 py-3 border ${
-                  row.value < 0 ? 'bg-rose-50 border-rose-200' :
-                  row.value > 0 ? 'bg-emerald-50 border-emerald-200' :
-                  'bg-slate-50 border-slate-200'
-                }`}>
-                  <div className="flex items-center gap-2 min-w-0">
-                    <i className={`${row.icon} text-sm flex-shrink-0 ${row.colorClass}`}></i>
-                    <div className="min-w-0">
-                      <p className="text-sm font-medium text-slate-700">{row.label}</p>
-                      <p className="text-xs text-slate-500 truncate">{row.reason}</p>
+            {adjRows.map((row, rowIndex) => {
+              const cappedItems: CappedDimensionItem[] = row.cappedDimensionItems ?? [];
+              const isEvidenceRow = cappedItems.length > 0 || row.cappedDimensionItems !== undefined;
+              return (
+                <div key={row.label} style={flowDelay(1 + rowIndex)}>
+                  <div className="flex justify-center items-center py-1">
+                    <div className="flex flex-col items-center gap-0">
+                      <div className="w-px h-3 bg-slate-300"></div>
+                      <i className={`fas fa-chevron-down text-xs ${row.value < 0 ? 'text-rose-400' : row.value > 0 ? 'text-emerald-400' : 'text-slate-300'}`}></i>
                     </div>
                   </div>
-                  <span className={`text-sm font-bold flex-shrink-0 ml-3 ${row.colorClass}`}>
-                    {row.value === 0 ? '±0' : row.value > 0 ? `+${Number.isInteger(row.value) ? row.value : Number(row.value).toFixed(1)}` : `${Number.isInteger(row.value) ? row.value : Number(row.value).toFixed(1)}`}점
-                  </span>
+                  <div className={`rounded-xl border overflow-hidden ${
+                    row.value < 0 ? 'bg-rose-50 border-rose-200' :
+                    row.value > 0 ? 'bg-emerald-50 border-emerald-200' :
+                    'bg-slate-50 border-slate-200'
+                  }`}>
+                    <div className="flex items-center justify-between px-4 py-3">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <i className={`${row.icon} text-sm flex-shrink-0 ${row.colorClass}`}></i>
+                        <div className="min-w-0">
+                          <p className="text-sm font-medium text-slate-700">{row.label}</p>
+                          <p className="text-xs text-slate-500 truncate">{row.reason}</p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2 flex-shrink-0 ml-3">
+                        <span className={`text-sm font-bold ${row.colorClass}`}>
+                          {row.value === 0 ? '±0' : row.value > 0 ? `+${Number.isInteger(row.value) ? row.value : Number(row.value).toFixed(1)}` : `${Number.isInteger(row.value) ? row.value : Number(row.value).toFixed(1)}`}점
+                        </span>
+                        {isEvidenceRow && cappedItems.length > 0 && (
+                          <button
+                            onClick={() => setEvidencePenaltyExpanded(v => !v)}
+                            className="flex items-center gap-1 text-[11px] font-medium text-rose-600 hover:text-rose-800 bg-rose-100 hover:bg-rose-200 border border-rose-200 rounded px-2 py-0.5 transition-colors"
+                          >
+                            <i className={`fas fa-chevron-${evidencePenaltyExpanded ? 'up' : 'down'} text-[9px]`}></i>
+                            상세
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                    {isEvidenceRow && evidencePenaltyExpanded && cappedItems.length > 0 && (
+                      <div className="border-t border-rose-200 px-4 py-3 space-y-2">
+                        <p className="text-[11px] font-semibold text-rose-700 uppercase tracking-wide mb-1">점수 상한 적용된 차원</p>
+                        {cappedItems.map(item => (
+                          <div key={item.key} className="flex items-center justify-between bg-white border border-rose-100 rounded-lg px-3 py-2">
+                            <div className="flex items-center gap-2 min-w-0">
+                              <i className="fas fa-circle-exclamation text-rose-400 text-xs flex-shrink-0"></i>
+                              <span className="text-xs font-medium text-slate-700 truncate">{item.name}</span>
+                            </div>
+                            <div className="flex items-center gap-1.5 flex-shrink-0 ml-3">
+                              {item.originalScore != null && (
+                                <>
+                                  <span className="text-xs text-slate-400 line-through">{Number(item.originalScore).toFixed(1)}</span>
+                                  <i className="fas fa-arrow-right text-[9px] text-rose-400"></i>
+                                </>
+                              )}
+                              <span className="text-xs font-bold text-rose-600 bg-rose-50 border border-rose-200 rounded px-1.5 py-0.5">
+                                {Number(item.cappedScore).toFixed(1)}/10
+                              </span>
+                              <span className="text-[10px] text-rose-500">상한</span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
 
             {adj.scoreCap !== null && (
               <div style={flowDelay(1 + adjRows.length)}>
