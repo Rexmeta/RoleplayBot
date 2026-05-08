@@ -25,6 +25,7 @@ vi.mock('../../server/storage', () => ({
     getEvaluationCriteriaSetTranslation: vi.fn(),
     getEvaluationDimensionTranslation: vi.fn(),
     getActiveSupportedLanguages: vi.fn(),
+    getCategory: vi.fn(),
   },
 }));
 
@@ -91,6 +92,7 @@ function makeSet(overrides: Partial<EvaluationCriteriaSet> = {}): EvaluationCrit
     isActive: true,
     categoryId: null,
     createdBy: null,
+    ownerOperatorId: null,
     status: 'draft',
     approvedBy: null,
     approvedAt: null,
@@ -490,6 +492,139 @@ describe('Rubric Approval Workflow — API Endpoints', () => {
       const res = await request(app).post('/api/admin/evaluation-criteria/set-1/set-default');
 
       expect(res.status).toBe(400);
+    });
+  });
+
+  // ─── Operator Scope Enforcement ───────────────────────────────────────────
+
+  describe('Operator scope — access control (category-scoped)', () => {
+    function buildOperatorApp(assignedCategoryId: string | null, assignedOrganizationId?: string | null) {
+      const operatorApp = express();
+      operatorApp.use(express.json());
+      const auth = (req: express.Request, _res: express.Response, next: express.NextFunction) => {
+        (req as any).user = {
+          id: 'op-1',
+          role: 'operator',
+          assignedCategoryId,
+          assignedOrganizationId: assignedOrganizationId ?? null,
+        };
+        next();
+      };
+      const router = createEvaluationCriteriaRouter(auth);
+      operatorApp.use(router);
+      operatorApp.use((err: { status?: number; message: string }, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
+        res.status(err.status ?? 500).json({ error: err.message });
+      });
+      return operatorApp;
+    }
+
+    it('allows category-scoped operator to access rubric in their category', async () => {
+      const catApp = buildOperatorApp('cat-1');
+      vi.mocked(storage.getEvaluationCriteriaSet).mockResolvedValue(makeSet({ id: 'set-1', status: 'draft', categoryId: 'cat-1' }));
+      vi.mocked(storage.getEvaluationCriteriaSetWithDimensions).mockResolvedValue(makeSet({ id: 'set-1', status: 'draft', categoryId: 'cat-1' }) as any);
+      vi.mocked(storage.getEvaluationDimensionsByCriteriaSet).mockResolvedValue([]);
+
+      const res = await request(catApp).get('/api/admin/evaluation-criteria/set-1');
+
+      expect(res.status).toBe(200);
+    });
+
+    it('blocks category-scoped operator from accessing rubric in a different category', async () => {
+      const catApp = buildOperatorApp('cat-1');
+      vi.mocked(storage.getEvaluationCriteriaSet).mockResolvedValue(makeSet({ id: 'set-1', status: 'draft', categoryId: 'cat-OTHER' }));
+      vi.mocked(storage.getEvaluationCriteriaSetWithDimensions).mockResolvedValue(makeSet({ categoryId: 'cat-OTHER' }) as any);
+
+      const res = await request(catApp).get('/api/admin/evaluation-criteria/set-1');
+
+      expect(res.status).toBe(403);
+    });
+
+    it('blocks category-scoped operator from accessing a null-category (global) rubric', async () => {
+      const catApp = buildOperatorApp('cat-1');
+      vi.mocked(storage.getEvaluationCriteriaSet).mockResolvedValue(makeSet({ id: 'set-1', categoryId: null }));
+      vi.mocked(storage.getEvaluationCriteriaSetWithDimensions).mockResolvedValue(makeSet({ categoryId: null }) as any);
+
+      const res = await request(catApp).get('/api/admin/evaluation-criteria/set-1');
+
+      expect(res.status).toBe(403);
+    });
+
+    it('blocks category-scoped operator from creating a rubric with null categoryId', async () => {
+      const catApp = buildOperatorApp('cat-1');
+
+      const res = await request(catApp)
+        .post('/api/admin/evaluation-criteria')
+        .send({ name: 'Test', categoryId: null });
+
+      expect(res.status).toBe(403);
+    });
+
+    it('blocks category-scoped operator from creating a rubric in a different category', async () => {
+      const catApp = buildOperatorApp('cat-1');
+
+      const res = await request(catApp)
+        .post('/api/admin/evaluation-criteria')
+        .send({ name: 'Test', categoryId: 'cat-OTHER' });
+
+      expect(res.status).toBe(403);
+    });
+
+    it('blocks operator from approving a rubric (admin-only)', async () => {
+      const catApp = buildOperatorApp('cat-1');
+      vi.mocked(storage.getEvaluationCriteriaSet).mockResolvedValue(makeSet({ status: 'review', categoryId: 'cat-1' }));
+
+      const res = await request(catApp).post('/api/admin/evaluation-criteria/set-1/approve');
+
+      expect(res.status).toBe(403);
+    });
+
+    it('blocks operator from rejecting a rubric (admin-only)', async () => {
+      const catApp = buildOperatorApp('cat-1');
+      vi.mocked(storage.getEvaluationCriteriaSet).mockResolvedValue(makeSet({ status: 'review', categoryId: 'cat-1' }));
+
+      const res = await request(catApp).post('/api/admin/evaluation-criteria/set-1/reject');
+
+      expect(res.status).toBe(403);
+    });
+
+    it('blocks org-scoped operator from accessing a null-category (global) rubric', async () => {
+      const orgApp = buildOperatorApp(null, 'org-1');
+      vi.mocked(storage.getEvaluationCriteriaSet).mockResolvedValue(makeSet({ id: 'set-1', categoryId: null }));
+      vi.mocked(storage.getEvaluationCriteriaSetWithDimensions).mockResolvedValue(makeSet({ categoryId: null }) as any);
+
+      const res = await request(orgApp).get('/api/admin/evaluation-criteria/set-1');
+
+      expect(res.status).toBe(403);
+    });
+
+    it('blocks org-scoped operator from creating a rubric with null categoryId', async () => {
+      const orgApp = buildOperatorApp(null, 'org-1');
+
+      const res = await request(orgApp)
+        .post('/api/admin/evaluation-criteria')
+        .send({ name: 'Test', categoryId: null });
+
+      expect(res.status).toBe(403);
+    });
+
+    it('org-scoped operator list is filtered to their org categories only', async () => {
+      const orgApp = buildOperatorApp(null, 'org-1');
+      const inScopeSet = makeSet({ id: 'in-scope', categoryId: 'cat-org1' });
+      const outScopeSet = makeSet({ id: 'out-scope', categoryId: 'cat-other' });
+      vi.mocked(storage.getAllEvaluationCriteriaSets).mockResolvedValue([inScopeSet, outScopeSet]);
+      vi.mocked(storage.getCategory)
+        .mockImplementation(async (id: string) => {
+          if (id === 'cat-org1') return { id: 'cat-org1', organizationId: 'org-1' } as any;
+          if (id === 'cat-other') return { id: 'cat-other', organizationId: 'org-2' } as any;
+          return null;
+        });
+
+      const res = await request(orgApp).get('/api/admin/evaluation-criteria');
+
+      expect(res.status).toBe(200);
+      const ids = res.body.map((s: any) => s.id);
+      expect(ids).toContain('in-scope');
+      expect(ids).not.toContain('out-scope');
     });
   });
 });

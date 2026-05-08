@@ -254,7 +254,7 @@ export async function generateAndSaveFeedback(
     // fallback to default
   }
 
-  const rubricSnapshot = evaluationCriteria ? {
+  const rubricSnapshot: Record<string, any> | null = evaluationCriteria ? {
     id: evaluationCriteria.id,
     name: evaluationCriteria.name,
     version: evaluationCriteria.version ?? null,
@@ -271,13 +271,13 @@ export async function generateAndSaveFeedback(
     })),
   } : null;
 
-  const conversationSnapshot = conversation.messages.map((m: any) => ({
+  const conversationSnapshot: any[] = conversation.messages.map((m: any) => ({
     sender: m.sender,
     message: m.message,
     timestamp: m.timestamp,
   }));
 
-  const evaluationPromptSnapshot = evaluationCriteria ? {
+  const evaluationPromptSnapshot: Record<string, any> | null = evaluationCriteria ? {
     criteriaSetId: evaluationCriteria.id,
     dimensions: (evaluationCriteria.dimensions || []).map((d: any) => ({
       key: d.key,
@@ -285,7 +285,7 @@ export async function generateAndSaveFeedback(
     })),
   } : null;
 
-  const modelSnapshot = {
+  const modelSnapshot: Record<string, any> = {
     model: feedbackModelName,
     capturedAt: new Date().toISOString(),
   };
@@ -374,11 +374,12 @@ export async function generateAndSaveFeedback(
       reportStatus: 'insufficient_data',
       scores: [],
       detailedFeedback: feedbackData,
-      rubricSnapshot: rubricSnapshot as Record<string, unknown>,
-      conversationSnapshot: conversationSnapshot as unknown[],
-      evaluationPromptSnapshot: evaluationPromptSnapshot as Record<string, unknown>,
-      modelSnapshot: modelSnapshot as Record<string, unknown>,
+      rubricSnapshot,
+      conversationSnapshot,
+      evaluationPromptSnapshot,
+      modelSnapshot,
       criteriaSetVersion: evaluationCriteria?.version ?? null,
+      scoreAdjustments: feedbackData.scoreAdjustments ?? null,
     });
     return feedback;
   }
@@ -487,11 +488,12 @@ export async function generateAndSaveFeedback(
     reportStatus: finalReportStatus,
     scores: savedScores,
     detailedFeedback: feedbackData,
-    rubricSnapshot: rubricSnapshot as Record<string, unknown>,
-    conversationSnapshot: conversationSnapshot as unknown[],
-    evaluationPromptSnapshot: evaluationPromptSnapshot as Record<string, unknown>,
-    modelSnapshot: modelSnapshot as Record<string, unknown>,
+    rubricSnapshot,
+    conversationSnapshot,
+    evaluationPromptSnapshot,
+    modelSnapshot,
     criteriaSetVersion: evaluationCriteria?.version ?? null,
+    scoreAdjustments: feedbackData.scoreAdjustments ?? null,
   });
 
   // insufficient_data 판정 시 PersonaRun score를 업데이트하지 않음 (무점수 상태 유지)

@@ -15,6 +15,13 @@
       "when": 1774772329050,
       "tag": "0001_loose_blur",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1746748800000,
+      "tag": "0002_rubric_v1_5",
+      "breakpoints": true
     }
   ]
 }

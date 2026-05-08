@@ -1,11 +1,15 @@
 import { Router } from "express";
 import { storage } from "../storage";
-import { isOperatorOrAdmin } from "../middleware/authMiddleware";
+import { isOperatorOrAdmin, isSystemAdmin } from "../middleware/authMiddleware";
 import { GoogleGenAI } from "@google/genai";
 import { asyncHandler, createHttpError } from "./routerHelpers";
 import { validateEvaluationCriteriaSet, validateEvaluationDimension } from "../services/evaluationEngine";
 
-async function createForkOfApprovedSet(existingId: string, userId: string | null): Promise<{ forkId: string; forkSet: any; dimKeyToForkId: Map<string, string> }> {
+async function createForkOfApprovedSet(
+  existingId: string,
+  userId: string | null,
+  ownerOperatorId?: string | null,
+): Promise<{ forkId: string; forkSet: any; dimKeyToForkId: Map<string, string> }> {
   const existing = await storage.getEvaluationCriteriaSet(existingId);
   if (!existing) throw createHttpError(404, "Evaluation criteria set not found");
 
@@ -20,6 +24,7 @@ async function createForkOfApprovedSet(existingId: string, userId: string | null
     isActive: existing.isActive,
     categoryId: existing.categoryId,
     createdBy: userId,
+    ownerOperatorId: ownerOperatorId !== undefined ? ownerOperatorId : null,
     status: 'draft',
     version: maxVersion + 1,
     parentSetId: rootId,
@@ -49,12 +54,60 @@ async function createForkOfApprovedSet(existingId: string, userId: string | null
   return { forkId: forkSet.id, forkSet, dimKeyToForkId };
 }
 
+/**
+ * Returns true if an operator user has access to a rubric set based on current scope:
+ * 1. The rubric's categoryId matches their assignedCategoryId (category-scoped operators)
+ * 2. The rubric's category belongs to their assignedOrganizationId (org-scoped operators)
+ *
+ * Ownership (ownerOperatorId / createdBy) is NOT a standalone grant — scope is authoritative.
+ * This prevents operators from retaining access to rubrics after scope reassignment.
+ */
+async function operatorCanAccessSet(set: any, user: any): Promise<boolean> {
+  if (!user || user.role !== 'operator' || !set) return false;
+  if (user.assignedCategoryId) {
+    // Category-scoped operator: rubric must belong to their exact assigned category
+    return set.categoryId === user.assignedCategoryId;
+  }
+  if (user.assignedOrganizationId) {
+    // Org-scoped operator: rubric's category must belong to their org
+    if (!set.categoryId) return false; // global rubrics are not accessible to org-scoped operators
+    try {
+      const category = await storage.getCategory(set.categoryId);
+      return !!(category && category.organizationId === user.assignedOrganizationId);
+    } catch { return false; }
+  }
+  return false;
+}
+
+/**
+ * Throws 403 if the authenticated user is an operator who does not own the rubric set.
+ * Admins always pass. Pass `set` as the fetched EvaluationCriteriaSet object.
+ */
+async function assertOperatorRubricAccess(set: any, user: any): Promise<void> {
+  if (!user || user.role !== 'operator') return; // admin (or other roles) — allow
+  if (!set) throw createHttpError(404, "Evaluation criteria set not found");
+  const allowed = await operatorCanAccessSet(set, user);
+  if (!allowed) {
+    throw createHttpError(403, "이 루브릭에 접근할 권한이 없습니다.");
+  }
+}
+
 export default function createEvaluationCriteriaRouter(isAuthenticated: any) {
   const router = Router();
 
   router.get("/api/admin/evaluation-criteria", isAuthenticated, isOperatorOrAdmin, asyncHandler(async (req: any, res) => {
     const lang = req.query.lang as string | undefined;
-    const criteriaSets = await storage.getAllEvaluationCriteriaSets();
+    const user = req.user as any;
+    let criteriaSets = await storage.getAllEvaluationCriteriaSets();
+
+    // Operators only see rubrics within their scope (category, org, or company)
+    if (user?.role === 'operator') {
+      const filtered: typeof criteriaSets = [];
+      for (const set of criteriaSets) {
+        if (await operatorCanAccessSet(set, user)) filtered.push(set);
+      }
+      criteriaSets = filtered;
+    }
 
     if (lang && lang !== 'ko') {
       const translatedSets = await Promise.all(criteriaSets.map(async (set) => {
@@ -74,8 +127,19 @@ export default function createEvaluationCriteriaRouter(isAuthenticated: any) {
     res.json(criteriaSets);
   }));
 
-  router.get("/api/admin/evaluation-criteria/active", isAuthenticated, isOperatorOrAdmin, asyncHandler(async (req, res) => {
-    const criteriaSets = await storage.getActiveEvaluationCriteriaSets();
+  router.get("/api/admin/evaluation-criteria/active", isAuthenticated, isOperatorOrAdmin, asyncHandler(async (req: any, res) => {
+    const user = req.user as any;
+    let criteriaSets = await storage.getActiveEvaluationCriteriaSets();
+
+    // Operators only see active rubrics within their scope
+    if (user?.role === 'operator') {
+      const filtered: typeof criteriaSets = [];
+      for (const set of criteriaSets) {
+        if (await operatorCanAccessSet(set, user)) filtered.push(set);
+      }
+      criteriaSets = filtered;
+    }
+
     res.json(criteriaSets);
   }));
 
@@ -87,6 +151,7 @@ export default function createEvaluationCriteriaRouter(isAuthenticated: any) {
     if (!criteriaSetWithDimensions) {
       throw createHttpError(404, "Evaluation criteria set not found");
     }
+    await assertOperatorRubricAccess(criteriaSetWithDimensions, req.user);
 
     if (lang && lang !== 'ko') {
       const setTranslation = await storage.getEvaluationCriteriaSetTranslation(id, lang);
@@ -117,8 +182,19 @@ export default function createEvaluationCriteriaRouter(isAuthenticated: any) {
     res.json(criteriaSetWithDimensions);
   }));
 
-  router.get("/api/evaluation-criteria", isAuthenticated, asyncHandler(async (req, res) => {
-    const criteriaSets = await storage.getAllEvaluationCriteriaSets();
+  router.get("/api/evaluation-criteria", isAuthenticated, asyncHandler(async (req: any, res) => {
+    const user = req.user as any;
+    let criteriaSets = await storage.getAllEvaluationCriteriaSets();
+
+    // Operators only see rubrics within their assigned scope
+    if (user?.role === 'operator') {
+      const filtered: typeof criteriaSets = [];
+      for (const set of criteriaSets) {
+        if (await operatorCanAccessSet(set, user)) filtered.push(set);
+      }
+      criteriaSets = filtered;
+    }
+
     const sanitized = criteriaSets.map((set: any) => ({
       ...set,
       dimensions: set.dimensions?.map(({ evaluationPrompt, ...dim }: any) => dim),
@@ -126,12 +202,35 @@ export default function createEvaluationCriteriaRouter(isAuthenticated: any) {
     res.json(sanitized);
   }));
 
-  router.get("/api/evaluation-criteria/active", isAuthenticated, asyncHandler(async (req, res) => {
+  router.get("/api/evaluation-criteria/active", isAuthenticated, asyncHandler(async (req: any, res) => {
     const { categoryId } = req.query;
+    const user = req.user as any;
+
+    // Operators requesting the active rubric for a category outside their scope get 403
+    if (user?.role === 'operator' && categoryId) {
+      const requestedCatId = categoryId as string;
+      const allowed =
+        (user.assignedCategoryId && requestedCatId === user.assignedCategoryId) ||
+        (!user.assignedCategoryId && user.assignedOrganizationId &&
+          await (async () => {
+            try {
+              const cat = await storage.getCategory(requestedCatId);
+              return cat && cat.organizationId === user.assignedOrganizationId;
+            } catch { return false; }
+          })());
+      if (!allowed) throw createHttpError(403, "이 카테고리의 루브릭에 접근할 권한이 없습니다.");
+    }
+
     const criteriaSet = await storage.getActiveEvaluationCriteriaSetWithDimensions(categoryId as string | undefined);
 
     if (!criteriaSet) {
       throw createHttpError(404, "No active evaluation criteria set found");
+    }
+
+    // Operators verify the returned set is within their scope
+    if (user?.role === 'operator') {
+      const allowed = await operatorCanAccessSet(criteriaSet, user);
+      if (!allowed) throw createHttpError(403, "이 루브릭에 접근할 권한이 없습니다.");
     }
 
     const sanitized = {
@@ -159,6 +258,27 @@ export default function createEvaluationCriteriaRouter(isAuthenticated: any) {
       throw createHttpError(400, "새로 생성된 루브릭은 초안(draft) 상태이므로 기본값으로 설정할 수 없습니다. 루브릭을 승인한 후 기본값으로 지정하세요.");
     }
 
+    // Operators can only create rubrics within their assigned scope
+    if (user?.role === 'operator') {
+      const requestedCategoryId = categoryId || null;
+      if (user.assignedCategoryId) {
+        // Category-scoped operator: must specify their exact assigned category (null not allowed)
+        if (!requestedCategoryId || requestedCategoryId !== user.assignedCategoryId) {
+          throw createHttpError(403, "운영자는 담당 카테고리에 속한 루브릭만 생성할 수 있습니다.");
+        }
+      } else if (user.assignedOrganizationId) {
+        // Org-scoped operator: must specify a category that belongs to their org (null not allowed)
+        if (!requestedCategoryId) {
+          throw createHttpError(403, "운영자는 카테고리를 반드시 지정해야 합니다.");
+        }
+        const cat = await storage.getCategory(requestedCategoryId);
+        if (!cat) throw createHttpError(400, "지정한 카테고리를 찾을 수 없습니다.");
+        if (cat.organizationId !== user.assignedOrganizationId) {
+          throw createHttpError(403, "운영자는 담당 조직에 속한 카테고리에만 루브릭을 생성할 수 있습니다.");
+        }
+      }
+    }
+
     const criteriaSet = await storage.createEvaluationCriteriaSet({
       name: name.trim(),
       description: description || null,
@@ -166,6 +286,7 @@ export default function createEvaluationCriteriaRouter(isAuthenticated: any) {
       isActive: isActive !== false,
       categoryId: categoryId || null,
       createdBy: user?.id || null,
+      ownerOperatorId: user?.role === 'operator' ? (user?.id || null) : null,
     });
 
     const createdDimensions = [];
@@ -333,6 +454,29 @@ Return JSON: {
     if (!existing) {
       throw createHttpError(404, "Evaluation criteria set not found");
     }
+    const reqUser = (req as any).user;
+    await assertOperatorRubricAccess(existing, reqUser);
+
+    // Operators cannot reassign a rubric to a category/org outside their scope (null not allowed)
+    if (reqUser?.role === 'operator' && categoryId !== undefined && categoryId !== existing.categoryId) {
+      const newCatId = categoryId || null;
+      if (reqUser.assignedCategoryId) {
+        // Must stay in their assigned category; null-category is not permitted
+        if (!newCatId || newCatId !== reqUser.assignedCategoryId) {
+          throw createHttpError(403, "운영자는 담당 카테고리 외 카테고리로 루브릭을 이전할 수 없습니다.");
+        }
+      } else if (reqUser.assignedOrganizationId) {
+        // Must stay in a category belonging to their org; null-category is not permitted
+        if (!newCatId) {
+          throw createHttpError(403, "운영자는 카테고리를 반드시 지정해야 합니다.");
+        }
+        const cat = await storage.getCategory(newCatId);
+        if (!cat) throw createHttpError(400, "지정한 카테고리를 찾을 수 없습니다.");
+        if (cat.organizationId !== reqUser.assignedOrganizationId) {
+          throw createHttpError(403, "운영자는 담당 조직에 속한 카테고리로만 루브릭을 이전할 수 있습니다.");
+        }
+      }
+    }
 
     if (existing.status === 'archived' && (name !== undefined || description !== undefined)) {
       throw createHttpError(409, "보관된 루브릭은 수정할 수 없습니다.");
@@ -346,14 +490,15 @@ Return JSON: {
     );
 
     if (existing.status === 'approved' && mutableFieldChanged) {
-      const { forkId, forkSet } = await createForkOfApprovedSet(id, (req as any).user?.id ?? null);
+      const operatorId = reqUser?.role === 'operator' ? (reqUser?.id ?? null) : null;
+      const { forkId, forkSet } = await createForkOfApprovedSet(id, reqUser?.id ?? null, operatorId);
       const updatedFork = await storage.updateEvaluationCriteriaSet(forkId, {
         name: name?.trim(),
         description: description !== undefined ? description : undefined,
         isActive: isActive !== undefined ? isActive : undefined,
         categoryId: categoryId !== undefined ? categoryId : undefined,
       });
-      return res.status(201).json({ autoForked: true, forkId, version: forkSet.version, ...updatedFork });
+      return res.status(201).json({ autoForked: true, forkId, ...updatedFork, version: forkSet.version });
     }
 
     if (isDefault && !existing.isDefault) {
@@ -384,6 +529,7 @@ Return JSON: {
     if (!existing) {
       throw createHttpError(404, "Evaluation criteria set not found");
     }
+    await assertOperatorRubricAccess(existing, (req as any).user);
 
     await storage.deleteEvaluationCriteriaSet(id);
     res.json({ success: true });
@@ -396,6 +542,7 @@ Return JSON: {
     if (!existing) {
       throw createHttpError(404, "Evaluation criteria set not found");
     }
+    await assertOperatorRubricAccess(existing, (req as any).user);
 
     if (existing.status && existing.status !== 'approved') {
       throw createHttpError(400, "승인된 루브릭만 기본값으로 설정할 수 있습니다. 먼저 검토 요청 → 승인 절차를 진행하세요.");
@@ -409,13 +556,14 @@ Return JSON: {
     const { id } = req.params;
     const existing = await storage.getEvaluationCriteriaSet(id);
     if (!existing) throw createHttpError(404, "Evaluation criteria set not found");
+    await assertOperatorRubricAccess(existing, req.user);
     if (existing.status === 'approved') throw createHttpError(400, "이미 승인된 기준은 검토 요청할 수 없습니다");
     if (existing.status === 'archived') throw createHttpError(400, "보관된 기준은 검토 요청할 수 없습니다");
     const updated = await storage.updateEvaluationCriteriaSetStatus(id, 'review');
     res.json(updated);
   }));
 
-  router.post("/api/admin/evaluation-criteria/:id/approve", isAuthenticated, isOperatorOrAdmin, asyncHandler(async (req: any, res) => {
+  router.post("/api/admin/evaluation-criteria/:id/approve", isAuthenticated, isSystemAdmin, asyncHandler(async (req: any, res) => {
     const { id } = req.params;
     const user = req.user as any;
     const existing = await storage.getEvaluationCriteriaSet(id);
@@ -425,7 +573,7 @@ Return JSON: {
     res.json(updated);
   }));
 
-  router.post("/api/admin/evaluation-criteria/:id/reject", isAuthenticated, isOperatorOrAdmin, asyncHandler(async (req: any, res) => {
+  router.post("/api/admin/evaluation-criteria/:id/reject", isAuthenticated, isSystemAdmin, asyncHandler(async (req: any, res) => {
     const { id } = req.params;
     const existing = await storage.getEvaluationCriteriaSet(id);
     if (!existing) throw createHttpError(404, "Evaluation criteria set not found");
@@ -438,6 +586,7 @@ Return JSON: {
     const { id } = req.params;
     const existing = await storage.getEvaluationCriteriaSet(id);
     if (!existing) throw createHttpError(404, "Evaluation criteria set not found");
+    await assertOperatorRubricAccess(existing, req.user);
     if (existing.isDefault) throw createHttpError(400, "기본 기준으로 설정된 루브릭은 보관할 수 없습니다. 먼저 기본 설정을 해제하세요.");
     const updated = await storage.updateEvaluationCriteriaSetStatus(id, 'archived');
     res.json(updated);
@@ -447,6 +596,7 @@ Return JSON: {
     const { id } = req.params;
     const existing = await storage.getEvaluationCriteriaSet(id);
     if (!existing) throw createHttpError(404, "Evaluation criteria set not found");
+    await assertOperatorRubricAccess(existing, (req as any).user);
     const rootId = existing.parentSetId || id;
     const versions = await storage.getEvaluationCriteriaSetVersionHistory(rootId);
     res.json(versions);
@@ -457,6 +607,7 @@ Return JSON: {
     const user = req.user as any;
     const existing = await storage.getEvaluationCriteriaSet(id);
     if (!existing) throw createHttpError(404, "Evaluation criteria set not found");
+    await assertOperatorRubricAccess(existing, user);
     if (existing.status !== 'approved') throw createHttpError(400, "승인된 기준만 새 버전으로 분기할 수 있습니다");
 
     const rootId = existing.parentSetId || id;
@@ -470,6 +621,7 @@ Return JSON: {
       isActive: existing.isActive,
       categoryId: existing.categoryId,
       createdBy: user?.id || null,
+      ownerOperatorId: user?.role === 'operator' ? (user?.id || null) : null,
       status: 'draft',
       version: maxVersion + 1,
       parentSetId: rootId,
@@ -512,6 +664,7 @@ Return JSON: {
     if (!criteriaSet) {
       throw createHttpError(404, "Evaluation criteria set not found");
     }
+    await assertOperatorRubricAccess(criteriaSet, (req as any).user);
 
     if (criteriaSet.status === 'archived') {
       throw createHttpError(409, "보관된 루브릭에는 차원을 추가할 수 없습니다.");
@@ -557,7 +710,9 @@ Return JSON: {
     }
 
     if (criteriaSet.status === 'approved') {
-      const { forkId, dimKeyToForkId } = await createForkOfApprovedSet(criteriaSetId, (req as any).user?.id ?? null);
+      const _reqUser = (req as any).user;
+      const _opId = _reqUser?.role === 'operator' ? (_reqUser?.id ?? null) : null;
+      const { forkId, dimKeyToForkId } = await createForkOfApprovedSet(criteriaSetId, _reqUser?.id ?? null, _opId);
       const forkDimensions = await storage.getEvaluationDimensionsByCriteriaSet(forkId);
       const newDim = await storage.createEvaluationDimension({
         criteriaSetId: forkId,
@@ -606,6 +761,7 @@ Return JSON: {
     }
 
     const parentSet = await storage.getEvaluationCriteriaSet(existing.criteriaSetId);
+    await assertOperatorRubricAccess(parentSet, (req as any).user);
     if (parentSet?.status === 'archived') {
       throw createHttpError(409, "보관된 루브릭의 차원은 수정할 수 없습니다.");
     }
@@ -668,6 +824,7 @@ Return JSON: {
     }
 
     const parentSetForDelete = await storage.getEvaluationCriteriaSet(existing.criteriaSetId);
+    await assertOperatorRubricAccess(parentSetForDelete, (req as any).user);
     if (parentSetForDelete?.status === 'archived') {
       throw createHttpError(409, "보관된 루브릭의 차원은 삭제할 수 없습니다.");
     }
@@ -695,6 +852,7 @@ Return JSON: {
     if (!criteriaSet) {
       throw createHttpError(404, "평가 기준 세트를 찾을 수 없습니다");
     }
+    await assertOperatorRubricAccess(criteriaSet, req.user);
 
     const languages = await storage.getActiveSupportedLanguages();
     const targetLocales = languages.filter(l => l.code !== sourceLocale).map(l => l.code);

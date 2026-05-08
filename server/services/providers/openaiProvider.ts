@@ -490,6 +490,7 @@ JSON 형식으로 응답:
     // evidence 맵 추출 및 캡 적용
     const evidenceMap: Record<string, { turnIndex: number; quote: string; behaviorObserved: string; rubricBand: string; reason: string }[]> =
       feedbackData.evidence || {};
+    const preEvidenceCapScores = { ...rawScores }; // snapshot before evidence cap
     const evidenceCapResult = applyEvidenceScoreCap(rawScores, evidenceMap, dimensions);
     for (const key of Object.keys(evidenceCapResult.scores)) {
       rawScores[key] = evidenceCapResult.scores[key];
@@ -516,7 +517,8 @@ JSON 형식으로 응답:
       evidenceCapped: evidenceCapResult.cappedDimensions.includes(dim.key),
     }));
 
-    const baseOverall = calculateWeightedOverallScore(rawScores, evaluationCriteria);
+    const preEvidenceCapBaseScore = calculateWeightedOverallScore(preEvidenceCapScores, evaluationCriteria);
+    const baseOverall = calculateWeightedOverallScore(rawScores, evaluationCriteria); // post-evidence-cap
     const overallScore = Math.max(0, baseOverall - completionPenalty);
 
     let improvements: string[] = feedbackData.improvements || ["더 구체적인 표현", "감정 교감 증진", "논리적 구조화"];
@@ -538,15 +540,22 @@ JSON 형식으로 응답:
       developmentPlan: feedbackData.developmentPlan || this.generateDevelopmentPlan(feedbackData.overallScore || 60),
       evaluationCriteriaSetName: evaluationCriteria?.name,
       scoreAdjustments: {
-        baseScore: baseOverall,
+        // baseScore is the pre-evidence-cap weighted score so that:
+        // baseScore - evidencePenalty - completionPenalty = finalScore
+        baseScore: preEvidenceCapBaseScore,
         nonVerbalPenalty: 0,
+        noisePenalty: 0, // OpenAI text mode: no audio noise detection; same as nonVerbalPenalty
         bargeInAdjustment: 0,
         completionPenalty,
+        evidencePenalty: evidenceCapResult.cappedDimensions.length > 0
+          ? Math.max(0, preEvidenceCapBaseScore - baseOverall)
+          : 0,
         scoreCap: scoreCap,
         finalScore: overallScore,
         nonVerbalCount: 0,
         bargeInCount: 0,
         completionRatio: Math.round(effectiveRatio * 100),
+        evidenceCappedDimensions: evidenceCapResult.cappedDimensions.length > 0 ? evidenceCapResult.cappedDimensions : undefined,
       },
     };
   }

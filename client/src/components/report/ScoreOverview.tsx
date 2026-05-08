@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
+import { useAuth } from "@/hooks/useAuth";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   RadarChart,
@@ -77,6 +78,61 @@ function EvidenceSection({ evidence, evidenceCapped }: { evidence: EvidenceItem[
   );
 }
 
+function AdminAdjustmentLog({ adj }: { adj: NonNullable<Feedback['detailedFeedback']>['scoreAdjustments'] }) {
+  const [open, setOpen] = useState(false);
+  if (!adj) return null;
+  const rows: { label: string; value: string | number | null | undefined }[] = [
+    { label: 'baseScore', value: adj.baseScore },
+    { label: 'nonVerbalPenalty', value: adj.nonVerbalPenalty },
+    { label: 'nonVerbalCount', value: adj.nonVerbalCount },
+    { label: 'noisePenalty', value: adj.noisePenalty },
+    { label: 'bargeInAdjustment', value: adj.bargeInAdjustment },
+    { label: 'bargeInCount', value: adj.bargeInCount },
+    { label: 'completionPenalty', value: adj.completionPenalty },
+    { label: 'completionRatio', value: adj.completionRatio },
+    { label: 'evidencePenalty', value: adj.evidencePenalty },
+    { label: 'evidenceCappedDimensions', value: adj.evidenceCappedDimensions?.join(', ') ?? '—' },
+    { label: 'scoreCap', value: adj.scoreCap },
+    { label: 'finalScore', value: adj.finalScore },
+  ];
+  return (
+    <div className="mt-3 border border-dashed border-amber-300 rounded-xl overflow-hidden">
+      <button
+        onClick={() => setOpen(v => !v)}
+        className="w-full flex items-center justify-between px-4 py-2 bg-amber-50 text-amber-800 text-xs font-semibold hover:bg-amber-100 transition-colors"
+      >
+        <span className="flex items-center gap-1.5">
+          <i className="fas fa-shield-halved text-amber-600"></i>
+          관리자 전용 — 보정 상세 로그
+        </span>
+        <i className={`fas fa-chevron-${open ? 'up' : 'down'} text-amber-500`}></i>
+      </button>
+      {open && (
+        <div className="px-4 py-3 bg-white">
+          <table className="w-full text-xs border-collapse">
+            <thead>
+              <tr className="border-b border-slate-100">
+                <th className="text-left py-1 pr-4 text-slate-500 font-medium w-1/2">필드</th>
+                <th className="text-right py-1 text-slate-700 font-medium">값</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map(r => (
+                <tr key={r.label} className="border-b border-slate-50 last:border-0">
+                  <td className="py-1 pr-4 font-mono text-slate-500">{r.label}</td>
+                  <td className="py-1 text-right font-mono text-slate-800">
+                    {r.value == null ? <span className="text-slate-300">null</span> : String(r.value)}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
+
 interface ScoreOverviewProps {
   feedback: Feedback;
   feedbackHistory: any[];
@@ -95,6 +151,8 @@ export function ScoreOverview({
   confidence,
 }: ScoreOverviewProps) {
   const { t } = useTranslation();
+  const { user } = useAuth();
+  const isAdmin = user?.role === 'admin';
 
   const getPrevSessionDelta = (category: string): number | null => {
     if (feedbackHistory.length < 2) return null;
@@ -143,13 +201,27 @@ export function ScoreOverview({
   const adj = feedback.detailedFeedback?.scoreAdjustments;
   const hasAdjustments = adj && (
     adj.nonVerbalPenalty !== 0 ||
+    (adj.noisePenalty != null && adj.noisePenalty !== 0) ||
     adj.bargeInAdjustment !== 0 ||
     adj.completionPenalty !== 0 ||
+    (adj.evidencePenalty ?? 0) !== 0 ||
     adj.scoreCap !== null
   );
 
+  // noisePenalty is the canonical noise/non-verbal field when present; show only one row
+  // to avoid double-counting the same underlying penalty.
   const adjRows = adj ? [
-    {
+    ...(adj.noisePenalty != null ? [{
+      label: '노이즈/비언어적 감점',
+      value: -adj.noisePenalty,
+      reason: adj.nonVerbalCount != null && adj.nonVerbalCount > 0
+        ? `${adj.nonVerbalCount}개의 비언어적 표현 감지`
+        : adj.noisePenalty > 0
+          ? '대화 중 노이즈 또는 방해 요소 감지'
+          : '해당 없음',
+      icon: 'fas fa-waveform-lines',
+      colorClass: adj.noisePenalty > 0 ? 'text-rose-600' : 'text-slate-400',
+    }] : [{
       label: '비언어적 표현 감점',
       value: -adj.nonVerbalPenalty,
       reason: adj.nonVerbalCount != null && adj.nonVerbalCount > 0
@@ -157,7 +229,7 @@ export function ScoreOverview({
         : '해당 없음 (감지된 표현 없음)',
       icon: 'fas fa-volume-xmark',
       colorClass: adj.nonVerbalPenalty > 0 ? 'text-rose-600' : 'text-slate-400',
-    },
+    }]),
     {
       label: '말 끊기 조정',
       value: adj.bargeInAdjustment,
@@ -176,6 +248,15 @@ export function ScoreOverview({
       icon: 'fas fa-hourglass-half',
       colorClass: adj.completionPenalty > 0 ? 'text-amber-600' : 'text-slate-400',
     },
+    ...(((adj.evidencePenalty ?? 0) > 0 || (adj.evidenceCappedDimensions?.length ?? 0) > 0) ? [{
+      label: 'Evidence 부족 패널티',
+      value: -(adj.evidencePenalty ?? 0),
+      reason: adj.evidenceCappedDimensions && adj.evidenceCappedDimensions.length > 0
+        ? `${adj.evidenceCappedDimensions.length}개 차원 근거 발화 미제공으로 점수 상한 적용`
+        : '근거 발화 미제공 차원 있음',
+      icon: 'fas fa-file-circle-xmark',
+      colorClass: (adj.evidencePenalty ?? 0) > 0 ? 'text-rose-600' : 'text-slate-400',
+    }] : []),
   ] : [];
 
   const confidencePct = confidence != null ? Math.round(confidence * 100) : null;
@@ -508,6 +589,10 @@ export function ScoreOverview({
               </div>
               <span className="text-base font-extrabold text-indigo-700">{Number(adj.finalScore).toFixed(1)}점</span>
             </div>
+
+            {isAdmin && (
+              <AdminAdjustmentLog adj={adj} />
+            )}
           </CardContent>
         </Card>
       )}

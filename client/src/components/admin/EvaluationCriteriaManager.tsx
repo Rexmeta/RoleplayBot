@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
+import { useAuth } from "@/hooks/useAuth";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -239,6 +240,9 @@ const DIMENSION_TYPE_OPTIONS = [
 export function EvaluationCriteriaManager() {
   const { t, i18n } = useTranslation();
   const currentLang = i18n.language;
+  const { user } = useAuth();
+  const isAdmin = user?.role === 'admin';
+  const isOperator = user?.role === 'operator';
   const { toast } = useToast();
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
@@ -644,10 +648,12 @@ export function EvaluationCriteriaManager() {
                 : t('admin.evaluationCriteria.translateAll')}
             </Button>
           )}
-          <Button onClick={() => { resetFormData(); setIsCreateDialogOpen(true); }}>
-            <Plus className="h-4 w-4 mr-2" />
-            {t('admin.evaluationCriteria.newCriteriaSet')}
-          </Button>
+          {(isAdmin || isOperator) && (
+            <Button onClick={() => { resetFormData(); setIsCreateDialogOpen(true); }}>
+              <Plus className="h-4 w-4 mr-2" />
+              {t('admin.evaluationCriteria.newCriteriaSet')}
+            </Button>
+          )}
         </div>
       </div>
 
@@ -659,10 +665,12 @@ export function EvaluationCriteriaManager() {
             <p className="text-slate-600 mb-4">
               새 평가 기준 세트를 생성하여 사용자 피드백 평가 항목을 커스터마이즈하세요.
             </p>
-            <Button onClick={() => { resetFormData(); setIsCreateDialogOpen(true); }}>
-              <Plus className="h-4 w-4 mr-2" />
-              {t('admin.evaluationCriteria.createFirstSet')}
-            </Button>
+            {(isAdmin || isOperator) && (
+              <Button onClick={() => { resetFormData(); setIsCreateDialogOpen(true); }}>
+                <Plus className="h-4 w-4 mr-2" />
+                {t('admin.evaluationCriteria.createFirstSet')}
+              </Button>
+            )}
           </CardContent>
         </Card>
       ) : (
@@ -712,6 +720,8 @@ export function EvaluationCriteriaManager() {
                   onSetDefault={() => setDefaultMutation.mutate(set.id)}
                   onAddDimension={() => handleAddDimension(set)}
                   isDefault={set.isDefault}
+                  isAdmin={isAdmin}
+                  isOperator={isOperator}
                 />
               </AccordionContent>
             </AccordionItem>
@@ -1474,6 +1484,8 @@ function CriteriaSetDetail({
   onSetDefault,
   onAddDimension,
   isDefault,
+  isAdmin,
+  isOperator,
 }: {
   setId: string;
   fetchSetWithDimensions: (id: string) => Promise<EvaluationCriteriaSet>;
@@ -1482,6 +1494,8 @@ function CriteriaSetDetail({
   onSetDefault: () => void;
   onAddDimension: () => void;
   isDefault: boolean;
+  isAdmin?: boolean;
+  isOperator?: boolean;
 }) {
   const { t, i18n } = useTranslation();
   const currentLang = i18n.language;
@@ -1601,32 +1615,46 @@ function CriteriaSetDetail({
 
   const currentStatus = setWithDimensions?.status;
   const isPending = statusMutation.isPending || forkVersionMutation.isPending;
+  // Explicit role-based action capability:
+  // admin:    full control — edit, approve, reject, archive, delete, set-default, fork
+  // operator: can edit own rubrics, request review, fork approved; cannot approve/reject
+  // user:     read-only — history view only, no mutations
+  const canEdit = isAdmin || isOperator;
+  const canApproveReject = isAdmin;
+  const canRequestReview = isAdmin || isOperator;
+  const canDelete = isAdmin || isOperator;
+  const canFork = isAdmin || isOperator;
+  const canSetDefault = isAdmin;
 
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between flex-wrap gap-2">
         <div className="flex gap-2 flex-wrap">
-          <Button variant="outline" size="sm" onClick={onEdit} disabled={currentStatus === 'archived'}>
-            <Edit className="h-4 w-4 mr-1" />
-            {t('admin.evaluationCriteria.edit')}
-          </Button>
-          {!isDefault && (
+          {canEdit && (
+            <Button variant="outline" size="sm" onClick={onEdit} disabled={currentStatus === 'archived'}>
+              <Edit className="h-4 w-4 mr-1" />
+              {t('admin.evaluationCriteria.edit')}
+            </Button>
+          )}
+          {canSetDefault && !isDefault && (
             <Button variant="outline" size="sm" onClick={onSetDefault} disabled={currentStatus !== 'approved' && currentStatus != null}>
               <Star className="h-4 w-4 mr-1" />
               {t('admin.evaluationCriteria.setAsDefault')}
             </Button>
           )}
-          <Button variant="outline" size="sm" onClick={onAddDimension} disabled={currentStatus === 'archived' || currentStatus === 'approved'}>
-            <Plus className="h-4 w-4 mr-1" />
-            {t('admin.evaluationCriteria.addDimension')}
-          </Button>
-          {(currentStatus === 'draft' || !currentStatus) && (
-            <Button variant="outline" size="sm" onClick={() => statusMutation.mutate({ action: 'request-review' })} disabled={isPending} className="text-yellow-700 border-yellow-300 hover:bg-yellow-50">
-              <ClockIcon className="h-4 w-4 mr-1" />
-              검토 요청
+          {canEdit && (
+            <Button variant="outline" size="sm" onClick={onAddDimension} disabled={currentStatus === 'archived' || currentStatus === 'approved'}>
+              <Plus className="h-4 w-4 mr-1" />
+              {t('admin.evaluationCriteria.addDimension')}
             </Button>
           )}
-          {currentStatus === 'review' && (
+          {canRequestReview && (currentStatus === 'draft' || !currentStatus) && (
+            <Button variant="outline" size="sm" onClick={() => statusMutation.mutate({ action: 'request-review' })} disabled={isPending} className="text-yellow-700 border-yellow-300 hover:bg-yellow-50">
+              <ClockIcon className="h-4 w-4 mr-1" />
+              {isAdmin ? '검토 요청' : '승인 요청'}
+            </Button>
+          )}
+          {currentStatus === 'review' && canApproveReject && (
             <>
               <Button variant="outline" size="sm" onClick={() => statusMutation.mutate({ action: 'approve' })} disabled={isPending} className="text-green-700 border-green-300 hover:bg-green-50">
                 <CheckCircle className="h-4 w-4 mr-1" />
@@ -1638,13 +1666,19 @@ function CriteriaSetDetail({
               </Button>
             </>
           )}
-          {currentStatus === 'approved' && (
+          {currentStatus === 'review' && isOperator && (
+            <div className="flex items-center gap-1.5 text-xs text-yellow-700 bg-yellow-50 border border-yellow-200 rounded px-3 py-1.5">
+              <ClockIcon className="h-3.5 w-3.5" />
+              승인 대기 중 — 관리자 검토 필요
+            </div>
+          )}
+          {currentStatus === 'approved' && canFork && (
             <>
               <Button variant="outline" size="sm" onClick={() => forkVersionMutation.mutate()} disabled={isPending} className="text-blue-700 border-blue-300 hover:bg-blue-50">
                 <GitBranch className="h-4 w-4 mr-1" />
                 새 버전
               </Button>
-              {!isDefault && (
+              {!isDefault && isAdmin && (
                 <Button variant="outline" size="sm" onClick={() => statusMutation.mutate({ action: 'archive' })} disabled={isPending} className="text-slate-600 border-slate-300 hover:bg-slate-50">
                   <Archive className="h-4 w-4 mr-1" />
                   보관
@@ -1656,10 +1690,12 @@ function CriteriaSetDetail({
             <History className="h-4 w-4 mr-1" />
             이력
           </Button>
-          <Button variant="destructive" size="sm" onClick={onDelete} disabled={currentStatus === 'approved'}>
-            <Trash2 className="h-4 w-4 mr-1" />
-            {t('common.delete')}
-          </Button>
+          {canDelete && (
+            <Button variant="destructive" size="sm" onClick={onDelete} disabled={currentStatus === 'approved'}>
+              <Trash2 className="h-4 w-4 mr-1" />
+              {t('common.delete')}
+            </Button>
+          )}
         </div>
         <div className={`flex items-center gap-2 px-3 py-1 rounded-lg ${isWeightValid ? 'bg-green-50 text-green-700' : 'bg-amber-50 text-amber-700'}`}>
           {!isWeightValid && <AlertCircle className="h-4 w-4" />}

@@ -8,6 +8,21 @@ export type ConversationMessage = {
   interrupted?: boolean;
 };
 
+export type ScoreAdjustments = {
+  baseScore: number;
+  nonVerbalPenalty: number;
+  noisePenalty: number;
+  bargeInAdjustment: number;
+  completionPenalty: number;
+  evidencePenalty: number;
+  scoreCap: number | null;
+  finalScore: number;
+  nonVerbalCount?: number;
+  bargeInCount?: number;
+  completionRatio?: number;
+  evidenceCappedDimensions?: string[];
+};
+
 export type EvaluationScore = {
   category: string;
   name: string;
@@ -71,17 +86,7 @@ export type DetailedFeedback = {
   sequenceAnalysis?: SequenceAnalysis;
   evaluationCriteriaSetId?: string;
   evaluationCriteriaSetName?: string;
-  scoreAdjustments?: {
-    baseScore: number;
-    nonVerbalPenalty: number;
-    bargeInAdjustment: number;
-    completionPenalty: number;
-    scoreCap: number | null;
-    finalScore: number;
-    nonVerbalCount?: number;
-    bargeInCount?: number;
-    completionRatio?: number;
-  };
+  scoreAdjustments?: ScoreAdjustments;
   insufficientConversation?: boolean;
   confidence?: number;
   reportStatus?: ReportStatus;

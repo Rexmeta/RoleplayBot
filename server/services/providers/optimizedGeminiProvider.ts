@@ -853,6 +853,9 @@ JSON 형식${hasStrategyReflection ? ' (sequenceAnalysis 포함)' : ''}:
       const evidenceMap: Record<string, { turnIndex: number; quote: string; behaviorObserved: string; rubricBand: string; reason: string }[]> =
         parsed.evidence || {};
 
+      // Snapshot pre-evidence-cap scores so baseScore can be computed accurately
+      const preEvidenceCapScores: Record<string, number> = { ...scores };
+
       // Evidence 기반 점수 상한 적용 (evidence 없는 차원은 NO_EVIDENCE_SCORE_CAP 이하)
       const evidenceCapResult = applyEvidenceScoreCap(scores, evidenceMap, dims);
       const evidenceCappedDimensions = evidenceCapResult.cappedDimensions;
@@ -864,7 +867,10 @@ JSON 형식${hasStrategyReflection ? ' (sequenceAnalysis 포함)' : ''}:
         console.log(`📋 Evidence 캡 적용: ${evidenceCappedDimensions.join(', ')} → 최대 ${NO_EVIDENCE_SCORE_CAP}점`);
       }
 
-      // AI가 계산한 기본 점수 (캡 적용 전 순수 AI 점수)
+      // Pre-evidence-cap base score (used as baseScore in scoreAdjustments so that
+      // baseScore - evidencePenalty - noisePenalty - completionPenalty + bargeInAdj == finalScore)
+      const preEvidenceCapBaseScore = calculateWeightedOverallScore(preEvidenceCapScores, evaluationCriteria);
+      // Post-evidence-cap base score used for further adjustments
       const rawAiBaseScore = calculateWeightedOverallScore(scores, evaluationCriteria);
       let baseOverallScore = rawAiBaseScore;
       
@@ -992,15 +998,22 @@ JSON 형식${hasStrategyReflection ? ' (sequenceAnalysis 포함)' : ''}:
         conversationGuides: parsed.conversationGuides || this.getDefaultConversationGuides(),
         developmentPlan: parsed.developmentPlan || this.getDefaultDevelopmentPlan(),
         scoreAdjustments: {
-          baseScore: rawAiBaseScore,
+          // baseScore is pre-evidence-cap so the identity holds:
+          // baseScore - evidencePenalty - noisePenalty - completionPenalty + bargeInAdj == finalScore
+          baseScore: preEvidenceCapBaseScore,
           nonVerbalPenalty: voiceMode ? 0 : nonVerbalAnalysis.penaltyPoints,
+          noisePenalty: voiceMode ? 0 : nonVerbalAnalysis.penaltyPoints,
           bargeInAdjustment: bargeInAnalysis.netScoreAdjustment,
           completionPenalty: completionPenalty,
+          evidencePenalty: evidenceCappedDimensions.length > 0
+            ? Math.max(0, preEvidenceCapBaseScore - rawAiBaseScore)
+            : 0,
           scoreCap: _scoreCapApplied ? _scoreCapMaxValue : null,
           finalScore: adjustedScore,
           nonVerbalCount: voiceMode ? 0 : nonVerbalAnalysis.count,
           bargeInCount: bargeInAnalysis.count,
           completionRatio: Math.round(effectiveRatioP * 100),
+          evidenceCappedDimensions: evidenceCappedDimensions.length > 0 ? evidenceCappedDimensions : undefined,
         },
       };
       
