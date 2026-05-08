@@ -440,18 +440,15 @@ export function EvaluationCriteriaManager() {
       const res = await apiRequest('PUT', `/api/admin/evaluation-dimensions/${id}`, data);
       return res.json();
     },
-    onSuccess: (data: any) => {
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/admin/evaluation-criteria'] });
-      if (data?.autoForked) {
-        toast({ title: "승인된 루브릭이 자동으로 새 초안 버전으로 분기되었습니다. 목록에서 새 버전을 선택해 계속 편집하세요." });
-      } else {
-        toast({ title: "평가 차원이 수정되었습니다" });
-      }
+      toast({ title: "평가 차원이 수정되었습니다" });
       setIsDimensionDialogOpen(false);
       setSelectedDimension(null);
     },
     onError: (error: any) => {
-      toast({ title: "수정 실패", description: error.message, variant: "destructive" });
+      const msg = String(error.message || '').replace(/^\d+:\s*/, '');
+      toast({ title: "수정 실패", description: msg, variant: "destructive" });
     },
   });
 
@@ -460,16 +457,13 @@ export function EvaluationCriteriaManager() {
       const res = await apiRequest('DELETE', `/api/admin/evaluation-dimensions/${id}`);
       return res.json();
     },
-    onSuccess: (data: any) => {
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/admin/evaluation-criteria'] });
-      if (data?.autoForked) {
-        toast({ title: "승인된 루브릭이 자동으로 새 초안 버전으로 분기되었습니다. 목록에서 새 버전을 선택해 계속 편집하세요." });
-      } else {
-        toast({ title: "평가 차원이 삭제되었습니다" });
-      }
+      toast({ title: "평가 차원이 삭제되었습니다" });
     },
     onError: (error: any) => {
-      toast({ title: "삭제 실패", description: error.message, variant: "destructive" });
+      const msg = String(error.message || '').replace(/^\d+:\s*/, '');
+      toast({ title: "삭제 실패", description: msg, variant: "destructive" });
     },
   });
 
@@ -1563,7 +1557,8 @@ function CriteriaSetDetail({
       setEditingDimId(null);
     },
     onError: (error: any) => {
-      toast({ title: "수정 실패", description: error.message, variant: "destructive" });
+      const msg = String(error.message || '').replace(/^\d+:\s*/, '');
+      toast({ title: "수정 실패", description: msg, variant: "destructive" });
     },
   });
 
@@ -1578,7 +1573,8 @@ function CriteriaSetDetail({
       setEditingDimId(null);
     },
     onError: (error: any) => {
-      toast({ title: "삭제 실패", description: error.message, variant: "destructive" });
+      const msg = String(error.message || '').replace(/^\d+:\s*/, '');
+      toast({ title: "삭제 실패", description: msg, variant: "destructive" });
     },
   });
 

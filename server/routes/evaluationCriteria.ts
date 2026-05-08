@@ -609,6 +609,9 @@ Return JSON: {
     if (parentSet?.status === 'archived') {
       throw createHttpError(409, "보관된 루브릭의 차원은 수정할 수 없습니다.");
     }
+    if (parentSet?.status === 'approved') {
+      throw createHttpError(409, "승인된 루브릭의 차원은 수정할 수 없습니다. 먼저 '새 버전 만들기'를 통해 초안 버전을 생성한 후 수정하세요.");
+    }
 
     const resolvedKey = updates.key ?? existing.key;
     const dimValidation = validateEvaluationDimension({
@@ -652,14 +655,6 @@ Return JSON: {
       throw createHttpError(400, `세트 전체 유효성 검사 실패:\n${postUpdateSetValidation.errors.join('\n')}`);
     }
 
-    if (parentSet?.status === 'approved') {
-      const { forkId, dimKeyToForkId } = await createForkOfApprovedSet(existing.criteriaSetId, (req as any).user?.id ?? null);
-      const forkDimId = dimKeyToForkId.get(existing.key);
-      if (!forkDimId) throw createHttpError(500, "Auto-fork failed: dimension key not found in fork");
-      const updated = await storage.updateEvaluationDimension(forkDimId, updates);
-      return res.status(201).json({ autoForked: true, forkId, dimension: updated });
-    }
-
     const updated = await storage.updateEvaluationDimension(id, updates);
     res.json(updated);
   }));
@@ -676,6 +671,9 @@ Return JSON: {
     if (parentSetForDelete?.status === 'archived') {
       throw createHttpError(409, "보관된 루브릭의 차원은 삭제할 수 없습니다.");
     }
+    if (parentSetForDelete?.status === 'approved') {
+      throw createHttpError(409, "승인된 루브릭의 차원은 삭제할 수 없습니다. 먼저 '새 버전 만들기'를 통해 초안 버전을 생성한 후 수정하세요.");
+    }
 
     // Validate the full post-delete set (count ≥ 3, weight sum ≈ 100)
     const siblings = await storage.getEvaluationDimensionsByCriteriaSet(existing.criteriaSetId);
@@ -683,14 +681,6 @@ Return JSON: {
     const postDeleteSetValidation = validateEvaluationCriteriaSet(postDeleteDims);
     if (!postDeleteSetValidation.valid) {
       throw createHttpError(400, `삭제 후 세트 유효성 검사 실패:\n${postDeleteSetValidation.errors.join('\n')}`);
-    }
-
-    if (parentSetForDelete?.status === 'approved') {
-      const { forkId, dimKeyToForkId } = await createForkOfApprovedSet(existing.criteriaSetId, (req as any).user?.id ?? null);
-      const forkDimId = dimKeyToForkId.get(existing.key);
-      if (!forkDimId) throw createHttpError(500, "Auto-fork failed: dimension key not found in fork");
-      await storage.deleteEvaluationDimension(forkDimId);
-      return res.status(201).json({ autoForked: true, forkId, success: true });
     }
 
     await storage.deleteEvaluationDimension(id);
