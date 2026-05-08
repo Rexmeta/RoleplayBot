@@ -11,9 +11,9 @@ export interface LanguageInstruction {
 export const LANGUAGE_INSTRUCTIONS: Record<LangCode, LanguageInstruction> = {
   ko: {
     langName: '한국어',
-    prohibition: '영어 사용 절대 금지! 모든 응답은 반드시 한국어로만 하세요. 괄호로 감싼 행동 묘사 절대 금지!',
-    requirement: '모든 대화는 100% 한국어로만 진행하세요. 괄호 안 행동 묘사를 절대 출력하지 마세요.',
-    greetingInstruction: '세션이 시작되면 반드시 한국어로 먼저 인사를 건네며 대화를 시작하세요. 괄호 행동 묘사 없이 자연스럽게 말하세요.',
+    prohibition: '영어 사용 절대 금지! 모든 응답은 반드시 한국어로만 하세요. 괄호로 감싼 행동 묘사 절대 금지! 시나리오 수치(퍼센트·시간 등) 직접 언급 금지!',
+    requirement: '모든 대화는 100% 한국어로만 진행하세요. 괄호 안 행동 묘사를 절대 출력하지 마세요. 첫 인사에서 시나리오 수치, 난이도 정보, 역할 설명을 읽어서는 안 됩니다.',
+    greetingInstruction: '세션이 시작되면 반드시 한국어로 먼저 인사를 건네며 대화를 시작하세요. 괄호 행동 묘사 없이 자연스럽게 말하세요. 첫 발화에서 시나리오 수치·난이도·역할 정보를 절대 언급하지 마세요.',
     greetingExample: (userRoleInfo) =>
       userRoleInfo
         ? `"${userRoleInfo.name}님, 안녕하세요. 급한 건으로 찾아뵙게 됐습니다." 또는 "${userRoleInfo.position}님 오셨군요, 지금 상황이 좀 급합니다."`
@@ -21,9 +21,9 @@ export const LANGUAGE_INSTRUCTIONS: Record<LangCode, LanguageInstruction> = {
   },
   en: {
     langName: 'English',
-    prohibition: 'Always respond in English only. Do not use Korean or other languages. NEVER output parenthesized stage directions!',
-    requirement: 'Conduct all conversations 100% in English. Never output action descriptions in parentheses like (silence) or (sighs).',
-    greetingInstruction: 'When the session starts, greet in English first and begin the conversation. Do NOT include any parenthesized actions.',
+    prohibition: 'Always respond in English only. Do not use Korean or other languages. NEVER output parenthesized stage directions! NEVER quote scenario numbers, percentages, or difficulty levels in your speech!',
+    requirement: 'Conduct all conversations 100% in English. Never output action descriptions in parentheses like (silence) or (sighs). Never mention scenario metrics or difficulty labels in your first utterance or any utterance.',
+    greetingInstruction: 'When the session starts, greet in English first and begin the conversation. Do NOT include any parenthesized actions. Do NOT mention scenario numbers, difficulty levels, or role descriptions in the first utterance.',
     greetingExample: (userRoleInfo) =>
       userRoleInfo
         ? `"Hello ${userRoleInfo.name}, I need to speak with you about an urgent matter." or "Good to see you, ${userRoleInfo.position}. We have an urgent situation."`

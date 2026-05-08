@@ -15,10 +15,43 @@ export function isThinkingText(text: string): boolean {
     /^(Initiating|Beginning|Starting|Transitioning|Highlighting)/i,
     /^(I've|I'm|I'll)\s+/i,
     /^The\s+(user|situation|context)/i,
+    // AI narrative/stage directions (untagged)
+    /^I\s+(greeted|smiled|walked|turned|looked|noticed|approached|sat|stood|entered|bowed|nodded|paused|sighed|cleared|straightened|leaned|glanced)/i,
+    /^(I greet|I smile|I walk|I nod|I pause|I hesitate|I take a|I let out|I draw|I exhale)/i,
   ];
 
   const trimmed = text.trim();
   return thinkingPatterns.some(pattern => pattern.test(trimmed));
+}
+
+/**
+ * Removes AI internal narrative patterns from a text line.
+ * Catches first-person English stage directions not wrapped in any tag.
+ */
+export function isAINarrativeLine(line: string): boolean {
+  const trimmed = line.trim();
+  if (!trimmed) return false;
+
+  // Must be primarily English (no CJK)
+  if (/[\uAC00-\uD7AF\u1100-\u11FF\u3130-\u318F\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FFF]/.test(trimmed)) {
+    return false;
+  }
+
+  const narrativePatterns = [
+    // Scene-setting action verbs in first person
+    /^I\s+(greeted|smiled|walked|turned|looked|noticed|approached|sat|stood|entered|bowed|nodded|paused|sighed|cleared\s+my|straightened|leaned|glanced|stared|frowned|winced|shrugged|crossed|folded|placed|reached|handed|picked|put|set\s+down)\b/i,
+    // Self-introduction narrative
+    /^I('m|'ve|'ll|am|have|had|will)\s+(been|just|already|now|the|a|an)\b/i,
+    // "I greeted X" or "I said to X" type patterns
+    /^I\s+(greeted|addressed|called|said\s+to|spoke\s+to|replied\s+to|responded\s+to)\s+\w+/i,
+    // Stage directions in parens/brackets at start
+    /^\(.*\)\s*$/,
+    /^\[.*\]\s*$/,
+    // Bracketed action at start of line
+    /^\*.*\*\s*$/,
+  ];
+
+  return narrativePatterns.some(p => p.test(trimmed));
 }
 
 export function filterThinkingText(text: string, userLanguage: 'ko' | 'en' | 'ja' | 'zh' = 'ko'): string {
@@ -56,9 +89,20 @@ export function filterThinkingText(text: string, userLanguage: 'ko' | 'en' | 'ja
         /^(Initiating|Beginning|Starting|Transitioning|Highlighting)/i,
         /^The\s+(user|situation|context)\s+(is|seems|appears)/i,
         /^(considering|crafting|ensuring|maintaining|reflecting)/i,
+        // AI stage-direction narration (untagged)
+        /^I\s+(greeted|smiled|walked|turned|looked|noticed|approached|sat|stood|entered|bowed|nodded|paused|sighed|cleared\s+my|straightened|leaned|glanced|stared|frowned|winced|shrugged|crossed|folded|placed|reached|handed|picked|put|set\s+down)\b/i,
+        /^I\s+(greeted|addressed|called|said\s+to|spoke\s+to|replied\s+to|responded\s+to)\s+\w+/i,
+        // Bracketed/asterisked stage directions
+        /^\(.*\)$/,
+        /^\[.*\]$/,
+        /^\*[^*].*[^*]\*$/,
       ];
 
       if (thinkingPatterns.some(pattern => pattern.test(trimmed))) {
+        return false;
+      }
+
+      if (isAINarrativeLine(trimmed)) {
         return false;
       }
 

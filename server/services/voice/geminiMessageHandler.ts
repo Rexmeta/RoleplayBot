@@ -110,95 +110,6 @@ export function handleGeminiMessage(
       }
     }
 
-    if (serverContent.turnComplete) {
-      console.log('✅ Turn complete');
-
-      session.turnSeq++;
-      console.log(`📊 Turn seq incremented to ${session.turnSeq}`);
-
-      if (session.isInterrupted && session.turnSeq > session.cancelledTurnSeq) {
-        console.log(`🔊 New turn ${session.turnSeq} > cancelled ${session.cancelledTurnSeq} - clearing barge-in flag`);
-        session.isInterrupted = false;
-        session.cancelledTurnSeq = -1;
-        sendToClient(session, {
-          type: 'response.ready',
-          turnSeq: session.turnSeq,
-        });
-      }
-
-      if (!session.hasReceivedFirstAIResponse && !session.currentTranscript && session.firstGreetingRetryCount < 3) {
-        session.firstGreetingRetryCount++;
-        console.log(`⚠️ 첫 인사 응답 없음, 재시도 ${session.firstGreetingRetryCount}/3...`);
-        sendToClient(session, {
-          type: 'greeting.retry',
-          retryCount: session.firstGreetingRetryCount,
-          maxRetries: 3,
-        });
-
-        if (session.geminiSession) {
-          const retryMessages = [`네, 안녕하세요`, `여기 있습니다`, `말씀하세요`];
-          const retryMessage = retryMessages[session.firstGreetingRetryCount - 1] || retryMessages[0];
-
-          session.geminiSession.sendClientContent({
-            turns: [{ role: 'user', parts: [{ text: retryMessage }] }],
-            turnComplete: true,
-          });
-          console.log(`🔄 인사 트리거 재전송: "${retryMessage}"`);
-          session.geminiSession.sendRealtimeInput({ event: 'END_OF_TURN' });
-        }
-        return;
-      }
-
-      if (!session.hasReceivedFirstAIResponse && !session.currentTranscript && session.firstGreetingRetryCount >= 3) {
-        console.log(`❌ 3회 시도 후에도 AI 인사 응답 없음 - 사용자가 먼저 시작하도록 안내`);
-        sendToClient(session, { type: 'greeting.failed' });
-      }
-
-      sendToClient(session, { type: 'response.done' });
-
-      if (session.userTranscriptBuffer.trim()) {
-        const userText = session.userTranscriptBuffer.trim();
-        console.log(`🎤 User turn complete (VAD): "${userText}"`);
-        sendToClient(session, { type: 'user.transcription', transcript: userText });
-        session.recentMessages.push({ role: 'user', text: userText.slice(0, 300) });
-        if (session.recentMessages.length > 30) session.recentMessages.shift();
-        session.userTranscriptBuffer = '';
-      }
-
-      if (session.currentTranscript) {
-        const filteredTranscript = filterThinkingText(session.currentTranscript, session.userLanguage);
-        console.log(`📝 Filtered transcript (${session.userLanguage}): "${filteredTranscript.substring(0, 100)}..."`);
-
-        if (filteredTranscript) {
-          session.recentMessages.push({ role: 'ai', text: filteredTranscript.slice(0, 300) });
-          if (session.recentMessages.length > 30) session.recentMessages.shift();
-
-          setImmediate(() => {
-            analyzeEmotion(filteredTranscript, session.personaName, session.userLanguage, genAI)
-              .then(({ emotion, emotionReason }) => {
-                console.log(`😊 Emotion analyzed: ${emotion} (${emotionReason})`);
-                sendToClient(session, {
-                  type: 'ai.transcription.done',
-                  text: filteredTranscript,
-                  emotion,
-                  emotionReason,
-                });
-              })
-              .catch(error => {
-                console.error('❌ Failed to analyze emotion:', error);
-                sendToClient(session, {
-                  type: 'ai.transcription.done',
-                  text: filteredTranscript,
-                  emotion: '중립',
-                  emotionReason: '감정 분석 실패',
-                });
-              });
-          });
-        }
-        session.currentTranscript = '';
-      }
-    }
-
     if (serverContent.modelTurn) {
       if (!session.hasReceivedFirstAIResponse) {
         session.hasReceivedFirstAIResponse = true;
@@ -248,6 +159,95 @@ export function handleGeminiMessage(
             });
           }
         }
+      }
+    }
+
+    if (serverContent.turnComplete) {
+      console.log('✅ Turn complete');
+
+      session.turnSeq++;
+      console.log(`📊 Turn seq incremented to ${session.turnSeq}`);
+
+      if (session.isInterrupted && session.turnSeq > session.cancelledTurnSeq) {
+        console.log(`🔊 New turn ${session.turnSeq} > cancelled ${session.cancelledTurnSeq} - clearing barge-in flag`);
+        session.isInterrupted = false;
+        session.cancelledTurnSeq = -1;
+        sendToClient(session, {
+          type: 'response.ready',
+          turnSeq: session.turnSeq,
+        });
+      }
+
+      if (!session.hasReceivedFirstAIResponse && !session.currentTranscript && !hasModelTurn && session.firstGreetingRetryCount < 3) {
+        session.firstGreetingRetryCount++;
+        console.log(`⚠️ 첫 인사 응답 없음, 재시도 ${session.firstGreetingRetryCount}/3...`);
+        sendToClient(session, {
+          type: 'greeting.retry',
+          retryCount: session.firstGreetingRetryCount,
+          maxRetries: 3,
+        });
+
+        if (session.geminiSession) {
+          const retryMessages = [`네, 안녕하세요`, `여기 있습니다`, `말씀하세요`];
+          const retryMessage = retryMessages[session.firstGreetingRetryCount - 1] || retryMessages[0];
+
+          session.geminiSession.sendClientContent({
+            turns: [{ role: 'user', parts: [{ text: retryMessage }] }],
+            turnComplete: true,
+          });
+          console.log(`🔄 인사 트리거 재전송: "${retryMessage}"`);
+          session.geminiSession.sendRealtimeInput({ event: 'END_OF_TURN' });
+        }
+        return;
+      }
+
+      if (!session.hasReceivedFirstAIResponse && !session.currentTranscript && !hasModelTurn && session.firstGreetingRetryCount >= 3) {
+        console.log(`❌ 3회 시도 후에도 AI 인사 응답 없음 - 사용자가 먼저 시작하도록 안내`);
+        sendToClient(session, { type: 'greeting.failed' });
+      }
+
+      sendToClient(session, { type: 'response.done' });
+
+      if (session.userTranscriptBuffer.trim()) {
+        const userText = session.userTranscriptBuffer.trim();
+        console.log(`🎤 User turn complete (VAD): "${userText}"`);
+        sendToClient(session, { type: 'user.transcription', transcript: userText });
+        session.recentMessages.push({ role: 'user', text: userText.slice(0, 300) });
+        if (session.recentMessages.length > 30) session.recentMessages.shift();
+        session.userTranscriptBuffer = '';
+      }
+
+      if (session.currentTranscript) {
+        const filteredTranscript = filterThinkingText(session.currentTranscript, session.userLanguage);
+        console.log(`📝 Filtered transcript (${session.userLanguage}): "${filteredTranscript.substring(0, 100)}..."`);
+
+        if (filteredTranscript) {
+          session.recentMessages.push({ role: 'ai', text: filteredTranscript.slice(0, 300) });
+          if (session.recentMessages.length > 30) session.recentMessages.shift();
+
+          setImmediate(() => {
+            analyzeEmotion(filteredTranscript, session.personaName, session.userLanguage, genAI)
+              .then(({ emotion, emotionReason }) => {
+                console.log(`😊 Emotion analyzed: ${emotion} (${emotionReason})`);
+                sendToClient(session, {
+                  type: 'ai.transcription.done',
+                  text: filteredTranscript,
+                  emotion,
+                  emotionReason,
+                });
+              })
+              .catch(error => {
+                console.error('❌ Failed to analyze emotion:', error);
+                sendToClient(session, {
+                  type: 'ai.transcription.done',
+                  text: filteredTranscript,
+                  emotion: '중립',
+                  emotionReason: '감정 분석 실패',
+                });
+              });
+          });
+        }
+        session.currentTranscript = '';
       }
     }
 

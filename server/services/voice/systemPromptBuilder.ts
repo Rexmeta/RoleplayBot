@@ -99,6 +99,8 @@ export function buildSystemInstructions(
     st.noMetaExpressions,
     st.noAsterisks,
     st.noRepeatQuestions,
+    st.noScenarioDataInSpeech,
+    st.noFirstPersonNarration,
     ``,
     st.voiceOutputRule,
     st.voiceOutputDesc1,

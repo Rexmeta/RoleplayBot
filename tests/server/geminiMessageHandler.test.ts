@@ -616,6 +616,114 @@ describe('handleGeminiMessage', () => {
     });
   });
 
+  describe('retry duplicate greeting prevention', () => {
+    it('retry response sets hasReceivedFirstAIResponse when modelTurn arrives after retry', () => {
+      session.hasReceivedFirstAIResponse = false;
+      session.firstGreetingRetryCount = 1;
+
+      handleGeminiMessage(
+        session,
+        {
+          serverContent: {
+            modelTurn: { parts: [{ text: '안녕하세요, 무슨 일이시죠?' }] },
+          },
+        },
+        sendToClient,
+        null,
+        proactiveReconnect
+      );
+
+      expect(session.hasReceivedFirstAIResponse).toBe(true);
+    });
+
+    it('does NOT trigger another retry when AI has responded (hasReceivedFirstAIResponse = true)', () => {
+      session.hasReceivedFirstAIResponse = true;
+      session.currentTranscript = '';
+      session.firstGreetingRetryCount = 1;
+      session.geminiSession = {
+        sendClientContent: vi.fn(),
+        sendRealtimeInput: vi.fn(),
+      };
+
+      handleGeminiMessage(
+        session,
+        { serverContent: { turnComplete: true } },
+        sendToClient,
+        null,
+        proactiveReconnect
+      );
+
+      expect(session.geminiSession.sendClientContent).not.toHaveBeenCalled();
+      const greetingRetryCalls = sendToClient.mock.calls.filter(
+        ([, msg]) => msg.type === 'greeting.retry'
+      );
+      expect(greetingRetryCalls).toHaveLength(0);
+    });
+
+    it('combined modelTurn + turnComplete payload: hasReceivedFirstAIResponse set and no spurious retry', async () => {
+      session.hasReceivedFirstAIResponse = false;
+      session.firstGreetingRetryCount = 0;
+      session.geminiSession = {
+        sendClientContent: vi.fn(),
+        sendRealtimeInput: vi.fn(),
+      };
+
+      handleGeminiMessage(
+        session,
+        {
+          serverContent: {
+            modelTurn: { parts: [{ text: '안녕하세요, 만나서 반갑습니다.' }] },
+            turnComplete: true,
+          },
+        },
+        sendToClient,
+        null,
+        proactiveReconnect
+      );
+
+      await vi.runAllTimersAsync();
+
+      expect(session.hasReceivedFirstAIResponse).toBe(true);
+      expect(session.geminiSession.sendClientContent).not.toHaveBeenCalled();
+
+      const doneCalls = sendToClient.mock.calls.filter(([, msg]) => msg.type === 'ai.transcription.done');
+      expect(doneCalls).toHaveLength(1);
+    });
+
+    it('client receives ai.transcription.done only once for a single retry-triggered AI response', async () => {
+      session.hasReceivedFirstAIResponse = false;
+      session.firstGreetingRetryCount = 1;
+
+      handleGeminiMessage(
+        session,
+        {
+          serverContent: {
+            modelTurn: { parts: [{ text: '안녕하세요!' }] },
+          },
+        },
+        sendToClient,
+        null,
+        proactiveReconnect
+      );
+
+      expect(session.hasReceivedFirstAIResponse).toBe(true);
+      expect(session.currentTranscript).toBe('안녕하세요!');
+
+      handleGeminiMessage(
+        session,
+        { serverContent: { turnComplete: true } },
+        sendToClient,
+        null,
+        proactiveReconnect
+      );
+
+      await vi.runAllTimersAsync();
+
+      const doneCalls = sendToClient.mock.calls.filter(([, msg]) => msg.type === 'ai.transcription.done');
+      expect(doneCalls).toHaveLength(1);
+    });
+  });
+
   describe('lastActivityTime update', () => {
     it('updates lastActivityTime on every call', () => {
       const oldTime = session.lastActivityTime;

@@ -318,10 +318,12 @@ ${experience ? `- 경력: ${experience}` : ''}
 
     return `당신은 ${persona.name}(${persona.role})입니다.
 
+【배경 컨텍스트 — AI만 알고 있어야 함, 대화 중 직접 언급 금지】
 상황: ${situation}
-목표: ${objectives}
+목표(시나리오): ${objectives}
 당신의 입장: ${stance}
 당신의 목표: ${goal}
+⚠️ 위 수치(퍼센트·시간·금액 등)와 목표 정보는 AI가 판단에만 활용하는 배경 지식입니다. 첫 발화 포함 어떠한 발화에서도 이 수치를 그대로 읽거나 인용하지 마세요.
 ${experienceGuide}
 ${playerRoleGuide}
 ${userNameGuide}

@@ -546,6 +546,102 @@ describe('RealtimeVoiceService — session.recentMessages population on createSe
     });
   });
 
+  describe('first-greeting race condition: client.ready vs 3-second timeout', () => {
+    let mockGeminiSession: any;
+
+    beforeEach(() => {
+      vi.useFakeTimers();
+
+      mockGeminiSession = {
+        sendClientContent: vi.fn(),
+        sendRealtimeInput: vi.fn(),
+        close: vi.fn(),
+      };
+
+      mockLiveConnect.mockImplementation(({ callbacks }: { callbacks: any }) => {
+        setTimeout(() => callbacks?.onopen?.(), 0);
+        return Promise.resolve(mockGeminiSession);
+      });
+
+      mockGetChatMessagesByPersonaRun.mockResolvedValue([]);
+    });
+
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    it('greeting is sent exactly once when client.ready arrives before the 3-second timeout', async () => {
+      const fakeWs = { readyState: 1, send: vi.fn() };
+      await service.createSession(
+        SESSION_ID, CONVERSATION_ID, SCENARIO_ID, PERSONA_ID, USER_ID, fakeWs as any
+      );
+
+      service.handleClientMessage(SESSION_ID, { type: 'client.ready' });
+      vi.advanceTimersByTime(3000);
+
+      const greetingCalls = mockGeminiSession.sendClientContent.mock.calls.filter(
+        (call: any[]) => {
+          const payload = call[0];
+          return payload?.turns?.[0]?.parts?.[0]?.text === '안녕하세요';
+        }
+      );
+      expect(greetingCalls).toHaveLength(1);
+    });
+
+    it('greeting is sent exactly once when timeout fires before client.ready arrives', async () => {
+      const fakeWs = { readyState: 1, send: vi.fn() };
+      await service.createSession(
+        SESSION_ID, CONVERSATION_ID, SCENARIO_ID, PERSONA_ID, USER_ID, fakeWs as any
+      );
+
+      vi.advanceTimersByTime(3000);
+      service.handleClientMessage(SESSION_ID, { type: 'client.ready' });
+
+      const greetingCalls = mockGeminiSession.sendClientContent.mock.calls.filter(
+        (call: any[]) => {
+          const payload = call[0];
+          return payload?.turns?.[0]?.parts?.[0]?.text === '안녕하세요';
+        }
+      );
+      expect(greetingCalls).toHaveLength(1);
+    });
+
+    it('hasTriggeredFirstGreeting is true after client.ready, so timeout is skipped', async () => {
+      const fakeWs = { readyState: 1, send: vi.fn() };
+      await service.createSession(
+        SESSION_ID, CONVERSATION_ID, SCENARIO_ID, PERSONA_ID, USER_ID, fakeWs as any
+      );
+
+      service.handleClientMessage(SESSION_ID, { type: 'client.ready' });
+
+      const session = (service as any).sessions.get(SESSION_ID);
+      expect(session.hasTriggeredFirstGreeting).toBe(true);
+
+      const callsBeforeTimeout = mockGeminiSession.sendClientContent.mock.calls.length;
+      vi.advanceTimersByTime(3000);
+
+      expect(mockGeminiSession.sendClientContent.mock.calls.length).toBe(callsBeforeTimeout);
+    });
+
+    it('hasTriggeredFirstGreeting is true after timeout, so second client.ready is skipped', async () => {
+      const fakeWs = { readyState: 1, send: vi.fn() };
+      await service.createSession(
+        SESSION_ID, CONVERSATION_ID, SCENARIO_ID, PERSONA_ID, USER_ID, fakeWs as any
+      );
+
+      vi.advanceTimersByTime(3000);
+
+      const session = (service as any).sessions.get(SESSION_ID);
+      expect(session.hasTriggeredFirstGreeting).toBe(true);
+
+      const callsAfterTimeout = mockGeminiSession.sendClientContent.mock.calls.length;
+
+      service.handleClientMessage(SESSION_ID, { type: 'client.ready' });
+
+      expect(mockGeminiSession.sendClientContent.mock.calls.length).toBe(callsAfterTimeout);
+    });
+  });
+
   describe('createUserPersonaSession', () => {
     const USER_PERSONA_SCENARIO_ID = '__user_persona__:upersona-1';
 

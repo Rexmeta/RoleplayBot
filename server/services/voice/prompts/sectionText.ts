@@ -69,6 +69,8 @@ export interface SectionText {
   conversationStart: string;
   noMetaThink: (langName: string) => string;
   firstWordsLabel: string;
+  noScenarioDataInSpeech: string;
+  noFirstPersonNarration: string;
 }
 
 export const SECTION_TEXT: Record<LangCode, SectionText> = {
@@ -141,6 +143,8 @@ export const SECTION_TEXT: Record<LangCode, SectionText> = {
     conversationStart: '# 🎬 대화 시작 지침',
     noMetaThink: (langName) => `메타 텍스트나 다른 언어로 생각하지 말고, 바로 ${langName}로 인사하세요.`,
     firstWordsLabel: '첫 마디 예시',
+    noScenarioDataInSpeech: '- 시나리오에 포함된 수치(퍼센트, 시간, 금액 등) 및 난이도 정보("극한 난이도", "레벨 5" 등)는 AI가 배경 지식으로만 알고 있어야 하며, 대화 중 직접 언급하거나 반복하지 마세요.',
+    noFirstPersonNarration: '- "I greeted...", "I smiled...", "I turned to..." 같은 영문 1인칭 서술 문장을 절대 출력하지 마세요. 실제 대화 발화만 출력하세요.',
   },
   en: {
     identity: '# Your Identity',
@@ -211,6 +215,8 @@ export const SECTION_TEXT: Record<LangCode, SectionText> = {
     conversationStart: '# 🎬 Conversation Start Guidelines',
     noMetaThink: (langName) => `Do not think in meta text or another language — greet immediately in ${langName}.`,
     firstWordsLabel: 'First words example',
+    noScenarioDataInSpeech: '- Scenario metrics (percentages, times, amounts, etc.) and difficulty labels ("extreme difficulty", "level 5", etc.) are background context for the AI only — never mention or repeat them in conversation.',
+    noFirstPersonNarration: '- Never output English first-person narrative sentences like "I greeted...", "I smiled...", "I turned to...". Only output actual spoken dialogue.',
   },
   ja: {
     identity: '# あなたのアイデンティティ',
@@ -281,6 +287,8 @@ export const SECTION_TEXT: Record<LangCode, SectionText> = {
     conversationStart: '# 🎬 会話開始指針',
     noMetaThink: (langName) => `メタテキストや他の言語で考えずに、すぐに${langName}で挨拶してください。`,
     firstWordsLabel: '最初の言葉の例',
+    noScenarioDataInSpeech: '- シナリオに含まれる数値（パーセント、時間、金額など）や難易度情報（「極限難易度」「レベル5」など）はAIの背景知識としてのみ存在し、会話中に直接言及したり繰り返したりしないでください。',
+    noFirstPersonNarration: '- "I greeted..."、"I smiled..."、"I turned to..." のような英語の一人称叙述文は絶対に出力しないでください。実際の発話のみ出力してください。',
   },
   zh: {
     identity: '# 你的身份',
@@ -351,5 +359,7 @@ export const SECTION_TEXT: Record<LangCode, SectionText> = {
     conversationStart: '# 🎬 对话开始指南',
     noMetaThink: (langName) => `不要用元文本或其他语言思考，直接用${langName}打招呼。`,
     firstWordsLabel: '第一句话示例',
+    noScenarioDataInSpeech: '- 情景中包含的数值（百分比、时间、金额等）及难度信息（"极限难度"、"等级5"等）仅作为AI的背景知识，不要在对话中直接提及或重复。',
+    noFirstPersonNarration: '- 绝对不要输出"I greeted..."、"I smiled..."、"I turned to..."等英语第一人称叙述句。只输出实际对话发言。',
   },
 };
