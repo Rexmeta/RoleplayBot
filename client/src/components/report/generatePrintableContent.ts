@@ -260,6 +260,49 @@ export function renderStrategyEvaluation(opts: {
       </div>`;
 }
 
+export function renderRubricSection(opts: {
+  feedback: Feedback;
+}): string {
+  const { feedback } = opts;
+  const rubricSnapshot = feedback.rubricSnapshot;
+  const criteriaSetVersion = feedback.criteriaSetVersion;
+
+  if (!rubricSnapshot) return '';
+
+  const dims: Array<{ name: string; weight: number; minScore?: number; maxScore?: number; icon?: string }> =
+    Array.isArray(rubricSnapshot.dimensions) ? rubricSnapshot.dimensions : [];
+
+  const versionBadge = criteriaSetVersion != null
+    ? `<span class="rubric-version-badge">v${criteriaSetVersion}</span>`
+    : '';
+
+  const statusBadge = rubricSnapshot.status && rubricSnapshot.status !== 'active'
+    ? `<span class="rubric-status-badge">${escapeHtml(String(rubricSnapshot.status))}</span>`
+    : '';
+
+  const dimsBlock = dims.length > 0
+    ? `<div class="rubric-dims-grid">
+        ${dims.map(dim => `
+          <div class="rubric-dim-item">
+            <div class="rubric-dim-name">${dim.icon ? escapeHtml(dim.icon) + ' ' : ''}${escapeHtml(dim.name)}</div>
+            <div class="rubric-dim-weight">가중치 ${Number(dim.weight) % 1 === 0 ? Number(dim.weight).toFixed(0) : Number(dim.weight).toFixed(1)}%</div>
+            ${dim.maxScore != null ? `<div class="rubric-dim-range">${dim.minScore ?? 1}–${dim.maxScore}점</div>` : ''}
+          </div>`).join('')}
+      </div>`
+    : `<p class="rubric-no-dims">차원 정보가 포함되지 않았습니다.</p>`;
+
+  return `
+      <div class="rubric-section">
+        <div class="rubric-section-header">
+          <span>📋</span>
+          <span class="rubric-section-title">평가에 사용된 루브릭${rubricSnapshot.name ? ' — ' + escapeHtml(String(rubricSnapshot.name)) : ''}</span>
+          ${versionBadge}
+          ${statusBadge}
+        </div>
+        ${dimsBlock}
+      </div>`;
+}
+
 export function renderFooter(opts: {
   feedback: Feedback;
   conversationId: string;
@@ -285,6 +328,7 @@ export function generatePrintableContent(opts: GenerateOptions): string {
       ${renderPracticeGuides({ feedback })}
       ${renderDevelopmentPlan({ feedback })}
       ${renderStrategyEvaluation({ feedback })}
+      ${renderRubricSection({ feedback })}
       ${renderFooter({ feedback, conversationId })}
     </div>
   `;

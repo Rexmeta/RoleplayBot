@@ -156,6 +156,19 @@ export const reportStyles = `
       .print-btn-primary { background: #3b82f6; color: white; border: none; padding: 10px 20px; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer; margin-right: 8px; }
       .print-btn-secondary { background: #6b7280; color: white; border: none; padding: 10px 20px; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer; }
 
+      /* ── Rubric section ── */
+      .rubric-section { background: #f5f3ff; border: 1px solid #ddd6fe; border-radius: 8px; padding: 14px 16px; margin-top: 28px; }
+      .rubric-section-header { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+      .rubric-section-title { font-size: 13px; font-weight: 700; color: #4c1d95; margin: 0; }
+      .rubric-version-badge { background: #ede9fe; color: #5b21b6; border: 1px solid #c4b5fd; border-radius: 4px; font-size: 10px; font-weight: 600; padding: 1px 6px; }
+      .rubric-status-badge { background: #f3f4f6; color: #6b7280; border: 1px solid #e5e7eb; border-radius: 4px; font-size: 10px; padding: 1px 6px; }
+      .rubric-dims-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+      .rubric-dim-item { background: white; border: 1px solid #ddd6fe; border-radius: 6px; padding: 7px 10px; }
+      .rubric-dim-name { font-size: 11px; font-weight: 600; color: #374151; margin-bottom: 2px; }
+      .rubric-dim-weight { font-size: 10px; color: #6d28d9; font-weight: 700; }
+      .rubric-dim-range { font-size: 10px; color: #9ca3af; }
+      .rubric-no-dims { font-size: 12px; color: #9ca3af; font-style: italic; }
+
       /* ── Print-specific overrides ── */
       @media print {
         body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
