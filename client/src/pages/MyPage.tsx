@@ -21,6 +21,20 @@ import { useToast } from "@/hooks/use-toast";
 import { StrategyReflection } from "@/components/StrategyReflection";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as ChartTooltip, Legend, ResponsiveContainer } from "recharts";
 
+type ScoreChartPoint = {
+  date: string;
+  score: number;
+  count: number;
+  hasEvidenceCap: boolean;
+};
+
+type ScoreChartDotProps = {
+  cx: number;
+  cy: number;
+  index: number;
+  payload: ScoreChartPoint;
+};
+
 type EvaluationDimension = {
   id: string;
   key: string;
@@ -655,20 +669,22 @@ export default function MyPage() {
                               analyticsData.scoreHistory.reduce((acc: Record<string, any>, entry: any) => {
                                 const dateKey = entry.date;
                                 if (!acc[dateKey]) {
-                                  acc[dateKey] = { scores: [], date: dateKey };
+                                  acc[dateKey] = { scores: [], date: dateKey, hasEvidenceCap: false };
                                 }
                                 acc[dateKey].scores.push(entry.score);
+                                if (entry.hasEvidenceCap) acc[dateKey].hasEvidenceCap = true;
                                 return acc;
                               }, {})
                             )
                             .sort((a, b) => a[0].localeCompare(b[0]))
                             .map(([_, data]) => {
-                              const typedData = data as { date: string; scores: number[] };
+                              const typedData = data as { date: string; scores: number[]; hasEvidenceCap: boolean };
                               const [year, month, day] = typedData.date.split('-');
                               return {
                                 date: `${month}.${day}`,
                                 score: Math.round(typedData.scores.reduce((a: number, b: number) => a + b, 0) / typedData.scores.length),
-                                count: typedData.scores.length
+                                count: typedData.scores.length,
+                                hasEvidenceCap: typedData.hasEvidenceCap
                               };
                             })}
                             margin={{ top: 5, right: 30, left: 0, bottom: 5 }}
@@ -684,6 +700,13 @@ export default function MyPage() {
                                 padding: '8px 12px'
                               }}
                               formatter={(value: any) => [`${value}점`, '평균 점수']}
+                              labelFormatter={(label, payload) => {
+                                const entry = payload?.[0]?.payload as ScoreChartPoint | undefined;
+                                if (entry?.hasEvidenceCap) {
+                                  return `${label} ⚠️ 근거 발화 미제공으로 점수 상한 적용됨`;
+                                }
+                                return label;
+                              }}
                               labelStyle={{ color: '#1e293b' }}
                             />
                             <Legend wrapperStyle={{ paddingTop: '20px' }} formatter={() => '일일 평균 점수'} />
@@ -692,14 +715,38 @@ export default function MyPage() {
                               dataKey="score"
                               stroke="#2563eb"
                               strokeWidth={3}
-                              dot={{ fill: '#2563eb', r: 6 }}
+                              dot={(props: ScoreChartDotProps) => {
+                                const { cx, cy, payload, index } = props;
+                                if (payload?.hasEvidenceCap) {
+                                  return (
+                                    <circle
+                                      key={`dot-cap-${index}`}
+                                      cx={cx}
+                                      cy={cy}
+                                      r={7}
+                                      fill="#f97316"
+                                      stroke="#ea580c"
+                                      strokeWidth={2}
+                                    />
+                                  );
+                                }
+                                return <circle key={`dot-${index}`} cx={cx} cy={cy} r={5} fill="#2563eb" />;
+                              }}
                               activeDot={{ r: 8 }}
                               isAnimationActive={true}
                             />
                           </LineChart>
                         </ResponsiveContainer>
                       </div>
-                      <div className="mt-6 grid grid-cols-3 gap-4 text-sm">
+                      {analyticsData.scoreHistory.some((e: { hasEvidenceCap?: boolean }) => e.hasEvidenceCap) && (
+                        <div className="mt-3 flex items-center gap-2 text-xs text-orange-600 bg-orange-50 border border-orange-200 rounded-lg px-3 py-2">
+                          <span className="shrink-0">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                          </span>
+                          <span>주황색 점은 근거 발화 미제공으로 점수 상한이 적용된 세션을 나타냅니다. 실제 커뮤니케이션 역량은 더 높을 수 있습니다.</span>
+                        </div>
+                      )}
+                      <div className="mt-4 grid grid-cols-3 gap-4 text-sm">
                         <div className="p-3 bg-slate-50 rounded-lg">
                           <div className="text-slate-600 mb-1">최고 점수</div>
                           <div className="text-2xl font-bold text-slate-900">

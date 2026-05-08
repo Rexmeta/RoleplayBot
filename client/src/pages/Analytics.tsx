@@ -44,6 +44,20 @@ type UsedCriteriaSet = {
   feedbackCount: number;
 };
 
+type ScoreChartPoint = {
+  date: string;
+  score: number;
+  count: number;
+  hasEvidenceCap: boolean;
+};
+
+type ScoreChartDotProps = {
+  cx: number;
+  cy: number;
+  index: number;
+  payload: ScoreChartPoint;
+};
+
 type AnalyticsSummary = {
   totalSessions: number;
   completedSessions?: number;
@@ -58,6 +72,7 @@ type AnalyticsSummary = {
     time?: string;
     score: number;
     conversationId: string;
+    hasEvidenceCap?: boolean;
   }>;
   topStrengths: Array<{ category: string; count: number; items: string[] }>;
   topImprovements: Array<{ category: string; count: number; items: string[] }>;
@@ -433,11 +448,12 @@ export default function Analytics() {
                       analytics.scoreHistory.reduce((acc, entry) => {
                         const dateKey = entry.date;
                         if (!acc[dateKey]) {
-                          acc[dateKey] = { scores: [], date: dateKey };
+                          acc[dateKey] = { scores: [], date: dateKey, hasEvidenceCap: false };
                         }
                         acc[dateKey].scores.push(entry.score);
+                        if (entry.hasEvidenceCap) acc[dateKey].hasEvidenceCap = true;
                         return acc;
-                      }, {} as Record<string, { scores: number[]; date: string }>)
+                      }, {} as Record<string, { scores: number[]; date: string; hasEvidenceCap: boolean }>)
                     )
                     .sort((a, b) => a[0].localeCompare(b[0]))
                     .map(([_, data]) => {
@@ -445,7 +461,8 @@ export default function Analytics() {
                       return {
                         date: `${month}.${day}`,
                         score: parseFloat((data.scores.reduce((a, b) => a + b, 0) / data.scores.length).toFixed(1)),
-                        count: data.scores.length
+                        count: data.scores.length,
+                        hasEvidenceCap: data.hasEvidenceCap
                       };
                     })}
                     margin={{ top: 5, right: 30, left: 0, bottom: 5 }}
@@ -473,6 +490,13 @@ export default function Analytics() {
                         if (name === 'count') return [`${value}회`, '대화 수'];
                         return value;
                       }}
+                      labelFormatter={(label, payload) => {
+                        const entry = payload?.[0]?.payload;
+                        if (entry?.hasEvidenceCap) {
+                          return `${label} ⚠️ 근거 발화 미제공으로 점수 상한 적용됨`;
+                        }
+                        return label;
+                      }}
                       labelStyle={{ color: '#1e293b' }}
                     />
                     <Legend 
@@ -484,14 +508,38 @@ export default function Analytics() {
                       dataKey="score"
                       stroke="#2563eb"
                       strokeWidth={3}
-                      dot={{ fill: '#2563eb', r: 6 }}
+                      dot={(props: ScoreChartDotProps) => {
+                        const { cx, cy, payload, index } = props;
+                        if (payload?.hasEvidenceCap) {
+                          return (
+                            <circle
+                              key={`dot-cap-${index}`}
+                              cx={cx}
+                              cy={cy}
+                              r={7}
+                              fill="#f97316"
+                              stroke="#ea580c"
+                              strokeWidth={2}
+                            />
+                          );
+                        }
+                        return <circle key={`dot-${index}`} cx={cx} cy={cy} r={5} fill="#2563eb" />;
+                      }}
                       activeDot={{ r: 8 }}
                       isAnimationActive={true}
                     />
                   </LineChart>
                 </ResponsiveContainer>
               </div>
-              <div className="mt-6 grid grid-cols-3 gap-4 text-sm">
+              {analytics.scoreHistory.some(e => e.hasEvidenceCap) && (
+                <div className="mt-3 flex items-center gap-2 text-xs text-orange-600 bg-orange-50 border border-orange-200 rounded-lg px-3 py-2">
+                  <span className="shrink-0">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                  </span>
+                  <span>주황색 점은 근거 발화 미제공으로 점수 상한이 적용된 세션을 나타냅니다. 실제 커뮤니케이션 역량은 더 높을 수 있습니다.</span>
+                </div>
+              )}
+              <div className="mt-4 grid grid-cols-3 gap-4 text-sm">
                 <div className="p-3 bg-slate-50 rounded-lg">
                   <div className="text-slate-600 mb-1">최고 점수</div>
                   <div className="text-2xl font-bold text-slate-900">

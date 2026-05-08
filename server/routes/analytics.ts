@@ -2,6 +2,7 @@ import { Router } from "express";
 import { storage } from "../storage";
 import { fileManager } from "../services/fileManager";
 import { getOperatorAccessibleCategoryIds, asyncHandler, createHttpError } from "./routerHelpers";
+import type { EvaluationScore, DetailedFeedback } from "@shared/schema";
 
 export default function createAnalyticsRouter(isAuthenticated: any) {
   const router = Router();
@@ -194,11 +195,17 @@ export default function createAnalyticsRouter(isAuthenticated: any) {
         const month = String(createdDate.getMonth() + 1).padStart(2, '0');
         const day = String(createdDate.getDate()).padStart(2, '0');
         const dateStr = `${year}-${month}-${day}`;
+        const scoresArr = f.scores as EvaluationScore[];
+        const detailedFb = f.detailedFeedback as DetailedFeedback;
+        const cappedInScores = Array.isArray(scoresArr) && scoresArr.some(s => s.evidenceCapped === true);
+        const cappedInAdjustments = !!(detailedFb?.scoreAdjustments?.evidenceCappedDimensions?.length);
+        const hasEvidenceCap = cappedInScores || cappedInAdjustments;
         return {
           date: dateStr,
           time: createdDate.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' }),
           score: f.overallScore as number,
-          conversationId: f.personaRunId || f.conversationId
+          conversationId: f.personaRunId || f.conversationId,
+          hasEvidenceCap
         };
       })
       .sort((a, b) => a.date.localeCompare(b.date));
