@@ -32,6 +32,17 @@ vi.mock('../../server/storage', () => ({
 vi.mock('../../server/services/evaluationEngine', () => ({
   validateEvaluationCriteriaSet: vi.fn().mockReturnValue({ valid: true, errors: [] }),
   validateEvaluationDimension: vi.fn().mockReturnValue({ valid: true, errors: [] }),
+  calculateRubricQualityScore: vi.fn().mockReturnValue({
+    totalScore: 92,
+    breakdown: {
+      scoreConsistency: { score: 20, maxScore: 20, issues: [] },
+      weightAccuracy: { score: 20, maxScore: 20, issues: [] },
+      behaviorAnchorSpecificity: { score: 25, maxScore: 25, issues: [] },
+      rubricStageCompleteness: { score: 20, maxScore: 20, issues: [] },
+      evaluationPromptQuality: { score: 7, maxScore: 15, issues: [] },
+    },
+    recommendations: [],
+  }),
 }));
 
 vi.mock('@google/genai', () => ({

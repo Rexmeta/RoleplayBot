@@ -557,6 +557,229 @@ export function validateEvaluationCriteriaSet(dimensions: Array<{
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// 루브릭 품질 점수 계산
+// ─────────────────────────────────────────────────────────────────────────────
+
+export interface RubricQualityScoreResult {
+  totalScore: number;
+  breakdown: {
+    scoreConsistency: { score: number; maxScore: number; issues: string[] };
+    weightAccuracy: { score: number; maxScore: number; issues: string[] };
+    behaviorAnchorSpecificity: { score: number; maxScore: number; issues: string[] };
+    rubricStageCompleteness: { score: number; maxScore: number; issues: string[] };
+    evaluationPromptQuality: { score: number; maxScore: number; issues: string[] };
+  };
+  recommendations: string[];
+}
+
+/**
+ * 루브릭 품질 점수 계산 (0~100)
+ * - 점수 체계 일관성 (20)
+ * - 가중치 정확성 (20)
+ * - 행동 기준 구체성 (25)
+ * - 루브릭 단계 완전성 (20)
+ * - 평가 프롬프트 품질 (15)
+ */
+export function calculateRubricQualityScore(dimensions: Array<{
+  key?: string;
+  name?: string;
+  weight?: number;
+  minScore?: number;
+  maxScore?: number;
+  isActive?: boolean;
+  scoringRubric?: Array<{
+    score: number;
+    label?: string;
+    description?: string;
+    behaviorAnchor?: string;
+  }> | null;
+  evaluationPrompt?: string | null;
+}>): RubricQualityScoreResult {
+  const activeDims = dimensions.filter(d => d.isActive !== false);
+  const recommendations: string[] = [];
+
+  // ── 1. 점수 체계 일관성 (20점) ──
+  const scoreConsistencyIssues: string[] = [];
+  let scoreConsistency = 20;
+
+  for (const dim of activeDims) {
+    const min = dim.minScore ?? 1;
+    const max = dim.maxScore ?? 10;
+    if (min < 1 || max > 10) {
+      scoreConsistencyIssues.push(`"${dim.name}": 점수 범위가 1~10을 벗어남 (${min}~${max})`);
+      scoreConsistency -= 5;
+    }
+    if (min >= max) {
+      scoreConsistencyIssues.push(`"${dim.name}": 최소 점수가 최대 점수 이상임`);
+      scoreConsistency -= 5;
+    }
+    if (!dim.key || dim.key.trim().length === 0) {
+      scoreConsistencyIssues.push(`차원 키가 없는 항목 존재`);
+      scoreConsistency -= 3;
+    }
+  }
+
+  if (activeDims.length < 3) {
+    scoreConsistencyIssues.push(`활성 차원 수 부족 (${activeDims.length}개 / 최소 3개)`);
+    scoreConsistency -= 10;
+  }
+  scoreConsistency = Math.max(0, scoreConsistency);
+  if (scoreConsistencyIssues.length > 0) {
+    recommendations.push('점수 체계: ' + scoreConsistencyIssues[0]);
+  }
+
+  // ── 2. 가중치 정확성 (20점) ──
+  const weightAccuracyIssues: string[] = [];
+  let weightAccuracy = 20;
+
+  const totalWeight = activeDims.reduce((sum, d) => sum + (d.weight ?? 0), 0);
+  const weightDiff = Math.abs(totalWeight - 100);
+
+  if (weightDiff > 5) {
+    weightAccuracyIssues.push(`가중치 합계가 100%에서 ${weightDiff.toFixed(1)}%p 벗어남 (현재: ${totalWeight.toFixed(1)}%)`);
+    weightAccuracy = weightDiff > 20 ? 0 : weightDiff > 10 ? 8 : 12;
+  } else if (weightDiff > 0.5) {
+    weightAccuracyIssues.push(`가중치 합계 미세 조정 필요 (현재: ${totalWeight.toFixed(1)}%)`);
+    weightAccuracy = 16;
+  }
+
+  const zeroWeightDims = activeDims.filter(d => (d.weight ?? 0) === 0);
+  if (zeroWeightDims.length > 0) {
+    weightAccuracyIssues.push(`가중치 0인 차원 존재: ${zeroWeightDims.map(d => d.name).join(', ')}`);
+    weightAccuracy = Math.max(0, weightAccuracy - 5);
+  }
+  weightAccuracy = Math.max(0, weightAccuracy);
+  if (weightAccuracyIssues.length > 0) {
+    recommendations.push('가중치: ' + weightAccuracyIssues[0]);
+  }
+
+  // ── 3. 행동 기준 구체성 (25점) ──
+  const behaviorAnchorIssues: string[] = [];
+  let behaviorAnchorSpecificity = 25;
+
+  let totalRubricItems = 0;
+  let missingAnchorCount = 0;
+  let shortAnchorCount = 0;
+
+  for (const dim of activeDims) {
+    const rubric = dim.scoringRubric || [];
+    totalRubricItems += rubric.length;
+    for (const item of rubric) {
+      if (!item.behaviorAnchor || item.behaviorAnchor.trim().length === 0) {
+        missingAnchorCount++;
+      } else if (item.behaviorAnchor.trim().length < 20) {
+        shortAnchorCount++;
+      }
+    }
+  }
+
+  if (totalRubricItems > 0) {
+    const missingRatio = missingAnchorCount / totalRubricItems;
+    const shortRatio = shortAnchorCount / totalRubricItems;
+    if (missingRatio > 0) {
+      behaviorAnchorIssues.push(`행동 기준 누락: ${missingAnchorCount}개 항목 (전체의 ${Math.round(missingRatio * 100)}%)`);
+      behaviorAnchorSpecificity = Math.round(25 * (1 - missingRatio));
+    }
+    if (shortRatio > 0.3) {
+      behaviorAnchorIssues.push(`행동 기준이 너무 짧음 (20자 미만): ${shortAnchorCount}개 항목`);
+      behaviorAnchorSpecificity = Math.max(0, behaviorAnchorSpecificity - Math.round(10 * shortRatio));
+    }
+  } else {
+    behaviorAnchorIssues.push('루브릭 항목이 없어 행동 기준을 평가할 수 없음');
+    behaviorAnchorSpecificity = 0;
+  }
+  behaviorAnchorSpecificity = Math.max(0, behaviorAnchorSpecificity);
+  if (behaviorAnchorIssues.length > 0) {
+    recommendations.push('행동 기준: ' + behaviorAnchorIssues[0]);
+  }
+
+  // ── 4. 루브릭 단계 완전성 (20점) ──
+  const rubricStageIssues: string[] = [];
+  let rubricStageCompleteness = 20;
+
+  let dimsWithInsufficientStages = 0;
+  for (const dim of activeDims) {
+    const stages = (dim.scoringRubric || []).length;
+    if (stages < 5) {
+      dimsWithInsufficientStages++;
+      rubricStageIssues.push(`"${dim.name}": 루브릭 단계 부족 (${stages}단계 / 최소 5단계)`);
+    }
+  }
+
+  if (dimsWithInsufficientStages > 0) {
+    const ratio = dimsWithInsufficientStages / Math.max(1, activeDims.length);
+    rubricStageCompleteness = Math.round(20 * (1 - ratio));
+  }
+
+  // Score coverage check: scores should spread across the range
+  for (const dim of activeDims) {
+    const rubric = dim.scoringRubric || [];
+    if (rubric.length >= 5) {
+      const scores = rubric.map(r => r.score);
+      const min = Math.min(...scores);
+      const max = Math.max(...scores);
+      const dimMin = dim.minScore ?? 1;
+      const dimMax = dim.maxScore ?? 10;
+      if (min > dimMin + 1 || max < dimMax - 1) {
+        rubricStageIssues.push(`"${dim.name}": 루브릭 점수 범위가 차원 범위(${dimMin}~${dimMax})를 충분히 커버하지 않음`);
+        rubricStageCompleteness = Math.max(0, rubricStageCompleteness - 3);
+      }
+    }
+  }
+  rubricStageCompleteness = Math.max(0, rubricStageCompleteness);
+  if (rubricStageIssues.length > 0) {
+    recommendations.push('루브릭 단계: ' + rubricStageIssues[0]);
+  }
+
+  // ── 5. 평가 프롬프트 품질 (15점) ──
+  const promptQualityIssues: string[] = [];
+  let evaluationPromptQuality = 15;
+
+  let missingPromptCount = 0;
+  let shortPromptCount = 0;
+  for (const dim of activeDims) {
+    const prompt = dim.evaluationPrompt;
+    if (!prompt || prompt.trim().length === 0) {
+      missingPromptCount++;
+    } else if (prompt.trim().length < 30) {
+      shortPromptCount++;
+    }
+  }
+
+  if (activeDims.length > 0) {
+    const missingRatio = missingPromptCount / activeDims.length;
+    if (missingRatio > 0) {
+      promptQualityIssues.push(`평가 프롬프트 없음: ${missingPromptCount}개 차원 (전체의 ${Math.round(missingRatio * 100)}%)`);
+      evaluationPromptQuality = Math.round(15 * (1 - missingRatio * 0.8));
+    }
+    if (shortPromptCount > 0) {
+      promptQualityIssues.push(`평가 프롬프트가 너무 짧음 (30자 미만): ${shortPromptCount}개 차원`);
+      evaluationPromptQuality = Math.max(0, evaluationPromptQuality - shortPromptCount * 2);
+    }
+  }
+  evaluationPromptQuality = Math.max(0, evaluationPromptQuality);
+  if (promptQualityIssues.length > 0) {
+    recommendations.push('평가 프롬프트: ' + promptQualityIssues[0]);
+  }
+
+  const totalScore = Math.min(100, Math.max(0,
+    scoreConsistency + weightAccuracy + behaviorAnchorSpecificity + rubricStageCompleteness + evaluationPromptQuality
+  ));
+
+  return {
+    totalScore,
+    breakdown: {
+      scoreConsistency: { score: scoreConsistency, maxScore: 20, issues: scoreConsistencyIssues },
+      weightAccuracy: { score: weightAccuracy, maxScore: 20, issues: weightAccuracyIssues },
+      behaviorAnchorSpecificity: { score: behaviorAnchorSpecificity, maxScore: 25, issues: behaviorAnchorIssues },
+      rubricStageCompleteness: { score: rubricStageCompleteness, maxScore: 20, issues: rubricStageIssues },
+      evaluationPromptQuality: { score: evaluationPromptQuality, maxScore: 15, issues: promptQualityIssues },
+    },
+    recommendations,
+  };
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // 평가 신뢰도(confidence) 및 리포트 상태값(reportStatus) 로직
 // ─────────────────────────────────────────────────────────────────────────────
 

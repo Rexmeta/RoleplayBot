@@ -3,7 +3,9 @@ import { storage } from "../storage";
 import { isOperatorOrAdmin, isSystemAdmin } from "../middleware/authMiddleware";
 import { GoogleGenAI } from "@google/genai";
 import { asyncHandler, createHttpError } from "./routerHelpers";
-import { validateEvaluationCriteriaSet, validateEvaluationDimension } from "../services/evaluationEngine";
+import { validateEvaluationCriteriaSet, validateEvaluationDimension, calculateRubricQualityScore } from "../services/evaluationEngine";
+import { RUBRIC_TEMPLATES } from "../data/rubricTemplates";
+import { generateFeedback } from "../services/aiServiceFactory";
 
 async function createForkOfApprovedSet(
   existingId: string,
@@ -94,6 +96,89 @@ async function assertOperatorRubricAccess(set: any, user: any): Promise<void> {
 
 export default function createEvaluationCriteriaRouter(isAuthenticated: any) {
   const router = Router();
+
+  // ── 루브릭 템플릿 목록 조회 ──
+  router.get("/api/admin/evaluation-criteria/templates", isAuthenticated, isOperatorOrAdmin, asyncHandler(async (_req, res) => {
+    const templates = RUBRIC_TEMPLATES.map(t => ({
+      id: t.id,
+      name: t.name,
+      description: t.description,
+      scenarioType: t.scenarioType,
+      dimensionCount: t.dimensions.length,
+      dimensions: t.dimensions.map(d => ({
+        key: d.key,
+        name: d.name,
+        description: d.description,
+        weight: d.weight,
+        dimensionType: d.dimensionType,
+      })),
+    }));
+    res.json(templates);
+  }));
+
+  // ── 템플릿으로 루브릭 생성 ──
+  router.post("/api/admin/evaluation-criteria/from-template", isAuthenticated, isOperatorOrAdmin, asyncHandler(async (req: any, res) => {
+    const { templateId, name, description, categoryId } = req.body;
+    const user = req.user as any;
+
+    if (!templateId) throw createHttpError(400, "templateId is required");
+
+    const template = RUBRIC_TEMPLATES.find(t => t.id === templateId);
+    if (!template) throw createHttpError(404, `Template "${templateId}" not found`);
+
+    // Operators scope check
+    if (user?.role === 'operator') {
+      const requestedCategoryId = categoryId || null;
+      if (user.assignedCategoryId) {
+        if (!requestedCategoryId || requestedCategoryId !== user.assignedCategoryId) {
+          throw createHttpError(403, "운영자는 담당 카테고리에 속한 루브릭만 생성할 수 있습니다.");
+        }
+      } else if (user.assignedOrganizationId) {
+        if (!requestedCategoryId) throw createHttpError(403, "운영자는 카테고리를 반드시 지정해야 합니다.");
+        const cat = await storage.getCategory(requestedCategoryId);
+        if (!cat) throw createHttpError(400, "지정한 카테고리를 찾을 수 없습니다.");
+        if (cat.organizationId !== user.assignedOrganizationId) {
+          throw createHttpError(403, "운영자는 담당 조직에 속한 카테고리에만 루브릭을 생성할 수 있습니다.");
+        }
+      }
+    }
+
+    const setName = name?.trim() || `${template.name} (복사본)`;
+    const criteriaSet = await storage.createEvaluationCriteriaSet({
+      name: setName,
+      description: description || template.description,
+      isDefault: false,
+      isActive: true,
+      categoryId: categoryId || null,
+      createdBy: user?.id || null,
+      ownerOperatorId: user?.role === 'operator' ? (user?.id || null) : null,
+      status: 'draft',
+    });
+
+    const createdDimensions = [];
+    for (let i = 0; i < template.dimensions.length; i++) {
+      const dim = template.dimensions[i];
+      const dimension = await storage.createEvaluationDimension({
+        criteriaSetId: criteriaSet.id,
+        key: dim.key,
+        name: dim.name,
+        description: dim.description,
+        weight: dim.weight,
+        minScore: dim.minScore,
+        maxScore: dim.maxScore,
+        icon: dim.icon,
+        color: dim.color,
+        displayOrder: i,
+        scoringRubric: dim.scoringRubric,
+        evaluationPrompt: dim.evaluationPrompt,
+        isActive: true,
+        dimensionType: dim.dimensionType,
+      });
+      createdDimensions.push(dimension);
+    }
+
+    res.status(201).json({ ...criteriaSet, dimensions: createdDimensions, fromTemplate: templateId });
+  }));
 
   router.get("/api/admin/evaluation-criteria", isAuthenticated, isOperatorOrAdmin, asyncHandler(async (req: any, res) => {
     const lang = req.query.lang as string | undefined;
@@ -628,6 +713,14 @@ Return JSON: {
     const existing = await storage.getEvaluationCriteriaSet(id);
     if (!existing) throw createHttpError(404, "Evaluation criteria set not found");
     if (existing.status !== 'review') throw createHttpError(400, "검토(review) 상태인 기준만 승인할 수 있습니다. 먼저 '검토 요청'을 진행하세요.");
+
+    // Quality gate: block approval if quality score < 80
+    const dimensions = await storage.getEvaluationDimensionsByCriteriaSet(id);
+    const qualityResult = calculateRubricQualityScore(dimensions);
+    if (qualityResult.totalScore < 80) {
+      throw createHttpError(400, `루브릭 품질 점수(${qualityResult.totalScore}점)가 승인 기준(80점)에 미달합니다. 권고 사항: ${qualityResult.recommendations.slice(0, 3).join(' / ')}`);
+    }
+
     const updated = await storage.updateEvaluationCriteriaSetStatus(id, 'approved', user?.id);
     res.json(updated);
   }));
@@ -649,6 +742,57 @@ Return JSON: {
     if (existing.isDefault) throw createHttpError(400, "기본 기준으로 설정된 루브릭은 보관할 수 없습니다. 먼저 기본 설정을 해제하세요.");
     const updated = await storage.updateEvaluationCriteriaSetStatus(id, 'archived');
     res.json(updated);
+  }));
+
+  // ── 루브릭 품질 점수 조회 ──
+  router.get("/api/admin/evaluation-criteria/:id/quality-score", isAuthenticated, isOperatorOrAdmin, asyncHandler(async (req: any, res) => {
+    const { id } = req.params;
+    const existing = await storage.getEvaluationCriteriaSet(id);
+    if (!existing) throw createHttpError(404, "Evaluation criteria set not found");
+    await assertOperatorRubricAccess(existing, req.user);
+    const dimensions = await storage.getEvaluationDimensionsByCriteriaSet(id);
+    const result = calculateRubricQualityScore(dimensions);
+    res.json(result);
+  }));
+
+  // ── 드라이런(테스트) 평가 ──
+  router.post("/api/admin/evaluation-criteria/:id/dry-run", isAuthenticated, isOperatorOrAdmin, asyncHandler(async (req: any, res) => {
+    const { id } = req.params;
+    const { messages, scenarioContext, personaContext, language = 'ko' } = req.body;
+
+    const existing = await storage.getEvaluationCriteriaSetWithDimensions(id);
+    if (!existing) throw createHttpError(404, "Evaluation criteria set not found");
+    await assertOperatorRubricAccess(existing, req.user);
+
+    if (!messages || !Array.isArray(messages) || messages.length === 0) {
+      throw createHttpError(400, "messages 배열이 필요합니다");
+    }
+
+    const scenario = scenarioContext || {
+      title: '드라이런 테스트',
+      context: { situation: '테스트 대화' },
+      objectives: ['소통 능력 평가'],
+    };
+
+    const persona = personaContext || {
+      id: 'dry-run-persona',
+      name: '테스트 페르소나',
+      role: '동료',
+    };
+
+    try {
+      const feedback = await generateFeedback(
+        scenario,
+        messages,
+        persona,
+        undefined,
+        existing,
+        language as any,
+      );
+      res.json({ feedback, criteriaSetId: id, isDryRun: true });
+    } catch (err: any) {
+      throw createHttpError(500, `드라이런 평가 실패: ${err.message}`);
+    }
   }));
 
   router.get("/api/admin/evaluation-criteria/:id/versions", isAuthenticated, isOperatorOrAdmin, asyncHandler(async (req, res) => {

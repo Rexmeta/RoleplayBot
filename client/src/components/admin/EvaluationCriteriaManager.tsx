@@ -13,9 +13,10 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogD
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Badge } from "@/components/ui/badge";
 import { Slider } from "@/components/ui/slider";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { Plus, Edit, Trash2, Star, Check, GripVertical, Copy, Settings, MessageCircle, Target, Lightbulb, Heart, Users, Award, Brain, Zap, Shield, TrendingUp, Eye, Ear, HandHeart, Compass, Flag, ThumbsUp, Megaphone, PenTool, BookOpen, Sparkles, AlertCircle, Languages, GitBranch, History, CheckCircle, XCircle, Archive, ClockIcon, Lock, ArrowLeftRight, UserCheck } from "lucide-react";
+import { Plus, Edit, Trash2, Star, Check, GripVertical, Copy, Settings, MessageCircle, Target, Lightbulb, Heart, Users, Award, Brain, Zap, Shield, TrendingUp, Eye, Ear, HandHeart, Compass, Flag, ThumbsUp, Megaphone, PenTool, BookOpen, Sparkles, AlertCircle, Languages, GitBranch, History, CheckCircle, XCircle, Archive, ClockIcon, Lock, ArrowLeftRight, UserCheck, LayoutTemplate, FlaskConical, BarChart2, ChevronRight, Info } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
@@ -261,6 +262,8 @@ export function EvaluationCriteriaManager() {
   const [transferTargetOperatorId, setTransferTargetOperatorId] = useState<string>('');
   const [selectedSet, setSelectedSet] = useState<EvaluationCriteriaSet | null>(null);
   const [selectedDimension, setSelectedDimension] = useState<EvaluationDimension | null>(null);
+  const [isTemplateDialogOpen, setIsTemplateDialogOpen] = useState(false);
+  const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(null);
   
   const [formData, setFormData] = useState({
     name: '',
@@ -343,6 +346,30 @@ export function EvaluationCriteriaManager() {
     },
     onError: (error: any) => {
       toast({ title: "이관 실패", description: error.message, variant: "destructive" });
+    },
+  });
+
+  const { data: rubricTemplates = [] } = useQuery<any[]>({
+    queryKey: ['/api/admin/evaluation-criteria/templates'],
+    queryFn: async () => {
+      const res = await apiRequest('GET', '/api/admin/evaluation-criteria/templates');
+      return res.json();
+    },
+  });
+
+  const fromTemplateMutation = useMutation({
+    mutationFn: async (data: { templateId: string; name?: string; description?: string; categoryId?: string }) => {
+      const res = await apiRequest('POST', '/api/admin/evaluation-criteria/from-template', data);
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/admin/evaluation-criteria'] });
+      toast({ title: '템플릿에서 루브릭이 생성되었습니다', description: '초안 상태로 생성되었습니다. 필요에 따라 차원을 수정하세요.' });
+      setIsTemplateDialogOpen(false);
+      setSelectedTemplateId(null);
+    },
+    onError: (error: any) => {
+      toast({ title: '생성 실패', description: error.message, variant: 'destructive' });
     },
   });
 
@@ -696,10 +723,16 @@ export function EvaluationCriteriaManager() {
             </Button>
           )}
           {(isAdmin || isOperator) && (
-            <Button onClick={() => { resetFormData(); setIsCreateDialogOpen(true); }}>
-              <Plus className="h-4 w-4 mr-2" />
-              {t('admin.evaluationCriteria.newCriteriaSet')}
-            </Button>
+            <>
+              <Button variant="outline" onClick={() => { setSelectedTemplateId(null); setIsTemplateDialogOpen(true); }}>
+                <LayoutTemplate className="h-4 w-4 mr-2" />
+                템플릿으로 시작
+              </Button>
+              <Button onClick={() => { resetFormData(); setIsCreateDialogOpen(true); }}>
+                <Plus className="h-4 w-4 mr-2" />
+                {t('admin.evaluationCriteria.newCriteriaSet')}
+              </Button>
+            </>
           )}
         </div>
       </div>
@@ -866,6 +899,54 @@ export function EvaluationCriteriaManager() {
             <Button variant="outline" onClick={() => setIsCreateDialogOpen(false)}>{t('common.cancel')}</Button>
             <Button onClick={handleCreate} disabled={!formData.name || createMutation.isPending}>
               {createMutation.isPending ? t('admin.common.loading') : t('common.create')}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── 템플릿 선택 다이얼로그 ── */}
+      <Dialog open={isTemplateDialogOpen} onOpenChange={(open) => { setIsTemplateDialogOpen(open); if (!open) setSelectedTemplateId(null); }}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2"><LayoutTemplate className="h-5 w-5" />시나리오 유형별 루브릭 템플릿</DialogTitle>
+            <DialogDescription>
+              시나리오 유형에 맞는 템플릿을 선택하면 전문 루브릭 차원이 자동으로 포함된 초안이 생성됩니다.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid grid-cols-2 gap-3 max-h-[60vh] overflow-y-auto py-2">
+            {rubricTemplates.map((tpl: any) => (
+              <button
+                key={tpl.id}
+                onClick={() => setSelectedTemplateId(tpl.id === selectedTemplateId ? null : tpl.id)}
+                className={`text-left rounded-lg border-2 p-4 transition-colors hover:bg-slate-50 ${selectedTemplateId === tpl.id ? 'border-blue-500 bg-blue-50' : 'border-slate-200'}`}
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <div className="flex-1 min-w-0">
+                    <p className="font-semibold text-sm">{tpl.name}</p>
+                    <p className="text-xs text-slate-500 mt-1 line-clamp-2">{tpl.description}</p>
+                  </div>
+                  {selectedTemplateId === tpl.id && <CheckCircle className="h-4 w-4 text-blue-500 shrink-0 mt-0.5" />}
+                </div>
+                <div className="mt-3 flex flex-wrap gap-1">
+                  {(tpl.dimensions || []).map((d: any) => (
+                    <span key={d.key} className="text-[10px] px-1.5 py-0.5 bg-slate-100 rounded text-slate-600">{d.name} {d.weight}%</span>
+                  ))}
+                </div>
+              </button>
+            ))}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsTemplateDialogOpen(false)}>취소</Button>
+            <Button
+              disabled={!selectedTemplateId || fromTemplateMutation.isPending}
+              onClick={() => {
+                if (selectedTemplateId) {
+                  const tpl = rubricTemplates.find((t: any) => t.id === selectedTemplateId);
+                  fromTemplateMutation.mutate({ templateId: selectedTemplateId, name: tpl ? `${tpl.name} (복사본)` : undefined });
+                }
+              }}
+            >
+              {fromTemplateMutation.isPending ? '생성 중...' : '이 템플릿으로 시작'}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -1626,10 +1707,52 @@ function CriteriaSetDetail({
   const [deleteConfirmDimId, setDeleteConfirmDimId] = useState<string | null>(null);
   const [showVersionHistory, setShowVersionHistory] = useState(false);
   const [compareVersionId, setCompareVersionId] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<'dimensions' | 'quality' | 'dryrun'>('dimensions');
+  const [dryRunMessages, setDryRunMessages] = useState(`[
+  { "role": "user", "content": "안녕하세요. 이번 프로젝트 진행 상황을 보고드리려고 합니다." },
+  { "role": "assistant", "content": "네, 말씀해 보세요." },
+  { "role": "user", "content": "결론부터 말씀드리면 일정이 2주 지연되었습니다. 주요 원인은 외부 API 연동 이슈였고, 현재 해결 완료하여 정상 진행 중입니다." },
+  { "role": "assistant", "content": "지연된 이유가 더 있나요?" },
+  { "role": "user", "content": "네, API 이슈 외에도 인원 1명이 병가를 내어 일정에 영향을 주었습니다. 2주 뒤 원래 일정 대비 80% 완료를 목표로 하고 있습니다." }
+]`);
+  const [dryRunResult, setDryRunResult] = useState<any>(null);
+  const [showQualityBreakdown, setShowQualityBreakdown] = useState(false);
 
   const { data: setWithDimensions, isLoading } = useQuery({
     queryKey: ['/api/admin/evaluation-criteria', setId, currentLang],
     queryFn: () => fetchSetWithDimensions(setId),
+  });
+
+  const { data: qualityScore, refetch: refetchQuality } = useQuery<any>({
+    queryKey: ['/api/admin/evaluation-criteria', setId, 'quality-score'],
+    queryFn: async () => {
+      const res = await apiRequest('GET', `/api/admin/evaluation-criteria/${setId}/quality-score`);
+      return res.json();
+    },
+    staleTime: 30000,
+  });
+
+  const dryRunMutation = useMutation({
+    mutationFn: async () => {
+      let parsedMessages;
+      try {
+        parsedMessages = JSON.parse(dryRunMessages);
+      } catch {
+        throw new Error('대화 메시지 형식이 올바르지 않습니다. JSON 배열 형식으로 입력해 주세요.');
+      }
+      const res = await apiRequest('POST', `/api/admin/evaluation-criteria/${setId}/dry-run`, {
+        messages: parsedMessages,
+        language: 'ko',
+      });
+      return res.json();
+    },
+    onSuccess: (data) => {
+      setDryRunResult(data);
+      toast({ title: '드라이런 평가 완료', description: '이 결과는 저장되지 않습니다.' });
+    },
+    onError: (error: any) => {
+      toast({ title: '드라이런 실패', description: error.message, variant: 'destructive' });
+    },
   });
 
   const { data: versionHistory = [] } = useQuery<EvaluationCriteriaSet[]>({
@@ -1937,101 +2060,280 @@ function CriteriaSetDetail({
         </DialogContent>
       </Dialog>
 
-      {dimensions.length === 0 ? (
-        <div className="py-6 text-center text-slate-500">
-          <p>{t('admin.evaluationCriteria.noDimensions')}</p>
-        </div>
-      ) : (
-        <div className="space-y-2">
-          {dimensions.map((dim, index) => {
-            const isEditing = editingDimId === dim.id;
-            const IconComp = getIconComponent(dim.icon || 'Star');
+      <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as any)}>
+        <TabsList className="h-8">
+          <TabsTrigger value="dimensions" className="text-xs h-7 px-3">
+            <Target className="h-3.5 w-3.5 mr-1.5" />
+            평가 차원
+          </TabsTrigger>
+          <TabsTrigger value="quality" className="text-xs h-7 px-3" onClick={() => refetchQuality()}>
+            <BarChart2 className="h-3.5 w-3.5 mr-1.5" />
+            품질 점수
+          </TabsTrigger>
+          <TabsTrigger value="dryrun" className="text-xs h-7 px-3">
+            <FlaskConical className="h-3.5 w-3.5 mr-1.5" />
+            드라이런 테스트
+          </TabsTrigger>
+        </TabsList>
 
-            if (isEditing) {
-              return (
-                <div key={dim.id}>
-                  <InlineDimensionEditor
-                    dimension={dim}
-                    onSave={(data) => updateDimInlineMutation.mutate({ id: dim.id, data })}
-                    onCancel={() => setEditingDimId(null)}
-                    onDelete={() => setDeleteConfirmDimId(dim.id)}
-                    isSaving={updateDimInlineMutation.isPending}
-                  />
-                  {deleteConfirmDimId === dim.id && (
-                    <div className="mt-2 bg-red-50 border border-red-200 rounded-lg p-3 flex items-center justify-between">
-                      <div className="flex items-center gap-2 text-sm text-red-700">
-                        <AlertCircle className="h-4 w-4" />
-                        <span>"{dim.name}" 차원을 삭제하시겠습니까?</span>
-                      </div>
-                      <div className="flex gap-1">
-                        <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => setDeleteConfirmDimId(null)}>
-                          {t('common.cancel')}
-                        </Button>
-                        <Button variant="destructive" size="sm" className="h-7 text-xs" onClick={() => deleteDimInlineMutation.mutate(dim.id)} disabled={deleteDimInlineMutation.isPending}>
-                          {deleteDimInlineMutation.isPending ? t('admin.common.loading') : t('common.delete')}
-                        </Button>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              );
-            }
+        {/* ── 차원 탭 ── */}
+        <TabsContent value="dimensions" className="mt-3">
+          {dimensions.length === 0 ? (
+            <div className="py-6 text-center text-slate-500">
+              <p>{t('admin.evaluationCriteria.noDimensions')}</p>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {dimensions.map((dim, index) => {
+                const isEditing = editingDimId === dim.id;
+                const IconComp = getIconComponent(dim.icon || 'Star');
 
-            const isApproved = currentStatus === 'approved';
-
-            return (
-              <div
-                key={dim.id}
-                className={`border rounded-lg p-3 flex items-center gap-3 transition-colors ${isApproved ? 'cursor-default' : 'cursor-pointer hover:bg-slate-50'} ${!dim.isActive ? 'opacity-60 bg-slate-50' : 'bg-white'}`}
-                onClick={() => { if (!isApproved) setEditingDimId(dim.id); }}
-              >
-                <div className="flex items-center justify-center w-7 h-7 rounded-md shrink-0" style={{ backgroundColor: (dim.color || '#6366f1') + '1A' }}>
-                  <IconComp className="h-4 w-4" style={{ color: dim.color || '#6366f1' }} />
-                </div>
-                <div className="text-xs text-slate-400 w-5 text-center shrink-0">{index + 1}</div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span className="font-medium text-sm">{dim.name}</span>
-                    {getDimensionTypeBadge((dim as any).dimensionType || 'standard')}
-                    {!dim.isActive && <Badge variant="secondary" className="text-xs">{t('admin.evaluationCriteria.inactive')}</Badge>}
-                  </div>
-                  {dim.description && (
-                    <p className="text-xs text-slate-500 mt-0.5 truncate">{dim.description}</p>
-                  )}
-                </div>
-                <div className="flex items-center gap-4 shrink-0 text-sm">
-                  <div className="text-center">
-                    <span className="font-bold text-blue-600">{dim.weight}%</span>
-                  </div>
-                  <div className="text-center text-slate-500">
-                    {dim.minScore}-{dim.maxScore}
-                  </div>
-                  {isApproved ? (
-                    <TooltipProvider>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <span className="inline-flex">
-                            <Button variant="ghost" size="icon" className="h-7 w-7 opacity-40 cursor-not-allowed" disabled>
-                              <Lock className="h-3.5 w-3.5" />
+                if (isEditing) {
+                  return (
+                    <div key={dim.id}>
+                      <InlineDimensionEditor
+                        dimension={dim}
+                        onSave={(data) => updateDimInlineMutation.mutate({ id: dim.id, data })}
+                        onCancel={() => setEditingDimId(null)}
+                        onDelete={() => setDeleteConfirmDimId(dim.id)}
+                        isSaving={updateDimInlineMutation.isPending}
+                      />
+                      {deleteConfirmDimId === dim.id && (
+                        <div className="mt-2 bg-red-50 border border-red-200 rounded-lg p-3 flex items-center justify-between">
+                          <div className="flex items-center gap-2 text-sm text-red-700">
+                            <AlertCircle className="h-4 w-4" />
+                            <span>"{dim.name}" 차원을 삭제하시겠습니까?</span>
+                          </div>
+                          <div className="flex gap-1">
+                            <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => setDeleteConfirmDimId(null)}>
+                              {t('common.cancel')}
                             </Button>
-                          </span>
-                        </TooltipTrigger>
-                        <TooltipContent side="left" className="text-xs max-w-[200px]">
-                          승인된 루브릭입니다. "새 버전" 버튼으로 포크 후 편집하세요.
-                        </TooltipContent>
-                      </Tooltip>
-                    </TooltipProvider>
-                  ) : (
-                    <Button variant="ghost" size="icon" className="h-7 w-7" onClick={(e) => { e.stopPropagation(); setEditingDimId(dim.id); }}>
-                      <Edit className="h-3.5 w-3.5" />
-                    </Button>
-                  )}
+                            <Button variant="destructive" size="sm" className="h-7 text-xs" onClick={() => deleteDimInlineMutation.mutate(dim.id)} disabled={deleteDimInlineMutation.isPending}>
+                              {deleteDimInlineMutation.isPending ? t('admin.common.loading') : t('common.delete')}
+                            </Button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                }
+
+                const isApproved = currentStatus === 'approved';
+
+                return (
+                  <div
+                    key={dim.id}
+                    className={`border rounded-lg p-3 flex items-center gap-3 transition-colors ${isApproved ? 'cursor-default' : 'cursor-pointer hover:bg-slate-50'} ${!dim.isActive ? 'opacity-60 bg-slate-50' : 'bg-white'}`}
+                    onClick={() => { if (!isApproved) setEditingDimId(dim.id); }}
+                  >
+                    <div className="flex items-center justify-center w-7 h-7 rounded-md shrink-0" style={{ backgroundColor: (dim.color || '#6366f1') + '1A' }}>
+                      <IconComp className="h-4 w-4" style={{ color: dim.color || '#6366f1' }} />
+                    </div>
+                    <div className="text-xs text-slate-400 w-5 text-center shrink-0">{index + 1}</div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="font-medium text-sm">{dim.name}</span>
+                        {getDimensionTypeBadge((dim as any).dimensionType || 'standard')}
+                        {!dim.isActive && <Badge variant="secondary" className="text-xs">{t('admin.evaluationCriteria.inactive')}</Badge>}
+                      </div>
+                      {dim.description && (
+                        <p className="text-xs text-slate-500 mt-0.5 truncate">{dim.description}</p>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-4 shrink-0 text-sm">
+                      <div className="text-center">
+                        <span className="font-bold text-blue-600">{dim.weight}%</span>
+                      </div>
+                      <div className="text-center text-slate-500">
+                        {dim.minScore}-{dim.maxScore}
+                      </div>
+                      {isApproved ? (
+                        <TooltipProvider>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <span className="inline-flex">
+                                <Button variant="ghost" size="icon" className="h-7 w-7 opacity-40 cursor-not-allowed" disabled>
+                                  <Lock className="h-3.5 w-3.5" />
+                                </Button>
+                              </span>
+                            </TooltipTrigger>
+                            <TooltipContent side="left" className="text-xs max-w-[200px]">
+                              승인된 루브릭입니다. "새 버전" 버튼으로 포크 후 편집하세요.
+                            </TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
+                      ) : (
+                        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={(e) => { e.stopPropagation(); setEditingDimId(dim.id); }}>
+                          <Edit className="h-3.5 w-3.5" />
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </TabsContent>
+
+        {/* ── 품질 점수 탭 ── */}
+        <TabsContent value="quality" className="mt-3">
+          {!qualityScore ? (
+            <div className="py-6 text-center text-slate-400 text-sm">품질 점수를 불러오는 중...</div>
+          ) : qualityScore.error ? (
+            <div className="py-4 text-center text-red-500 text-sm">{qualityScore.error}</div>
+          ) : (
+            <div className="space-y-4">
+              {/* gauge */}
+              <div className="flex items-center gap-6 p-4 border rounded-lg bg-white">
+                <div className="relative flex items-center justify-center w-24 h-24 shrink-0">
+                  <svg viewBox="0 0 36 36" className="w-24 h-24 -rotate-90">
+                    <circle cx="18" cy="18" r="15.9" fill="none" stroke="#e2e8f0" strokeWidth="3" />
+                    <circle
+                      cx="18" cy="18" r="15.9" fill="none"
+                      stroke={qualityScore.total >= 80 ? '#22c55e' : qualityScore.total >= 60 ? '#f59e0b' : '#ef4444'}
+                      strokeWidth="3"
+                      strokeDasharray={`${(qualityScore.total / 100) * 100} 100`}
+                      strokeLinecap="round"
+                    />
+                  </svg>
+                  <div className="absolute text-center">
+                    <span className={`text-2xl font-bold ${qualityScore.total >= 80 ? 'text-green-600' : qualityScore.total >= 60 ? 'text-amber-500' : 'text-red-500'}`}>
+                      {qualityScore.total}
+                    </span>
+                  </div>
+                </div>
+                <div className="flex-1">
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="font-semibold text-base">루브릭 품질 점수</span>
+                    {qualityScore.total >= 80 ? (
+                      <Badge className="bg-green-100 text-green-700 text-xs">승인 가능</Badge>
+                    ) : (
+                      <Badge className="bg-amber-100 text-amber-700 text-xs">개선 필요 (80점 이상 필요)</Badge>
+                    )}
+                  </div>
+                  <p className="text-sm text-slate-500 mb-3">
+                    {qualityScore.total >= 80
+                      ? '이 루브릭은 품질 기준을 충족합니다. 검토 요청을 진행할 수 있습니다.'
+                      : `승인을 위해 ${80 - qualityScore.total}점이 더 필요합니다. 아래 항목을 개선해 주세요.`}
+                  </p>
+                  <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => setShowQualityBreakdown(v => !v)}>
+                    <Info className="h-3.5 w-3.5 mr-1" />
+                    {showQualityBreakdown ? '세부 내역 닫기' : '세부 내역 보기'}
+                  </Button>
                 </div>
               </div>
-            );
-          })}
-        </div>
-      )}
+
+              {/* breakdown */}
+              {showQualityBreakdown && qualityScore.breakdown && (
+                <div className="border rounded-lg overflow-hidden">
+                  <table className="w-full text-sm">
+                    <thead className="bg-slate-50 border-b">
+                      <tr>
+                        <th className="text-left px-4 py-2 text-xs font-semibold text-slate-600">항목</th>
+                        <th className="text-right px-4 py-2 text-xs font-semibold text-slate-600">점수</th>
+                        <th className="text-right px-4 py-2 text-xs font-semibold text-slate-600">최대</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {[
+                        { key: 'scoreConsistency', label: '점수 일관성', max: 20 },
+                        { key: 'weightAccuracy', label: '가중치 정확도', max: 20 },
+                        { key: 'behaviorAnchorSpecificity', label: '행동 앵커 구체성', max: 25 },
+                        { key: 'rubricStageCompleteness', label: '루브릭 단계 완성도', max: 20 },
+                        { key: 'evaluationPromptQuality', label: '평가 프롬프트 품질', max: 15 },
+                      ].map((item) => {
+                        const score = qualityScore.breakdown[item.key] ?? 0;
+                        const pct = (score / item.max) * 100;
+                        return (
+                          <tr key={item.key} className="border-b last:border-0">
+                            <td className="px-4 py-2.5 text-slate-700">{item.label}</td>
+                            <td className="px-4 py-2.5 text-right">
+                              <div className="flex items-center justify-end gap-2">
+                                <div className="w-24 h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                                  <div
+                                    className={`h-full rounded-full ${pct >= 80 ? 'bg-green-500' : pct >= 50 ? 'bg-amber-400' : 'bg-red-400'}`}
+                                    style={{ width: `${pct}%` }}
+                                  />
+                                </div>
+                                <span className={`font-medium w-6 text-right ${pct >= 80 ? 'text-green-600' : pct >= 50 ? 'text-amber-500' : 'text-red-500'}`}>{score}</span>
+                              </div>
+                            </td>
+                            <td className="px-4 py-2.5 text-right text-slate-400 text-xs">{item.max}</td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                    <tfoot className="bg-slate-50 border-t">
+                      <tr>
+                        <td className="px-4 py-2 font-semibold text-slate-700">합계</td>
+                        <td className="px-4 py-2 text-right font-bold text-slate-800">{qualityScore.total}</td>
+                        <td className="px-4 py-2 text-right text-slate-400 text-xs">100</td>
+                      </tr>
+                    </tfoot>
+                  </table>
+                </div>
+              )}
+            </div>
+          )}
+        </TabsContent>
+
+        {/* ── 드라이런 탭 ── */}
+        <TabsContent value="dryrun" className="mt-3 space-y-4">
+          <div className="flex items-start gap-2 rounded-lg bg-amber-50 border border-amber-200 px-4 py-3 text-amber-800 text-sm">
+            <Info className="h-4 w-4 mt-0.5 shrink-0" />
+            <span>드라이런 평가는 이 루브릭으로 샘플 대화를 테스트합니다. <strong>결과는 저장되지 않습니다.</strong></span>
+          </div>
+          <div>
+            <Label className="text-xs font-semibold text-slate-600 mb-1.5 block">샘플 대화 메시지 (JSON 배열)</Label>
+            <Textarea
+              value={dryRunMessages}
+              onChange={(e) => setDryRunMessages(e.target.value)}
+              rows={10}
+              className="font-mono text-xs"
+              placeholder='[{"role":"user","content":"..."}, {"role":"assistant","content":"..."}]'
+            />
+          </div>
+          <Button onClick={() => dryRunMutation.mutate()} disabled={dryRunMutation.isPending} className="w-full">
+            <FlaskConical className="h-4 w-4 mr-2" />
+            {dryRunMutation.isPending ? '평가 중...' : '드라이런 평가 실행'}
+          </Button>
+
+          {dryRunResult && (
+            <div className="space-y-3">
+              <div className="flex items-center gap-3 p-4 rounded-lg border bg-white">
+                <div className="text-center">
+                  <div className="text-3xl font-bold text-blue-600">{dryRunResult.overallScore ?? dryRunResult.total_score ?? '—'}</div>
+                  <div className="text-xs text-slate-500 mt-0.5">종합 점수</div>
+                </div>
+                <div className="flex-1 border-l pl-4">
+                  <p className="text-sm font-semibold text-slate-700 mb-1">드라이런 결과 요약</p>
+                  <p className="text-xs text-slate-500 line-clamp-3">{dryRunResult.summary || dryRunResult.overallComment || '요약 없음'}</p>
+                </div>
+              </div>
+
+              {(dryRunResult.dimensionScores || dryRunResult.dimension_scores || []).length > 0 && (
+                <div className="border rounded-lg overflow-hidden">
+                  <div className="bg-slate-50 border-b px-4 py-2 text-xs font-semibold text-slate-600">차원별 점수</div>
+                  <div className="divide-y">
+                    {(dryRunResult.dimensionScores || dryRunResult.dimension_scores || []).map((ds: any, i: number) => (
+                      <div key={i} className="px-4 py-3 flex items-start gap-3">
+                        <div className="w-8 h-8 rounded-full bg-blue-50 border border-blue-200 flex items-center justify-center text-sm font-bold text-blue-700 shrink-0">
+                          {ds.score ?? ds.rawScore ?? '—'}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium text-slate-700">{ds.dimensionName || ds.dimension_name || `차원 ${i + 1}`}</p>
+                          {ds.comment && <p className="text-xs text-slate-500 mt-0.5">{ds.comment}</p>}
+                        </div>
+                        <div className="text-xs text-slate-400 shrink-0">가중치 {ds.weight ?? '—'}%</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }
