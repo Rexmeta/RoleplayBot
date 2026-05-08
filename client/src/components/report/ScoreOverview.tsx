@@ -82,6 +82,8 @@ interface ScoreOverviewProps {
   feedbackHistory: any[];
   conversationId: string;
   scoreAnimKey: number;
+  reportStatus?: string;
+  confidence?: number;
 }
 
 export function ScoreOverview({
@@ -89,6 +91,8 @@ export function ScoreOverview({
   feedbackHistory,
   conversationId,
   scoreAnimKey,
+  reportStatus,
+  confidence,
 }: ScoreOverviewProps) {
   const { t } = useTranslation();
 
@@ -174,9 +178,30 @@ export function ScoreOverview({
     },
   ] : [];
 
+  const confidencePct = confidence != null ? Math.round(confidence * 100) : null;
+  const confidenceLabel =
+    reportStatus === 'valid' ? '높음' :
+    reportStatus === 'low_confidence' ? '낮음' :
+    reportStatus === 'system_fallback' ? '오류' : null;
+  const confidenceColor =
+    reportStatus === 'valid' ? 'text-emerald-700 bg-emerald-50 border-emerald-200' :
+    reportStatus === 'low_confidence' ? 'text-amber-700 bg-amber-50 border-amber-200' :
+    'text-slate-600 bg-slate-50 border-slate-200';
+
   return (
     <div className="space-y-6">
       <h2 className="print-section-title hidden print:block">📊 {t('report.tabs.scores', '성과 분석')}</h2>
+
+      {/* 신뢰도 배지 */}
+      {confidencePct != null && confidenceLabel && (
+        <div className={`flex items-center gap-2 px-3 py-2 rounded-lg border text-xs font-medium ${confidenceColor}`} data-testid="confidence-badge">
+          <i className={`fas ${reportStatus === 'valid' ? 'fa-circle-check' : 'fa-triangle-exclamation'} text-[11px]`}></i>
+          <span>평가 신뢰도: <strong>{confidenceLabel}</strong> ({confidencePct}%)</span>
+          <div className="flex-1 h-1.5 bg-current/10 rounded-full overflow-hidden ml-1">
+            <div className="h-full rounded-full bg-current opacity-60 transition-all duration-700" style={{ width: `${confidencePct}%` }} />
+          </div>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-stretch">
         <div className="flex flex-col gap-3">

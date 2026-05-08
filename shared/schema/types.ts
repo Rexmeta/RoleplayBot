@@ -48,8 +48,10 @@ export type DevelopmentPlan = {
   recommendedResources: string[];
 };
 
+export type ReportStatus = 'valid' | 'low_confidence' | 'insufficient_data' | 'system_fallback';
+
 export type DetailedFeedback = {
-  overallScore: number;
+  overallScore: number | null;
   scores: EvaluationScore[];
   dimensionFeedback?: Record<string, string>;
   strengths: string[];
@@ -81,6 +83,9 @@ export type DetailedFeedback = {
     completionRatio?: number;
   };
   insufficientConversation?: boolean;
+  confidence?: number;
+  reportStatus?: ReportStatus;
+  insufficientReasons?: string[];
 };
 
 export type PersonaSelection = {

@@ -545,7 +545,7 @@ export function validateEvaluationCriteriaSet(dimensions: Array<{
     seen.add(k);
   }
   if (dupes.size > 0) {
-    errors.push(`중복된 차원 키가 있습니다: ${[...dupes].join(', ')}`);
+    errors.push(`중복된 차원 키가 있습니다: ${Array.from(dupes).join(', ')}`);
   }
 
   for (const dim of dimensions) {
@@ -554,6 +554,102 @@ export function validateEvaluationCriteriaSet(dimensions: Array<{
   }
 
   return { valid: errors.length === 0, errors };
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 평가 신뢰도(confidence) 및 리포트 상태값(reportStatus) 로직
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type ReportStatus = 'valid' | 'low_confidence' | 'insufficient_data' | 'system_fallback';
+
+/**
+ * 평가 신뢰도(confidence) 계산 — 0~1 반환
+ *
+ * 5개 요소를 가중 합산:
+ *  - 유효 사용자 발화 수 (25%)  — validUserCount / expectedTurns
+ *  - 총 발화량 (20%)           — totalChars / expectedChars
+ *  - 대화 완성도 (20%)         — effectiveRatio
+ *  - evidence 충족률 (20%)     — dimensions with ≥1 valid evidence / total dimensions
+ *  - 음성 노이즈 품질 (15%)    — validMessages / rawMessages (텍스트 모드는 1.0 고정)
+ *
+ * @param params.validUserMessages  노이즈 필터링 후 유효 사용자 메시지
+ * @param params.rawUserMessages    필터링 전 원본 사용자 메시지
+ * @param params.effectiveRatio     calcEffectiveRatio() 결과
+ * @param params.evidenceMap        차원별 evidence 배열 (없으면 빈 객체)
+ * @param params.dimensions         평가 차원 목록
+ * @param params.voiceMode          음성 모드 여부
+ * @param params.scenarioTargetTurns 시나리오 목표 턴 수 (없으면 전역 기본값)
+ */
+export function calculateEvaluationConfidence(params: {
+  validUserMessages: ConversationMessage[];
+  rawUserMessages: ConversationMessage[];
+  effectiveRatio: number;
+  evidenceMap?: Record<string, { isSystemFallback?: boolean }[]>;
+  dimensions?: { key: string }[];
+  voiceMode: boolean;
+  scenarioTargetTurns?: number;
+}): number {
+  const {
+    validUserMessages,
+    rawUserMessages,
+    effectiveRatio,
+    evidenceMap = {},
+    dimensions = [],
+    voiceMode,
+    scenarioTargetTurns,
+  } = params;
+
+  const expectedTurns = scenarioTargetTurns ?? (voiceMode ? EXPECTED_TURNS_VOICE : EXPECTED_TURNS_TEXT);
+  const expectedChars = expectedTurns * BASELINE_CHARS_PER_TURN;
+
+  // 1) 유효 발화 수 점수 (25%)
+  const utteranceScore = Math.min(1.0, validUserMessages.length / expectedTurns);
+
+  // 2) 총 발화량 점수 (20%)
+  const totalChars = validUserMessages.reduce((s, m) => s + m.message.length, 0);
+  const volumeScore = Math.min(1.0, totalChars / expectedChars);
+
+  // 3) 대화 완성도 점수 (20%) — 이미 계산된 effectiveRatio 사용
+  const completionScore = Math.min(1.0, effectiveRatio);
+
+  // 4) evidence 충족률 (20%)
+  let evidenceScore = 1.0;
+  if (dimensions.length > 0) {
+    const dimsWithEvidence = dimensions.filter(dim => {
+      const ev = evidenceMap[dim.key];
+      if (!Array.isArray(ev) || ev.length === 0) return false;
+      return ev.some(e => !e.isSystemFallback);
+    }).length;
+    evidenceScore = dimsWithEvidence / dimensions.length;
+  }
+
+  // 5) 음성 노이즈 품질 (15%) — 텍스트 모드는 패널티 없음
+  let noiseScore = 1.0;
+  if (voiceMode && rawUserMessages.length > 0) {
+    noiseScore = Math.min(1.0, validUserMessages.length / rawUserMessages.length);
+  }
+
+  const confidence =
+    utteranceScore * 0.25 +
+    volumeScore    * 0.20 +
+    completionScore * 0.20 +
+    evidenceScore  * 0.20 +
+    noiseScore     * 0.15;
+
+  return Math.round(confidence * 1000) / 1000;
+}
+
+/**
+ * confidence 값으로 reportStatus 결정
+ *  - confidence < 0.4  → insufficient_data
+ *  - 0.4 ≤ c < 0.7    → low_confidence
+ *  - 0.7 ≤ c          → valid
+ */
+export function determineReportStatus(confidence: number, error?: unknown): ReportStatus {
+  if (error != null || !Number.isFinite(confidence)) return 'system_fallback';
+  if (confidence < 0.4) return 'insufficient_data';
+  if (confidence < 0.7) return 'low_confidence';
+  return 'valid';
 }
 
 /**

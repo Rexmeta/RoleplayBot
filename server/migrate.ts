@@ -993,7 +993,10 @@ export async function runMigrations(): Promise<void> {
       criticalColumnPatches.push(
         { table: 'scenarios', column: 'target_duration_minutes', sql: `DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='scenarios' AND column_name='target_duration_minutes') THEN ALTER TABLE "scenarios" ADD COLUMN "target_duration_minutes" integer NOT NULL DEFAULT 7; END IF; END $$;` },
         { table: 'scenarios', column: 'target_turns', sql: `DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='scenarios' AND column_name='target_turns') THEN ALTER TABLE "scenarios" ADD COLUMN "target_turns" integer NOT NULL DEFAULT 10; END IF; END $$;` },
-        { table: 'scenarios', column: 'min_valid_turns', sql: `DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='scenarios' AND column_name='min_valid_turns') THEN ALTER TABLE "scenarios" ADD COLUMN "min_valid_turns" integer NOT NULL DEFAULT 4; END IF; END $$;` }
+        { table: 'scenarios', column: 'min_valid_turns', sql: `DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='scenarios' AND column_name='min_valid_turns') THEN ALTER TABLE "scenarios" ADD COLUMN "min_valid_turns" integer NOT NULL DEFAULT 4; END IF; END $$;` },
+        { table: 'feedbacks', column: 'confidence', sql: `DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='feedbacks' AND column_name='confidence') THEN ALTER TABLE "feedbacks" ADD COLUMN "confidence" double precision; END IF; END $$;` },
+        { table: 'feedbacks', column: 'report_status', sql: `DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='feedbacks' AND column_name='report_status') THEN ALTER TABLE "feedbacks" ADD COLUMN "report_status" varchar; END IF; END $$;` },
+        { table: 'feedbacks', column: 'overall_score_nullable', sql: `DO $$ BEGIN ALTER TABLE "feedbacks" ALTER COLUMN "overall_score" DROP NOT NULL; EXCEPTION WHEN OTHERS THEN NULL; END $$;` }
       );
 
       for (const patch of criticalColumnPatches) {

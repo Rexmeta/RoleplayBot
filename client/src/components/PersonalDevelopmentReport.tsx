@@ -328,12 +328,24 @@ export default function PersonalDevelopmentReport({
     );
   }
 
-  // 대화량 부족 시 점수/평가 화면 전체를 대체
-  if (feedback.detailedFeedback?.insufficientConversation) {
+  const reportStatus = feedback.reportStatus ?? feedback.detailedFeedback?.reportStatus;
+  const confidence = feedback.confidence ?? feedback.detailedFeedback?.confidence;
+
+  // insufficient_data 상태: 점수/평가 화면 전체를 대체
+  const isInsufficient =
+    reportStatus === 'insufficient_data' || feedback.detailedFeedback?.insufficientConversation;
+
+  if (isInsufficient) {
+    const reasons: string[] = feedback.detailedFeedback?.insufficientReasons ?? [];
     return (
       <div className="max-w-2xl mx-auto py-16 text-center space-y-6" data-testid="insufficient-conversation-report">
         <div className="w-20 h-20 flex items-center justify-center rounded-full bg-amber-100 mx-auto">
           <i className="fas fa-comment-slash text-amber-500 text-3xl"></i>
+        </div>
+        <div className="flex items-center justify-center gap-2">
+          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-red-100 text-red-700 text-xs font-bold uppercase tracking-wide border border-red-200">
+            <i className="fas fa-circle-xmark"></i> 평가 데이터 부족
+          </span>
         </div>
         <h2 className="text-2xl font-bold text-amber-800">
           {t('report.insufficientConversation.title', '대화 분량 부족 — 평가가 불가합니다')}
@@ -341,14 +353,25 @@ export default function PersonalDevelopmentReport({
         <p className="text-slate-600 max-w-md mx-auto">
           {t('report.insufficientConversation.description', '목표 대화량에 미달하여 AI가 역량을 충분히 측정하지 못했습니다. 다음 연습 시 대화를 더 충분히 진행해 주세요.')}
         </p>
+        {reasons.length > 0 && (
+          <div className="bg-red-50 border border-red-200 rounded-lg p-4 text-sm text-red-700 text-left max-w-sm mx-auto">
+            <p className="font-semibold mb-2 flex items-center gap-1"><i className="fas fa-triangle-exclamation"></i> 부족 사유</p>
+            <ul className="space-y-1 list-disc list-inside">
+              {reasons.map((r, i) => <li key={i}>{r}</li>)}
+            </ul>
+          </div>
+        )}
         <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 text-sm text-amber-700 text-left max-w-sm mx-auto">
-          <p className="font-semibold mb-1">{t('report.insufficientConversation.tipsTitle', '더 좋은 평가를 받으려면')}</p>
+          <p className="font-semibold mb-1">{t('report.insufficientConversation.tipsTitle', '재평가 조건')}</p>
           <ul className="list-disc list-inside space-y-1">
             <li>{t('report.insufficientConversation.tip1', '시나리오에서 제시한 목표 턴 수 이상 대화하세요')}</li>
             <li>{t('report.insufficientConversation.tip2', '각 발화마다 충분한 내용을 담아 답변하세요')}</li>
             <li>{t('report.insufficientConversation.tip3', '대화를 너무 일찍 마무리하지 마세요')}</li>
           </ul>
         </div>
+        {confidence != null && (
+          <p className="text-xs text-slate-400">평가 신뢰도: {Math.round(confidence * 100)}%</p>
+        )}
         <div className="flex justify-center gap-3 pt-2">
           {!isAdminView && (
             <Button onClick={onRetry} className="bg-amber-600 hover:bg-amber-700" data-testid="retry-from-insufficient">
@@ -376,10 +399,34 @@ export default function PersonalDevelopmentReport({
   return (
     <div ref={reportRef} className="max-w-6xl mx-auto space-y-6 print-report-container" data-testid="personal-development-report">
 
+      {/* low_confidence 경고 배너 */}
+      {reportStatus === 'low_confidence' && (
+        <div className="flex items-start gap-3 bg-amber-50 border border-amber-300 rounded-xl px-4 py-3 text-sm text-amber-800 screen-only" data-testid="low-confidence-banner">
+          <i className="fas fa-triangle-exclamation text-amber-500 mt-0.5 flex-shrink-0"></i>
+          <div>
+            <span className="font-semibold">신뢰도 낮음 (Low Confidence)</span>
+            {confidence != null && <span className="ml-2 text-amber-600">— 신뢰도 {Math.round(confidence * 100)}%</span>}
+            <p className="text-amber-700 mt-0.5 text-xs">대화량이 다소 부족하여 평가 정확도가 낮을 수 있습니다. 더 충분한 대화를 진행하면 더 정확한 평가를 받을 수 있습니다.</p>
+          </div>
+        </div>
+      )}
+
       {/* Header */}
       <div className="bg-gradient-to-r from-corporate-600 to-corporate-700 rounded-xl p-6 text-white screen-only" style={{ opacity: 0, animation: 'fadeInUp 0.8s ease-out forwards' }}>
         <div className="flex items-center justify-between mb-4">
-          <div></div>
+          <div>
+            {/* reportStatus 뱃지 */}
+            {reportStatus === 'valid' && (
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-500/30 text-emerald-100 text-[10px] font-bold uppercase tracking-wide border border-emerald-400/40">
+                <i className="fas fa-circle-check text-[9px]"></i> 신뢰도 높음
+              </span>
+            )}
+            {reportStatus === 'low_confidence' && (
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-400/30 text-amber-100 text-[10px] font-bold uppercase tracking-wide border border-amber-300/40">
+                <i className="fas fa-triangle-exclamation text-[9px]"></i> 신뢰도 낮음
+              </span>
+            )}
+          </div>
           {!isAdminView && (
             <Button onClick={() => window.location.href = '/mypage'} variant="ghost" size="sm" className="text-white/80 hover:text-white hover:bg-white/10" data-testid="mypage-button">
               <i className="fas fa-user mr-2"></i>{t('report.toMyPage', '마이페이지로')}
@@ -511,7 +558,7 @@ export default function PersonalDevelopmentReport({
 
         <TabsContent value="scores" className="space-y-6 print-show-all">
           <h2 className="print-section-title hidden print:block">📊 {t('report.tabs.scores', '성과 분석')}</h2>
-          <ScoreOverview feedback={feedback} feedbackHistory={feedbackHistory} conversationId={conversationId} scoreAnimKey={scoreAnimKey} />
+          <ScoreOverview feedback={feedback} feedbackHistory={feedbackHistory} conversationId={conversationId} scoreAnimKey={scoreAnimKey} reportStatus={reportStatus} confidence={confidence} />
         </TabsContent>
 
         <TabsContent value="behavior" className="space-y-8 print-show-all">

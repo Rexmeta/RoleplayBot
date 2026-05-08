@@ -3,6 +3,13 @@ import { storage } from "../storage";
 import { fileManager } from "../services/fileManager";
 import { generateFeedback, generateStrategyReflectionFeedback } from "../services/aiServiceFactory";
 import { EvaluationScore } from "@shared/schema";
+import {
+  calcEffectiveRatio,
+  filterVoiceNoise,
+  isVoiceMode,
+  calculateEvaluationConfidence,
+  determineReportStatus,
+} from "../services/evaluationEngine";
 
 export function asyncHandler(fn: (req: any, res: Response, next: NextFunction) => Promise<any>) {
   return (req: Request, res: Response, next: NextFunction) => {
@@ -171,54 +178,37 @@ const INSUFFICIENT_CONVERSATION_THRESHOLD_CHARS = 50;
 function generateInsufficientConversationFeedback(
   evaluationCriteria: any,
   userMessageCount: number,
-  totalChars: number
+  totalChars: number,
+  validMessageCount: number,
+  confidence: number
 ): any {
-  const dimensions = evaluationCriteria?.dimensions || [
-    { key: 'clarityLogic', name: '명확성 & 논리성', weight: 20, minScore: 1, maxScore: 10 },
-    { key: 'listeningEmpathy', name: '경청 & 공감', weight: 20, minScore: 1, maxScore: 10 },
-    { key: 'appropriatenessAdaptability', name: '적절성 & 상황 대응', weight: 20, minScore: 1, maxScore: 10 },
-    { key: 'persuasivenessImpact', name: '설득력 & 영향력', weight: 20, minScore: 1, maxScore: 10 },
-    { key: 'strategicCommunication', name: '전략적 커뮤니케이션', weight: 20, minScore: 1, maxScore: 10 },
-  ];
-  const insufficientMsg = '대화 내용이 부족하여 정확한 평가가 어렵습니다';
-  const baseScores = [2, 4, 3, 5, 2];
-  const dimensionFeedback: Record<string, string> = {};
-  const scores: EvaluationScore[] = dimensions.map((dim: any, idx: number) => {
-    dimensionFeedback[dim.key] = insufficientMsg;
-    return {
-      category: dim.key,
-      name: dim.name || dim.key,
-      score: baseScores[idx % baseScores.length],
-      feedback: insufficientMsg,
-      icon: dim.icon || '📊',
-      color: dim.color || 'blue',
-      weight: dim.weight ?? 20,
-      maxScore: dim.maxScore ?? 10,
-    };
-  });
-
-  const totalWeight = dimensions.reduce((sum: any, d: any) => sum + (d.weight || 20), 0) || 100;
-  const weightedSum = dimensions.reduce((sum: any, d: any, idx: number) => {
-    const s = baseScores[idx % baseScores.length];
-    const maxScore = d.maxScore || 10;
-    return sum + (s / maxScore) * (d.weight || 20);
-  }, 0);
-  const overallScore = Math.round((weightedSum / totalWeight) * 100);
+  const reasons: string[] = [];
+  if (userMessageCount < INSUFFICIENT_CONVERSATION_THRESHOLD_MESSAGES) {
+    reasons.push(`발화 수 부족: ${userMessageCount}회 (최소 ${INSUFFICIENT_CONVERSATION_THRESHOLD_MESSAGES}회 이상 필요)`);
+  }
+  if (totalChars < INSUFFICIENT_CONVERSATION_THRESHOLD_CHARS) {
+    reasons.push(`총 발화량 부족: ${totalChars}자 (최소 ${INSUFFICIENT_CONVERSATION_THRESHOLD_CHARS}자 이상 필요)`);
+  }
+  if (validMessageCount < userMessageCount) {
+    reasons.push(`유효 발화 부족: 노이즈 제거 후 유효 발화 ${validMessageCount}회`);
+  }
 
   return {
-    overallScore,
-    scores,
-    dimensionFeedback,
-    strengths: ['대화 참여 시도'],
-    improvements: ['더 많은 발화 필요', '구체적인 응답 작성 필요', '대화를 충분히 진행해 주세요'],
-    nextSteps: ['더 긴 대화 후 평가를 시도하세요', '각 역량 영역별로 충분한 발화를 해 주세요'],
-    summary: `대화 내용이 부족하여 정확한 역량 분석이 어렵습니다. (발화 수: ${userMessageCount}회, 총 글자 수: ${totalChars}자) 더 충분한 대화를 나눈 후 다시 평가해 주세요.`,
-    ranking: insufficientMsg,
+    overallScore: null,
+    scores: [],
+    dimensionFeedback: {},
+    strengths: [],
+    improvements: [],
+    nextSteps: ['더 긴 대화 후 평가를 시도하세요', '각 역량 영역별로 충분한 발화를 해 주세요', `목표 발화 수(최소 ${INSUFFICIENT_CONVERSATION_THRESHOLD_MESSAGES}회) 이상 대화하세요`],
+    summary: `대화 내용이 부족하여 역량 분석이 불가합니다. (발화 수: ${userMessageCount}회, 총 글자 수: ${totalChars}자) 더 충분한 대화를 나눈 후 다시 평가해 주세요.`,
     behaviorGuides: [],
     conversationGuides: [],
     developmentPlan: { shortTerm: [], mediumTerm: [], longTerm: [], recommendedResources: [] },
     evaluationCriteriaSetName: evaluationCriteria?.name,
     insufficientConversation: true,
+    confidence,
+    reportStatus: 'insufficient_data',
+    insufficientReasons: reasons,
   };
 }
 
@@ -250,12 +240,29 @@ export async function generateAndSaveFeedback(
     typeof scenarioObj?.minValidTurns === 'number'
       ? scenarioObj.minValidTurns
       : INSUFFICIENT_CONVERSATION_THRESHOLD_MESSAGES;
+
+  const voiceMode = isVoiceMode(conversation);
+  const validUserMessages = filterVoiceNoise(userMessages);
+  const effectiveRatio = calcEffectiveRatio(validUserMessages, voiceMode, scenarioObj?.targetTurns);
+
+  // confidence/reportStatus를 insufficient 판단 전에 계산
+  const activeDimensionsForConfidence = evaluationCriteria?.dimensions ?? [];
+  const earlyConfidence = calculateEvaluationConfidence({
+    validUserMessages,
+    rawUserMessages: userMessages,
+    effectiveRatio,
+    evidenceMap: {},
+    dimensions: activeDimensionsForConfidence,
+    voiceMode,
+    scenarioTargetTurns: scenarioObj?.targetTurns,
+  });
+
   const isInsufficientConversation = userMessages.length < scenarioMinValidTurns;
 
   let feedbackData: any;
   if (isInsufficientConversation) {
     console.log(`⚠️ 대화 부족 감지 (발화 수: ${userMessages.length}, 글자 수: ${totalUserWords}) → AI 호출 없이 평가 불가 피드백 생성`);
-    feedbackData = generateInsufficientConversationFeedback(evaluationCriteria, userMessages.length, totalUserWords);
+    feedbackData = generateInsufficientConversationFeedback(evaluationCriteria, userMessages.length, totalUserWords, validUserMessages.length, earlyConfidence);
   } else {
     feedbackData = await generateFeedback(
       scenarioObj,
@@ -307,8 +314,10 @@ export async function generateAndSaveFeedback(
     console.log(`⚠️ insufficientConversation=true — 점수 재계산 우회, 상태 중심 저장`);
     const feedback = await storage.createFeedback({
       personaRunId: conversationId,
-      overallScore: 0,
-      scores: Array.isArray(feedbackData.scores) ? feedbackData.scores : [],
+      overallScore: null,
+      confidence: feedbackData.confidence ?? null,
+      reportStatus: 'insufficient_data',
+      scores: [],
       detailedFeedback: feedbackData,
     });
     return feedback;
@@ -377,23 +386,62 @@ export async function generateAndSaveFeedback(
     feedbackData.overallScore = verifiedOverallScore;
   }
 
+  // evidence 맵 추출 (AI 피드백에서)
+  const evidenceMapForConfidence: Record<string, { isSystemFallback?: boolean }[]> = {};
+  if (Array.isArray(feedbackData.scores)) {
+    for (const s of feedbackData.scores) {
+      if (s.category && Array.isArray(s.evidence)) {
+        evidenceMapForConfidence[s.category] = s.evidence;
+      }
+    }
+  }
+
+  const finalConfidence = calculateEvaluationConfidence({
+    validUserMessages,
+    rawUserMessages: userMessages,
+    effectiveRatio,
+    evidenceMap: evidenceMapForConfidence,
+    dimensions: activeDimensions,
+    voiceMode,
+    scenarioTargetTurns: scenarioObj?.targetTurns,
+  });
+  const finalReportStatus = determineReportStatus(finalConfidence);
+
+  feedbackData.confidence = finalConfidence;
+  feedbackData.reportStatus = finalReportStatus;
+  console.log(`📊 평가 신뢰도: confidence=${finalConfidence.toFixed(3)}, reportStatus=${finalReportStatus}`);
+
+  // insufficient_data로 판정된 경우 점수 데이터를 정규화해서 저장 (일관성 보장)
+  const isInsufficientByConfidence = finalReportStatus === 'insufficient_data';
+  const savedOverallScore = isInsufficientByConfidence ? null : verifiedOverallScore;
+  const savedScores = isInsufficientByConfidence ? [] : evaluationScores;
+  if (isInsufficientByConfidence) {
+    feedbackData.insufficientConversation = true;
+    console.log(`⚠️ insufficient_data 판정 (신뢰도 기반) → overallScore=null, scores=[] 로 정규화`);
+  }
+
   const feedback = await storage.createFeedback({
     personaRunId: conversationId,
-    overallScore: verifiedOverallScore,
-    scores: evaluationScores,
+    overallScore: savedOverallScore,
+    confidence: finalConfidence,
+    reportStatus: finalReportStatus,
+    scores: savedScores,
     detailedFeedback: feedbackData,
   });
 
-  try {
-    const personaRun = await storage.getPersonaRun(conversationId);
-    if (personaRun) {
-      await storage.updatePersonaRun(conversationId, {
-        score: verifiedOverallScore
-      });
-      console.log(`✅ PersonaRun ${conversationId} score 업데이트: ${verifiedOverallScore}`);
+  // insufficient_data 판정 시 PersonaRun score를 업데이트하지 않음 (무점수 상태 유지)
+  if (!isInsufficientByConfidence) {
+    try {
+      const personaRun = await storage.getPersonaRun(conversationId);
+      if (personaRun) {
+        await storage.updatePersonaRun(conversationId, {
+          score: verifiedOverallScore
+        });
+        console.log(`✅ PersonaRun ${conversationId} score 업데이트: ${verifiedOverallScore}`);
+      }
+    } catch (error) {
+      console.warn(`PersonaRun score 업데이트 실패: ${error}`);
     }
-  } catch (error) {
-    console.warn(`PersonaRun score 업데이트 실패: ${error}`);
   }
 
   console.log(`피드백 자동 생성 완료: ${conversationId}`);

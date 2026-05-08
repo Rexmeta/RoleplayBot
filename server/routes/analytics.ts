@@ -77,9 +77,13 @@ export default function createAnalyticsRouter(isAuthenticated: any) {
 
     const allUserFeedbacks = await storage.getUserFeedbacks(userId);
     // 롤플레이X 피드백만 사용 (자유 대화 제외)
-    const userFeedbacks = allUserFeedbacks.filter(
-      f => f.personaRunId != null && roleplayPersonaRunIds.has(f.personaRunId)
-    );
+    // insufficient_data 상태 피드백은 점수 통계에서 제외
+    const userFeedbacks = allUserFeedbacks.filter(f => {
+      if (f.personaRunId == null || !roleplayPersonaRunIds.has(f.personaRunId)) return false;
+      if (f.reportStatus === 'insufficient_data') return false;
+      if (f.reportStatus == null && (f.detailedFeedback as any)?.reportStatus === 'insufficient_data') return false;
+      return true;
+    });
 
     if (userFeedbacks.length === 0) {
       return res.json({
@@ -96,9 +100,10 @@ export default function createAnalyticsRouter(isAuthenticated: any) {
       });
     }
 
-    const averageScore = Math.round(
-      userFeedbacks.reduce((acc, f) => acc + f.overallScore, 0) / userFeedbacks.length
-    );
+    const scorableFeedbacks = userFeedbacks.filter(f => f.overallScore != null);
+    const averageScore = scorableFeedbacks.length > 0
+      ? Math.round(scorableFeedbacks.reduce((acc, f) => acc + (f.overallScore ?? 0), 0) / scorableFeedbacks.length)
+      : 0;
 
     const criteriaSetStats: Record<string, {
       setId: string;
@@ -182,6 +187,7 @@ export default function createAnalyticsRouter(isAuthenticated: any) {
     })).sort((a, b) => b.evaluationCount - a.evaluationCount);
 
     const scoreHistory = userFeedbacks
+      .filter(f => f.overallScore != null)
       .map(f => {
         const createdDate = new Date(f.createdAt);
         const year = createdDate.getFullYear();
@@ -191,7 +197,7 @@ export default function createAnalyticsRouter(isAuthenticated: any) {
         return {
           date: dateStr,
           time: createdDate.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' }),
-          score: f.overallScore,
+          score: f.overallScore as number,
           conversationId: f.personaRunId || f.conversationId
         };
       })
@@ -392,11 +398,12 @@ export default function createAnalyticsRouter(isAuthenticated: any) {
     const completedSessions = completedPersonaRuns.length;
 
     const completedFeedbacks = feedbacks.filter(f =>
-      completedPersonaRuns.some(pr => pr.id === f.personaRunId)
+      completedPersonaRuns.some(pr => pr.id === f.personaRunId) &&
+      f.reportStatus !== 'insufficient_data'
     );
 
     const averageScore = completedFeedbacks.length > 0
-      ? parseFloat((completedFeedbacks.reduce((acc, f) => acc + f.overallScore, 0) / completedFeedbacks.length).toFixed(1))
+      ? parseFloat((completedFeedbacks.reduce((acc, f) => acc + (f.overallScore ?? 0), 0) / completedFeedbacks.length).toFixed(1))
       : 0;
 
     const personaRunUserIds = new Set(personaRuns.map(pr => {
@@ -461,7 +468,7 @@ export default function createAnalyticsRouter(isAuthenticated: any) {
       if (!acc[scenarioId]) acc[scenarioId] = { scores: [], name: '' };
       const scenario = scenarios.find((s: any) => s.id === scenarioId);
       acc[scenarioId].name = scenario?.title || scenarioId;
-      acc[scenarioId].scores.push(f.overallScore);
+      acc[scenarioId].scores.push(f.overallScore ?? 0);
       return acc;
     }, {} as Record<string, { scores: number[]; name: string }>);
 
@@ -479,7 +486,7 @@ export default function createAnalyticsRouter(isAuthenticated: any) {
       if (!personaRun) return acc;
       const mbti = personaRun.personaId;
       if (!acc[mbti]) acc[mbti] = [];
-      acc[mbti].push(f.overallScore);
+      acc[mbti].push(f.overallScore ?? 0);
       return acc;
     }, {} as Record<string, number[]>);
 
@@ -534,7 +541,7 @@ export default function createAnalyticsRouter(isAuthenticated: any) {
 
     let newUsers = 0;
     let returningUsers = 0;
-    for (const count of completedSessionsPerUser.values()) {
+    for (const count of Array.from(completedSessionsPerUser.values())) {
       if (count === 1) newUsers++;
       else returningUsers++;
     }
@@ -1012,7 +1019,9 @@ export default function createAnalyticsRouter(isAuthenticated: any) {
       : allPersonaRuns;
     const personaRunIds = new Set(personaRuns.map(pr => pr.id));
 
-    const feedbacks = allFeedbacks.filter(f => f.personaRunId && personaRunIds.has(f.personaRunId));
+    const feedbacks = allFeedbacks.filter(f =>
+      f.personaRunId && personaRunIds.has(f.personaRunId) && f.reportStatus !== 'insufficient_data'
+    );
 
     const scenarioRunsByUser = new Map<string, any[]>();
     for (const sr of scenarioRuns) {
@@ -1197,7 +1206,9 @@ export default function createAnalyticsRouter(isAuthenticated: any) {
     const filteredPersonaRuns = allPersonaRuns.filter(pr => scenarioRunIds.has(pr.scenarioRunId));
     const personaRunIds = new Set(filteredPersonaRuns.map(pr => pr.id));
 
-    const feedbacks = allFeedbacks.filter(f => f.personaRunId && personaRunIds.has(f.personaRunId));
+    const feedbacks = allFeedbacks.filter(f =>
+      f.personaRunId && personaRunIds.has(f.personaRunId) && f.reportStatus !== 'insufficient_data'
+    );
 
     const scenarioRunMap = new Map(filteredScenarioRuns.map(sr => [sr.id, sr]));
     const personaRunMap = new Map(filteredPersonaRuns.map(pr => [pr.id, pr]));
