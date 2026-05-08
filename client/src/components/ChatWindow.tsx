@@ -104,7 +104,10 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
         const newUrl = getCharacterImage(emotion);
         if (newUrl) preloadImage(newUrl);
       }
-      setLocalMessages(prev => [...prev, { sender: 'ai', message, timestamp: new Date().toISOString(), emotion: emotion || '중립', emotionReason: emotionReason || '' }]);
+      setLocalMessages(prev => {
+        if (prev.some(m => m.sender === 'ai' && m.message === message)) return prev;
+        return [...prev, { sender: 'ai', message, timestamp: new Date().toISOString(), emotion: emotion || '중립', emotionReason: emotionReason || '' }];
+      });
       if (!hasUserSpokenRef.current) setShowMicPrompt(true);
     },
     onUserTranscription: (transcript) => {
@@ -177,7 +180,18 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
     }
   };
 
-  useEffect(() => { if (conversation?.messages) setLocalMessages(conversation.messages); }, [conversation?.messages]);
+  useEffect(() => {
+    if (!conversation?.messages) return;
+    setLocalMessages(prev => {
+      const incoming = conversation.messages;
+      const incomingKeys = new Set(incoming.map(m => `${m.sender}:::${m.message}`));
+      const existingKeys = new Set(prev.map(m => `${m.sender}:::${m.message}`));
+      const hasNewFromServer = incoming.some(m => !existingKeys.has(`${m.sender}:::${m.message}`));
+      const localOnly = prev.filter(m => !incomingKeys.has(`${m.sender}:::${m.message}`));
+      if (!hasNewFromServer && localOnly.length === 0) return prev;
+      return [...incoming, ...localOnly];
+    });
+  }, [conversation?.messages]);
 
   useEffect(() => { if (messagesEndRef.current) messagesEndRef.current.scrollIntoView({ behavior: 'smooth', block: 'end' }); },
     [localMessages, pendingAiMessage, pendingUserMessage, pendingUserText]);

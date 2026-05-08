@@ -15,6 +15,12 @@ export function isThinkingText(text: string): boolean {
     /^(Initiating|Beginning|Starting|Transitioning|Highlighting)/i,
     /^(I've|I'm|I'll)\s+/i,
     /^The\s+(user|situation|context)/i,
+    // Meta-description openers: AI describing how it will craft the response
+    /^The\s+(opening|scene|character|conversation|response|persona|dialogue)\s+(uses|opens|starts|begins|is|shows|will|should)/i,
+    // Possessive reasoning fragments: "I',-young,'s urgency" style
+    /^I[',\-\s]+\w+[',\-\s]+'s\s/i,
+    // Comma-dash fragment patterns characteristic of inline reasoning
+    /,-\.\.|\.-,|,\s*-\s*\./,
     // AI narrative/stage directions (untagged)
     /^I\s+(greeted|smiled|walked|turned|looked|noticed|approached|sat|stood|entered|bowed|nodded|paused|sighed|cleared|straightened|leaned|glanced)/i,
     /^(I greet|I smile|I walk|I nod|I pause|I hesitate|I take a|I let out|I draw|I exhale)/i,
@@ -89,6 +95,12 @@ export function filterThinkingText(text: string, userLanguage: 'ko' | 'en' | 'ja
         /^(Initiating|Beginning|Starting|Transitioning|Highlighting)/i,
         /^The\s+(user|situation|context)\s+(is|seems|appears)/i,
         /^(considering|crafting|ensuring|maintaining|reflecting)/i,
+        // Meta-description openers
+        /^The\s+(opening|scene|character|conversation|response|persona|dialogue)\s+(uses|opens|starts|begins|is|shows|will|should)/i,
+        // Possessive reasoning fragments: "I',-young,'s urgency" style
+        /^I[',\-\s]+\w+[',\-\s]+'s\s/i,
+        // Comma-dash fragment patterns characteristic of inline reasoning
+        /,-\.\.|\.-,|,\s*-\s*\./,
         // AI stage-direction narration (untagged)
         /^I\s+(greeted|smiled|walked|turned|looked|noticed|approached|sat|stood|entered|bowed|nodded|paused|sighed|cleared\s+my|straightened|leaned|glanced|stared|frowned|winced|shrugged|crossed|folded|placed|reached|handed|picked|put|set\s+down)\b/i,
         /^I\s+(greeted|addressed|called|said\s+to|spoke\s+to|replied\s+to|responded\s+to)\s+\w+/i,

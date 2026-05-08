@@ -194,6 +194,83 @@ describe('filterThinkingText', () => {
   });
 });
 
+describe('filterThinkingText — new reasoning fragment patterns', () => {
+  it('filters the exact leaked reasoning text from the bug report (en mode)', () => {
+    const leaked = "I',-young,'s urgency.,-.. The opening uses";
+    const result = filterThinkingText(leaked, 'en');
+    expect(result.trim()).toBe('');
+  });
+
+  it('filters the exact leaked reasoning text from the bug report (ko mode)', () => {
+    const leaked = "I',-young,'s urgency.,-.. The opening uses";
+    const result = filterThinkingText(leaked, 'ko');
+    expect(result.trim()).toBe('');
+  });
+
+  it('filters "The opening uses..." meta-description in English mode', () => {
+    const text = 'The opening uses a sense of urgency.\nGood morning, what can I do for you?';
+    const result = filterThinkingText(text, 'en');
+    expect(result).not.toContain('The opening uses');
+    expect(result).toContain('Good morning');
+  });
+
+  it('filters "The scene opens with..." in English mode', () => {
+    const result = filterThinkingText('The scene opens with tension.\nHello there.', 'en');
+    expect(result).not.toContain('The scene opens');
+    expect(result).toContain('Hello there');
+  });
+
+  it('filters "The response will..." in English mode', () => {
+    const result = filterThinkingText('The response will be firm.\nPlease take a seat.', 'en');
+    expect(result).not.toContain('The response will');
+    expect(result).toContain('Please take a seat');
+  });
+
+  it('does not accidentally filter legitimate Korean dialogue', () => {
+    const koText = '안녕하세요, 오늘 무슨 일이세요?';
+    const result = filterThinkingText(koText, 'ko');
+    expect(result).toContain('안녕하세요');
+  });
+
+  it('does not accidentally filter legitimate Japanese dialogue', () => {
+    const jaText = 'こんにちは、今日はどうされましたか？';
+    const result = filterThinkingText(jaText, 'ja');
+    expect(result).toContain('こんにちは');
+  });
+
+  it('does not accidentally filter legitimate Chinese dialogue', () => {
+    const zhText = '你好，请问有什么可以帮助您？';
+    const result = filterThinkingText(zhText, 'zh');
+    expect(result).toContain('你好');
+  });
+});
+
+describe('isThinkingText — new reasoning fragment patterns', () => {
+  it('catches possessive reasoning fragment: "I\',-young,\'s urgency"', () => {
+    expect(isThinkingText("I',-young,'s urgency")).toBe(true);
+  });
+
+  it('catches meta-description opener: "The opening uses a sense of urgency"', () => {
+    expect(isThinkingText('The opening uses a sense of urgency')).toBe(true);
+  });
+
+  it('catches meta-description opener: "The scene opens with..."', () => {
+    expect(isThinkingText('The scene opens with the manager')).toBe(true);
+  });
+
+  it('catches meta-description opener: "The dialogue begins with..."', () => {
+    expect(isThinkingText('The dialogue begins with a challenge')).toBe(true);
+  });
+
+  it('catches comma-dash inline reasoning patterns', () => {
+    expect(isThinkingText("urgency.,-.. The opening uses")).toBe(true);
+  });
+
+  it('does not catch normal English dialogue', () => {
+    expect(isThinkingText('Good morning. How can I help you today?')).toBe(false);
+  });
+});
+
 describe('filterThinkingText — scenario metrics should not leak through', () => {
   it('English mode: removes lines that are pure AI narrative about scenario numbers', () => {
     const aiOutput = [
