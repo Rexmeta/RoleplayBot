@@ -36,7 +36,6 @@ export function AIScenarioGenerator({ onGenerated }: AIGeneratorProps) {
     conflictType: '',
     objectiveType: '',
     skills: '',
-    estimatedTime: '60-90분',
     personaCount: 3
   });
 
@@ -289,23 +288,6 @@ export function AIScenarioGenerator({ onGenerated }: AIGeneratorProps) {
                     />
                   </div>
 
-                  <div>
-                    <Label htmlFor="estimatedTime" className="text-sm font-semibold text-slate-700 mb-1.5 block">{t('admin.aiGenerator.estimatedTime')}</Label>
-                    <Select 
-                      value={formData.estimatedTime} 
-                      onValueChange={(value) => setFormData(prev => ({ ...prev, estimatedTime: value }))}
-                    >
-                      <SelectTrigger className="border-slate-300 focus:border-purple-500 focus:ring-purple-500 bg-white">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="30-45분">30-45분</SelectItem>
-                        <SelectItem value="45-60분">45-60분</SelectItem>
-                        <SelectItem value="60-90분">60-90분</SelectItem>
-                        <SelectItem value="90-120분">90-120분</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
                 </div>
 
                 <div>

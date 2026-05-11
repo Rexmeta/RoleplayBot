@@ -60,7 +60,6 @@ export default function createAdminScenariosRouter(isAuthenticated: any) {
       conflictType,
       objectiveType,
       skills,
-      estimatedTime,
       difficulty,
       personaCount
     } = req.body;
@@ -80,7 +79,6 @@ export default function createAdminScenariosRouter(isAuthenticated: any) {
       conflictType,
       objectiveType,
       skills,
-      estimatedTime,
       difficulty: Number(difficulty) || 3,
       personaCount: Number(personaCount) || 3
     });

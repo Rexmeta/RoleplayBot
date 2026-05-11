@@ -78,7 +78,6 @@ export interface AIScenarioGenerationRequest {
   conflictType?: string; // 갈등 유형
   objectiveType?: string; // 목표 유형
   skills?: string; // 필요 역량
-  estimatedTime?: string; // 예상 소요 시간
   difficulty?: number; // 1-4 난이도
   personaCount?: number; // 생성할 페르소나 수 (1-6)
 }
@@ -258,7 +257,6 @@ ${(() => {
   ],
   "recommendedFlow": ["${selectedMBTI[0] || 'istj'}"${selectedMBTI.length > 1 ? `, "${selectedMBTI[1]}"` : ''}${selectedMBTI.length > 2 ? `, "${selectedMBTI[2]}"` : ''}],
   "difficulty": ${request.difficulty || 3},
-  "estimatedTime": "${request.estimatedTime || '60-90분'}",
   "skills": [${request.skills ? request.skills.split(',').map(skill => `"${skill.trim()}"`).join(', ') : '"갈등 중재", "협상", "문제 해결", "의사소통", "리더십"'}],
   "targetDurationMinutes": (권장 범위 내에서 시나리오 내용에 맞는 정수값. 예: 난이도 3이면 10~15 사이),
   "targetTurns": (권장 범위 내에서 시나리오 복잡도에 맞는 정수값. 예: 난이도 3이면 12~16 사이),
@@ -363,13 +361,12 @@ ${(() => {
             },
             recommendedFlow: { type: "array", items: { type: "string" } },
             difficulty: { type: "number" },
-            estimatedTime: { type: "string" },
             skills: { type: "array", items: { type: "string" } },
             targetDurationMinutes: { type: "number" },
             targetTurns: { type: "number" },
             minValidTurns: { type: "number" }
           },
-          required: ["title", "description", "context", "objectives", "successCriteria", "personas", "recommendedFlow", "difficulty", "estimatedTime", "skills", "targetDurationMinutes", "targetTurns", "minValidTurns"]
+          required: ["title", "description", "context", "objectives", "successCriteria", "personas", "recommendedFlow", "difficulty", "skills", "targetDurationMinutes", "targetTurns", "minValidTurns"]
         }
       },
       contents: prompt
@@ -447,7 +444,15 @@ ${(() => {
     const targetTurns           = Math.round(Math.min(Math.max(rawTurns,    rec.turnsMin),    rec.turnsMax));
     const minValidTurns         = Math.round(Math.min(Math.max(rawMinValid, rec.minValid),     targetTurns));
 
-    console.log(`⏱️  대화 설정: 목표시간=${targetDurationMinutes}분, 목표턴=${targetTurns}, 최소유효턴=${minValidTurns} (난이도 ${difficultyLevel})`);
+    const estimatedTimeMap: Record<number, string> = {
+      1: '5~8분',
+      2: '7~10분',
+      3: '10~15분',
+      4: '12~20분',
+    };
+    const estimatedTime = estimatedTimeMap[difficultyLevel as 1|2|3|4] || '10~15분';
+
+    console.log(`⏱️  대화 설정: 목표시간=${targetDurationMinutes}분, 목표턴=${targetTurns}, 최소유효턴=${minValidTurns} (난이도 ${difficultyLevel}), 권장시간=${estimatedTime}`);
 
     // ComplexScenario 객체 생성 (app-delay-crisis.json과 동일한 구조)
     const scenario: ComplexScenario = {
@@ -460,7 +465,7 @@ ${(() => {
       personas: data.personas,
       recommendedFlow: data.recommendedFlow,
       difficulty: data.difficulty,
-      estimatedTime: data.estimatedTime,
+      estimatedTime,
       skills: data.skills,
       targetDurationMinutes,
       targetTurns,
