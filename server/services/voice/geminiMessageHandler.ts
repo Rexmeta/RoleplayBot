@@ -138,7 +138,9 @@ export function handleGeminiMessage(
         if (part.text) {
           console.log(`🤖 AI transcript (raw): ${part.text.substring(0, 100)}...`);
           session.currentTranscript += part.text;
-          const filteredText = filterThinkingText(part.text, session.userLanguage);
+          // strictMode on turn 0: aggressively strip reasoning preambles that
+          // Gemini often emits at the start of the very first response.
+          const filteredText = filterThinkingText(part.text, session.userLanguage, { strictMode: session.turnSeq === 0 });
           if (filteredText) {
             sendToClient(session, { type: 'ai.transcription.delta', text: filteredText });
           }
@@ -228,7 +230,10 @@ export function handleGeminiMessage(
       }
 
       if (session.currentTranscript) {
-        const filteredTranscript = filterThinkingText(session.currentTranscript, session.userLanguage);
+        // turnSeq has already been incremented by the time we reach here, so
+        // the first completed turn has turnSeq === 1.  Use <= 1 to keep strict
+        // mode active for the first turn's accumulated transcript.
+        const filteredTranscript = filterThinkingText(session.currentTranscript, session.userLanguage, { strictMode: session.turnSeq <= 1 });
         console.log(`📝 Filtered transcript (${session.userLanguage}): "${filteredTranscript.substring(0, 100)}..."`);
 
         if (filteredTranscript) {
@@ -277,7 +282,7 @@ export function handleGeminiMessage(
       }
       session.totalAiTranscriptLength += transcript.length;
 
-      const filteredTranscript = filterThinkingText(transcript, session.userLanguage);
+      const filteredTranscript = filterThinkingText(transcript, session.userLanguage, { strictMode: session.turnSeq === 0 });
       if (filteredTranscript) {
         sendToClient(session, { type: 'ai.transcription.delta', text: filteredTranscript });
       }
