@@ -161,6 +161,30 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
   const progressInfo = getProgressInfo(progressPercentage);
   const turnsLeft = Math.max(targetTurns - currentTurn, 0);
 
+  const prevStageRef = useRef(progressInfo.stage);
+  const [isProgressAnimating, setIsProgressAnimating] = useState(false);
+  const [isButtonAnimating, setIsButtonAnimating] = useState(false);
+  const animTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    if (progressInfo.stage !== prevStageRef.current) {
+      prevStageRef.current = progressInfo.stage;
+      setIsProgressAnimating(true);
+      setIsButtonAnimating(true);
+      if (animTimerRef.current) clearTimeout(animTimerRef.current);
+      animTimerRef.current = setTimeout(() => {
+        setIsProgressAnimating(false);
+        setIsButtonAnimating(false);
+      }, 650);
+    }
+  }, [progressInfo.stage]);
+
+  useEffect(() => {
+    return () => {
+      if (animTimerRef.current) clearTimeout(animTimerRef.current);
+    };
+  }, []);
+
   const { isSessionEnding, isGoingToFeedback, showEndConversationDialog, setShowEndConversationDialog,
     showAlmostDoneDialog, handleAlmostDoneKeepGoing, handleAlmostDoneConfirmExit,
     handleGoToFeedback, handleEndRealtimeConversation, confirmEndConversation, handleResetConversation, flushRealtimeMessages } = useChatSession({
@@ -397,7 +421,7 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
               <div className="flex-1 flex items-center gap-2 min-w-0">
                 <div className="flex-1 bg-white/20 rounded-full h-3 overflow-hidden">
                   <div
-                    className={`rounded-full h-3 transition-all duration-500 ${progressInfo.progressBarClass}`}
+                    className={`rounded-full h-3 transition-all duration-500 ${progressInfo.progressBarClass}${isProgressAnimating ? ' animate-progress-flash' : ''}`}
                     style={{ width: `${progressPercentage}%` }}
                   />
                 </div>
@@ -435,7 +459,7 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
                           }
                         }}
                         data-testid="button-end-conversation-header"
-                        className={`shrink-0 text-xs h-8 px-3 border transition-all duration-300 ${progressInfo.endButtonClass}`}
+                        className={`shrink-0 text-xs h-8 px-3 border transition-all duration-300 ${progressInfo.endButtonClass}${isButtonAnimating ? ' animate-btn-pop' : ''}`}
                       >
                         {progressInfo.showWarningIcon && <i className="fas fa-exclamation-triangle mr-1 text-xs"></i>}
                         {progressInfo.isGreen && <i className="fas fa-chart-bar mr-1 text-xs"></i>}

@@ -1,3 +1,4 @@
+import { useState, useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -54,6 +55,32 @@ export function ChatInputBar({
   realtimeVoiceProps,
 }: ChatInputBarProps) {
   const { t } = useTranslation();
+
+  const realtimeProgressPct = realtimeVoiceProps?.currentTurn !== undefined && realtimeVoiceProps?.targetTurns
+    ? Math.min((realtimeVoiceProps.currentTurn / realtimeVoiceProps.targetTurns) * 100, 100)
+    : 0;
+  const realtimeStage = getProgressInfo(realtimeProgressPct).stage;
+
+  const realtimePrevStageRef = useRef(realtimeStage);
+  const [isRealtimeButtonAnimating, setIsRealtimeButtonAnimating] = useState(false);
+  const realtimeAnimTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    if (realtimeStage !== realtimePrevStageRef.current) {
+      realtimePrevStageRef.current = realtimeStage;
+      setIsRealtimeButtonAnimating(true);
+      if (realtimeAnimTimerRef.current) clearTimeout(realtimeAnimTimerRef.current);
+      realtimeAnimTimerRef.current = setTimeout(() => {
+        setIsRealtimeButtonAnimating(false);
+      }, 550);
+    }
+  }, [realtimeStage]);
+
+  useEffect(() => {
+    return () => {
+      if (realtimeAnimTimerRef.current) clearTimeout(realtimeAnimTimerRef.current);
+    };
+  }, []);
 
   if (mode === 'realtime-voice' && realtimeVoiceProps) {
     const rv = realtimeVoiceProps;
@@ -164,7 +191,7 @@ export function ChatInputBar({
                             : pi.showWarningIcon
                             ? 'text-slate-400 border-slate-200 hover:bg-slate-50 opacity-80'
                             : 'text-red-600 border-red-200 hover:bg-red-50'
-                        }`}
+                        }${isRealtimeButtonAnimating ? ' animate-btn-pop' : ''}`}
                       >
                         {pi.showWarningIcon && <i className="fas fa-exclamation-triangle mr-1 text-xs"></i>}
                         {pi.isGreen && <i className="fas fa-chart-bar mr-1 text-xs"></i>}
