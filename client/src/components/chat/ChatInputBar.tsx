@@ -1,6 +1,8 @@
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { getProgressInfo } from "@/lib/conversationProgress";
 
 interface ChatInputBarProps {
   userInput: string;
@@ -34,6 +36,8 @@ interface ChatInputBarProps {
     personaRole?: string;
     personaName?: string;
     userName?: string;
+    currentTurn?: number;
+    targetTurns?: number;
   };
 }
 
@@ -136,17 +140,54 @@ export function ChatInputBar({
 
         {rv.status === 'connected' && !rv.isWaitingForGreeting && (
           <div className="flex items-center justify-center gap-4 py-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={rv.onEndConversation}
-              disabled={rv.isRecording || rv.isAISpeaking}
-              data-testid="button-end-conversation-realtime"
-              className="text-red-600 border-red-200 hover:bg-red-50 shrink-0 min-h-[44px] min-w-[44px]"
-            >
-              <i className="fas fa-stop-circle mr-1"></i>
-              {t('chat.end')}
-            </Button>
+            {(() => {
+              const progressPct = rv.currentTurn !== undefined && rv.targetTurns
+                ? Math.min((rv.currentTurn / rv.targetTurns) * 100, 100)
+                : 0;
+              const pi = getProgressInfo(progressPct);
+              const turnsLeft = rv.targetTurns ? Math.max(rv.targetTurns - (rv.currentTurn ?? 0), 0) : 0;
+              return (
+                <TooltipProvider delayDuration={300}>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={rv.onEndConversation}
+                        disabled={rv.isRecording || rv.isAISpeaking}
+                        data-testid="button-end-conversation-realtime"
+                        className={`shrink-0 min-h-[44px] min-w-[44px] border transition-all duration-300 ${
+                          pi.isGreen
+                            ? 'bg-green-600 hover:bg-green-700 text-white border-green-600'
+                            : pi.isAmber
+                            ? 'bg-amber-500 hover:bg-amber-600 text-white border-amber-500'
+                            : pi.showWarningIcon
+                            ? 'text-slate-400 border-slate-200 hover:bg-slate-50 opacity-80'
+                            : 'text-red-600 border-red-200 hover:bg-red-50'
+                        }`}
+                      >
+                        {pi.showWarningIcon && <i className="fas fa-exclamation-triangle mr-1 text-xs"></i>}
+                        {pi.isGreen && <i className="fas fa-chart-bar mr-1 text-xs"></i>}
+                        {pi.isAmber && <i className="fas fa-star mr-1 text-xs"></i>}
+                        {!pi.showWarningIcon && !pi.isGreen && !pi.isAmber && <i className="fas fa-stop-circle mr-1"></i>}
+                        {pi.showBadge && rv.currentTurn !== undefined && rv.targetTurns ? (
+                          <span>{rv.currentTurn}/{rv.targetTurns}</span>
+                        ) : (
+                          <span>{t(pi.stage === 'complete' ? 'chat.almostDoneEnd' : pi.endButtonLabelKey)}</span>
+                        )}
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent side="top">
+                      {pi.stage === 'early'
+                        ? t('chat.exitWarningTooltip', { count: turnsLeft })
+                        : pi.stage === 'mid'
+                        ? t('chat.progressBadgeTooltip', { current: rv.currentTurn, target: rv.targetTurns })
+                        : t('chat.almostDoneTitle')}
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              );
+            })()}
 
             <button
               onClick={() => {

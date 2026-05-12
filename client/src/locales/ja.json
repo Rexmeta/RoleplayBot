@@ -278,7 +278,14 @@
     "scoreAverage": "普通",
     "scoreNeedsImprovement": "改善必要",
     "scorePoor": "不十分",
-    "moreGoals": "+{{count}}個の目標..."
+    "moreGoals": "+{{count}}個の目標...",
+    "turnsRemaining": "残り{{count}}ターン",
+    "conversationCompleted": "完了！",
+    "endEarly": "途中終了",
+    "almostDoneEnd": "もうすぐ完了！",
+    "getFeedback": "フィードバックを受け取る",
+    "exitWarningTooltip": "まだ{{count}}ターン残っています",
+    "progressBadgeTooltip": "{{current}}/{{target}}ターン進行中"
   },
   "feedback": {
     "title": "カスタムレポート",

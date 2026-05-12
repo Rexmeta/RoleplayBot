@@ -278,7 +278,14 @@
     "scoreAverage": "Average",
     "scoreNeedsImprovement": "Needs Improvement",
     "scorePoor": "Poor",
-    "moreGoals": "+{{count}} more goals..."
+    "moreGoals": "+{{count}} more goals...",
+    "turnsRemaining": "{{count}} turns left",
+    "conversationCompleted": "Done!",
+    "endEarly": "End Early",
+    "almostDoneEnd": "Almost done!",
+    "getFeedback": "Get Feedback",
+    "exitWarningTooltip": "{{count}} turns remaining",
+    "progressBadgeTooltip": "{{current}}/{{target}} turns in progress"
   },
   "feedback": {
     "title": "Personal Report",

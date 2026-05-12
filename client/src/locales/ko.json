@@ -299,7 +299,14 @@
     "scoreAverage": "보통",
     "scoreNeedsImprovement": "개선 필요",
     "scorePoor": "미흡",
-    "moreGoals": "+{{count}}개 목표 더..."
+    "moreGoals": "+{{count}}개 목표 더...",
+    "turnsRemaining": "{{count}}턴 남음",
+    "conversationCompleted": "완료!",
+    "endEarly": "조기 종료",
+    "almostDoneEnd": "거의 다 됐어요!",
+    "getFeedback": "피드백 받기",
+    "exitWarningTooltip": "아직 {{count}}턴 남았어요",
+    "progressBadgeTooltip": "{{current}}/{{target}} 턴 진행 중"
   },
   "feedback": {
     "title": "맞춤 보고서",

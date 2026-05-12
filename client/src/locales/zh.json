@@ -278,7 +278,14 @@
     "scoreAverage": "一般",
     "scoreNeedsImprovement": "需要改进",
     "scorePoor": "不足",
-    "moreGoals": "+{{count}}个目标..."
+    "moreGoals": "+{{count}}个目标...",
+    "turnsRemaining": "还剩{{count}}轮",
+    "conversationCompleted": "完成！",
+    "endEarly": "提前结束",
+    "almostDoneEnd": "快完成了！",
+    "getFeedback": "获取反馈",
+    "exitWarningTooltip": "还剩{{count}}轮",
+    "progressBadgeTooltip": "进行中 {{current}}/{{target}} 轮"
   },
   "feedback": {
     "title": "个人报告",

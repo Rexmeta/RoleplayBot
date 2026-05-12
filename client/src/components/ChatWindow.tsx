@@ -8,11 +8,13 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Card } from "@/components/ui/card";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import type { ComplexScenario, ScenarioPersona } from "@/lib/scenario-system";
 import type { Conversation } from "@shared/schema";
 import { useRealtimeVoice } from "@/hooks/useRealtimeVoice";
 import { AISpeechParticleLayer } from "@/components/AISpeechParticleLayer";
 import { UserSpeechParticleLayer } from "@/components/UserSpeechParticleLayer";
+import { getProgressInfo } from "@/lib/conversationProgress";
 
 import { useConversationTimer, formatElapsedTime } from "@/hooks/chat/useConversationTimer";
 import { useVoiceRecording } from "@/hooks/chat/useVoiceRecording";
@@ -156,6 +158,8 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
   const currentTurn = conversation ? conversation.turnCount : 0;
   const progressPercentage = Math.min((currentTurn / targetTurns) * 100, 100);
   const isNearingEnd = progressPercentage >= SOFT_CLOSE_THRESHOLD * 100;
+  const progressInfo = getProgressInfo(progressPercentage);
+  const turnsLeft = Math.max(targetTurns - currentTurn, 0);
 
   const { isSessionEnding, isGoingToFeedback, showEndConversationDialog, setShowEndConversationDialog,
     showAlmostDoneDialog, handleAlmostDoneKeepGoing, handleAlmostDoneConfirmExit,
@@ -355,6 +359,7 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
     onEndConversation: handleEndRealtimeConversation,
     previousMessages,
     personaDept: persona.department, personaRole: persona.role, personaName: persona.name, userName: user?.name,
+    currentTurn, targetTurns,
   };
 
   return (
@@ -388,23 +393,69 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
                 </div>
               </div>
             </div>
-            <div className="mt-4 flex items-center space-x-3">
-              <div className="flex-1 bg-white/20 rounded-full h-2">
-                <div
-                  className={`rounded-full h-2 transition-all duration-500 ${isNearingEnd ? 'bg-amber-400' : 'bg-white'}`}
-                  style={{ width: `${progressPercentage}%` }}
-                />
-              </div>
-              <div className="flex items-center space-x-3 text-white/90 text-sm">
-                <div
-                  className={`flex items-center space-x-1 font-medium transition-colors duration-300 ${isNearingEnd ? 'text-amber-300' : 'text-white/90'}`}
-                  data-testid="turn-counter"
-                >
-                  <i className="fas fa-comments text-xs"></i>
-                  <span>{currentTurn} / {targetTurns}</span>
+            <div className="mt-3 flex items-center gap-3">
+              <div className="flex-1 flex items-center gap-2 min-w-0">
+                <div className="flex-1 bg-white/20 rounded-full h-3 overflow-hidden">
+                  <div
+                    className={`rounded-full h-3 transition-all duration-500 ${progressInfo.progressBarClass}`}
+                    style={{ width: `${progressPercentage}%` }}
+                  />
                 </div>
-                <div className="flex items-center space-x-1"><i className="fas fa-clock text-xs"></i><span data-testid="elapsed-time">{formatElapsedTime(elapsedTime)}</span></div>
+                <div className="flex items-center gap-2 text-white/90 text-xs shrink-0">
+                  <div
+                    className={`flex items-center gap-1 font-medium transition-colors duration-300 ${progressInfo.isAmber ? 'text-amber-300' : progressInfo.isGreen ? 'text-green-300' : 'text-white/90'}`}
+                    data-testid="turn-counter"
+                  >
+                    {progressInfo.stage === 'complete' ? (
+                      <span className="font-semibold">{t('chat.conversationCompleted')}</span>
+                    ) : (
+                      <>
+                        <span className="opacity-70">{Math.round(progressPercentage)}%</span>
+                        <span className="opacity-50">·</span>
+                        <span>{t('chat.turnsRemaining', { count: turnsLeft })}</span>
+                      </>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-1 opacity-75"><i className="fas fa-clock text-xs"></i><span data-testid="elapsed-time">{formatElapsedTime(elapsedTime)}</span></div>
+                </div>
               </div>
+
+              {inputMode !== 'realtime-voice' && (
+                <TooltipProvider delayDuration={300}>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => {
+                          if (progressInfo.stage === 'complete') {
+                            handleGoToFeedback();
+                          } else {
+                            handleEndRealtimeConversation();
+                          }
+                        }}
+                        data-testid="button-end-conversation-header"
+                        className={`shrink-0 text-xs h-8 px-3 border transition-all duration-300 ${progressInfo.endButtonClass}`}
+                      >
+                        {progressInfo.showWarningIcon && <i className="fas fa-exclamation-triangle mr-1 text-xs"></i>}
+                        {progressInfo.isGreen && <i className="fas fa-chart-bar mr-1 text-xs"></i>}
+                        {progressInfo.isAmber && !progressInfo.isGreen && <i className="fas fa-star mr-1 text-xs"></i>}
+                        {progressInfo.showBadge && <span className="mr-1 bg-white/20 rounded px-1 text-xs font-mono">{currentTurn}/{targetTurns}</span>}
+                        {t(progressInfo.endButtonLabelKey)}
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent side="bottom">
+                      {progressInfo.stage === 'early'
+                        ? t('chat.exitWarningTooltip', { count: turnsLeft })
+                        : progressInfo.stage === 'mid'
+                        ? t('chat.progressBadgeTooltip', { current: currentTurn, target: targetTurns })
+                        : progressInfo.stage === 'nearEnd'
+                        ? t('chat.almostDoneTitle')
+                        : t('chat.getFeedback')}
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              )}
             </div>
           </div>
 
