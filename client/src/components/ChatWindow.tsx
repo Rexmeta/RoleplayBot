@@ -475,6 +475,14 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
                 )}
 
                 <div className="relative flex-1 overflow-hidden">
+                  {/* Mobile progress bar strip */}
+                  <div className="absolute top-0 left-0 right-0 z-20 h-1.5 bg-black/25">
+                    <div
+                      className={`h-1.5 transition-all duration-500 ${progressInfo.progressBarClass}`}
+                      style={{ width: `${progressPercentage}%` }}
+                    />
+                  </div>
+
                   <CharacterPortrait loadedImageUrl={loadedImageUrl} personaName={persona.name} personaImage={persona.image}
                     currentEmotion={currentEmotion} isEmotionTransitioning={isEmotionTransitioning} isSessionEnding={isSessionEnding} />
 
@@ -616,6 +624,41 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
                             </div>
                           )}
                         </>
+                      )}
+                      {/* Mobile stage-aware end button */}
+                      {!isPersonaMode && conversation.turnCount < MAX_TURNS && (
+                        <div className="border-t border-slate-200/30 px-4 py-2 flex items-center justify-between gap-2">
+                          <div className={`text-xs font-medium transition-colors duration-300 ${progressInfo.isAmber ? 'text-amber-600' : progressInfo.isGreen ? 'text-green-600' : 'text-slate-400'}`}>
+                            {progressInfo.stage === 'complete'
+                              ? t('chat.conversationCompleted')
+                              : (
+                                <>
+                                  <span>{Math.round(progressPercentage)}%</span>
+                                  <span className="mx-1 opacity-50">·</span>
+                                  <span>{t('chat.turnsRemaining', { count: turnsLeft })}</span>
+                                </>
+                              )}
+                          </div>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => {
+                              if (progressInfo.stage === 'complete') {
+                                handleGoToFeedback();
+                              } else {
+                                handleEndRealtimeConversation();
+                              }
+                            }}
+                            data-testid="button-end-conversation-mobile"
+                            className={`shrink-0 text-xs h-7 px-2 border transition-all duration-300 ${progressInfo.endButtonClass}`}
+                          >
+                            {progressInfo.showWarningIcon && <i className="fas fa-exclamation-triangle mr-1 text-xs"></i>}
+                            {progressInfo.isGreen && <i className="fas fa-chart-bar mr-1 text-xs"></i>}
+                            {progressInfo.isAmber && !progressInfo.isGreen && <i className="fas fa-star mr-1 text-xs"></i>}
+                            {progressInfo.showBadge && <span className="mr-1 bg-slate-100 rounded px-1 text-xs font-mono">{currentTurn}/{targetTurns}</span>}
+                            {t(progressInfo.endButtonLabelKey)}
+                          </Button>
+                        </div>
                       )}
                     </Card>
                   </div>
