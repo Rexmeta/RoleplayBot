@@ -196,6 +196,7 @@ export class RealtimeVoiceService {
       selectedVoice: null, goAwayWarningTime: null, pendingClientReady: null,
       userLanguage,
       pendingMessages: [], outgoingMessageIndex: 0,
+      hasReceivedFirstTranscriptDelta: false, greetingResponseCount: 0, userTurnsCompleted: 0,
     };
 
     this.sessions.set(sessionId, session);
@@ -245,6 +246,7 @@ export class RealtimeVoiceService {
       selectedVoice: null, goAwayWarningTime: null, pendingClientReady: null,
       userLanguage,
       pendingMessages: [], outgoingMessageIndex: 0,
+      hasReceivedFirstTranscriptDelta: false, greetingResponseCount: 0, userTurnsCompleted: 0,
     };
 
     this.sessions.set(sessionId, session);

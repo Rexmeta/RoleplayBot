@@ -190,7 +190,7 @@ export function handleGeminiMessage(
         });
       }
 
-      if (!session.hasReceivedFirstAIResponse && !session.hasReceivedFirstAIAudio && !session.currentTranscript && !hasModelTurn && session.firstGreetingRetryCount < 3) {
+      if (!session.hasReceivedFirstAIResponse && !session.hasReceivedFirstAIAudio && !session.currentTranscript && !hasModelTurn && !session.hasReceivedFirstTranscriptDelta && session.firstGreetingRetryCount < 3) {
         session.firstGreetingRetryCount++;
         console.log(`⚠️ 첫 인사 응답 없음, 재시도 ${session.firstGreetingRetryCount}/3...`);
         sendToClient(session, {
@@ -227,6 +227,7 @@ export function handleGeminiMessage(
         session.recentMessages.push({ role: 'user', text: userText.slice(0, 300) });
         if (session.recentMessages.length > 30) session.recentMessages.shift();
         session.userTranscriptBuffer = '';
+        session.userTurnsCompleted++;
       }
 
       if (session.currentTranscript) {
@@ -237,6 +238,20 @@ export function handleGeminiMessage(
         console.log(`📝 Filtered transcript (${session.userLanguage}): "${filteredTranscript.substring(0, 100)}..."`);
 
         if (filteredTranscript) {
+          // Last-resort greeting dedup guard: while the user has not yet spoken
+          // (greeting phase), only one AI response is allowed. Any additional
+          // response in this phase is a duplicate from the retry race condition.
+          // This guard is scoped to the greeting turn and does not affect subsequent
+          // turns where the user has already spoken.
+          if (session.userTurnsCompleted === 0) {
+            if (session.greetingResponseCount >= 1) {
+              console.log(`⚠️ Suppressing duplicate greeting response (greetingResponseCount guard, userTurnsCompleted=0)`);
+              session.currentTranscript = '';
+              return;
+            }
+            session.greetingResponseCount++;
+          }
+
           session.recentMessages.push({ role: 'ai', text: filteredTranscript.slice(0, 300) });
           if (session.recentMessages.length > 30) session.recentMessages.shift();
 
@@ -275,6 +290,14 @@ export function handleGeminiMessage(
         session.isInterrupted = false;
         session.cancelledTurnSeq = -1;
         sendToClient(session, { type: 'response.ready', turnSeq: session.turnSeq });
+      }
+
+      if (transcript.length > 0 && !session.hasReceivedFirstTranscriptDelta) {
+        session.hasReceivedFirstTranscriptDelta = true;
+        // Exhaust the retry budget so no retry triggers can fire after this point,
+        // even if turnComplete arrives before Gemini finishes the turn.
+        session.firstGreetingRetryCount = 3;
+        console.log(`✅ First transcript delta received — retry gate closed`);
       }
 
       if (!serverContent.modelTurn) {

@@ -108,6 +108,11 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
       }
       setLocalMessages(prev => {
         if (prev.some(m => m.sender === 'ai' && m.message === message)) return prev;
+        const hasAiMessage = prev.some(m => m.sender === 'ai');
+        const hasUserMessage = prev.some(m => m.sender === 'user');
+        if (hasAiMessage && !hasUserMessage) {
+          return prev;
+        }
         return [...prev, { sender: 'ai', message, timestamp: new Date().toISOString(), emotion: emotion || '중립', emotionReason: emotionReason || '' }];
       });
       if (!hasUserSpokenRef.current) setShowMicPrompt(true);

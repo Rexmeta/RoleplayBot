@@ -40,6 +40,9 @@ function makeSession(overrides: Partial<RealtimeSession> = {}): RealtimeSession 
     goAwayWarningTime: null,
     pendingClientReady: null,
     userLanguage: 'ko',
+    hasReceivedFirstTranscriptDelta: false,
+    greetingResponseCount: 0,
+    userTurnsCompleted: 0,
     ...overrides,
   };
 }
@@ -717,6 +720,179 @@ describe('handleGeminiMessage', () => {
         proactiveReconnect
       );
 
+      await vi.runAllTimersAsync();
+
+      const doneCalls = sendToClient.mock.calls.filter(([, msg]) => msg.type === 'ai.transcription.done');
+      expect(doneCalls).toHaveLength(1);
+    });
+  });
+
+  describe('retry race condition: triple greeting prevention', () => {
+    it('does not retry when a transcript delta has already arrived', () => {
+      session.hasReceivedFirstAIResponse = false;
+      session.hasReceivedFirstTranscriptDelta = true;
+      session.firstGreetingRetryCount = 3;
+      session.geminiSession = {
+        sendClientContent: vi.fn(),
+        sendRealtimeInput: vi.fn(),
+      };
+
+      handleGeminiMessage(
+        session,
+        { serverContent: { turnComplete: true } },
+        sendToClient,
+        null,
+        proactiveReconnect
+      );
+
+      expect(session.geminiSession.sendClientContent).not.toHaveBeenCalled();
+      const retryCalls = sendToClient.mock.calls.filter(([, msg]) => msg.type === 'greeting.retry');
+      expect(retryCalls).toHaveLength(0);
+    });
+
+    it('closes the retry gate and sets firstGreetingRetryCount=3 on first transcript delta', () => {
+      session.hasReceivedFirstTranscriptDelta = false;
+      session.firstGreetingRetryCount = 0;
+
+      handleGeminiMessage(
+        session,
+        { serverContent: { outputTranscription: { text: '안녕하세요!' } } },
+        sendToClient,
+        null,
+        proactiveReconnect
+      );
+
+      expect(session.hasReceivedFirstTranscriptDelta).toBe(true);
+      expect(session.firstGreetingRetryCount).toBe(3);
+    });
+
+    it('true race: two no-content turnComplete retries then delayed greeting — ai.transcription.done emitted exactly once', async () => {
+      // Simulate the exact race described in the task:
+      // 1. Greeting trigger sent (hasTriggeredFirstGreeting=true, no response yet)
+      // 2. Gemini fires turnComplete with no content twice → retry triggers sent
+      // 3. Gemini eventually delivers the greeting response
+      session.hasReceivedFirstAIResponse = false;
+      session.hasReceivedFirstTranscriptDelta = false;
+      session.firstGreetingRetryCount = 0;
+      session.greetingResponseCount = 0;
+      session.userTurnsCompleted = 0;
+      session.currentTranscript = '';
+      session.geminiSession = {
+        sendClientContent: vi.fn(),
+        sendRealtimeInput: vi.fn(),
+      };
+
+      // First empty turnComplete → should trigger retry #1
+      handleGeminiMessage(
+        session,
+        { serverContent: { turnComplete: true } },
+        sendToClient,
+        null,
+        proactiveReconnect
+      );
+      expect(session.firstGreetingRetryCount).toBe(1);
+      expect(session.geminiSession.sendClientContent).toHaveBeenCalledTimes(1);
+
+      // Second empty turnComplete → should trigger retry #2
+      handleGeminiMessage(
+        session,
+        { serverContent: { turnComplete: true } },
+        sendToClient,
+        null,
+        proactiveReconnect
+      );
+      expect(session.firstGreetingRetryCount).toBe(2);
+      expect(session.geminiSession.sendClientContent).toHaveBeenCalledTimes(2);
+
+      // Gemini now delivers the greeting transcript delta
+      handleGeminiMessage(
+        session,
+        { serverContent: { outputTranscription: { text: '안녕하세요! 만나서 반갑습니다.' } } },
+        sendToClient,
+        null,
+        proactiveReconnect
+      );
+      expect(session.hasReceivedFirstTranscriptDelta).toBe(true);
+      // Retry gate now closed
+      expect(session.firstGreetingRetryCount).toBe(3);
+
+      // First turnComplete with the greeting content
+      session.hasReceivedFirstAIResponse = true;
+      handleGeminiMessage(
+        session,
+        { serverContent: { turnComplete: true } },
+        sendToClient,
+        null,
+        proactiveReconnect
+      );
+      await vi.runAllTimersAsync();
+
+      // Retry #1 response arrives (different text, different turnComplete)
+      session.currentTranscript = '네, 안녕하세요! 무엇을 도와드릴까요?';
+      handleGeminiMessage(
+        session,
+        { serverContent: { turnComplete: true } },
+        sendToClient,
+        null,
+        proactiveReconnect
+      );
+      await vi.runAllTimersAsync();
+
+      // Retry #2 response arrives (yet another different text)
+      session.currentTranscript = '여기 있습니다. 어떻게 도와드릴까요?';
+      handleGeminiMessage(
+        session,
+        { serverContent: { turnComplete: true } },
+        sendToClient,
+        null,
+        proactiveReconnect
+      );
+      await vi.runAllTimersAsync();
+
+      // Only one greeting should have been sent to the client
+      const doneCalls = sendToClient.mock.calls.filter(([, msg]) => msg.type === 'ai.transcription.done');
+      expect(doneCalls).toHaveLength(1);
+    });
+
+    it('allows normal second-turn AI response after user speaks', async () => {
+      // Greeting emitted (greetingResponseCount=1), then user speaks (userTurnsCompleted=1),
+      // then AI responds again — should be allowed (maxAllowed = 1+1 = 2)
+      session.hasReceivedFirstAIResponse = true;
+      session.greetingResponseCount = 1;
+      session.userTurnsCompleted = 0;
+      session.userTranscriptBuffer = '감사합니다, 잘 부탁드려요.';
+      session.currentTranscript = '저도 잘 부탁드립니다!';
+
+      handleGeminiMessage(
+        session,
+        { serverContent: { turnComplete: true } },
+        sendToClient,
+        null,
+        proactiveReconnect
+      );
+      await vi.runAllTimersAsync();
+
+      // userTurnsCompleted should now be 1, greetingResponseCount should be 2
+      expect(session.userTurnsCompleted).toBe(1);
+      const doneCalls = sendToClient.mock.calls.filter(([, msg]) => msg.type === 'ai.transcription.done');
+      expect(doneCalls).toHaveLength(1);
+    });
+
+    it('greetingResponseCount guard is scoped to greeting phase — allows AI responses after user speaks', async () => {
+      // After user speaks (userTurnsCompleted >= 1), the greeting guard no longer applies.
+      // A normal AI response should be emitted even if greetingResponseCount > 0.
+      session.hasReceivedFirstAIResponse = true;
+      session.greetingResponseCount = 1;
+      session.userTurnsCompleted = 1;
+      session.currentTranscript = '사용자 발화 이후 정상적인 AI 응답입니다.';
+
+      handleGeminiMessage(
+        session,
+        { serverContent: { turnComplete: true } },
+        sendToClient,
+        null,
+        proactiveReconnect
+      );
       await vi.runAllTimersAsync();
 
       const doneCalls = sendToClient.mock.calls.filter(([, msg]) => msg.type === 'ai.transcription.done');

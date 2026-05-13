@@ -48,4 +48,7 @@ export interface RealtimeSession {
   userLanguage: 'ko' | 'en' | 'ja' | 'zh';
   pendingMessages: PendingOutgoingMessage[];
   outgoingMessageIndex: number;
+  hasReceivedFirstTranscriptDelta: boolean;
+  greetingResponseCount: number;
+  userTurnsCompleted: number;
 }
