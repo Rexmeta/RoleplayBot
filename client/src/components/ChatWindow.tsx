@@ -504,12 +504,49 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
                 )}
 
                 <div className="relative flex-1 overflow-hidden">
-                  {/* Mobile progress bar strip */}
-                  <div className="absolute top-0 left-0 right-0 z-20 h-1.5 bg-black/25">
-                    <div
-                      className={`h-1.5 transition-all duration-500 ${progressInfo.progressBarClass}`}
-                      style={{ width: `${progressPercentage}%` }}
-                    />
+                  {/* Mobile overlay header – persona name + progress bar + turn counter + end button (hidden on desktop where gradient header already shows these) */}
+                  <div className="lg:hidden absolute top-0 left-0 right-0 z-20 bg-black/50 backdrop-blur-sm px-4 pt-3 pb-2">
+                    <div className="flex items-center gap-2 mb-1.5">
+                      <span className="text-white text-sm font-semibold truncate flex-1">{persona.name}</span>
+                      <div
+                        className={`text-xs font-medium shrink-0 transition-colors duration-300 ${progressInfo.isAmber ? 'text-amber-300' : progressInfo.isGreen ? 'text-green-300' : 'text-white/80'}`}
+                        data-testid="mobile-overlay-turn-counter"
+                      >
+                        {progressInfo.stage === 'complete' ? (
+                          <span>{t('chat.conversationCompleted')}</span>
+                        ) : (
+                          <span className="flex items-center gap-1">
+                            <span className="opacity-70">{Math.round(progressPercentage)}%</span>
+                            <span className="opacity-50">·</span>
+                            <span>{t('chat.turnsRemaining', { count: turnsLeft })}</span>
+                          </span>
+                        )}
+                      </div>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => {
+                          if (progressInfo.stage === 'complete') {
+                            handleGoToFeedback();
+                          } else {
+                            handleEndRealtimeConversation();
+                          }
+                        }}
+                        data-testid="button-end-conversation-mobile-overlay"
+                        className={`shrink-0 text-xs h-7 px-2 border transition-all duration-300 ${progressInfo.endButtonClass}`}
+                      >
+                        {progressInfo.showWarningIcon && <i className="fas fa-exclamation-triangle mr-1 text-xs"></i>}
+                        {progressInfo.isGreen && <i className="fas fa-chart-bar mr-1 text-xs"></i>}
+                        {progressInfo.isAmber && !progressInfo.isGreen && <i className="fas fa-star mr-1 text-xs"></i>}
+                        {t(progressInfo.endButtonLabelKey)}
+                      </Button>
+                    </div>
+                    <div className="bg-white/20 rounded-full h-2 overflow-hidden">
+                      <div
+                        className={`h-2 rounded-full transition-all duration-500 ${progressInfo.progressBarClass}`}
+                        style={{ width: `${progressPercentage}%` }}
+                      />
+                    </div>
                   </div>
 
                   <CharacterPortrait loadedImageUrl={loadedImageUrl} personaName={persona.name} personaImage={persona.image}
