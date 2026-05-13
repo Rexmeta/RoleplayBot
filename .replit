@@ -64,3 +64,6 @@ timeoutMs = 30000
 [userenv]
 
 [userenv.development]
+
+[objectStorage]
+defaultBucketID = "replit-objstore-1c14cc42-14e3-4e55-b9bd-e3ea4382f1c2"
