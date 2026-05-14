@@ -27,6 +27,7 @@ interface UseRealtimeVoiceProps {
   enabled: boolean;
   onMessage?: (message: string) => void;
   onMessageComplete?: (message: string, emotion?: string, emotionReason?: string) => void;
+  onReconnectGreetingComplete?: () => void;
   onUserTranscription?: (transcript: string) => void;
   onUserTranscriptionDelta?: (delta: string, accumulated: string) => void;
   onAiSpeakingStart?: () => void;
@@ -63,6 +64,7 @@ export function useRealtimeVoice({
   enabled,
   onMessage,
   onMessageComplete,
+  onReconnectGreetingComplete,
   onUserTranscription,
   onUserTranscriptionDelta,
   onAiSpeakingStart,
@@ -106,6 +108,7 @@ export function useRealtimeVoice({
   const connectRef = useRef<((previousMessages?: PreviousMessage[]) => Promise<void>) | null>(null);
   const wasRecordingBeforeReconnectRef = useRef<boolean>(false);
   const reconnectInProgressRef = useRef<boolean>(false);
+  const skipReconnectGreetingRef = useRef<boolean>(false);
 
   const MAX_AUTO_RECONNECT = 8;
   const sessionStorageKeyRef = useRef(`realtime_voice_messages_${conversationId}`);
@@ -113,6 +116,7 @@ export function useRealtimeVoice({
 
   const onMessageRef = useRef(onMessage);
   const onMessageCompleteRef = useRef(onMessageComplete);
+  const onReconnectGreetingCompleteRef = useRef(onReconnectGreetingComplete);
   const onUserTranscriptionRef = useRef(onUserTranscription);
   const onUserTranscriptionDeltaRef = useRef(onUserTranscriptionDelta);
   const onAiSpeakingStartRef = useRef(onAiSpeakingStart);
@@ -124,6 +128,7 @@ export function useRealtimeVoice({
   useEffect(() => {
     onMessageRef.current = onMessage;
     onMessageCompleteRef.current = onMessageComplete;
+    onReconnectGreetingCompleteRef.current = onReconnectGreetingComplete;
     onUserTranscriptionRef.current = onUserTranscription;
     onUserTranscriptionDeltaRef.current = onUserTranscriptionDelta;
     onAiSpeakingStartRef.current = onAiSpeakingStart;
@@ -131,7 +136,7 @@ export function useRealtimeVoice({
     onErrorRef.current = onError;
     onSessionTerminatedRef.current = onSessionTerminated;
     onSimulationUpdateRef.current = onSimulationUpdate;
-  }, [onMessage, onMessageComplete, onUserTranscription, onUserTranscriptionDelta, onAiSpeakingStart, onUserSpeakingStart, onError, onSessionTerminated, onSimulationUpdate]);
+  }, [onMessage, onMessageComplete, onReconnectGreetingComplete, onUserTranscription, onUserTranscriptionDelta, onAiSpeakingStart, onUserSpeakingStart, onError, onSessionTerminated, onSimulationUpdate]);
 
   useEffect(() => {
     conversationPhaseRef.current = conversationPhase;
@@ -249,6 +254,7 @@ export function useRealtimeVoice({
     }
 
     autoReconnectCountRef.current = MAX_AUTO_RECONNECT;
+    skipReconnectGreetingRef.current = false;
     try { sessionStorage.removeItem(sessionStorageKeyRef.current); } catch {}
     setStatus('disconnected');
     setIsRecording(false);
@@ -268,6 +274,7 @@ export function useRealtimeVoice({
     setGreetingFailed(false);
     isInterruptedRef.current = false;
     expectedTurnSeqRef.current = 0;
+    skipReconnectGreetingRef.current = false;
 
     try {
       if (!playbackContextRef.current || playbackContextRef.current.state === 'closed') {
@@ -414,7 +421,11 @@ export function useRealtimeVoice({
               setIsWaitingForGreeting(false);
               setGreetingRetryCount(0);
               setGreetingFailed(false);
-              if (data.text && onMessageCompleteRef.current) {
+              if (skipReconnectGreetingRef.current) {
+                skipReconnectGreetingRef.current = false;
+                console.log('🔄 Skipping reconnect greeting to keep turn counter accurate');
+                if (onReconnectGreetingCompleteRef.current) onReconnectGreetingCompleteRef.current();
+              } else if (data.text && onMessageCompleteRef.current) {
                 onMessageCompleteRef.current(data.text, data.emotion, data.emotionReason);
               }
               if (data.text) {
@@ -464,6 +475,7 @@ export function useRealtimeVoice({
             case 'session.reconnected':
               setError(null);
               setSessionWarning(null);
+              skipReconnectGreetingRef.current = true;
               break;
 
             case 'session.ready':

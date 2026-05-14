@@ -141,6 +141,10 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
   const realtimeVoice = useRealtimeVoice({
     conversationId, scenarioId: scenario.id, personaId: persona.id, enabled: false,
     onSimulationUpdate: isSimulationEnabled ? handleSimulationUpdate : undefined,
+    onReconnectGreetingComplete: () => {
+      setPendingAiMessage(false);
+      isAISpeakingForBargeInRef.current = false;
+    },
     onMessageComplete: (message, emotion, emotionReason) => {
       setPendingAiMessage(false);
       isAISpeakingForBargeInRef.current = false;
