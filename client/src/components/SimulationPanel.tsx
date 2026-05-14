@@ -10,6 +10,7 @@ interface SimulationPanelProps {
   state: SimulationState | null;
   newIncident?: Incident | null;
   latestTurnScore?: TurnScore | null;
+  hasActiveIncident?: boolean;
   isVisible?: boolean;
   className?: string;
 }
@@ -204,6 +205,7 @@ const SimulationPanel = memo(function SimulationPanel({
   state,
   newIncident,
   latestTurnScore,
+  hasActiveIncident = false,
   isVisible = true,
   className = '',
 }: SimulationPanelProps) {
@@ -219,7 +221,12 @@ const SimulationPanel = memo(function SimulationPanel({
         {newIncident && <IncidentBanner incident={newIncident} />}
 
         <div className="flex items-center justify-between">
-          <StageIndicator stage={stage} />
+          <div className="flex items-center gap-1.5">
+            <StageIndicator stage={stage} />
+            {hasActiveIncident && (
+              <span className="w-2 h-2 bg-orange-400 rounded-full animate-pulse shrink-0" title={t('simulation.activeIncident', { defaultValue: 'Active incident' })} />
+            )}
+          </div>
           <PressureLevel level={pressureLevel} />
         </div>
 

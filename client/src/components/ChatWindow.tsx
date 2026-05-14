@@ -574,6 +574,7 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
                     state={simulationState}
                     newIncident={newIncident}
                     latestTurnScore={latestTurnScore}
+                    hasActiveIncident={hasActiveIncident}
                     className="hidden lg:flex"
                   />
                 )}
@@ -672,23 +673,23 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
                     >
                       <Brain className="h-3.5 w-3.5" />
                       <span>{t('chat.npcStatusButton')}</span>
-                      {(hasActiveIncident || newIncident) && <span className="w-2 h-2 bg-orange-400 rounded-full animate-pulse shrink-0" />}
+                      {hasActiveIncident && <span className="w-2 h-2 bg-orange-400 rounded-full animate-pulse shrink-0" />}
                     </button>
                   )}
 
                   {/* Desktop NPC status toggle button */}
                   {isSimulationEnabled && simulationState && (
                     <div className="hidden lg:flex absolute bottom-24 left-4 z-20">
-                      {newIncident && !isDesktopSimOpen && (
+                      {hasActiveIncident && !isDesktopSimOpen && (
                         <span className="absolute inset-0 rounded-full animate-ping bg-orange-400 opacity-40 pointer-events-none" />
                       )}
                       <button
                         onClick={() => setIsDesktopSimOpen(v => !v)}
-                        className={`flex items-center gap-1.5 bg-black/60 backdrop-blur-sm text-white text-xs px-2.5 py-1.5 rounded-full shadow-lg transition-colors ${newIncident && !isDesktopSimOpen ? 'border-2 border-orange-400' : 'border border-white/20'}`}
+                        className={`flex items-center gap-1.5 bg-black/60 backdrop-blur-sm text-white text-xs px-2.5 py-1.5 rounded-full shadow-lg transition-colors ${hasActiveIncident && !isDesktopSimOpen ? 'border-2 border-orange-400' : 'border border-white/20'}`}
                       >
                         <Brain className="h-3.5 w-3.5" />
                         <span>{isDesktopSimOpen ? t('chat.npcStatusHide', { defaultValue: 'Hide NPC Panel' }) : t('chat.npcStatusButton')}</span>
-                        {newIncident && !isDesktopSimOpen && <span className="w-2 h-2 bg-orange-400 rounded-full animate-pulse shrink-0" />}
+                        {hasActiveIncident && !isDesktopSimOpen && <span className="w-2 h-2 bg-orange-400 rounded-full animate-pulse shrink-0" />}
                       </button>
                     </div>
                   )}
@@ -867,6 +868,7 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
                     state={simulationState}
                     newIncident={newIncident}
                     latestTurnScore={latestTurnScore}
+                    hasActiveIncident={hasActiveIncident}
                   />
                 </div>
               </div>
