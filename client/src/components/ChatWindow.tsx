@@ -58,7 +58,16 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
   const [showInputMode, setShowInputMode] = useState(false);
   const [isGoalsExpanded, setIsGoalsExpanded] = useState(false);
   const [isSwitchingMode, setIsSwitchingMode] = useState(false);
-  const [isMobileSimOpen, setIsMobileSimOpen] = useState(false);
+  const [isMobileSimOpen, setIsMobileSimOpenRaw] = useState(
+    () => localStorage.getItem('npc-panel-open') === 'true'
+  );
+  const setIsMobileSimOpen = (value: boolean | ((prev: boolean) => boolean)) => {
+    setIsMobileSimOpenRaw(prev => {
+      const next = typeof value === 'function' ? value(prev) : value;
+      localStorage.setItem('npc-panel-open', String(next));
+      return next;
+    });
+  };
   const isPersonaX = scenario.id?.startsWith('__');
   const [showMicPrompt, setShowMicPrompt] = useState(false);
   const [isInputExpanded, setIsInputExpanded] = useState(false);
