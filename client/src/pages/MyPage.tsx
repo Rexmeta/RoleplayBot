@@ -19,7 +19,7 @@ import { format } from "date-fns";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { StrategyReflection } from "@/components/StrategyReflection";
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as ChartTooltip, Legend, ResponsiveContainer } from "recharts";
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as ChartTooltip, Legend, ResponsiveContainer, ComposedChart, Bar } from "recharts";
 
 type ScoreChartPoint = {
   date: string;
@@ -332,6 +332,27 @@ export default function MyPage() {
     });
     
     return attemptMap;
+  }, [scenarioRuns]);
+
+  // 시뮬레이션 점수 추이 데이터 (persona_runs.simulation_state 기반)
+  const simScoreTrendData = useMemo(() => {
+    const points: { label: string; simScore: number; incidents: number }[] = [];
+    const sorted = [...scenarioRuns]
+      .filter(sr => sr.personaRuns && sr.personaRuns.length > 0)
+      .sort((a, b) => new Date(a.startedAt).getTime() - new Date(b.startedAt).getTime());
+
+    sorted.forEach((sr, idx) => {
+      const summaries = (sr.personaRuns || [])
+        .map(getSimSummary)
+        .filter((s): s is SimulationSummary => s !== null);
+      if (summaries.length === 0) return;
+      const avgScore = Math.round(summaries.reduce((a, s) => a + s.averageScore, 0) / summaries.length);
+      const totalIncidents = summaries.reduce((a, s) => a + s.totalIncidents, 0);
+      const d = new Date(String(sr.startedAt));
+      const label = `#${idx + 1} ${String(d.getMonth() + 1).padStart(2, '0')}.${String(d.getDate()).padStart(2, '0')}`;
+      points.push({ label, simScore: avgScore, incidents: totalIncidents });
+    });
+    return points;
   }, [scenarioRuns]);
 
   if (!user) {
@@ -804,6 +825,57 @@ export default function MyPage() {
                           <div className="text-2xl font-bold text-slate-900">
                             {Math.max(...analyticsData.scoreHistory.map((e: any) => e.score)) - Math.min(...analyticsData.scoreHistory.map((e: any) => e.score))}
                           </div>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
+
+                {/* Simulation Score Trend Chart */}
+                {simScoreTrendData.length > 1 && (
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2">
+                        <TrendingUp className="w-4 h-4 text-cyan-600" />
+                        시뮬레이션 점수 추이
+                      </CardTitle>
+                      <CardDescription>세션별 NPC 관리 평균 점수 및 사건 발생 횟수 (0~100점)</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="w-full h-80">
+                        <ResponsiveContainer width="100%" height="100%">
+                          <ComposedChart data={simScoreTrendData} margin={{ top: 5, right: 30, left: 0, bottom: 5 }}>
+                            <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                            <XAxis dataKey="label" stroke="#64748b" style={{ fontSize: '11px' }} />
+                            <YAxis yAxisId="score" stroke="#64748b" domain={[0, 100]} style={{ fontSize: '12px' }} />
+                            <YAxis yAxisId="incidents" orientation="right" stroke="#f97316" style={{ fontSize: '12px' }} allowDecimals={false} />
+                            <ChartTooltip
+                              contentStyle={{ backgroundColor: '#fff', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '8px 12px' }}
+                              formatter={(value: any, name: string) => {
+                                if (name === 'simScore') return [`${value}점`, '시뮬 점수'];
+                                if (name === 'incidents') return [`${value}건`, '사건 수'];
+                                return [value, name];
+                              }}
+                              labelStyle={{ color: '#1e293b' }}
+                            />
+                            <Legend wrapperStyle={{ paddingTop: '20px' }} formatter={(value) => value === 'simScore' ? 'NPC 관리 점수' : '사건 발생 수'} />
+                            <Bar yAxisId="incidents" dataKey="incidents" fill="#fed7aa" stroke="#f97316" strokeWidth={1} name="incidents" barSize={20} />
+                            <Line yAxisId="score" type="monotone" dataKey="simScore" stroke="#0891b2" strokeWidth={3} dot={{ r: 5, fill: '#0891b2' }} activeDot={{ r: 8 }} isAnimationActive={true} name="simScore" />
+                          </ComposedChart>
+                        </ResponsiveContainer>
+                      </div>
+                      <div className="mt-4 grid grid-cols-3 gap-4 text-sm">
+                        <div className="p-3 bg-slate-50 rounded-lg">
+                          <div className="text-slate-600 mb-1">최고 점수</div>
+                          <div className="text-2xl font-bold text-slate-900">{Math.max(...simScoreTrendData.map(d => d.simScore))}</div>
+                        </div>
+                        <div className="p-3 bg-slate-50 rounded-lg">
+                          <div className="text-slate-600 mb-1">최저 점수</div>
+                          <div className="text-2xl font-bold text-slate-900">{Math.min(...simScoreTrendData.map(d => d.simScore))}</div>
+                        </div>
+                        <div className="p-3 bg-slate-50 rounded-lg">
+                          <div className="text-slate-600 mb-1">총 사건</div>
+                          <div className="text-2xl font-bold text-slate-900">{simScoreTrendData.reduce((a, d) => a + d.incidents, 0)}<span className="text-sm font-normal text-slate-500 ml-1">건</span></div>
                         </div>
                       </div>
                     </CardContent>
