@@ -132,11 +132,6 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
       }
       setLocalMessages(prev => {
         if (prev.some(m => m.sender === 'ai' && m.message === message)) return prev;
-        const hasAiMessage = prev.some(m => m.sender === 'ai');
-        const hasUserMessage = prev.some(m => m.sender === 'user');
-        if (hasAiMessage && !hasUserMessage) {
-          return prev;
-        }
         return [...prev, { sender: 'ai', message, timestamp: new Date().toISOString(), emotion: emotion || '중립', emotionReason: emotionReason || '' }];
       });
       if (!hasUserSpokenRef.current) setShowMicPrompt(true);
@@ -184,7 +179,9 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
   });
 
   const targetTurns = scenario.targetTurns ?? 10;
-  const currentTurn = conversation ? conversation.turnCount : 0;
+  const currentTurn = realtimeVoice.status === 'connected'
+    ? localMessages.filter(m => m.sender === 'ai').length
+    : (conversation ? conversation.turnCount : 0);
   const progressPercentage = Math.min((currentTurn / targetTurns) * 100, 100);
   const isNearingEnd = progressPercentage >= SOFT_CLOSE_THRESHOLD * 100;
   const progressInfo = getProgressInfo(progressPercentage);
