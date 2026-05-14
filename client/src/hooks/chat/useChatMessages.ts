@@ -8,9 +8,10 @@ import type { ConversationMessage } from "@shared/schema";
 interface UseChatMessagesOptions {
   conversationId: string;
   serverMessages?: ConversationMessage[];
+  onSimulationUpdate?: (update: { type: 'simulation_update'; personaRunId: string; eventType: string; currentState: any; incident?: any; turnScore?: any; version: number; timestamp: string }) => void;
 }
 
-export function useChatMessages({ conversationId, serverMessages }: UseChatMessagesOptions) {
+export function useChatMessages({ conversationId, serverMessages, onSimulationUpdate }: UseChatMessagesOptions) {
   const [localMessages, setLocalMessages] = useState<ConversationMessage[]>([]);
   const [pendingAiMessage, setPendingAiMessage] = useState(false);
   const [pendingUserMessage, setPendingUserMessage] = useState(false);
@@ -49,6 +50,20 @@ export function useChatMessages({ conversationId, serverMessages }: UseChatMessa
         if (latestMessage.sender === 'ai') {
           setLocalMessages(prev => [...prev, latestMessage]);
         }
+      }
+
+      // Forward simulation state update from HTTP response to SimulationPanel
+      if (onSimulationUpdate && data.simulationState) {
+        onSimulationUpdate({
+          type: 'simulation_update',
+          personaRunId: conversationId,
+          eventType: 'auto_evaluation',
+          currentState: data.simulationState,
+          incident: data.simulationState?.recentIncidents?.[data.simulationState.recentIncidents.length - 1],
+          turnScore: data.turnScore,
+          version: data.simulationState?.version ?? 0,
+          timestamp: new Date().toISOString(),
+        });
       }
 
       queryClient.invalidateQueries({ queryKey: ["/api/conversations", conversationId] });

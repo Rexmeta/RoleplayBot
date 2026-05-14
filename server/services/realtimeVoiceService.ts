@@ -19,6 +19,12 @@ import {
 } from './voice/sessionManager';
 import { buildUserPersonaInstructions } from './voice/prompts/userPersonaPrompt';
 import { normalizeProfileName } from './conversationContextBuilder';
+import { SIMULATION_TOOLS } from './simulation/simulationTools';
+import { db } from '../storage';
+import { personaRuns } from '@shared/schema';
+import { eq } from 'drizzle-orm';
+import { getOrCreateSessionContext } from './simulation/simulationEngine';
+import { createDefaultSimulationState } from './simulation/simulationTypes';
 
 const DEFAULT_REALTIME_MODEL = 'gemini-live-2.5-flash';
 
@@ -181,7 +187,7 @@ export class RealtimeVoiceService {
     const preloadedMessages = await preloadRecentMessages(conversationId, sessionId);
 
     const session: RealtimeSession = {
-      id: sessionId, conversationId, scenarioId, personaId,
+      id: sessionId, personaRunId: conversationId, scenarioId, personaId,
       personaName: scenarioPersona.name, userId, userName, clientWs,
       geminiSession: null,
       currentTranscript: '', userTranscriptBuffer: '', audioBuffer: [],
@@ -197,7 +203,28 @@ export class RealtimeVoiceService {
       userLanguage,
       pendingMessages: [], outgoingMessageIndex: 0,
       hasReceivedFirstTranscriptDelta: false, greetingResponseCount: 0, userTurnsCompleted: 0,
+      simulationState: null, scenarioRunId: null, toolCallCountThisTurn: 0, emotionCallCountThisTurn: 0,
+      currentTurnIncidentFired: false,
+      lastEvaluatedUserTurnIndex: -1, lastEvaluatedUserTurnId: null, lastFinalizedUserTranscriptHash: null,
     };
+
+    // Lookup scenarioRunId from DB for simulation event audit linkage
+    try {
+      const rows = await db.select({ scenarioRunId: personaRuns.scenarioRunId }).from(personaRuns).where(eq(personaRuns.id, conversationId)).limit(1);
+      session.scenarioRunId = rows[0]?.scenarioRunId ?? null;
+    } catch (e) {
+      console.warn(`⚠️ [createSession] Failed to lookup scenarioRunId for ${conversationId}:`, e);
+    }
+
+    // Pre-initialize simulation state with timer config if scenario defines one
+    const timerCfg = (scenarioObj as any)?.simulationConfig?.timer;
+    if (timerCfg?.enabled && timerCfg.timeLimitSec > 0) {
+      const initState = createDefaultSimulationState();
+      initState.timer = { enabled: true, timeLimitSec: timerCfg.timeLimitSec, startedAt: new Date().toISOString(), pausedAt: null, elapsedSec: 0 };
+      getOrCreateSessionContext(conversationId, initState);
+      session.simulationState = initState;
+      console.log(`⏱️ [createSession] Simulation timer initialized: ${timerCfg.timeLimitSec}s`);
+    }
 
     this.sessions.set(sessionId, session);
     console.log(`⏱️ [TIMING] 세션 객체 생성 완료: ${Date.now() - sessionStartTime}ms`);
@@ -231,7 +258,7 @@ export class RealtimeVoiceService {
     const preloadedMessagesUserPersona = await preloadRecentMessages(conversationId, sessionId, '[UserPersona] ');
 
     const session: RealtimeSession = {
-      id: sessionId, conversationId, scenarioId, personaId,
+      id: sessionId, personaRunId: conversationId, scenarioId, personaId,
       personaName: userPersonaData.name, userId, userName, clientWs,
       geminiSession: null,
       currentTranscript: '', userTranscriptBuffer: '', audioBuffer: [],
@@ -247,6 +274,9 @@ export class RealtimeVoiceService {
       userLanguage,
       pendingMessages: [], outgoingMessageIndex: 0,
       hasReceivedFirstTranscriptDelta: false, greetingResponseCount: 0, userTurnsCompleted: 0,
+      simulationState: null, scenarioRunId: null, toolCallCountThisTurn: 0, emotionCallCountThisTurn: 0,
+      currentTurnIncidentFired: false,
+      lastEvaluatedUserTurnIndex: -1, lastEvaluatedUserTurnId: null, lastFinalizedUserTranscriptHash: null,
     };
 
     this.sessions.set(sessionId, session);
@@ -288,6 +318,11 @@ export class RealtimeVoiceService {
       };
       const langCode = langCodeMap[session.userLanguage] || 'ko-KR';
 
+      const isPersonaXSession = session.scenarioId.startsWith('__user_persona__:');
+      const simulationToolDeclarations = isPersonaXSession
+        ? []
+        : [{ functionDeclarations: SIMULATION_TOOLS }];
+
       const config: any = {
         responseModalities: [Modality.AUDIO],
         systemInstruction: systemInstructions,
@@ -301,6 +336,7 @@ export class RealtimeVoiceService {
         sessionResumption: session.sessionResumptionToken
           ? { handle: session.sessionResumptionToken }
           : {},
+        tools: simulationToolDeclarations.length > 0 ? simulationToolDeclarations : undefined,
       };
 
       const realtimeModel = session.realtimeModel || await this.getRealtimeModel();
@@ -470,7 +506,7 @@ export class RealtimeVoiceService {
       trackSessionUsage(session);
 
       const pendingUserText = session.userTranscriptBuffer.trim();
-      if (pendingUserText && session.conversationId) {
+      if (pendingUserText && session.personaRunId) {
         const clientWsOpen = session.clientWs && session.clientWs.readyState === WebSocket.OPEN;
         if (clientWsOpen) {
           console.log(`🎤 [closeSession] Flushing pending user buffer to client: "${pendingUserText.substring(0, 60)}"`);
@@ -478,9 +514,9 @@ export class RealtimeVoiceService {
           session.recentMessages.push({ role: 'user', text: pendingUserText.slice(0, 300) });
         } else {
           console.log(`💾 [closeSession] Flushing pending user buffer to DB: "${pendingUserText.substring(0, 60)}"`);
-          storage.getChatMessagesByPersonaRun(session.conversationId).then(existing => {
+          storage.getChatMessagesByPersonaRun(session.personaRunId).then(existing => {
             storage.createChatMessage({
-              personaRunId: session.conversationId,
+              personaRunId: session.personaRunId,
               sender: 'user',
               message: pendingUserText,
               turnIndex: Math.floor(existing.length / 2),
@@ -491,6 +527,33 @@ export class RealtimeVoiceService {
           }).catch(err => console.error('❌ Failed to fetch messages for orphan save:', err));
         }
         session.userTranscriptBuffer = '';
+      }
+
+      // Log session_end simulation event to complete the audit trail
+      if (session.personaRunId && session.simulationState) {
+        const finalState = session.simulationState;
+        setImmediate(async () => {
+          try {
+            await storage.saveSimulationState(session.personaRunId, finalState as unknown as Record<string, unknown>);
+            await storage.createSimulationEvent({
+              personaRunId: session.personaRunId,
+              scenarioRunId: session.scenarioRunId ?? null,
+              turnIndex: session.userTurnsCompleted,
+              turnId: null,
+              eventType: 'session_end',
+              toolName: null,
+              args: null,
+              result: { reason: 'voice_session_closed', userTurnsCompleted: session.userTurnsCompleted },
+              stateBefore: null,
+              stateAfter: finalState,
+              stateVersionBefore: null,
+              stateVersionAfter: finalState.version,
+              includeInReport: false,
+            });
+          } catch (e) {
+            console.warn('[closeSession] Failed to log session_end event:', e);
+          }
+        });
       }
 
       if (session.geminiSession) {

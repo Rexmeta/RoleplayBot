@@ -1,4 +1,4 @@
-import { type ScenarioRun, type InsertScenarioRun, type PersonaRun, type InsertPersonaRun, type ChatMessage, type InsertChatMessage, scenarioRuns, personaRuns, chatMessages } from "@shared/schema";
+import { type ScenarioRun, type InsertScenarioRun, type PersonaRun, type InsertPersonaRun, type ChatMessage, type InsertChatMessage, type SimulationEvent, type InsertSimulationEvent, scenarioRuns, personaRuns, chatMessages, simulationEvents } from "@shared/schema";
 import { db } from "./db";
 import { eq, asc, desc, inArray, and, isNotNull, sql } from "drizzle-orm";
 
@@ -36,6 +36,11 @@ export interface ISessionsStorage {
   getEmotionTimelineByPersonaRun(personaRunId: string): Promise<EmotionTimeline[]>;
 
   deleteScenarioRun(id: string): Promise<void>;
+
+  createSimulationEvent(event: InsertSimulationEvent): Promise<SimulationEvent>;
+  getSimulationEventsByPersonaRun(personaRunId: string): Promise<SimulationEvent[]>;
+  getSimulationState(personaRunId: string): Promise<Record<string, unknown> | null>;
+  saveSimulationState(personaRunId: string, state: Record<string, unknown>): Promise<void>;
 }
 
 type Constructor<T = {}> = new (...args: any[]) => T;
@@ -238,6 +243,29 @@ export function SessionsMixin<TBase extends Constructor>(Base: TBase) {
     async deleteScenarioRun(id: string): Promise<void> {
       await db.delete(scenarioRuns).where(eq(scenarioRuns.id, id));
     }
+
+    async createSimulationEvent(event: InsertSimulationEvent): Promise<SimulationEvent> {
+      const [created] = await db.insert(simulationEvents).values(event as any).returning();
+      return created;
+    }
+
+    async getSimulationEventsByPersonaRun(personaRunId: string): Promise<SimulationEvent[]> {
+      return await db.select().from(simulationEvents)
+        .where(eq(simulationEvents.personaRunId, personaRunId))
+        .orderBy(asc(simulationEvents.createdAt));
+    }
+
+    async getSimulationState(personaRunId: string): Promise<Record<string, unknown> | null> {
+      const [row] = await db.select({ simulationState: personaRuns.simulationState })
+        .from(personaRuns)
+        .where(eq(personaRuns.id, personaRunId));
+      if (!row) return null;
+      return (row.simulationState as Record<string, unknown>) ?? null;
+    }
+
+    async saveSimulationState(personaRunId: string, state: Record<string, unknown>): Promise<void> {
+      await db.update(personaRuns).set({ simulationState: state as any }).where(eq(personaRuns.id, personaRunId));
+    }
   };
 }
 
@@ -265,4 +293,8 @@ export class MemSessionsStorage implements ISessionsStorage {
   async getEmotionStatsByDifficulty(_?: string[]): Promise<EmotionStatByDifficulty[]> { throw new Error("MemStorage does not support emotion stats by difficulty"); }
   async getEmotionTimelineByPersonaRun(_: string): Promise<EmotionTimeline[]> { throw new Error("MemStorage does not support emotion timeline"); }
   async deleteScenarioRun(_: string): Promise<void> { throw new Error("MemStorage does not support deleteScenarioRun"); }
+  async createSimulationEvent(_: InsertSimulationEvent): Promise<SimulationEvent> { throw new Error("MemStorage does not support simulation events"); }
+  async getSimulationEventsByPersonaRun(_: string): Promise<SimulationEvent[]> { return []; }
+  async getSimulationState(_: string): Promise<Record<string, unknown> | null> { return null; }
+  async saveSimulationState(_: string, __: Record<string, unknown>): Promise<void> { }
 }

@@ -1072,6 +1072,53 @@ export async function runMigrations(): Promise<void> {
         console.warn('⚠️ Failed to update evaluation_dimensions max_score:', err);
       }
 
+      // simulation_state column on persona_runs
+      try {
+        await client.query(`
+          DO $$ BEGIN
+            IF NOT EXISTS (
+              SELECT 1 FROM information_schema.columns
+              WHERE table_name='persona_runs' AND column_name='simulation_state'
+            ) THEN
+              ALTER TABLE persona_runs ADD COLUMN simulation_state jsonb;
+            END IF;
+          END $$;
+        `);
+        console.log('✅ persona_runs.simulation_state column ensured');
+      } catch (err) {
+        console.warn('⚠️ Failed to add simulation_state to persona_runs:', err);
+      }
+
+      // simulation_events table
+      try {
+        await client.query(`
+          CREATE TABLE IF NOT EXISTS simulation_events (
+            id varchar PRIMARY KEY DEFAULT gen_random_uuid(),
+            persona_run_id varchar NOT NULL REFERENCES persona_runs(id) ON DELETE CASCADE,
+            scenario_run_id varchar,
+            turn_index integer NOT NULL DEFAULT 0,
+            turn_id varchar,
+            event_type varchar NOT NULL,
+            tool_name varchar,
+            args jsonb,
+            result jsonb,
+            state_before jsonb,
+            state_after jsonb,
+            state_version_before integer,
+            state_version_after integer,
+            include_in_report boolean NOT NULL DEFAULT true,
+            created_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP
+          );
+        `);
+        await client.query(`
+          CREATE INDEX IF NOT EXISTS idx_simulation_events_persona_run_id ON simulation_events(persona_run_id);
+          CREATE INDEX IF NOT EXISTS idx_simulation_events_turn_index ON simulation_events(turn_index);
+        `);
+        console.log('✅ simulation_events table ensured');
+      } catch (err) {
+        console.warn('⚠️ Failed to create simulation_events table:', err);
+      }
+
       console.log('✅ Database migrations completed successfully');
     } finally {
       client.release();

@@ -51,7 +51,7 @@ export function trackSessionUsage(session: RealtimeSession): void {
     trackUsage({
       feature: 'realtime', model: session.realtimeModel, provider: 'gemini',
       promptTokens: totalPromptTokens, completionTokens: totalCompletionTokens,
-      userId: session.userId, conversationId: session.conversationId, durationMs,
+      userId: session.userId, conversationId: session.personaRunId, durationMs,
       metadata: {
         scenarioId: session.scenarioId, personaId: session.personaId,
         totalUserTranscriptLength: session.totalUserTranscriptLength,

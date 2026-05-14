@@ -67,6 +67,8 @@ export interface RoleplayScenario {
   }>;
   /** 모드 전환 시 AI 스타일 연속성 유지를 위해 일회성으로 주입되는 시스템 힌트 */
   modeTransitionHint?: string;
+  /** 시뮬레이션 품질 모드에서 AI 응답 생성 전 주입되는 [SIMULATION_STATE] 블록 */
+  simulationStateBlock?: string;
   /** 시나리오별 목표 대화 시간 (분) */
   targetDurationMinutes?: number;
   /** 시나리오별 목표 턴 수 */

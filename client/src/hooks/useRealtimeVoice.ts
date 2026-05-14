@@ -33,6 +33,7 @@ interface UseRealtimeVoiceProps {
   onUserSpeakingStart?: () => void;
   onError?: (error: string) => void;
   onSessionTerminated?: (reason: string) => void;
+  onSimulationUpdate?: (update: any) => void;
 }
 
 interface UseRealtimeVoiceReturn {
@@ -68,6 +69,7 @@ export function useRealtimeVoice({
   onUserSpeakingStart,
   onError,
   onSessionTerminated,
+  onSimulationUpdate,
 }: UseRealtimeVoiceProps): UseRealtimeVoiceReturn {
   const [status, setStatus] = useState<RealtimeVoiceStatus>('disconnected');
   const [conversationPhase, setConversationPhase] = useState<ConversationPhase>('idle');
@@ -117,6 +119,7 @@ export function useRealtimeVoice({
   const onUserSpeakingStartRef = useRef(onUserSpeakingStart);
   const onErrorRef = useRef(onError);
   const onSessionTerminatedRef = useRef(onSessionTerminated);
+  const onSimulationUpdateRef = useRef(onSimulationUpdate);
 
   useEffect(() => {
     onMessageRef.current = onMessage;
@@ -127,7 +130,8 @@ export function useRealtimeVoice({
     onUserSpeakingStartRef.current = onUserSpeakingStart;
     onErrorRef.current = onError;
     onSessionTerminatedRef.current = onSessionTerminated;
-  }, [onMessage, onMessageComplete, onUserTranscription, onUserTranscriptionDelta, onAiSpeakingStart, onUserSpeakingStart, onError, onSessionTerminated]);
+    onSimulationUpdateRef.current = onSimulationUpdate;
+  }, [onMessage, onMessageComplete, onUserTranscription, onUserTranscriptionDelta, onAiSpeakingStart, onUserSpeakingStart, onError, onSessionTerminated, onSimulationUpdate]);
 
   useEffect(() => {
     conversationPhaseRef.current = conversationPhase;
@@ -486,6 +490,13 @@ export function useRealtimeVoice({
               setConversationPhase('ended');
               if (onSessionTerminatedRef.current) onSessionTerminatedRef.current(data.reason || 'Session ended');
               disconnect();
+              break;
+
+            case 'simulation_update':
+            case 'simulation.incident':
+              if (onSimulationUpdateRef.current) {
+                onSimulationUpdateRef.current(data);
+              }
               break;
 
             case 'error':

@@ -23,6 +23,12 @@ import {
   createHttpError
 } from "./routerHelpers";
 import { normalizeProfileName } from "../services/conversationContextBuilder";
+import { createDefaultSimulationState } from "../services/simulation/simulationTypes";
+import { setSessionState, getSessionState, applySimulationPatch, checkIncidentCooldown, recordIncidentCooldown } from "../services/simulation/simulationEngine";
+import { evaluateUserResponse } from "../services/simulation/evaluateUserResponse";
+import { buildRuleFallbackPatch, inferStagePatchFromState, inferIncidentCandidate } from "../services/simulation/simulationRules";
+import { buildSimulationStateBlock } from "../services/simulation/simulationPrompt";
+import { v4 as uuidv4 } from "uuid";
 
 export default function createConversationsRouter(isAuthenticated: any) {
   const router = Router();
@@ -113,6 +119,40 @@ export default function createConversationsRouter(isAuthenticated: any) {
 
     console.log(`👤 Persona Run 생성: ${personaRun.id}, mode=${validatedData.mode}`);
 
+    const isPersonaXMode = validatedData.scenarioId.startsWith('__user_persona__:') ||
+      validatedData.scenarioId.startsWith('__mbti_persona__:') ||
+      validatedData.scenarioId === '__free_chat__';
+    let initialSimState = null;
+    if (!isPersonaXMode) {
+      const freshState = createDefaultSimulationState();
+      // Initialize timer from scenario config so it is available from the first turn
+      const initTimerCfg = (scenarioObj as any)?.simulationConfig?.timer;
+      if (initTimerCfg?.enabled && initTimerCfg.timeLimitSec > 0) {
+        freshState.timer = { enabled: true, timeLimitSec: initTimerCfg.timeLimitSec, startedAt: new Date().toISOString(), pausedAt: null, elapsedSec: 0 };
+      }
+      setSessionState(personaRun.id, freshState);
+      initialSimState = freshState;
+      storage.saveSimulationState(personaRun.id, freshState as unknown as Record<string, unknown>)
+        .then(() => {
+          storage.createSimulationEvent({
+            personaRunId: personaRun.id,
+            scenarioRunId: scenarioRun.id,
+            turnIndex: 0,
+            turnId: uuidv4(),
+            eventType: 'state_init',
+            toolName: null,
+            args: { scenarioId: validatedData.scenarioId, mode: validatedData.mode },
+            result: null,
+            stateBefore: null,
+            stateAfter: freshState,
+            stateVersionBefore: null,
+            stateVersionAfter: freshState.version,
+            includeInReport: false,
+          }).catch(e => console.warn('[conversations] Failed to log state_init event:', e));
+        })
+        .catch(e => console.warn('[conversations] Failed to persist initial simulation state:', e));
+    }
+
     if (validatedData.mode === 'realtime_voice') {
       console.log('🎙️ 실시간 음성 모드 - Gemini 호출 건너뛰기');
       return res.json({
@@ -129,7 +169,8 @@ export default function createConversationsRouter(isAuthenticated: any) {
         difficulty: validatedData.difficulty || 4,
         userId,
         createdAt: scenarioRun.startedAt,
-        updatedAt: scenarioRun.startedAt
+        updatedAt: scenarioRun.startedAt,
+        simulationState: initialSimState,
       });
     }
 
@@ -208,7 +249,8 @@ export default function createConversationsRouter(isAuthenticated: any) {
         difficulty: validatedData.difficulty,
         userId,
         createdAt: scenarioRun.startedAt,
-        updatedAt: scenarioRun.startedAt
+        updatedAt: scenarioRun.startedAt,
+        simulationState: initialSimState,
       });
     } catch (aiError) {
       console.error("AI 초기 메시지 생성 실패:", aiError);
@@ -226,7 +268,8 @@ export default function createConversationsRouter(isAuthenticated: any) {
         difficulty: validatedData.difficulty,
         userId,
         createdAt: scenarioRun.startedAt,
-        updatedAt: scenarioRun.startedAt
+        updatedAt: scenarioRun.startedAt,
+        simulationState: initialSimState,
       });
     }
   }));
@@ -303,6 +346,59 @@ export default function createConversationsRouter(isAuthenticated: any) {
       emotionReason: msg.emotionReason || undefined
     }));
 
+    const isPersonaXGet = scenarioRun.scenarioId === '__free_chat__' ||
+      scenarioRun.scenarioId?.startsWith('__user_persona__:') ||
+      scenarioRun.scenarioId?.startsWith('__mbti_persona__:');
+
+    let simState: import('../services/simulation/simulationTypes').SimulationState | null = getSessionState(personaRun.id);
+    if (!simState && !isPersonaXGet) {
+      try {
+        const stored = await storage.getSimulationState(personaRun.id);
+        if (stored) {
+          simState = stored as unknown as import('../services/simulation/simulationTypes').SimulationState;
+          setSessionState(personaRun.id, simState);
+          // Log state_restore event (best-effort, no await)
+          storage.createSimulationEvent({
+            personaRunId: personaRun.id,
+            scenarioRunId: scenarioRun.id,
+            turnIndex: personaRun.turnCount ?? 0,
+            turnId: uuidv4(),
+            eventType: 'state_restore',
+            toolName: null,
+            args: null,
+            result: null,
+            stateBefore: null,
+            stateAfter: simState,
+            stateVersionBefore: null,
+            stateVersionAfter: simState.version,
+            includeInReport: false,
+          }).catch(e => console.warn('[conversations] Failed to log state_restore event:', e));
+        } else {
+          simState = createDefaultSimulationState();
+          setSessionState(personaRun.id, simState);
+          await storage.saveSimulationState(personaRun.id, simState as unknown as Record<string, unknown>);
+          // Log state_init for lazy-created default state
+          storage.createSimulationEvent({
+            personaRunId: personaRun.id,
+            scenarioRunId: scenarioRun.id,
+            turnIndex: 0,
+            turnId: uuidv4(),
+            eventType: 'state_init',
+            toolName: null,
+            args: null,
+            result: null,
+            stateBefore: null,
+            stateAfter: simState,
+            stateVersionBefore: null,
+            stateVersionAfter: simState.version,
+            includeInReport: false,
+          }).catch(e => console.warn('[conversations] Failed to log state_init event (lazy):', e));
+        }
+      } catch (e) {
+        console.warn('[conversations] Failed to lazy-init simulation state:', e);
+      }
+    }
+
     res.json({
       id: personaRun.id,
       scenarioRunId: scenarioRun.id,
@@ -317,7 +413,8 @@ export default function createConversationsRouter(isAuthenticated: any) {
       difficulty: personaRun.difficulty || scenarioRun.difficulty,
       userId: scenarioRun.userId,
       createdAt: personaRun.startedAt,
-      updatedAt: personaRun.completedAt || personaRun.startedAt
+      updatedAt: personaRun.completedAt || personaRun.startedAt,
+      simulationState: simState,
     });
   }));
 
@@ -432,6 +529,7 @@ export default function createConversationsRouter(isAuthenticated: any) {
 
     let persona: any;
     let scenarioWithUserDifficulty: any;
+    let scenarioObjRef: any = null; // hoisted for auto-feedback trigger
 
     if (scenarioRun!.scenarioId === "__free_chat__") {
       const snapshot = personaRun!.personaSnapshot as any || {};
@@ -509,6 +607,7 @@ ${userNameLine}
       const scenarios = await fileManager.getAllScenarios();
       const scenarioObj = scenarios.find(s => s.id === scenarioRun!.scenarioId);
       if (!scenarioObj) throw new Error(`Scenario not found: ${scenarioRun!.scenarioId}`);
+      scenarioObjRef = scenarioObj; // hoist for auto-feedback
 
       const scenarioPersona: any = scenarioObj.personas.find((p: any) => p.id === personaId);
       if (!scenarioPersona) throw new Error(`Persona not found in scenario: ${personaId}`);
@@ -550,6 +649,11 @@ ${userNameLine}
       emotionReason: msg.emotionReason || undefined
     }));
 
+    // isPersonaX: determines if this is a PersonaX free-chat session (no simulation)
+    const isPersonaX = scenarioRun!.scenarioId === '__free_chat__' ||
+      scenarioRun!.scenarioId?.startsWith('__user_persona__:') ||
+      scenarioRun!.scenarioId?.startsWith('__mbti_persona__:');
+
     const scenarioForAI: RoleplayScenario = scenarioWithUserDifficulty;
     // Only realtime-voice → text requires a style-continuity hint because it uses a
     // separate AI model (Gemini Live) that has no shared prompt state with the text model.
@@ -557,6 +661,85 @@ ${userNameLine}
     if (validatedPreviousMode === 'realtime-voice') {
       console.log('🔄 Voice→Text mode transition detected: injecting style continuity hint');
       scenarioForAI.modeTransitionHint = '이전 대화는 음성(voice)으로 이루어졌습니다. 지금부터 텍스트 모드로 전환되었습니다. 이전 대화의 캐릭터와 분위기, 톤을 그대로 유지하며 텍스트로 자연스럽게 이어가세요. 말투나 태도가 갑자기 바뀌지 않도록 주의하세요.';
+    }
+
+    // ── Simulation evaluation orchestration ────────────────────────────────────
+    // fast (default): run LLM evaluation in parallel with AI generation (non-blocking)
+    // quality: run LLM evaluation FIRST, inject [SIMULATION_STATE] into AI prompt, then generate
+    const evalMode: 'fast' | 'quality' =
+      (scenarioWithUserDifficulty as any)?.simulationConfig?.evaluationMode ?? 'fast';
+    const shouldEval = !isPersonaX && !isSkipTurn && message.trim().length >= 10;
+    const evalTurnId = uuidv4();
+
+    // Pre-load simulation state (required before AI generation for quality mode)
+    let evalState: import('../services/simulation/simulationTypes').SimulationState | null = null;
+    if (shouldEval) {
+      try {
+        evalState = getSessionState(personaRunId);
+        if (!evalState) {
+          const stored = await storage.getSimulationState(personaRunId);
+          if (stored) {
+            evalState = stored as unknown as import('../services/simulation/simulationTypes').SimulationState;
+          } else {
+            const defaultState = createDefaultSimulationState();
+            // Initialize timer from scenario config if present
+            const timerCfg = (scenarioWithUserDifficulty as any)?.simulationConfig?.timer;
+            if (timerCfg?.enabled && timerCfg.timeLimitSec > 0) {
+              defaultState.timer = { enabled: true, timeLimitSec: timerCfg.timeLimitSec, startedAt: new Date().toISOString(), pausedAt: null, elapsedSec: 0 };
+            }
+            evalState = defaultState;
+          }
+          setSessionState(personaRunId, evalState);
+        }
+      } catch (e) {
+        console.warn('[conversations] Failed to pre-load simulation state:', e);
+      }
+    }
+
+    // Quality mode: evaluate FIRST → apply patches → inject [SIMULATION_STATE] into AI prompt
+    // Fast mode: evaluate synchronously AFTER AI generation (no [SIMULATION_STATE] injection)
+    let qualityEvalResult: import('../services/simulation/evaluateUserResponse').EvaluationResult | null = null;
+    let qualityFinalState: import('../services/simulation/simulationTypes').SimulationState | null = null;
+    let fastEvalInput: Parameters<typeof evaluateUserResponse>[0] | null = null;
+
+    if (shouldEval && evalState) {
+      const baseEvalInput = {
+        personaRunId, turnId: evalTurnId, turnIndex: currentTurnIndex,
+        userText: message, aiText: '',
+        simulationState: evalState, language: userLanguage, evaluationMode: evalMode,
+      };
+      if (evalMode === 'quality') {
+        try {
+          qualityEvalResult = await evaluateUserResponse(baseEvalInput);
+          // Apply all patches to build updated state for [SIMULATION_STATE] injection
+          let qs = applySimulationPatch(personaRunId, {
+            source: 'server_evaluation', priority: 'normal', turnId: evalTurnId,
+            patch: { turnScoresToAdd: [qualityEvalResult.turnScore], npcEmotionDelta: qualityEvalResult.emotionDelta },
+          });
+          const qr = buildRuleFallbackPatch(qualityEvalResult.turnScore, qs, 0);
+          if (qr) qs = applySimulationPatch(personaRunId, { source: 'server_rule', priority: 'low', turnId: evalTurnId, patch: qr });
+          const qt = inferStagePatchFromState(qs);
+          if (qt) qs = applySimulationPatch(personaRunId, { source: 'server_rule', priority: 'normal', turnId: evalTurnId, patch: { targetStage: qt } });
+          // Server-rule incident inference for quality mode (text/TTS path)
+          const qInc = inferIncidentCandidate(qs, personaRunId, currentTurnIndex, userLanguage as any, scenarioRun!.scenarioId);
+          if (qInc) {
+            const qCool = checkIncidentCooldown(personaRunId, qInc.type);
+            if (qCool.allowed) {
+              recordIncidentCooldown(personaRunId, qInc.type);
+              qs = applySimulationPatch(personaRunId, { source: 'server_rule', priority: 'normal', turnId: evalTurnId, patch: { incidentsToAdd: [qInc] } });
+            }
+          }
+          qualityFinalState = qs;
+          // Inject updated [SIMULATION_STATE] block into AI generation prompt
+          scenarioForAI.simulationStateBlock = buildSimulationStateBlock(qs);
+        } catch (e) {
+          console.warn('[conversations] Quality mode pre-evaluation failed, continuing without state injection:', e);
+        }
+      } else {
+        // Fast mode: store input for synchronous evaluation after AI generation.
+        // No [SIMULATION_STATE] injection — AI responds without evaluation context.
+        fastEvalInput = { ...baseEvalInput };
+      }
     }
 
     const aiResult = await generateAIResponse(
@@ -586,6 +769,84 @@ ${userNameLine}
 
     if (isCompleted) {
       await checkAndCompleteScenario(personaRun!.scenarioRunId);
+      // Log session_end simulation event so audit trail is complete
+      const finalSimState = getSessionState(personaRunId);
+      if (finalSimState) {
+        storage.createSimulationEvent({
+          personaRunId, scenarioRunId: personaRun!.scenarioRunId,
+          turnIndex: currentTurnIndex, turnId: evalTurnId, eventType: 'session_end',
+          toolName: null, args: null, result: { reason: 'conversation_completed' },
+          stateBefore: null, stateAfter: finalSimState,
+          stateVersionBefore: null, stateVersionAfter: finalSimState.version,
+          includeInReport: false,
+        }).catch(e => console.warn('[conversations] Failed to log session_end event:', e));
+      }
+      // Auto-generate feedback server-side so it is ready before the client navigates to results
+      if (scenarioObjRef && persona) {
+        const _convForFeedback = { messages: [...existingMessages, { sender: 'user', message, timestamp: new Date().toISOString() }] };
+        setImmediate(() => {
+          generateAndSaveFeedback(personaRunId, _convForFeedback as any, scenarioObjRef, persona, userLanguage)
+            .catch(e => console.warn('[conversations] Auto-feedback generation failed:', e));
+        });
+      }
+    }
+
+    let simulationState: import('../services/simulation/simulationTypes').SimulationState | null = null;
+    let simTurnScore: any = null;
+
+    if (shouldEval && evalState) {
+      if (evalMode === 'quality' && qualityEvalResult && qualityFinalState) {
+        // Quality mode: patches already applied before AI generation; persist to DB
+        try {
+          await storage.saveSimulationState(personaRunId, qualityFinalState as unknown as Record<string, unknown>);
+          storage.createSimulationEvent({
+            personaRunId, scenarioRunId: personaRun!.scenarioRunId,
+            turnIndex: currentTurnIndex, turnId: evalTurnId, eventType: 'auto_evaluation',
+            toolName: null,
+            args: { userTextLength: message.length, method: qualityEvalResult.method, evalMode: 'quality' },
+            result: { turnScore: qualityEvalResult.turnScore },
+            stateBefore: evalState, stateAfter: qualityFinalState,
+            stateVersionBefore: evalState.version, stateVersionAfter: qualityFinalState.version,
+            includeInReport: true,
+          }).catch(e => console.warn('[conversations] Failed to log quality eval event:', e));
+        } catch (e) {
+          console.warn('[conversations] Quality eval DB persist failed:', e);
+        }
+        simulationState = qualityFinalState;
+        simTurnScore = qualityEvalResult.turnScore;
+      } else if (fastEvalInput) {
+        // Fast mode: evaluate synchronously after AI generation; updated state included in HTTP response
+        try {
+          const er = await evaluateUserResponse({ ...fastEvalInput, aiText: aiResult.content });
+          if (!er.skipped) {
+            let ns = applySimulationPatch(personaRunId, { source: 'server_evaluation', priority: 'normal', turnId: evalTurnId, patch: { turnScoresToAdd: [er.turnScore], npcEmotionDelta: er.emotionDelta } });
+            const rp = buildRuleFallbackPatch(er.turnScore, ns, 0);
+            if (rp) ns = applySimulationPatch(personaRunId, { source: 'server_rule', priority: 'low', turnId: evalTurnId, patch: rp });
+            const st = inferStagePatchFromState(ns);
+            if (st) ns = applySimulationPatch(personaRunId, { source: 'server_rule', priority: 'normal', turnId: evalTurnId, patch: { targetStage: st } });
+            // Server-rule incident inference for fast mode (text/TTS path)
+            const fInc = inferIncidentCandidate(ns, personaRunId, currentTurnIndex, userLanguage as any, scenarioRun!.scenarioId);
+            if (fInc) {
+              const fCool = checkIncidentCooldown(personaRunId, fInc.type);
+              if (fCool.allowed) {
+                recordIncidentCooldown(personaRunId, fInc.type);
+                ns = applySimulationPatch(personaRunId, { source: 'server_rule', priority: 'normal', turnId: evalTurnId, patch: { incidentsToAdd: [fInc] } });
+              }
+            }
+            await storage.saveSimulationState(personaRunId, ns as unknown as Record<string, unknown>);
+            storage.createSimulationEvent({ personaRunId, scenarioRunId: personaRun!.scenarioRunId, turnIndex: currentTurnIndex, turnId: evalTurnId, eventType: 'auto_evaluation', toolName: null, args: { userTextLength: message.length, method: er.method, evalMode: 'fast' }, result: { turnScore: er.turnScore }, stateBefore: evalState, stateAfter: ns, stateVersionBefore: evalState!.version, stateVersionAfter: ns.version, includeInReport: true }).catch(e => console.warn('[conversations] Failed to log fast eval event:', e));
+            simulationState = ns;
+            simTurnScore = er.turnScore;
+          } else {
+            simulationState = evalState;
+          }
+        } catch (e) {
+          console.warn('[conversations] Fast mode synchronous evaluation failed:', e);
+          simulationState = evalState;
+        }
+      }
+    } else if (!isPersonaX) {
+      simulationState = getSessionState(personaRunId);
     }
 
     res.json({
@@ -601,7 +862,9 @@ ${userNameLine}
         timestamp: new Date().toISOString(),
         emotion: aiResult.emotion,
         emotionReason: aiResult.emotionReason
-      }]
+      }],
+      simulationState,
+      turnScore: simTurnScore,
     });
   }));
 

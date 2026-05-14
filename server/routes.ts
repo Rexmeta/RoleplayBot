@@ -25,6 +25,7 @@ import createEvaluationCriteriaRouter from "./routes/evaluationCriteria";
 import createTranslationsRouter from "./routes/translations";
 import createPersonaScenesRouter from "./routes/personaScenes";
 import createPersonaUserScenesRouter from "./routes/personaUserScenes";
+import createSimulationRouter from "./routes/simulation";
 
 export async function registerRoutes(app: Express, httpServer: Server): Promise<void> {
   const cookieParser = (await import('cookie-parser')).default;
@@ -76,6 +77,7 @@ export async function registerRoutes(app: Express, httpServer: Server): Promise<
   app.use('/api/bookmarks', createBookmarksRouter(isAuthenticated));
   app.use('/api/scenarios', createScenariosRouter(isAuthenticated));
   app.use('/api/conversations', createConversationsRouter(isAuthenticated));
+  app.use('/api/simulation', createSimulationRouter(isAuthenticated));
   app.use('/api/system-admin', createSystemAdminRouter(isAuthenticated));
 
   // ================================

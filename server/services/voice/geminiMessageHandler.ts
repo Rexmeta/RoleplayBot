@@ -3,6 +3,14 @@ import { RealtimeSession } from './types';
 import { filterThinkingText, isThinkingText } from './textFilter';
 import { analyzeEmotion } from './emotionAnalyzer';
 import { GoogleGenAI } from '@google/genai';
+import { handleToolCall } from '../simulation/simulationToolHandler';
+import { getOrCreateSessionContext, applySimulationPatch, getSessionState } from '../simulation/simulationEngine';
+import { evaluateUserResponse } from '../simulation/evaluateUserResponse';
+import { buildRuleFallbackPatch, inferStagePatchFromState, inferIncidentCandidate } from '../simulation/simulationRules';
+import { checkIncidentCooldown, recordIncidentCooldown } from '../simulation/simulationEngine';
+import { createDefaultSimulationState, SimulationDirective } from '../simulation/simulationTypes';
+import { storage } from '../../storage';
+import { v4 as uuidv4 } from 'uuid';
 
 type SendToClient = (session: RealtimeSession, message: any) => void;
 type ProactiveReconnect = (session: RealtimeSession) => void;
@@ -59,6 +67,139 @@ export function handleGeminiMessage(
 
   if (msgType === 'other' && !message.goAway && !message.sessionResumption) {
     console.log(`🔍 Unknown message structure:`, JSON.stringify(message, null, 2).substring(0, 500));
+  }
+
+  if (message.toolCall) {
+    const toolCallList = message.toolCall.functionCalls || [];
+    for (const fc of toolCallList) {
+      console.log(`🔧 Tool call received: ${fc.name}`, JSON.stringify(fc.args).substring(0, 200));
+      // Use stable per-user-turn ID so engine same-turn conflict rule works across
+      // tool calls and server_evaluation (which uses the same format at turnComplete).
+      const turnId = `turn:${session.userTurnsCompleted}`;
+      const personaRunId = session.personaRunId;
+      // Capture state BEFORE the tool call for audit trail
+      const stateBeforeTool = getSessionState(personaRunId);
+      const result = handleToolCall(
+        fc.name,
+        fc.args,
+        {
+          personaRunId,
+          turnId,
+          turnIndex: session.userTurnsCompleted,
+          currentTurnIncidentFired: session.currentTurnIncidentFired,
+          toolCallCountThisTurn: session.toolCallCountThisTurn,
+          emotionCallCountThisTurn: session.emotionCallCountThisTurn,
+          language: session.userLanguage,
+          scenarioContext: session.scenarioId,
+        }
+      );
+
+      if (result.success) {
+        session.toolCallCountThisTurn++;
+        if (fc.name === 'update_npc_emotion') session.emotionCallCountThisTurn++;
+        if (result.incident) session.currentTurnIncidentFired = true;
+        if (result.currentState) session.simulationState = result.currentState;
+
+        // Persist behaviorInstruction as a SimulationDirective with turn-based expiry (+2 turns per spec)
+        if (result.behaviorInstruction && result.currentState) {
+          const directive: SimulationDirective = {
+            id: uuidv4(),
+            createdTurnIndex: session.userTurnsCompleted,
+            expiresAtTurnIndex: session.userTurnsCompleted + 2,
+            instruction: result.behaviorInstruction,
+            source: 'tool',
+          };
+          const stateWithDirective = applySimulationPatch(personaRunId, {
+            source: 'gemini_tool', priority: 'normal', turnId,
+            patch: { directivesToAdd: [directive] },
+          });
+          session.simulationState = stateWithDirective;
+        }
+
+        const stateAfterTool = session.simulationState ?? result.currentState;
+        if (stateAfterTool) {
+          // Best-effort DB persistence + audit event for tool calls
+          setImmediate(async () => {
+            try {
+              await storage.saveSimulationState(personaRunId, stateAfterTool as unknown as Record<string, unknown>);
+              await storage.createSimulationEvent({
+                personaRunId,
+                scenarioRunId: session.scenarioRunId ?? null,
+                turnIndex: session.userTurnsCompleted,
+                turnId,
+                eventType: 'tool_call',
+                toolName: fc.name,
+                args: fc.args,
+                result: { success: true, ...(result.statePatch ? { statePatch: result.statePatch } : {}), ...(result.incident ? { incident: result.incident } : {}) },
+                stateBefore: stateBeforeTool,
+                stateAfter: stateAfterTool,
+                stateVersionBefore: stateBeforeTool?.version ?? null,
+                stateVersionAfter: stateAfterTool.version,
+                includeInReport: true,
+              });
+            } catch (e) {
+              console.warn('[geminiMessageHandler] Failed to persist tool call state/event:', e);
+            }
+          });
+        }
+
+        // Use stateAfterTool (post-directive) so client always receives the latest version
+        const finalStateForBroadcast = stateAfterTool ?? result.currentState;
+        sendToClient(session, {
+          type: 'simulation_update',
+          personaRunId,
+          turnId,
+          eventType: 'tool_call',
+          statePatch: result.statePatch,
+          currentState: finalStateForBroadcast,
+          incident: result.incident,
+          version: finalStateForBroadcast?.version ?? 0,
+          timestamp: new Date().toISOString(),
+        });
+
+        if (result.incident) {
+          sendToClient(session, {
+            type: 'simulation.incident',
+            incident: result.incident,
+          });
+        }
+
+        if (session.geminiSession && fc.id) {
+          try {
+            session.geminiSession.sendToolResponse?.({
+              functionResponses: [{
+                id: fc.id,
+                name: fc.name,
+                response: {
+                  success: true,
+                  ...(result.statePatch ? { statePatch: result.statePatch } : {}),
+                  ...(result.currentState ? { currentState: { stage: result.currentState.stage, pressureLevel: result.currentState.pressureLevel, npcEmotions: result.currentState.npcEmotions } } : {}),
+                  ...(result.behaviorInstruction ? { behaviorInstruction: result.behaviorInstruction } : {}),
+                },
+              }],
+            });
+          } catch (e) {
+            console.warn('[geminiMessageHandler] Failed to send tool response:', e);
+          }
+        }
+      } else {
+        console.warn(`[geminiMessageHandler] Tool call failed: ${fc.name}`, result.error);
+        if (session.geminiSession && fc.id) {
+          try {
+            session.geminiSession.sendToolResponse?.({
+              functionResponses: [{
+                id: fc.id,
+                name: fc.name,
+                response: { success: false, error: result.error },
+              }],
+            });
+          } catch (e) {
+            console.warn('[geminiMessageHandler] Failed to send tool error response:', e);
+          }
+        }
+      }
+    }
+    return;
   }
 
   if (message.data) {
@@ -178,6 +319,14 @@ export function handleGeminiMessage(
       console.log('✅ Turn complete');
 
       session.turnSeq++;
+      // Capture counters BEFORE reset so evaluation/fallback gates use actual values
+      const toolCallsThisTurn = session.toolCallCountThisTurn;
+      // Capture incident flag BEFORE reset so server-rule inference cannot fire when
+      // a Gemini tool already triggered an incident during this logical user turn.
+      const incidentFiredThisTurn = session.currentTurnIncidentFired;
+      session.toolCallCountThisTurn = 0;
+      session.emotionCallCountThisTurn = 0;
+      session.currentTurnIncidentFired = false;
       console.log(`📊 Turn seq incremented to ${session.turnSeq}`);
 
       if (session.isInterrupted && session.turnSeq > session.cancelledTurnSeq) {
@@ -228,6 +377,134 @@ export function handleGeminiMessage(
         if (session.recentMessages.length > 30) session.recentMessages.shift();
         session.userTranscriptBuffer = '';
         session.userTurnsCompleted++;
+
+        const isPersonaXSession = session.scenarioId.startsWith('__user_persona__:') ||
+          session.scenarioId.startsWith('__free_chat__') ||
+          session.scenarioId.startsWith('__mbti_persona__:');
+
+        const currentTurnId = `turn:${session.userTurnsCompleted}`;
+        // Robust djb2 hash of normalized transcript — resistant to turn/length collisions
+        const normalizedText = userText.trim().toLowerCase().replace(/\s+/g, ' ');
+        let _h = 5381;
+        for (let _i = 0; _i < normalizedText.length; _i++) { _h = (_h * 33) ^ normalizedText.charCodeAt(_i); }
+        const transcriptHash = `${session.userTurnsCompleted}:${(_h >>> 0).toString(16)}`;
+        // Primary gate: turnId-based idempotency; secondary: content-hash dedup
+        const alreadyEvaluated = session.lastEvaluatedUserTurnId === currentTurnId ||
+          session.lastFinalizedUserTranscriptHash === transcriptHash;
+
+        // Evaluation always runs for valid finalized turns; toolCallsThisTurn===0
+        // only gates buildRuleFallbackPatch (not the evaluation call itself)
+        if (!isPersonaXSession && !alreadyEvaluated) {
+          session.lastEvaluatedUserTurnId = currentTurnId;  // Mark evaluated by turnId (primary gate)
+          session.lastFinalizedUserTranscriptHash = transcriptHash;  // Secondary hash guard
+          session.lastEvaluatedUserTurnIndex = session.userTurnsCompleted;
+          const personaRunId = session.personaRunId;
+          // Reuse currentTurnId so all patches (tool_call, server_evaluation, server_rule)
+          // within the same logical user turn share one stable ID. This enables the engine's
+          // same-turn conflict cap (gemini_tool limited to ±10 after server_evaluation) to fire.
+          const turnId = currentTurnId;
+          const turnIndex = session.userTurnsCompleted - 1;
+          const aiText = session.recentMessages.filter(m => m.role === 'ai').slice(-1)[0]?.text ?? '';
+
+          setImmediate(async () => {
+            try {
+              let state = getSessionState(personaRunId);
+              if (!state) state = createDefaultSimulationState();
+              const stateBefore = state;
+
+              const evalResult = await evaluateUserResponse({
+                personaRunId,
+                turnId,
+                turnIndex,
+                userText,
+                aiText,
+                simulationState: state,
+                language: session.userLanguage,
+              });
+
+              // Short utterances (<10 chars) are skipped by evaluateUserResponse per spec:
+              // turn index has already been incremented; only skip patch/log/broadcast.
+              if (!evalResult.skipped) {
+                let newState = applySimulationPatch(personaRunId, {
+                  source: 'server_evaluation',
+                  priority: 'normal',
+                  turnId,
+                  patch: {
+                    turnScoresToAdd: [evalResult.turnScore],
+                    npcEmotionDelta: evalResult.emotionDelta,
+                  },
+                });
+
+                const rulePatch = buildRuleFallbackPatch(evalResult.turnScore, newState, toolCallsThisTurn);
+                if (rulePatch) {
+                  newState = applySimulationPatch(personaRunId, {
+                    source: 'server_rule', priority: 'low', turnId, patch: rulePatch,
+                  });
+                }
+
+                const stageTransition = inferStagePatchFromState(newState);
+                if (stageTransition) {
+                  newState = applySimulationPatch(personaRunId, {
+                    source: 'server_rule', priority: 'normal', turnId,
+                    patch: { targetStage: stageTransition },
+                  });
+                }
+
+                // Only infer a server-rule incident if Gemini tool did NOT already fire one
+                // during this logical user turn (enforces one-incident-per-turn constraint
+                // across both the tool and rule pipelines).
+                if (!incidentFiredThisTurn) {
+                  const incidentCandidate = inferIncidentCandidate(newState, personaRunId, turnIndex, session.userLanguage, session.scenarioId);
+                  if (incidentCandidate) {
+                    const cooldownCheck = checkIncidentCooldown(personaRunId, incidentCandidate.type);
+                    if (cooldownCheck.allowed) {
+                      recordIncidentCooldown(personaRunId, incidentCandidate.type);
+                      newState = applySimulationPatch(personaRunId, {
+                        source: 'server_rule', priority: 'normal', turnId,
+                        patch: { incidentsToAdd: [incidentCandidate] },
+                      });
+                      sendToClient(session, { type: 'simulation.incident', incident: incidentCandidate });
+                    }
+                  }
+                }
+
+                session.simulationState = newState;
+
+                const { storage } = await import('../../storage');
+                await storage.saveSimulationState(personaRunId, newState as unknown as Record<string, unknown>);
+
+                storage.createSimulationEvent({
+                  personaRunId,
+                  scenarioRunId: null,
+                  turnIndex,
+                  turnId,
+                  eventType: 'auto_evaluation',
+                  toolName: null,
+                  args: { userTextLength: userText.length, method: evalResult.method },
+                  result: { turnScore: evalResult.turnScore },
+                  stateBefore: stateBefore,
+                  stateAfter: newState,
+                  stateVersionBefore: stateBefore.version,
+                  stateVersionAfter: newState.version,
+                  includeInReport: true,
+                }).catch(e => console.warn('[geminiMessageHandler] Failed to log eval event:', e));
+
+                sendToClient(session, {
+                  type: 'simulation_update',
+                  personaRunId,
+                  turnId,
+                  eventType: 'auto_evaluation',
+                  currentState: newState,
+                  turnScore: evalResult.turnScore,
+                  version: newState.version,
+                  timestamp: new Date().toISOString(),
+                });
+              }
+            } catch (e) {
+              console.warn('[geminiMessageHandler] Rule-fallback evaluation failed:', e);
+            }
+          });
+        }
       }
 
       if (session.currentTranscript) {

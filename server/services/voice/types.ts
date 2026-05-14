@@ -13,7 +13,7 @@ export interface PendingOutgoingMessage {
 
 export interface RealtimeSession {
   id: string;
-  conversationId: string;
+  personaRunId: string;
   scenarioId: string;
   personaId: string;
   personaName: string;
@@ -51,4 +51,12 @@ export interface RealtimeSession {
   hasReceivedFirstTranscriptDelta: boolean;
   greetingResponseCount: number;
   userTurnsCompleted: number;
+  simulationState: import('../simulation/simulationTypes').SimulationState | null;
+  scenarioRunId: string | null;
+  toolCallCountThisTurn: number;
+  emotionCallCountThisTurn: number;
+  currentTurnIncidentFired: boolean;
+  lastEvaluatedUserTurnIndex: number;
+  lastEvaluatedUserTurnId: string | null;
+  lastFinalizedUserTranscriptHash: string | null;
 }

@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { useToast } from "@/hooks/use-toast";
@@ -15,6 +15,8 @@ import { useRealtimeVoice } from "@/hooks/useRealtimeVoice";
 import { AISpeechParticleLayer } from "@/components/AISpeechParticleLayer";
 import { UserSpeechParticleLayer } from "@/components/UserSpeechParticleLayer";
 import { getProgressInfo } from "@/lib/conversationProgress";
+import { useSimulationState } from "@/hooks/useSimulationState";
+import SimulationPanel from "@/components/SimulationPanel";
 
 import { useConversationTimer, formatElapsedTime } from "@/hooks/chat/useConversationTimer";
 import { useVoiceRecording } from "@/hooks/chat/useVoiceRecording";
@@ -77,9 +79,30 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
 
   const getPersonaGender = (): 'male' | 'female' => persona.gender ?? 'male';
 
+  const isSimulationEnabled = !isPersonaX && !!conversationId;
+
+  const {
+    state: simulationState,
+    newIncident,
+    latestTurnScore,
+    applyUpdate: applySimulationUpdate,
+    evaluate,
+  } = useSimulationState({
+    personaRunId: isSimulationEnabled ? conversationId : null,
+    enabled: isSimulationEnabled,
+  });
+
+  const handleSimulationUpdate = useCallback((update: any) => {
+    applySimulationUpdate(update);
+  }, [applySimulationUpdate]);
+
   const { localMessages, setLocalMessages, pendingAiMessage, setPendingAiMessage,
     pendingUserMessage, setPendingUserMessage, pendingUserText, setPendingUserText,
-    messagesEndRef, sendMessageMutation } = useChatMessages({ conversationId, serverMessages: initialMessages });
+    messagesEndRef, sendMessageMutation } = useChatMessages({
+    conversationId,
+    serverMessages: initialMessages,
+    onSimulationUpdate: isSimulationEnabled ? handleSimulationUpdate : undefined,
+  });
 
   const { currentEmotion, setCurrentEmotion, isEmotionTransitioning, setIsEmotionTransitioning,
     loadedImageUrl, isInitialLoading, isOverlayFading, hasNoPersonaImages,
@@ -96,6 +119,7 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
 
   const realtimeVoice = useRealtimeVoice({
     conversationId, scenarioId: scenario.id, personaId: persona.id, enabled: false,
+    onSimulationUpdate: isSimulationEnabled ? handleSimulationUpdate : undefined,
     onMessageComplete: (message, emotion, emotionReason) => {
       setPendingAiMessage(false);
       isAISpeakingForBargeInRef.current = false;
@@ -319,17 +343,33 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
     }
   }, [latestAiMessage?.message, latestAiMessage?.emotion, currentEmotion, inputMode]);
 
+  const lastUserTextRef = useRef<string>('');
+
   const handleSendMessage = () => {
     const message = userInput.trim(); if (!message || isLoading) return;
     if (inputMode === 'realtime-voice' && realtimeVoice.status === 'connected') { setUserInput(""); realtimeVoice.sendTextMessage(message); return; }
     setLocalMessages(prev => [...prev, { sender: 'user', message, timestamp: new Date().toISOString() }]);
     setIsLoading(true); setUserInput(""); setShowInputMode(false);
+    lastUserTextRef.current = message;
     const transitionMode = pendingModeTransitionRef.current;
     pendingModeTransitionRef.current = undefined;
     sendMessageMutation.mutate(
       transitionMode ? { message, previousInputMode: transitionMode } : message,
       {
-        onSuccess: () => setIsLoading(false),
+        onSuccess: (data) => {
+          setIsLoading(false);
+          if (isSimulationEnabled && data?.simulationState) {
+            applySimulationUpdate({
+              type: 'simulation_update',
+              personaRunId: conversationId,
+              currentState: data.simulationState,
+              turnScore: data.turnScore ?? null,
+              eventType: 'auto_evaluation',
+              version: data.simulationState.version,
+              timestamp: new Date().toISOString(),
+            });
+          }
+        },
         onError: () => {
           setIsLoading(false);
           if (transitionMode) pendingModeTransitionRef.current = transitionMode;
@@ -501,6 +541,15 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
                   <GoalsSidebar scenario={scenario} personaName={persona.name} personaDept={persona.department} personaRole={persona.role}
                     latestEmotion={latestAiMessage?.emotion} elapsedTime={elapsedTime} isAdmin={user?.role === 'admin'}
                     isGoalsExpanded={isGoalsExpanded} onToggleGoals={() => setIsGoalsExpanded(v => !v)} variant="sidebar" />
+                )}
+
+                {isSimulationEnabled && simulationState && (
+                  <SimulationPanel
+                    state={simulationState}
+                    newIncident={newIncident}
+                    latestTurnScore={latestTurnScore}
+                    className="hidden lg:flex"
+                  />
                 )}
 
                 <div className="relative flex-1 overflow-hidden">

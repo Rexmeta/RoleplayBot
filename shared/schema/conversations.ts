@@ -49,6 +49,7 @@ export const personaRuns = pgTable("persona_runs", {
   score: integer("score"),
   mode: text("mode").notNull().default("text"),
   difficulty: integer("difficulty").notNull().default(2),
+  simulationState: jsonb("simulation_state"),
   startedAt: timestamp("started_at").notNull().default(sql`CURRENT_TIMESTAMP`),
   actualStartedAt: timestamp("actual_started_at").notNull().default(sql`CURRENT_TIMESTAMP`),
   completedAt: timestamp("completed_at"),
@@ -56,6 +57,27 @@ export const personaRuns = pgTable("persona_runs", {
   index("idx_persona_runs_scenario_run_id").on(table.scenarioRunId),
   index("idx_persona_runs_persona_id").on(table.personaId),
   index("idx_persona_runs_conversation_id").on(table.conversationId),
+]);
+
+export const simulationEvents = pgTable("simulation_events", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  personaRunId: varchar("persona_run_id").notNull().references(() => personaRuns.id, { onDelete: 'cascade' }),
+  scenarioRunId: varchar("scenario_run_id"),
+  turnIndex: integer("turn_index").notNull().default(0),
+  turnId: varchar("turn_id"),
+  eventType: varchar("event_type").notNull(),
+  toolName: varchar("tool_name"),
+  args: jsonb("args"),
+  result: jsonb("result"),
+  stateBefore: jsonb("state_before"),
+  stateAfter: jsonb("state_after"),
+  stateVersionBefore: integer("state_version_before"),
+  stateVersionAfter: integer("state_version_after"),
+  includeInReport: boolean("include_in_report").notNull().default(true),
+  createdAt: timestamp("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+}, (table) => [
+  index("idx_simulation_events_persona_run_id").on(table.personaRunId),
+  index("idx_simulation_events_turn_index").on(table.turnIndex),
 ]);
 
 export const chatMessages = pgTable("chat_messages", {
@@ -71,6 +93,13 @@ export const chatMessages = pgTable("chat_messages", {
 }, (table) => [
   index("idx_chat_messages_persona_run_id").on(table.personaRunId),
 ]);
+
+export const insertSimulationEventSchema = createInsertSchema(simulationEvents).omit({
+  id: true,
+  createdAt: true,
+});
+export type InsertSimulationEvent = z.infer<typeof insertSimulationEventSchema>;
+export type SimulationEvent = typeof simulationEvents.$inferSelect;
 
 export const insertConversationSchema = createInsertSchema(conversations).omit({
   id: true,

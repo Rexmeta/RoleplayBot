@@ -34,14 +34,24 @@ export async function verifyConversationOwnership(conversationId: string, userId
   return { conversation };
 }
 
-export async function verifyPersonaRunOwnership(personaRunId: string, userId: string) {
+export async function verifyPersonaRunOwnership(personaRunId: string, userId: string, userRole?: string) {
   const personaRun = await storage.getPersonaRun(personaRunId);
   if (!personaRun) {
     throw createHttpError(404, "Persona run not found");
   }
 
   const scenarioRun = await storage.getScenarioRun(personaRun.scenarioRunId);
-  if (!scenarioRun || scenarioRun.userId !== userId) {
+  if (!scenarioRun) {
+    throw createHttpError(404, "Scenario run not found");
+  }
+
+  // Admin and operator have access to any persona run — parity with
+  // conversation GET and feedback routes that already allow this.
+  if (userRole === 'admin' || userRole === 'operator') {
+    return { personaRun, scenarioRun };
+  }
+
+  if (scenarioRun.userId !== userId) {
     throw createHttpError(403, "Unauthorized access");
   }
 
@@ -238,6 +248,26 @@ export async function generateAndSaveFeedback(
 
   console.log(`피드백 생성 중: ${conversationId}`);
 
+  // Fetch simulation turn-score history from persisted auto_evaluation events
+  // (canonical source for NPC simulation engine carry-forward data)
+  let simTurnScores: Array<{ turnIndex: number; turnScore: Record<string, number> }> = [];
+  let simIncidents: Array<{ turnIndex: number; type: string; severity: string }> = [];
+  try {
+    const simEvents = await storage.getSimulationEventsByPersonaRun(conversationId);
+    for (const ev of simEvents) {
+      if (ev.eventType === 'auto_evaluation' && ev.includeInReport) {
+        const r = ev.result as any;
+        if (r?.turnScore) simTurnScores.push({ turnIndex: ev.turnIndex, turnScore: r.turnScore });
+      }
+      if (ev.eventType === 'tool_call' && ev.includeInReport) {
+        const r = ev.result as any;
+        if (r?.incident?.type) simIncidents.push({ turnIndex: ev.turnIndex, type: r.incident.type, severity: r.incident.severity ?? 'medium' });
+      }
+    }
+  } catch (e) {
+    console.warn('[generateAndSaveFeedback] Failed to fetch simulation events:', e);
+  }
+
   const conversationDurationSeconds = calculateActualConversationTime(conversation.messages);
   const conversationDuration = Math.floor(conversationDurationSeconds / 60);
   const userMessages = conversation.messages.filter((m: any) => m.sender === 'user');
@@ -363,6 +393,21 @@ export async function generateAndSaveFeedback(
   feedbackData.conversationDuration = conversationDurationSeconds;
   feedbackData.averageResponseTime = averageResponseTime;
   feedbackData.timePerformance = timePerformance;
+
+  // Attach simulation engine carry-forward data to the report:
+  // - turn-by-turn score timeline (from auto_evaluation events)
+  // - critical moments (incidents from tool_call events)
+  // - simulation-based average score (cross-check anchor against AI holistic score)
+  if (simTurnScores.length > 0) {
+    feedbackData.simulationTurnScores = simTurnScores;
+    const simAvg = simTurnScores.reduce((s, t) => s + (t.turnScore.total ?? 0), 0) / simTurnScores.length;
+    feedbackData.simulationAverageScore = Math.round(simAvg);
+    console.log(`📊 [simulation carry-forward] ${simTurnScores.length} turns, avg=${feedbackData.simulationAverageScore}`);
+  }
+  if (simIncidents.length > 0) {
+    feedbackData.criticalMoments = simIncidents;
+    console.log(`🚨 [simulation carry-forward] ${simIncidents.length} critical moments`);
+  }
 
   // 평가 불가(insufficientConversation) 상태이면 점수 재계산 우회 — 상태 중심으로 저장
   if (feedbackData.insufficientConversation) {

@@ -1,6 +1,7 @@
 import { getRealtimeVoiceGuidelines, validateDifficultyLevel } from '../conversationDifficultyPolicy';
 import { LANGUAGE_INSTRUCTIONS, LangCode } from './prompts/languageInstructions';
 import { SECTION_TEXT } from './prompts/sectionText';
+import { buildSimulationToolPrompt } from '../simulation/simulationPrompt';
 
 interface UserRoleInfo {
   name: string;
@@ -15,7 +16,8 @@ export function buildSystemInstructions(
   scenarioPersona: any,
   mbtiPersona: any,
   userRoleInfo?: UserRoleInfo,
-  userLanguage: LangCode = 'ko'
+  userLanguage: LangCode = 'ko',
+  includeSimulationTools: boolean = true
 ): string {
   const mbtiType = scenarioPersona.personaRef?.replace('.json', '') || 'UNKNOWN';
 
@@ -132,6 +134,7 @@ export function buildSystemInstructions(
     `${langInst.greetingInstruction}`,
     st.noMetaThink(langInst.langName),
     `${st.firstWordsLabel}: ${langInst.greetingExample(userRoleInfo)}`,
+    ...(includeSimulationTools ? [``, buildSimulationToolPrompt(userLanguage)] : []),
   ];
 
   return instructions.join('\n');
