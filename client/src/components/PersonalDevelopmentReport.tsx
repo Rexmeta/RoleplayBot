@@ -60,7 +60,9 @@ export default function PersonalDevelopmentReport({
   const [hasRequestedFeedback, setHasRequestedFeedback] = useState(false);
   const [isExportingPdf, setIsExportingPdf] = useState(false);
   const [showMobileMenu, setShowMobileMenu] = useState(false);
-  const [activeReportTab, setActiveReportTab] = useState("scores");
+  const [activeReportTab, setActiveReportTab] = useState(() =>
+    window.location.hash === "#simulation-incidents" ? "simulation" : "scores"
+  );
   const [scoreAnimKey, setScoreAnimKey] = useState(0);
   const [checkedItems, setCheckedItems] = useState<Record<string, boolean>>(() => {
     try {
@@ -85,6 +87,18 @@ export default function PersonalDevelopmentReport({
     }
   });
   const showSimulationTab = simulationHasData?.hasData === true;
+
+  useEffect(() => {
+    if (window.location.hash !== "#simulation-incidents") return;
+    if (simulationHasData === undefined) return;
+    if (showSimulationTab) {
+      setTimeout(() => {
+        document.getElementById("simulation-incidents")?.scrollIntoView({ behavior: "smooth" });
+      }, 300);
+    } else {
+      setActiveReportTab("scores");
+    }
+  }, [showSimulationTab, simulationHasData]);
 
   const { data: feedback, isLoading, error, refetch } = useQuery<Feedback>({
     queryKey: ["/api/conversations", conversationId, "feedback"],
@@ -591,7 +605,7 @@ export default function PersonalDevelopmentReport({
         </TabsContent>
 
         {showSimulationTab && (
-          <TabsContent value="simulation" className="space-y-6">
+          <TabsContent id="simulation-incidents" value="simulation" className="space-y-6">
             <SimulationReplayPanel conversationId={conversationId} />
           </TabsContent>
         )}

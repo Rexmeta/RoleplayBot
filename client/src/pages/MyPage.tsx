@@ -1382,10 +1382,19 @@ function ScenarioRunDetails({
                               </Badge>
                             )}
                             {sim !== null && sim.totalIncidents > 0 && (
-                              <Badge variant="outline" className="text-xs bg-orange-50 text-orange-700 border-orange-200 flex items-center gap-0.5">
-                                <Zap className="w-2.5 h-2.5" />
-                                {sim.totalIncidents}건
-                              </Badge>
+                              isCompleted ? (
+                                <a href={`/feedback/${personaRun.id}#simulation-incidents`}>
+                                  <Badge variant="outline" className="text-xs bg-orange-50 text-orange-700 border-orange-200 flex items-center gap-0.5 cursor-pointer hover:bg-orange-100 transition-colors">
+                                    <Zap className="w-2.5 h-2.5" />
+                                    사건 {sim.totalIncidents}건
+                                  </Badge>
+                                </a>
+                              ) : (
+                                <Badge variant="outline" className="text-xs bg-orange-50 text-orange-700 border-orange-200 flex items-center gap-0.5">
+                                  <Zap className="w-2.5 h-2.5" />
+                                  사건 {sim.totalIncidents}건
+                                </Badge>
+                              )
                             )}
                           </>
                         );
@@ -1478,10 +1487,19 @@ function ScenarioRunDetails({
                             </Badge>
                           )}
                           {sim !== null && sim.totalIncidents > 0 && (
-                            <Badge variant="outline" className="text-xs bg-orange-50 text-orange-700 border-orange-200 flex items-center gap-0.5">
-                              <Zap className="w-2.5 h-2.5" />
-                              {sim.totalIncidents}건
-                            </Badge>
+                            isCompleted && personaRun ? (
+                              <a href={`/feedback/${personaRun.id}#simulation-incidents`}>
+                                <Badge variant="outline" className="text-xs bg-orange-50 text-orange-700 border-orange-200 flex items-center gap-0.5 cursor-pointer hover:bg-orange-100 transition-colors">
+                                  <Zap className="w-2.5 h-2.5" />
+                                  사건 {sim.totalIncidents}건
+                                </Badge>
+                              </a>
+                            ) : (
+                              <Badge variant="outline" className="text-xs bg-orange-50 text-orange-700 border-orange-200 flex items-center gap-0.5">
+                                <Zap className="w-2.5 h-2.5" />
+                                사건 {sim.totalIncidents}건
+                              </Badge>
+                            )
                           )}
                         </>
                       );
