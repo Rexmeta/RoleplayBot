@@ -361,9 +361,7 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
     }
   }, [latestAiMessage?.message, latestAiMessage?.emotion, currentEmotion, inputMode]);
 
-  useEffect(() => {
-    if (newIncident) setIsMobileSimOpen(true);
-  }, [newIncident]);
+  const hasActiveIncident = !!(simulationState?.recentIncidents?.some(i => !i.resolved));
 
   const lastUserTextRef = useRef<string>('');
 
@@ -668,7 +666,7 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
                     >
                       <Brain className="h-3.5 w-3.5" />
                       <span>{t('chat.npcStatusButton')}</span>
-                      {newIncident && <span className="w-2 h-2 bg-orange-400 rounded-full animate-pulse shrink-0" />}
+                      {(hasActiveIncident || newIncident) && <span className="w-2 h-2 bg-orange-400 rounded-full animate-pulse shrink-0" />}
                     </button>
                   )}
 
