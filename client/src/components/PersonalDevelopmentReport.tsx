@@ -73,6 +73,19 @@ export default function PersonalDevelopmentReport({
   const { data: userConversations = [] } = useQuery<any[]>({ queryKey: ['/api/conversations'] });
   const currentConversation = userConversations.find((c: any) => c.id === conversationId) || null;
 
+  const { data: simulationHasData } = useQuery<{ hasData: boolean }>({
+    queryKey: ["/api/simulation", conversationId, "has-data"],
+    enabled: !!conversationId,
+    staleTime: Infinity,
+    gcTime: Infinity,
+    queryFn: async () => {
+      const response = await authFetchRaw(`/api/simulation/${conversationId}/has-data`);
+      if (!response.ok) return { hasData: false };
+      return response.json();
+    }
+  });
+  const showSimulationTab = simulationHasData?.hasData === true;
+
   const { data: feedback, isLoading, error, refetch } = useQuery<Feedback>({
     queryKey: ["/api/conversations", conversationId, "feedback"],
     enabled: !!conversationId,
@@ -549,11 +562,13 @@ export default function PersonalDevelopmentReport({
         if (val === "scores" && activeReportTab !== "scores") setScoreAnimKey(k => k + 1);
         setActiveReportTab(val);
       }} className="space-y-6">
-        <TabsList className={`flex flex-wrap justify-center gap-1 sm:grid sm:w-full ${feedback.detailedFeedback?.sequenceAnalysis ? 'sm:grid-cols-5' : 'sm:grid-cols-4'} screen-only h-auto p-1`} style={{ opacity: 0, animation: 'fadeInUp 0.6s ease-out 1s forwards' }}>
+        <TabsList className={`flex flex-wrap justify-center gap-1 sm:grid sm:w-full ${feedback.detailedFeedback?.sequenceAnalysis && showSimulationTab ? 'sm:grid-cols-5' : (feedback.detailedFeedback?.sequenceAnalysis || showSimulationTab) ? 'sm:grid-cols-4' : 'sm:grid-cols-3'} screen-only h-auto p-1`} style={{ opacity: 0, animation: 'fadeInUp 0.6s ease-out 1s forwards' }}>
           <TabsTrigger value="scores" data-testid="tab-scores" className="text-xs sm:text-sm px-2 sm:px-3 py-1.5 whitespace-nowrap">{t('report.tabs.scores', '성과 분석')}</TabsTrigger>
           <TabsTrigger value="behavior" data-testid="tab-behavior" className="text-xs sm:text-sm px-2 sm:px-3 py-1.5 whitespace-nowrap">{t('report.tabs.practiceGuide', '실천 가이드')}</TabsTrigger>
           <TabsTrigger value="development" data-testid="tab-development" className="text-xs sm:text-sm px-2 sm:px-3 py-1.5 whitespace-nowrap">{t('report.tabs.development', '개발 계획')}</TabsTrigger>
-          <TabsTrigger value="simulation" data-testid="tab-simulation" className="text-xs sm:text-sm px-2 sm:px-3 py-1.5 whitespace-nowrap">{t('report.tabs.simulation', '시뮬레이션')}</TabsTrigger>
+          {showSimulationTab && (
+            <TabsTrigger value="simulation" data-testid="tab-simulation" className="text-xs sm:text-sm px-2 sm:px-3 py-1.5 whitespace-nowrap">{t('report.tabs.simulation', '시뮬레이션')}</TabsTrigger>
+          )}
           {feedback.detailedFeedback?.sequenceAnalysis && (
             <TabsTrigger value="strategy" data-testid="tab-strategy" className="text-xs sm:text-sm px-2 sm:px-3 py-1.5 whitespace-nowrap">{t('report.tabs.strategy', '전략 평가')}</TabsTrigger>
           )}
@@ -575,9 +590,11 @@ export default function PersonalDevelopmentReport({
           <DevelopmentPlan feedback={feedback} conversationId={conversationId} checkedItems={checkedItems} onToggleCheck={toggleCheckItem} />
         </TabsContent>
 
-        <TabsContent value="simulation" className="space-y-6">
-          <SimulationReplayPanel conversationId={conversationId} />
-        </TabsContent>
+        {showSimulationTab && (
+          <TabsContent value="simulation" className="space-y-6">
+            <SimulationReplayPanel conversationId={conversationId} />
+          </TabsContent>
+        )}
 
         {feedback.detailedFeedback?.sequenceAnalysis && (
           <TabsContent value="strategy" className="space-y-6 print-show-all">

@@ -39,6 +39,7 @@ export interface ISessionsStorage {
 
   createSimulationEvent(event: InsertSimulationEvent): Promise<SimulationEvent>;
   getSimulationEventsByPersonaRun(personaRunId: string): Promise<SimulationEvent[]>;
+  hasSimulationData(personaRunId: string): Promise<boolean>;
   getSimulationState(personaRunId: string): Promise<Record<string, unknown> | null>;
   saveSimulationState(personaRunId: string, state: Record<string, unknown>): Promise<void>;
 }
@@ -255,6 +256,17 @@ export function SessionsMixin<TBase extends Constructor>(Base: TBase) {
         .orderBy(asc(simulationEvents.createdAt));
     }
 
+    async hasSimulationData(personaRunId: string): Promise<boolean> {
+      const [row] = await db.select({ count: sql<number>`count(*)::int` })
+        .from(simulationEvents)
+        .where(and(
+          eq(simulationEvents.personaRunId, personaRunId),
+          eq(simulationEvents.eventType, 'auto_evaluation'),
+          eq(simulationEvents.includeInReport, true),
+        ));
+      return (row?.count ?? 0) > 0;
+    }
+
     async getSimulationState(personaRunId: string): Promise<Record<string, unknown> | null> {
       const [row] = await db.select({ simulationState: personaRuns.simulationState })
         .from(personaRuns)
@@ -295,6 +307,7 @@ export class MemSessionsStorage implements ISessionsStorage {
   async deleteScenarioRun(_: string): Promise<void> { throw new Error("MemStorage does not support deleteScenarioRun"); }
   async createSimulationEvent(_: InsertSimulationEvent): Promise<SimulationEvent> { throw new Error("MemStorage does not support simulation events"); }
   async getSimulationEventsByPersonaRun(_: string): Promise<SimulationEvent[]> { return []; }
+  async hasSimulationData(_: string): Promise<boolean> { return false; }
   async getSimulationState(_: string): Promise<Record<string, unknown> | null> { return null; }
   async saveSimulationState(_: string, __: Record<string, unknown>): Promise<void> { }
 }

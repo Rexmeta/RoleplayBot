@@ -179,6 +179,16 @@ export default function createSimulationRouter(isAuthenticated: any) {
     });
   }));
 
+  router.get("/:personaRunId/has-data", isAuthenticated, asyncHandler(async (req: any, res) => {
+    const userId = req.user?.id;
+    const { personaRunId } = req.params;
+
+    await verifyPersonaRunOwnership(personaRunId, userId, req.user?.role);
+
+    const hasData = await storage.hasSimulationData(personaRunId);
+    res.json({ hasData });
+  }));
+
   router.get("/:personaRunId/events", isAuthenticated, asyncHandler(async (req: any, res) => {
     const userId = req.user?.id;
     const { personaRunId } = req.params;
