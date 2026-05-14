@@ -42,6 +42,7 @@ interface UseRealtimeVoiceReturn {
   conversationPhase: ConversationPhase;
   isRecording: boolean;
   isAISpeaking: boolean;
+  isReconnecting: boolean;
   isWaitingForGreeting: boolean;
   greetingRetryCount: number;
   greetingFailed: boolean;
@@ -81,6 +82,7 @@ export function useRealtimeVoice({
   const [greetingRetryCount, setGreetingRetryCount] = useState(0);
   const [greetingFailed, setGreetingFailed] = useState(false);
   const [sessionWarning, setSessionWarning] = useState<string | null>(null);
+  const [isReconnecting, setIsReconnecting] = useState(false);
 
   const hasConversationStartedRef = useRef<boolean>(false);
   const wsRef = useRef<WebSocket | null>(null);
@@ -262,6 +264,7 @@ export function useRealtimeVoice({
     setIsWaitingForGreeting(false);
     setGreetingRetryCount(0);
     setGreetingFailed(false);
+    setIsReconnecting(false);
   }, [stopCurrentPlayback, stopAmplitudeAnalysis, analyserNodeRef, gainNodeRef, playbackContextRef, setIsAISpeaking]);
 
   const previousMessagesRef = useRef<PreviousMessage[] | undefined>(undefined);
@@ -423,6 +426,7 @@ export function useRealtimeVoice({
               setGreetingFailed(false);
               if (skipReconnectGreetingRef.current) {
                 skipReconnectGreetingRef.current = false;
+                setIsReconnecting(false);
                 console.log('🔄 Skipping reconnect greeting to keep turn counter accurate');
                 if (onReconnectGreetingCompleteRef.current) onReconnectGreetingCompleteRef.current();
               } else if (data.text && onMessageCompleteRef.current) {
@@ -470,6 +474,7 @@ export function useRealtimeVoice({
 
             case 'session.reconnecting':
               setError(`AI 연결 재시도 중... (${data.attempt}/${data.maxAttempts})`);
+              setIsReconnecting(true);
               break;
 
             case 'session.reconnected':
@@ -840,6 +845,7 @@ export function useRealtimeVoice({
       clearTimeout(autoReconnectTimerRef.current);
       autoReconnectTimerRef.current = null;
     }
+    setIsReconnecting(false);
   }, []);
 
   return {
@@ -847,6 +853,7 @@ export function useRealtimeVoice({
     conversationPhase,
     isRecording,
     isAISpeaking,
+    isReconnecting,
     isWaitingForGreeting,
     greetingRetryCount,
     greetingFailed,

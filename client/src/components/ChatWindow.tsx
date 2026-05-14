@@ -117,7 +117,7 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
     applySimulationUpdate(update);
   }, [applySimulationUpdate]);
 
-  const { localMessages, setLocalMessages, pendingAiMessage, setPendingAiMessage,
+  const { localMessages, setLocalMessages, pendingAiMessage: rawPendingAiMessage, setPendingAiMessage,
     pendingUserMessage, setPendingUserMessage, pendingUserText, setPendingUserText,
     messagesEndRef, sendMessageMutation } = useChatMessages({
     conversationId,
@@ -186,6 +186,8 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
       }
     },
   });
+
+  const pendingAiMessage = rawPendingAiMessage && !realtimeVoice.isReconnecting;
 
   const { data: conversation, error } = useQuery<Conversation>({
     queryKey: ["/api/conversations", conversationId], enabled: !!conversationId,
@@ -630,7 +632,7 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
                       style={{ backgroundColor: 'rgba(34, 197, 94, 0.35)', animation: 'bargeInFlash 0.4s ease-out forwards' }} />
                   )}
 
-                  {realtimeVoice.isAISpeaking && (
+                  {realtimeVoice.isAISpeaking && !realtimeVoice.isReconnecting && (
                     <div className="absolute top-0 left-0 right-0 pointer-events-none z-[12]"
                       style={{ height: '45%', background: 'linear-gradient(to bottom, rgba(139, 92, 246, 0.22) 0%, rgba(99, 102, 241, 0.10) 40%, transparent 100%)', animation: 'beamPulse 2.5s ease-in-out infinite' }} />
                   )}
@@ -638,7 +640,7 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
                     <div className="absolute bottom-0 left-0 right-0 pointer-events-none z-[12]"
                       style={{ height: '40%', background: 'linear-gradient(to top, rgba(34, 197, 94, 0.20) 0%, rgba(16, 185, 129, 0.08) 40%, transparent 100%)', animation: 'beamPulse 2s ease-in-out infinite' }} />
                   )}
-                  <AISpeechParticleLayer amplitude={realtimeVoice.audioAmplitude} isActive={realtimeVoice.isAISpeaking} />
+                  <AISpeechParticleLayer amplitude={realtimeVoice.audioAmplitude} isActive={realtimeVoice.isAISpeaking && !realtimeVoice.isReconnecting} />
                   <UserSpeechParticleLayer amplitude={realtimeVoice.userAudioAmplitude} isActive={realtimeVoice.isRecording && !realtimeVoice.isAISpeaking} />
 
                   {hasNoPersonaImages && (
