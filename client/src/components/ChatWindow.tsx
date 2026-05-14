@@ -575,7 +575,7 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
                     newIncident={newIncident}
                     latestTurnScore={latestTurnScore}
                     hasActiveIncident={hasActiveIncident}
-                    className="hidden lg:flex"
+                    className="hidden lg:flex h-full overflow-hidden"
                   />
                 )}
 
@@ -689,7 +689,7 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
                       >
                         <Brain className="h-3.5 w-3.5" />
                         <span>{isDesktopSimOpen ? t('chat.npcStatusHide', { defaultValue: 'Hide NPC Panel' }) : t('chat.npcStatusButton')}</span>
-                        {hasActiveIncident && !isDesktopSimOpen && <span className="w-2 h-2 bg-orange-400 rounded-full animate-pulse shrink-0" />}
+                        {hasActiveIncident && <span className="w-2 h-2 bg-orange-400 rounded-full animate-pulse shrink-0" />}
                       </button>
                     </div>
                   )}

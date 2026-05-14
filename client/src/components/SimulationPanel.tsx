@@ -216,11 +216,12 @@ const SimulationPanel = memo(function SimulationPanel({
   const { npcEmotions, stage, pressureLevel, currentScore, summary, timer } = state;
 
   return (
-    <Card className={`w-full border border-border/50 bg-card/60 backdrop-blur-sm ${className}`}>
-      <CardContent className="p-3 space-y-3">
+    <Card className={`w-full border border-border/50 bg-card/60 backdrop-blur-sm flex flex-col overflow-hidden ${className}`}>
+      {/* Sticky header — always visible even when content below is scrolled */}
+      <div className="sticky top-0 z-10 bg-card/90 backdrop-blur-sm px-3 pt-3 pb-2 border-b border-border/30 shrink-0">
         {newIncident && <IncidentBanner incident={newIncident} />}
 
-        <div className="flex items-center justify-between">
+        <div className={`flex items-center justify-between ${newIncident ? 'mt-2' : ''}`}>
           <div className="flex items-center gap-1.5">
             <StageIndicator stage={stage} />
             {hasActiveIncident && (
@@ -231,49 +232,56 @@ const SimulationPanel = memo(function SimulationPanel({
         </div>
 
         {timer.enabled && (
-          <SimulationTimer timer={timer} />
-        )}
-
-        <div className="space-y-1.5">
-          <EmotionBar
-            label={t('simulation.emotions.anger')}
-            value={npcEmotions.anger}
-            icon={<Zap className="h-3 w-3 text-red-400" />}
-            colorClass="bg-red-400"
-          />
-          <EmotionBar
-            label={t('simulation.emotions.trust')}
-            value={npcEmotions.trust}
-            icon={<Heart className="h-3 w-3 text-blue-400" />}
-            colorClass="bg-blue-400"
-          />
-          <EmotionBar
-            label={t('simulation.emotions.confusion')}
-            value={npcEmotions.confusion}
-            icon={<Brain className="h-3 w-3 text-yellow-400" />}
-            colorClass="bg-yellow-400"
-          />
-          <EmotionBar
-            label={t('simulation.emotions.interest')}
-            value={npcEmotions.interest}
-            icon={<Eye className="h-3 w-3 text-green-400" />}
-            colorClass="bg-green-400"
-          />
-        </div>
-
-        <div className="flex items-center justify-between text-xs text-muted-foreground border-t border-border/40 pt-2">
-          <div className="flex items-center gap-1">
-            <TrendingUp className="h-3 w-3" />
-            <span>{t('simulation.summary.avgScore', { score: summary.averageScore })}</span>
+          <div className="mt-1.5">
+            <SimulationTimer timer={timer} />
           </div>
-          <span>{t('simulation.summary.turns', { count: summary.totalTurns })}</span>
-          {summary.totalIncidents > 0 && (
-            <span className="text-orange-500">{t('simulation.summary.issues', { count: summary.totalIncidents })}</span>
-          )}
-        </div>
+        )}
+      </div>
 
-        {latestTurnScore && <ScoreCard score={latestTurnScore} />}
-      </CardContent>
+      {/* Scrollable body */}
+      <div className="overflow-y-auto flex-1">
+        <CardContent className="p-3 space-y-3">
+          <div className="space-y-1.5">
+            <EmotionBar
+              label={t('simulation.emotions.anger')}
+              value={npcEmotions.anger}
+              icon={<Zap className="h-3 w-3 text-red-400" />}
+              colorClass="bg-red-400"
+            />
+            <EmotionBar
+              label={t('simulation.emotions.trust')}
+              value={npcEmotions.trust}
+              icon={<Heart className="h-3 w-3 text-blue-400" />}
+              colorClass="bg-blue-400"
+            />
+            <EmotionBar
+              label={t('simulation.emotions.confusion')}
+              value={npcEmotions.confusion}
+              icon={<Brain className="h-3 w-3 text-yellow-400" />}
+              colorClass="bg-yellow-400"
+            />
+            <EmotionBar
+              label={t('simulation.emotions.interest')}
+              value={npcEmotions.interest}
+              icon={<Eye className="h-3 w-3 text-green-400" />}
+              colorClass="bg-green-400"
+            />
+          </div>
+
+          <div className="flex items-center justify-between text-xs text-muted-foreground border-t border-border/40 pt-2">
+            <div className="flex items-center gap-1">
+              <TrendingUp className="h-3 w-3" />
+              <span>{t('simulation.summary.avgScore', { score: summary.averageScore })}</span>
+            </div>
+            <span>{t('simulation.summary.turns', { count: summary.totalTurns })}</span>
+            {summary.totalIncidents > 0 && (
+              <span className="text-orange-500">{t('simulation.summary.issues', { count: summary.totalIncidents })}</span>
+            )}
+          </div>
+
+          {latestTurnScore && <ScoreCard score={latestTurnScore} />}
+        </CardContent>
+      </div>
     </Card>
   );
 });
