@@ -75,6 +75,7 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
     setIsDesktopSimOpenRaw(prev => {
       const next = typeof value === 'function' ? value(prev) : value;
       localStorage.setItem('npc-panel-desktop-open', String(next));
+      if (next) clearIncidentCount();
       return next;
     });
   };
@@ -105,6 +106,8 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
   const {
     state: simulationState,
     newIncident,
+    incidentCount,
+    clearIncidentCount,
     latestTurnScore,
     applyUpdate: applySimulationUpdate,
     evaluate,
@@ -685,11 +688,16 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
                       )}
                       <button
                         onClick={() => setIsDesktopSimOpen(v => !v)}
-                        className={`flex items-center gap-1.5 bg-black/60 backdrop-blur-sm text-white text-xs px-2.5 py-1.5 rounded-full shadow-lg transition-colors ${hasActiveIncident && !isDesktopSimOpen ? 'border-2 border-orange-400' : 'border border-white/20'}`}
+                        className={`relative flex items-center gap-1.5 bg-black/60 backdrop-blur-sm text-white text-xs px-2.5 py-1.5 rounded-full shadow-lg transition-colors ${hasActiveIncident && !isDesktopSimOpen ? 'border-2 border-orange-400' : 'border border-white/20'}`}
                       >
                         <Brain className="h-3.5 w-3.5" />
                         <span>{isDesktopSimOpen ? t('chat.npcStatusHide', { defaultValue: 'Hide NPC Panel' }) : t('chat.npcStatusButton')}</span>
                         {hasActiveIncident && <span className="w-2 h-2 bg-orange-400 rounded-full animate-pulse shrink-0" />}
+                        {incidentCount > 0 && !isDesktopSimOpen && (
+                          <span className="absolute -top-1.5 -right-1.5 min-w-[18px] h-[18px] flex items-center justify-center rounded-full bg-orange-500 text-white text-[10px] font-bold leading-none px-1 shadow-md">
+                            {incidentCount > 99 ? '99+' : incidentCount}
+                          </span>
+                        )}
                       </button>
                     </div>
                   )}

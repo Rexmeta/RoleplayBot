@@ -100,6 +100,7 @@ export function useSimulationState({ personaRunId, enabled = true, onIncident }:
     return loadLocalState(personaRunId);
   });
   const [newIncident, setNewIncident] = useState<Incident | null>(null);
+  const [incidentCount, setIncidentCount] = useState(0);
   const [latestTurnScore, setLatestTurnScore] = useState<TurnScore | null>(null);
   const incidentTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const seenIncidentIdsRef = useRef<Set<string>>(new Set());
@@ -172,6 +173,7 @@ export function useSimulationState({ personaRunId, enabled = true, onIncident }:
       if (isUnseen && (noStateContext || !isStaleVersion || incidentException)) {
         seenIncidentIdsRef.current.add(incidentId);
         setNewIncident(update.incident);
+        setIncidentCount(c => c + 1);
         onIncident?.(update.incident);
         if (incidentTimeoutRef.current) clearTimeout(incidentTimeoutRef.current);
         incidentTimeoutRef.current = setTimeout(() => setNewIncident(null), 5000);
@@ -215,6 +217,7 @@ export function useSimulationState({ personaRunId, enabled = true, onIncident }:
       }
       setLatestTurnScore(null);
       setNewIncident(null);
+      setIncidentCount(0);
       seenIncidentIdsRef.current.clear();
       queryClient.invalidateQueries({ queryKey: ['/api/simulation', personaRunId, 'state'] });
     },
@@ -230,6 +233,8 @@ export function useSimulationState({ personaRunId, enabled = true, onIncident }:
     state: localState,
     isLoading,
     newIncident,
+    incidentCount,
+    clearIncidentCount: () => setIncidentCount(0),
     latestTurnScore,
     applyUpdate,
     evaluate: evaluateMutation.mutateAsync,
