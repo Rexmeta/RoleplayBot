@@ -6,6 +6,8 @@ type Severity = 'low' | 'medium' | 'high';
 interface IncidentTemplate {
   ko: Record<Severity, string>;
   en: Record<Severity, string>;
+  ja: Record<Severity, string>;
+  zh: Record<Severity, string>;
 }
 
 const INCIDENT_TEMPLATES: Record<IncidentType, IncidentTemplate> = {
@@ -20,6 +22,16 @@ const INCIDENT_TEMPLATES: Record<IncidentType, IncidentTemplate> = {
       medium: 'An executive has suddenly joined the meeting. The situation must be summarized quickly.',
       high: 'Senior management has intervened directly and demands an immediate resolution.',
     },
+    ja: {
+      low: '役員が会話に参加して進捗を確認しています。',
+      medium: '役員が突然会議に参加しました。状況を迅速に整理する必要があります。',
+      high: '上層部が直接介入しました。即座の解決策を求めています。',
+    },
+    zh: {
+      low: '高管加入了对话，正在检查进展。',
+      medium: '高管突然加入了会议，需要迅速整理情况。',
+      high: '高层管理人员直接介入，要求立即解决。',
+    },
   },
   customer_escalation: {
     ko: {
@@ -31,6 +43,16 @@ const INCIDENT_TEMPLATES: Record<IncidentType, IncidentTemplate> = {
       low: 'The customer has raised a complaint and is requesting a clearer explanation.',
       medium: 'The customer is strongly objecting and requesting to speak with a supervisor.',
       high: 'The customer has declared a formal complaint and is warning of a negotiation breakdown.',
+    },
+    ja: {
+      low: 'お客様が不満を申し立て、より明確な説明を求めています。',
+      medium: 'お客様が強く抗議し、担当者との直接対話を求めています。',
+      high: 'お客様が正式な異議申し立てを宣言し、交渉決裂を警告しています。',
+    },
+    zh: {
+      low: '客户提出了投诉，要求更清晰的说明。',
+      medium: '客户强烈抗议，要求直接与负责人通话。',
+      high: '客户宣布正式投诉，警告谈判破裂。',
     },
   },
   deadline_pressure: {
@@ -44,6 +66,16 @@ const INCIDENT_TEMPLATES: Record<IncidentType, IncidentTemplate> = {
       medium: 'The deadline is within 2 hours. An immediate decision is required.',
       high: 'Only 30 minutes remain until the deadline. A final decision must be made right now.',
     },
+    ja: {
+      low: '締め切りが迫っており、早急な決断が必要です。',
+      medium: '締め切りまで2時間を切りました。即座の決断が必要です。',
+      high: '締め切りまで30分しかありません。今すぐ最終決断を下す必要があります。',
+    },
+    zh: {
+      low: '截止日期临近，需要尽快做出决定。',
+      medium: '截止日期不足2小时，需要立即做出决定。',
+      high: '距截止日期只剩30分钟，必须立即做出最终决定。',
+    },
   },
   new_evidence: {
     ko: {
@@ -55,6 +87,16 @@ const INCIDENT_TEMPLATES: Record<IncidentType, IncidentTemplate> = {
       low: 'New data has been discovered and the situation needs to be re-evaluated.',
       medium: 'Unexpected new evidence has been presented, shaking the foundation of the negotiation.',
       high: 'Critical new information has emerged that could invalidate all previous agreements.',
+    },
+    ja: {
+      low: '新たなデータが発見され、状況の再検討が必要です。',
+      medium: '予期せぬ新証拠が提示され、交渉の基盤が揺らいでいます。',
+      high: '決定的な新情報が浮上し、これまでの合意がすべて無効になる可能性があります。',
+    },
+    zh: {
+      low: '发现了新数据，需要重新评估情况。',
+      medium: '意外出现了新证据，动摇了谈判基础。',
+      high: '出现了关键新信息，可能使之前所有协议无效。',
     },
   },
   competitor_offer: {
@@ -68,6 +110,16 @@ const INCIDENT_TEMPLATES: Record<IncidentType, IncidentTemplate> = {
       medium: 'A competitor has presented better terms. A quick response is needed.',
       high: 'A competitor has made a groundbreaking offer that the other party is seriously considering.',
     },
+    ja: {
+      low: '競合他社から類似の提案があったとの情報が入りました。',
+      medium: '競合他社がより良い条件を提示しました。迅速な対応が必要です。',
+      high: '競合他社が破格の条件を提示しており、相手方が真剣に検討しています。',
+    },
+    zh: {
+      low: '有消息称竞争对手提出了类似方案。',
+      medium: '竞争对手提出了更优条件，需要快速回应。',
+      high: '竞争对手提出了破格条件，对方正在认真考虑。',
+    },
   },
   policy_constraint: {
     ko: {
@@ -79,6 +131,16 @@ const INCIDENT_TEMPLATES: Record<IncidentType, IncidentTemplate> = {
       low: 'Internal policy makes it difficult to change certain items.',
       medium: 'A policy change may require revising the agreed terms.',
       high: 'An urgent directive from a regulatory body threatens to invalidate the current negotiation premise.',
+    },
+    ja: {
+      low: '内部規定により、一部の変更が困難です。',
+      medium: '規定変更により、合意内容の修正が必要になる可能性があります。',
+      high: '規制機関の緊急指示により、現在の交渉前提が無効になる危機です。',
+    },
+    zh: {
+      low: '内部政策使某些变更变得困难。',
+      medium: '政策变更可能需要修改协议内容。',
+      high: '监管机构的紧急指令威胁使当前谈判前提无效。',
     },
   },
   quality_issue: {
@@ -92,6 +154,16 @@ const INCIDENT_TEMPLATES: Record<IncidentType, IncidentTemplate> = {
       medium: 'A quality standard failure has occurred. An immediate explanation is required.',
       high: 'A serious quality defect has been found. All negotiations may be halted.',
     },
+    ja: {
+      low: '品質審査中にいくつかの不備が発見されました。',
+      medium: '品質基準不適合の問題が発生しました。即座の説明が必要です。',
+      high: '深刻な品質上の欠陥が発見されました。すべての交渉が中断する可能性があります。',
+    },
+    zh: {
+      low: '质量审查中发现了一些不足之处。',
+      medium: '发生了质量标准不达标问题，需要立即说明。',
+      high: '发现了严重的质量缺陷，所有谈判可能中断。',
+    },
   },
   manager_interrupt: {
     ko: {
@@ -103,6 +175,16 @@ const INCIDENT_TEMPLATES: Record<IncidentType, IncidentTemplate> = {
       low: 'A manager has intervened to check on the progress.',
       medium: 'A manager has intervened questioning the direction of the negotiation.',
       high: 'A manager has warned they will revoke negotiation authority.',
+    },
+    ja: {
+      low: '管理者が進捗を確認するために会話に介入しました。',
+      medium: '管理者が交渉の方向性に疑問を呈して介入しました。',
+      high: '管理者が交渉権限を剥奪すると警告しました。',
+    },
+    zh: {
+      low: '管理者介入谈话以检查进展。',
+      medium: '管理者对谈判方向提出质疑并介入。',
+      high: '管理者警告将撤销谈判授权。',
     },
   },
   budget_cut: {
@@ -116,6 +198,16 @@ const INCIDENT_TEMPLATES: Record<IncidentType, IncidentTemplate> = {
       medium: 'An emergency budget cut requires revising the proposal.',
       high: 'A large-scale budget cut has been decided, requiring a full re-evaluation of the negotiation scope.',
     },
+    ja: {
+      low: '予算審査により、一部項目の調整が必要です。',
+      medium: '緊急予算削減により、提案内容の修正が必要です。',
+      high: '大規模な予算削減が決定し、現在の交渉範囲全体の再検討が必要です。',
+    },
+    zh: {
+      low: '预算审查需要对某些项目进行调整。',
+      medium: '紧急预算削减需要修改提案。',
+      high: '大规模预算削减已决定，需要全面重新评估谈判范围。',
+    },
   },
   compliance_warning: {
     ko: {
@@ -127,6 +219,16 @@ const INCIDENT_TEMPLATES: Record<IncidentType, IncidentTemplate> = {
       low: 'A matter requiring legal review has arisen.',
       medium: 'The compliance team has expressed concerns about the current terms.',
       high: 'A potential compliance violation has been raised, requiring an immediate response.',
+    },
+    ja: {
+      low: '法的審査が必要な事項が発生しました。',
+      medium: 'コンプライアンスチームが現在の条件について懸念を示しました。',
+      high: 'コンプライアンス違反の可能性が指摘され、即座の対応が必要です。',
+    },
+    zh: {
+      low: '出现了需要法律审查的事项。',
+      medium: '合规团队对当前条件表示担忧。',
+      high: '提出了潜在合规违规问题，需要立即回应。',
     },
   },
 };
@@ -140,8 +242,7 @@ export function renderIncidentMessage(
   const template = INCIDENT_TEMPLATES[type];
   if (!template) return `[Incident: ${type} (${severity})]`;
 
-  const lang = language === 'ja' || language === 'zh' ? 'en' : language;
-  const msg = template[lang]?.[severity] ?? template.en[severity];
+  const msg = template[language]?.[severity] ?? template.en[severity];
 
   if (scenarioContext) {
     return `${msg} [${scenarioContext}]`;

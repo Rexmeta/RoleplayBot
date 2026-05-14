@@ -210,5 +210,12 @@ ${userText.substring(0, 500)}
 """
 
 Respond ONLY with JSON:
-{"clarity": 65, "empathy": 70, "logic": 55, "ownership": 60, "actionPlan": 45, "confidence": 80, "hint": "Brief tip to improve (in ${lang === 'ko' ? 'Korean' : 'English'})"}`;
+{"clarity": 65, "empathy": 70, "logic": 55, "ownership": 60, "actionPlan": 45, "confidence": 80, "hint": "Brief tip to improve (in ${LANG_NAMES[lang] ?? 'English'})"}`;
 }
+
+const LANG_NAMES: Record<string, string> = {
+  ko: 'Korean',
+  en: 'English',
+  ja: 'Japanese',
+  zh: 'Chinese',
+};
