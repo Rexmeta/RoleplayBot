@@ -228,7 +228,11 @@ export function handleGeminiMessage(
     const hasTurnComplete = !!serverContent.turnComplete;
     const hasInputTranscription = !!serverContent.inputTranscription;
     const hasOutputTranscription = !!serverContent.outputTranscription;
-    console.log(`📋 serverContent: modelTurn=${hasModelTurn}, turnComplete=${hasTurnComplete}, inputTx=${hasInputTranscription}, outputTx=${hasOutputTranscription}`);
+    // outputTranscription is the authoritative spoken-text source when present.
+    // Avoid double-counting: if outputTranscription is in this same message,
+    // modelTurn part.text should NOT also be added to currentTranscript.
+    const preferOutputTranscription = hasOutputTranscription && !!serverContent.outputTranscription?.text?.length;
+    console.log(`📋 serverContent: modelTurn=${hasModelTurn}, turnComplete=${hasTurnComplete}, inputTx=${hasInputTranscription}, outputTx=${hasOutputTranscription}, preferOutputTx=${preferOutputTranscription}`);
 
     if (serverContent.inputTranscription) {
       const transcript = serverContent.inputTranscription.text || '';
@@ -278,12 +282,22 @@ export function handleGeminiMessage(
       for (const part of parts) {
         if (part.text) {
           console.log(`🤖 AI transcript (raw): ${part.text.substring(0, 100)}...`);
-          session.currentTranscript += part.text;
-          // strictMode on turn 0: aggressively strip reasoning preambles that
-          // Gemini often emits at the start of the very first response.
-          const filteredText = filterThinkingText(part.text, session.userLanguage, { strictMode: session.turnSeq === 0 });
-          if (filteredText) {
-            sendToClient(session, { type: 'ai.transcription.delta', text: filteredText });
+          // Only accumulate modelTurn text to currentTranscript when
+          // outputTranscription is NOT present in this same message.
+          // outputTranscription is the authoritative transcription source;
+          // using both would cause double-counting.
+          if (!preferOutputTranscription) {
+            session.currentTranscript += part.text;
+          }
+          // Always send as delta to the client UI (for live streaming display),
+          // but only when outputTranscription is not already handling it.
+          if (!preferOutputTranscription) {
+            // strictMode on turn 0: aggressively strip reasoning preambles that
+            // Gemini often emits at the start of the very first response.
+            const filteredText = filterThinkingText(part.text, session.userLanguage, { strictMode: session.turnSeq === 0 });
+            if (filteredText) {
+              sendToClient(session, { type: 'ai.transcription.delta', text: filteredText });
+            }
           }
         }
 
@@ -577,9 +591,16 @@ export function handleGeminiMessage(
         console.log(`✅ First transcript delta received — retry gate closed`);
       }
 
-      if (!serverContent.modelTurn) {
-        session.currentTranscript += transcript;
-      }
+      // Always accumulate outputTranscription: it is the authoritative
+      // transcription of what the AI actually spoke (produced by Gemini's
+      // outputAudioTranscription feature). Previously this was gated on
+      // `!serverContent.modelTurn` to avoid double-counting with
+      // modelTurn.parts[].text, but gemini-live-2.5-flash sends both fields
+      // in the same message for every non-greeting turn — causing the
+      // transcription to be silently dropped and never sent as
+      // ai.transcription.done. modelTurn accumulation is now suppressed
+      // when outputTranscription is present (see preferOutputTranscription).
+      session.currentTranscript += transcript;
       session.totalAiTranscriptLength += transcript.length;
 
       const filteredTranscript = filterThinkingText(transcript, session.userLanguage, { strictMode: session.turnSeq === 0 });
