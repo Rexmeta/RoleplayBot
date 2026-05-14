@@ -50,7 +50,8 @@ export const SIMULATION_TOOLS = [
         },
         pressureDelta: {
           type: 'number',
-          enum: [-1, 0, 1],
+          minimum: -1,
+          maximum: 1,
           description: 'Change in pressure level. Only -1, 0, or +1 allowed per call. Pressure stays between 1 and 5.',
         },
         reason: {
