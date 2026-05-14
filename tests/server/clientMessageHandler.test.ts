@@ -240,7 +240,7 @@ describe('handleClientMessage — 30-message threshold boundary', () => {
 
       const callArg = geminiSession.sendClientContent.mock.calls[0][0];
       const contextText = callArg.turns[0].parts[0].text;
-      expect(contextText).toContain('[이전 대화 내용');
+      expect(contextText).toContain('이전 대화 내용');
       expect(contextText).not.toContain('[이전 대화 요약]');
     });
 
@@ -271,7 +271,7 @@ describe('handleClientMessage — 30-message threshold boundary', () => {
 
       const callArg = geminiSession.sendClientContent.mock.calls[0][0];
       const contextText = callArg.turns[0].parts[0].text;
-      expect(contextText).toContain('[이전 대화 요약]');
+      expect(contextText).toContain('이전 대화 요약');
       expect(contextText).toContain('[최근 대화 내용]');
     });
 
@@ -425,7 +425,7 @@ describe('handleClientMessage — 30-message threshold boundary', () => {
 
       const callArg = geminiSession.sendClientContent.mock.calls[0][0];
       const contextText = callArg.turns[0].parts[0].text;
-      expect(contextText).toContain('[이전 대화 내용');
+      expect(contextText).toContain('이전 대화 내용');
       expect(contextText).toContain('안녕하세요');
       expect(contextText).toContain('네, 반갑습니다');
     });

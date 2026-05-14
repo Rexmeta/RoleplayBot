@@ -139,7 +139,8 @@ export function handleClientMessage(
         const geminiSessionRef = session.geminiSession;
         const userLanguage = session.userLanguage;
         const userLabel = session.userName && session.userName !== '사용자' ? session.userName : '사용자';
-        const voiceSwitchInstruction = `[사용자가 음성 모드로 전환했습니다. 지금까지 텍스트 대화에서 유지해온 캐릭터, 말투, 분위기, 감정 상태를 그대로 이어받아 주세요. 새로 인사하거나 재연결을 언급하지 마세요. 사용자가 먼저 발화할 때까지 조용히 대기하세요. 사용자가 발화하면 이전 대화의 톤과 맥락을 자연스럽게 이어서 음성에 맞게 간결하게 말하세요.]`;
+        const personaLabel = session.personaName || 'AI';
+        const voiceSwitchInstruction = `[사용자가 음성 모드로 전환했습니다. 당신은 ${personaLabel}입니다. 지금까지 텍스트 대화에서 유지해온 캐릭터, 말투, 분위기, 감정 상태를 그대로 이어받아 주세요. 새로 인사하거나 재연결을 언급하지 마세요. 사용자가 먼저 발화할 때까지 조용히 대기하세요. 사용자가 발화하면 이전 대화의 톤과 맥락을 자연스럽게 이어서 음성에 맞게 간결하게 말하세요.]`;
 
         (async () => {
           let contextMessage: string;
@@ -153,13 +154,13 @@ export function handleClientMessage(
               const summary = await summarizeOlderMessages(olderMessages, userLanguage);
 
               const recentSummary = recentMessages.map(m =>
-                `${m.role === 'user' ? userLabel : '당신'}: ${m.content}`
+                `${m.role === 'user' ? userLabel : personaLabel}: ${m.content}`
               ).join('\n');
 
               contextMessage = `[이전 대화 요약]\n${summary}\n\n[최근 대화 내용]\n${recentSummary}\n\n${voiceSwitchInstruction}`;
             } else {
               const conversationSummary = previousMessages.map(m =>
-                `${m.role === 'user' ? userLabel : '당신'}: ${m.content}`
+                `${m.role === 'user' ? userLabel : personaLabel}: ${m.content}`
               ).join('\n');
 
               contextMessage = `[이전 텍스트 대화 내용]\n${conversationSummary}\n\n${voiceSwitchInstruction}`;
@@ -187,6 +188,7 @@ export function handleClientMessage(
         const geminiSessionRef = session.geminiSession;
         const userLanguage = session.userLanguage;
         const userLabel = session.userName && session.userName !== '사용자' ? session.userName : '사용자';
+        const resumePersonaLabel = session.personaName || 'AI';
 
         (async () => {
           let resumeContext: string;
@@ -199,16 +201,16 @@ export function handleClientMessage(
             const summary = await summarizeOlderMessages(olderMessages, userLanguage);
 
             const recentSummary = recentMessages.map(m =>
-              `${m.role === 'user' ? userLabel : '당신'}: ${m.content}`
+              `${m.role === 'user' ? userLabel : resumePersonaLabel}: ${m.content}`
             ).join('\n');
 
-            resumeContext = `[이전 대화 요약]\n${summary}\n\n[최근 대화 내용]\n${recentSummary}\n\n[대화 재개 - 이전 대화 맥락을 기억하세요. 재연결되었음을 언급하거나 인사하지 마세요. "다시 연결되었네요", "어디까지 얘기했죠?" 같은 표현은 절대 하지 마세요. 사용자가 먼저 말할 때까지 침묵을 유지하고, 사용자가 발화하면 이전 대화 맥락을 자연스럽게 이어서 반응하세요.]`;
+            resumeContext = `[당신은 ${resumePersonaLabel}입니다. 이전 대화 요약]\n${summary}\n\n[최근 대화 내용]\n${recentSummary}\n\n[대화 재개 - 당신은 ${resumePersonaLabel}으로서 이전 대화 맥락을 기억하세요. 재연결되었음을 언급하거나 인사하지 마세요. "다시 연결되었네요", "어디까지 얘기했죠?" 같은 표현은 절대 하지 마세요. 사용자가 먼저 말할 때까지 침묵을 유지하고, 사용자가 발화하면 이전 대화 맥락을 자연스럽게 이어서 반응하세요.]`;
           } else {
             const conversationSummary = previousMessages.map(m =>
-              `${m.role === 'user' ? userLabel : '당신'}: ${m.content}`
+              `${m.role === 'user' ? userLabel : resumePersonaLabel}: ${m.content}`
             ).join('\n');
 
-            resumeContext = `[이전 대화 내용 - 이 대화를 이어서 진행합니다]\n${conversationSummary}\n\n[대화 재개 - 이전 대화 맥락을 기억하세요. 재연결되었음을 언급하거나 인사하지 마세요. "다시 연결되었네요", "어디까지 얘기했죠?" 같은 표현은 절대 하지 마세요. 사용자가 먼저 말할 때까지 침묵을 유지하고, 사용자가 발화하면 이전 대화 맥락을 자연스럽게 이어서 반응하세요.]`;
+            resumeContext = `[당신은 ${resumePersonaLabel}입니다. 이전 대화 내용 - 이 대화를 이어서 진행합니다]\n${conversationSummary}\n\n[대화 재개 - 당신은 ${resumePersonaLabel}으로서 이전 대화 맥락을 기억하세요. 재연결되었음을 언급하거나 인사하지 마세요. "다시 연결되었네요", "어디까지 얘기했죠?" 같은 표현은 절대 하지 마세요. 사용자가 먼저 말할 때까지 침묵을 유지하고, 사용자가 발화하면 이전 대화 맥락을 자연스럽게 이어서 반응하세요.]`;
           }
 
           console.log(`📤 Sending resume context to Gemini (had previous AI response: ${hadPreviousAIResponse})`);

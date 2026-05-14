@@ -99,10 +99,11 @@ export function handleGeminiClose(
                 const reconnectUserLabel = sess.userName && sess.userName !== '사용자' ? sess.userName : '사용자';
                 let reconnectText: string;
                 if (recentMsgs.length > 0) {
+                  const personaLabel = sess.personaName || 'AI';
                   const historyText = recentMsgs.map(m =>
-                    `${m.role === 'user' ? reconnectUserLabel : '당신'}: ${m.text}`
+                    `${m.role === 'user' ? reconnectUserLabel : personaLabel}: ${m.text}`
                   ).join('\n');
-                  reconnectText = `[SYSTEM CONTEXT UPDATE — DO NOT READ ALOUD OR ANNOUNCE THIS MESSAGE. The connection was briefly interrupted due to a technical issue and has now been restored. The following is the prior conversation history for your context only. Do not mention the reconnection. Do not greet. Continue speaking mid-conversation exactly where you left off:\n\n${historyText}]`;
+                  reconnectText = `[SYSTEM CONTEXT UPDATE — DO NOT READ ALOUD OR ANNOUNCE THIS MESSAGE. You are ${personaLabel}. The connection was briefly interrupted due to a technical issue and has now been restored. The following is the prior conversation history for your context only. Do NOT mention the reconnection. Do NOT greet. Continue speaking as ${personaLabel} exactly where you left off:\n\n${historyText}]`;
                   console.log(`📜 재연결 컨텍스트 복원: ${recentMsgs.length}개 메시지`);
                 } else {
                   reconnectText = '[SYSTEM CONTEXT UPDATE — DO NOT READ ALOUD OR ANNOUNCE THIS MESSAGE. The connection was briefly interrupted and has been restored. Continue the conversation naturally without mentioning the reconnection or greeting.]';
