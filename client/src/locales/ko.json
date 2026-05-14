@@ -308,6 +308,7 @@
     "exitWarningTooltip": "아직 {{count}}턴 남았어요",
     "progressBadgeTooltip": "{{current}}/{{target}} 턴 진행 중",
     "npcStatusButton": "NPC",
+    "npcStatusHide": "NPC 패널 숨기기",
     "npcStatusPanel": "NPC 상태"
   },
   "simulation": {

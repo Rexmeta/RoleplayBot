@@ -68,6 +68,16 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
       return next;
     });
   };
+  const [isDesktopSimOpen, setIsDesktopSimOpenRaw] = useState(
+    () => localStorage.getItem('npc-panel-desktop-open') !== 'false'
+  );
+  const setIsDesktopSimOpen = (value: boolean | ((prev: boolean) => boolean)) => {
+    setIsDesktopSimOpenRaw(prev => {
+      const next = typeof value === 'function' ? value(prev) : value;
+      localStorage.setItem('npc-panel-desktop-open', String(next));
+      return next;
+    });
+  };
   const isPersonaX = scenario.id?.startsWith('__');
   const [showMicPrompt, setShowMicPrompt] = useState(false);
   const [isInputExpanded, setIsInputExpanded] = useState(false);
@@ -555,7 +565,7 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
                     isGoalsExpanded={isGoalsExpanded} onToggleGoals={() => setIsGoalsExpanded(v => !v)} variant="sidebar" />
                 )}
 
-                {isSimulationEnabled && simulationState && (
+                {isSimulationEnabled && simulationState && isDesktopSimOpen && (
                   <SimulationPanel
                     state={simulationState}
                     newIncident={newIncident}
@@ -659,6 +669,18 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
                       <Brain className="h-3.5 w-3.5" />
                       <span>{t('chat.npcStatusButton')}</span>
                       {newIncident && <span className="w-2 h-2 bg-orange-400 rounded-full animate-pulse shrink-0" />}
+                    </button>
+                  )}
+
+                  {/* Desktop NPC status toggle button */}
+                  {isSimulationEnabled && simulationState && (
+                    <button
+                      onClick={() => setIsDesktopSimOpen(v => !v)}
+                      className="hidden lg:flex absolute bottom-24 left-4 z-20 items-center gap-1.5 bg-black/60 backdrop-blur-sm text-white text-xs px-2.5 py-1.5 rounded-full border border-white/20 shadow-lg"
+                    >
+                      <Brain className="h-3.5 w-3.5" />
+                      <span>{isDesktopSimOpen ? t('chat.npcStatusHide', { defaultValue: 'Hide NPC Panel' }) : t('chat.npcStatusButton')}</span>
+                      {newIncident && !isDesktopSimOpen && <span className="w-2 h-2 bg-orange-400 rounded-full animate-pulse shrink-0" />}
                     </button>
                   )}
 

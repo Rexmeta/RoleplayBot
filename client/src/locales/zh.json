@@ -287,6 +287,7 @@
     "exitWarningTooltip": "还剩{{count}}轮",
     "progressBadgeTooltip": "进行中 {{current}}/{{target}} 轮",
     "npcStatusButton": "NPC",
+    "npcStatusHide": "隐藏NPC面板",
     "npcStatusPanel": "NPC 状态"
   },
   "simulation": {
