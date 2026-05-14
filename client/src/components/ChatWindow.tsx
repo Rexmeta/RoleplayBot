@@ -678,14 +678,19 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
 
                   {/* Desktop NPC status toggle button */}
                   {isSimulationEnabled && simulationState && (
-                    <button
-                      onClick={() => setIsDesktopSimOpen(v => !v)}
-                      className="hidden lg:flex absolute bottom-24 left-4 z-20 items-center gap-1.5 bg-black/60 backdrop-blur-sm text-white text-xs px-2.5 py-1.5 rounded-full border border-white/20 shadow-lg"
-                    >
-                      <Brain className="h-3.5 w-3.5" />
-                      <span>{isDesktopSimOpen ? t('chat.npcStatusHide', { defaultValue: 'Hide NPC Panel' }) : t('chat.npcStatusButton')}</span>
-                      {newIncident && !isDesktopSimOpen && <span className="w-2 h-2 bg-orange-400 rounded-full animate-pulse shrink-0" />}
-                    </button>
+                    <div className="hidden lg:flex absolute bottom-24 left-4 z-20">
+                      {newIncident && !isDesktopSimOpen && (
+                        <span className="absolute inset-0 rounded-full animate-ping bg-orange-400 opacity-40 pointer-events-none" />
+                      )}
+                      <button
+                        onClick={() => setIsDesktopSimOpen(v => !v)}
+                        className={`flex items-center gap-1.5 bg-black/60 backdrop-blur-sm text-white text-xs px-2.5 py-1.5 rounded-full shadow-lg transition-colors ${newIncident && !isDesktopSimOpen ? 'border-2 border-orange-400' : 'border border-white/20'}`}
+                      >
+                        <Brain className="h-3.5 w-3.5" />
+                        <span>{isDesktopSimOpen ? t('chat.npcStatusHide', { defaultValue: 'Hide NPC Panel' }) : t('chat.npcStatusButton')}</span>
+                        {newIncident && !isDesktopSimOpen && <span className="w-2 h-2 bg-orange-400 rounded-full animate-pulse shrink-0" />}
+                      </button>
+                    </div>
                   )}
 
                   <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 z-20 w-full max-w-4xl lg:max-w-6xl xl:max-w-[90%] px-4">
