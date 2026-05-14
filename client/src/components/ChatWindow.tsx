@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
+import { X, Brain } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { useToast } from "@/hooks/use-toast";
@@ -57,6 +58,7 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
   const [showInputMode, setShowInputMode] = useState(false);
   const [isGoalsExpanded, setIsGoalsExpanded] = useState(false);
   const [isSwitchingMode, setIsSwitchingMode] = useState(false);
+  const [isMobileSimOpen, setIsMobileSimOpen] = useState(false);
   const isPersonaX = scenario.id?.startsWith('__');
   const [showMicPrompt, setShowMicPrompt] = useState(false);
   const [isInputExpanded, setIsInputExpanded] = useState(false);
@@ -339,6 +341,10 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
       speakText(latestAiMessage.message, true, latestAiMessage.emotion);
     }
   }, [latestAiMessage?.message, latestAiMessage?.emotion, currentEmotion, inputMode]);
+
+  useEffect(() => {
+    if (newIncident) setIsMobileSimOpen(true);
+  }, [newIncident]);
 
   const lastUserTextRef = useRef<string>('');
 
@@ -635,6 +641,18 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
                     pendingAiMessage={pendingAiMessage} pendingUserMessage={pendingUserMessage}
                     pendingUserText={pendingUserText} personaName={persona.name} />
 
+                  {/* Mobile NPC status toggle button */}
+                  {isSimulationEnabled && simulationState && (
+                    <button
+                      onClick={() => setIsMobileSimOpen(v => !v)}
+                      className="lg:hidden absolute bottom-24 left-4 z-20 flex items-center gap-1.5 bg-black/60 backdrop-blur-sm text-white text-xs px-2.5 py-1.5 rounded-full border border-white/20 shadow-lg"
+                    >
+                      <Brain className="h-3.5 w-3.5" />
+                      <span>{t('chat.npcStatusButton')}</span>
+                      {newIncident && <span className="w-2 h-2 bg-orange-400 rounded-full animate-pulse shrink-0" />}
+                    </button>
+                  )}
+
                   <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 z-20 w-full max-w-4xl lg:max-w-6xl xl:max-w-[90%] px-4">
                     <Card className="rounded-2xl overflow-hidden text-card-foreground backdrop-blur-sm shadow-xl border border-white/10 bg-[#ffffff9c]">
                       {inputMode === 'realtime-voice' ? (
@@ -778,6 +796,43 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
             </div>
           </div>
         </div>
+
+        {/* Mobile simulation bottom sheet */}
+        {isSimulationEnabled && simulationState && (
+          <>
+            {isMobileSimOpen && (
+              <div
+                className="lg:hidden fixed inset-0 z-[98] bg-black/40"
+                onClick={() => setIsMobileSimOpen(false)}
+              />
+            )}
+            <div
+              className={`lg:hidden fixed bottom-0 left-0 right-0 z-[99] transition-transform duration-300 ease-in-out ${isMobileSimOpen ? 'translate-y-0' : 'translate-y-full'}`}
+            >
+              <div className="bg-background rounded-t-2xl shadow-2xl border-t border-border overflow-y-auto max-h-[65vh]">
+                <div className="flex items-center justify-between px-4 pt-3 pb-2 border-b border-border/50 sticky top-0 bg-background z-10">
+                  <div className="flex items-center gap-2">
+                    <Brain className="h-4 w-4 text-muted-foreground" />
+                    <span className="text-sm font-semibold">{t('chat.npcStatusPanel')}</span>
+                  </div>
+                  <button
+                    onClick={() => setIsMobileSimOpen(false)}
+                    className="p-1.5 rounded-full hover:bg-muted text-muted-foreground"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
+                <div className="px-3 py-3">
+                  <SimulationPanel
+                    state={simulationState}
+                    newIncident={newIncident}
+                    latestTurnScore={latestTurnScore}
+                  />
+                </div>
+              </div>
+            </div>
+          </>
+        )}
 
         <AlertDialog open={showAlmostDoneDialog} onOpenChange={(open) => { if (!open) handleAlmostDoneKeepGoing(); }}>
           <AlertDialogContent>

@@ -285,7 +285,9 @@
     "almostDoneEnd": "Almost done!",
     "getFeedback": "Get Feedback",
     "exitWarningTooltip": "{{count}} turns remaining",
-    "progressBadgeTooltip": "{{current}}/{{target}} turns in progress"
+    "progressBadgeTooltip": "{{current}}/{{target}} turns in progress",
+    "npcStatusButton": "NPC",
+    "npcStatusPanel": "NPC Status"
   },
   "feedback": {
     "title": "Personal Report",

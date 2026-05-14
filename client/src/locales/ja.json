@@ -285,7 +285,9 @@
     "almostDoneEnd": "もうすぐ完了！",
     "getFeedback": "フィードバックを受け取る",
     "exitWarningTooltip": "まだ{{count}}ターン残っています",
-    "progressBadgeTooltip": "{{current}}/{{target}}ターン進行中"
+    "progressBadgeTooltip": "{{current}}/{{target}}ターン進行中",
+    "npcStatusButton": "NPC",
+    "npcStatusPanel": "NPCステータス"
   },
   "feedback": {
     "title": "カスタムレポート",

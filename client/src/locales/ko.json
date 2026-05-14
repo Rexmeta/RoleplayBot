@@ -306,7 +306,9 @@
     "almostDoneEnd": "거의 다 됐어요!",
     "getFeedback": "피드백 받기",
     "exitWarningTooltip": "아직 {{count}}턴 남았어요",
-    "progressBadgeTooltip": "{{current}}/{{target}} 턴 진행 중"
+    "progressBadgeTooltip": "{{current}}/{{target}} 턴 진행 중",
+    "npcStatusButton": "NPC",
+    "npcStatusPanel": "NPC 상태"
   },
   "feedback": {
     "title": "맞춤 보고서",

@@ -285,7 +285,9 @@
     "almostDoneEnd": "快完成了！",
     "getFeedback": "获取反馈",
     "exitWarningTooltip": "还剩{{count}}轮",
-    "progressBadgeTooltip": "进行中 {{current}}/{{target}} 轮"
+    "progressBadgeTooltip": "进行中 {{current}}/{{target}} 轮",
+    "npcStatusButton": "NPC",
+    "npcStatusPanel": "NPC 状态"
   },
   "feedback": {
     "title": "个人报告",
