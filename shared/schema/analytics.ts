@@ -22,6 +22,8 @@ export const aiUsageLogs = pgTable("ai_usage_logs", {
   totalCostUsd: doublePrecision("total_cost_usd").notNull().default(0),
   durationMs: integer("duration_ms"),
   metadata: jsonb("metadata").$type<Record<string, any>>(),
+  // Agent API attribution column (nullable — only set for agent-originated requests)
+  agentKeyId: varchar("agent_key_id"),
 }, (table) => [
   index("idx_ai_usage_logs_occurred_at").on(table.occurredAt),
   index("idx_ai_usage_logs_feature").on(table.feature),

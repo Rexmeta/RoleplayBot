@@ -322,6 +322,13 @@ async function initializeApp() {
   });
   recordStep('request_logging', 'done');
 
+  // Step 3b: Validate AGENT_API_KEY_PEPPER — fatal in all environments
+  {
+    if (!process.env.AGENT_API_KEY_PEPPER) {
+      throw new Error('[startup] FATAL: AGENT_API_KEY_PEPPER is not set. Set this secret before starting the server.');
+    }
+  }
+
   // Step 4: Register API routes (passes the existing server for WebSocket setup)
   recordStep('register_routes', 'start');
   initStatus = 'registering_routes';

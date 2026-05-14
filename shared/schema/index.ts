@@ -7,3 +7,4 @@ export * from "./feedback";
 export * from "./analytics";
 export * from "./settings";
 export * from "./i18n";
+export * from "./agentApi";

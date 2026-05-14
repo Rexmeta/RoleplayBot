@@ -26,6 +26,8 @@ import createTranslationsRouter from "./routes/translations";
 import createPersonaScenesRouter from "./routes/personaScenes";
 import createPersonaUserScenesRouter from "./routes/personaUserScenes";
 import createSimulationRouter from "./routes/simulation";
+import agentApiRouter from "./routes/agentApi";
+import adminAgentKeysRouter from "./routes/adminAgentKeys";
 
 export async function registerRoutes(app: Express, httpServer: Server): Promise<void> {
   const cookieParser = (await import('cookie-parser')).default;
@@ -79,6 +81,14 @@ export async function registerRoutes(app: Express, httpServer: Server): Promise<
   app.use('/api/conversations', createConversationsRouter(isAuthenticated));
   app.use('/api/simulation', createSimulationRouter(isAuthenticated));
   app.use('/api/system-admin', createSystemAdminRouter(isAuthenticated));
+
+  // ================================
+  // Agent API (Enterprise B2B)
+  // ================================
+  // Agent API key-authenticated routes (no JWT required — uses Bearer api_key)
+  app.use('/api/v1/agent', agentApiRouter);
+  // Admin routes for API key management (JWT + admin/operator required)
+  app.use('/api/admin/agent-keys', isAuthenticated, adminAgentKeysRouter);
 
   // ================================
   // Existing sub-routes

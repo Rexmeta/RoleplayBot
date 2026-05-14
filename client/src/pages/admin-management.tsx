@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useSearch } from "wouter";
+import { useQuery } from "@tanstack/react-query";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { OrganizationCategoryTree } from "@/components/admin/OrganizationCategoryTree";
 import { ScenarioManager } from "@/components/admin/ScenarioManager";
@@ -16,6 +17,9 @@ export default function AdminManagement() {
   const [activeTab, setActiveTab] = useState(urlTab || "manage-scenarios");
   const [personaCreateTrigger, setPersonaCreateTrigger] = useState(0);
 
+  const { data: currentUser } = useQuery<any>({ queryKey: ["/api/user"] });
+  const isAdmin = currentUser?.role === "admin";
+
   return (
     <div className="min-h-screen bg-slate-50">
       <AppHeader 
@@ -25,7 +29,7 @@ export default function AdminManagement() {
       />
       <div className="container mx-auto p-3 md:p-6 space-y-6" data-testid="admin-management">
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-          <TabsList className="grid w-full grid-cols-2 sm:grid-cols-5 h-auto p-1 gap-1">
+          <TabsList className="flex flex-wrap w-full h-auto p-1 gap-1">
             <TabsTrigger value="manage-scenarios" data-testid="tab-manage-scenarios">시나리오</TabsTrigger>
             <TabsTrigger value="manage-personas" data-testid="tab-manage-personas">페르소나</TabsTrigger>
             <TabsTrigger value="evaluation-criteria" data-testid="tab-evaluation-criteria">평가기준</TabsTrigger>
@@ -55,6 +59,7 @@ export default function AdminManagement() {
           <TabsContent value="difficulty-settings" className="space-y-6">
             <DifficultySettingsTab />
           </TabsContent>
+
         </Tabs>
       </div>
     </div>

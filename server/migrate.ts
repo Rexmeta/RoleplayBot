@@ -1119,6 +1119,71 @@ export async function runMigrations(): Promise<void> {
         console.warn('⚠️ Failed to create simulation_events table:', err);
       }
 
+      // ─── Agent API Tables (Phase 1A) ──────────────────────────────────────
+      await queryWithTimeout(client, 'Agent API tables created/verified', `
+        -- agent_api_keys
+        CREATE TABLE IF NOT EXISTS "agent_api_keys" (
+          "id" varchar PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+          "name" varchar NOT NULL,
+          "key_hash" varchar NOT NULL,
+          "key_prefix" varchar(16) NOT NULL,
+          "environment" varchar(10) NOT NULL DEFAULT 'live',
+          "owner_user_id" varchar NOT NULL REFERENCES "users"("id"),
+          "organization_id" varchar NOT NULL,
+          "scopes" text[] NOT NULL DEFAULT '{}',
+          "allowed_ips" text[] NOT NULL DEFAULT '{}',
+          "allowed_origins" text[] NOT NULL DEFAULT '{}',
+          "rate_limit_per_minute" integer NOT NULL DEFAULT 60,
+          "expires_at" timestamp,
+          "last_used_at" timestamp,
+          "revoked_at" timestamp,
+          "revoked_by_user_id" varchar REFERENCES "users"("id"),
+          "revocation_reason" text,
+          "is_active" boolean NOT NULL DEFAULT true,
+          "created_at" timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          CONSTRAINT "agent_api_keys_key_hash_unique" UNIQUE("key_hash")
+        );
+        CREATE INDEX IF NOT EXISTS "idx_agent_api_keys_key_prefix" ON "agent_api_keys"("key_prefix");
+        CREATE INDEX IF NOT EXISTS "idx_agent_api_keys_org_id" ON "agent_api_keys"("organization_id");
+        CREATE INDEX IF NOT EXISTS "idx_agent_api_keys_owner" ON "agent_api_keys"("owner_user_id");
+
+        -- agent_key_scenarios
+        CREATE TABLE IF NOT EXISTS "agent_key_scenarios" (
+          "id" varchar PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+          "agent_key_id" varchar NOT NULL REFERENCES "agent_api_keys"("id") ON DELETE CASCADE,
+          "scenario_id" text NOT NULL,
+          "created_at" timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          CONSTRAINT "agent_key_scenarios_unique" UNIQUE("agent_key_id", "scenario_id")
+        );
+        CREATE INDEX IF NOT EXISTS "idx_agent_key_scenarios_key" ON "agent_key_scenarios"("agent_key_id");
+
+        -- audit_logs
+        CREATE TABLE IF NOT EXISTS "audit_logs" (
+          "id" varchar PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+          "actor_user_id" varchar REFERENCES "users"("id"),
+          "organization_id" varchar,
+          "action" varchar NOT NULL,
+          "target_type" varchar,
+          "target_id" varchar,
+          "metadata" jsonb,
+          "ip" varchar,
+          "user_agent" text,
+          "created_at" timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP
+        );
+        CREATE INDEX IF NOT EXISTS "idx_audit_logs_actor" ON "audit_logs"("actor_user_id");
+        CREATE INDEX IF NOT EXISTS "idx_audit_logs_org" ON "audit_logs"("organization_id");
+        CREATE INDEX IF NOT EXISTS "idx_audit_logs_action" ON "audit_logs"("action");
+        CREATE INDEX IF NOT EXISTS "idx_audit_logs_created" ON "audit_logs"("created_at");
+
+        -- ai_usage_logs: add agent_key_id column if not exists (Phase 1A only)
+        DO $$ BEGIN
+          IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'ai_usage_logs' AND column_name = 'agent_key_id') THEN
+            ALTER TABLE "ai_usage_logs" ADD COLUMN "agent_key_id" varchar;
+          END IF;
+        END $$;
+      `);
+      console.log('✅ Agent API tables created/verified');
+
       console.log('✅ Database migrations completed successfully');
     } finally {
       client.release();
