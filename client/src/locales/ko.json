@@ -310,6 +310,38 @@
     "npcStatusButton": "NPC",
     "npcStatusPanel": "NPC 상태"
   },
+  "simulation": {
+    "emotions": {
+      "anger": "분노",
+      "trust": "신뢰",
+      "confusion": "혼란",
+      "interest": "관심"
+    },
+    "stages": {
+      "intro": "도입",
+      "conflict": "갈등",
+      "negotiation": "협상",
+      "escalation": "심화",
+      "resolution": "해결"
+    },
+    "pressure": "압박 {{level}}/5",
+    "score": {
+      "turnScore": "이번 턴 점수",
+      "points": "{{score}}점",
+      "dimensions": {
+        "clarity": "명확성",
+        "empathy": "공감도",
+        "logic": "논리",
+        "ownership": "주인의식",
+        "actionPlan": "해결책"
+      }
+    },
+    "summary": {
+      "avgScore": "평균 {{score}}점",
+      "turns": "{{count}}턴 진행",
+      "issues": "{{count}}건 이슈"
+    }
+  },
   "feedback": {
     "title": "맞춤 보고서",
     "overallScore": "종합 점수",

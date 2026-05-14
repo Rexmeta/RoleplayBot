@@ -289,6 +289,38 @@
     "npcStatusButton": "NPC",
     "npcStatusPanel": "NPCステータス"
   },
+  "simulation": {
+    "emotions": {
+      "anger": "怒り",
+      "trust": "信頼",
+      "confusion": "混乱",
+      "interest": "関心"
+    },
+    "stages": {
+      "intro": "導入",
+      "conflict": "葛藤",
+      "negotiation": "交渉",
+      "escalation": "激化",
+      "resolution": "解決"
+    },
+    "pressure": "圧力 {{level}}/5",
+    "score": {
+      "turnScore": "今ターンのスコア",
+      "points": "{{score}}点",
+      "dimensions": {
+        "clarity": "明確性",
+        "empathy": "共感度",
+        "logic": "論理",
+        "ownership": "主体性",
+        "actionPlan": "解決策"
+      }
+    },
+    "summary": {
+      "avgScore": "平均 {{score}}点",
+      "turns": "{{count}}ターン",
+      "issues": "{{count}}件の問題"
+    }
+  },
   "feedback": {
     "title": "カスタムレポート",
     "overallScore": "総合スコア",

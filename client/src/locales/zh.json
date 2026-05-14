@@ -289,6 +289,38 @@
     "npcStatusButton": "NPC",
     "npcStatusPanel": "NPC 状态"
   },
+  "simulation": {
+    "emotions": {
+      "anger": "愤怒",
+      "trust": "信任",
+      "confusion": "困惑",
+      "interest": "兴趣"
+    },
+    "stages": {
+      "intro": "导入",
+      "conflict": "冲突",
+      "negotiation": "协商",
+      "escalation": "升级",
+      "resolution": "解决"
+    },
+    "pressure": "压力 {{level}}/5",
+    "score": {
+      "turnScore": "本轮得分",
+      "points": "{{score}}分",
+      "dimensions": {
+        "clarity": "清晰度",
+        "empathy": "共情度",
+        "logic": "逻辑",
+        "ownership": "责任感",
+        "actionPlan": "解决方案"
+      }
+    },
+    "summary": {
+      "avgScore": "平均 {{score}}分",
+      "turns": "{{count}}轮",
+      "issues": "{{count}}个问题"
+    }
+  },
   "feedback": {
     "title": "个人报告",
     "overallScore": "综合评分",

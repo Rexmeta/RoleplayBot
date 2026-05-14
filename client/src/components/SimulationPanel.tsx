@@ -1,4 +1,5 @@
 import { memo, useState, useEffect, useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { Card, CardContent } from '@/components/ui/card';
@@ -13,13 +14,7 @@ interface SimulationPanelProps {
   className?: string;
 }
 
-const STAGE_LABELS: Record<string, string> = {
-  intro: '도입',
-  conflict: '갈등',
-  negotiation: '협상',
-  escalation: '심화',
-  resolution: '해결',
-};
+const STAGE_STEPS: string[] = ['intro', 'conflict', 'negotiation', 'escalation', 'resolution'];
 
 const STAGE_COLORS: Record<string, string> = {
   intro: 'bg-blue-500',
@@ -28,8 +23,6 @@ const STAGE_COLORS: Record<string, string> = {
   escalation: 'bg-red-500',
   resolution: 'bg-green-500',
 };
-
-const STAGE_STEPS: string[] = ['intro', 'conflict', 'negotiation', 'escalation', 'resolution'];
 
 function EmotionBar({ label, value, icon, colorClass }: { label: string; value: number; icon: React.ReactNode; colorClass: string }) {
   return (
@@ -49,7 +42,9 @@ function EmotionBar({ label, value, icon, colorClass }: { label: string; value: 
 }
 
 function StageIndicator({ stage }: { stage: string }) {
+  const { t } = useTranslation();
   const currentIdx = STAGE_STEPS.indexOf(stage);
+  const stageLabel = t(`simulation.stages.${stage}`, { defaultValue: stage });
   return (
     <div className="flex items-center gap-1">
       {STAGE_STEPS.map((s, i) => (
@@ -62,19 +57,20 @@ function StageIndicator({ stage }: { stage: string }) {
                 ? `${STAGE_COLORS[s]} scale-125`
                 : 'bg-muted-foreground/20'
             }`}
-            title={STAGE_LABELS[s]}
+            title={t(`simulation.stages.${s}`, { defaultValue: s })}
           />
           {i < STAGE_STEPS.length - 1 && (
             <div className={`h-0.5 w-3 ${i < currentIdx ? 'bg-muted-foreground/40' : 'bg-muted-foreground/10'}`} />
           )}
         </div>
       ))}
-      <span className="ml-1 text-xs font-medium text-foreground">{STAGE_LABELS[stage] ?? stage}</span>
+      <span className="ml-1 text-xs font-medium text-foreground">{stageLabel}</span>
     </div>
   );
 }
 
 function PressureLevel({ level }: { level: number }) {
+  const { t } = useTranslation();
   return (
     <div className="flex items-center gap-1">
       {[1, 2, 3, 4, 5].map(i => (
@@ -87,7 +83,7 @@ function PressureLevel({ level }: { level: number }) {
           }`}
         />
       ))}
-      <span className="ml-1 text-xs text-muted-foreground">압박 {level}/5</span>
+      <span className="ml-1 text-xs text-muted-foreground">{t('simulation.pressure', { level })}</span>
     </div>
   );
 }
@@ -111,31 +107,32 @@ function IncidentBanner({ incident }: { incident: Incident }) {
 }
 
 function ScoreCard({ score }: { score: TurnScore }) {
+  const { t } = useTranslation();
   const dims = [
-    { label: '명확성', value: score.clarity },
-    { label: '공감도', value: score.empathy },
-    { label: '논리', value: score.logic },
-    { label: '주인의식', value: score.ownership },
-    { label: '해결책', value: score.actionPlan },
+    { key: 'clarity', value: score.clarity },
+    { key: 'empathy', value: score.empathy },
+    { key: 'logic', value: score.logic },
+    { key: 'ownership', value: score.ownership },
+    { key: 'actionPlan', value: score.actionPlan },
   ];
   return (
     <div className="space-y-1">
       <div className="flex items-center justify-between">
-        <span className="text-xs font-medium text-muted-foreground">이번 턴 점수</span>
+        <span className="text-xs font-medium text-muted-foreground">{t('simulation.score.turnScore')}</span>
         <Badge variant={score.total >= 70 ? 'default' : score.total >= 50 ? 'secondary' : 'destructive'} className="text-xs">
-          {score.total}점
+          {t('simulation.score.points', { score: score.total })}
         </Badge>
       </div>
       <div className="grid grid-cols-5 gap-1">
         {dims.map(d => (
-          <div key={d.label} className="flex flex-col items-center">
+          <div key={d.key} className="flex flex-col items-center">
             <div className="relative h-8 w-full bg-muted rounded-sm overflow-hidden">
               <div
                 className="absolute bottom-0 left-0 right-0 bg-primary/70 transition-all duration-700"
                 style={{ height: `${d.value}%` }}
               />
             </div>
-            <span className="text-[10px] text-muted-foreground mt-0.5">{d.label}</span>
+            <span className="text-[10px] text-muted-foreground mt-0.5">{t(`simulation.score.dimensions.${d.key}`)}</span>
           </div>
         ))}
       </div>
@@ -210,6 +207,8 @@ const SimulationPanel = memo(function SimulationPanel({
   isVisible = true,
   className = '',
 }: SimulationPanelProps) {
+  const { t } = useTranslation();
+
   if (!isVisible || !state) return null;
 
   const { npcEmotions, stage, pressureLevel, currentScore, summary, timer } = state;
@@ -230,25 +229,25 @@ const SimulationPanel = memo(function SimulationPanel({
 
         <div className="space-y-1.5">
           <EmotionBar
-            label="분노"
+            label={t('simulation.emotions.anger')}
             value={npcEmotions.anger}
             icon={<Zap className="h-3 w-3 text-red-400" />}
             colorClass="bg-red-400"
           />
           <EmotionBar
-            label="신뢰"
+            label={t('simulation.emotions.trust')}
             value={npcEmotions.trust}
             icon={<Heart className="h-3 w-3 text-blue-400" />}
             colorClass="bg-blue-400"
           />
           <EmotionBar
-            label="혼란"
+            label={t('simulation.emotions.confusion')}
             value={npcEmotions.confusion}
             icon={<Brain className="h-3 w-3 text-yellow-400" />}
             colorClass="bg-yellow-400"
           />
           <EmotionBar
-            label="관심"
+            label={t('simulation.emotions.interest')}
             value={npcEmotions.interest}
             icon={<Eye className="h-3 w-3 text-green-400" />}
             colorClass="bg-green-400"
@@ -258,11 +257,11 @@ const SimulationPanel = memo(function SimulationPanel({
         <div className="flex items-center justify-between text-xs text-muted-foreground border-t border-border/40 pt-2">
           <div className="flex items-center gap-1">
             <TrendingUp className="h-3 w-3" />
-            <span>평균 {summary.averageScore}점</span>
+            <span>{t('simulation.summary.avgScore', { score: summary.averageScore })}</span>
           </div>
-          <span>{summary.totalTurns}턴 진행</span>
+          <span>{t('simulation.summary.turns', { count: summary.totalTurns })}</span>
           {summary.totalIncidents > 0 && (
-            <span className="text-orange-500">{summary.totalIncidents}건 이슈</span>
+            <span className="text-orange-500">{t('simulation.summary.issues', { count: summary.totalIncidents })}</span>
           )}
         </div>
 

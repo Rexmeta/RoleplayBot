@@ -289,6 +289,38 @@
     "npcStatusButton": "NPC",
     "npcStatusPanel": "NPC Status"
   },
+  "simulation": {
+    "emotions": {
+      "anger": "Anger",
+      "trust": "Trust",
+      "confusion": "Confusion",
+      "interest": "Interest"
+    },
+    "stages": {
+      "intro": "Intro",
+      "conflict": "Conflict",
+      "negotiation": "Negotiation",
+      "escalation": "Escalation",
+      "resolution": "Resolution"
+    },
+    "pressure": "Pressure {{level}}/5",
+    "score": {
+      "turnScore": "This Turn's Score",
+      "points": "{{score}}pts",
+      "dimensions": {
+        "clarity": "Clarity",
+        "empathy": "Empathy",
+        "logic": "Logic",
+        "ownership": "Ownership",
+        "actionPlan": "Solution"
+      }
+    },
+    "summary": {
+      "avgScore": "Avg {{score}}pts",
+      "turns": "{{count}} turns",
+      "issues": "{{count}} issues"
+    }
+  },
   "feedback": {
     "title": "Personal Report",
     "overallScore": "Overall Score",
