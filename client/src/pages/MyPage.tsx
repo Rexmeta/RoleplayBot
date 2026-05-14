@@ -9,7 +9,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Progress } from "@/components/ui/progress";
-import { CalendarDays, Star, TrendingUp, MessageSquare, Award, History, BarChart3, Target, Trash2, Loader2, HelpCircle, Lightbulb, CheckCircle, AlertCircle, ArrowRight, Minus, TrendingDown, Users, Filter } from "lucide-react";
+import { CalendarDays, Star, TrendingUp, MessageSquare, Award, History, BarChart3, Target, Trash2, Loader2, HelpCircle, Lightbulb, CheckCircle, AlertCircle, ArrowRight, Minus, TrendingDown, Users, Filter, Zap } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Link } from "wouter";
 import { useAuth } from "@/hooks/useAuth";
@@ -27,6 +27,21 @@ type ScoreChartPoint = {
   count: number;
   hasEvidenceCap: boolean;
 };
+
+type SimulationSummary = {
+  averageScore: number;
+  totalIncidents: number;
+};
+
+function getSimSummary(personaRun: PersonaRun): SimulationSummary | null {
+  const state = personaRun.simulationState as { summary?: { averageScore?: number; totalIncidents?: number } } | null;
+  const summary = state?.summary;
+  if (!summary) return null;
+  return {
+    averageScore: typeof summary.averageScore === 'number' ? summary.averageScore : 0,
+    totalIncidents: typeof summary.totalIncidents === 'number' ? summary.totalIncidents : 0,
+  };
+}
 
 type ScoreChartDotProps = {
   cx: number;
@@ -451,6 +466,31 @@ export default function MyPage() {
                                       ) : (
                                         <Badge className="text-xs py-0 bg-yellow-600">진행 중</Badge>
                                       )}
+                                      {(() => {
+                                        const runs = scenarioRun.personaRuns || [];
+                                        const summaries = runs.map(getSimSummary).filter((s): s is SimulationSummary => s !== null);
+                                        const totalIncidents = summaries.reduce((sum, s) => sum + s.totalIncidents, 0);
+                                        const scoredSummaries = summaries.filter(s => s.averageScore > 0);
+                                        const avgSimScore = scoredSummaries.length > 0
+                                          ? scoredSummaries.reduce((sum, s) => sum + s.averageScore, 0) / scoredSummaries.length
+                                          : null;
+                                        return (
+                                          <>
+                                            {avgSimScore !== null && (
+                                              <Badge variant="outline" className="text-xs py-0 bg-cyan-50 text-cyan-700 border-cyan-200 flex items-center gap-0.5">
+                                                <TrendingUp className="w-2.5 h-2.5" />
+                                                시뮬 {avgSimScore.toFixed(0)}점
+                                              </Badge>
+                                            )}
+                                            {totalIncidents > 0 && (
+                                              <Badge variant="outline" className="text-xs py-0 bg-orange-50 text-orange-700 border-orange-200 flex items-center gap-0.5">
+                                                <Zap className="w-2.5 h-2.5" />
+                                                사건 {totalIncidents}건
+                                              </Badge>
+                                            )}
+                                          </>
+                                        );
+                                      })()}
                                     </div>
                                   </div>
                                 </AccordionTrigger>
@@ -1259,6 +1299,25 @@ function ScenarioRunDetails({
                       <Badge className={`text-xs ${isCompleted ? 'bg-green-600' : isActive ? 'bg-yellow-600' : 'bg-gray-400'}`}>
                         {isCompleted ? '완료' : isActive ? '진행 중' : '시작 전'}
                       </Badge>
+                      {(() => {
+                        const sim = getSimSummary(personaRun);
+                        return (
+                          <>
+                            {sim !== null && sim.averageScore > 0 && (
+                              <Badge variant="outline" className="text-xs bg-cyan-50 text-cyan-700 border-cyan-200 flex items-center gap-0.5">
+                                <TrendingUp className="w-2.5 h-2.5" />
+                                {sim.averageScore.toFixed(0)}점
+                              </Badge>
+                            )}
+                            {sim !== null && sim.totalIncidents > 0 && (
+                              <Badge variant="outline" className="text-xs bg-orange-50 text-orange-700 border-orange-200 flex items-center gap-0.5">
+                                <Zap className="w-2.5 h-2.5" />
+                                {sim.totalIncidents}건
+                              </Badge>
+                            )}
+                          </>
+                        );
+                      })()}
                     </div>
                   </div>
                   <div className="flex items-center gap-2 pl-9 sm:pl-0">
@@ -1336,6 +1395,25 @@ function ScenarioRunDetails({
                     }`}>
                       {isCompleted ? '완료' : isActive ? '진행 중' : '시작 전'}
                     </Badge>
+                    {(() => {
+                      const sim = personaRun ? getSimSummary(personaRun) : null;
+                      return (
+                        <>
+                          {sim !== null && sim.averageScore > 0 && (
+                            <Badge variant="outline" className="text-xs bg-cyan-50 text-cyan-700 border-cyan-200 flex items-center gap-0.5">
+                              <TrendingUp className="w-2.5 h-2.5" />
+                              {sim.averageScore.toFixed(0)}점
+                            </Badge>
+                          )}
+                          {sim !== null && sim.totalIncidents > 0 && (
+                            <Badge variant="outline" className="text-xs bg-orange-50 text-orange-700 border-orange-200 flex items-center gap-0.5">
+                              <Zap className="w-2.5 h-2.5" />
+                              {sim.totalIncidents}건
+                            </Badge>
+                          )}
+                        </>
+                      );
+                    })()}
                   </div>
                 </div>
                 <div className="flex items-center gap-2 pl-9 sm:pl-0">
