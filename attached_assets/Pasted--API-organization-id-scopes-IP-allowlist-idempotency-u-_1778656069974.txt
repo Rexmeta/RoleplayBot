@@ -1,0 +1,479 @@
+좋습니다. 이전 초안보다 **기업용 API 상품**에 훨씬 가까워졌습니다. 특히 `organization_id`, scopes, IP allowlist, idempotency, usage daily, audit log, standard error, server-to-server 고지까지 들어간 점은 맞는 방향입니다. 
+
+다만 **바로 개발 착수 전 몇 가지는 더 보완하는 게 좋습니다.** 지금 상태는 “API 설계”는 좋지만, 실제 B2B 운영에서 터질 수 있는 부분이 아직 남아 있습니다.
+
+---
+
+# 결론
+
+**개발 시작 가능:** 가능
+**그대로 전체 구현:** 비추천
+**추천:** Phase 1부터 시작하되, 아래 보완사항을 문서에 추가한 뒤 진행
+
+---
+
+# 1. API Key 해시 방식에 salt/HMAC 고려 필요
+
+현재는 `SHA-256(full key)` 저장입니다. 나쁘지는 않지만, 더 안전하게 하려면 서버 비밀값을 섞은 HMAC이 좋습니다.
+
+## 보완안
+
+```txt
+key_hash = HMAC-SHA256(full_api_key, AGENT_API_KEY_PEPPER)
+```
+
+환경변수:
+
+```txt
+AGENT_API_KEY_PEPPER
+```
+
+이유는 DB가 유출되어도 단순 SHA-256보다 키 추정 방어력이 좋아집니다.
+
+---
+
+# 2. API Key 조회 성능을 위해 `key_prefix`로 1차 필터링하세요
+
+모든 요청마다 입력 키 전체를 해시해서 `key_hash` 조회하는 것은 가능하지만, 운영상 `key_prefix`를 같이 쓰면 관리와 조회가 좋아집니다.
+
+## 권장 흐름
+
+```txt
+1. Bearer key 파싱
+2. key_prefix 추출
+3. key_prefix로 후보 조회
+4. HMAC/SHA 해시 비교
+5. active/expires/revoked/IP/scope 검증
+```
+
+DB index:
+
+```txt
+agent_api_keys.key_prefix index
+agent_api_keys.key_hash unique index
+```
+
+---
+
+# 3. `allowed_origins`는 서버-서버 API와 충돌 가능
+
+문서에는 server-to-server only라고 되어 있는데, DB에는 `allowed_origins`가 있습니다. 브라우저 호출을 허용할 생각이 아니라면 `allowed_origins`는 혼란을 줍니다.
+
+## 선택
+
+### 추천: MVP에서는 제거
+
+```txt
+allowed_origins는 MVP에서 사용하지 않는다.
+API keys are server-to-server only.
+```
+
+### 남길 경우
+
+```txt
+allowed_origins는 문서 표시/향후 CORS 제한용 예약 필드이며, MVP 인증 판단에는 사용하지 않는다.
+```
+
+기업용 API 키는 브라우저에 노출되면 안 되기 때문에 `allowed_ips`가 더 중요합니다.
+
+---
+
+# 4. GET `/personas`도 시나리오 권한과 연결해야 함
+
+현재 `GET /personas`는 “페르소나 목록”으로 되어 있는데, 모든 페르소나를 반환하면 고객사 권한을 우회할 수 있습니다.
+
+## 보완안
+
+```txt
+GET /api/v1/agent/personas는 해당 API key가 접근 가능한 scenarioId에 연결된 personas만 반환한다.
+선택적으로 ?scenarioId=xxx 필터를 지원한다.
+scenarioId가 주어지면 해당 시나리오 권한을 먼저 검증한다.
+```
+
+즉, personas도 전체 공개 금지입니다.
+
+---
+
+# 5. 세션 시작 시 scenario/persona 매칭 검증 필요
+
+`POST /sessions`에서 `scenarioId`, `personaId`를 받는데, 이 persona가 해당 scenario에 속한 persona인지 반드시 확인해야 합니다.
+
+## 보완 문구
+
+```txt
+scenarioId가 API key에 허용되어 있는지 검증한다.
+personaId가 해당 scenario.personas에 포함되어 있는지 검증한다.
+둘 중 하나라도 실패하면 scenario_not_found 또는 persona_not_found를 반환한다.
+```
+
+보안상 “존재하지만 권한 없음”도 404처럼 처리하는 편이 안전합니다.
+
+```txt
+권한 없는 scenario/persona는 403 대신 404로 응답해 존재 여부를 노출하지 않는다.
+```
+
+---
+
+# 6. `externalSessionId` unique 정책이 필요함
+
+외부 고객사가 같은 `externalSessionId`로 여러 번 세션을 만들 수 있습니다. 이걸 허용할지, idempotency처럼 재사용할지 정해야 합니다.
+
+## 추천
+
+organization 단위 unique 옵션:
+
+```txt
+organization_id + external_session_id unique, 단 external_session_id가 null이 아닐 때
+```
+
+동작:
+
+```txt
+동일 externalSessionId로 active 세션이 있으면 기존 agent_session을 반환한다.
+ended/expired 세션이면 새 세션 생성 또는 409 conflict 중 하나를 정책으로 선택한다.
+```
+
+MVP는 단순하게:
+
+```txt
+동일 organization_id + external_session_id active 세션이 있으면 기존 세션 반환
+```
+
+---
+
+# 7. Idempotency-Key 보존 기간이 필요함
+
+`agent_idempotency_keys` 테이블은 좋은데, TTL이 없습니다. 무한히 쌓이면 문제입니다.
+
+## 보완안
+
+```txt
+Idempotency-Key 보존 기간: 24시간
+24시간 이후 cleanup job으로 삭제
+```
+
+추가 필드:
+
+```txt
+expires_at
+```
+
+그리고 request hash가 다르면 에러를 반환해야 합니다.
+
+```json
+{
+  "error": {
+    "code": "idempotency_key_conflict",
+    "message": "The same Idempotency-Key was used with a different request body.",
+    "details": null
+  },
+  "requestId": "req_..."
+}
+```
+
+에러 코드에도 추가하세요.
+
+---
+
+# 8. Rate limiting 저장소를 메모리로 둘지 Redis로 둘지 결정 필요
+
+`express-rate-limit` 기본 메모리 스토어는 단일 서버에서는 괜찮지만, Vercel/Render/멀티 인스턴스/서버리스에서는 부정확합니다.
+
+## 보완안
+
+MVP 문구:
+
+```txt
+MVP는 메모리 rate limit으로 시작한다.
+운영 배포 또는 다중 인스턴스 환경에서는 Redis store로 교체한다.
+```
+
+기업용이면 Redis 권장입니다.
+
+```txt
+Upstash Redis 또는 managed Redis 기반 rate limit store 사용
+```
+
+---
+
+# 9. 사용량 집계는 요청 완료 후 비동기로 처리해야 함
+
+`agent_usage_daily`를 매 요청마다 동기 upsert하면 메시지 API latency가 증가합니다.
+
+## 보완안
+
+```txt
+요청 응답은 먼저 반환하고, usage daily aggregation은 best-effort async로 수행한다.
+실패해도 API 응답은 실패시키지 않는다.
+원본 ai_usage_logs를 source of truth로 둔다.
+agent_usage_daily는 대시보드용 materialized summary다.
+```
+
+이 구조가 안정적입니다.
+
+---
+
+# 10. `ai_usage_logs.agent_key_id`만으로는 session 추적이 부족함
+
+사용량을 고객사/세션/요청 단위로 분석하려면 아래도 있으면 좋습니다.
+
+```txt
+ai_usage_logs.agent_session_id
+ai_usage_logs.organization_id
+ai_usage_logs.request_id
+```
+
+특히 `requestId`는 장애 분석에 중요합니다.
+
+---
+
+# 11. 응답의 `usage`는 provider가 못 줄 수도 있음
+
+Gemini/OpenAI provider마다 token usage를 항상 반환하지 않을 수 있습니다. 그러면 응답 스키마가 흔들립니다.
+
+## 보완안
+
+```json
+"usage": {
+  "inputTokens": null,
+  "outputTokens": null,
+  "totalTokens": null,
+  "estimated": true
+}
+```
+
+또는:
+
+```json
+"usage": null
+```
+
+문서에 명시하세요.
+
+```txt
+usage는 provider가 token count를 제공하지 않는 경우 null 또는 estimated=true로 반환된다.
+```
+
+---
+
+# 12. 메시지 저장/반환에서 PII 정책이 필요함
+
+기업 API는 외부 사용자 발화를 저장합니다. 이건 개인정보 이슈가 생깁니다.
+
+## 최소 보완
+
+```txt
+metadata에는 주민번호, 카드번호, 비밀번호 등 민감정보를 넣지 말 것을 문서화한다.
+message body는 서비스 품질 및 리포트 생성을 위해 저장될 수 있음을 API 문서에 명시한다.
+organization별 retentionDays 설정은 Phase 4로 둔다.
+```
+
+DB에 미리 필드를 넣어도 좋습니다.
+
+```txt
+organization.data_retention_days
+```
+
+---
+
+# 13. HTML/script sanitize보다 “출력 escape”가 더 중요함
+
+입력에서 HTML/script 태그를 sanitize한다고 되어 있습니다. 서버가 원문 분석을 해야 하는 경우 입력을 과도하게 변형하면 평가 품질이 떨어질 수 있습니다.
+
+## 권장
+
+```txt
+원문 message는 서버에서 안전하게 저장한다.
+관리자/리포트/대화 UI에서 렌더링할 때 반드시 escape한다.
+metadata key/value는 크기 제한과 JSON schema validation을 적용한다.
+```
+
+즉, 무조건 태그 제거보다 **출력 시 escape**가 더 안전하고 데이터 손실이 적습니다.
+
+---
+
+# 14. `agent_sessions/:id` 소유권 검증 기준 명확화
+
+GET/POST messages/end는 반드시 해당 API key 또는 같은 organization에 속한 세션만 접근 가능해야 합니다.
+
+## 보완 문구
+
+```txt
+agent_sessions 조회/메시지/종료 시:
+- agent_session.organization_id === req.agentOrgId
+- 가능하면 agent_session.agent_key_id === req.agentKey.id 또는 same organization policy 허용
+```
+
+MVP는 더 엄격하게:
+
+```txt
+세션을 생성한 동일 agent_key_id만 해당 세션에 접근 가능
+```
+
+나중에 조직 내 키 공유 정책을 추가하세요.
+
+---
+
+# 15. 표준 에러 코드에 몇 개 추가 필요
+
+추가 추천:
+
+```txt
+idempotency_key_conflict
+ip_not_allowed
+quota_exceeded
+concurrent_session_limit_exceeded
+external_session_conflict
+metadata_too_large
+message_too_long
+unsupported_language
+invalid_difficulty
+```
+
+---
+
+# 16. Admin API Key 발급 권한도 별도 scope/role 필요
+
+어드민/오퍼레이터가 발급 가능하다고 되어 있습니다. 그런데 operator가 모든 organization 키를 만들 수 있으면 위험합니다.
+
+## 보완안
+
+```txt
+admin: 모든 organization 키 관리 가능
+operator: 자신에게 허용된 organization만 관리 가능
+```
+
+또는 MVP:
+
+```txt
+MVP에서는 admin만 API key 생성/폐기 가능.
+operator는 조회만 가능.
+```
+
+기업용이면 이게 안전합니다.
+
+---
+
+# 17. 키 발급 시 기본 만료일 강제 권장
+
+만료일이 optional이면 영구 키가 생깁니다. 기업 보안상 좋지 않습니다.
+
+## 권장
+
+```txt
+기본 만료일: 90일 또는 180일
+최대 만료일: 365일
+만료일 없는 키는 admin만 생성 가능하거나 MVP에서는 금지
+```
+
+---
+
+# 18. Test/Live 키 환경 분리가 더 필요함
+
+키 prefix에 `rpb_live`, `rpb_test`를 둔 건 좋습니다. 그런데 test 키가 실제 과금/실제 리포트/실제 고객 데이터에 영향을 주면 안 됩니다.
+
+## 보완안
+
+```txt
+agent_api_keys.environment: 'test' | 'live'
+test key로 생성된 sessions는 status/usage는 기록하되 billing 대상에서 제외한다.
+test key는 test/public demo scenarios만 접근 가능하게 제한할 수 있다.
+```
+
+---
+
+# 19. OpenAPI docs endpoint도 rate limit/auth 분리 필요
+
+문서 자체는 admin/operator JWT 인증으로 보호한다고 되어 있어 좋습니다. 추가로 OpenAPI JSON도 같은 보호를 적용하세요.
+
+```txt
+/api/v1/agent/docs
+/api/v1/agent/openapi.json
+둘 다 admin/operator JWT 인증 필요
+```
+
+---
+
+# 20. Phase 1에 audit_logs까지 넣는 건 조금 무거울 수 있음
+
+Phase 1에 `agent_api_keys`, `agent_key_scenarios`, `audit_logs`, `ai_usage_logs` 수정, Admin UI, OpenAPI까지 들어가 있습니다. 조금 큽니다.
+
+## 더 안전한 분할
+
+### Phase 1A — DB + 인증 middleware
+
+```txt
+agent_api_keys
+agent_key_scenarios
+key generation
+isAgentApiKey
+scope middleware
+standard error
+```
+
+### Phase 1B — 목록 API
+
+```txt
+GET scenarios
+GET personas
+requestId
+OpenAPI 최소 문서
+```
+
+### Phase 1C — Admin UI
+
+```txt
+키 발급
+키 목록
+키 폐기
+audit_logs
+```
+
+Admin UI는 API 코어가 안정된 뒤 붙이는 게 좋습니다.
+
+---
+
+# 21. #292 Simulation Engine 의존성 순서 명확화 필요
+
+문서에 “Task #292의 Simulation Engine과 동일한 엔진을 공유”한다고 되어 있습니다. 
+
+그런데 #292가 아직 구현 전이면 #291 Phase 2 메시지 API가 막힙니다.
+
+## 보완안
+
+```txt
+Dependency:
+- Phase 1 of #291 can proceed independently.
+- #291 Phase 2 sessions/messages requires #292 Phase 1A~2 Simulation Engine APIs to be available.
+- If #292 is not ready, #291 Phase 2 returns basic AI reply only and simulationState=null behind a feature flag.
+```
+
+feature flag:
+
+```txt
+AGENT_API_ENABLE_SIMULATION=true|false
+```
+
+---
+
+# 최종 판단
+
+**이제 훨씬 좋아졌습니다.**
+기업용 API로 필요한 핵심 요소가 대부분 들어갔습니다. 다만 개발 착수 전 아래 10개만 더 반영하면 안정성이 크게 올라갑니다.
+
+```txt
+1. key_hash를 HMAC-SHA256 + pepper 방식으로 변경
+2. key_prefix index/unique hash index 명시
+3. GET personas도 scenario 권한 기준으로 제한
+4. scenarioId-personaId 매칭 검증 추가
+5. Idempotency-Key TTL/충돌 에러 추가
+6. 세션 접근은 동일 agent_key_id 기준으로 제한
+7. Rate limit은 MVP memory, 운영 Redis store 명시
+8. usage 집계는 async best-effort 처리
+9. #292 Simulation Engine 의존성/feature flag 명시
+10. Phase 1을 DB+미들웨어 / 목록 API / Admin UI로 분할
+```
+
+한 줄로 말하면:
+
+> **방향은 좋고 기업용 수준에 가까워졌습니다. 이제 남은 건 운영 안전장치와 구현 순서 분할입니다.**

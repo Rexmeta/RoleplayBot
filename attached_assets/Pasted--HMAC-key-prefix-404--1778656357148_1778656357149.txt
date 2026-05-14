@@ -1,0 +1,295 @@
+좋습니다. **이제 개발 착수해도 되는 수준입니다.**
+이번 버전은 이전보다 훨씬 단단합니다. 특히 HMAC 키 저장, `key_prefix` 인덱스, 권한 없는 리소스 404 처리, 동일 `agent_key_id` 세션 접근 제한, idempotency TTL, #292 의존성 feature flag까지 들어가서 **기업용 API MVP 설계로 충분히 합격선**입니다. 
+
+다만 바로 전체 구현을 맡기지는 말고, **Phase 1A부터 잘라서 시작**하는 게 맞습니다.
+
+---
+
+# 최종 평가
+
+## 시작 가능 여부
+
+**가능합니다.**
+
+현재 문서는 단순 API 기획이 아니라, 개발자가 바로 작업할 수 있는 수준의 구현 지시서에 가깝습니다.
+
+특히 잘 잡힌 부분은 이겁니다.
+
+```txt
+1. API 키 원문 미저장 + HMAC-SHA256 + pepper
+2. key_prefix 인덱스와 key_hash unique index
+3. server-to-server 전용 원칙
+4. organization_id 기반 멀티테넌시
+5. scopes 기반 권한 제어
+6. allowed_ips 화이트리스트
+7. scenario/persona 권한 제한
+8. externalUserId / externalSessionId 분리
+9. Idempotency-Key 지원
+10. 표준 에러 포맷과 requestId
+11. ai_usage_logs + agent_usage_daily
+12. audit_logs
+13. #292 Simulation Engine 미준비 시 simulationState=null fallback
+```
+
+이 정도면 **기업 고객용 외부 API의 핵심 뼈대**는 잡혔습니다.
+
+---
+
+# 그래도 마지막으로 보완하면 좋은 부분
+
+## 1. Phase 1A에 `agent_sessions`까지 넣는 건 약간 무거움
+
+현재 Phase 1A에 아래 테이블이 모두 들어갑니다.
+
+```txt
+agent_api_keys
+agent_key_scenarios
+audit_logs
+agent_idempotency_keys
+agent_usage_daily
+agent_sessions
+ai_usage_logs 컬럼 추가
+```
+
+이 중 `agent_sessions`, `agent_idempotency_keys`, `agent_usage_daily`는 Phase 2에서 실제로 쓰입니다.
+
+## 추천
+
+Phase 1A를 조금 더 얇게 나누는 게 안전합니다.
+
+```txt
+Phase 1A — API Key Core
+- agent_api_keys
+- agent_key_scenarios
+- audit_logs
+- ai_usage_logs agent_key_id 정도만 optional
+- key generation utility
+- isAgentApiKey middleware
+- scope middleware
+- standard error handler
+```
+
+```txt
+Phase 2A — Agent Session Core
+- agent_sessions
+- agent_idempotency_keys
+- ai_usage_logs agent_session_id / request_id
+```
+
+물론 한 번에 해도 되지만, 처음부터 DB 변경량이 크면 migration 리스크가 커집니다.
+
+---
+
+## 2. `organization_id`가 없는 기존 사용자/시나리오 처리 정책 필요
+
+현재 설계는 `organization_id` 중심입니다. 좋은데, 기존 데이터에 organization이 없을 수 있습니다.
+
+## 추가 문구 권장
+
+```txt
+기존 시나리오/사용자가 organization_id를 갖지 않는 경우:
+- admin이 API key를 생성할 때 organization_id가 없으면 default organization을 생성하거나,
+- MVP에서는 organization_id nullable을 허용하되 agent API key는 반드시 organization_id를 요구한다.
+```
+
+기업용이면 최종적으로는 이게 맞습니다.
+
+```txt
+agent_api_keys.organization_id는 NOT NULL
+```
+
+단, 기존 시스템과 연결할 때 migration 전략이 필요합니다.
+
+---
+
+## 3. IP 화이트리스트에서 프록시 환경 처리 필요
+
+Express에서 `req.ip`를 그냥 쓰면 Cloudflare, Vercel, Nginx 뒤에서 실제 IP가 안 잡힐 수 있습니다.
+
+## 추가 문구 권장
+
+```txt
+allowed_ips 검증은 trust proxy 설정을 확인한 뒤 수행한다.
+운영 환경에서는 X-Forwarded-For / CF-Connecting-IP 처리 정책을 명확히 한다.
+신뢰할 수 없는 proxy header는 그대로 믿지 않는다.
+```
+
+MVP에서는 이렇게 처리하세요.
+
+```txt
+MVP: req.ip 기준
+운영: trusted proxy 설정 후 client IP resolver 분리
+```
+
+---
+
+## 4. API 키 pepper rotation 정책은 나중에라도 필요
+
+`AGENT_API_KEY_PEPPER`를 쓰면 좋습니다. 다만 나중에 pepper를 교체해야 할 수 있습니다.
+
+MVP에서는 고정으로 가도 되지만, 문서에 남겨두면 좋습니다.
+
+```txt
+MVP에서는 단일 AGENT_API_KEY_PEPPER 사용.
+향후 pepper rotation을 위해 pepper_version 컬럼 추가 가능.
+```
+
+지금 당장은 필수는 아닙니다.
+
+---
+
+## 5. `agent_key_scenarios`만 있으면 조직 단위 권한 중복 관리가 생길 수 있음
+
+키마다 시나리오를 지정하는 방식은 정확하지만, 키가 많아지면 관리가 번거롭습니다.
+
+MVP에서는 OK입니다. 다만 Phase 4에 이미 organization 관리 UI가 있으니, 아래를 추가하면 좋습니다.
+
+```txt
+Phase 4:
+organization_scenarios 테이블을 추가해 조직 단위 기본 시나리오 권한을 관리하고,
+agent_key_scenarios는 키별 override로 사용한다.
+```
+
+---
+
+## 6. 표준 에러에 `request_timeout` 추가 추천
+
+AI provider가 늦거나 내부 처리가 timeout 날 수 있습니다. `provider_timeout`은 있지만 전체 요청 timeout과 구분하면 좋습니다.
+
+추가 추천:
+
+```txt
+request_timeout
+service_unavailable
+```
+
+---
+
+## 7. API 응답에 `createdAt` / `status`가 조금 더 필요함
+
+세션 생성/조회 응답에는 최소한 아래가 필요합니다.
+
+```json
+{
+  "sessionId": "ags_...",
+  "status": "active",
+  "scenarioId": "...",
+  "personaId": "...",
+  "externalUserId": "...",
+  "externalSessionId": "...",
+  "createdAt": "...",
+  "expiresAt": "..."
+}
+```
+
+`POST /sessions` 응답 포맷을 문서에 추가해두면 좋습니다.
+
+---
+
+# 개발 순서 추천
+
+이제는 이렇게 시작하면 됩니다.
+
+## 1단계: Phase 1A만 구현
+
+```txt
+DB:
+- agent_api_keys
+- agent_key_scenarios
+- audit_logs
+
+Server:
+- key generation utility
+- HMAC hash utility
+- requestId middleware
+- standard error helper
+- isAgentApiKey middleware
+- requireAgentScope middleware
+```
+
+완료 기준:
+
+```txt
+- API 키 생성 가능
+- DB에는 원문 키 저장 안 됨
+- Bearer 키 인증 성공/실패 테스트 통과
+- expired/revoked/inactive/IP/scope 실패 케이스 테스트 통과
+```
+
+---
+
+## 2단계: Phase 1B 목록 API
+
+```txt
+GET /api/v1/agent/scenarios
+GET /api/v1/agent/personas
+```
+
+완료 기준:
+
+```txt
+- 허용된 scenario만 반환
+- 권한 없는 scenarioId는 404
+- personas도 허용된 scenario 기준으로만 반환
+- requestId 포함
+```
+
+---
+
+## 3단계: Phase 1C Admin UI
+
+```txt
+에이전트 API 탭
+키 생성
+원문 1회 표시
+키 목록
+폐기
+audit_logs 기록
+```
+
+---
+
+## 4단계: Phase 2 세션 API
+
+그 다음에 `agent_sessions`, `agent_idempotency_keys`, 메시지 API로 가면 됩니다.
+
+---
+
+# 바로 개발 에이전트에게 넣을 때 주의 문구
+
+문서 맨 위에 이 문장을 추가하세요.
+
+```txt
+Do not implement all phases at once.
+Start with Phase 1A only: DB schema for API keys, key generation, authentication middleware, scope middleware, requestId/error format.
+Do not implement sessions/messages/admin UI until Phase 1A tests pass.
+```
+
+한국어로는:
+
+```txt
+전체 Phase를 한 번에 구현하지 말 것.
+먼저 Phase 1A만 구현한다: API 키 DB, 키 생성, 인증 미들웨어, scope 미들웨어, requestId/표준 에러 포맷.
+Phase 1A 테스트가 통과하기 전에는 세션/메시지 API와 Admin UI를 구현하지 않는다.
+```
+
+---
+
+# 최종 결론
+
+**이제 시작해도 됩니다.**
+현재 문서는 기업용 API MVP로 충분히 탄탄합니다. 남은 리스크는 설계 문제가 아니라 **구현 범위를 한 번에 너무 크게 잡는 것**입니다.
+
+따라서 최종 권장안은 이겁니다.
+
+```txt
+1. Phase 1A부터 시작
+2. 인증/권한/에러 포맷 테스트 먼저 통과
+3. 그 다음 목록 API
+4. 그 다음 Admin UI
+5. 마지막으로 세션/메시지 API
+```
+
+한 줄로 말하면:
+
+> **설계는 시작 가능. 단, 전체 구현 금지. API Key Core부터 작게 끊어서 시작하세요.**

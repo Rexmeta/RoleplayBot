@@ -1,0 +1,506 @@
+계획이 많이 정교해졌습니다. 이전 버전에서 지적했던 **상태 소유권, personaRunId 기준, version, incident 중복 방지, 평가 fallback, Tool 3개 축소**가 잘 반영되어 있습니다. 지금 수준이면 개발 착수 문서로는 꽤 좋습니다. 다만 실제 구현 단계에서 아직 보완해야 할 핵심 리스크가 남아 있습니다. 
+
+---
+
+# 1. 가장 큰 보완점: “음성 turnIndex 증가 시점” 표현이 아직 위험함
+
+현재 계획에는 이렇게 되어 있습니다.
+
+> 음성 모드: userTranscriptBuffer 확정(inputTranscription 이벤트) 시점을 기준으로 currentTurnIndex 증가
+
+여기서 **inputTranscription 이벤트**는 delta 형태로 여러 번 들어올 수 있습니다. 실제 turn 완료 기준은 `inputTranscription` 자체가 아니라 **사용자 발화가 끝났다고 판단되는 turnComplete / END_OF_TURN 처리 이후**여야 합니다.
+
+## 수정 권장
+
+```txt
+음성 모드 turnIndex 기준:
+- inputTranscription delta 수신 시에는 userTranscriptBuffer에 누적만 한다.
+- serverContent.turnComplete 또는 사용자 발화 END_OF_TURN 처리 후 userTranscriptBuffer.trim()이 확정되는 시점에만 turnIndex를 증가시킨다.
+- 빈 transcript 또는 10자 미만 평가 생략 발화도 turnIndex 증가 여부를 명확히 정한다.
+```
+
+추가로 권장합니다.
+
+```txt
+turnIndex는 user message가 chatMessages에 저장되는 시점과 1:1로 매칭한다.
+```
+
+즉, **chatMessages.user 1개 = turnScore 0 또는 1개 = simulationEvents N개** 구조가 되어야 합니다.
+
+---
+
+# 2. `simulationState` 크기 증가 문제를 제한해야 함
+
+현재 `SimulationState` 안에 `turnScores[]`, `incidents[]`를 계속 누적합니다. 짧은 세션이면 괜찮지만, 장시간 음성 대화에서는 `persona_runs.simulation_state jsonb`가 계속 커집니다.
+
+DB에는 이미 `simulation_events`를 따로 만들기 때문에, 최신 state snapshot에 모든 이력을 무한히 넣을 필요는 없습니다.
+
+## 수정 권장
+
+`simulationState`는 최신 상태 중심으로 제한하세요.
+
+```ts
+interface SimulationState {
+  version: number;
+  stage: ScenarioStage;
+  pressureLevel: number;
+  npcEmotions: NpcEmotions;
+  timer: TimerState;
+  currentScore: number;
+
+  recentTurnScores: TurnScore[]; // 최근 5~10개만
+  recentIncidents: Incident[];   // 최근 5~10개만
+
+  summary: {
+    totalTurns: number;
+    totalIncidents: number;
+    averageScore: number;
+    maxAnger: number;
+    minTrust: number;
+  };
+}
+```
+
+전체 이력은 `simulation_events`에서 읽어 리포트에 사용하면 됩니다.
+
+---
+
+# 3. `currentScore` 산식이 더 명확해야 함
+
+지금은 “실시간 누적 점수”라고 되어 있고, 가중치도 정의되어 있습니다. 하지만 누적 방식이 불명확합니다.
+
+예를 들어 최근 턴만 반영할지, 전체 평균인지, 시간이 지날수록 최근 발화에 가중치를 줄지 결정해야 합니다.
+
+## 권장안
+
+MVP는 단순 평균이 좋습니다.
+
+```txt
+currentScore = 모든 평가 완료 turnScore.total의 산술 평균
+```
+
+고도화는 최근 가중 평균입니다.
+
+```txt
+최근 3턴 가중치 50%, 이전 전체 평균 50%
+```
+
+개발 지시에는 MVP 기준을 명확히 넣으세요.
+
+```txt
+MVP currentScore는 turnScores.total의 단순 평균으로 계산한다.
+평가 생략 턴은 평균 계산에서 제외한다.
+```
+
+---
+
+# 4. `evaluateUserResponse()`가 AI 응답 품질을 떨어뜨릴 수 있음
+
+텍스트 모드에서 “품질 우선 모드”는 아래 순서입니다.
+
+```txt
+user message 저장 → evaluateUserResponse() → simulationState를 AI 프롬프트에 포함 → AI 응답 생성
+```
+
+이 구조는 좋지만, 매 턴 평가 API를 먼저 호출하므로 **응답 지연**이 생깁니다. 3초 timeout이라도 사용자는 매번 느리게 느낄 수 있습니다.
+
+## 보완안
+
+기본값은 빠른 모드로 두고, 교육/평가 시나리오에서만 품질 우선 모드를 켜는 게 좋습니다.
+
+```txt
+기본 모드: fast
+- AI 응답과 평가를 병렬 실행
+- AI 응답은 먼저 표시
+- 평가 완료 시 simulation_update로 패널 갱신
+
+평가 강화 모드: quality
+- 평가 완료 후 AI 응답 생성
+- 갱신된 simulationState를 AI 프롬프트에 반영
+```
+
+설정 위치:
+
+```txt
+scenario.simulationConfig.evaluationMode = 'fast' | 'quality'
+```
+
+---
+
+# 5. Tool Calling과 서버 자동 평가가 충돌할 수 있음
+
+예를 들어 한 턴에서 이런 일이 생길 수 있습니다.
+
+```txt
+사용자 답변이 부실함
+→ 서버 evaluateUserResponse가 actionPlan 30점 기록
+→ 동시에 Gemini가 update_npc_emotion으로 anger +20 호출
+→ trigger_incident 조건도 만족
+```
+
+이때 상태 변화가 중복으로 과하게 반영될 수 있습니다.
+
+## 보완안
+
+`applySimulationPatch()`에 `source`와 `priority` 개념을 넣으세요.
+
+```ts
+type PatchSource = 'gemini_tool' | 'server_evaluation' | 'server_rule' | 'admin';
+
+interface SimulationStatePatchRequest {
+  source: PatchSource;
+  priority: 'low' | 'normal' | 'high';
+  turnId: string;
+  patch: SimulationStatePatch;
+}
+```
+
+그리고 같은 turnId에서 중복 반영을 막는 규칙을 둡니다.
+
+```txt
+같은 turnId에서 server_evaluation이 이미 anger/trust를 변경했다면,
+gemini_tool의 감정 변경은 추가로 최대 ±10까지만 허용한다.
+```
+
+---
+
+# 6. `simulationDirectives` 만료 기준을 더 명확히 해야 함
+
+계획에는 `expiresAfterTurns: 2`가 있습니다. 좋습니다. 하지만 어떤 턴 기준인지 명확해야 합니다.
+
+## 수정 권장
+
+```ts
+interface SimulationDirective {
+  id: string;
+  createdTurnIndex: number;
+  expiresAtTurnIndex: number;
+  instruction: string;
+  source: 'tool' | 'server_rule' | 'admin';
+}
+```
+
+만료 로직:
+
+```txt
+현재 turnIndex > expiresAtTurnIndex이면 주입하지 않는다.
+```
+
+그리고 너무 많은 directive가 쌓이지 않게 제한하세요.
+
+```txt
+최대 활성 directive 3개
+중복 의미 directive는 병합
+```
+
+---
+
+# 7. Tool 스키마에 “delta 방식”을 강제하는 게 좋음
+
+현재 `update_npc_emotion`은 감정 수치를 변경한다고 되어 있습니다. 그런데 Tool args가 절대값인지 증감값인지 애매하면 문제가 생깁니다.
+
+예:
+
+```json
+{ "anger": 80 }
+```
+
+이게 “80으로 설정”인지 “80 증가”인지 불명확합니다.
+
+## 권장
+
+Tool은 delta만 요청하게 하세요.
+
+```ts
+update_npc_emotion args:
+{
+  angerDelta?: number;      // -30 ~ +30
+  trustDelta?: number;      // -30 ~ +30
+  confusionDelta?: number;  // -30 ~ +30
+  interestDelta?: number;   // -30 ~ +30
+  reason: string;
+}
+```
+
+서버가 현재값에 delta를 적용하고 clamp합니다.
+
+```txt
+current + delta → clamp 0–100
+```
+
+`update_scenario_state`도 마찬가지입니다.
+
+```ts
+{
+  targetStage?: ScenarioStage;
+  pressureDelta?: -1 | 0 | 1;
+  timeDeltaSec?: number;
+  reason: string;
+}
+```
+
+이렇게 해야 Gemini가 state 전체를 덮어쓰는 위험이 줄어듭니다.
+
+---
+
+# 8. `trigger_incident`도 서버 승인형으로 바꿔야 함
+
+현재는 Gemini가 `trigger_incident`를 호출하면 서버가 검증 후 발생시키는 구조입니다. 이건 맞습니다. 다만 incident message를 Gemini가 자유롭게 만들게 하면 톤이 들쑥날쑥하거나 부적절할 수 있습니다.
+
+## 권장
+
+Gemini는 incident type과 reason만 요청하고, 최종 message는 서버 템플릿에서 생성하세요.
+
+```ts
+trigger_incident args:
+{
+  type: IncidentType;
+  severity: 'low' | 'medium' | 'high';
+  reason: string;
+}
+```
+
+서버에서:
+
+```ts
+message = renderIncidentMessage(type, severity, scenarioContext, language)
+```
+
+예:
+
+```txt
+executive_join:
+"임원이 통화에 참여했습니다. 지금부터 더 명확하고 짧은 보고가 필요합니다."
+```
+
+이렇게 해야 기업교육용 톤이 안정됩니다.
+
+---
+
+# 9. `state_restore` 이벤트가 너무 자주 쌓일 수 있음
+
+새로고침이나 재접속 때마다 `state_restore` 이벤트를 기록하면 이벤트 로그가 지저분해질 수 있습니다.
+
+## 보완안
+
+```txt
+state_restore는 실제 상태 변경이 아니라 조회/복원 이벤트이므로 기본적으로 simulation_events에 저장하지 않는다.
+단, 디버그 모드 또는 복원 실패/버전 충돌 시에만 기록한다.
+```
+
+이렇게 하는 게 리포트 품질에 좋습니다.
+
+---
+
+# 10. 리포트용 데이터와 실시간 UI용 데이터를 분리해야 함
+
+계획에서는 피드백 리포트가 `simulation_events·turnScores·감정 이력`을 읽는다고 되어 있습니다. 좋습니다. 다만 실시간 UI용 events와 리포트용 events는 목적이 다릅니다.
+
+## 보완안
+
+`simulation_events`에 `includeInReport` 필드를 두세요.
+
+```ts
+includeInReport: boolean
+```
+
+예:
+
+```txt
+tool_call: true
+auto_evaluation: true
+incident: true
+state_init: false
+state_restore: false
+manual_update: optional
+session_end: false
+```
+
+리포트 생성 시 노이즈가 줄어듭니다.
+
+---
+
+# 11. 텍스트/TTS와 음성의 상태 갱신 방식이 달라질 수 있음
+
+음성은 Gemini Live Tool이 감정과 이벤트를 직접 트리거합니다. 텍스트/TTS는 서버 Engine만 사용합니다. 그러면 같은 사용자 답변에도 모드별 상태 변화가 다를 수 있습니다.
+
+## 보완안
+
+공통 규칙 레이어를 하나 두세요.
+
+```txt
+simulationRules.ts
+- inferEmotionPatchFromEvaluation()
+- inferStagePatchFromState()
+- inferIncidentCandidate()
+```
+
+음성 Tool 결과도 이 규칙을 통과하게 하고, 텍스트/TTS도 같은 규칙을 쓰게 해야 모드 일관성이 생깁니다.
+
+---
+
+# 12. “AI가 Tool을 너무 안 부르는 문제”도 대비해야 함
+
+Tool 폭주는 대비되어 있는데, 반대로 Gemini가 Tool을 거의 호출하지 않으면 대시보드가 죽은 것처럼 보입니다.
+
+## 보완안
+
+서버 rule fallback을 넣으세요.
+
+```txt
+한 사용자 턴이 끝났는데 Gemini Tool Call이 0회이고,
+평가 결과상 중요한 변화가 감지되면 서버가 자동으로 statePatch를 생성한다.
+```
+
+예:
+
+```txt
+actionPlan < 30 → pressureLevel +1 후보
+empathy < 30 → anger +10 후보
+clarity < 30 → confusion +10 후보
+```
+
+이렇게 해야 Tool 호출이 없어도 패널이 움직입니다.
+
+---
+
+# 13. 프론트엔드 상태 복원 기준이 필요함
+
+`useSimulationState(conversationId)`가 있지만, 초기 로딩에서 어디를 신뢰할지 명확히 해야 합니다.
+
+## 권장 우선순위
+
+```txt
+1. GET /api/conversations/:id 의 simulationState
+2. WebSocket simulation_update
+3. localStorage cached state
+4. default initial state
+```
+
+그리고 localStorage는 보조 캐시로만 쓰세요.
+
+```txt
+서버 state.version이 localStorage version보다 낮으면 서버 기준을 따른다.
+```
+
+---
+
+# 14. `simulation_update` 메시지 포맷을 명시해야 함
+
+현재 WebSocket 메시지 타입만 언급되어 있고 payload 형식이 없습니다.
+
+## 추가 권장
+
+```ts
+interface SimulationUpdateMessage {
+  type: 'simulation_update';
+  conversationId: string;
+  personaRunId: string;
+  turnId?: string;
+  eventType: SimulationEventType;
+  statePatch?: SimulationStatePatch;
+  currentState: SimulationState;
+  incident?: Incident;
+  turnScore?: TurnScore;
+  version: number;
+  timestamp: string;
+}
+```
+
+클라이언트는 `version` 기준으로 오래된 업데이트를 버려야 합니다.
+
+```txt
+if incoming.version <= currentState.version then ignore, except incident banner already unseen
+```
+
+---
+
+# 15. 마이그레이션/기존 데이터 처리 계획이 빠져 있음
+
+기존 personaRun에는 `simulation_state`가 없습니다. 배포 후 기존 대화를 열면 null일 수 있습니다.
+
+## 보완안
+
+```txt
+simulation_state가 null이면 GET /api/conversations/:id에서 defaultSimulationState를 생성해 반환한다.
+단, DB 저장은 lazy initialization으로 1회 수행한다.
+```
+
+이걸 안 넣으면 기존 대화 조회에서 프론트가 터질 수 있습니다.
+
+---
+
+# 16. 접근 권한/관리자 업데이트 정책이 필요함
+
+`triggeredBy: 'admin'`이 들어가 있습니다. 그러면 관리자 수동 이벤트 기능을 염두에 둔 것입니다. 하지만 권한 기준이 없습니다.
+
+## 보완안
+
+MVP에서 admin manual update가 없다면 `admin`을 빼거나 out of scope로 명시하세요.
+
+```txt
+admin-triggered incident/manual_update는 MVP에서 UI 미구현. 타입은 예약만 하되 API는 만들지 않는다.
+```
+
+---
+
+# 17. 테스트가 단위 테스트 중심이라 통합 테스트가 부족함
+
+Vitest 단위 테스트는 좋습니다. 하지만 이 기능은 WebSocket, DB, API 응답이 엮입니다. 최소 통합 테스트 시나리오가 필요합니다.
+
+## 추가 테스트 권장
+
+```txt
+Integration test:
+1. POST /api/conversations → simulationState 생성 확인
+2. POST /api/conversations/:id/messages → turnScore 생성 및 simulationState 반환 확인
+3. GET /api/conversations/:id → 마지막 simulationState 복원 확인
+4. WebSocket simulation_update 수신 mock 테스트
+5. toolCall mock → tool response + DB event + WS broadcast 확인
+```
+
+---
+
+# 18. 계획에 추가하면 좋은 최종 보완 문구
+
+아래 문구를 그대로 추가하면 좋습니다.
+
+```txt
+Additional implementation rules
+- Tool args는 절대값 설정이 아니라 delta/intent 기반 patch request로 설계한다.
+- SimulationState에는 전체 이력을 무한 누적하지 않고, 최신 상태와 recentTurnScores/recentIncidents만 저장한다. 전체 이력은 simulation_events에서 조회한다.
+- currentScore는 MVP에서 평가 완료 TurnScore.total의 단순 평균으로 계산하며, 평가 생략 턴은 제외한다.
+- incident message는 Gemini가 자유 작성하지 않고 서버 템플릿에서 생성한다.
+- simulation_update WebSocket payload에는 version을 포함하고, 클라이언트는 오래된 version을 무시한다.
+- Tool Call이 없는 턴에도 서버 rule fallback이 상태 변화를 추론해 패널이 정지하지 않도록 한다.
+- 기존 personaRun에 simulation_state가 없는 경우 lazy initialization으로 default state를 생성한다.
+- state_restore 이벤트는 기본적으로 리포트 대상에서 제외한다.
+```
+
+---
+
+# 최종 판단
+
+현재 계획은 **개발 착수 가능한 수준에 거의 도달했습니다.** 특히 아래는 매우 잘 잡혔습니다.
+
+* 서버 Simulation Engine을 canonical owner로 둔 점
+* `applySimulationPatch()` 단일 진입점
+* Tool을 3개로 제한한 점
+* `evaluate_user_response`, `generate_feedback_report`를 서버 자동 처리로 뺀 점
+* `persona_runs.simulation_state`와 `simulation_events` 이중 저장
+* version 기반 상태 관리
+* 평가 timeout/fallback
+* incident 중복 방지
+* 테스트 Phase 추가
+
+남은 핵심 보완은 5가지입니다.
+
+```txt
+1. 음성 turnIndex 확정 기준을 inputTranscription delta가 아니라 user turn 확정 시점으로 수정
+2. SimulationState에 전체 이력을 무한 누적하지 않도록 recent/snapshot 구조로 변경
+3. Tool args를 절대값이 아닌 delta/intent 기반 patch request로 설계
+4. incident 메시지는 서버 템플릿으로 통제
+5. Tool Call이 없을 때도 서버 rule fallback으로 상태 패널이 움직이게 만들기
+```
+
+이 5개만 보완하면 “아이디어 문서”가 아니라 **실제 Replit/Claude/Codex에 넣어도 되는 구현 지시서**에 가까워집니다.

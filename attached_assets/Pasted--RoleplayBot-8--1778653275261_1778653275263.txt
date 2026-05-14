@@ -1,0 +1,595 @@
+좋은 기획입니다. **방향은 맞고, RoleplayBot 구조에도 맞습니다.** 다만 지금 문안 그대로 개발 지시하면 몇 군데에서 막힐 가능성이 큽니다. 특히 아래 8개는 반드시 보완해야 합니다.
+
+---
+
+# 1. 가장 큰 보완점: “Tool Calling”과 “시뮬레이션 상태 엔진”을 분리해야 함
+
+현재 문안은 Gemini가 Tool을 호출하면 곧바로 상태가 바뀌는 구조로 보입니다. 그런데 실제로는 이렇게 나눠야 안정적입니다.
+
+```txt
+Gemini Tool Call
+→ 서버 Tool Handler
+→ Simulation Engine에서 검증/보정
+→ simulationState 갱신
+→ DB 로그 저장
+→ Gemini에 tool response 반환
+→ 클라이언트에 simulation_update 전송
+```
+
+즉, **Gemini가 상태를 마음대로 결정하게 두면 안 됩니다.**
+
+예를 들어 AI가 갑자기 `anger: 100`, `trust: 0`을 보내면 너무 극단적인 상태 변화가 생깁니다. 그래서 서버 쪽에서 반드시 clamp/validation이 필요합니다.
+
+```ts
+anger = clamp(args.anger, 0, 100)
+trust = clamp(args.trust, 0, 100)
+pressureLevel = clamp(args.pressureLevel, 1, 5)
+```
+
+추천 구조:
+
+```txt
+server/services/simulation/
+ ├─ simulationTypes.ts
+ ├─ simulationEngine.ts
+ ├─ simulationTools.ts
+ ├─ simulationToolHandler.ts
+ └─ simulationPrompt.ts
+```
+
+지금처럼 `voice/types.ts`, `geminiMessageHandler.ts`, `realtimeVoiceService.ts`에 바로 다 넣으면 나중에 텍스트/TTS와 공유하기 어렵습니다.
+
+---
+
+# 2. Tool 데이터는 세션 메모리뿐 아니라 DB에 저장해야 함
+
+현재 계획에는 `simulationState`를 세션 객체에 추가한다고 되어 있습니다. 이건 실시간 표시에는 맞습니다. 하지만 세션이 끊기거나, 텍스트/음성 전환이 발생하거나, 피드백 리포트를 생성할 때 문제가 생깁니다.
+
+현재 `RealtimeSession`은 메모리 Map에 저장되는 구조입니다. `RealtimeVoiceService`가 `sessions: Map<string, RealtimeSession>`을 들고 있고, 세션 종료 시 삭제됩니다. 
+
+따라서 `simulationState`를 여기에만 두면 **새로고침, 연결 종료, 서버 재시작, 음성→텍스트 전환 시 데이터가 날아갑니다.**
+
+보완 필요:
+
+## A. `personaRuns` 또는 별도 테이블에 현재 상태 저장
+
+간단 MVP:
+
+```ts
+personaRuns.simulationState jsonb
+```
+
+고도화:
+
+```ts
+simulation_events
+- id
+- personaRunId
+- eventType
+- toolName
+- payload
+- stateBefore
+- stateAfter
+- createdAt
+```
+
+추천은 **둘 다**입니다.
+
+```txt
+personaRuns.simulationState = 최신 상태 스냅샷
+simulation_events = 전체 이력 로그
+```
+
+이렇게 해야 실시간 패널, 재접속 복원, 종료 리포트가 모두 안정적으로 됩니다.
+
+---
+
+# 3. `evaluate_user_response`를 Gemini Tool로만 두면 평가 품질이 불안정함
+
+`evaluate_user_response`는 조심해야 합니다.
+
+Gemini Live 대화 중 AI가 자신의 판단으로 `evaluate_user_response`를 호출하게 하면 다음 문제가 생깁니다.
+
+1. 매 턴마다 평가하지 않을 수 있음
+2. 점수 기준이 흔들릴 수 있음
+3. 사용자 발화 전문이 완전히 잡히기 전 평가할 수 있음
+4. AI가 대화와 평가를 동시에 하면서 역할 몰입이 깨질 수 있음
+
+현재 `geminiMessageHandler.ts`는 사용자 음성 transcript를 `userTranscriptBuffer`에 누적하고, turnComplete 시 user transcript를 확정합니다. 
+
+따라서 더 좋은 방식은 이겁니다.
+
+## 추천 방식
+
+`evaluate_user_response`는 **AI가 호출하는 Tool이 아니라 서버가 턴 종료 시 자동 실행하는 평가 함수**로 두는 게 낫습니다.
+
+```txt
+사용자 발화 완료
+→ userTranscriptBuffer 확정
+→ 서버가 evaluateUserResponse() 실행
+→ simulationState.turnScores 갱신
+→ Gemini에는 참고용으로 상태 주입
+```
+
+즉, Tool 목록에서는 이름을 유지하더라도 실제 동작은 “서버 주도 평가”가 더 안정적입니다.
+
+Gemini Tool로 둘 기능:
+
+* `update_scenario_state`
+* `update_npc_emotion`
+* `trigger_incident`
+* `generate_feedback_report`
+
+서버 자동 평가로 둘 기능:
+
+* `evaluate_user_response`
+
+이렇게 분리하는 게 좋습니다.
+
+---
+
+# 4. Gemini Live의 `NON_BLOCKING`은 모델 지원 범위를 확인해야 함
+
+문안에 “evaluate_user_response와 trigger_incident는 NON_BLOCKING behavior”라고 되어 있는데, 이 부분은 주의해야 합니다.
+
+이전 문서 기준으로 **비동기 함수 호출은 특정 Gemini Live 모델에서만 지원**됩니다. 현재 RoleplayBot의 realtime model은 기본값이 `gemini-2.5-flash-native-audio-preview-09-2025`로 되어 있습니다. 
+
+그리고 코드상 valid model도 하나만 허용하고 있습니다. 
+
+따라서 개발 지시에는 이렇게 바꾸는 게 안전합니다.
+
+```txt
+NON_BLOCKING behavior는 모델 지원 여부를 런타임에서 확인한다.
+지원하지 않는 경우 동기 Tool Calling으로 fallback한다.
+```
+
+또는 MVP에서는 아예 이렇게 가는 게 낫습니다.
+
+```txt
+MVP에서는 모든 Tool을 동기 방식으로 처리한다.
+단, 클라이언트 UI 업데이트는 tool response와 별개로 즉시 WebSocket 전송한다.
+```
+
+왜냐하면 `trigger_incident`는 비동기보다 **정확한 상태 반영**이 더 중요합니다.
+
+---
+
+# 5. Tool response 반환 API를 정확히 명시해야 함
+
+현재 문안에는 “send_tool_response로 Gemini에 결과 반환”이라고 되어 있는데, 실제 SDK 메서드명은 사용 중인 `@google/genai` 버전에 따라 다를 수 있습니다.
+
+RoleplayBot은 `@google/genai`의 `this.genAI.live.connect()`를 쓰고 있습니다. 
+
+따라서 작업 지시에는 특정 메서드명을 단정하기보다 이렇게 쓰는 게 좋습니다.
+
+```txt
+@google/genai Live Session의 tool response 전송 메서드를 현재 SDK 버전에 맞게 확인하고,
+toolCall id/functionCall id와 매칭되는 response를 반환한다.
+```
+
+그리고 반드시 포함해야 할 것:
+
+```ts
+{
+  id: functionCall.id,
+  name: functionCall.name,
+  response: {
+    success: true,
+    statePatch,
+    currentState
+  }
+}
+```
+
+Tool response는 **어떤 functionCall에 대한 응답인지 id 매칭**이 중요합니다.
+
+---
+
+# 6. 텍스트/TTS 모드 적용 방식이 너무 단순함
+
+현재 텍스트 모드는 `/api/conversations/:id/messages`에서 `generateAIResponse()`를 호출하고 있습니다. 
+
+그런데 `generateAIResponse()`는 내부적으로 `AIServiceFactory`를 통해 provider를 선택합니다. 현재 provider는 Gemini/OpenAI/Custom으로 분기됩니다. 
+
+즉, 텍스트/TTS 모드에서 Tool Calling을 붙이려면 단순히 route에 `simulationState`만 추가해서는 안 됩니다.
+
+보완해야 할 부분:
+
+## A. `AIServiceInterface` 확장 필요
+
+예:
+
+```ts
+generateResponseWithTools(
+  scenario,
+  messages,
+  persona,
+  tools,
+  simulationState,
+  ...
+)
+```
+
+또는 기존 `generateResponse()`의 옵션 인자 추가:
+
+```ts
+generateResponse(
+  scenario,
+  messages,
+  persona,
+  userMessage,
+  language,
+  userName,
+  options?: {
+    simulationState?: SimulationState;
+    tools?: ToolDefinition[];
+    enableSimulation?: boolean;
+  }
+)
+```
+
+## B. Provider별 tool calling 지원 차이 처리
+
+* Gemini Provider: function calling 지원 가능
+* OpenAI Provider: tool calling 형식 다름
+* Custom Provider: 지원 안 할 수 있음
+
+따라서 텍스트 모드는 MVP에서 이렇게 가는 게 현실적입니다.
+
+```txt
+1차 MVP: 텍스트/TTS 모드는 LLM Tool Calling을 쓰지 않고 서버 Simulation Engine으로 상태 갱신
+2차: Gemini Provider에만 Tool Calling 적용
+3차: OpenAI Provider까지 어댑터 확장
+```
+
+현재 계획처럼 “텍스트 모드도 동일하게 Tool 스키마 전달”은 구조상 바로 안 맞을 가능성이 큽니다.
+
+---
+
+# 7. `generate_feedback_report`는 대화 중 Tool이 아니라 종료 프로세스가 맞음
+
+`generate_feedback_report`를 Gemini가 대화 중 호출하게 두면, AI가 임의로 세션을 종료하거나 리포트를 너무 일찍 만들 수 있습니다.
+
+현재 텍스트 모드는 `aiResult.isCompleted`를 보고 personaRun 상태를 completed로 바꾸는 구조입니다. 
+
+음성 모드는 `/realtime-messages`에서 메시지를 일괄 저장하고 personaRun을 completed로 업데이트합니다. 
+
+따라서 `generate_feedback_report`는 Tool이라기보다 **세션 종료 시 서버가 호출하는 후처리**로 두는 게 맞습니다.
+
+추천 수정:
+
+```txt
+generate_feedback_report는 Gemini Live Tool에서 제외하거나, 모델이 직접 호출하지 못하게 한다.
+세션 종료 API 또는 completed 상태 전환 시 서버가 simulationState와 messages를 기반으로 자동 생성한다.
+```
+
+Tool 5개를 유지하고 싶다면 이름을 바꾸는 게 좋습니다.
+
+```txt
+generate_feedback_signal
+```
+
+또는:
+
+```txt
+request_session_wrapup
+```
+
+하지만 실제 리포트 생성은 서버가 통제해야 합니다.
+
+---
+
+# 8. 상태 패널의 색상/임계값/점수 계산 기준을 명시해야 함
+
+현재 UI 요구사항은 좋지만, 개발자가 점수 계산을 임의로 해석할 수 있습니다. 아래 기준을 명시하는 게 좋습니다.
+
+## NPC 감정 기본값
+
+```ts
+npcEmotions: {
+  anger: 30,
+  trust: 50,
+  confusion: 20,
+  interest: 50
+}
+```
+
+## 단계 enum
+
+```ts
+stage: 'intro' | 'conflict' | 'negotiation' | 'escalation' | 'resolution'
+```
+
+## 압박 레벨
+
+```ts
+pressureLevel: 1 | 2 | 3 | 4 | 5
+```
+
+## 점수 구조
+
+```ts
+turnScores: Array<{
+  turnIndex: number;
+  clarity: number;
+  empathy: number;
+  logic: number;
+  ownership: number;
+  actionPlan: number;
+  total: number;
+  hint?: string;
+}>
+```
+
+## 누적 점수 계산
+
+```ts
+currentScore = average(turnScores.total)
+```
+
+또는 가중치:
+
+```txt
+명확성 25%
+공감 20%
+논리 20%
+책임감 20%
+실행안 15%
+```
+
+이런 기준이 없으면 UI는 보이는데 교육적 의미가 약해집니다.
+
+---
+
+# 9. 추가해야 할 “진짜 중요한 파일”
+
+현재 Relevant files에 빠진 파일들이 있습니다.
+
+반드시 추가하세요.
+
+```txt
+server/services/aiServiceFactory.ts
+server/services/providers/optimizedGeminiProvider.ts
+server/services/providers/openaiProvider.ts
+server/services/aiService.ts
+server/routes/routerHelpers.ts
+server/storage.ts
+server/db.ts 또는 drizzle 설정 파일
+client/src/types 또는 shared 타입 정의 파일
+client/src/components/... 대화 UI 컴포넌트
+client/src/lib/api 또는 query hook 파일
+```
+
+이유:
+
+* 텍스트 모드는 `generateAIResponse()`가 `aiServiceFactory.ts`를 거쳐 provider로 갑니다. 
+* 피드백 생성도 같은 factory 구조를 탑니다. 
+* DB 저장은 `storage` 계층을 수정해야 합니다.
+* 현재 `server/services/aiProvider.ts`라는 파일은 확인되지 않았고, 실제로는 `aiServiceFactory.ts`가 진입점입니다. 
+
+---
+
+# 10. 빠진 예외 처리
+
+아래 예외 처리는 반드시 넣어야 합니다.
+
+## A. Tool Call 실패 시
+
+```txt
+Tool 실행 실패
+→ Gemini에 success:false 반환
+→ 클라이언트에는 simulation_error 전송
+→ 대화는 중단하지 않음
+```
+
+## B. 잘못된 Tool args
+
+```txt
+unknown stage
+invalid emotion value
+negative timeRemaining
+too frequent incident
+```
+
+## C. Tool 호출 폭주 방지
+
+Gemini가 한 턴에 여러 번 tool을 호출할 수 있습니다.
+
+제한이 필요합니다.
+
+```txt
+한 턴당 update_npc_emotion 최대 2회
+한 턴당 trigger_incident 최대 1회
+incident 간 최소 60초 쿨다운
+pressureLevel은 한 번에 ±1까지만 변경
+```
+
+## D. 저장 실패 시
+
+DB 저장 실패가 대화 중단으로 이어지면 안 됩니다.
+
+```txt
+메모리 state는 먼저 갱신
+DB 저장은 best-effort
+실패 시 로그 남김
+```
+
+---
+
+# 11. 실시간 음성에서 “말투 자동 변경”은 Tool만으로는 부족함
+
+“NPC 감정이 임계값 초과 시 AI 말투 자동 변경”은 UI 상태만 바뀐다고 Gemini가 자동으로 알 수 없습니다.
+
+상태가 바뀐 뒤 Gemini에게 다시 주입해야 합니다.
+
+예:
+
+```txt
+[시뮬레이션 상태 업데이트]
+현재 분노: 85
+신뢰: 25
+지시: 다음 응답부터 더 짧고 강경하게 말하라. 사용자의 회피성 답변을 용납하지 마라.
+```
+
+즉, `update_npc_emotion` 처리 후 다음 중 하나가 필요합니다.
+
+## 방법 A. Tool response에 말투 지시 포함
+
+```json
+{
+  "success": true,
+  "currentState": {...},
+  "behaviorInstruction": "분노가 80 이상입니다. 다음 응답부터 강경하고 압박적인 어조를 사용하세요."
+}
+```
+
+## 방법 B. 서버가 별도 system event를 Gemini에 주입
+
+```ts
+session.geminiSession.sendClientContent({
+  turns: [{
+    role: 'user',
+    parts: [{ text: "[시스템 상태] NPC 분노 85. 더 강경한 어조로 반응하세요." }]
+  }],
+  turnComplete: true
+})
+```
+
+MVP에서는 **방법 A**가 낫습니다.
+
+---
+
+# 12. 클라이언트 상태 패널은 “전역 상태”로 둬야 함
+
+텍스트, TTS, 음성에서 동일하게 쓰려면 `SimulationPanel`만 만들면 부족합니다.
+
+필요한 구조:
+
+```txt
+useSimulationState(conversationId)
+ ├─ currentState
+ ├─ updateFromApiResponse()
+ ├─ updateFromWebSocket()
+ ├─ reset()
+ └─ incidentQueue
+```
+
+음성:
+
+```txt
+WebSocket simulation_update 수신
+→ useSimulationState 갱신
+```
+
+텍스트/TTS:
+
+```txt
+POST /messages 응답의 simulationState 파싱
+→ useSimulationState 갱신
+```
+
+그래야 모드 전환 시 상태가 유지됩니다.
+
+---
+
+# 13. 추천 수정 버전: Tool 우선순위 재정리
+
+현재 5개 Tool 중 실제 Live Tool로 둘 것과 서버 함수로 둘 것을 나누는 게 좋습니다.
+
+## Live API Tool로 둘 것
+
+| Tool                    | 유지 여부 | 이유                 |
+| ----------------------- | ----: | ------------------ |
+| `update_scenario_state` |    유지 | AI가 상황 흐름을 조정하기 좋음 |
+| `update_npc_emotion`    |    유지 | NPC 반응성과 UI 몰입도 핵심 |
+| `trigger_incident`      |    유지 | 게임 마스터 역할 핵심       |
+
+## 서버 주도 함수로 둘 것
+
+| Function                   | 이유                              |
+| -------------------------- | ------------------------------- |
+| `evaluate_user_response`   | 사용자 발화 확정 후 서버가 일관된 기준으로 평가해야 함 |
+| `generate_feedback_report` | 세션 종료 시 서버가 통제해야 함              |
+
+이렇게 바꾸면 안정성이 훨씬 올라갑니다.
+
+---
+
+# 14. 개발 태스크 문안에 추가하면 좋은 Acceptance Criteria
+
+아래 항목을 Done에 추가하세요.
+
+```txt
+- Tool args는 Zod schema 또는 equivalent validator로 검증된다.
+- 모든 simulationState 값은 서버에서 clamp 처리된다.
+- toolCall 실패 시 대화 세션이 종료되지 않는다.
+- simulationState는 메모리와 DB 양쪽에 저장된다.
+- 새로고침 후에도 마지막 simulationState가 복원된다.
+- 음성→텍스트, 텍스트→음성 전환 시 simulationState가 유지된다.
+- 같은 incident가 짧은 시간 안에 반복 발생하지 않는다.
+- Tool 호출 로그에는 toolName, args, result, stateBefore, stateAfter, timestamp가 저장된다.
+- 피드백 리포트는 turnScores 평균과 incidents 목록을 포함한다.
+- 텍스트 모드는 provider가 Tool Calling을 지원하지 않아도 서버 Simulation Engine으로 fallback한다.
+```
+
+---
+
+# 15. 권장 구현 순서 수정
+
+현재 Steps는 한 번에 너무 넓습니다. 아래 순서가 더 안전합니다.
+
+## Phase 1 — 상태 엔진 + UI 패널
+
+1. `SimulationState` 타입 정의
+2. 초기 상태 생성 함수 구현
+3. `personaRuns.simulationState` 또는 별도 저장소 추가
+4. `SimulationPanel` 구현
+5. 텍스트/TTS 응답에 simulationState 포함
+6. 음성 WebSocket에 `simulation_update` 메시지 추가
+
+이 단계에서는 Tool Calling 없이도 패널이 작동해야 합니다.
+
+## Phase 2 — 서버 주도 평가
+
+1. 사용자 턴 종료 시 `evaluateUserResponse()` 실행
+2. 점수와 힌트 생성
+3. UI에 점수/힌트 표시
+4. 로그 저장
+
+## Phase 3 — Gemini Live Tool Calling
+
+1. `update_npc_emotion` Tool 추가
+2. `update_scenario_state` Tool 추가
+3. `trigger_incident` Tool 추가
+4. Tool response 루프 처리
+5. Tool 호출 이력 저장
+
+## Phase 4 — 리포트 통합
+
+1. simulation_events 기반 리포트 섹션 추가
+2. 감정 변화 타임라인
+3. 돌발 이벤트 목록
+4. 턴별 평가 평균
+5. 결정적 순간 하이라이트
+
+이 순서가 훨씬 덜 위험합니다.
+
+---
+
+# 16. 최종 판단
+
+현재 기획은 **제품 방향은 매우 좋습니다.**
+다만 그대로 개발하면 위험한 부분은 이겁니다.
+
+1. Gemini가 상태를 직접 지배하는 구조가 될 수 있음
+2. `simulationState`가 메모리에만 남아 유실될 수 있음
+3. 텍스트/TTS Tool 적용이 현재 provider 구조와 맞지 않을 수 있음
+4. `evaluate_user_response`, `generate_feedback_report`를 Tool로 두면 통제력이 떨어짐
+5. non-blocking Tool Calling은 모델/SDK 지원 여부 확인이 필요함
+6. Tool call 실패, 폭주, 잘못된 args에 대한 방어가 부족함
+
+수정 방향은 명확합니다.
+
+> **Live Tool은 “상황 변화 트리거”로 쓰고, 실제 상태 계산·검증·저장·평가는 서버 Simulation Engine이 담당하게 만들어야 합니다.**
+
+이렇게 바꾸면 RoleplayBot은 단순 음성 롤플레이가 아니라 **교육용 NPC 시뮬레이션 엔진**으로 확장될 수 있습니다.

@@ -1,0 +1,802 @@
+아래 기능을 기준으로 보면, 핵심은 **음성 대화 중 AI가 “말만 하는 NPC”가 아니라, 상황판·점수·이벤트·자료·타이머·캐릭터 상태를 실시간으로 조작하는 시뮬레이션 엔진**이 되게 만드는 것입니다.
+
+Gemini Live API는 실시간 연결 중 **함수 호출**과 **Google Search** 같은 도구를 붙일 수 있고, 함수 호출 결과는 클라이언트가 `send_tool_response`로 직접 돌려줘야 합니다. 즉, AI가 “지금 고객이 화났다 → 난이도 올려라 → 화면에 경고 표시 → 점수 차감 → 다음 NPC 등장” 같은 액션을 호출하게 만들 수 있습니다. ([Google AI for Developers][1])
+
+---
+
+## 1. 기본 구조
+
+### 음성 롤플레이 흐름
+
+사용자 음성 입력
+→ Gemini Live API가 역할 연기
+→ 특정 상황에서 Tool Call 발생
+→ 우리 서버/앱이 함수 실행
+→ 결과를 다시 Live API에 전달
+→ AI가 그 결과를 반영해 음성으로 다음 상황 진행
+
+예를 들면:
+
+> 사용자: “죄송하지만 납기는 더 늦어질 것 같습니다.”
+> AI 고객: “지금 장난하십니까?”
+> AI 내부 Tool Call: `update_emotion(customer_anger=85)`
+> 앱 화면: 고객 분노 게이지 상승
+> Tool Call: `trigger_event("manager_join")`
+> AI 관리자 NPC 등장: “지금 상황 설명해보세요.”
+
+이렇게 하면 단순 대화가 아니라 **게임형 체험**이 됩니다.
+
+---
+
+# 2. 롤플레이를 다이나믹하게 만드는 Tool 아이디어
+
+## A. 상황 변화 Tool
+
+### 1) `update_scenario_state`
+
+현재 시뮬레이션 상태를 바꾸는 핵심 도구입니다.
+
+```json
+{
+  "name": "update_scenario_state",
+  "parameters": {
+    "stage": "opening | conflict | negotiation | escalation | resolution",
+    "pressure_level": 1,
+    "npc_trust": 65,
+    "npc_anger": 40,
+    "time_remaining": 420
+  }
+}
+```
+
+활용 예:
+
+사용자가 회피성 답변을 하면 `npc_trust` 감소.
+사용자가 구체적 대안을 말하면 `npc_trust` 상승.
+말이 길고 결론이 없으면 `time_remaining` 감소.
+불리한 발언을 하면 `pressure_level` 상승.
+
+이걸 화면에 표시하면 교육생은 “내 말이 상황을 바꾸고 있다”는 느낌을 받습니다.
+
+---
+
+## B. 돌발 이벤트 Tool
+
+### 2) `trigger_incident`
+
+대화 중 예기치 못한 사건을 발생시킵니다.
+
+```json
+{
+  "name": "trigger_incident",
+  "parameters": {
+    "incident_type": "angry_customer | boss_interrupt | system_failure | new_evidence | competitor_offer",
+    "severity": "low | medium | high",
+    "message": "고객사 임원이 통화에 들어왔습니다."
+  }
+}
+```
+
+적용 시나리오:
+
+| 교육 주제     | 돌발 이벤트               |
+| --------- | -------------------- |
+| 고객 클레임 대응 | 고객이 갑자기 환불 요구        |
+| 신입사원 보고   | 팀장이 “결론부터 말해봐”라고 끼어듦 |
+| 영업 협상     | 경쟁사가 더 낮은 가격 제시      |
+| 제조 현장 대응  | 품질 이슈 추가 발생          |
+| 리더십 코칭    | 팀원이 감정적으로 반발         |
+
+이 기능이 들어가면 롤플레이가 매번 달라집니다.
+
+---
+
+## C. NPC 감정 엔진 Tool
+
+### 3) `update_npc_emotion`
+
+NPC의 감정 상태를 수치화합니다.
+
+```json
+{
+  "name": "update_npc_emotion",
+  "parameters": {
+    "npc": "customer",
+    "anger": 75,
+    "trust": 30,
+    "confusion": 60,
+    "interest": 45
+  }
+}
+```
+
+사용자에게는 이렇게 보일 수 있습니다.
+
+* 고객 분노: 75
+* 신뢰도: 30
+* 이해도: 40
+* 협상 가능성: 낮음
+
+음성 대화 중 AI가 말투도 바꿉니다.
+
+분노 20: “네, 일단 들어보겠습니다.”
+분노 60: “그 말은 조금 무책임하게 들리네요.”
+분노 90: “지금 책임자를 바꿔주세요.”
+
+---
+
+## D. 점수·피드백 Tool
+
+### 4) `evaluate_user_response`
+
+사용자 발화를 실시간 평가합니다.
+
+```json
+{
+  "name": "evaluate_user_response",
+  "parameters": {
+    "criteria": ["clarity", "empathy", "logic", "ownership", "action_plan"],
+    "user_utterance": "죄송합니다. 우선 원인을 확인해보겠습니다."
+  }
+}
+```
+
+평가 결과 예:
+
+```json
+{
+  "clarity": 60,
+  "empathy": 45,
+  "logic": 55,
+  "ownership": 30,
+  "action_plan": 20,
+  "feedback": "사과는 했지만 책임 인정과 구체적 조치가 부족함"
+}
+```
+
+교육용으로 매우 강력합니다.
+특히 신입사원 보고, 고객 응대, 리더십 코칭, 영업 협상에 바로 쓸 수 있습니다.
+
+---
+
+## E. 힌트 제공 Tool
+
+### 5) `provide_hint`
+
+사용자가 막혔을 때 힌트를 단계별로 줍니다.
+
+```json
+{
+  "name": "provide_hint",
+  "parameters": {
+    "hint_level": 1,
+    "hint_type": "empathy | structure | negotiation | conclusion",
+    "message": "먼저 상대의 감정을 인정하고, 그 다음 해결 방안을 말해보세요."
+  }
+}
+```
+
+힌트 단계:
+
+| 단계  | 방식       |
+| --- | -------- |
+| 1단계 | 방향만 제시   |
+| 2단계 | 문장 구조 제시 |
+| 3단계 | 예시 문장 제공 |
+| 4단계 | 거의 정답 제공 |
+
+예:
+
+1단계: “상대 감정을 먼저 인정하세요.”
+2단계: “불편을 인정 → 원인 설명 → 대안 제시 순서로 말하세요.”
+3단계: “많이 불편하셨을 것 같습니다. 우선…”
+4단계: 완성 문장 제공.
+
+---
+
+## F. 실시간 자료 조회 Tool
+
+### 6) `retrieve_company_policy`
+
+시뮬레이션 중 내부 지식이나 규정 자료를 불러옵니다.
+
+```json
+{
+  "name": "retrieve_company_policy",
+  "parameters": {
+    "topic": "refund_policy"
+  }
+}
+```
+
+활용 예:
+
+* 고객이 환불을 요구함
+* AI가 내부 규정 Tool 호출
+* 규정상 7일 이내 가능하다는 결과 반환
+* AI가 사용자에게 “지금 규정상 어떤 대응을 하시겠습니까?”라고 압박
+
+이건 RAG와 연결하면 좋습니다.
+
+예:
+
+* 회사 규정
+* 제품 매뉴얼
+* 컴플라이언스 가이드
+* 영업 제안서
+* 기술 문서
+* 고객 응대 스크립트
+
+---
+
+## G. Google Search 기반 현실성 강화
+
+Live API는 Google Search를 도구로 붙여 최신 정보 기반 답변을 할 수 있습니다. 문서상 세션 구성에서 Google Search grounding을 활성화할 수 있고, 이를 통해 정확도를 높이고 엉뚱한 답변을 줄일 수 있습니다. ([Google AI for Developers][1])
+
+### 7) `google_search`
+
+시뮬레이션 중 최신 정보가 필요한 역할극에 적합합니다.
+
+활용 예:
+
+| 롤플레이   | 검색 활용           |
+| ------ | --------------- |
+| 투자 상담  | 오늘 시장 뉴스 반영     |
+| 영업 미팅  | 고객사 최신 실적/뉴스 반영 |
+| HR 면접  | 최신 산업 트렌드 질문    |
+| 정책 브리핑 | 최근 법규/규제 반영     |
+| 위기 대응  | 최근 사고 사례 반영     |
+
+예:
+
+> AI 고객: “그런데 어제 경쟁사에서 더 좋은 조건을 발표했잖아요. 그걸 감안하면 귀사 제안은 약하지 않습니까?”
+
+이런 식으로 현실감이 확 올라갑니다.
+
+---
+
+## H. 타이머·압박 Tool
+
+### 8) `start_timer` / `update_timer`
+
+```json
+{
+  "name": "update_timer",
+  "parameters": {
+    "remaining_seconds": 180,
+    "pressure_message": "임원 보고까지 3분 남았습니다."
+  }
+}
+```
+
+활용 예:
+
+* 3분 안에 임원 보고
+* 5분 안에 고객 클레임 진정
+* 2분 안에 장애 원인 보고
+* 1분 안에 자기소개
+* 30초 안에 결론 요약
+
+시간 압박이 들어가면 말하기 훈련 효과가 커집니다.
+
+---
+
+## I. 멀티 NPC Tool
+
+### 9) `switch_npc`
+
+대화 상대를 바꿉니다.
+
+```json
+{
+  "name": "switch_npc",
+  "parameters": {
+    "next_npc": "team_leader",
+    "persona": "sharp, impatient, result-oriented",
+    "entry_line": "그래서 결론이 뭡니까?"
+  }
+}
+```
+
+활용 예:
+
+처음에는 동료와 대화
+→ 중간에 팀장 등장
+→ 고객사 담당자 등장
+→ 임원 등장
+→ 법무팀 등장
+
+이러면 단일 NPC 롤플레이보다 훨씬 실제 조직 상황에 가깝습니다.
+
+---
+
+## J. 화면·사운드·진동 Tool
+
+### 10) `control_environment`
+
+음성 대화와 함께 UI/효과를 바꿉니다.
+
+```json
+{
+  "name": "control_environment",
+  "parameters": {
+    "screen_effect": "red_alert",
+    "sound_effect": "phone_ring",
+    "background": "conference_room",
+    "vibration": true
+  }
+}
+```
+
+활용 예:
+
+* 고객 전화 벨소리
+* 회의실 배경 전환
+* 긴급 알림 팝업
+* 품질 사고 경고음
+* 상사 입장 사운드
+* 협상 실패 시 화면 어두워짐
+
+이건 몰입감에 직접적인 영향을 줍니다.
+
+---
+
+# 3. 교육 시뮬레이션별 구체 아이디어
+
+## 1) 신입사원 첫 보고 시뮬레이션
+
+### 상황
+
+신입사원이 팀장에게 업무 진행 상황을 보고한다.
+
+### Tool 구성
+
+```json
+[
+  "update_scenario_state",
+  "evaluate_user_response",
+  "trigger_incident",
+  "switch_npc",
+  "provide_hint",
+  "generate_feedback_report"
+]
+```
+
+### 진행 예
+
+1. AI 팀장: “진행 상황 보고해보세요.”
+2. 사용자가 장황하게 설명
+3. Tool: `evaluate_user_response`
+4. 결과: 결론 명확성 낮음
+5. AI 팀장: “그래서 결론이 뭡니까?”
+6. Tool: `update_npc_emotion(confusion=70, trust=45)`
+7. 사용자가 다시 보고
+8. 중간에 Tool: `trigger_incident("executive_join")`
+9. 임원 NPC 등장
+10. 마지막에 보고력 점수 리포트 생성
+
+### 평가 항목
+
+* 결론 우선 말하기
+* 숫자 기반 보고
+* 이슈와 대안 구분
+* 책임감
+* 상사 질문 대응
+* 압박 상황 침착성
+
+---
+
+## 2) 고객 클레임 대응 시뮬레이션
+
+### 상황
+
+화난 고객이 제품 불량 문제로 항의한다.
+
+### Tool 구성
+
+```json
+[
+  "update_npc_emotion",
+  "retrieve_company_policy",
+  "trigger_incident",
+  "evaluate_user_response",
+  "control_environment"
+]
+```
+
+### 다이나믹 포인트
+
+사용자가 공감 없이 규정만 말하면 고객 분노 상승.
+사과만 하고 해결책이 없으면 신뢰도 하락.
+구체적 보상안을 제시하면 분노 하락.
+잘못된 약속을 하면 컴플라이언스 경고 발생.
+
+### 예시 이벤트
+
+* 고객이 녹취 중이라고 말함
+* 고객이 SNS에 올리겠다고 협박
+* 고객 상사가 통화에 들어옴
+* 내부 규정상 환불 불가
+* 단, 예외 승인 가능
+
+---
+
+## 3) 영업 협상 시뮬레이션
+
+### 상황
+
+B2B 고객사가 가격 인하를 강하게 요구한다.
+
+### Tool 구성
+
+```json
+[
+  "google_search",
+  "retrieve_customer_profile",
+  "update_negotiation_state",
+  "trigger_competitor_offer",
+  "evaluate_user_response"
+]
+```
+
+### 상태값
+
+```json
+{
+  "deal_probability": 55,
+  "customer_budget": "tight",
+  "price_resistance": 80,
+  "relationship_score": 60,
+  "concession_used": 1
+}
+```
+
+### 다이나믹 요소
+
+* 경쟁사 오퍼 등장
+* 고객 예산 삭감
+* 구매팀장 등장
+* 기술팀이 반대
+* 임원이 “오늘 안에 결정하자”고 압박
+* 사용자가 할인만 제시하면 마진 점수 하락
+* 가치 제안을 잘하면 가격 저항 감소
+
+---
+
+## 4) 리더십 코칭 시뮬레이션
+
+### 상황
+
+팀원이 성과 피드백을 받고 감정적으로 반발한다.
+
+### Tool 구성
+
+```json
+[
+  "update_npc_emotion",
+  "evaluate_coaching_quality",
+  "trigger_emotional_reaction",
+  "provide_hint",
+  "generate_coaching_feedback"
+]
+```
+
+### 감정 변화
+
+* 방어성
+* 좌절감
+* 신뢰
+* 수용도
+* 동기 수준
+
+### 예시
+
+사용자: “이번 결과는 기대보다 낮았습니다.”
+AI 팀원: “결국 제가 못했다는 말씀이시네요?”
+Tool: `update_npc_emotion(defensiveness=80)`
+AI가 더 방어적으로 반응.
+
+사용자가 “네가 문제야” 식으로 말하면 시뮬레이션 실패에 가까워집니다.
+사용자가 “이번 결과를 같이 분석해보자”라고 말하면 수용도가 올라갑니다.
+
+---
+
+## 5) 제조 현장 품질 이슈 대응
+
+### 상황
+
+양산 라인에서 불량률이 급증했다.
+
+### Tool 구성
+
+```json
+[
+  "retrieve_quality_data",
+  "trigger_incident",
+  "update_factory_state",
+  "evaluate_decision",
+  "control_environment"
+]
+```
+
+### 상태값
+
+```json
+{
+  "defect_rate": 7.8,
+  "line_status": "running",
+  "customer_ship_deadline": "D-1",
+  "risk_level": "high",
+  "cost_impact": 120000000
+}
+```
+
+### 다이나믹 이벤트
+
+* 불량률 추가 상승
+* 고객 출하 일정 임박
+* 생산팀은 라인 정지 반대
+* 품질팀은 전수검사 요구
+* 임원은 비용 영향 질문
+* 사용자가 근거 없이 결정하면 리스크 증가
+
+이건 삼성전자, 하이닉스, 전장, 배터리, 디스플레이 같은 제조업 교육에 특히 잘 맞습니다.
+
+---
+
+# 4. 가장 유용한 Tool 세트 12개
+
+아래 12개만 있어도 MVP는 충분히 강력합니다.
+
+| Tool                       | 역할             |
+| -------------------------- | -------------- |
+| `update_scenario_state`    | 현재 시뮬레이션 상태 갱신 |
+| `update_npc_emotion`       | NPC 감정 수치 변경   |
+| `trigger_incident`         | 돌발 이벤트 발생      |
+| `switch_npc`               | 대화 상대 교체       |
+| `evaluate_user_response`   | 사용자 발화 평가      |
+| `provide_hint`             | 단계별 힌트 제공      |
+| `retrieve_policy`          | 내부 규정 조회       |
+| `retrieve_case_data`       | 사례/상황 데이터 조회   |
+| `update_score`             | 점수 갱신          |
+| `control_environment`      | 화면/효과/사운드 제어   |
+| `generate_feedback_report` | 최종 피드백 생성      |
+| `save_session_log`         | 대화 기록 저장       |
+
+---
+
+# 5. 비동기 Tool을 활용한 고급 연출
+
+문서상 Live API 함수 호출은 기본적으로 순차 실행이라 함수 결과가 나올 때까지 대화가 멈출 수 있습니다. 다만 Gemini 2.5 Flash Live Preview는 비동기 함수 호출을 지원하고, `NON_BLOCKING` behavior를 통해 사용자가 모델과 계속 상호작용할 수 있게 만들 수 있습니다. Gemini 3.1 Flash Live는 문서 기준 아직 비동기 함수 호출을 지원하지 않습니다. ([Google AI for Developers][1])
+
+이 차이가 중요합니다.
+
+## 동기 함수에 적합한 것
+
+* 점수 계산
+* 규정 조회
+* 다음 시나리오 결정
+* 최종 피드백 생성
+* 중요한 분기 판단
+
+## 비동기 함수에 적합한 것
+
+* 배경음 재생
+* 화면 효과 변경
+* 타이머 작동
+* 외부 데이터 조회
+* 세션 로그 저장
+* 실시간 리포트 생성
+* 동료 NPC 입장 준비
+
+또한 비동기 함수 응답 시 `scheduling`을 통해 결과를 즉시 끼워 넣을지, 대화가 한가할 때 반영할지, 조용히 저장만 할지 선택할 수 있습니다. 문서에는 `INTERRUPT`, `WHEN_IDLE`, `SILENT` 방식이 제시되어 있습니다. ([Google AI for Developers][1])
+
+### 활용 예
+
+| scheduling  | 사용 장면                     |
+| ----------- | ------------------------- |
+| `INTERRUPT` | 긴급 사고, 고객 분노 폭발, 임원 입장    |
+| `WHEN_IDLE` | 자료 조회 결과, 평가 피드백          |
+| `SILENT`    | 점수 누적, 로그 저장, 백그라운드 상태 갱신 |
+
+---
+
+# 6. 추천 MVP: “음성 롤플레이 시뮬레이터 1.0”
+
+처음부터 복잡하게 만들 필요 없습니다. 아래 정도면 바로 상품성 있습니다.
+
+## MVP 기능
+
+### 1단계: 음성 대화
+
+* 사용자는 마이크로 말함
+* AI는 역할을 맡아 음성으로 응답
+* 시나리오는 5~10분 단위
+
+### 2단계: 상태판
+
+화면에 다음 상태 표시:
+
+* 신뢰도
+* 분노도
+* 시간
+* 점수
+* 현재 단계
+* 미션 목표
+
+### 3단계: 이벤트 발생
+
+도구 호출로 돌발 상황 발생:
+
+* 고객 화남
+* 상사 개입
+* 새로운 자료 도착
+* 시간 압박
+* 경쟁사 등장
+
+### 4단계: 실시간 피드백
+
+대화 중 짧은 힌트 제공:
+
+* “결론부터 말하세요.”
+* “상대 감정을 먼저 인정하세요.”
+* “숫자로 근거를 제시하세요.”
+* “대안이 빠졌습니다.”
+
+### 5단계: 종료 리포트
+
+최종 결과:
+
+* 총점
+* 강점
+* 약점
+* 결정적 실수
+* 베스트 답변 예시
+* 다시 연습할 문장
+* 다음 난이도 추천
+
+---
+
+# 7. 실제 시나리오 예시: 고객 클레임 대응
+
+## 시작 상태
+
+```json
+{
+  "scenario": "B2B 고객 클레임 대응",
+  "role_user": "영업 담당자",
+  "role_ai": "화난 고객사 구매팀장",
+  "goal": "계약 해지 없이 보상안 합의",
+  "time_limit": 300,
+  "customer_anger": 70,
+  "customer_trust": 40
+}
+```
+
+## 진행
+
+AI 고객:
+
+> “이번 납기 지연 때문에 저희 생산 일정이 다 꼬였습니다. 이거 어떻게 책임지실 겁니까?”
+
+사용자 답변이 약하면:
+
+```json
+{
+  "tool": "update_npc_emotion",
+  "anger": 85,
+  "trust": 25
+}
+```
+
+AI 고객:
+
+> “원인 확인하겠다는 말은 이미 세 번 들었습니다. 지금 필요한 건 책임 있는 대안입니다.”
+
+사용자가 좋은 답변을 하면:
+
+```json
+{
+  "tool": "update_npc_emotion",
+  "anger": 55,
+  "trust": 60
+}
+```
+
+AI 고객:
+
+> “좋습니다. 그럼 오늘 안에 가능한 보상 범위를 문서로 주세요.”
+
+중간 돌발 이벤트:
+
+```json
+{
+  "tool": "trigger_incident",
+  "incident_type": "executive_join",
+  "message": "고객사 임원이 통화에 들어왔습니다."
+}
+```
+
+AI 임원:
+
+> “제가 직접 듣겠습니다. 귀사에서 이 문제를 어느 수준으로 보고 있는지 말해보세요.”
+
+이런 구조면 교육생은 진짜 압박을 느낍니다.
+
+---
+
+# 8. 기업교육 상품화 관점에서 좋은 구성
+
+## 상품명 예시
+
+**AI Voice Simulation Lab**
+
+또는
+
+**Live Roleplay Trainer**
+
+또는
+
+**First Day Simulation: 신입사원 실전 대응 훈련**
+
+## 적용 과정
+
+| 과정       | 시뮬레이션               |
+| -------- | ------------------- |
+| 신입사원 온보딩 | 첫 보고, 업무 요청, 실수 보고  |
+| 리더십 교육   | 피드백, 갈등 조정, 코칭      |
+| 영업 교육    | 가격 협상, 고객 반박 대응     |
+| CS 교육    | 불만 고객, 환불 요구, 악성 민원 |
+| 제조 교육    | 품질 사고, 납기 지연, 안전 이슈 |
+| 면접 교육    | 압박 면접, 꼬리 질문 대응     |
+| 글로벌 교육   | 영어/중국어 고객 미팅        |
+
+---
+
+# 9. 구현 우선순위
+
+## 1순위
+
+바로 만들어야 하는 것:
+
+1. `update_scenario_state`
+2. `update_npc_emotion`
+3. `evaluate_user_response`
+4. `trigger_incident`
+5. `generate_feedback_report`
+
+이 5개가 핵심입니다.
+
+## 2순위
+
+몰입감을 높이는 것:
+
+1. `switch_npc`
+2. `control_environment`
+3. `start_timer`
+4. `provide_hint`
+
+## 3순위
+
+기업형 고도화:
+
+1. `retrieve_policy`
+2. `retrieve_case_data`
+3. `save_session_log`
+4. `generate_team_dashboard`
+5. `recommend_next_training`
+
+---
+
+# 10. 결론
+
+이 기능의 진짜 가치는 **음성 AI가 대화 상대를 연기하는 수준을 넘어서, 시뮬레이션 진행자·평가자·상황 관리자·게임 마스터 역할을 동시에 하게 만드는 것**입니다.
+
+가장 현실적인 MVP는 이것입니다.
+
+> **음성 롤플레이 + NPC 감정 게이지 + 돌발 이벤트 + 실시간 점수 + 종료 리포트**
+
+이 조합만 넣어도 기존 챗봇형 롤플레이와 체감 차이가 큽니다.
+기업교육용으로는 **신입사원 보고 훈련, 고객 클레임 대응, 영업 협상, 리더십 피드백** 4개 시나리오가 가장 먼저 팔릴 가능성이 높습니다.
+
+[1]: https://ai.google.dev/gemini-api/docs/live-api/tools?hl=ko "Tool use with Live API  |  Gemini API  |  Google AI for Developers"
