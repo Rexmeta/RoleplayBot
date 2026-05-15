@@ -168,7 +168,7 @@ export function GoalsSidebar({
   }
 
   return (
-    <div className="absolute top-4 left-4 z-20 space-y-3 lg:hidden" style={{ maxWidth: 'min(100vw - 32px, 384px)' }}>
+    <div className="absolute top-16 left-4 z-20 space-y-3 lg:hidden" style={{ maxWidth: 'min(100vw - 32px, 384px)' }}>
       {hasGoals && (
         <div className="bg-white/80 backdrop-blur-sm rounded-lg shadow-lg transition-all duration-300 lg:hidden">
           <button
