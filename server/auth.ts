@@ -350,15 +350,15 @@ export function setupAuth(app: Express) {
       // 마지막 로그인 시간 업데이트
       await storage.updateUserLastLogin(user.id);
 
-      // 쿠키 설정 (자동로그인용) - 보안 강화
-      if (rememberMe) {
-        res.cookie('token', token, {
-          httpOnly: true,
-          secure: process.env.NODE_ENV === 'production',
-          sameSite: 'strict', // CSRF 방지
-          maxAge: 30 * 24 * 60 * 60 * 1000, // 30일
-        });
-      }
+      // 쿠키 설정 - 항상 설정 (rememberMe 여부에 따라 만료 기간만 다름)
+      res.cookie('token', token, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'strict', // CSRF 방지
+        maxAge: rememberMe
+          ? 30 * 24 * 60 * 60 * 1000  // 30일 (자동로그인)
+          : 7 * 24 * 60 * 60 * 1000,  // 7일 (JWT와 동일)
+      });
 
       res.json({
         message: "로그인이 완료되었습니다",

@@ -190,10 +190,10 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
     onSessionTerminated: (reason) => {
       toast({ title: t('voice.sessionEnded'), description: reason });
       setPendingAiMessage(false); setPendingUserMessage(false); setPendingUserText('');
+      pendingModeTransitionRef.current = 'realtime-voice';
+      setInputMode('text');
       if (handleSwitchToTextModeRef.current) {
         handleSwitchToTextModeRef.current();
-      } else {
-        setInputMode('text');
       }
     },
   });
