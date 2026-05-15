@@ -210,6 +210,13 @@ const SimulationPanel = memo(function SimulationPanel({
   className = '',
 }: SimulationPanelProps) {
   const { t } = useTranslation();
+  const scrollBodyRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (newIncident && scrollBodyRef.current) {
+      scrollBodyRef.current.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  }, [newIncident]);
 
   if (!isVisible || !state) return null;
 
@@ -239,7 +246,7 @@ const SimulationPanel = memo(function SimulationPanel({
       </div>
 
       {/* Scrollable body */}
-      <div className="overflow-y-auto flex-1">
+      <div ref={scrollBodyRef} className="overflow-y-auto flex-1">
         <CardContent className="p-3 space-y-3">
           <div className="space-y-1.5">
             <EmotionBar
