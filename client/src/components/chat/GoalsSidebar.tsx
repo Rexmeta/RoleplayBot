@@ -1,7 +1,11 @@
+import { useState, useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
+import { Brain, ChevronDown } from "lucide-react";
 import { formatElapsedTime } from "@/hooks/chat/useConversationTimer";
 import { emotionEmojis } from "@/hooks/chat/useEmotionState";
 import type { ComplexScenario } from "@/lib/scenario-system";
+import SimulationPanel from "@/components/SimulationPanel";
+import type { SimulationState, Incident, TurnScore } from "@/hooks/useSimulationState";
 
 interface GoalsSidebarProps {
   scenario: ComplexScenario;
@@ -14,6 +18,13 @@ interface GoalsSidebarProps {
   isGoalsExpanded: boolean;
   onToggleGoals: () => void;
   variant: 'sidebar' | 'overlay';
+  isSimulationEnabled?: boolean;
+  simulationState?: SimulationState | null;
+  newIncident?: Incident | null;
+  latestTurnScore?: TurnScore | null;
+  hasActiveIncident?: boolean;
+  isNpcExpanded?: boolean;
+  onToggleNpc?: () => void;
 }
 
 export function GoalsSidebar({
@@ -27,8 +38,29 @@ export function GoalsSidebar({
   isGoalsExpanded,
   onToggleGoals,
   variant,
+  isSimulationEnabled,
+  simulationState,
+  newIncident,
+  latestTurnScore,
+  hasActiveIncident,
+  isNpcExpanded = false,
+  onToggleNpc,
 }: GoalsSidebarProps) {
   const { t } = useTranslation();
+  const npcBodyRef = useRef<HTMLDivElement>(null);
+  const [npcBodyHeight, setNpcBodyHeight] = useState<number>(0);
+
+  useEffect(() => {
+    if (!npcBodyRef.current) return;
+    const observer = new ResizeObserver(() => {
+      if (npcBodyRef.current) {
+        setNpcBodyHeight(npcBodyRef.current.scrollHeight);
+      }
+    });
+    observer.observe(npcBodyRef.current);
+    setNpcBodyHeight(npcBodyRef.current.scrollHeight);
+    return () => observer.disconnect();
+  }, [simulationState, latestTurnScore, newIncident]);
 
   const hasGoals = scenario?.objectives || scenario?.context?.playerRoleText || scenario?.context?.playerRole?.responsibility;
 
@@ -79,6 +111,56 @@ export function GoalsSidebar({
                 </div>
               </div>
             )}
+          </div>
+        )}
+
+        {isSimulationEnabled && (
+          <div className="bg-white rounded-xl shadow-sm border border-slate-100 overflow-hidden">
+            <button
+              onClick={onToggleNpc}
+              className="w-full px-4 py-3 flex items-center justify-between hover:bg-slate-50 transition-colors duration-200"
+              aria-expanded={isNpcExpanded}
+            >
+              <div className="flex items-center gap-2">
+                <Brain className="h-4 w-4 text-slate-600" />
+                <span className="text-sm font-semibold text-slate-800">{t('chat.npcStatusPanel')}</span>
+                {hasActiveIncident && (
+                  <span className="w-2 h-2 bg-orange-400 rounded-full animate-pulse shrink-0" />
+                )}
+                {!simulationState && (
+                  <span className="text-xs text-slate-400">{t('chat.waiting', { defaultValue: '...' })}</span>
+                )}
+              </div>
+              <ChevronDown
+                className="h-4 w-4 text-slate-500 transition-transform duration-300"
+                style={{ transform: isNpcExpanded ? 'rotate(180deg)' : 'rotate(0deg)' }}
+              />
+            </button>
+
+            <div
+              style={{
+                maxHeight: isNpcExpanded ? `${Math.max(npcBodyHeight, 200)}px` : '0px',
+                opacity: isNpcExpanded ? 1 : 0,
+                overflow: 'hidden',
+                transition: 'max-height 0.35s ease-in-out, opacity 0.3s ease-in-out',
+              }}
+            >
+              <div ref={npcBodyRef} className="border-t border-slate-100">
+                {simulationState ? (
+                  <SimulationPanel
+                    state={simulationState}
+                    newIncident={newIncident}
+                    latestTurnScore={latestTurnScore}
+                    hasActiveIncident={hasActiveIncident}
+                    className="border-0 rounded-none bg-transparent"
+                  />
+                ) : (
+                  <div className="px-4 py-3 text-xs text-slate-400 text-center">
+                    {t('simulation.waitingForData', { defaultValue: 'Waiting for NPC data...' })}
+                  </div>
+                )}
+              </div>
+            </div>
           </div>
         )}
       </div>
