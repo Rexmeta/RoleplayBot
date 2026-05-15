@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { Slider } from "@/components/ui/slider";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { getProgressInfo } from "@/lib/conversationProgress";
 
@@ -39,6 +40,8 @@ interface ChatInputBarProps {
     userName?: string;
     currentTurn?: number;
     targetTurns?: number;
+    vadSensitivity?: number;
+    onVadSensitivityChange?: (level: number) => void;
   };
 }
 
@@ -314,6 +317,28 @@ export function ChatInputBar({
                 🔵 {t('chat.aiResponding')}
               </p>
             )}
+          </div>
+        )}
+
+        {rv.status === 'connected' && !rv.isWaitingForGreeting && rv.onVadSensitivityChange && (
+          <div className="flex items-center gap-3 mt-2 px-1">
+            <span className="text-slate-400 text-xs shrink-0">🔇</span>
+            <Slider
+              min={1}
+              max={5}
+              step={1}
+              value={[rv.vadSensitivity ?? 3]}
+              onValueChange={([v]) => rv.onVadSensitivityChange!(v)}
+              className="flex-1 h-1"
+            />
+            <span className="text-slate-400 text-xs shrink-0">🎤</span>
+            <span className="text-xs text-slate-500 shrink-0 w-16 text-right">
+              {rv.vadSensitivity === 1 ? t('vad.sensitivity.1', { defaultValue: '매우 낮음' })
+                : rv.vadSensitivity === 2 ? t('vad.sensitivity.2', { defaultValue: '낮음' })
+                : rv.vadSensitivity === 4 ? t('vad.sensitivity.4', { defaultValue: '높음' })
+                : rv.vadSensitivity === 5 ? t('vad.sensitivity.5', { defaultValue: '매우 높음' })
+                : t('vad.sensitivity.3', { defaultValue: '중간' })}
+            </span>
           </div>
         )}
 

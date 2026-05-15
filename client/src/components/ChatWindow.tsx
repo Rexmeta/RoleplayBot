@@ -559,6 +559,8 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
     previousMessages,
     personaDept: activePersona.department, personaRole: activePersona.role, personaName: activePersona.name, userName: user?.name,
     currentTurn, targetTurns,
+    vadSensitivity: realtimeVoice.vadSensitivity,
+    onVadSensitivityChange: realtimeVoice.setVadSensitivity,
   };
 
   return (

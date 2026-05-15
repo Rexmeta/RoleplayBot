@@ -9,6 +9,22 @@ const VAD_ENTRY_MIN = 0.06;
 const RECALIBRATION_SILENCE_INTERVAL_MS = 30_000;
 const RECALIBRATION_COOLDOWN_MS = 10_000;
 
+const VAD_SENSITIVITY_KEY = 'vad_sensitivity';
+const VAD_SENSITIVITY_DEFAULT = 3;
+
+function getSensitivityMultiplier(level: number): number {
+  const multipliers: Record<number, number> = { 1: 3.0, 2: 2.0, 3: 1.0, 4: 0.65, 5: 0.4 };
+  return multipliers[level] ?? 1.0;
+}
+
+function computeVADThresholds(noiseFloor: number, sensitivityLevel: number): { entry: number; exit: number } {
+  const mult = getSensitivityMultiplier(sensitivityLevel);
+  const baseEntry = Math.max(VAD_ENTRY_MIN, noiseFloor * VAD_ENTRY_MULTIPLIER);
+  const entry = Math.min(0.30, baseEntry * mult);
+  const exit = entry * VAD_EXIT_RATIO;
+  return { entry, exit };
+}
+
 async function measureNoiseFloor(stream: MediaStream): Promise<number> {
   return new Promise((resolve) => {
     let tempContext: AudioContext | null = null;
@@ -105,6 +121,8 @@ interface UseRealtimeVoiceReturn {
   greetingFailed: boolean;
   audioAmplitude: number;
   userAudioAmplitude: number;
+  vadSensitivity: number;
+  setVadSensitivity: (level: number) => void;
   connect: (previousMessages?: PreviousMessage[]) => Promise<void>;
   disconnect: () => void;
   startRecording: () => void;
@@ -141,6 +159,19 @@ export function useRealtimeVoice({
   const [greetingFailed, setGreetingFailed] = useState(false);
   const [sessionWarning, setSessionWarning] = useState<string | null>(null);
   const [isReconnecting, setIsReconnecting] = useState(false);
+
+  const [vadSensitivity, setVadSensitivityState] = useState<number>(() => {
+    try {
+      const saved = localStorage.getItem(VAD_SENSITIVITY_KEY);
+      if (saved) {
+        const parsed = parseInt(saved, 10);
+        if (parsed >= 1 && parsed <= 5) return parsed;
+      }
+    } catch {}
+    return VAD_SENSITIVITY_DEFAULT;
+  });
+  const vadSensitivityRef = useRef<number>(vadSensitivity);
+  useEffect(() => { vadSensitivityRef.current = vadSensitivity; }, [vadSensitivity]);
 
   const hasConversationStartedRef = useRef<boolean>(false);
   const wsRef = useRef<WebSocket | null>(null);
@@ -758,6 +789,17 @@ export function useRealtimeVoice({
     return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
+  const setVadSensitivity = useCallback((level: number) => {
+    const clamped = Math.max(1, Math.min(5, level));
+    setVadSensitivityState(clamped);
+    vadSensitivityRef.current = clamped;
+    try { localStorage.setItem(VAD_SENSITIVITY_KEY, String(clamped)); } catch {}
+    const noiseFloor = noiseFloorRef.current ?? 0;
+    const { entry, exit } = computeVADThresholds(noiseFloor, clamped);
+    console.log(`🎙️ VAD sensitivity changed to level ${clamped} — entry=${entry.toFixed(5)}, exit=${exit.toFixed(5)}`);
+    updateThresholds(entry, exit);
+  }, [updateThresholds]);
+
   const recalibrateNoiseFloor = useCallback(async () => {
     const stream = micStreamRef.current;
     if (!stream) return;
@@ -779,9 +821,8 @@ export function useRealtimeVoice({
 
     lastRecalibrationRef.current = Date.now();
     noiseFloorRef.current = noiseFloor;
-    const entry = Math.max(VAD_ENTRY_MIN, noiseFloor * VAD_ENTRY_MULTIPLIER);
-    const exit = entry * VAD_EXIT_RATIO;
-    console.log(`🎙️ Noise floor re-calibrated — noiseFloor=${noiseFloor.toFixed(5)}, entry=${entry.toFixed(5)}, exit=${exit.toFixed(5)}`);
+    const { entry, exit } = computeVADThresholds(noiseFloor, vadSensitivityRef.current);
+    console.log(`🎙️ Noise floor re-calibrated — noiseFloor=${noiseFloor.toFixed(5)}, entry=${entry.toFixed(5)}, exit=${exit.toFixed(5)}, sensitivity=${vadSensitivityRef.current}`);
     updateThresholds(entry, exit);
   }, [updateThresholds]);
 
@@ -833,9 +874,8 @@ export function useRealtimeVoice({
         noiseFloorRef.current = noiseFloor;
       }
 
-      const entryThreshold = Math.max(VAD_ENTRY_MIN, noiseFloor * VAD_ENTRY_MULTIPLIER);
-      const exitThreshold = entryThreshold * VAD_EXIT_RATIO;
-      console.log(`🎙️ Adaptive VAD thresholds — noiseFloor=${noiseFloor.toFixed(5)}, entry=${entryThreshold.toFixed(5)}, exit=${exitThreshold.toFixed(5)}`);
+      const { entry: entryThreshold, exit: exitThreshold } = computeVADThresholds(noiseFloor, vadSensitivityRef.current);
+      console.log(`🎙️ Adaptive VAD thresholds — noiseFloor=${noiseFloor.toFixed(5)}, entry=${entryThreshold.toFixed(5)}, exit=${exitThreshold.toFixed(5)}, sensitivity=${vadSensitivityRef.current}`);
 
       if (!captureContextRef.current) {
         captureContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
@@ -1008,6 +1048,8 @@ export function useRealtimeVoice({
     greetingFailed,
     audioAmplitude,
     userAudioAmplitude,
+    vadSensitivity,
+    setVadSensitivity,
     connect,
     disconnect,
     startRecording,
