@@ -962,14 +962,37 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
               className={`lg:hidden fixed bottom-0 left-0 right-0 z-[99] transition-transform duration-300 ease-in-out ${isMobileSimOpen ? 'translate-y-0' : 'translate-y-full'}`}
             >
               <div className="bg-background rounded-t-2xl shadow-2xl border-t border-border overflow-y-auto max-h-[65vh]">
-                <div className="flex items-center justify-between px-4 pt-3 pb-2 border-b border-border/50 sticky top-0 bg-background z-10">
-                  <div className="flex items-center gap-2">
-                    <Brain className="h-4 w-4 text-muted-foreground" />
-                    <span className="text-sm font-semibold">{t('chat.npcStatusPanel')}</span>
+                {/* Drag handle */}
+                <div className="flex justify-center pt-2 pb-1">
+                  <div className="w-10 h-1 rounded-full bg-muted-foreground/30" />
+                </div>
+                <div className="flex items-center justify-between px-4 pt-2 pb-2 border-b border-border/50 sticky top-0 bg-background z-10">
+                  <div className="flex items-center gap-2.5">
+                    {persona.image ? (
+                      <img
+                        src={toMediaUrl(persona.image)}
+                        alt={persona.name}
+                        className="h-8 w-8 rounded-full object-cover border border-border flex-shrink-0"
+                      />
+                    ) : (
+                      <div className="h-8 w-8 rounded-full bg-muted flex items-center justify-center flex-shrink-0 border border-border">
+                        <span className="text-xs font-semibold text-muted-foreground">
+                          {persona.name.charAt(0).toUpperCase()}
+                        </span>
+                      </div>
+                    )}
+                    <div className="flex flex-col min-w-0">
+                      <span className="text-sm font-semibold leading-tight truncate">{persona.name}</span>
+                      <div className="flex items-center gap-1">
+                        <Brain className="h-3 w-3 text-muted-foreground flex-shrink-0" />
+                        <span className="text-xs text-muted-foreground">{t('chat.npcStatusPanel')}</span>
+                      </div>
+                    </div>
                   </div>
                   <button
                     onClick={() => setIsMobileSimOpen(false)}
-                    className="p-1.5 rounded-full hover:bg-muted text-muted-foreground"
+                    aria-label={t('common.close')}
+                    className="p-1.5 rounded-full hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring text-muted-foreground flex-shrink-0"
                   >
                     <X className="h-4 w-4" />
                   </button>
