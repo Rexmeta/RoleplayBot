@@ -329,6 +329,49 @@ export function handleGeminiMessage(
       }
     }
 
+    // outputTranscription MUST be processed before turnComplete.
+    // Gemini-live-2.5-flash frequently sends both fields in the same message
+    // for non-greeting turns. If turnComplete runs first it clears
+    // session.currentTranscript before outputTranscription has a chance to
+    // accumulate into it, causing all AI speech after the first greeting to be
+    // silently dropped from the conversation history.
+    if (serverContent.outputTranscription) {
+      const transcript = serverContent.outputTranscription.text || '';
+      console.log(`🤖 AI transcript delta (raw): ${transcript}`);
+
+      if (session.isInterrupted && transcript.length > 0) {
+        console.log(`🔊 New AI response started - clearing barge-in flag immediately`);
+        session.isInterrupted = false;
+        session.cancelledTurnSeq = -1;
+        sendToClient(session, { type: 'response.ready', turnSeq: session.turnSeq });
+      }
+
+      if (transcript.length > 0 && !session.hasReceivedFirstTranscriptDelta) {
+        session.hasReceivedFirstTranscriptDelta = true;
+        // Exhaust the retry budget so no retry triggers can fire after this point,
+        // even if turnComplete arrives before Gemini finishes the turn.
+        session.firstGreetingRetryCount = 3;
+        console.log(`✅ First transcript delta received — retry gate closed`);
+      }
+
+      // Always accumulate outputTranscription: it is the authoritative
+      // transcription of what the AI actually spoke (produced by Gemini's
+      // outputAudioTranscription feature). Previously this was gated on
+      // `!serverContent.modelTurn` to avoid double-counting with
+      // modelTurn.parts[].text, but gemini-live-2.5-flash sends both fields
+      // in the same message for every non-greeting turn — causing the
+      // transcription to be silently dropped and never sent as
+      // ai.transcription.done. modelTurn accumulation is now suppressed
+      // when outputTranscription is present (see preferOutputTranscription).
+      session.currentTranscript += transcript;
+      session.totalAiTranscriptLength += transcript.length;
+
+      const filteredTranscript = filterThinkingText(transcript, session.userLanguage, { strictMode: session.turnSeq === 0 });
+      if (filteredTranscript) {
+        sendToClient(session, { type: 'ai.transcription.delta', text: filteredTranscript });
+      }
+    }
+
     if (serverContent.turnComplete) {
       console.log('✅ Turn complete');
 
@@ -572,41 +615,5 @@ export function handleGeminiMessage(
       }
     }
 
-    if (serverContent.outputTranscription) {
-      const transcript = serverContent.outputTranscription.text || '';
-      console.log(`🤖 AI transcript delta (raw): ${transcript}`);
-
-      if (session.isInterrupted && transcript.length > 0) {
-        console.log(`🔊 New AI response started - clearing barge-in flag immediately`);
-        session.isInterrupted = false;
-        session.cancelledTurnSeq = -1;
-        sendToClient(session, { type: 'response.ready', turnSeq: session.turnSeq });
-      }
-
-      if (transcript.length > 0 && !session.hasReceivedFirstTranscriptDelta) {
-        session.hasReceivedFirstTranscriptDelta = true;
-        // Exhaust the retry budget so no retry triggers can fire after this point,
-        // even if turnComplete arrives before Gemini finishes the turn.
-        session.firstGreetingRetryCount = 3;
-        console.log(`✅ First transcript delta received — retry gate closed`);
-      }
-
-      // Always accumulate outputTranscription: it is the authoritative
-      // transcription of what the AI actually spoke (produced by Gemini's
-      // outputAudioTranscription feature). Previously this was gated on
-      // `!serverContent.modelTurn` to avoid double-counting with
-      // modelTurn.parts[].text, but gemini-live-2.5-flash sends both fields
-      // in the same message for every non-greeting turn — causing the
-      // transcription to be silently dropped and never sent as
-      // ai.transcription.done. modelTurn accumulation is now suppressed
-      // when outputTranscription is present (see preferOutputTranscription).
-      session.currentTranscript += transcript;
-      session.totalAiTranscriptLength += transcript.length;
-
-      const filteredTranscript = filterThinkingText(transcript, session.userLanguage, { strictMode: session.turnSeq === 0 });
-      if (filteredTranscript) {
-        sendToClient(session, { type: 'ai.transcription.delta', text: filteredTranscript });
-      }
-    }
   }
 }
