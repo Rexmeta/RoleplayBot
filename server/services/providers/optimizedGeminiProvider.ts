@@ -36,6 +36,7 @@ import {
   isValidEvidenceItem,
 } from "../evaluationEngine";
 import { getSoftClosingInstruction } from "../conversationDifficultyPolicy";
+import { filterThinkingText } from "../voice/textFilter";
 
 function buildMultiPersonaTextSection(
   allPersonas: any[],
@@ -180,6 +181,7 @@ export class OptimizedGeminiProvider implements AIServiceInterface {
             required: ["content", "emotion", "emotionReason"]
           };
 
+      const isFlash25 = this.model.includes('gemini-2.5-flash') || this.model.includes('gemini-2.5-pro');
       const response = await conversationSemaphore.run(() =>
         retryWithBackoff(() =>
           this.genAI.models.generateContent({
@@ -188,7 +190,8 @@ export class OptimizedGeminiProvider implements AIServiceInterface {
               responseMimeType: "application/json",
               responseSchema,
               maxOutputTokens: 1500,
-              temperature: 0.7
+              temperature: 0.7,
+              ...(isFlash25 ? { thinkingConfig: { thinkingBudget: 0 } } : {}),
             },
             contents: [
               { role: "user", parts: [{ text: compactPrompt + `\n\n${contentsUserLabel}: ` + prompt }] }
@@ -204,6 +207,15 @@ export class OptimizedGeminiProvider implements AIServiceInterface {
       const totalTime = Date.now() - startTime;
       console.log(`✓ Optimized Gemini call completed in ${totalTime}ms`);
       
+      // Post-process: strip any thinking/reasoning text that leaked into the content field
+      const rawContent: string = responseData.content || "죄송합니다. 응답을 생성할 수 없습니다.";
+      const userLang = (language as 'ko' | 'en' | 'ja' | 'zh') || 'ko';
+      const filteredContent = filterThinkingText(rawContent, userLang);
+      const finalContent = filteredContent.trim() || rawContent;
+      if (finalContent !== rawContent) {
+        console.warn(`[optimizedGeminiProvider] Thinking text filtered from content (model=${this.model}, lang=${userLang}). Original length=${rawContent.length}, filtered length=${finalContent.length}`);
+      }
+
       // Track usage asynchronously (fire and forget)
       const tokens = extractGeminiTokens(response);
       trackUsage({
@@ -216,7 +228,7 @@ export class OptimizedGeminiProvider implements AIServiceInterface {
       });
 
       return {
-        content: responseData.content || "죄송합니다. 응답을 생성할 수 없습니다.",
+        content: finalContent,
         emotion: responseData.emotion || "중립",
         emotionReason: responseData.emotionReason || "시스템 오류로 기본 응답 제공",
         ...(responseData.switchPersona ? { switchPersona: responseData.switchPersona } : {}),
