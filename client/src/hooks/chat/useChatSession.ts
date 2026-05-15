@@ -88,6 +88,10 @@ export function useChatSession({
     setShowEndConversationDialog(true);
   };
 
+  const handleFeedbackRequest = () => {
+    setShowEndConversationDialog(true);
+  };
+
   const handleEndRealtimeConversation = () => {
     if (isPersonaMode) {
       disconnectVoice();
@@ -203,6 +207,7 @@ export function useChatSession({
     handleAlmostDoneKeepGoing,
     handleAlmostDoneConfirmExit,
     handleGoToFeedback,
+    handleFeedbackRequest,
     handleEndRealtimeConversation,
     confirmEndConversation,
     handleResetConversation,

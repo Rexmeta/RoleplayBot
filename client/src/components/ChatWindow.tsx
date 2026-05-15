@@ -259,7 +259,7 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
 
   const { isSessionEnding, isGoingToFeedback, showEndConversationDialog, setShowEndConversationDialog,
     showAlmostDoneDialog, handleAlmostDoneKeepGoing, handleAlmostDoneConfirmExit,
-    handleGoToFeedback, handleEndRealtimeConversation, confirmEndConversation, handleResetConversation, flushRealtimeMessages } = useChatSession({
+    handleGoToFeedback, handleFeedbackRequest, handleEndRealtimeConversation, confirmEndConversation, handleResetConversation, flushRealtimeMessages } = useChatSession({
     conversationId, localMessages, pendingUserText, isPersonaMode, isNearingEnd, currentTurn, targetTurns,
     onChatComplete, onExit, onConversationEnding,
     disconnectVoice: realtimeVoice.disconnect, resetPhase: realtimeVoice.resetPhase,
@@ -577,7 +577,7 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
                         variant="outline"
                         onClick={() => {
                           if (progressInfo.stage === 'complete') {
-                            handleGoToFeedback();
+                            handleFeedbackRequest();
                           } else {
                             handleEndRealtimeConversation();
                           }
@@ -677,7 +677,7 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
                         variant="outline"
                         onClick={() => {
                           if (progressInfo.stage === 'complete') {
-                            handleGoToFeedback();
+                            handleFeedbackRequest();
                           } else {
                             handleEndRealtimeConversation();
                           }
@@ -884,7 +884,7 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
                             variant="outline"
                             onClick={() => {
                               if (progressInfo.stage === 'complete') {
-                                handleGoToFeedback();
+                                handleFeedbackRequest();
                               } else {
                                 handleEndRealtimeConversation();
                               }
