@@ -95,6 +95,7 @@ export function useChatSession({
       if (payload.length > 0) {
         apiRequest('POST', `/api/conversations/${conversationId}/realtime-messages`, {
           messages: payload,
+          isFinal: true,
         }).catch(console.error);
       }
       onExit();
@@ -125,7 +126,7 @@ export function useChatSession({
         const res = await apiRequest(
           'POST',
           `/api/conversations/${conversationId}/realtime-messages`,
-          { messages: payload }
+          { messages: payload, isFinal: true }
         );
 
         await res.json();
@@ -179,14 +180,15 @@ export function useChatSession({
     }
   };
 
-  const flushRealtimeMessages = async (): Promise<void> => {
+  const flushRealtimeMessages = async (isFinal = false): Promise<void> => {
     const payload = buildSavePayload(localMessages, pendingUserText);
     if (payload.length === 0) return;
     try {
       await apiRequest('POST', `/api/conversations/${conversationId}/realtime-messages`, {
         messages: payload,
+        isFinal,
       });
-      console.log(`✅ [flushRealtimeMessages] Saved ${payload.length} messages`);
+      console.log(`✅ [flushRealtimeMessages] Saved ${payload.length} messages, isFinal=${isFinal}`);
     } catch (error) {
       console.error('❌ [flushRealtimeMessages] Failed to save messages:', error);
     }

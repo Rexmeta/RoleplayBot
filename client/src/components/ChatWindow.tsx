@@ -263,7 +263,7 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
     if (isSwitchingMode) return;
     setIsSwitchingMode(true);
     try {
-      await flushRealtimeMessages();
+      await flushRealtimeMessages(false);
       realtimeVoice.disconnect();
     } finally {
       setIsSwitchingMode(false);

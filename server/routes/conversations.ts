@@ -491,7 +491,13 @@ export default function createConversationsRouter(isAuthenticated: any) {
     const isSkipTurn = message.trim() === "";
 
     if (personaRun!.status === "completed") {
-      throw createHttpError(400, "Conversation already completed");
+      if (validatedPreviousMode === 'realtime-voice') {
+        console.log(`🔄 음성→텍스트 전환 후 재활성화: ${personaRunId}`);
+        await storage.updatePersonaRun(personaRunId, { status: 'active', completedAt: null });
+        personaRun!.status = 'active';
+      } else {
+        throw createHttpError(400, "Conversation already completed");
+      }
     }
 
     const existingMessages = await storage.getChatMessagesByPersonaRun(personaRunId);
@@ -878,12 +884,13 @@ ${userNameLine}
     const { personaRun } = await verifyPersonaRunOwnership(personaRunId, userId);
 
     const { messages } = req.body;
+    const isFinal = req.body.isFinal === true;
 
     if (!Array.isArray(messages)) {
       throw createHttpError(400, "Messages must be an array");
     }
 
-    console.log(`🎙️ 실시간 음성 대화 메시지 일괄 저장: ${personaRunId}, ${messages.length}개 메시지`);
+    console.log(`🎙️ 실시간 음성 대화 메시지 일괄 저장: ${personaRunId}, ${messages.length}개 메시지, isFinal=${isFinal}`);
 
     await storage.deleteChatMessagesByPersonaRun(personaRunId);
 
@@ -901,13 +908,21 @@ ${userNameLine}
     }
 
     const turnCount = Math.floor(messages.length / 2);
-    await storage.updatePersonaRun(personaRunId, {
-      status: 'completed',
-      completedAt: new Date(),
-      turnCount
-    });
 
-    await checkAndCompleteScenario(personaRun!.scenarioRunId);
+    if (isFinal) {
+      await storage.updatePersonaRun(personaRunId, {
+        status: 'completed',
+        completedAt: new Date(),
+        turnCount
+      });
+      await checkAndCompleteScenario(personaRun!.scenarioRunId);
+    } else {
+      await storage.updatePersonaRun(personaRunId, {
+        status: 'active',
+        completedAt: null,
+        turnCount
+      });
+    }
 
     res.json({ success: true, turnCount });
   }));
