@@ -57,7 +57,8 @@ export function handleClientMessage(
   sessionId: string,
   message: any,
   sessions: Map<string, RealtimeSession>,
-  sendToClient: SendToClient
+  sendToClient: SendToClient,
+  proactiveReconnect?: (session: RealtimeSession) => void
 ): void {
   const session = sessions.get(sessionId);
   if (!session) {
@@ -71,6 +72,7 @@ export function handleClientMessage(
     if (message.type === 'client.ready') {
       console.log(`⏸️ Gemini not ready yet, buffering client.ready message for session: ${sessionId}`);
       session.pendingClientReady = message;
+      if (message.isResuming === true) session.pendingIsResuming = true;
       return;
     }
     console.warn(`⚠️ Gemini not connected for session: ${sessionId}, dropping message type: ${message.type}`);
@@ -136,6 +138,12 @@ export function handleClientMessage(
       const clientReadyTime = Date.now();
       console.log(`⏱️ [TIMING] client.ready 수신: ${new Date(clientReadyTime).toISOString()}`);
 
+      if (session.greetingTimeoutId !== null) {
+        clearTimeout(session.greetingTimeoutId);
+        session.greetingTimeoutId = null;
+        console.log('⏰ client.ready로 인사 타임아웃 취소됨');
+      }
+
       const hasExistingConversation = message.hasExistingConversation === true;
       const isResuming = message.isResuming === true;
       const clientPreviousMessages = message.previousMessages as Array<{ role: 'user' | 'ai'; content: string }> | undefined;
@@ -195,52 +203,56 @@ export function handleClientMessage(
           pushPending(session, { index: session.outgoingMessageIndex++, payload: { type: 'realtimeInput', data: eotPayload1 } });
           geminiSessionRef.sendRealtimeInput(eotPayload1);
         })().catch(err => console.error('❌ Failed to build/send text-to-voice context:', err));
-      } else if (isResuming && previousMessages && previousMessages.length > 0) {
-        console.log(`🔄 Resuming voice conversation with ${previousMessages.length} previous messages`);
-        const hadPreviousAIResponse = previousMessages.some(m => m.role === 'ai');
-
+      } else if (isResuming) {
         session.hasTriggeredFirstGreeting = true;
-        if (hadPreviousAIResponse) {
-          session.hasReceivedFirstAIResponse = true;
-        }
+        session.hasReceivedFirstAIResponse = true;
 
-        const geminiSessionRef = session.geminiSession;
-        const userLanguage = session.userLanguage;
-        const userLabel = session.userName && session.userName !== '사용자' ? session.userName : '사용자';
-        const resumePersonaLabel = session.personaName || 'AI';
-
-        (async () => {
-          let resumeContext: string;
-
-          if (previousMessages.length > CONTEXT_WINDOW_SIZE) {
-            const olderMessages = previousMessages.slice(0, previousMessages.length - CONTEXT_WINDOW_SIZE);
-            const recentMessages = previousMessages.slice(-CONTEXT_WINDOW_SIZE);
-
-            console.log(`📝 [Summarizer] Messages exceed ${CONTEXT_WINDOW_SIZE} — summarizing ${olderMessages.length} older messages`);
-            const summary = await summarizeOlderMessages(olderMessages, userLanguage);
-
-            const recentSummary = recentMessages.map(m =>
-              `${m.role === 'user' ? userLabel : resumePersonaLabel}: ${m.content}`
-            ).join('\n');
-
-            resumeContext = `[당신은 ${resumePersonaLabel}입니다. 이전 대화 요약]\n${summary}\n\n[최근 대화 내용]\n${recentSummary}\n\n[대화 재개 - 당신은 ${resumePersonaLabel}으로서 이전 대화 맥락을 기억하세요. 재연결되었음을 언급하거나 인사하지 마세요. "다시 연결되었네요", "어디까지 얘기했죠?" 같은 표현은 절대 하지 마세요. 사용자가 먼저 말할 때까지 침묵을 유지하고, 사용자가 발화하면 이전 대화 맥락을 자연스럽게 이어서 반응하세요.]`;
+        if (proactiveReconnect) {
+          // For ALL isResuming paths: reconnect with reconnect-safe system instructions.
+          // Context injection (from session.recentMessages) is handled inside proactiveReconnect,
+          // ensuring the greeting-oriented system prompt is replaced before the user speaks.
+          console.log('🔀 isResuming — triggering proactiveReconnect for reconnect-safe system prompt');
+          proactiveReconnect(session);
+        } else {
+          // Fallback: no proactiveReconnect callback (e.g., test contexts or direct callers).
+          // Inject context or silence directive directly to the existing Gemini session.
+          if (!previousMessages || previousMessages.length === 0) {
+            console.log('🔄 isResuming fallback: no previous messages — injecting silence directive');
+            const silentContext = session.userLanguage === 'ko'
+              ? '[재연결. 인사하지 말고 사용자가 먼저 발화할 때까지 침묵하세요.]'
+              : '[Reconnected. Do NOT greet. Wait silently for the user to speak first.]';
+            const silencePayload = { turns: [{ role: 'user', parts: [{ text: silentContext }] }], turnComplete: false };
+            pushPending(session, { index: session.outgoingMessageIndex++, payload: { type: 'clientContent', data: silencePayload } });
+            session.geminiSession.sendClientContent(silencePayload);
           } else {
-            const conversationSummary = previousMessages.map(m =>
-              `${m.role === 'user' ? userLabel : resumePersonaLabel}: ${m.content}`
-            ).join('\n');
+            console.log(`🔄 isResuming fallback: injecting resume context (${previousMessages.length} messages)`);
+            const geminiSessionRef = session.geminiSession;
+            const userLanguage = session.userLanguage;
+            const userLabel = session.userName && session.userName !== '사용자' ? session.userName : '사용자';
+            const resumePersonaLabel = session.personaName || 'AI';
 
-            resumeContext = `[당신은 ${resumePersonaLabel}입니다. 이전 대화 내용 - 이 대화를 이어서 진행합니다]\n${conversationSummary}\n\n[대화 재개 - 당신은 ${resumePersonaLabel}으로서 이전 대화 맥락을 기억하세요. 재연결되었음을 언급하거나 인사하지 마세요. "다시 연결되었네요", "어디까지 얘기했죠?" 같은 표현은 절대 하지 마세요. 사용자가 먼저 말할 때까지 침묵을 유지하고, 사용자가 발화하면 이전 대화 맥락을 자연스럽게 이어서 반응하세요.]`;
+            (async () => {
+              let resumeContext: string;
+              if (previousMessages.length > CONTEXT_WINDOW_SIZE) {
+                const olderMessages = previousMessages.slice(0, previousMessages.length - CONTEXT_WINDOW_SIZE);
+                const recentMessages = previousMessages.slice(-CONTEXT_WINDOW_SIZE);
+                const summary = await summarizeOlderMessages(olderMessages, userLanguage);
+                const recentSummary = recentMessages.map(m =>
+                  `${m.role === 'user' ? userLabel : resumePersonaLabel}: ${m.content}`
+                ).join('\n');
+                resumeContext = `[당신은 ${resumePersonaLabel}입니다. 이전 대화 요약]\n${summary}\n\n[최근 대화 내용]\n${recentSummary}\n\n[대화 재개 - 인사하지 마세요. 사용자가 먼저 말할 때까지 침묵을 유지하세요.]`;
+              } else {
+                const conversationSummary = previousMessages.map(m =>
+                  `${m.role === 'user' ? userLabel : resumePersonaLabel}: ${m.content}`
+                ).join('\n');
+                resumeContext = `[당신은 ${resumePersonaLabel}입니다. 이전 대화 내용]\n${conversationSummary}\n\n[대화 재개 - 인사하지 마세요. 사용자가 먼저 말할 때까지 침묵을 유지하세요.]`;
+              }
+              const resumePayload = { turns: [{ role: 'user', parts: [{ text: resumeContext }] }], turnComplete: false };
+              pushPending(session, { index: session.outgoingMessageIndex++, payload: { type: 'clientContent', data: resumePayload } });
+              geminiSessionRef.sendClientContent(resumePayload);
+            })().catch(err => console.error('❌ Failed to build/send resume context:', err));
           }
-
-          console.log(`📤 Sending resume context to Gemini (had previous AI response: ${hadPreviousAIResponse})`);
-
-          const resumePayload = { turns: [{ role: 'user', parts: [{ text: resumeContext }] }], turnComplete: true };
-          pushPending(session, { index: session.outgoingMessageIndex++, payload: { type: 'clientContent', data: resumePayload } });
-          geminiSessionRef.sendClientContent(resumePayload);
-          const eotPayload2 = { event: 'END_OF_TURN' };
-          pushPending(session, { index: session.outgoingMessageIndex++, payload: { type: 'realtimeInput', data: eotPayload2 } });
-          geminiSessionRef.sendRealtimeInput(eotPayload2);
-        })().catch(err => console.error('❌ Failed to build/send resume context:', err));
+        }
       } else {
         console.log('🎬 Client ready signal received - triggering first greeting...');
 

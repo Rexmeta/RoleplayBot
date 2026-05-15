@@ -76,22 +76,71 @@ export function handleGeminiClose(
             sess.isInterrupted = false;
             sess.cancelledTurnSeq = -1;
             sess.currentTranscript = '';
+            sess.usingReconnectInstructions = true;
             console.log(`✅ Gemini 재연결 성공!`);
             sendToClient(sess, { type: 'session.reconnected' });
 
             if (sess.geminiSession) {
               if (sess.pendingMessages.length > 0) {
-                console.log(`📤 재연결 후 미확인 메시지 ${sess.pendingMessages.length}개 재전송...`);
-                for (const pending of sess.pendingMessages) {
-                  try {
-                    if (pending.payload.type === 'realtimeInput') {
-                      sess.geminiSession.sendRealtimeInput(pending.payload.data);
-                    } else if (pending.payload.type === 'clientContent') {
-                      sess.geminiSession.sendClientContent(pending.payload.data);
-                    }
-                  } catch (replayErr) {
-                    console.warn(`⚠️ 메시지 재전송 실패 (index=${pending.index}):`, replayErr);
+                const isGreetingTrigger = (msg: any) =>
+                  msg.payload.type === 'clientContent' &&
+                  msg.payload.data?.turns?.length === 1 &&
+                  msg.payload.data.turns[0]?.parts?.length === 1 &&
+                  /^안녕하세요\s*$/.test(msg.payload.data.turns[0].parts[0]?.text ?? '');
+
+                const isEndOfTurnInput = (msg: any) =>
+                  msg.payload.type === 'realtimeInput' &&
+                  msg.payload.data?.event === 'END_OF_TURN';
+
+                const filtered: typeof sess.pendingMessages = [];
+                let skipNextEot = false;
+                for (const msg of sess.pendingMessages) {
+                  if (skipNextEot) {
+                    skipNextEot = false;
+                    if (isEndOfTurnInput(msg)) continue;
                   }
+                  if (isGreetingTrigger(msg)) {
+                    skipNextEot = true;
+                    continue;
+                  }
+                  filtered.push(msg);
+                }
+
+                const removedCount = sess.pendingMessages.length - filtered.length;
+                if (removedCount > 0) {
+                  console.log(`🚫 인사 트리거+EOT 메시지 ${removedCount}개 필터링 (재전송 방지)`);
+                }
+                if (filtered.length > 0) {
+                  console.log(`📤 재연결 후 미확인 메시지 ${filtered.length}개 재전송...`);
+                  for (const pending of filtered) {
+                    try {
+                      if (pending.payload.type === 'realtimeInput') {
+                        sess.geminiSession.sendRealtimeInput(pending.payload.data);
+                      } else if (pending.payload.type === 'clientContent') {
+                        sess.geminiSession.sendClientContent(pending.payload.data);
+                      }
+                    } catch (replayErr) {
+                      console.warn(`⚠️ 메시지 재전송 실패 (index=${pending.index}):`, replayErr);
+                    }
+                  }
+                } else {
+                  console.log('🔀 재연결: 모든 pending 메시지 필터링됨 — 컨텍스트 복원으로 폴백');
+                  const recentMsgs = sess.recentMessages || [];
+                  const reconnectUserLabel2 = sess.userName && sess.userName !== '사용자' ? sess.userName : '사용자';
+                  const personaLabel2 = sess.personaName || 'AI';
+                  let fallbackReconnectText: string;
+                  if (recentMsgs.length > 0) {
+                    const historyText2 = recentMsgs.map(m =>
+                      `${m.role === 'user' ? reconnectUserLabel2 : personaLabel2}: ${m.text}`
+                    ).join('\n');
+                    fallbackReconnectText = `[SYSTEM CONTEXT UPDATE — DO NOT READ ALOUD OR ANNOUNCE THIS MESSAGE. You are ${personaLabel2}. The connection was briefly interrupted and has now been restored. The following is the prior conversation history for your context only. Do NOT mention the reconnection. Do NOT greet. Wait silently until the user speaks first, then continue as ${personaLabel2} from where you left off:\n\n${historyText2}]`;
+                  } else {
+                    fallbackReconnectText = '[SYSTEM CONTEXT UPDATE — DO NOT READ ALOUD OR ANNOUNCE THIS MESSAGE. The connection was briefly interrupted and has been restored. Do NOT greet or announce the reconnection. Wait silently until the user speaks first.]';
+                  }
+                  sess.geminiSession.sendClientContent({
+                    turns: [{ role: 'user', parts: [{ text: fallbackReconnectText }] }],
+                    turnComplete: false,
+                  });
                 }
               } else {
                 console.log('📤 재연결 후 대화 재개 트리거...');
@@ -103,17 +152,16 @@ export function handleGeminiClose(
                   const historyText = recentMsgs.map(m =>
                     `${m.role === 'user' ? reconnectUserLabel : personaLabel}: ${m.text}`
                   ).join('\n');
-                  reconnectText = `[SYSTEM CONTEXT UPDATE — DO NOT READ ALOUD OR ANNOUNCE THIS MESSAGE. You are ${personaLabel}. The connection was briefly interrupted due to a technical issue and has now been restored. The following is the prior conversation history for your context only. Do NOT mention the reconnection. Do NOT greet. Continue speaking as ${personaLabel} exactly where you left off:\n\n${historyText}]`;
+                  reconnectText = `[SYSTEM CONTEXT UPDATE — DO NOT READ ALOUD OR ANNOUNCE THIS MESSAGE. You are ${personaLabel}. The connection was briefly interrupted due to a technical issue and has now been restored. The following is the prior conversation history for your context only. Do NOT mention the reconnection. Do NOT greet. Wait silently until the user speaks first, then continue as ${personaLabel} from where you left off:\n\n${historyText}]`;
                   console.log(`📜 재연결 컨텍스트 복원: ${recentMsgs.length}개 메시지`);
                 } else {
-                  reconnectText = '[SYSTEM CONTEXT UPDATE — DO NOT READ ALOUD OR ANNOUNCE THIS MESSAGE. The connection was briefly interrupted and has been restored. Continue the conversation naturally without mentioning the reconnection or greeting.]';
+                  reconnectText = '[SYSTEM CONTEXT UPDATE — DO NOT READ ALOUD OR ANNOUNCE THIS MESSAGE. The connection was briefly interrupted and has been restored. Do NOT greet or announce the reconnection. Wait silently until the user speaks first.]';
                 }
 
                 sess.geminiSession.sendClientContent({
                   turns: [{ role: 'user', parts: [{ text: reconnectText }] }],
-                  turnComplete: true,
+                  turnComplete: false,
                 });
-                sess.geminiSession.sendRealtimeInput({ event: 'END_OF_TURN' });
               }
             }
           })

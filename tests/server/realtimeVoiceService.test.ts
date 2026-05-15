@@ -12,6 +12,11 @@ vi.mock('../../server/storage', () => ({
     getSystemSetting: mockGetSystemSetting,
     getUserPersonaById: mockGetUserPersonaById,
   },
+  db: {
+    select: vi.fn(() => ({ from: vi.fn(() => ({ where: vi.fn(() => ({ limit: vi.fn(() => Promise.resolve([])) })) })) })),
+  },
+  pool: undefined,
+  checkDatabaseConnection: vi.fn(),
 }));
 
 const mockGetAllScenarios = vi.fn();
@@ -26,6 +31,7 @@ vi.mock('../../server/services/fileManager', () => ({
 
 vi.mock('../../server/services/voice/systemPromptBuilder', () => ({
   buildSystemInstructions: vi.fn(() => 'mock system instructions'),
+  buildReconnectSystemInstructions: vi.fn((instructions: string) => instructions + '\n[reconnect]'),
 }));
 
 vi.mock('../../server/services/voice/prompts/userPersonaPrompt', () => ({
@@ -388,7 +394,7 @@ describe('RealtimeVoiceService — session.recentMessages population on createSe
       expect(mockGeminiSession.sendClientContent).toHaveBeenCalled();
     });
 
-    it('replayed client.ready with isResuming uses session.recentMessages as fallback when no previousMessages sent', async () => {
+    it('replayed client.ready with isResuming calls proactiveReconnect (which uses session.recentMessages)', async () => {
       let connectResolve!: (v: any) => void;
       let capturedCallbacks: any;
       const mockGeminiSession = makeGeminiSession();
@@ -397,6 +403,8 @@ describe('RealtimeVoiceService — session.recentMessages population on createSe
         capturedCallbacks = callbacks;
         return new Promise(resolve => { connectResolve = resolve; });
       });
+
+      const spy = vi.spyOn(service, 'proactiveReconnect' as any).mockResolvedValue(undefined);
 
       const dbMessages = makeDbMessages(3);
       mockGetChatMessagesByPersonaRun.mockResolvedValue(dbMessages);
@@ -423,13 +431,9 @@ describe('RealtimeVoiceService — session.recentMessages population on createSe
       await createPromise;
 
       expect(session.pendingClientReady).toBeNull();
-
-      expect(mockGeminiSession.sendClientContent).toHaveBeenCalledOnce();
-      const callArg = mockGeminiSession.sendClientContent.mock.calls[0][0];
-      const sentText: string = callArg.turns[0].parts[0].text;
-      expect(sentText).toContain('message content 1 from DB');
-      expect(sentText).toContain('message content 2 from DB');
-      expect(sentText).toContain('message content 3 from DB');
+      // proactiveReconnect should have been called — it handles context injection
+      // from session.recentMessages with reconnect-safe system instructions
+      expect(spy).toHaveBeenCalledWith(session);
     });
 
     it('still buffers client.ready when onopen fires before connect() resolves (geminiSession is null)', async () => {
@@ -701,6 +705,256 @@ describe('RealtimeVoiceService — session.recentMessages population on createSe
       );
 
       expect(mockGetChatMessagesByPersonaRun).toHaveBeenCalledWith(CONVERSATION_ID);
+    });
+  });
+
+  describe('proactiveReconnect — greeting trigger + EOT filter', () => {
+    let session: any;
+    let newGeminiSession: any;
+
+    beforeEach(async () => {
+      mockGetChatMessagesByPersonaRun.mockResolvedValue([]);
+      const fakeWs = { readyState: 1, send: vi.fn() };
+      await service.createSession(SESSION_ID, CONVERSATION_ID, SCENARIO_ID, PERSONA_ID, USER_ID, fakeWs as any);
+      session = (service as any).sessions.get(SESSION_ID);
+
+      newGeminiSession = { sendClientContent: vi.fn(), sendRealtimeInput: vi.fn(), close: vi.fn() };
+      mockLiveConnect.mockResolvedValue(newGeminiSession);
+    });
+
+    it('filters greeting trigger + paired END_OF_TURN from pendingMessages on proactiveReconnect', async () => {
+      const greetingPayload = { turns: [{ role: 'user', parts: [{ text: '안녕하세요' }] }], turnComplete: true };
+      const eotPayload = { event: 'END_OF_TURN' };
+      session.pendingMessages = [
+        { index: 0, payload: { type: 'clientContent', data: greetingPayload } },
+        { index: 1, payload: { type: 'realtimeInput', data: eotPayload } },
+      ];
+      session.isReconnecting = false;
+      session.geminiSession = { sendClientContent: vi.fn(), sendRealtimeInput: vi.fn(), close: vi.fn() };
+
+      await (service as any).proactiveReconnect(session);
+
+      expect(newGeminiSession.sendClientContent).not.toHaveBeenCalledWith(
+        expect.objectContaining({ turns: [{ role: 'user', parts: [{ text: '안녕하세요' }] }] })
+      );
+      expect(newGeminiSession.sendRealtimeInput).not.toHaveBeenCalled();
+    });
+
+    it('preserves non-greeting pending messages while filtering greeting + EOT on proactiveReconnect', async () => {
+      const greetingPayload = { turns: [{ role: 'user', parts: [{ text: '안녕하세요' }] }], turnComplete: true };
+      const eotPayload = { event: 'END_OF_TURN' };
+      const realPayload = { turns: [{ role: 'user', parts: [{ text: '업무 질문입니다' }] }], turnComplete: false };
+      session.pendingMessages = [
+        { index: 0, payload: { type: 'clientContent', data: greetingPayload } },
+        { index: 1, payload: { type: 'realtimeInput', data: eotPayload } },
+        { index: 2, payload: { type: 'clientContent', data: realPayload } },
+      ];
+      session.isReconnecting = false;
+      session.geminiSession = { sendClientContent: vi.fn(), sendRealtimeInput: vi.fn(), close: vi.fn() };
+
+      await (service as any).proactiveReconnect(session);
+
+      expect(newGeminiSession.sendClientContent).toHaveBeenCalledWith(realPayload);
+      expect(newGeminiSession.sendClientContent).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe('handleClientMessage — isResuming + empty history triggers proactiveReconnect (common path)', () => {
+    it('calls proactiveReconnect when client.ready isResuming=true arrives after Gemini is connected with no preload', async () => {
+      mockGetChatMessagesByPersonaRun.mockResolvedValue([]);
+
+      const spy = vi.spyOn(service, 'proactiveReconnect' as any).mockResolvedValue(undefined);
+
+      const fakeWs = { readyState: 1, send: vi.fn() };
+      await service.createSession(SESSION_ID, CONVERSATION_ID, SCENARIO_ID, PERSONA_ID, USER_ID, fakeWs as any);
+
+      // At this point Gemini is connected (session.geminiSession is set).
+      // Simulate the common reconnect flow: client sends isResuming=true with no previousMessages.
+      service.handleClientMessage(SESSION_ID, {
+        type: 'client.ready',
+        isResuming: true,
+      });
+
+      expect(spy).toHaveBeenCalled();
+    });
+
+    it('calls proactiveReconnect when client.ready isResuming=true has previousMessages (all isResuming → reconnect-safe prompt)', async () => {
+      mockGetChatMessagesByPersonaRun.mockResolvedValue([]);
+
+      const spy = vi.spyOn(service, 'proactiveReconnect' as any).mockResolvedValue(undefined);
+
+      const fakeWs = { readyState: 1, send: vi.fn() };
+      await service.createSession(SESSION_ID, CONVERSATION_ID, SCENARIO_ID, PERSONA_ID, USER_ID, fakeWs as any);
+
+      service.handleClientMessage(SESSION_ID, {
+        type: 'client.ready',
+        isResuming: true,
+        previousMessages: [
+          { role: 'user', content: 'hello' },
+          { role: 'ai', content: 'hi there' },
+        ],
+      });
+
+      // ALL isResuming paths call proactiveReconnect for reconnect-safe system instructions
+      expect(spy).toHaveBeenCalled();
+    });
+
+    it('isResuming + previousMessages: proactiveReconnect called, greeting flag set, no 안녕하세요 to Gemini', async () => {
+      mockGetChatMessagesByPersonaRun.mockResolvedValue([]);
+
+      const spy = vi.spyOn(service, 'proactiveReconnect' as any).mockResolvedValue(undefined);
+
+      const fakeWs = { readyState: 1, send: vi.fn() };
+      await service.createSession(SESSION_ID, CONVERSATION_ID, SCENARIO_ID, PERSONA_ID, USER_ID, fakeWs as any);
+
+      const session = (service as any).sessions.get(SESSION_ID);
+      const geminiSession = session.geminiSession;
+      geminiSession.sendClientContent.mockClear();
+
+      service.handleClientMessage(SESSION_ID, {
+        type: 'client.ready',
+        isResuming: true,
+        previousMessages: [
+          { role: 'user', content: 'hello there' },
+          { role: 'ai', content: 'hi nice to meet you' },
+        ],
+      });
+
+      await new Promise(resolve => setTimeout(resolve, 0));
+
+      expect(session.hasTriggeredFirstGreeting).toBe(true);
+      // proactiveReconnect handles reconnect-safe prompt + context injection
+      expect(spy).toHaveBeenCalled();
+      // No greeting trigger sent directly by clientMessageHandler
+      const allTexts: string[] = geminiSession.sendClientContent.mock.calls.map(
+        (call: any[]) => call[0]?.turns?.[0]?.parts?.[0]?.text ?? ''
+      );
+      expect(allTexts.every((t: string) => !t.includes('안녕하세요'))).toBe(true);
+    });
+  });
+
+  describe('createSession — pendingIsResuming triggers proactiveReconnect when preloadedMessages empty', () => {
+    it('calls proactiveReconnect when pendingIsResuming=true and no DB messages', async () => {
+      mockGetChatMessagesByPersonaRun.mockResolvedValue([]);
+
+      // Spy on the private method; replace it with a no-op so it doesn't actually reconnect
+      const spy = vi.spyOn(service, 'proactiveReconnect' as any).mockResolvedValue(undefined);
+
+      // After the session is added to the map, set pendingIsResuming=true before connectToGemini resolves
+      mockLiveConnect.mockImplementation(({ callbacks }: any) => {
+        // Session is already in this.sessions at this point (set before connectToGemini is called)
+        const sess = (service as any).sessions.get(SESSION_ID);
+        if (sess) sess.pendingIsResuming = true;
+        setTimeout(() => callbacks?.onopen?.(), 0);
+        return Promise.resolve({ sendClientContent: vi.fn(), sendRealtimeInput: vi.fn(), close: vi.fn() });
+      });
+
+      const fakeWs = { readyState: 1, send: vi.fn() };
+      await service.createSession(SESSION_ID, CONVERSATION_ID, SCENARIO_ID, PERSONA_ID, USER_ID, fakeWs as any);
+
+      expect(spy).toHaveBeenCalled();
+    });
+
+    it('does NOT call proactiveReconnect when preloadedMessages exist even if pendingIsResuming=true', async () => {
+      mockGetChatMessagesByPersonaRun.mockResolvedValue(makeDbMessages(2));
+
+      const spy = vi.spyOn(service, 'proactiveReconnect' as any).mockResolvedValue(undefined);
+
+      mockLiveConnect.mockImplementation(({ callbacks }: any) => {
+        const sess = (service as any).sessions.get(SESSION_ID);
+        if (sess) sess.pendingIsResuming = true;
+        setTimeout(() => callbacks?.onopen?.(), 0);
+        return Promise.resolve({ sendClientContent: vi.fn(), sendRealtimeInput: vi.fn(), close: vi.fn() });
+      });
+
+      const fakeWs = { readyState: 1, send: vi.fn() };
+      await service.createSession(SESSION_ID, CONVERSATION_ID, SCENARIO_ID, PERSONA_ID, USER_ID, fakeWs as any);
+
+      expect(spy).not.toHaveBeenCalled();
+    });
+
+    it('after proactiveReconnect completes, subsequent isResuming event takes context-injection fast path (no close/reconnect)', async () => {
+      mockGetChatMessagesByPersonaRun.mockResolvedValue([]);
+
+      const fakeWs = { readyState: 1, send: vi.fn() };
+      await service.createSession(SESSION_ID, CONVERSATION_ID, SCENARIO_ID, PERSONA_ID, USER_ID, fakeWs as any);
+
+      const session = (service as any).sessions.get(SESSION_ID);
+      const firstGeminiSession = session.geminiSession;
+
+      // Manually trigger proactiveReconnect (simulating goAway or unexpected close)
+      // by calling it directly and waiting for it to complete
+      await (service as any).proactiveReconnect(session);
+
+      // After proactiveReconnect, usingReconnectInstructions should be true
+      expect(session.usingReconnectInstructions).toBe(true);
+      const secondGeminiSession = session.geminiSession;
+      expect(secondGeminiSession).not.toBeNull();
+
+      // Reset close call tracking on second session
+      secondGeminiSession.close.mockClear();
+      secondGeminiSession.sendClientContent.mockClear();
+
+      // Now send another isResuming client.ready — should take fast path (context-only)
+      service.handleClientMessage(SESSION_ID, { type: 'client.ready', isResuming: true });
+
+      await new Promise(resolve => setTimeout(resolve, 10));
+
+      // The second geminiSession should NOT have been closed (fast path, no reconnect)
+      expect(secondGeminiSession.close).not.toHaveBeenCalled();
+      // Context injection should have happened
+      const allTexts: string[] = secondGeminiSession.sendClientContent.mock.calls.map(
+        (call: any[]) => call[0]?.turns?.[0]?.parts?.[0]?.text ?? ''
+      );
+      expect(allTexts.some((t: string) => t.includes('SYSTEM CONTEXT UPDATE'))).toBe(true);
+      // No greeting trigger
+      expect(allTexts.every((t: string) => !t.includes('안녕하세요'))).toBe(true);
+    });
+
+    it('buffered client.ready(isResuming) + preloaded messages — no redundant reconnect: geminiSession NOT closed, context injected', async () => {
+      // Simulates: client.ready(isResuming=true) arrives while Gemini is connecting,
+      // AND the DB already has messages (preloadedMessages.length > 0).
+      // createSession uses reconnect-safe instructions (isResume:true) on initial connect.
+      // The buffered client.ready is replayed → proactiveReconnect is called →
+      // usingReconnectInstructions guard fires → no close/reopen, only context injection.
+      mockGetChatMessagesByPersonaRun.mockResolvedValue(makeDbMessages(3));
+
+      let capturedMockSession: any;
+      mockLiveConnect.mockImplementation(({ callbacks }: any) => {
+        const sess = (service as any).sessions.get(SESSION_ID);
+        // Simulate client.ready(isResuming=true) arriving while connection is in-flight
+        if (sess) sess.pendingClientReady = { type: 'client.ready', isResuming: true };
+        setTimeout(() => callbacks?.onopen?.(), 0);
+        capturedMockSession = { sendClientContent: vi.fn(), sendRealtimeInput: vi.fn(), close: vi.fn() };
+        return Promise.resolve(capturedMockSession);
+      });
+
+      const fakeWs = { readyState: 1, send: vi.fn() };
+      await service.createSession(SESSION_ID, CONVERSATION_ID, SCENARIO_ID, PERSONA_ID, USER_ID, fakeWs as any);
+
+      await new Promise(resolve => setTimeout(resolve, 10));
+
+      const session = (service as any).sessions.get(SESSION_ID);
+
+      // The Gemini session should NOT have been closed (no redundant reconnect)
+      expect(capturedMockSession.close).not.toHaveBeenCalled();
+
+      // usingReconnectInstructions flag set because initial connect used isResume:true
+      expect(session.usingReconnectInstructions).toBe(true);
+
+      // Context should have been injected (sendClientContent called with SYSTEM CONTEXT UPDATE)
+      const allTexts: string[] = capturedMockSession.sendClientContent.mock.calls.map(
+        (call: any[]) => call[0]?.turns?.[0]?.parts?.[0]?.text ?? ''
+      );
+      const contextCall = allTexts.find((t: string) => t.includes('SYSTEM CONTEXT UPDATE'));
+      expect(contextCall).toBeDefined();
+      // Context includes the pre-loaded message history
+      expect(contextCall).toContain('message content 1 from DB');
+
+      // First greeting flag set (no greeting sent)
+      expect(session.hasTriggeredFirstGreeting).toBe(true);
+      // No greeting trigger (안녕하세요) ever sent
+      expect(allTexts.every((t: string) => !t.includes('안녕하세요'))).toBe(true);
     });
   });
 });

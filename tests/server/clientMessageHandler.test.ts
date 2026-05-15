@@ -502,7 +502,7 @@ describe('handleClientMessage — 30-message threshold boundary', () => {
       expect(contextText).not.toContain('서버 메시지');
     });
 
-    it('isResuming: falls back to greeting when both previousMessages and recentMessages are empty', async () => {
+    it('isResuming: sends silence directive (no greeting) when both previousMessages and recentMessages are empty', async () => {
       const geminiSession = makeGeminiSession();
       const session = makeSession({
         geminiSession: geminiSession as any,
@@ -529,7 +529,66 @@ describe('handleClientMessage — 30-message threshold boundary', () => {
 
       const callArg = geminiSession.sendClientContent.mock.calls[0][0];
       const contextText = callArg.turns[0].parts[0].text;
-      expect(contextText).toBe('안녕하세요');
+      expect(contextText).not.toBe('안녕하세요');
+      expect(contextText).toContain('재연결');
+      expect(contextText).toContain('침묵');
+      expect(callArg.turnComplete).toBe(false);
+    });
+
+    it('isResuming: empty history → hasTriggeredFirstGreeting and hasReceivedFirstAIResponse are both set to true', async () => {
+      const geminiSession = makeGeminiSession();
+      const session = makeSession({
+        geminiSession: geminiSession as any,
+        userLanguage: 'ko',
+        recentMessages: [],
+      });
+      sessions.set('test-session', session);
+
+      handleClientMessage(
+        'test-session',
+        {
+          type: 'client.ready',
+          isResuming: true,
+          hasExistingConversation: false,
+        },
+        sessions,
+        sendToClient
+      );
+
+      await vi.waitFor(() => {
+        expect(geminiSession.sendClientContent).toHaveBeenCalled();
+      });
+
+      expect(session.hasTriggeredFirstGreeting).toBe(true);
+      expect(session.hasReceivedFirstAIResponse).toBe(true);
+    });
+
+    it('isResuming: empty history → END_OF_TURN is NOT sent (no greeting forced)', async () => {
+      const geminiSession = makeGeminiSession();
+      const session = makeSession({
+        geminiSession: geminiSession as any,
+        userLanguage: 'ko',
+        recentMessages: [],
+      });
+      sessions.set('test-session', session);
+
+      handleClientMessage(
+        'test-session',
+        {
+          type: 'client.ready',
+          isResuming: true,
+          hasExistingConversation: false,
+          previousMessages: [],
+        },
+        sessions,
+        sendToClient
+      );
+
+      await vi.waitFor(() => {
+        expect(geminiSession.sendClientContent).toHaveBeenCalled();
+      });
+
+      expect(geminiSession.sendRealtimeInput).not.toHaveBeenCalled();
     });
 
     it('hasExistingConversation: uses session.recentMessages when client sends no previousMessages', async () => {

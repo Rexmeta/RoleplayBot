@@ -60,4 +60,7 @@ export interface RealtimeSession {
   lastEvaluatedUserTurnId: string | null;
   lastFinalizedUserTranscriptHash: string | null;
   lastClientContentSentAt: number;
+  greetingTimeoutId: NodeJS.Timeout | null;
+  pendingIsResuming: boolean;
+  usingReconnectInstructions: boolean;
 }

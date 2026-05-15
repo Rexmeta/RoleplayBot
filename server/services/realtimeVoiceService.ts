@@ -207,6 +207,9 @@ export class RealtimeVoiceService {
       currentTurnIncidentFired: false,
       lastEvaluatedUserTurnIndex: -1, lastEvaluatedUserTurnId: null, lastFinalizedUserTranscriptHash: null,
       lastClientContentSentAt: 0,
+      greetingTimeoutId: null,
+      pendingIsResuming: false,
+      usingReconnectInstructions: false,
     };
 
     // Lookup scenarioRunId from DB for simulation event audit linkage
@@ -230,7 +233,17 @@ export class RealtimeVoiceService {
     this.sessions.set(sessionId, session);
     console.log(`⏱️ [TIMING] 세션 객체 생성 완료: ${Date.now() - sessionStartTime}ms`);
 
-    await this.connectToGemini(session, systemInstructions, gender);
+    await this.connectToGemini(session, systemInstructions, gender, { isResume: preloadedMessages.length > 0 });
+
+    // If client.ready.isResuming arrived during the Gemini connect window (buffered) but
+    // no preloaded messages existed (so we used original greeting instructions), immediately
+    // proactive-reconnect to apply reconnect-safe system instructions.
+    if (session.pendingIsResuming && preloadedMessages.length === 0) {
+      console.log('🔀 [createSession] pendingIsResuming with empty preload — proactive reconnect to apply reconnect instructions');
+      session.pendingIsResuming = false;
+      await this.proactiveReconnect(session);
+    }
+
     console.log(`⏱️ [TIMING] createSession 완료 (총): ${Date.now() - sessionStartTime}ms`);
   }
 
@@ -279,10 +292,13 @@ export class RealtimeVoiceService {
       currentTurnIncidentFired: false,
       lastEvaluatedUserTurnIndex: -1, lastEvaluatedUserTurnId: null, lastFinalizedUserTranscriptHash: null,
       lastClientContentSentAt: 0,
+      greetingTimeoutId: null,
+      pendingIsResuming: false,
+      usingReconnectInstructions: false,
     };
 
     this.sessions.set(sessionId, session);
-    await this.connectToGemini(session, systemInstructions, gender);
+    await this.connectToGemini(session, systemInstructions, gender, { isResume: preloadedMessagesUserPersona.length > 0 });
     console.log(`⏱️ [TIMING] UserPersona createSession 완료: ${Date.now() - sessionStartTime}ms`);
   }
 
@@ -297,12 +313,17 @@ export class RealtimeVoiceService {
   private async connectToGemini(
     session: RealtimeSession,
     systemInstructions: string,
-    gender: 'male' | 'female' = 'male'
+    gender: 'male' | 'female' = 'male',
+    options?: { isResume?: boolean }
   ): Promise<void> {
     if (!this.genAI) throw new Error('Gemini AI not initialized');
 
     const connectStartTime = Date.now();
     console.log(`⏱️ [TIMING] connectToGemini 시작: ${new Date(connectStartTime).toISOString()}`);
+
+    const effectiveInstructions = options?.isResume
+      ? buildReconnectSystemInstructions(systemInstructions, session.userLanguage)
+      : systemInstructions;
 
     try {
       let voiceName: string;
@@ -327,7 +348,7 @@ export class RealtimeVoiceService {
 
       const config: any = {
         responseModalities: [Modality.AUDIO],
-        systemInstruction: systemInstructions,
+        systemInstruction: effectiveInstructions,
         inputAudioTranscription: { languageCode: langCode },
         outputAudioTranscription: { languageCode: langCode },
         speechConfig: {
@@ -372,6 +393,7 @@ export class RealtimeVoiceService {
       });
 
       session.geminiSession = geminiSession;
+      session.usingReconnectInstructions = options?.isResume === true;
 
       if (session.pendingClientReady) {
         console.log(`▶️ Replaying buffered client.ready message for session: ${session.id}`);
@@ -382,13 +404,20 @@ export class RealtimeVoiceService {
 
       console.log('⏳ Waiting for client.ready signal before triggering first greeting...');
 
-      setTimeout(() => {
+      if (session.greetingTimeoutId !== null) {
+        clearTimeout(session.greetingTimeoutId);
+        session.greetingTimeoutId = null;
+      }
+      session.greetingTimeoutId = setTimeout(() => {
+        session.greetingTimeoutId = null;
         const currentSession = this.sessions.get(session.id);
         const pendingHasExisting = currentSession?.pendingClientReady?.hasExistingConversation === true;
+        const pendingIsResuming = currentSession?.pendingClientReady?.isResuming === true;
         if (currentSession &&
           !currentSession.hasTriggeredFirstGreeting &&
           !currentSession.hasReceivedFirstAIResponse &&
           !pendingHasExisting &&
+          !pendingIsResuming &&
           currentSession.geminiSession) {
           console.log('⏰ client.ready timeout (3s) - auto-triggering first greeting...');
           currentSession.hasTriggeredFirstGreeting = true;
@@ -403,6 +432,8 @@ export class RealtimeVoiceService {
           currentSession.geminiSession.sendRealtimeInput(timeoutEotPayload);
         } else if (pendingHasExisting) {
           console.log('⏭️ Timeout skipped - pending client.ready has hasExistingConversation flag');
+        } else if (pendingIsResuming) {
+          console.log('⏭️ Timeout skipped - pending client.ready has isResuming flag');
         } else if (currentSession?.hasTriggeredFirstGreeting) {
           console.log('⏭️ Timeout skipped - first greeting already triggered');
         }
@@ -421,12 +452,41 @@ export class RealtimeVoiceService {
   }
 
   handleClientMessage(sessionId: string, message: any): void {
-    processClientMessage(sessionId, message, this.sessions, this.sendToClient.bind(this));
+    processClientMessage(sessionId, message, this.sessions, this.sendToClient.bind(this), this.proactiveReconnect.bind(this));
   }
 
-  private proactiveReconnect(session: RealtimeSession): void {
+  private injectReconnectContext(session: RealtimeSession): void {
+    if (!session.geminiSession) return;
+    const recentMsgs = session.recentMessages || [];
+    const userLabel = session.userName && session.userName !== '사용자' ? session.userName : '사용자';
+    const personaLabel = session.personaName || 'AI';
+    let reconnectText: string;
+    if (recentMsgs.length > 0) {
+      const historyText = recentMsgs.map(m =>
+        `${m.role === 'user' ? userLabel : personaLabel}: ${m.text}`
+      ).join('\n');
+      reconnectText = `[SYSTEM CONTEXT UPDATE — DO NOT READ ALOUD. 당신은 ${personaLabel}입니다. 연결이 자동으로 갱신되었습니다. 방금 전 나눈 대화 내용을 기억하세요:\n${historyText}\n\n${personaLabel}으로서 이 대화를 자연스럽게 이어서 진행하세요. 연결 갱신에 대해 언급하지 말고 사용자가 먼저 발화할 때까지 침묵을 유지하세요.]`;
+      console.log(`📜 injectReconnectContext: ${recentMsgs.length}개 메시지`);
+    } else {
+      reconnectText = `[SYSTEM CONTEXT UPDATE — DO NOT READ ALOUD. 당신은 ${personaLabel}입니다. 연결이 자동으로 갱신되었습니다. 인사하지 말고 사용자가 먼저 발화할 때까지 침묵을 유지하세요.]`;
+    }
+    const ctxPayload = { turns: [{ role: 'user', parts: [{ text: reconnectText }] }], turnComplete: false };
+    session.pendingMessages.push({ index: session.outgoingMessageIndex++, payload: { type: 'clientContent', data: ctxPayload } });
+    session.geminiSession.sendClientContent(ctxPayload);
+  }
+
+  private proactiveReconnect(session: RealtimeSession): Promise<void> | void {
     if (session.isReconnecting) {
       console.log('⚠️ proactiveReconnect: 이미 재연결 중');
+      return;
+    }
+
+    // Guard: session is already on reconnect-safe instructions with a live Gemini connection.
+    // Skip expensive close/reconnect; just inject context directly to avoid churn.
+    if (session.usingReconnectInstructions && session.geminiSession) {
+      console.log('⏭️ proactiveReconnect: already on reconnect-safe prompt — injecting context only');
+      session.hasTriggeredFirstGreeting = true;
+      this.injectReconnectContext(session);
       return;
     }
 
@@ -440,7 +500,7 @@ export class RealtimeVoiceService {
     }
 
     const reconnectInstructions = buildReconnectSystemInstructions(session.systemInstructions, session.userLanguage);
-    this.connectToGemini(session, reconnectInstructions, session.voiceGender)
+    return this.connectToGemini(session, reconnectInstructions, session.voiceGender)
       .then(() => {
         const currentSession = this.sessions.get(sessionId);
         if (!currentSession) return;
@@ -449,45 +509,57 @@ export class RealtimeVoiceService {
         currentSession.isInterrupted = false;
         currentSession.cancelledTurnSeq = -1;
         currentSession.currentTranscript = '';
+        currentSession.usingReconnectInstructions = true;
         console.log(`✅ proactiveReconnect 성공: 새 Gemini 세션 활성화`);
         this.sendToClient(currentSession, { type: 'session.reconnected' });
 
         if (currentSession.geminiSession) {
           if (currentSession.pendingMessages.length > 0) {
-            console.log(`📤 proactiveReconnect 후 미확인 메시지 ${currentSession.pendingMessages.length}개 재전송...`);
-            for (const pending of currentSession.pendingMessages) {
-              try {
-                if (pending.payload.type === 'realtimeInput') {
-                  currentSession.geminiSession.sendRealtimeInput(pending.payload.data);
-                } else if (pending.payload.type === 'clientContent') {
-                  currentSession.geminiSession.sendClientContent(pending.payload.data);
-                }
-              } catch (replayErr) {
-                console.warn(`⚠️ proactiveReconnect 메시지 재전송 실패 (index=${pending.index}):`, replayErr);
+            const isGreetingTrigger = (msg: any) =>
+              msg.payload.type === 'clientContent' &&
+              msg.payload.data?.turns?.length === 1 &&
+              msg.payload.data.turns[0]?.parts?.length === 1 &&
+              /^안녕하세요\s*$/.test(msg.payload.data.turns[0].parts[0]?.text ?? '');
+            const isEndOfTurnInput = (msg: any) =>
+              msg.payload.type === 'realtimeInput' &&
+              msg.payload.data?.event === 'END_OF_TURN';
+            const filteredPending: typeof currentSession.pendingMessages = [];
+            let skipNextEot = false;
+            for (const msg of currentSession.pendingMessages) {
+              if (skipNextEot) {
+                skipNextEot = false;
+                if (isEndOfTurnInput(msg)) continue;
               }
+              if (isGreetingTrigger(msg)) {
+                skipNextEot = true;
+                continue;
+              }
+              filteredPending.push(msg);
+            }
+            const removed = currentSession.pendingMessages.length - filteredPending.length;
+            if (removed > 0) {
+              console.log(`🚫 proactiveReconnect: 인사 트리거+EOT ${removed}개 필터링`);
+            }
+            if (filteredPending.length > 0) {
+              console.log(`📤 proactiveReconnect 후 미확인 메시지 ${filteredPending.length}개 재전송...`);
+              for (const pending of filteredPending) {
+                try {
+                  if (pending.payload.type === 'realtimeInput') {
+                    currentSession.geminiSession.sendRealtimeInput(pending.payload.data);
+                  } else if (pending.payload.type === 'clientContent') {
+                    currentSession.geminiSession.sendClientContent(pending.payload.data);
+                  }
+                } catch (replayErr) {
+                  console.warn(`⚠️ proactiveReconnect 메시지 재전송 실패 (index=${pending.index}):`, replayErr);
+                }
+              }
+            } else {
+              console.log('🔀 proactiveReconnect: 모든 pending 메시지 필터링됨 — 컨텍스트 복원으로 폴백');
+              this.injectReconnectContext(currentSession);
             }
           } else {
             console.log('📤 proactiveReconnect 후 대화 컨텍스트 복원...');
-            const recentMsgs = currentSession.recentMessages || [];
-            const userLabel = currentSession.userName && currentSession.userName !== '사용자' ? currentSession.userName : '사용자';
-            const personaLabel = currentSession.personaName || 'AI';
-            let reconnectText: string;
-            if (recentMsgs.length > 0) {
-              const historyText = recentMsgs.map(m =>
-                `${m.role === 'user' ? userLabel : personaLabel}: ${m.text}`
-              ).join('\n');
-              reconnectText = `[SYSTEM CONTEXT UPDATE — DO NOT READ ALOUD. 당신은 ${personaLabel}입니다. 연결이 자동으로 갱신되었습니다. 방금 전 나눈 대화 내용을 기억하세요:\n${historyText}\n\n${personaLabel}으로서 이 대화를 자연스럽게 이어서 진행하세요. 연결 갱신에 대해 언급하지 말고 바로 대화를 이어가세요.]`;
-              console.log(`📜 proactiveReconnect 컨텍스트 복원: ${recentMsgs.length}개 메시지`);
-            } else {
-              reconnectText = `[SYSTEM CONTEXT UPDATE — DO NOT READ ALOUD. 당신은 ${personaLabel}입니다. 연결이 자동으로 갱신되었습니다. 이전 대화를 이어서 사용자의 입력을 기다리세요.]`;
-            }
-
-            const proactiveCtxPayload = { turns: [{ role: 'user', parts: [{ text: reconnectText }] }], turnComplete: true };
-            currentSession.pendingMessages.push({ index: currentSession.outgoingMessageIndex++, payload: { type: 'clientContent', data: proactiveCtxPayload } });
-            currentSession.geminiSession.sendClientContent(proactiveCtxPayload);
-            const proactiveEotPayload = { event: 'END_OF_TURN' };
-            currentSession.pendingMessages.push({ index: currentSession.outgoingMessageIndex++, payload: { type: 'realtimeInput', data: proactiveEotPayload } });
-            currentSession.geminiSession.sendRealtimeInput(proactiveEotPayload);
+            this.injectReconnectContext(currentSession);
           }
         }
       })
@@ -559,6 +631,11 @@ export class RealtimeVoiceService {
             console.warn('[closeSession] Failed to log session_end event:', e);
           }
         });
+      }
+
+      if (session.greetingTimeoutId !== null) {
+        clearTimeout(session.greetingTimeoutId);
+        session.greetingTimeoutId = null;
       }
 
       if (session.geminiSession) {
