@@ -75,12 +75,19 @@ function PersonaParticipationSummary({ switchLog, scenarioPersonas, totalTurnCou
               const fromP = scenarioPersonas[entry.fromPersonaIndex];
               const toP = scenarioPersonas[entry.toPersonaIndex];
               return (
-                <div key={i} className="flex items-start gap-2 text-xs text-slate-500">
-                  <span className="text-indigo-400 font-mono flex-shrink-0">Turn {entry.turn + 1}</span>
-                  <span className="flex-shrink-0">{fromP?.name ?? `#${entry.fromPersonaIndex}`}</span>
-                  <ArrowRight className="w-3 h-3 flex-shrink-0 mt-0.5 text-indigo-400" />
-                  <span className="flex-shrink-0 font-medium text-slate-600">{toP?.name ?? `#${entry.toPersonaIndex}`}</span>
-                  {entry.reason && <span className="text-slate-400 italic truncate">— {entry.reason}</span>}
+                <div key={i} className="space-y-0.5">
+                  <div className="flex items-center gap-2 text-xs text-slate-500">
+                    <span className="text-indigo-400 font-mono flex-shrink-0">Turn {entry.turn + 1}</span>
+                    <span className="flex-shrink-0">{fromP?.name ?? `#${entry.fromPersonaIndex}`}</span>
+                    <ArrowRight className="w-3 h-3 flex-shrink-0 text-indigo-400" />
+                    <span className="flex-shrink-0 font-medium text-slate-600">{toP?.name ?? `#${entry.toPersonaIndex}`}</span>
+                    {entry.reason && <span className="text-slate-400 italic truncate">· {entry.reason}</span>}
+                  </div>
+                  {entry.transitionLine && (
+                    <div className="ml-16 text-xs text-slate-500 bg-white border border-indigo-100 rounded px-2 py-1 italic">
+                      "{entry.transitionLine}"
+                    </div>
+                  )}
                 </div>
               );
             })}
