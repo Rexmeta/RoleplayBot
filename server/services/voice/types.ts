@@ -59,4 +59,5 @@ export interface RealtimeSession {
   lastEvaluatedUserTurnIndex: number;
   lastEvaluatedUserTurnId: string | null;
   lastFinalizedUserTranscriptHash: string | null;
+  lastClientContentSentAt: number;
 }

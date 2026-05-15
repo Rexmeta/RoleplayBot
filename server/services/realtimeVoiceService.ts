@@ -206,6 +206,7 @@ export class RealtimeVoiceService {
       simulationState: null, scenarioRunId: null, toolCallCountThisTurn: 0, emotionCallCountThisTurn: 0,
       currentTurnIncidentFired: false,
       lastEvaluatedUserTurnIndex: -1, lastEvaluatedUserTurnId: null, lastFinalizedUserTranscriptHash: null,
+      lastClientContentSentAt: 0,
     };
 
     // Lookup scenarioRunId from DB for simulation event audit linkage
@@ -277,6 +278,7 @@ export class RealtimeVoiceService {
       simulationState: null, scenarioRunId: null, toolCallCountThisTurn: 0, emotionCallCountThisTurn: 0,
       currentTurnIncidentFired: false,
       lastEvaluatedUserTurnIndex: -1, lastEvaluatedUserTurnId: null, lastFinalizedUserTranscriptHash: null,
+      lastClientContentSentAt: 0,
     };
 
     this.sessions.set(sessionId, session);

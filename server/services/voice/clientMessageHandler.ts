@@ -95,19 +95,38 @@ export function handleClientMessage(
       session.geminiSession.sendRealtimeInput({ event: 'END_OF_TURN' });
       break;
 
-    case 'response.create':
+    case 'response.create': {
+      // If we just sent clientContent (text input with turnComplete:true), the
+      // model will already respond — an extra END_OF_TURN causes a spurious
+      // "..." (ctrl46 dots) reply that confuses conversation state. Skip it.
+      const msSinceClientContent = Date.now() - session.lastClientContentSentAt;
+      if (session.lastClientContentSentAt > 0 && msSinceClientContent < 800) {
+        console.log(`⏭️ Skipping redundant response.create (${msSinceClientContent}ms after clientContent)`);
+        break;
+      }
       console.log('🔄 Explicit response request, sending END_OF_TURN event');
       pushPending(session, { index: session.outgoingMessageIndex++, payload: { type: 'realtimeInput', data: { event: 'END_OF_TURN' } } });
       session.geminiSession.sendRealtimeInput({ event: 'END_OF_TURN' });
       break;
+    }
 
     case 'conversation.item.create':
       if (message.item && message.item.content) {
         const text = message.item.content[0]?.text || '';
+        if (text.trim()) {
+          // Count text turns so the greeting-dedup guard does not suppress the
+          // AI's first reply when the user types before speaking in voice mode.
+          session.userTurnsCompleted++;
+          console.log(`📝 Text turn received, userTurnsCompleted=${session.userTurnsCompleted}`);
+        }
         const clientContentPayload = {
           turns: [{ role: 'user', parts: [{ text }] }],
           turnComplete: true,
         };
+        // Record the time so response.create arriving right after can be skipped
+        // (clientContent already includes turnComplete:true — the extra END_OF_TURN
+        //  causes Gemini to emit spurious ctrl46/dots responses).
+        session.lastClientContentSentAt = Date.now();
         pushPending(session, { index: session.outgoingMessageIndex++, payload: { type: 'clientContent', data: clientContentPayload } });
         session.geminiSession.sendClientContent(clientContentPayload);
       }
