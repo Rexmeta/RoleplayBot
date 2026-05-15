@@ -626,24 +626,52 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
                 )}
 
                 <div className="relative flex-1 overflow-hidden">
-                  {/* Mobile overlay header – persona name + progress bar + turn counter + end button (hidden on desktop where gradient header already shows these) */}
-                  <div className="lg:hidden absolute top-0 left-0 right-0 z-20 bg-black/50 backdrop-blur-sm px-4 pt-3 pb-2">
-                    <div className="flex items-center gap-2 mb-1.5">
-                      <span className="text-white text-sm font-semibold truncate flex-1">{persona.name}</span>
+                  {/* Mobile overlay header – unified bar: avatar + name/role + progress + elapsed + NPC toggle + end button */}
+                  <div className="lg:hidden absolute top-0 left-0 right-0 z-20 bg-black/50 backdrop-blur-sm px-3 pt-2 pb-2">
+                    <div className="flex items-center gap-2 min-w-0">
+                      {/* Persona avatar thumbnail */}
+                      <img
+                        src={loadedImageUrl || toMediaUrl(persona.image || '') || `https://ui-avatars.com/api/?name=${encodeURIComponent(persona.name)}&background=6366f1&color=fff&size=64`}
+                        alt={persona.name}
+                        className="w-8 h-8 rounded-full object-cover object-top shrink-0 border border-white/20"
+                      />
+                      {/* Name + role/department */}
+                      <div className="flex flex-col min-w-0 flex-1">
+                        <span className="text-white text-xs font-semibold truncate leading-tight">{persona.name}</span>
+                        {(persona.role || persona.department) && (
+                          <span className="text-white/60 text-[10px] truncate leading-tight">
+                            {[persona.role, persona.department].filter(Boolean).join(' · ')}
+                          </span>
+                        )}
+                      </div>
+                      {/* Progress % + turns remaining + elapsed time */}
                       <div
-                        className={`text-xs font-medium shrink-0 transition-colors duration-300 ${progressInfo.isAmber ? 'text-amber-300' : progressInfo.isGreen ? 'text-green-300' : 'text-white/80'}`}
+                        className={`text-[10px] font-medium shrink-0 text-right transition-colors duration-300 ${progressInfo.isAmber ? 'text-amber-300' : progressInfo.isGreen ? 'text-green-300' : 'text-white/70'}`}
                         data-testid="mobile-overlay-turn-counter"
                       >
                         {progressInfo.stage === 'complete' ? (
                           <span>{t('chat.conversationCompleted')}</span>
                         ) : (
-                          <span className="flex items-center gap-1">
-                            <span className="opacity-70">{Math.round(progressPercentage)}%</span>
-                            <span className="opacity-50">·</span>
-                            <span>{t('chat.turnsRemaining', { count: turnsLeft })}</span>
-                          </span>
+                          <div className="flex flex-col items-end gap-0.5">
+                            <span>{Math.round(progressPercentage)}% · {t('chat.turnsRemaining', { count: turnsLeft })}</span>
+                            <span className="text-white/50 font-normal">{formatElapsedTime(elapsedTime)}</span>
+                          </div>
                         )}
                       </div>
+                      {/* NPC simulation toggle (integrated into header, only when simulation active) */}
+                      {isSimulationEnabled && simulationState && (
+                        <button
+                          onClick={() => setIsMobileSimOpen(v => !v)}
+                          aria-label={t('chat.npcStatusButton')}
+                          className="relative shrink-0 flex items-center justify-center w-7 h-7 rounded-full bg-white/10 border border-white/20 text-white hover:bg-white/20 transition-colors"
+                        >
+                          <Brain className="h-3.5 w-3.5" />
+                          {hasActiveIncident && (
+                            <span className="absolute -top-0.5 -right-0.5 w-2 h-2 bg-orange-400 rounded-full animate-pulse" />
+                          )}
+                        </button>
+                      )}
+                      {/* End / feedback button */}
                       <Button
                         size="sm"
                         variant="outline"
@@ -663,9 +691,10 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
                         {t(progressInfo.endButtonLabelKey)}
                       </Button>
                     </div>
-                    <div className="bg-white/20 rounded-full h-2 overflow-hidden">
+                    {/* Progress bar */}
+                    <div className="bg-white/20 rounded-full h-1 overflow-hidden mt-1.5">
                       <div
-                        className={`h-2 rounded-full transition-all duration-500 ${progressInfo.progressBarClass}`}
+                        className={`h-1 rounded-full transition-all duration-500 ${progressInfo.progressBarClass}`}
                         style={{ width: `${progressPercentage}%` }}
                       />
                     </div>
@@ -711,17 +740,6 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
                     pendingAiMessage={pendingAiMessage} pendingUserMessage={pendingUserMessage}
                     pendingUserText={pendingUserText} personaName={persona.name} />
 
-                  {/* Mobile NPC status toggle button */}
-                  {isSimulationEnabled && simulationState && (
-                    <button
-                      onClick={() => setIsMobileSimOpen(v => !v)}
-                      className="lg:hidden absolute bottom-24 left-4 z-20 flex items-center gap-1.5 bg-black/60 backdrop-blur-sm text-white text-xs px-2.5 py-1.5 rounded-full border border-white/20 shadow-lg"
-                    >
-                      <Brain className="h-3.5 w-3.5" />
-                      <span>{t('chat.npcStatusButton')}</span>
-                      {hasActiveIncident && <span className="w-2 h-2 bg-orange-400 rounded-full animate-pulse shrink-0" />}
-                    </button>
-                  )}
 
                   {/* Desktop NPC status toggle button */}
                   {isSimulationEnabled && simulationState && (
