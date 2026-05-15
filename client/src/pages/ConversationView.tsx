@@ -9,6 +9,25 @@ import { ArrowLeft, MessageSquare } from "lucide-react";
 import { format } from "date-fns";
 import { useTranslation } from "react-i18next";
 import { useAuth } from "@/hooks/useAuth";
+import { PersonaSwitchCard, type PersonaSwitchEvent } from "@/components/chat/PersonaSwitchCard";
+
+interface SwitchLogEntry {
+  turn: number;
+  fromPersonaIndex: number;
+  toPersonaIndex: number;
+  fromPersonaId: string;
+  toPersonaId: string;
+  reason: string;
+  transitionLine: string;
+  timestamp: string;
+}
+
+interface ScenarioPersona {
+  id?: string;
+  name?: string;
+  department?: string;
+  role?: string;
+}
 
 export default function ConversationView() {
   const { t } = useTranslation();
@@ -83,6 +102,29 @@ export default function ConversationView() {
   const isAdminOrOperator = currentUser?.role === 'admin' || currentUser?.role === 'operator';
   const isAdminView = isAdminOrOperator && conversation?.userId && conversation.userId !== currentUser?.id;
 
+  const scenarioPersonas: ScenarioPersona[] = useMemo<ScenarioPersona[]>(
+    () => (scenario?.personas as ScenarioPersona[] | undefined) ?? (conversation?.personaSnapshot ? [conversation.personaSnapshot as ScenarioPersona] : []),
+    [scenario?.personas, conversation?.personaSnapshot],
+  );
+
+  const personaSwitchEvents: PersonaSwitchEvent[] = useMemo(() => {
+    const rawLog = conversation?.personaSwitchLog;
+    const log: SwitchLogEntry[] = Array.isArray(rawLog) ? (rawLog as SwitchLogEntry[]) : [];
+    return log.map((entry) => ({
+      fromIndex: entry.fromPersonaIndex,
+      fromPersonaName: scenarioPersonas[entry.fromPersonaIndex]?.name,
+      toIndex: entry.toPersonaIndex,
+      newPersonaName: scenarioPersonas[entry.toPersonaIndex]?.name ?? `페르소나 #${entry.toPersonaIndex + 1}`,
+      reason: entry.reason,
+      transitionLine: entry.transitionLine,
+      timestamp: entry.timestamp,
+      turnIndex: entry.turn,
+    }));
+  }, [conversation?.personaSwitchLog, scenarioPersonas]);
+
+  const switchEventKey = (ev: PersonaSwitchEvent): string =>
+    `${ev.turnIndex ?? ev.toIndex}-${ev.fromIndex}-${ev.toIndex}`;
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
       {isAdminView && (
@@ -150,28 +192,79 @@ export default function ConversationView() {
                   <p className="text-sm mt-2">{t('conversation.noMessagesHint')}</p>
                 </div>
               ) : (
-                conversation.messages.map((message: ConversationMessage, index: number) => (
-                  <div
-                    key={index}
-                    className={`flex ${message.sender === 'user' ? 'justify-end' : 'justify-start'}`}
-                    data-testid={`message-${index}`}
-                  >
-                    <div
-                      className={`max-w-[70%] rounded-lg px-4 py-3 ${
-                        message.sender === 'user'
-                          ? 'bg-blue-600 text-white'
-                          : 'bg-slate-100 text-slate-900'
-                      }`}
-                    >
-                      {message.sender !== 'user' && (
-                        <div className="font-semibold text-sm mb-1">
-                          {effectivePersonaLabel}
+                (() => {
+                  type ListItem =
+                    | { type: 'message'; message: ConversationMessage; index: number }
+                    | { type: 'switch'; event: PersonaSwitchEvent };
+                  const items: ListItem[] = [];
+                  const placedKeys = new Set<string>();
+
+                  (conversation.messages as ConversationMessage[]).forEach((msg, idx) => {
+                    // Insert switch markers BEFORE the first AI message of the new persona.
+                    // Restrict to sender === 'ai' so that when multiple messages share a
+                    // turnIndex (e.g. an initial AI greeting + a later AI response both at
+                    // turn 0), the marker only fires at the AI response generated after the
+                    // user's turn — not at any earlier message sharing that turn index.
+                    personaSwitchEvents
+                      .filter(ev => {
+                        if (msg.sender !== 'ai') return false;
+                        const match = ev.turnIndex != null
+                          ? msg.turnIndex != null
+                            ? msg.turnIndex === ev.turnIndex
+                            : idx === ev.turnIndex
+                          : idx === ev.toIndex;
+                        return match;
+                      })
+                      .forEach(ev => {
+                        const key = switchEventKey(ev);
+                        if (!placedKeys.has(key)) {
+                          placedKeys.add(key);
+                          items.push({ type: 'switch', event: ev });
+                        }
+                      });
+                    items.push({ type: 'message', message: msg, index: idx });
+                  });
+
+                  // Append any switch events that didn't match any message position
+                  personaSwitchEvents
+                    .filter(ev => !placedKeys.has(switchEventKey(ev)))
+                    .forEach(ev => items.push({ type: 'switch', event: ev }));
+
+                  return items.map((item, itemIndex) => {
+                    if (item.type === 'switch') {
+                      return (
+                        <PersonaSwitchCard
+                          key={`switch-${switchEventKey(item.event)}-${itemIndex}`}
+                          event={item.event}
+                        />
+                      );
+                    }
+                    const message = item.message;
+                    const index = item.index;
+                    return (
+                      <div
+                        key={index}
+                        className={`flex ${message.sender === 'user' ? 'justify-end' : 'justify-start'}`}
+                        data-testid={`message-${index}`}
+                      >
+                        <div
+                          className={`max-w-[70%] rounded-lg px-4 py-3 ${
+                            message.sender === 'user'
+                              ? 'bg-blue-600 text-white'
+                              : 'bg-slate-100 text-slate-900'
+                          }`}
+                        >
+                          {message.sender !== 'user' && (
+                            <div className="font-semibold text-sm mb-1">
+                              {effectivePersonaLabel}
+                            </div>
+                          )}
+                          <div className="whitespace-pre-wrap">{message.message}</div>
                         </div>
-                      )}
-                      <div className="whitespace-pre-wrap">{message.message}</div>
-                    </div>
-                  </div>
-                ))
+                      </div>
+                    );
+                  });
+                })()
               )}
             </div>
           </CardContent>
