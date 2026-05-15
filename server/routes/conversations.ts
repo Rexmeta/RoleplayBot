@@ -28,6 +28,7 @@ import { setSessionState, getSessionState, applySimulationPatch, checkIncidentCo
 import { evaluateUserResponse } from "../services/simulation/evaluateUserResponse";
 import { buildRuleFallbackPatch, inferStagePatchFromState, inferIncidentCandidate } from "../services/simulation/simulationRules";
 import { buildSimulationStateBlock } from "../services/simulation/simulationPrompt";
+import { handleToolCall } from "../services/simulation/simulationToolHandler";
 import { v4 as uuidv4 } from "uuid";
 
 export default function createConversationsRouter(isAuthenticated: any) {
@@ -343,7 +344,8 @@ export default function createConversationsRouter(isAuthenticated: any) {
       message: msg.message,
       timestamp: msg.createdAt.toISOString(),
       emotion: msg.emotion || undefined,
-      emotionReason: msg.emotionReason || undefined
+      emotionReason: msg.emotionReason || undefined,
+      turnIndex: msg.turnIndex,
     }));
 
     const isPersonaXGet = scenarioRun.scenarioId === '__free_chat__' ||
@@ -415,6 +417,8 @@ export default function createConversationsRouter(isAuthenticated: any) {
       createdAt: personaRun.startedAt,
       updatedAt: personaRun.completedAt || personaRun.startedAt,
       simulationState: simState,
+      personaSwitchLog: personaRun.personaSwitchLog ?? [],
+      activePersonaIndex: (personaRun.activePersonaIndex as number | null) ?? 0,
     });
   }));
 
@@ -632,10 +636,35 @@ ${userNameLine}
         background: mbtiPersonaData?.background?.personal_values?.join(', ') || (mbtiPersonaData as any)?.background?.personalValues?.join(', ') || '전문성'
       };
 
+      const allScenarioPersonas = (scenarioObj.personas || []) as any[];
+      // Resolve initial active persona from isPrimary flag when activePersonaIndex is not yet set
+      const primaryPersonaIdx = allScenarioPersonas.findIndex((p: any) => p.isPrimary === true);
+      const resolvedActivePersonaIndex = (personaRun!.activePersonaIndex as number | null)
+        ?? (primaryPersonaIdx >= 0 ? primaryPersonaIdx : 0);
       scenarioWithUserDifficulty = {
         ...scenarioObj,
-        difficulty: personaRun!.difficulty || scenarioRun!.difficulty
+        difficulty: personaRun!.difficulty || scenarioRun!.difficulty,
+        allPersonas: allScenarioPersonas.length > 1 ? allScenarioPersonas : undefined,
+        activePersonaIndex: resolvedActivePersonaIndex,
       };
+
+      // Override active persona with the currently active one when a prior switch has occurred
+      const currentActivePersonaIdx = resolvedActivePersonaIndex;
+      if (currentActivePersonaIdx > 0 && allScenarioPersonas.length > currentActivePersonaIdx) {
+        const activeSP = allScenarioPersonas[currentActivePersonaIdx] as any;
+        const activeMbtiType = activeSP.personaRef?.replace('.json', '');
+        const activeMbtiData: any = activeMbtiType ? await fileManager.getPersonaByMBTI(activeMbtiType) : null;
+        persona = {
+          id: activeSP.id,
+          name: activeSP.name,
+          role: activeSP.position,
+          department: activeSP.department,
+          personality: activeMbtiData?.communication_style || activeMbtiData?.communicationStyle || '균형 잡힌 의사소통',
+          responseStyle: activeMbtiData?.communication_patterns?.opening_style || activeMbtiData?.communicationPatterns?.opening_style || '상황에 맞는 방식으로 대화 시작',
+          goals: activeMbtiData?.communication_patterns?.win_conditions || activeMbtiData?.communicationPatterns?.win_conditions || ['목표 달성'],
+          background: activeMbtiData?.background?.personal_values?.join(', ') || activeMbtiData?.background?.personalValues?.join(', ') || '전문성',
+        };
+      }
     }
 
     const messagesForAI = (isSkipTurn ? existingMessages : [...existingMessages, {
@@ -760,20 +789,67 @@ ${userNameLine}
       userName
     );
 
+    const isCompleted = (aiResult as any).isCompleted || false;
+    const switchPersonaInfo = (aiResult as any).switchPersona as { targetPersonaIndex: number; reason?: string; transitionLine?: string } | undefined;
+    // Use transitionLine as the persisted AI message when a persona switch occurs
+    const aiMessageContent = switchPersonaInfo?.transitionLine?.trim() || aiResult.content;
+
     await storage.createChatMessage({
       personaRunId,
       sender: "ai",
-      message: aiResult.content,
+      message: aiMessageContent,
       turnIndex: currentTurnIndex,
       emotion: aiResult.emotion || null,
       emotionReason: aiResult.emotionReason || null
     });
-
-    const isCompleted = (aiResult as any).isCompleted || false;
+    let newActivePersonaIndex: number = (personaRun!.activePersonaIndex as number | null) ?? 0;
+    let newPersonaSwitchLog = Array.isArray(personaRun!.personaSwitchLog) ? [...(personaRun!.personaSwitchLog as any[])] : [];
+    let switchToPersona: any = null;
+    let switchFromPersona: any = null;
+    if (switchPersonaInfo && typeof switchPersonaInfo.targetPersonaIndex === 'number') {
+      const allScenarioPersonasForSwitch = (scenarioWithUserDifficulty as any)?.allPersonas ?? (scenarioWithUserDifficulty as any)?.personas ?? [];
+      const toolResult = handleToolCall('switch_persona', {
+        targetPersonaIndex: switchPersonaInfo.targetPersonaIndex,
+        reason: switchPersonaInfo.reason ?? '',
+        transitionLine: switchPersonaInfo.transitionLine ?? '',
+      }, {
+        personaRunId,
+        turnId: evalTurnId,
+        turnIndex: currentTurnIndex,
+        currentTurnIncidentFired: false,
+        toolCallCountThisTurn: 0,
+        emotionCallCountThisTurn: 0,
+        language: userLanguage as 'ko' | 'en' | 'ja' | 'zh',
+        currentPersonaIndex: newActivePersonaIndex,
+        scenarioPersonas: allScenarioPersonasForSwitch,
+      });
+      if (toolResult.success && toolResult.personaSwitched) {
+        const switched = toolResult.personaSwitched;
+        const toPersona = allScenarioPersonasForSwitch[switched.toIndex];
+        if (toPersona) {
+          const switchEntry = {
+            turn: currentTurnIndex,
+            fromPersonaIndex: switched.fromIndex,
+            toPersonaIndex: switched.toIndex,
+            fromPersonaId: switched.fromPersonaId,
+            toPersonaId: switched.toPersonaId,
+            reason: switched.reason,
+            transitionLine: switched.transitionLine,
+            timestamp: new Date().toISOString(),
+          };
+          switchFromPersona = allScenarioPersonasForSwitch[switched.fromIndex];
+          newActivePersonaIndex = switched.toIndex;
+          newPersonaSwitchLog.push(switchEntry);
+          switchToPersona = toPersona;
+          console.log(`🔄 [Text/TTS] Persona switch via handleToolCall: ${switched.fromIndex} → ${switched.toIndex} (${toPersona.name})`);
+        }
+      }
+    }
     const updatedPersonaRun = await storage.updatePersonaRun(personaRunId, {
       turnCount: newTurnCount,
       status: isCompleted ? "completed" : "active",
-      completedAt: isCompleted ? new Date() : null
+      completedAt: isCompleted ? new Date() : null,
+      ...(switchPersonaInfo ? { activePersonaIndex: newActivePersonaIndex, personaSwitchLog: newPersonaSwitchLog } : {}),
     });
 
     if (isCompleted) {
@@ -859,7 +935,7 @@ ${userNameLine}
     }
 
     res.json({
-      message: aiResult.content,
+      message: aiMessageContent,
       emotion: aiResult.emotion,
       emotionReason: aiResult.emotionReason,
       isCompleted,
@@ -867,13 +943,25 @@ ${userNameLine}
       personaRun: updatedPersonaRun,
       messages: [{
         sender: "ai",
-        message: aiResult.content,
+        message: aiMessageContent,
         timestamp: new Date().toISOString(),
         emotion: aiResult.emotion,
         emotionReason: aiResult.emotionReason
       }],
       simulationState,
       turnScore: simTurnScore,
+      ...(switchToPersona ? {
+        personaSwitched: {
+          fromIndex: (personaRun!.activePersonaIndex as number | null) ?? 0,
+          toIndex: newActivePersonaIndex,
+          fromPersonaName: switchFromPersona?.name,
+          reason: switchPersonaInfo?.reason ?? '',
+          transitionLine: switchPersonaInfo?.transitionLine ?? '',
+          turnIndex: currentTurnIndex,
+          newPersonaName: switchToPersona.name,
+          newPersona: { id: switchToPersona.id, name: switchToPersona.name, role: switchToPersona.position, image: switchToPersona.image },
+        },
+      } : {}),
     });
   }));
 

@@ -37,6 +37,41 @@ import {
 } from "../evaluationEngine";
 import { getSoftClosingInstruction } from "../conversationDifficultyPolicy";
 
+function buildMultiPersonaTextSection(
+  allPersonas: any[],
+  activeIndex: number,
+  language: string
+): string {
+  if (!allPersonas || allPersonas.length <= 1) return '';
+  const otherPersonas = allPersonas.map((p, i) => ({ ...p, _idx: i })).filter((_, i) => i !== activeIndex);
+  if (otherPersonas.length === 0) return '';
+  const isKo = language === 'ko';
+  const isJa = language === 'ja';
+  const isZh = language === 'zh';
+
+  const header = isKo
+    ? '\n# 다중 페르소나 전환 시스템\n상황에 따라 switch_persona 필드를 사용하여 다른 페르소나로 전환할 수 있습니다. 전환이 필요 없으면 switchPersona를 null로 설정하세요.'
+    : isJa
+    ? '\n# マルチペルソナ切り替えシステム\nswitch_personaフィールドを使用して他のペルソナに切り替えられます。不要な場合はnullにしてください。'
+    : isZh
+    ? '\n# 多角色切换系统\n使用switchPersona字段切换到另一个角色。不需要时设为null。'
+    : '\n# Multi-Persona Switching System\nUse the switchPersona field to switch to another persona when appropriate. Set to null if no switch is needed.';
+
+  const lines: string[] = [header, ''];
+  for (const p of otherPersonas) {
+    lines.push(`- [index: ${p._idx}] ${p.name} (${p.position || ''}${p.department ? ', ' + p.department : ''})`);
+    if (p.triggerHints?.length) lines.push(`  triggers: ${p.triggerHints.join(' / ')}`);
+    if (p.entryLine) lines.push(`  entry: "${p.entryLine}"`);
+  }
+  const rule = isKo
+    ? '\n전환 시: transitionLine에 현재 페르소나가 마지막으로 할 말을 작성하고, targetPersonaIndex를 지정하세요.'
+    : isJa ? '\n切り替え時：transitionLineに現在のペルソナの最後の言葉を書き、targetPersonaIndexを指定してください。'
+    : isZh ? '\n切换时：在transitionLine中写下当前角色最后说的话，并指定targetPersonaIndex。'
+    : '\nOn switch: write the final words of the current persona in transitionLine, and set targetPersonaIndex.';
+  lines.push(rule);
+  return lines.join('\n');
+}
+
 /**
  * 최적화된 Gemini Provider
  * - 글로벌 MBTI 캐시 사용
@@ -98,7 +133,9 @@ export class OptimizedGeminiProvider implements AIServiceInterface {
       // 압축된 시스템 프롬프트 생성 (언어 설정 포함)
       const modeTransitionHint = scenarioObj.modeTransitionHint;
       const simulationStateBlock = scenarioObj.simulationStateBlock;
-      const compactPrompt = this.buildCompactPrompt(scenarioObj, enrichedPersona, conversationHistory, messages, language, playerPosition, modeTransitionHint, userName, simulationStateBlock);
+      const allPersonas = scenarioObj.allPersonas;
+      const activePersonaIndex = scenarioObj.activePersonaIndex ?? 0;
+      const compactPrompt = this.buildCompactPrompt(scenarioObj, enrichedPersona, conversationHistory, messages, language, playerPosition, modeTransitionHint, userName, simulationStateBlock, allPersonas, activePersonaIndex);
       
       // 건너뛰기 처리
       const prompt = userMessage ? userMessage : "이전 대화의 흐름을 자연스럽게 이어가세요.";
@@ -112,21 +149,44 @@ export class OptimizedGeminiProvider implements AIServiceInterface {
         : (playerPosition || '사용자');
 
       // Gemini API 호출 (재시도 + 동시 실행 제한 적용)
+      const hasMultiplePersonas = Array.isArray(allPersonas) && allPersonas.length > 1;
+      const responseSchema: any = hasMultiplePersonas
+        ? {
+            type: "object",
+            properties: {
+              content: { type: "string" },
+              emotion: { type: "string" },
+              emotionReason: { type: "string" },
+              switchPersona: {
+                type: "object",
+                properties: {
+                  targetPersonaIndex: { type: "number" },
+                  reason: { type: "string" },
+                  transitionLine: { type: "string" },
+                },
+                required: ["targetPersonaIndex", "reason", "transitionLine"],
+                nullable: true,
+              },
+            },
+            required: ["content", "emotion", "emotionReason"],
+          }
+        : {
+            type: "object",
+            properties: {
+              content: { type: "string" },
+              emotion: { type: "string" },
+              emotionReason: { type: "string" }
+            },
+            required: ["content", "emotion", "emotionReason"]
+          };
+
       const response = await conversationSemaphore.run(() =>
         retryWithBackoff(() =>
           this.genAI.models.generateContent({
             model: this.model,
             config: {
               responseMimeType: "application/json",
-              responseSchema: {
-                type: "object",
-                properties: {
-                  content: { type: "string" },
-                  emotion: { type: "string" },
-                  emotionReason: { type: "string" }
-                },
-                required: ["content", "emotion", "emotionReason"]
-              },
+              responseSchema,
               maxOutputTokens: 1500,
               temperature: 0.7
             },
@@ -158,7 +218,8 @@ export class OptimizedGeminiProvider implements AIServiceInterface {
       return {
         content: responseData.content || "죄송합니다. 응답을 생성할 수 없습니다.",
         emotion: responseData.emotion || "중립",
-        emotionReason: responseData.emotionReason || "시스템 오류로 기본 응답 제공"
+        emotionReason: responseData.emotionReason || "시스템 오류로 기본 응답 제공",
+        ...(responseData.switchPersona ? { switchPersona: responseData.switchPersona } : {}),
       };
 
     } catch (error) {
@@ -218,7 +279,7 @@ export class OptimizedGeminiProvider implements AIServiceInterface {
   /**
    * 압축된 시스템 프롬프트 생성
    */
-  private buildCompactPrompt(scenario: RoleplayScenario, persona: ScenarioPersona, conversationHistory: string, messages: ConversationMessage[], language: SupportedLanguage = 'ko', playerPosition?: string, modeTransitionHint?: string, userName?: string, simulationStateBlock?: string): string {
+  private buildCompactPrompt(scenario: RoleplayScenario, persona: ScenarioPersona, conversationHistory: string, messages: ConversationMessage[], language: SupportedLanguage = 'ko', playerPosition?: string, modeTransitionHint?: string, userName?: string, simulationStateBlock?: string, allPersonas?: any[], activePersonaIndex: number = 0): string {
     const situation = scenario.context?.situation || '업무 상황';
     const objectives = scenario.objectives?.join(', ') || '문제 해결';
     const playerRole = scenario.context?.playerRole;
@@ -363,9 +424,10 @@ ${conversationHistory}
 12. **절대로 ${userLabelInPrompt}의 역할을 수행하거나 ${userLabelInPrompt} 입장에서 발언하지 마세요** - 당신은 오직 ${persona.name}(${persona.role})로서만 발언해야 합니다
 
 **중요 언어 지시**: ${languageInstruction}
+${allPersonas && allPersonas.length > 1 ? buildMultiPersonaTextSection(allPersonas, activePersonaIndex, language) : ''}
 
 JSON 형식으로 응답:
-{"content":"대화내용","emotion":"기쁨|슬픔|분노|놀람|중립|호기심|불안|피로|실망|당혹","emotionReason":"감정이유"}`;
+{"content":"대화내용","emotion":"기쁨|슬픔|분노|놀람|중립|호기심|불안|피로|실망|당혹","emotionReason":"감정이유"${allPersonas && allPersonas.length > 1 ? `,"switchPersona":{"targetPersonaIndex":0,"reason":"이유","transitionLine":"전환 대사"} 또는 null` : ''}}`;
   }
 
   /**

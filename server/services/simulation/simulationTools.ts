@@ -92,8 +92,37 @@ export const SIMULATION_TOOLS = [
   },
 ];
 
+export const SWITCH_PERSONA_TOOL = {
+  name: 'switch_persona',
+  description: 'Switch the active conversation persona. Call this when the user expresses something that triggers a persona transition (e.g., escalates to a higher authority, mentions a decision is beyond their scope, or a triggerHint condition is met). Only available when the scenario has multiple personas.',
+  parameters: {
+    type: 'object',
+    properties: {
+      targetPersonaIndex: {
+        type: 'number',
+        description: 'Index (0-based) of the persona in the scenario personas array to switch to.',
+      },
+      reason: {
+        type: 'string',
+        description: 'Brief explanation of why the persona switch is occurring (internal context, not spoken).',
+      },
+      transitionLine: {
+        type: 'string',
+        description: 'The spoken line delivered during the transition (e.g., "Let me bring in my manager for this."). This will be the last thing the current persona says.',
+      },
+    },
+    required: ['targetPersonaIndex', 'reason', 'transitionLine'],
+  },
+};
+
 export function getSimulationToolsConfig() {
   return SIMULATION_TOOLS.map(tool => ({
+    functionDeclarations: [tool],
+  }));
+}
+
+export function getSimulationToolsWithPersonaSwitch() {
+  return [...SIMULATION_TOOLS, SWITCH_PERSONA_TOOL].map(tool => ({
     functionDeclarations: [tool],
   }));
 }

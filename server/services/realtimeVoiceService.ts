@@ -19,7 +19,7 @@ import {
 } from './voice/sessionManager';
 import { buildUserPersonaInstructions } from './voice/prompts/userPersonaPrompt';
 import { normalizeProfileName } from './conversationContextBuilder';
-import { SIMULATION_TOOLS } from './simulation/simulationTools';
+import { SIMULATION_TOOLS, SWITCH_PERSONA_TOOL } from './simulation/simulationTools';
 import { db } from '../storage';
 import { personaRuns } from '@shared/schema';
 import { eq } from 'drizzle-orm';
@@ -165,9 +165,33 @@ export class RealtimeVoiceService {
       difficulty: userSelectedDifficulty || 4
     };
 
+    const allPersonas = scenarioObj.personas || [];
+    // Resolve the initial active persona index by finding personaId in the list
+    // (fallback to isPrimary flag, then to 0)
+    const initialPersonaIndex = (() => {
+      const byId = allPersonas.findIndex((p: any) => p.id === personaId);
+      if (byId >= 0) return byId;
+      const byPrimary = allPersonas.findIndex((p: any) => p.isPrimary === true);
+      return byPrimary >= 0 ? byPrimary : 0;
+    })();
     const systemInstructions = buildSystemInstructions(
-      scenarioWithUserDifficulty, scenarioPersona, mbtiPersona, userRoleInfo, userLanguage
+      scenarioWithUserDifficulty, scenarioPersona, mbtiPersona, userRoleInfo, userLanguage,
+      true, allPersonas, initialPersonaIndex
     );
+
+    // Pre-build system instructions for every persona so switching rebuilds the full prompt
+    const personaSystemInstructions: string[] = [systemInstructions];
+    if (allPersonas.length > 1) {
+      for (let pIdx = 1; pIdx < allPersonas.length; pIdx++) {
+        const sp = allPersonas[pIdx] as any;
+        const mbtiT = sp.personaRef?.replace('.json', '');
+        const mbtiP = mbtiT ? await fileManager.getPersonaByMBTI(mbtiT) : null;
+        personaSystemInstructions.push(buildSystemInstructions(
+          scenarioWithUserDifficulty, sp, mbtiP, userRoleInfo, userLanguage,
+          true, allPersonas, pIdx
+        ));
+      }
+    }
 
     console.log('\n' + '='.repeat(80));
     console.log('🎯 실시간 대화 시작 - 전달되는 명령 및 컨텍스트');
@@ -210,6 +234,9 @@ export class RealtimeVoiceService {
       greetingTimeoutId: null,
       pendingIsResuming: false,
       usingReconnectInstructions: false,
+      activePersonaIndex: initialPersonaIndex,
+      scenarioPersonas: allPersonas.length > 0 ? allPersonas : null,
+      personaSystemInstructions: personaSystemInstructions.length > 1 ? personaSystemInstructions : undefined,
     };
 
     // Lookup scenarioRunId from DB for simulation event audit linkage
@@ -295,6 +322,8 @@ export class RealtimeVoiceService {
       greetingTimeoutId: null,
       pendingIsResuming: false,
       usingReconnectInstructions: false,
+      activePersonaIndex: 0,
+      scenarioPersonas: null,
     };
 
     this.sessions.set(sessionId, session);
@@ -342,9 +371,13 @@ export class RealtimeVoiceService {
       const langCode = langCodeMap[session.userLanguage] || 'ko-KR';
 
       const isPersonaXSession = session.scenarioId.startsWith('__user_persona__:');
+      const hasMultiplePersonas = session.scenarioPersonas && session.scenarioPersonas.length > 1;
+      const allSimulationTools = hasMultiplePersonas
+        ? [...SIMULATION_TOOLS, SWITCH_PERSONA_TOOL]
+        : SIMULATION_TOOLS;
       const simulationToolDeclarations = isPersonaXSession
         ? []
-        : [{ functionDeclarations: SIMULATION_TOOLS }];
+        : [{ functionDeclarations: allSimulationTools }];
 
       const config: any = {
         responseModalities: [Modality.AUDIO],

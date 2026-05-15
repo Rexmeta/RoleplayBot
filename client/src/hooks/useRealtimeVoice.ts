@@ -91,6 +91,7 @@ interface UseRealtimeVoiceProps {
   onError?: (error: string) => void;
   onSessionTerminated?: (reason: string) => void;
   onSimulationUpdate?: (update: any) => void;
+  onPersonaSwitched?: (info: { fromIndex: number; toIndex: number; newPersonaName: string; reason: string; transitionLine: string; fromPersonaName?: string }) => void;
 }
 
 interface UseRealtimeVoiceReturn {
@@ -129,6 +130,7 @@ export function useRealtimeVoice({
   onError,
   onSessionTerminated,
   onSimulationUpdate,
+  onPersonaSwitched,
 }: UseRealtimeVoiceProps): UseRealtimeVoiceReturn {
   const [status, setStatus] = useState<RealtimeVoiceStatus>('disconnected');
   const [conversationPhase, setConversationPhase] = useState<ConversationPhase>('idle');
@@ -183,6 +185,7 @@ export function useRealtimeVoice({
   const onErrorRef = useRef(onError);
   const onSessionTerminatedRef = useRef(onSessionTerminated);
   const onSimulationUpdateRef = useRef(onSimulationUpdate);
+  const onPersonaSwitchedRef = useRef(onPersonaSwitched);
 
   useEffect(() => {
     onMessageRef.current = onMessage;
@@ -195,7 +198,8 @@ export function useRealtimeVoice({
     onErrorRef.current = onError;
     onSessionTerminatedRef.current = onSessionTerminated;
     onSimulationUpdateRef.current = onSimulationUpdate;
-  }, [onMessage, onMessageComplete, onReconnectGreetingComplete, onUserTranscription, onUserTranscriptionDelta, onAiSpeakingStart, onUserSpeakingStart, onError, onSessionTerminated, onSimulationUpdate]);
+    onPersonaSwitchedRef.current = onPersonaSwitched;
+  }, [onMessage, onMessageComplete, onReconnectGreetingComplete, onUserTranscription, onUserTranscriptionDelta, onAiSpeakingStart, onUserSpeakingStart, onError, onSessionTerminated, onSimulationUpdate, onPersonaSwitched]);
 
   useEffect(() => {
     conversationPhaseRef.current = conversationPhase;
@@ -583,6 +587,19 @@ export function useRealtimeVoice({
             case 'simulation.incident':
               if (onSimulationUpdateRef.current) {
                 onSimulationUpdateRef.current(data);
+              }
+              break;
+
+            case 'persona.switched':
+              if (onPersonaSwitchedRef.current && data.switched) {
+                onPersonaSwitchedRef.current({
+                  fromIndex: data.switched.fromIndex,
+                  toIndex: data.switched.toIndex,
+                  newPersonaName: data.newPersonaName ?? '',
+                  reason: data.switched.reason ?? '',
+                  transitionLine: data.switched.transitionLine ?? '',
+                  fromPersonaName: data.fromPersonaName,
+                });
               }
               break;
 

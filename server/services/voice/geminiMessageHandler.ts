@@ -91,6 +91,8 @@ export function handleGeminiMessage(
           emotionCallCountThisTurn: session.emotionCallCountThisTurn,
           language: session.userLanguage,
           scenarioContext: session.scenarioId,
+          currentPersonaIndex: session.activePersonaIndex,
+          scenarioPersonas: session.scenarioPersonas ?? undefined,
         }
       );
 
@@ -161,6 +163,73 @@ export function handleGeminiMessage(
           sendToClient(session, {
             type: 'simulation.incident',
             incident: result.incident,
+          });
+        }
+
+        if (result.personaSwitched) {
+          const switched = result.personaSwitched;
+          console.log(`🔄 [Voice] Persona switch: ${switched.fromIndex} → ${switched.toIndex} (${switched.toPersonaId})`);
+          session.activePersonaIndex = switched.toIndex;
+          const newPersona = session.scenarioPersonas?.[switched.toIndex];
+          if (newPersona) {
+            session.personaName = newPersona.name;
+            session.voiceGender = newPersona.gender === 'female' ? 'female' : 'male';
+          }
+          const fromPersonaForEvent = session.scenarioPersonas?.[switched.fromIndex];
+          sendToClient(session, {
+            type: 'persona.switched',
+            personaRunId: session.personaRunId,
+            switched,
+            newPersonaName: newPersona?.name ?? switched.toPersonaId,
+            fromPersonaName: fromPersonaForEvent?.name,
+          });
+          // Rebuild system instructions for the new persona so proactiveReconnect uses the correct prompt
+          if (session.personaSystemInstructions?.[switched.toIndex]) {
+            session.systemInstructions = session.personaSystemInstructions[switched.toIndex];
+            console.log(`🔧 [Voice] System instructions rebuilt for persona[${switched.toIndex}]: ${newPersona?.name}`);
+          }
+          // Emit transition line as a text overlay so the client shows it while Gemini finishes the turn
+          if (switched.transitionLine) {
+            sendToClient(session, {
+              type: 'ai.transcription.done',
+              text: switched.transitionLine,
+              turnSeq: session.turnSeq,
+            });
+          }
+          // Defer proactiveReconnect to turnComplete so Gemini finishes any in-flight audio
+          // output (including the transitionLine the model will speak) before the session switches.
+          session.pendingPersonaSwitch = {
+            fromIndex: switched.fromIndex,
+            toIndex: switched.toIndex,
+            fromPersonaId: switched.fromPersonaId,
+            toPersonaId: switched.toPersonaId,
+            reason: switched.reason,
+            transitionLine: switched.transitionLine ?? '',
+          };
+          console.log(`⏳ [Voice] Persona switch deferred to turnComplete for persona[${switched.toIndex}]`);
+          // Persist to DB best-effort
+          setImmediate(async () => {
+            try {
+              const existing = (await storage.getPersonaRun(session.personaRunId))?.personaSwitchLog as any[] ?? [];
+              await storage.updatePersonaRun(session.personaRunId, {
+                activePersonaIndex: switched.toIndex,
+                personaSwitchLog: [
+                  ...existing,
+                  {
+                    turn: session.userTurnsCompleted,
+                    fromPersonaIndex: switched.fromIndex,
+                    toPersonaIndex: switched.toIndex,
+                    fromPersonaId: switched.fromPersonaId,
+                    toPersonaId: switched.toPersonaId,
+                    reason: switched.reason,
+                    transitionLine: switched.transitionLine,
+                    timestamp: new Date().toISOString(),
+                  },
+                ],
+              });
+            } catch (e) {
+              console.warn('[geminiMessageHandler] Failed to persist persona switch to DB:', e);
+            }
           });
         }
 
@@ -394,6 +463,14 @@ export function handleGeminiMessage(
           type: 'response.ready',
           turnSeq: session.turnSeq,
         });
+      }
+
+      // Deferred persona switch: fire proactiveReconnect now that audio for this turn is done
+      if (session.pendingPersonaSwitch) {
+        const pending = session.pendingPersonaSwitch;
+        session.pendingPersonaSwitch = undefined;
+        console.log(`🔄 [Voice] Executing deferred proactiveReconnect for persona[${pending.toIndex}] after turnComplete`);
+        proactiveReconnect(session);
       }
 
       if (!session.hasReceivedFirstAIResponse && !session.hasReceivedFirstAIAudio && !session.currentTranscript && !hasModelTurn && !session.hasReceivedFirstTranscriptDelta && session.firstGreetingRetryCount < 3) {

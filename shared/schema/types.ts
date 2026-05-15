@@ -6,6 +6,7 @@ export type ConversationMessage = {
   emotionReason?: string;
   personaId?: string;
   interrupted?: boolean;
+  turnIndex?: number;
 };
 
 export type ScoreAdjustments = {

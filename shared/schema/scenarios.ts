@@ -49,6 +49,10 @@ export const scenarios = pgTable("scenarios", {
     tradeoff: string;
     gender?: string;
     mbti?: string;
+    isPrimary?: boolean;
+    triggerHints?: string[];
+    entryLine?: string;
+    voiceId?: string | null;
   }>>(),
   recommendedFlow: text("recommended_flow").array(),
   evaluationCriteriaSetId: varchar("evaluation_criteria_set_id"),

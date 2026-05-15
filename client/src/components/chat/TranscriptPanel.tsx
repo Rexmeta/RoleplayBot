@@ -1,7 +1,8 @@
 import { useEffect, useRef } from "react";
-import { ChevronRight, MessageCircle, X } from "lucide-react";
+import { ChevronRight, MessageCircle, X, ArrowRight } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import type { ConversationMessage } from "@shared/schema";
+import type { PersonaSwitchEvent } from "./PersonaSwitchCard";
 
 interface TranscriptPanelProps {
   isOpen: boolean;
@@ -12,6 +13,7 @@ interface TranscriptPanelProps {
   pendingUserMessage: boolean;
   pendingUserText: string;
   personaName: string;
+  personaSwitchEvents?: PersonaSwitchEvent[];
 }
 
 export function TranscriptPanel({
@@ -23,6 +25,7 @@ export function TranscriptPanel({
   pendingUserMessage,
   pendingUserText,
   personaName,
+  personaSwitchEvents = [],
 }: TranscriptPanelProps) {
   const { t } = useTranslation();
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -39,18 +42,35 @@ export function TranscriptPanel({
   const renderMessages = () => (
     <div ref={scrollRef} className="flex-1 overflow-y-auto p-3 space-y-2">
       {messages.filter(m => m.sender === 'user' || m.sender === 'ai').map((msg, index) => (
-        <div
-          key={index}
-          className={`text-xs rounded-lg px-3 py-2 ${
-            msg.sender === 'user'
-              ? 'bg-blue-50 text-blue-800 ml-4'
-              : 'bg-slate-50 text-slate-800 mr-4'
-          }`}
-        >
-          <div className="font-semibold mb-0.5 opacity-60 text-[10px]">
-            {msg.sender === 'user' ? t('chat.me') : personaName}
+        <div key={index}>
+          <div
+            className={`text-xs rounded-lg px-3 py-2 ${
+              msg.sender === 'user'
+                ? 'bg-blue-50 text-blue-800 ml-4'
+                : 'bg-slate-50 text-slate-800 mr-4'
+            }`}
+          >
+            <div className="font-semibold mb-0.5 opacity-60 text-[10px]">
+              {msg.sender === 'user' ? t('chat.me') : personaName}
+            </div>
+            <div className="leading-relaxed">{msg.message}</div>
           </div>
-          <div className="leading-relaxed">{msg.message}</div>
+          {personaSwitchEvents
+            .filter(ev =>
+              ev.turnIndex != null
+                ? msg.turnIndex != null ? msg.turnIndex === ev.turnIndex : index === ev.turnIndex
+                : index === ev.toIndex
+            )
+            .map(ev => (
+              <div key={ev.timestamp} className="flex items-center gap-1.5 my-1.5 px-2 py-1 rounded-lg bg-indigo-50 border border-indigo-200 text-[10px] text-indigo-700">
+                {ev.fromPersonaName && (
+                  <span className="opacity-70 shrink-0">{ev.fromPersonaName}</span>
+                )}
+                <ArrowRight className="w-2.5 h-2.5 shrink-0 text-indigo-400" />
+                <span className="font-semibold shrink-0">{ev.newPersonaName}</span>
+                {ev.reason && <span className="opacity-50 truncate">{ev.reason}</span>}
+              </div>
+            ))}
         </div>
       ))}
       {pendingAiMessage && (

@@ -40,6 +40,15 @@ const TriggerIncidentArgsSchema = z.object({
   reason: z.string(),
 });
 
+export interface PersonaSwitchedInfo {
+  fromIndex: number;
+  toIndex: number;
+  fromPersonaId: string;
+  toPersonaId: string;
+  reason: string;
+  transitionLine: string;
+}
+
 export interface ToolHandlerResult {
   success: boolean;
   error?: string;
@@ -47,6 +56,7 @@ export interface ToolHandlerResult {
   currentState?: SimulationState;
   behaviorInstruction?: string;
   incident?: Incident;
+  personaSwitched?: PersonaSwitchedInfo;
 }
 
 interface ToolCallContext {
@@ -58,7 +68,15 @@ interface ToolCallContext {
   emotionCallCountThisTurn: number;
   language: 'ko' | 'en' | 'ja' | 'zh';
   scenarioContext?: string;
+  currentPersonaIndex?: number;
+  scenarioPersonas?: Array<{ id: string; name: string; [key: string]: any }>;
 }
+
+const SwitchPersonaArgsSchema = z.object({
+  targetPersonaIndex: z.number().int().min(0).max(9),
+  reason: z.string(),
+  transitionLine: z.string(),
+});
 
 export function handleToolCall(
   toolName: string,
@@ -73,6 +91,8 @@ export function handleToolCall(
         return handleUpdateScenarioState(rawArgs, ctx);
       case 'trigger_incident':
         return handleTriggerIncident(rawArgs, ctx);
+      case 'switch_persona':
+        return handleSwitchPersona(rawArgs, ctx);
       default:
         return { success: false, error: `Unknown tool: ${toolName}` };
     }
@@ -80,6 +100,35 @@ export function handleToolCall(
     console.error(`[simulationToolHandler] Tool call failed: ${toolName}`, err);
     return { success: false, error: err instanceof Error ? err.message : String(err) };
   }
+}
+
+function handleSwitchPersona(rawArgs: unknown, ctx: ToolCallContext): ToolHandlerResult {
+  const parsed = SwitchPersonaArgsSchema.safeParse(rawArgs);
+  if (!parsed.success) {
+    return { success: false, error: `Invalid args: ${parsed.error.message}` };
+  }
+  const { targetPersonaIndex, reason, transitionLine } = parsed.data;
+  const fromIndex = ctx.currentPersonaIndex ?? 0;
+  if (targetPersonaIndex === fromIndex) {
+    return { success: false, error: 'Target persona is already active' };
+  }
+  const personas = ctx.scenarioPersonas || [];
+  const fromPersona = personas[fromIndex];
+  const toPersona = personas[targetPersonaIndex];
+  if (!toPersona) {
+    return { success: false, error: `Target persona index ${targetPersonaIndex} does not exist` };
+  }
+  return {
+    success: true,
+    personaSwitched: {
+      fromIndex,
+      toIndex: targetPersonaIndex,
+      fromPersonaId: fromPersona?.id ?? String(fromIndex),
+      toPersonaId: toPersona.id,
+      reason,
+      transitionLine,
+    },
+  };
 }
 
 function handleUpdateNpcEmotion(rawArgs: unknown, ctx: ToolCallContext): ToolHandlerResult {

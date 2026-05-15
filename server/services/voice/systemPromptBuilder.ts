@@ -11,13 +11,69 @@ interface UserRoleInfo {
   responsibility: string;
 }
 
+export function buildMultiPersonaSection(
+  allPersonas: any[],
+  activeIndex: number,
+  language: LangCode = 'ko'
+): string {
+  if (!allPersonas || allPersonas.length <= 1) return '';
+  const otherPersonas = allPersonas.map((p, i) => ({ ...p, index: i })).filter((_, i) => i !== activeIndex);
+  if (otherPersonas.length === 0) return '';
+
+  const header: Record<LangCode, string> = {
+    ko: `\n# 다중 페르소나 전환 시스템\n이 대화에는 여러 명의 대화 상대가 존재합니다. 상황에 따라 switch_persona 도구를 호출하여 다른 페르소나로 전환할 수 있습니다.`,
+    en: `\n# Multi-Persona Switching System\nThis conversation has multiple personas. You may call the switch_persona tool to transition to another persona when appropriate.`,
+    ja: `\n# マルチペルソナ切り替えシステム\nこの会話には複数のペルソナがあります。状況に応じてswitch_personaツールを呼び出して別のペルソナに切り替えられます。`,
+    zh: `\n# 多角色切换系统\n此对话有多个角色。您可以根据情况调用switch_persona工具切换到另一个角色。`,
+  };
+  const otherLabel: Record<LangCode, string> = {
+    ko: '전환 가능한 다른 페르소나',
+    en: 'Available personas to switch to',
+    ja: '切り替え可能な他のペルソナ',
+    zh: '可切换的其他角色',
+  };
+  const whenLabel: Record<LangCode, string> = {
+    ko: '전환 조건(trigger hints)',
+    en: 'Trigger conditions',
+    ja: 'トリガー条件',
+    zh: '触发条件',
+  };
+  const entryLabel: Record<LangCode, string> = {
+    ko: '첫 마디',
+    en: 'Entry line',
+    ja: '最初の一言',
+    zh: '开场白',
+  };
+  const whenToSwitch: Record<LangCode, string> = {
+    ko: `switch_persona 호출 시점:\n- 사용자가 현재 페르소나의 권한 밖의 결정을 언급하거나 상위 결정권자를 요청할 때\n- 위 trigger hints 상황이 발생했을 때\n- 전환 시: transitionLine에 현재 페르소나가 마지막으로 할 말을 작성하고, 즉시 도구를 호출하세요\n- 한 번 전환하면 다시 이전 페르소나로 돌아오지 않습니다`,
+    en: `When to call switch_persona:\n- User requests someone with more authority or mentions a decision beyond your scope\n- One of the trigger hints conditions is met\n- On switch: set transitionLine to the last thing the current persona says, then call the tool\n- Once switched, do not revert to the previous persona`,
+    ja: `switch_personaを呼び出すタイミング:\n- ユーザーが現在のペルソナの権限外の決定を求めるか、上位権限者を要請する場合\n- 上記のトリガー条件が発生した場合\n- 切り替え時：transitionLineに現在のペルソナが最後に言う言葉を記入してツールを呼び出す\n- 一度切り替えたら元のペルソナに戻らない`,
+    zh: `何时调用switch_persona:\n- 用户请求拥有更高权限的人或提及超出您权限的决定时\n- 满足触发条件之一时\n- 切换时：在transitionLine中写下当前角色最后说的话，然后立即调用工具\n- 一旦切换，不要回到之前的角色`,
+  };
+
+  const lines: string[] = [header[language], `\n## ${otherLabel[language]}:`];
+  for (const p of otherPersonas) {
+    lines.push(`\n**[인덱스 ${p.index}] ${p.name} (${p.position || ''}, ${p.department || ''})**`);
+    if (p.triggerHints?.length) {
+      lines.push(`- ${whenLabel[language]}: ${p.triggerHints.join(' / ')}`);
+    }
+    if (p.entryLine) {
+      lines.push(`- ${entryLabel[language]}: "${p.entryLine}"`);
+    }
+  }
+  lines.push(`\n${whenToSwitch[language]}`);
+  return lines.join('\n');
+}
+
 export function buildSystemInstructions(
   scenario: any,
   scenarioPersona: any,
   mbtiPersona: any,
   userRoleInfo?: UserRoleInfo,
   userLanguage: LangCode = 'ko',
-  includeSimulationTools: boolean = true
+  includeSimulationTools: boolean = true,
+  allPersonas?: any[],
+  activePersonaIndex: number = 0
 ): string {
   const mbtiType = scenarioPersona.personaRef?.replace('.json', '') || 'UNKNOWN';
 
@@ -135,6 +191,7 @@ export function buildSystemInstructions(
     st.noMetaThink(langInst.langName),
     `${st.firstWordsLabel}: ${langInst.greetingExample(userRoleInfo)}`,
     ...(includeSimulationTools ? [``, buildSimulationToolPrompt(userLanguage)] : []),
+    ...(allPersonas && allPersonas.length > 1 ? [buildMultiPersonaSection(allPersonas, activePersonaIndex, userLanguage)] : []),
   ];
 
   return instructions.join('\n');

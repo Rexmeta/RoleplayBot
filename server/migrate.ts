@@ -1184,6 +1184,33 @@ export async function runMigrations(): Promise<void> {
       `);
       console.log('✅ Agent API tables created/verified');
 
+      // Multi-persona tracking columns for persona_runs
+      try {
+        await client.query(`
+          DO $$ BEGIN
+            IF NOT EXISTS (
+              SELECT 1 FROM information_schema.columns
+              WHERE table_name='persona_runs' AND column_name='active_persona_index'
+            ) THEN
+              ALTER TABLE persona_runs ADD COLUMN active_persona_index integer NOT NULL DEFAULT 0;
+            END IF;
+          END $$;
+        `);
+        await client.query(`
+          DO $$ BEGIN
+            IF NOT EXISTS (
+              SELECT 1 FROM information_schema.columns
+              WHERE table_name='persona_runs' AND column_name='persona_switch_log'
+            ) THEN
+              ALTER TABLE persona_runs ADD COLUMN persona_switch_log jsonb;
+            END IF;
+          END $$;
+        `);
+        console.log('✅ persona_runs multi-persona columns ensured');
+      } catch (err) {
+        console.warn('⚠️ Failed to add multi-persona columns to persona_runs:', err);
+      }
+
       console.log('✅ Database migrations completed successfully');
     } finally {
       client.release();

@@ -48,6 +48,11 @@ export interface ScenarioPersona {
     pace: string;
     emotion: string;
   };
+  // Multi-persona switching fields
+  isPrimary?: boolean;
+  triggerHints?: string[];
+  entryLine?: string;
+  voiceId?: string;
 }
 
 export interface ComplexScenario {

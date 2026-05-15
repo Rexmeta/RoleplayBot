@@ -5,13 +5,23 @@ import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import type { ConversationMessage } from "@shared/schema";
 
+export interface PersonaSwitchedPayload {
+  fromIndex: number;
+  toIndex: number;
+  reason: string;
+  transitionLine: string;
+  turnIndex?: number;
+  newPersonaName?: string;
+}
+
 interface UseChatMessagesOptions {
   conversationId: string;
   serverMessages?: ConversationMessage[];
   onSimulationUpdate?: (update: { type: 'simulation_update'; personaRunId: string; eventType: string; currentState: any; incident?: any; turnScore?: any; version: number; timestamp: string }) => void;
+  onPersonaSwitched?: (info: PersonaSwitchedPayload) => void;
 }
 
-export function useChatMessages({ conversationId, serverMessages, onSimulationUpdate }: UseChatMessagesOptions) {
+export function useChatMessages({ conversationId, serverMessages, onSimulationUpdate, onPersonaSwitched }: UseChatMessagesOptions) {
   const [localMessages, setLocalMessages] = useState<ConversationMessage[]>([]);
   const [pendingAiMessage, setPendingAiMessage] = useState(false);
   const [pendingUserMessage, setPendingUserMessage] = useState(false);
@@ -64,6 +74,11 @@ export function useChatMessages({ conversationId, serverMessages, onSimulationUp
           version: data.simulationState?.version ?? 0,
           timestamp: new Date().toISOString(),
         });
+      }
+
+      // Forward persona switch event to caller
+      if (onPersonaSwitched && data.personaSwitched) {
+        onPersonaSwitched(data.personaSwitched);
       }
 
       queryClient.invalidateQueries({ queryKey: ["/api/conversations", conversationId] });

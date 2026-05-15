@@ -75,6 +75,10 @@ export interface RoleplayScenario {
   targetTurns?: number;
   /** 최소 유효 턴 수 (미달 시 평가 불가) */
   minValidTurns?: number;
+  /** 다중 페르소나 전환 시스템: 전체 페르소나 목록 */
+  allPersonas?: Array<{ id: string; name: string; position?: string; department?: string; triggerHints?: string[]; entryLine?: string; [key: string]: any }>;
+  /** 현재 활성 페르소나 인덱스 (multi-persona 전환 시) */
+  activePersonaIndex?: number;
   [key: string]: unknown;
 }
 

@@ -50,6 +50,17 @@ export const personaRuns = pgTable("persona_runs", {
   mode: text("mode").notNull().default("text"),
   difficulty: integer("difficulty").notNull().default(2),
   simulationState: jsonb("simulation_state"),
+  activePersonaIndex: integer("active_persona_index").notNull().default(0),
+  personaSwitchLog: jsonb("persona_switch_log").$type<Array<{
+    turn: number;
+    fromPersonaIndex: number;
+    toPersonaIndex: number;
+    fromPersonaId: string;
+    toPersonaId: string;
+    reason: string;
+    transitionLine: string;
+    timestamp: string;
+  }>>(),
   startedAt: timestamp("started_at").notNull().default(sql`CURRENT_TIMESTAMP`),
   actualStartedAt: timestamp("actual_started_at").notNull().default(sql`CURRENT_TIMESTAMP`),
   completedAt: timestamp("completed_at"),
@@ -113,6 +124,8 @@ export const insertPersonaRunSchema = createInsertSchema(personaRuns).omit({
   id: true,
   startedAt: true,
   completedAt: true,
+  activePersonaIndex: true,
+  personaSwitchLog: true,
 });
 export type InsertPersonaRun = z.infer<typeof insertPersonaRunSchema>;
 export type PersonaRun = typeof personaRuns.$inferSelect;

@@ -37,6 +37,10 @@ interface ScenarioPersona {
   stance: string;
   goal: string;
   tradeoff: string;
+  isPrimary?: boolean;
+  voiceId?: string;
+  entryLine?: string;
+  triggerHints?: string[];
 }
 
 interface ScenarioFormData {
@@ -2145,6 +2149,80 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
                             data-testid={`input-persona-tradeoff-${index}`}
                             className="bg-white whitespace-pre-wrap"
                           />
+                        </div>
+
+                        {/* Multi-persona switching fields */}
+                        <div className="border-t border-slate-200 pt-3 mt-1">
+                          <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">Multi-Persona Switching</p>
+                          <div className="grid grid-cols-2 gap-3">
+                            <div className="flex items-center gap-2">
+                              <input
+                                type="checkbox"
+                                id={`persona-isprimary-${index}`}
+                                checked={!!persona.isPrimary}
+                                onChange={(e) => {
+                                  const newPersonas = [...formData.personas];
+                                  if (e.target.checked) {
+                                    newPersonas.forEach((p, i) => {
+                                      newPersonas[i] = { ...p, isPrimary: i === index };
+                                    });
+                                  } else {
+                                    const otherPrimaryExists = newPersonas.some((p, i) => i !== index && !!p.isPrimary);
+                                    if (otherPrimaryExists) {
+                                      newPersonas[index] = { ...persona, isPrimary: false };
+                                    }
+                                  }
+                                  setFormData(prev => ({ ...prev, personas: newPersonas }));
+                                }}
+                                className="rounded border-slate-300"
+                              />
+                              <Label htmlFor={`persona-isprimary-${index}`} className="text-sm font-medium text-slate-700">Primary Persona</Label>
+                            </div>
+                            <div>
+                              <Label htmlFor={`persona-voiceid-${index}`} className="text-sm font-medium text-slate-700">Voice ID (ElevenLabs)</Label>
+                              <Input
+                                id={`persona-voiceid-${index}`}
+                                value={persona.voiceId ?? ''}
+                                onChange={(e) => {
+                                  const newPersonas = [...formData.personas];
+                                  newPersonas[index] = { ...persona, voiceId: e.target.value };
+                                  setFormData(prev => ({ ...prev, personas: newPersonas }));
+                                }}
+                                placeholder="Optional voice ID override"
+                                className="bg-white"
+                              />
+                            </div>
+                          </div>
+                          <div className="mt-2">
+                            <Label htmlFor={`persona-entryline-${index}`} className="text-sm font-medium text-slate-700">Entry Line</Label>
+                            <Input
+                              id={`persona-entryline-${index}`}
+                              value={persona.entryLine ?? ''}
+                              onChange={(e) => {
+                                const newPersonas = [...formData.personas];
+                                newPersonas[index] = { ...persona, entryLine: e.target.value };
+                                setFormData(prev => ({ ...prev, personas: newPersonas }));
+                              }}
+                              placeholder="First line said when this persona enters (e.g. 'Hello, I'm here to help...')"
+                              className="bg-white"
+                            />
+                          </div>
+                          <div className="mt-2">
+                            <Label htmlFor={`persona-triggerhints-${index}`} className="text-sm font-medium text-slate-700">Trigger Hints (one per line)</Label>
+                            <Textarea
+                              id={`persona-triggerhints-${index}`}
+                              value={(persona.triggerHints ?? []).join('\n')}
+                              onChange={(e) => {
+                                const newPersonas = [...formData.personas];
+                                const hints = e.target.value.split('\n').map((s: string) => s.trim()).filter(Boolean);
+                                newPersonas[index] = { ...persona, triggerHints: hints };
+                                setFormData(prev => ({ ...prev, personas: newPersonas }));
+                              }}
+                              placeholder={"Enter phrases that should trigger switching to this persona\ne.g. 'budget approval'\n'legal review needed'"}
+                              rows={3}
+                              className="bg-white whitespace-pre-wrap text-sm"
+                            />
+                          </div>
                         </div>
                       </div>
                     ))}

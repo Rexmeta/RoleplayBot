@@ -27,6 +27,7 @@ import { useChatSession } from "@/hooks/chat/useChatSession";
 import { useTTS } from "@/hooks/chat/useTTS";
 
 import { MessageList } from "@/components/chat/MessageList";
+import { PersonaSwitchCard } from "@/components/chat/PersonaSwitchCard";
 import { TranscriptPanel } from "@/components/chat/TranscriptPanel";
 import { TopMenuPanel } from "@/components/chat/TopMenuPanel";
 import { CharacterPortrait } from "@/components/chat/CharacterPortrait";
@@ -136,18 +137,49 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
     applySimulationUpdate(update);
   }, [applySimulationUpdate]);
 
+  const [personaSwitchEvents, setPersonaSwitchEvents] = useState<import("./chat/PersonaSwitchCard").PersonaSwitchEvent[]>([]);
+  const [latestPersonaSwitch, setLatestPersonaSwitch] = useState<{ name: string; transitionLine: string } | null>(null);
+  const personaSwitchBannerTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [activePersona, setActivePersona] = useState<ScenarioPersona>(persona);
+
+  const handlePersonaSwitched = useCallback((info: { fromIndex: number; toIndex: number; newPersonaName?: string; reason: string; transitionLine: string; turnIndex?: number; fromPersonaName?: string }) => {
+    const fromPersonaName = info.fromPersonaName
+      ?? (scenario.personas?.[info.fromIndex] as ScenarioPersona | undefined)?.name;
+    const eventEntry = {
+      fromIndex: info.fromIndex,
+      fromPersonaName,
+      toIndex: info.toIndex,
+      newPersonaName: info.newPersonaName ?? '',
+      reason: info.reason,
+      transitionLine: info.transitionLine,
+      timestamp: new Date().toISOString(),
+      turnIndex: info.turnIndex,
+    };
+    setPersonaSwitchEvents(prev => [...prev, eventEntry]);
+    // Update active persona so header/portrait displays the new character
+    const switchedTo = scenario.personas?.[info.toIndex] as ScenarioPersona | undefined;
+    if (switchedTo) {
+      setActivePersona(switchedTo);
+    }
+    // Show temporary banner
+    if (personaSwitchBannerTimerRef.current) clearTimeout(personaSwitchBannerTimerRef.current);
+    setLatestPersonaSwitch({ name: info.newPersonaName ?? '', transitionLine: info.transitionLine });
+    personaSwitchBannerTimerRef.current = setTimeout(() => setLatestPersonaSwitch(null), 4000);
+  }, [scenario.personas]);
+
   const { localMessages, setLocalMessages, pendingAiMessage: rawPendingAiMessage, setPendingAiMessage,
     pendingUserMessage, setPendingUserMessage, pendingUserText, setPendingUserText,
     messagesEndRef, sendMessageMutation } = useChatMessages({
     conversationId,
     serverMessages: initialMessages,
     onSimulationUpdate: isSimulationEnabled ? handleSimulationUpdate : undefined,
+    onPersonaSwitched: handlePersonaSwitched,
   });
 
   const { currentEmotion, setCurrentEmotion, isEmotionTransitioning, setIsEmotionTransitioning,
     loadedImageUrl, isInitialLoading, isOverlayFading, hasNoPersonaImages,
     getCharacterImage, preloadImage } = useEmotionState({
-    persona: { id: persona.id, mbti: persona.mbti, gender: persona.gender, name: persona.name, image: persona.image, expressions: persona.expressions },
+    persona: { id: activePersona.id, mbti: activePersona.mbti, gender: activePersona.gender, name: activePersona.name, image: activePersona.image, expressions: activePersona.expressions },
     conversationId, onReady,
   });
 
@@ -160,6 +192,7 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
   const realtimeVoice = useRealtimeVoice({
     conversationId, scenarioId: scenario.id, personaId: persona.id, enabled: false,
     onSimulationUpdate: isSimulationEnabled ? handleSimulationUpdate : undefined,
+    onPersonaSwitched: handlePersonaSwitched,
     onReconnectGreetingComplete: () => {
       setPendingAiMessage(false);
       isAISpeakingForBargeInRef.current = false;
@@ -514,7 +547,7 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
     onStopRecording: () => realtimeVoice.stopRecording(),
     onEndConversation: handleEndRealtimeConversation,
     previousMessages,
-    personaDept: persona.department, personaRole: persona.role, personaName: persona.name, userName: user?.name,
+    personaDept: activePersona.department, personaRole: activePersona.role, personaName: activePersona.name, userName: user?.name,
     currentTurn, targetTurns,
   };
 
@@ -536,14 +569,14 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
               <div className="flex items-center space-x-3 sm:space-x-4 min-w-0 flex-1">
                 <div className="flex-shrink-0" data-testid="chat-header-persona-image">
                   <div className="w-14 h-14 sm:w-12 sm:h-12 rounded-xl border-2 border-white/30 overflow-hidden bg-gradient-to-br from-slate-100 to-slate-200 shadow-lg">
-                    <img src={getCharacterImage(currentEmotion) || toMediaUrl(persona.image)} alt={persona.name}
+                    <img src={getCharacterImage(currentEmotion) || toMediaUrl(activePersona.image)} alt={activePersona.name}
                       className="w-full h-full object-cover object-[center_15%] transition-all duration-200 scale-110"
-                      onError={(e) => { (e.target as HTMLImageElement).src = `https://ui-avatars.com/api/?name=${encodeURIComponent(persona.name)}&background=6366f1&color=fff&size=64`; }} />
+                      onError={(e) => { (e.target as HTMLImageElement).src = `https://ui-avatars.com/api/?name=${encodeURIComponent(activePersona.name)}&background=6366f1&color=fff&size=64`; }} />
                   </div>
                 </div>
                 <div className="min-w-0 flex-1">
                   <div className="text-left w-full" data-testid="chat-header-persona-info">
-                    <h3 className="text-base sm:text-lg font-semibold truncate">{persona.name} ({persona.department})</h3>
+                    <h3 className="text-base sm:text-lg font-semibold truncate">{activePersona.name} ({activePersona.department})</h3>
                     <p className="text-blue-100 text-xs sm:text-sm truncate">{scenario.title}</p>
                   </div>
                 </div>
@@ -639,16 +672,16 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
                     <div className="flex items-center gap-2 min-w-0">
                       {/* Persona avatar thumbnail */}
                       <img
-                        src={loadedImageUrl || toMediaUrl(persona.image || '') || `https://ui-avatars.com/api/?name=${encodeURIComponent(persona.name)}&background=6366f1&color=fff&size=64`}
-                        alt={persona.name}
+                        src={loadedImageUrl || toMediaUrl(activePersona.image || '') || `https://ui-avatars.com/api/?name=${encodeURIComponent(activePersona.name)}&background=6366f1&color=fff&size=64`}
+                        alt={activePersona.name}
                         className="w-8 h-8 rounded-full object-cover object-top shrink-0 border border-white/20"
                       />
                       {/* Name + role/department */}
                       <div className="flex flex-col min-w-0 flex-1">
-                        <span className="text-white text-xs font-semibold truncate leading-tight">{persona.name}</span>
-                        {(persona.role || persona.department) && (
+                        <span className="text-white text-xs font-semibold truncate leading-tight">{activePersona.name}</span>
+                        {(activePersona.role || activePersona.department) && (
                           <span className="text-white/60 text-[10px] truncate leading-tight">
-                            {[persona.role, persona.department].filter(Boolean).join(' · ')}
+                            {[activePersona.role, activePersona.department].filter(Boolean).join(' · ')}
                           </span>
                         )}
                       </div>
@@ -708,8 +741,22 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
                     </div>
                   </div>
 
-                  <CharacterPortrait loadedImageUrl={loadedImageUrl} personaName={persona.name} personaImage={persona.image}
+                  <CharacterPortrait loadedImageUrl={loadedImageUrl} personaName={activePersona.name} personaImage={activePersona.image}
                     currentEmotion={currentEmotion} isEmotionTransitioning={isEmotionTransitioning} isSessionEnding={isSessionEnding} />
+
+                  {latestPersonaSwitch && (
+                    <div className="absolute top-16 left-0 right-0 z-[14] flex justify-center animate-in slide-in-from-top-2 duration-300 px-4">
+                      <div className="flex flex-col items-center gap-1 bg-indigo-600/90 backdrop-blur-sm text-white rounded-2xl px-5 py-2.5 shadow-xl max-w-sm w-full">
+                        <div className="flex items-center gap-2 text-sm font-semibold">
+                          <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+                          <span>{latestPersonaSwitch.name} joined</span>
+                        </div>
+                        {latestPersonaSwitch.transitionLine && (
+                          <p className="text-xs text-indigo-100 italic text-center">"{latestPersonaSwitch.transitionLine}"</p>
+                        )}
+                      </div>
+                    </div>
+                  )}
 
                   {isBargeInFlash && (
                     <div className="absolute inset-0 pointer-events-none z-[13]"
@@ -746,7 +793,8 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
                   <TranscriptPanel isOpen={isTranscriptPanelOpen} onToggle={() => setIsTranscriptPanelOpen(v => !v)}
                     onClose={() => setIsTranscriptPanelOpen(false)} messages={localMessages}
                     pendingAiMessage={pendingAiMessage} pendingUserMessage={pendingUserMessage}
-                    pendingUserText={pendingUserText} personaName={persona.name} />
+                    pendingUserText={pendingUserText} personaName={activePersona.name}
+                    personaSwitchEvents={personaSwitchEvents} />
 
 
                   {/* Desktop NPC status toggle button */}
@@ -798,6 +846,14 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
                       ) : (
                         <>
                           <div className="p-4 bg-[#ffffff9c]">
+                            {personaSwitchEvents.length > 0 && (() => {
+                              const latest = personaSwitchEvents[personaSwitchEvents.length - 1];
+                              return (
+                                <div className="mb-3">
+                                  <PersonaSwitchCard event={latest} />
+                                </div>
+                              );
+                            })()}
                             {isLoading ? (
                               <div className="flex items-center justify-center space-x-2" data-testid="status-typing">
                                 <div className="w-3 h-3 bg-purple-400 rounded-full animate-bounce"></div>
@@ -1005,21 +1061,21 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
                   }}
                 >
                   <div className="flex items-center gap-2.5">
-                    {persona.image ? (
+                    {activePersona.image ? (
                       <img
-                        src={toMediaUrl(persona.image)}
-                        alt={persona.name}
+                        src={toMediaUrl(activePersona.image)}
+                        alt={activePersona.name}
                         className="h-8 w-8 rounded-full object-cover border border-border flex-shrink-0"
                       />
                     ) : (
                       <div className="h-8 w-8 rounded-full bg-muted flex items-center justify-center flex-shrink-0 border border-border">
                         <span className="text-xs font-semibold text-muted-foreground">
-                          {persona.name.charAt(0).toUpperCase()}
+                          {activePersona.name.charAt(0).toUpperCase()}
                         </span>
                       </div>
                     )}
                     <div className="flex flex-col min-w-0">
-                      <span className="text-sm font-semibold leading-tight truncate">{persona.name}</span>
+                      <span className="text-sm font-semibold leading-tight truncate">{activePersona.name}</span>
                       <div className="flex items-center gap-1">
                         <Brain className="h-3 w-3 text-muted-foreground flex-shrink-0" />
                         <span className="text-xs text-muted-foreground">{t('chat.npcStatusPanel')}</span>
