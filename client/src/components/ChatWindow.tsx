@@ -168,6 +168,14 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
       }
       setLocalMessages(prev => {
         if (prev.some(m => m.sender === 'ai' && m.message === message)) return prev;
+        // Phase-based dedup: if AI has spoken but user hasn't yet (greeting phase),
+        // suppress any additional AI message — it's a duplicate from the retry race.
+        const hasAiMessage = prev.some(m => m.sender === 'ai');
+        const hasUserMessage = prev.some(m => m.sender === 'user');
+        if (hasAiMessage && !hasUserMessage) {
+          console.log('⚠️ [phase-dedup] Suppressing duplicate AI message in greeting phase');
+          return prev;
+        }
         return [...prev, { sender: 'ai', message, timestamp: new Date().toISOString(), emotion: emotion || '중립', emotionReason: emotionReason || '' }];
       });
       if (!hasUserSpokenRef.current) setShowMicPrompt(true);
