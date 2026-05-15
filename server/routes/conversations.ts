@@ -81,7 +81,10 @@ export default function createConversationsRouter(isAuthenticated: any) {
 
     const personaId = validatedData.personaId || validatedData.scenarioId;
 
-    const scenarioFromDb = await storage.getScenario(validatedData.scenarioId);
+    const [scenarioFromDb, scenarios] = await Promise.all([
+      storage.getScenario(validatedData.scenarioId),
+      fileManager.getAllScenarios(),
+    ]);
     if (!scenarioFromDb) {
       throw Object.assign(createHttpError(404, "시나리오를 찾을 수 없습니다."), { errorCode: "SCENARIO_NOT_FOUND" });
     }
@@ -89,7 +92,6 @@ export default function createConversationsRouter(isAuthenticated: any) {
       throw Object.assign(createHttpError(410, "이 시나리오는 삭제되어 더 이상 이용할 수 없습니다."), { errorCode: "SCENARIO_DELETED" });
     }
 
-    const scenarios = await fileManager.getAllScenarios();
     const scenarioObj = scenarios.find(s => s.id === validatedData.scenarioId);
     if (!scenarioObj) {
       throw new Error(`Scenario not found: ${validatedData.scenarioId}`);
@@ -196,7 +198,6 @@ export default function createConversationsRouter(isAuthenticated: any) {
         difficulty: validatedData.difficulty || 4
       };
 
-      const user = await storage.getUser(userId);
       const userLanguage = (user?.preferredLanguage as 'ko' | 'en' | 'ja' | 'zh') || 'ko';
       const userName = normalizeProfileName(user?.name);
 
@@ -504,7 +505,19 @@ export default function createConversationsRouter(isAuthenticated: any) {
       }
     }
 
-    const existingMessages = await storage.getChatMessagesByPersonaRun(personaRunId);
+    const isPersonaX = scenarioRun!.scenarioId === '__free_chat__' ||
+      scenarioRun!.scenarioId?.startsWith('__user_persona__:') ||
+      scenarioRun!.scenarioId?.startsWith('__mbti_persona__:');
+
+    const shouldEvalEarly = !isPersonaX && !isSkipTurn && message.trim().length >= 10;
+    const cachedSimState = shouldEvalEarly ? getSessionState(personaRunId) : null;
+    const needSimStateFromDb = shouldEvalEarly && !cachedSimState;
+
+    const [existingMessages, user, preloadedSimState] = await Promise.all([
+      storage.getChatMessagesByPersonaRun(personaRunId),
+      storage.getUser(userId),
+      needSimStateFromDb ? storage.getSimulationState(personaRunId) : Promise.resolve(null),
+    ]);
     const currentTurnIndex = Math.floor(existingMessages.length / 2);
 
     if (existingMessages.length > 0) {
@@ -533,7 +546,6 @@ export default function createConversationsRouter(isAuthenticated: any) {
 
     const personaId = personaRun!.personaId;
 
-    const user = await storage.getUser(userId);
     const userLanguage = (user?.preferredLanguage as 'ko' | 'en' | 'ja' | 'zh') || 'ko';
     const userName = normalizeProfileName(user?.name);
 
@@ -684,11 +696,6 @@ ${userNameLine}
       emotionReason: msg.emotionReason || undefined
     }));
 
-    // isPersonaX: determines if this is a PersonaX free-chat session (no simulation)
-    const isPersonaX = scenarioRun!.scenarioId === '__free_chat__' ||
-      scenarioRun!.scenarioId?.startsWith('__user_persona__:') ||
-      scenarioRun!.scenarioId?.startsWith('__mbti_persona__:');
-
     const scenarioForAI: RoleplayScenario = scenarioWithUserDifficulty;
     // Only realtime-voice → text requires a style-continuity hint because it uses a
     // separate AI model (Gemini Live) that has no shared prompt state with the text model.
@@ -707,12 +714,13 @@ ${userNameLine}
     const evalTurnId = uuidv4();
 
     // Pre-load simulation state (required before AI generation for quality mode)
+    // cachedSimState and preloadedSimState were fetched in parallel above to avoid sequential round-trips.
     let evalState: import('../services/simulation/simulationTypes').SimulationState | null = null;
     if (shouldEval) {
       try {
-        evalState = getSessionState(personaRunId);
+        evalState = cachedSimState;
         if (!evalState) {
-          const stored = await storage.getSimulationState(personaRunId);
+          const stored = preloadedSimState;
           if (stored) {
             evalState = stored as unknown as import('../services/simulation/simulationTypes').SimulationState;
           } else {
