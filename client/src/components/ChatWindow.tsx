@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import { X, Brain } from "lucide-react";
+import { X, Brain, AlertTriangle } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { useToast } from "@/hooks/use-toast";
@@ -61,10 +61,20 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
   const [isMobileSimOpen, setIsMobileSimOpenRaw] = useState(
     () => localStorage.getItem('npc-panel-open') === 'true'
   );
+  const [mobileIncidentAlert, setMobileIncidentAlert] = useState<import('@/hooks/useSimulationState').Incident | null>(null);
+  const mobileIncidentDismissTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   const setIsMobileSimOpen = (value: boolean | ((prev: boolean) => boolean)) => {
     setIsMobileSimOpenRaw(prev => {
       const next = typeof value === 'function' ? value(prev) : value;
       localStorage.setItem('npc-panel-open', String(next));
+      if (next) {
+        setMobileIncidentAlert(null);
+        if (mobileIncidentDismissTimerRef.current) {
+          clearTimeout(mobileIncidentDismissTimerRef.current);
+          mobileIncidentDismissTimerRef.current = null;
+        }
+      }
       return next;
     });
   };
@@ -281,6 +291,26 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
     [localMessages, pendingAiMessage, pendingUserMessage, pendingUserText]);
 
   useEffect(() => { return () => { cleanupTTS(); cleanupVoiceRecording(); }; }, []);
+
+  useEffect(() => {
+    if (!newIncident) return;
+    if (isMobileSimOpen) return;
+    setMobileIncidentAlert(newIncident);
+    if (mobileIncidentDismissTimerRef.current) clearTimeout(mobileIncidentDismissTimerRef.current);
+    mobileIncidentDismissTimerRef.current = setTimeout(() => {
+      setMobileIncidentAlert(null);
+      mobileIncidentDismissTimerRef.current = null;
+    }, 5000);
+  }, [newIncident]);
+
+  useEffect(() => {
+    return () => {
+      if (mobileIncidentDismissTimerRef.current) {
+        clearTimeout(mobileIncidentDismissTimerRef.current);
+        mobileIncidentDismissTimerRef.current = null;
+      }
+    };
+  }, []);
 
   // 🔧 Fix 2: 탭 닫기/새로고침/페이지 이탈 시 localMessages를 sendBeacon으로 저장
   // navigator.sendBeacon은 페이지가 닫히는 도중에도 쿠키와 함께 POST 전송 보장
@@ -847,6 +877,48 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
             </div>
           </div>
         </div>
+
+        {/* Mobile floating incident alert (shown when panel is closed) */}
+        {mobileIncidentAlert && !isMobileSimOpen && (
+          <div className="lg:hidden fixed top-4 left-4 right-4 z-[100] animate-in slide-in-from-top-3 duration-300">
+            <div
+              className={`flex items-start gap-2.5 rounded-xl border px-3.5 py-3 text-sm shadow-xl backdrop-blur-sm ${
+                mobileIncidentAlert.severity === 'high'
+                  ? 'border-red-500 bg-red-500/90 text-white'
+                  : mobileIncidentAlert.severity === 'medium'
+                  ? 'border-orange-500 bg-orange-500/90 text-white'
+                  : 'border-blue-500 bg-blue-500/90 text-white'
+              }`}
+            >
+              <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />
+              <div className="flex-1 min-w-0">
+                <span className="font-semibold capitalize mr-1">[{mobileIncidentAlert.severity.toUpperCase()}]</span>
+                <span className="leading-snug">{mobileIncidentAlert.message}</span>
+              </div>
+              <div className="flex items-center gap-1.5 shrink-0 ml-1">
+                <button
+                  onClick={() => setIsMobileSimOpen(true)}
+                  className="text-white/90 underline underline-offset-2 text-xs font-medium hover:text-white"
+                >
+                  {t('chat.npcStatusButton')}
+                </button>
+                <button
+                  onClick={() => {
+                    setMobileIncidentAlert(null);
+                    if (mobileIncidentDismissTimerRef.current) {
+                      clearTimeout(mobileIncidentDismissTimerRef.current);
+                      mobileIncidentDismissTimerRef.current = null;
+                    }
+                  }}
+                  className="text-white/70 hover:text-white ml-1"
+                  aria-label="Dismiss"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Mobile simulation bottom sheet */}
         {isSimulationEnabled && simulationState && (
