@@ -701,6 +701,7 @@ ${userNameLine}
     let qualityEvalResult: import('../services/simulation/evaluateUserResponse').EvaluationResult | null = null;
     let qualityFinalState: import('../services/simulation/simulationTypes').SimulationState | null = null;
     let fastEvalInput: Parameters<typeof evaluateUserResponse>[0] | null = null;
+    let fastEvalPromise: Promise<import('../services/simulation/evaluateUserResponse').EvaluationResult> | null = null;
 
     if (shouldEval && evalState) {
       const baseEvalInput = {
@@ -736,9 +737,11 @@ ${userNameLine}
           console.warn('[conversations] Quality mode pre-evaluation failed, continuing without state injection:', e);
         }
       } else {
-        // Fast mode: store input for synchronous evaluation after AI generation.
+        // Fast mode: start evaluation in parallel with AI generation.
+        // buildEvaluationPrompt only uses userText/simulationState/language — aiText is not used in the prompt.
         // No [SIMULATION_STATE] injection — AI responds without evaluation context.
         fastEvalInput = { ...baseEvalInput };
+        fastEvalPromise = evaluateUserResponse(fastEvalInput);
       }
     }
 
@@ -814,10 +817,10 @@ ${userNameLine}
         }
         simulationState = qualityFinalState;
         simTurnScore = qualityEvalResult.turnScore;
-      } else if (fastEvalInput) {
-        // Fast mode: evaluate synchronously after AI generation; updated state included in HTTP response
+      } else if (fastEvalInput && fastEvalPromise) {
+        // Fast mode: await the evaluation that was already started in parallel with AI generation
         try {
-          const er = await evaluateUserResponse({ ...fastEvalInput, aiText: aiResult.content });
+          const er = await fastEvalPromise;
           if (!er.skipped) {
             let ns = applySimulationPatch(personaRunId, { source: 'server_evaluation', priority: 'normal', turnId: evalTurnId, patch: { turnScoresToAdd: [er.turnScore], npcEmotionDelta: er.emotionDelta } });
             const rp = buildRuleFallbackPatch(er.turnScore, ns, 0);
