@@ -58,15 +58,17 @@ export default function ConversationView() {
     if (!conversation) return { effectiveTitle: '', effectivePersonaLabel: '', isScenarioMissing: false };
 
     let title = '';
-    let personaLabel = '';
     let missing = false;
+
+    const personas: ScenarioPersona[] =
+      (scenario?.personas as ScenarioPersona[] | undefined) ??
+      (conversation.personaSnapshot ? [conversation.personaSnapshot as ScenarioPersona] : []);
+
+    const buildLabel = (p: ScenarioPersona | undefined): string =>
+      p ? [p.department, p.name, p.role].filter(Boolean).join(' ') : '';
 
     if (scenario) {
       title = scenario.title;
-      const persona = scenario.personas?.find((p: any) => p.id === conversation.personaId);
-      if (persona) {
-        personaLabel = [persona.department, persona.name, persona.role].filter(Boolean).join(' ');
-      }
     }
 
     if (!title) {
@@ -74,13 +76,34 @@ export default function ConversationView() {
       missing = true;
     }
 
-    if (!personaLabel && conversation.personaSnapshot) {
-      const ps = conversation.personaSnapshot;
-      personaLabel = [ps.department, ps.name, ps.role].filter(Boolean).join(' ');
+    // Resolve initial persona label
+    let initialLabel = '';
+    if (scenario) {
+      const p = scenario.personas?.find((p: any) => p.id === conversation.personaId);
+      initialLabel = buildLabel(p);
+    }
+    if (!initialLabel && conversation.personaSnapshot) {
+      initialLabel = buildLabel(conversation.personaSnapshot as ScenarioPersona);
+    }
+    if (!initialLabel) {
+      initialLabel = t('common.unknown');
     }
 
-    if (!personaLabel) {
-      personaLabel = t('common.unknown');
+    // Resolve final persona label from switch log
+    const rawLog = conversation.personaSwitchLog;
+    const log: SwitchLogEntry[] = Array.isArray(rawLog) ? (rawLog as SwitchLogEntry[]) : [];
+
+    let personaLabel = initialLabel;
+    if (log.length > 0) {
+      const sorted = [...log].sort((a, b) => a.turn - b.turn);
+      const lastEntry = sorted[sorted.length - 1];
+      const finalPersona = personas[lastEntry.toPersonaIndex];
+      const finalLabel = buildLabel(finalPersona);
+      if (finalLabel && finalLabel !== initialLabel) {
+        personaLabel = `${initialLabel} → ${finalLabel}`;
+      } else if (finalLabel) {
+        personaLabel = finalLabel;
+      }
     }
 
     return { effectiveTitle: title, effectivePersonaLabel: personaLabel, isScenarioMissing: missing };
