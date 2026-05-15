@@ -6,6 +6,8 @@ const NOISE_FLOOR_DURATION_MS = 1500;
 const VAD_ENTRY_MULTIPLIER = 3.0;
 const VAD_EXIT_RATIO = 0.6;
 const VAD_ENTRY_MIN = 0.06;
+const RECALIBRATION_SILENCE_INTERVAL_MS = 30_000;
+const RECALIBRATION_COOLDOWN_MS = 10_000;
 
 async function measureNoiseFloor(stream: MediaStream): Promise<number> {
   return new Promise((resolve) => {
@@ -219,7 +221,11 @@ export function useRealtimeVoice({
     bargeInTriggeredRef,
     userAudioAmplitude,
     setupVAD,
+    updateThresholds,
   } = useVoiceActivityDetection();
+
+  const recalibrationTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const lastRecalibrationRef = useRef<number>(0);
 
   const stopCurrentPlayback = useCallback(() => {
     stopPlayback();
@@ -308,6 +314,10 @@ export function useRealtimeVoice({
     if (heartbeatTimerRef.current) {
       clearInterval(heartbeatTimerRef.current);
       heartbeatTimerRef.current = null;
+    }
+    if (recalibrationTimerRef.current) {
+      clearInterval(recalibrationTimerRef.current);
+      recalibrationTimerRef.current = null;
     }
 
     autoReconnectCountRef.current = MAX_AUTO_RECONNECT;
@@ -731,6 +741,33 @@ export function useRealtimeVoice({
     return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
+  const recalibrateNoiseFloor = useCallback(async () => {
+    const stream = micStreamRef.current;
+    if (!stream) return;
+
+    const now = Date.now();
+    if (now - lastRecalibrationRef.current < RECALIBRATION_COOLDOWN_MS) {
+      console.log('🎙️ Noise floor re-calibration skipped (cooldown)');
+      return;
+    }
+
+    console.log('🎙️ Starting background noise floor re-measurement...');
+    let noiseFloor: number;
+    try {
+      noiseFloor = await measureNoiseFloor(stream);
+    } catch (err) {
+      console.warn('⚠️ Noise floor re-measurement failed:', err);
+      return;
+    }
+
+    lastRecalibrationRef.current = Date.now();
+    noiseFloorRef.current = noiseFloor;
+    const entry = Math.max(VAD_ENTRY_MIN, noiseFloor * VAD_ENTRY_MULTIPLIER);
+    const exit = entry * VAD_EXIT_RATIO;
+    console.log(`🎙️ Noise floor re-calibrated — noiseFloor=${noiseFloor.toFixed(5)}, entry=${entry.toFixed(5)}, exit=${exit.toFixed(5)}`);
+    updateThresholds(entry, exit);
+  }, [updateThresholds]);
+
   const startRecording = useCallback(async () => {
     if (status !== 'connected' || !wsRef.current) {
       console.warn('Cannot start recording: not connected');
@@ -800,6 +837,7 @@ export function useRealtimeVoice({
         stopPlayback,
         entryThreshold,
         exitThreshold,
+        onNoiseDrift: recalibrateNoiseFloor,
       });
 
       const processor = audioContext.createScriptProcessor(4096, 1, 1);
@@ -845,15 +883,29 @@ export function useRealtimeVoice({
       setIsRecording(true);
       isRecordingRef.current = true;
       console.log('🎤 Recording started (PCM16 16kHz for Gemini)');
+
+      if (recalibrationTimerRef.current) clearInterval(recalibrationTimerRef.current);
+      lastRecalibrationRef.current = Date.now();
+      recalibrationTimerRef.current = setInterval(() => {
+        if (!isRecordingRef.current) return;
+        if (voiceActivityStartRef.current !== null) return;
+        console.log('🎙️ Periodic noise floor re-calibration (30s silence interval)');
+        recalibrateNoiseFloor();
+      }, RECALIBRATION_SILENCE_INTERVAL_MS);
     } catch (err) {
       console.error('Error starting recording:', err);
       setError('Microphone access denied');
       if (onErrorRef.current) onErrorRef.current('Microphone access denied');
     }
-  }, [status, isAISpeaking, stopCurrentPlayback, stopPlayback, setupVAD, playbackContextRef, bargeInTriggeredRef]);
+  }, [status, isAISpeaking, stopCurrentPlayback, stopPlayback, setupVAD, playbackContextRef, bargeInTriggeredRef, recalibrateNoiseFloor, voiceActivityStartRef]);
 
   const stopRecording = useCallback(() => {
     console.log('🎤 Stopping recording...');
+
+    if (recalibrationTimerRef.current) {
+      clearInterval(recalibrationTimerRef.current);
+      recalibrationTimerRef.current = null;
+    }
 
     if (micStreamRef.current) {
       micStreamRef.current.getTracks().forEach(track => track.stop());

@@ -4,6 +4,7 @@ const DEFAULT_ENTRY_THRESHOLD = 0.06;
 const DEFAULT_EXIT_THRESHOLD = DEFAULT_ENTRY_THRESHOLD * 0.6;
 const BARGE_IN_DELAY_MS = 300;
 const MIN_VOICE_DURATION_MS = 500;
+const NOISE_DRIFT_DETECT_MS = 5000;
 
 interface SetupVADParams {
   audioContext: AudioContext;
@@ -15,6 +16,7 @@ interface SetupVADParams {
   stopPlayback: () => void;
   entryThreshold?: number;
   exitThreshold?: number;
+  onNoiseDrift?: () => void;
 }
 
 interface UseVADReturn {
@@ -23,6 +25,7 @@ interface UseVADReturn {
   bargeInTriggeredRef: React.MutableRefObject<boolean>;
   userAudioAmplitude: number;
   setupVAD: (params: SetupVADParams) => void;
+  updateThresholds: (entry: number, exit: number) => void;
 }
 
 export function useVoiceActivityDetection(): UseVADReturn {
@@ -31,6 +34,20 @@ export function useVoiceActivityDetection(): UseVADReturn {
   const voiceActivityStartRef = useRef<number | null>(null);
   const bargeInTriggeredRef = useRef<boolean>(false);
   const isVoiceActiveRef = useRef<boolean>(false);
+
+  const entryThresholdRef = useRef<number>(DEFAULT_ENTRY_THRESHOLD);
+  const exitThresholdRef = useRef<number>(DEFAULT_EXIT_THRESHOLD);
+
+  const highRmsStartRef = useRef<number | null>(null);
+  const onNoiseDriftRef = useRef<(() => void) | undefined>(undefined);
+  const noiseDriftFiredRef = useRef<boolean>(false);
+
+  const updateThresholds = useCallback((entry: number, exit: number) => {
+    entryThresholdRef.current = entry;
+    exitThresholdRef.current = exit;
+    noiseDriftFiredRef.current = false;
+    console.log(`🎙️ VAD thresholds updated — entry=${entry.toFixed(5)}, exit=${exit.toFixed(5)}`);
+  }, []);
 
   const setupVAD = useCallback(({
     audioContext,
@@ -42,9 +59,13 @@ export function useVoiceActivityDetection(): UseVADReturn {
     stopPlayback,
     entryThreshold,
     exitThreshold,
+    onNoiseDrift,
   }: SetupVADParams) => {
-    const activeThreshold = entryThreshold ?? DEFAULT_ENTRY_THRESHOLD;
-    const inactiveThreshold = exitThreshold ?? DEFAULT_EXIT_THRESHOLD;
+    entryThresholdRef.current = entryThreshold ?? DEFAULT_ENTRY_THRESHOLD;
+    exitThresholdRef.current = exitThreshold ?? DEFAULT_EXIT_THRESHOLD;
+    onNoiseDriftRef.current = onNoiseDrift;
+    noiseDriftFiredRef.current = false;
+    highRmsStartRef.current = null;
 
     isVoiceActiveRef.current = false;
 
@@ -61,6 +82,9 @@ export function useVoiceActivityDetection(): UseVADReturn {
         sum += inputData[i] * inputData[i];
       }
       const rms = Math.sqrt(sum / inputData.length);
+
+      const activeThreshold = entryThresholdRef.current;
+      const inactiveThreshold = exitThresholdRef.current;
 
       const isPlaybackRunning = playbackContextRef.current?.state === 'running';
 
@@ -101,6 +125,21 @@ export function useVoiceActivityDetection(): UseVADReturn {
             console.log('📤 Sent response.cancel to interrupt AI response');
           }
         }
+
+        if (isPlaybackRunning && !bargeInTriggeredRef.current) {
+          if (highRmsStartRef.current === null) {
+            highRmsStartRef.current = Date.now();
+          } else if (
+            !noiseDriftFiredRef.current &&
+            Date.now() - highRmsStartRef.current >= NOISE_DRIFT_DETECT_MS
+          ) {
+            noiseDriftFiredRef.current = true;
+            console.log('⚠️ VAD: sustained high RMS during playback without barge-in — possible noise drift, requesting re-calibration');
+            onNoiseDriftRef.current?.();
+          }
+        } else {
+          highRmsStartRef.current = null;
+        }
       } else {
         if (isVoiceActiveRef.current) {
           isVoiceActiveRef.current = false;
@@ -110,6 +149,7 @@ export function useVoiceActivityDetection(): UseVADReturn {
           bargeInTriggeredRef.current = false;
         }
         voiceActivityStartRef.current = null;
+        highRmsStartRef.current = null;
       }
     };
 
@@ -126,5 +166,6 @@ export function useVoiceActivityDetection(): UseVADReturn {
     bargeInTriggeredRef,
     userAudioAmplitude,
     setupVAD,
+    updateThresholds,
   };
 }
