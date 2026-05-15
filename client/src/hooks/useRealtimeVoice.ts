@@ -2,6 +2,60 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { useAudioPlayback } from './useAudioPlayback';
 import { useVoiceActivityDetection } from './useVoiceActivityDetection';
 
+const NOISE_FLOOR_DURATION_MS = 1500;
+const VAD_ENTRY_MULTIPLIER = 3.0;
+const VAD_EXIT_RATIO = 0.6;
+const VAD_ENTRY_MIN = 0.06;
+
+async function measureNoiseFloor(stream: MediaStream): Promise<number> {
+  return new Promise((resolve) => {
+    let tempContext: AudioContext | null = null;
+    try {
+      tempContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+      const ctx = tempContext;
+      const source = ctx.createMediaStreamSource(stream);
+      const processor = ctx.createScriptProcessor(4096, 1, 1);
+      const samples: number[] = [];
+
+      const deadline = Date.now() + NOISE_FLOOR_DURATION_MS;
+
+      processor.onaudioprocess = (e) => {
+        const data = e.inputBuffer.getChannelData(0);
+        let sum = 0;
+        for (let i = 0; i < data.length; i++) sum += data[i] * data[i];
+        samples.push(Math.sqrt(sum / data.length));
+
+        if (Date.now() >= deadline) {
+          processor.onaudioprocess = null;
+          source.disconnect();
+          processor.disconnect();
+          ctx.close().catch(() => {});
+
+          if (samples.length === 0) {
+            console.warn('⚠️ measureNoiseFloor: no samples collected, using default');
+            resolve(0);
+            return;
+          }
+          const sorted = [...samples].sort((a, b) => a - b);
+          const median = sorted[Math.floor(sorted.length / 2)];
+          console.log(`🎙️ Noise floor measured: median RMS=${median.toFixed(5)} over ${samples.length} frames`);
+          resolve(median);
+        }
+      };
+
+      source.connect(processor);
+      const dummyGain = ctx.createGain();
+      dummyGain.gain.value = 0;
+      processor.connect(dummyGain);
+      dummyGain.connect(ctx.destination);
+    } catch (err) {
+      console.warn('⚠️ measureNoiseFloor failed:', err);
+      if (tempContext) tempContext.close().catch(() => {});
+      resolve(0);
+    }
+  });
+}
+
 export type RealtimeVoiceStatus =
   | 'disconnected'
   | 'connecting'
@@ -111,6 +165,7 @@ export function useRealtimeVoice({
   const wasRecordingBeforeReconnectRef = useRef<boolean>(false);
   const reconnectInProgressRef = useRef<boolean>(false);
   const skipReconnectGreetingRef = useRef<boolean>(false);
+  const noiseFloorRef = useRef<number | null>(null);
 
   const MAX_AUTO_RECONNECT = 8;
   const sessionStorageKeyRef = useRef(`realtime_voice_messages_${conversationId}`);
@@ -257,6 +312,7 @@ export function useRealtimeVoice({
 
     autoReconnectCountRef.current = MAX_AUTO_RECONNECT;
     skipReconnectGreetingRef.current = false;
+    noiseFloorRef.current = null;
     try { sessionStorage.removeItem(sessionStorageKeyRef.current); } catch {}
     setStatus('disconnected');
     setIsRecording(false);
@@ -278,6 +334,7 @@ export function useRealtimeVoice({
     isInterruptedRef.current = false;
     expectedTurnSeqRef.current = 0;
     skipReconnectGreetingRef.current = false;
+    noiseFloorRef.current = null;
 
     try {
       if (!playbackContextRef.current || playbackContextRef.current.state === 'closed') {
@@ -708,6 +765,24 @@ export function useRealtimeVoice({
       micStreamRef.current = stream;
       console.log('🎙️ Created single mic stream for Gemini + VAD');
 
+      let noiseFloor: number;
+      if (noiseFloorRef.current !== null) {
+        noiseFloor = noiseFloorRef.current;
+        console.log(`🎙️ Reusing cached noise floor: ${noiseFloor.toFixed(5)}`);
+      } else {
+        try {
+          noiseFloor = await measureNoiseFloor(stream);
+        } catch (err) {
+          console.warn('⚠️ Noise floor measurement error, using default threshold:', err);
+          noiseFloor = 0;
+        }
+        noiseFloorRef.current = noiseFloor;
+      }
+
+      const entryThreshold = Math.max(VAD_ENTRY_MIN, noiseFloor * VAD_ENTRY_MULTIPLIER);
+      const exitThreshold = entryThreshold * VAD_EXIT_RATIO;
+      console.log(`🎙️ Adaptive VAD thresholds — noiseFloor=${noiseFloor.toFixed(5)}, entry=${entryThreshold.toFixed(5)}, exit=${exitThreshold.toFixed(5)}`);
+
       if (!captureContextRef.current) {
         captureContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
       }
@@ -723,6 +798,8 @@ export function useRealtimeVoice({
         isRecordingRef,
         expectedTurnSeqRef,
         stopPlayback,
+        entryThreshold,
+        exitThreshold,
       });
 
       const processor = audioContext.createScriptProcessor(4096, 1, 1);
