@@ -8,8 +8,9 @@ import { useToast } from "@/hooks/use-toast";
 import { useTranslation } from "react-i18next";
 
 import type { ComplexScenario, ScenarioPersona } from "@/lib/scenario-system";
-import type { Feedback } from "@shared/schema";
+import type { Feedback, ConversationMessage } from "@shared/schema";
 import { authFetchRaw } from "@/lib/authFetch";
+import { PersonaSwitchCard, type PersonaSwitchEvent } from "./chat/PersonaSwitchCard";
 import {
   toTenPoint,
   escapeHtml,
@@ -25,6 +26,94 @@ import { DevelopmentPlan } from "./report/DevelopmentPlan";
 import { StrategyPanel } from "./report/StrategyPanel";
 import { RubricSnapshotPanel } from "./report/RubricSnapshotPanel";
 import SimulationReplayPanel from "./report/SimulationReplayPanel";
+
+function ConversationHistoryPanel({
+  messages,
+  personaSwitchEvents,
+  personaName,
+}: {
+  messages: ConversationMessage[];
+  personaSwitchEvents: PersonaSwitchEvent[];
+  personaName: string;
+}) {
+  const { t } = useTranslation();
+  const visibleMessages = messages.filter(m => m.sender === 'user' || m.sender === 'ai');
+
+  type ListItem =
+    | { type: 'message'; message: ConversationMessage; index: number }
+    | { type: 'switch'; event: PersonaSwitchEvent };
+
+  const items: ListItem[] = [];
+  visibleMessages.forEach((msg, idx) => {
+    items.push({ type: 'message', message: msg, index: idx });
+    personaSwitchEvents
+      .filter(ev =>
+        ev.turnIndex != null
+          ? msg.turnIndex != null
+            ? msg.turnIndex === ev.turnIndex
+            : idx === ev.turnIndex
+          : idx === ev.toIndex
+      )
+      .forEach(ev => items.push({ type: 'switch', event: ev }));
+  });
+  const placedTimestamps = new Set(
+    items
+      .filter((i): i is { type: 'switch'; event: PersonaSwitchEvent } => i.type === 'switch')
+      .map(i => i.event.timestamp)
+  );
+  personaSwitchEvents
+    .filter(ev => !placedTimestamps.has(ev.timestamp))
+    .forEach(ev => items.push({ type: 'switch', event: ev }));
+
+  if (items.length === 0) {
+    return (
+      <div className="text-center py-12 text-slate-400">
+        {t('report.conversation.empty', '대화 내역이 없습니다.')}
+      </div>
+    );
+  }
+
+  return (
+    <Card className="border-0 shadow-lg">
+      <CardHeader className="pb-3">
+        <CardTitle className="text-base font-bold text-slate-800 flex items-center gap-2">
+          <i className="fas fa-comments text-indigo-500"></i>
+          {t('report.tabs.conversation', '대화 내역')}
+          <span className="ml-auto text-xs font-normal text-slate-400">
+            {visibleMessages.length}{t('report.conversation.turns', '개 메시지')}
+          </span>
+        </CardTitle>
+      </CardHeader>
+      <CardContent>
+        <div className="space-y-1 max-h-[600px] overflow-y-auto pr-1">
+          {items.map((item, itemIndex) => {
+            if (item.type === 'switch') {
+              return <PersonaSwitchCard key={`switch-${item.event.timestamp}-${itemIndex}`} event={item.event} />;
+            }
+            const msg = item.message;
+            const isUser = msg.sender === 'user';
+            return (
+              <div key={itemIndex} className={`flex ${isUser ? 'justify-end' : 'justify-start'}`}>
+                <div
+                  className={`max-w-[75%] rounded-2xl px-4 py-2.5 text-sm leading-relaxed ${
+                    isUser
+                      ? 'bg-blue-600 text-white rounded-br-sm'
+                      : 'bg-slate-100 text-slate-800 rounded-bl-sm'
+                  }`}
+                >
+                  <div className={`text-[10px] font-semibold mb-1 ${isUser ? 'text-blue-200' : 'text-slate-400'}`}>
+                    {isUser ? t('chat.me', '나') : personaName}
+                  </div>
+                  <div>{msg.message}</div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
 
 interface PersonalDevelopmentReportProps {
   scenario: ComplexScenario;
@@ -87,6 +176,36 @@ export default function PersonalDevelopmentReport({
     }
   });
   const showSimulationTab = simulationHasData?.hasData === true;
+
+  const { data: fullConversation } = useQuery<any>({
+    queryKey: ["/api/conversations", conversationId],
+    enabled: !!conversationId,
+    staleTime: Infinity,
+    gcTime: Infinity,
+    queryFn: async () => {
+      const response = await authFetchRaw(`/api/conversations/${conversationId}`);
+      if (!response.ok) return null;
+      return response.json();
+    }
+  });
+
+  const conversationMessages: ConversationMessage[] = Array.isArray(fullConversation?.messages) ? fullConversation.messages : [];
+  const switchLog: { turn: number; fromPersonaIndex: number; toPersonaIndex: number; reason: string; transitionLine: string; timestamp: string }[] =
+    Array.isArray(fullConversation?.personaSwitchLog) ? fullConversation.personaSwitchLog : [];
+  const scenarioPersonas: ScenarioPersona[] = scenario.personas ?? [];
+
+  const personaSwitchEvents: PersonaSwitchEvent[] = switchLog.map(entry => ({
+    fromIndex: entry.fromPersonaIndex,
+    fromPersonaName: scenarioPersonas[entry.fromPersonaIndex]?.name,
+    toIndex: entry.toPersonaIndex,
+    newPersonaName: scenarioPersonas[entry.toPersonaIndex]?.name ?? `Persona ${entry.toPersonaIndex + 1}`,
+    reason: entry.reason,
+    transitionLine: entry.transitionLine,
+    timestamp: entry.timestamp,
+    turnIndex: entry.turn,
+  }));
+
+  const showConversationTab = conversationMessages.length > 0;
 
   useEffect(() => {
     if (window.location.hash !== "#simulation-incidents") return;
@@ -576,10 +695,17 @@ export default function PersonalDevelopmentReport({
         if (val === "scores" && activeReportTab !== "scores") setScoreAnimKey(k => k + 1);
         setActiveReportTab(val);
       }} className="space-y-6">
-        <TabsList className={`flex flex-wrap justify-center gap-1 sm:grid sm:w-full ${feedback.detailedFeedback?.sequenceAnalysis && showSimulationTab ? 'sm:grid-cols-5' : (feedback.detailedFeedback?.sequenceAnalysis || showSimulationTab) ? 'sm:grid-cols-4' : 'sm:grid-cols-3'} screen-only h-auto p-1`} style={{ opacity: 0, animation: 'fadeInUp 0.6s ease-out 1s forwards' }}>
+        <TabsList className={`flex flex-wrap justify-center gap-1 sm:grid sm:w-full ${
+          feedback.detailedFeedback?.sequenceAnalysis && showSimulationTab && showConversationTab ? 'sm:grid-cols-6' :
+          (feedback.detailedFeedback?.sequenceAnalysis && showSimulationTab) || (showConversationTab && (feedback.detailedFeedback?.sequenceAnalysis || showSimulationTab)) ? 'sm:grid-cols-5' :
+          (feedback.detailedFeedback?.sequenceAnalysis || showSimulationTab || showConversationTab) ? 'sm:grid-cols-4' : 'sm:grid-cols-3'
+        } screen-only h-auto p-1`} style={{ opacity: 0, animation: 'fadeInUp 0.6s ease-out 1s forwards' }}>
           <TabsTrigger value="scores" data-testid="tab-scores" className="text-xs sm:text-sm px-2 sm:px-3 py-1.5 whitespace-nowrap">{t('report.tabs.scores', '성과 분석')}</TabsTrigger>
           <TabsTrigger value="behavior" data-testid="tab-behavior" className="text-xs sm:text-sm px-2 sm:px-3 py-1.5 whitespace-nowrap">{t('report.tabs.practiceGuide', '실천 가이드')}</TabsTrigger>
           <TabsTrigger value="development" data-testid="tab-development" className="text-xs sm:text-sm px-2 sm:px-3 py-1.5 whitespace-nowrap">{t('report.tabs.development', '개발 계획')}</TabsTrigger>
+          {showConversationTab && (
+            <TabsTrigger value="conversation" data-testid="tab-conversation" className="text-xs sm:text-sm px-2 sm:px-3 py-1.5 whitespace-nowrap">{t('report.tabs.conversation', '대화 내역')}</TabsTrigger>
+          )}
           {showSimulationTab && (
             <TabsTrigger value="simulation" data-testid="tab-simulation" className="text-xs sm:text-sm px-2 sm:px-3 py-1.5 whitespace-nowrap">{t('report.tabs.simulation', '시뮬레이션')}</TabsTrigger>
           )}
@@ -603,6 +729,16 @@ export default function PersonalDevelopmentReport({
         <TabsContent value="development" className="space-y-6 print-show-all">
           <DevelopmentPlan feedback={feedback} conversationId={conversationId} checkedItems={checkedItems} onToggleCheck={toggleCheckItem} />
         </TabsContent>
+
+        {showConversationTab && (
+          <TabsContent value="conversation" className="space-y-4">
+            <ConversationHistoryPanel
+              messages={conversationMessages}
+              personaSwitchEvents={personaSwitchEvents}
+              personaName={persona.name}
+            />
+          </TabsContent>
+        )}
 
         {showSimulationTab && (
           <TabsContent id="simulation-incidents" value="simulation" className="space-y-6">
