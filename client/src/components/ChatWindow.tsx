@@ -78,11 +78,15 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
       return next;
     });
   };
-  const [isDesktopSimOpen, setIsDesktopSimOpenRaw] = useState(false);
+  const DESKTOP_NPC_KEY = 'npc-panel-desktop-open';
+  const [isDesktopSimOpen, setIsDesktopSimOpenRaw] = useState(
+    () => localStorage.getItem(DESKTOP_NPC_KEY) === 'true'
+  );
   const hasAutoExpandedNpcRef = useRef(false);
   const setIsDesktopSimOpen = (value: boolean | ((prev: boolean) => boolean)) => {
     setIsDesktopSimOpenRaw(prev => {
       const next = typeof value === 'function' ? value(prev) : value;
+      localStorage.setItem(DESKTOP_NPC_KEY, String(next));
       if (next) clearIncidentCount();
       return next;
     });
@@ -409,16 +413,16 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
   const hasActiveIncident = !!(simulationState?.recentIncidents?.some(i => !i.resolved));
 
   useEffect(() => {
-    if (simulationState && !hasAutoExpandedNpcRef.current) {
+    if (simulationState && !hasAutoExpandedNpcRef.current && localStorage.getItem(DESKTOP_NPC_KEY) === null) {
       hasAutoExpandedNpcRef.current = true;
-      setIsDesktopSimOpen(true);
+      setIsDesktopSimOpenRaw(true);
     }
   }, [simulationState]);
 
   useEffect(() => {
-    if (latestAiMessage && isSimulationEnabled && !hasAutoExpandedNpcRef.current) {
+    if (latestAiMessage && isSimulationEnabled && !hasAutoExpandedNpcRef.current && localStorage.getItem(DESKTOP_NPC_KEY) === null) {
       hasAutoExpandedNpcRef.current = true;
-      setIsDesktopSimOpen(true);
+      setIsDesktopSimOpenRaw(true);
     }
   }, [latestAiMessage, isSimulationEnabled]);
 
