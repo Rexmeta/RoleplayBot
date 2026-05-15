@@ -573,13 +573,15 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
                 )}
 
                 {isSimulationEnabled && simulationState && isDesktopSimOpen && (
-                  <SimulationPanel
-                    state={simulationState}
-                    newIncident={newIncident}
-                    latestTurnScore={latestTurnScore}
-                    hasActiveIncident={hasActiveIncident}
-                    className="hidden lg:flex h-full overflow-hidden"
-                  />
+                  <div className="hidden lg:flex flex-col flex-shrink-0 w-72 xl:w-80 h-full">
+                    <SimulationPanel
+                      state={simulationState}
+                      newIncident={newIncident}
+                      latestTurnScore={latestTurnScore}
+                      hasActiveIncident={hasActiveIncident}
+                      className="h-full overflow-hidden"
+                    />
+                  </div>
                 )}
 
                 <div className="relative flex-1 overflow-hidden">
