@@ -223,7 +223,7 @@ export default function ConversationView() {
                 (() => {
                   type ListItem =
                     | { type: 'message'; message: ConversationMessage; index: number }
-                    | { type: 'switch'; event: PersonaSwitchEvent };
+                    | { type: 'switch'; event: PersonaSwitchEvent; targetMessageIndex?: number };
                   const items: ListItem[] = [];
                   const placedKeys = new Set<string>();
 
@@ -247,7 +247,9 @@ export default function ConversationView() {
                         const key = switchEventKey(ev);
                         if (!placedKeys.has(key)) {
                           placedKeys.add(key);
-                          items.push({ type: 'switch', event: ev });
+                          // idx is the message array index of the first AI message for the
+                          // new persona — use it as the scroll target, not the persona index.
+                          items.push({ type: 'switch', event: ev, targetMessageIndex: idx });
                         }
                       });
                     items.push({ type: 'message', message: msg, index: idx });
@@ -264,6 +266,7 @@ export default function ConversationView() {
                         <PersonaSwitchCard
                           key={`switch-${switchEventKey(item.event)}-${itemIndex}`}
                           event={item.event}
+                          targetIndex={item.targetMessageIndex}
                         />
                       );
                     }
@@ -272,6 +275,7 @@ export default function ConversationView() {
                     return (
                       <div
                         key={index}
+                        id={`message-${index}`}
                         className={`flex ${message.sender === 'user' ? 'justify-end' : 'justify-start'}`}
                         data-testid={`message-${index}`}
                       >
