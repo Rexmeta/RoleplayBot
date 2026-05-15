@@ -127,7 +127,6 @@ interface UseRealtimeVoiceReturn {
   disconnect: () => void;
   startRecording: () => void;
   stopRecording: () => void;
-  sendTextMessage: (text: string) => void;
   resetPhase: () => void;
   error: string | null;
   sessionWarning: string | null;
@@ -1003,6 +1002,10 @@ export function useRealtimeVoice({
     }, 100);
   }, [playbackContextRef, voiceActivityStartRef, bargeInTriggeredRef, vadProcessorRef]);
 
+  // Internal utility — kept for potential future use (e.g. injecting context into a
+  // live voice turn without switching modes). NOT used for user-typed messages: the
+  // Gemini Live audio endpoint returns only ctrl46 control characters for text input,
+  // which filterThinkingText strips entirely. User text always goes via HTTP instead.
   const sendTextMessage = useCallback((text: string) => {
     if (!text.trim() || !wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) return;
 
@@ -1054,7 +1057,6 @@ export function useRealtimeVoice({
     disconnect,
     startRecording,
     stopRecording,
-    sendTextMessage,
     resetPhase,
     error,
     sessionWarning,

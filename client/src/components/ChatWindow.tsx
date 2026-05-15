@@ -488,7 +488,10 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
 
   const handleSendMessage = () => {
     const message = userInput.trim(); if (!message || isLoading) return;
-    if (inputMode === 'realtime-voice' && realtimeVoice.status === 'connected') { setUserInput(""); realtimeVoice.sendTextMessage(message); return; }
+    // Always route text input through the HTTP endpoint, even when a realtime-voice
+    // session is active. Sending text via the voice WebSocket (sendTextMessage) only
+    // produces ctrl46 control characters from the Gemini Live audio endpoint, which
+    // are stripped by filterThinkingText, yielding an empty response.
     setLocalMessages(prev => [...prev, { sender: 'user', message, timestamp: new Date().toISOString() }]);
     setIsLoading(true); setUserInput(""); setShowInputMode(false);
     lastUserTextRef.current = message;
