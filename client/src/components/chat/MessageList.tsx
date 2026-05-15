@@ -3,6 +3,9 @@ import { toMediaUrl } from "@/lib/mediaUrl";
 import type { ConversationMessage } from "@shared/schema";
 import { emotionEmojis } from "@/hooks/chat/useEmotionState";
 import { PersonaSwitchCard, type PersonaSwitchEvent } from "./PersonaSwitchCard";
+import { computeMessagePersonaLabels } from "./computeMessagePersonaLabels";
+
+export { computeMessagePersonaLabels };
 
 interface MessageListProps {
   messages: ConversationMessage[];
@@ -35,13 +38,18 @@ export function MessageList({
 }: MessageListProps) {
   const { t } = useTranslation();
 
+  // Sort switch events by timestamp so late-arriving events don't corrupt label order
+  const sortedSwitchEvents = [...personaSwitchEvents].sort(
+    (a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime(),
+  );
+
   // Build a sorted list of items: messages interleaved with persona switch events
   type ListItem = { type: 'message'; message: ConversationMessage; index: number } | { type: 'switch'; event: PersonaSwitchEvent };
   const items: ListItem[] = [];
   messages.forEach((msg, idx) => {
     items.push({ type: 'message', message: msg, index: idx });
     // Insert switch events that happened at this turn (after the transition message)
-    personaSwitchEvents
+    sortedSwitchEvents
       .filter(ev => ev.turnIndex != null
         ? msg.turnIndex != null
           ? msg.turnIndex === ev.turnIndex
@@ -51,9 +59,12 @@ export function MessageList({
   });
   // Any switch events not yet placed (e.g. turnIndex beyond loaded messages)
   const placedTimestamps = new Set(items.filter(i => i.type === 'switch').map(i => (i as any).event.timestamp));
-  personaSwitchEvents
+  sortedSwitchEvents
     .filter(ev => !placedTimestamps.has(ev.timestamp))
     .forEach(ev => items.push({ type: 'switch', event: ev }));
+
+  // Per-message persona label — delegate to the pure helper so the logic is testable
+  const messagePersonaLabels = computeMessagePersonaLabels(messages, personaSwitchEvents, personaName);
 
   return (
     <div className="flex-1 min-h-0 overflow-y-auto p-3 sm:p-6 space-y-5 bg-gradient-to-b from-slate-50 to-white scroll-smooth" data-testid="chat-messages">
@@ -92,7 +103,7 @@ export function MessageList({
 
             <div className={`flex flex-col ${message.sender === "user" ? "items-end" : "items-start"} max-w-[85%] sm:max-w-[70%]`}>
               {message.sender === "ai" && (
-                <span className="text-xs text-slate-500 mb-1 ml-1 font-medium">{personaName}</span>
+                <span className="text-xs text-slate-500 mb-1 ml-1 font-medium">{messagePersonaLabels.get(index) ?? personaName}</span>
               )}
               <div className={`rounded-2xl px-4 py-3 shadow-sm ${
                 message.sender === "user"
