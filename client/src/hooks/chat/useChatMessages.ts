@@ -17,7 +17,7 @@ export interface PersonaSwitchedPayload {
 interface UseChatMessagesOptions {
   conversationId: string;
   serverMessages?: ConversationMessage[];
-  onSimulationUpdate?: (update: { type: 'simulation_update'; personaRunId: string; eventType: string; currentState: any; incident?: any; turnScore?: any; version: number; timestamp: string }) => void;
+  onSimulationUpdate?: (update: { type: 'simulation_update'; personaRunId: string; eventType: string; currentState: any; incident?: any; turnScore?: any; evaluationSkipped?: boolean; version: number; timestamp: string }) => void;
   onPersonaSwitched?: (info: PersonaSwitchedPayload) => void;
 }
 
@@ -63,7 +63,7 @@ export function useChatMessages({ conversationId, serverMessages, onSimulationUp
       }
 
       // Forward simulation state update from HTTP response to SimulationPanel
-      if (onSimulationUpdate && (data.simulationState || data.turnScore)) {
+      if (onSimulationUpdate && (data.simulationState || data.turnScore || data.evaluationSkipped)) {
         onSimulationUpdate({
           type: 'simulation_update',
           personaRunId: conversationId,
@@ -71,6 +71,7 @@ export function useChatMessages({ conversationId, serverMessages, onSimulationUp
           currentState: data.simulationState,
           incident: data.simulationState?.recentIncidents?.[data.simulationState.recentIncidents.length - 1],
           turnScore: data.turnScore,
+          evaluationSkipped: data.evaluationSkipped ?? false,
           version: data.simulationState?.version ?? 0,
           timestamp: new Date().toISOString(),
         });

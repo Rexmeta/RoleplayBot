@@ -65,6 +65,7 @@ export interface SimulationUpdate {
   currentState: SimulationState;
   incident?: Incident;
   turnScore?: TurnScore;
+  evaluationSkipped?: boolean;
   version: number;
   timestamp: string;
 }
@@ -102,6 +103,7 @@ export function useSimulationState({ personaRunId, enabled = true, onIncident }:
   const [newIncident, setNewIncident] = useState<Incident | null>(null);
   const [incidentCount, setIncidentCount] = useState(0);
   const [latestTurnScore, setLatestTurnScore] = useState<TurnScore | null>(null);
+  const [lastScoreSkipped, setLastScoreSkipped] = useState(false);
   const incidentTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const seenIncidentIdsRef = useRef<Set<string>>(new Set());
   // Ref keeps latest localState accessible in applyUpdate without stale closure risk
@@ -189,6 +191,13 @@ export function useSimulationState({ personaRunId, enabled = true, onIncident }:
 
     if (update.turnScore) {
       setLatestTurnScore(update.turnScore);
+      setLastScoreSkipped(false);
+    } else if (update.evaluationSkipped) {
+      setLastScoreSkipped(true);
+    } else if (update.currentState) {
+      // A real simulation update arrived without a score and without a skip flag —
+      // clear the stale skipped badge so it doesn't persist indefinitely.
+      setLastScoreSkipped(false);
     }
   }, [onIncident, queryClient, personaRunId]);
 
@@ -206,7 +215,10 @@ export function useSimulationState({ personaRunId, enabled = true, onIncident }:
           return data.state;
         });
       }
-      if (data.turnScore) setLatestTurnScore(data.turnScore);
+      if (data.turnScore) {
+        setLatestTurnScore(data.turnScore);
+        setLastScoreSkipped(false);
+      }
       queryClient.invalidateQueries({ queryKey: ['/api/simulation', personaRunId, 'state'] });
     },
   });
@@ -223,6 +235,7 @@ export function useSimulationState({ personaRunId, enabled = true, onIncident }:
         if (personaRunId) saveLocalState(personaRunId, data.state);
       }
       setLatestTurnScore(null);
+      setLastScoreSkipped(false);
       setNewIncident(null);
       setIncidentCount(0);
       seenIncidentIdsRef.current.clear();
@@ -243,6 +256,7 @@ export function useSimulationState({ personaRunId, enabled = true, onIncident }:
     incidentCount,
     clearIncidentCount: () => setIncidentCount(0),
     latestTurnScore,
+    lastScoreSkipped,
     applyUpdate,
     evaluate: evaluateMutation.mutateAsync,
     isEvaluating: evaluateMutation.isPending,

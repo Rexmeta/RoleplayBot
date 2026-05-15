@@ -934,6 +934,9 @@ ${userNameLine}
       simulationState = getSessionState(personaRunId);
     }
 
+    // Signal to the client that evaluation was skipped due to a short message
+    const evaluationSkipped = !isPersonaX && !isSkipTurn && !shouldEval;
+
     res.json({
       message: aiMessageContent,
       emotion: aiResult.emotion,
@@ -950,6 +953,7 @@ ${userNameLine}
       }],
       simulationState,
       turnScore: simTurnScore,
+      ...(evaluationSkipped ? { evaluationSkipped: true } : {}),
       ...(switchToPersona ? {
         personaSwitched: {
           fromIndex: (personaRun!.activePersonaIndex as number | null) ?? 0,

@@ -126,6 +126,7 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
     incidentCount,
     clearIncidentCount,
     latestTurnScore,
+    lastScoreSkipped,
     applyUpdate: applySimulationUpdate,
     evaluate,
   } = useSimulationState({
@@ -677,7 +678,7 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
                     latestEmotion={latestAiMessage?.emotion} elapsedTime={elapsedTime} isAdmin={user?.role === 'admin'}
                     isGoalsExpanded={isGoalsExpanded} onToggleGoals={() => setIsGoalsExpanded(v => !v)} variant="sidebar"
                     isSimulationEnabled={isSimulationEnabled} simulationState={simulationState} newIncident={newIncident}
-                    latestTurnScore={latestTurnScore} hasActiveIncident={hasActiveIncident}
+                    latestTurnScore={latestTurnScore} evaluationSkipped={lastScoreSkipped} hasActiveIncident={hasActiveIncident}
                     isNpcExpanded={isDesktopSimOpen} onToggleNpc={() => setIsDesktopSimOpen(v => !v)} />
                 )}
 
@@ -1110,6 +1111,7 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
                     state={simulationState}
                     newIncident={newIncident}
                     latestTurnScore={latestTurnScore}
+                    evaluationSkipped={lastScoreSkipped}
                     hasActiveIncident={hasActiveIncident}
                   />
                 </div>

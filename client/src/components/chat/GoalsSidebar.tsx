@@ -70,6 +70,7 @@ interface GoalsSidebarProps {
   simulationState?: SimulationState | null;
   newIncident?: Incident | null;
   latestTurnScore?: TurnScore | null;
+  evaluationSkipped?: boolean;
   hasActiveIncident?: boolean;
   isNpcExpanded?: boolean;
   onToggleNpc?: () => void;
@@ -90,6 +91,7 @@ export function GoalsSidebar({
   simulationState,
   newIncident,
   latestTurnScore,
+  evaluationSkipped,
   hasActiveIncident,
   isNpcExpanded = false,
   onToggleNpc,
@@ -202,6 +204,7 @@ export function GoalsSidebar({
                     state={simulationState}
                     newIncident={newIncident}
                     latestTurnScore={latestTurnScore}
+                    evaluationSkipped={evaluationSkipped}
                     hasActiveIncident={hasActiveIncident}
                     className="border-0 rounded-none bg-transparent"
                   />

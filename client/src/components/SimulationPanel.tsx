@@ -3,13 +3,14 @@ import { useTranslation } from 'react-i18next';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { Card, CardContent } from '@/components/ui/card';
-import { AlertTriangle, TrendingUp, Heart, Eye, Brain, Zap, Timer, ChevronDown } from 'lucide-react';
+import { AlertTriangle, TrendingUp, Heart, Eye, Brain, Zap, Timer, ChevronDown, SkipForward } from 'lucide-react';
 import type { SimulationState, Incident, TurnScore } from '@/hooks/useSimulationState';
 
 interface SimulationPanelProps {
   state: SimulationState | null;
   newIncident?: Incident | null;
   latestTurnScore?: TurnScore | null;
+  evaluationSkipped?: boolean;
   hasActiveIncident?: boolean;
   isVisible?: boolean;
   className?: string;
@@ -309,6 +310,7 @@ const SimulationPanel = memo(function SimulationPanel({
   state,
   newIncident,
   latestTurnScore,
+  evaluationSkipped = false,
   hasActiveIncident = false,
   isVisible = true,
   className = '',
@@ -390,11 +392,22 @@ const SimulationPanel = memo(function SimulationPanel({
             )}
           </div>
 
+<<<<<<< HEAD
           {latestTurnScore && <ScoreCard score={latestTurnScore} />}
 
           {state.recentTurnScores && state.recentTurnScores.length > 0 && (
             <ScoreHistory scores={state.recentTurnScores} />
           )}
+=======
+          {evaluationSkipped ? (
+            <div className="flex items-center gap-1.5 text-xs text-muted-foreground border-t border-border/40 pt-2">
+              <SkipForward className="h-3 w-3 shrink-0" />
+              <span>{t('simulation.score.skipped', { defaultValue: 'Turn skipped — message too short to score' })}</span>
+            </div>
+          ) : latestTurnScore ? (
+            <ScoreCard score={latestTurnScore} />
+          ) : null}
+>>>>>>> 8bbed19 (feat(simulation): keep NPC score visible and show skipped badge when turn is too short)
         </CardContent>
       </div>
     </Card>
