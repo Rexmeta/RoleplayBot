@@ -443,9 +443,9 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
       const newUrl = getCharacterImage(newEmotion); if (newUrl) preloadImage(newUrl);
     }
     if (inputMode === 'tts' && latestAiMessage?.message) {
-      speakText(latestAiMessage.message, true, latestAiMessage.emotion);
+      speakText(latestAiMessage.message, true, latestAiMessage.emotion, activePersona.voiceId ?? undefined, (activePersona.gender as 'male' | 'female') || undefined);
     }
-  }, [latestAiMessage?.message, latestAiMessage?.emotion, currentEmotion, inputMode]);
+  }, [latestAiMessage?.message, latestAiMessage?.emotion, currentEmotion, inputMode, activePersona.voiceId]);
 
   const hasActiveIncident = !!(simulationState?.recentIncidents?.some(i => !i.resolved));
 
@@ -866,7 +866,7 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
                                 <p className="text-slate-800 leading-relaxed text-base" data-testid="text-ai-line">{latestAiMessage.message}</p>
                                 {inputMode === 'tts' && (
                                   <div className="flex justify-end gap-2 pt-1">
-                                    <Button size="sm" variant="outline" onClick={() => speakText(latestAiMessage.message, false, latestAiMessage.emotion)}
+                                    <Button size="sm" variant="outline" onClick={() => speakText(latestAiMessage.message, false, latestAiMessage.emotion, activePersona.voiceId ?? undefined, (activePersona.gender as 'male' | 'female') || undefined)}
                                       className="text-xs text-blue-600 border-blue-200 hover:bg-blue-50" data-testid="button-replay-tts">
                                       <i className="fas fa-volume-up mr-1"></i>{t('chat.replay')}
                                     </Button>

@@ -43,7 +43,7 @@ async function getPersonaGender(personaId: string): Promise<'male' | 'female'> {
 }
 
 router.post('/generate', asyncHandler(async (req, res) => {
-  const { text, scenarioId, emotion = '중립' } = req.body;
+  const { text, scenarioId, emotion = '중립', voiceId } = req.body;
 
   if (!text || !scenarioId) {
     throw createHttpError(400, '텍스트와 시나리오 ID가 필요합니다.');
@@ -72,7 +72,8 @@ router.post('/generate', asyncHandler(async (req, res) => {
       cleanText, 
       scenarioId, 
       gender, 
-      emotion
+      emotion,
+      voiceId || undefined
     );
     ttsProvider = 'elevenlabs';
     console.log('✅ ElevenLabs TTS 사용');

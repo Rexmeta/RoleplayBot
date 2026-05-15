@@ -55,9 +55,10 @@ export class ElevenLabsService {
     text: string, 
     scenarioId: string, 
     gender: 'male' | 'female', 
-    emotion: string = '중립'
+    emotion: string = '중립',
+    overrideVoiceId?: string
   ): Promise<ArrayBuffer> {
-    const voiceId = this.getVoiceId(scenarioId, gender);
+    const voiceId = overrideVoiceId || this.getVoiceId(scenarioId, gender);
     const voiceSettings = this.getVoiceSettings(emotion);
 
     console.log(`🎤 ElevenLabs Flash v2.5 TTS 요청: ${scenarioId} (${gender}) - ${emotion}`);

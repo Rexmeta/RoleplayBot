@@ -235,6 +235,7 @@ export class RealtimeVoiceService {
       pendingIsResuming: false,
       usingReconnectInstructions: false,
       activePersonaIndex: initialPersonaIndex,
+      voiceId: (scenarioPersona as any).voiceId ?? null,
       scenarioPersonas: allPersonas.length > 0 ? allPersonas : null,
       personaSystemInstructions: personaSystemInstructions.length > 1 ? personaSystemInstructions : undefined,
     };
@@ -323,6 +324,7 @@ export class RealtimeVoiceService {
       pendingIsResuming: false,
       usingReconnectInstructions: false,
       activePersonaIndex: 0,
+      voiceId: null,
       scenarioPersonas: null,
     };
 
@@ -337,6 +339,11 @@ export class RealtimeVoiceService {
   private getRandomVoice(gender: 'male' | 'female'): string {
     const voices = gender === 'female' ? RealtimeVoiceService.FEMALE_VOICES : RealtimeVoiceService.MALE_VOICES;
     return voices[Math.floor(Math.random() * voices.length)];
+  }
+
+  private getPersonaVoice(gender: 'male' | 'female', personaIndex: number): string {
+    const voices = gender === 'female' ? RealtimeVoiceService.FEMALE_VOICES : RealtimeVoiceService.MALE_VOICES;
+    return voices[personaIndex % voices.length];
   }
 
   private async connectToGemini(
@@ -358,11 +365,11 @@ export class RealtimeVoiceService {
       let voiceName: string;
       if (session.selectedVoice) {
         voiceName = session.selectedVoice;
-        console.log(`🎤 Reusing session voice for ${gender}: ${voiceName}`);
+        console.log(`🎤 Reusing session voice for ${gender} persona[${session.activePersonaIndex}]: ${voiceName}`);
       } else {
-        voiceName = this.getRandomVoice(gender);
+        voiceName = this.getPersonaVoice(gender, session.activePersonaIndex);
         session.selectedVoice = voiceName;
-        console.log(`🎤 Setting voice for ${gender}: ${voiceName} (초기 선택)`);
+        console.log(`🎤 Setting voice for ${gender} persona[${session.activePersonaIndex}]: ${voiceName}`);
       }
 
       const langCodeMap: Record<'ko' | 'en' | 'ja' | 'zh', string> = {

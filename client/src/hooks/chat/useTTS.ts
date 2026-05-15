@@ -136,7 +136,7 @@ export function useTTS({ personaId, personaGender, inputMode }: UseTTSOptions) {
     setIsSpeaking(false);
   };
 
-  const fallbackToWebSpeechAPI = async (text: string, emotion?: string) => {
+  const fallbackToWebSpeechAPI = async (text: string, emotion?: string, gender?: 'male' | 'female') => {
     if (typeof window === 'undefined' || !('speechSynthesis' in window) || !window.speechSynthesis) {
       toast({
         title: t('voice.notAvailable'),
@@ -154,10 +154,11 @@ export function useTTS({ personaId, personaGender, inputMode }: UseTTSOptions) {
 
     try {
       const cleanText = text.replace(/<[^>]*>/g, '').replace(/[*#_`]/g, '').replace(/\([^)]{1,30}\)/g, '').replace(/\s+/g, ' ').trim();
-      const voiceSettings = getVoiceSettings(emotion, personaGender);
+      const effectiveGender = gender ?? personaGender;
+      const voiceSettings = getVoiceSettings(emotion, effectiveGender);
 
       const voices = await waitForVoices();
-      const selectedVoice = selectKoreanVoice(voices, personaGender);
+      const selectedVoice = selectKoreanVoice(voices, effectiveGender);
 
       const utterance = new SpeechSynthesisUtterance(cleanText);
       utterance.lang = voiceSettings.lang;
@@ -194,7 +195,7 @@ export function useTTS({ personaId, personaGender, inputMode }: UseTTSOptions) {
     }
   };
 
-  const speakText = async (text: string, isAutoPlay: boolean = false, emotion?: string) => {
+  const speakText = async (text: string, isAutoPlay: boolean = false, emotion?: string, voiceId?: string, gender?: 'male' | 'female') => {
     if (inputMode === 'text' && isAutoPlay) return;
     if (isAutoPlay && lastSpokenMessageRef.current === text) return;
 
@@ -211,7 +212,8 @@ export function useTTS({ personaId, personaGender, inputMode }: UseTTSOptions) {
         body: JSON.stringify({
           text: text,
           scenarioId: personaId,
-          emotion: emotion || '중립'
+          emotion: emotion || '중립',
+          ...(voiceId ? { voiceId } : {}),
         }),
       });
 
@@ -261,7 +263,7 @@ export function useTTS({ personaId, personaGender, inputMode }: UseTTSOptions) {
       console.error('ElevenLabs TTS 오류:', error);
 
       try {
-        await fallbackToWebSpeechAPI(text, emotion);
+        await fallbackToWebSpeechAPI(text, emotion, gender);
       } catch (fallbackError) {
         console.error('백업 TTS도 실패:', fallbackError);
         if (!isAutoPlay) {

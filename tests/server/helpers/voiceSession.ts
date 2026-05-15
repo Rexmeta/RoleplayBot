@@ -52,6 +52,9 @@ export function makeSession(overrides: Partial<RealtimeSession> = {}): RealtimeS
     lastClientContentSentAt: 0,
     greetingTimeoutId: null,
     pendingIsResuming: false,
+    usingReconnectInstructions: false,
+    activePersonaIndex: 0,
+    voiceId: null,
     ...overrides,
   };
 }

@@ -43,6 +43,9 @@ function makeSession(overrides: Partial<RealtimeSession> = {}): RealtimeSession 
     hasReceivedFirstTranscriptDelta: false,
     greetingResponseCount: 0,
     userTurnsCompleted: 0,
+    usingReconnectInstructions: false,
+    activePersonaIndex: 0,
+    voiceId: null,
     ...overrides,
   };
 }
@@ -1047,6 +1050,80 @@ describe('handleGeminiMessage', () => {
 
       expect(session.isInterrupted).toBe(false);
       expect(session.cancelledTurnSeq).toBe(-1);
+    });
+  });
+
+  describe('persona switch voice state updates', () => {
+    it('updates voiceId, voiceGender, and clears selectedVoice when persona has a voiceId', async () => {
+      session = makeSession({
+        voiceGender: 'male',
+        voiceId: null,
+        selectedVoice: 'Puck',
+        activePersonaIndex: 0,
+        scenarioPersonas: [
+          { id: 'p0', name: 'PersonaA', gender: 'male' },
+          { id: 'p1', name: 'PersonaB', gender: 'female', voiceId: 'XrExE9yKIg1WjnnlVkGX' },
+        ],
+        geminiSession: { sendToolResponse: vi.fn() } as any,
+      });
+
+      const toolCallMessage = {
+        toolCall: {
+          functionCalls: [{
+            id: 'fc1',
+            name: 'switch_persona',
+            args: {
+              targetPersonaIndex: 1,
+              reason: 'test',
+              transitionLine: 'Hello from PersonaB',
+            },
+          }],
+        },
+      };
+
+      handleGeminiMessage(session, toolCallMessage, sendToClient, null, proactiveReconnect);
+      await vi.runAllTimersAsync();
+
+      expect(session.activePersonaIndex).toBe(1);
+      expect(session.voiceGender).toBe('female');
+      expect(session.voiceId).toBe('XrExE9yKIg1WjnnlVkGX');
+      expect(session.selectedVoice).toBeNull();
+    });
+
+    it('clears voiceId to null when switched persona has no voiceId', async () => {
+      session = makeSession({
+        voiceGender: 'male',
+        voiceId: 'some-old-voice-id',
+        selectedVoice: 'Puck',
+        activePersonaIndex: 0,
+        scenarioPersonas: [
+          { id: 'p0', name: 'PersonaA', gender: 'male', voiceId: 'some-old-voice-id' },
+          { id: 'p1', name: 'PersonaB', gender: 'female' },
+        ],
+        geminiSession: { sendToolResponse: vi.fn() } as any,
+      });
+
+      const toolCallMessage = {
+        toolCall: {
+          functionCalls: [{
+            id: 'fc2',
+            name: 'switch_persona',
+            args: {
+              targetPersonaIndex: 1,
+              reason: 'test',
+              transitionLine: '',
+            },
+          }],
+        },
+      };
+
+      handleGeminiMessage(session, toolCallMessage, sendToClient, null, proactiveReconnect);
+      await vi.runAllTimersAsync();
+
+      expect(session.activePersonaIndex).toBe(1);
+      expect(session.voiceGender).toBe('female');
+      expect(session.voiceId).toBeNull();
+      expect(session.selectedVoice).toBeNull();
     });
   });
 });
