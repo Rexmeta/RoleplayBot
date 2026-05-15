@@ -125,6 +125,34 @@ export default function ConversationView() {
   const switchEventKey = (ev: PersonaSwitchEvent): string =>
     `${ev.turnIndex ?? ev.toIndex}-${ev.fromIndex}-${ev.toIndex}`;
 
+  // Returns the persona label that should be shown on an AI message given its
+  // position in the conversation.  We walk the switch log (sorted by turn) and
+  // return the name of the most-recent persona whose switch turn is <= the
+  // message's effective turn index.  Falls back to effectivePersonaLabel when
+  // there is no switch log or no earlier switch applies.
+  const getPersonaLabelForMessage = useMemo(() => {
+    const rawLog = conversation?.personaSwitchLog;
+    const log: SwitchLogEntry[] = Array.isArray(rawLog) ? (rawLog as SwitchLogEntry[]) : [];
+    const sorted = [...log].sort((a, b) => a.turn - b.turn);
+
+    return (msg: ConversationMessage, idx: number): string => {
+      if (sorted.length === 0) return effectivePersonaLabel;
+      const effectiveTurn = msg.turnIndex != null ? msg.turnIndex : idx;
+      let activePersonaIndex = -1;
+      for (const entry of sorted) {
+        if (entry.turn <= effectiveTurn) {
+          activePersonaIndex = entry.toPersonaIndex;
+        } else {
+          break;
+        }
+      }
+      if (activePersonaIndex < 0) return effectivePersonaLabel;
+      const p = scenarioPersonas[activePersonaIndex];
+      if (!p) return effectivePersonaLabel;
+      return [p.department, p.name, p.role].filter(Boolean).join(' ') || effectivePersonaLabel;
+    };
+  }, [conversation?.personaSwitchLog, scenarioPersonas, effectivePersonaLabel]);
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
       {isAdminView && (
@@ -256,7 +284,7 @@ export default function ConversationView() {
                         >
                           {message.sender !== 'user' && (
                             <div className="font-semibold text-sm mb-1">
-                              {effectivePersonaLabel}
+                              {getPersonaLabelForMessage(message, index)}
                             </div>
                           )}
                           <div className="whitespace-pre-wrap">{message.message}</div>
