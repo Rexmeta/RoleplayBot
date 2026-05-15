@@ -320,6 +320,11 @@
       "avgScore": "平均 {{score}}分",
       "turns": "{{count}}轮",
       "issues": "{{count}}个问题"
+    },
+    "history": {
+      "title": "得分历史",
+      "turnCount": "{{count}}轮",
+      "turn": "第 {{n}} 轮"
     }
   },
   "feedback": {

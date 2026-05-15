@@ -341,6 +341,11 @@
       "avgScore": "평균 {{score}}점",
       "turns": "{{count}}턴 진행",
       "issues": "{{count}}건 이슈"
+    },
+    "history": {
+      "title": "점수 히스토리",
+      "turnCount": "{{count}}턴",
+      "turn": "{{n}}번 턴"
     }
   },
   "feedback": {

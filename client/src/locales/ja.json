@@ -320,6 +320,11 @@
       "avgScore": "平均 {{score}}点",
       "turns": "{{count}}ターン",
       "issues": "{{count}}件の問題"
+    },
+    "history": {
+      "title": "スコア履歴",
+      "turnCount": "{{count}}ターン",
+      "turn": "ターン {{n}}"
     }
   },
   "feedback": {

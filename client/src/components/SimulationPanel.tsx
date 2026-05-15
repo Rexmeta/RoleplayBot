@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { Card, CardContent } from '@/components/ui/card';
-import { AlertTriangle, TrendingUp, Heart, Eye, Brain, Zap, Timer } from 'lucide-react';
+import { AlertTriangle, TrendingUp, Heart, Eye, Brain, Zap, Timer, ChevronDown } from 'lucide-react';
 import type { SimulationState, Incident, TurnScore } from '@/hooks/useSimulationState';
 
 interface SimulationPanelProps {
@@ -114,7 +114,7 @@ function IncidentBanner({ incident }: { incident: Incident }) {
   );
 }
 
-function ScoreCard({ score }: { score: TurnScore }) {
+function ScoreCard({ score, showHeader = true }: { score: TurnScore; showHeader?: boolean }) {
   const { t } = useTranslation();
   const dims = [
     { key: 'clarity', value: score.clarity },
@@ -125,12 +125,14 @@ function ScoreCard({ score }: { score: TurnScore }) {
   ];
   return (
     <div className="space-y-1">
-      <div className="flex items-center justify-between">
-        <span className="text-xs font-medium text-muted-foreground">{t('simulation.score.turnScore')}</span>
-        <Badge variant={score.total >= 70 ? 'default' : score.total >= 50 ? 'secondary' : 'destructive'} className="text-xs">
-          {t('simulation.score.points', { score: score.total })}
-        </Badge>
-      </div>
+      {showHeader && (
+        <div className="flex items-center justify-between">
+          <span className="text-xs font-medium text-muted-foreground">{t('simulation.score.turnScore')}</span>
+          <Badge variant={score.total >= 70 ? 'default' : score.total >= 50 ? 'secondary' : 'destructive'} className="text-xs">
+            {t('simulation.score.points', { score: score.total })}
+          </Badge>
+        </div>
+      )}
       <div className="grid grid-cols-5 gap-1">
         {dims.map(d => (
           <div key={d.key} className="flex flex-col items-center">
@@ -147,6 +149,101 @@ function ScoreCard({ score }: { score: TurnScore }) {
       {score.hint && (
         <p className="text-[11px] text-muted-foreground italic">💡 {score.hint}</p>
       )}
+    </div>
+  );
+}
+
+function Sparkline({ scores }: { scores: number[] }) {
+  if (scores.length < 2) return null;
+  const W = 100;
+  const H = 20;
+  const points = scores.map((s, i) => {
+    const x = (i / (scores.length - 1)) * W;
+    const y = H - (Math.max(0, Math.min(100, s)) / 100) * H;
+    return { x, y };
+  });
+  const polyline = points.map(p => `${p.x},${p.y}`).join(' ');
+  const last = points[points.length - 1];
+
+  return (
+    <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-5" preserveAspectRatio="none">
+      <polyline
+        points={polyline}
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinejoin="round"
+        strokeLinecap="round"
+        className="text-primary/60"
+      />
+      {points.map((p, i) => (
+        <circle key={i} cx={p.x} cy={p.y} r="1.5" className="fill-primary/80" />
+      ))}
+      <circle cx={last.x} cy={last.y} r="2.5" className="fill-primary" />
+    </svg>
+  );
+}
+
+function ScoreHistory({ scores }: { scores: TurnScore[] }) {
+  const { t } = useTranslation();
+  const [expandedTurnId, setExpandedTurnId] = useState<string | null>(null);
+
+  if (scores.length === 0) return null;
+
+  const totals = scores.map(s => s.total);
+  const reversed = [...scores].reverse();
+
+  return (
+    <div className="space-y-1.5 border-t border-border/40 pt-2">
+      <div className="flex items-center justify-between text-xs text-muted-foreground mb-1">
+        <span className="font-medium">{t('simulation.history.title')}</span>
+        <span>{t('simulation.history.turnCount', { count: scores.length })}</span>
+      </div>
+
+      <Sparkline scores={totals} />
+
+      <div className="space-y-0.5 mt-1">
+        {reversed.map((score, revIdx) => {
+          const origIdx = scores.length - 1 - revIdx;
+          const prev = origIdx > 0 ? scores[origIdx - 1] : null;
+          const delta = prev !== null ? score.total - prev.total : null;
+          const isExpanded = expandedTurnId === score.turnId;
+
+          return (
+            <div key={score.turnId} className="rounded border border-border/30 overflow-hidden">
+              <button
+                className="w-full flex items-center justify-between px-2 py-1.5 text-xs hover:bg-muted/40 transition-colors"
+                onClick={() => setExpandedTurnId(isExpanded ? null : score.turnId)}
+              >
+                <span className="text-muted-foreground">
+                  {t('simulation.history.turn', { n: score.turnIndex + 1 })}
+                </span>
+                <div className="flex items-center gap-1.5">
+                  {delta !== null && (
+                    <span className={`font-mono text-[10px] ${delta > 0 ? 'text-green-500' : delta < 0 ? 'text-red-500' : 'text-muted-foreground'}`}>
+                      {delta > 0 ? '+' : ''}{delta}
+                    </span>
+                  )}
+                  <Badge
+                    variant={score.total >= 70 ? 'default' : score.total >= 50 ? 'secondary' : 'destructive'}
+                    className="text-[10px] h-4 px-1.5 py-0"
+                  >
+                    {score.total}
+                  </Badge>
+                  <ChevronDown
+                    className={`h-3 w-3 text-muted-foreground transition-transform duration-200 ${isExpanded ? 'rotate-180' : ''}`}
+                  />
+                </div>
+              </button>
+              {isExpanded && (
+                <div className="px-2 pb-2 pt-1 border-t border-border/20 bg-muted/10">
+                  <ScoreCard score={score} showHeader={false} />
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }
@@ -294,6 +391,10 @@ const SimulationPanel = memo(function SimulationPanel({
           </div>
 
           {latestTurnScore && <ScoreCard score={latestTurnScore} />}
+
+          {state.recentTurnScores && state.recentTurnScores.length > 0 && (
+            <ScoreHistory scores={state.recentTurnScores} />
+          )}
         </CardContent>
       </div>
     </Card>

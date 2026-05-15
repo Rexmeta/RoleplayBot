@@ -320,6 +320,11 @@
       "avgScore": "Avg {{score}}pts",
       "turns": "{{count}} turns",
       "issues": "{{count}} issues"
+    },
+    "history": {
+      "title": "Score History",
+      "turnCount": "{{count}} turns",
+      "turn": "Turn {{n}}"
     }
   },
   "feedback": {
