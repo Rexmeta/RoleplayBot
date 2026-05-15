@@ -499,17 +499,6 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
       {
         onSuccess: (data) => {
           setIsLoading(false);
-          if (isSimulationEnabled && data?.simulationState) {
-            applySimulationUpdate({
-              type: 'simulation_update',
-              personaRunId: conversationId,
-              currentState: data.simulationState,
-              turnScore: data.turnScore ?? null,
-              eventType: 'auto_evaluation',
-              version: data.simulationState.version,
-              timestamp: new Date().toISOString(),
-            });
-          }
         },
         onError: () => {
           setIsLoading(false);

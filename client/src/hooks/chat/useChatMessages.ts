@@ -63,7 +63,7 @@ export function useChatMessages({ conversationId, serverMessages, onSimulationUp
       }
 
       // Forward simulation state update from HTTP response to SimulationPanel
-      if (onSimulationUpdate && data.simulationState) {
+      if (onSimulationUpdate && (data.simulationState || data.turnScore)) {
         onSimulationUpdate({
           type: 'simulation_update',
           personaRunId: conversationId,

@@ -134,6 +134,13 @@ export function useSimulationState({ personaRunId, enabled = true, onIncident }:
       if (personaRunId) saveLocalState(personaRunId, fetchedState);
       return fetchedState;
     });
+    // Restore latestTurnScore from DB state on page load/refresh
+    if (fetchedState.recentTurnScores && fetchedState.recentTurnScores.length > 0) {
+      setLatestTurnScore(prev => {
+        if (prev !== null) return prev;
+        return fetchedState.recentTurnScores[fetchedState.recentTurnScores.length - 1];
+      });
+    }
   }, [fetchedState, personaRunId]);
 
   const applyUpdate = useCallback((update: SimulationUpdate) => {
