@@ -169,24 +169,6 @@ export function GoalsSidebar({
 
   return (
     <div className="absolute top-4 left-4 z-20 space-y-3 lg:hidden" style={{ maxWidth: 'min(100vw - 32px, 384px)' }}>
-      <div className="bg-white/90 backdrop-blur-sm rounded-full px-4 py-2 shadow-lg">
-        <div className="flex items-center space-x-3">
-          <div className="flex items-center space-x-2">
-            <span className="text-sm font-medium text-slate-700 truncate max-w-[140px] sm:max-w-none">{personaDept} {personaRole} {personaName}</span>
-            {isAdmin && latestEmotion && (
-              <span className="text-lg">{emotionEmojis[latestEmotion] || '😐'}</span>
-            )}
-          </div>
-          <div className="flex items-center space-x-2 text-xs text-slate-500">
-            <span className="flex items-center" data-testid="text-elapsed-time">
-              <i className="fas fa-clock mr-1 text-xs"></i>
-              {formatElapsedTime(elapsedTime)}
-            </span>
-            <span className="text-slate-300">•</span>
-          </div>
-        </div>
-      </div>
-
       {hasGoals && (
         <div className="bg-white/80 backdrop-blur-sm rounded-lg shadow-lg transition-all duration-300 lg:hidden">
           <button
