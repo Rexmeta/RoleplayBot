@@ -15,14 +15,21 @@ interface SimulationPanelProps {
   className?: string;
 }
 
-const STAGE_STEPS: string[] = ['intro', 'conflict', 'negotiation', 'escalation', 'resolution'];
+export const STAGE_STEPS: string[] = ['intro', 'conflict', 'negotiation', 'escalation', 'resolution'];
 
-const STAGE_COLORS: Record<string, string> = {
+export const STAGE_COLORS: Record<string, string> = {
   intro: 'bg-blue-500',
   conflict: 'bg-yellow-500',
   negotiation: 'bg-orange-500',
   escalation: 'bg-red-500',
   resolution: 'bg-green-500',
+};
+
+export const EMOTION_COLORS: Record<string, string> = {
+  anger: 'bg-red-400',
+  trust: 'bg-blue-400',
+  confusion: 'bg-yellow-400',
+  interest: 'bg-green-400',
 };
 
 function EmotionBar({ label, value, icon, colorClass }: { label: string; value: number; icon: React.ReactNode; colorClass: string }) {

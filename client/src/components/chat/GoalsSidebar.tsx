@@ -4,8 +4,56 @@ import { Brain, ChevronDown } from "lucide-react";
 import { formatElapsedTime } from "@/hooks/chat/useConversationTimer";
 import { emotionEmojis } from "@/hooks/chat/useEmotionState";
 import type { ComplexScenario } from "@/lib/scenario-system";
-import SimulationPanel from "@/components/SimulationPanel";
+import SimulationPanel, { STAGE_COLORS, EMOTION_COLORS } from "@/components/SimulationPanel";
 import type { SimulationState, Incident, TurnScore } from "@/hooks/useSimulationState";
+
+const STAGE_TEXT_COLORS: Record<string, string> = {
+  intro: 'text-blue-600',
+  conflict: 'text-yellow-600',
+  negotiation: 'text-orange-600',
+  escalation: 'text-red-600',
+  resolution: 'text-green-600',
+};
+
+const STAGE_BG_COLORS: Record<string, string> = {
+  intro: 'bg-blue-50 border-blue-200',
+  conflict: 'bg-yellow-50 border-yellow-200',
+  negotiation: 'bg-orange-50 border-orange-200',
+  escalation: 'bg-red-50 border-red-200',
+  resolution: 'bg-green-50 border-green-200',
+};
+
+function getDominantEmotion(npcEmotions: SimulationState['npcEmotions']): { key: string; value: number } | null {
+  const entries = Object.entries(npcEmotions) as [string, number][];
+  if (entries.length === 0) return null;
+  return entries.reduce((best, [key, value]) => (value > best.value ? { key, value } : best), { key: entries[0][0], value: entries[0][1] });
+}
+
+function NpcCollapsedPreview({ simulationState }: { simulationState: SimulationState }) {
+  const { t } = useTranslation();
+  const { stage, npcEmotions } = simulationState;
+  const dominant = getDominantEmotion(npcEmotions);
+  const stageDotColor = STAGE_COLORS[stage] ?? 'bg-slate-400';
+  const stageTextColor = STAGE_TEXT_COLORS[stage] ?? 'text-slate-600';
+  const stageBgColor = STAGE_BG_COLORS[stage] ?? 'bg-slate-50 border-slate-200';
+  const stageLabel = t(`simulation.stages.${stage}`, { defaultValue: stage });
+
+  return (
+    <div className="flex items-center gap-1.5 ml-1">
+      <span className={`inline-flex items-center gap-1 border rounded px-1.5 py-0.5 text-[10px] font-medium leading-none ${stageBgColor} ${stageTextColor}`}>
+        <span className={`w-1.5 h-1.5 rounded-full ${stageDotColor}`} />
+        {stageLabel}
+      </span>
+      {dominant && (
+        <span className="inline-flex items-center gap-1 text-[10px] text-slate-500 leading-none">
+          <span className={`w-2 h-2 rounded-full ${EMOTION_COLORS[dominant.key] ?? 'bg-slate-400'}`} />
+          <span>{t(`simulation.emotions.${dominant.key}`, { defaultValue: dominant.key })}</span>
+          <span className="font-mono text-slate-400">{dominant.value}%</span>
+        </span>
+      )}
+    </div>
+  );
+}
 
 interface GoalsSidebarProps {
   scenario: ComplexScenario;
@@ -121,14 +169,17 @@ export function GoalsSidebar({
               className="w-full px-4 py-3 flex items-center justify-between hover:bg-slate-50 transition-colors duration-200"
               aria-expanded={isNpcExpanded}
             >
-              <div className="flex items-center gap-2">
-                <Brain className="h-4 w-4 text-slate-600" />
-                <span className="text-sm font-semibold text-slate-800">{t('chat.npcStatusPanel')}</span>
+              <div className="flex items-center gap-2 min-w-0">
+                <Brain className="h-4 w-4 text-slate-600 shrink-0" />
+                <span className="text-sm font-semibold text-slate-800 shrink-0">{t('chat.npcStatusPanel')}</span>
                 {hasActiveIncident && (
                   <span className="w-2 h-2 bg-orange-400 rounded-full animate-pulse shrink-0" />
                 )}
                 {!simulationState && (
                   <span className="text-xs text-slate-400">{t('chat.waiting', { defaultValue: '...' })}</span>
+                )}
+                {!isNpcExpanded && simulationState && (
+                  <NpcCollapsedPreview simulationState={simulationState} />
                 )}
               </div>
               <ChevronDown
