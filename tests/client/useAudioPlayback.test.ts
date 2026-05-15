@@ -27,6 +27,17 @@ function buildMockGainNode() {
   };
 }
 
+function buildMockCompressorNode() {
+  return {
+    ...buildMockAudioNode(),
+    threshold: { value: -24 },
+    knee: { value: 30 },
+    ratio: { value: 12 },
+    attack: { value: 0.003 },
+    release: { value: 0.25 },
+  };
+}
+
 function buildMockSource() {
   const source = {
     ...buildMockAudioNode(),
@@ -39,17 +50,21 @@ function buildMockSource() {
   return source;
 }
 
-function buildMockAudioBuffer(duration = 0.5) {
+function buildMockAudioBuffer(duration = 0.5, size = 1024) {
+  const channelData = new Float32Array(size);
   return {
     duration,
-    getChannelData: vi.fn(() => new Float32Array(1024)),
+    getChannelData: vi.fn(() => channelData),
+    _channelData: channelData,
   };
 }
 
 function buildMockAudioContext(state: AudioContextState = 'running') {
   const analyser = buildMockAnalyser();
   const gainNode = buildMockGainNode();
+  const compressorNode = buildMockCompressorNode();
   let _state = state;
+  let _lastBuffer: ReturnType<typeof buildMockAudioBuffer> | null = null;
 
   const ctx = {
     get state() { return _state; },
@@ -58,12 +73,20 @@ function buildMockAudioContext(state: AudioContextState = 'running') {
     destination: buildMockAudioNode(),
     createAnalyser: vi.fn(() => analyser),
     createGain: vi.fn(() => gainNode),
+    createDynamicsCompressor: vi.fn(() => compressorNode),
     createBufferSource: vi.fn(() => buildMockSource()),
-    createBuffer: vi.fn(() => buildMockAudioBuffer()),
+    createBuffer: vi.fn((_channels: number, length: number, sampleRate: number) => {
+      const duration = length / sampleRate;
+      const buf = buildMockAudioBuffer(duration, length);
+      _lastBuffer = buf;
+      return buf;
+    }),
     resume: vi.fn(async () => { _state = 'running'; }),
     suspend: vi.fn(async () => { _state = 'suspended'; }),
     _analyser: analyser,
     _gainNode: gainNode,
+    _compressorNode: compressorNode,
+    get _lastBuffer() { return _lastBuffer; },
   };
   return ctx;
 }
@@ -176,6 +199,27 @@ describe('useAudioPlayback', () => {
 
       expect(result.current.nextPlayTimeRef.current).toBe(0);
     });
+
+    it('resets gainNode gain to 1.0 after stop', async () => {
+      const { result } = renderAudioPlayback();
+
+      const pcm16 = new Int16Array([1000, -1000]);
+      const b64 = Buffer.from(pcm16.buffer).toString('base64');
+
+      await act(async () => {
+        await result.current.playAudioDelta(b64);
+      });
+
+      if (result.current.gainNodeRef.current) {
+        result.current.gainNodeRef.current.gain.value = 0.5;
+      }
+
+      await act(async () => {
+        result.current.stopPlayback();
+      });
+
+      expect(result.current.gainNodeRef.current?.gain.value ?? 1.0).toBe(1.0);
+    });
   });
 
   describe('playAudioDelta', () => {
@@ -251,7 +295,7 @@ describe('useAudioPlayback', () => {
       expect(result.current.scheduledSourcesRef.current.length).toBeGreaterThan(0);
     });
 
-    it('creates AnalyserNode and GainNode only once across multiple calls', async () => {
+    it('creates AnalyserNode, GainNode, and DynamicsCompressorNode only once across multiple calls', async () => {
       const { result } = renderAudioPlayback();
       result.current.playbackContextRef.current = mockContext as unknown as AudioContext;
 
@@ -265,6 +309,23 @@ describe('useAudioPlayback', () => {
 
       expect(mockContext.createAnalyser).toHaveBeenCalledTimes(1);
       expect(mockContext.createGain).toHaveBeenCalledTimes(1);
+      expect(mockContext.createDynamicsCompressor).toHaveBeenCalledTimes(1);
+    });
+
+    it('connects audio graph in order: analyser → compressor → gain → destination', async () => {
+      const { result } = renderAudioPlayback();
+      result.current.playbackContextRef.current = mockContext as unknown as AudioContext;
+
+      const pcm16 = new Int16Array([1000]);
+      const b64 = Buffer.from(pcm16.buffer).toString('base64');
+
+      await act(async () => {
+        await result.current.playAudioDelta(b64);
+      });
+
+      expect(mockContext._analyser.connect).toHaveBeenCalledWith(mockContext._compressorNode);
+      expect(mockContext._compressorNode.connect).toHaveBeenCalledWith(mockContext._gainNode);
+      expect(mockContext._gainNode.connect).toHaveBeenCalledWith(mockContext.destination);
     });
   });
 
@@ -294,6 +355,84 @@ describe('useAudioPlayback', () => {
     it('min negative Int16 maps to exactly -1', () => {
       const val = -32768 / 32768;
       expect(val).toBe(-1.0);
+    });
+  });
+
+  describe('peak normalization', () => {
+    it('writes normalized samples to AudioBuffer after playAudioDelta (behavior-level)', async () => {
+      const { result } = renderAudioPlayback();
+      result.current.playbackContextRef.current = mockContext as unknown as AudioContext;
+
+      const pcm16 = new Int16Array([16384, -16384]);
+      const b64 = Buffer.from(pcm16.buffer).toString('base64');
+
+      await act(async () => {
+        await result.current.playAudioDelta(b64);
+      });
+
+      const buf = (mockContext as any)._lastBuffer;
+      expect(buf).not.toBeNull();
+      const channelData = buf._channelData as Float32Array;
+      let peak = 0;
+      for (let i = 0; i < pcm16.length; i++) {
+        const abs = Math.abs(channelData[i]);
+        if (abs > peak) peak = abs;
+      }
+      expect(peak).toBeCloseTo(0.8, 4);
+    });
+
+    it('scales non-silent chunks to target peak level 0.8', () => {
+      const pcm16Values = [16384, -16384];
+      const pcm16 = new Int16Array(pcm16Values);
+      const float32 = new Float32Array(pcm16.length);
+      for (let i = 0; i < pcm16.length; i++) {
+        float32[i] = pcm16[i] / 32768.0;
+      }
+
+      const PEAK_TARGET = 0.8;
+      const SILENCE_THRESHOLD = 0.01;
+
+      let peak = 0;
+      for (let i = 0; i < float32.length; i++) {
+        const abs = Math.abs(float32[i]);
+        if (abs > peak) peak = abs;
+      }
+      if (peak >= SILENCE_THRESHOLD) {
+        const scale = PEAK_TARGET / peak;
+        for (let i = 0; i < float32.length; i++) {
+          float32[i] *= scale;
+        }
+      }
+
+      let normalizedPeak = 0;
+      for (let i = 0; i < float32.length; i++) {
+        const abs = Math.abs(float32[i]);
+        if (abs > normalizedPeak) normalizedPeak = abs;
+      }
+      expect(normalizedPeak).toBeCloseTo(PEAK_TARGET, 5);
+    });
+
+    it('skips scaling for near-silent chunks to prevent noise amplification', () => {
+      const silentFloat32 = new Float32Array([0.001, -0.001, 0.0005]);
+      const original = new Float32Array(silentFloat32);
+
+      const PEAK_TARGET = 0.8;
+      const SILENCE_THRESHOLD = 0.01;
+
+      let peak = 0;
+      for (let i = 0; i < silentFloat32.length; i++) {
+        const abs = Math.abs(silentFloat32[i]);
+        if (abs > peak) peak = abs;
+      }
+      if (peak >= SILENCE_THRESHOLD) {
+        const scale = PEAK_TARGET / peak;
+        for (let i = 0; i < silentFloat32.length; i++) {
+          silentFloat32[i] *= scale;
+        }
+      }
+
+      expect(silentFloat32[0]).toBeCloseTo(original[0], 5);
+      expect(silentFloat32[1]).toBeCloseTo(original[1], 5);
     });
   });
 

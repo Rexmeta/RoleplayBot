@@ -481,6 +481,9 @@ export function useRealtimeVoice({
               setError(null);
               setSessionWarning(null);
               skipReconnectGreetingRef.current = true;
+              if (gainNodeRef.current) {
+                gainNodeRef.current.gain.value = 1.0;
+              }
               break;
 
             case 'session.ready':

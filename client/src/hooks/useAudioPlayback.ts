@@ -1,5 +1,9 @@
 import { useState, useRef, useCallback } from 'react';
 
+const PEAK_NORMALIZATION_TARGET = 0.8;
+const PEAK_NORMALIZATION_SILENCE_THRESHOLD = 0.01;
+const DEFAULT_GAIN = 1.0;
+
 interface UseAudioPlaybackReturn {
   playbackContextRef: React.MutableRefObject<AudioContext | null>;
   scheduledSourcesRef: React.MutableRefObject<AudioBufferSourceNode[]>;
@@ -27,6 +31,7 @@ export function useAudioPlayback(
   const nextPlayTimeRef = useRef<number>(0);
   const analyserNodeRef = useRef<AnalyserNode | null>(null);
   const gainNodeRef = useRef<GainNode | null>(null);
+  const compressorNodeRef = useRef<DynamicsCompressorNode | null>(null);
   const amplitudeAnimationRef = useRef<number | null>(null);
   const isAISpeakingRef = useRef<boolean>(false);
 
@@ -100,6 +105,10 @@ export function useAudioPlayback(
       }
     }
 
+    if (gainNodeRef.current) {
+      gainNodeRef.current.gain.value = DEFAULT_GAIN;
+    }
+
     nextPlayTimeRef.current = 0;
     setIsAISpeaking(false);
     isAISpeakingRef.current = false;
@@ -130,14 +139,22 @@ export function useAudioPlayback(
         analyserNodeRef.current.fftSize = 256;
         analyserNodeRef.current.smoothingTimeConstant = 0.8;
 
-        gainNodeRef.current = audioContext.createGain();
-        gainNodeRef.current.gain.value = 1.0;
+        compressorNodeRef.current = audioContext.createDynamicsCompressor();
+        compressorNodeRef.current.threshold.value = -24;
+        compressorNodeRef.current.knee.value = 30;
+        compressorNodeRef.current.ratio.value = 12;
+        compressorNodeRef.current.attack.value = 0.003;
+        compressorNodeRef.current.release.value = 0.25;
 
-        analyserNodeRef.current.connect(gainNodeRef.current);
+        gainNodeRef.current = audioContext.createGain();
+        gainNodeRef.current.gain.value = DEFAULT_GAIN;
+
+        analyserNodeRef.current.connect(compressorNodeRef.current);
+        compressorNodeRef.current.connect(gainNodeRef.current);
         gainNodeRef.current.connect(audioContext.destination);
 
         startAmplitudeAnalysis();
-        console.log('🎵 AnalyserNode created for amplitude visualization');
+        console.log('🎵 Audio graph ready: source → analyser → compressor → gain → destination');
       }
 
       const binaryString = atob(base64Audio);
@@ -151,6 +168,18 @@ export function useAudioPlayback(
       const float32 = new Float32Array(pcm16.length);
       for (let i = 0; i < pcm16.length; i++) {
         float32[i] = pcm16[i] / 32768.0;
+      }
+
+      let peak = 0;
+      for (let i = 0; i < float32.length; i++) {
+        const abs = Math.abs(float32[i]);
+        if (abs > peak) peak = abs;
+      }
+      if (peak >= PEAK_NORMALIZATION_SILENCE_THRESHOLD) {
+        const scale = PEAK_NORMALIZATION_TARGET / peak;
+        for (let i = 0; i < float32.length; i++) {
+          float32[i] *= scale;
+        }
       }
 
       const audioBuffer = audioContext.createBuffer(1, float32.length, 24000);
