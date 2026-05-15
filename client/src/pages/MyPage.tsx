@@ -1376,10 +1376,19 @@ function ScenarioRunDetails({
                         return (
                           <>
                             {sim !== null && sim.averageScore > 0 && (
-                              <Badge variant="outline" className="text-xs bg-cyan-50 text-cyan-700 border-cyan-200 flex items-center gap-0.5">
-                                <TrendingUp className="w-2.5 h-2.5" />
-                                {sim.averageScore.toFixed(0)}점
-                              </Badge>
+                              isCompleted ? (
+                                <a href={`/feedback/${personaRun.id}#simulation-incidents`}>
+                                  <Badge variant="outline" className="text-xs bg-cyan-50 text-cyan-700 border-cyan-200 flex items-center gap-0.5 cursor-pointer hover:bg-cyan-100 transition-colors">
+                                    <TrendingUp className="w-2.5 h-2.5" />
+                                    {sim.averageScore.toFixed(0)}점
+                                  </Badge>
+                                </a>
+                              ) : (
+                                <Badge variant="outline" className="text-xs bg-cyan-50 text-cyan-700 border-cyan-200 flex items-center gap-0.5">
+                                  <TrendingUp className="w-2.5 h-2.5" />
+                                  {sim.averageScore.toFixed(0)}점
+                                </Badge>
+                              )
                             )}
                             {sim !== null && sim.totalIncidents > 0 && (
                               isCompleted ? (
@@ -1481,10 +1490,19 @@ function ScenarioRunDetails({
                       return (
                         <>
                           {sim !== null && sim.averageScore > 0 && (
-                            <Badge variant="outline" className="text-xs bg-cyan-50 text-cyan-700 border-cyan-200 flex items-center gap-0.5">
-                              <TrendingUp className="w-2.5 h-2.5" />
-                              {sim.averageScore.toFixed(0)}점
-                            </Badge>
+                            isCompleted && personaRun ? (
+                              <a href={`/feedback/${personaRun.id}#simulation-incidents`}>
+                                <Badge variant="outline" className="text-xs bg-cyan-50 text-cyan-700 border-cyan-200 flex items-center gap-0.5 cursor-pointer hover:bg-cyan-100 transition-colors">
+                                  <TrendingUp className="w-2.5 h-2.5" />
+                                  {sim.averageScore.toFixed(0)}점
+                                </Badge>
+                              </a>
+                            ) : (
+                              <Badge variant="outline" className="text-xs bg-cyan-50 text-cyan-700 border-cyan-200 flex items-center gap-0.5">
+                                <TrendingUp className="w-2.5 h-2.5" />
+                                {sim.averageScore.toFixed(0)}점
+                              </Badge>
+                            )
                           )}
                           {sim !== null && sim.totalIncidents > 0 && (
                             isCompleted && personaRun ? (
