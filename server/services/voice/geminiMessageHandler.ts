@@ -11,6 +11,7 @@ import { checkIncidentCooldown, recordIncidentCooldown } from '../simulation/sim
 import { createDefaultSimulationState, SimulationDirective } from '../simulation/simulationTypes';
 import { storage } from '../../storage';
 import { v4 as uuidv4 } from 'uuid';
+import { getSoftClosingInstruction } from '../conversationDifficultyPolicy';
 
 type SendToClient = (session: RealtimeSession, message: any) => void;
 type ProactiveReconnect = (session: RealtimeSession) => void;
@@ -513,6 +514,24 @@ export function handleGeminiMessage(
         if (session.recentMessages.length > 30) session.recentMessages.shift();
         session.userTranscriptBuffer = '';
         session.userTurnsCompleted++;
+
+        // Soft-close: send a one-time wrapping-up instruction when 80% of targetTurns is reached
+        if (
+          session.targetTurns &&
+          !session.softCloseSent &&
+          session.geminiSession
+        ) {
+          const softClose = getSoftClosingInstruction(session.userTurnsCompleted, session.targetTurns, session.userLanguage);
+          if (softClose) {
+            session.softCloseSent = true;
+            console.log(`🔔 [SoftClose] Sending soft-close instruction at turn ${session.userTurnsCompleted}/${session.targetTurns}`);
+            const softClosePayload = {
+              turns: [{ role: 'user', parts: [{ text: `[SYSTEM CONTEXT UPDATE — DO NOT READ ALOUD] ${softClose}` }] }],
+              turnComplete: false,
+            };
+            session.geminiSession.sendClientContent(softClosePayload);
+          }
+        }
 
         const isPersonaXSession = session.scenarioId.startsWith('__user_persona__:') ||
           session.scenarioId.startsWith('__free_chat__') ||

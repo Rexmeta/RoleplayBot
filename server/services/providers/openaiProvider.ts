@@ -77,8 +77,9 @@ export class OpenAIProvider implements AIServiceInterface {
 
       // 소프트 마감 지시: 목표 턴의 80% 도달 시 자연스러운 마무리 유도
       const userTurns = messages.filter(m => m.sender === 'user').length;
-      const targetTurnsForClose = scenarioObj.targetTurns ?? 10;
-      const softClose = getSoftClosingInstruction(userTurns, targetTurnsForClose, language);
+      const softClose = scenarioObj.targetTurns
+        ? getSoftClosingInstruction(userTurns, scenarioObj.targetTurns, language)
+        : null;
 
       const systemMessage = {
         role: 'system' as const,

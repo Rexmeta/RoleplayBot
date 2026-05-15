@@ -73,7 +73,8 @@ export function buildSystemInstructions(
   userLanguage: LangCode = 'ko',
   includeSimulationTools: boolean = true,
   allPersonas?: any[],
-  activePersonaIndex: number = 0
+  activePersonaIndex: number = 0,
+  targetTurns?: number
 ): string {
   const mbtiType = scenarioPersona.personaRef?.replace('.json', '') || 'UNKNOWN';
 
@@ -141,6 +142,15 @@ export function buildSystemInstructions(
     st.actingGuide,
     ``,
     difficultyGuidelines,
+    ...(targetTurns ? [
+      ``,
+      ({
+        ko: `이 대화는 약 ${targetTurns}번의 교환으로 구성되도록 설계되어 있습니다.`,
+        en: `This conversation is designed to last approximately ${targetTurns} exchanges.`,
+        ja: `この会話は約${targetTurns}回のやりとりで構成されるよう設計されています。`,
+        zh: `此对话设计为大约进行${targetTurns}次交流。`,
+      } as Record<LangCode, string>)[userLanguage],
+    ] : []),
     ``,
     st.interruptionHandling,
     st.interruptionDesc,

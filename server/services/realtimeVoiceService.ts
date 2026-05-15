@@ -176,7 +176,7 @@ export class RealtimeVoiceService {
     })();
     const systemInstructions = buildSystemInstructions(
       scenarioWithUserDifficulty, scenarioPersona, mbtiPersona, userRoleInfo, userLanguage,
-      true, allPersonas, initialPersonaIndex
+      true, allPersonas, initialPersonaIndex, scenarioObj.targetTurns
     );
 
     // Pre-build system instructions for every persona so switching rebuilds the full prompt
@@ -188,7 +188,7 @@ export class RealtimeVoiceService {
         const mbtiP = mbtiT ? await fileManager.getPersonaByMBTI(mbtiT) : null;
         personaSystemInstructions.push(buildSystemInstructions(
           scenarioWithUserDifficulty, sp, mbtiP, userRoleInfo, userLanguage,
-          true, allPersonas, pIdx
+          true, allPersonas, pIdx, scenarioObj.targetTurns
         ));
       }
     }
@@ -238,6 +238,8 @@ export class RealtimeVoiceService {
       voiceId: (scenarioPersona as any).voiceId ?? null,
       scenarioPersonas: allPersonas.length > 0 ? allPersonas : null,
       personaSystemInstructions: personaSystemInstructions.length > 1 ? personaSystemInstructions : undefined,
+      targetTurns: scenarioObj.targetTurns,
+      softCloseSent: false,
     };
 
     // Lookup scenarioRunId from DB for simulation event audit linkage

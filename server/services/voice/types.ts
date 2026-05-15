@@ -68,4 +68,6 @@ export interface RealtimeSession {
   scenarioPersonas: Array<{ id: string; name: string; position?: string; department?: string; gender?: string; voiceId?: string; personaRef?: string; triggerHints?: string[]; entryLine?: string; [key: string]: any }> | null;
   personaSystemInstructions?: string[];
   pendingPersonaSwitch?: { fromIndex: number; toIndex: number; fromPersonaId: string; toPersonaId: string; reason: string; transitionLine: string };
+  targetTurns?: number;
+  softCloseSent?: boolean;
 }
