@@ -436,6 +436,27 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
 
   const latestAiMessage = localMessages.slice().reverse().find(msg => msg.sender === 'ai');
 
+  // Build a display label that mirrors ConversationView's "PersonaA → PersonaB" style
+  const activePersonaHeaderLabel = (() => {
+    const initialName = persona.name;
+    const currentName = activePersona.name;
+    if (personaSwitchEvents.length > 0 && currentName && initialName && currentName !== initialName) {
+      return `${initialName} → ${currentName}`;
+    }
+    return currentName || initialName;
+  })();
+
+  const activePersonaSubLabel = (() => {
+    if (personaSwitchEvents.length > 0 && activePersona.name !== persona.name) {
+      const initialSub = [persona.role, persona.department].filter(Boolean).join(' · ');
+      const currentSub = [activePersona.role, activePersona.department].filter(Boolean).join(' · ');
+      if (initialSub && currentSub && initialSub !== currentSub) {
+        return `${initialSub} → ${currentSub}`;
+      }
+    }
+    return [activePersona.role, activePersona.department].filter(Boolean).join(' · ');
+  })();
+
   useEffect(() => {
     const newEmotion = latestAiMessage?.emotion || '중립';
     if (newEmotion !== currentEmotion) {
@@ -576,7 +597,7 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
                 </div>
                 <div className="min-w-0 flex-1">
                   <div className="text-left w-full" data-testid="chat-header-persona-info">
-                    <h3 className="text-base sm:text-lg font-semibold truncate">{activePersona.name} ({activePersona.department})</h3>
+                    <h3 className="text-base sm:text-lg font-semibold truncate">{activePersonaHeaderLabel}{activePersona.name === persona.name && activePersona.department ? ` (${activePersona.department})` : ''}</h3>
                     <p className="text-blue-100 text-xs sm:text-sm truncate">{scenario.title}</p>
                   </div>
                 </div>
@@ -678,10 +699,10 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
                       />
                       {/* Name + role/department */}
                       <div className="flex flex-col min-w-0 flex-1">
-                        <span className="text-white text-xs font-semibold truncate leading-tight">{activePersona.name}</span>
-                        {(activePersona.role || activePersona.department) && (
+                        <span className="text-white text-xs font-semibold truncate leading-tight">{activePersonaHeaderLabel}</span>
+                        {activePersonaSubLabel && (
                           <span className="text-white/60 text-[10px] truncate leading-tight">
-                            {[activePersona.role, activePersona.department].filter(Boolean).join(' · ')}
+                            {activePersonaSubLabel}
                           </span>
                         )}
                       </div>
