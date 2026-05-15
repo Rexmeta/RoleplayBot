@@ -61,6 +61,10 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
   const [isMobileSimOpen, setIsMobileSimOpenRaw] = useState(
     () => localStorage.getItem('npc-panel-open') === 'true'
   );
+  const [simSheetDragY, setSimSheetDragY] = useState(0);
+  const [simSheetDragging, setSimSheetDragging] = useState(false);
+  const simSheetTouchStartY = useRef<number>(0);
+  const simSheetDragActive = useRef<boolean>(false);
   const [mobileIncidentAlert, setMobileIncidentAlert] = useState<import('@/hooks/useSimulationState').Incident | null>(null);
   const mobileIncidentDismissTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -963,14 +967,43 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
               />
             )}
             <div
-              className={`lg:hidden fixed bottom-0 left-0 right-0 z-[99] transition-transform duration-300 ease-in-out ${isMobileSimOpen ? 'translate-y-0' : 'translate-y-full'}`}
+              className={`lg:hidden fixed bottom-0 left-0 right-0 z-[99] ${simSheetDragging ? '' : 'transition-transform duration-300 ease-in-out'} ${isMobileSimOpen ? 'translate-y-0' : 'translate-y-full'}`}
+              style={isMobileSimOpen && simSheetDragY > 0 ? { transform: `translateY(${simSheetDragY}px)` } : undefined}
+              onTouchMove={(e) => {
+                if (!simSheetDragActive.current) return;
+                const delta = e.touches[0].clientY - simSheetTouchStartY.current;
+                if (delta > 0) setSimSheetDragY(delta);
+              }}
+              onTouchEnd={() => {
+                if (!simSheetDragActive.current) return;
+                simSheetDragActive.current = false;
+                setSimSheetDragging(false);
+                if (simSheetDragY > 100) {
+                  setIsMobileSimOpen(false);
+                }
+                setSimSheetDragY(0);
+              }}
             >
               <div className="bg-background rounded-t-2xl shadow-2xl border-t border-border overflow-y-auto max-h-[65vh]">
-                {/* Drag handle */}
-                <div className="flex justify-center pt-2 pb-1">
+                {/* Drag handle — touch here to swipe down and dismiss */}
+                <div
+                  className="flex justify-center pt-2 pb-1 touch-none"
+                  onTouchStart={(e) => {
+                    simSheetTouchStartY.current = e.touches[0].clientY;
+                    simSheetDragActive.current = true;
+                    setSimSheetDragging(true);
+                  }}
+                >
                   <div className="w-10 h-1 rounded-full bg-muted-foreground/30" />
                 </div>
-                <div className="flex items-center justify-between px-4 pt-2 pb-2 border-b border-border/50 sticky top-0 bg-background z-10">
+                <div
+                  className="flex items-center justify-between px-4 pt-2 pb-2 border-b border-border/50 sticky top-0 bg-background z-10"
+                  onTouchStart={(e) => {
+                    simSheetTouchStartY.current = e.touches[0].clientY;
+                    simSheetDragActive.current = true;
+                    setSimSheetDragging(true);
+                  }}
+                >
                   <div className="flex items-center gap-2.5">
                     {persona.image ? (
                       <img
