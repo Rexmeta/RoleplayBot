@@ -383,6 +383,12 @@ export function handleGeminiMessage(
         }
 
         if (part.inlineData) {
+          // If audio was already delivered via top-level message.data in this same message,
+          // skip inlineData to avoid double-sending identical audio content.
+          if (hasData) {
+            console.log(`🔇 Skipping inlineData audio — already sent via top-level message.data`);
+            continue;
+          }
           if (session.isInterrupted) {
             console.log(`🔇 Suppressing inline audio (barge-in active)`);
             continue;
