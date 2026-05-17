@@ -746,6 +746,18 @@ export function handleGeminiMessage(
                 });
               });
           });
+        } else if (session.hasReceivedFirstAIAudio) {
+          // currentTranscript was non-empty but filterThinkingText stripped it entirely
+          // (e.g. all outputTranscription text was reasoning/thinking with no target-language chars).
+          // Must still send ai.transcription.done so isWaitingForGreeting is cleared and
+          // the mic/text input becomes visible.
+          console.log(`⚠️ [turnComplete] Transcript filtered to empty — sending empty ai.transcription.done to unblock UI`);
+          sendToClient(session, {
+            type: 'ai.transcription.done',
+            text: '',
+            emotion: '중립',
+            emotionReason: '',
+          });
         }
         session.currentTranscript = '';
       } else if (session.hasReceivedFirstAIAudio) {
