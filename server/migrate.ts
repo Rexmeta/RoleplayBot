@@ -1211,6 +1211,23 @@ export async function runMigrations(): Promise<void> {
         console.warn('⚠️ Failed to add multi-persona columns to persona_runs:', err);
       }
 
+      // 구형 realtime 모델 설정 자동 업데이트 (deprecated native audio preview → gemini-live-2.5-flash)
+      try {
+        await client.query(`
+          UPDATE system_settings
+          SET value = 'gemini-live-2.5-flash', updated_at = now()
+          WHERE category = 'ai'
+            AND key = 'model_realtime'
+            AND value IN (
+              'gemini-2.5-flash-native-audio-preview-09-2025',
+              'gemini-2.5-flash-native-audio-preview-12-2025'
+            )
+        `);
+        console.log('✅ Deprecated realtime model setting migrated to gemini-live-2.5-flash');
+      } catch (err) {
+        console.warn('⚠️ Failed to migrate deprecated realtime model setting:', err);
+      }
+
       console.log('✅ Database migrations completed successfully');
     } finally {
       client.release();

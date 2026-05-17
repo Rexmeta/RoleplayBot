@@ -86,7 +86,7 @@ export class RealtimeVoiceService {
       );
       const settingPromise = storage.getSystemSetting('ai', 'model_realtime');
       const setting = await Promise.race([settingPromise, timeoutPromise]);
-      const validModels = ['gemini-live-2.5-flash', 'gemini-2.5-flash-native-audio-preview-09-2025', 'gemini-2.5-flash-native-audio-preview-12-2025'];
+      const validModels = ['gemini-live-2.5-flash'];
       const model = setting?.value;
       if (model && validModels.includes(model)) {
         console.log(`🤖 Using realtime model from DB: ${model}`);
@@ -396,7 +396,6 @@ export class RealtimeVoiceService {
         speechConfig: {
           voiceConfig: { prebuiltVoiceConfig: { voiceName } },
         },
-        thinkingConfig: { thinkingBudget: 0 },
         contextWindowCompression: { slidingWindow: {} },
         sessionResumption: session.sessionResumptionToken
           ? { handle: session.sessionResumptionToken }
