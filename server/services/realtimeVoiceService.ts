@@ -26,7 +26,7 @@ import { eq } from 'drizzle-orm';
 import { getOrCreateSessionContext } from './simulation/simulationEngine';
 import { createDefaultSimulationState } from './simulation/simulationTypes';
 
-const DEFAULT_REALTIME_MODEL = 'gemini-live-2.5-flash';
+const DEFAULT_REALTIME_MODEL = 'gemini-3.1-flash-live-preview';
 
 async function preloadRecentMessages(
   conversationId: string,
@@ -92,7 +92,7 @@ export class RealtimeVoiceService {
       );
       const settingPromise = storage.getSystemSetting('ai', 'model_realtime');
       const setting = await Promise.race([settingPromise, timeoutPromise]);
-      const validModels = ['gemini-live-2.5-flash', 'gemini-live-2.5-flash-preview'];
+      const validModels = ['gemini-3.1-flash-live-preview', 'gemini-live-2.5-flash'];
       const model = setting?.value;
       if (model && validModels.includes(model)) {
         console.log(`🤖 Using realtime model from DB: ${model}`);

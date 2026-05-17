@@ -6,9 +6,10 @@ export const MODEL_PRICING: Record<string, { input: number; output: number }> = 
   // Gemini models (2025 pricing - unified thinking/non-thinking)
   'gemini-2.5-flash': { input: 0.30, output: 2.50 },
   'gemini-2.5-pro': { input: 1.25, output: 10.00 }, // ≤200K tokens
-  'gemini-2.0-flash-live-001': { input: 0.35, output: 1.50 }, // Gemini Live preview
-  'gemini-live-2.5-flash': { input: 0.35, output: 1.50 }, // Gemini Live 2.5 Flash (v1alpha)
-  'gemini-live-2.5-flash-preview': { input: 0.35, output: 1.50 }, // Gemini Live 2.5 Flash Preview (v1alpha)
+  'gemini-2.0-flash-live-001': { input: 0.35, output: 1.50 }, // Gemini Live (legacy)
+  'gemini-live-2.5-flash': { input: 0.35, output: 1.50 }, // Gemini Live 2.5 Flash (v1alpha, fallback)
+  'gemini-live-2.5-flash-preview': { input: 0.35, output: 1.50 }, // Deprecated (historical records only)
+  'gemini-3.1-flash-live-preview': { input: 0.35, output: 1.50 }, // Gemini 3.1 Flash Live (recommended)
   'gemini-2.5-flash-native-audio-preview-09-2025': { input: 0.35, output: 1.50 }, // Deprecated (historical records only)
   'gemini-2.5-flash-image-preview': { input: 0.30, output: 2.50 }, // Image generation
   'gemini-2.0-flash-preview-image-generation': { input: 0.30, output: 2.50 }, // Image generation (legacy)

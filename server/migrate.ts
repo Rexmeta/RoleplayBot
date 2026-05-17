@@ -1215,15 +1215,17 @@ export async function runMigrations(): Promise<void> {
       try {
         await client.query(`
           UPDATE system_settings
-          SET value = 'gemini-live-2.5-flash', updated_at = now()
+          SET value = 'gemini-3.1-flash-live-preview', updated_at = now()
           WHERE category = 'ai'
             AND key = 'model_realtime'
             AND value IN (
               'gemini-2.5-flash-native-audio-preview-09-2025',
-              'gemini-2.5-flash-native-audio-preview-12-2025'
+              'gemini-2.5-flash-native-audio-preview-12-2025',
+              'gemini-live-2.5-flash',
+              'gemini-live-2.5-flash-preview'
             )
         `);
-        console.log('✅ Deprecated realtime model setting migrated to gemini-live-2.5-flash');
+        console.log('✅ Realtime model setting migrated to gemini-3.1-flash-live-preview');
       } catch (err) {
         console.warn('⚠️ Failed to migrate deprecated realtime model setting:', err);
       }

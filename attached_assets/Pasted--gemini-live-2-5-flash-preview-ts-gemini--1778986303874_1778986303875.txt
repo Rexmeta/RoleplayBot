@@ -1,0 +1,91 @@
+맞습니다. **`gemini-live-2.5-flash-preview`는 지금 쓰지 않는 게 맞습니다.**
+
+최신 기준으로 보면 권장 모델은 아래입니다.
+
+```ts
+gemini-3.1-flash-live-preview
+```
+
+Google의 Live API 개발용 자료에서는 이 모델을 **모든 Live API 용도에 권장되는 모델**로 설명하고 있고, `gemini-live-2.5-flash-preview`는 deprecated/shutdown 대상이라고 명시되어 있습니다. 특히 `gemini-live-2.5-flash-preview`는 **2025년 12월 9일 종료 예정/종료 대상**으로 표시되어 있습니다. ([GitHub][1])
+
+공식 모델 목록에서도 오디오 모델 섹션에 **Gemini 3.1 Flash Live Preview**가 별도로 올라와 있고, 실시간 대화와 voice-first AI용 저지연 audio-to-audio 모델로 설명됩니다. ([Google AI for Developers][2]) Google 블로그도 2026년 3월 26일 기준으로 Gemini 3.1 Flash Live를 최신 음성 모델로 소개하며, 이전 모델보다 더 자연스럽고 안정적인 실시간 대화를 목표로 한다고 설명합니다. ([blog.google][3])
+
+따라서 지금 코드는 이렇게 가는 게 맞습니다.
+
+```ts
+const genAILive = new GoogleGenAI({
+  apiKey: process.env.GEMINI_API_KEY!,
+  httpOptions: {
+    apiVersion: "v1alpha",
+  },
+});
+
+const session = await genAILive.live.connect({
+  model: "gemini-3.1-flash-live-preview",
+  config: {
+    responseModalities: ["audio"],
+    systemInstruction: {
+      parts: [
+        {
+          text: "You are a helpful real-time voice assistant.",
+        },
+      ],
+    },
+  },
+  callbacks: {
+    onopen: () => console.log("[Gemini Live] connected"),
+    onmessage: (response) => handleGeminiMessage(response, genAI),
+    onerror: (error) => console.error("[Gemini Live] error", error),
+    onclose: (event) => console.warn("[Gemini Live] closed", event),
+  },
+});
+```
+
+## 정리하면
+
+현재 선택지는 이렇게 보는 게 정확합니다.
+
+| 모델                                              | 판단                                 |
+| ----------------------------------------------- | ---------------------------------- |
+| `gemini-live-2.5-flash-preview`                 | 쓰지 않는 게 맞음. deprecated/shutdown 대상 |
+| `gemini-2.5-flash-native-audio-preview-12-2025` | 과도기 모델. 이것도 3.1로 migration 권장      |
+| `gemini-3.1-flash-live-preview`                 | 현재 Live API 권장 모델                  |
+| 일반 `gemini-2.5-flash`                           | 일반 generateContent용. Live API용 아님  |
+
+그리고 설정은 계속 이 구조가 맞습니다.
+
+```ts
+const genAI = new GoogleGenAI({
+  apiKey,
+  httpOptions: { apiVersion: "v1beta" },
+});
+
+const genAILive = new GoogleGenAI({
+  apiKey,
+  httpOptions: { apiVersion: "v1alpha" },
+});
+```
+
+즉, 최종 수정 방향은:
+
+```ts
+// before
+model: "gemini-live-2.5-flash-preview"
+
+// after
+model: "gemini-3.1-flash-live-preview"
+```
+
+그리고 Live 연결은 반드시:
+
+```ts
+genAILive.live.connect(...)
+```
+
+로 가야 합니다.
+
+추가로 중요한 점은 `Gemini 3.1 Flash Live`에서는 일부 2.5 Live 기능과 설정이 그대로 호환되지 않을 수 있습니다. Google의 migration notes에는 `thinkingBudget` 대신 `thinkingLevel`을 쓰고, `sendClientContent`는 초기 히스토리 주입용으로만 쓰며, 실시간 입력은 `sendRealtimeInput`을 쓰라고 되어 있습니다. 또한 `proactive audio`, `affective dialogue` 설정은 아직 3.1 Flash Live에서 지원되지 않는다고 되어 있으므로 기존 config에 있으면 제거해야 합니다. ([GitHub][1])
+
+[1]: https://github.com/google-gemini/gemini-skills/blob/main/skills/gemini-live-api-dev/SKILL.md "gemini-skills/skills/gemini-live-api-dev/SKILL.md at main · google-gemini/gemini-skills · GitHub"
+[2]: https://ai.google.dev/gemini-api/docs/models "Models  |  Gemini API  |  Google AI for Developers"
+[3]: https://blog.google/innovation-and-ai/models-and-research/gemini-models/gemini-3-1-flash-live/ "Gemini 3.1 Flash Live: Google’s latest AI audio model"

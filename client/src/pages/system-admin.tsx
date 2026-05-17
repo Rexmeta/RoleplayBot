@@ -179,14 +179,14 @@ const AI_MODELS = [
 
 const GEMINI_LIVE_MODELS = [
   {
-    value: "gemini-live-2.5-flash",
-    modelKey: "geminiLive25Flash",
+    value: "gemini-3.1-flash-live-preview",
+    modelKey: "gemini31FlashLivePreview",
     provider: "Google Live",
     recommended: true
   },
   {
-    value: "gemini-live-2.5-flash-preview",
-    modelKey: "geminiLive25FlashPreview",
+    value: "gemini-live-2.5-flash",
+    modelKey: "geminiLive25Flash",
     provider: "Google Live",
     recommended: false
   },
