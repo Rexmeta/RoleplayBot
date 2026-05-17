@@ -400,7 +400,19 @@ const SimulationPanel = memo(function SimulationPanel({
             </div>
           ) : (latestTurnScore ?? state.recentTurnScores?.at(-1)) ? (
             <ScoreCard score={latestTurnScore ?? state.recentTurnScores.at(-1)!} />
-          ) : null}
+          ) : (
+            <div className="border-t border-border/40 pt-2 space-y-1.5">
+              <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                <div className="h-3 w-3 rounded-full border border-muted-foreground/40 border-t-transparent animate-spin shrink-0" />
+                <span>{t('simulation.score.waitingFirst', { defaultValue: 'Scores loading...' })}</span>
+              </div>
+              <div className="space-y-1">
+                <div className="h-2 rounded bg-muted-foreground/10 animate-pulse w-full" />
+                <div className="h-2 rounded bg-muted-foreground/10 animate-pulse w-4/5" />
+                <div className="h-2 rounded bg-muted-foreground/10 animate-pulse w-3/5" />
+              </div>
+            </div>
+          )}
 
           {state.recentTurnScores && state.recentTurnScores.length > 0 && (
             <ScoreHistory scores={state.recentTurnScores} />
