@@ -397,6 +397,16 @@ export function handleGeminiMessage(
             console.log(`🔇 Suppressing inline audio (barge-in active)`);
             continue;
           }
+          // Suppress duplicate greeting audio: the first AI greeting has already
+          // completed (greetingResponseCount ≥ 1) but no user turn has been
+          // recorded yet (userTurnsCompleted === 0).  This happens when a barge-in
+          // noise interrupts the greeting and Gemini generates a second greeting
+          // before the user has actually spoken.  Only the transcript guard existed
+          // before; now we also block the audio so the user doesn't hear it twice.
+          if (session.greetingResponseCount >= 1 && session.userTurnsCompleted === 0) {
+            console.log(`🔇 Suppressing duplicate greeting audio (greetingResponseCount=${session.greetingResponseCount}, userTurnsCompleted=0)`);
+            continue;
+          }
           if (hasThinkingText) {
             console.log(`🔇 Suppressing inline audio (thinking text detected)`);
             continue;
@@ -758,6 +768,11 @@ export function handleGeminiMessage(
           // (e.g. all outputTranscription text was reasoning/thinking with no target-language chars).
           // Must still send ai.transcription.done so isWaitingForGreeting is cleared and
           // the mic/text input becomes visible.
+          // Also mark greetingResponseCount so the audio-suppression guard fires
+          // if Gemini generates a duplicate greeting before the user speaks.
+          if (session.userTurnsCompleted === 0 && session.greetingResponseCount === 0) {
+            session.greetingResponseCount = 1;
+          }
           console.log(`⚠️ [turnComplete] Transcript filtered to empty — sending empty ai.transcription.done to unblock UI`);
           sendToClient(session, {
             type: 'ai.transcription.done',
@@ -775,6 +790,11 @@ export function handleGeminiMessage(
         //   1. Clear isWaitingForGreeting → mic+text input becomes visible
         //   2. Mark conversation as started
         // No message is added to conversation history since text is empty.
+        // Also mark greetingResponseCount so the audio-suppression guard fires
+        // if Gemini generates a duplicate greeting before the user speaks.
+        if (session.userTurnsCompleted === 0 && session.greetingResponseCount === 0) {
+          session.greetingResponseCount = 1;
+        }
         console.log(`⚠️ [turnComplete] Audio received but no transcript — sending empty ai.transcription.done to unblock UI`);
         sendToClient(session, {
           type: 'ai.transcription.done',
