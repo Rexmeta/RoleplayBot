@@ -939,6 +939,7 @@ ${userNameLine}
       // Simulation state resolution (fast mode only; quality state already applied above)
       let streamSimulationState: import('../services/simulation/simulationTypes').SimulationState | null = null;
       let streamSimTurnScore: TurnScore | null = null;
+      let streamFastEvalFailed = false;
       if (shouldEval && evalState) {
         if (evalMode === 'quality' && qualityEvalResult && qualityFinalState) {
           try {
@@ -968,13 +969,14 @@ ${userNameLine}
           } catch (e) {
             console.warn('[streaming] Fast mode eval failed:', e);
             streamSimulationState = evalState;
+            streamFastEvalFailed = true;
           }
         }
       } else if (!isPersonaX) {
         streamSimulationState = getSessionState(personaRunId);
       }
 
-      const streamEvalSkipped = !isPersonaX && !isSkipTurn && !shouldEval;
+      const streamEvalSkipped = (!isPersonaX && !isSkipTurn && !shouldEval) || streamFastEvalFailed;
 
       writeEvent({
         type: 'done',
@@ -1105,6 +1107,7 @@ ${userNameLine}
 
     let simulationState: import('../services/simulation/simulationTypes').SimulationState | null = null;
     let simTurnScore: any = null;
+    let fastEvalFailed = false;
 
     if (shouldEval && evalState) {
       if (evalMode === 'quality' && qualityEvalResult && qualityFinalState) {
@@ -1155,14 +1158,15 @@ ${userNameLine}
         } catch (e) {
           console.warn('[conversations] Fast mode synchronous evaluation failed:', e);
           simulationState = evalState;
+          fastEvalFailed = true;
         }
       }
     } else if (!isPersonaX) {
       simulationState = getSessionState(personaRunId);
     }
 
-    // Signal to the client that evaluation was skipped due to a short message
-    const evaluationSkipped = !isPersonaX && !isSkipTurn && !shouldEval;
+    // Signal to the client that evaluation was skipped due to a short message or a failed eval
+    const evaluationSkipped = (!isPersonaX && !isSkipTurn && !shouldEval) || fastEvalFailed;
 
     res.json({
       message: aiMessageContent,

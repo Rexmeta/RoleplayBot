@@ -8,7 +8,7 @@ import {
 import { inferEmotionPatchFromEvaluation } from './simulationRules';
 import { buildSimulationStateBlock } from './simulationPrompt';
 
-const EVAL_TIMEOUT_MS = 3000;
+const EVAL_TIMEOUT_MS = 8000;
 
 export interface EvaluationInput {
   personaRunId: string;
@@ -112,8 +112,12 @@ async function runLLMEvaluation(input: EvaluationInput): Promise<TurnScore | nul
 
 function runRuleBasedEvaluation(input: EvaluationInput): TurnScore {
   const { userText, turnId, turnIndex } = input;
-  const len = userText.trim().length;
-  const words = userText.trim().split(/\s+/).length;
+  const text = userText.trim();
+  const len = text.length;
+
+  // Language-neutral heuristics
+  const sentences = text.split(/[.!?。！？\n]+/).filter(s => s.trim().length > 2).length;
+  const hasQuestion = /[?？]/.test(text);
 
   let clarity = 50;
   let empathy = 50;
@@ -121,21 +125,51 @@ function runRuleBasedEvaluation(input: EvaluationInput): TurnScore {
   let ownership = 50;
   let actionPlan = 50;
 
-  if (len >= 100) clarity += 10;
-  if (len >= 200) clarity += 10;
-  if (len < 30) clarity -= 20;
+  // Clarity: based on length and structure
+  if (len >= 200) clarity += 20;
+  else if (len >= 100) clarity += 10;
+  else if (len < 30) clarity -= 20;
+  if (sentences >= 3) clarity += 5;
+  if (hasQuestion) clarity += 5; // asking questions shows engagement
 
-  const empathyKeywords = ['이해', '공감', '죄송', '알겠', 'understand', 'sorry', 'appreciate', '感謝', '理解'];
-  if (empathyKeywords.some(k => userText.includes(k))) empathy += 15;
+  // Empathy keywords (Korean, English, Japanese, Chinese)
+  const empathyKeywords = [
+    '이해', '공감', '죄송', '알겠', '감사', '고맙', '걱정', '힘드', '어렵',
+    'understand', 'sorry', 'appreciate', 'empathize', 'concern', 'difficult',
+    '感謝', '理解', 'ご迷惑', '申し訳',
+  ];
+  const empathyMatches = empathyKeywords.filter(k => text.includes(k)).length;
+  empathy += empathyMatches * 12;
 
-  const logicKeywords = ['왜냐하면', '때문에', '따라서', 'because', 'therefore', 'since', '그러므로'];
-  if (logicKeywords.some(k => userText.includes(k))) logic += 15;
+  // Logic keywords: causal/explanatory connectors
+  const logicKeywords = [
+    '왜냐하면', '때문에', '따라서', '그러므로', '이유는', '결과적으로', '즉', '다시 말해',
+    'because', 'therefore', 'since', 'thus', 'as a result', 'due to', 'hence',
+    'なぜなら', 'したがって', '因为', '所以',
+  ];
+  const logicMatches = logicKeywords.filter(k => text.includes(k)).length;
+  logic += logicMatches * 12;
+  if (sentences >= 2) logic += 5; // multiple sentences suggest structured reasoning
 
-  const ownershipKeywords = ['제가', '저는', '책임', 'I will', 'I am', '저희가', '我'];
-  if (ownershipKeywords.some(k => userText.includes(k))) ownership += 10;
+  // Ownership keywords: first-person responsibility
+  const ownershipKeywords = [
+    '제가', '저는', '저희가', '저희는', '책임', '담당', '맡',
+    'I will', 'I am', 'I\'ll', 'my responsibility', 'I take',
+    '私が', '私は', '我来', '我负责',
+  ];
+  const ownershipMatches = ownershipKeywords.filter(k => text.includes(k)).length;
+  ownership += ownershipMatches * 12;
 
-  const actionKeywords = ['하겠습니다', '드리겠습니다', 'will do', 'I\'ll', '진행하', '방법', 'plan', '조치'];
-  if (actionKeywords.some(k => userText.includes(k))) actionPlan += 15;
+  // Action plan keywords: concrete next steps
+  const actionKeywords = [
+    '하겠습니다', '드리겠습니다', '진행하', '방법', '조치', '계획', '단계', '해결',
+    '확인하', '검토하', '수정하', '개선',
+    'will do', "I'll", 'plan', 'step', 'action', 'resolve', 'fix', 'implement', 'schedule',
+    'します', '対応', '解決', '计划', '措施',
+  ];
+  const actionMatches = actionKeywords.filter(k => text.includes(k)).length;
+  actionPlan += actionMatches * 10;
+  if (len >= 150) actionPlan += 5; // longer responses tend to include more details
 
   clarity = clampScore(clarity);
   empathy = clampScore(empathy);
@@ -154,7 +188,7 @@ function runRuleBasedEvaluation(input: EvaluationInput): TurnScore {
     actionPlan,
     total,
     evaluationMethod: 'rule',
-    evaluationConfidence: 50,
+    evaluationConfidence: 40,
   };
 }
 

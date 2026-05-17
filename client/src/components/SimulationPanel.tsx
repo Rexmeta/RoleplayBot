@@ -137,6 +137,7 @@ function ScoreCard({ score, showHeader = true }: { score: TurnScore; showHeader?
       <div className="grid grid-cols-5 gap-1">
         {dims.map(d => (
           <div key={d.key} className="flex flex-col items-center">
+            <span className="text-[10px] font-semibold text-foreground mb-0.5">{d.value}</span>
             <div className="relative h-8 w-full bg-muted rounded-sm overflow-hidden">
               <div
                 className="absolute bottom-0 left-0 right-0 bg-primary/70 transition-all duration-700"
