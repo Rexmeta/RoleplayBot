@@ -184,12 +184,6 @@ const GEMINI_LIVE_MODELS = [
     provider: "Google Live",
     recommended: true
   },
-  { 
-    value: "gemini-2.5-flash-native-audio-preview-12-2025", 
-    modelKey: "geminiLiveNativeAudio",
-    provider: "Google Live",
-    recommended: false
-  },
 ];
 
 const FEATURE_MODEL_INFO = [
@@ -491,7 +485,7 @@ export default function SystemAdminPage() {
 
   const handleSaveSettings = () => {
     for (const [key, value] of Object.entries(featureModels)) {
-      const modelInfo = AI_MODELS.find(m => m.value === value);
+      const modelInfo = [...AI_MODELS, ...GEMINI_LIVE_MODELS].find(m => m.value === value);
       if (modelInfo && 'disabled' in modelInfo && modelInfo.disabled) {
         toast({
           title: t('systemAdmin.settings.cannotSave'),
