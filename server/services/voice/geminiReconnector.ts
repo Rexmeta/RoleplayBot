@@ -8,6 +8,25 @@ type TrackSessionUsage = (session: RealtimeSession) => void;
 
 const MAX_RECONNECT_ATTEMPTS = 5;
 
+// Close codes / reason patterns that indicate a fatal API-level error.
+// In these cases reconnecting would never succeed, so we stop immediately.
+const FATAL_CLOSE_CODES = new Set([1008, 1011]);
+const FATAL_REASON_PATTERNS = [
+  'not found for API version',
+  'not supported for bidiGenerateContent',
+  'unsupported',
+  'invalid model',
+  'permission_denied',
+  'PERMISSION_DENIED',
+  'billing',
+];
+
+function isFatalClose(event: any): boolean {
+  if (FATAL_CLOSE_CODES.has(event.code)) return true;
+  const reason: string = event.reason ?? '';
+  return FATAL_REASON_PATTERNS.some(p => reason.includes(p));
+}
+
 export function handleGeminiClose(
   event: any,
   session: RealtimeSession,
@@ -20,6 +39,22 @@ export function handleGeminiClose(
   session.geminiSession = null;
 
   const isNormalClose = event.code === 1000 || event.reason === 'Normal closure';
+  const isFatal = !isNormalClose && isFatalClose(event);
+
+  if (isFatal) {
+    console.error(`🚫 [Reconnector] Fatal close detected (code=${event.code}). Stopping reconnect. Reason: ${event.reason}`);
+    sendToClient(session, {
+      type: 'error',
+      error: `AI 연결 오류로 대화를 시작할 수 없습니다 (${event.reason || event.code}). 잠시 후 다시 시도해주세요.`,
+      recoverable: false,
+    });
+    if (session.clientWs && session.clientWs.readyState === WebSocket.OPEN) {
+      session.clientWs.close(1000, 'Gemini fatal error');
+    }
+    trackSessionUsage(session);
+    sessions.delete(session.id);
+    return;
+  }
 
   const canReconnect =
     !isNormalClose &&

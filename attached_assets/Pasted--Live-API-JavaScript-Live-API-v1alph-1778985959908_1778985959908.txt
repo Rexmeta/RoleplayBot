@@ -1,0 +1,193 @@
+맞습니다. 이건 **원인 분석이 거의 확정 수준**입니다.
+
+공식 Live API 가이드도 JavaScript 예시에서 Live API 클라이언트를 만들 때 다음처럼 `v1alpha`를 지정합니다.
+
+```ts
+const ai = new GoogleGenAI({
+  httpOptions: { apiVersion: "v1alpha" },
+});
+```
+
+Google 문서의 Live API 예시도 `v1alpha`를 명시하고 있습니다. ([Google AI for Developers][1])
+
+## 결론
+
+현재 구조가 이렇다면:
+
+```ts
+const genAI = new GoogleGenAI({ apiKey });
+```
+
+그리고 내부 기본값이:
+
+```ts
+const GOOGLE_AI_API_DEFAULT_VERSION = 'v1beta';
+```
+
+라면 `genAI.live.connect()`는 결국 **v1beta Live endpoint**를 타게 됩니다.
+
+그런데 `gemini-live-2.5-flash` 계열은 Live API에서 `bidiGenerateContent` 호출 시 **v1alpha endpoint**를 요구하는 경우가 있으므로, 연결 직후 서버가 끊고 reconnector가 계속 재시도하는 무한 루프가 발생할 수 있습니다.
+
+---
+
+## 적용 방향
+
+일반 Gemini 호출용과 Live API 호출용 인스턴스를 분리하는 게 가장 안전합니다.
+
+```ts
+import { GoogleGenAI } from "@google/genai";
+
+const apiKey = process.env.GEMINI_API_KEY!;
+
+// 일반 텍스트/감정분석/요약/분류용
+export const genAI = new GoogleGenAI({
+  apiKey,
+  httpOptions: {
+    apiVersion: "v1beta",
+  },
+});
+
+// Live API 전용
+export const genAILive = new GoogleGenAI({
+  apiKey,
+  httpOptions: {
+    apiVersion: "v1alpha",
+  },
+});
+```
+
+그리고 Live 연결부는 반드시 `genAILive`를 사용해야 합니다.
+
+```ts
+const session = await genAILive.live.connect({
+  model: "gemini-live-2.5-flash-preview",
+  config: {
+    responseModalities: ["AUDIO"],
+    speechConfig: {
+      voiceConfig: {
+        prebuiltVoiceConfig: {
+          voiceName: "Aoede",
+        },
+      },
+    },
+  },
+  callbacks: {
+    onopen: () => {
+      console.log("[Gemini Live] connected");
+    },
+    onmessage: (message) => {
+      handleGeminiMessage(message, genAI);
+    },
+    onerror: (error) => {
+      console.error("[Gemini Live] error", error);
+    },
+    onclose: (event) => {
+      console.warn("[Gemini Live] closed", event);
+    },
+  },
+});
+```
+
+핵심은 이겁니다.
+
+```ts
+// 잘못된 구조
+genAI.live.connect(...)
+
+// 수정
+genAILive.live.connect(...)
+```
+
+`handleGeminiMessage()` 안에서 감정분석, 텍스트 요약, 분류 같은 일반 `generateContent`를 호출한다면 그때는 `genAI`를 계속 쓰면 됩니다.
+
+---
+
+## 주의할 점
+
+`genAILive`를 만들었는데도 문제가 계속되면 다음 3개를 바로 확인해야 합니다.
+
+1. **모델명**
+
+   현재 문서와 SDK 예시에서는 Live용 모델명이 자주 바뀝니다. 공식 예시에는 `gemini-live-2.5-flash-preview` 또는 native audio preview 계열이 등장합니다. ([Google AI for Developers][2])
+
+   따라서 기존 값이:
+
+   ```ts
+   gemini-live-2.5-flash
+   ```
+
+   라면 아래처럼 바꿔 테스트하는 게 좋습니다.
+
+   ```ts
+   gemini-live-2.5-flash-preview
+   ```
+
+2. **responseModalities**
+
+   Live API는 텍스트 전용 일반 generateContent와 다릅니다. 오디오 Live 세션이면 `AUDIO` 중심으로 맞추는 게 안전합니다.
+
+   ```ts
+   responseModalities: ["AUDIO"]
+   ```
+
+3. **재연결 루프 방지**
+
+   API 버전 mismatch가 해결되기 전에는 reconnector가 계속 도는 구조라 로그가 폭발합니다. 최소한 close code가 `1008`, `unsupported`, `not found`, `not supported for bidiGenerateContent` 계열이면 즉시 재시도하지 않게 막아야 합니다.
+
+```ts
+onclose: (event) => {
+  console.warn("[Gemini Live] closed", {
+    code: event.code,
+    reason: event.reason,
+  });
+
+  const fatalCloseCodes = [1008, 1011];
+
+  if (fatalCloseCodes.includes(event.code)) {
+    console.error("[Gemini Live] fatal close. Stop reconnecting.");
+    shouldReconnectRef.current = false;
+    return;
+  }
+
+  scheduleReconnect();
+}
+```
+
+---
+
+## 최종 패치 요약
+
+수정해야 할 핵심은 딱 이겁니다.
+
+```ts
+const genAI = new GoogleGenAI({
+  apiKey,
+  httpOptions: { apiVersion: "v1beta" },
+});
+
+const genAILive = new GoogleGenAI({
+  apiKey,
+  httpOptions: { apiVersion: "v1alpha" },
+});
+```
+
+```ts
+// before
+await genAI.live.connect({ ... });
+
+// after
+await genAILive.live.connect({ ... });
+```
+
+```ts
+// 일반 분석/감정분석/텍스트 처리
+handleGeminiMessage(message, genAI);
+
+// 실시간 음성 Live 연결
+genAILive.live.connect(...);
+```
+
+이 수정이 들어가면 지금 보이는 **즉시 연결 종료 → reconnector 재시도 → 무한 루프**는 해결될 가능성이 높습니다.
+
+[1]: https://ai.google.dev/gemini-api/docs/live-guide?utm_source=chatgpt.com "Live API capabilities guide  |  Gemini API  |  Google AI for Developers"
+[2]: https://ai.google.dev/gemini-api/docs/live-guide?hl=ja&utm_source=chatgpt.com "Live API capabilities guide  |  Gemini API  |  Google AI for Developers"

@@ -184,6 +184,12 @@ const GEMINI_LIVE_MODELS = [
     provider: "Google Live",
     recommended: true
   },
+  {
+    value: "gemini-live-2.5-flash-preview",
+    modelKey: "geminiLive25FlashPreview",
+    provider: "Google Live",
+    recommended: false
+  },
 ];
 
 const FEATURE_MODEL_INFO = [
