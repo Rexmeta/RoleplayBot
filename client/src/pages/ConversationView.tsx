@@ -109,22 +109,6 @@ export default function ConversationView() {
     return { effectiveTitle: title, effectivePersonaLabel: personaLabel, isScenarioMissing: missing };
   }, [conversation, scenario, t]);
 
-  if (isLoading || !conversation) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          <p className="text-gray-600">{t('conversation.loading')}</p>
-        </div>
-      </div>
-    );
-  }
-
-  const showDeletedBanner = scenario?.isDeleted || isScenarioMissing;
-
-  const isAdminOrOperator = currentUser?.role === 'admin' || currentUser?.role === 'operator';
-  const isAdminView = isAdminOrOperator && conversation?.userId && conversation.userId !== currentUser?.id;
-
   const scenarioPersonas: ScenarioPersona[] = useMemo<ScenarioPersona[]>(
     () => (scenario?.personas as ScenarioPersona[] | undefined) ?? (conversation?.personaSnapshot ? [conversation.personaSnapshot as ScenarioPersona] : []),
     [scenario?.personas, conversation?.personaSnapshot],
@@ -175,6 +159,22 @@ export default function ConversationView() {
       return [p.department, p.name, p.role].filter(Boolean).join(' ') || effectivePersonaLabel;
     };
   }, [conversation?.personaSwitchLog, scenarioPersonas, effectivePersonaLabel]);
+
+  if (isLoading || !conversation) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">{t('conversation.loading')}</p>
+        </div>
+      </div>
+    );
+  }
+
+  const showDeletedBanner = scenario?.isDeleted || isScenarioMissing;
+
+  const isAdminOrOperator = currentUser?.role === 'admin' || currentUser?.role === 'operator';
+  const isAdminView = isAdminOrOperator && conversation?.userId && conversation.userId !== currentUser?.id;
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
