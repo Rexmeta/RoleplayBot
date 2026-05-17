@@ -395,7 +395,7 @@ export class RealtimeVoiceService {
         : [{ functionDeclarations: allSimulationTools }];
 
       const config: any = {
-        responseModalities: [Modality.AUDIO, Modality.TEXT],
+        responseModalities: [Modality.AUDIO],
         systemInstruction: effectiveInstructions,
         inputAudioTranscription: { languageCode: langCode },
         outputAudioTranscription: { languageCode: langCode },

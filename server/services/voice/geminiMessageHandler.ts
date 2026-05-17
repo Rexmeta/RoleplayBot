@@ -63,7 +63,9 @@ export function handleGeminiMessage(
     }
   }
 
-  const msgType = message.serverContent ? 'serverContent' : message.data ? 'audio data' : 'other';
+  const hasData = !!message.data;
+  const hasServerContent = !!message.serverContent;
+  const msgType = hasServerContent && hasData ? 'audio+serverContent' : hasServerContent ? 'serverContent' : hasData ? 'audio data' : 'other';
   console.log(`📨 Gemini message type: ${msgType}`);
 
   if (msgType === 'other' && !message.goAway && !message.sessionResumption) {
@@ -277,20 +279,27 @@ export function handleGeminiMessage(
   if (message.data) {
     if (session.isInterrupted) {
       console.log(`🔇 Suppressing audio (barge-in active)`);
+      // Do NOT return early — fall through so serverContent (e.g. outputTranscription,
+      // turnComplete) in the same message is still processed.
+    } else {
+      if (!session.hasReceivedFirstAIAudio) {
+        session.hasReceivedFirstAIAudio = true;
+        session.hasReceivedFirstAIResponse = true;
+        console.log(`🔊 [TIMING] 첫 AI 오디오 수신 (top-level): ${new Date().toISOString()}`);
+      }
+      console.log('🔊 Audio data received (top-level)');
+      sendToClient(session, {
+        type: 'audio.delta',
+        delta: message.data,
+        turnSeq: session.turnSeq,
+      });
+    }
+    // Only skip further processing when there is no serverContent attached to this message.
+    // gemini-3.1-flash-live-preview may send outputTranscription / turnComplete
+    // in the same message object alongside the raw audio bytes.
+    if (!message.serverContent) {
       return;
     }
-    if (!session.hasReceivedFirstAIAudio) {
-      session.hasReceivedFirstAIAudio = true;
-      session.hasReceivedFirstAIResponse = true;
-      console.log(`🔊 [TIMING] 첫 AI 오디오 수신 (top-level): ${new Date().toISOString()}`);
-    }
-    console.log('🔊 Audio data received (top-level)');
-    sendToClient(session, {
-      type: 'audio.delta',
-      delta: message.data,
-      turnSeq: session.turnSeq,
-    });
-    return;
   }
 
   if (message.serverContent) {
