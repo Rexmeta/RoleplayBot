@@ -710,6 +710,21 @@ export function handleGeminiMessage(
           });
         }
         session.currentTranscript = '';
+      } else if (session.hasReceivedFirstAIAudio) {
+        // Audio arrived this turn but currentTranscript is empty — the model did not produce
+        // any text/transcription (e.g. gemini-3.1-flash-live-preview in pure audio-to-audio mode
+        // may omit outputTranscription and modelTurn text for some turns).
+        // Send an empty ai.transcription.done so the client can:
+        //   1. Clear isWaitingForGreeting → mic+text input becomes visible
+        //   2. Mark conversation as started
+        // No message is added to conversation history since text is empty.
+        console.log(`⚠️ [turnComplete] Audio received but no transcript — sending empty ai.transcription.done to unblock UI`);
+        sendToClient(session, {
+          type: 'ai.transcription.done',
+          text: '',
+          emotion: '중립',
+          emotionReason: '',
+        });
       }
     }
 
