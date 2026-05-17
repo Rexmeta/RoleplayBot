@@ -65,6 +65,12 @@ export function handleGeminiMessage(
 
   const hasData = !!message.data;
   const hasServerContent = !!message.serverContent;
+  // Pre-check: does this message contain inlineData audio inside modelTurn?
+  // When true, we use inlineData as the authoritative audio source and skip
+  // the top-level message.data bytes to avoid double-playback.
+  const hasInlineDataInModelTurn = !!(
+    message.serverContent?.modelTurn?.parts?.some((p: any) => !!p.inlineData)
+  );
   const msgType = hasServerContent && hasData ? 'audio+serverContent' : hasServerContent ? 'serverContent' : hasData ? 'audio data' : 'other';
   console.log(`📨 Gemini message type: ${msgType}`);
 
@@ -277,7 +283,11 @@ export function handleGeminiMessage(
   }
 
   if (message.data) {
-    if (session.isInterrupted) {
+    if (hasInlineDataInModelTurn) {
+      // The same audio bytes will arrive via serverContent.modelTurn.parts[].inlineData.
+      // Skip top-level message.data to prevent double-playback.
+      console.log(`🔇 Skipping top-level audio — inlineData present in modelTurn (will use inlineData)`);
+    } else if (session.isInterrupted) {
       console.log(`🔇 Suppressing audio (barge-in active)`);
       // Do NOT return early — fall through so serverContent (e.g. outputTranscription,
       // turnComplete) in the same message is still processed.
@@ -383,12 +393,6 @@ export function handleGeminiMessage(
         }
 
         if (part.inlineData) {
-          // If audio was already delivered via top-level message.data in this same message,
-          // skip inlineData to avoid double-sending identical audio content.
-          if (hasData) {
-            console.log(`🔇 Skipping inlineData audio — already sent via top-level message.data`);
-            continue;
-          }
           if (session.isInterrupted) {
             console.log(`🔇 Suppressing inline audio (barge-in active)`);
             continue;
