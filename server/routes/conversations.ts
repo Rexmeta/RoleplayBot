@@ -738,6 +738,13 @@ ${userNameLine}
         }
       } catch (e) {
         console.warn('[conversations] Failed to pre-load simulation state:', e);
+        // Ensure evalState is never null when shouldEval is true — use a default
+        // so the evaluation pipeline always has a valid starting state.
+        if (!evalState) {
+          evalState = createDefaultSimulationState();
+          // Sync in-memory session state immediately so getSessionState() is consistent
+          setSessionState(personaRunId, evalState);
+        }
       }
     }
 

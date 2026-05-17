@@ -4,7 +4,7 @@ import { filterThinkingText, isThinkingText } from './textFilter';
 import { analyzeEmotion } from './emotionAnalyzer';
 import { GoogleGenAI } from '@google/genai';
 import { handleToolCall } from '../simulation/simulationToolHandler';
-import { getOrCreateSessionContext, applySimulationPatch, getSessionState } from '../simulation/simulationEngine';
+import { getOrCreateSessionContext, applySimulationPatch, getSessionState, setSessionState } from '../simulation/simulationEngine';
 import { evaluateUserResponse } from '../simulation/evaluateUserResponse';
 import { buildRuleFallbackPatch, inferStagePatchFromState, inferIncidentCandidate } from '../simulation/simulationRules';
 import { checkIncidentCooldown, recordIncidentCooldown } from '../simulation/simulationEngine';
@@ -676,6 +676,25 @@ export function handleGeminiMessage(
               }
             } catch (e) {
               console.warn('[geminiMessageHandler] Rule-fallback evaluation failed:', e);
+              // Always send a simulation_update so the client panel doesn't stay empty.
+              // Even without a turnScore, the client can at least render the current state.
+              // Fall through to createDefaultSimulationState() so the broadcast is unconditional.
+              const fallbackState =
+                session.simulationState ?? getSessionState(personaRunId) ?? createDefaultSimulationState();
+              // Sync both session and in-memory store to avoid UI/server divergence.
+              if (!session.simulationState) {
+                session.simulationState = fallbackState;
+                setSessionState(personaRunId, fallbackState);
+              }
+              sendToClient(session, {
+                type: 'simulation_update',
+                personaRunId,
+                turnId,
+                eventType: 'auto_evaluation',
+                currentState: fallbackState,
+                version: fallbackState.version,
+                timestamp: new Date().toISOString(),
+              });
             }
           });
         }

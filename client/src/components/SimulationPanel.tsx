@@ -398,8 +398,8 @@ const SimulationPanel = memo(function SimulationPanel({
               <SkipForward className="h-3 w-3 shrink-0" />
               <span>{t('simulation.score.skipped', { defaultValue: 'Turn skipped — message too short to score' })}</span>
             </div>
-          ) : latestTurnScore ? (
-            <ScoreCard score={latestTurnScore} />
+          ) : (latestTurnScore ?? state.recentTurnScores?.at(-1)) ? (
+            <ScoreCard score={latestTurnScore ?? state.recentTurnScores.at(-1)!} />
           ) : null}
 
           {state.recentTurnScores && state.recentTurnScores.length > 0 && (
