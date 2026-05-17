@@ -675,7 +675,14 @@ export function handleGeminiMessage(
                 });
               }
             } catch (e) {
-              console.warn('[geminiMessageHandler] Rule-fallback evaluation failed:', e);
+              const evalError = e instanceof Error ? e : new Error(String(e));
+              console.error('[geminiMessageHandler] Rule-fallback evaluation failed', {
+                personaRunId,
+                turnIndex,
+                evaluationMode: 'fast',
+                errorMessage: evalError.message,
+                errorStack: evalError.stack,
+              });
               // Always send a simulation_update so the client panel doesn't stay empty.
               // Even without a turnScore, the client can at least render the current state.
               // Fall through to createDefaultSimulationState() so the broadcast is unconditional.

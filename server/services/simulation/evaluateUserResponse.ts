@@ -51,7 +51,14 @@ export async function evaluateUserResponse(input: EvaluationInput): Promise<Eval
       return { turnScore: llmScore, emotionDelta, skipped: false, method: 'llm' };
     }
   } catch (err) {
-    console.warn('[evaluateUserResponse] LLM evaluation failed, using rule-based fallback:', err);
+    const error = err instanceof Error ? err : new Error(String(err));
+    console.warn('[evaluateUserResponse] LLM evaluation failed, using rule-based fallback', {
+      personaRunId,
+      turnIndex,
+      evaluationMode: evaluationMode ?? 'fast',
+      errorMessage: error.message,
+      errorStack: error.stack,
+    });
   }
 
   const ruleScore = runRuleBasedEvaluation(input);

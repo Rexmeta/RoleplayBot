@@ -737,7 +737,14 @@ ${userNameLine}
           setSessionState(personaRunId, evalState);
         }
       } catch (e) {
-        console.warn('[conversations] Failed to pre-load simulation state:', e);
+        const preloadError = e instanceof Error ? e : new Error(String(e));
+        console.error('[conversations] Failed to pre-load simulation state', {
+          personaRunId,
+          turnIndex: currentTurnIndex,
+          evaluationMode: evalMode,
+          errorMessage: preloadError.message,
+          errorStack: preloadError.stack,
+        });
         // Ensure evalState is never null when shouldEval is true — use a default
         // so the evaluation pipeline always has a valid starting state.
         if (!evalState) {
@@ -1163,7 +1170,14 @@ ${userNameLine}
             simulationState = evalState;
           }
         } catch (e) {
-          console.warn('[conversations] Fast mode synchronous evaluation failed:', e);
+          const fastEvalError = e instanceof Error ? e : new Error(String(e));
+          console.error('[conversations] Fast mode synchronous evaluation failed', {
+            personaRunId,
+            turnIndex: currentTurnIndex,
+            evaluationMode: 'fast',
+            errorMessage: fastEvalError.message,
+            errorStack: fastEvalError.stack,
+          });
           simulationState = evalState;
           fastEvalFailed = true;
         }
