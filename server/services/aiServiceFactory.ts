@@ -184,6 +184,36 @@ export async function generateStrategyReflectionFeedback(
   return geminiService.generateStrategyEvaluation!(input);
 }
 
+/**
+ * 스트리밍 AI 응답 생성 — SSE 텍스트 대화에서 사용
+ * AsyncIterable<string>을 반환하며, 각 청크는 텍스트 델타임.
+ * 응답 끝에 [META:{...}] 마커가 포함됨 (호출자가 파싱).
+ */
+export async function generateStreamingAIResponse(
+  scenario: RoleplayScenario | string,
+  messages: ConversationMessage[],
+  persona: ScenarioPersona,
+  userMessage?: string,
+  language?: SupportedLanguage,
+  userName?: string
+): Promise<AsyncIterable<string>> {
+  const resolvedLanguage: SupportedLanguage = language || 'ko';
+  const aiService = await getAIServiceForFeature('conversation');
+  if (aiService.generateStreamingResponse) {
+    return aiService.generateStreamingResponse(
+      scenario, messages, persona, userMessage, resolvedLanguage, userName
+    );
+  }
+  // Fallback: wrap regular response as a single-chunk stream with META marker
+  console.warn('[generateStreamingAIResponse] Provider does not support streaming, falling back to regular response');
+  const response = await aiService.generateResponse(scenario, messages, persona, userMessage, resolvedLanguage, userName);
+  async function* singleChunk() {
+    const meta = JSON.stringify({ emotion: response.emotion, emotionReason: response.emotionReason, complete: false });
+    yield response.content + `\n[META:${meta}]`;
+  }
+  return singleChunk();
+}
+
 function getDefaultStrategyEvaluation(): StrategyReflectionEvaluation {
   return {
     strategicScore: 70,

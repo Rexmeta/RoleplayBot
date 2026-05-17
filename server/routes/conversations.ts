@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { storage, db } from "../storage";
 import { fileManager } from "../services/fileManager";
-import { generateAIResponse } from "../services/aiServiceFactory";
+import { generateAIResponse, generateStreamingAIResponse } from "../services/aiServiceFactory";
 import type { RoleplayScenario } from "../services/aiServiceFactory";
 import {
   insertConversationSchema,
@@ -23,7 +23,9 @@ import {
   createHttpError
 } from "./routerHelpers";
 import { normalizeProfileName } from "../services/conversationContextBuilder";
-import { createDefaultSimulationState } from "../services/simulation/simulationTypes";
+import { filterThinkingText } from "../services/voice/textFilter";
+import { createDefaultSimulationState, TurnScore } from "../services/simulation/simulationTypes";
+import type { ScenarioPersona } from "../services/aiServiceFactory";
 import { setSessionState, getSessionState, applySimulationPatch, checkIncidentCooldown, recordIncidentCooldown } from "../services/simulation/simulationEngine";
 import { evaluateUserResponse } from "../services/simulation/evaluateUserResponse";
 import { buildRuleFallbackPatch, inferStagePatchFromState, inferIncidentCandidate } from "../services/simulation/simulationRules";
@@ -787,6 +789,223 @@ ${userNameLine}
         fastEvalPromise = evaluateUserResponse(fastEvalInput);
       }
     }
+
+    // ── SSE Streaming path ──────────────────────────────────────────────────────
+    // Activated when client sends Accept: text/event-stream and mode is 'text'.
+    // Skip turns (empty messages) always use the regular JSON path.
+    const wantsStream = (req.headers['accept'] || '').includes('text/event-stream');
+    const conversationMode = personaRun!.mode || scenarioRun!.mode;
+    const useStreaming = wantsStream && conversationMode === 'text' && !isSkipTurn;
+
+    if (useStreaming) {
+      res.setHeader('Content-Type', 'text/event-stream');
+      res.setHeader('Cache-Control', 'no-cache');
+      res.setHeader('Connection', 'keep-alive');
+      res.setHeader('X-Accel-Buffering', 'no');
+      res.flushHeaders();
+
+      type SseDeltaEvent = { type: 'delta'; content: string };
+      type SseDoneEvent = {
+        type: 'done'; message: string; emotion: string; emotionReason: string;
+        isCompleted: boolean; turnCount: number; personaRun: Record<string, unknown> | null;
+        messages: Array<{ sender: string; message: string; timestamp: string; emotion?: string; emotionReason?: string }>;
+        simulationState: import('../services/simulation/simulationTypes').SimulationState | null;
+        turnScore: TurnScore | null;
+        evaluationSkipped?: boolean; personaSwitched?: Record<string, unknown>;
+      };
+      type SseErrorEvent = { type: 'error'; message: string };
+      type SseEvent = SseDeltaEvent | SseDoneEvent | SseErrorEvent;
+
+      const flushResponse = (r: typeof res) => {
+        // Some Express middleware (e.g. compression) exposes a flush() method
+        if ('flush' in r && typeof (r as { flush?: () => void }).flush === 'function') {
+          (r as { flush: () => void }).flush();
+        }
+      };
+
+      const writeEvent = (data: SseEvent) => {
+        res.write(`data: ${JSON.stringify(data)}\n\n`);
+        flushResponse(res);
+      };
+
+      let fullContent = '';
+      try {
+        const stream = await generateStreamingAIResponse(
+          scenarioForAI, messagesForAI, persona, undefined, userLanguage, userName
+        );
+        for await (const chunk of stream) {
+          fullContent += chunk;
+          writeEvent({ type: 'delta', content: chunk });
+        }
+      } catch (streamErr) {
+        console.error('[streaming] AI generation error:', streamErr);
+        writeEvent({ type: 'error', message: '응답 생성 중 오류가 발생했습니다.' });
+        res.end();
+        return;
+      }
+
+      // Parse [META:{...}] marker from end of streamed content
+      const metaMatch = fullContent.match(/\[META:([\s\S]*?)\]\s*$/);
+      type MetaSwitchPersona = { targetPersonaIndex: number; reason?: string; transitionLine?: string };
+      let metaParsed: { emotion?: string; emotionReason?: string; complete?: boolean; switchPersona?: MetaSwitchPersona } = {};
+      let streamCleanContent = fullContent;
+      if (metaMatch) {
+        try {
+          metaParsed = JSON.parse(metaMatch[1]);
+          streamCleanContent = fullContent.slice(0, fullContent.lastIndexOf('[META:')).trimEnd();
+        } catch (e) {
+          console.warn('[streaming] Failed to parse META marker:', e);
+        }
+      }
+      // Apply thinking-text filter (same as non-streaming path)
+      streamCleanContent = filterThinkingText(streamCleanContent, userLanguage).trim() || streamCleanContent;
+
+      const streamEmotion = metaParsed.emotion || '중립';
+      const streamEmotionReason = metaParsed.emotionReason || '';
+      const streamSwitchPersonaInfo = (metaParsed.switchPersona && typeof metaParsed.switchPersona === 'object')
+        ? metaParsed.switchPersona as { targetPersonaIndex: number; reason?: string; transitionLine?: string }
+        : undefined;
+      const streamAiMessageContent = streamSwitchPersonaInfo?.transitionLine?.trim() || streamCleanContent;
+
+      // Save AI message to DB
+      await storage.createChatMessage({
+        personaRunId, sender: 'ai', message: streamAiMessageContent,
+        turnIndex: currentTurnIndex, emotion: streamEmotion || null, emotionReason: streamEmotionReason || null
+      });
+
+      // Handle persona switch
+      type PersonaSwitchEntry = { turn: number; fromPersonaIndex: number; toPersonaIndex: number; fromPersonaId: string; toPersonaId: string; reason: string; transitionLine: string; timestamp: string };
+      let streamNewActivePersonaIndex: number = (personaRun!.activePersonaIndex as number | null) ?? 0;
+      let streamNewPersonaSwitchLog: PersonaSwitchEntry[] = Array.isArray(personaRun!.personaSwitchLog) ? [...(personaRun!.personaSwitchLog as PersonaSwitchEntry[])] : [];
+      type FullPersona = ScenarioPersona & { position?: string; image?: string };
+      let streamSwitchToPersona: FullPersona | null = null;
+      let streamSwitchFromPersona: FullPersona | null = null;
+      if (streamSwitchPersonaInfo && typeof streamSwitchPersonaInfo.targetPersonaIndex === 'number') {
+        const scenarioCast = scenarioWithUserDifficulty as { allPersonas?: FullPersona[]; personas?: FullPersona[] };
+        const allSPs: FullPersona[] = scenarioCast?.allPersonas ?? scenarioCast?.personas ?? [];
+        const tr = handleToolCall('switch_persona', {
+          targetPersonaIndex: streamSwitchPersonaInfo.targetPersonaIndex,
+          reason: streamSwitchPersonaInfo.reason ?? '',
+          transitionLine: streamSwitchPersonaInfo.transitionLine ?? '',
+        }, {
+          personaRunId, turnId: evalTurnId, turnIndex: currentTurnIndex,
+          currentTurnIncidentFired: false, toolCallCountThisTurn: 0, emotionCallCountThisTurn: 0,
+          language: userLanguage as 'ko' | 'en' | 'ja' | 'zh',
+          currentPersonaIndex: streamNewActivePersonaIndex, scenarioPersonas: allSPs,
+        });
+        if (tr.success && tr.personaSwitched) {
+          const sw = tr.personaSwitched;
+          const toP = allSPs[sw.toIndex];
+          if (toP) {
+            streamSwitchFromPersona = allSPs[sw.fromIndex];
+            streamNewActivePersonaIndex = sw.toIndex;
+            streamNewPersonaSwitchLog.push({ turn: currentTurnIndex, fromPersonaIndex: sw.fromIndex, toPersonaIndex: sw.toIndex, fromPersonaId: sw.fromPersonaId, toPersonaId: sw.toPersonaId, reason: sw.reason, transitionLine: sw.transitionLine, timestamp: new Date().toISOString() });
+            streamSwitchToPersona = toP;
+          }
+        }
+      }
+
+      const streamIsCompleted = metaParsed.complete === true;
+      const streamUpdatedPersonaRun = await storage.updatePersonaRun(personaRunId, {
+        turnCount: newTurnCount,
+        status: streamIsCompleted ? 'completed' : 'active',
+        completedAt: streamIsCompleted ? new Date() : null,
+        ...(streamSwitchToPersona ? { activePersonaIndex: streamNewActivePersonaIndex, personaSwitchLog: streamNewPersonaSwitchLog } : {}),
+      });
+
+      // Completion side effects (mirrors non-streaming path exactly)
+      if (streamIsCompleted) {
+        await checkAndCompleteScenario(personaRun!.scenarioRunId);
+        const finalSimState = getSessionState(personaRunId);
+        if (finalSimState) {
+          storage.createSimulationEvent({
+            personaRunId, scenarioRunId: personaRun!.scenarioRunId,
+            turnIndex: currentTurnIndex, turnId: evalTurnId, eventType: 'session_end',
+            toolName: null, args: null, result: { reason: 'conversation_completed' },
+            stateBefore: null, stateAfter: finalSimState,
+            stateVersionBefore: null, stateVersionAfter: finalSimState.version,
+            includeInReport: false,
+          }).catch(e => console.warn('[streaming] Failed to log session_end event:', e));
+        }
+        if (scenarioObjRef && persona) {
+          const _convForFeedback = { messages: [...existingMessages.map(m => ({ sender: m.sender, message: m.message, timestamp: m.createdAt?.toISOString() ?? new Date().toISOString() })), { sender: 'user' as const, message, timestamp: new Date().toISOString() }] };
+          setImmediate(() => {
+            generateAndSaveFeedback(personaRunId, _convForFeedback, scenarioObjRef, persona, userLanguage)
+              .catch(e => console.warn('[streaming] Auto-feedback generation failed:', e));
+          });
+        }
+      }
+
+      // Simulation state resolution (fast mode only; quality state already applied above)
+      let streamSimulationState: import('../services/simulation/simulationTypes').SimulationState | null = null;
+      let streamSimTurnScore: TurnScore | null = null;
+      if (shouldEval && evalState) {
+        if (evalMode === 'quality' && qualityEvalResult && qualityFinalState) {
+          try {
+            await storage.saveSimulationState(personaRunId, qualityFinalState as unknown as Record<string, unknown>);
+            storage.createSimulationEvent({ personaRunId, scenarioRunId: personaRun!.scenarioRunId, turnIndex: currentTurnIndex, turnId: evalTurnId, eventType: 'auto_evaluation', toolName: null, args: { userTextLength: message.length, method: qualityEvalResult.method, evalMode: 'quality' }, result: { turnScore: qualityEvalResult.turnScore }, stateBefore: evalState, stateAfter: qualityFinalState, stateVersionBefore: evalState.version, stateVersionAfter: qualityFinalState.version, includeInReport: true }).catch(e => console.warn('[streaming] Failed to log quality eval event:', e));
+          } catch (e) { console.warn('[streaming] Quality eval DB persist failed:', e); }
+          streamSimulationState = qualityFinalState;
+          streamSimTurnScore = qualityEvalResult.turnScore;
+        } else if (fastEvalInput && fastEvalPromise) {
+          try {
+            const er = await fastEvalPromise;
+            if (!er.skipped) {
+              let ns = applySimulationPatch(personaRunId, { source: 'server_evaluation', priority: 'normal', turnId: evalTurnId, patch: { turnScoresToAdd: [er.turnScore], npcEmotionDelta: er.emotionDelta } });
+              const rp = buildRuleFallbackPatch(er.turnScore, ns, 0);
+              if (rp) ns = applySimulationPatch(personaRunId, { source: 'server_rule', priority: 'low', turnId: evalTurnId, patch: rp });
+              const st = inferStagePatchFromState(ns);
+              if (st) ns = applySimulationPatch(personaRunId, { source: 'server_rule', priority: 'normal', turnId: evalTurnId, patch: { targetStage: st } });
+              const fInc = inferIncidentCandidate(ns, personaRunId, currentTurnIndex, userLanguage, scenarioRun!.scenarioId);
+              if (fInc) { const fCool = checkIncidentCooldown(personaRunId, fInc.type); if (fCool.allowed) { recordIncidentCooldown(personaRunId, fInc.type); ns = applySimulationPatch(personaRunId, { source: 'server_rule', priority: 'normal', turnId: evalTurnId, patch: { incidentsToAdd: [fInc] } }); } }
+              await storage.saveSimulationState(personaRunId, ns as unknown as Record<string, unknown>);
+              storage.createSimulationEvent({ personaRunId, scenarioRunId: personaRun!.scenarioRunId, turnIndex: currentTurnIndex, turnId: evalTurnId, eventType: 'auto_evaluation', toolName: null, args: { userTextLength: message.length, method: er.method, evalMode: 'fast' }, result: { turnScore: er.turnScore }, stateBefore: evalState, stateAfter: ns, stateVersionBefore: evalState!.version, stateVersionAfter: ns.version, includeInReport: true }).catch(e => console.warn('[streaming] Failed to log fast eval event:', e));
+              streamSimulationState = ns;
+              streamSimTurnScore = er.turnScore;
+            } else {
+              streamSimulationState = evalState;
+            }
+          } catch (e) {
+            console.warn('[streaming] Fast mode eval failed:', e);
+            streamSimulationState = evalState;
+          }
+        }
+      } else if (!isPersonaX) {
+        streamSimulationState = getSessionState(personaRunId);
+      }
+
+      const streamEvalSkipped = !isPersonaX && !isSkipTurn && !shouldEval;
+
+      writeEvent({
+        type: 'done',
+        message: streamAiMessageContent,
+        emotion: streamEmotion,
+        emotionReason: streamEmotionReason,
+        isCompleted: streamIsCompleted,
+        turnCount: newTurnCount,
+        personaRun: streamUpdatedPersonaRun,
+        messages: [{ sender: 'ai', message: streamAiMessageContent, timestamp: new Date().toISOString(), emotion: streamEmotion, emotionReason: streamEmotionReason }],
+        simulationState: streamSimulationState,
+        turnScore: streamSimTurnScore,
+        ...(streamEvalSkipped ? { evaluationSkipped: true } : {}),
+        ...(streamSwitchToPersona ? {
+          personaSwitched: {
+            fromIndex: (personaRun!.activePersonaIndex as number | null) ?? 0,
+            toIndex: streamNewActivePersonaIndex,
+            fromPersonaName: streamSwitchFromPersona?.name,
+            reason: streamSwitchPersonaInfo?.reason ?? '',
+            transitionLine: streamSwitchPersonaInfo?.transitionLine ?? '',
+            turnIndex: currentTurnIndex,
+            newPersonaName: streamSwitchToPersona.name,
+            newPersona: { id: streamSwitchToPersona.id, name: streamSwitchToPersona.name, role: streamSwitchToPersona.position, image: streamSwitchToPersona.image },
+          },
+        } : {}),
+      });
+
+      res.end();
+      return;
+    }
+    // ── End of SSE Streaming path ────────────────────────────────────────────────
 
     const aiResult = await generateAIResponse(
       scenarioForAI,

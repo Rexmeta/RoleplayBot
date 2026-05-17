@@ -126,6 +126,16 @@ export interface AIServiceInterface {
     language?: SupportedLanguage
   ): Promise<DetailedFeedback>;
 
+  // 텍스트 스트리밍 (선택적 — 지원하지 않는 Provider는 구현하지 않아도 됨)
+  generateStreamingResponse?(
+    scenario: RoleplayScenario | string,
+    messages: ConversationMessage[],
+    persona: ScenarioPersona,
+    userMessage?: string,
+    language?: SupportedLanguage,
+    userName?: string
+  ): Promise<AsyncIterable<string>>;
+
   // 전략 회고 평가 (선택적 — 지원하지 않는 Provider는 구현하지 않아도 됨)
   generateStrategyEvaluation?(input: StrategyEvaluationInput): Promise<StrategyReflectionEvaluation>;
 

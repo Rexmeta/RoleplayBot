@@ -443,23 +443,79 @@ JSON 형식으로 응답:
   }
 
   /**
-   * 스트리밍 응답 생성 (향후 구현용)
+   * 스트리밍 응답 생성 — Gemini generateContentStream 사용
+   * 텍스트 델타를 AsyncIterable<string>으로 반환.
+   * 응답 끝에 [META:{...}] 마커가 포함되며, 호출자(서버 라우트)가 파싱해야 함.
    */
   async generateStreamingResponse(
     scenario: any,
     messages: ConversationMessage[],
     persona: ScenarioPersona,
-    userMessage?: string
+    userMessage?: string,
+    language: SupportedLanguage = 'ko',
+    userName?: string
   ): Promise<AsyncIterable<string>> {
-    // 향후 스트리밍 구현을 위한 placeholder
-    const response = await this.generateResponse(scenario, messages, persona, userMessage);
-    
-    // 현재는 단일 응답을 반환
-    async function* generateStream() {
-      yield JSON.stringify(response);
+    const scenarioObj: RoleplayScenario = typeof scenario === 'string' ? {} : scenario;
+    const playerPosition = scenarioObj.context?.playerRole?.position;
+    const enrichedPersona = await this.getEnrichedPersona(scenarioObj, persona);
+    const conversationHistory = prepareConversationHistory(messages, persona.name, playerPosition, userName);
+
+    const modeTransitionHint = scenarioObj.modeTransitionHint;
+    const simulationStateBlock = scenarioObj.simulationStateBlock;
+    const allPersonas = scenarioObj.allPersonas;
+    const activePersonaIndex = scenarioObj.activePersonaIndex ?? 0;
+
+    const basePrompt = this.buildCompactPrompt(
+      scenarioObj, enrichedPersona, conversationHistory, messages,
+      language, playerPosition, modeTransitionHint, userName,
+      simulationStateBlock, allPersonas, activePersonaIndex
+    );
+
+    const hasMultiplePersonas = Array.isArray(allPersonas) && allPersonas.length > 1;
+    const metaInstruction = hasMultiplePersonas
+      ? `대화 내용을 자연스럽게 작성하세요. 모든 내용 작성 후, 반드시 마지막 줄에만 이 마커를 추가하세요 (대화 내용에 절대 포함하지 마세요):\n[META:{"emotion":"기쁨|슬픔|분노|놀람|중립|호기심|불안|피로|실망|당혹","emotionReason":"감정이유","complete":false,"switchPersona":null}]\n전환 필요 시: [META:{"emotion":"...","emotionReason":"...","complete":false,"switchPersona":{"targetPersonaIndex":0,"reason":"이유","transitionLine":"전환 대사"}}]\n대화를 마무리해야 할 경우 complete를 true로 설정하세요.`
+      : `대화 내용을 자연스럽게 작성하세요. 모든 내용 작성 후, 반드시 마지막 줄에만 이 마커를 추가하세요 (대화 내용에 절대 포함하지 마세요):\n[META:{"emotion":"기쁨|슬픔|분노|놀람|중립|호기심|불안|피로|실망|당혹","emotionReason":"감정이유","complete":false}]\n대화를 마무리해야 할 경우 complete를 true로 설정하세요.`;
+
+    const streamingPrompt = basePrompt.replace(/\nJSON 형식으로 응답:[\s\S]*$/, '\n' + metaInstruction);
+
+    const prompt = userMessage || '이전 대화의 흐름을 자연스럽게 이어가세요.';
+    const normalizedName = normalizeProfileName(userName) || '';
+    const contentsUserLabel = normalizedName
+      ? (playerPosition ? `${normalizedName}(${playerPosition})` : normalizedName)
+      : (playerPosition || '사용자');
+
+    const isFlash25 = this.model.includes('gemini-2.5-flash') || this.model.includes('gemini-2.5-pro');
+    const genAI = this.genAI;
+    const model = this.model;
+
+    console.log(`🌊 Starting streaming response for persona: ${enrichedPersona.name} (model: ${model})`);
+
+    const streamPromise = conversationSemaphore.run(() =>
+      retryWithBackoff(() =>
+        genAI.models.generateContentStream({
+          model,
+          config: {
+            maxOutputTokens: 1500,
+            temperature: 0.7,
+            ...(isFlash25 ? { thinkingConfig: { thinkingBudget: 0 } } : {}),
+          },
+          contents: [
+            { role: 'user', parts: [{ text: streamingPrompt + `\n\n${contentsUserLabel}: ` + prompt }] }
+          ],
+        }),
+        { maxRetries: 1, baseDelayMs: 500 }
+      )
+    );
+
+    async function* streamGenerator(): AsyncIterable<string> {
+      const stream = await streamPromise;
+      for await (const chunk of stream) {
+        const text: string = chunk.candidates?.[0]?.content?.parts?.[0]?.text ?? '';
+        if (text) yield text;
+      }
     }
-    
-    return generateStream();
+
+    return streamGenerator();
   }
 
   private validateFeedbackQuality(feedback: DetailedFeedback): { isValid: boolean; reason: string } {

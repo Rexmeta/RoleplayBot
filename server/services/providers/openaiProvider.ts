@@ -161,6 +161,83 @@ ${difficultyGuidelines}
     }
   }
 
+  async generateStreamingResponse(
+    scenario: RoleplayScenario | string,
+    messages: ConversationMessage[],
+    persona: ScenarioPersona,
+    userMessage?: string,
+    language: SupportedLanguage = 'ko',
+    userName?: string
+  ): Promise<AsyncIterable<string>> {
+    const languageInstruction = LANGUAGE_INSTRUCTIONS[language] || LANGUAGE_INSTRUCTIONS.ko;
+    const scenarioObj: RoleplayScenario = typeof scenario === 'string' ? {} : scenario;
+    const playerRole = scenarioObj.context?.playerRole;
+    const playerPosition = playerRole?.position || '';
+    const normalizedUserName = normalizeProfileName(userName) || '';
+    const userLabel = normalizedUserName
+      ? (playerPosition ? `${normalizedUserName}(${playerPosition})` : normalizedUserName)
+      : (playerPosition || '사용자');
+
+    const conversationHistory = messages.map(msg => ({
+      role: msg.sender === 'user' ? 'user' as const : 'assistant' as const,
+      content: `${msg.sender === 'user' ? userLabel : persona.name}: ${msg.message}`
+    }));
+
+    const userTurns = messages.filter(m => m.sender === 'user').length;
+    const softClose = scenarioObj.targetTurns
+      ? getSoftClosingInstruction(userTurns, scenarioObj.targetTurns, language)
+      : null;
+    const difficultyGuidelines = buildDifficultyGuidelines(scenarioObj.difficulty);
+
+    const metaInstruction = `대화 내용을 자연스럽게 작성하세요. 모든 내용 작성 후, 반드시 마지막 줄에만 이 마커를 추가하세요 (대화 내용에 절대 포함하지 마세요):\n[META:{"emotion":"기쁨|슬픔|분노|놀람|중립|호기심|불안|피로|실망|당혹","emotionReason":"감정이유","complete":false}]\n대화를 마무리해야 할 경우 complete를 true로 설정하세요.`;
+
+    const systemContent = `당신은 ${persona.name}(${persona.role})입니다.${softClose ? `\n\n${softClose}` : ''}
+
+페르소나 설정:
+- 성격: ${persona.personality}
+- 응답 스타일: ${persona.responseStyle}
+- 배경: ${persona.background}
+- 목표: ${persona.goals.join(', ')}
+${difficultyGuidelines}
+
+대화 규칙:
+1. 주어진 페르소나를 정확히 구현하세요
+2. 자연스럽고 현실적인 대화를 유지하세요
+3. ${languageInstruction}
+4. 50-100단어 내외로 간결하게 응답하세요
+5. 상황에 맞는 감정을 표현하세요
+6. **절대로 ${userLabel}의 역할을 수행하거나 ${userLabel} 입장에서 발언하지 마세요**
+
+${metaInstruction}`;
+
+    const userMessageContent = userMessage || '앞서 이야기를 자연스럽게 이어가거나 새로운 주제를 제시해주세요.';
+
+    const stream = await conversationSemaphore.run(() =>
+      retryWithBackoff(() =>
+        this.client.chat.completions.create({
+          model: this.model,
+          messages: [
+            { role: 'system', content: systemContent },
+            ...conversationHistory,
+            { role: 'user', content: userMessageContent }
+          ],
+          max_tokens: 300,
+          temperature: 0.8,
+          stream: true,
+        }),
+        { maxRetries: 2, baseDelayMs: 1000 }
+      )
+    );
+
+    async function* generate(): AsyncGenerator<string> {
+      for await (const chunk of stream) {
+        const text = chunk.choices[0]?.delta?.content;
+        if (text) yield text;
+      }
+    }
+    return generate();
+  }
+
   private async analyzeEmotion(
     response: string, 
     persona: ScenarioPersona, 

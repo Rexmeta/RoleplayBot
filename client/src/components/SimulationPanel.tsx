@@ -392,13 +392,6 @@ const SimulationPanel = memo(function SimulationPanel({
             )}
           </div>
 
-<<<<<<< HEAD
-          {latestTurnScore && <ScoreCard score={latestTurnScore} />}
-
-          {state.recentTurnScores && state.recentTurnScores.length > 0 && (
-            <ScoreHistory scores={state.recentTurnScores} />
-          )}
-=======
           {evaluationSkipped ? (
             <div className="flex items-center gap-1.5 text-xs text-muted-foreground border-t border-border/40 pt-2">
               <SkipForward className="h-3 w-3 shrink-0" />
@@ -407,7 +400,10 @@ const SimulationPanel = memo(function SimulationPanel({
           ) : latestTurnScore ? (
             <ScoreCard score={latestTurnScore} />
           ) : null}
->>>>>>> 8bbed19 (feat(simulation): keep NPC score visible and show skipped badge when turn is too short)
+
+          {state.recentTurnScores && state.recentTurnScores.length > 0 && (
+            <ScoreHistory scores={state.recentTurnScores} />
+          )}
         </CardContent>
       </div>
     </Card>

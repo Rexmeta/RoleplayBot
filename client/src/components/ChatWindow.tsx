@@ -170,6 +170,7 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
 
   const { localMessages, setLocalMessages, pendingAiMessage: rawPendingAiMessage, setPendingAiMessage,
     pendingUserMessage, setPendingUserMessage, pendingUserText, setPendingUserText,
+    isStreamingActive,
     messagesEndRef, sendMessageMutation } = useChatMessages({
     conversationId,
     serverMessages: initialMessages,
@@ -870,7 +871,7 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
                                 </div>
                               );
                             })()}
-                            {isLoading ? (
+                            {isLoading && !isStreamingActive ? (
                               <div className="flex items-center justify-center space-x-2" data-testid="status-typing">
                                 <div className="w-3 h-3 bg-purple-400 rounded-full animate-bounce"></div>
                                 <div className="w-3 h-3 bg-purple-400 rounded-full animate-bounce" style={{ animationDelay: "0.1s" }}></div>
