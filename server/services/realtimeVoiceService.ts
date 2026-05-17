@@ -53,6 +53,7 @@ async function preloadRecentMessages(
 export class RealtimeVoiceService {
   private sessions: Map<string, RealtimeSession> = new Map();
   private genAI: GoogleGenAI | null = null;
+  private genAILive: GoogleGenAI | null = null;
   private isAvailable: boolean = false;
   private cleanupInterval: NodeJS.Timeout | null = null;
 
@@ -61,8 +62,13 @@ export class RealtimeVoiceService {
 
     if (geminiApiKey) {
       this.genAI = new GoogleGenAI({ apiKey: geminiApiKey });
+      // gemini-live-2.5-flash requires v1alpha endpoint for bidiGenerateContent
+      this.genAILive = new GoogleGenAI({
+        apiKey: geminiApiKey,
+        httpOptions: { apiVersion: 'v1alpha' },
+      });
       this.isAvailable = true;
-      console.log('✅ Gemini Live API Service initialized');
+      console.log('✅ Gemini Live API Service initialized (live: v1alpha, other: v1beta)');
       this.startCleanupScheduler();
     } else {
       console.warn('⚠️  GOOGLE_API_KEY not set - Realtime Voice features disabled');
@@ -354,7 +360,7 @@ export class RealtimeVoiceService {
     gender: 'male' | 'female' = 'male',
     options?: { isResume?: boolean }
   ): Promise<void> {
-    if (!this.genAI) throw new Error('Gemini AI not initialized');
+    if (!this.genAILive) throw new Error('Gemini AI not initialized');
 
     const connectStartTime = Date.now();
     console.log(`⏱️ [TIMING] connectToGemini 시작: ${new Date(connectStartTime).toISOString()}`);
@@ -406,7 +412,7 @@ export class RealtimeVoiceService {
       const realtimeModel = session.realtimeModel || await this.getRealtimeModel();
       console.log(`🔌 Connecting to Gemini Live API for session: ${session.id} using model: ${realtimeModel}`);
 
-      const geminiSession = await this.genAI.live.connect({
+      const geminiSession = await this.genAILive.live.connect({
         model: realtimeModel,
         callbacks: {
           onopen: () => {
