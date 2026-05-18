@@ -25,6 +25,10 @@ export function registerObjectStorageRoutes(app: Express): void {
         const svc = new ObjectStorageService();
         const file = await svc.searchPublicObject(key);
         if (!file) {
+          if (isGCSAvailable()) {
+            console.log(`[Object Storage] Replit OS miss → GCS fallback for key="${key}"`);
+            return await streamFromGCS(key, res);
+          }
           console.warn(`[Object Storage] Key not found: "${key}"`);
           return res.status(404).json({ error: "Object not found", key });
         }
@@ -63,6 +67,10 @@ export function registerObjectStorageRoutes(app: Express): void {
         const svc = new ObjectStorageService();
         const file = await svc.searchPublicObject(key);
         if (!file) {
+          if (isGCSAvailable()) {
+            console.log(`[Object Storage] Replit OS miss → GCS fallback (HEAD) for key="${key}"`);
+            return await streamFromGCS(key, res, true);
+          }
           return res.status(404).json({ error: "Object not found", key });
         }
         const [metadata] = await file.getMetadata();

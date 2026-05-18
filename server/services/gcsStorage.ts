@@ -138,6 +138,10 @@ export function isGCSAvailable(): boolean {
     }
     return true;
   }
+  // Dual mode: both REPL_ID and GCS_BUCKET_NAME are set (Replit + GCS fallback)
+  if (!!GCS_BUCKET_NAME && !!process.env.REPL_ID) {
+    return true;
+  }
   if (!!GCS_BUCKET_NAME && (!!process.env.GCS_SERVICE_ACCOUNT_KEY || !process.env.REPL_ID)) {
     return true;
   }

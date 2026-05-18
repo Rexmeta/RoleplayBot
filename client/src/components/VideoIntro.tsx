@@ -93,7 +93,9 @@ export function VideoIntro({ videoSrc, onComplete, onSkip, preloadImageUrl }: Vi
     }, 500);
   };
 
-  const webmSrc = videoSrc.replace(/\.mp4$/, ".webm");
+  const isWebmSource = /\.webm$/i.test(videoSrc);
+  const webmSrc = isWebmSource ? videoSrc : videoSrc.replace(/\.mp4$/i, ".webm");
+  const hasSeparateMp4 = !isWebmSource && webmSrc !== videoSrc;
 
   return (
     <div 
@@ -117,7 +119,7 @@ export function VideoIntro({ videoSrc, onComplete, onSkip, preloadImageUrl }: Vi
         data-testid="video-intro-player"
       >
         <source src={webmSrc} type="video/webm" />
-        <source src={videoSrc} type="video/mp4" />
+        {hasSeparateMp4 && <source src={videoSrc} type="video/mp4" />}
       </video>
 
       {showSkip && !isFadingOut && (
