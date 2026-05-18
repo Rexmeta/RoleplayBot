@@ -51,7 +51,7 @@ async function streamingFetch(
   url: string,
   body: object,
   onDelta: (content: string) => void,
-  onStreamingDone: (cleanMessage: string, emotion: string, emotionReason: string) => void
+  onStreamingDone: (cleanMessage: string, emotion: string, emotionReason: string, personaSwitched?: PersonaSwitchedPayload) => void
 ): Promise<MessageResponsePayload> {
   const token = localStorage.getItem('authToken');
   const headers: Record<string, string> = {
@@ -103,7 +103,8 @@ async function streamingFetch(
           onStreamingDone(
             event.message || '',
             event.emotion || '중립',
-            event.emotionReason || ''
+            event.emotionReason || '',
+            event.personaSwitched
           );
           doneData = { ...event, _streamed: true };
         } else if (event.type === 'error') {
@@ -139,6 +140,10 @@ export function useChatMessages({ conversationId, serverMessages, onSimulationUp
   useEffect(() => { setLocalMessagesRef.current = setLocalMessages; }, [setLocalMessages]);
   const setIsStreamingActiveRef = useRef(setIsStreamingActive);
   useEffect(() => { setIsStreamingActiveRef.current = setIsStreamingActive; }, [setIsStreamingActive]);
+  const onPersonaSwitchedRef = useRef(onPersonaSwitched);
+  useEffect(() => { onPersonaSwitchedRef.current = onPersonaSwitched; }, [onPersonaSwitched]);
+  const conversationIdRef = useRef(conversationId);
+  useEffect(() => { conversationIdRef.current = conversationId; }, [conversationId]);
 
   useEffect(() => {
     if (serverMessages) {
@@ -189,7 +194,7 @@ export function useChatMessages({ conversationId, serverMessages, onSimulationUp
         }
       };
 
-      const onStreamingDone = (cleanMessage: string, emotion: string, emotionReason: string) => {
+      const onStreamingDone = (cleanMessage: string, emotion: string, emotionReason: string, personaSwitched?: PersonaSwitchedPayload) => {
         // isStreamingActive is cleared in onSuccess/onSettled so the spinner
         // does not re-appear between the done event and mutation resolution
         if (streamingMessageAdded && cleanMessage) {
@@ -210,10 +215,13 @@ export function useChatMessages({ conversationId, serverMessages, onSimulationUp
             return msgs;
           });
         }
+        if (personaSwitched && onPersonaSwitchedRef.current) {
+          onPersonaSwitchedRef.current(personaSwitched);
+        }
       };
 
       return streamingFetch(
-        `/api/conversations/${conversationId}/messages`,
+        `/api/conversations/${conversationIdRef.current}/messages`,
         body,
         onDelta,
         onStreamingDone
@@ -245,8 +253,9 @@ export function useChatMessages({ conversationId, serverMessages, onSimulationUp
         });
       }
 
-      // Forward persona switch event to caller
-      if (onPersonaSwitched && data?.personaSwitched) {
+      // Forward persona switch event to caller (non-streaming path only;
+      // streaming path already fires this from onStreamingDone)
+      if (onPersonaSwitched && data?.personaSwitched && !data?._streamed) {
         onPersonaSwitched(data.personaSwitched);
       }
 

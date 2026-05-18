@@ -185,6 +185,7 @@ export function handleGeminiMessage(
             session.voiceGender = newPersona.gender === 'female' ? 'female' : 'male';
             session.voiceId = newPersona.voiceId ?? null;
             session.selectedVoice = null;
+            session.personaId = newPersona.id;
           }
           const fromPersonaForEvent = session.scenarioPersonas?.[switched.fromIndex];
           sendToClient(session, {

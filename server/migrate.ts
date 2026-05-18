@@ -1230,6 +1230,105 @@ export async function runMigrations(): Promise<void> {
         console.warn('⚠️ Failed to migrate deprecated realtime model setting:', err);
       }
 
+      // Backfill isPrimary on multi-persona scenarios that have none set.
+      // Sets isPrimary=true on persona[0] (the default primary) for any scenario
+      // where >1 persona exists but no persona has isPrimary=true yet.
+      try {
+        const bfResult = await client.query(`
+          UPDATE scenarios
+          SET personas = jsonb_set(personas, '{0,isPrimary}', 'true'::jsonb)
+          WHERE jsonb_array_length(personas) > 1
+            AND is_deleted = false
+            AND NOT EXISTS (
+              SELECT 1 FROM jsonb_array_elements(personas) p
+              WHERE (p->>'isPrimary')::boolean IS TRUE
+            )
+        `);
+        if (bfResult.rowCount && bfResult.rowCount > 0) {
+          console.log(`✅ Backfilled isPrimary on ${bfResult.rowCount} multi-persona scenario(s)`);
+        } else {
+          console.log('✅ Multi-persona isPrimary backfill: no scenarios needed updating');
+        }
+      } catch (err) {
+        console.warn('⚠️ Failed to backfill multi-persona isPrimary:', err);
+      }
+
+      // Backfill triggerHints and entryLine for known multi-persona scenarios.
+      // These are scenario-context-aware values written once; idempotent because
+      // the WHERE clause only matches personas that still lack the fields.
+      try {
+        // 스마트폰 생산법인장: 이수진 (persona[1], 생산팀 팀장)
+        await client.query(`
+          UPDATE scenarios
+          SET personas = jsonb_build_array(
+            personas->0,
+            (personas->1)
+              || '{"triggerHints":["사용자가 생산팀 입장을 직접 들어야 할 필요가 있을 때","구매팀과의 협상이 교착 상태에 빠졌을 때","생산 현장의 구체적인 어려움 파악이 필요할 때"]}'::jsonb
+              || '{"entryLine":"생산팀장 이수진입니다. 제 팀원들 입장도 직접 말씀드리고 싶어서 왔습니다."}'::jsonb
+          )
+          WHERE id = '스마트폰-생산법인장-핵심-2026-03-27T14-21-50'
+            AND jsonb_array_length(personas) = 2
+            AND personas->1->>'triggerHints' IS NULL
+        `);
+
+        // N-Core persona[1]: 이수진 (선임 연구원)
+        await client.query(`
+          UPDATE scenarios
+          SET personas = jsonb_set(
+            jsonb_set(personas, '{1,triggerHints}',
+              '["팀 화합이나 인간적인 문제 해결이 필요할 때","부서장과 신입사원 사이의 비공식적인 중재가 필요할 때","사용자가 팀 내 분위기 파악을 원할 때"]'::jsonb),
+            '{1,entryLine}',
+            '"잠깐 제가 끼어들어도 될까요? 팀 분위기가 걱정되어서요, 제가 중간에서 조율해볼 수 있을 것 같아요."'::jsonb
+          )
+          WHERE id = 'new-project-ncore-2026-01-21T08-00-02'
+            AND jsonb_array_length(personas) = 3
+            AND personas->1->>'triggerHints' IS NULL
+        `);
+        // N-Core persona[2]: 박지원 (PM)
+        await client.query(`
+          UPDATE scenarios
+          SET personas = jsonb_set(
+            jsonb_set(personas, '{2,triggerHints}',
+              '["사용자가 공식적인 역할 조율 또는 프로젝트 전체 관점의 해결책을 요청할 때","부서장 권한 밖의 문제 해결이 필요할 때","과거 프로젝트 실패 사례나 데이터 기반 근거가 필요할 때"]'::jsonb),
+            '{2,entryLine}',
+            '"프로젝트 매니저 박지원입니다. 이 문제를 건설적으로 해결하는 데 제가 도움을 드릴 수 있을 것 같아서요."'::jsonb
+          )
+          WHERE id = 'new-project-ncore-2026-01-21T08-00-02'
+            AND jsonb_array_length(personas) = 3
+            AND personas->2->>'triggerHints' IS NULL
+        `);
+
+        // 코드 리뷰 persona[1]: 박수진 (PM)
+        await client.query(`
+          UPDATE scenarios
+          SET personas = jsonb_set(
+            jsonb_set(personas, '{1,triggerHints}',
+              '["프로젝트 일정 지연이 심각해질 때","갈등 중재 및 빠른 합의 도출이 필요할 때","사용자가 PM의 도움을 요청할 때"]'::jsonb),
+            '{1,entryLine}',
+            '"PM 박수진입니다. 오늘 안에 이 문제를 꼭 해결해야 해서요, 제가 중간에서 조율해볼게요."'::jsonb
+          )
+          WHERE id = '코드-리뷰-터진-2026-01-21T04-34-21'
+            AND jsonb_array_length(personas) = 3
+            AND personas->1->>'triggerHints' IS NULL
+        `);
+        // 코드 리뷰 persona[2]: 이유진 (CTO)
+        await client.query(`
+          UPDATE scenarios
+          SET personas = jsonb_set(
+            jsonb_set(personas, '{2,triggerHints}',
+              '["경영진 차원의 결정이 필요할 때","사용자가 CTO에게 직접 에스컬레이션을 요청할 때","팀 문화 개선 차원의 논의가 필요할 때"]'::jsonb),
+            '{2,entryLine}',
+            '"CTO 이유진입니다. 이번 상황을 단순히 넘기기가 어렵겠다 싶어서 직접 나왔습니다."'::jsonb
+          )
+          WHERE id = '코드-리뷰-터진-2026-01-21T04-34-21'
+            AND jsonb_array_length(personas) = 3
+            AND personas->2->>'triggerHints' IS NULL
+        `);
+        console.log('✅ Multi-persona triggerHints/entryLine backfill completed');
+      } catch (err) {
+        console.warn('⚠️ Failed to backfill multi-persona triggerHints/entryLine:', err);
+      }
+
       console.log('✅ Database migrations completed successfully');
     } finally {
       client.release();

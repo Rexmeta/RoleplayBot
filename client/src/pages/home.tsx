@@ -17,6 +17,7 @@ import { AppHeader } from "@/components/AppHeader";
 import { GuestDemoBanner } from "@/components/GuestDemoBanner";
 import { useTranslation } from "react-i18next";
 import i18n from "@/lib/i18n";
+import { useToast } from "@/hooks/use-toast";
 import PersonalizedDashboard from "@/components/PersonalizedDashboard";
 import {
   AlertDialog,
@@ -34,6 +35,7 @@ type ViewState = "scenarios" | "persona-selection" | "video-intro" | "chat" | "s
 export default function Home() {
   const { user } = useAuth();
   const { t } = useTranslation();
+  const { toast } = useToast();
   const [location] = useLocation();
   const [currentView, setCurrentView] = useState<ViewState>("scenarios");
   const [selectedScenario, setSelectedScenario] = useState<ComplexScenario | null>(null);
@@ -403,6 +405,11 @@ export default function Home() {
       }
     } catch (error) {
       console.error("대화 생성 실패:", error);
+      toast({
+        title: t('toast.error'),
+        description: t('conversation.createError', '대화를 시작하지 못했습니다. 잠시 후 다시 시도해 주세요.'),
+        variant: 'destructive',
+      });
     } finally {
       setIsCreatingConversation(false);
       setLoadingPersonaId(null);

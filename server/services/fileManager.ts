@@ -41,6 +41,13 @@ function normalisePersonaForDb(persona: ScenarioPersona): {
   tradeoff: string;
   gender?: string;
   mbti?: string;
+  isPrimary?: boolean;
+  triggerHints?: string[];
+  entryLine?: string;
+  voiceId?: string | null;
+  currentSituation?: object;
+  concerns?: string[];
+  image?: string;
 } {
   return {
     id: persona.id,
@@ -54,6 +61,13 @@ function normalisePersonaForDb(persona: ScenarioPersona): {
     tradeoff: persona.tradeoff ?? '',
     ...(persona.gender !== undefined && { gender: persona.gender }),
     ...(persona.mbti !== undefined && { mbti: persona.mbti }),
+    ...(persona.isPrimary !== undefined && { isPrimary: persona.isPrimary }),
+    ...(persona.triggerHints !== undefined && { triggerHints: persona.triggerHints }),
+    ...(persona.entryLine !== undefined && { entryLine: persona.entryLine }),
+    ...(persona.voiceId !== undefined && { voiceId: persona.voiceId }),
+    ...(persona.currentSituation !== undefined && { currentSituation: persona.currentSituation }),
+    ...(persona.currentSituation?.concerns !== undefined && { concerns: persona.currentSituation.concerns }),
+    ...(persona.image !== undefined && { image: persona.image }),
   };
 }
 
