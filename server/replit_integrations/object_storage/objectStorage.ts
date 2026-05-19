@@ -358,6 +358,39 @@ export class ObjectStorageService {
       requestedPermission: requestedPermission ?? ObjectPermission.READ,
     });
   }
+
+  /**
+   * Upload a buffer to the first public search path bucket in Replit OS.
+   * Used for write-through caching when a GCS fallback is served.
+   */
+  async uploadPublicObject(key: string, buffer: Buffer, contentType: string): Promise<void> {
+    const available = await checkSidecarHealth();
+    if (!available) {
+      throw new SidecarUnavailableError('sidecar unavailable for upload');
+    }
+
+    const searchPaths = this.getPublicObjectSearchPaths();
+    if (searchPaths.length === 0) {
+      throw new Error('No public search paths configured');
+    }
+
+    const targetPath = `${searchPaths[0]}/${key}`;
+    const { bucketName, objectName } = parseObjectPath(targetPath);
+
+    await withRetry(async () => {
+      const bucket = getObjectStorageClient().bucket(bucketName);
+      const file = bucket.file(objectName);
+      await file.save(buffer, { resumable: false, contentType });
+    }, `uploadPublicObject(${key})`);
+  }
+
+  /**
+   * Check whether a key already exists in any of the public search path buckets.
+   */
+  async publicObjectExists(key: string): Promise<boolean> {
+    const file = await this.searchPublicObject(key);
+    return file !== null;
+  }
 }
 
 function parseObjectPath(path: string): {

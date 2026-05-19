@@ -1,8 +1,34 @@
 import type { Express } from "express";
 import { ObjectStorageService, ObjectNotFoundError, SidecarUnavailableError, isSidecarAvailable } from "./objectStorage";
-import { isCloudRun, streamFromGCS, isGCSAvailable } from "../../services/gcsStorage";
+import { isCloudRun, streamFromGCS, isGCSAvailable, downloadBufferFromGCS, downloadBufferWithMetaFromGCS, listGCSFilesMeta } from "../../services/gcsStorage";
+import { isAuthenticated } from "../../auth";
 
 const GCS_BUCKET_NAME = process.env.GCS_BUCKET_NAME;
+
+/**
+ * Write-through cache: after serving a key from GCS, copy it into Replit OS
+ * in the background so future requests are served locally without GCS fallback.
+ * Fire-and-forget — errors are logged but never bubble up to the caller.
+ * Uses the actual contentType from GCS metadata rather than extension-based inference.
+ */
+async function writeThroughToReplitOS(key: string): Promise<void> {
+  try {
+    const svc = new ObjectStorageService();
+    const alreadyExists = await svc.publicObjectExists(key).catch(() => false);
+    if (alreadyExists) return;
+
+    const result = await downloadBufferWithMetaFromGCS(key);
+    if (!result) {
+      console.warn(`[GCS→OS] Write-through: could not download buffer for key="${key}"`);
+      return;
+    }
+
+    await svc.uploadPublicObject(key, result.buffer, result.contentType);
+    console.log(`[GCS→OS] Write-through sync complete: "${key}" (${result.buffer.length} bytes, ${result.contentType} → Replit OS)`);
+  } catch (err: any) {
+    console.warn(`[GCS→OS] Write-through sync failed for key="${key}": ${err.message}`);
+  }
+}
 
 export function registerObjectStorageRoutes(app: Express): void {
   // ── /objects?key= query-based serving (works on BOTH environments) ──
@@ -27,7 +53,11 @@ export function registerObjectStorageRoutes(app: Express): void {
         if (!file) {
           if (isGCSAvailable()) {
             console.log(`[Object Storage] Replit OS miss → GCS fallback for key="${key}"`);
-            return await streamFromGCS(key, res);
+            const served = await streamFromGCS(key, res);
+            if (served) {
+              writeThroughToReplitOS(key).catch(() => {});
+            }
+            return;
           }
           console.warn(`[Object Storage] Key not found: "${key}"`);
           return res.status(404).json({ error: "Object not found", key });
@@ -167,6 +197,132 @@ export function registerObjectStorageRoutes(app: Express): void {
     }
 
     res.json(result);
+  });
+
+  // ── Admin: GCS → Replit OS bulk sync ──
+
+  function requireAdminRole(req: any, res: any, next: any) {
+    if (req.user?.role !== 'admin') {
+      return res.status(403).json({ error: "Access denied. Admin only." });
+    }
+    next();
+  }
+
+  /**
+   * POST /api/admin/storage/sync-gcs-to-replit
+   * Body: { prefixes?: string[] }  (default: ["scenarios/videos/"])
+   *
+   * Lists all GCS objects under the given prefixes, checks each against
+   * Replit OS, and copies any that are missing.  Returns a summary of what
+   * was synced so operators can audit the log.
+   */
+  app.post("/api/admin/storage/sync-gcs-to-replit", isAuthenticated, requireAdminRole, async (req, res) => {
+    if (isCloudRun()) {
+      return res.status(400).json({ error: "Sync not applicable on Cloud Run (GCS is primary storage there)" });
+    }
+    if (!isGCSAvailable()) {
+      return res.status(400).json({ error: "GCS is not available — set GCS_BUCKET_NAME and credentials first" });
+    }
+
+    const prefixes: string[] = Array.isArray(req.body?.prefixes)
+      ? req.body.prefixes.filter((p: any) => typeof p === 'string')
+      : ['scenarios/videos/'];
+
+    const report: { synced: string[]; skipped: string[]; failed: string[] } = {
+      synced: [],
+      skipped: [],
+      failed: [],
+    };
+
+    let svc: ObjectStorageService | null = null;
+    try {
+      svc = new ObjectStorageService();
+    } catch (err: any) {
+      return res.status(503).json({ error: `Replit Object Storage unavailable: ${err.message}` });
+    }
+
+    for (const prefix of prefixes) {
+      const files = await listGCSFilesMeta(prefix);
+      console.log(`[GCS→OS Sync] Found ${files.length} GCS object(s) under prefix "${prefix}"`);
+
+      for (const gcsFile of files) {
+        const key = gcsFile.name;
+        try {
+          const exists = await svc!.publicObjectExists(key).catch(() => false);
+          if (exists) {
+            report.skipped.push(key);
+            continue;
+          }
+
+          const buffer = await downloadBufferFromGCS(key);
+          if (!buffer) {
+            console.warn(`[GCS→OS Sync] Could not download "${key}" from GCS`);
+            report.failed.push(key);
+            continue;
+          }
+
+          await svc!.uploadPublicObject(key, buffer, gcsFile.contentType);
+          console.log(`[GCS→OS Sync] ✓ Synced "${key}" (${buffer.length} bytes)`);
+          report.synced.push(key);
+        } catch (err: any) {
+          console.error(`[GCS→OS Sync] ✗ Failed "${key}": ${err.message}`);
+          report.failed.push(key);
+        }
+      }
+    }
+
+    console.log(`[GCS→OS Sync] Complete — synced: ${report.synced.length}, skipped: ${report.skipped.length}, failed: ${report.failed.length}`);
+    res.json({
+      message: "GCS → Replit OS sync complete",
+      prefixes,
+      syncedCount: report.synced.length,
+      skippedCount: report.skipped.length,
+      failedCount: report.failed.length,
+      synced: report.synced,
+      skipped: report.skipped,
+      failed: report.failed,
+      timestamp: new Date().toISOString(),
+    });
+  });
+
+  /**
+   * GET /api/admin/storage/sync-gcs-to-replit?prefix=scenarios/videos/
+   * Dry-run: lists what would be synced without actually copying anything.
+   */
+  app.get("/api/admin/storage/sync-gcs-to-replit", isAuthenticated, requireAdminRole, async (req, res) => {
+    if (isCloudRun()) {
+      return res.status(400).json({ error: "Sync not applicable on Cloud Run" });
+    }
+
+    const prefix = String(req.query.prefix || 'scenarios/videos/');
+
+    let svc: ObjectStorageService | null = null;
+    try {
+      svc = new ObjectStorageService();
+    } catch (err: any) {
+      return res.status(503).json({ error: `Replit Object Storage unavailable: ${err.message}` });
+    }
+
+    const gcsFiles = isGCSAvailable() ? await listGCSFilesMeta(prefix) : [];
+    const results = await Promise.allSettled(
+      gcsFiles.map(async (f) => {
+        const inReplitOS = await svc!.publicObjectExists(f.name).catch(() => false);
+        return { key: f.name, sizeBytes: f.size, contentType: f.contentType, inReplitOS };
+      })
+    );
+
+    const items = results
+      .filter((r) => r.status === 'fulfilled')
+      .map((r) => (r as PromiseFulfilledResult<any>).value);
+
+    res.json({
+      prefix,
+      gcsTotal: gcsFiles.length,
+      inReplitOS: items.filter((i) => i.inReplitOS).length,
+      missing: items.filter((i) => !i.inReplitOS).length,
+      items,
+      timestamp: new Date().toISOString(),
+    });
   });
 
   // ── /api/objects/resolve – legacy UUID resolver ──

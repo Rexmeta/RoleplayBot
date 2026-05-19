@@ -217,6 +217,29 @@ export async function getSignedUrl(objectPath: string): Promise<{ url: string; e
   return { url, expiresIn: GCS_URL_TTL };
 }
 
+/**
+ * List all GCS object keys under a given prefix.
+ * Returns an array of { name, size, contentType } objects.
+ * Used for bulk sync operations (does not generate signed URLs).
+ */
+export async function listGCSFilesMeta(prefix: string): Promise<Array<{ name: string; size: number; contentType: string }>> {
+  if (!GCS_BUCKET_NAME) return [];
+  try {
+    const storage = getStorageClient();
+    const [files] = await storage.bucket(GCS_BUCKET_NAME).getFiles({ prefix });
+    return files
+      .filter((f) => !f.name.endsWith('/'))
+      .map((f) => ({
+        name: f.name,
+        size: Number((f.metadata as any).size || 0),
+        contentType: (f.metadata as any).contentType || 'application/octet-stream',
+      }));
+  } catch (error) {
+    console.error(`[GCS] Failed to list files with prefix "${prefix}":`, error);
+    return [];
+  }
+}
+
 export async function downloadBufferFromGCS(objectPath: string): Promise<Buffer | null> {
   if (!GCS_BUCKET_NAME) return null;
   try {
@@ -229,6 +252,27 @@ export async function downloadBufferFromGCS(objectPath: string): Promise<Buffer 
     return buffer;
   } catch (error) {
     console.error(`[GCS] Failed to download buffer: ${objectPath}`, error);
+    return null;
+  }
+}
+
+/**
+ * Download a GCS object and return its buffer along with the actual contentType
+ * reported by GCS metadata (more reliable than extension-based inference).
+ */
+export async function downloadBufferWithMetaFromGCS(objectPath: string): Promise<{ buffer: Buffer; contentType: string } | null> {
+  if (!GCS_BUCKET_NAME) return null;
+  try {
+    const storage = getStorageClient();
+    const bucket = storage.bucket(GCS_BUCKET_NAME);
+    const file = bucket.file(objectPath);
+    const [exists] = await file.exists();
+    if (!exists) return null;
+    const [[buffer], [metadata]] = await Promise.all([file.download(), file.getMetadata()]);
+    const contentType = (metadata as any).contentType || 'application/octet-stream';
+    return { buffer, contentType };
+  } catch (error) {
+    console.error(`[GCS] Failed to download buffer with meta: ${objectPath}`, error);
     return null;
   }
 }
