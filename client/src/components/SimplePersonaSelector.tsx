@@ -40,7 +40,8 @@ export function SimplePersonaSelector({
   const { t } = useTranslation();
   const currentLang = i18n.language || 'ko';
   const [activeTab, setActiveTab] = useState("overview");
-  const availablePersonas = personas.filter(p => !completedPersonaIds.includes(p.id));
+  const normalizedCompletedIds = completedPersonaIds.map(id => id.toLowerCase());
+  const availablePersonas = personas.filter(p => !normalizedCompletedIds.includes(p.id.toLowerCase()));
   const completedCount = completedPersonaIds.length;
   const totalCount = personas.length;
   const progressPercentage = Math.round((completedCount / totalCount) * 100);
@@ -434,7 +435,7 @@ export function SimplePersonaSelector({
             {/* 페르소나 목록 - 소형화면(sm미만) 1열, 그 이상 2열 */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               {personas.map((persona) => {
-                const isCompleted = completedPersonaIds.includes(persona.id);
+                const isCompleted = normalizedCompletedIds.includes(persona.id.toLowerCase());
                 const isCurrentlyLoading = loadingPersonaId === persona.id;
                 const isAvailable = !isCompleted && !isLoading;
 

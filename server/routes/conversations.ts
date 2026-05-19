@@ -110,7 +110,17 @@ export default function createConversationsRouter(isAuthenticated: any) {
       throw new Error(`Scenario not found: ${validatedData.scenarioId}`);
     }
 
-    const scenarioPersona = scenarioObj.personas.find((p: any) => p.id === personaId) as any;
+    let scenarioPersona = scenarioObj.personas.find((p: any) => p.id === personaId) as any;
+    if (!scenarioPersona) {
+      const normalizedPersonaId = personaId.toLowerCase();
+      scenarioPersona = scenarioObj.personas.find((p: any) =>
+        p.id?.toLowerCase() === normalizedPersonaId ||
+        p.personaRef?.replace('.json', '').toLowerCase() === normalizedPersonaId
+      ) as any;
+      if (scenarioPersona) {
+        console.warn(`[conversations] Persona ID fallback matched: requested="${personaId}", matched="${scenarioPersona.id}"`);
+      }
+    }
     if (!scenarioPersona) {
       throw new Error(`Persona not found in scenario: ${personaId}`);
     }
@@ -234,9 +244,13 @@ export default function createConversationsRouter(isAuthenticated: any) {
         background: mbtiPersonaAny?.background?.personal_values?.join(', ') || mbtiPersonaAny?.background?.personalValues?.join(', ') || '전문성'
       };
 
+      const allScenarioPersonas = (scenarioObj.personas || []) as any[];
+      const primaryPersonaIdx = allScenarioPersonas.findIndex((p: any) => p.isPrimary === true);
       const scenarioWithUserDifficulty = {
         ...scenarioObj,
-        difficulty: validatedData.difficulty || 4
+        difficulty: validatedData.difficulty || 4,
+        allPersonas: allScenarioPersonas.length > 1 ? allScenarioPersonas : undefined,
+        activePersonaIndex: primaryPersonaIdx >= 0 ? primaryPersonaIdx : 0,
       };
 
       const userLanguage = (user?.preferredLanguage as 'ko' | 'en' | 'ja' | 'zh') || 'ko';
@@ -672,7 +686,17 @@ ${userNameLine}
       if (!scenarioObj) throw new Error(`Scenario not found: ${scenarioRun!.scenarioId}`);
       scenarioObjRef = scenarioObj; // hoist for auto-feedback
 
-      const scenarioPersona: any = scenarioObj.personas.find((p: any) => p.id === personaId);
+      let scenarioPersona: any = scenarioObj.personas.find((p: any) => p.id === personaId);
+      if (!scenarioPersona) {
+        const normalizedPersonaId = personaId.toLowerCase();
+        scenarioPersona = scenarioObj.personas.find((p: any) =>
+          p.id?.toLowerCase() === normalizedPersonaId ||
+          p.personaRef?.replace('.json', '').toLowerCase() === normalizedPersonaId
+        );
+        if (scenarioPersona) {
+          console.warn(`[conversations/messages] Persona ID fallback matched: requested="${personaId}", matched="${scenarioPersona.id}"`);
+        }
+      }
       if (!scenarioPersona) throw new Error(`Persona not found in scenario: ${personaId}`);
 
       const mbtiType = scenarioPersona.personaRef?.replace('.json', '');

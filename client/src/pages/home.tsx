@@ -1112,7 +1112,7 @@ export default function Home() {
                       if (runData?.personaRuns) {
                         const serverCompletedIds = (runData.personaRuns as Array<{ status: string; personaId: string }>)
                           .filter(pr => pr.status === 'completed')
-                          .map(pr => pr.personaId);
+                          .map(pr => pr.personaId.toLowerCase());
                         setCompletedPersonaIds(serverCompletedIds);
                       }
                     } catch (e) {

@@ -10,6 +10,7 @@ interface VideoIntroProps {
 
 export function VideoIntro({ videoSrc, onComplete, onSkip, preloadImageUrl }: VideoIntroProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
+  const didSkipRef = useRef(false);
   const [isLoading, setIsLoading] = useState(true);
   const [showSkip, setShowSkip] = useState(false);
   const [isFadingIn, setIsFadingIn] = useState(true);
@@ -52,7 +53,11 @@ export function VideoIntro({ videoSrc, onComplete, onSkip, preloadImageUrl }: Vi
     const video = videoRef.current;
     if (!video) return;
 
+    let canPlayFired = false;
+
     const handleCanPlay = () => {
+      canPlayFired = true;
+      clearTimeout(loadTimeoutTimer);
       setIsLoading(false);
       video.play().catch(() => {
         setShowSkip(true);
@@ -67,7 +72,12 @@ export function VideoIntro({ videoSrc, onComplete, onSkip, preloadImageUrl }: Vi
     };
 
     const handleError = () => {
-      onSkip();
+      if (didSkipRef.current) return;
+      didSkipRef.current = true;
+      setIsFadingOut(true);
+      setTimeout(() => {
+        onSkip();
+      }, 500);
     };
 
     video.addEventListener("canplay", handleCanPlay);
@@ -78,15 +88,29 @@ export function VideoIntro({ videoSrc, onComplete, onSkip, preloadImageUrl }: Vi
       setShowSkip(true);
     }, 2000);
 
+    const loadTimeoutTimer = setTimeout(() => {
+      if (!canPlayFired && !didSkipRef.current) {
+        didSkipRef.current = true;
+        console.warn('VideoIntro: 8초 내에 영상이 로드되지 않아 자동 건너뜁니다.');
+        setIsFadingOut(true);
+        setTimeout(() => {
+          onSkip();
+        }, 500);
+      }
+    }, 8000);
+
     return () => {
       video.removeEventListener("canplay", handleCanPlay);
       video.removeEventListener("ended", handleEnded);
       video.removeEventListener("error", handleError);
       clearTimeout(skipTimer);
+      clearTimeout(loadTimeoutTimer);
     };
   }, [onSkip]);
 
   const handleSkip = () => {
+    if (didSkipRef.current) return;
+    didSkipRef.current = true;
     setIsFadingOut(true);
     setTimeout(() => {
       onSkip();
