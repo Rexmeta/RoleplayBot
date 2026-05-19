@@ -61,6 +61,7 @@ export default function Home() {
   const [selectedDifficulty, setSelectedDifficulty] = useState<number>(4); // 사용자가 선택한 난이도 (기본값: 4)
   const [isResuming, setIsResuming] = useState(false); // 대화 재개 중 상태
   const [isVideoTransitioning, setIsVideoTransitioning] = useState(false); // 인트로 영상 → 대화 전환 중 상태
+  const [hasSeenIntroVideo, setHasSeenIntroVideo] = useState(false); // 현재 시나리오 세션에서 인트로 영상 시청 여부
   const [isFeedbackGenerating, setIsFeedbackGenerating] = useState(false); // 피드백 생성 중 상태
   const [isTransitioningToFeedback, setIsTransitioningToFeedback] = useState(false); // 대화 종료 → 피드백 전환 중 상태
   const [autoGenerateFeedback, setAutoGenerateFeedback] = useState(false); // 대화 종료 후 자동 피드백 생성 여부
@@ -248,6 +249,7 @@ export default function Home() {
               mode: "realtime_voice" as const,
               difficulty: userSelectedDifficulty,
               forceNewRun: scenarioRunIdParam === null,
+              scenarioRunId: scenarioRunIdParam ?? undefined,
             };
             
             apiRequest("POST", "/api/conversations", conversationData)
@@ -344,6 +346,7 @@ export default function Home() {
     setCompletedPersonaIds([]);
     setConversationIds([]);
     setSelectedDifficulty(4); // 기본 난이도로 리셋
+    setHasSeenIntroVideo(false);
   };
 
   const getDifficultyDescription = (level: number): string => {
@@ -372,6 +375,7 @@ export default function Home() {
     try {
       console.log(`🕐 CLIENT CODE TIMESTAMP: ${Date.now()} - UPDATED VERSION`);
       
+      const isNewRun = scenarioRunId === null;
       const conversationData = {
         scenarioId: selectedScenario.id,
         personaId: persona.id,
@@ -382,7 +386,8 @@ export default function Home() {
         status: "active" as const,
         mode: "realtime_voice" as const,
         difficulty: userSelectedDifficulty, // 사용자가 선택한 난이도
-        forceNewRun: scenarioRunId === null, // ✨ scenarioRunId가 null이면 새 scenario_run 생성
+        forceNewRun: isNewRun, // ✨ scenarioRunId가 null이면 새 scenario_run 생성
+        scenarioRunId: scenarioRunId ?? undefined, // ✨ 기존 scenarioRunId가 있으면 서버에 전달
       };
       
       console.log('📤 [NEW CODE] Creating conversation with mode:', conversationData.mode);
@@ -397,8 +402,8 @@ export default function Home() {
       setConversationId(conversation.id);
       setScenarioRunId(conversation.scenarioRunId); // scenarioRunId 저장
       
-      // 시나리오에 인트로 영상이 있으면 영상 먼저 보여주기
-      if (selectedScenario.introVideoUrl) {
+      // 인트로 영상: 시나리오에 영상이 있고 아직 시청하지 않은 경우에만 표시
+      if (selectedScenario.introVideoUrl && !hasSeenIntroVideo) {
         setCurrentView("video-intro");
       } else {
         setCurrentView("chat");
@@ -418,6 +423,7 @@ export default function Home() {
 
   // 영상 인트로 완료 후 대화 시작
   const handleVideoComplete = () => {
+    setHasSeenIntroVideo(true);
     setIsVideoTransitioning(true);
     // 오버레이가 확실히 렌더링된 후 view 변경 (다음 프레임에서 실행)
     requestAnimationFrame(() => {
@@ -440,6 +446,7 @@ export default function Home() {
 
   // 영상 건너뛰기
   const handleVideoSkip = () => {
+    setHasSeenIntroVideo(true);
     setIsVideoTransitioning(true);
     // 오버레이가 확실히 렌더링된 후 view 변경 (다음 프레임에서 실행)
     requestAnimationFrame(() => {
@@ -504,6 +511,7 @@ export default function Home() {
     setConversationIds([]);
     setStrategyReflectionSubmitted(false);
     setStrategyEvaluation(null);
+    setHasSeenIntroVideo(false);
   };
 
   // 재도전을 위한 새로운 대화 생성
@@ -1094,8 +1102,23 @@ export default function Home() {
               onSelectNewScenario={handleReturnToScenarios}
               hasMorePersonas={hasMorePersonas}
               allPersonasCompleted={allPersonasCompleted && !strategyReflectionSubmitted}
-              onNextPersona={() => {
+              onNextPersona={async () => {
                 if (hasMorePersonas) {
+                  // 서버에서 완료된 페르소나 목록을 재동기화해 클라이언트 상태 불일치 방지
+                  if (scenarioRunId) {
+                    try {
+                      const res = await apiRequest('GET', `/api/scenario-runs/${scenarioRunId}`);
+                      const runData = await res.json();
+                      if (runData?.personaRuns) {
+                        const serverCompletedIds = (runData.personaRuns as Array<{ status: string; personaId: string }>)
+                          .filter(pr => pr.status === 'completed')
+                          .map(pr => pr.personaId);
+                        setCompletedPersonaIds(serverCompletedIds);
+                      }
+                    } catch (e) {
+                      console.warn('완료 페르소나 동기화 실패, 클라이언트 상태 유지:', e);
+                    }
+                  }
                   setCurrentView("persona-selection");
                 } else if (allPersonasCompleted && !strategyReflectionSubmitted && totalPersonas >= 2) {
                   setCurrentView("strategy-reflection");

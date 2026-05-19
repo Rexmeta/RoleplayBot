@@ -16,6 +16,7 @@ export interface ISessionsStorage {
   getUserScenarioRuns(userId: string): Promise<ScenarioRun[]>;
   getAllScenarioRuns(): Promise<ScenarioRun[]>;
   findActiveScenarioRun(userId: string, scenarioId: string): Promise<ScenarioRun | undefined>;
+  abandonActiveScenarioRuns(userId: string, scenarioId: string): Promise<void>;
   getUserScenarioRunsWithPersonaRuns(userId: string): Promise<ScenarioRunWithPersonaRuns[]>;
   getScenarioRunWithPersonaRuns(id: string): Promise<ScenarioRunWithPersonaRuns | undefined>;
 
@@ -80,6 +81,13 @@ export function SessionsMixin<TBase extends Constructor>(Base: TBase) {
         .orderBy(desc(scenarioRuns.startedAt))
         .limit(1);
       return activeRun;
+    }
+
+    async abandonActiveScenarioRuns(userId: string, scenarioId: string): Promise<void> {
+      await db
+        .update(scenarioRuns)
+        .set({ status: 'abandoned' })
+        .where(and(eq(scenarioRuns.userId, userId), eq(scenarioRuns.scenarioId, scenarioId), eq(scenarioRuns.status, 'active')));
     }
 
     async getUserScenarioRunsWithPersonaRuns(userId: string): Promise<(ScenarioRun & { personaRuns: PersonaRun[] })[]> {
@@ -288,6 +296,7 @@ export class MemSessionsStorage implements ISessionsStorage {
   async getUserScenarioRuns(_: string): Promise<ScenarioRun[]> { throw new Error("MemStorage does not support Scenario Runs"); }
   async getAllScenarioRuns(): Promise<ScenarioRun[]> { throw new Error("MemStorage does not support Scenario Runs"); }
   async findActiveScenarioRun(_: string, __: string): Promise<ScenarioRun | undefined> { throw new Error("MemStorage does not support Scenario Runs"); }
+  async abandonActiveScenarioRuns(_: string, __: string): Promise<void> { }
   async getUserScenarioRunsWithPersonaRuns(_: string): Promise<ScenarioRunWithPersonaRuns[]> { throw new Error("MemStorage does not support Scenario Runs"); }
   async getScenarioRunWithPersonaRuns(_: string): Promise<ScenarioRunWithPersonaRuns | undefined> { throw new Error("MemStorage does not support Scenario Runs"); }
   async createPersonaRun(_: InsertPersonaRun): Promise<PersonaRun> { throw new Error("MemStorage does not support Persona Runs"); }

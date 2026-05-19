@@ -51,12 +51,23 @@ export default function createConversationsRouter(isAuthenticated: any) {
     const validatedData = insertConversationSchema.parse(req.body);
 
     const forceNewRun = req.body.forceNewRun === true;
+    const providedScenarioRunId = req.body.scenarioRunId as string | undefined;
 
     let scenarioRun;
 
     if (forceNewRun) {
-      console.log(`🆕 forceNewRun=true, 새 Scenario Run 강제 생성`);
+      console.log(`🆕 forceNewRun=true, 기존 active 세션 정리 후 새 Scenario Run 강제 생성`);
+      await storage.abandonActiveScenarioRuns(userId, validatedData.scenarioId);
       scenarioRun = null;
+    } else if (providedScenarioRunId) {
+      const candidateRun = await storage.getScenarioRun(providedScenarioRunId);
+      if (candidateRun && candidateRun.userId === userId && candidateRun.status === 'active' && candidateRun.scenarioId === validatedData.scenarioId) {
+        scenarioRun = candidateRun;
+        console.log(`🎯 클라이언트 제공 scenarioRunId 직접 사용: ${scenarioRun.id}`);
+      } else {
+        console.warn(`⚠️ 제공된 scenarioRunId(${providedScenarioRunId})가 유효하지 않음, findActiveScenarioRun으로 폴백`);
+        scenarioRun = await storage.findActiveScenarioRun(userId, validatedData.scenarioId);
+      }
     } else {
       scenarioRun = await storage.findActiveScenarioRun(userId, validatedData.scenarioId);
     }
