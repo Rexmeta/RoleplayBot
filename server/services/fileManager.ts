@@ -203,6 +203,7 @@ export class FileManagerService {
       targetDurationMinutes: dbScenario.targetDurationMinutes ?? 7,
       targetTurns: dbScenario.targetTurns ?? 10,
       minValidTurns: dbScenario.minValidTurns ?? 4,
+      personaSwitchMode: dbScenario.personaSwitchMode || undefined,
     };
   }
   
@@ -357,6 +358,7 @@ export class FileManagerService {
         targetDurationMinutes: scenario.targetDurationMinutes ?? 7,
         targetTurns: scenario.targetTurns ?? 10,
         minValidTurns: scenario.minValidTurns ?? 4,
+        personaSwitchMode: scenario.personaSwitchMode ?? null,
       });
       this.invalidateScenarioCountCache();
       return newScenario;
@@ -407,6 +409,7 @@ export class FileManagerService {
         if (scenario.targetDurationMinutes !== undefined) updates.targetDurationMinutes = scenario.targetDurationMinutes;
         if (scenario.targetTurns !== undefined) updates.targetTurns = scenario.targetTurns;
         if (scenario.minValidTurns !== undefined) updates.minValidTurns = scenario.minValidTurns;
+        if (scenario.personaSwitchMode !== undefined) updates.personaSwitchMode = scenario.personaSwitchMode;
         
         console.log(`[FileManager.updateScenario] updates.image=${updates.image}`);
         console.log(`[FileManager.updateScenario] updates.introVideoUrl=${updates.introVideoUrl}`);

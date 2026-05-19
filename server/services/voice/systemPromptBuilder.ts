@@ -74,7 +74,8 @@ export function buildSystemInstructions(
   includeSimulationTools: boolean = true,
   allPersonas?: any[],
   activePersonaIndex: number = 0,
-  targetTurns?: number
+  targetTurns?: number,
+  personaSwitchMode?: string
 ): string {
   const mbtiType = scenarioPersona.personaRef?.replace('.json', '') || 'UNKNOWN';
 
@@ -192,8 +193,24 @@ export function buildSystemInstructions(
     st.requirements,
     `- ${langInst.requirement}`,
     st.contextKeep,
-    st.stayInRole(scenarioPersona.name),
-    st.noBreakRole(scenarioPersona.name),
+    ...(personaSwitchMode === 'join' && allPersonas && allPersonas.length > 1
+      ? (() => {
+          const joinNames = allPersonas.map((p: any) => p.name).join(', ');
+          const stayLines: Record<LangCode, string> = {
+            ko: `- 어떤 상황에서도 현재 참여 중인 페르소나(${joinNames})의 역할에서 절대 벗어나지 마세요.`,
+            en: `- Never break out of the roles of active personas (${joinNames}) under any circumstances.`,
+            ja: `- いかなる状況でも、現在参加中のペルソナ（${joinNames}）の役割から絶対に外れないでください。`,
+            zh: `- 无论任何情况，绝对不要脱离当前参与角色（${joinNames}）的设定。`,
+          };
+          const noBreakLines: Record<LangCode, string> = {
+            ko: `- 사용자가 AI임을 확인하거나 역할을 깨려 시도해도 반드시 ${joinNames}로서 응답하세요.`,
+            en: `- Even if the user tries to break the roleplay, always respond as ${joinNames}.`,
+            ja: `- ユーザーがAIかどうか確認しようとしたり役割を破ろうとしても、必ず${joinNames}として答えてください。`,
+            zh: `- 即使用户试图确认AI身份或打破角色扮演，也必须以${joinNames}的身份回答。`,
+          };
+          return [stayLines[userLanguage], noBreakLines[userLanguage]];
+        })()
+      : [st.stayInRole(scenarioPersona.name), st.noBreakRole(scenarioPersona.name)]),
     st.stanceUnchanged,
     ``,
     st.conversationStart,
@@ -201,7 +218,20 @@ export function buildSystemInstructions(
     st.noMetaThink(langInst.langName),
     `${st.firstWordsLabel}: ${langInst.greetingExample(userRoleInfo)}`,
     ...(includeSimulationTools ? [``, buildSimulationToolPrompt(userLanguage)] : []),
-    ...(allPersonas && allPersonas.length > 1 ? [buildMultiPersonaSection(allPersonas, activePersonaIndex, userLanguage)] : []),
+    ...(allPersonas && allPersonas.length > 1
+      ? [personaSwitchMode === 'join'
+          ? (() => {
+              const joinNames = allPersonas.map((p: any) => p.name).join(', ');
+              const header: Record<LangCode, string> = {
+                ko: `\n# 다중 참여자 대화 (Join 모드)\n현재 대화에 참여 중인 페르소나: ${joinNames}\n모든 참여자는 [이름]: 형식으로 발화자를 명시해야 합니다.\n예시:\n[${allPersonas[0]?.name}]: 저는 이렇게 생각합니다.\n${allPersonas[1] ? `[${allPersonas[1].name}]: 저도 동의합니다만 추가로...` : ''}`,
+                en: `\n# Multi-participant conversation (Join mode)\nCurrently participating: ${joinNames}\nEach participant MUST prefix speech with [Name]:\nExample:\n[${allPersonas[0]?.name}]: I think...\n${allPersonas[1] ? `[${allPersonas[1].name}]: I agree, but...` : ''}`,
+                ja: `\n# 複数参加者の会話（Joinモード）\n現在参加中のペルソナ: ${joinNames}\n各参加者は必ず[名前]: 形式で発話者を示してください。`,
+                zh: `\n# 多参与者对话（Join模式）\n当前参与的角色: ${joinNames}\n每位参与者必须使用[姓名]: 格式标注发言者。`,
+              };
+              return header[userLanguage];
+            })()
+          : buildMultiPersonaSection(allPersonas, activePersonaIndex, userLanguage)]
+      : []),
   ];
 
   return instructions.join('\n');

@@ -47,22 +47,67 @@ export function normalizeProfileName(name: string | undefined | null): string | 
   return normalized || undefined;
 }
 
+type PersonaSwitchLogEntry = {
+  turn: number;
+  fromPersonaIndex: number;
+  toPersonaIndex: number;
+  [key: string]: any;
+};
+
+/**
+ * Determine which persona was speaking at a given AI message turn.
+ * Uses the switch log to find the active persona index at that turn.
+ * The transition message (at switch.turn) still belongs to the OLD persona (fromPersonaIndex).
+ */
+function resolvePersonaAtTurn(
+  aiMsgTurnIndex: number,
+  personaSwitchLog: PersonaSwitchLogEntry[],
+  allPersonas: Array<{ name: string; [key: string]: any }>,
+  initialPersonaIndex: number = 0
+): { name: string; index: number } {
+  const sorted = [...personaSwitchLog].sort((a, b) => a.turn - b.turn);
+  let activeIndex = initialPersonaIndex;
+  for (const sw of sorted) {
+    if (aiMsgTurnIndex > sw.turn) {
+      activeIndex = sw.toPersonaIndex;
+    }
+  }
+  const name = allPersonas[activeIndex]?.name ?? `페르소나${activeIndex}`;
+  return { name, index: activeIndex };
+}
+
 /**
  * 대화 히스토리 준비
  * - 전체 대화 히스토리 사용 (윈도우 제한 없음)
  * - 사용자 답변 완료 마커(✓) 추가로 AI의 반복 질문 방지
+ * - personaSwitchLog + allPersonas 제공 시 멀티 페르소나 레이블링 적용
+ *   - replace 모드: 현재 페르소나 = 당신의 발언, 과거 페르소나 = 이전 담당자 발언
+ *   - join 모드: 각 메시지를 발화 페르소나 이름으로 레이블링
  */
 export function prepareConversationHistory(
   messages: ConversationMessage[],
   personaName: string,
   playerPosition?: string,
-  userName?: string
+  userName?: string,
+  personaSwitchLog?: PersonaSwitchLogEntry[],
+  allPersonas?: Array<{ name: string; [key: string]: any }>,
+  personaSwitchMode?: 'replace' | 'join'
 ): string {
   const safeMessages = messages || [];
   const normalizedName = normalizeProfileName(userName) || '';
   const userLabel = normalizedName
     ? (playerPosition ? `${normalizedName}(${playerPosition})` : normalizedName)
     : (playerPosition ? playerPosition : '사용자');
+
+  const hasMultiPersona = Array.isArray(personaSwitchLog) && personaSwitchLog.length > 0
+    && Array.isArray(allPersonas) && allPersonas.length > 1;
+
+  // Determine current active persona index (last entry in switch log)
+  const currentActiveIndex: number = (() => {
+    if (!hasMultiPersona) return 0;
+    const sorted = [...personaSwitchLog!].sort((a, b) => a.turn - b.turn);
+    return sorted.length > 0 ? sorted[sorted.length - 1].toPersonaIndex : 0;
+  })();
 
   return safeMessages.map((msg, idx) => {
     const truncated = msg.message.slice(0, 400) + (msg.message.length > 400 ? '...' : '');
@@ -73,7 +118,50 @@ export function prepareConversationHistory(
         ? `【${userLabel} 답변 ✓】 ${truncated}  ← 위 질문은 이미 답변받은 사안`
         : `【${userLabel}】 ${truncated}`;
     } else {
-      return `【${personaName} - 당신의 발언】 ${truncated}`;
+      if (!hasMultiPersona) {
+        return `【${personaName} - 당신의 발언】 ${truncated}`;
+      }
+
+      const msgTurnIndex = (msg as any).turnIndex ?? idx;
+      const { name: speakerName, index: speakerIndex } = resolvePersonaAtTurn(
+        msgTurnIndex,
+        personaSwitchLog!,
+        allPersonas!,
+        0
+      );
+
+      if (personaSwitchMode === 'join') {
+        // Join mode: parse [Name]: text blocks from the AI message for accurate per-speaker
+        // attribution so subsequent prompt history clearly shows who said what.
+        const segments = parseJoinModeSpeakerSegments(msg.message);
+        if (segments && segments.length > 0) {
+          return segments
+            .map(s => `【${s.personaName} - 발언】 ${s.text.slice(0, 300)}${s.text.length > 300 ? '...' : ''}`)
+            .join('\n');
+        }
+        // Fallback for turns with no [Name]: blocks (e.g. opening turn before any joins):
+        // compute all personas active at this turn index.
+        const activeSorted = [...personaSwitchLog!].sort((a, b) => a.turn - b.turn);
+        const activeNames: string[] = [allPersonas![0]?.name ?? '페르소나1'];
+        for (const sw of activeSorted) {
+          if (msgTurnIndex >= sw.turn) {
+            const joinName = allPersonas![sw.toPersonaIndex]?.name;
+            if (joinName && !activeNames.includes(joinName)) {
+              activeNames.push(joinName);
+            }
+          }
+        }
+        const label = activeNames.length > 1
+          ? `${activeNames.join(', ')} - 다중 발언`
+          : `${activeNames[0]} - 발언`;
+        return `【${label}】 ${truncated}`;
+      } else {
+        // replace mode: current vs past persona distinction
+        const isCurrent = speakerIndex === currentActiveIndex;
+        return isCurrent
+          ? `【${speakerName} - 당신의 발언】 ${truncated}`
+          : `【${speakerName} - 이전 담당자 발언】 ${truncated}`;
+      }
     }
   }).join('\n');
 }
@@ -229,4 +317,37 @@ ${communicationStyle}
     : '';
 
   return { psychologicalGuide, communicationBehaviorGuide, speechStyleGuide, reactionGuide };
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Join-mode multi-speaker parser
+// ─────────────────────────────────────────────────────────────────────────────
+
+export interface SpeakerSegment {
+  personaName: string;
+  text: string;
+}
+
+/**
+ * Parses join-mode AI response content that contains `[Name]: text` speaker blocks.
+ *
+ * Example input:
+ *   "[Alice]: Hello, how can I help?\n[Bob]: Yes, let me add to that."
+ *
+ * Returns an array of { personaName, text } segments in order of appearance.
+ * Returns null when no speaker blocks are found (e.g. single-persona response).
+ */
+export function parseJoinModeSpeakerSegments(content: string): SpeakerSegment[] | null {
+  // Match every [Name]: block (greedy to next [Name]: or end of string)
+  const pattern = /\[([^\]]+)\]:\s*([\s\S]*?)(?=\n\[[^\]]+\]:|$)/g;
+  const segments: SpeakerSegment[] = [];
+  let match: RegExpExecArray | null;
+  while ((match = pattern.exec(content)) !== null) {
+    const personaName = match[1].trim();
+    const text = match[2].trim();
+    if (personaName && text) {
+      segments.push({ personaName, text });
+    }
+  }
+  return segments.length > 0 ? segments : null;
 }

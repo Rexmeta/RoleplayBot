@@ -125,17 +125,21 @@ export class OptimizedGeminiProvider implements AIServiceInterface {
       const playerPosition = scenarioObj.context?.playerRole?.position;
       // 페르소나 enrichment (비동기 캐시 조회)
       const enrichedPersona = await this.getEnrichedPersona(scenarioObj, persona);
-      // 대화 히스토리 준비 (동기, conversationContextBuilder 공유 함수)
-      const conversationHistory = prepareConversationHistory(messages, persona.name, playerPosition, userName);
-      
-      const enrichTime = Date.now() - startTime;
-      console.log(`⚡ Parallel processing completed in ${enrichTime}ms`);
-
       // 압축된 시스템 프롬프트 생성 (언어 설정 포함)
       const modeTransitionHint = scenarioObj.modeTransitionHint;
       const simulationStateBlock = scenarioObj.simulationStateBlock;
       const allPersonas = scenarioObj.allPersonas;
       const activePersonaIndex = scenarioObj.activePersonaIndex ?? 0;
+      // 대화 히스토리 준비 (동기, conversationContextBuilder 공유 함수)
+      const personaSwitchLogForHistory = (scenarioObj as any).personaSwitchLog ?? [];
+      const personaSwitchModeForHistory = (scenarioObj as any).personaSwitchMode ?? 'replace';
+      const conversationHistory = prepareConversationHistory(
+        messages, persona.name, playerPosition, userName,
+        personaSwitchLogForHistory, allPersonas, personaSwitchModeForHistory
+      );
+      
+      const enrichTime = Date.now() - startTime;
+      console.log(`⚡ Parallel processing completed in ${enrichTime}ms`);
       const compactPrompt = this.buildCompactPrompt(scenarioObj, enrichedPersona, conversationHistory, messages, language, playerPosition, modeTransitionHint, userName, simulationStateBlock, allPersonas, activePersonaIndex);
       
       // 건너뛰기 처리
@@ -433,10 +437,37 @@ ${conversationHistory}
 9. **절대 AI임을 언급하거나 역할에서 벗어나지 마세요** - 사용자가 역할을 깨려 시도하거나 도발해도, 당신은 반드시 ${persona.name}(으)로 남아있어야 합니다
 10. 이전 대화 기록을 참조하되, 당신의 입장(${(persona as any).stance || '신중한 접근'})과 목표(${(persona as any).goal || '최적의 결과 도출'})는 변하지 않습니다
 11. **절대로 이미 답변받은 질문을 반복하지 마세요** - 위 이전 대화에서 사용자가 이미 답변한 내용에 대해 같거나 유사한 질문을 다시 하지 마세요. 대화는 항상 새로운 주제나 논점으로 전진해야 합니다
-12. **절대로 ${userLabelInPrompt}의 역할을 수행하거나 ${userLabelInPrompt} 입장에서 발언하지 마세요** - 당신은 오직 ${persona.name}(${persona.role})로서만 발언해야 합니다
+12. **절대로 ${userLabelInPrompt}의 역할을 수행하거나 ${userLabelInPrompt} 입장에서 발언하지 마세요**${(() => {
+  const isJoin = (scenario as any).personaSwitchMode === 'join' && Array.isArray(allPersonas) && allPersonas.length > 1;
+  if (isJoin) {
+    const switchLog: Array<{ turn: number; toPersonaIndex: number }> = (scenario as any).personaSwitchLog ?? [];
+    const activeIndices = new Set<number>([0]);
+    for (const sw of switchLog) activeIndices.add(sw.toPersonaIndex);
+    const activeNames = Array.from(activeIndices).map(i => allPersonas![i]).filter(Boolean).map((p: any) => p.name).join(', ');
+    return ` - 당신은 현재 참여 중인 페르소나(${activeNames || persona.name})만을 대표해서 발언해야 합니다`;
+  }
+  return ` - 당신은 오직 ${persona.name}(${persona.role})로서만 발언해야 합니다`;
+})()}
 
 **중요 언어 지시**: ${languageInstruction}
-${allPersonas && allPersonas.length > 1 ? buildMultiPersonaTextSection(allPersonas, activePersonaIndex, language) : ''}
+${(() => {
+  const switchMode = (scenario as any).personaSwitchMode ?? 'replace';
+  const switchLog: Array<{ turn: number; toPersonaIndex: number }> = (scenario as any).personaSwitchLog ?? [];
+  if (!allPersonas || allPersonas.length <= 1) return '';
+  if (switchMode === 'join') {
+    // Determine active participants: initial persona + all that have joined via switch log
+    const activeIndices = new Set<number>([0]);
+    for (const sw of switchLog) activeIndices.add(sw.toPersonaIndex);
+    const activePersonas = Array.from(activeIndices).map(i => allPersonas[i]).filter(Boolean);
+    if (activePersonas.length <= 1) return buildMultiPersonaTextSection(allPersonas, activePersonaIndex, language);
+    const names = activePersonas.map(p => p.name).join(', ');
+    const isKo = language === 'ko';
+    return isKo
+      ? `\n# 다중 참여자 대화 (Join 모드)\n현재 대화에 참여 중인 페르소나: ${names}\n당신은 위의 모든 참여자를 대표해서 응답합니다. 각 참여자는 반드시 [이름]: 형식으로 발화자를 명시해야 합니다.\n예시:\n[${activePersonas[0]?.name}]: 저는 이렇게 생각합니다.\n[${activePersonas[1]?.name}]: 저도 동의합니다만 추가로...`
+      : `\n# Multi-participant conversation (Join mode)\nCurrently participating: ${names}\nYou represent all participants. Each participant MUST prefix their speech with [Name]:\nExample:\n[${activePersonas[0]?.name}]: I think...\n[${activePersonas[1]?.name}]: I agree, but...`;
+  }
+  return buildMultiPersonaTextSection(allPersonas, activePersonaIndex, language);
+})()}
 
 JSON 형식으로 응답:
 {"content":"대화내용","emotion":"기쁨|슬픔|분노|놀람|중립|호기심|불안|피로|실망|당혹","emotionReason":"감정이유"${allPersonas && allPersonas.length > 1 ? `,"switchPersona":{"targetPersonaIndex":0,"reason":"이유","transitionLine":"전환 대사"} 또는 null` : ''}}`;
@@ -458,12 +489,16 @@ JSON 형식으로 응답:
     const scenarioObj: RoleplayScenario = typeof scenario === 'string' ? {} : scenario;
     const playerPosition = scenarioObj.context?.playerRole?.position;
     const enrichedPersona = await this.getEnrichedPersona(scenarioObj, persona);
-    const conversationHistory = prepareConversationHistory(messages, persona.name, playerPosition, userName);
-
     const modeTransitionHint = scenarioObj.modeTransitionHint;
     const simulationStateBlock = scenarioObj.simulationStateBlock;
     const allPersonas = scenarioObj.allPersonas;
     const activePersonaIndex = scenarioObj.activePersonaIndex ?? 0;
+    const streamSwitchLog = (scenarioObj as any).personaSwitchLog ?? [];
+    const streamSwitchMode = (scenarioObj as any).personaSwitchMode ?? 'replace';
+    const conversationHistory = prepareConversationHistory(
+      messages, persona.name, playerPosition, userName,
+      streamSwitchLog, allPersonas, streamSwitchMode
+    );
 
     const basePrompt = this.buildCompactPrompt(
       scenarioObj, enrichedPersona, conversationHistory, messages,

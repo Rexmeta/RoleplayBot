@@ -1,12 +1,13 @@
 import { useRoute, useLocation } from "wouter";
 import { useQuery } from "@tanstack/react-query";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import PersonalDevelopmentReport from "@/components/PersonalDevelopmentReport";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { useTranslation } from "react-i18next";
 import { useAuth } from "@/hooks/useAuth";
-import { Users, ArrowRight } from "lucide-react";
+import { Users, ArrowRight, Star, TrendingUp, ThumbsUp, AlertCircle, ChevronRight } from "lucide-react";
 
 interface SwitchLogEntry {
   turn: number;
@@ -98,6 +99,103 @@ function PersonaParticipationSummary({ switchLog, scenarioPersonas, totalTurnCou
   );
 }
 
+interface PersonaSegmentFeedback {
+  personaIndex: number;
+  personaName: string;
+  turnStart: number;
+  turnEnd: number;
+  feedback: {
+    overallScore: number | null;
+    summary: string;
+    strengths: string[];
+    improvements: string[];
+    nextSteps: string[];
+  };
+}
+
+function PersonaSegmentFeedbackPanel({ segments }: { segments: PersonaSegmentFeedback[] }) {
+  const { t } = useTranslation();
+  return (
+    <div className="mx-auto max-w-4xl px-4 py-6 space-y-6">
+      {segments.map((seg, i) => (
+        <div key={i} className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
+          <div className="bg-gradient-to-r from-indigo-50 to-purple-50 border-b border-slate-200 px-5 py-3 flex items-center gap-3">
+            <div className="w-8 h-8 rounded-full bg-indigo-600 text-white flex items-center justify-center text-sm font-bold flex-shrink-0">
+              {seg.personaIndex + 1}
+            </div>
+            <div>
+              <div className="font-semibold text-slate-800 text-sm">{seg.personaName}</div>
+              <div className="text-xs text-slate-500">
+                {t('feedback.segment.turns', { defaultValue: `Turn ${seg.turnStart + 1} – ${seg.turnEnd + 1}` })}
+              </div>
+            </div>
+            {seg.feedback.overallScore != null && (
+              <div className="ml-auto flex items-center gap-1">
+                <Star className="w-4 h-4 text-amber-500 fill-amber-500" />
+                <span className="text-lg font-bold text-slate-800">{seg.feedback.overallScore}</span>
+                <span className="text-xs text-slate-400">/100</span>
+              </div>
+            )}
+          </div>
+          <div className="p-5 space-y-4">
+            {seg.feedback.summary && (
+              <p className="text-sm text-slate-600 leading-relaxed">{seg.feedback.summary}</p>
+            )}
+            {seg.feedback.strengths.length > 0 && (
+              <div>
+                <div className="flex items-center gap-1.5 text-green-700 font-medium text-xs mb-2">
+                  <ThumbsUp className="w-3.5 h-3.5" />
+                  {t('feedback.segment.strengths', { defaultValue: '잘한 점' })}
+                </div>
+                <ul className="space-y-1">
+                  {seg.feedback.strengths.map((s, j) => (
+                    <li key={j} className="flex items-start gap-2 text-sm text-slate-700">
+                      <ChevronRight className="w-3.5 h-3.5 text-green-500 mt-0.5 flex-shrink-0" />
+                      {s}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+            {seg.feedback.improvements.length > 0 && (
+              <div>
+                <div className="flex items-center gap-1.5 text-amber-700 font-medium text-xs mb-2">
+                  <TrendingUp className="w-3.5 h-3.5" />
+                  {t('feedback.segment.improvements', { defaultValue: '개선할 점' })}
+                </div>
+                <ul className="space-y-1">
+                  {seg.feedback.improvements.map((s, j) => (
+                    <li key={j} className="flex items-start gap-2 text-sm text-slate-700">
+                      <ChevronRight className="w-3.5 h-3.5 text-amber-500 mt-0.5 flex-shrink-0" />
+                      {s}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+            {seg.feedback.nextSteps.length > 0 && (
+              <div>
+                <div className="flex items-center gap-1.5 text-blue-700 font-medium text-xs mb-2">
+                  <AlertCircle className="w-3.5 h-3.5" />
+                  {t('feedback.segment.nextSteps', { defaultValue: '다음 단계' })}
+                </div>
+                <ul className="space-y-1">
+                  {seg.feedback.nextSteps.map((s, j) => (
+                    <li key={j} className="flex items-start gap-2 text-sm text-slate-700">
+                      <ChevronRight className="w-3.5 h-3.5 text-blue-500 mt-0.5 flex-shrink-0" />
+                      {s}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export default function FeedbackView() {
   const { t } = useTranslation();
   const { user: currentUser } = useAuth();
@@ -120,6 +218,19 @@ export default function FeedbackView() {
     gcTime: 1000 * 60 * 60,
     retry: false,
   });
+
+  const { data: feedbackResult } = useQuery<any>({
+    queryKey: ["/api/conversations", conversationId, "feedback"],
+    enabled: !!conversationId,
+    staleTime: 1000 * 60 * 5,
+    gcTime: 1000 * 60 * 10,
+    retry: false,
+  });
+
+  const personaSegmentFeedbacks: PersonaSegmentFeedback[] =
+    Array.isArray(feedbackResult?.detailedFeedback?.personaSegmentFeedbacks)
+      ? feedbackResult.detailedFeedback.personaSegmentFeedbacks
+      : [];
 
   const isLoading = conversationLoading || (scenarioLoading && !scenarioError);
 
@@ -211,14 +322,54 @@ export default function FeedbackView() {
       {personaSwitchLog.length > 0 && (
         <PersonaParticipationSummary switchLog={personaSwitchLog} scenarioPersonas={scenarioPersonas} totalTurnCount={conversation?.turnCount ?? 0} />
       )}
-      <PersonalDevelopmentReport
-        scenario={effectiveScenario}
-        persona={effectivePersona}
-        conversationId={conversationId || ""}
-        onRetry={() => window.location.reload()}
-        onSelectNewScenario={() => window.location.href = '/home'}
-        isAdminView={isAdminView}
-      />
+      {personaSegmentFeedbacks.length > 0 ? (
+        <Tabs defaultValue="overall" className="w-full">
+          <div className="sticky top-0 z-10 bg-white border-b border-slate-200 shadow-sm">
+            <div className="mx-auto max-w-4xl px-4">
+              <TabsList className="h-11 bg-transparent border-none gap-0 p-0">
+                <TabsTrigger
+                  value="overall"
+                  className="h-11 px-5 rounded-none border-b-2 border-transparent data-[state=active]:border-indigo-600 data-[state=active]:text-indigo-700 data-[state=active]:bg-transparent text-sm font-medium text-slate-500"
+                >
+                  전체 종합
+                </TabsTrigger>
+                <TabsTrigger
+                  value="per-persona"
+                  className="h-11 px-5 rounded-none border-b-2 border-transparent data-[state=active]:border-indigo-600 data-[state=active]:text-indigo-700 data-[state=active]:bg-transparent text-sm font-medium text-slate-500"
+                >
+                  <Users className="w-3.5 h-3.5 mr-1.5" />
+                  페르소나별
+                  <Badge variant="outline" className="ml-1.5 text-[10px] px-1.5 py-0 h-4 border-indigo-300 text-indigo-600">
+                    {personaSegmentFeedbacks.length}
+                  </Badge>
+                </TabsTrigger>
+              </TabsList>
+            </div>
+          </div>
+          <TabsContent value="overall" className="mt-0">
+            <PersonalDevelopmentReport
+              scenario={effectiveScenario}
+              persona={effectivePersona}
+              conversationId={conversationId || ""}
+              onRetry={() => window.location.reload()}
+              onSelectNewScenario={() => window.location.href = '/home'}
+              isAdminView={isAdminView}
+            />
+          </TabsContent>
+          <TabsContent value="per-persona" className="mt-0">
+            <PersonaSegmentFeedbackPanel segments={personaSegmentFeedbacks} />
+          </TabsContent>
+        </Tabs>
+      ) : (
+        <PersonalDevelopmentReport
+          scenario={effectiveScenario}
+          persona={effectivePersona}
+          conversationId={conversationId || ""}
+          onRetry={() => window.location.reload()}
+          onSelectNewScenario={() => window.location.href = '/home'}
+          isAdminView={isAdminView}
+        />
+      )}
     </div>
   );
 }

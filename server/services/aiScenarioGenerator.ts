@@ -37,6 +37,7 @@ export interface ComplexScenario {
   targetTurns?: number;
   minValidTurns?: number;
   isDeleted?: boolean;
+  personaSwitchMode?: 'replace' | 'join';
 }
 
 export interface ScenarioPersona {

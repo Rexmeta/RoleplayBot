@@ -180,9 +180,12 @@ export class RealtimeVoiceService {
       const byPrimary = allPersonas.findIndex((p: any) => p.isPrimary === true);
       return byPrimary >= 0 ? byPrimary : 0;
     })();
+    // Realtime voice always uses replace mode for persona switching — join mode is
+    // text/TTS-only. Hard-force 'replace' here to prevent join-mode multi-speaker
+    // instructions from leaking into voice prompts.
     const systemInstructions = buildSystemInstructions(
       scenarioWithUserDifficulty, scenarioPersona, mbtiPersona, userRoleInfo, userLanguage,
-      true, allPersonas, initialPersonaIndex, scenarioObj.targetTurns
+      true, allPersonas, initialPersonaIndex, scenarioObj.targetTurns, 'replace'
     );
 
     // Pre-build system instructions for every persona so switching rebuilds the full prompt
@@ -194,7 +197,7 @@ export class RealtimeVoiceService {
         const mbtiP = mbtiT ? await fileManager.getPersonaByMBTI(mbtiT) : null;
         personaSystemInstructions.push(buildSystemInstructions(
           scenarioWithUserDifficulty, sp, mbtiP, userRoleInfo, userLanguage,
-          true, allPersonas, pIdx, scenarioObj.targetTurns
+          true, allPersonas, pIdx, scenarioObj.targetTurns, 'replace'
         ));
       }
     }

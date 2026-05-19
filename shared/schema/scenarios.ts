@@ -59,6 +59,7 @@ export const scenarios = pgTable("scenarios", {
   targetDurationMinutes: integer("target_duration_minutes").notNull().default(7),
   targetTurns: integer("target_turns").notNull().default(10),
   minValidTurns: integer("min_valid_turns").notNull().default(4),
+  personaSwitchMode: varchar("persona_switch_mode", { length: 20 }).$type<'replace' | 'join'>(),
   isDemo: boolean("is_demo").notNull().default(false),
   isPublic: boolean("is_public").notNull().default(false),
   isDeleted: boolean("is_deleted").notNull().default(false),

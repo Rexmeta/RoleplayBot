@@ -64,6 +64,7 @@ interface ScenarioFormData {
   isDemo?: boolean; // 게스트 데모용 시나리오 여부
   isPublic?: boolean; // 공개 여부
   autoTranslate?: boolean; // AI 자동 번역 여부
+  personaSwitchMode?: 'replace' | 'join'; // 다중 페르소나 전환 방식
   context: {
     situation: string;
     timeline: string;
@@ -497,6 +498,7 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
       objectives: originalScenario.objectives,
       successCriteria: originalScenario.successCriteria,
       // personas가 객체 배열인 경우 ID만 추출, 문자열 배열인 경우 그대로 사용
+      personaSwitchMode: (originalScenario as any).personaSwitchMode ?? 'replace',
       personas: Array.isArray(originalScenario.personas) 
         ? originalScenario.personas.map((p: any) => {
             if (typeof p === 'string') {
@@ -1943,6 +1945,38 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
                     </Button>
                   </div>
                   
+                  {formData.personas.length >= 2 && (
+                    <div className="bg-slate-50 border border-slate-200 rounded-lg p-3 mt-3">
+                      <Label className="text-sm font-medium text-slate-700 block mb-2">
+                        페르소나 전환 방식
+                      </Label>
+                      <Select
+                        value={formData.personaSwitchMode ?? 'replace'}
+                        onValueChange={(value: 'replace' | 'join') =>
+                          setFormData(prev => ({ ...prev, personaSwitchMode: value }))
+                        }
+                      >
+                        <SelectTrigger className="bg-white">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="replace">
+                            <div>
+                              <div className="font-medium">Replace (교체)</div>
+                              <div className="text-xs text-slate-500">다음 페르소나가 이전 페르소나를 교체합니다</div>
+                            </div>
+                          </SelectItem>
+                          <SelectItem value="join">
+                            <div>
+                              <div className="font-medium">Join (합류)</div>
+                              <div className="text-xs text-slate-500">다음 페르소나가 기존 페르소나와 함께 참여합니다</div>
+                            </div>
+                          </SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
+
                   <div className="space-y-4 max-h-96 overflow-y-auto">
                     {formData.personas.map((persona, index) => (
                       <div key={index} className="border border-slate-300 rounded-lg p-4 space-y-3 bg-white shadow-sm">

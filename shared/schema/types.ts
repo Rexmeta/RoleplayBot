@@ -67,6 +67,22 @@ export type DevelopmentPlan = {
 
 export type ReportStatus = 'valid' | 'low_confidence' | 'insufficient_data' | 'system_fallback';
 
+export type PersonaSegmentFeedback = {
+  personaIndex: number;
+  personaName: string;
+  turnStart: number;
+  turnEnd: number;
+  feedback: {
+    overallScore: number | null;
+    scores?: EvaluationScore[];
+    strengths: string[];
+    improvements: string[];
+    nextSteps: string[];
+    summary: string;
+    insufficientConversation?: boolean;
+  };
+};
+
 export type DetailedFeedback = {
   overallScore: number | null;
   scores: EvaluationScore[];
@@ -93,6 +109,7 @@ export type DetailedFeedback = {
   confidence?: number;
   reportStatus?: ReportStatus;
   insufficientReasons?: string[];
+  personaSegmentFeedbacks?: PersonaSegmentFeedback[];
 };
 
 export type PersonaSelection = {

@@ -22,7 +22,7 @@ import {
   asyncHandler,
   createHttpError
 } from "./routerHelpers";
-import { normalizeProfileName } from "../services/conversationContextBuilder";
+import { normalizeProfileName, parseJoinModeSpeakerSegments } from "../services/conversationContextBuilder";
 import { filterThinkingText } from "../services/voice/textFilter";
 import { createDefaultSimulationState, TurnScore } from "../services/simulation/simulationTypes";
 import type { ScenarioPersona } from "../services/aiServiceFactory";
@@ -758,10 +758,13 @@ ${userNameLine}
       message: msg.message,
       timestamp: msg.createdAt.toISOString(),
       emotion: msg.emotion || undefined,
-      emotionReason: msg.emotionReason || undefined
+      emotionReason: msg.emotionReason || undefined,
+      turnIndex: msg.turnIndex ?? undefined,
     }));
 
     const scenarioForAI: RoleplayScenario = scenarioWithUserDifficulty;
+    // Inject persona switch log so prepareConversationHistory can label messages correctly
+    (scenarioForAI as any).personaSwitchLog = personaRun!.personaSwitchLog ?? [];
     // Only realtime-voice → text requires a style-continuity hint because it uses a
     // separate AI model (Gemini Live) that has no shared prompt state with the text model.
     // text ↔ tts transitions share the same provider and existing history, so no hint needed.
@@ -885,10 +888,11 @@ ${userNameLine}
       type SseDoneEvent = {
         type: 'done'; message: string; emotion: string; emotionReason: string;
         isCompleted: boolean; turnCount: number; personaRun: Record<string, unknown> | null;
-        messages: Array<{ sender: string; message: string; timestamp: string; emotion?: string; emotionReason?: string }>;
+        messages: Array<{ sender: string; message: string; timestamp: string; emotion?: string; emotionReason?: string; speakerSegments?: import('../services/conversationContextBuilder').SpeakerSegment[] }>;
         simulationState: import('../services/simulation/simulationTypes').SimulationState | null;
         turnScore: TurnScore | null;
         evaluationSkipped?: boolean; personaSwitched?: Record<string, unknown>;
+        speakerSegments?: import('../services/conversationContextBuilder').SpeakerSegment[];
       };
       type SseErrorEvent = { type: 'error'; message: string };
       type SseEvent = SseDeltaEvent | SseDoneEvent | SseErrorEvent;
@@ -1055,6 +1059,10 @@ ${userNameLine}
 
       const streamEvalSkipped = (!isPersonaX && !isSkipTurn && !shouldEval) || streamFastEvalFailed;
 
+      const streamJoinSegments = (scenarioWithUserDifficulty as any)?.personaSwitchMode === 'join'
+        ? parseJoinModeSpeakerSegments(streamAiMessageContent)
+        : null;
+
       writeEvent({
         type: 'done',
         message: streamAiMessageContent,
@@ -1063,10 +1071,11 @@ ${userNameLine}
         isCompleted: streamIsCompleted,
         turnCount: newTurnCount,
         personaRun: streamUpdatedPersonaRun,
-        messages: [{ sender: 'ai', message: streamAiMessageContent, timestamp: new Date().toISOString(), emotion: streamEmotion, emotionReason: streamEmotionReason }],
+        messages: [{ sender: 'ai', message: streamAiMessageContent, timestamp: new Date().toISOString(), emotion: streamEmotion, emotionReason: streamEmotionReason, ...(streamJoinSegments ? { speakerSegments: streamJoinSegments } : {}) }],
         simulationState: streamSimulationState,
         turnScore: streamSimTurnScore,
         ...(streamEvalSkipped ? { evaluationSkipped: true } : {}),
+        ...(streamJoinSegments ? { speakerSegments: streamJoinSegments } : {}),
         ...(streamSwitchToPersona ? {
           personaSwitched: {
             fromIndex: (personaRun!.activePersonaIndex as number | null) ?? 0,
@@ -1252,6 +1261,10 @@ ${userNameLine}
     // Signal to the client that evaluation was skipped due to a short message or a failed eval
     const evaluationSkipped = (!isPersonaX && !isSkipTurn && !shouldEval) || fastEvalFailed;
 
+    const joinModeSpeakerSegments = (scenarioWithUserDifficulty as any)?.personaSwitchMode === 'join'
+      ? parseJoinModeSpeakerSegments(aiMessageContent)
+      : null;
+
     res.json({
       message: aiMessageContent,
       emotion: aiResult.emotion,
@@ -1264,11 +1277,13 @@ ${userNameLine}
         message: aiMessageContent,
         timestamp: new Date().toISOString(),
         emotion: aiResult.emotion,
-        emotionReason: aiResult.emotionReason
+        emotionReason: aiResult.emotionReason,
+        ...(joinModeSpeakerSegments ? { speakerSegments: joinModeSpeakerSegments } : {}),
       }],
       simulationState,
       turnScore: simTurnScore,
       ...(evaluationSkipped ? { evaluationSkipped: true } : {}),
+      ...(joinModeSpeakerSegments ? { speakerSegments: joinModeSpeakerSegments } : {}),
       ...(switchToPersona ? {
         personaSwitched: {
           fromIndex: (personaRun!.activePersonaIndex as number | null) ?? 0,

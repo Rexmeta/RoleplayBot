@@ -526,6 +526,102 @@ export async function generateAndSaveFeedback(
     console.log(`⚠️ insufficient_data 판정 (신뢰도 기반) → overallScore=null, scores=[] 로 정규화`);
   }
 
+  // Generate per-persona segment feedbacks for multi-persona scenarios
+  if (!isInsufficientByConfidence) {
+    try {
+      const personaRunForSegments = await storage.getPersonaRun(conversationId);
+      const personaSwitchLog: Array<{ turn: number; fromPersonaIndex: number; toPersonaIndex: number }> =
+        Array.isArray(personaRunForSegments?.personaSwitchLog)
+          ? (personaRunForSegments!.personaSwitchLog as any[])
+          : [];
+      const scenarioPersonas: any[] = scenarioObj?.personas ?? [];
+
+      if (personaSwitchLog.length > 0 && scenarioPersonas.length > 1) {
+        const dbMessages = await storage.getChatMessagesByPersonaRun(conversationId);
+        const sortedLog = [...personaSwitchLog].sort((a, b) => a.turn - b.turn);
+        const maxTurn = dbMessages.length > 0
+          ? Math.max(...dbMessages.map((m: any) => m.turnIndex ?? 0))
+          : 0;
+        const switchMode: string = scenarioObj?.personaSwitchMode ?? 'replace';
+
+        let segments: Array<{ personaIndex: number; turnStart: number; turnEnd: number }> = [];
+
+        if (switchMode === 'join') {
+          // Join mode: each persona is active from their first appearance turn to end of session.
+          // Build per-persona active windows (overlapping).
+          const personaWindowStart: Map<number, number> = new Map([[0, 0]]);
+          for (const sw of sortedLog) {
+            if (!personaWindowStart.has(sw.toPersonaIndex)) {
+              // Joining persona becomes active from the turn AFTER the switch turn
+              personaWindowStart.set(sw.toPersonaIndex, sw.turn + 1);
+            }
+          }
+          Array.from(personaWindowStart.entries()).forEach(([personaIndex, turnStart]) => {
+            segments.push({ personaIndex, turnStart, turnEnd: maxTurn });
+          });
+        } else {
+          // Replace mode: sequential non-overlapping segments
+          let prevTurn = -1;
+          let prevIdx = 0;
+          for (const sw of sortedLog) {
+            segments.push({ personaIndex: prevIdx, turnStart: prevTurn + 1, turnEnd: sw.turn });
+            prevTurn = sw.turn;
+            prevIdx = sw.toPersonaIndex;
+          }
+          segments.push({ personaIndex: prevIdx, turnStart: sortedLog[sortedLog.length - 1].turn + 1, turnEnd: maxTurn });
+        }
+
+        const segmentFeedbacks: any[] = [];
+        for (const seg of segments) {
+          const segMsgs = dbMessages.filter((m: any) => {
+            const ti = m.turnIndex ?? 0;
+            return ti >= seg.turnStart && ti <= seg.turnEnd;
+          });
+          const segUserMsgs = segMsgs.filter((m: any) => m.sender === 'user');
+          if (segUserMsgs.length < 2) continue;
+
+          const segPersona = scenarioPersonas[seg.personaIndex];
+          if (!segPersona) continue;
+
+          const segConvMessages = segMsgs.map((m: any) => ({
+            sender: m.sender,
+            message: m.message,
+            timestamp: new Date(m.createdAt ?? Date.now()).toISOString(),
+          }));
+
+          try {
+            const segFeedback = await generateFeedback(
+              scenarioObj, segConvMessages, segPersona,
+              { messages: segConvMessages }, evaluationCriteria, userLanguage
+            );
+            segmentFeedbacks.push({
+              personaIndex: seg.personaIndex,
+              personaName: segPersona.name,
+              turnStart: seg.turnStart,
+              turnEnd: seg.turnEnd,
+              feedback: {
+                overallScore: segFeedback.overallScore ?? null,
+                summary: segFeedback.summary ?? '',
+                strengths: segFeedback.strengths ?? [],
+                improvements: segFeedback.improvements ?? [],
+                nextSteps: segFeedback.nextSteps ?? [],
+              },
+            });
+          } catch (segErr) {
+            console.warn(`[generateAndSaveFeedback] Segment ${seg.personaIndex} feedback failed:`, segErr);
+          }
+        }
+
+        if (segmentFeedbacks.length > 0) {
+          feedbackData.personaSegmentFeedbacks = segmentFeedbacks;
+          console.log(`📊 [persona segments] ${segmentFeedbacks.length} segment feedbacks generated`);
+        }
+      }
+    } catch (err) {
+      console.warn('[generateAndSaveFeedback] Per-persona segment feedback error:', err);
+    }
+  }
+
   const feedback = await storage.createFeedback({
     personaRunId: conversationId,
     overallScore: savedOverallScore,
