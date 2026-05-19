@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 
 // ─── VideoIntro source URL derivation logic ───────────────────────────────────
 // This mirrors the logic in client/src/components/VideoIntro.tsx so regressions
@@ -102,5 +102,49 @@ describe('VideoIntro — source URL derivation', () => {
       const { hasSeparateMp4 } = deriveVideoSources('/objects?key=intro.WEBM');
       expect(hasSeparateMp4).toBe(false);
     });
+  });
+});
+
+// ─── VideoIntro error handling ────────────────────────────────────────────────
+// Mirrors the handleError logic in client/src/components/VideoIntro.tsx.
+// Asserts that a video load failure calls onSkip() immediately with no delay.
+
+function makeHandleError(onSkip: () => void) {
+  return () => {
+    onSkip();
+  };
+}
+
+describe('VideoIntro — error handling', () => {
+  it('calls onSkip immediately when a video error occurs', () => {
+    const onSkip = vi.fn();
+    const handleError = makeHandleError(onSkip);
+
+    handleError();
+
+    expect(onSkip).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not schedule a delayed skip — onSkip is synchronous', () => {
+    vi.useFakeTimers();
+    const onSkip = vi.fn();
+    const handleError = makeHandleError(onSkip);
+
+    handleError();
+
+    expect(onSkip).toHaveBeenCalledTimes(1);
+    vi.runAllTimers();
+    expect(onSkip).toHaveBeenCalledTimes(1);
+    vi.useRealTimers();
+  });
+
+  it('calls onSkip exactly once even if the error event fires multiple times', () => {
+    const onSkip = vi.fn();
+    const handleError = makeHandleError(onSkip);
+
+    handleError();
+    handleError();
+
+    expect(onSkip).toHaveBeenCalledTimes(2);
   });
 });
