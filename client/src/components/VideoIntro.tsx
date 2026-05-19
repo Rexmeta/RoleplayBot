@@ -18,6 +18,7 @@ export function VideoIntro({ videoSrc, onComplete, onSkip, preloadImageUrl }: Vi
   const [videoEnded, setVideoEnded] = useState(false);
   const [imagePreloaded, setImagePreloaded] = useState(!preloadImageUrl);
   const [hasError, setHasError] = useState(false);
+  const [errorCountdown, setErrorCountdown] = useState(3);
 
   const tryComplete = useCallback(() => {
     if (videoEnded && imagePreloaded) {
@@ -71,9 +72,10 @@ export function VideoIntro({ videoSrc, onComplete, onSkip, preloadImageUrl }: Vi
     const handleError = () => {
       setIsLoading(false);
       setHasError(true);
+      setErrorCountdown(3);
       errorTimerRef.current = setTimeout(() => {
         onSkip();
-      }, 3000);
+      }, 3100);
     };
 
     video.addEventListener("canplay", handleCanPlay);
@@ -95,6 +97,14 @@ export function VideoIntro({ videoSrc, onComplete, onSkip, preloadImageUrl }: Vi
       }
     };
   }, [onSkip]);
+
+  useEffect(() => {
+    if (!hasError) return;
+    const interval = setInterval(() => {
+      setErrorCountdown((prev) => Math.max(0, prev - 1));
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [hasError]);
 
   const handleSkip = () => {
     setIsFadingOut(true);
@@ -121,7 +131,8 @@ export function VideoIntro({ videoSrc, onComplete, onSkip, preloadImageUrl }: Vi
       {hasError && (
         <div className="absolute inset-0 flex flex-col items-center justify-center z-20 bg-black/70 backdrop-blur-sm" data-testid="video-error-overlay">
           <AlertCircle className="w-12 h-12 text-white/60 mb-4" />
-          <p className="text-white text-lg font-medium mb-6">영상을 불러올 수 없습니다</p>
+          <p className="text-white text-lg font-medium mb-2">영상을 불러올 수 없습니다</p>
+          <p className="text-white/50 text-sm mb-6">{errorCountdown}초 후 자동으로 닫힙니다</p>
           <button
             onClick={() => {
               if (errorTimerRef.current !== null) {
