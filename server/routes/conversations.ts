@@ -121,6 +121,34 @@ export default function createConversationsRouter(isAuthenticated: any) {
     const existingPersonaRuns = await storage.getPersonaRunsByScenarioRun(scenarioRun.id);
     const phase = existingPersonaRuns.length + 1;
 
+    const duplicatePersonaRun = existingPersonaRuns.find(
+      r => r.personaId === personaId && r.status === 'active'
+    );
+    if (duplicatePersonaRun) {
+      console.log(`⚠️ 중복 Persona Run 감지, 기존 Run 반환: ${duplicatePersonaRun.id}`);
+      const [existingMessages, existingSimState] = await Promise.all([
+        storage.getChatMessagesByPersonaRun(duplicatePersonaRun.id),
+        storage.getSimulationState(duplicatePersonaRun.id),
+      ]);
+      return res.json({
+        id: duplicatePersonaRun.id,
+        scenarioRunId: scenarioRun.id,
+        scenarioId: validatedData.scenarioId,
+        scenarioName: validatedData.scenarioName,
+        personaId,
+        personaSnapshot: duplicatePersonaRun.personaSnapshot,
+        messages: existingMessages,
+        turnCount: existingMessages.filter(m => m.role === 'user').length,
+        status: 'active',
+        mode: duplicatePersonaRun.mode,
+        difficulty: duplicatePersonaRun.difficulty,
+        userId,
+        createdAt: duplicatePersonaRun.startedAt,
+        updatedAt: duplicatePersonaRun.startedAt,
+        simulationState: existingSimState,
+      });
+    }
+
     const personaRun = await storage.createPersonaRun({
       scenarioRunId: scenarioRun.id,
       personaId,
