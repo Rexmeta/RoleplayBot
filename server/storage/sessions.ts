@@ -1,6 +1,6 @@
 import { type ScenarioRun, type InsertScenarioRun, type PersonaRun, type InsertPersonaRun, type ChatMessage, type InsertChatMessage, type SimulationEvent, type InsertSimulationEvent, scenarioRuns, personaRuns, chatMessages, simulationEvents } from "@shared/schema";
 import { db } from "./db";
-import { eq, asc, desc, inArray, and, isNotNull, sql } from "drizzle-orm";
+import { eq, asc, desc, inArray, and, isNotNull, ne, sql } from "drizzle-orm";
 
 export type ScenarioRunWithPersonaRuns = ScenarioRun & { personaRuns: PersonaRun[] };
 export type EmotionStat = { emotion: string; count: number };
@@ -66,7 +66,7 @@ export function SessionsMixin<TBase extends Constructor>(Base: TBase) {
     }
 
     async getUserScenarioRuns(userId: string): Promise<ScenarioRun[]> {
-      return await db.select().from(scenarioRuns).where(eq(scenarioRuns.userId, userId)).orderBy(desc(scenarioRuns.startedAt));
+      return await db.select().from(scenarioRuns).where(and(eq(scenarioRuns.userId, userId), ne(scenarioRuns.status, 'abandoned'))).orderBy(desc(scenarioRuns.startedAt));
     }
 
     async getAllScenarioRuns(): Promise<ScenarioRun[]> {
@@ -91,7 +91,7 @@ export function SessionsMixin<TBase extends Constructor>(Base: TBase) {
     }
 
     async getUserScenarioRunsWithPersonaRuns(userId: string): Promise<(ScenarioRun & { personaRuns: PersonaRun[] })[]> {
-      const userScenarioRuns = await db.select().from(scenarioRuns).where(eq(scenarioRuns.userId, userId)).orderBy(desc(scenarioRuns.startedAt));
+      const userScenarioRuns = await db.select().from(scenarioRuns).where(and(eq(scenarioRuns.userId, userId), ne(scenarioRuns.status, 'abandoned'))).orderBy(desc(scenarioRuns.startedAt));
       if (userScenarioRuns.length === 0) return [];
       const scenarioRunIds = userScenarioRuns.map(sr => sr.id);
       const allPersonaRuns = await db.select().from(personaRuns).where(inArray(personaRuns.scenarioRunId, scenarioRunIds)).orderBy(asc(personaRuns.phase));
@@ -154,26 +154,20 @@ export function SessionsMixin<TBase extends Constructor>(Base: TBase) {
     }
 
     async getAllEmotionStats(scenarioIds?: string[]): Promise<{ emotion: string; count: number }[]> {
-      if (scenarioIds && scenarioIds.length > 0) {
-        const result = await db.select({ emotion: chatMessages.emotion, count: sql<number>`count(*)::int` })
-          .from(chatMessages)
-          .innerJoin(personaRuns, eq(chatMessages.personaRunId, personaRuns.id))
-          .innerJoin(scenarioRuns, eq(personaRuns.scenarioRunId, scenarioRuns.id))
-          .where(and(eq(chatMessages.sender, 'ai'), isNotNull(chatMessages.emotion), inArray(scenarioRuns.scenarioId, scenarioIds)))
-          .groupBy(chatMessages.emotion)
-          .orderBy(desc(sql`count(*)`));
-        return result.filter(r => r.emotion !== null) as { emotion: string; count: number }[];
-      }
+      const baseConditions: any[] = [eq(chatMessages.sender, 'ai'), isNotNull(chatMessages.emotion), ne(scenarioRuns.status, 'abandoned')];
+      if (scenarioIds && scenarioIds.length > 0) baseConditions.push(inArray(scenarioRuns.scenarioId, scenarioIds));
       const result = await db.select({ emotion: chatMessages.emotion, count: sql<number>`count(*)::int` })
         .from(chatMessages)
-        .where(and(eq(chatMessages.sender, 'ai'), isNotNull(chatMessages.emotion)))
+        .innerJoin(personaRuns, eq(chatMessages.personaRunId, personaRuns.id))
+        .innerJoin(scenarioRuns, eq(personaRuns.scenarioRunId, scenarioRuns.id))
+        .where(and(...baseConditions))
         .groupBy(chatMessages.emotion)
         .orderBy(desc(sql`count(*)`));
       return result.filter(r => r.emotion !== null) as { emotion: string; count: number }[];
     }
 
     async getEmotionStatsByScenario(scenarioIds?: string[]): Promise<{ scenarioId: string; scenarioName: string; emotions: { emotion: string; count: number }[]; totalCount: number }[]> {
-      const whereConditions: any[] = [eq(chatMessages.sender, 'ai'), isNotNull(chatMessages.emotion)];
+      const whereConditions: any[] = [eq(chatMessages.sender, 'ai'), isNotNull(chatMessages.emotion), ne(scenarioRuns.status, 'abandoned')];
       if (scenarioIds && scenarioIds.length > 0) whereConditions.push(inArray(scenarioRuns.scenarioId, scenarioIds));
       const result = await db.select({
         scenarioId: scenarioRuns.scenarioId,
@@ -201,7 +195,7 @@ export function SessionsMixin<TBase extends Constructor>(Base: TBase) {
     }
 
     async getEmotionStatsByMbti(scenarioIds?: string[]): Promise<{ mbti: string; emotions: { emotion: string; count: number }[]; totalCount: number }[]> {
-      const whereConditions: any[] = [eq(chatMessages.sender, 'ai'), isNotNull(chatMessages.emotion), isNotNull(personaRuns.mbtiType)];
+      const whereConditions: any[] = [eq(chatMessages.sender, 'ai'), isNotNull(chatMessages.emotion), isNotNull(personaRuns.mbtiType), ne(scenarioRuns.status, 'abandoned')];
       if (scenarioIds && scenarioIds.length > 0) whereConditions.push(inArray(scenarioRuns.scenarioId, scenarioIds));
       const result = await db.select({ mbti: personaRuns.mbtiType, emotion: chatMessages.emotion, count: sql<number>`count(*)::int` })
         .from(chatMessages)
@@ -222,7 +216,7 @@ export function SessionsMixin<TBase extends Constructor>(Base: TBase) {
     }
 
     async getEmotionStatsByDifficulty(scenarioIds?: string[]): Promise<{ difficulty: number; emotions: { emotion: string; count: number }[]; totalCount: number }[]> {
-      const whereConditions: any[] = [eq(chatMessages.sender, 'ai'), isNotNull(chatMessages.emotion), isNotNull(personaRuns.difficulty)];
+      const whereConditions: any[] = [eq(chatMessages.sender, 'ai'), isNotNull(chatMessages.emotion), isNotNull(personaRuns.difficulty), ne(scenarioRuns.status, 'abandoned')];
       if (scenarioIds && scenarioIds.length > 0) whereConditions.push(inArray(scenarioRuns.scenarioId, scenarioIds));
       const result = await db.select({ difficulty: personaRuns.difficulty, emotion: chatMessages.emotion, count: sql<number>`count(*)::int` })
         .from(chatMessages)

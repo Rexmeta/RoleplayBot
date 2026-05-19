@@ -376,18 +376,25 @@ export default function createAnalyticsRouter(isAuthenticated: any) {
         : allScenarios;
     const scenarioIds = new Set(scenarios.map((s: any) => s.id));
 
-    const scenarioRuns = restrictToEmpty
+    const allFilteredScenarioRuns = restrictToEmpty
       ? []
       : accessibleCategoryIds.length > 0
         ? allScenarioRuns.filter(sr => scenarioIds.has(sr.scenarioId))
         : allScenarioRuns;
+
+    const abandonedSessions = allFilteredScenarioRuns.filter(sr => sr.status === 'abandoned').length;
+
+    const scenarioRuns = allFilteredScenarioRuns.filter(sr => sr.status !== 'abandoned');
     const scenarioRunIds = new Set(scenarioRuns.map(sr => sr.id));
 
     const personaRuns = restrictToEmpty
       ? []
       : accessibleCategoryIds.length > 0
         ? allPersonaRuns.filter(pr => scenarioRunIds.has(pr.scenarioRunId))
-        : allPersonaRuns;
+        : allPersonaRuns.filter(pr => {
+            const sr = allScenarioRuns.find(s => s.id === pr.scenarioRunId);
+            return sr && sr.status !== 'abandoned';
+          });
     const personaRunIds = new Set(personaRuns.map(pr => pr.id));
 
     const feedbacks = restrictToEmpty
@@ -607,6 +614,7 @@ export default function createAnalyticsRouter(isAuthenticated: any) {
       activeUsers,
       totalSessions,
       completedSessions,
+      abandonedSessions,
       completionRate,
       participationRate,
       averageScore,
@@ -667,22 +675,18 @@ export default function createAnalyticsRouter(isAuthenticated: any) {
     const scenarioRuns = restrictToEmpty
       ? []
       : accessibleCategoryIds.length > 0
-        ? allScenarioRuns.filter(sr => scenarioIds.has(sr.scenarioId))
-        : allScenarioRuns;
+        ? allScenarioRuns.filter(sr => scenarioIds.has(sr.scenarioId) && sr.status !== 'abandoned')
+        : allScenarioRuns.filter(sr => sr.status !== 'abandoned');
     const scenarioRunIds = new Set(scenarioRuns.map(sr => sr.id));
 
     const personaRuns = restrictToEmpty
       ? []
-      : accessibleCategoryIds.length > 0
-        ? allPersonaRuns.filter(pr => scenarioRunIds.has(pr.scenarioRunId))
-        : allPersonaRuns;
+      : allPersonaRuns.filter(pr => scenarioRunIds.has(pr.scenarioRunId));
     const personaRunIds = new Set(personaRuns.map(pr => pr.id));
 
     const feedbacks = restrictToEmpty
       ? []
-      : accessibleCategoryIds.length > 0
-        ? allFeedbacks.filter(f => f.personaRunId && personaRunIds.has(f.personaRunId))
-        : allFeedbacks;
+      : allFeedbacks.filter(f => f.personaRunId && personaRunIds.has(f.personaRunId));
 
     const last30Days = Array.from({ length: 30 }, (_, i) => {
       const date = new Date();
@@ -1017,13 +1021,11 @@ export default function createAnalyticsRouter(isAuthenticated: any) {
     const scenarioIds = new Set(scenarios.map((s: any) => s.id));
 
     const scenarioRuns = accessibleCategoryIds.length > 0
-      ? allScenarioRuns.filter(sr => scenarioIds.has(sr.scenarioId))
-      : allScenarioRuns;
+      ? allScenarioRuns.filter(sr => scenarioIds.has(sr.scenarioId) && sr.status !== 'abandoned')
+      : allScenarioRuns.filter(sr => sr.status !== 'abandoned');
 
     const scenarioRunIds = new Set(scenarioRuns.map(sr => sr.id));
-    const personaRuns = accessibleCategoryIds.length > 0
-      ? allPersonaRuns.filter(pr => scenarioRunIds.has(pr.scenarioRunId))
-      : allPersonaRuns;
+    const personaRuns = allPersonaRuns.filter(pr => scenarioRunIds.has(pr.scenarioRunId));
     const personaRunIds = new Set(personaRuns.map(pr => pr.id));
 
     const feedbacks = allFeedbacks.filter(f =>
@@ -1207,8 +1209,8 @@ export default function createAnalyticsRouter(isAuthenticated: any) {
     const scenarioIds = new Set(filteredScenarios.map((s: any) => s.id));
 
     const filteredScenarioRuns = accessibleCategoryIds.length > 0
-      ? allScenarioRuns.filter(sr => scenarioIds.has(sr.scenarioId))
-      : allScenarioRuns;
+      ? allScenarioRuns.filter(sr => scenarioIds.has(sr.scenarioId) && sr.status !== 'abandoned')
+      : allScenarioRuns.filter(sr => sr.status !== 'abandoned');
     const scenarioRunIds = new Set(filteredScenarioRuns.map(sr => sr.id));
 
     const filteredPersonaRuns = allPersonaRuns.filter(pr => scenarioRunIds.has(pr.scenarioRunId));

@@ -1,6 +1,7 @@
 export interface AnalyticsOverview {
   totalSessions: number;
   completedSessions: number;
+  abandonedSessions?: number;
   averageScore: number;
   completionRate: number;
   totalUsers: number;

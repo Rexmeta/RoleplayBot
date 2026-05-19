@@ -23,6 +23,11 @@ export function OverviewTab({ overview }: OverviewTabProps) {
               {overview?.completedSessions || 0}/{overview?.totalSessions || 0}
             </div>
             <p className="text-xs text-slate-600">완료율 {overview?.completionRate || 0}%</p>
+            {(overview?.abandonedSessions ?? 0) > 0 && (
+              <p className="text-xs text-amber-600 mt-1" data-testid="abandoned-sessions-count">
+                중단 {overview!.abandonedSessions}건 (미반영)
+              </p>
+            )}
           </CardContent>
         </Card>
 

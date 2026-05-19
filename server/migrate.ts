@@ -1329,6 +1329,30 @@ export async function runMigrations(): Promise<void> {
         console.warn('⚠️ Failed to backfill multi-persona triggerHints/entryLine:', err);
       }
 
+      // Migrate legacy stale-active runs to abandoned
+      // A stale-active run is one where a newer run (same user+scenario) exists that was started later.
+      try {
+        const result = await client.query(`
+          UPDATE scenario_runs sr
+          SET status = 'abandoned'
+          WHERE sr.status = 'active'
+            AND EXISTS (
+              SELECT 1 FROM scenario_runs newer
+              WHERE newer.user_id = sr.user_id
+                AND newer.scenario_id = sr.scenario_id
+                AND newer.id != sr.id
+                AND newer.started_at > sr.started_at
+            )
+        `);
+        if (result.rowCount && result.rowCount > 0) {
+          console.log(`✅ Migrated ${result.rowCount} legacy stale-active scenario run(s) to abandoned`);
+        } else {
+          console.log('✅ No legacy stale-active scenario runs to migrate');
+        }
+      } catch (err) {
+        console.warn('⚠️ Failed to migrate legacy stale-active runs:', err);
+      }
+
       console.log('✅ Database migrations completed successfully');
     } finally {
       client.release();
