@@ -1,5 +1,5 @@
 import { useRef, useEffect, useState, useCallback } from "react";
-import { X } from "lucide-react";
+import { X, AlertCircle } from "lucide-react";
 
 interface VideoIntroProps {
   videoSrc: string;
@@ -10,12 +10,14 @@ interface VideoIntroProps {
 
 export function VideoIntro({ videoSrc, onComplete, onSkip, preloadImageUrl }: VideoIntroProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
+  const errorTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [showSkip, setShowSkip] = useState(false);
   const [isFadingIn, setIsFadingIn] = useState(true);
   const [isFadingOut, setIsFadingOut] = useState(false);
   const [videoEnded, setVideoEnded] = useState(false);
   const [imagePreloaded, setImagePreloaded] = useState(!preloadImageUrl);
+  const [hasError, setHasError] = useState(false);
 
   const tryComplete = useCallback(() => {
     if (videoEnded && imagePreloaded) {
@@ -67,7 +69,11 @@ export function VideoIntro({ videoSrc, onComplete, onSkip, preloadImageUrl }: Vi
     };
 
     const handleError = () => {
-      onSkip();
+      setIsLoading(false);
+      setHasError(true);
+      errorTimerRef.current = setTimeout(() => {
+        onSkip();
+      }, 3000);
     };
 
     video.addEventListener("canplay", handleCanPlay);
@@ -83,6 +89,10 @@ export function VideoIntro({ videoSrc, onComplete, onSkip, preloadImageUrl }: Vi
       video.removeEventListener("ended", handleEnded);
       video.removeEventListener("error", handleError);
       clearTimeout(skipTimer);
+      if (errorTimerRef.current !== null) {
+        clearTimeout(errorTimerRef.current);
+        errorTimerRef.current = null;
+      }
     };
   }, [onSkip]);
 
@@ -102,9 +112,30 @@ export function VideoIntro({ videoSrc, onComplete, onSkip, preloadImageUrl }: Vi
       className="fixed inset-0 z-50 bg-black flex items-center justify-center"
       data-testid="video-intro-overlay"
     >
-      {(isLoading || (videoEnded && !imagePreloaded)) && (
+      {(isLoading || (videoEnded && !imagePreloaded)) && !hasError && (
         <div className="absolute inset-0 flex items-center justify-center z-10">
           <div className="w-12 h-12 border-4 border-white/20 border-t-white rounded-full animate-spin" />
+        </div>
+      )}
+
+      {hasError && (
+        <div className="absolute inset-0 flex flex-col items-center justify-center z-20 bg-black/70 backdrop-blur-sm" data-testid="video-error-overlay">
+          <AlertCircle className="w-12 h-12 text-white/60 mb-4" />
+          <p className="text-white text-lg font-medium mb-6">영상을 불러올 수 없습니다</p>
+          <button
+            onClick={() => {
+              if (errorTimerRef.current !== null) {
+                clearTimeout(errorTimerRef.current);
+                errorTimerRef.current = null;
+              }
+              onSkip();
+            }}
+            className="flex items-center gap-2 px-5 py-2.5 bg-white/20 hover:bg-white/30 text-white rounded-full transition-all text-sm backdrop-blur-sm"
+            data-testid="button-error-skip-video"
+          >
+            <X className="w-4 h-4" />
+            건너뛰기
+          </button>
         </div>
       )}
 
