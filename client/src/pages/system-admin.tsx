@@ -34,7 +34,7 @@ import {
 import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { Search, Users, Shield, UserCog, Loader2, User, KeyRound, Eye, EyeOff, FolderTree, Plus, Pencil, Trash2, GripVertical, Settings, Save, CheckCircle, XCircle, ExternalLink, Activity, DollarSign, Zap, TrendingUp, Calendar, RefreshCw, Languages, Building2 } from "lucide-react";
+import { Search, Users, Shield, UserCog, Loader2, User, KeyRound, Eye, EyeOff, FolderTree, Plus, Pencil, Trash2, GripVertical, Settings, Save, CheckCircle, XCircle, ExternalLink, Activity, DollarSign, Zap, TrendingUp, Calendar, RefreshCw, Languages, Building2, HardDrive, CloudDownload, AlertCircle } from "lucide-react";
 import { LanguageManager } from "@/components/LanguageManager";
 import { HierarchyTreeManager } from "@/components/HierarchyTreeManager";
 import { format } from "date-fns";
@@ -83,6 +83,34 @@ interface Category {
   order: number;
   scenarioCount?: number;
   createdAt: string;
+}
+
+interface SyncDryRunItem {
+  key: string;
+  sizeBytes: number;
+  contentType: string;
+  inReplitOS: boolean;
+}
+
+interface SyncDryRunResult {
+  prefix: string;
+  gcsTotal: number;
+  inReplitOS: number;
+  missing: number;
+  items: SyncDryRunItem[];
+  timestamp: string;
+}
+
+interface SyncResult {
+  message: string;
+  prefixes: string[];
+  syncedCount: number;
+  skippedCount: number;
+  failedCount: number;
+  synced: string[];
+  skipped: string[];
+  failed: string[];
+  timestamp: string;
 }
 
 interface SystemSetting {
@@ -266,6 +294,239 @@ const tierColorConfig: Record<string, { color: string; bgColor: string }> = {
   platinum: { color: "text-cyan-600", bgColor: "bg-cyan-100" },
   diamond: { color: "text-purple-600", bgColor: "bg-purple-100" },
 };
+
+function StorageSyncPanel() {
+  const { t } = useTranslation();
+  const { toast } = useToast();
+  const [syncResult, setSyncResult] = useState<SyncResult | null>(null);
+  const [prefix, setPrefix] = useState("scenarios/videos/");
+
+  const dryRunQuery = useQuery<SyncDryRunResult>({
+    queryKey: ["/api/admin/storage/sync-gcs-to-replit", prefix],
+    queryFn: async () => {
+      const res = await fetch(`/api/admin/storage/sync-gcs-to-replit?prefix=${encodeURIComponent(prefix)}`, {
+        credentials: "include",
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ error: res.statusText }));
+        throw new Error(err.error || "Failed to fetch sync status");
+      }
+      return res.json();
+    },
+    retry: false,
+  });
+
+  const syncMutation = useMutation<SyncResult, Error, string[]>({
+    mutationFn: async (prefixes: string[]) => {
+      const res = await apiRequest("POST", "/api/admin/storage/sync-gcs-to-replit", { prefixes });
+      return res.json();
+    },
+    onSuccess: (data) => {
+      setSyncResult(data);
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/storage/sync-gcs-to-replit"] });
+      toast({
+        title: t("systemAdmin.storageSync.syncComplete", "Sync complete"),
+        description: t("systemAdmin.storageSync.syncSummary", {
+          synced: data.syncedCount,
+          skipped: data.skippedCount,
+          failed: data.failedCount,
+          defaultValue: `Synced: ${data.syncedCount} · Skipped: ${data.skippedCount} · Failed: ${data.failedCount}`,
+        }),
+      });
+    },
+    onError: (err) => {
+      toast({
+        title: t("systemAdmin.storageSync.syncFailed", "Sync failed"),
+        description: err.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  const formatBytes = (bytes: number) => {
+    if (bytes === 0) return "0 B";
+    const k = 1024;
+    const sizes = ["B", "KB", "MB", "GB"];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return `${parseFloat((bytes / Math.pow(k, i)).toFixed(1))} ${sizes[i]}`;
+  };
+
+  const items = dryRunQuery.data?.items ?? [];
+  const missing = items.filter((i) => !i.inReplitOS);
+
+  return (
+    <div className="space-y-6">
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <HardDrive className="h-5 w-5" />
+            {t("systemAdmin.storageSync.title", "GCS → Replit OS Storage Sync")}
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <p className="text-sm text-muted-foreground">
+            {t(
+              "systemAdmin.storageSync.description",
+              "Lists video files stored in Google Cloud Storage and shows whether each has been copied to Replit Object Storage. Use the sync button to copy missing files."
+            )}
+          </p>
+
+          <div className="flex items-center gap-3">
+            <div className="flex-1">
+              <Input
+                value={prefix}
+                onChange={(e) => setPrefix(e.target.value)}
+                placeholder="scenarios/videos/"
+                className="font-mono text-sm"
+              />
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => dryRunQuery.refetch()}
+              disabled={dryRunQuery.isFetching}
+            >
+              {dryRunQuery.isFetching ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <RefreshCw className="h-4 w-4" />
+              )}
+              <span className="ml-2">{t("systemAdmin.storageSync.refresh", "Refresh")}</span>
+            </Button>
+            <Button
+              onClick={() => syncMutation.mutate([prefix])}
+              disabled={syncMutation.isPending || dryRunQuery.isFetching || missing.length === 0}
+            >
+              {syncMutation.isPending ? (
+                <Loader2 className="h-4 w-4 animate-spin mr-2" />
+              ) : (
+                <CloudDownload className="h-4 w-4 mr-2" />
+              )}
+              {t("systemAdmin.storageSync.syncNow", "Sync Now")}
+              {missing.length > 0 && ` (${missing.length})`}
+            </Button>
+          </div>
+
+          {dryRunQuery.isError && (
+            <div className="flex items-center gap-2 p-3 rounded-md bg-destructive/10 text-destructive text-sm">
+              <AlertCircle className="h-4 w-4 flex-shrink-0" />
+              <span>{(dryRunQuery.error as Error).message}</span>
+            </div>
+          )}
+
+          {dryRunQuery.data && (
+            <div className="grid grid-cols-3 gap-4">
+              <Card>
+                <CardContent className="pt-4">
+                  <div className="text-2xl font-bold">{dryRunQuery.data.gcsTotal}</div>
+                  <div className="text-sm text-muted-foreground">{t("systemAdmin.storageSync.totalInGCS", "Total in GCS")}</div>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent className="pt-4">
+                  <div className="text-2xl font-bold text-green-600">{dryRunQuery.data.inReplitOS}</div>
+                  <div className="text-sm text-muted-foreground">{t("systemAdmin.storageSync.inReplitOS", "In Replit OS")}</div>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent className="pt-4">
+                  <div className="text-2xl font-bold text-orange-500">{dryRunQuery.data.missing}</div>
+                  <div className="text-sm text-muted-foreground">{t("systemAdmin.storageSync.missingFromOS", "Missing from OS")}</div>
+                </CardContent>
+              </Card>
+            </div>
+          )}
+
+          {syncMutation.isPending && (
+            <div className="flex items-center gap-3 p-3 rounded-md bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 text-sm text-blue-700 dark:text-blue-300">
+              <Loader2 className="h-4 w-4 animate-spin flex-shrink-0" />
+              <div>
+                <p className="font-medium">{t("systemAdmin.storageSync.syncInProgress", "Sync in progress…")}</p>
+                <p className="text-xs opacity-75 mt-0.5">
+                  {t("systemAdmin.storageSync.syncInProgressHint", "Copying missing files from GCS to Replit Object Storage. This may take a moment for large buckets.")}
+                </p>
+              </div>
+            </div>
+          )}
+
+          {!syncMutation.isPending && syncResult && (
+            <div className="p-3 rounded-md bg-muted space-y-1 text-sm">
+              <p className="font-medium">{t("systemAdmin.storageSync.lastSyncResult", "Last sync result")} — {new Date(syncResult.timestamp).toLocaleString()}</p>
+              <div className="flex gap-4">
+                <span className="text-green-600">✓ {t("systemAdmin.storageSync.synced", "Synced")}: {syncResult.syncedCount}</span>
+                <span className="text-muted-foreground">↷ {t("systemAdmin.storageSync.skipped", "Skipped")}: {syncResult.skippedCount}</span>
+                {syncResult.failedCount > 0 && (
+                  <span className="text-destructive">✗ {t("systemAdmin.storageSync.failed", "Failed")}: {syncResult.failedCount}</span>
+                )}
+              </div>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {dryRunQuery.isFetching && (
+        <div className="flex items-center justify-center py-12 text-muted-foreground">
+          <Loader2 className="h-6 w-6 animate-spin mr-2" />
+          {t("systemAdmin.storageSync.loading", "Loading GCS file list...")}
+        </div>
+      )}
+
+      {!dryRunQuery.isFetching && items.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">{t("systemAdmin.storageSync.fileList", "File List")} ({items.length})</CardTitle>
+          </CardHeader>
+          <CardContent className="p-0">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>{t("systemAdmin.storageSync.col.status", "Status")}</TableHead>
+                  <TableHead>{t("systemAdmin.storageSync.col.key", "GCS Key")}</TableHead>
+                  <TableHead className="text-right">{t("systemAdmin.storageSync.col.size", "Size")}</TableHead>
+                  <TableHead>{t("systemAdmin.storageSync.col.type", "Content Type")}</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {items.map((item) => (
+                  <TableRow key={item.key}>
+                    <TableCell>
+                      {item.inReplitOS ? (
+                        <Badge variant="outline" className="text-green-600 border-green-300 bg-green-50 dark:bg-green-950">
+                          <CheckCircle className="h-3 w-3 mr-1" />
+                          {t("systemAdmin.storageSync.status.synced", "Synced")}
+                        </Badge>
+                      ) : (
+                        <Badge variant="outline" className="text-orange-500 border-orange-300 bg-orange-50 dark:bg-orange-950">
+                          <AlertCircle className="h-3 w-3 mr-1" />
+                          {t("systemAdmin.storageSync.status.missing", "Missing")}
+                        </Badge>
+                      )}
+                    </TableCell>
+                    <TableCell className="font-mono text-xs max-w-xs truncate" title={item.key}>
+                      {item.key}
+                    </TableCell>
+                    <TableCell className="text-right text-sm text-muted-foreground">
+                      {formatBytes(item.sizeBytes)}
+                    </TableCell>
+                    <TableCell className="text-sm text-muted-foreground">
+                      {item.contentType}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
+      )}
+
+      {!dryRunQuery.isFetching && !dryRunQuery.isError && items.length === 0 && dryRunQuery.data && (
+        <div className="text-center py-10 text-muted-foreground text-sm">
+          {t("systemAdmin.storageSync.noFiles", "No files found under this prefix.")}
+        </div>
+      )}
+    </div>
+  );
+}
 
 export default function SystemAdminPage() {
   const { t, i18n } = useTranslation();
@@ -674,7 +935,7 @@ export default function SystemAdminPage() {
 
       <div className="container mx-auto p-3 md:p-6 space-y-6" data-testid="system-admin-page">
         <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <TabsList className="grid w-full grid-cols-3 sm:grid-cols-5 h-auto p-1 gap-1">
+          <TabsList className="grid w-full grid-cols-3 sm:grid-cols-6 h-auto p-1 gap-1">
             <TabsTrigger value="users" className="flex items-center gap-2" data-testid="tab-users">
               <Users className="h-4 w-4" />
               {t('systemAdmin.tabs.users')}
@@ -694,6 +955,10 @@ export default function SystemAdminPage() {
             <TabsTrigger value="ai-usage" className="flex items-center gap-2" data-testid="tab-ai-usage">
               <Activity className="h-4 w-4" />
               {t('systemAdmin.tabs.aiUsage')}
+            </TabsTrigger>
+            <TabsTrigger value="storage-sync" className="flex items-center gap-2" data-testid="tab-storage-sync">
+              <HardDrive className="h-4 w-4" />
+              {t('systemAdmin.tabs.storageSync', 'Storage Sync')}
             </TabsTrigger>
           </TabsList>
 
@@ -1462,6 +1727,10 @@ export default function SystemAdminPage() {
                 )}
               </CardContent>
             </Card>
+          </TabsContent>
+
+          <TabsContent value="storage-sync" className="space-y-6 mt-6">
+            <StorageSyncPanel />
           </TabsContent>
         </Tabs>
       </div>
