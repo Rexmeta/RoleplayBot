@@ -27,6 +27,7 @@ import { useChatSession } from "@/hooks/chat/useChatSession";
 import { useTTS } from "@/hooks/chat/useTTS";
 
 import { MessageList } from "@/components/chat/MessageList";
+import { parseJoinModeSpeakerSegments } from "@/lib/joinModeParser";
 import { PersonaSwitchCard } from "@/components/chat/PersonaSwitchCard";
 import { TranscriptPanel } from "@/components/chat/TranscriptPanel";
 import { TopMenuPanel } from "@/components/chat/TopMenuPanel";
@@ -880,7 +881,36 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
                               </div>
                             ) : latestAiMessage ? (
                               <div className="space-y-3">
-                                <p className="text-slate-800 leading-relaxed text-base" data-testid="text-ai-line">{latestAiMessage.message}</p>
+                                {(() => {
+                                  const joinSegments = parseJoinModeSpeakerSegments(latestAiMessage.message);
+                                  if (joinSegments && joinSegments.length > 1) {
+                                    return (
+                                      <div className="space-y-2" data-testid="text-ai-line">
+                                        {joinSegments.map((seg, i) => {
+                                          const segPersona = scenario.personas?.find((p: ScenarioPersona) => p.name === seg.personaName);
+                                          return (
+                                            <div key={i} className="flex items-start gap-2">
+                                              <div className="flex-shrink-0 w-7 h-7 rounded-full overflow-hidden border border-slate-200 bg-slate-100 mt-0.5">
+                                                {segPersona?.image ? (
+                                                  <img src={toMediaUrl(segPersona.image)} alt={seg.personaName} className="w-full h-full object-cover object-top" />
+                                                ) : (
+                                                  <div className="w-full h-full flex items-center justify-center text-[10px] font-bold text-slate-500">
+                                                    {seg.personaName.charAt(0).toUpperCase()}
+                                                  </div>
+                                                )}
+                                              </div>
+                                              <div className="flex-1 min-w-0">
+                                                <span className="text-[10px] font-semibold text-slate-400 block mb-0.5">{seg.personaName}</span>
+                                                <p className="text-slate-800 leading-relaxed text-base">{seg.text}</p>
+                                              </div>
+                                            </div>
+                                          );
+                                        })}
+                                      </div>
+                                    );
+                                  }
+                                  return <p className="text-slate-800 leading-relaxed text-base" data-testid="text-ai-line">{latestAiMessage.message}</p>;
+                                })()}
                                 {inputMode === 'tts' && (
                                   <div className="flex justify-end gap-2 pt-1">
                                     <Button size="sm" variant="outline" onClick={() => speakText(latestAiMessage.message, false, latestAiMessage.emotion, activePersona.voiceId ?? undefined, (activePersona.gender as 'male' | 'female') || undefined)}

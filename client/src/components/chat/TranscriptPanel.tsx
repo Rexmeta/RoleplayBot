@@ -3,6 +3,7 @@ import { ChevronRight, MessageCircle, X, ArrowRight } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import type { ConversationMessage } from "@shared/schema";
 import type { PersonaSwitchEvent } from "./PersonaSwitchCard";
+import { parseJoinModeSpeakerSegments } from "@/lib/joinModeParser";
 
 interface TranscriptPanelProps {
   isOpen: boolean;
@@ -43,18 +44,33 @@ export function TranscriptPanel({
     <div ref={scrollRef} className="flex-1 overflow-y-auto p-3 space-y-2">
       {messages.filter(m => m.sender === 'user' || m.sender === 'ai').map((msg, index) => (
         <div key={index}>
-          <div
-            className={`text-xs rounded-lg px-3 py-2 ${
-              msg.sender === 'user'
-                ? 'bg-blue-50 text-blue-800 ml-4'
-                : 'bg-slate-50 text-slate-800 mr-4'
-            }`}
-          >
-            <div className="font-semibold mb-0.5 opacity-60 text-[10px]">
-              {msg.sender === 'user' ? t('chat.me') : personaName}
-            </div>
+          {msg.sender === 'ai' && (() => {
+            const segs = parseJoinModeSpeakerSegments(msg.message);
+            if (segs && segs.length > 1) {
+              return (
+                <div className="space-y-1 mr-4">
+                  {segs.map((seg, si) => (
+                    <div key={si} className="text-xs rounded-lg px-3 py-2 bg-slate-50 text-slate-800">
+                      <div className="font-semibold mb-0.5 opacity-60 text-[10px]">{seg.personaName}</div>
+                      <div className="leading-relaxed">{seg.text}</div>
+                    </div>
+                  ))}
+                </div>
+              );
+            }
+            return (
+              <div className="text-xs rounded-lg px-3 py-2 bg-slate-50 text-slate-800 mr-4">
+                <div className="font-semibold mb-0.5 opacity-60 text-[10px]">{personaName}</div>
+                <div className="leading-relaxed">{msg.message}</div>
+              </div>
+            );
+          })()}
+          {msg.sender === 'user' && (
+          <div className="text-xs rounded-lg px-3 py-2 bg-blue-50 text-blue-800 ml-4">
+            <div className="font-semibold mb-0.5 opacity-60 text-[10px]">{t('chat.me')}</div>
             <div className="leading-relaxed">{msg.message}</div>
           </div>
+          )}
           {personaSwitchEvents
             .filter(ev =>
               ev.turnIndex != null
