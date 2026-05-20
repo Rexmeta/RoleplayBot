@@ -2,6 +2,7 @@ import { Request, Response, NextFunction } from "express";
 import { storage } from "../storage";
 import { fileManager } from "../services/fileManager";
 import { generateFeedback, generateStrategyReflectionFeedback } from "../services/aiServiceFactory";
+import { trackUsage } from "../services/aiUsageTracker";
 import { EvaluationScore } from "@shared/schema";
 import {
   calcEffectiveRatio,
@@ -526,8 +527,19 @@ export async function generateAndSaveFeedback(
     console.log(`⚠️ insufficient_data 판정 (신뢰도 기반) → overallScore=null, scores=[] 로 정규화`);
   }
 
+  // Check system setting: operators can disable per-persona segment feedback globally
+  let segmentFeedbackEnabled = true;
+  try {
+    const segSetting = await storage.getSystemSetting('feedback', 'segment_feedback_enabled');
+    if (segSetting?.value !== undefined) {
+      segmentFeedbackEnabled = segSetting.value !== 'false' && segSetting.value !== '0';
+    }
+  } catch {
+    // default to enabled if the setting is missing
+  }
+
   // Generate per-persona segment feedbacks for multi-persona scenarios
-  if (!isInsufficientByConfidence) {
+  if (!isInsufficientByConfidence && segmentFeedbackEnabled) {
     try {
       const personaRunForSegments = await storage.getPersonaRun(conversationId);
       const personaSwitchLog: Array<{ turn: number; fromPersonaIndex: number; toPersonaIndex: number }> =
@@ -578,7 +590,7 @@ export async function generateAndSaveFeedback(
             return ti >= seg.turnStart && ti <= seg.turnEnd;
           });
           const segUserMsgs = segMsgs.filter((m: any) => m.sender === 'user');
-          if (segUserMsgs.length < 2) continue;
+          if (segUserMsgs.length < scenarioMinValidTurns) continue;
 
           const segPersona = scenarioPersonas[seg.personaIndex];
           if (!segPersona) continue;
@@ -590,10 +602,12 @@ export async function generateAndSaveFeedback(
           }));
 
           try {
+            const segStartMs = Date.now();
             const segFeedback = await generateFeedback(
               scenarioObj, segConvMessages, segPersona,
               { messages: segConvMessages }, evaluationCriteria, userLanguage
             );
+            const segDurationMs = Date.now() - segStartMs;
             segmentFeedbacks.push({
               personaIndex: seg.personaIndex,
               personaName: segPersona.name,
@@ -607,6 +621,22 @@ export async function generateAndSaveFeedback(
                 nextSteps: segFeedback.nextSteps ?? [],
               },
             });
+            trackUsage({
+              feature: 'feedback',
+              model: feedbackModelName,
+              provider: feedbackModelName.startsWith('gpt') ? 'openai' : 'gemini',
+              promptTokens: 0,
+              completionTokens: 0,
+              conversationId,
+              userId: conversation.userId ?? undefined,
+              durationMs: segDurationMs,
+              metadata: {
+                type: 'persona_segment_feedback',
+                personaIndex: seg.personaIndex,
+                personaName: segPersona.name,
+                segmentUserMessages: segUserMsgs.length,
+              },
+            }).catch(() => {});
           } catch (segErr) {
             console.warn(`[generateAndSaveFeedback] Segment ${seg.personaIndex} feedback failed:`, segErr);
           }
