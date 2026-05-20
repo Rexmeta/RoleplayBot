@@ -348,7 +348,7 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
       messagesEndRef.current?.scrollIntoView({ behavior: 'instant', block: 'end' });
     }, 50);
     return () => clearTimeout(id);
-  }, [isHistoryDrawerOpen]);
+  }, [isHistoryDrawerOpen, localMessages]);
 
   useEffect(() => { return () => { cleanupTTS(); cleanupVoiceRecording(); }; }, []);
 
