@@ -864,86 +864,54 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
                         </>
                       ) : (
                         <>
-                          <div className="p-4 bg-[#ffffff9c]">
-                            {personaSwitchEvents.length > 0 && (() => {
-                              const latest = personaSwitchEvents[personaSwitchEvents.length - 1];
-                              return (
-                                <div className="mb-3">
-                                  <PersonaSwitchCard event={latest} />
-                                </div>
-                              );
-                            })()}
-                            {isLoading && !isStreamingActive ? (
-                              <div className="flex items-center justify-center space-x-2" data-testid="status-typing">
-                                <div className="w-3 h-3 bg-purple-400 rounded-full animate-bounce"></div>
-                                <div className="w-3 h-3 bg-purple-400 rounded-full animate-bounce" style={{ animationDelay: "0.1s" }}></div>
-                                <div className="w-3 h-3 bg-purple-400 rounded-full animate-bounce" style={{ animationDelay: "0.2s" }}></div>
-                                <span className="ml-2 text-slate-600">{t('chat.generatingConversation')}</span>
+                          {localMessages.length === 0 && !isLoading ? (
+                            <div className="p-4 bg-[#ffffff9c] text-center text-slate-600 py-4">
+                              <i className="fas fa-comment-dots text-2xl text-purple-400 mb-2"></i>
+                              <p>{t('chat.startConversationHint')}</p>
+                              <div className="mt-4">
+                                <Button onClick={() => setShowInputMode(true)} className="bg-purple-600 hover:bg-purple-700 text-white" data-testid="button-start-chat-first" size="sm">
+                                  <i className="fas fa-comment mr-2"></i>{t('chat.startChat')}
+                                </Button>
                               </div>
-                            ) : latestAiMessage ? (
-                              <div className="space-y-3">
-                                {(() => {
-                                  const joinSegments = parseJoinModeSpeakerSegments(latestAiMessage.message);
-                                  if (joinSegments && joinSegments.length > 1) {
-                                    return (
-                                      <div className="space-y-2" data-testid="text-ai-line">
-                                        {joinSegments.map((seg, i) => {
-                                          const segPersona = scenario.personas?.find((p: ScenarioPersona) => p.name === seg.personaName);
-                                          return (
-                                            <div key={i} className="flex items-start gap-2">
-                                              <div className="flex-shrink-0 w-7 h-7 rounded-full overflow-hidden border border-slate-200 bg-slate-100 mt-0.5">
-                                                {segPersona?.image ? (
-                                                  <img src={toMediaUrl(segPersona.image)} alt={seg.personaName} className="w-full h-full object-cover object-top" />
-                                                ) : (
-                                                  <div className="w-full h-full flex items-center justify-center text-[10px] font-bold text-slate-500">
-                                                    {seg.personaName.charAt(0).toUpperCase()}
-                                                  </div>
-                                                )}
-                                              </div>
-                                              <div className="flex-1 min-w-0">
-                                                <span className="text-[10px] font-semibold text-slate-400 block mb-0.5">{seg.personaName}</span>
-                                                <p className="text-slate-800 leading-relaxed text-base">{seg.text}</p>
-                                              </div>
-                                            </div>
-                                          );
-                                        })}
-                                      </div>
-                                    );
-                                  }
-                                  return <p className="text-slate-800 leading-relaxed text-base" data-testid="text-ai-line">{latestAiMessage.message}</p>;
-                                })()}
-                                {inputMode === 'tts' && (
-                                  <div className="flex justify-end gap-2 pt-1">
-                                    <Button size="sm" variant="outline" onClick={() => speakText(latestAiMessage.message, false, latestAiMessage.emotion, activePersona.voiceId ?? undefined, (activePersona.gender as 'male' | 'female') || undefined)}
-                                      className="text-xs text-blue-600 border-blue-200 hover:bg-blue-50" data-testid="button-replay-tts">
-                                      <i className="fas fa-volume-up mr-1"></i>{t('chat.replay')}
-                                    </Button>
-                                    <Button size="sm" variant="outline" onClick={stopSpeaking}
-                                      className="text-xs text-slate-600 border-slate-200 hover:bg-slate-50" data-testid="button-stop-tts">
-                                      <i className="fas fa-stop mr-1"></i>{t('chat.stop')}
-                                    </Button>
-                                  </div>
-                                )}
-                                {!showInputMode && (
-                                  <div className="flex justify-end pt-2">
-                                    <Button onClick={() => setShowInputMode(true)} className="bg-purple-600 hover:bg-purple-700 text-white" data-testid="button-start-chat-inline" size="sm">
-                                      <i className="fas fa-comment mr-1"></i>{t('chat.startChat')}
-                                    </Button>
-                                  </div>
-                                )}
-                              </div>
-                            ) : (
-                              <div className="text-center text-slate-600 py-4">
-                                <i className="fas fa-comment-dots text-2xl text-purple-400 mb-2"></i>
-                                <p>{t('chat.startConversationHint')}</p>
-                                <div className="mt-4">
-                                  <Button onClick={() => setShowInputMode(true)} className="bg-purple-600 hover:bg-purple-700 text-white" data-testid="button-start-chat-first" size="sm">
-                                    <i className="fas fa-comment mr-2"></i>{t('chat.startChat')}
+                            </div>
+                          ) : (
+                            <div className="flex flex-col max-h-80 bg-[#ffffff9c]">
+                              <MessageList
+                                messages={localMessages}
+                                pendingAiMessage={pendingAiMessage}
+                                pendingUserMessage={pendingUserMessage}
+                                pendingUserText={pendingUserText}
+                                isLoading={isLoading}
+                                personaName={activePersona.name}
+                                personaImage={activePersona.image}
+                                currentEmotion={currentEmotion}
+                                isAdmin={user?.role === 'admin'}
+                                getCharacterImage={getCharacterImage}
+                                messagesEndRef={messagesEndRef}
+                                personaSwitchEvents={personaSwitchEvents}
+                                scenarioPersonas={scenario.personas as ScenarioPersona[]}
+                              />
+                              {inputMode === 'tts' && latestAiMessage && (
+                                <div className="border-t border-slate-200/30 px-4 py-2 flex justify-end gap-2">
+                                  <Button size="sm" variant="outline" onClick={() => speakText(latestAiMessage!.message, false, latestAiMessage!.emotion, activePersona.voiceId ?? undefined, (activePersona.gender as 'male' | 'female') || undefined)}
+                                    className="text-xs text-blue-600 border-blue-200 hover:bg-blue-50" data-testid="button-replay-tts">
+                                    <i className="fas fa-volume-up mr-1"></i>{t('chat.replay')}
+                                  </Button>
+                                  <Button size="sm" variant="outline" onClick={stopSpeaking}
+                                    className="text-xs text-slate-600 border-slate-200 hover:bg-slate-50" data-testid="button-stop-tts">
+                                    <i className="fas fa-stop mr-1"></i>{t('chat.stop')}
                                   </Button>
                                 </div>
-                              </div>
-                            )}
-                          </div>
+                              )}
+                              {!showInputMode && (
+                                <div className="border-t border-slate-200/30 px-4 py-2 flex justify-end">
+                                  <Button onClick={() => setShowInputMode(true)} className="bg-purple-600 hover:bg-purple-700 text-white" data-testid="button-start-chat-inline" size="sm">
+                                    <i className="fas fa-comment mr-1"></i>{t('chat.startChat')}
+                                  </Button>
+                                </div>
+                              )}
+                            </div>
+                          )}
                           {showInputMode && conversation.turnCount < MAX_TURNS && (
                             <div className="border-t border-slate-200/30 p-4">
                               <div className="flex items-start space-x-3">
