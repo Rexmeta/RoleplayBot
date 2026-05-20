@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Card } from "@/components/ui/card";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import type { ComplexScenario, ScenarioPersona } from "@/lib/scenario-system";
 import type { Conversation } from "@shared/schema";
@@ -102,6 +103,7 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
   const [isInputExpanded, setIsInputExpanded] = useState(false);
   const [isBargeInFlash, setIsBargeInFlash] = useState(false);
   const [isTranscriptPanelOpen, setIsTranscriptPanelOpen] = useState(false);
+  const [isHistoryDrawerOpen, setIsHistoryDrawerOpen] = useState(false);
   const [isTopMenuOpen, setIsTopMenuOpen] = useState(false);
   const [isSilenceIdle, setIsSilenceIdle] = useState(false);
   const [viewportHeight, setViewportHeight] = useState<number | null>(null);
@@ -848,6 +850,20 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
                               isRecording={isRecording} speechSupported={speechSupported}
                               mode="realtime-voice" realtimeVoiceProps={rvBarProps} />
                           </div>
+                          {localMessages.length > 0 && (
+                            <div className="border-t border-slate-200/30 px-4 py-2 flex justify-center">
+                              <button
+                                onClick={() => setIsHistoryDrawerOpen(true)}
+                                className="flex items-center gap-1.5 text-xs text-slate-500 hover:text-slate-700 transition-colors"
+                              >
+                                <i className="fas fa-history text-[11px]" />
+                                {t('chat.viewHistory', { defaultValue: 'View chat history' })}
+                                <span className="bg-slate-200 text-slate-600 rounded-full px-1.5 py-0 text-[10px] font-medium">
+                                  {localMessages.length}
+                                </span>
+                              </button>
+                            </div>
+                          )}
                           {isSwitchingMode && (
                             <div className="border-t border-slate-200/30 px-4 py-2 text-center">
                               <div className="flex items-center justify-center gap-2 text-xs text-slate-500">
@@ -1168,6 +1184,35 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
             </div>
           </AlertDialogContent>
         </AlertDialog>
+
+        <Sheet open={isHistoryDrawerOpen} onOpenChange={setIsHistoryDrawerOpen}>
+          <SheetContent side="bottom" className="h-[70vh] flex flex-col p-0">
+            <SheetHeader className="px-4 py-3 border-b border-slate-200 shrink-0">
+              <SheetTitle className="text-sm font-semibold text-slate-700 flex items-center gap-2">
+                <i className="fas fa-history text-purple-500" />
+                {t('chat.historyTitle', { defaultValue: 'Conversation history' })}
+                <span className="text-xs font-normal text-slate-400">({localMessages.length})</span>
+              </SheetTitle>
+            </SheetHeader>
+            <div className="flex-1 overflow-hidden">
+              <MessageList
+                messages={localMessages}
+                pendingAiMessage={false}
+                pendingUserMessage={false}
+                pendingUserText=""
+                isLoading={false}
+                personaName={activePersona.name}
+                personaImage={activePersona.image}
+                currentEmotion={currentEmotion}
+                isAdmin={user?.role === 'admin'}
+                getCharacterImage={getCharacterImage}
+                messagesEndRef={messagesEndRef}
+                personaSwitchEvents={personaSwitchEvents}
+                scenarioPersonas={scenario.personas as ScenarioPersona[]}
+              />
+            </div>
+          </SheetContent>
+        </Sheet>
       </div>
     </>
   );
