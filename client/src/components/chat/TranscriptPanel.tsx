@@ -4,6 +4,12 @@ import { useTranslation } from "react-i18next";
 import type { ConversationMessage } from "@shared/schema";
 import type { PersonaSwitchEvent } from "./PersonaSwitchCard";
 import { parseJoinModeSpeakerSegments } from "@/lib/joinModeParser";
+import { toMediaUrl } from "@/lib/mediaUrl";
+
+interface JoinedPersona {
+  name: string;
+  image?: string;
+}
 
 interface TranscriptPanelProps {
   isOpen: boolean;
@@ -15,6 +21,7 @@ interface TranscriptPanelProps {
   pendingUserText: string;
   personaName: string;
   personaSwitchEvents?: PersonaSwitchEvent[];
+  joinedPersonas?: JoinedPersona[];
 }
 
 export function TranscriptPanel({
@@ -27,6 +34,7 @@ export function TranscriptPanel({
   pendingUserText,
   personaName,
   personaSwitchEvents = [],
+  joinedPersonas = [],
 }: TranscriptPanelProps) {
   const { t } = useTranslation();
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -40,6 +48,24 @@ export function TranscriptPanel({
     }
   }, [isOpen, messages, pendingAiMessage, pendingUserMessage]);
 
+  const getPersonaImage = (name: string) =>
+    joinedPersonas.find(p => p.name === name)?.image;
+
+  const renderAvatar = (name: string) => {
+    const image = getPersonaImage(name);
+    return (
+      <div className="flex-shrink-0 w-5 h-5 rounded-full overflow-hidden border border-slate-200 bg-slate-100">
+        {image ? (
+          <img src={toMediaUrl(image)} alt={name} className="w-full h-full object-cover object-top" />
+        ) : (
+          <div className="w-full h-full flex items-center justify-center text-[8px] font-bold text-slate-500">
+            {name.charAt(0).toUpperCase()}
+          </div>
+        )}
+      </div>
+    );
+  };
+
   const renderMessages = () => (
     <div ref={scrollRef} className="flex-1 overflow-y-auto p-3 space-y-2">
       {messages.filter(m => m.sender === 'user' || m.sender === 'ai').map((msg, index) => (
@@ -51,7 +77,10 @@ export function TranscriptPanel({
                 <div className="space-y-1 mr-4">
                   {segs.map((seg, si) => (
                     <div key={si} className="text-xs rounded-lg px-3 py-2 bg-slate-50 text-slate-800">
-                      <div className="font-semibold mb-0.5 opacity-60 text-[10px]">{seg.personaName}</div>
+                      <div className="flex items-center gap-1 mb-0.5">
+                        {renderAvatar(seg.personaName)}
+                        <span className="font-semibold opacity-60 text-[10px]">{seg.personaName}</span>
+                      </div>
                       <div className="leading-relaxed">{seg.text}</div>
                     </div>
                   ))}
@@ -60,7 +89,10 @@ export function TranscriptPanel({
             }
             return (
               <div className="text-xs rounded-lg px-3 py-2 bg-slate-50 text-slate-800 mr-4">
-                <div className="font-semibold mb-0.5 opacity-60 text-[10px]">{personaName}</div>
+                <div className="flex items-center gap-1 mb-0.5">
+                  {renderAvatar(personaName)}
+                  <span className="font-semibold opacity-60 text-[10px]">{personaName}</span>
+                </div>
                 <div className="leading-relaxed">{msg.message}</div>
               </div>
             );
