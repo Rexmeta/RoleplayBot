@@ -473,6 +473,12 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
     }
   }, [latestAiMessage?.message, latestAiMessage?.emotion, currentEmotion, inputMode, activePersona.voiceId]);
 
+  useEffect(() => {
+    if (inputMode !== 'realtime-voice') {
+      setIsHistoryDrawerOpen(false);
+    }
+  }, [inputMode]);
+
   const hasActiveIncident = !!(simulationState?.recentIncidents?.some(i => !i.resolved));
 
   useEffect(() => {
