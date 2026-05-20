@@ -127,7 +127,7 @@ export function MessageList({
                         </div>
                         {si === joinSegments.length - 1 && (
                           <span className="text-[10px] text-slate-400 mt-1 mx-1">
-                            {new Date().toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' })}
+                            {new Date(message.timestamp).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' })}
                           </span>
                         )}
                       </div>
@@ -191,7 +191,7 @@ export function MessageList({
                 </p>
               </div>
               <span className="text-[10px] text-slate-400 mt-1 mx-1">
-                {new Date().toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' })}
+                {new Date(message.timestamp).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' })}
               </span>
             </div>
 
