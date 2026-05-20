@@ -23,6 +23,7 @@ interface MessageListProps {
   messagesEndRef: React.RefObject<HTMLDivElement>;
   personaSwitchEvents?: PersonaSwitchEvent[];
   scenarioPersonas?: ScenarioPersona[];
+  containerRef?: React.RefObject<HTMLDivElement>;
 }
 
 export function MessageList({
@@ -39,6 +40,7 @@ export function MessageList({
   messagesEndRef,
   personaSwitchEvents = [],
   scenarioPersonas,
+  containerRef,
 }: MessageListProps) {
   const { t } = useTranslation();
 
@@ -71,7 +73,7 @@ export function MessageList({
   const messagePersonaLabels = computeMessagePersonaLabels(messages, personaSwitchEvents, personaName);
 
   return (
-    <div className="flex-1 min-h-0 overflow-y-auto p-3 sm:p-6 space-y-5 bg-gradient-to-b from-slate-50 to-white scroll-smooth" data-testid="chat-messages">
+    <div ref={containerRef} className="flex-1 min-h-0 overflow-y-auto p-3 sm:p-6 space-y-5 bg-gradient-to-b from-slate-50 to-white scroll-smooth" data-testid="chat-messages">
       {items.map((item, itemIndex) => {
         if (item.type === 'switch') {
           return <PersonaSwitchCard key={`switch-${item.event.timestamp}-${itemIndex}`} event={item.event} />;

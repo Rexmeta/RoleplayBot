@@ -112,6 +112,9 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
   const isAISpeakingForBargeInRef = useRef(false);
   const silenceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const hasUserSpokenRef = useRef(false);
+  const historyScrollContainerRef = useRef<HTMLDivElement>(null);
+  const historyMessagesEndRef = useRef<HTMLDivElement>(null);
+  const historyUserScrolledUp = useRef(false);
   const handleSwitchToTextModeRef = useRef<(() => Promise<void>) | null>(null);
   const pendingModeTransitionRef = useRef<'realtime-voice' | 'text' | 'tts' | undefined>(undefined);
 
@@ -343,9 +346,28 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
     [localMessages, pendingAiMessage, pendingUserMessage, pendingUserText]);
 
   useEffect(() => {
+    if (!isHistoryDrawerOpen) {
+      historyUserScrolledUp.current = false;
+      return;
+    }
+    const container = historyScrollContainerRef.current;
+    if (!container) return;
+
+    const handleScroll = () => {
+      const { scrollTop, scrollHeight, clientHeight } = container;
+      const distanceFromBottom = scrollHeight - scrollTop - clientHeight;
+      historyUserScrolledUp.current = distanceFromBottom > 80;
+    };
+
+    container.addEventListener('scroll', handleScroll, { passive: true });
+    return () => container.removeEventListener('scroll', handleScroll);
+  }, [isHistoryDrawerOpen]);
+
+  useEffect(() => {
     if (!isHistoryDrawerOpen) return;
+    if (historyUserScrolledUp.current) return;
     const id = setTimeout(() => {
-      messagesEndRef.current?.scrollIntoView({ behavior: 'instant', block: 'end' });
+      historyMessagesEndRef.current?.scrollIntoView({ behavior: 'instant', block: 'end' });
     }, 50);
     return () => clearTimeout(id);
   }, [isHistoryDrawerOpen, localMessages]);
@@ -1220,9 +1242,10 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
                 currentEmotion={currentEmotion}
                 isAdmin={user?.role === 'admin'}
                 getCharacterImage={getCharacterImage}
-                messagesEndRef={messagesEndRef}
+                messagesEndRef={historyMessagesEndRef}
                 personaSwitchEvents={personaSwitchEvents}
                 scenarioPersonas={scenario.personas as ScenarioPersona[]}
+                containerRef={historyScrollContainerRef}
               />
             </div>
           </SheetContent>
