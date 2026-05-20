@@ -342,6 +342,14 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
   useEffect(() => { if (messagesEndRef.current) messagesEndRef.current.scrollIntoView({ behavior: 'smooth', block: 'end' }); },
     [localMessages, pendingAiMessage, pendingUserMessage, pendingUserText]);
 
+  useEffect(() => {
+    if (!isHistoryDrawerOpen) return;
+    const id = setTimeout(() => {
+      messagesEndRef.current?.scrollIntoView({ behavior: 'instant', block: 'end' });
+    }, 50);
+    return () => clearTimeout(id);
+  }, [isHistoryDrawerOpen]);
+
   useEffect(() => { return () => { cleanupTTS(); cleanupVoiceRecording(); }; }, []);
 
   useEffect(() => {
