@@ -4,6 +4,8 @@ import type { ConversationMessage } from "@shared/schema";
 import { emotionEmojis } from "@/hooks/chat/useEmotionState";
 import { PersonaSwitchCard, type PersonaSwitchEvent } from "./PersonaSwitchCard";
 import { computeMessagePersonaLabels } from "./computeMessagePersonaLabels";
+import { parseJoinModeSpeakerSegments } from "@/lib/joinModeParser";
+import type { ScenarioPersona } from "@/lib/scenario-system";
 
 export { computeMessagePersonaLabels };
 
@@ -20,6 +22,7 @@ interface MessageListProps {
   getCharacterImage: (emotion: string) => string | null;
   messagesEndRef: React.RefObject<HTMLDivElement>;
   personaSwitchEvents?: PersonaSwitchEvent[];
+  scenarioPersonas?: ScenarioPersona[];
 }
 
 export function MessageList({
@@ -35,6 +38,7 @@ export function MessageList({
   getCharacterImage,
   messagesEndRef,
   personaSwitchEvents = [],
+  scenarioPersonas,
 }: MessageListProps) {
   const { t } = useTranslation();
 
@@ -74,6 +78,67 @@ export function MessageList({
         }
         const message = item.message;
         const index = item.index;
+        // Check for join-mode multi-speaker AI messages
+        if (message.sender === "ai") {
+          const joinSegments = parseJoinModeSpeakerSegments(message.message);
+          if (joinSegments && joinSegments.length > 1) {
+            return (
+              <div key={index} className="space-y-3">
+                {joinSegments.map((seg, si) => {
+                  const segPersona = scenarioPersonas?.find(p => p.name === seg.personaName);
+                  const segAvatarSrc = segPersona?.image
+                    ? toMediaUrl(segPersona.image)
+                    : (getCharacterImage(message.emotion || '중립') || toMediaUrl(personaImage || ''));
+                  const segAvatarAlt = seg.personaName;
+                  return (
+                    <div key={si} className="flex items-end space-x-3">
+                      <div className="relative flex-shrink-0 self-stretch flex items-end">
+                        <div className="w-10 sm:w-16 h-full min-h-[3rem] sm:min-h-[4rem] rounded-xl ring-2 ring-white shadow-lg overflow-hidden bg-slate-100">
+                          <img
+                            src={segAvatarSrc}
+                            alt={segAvatarAlt}
+                            className="w-full h-full object-cover object-top"
+                          />
+                        </div>
+                        {isAdmin && message.emotion && si === 0 && (
+                          <div
+                            className="absolute -bottom-1 -right-1 text-xs bg-white rounded-lg w-6 h-6 flex items-center justify-center shadow-sm border-2 border-white"
+                            title={message.emotionReason || message.emotion}
+                          >
+                            {emotionEmojis[message.emotion] || '😐'}
+                          </div>
+                        )}
+                      </div>
+                      <div className="flex flex-col items-start max-w-[85%] sm:max-w-[70%]">
+                        <span className="text-xs text-slate-500 mb-1 ml-1 font-medium">{seg.personaName}</span>
+                        <div className={`rounded-2xl px-4 py-3 shadow-sm bg-white border border-slate-100 rounded-bl-md shadow-md ${
+                          message.emotion === '분노' ? 'border-l-4 border-l-red-400' :
+                          message.emotion === '슬픔' ? 'border-l-4 border-l-blue-400' :
+                          message.emotion === '기쁨' ? 'border-l-4 border-l-green-400' :
+                          message.emotion === '놀람' ? 'border-l-4 border-l-yellow-400' :
+                          message.emotion === '호기심' ? 'border-l-4 border-l-purple-400' :
+                          message.emotion === '불안' ? 'border-l-4 border-l-orange-400' :
+                          message.emotion === '단호' ? 'border-l-4 border-l-slate-400' :
+                          message.emotion === '실망' ? 'border-l-4 border-l-indigo-400' :
+                          message.emotion === '당혹' ? 'border-l-4 border-l-pink-400' :
+                          message.emotion === '중립' ? 'border-l-4 border-l-gray-300' : ''
+                        }`}>
+                          <p className="leading-relaxed text-slate-700">{seg.text}</p>
+                        </div>
+                        {si === joinSegments.length - 1 && (
+                          <span className="text-[10px] text-slate-400 mt-1 mx-1">
+                            {new Date().toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' })}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            );
+          }
+        }
+
         return (
           <div
             key={index}
