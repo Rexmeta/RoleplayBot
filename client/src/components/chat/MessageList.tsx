@@ -23,7 +23,7 @@ interface MessageListProps {
   messagesEndRef: React.RefObject<HTMLDivElement>;
   personaSwitchEvents?: PersonaSwitchEvent[];
   scenarioPersonas?: ScenarioPersona[];
-  containerRef?: React.RefObject<HTMLDivElement>;
+  containerRef?: React.Ref<HTMLDivElement>;
 }
 
 export function MessageList({

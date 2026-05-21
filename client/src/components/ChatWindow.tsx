@@ -115,6 +115,22 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
   const historyScrollContainerRef = useRef<HTMLDivElement>(null);
   const historyMessagesEndRef = useRef<HTMLDivElement>(null);
   const historyUserScrolledUp = useRef(false);
+  const mainChatUserScrolledUp = useRef(false);
+  const mainChatScrollCleanupRef = useRef<(() => void) | null>(null);
+  const mainChatContainerCallbackRef = useCallback((node: HTMLDivElement | null) => {
+    if (mainChatScrollCleanupRef.current) {
+      mainChatScrollCleanupRef.current();
+      mainChatScrollCleanupRef.current = null;
+    }
+    if (!node) return;
+    const handleScroll = () => {
+      const { scrollTop, scrollHeight, clientHeight } = node;
+      mainChatUserScrolledUp.current = scrollHeight - scrollTop - clientHeight > 80;
+    };
+    handleScroll();
+    node.addEventListener('scroll', handleScroll, { passive: true });
+    mainChatScrollCleanupRef.current = () => node.removeEventListener('scroll', handleScroll);
+  }, []);
   const handleSwitchToTextModeRef = useRef<(() => Promise<void>) | null>(null);
   const pendingModeTransitionRef = useRef<'realtime-voice' | 'text' | 'tts' | undefined>(undefined);
 
@@ -342,8 +358,10 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
     });
   }, [conversation?.messages]);
 
-  useEffect(() => { if (messagesEndRef.current) messagesEndRef.current.scrollIntoView({ behavior: 'smooth', block: 'end' }); },
-    [localMessages, pendingAiMessage, pendingUserMessage, pendingUserText]);
+  useEffect(() => {
+    if (mainChatUserScrolledUp.current) return;
+    if (messagesEndRef.current) messagesEndRef.current.scrollIntoView({ behavior: 'smooth', block: 'end' });
+  }, [localMessages, pendingAiMessage, pendingUserMessage, pendingUserText]);
 
   useEffect(() => {
     if (!isHistoryDrawerOpen) {
@@ -942,6 +960,7 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
                                 messagesEndRef={messagesEndRef}
                                 personaSwitchEvents={personaSwitchEvents}
                                 scenarioPersonas={scenario.personas as ScenarioPersona[]}
+                                containerRef={mainChatContainerCallbackRef}
                               />
                               {inputMode === 'tts' && latestAiMessage && (
                                 <div className="border-t border-slate-200/30 px-4 py-2 flex justify-end gap-2">

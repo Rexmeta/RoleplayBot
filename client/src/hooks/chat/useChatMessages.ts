@@ -151,14 +151,6 @@ export function useChatMessages({ conversationId, serverMessages, onSimulationUp
     }
   }, [serverMessages]);
 
-  useEffect(() => {
-    if (messagesEndRef.current) {
-      messagesEndRef.current.scrollIntoView({
-        behavior: 'smooth',
-        block: 'end'
-      });
-    }
-  }, [localMessages, pendingAiMessage, pendingUserMessage, pendingUserText]);
 
   const sendMessageMutation = useMutation({
     mutationFn: async (payload: string | { message: string; previousInputMode?: 'realtime-voice' | 'text' | 'tts' }) => {
