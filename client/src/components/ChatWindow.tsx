@@ -348,7 +348,12 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
   useEffect(() => {
     if (!conversation?.messages) return;
     setLocalMessages(prev => {
-      const incoming = conversation.messages;
+      const incoming = [...conversation.messages].sort((a, b) => {
+        const ta = (a as any).turnIndex ?? 0;
+        const tb = (b as any).turnIndex ?? 0;
+        if (ta !== tb) return ta - tb;
+        return new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime();
+      });
       const incomingKeys = new Set(incoming.map(m => `${m.sender}:::${m.message}`));
       const existingKeys = new Set(prev.map(m => `${m.sender}:::${m.message}`));
       const hasNewFromServer = incoming.some(m => !existingKeys.has(`${m.sender}:::${m.message}`));

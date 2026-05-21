@@ -250,7 +250,14 @@ export default function ConversationView() {
                   const items: ListItem[] = [];
                   const placedKeys = new Set<string>();
 
-                  (conversation.messages as ConversationMessage[]).forEach((msg, idx) => {
+                  const sortedMessages = [...(conversation.messages as ConversationMessage[])].sort((a, b) => {
+                    const ta = a.turnIndex ?? 0;
+                    const tb = b.turnIndex ?? 0;
+                    if (ta !== tb) return ta - tb;
+                    return new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime();
+                  });
+
+                  sortedMessages.forEach((msg, idx) => {
                     // Insert switch markers BEFORE the first AI message of the new persona.
                     // Restrict to sender === 'ai' so that when multiple messages share a
                     // turnIndex (e.g. an initial AI greeting + a later AI response both at
