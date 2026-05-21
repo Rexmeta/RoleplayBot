@@ -189,7 +189,13 @@ export default function PersonalDevelopmentReport({
     }
   });
 
-  const conversationMessages: ConversationMessage[] = Array.isArray(fullConversation?.messages) ? fullConversation.messages : [];
+  const conversationMessages: ConversationMessage[] = Array.isArray(fullConversation?.messages)
+    ? [...fullConversation.messages].sort((a, b) => {
+        const ti = (a.turnIndex ?? 0) - (b.turnIndex ?? 0);
+        if (ti !== 0) return ti;
+        return new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime();
+      })
+    : [];
   const switchLog: { turn: number; fromPersonaIndex: number; toPersonaIndex: number; reason: string; transitionLine: string; timestamp: string }[] =
     Array.isArray(fullConversation?.personaSwitchLog) ? fullConversation.personaSwitchLog : [];
   const scenarioPersonas: ScenarioPersona[] = scenario.personas ?? [];
