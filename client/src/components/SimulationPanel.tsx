@@ -137,12 +137,12 @@ function ScoreCard({ score, showHeader = true }: { score: TurnScore; showHeader?
       <div className="grid grid-cols-5 gap-1">
         {dims.map(d => (
           <div key={d.key} className="flex flex-col items-center">
-            <span className="text-[10px] font-semibold text-foreground mb-0.5">{d.value}</span>
             <div className="relative h-8 w-full bg-muted rounded-sm overflow-hidden">
               <div
                 className="absolute bottom-0 left-0 right-0 bg-primary/70 transition-all duration-700"
                 style={{ height: `${d.value}%` }}
               />
+              <span className="absolute inset-x-0 top-0.5 text-center text-[10px] font-semibold text-foreground leading-none z-10">{d.value}</span>
             </div>
             <span className="text-[10px] text-muted-foreground mt-0.5">{t(`simulation.score.dimensions.${d.key}`)}</span>
           </div>
