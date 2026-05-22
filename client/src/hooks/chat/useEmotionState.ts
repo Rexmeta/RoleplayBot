@@ -121,7 +121,12 @@ export function useEmotionState({ persona, conversationId, onReady }: UseEmotion
     initialLoadCompletedRef.current = false;
     setIsInitialLoading(true);
     setIsOverlayFading(false);
-    setLoadedImageUrl('');
+    // Immediately show the incoming persona's base image so there is no blank
+    // gap while emotion-specific expression assets load in the background.
+    const immediateBaseUrl = persona.image
+      ? (toMediaUrl(persona.image) || persona.image)
+      : '';
+    setLoadedImageUrl(immediateBaseUrl);
 
     const fallbackUrl = `https://ui-avatars.com/api/?name=${encodeURIComponent(persona.name)}&background=6366f1&color=fff&size=400`;
 
