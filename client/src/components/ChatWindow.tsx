@@ -866,7 +866,8 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
                   </div>
 
                   <CharacterPortrait loadedImageUrl={loadedImageUrl} personaName={activePersona.name} personaImage={activePersona.image}
-                    currentEmotion={currentEmotion} isEmotionTransitioning={isEmotionTransitioning} isSessionEnding={isSessionEnding} />
+                    currentEmotion={currentEmotion} isEmotionTransitioning={isEmotionTransitioning} isSessionEnding={isSessionEnding}
+                    isTextMode={inputMode !== 'realtime-voice'} />
 
                   {latestPersonaSwitch && (
                     <div className="absolute top-16 left-0 right-0 z-[14] flex justify-center animate-in slide-in-from-top-2 duration-300 px-4">
@@ -944,8 +945,8 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
                     </div>
                   )}
 
-                  <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 z-20 w-full max-w-4xl lg:max-w-6xl xl:max-w-[90%] px-4">
-                    <Card className="rounded-2xl overflow-hidden text-card-foreground backdrop-blur-sm shadow-xl border border-white/10 bg-[#ffffff9c]">
+                  <div className={inputMode !== 'realtime-voice' ? "absolute inset-0 z-20 flex flex-col" : "absolute bottom-4 left-1/2 transform -translate-x-1/2 z-20 w-full max-w-4xl lg:max-w-6xl xl:max-w-[90%] px-4"}>
+                    <Card className={`overflow-hidden text-card-foreground backdrop-blur-sm shadow-xl border border-white/10 bg-[#ffffff9c] ${inputMode !== 'realtime-voice' ? 'h-full flex flex-col rounded-none' : 'rounded-2xl'}`}>
                       {inputMode === 'realtime-voice' ? (
                         <>
                           {isInlineTextOpen && (
@@ -1056,7 +1057,7 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
                       ) : (
                         <>
                           {localMessages.length === 0 && !isLoading ? (
-                            <div className="p-4 bg-[#ffffff9c] text-center text-slate-600 py-4">
+                            <div className="flex-1 flex flex-col items-center justify-center p-4 bg-[#ffffff9c] text-center text-slate-600">
                               <i className="fas fa-comment-dots text-2xl text-purple-400 mb-2"></i>
                               <p>{t('chat.startConversationHint')}</p>
                               <div className="mt-4">
@@ -1066,23 +1067,25 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
                               </div>
                             </div>
                           ) : (
-                            <div className="flex flex-col max-h-80 bg-[#ffffff9c]">
-                              <MessageList
-                                messages={localMessages}
-                                pendingAiMessage={pendingAiMessage}
-                                pendingUserMessage={pendingUserMessage}
-                                pendingUserText={pendingUserText}
-                                isLoading={isLoading}
-                                personaName={activePersona.name}
-                                personaImage={activePersona.image}
-                                currentEmotion={currentEmotion}
-                                isAdmin={user?.role === 'admin'}
-                                getCharacterImage={getCharacterImage}
-                                messagesEndRef={messagesEndRef}
-                                personaSwitchEvents={personaSwitchEvents}
-                                scenarioPersonas={scenario.personas as ScenarioPersona[]}
-                                containerRef={mainChatContainerCallbackRef}
-                              />
+                            <div className="flex flex-col flex-1 min-h-0 bg-[#ffffff9c]">
+                              <div className="flex-1 min-h-0 overflow-y-auto">
+                                <MessageList
+                                  messages={localMessages}
+                                  pendingAiMessage={pendingAiMessage}
+                                  pendingUserMessage={pendingUserMessage}
+                                  pendingUserText={pendingUserText}
+                                  isLoading={isLoading}
+                                  personaName={activePersona.name}
+                                  personaImage={activePersona.image}
+                                  currentEmotion={currentEmotion}
+                                  isAdmin={user?.role === 'admin'}
+                                  getCharacterImage={getCharacterImage}
+                                  messagesEndRef={messagesEndRef}
+                                  personaSwitchEvents={personaSwitchEvents}
+                                  scenarioPersonas={scenario.personas as ScenarioPersona[]}
+                                  containerRef={mainChatContainerCallbackRef}
+                                />
+                              </div>
                               {inputMode === 'tts' && latestAiMessage && (
                                 <div className="border-t border-slate-200/30 px-4 py-2 flex justify-end gap-2">
                                   <Button size="sm" variant="outline" onClick={() => speakText(latestAiMessage!.message, false, latestAiMessage!.emotion, activePersona.voiceId ?? undefined, (activePersona.gender as 'male' | 'female') || undefined)}

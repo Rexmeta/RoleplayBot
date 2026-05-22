@@ -8,6 +8,7 @@ interface CharacterPortraitProps {
   currentEmotion: string;
   isEmotionTransitioning: boolean;
   isSessionEnding: boolean;
+  isTextMode?: boolean;
 }
 
 const emotionOverlayColors: Record<string, string> = {
@@ -31,6 +32,7 @@ export function CharacterPortrait({
   currentEmotion,
   isEmotionTransitioning,
   isSessionEnding,
+  isTextMode = false,
 }: CharacterPortraitProps) {
   const fallbackUrl = `https://ui-avatars.com/api/?name=${encodeURIComponent(personaName)}&background=6366f1&color=fff&size=400`;
   const displayUrl = loadedImageUrl || toMediaUrl(personaImage || '') || fallbackUrl;
@@ -50,6 +52,7 @@ export function CharacterPortrait({
           backgroundPosition: 'center 15%',
           opacity: portraitOpacity,
           transition: portraitTransition,
+          filter: isTextMode ? 'blur(2px)' : undefined,
         }}
         data-testid="character-portrait"
       />
@@ -57,6 +60,9 @@ export function CharacterPortrait({
         className="absolute inset-0 pointer-events-none z-[11]"
         style={{ backgroundColor: overlayColor, transition: 'background-color 300ms ease' }}
       />
+      {isTextMode && (
+        <div className="absolute inset-0 pointer-events-none z-[12] bg-black/55" />
+      )}
     </>
   );
 }
