@@ -68,7 +68,7 @@ function hashRequestBody(body: any): string {
 }
 
 // Best-effort async: aggregate usage for dashboard
-async function incrementUsageDaily(
+export async function incrementUsageDaily(
   organizationId: string,
   agentKeyId: string,
   params: { inputTokens?: number; outputTokens?: number; errorCount?: number; latencyMs?: number }
