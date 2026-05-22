@@ -236,11 +236,16 @@ export function MessageList({
           <div className="w-14 h-14 rounded-xl ring-2 ring-white shadow-lg overflow-hidden bg-slate-100 flex-shrink-0">
             <img src={pendingAvatarSrcNeutral} alt={pendingAvatarName} className="w-full h-full object-cover object-top scale-110" />
           </div>
-          <div className="bg-white rounded-2xl rounded-bl-md px-4 py-3 shadow-md border border-slate-100 mt-1">
-            <div className="flex space-x-1.5">
-              <div className="w-2.5 h-2.5 bg-slate-300 rounded-full animate-bounce"></div>
-              <div className="w-2.5 h-2.5 bg-slate-300 rounded-full animate-bounce" style={{ animationDelay: "0.15s" }}></div>
-              <div className="w-2.5 h-2.5 bg-slate-300 rounded-full animate-bounce" style={{ animationDelay: "0.3s" }}></div>
+          <div className="flex flex-col items-start">
+            {latestSwitch && (
+              <span className="text-xs text-slate-500 mb-1 ml-1 font-medium">{pendingAvatarName}</span>
+            )}
+            <div className="bg-white rounded-2xl rounded-bl-md px-4 py-3 shadow-md border border-slate-100 mt-1">
+              <div className="flex space-x-1.5">
+                <div className="w-2.5 h-2.5 bg-slate-300 rounded-full animate-bounce"></div>
+                <div className="w-2.5 h-2.5 bg-slate-300 rounded-full animate-bounce" style={{ animationDelay: "0.15s" }}></div>
+                <div className="w-2.5 h-2.5 bg-slate-300 rounded-full animate-bounce" style={{ animationDelay: "0.3s" }}></div>
+              </div>
             </div>
           </div>
         </div>
@@ -252,6 +257,9 @@ export function MessageList({
             <img src={pendingAvatarSrc} alt={pendingAvatarName} className="w-full h-full object-cover object-top scale-110" />
           </div>
           <div className="flex flex-col max-w-[75%]">
+            {latestSwitch && (
+              <span className="text-xs text-slate-500 mb-1 ml-1 font-medium">{pendingAvatarName}</span>
+            )}
             <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-2xl rounded-bl-md px-4 py-3 shadow-md border border-blue-100 mt-1">
               <div className="flex items-center space-x-2 text-blue-600">
                 <i className="fas fa-volume-up animate-pulse"></i>
