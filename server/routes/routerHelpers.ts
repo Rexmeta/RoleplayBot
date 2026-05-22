@@ -904,6 +904,92 @@ export function buildFreeChatScenario(mbtiPersona: any, difficulty: number): any
   };
 }
 
+export interface MetricSnapshotInput {
+  trackedMetrics: string[];
+  emotionTimeline: Array<{ anger?: number; trust?: number }>;
+  simTurnScores: Array<{ turnIndex: number; turnScore: Record<string, number> }>;
+  simIncidents: Array<{ turnIndex: number; type: string; severity: string }>;
+  conversationDurationSeconds: number;
+  userMessages: Array<{ message: string }>;
+}
+
+export function computeMetricSnapshot(input: MetricSnapshotInput): Record<string, number | null> {
+  const {
+    trackedMetrics,
+    emotionTimeline,
+    simTurnScores,
+    simIncidents,
+    conversationDurationSeconds,
+    userMessages,
+  } = input;
+
+  const snapshot: Record<string, number | null> = {};
+  for (const metric of trackedMetrics) {
+    switch (metric) {
+      case 'angerMax': {
+        const vals = emotionTimeline.map(s => s.anger).filter((v): v is number => typeof v === 'number');
+        snapshot.angerMax = vals.length > 0 ? Math.max(...vals) : null;
+        break;
+      }
+      case 'trustMin': {
+        const vals = emotionTimeline.map(s => s.trust).filter((v): v is number => typeof v === 'number');
+        snapshot.trustMin = vals.length > 0 ? Math.min(...vals) : null;
+        break;
+      }
+      case 'trustMax': {
+        const vals = emotionTimeline.map(s => s.trust).filter((v): v is number => typeof v === 'number');
+        snapshot.trustMax = vals.length > 0 ? Math.max(...vals) : null;
+        break;
+      }
+      case 'trustAverage': {
+        const vals = emotionTimeline.map(s => s.trust).filter((v): v is number => typeof v === 'number');
+        snapshot.trustAverage = vals.length > 0 ? Math.round(vals.reduce((a, b) => a + b, 0) / vals.length) : null;
+        break;
+      }
+      case 'angerAverage': {
+        const vals = emotionTimeline.map(s => s.anger).filter((v): v is number => typeof v === 'number');
+        snapshot.angerAverage = vals.length > 0 ? Math.round(vals.reduce((a, b) => a + b, 0) / vals.length) : null;
+        break;
+      }
+      case 'empathyAverage': {
+        const vals = simTurnScores.map(t => (t.turnScore as Record<string, number>)['empathy']).filter((v): v is number => typeof v === 'number');
+        snapshot.empathyAverage = vals.length > 0 ? Math.round(vals.reduce((a, b) => a + b, 0) / vals.length) : null;
+        break;
+      }
+      case 'escalationCount': {
+        snapshot.escalationCount = simIncidents.filter(i =>
+          ['customer_escalation', 'manager_interrupt', 'executive_join'].includes(i.type)
+        ).length;
+        break;
+      }
+      case 'interruptionCount': {
+        snapshot.interruptionCount = simIncidents.length;
+        break;
+      }
+      case 'timeToResolution': {
+        snapshot.timeToResolution = Math.round(conversationDurationSeconds);
+        break;
+      }
+      case 'totalTurns': {
+        snapshot.totalTurns = userMessages.length;
+        break;
+      }
+      case 'turnsToFirstActionPlan': {
+        const actionPlanKeywords = ['계획', '방안', '해결책', '조치', 'action plan', 'plan of action'];
+        let firstTurn: number | null = null;
+        userMessages.forEach((m, idx) => {
+          if (firstTurn !== null) return;
+          const msg = (m.message || '').toLowerCase();
+          if (actionPlanKeywords.some(k => msg.includes(k))) firstTurn = idx + 1;
+        });
+        snapshot.turnsToFirstActionPlan = firstTurn;
+        break;
+      }
+    }
+  }
+  return snapshot;
+}
+
 export async function getOperatorAccessibleCategoryIds(user: any): Promise<string[]> {
   if (user.role === 'admin') {
     const allCategories = await storage.getAllCategories();
