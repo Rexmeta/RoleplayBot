@@ -284,66 +284,55 @@ router.post(
 );
 
 // ─────────────────────────────────────────────────────────────────────────────
-// GET /api/admin/agent-keys/:id/usage — daily usage for past 30 days
+// GET /api/admin/agent-keys/:id/usage — daily usage for a key (admin + operator)
+// Query params: from=YYYY-MM-DD, to=YYYY-MM-DD
 // ─────────────────────────────────────────────────────────────────────────────
+const perKeyUsageQuerySchema = z.object({
+  from: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "from must be YYYY-MM-DD"),
+  to: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "to must be YYYY-MM-DD"),
+});
+
 router.get(
   "/:id/usage",
   isOperatorOrAdmin,
   asyncHandler(async (req: any, res) => {
-    const keyId = req.params.id;
-    const isAdmin = req.user.role === "admin";
+    const parsed = perKeyUsageQuerySchema.safeParse(req.query);
+    if (!parsed.success) {
+      throw Object.assign(createHttpError(400, "Invalid query params"), {
+        details: parsed.error.flatten(),
+      });
+    }
+    const { from, to } = parsed.data;
 
-    // For operators: verify the key belongs to them or their assigned org
+    // Operators may only view keys they own or those in their assigned org
+    const isAdmin = req.user.role === "admin";
     if (!isAdmin) {
       const [key] = await db
         .select({ ownerUserId: agentApiKeys.ownerUserId, organizationId: agentApiKeys.organizationId })
         .from(agentApiKeys)
-        .where(eq(agentApiKeys.id, keyId))
+        .where(eq(agentApiKeys.id, req.params.id))
         .limit(1);
-
       if (!key) throw createHttpError(404, "API key not found");
-
       const ownedByUser = key.ownerUserId === req.user.id;
       const ownedByOrg = req.user.assignedOrganizationId
         ? key.organizationId === req.user.assignedOrganizationId
         : false;
-
-      if (!ownedByUser && !ownedByOrg) {
-        throw createHttpError(403, "Access denied");
-      }
+      if (!ownedByUser && !ownedByOrg) throw createHttpError(403, "Access denied");
     }
-
-    // Build the list of the last 30 days (YYYY-MM-DD strings)
-    const today = new Date();
-    const days: string[] = [];
-    for (let i = 29; i >= 0; i--) {
-      const d = new Date(today);
-      d.setDate(today.getDate() - i);
-      days.push(d.toISOString().slice(0, 10));
-    }
-    const fromDate = days[0];
-    const toDate = days[days.length - 1];
 
     const rows = await db
-      .select({
-        date: agentUsageDaily.date,
-        requestCount: agentUsageDaily.requestCount,
-      })
+      .select()
       .from(agentUsageDaily)
       .where(
         and(
-          eq(agentUsageDaily.agentKeyId, keyId),
-          gte(agentUsageDaily.date, fromDate),
-          sql`${agentUsageDaily.date} <= ${toDate}`
+          eq(agentUsageDaily.agentKeyId, req.params.id),
+          gte(agentUsageDaily.date, from),
+          lte(agentUsageDaily.date, to)
         )
       )
       .orderBy(agentUsageDaily.date);
 
-    // Zero-fill so we always return exactly 30 entries
-    const byDate = new Map(rows.map((r: any) => [r.date, r.requestCount as number]));
-    const filled = days.map((date) => ({ date, requestCount: byDate.get(date) ?? 0 }));
-
-    res.json(filled);
+    res.json(rows);
   })
 );
 

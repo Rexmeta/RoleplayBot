@@ -45,17 +45,9 @@ import {
   BarChart2,
   ExternalLink,
 } from "lucide-react";
-import {
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  Tooltip,
-  ResponsiveContainer,
-  CartesianGrid,
-} from "recharts";
 import { format } from "date-fns";
 import { AGENT_API_SCOPES } from "@shared/schema";
+import { AgentKeyUsageDashboard } from "./AgentKeyUsageDashboard";
 
 interface AgentApiKey {
   id: string;
@@ -111,7 +103,7 @@ export function AgentKeyManager() {
   const [scenarioTarget, setScenarioTarget] = useState<AgentApiKey | null>(null);
   const [selectedScenarioIds, setSelectedScenarioIds] = useState<string[]>([]);
   const [formData, setFormData] = useState(EMPTY_FORM);
-  const [usageTrendTarget, setUsageTrendTarget] = useState<AgentApiKey | null>(null);
+  const [usageTarget, setUsageTarget] = useState<AgentApiKey | null>(null);
 
   const { data: keys = [], isLoading } = useQuery<AgentApiKey[]>({
     queryKey: ["/api/admin/agent-keys"],
@@ -122,23 +114,6 @@ export function AgentKeyManager() {
     queryFn: async () => {
       const res = await fetch("/api/scenarios", { credentials: "include" });
       if (!res.ok) throw new Error("Failed to fetch scenarios");
-      return res.json();
-    },
-  });
-
-  interface DailyUsage {
-    date: string;
-    requestCount: number;
-  }
-
-  const { data: usageTrendData = [], isLoading: usageTrendLoading } = useQuery<DailyUsage[]>({
-    queryKey: ["/api/admin/agent-keys", usageTrendTarget?.id, "usage"],
-    enabled: !!usageTrendTarget,
-    queryFn: async () => {
-      const res = await fetch(`/api/admin/agent-keys/${usageTrendTarget!.id}/usage`, {
-        credentials: "include",
-      });
-      if (!res.ok) throw new Error("Failed to fetch usage data");
       return res.json();
     },
   });
@@ -380,8 +355,8 @@ export function AgentKeyManager() {
                             <Button
                               size="sm"
                               variant="outline"
-                              onClick={() => setUsageTrendTarget(key)}
-                              title={t("agentKeys.action.viewUsageTrend", "사용량 트렌드 보기")}
+                              onClick={() => setUsageTarget(key)}
+                              title={t("agentKeys.action.viewUsage", "사용량 보기")}
                             >
                               <BarChart2 className="h-3.5 w-3.5" />
                             </Button>
@@ -688,70 +663,6 @@ export function AgentKeyManager() {
         </DialogContent>
       </Dialog>
 
-      {/* Usage Trend Dialog */}
-      <Dialog open={!!usageTrendTarget} onOpenChange={(open) => !open && setUsageTrendTarget(null)}>
-        <DialogContent className="max-w-2xl">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <BarChart2 className="h-5 w-5" />
-              {t("agentKeys.dialog.usage.title", "사용량 트렌드 (최근 30일)")}
-            </DialogTitle>
-            <DialogDescription>
-              {usageTrendTarget?.name} — {usageTrendTarget?.keyPrefix}…
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="py-4">
-            {usageTrendLoading ? (
-              <div className="flex items-center justify-center py-16 text-muted-foreground">
-                <Loader2 className="h-6 w-6 animate-spin mr-2" />
-                {t("agentKeys.loading", "로딩 중...")}
-              </div>
-            ) : (
-              <>
-                <div className="mb-3 flex items-center gap-4 text-sm text-muted-foreground">
-                  <span>
-                    {t("agentKeys.dialog.usage.total", "30일 합계")}:{" "}
-                    <span className="font-semibold text-foreground">
-                      {usageTrendData.reduce((s, d) => s + d.requestCount, 0).toLocaleString()}
-                    </span>
-                  </span>
-                  <span>
-                    {t("agentKeys.dialog.usage.peak", "최대")}:{" "}
-                    <span className="font-semibold text-foreground">
-                      {Math.max(...usageTrendData.map((d) => d.requestCount), 0).toLocaleString()}
-                    </span>
-                  </span>
-                </div>
-                <ResponsiveContainer width="100%" height={240}>
-                  <BarChart data={usageTrendData} margin={{ top: 4, right: 8, left: 0, bottom: 4 }}>
-                    <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
-                    <XAxis
-                      dataKey="date"
-                      tick={{ fontSize: 10 }}
-                      tickFormatter={(v: string) => v.slice(5)}
-                      interval={4}
-                    />
-                    <YAxis tick={{ fontSize: 11 }} allowDecimals={false} width={40} />
-                    <Tooltip
-                      formatter={(value: number) => [value.toLocaleString(), t("agentKeys.dialog.usage.requests", "요청")]}
-                      labelFormatter={(label: string) => label}
-                    />
-                    <Bar dataKey="requestCount" fill="hsl(var(--primary))" radius={[3, 3, 0, 0]} maxBarSize={32} />
-                  </BarChart>
-                </ResponsiveContainer>
-              </>
-            )}
-          </div>
-
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setUsageTrendTarget(null)}>
-              {t("common.close", "닫기")}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
       {/* Scenario Access Dialog */}
       <Dialog open={!!scenarioTarget} onOpenChange={(open) => !open && handleScenarioDialogClose()}>
         <DialogContent className="max-w-lg">
@@ -827,6 +738,15 @@ export function AgentKeyManager() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Usage Dashboard Dialog */}
+      <AgentKeyUsageDashboard
+        keyId={usageTarget?.id ?? null}
+        keyName={usageTarget?.name ?? ""}
+        keyPrefix={usageTarget?.keyPrefix ?? ""}
+        open={!!usageTarget}
+        onClose={() => setUsageTarget(null)}
+      />
     </div>
   );
 }
