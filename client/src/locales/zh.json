@@ -1334,6 +1334,7 @@
       "avgCostPerRequest": "每请求平均费用",
       "input": "输入",
       "output": "输出",
+      "cached": "缓存",
       "usageByFeature": "按功能使用量",
       "usageByModel": "按模型使用量",
       "dailyUsage": "每日使用量",

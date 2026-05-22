@@ -1455,6 +1455,23 @@ export async function runMigrations(): Promise<void> {
         console.warn('⚠️ Failed to migrate legacy stale-active runs:', err);
       }
 
+      // Add cached_tokens column to ai_usage_logs if not exists
+      try {
+        await client.query(`
+          DO $$ BEGIN
+            IF NOT EXISTS (
+              SELECT 1 FROM information_schema.columns
+              WHERE table_name = 'ai_usage_logs' AND column_name = 'cached_tokens'
+            ) THEN
+              ALTER TABLE "ai_usage_logs" ADD COLUMN "cached_tokens" integer NOT NULL DEFAULT 0;
+            END IF;
+          END $$;
+        `);
+        console.log('✅ ai_usage_logs.cached_tokens column ensured');
+      } catch (err) {
+        console.warn('⚠️ Failed to add cached_tokens column to ai_usage_logs:', err);
+      }
+
       console.log('✅ Database migrations completed successfully');
     } finally {
       client.release();

@@ -17,6 +17,7 @@ export const aiUsageLogs = pgTable("ai_usage_logs", {
   promptTokens: integer("prompt_tokens").notNull().default(0),
   completionTokens: integer("completion_tokens").notNull().default(0),
   totalTokens: integer("total_tokens").notNull().default(0),
+  cachedTokens: integer("cached_tokens").notNull().default(0),
   inputCostUsd: doublePrecision("input_cost_usd").notNull().default(0),
   outputCostUsd: doublePrecision("output_cost_usd").notNull().default(0),
   totalCostUsd: doublePrecision("total_cost_usd").notNull().default(0),

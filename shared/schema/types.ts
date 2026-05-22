@@ -202,6 +202,7 @@ export type AiUsageSummary = {
   totalTokens: number;
   promptTokens: number;
   completionTokens: number;
+  cachedTokens: number;
   totalCostUsd: number;
   requestCount: number;
 };

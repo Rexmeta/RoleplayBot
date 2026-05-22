@@ -234,8 +234,8 @@ export class OptimizedGeminiProvider implements AIServiceInterface {
         provider: 'gemini',
         promptTokens: tokens.promptTokens,
         completionTokens: tokens.completionTokens,
+        cachedTokens,
         durationMs: totalTime,
-        metadata: cachedTokens > 0 ? { cachedTokens } : undefined,
       });
 
       return {

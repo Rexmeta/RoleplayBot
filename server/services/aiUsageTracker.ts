@@ -45,6 +45,7 @@ interface TrackUsageParams {
   provider: AIProvider;
   promptTokens: number;
   completionTokens: number;
+  cachedTokens?: number;
   userId?: string;
   conversationId?: string;
   requestId?: string;
@@ -99,6 +100,7 @@ export async function trackUsage(params: TrackUsageParams): Promise<void> {
       promptTokens: params.promptTokens,
       completionTokens: params.completionTokens,
       totalTokens: params.promptTokens + params.completionTokens,
+      cachedTokens: params.cachedTokens || 0,
       inputCostUsd: inputCost,
       outputCostUsd: outputCost,
       totalCostUsd: totalCost,
@@ -133,6 +135,7 @@ export async function trackUsageSync(params: TrackUsageParams): Promise<void> {
     promptTokens: params.promptTokens,
     completionTokens: params.completionTokens,
     totalTokens: params.promptTokens + params.completionTokens,
+    cachedTokens: params.cachedTokens || 0,
     inputCostUsd: inputCost,
     outputCostUsd: outputCost,
     totalCostUsd: totalCost,

@@ -1334,6 +1334,7 @@
       "avgCostPerRequest": "リクエスト当たり平均コスト",
       "input": "入力",
       "output": "出力",
+      "cached": "キャッシュ",
       "usageByFeature": "機能別使用量",
       "usageByModel": "モデル別使用量",
       "dailyUsage": "日別使用量",

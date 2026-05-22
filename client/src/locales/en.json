@@ -1338,6 +1338,7 @@
       "avgCostPerRequest": "Avg Cost per Request",
       "input": "Input",
       "output": "Output",
+      "cached": "Cached",
       "usageByFeature": "Usage by Feature",
       "usageByModel": "Usage by Model",
       "dailyUsage": "Daily Usage",

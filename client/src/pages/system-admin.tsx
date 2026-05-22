@@ -129,6 +129,7 @@ interface AiUsageSummary {
   totalTokens: number;
   promptTokens: number;
   completionTokens: number;
+  cachedTokens: number;
   totalCostUsd: number;
   requestCount: number;
 }
@@ -1571,6 +1572,11 @@ export default function SystemAdminPage() {
                       <p className="text-xs text-muted-foreground mt-1">
                         {t('systemAdmin.aiUsage.input')}: {((usageSummary?.promptTokens || 0) / 1000).toFixed(1)}K / {t('systemAdmin.aiUsage.output')}: {((usageSummary?.completionTokens || 0) / 1000).toFixed(1)}K
                       </p>
+                      {(usageSummary?.cachedTokens || 0) > 0 && (
+                        <p className="text-xs text-amber-500 mt-0.5">
+                          ⚡ {t('systemAdmin.aiUsage.cached')}: {((usageSummary?.cachedTokens || 0) / 1000).toFixed(1)}K ({(((usageSummary?.cachedTokens || 0) / Math.max(usageSummary?.promptTokens || 1, 1)) * 100).toFixed(0)}% of input)
+                        </p>
+                      )}
                     </>
                   )}
                 </CardContent>
