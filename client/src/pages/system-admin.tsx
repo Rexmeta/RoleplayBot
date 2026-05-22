@@ -154,6 +154,24 @@ interface AiUsageDaily {
   requestCount: number;
 }
 
+interface AgentKey {
+  id: string;
+  name: string;
+  keyPrefix: string;
+  environment: "live" | "test";
+  organizationId: string;
+  scopes: string[];
+  allowedIps: string[];
+  rateLimitPerMinute: number;
+  isActive: boolean;
+  expiresAt: string | null;
+  lastUsedAt: string | null;
+  revokedAt: string | null;
+  revocationReason: string | null;
+  createdAt: string;
+  monthlyRequestCount: number;
+}
+
 const AI_MODELS = [
   { 
     value: "gemini-2.5-flash", 
@@ -676,6 +694,20 @@ export default function SystemAdminPage() {
     refetchDaily();
   };
 
+  const { data: agentKeys = [], isLoading: agentKeysLoading } = useQuery<AgentKey[]>({
+    queryKey: ["/api/admin/agent-keys"],
+    queryFn: async () => {
+      const res = await fetch("/api/admin/agent-keys", {
+        headers: { Authorization: `Bearer ${localStorage.getItem("authToken")}` },
+        cache: "no-store",
+      });
+      if (!res.ok) throw new Error("Failed to fetch agent keys");
+      return res.json();
+    },
+    enabled: activeTab === "agent-keys",
+    staleTime: 30 * 1000,
+  });
+
   const updateUserMutation = useMutation({
     mutationFn: async ({ id, updates }: { id: string; updates: any }) => {
       return await apiRequest("PATCH", `/api/system-admin/users/${id}`, updates);
@@ -935,7 +967,7 @@ export default function SystemAdminPage() {
 
       <div className="container mx-auto p-3 md:p-6 space-y-6" data-testid="system-admin-page">
         <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <TabsList className="grid w-full grid-cols-3 sm:grid-cols-6 h-auto p-1 gap-1">
+          <TabsList className="grid w-full grid-cols-4 sm:grid-cols-7 h-auto p-1 gap-1">
             <TabsTrigger value="users" className="flex items-center gap-2" data-testid="tab-users">
               <Users className="h-4 w-4" />
               {t('systemAdmin.tabs.users')}
@@ -955,6 +987,10 @@ export default function SystemAdminPage() {
             <TabsTrigger value="ai-usage" className="flex items-center gap-2" data-testid="tab-ai-usage">
               <Activity className="h-4 w-4" />
               {t('systemAdmin.tabs.aiUsage')}
+            </TabsTrigger>
+            <TabsTrigger value="agent-keys" className="flex items-center gap-2" data-testid="tab-agent-keys">
+              <KeyRound className="h-4 w-4" />
+              {t('systemAdmin.tabs.agentKeys', 'API Keys')}
             </TabsTrigger>
             <TabsTrigger value="storage-sync" className="flex items-center gap-2" data-testid="tab-storage-sync">
               <HardDrive className="h-4 w-4" />
@@ -1723,6 +1759,83 @@ export default function SystemAdminPage() {
                         {t('systemAdmin.aiUsage.showingLast14Days', { total: dailyUsage.length })}
                       </p>
                     )}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="agent-keys" className="space-y-6 mt-6">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <KeyRound className="h-5 w-5" />
+                  {t('systemAdmin.agentKeys.title', 'Agent API Keys')}
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {agentKeysLoading ? (
+                  <div className="flex items-center justify-center py-10">
+                    <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                  </div>
+                ) : agentKeys.length === 0 ? (
+                  <p className="text-center text-muted-foreground py-10">
+                    {t('systemAdmin.agentKeys.empty', 'No agent API keys found.')}
+                  </p>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>{t('systemAdmin.agentKeys.col.name', 'Name')}</TableHead>
+                          <TableHead>{t('systemAdmin.agentKeys.col.prefix', 'Key Prefix')}</TableHead>
+                          <TableHead>{t('systemAdmin.agentKeys.col.environment', 'Env')}</TableHead>
+                          <TableHead>{t('systemAdmin.agentKeys.col.status', 'Status')}</TableHead>
+                          <TableHead className="text-right">{t('systemAdmin.agentKeys.col.monthlyRequests', 'Requests this month')}</TableHead>
+                          <TableHead>{t('systemAdmin.agentKeys.col.lastUsed', 'Last Used')}</TableHead>
+                          <TableHead>{t('systemAdmin.agentKeys.col.expires', 'Expires')}</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {agentKeys.map((key) => {
+                          const isHighUsage = key.monthlyRequestCount >= 1000;
+                          const isMediumUsage = key.monthlyRequestCount >= 100;
+                          return (
+                            <TableRow key={key.id} data-testid={`row-agent-key-${key.id}`}>
+                              <TableCell className="font-medium">{key.name}</TableCell>
+                              <TableCell className="font-mono text-sm text-muted-foreground">{key.keyPrefix}…</TableCell>
+                              <TableCell>
+                                <Badge variant={key.environment === "live" ? "default" : "secondary"}>
+                                  {key.environment}
+                                </Badge>
+                              </TableCell>
+                              <TableCell>
+                                {key.revokedAt ? (
+                                  <Badge variant="destructive">{t('systemAdmin.agentKeys.status.revoked', 'Revoked')}</Badge>
+                                ) : key.isActive ? (
+                                  <Badge variant="default" className="bg-green-600">{t('systemAdmin.agentKeys.status.active', 'Active')}</Badge>
+                                ) : (
+                                  <Badge variant="secondary">{t('systemAdmin.agentKeys.status.inactive', 'Inactive')}</Badge>
+                                )}
+                              </TableCell>
+                              <TableCell className="text-right">
+                                <span className={`inline-flex items-center gap-1.5 font-mono text-sm font-semibold ${isHighUsage ? "text-red-600" : isMediumUsage ? "text-amber-600" : "text-slate-700"}`}>
+                                  {isHighUsage && <span className="inline-block w-2 h-2 rounded-full bg-red-500" title="High usage" />}
+                                  {!isHighUsage && isMediumUsage && <span className="inline-block w-2 h-2 rounded-full bg-amber-400" title="Medium usage" />}
+                                  {key.monthlyRequestCount.toLocaleString()}
+                                </span>
+                              </TableCell>
+                              <TableCell className="text-sm text-muted-foreground">
+                                {key.lastUsedAt ? format(new Date(key.lastUsedAt), "yyyy-MM-dd", { locale: ko }) : "—"}
+                              </TableCell>
+                              <TableCell className="text-sm text-muted-foreground">
+                                {key.expiresAt ? format(new Date(key.expiresAt), "yyyy-MM-dd", { locale: ko }) : "—"}
+                              </TableCell>
+                            </TableRow>
+                          );
+                        })}
+                      </TableBody>
+                    </Table>
                   </div>
                 )}
               </CardContent>
