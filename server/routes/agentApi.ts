@@ -1071,7 +1071,8 @@ router.get("/usage", requireScope("usage:read"), async (req: any, res) => {
       return;
     }
 
-    const MAX_RANGE_DAYS = 365;
+    const _rawRangeDays = parseInt(process.env.AGENT_USAGE_MAX_RANGE_DAYS ?? '', 10);
+    const MAX_RANGE_DAYS = Number.isInteger(_rawRangeDays) && _rawRangeDays > 0 ? _rawRangeDays : 365;
     const msPerDay = 86_400_000;
     const rangeDays = (new Date(toDate).getTime() - new Date(fromDate).getTime()) / msPerDay;
     if (rangeDays > MAX_RANGE_DAYS) {

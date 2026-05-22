@@ -264,6 +264,93 @@ describe('GET /api/v1/agent/usage', () => {
     });
   });
 
+  describe('AGENT_USAGE_MAX_RANGE_DAYS env var', () => {
+    const originalEnv = process.env.AGENT_USAGE_MAX_RANGE_DAYS;
+
+    afterEach(() => {
+      if (originalEnv === undefined) {
+        delete process.env.AGENT_USAGE_MAX_RANGE_DAYS;
+      } else {
+        process.env.AGENT_USAGE_MAX_RANGE_DAYS = originalEnv;
+      }
+    });
+
+    it('uses 365 as the default when env var is not set', async () => {
+      delete process.env.AGENT_USAGE_MAX_RANGE_DAYS;
+
+      const res = await request(app)
+        .get('/api/v1/agent/usage')
+        .query({ from: '2000-01-01', to: '2099-12-31' });
+
+      expect(res.status).toBe(400);
+      expect(res.body.error.message).toMatch(/365/);
+    });
+
+    it('honours a valid custom limit (e.g. 90 days)', async () => {
+      process.env.AGENT_USAGE_MAX_RANGE_DAYS = '90';
+      makeDbChain([]);
+
+      const over90 = await request(app)
+        .get('/api/v1/agent/usage')
+        .query({ from: '2026-01-01', to: '2026-04-15' });
+
+      expect(over90.status).toBe(400);
+      expect(over90.body.error.code).toBe('date_range_too_large');
+      expect(over90.body.error.message).toMatch(/90/);
+
+      makeDbChain([]);
+      const within90 = await request(app)
+        .get('/api/v1/agent/usage')
+        .query({ from: '2026-03-01', to: '2026-04-15' });
+
+      expect(within90.status).toBe(200);
+    });
+
+    it('falls back to 365 when env var is an empty string', async () => {
+      process.env.AGENT_USAGE_MAX_RANGE_DAYS = '';
+
+      const res = await request(app)
+        .get('/api/v1/agent/usage')
+        .query({ from: '2000-01-01', to: '2099-12-31' });
+
+      expect(res.status).toBe(400);
+      expect(res.body.error.message).toMatch(/365/);
+    });
+
+    it('falls back to 365 when env var is not a number', async () => {
+      process.env.AGENT_USAGE_MAX_RANGE_DAYS = 'abc';
+
+      const res = await request(app)
+        .get('/api/v1/agent/usage')
+        .query({ from: '2000-01-01', to: '2099-12-31' });
+
+      expect(res.status).toBe(400);
+      expect(res.body.error.message).toMatch(/365/);
+    });
+
+    it('falls back to 365 when env var is zero', async () => {
+      process.env.AGENT_USAGE_MAX_RANGE_DAYS = '0';
+
+      const res = await request(app)
+        .get('/api/v1/agent/usage')
+        .query({ from: '2000-01-01', to: '2099-12-31' });
+
+      expect(res.status).toBe(400);
+      expect(res.body.error.message).toMatch(/365/);
+    });
+
+    it('falls back to 365 when env var is negative', async () => {
+      process.env.AGENT_USAGE_MAX_RANGE_DAYS = '-10';
+
+      const res = await request(app)
+        .get('/api/v1/agent/usage')
+        .query({ from: '2000-01-01', to: '2099-12-31' });
+
+      expect(res.status).toBe(400);
+      expect(res.body.error.message).toMatch(/365/);
+    });
+  });
+
   describe('empty result set', () => {
     it('returns rows:[] and zero-value summary when no usage records exist', async () => {
       makeDbChain([]);
