@@ -1097,6 +1097,31 @@ export async function runMigrations(): Promise<void> {
         console.warn('⚠️ Failed to add simulation_state to persona_runs:', err);
       }
 
+      // analyticsSpec and metricSnapshot columns
+      try {
+        await client.query(`
+          DO $$ BEGIN
+            IF NOT EXISTS (
+              SELECT 1 FROM information_schema.columns
+              WHERE table_name='scenarios' AND column_name='analytics_spec'
+            ) THEN
+              ALTER TABLE scenarios ADD COLUMN analytics_spec jsonb;
+            END IF;
+          END $$;
+          DO $$ BEGIN
+            IF NOT EXISTS (
+              SELECT 1 FROM information_schema.columns
+              WHERE table_name='feedbacks' AND column_name='metric_snapshot'
+            ) THEN
+              ALTER TABLE feedbacks ADD COLUMN metric_snapshot jsonb;
+            END IF;
+          END $$;
+        `);
+        console.log('✅ scenarios.analytics_spec and feedbacks.metric_snapshot columns ensured');
+      } catch (err) {
+        console.warn('⚠️ Failed to add analytics_spec/metric_snapshot columns:', err);
+      }
+
       // scenario_versions table
       try {
         await client.query(`

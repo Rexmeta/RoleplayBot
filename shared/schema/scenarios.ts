@@ -344,6 +344,7 @@ export const scenarios = pgTable("scenarios", {
   difficultyProfile: jsonb("difficulty_profile").$type<DifficultyProfile>(),
   personaSwitchMode: varchar("persona_switch_mode", { length: 20 }).$type<'replace' | 'join'>(),
   simulationHarness: jsonb("simulation_harness").$type<SimulationHarness>(),
+  analyticsSpec: jsonb("analytics_spec").$type<AnalyticsSpec>(),
   isDemo: boolean("is_demo").notNull().default(false),
   isPublic: boolean("is_public").notNull().default(false),
   isDeleted: boolean("is_deleted").notNull().default(false),
@@ -418,6 +419,35 @@ export const insertScenarioRunSchema = createInsertSchema(scenarioRuns).omit({
 });
 export type InsertScenarioRun = z.infer<typeof insertScenarioRunSchema>;
 export type ScenarioRun = typeof scenarioRuns.$inferSelect;
+
+// ─── AnalyticsSpec ────────────────────────────────────────────────────────────
+
+export const TRACKED_METRICS = [
+  'angerMax', 'trustMin', 'trustMax', 'trustAverage', 'angerAverage',
+  'empathyAverage', 'escalationCount', 'interruptionCount',
+  'timeToResolution', 'totalTurns', 'turnsToFirstActionPlan',
+] as const;
+
+export type TrackedMetricKey = typeof TRACKED_METRICS[number];
+
+export const REPORT_SECTIONS = [
+  'scoreOverview', 'criticalMoments', 'simulationReplay', 'practiceGuide',
+  'developmentPlan', 'strategy', 'conversation', 'metricSnapshot',
+] as const;
+
+export type ReportSectionKey = typeof REPORT_SECTIONS[number];
+
+export interface AnalyticsSpec {
+  trackedMetrics?: TrackedMetricKey[];
+  reportSections?: ReportSectionKey[];
+  benchmarkGroup?: string;
+}
+
+export const analyticsSpecSchema: z.ZodType<AnalyticsSpec> = z.object({
+  trackedMetrics: z.array(z.enum(TRACKED_METRICS)).optional(),
+  reportSections: z.array(z.enum(REPORT_SECTIONS)).optional(),
+  benchmarkGroup: z.string().optional(),
+});
 
 export type ScenarioStats = {
   scenarioId: string;

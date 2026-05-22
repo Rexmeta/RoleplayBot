@@ -17,7 +17,8 @@ import { Slider } from '@/components/ui/slider';
 import { useToast } from '@/hooks/use-toast';
 import { apiRequest, queryClient } from '@/lib/queryClient';
 import { ComplexScenario } from '@/lib/scenario-system';
-import { flowGraphSchema, personaSwitchRulesSchema, evaluationHarnessSchema, terminationRulesSchema, simulationHarnessSchema, playerConstraintsSchema, difficultyProfileSchema } from '@shared/schema/scenarios';
+import { flowGraphSchema, personaSwitchRulesSchema, evaluationHarnessSchema, terminationRulesSchema, simulationHarnessSchema, playerConstraintsSchema, difficultyProfileSchema, analyticsSpecSchema, TRACKED_METRICS, REPORT_SECTIONS } from '@shared/schema/scenarios';
+import type { TrackedMetricKey, ReportSectionKey } from '@shared/schema/scenarios';
 import type { EvaluationHarness, TerminationRules, TerminationConditionGroup } from '@shared/schema/scenarios';
 import { toMediaUrl } from '@/lib/mediaUrl';
 import { Loader2, MoreVertical, ChevronDown, ChevronUp, Clock, Users, Target, Languages, Search, Sparkles, Eye, Copy, Download, Upload, ImageOff, UserX, ListX, BarChart2, Star, Folder } from 'lucide-react';
@@ -271,6 +272,9 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
   const [terminationRulesJson, setTerminationRulesJson] = useState('');
   const [playerConstraintsJson, setPlayerConstraintsJson] = useState('');
   const [difficultyProfileJson, setDifficultyProfileJson] = useState('');
+  const [analyticsTrackedMetrics, setAnalyticsTrackedMetrics] = useState<string[]>([]);
+  const [analyticsReportSections, setAnalyticsReportSections] = useState<string[]>([]);
+  const [analyticsBenchmarkGroup, setAnalyticsBenchmarkGroup] = useState('');
   const [evaluationHarnessError, setEvaluationHarnessError] = useState('');
   const [terminationRulesError, setTerminationRulesError] = useState('');
   // Structured simulation harness state
@@ -760,6 +764,9 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
     setPersonaSwitchRulesError('');
     setEvaluationHarnessError('');
     setTerminationRulesError('');
+    setAnalyticsTrackedMetrics([]);
+    setAnalyticsReportSections([]);
+    setAnalyticsBenchmarkGroup('');
   };
 
   const handleEdit = (scenario: ComplexScenario) => {
@@ -858,6 +865,10 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
     setPlayerConstraintsJson(existingPC ? JSON.stringify(existingPC, null, 2) : '');
     const existingDP = (originalScenario as any).difficultyProfile;
     setDifficultyProfileJson(existingDP ? JSON.stringify(existingDP, null, 2) : '');
+    const existingAS = (originalScenario as any).analyticsSpec;
+    setAnalyticsTrackedMetrics(existingAS?.trackedMetrics ?? []);
+    setAnalyticsReportSections(existingAS?.reportSections ?? []);
+    setAnalyticsBenchmarkGroup(existingAS?.benchmarkGroup ?? '');
     setFlowGraphError('');
     setPersonaSwitchRulesError('');
     setEvaluationHarnessError('');
@@ -1069,7 +1080,15 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
       setDifficultyProfileError('');
     }
 
-    return { ...formData, flowGraph: parsedFlowGraph, personaSwitchRules: parsedPSR, evaluationHarness: parsedEH, terminationRules: parsedTR, simulationHarness: parsedHarness, playerConstraints: parsedPC, difficultyProfile: parsedDP };
+    const analyticsSpec = (analyticsTrackedMetrics.length > 0 || analyticsReportSections.length > 0 || analyticsBenchmarkGroup.trim())
+      ? {
+          trackedMetrics: analyticsTrackedMetrics,
+          reportSections: analyticsReportSections,
+          ...(analyticsBenchmarkGroup.trim() ? { benchmarkGroup: analyticsBenchmarkGroup.trim() } : {}),
+        }
+      : null;
+
+    return { ...formData, flowGraph: parsedFlowGraph, personaSwitchRules: parsedPSR, evaluationHarness: parsedEH, terminationRules: parsedTR, simulationHarness: parsedHarness, playerConstraints: parsedPC, difficultyProfile: parsedDP, analyticsSpec };
   };
 
   const handleSaveAndGoToPersona = () => {
@@ -3325,6 +3344,73 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
                     className={`bg-white font-mono text-xs ${difficultyProfileError ? 'border-red-400' : ''}`}
                   />
                   {difficultyProfileError && <p className="text-xs text-red-500 mt-1">{difficultyProfileError}</p>}
+                </div>
+              </div>
+
+              {/* Analytics Spec Section */}
+              <div className="bg-violet-50 border border-violet-200 rounded-xl p-5 space-y-4">
+                <h3 className="text-sm font-semibold text-violet-800 flex items-center gap-2">
+                  <BarChart2 className="h-4 w-4 text-violet-500" />
+                  분석 지표 스펙 (analyticsSpec)
+                </h3>
+
+                <div>
+                  <Label className="text-sm font-medium text-slate-700 mb-2 block">추적 지표 (trackedMetrics)</Label>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                    {TRACKED_METRICS.map((metric) => (
+                      <label key={metric} className="flex items-center gap-2 cursor-pointer select-none">
+                        <input
+                          type="checkbox"
+                          className="h-4 w-4 rounded border-slate-300 text-violet-600"
+                          checked={analyticsTrackedMetrics.includes(metric)}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setAnalyticsTrackedMetrics(prev => [...prev, metric]);
+                            } else {
+                              setAnalyticsTrackedMetrics(prev => prev.filter(m => m !== metric));
+                            }
+                          }}
+                        />
+                        <span className="text-xs text-slate-700">{metric}</span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+
+                <div>
+                  <Label className="text-sm font-medium text-slate-700 mb-2 block">보고서 섹션 (reportSections)</Label>
+                  <p className="text-xs text-slate-400 mb-2">선택된 섹션만 피드백 리포트에 표시됩니다. 비워두면 모든 섹션이 표시됩니다.</p>
+                  <div className="flex flex-wrap gap-2">
+                    {REPORT_SECTIONS.map((sec) => (
+                      <label key={sec} className="flex items-center gap-1.5 cursor-pointer bg-white border border-slate-200 rounded-lg px-3 py-1.5 select-none hover:border-violet-300 transition-colors">
+                        <input
+                          type="checkbox"
+                          className="h-3.5 w-3.5 rounded border-slate-300 text-violet-600"
+                          checked={analyticsReportSections.includes(sec)}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setAnalyticsReportSections(prev => [...prev, sec]);
+                            } else {
+                              setAnalyticsReportSections(prev => prev.filter(s => s !== sec));
+                            }
+                          }}
+                        />
+                        <span className="text-xs text-slate-700">{sec}</span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+
+                <div>
+                  <Label className="text-sm font-medium text-slate-700 mb-1 block">벤치마크 그룹 (benchmarkGroup)</Label>
+                  <p className="text-xs text-slate-400 mb-2">동일 그룹 시나리오끼리 평균 점수를 비교합니다. 예: <code className="bg-slate-100 px-1 rounded">customer-complaint</code></p>
+                  <input
+                    type="text"
+                    value={analyticsBenchmarkGroup}
+                    onChange={(e) => setAnalyticsBenchmarkGroup(e.target.value)}
+                    placeholder="예: customer-complaint"
+                    className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-violet-300"
+                  />
                 </div>
               </div>
 

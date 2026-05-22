@@ -690,6 +690,95 @@ export async function generateAndSaveFeedback(
     }
   }
 
+  // Extract metric snapshot based on scenario's analyticsSpec.trackedMetrics
+  let metricSnapshot: Record<string, number | null> | null = null;
+  try {
+    const analyticsSpec = (scenarioDbRow as any)?.analyticsSpec as { trackedMetrics?: string[]; reportSections?: string[]; benchmarkGroup?: string } | null;
+    if (analyticsSpec?.trackedMetrics && analyticsSpec.trackedMetrics.length > 0) {
+      const snapshot: Record<string, number | null> = {};
+      // Gather emotion timeline from simulation events stateAfter
+      const emotionTimeline: Array<{ anger?: number; trust?: number }> = [];
+      for (const ev of (await storage.getSimulationEventsByPersonaRun(conversationId).catch(() => []))) {
+        const sa = ev.stateAfter as any;
+        if (sa?.npcEmotions) emotionTimeline.push(sa.npcEmotions);
+      }
+      // Also include the final simulation state
+      const personaRunForMetrics = await storage.getPersonaRun(conversationId).catch(() => null);
+      const finalSimState = (personaRunForMetrics?.simulationState as any) ?? null;
+      if (finalSimState?.npcEmotions) emotionTimeline.push(finalSimState.npcEmotions);
+
+      for (const metric of analyticsSpec.trackedMetrics) {
+        switch (metric) {
+          case 'angerMax': {
+            const vals = emotionTimeline.map(s => s.anger).filter((v): v is number => typeof v === 'number');
+            snapshot.angerMax = vals.length > 0 ? Math.max(...vals) : null;
+            break;
+          }
+          case 'trustMin': {
+            const vals = emotionTimeline.map(s => s.trust).filter((v): v is number => typeof v === 'number');
+            snapshot.trustMin = vals.length > 0 ? Math.min(...vals) : null;
+            break;
+          }
+          case 'trustMax': {
+            const vals = emotionTimeline.map(s => s.trust).filter((v): v is number => typeof v === 'number');
+            snapshot.trustMax = vals.length > 0 ? Math.max(...vals) : null;
+            break;
+          }
+          case 'trustAverage': {
+            const vals = emotionTimeline.map(s => s.trust).filter((v): v is number => typeof v === 'number');
+            snapshot.trustAverage = vals.length > 0 ? Math.round(vals.reduce((a, b) => a + b, 0) / vals.length) : null;
+            break;
+          }
+          case 'angerAverage': {
+            const vals = emotionTimeline.map(s => s.anger).filter((v): v is number => typeof v === 'number');
+            snapshot.angerAverage = vals.length > 0 ? Math.round(vals.reduce((a, b) => a + b, 0) / vals.length) : null;
+            break;
+          }
+          case 'empathyAverage': {
+            const vals = simTurnScores.map(t => (t.turnScore as Record<string, number>)['empathy']).filter((v): v is number => typeof v === 'number');
+            snapshot.empathyAverage = vals.length > 0 ? Math.round(vals.reduce((a, b) => a + b, 0) / vals.length) : null;
+            break;
+          }
+          case 'escalationCount': {
+            snapshot.escalationCount = simIncidents.filter(i =>
+              ['customer_escalation', 'manager_interrupt', 'executive_join'].includes(i.type)
+            ).length;
+            break;
+          }
+          case 'interruptionCount': {
+            snapshot.interruptionCount = simIncidents.length;
+            break;
+          }
+          case 'timeToResolution': {
+            snapshot.timeToResolution = Math.round(conversationDurationSeconds);
+            break;
+          }
+          case 'totalTurns': {
+            snapshot.totalTurns = userMessages.length;
+            break;
+          }
+          case 'turnsToFirstActionPlan': {
+            const actionPlanKeywords = ['계획', '방안', '해결책', '조치', 'action plan', 'plan of action'];
+            let firstTurn: number | null = null;
+            userMessages.forEach((m: any, idx: number) => {
+              if (firstTurn !== null) return;
+              const msg = (m.message || '').toLowerCase();
+              if (actionPlanKeywords.some(k => msg.includes(k))) firstTurn = idx + 1;
+            });
+            snapshot.turnsToFirstActionPlan = firstTurn;
+            break;
+          }
+        }
+      }
+      if (Object.keys(snapshot).length > 0) {
+        metricSnapshot = snapshot;
+        console.log(`📊 [metricSnapshot] ${Object.keys(snapshot).length} metrics captured:`, snapshot);
+      }
+    }
+  } catch (e) {
+    console.warn('[generateAndSaveFeedback] metricSnapshot extraction failed:', e);
+  }
+
   const feedback = await storage.createFeedback({
     personaRunId: conversationId,
     overallScore: savedOverallScore,
@@ -703,6 +792,7 @@ export async function generateAndSaveFeedback(
     modelSnapshot,
     criteriaSetVersion: evaluationCriteria?.version ?? null,
     scoreAdjustments: feedbackData.scoreAdjustments ?? null,
+    metricSnapshot,
   });
 
   // insufficient_data 판정 시 PersonaRun score를 업데이트하지 않음 (무점수 상태 유지)

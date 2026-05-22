@@ -9,6 +9,7 @@ import {
   Tooltip,
 } from "recharts";
 import { CardInfo } from "./AdminCardInfo";
+import { useQuery } from "@tanstack/react-query";
 
 interface ScenariosTabProps {
   scenarioPerformanceData: Array<{ name: string; average: number; sessionCount: number; difficulty: number; personaCount?: number }>;
@@ -17,12 +18,25 @@ interface ScenariosTabProps {
   scenarioDifficultyData: Array<{ personaCount: number; count: number }>;
 }
 
+interface BenchmarkGroup {
+  benchmarkGroup: string;
+  scenarioCount: number;
+  scenarioTitles: string[];
+  averageScore: number | null;
+  sessionCount: number;
+}
+
 export function ScenariosTab({
   scenarioPerformanceData,
   scenarioPopularityData,
   difficultyPopularityData,
   scenarioDifficultyData,
 }: ScenariosTabProps) {
+  const { data: benchmarkGroups, isLoading: benchmarkLoading } = useQuery<BenchmarkGroup[]>({
+    queryKey: ["/api/admin/analytics/benchmark-groups"],
+    staleTime: 60_000,
+  });
+
   return (
     <div className="space-y-6">
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -146,6 +160,87 @@ export function ScenariosTab({
           </div>
         </CardContent>
       </Card>
+
+      {/* Benchmark Group Comparison */}
+      {(benchmarkLoading || (benchmarkGroups && benchmarkGroups.length > 0)) && (
+        <Card data-testid="card-benchmark-groups">
+          <CardHeader>
+            <CardTitle>
+              <CardInfo
+                title="벤치마크 그룹 비교"
+                description="analyticsSpec.benchmarkGroup이 설정된 시나리오끼리 그룹으로 묶어 평균 성과를 비교합니다."
+              />
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {benchmarkLoading ? (
+              <div className="flex items-center justify-center h-24 text-slate-400 text-sm">로딩 중...</div>
+            ) : benchmarkGroups && benchmarkGroups.length > 0 ? (
+              <div className="space-y-4">
+                <ResponsiveContainer width="100%" height={280}>
+                  <BarChart data={benchmarkGroups.map(bg => ({
+                    name: bg.benchmarkGroup,
+                    average: bg.averageScore ?? 0,
+                    sessions: bg.sessionCount,
+                  }))}>
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="name" />
+                    <YAxis domain={[0, 100]} />
+                    <Tooltip
+                      formatter={(value, name) => [
+                        name === 'average' ? `${value}점` : `${value}회`,
+                        name === 'average' ? '평균 점수' : '세션 수',
+                      ]}
+                    />
+                    <Bar dataKey="average" fill="#7c3aed" name="average" />
+                  </BarChart>
+                </ResponsiveContainer>
+
+                <div className="overflow-x-auto">
+                  <table className="w-full border-collapse text-sm">
+                    <thead>
+                      <tr className="border-b bg-slate-50">
+                        <th className="text-left p-2 font-semibold">그룹</th>
+                        <th className="text-left p-2 font-semibold">시나리오 수</th>
+                        <th className="text-left p-2 font-semibold">세션 수</th>
+                        <th className="text-left p-2 font-semibold">평균 점수</th>
+                        <th className="text-left p-2 font-semibold">시나리오 목록</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {benchmarkGroups.map((bg, idx) => (
+                        <tr key={idx} className="border-b hover:bg-slate-50" data-testid={`benchmark-row-${idx}`}>
+                          <td className="p-2 font-medium text-violet-700">
+                            <span className="bg-violet-100 px-2 py-0.5 rounded-full text-xs">{bg.benchmarkGroup}</span>
+                          </td>
+                          <td className="p-2 text-slate-600">{bg.scenarioCount}개</td>
+                          <td className="p-2 text-slate-600">{bg.sessionCount}회</td>
+                          <td className="p-2">
+                            {bg.averageScore === null ? (
+                              <span className="text-slate-400 text-xs">데이터 없음</span>
+                            ) : (
+                              <span className={`font-semibold ${
+                                bg.averageScore >= 80 ? 'text-green-600' :
+                                bg.averageScore >= 70 ? 'text-blue-600' :
+                                bg.averageScore >= 60 ? 'text-yellow-600' : 'text-red-600'
+                              }`}>
+                                {bg.averageScore}점
+                              </span>
+                            )}
+                          </td>
+                          <td className="p-2 text-slate-500 text-xs max-w-xs truncate" title={bg.scenarioTitles.join(', ')}>
+                            {bg.scenarioTitles.join(', ')}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            ) : null}
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }

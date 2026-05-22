@@ -175,7 +175,12 @@ export default function PersonalDevelopmentReport({
       return response.json();
     }
   });
-  const showSimulationTab = simulationHasData?.hasData === true;
+  const analyticsSpecEarly = (scenario as any).analyticsSpec as { trackedMetrics?: string[]; reportSections?: string[]; benchmarkGroup?: string } | null | undefined;
+  const reportSectionsEarly = analyticsSpecEarly?.reportSections;
+  const sectionEnabledEarly = (key: string) =>
+    !reportSectionsEarly || reportSectionsEarly.length === 0 || reportSectionsEarly.includes(key);
+
+  const showSimulationTab = simulationHasData?.hasData === true && sectionEnabledEarly('simulationReplay');
 
   const { data: fullConversation } = useQuery<any>({
     queryKey: ["/api/conversations", conversationId],
@@ -211,7 +216,21 @@ export default function PersonalDevelopmentReport({
     turnIndex: entry.turn,
   }));
 
-  const showConversationTab = conversationMessages.length > 0;
+  const showConversationTab = conversationMessages.length > 0 && sectionEnabledEarly('conversation');
+
+  const METRIC_LABELS: Record<string, string> = {
+    angerMax: '분노 최대값',
+    trustMin: '신뢰 최솟값',
+    trustMax: '신뢰 최대값',
+    trustAverage: '신뢰 평균',
+    angerAverage: '분노 평균',
+    empathyAverage: '공감 평균',
+    escalationCount: '에스컬레이션 횟수',
+    interruptionCount: '인시던트 횟수',
+    timeToResolution: '대화 시간(초)',
+    totalTurns: '총 발화 수',
+    turnsToFirstActionPlan: '첫 계획 제시 턴',
+  };
 
   useEffect(() => {
     if (window.location.hash !== "#simulation-incidents") return;
@@ -238,6 +257,18 @@ export default function PersonalDevelopmentReport({
       return response.json();
     }
   });
+
+  const showMetricSnapshotTab = !!(
+    feedback &&
+    (feedback as any).metricSnapshot &&
+    Object.keys((feedback as any).metricSnapshot).length > 0 &&
+    sectionEnabledEarly('metricSnapshot')
+  );
+
+  const showScoresTab = sectionEnabledEarly('scoreOverview');
+  const showBehaviorTab = sectionEnabledEarly('practiceGuide');
+  const showDevelopmentTab = sectionEnabledEarly('developmentPlan');
+  const showStrategyTab = !!(feedback as any)?.detailedFeedback?.sequenceAnalysis && sectionEnabledEarly('strategy');
 
   useEffect(() => {
     if (!isLoading && (feedback || error?.message === "FEEDBACK_NOT_FOUND")) {
@@ -755,40 +786,57 @@ export default function PersonalDevelopmentReport({
         if (val === "scores" && activeReportTab !== "scores") setScoreAnimKey(k => k + 1);
         setActiveReportTab(val);
       }} className="space-y-6">
-        <TabsList className={`flex flex-wrap justify-center gap-1 sm:grid sm:w-full ${
-          feedback.detailedFeedback?.sequenceAnalysis && showSimulationTab && showConversationTab ? 'sm:grid-cols-6' :
-          (feedback.detailedFeedback?.sequenceAnalysis && showSimulationTab) || (showConversationTab && (feedback.detailedFeedback?.sequenceAnalysis || showSimulationTab)) ? 'sm:grid-cols-5' :
-          (feedback.detailedFeedback?.sequenceAnalysis || showSimulationTab || showConversationTab) ? 'sm:grid-cols-4' : 'sm:grid-cols-3'
-        } screen-only h-auto p-1`} style={{ opacity: 0, animation: 'fadeInUp 0.6s ease-out 1s forwards' }}>
-          <TabsTrigger value="scores" data-testid="tab-scores" className="text-xs sm:text-sm px-2 sm:px-3 py-1.5 whitespace-nowrap">{t('report.tabs.scores', '성과 분석')}</TabsTrigger>
-          <TabsTrigger value="behavior" data-testid="tab-behavior" className="text-xs sm:text-sm px-2 sm:px-3 py-1.5 whitespace-nowrap">{t('report.tabs.practiceGuide', '실천 가이드')}</TabsTrigger>
-          <TabsTrigger value="development" data-testid="tab-development" className="text-xs sm:text-sm px-2 sm:px-3 py-1.5 whitespace-nowrap">{t('report.tabs.development', '개발 계획')}</TabsTrigger>
-          {showConversationTab && (
-            <TabsTrigger value="conversation" data-testid="tab-conversation" className="text-xs sm:text-sm px-2 sm:px-3 py-1.5 whitespace-nowrap">{t('report.tabs.conversation', '대화 내역')}</TabsTrigger>
-          )}
-          {showSimulationTab && (
-            <TabsTrigger value="simulation" data-testid="tab-simulation" className="text-xs sm:text-sm px-2 sm:px-3 py-1.5 whitespace-nowrap">{t('report.tabs.simulation', '시뮬레이션')}</TabsTrigger>
-          )}
-          {feedback.detailedFeedback?.sequenceAnalysis && (
-            <TabsTrigger value="strategy" data-testid="tab-strategy" className="text-xs sm:text-sm px-2 sm:px-3 py-1.5 whitespace-nowrap">{t('report.tabs.strategy', '전략 평가')}</TabsTrigger>
-          )}
-        </TabsList>
+        {(() => {
+          const allTabs = [showScoresTab, showBehaviorTab, showDevelopmentTab, showConversationTab, showSimulationTab, showStrategyTab, showMetricSnapshotTab].filter(Boolean).length;
+          const colClass = `sm:grid-cols-${Math.min(Math.max(allTabs, 1), 7)}`;
+          return (
+            <TabsList className={`flex flex-wrap justify-center gap-1 sm:grid sm:w-full ${colClass} screen-only h-auto p-1`} style={{ opacity: 0, animation: 'fadeInUp 0.6s ease-out 1s forwards' }}>
+              {showScoresTab && (
+                <TabsTrigger value="scores" data-testid="tab-scores" className="text-xs sm:text-sm px-2 sm:px-3 py-1.5 whitespace-nowrap">{t('report.tabs.scores', '성과 분석')}</TabsTrigger>
+              )}
+              {showBehaviorTab && (
+                <TabsTrigger value="behavior" data-testid="tab-behavior" className="text-xs sm:text-sm px-2 sm:px-3 py-1.5 whitespace-nowrap">{t('report.tabs.practiceGuide', '실천 가이드')}</TabsTrigger>
+              )}
+              {showDevelopmentTab && (
+                <TabsTrigger value="development" data-testid="tab-development" className="text-xs sm:text-sm px-2 sm:px-3 py-1.5 whitespace-nowrap">{t('report.tabs.development', '개발 계획')}</TabsTrigger>
+              )}
+              {showConversationTab && (
+                <TabsTrigger value="conversation" data-testid="tab-conversation" className="text-xs sm:text-sm px-2 sm:px-3 py-1.5 whitespace-nowrap">{t('report.tabs.conversation', '대화 내역')}</TabsTrigger>
+              )}
+              {showSimulationTab && (
+                <TabsTrigger value="simulation" data-testid="tab-simulation" className="text-xs sm:text-sm px-2 sm:px-3 py-1.5 whitespace-nowrap">{t('report.tabs.simulation', '시뮬레이션')}</TabsTrigger>
+              )}
+              {showStrategyTab && (
+                <TabsTrigger value="strategy" data-testid="tab-strategy" className="text-xs sm:text-sm px-2 sm:px-3 py-1.5 whitespace-nowrap">{t('report.tabs.strategy', '전략 평가')}</TabsTrigger>
+              )}
+              {showMetricSnapshotTab && (
+                <TabsTrigger value="metrics" data-testid="tab-metrics" className="text-xs sm:text-sm px-2 sm:px-3 py-1.5 whitespace-nowrap">지표</TabsTrigger>
+              )}
+            </TabsList>
+          );
+        })()}
 
-        <TabsContent value="scores" className="space-y-6 print-show-all">
-          <h2 className="print-section-title hidden print:block">📊 {t('report.tabs.scores', '성과 분석')}</h2>
-          <ScoreOverview feedback={feedback} feedbackHistory={feedbackHistory} conversationId={conversationId} scoreAnimKey={scoreAnimKey} reportStatus={reportStatus} confidence={confidence} />
-          {(feedback.rubricSnapshot || feedback.modelSnapshot) && (
-            <RubricSnapshotPanel rubricSnapshot={feedback.rubricSnapshot} modelSnapshot={feedback.modelSnapshot} criteriaSetVersion={feedback.criteriaSetVersion} />
-          )}
-        </TabsContent>
+        {showScoresTab && (
+          <TabsContent value="scores" className="space-y-6 print-show-all">
+            <h2 className="print-section-title hidden print:block">📊 {t('report.tabs.scores', '성과 분석')}</h2>
+            <ScoreOverview feedback={feedback} feedbackHistory={feedbackHistory} conversationId={conversationId} scoreAnimKey={scoreAnimKey} reportStatus={reportStatus} confidence={confidence} />
+            {(feedback.rubricSnapshot || feedback.modelSnapshot) && (
+              <RubricSnapshotPanel rubricSnapshot={feedback.rubricSnapshot} modelSnapshot={feedback.modelSnapshot} criteriaSetVersion={feedback.criteriaSetVersion} />
+            )}
+          </TabsContent>
+        )}
 
-        <TabsContent value="behavior" className="space-y-8 print-show-all">
-          <PracticeGuidePanel feedback={feedback} />
-        </TabsContent>
+        {showBehaviorTab && (
+          <TabsContent value="behavior" className="space-y-8 print-show-all">
+            <PracticeGuidePanel feedback={feedback} />
+          </TabsContent>
+        )}
 
-        <TabsContent value="development" className="space-y-6 print-show-all">
-          <DevelopmentPlan feedback={feedback} conversationId={conversationId} checkedItems={checkedItems} onToggleCheck={toggleCheckItem} />
-        </TabsContent>
+        {showDevelopmentTab && (
+          <TabsContent value="development" className="space-y-6 print-show-all">
+            <DevelopmentPlan feedback={feedback} conversationId={conversationId} checkedItems={checkedItems} onToggleCheck={toggleCheckItem} />
+          </TabsContent>
+        )}
 
         {showConversationTab && (
           <TabsContent value="conversation" className="space-y-4">
@@ -806,9 +854,40 @@ export default function PersonalDevelopmentReport({
           </TabsContent>
         )}
 
-        {feedback.detailedFeedback?.sequenceAnalysis && (
+        {showStrategyTab && (
           <TabsContent value="strategy" className="space-y-6 print-show-all">
             <StrategyPanel feedback={feedback} />
+          </TabsContent>
+        )}
+
+        {showMetricSnapshotTab && (
+          <TabsContent value="metrics" className="space-y-4" data-testid="tab-content-metrics">
+            <Card className="border-0 shadow-lg">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base font-bold text-slate-800 flex items-center gap-2">
+                  <i className="fas fa-chart-bar text-violet-500"></i>
+                  시나리오 행동 지표 스냅샷
+                </CardTitle>
+                <p className="text-xs text-slate-500 mt-1">이 시나리오에서 수집된 행동 데이터 지표입니다.</p>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                  {Object.entries((feedback as any).metricSnapshot as Record<string, number | null>).map(([key, value]) => (
+                    <div key={key} className="bg-slate-50 rounded-xl p-4 border border-slate-100 flex flex-col gap-1">
+                      <span className="text-xs text-slate-500 font-medium uppercase tracking-wide">
+                        {METRIC_LABELS[key] ?? key}
+                      </span>
+                      <span className="text-2xl font-bold text-slate-800">
+                        {value === null ? <span className="text-slate-400 text-base">-</span> : value}
+                      </span>
+                      {key === 'timeToResolution' && value !== null && (
+                        <span className="text-xs text-slate-400">{Math.floor(value / 60)}분 {value % 60}초</span>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
           </TabsContent>
         )}
       </Tabs>

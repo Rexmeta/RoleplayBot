@@ -21,6 +21,7 @@ export const feedbacks = pgTable("feedbacks", {
   modelSnapshot: jsonb("model_snapshot").$type<Record<string, any>>(),
   criteriaSetVersion: integer("criteria_set_version"),
   scoreAdjustments: jsonb("score_adjustments").$type<ScoreAdjustments>(),
+  metricSnapshot: jsonb("metric_snapshot").$type<Record<string, number | null>>(),
   createdAt: timestamp("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
 }, (table) => [
   index("idx_feedbacks_conversation_id").on(table.conversationId),

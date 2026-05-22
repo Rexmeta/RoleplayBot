@@ -1361,5 +1361,67 @@ export default function createAnalyticsRouter(isAuthenticated: any) {
     });
   }));
 
+  // Benchmark group comparison endpoint
+  router.get('/api/admin/analytics/benchmark-groups', isAuthenticated, asyncHandler(async (req: any, res: Response) => {
+    const user = req.user;
+    if (user?.role !== 'admin' && user?.role !== 'operator') {
+      return res.status(403).json({ message: 'Forbidden' });
+    }
+    const allScenarios = await storage.getScenarios() as any[];
+    const allFeedbacks = await storage.getAllFeedbacks() as any[];
+    const allPersonaRuns = await storage.getAllPersonaRuns() as any[];
+
+    // Map personaRunId -> scenarioId via scenarioRuns
+    const allScenarioRuns = await storage.getAllScenarioRuns() as any[];
+    const scenarioRunToScenario: Record<string, number> = {};
+    for (const sr of allScenarioRuns) {
+      scenarioRunToScenario[sr.id] = sr.scenarioId;
+    }
+    const personaRunToScenario: Record<string, number> = {};
+    for (const pr of allPersonaRuns) {
+      if (pr.scenarioRunId && scenarioRunToScenario[pr.scenarioRunId] !== undefined) {
+        personaRunToScenario[pr.id] = scenarioRunToScenario[pr.scenarioRunId];
+      }
+    }
+
+    // Group scenarios by benchmarkGroup
+    const groups: Record<string, { scenarioIds: Set<number>; scenarioTitles: string[] }> = {};
+    for (const s of allScenarios) {
+      const bg = (s.analyticsSpec as any)?.benchmarkGroup;
+      if (!bg) continue;
+      if (!groups[bg]) groups[bg] = { scenarioIds: new Set(), scenarioTitles: [] };
+      groups[bg].scenarioIds.add(s.id);
+      groups[bg].scenarioTitles.push(s.title || `Scenario ${s.id}`);
+    }
+
+    const result: Array<{
+      benchmarkGroup: string;
+      scenarioCount: number;
+      scenarioTitles: string[];
+      averageScore: number | null;
+      sessionCount: number;
+    }> = [];
+
+    for (const [bg, info] of Object.entries(groups)) {
+      if (info.scenarioIds.size === 0) continue;
+      const groupFeedbacks = allFeedbacks.filter((f: any) => {
+        const sid = personaRunToScenario[f.personaRunId];
+        return sid !== undefined && info.scenarioIds.has(sid);
+      });
+      const scores = groupFeedbacks.map((f: any) => f.overallScore).filter((s: any) => typeof s === 'number');
+      const avg = scores.length > 0 ? Math.round(scores.reduce((a: number, b: number) => a + b, 0) / scores.length) : null;
+      result.push({
+        benchmarkGroup: bg,
+        scenarioCount: info.scenarioIds.size,
+        scenarioTitles: info.scenarioTitles,
+        averageScore: avg,
+        sessionCount: groupFeedbacks.length,
+      });
+    }
+
+    result.sort((a, b) => a.benchmarkGroup.localeCompare(b.benchmarkGroup));
+    return res.json(result);
+  }));
+
   return router;
 }
