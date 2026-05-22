@@ -1013,7 +1013,9 @@ export async function runMigrations(): Promise<void> {
         // Make scenario_runs.user_id nullable so agent API sessions can create runs
         // without a fake "__agent__" user ID. agent_sessions.id is the source of truth
         // for agent-originated runs.
-        { table: 'scenario_runs', column: 'user_id_nullable', sql: `DO $$ BEGIN ALTER TABLE "scenario_runs" ALTER COLUMN "user_id" DROP NOT NULL; EXCEPTION WHEN OTHERS THEN NULL; END $$;` }
+        { table: 'scenario_runs', column: 'user_id_nullable', sql: `DO $$ BEGIN ALTER TABLE "scenario_runs" ALTER COLUMN "user_id" DROP NOT NULL; EXCEPTION WHEN OTHERS THEN NULL; END $$;` },
+        { table: 'scenarios', column: 'player_constraints', sql: `DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='scenarios' AND column_name='player_constraints') THEN ALTER TABLE "scenarios" ADD COLUMN "player_constraints" jsonb; END IF; END $$;` },
+        { table: 'scenarios', column: 'difficulty_profile', sql: `DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='scenarios' AND column_name='difficulty_profile') THEN ALTER TABLE "scenarios" ADD COLUMN "difficulty_profile" jsonb; END IF; END $$;` }
       );
 
       for (const patch of criticalColumnPatches) {
