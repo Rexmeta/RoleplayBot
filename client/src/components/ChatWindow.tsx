@@ -100,7 +100,7 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
   };
   const isPersonaX = scenario.id?.startsWith('__');
   const [showMicPrompt, setShowMicPrompt] = useState(false);
-  const [isInputExpanded, setIsInputExpanded] = useState(false);
+  const [isInlineTextOpen, setIsInlineTextOpen] = useState(false);
   const [isBargeInFlash, setIsBargeInFlash] = useState(false);
   const [isTranscriptPanelOpen, setIsTranscriptPanelOpen] = useState(false);
   const [isHistoryDrawerOpen, setIsHistoryDrawerOpen] = useState(false);
@@ -639,9 +639,9 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
     isWaitingForGreeting: realtimeVoice.isWaitingForGreeting, greetingFailed: realtimeVoice.greetingFailed,
     greetingRetryCount: realtimeVoice.greetingRetryCount, conversationPhase: realtimeVoice.conversationPhase,
     sessionWarning: realtimeVoice.sessionWarning, error: realtimeVoice.error,
-    showMicPrompt, isInputExpanded, onInputExpandedChange: setIsInputExpanded,
+    showMicPrompt,
     onConnect: (msgs?: PreviousMessage[]) => realtimeVoice.connect(msgs),
-    onStartRecording: () => { hasUserSpokenRef.current = true; setShowMicPrompt(false); setIsInputExpanded(false); realtimeVoice.startRecording(); },
+    onStartRecording: () => { hasUserSpokenRef.current = true; setShowMicPrompt(false); realtimeVoice.startRecording(); },
     onStopRecording: () => realtimeVoice.stopRecording(),
     onEndConversation: handleEndRealtimeConversation,
     previousMessages,
@@ -924,13 +924,84 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
                     <Card className="rounded-2xl overflow-hidden text-card-foreground backdrop-blur-sm shadow-xl border border-white/10 bg-[#ffffff9c]">
                       {inputMode === 'realtime-voice' ? (
                         <>
+                          {isInlineTextOpen && (
+                            <div className="border-b border-slate-200/50 bg-white/95">
+                              <div className="flex items-center justify-between px-4 py-2 border-b border-slate-100">
+                                <span className="text-xs font-medium text-slate-500 flex items-center gap-1.5">
+                                  <i className="fas fa-keyboard text-purple-400 text-[11px]" />
+                                  {t('chat.textChatPanel', { defaultValue: '텍스트 채팅' })}
+                                </span>
+                                <button
+                                  onClick={() => setIsInlineTextOpen(false)}
+                                  className="flex items-center gap-1 text-xs text-slate-400 hover:text-slate-600 transition-colors"
+                                  data-testid="button-close-inline-text"
+                                >
+                                  <i className="fas fa-microphone text-[11px]" />
+                                  <span>{t('chat.switchToVoice', { defaultValue: '음성으로 전환' })}</span>
+                                  <i className="fas fa-times text-[10px] ml-1" />
+                                </button>
+                              </div>
+                              <div className="max-h-80 overflow-y-auto">
+                                <MessageList
+                                  messages={localMessages}
+                                  pendingAiMessage={pendingAiMessage}
+                                  pendingUserMessage={pendingUserMessage}
+                                  pendingUserText={pendingUserText}
+                                  isLoading={isLoading}
+                                  personaName={activePersona.name}
+                                  personaImage={activePersona.image}
+                                  currentEmotion={currentEmotion}
+                                  isAdmin={user?.role === 'admin'}
+                                  getCharacterImage={getCharacterImage}
+                                  messagesEndRef={messagesEndRef}
+                                  personaSwitchEvents={personaSwitchEvents}
+                                  scenarioPersonas={scenario.personas as ScenarioPersona[]}
+                                  containerRef={mainChatContainerCallbackRef}
+                                />
+                              </div>
+                              <div className="border-t border-slate-100 p-3">
+                                <div className="flex items-start gap-2">
+                                  <div className="flex-1 relative">
+                                    <Textarea
+                                      value={userInput}
+                                      onChange={(e) => setUserInput(e.target.value.slice(0, 200))}
+                                      onKeyDown={(e) => {
+                                        if (e.key === 'Enter' && !e.shiftKey && userInput.trim()) {
+                                          e.preventDefault();
+                                          handleSendMessage();
+                                        }
+                                      }}
+                                      placeholder={t('chat.messageInputPlaceholder', { defaultValue: '메시지를 입력하세요... (Enter로 전송)' })}
+                                      rows={2}
+                                      className="resize-none text-sm pr-12"
+                                      disabled={realtimeVoice.isRecording || realtimeVoice.isAISpeaking || isLoading}
+                                      data-testid="input-message-inline-text"
+                                    />
+                                    <span className="absolute bottom-2 right-3 text-[10px] text-slate-400">
+                                      {userInput.length}/200
+                                    </span>
+                                  </div>
+                                  <Button
+                                    onClick={handleSendMessage}
+                                    disabled={!userInput.trim() || realtimeVoice.isRecording || realtimeVoice.isAISpeaking || isLoading}
+                                    className="bg-purple-600 hover:bg-purple-700 text-white shrink-0 h-9 w-9 p-0"
+                                    size="sm"
+                                    data-testid="button-send-message-inline"
+                                  >
+                                    <i className="fas fa-paper-plane text-xs"></i>
+                                  </Button>
+                                </div>
+                              </div>
+                            </div>
+                          )}
                           <div className="p-4 bg-[#ffffff9c]">
                             <ChatInputBar userInput={userInput} onUserInputChange={setUserInput} onSendMessage={handleSendMessage}
                               onVoiceInput={handleVoiceInput} onSkipTurn={handleSkipTurn} isLoading={isLoading}
                               isRecording={isRecording} speechSupported={speechSupported}
-                              mode="realtime-voice" realtimeVoiceProps={rvBarProps} />
+                              mode="realtime-voice" realtimeVoiceProps={rvBarProps}
+                              onTextModeToggle={() => setIsInlineTextOpen(v => !v)} />
                           </div>
-                          {localMessages.length > 0 && (
+                          {localMessages.length > 0 && !isInlineTextOpen && (
                             <div className="border-t border-slate-200/30 px-4 py-2 flex justify-center">
                               <button
                                 onClick={() => setIsHistoryDrawerOpen(true)}
@@ -952,7 +1023,7 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
                               </div>
                             </div>
                           )}
-                          {isSilenceIdle && realtimeVoice.status === 'connected' && !realtimeVoice.isWaitingForGreeting && !realtimeVoice.isRecording && !realtimeVoice.isAISpeaking && (
+                          {isSilenceIdle && realtimeVoice.status === 'connected' && !realtimeVoice.isWaitingForGreeting && !realtimeVoice.isRecording && !realtimeVoice.isAISpeaking && !isInlineTextOpen && (
                             <div className="border-t border-slate-200/30 px-4 py-2 text-center">
                               <p className="text-xs text-slate-400" style={{ animation: 'silenceBreathe 3s ease-in-out infinite' }}>🎤 말씀해 주세요...</p>
                             </div>

@@ -16,6 +16,7 @@ interface ChatInputBarProps {
   isRecording: boolean;
   speechSupported: boolean;
   mode?: 'text' | 'realtime-voice';
+  onTextModeToggle?: () => void;
   realtimeVoiceProps?: {
     status: string;
     isRecording: boolean;
@@ -27,8 +28,6 @@ interface ChatInputBarProps {
     sessionWarning?: string | null;
     error?: string | null;
     showMicPrompt: boolean;
-    isInputExpanded: boolean;
-    onInputExpandedChange: (v: boolean) => void;
     onConnect: (messages?: { role: 'user' | 'ai'; content: string }[]) => void;
     onStartRecording: () => void;
     onStopRecording: () => void;
@@ -55,6 +54,7 @@ export function ChatInputBar({
   isRecording,
   speechSupported,
   mode = 'text',
+  onTextModeToggle,
   realtimeVoiceProps,
 }: ChatInputBarProps) {
   const { t } = useTranslation();
@@ -255,53 +255,15 @@ export function ChatInputBar({
               }`}></i>
             </button>
 
-            <div className="flex items-center gap-2 flex-1 overflow-hidden">
-              <div className="relative flex-1">
-                <input
-                  type="text"
-                  value={userInput}
-                  onChange={(e) => onUserInputChange(e.target.value.slice(0, 200))}
-                  onFocus={() => rv.onInputExpandedChange(true)}
-                  onBlur={() => {
-                    if (!userInput.trim()) {
-                      rv.onInputExpandedChange(false);
-                    }
-                  }}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' && !e.shiftKey && userInput.trim()) {
-                      e.preventDefault();
-                      onSendMessage();
-                      rv.onInputExpandedChange(false);
-                    }
-                  }}
-                  placeholder={rv.isInputExpanded ? "메시지 입력... (Enter로 전송)" : "텍스트로 대화"}
-                  className={`w-full px-3 py-2 text-sm border rounded-full bg-white focus:outline-none focus:ring-2 focus:ring-purple-400 transition-colors ${
-                    rv.isInputExpanded ? 'border-purple-300' : 'border-slate-200'
-                  }`}
-                  disabled={rv.isRecording || rv.isAISpeaking}
-                  data-testid="input-message-realtime"
-                />
-                {rv.isInputExpanded && userInput.length > 0 && (
-                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-400">
-                    {userInput.length}/200
-                  </span>
-                )}
-              </div>
-              {rv.isInputExpanded && userInput.trim() && (
-                <Button
-                  onClick={() => {
-                    onSendMessage();
-                    rv.onInputExpandedChange(false);
-                  }}
-                  disabled={!userInput.trim() || rv.isRecording || rv.isAISpeaking}
-                  className="bg-purple-600 hover:bg-purple-700 text-white rounded-full w-8 h-8 p-0 shrink-0"
-                  size="sm"
-                  data-testid="button-send-message-realtime"
-                >
-                  <i className="fas fa-paper-plane text-xs"></i>
-                </Button>
-              )}
-            </div>
+            <button
+              onClick={onTextModeToggle}
+              disabled={rv.isRecording || rv.isAISpeaking}
+              className="flex items-center gap-1.5 px-3 py-2 text-sm border border-slate-200 rounded-full bg-white hover:bg-slate-50 hover:border-slate-300 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              data-testid="button-text-mode-toggle"
+            >
+              <i className="fas fa-keyboard text-slate-500 text-xs"></i>
+              <span className="text-slate-600">{t('chat.switchToText', { defaultValue: '텍스트로 대화' })}</span>
+            </button>
           </div>
         )}
 
