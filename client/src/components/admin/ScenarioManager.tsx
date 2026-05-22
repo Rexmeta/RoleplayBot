@@ -284,6 +284,7 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
   const [harnessStateUpdatesEnabled, setHarnessStateUpdatesEnabled] = useState(true);
   const [harnessPreferredSignals, setHarnessPreferredSignals] = useState<{key: string; value: string}[]>([]);
   const [harnessShowRaw, setHarnessShowRaw] = useState(false);
+  const [previewEmotionInput, setPreviewEmotionInput] = useState('');
   const [harnessRawJson, setHarnessRawJson] = useState('');
   const [harnessRawJsonError, setHarnessRawJsonError] = useState('');
   const [playerConstraintsError, setPlayerConstraintsError] = useState('');
@@ -2910,35 +2911,141 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
                       >+ 신호 추가</button>
                     </div>
 
-                    {/* Effective Settings Live Preview (structured mode) */}
+                    {/* Effective Settings Live Preview — editable inline (structured mode) */}
                     {!harnessShowRaw && harnessEffective?.valid && (
                       <div className="pt-2 border-t border-slate-100">
-                        <p className="text-xs font-semibold text-slate-500 mb-1.5 uppercase tracking-wide">적용될 실제 값 미리보기</p>
-                        <div className="bg-slate-50 rounded-md p-3 text-xs space-y-1.5 text-slate-700">
-                          <div className="flex gap-1.5 flex-wrap items-center">
-                            <span className="font-medium text-slate-500 shrink-0">감정 축:</span>
-                            {harnessEffective.emotionModel!.map(e => (
-                              <span key={e} className="bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded">{e}</span>
-                            ))}
-                          </div>
-                          <div className="flex gap-4">
-                            <span><span className="font-medium text-slate-500">턴당 최대 호출:</span> {harnessEffective.maxCallsPerTurn}</span>
-                            <span><span className="font-medium text-slate-500">호출당 변화량:</span> {harnessEffective.maxDeltaPerCall}</span>
-                          </div>
-                          <div className="flex gap-4">
-                            <span><span className="font-medium text-slate-500">전역 쿨다운:</span> {harnessEffective.globalCooldownSec}초</span>
-                            <span><span className="font-medium text-slate-500">동일유형 쿨다운:</span> {harnessEffective.perTypeCooldownSec}초</span>
-                          </div>
+                        <p className="text-xs font-semibold text-slate-500 mb-1.5 uppercase tracking-wide">적용될 실제 값 미리보기 <span className="normal-case font-normal text-blue-500">(직접 편집 가능)</span></p>
+                        <div className="bg-slate-50 rounded-md p-3 text-xs space-y-2.5 text-slate-700">
+
+                          {/* Emotion Model — removable chips + add input */}
                           <div>
-                            <span className="font-medium text-slate-500">상태 업데이트:</span>{' '}
-                            <span className={harnessEffective.stateUpdatesEnabled ? 'text-green-600' : 'text-slate-400'}>
-                              {harnessEffective.stateUpdatesEnabled ? '허용' : '비허용'}
+                            <span className="font-medium text-slate-500 block mb-1">감정 축:</span>
+                            <div className="flex gap-1 flex-wrap items-center">
+                              {harnessEffective.emotionModel!.map(e => (
+                                <span key={e} className="inline-flex items-center gap-0.5 bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded">
+                                  {e}
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      const updated = harnessEffective.emotionModel!.filter(x => x !== e);
+                                      setHarnessEmotionModel(updated.join(','));
+                                    }}
+                                    className="ml-0.5 text-blue-400 hover:text-red-500 leading-none"
+                                    title="제거"
+                                  >×</button>
+                                </span>
+                              ))}
+                              <input
+                                type="text"
+                                value={previewEmotionInput}
+                                onChange={e => setPreviewEmotionInput(e.target.value)}
+                                onKeyDown={e => {
+                                  if ((e.key === 'Enter' || e.key === ',') && previewEmotionInput.trim()) {
+                                    e.preventDefault();
+                                    const name = previewEmotionInput.trim().replace(/,/g, '');
+                                    if (name && !harnessEffective.emotionModel!.includes(name)) {
+                                      setHarnessEmotionModel([...harnessEffective.emotionModel!, name].join(','));
+                                    }
+                                    setPreviewEmotionInput('');
+                                  }
+                                }}
+                                placeholder="+ 추가"
+                                className="border border-dashed border-slate-300 rounded px-1.5 py-0.5 text-xs w-20 focus:outline-none focus:border-blue-400 bg-white"
+                              />
+                            </div>
+                          </div>
+
+                          {/* Numeric fields row */}
+                          <div className="grid grid-cols-2 gap-x-4 gap-y-2">
+                            <label className="flex items-center gap-2">
+                              <span className="font-medium text-slate-500 shrink-0">턴당 최대 호출:</span>
+                              <input
+                                type="number"
+                                min={1} max={20}
+                                value={harnessMaxCallsPerTurn}
+                                onChange={e => setHarnessMaxCallsPerTurn(e.target.value)}
+                                className="w-14 border border-slate-300 rounded px-1.5 py-0.5 text-xs focus:outline-none focus:border-blue-400 bg-white"
+                              />
+                            </label>
+                            <label className="flex items-center gap-2">
+                              <span className="font-medium text-slate-500 shrink-0">호출당 변화량:</span>
+                              <input
+                                type="number"
+                                min={1} max={100}
+                                value={harnessMaxDeltaPerCall}
+                                onChange={e => setHarnessMaxDeltaPerCall(e.target.value)}
+                                className="w-14 border border-slate-300 rounded px-1.5 py-0.5 text-xs focus:outline-none focus:border-blue-400 bg-white"
+                              />
+                            </label>
+                            <label className="flex items-center gap-2">
+                              <span className="font-medium text-slate-500 shrink-0">전역 쿨다운:</span>
+                              <input
+                                type="number"
+                                min={0}
+                                value={harnessGlobalCooldownSec}
+                                onChange={e => setHarnessGlobalCooldownSec(e.target.value)}
+                                className="w-16 border border-slate-300 rounded px-1.5 py-0.5 text-xs focus:outline-none focus:border-blue-400 bg-white"
+                              />
+                              <span className="text-slate-400">초</span>
+                            </label>
+                            <label className="flex items-center gap-2">
+                              <span className="font-medium text-slate-500 shrink-0">유형 쿨다운:</span>
+                              <input
+                                type="number"
+                                min={0}
+                                value={harnessPerTypeCooldownSec}
+                                onChange={e => setHarnessPerTypeCooldownSec(e.target.value)}
+                                className="w-16 border border-slate-300 rounded px-1.5 py-0.5 text-xs focus:outline-none focus:border-blue-400 bg-white"
+                              />
+                              <span className="text-slate-400">초</span>
+                            </label>
+                          </div>
+
+                          {/* State updates toggle */}
+                          <label className="flex items-center gap-2 cursor-pointer select-none">
+                            <span className="font-medium text-slate-500">상태 업데이트:</span>
+                            <input
+                              type="checkbox"
+                              checked={harnessStateUpdatesEnabled}
+                              onChange={e => setHarnessStateUpdatesEnabled(e.target.checked)}
+                              className="h-3.5 w-3.5 accent-blue-600"
+                            />
+                            <span className={harnessStateUpdatesEnabled ? 'text-green-600' : 'text-slate-400'}>
+                              {harnessStateUpdatesEnabled ? '허용' : '비허용'}
                             </span>
-                          </div>
+                          </label>
+
+                          {/* Allowed incident types — toggleable chips */}
                           <div>
-                            <span className="font-medium text-slate-500">허용 이벤트 ({harnessEffective.allowedTypes!.length}):</span>{' '}
-                            <span className="text-slate-600">{harnessEffective.allowedTypes!.join(', ') || '없음'}</span>
+                            <span className="font-medium text-slate-500 block mb-1">허용 이벤트 ({harnessAllowedTypes.length}):</span>
+                            <div className="flex flex-wrap gap-1">
+                              {HARNESS_ALL_INCIDENT_TYPES.map(type => {
+                                const active = harnessAllowedTypes.includes(type);
+                                return (
+                                  <button
+                                    key={type}
+                                    type="button"
+                                    onClick={() => {
+                                      if (active) {
+                                        setHarnessAllowedTypes(prev => prev.filter(t => t !== type));
+                                      } else {
+                                        setHarnessAllowedTypes(prev => [...prev, type]);
+                                      }
+                                    }}
+                                    className={`px-1.5 py-0.5 rounded text-[11px] border transition-colors ${
+                                      active
+                                        ? 'bg-indigo-100 text-indigo-700 border-indigo-300 hover:bg-indigo-200'
+                                        : 'bg-white text-slate-400 border-slate-200 hover:border-slate-400 hover:text-slate-600'
+                                    }`}
+                                  >
+                                    {type}
+                                  </button>
+                                );
+                              })}
+                            </div>
                           </div>
+
+                          {/* Preferred signals (read-only display — edited above) */}
                           {Object.keys(harnessEffective.preferredSignals!).length > 0 && (
                             <div>
                               <span className="font-medium text-slate-500">선호 신호:</span>{' '}
