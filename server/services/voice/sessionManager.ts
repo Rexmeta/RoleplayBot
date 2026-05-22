@@ -51,6 +51,7 @@ export function trackSessionUsage(session: RealtimeSession): void {
     trackUsage({
       feature: 'realtime', model: session.realtimeModel, provider: 'gemini',
       promptTokens: totalPromptTokens, completionTokens: totalCompletionTokens,
+      cachedTokens: session.totalCachedTokens,
       userId: session.userId, conversationId: session.personaRunId, durationMs,
       metadata: {
         scenarioId: session.scenarioId, personaId: session.personaId,
@@ -59,7 +60,7 @@ export function trackSessionUsage(session: RealtimeSession): void {
         estimationMethod: 'transcript_length_based',
       }
     });
-    console.log(`📊 Realtime usage tracked: ${totalPromptTokens} prompt + ${totalCompletionTokens} completion tokens, duration: ${Math.round(durationMs / 1000)}s`);
+    console.log(`📊 Realtime usage tracked: ${totalPromptTokens} prompt + ${totalCompletionTokens} completion tokens${session.totalCachedTokens > 0 ? ` + ${session.totalCachedTokens} cached` : ''}, duration: ${Math.round(durationMs / 1000)}s`);
   }
 }
 

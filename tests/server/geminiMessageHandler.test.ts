@@ -23,6 +23,7 @@ function makeSession(overrides: Partial<RealtimeSession> = {}): RealtimeSession 
     lastActivityTime: Date.now(),
     totalUserTranscriptLength: 0,
     totalAiTranscriptLength: 0,
+    totalCachedTokens: 0,
     realtimeModel: 'gemini-live',
     hasReceivedFirstAIResponse: false,
     hasTriggeredFirstGreeting: false,

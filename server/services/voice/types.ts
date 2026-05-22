@@ -28,6 +28,7 @@ export interface RealtimeSession {
   lastActivityTime: number;
   totalUserTranscriptLength: number;
   totalAiTranscriptLength: number;
+  totalCachedTokens: number;
   realtimeModel: string;
   hasReceivedFirstAIResponse: boolean;
   hasReceivedFirstAIAudio: boolean;

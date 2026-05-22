@@ -124,8 +124,16 @@ export function handleGeminiMessage(
   const msgType = hasServerContent && hasData ? 'audio+serverContent' : hasServerContent ? 'serverContent' : hasData ? 'audio data' : 'other';
   console.log(`📨 Gemini message type: ${msgType}`);
 
-  if (msgType === 'other' && !message.goAway && !message.sessionResumption) {
+  if (msgType === 'other' && !message.goAway && !message.sessionResumption && !message.usageMetadata) {
     console.log(`🔍 Unknown message structure:`, JSON.stringify(message, null, 2).substring(0, 500));
+  }
+
+  if (message.usageMetadata) {
+    const cached = message.usageMetadata.cachedContentTokenCount ?? 0;
+    if (cached > 0) {
+      session.totalCachedTokens += cached;
+      console.log(`⚡ Cache hit (voice): ${cached} cached tokens (session total: ${session.totalCachedTokens})`);
+    }
   }
 
   if (message.toolCall) {
