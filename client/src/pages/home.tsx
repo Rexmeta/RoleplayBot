@@ -1,5 +1,5 @@
-import { useState, useEffect, useRef } from "react";
-import { Link, useLocation } from "wouter";
+import { useState, useEffect, useRef, useMemo } from "react";
+import { Link, useLocation, useSearch } from "wouter";
 import ScenarioSelector from "@/components/ScenarioSelector";
 import ChatWindow from "@/components/ChatWindow";
 import PersonalDevelopmentReport from "@/components/PersonalDevelopmentReport";
@@ -32,11 +32,21 @@ import {
 
 type ViewState = "scenarios" | "persona-selection" | "video-intro" | "chat" | "strategy-reflection" | "strategy-result" | "feedback";
 
+const VALID_INPUT_MODES = ['text', 'tts', 'realtime-voice'] as const;
+type ValidInputMode = typeof VALID_INPUT_MODES[number];
+const parseInputMode = (raw: string | null): ValidInputMode | undefined => {
+  if (raw && (VALID_INPUT_MODES as readonly string[]).includes(raw)) {
+    return raw as ValidInputMode;
+  }
+  return undefined;
+};
+
 export default function Home() {
   const { user } = useAuth();
   const { t } = useTranslation();
   const { toast } = useToast();
   const [location] = useLocation();
+  const search = useSearch();
   const [currentView, setCurrentView] = useState<ViewState>("scenarios");
   const [selectedScenario, setSelectedScenario] = useState<ComplexScenario | null>(null);
   const [selectedPersona, setSelectedPersona] = useState<ScenarioPersona | null>(null);
@@ -59,7 +69,13 @@ export default function Home() {
   const urlAutoStartRef = useRef(false); // URL 파라미터 자동 시작 중복 실행 방지
   const [loadingPersonaId, setLoadingPersonaId] = useState<string | null>(null); // 로딩 중인 페르소나 ID
   const [selectedDifficulty, setSelectedDifficulty] = useState<number>(4); // 사용자가 선택한 난이도 (기본값: 4)
-  const [isResuming, setIsResuming] = useState(false); // 대화 재개 중 상태
+  const isResumingRef = useRef(false); // 대화 재개 중 상태 (ref: 변경 시 재렌더링/effect 재실행 방지)
+  // resumedInputMode는 URL에서 파생 — URL이 바뀌면 자동으로 업데이트됨 (뒤로가기 복원 지원)
+  const resumedInputMode = useMemo(() => {
+    const p = new URLSearchParams(search);
+    if (!p.get('resumePersonaRunId')) return undefined;
+    return parseInputMode(p.get('mode')) ?? 'realtime-voice';
+  }, [search]);
   const [isVideoTransitioning, setIsVideoTransitioning] = useState(false); // 인트로 영상 → 대화 전환 중 상태
   const [hasSeenIntroVideo, setHasSeenIntroVideo] = useState(false); // 현재 시나리오 세션에서 인트로 영상 시청 여부
   const [isFeedbackGenerating, setIsFeedbackGenerating] = useState(false); // 피드백 생성 중 상태
@@ -166,17 +182,20 @@ export default function Home() {
     experience: "6개월차"
   };
 
+
   // URL 파라미터 처리 (대화 재개 & 페르소나 선택 화면 이동)
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
+    const params = new URLSearchParams(search);
     const resumePersonaRunId = params.get('resumePersonaRunId');
     const scenarioId = params.get('scenarioId');
     const scenarioRunIdParam = params.get('scenarioRunId');
     const personaIdParam = params.get('personaId');
 
-    if (resumePersonaRunId && scenarios.length > 0 && !isResuming) {
+    if (resumePersonaRunId && scenarios.length > 0 && !isResumingRef.current) {
       // 대화 재개 로직
-      setIsResuming(true);
+      isResumingRef.current = true;
+      
+      const modeParam = parseInputMode(params.get('mode'));
       
       apiRequest('GET', `/api/conversations/${resumePersonaRunId}`)
         .then(res => res.json())
@@ -187,7 +206,7 @@ export default function Home() {
           const scenario = scenarios.find((s: any) => s.id === conversation.scenarioId);
           if (!scenario) {
             console.error('시나리오를 찾을 수 없습니다:', conversation.scenarioId);
-            setIsResuming(false);
+            isResumingRef.current = false;
             return;
           }
 
@@ -195,7 +214,7 @@ export default function Home() {
           const persona = scenario.personas.find((p: any) => p.id === conversation.personaId);
           if (!persona) {
             console.error('페르소나를 찾을 수 없습니다:', conversation.personaId);
-            setIsResuming(false);
+            isResumingRef.current = false;
             return;
           }
 
@@ -207,13 +226,16 @@ export default function Home() {
           setSelectedDifficulty(conversation.difficulty || 4);
           setCurrentView("chat");
           
-          // URL에서 파라미터 제거
-          window.history.replaceState({}, '', '/home');
-          setIsResuming(false);
+          // URL에서 파라미터 제거 — mode 파라미터가 있는 경우(내부 모드 전환)는
+          // 히스토리 항목을 유지해야 브라우저 뒤로가기가 정상 동작함
+          if (!modeParam) {
+            window.history.replaceState({}, '', '/home');
+          }
+          isResumingRef.current = false;
         })
         .catch(error => {
           console.error('대화 재개 실패:', error);
-          setIsResuming(false);
+          isResumingRef.current = false;
         });
     } else if (scenarioId && scenarios.length > 0 && !urlAutoStartRef.current) {
       // 특정 시나리오의 페르소나 선택 화면으로 이동
@@ -318,7 +340,7 @@ export default function Home() {
         window.history.replaceState({}, '', '/home');
       }
     }
-  }, [scenarios, isResuming]);
+  }, [scenarios, search]);
 
   // 시나리오 선택 처리 - 항상 새로운 시도로 시작
   const handleScenarioSelect = async (scenario: ComplexScenario) => {
@@ -1057,6 +1079,7 @@ export default function Home() {
             onExit={handleReturnToScenarios}
             onReady={handleChatReady}
             onConversationEnding={() => setIsTransitioningToFeedback(true)}
+            initialInputMode={resumedInputMode}
           />
         )}
         

@@ -4,6 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
+import { useLocation } from "wouter";
 import { toMediaUrl } from "@/lib/mediaUrl";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -52,12 +53,14 @@ interface ChatWindowProps {
   onConversationEnding?: () => void;
   isPersonaMode?: boolean;
   initialMessages?: import("@shared/schema").ConversationMessage[];
+  initialInputMode?: 'text' | 'tts' | 'realtime-voice';
 }
 
-export default function ChatWindow({ scenario, persona, conversationId, onChatComplete, onExit, onPersonaChange, onReady, onConversationEnding, isPersonaMode = false, initialMessages }: ChatWindowProps) {
+export default function ChatWindow({ scenario, persona, conversationId, onChatComplete, onExit, onPersonaChange, onReady, onConversationEnding, isPersonaMode = false, initialMessages, initialInputMode }: ChatWindowProps) {
+  const [, navigate] = useLocation();
   const [userInput, setUserInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
-  const [inputMode, setInputMode] = useState<'text' | 'tts' | 'realtime-voice'>('realtime-voice');
+  const [inputMode, setInputMode] = useState<'text' | 'tts' | 'realtime-voice'>(initialInputMode || 'realtime-voice');
   const [showInputMode, setShowInputMode] = useState(false);
   const [isGoalsExpanded, setIsGoalsExpanded] = useState(false);
   const [isSwitchingMode, setIsSwitchingMode] = useState(false);
@@ -351,12 +354,27 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
     try {
       await flushRealtimeMessages(false);
       realtimeVoice.disconnect();
-    } finally {
+      navigate(`/home?resumePersonaRunId=${conversationId}&mode=text`);
+    } catch {
       setIsSwitchingMode(false);
-      pendingModeTransitionRef.current = 'realtime-voice';
-      setInputMode('text');
     }
   };
+
+  const handleSwitchToTTSMode = async () => {
+    if (isSwitchingMode) return;
+    setIsSwitchingMode(true);
+    try {
+      await flushRealtimeMessages(false);
+      realtimeVoice.disconnect();
+      navigate(`/home?resumePersonaRunId=${conversationId}&mode=tts`);
+    } catch {
+      setIsSwitchingMode(false);
+    }
+  };
+
+  useEffect(() => {
+    setInputMode(initialInputMode ?? 'realtime-voice');
+  }, [initialInputMode]);
 
   useEffect(() => {
     if (!conversation?.messages) return;
@@ -662,6 +680,7 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
     currentTurn, targetTurns,
     vadSensitivity: realtimeVoice.vadSensitivity,
     onVadSensitivityChange: realtimeVoice.setVadSensitivity,
+    isSwitchingMode,
   };
 
   return (
@@ -1024,7 +1043,12 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
                               onVoiceInput={handleVoiceInput} onSkipTurn={handleSkipTurn} isLoading={isLoading}
                               isRecording={isRecording} speechSupported={speechSupported}
                               mode="realtime-voice" realtimeVoiceProps={rvBarProps}
-                              onTextModeToggle={() => setIsInlineTextOpen(v => !v)} />
+                              onTextModeToggle={() => {
+                                if (handleSwitchToTextModeRef.current) {
+                                  handleSwitchToTextModeRef.current();
+                                }
+                              }}
+                              onTTSModeToggle={handleSwitchToTTSMode} />
                           </div>
                           {localMessages.length > 0 && !isInlineTextOpen && (
                             <div className="border-t border-slate-200/30 px-4 py-2 flex justify-center">
