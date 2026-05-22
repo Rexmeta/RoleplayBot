@@ -11,9 +11,10 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
-import { Trash2, Plus, Save, X, BarChart2, FilterX } from "lucide-react";
+import { Trash2, Plus, Save, X, BarChart2, FilterX, AlertTriangle } from "lucide-react";
 
 const overrideFormSchema = z.object({
   terminologyKey: z.string().optional(),
@@ -41,6 +42,16 @@ interface ScenarioOverride {
   scenarioId: string;
   override: ScenarioOverrideData;
   updatedAt: string;
+}
+
+function isOverrideEmpty(override: ScenarioOverrideData): boolean {
+  return (
+    Object.keys(override.terminology ?? {}).length === 0 &&
+    (override.policyConstraints ?? []).length === 0 &&
+    (override.forbiddenPhrases ?? []).length === 0 &&
+    Object.keys(override.evaluationWeights ?? {}).length === 0 &&
+    (override.customIncidents ?? []).length === 0
+  );
 }
 
 function getFieldSummaryBadges(override: ScenarioOverrideData) {
@@ -132,6 +143,16 @@ export function ScenarioOverrideManager() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/admin/scenario-overrides"] });
       setLocalOverride({});
+      toast({ title: "Override 삭제 완료" });
+    },
+    onError: (err: any) => toast({ title: "삭제 실패", description: err.message, variant: "destructive" }),
+  });
+
+  const deleteRowMutation = useMutation({
+    mutationFn: async ({ orgId, scenarioId }: { orgId: string; scenarioId: string }) =>
+      apiRequest("DELETE", `/api/admin/scenario-overrides/${orgId}/${scenarioId}`),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/scenario-overrides"] });
       toast({ title: "Override 삭제 완료" });
     },
     onError: (err: any) => toast({ title: "삭제 실패", description: err.message, variant: "destructive" }),
@@ -316,6 +337,7 @@ export function ScenarioOverrideManager() {
               <TableBody>
                 {reportRows.map((row) => {
                   const badges = getFieldSummaryBadges(row.override);
+                  const empty = isOverrideEmpty(row.override);
                   const isSelected = row.organizationId === selectedOrgId && row.scenarioId === selectedScenarioId;
                   return (
                     <TableRow
@@ -330,9 +352,12 @@ export function ScenarioOverrideManager() {
                         {scenarioMap[row.scenarioId] ?? row.scenarioId}
                       </TableCell>
                       <TableCell>
-                        <div className="flex flex-wrap gap-1">
-                          {badges.length === 0 ? (
-                            <span className="text-xs text-muted-foreground">항목 없음</span>
+                        <div className="flex flex-wrap gap-1 items-center">
+                          {empty ? (
+                            <Badge className="text-xs py-0 bg-amber-100 text-amber-700 border border-amber-300 dark:bg-amber-900/30 dark:text-amber-400 dark:border-amber-700">
+                              <AlertTriangle className="h-3 w-3 mr-1" />
+                              항목 없음
+                            </Badge>
                           ) : (
                             badges.map(b => (
                               <Badge key={b.label} variant={b.variant} className="text-xs py-0">
@@ -343,7 +368,24 @@ export function ScenarioOverrideManager() {
                         </div>
                       </TableCell>
                       <TableCell className="text-right text-xs text-muted-foreground">
-                        {new Date(row.updatedAt).toLocaleDateString("ko-KR")}
+                        <div className="flex items-center justify-end gap-2">
+                          <span>{new Date(row.updatedAt).toLocaleDateString("ko-KR")}</span>
+                          {empty && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-6 px-2 text-xs text-destructive hover:text-destructive hover:bg-destructive/10"
+                              disabled={deleteRowMutation.isPending}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                deleteRowMutation.mutate({ orgId: row.organizationId, scenarioId: row.scenarioId });
+                              }}
+                            >
+                              <Trash2 className="h-3 w-3 mr-1" />
+                              삭제
+                            </Button>
+                          )}
+                        </div>
                       </TableCell>
                     </TableRow>
                   );
@@ -393,6 +435,14 @@ export function ScenarioOverrideManager() {
       {selectedOrgId && selectedScenarioId && (
         <Form {...form}>
           <div className="space-y-4">
+            {existingOverride !== null && existingOverride !== undefined && isOverrideEmpty(currentOverride) && (
+              <Alert className="border-amber-300 bg-amber-50 dark:bg-amber-900/20 dark:border-amber-700">
+                <AlertTriangle className="h-4 w-4 text-amber-600 dark:text-amber-400" />
+                <AlertDescription className="text-amber-700 dark:text-amber-400">
+                  이 Override에는 설정된 항목이 없습니다. 항목을 추가하거나 불필요한 경우 삭제하세요.
+                </AlertDescription>
+              </Alert>
+            )}
             <Card>
               <CardHeader>
                 <CardTitle className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">용어 교체 (Terminology)</CardTitle>
