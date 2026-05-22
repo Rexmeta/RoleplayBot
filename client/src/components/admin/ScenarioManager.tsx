@@ -288,6 +288,55 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
   const [harnessRawJsonError, setHarnessRawJsonError] = useState('');
   const [playerConstraintsError, setPlayerConstraintsError] = useState('');
   const [difficultyProfileError, setDifficultyProfileError] = useState('');
+
+  const harnessEffective = useMemo(() => {
+    if (!harnessEnabled) return null;
+    const DEF_EMOTIONS = ['anger', 'trust', 'confusion', 'interest'];
+    const DEF_TYPES = [...HARNESS_ALL_INCIDENT_TYPES] as string[];
+    if (harnessShowRaw) {
+      if (!harnessRawJson.trim()) {
+        return { valid: true, usingDefaults: true, emotionModel: DEF_EMOTIONS, maxCallsPerTurn: 2, maxDeltaPerCall: 30, allowedTypes: DEF_TYPES, globalCooldownSec: 60, perTypeCooldownSec: 120, stateUpdatesEnabled: true, preferredSignals: {} as Record<string, string>, fieldErrors: {} as Record<string, string> };
+      }
+      let raw: unknown;
+      try { raw = JSON.parse(harnessRawJson); } catch { return { valid: false, parseError: 'JSON 구문 오류', fieldErrors: {} as Record<string, string> }; }
+      const result = simulationHarnessSchema.safeParse(raw);
+      if (!result.success) {
+        const fieldErrors: Record<string, string> = {};
+        result.error.errors.forEach(e => { const path = e.path.join('.'); fieldErrors[path] = e.message; });
+        return { valid: false, fieldErrors };
+      }
+      const h = result.data;
+      return {
+        valid: true, usingDefaults: false,
+        emotionModel: h.emotionModel ?? DEF_EMOTIONS,
+        maxCallsPerTurn: h.toolPolicy?.updateNpcEmotion?.maxCallsPerTurn ?? 2,
+        maxDeltaPerCall: h.toolPolicy?.updateNpcEmotion?.maxDeltaPerCall ?? 30,
+        allowedTypes: h.toolPolicy?.triggerIncident?.allowedTypes ?? DEF_TYPES,
+        globalCooldownSec: h.toolPolicy?.triggerIncident?.cooldownOverride?.globalCooldownSec ?? 60,
+        perTypeCooldownSec: h.toolPolicy?.triggerIncident?.cooldownOverride?.perTypeCooldownSec ?? 120,
+        stateUpdatesEnabled: h.toolPolicy?.updateScenarioState?.enabled ?? true,
+        preferredSignals: h.preferredSignals ?? {} as Record<string, string>,
+        fieldErrors: {} as Record<string, string>,
+      };
+    } else {
+      const emotionModel = harnessEmotionModel.split(',').map(s => s.trim()).filter(Boolean);
+      const preferredSignals: Record<string, string> = {};
+      harnessPreferredSignals.forEach(({ key, value }) => { if (key.trim()) preferredSignals[key.trim()] = value; });
+      return {
+        valid: true, usingDefaults: false,
+        emotionModel: emotionModel.length > 0 ? emotionModel : DEF_EMOTIONS,
+        maxCallsPerTurn: parseInt(harnessMaxCallsPerTurn) || 2,
+        maxDeltaPerCall: parseInt(harnessMaxDeltaPerCall) || 30,
+        allowedTypes: harnessAllowedTypes,
+        globalCooldownSec: parseInt(harnessGlobalCooldownSec) || 60,
+        perTypeCooldownSec: parseInt(harnessPerTypeCooldownSec) || 120,
+        stateUpdatesEnabled: harnessStateUpdatesEnabled,
+        preferredSignals,
+        fieldErrors: {} as Record<string, string>,
+      };
+    }
+  }, [harnessEnabled, harnessShowRaw, harnessRawJson, harnessEmotionModel, harnessMaxCallsPerTurn, harnessMaxDeltaPerCall, harnessAllowedTypes, harnessGlobalCooldownSec, harnessPerTypeCooldownSec, harnessStateUpdatesEnabled, harnessPreferredSignals]);
+
   const [isGeneratingImage, setIsGeneratingImage] = useState(false);
   const [isGeneratingVideo, setIsGeneratingVideo] = useState(false);
   const [expandedScenarios, setExpandedScenarios] = useState<Set<string | number>>(new Set());
@@ -2861,6 +2910,47 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
                       >+ 신호 추가</button>
                     </div>
 
+                    {/* Effective Settings Live Preview (structured mode) */}
+                    {!harnessShowRaw && harnessEffective?.valid && (
+                      <div className="pt-2 border-t border-slate-100">
+                        <p className="text-xs font-semibold text-slate-500 mb-1.5 uppercase tracking-wide">적용될 실제 값 미리보기</p>
+                        <div className="bg-slate-50 rounded-md p-3 text-xs space-y-1.5 text-slate-700">
+                          <div className="flex gap-1.5 flex-wrap items-center">
+                            <span className="font-medium text-slate-500 shrink-0">감정 축:</span>
+                            {harnessEffective.emotionModel!.map(e => (
+                              <span key={e} className="bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded">{e}</span>
+                            ))}
+                          </div>
+                          <div className="flex gap-4">
+                            <span><span className="font-medium text-slate-500">턴당 최대 호출:</span> {harnessEffective.maxCallsPerTurn}</span>
+                            <span><span className="font-medium text-slate-500">호출당 변화량:</span> {harnessEffective.maxDeltaPerCall}</span>
+                          </div>
+                          <div className="flex gap-4">
+                            <span><span className="font-medium text-slate-500">전역 쿨다운:</span> {harnessEffective.globalCooldownSec}초</span>
+                            <span><span className="font-medium text-slate-500">동일유형 쿨다운:</span> {harnessEffective.perTypeCooldownSec}초</span>
+                          </div>
+                          <div>
+                            <span className="font-medium text-slate-500">상태 업데이트:</span>{' '}
+                            <span className={harnessEffective.stateUpdatesEnabled ? 'text-green-600' : 'text-slate-400'}>
+                              {harnessEffective.stateUpdatesEnabled ? '허용' : '비허용'}
+                            </span>
+                          </div>
+                          <div>
+                            <span className="font-medium text-slate-500">허용 이벤트 ({harnessEffective.allowedTypes!.length}):</span>{' '}
+                            <span className="text-slate-600">{harnessEffective.allowedTypes!.join(', ') || '없음'}</span>
+                          </div>
+                          {Object.keys(harnessEffective.preferredSignals!).length > 0 && (
+                            <div>
+                              <span className="font-medium text-slate-500">선호 신호:</span>{' '}
+                              {Object.entries(harnessEffective.preferredSignals!).map(([k, v]) => (
+                                <span key={k} className="mr-1.5"><span className="font-mono text-blue-600">{k}</span>: {v}</span>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
+
                     {/* Raw JSON fallback toggle */}
                     <div className="pt-2 border-t border-slate-100">
                       <button
@@ -2883,14 +2973,70 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
                         className="text-xs text-slate-500 hover:text-slate-700 underline"
                       >{harnessShowRaw ? '← 구조화 편집기로 돌아가기' : '고급: JSON 직접 편집'}</button>
                       {harnessShowRaw && (
-                        <div className="mt-2">
-                          <Textarea
-                            value={harnessRawJson}
-                            onChange={e => { setHarnessRawJson(e.target.value); setHarnessRawJsonError(''); }}
-                            rows={8}
-                            className={`bg-white font-mono text-xs ${harnessRawJsonError ? 'border-red-400' : ''}`}
-                          />
-                          {harnessRawJsonError && <p className="text-xs text-red-500 mt-1">{harnessRawJsonError}</p>}
+                        <div className="mt-2 flex gap-3 items-start">
+                          <div className="flex-1 min-w-0">
+                            <Textarea
+                              value={harnessRawJson}
+                              onChange={e => { setHarnessRawJson(e.target.value); setHarnessRawJsonError(''); }}
+                              rows={10}
+                              className={`bg-white font-mono text-xs ${harnessRawJsonError ? 'border-red-400' : ''}`}
+                            />
+                            {harnessRawJsonError && <p className="text-xs text-red-500 mt-1">{harnessRawJsonError}</p>}
+                          </div>
+                          {/* Live preview panel for raw JSON mode */}
+                          <div className="w-56 shrink-0 bg-slate-50 rounded-md p-3 text-xs border border-slate-200">
+                            <p className="font-semibold text-slate-500 mb-2 uppercase tracking-wide text-[10px]">실시간 미리보기</p>
+                            {!harnessEffective?.valid ? (
+                              <div className="space-y-1">
+                                {'parseError' in (harnessEffective ?? {}) && (
+                                  <p className="text-red-500 font-medium">{(harnessEffective as any).parseError}</p>
+                                )}
+                                {harnessEffective && !('parseError' in harnessEffective) && Object.entries(harnessEffective.fieldErrors ?? {}).length > 0 && (
+                                  <div>
+                                    <p className="text-red-500 font-medium mb-1">스키마 오류:</p>
+                                    {Object.entries(harnessEffective.fieldErrors!).map(([path, msg]) => (
+                                      <p key={path} className="text-red-400"><span className="font-mono">{path || '(root)'}</span>: {msg}</p>
+                                    ))}
+                                  </div>
+                                )}
+                                {!harnessEffective && <p className="text-slate-400 italic">JSON을 입력하세요</p>}
+                              </div>
+                            ) : (
+                              <div className="space-y-2 text-slate-700">
+                                {harnessEffective.usingDefaults && (
+                                  <p className="text-amber-600 text-[10px]">비어있음 — 기본값 표시 중</p>
+                                )}
+                                <div>
+                                  <p className="text-slate-400 text-[10px] mb-0.5">감정 축</p>
+                                  <div className="flex flex-wrap gap-0.5">
+                                    {harnessEffective.emotionModel!.map(e => (
+                                      <span key={e} className="bg-blue-100 text-blue-700 px-1 py-0.5 rounded text-[10px]">{e}</span>
+                                    ))}
+                                  </div>
+                                </div>
+                                <div>
+                                  <p className="text-slate-400 text-[10px] mb-0.5">도구 정책</p>
+                                  <p>호출/턴: <span className="font-semibold">{harnessEffective.maxCallsPerTurn}</span></p>
+                                  <p>변화량: <span className="font-semibold">{harnessEffective.maxDeltaPerCall}</span></p>
+                                  <p>전역 쿨다운: <span className="font-semibold">{harnessEffective.globalCooldownSec}s</span></p>
+                                  <p>유형 쿨다운: <span className="font-semibold">{harnessEffective.perTypeCooldownSec}s</span></p>
+                                  <p>상태 업데이트: <span className={`font-semibold ${harnessEffective.stateUpdatesEnabled ? 'text-green-600' : 'text-slate-400'}`}>{harnessEffective.stateUpdatesEnabled ? '✓' : '✗'}</span></p>
+                                </div>
+                                <div>
+                                  <p className="text-slate-400 text-[10px] mb-0.5">허용 이벤트 ({harnessEffective.allowedTypes!.length})</p>
+                                  <p className="text-slate-600 leading-relaxed">{harnessEffective.allowedTypes!.join(', ') || '없음'}</p>
+                                </div>
+                                {Object.keys(harnessEffective.preferredSignals!).length > 0 && (
+                                  <div>
+                                    <p className="text-slate-400 text-[10px] mb-0.5">선호 신호</p>
+                                    {Object.entries(harnessEffective.preferredSignals!).map(([k, v]) => (
+                                      <p key={k}><span className="font-mono text-blue-600">{k}</span>: {v}</p>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                          </div>
                         </div>
                       )}
                     </div>
