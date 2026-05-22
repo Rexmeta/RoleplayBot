@@ -16,6 +16,7 @@ import { TrendsTab } from "@/components/admin/TrendsTab";
 import { EmotionsTab } from "@/components/admin/EmotionsTab";
 import { ContentTab } from "@/components/admin/ContentTab";
 import { ParticipantsTab } from "@/components/admin/ParticipantsTab";
+import { ApiUsageTab } from "@/components/admin/ApiUsageTab";
 import type {
   AnalyticsOverview,
   PerformanceData,
@@ -280,7 +281,7 @@ export default function AdminDashboard() {
         )}
 
         <Tabs defaultValue="participants" className="space-y-6" onValueChange={() => setShowMobileTabMenu(false)}>
-          <TabsList className="hidden md:grid w-full grid-cols-9">
+          <TabsList className="hidden md:grid w-full grid-cols-10">
             <TabsTrigger value="participants" data-testid="tab-participants">참석자 관리</TabsTrigger>
             <TabsTrigger value="overview" data-testid="tab-overview">개요</TabsTrigger>
             <TabsTrigger value="performance" data-testid="tab-performance">성과 분석</TabsTrigger>
@@ -289,6 +290,7 @@ export default function AdminDashboard() {
             <TabsTrigger value="emotions" data-testid="tab-emotions">감정 분석</TabsTrigger>
             <TabsTrigger value="trends" data-testid="tab-trends">트렌드 분석</TabsTrigger>
             <TabsTrigger value="content" data-testid="tab-content">컨텐츠 현황</TabsTrigger>
+            <TabsTrigger value="api-usage" data-testid="tab-api-usage">API 사용량</TabsTrigger>
             <TabsTrigger value="translations" data-testid="tab-translations">번역 관리</TabsTrigger>
           </TabsList>
 
@@ -310,12 +312,13 @@ export default function AdminDashboard() {
 
             {showMobileTabMenu && (
               <div className="bg-slate-100 rounded-lg p-2 animate-in slide-in-from-top duration-200">
-                <TabsList className="grid w-full grid-cols-6 gap-2 bg-transparent">
+                <TabsList className="grid w-full grid-cols-7 gap-2 bg-transparent">
                   <TabsTrigger value="scenarios" className="bg-white" data-testid="mobile-tab-scenarios">시나리오</TabsTrigger>
                   <TabsTrigger value="mbti" className="bg-white" data-testid="mobile-tab-mbti">MBTI</TabsTrigger>
                   <TabsTrigger value="emotions" className="bg-white" data-testid="mobile-tab-emotions">감정</TabsTrigger>
                   <TabsTrigger value="trends" className="bg-white" data-testid="mobile-tab-trends">트렌드</TabsTrigger>
                   <TabsTrigger value="content" className="bg-white" data-testid="mobile-tab-content">컨텐츠</TabsTrigger>
+                  <TabsTrigger value="api-usage" className="bg-white" data-testid="mobile-tab-api-usage">API 사용량</TabsTrigger>
                   <TabsTrigger value="translations" className="bg-white" data-testid="mobile-tab-translations">번역</TabsTrigger>
                 </TabsList>
               </div>
@@ -381,6 +384,10 @@ export default function AdminDashboard() {
               personas={personas}
               overview={overview}
             />
+          </TabsContent>
+
+          <TabsContent value="api-usage" className="space-y-6">
+            <ApiUsageTab />
           </TabsContent>
 
           <TabsContent value="translations" className="space-y-6">

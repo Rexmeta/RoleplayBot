@@ -12,7 +12,7 @@ import {
   auditLogs,
   AGENT_API_SCOPES,
 } from "@shared/schema";
-import { eq, and, desc, sql, or, gte, lt } from "drizzle-orm";
+import { eq, and, desc, sql, or, gte, lt, lte } from "drizzle-orm";
 import { isSystemAdmin, isOperatorOrAdmin } from "../middleware/authMiddleware";
 import { asyncHandler, createHttpError } from "./routerHelpers";
 import { generateAgentApiKey, computeExpiryDate } from "../utils/agentApiKey";
@@ -300,6 +300,96 @@ router.get(
       .limit(100);
 
     res.json(rows);
+  })
+);
+
+// ─────────────────────────────────────────────────────────────────────────────
+// GET /api/admin/agent-keys/usage — daily token spend for admin dashboard
+// Query params: ?from=YYYY-MM-DD&to=YYYY-MM-DD&keyId=<id>
+// Defaults to current calendar month.
+// ─────────────────────────────────────────────────────────────────────────────
+const usageQuerySchema = z.object({
+  from: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  to: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  keyId: z.string().optional(),
+});
+
+router.get(
+  "/usage",
+  isOperatorOrAdmin,
+  asyncHandler(async (req: any, res) => {
+    const parsed = usageQuerySchema.safeParse(req.query);
+    if (!parsed.success) {
+      throw createHttpError(400, "Invalid query parameters.");
+    }
+
+    const today = new Date();
+    const defaultFrom = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-01`;
+    const defaultTo = today.toISOString().slice(0, 10);
+
+    const fromDate = parsed.data.from ?? defaultFrom;
+    const toDate = parsed.data.to ?? defaultTo;
+    const keyId = parsed.data.keyId;
+
+    const conditions: any[] = [
+      gte(agentUsageDaily.date, fromDate),
+      lte(agentUsageDaily.date, toDate),
+    ];
+    if (keyId) {
+      conditions.push(eq(agentUsageDaily.agentKeyId, keyId));
+    }
+
+    const rows = await db
+      .select({
+        date: agentUsageDaily.date,
+        agentKeyId: agentUsageDaily.agentKeyId,
+        requestCount: sql<number>`SUM(${agentUsageDaily.requestCount})::int`,
+        inputTokens: sql<number>`SUM(${agentUsageDaily.inputTokens})::int`,
+        outputTokens: sql<number>`SUM(${agentUsageDaily.outputTokens})::int`,
+        totalTokens: sql<number>`SUM(${agentUsageDaily.totalTokens})::int`,
+        errorCount: sql<number>`SUM(${agentUsageDaily.errorCount})::int`,
+      })
+      .from(agentUsageDaily)
+      .where(and(...conditions))
+      .groupBy(agentUsageDaily.date, agentUsageDaily.agentKeyId)
+      .orderBy(agentUsageDaily.date);
+
+    // Collapse multi-key rows into single-date aggregates for the chart
+    const byDate = new Map<string, { date: string; requestCount: number; inputTokens: number; outputTokens: number; totalTokens: number; errorCount: number }>();
+    for (const row of rows) {
+      const existing = byDate.get(row.date);
+      if (existing) {
+        existing.requestCount += row.requestCount;
+        existing.inputTokens += row.inputTokens;
+        existing.outputTokens += row.outputTokens;
+        existing.totalTokens += row.totalTokens;
+        existing.errorCount += row.errorCount;
+      } else {
+        byDate.set(row.date, {
+          date: row.date,
+          requestCount: row.requestCount,
+          inputTokens: row.inputTokens,
+          outputTokens: row.outputTokens,
+          totalTokens: row.totalTokens,
+          errorCount: row.errorCount,
+        });
+      }
+    }
+
+    const dailyRows = Array.from(byDate.values()).sort((a, b) => a.date.localeCompare(b.date));
+
+    const summary = dailyRows.reduce(
+      (acc, r) => {
+        acc.totalRequests += r.requestCount;
+        acc.totalInputTokens += r.inputTokens;
+        acc.totalOutputTokens += r.outputTokens;
+        acc.totalErrors += r.errorCount;
+        return acc;
+      },
+      { totalRequests: 0, totalInputTokens: 0, totalOutputTokens: 0, totalErrors: 0 }
+    );
+
+    res.json({ rows: dailyRows, summary });
   })
 );
 
