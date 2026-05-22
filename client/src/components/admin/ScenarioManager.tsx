@@ -338,6 +338,24 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
     }
   }, [harnessEnabled, harnessShowRaw, harnessRawJson, harnessEmotionModel, harnessMaxCallsPerTurn, harnessMaxDeltaPerCall, harnessAllowedTypes, harnessGlobalCooldownSec, harnessPerTypeCooldownSec, harnessStateUpdatesEnabled, harnessPreferredSignals]);
 
+  const harnessWarnings = useMemo(() => {
+    if (!harnessEffective?.valid) return [];
+    const warnings: string[] = [];
+    if ((harnessEffective.allowedTypes?.length ?? 0) === 0) {
+      warnings.push('허용 이벤트 유형이 없습니다 — 인시던트가 전혀 발생하지 않습니다.');
+    }
+    if (harnessEffective.maxCallsPerTurn === 0) {
+      warnings.push('턴당 최대 감정 호출이 0입니다 — NPC 감정이 업데이트되지 않습니다.');
+    }
+    if (harnessEffective.globalCooldownSec === 0) {
+      warnings.push('전역 쿨다운이 0초입니다 — 인시던트가 매 턴 반복될 수 있습니다.');
+    }
+    if (harnessEffective.perTypeCooldownSec === 0) {
+      warnings.push('유형별 쿨다운이 0초입니다 — 동일 인시던트가 연속 발생할 수 있습니다.');
+    }
+    return warnings;
+  }, [harnessEffective]);
+
   const [isGeneratingImage, setIsGeneratingImage] = useState(false);
   const [isGeneratingVideo, setIsGeneratingVideo] = useState(false);
   const [expandedScenarios, setExpandedScenarios] = useState<Set<string | number>>(new Set());
@@ -3055,6 +3073,16 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
                             </div>
                           )}
                         </div>
+                        {harnessWarnings.length > 0 && (
+                          <div className="mt-2 rounded-md bg-amber-50 border border-amber-200 px-3 py-2 space-y-1">
+                            {harnessWarnings.map((w, i) => (
+                              <p key={i} className="text-xs text-amber-700 flex items-start gap-1.5">
+                                <span className="shrink-0 mt-0.5">⚠</span>
+                                <span>{w}</span>
+                              </p>
+                            ))}
+                          </div>
+                        )}
                       </div>
                     )}
 
@@ -3112,6 +3140,16 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
                               <div className="space-y-2 text-slate-700">
                                 {harnessEffective.usingDefaults && (
                                   <p className="text-amber-600 text-[10px]">비어있음 — 기본값 표시 중</p>
+                                )}
+                                {harnessWarnings.length > 0 && (
+                                  <div className="rounded bg-amber-50 border border-amber-200 px-2 py-1.5 space-y-1">
+                                    {harnessWarnings.map((w, i) => (
+                                      <p key={i} className="text-[10px] text-amber-700 flex items-start gap-1">
+                                        <span className="shrink-0">⚠</span>
+                                        <span>{w}</span>
+                                      </p>
+                                    ))}
+                                  </div>
                                 )}
                                 <div>
                                   <p className="text-slate-400 text-[10px] mb-0.5">감정 축</p>
