@@ -16,6 +16,56 @@ import { getSoftClosingInstruction } from '../conversationDifficultyPolicy';
 type SendToClient = (session: RealtimeSession, message: any) => void;
 type ProactiveReconnect = (session: RealtimeSession) => void;
 
+async function handleTerminationIfNeeded(
+  session: RealtimeSession,
+  newState: import('../simulation/simulationTypes').SimulationState,
+  sendToClient: SendToClient
+): Promise<void> {
+  const terminationReason = newState.terminationReason;
+  if (!terminationReason || session.terminationHandled) return;
+  session.terminationHandled = true;
+
+  console.log(`[geminiMessageHandler] terminationRules fired in voice: reason=${terminationReason}, personaRunId=${session.personaRunId}`);
+
+  try {
+    const { storage: st } = await import('../../storage');
+    const personaRun = await st.getPersonaRun(session.personaRunId);
+    if (personaRun && personaRun.status !== 'completed') {
+      await st.updatePersonaRun(session.personaRunId, { status: 'completed', completedAt: new Date() });
+    }
+
+    if (session.scenarioRunId) {
+      const { checkAndCompleteScenario } = await import('../../routes/routerHelpers');
+      await checkAndCompleteScenario(session.scenarioRunId);
+    }
+
+    await st.createSimulationEvent({
+      personaRunId: session.personaRunId,
+      scenarioRunId: session.scenarioRunId ?? null,
+      turnIndex: session.userTurnsCompleted,
+      turnId: `turn:${session.userTurnsCompleted}`,
+      eventType: 'session_end',
+      toolName: null,
+      args: null,
+      result: { reason: `termination_${terminationReason}` },
+      stateBefore: null,
+      stateAfter: newState,
+      stateVersionBefore: null,
+      stateVersionAfter: newState.version,
+      includeInReport: true,
+    }).catch(e => console.warn('[geminiMessageHandler] Failed to log termination session_end event:', e));
+  } catch (e) {
+    console.warn('[geminiMessageHandler] Failed to complete persona run on termination:', e);
+  }
+
+  sendToClient(session, {
+    type: 'termination',
+    reason: terminationReason,
+    personaRunId: session.personaRunId,
+    timestamp: new Date().toISOString(),
+  });
+}
+
 export function handleGeminiMessage(
   session: RealtimeSession,
   message: any,
@@ -168,6 +218,10 @@ export function handleGeminiMessage(
           version: finalStateForBroadcast?.version ?? 0,
           timestamp: new Date().toISOString(),
         });
+
+        if (finalStateForBroadcast) {
+          setImmediate(() => handleTerminationIfNeeded(session, finalStateForBroadcast, sendToClient));
+        }
 
         if (result.incident) {
           sendToClient(session, {
@@ -751,6 +805,8 @@ export function handleGeminiMessage(
                   version: newState.version,
                   timestamp: new Date().toISOString(),
                 });
+
+                await handleTerminationIfNeeded(session, newState, sendToClient);
               }
             } catch (e) {
               const evalError = e instanceof Error ? e : new Error(String(e));

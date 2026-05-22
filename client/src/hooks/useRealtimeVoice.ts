@@ -621,6 +621,15 @@ export function useRealtimeVoice({
               disconnect();
               break;
 
+            case 'termination':
+              setConversationPhase('ended');
+              if (onSimulationUpdateRef.current) {
+                onSimulationUpdateRef.current({ type: 'termination', reason: data.reason, personaRunId: data.personaRunId });
+              }
+              if (onSessionTerminatedRef.current) onSessionTerminatedRef.current(`termination_${data.reason}`);
+              disconnect();
+              break;
+
             case 'simulation_update':
             case 'simulation.incident':
               if (onSimulationUpdateRef.current) {
