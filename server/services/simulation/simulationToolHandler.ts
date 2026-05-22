@@ -15,7 +15,7 @@ import {
 } from './simulationEngine';
 import { renderIncidentMessage } from './incidentTemplates';
 import type { SimulationHarness } from '@shared/schema/scenarios';
-import { DEFAULT_SIMULATION_HARNESS, resolveHarness } from './simulationHarness';
+import { DEFAULT_SIMULATION_HARNESS, resolveHarness, resolveCooldownsForType } from './simulationHarness';
 
 const UpdateNpcEmotionArgsSchema = z.object({
   angerDelta: z.number().optional(),
@@ -229,8 +229,7 @@ function handleTriggerIncident(rawArgs: unknown, ctx: ToolCallContext): ToolHand
     return { success: false, error: `Incident type '${args.type}' is not allowed for this scenario. Allowed: ${allowedTypes.join(', ')}` };
   }
 
-  const globalCooldownMs = (h.toolPolicy.triggerIncident.cooldownOverride.globalCooldownSec ?? 60) * 1000;
-  const perTypeCooldownMs = (h.toolPolicy.triggerIncident.cooldownOverride.perTypeCooldownSec ?? 120) * 1000;
+  const { globalCooldownMs, perTypeCooldownMs } = resolveCooldownsForType(h, args.type);
 
   const cooldown = checkIncidentCooldown(ctx.personaRunId, args.type);
   if (!cooldown.allowed) {

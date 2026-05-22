@@ -18,6 +18,10 @@ export const simulationHarnessSchema = z.object({
         globalCooldownSec: z.number().min(0).optional(),
         perTypeCooldownSec: z.number().min(0).optional(),
       }).optional(),
+      cooldowns: z.record(z.string(), z.object({
+        globalCooldownSec: z.number().min(0).optional(),
+        perTypeCooldownSec: z.number().min(0).optional(),
+      })).optional(),
     }).optional(),
     updateScenarioState: z.object({
       enabled: z.boolean().optional(),

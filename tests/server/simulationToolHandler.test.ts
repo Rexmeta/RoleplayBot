@@ -196,4 +196,31 @@ describe('handleToolCall — trigger_incident', () => {
     const after = getSessionState(RUN_ID)!;
     expect(after.pressureLevel).toBeGreaterThan(before.pressureLevel);
   });
+
+  it('respects per-type cooldown override from harness cooldowns map', () => {
+    const harness = {
+      toolPolicy: {
+        triggerIncident: {
+          cooldowns: {
+            executive_join: { globalCooldownSec: 0, perTypeCooldownSec: 0 },
+          },
+        },
+      },
+    };
+    const ctxWithHarness = { ...BASE_CTX, harness };
+
+    const first = handleToolCall('trigger_incident', {
+      type: 'executive_join',
+      severity: 'medium',
+      reason: 'first attempt',
+    }, ctxWithHarness);
+    expect(first.success).toBe(true);
+
+    const second = handleToolCall('trigger_incident', {
+      type: 'executive_join',
+      severity: 'medium',
+      reason: 'immediately again',
+    }, { ...ctxWithHarness, turnId: 'turn-2', turnIndex: 1 });
+    expect(second.success).toBe(true);
+  });
 });

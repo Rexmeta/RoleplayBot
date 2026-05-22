@@ -19,6 +19,7 @@ export const DEFAULT_SIMULATION_HARNESS: Required<SimulationHarness> = {
         globalCooldownSec: 60,
         perTypeCooldownSec: 120,
       },
+      cooldowns: {},
     },
     updateScenarioState: {
       enabled: true,
@@ -44,11 +45,32 @@ export function resolveHarness(scenario: { simulationHarness?: SimulationHarness
           globalCooldownSec: harness.toolPolicy?.triggerIncident?.cooldownOverride?.globalCooldownSec ?? DEFAULT_SIMULATION_HARNESS.toolPolicy.triggerIncident.cooldownOverride.globalCooldownSec,
           perTypeCooldownSec: harness.toolPolicy?.triggerIncident?.cooldownOverride?.perTypeCooldownSec ?? DEFAULT_SIMULATION_HARNESS.toolPolicy.triggerIncident.cooldownOverride.perTypeCooldownSec,
         },
+        cooldowns: {
+          ...DEFAULT_SIMULATION_HARNESS.toolPolicy.triggerIncident.cooldowns,
+          ...(harness.toolPolicy?.triggerIncident?.cooldowns ?? {}),
+        },
       },
       updateScenarioState: {
         enabled: harness.toolPolicy?.updateScenarioState?.enabled ?? DEFAULT_SIMULATION_HARNESS.toolPolicy.updateScenarioState.enabled,
       },
     },
     preferredSignals: harness.preferredSignals ?? DEFAULT_SIMULATION_HARNESS.preferredSignals,
+  };
+}
+
+export function resolveCooldownsForType(
+  h: Required<SimulationHarness>,
+  incidentType: string
+): { globalCooldownMs: number; perTypeCooldownMs: number } {
+  const typeOverride = h.toolPolicy.triggerIncident.cooldowns?.[incidentType];
+  const globalCooldownSec = typeOverride?.globalCooldownSec
+    ?? h.toolPolicy.triggerIncident.cooldownOverride.globalCooldownSec
+    ?? 60;
+  const perTypeCooldownSec = typeOverride?.perTypeCooldownSec
+    ?? h.toolPolicy.triggerIncident.cooldownOverride.perTypeCooldownSec
+    ?? 120;
+  return {
+    globalCooldownMs: globalCooldownSec * 1000,
+    perTypeCooldownMs: perTypeCooldownSec * 1000,
   };
 }
