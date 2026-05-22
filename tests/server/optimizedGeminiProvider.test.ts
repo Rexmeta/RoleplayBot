@@ -69,7 +69,7 @@ describe('OptimizedGeminiProvider — buildCompactPrompt', () => {
   });
 
   it('wraps situation/objectives in a 【배경 컨텍스트】 block', () => {
-    const prompt = (provider as any).buildCompactPrompt(
+    const { system } = (provider as any).buildCompactPrompt(
       makeScenario(),
       makePersona(),
       '',
@@ -77,12 +77,12 @@ describe('OptimizedGeminiProvider — buildCompactPrompt', () => {
       'ko'
     );
 
-    expect(prompt).toContain('【배경 컨텍스트');
-    expect(prompt).toContain('대화 중 직접 언급 금지');
+    expect(system).toContain('【배경 컨텍스트');
+    expect(system).toContain('대화 중 직접 언급 금지');
   });
 
   it('includes the metric-quoting prohibition warning in the prompt', () => {
-    const prompt = (provider as any).buildCompactPrompt(
+    const { system } = (provider as any).buildCompactPrompt(
       makeScenario(),
       makePersona(),
       '',
@@ -90,7 +90,7 @@ describe('OptimizedGeminiProvider — buildCompactPrompt', () => {
       'ko'
     );
 
-    expect(prompt).toMatch(/수치.*직접 언급 금지|퍼센트.*읽거나|이 수치를 그대로 읽/);
+    expect(system).toMatch(/수치.*직접 언급 금지|퍼센트.*읽거나|이 수치를 그대로 읽/);
   });
 
   it('scenario situation text is present (AI needs to know it) but inside the guarded block', () => {
@@ -101,7 +101,7 @@ describe('OptimizedGeminiProvider — buildCompactPrompt', () => {
       },
     });
 
-    const prompt = (provider as any).buildCompactPrompt(
+    const { system } = (provider as any).buildCompactPrompt(
       scenario,
       makePersona(),
       '',
@@ -109,11 +109,11 @@ describe('OptimizedGeminiProvider — buildCompactPrompt', () => {
       'ko'
     );
 
-    const contextBlockStart = prompt.indexOf('【배경 컨텍스트');
-    const contextBlockEnd = prompt.indexOf('⚠️', contextBlockStart);
+    const contextBlockStart = system.indexOf('【배경 컨텍스트');
+    const contextBlockEnd = system.indexOf('⚠️', contextBlockStart);
 
     expect(contextBlockStart).toBeGreaterThan(-1);
-    expect(prompt.slice(contextBlockStart, contextBlockEnd)).toContain('30% 매출 목표');
+    expect(system.slice(contextBlockStart, contextBlockEnd)).toContain('30% 매출 목표');
     expect(contextBlockEnd).toBeGreaterThan(contextBlockStart);
   });
 
@@ -122,7 +122,7 @@ describe('OptimizedGeminiProvider — buildCompactPrompt', () => {
       objectives: ['15% 원가 절감 필수', '납기 45일 단축'],
     });
 
-    const prompt = (provider as any).buildCompactPrompt(
+    const { system } = (provider as any).buildCompactPrompt(
       scenario,
       makePersona(),
       '',
@@ -130,17 +130,17 @@ describe('OptimizedGeminiProvider — buildCompactPrompt', () => {
       'ko'
     );
 
-    const contextBlockStart = prompt.indexOf('【배경 컨텍스트');
-    const prohibitionLine = prompt.indexOf('⚠️', contextBlockStart);
+    const contextBlockStart = system.indexOf('【배경 컨텍스트');
+    const prohibitionLine = system.indexOf('⚠️', contextBlockStart);
 
-    expect(prompt.slice(contextBlockStart, prohibitionLine + 200)).toContain('15% 원가 절감 필수');
+    expect(system.slice(contextBlockStart, prohibitionLine + 200)).toContain('15% 원가 절감 필수');
 
-    const afterContext = prompt.slice(prohibitionLine + 200);
+    const afterContext = system.slice(prohibitionLine + 200);
     expect(afterContext).not.toContain('15% 원가 절감 필수');
   });
 
   it('English mode prompt includes English prohibition on quoting scenario metrics', () => {
-    const prompt = (provider as any).buildCompactPrompt(
+    const { system } = (provider as any).buildCompactPrompt(
       makeScenario(),
       makePersona(),
       '',
@@ -148,7 +148,7 @@ describe('OptimizedGeminiProvider — buildCompactPrompt', () => {
       'en'
     );
 
-    expect(prompt).toMatch(/\u3010배경 컨텍스트|background context|직접 언급 금지/i);
+    expect(system).toMatch(/\u3010배경 컨텍스트|background context|직접 언급 금지/i);
   });
 
   it('first AI greeting should not contain bare percentage or time metric strings', () => {
@@ -160,7 +160,7 @@ describe('OptimizedGeminiProvider — buildCompactPrompt', () => {
       objectives: ['300% 목표 달성', '6개월 내 완료'],
     });
 
-    const prompt = (provider as any).buildCompactPrompt(
+    const { system } = (provider as any).buildCompactPrompt(
       scenario,
       makePersona(),
       '',
@@ -168,10 +168,10 @@ describe('OptimizedGeminiProvider — buildCompactPrompt', () => {
       'ko'
     );
 
-    const contextBlockStart = prompt.indexOf('【배경 컨텍스트');
-    const contextBlockEnd = prompt.indexOf('\n\n**핵심 성격', contextBlockStart);
+    const contextBlockStart = system.indexOf('【배경 컨텍스트');
+    const contextBlockEnd = system.indexOf('\n\n**핵심 성격', contextBlockStart);
 
-    const outsideContext = prompt.slice(0, contextBlockStart) + prompt.slice(contextBlockEnd);
+    const outsideContext = system.slice(0, contextBlockStart) + system.slice(contextBlockEnd);
     expect(outsideContext).not.toContain('300% 이상');
     expect(outsideContext).not.toContain('6개월 내 완료');
   });
@@ -182,7 +182,7 @@ describe('OptimizedGeminiProvider — buildCompactPrompt', () => {
       objectives: [],
     });
 
-    const prompt = (provider as any).buildCompactPrompt(
+    const { system } = (provider as any).buildCompactPrompt(
       minimalScenario,
       makePersona(),
       '',
@@ -190,7 +190,7 @@ describe('OptimizedGeminiProvider — buildCompactPrompt', () => {
       'ko'
     );
 
-    expect(prompt).toContain('⚠️');
-    expect(prompt).toContain('배경 지식');
+    expect(system).toContain('⚠️');
+    expect(system).toContain('배경 지식');
   });
 });

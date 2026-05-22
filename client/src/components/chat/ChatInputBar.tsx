@@ -17,7 +17,6 @@ interface ChatInputBarProps {
   speechSupported: boolean;
   mode?: 'text' | 'realtime-voice';
   onTextModeToggle?: () => void;
-  onTTSModeToggle?: () => void;
   realtimeVoiceProps?: {
     status: string;
     isRecording: boolean;
@@ -57,7 +56,6 @@ export function ChatInputBar({
   speechSupported,
   mode = 'text',
   onTextModeToggle,
-  onTTSModeToggle,
   realtimeVoiceProps,
 }: ChatInputBarProps) {
   const { t } = useTranslation();
@@ -267,17 +265,6 @@ export function ChatInputBar({
               <i className="fas fa-keyboard text-slate-500 text-xs"></i>
               <span className="text-slate-600">{t('chat.switchToText', { defaultValue: '텍스트로 대화' })}</span>
             </button>
-            {onTTSModeToggle && (
-              <button
-                onClick={onTTSModeToggle}
-                disabled={rv.isRecording || rv.isAISpeaking || rv.isSwitchingMode}
-                className="flex items-center gap-1.5 px-3 py-2 text-sm border border-slate-200 rounded-full bg-white hover:bg-slate-50 hover:border-slate-300 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                data-testid="button-tts-mode-toggle"
-              >
-                <i className="fas fa-volume-up text-slate-500 text-xs"></i>
-                <span className="text-slate-600">{t('chat.switchToTTS', { defaultValue: 'TTS로 대화' })}</span>
-              </button>
-            )}
           </div>
         )}
 

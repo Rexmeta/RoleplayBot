@@ -26,8 +26,6 @@ import { useVoiceRecording } from "@/hooks/chat/useVoiceRecording";
 import { useEmotionState, emotionEmojis } from "@/hooks/chat/useEmotionState";
 import { useChatMessages } from "@/hooks/chat/useChatMessages";
 import { useChatSession } from "@/hooks/chat/useChatSession";
-import { useTTS } from "@/hooks/chat/useTTS";
-
 import { MessageList } from "@/components/chat/MessageList";
 import { parseJoinModeSpeakerSegments } from "@/lib/joinModeParser";
 import { PersonaSwitchCard } from "@/components/chat/PersonaSwitchCard";
@@ -53,14 +51,14 @@ interface ChatWindowProps {
   onConversationEnding?: () => void;
   isPersonaMode?: boolean;
   initialMessages?: import("@shared/schema").ConversationMessage[];
-  initialInputMode?: 'text' | 'tts' | 'realtime-voice';
+  initialInputMode?: 'text' | 'realtime-voice';
 }
 
 export default function ChatWindow({ scenario, persona, conversationId, onChatComplete, onExit, onPersonaChange, onReady, onConversationEnding, isPersonaMode = false, initialMessages, initialInputMode }: ChatWindowProps) {
   const [, navigate] = useLocation();
   const [userInput, setUserInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
-  const [inputMode, setInputMode] = useState<'text' | 'tts' | 'realtime-voice'>(initialInputMode || 'realtime-voice');
+  const [inputMode, setInputMode] = useState<'text' | 'realtime-voice'>(initialInputMode || 'realtime-voice');
   const [showInputMode, setShowInputMode] = useState(() => typeof window !== 'undefined' && window.innerWidth >= 1024);
   const [isGoalsExpanded, setIsGoalsExpanded] = useState(false);
   const [isSwitchingMode, setIsSwitchingMode] = useState(false);
@@ -135,7 +133,7 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
     mainChatScrollCleanupRef.current = () => node.removeEventListener('scroll', handleScroll);
   }, []);
   const handleSwitchToTextModeRef = useRef<(() => Promise<void>) | null>(null);
-  const pendingModeTransitionRef = useRef<'realtime-voice' | 'text' | 'tts' | undefined>(undefined);
+  const pendingModeTransitionRef = useRef<'realtime-voice' | 'text' | undefined>(undefined);
 
   const { toast } = useToast();
   const { user } = useAuth();
@@ -223,12 +221,6 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
     getCharacterImage, preloadImage } = useEmotionState({
     persona: { id: activePersona.id, mbti: activePersona.mbti, gender: activePersona.gender, name: activePersona.name, image: activePersona.image, expressions: activePersona.expressions },
     conversationId, onReady,
-  });
-
-  const { speakText, stopSpeaking, cleanup: cleanupTTS } = useTTS({
-    personaId: persona.id,
-    personaGender: getPersonaGender(),
-    inputMode,
   });
 
   const realtimeVoice = useRealtimeVoice({
@@ -364,18 +356,6 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
     }
   };
 
-  const handleSwitchToTTSMode = async () => {
-    if (isSwitchingMode) return;
-    setIsSwitchingMode(true);
-    try {
-      await flushRealtimeMessages(false);
-      realtimeVoice.disconnect();
-      navigate(`/home?resumePersonaRunId=${conversationId}&mode=tts`);
-    } catch {
-      setIsSwitchingMode(false);
-    }
-  };
-
   useEffect(() => {
     setInputMode(initialInputMode ?? 'realtime-voice');
   }, [initialInputMode]);
@@ -451,7 +431,7 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
     return () => clearTimeout(id);
   }, [isHistoryDrawerOpen, localMessages]);
 
-  useEffect(() => { return () => { cleanupTTS(); cleanupVoiceRecording(); }; }, []);
+  useEffect(() => { return () => { cleanupVoiceRecording(); }; }, []);
 
   useEffect(() => {
     if (!newIncident) return;
@@ -577,10 +557,7 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
       setIsEmotionTransitioning(true); setCurrentEmotion(newEmotion);
       const newUrl = getCharacterImage(newEmotion); if (newUrl) preloadImage(newUrl);
     }
-    if (inputMode === 'tts' && latestAiMessage?.message) {
-      speakText(latestAiMessage.message, true, latestAiMessage.emotion, activePersona.voiceId ?? undefined, (activePersona.gender as 'male' | 'female') || undefined);
-    }
-  }, [latestAiMessage?.message, latestAiMessage?.emotion, currentEmotion, inputMode, activePersona.voiceId]);
+  }, [latestAiMessage?.message, latestAiMessage?.emotion, currentEmotion]);
 
   useEffect(() => {
     if (inputMode !== 'realtime-voice') {
@@ -1054,7 +1031,7 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
                                   handleSwitchToTextModeRef.current();
                                 }
                               }}
-                              onTTSModeToggle={handleSwitchToTTSMode} />
+                               />
                           </div>
                           {localMessages.length > 0 && !isInlineTextOpen && (
                             <div className="border-t border-slate-200/30 px-4 py-2 flex justify-center">
@@ -1116,18 +1093,6 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
                                   containerRef={mainChatContainerCallbackRef}
                                 />
                               </div>
-                              {inputMode === 'tts' && latestAiMessage && (
-                                <div className="border-t border-slate-200/30 px-4 py-2 flex justify-end gap-2">
-                                  <Button size="sm" variant="outline" onClick={() => speakText(latestAiMessage!.message, false, latestAiMessage!.emotion, activePersona.voiceId ?? undefined, (activePersona.gender as 'male' | 'female') || undefined)}
-                                    className="text-xs text-blue-600 border-blue-200 hover:bg-blue-50" data-testid="button-replay-tts">
-                                    <i className="fas fa-volume-up mr-1"></i>{t('chat.replay')}
-                                  </Button>
-                                  <Button size="sm" variant="outline" onClick={stopSpeaking}
-                                    className="text-xs text-slate-600 border-slate-200 hover:bg-slate-50" data-testid="button-stop-tts">
-                                    <i className="fas fa-stop mr-1"></i>{t('chat.stop')}
-                                  </Button>
-                                </div>
-                              )}
                               {!showInputMode && (
                                 <div className="border-t border-slate-200/30 px-4 py-2 flex justify-end">
                                   <Button onClick={() => setShowInputMode(true)} className="bg-purple-600 hover:bg-purple-700 text-white" data-testid="button-start-chat-inline" size="sm">

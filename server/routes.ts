@@ -3,7 +3,6 @@ import type { Server } from "http";
 import WebSocket, { WebSocketServer } from "ws";
 import { storage } from "./storage";
 import { createSampleData } from "./sampleData";
-import ttsRoutes from "./routes/tts.js";
 import imageGenerationRoutes from "./routes/imageGeneration.js";
 import userPersonaImageRoutes from "./routes/userPersonaImage.js";
 import mediaRoutes from "./routes/media.js";
@@ -182,7 +181,6 @@ export async function registerRoutes(app: Express, httpServer: Server): Promise<
   // ================================
   // Existing sub-routes
   // ================================
-  app.use("/api/tts", ttsRoutes);
   app.use("/api/image", imageGenerationRoutes);
   app.use("/api/user-personas", userPersonaImageRoutes);
   app.use("/api/media", mediaRoutes);

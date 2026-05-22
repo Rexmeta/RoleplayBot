@@ -41,7 +41,7 @@ interface UserPersona {
 
 type SidebarTab = "discover" | "my";
 type MainView = "browse" | "chat";
-type ChatMode = "text" | "tts" | "realtime_voice";
+type ChatMode = "text" | "realtime_voice";
 
 // ────────── Helpers ──────────
 function buildUserPersonaScenario(p: UserPersona, difficulty: number): ComplexScenario {
@@ -1061,7 +1061,6 @@ export default function FreeChatPage() {
                     <div className="flex gap-2">
                       {([
                         { v: "text", icon: MessageSquare, label: "텍스트" },
-                        { v: "tts", icon: Volume2, label: "TTS" },
                         { v: "realtime_voice", icon: Mic, label: "음성" },
                       ] as const).map(opt => (
                         <button key={opt.v} onClick={() => setChatMode(opt.v)}

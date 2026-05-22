@@ -273,7 +273,7 @@ export default function createConversationsRouter(isAuthenticated: any) {
       });
     }
 
-    console.log('💬 텍스트/TTS 모드 - Gemini로 초기 메시지 생성');
+    console.log('💬 텍스트 모드 - Gemini로 초기 메시지 생성');
 
     try {
       const scenarioPersonaAny = scenarioPersona as any;
@@ -599,7 +599,7 @@ export default function createConversationsRouter(isAuthenticated: any) {
       throw createHttpError(400, "Message must be a string");
     }
 
-    const VALID_INPUT_MODES = ['realtime-voice', 'text', 'tts'] as const;
+    const VALID_INPUT_MODES = ['realtime-voice', 'text'] as const;
     const validatedPreviousMode = VALID_INPUT_MODES.includes(previousInputMode)
       ? (previousInputMode as typeof VALID_INPUT_MODES[number])
       : undefined;

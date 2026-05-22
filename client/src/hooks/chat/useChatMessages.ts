@@ -154,7 +154,7 @@ export function useChatMessages({ conversationId, serverMessages, onSimulationUp
 
 
   const sendMessageMutation = useMutation({
-    mutationFn: async (payload: string | { message: string; previousInputMode?: 'realtime-voice' | 'text' | 'tts' }) => {
+    mutationFn: async (payload: string | { message: string; previousInputMode?: 'realtime-voice' | 'text' }) => {
       const body = typeof payload === 'string'
         ? { message: payload }
         : { message: payload.message, previousInputMode: payload.previousInputMode };
