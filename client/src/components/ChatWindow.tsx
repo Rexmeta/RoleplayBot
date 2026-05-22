@@ -61,7 +61,7 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
   const [userInput, setUserInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [inputMode, setInputMode] = useState<'text' | 'tts' | 'realtime-voice'>(initialInputMode || 'realtime-voice');
-  const [showInputMode, setShowInputMode] = useState(false);
+  const [showInputMode, setShowInputMode] = useState(() => typeof window !== 'undefined' && window.innerWidth >= 1024);
   const [isGoalsExpanded, setIsGoalsExpanded] = useState(false);
   const [isSwitchingMode, setIsSwitchingMode] = useState(false);
   const [isMobileSimOpen, setIsMobileSimOpenRaw] = useState(
@@ -609,7 +609,7 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
     // produces ctrl46 control characters from the Gemini Live audio endpoint, which
     // are stripped by filterThinkingText, yielding an empty response.
     setLocalMessages(prev => [...prev, { sender: 'user', message, timestamp: new Date().toISOString() }]);
-    setIsLoading(true); setUserInput(""); setShowInputMode(false);
+    setIsLoading(true); setUserInput(""); if (window.innerWidth < 1024) setShowInputMode(false);
     lastUserTextRef.current = message;
     const transitionMode = pendingModeTransitionRef.current;
     pendingModeTransitionRef.current = undefined;
@@ -629,7 +629,7 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
 
   const handleSkipTurn = () => {
     if (isLoading) return;
-    setIsLoading(true); setShowInputMode(false);
+    setIsLoading(true); if (window.innerWidth < 1024) setShowInputMode(false);
     const transitionMode = pendingModeTransitionRef.current;
     pendingModeTransitionRef.current = undefined;
     sendMessageMutation.mutate(
@@ -934,12 +934,14 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
                       isGoalsExpanded={isGoalsExpanded} onToggleGoals={() => setIsGoalsExpanded(v => !v)} variant="overlay" />
                   )}
 
-                  <TranscriptPanel isOpen={isTranscriptPanelOpen} onToggle={() => setIsTranscriptPanelOpen(v => !v)}
-                    onClose={() => setIsTranscriptPanelOpen(false)} messages={localMessages}
-                    pendingAiMessage={pendingAiMessage} pendingUserMessage={pendingUserMessage}
-                    pendingUserText={pendingUserText} personaName={activePersona.name}
-                    personaSwitchEvents={personaSwitchEvents}
-                    joinedPersonas={scenario.personas?.map((p: ScenarioPersona) => ({ name: p.name, image: p.image }))} />
+                  {inputMode === 'realtime-voice' && (
+                    <TranscriptPanel isOpen={isTranscriptPanelOpen} onToggle={() => setIsTranscriptPanelOpen(v => !v)}
+                      onClose={() => setIsTranscriptPanelOpen(false)} messages={localMessages}
+                      pendingAiMessage={pendingAiMessage} pendingUserMessage={pendingUserMessage}
+                      pendingUserText={pendingUserText} personaName={activePersona.name}
+                      personaSwitchEvents={personaSwitchEvents}
+                      joinedPersonas={scenario.personas?.map((p: ScenarioPersona) => ({ name: p.name, image: p.image }))} />
+                  )}
 
 
                   {/* Desktop NPC status toggle button */}
@@ -1142,10 +1144,14 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
                                 </div>
                                 <div className="grid grid-cols-2 gap-1 w-20">
                                   <Button onClick={handleSendMessage} disabled={!userInput.trim() || isLoading} className="bg-purple-600 hover:bg-purple-700 text-white" size="sm" data-testid="button-send-message-text"><i className="fas fa-paper-plane"></i></Button>
-                                  <Button variant="outline" size="sm" onClick={handleVoiceInput} disabled={isLoading || !speechSupported}
-                                    className={`${isRecording ? 'bg-red-50 border-red-300 text-red-700 animate-pulse' : ''} ${!speechSupported ? 'opacity-50' : ''}`}
-                                    data-testid="button-voice-input-text" title={!speechSupported ? t('voice.notSupported') : isRecording ? t('chat.stopRecording') : t('chat.startRecording')}>
-                                    <i className={`fas ${isRecording ? 'fa-stop' : 'fa-microphone'} ${isRecording ? 'text-red-500' : ''}`}></i>
+                                  <Button variant="outline" size="sm"
+                                    onClick={() => {
+                                      toast({ title: '음성 대화로 전환합니다', description: '음성 대화 창으로 이동합니다.' });
+                                      navigate(`/home?resumePersonaRunId=${conversationId}`);
+                                    }}
+                                    disabled={isLoading}
+                                    data-testid="button-voice-input-text" title="음성 대화로 전환">
+                                    <i className="fas fa-microphone"></i>
                                   </Button>
                                   <Button variant="outline" size="sm" onClick={handleSkipTurn} disabled={isLoading} data-testid="button-skip-turn-text" className="col-span-2">Skip</Button>
                                 </div>
