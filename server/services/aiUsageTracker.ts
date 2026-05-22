@@ -59,38 +59,53 @@ interface TokenUsage {
   totalTokens: number;
 }
 
+// Cache discount fraction for Gemini implicit caching (cached tokens billed at 25% of full input price)
+const GEMINI_CACHE_DISCOUNT = 0.75; // 75% savings on cached tokens
+
 // Calculate cost based on model and token usage
 export function calculateCost(
-  model: string, 
-  promptTokens: number, 
-  completionTokens: number
-): { inputCost: number; outputCost: number; totalCost: number } {
+  model: string,
+  promptTokens: number,
+  completionTokens: number,
+  cachedTokens?: number
+): { inputCost: number; outputCost: number; totalCost: number; cacheSavingsUsd: number } {
   const pricing = MODEL_PRICING[model];
   
   if (!pricing) {
     console.warn(`Unknown model pricing: ${model}, using default pricing`);
-    return { inputCost: 0, outputCost: 0, totalCost: 0 };
+    return { inputCost: 0, outputCost: 0, totalCost: 0, cacheSavingsUsd: 0 };
   }
   
-  // Calculate costs (pricing is per 1M tokens)
-  const inputCost = (promptTokens / 1_000_000) * pricing.input;
+  const cached = cachedTokens && cachedTokens > 0 ? cachedTokens : 0;
+  const isGemini = model.startsWith('gemini');
+
+  // Apply cache discount: cached tokens billed at 25% for Gemini models
+  const cacheSavings = isGemini && cached > 0
+    ? (cached / 1_000_000) * pricing.input * GEMINI_CACHE_DISCOUNT
+    : 0;
+
+  // Calculate costs (pricing is per 1M tokens), subtract cache savings from input
+  const inputCostFull = (promptTokens / 1_000_000) * pricing.input;
+  const inputCost = inputCostFull - cacheSavings;
   const outputCost = (completionTokens / 1_000_000) * pricing.output;
   const totalCost = inputCost + outputCost;
   
   return { 
-    inputCost: Math.round(inputCost * 1_000_000) / 1_000_000, // 6 decimal precision
+    inputCost: Math.round(inputCost * 1_000_000) / 1_000_000,
     outputCost: Math.round(outputCost * 1_000_000) / 1_000_000,
-    totalCost: Math.round(totalCost * 1_000_000) / 1_000_000 
+    totalCost: Math.round(totalCost * 1_000_000) / 1_000_000,
+    cacheSavingsUsd: Math.round(cacheSavings * 1_000_000) / 1_000_000,
   };
 }
 
 // Track AI usage asynchronously (fire and forget to not slow down API responses)
 export async function trackUsage(params: TrackUsageParams): Promise<void> {
   try {
-    const { inputCost, outputCost, totalCost } = calculateCost(
+    const { inputCost, outputCost, totalCost, cacheSavingsUsd } = calculateCost(
       params.model,
       params.promptTokens,
-      params.completionTokens
+      params.completionTokens,
+      params.cachedTokens
     );
     
     const logEntry: InsertAiUsageLog = {
@@ -108,7 +123,7 @@ export async function trackUsage(params: TrackUsageParams): Promise<void> {
       conversationId: params.conversationId || null,
       requestId: params.requestId || null,
       durationMs: params.durationMs || null,
-      metadata: params.metadata || null,
+      metadata: { ...(params.metadata || {}), cacheSavingsUsd },
     };
     
     // Fire and forget - don't await to not slow down the response
@@ -122,10 +137,11 @@ export async function trackUsage(params: TrackUsageParams): Promise<void> {
 
 // Synchronous version for when you need to ensure logging completes
 export async function trackUsageSync(params: TrackUsageParams): Promise<void> {
-  const { inputCost, outputCost, totalCost } = calculateCost(
+  const { inputCost, outputCost, totalCost, cacheSavingsUsd } = calculateCost(
     params.model,
     params.promptTokens,
-    params.completionTokens
+    params.completionTokens,
+    params.cachedTokens
   );
   
   const logEntry: InsertAiUsageLog = {
@@ -143,7 +159,7 @@ export async function trackUsageSync(params: TrackUsageParams): Promise<void> {
     conversationId: params.conversationId || null,
     requestId: params.requestId || null,
     durationMs: params.durationMs || null,
-    metadata: params.metadata || null,
+    metadata: { ...(params.metadata || {}), cacheSavingsUsd },
   };
   
   await storage.createAiUsageLog(logEntry);

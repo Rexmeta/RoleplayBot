@@ -1335,6 +1335,7 @@
       "input": "入力",
       "output": "出力",
       "cached": "キャッシュ",
+      "cacheSavings": "キャッシュ節約額",
       "usageByFeature": "機能別使用量",
       "usageByModel": "モデル別使用量",
       "dailyUsage": "日別使用量",

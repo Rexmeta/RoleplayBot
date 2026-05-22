@@ -1362,6 +1362,7 @@
       "input": "입력",
       "output": "출력",
       "cached": "캐시",
+      "cacheSavings": "캐시 절감액",
       "usageByFeature": "기능별 사용량",
       "usageByModel": "모델별 사용량",
       "dailyUsage": "일별 사용량",

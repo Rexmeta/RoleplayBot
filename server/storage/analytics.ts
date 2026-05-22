@@ -48,11 +48,12 @@ export function AnalyticsMixin<TBase extends Constructor>(Base: TBase) {
         completionTokens: sql<number>`COALESCE(SUM(${aiUsageLogs.completionTokens}), 0)::integer`,
         cachedTokens: sql<number>`COALESCE(SUM(${aiUsageLogs.cachedTokens}), 0)::integer`,
         totalCostUsd: sql<number>`COALESCE(SUM(${aiUsageLogs.totalCostUsd}), 0)::float`,
+        cacheSavingsUsd: sql<number>`COALESCE(SUM((${aiUsageLogs.metadata}->>'cacheSavingsUsd')::float), 0)::float`,
         requestCount: sql<number>`COUNT(*)::integer`,
       })
         .from(aiUsageLogs)
         .where(and(gte(aiUsageLogs.occurredAt, startDate), lte(aiUsageLogs.occurredAt, endDate)));
-      return result[0] || { totalTokens: 0, promptTokens: 0, completionTokens: 0, cachedTokens: 0, totalCostUsd: 0, requestCount: 0 };
+      return result[0] || { totalTokens: 0, promptTokens: 0, completionTokens: 0, cachedTokens: 0, totalCostUsd: 0, cacheSavingsUsd: 0, requestCount: 0 };
     }
 
     async getAiUsageByFeature(startDate: Date, endDate: Date): Promise<AiUsageByFeature[]> {
@@ -219,7 +220,7 @@ export function AnalyticsMixin<TBase extends Constructor>(Base: TBase) {
 
 export class MemAnalyticsStorage implements IAnalyticsStorage {
   async createAiUsageLog(_: InsertAiUsageLog): Promise<AiUsageLog> { throw new Error("Not implemented in MemStorage"); }
-  async getAiUsageSummary(_: Date, __: Date): Promise<AiUsageSummary> { return { totalTokens: 0, promptTokens: 0, completionTokens: 0, cachedTokens: 0, totalCostUsd: 0, requestCount: 0 }; }
+  async getAiUsageSummary(_: Date, __: Date): Promise<AiUsageSummary> { return { totalTokens: 0, promptTokens: 0, completionTokens: 0, cachedTokens: 0, totalCostUsd: 0, cacheSavingsUsd: 0, requestCount: 0 }; }
   async getAiUsageByFeature(_: Date, __: Date): Promise<AiUsageByFeature[]> { return []; }
   async getAiUsageByModel(_: Date, __: Date): Promise<AiUsageByModel[]> { return []; }
   async getAiUsageDaily(_: Date, __: Date): Promise<AiUsageDaily[]> { return []; }

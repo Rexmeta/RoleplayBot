@@ -1339,6 +1339,7 @@
       "input": "Input",
       "output": "Output",
       "cached": "Cached",
+      "cacheSavings": "Saved via cache",
       "usageByFeature": "Usage by Feature",
       "usageByModel": "Usage by Model",
       "dailyUsage": "Daily Usage",

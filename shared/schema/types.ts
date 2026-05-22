@@ -204,6 +204,7 @@ export type AiUsageSummary = {
   completionTokens: number;
   cachedTokens: number;
   totalCostUsd: number;
+  cacheSavingsUsd: number;
   requestCount: number;
 };
 

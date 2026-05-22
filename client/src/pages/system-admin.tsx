@@ -131,6 +131,7 @@ interface AiUsageSummary {
   completionTokens: number;
   cachedTokens: number;
   totalCostUsd: number;
+  cacheSavingsUsd: number;
   requestCount: number;
 }
 
@@ -1591,7 +1592,14 @@ export default function SystemAdminPage() {
                   {usageSummaryLoading ? (
                     <Loader2 className="h-6 w-6 animate-spin" />
                   ) : (
-                    <div className="text-2xl font-bold">${(usageSummary?.totalCostUsd || 0).toFixed(4)}</div>
+                    <>
+                      <div className="text-2xl font-bold">${(usageSummary?.totalCostUsd || 0).toFixed(4)}</div>
+                      {(usageSummary?.cacheSavingsUsd || 0) > 0 && (
+                        <p className="text-xs text-green-600 dark:text-green-400 mt-0.5">
+                          💰 {t('systemAdmin.aiUsage.cacheSavings')}: ${(usageSummary?.cacheSavingsUsd || 0).toFixed(4)}
+                        </p>
+                      )}
+                    </>
                   )}
                 </CardContent>
               </Card>
