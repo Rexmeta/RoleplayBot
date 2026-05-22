@@ -18,6 +18,7 @@ import { useToast } from '@/hooks/use-toast';
 import { apiRequest, queryClient } from '@/lib/queryClient';
 import { ComplexScenario } from '@/lib/scenario-system';
 import { flowGraphSchema, personaSwitchRulesSchema, evaluationHarnessSchema, terminationRulesSchema, simulationHarnessSchema } from '@shared/schema/scenarios';
+import type { EvaluationHarness, TerminationRules, TerminationConditionGroup } from '@shared/schema/scenarios';
 import { toMediaUrl } from '@/lib/mediaUrl';
 import { Loader2, MoreVertical, ChevronDown, ChevronUp, Clock, Users, Target, Languages, Search, Sparkles, Eye, Copy, Download, Upload, ImageOff, UserX, ListX, BarChart2, Star, Folder } from 'lucide-react';
 import { AIScenarioGenerator } from './AIScenarioGenerator';
@@ -100,6 +101,160 @@ const HARNESS_ALL_INCIDENT_TYPES = [
   'new_evidence', 'competitor_offer', 'policy_constraint',
   'quality_issue', 'manager_interrupt', 'budget_cut', 'compliance_warning',
 ] as const;
+
+const OPERATOR_LABELS: Record<string, string> = {
+  gte: '≥', lte: '≤', gt: '>', lt: '<', eq: '=',
+};
+
+const DIMENSION_LABELS: Record<string, string> = {
+  clarity: 'Clarity', empathy: 'Empathy', logic: 'Logic',
+  ownership: 'Ownership', actionPlan: 'Action Plan',
+};
+
+function ConditionGroupSummary({ group, label }: { group: TerminationConditionGroup; label: string }) {
+  const items: string[] = [];
+  if (group.npcEmotions) {
+    for (const [emotion, cond] of Object.entries(group.npcEmotions)) {
+      if (cond) items.push(`NPC ${emotion} ${OPERATOR_LABELS[cond.operator] ?? cond.operator} ${cond.value}`);
+    }
+  }
+  if (group.currentScore) {
+    items.push(`Score ${OPERATOR_LABELS[group.currentScore.operator] ?? group.currentScore.operator} ${group.currentScore.value}`);
+  }
+  if (group.stage) items.push(`Stage = "${group.stage}"`);
+  if (group.totalTurns) {
+    items.push(`Total turns ${OPERATOR_LABELS[group.totalTurns.operator] ?? group.totalTurns.operator} ${group.totalTurns.value}`);
+  }
+  if (group.consecutiveTurnsBelow) {
+    items.push(`${group.consecutiveTurnsBelow.turns} consecutive turns below score ${group.consecutiveTurnsBelow.scoreThreshold}`);
+  }
+  if (items.length === 0) return null;
+  const logic = group.logic === 'any' ? 'ANY' : 'ALL';
+  return (
+    <div className="space-y-1">
+      <span className="text-xs font-semibold text-slate-600">{label}</span>
+      <div className="flex flex-wrap gap-1 mt-0.5">
+        {items.map((item, i) => (
+          <Badge key={i} variant="outline" className="text-xs font-mono px-1.5 py-0">{item}</Badge>
+        ))}
+        {items.length > 1 && (
+          <Badge variant="secondary" className="text-xs px-1.5 py-0">{logic}</Badge>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function EvaluationHarnessPreview({ json }: { json: string }) {
+  if (!json.trim()) return null;
+  let parsed: EvaluationHarness;
+  try {
+    const raw = JSON.parse(json);
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
+    parsed = raw as EvaluationHarness;
+  } catch { return null; }
+  const hasDimensions = parsed.dimensions && parsed.dimensions.length > 0;
+  const hasPassingRule = parsed.passingRule != null;
+  if (!hasDimensions && !hasPassingRule) return null;
+  return (
+    <div className="rounded-md border border-blue-100 bg-blue-50 px-3 py-2 space-y-2 mb-2">
+      <p className="text-xs font-semibold text-blue-700 uppercase tracking-wide">Preview</p>
+      {hasDimensions && (
+        <div>
+          <p className="text-xs text-slate-500 mb-1">Dimension weights</p>
+          <div className="flex flex-wrap gap-1.5">
+            {parsed.dimensions!.map((d) => (
+              <span key={d.key} className="inline-flex items-center gap-1 rounded bg-white border border-blue-200 px-2 py-0.5 text-xs">
+                <span className="font-medium text-slate-700">{DIMENSION_LABELS[d.key] ?? d.key}</span>
+                <span className="text-blue-600 font-bold">×{d.weight}</span>
+              </span>
+            ))}
+          </div>
+          {parsed.dimensions!.some(d => d.scenarioSpecificDefinition) && (
+            <div className="mt-1.5 space-y-1">
+              {parsed.dimensions!.filter(d => d.scenarioSpecificDefinition).map(d => (
+                <p key={d.key} className="text-xs text-slate-500 italic">
+                  <span className="font-medium not-italic text-slate-600">{DIMENSION_LABELS[d.key] ?? d.key}:</span>{' '}
+                  {d.scenarioSpecificDefinition}
+                </p>
+              ))}
+            </div>
+          )}
+          {parsed.dimensions!.some(d => (d.positiveSignals?.length ?? 0) + (d.negativeSignals?.length ?? 0) > 0) && (
+            <div className="mt-2 space-y-1.5">
+              <p className="text-xs text-slate-500">Custom signals</p>
+              {parsed.dimensions!.filter(d => (d.positiveSignals?.length ?? 0) + (d.negativeSignals?.length ?? 0) > 0).map(d => (
+                <div key={d.key} className="space-y-0.5">
+                  <p className="text-xs font-medium text-slate-600">{DIMENSION_LABELS[d.key] ?? d.key}</p>
+                  <div className="flex flex-wrap gap-1">
+                    {d.positiveSignals?.map((s, i) => (
+                      <span key={`pos-${i}`} className="inline-flex items-center gap-0.5 rounded bg-green-50 border border-green-200 px-1.5 py-0 text-xs text-green-700">
+                        <span>+</span>{s}
+                      </span>
+                    ))}
+                    {d.negativeSignals?.map((s, i) => (
+                      <span key={`neg-${i}`} className="inline-flex items-center gap-0.5 rounded bg-red-50 border border-red-200 px-1.5 py-0 text-xs text-red-700">
+                        <span>−</span>{s}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+      {hasPassingRule && (
+        <div>
+          <p className="text-xs text-slate-500 mb-1">Passing rule</p>
+          <div className="flex flex-wrap gap-1.5">
+            <Badge variant="outline" className="text-xs">Min avg ≥ {parsed.passingRule!.minAverageScore}</Badge>
+            {parsed.passingRule!.requiredDimensions?.map(rd => (
+              <Badge key={rd.key} variant="outline" className="text-xs">
+                {DIMENSION_LABELS[rd.key] ?? rd.key} ≥ {rd.minScore}
+              </Badge>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function TerminationRulesPreview({ json }: { json: string }) {
+  if (!json.trim()) return null;
+  let parsed: TerminationRules;
+  try {
+    const raw = JSON.parse(json);
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
+    parsed = raw as TerminationRules;
+  } catch { return null; }
+  const hasSuccess = parsed.success != null;
+  const hasFailure = parsed.failure != null;
+  const hasTimeout = parsed.timeout != null;
+  if (!hasSuccess && !hasFailure && !hasTimeout) return null;
+  return (
+    <div className="rounded-md border border-emerald-100 bg-emerald-50 px-3 py-2 space-y-2 mb-2">
+      <p className="text-xs font-semibold text-emerald-700 uppercase tracking-wide">Preview</p>
+      {hasSuccess && <ConditionGroupSummary group={parsed.success!} label="✓ Success when" />}
+      {hasFailure && <ConditionGroupSummary group={parsed.failure!} label="✗ Failure when" />}
+      {hasTimeout && (
+        <div className="flex flex-wrap gap-1.5">
+          {parsed.timeout!.maxTurns != null && (
+            <Badge variant="outline" className="text-xs border-amber-300 text-amber-700">
+              ⏱ Max {parsed.timeout!.maxTurns} turns
+            </Badge>
+          )}
+          {parsed.timeout!.maxTimeSec != null && (
+            <Badge variant="outline" className="text-xs border-amber-300 text-amber-700">
+              ⏱ Max {parsed.timeout!.maxTimeSec}s
+            </Badge>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
 
 export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
   const { t, i18n } = useTranslation();
@@ -2718,14 +2873,15 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
                     evaluationHarness
                     <span className="text-xs text-slate-400 font-normal">(점수 기준 가중치 및 신호 재정의)</span>
                   </Label>
-                  <p className="text-xs text-slate-400 mb-1">예: {`{"dimensionWeights":{"clarity":2},"signals":[{"id":"s1","description":"고객이 진정됨","scoreImpact":10}]}`}</p>
+                  <p className="text-xs text-slate-400 mb-1">예: {`{"dimensions":[{"key":"clarity","weight":2}],"passingRule":{"minAverageScore":60}}`}</p>
+                  <EvaluationHarnessPreview json={evaluationHarnessJson} />
                   <Textarea
                     value={evaluationHarnessJson}
                     onChange={(e) => {
                       setEvaluationHarnessJson(e.target.value);
                       setEvaluationHarnessError('');
                     }}
-                    placeholder={'{\n  "dimensionWeights": {\n    "clarity": 2,\n    "empathy": 1.5\n  },\n  "signals": [\n    {\n      "id": "signal-1",\n      "description": "Customer calmed down",\n      "scoreImpact": 10\n    }\n  ]\n}'}
+                    placeholder={'{\n  "dimensions": [\n    {\n      "key": "clarity",\n      "weight": 2,\n      "scenarioSpecificDefinition": "..."\n    }\n  ],\n  "passingRule": {\n    "minAverageScore": 60\n  }\n}'}
                     rows={6}
                     className={`bg-white font-mono text-xs ${evaluationHarnessError ? 'border-red-400' : ''}`}
                   />
@@ -2737,14 +2893,15 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
                     terminationRules
                     <span className="text-xs text-slate-400 font-normal">(자동 종료 조건)</span>
                   </Label>
-                  <p className="text-xs text-slate-400 mb-1">예: {`{"success":[{"conditions":[{"metric":"npcEmotions.trust","operator":"gte","value":80}],"logic":"all"}],"timeout":{"maxTurns":10}}`}</p>
+                  <p className="text-xs text-slate-400 mb-1">예: {`{"success":{"npcEmotions":{"trust":{"operator":"gte","value":80}}},"timeout":{"maxTurns":10}}`}</p>
+                  <TerminationRulesPreview json={terminationRulesJson} />
                   <Textarea
                     value={terminationRulesJson}
                     onChange={(e) => {
                       setTerminationRulesJson(e.target.value);
                       setTerminationRulesError('');
                     }}
-                    placeholder={'{\n  "success": [\n    {\n      "conditions": [\n        {"metric": "npcEmotions.trust", "operator": "gte", "value": 80}\n      ],\n      "logic": "all"\n    }\n  ],\n  "failure": [],\n  "timeout": {"maxTurns": 10}\n}'}
+                    placeholder={'{\n  "success": {\n    "npcEmotions": {"trust": {"operator": "gte", "value": 80}},\n    "logic": "all"\n  },\n  "failure": {\n    "consecutiveTurnsBelow": {"scoreThreshold": 30, "turns": 3}\n  },\n  "timeout": {"maxTurns": 10}\n}'}
                     rows={7}
                     className={`bg-white font-mono text-xs ${terminationRulesError ? 'border-red-400' : ''}`}
                   />
