@@ -18,7 +18,7 @@ import {
   agentUsageDaily,
   auditLogs,
 } from "@shared/schema";
-import { eq, and, lt, sql, gte } from "drizzle-orm";
+import { eq, and, lt, sql, gte, lte } from "drizzle-orm";
 import {
   isAgentApiKey,
   requireScope,
@@ -1031,5 +1031,79 @@ function buildSessionResponse(
     requestId,
   };
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// GET /api/v1/agent/usage
+// Returns daily token-spend rows for the authenticated API key.
+// Optional query params: ?from=YYYY-MM-DD&to=YYYY-MM-DD
+// Defaults to the current calendar month when params are omitted.
+// ─────────────────────────────────────────────────────────────────────────────
+const usageQuerySchema = z.object({
+  from: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/, "from must be YYYY-MM-DD")
+    .optional(),
+  to: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/, "to must be YYYY-MM-DD")
+    .optional(),
+});
+
+router.get("/usage", requireScope("usage:read"), async (req: any, res) => {
+  try {
+    const agentKey = req.agentKey;
+
+    const parsed = usageQuerySchema.safeParse(req.query);
+    if (!parsed.success) {
+      agentError(res, 400, "validation_error", "Invalid query parameters.", parsed.error.flatten());
+      return;
+    }
+
+    const today = new Date();
+    const defaultFrom = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-01`;
+    const defaultTo = today.toISOString().slice(0, 10);
+
+    const fromDate = parsed.data.from ?? defaultFrom;
+    const toDate = parsed.data.to ?? defaultTo;
+
+    if (fromDate > toDate) {
+      agentError(res, 400, "validation_error", "from date must not be after to date.");
+      return;
+    }
+
+    const rows = await db
+      .select({
+        date: agentUsageDaily.date,
+        requestCount: agentUsageDaily.requestCount,
+        inputTokens: agentUsageDaily.inputTokens,
+        outputTokens: agentUsageDaily.outputTokens,
+        totalTokens: agentUsageDaily.totalTokens,
+      })
+      .from(agentUsageDaily)
+      .where(
+        and(
+          eq(agentUsageDaily.agentKeyId, agentKey.id),
+          gte(agentUsageDaily.date, fromDate),
+          lte(agentUsageDaily.date, toDate)
+        )
+      )
+      .orderBy(agentUsageDaily.date);
+
+    const summary = rows.reduce(
+      (acc, row) => {
+        acc.totalRequests += row.requestCount;
+        acc.totalInputTokens += row.inputTokens;
+        acc.totalOutputTokens += row.outputTokens;
+        return acc;
+      },
+      { totalRequests: 0, totalInputTokens: 0, totalOutputTokens: 0 }
+    );
+
+    res.json({ rows, summary });
+  } catch (err) {
+    console.error("[agentApi] GET /usage error:", err);
+    agentError(res, 500, "internal_error", "Failed to fetch usage data.");
+  }
+});
 
 export default router;
