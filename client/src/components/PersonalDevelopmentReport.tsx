@@ -542,7 +542,7 @@ export default function PersonalDevelopmentReport({
     );
   }
 
-  const terminationReason = (fullConversation?.simulationState?.terminationReason ?? null) as 'success' | 'failure' | 'timeout' | null;
+  const terminationReason = (fullConversation?.terminationReason ?? fullConversation?.simulationState?.terminationReason ?? null) as 'success' | 'failure' | 'timeout' | null;
   const isTerminationFailure = terminationReason === 'failure';
 
   const overallGrade = isTerminationFailure

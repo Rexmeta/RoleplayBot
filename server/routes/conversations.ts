@@ -475,6 +475,7 @@ export default function createConversationsRouter(isAuthenticated: any) {
       createdAt: personaRun.startedAt,
       updatedAt: personaRun.completedAt || personaRun.startedAt,
       simulationState: simState,
+      terminationReason: personaRun.terminationReason ?? null,
       personaSwitchLog: personaRun.personaSwitchLog ?? [],
       activePersonaIndex: (personaRun.activePersonaIndex as number | null) ?? 0,
     });
@@ -1075,7 +1076,7 @@ ${userNameLine}
       let streamIsTerminated = false;
       if (streamTerminationReason && !streamIsCompleted && personaRun!.status !== 'completed') {
         streamIsTerminated = true;
-        await storage.updatePersonaRun(personaRunId, { status: 'completed', completedAt: new Date() });
+        await storage.updatePersonaRun(personaRunId, { status: 'completed', completedAt: new Date(), terminationReason: streamTerminationReason as string });
         await checkAndCompleteScenario(personaRun!.scenarioRunId);
         if (streamSimulationState) {
           storage.createSimulationEvent({
@@ -1298,6 +1299,7 @@ ${userNameLine}
       await storage.updatePersonaRun(personaRunId, {
         status: 'completed',
         completedAt: new Date(),
+        terminationReason: terminationReason as string,
       });
       await checkAndCompleteScenario(personaRun!.scenarioRunId);
       if (simulationState) {

@@ -350,7 +350,7 @@ export default function FeedbackView() {
   const personaSwitchLog: SwitchLogEntry[] = Array.isArray(conversation?.personaSwitchLog) ? conversation.personaSwitchLog : [];
   const scenarioPersonas: any[] = effectiveScenario?.personas ?? [];
 
-  const terminationReason = (conversation?.simulationState?.terminationReason ?? null) as TerminationReason | null;
+  const terminationReason = (conversation?.terminationReason ?? conversation?.simulationState?.terminationReason ?? null) as TerminationReason | null;
 
   return (
     <div>

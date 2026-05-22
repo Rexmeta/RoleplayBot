@@ -50,6 +50,7 @@ export const personaRuns = pgTable("persona_runs", {
   mode: text("mode").notNull().default("text"),
   difficulty: integer("difficulty").notNull().default(2),
   simulationState: jsonb("simulation_state"),
+  terminationReason: text("termination_reason"),
   activePersonaIndex: integer("active_persona_index").notNull().default(0),
   personaSwitchLog: jsonb("persona_switch_log").$type<Array<{
     turn: number;
