@@ -75,7 +75,8 @@ export function buildSystemInstructions(
   allPersonas?: any[],
   activePersonaIndex: number = 0,
   targetTurns?: number,
-  personaSwitchMode?: string
+  personaSwitchMode?: string,
+  currentFlowStageGoal?: string
 ): string {
   const mbtiType = scenarioPersona.personaRef?.replace('.json', '') || 'UNKNOWN';
 
@@ -150,6 +151,15 @@ export function buildSystemInstructions(
         en: `This conversation is designed to last approximately ${targetTurns} exchanges.`,
         ja: `この会話は約${targetTurns}回のやりとりで構成されるよう設計されています。`,
         zh: `此对话设计为大约进行${targetTurns}次交流。`,
+      } as Record<LangCode, string>)[userLanguage],
+    ] : []),
+    ...(currentFlowStageGoal ? [
+      ``,
+      ({
+        ko: `# 현재 단계 목표\n지금 이 단계에서 달성해야 할 목표: ${currentFlowStageGoal}`,
+        en: `# Current Stage Goal\nYour goal for this stage of the conversation: ${currentFlowStageGoal}`,
+        ja: `# 現在のステージ目標\nこのステージで達成すべき目標: ${currentFlowStageGoal}`,
+        zh: `# 当前阶段目标\n本阶段需要实现的目标: ${currentFlowStageGoal}`,
       } as Record<LangCode, string>)[userLanguage],
     ] : []),
     ``,
@@ -244,10 +254,13 @@ const RECONNECT_DIRECTIVE: Record<LangCode, string> = {
   zh: '# 🔄 重新连接指南\n这是技术问题导致短暂断开后的重新连接。绝对不要打招呼或宣布重新连接。请阅读以下提供的之前对话内容，自然地继续对话，就好像从未中断过一样。',
 };
 
-export function buildReconnectSystemInstructions(systemInstructions: string, userLanguage: LangCode = 'ko'): string {
+export function buildReconnectSystemInstructions(systemInstructions: string, userLanguage: LangCode = 'ko', currentStageGoal?: string): string {
   const greetingBlockIndex = systemInstructions.search(/\n# 🎬/);
   const base = greetingBlockIndex !== -1
     ? systemInstructions.substring(0, greetingBlockIndex)
     : systemInstructions;
-  return base + '\n\n' + RECONNECT_DIRECTIVE[userLanguage];
+  const stageGoalSection = currentStageGoal
+    ? `\n\n# Current Stage Goal\n${currentStageGoal}`
+    : '';
+  return base + stageGoalSection + '\n\n' + RECONNECT_DIRECTIVE[userLanguage];
 }

@@ -8,6 +8,7 @@ import {
   MAX_CONCURRENT_SESSIONS,
 } from './voice/types';
 import { buildSystemInstructions, buildReconnectSystemInstructions } from './voice/systemPromptBuilder';
+import { setSessionFlowConfig, getSessionState } from './simulation/simulationEngine';
 import { handleGeminiMessage } from './voice/geminiMessageHandler';
 import { handleClientMessage as processClientMessage } from './voice/clientMessageHandler';
 import { handleGeminiClose } from './voice/geminiReconnector';
@@ -183,9 +184,11 @@ export class RealtimeVoiceService {
     // Realtime voice always uses replace mode for persona switching — join mode is
     // text/TTS-only. Hard-force 'replace' here to prevent join-mode multi-speaker
     // instructions from leaking into voice prompts.
+    const initialFlowGraph = (scenarioObj as any).flowGraph ?? null;
+    const initialStageGoal: string | undefined = initialFlowGraph?.stages?.find((s: any) => s.id === 'intro')?.goal;
     const systemInstructions = buildSystemInstructions(
       scenarioWithUserDifficulty, scenarioPersona, mbtiPersona, userRoleInfo, userLanguage,
-      true, allPersonas, initialPersonaIndex, scenarioObj.targetTurns, 'replace'
+      true, allPersonas, initialPersonaIndex, scenarioObj.targetTurns, 'replace', initialStageGoal
     );
 
     // Pre-build system instructions for every persona so switching rebuilds the full prompt
@@ -197,7 +200,7 @@ export class RealtimeVoiceService {
         const mbtiP = mbtiT ? await fileManager.getPersonaByMBTI(mbtiT) : null;
         personaSystemInstructions.push(buildSystemInstructions(
           scenarioWithUserDifficulty, sp, mbtiP, userRoleInfo, userLanguage,
-          true, allPersonas, pIdx, scenarioObj.targetTurns, 'replace'
+          true, allPersonas, pIdx, scenarioObj.targetTurns, 'replace', initialStageGoal
         ));
       }
     }
@@ -269,6 +272,14 @@ export class RealtimeVoiceService {
       getOrCreateSessionContext(conversationId, initState);
       session.simulationState = initState;
       console.log(`⏱️ [createSession] Simulation timer initialized: ${timerCfg.timeLimitSec}s`);
+    }
+
+    // Register flowGraph and personaSwitchRules with the simulation engine
+    const scenarioFlowGraph = (scenarioObj as any).flowGraph ?? null;
+    const scenarioPersonaSwitchRules = (scenarioObj as any).personaSwitchRules ?? null;
+    if (scenarioFlowGraph || scenarioPersonaSwitchRules) {
+      setSessionFlowConfig(conversationId, scenarioFlowGraph, scenarioPersonaSwitchRules);
+      console.log(`🗺️ [createSession] Flow config registered: flowGraph=${!!scenarioFlowGraph}, personaSwitchRules=${!!scenarioPersonaSwitchRules}`);
     }
 
     this.sessions.set(sessionId, session);
@@ -370,8 +381,9 @@ export class RealtimeVoiceService {
     const connectStartTime = Date.now();
     console.log(`⏱️ [TIMING] connectToGemini 시작: ${new Date(connectStartTime).toISOString()}`);
 
+    const simState = options?.isResume ? getSessionState(session.personaRunId) : null;
     const effectiveInstructions = options?.isResume
-      ? buildReconnectSystemInstructions(systemInstructions, session.userLanguage)
+      ? buildReconnectSystemInstructions(systemInstructions, session.userLanguage, simState?.currentStageGoal)
       : systemInstructions;
 
     try {
@@ -551,7 +563,8 @@ export class RealtimeVoiceService {
       session.geminiSession = null;
     }
 
-    const reconnectInstructions = buildReconnectSystemInstructions(session.systemInstructions, session.userLanguage);
+    const reconnectSimState = getSessionState(session.personaRunId);
+    const reconnectInstructions = buildReconnectSystemInstructions(session.systemInstructions, session.userLanguage, reconnectSimState?.currentStageGoal ?? undefined);
     return this.connectToGemini(session, reconnectInstructions, session.voiceGender)
       .then(() => {
         const currentSession = this.sessions.get(sessionId);

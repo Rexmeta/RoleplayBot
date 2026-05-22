@@ -10,6 +10,9 @@ import {
   createDefaultSimulationState,
   calcTurnScoreTotal,
 } from './simulationTypes';
+import type { FlowGraph, PersonaSwitchRules, ExitCondition, ConditionOperator } from '../../../shared/schema/scenarios';
+import { evaluatePersonaSwitchRules } from './personaSwitchEvaluator';
+import { v4 as uuidv4 } from 'uuid';
 
 const EMOTION_KEYS: Array<keyof NpcEmotions> = ['anger', 'trust', 'confusion', 'interest'];
 const MAX_RECENT = 10;
@@ -32,6 +35,60 @@ function stageAllowed(current: ScenarioStage, target: ScenarioStage): boolean {
   return ti >= ci;
 }
 
+function compareOp(actual: number, operator: ConditionOperator, value: number): boolean {
+  switch (operator) {
+    case 'gte': return actual >= value;
+    case 'lte': return actual <= value;
+    case 'gt':  return actual > value;
+    case 'lt':  return actual < value;
+    case 'eq':  return actual === value;
+    default:    return false;
+  }
+}
+
+function evaluateExitCondition(cond: ExitCondition, state: SimulationState): boolean {
+  let actual: number;
+  if (cond.type === 'turn_count') {
+    actual = state.summary.totalTurns;
+  } else if (cond.type === 'turn_score') {
+    const window = cond.windowTurns
+      ? state.recentTurnScores.slice(-cond.windowTurns)
+      : state.recentTurnScores;
+    if (window.length === 0) return false;
+    const key = (cond.metric || 'total') as keyof TurnScore;
+    const vals = window.map(ts => {
+      const v = ts[key];
+      return typeof v === 'number' ? v : 0;
+    });
+    actual = vals.reduce((a, b) => a + b, 0) / vals.length;
+  } else if (cond.type === 'npc_emotion') {
+    const key = (cond.metric || 'anger') as keyof NpcEmotions;
+    actual = state.npcEmotions[key] ?? 0;
+  } else {
+    return false;
+  }
+  return compareOp(actual, cond.operator, cond.value);
+}
+
+export function evaluateFlowGraph(state: SimulationState, flowGraph: FlowGraph): ScenarioStage | null {
+  const currentStageId = state.stage;
+  const stageDef = flowGraph.stages.find(s => s.id === currentStageId);
+  if (!stageDef) return null;
+
+  const conditions = stageDef.exitConditions ?? [];
+  if (conditions.length === 0) return null;
+
+  const logic = stageDef.exitConditionsLogic ?? 'all';
+  const results = conditions.map(c => evaluateExitCondition(c, state));
+  const triggered = logic === 'any' ? results.some(Boolean) : results.every(Boolean);
+  if (!triggered) return null;
+
+  const nextStage = stageDef.nextStage as ScenarioStage;
+  if (!stageAllowed(currentStageId, nextStage)) return null;
+
+  return nextStage;
+}
+
 export interface PatchContext {
   turnId: string;
   serverEvalAppliedEmotionDelta?: Partial<Record<keyof NpcEmotions, number>>;
@@ -44,6 +101,10 @@ interface InternalSession {
   incidentTypeCooldowns: Map<string, number>;
   allTimeTurnScoreSum: number;
   allTimeTurnScoreCount: number;
+  flowGraph?: FlowGraph;
+  personaSwitchRules?: PersonaSwitchRules;
+  lockedPersonaIndices: Set<number>;
+  consecutiveSwitchCounts: Map<string, number>;
 }
 
 const sessionContexts = new Map<string, InternalSession>();
@@ -51,8 +112,6 @@ const sessionContexts = new Map<string, InternalSession>();
 export function getOrCreateSessionContext(personaRunId: string, state?: SimulationState): InternalSession {
   if (!sessionContexts.has(personaRunId)) {
     const initState = state ?? createDefaultSimulationState();
-    // Prefer the persisted scoreAccumulator (survives >10 turn history) over reconstructing
-    // from recentTurnScores (capped at MAX_RECENT=10), which would undercount after restart.
     const acc = initState.scoreAccumulator;
     const existingScored = initState.recentTurnScores.filter(ts => ts.total > 0);
     sessionContexts.set(personaRunId, {
@@ -62,6 +121,8 @@ export function getOrCreateSessionContext(personaRunId: string, state?: Simulati
       incidentTypeCooldowns: new Map(),
       allTimeTurnScoreSum: acc?.sum ?? existingScored.reduce((s, ts) => s + ts.total, 0),
       allTimeTurnScoreCount: acc?.count ?? existingScored.length,
+      lockedPersonaIndices: new Set(),
+      consecutiveSwitchCounts: new Map(),
     });
   }
   const ctx = sessionContexts.get(personaRunId)!;
@@ -69,6 +130,16 @@ export function getOrCreateSessionContext(personaRunId: string, state?: Simulati
     ctx.simulationState = state;
   }
   return ctx;
+}
+
+export function setSessionFlowConfig(
+  personaRunId: string,
+  flowGraph?: FlowGraph | null,
+  personaSwitchRules?: PersonaSwitchRules | null
+): void {
+  const ctx = getOrCreateSessionContext(personaRunId);
+  if (flowGraph) ctx.flowGraph = flowGraph;
+  if (personaSwitchRules) ctx.personaSwitchRules = personaSwitchRules;
 }
 
 export function clearSessionContext(personaRunId: string): void {
@@ -153,7 +224,6 @@ export function applySimulationPatch(
   }
   const trimmedIncidents = newIncidents.slice(-MAX_RECENT);
 
-  // Directive lifecycle: add new directives, expire old ones, enforce max 3 with dedupe
   const currentTotalTurns = prev.summary.totalTurns + (patch.turnScoresToAdd?.length ?? 0);
   const survivingDirectives: SimulationDirective[] = (prev.simulationDirectives ?? [])
     .filter(d => !d.expiresAtTurnIndex || d.expiresAtTurnIndex > currentTotalTurns);
@@ -167,7 +237,6 @@ export function applySimulationPatch(
       }
     }
   }
-  // Keep at most 3 active directives (newest first) — spec: "max 3 active"
   const newDirectives = survivingDirectives.slice(-3);
 
   const newTurnScores = [...prev.recentTurnScores];
@@ -191,7 +260,7 @@ export function applySimulationPatch(
   const totalIncidents = prev.summary.totalIncidents + (patch.incidentsToAdd?.length ?? 0);
   const totalTurns = prev.summary.totalTurns + (patch.turnScoresToAdd?.length ?? 0);
 
-  const newState: SimulationState = {
+  const intermediateState: SimulationState = {
     version: prev.version + 1,
     stage: newStage,
     pressureLevel: newPressure,
@@ -211,6 +280,84 @@ export function applySimulationPatch(
       maxAnger,
       minTrust,
     },
+  };
+
+  let finalStage = intermediateState.stage;
+  const extraDirectives: SimulationDirective[] = [];
+  let serverRulePersonaSwitch: SimulationState['serverRulePersonaSwitch'] = undefined;
+
+  if (ctx.flowGraph) {
+    const nextStage = evaluateFlowGraph(intermediateState, ctx.flowGraph);
+    if (nextStage && nextStage !== finalStage) {
+      console.log(`[simulationEngine] flowGraph: stage transition ${finalStage} → ${nextStage} (turn=${totalTurns})`);
+      finalStage = nextStage;
+
+      const stageDef = ctx.flowGraph.stages.find(s => s.id === nextStage);
+      if (stageDef?.goal) {
+        extraDirectives.push({
+          id: `flow-stage-${nextStage}-${totalTurns}`,
+          createdTurnIndex: totalTurns,
+          expiresAtTurnIndex: totalTurns + 5,
+          instruction: `[STAGE TRANSITION] Now entering "${nextStage}" stage. Your goal: ${stageDef.goal}`,
+          source: 'server_rule',
+        });
+      }
+    }
+  }
+
+  if (ctx.personaSwitchRules) {
+    const stateForEval = { ...intermediateState, stage: finalStage };
+    const switchResult = evaluatePersonaSwitchRules(
+      stateForEval,
+      ctx.personaSwitchRules,
+      ctx.lockedPersonaIndices,
+      ctx.consecutiveSwitchCounts
+    );
+    if (switchResult) {
+      console.log(`[simulationEngine] personaSwitchRules: switch to persona[${switchResult.targetPersonaIndex}] triggered (rule=${switchResult.ruleId})`);
+      serverRulePersonaSwitch = {
+        targetPersonaIndex: switchResult.targetPersonaIndex,
+        reason: switchResult.reason,
+      };
+      if (switchResult.lockAfterSwitch) {
+        ctx.lockedPersonaIndices.add(switchResult.targetPersonaIndex);
+      }
+      extraDirectives.push({
+        id: `persona-switch-rule-${switchResult.ruleId}-${totalTurns}`,
+        createdTurnIndex: totalTurns,
+        expiresAtTurnIndex: totalTurns + 2,
+        instruction: `[SERVER RULE] Switch to persona index ${switchResult.targetPersonaIndex}. Reason: ${switchResult.reason}`,
+        source: 'server_rule',
+      });
+    }
+  }
+
+  let finalDirectives = [...intermediateState.simulationDirectives];
+  if (extraDirectives.length > 0) {
+    for (const d of extraDirectives) {
+      const dupIdx = finalDirectives.findIndex(x => x.id === d.id);
+      if (dupIdx !== -1) {
+        finalDirectives[dupIdx] = d;
+      } else {
+        finalDirectives.push(d);
+      }
+    }
+    finalDirectives = finalDirectives.slice(-3);
+  }
+
+  // Resolve the current stage goal: use the new stage's goal if a transition fired, else keep the existing one.
+  let currentStageGoal: string | undefined = intermediateState.currentStageGoal;
+  if (ctx.flowGraph && finalStage !== intermediateState.stage) {
+    const stageDef = ctx.flowGraph.stages.find(s => s.id === finalStage);
+    if (stageDef?.goal) currentStageGoal = stageDef.goal;
+  }
+
+  const newState: SimulationState = {
+    ...intermediateState,
+    stage: finalStage,
+    simulationDirectives: finalDirectives,
+    ...(serverRulePersonaSwitch ? { serverRulePersonaSwitch } : {}),
+    ...(currentStageGoal !== undefined ? { currentStageGoal } : {}),
   };
 
   ctx.simulationState = newState;

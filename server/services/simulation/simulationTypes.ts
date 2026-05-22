@@ -63,6 +63,10 @@ export interface SimulationState {
   simulationDirectives: SimulationDirective[];
   /** Persisted accumulator so score average survives restart/reconnect beyond the recentTurnScores window. */
   scoreAccumulator?: { sum: number; count: number };
+  /** Set by server rule evaluator when personaSwitchRules condition fires. Cleared after the switch is processed. */
+  serverRulePersonaSwitch?: { targetPersonaIndex: number; reason: string };
+  /** Current flowGraph stage goal — updated whenever a stage transition fires; injected into per-turn AI context. */
+  currentStageGoal?: string;
   summary: {
     totalTurns: number;
     totalIncidents: number;

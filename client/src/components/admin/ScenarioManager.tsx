@@ -17,6 +17,7 @@ import { Slider } from '@/components/ui/slider';
 import { useToast } from '@/hooks/use-toast';
 import { apiRequest, queryClient } from '@/lib/queryClient';
 import { ComplexScenario } from '@/lib/scenario-system';
+import { flowGraphSchema, personaSwitchRulesSchema } from '@shared/schema/scenarios';
 import { toMediaUrl } from '@/lib/mediaUrl';
 import { Loader2, MoreVertical, ChevronDown, ChevronUp, Clock, Users, Target, Languages, Search, Sparkles, Eye, Copy, Download, Upload, ImageOff, UserX, ListX, BarChart2, Star, Folder } from 'lucide-react';
 import { AIScenarioGenerator } from './AIScenarioGenerator';
@@ -85,6 +86,8 @@ interface ScenarioFormData {
   };
   personas: ScenarioPersona[];
   recommendedFlow: string[];
+  flowGraph?: any;
+  personaSwitchRules?: any;
 }
 
 interface ScenarioManagerProps {
@@ -97,6 +100,10 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
   const currentLang = i18n.language;
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [editingScenario, setEditingScenario] = useState<ComplexScenario | null>(null);
+  const [flowGraphJson, setFlowGraphJson] = useState('');
+  const [personaSwitchRulesJson, setPersonaSwitchRulesJson] = useState('');
+  const [flowGraphError, setFlowGraphError] = useState('');
+  const [personaSwitchRulesError, setPersonaSwitchRulesError] = useState('');
   const [isGeneratingImage, setIsGeneratingImage] = useState(false);
   const [isGeneratingVideo, setIsGeneratingVideo] = useState(false);
   const [expandedScenarios, setExpandedScenarios] = useState<Set<string | number>>(new Set());
@@ -465,6 +472,10 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
     setVideoLoadFailed(false);
     setSelectedImageSignedUrl(null);
     setSelectedVideoSignedUrl(null);
+    setFlowGraphJson('');
+    setPersonaSwitchRulesJson('');
+    setFlowGraphError('');
+    setPersonaSwitchRulesError('');
   };
 
   const handleEdit = (scenario: ComplexScenario) => {
@@ -525,6 +536,12 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
         : [],
       recommendedFlow: originalScenario.recommendedFlow
     });
+    const existingFlowGraph = (originalScenario as any).flowGraph;
+    setFlowGraphJson(existingFlowGraph ? JSON.stringify(existingFlowGraph, null, 2) : '');
+    const existingPSR = (originalScenario as any).personaSwitchRules;
+    setPersonaSwitchRulesJson(existingPSR ? JSON.stringify(existingPSR, null, 2) : '');
+    setFlowGraphError('');
+    setPersonaSwitchRulesError('');
     setIsCreateOpen(true);
   };
 
@@ -550,11 +567,61 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
       return;
     }
     
+    const submitData = buildSubmitPayload();
+    if (!submitData) return;
+
     if (editingScenario) {
-      updateMutation.mutate({ id: editingScenario.id, data: formData });
+      updateMutation.mutate({ id: editingScenario.id, data: submitData });
     } else {
-      createMutation.mutate(formData);
+      createMutation.mutate(submitData);
     }
+  };
+
+  const buildSubmitPayload = (): (typeof formData & { flowGraph: any; personaSwitchRules: any }) | null => {
+    let parsedFlowGraph: any = null;
+    let parsedPSR: any = null;
+
+    if (flowGraphJson.trim()) {
+      let raw: any;
+      try {
+        raw = JSON.parse(flowGraphJson);
+      } catch {
+        setFlowGraphError('flowGraph JSON이 유효하지 않습니다. 형식을 확인하세요.');
+        toast({ title: 'flowGraph JSON 오류', description: 'flowGraph JSON을 확인하세요.', variant: 'destructive' });
+        return null;
+      }
+      const result = flowGraphSchema.safeParse(raw);
+      if (!result.success) {
+        const msg = result.error.errors[0]?.message ?? '스키마 검증 실패';
+        setFlowGraphError(`flowGraph 구조 오류: ${msg}`);
+        toast({ title: 'flowGraph 구조 오류', description: msg, variant: 'destructive' });
+        return null;
+      }
+      parsedFlowGraph = result.data;
+      setFlowGraphError('');
+    }
+
+    if (personaSwitchRulesJson.trim()) {
+      let raw: any;
+      try {
+        raw = JSON.parse(personaSwitchRulesJson);
+      } catch {
+        setPersonaSwitchRulesError('personaSwitchRules JSON이 유효하지 않습니다. 형식을 확인하세요.');
+        toast({ title: 'personaSwitchRules JSON 오류', description: 'personaSwitchRules JSON을 확인하세요.', variant: 'destructive' });
+        return null;
+      }
+      const result = personaSwitchRulesSchema.safeParse(raw);
+      if (!result.success) {
+        const msg = result.error.errors[0]?.message ?? '스키마 검증 실패';
+        setPersonaSwitchRulesError(`personaSwitchRules 구조 오류: ${msg}`);
+        toast({ title: 'personaSwitchRules 구조 오류', description: msg, variant: 'destructive' });
+        return null;
+      }
+      parsedPSR = result.data;
+      setPersonaSwitchRulesError('');
+    }
+
+    return { ...formData, flowGraph: parsedFlowGraph, personaSwitchRules: parsedPSR };
   };
 
   const handleSaveAndGoToPersona = () => {
@@ -566,6 +633,8 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
       });
       return;
     }
+    const submitData = buildSubmitPayload();
+    if (!submitData) return;
     const afterSave = () => {
       toast({
         title: '시나리오 저장됨',
@@ -574,9 +643,9 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
       onGoToPersonas?.();
     };
     if (editingScenario) {
-      updateMutation.mutate({ id: editingScenario.id, data: formData }, { onSuccess: afterSave });
+      updateMutation.mutate({ id: editingScenario.id, data: submitData }, { onSuccess: afterSave });
     } else {
-      createMutation.mutate(formData, { onSuccess: afterSave });
+      createMutation.mutate(submitData, { onSuccess: afterSave });
     }
   };
 
@@ -2268,6 +2337,52 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
                       </div>
                     )}
                   </div>
+                </div>
+              </div>
+
+              {/* State Machine: flowGraph & personaSwitchRules JSON editors */}
+              <div className="border border-slate-200 rounded-lg p-4 bg-white space-y-4">
+                <div>
+                  <h3 className="font-semibold text-slate-800 text-sm mb-1">State Machine (선택사항)</h3>
+                  <p className="text-xs text-slate-500 mb-3">flowGraph와 personaSwitchRules를 JSON으로 입력하면 서버가 단계 전환과 페르소나 전환을 자동 제어합니다. 비워두면 기존 동작을 유지합니다.</p>
+                </div>
+
+                <div>
+                  <Label className="text-sm font-medium text-slate-700 flex items-center gap-1">
+                    flowGraph
+                    <span className="text-xs text-slate-400 font-normal">(대화 단계 전환 상태 머신)</span>
+                  </Label>
+                  <p className="text-xs text-slate-400 mb-1">예: {`{"stages":[{"id":"intro","goal":"목표","exitConditions":[{"type":"turn_count","operator":"gte","value":3}],"nextStage":"conflict"}]}`}</p>
+                  <Textarea
+                    value={flowGraphJson}
+                    onChange={(e) => {
+                      setFlowGraphJson(e.target.value);
+                      setFlowGraphError('');
+                    }}
+                    placeholder={'{\n  "stages": [\n    {\n      "id": "intro",\n      "goal": "...",\n      "exitConditions": [...],\n      "nextStage": "conflict"\n    }\n  ]\n}'}
+                    rows={6}
+                    className={`bg-white font-mono text-xs ${flowGraphError ? 'border-red-400' : ''}`}
+                  />
+                  {flowGraphError && <p className="text-xs text-red-500 mt-1">{flowGraphError}</p>}
+                </div>
+
+                <div>
+                  <Label className="text-sm font-medium text-slate-700 flex items-center gap-1">
+                    personaSwitchRules
+                    <span className="text-xs text-slate-400 font-normal">(페르소나 자동 전환 규칙)</span>
+                  </Label>
+                  <p className="text-xs text-slate-400 mb-1">예: {`{"rules":[{"id":"r1","targetPersonaIndex":1,"conditions":[{"metric":"npcEmotions.anger","operator":"gte","value":70}],"reason":"화남","lockAfterSwitch":true}]}`}</p>
+                  <Textarea
+                    value={personaSwitchRulesJson}
+                    onChange={(e) => {
+                      setPersonaSwitchRulesJson(e.target.value);
+                      setPersonaSwitchRulesError('');
+                    }}
+                    placeholder={'{\n  "rules": [\n    {\n      "id": "rule-1",\n      "targetPersonaIndex": 1,\n      "conditions": [\n        {"metric": "npcEmotions.anger", "operator": "gte", "value": 70}\n      ],\n      "reason": "Anger threshold reached",\n      "lockAfterSwitch": true\n    }\n  ]\n}'}
+                    rows={6}
+                    className={`bg-white font-mono text-xs ${personaSwitchRulesError ? 'border-red-400' : ''}`}
+                  />
+                  {personaSwitchRulesError && <p className="text-xs text-red-500 mt-1">{personaSwitchRulesError}</p>}
                 </div>
               </div>
 

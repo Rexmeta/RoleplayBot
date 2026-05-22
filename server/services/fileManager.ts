@@ -204,6 +204,8 @@ export class FileManagerService {
       targetTurns: dbScenario.targetTurns ?? 10,
       minValidTurns: dbScenario.minValidTurns ?? 4,
       personaSwitchMode: dbScenario.personaSwitchMode || undefined,
+      flowGraph: (dbScenario as any).flowGraph ?? undefined,
+      personaSwitchRules: (dbScenario as any).personaSwitchRules ?? undefined,
     };
   }
   
@@ -359,6 +361,8 @@ export class FileManagerService {
         targetTurns: scenario.targetTurns ?? 10,
         minValidTurns: scenario.minValidTurns ?? 4,
         personaSwitchMode: scenario.personaSwitchMode ?? null,
+        flowGraph: (scenario as any).flowGraph ?? null,
+        personaSwitchRules: (scenario as any).personaSwitchRules ?? null,
       });
       this.invalidateScenarioCountCache();
       return newScenario;
@@ -410,6 +414,8 @@ export class FileManagerService {
         if (scenario.targetTurns !== undefined) updates.targetTurns = scenario.targetTurns;
         if (scenario.minValidTurns !== undefined) updates.minValidTurns = scenario.minValidTurns;
         if (scenario.personaSwitchMode !== undefined) updates.personaSwitchMode = scenario.personaSwitchMode;
+        if ((scenario as any).flowGraph !== undefined) updates.flowGraph = (scenario as any).flowGraph;
+        if ((scenario as any).personaSwitchRules !== undefined) updates.personaSwitchRules = (scenario as any).personaSwitchRules;
         
         console.log(`[FileManager.updateScenario] updates.image=${updates.image}`);
         console.log(`[FileManager.updateScenario] updates.introVideoUrl=${updates.introVideoUrl}`);

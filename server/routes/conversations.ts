@@ -26,7 +26,7 @@ import { normalizeProfileName, parseJoinModeSpeakerSegments } from "../services/
 import { filterThinkingText } from "../services/voice/textFilter";
 import { createDefaultSimulationState, TurnScore } from "../services/simulation/simulationTypes";
 import type { ScenarioPersona } from "../services/aiServiceFactory";
-import { setSessionState, getSessionState, applySimulationPatch, checkIncidentCooldown, recordIncidentCooldown } from "../services/simulation/simulationEngine";
+import { setSessionState, getSessionState, applySimulationPatch, checkIncidentCooldown, recordIncidentCooldown, setSessionFlowConfig } from "../services/simulation/simulationEngine";
 import { evaluateUserResponse } from "../services/simulation/evaluateUserResponse";
 import { buildRuleFallbackPatch, inferStagePatchFromState, inferIncidentCandidate } from "../services/simulation/simulationRules";
 import { buildSimulationStateBlock } from "../services/simulation/simulationPrompt";
@@ -185,6 +185,7 @@ export default function createConversationsRouter(isAuthenticated: any) {
         freshState.timer = { enabled: true, timeLimitSec: initTimerCfg.timeLimitSec, startedAt: new Date().toISOString(), pausedAt: null, elapsedSec: 0 };
       }
       setSessionState(personaRun.id, freshState);
+      setSessionFlowConfig(personaRun.id, (scenarioObj as any).flowGraph ?? null, (scenarioObj as any).personaSwitchRules ?? null);
       initialSimState = freshState;
       storage.saveSimulationState(personaRun.id, freshState as unknown as Record<string, unknown>)
         .then(() => {

@@ -79,6 +79,7 @@ export function buildSimulationStateBlock(state: {
   currentScore: number;
   recentTurnScores?: Array<{ clarity: number; empathy: number; actionPlan: number }>;
   behaviorInstruction?: string;
+  currentStageGoal?: string;
 }): string {
   const lastScore = state.recentTurnScores?.[state.recentTurnScores.length - 1];
   const lines = [
@@ -90,6 +91,9 @@ export function buildSimulationStateBlock(state: {
   ];
   if (lastScore) {
     lines.push(`latestTurnScore: clarity=${lastScore.clarity}, empathy=${lastScore.empathy}, actionPlan=${lastScore.actionPlan}`);
+  }
+  if (state.currentStageGoal) {
+    lines.push(`currentStageGoal: ${state.currentStageGoal}`);
   }
   if (state.behaviorInstruction) {
     lines.push(`behaviorInstruction: ${state.behaviorInstruction}`);

@@ -99,6 +99,8 @@ export interface ComplexScenario {
   targetDurationMinutes?: number;
   targetTurns?: number;
   minValidTurns?: number;
+  flowGraph?: any;
+  personaSwitchRules?: any;
 }
 
 // 사용자 제작 페르소나 자유 대화용 ComplexScenario 확장 타입

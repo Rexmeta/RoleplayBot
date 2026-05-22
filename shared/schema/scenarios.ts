@@ -5,6 +5,86 @@ import { z } from "zod";
 import { categories, users } from "./users";
 import type { PersonaSelection, StrategyChoice, SequenceAnalysis } from "./types";
 
+export type ConditionOperator = 'gte' | 'lte' | 'gt' | 'lt' | 'eq';
+
+export interface ExitCondition {
+  type: 'turn_count' | 'turn_score' | 'npc_emotion';
+  metric?: string;
+  operator: ConditionOperator;
+  value: number;
+  windowTurns?: number;
+}
+
+export interface FlowStage {
+  id: string;
+  goal: string;
+  exitConditions: ExitCondition[];
+  exitConditionsLogic?: 'all' | 'any';
+  nextStage: string;
+}
+
+export interface FlowGraph {
+  stages: FlowStage[];
+}
+
+export interface SwitchCondition {
+  metric: string;
+  operator: ConditionOperator;
+  value: number;
+  consecutiveTurns?: number;
+}
+
+export interface SwitchRule {
+  id: string;
+  targetPersonaIndex: number;
+  conditions: SwitchCondition[];
+  reason: string;
+  lockAfterSwitch?: boolean;
+}
+
+export interface PersonaSwitchRules {
+  rules: SwitchRule[];
+}
+
+export const exitConditionSchema: z.ZodType<ExitCondition> = z.object({
+  type: z.enum(['turn_count', 'turn_score', 'npc_emotion']),
+  metric: z.string().optional(),
+  operator: z.enum(['gte', 'lte', 'gt', 'lt', 'eq']),
+  value: z.number(),
+  windowTurns: z.number().int().positive().optional(),
+});
+
+export const flowStageSchema: z.ZodType<FlowStage> = z.object({
+  id: z.string().min(1),
+  goal: z.string().min(1),
+  exitConditions: z.array(exitConditionSchema),
+  exitConditionsLogic: z.enum(['all', 'any']).optional(),
+  nextStage: z.string().min(1),
+});
+
+export const flowGraphSchema: z.ZodType<FlowGraph> = z.object({
+  stages: z.array(flowStageSchema).min(1),
+});
+
+export const switchConditionSchema: z.ZodType<SwitchCondition> = z.object({
+  metric: z.string().min(1),
+  operator: z.enum(['gte', 'lte', 'gt', 'lt', 'eq']),
+  value: z.number(),
+  consecutiveTurns: z.number().int().positive().optional(),
+});
+
+export const switchRuleSchema: z.ZodType<SwitchRule> = z.object({
+  id: z.string().min(1),
+  targetPersonaIndex: z.number().int().min(0),
+  conditions: z.array(switchConditionSchema).min(1),
+  reason: z.string().min(1),
+  lockAfterSwitch: z.boolean().optional(),
+});
+
+export const personaSwitchRulesSchema: z.ZodType<PersonaSwitchRules> = z.object({
+  rules: z.array(switchRuleSchema).min(1),
+});
+
 export const scenarios = pgTable("scenarios", {
   id: varchar("id").primaryKey(),
   title: text("title").notNull(),
@@ -55,6 +135,8 @@ export const scenarios = pgTable("scenarios", {
     voiceId?: string | null;
   }>>(),
   recommendedFlow: text("recommended_flow").array(),
+  flowGraph: jsonb("flow_graph").$type<FlowGraph>(),
+  personaSwitchRules: jsonb("persona_switch_rules").$type<PersonaSwitchRules>(),
   evaluationCriteriaSetId: varchar("evaluation_criteria_set_id"),
   targetDurationMinutes: integer("target_duration_minutes").notNull().default(7),
   targetTurns: integer("target_turns").notNull().default(10),
