@@ -79,6 +79,22 @@ export default function createConversationsRouter(isAuthenticated: any) {
       const sameScenarioRuns = existingRuns.filter(r => r.scenarioId === validatedData.scenarioId);
       const attemptNumber = sameScenarioRuns.length + 1;
 
+      let scenarioVersionId: string | undefined;
+      let scenarioSnapshotForRun: Record<string, unknown> | undefined;
+      let evaluationHarnessSnapshotForRun: Record<string, unknown> | undefined;
+
+      try {
+        const latestVersion = await storage.getLatestPublishedVersion(validatedData.scenarioId);
+        if (latestVersion) {
+          scenarioVersionId = latestVersion.id;
+          scenarioSnapshotForRun = latestVersion.contentSnapshot as Record<string, unknown>;
+          evaluationHarnessSnapshotForRun = latestVersion.evaluationHarnessSnapshot as Record<string, unknown> | undefined;
+          console.log(`🏷️ Scenario Run에 버전 v${latestVersion.version} 연결: ${latestVersion.id}`);
+        }
+      } catch (versionErr) {
+        console.warn('⚠️ 시나리오 버전 조회 실패 (무시됨):', versionErr);
+      }
+
       scenarioRun = await storage.createScenarioRun({
         userId,
         scenarioId: validatedData.scenarioId,
@@ -86,8 +102,13 @@ export default function createConversationsRouter(isAuthenticated: any) {
         attemptNumber,
         mode: validatedData.mode,
         difficulty: validatedData.difficulty,
-        status: 'active'
-      });
+        status: 'active',
+        ...(scenarioVersionId && {
+          scenarioVersionId,
+          scenarioSnapshot: scenarioSnapshotForRun ?? null,
+          evaluationHarnessSnapshot: evaluationHarnessSnapshotForRun ?? null,
+        }),
+      } as any);
 
       console.log(`📋 새로운 Scenario Run 생성: ${scenarioRun.id} (attempt #${attemptNumber})`);
     }
@@ -459,6 +480,14 @@ export default function createConversationsRouter(isAuthenticated: any) {
       }
     }
 
+    let scenarioVersionNumber: number | null = null;
+    if ((scenarioRun as any).scenarioVersionId) {
+      try {
+        const version = await storage.getScenarioVersion((scenarioRun as any).scenarioVersionId);
+        scenarioVersionNumber = version?.version ?? null;
+      } catch { /* ignore */ }
+    }
+
     res.json({
       id: personaRun.id,
       scenarioRunId: scenarioRun.id,
@@ -478,6 +507,8 @@ export default function createConversationsRouter(isAuthenticated: any) {
       terminationReason: personaRun.terminationReason ?? null,
       personaSwitchLog: personaRun.personaSwitchLog ?? [],
       activePersonaIndex: (personaRun.activePersonaIndex as number | null) ?? 0,
+      scenarioVersionId: (scenarioRun as any).scenarioVersionId ?? null,
+      scenarioVersion: scenarioVersionNumber,
     });
   }));
 

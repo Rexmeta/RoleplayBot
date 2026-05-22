@@ -433,6 +433,11 @@ export default function ParticipantHistory() {
                               {scenarioRun.isScenarioDeleted && (
                                 <Badge variant="outline" className="bg-red-50 text-red-600 border-red-200">삭제된 시나리오</Badge>
                               )}
+                              {(scenarioRun as any).scenarioVersionId && (
+                                <Badge variant="outline" className="bg-indigo-50 text-indigo-700 border-indigo-200">
+                                  v{(scenarioRun as any).scenarioVersion ?? '?'}
+                                </Badge>
+                              )}
                               {isCompleted ? (
                                 <Badge className="bg-green-600">완료</Badge>
                               ) : (

@@ -1095,6 +1095,51 @@ export async function runMigrations(): Promise<void> {
         console.warn('⚠️ Failed to add simulation_state to persona_runs:', err);
       }
 
+      // scenario_versions table
+      try {
+        await client.query(`
+          CREATE TABLE IF NOT EXISTS "scenario_versions" (
+            "id" varchar PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+            "scenario_id" varchar NOT NULL REFERENCES "scenarios"("id"),
+            "version" integer NOT NULL,
+            "status" varchar(20) NOT NULL DEFAULT 'published',
+            "content_snapshot" jsonb NOT NULL,
+            "evaluation_harness_snapshot" jsonb,
+            "published_at" timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            "published_by" varchar REFERENCES "users"("id")
+          );
+          CREATE INDEX IF NOT EXISTS "idx_scenario_versions_scenario_id" ON "scenario_versions"("scenario_id");
+          CREATE INDEX IF NOT EXISTS "idx_scenario_versions_status" ON "scenario_versions"("status");
+        `);
+        console.log('✅ scenario_versions table created/verified');
+      } catch (err) {
+        console.warn('⚠️ Failed to create scenario_versions table:', err);
+      }
+
+      // scenario_runs version columns
+      try {
+        await client.query(`
+          DO $$ BEGIN
+            IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='scenario_runs' AND column_name='scenario_version_id') THEN
+              ALTER TABLE "scenario_runs" ADD COLUMN "scenario_version_id" varchar REFERENCES "scenario_versions"("id");
+            END IF;
+          END $$;
+          DO $$ BEGIN
+            IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='scenario_runs' AND column_name='scenario_snapshot') THEN
+              ALTER TABLE "scenario_runs" ADD COLUMN "scenario_snapshot" jsonb;
+            END IF;
+          END $$;
+          DO $$ BEGIN
+            IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='scenario_runs' AND column_name='evaluation_harness_snapshot') THEN
+              ALTER TABLE "scenario_runs" ADD COLUMN "evaluation_harness_snapshot" jsonb;
+            END IF;
+          END $$;
+        `);
+        console.log('✅ scenario_runs version columns ensured');
+      } catch (err) {
+        console.warn('⚠️ Failed to add version columns to scenario_runs:', err);
+      }
+
       // simulation_events table
       try {
         await client.query(`

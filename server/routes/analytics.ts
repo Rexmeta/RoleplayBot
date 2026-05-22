@@ -1179,11 +1179,20 @@ export default function createAnalyticsRouter(isAuthenticated: any) {
         };
       }));
 
+      let scenarioVersionNumber: number | null = null;
+      if ((run as any).scenarioVersionId) {
+        try {
+          const sv = await storage.getScenarioVersion((run as any).scenarioVersionId);
+          scenarioVersionNumber = sv?.version ?? null;
+        } catch { /* ignore */ }
+      }
+
       return {
         ...run,
         scenarioTitle: scenario?.title || run.scenarioId,
         categoryName: category?.name || "Unknown",
-        personaRuns: personaRunsWithFeedback
+        personaRuns: personaRunsWithFeedback,
+        scenarioVersion: scenarioVersionNumber,
       };
     }));
 

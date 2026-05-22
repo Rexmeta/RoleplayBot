@@ -23,6 +23,7 @@ import { toMediaUrl } from '@/lib/mediaUrl';
 import { Loader2, MoreVertical, ChevronDown, ChevronUp, Clock, Users, Target, Languages, Search, Sparkles, Eye, Copy, Download, Upload, ImageOff, UserX, ListX, BarChart2, Star, Folder } from 'lucide-react';
 import { AIScenarioGenerator } from './AIScenarioGenerator';
 import { ScenarioTranslationEditor } from './ScenarioTranslationEditor';
+import { ScenarioVersionHistory } from './ScenarioVersionHistory';
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
@@ -290,6 +291,7 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
   const [videoPreviewUrl, setVideoPreviewUrl] = useState<string | null>(null);
   const [translatingScenario, setTranslatingScenario] = useState<ComplexScenario | null>(null);
   const [previewScenario, setPreviewScenario] = useState<ComplexScenario | null>(null);
+  const [versionHistoryScenario, setVersionHistoryScenario] = useState<ComplexScenario | null>(null);
   const [isImporting, setIsImporting] = useState(false);
   const importFileRef = useRef<HTMLInputElement>(null);
   const [imageLoadFailed, setImageLoadFailed] = useState(false);
@@ -3087,6 +3089,13 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
                           <Languages className="mr-2 w-4 h-4" />
                           {t('admin.common.manageTranslation')}
                         </DropdownMenuItem>
+                        <DropdownMenuItem
+                          onClick={() => setVersionHistoryScenario(scenario)}
+                          data-testid={`button-version-history-${scenario.id}`}
+                        >
+                          <i className="fas fa-history mr-2 w-4 h-4 text-center"></i>
+                          버전 이력
+                        </DropdownMenuItem>
                         <DropdownMenuSeparator />
                         <AlertDialog>
                           <AlertDialogTrigger asChild>
@@ -3366,6 +3375,16 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
           )}
         </DialogContent>
       </Dialog>
+
+      {/* 버전 이력 다이얼로그 */}
+      {versionHistoryScenario && (
+        <ScenarioVersionHistory
+          scenarioId={String(versionHistoryScenario.id)}
+          scenarioTitle={versionHistoryScenario.title}
+          open={!!versionHistoryScenario}
+          onClose={() => setVersionHistoryScenario(null)}
+        />
+      )}
 
       {/* 기존 이미지 선택 다이얼로그 */}
       <Dialog open={showImageSelector} onOpenChange={setShowImageSelector}>

@@ -367,6 +367,17 @@ export default function FeedbackView() {
         </div>
       )}
       {terminationReason && <TerminationOutcomeBanner reason={terminationReason} />}
+      {(conversation?.scenarioVersion != null || conversation?.scenarioVersionId) && (
+        <div className="bg-slate-50 border-b border-slate-200 px-4 py-1.5 text-center">
+          <span className="text-xs text-slate-500">
+            이 대화는{' '}
+            <span className="font-semibold text-indigo-700">
+              시나리오 v{conversation.scenarioVersion ?? '?'}
+            </span>{' '}
+            기준으로 진행되었습니다.
+          </span>
+        </div>
+      )}
       {personaSwitchLog.length > 0 && (
         <PersonaParticipationSummary switchLog={personaSwitchLog} scenarioPersonas={scenarioPersonas} totalTurnCount={conversation?.turnCount ?? 0} />
       )}

@@ -279,11 +279,35 @@ export const scenarios = pgTable("scenarios", {
   index("idx_scenarios_is_deleted").on(table.isDeleted),
 ]);
 
+export const scenarioVersions = pgTable("scenario_versions", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  scenarioId: varchar("scenario_id").notNull().references(() => scenarios.id),
+  version: integer("version").notNull(),
+  status: varchar("status", { length: 20 }).notNull().default("published").$type<'draft' | 'published' | 'archived'>(),
+  contentSnapshot: jsonb("content_snapshot").notNull(),
+  evaluationHarnessSnapshot: jsonb("evaluation_harness_snapshot").$type<EvaluationHarness>(),
+  publishedAt: timestamp("published_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+  publishedBy: varchar("published_by").references(() => users.id),
+}, (table) => [
+  index("idx_scenario_versions_scenario_id").on(table.scenarioId),
+  index("idx_scenario_versions_status").on(table.status),
+]);
+
+export const insertScenarioVersionSchema = createInsertSchema(scenarioVersions).omit({
+  id: true,
+  publishedAt: true,
+});
+export type InsertScenarioVersion = z.infer<typeof insertScenarioVersionSchema>;
+export type ScenarioVersion = typeof scenarioVersions.$inferSelect;
+
 export const scenarioRuns = pgTable("scenario_runs", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   userId: varchar("user_id").references(() => users.id),
   scenarioId: text("scenario_id").notNull(),
   scenarioName: text("scenario_name").notNull(),
+  scenarioVersionId: varchar("scenario_version_id").references(() => scenarioVersions.id),
+  scenarioSnapshot: jsonb("scenario_snapshot"),
+  evaluationHarnessSnapshot: jsonb("evaluation_harness_snapshot").$type<EvaluationHarness>(),
   attemptNumber: integer("attempt_number").notNull(),
   status: text("status").notNull().default("in_progress"),
   totalScore: integer("total_score"),

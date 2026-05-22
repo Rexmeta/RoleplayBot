@@ -499,6 +499,75 @@ export default function createAdminScenariosRouter(isAuthenticated: any) {
     res.json(status);
   }));
 
+  router.get("/api/admin/scenarios/:id/versions", isAuthenticated, isOperatorOrAdmin, asyncHandler(async (req, res) => {
+    const user = (req as any).user;
+    const scenarioId = req.params.id;
+
+    if (user.role === 'operator') {
+      const accessCheck = await checkOperatorScenarioAccess(user, scenarioId);
+      if (!accessCheck.hasAccess) {
+        throw createHttpError(403, accessCheck.error || "Access denied.");
+      }
+    }
+
+    const versions = await storage.getScenarioVersions(scenarioId);
+    res.json(versions);
+  }));
+
+  router.post("/api/admin/scenarios/:id/publish", isAuthenticated, isOperatorOrAdmin, asyncHandler(async (req, res) => {
+    const user = (req as any).user;
+    const scenarioId = req.params.id;
+
+    if (user.role === 'operator') {
+      const accessCheck = await checkOperatorScenarioAccess(user, scenarioId);
+      if (!accessCheck.hasAccess) {
+        throw createHttpError(403, accessCheck.error || "Access denied.");
+      }
+    }
+
+    const version = await storage.publishScenarioVersion(scenarioId, user.id);
+    res.json(version);
+  }));
+
+  router.post("/api/admin/scenarios/:id/versions/:versionId/rollback", isAuthenticated, isOperatorOrAdmin, asyncHandler(async (req, res) => {
+    const user = (req as any).user;
+    const { id: scenarioId, versionId } = req.params;
+
+    if (user.role === 'operator') {
+      const accessCheck = await checkOperatorScenarioAccess(user, scenarioId);
+      if (!accessCheck.hasAccess) {
+        throw createHttpError(403, accessCheck.error || "Access denied.");
+      }
+    }
+
+    const existingVersion = await storage.getScenarioVersion(versionId);
+    if (!existingVersion || existingVersion.scenarioId !== scenarioId) {
+      throw createHttpError(404, "Version not found");
+    }
+
+    const newVersion = await storage.rollbackToVersion(versionId, user.id);
+    res.json(newVersion);
+  }));
+
+  router.get("/api/admin/scenarios/:id/versions/:versionId", isAuthenticated, isOperatorOrAdmin, asyncHandler(async (req, res) => {
+    const user = (req as any).user;
+    const { id: scenarioId, versionId } = req.params;
+
+    if (user.role === 'operator') {
+      const accessCheck = await checkOperatorScenarioAccess(user, scenarioId);
+      if (!accessCheck.hasAccess) {
+        throw createHttpError(403, accessCheck.error || "Access denied.");
+      }
+    }
+
+    const version = await storage.getScenarioVersion(versionId);
+    if (!version || version.scenarioId !== scenarioId) {
+      throw createHttpError(404, "Version not found");
+    }
+
+    res.json(version);
+  }));
+
   router.post("/api/admin/scenarios/:id/duplicate", isAuthenticated, isOperatorOrAdmin, asyncHandler(async (req, res) => {
     const user = (req as any).user;
     const scenarioId = req.params.id;
