@@ -98,40 +98,42 @@ app.get('/_ah/ready', (_req, res) => {
   res.status(503).send('NOT READY');
 });
 
-// Diagnostic endpoint – always accessible, shows initialization state.
-// This helps debug 503 errors by revealing exactly where startup stalled.
-app.get('/_ah/debug', (_req, res) => {
-  const envVars = [
-    'NODE_ENV', 'PORT', 'DATABASE_URL', 'JWT_SECRET',
-    'GOOGLE_API_KEY', 'GEMINI_API_KEY', 'AI_PROVIDER',
-    'OPENAI_API_KEY', 'ELEVENLABS_API_KEY',
-  ];
+// Diagnostic endpoint – only accessible when DEBUG_ENDPOINT_ENABLED=true.
+// This prevents leaking internal state to the public internet in production.
+if (process.env.DEBUG_ENDPOINT_ENABLED === 'true') {
+  app.get('/_ah/debug', (_req, res) => {
+    const envVars = [
+      'NODE_ENV', 'PORT', 'DATABASE_URL', 'JWT_SECRET',
+      'GOOGLE_API_KEY', 'GEMINI_API_KEY', 'AI_PROVIDER',
+      'OPENAI_API_KEY', 'ELEVENLABS_API_KEY',
+    ];
 
-  const envPresence: Record<string, boolean> = {};
-  for (const key of envVars) {
-    envPresence[key] = !!process.env[key];
-  }
+    const envPresence: Record<string, boolean> = {};
+    for (const key of envVars) {
+      envPresence[key] = !!process.env[key];
+    }
 
-  const dbUrl = process.env.DATABASE_URL;
-  let dbUrlInfo = 'not set';
-  if (dbUrl) {
-    dbUrlInfo = maskDatabaseUrl(dbUrl);
-  }
+    const dbUrl = process.env.DATABASE_URL;
+    let dbUrlInfo = 'not set';
+    if (dbUrl) {
+      dbUrlInfo = maskDatabaseUrl(dbUrl);
+    }
 
-  res.status(200).json({
-    appReady,
-    initStatus,
-    initError,
-    uptimeMs: Date.now() - startupTimestamp,
-    steps: initSteps,
-    env: envPresence,
-    databaseUrlFormat: dbUrlInfo,
-    nodeVersion: process.version,
-    platform: process.platform,
-    arch: process.arch,
-    memoryMB: Math.round(process.memoryUsage().rss / 1024 / 1024),
+    res.status(200).json({
+      appReady,
+      initStatus,
+      initError,
+      uptimeMs: Date.now() - startupTimestamp,
+      steps: initSteps,
+      env: envPresence,
+      databaseUrlFormat: dbUrlInfo,
+      nodeVersion: process.version,
+      platform: process.platform,
+      arch: process.arch,
+      memoryMB: Math.round(process.memoryUsage().rss / 1024 / 1024),
+    });
   });
-});
+}
 
 // Readiness gate: while the app is initializing, serve a loading page for
 // browser requests and 503 for API requests. This prevents "Cannot GET /"
@@ -140,7 +142,7 @@ app.use((req, res, next) => {
   if (appReady) {
     return next();
   }
-  // Allow debug endpoint through (already matched above)
+  // Allow health/readiness probes (and debug if enabled) through
   if (req.path.startsWith('/_ah/')) {
     return next();
   }
@@ -154,8 +156,8 @@ app.use((req, res, next) => {
     '<div style="text-align:center"><p>Service is starting up&hellip;</p>' +
     '<p style="font-size:0.8em;color:#666">Status: ' + escapeHtml(initStatus) + '</p>' +
     (initError ? '<p style="font-size:0.8em;color:red">' + escapeHtml(initError) + '</p>' : '') +
-    '<p style="font-size:0.7em;color:#999">Uptime: ' + Math.round((Date.now() - startupTimestamp) / 1000) + 's' +
-    ' | <a href="/_ah/debug">Debug Info</a></p></div></body></html>'
+    '<p style="font-size:0.7em;color:#999">Uptime: ' + Math.round((Date.now() - startupTimestamp) / 1000) + 's</p>' +
+    '</div></body></html>'
   );
 });
 
@@ -274,6 +276,93 @@ async function initializeApp() {
   }
   recordStep(`storage_class: ${storageClassName}`, 'done');
 
+  // Step 0b: CORS middleware – must be registered before routes.
+  // Development: allow any localhost origin.
+  // Production: restrict to ALLOWED_ORIGINS env var (comma-separated list).
+  // The main UI is served from the same origin so CORS is primarily needed
+  // for the Agent API accessed by external B2B clients.
+  recordStep('cors', 'start');
+  {
+    const isProd = process.env.NODE_ENV === 'production';
+    const allowedOriginsEnv = process.env.ALLOWED_ORIGINS ?? '';
+    const allowedOriginSet = new Set(
+      allowedOriginsEnv.split(',').map(o => o.trim()).filter(Boolean)
+    );
+
+    app.use((req, res, next) => {
+      const origin = req.headers.origin ?? '';
+      let allowOrigin = '';
+
+      if (isProd) {
+        if (origin && allowedOriginSet.has(origin)) {
+          allowOrigin = origin;
+        }
+      } else {
+        // Development: permit localhost and Replit preview origins
+        if (!origin ||
+            origin.startsWith('http://localhost') ||
+            origin.startsWith('http://127.0.0.1') ||
+            origin.includes('.replit.dev') ||
+            origin.includes('.repl.co')) {
+          allowOrigin = origin || '*';
+        }
+      }
+
+      if (allowOrigin) {
+        res.setHeader('Access-Control-Allow-Origin', allowOrigin);
+        if (allowOrigin !== '*') {
+          res.setHeader('Vary', 'Origin');
+          res.setHeader('Access-Control-Allow-Credentials', 'true');
+        }
+        res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PUT,PATCH,DELETE,OPTIONS');
+        res.setHeader('Access-Control-Allow-Headers', 'Content-Type,Authorization,X-Request-Id,Idempotency-Key');
+        res.setHeader('Access-Control-Max-Age', '86400');
+      }
+
+      if (req.method === 'OPTIONS') {
+        return res.status(204).end();
+      }
+
+      next();
+    });
+  }
+  recordStep('cors', 'done');
+
+  // Step 0c: Production startup secret validation.
+  // In production ALL required secrets must be present before the server
+  // accepts traffic. Missing secrets indicate a misconfigured deployment.
+  {
+    const isProd = process.env.NODE_ENV === 'production';
+    const requiredInProd: Array<{ key: string; alternatives?: string[] }> = [
+      { key: 'JWT_SECRET' },
+      { key: 'DATABASE_URL' },
+      { key: 'AGENT_API_KEY_PEPPER' },
+      { key: 'GEMINI_API_KEY', alternatives: ['GOOGLE_API_KEY'] },
+    ];
+
+    const missing: string[] = [];
+    for (const { key, alternatives } of requiredInProd) {
+      const hasMain = !!process.env[key];
+      const hasAlt = alternatives?.some(a => !!process.env[a]) ?? false;
+      if (!hasMain && !hasAlt) {
+        const label = alternatives ? `${key} (or ${alternatives.join('/')})` : key;
+        missing.push(label);
+      }
+    }
+
+    if (missing.length > 0) {
+      const msg = `[startup] Missing required environment variable(s): ${missing.join(', ')}`;
+      if (isProd) {
+        console.error(`FATAL: ${msg}`);
+        console.error('Set all required secrets on the Cloud Run service before deploying.');
+        process.exit(1);
+      } else {
+        console.warn(`WARNING: ${msg}`);
+        console.warn('These secrets are required in production. Set them before deploying.');
+      }
+    }
+  }
+
   // Step 1: Body parser middleware
   recordStep('body_parser', 'start');
   app.use(express.json({ limit: '10mb' }));
@@ -321,13 +410,6 @@ async function initializeApp() {
     next();
   });
   recordStep('request_logging', 'done');
-
-  // Step 3b: Validate AGENT_API_KEY_PEPPER — fatal in all environments
-  {
-    if (!process.env.AGENT_API_KEY_PEPPER) {
-      throw new Error('[startup] FATAL: AGENT_API_KEY_PEPPER is not set. Set this secret before starting the server.');
-    }
-  }
 
   // Step 4: Register API routes (passes the existing server for WebSocket setup)
   recordStep('register_routes', 'start');
@@ -535,11 +617,22 @@ async function initializeApp() {
 
 function sanitizeLogData(data: Record<string, any> | undefined): string {
   if (!data) return "";
-  const sensitiveKeys = ['token', 'password', 'accessToken', 'refreshToken', 'jwt', 'secret', 'apiKey'];
+  // Keys whose values are always redacted (auth credentials, secrets)
+  const sensitiveKeys = ['token', 'password', 'accessToken', 'refreshToken', 'jwt', 'secret', 'apiKey', 'authorization'];
+  // Keys whose values contain conversation content – truncate instead of redact
+  const contentKeys = ['content', 'message', 'messages', 'text', 'reply', 'transcript'];
   const sanitized = { ...data };
   for (const key of Object.keys(sanitized)) {
-    if (sensitiveKeys.some(sk => key.toLowerCase().includes(sk.toLowerCase()))) {
+    const lower = key.toLowerCase();
+    if (sensitiveKeys.some(sk => lower.includes(sk.toLowerCase()))) {
       sanitized[key] = '[REDACTED]';
+    } else if (contentKeys.some(ck => lower === ck)) {
+      const val = sanitized[key];
+      if (typeof val === 'string' && val.length > 80) {
+        sanitized[key] = val.slice(0, 80) + '…[truncated]';
+      } else if (Array.isArray(val)) {
+        sanitized[key] = `[${val.length} items]`;
+      }
     }
   }
   return JSON.stringify(sanitized);

@@ -380,12 +380,12 @@ router.post("/sessions", requireScope("sessions:create"), async (req: any, res) 
       }
     }
 
-    // Create internal persona run
-    const allScenarioRuns = await storage.findActiveScenarioRun("__agent__", scenarioId).catch(() => null);
+    // Create internal persona run (userId is null – agent sessions are not
+    // tied to a users table row; agent_sessions.id is the source of truth).
     let personaRunId: string | null = null;
     try {
       const scenarioRun = await storage.createScenarioRun({
-        userId: "__agent__",
+        userId: null as any,
         scenarioId,
         scenarioName: scenario.title ?? scenarioId,
         attemptNumber: 1,

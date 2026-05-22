@@ -74,7 +74,7 @@ export const scenarios = pgTable("scenarios", {
 
 export const scenarioRuns = pgTable("scenario_runs", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  userId: varchar("user_id").notNull().references(() => users.id),
+  userId: varchar("user_id").references(() => users.id),
   scenarioId: text("scenario_id").notNull(),
   scenarioName: text("scenario_name").notNull(),
   attemptNumber: integer("attempt_number").notNull(),

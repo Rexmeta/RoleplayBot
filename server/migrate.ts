@@ -1008,7 +1008,11 @@ export async function runMigrations(): Promise<void> {
         { table: 'evaluation_criteria_sets', column: 'approved_at', sql: `DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='evaluation_criteria_sets' AND column_name='approved_at') THEN ALTER TABLE "evaluation_criteria_sets" ADD COLUMN "approved_at" timestamp; END IF; END $$;` },
         { table: 'evaluation_criteria_sets', column: 'version', sql: `DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='evaluation_criteria_sets' AND column_name='version') THEN ALTER TABLE "evaluation_criteria_sets" ADD COLUMN "version" integer DEFAULT 1 NOT NULL; END IF; END $$;` },
         { table: 'evaluation_criteria_sets', column: 'parent_set_id', sql: `DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='evaluation_criteria_sets' AND column_name='parent_set_id') THEN ALTER TABLE "evaluation_criteria_sets" ADD COLUMN "parent_set_id" varchar; END IF; END $$;` },
-        { table: 'evaluation_criteria_sets', column: 'status_migrate_legacy', sql: `DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM "evaluation_criteria_sets" WHERE "status" IN ('approved','review','archived')) THEN UPDATE "evaluation_criteria_sets" SET "status" = 'approved' WHERE "is_active" = true; END IF; END $$;` }
+        { table: 'evaluation_criteria_sets', column: 'status_migrate_legacy', sql: `DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM "evaluation_criteria_sets" WHERE "status" IN ('approved','review','archived')) THEN UPDATE "evaluation_criteria_sets" SET "status" = 'approved' WHERE "is_active" = true; END IF; END $$;` },
+        // Make scenario_runs.user_id nullable so agent API sessions can create runs
+        // without a fake "__agent__" user ID. agent_sessions.id is the source of truth
+        // for agent-originated runs.
+        { table: 'scenario_runs', column: 'user_id_nullable', sql: `DO $$ BEGIN ALTER TABLE "scenario_runs" ALTER COLUMN "user_id" DROP NOT NULL; EXCEPTION WHEN OTHERS THEN NULL; END $$;` }
       );
 
       for (const patch of criticalColumnPatches) {
