@@ -485,6 +485,21 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
   });
   const statsMap = useMemo(() => new Map(scenarioStats.map(s => [s.scenarioId, s] as const)), [scenarioStats]);
 
+  // 시나리오 품질 검증 결과 조회
+  const { data: validationData } = useQuery<Record<string, { score: number; issues: { check: number; key: string; severity: string; message: string }[]; hasFatalErrors: boolean }>>({
+    queryKey: ['/api/admin/scenarios/validate'],
+    queryFn: async () => {
+      const token = localStorage.getItem('authToken');
+      const headers: Record<string, string> = {};
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+      const response = await fetch('/api/admin/scenarios/validate', { headers, credentials: 'include' });
+      if (!response.ok) throw new Error('Failed to fetch validation data');
+      return response.json();
+    },
+    staleTime: 1000 * 60 * 5,
+  });
+  const validationMap = useMemo(() => validationData ?? {}, [validationData]);
+
   // 시나리오 내 이미 선택된 페르소나 ID 목록
   const selectedPersonaIds = useMemo(() => {
     return formData.personas.map(p => p.id).filter(id => id);
@@ -3359,6 +3374,7 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
           const completeness = getCompleteness(scenario);
           const stats = statsMap.get(String(scenario.id));
           const unused = isUnused(String(scenario.id));
+          const validation = validationMap[String(scenario.id)];
           
           return (
             <Card 
@@ -3374,6 +3390,46 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
                       <CardTitle className="text-base font-semibold text-slate-800 line-clamp-2 leading-tight flex-1">
                         {scenario.title}
                       </CardTitle>
+                      {validation && (
+                        <TooltipProvider>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Badge
+                                className={`text-xs font-bold whitespace-nowrap shrink-0 cursor-pointer border ${
+                                  validation.score >= 80
+                                    ? 'bg-green-50 text-green-700 border-green-300'
+                                    : validation.score >= 60
+                                    ? 'bg-yellow-50 text-yellow-700 border-yellow-300'
+                                    : 'bg-red-50 text-red-700 border-red-300'
+                                }`}
+                              >
+                                품질 {validation.score}
+                              </Badge>
+                            </TooltipTrigger>
+                            <TooltipContent side="bottom" className="max-w-xs p-3 space-y-1.5">
+                              <p className="font-semibold text-sm">품질 점수: {validation.score}/100</p>
+                              {validation.issues.length === 0 ? (
+                                <p className="text-xs text-green-700">모든 항목 통과</p>
+                              ) : (
+                                <ul className="space-y-1">
+                                  {validation.issues.map((issue) => (
+                                    <li key={issue.key} className="text-xs flex items-start gap-1">
+                                      <span className={
+                                        issue.severity === 'error' ? 'text-red-600' :
+                                        issue.severity === 'warning' ? 'text-yellow-600' :
+                                        'text-blue-600'
+                                      }>
+                                        {issue.severity === 'error' ? '❌' : issue.severity === 'warning' ? '⚠️' : 'ℹ️'}
+                                      </span>
+                                      <span className="text-slate-700">{issue.message}</span>
+                                    </li>
+                                  ))}
+                                </ul>
+                              )}
+                            </TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
+                      )}
                       {unused && (
                         <Badge variant="secondary" className="text-xs bg-slate-100 text-slate-500 border-slate-200 whitespace-nowrap shrink-0">
                           미사용

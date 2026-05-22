@@ -12,6 +12,7 @@ import {
 } from "../services/gcsStorage";
 import { getOperatorAccessibleCategoryIds, asyncHandler, createHttpError } from "./routerHelpers";
 import { isOperatorOrAdmin } from "../middleware/authMiddleware";
+import { validateScenario } from "../services/scenarios/scenarioValidator";
 
 export default function createAdminScenariosRouter(isAuthenticated: any) {
   const router = Router();
@@ -236,6 +237,18 @@ export default function createAdminScenariosRouter(isAuthenticated: any) {
 
     scenarioData.sourceLocale = sourceLocale;
 
+    // Pre-save validation
+    const [allPersonas, allLangs] = await Promise.all([
+      storage.getAllMbtiPersonas(),
+      storage.getActiveSupportedLanguages(),
+    ]);
+    const mbtiPersonaIds = new Set(allPersonas.map(p => p.id));
+    const activeLangs = allLangs.map((l: any) => l.code);
+    const preValidation = validateScenario(scenarioData as any, mbtiPersonaIds, [], activeLangs);
+    if (preValidation.hasFatalErrors) {
+      throw createHttpError(400, "치명적 품질 오류로 저장할 수 없습니다.", { errors: preValidation.issues.filter(i => i.severity === 'error') } as any);
+    }
+
     const scenario = await fileManager.createScenario(scenarioData);
 
     try {
@@ -265,7 +278,8 @@ export default function createAdminScenariosRouter(isAuthenticated: any) {
     }
 
     const transformedScenario = await transformScenarioMedia(scenario);
-    res.json(transformedScenario);
+    const nonFatalWarnings = preValidation.issues.filter(i => i.severity !== 'error');
+    res.json({ ...transformedScenario, warnings: nonFatalWarnings.length > 0 ? nonFatalWarnings : undefined });
   }));
 
   router.put("/api/admin/scenarios/:id", isAuthenticated, isOperatorOrAdmin, asyncHandler(async (req, res) => {
@@ -293,6 +307,20 @@ export default function createAdminScenariosRouter(isAuthenticated: any) {
     const existingScenarios = await fileManager.getAllScenarios();
     const existingScenario = existingScenarios.find((s: any) => s.id === scenarioId);
     const sourceLocale = req.body.sourceLocale || existingScenario?.sourceLocale || 'ko';
+
+    // Pre-save validation
+    const mergedData = { ...(existingScenario ?? {}), ...req.body };
+    const [allPersonas, allLangs, existingTranslations] = await Promise.all([
+      storage.getAllMbtiPersonas(),
+      storage.getActiveSupportedLanguages(),
+      storage.getScenarioTranslations(scenarioId),
+    ]);
+    const mbtiPersonaIds = new Set(allPersonas.map(p => p.id));
+    const activeLangs = allLangs.map((l: any) => l.code);
+    const preValidation = validateScenario(mergedData as any, mbtiPersonaIds, existingTranslations, activeLangs);
+    if (preValidation.hasFatalErrors) {
+      throw createHttpError(400, "치명적 품질 오류로 저장할 수 없습니다.", { errors: preValidation.issues.filter(i => i.severity === 'error') } as any);
+    }
 
     const scenario = await fileManager.updateScenario(scenarioId, req.body);
 
@@ -323,7 +351,8 @@ export default function createAdminScenariosRouter(isAuthenticated: any) {
     }
 
     const transformedScenario = await transformScenarioMedia(scenario);
-    res.json(transformedScenario);
+    const nonFatalWarnings = preValidation.issues.filter(i => i.severity !== 'error');
+    res.json({ ...transformedScenario, warnings: nonFatalWarnings.length > 0 ? nonFatalWarnings : undefined });
   }));
 
   router.patch("/api/admin/scenarios/:id/visibility", isAuthenticated, isOperatorOrAdmin, asyncHandler(async (req, res) => {
@@ -525,8 +554,27 @@ export default function createAdminScenariosRouter(isAuthenticated: any) {
       }
     }
 
+    // Pre-publish validation
+    const allScenariosForPublish = await fileManager.getAllScenarios();
+    const scenarioForPublish = allScenariosForPublish.find((s: any) => s.id === scenarioId);
+    if (!scenarioForPublish) throw createHttpError(404, "Scenario not found");
+
+    const [personasForPublish, langsForPublish, translationsForPublish] = await Promise.all([
+      storage.getAllMbtiPersonas(),
+      storage.getActiveSupportedLanguages(),
+      storage.getScenarioTranslations(scenarioId),
+    ]);
+    const publishMbtiIds = new Set(personasForPublish.map(p => p.id));
+    const publishActiveLangs = langsForPublish.map((l: any) => l.code);
+    const publishValidation = validateScenario(scenarioForPublish as any, publishMbtiIds, translationsForPublish, publishActiveLangs);
+
+    if (publishValidation.hasFatalErrors) {
+      throw createHttpError(400, "치명적 품질 오류로 발행할 수 없습니다.", { errors: publishValidation.issues.filter(i => i.severity === 'error') } as any);
+    }
+
     const version = await storage.publishScenarioVersion(scenarioId, user.id);
-    res.json(version);
+    const nonFatalPublishWarnings = publishValidation.issues.filter(i => i.severity !== 'error');
+    res.json({ ...version, warnings: nonFatalPublishWarnings.length > 0 ? nonFatalPublishWarnings : undefined });
   }));
 
   router.post("/api/admin/scenarios/:id/versions/:versionId/rollback", isAuthenticated, isOperatorOrAdmin, asyncHandler(async (req, res) => {
@@ -623,6 +671,66 @@ export default function createAdminScenariosRouter(isAuthenticated: any) {
 
     const transformedScenario = await transformScenarioMedia(created);
     res.json(transformedScenario);
+  }));
+
+  // GET /api/admin/scenarios/validate — bulk validate all scenarios (for admin UI)
+  router.get("/api/admin/scenarios/validate", isAuthenticated, isOperatorOrAdmin, asyncHandler(async (req, res) => {
+    const user = (req as any).user;
+
+    let allScenarios = await fileManager.getAllScenarios();
+    if (user.role === 'operator') {
+      const accessibleCategoryIds = await getOperatorAccessibleCategoryIds(user);
+      allScenarios = allScenarios.filter((s: any) => accessibleCategoryIds.includes(s.categoryId));
+    }
+
+    const [allPersonas, allLangs] = await Promise.all([
+      storage.getAllMbtiPersonas(),
+      storage.getActiveSupportedLanguages(),
+    ]);
+    const mbtiPersonaIds = new Set(allPersonas.map(p => p.id));
+    const activeLangs = allLangs.map(l => l.code);
+
+    const results = await Promise.all(
+      allScenarios.map(async (scenario: any) => {
+        const translations = await storage.getScenarioTranslations(scenario.id);
+        return validateScenario(scenario, mbtiPersonaIds, translations, activeLangs);
+      })
+    );
+
+    const byId: Record<string, { score: number; issues: any[]; hasFatalErrors: boolean }> = {};
+    for (const r of results) {
+      byId[r.scenarioId] = { score: r.score, issues: r.issues, hasFatalErrors: r.hasFatalErrors };
+    }
+    res.json(byId);
+  }));
+
+  // GET /api/admin/scenarios/:id/validate — validate a single scenario
+  router.get("/api/admin/scenarios/:id/validate", isAuthenticated, isOperatorOrAdmin, asyncHandler(async (req, res) => {
+    const user = (req as any).user;
+    const scenarioId = req.params.id;
+
+    if (user.role === 'operator') {
+      const accessCheck = await checkOperatorScenarioAccess(user, scenarioId);
+      if (!accessCheck.hasAccess) {
+        throw createHttpError(403, accessCheck.error || "Access denied.");
+      }
+    }
+
+    const allScenarios = await fileManager.getAllScenarios();
+    const scenario = allScenarios.find((s: any) => s.id === scenarioId);
+    if (!scenario) throw createHttpError(404, "Scenario not found");
+
+    const [allPersonas, allLangs, translations] = await Promise.all([
+      storage.getAllMbtiPersonas(),
+      storage.getActiveSupportedLanguages(),
+      storage.getScenarioTranslations(scenarioId),
+    ]);
+
+    const mbtiPersonaIds = new Set(allPersonas.map(p => p.id));
+    const activeLangs = allLangs.map(l => l.code);
+
+    const result = validateScenario(scenario as any, mbtiPersonaIds, translations, activeLangs);
+    res.json(result);
   }));
 
   return router;
