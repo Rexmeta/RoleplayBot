@@ -30,6 +30,76 @@ export type SimulationHarness = z.infer<typeof simulationHarnessSchema>;
 
 export type ConditionOperator = 'gte' | 'lte' | 'gt' | 'lt' | 'eq';
 
+// ─── PlayerConstraints ────────────────────────────────────────────────────────
+
+export interface PlayerConstraints {
+  authorityLevel?: string;
+  canOffer?: string[];
+  cannotOffer?: string[];
+  requiredBehaviors?: string[];
+  forbiddenBehaviors?: string[];
+}
+
+export const playerConstraintsSchema: z.ZodType<PlayerConstraints> = z.object({
+  authorityLevel: z.string().optional(),
+  canOffer: z.array(z.string()).optional(),
+  cannotOffer: z.array(z.string()).optional(),
+  requiredBehaviors: z.array(z.string()).optional(),
+  forbiddenBehaviors: z.array(z.string()).optional(),
+});
+
+// ─── NpcBehaviorHarness ───────────────────────────────────────────────────────
+
+export interface NpcBehaviorHarnessTrigger {
+  keyword: string;
+  trustDelta?: number;
+  angerDelta?: number;
+  description?: string;
+}
+
+export interface NpcBehaviorHarness {
+  negotiationBounds?: {
+    minTrustToYield?: number;
+    maxAngerBeforeWalkout?: number;
+    maxPatienceTurns?: number;
+  };
+  trustTriggers?: NpcBehaviorHarnessTrigger[];
+  escalationTriggers?: NpcBehaviorHarnessTrigger[];
+}
+
+const npcBehaviorHarnessTriggerSchema = z.object({
+  keyword: z.string().min(1),
+  trustDelta: z.number().optional(),
+  angerDelta: z.number().optional(),
+  description: z.string().optional(),
+});
+
+export const npcBehaviorHarnessSchema: z.ZodType<NpcBehaviorHarness> = z.object({
+  negotiationBounds: z.object({
+    minTrustToYield: z.number().min(0).max(100).optional(),
+    maxAngerBeforeWalkout: z.number().min(0).max(100).optional(),
+    maxPatienceTurns: z.number().int().positive().optional(),
+  }).optional(),
+  trustTriggers: z.array(npcBehaviorHarnessTriggerSchema).optional(),
+  escalationTriggers: z.array(npcBehaviorHarnessTriggerSchema).optional(),
+});
+
+// ─── DifficultyProfile ────────────────────────────────────────────────────────
+
+export interface DifficultyProfile {
+  npcPatience?: number;
+  hintFrequency?: number;
+  incidentProbability?: number;
+  passThreshold?: number;
+}
+
+export const difficultyProfileSchema: z.ZodType<DifficultyProfile> = z.object({
+  npcPatience: z.number().min(1).max(10).optional(),
+  hintFrequency: z.number().min(0).max(1).optional(),
+  incidentProbability: z.number().min(0).max(2).optional(),
+  passThreshold: z.number().min(0).max(100).optional(),
+});
+
 // ─── EvaluationHarness ────────────────────────────────────────────────────────
 
 export type EvaluationDimensionKey = 'clarity' | 'empathy' | 'logic' | 'ownership' | 'actionPlan';
@@ -255,6 +325,7 @@ export const scenarios = pgTable("scenarios", {
     triggerHints?: string[];
     entryLine?: string;
     voiceId?: string | null;
+    npcBehaviorHarness?: NpcBehaviorHarness;
   }>>(),
   recommendedFlow: text("recommended_flow").array(),
   flowGraph: jsonb("flow_graph").$type<FlowGraph>(),
@@ -265,6 +336,8 @@ export const scenarios = pgTable("scenarios", {
   minValidTurns: integer("min_valid_turns").notNull().default(4),
   evaluationHarness: jsonb("evaluation_harness").$type<EvaluationHarness>(),
   terminationRules: jsonb("termination_rules").$type<TerminationRules>(),
+  playerConstraints: jsonb("player_constraints").$type<PlayerConstraints>(),
+  difficultyProfile: jsonb("difficulty_profile").$type<DifficultyProfile>(),
   personaSwitchMode: varchar("persona_switch_mode", { length: 20 }).$type<'replace' | 'join'>(),
   simulationHarness: jsonb("simulation_harness").$type<SimulationHarness>(),
   isDemo: boolean("is_demo").notNull().default(false),

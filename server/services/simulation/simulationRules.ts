@@ -7,6 +7,7 @@ import {
   ScenarioStage,
   NpcEmotions,
 } from './simulationTypes';
+import type { NpcBehaviorHarness, DifficultyProfile } from '../../../shared/schema/scenarios';
 import { checkIncidentCooldown } from './simulationEngine';
 import { renderIncidentMessage } from './incidentTemplates';
 import { v4 as uuidv4 } from 'uuid';
@@ -104,6 +105,58 @@ export function inferIncidentCandidate(
     createdAt: new Date().toISOString(),
     resolved: false,
   };
+}
+
+/**
+ * Applies NpcBehaviorHarness negotiation bounds as additional emotion delta modifiers.
+ * Called after the baseline emotion delta is computed to layer harness-specific adjustments.
+ */
+export function applyNpcBehaviorHarnessModifiers(
+  baseDelta: Partial<Record<keyof NpcEmotions, number>>,
+  harness: NpcBehaviorHarness | undefined | null,
+  currentState: SimulationState
+): Partial<Record<keyof NpcEmotions, number>> {
+  if (!harness?.negotiationBounds) return baseDelta;
+  const result = { ...baseDelta };
+  const bounds = harness.negotiationBounds;
+  const { anger, trust } = currentState.npcEmotions;
+
+  // If trust is below the yield threshold, the NPC becomes more resistant — amplify anger
+  if (bounds.minTrustToYield !== undefined && trust < bounds.minTrustToYield) {
+    result.anger = (result.anger ?? 0) + 3;
+    result.trust = (result.trust ?? 0) - 2;
+  }
+
+  // If anger is above the walkout threshold, escalate faster
+  if (bounds.maxAngerBeforeWalkout !== undefined && anger >= bounds.maxAngerBeforeWalkout) {
+    result.anger = (result.anger ?? 0) + 5;
+    result.trust = (result.trust ?? 0) - 5;
+  }
+
+  // If max patience turns exceeded, suppress positive trust recovery
+  if (bounds.maxPatienceTurns !== undefined && currentState.summary.totalTurns >= bounds.maxPatienceTurns) {
+    if ((result.trust ?? 0) > 0) {
+      result.trust = Math.floor((result.trust ?? 0) * 0.5);
+    }
+  }
+
+  return result;
+}
+
+/**
+ * Scales incident probability thresholds using difficultyProfile.incidentProbability.
+ * Returns true if the incident should be allowed given the scaled probability, false to suppress.
+ * incidentProbability > 1.0 → lower thresholds (more incidents)
+ * incidentProbability < 1.0 → higher thresholds (fewer incidents)
+ */
+export function evaluateIncidentProbability(
+  baseAllowed: boolean,
+  difficultyProfile: DifficultyProfile | undefined | null
+): boolean {
+  if (!baseAllowed) return false;
+  const prob = difficultyProfile?.incidentProbability ?? 1.0;
+  if (prob >= 1.0) return true;
+  return Math.random() < prob;
 }
 
 export function buildRuleFallbackPatch(

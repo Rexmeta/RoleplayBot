@@ -5,9 +5,9 @@ import {
   SimulationState,
   calcTurnScoreTotal,
 } from './simulationTypes';
-import { inferEmotionPatchFromEvaluation } from './simulationRules';
+import { inferEmotionPatchFromEvaluation, applyNpcBehaviorHarnessModifiers } from './simulationRules';
 import { buildSimulationStateBlock } from './simulationPrompt';
-import type { EvaluationHarness, EvaluationHarnessDimension } from '../../../shared/schema/scenarios';
+import type { EvaluationHarness, EvaluationHarnessDimension, NpcBehaviorHarness } from '../../../shared/schema/scenarios';
 
 const EVAL_TIMEOUT_MS = 8000;
 
@@ -21,6 +21,7 @@ export interface EvaluationInput {
   language?: 'ko' | 'en' | 'ja' | 'zh';
   evaluationMode?: 'fast' | 'quality';
   evaluationHarness?: EvaluationHarness | null;
+  npcBehaviorHarness?: NpcBehaviorHarness | null;
 }
 
 export interface EvaluationResult {
@@ -49,7 +50,8 @@ export async function evaluateUserResponse(input: EvaluationInput): Promise<Eval
   try {
     const llmScore = await runLLMEvaluation(input);
     if (llmScore) {
-      const emotionDelta = inferEmotionPatchFromEvaluation(llmScore, simulationState);
+      const baseDelta = inferEmotionPatchFromEvaluation(llmScore, simulationState);
+      const emotionDelta = applyNpcBehaviorHarnessModifiers(baseDelta, input.npcBehaviorHarness, simulationState);
       return { turnScore: llmScore, emotionDelta, skipped: false, method: 'llm' };
     }
   } catch (err) {
@@ -64,7 +66,8 @@ export async function evaluateUserResponse(input: EvaluationInput): Promise<Eval
   }
 
   const ruleScore = runRuleBasedEvaluation(input);
-  const emotionDelta = inferEmotionPatchFromEvaluation(ruleScore, simulationState);
+  const baseDelta = inferEmotionPatchFromEvaluation(ruleScore, simulationState);
+  const emotionDelta = applyNpcBehaviorHarnessModifiers(baseDelta, input.npcBehaviorHarness, simulationState);
   return { turnScore: ruleScore, emotionDelta, skipped: false, method: 'rule' };
 }
 

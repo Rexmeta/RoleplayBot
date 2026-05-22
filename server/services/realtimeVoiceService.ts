@@ -8,7 +8,7 @@ import {
   MAX_CONCURRENT_SESSIONS,
 } from './voice/types';
 import { buildSystemInstructions, buildReconnectSystemInstructions } from './voice/systemPromptBuilder';
-import { setSessionFlowConfig, getSessionState } from './simulation/simulationEngine';
+import { setSessionFlowConfig, setSessionTerminationRules, setSessionHarnessConfig, getSessionState } from './simulation/simulationEngine';
 import { handleGeminiMessage } from './voice/geminiMessageHandler';
 import { handleClientMessage as processClientMessage } from './voice/clientMessageHandler';
 import { handleGeminiClose } from './voice/geminiReconnector';
@@ -186,10 +186,12 @@ export class RealtimeVoiceService {
     // instructions from leaking into voice prompts.
     const initialFlowGraph = (scenarioObj as any).flowGraph ?? null;
     const initialStageGoal: string | undefined = initialFlowGraph?.stages?.find((s: any) => s.id === 'intro')?.goal;
+    const scenarioPlayerConstraints = (scenarioObj as any).playerConstraints ?? null;
     const scenarioHarness = (scenarioObj as any).simulationHarness ?? null;
     const systemInstructions = buildSystemInstructions(
       scenarioWithUserDifficulty, scenarioPersona, mbtiPersona, userRoleInfo, userLanguage,
-      true, allPersonas, initialPersonaIndex, scenarioObj.targetTurns, 'replace', initialStageGoal, scenarioHarness
+      true, allPersonas, initialPersonaIndex, scenarioObj.targetTurns, 'replace', initialStageGoal,
+      scenarioPlayerConstraints, scenarioHarness
     );
 
     // Pre-build system instructions for every persona so switching rebuilds the full prompt
@@ -201,7 +203,8 @@ export class RealtimeVoiceService {
         const mbtiP = mbtiT ? await fileManager.getPersonaByMBTI(mbtiT) : null;
         personaSystemInstructions.push(buildSystemInstructions(
           scenarioWithUserDifficulty, sp, mbtiP, userRoleInfo, userLanguage,
-          true, allPersonas, pIdx, scenarioObj.targetTurns, 'replace', initialStageGoal, scenarioHarness
+          true, allPersonas, pIdx, scenarioObj.targetTurns, 'replace', initialStageGoal,
+          scenarioPlayerConstraints, scenarioHarness
         ));
       }
     }
@@ -282,6 +285,16 @@ export class RealtimeVoiceService {
     if (scenarioFlowGraph || scenarioPersonaSwitchRules) {
       setSessionFlowConfig(conversationId, scenarioFlowGraph, scenarioPersonaSwitchRules);
       console.log(`🗺️ [createSession] Flow config registered: flowGraph=${!!scenarioFlowGraph}, personaSwitchRules=${!!scenarioPersonaSwitchRules}`);
+    }
+    const scenarioTerminationRules = (scenarioObj as any).terminationRules ?? null;
+    if (scenarioTerminationRules) {
+      setSessionTerminationRules(conversationId, scenarioTerminationRules);
+    }
+    const scenarioDifficultyProfile = (scenarioObj as any).difficultyProfile ?? null;
+    const activePersonaNpcHarness = scenarioPersona?.npcBehaviorHarness ?? null;
+    if (scenarioDifficultyProfile || activePersonaNpcHarness) {
+      setSessionHarnessConfig(conversationId, scenarioDifficultyProfile, activePersonaNpcHarness);
+      console.log(`🎛️ [createSession] Harness config registered: difficultyProfile=${!!scenarioDifficultyProfile}, npcBehaviorHarness=${!!activePersonaNpcHarness}`);
     }
 
     this.sessions.set(sessionId, session);

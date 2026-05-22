@@ -112,6 +112,47 @@ ${allowedTypesLine}
 `;
 }
 
+export function buildPlayerConstraintsBlock(
+  constraints: {
+    authorityLevel?: string;
+    canOffer?: string[];
+    cannotOffer?: string[];
+    requiredBehaviors?: string[];
+    forbiddenBehaviors?: string[];
+  } | null | undefined,
+  language: 'ko' | 'en' | 'ja' | 'zh' = 'ko'
+): string {
+  if (!constraints) return '';
+  const hasContent = constraints.authorityLevel
+    || (constraints.canOffer?.length ?? 0) > 0
+    || (constraints.cannotOffer?.length ?? 0) > 0
+    || (constraints.requiredBehaviors?.length ?? 0) > 0
+    || (constraints.forbiddenBehaviors?.length ?? 0) > 0;
+  if (!hasContent) return '';
+
+  if (language === 'ko') {
+    const lines = ['\n# 플레이어 권한 제약 (Player Authority Constraints)'];
+    lines.push('상대방(플레이어)이 이 시나리오에서 가진 권한과 제약입니다. 플레이어가 권한을 벗어난 제안을 할 경우, 당신은 이를 인식하고 적절히 반응해야 합니다.');
+    if (constraints.authorityLevel) lines.push(`- 권한 수준: ${constraints.authorityLevel}`);
+    if (constraints.canOffer?.length) lines.push(`- 제안 가능한 것: ${constraints.canOffer.join(', ')}`);
+    if (constraints.cannotOffer?.length) lines.push(`- 제안 불가한 것 (권한 밖): ${constraints.cannotOffer.join(', ')}`);
+    if (constraints.requiredBehaviors?.length) lines.push(`- 상대방이 해야 하는 행동: ${constraints.requiredBehaviors.join(', ')}`);
+    if (constraints.forbiddenBehaviors?.length) lines.push(`- 상대방이 해서는 안 되는 행동: ${constraints.forbiddenBehaviors.join(', ')}`);
+    lines.push('⚠️ 상대방이 권한 밖의 약속이나 제안을 하면, 당신은 그것이 그들의 권한을 벗어났음을 현실적으로 지적하거나 의구심을 표현하세요.');
+    return lines.join('\n');
+  }
+
+  const lines = ['\n# Player Authority Constraints'];
+  lines.push("The following defines the conversation partner's (player's) authority and boundaries in this scenario. If the player makes offers or commitments outside their authority, you should recognize and react to this realistically.");
+  if (constraints.authorityLevel) lines.push(`- Authority level: ${constraints.authorityLevel}`);
+  if (constraints.canOffer?.length) lines.push(`- Can offer: ${constraints.canOffer.join(', ')}`);
+  if (constraints.cannotOffer?.length) lines.push(`- Cannot offer (outside authority): ${constraints.cannotOffer.join(', ')}`);
+  if (constraints.requiredBehaviors?.length) lines.push(`- Required behaviors: ${constraints.requiredBehaviors.join(', ')}`);
+  if (constraints.forbiddenBehaviors?.length) lines.push(`- Forbidden behaviors: ${constraints.forbiddenBehaviors.join(', ')}`);
+  lines.push("⚠️ If the player makes promises or offers outside their authority, realistically point it out or express skepticism.");
+  return lines.join('\n');
+}
+
 export function buildSimulationStateBlock(state: {
   stage: string;
   pressureLevel: number;

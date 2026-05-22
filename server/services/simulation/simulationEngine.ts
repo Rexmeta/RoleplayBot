@@ -10,7 +10,7 @@ import {
   createDefaultSimulationState,
   calcTurnScoreTotal,
 } from './simulationTypes';
-import type { FlowGraph, PersonaSwitchRules, ExitCondition, ConditionOperator, TerminationRules, TerminationConditionGroup, TerminationOutcome } from '../../../shared/schema/scenarios';
+import type { FlowGraph, PersonaSwitchRules, ExitCondition, ConditionOperator, TerminationRules, TerminationConditionGroup, TerminationOutcome, DifficultyProfile, NpcBehaviorHarness } from '../../../shared/schema/scenarios';
 import { evaluatePersonaSwitchRules } from './personaSwitchEvaluator';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -106,6 +106,8 @@ interface InternalSession {
   terminationRules?: TerminationRules;
   lockedPersonaIndices: Set<number>;
   consecutiveSwitchCounts: Map<string, number>;
+  difficultyProfile?: DifficultyProfile;
+  npcBehaviorHarness?: NpcBehaviorHarness;
 }
 
 const sessionContexts = new Map<string, InternalSession>();
@@ -149,6 +151,27 @@ export function setSessionTerminationRules(
 ): void {
   const ctx = getOrCreateSessionContext(personaRunId);
   if (terminationRules) ctx.terminationRules = terminationRules;
+}
+
+export function setSessionHarnessConfig(
+  personaRunId: string,
+  difficultyProfile?: DifficultyProfile | null,
+  npcBehaviorHarness?: NpcBehaviorHarness | null
+): void {
+  const ctx = getOrCreateSessionContext(personaRunId);
+  if (difficultyProfile) ctx.difficultyProfile = difficultyProfile;
+  if (npcBehaviorHarness) ctx.npcBehaviorHarness = npcBehaviorHarness;
+}
+
+export function getSessionHarnessConfig(personaRunId: string): {
+  difficultyProfile?: DifficultyProfile;
+  npcBehaviorHarness?: NpcBehaviorHarness;
+} {
+  const ctx = sessionContexts.get(personaRunId);
+  return {
+    difficultyProfile: ctx?.difficultyProfile,
+    npcBehaviorHarness: ctx?.npcBehaviorHarness,
+  };
 }
 
 function checkTerminationConditionGroup(
