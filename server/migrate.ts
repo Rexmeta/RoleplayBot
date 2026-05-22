@@ -1015,7 +1015,11 @@ export async function runMigrations(): Promise<void> {
         // for agent-originated runs.
         { table: 'scenario_runs', column: 'user_id_nullable', sql: `DO $$ BEGIN ALTER TABLE "scenario_runs" ALTER COLUMN "user_id" DROP NOT NULL; EXCEPTION WHEN OTHERS THEN NULL; END $$;` },
         { table: 'scenarios', column: 'player_constraints', sql: `DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='scenarios' AND column_name='player_constraints') THEN ALTER TABLE "scenarios" ADD COLUMN "player_constraints" jsonb; END IF; END $$;` },
-        { table: 'scenarios', column: 'difficulty_profile', sql: `DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='scenarios' AND column_name='difficulty_profile') THEN ALTER TABLE "scenarios" ADD COLUMN "difficulty_profile" jsonb; END IF; END $$;` }
+        { table: 'scenarios', column: 'difficulty_profile', sql: `DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='scenarios' AND column_name='difficulty_profile') THEN ALTER TABLE "scenarios" ADD COLUMN "difficulty_profile" jsonb; END IF; END $$;` },
+        { table: 'scenarios', column: 'flow_graph', sql: `DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='scenarios' AND column_name='flow_graph') THEN ALTER TABLE "scenarios" ADD COLUMN "flow_graph" jsonb; END IF; END $$;` },
+        { table: 'scenarios', column: 'persona_switch_rules', sql: `DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='scenarios' AND column_name='persona_switch_rules') THEN ALTER TABLE "scenarios" ADD COLUMN "persona_switch_rules" jsonb; END IF; END $$;` },
+        { table: 'scenarios', column: 'evaluation_harness', sql: `DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='scenarios' AND column_name='evaluation_harness') THEN ALTER TABLE "scenarios" ADD COLUMN "evaluation_harness" jsonb; END IF; END $$;` },
+        { table: 'scenarios', column: 'termination_rules', sql: `DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='scenarios' AND column_name='termination_rules') THEN ALTER TABLE "scenarios" ADD COLUMN "termination_rules" jsonb; END IF; END $$;` }
       );
 
       for (const patch of criticalColumnPatches) {
