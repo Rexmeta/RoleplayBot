@@ -28,6 +28,8 @@ import createPersonaUserScenesRouter from "./routes/personaUserScenes";
 import createSimulationRouter from "./routes/simulation";
 import agentApiRouter from "./routes/agentApi";
 import adminAgentKeysRouter from "./routes/adminAgentKeys";
+import swaggerUi from "swagger-ui-express";
+import agentApiSpec from "./openapi/agentApi";
 
 export async function registerRoutes(app: Express, httpServer: Server): Promise<void> {
   const cookieParser = (await import('cookie-parser')).default;
@@ -85,6 +87,22 @@ export async function registerRoutes(app: Express, httpServer: Server): Promise<
   // ================================
   // Agent API (Enterprise B2B)
   // ================================
+  // Public docs — mounted directly on app so swagger-ui static serving
+  // is not intercepted by the auth middleware inside agentApiRouter.
+  app.get('/api/v1/agent/openapi.json', (_req, res) => {
+    res.setHeader('Content-Type', 'application/json');
+    res.setHeader('Cache-Control', 'public, max-age=300');
+    res.json(agentApiSpec);
+  });
+  app.use('/api/v1/agent/docs', ...swaggerUi.serve, swaggerUi.setup(agentApiSpec, {
+    customSiteTitle: 'Agent API Docs',
+    swaggerOptions: {
+      persistAuthorization: true,
+      displayRequestDuration: true,
+      defaultModelsExpandDepth: 2,
+      defaultModelExpandDepth: 3,
+    },
+  }));
   // Agent API key-authenticated routes (no JWT required — uses Bearer api_key)
   app.use('/api/v1/agent', agentApiRouter);
   // Admin routes for API key management (JWT + admin/operator required)
