@@ -2,6 +2,7 @@ import { getRealtimeVoiceGuidelines, validateDifficultyLevel } from '../conversa
 import { LANGUAGE_INSTRUCTIONS, LangCode } from './prompts/languageInstructions';
 import { SECTION_TEXT } from './prompts/sectionText';
 import { buildSimulationToolPrompt } from '../simulation/simulationPrompt';
+import type { SimulationHarness } from '@shared/schema/scenarios';
 
 interface UserRoleInfo {
   name: string;
@@ -76,7 +77,8 @@ export function buildSystemInstructions(
   activePersonaIndex: number = 0,
   targetTurns?: number,
   personaSwitchMode?: string,
-  currentFlowStageGoal?: string
+  currentFlowStageGoal?: string,
+  simulationHarness?: SimulationHarness | null
 ): string {
   const mbtiType = scenarioPersona.personaRef?.replace('.json', '') || 'UNKNOWN';
 
@@ -227,7 +229,7 @@ export function buildSystemInstructions(
     `${langInst.greetingInstruction}`,
     st.noMetaThink(langInst.langName),
     `${st.firstWordsLabel}: ${langInst.greetingExample(userRoleInfo)}`,
-    ...(includeSimulationTools ? [``, buildSimulationToolPrompt(userLanguage)] : []),
+    ...(includeSimulationTools ? [``, buildSimulationToolPrompt(userLanguage, simulationHarness)] : []),
     ...(allPersonas && allPersonas.length > 1
       ? [personaSwitchMode === 'join'
           ? (() => {

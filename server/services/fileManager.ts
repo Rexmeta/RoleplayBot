@@ -206,6 +206,7 @@ export class FileManagerService {
       personaSwitchMode: dbScenario.personaSwitchMode || undefined,
       flowGraph: (dbScenario as any).flowGraph ?? undefined,
       personaSwitchRules: (dbScenario as any).personaSwitchRules ?? undefined,
+      simulationHarness: (dbScenario as any).simulationHarness ?? undefined,
     };
   }
   
@@ -363,6 +364,7 @@ export class FileManagerService {
         personaSwitchMode: scenario.personaSwitchMode ?? null,
         flowGraph: (scenario as any).flowGraph ?? null,
         personaSwitchRules: (scenario as any).personaSwitchRules ?? null,
+        simulationHarness: (scenario as any).simulationHarness ?? null,
       });
       this.invalidateScenarioCountCache();
       return newScenario;
@@ -416,6 +418,7 @@ export class FileManagerService {
         if (scenario.personaSwitchMode !== undefined) updates.personaSwitchMode = scenario.personaSwitchMode;
         if ((scenario as any).flowGraph !== undefined) updates.flowGraph = (scenario as any).flowGraph;
         if ((scenario as any).personaSwitchRules !== undefined) updates.personaSwitchRules = (scenario as any).personaSwitchRules;
+        if ((scenario as any).simulationHarness !== undefined) updates.simulationHarness = (scenario as any).simulationHarness;
         
         console.log(`[FileManager.updateScenario] updates.image=${updates.image}`);
         console.log(`[FileManager.updateScenario] updates.introVideoUrl=${updates.introVideoUrl}`);

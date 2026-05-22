@@ -186,9 +186,10 @@ export class RealtimeVoiceService {
     // instructions from leaking into voice prompts.
     const initialFlowGraph = (scenarioObj as any).flowGraph ?? null;
     const initialStageGoal: string | undefined = initialFlowGraph?.stages?.find((s: any) => s.id === 'intro')?.goal;
+    const scenarioHarness = (scenarioObj as any).simulationHarness ?? null;
     const systemInstructions = buildSystemInstructions(
       scenarioWithUserDifficulty, scenarioPersona, mbtiPersona, userRoleInfo, userLanguage,
-      true, allPersonas, initialPersonaIndex, scenarioObj.targetTurns, 'replace', initialStageGoal
+      true, allPersonas, initialPersonaIndex, scenarioObj.targetTurns, 'replace', initialStageGoal, scenarioHarness
     );
 
     // Pre-build system instructions for every persona so switching rebuilds the full prompt
@@ -200,7 +201,7 @@ export class RealtimeVoiceService {
         const mbtiP = mbtiT ? await fileManager.getPersonaByMBTI(mbtiT) : null;
         personaSystemInstructions.push(buildSystemInstructions(
           scenarioWithUserDifficulty, sp, mbtiP, userRoleInfo, userLanguage,
-          true, allPersonas, pIdx, scenarioObj.targetTurns, 'replace', initialStageGoal
+          true, allPersonas, pIdx, scenarioObj.targetTurns, 'replace', initialStageGoal, scenarioHarness
         ));
       }
     }
@@ -254,6 +255,7 @@ export class RealtimeVoiceService {
       softCloseSent: false,
       personaSwitchPending: false,
       awaitingPersonaSwitch: false,
+      simulationHarness: (scenarioObj as any).simulationHarness ?? null,
     };
 
     // Lookup scenarioRunId from DB for simulation event audit linkage

@@ -102,6 +102,7 @@ export function handleGeminiMessage(
           scenarioContext: session.scenarioId,
           currentPersonaIndex: session.activePersonaIndex,
           scenarioPersonas: session.scenarioPersonas ?? undefined,
+          harness: session.simulationHarness,
         }
       );
 

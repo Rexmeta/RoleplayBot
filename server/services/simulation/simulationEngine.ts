@@ -472,11 +472,13 @@ export function checkIncidentCooldown(
 export function recordIncidentCooldown(
   personaRunId: string,
   incidentType: string,
-  now = Date.now()
+  now = Date.now(),
+  globalCooldownMs = 60_000,
+  perTypeCooldownMs = 120_000
 ): void {
   const ctx = getOrCreateSessionContext(personaRunId);
-  ctx.globalIncidentCooldownUntil = now + 60_000;
-  ctx.incidentTypeCooldowns.set(incidentType, now + 120_000);
+  ctx.globalIncidentCooldownUntil = now + globalCooldownMs;
+  ctx.incidentTypeCooldowns.set(incidentType, now + perTypeCooldownMs);
 }
 
 export function getSessionState(personaRunId: string): SimulationState | null {

@@ -5,6 +5,29 @@ import { z } from "zod";
 import { categories, users } from "./users";
 import type { PersonaSelection, StrategyChoice, SequenceAnalysis } from "./types";
 
+export const simulationHarnessSchema = z.object({
+  emotionModel: z.array(z.string()).optional(),
+  toolPolicy: z.object({
+    updateNpcEmotion: z.object({
+      maxCallsPerTurn: z.number().int().min(1).max(10).optional(),
+      maxDeltaPerCall: z.number().min(1).max(100).optional(),
+    }).optional(),
+    triggerIncident: z.object({
+      allowedTypes: z.array(z.string()).optional(),
+      cooldownOverride: z.object({
+        globalCooldownSec: z.number().min(0).optional(),
+        perTypeCooldownSec: z.number().min(0).optional(),
+      }).optional(),
+    }).optional(),
+    updateScenarioState: z.object({
+      enabled: z.boolean().optional(),
+    }).optional(),
+  }).optional(),
+  preferredSignals: z.record(z.string(), z.string()).optional(),
+});
+
+export type SimulationHarness = z.infer<typeof simulationHarnessSchema>;
+
 export type ConditionOperator = 'gte' | 'lte' | 'gt' | 'lt' | 'eq';
 
 // ─── EvaluationHarness ────────────────────────────────────────────────────────
@@ -243,6 +266,7 @@ export const scenarios = pgTable("scenarios", {
   evaluationHarness: jsonb("evaluation_harness").$type<EvaluationHarness>(),
   terminationRules: jsonb("termination_rules").$type<TerminationRules>(),
   personaSwitchMode: varchar("persona_switch_mode", { length: 20 }).$type<'replace' | 'join'>(),
+  simulationHarness: jsonb("simulation_harness").$type<SimulationHarness>(),
   isDemo: boolean("is_demo").notNull().default(false),
   isPublic: boolean("is_public").notNull().default(false),
   isDeleted: boolean("is_deleted").notNull().default(false),

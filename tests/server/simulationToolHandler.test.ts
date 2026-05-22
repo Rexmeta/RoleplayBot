@@ -40,13 +40,14 @@ describe('handleToolCall — update_npc_emotion', () => {
     expect(state.npcEmotions.trust).toBe(45); // default 50 - 5
   });
 
-  it('rejects invalid args (delta out of range)', () => {
+  it('clamps extreme delta instead of rejecting', () => {
     const result = handleToolCall('update_npc_emotion', {
       angerDelta: 999,
       reason: 'extreme',
     }, BASE_CTX);
-    expect(result.success).toBe(false);
-    expect(result.error).toMatch(/Invalid args/);
+    expect(result.success).toBe(true);
+    const state = getSessionState(RUN_ID)!;
+    expect(state.npcEmotions.anger).toBe(60); // default 30 + clamped 30
   });
 
   it('rejects missing reason field', () => {
@@ -67,7 +68,7 @@ describe('handleToolCall — update_npc_emotion', () => {
     expect(result.error).toContain('Maximum 2 emotion updates');
   });
 
-  it('clamps delta at ±30 boundary (schema validation)', () => {
+  it('clamps delta at ±30 boundary (harness enforcement)', () => {
     const atBoundary = handleToolCall('update_npc_emotion', {
       angerDelta: 30,
       trustDelta: -30,
@@ -80,7 +81,9 @@ describe('handleToolCall — update_npc_emotion', () => {
       angerDelta: 31,
       reason: 'over boundary',
     }, BASE_CTX);
-    expect(overBoundary.success).toBe(false);
+    expect(overBoundary.success).toBe(true);
+    const state = getSessionState(RUN_ID)!;
+    expect(state.npcEmotions.anger).toBe(60); // default 30 + clamped 30 (not 31)
   });
 });
 
@@ -173,14 +176,14 @@ describe('handleToolCall — trigger_incident', () => {
     expect(second.error).toBeDefined();
   });
 
-  it('rejects invalid incident type', () => {
+  it('rejects incident type not in allowedTypes', () => {
     const result = handleToolCall('trigger_incident', {
       type: 'alien_invasion',
       severity: 'high',
       reason: 'bad type',
     }, BASE_CTX);
     expect(result.success).toBe(false);
-    expect(result.error).toMatch(/Invalid args/);
+    expect(result.error).toMatch(/not allowed/);
   });
 
   it('increases pressure for high severity incident', () => {

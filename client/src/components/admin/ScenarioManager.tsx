@@ -17,7 +17,7 @@ import { Slider } from '@/components/ui/slider';
 import { useToast } from '@/hooks/use-toast';
 import { apiRequest, queryClient } from '@/lib/queryClient';
 import { ComplexScenario } from '@/lib/scenario-system';
-import { flowGraphSchema, personaSwitchRulesSchema, evaluationHarnessSchema, terminationRulesSchema } from '@shared/schema/scenarios';
+import { flowGraphSchema, personaSwitchRulesSchema, evaluationHarnessSchema, terminationRulesSchema, simulationHarnessSchema } from '@shared/schema/scenarios';
 import { toMediaUrl } from '@/lib/mediaUrl';
 import { Loader2, MoreVertical, ChevronDown, ChevronUp, Clock, Users, Target, Languages, Search, Sparkles, Eye, Copy, Download, Upload, ImageOff, UserX, ListX, BarChart2, Star, Folder } from 'lucide-react';
 import { AIScenarioGenerator } from './AIScenarioGenerator';
@@ -88,11 +88,18 @@ interface ScenarioFormData {
   recommendedFlow: string[];
   flowGraph?: any;
   personaSwitchRules?: any;
+  simulationHarness?: any;
 }
 
 interface ScenarioManagerProps {
   onGoToPersonas?: () => void;
 }
+
+const HARNESS_ALL_INCIDENT_TYPES = [
+  'executive_join', 'customer_escalation', 'deadline_pressure',
+  'new_evidence', 'competitor_offer', 'policy_constraint',
+  'quality_issue', 'manager_interrupt', 'budget_cut', 'compliance_warning',
+] as const;
 
 export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
   const { t, i18n } = useTranslation();
@@ -108,6 +115,19 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
   const [terminationRulesJson, setTerminationRulesJson] = useState('');
   const [evaluationHarnessError, setEvaluationHarnessError] = useState('');
   const [terminationRulesError, setTerminationRulesError] = useState('');
+  // Structured simulation harness state
+  const [harnessEnabled, setHarnessEnabled] = useState(false);
+  const [harnessEmotionModel, setHarnessEmotionModel] = useState('anger,trust,confusion,interest');
+  const [harnessMaxCallsPerTurn, setHarnessMaxCallsPerTurn] = useState('2');
+  const [harnessMaxDeltaPerCall, setHarnessMaxDeltaPerCall] = useState('30');
+  const [harnessAllowedTypes, setHarnessAllowedTypes] = useState<string[]>([...HARNESS_ALL_INCIDENT_TYPES]);
+  const [harnessGlobalCooldownSec, setHarnessGlobalCooldownSec] = useState('60');
+  const [harnessPerTypeCooldownSec, setHarnessPerTypeCooldownSec] = useState('120');
+  const [harnessStateUpdatesEnabled, setHarnessStateUpdatesEnabled] = useState(true);
+  const [harnessPreferredSignals, setHarnessPreferredSignals] = useState<{key: string; value: string}[]>([]);
+  const [harnessShowRaw, setHarnessShowRaw] = useState(false);
+  const [harnessRawJson, setHarnessRawJson] = useState('');
+  const [harnessRawJsonError, setHarnessRawJsonError] = useState('');
   const [isGeneratingImage, setIsGeneratingImage] = useState(false);
   const [isGeneratingVideo, setIsGeneratingVideo] = useState(false);
   const [expandedScenarios, setExpandedScenarios] = useState<Set<string | number>>(new Set());
@@ -480,6 +500,18 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
     setPersonaSwitchRulesJson('');
     setEvaluationHarnessJson('');
     setTerminationRulesJson('');
+    setHarnessEnabled(false);
+    setHarnessEmotionModel('anger,trust,confusion,interest');
+    setHarnessMaxCallsPerTurn('2');
+    setHarnessMaxDeltaPerCall('30');
+    setHarnessAllowedTypes([...HARNESS_ALL_INCIDENT_TYPES]);
+    setHarnessGlobalCooldownSec('60');
+    setHarnessPerTypeCooldownSec('120');
+    setHarnessStateUpdatesEnabled(true);
+    setHarnessPreferredSignals([]);
+    setHarnessShowRaw(false);
+    setHarnessRawJson('');
+    setHarnessRawJsonError('');
     setFlowGraphError('');
     setPersonaSwitchRulesError('');
     setEvaluationHarnessError('');
@@ -552,6 +584,32 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
     setEvaluationHarnessJson(existingEH ? JSON.stringify(existingEH, null, 2) : '');
     const existingTR = (originalScenario as any).terminationRules;
     setTerminationRulesJson(existingTR ? JSON.stringify(existingTR, null, 2) : '');
+    const existingHarness = (originalScenario as any).simulationHarness;
+    if (existingHarness) {
+      setHarnessEnabled(true);
+      setHarnessEmotionModel((existingHarness.emotionModel ?? ['anger','trust','confusion','interest']).join(','));
+      setHarnessMaxCallsPerTurn(String(existingHarness.toolPolicy?.updateNpcEmotion?.maxCallsPerTurn ?? 2));
+      setHarnessMaxDeltaPerCall(String(existingHarness.toolPolicy?.updateNpcEmotion?.maxDeltaPerCall ?? 30));
+      setHarnessAllowedTypes(existingHarness.toolPolicy?.triggerIncident?.allowedTypes ?? [...HARNESS_ALL_INCIDENT_TYPES]);
+      setHarnessGlobalCooldownSec(String(existingHarness.toolPolicy?.triggerIncident?.cooldownOverride?.globalCooldownSec ?? 60));
+      setHarnessPerTypeCooldownSec(String(existingHarness.toolPolicy?.triggerIncident?.cooldownOverride?.perTypeCooldownSec ?? 120));
+      setHarnessStateUpdatesEnabled(existingHarness.toolPolicy?.updateScenarioState?.enabled ?? true);
+      const sigs = existingHarness.preferredSignals ?? {};
+      setHarnessPreferredSignals(Object.entries(sigs).map(([key, value]) => ({ key, value: String(value) })));
+    } else {
+      setHarnessEnabled(false);
+      setHarnessEmotionModel('anger,trust,confusion,interest');
+      setHarnessMaxCallsPerTurn('2');
+      setHarnessMaxDeltaPerCall('30');
+      setHarnessAllowedTypes([...HARNESS_ALL_INCIDENT_TYPES]);
+      setHarnessGlobalCooldownSec('60');
+      setHarnessPerTypeCooldownSec('120');
+      setHarnessStateUpdatesEnabled(true);
+      setHarnessPreferredSignals([]);
+    }
+    setHarnessShowRaw(false);
+    setHarnessRawJson('');
+    setHarnessRawJsonError('');
     setFlowGraphError('');
     setPersonaSwitchRulesError('');
     setEvaluationHarnessError('');
@@ -591,9 +649,10 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
     }
   };
 
-  const buildSubmitPayload = (): (typeof formData & { flowGraph: any; personaSwitchRules: any; evaluationHarness: any; terminationRules: any }) | null => {
+  const buildSubmitPayload = (): (typeof formData & { flowGraph: any; personaSwitchRules: any; evaluationHarness: any; terminationRules: any; simulationHarness: any }) | null => {
     let parsedFlowGraph: any = null;
     let parsedPSR: any = null;
+    let parsedHarness: any = null;
 
     if (flowGraphJson.trim()) {
       let raw: any;
@@ -677,7 +736,48 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
       setTerminationRulesError('');
     }
 
-    return { ...formData, flowGraph: parsedFlowGraph, personaSwitchRules: parsedPSR, evaluationHarness: parsedEH, terminationRules: parsedTR };
+    if (harnessEnabled) {
+      if (harnessShowRaw) {
+        if (harnessRawJson.trim()) {
+          let raw: any;
+          try {
+            raw = JSON.parse(harnessRawJson);
+          } catch {
+            setHarnessRawJsonError('시뮬레이션 정책 JSON이 유효하지 않습니다. 형식을 확인하세요.');
+            toast({ title: '시뮬레이션 정책 JSON 오류', description: '시뮬레이션 정책 JSON을 확인하세요.', variant: 'destructive' });
+            return null;
+          }
+          const result = simulationHarnessSchema.safeParse(raw);
+          if (!result.success) {
+            const msg = result.error.errors[0]?.message ?? '스키마 검증 실패';
+            setHarnessRawJsonError(`시뮬레이션 정책 구조 오류: ${msg}`);
+            toast({ title: '시뮬레이션 정책 구조 오류', description: msg, variant: 'destructive' });
+            return null;
+          }
+          parsedHarness = result.data;
+          setHarnessRawJsonError('');
+        }
+      } else {
+        const emotionModel = harnessEmotionModel.split(',').map(s => s.trim()).filter(Boolean);
+        const preferredSignals: Record<string, string> = {};
+        harnessPreferredSignals.forEach(({ key, value }) => { if (key.trim()) preferredSignals[key.trim()] = value; });
+        const built: any = { emotionModel, toolPolicy: {
+          updateNpcEmotion: { maxCallsPerTurn: parseInt(harnessMaxCallsPerTurn) || 2, maxDeltaPerCall: parseInt(harnessMaxDeltaPerCall) || 30 },
+          triggerIncident: { allowedTypes: harnessAllowedTypes, cooldownOverride: { globalCooldownSec: parseInt(harnessGlobalCooldownSec) || 60, perTypeCooldownSec: parseInt(harnessPerTypeCooldownSec) || 120 } },
+          updateScenarioState: { enabled: harnessStateUpdatesEnabled },
+        }};
+        if (Object.keys(preferredSignals).length > 0) built.preferredSignals = preferredSignals;
+        const result = simulationHarnessSchema.safeParse(built);
+        if (!result.success) {
+          const msg = result.error.errors[0]?.message ?? '스키마 검증 실패';
+          toast({ title: '시뮬레이션 정책 구조 오류', description: msg, variant: 'destructive' });
+          return null;
+        }
+        parsedHarness = result.data;
+      }
+    }
+
+    return { ...formData, flowGraph: parsedFlowGraph, personaSwitchRules: parsedPSR, evaluationHarness: parsedEH, terminationRules: parsedTR, simulationHarness: parsedHarness };
   };
 
   const handleSaveAndGoToPersona = () => {
@@ -2394,6 +2494,178 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
                     )}
                   </div>
                 </div>
+              </div>
+
+              {/* Simulation Policy: simulationHarness structured editor */}
+              <div className="border border-slate-200 rounded-lg p-4 bg-white space-y-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h3 className="font-semibold text-slate-800 text-sm mb-0.5">시뮬레이션 정책 (선택사항)</h3>
+                    <p className="text-xs text-slate-500">시나리오별 감정 모델, 도구 호출 상한, 허용 이벤트를 설정합니다. 비활성화하면 전역 기본값이 적용됩니다.</p>
+                  </div>
+                  <div className="flex items-center gap-2 ml-4 shrink-0">
+                    <label className="text-xs text-slate-600 font-medium">사용</label>
+                    <input type="checkbox" checked={harnessEnabled} onChange={e => setHarnessEnabled(e.target.checked)} className="h-4 w-4 accent-blue-600" />
+                  </div>
+                </div>
+
+                {harnessEnabled && (
+                  <div className="space-y-4">
+                    {/* Emotion Model */}
+                    <div>
+                      <Label className="text-xs font-semibold text-slate-700 mb-1 block">감정 모델 (쉼표로 구분)</Label>
+                      <Input
+                        value={harnessEmotionModel}
+                        onChange={e => setHarnessEmotionModel(e.target.value)}
+                        placeholder="anger,trust,confusion,interest"
+                        className="text-xs h-8"
+                      />
+                      <p className="text-xs text-slate-400 mt-0.5">AI가 조절할 감정 축 목록 (기본: anger, trust, confusion, interest)</p>
+                    </div>
+
+                    {/* Emotion Tool Limits */}
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <Label className="text-xs font-semibold text-slate-700 mb-1 block">턴당 감정 업데이트 횟수 (최대)</Label>
+                        <Input
+                          type="number"
+                          min={1} max={10}
+                          value={harnessMaxCallsPerTurn}
+                          onChange={e => setHarnessMaxCallsPerTurn(e.target.value)}
+                          className="text-xs h-8"
+                        />
+                      </div>
+                      <div>
+                        <Label className="text-xs font-semibold text-slate-700 mb-1 block">호출당 감정 변화량 상한 (1–100)</Label>
+                        <Input
+                          type="number"
+                          min={1} max={100}
+                          value={harnessMaxDeltaPerCall}
+                          onChange={e => setHarnessMaxDeltaPerCall(e.target.value)}
+                          className="text-xs h-8"
+                        />
+                      </div>
+                    </div>
+
+                    {/* Allowed Incident Types */}
+                    <div>
+                      <Label className="text-xs font-semibold text-slate-700 mb-1 block">허용 이벤트 유형</Label>
+                      <div className="grid grid-cols-2 gap-y-1 gap-x-3">
+                        {HARNESS_ALL_INCIDENT_TYPES.map(type => (
+                          <label key={type} className="flex items-center gap-1.5 text-xs text-slate-600 cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={harnessAllowedTypes.includes(type)}
+                              onChange={e => {
+                                if (e.target.checked) {
+                                  setHarnessAllowedTypes(prev => [...prev, type]);
+                                } else {
+                                  setHarnessAllowedTypes(prev => prev.filter(t => t !== type));
+                                }
+                              }}
+                              className="h-3.5 w-3.5 accent-blue-600"
+                            />
+                            {type}
+                          </label>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Cooldowns */}
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <Label className="text-xs font-semibold text-slate-700 mb-1 block">전역 이벤트 쿨다운 (초)</Label>
+                        <Input
+                          type="number" min={0}
+                          value={harnessGlobalCooldownSec}
+                          onChange={e => setHarnessGlobalCooldownSec(e.target.value)}
+                          className="text-xs h-8"
+                        />
+                      </div>
+                      <div>
+                        <Label className="text-xs font-semibold text-slate-700 mb-1 block">동일 유형 이벤트 쿨다운 (초)</Label>
+                        <Input
+                          type="number" min={0}
+                          value={harnessPerTypeCooldownSec}
+                          onChange={e => setHarnessPerTypeCooldownSec(e.target.value)}
+                          className="text-xs h-8"
+                        />
+                      </div>
+                    </div>
+
+                    {/* State Updates Enabled */}
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="checkbox"
+                        checked={harnessStateUpdatesEnabled}
+                        onChange={e => setHarnessStateUpdatesEnabled(e.target.checked)}
+                        className="h-4 w-4 accent-blue-600"
+                      />
+                      <Label className="text-xs font-semibold text-slate-700 cursor-pointer">시나리오 상태 업데이트 허용 (update_scenario_state)</Label>
+                    </div>
+
+                    {/* Preferred Signals */}
+                    <div>
+                      <Label className="text-xs font-semibold text-slate-700 mb-1 block">선호 신호 (preferredSignals, 선택사항)</Label>
+                      {harnessPreferredSignals.map((sig, idx) => (
+                        <div key={idx} className="flex gap-2 mb-1">
+                          <Input
+                            placeholder="감정 축 (예: anger)"
+                            value={sig.key}
+                            onChange={e => setHarnessPreferredSignals(prev => prev.map((s, i) => i === idx ? { ...s, key: e.target.value } : s))}
+                            className="text-xs h-7 flex-1"
+                          />
+                          <Input
+                            placeholder="신호 설명"
+                            value={sig.value}
+                            onChange={e => setHarnessPreferredSignals(prev => prev.map((s, i) => i === idx ? { ...s, value: e.target.value } : s))}
+                            className="text-xs h-7 flex-1"
+                          />
+                          <button type="button" onClick={() => setHarnessPreferredSignals(prev => prev.filter((_, i) => i !== idx))} className="text-slate-400 hover:text-red-500 text-xs px-1">✕</button>
+                        </div>
+                      ))}
+                      <button
+                        type="button"
+                        onClick={() => setHarnessPreferredSignals(prev => [...prev, { key: '', value: '' }])}
+                        className="text-xs text-blue-600 hover:text-blue-800 mt-1"
+                      >+ 신호 추가</button>
+                    </div>
+
+                    {/* Raw JSON fallback toggle */}
+                    <div className="pt-2 border-t border-slate-100">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (!harnessShowRaw) {
+                            const emotionModel = harnessEmotionModel.split(',').map(s => s.trim()).filter(Boolean);
+                            const preferredSignals: Record<string, string> = {};
+                            harnessPreferredSignals.forEach(({ key, value }) => { if (key.trim()) preferredSignals[key.trim()] = value; });
+                            const built: any = { emotionModel, toolPolicy: {
+                              updateNpcEmotion: { maxCallsPerTurn: parseInt(harnessMaxCallsPerTurn) || 2, maxDeltaPerCall: parseInt(harnessMaxDeltaPerCall) || 30 },
+                              triggerIncident: { allowedTypes: harnessAllowedTypes, cooldownOverride: { globalCooldownSec: parseInt(harnessGlobalCooldownSec) || 60, perTypeCooldownSec: parseInt(harnessPerTypeCooldownSec) || 120 } },
+                              updateScenarioState: { enabled: harnessStateUpdatesEnabled },
+                            }};
+                            if (Object.keys(preferredSignals).length > 0) built.preferredSignals = preferredSignals;
+                            setHarnessRawJson(JSON.stringify(built, null, 2));
+                          }
+                          setHarnessShowRaw(v => !v);
+                        }}
+                        className="text-xs text-slate-500 hover:text-slate-700 underline"
+                      >{harnessShowRaw ? '← 구조화 편집기로 돌아가기' : '고급: JSON 직접 편집'}</button>
+                      {harnessShowRaw && (
+                        <div className="mt-2">
+                          <Textarea
+                            value={harnessRawJson}
+                            onChange={e => { setHarnessRawJson(e.target.value); setHarnessRawJsonError(''); }}
+                            rows={8}
+                            className={`bg-white font-mono text-xs ${harnessRawJsonError ? 'border-red-400' : ''}`}
+                          />
+                          {harnessRawJsonError && <p className="text-xs text-red-500 mt-1">{harnessRawJsonError}</p>}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* State Machine: flowGraph & personaSwitchRules JSON editors */}

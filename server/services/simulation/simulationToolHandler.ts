@@ -14,12 +14,14 @@ import {
   recordIncidentCooldown,
 } from './simulationEngine';
 import { renderIncidentMessage } from './incidentTemplates';
+import type { SimulationHarness } from '@shared/schema/scenarios';
+import { DEFAULT_SIMULATION_HARNESS, resolveHarness } from './simulationHarness';
 
 const UpdateNpcEmotionArgsSchema = z.object({
-  angerDelta: z.number().min(-30).max(30).optional(),
-  trustDelta: z.number().min(-30).max(30).optional(),
-  confusionDelta: z.number().min(-30).max(30).optional(),
-  interestDelta: z.number().min(-30).max(30).optional(),
+  angerDelta: z.number().optional(),
+  trustDelta: z.number().optional(),
+  confusionDelta: z.number().optional(),
+  interestDelta: z.number().optional(),
   reason: z.string(),
 });
 
@@ -31,11 +33,7 @@ const UpdateScenarioStateArgsSchema = z.object({
 });
 
 const TriggerIncidentArgsSchema = z.object({
-  type: z.enum([
-    'executive_join', 'customer_escalation', 'deadline_pressure',
-    'new_evidence', 'competitor_offer', 'policy_constraint',
-    'quality_issue', 'manager_interrupt', 'budget_cut', 'compliance_warning',
-  ]),
+  type: z.string(),
   severity: z.enum(['low', 'medium', 'high']),
   reason: z.string(),
 });
@@ -70,6 +68,7 @@ interface ToolCallContext {
   scenarioContext?: string;
   currentPersonaIndex?: number;
   scenarioPersonas?: Array<{ id: string; name: string; [key: string]: any }>;
+  harness?: SimulationHarness | null;
 }
 
 const SwitchPersonaArgsSchema = z.object({
@@ -131,25 +130,38 @@ function handleSwitchPersona(rawArgs: unknown, ctx: ToolCallContext): ToolHandle
   };
 }
 
+function clampDelta(value: number | undefined, maxAbs: number): number | undefined {
+  if (value === undefined) return undefined;
+  return Math.max(-maxAbs, Math.min(maxAbs, value));
+}
+
 function handleUpdateNpcEmotion(rawArgs: unknown, ctx: ToolCallContext): ToolHandlerResult {
   const parsed = UpdateNpcEmotionArgsSchema.safeParse(rawArgs);
   if (!parsed.success) {
     return { success: false, error: `Invalid args: ${parsed.error.message}` };
   }
 
-  if (ctx.emotionCallCountThisTurn >= 2) {
-    return { success: false, error: 'Maximum 2 emotion updates per turn' };
+  const h = resolveHarness({ simulationHarness: ctx.harness });
+  const maxCalls = h.toolPolicy.updateNpcEmotion.maxCallsPerTurn;
+  const maxDelta = h.toolPolicy.updateNpcEmotion.maxDeltaPerCall;
+
+  if (ctx.emotionCallCountThisTurn >= maxCalls) {
+    return { success: false, error: `Maximum ${maxCalls} emotion updates per turn` };
   }
 
   const args = parsed.data;
   const patch: SimulationStatePatch = {
     npcEmotionDelta: {
-      ...(args.angerDelta !== undefined ? { anger: args.angerDelta } : {}),
-      ...(args.trustDelta !== undefined ? { trust: args.trustDelta } : {}),
-      ...(args.confusionDelta !== undefined ? { confusion: args.confusionDelta } : {}),
-      ...(args.interestDelta !== undefined ? { interest: args.interestDelta } : {}),
+      ...(args.angerDelta !== undefined ? { anger: clampDelta(args.angerDelta, maxDelta)! } : {}),
+      ...(args.trustDelta !== undefined ? { trust: clampDelta(args.trustDelta, maxDelta)! } : {}),
+      ...(args.confusionDelta !== undefined ? { confusion: clampDelta(args.confusionDelta, maxDelta)! } : {}),
+      ...(args.interestDelta !== undefined ? { interest: clampDelta(args.interestDelta, maxDelta)! } : {}),
     },
   };
+
+  if (args.angerDelta !== undefined && Math.abs(args.angerDelta) > maxDelta) {
+    console.log(`[simulationToolHandler] angerDelta clamped: ${args.angerDelta} → ${clampDelta(args.angerDelta, maxDelta)} (maxDelta=${maxDelta})`);
+  }
 
   const newState = applySimulationPatch(ctx.personaRunId, {
     source: 'gemini_tool',
@@ -170,6 +182,11 @@ function handleUpdateScenarioState(rawArgs: unknown, ctx: ToolCallContext): Tool
   const parsed = UpdateScenarioStateArgsSchema.safeParse(rawArgs);
   if (!parsed.success) {
     return { success: false, error: `Invalid args: ${parsed.error.message}` };
+  }
+
+  const h = resolveHarness({ simulationHarness: ctx.harness });
+  if (h.toolPolicy.updateScenarioState.enabled === false) {
+    return { success: false, error: 'update_scenario_state is disabled for this scenario' };
   }
 
   const args = parsed.data;
@@ -205,12 +222,22 @@ function handleTriggerIncident(rawArgs: unknown, ctx: ToolCallContext): ToolHand
   }
 
   const args = parsed.data;
+  const h = resolveHarness({ simulationHarness: ctx.harness });
+  const allowedTypes = h.toolPolicy.triggerIncident.allowedTypes;
+
+  if (!allowedTypes.includes(args.type)) {
+    return { success: false, error: `Incident type '${args.type}' is not allowed for this scenario. Allowed: ${allowedTypes.join(', ')}` };
+  }
+
+  const globalCooldownMs = (h.toolPolicy.triggerIncident.cooldownOverride.globalCooldownSec ?? 60) * 1000;
+  const perTypeCooldownMs = (h.toolPolicy.triggerIncident.cooldownOverride.perTypeCooldownSec ?? 120) * 1000;
+
   const cooldown = checkIncidentCooldown(ctx.personaRunId, args.type);
   if (!cooldown.allowed) {
     return { success: false, error: cooldown.reason };
   }
 
-  recordIncidentCooldown(ctx.personaRunId, args.type);
+  recordIncidentCooldown(ctx.personaRunId, args.type, Date.now(), globalCooldownMs, perTypeCooldownMs);
 
   const message = renderIncidentMessage(
     args.type as IncidentType,
