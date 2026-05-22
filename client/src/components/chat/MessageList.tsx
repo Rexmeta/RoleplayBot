@@ -70,6 +70,22 @@ export function MessageList({
   // Per-message persona label — delegate to the pure helper so the logic is testable
   const messagePersonaLabels = computeMessagePersonaLabels(messages, personaSwitchEvents, personaName);
 
+  // Determine the active persona for the pending AI typing/speaking bubbles.
+  // After a persona switch the bubble must show the new persona's avatar, not the
+  // initial one.  The last entry in sortedSwitchEvents is the most-recently-active
+  // persona; if no switch has happened we fall back to the original props.
+  const latestSwitch = sortedSwitchEvents.length > 0 ? sortedSwitchEvents[sortedSwitchEvents.length - 1] : null;
+  const activePendingPersona = latestSwitch
+    ? scenarioPersonas?.find(p => p.name === latestSwitch.newPersonaName)
+    : undefined;
+  const pendingAvatarName = activePendingPersona?.name ?? personaName;
+  const pendingAvatarSrcNeutral = activePendingPersona?.image
+    ? toMediaUrl(activePendingPersona.image)
+    : (getCharacterImage('중립') || toMediaUrl(personaImage || ''));
+  const pendingAvatarSrc = activePendingPersona?.image
+    ? toMediaUrl(activePendingPersona.image)
+    : (getCharacterImage(currentEmotion) || toMediaUrl(personaImage || ''));
+
   return (
     <div ref={containerRef} className="flex-1 min-h-0 overflow-y-auto p-3 sm:p-6 space-y-5 bg-gradient-to-b from-slate-50 to-white scroll-smooth" data-testid="chat-messages">
       {items.map((item, itemIndex) => {
@@ -218,7 +234,7 @@ export function MessageList({
       {isLoading && (
         <div className="flex items-start space-x-3">
           <div className="w-14 h-14 rounded-xl ring-2 ring-white shadow-lg overflow-hidden bg-slate-100 flex-shrink-0">
-            <img src={getCharacterImage('중립') || toMediaUrl(personaImage || '')} alt={personaName} className="w-full h-full object-cover object-top scale-110" />
+            <img src={pendingAvatarSrcNeutral} alt={pendingAvatarName} className="w-full h-full object-cover object-top scale-110" />
           </div>
           <div className="bg-white rounded-2xl rounded-bl-md px-4 py-3 shadow-md border border-slate-100 mt-1">
             <div className="flex space-x-1.5">
@@ -233,7 +249,7 @@ export function MessageList({
       {pendingAiMessage && (
         <div className="flex items-end space-x-3 animate-in fade-in duration-300">
           <div className="w-10 h-10 rounded-xl ring-2 ring-white shadow-lg overflow-hidden bg-slate-100 flex-shrink-0">
-            <img src={getCharacterImage(currentEmotion) || toMediaUrl(personaImage || '')} alt={personaName} className="w-full h-full object-cover object-top scale-110" />
+            <img src={pendingAvatarSrc} alt={pendingAvatarName} className="w-full h-full object-cover object-top scale-110" />
           </div>
           <div className="flex flex-col max-w-[75%]">
             <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-2xl rounded-bl-md px-4 py-3 shadow-md border border-blue-100 mt-1">
