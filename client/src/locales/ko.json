@@ -1238,7 +1238,8 @@
       "categories": "카테고리 관리",
       "languages": "언어 관리",
       "settings": "시스템 설정",
-      "aiUsage": "AI 사용량"
+      "aiUsage": "AI 사용량",
+      "agentApi": "Agent API"
     },
     "users": {
       "title": "사용자 관리",

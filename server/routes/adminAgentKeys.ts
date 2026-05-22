@@ -12,7 +12,7 @@ import {
   auditLogs,
   AGENT_API_SCOPES,
 } from "@shared/schema";
-import { eq, and, desc, sql, gte, lt } from "drizzle-orm";
+import { eq, and, desc, sql, or, gte, lt } from "drizzle-orm";
 import { isSystemAdmin, isOperatorOrAdmin } from "../middleware/authMiddleware";
 import { asyncHandler, createHttpError } from "./routerHelpers";
 import { generateAgentApiKey, computeExpiryDate } from "../utils/agentApiKey";
@@ -45,10 +45,23 @@ router.get(
   "/",
   isOperatorOrAdmin,
   asyncHandler(async (req: any, res) => {
-    const rows = await db
-      .select()
-      .from(agentApiKeys)
-      .orderBy(desc(agentApiKeys.createdAt));
+    const isAdmin = req.user.role === "admin";
+    const currentMonth = new Date().toISOString().slice(0, 7); // "YYYY-MM"
+
+    // Build visibility filter for operators:
+    // operators see keys they created OR keys belonging to their assigned organization
+    let whereClause: any = undefined;
+    if (!isAdmin) {
+      const conditions = [eq(agentApiKeys.ownerUserId, req.user.id)];
+      if (req.user.assignedOrganizationId) {
+        conditions.push(eq(agentApiKeys.organizationId, req.user.assignedOrganizationId));
+      }
+      whereClause = conditions.length === 1 ? conditions[0] : or(...conditions);
+    }
+
+    const rows = whereClause
+      ? await db.select().from(agentApiKeys).where(whereClause).orderBy(desc(agentApiKeys.createdAt))
+      : await db.select().from(agentApiKeys).orderBy(desc(agentApiKeys.createdAt));
 
     // Aggregate this month's requestCount per key from agent_usage_daily
     const now = new Date();

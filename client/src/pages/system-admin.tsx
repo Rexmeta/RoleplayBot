@@ -34,9 +34,10 @@ import {
 import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { Search, Users, Shield, UserCog, Loader2, User, KeyRound, Eye, EyeOff, FolderTree, Plus, Pencil, Trash2, GripVertical, Settings, Save, CheckCircle, XCircle, ExternalLink, Activity, DollarSign, Zap, TrendingUp, Calendar, RefreshCw, Languages, Building2, HardDrive, CloudDownload, AlertCircle } from "lucide-react";
+import { Search, Users, Shield, UserCog, Loader2, User, KeyRound, Eye, EyeOff, FolderTree, Plus, Pencil, Trash2, GripVertical, Settings, Save, CheckCircle, XCircle, ExternalLink, Activity, DollarSign, Zap, TrendingUp, Calendar, RefreshCw, Languages, Building2, HardDrive, CloudDownload, AlertCircle, Key } from "lucide-react";
 import { LanguageManager } from "@/components/LanguageManager";
 import { HierarchyTreeManager } from "@/components/HierarchyTreeManager";
+import { AgentKeyManager } from "@/components/admin/AgentKeyManager";
 import { format } from "date-fns";
 import { ko } from "date-fns/locale";
 
@@ -996,6 +997,10 @@ export default function SystemAdminPage() {
               <HardDrive className="h-4 w-4" />
               {t('systemAdmin.tabs.storageSync', 'Storage Sync')}
             </TabsTrigger>
+            <TabsTrigger value="agent-api" className="flex items-center gap-2" data-testid="tab-agent-api">
+              <Key className="h-4 w-4" />
+              {t('systemAdmin.tabs.agentApi', 'Agent API')}
+            </TabsTrigger>
           </TabsList>
 
           <TabsContent value="users" className="space-y-6 mt-6">
@@ -1844,6 +1849,10 @@ export default function SystemAdminPage() {
 
           <TabsContent value="storage-sync" className="space-y-6 mt-6">
             <StorageSyncPanel />
+          </TabsContent>
+
+          <TabsContent value="agent-api" className="space-y-6 mt-6">
+            <AgentKeyManager />
           </TabsContent>
         </Tabs>
       </div>

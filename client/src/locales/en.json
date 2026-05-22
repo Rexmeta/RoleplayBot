@@ -1215,7 +1215,8 @@
       "categories": "Category Management",
       "languages": "Language Management",
       "settings": "System Settings",
-      "aiUsage": "AI Usage"
+      "aiUsage": "AI Usage",
+      "agentApi": "Agent API"
     },
     "users": {
       "title": "User Management",
