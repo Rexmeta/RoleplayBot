@@ -206,6 +206,14 @@ export const agentSimulationStateSchema = z.object({
 });
 export type AgentSimulationState = z.infer<typeof agentSimulationStateSchema>;
 
+export const agentUsageSchema = z.object({
+  requestCount: z.number(),
+  messageCount: z.number(),
+  inputTokens: z.number(),
+  outputTokens: z.number(),
+});
+export type AgentUsage = z.infer<typeof agentUsageSchema>;
+
 export const agentMessageResponseSchema = z.object({
   id: z.string(),
   sessionId: z.string(),
@@ -217,7 +225,7 @@ export const agentMessageResponseSchema = z.object({
   }),
   simulationState: agentSimulationStateSchema.nullable(),
   turnScore: agentTurnScoreSchema.nullable(),
-  usage: z.null(),
+  usage: agentUsageSchema.nullable(),
   requestId: z.string(),
 });
 export type AgentMessageResponse = z.infer<typeof agentMessageResponseSchema>;

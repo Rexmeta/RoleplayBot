@@ -8,10 +8,11 @@ import { db } from "../storage";
 import {
   agentApiKeys,
   agentKeyScenarios,
+  agentUsageDaily,
   auditLogs,
   AGENT_API_SCOPES,
 } from "@shared/schema";
-import { eq, and, desc, sql } from "drizzle-orm";
+import { eq, and, desc, sql, gte, lt } from "drizzle-orm";
 import { isSystemAdmin, isOperatorOrAdmin } from "../middleware/authMiddleware";
 import { asyncHandler, createHttpError } from "./routerHelpers";
 import { generateAgentApiKey, computeExpiryDate } from "../utils/agentApiKey";
@@ -49,6 +50,24 @@ router.get(
       .from(agentApiKeys)
       .orderBy(desc(agentApiKeys.createdAt));
 
+    // Aggregate this month's requestCount per key from agent_usage_daily
+    const now = new Date();
+    const monthStart = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-01`;
+    const nextMonthStart = now.getMonth() === 11
+      ? `${now.getFullYear() + 1}-01-01`
+      : `${now.getFullYear()}-${String(now.getMonth() + 2).padStart(2, "0")}-01`;
+
+    const usageRows = await db
+      .select({
+        agentKeyId: agentUsageDaily.agentKeyId,
+        monthlyRequests: sql<number>`COALESCE(SUM(${agentUsageDaily.requestCount}), 0)::int`,
+      })
+      .from(agentUsageDaily)
+      .where(and(gte(agentUsageDaily.date, monthStart), lt(agentUsageDaily.date, nextMonthStart)))
+      .groupBy(agentUsageDaily.agentKeyId);
+
+    const usageByKeyId = new Map(usageRows.map((r) => [r.agentKeyId, r.monthlyRequests]));
+
     const result = rows.map((k: any) => ({
       id: k.id,
       name: k.name,
@@ -64,6 +83,7 @@ router.get(
       revokedAt: k.revokedAt,
       revocationReason: k.revocationReason,
       createdAt: k.createdAt,
+      monthlyRequestCount: usageByKeyId.get(k.id) ?? 0,
     }));
 
     res.json(result);

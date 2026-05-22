@@ -2,8 +2,8 @@
  * Agent API Routes – Enterprise B2B REST API
  * All routes require Bearer <api_key> authentication via isAgentApiKey middleware.
  *
- * Rate limiting uses express-rate-limit with an in-memory store.
- * TODO: Replace with Redis store for multi-instance deployment (Upstash etc.)
+ * Rate limiting uses express-rate-limit with Redis store when REDIS_URL is set,
+ * falling back to an in-memory store for single-instance / dev environments.
  */
 
 import { Router } from "express";
@@ -18,7 +18,7 @@ import {
   agentUsageDaily,
   auditLogs,
 } from "@shared/schema";
-import { eq, and, lt, sql } from "drizzle-orm";
+import { eq, and, lt, sql, gte } from "drizzle-orm";
 import {
   isAgentApiKey,
   requireScope,
@@ -104,6 +104,35 @@ async function incrementUsageDaily(
   }
 }
 
+// Estimate token count from text length (~4 chars per token)
+function estimateTokens(text: string): number {
+  return Math.max(1, Math.ceil(text.length / 4));
+}
+
+// Query today's aggregated usage for an API key
+async function getUsageTodayForKey(agentKeyId: string): Promise<{
+  requestCount: number;
+  inputTokens: number;
+  outputTokens: number;
+}> {
+  try {
+    const date = new Date().toISOString().slice(0, 10);
+    const rows = await db
+      .select()
+      .from(agentUsageDaily)
+      .where(and(eq(agentUsageDaily.agentKeyId, agentKeyId), eq(agentUsageDaily.date, date)))
+      .limit(1);
+    if (rows.length === 0) return { requestCount: 0, inputTokens: 0, outputTokens: 0 };
+    return {
+      requestCount: rows[0].requestCount,
+      inputTokens: rows[0].inputTokens,
+      outputTokens: rows[0].outputTokens,
+    };
+  } catch {
+    return { requestCount: 0, inputTokens: 0, outputTokens: 0 };
+  }
+}
+
 // Check if an idempotency key exists and handle it
 async function handleIdempotency(
   res: any,
@@ -156,25 +185,58 @@ async function saveIdempotency(
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Rate Limiter (per key ID)
-// TODO: Replace with Redis store for multi-instance deployment
+// Uses Redis store when REDIS_URL is set; falls back to in-memory store.
 // ─────────────────────────────────────────────────────────────────────────────
-const agentRateLimiter = rateLimit({
-  windowMs: 60 * 1000,
-  max: (req) => {
-    const key = (req as any).agentKey;
-    return key?.rateLimitPerMinute ?? 60;
-  },
-  keyGenerator: (req) => {
-    const key = (req as any).agentKey;
-    return key?.id ?? "anonymous";
-  },
-  standardHeaders: true,
-  legacyHeaders: false,
-  handler: (_req, res) => {
-    agentError(res, 429, "rate_limit_exceeded", "Rate limit exceeded. See X-RateLimit-* headers for limits.");
-  },
-  skip: (req) => !(req as any).agentKey,
-});
+async function createRateLimitStore() {
+  if (!process.env.REDIS_URL) return undefined; // use default memory store
+  try {
+    const { default: Redis } = await import("ioredis");
+    const { RedisStore } = await import("rate-limit-redis");
+    const client = new Redis(process.env.REDIS_URL, { lazyConnect: true, enableOfflineQueue: false });
+    await client.connect().catch(() => {
+      console.warn("[agentApi] Redis connection failed, falling back to memory rate-limit store.");
+    });
+    if (client.status !== "ready") return undefined;
+    console.log("[agentApi] Using Redis rate-limit store.");
+    return new RedisStore({ sendCommand: (...args: string[]) => client.call(...args) as any });
+  } catch (err) {
+    console.warn("[agentApi] Redis store init error, falling back to memory store:", err);
+    return undefined;
+  }
+}
+
+const rateLimitStorePromise = createRateLimitStore();
+
+function buildRateLimiter(store: any) {
+  return rateLimit({
+    windowMs: 60 * 1000,
+    max: (req) => {
+      const key = (req as any).agentKey;
+      return key?.rateLimitPerMinute ?? 60;
+    },
+    keyGenerator: (req) => {
+      const key = (req as any).agentKey;
+      return key?.id ?? "anonymous";
+    },
+    store,
+    standardHeaders: true,
+    legacyHeaders: false,
+    handler: (_req, res) => {
+      agentError(res, 429, "rate_limit_exceeded", "Rate limit exceeded. See X-RateLimit-* headers for limits.");
+    },
+    skip: (req) => !(req as any).agentKey,
+  });
+}
+
+// Middleware wrapper: resolves the store promise once, then delegates to the real limiter
+let _rateLimiter: ReturnType<typeof rateLimit> | null = null;
+const agentRateLimiter: import("express").RequestHandler = async (req, res, next) => {
+  if (!_rateLimiter) {
+    const store = await rateLimitStorePromise;
+    _rateLimiter = buildRateLimiter(store);
+  }
+  return _rateLimiter(req, res, next);
+};
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Apply shared middleware to all agent routes
@@ -470,8 +532,13 @@ router.get("/sessions/:id", requireScope("sessions:read"), async (req: any, res)
 
     await autoExpireSession(session);
     const freshSession = await db.select().from(agentSessions).where(eq(agentSessions.id, sessionId)).limit(1).then((r: any[]) => r[0]);
+    const usedSession = freshSession ?? session;
 
-    res.json(buildSessionResponse(freshSession ?? session, requestId));
+    // Return session-scoped cumulative usage (stored in metadata.sessionUsage per message)
+    const sessionMeta = (usedSession.metadata as Record<string, any>) ?? {};
+    const sessionUsage = (sessionMeta.sessionUsage as { requestCount: number; inputTokens: number; outputTokens: number }) ?? null;
+
+    res.json(buildSessionResponse(usedSession, requestId, sessionUsage ?? undefined));
   } catch (err) {
     console.error("[agentApi] GET /sessions/:id error:", err);
     agentError(res, 500, "internal_error", "Failed to fetch session.");
@@ -598,10 +665,32 @@ router.post("/sessions/:id/messages", requireScope("sessions:message"), async (r
 
     const latencyMs = Date.now() - startTime;
 
-    // Update session lastActivityAt
+    // Prefer real provider token counts; fall back to length-based estimation
+    const inputTokensEst =
+      (aiResult as any).usageMetadata?.promptTokenCount ??
+      (aiResult as any).promptTokenCount ??
+      estimateTokens(message);
+    const outputTokensEst =
+      (aiResult as any).usageMetadata?.candidatesTokenCount ??
+      (aiResult as any).completionTokenCount ??
+      estimateTokens(aiResult.content);
+
+    // Accumulate session-level usage in metadata so GET /sessions/:id can return it
+    const prevMeta = (session.metadata as Record<string, any>) ?? {};
+    const prevSessionUsage = (prevMeta.sessionUsage as { requestCount: number; inputTokens: number; outputTokens: number }) ?? { requestCount: 0, inputTokens: 0, outputTokens: 0 };
+    const updatedSessionUsage = {
+      requestCount: prevSessionUsage.requestCount + 1,
+      inputTokens: prevSessionUsage.inputTokens + inputTokensEst,
+      outputTokens: prevSessionUsage.outputTokens + outputTokensEst,
+    };
+
+    // Update session lastActivityAt + persist session-scoped usage counters
     await db
       .update(agentSessions)
-      .set({ lastActivityAt: new Date() })
+      .set({
+        lastActivityAt: new Date(),
+        metadata: { ...prevMeta, sessionUsage: updatedSessionUsage },
+      })
       .where(eq(agentSessions.id, sessionId))
       .catch(() => {});
 
@@ -686,6 +775,17 @@ router.post("/sessions/:id/messages", requireScope("sessions:message"), async (r
     }
     // ─────────────────────────────────────────────────────────────────────────
 
+    // Increment key-level daily usage (best-effort, for admin dashboard aggregates)
+    await incrementUsageDaily(orgId, agentKey.id, {
+      inputTokens: inputTokensEst,
+      outputTokens: outputTokensEst,
+      latencyMs,
+    }).catch(() => {});
+
+    // messageCount = total user+AI messages in this session (session-scoped, not per-key)
+    // Each turn produces 1 user message + 1 AI message; requestCount == number of turns
+    const messageCount = updatedSessionUsage.requestCount * 2;
+
     const responseBody = {
       id: `msg_${randomUUID().replace(/-/g, "").slice(0, 16)}`,
       sessionId,
@@ -697,16 +797,18 @@ router.post("/sessions/:id/messages", requireScope("sessions:message"), async (r
       },
       simulationState,
       turnScore,
-      usage: null,
+      usage: {
+        requestCount: updatedSessionUsage.requestCount,
+        messageCount,
+        inputTokens: updatedSessionUsage.inputTokens,
+        outputTokens: updatedSessionUsage.outputTokens,
+      },
       requestId,
     };
 
     if (idempotencyKeyHeader) {
       await saveIdempotency(idempotencyKeyHeader, agentKey.id, bodyHash, 200, responseBody);
     }
-
-    // Best-effort async usage tracking
-    incrementUsageDaily(orgId, agentKey.id, { latencyMs }).catch(() => {});
 
     res.json(responseBody);
   } catch (err) {
@@ -907,7 +1009,11 @@ async function autoExpireSession(session: any): Promise<void> {
   }
 }
 
-function buildSessionResponse(session: any, requestId: string): any {
+function buildSessionResponse(
+  session: any,
+  requestId: string,
+  usage?: { requestCount: number; inputTokens: number; outputTokens: number }
+): any {
   return {
     sessionId: session.id,
     status: session.status,
@@ -919,6 +1025,9 @@ function buildSessionResponse(session: any, requestId: string): any {
     difficulty: session.difficulty,
     createdAt: session.createdAt?.toISOString?.() ?? session.createdAt,
     expiresAt: session.expiresAt?.toISOString?.() ?? session.expiresAt,
+    usage: usage
+      ? { requestCount: usage.requestCount, inputTokens: usage.inputTokens, outputTokens: usage.outputTokens }
+      : null,
     requestId,
   };
 }
