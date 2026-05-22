@@ -43,6 +43,7 @@ import {
   XCircle,
   List,
   BarChart2,
+  ExternalLink,
 } from "lucide-react";
 import {
   BarChart,
@@ -250,6 +251,13 @@ export function AgentKeyManager() {
     toast({ title: t("agentKeys.toast.copied", "클립보드에 복사되었습니다") });
   };
 
+  const openInApiExplorer = (apiKey?: string) => {
+    if (apiKey) {
+      localStorage.setItem("agentApiKeyPrefill", apiKey);
+    }
+    window.open("/api/v1/agent/docs", "_blank", "noopener,noreferrer");
+  };
+
   const formatDate = (dateStr: string | null) => {
     if (!dateStr) return "-";
     return format(new Date(dateStr), "yyyy-MM-dd");
@@ -379,6 +387,14 @@ export function AgentKeyManager() {
                             </Button>
                             {!isRevoked && (
                               <>
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => openInApiExplorer()}
+                                  title={t("agentKeys.action.openInExplorer", "API Explorer에서 열기")}
+                                >
+                                  <ExternalLink className="h-3.5 w-3.5" />
+                                </Button>
                                 <Button
                                   size="sm"
                                   variant="outline"
@@ -608,6 +624,13 @@ export function AgentKeyManager() {
           </div>
 
           <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => revealedKey && openInApiExplorer(revealedKey.apiKey)}
+            >
+              <ExternalLink className="h-4 w-4 mr-2" />
+              {t("agentKeys.dialog.reveal.openInExplorer", "API Explorer에서 테스트")}
+            </Button>
             <Button onClick={() => setRevealedKey(null)}>
               {t("agentKeys.dialog.reveal.confirm", "확인했습니다")}
             </Button>

@@ -148,6 +148,29 @@ export async function registerRoutes(app: Express, httpServer: Server): Promise<
       defaultModelsExpandDepth: 2,
       defaultModelExpandDepth: 3,
     },
+    customJsStr: `
+(function () {
+  var STORAGE_KEY = 'agentApiKeyPrefill';
+  var apiKey = localStorage.getItem(STORAGE_KEY);
+  if (!apiKey) return;
+  localStorage.removeItem(STORAGE_KEY);
+  var attempts = 0;
+  var interval = setInterval(function () {
+    attempts++;
+    if (attempts > 200) { clearInterval(interval); return; }
+    if (window.ui && window.ui.authActions && typeof window.ui.authActions.authorize === 'function') {
+      clearInterval(interval);
+      window.ui.authActions.authorize({
+        BearerAuth: {
+          name: 'BearerAuth',
+          schema: { type: 'http', in: 'header', scheme: 'bearer', bearerFormat: 'API Key' },
+          value: apiKey
+        }
+      });
+    }
+  }, 100);
+})();
+`,
   }));
   // Agent API key-authenticated routes (no JWT required — uses Bearer api_key)
   app.use('/api/v1/agent', agentApiRouter);
