@@ -185,8 +185,12 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
     setPersonaSwitchEvents(prev => [...prev, eventEntry]);
     // Clear the "switch pending" badge now that the actual switch has happened
     setPersonaSwitchAnnounced(false);
-    // Update active persona so header/portrait displays the new character
-    const switchedTo = scenario.personas?.[info.toIndex] as ScenarioPersona | undefined;
+    // Update active persona so header/portrait displays the new character.
+    // Prefer name-based lookup (mirrors MessageList's scenarioPersonas.find(p => p.name === ...) logic)
+    // so the correct avatar is shown even if toIndex and newPersonaName diverge.
+    const switchedTo = (info.newPersonaName
+      ? (scenario.personas as ScenarioPersona[] | undefined)?.find(p => p.name === info.newPersonaName)
+      : undefined) ?? (scenario.personas?.[info.toIndex] as ScenarioPersona | undefined);
     if (switchedTo) {
       setActivePersona(switchedTo);
     }
