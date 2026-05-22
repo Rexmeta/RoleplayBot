@@ -7,6 +7,7 @@ export interface IScenarioOverridesStorage {
   getScenarioOverrideByOrgAndScenario(organizationId: string, scenarioId: string): Promise<ScenarioOverride | undefined>;
   getScenarioOverridesByOrganization(organizationId: string): Promise<ScenarioOverride[]>;
   getScenarioOverridesByScenario(scenarioId: string): Promise<ScenarioOverride[]>;
+  getAllScenarioOverrides(): Promise<ScenarioOverride[]>;
   upsertScenarioOverride(organizationId: string, scenarioId: string, override: InsertScenarioOverride['override']): Promise<ScenarioOverride>;
   deleteScenarioOverride(id: string): Promise<void>;
   deleteScenarioOverrideByOrgAndScenario(organizationId: string, scenarioId: string): Promise<void>;
@@ -34,6 +35,10 @@ export function ScenarioOverridesMixin<TBase extends Constructor>(Base: TBase) {
 
     async getScenarioOverridesByScenario(scenarioId: string): Promise<ScenarioOverride[]> {
       return await db.select().from(scenarioOverrides).where(eq(scenarioOverrides.scenarioId, scenarioId));
+    }
+
+    async getAllScenarioOverrides(): Promise<ScenarioOverride[]> {
+      return await db.select().from(scenarioOverrides);
     }
 
     async upsertScenarioOverride(organizationId: string, scenarioId: string, override: InsertScenarioOverride['override']): Promise<ScenarioOverride> {
@@ -65,6 +70,7 @@ export class MemScenarioOverridesStorage implements IScenarioOverridesStorage {
   async getScenarioOverrideByOrgAndScenario(_: string, __: string): Promise<ScenarioOverride | undefined> { return undefined; }
   async getScenarioOverridesByOrganization(_: string): Promise<ScenarioOverride[]> { return []; }
   async getScenarioOverridesByScenario(_: string): Promise<ScenarioOverride[]> { return []; }
+  async getAllScenarioOverrides(): Promise<ScenarioOverride[]> { return []; }
   async upsertScenarioOverride(_: string, __: string, ___: InsertScenarioOverride['override']): Promise<ScenarioOverride> { throw new Error("Not implemented"); }
   async deleteScenarioOverride(_: string): Promise<void> {}
   async deleteScenarioOverrideByOrgAndScenario(_: string, __: string): Promise<void> {}

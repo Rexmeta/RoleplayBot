@@ -8,12 +8,12 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
-import { Trash2, Plus, Save, X } from "lucide-react";
+import { Trash2, Plus, Save, X, BarChart2, FilterX } from "lucide-react";
 
 const overrideFormSchema = z.object({
   terminologyKey: z.string().optional(),
@@ -35,6 +35,29 @@ interface ScenarioOverrideData {
   customIncidents?: string[];
 }
 
+interface ScenarioOverride {
+  id: string;
+  organizationId: string;
+  scenarioId: string;
+  override: ScenarioOverrideData;
+  updatedAt: string;
+}
+
+function getFieldSummaryBadges(override: ScenarioOverrideData) {
+  const badges: { label: string; count: number; variant: "secondary" | "outline" | "destructive" }[] = [];
+  const termCount = Object.keys(override.terminology ?? {}).length;
+  if (termCount > 0) badges.push({ label: "용어", count: termCount, variant: "secondary" });
+  const policyCount = (override.policyConstraints ?? []).length;
+  if (policyCount > 0) badges.push({ label: "정책", count: policyCount, variant: "outline" });
+  const forbidCount = (override.forbiddenPhrases ?? []).length;
+  if (forbidCount > 0) badges.push({ label: "금지어", count: forbidCount, variant: "destructive" });
+  const weightCount = Object.keys(override.evaluationWeights ?? {}).length;
+  if (weightCount > 0) badges.push({ label: "가중치", count: weightCount, variant: "outline" });
+  const incidentCount = (override.customIncidents ?? []).length;
+  if (incidentCount > 0) badges.push({ label: "인시던트", count: incidentCount, variant: "secondary" });
+  return badges;
+}
+
 export function ScenarioOverrideManager() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -43,6 +66,9 @@ export function ScenarioOverrideManager() {
   const [selectedScenarioId, setSelectedScenarioId] = useState<string>("");
   const [localOverride, setLocalOverride] = useState<ScenarioOverrideData>({});
 
+  const [reportFilterOrgId, setReportFilterOrgId] = useState<string>("");
+  const [reportFilterScenarioId, setReportFilterScenarioId] = useState<string>("");
+
   const form = useForm<OverrideFormValues>({
     resolver: zodResolver(overrideFormSchema),
     defaultValues: {},
@@ -50,6 +76,35 @@ export function ScenarioOverrideManager() {
 
   const { data: organizations = [] } = useQuery<any[]>({ queryKey: ["/api/admin/organizations"] });
   const { data: scenarios = [] } = useQuery<any[]>({ queryKey: ["/api/scenarios"] });
+
+  const { data: allOverrides = [], isLoading: isLoadingAll } = useQuery<ScenarioOverride[]>({
+    queryKey: ["/api/admin/scenario-overrides"],
+    enabled: !reportFilterOrgId && !reportFilterScenarioId,
+  });
+
+  const { data: orgOverrides = [], isLoading: isLoadingOrg } = useQuery<ScenarioOverride[]>({
+    queryKey: ["/api/admin/scenario-overrides/organization", reportFilterOrgId],
+    queryFn: () => fetch(`/api/admin/scenario-overrides/organization/${reportFilterOrgId}`, { credentials: "include" }).then(r => r.json()),
+    enabled: !!reportFilterOrgId,
+  });
+
+  const { data: scenarioOverrides = [], isLoading: isLoadingScenario } = useQuery<ScenarioOverride[]>({
+    queryKey: ["/api/admin/scenario-overrides/scenario", reportFilterScenarioId],
+    queryFn: () => fetch(`/api/admin/scenario-overrides/scenario/${reportFilterScenarioId}`, { credentials: "include" }).then(r => r.json()),
+    enabled: !!reportFilterScenarioId && !reportFilterOrgId,
+  });
+
+  const reportRows: ScenarioOverride[] = reportFilterOrgId
+    ? orgOverrides
+    : reportFilterScenarioId
+    ? scenarioOverrides
+    : allOverrides;
+
+  const isLoadingReport = reportFilterOrgId
+    ? isLoadingOrg
+    : reportFilterScenarioId
+    ? isLoadingScenario
+    : isLoadingAll;
 
   const overrideKey = selectedOrgId && selectedScenarioId
     ? ["/api/admin/scenario-overrides", selectedOrgId, selectedScenarioId]
@@ -90,6 +145,20 @@ export function ScenarioOverrideManager() {
     setSelectedOrgId(orgId);
     setSelectedScenarioId(scenarioId);
     setLocalOverride({});
+  };
+
+  const handleCoverageRowClick = (override: ScenarioOverride) => {
+    setSelectedOrgId(override.organizationId);
+    setSelectedScenarioId(override.scenarioId);
+    setLocalOverride({});
+    setTimeout(() => {
+      document.getElementById("override-editor-section")?.scrollIntoView({ behavior: "smooth" });
+    }, 100);
+  };
+
+  const clearReportFilters = () => {
+    setReportFilterOrgId("");
+    setReportFilterScenarioId("");
   };
 
   const addTerminology = () => {
@@ -165,6 +234,10 @@ export function ScenarioOverrideManager() {
     actionPlan: "실행계획(actionPlan)",
   };
 
+  const orgMap = Object.fromEntries(organizations.map((o: any) => [o.id, o.name]));
+  const scenarioMap = Object.fromEntries(scenarios.map((s: any) => [s.id, s.title]));
+  const hasReportFilter = !!reportFilterOrgId || !!reportFilterScenarioId;
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-2">
@@ -177,37 +250,145 @@ export function ScenarioOverrideManager() {
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">조직 및 시나리오 선택</CardTitle>
+          <CardTitle className="text-base flex items-center gap-2">
+            <BarChart2 className="h-4 w-4" />
+            Override 적용 현황
+          </CardTitle>
         </CardHeader>
-        <CardContent className="flex flex-wrap gap-4">
-          <div className="flex-1 min-w-[200px]">
-            <label className="text-sm font-medium mb-1 block">조직</label>
-            <Select value={selectedOrgId} onValueChange={v => handleOrgScenarioChange(v, selectedScenarioId)}>
-              <SelectTrigger>
-                <SelectValue placeholder="조직 선택..." />
-              </SelectTrigger>
-              <SelectContent>
-                {organizations.map((org: any) => (
-                  <SelectItem key={org.id} value={org.id}>{org.name}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+        <CardContent className="space-y-4">
+          <div className="flex flex-wrap gap-3 items-end">
+            <div className="flex-1 min-w-[180px]">
+              <label className="text-xs font-medium text-muted-foreground mb-1 block">조직으로 필터</label>
+              <Select
+                value={reportFilterOrgId}
+                onValueChange={v => { setReportFilterOrgId(v); setReportFilterScenarioId(""); }}
+              >
+                <SelectTrigger className="h-8 text-sm">
+                  <SelectValue placeholder="전체 조직" />
+                </SelectTrigger>
+                <SelectContent>
+                  {organizations.map((org: any) => (
+                    <SelectItem key={org.id} value={org.id}>{org.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex-1 min-w-[180px]">
+              <label className="text-xs font-medium text-muted-foreground mb-1 block">시나리오로 필터</label>
+              <Select
+                value={reportFilterScenarioId}
+                onValueChange={v => { setReportFilterScenarioId(v); setReportFilterOrgId(""); }}
+              >
+                <SelectTrigger className="h-8 text-sm">
+                  <SelectValue placeholder="전체 시나리오" />
+                </SelectTrigger>
+                <SelectContent>
+                  {scenarios.map((s: any) => (
+                    <SelectItem key={s.id} value={s.id}>{s.title}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            {hasReportFilter && (
+              <Button variant="ghost" size="sm" className="h-8 gap-1 text-muted-foreground" onClick={clearReportFilters}>
+                <FilterX className="h-3.5 w-3.5" />
+                필터 초기화
+              </Button>
+            )}
           </div>
-          <div className="flex-1 min-w-[200px]">
-            <label className="text-sm font-medium mb-1 block">시나리오</label>
-            <Select value={selectedScenarioId} onValueChange={v => handleOrgScenarioChange(selectedOrgId, v)}>
-              <SelectTrigger>
-                <SelectValue placeholder="시나리오 선택..." />
-              </SelectTrigger>
-              <SelectContent>
-                {scenarios.map((s: any) => (
-                  <SelectItem key={s.id} value={s.id}>{s.title}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+
+          {isLoadingReport ? (
+            <p className="text-sm text-muted-foreground py-4 text-center">불러오는 중...</p>
+          ) : reportRows.length === 0 ? (
+            <p className="text-sm text-muted-foreground py-4 text-center">
+              {hasReportFilter ? "선택한 필터에 해당하는 Override가 없습니다." : "설정된 Override가 없습니다."}
+            </p>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>조직</TableHead>
+                  <TableHead>시나리오</TableHead>
+                  <TableHead>설정 필드</TableHead>
+                  <TableHead className="text-right">최종 수정</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {reportRows.map((row) => {
+                  const badges = getFieldSummaryBadges(row.override);
+                  const isSelected = row.organizationId === selectedOrgId && row.scenarioId === selectedScenarioId;
+                  return (
+                    <TableRow
+                      key={row.id}
+                      className={`cursor-pointer hover:bg-muted/60 transition-colors ${isSelected ? "bg-muted" : ""}`}
+                      onClick={() => handleCoverageRowClick(row)}
+                    >
+                      <TableCell className="font-medium">
+                        {orgMap[row.organizationId] ?? row.organizationId}
+                      </TableCell>
+                      <TableCell>
+                        {scenarioMap[row.scenarioId] ?? row.scenarioId}
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex flex-wrap gap-1">
+                          {badges.length === 0 ? (
+                            <span className="text-xs text-muted-foreground">항목 없음</span>
+                          ) : (
+                            badges.map(b => (
+                              <Badge key={b.label} variant={b.variant} className="text-xs py-0">
+                                {b.label} {b.count}
+                              </Badge>
+                            ))
+                          )}
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-right text-xs text-muted-foreground">
+                        {new Date(row.updatedAt).toLocaleDateString("ko-KR")}
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          )}
         </CardContent>
       </Card>
+
+      <div id="override-editor-section">
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">조직 및 시나리오 선택</CardTitle>
+          </CardHeader>
+          <CardContent className="flex flex-wrap gap-4">
+            <div className="flex-1 min-w-[200px]">
+              <label className="text-sm font-medium mb-1 block">조직</label>
+              <Select value={selectedOrgId} onValueChange={v => handleOrgScenarioChange(v, selectedScenarioId)}>
+                <SelectTrigger>
+                  <SelectValue placeholder="조직 선택..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {organizations.map((org: any) => (
+                    <SelectItem key={org.id} value={org.id}>{org.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex-1 min-w-[200px]">
+              <label className="text-sm font-medium mb-1 block">시나리오</label>
+              <Select value={selectedScenarioId} onValueChange={v => handleOrgScenarioChange(selectedOrgId, v)}>
+                <SelectTrigger>
+                  <SelectValue placeholder="시나리오 선택..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {scenarios.map((s: any) => (
+                    <SelectItem key={s.id} value={s.id}>{s.title}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
 
       {selectedOrgId && selectedScenarioId && (
         <Form {...form}>

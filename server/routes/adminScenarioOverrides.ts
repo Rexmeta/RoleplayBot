@@ -6,6 +6,14 @@ import { asyncHandler, createHttpError } from "./routerHelpers";
 export default function createAdminScenarioOverridesRouter(isAuthenticated: any) {
   const router = Router();
 
+  router.get("/api/admin/scenario-overrides", isAuthenticated, asyncHandler(async (req: any, res) => {
+    if (req.user?.role !== 'admin' && req.user?.role !== 'operator') {
+      throw createHttpError(403, "관리자 또는 운영자 권한이 필요합니다");
+    }
+    const overrides = await storage.getAllScenarioOverrides();
+    res.json(overrides);
+  }));
+
   router.get("/api/admin/scenario-overrides/organization/:organizationId", isAuthenticated, asyncHandler(async (req: any, res) => {
     if (req.user?.role !== 'admin' && req.user?.role !== 'operator') {
       throw createHttpError(403, "관리자 또는 운영자 권한이 필요합니다");
