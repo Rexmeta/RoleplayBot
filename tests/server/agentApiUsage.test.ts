@@ -223,6 +223,47 @@ describe('GET /api/v1/agent/usage', () => {
     });
   });
 
+  describe('date range too large', () => {
+    it('returns 400 with date_range_too_large when range exceeds 365 days', async () => {
+      const res = await request(app)
+        .get('/api/v1/agent/usage')
+        .query({ from: '2000-01-01', to: '2099-12-31' });
+
+      expect(res.status).toBe(400);
+      expect(res.body.error.code).toBe('date_range_too_large');
+      expect(res.body.error.message).toMatch(/365/);
+    });
+
+    it('does not call the database when range is too large', async () => {
+      makeDbChain([]);
+
+      await request(app)
+        .get('/api/v1/agent/usage')
+        .query({ from: '2024-01-01', to: '2025-12-31' });
+
+      expect(db.select).not.toHaveBeenCalled();
+    });
+
+    it('accepts a range of exactly 365 days', async () => {
+      makeDbChain([]);
+
+      const res = await request(app)
+        .get('/api/v1/agent/usage')
+        .query({ from: '2025-05-22', to: '2026-05-22' });
+
+      expect(res.status).toBe(200);
+    });
+
+    it('rejects a range of 366 days', async () => {
+      const res = await request(app)
+        .get('/api/v1/agent/usage')
+        .query({ from: '2025-05-21', to: '2026-05-22' });
+
+      expect(res.status).toBe(400);
+      expect(res.body.error.code).toBe('date_range_too_large');
+    });
+  });
+
   describe('empty result set', () => {
     it('returns rows:[] and zero-value summary when no usage records exist', async () => {
       makeDbChain([]);

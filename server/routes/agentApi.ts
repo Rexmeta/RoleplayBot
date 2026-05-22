@@ -1071,6 +1071,14 @@ router.get("/usage", requireScope("usage:read"), async (req: any, res) => {
       return;
     }
 
+    const MAX_RANGE_DAYS = 365;
+    const msPerDay = 86_400_000;
+    const rangeDays = (new Date(toDate).getTime() - new Date(fromDate).getTime()) / msPerDay;
+    if (rangeDays > MAX_RANGE_DAYS) {
+      agentError(res, 400, "date_range_too_large", `Date range must not exceed ${MAX_RANGE_DAYS} days.`);
+      return;
+    }
+
     const rows = await db
       .select({
         date: agentUsageDaily.date,
