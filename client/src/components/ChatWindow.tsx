@@ -164,6 +164,7 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
   const [latestPersonaSwitch, setLatestPersonaSwitch] = useState<{ name: string; transitionLine: string } | null>(null);
   const personaSwitchBannerTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [activePersona, setActivePersona] = useState<ScenarioPersona>(persona);
+  const [personaSwitchAnnounced, setPersonaSwitchAnnounced] = useState(false);
 
   const handlePersonaSwitched = useCallback((info: { fromIndex: number; toIndex: number; newPersonaName?: string; reason: string; transitionLine: string; turnIndex?: number; fromPersonaName?: string }) => {
     const fromPersonaName = info.fromPersonaName
@@ -179,6 +180,8 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
       turnIndex: info.turnIndex,
     };
     setPersonaSwitchEvents(prev => [...prev, eventEntry]);
+    // Clear the "switch pending" badge now that the actual switch has happened
+    setPersonaSwitchAnnounced(false);
     // Update active persona so header/portrait displays the new character
     const switchedTo = scenario.personas?.[info.toIndex] as ScenarioPersona | undefined;
     if (switchedTo) {
@@ -189,6 +192,14 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
     setLatestPersonaSwitch({ name: info.newPersonaName ?? '', transitionLine: info.transitionLine });
     personaSwitchBannerTimerRef.current = setTimeout(() => setLatestPersonaSwitch(null), 4000);
   }, [scenario.personas]);
+
+  const handlePersonaSwitchAnnounced = useCallback((_info: { announcingPersonaName: string }) => {
+    setPersonaSwitchAnnounced(true);
+  }, []);
+
+  const handlePersonaSwitchPendingCleared = useCallback(() => {
+    setPersonaSwitchAnnounced(false);
+  }, []);
 
   const { localMessages, setLocalMessages, pendingAiMessage: rawPendingAiMessage, setPendingAiMessage,
     pendingUserMessage, setPendingUserMessage, pendingUserText, setPendingUserText,
@@ -217,6 +228,8 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
     conversationId, scenarioId: scenario.id, personaId: persona.id, enabled: false,
     onSimulationUpdate: isSimulationEnabled ? handleSimulationUpdate : undefined,
     onPersonaSwitched: handlePersonaSwitched,
+    onPersonaSwitchAnnounced: handlePersonaSwitchAnnounced,
+    onPersonaSwitchPendingCleared: handlePersonaSwitchPendingCleared,
     onReconnectGreetingComplete: () => {
       setPendingAiMessage(false);
       isAISpeakingForBargeInRef.current = false;
@@ -771,15 +784,26 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
                   <div className="lg:hidden absolute top-0 left-0 right-0 z-20 bg-black/50 backdrop-blur-sm px-3 pt-2 pb-2">
                     <div className="flex items-center gap-2 min-w-0">
                       {/* Persona avatar thumbnail */}
-                      <img
-                        src={loadedImageUrl || toMediaUrl(activePersona.image || '') || `https://ui-avatars.com/api/?name=${encodeURIComponent(activePersona.name)}&background=6366f1&color=fff&size=64`}
-                        alt={activePersona.name}
-                        className="w-8 h-8 rounded-full object-cover object-top shrink-0 border border-white/20"
-                      />
+                      <div className="relative shrink-0">
+                        <img
+                          src={loadedImageUrl || toMediaUrl(activePersona.image || '') || `https://ui-avatars.com/api/?name=${encodeURIComponent(activePersona.name)}&background=6366f1&color=fff&size=64`}
+                          alt={activePersona.name}
+                          className="w-8 h-8 rounded-full object-cover object-top border border-white/20"
+                        />
+                        {personaSwitchAnnounced && (
+                          <span className="absolute -bottom-1 -right-1 flex h-3 w-3">
+                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75" />
+                            <span className="relative inline-flex rounded-full h-3 w-3 bg-amber-400" />
+                          </span>
+                        )}
+                      </div>
                       {/* Name + role/department */}
                       <div className="flex flex-col min-w-0 flex-1">
                         <span className="text-white text-xs font-semibold truncate leading-tight">{activePersonaHeaderLabel}</span>
-                        {activePersonaSubLabel && (
+                        {personaSwitchAnnounced && (
+                          <span className="text-amber-300 text-[10px] truncate leading-tight animate-pulse">연결 대기 중…</span>
+                        )}
+                        {!personaSwitchAnnounced && activePersonaSubLabel && (
                           <span className="text-white/60 text-[10px] truncate leading-tight">
                             {activePersonaSubLabel}
                           </span>

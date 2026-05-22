@@ -70,4 +70,6 @@ export interface RealtimeSession {
   pendingPersonaSwitch?: { fromIndex: number; toIndex: number; fromPersonaId: string; toPersonaId: string; reason: string; transitionLine: string };
   targetTurns?: number;
   softCloseSent?: boolean;
+  personaSwitchPending?: boolean;
+  awaitingPersonaSwitch?: boolean;
 }

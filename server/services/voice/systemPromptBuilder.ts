@@ -45,10 +45,10 @@ export function buildMultiPersonaSection(
     zh: '开场白',
   };
   const whenToSwitch: Record<LangCode, string> = {
-    ko: `switch_persona 호출 시점:\n- 사용자가 현재 페르소나의 권한 밖의 결정을 언급하거나 상위 결정권자를 요청할 때\n- 위 trigger hints 상황이 발생했을 때\n- 전환 시: transitionLine에 현재 페르소나가 마지막으로 할 말을 작성하고, 즉시 도구를 호출하세요\n- 한 번 전환하면 다시 이전 페르소나로 돌아오지 않습니다`,
-    en: `When to call switch_persona:\n- User requests someone with more authority or mentions a decision beyond your scope\n- One of the trigger hints conditions is met\n- On switch: set transitionLine to the last thing the current persona says, then call the tool\n- Once switched, do not revert to the previous persona`,
-    ja: `switch_personaを呼び出すタイミング:\n- ユーザーが現在のペルソナの権限外の決定を求めるか、上位権限者を要請する場合\n- 上記のトリガー条件が発生した場合\n- 切り替え時：transitionLineに現在のペルソナが最後に言う言葉を記入してツールを呼び出す\n- 一度切り替えたら元のペルソナに戻らない`,
-    zh: `何时调用switch_persona:\n- 用户请求拥有更高权限的人或提及超出您权限的决定时\n- 满足触发条件之一时\n- 切换时：在transitionLine中写下当前角色最后说的话，然后立即调用工具\n- 一旦切换，不要回到之前的角色`,
+    ko: `페르소나 전환 2단계 프로세스 (반드시 준수):\n【1단계 - 발표 턴】\n- 전환 조건이 감지되면, 이 턴에서 switch_persona 도구를 절대 호출하지 마세요.\n- 대신 대화 속에서 자연스럽게 전환 의사를 밝히세요. 예: "제가 더 이야기드리기 어려운 부분이라 김 팀장님을 연결해드릴게요. 괜찮으시겠어요?"\n- 사용자의 반응을 기다리세요.\n【2단계 - 확인 후 전환 턴】\n- 사용자가 동의/인지(예: 네, 알겠어요, 좋아요 등)를 표현하면, 그 다음 턴에서 switch_persona를 호출하세요.\n- transitionLine에 현재 페르소나의 마지막 인사말을 작성하세요.\n- 사용자가 동의하지 않거나 다른 주제로 답하면 현재 페르소나로 계속 대화하세요.\n- 한 번 전환하면 이전 페르소나로 돌아오지 않습니다.`,
+    en: `Two-step persona switch process (strictly follow):\n[Step 1 - Announcement turn]\n- When a trigger condition is detected, do NOT call switch_persona in this turn.\n- Instead, naturally announce the intent in conversation. E.g.: "This is a bit beyond what I can help with — let me connect you with Manager Kim. Would that be okay?"\n- Wait for the user's response.\n[Step 2 - Confirmation turn]\n- If the user agrees or acknowledges (e.g. yes, sure, okay, go ahead), call switch_persona in the next turn.\n- Set transitionLine to the final farewell words of the current persona.\n- If the user does not agree or changes topic, continue as the current persona without switching.\n- Once switched, do not revert to the previous persona.`,
+    ja: `ペルソナ切り替え2段階プロセス（必ず守ること）:\n【第1段階 - 発表ターン】\n- トリガー条件が検出されたとき、このターンでswitch_personaを絶対に呼び出さないでください。\n- 代わりに会話の中で自然に切り替え意図を伝えてください。例：「この件は私では少し対応が難しいので、田中マネージャーにおつなぎしましょうか？」\n- ユーザーの反応を待ってください。\n【第2段階 - 確認後の切り替えターン】\n- ユーザーが同意・了承（例：はい、わかりました、お願いします）を示したら、次のターンでswitch_personaを呼び出してください。\n- transitionLineに現在のペルソナの最後の挨拶を書いてください。\n- ユーザーが同意しないか別のトピックに話を変えた場合は、現在のペルソナで会話を続けてください。\n- 一度切り替えたら元のペルソナに戻らない。`,
+    zh: `角色切换两步流程（必须严格遵守）:\n【第一步 - 宣告回合】\n- 检测到触发条件时，本回合绝对不要调用switch_persona工具。\n- 而是在对话中自然地表明切换意图。例如："这个问题有些超出我的权限范围，让我为您转接李经理，可以吗？"\n- 等待用户的回应。\n【第二步 - 确认后切换回合】\n- 如果用户表示同意或确认（例如：好的、可以、没问题），在下一回合调用switch_persona。\n- 在transitionLine中写下当前角色的最后告别语。\n- 如果用户不同意或转换话题，以当前角色继续对话，不要切换。\n- 一旦切换，不要回到之前的角色。`,
   };
 
   const lines: string[] = [header[language], `\n## ${otherLabel[language]}:`];

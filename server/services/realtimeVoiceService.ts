@@ -249,6 +249,8 @@ export class RealtimeVoiceService {
       personaSystemInstructions: personaSystemInstructions.length > 1 ? personaSystemInstructions : undefined,
       targetTurns: scenarioObj.targetTurns,
       softCloseSent: false,
+      personaSwitchPending: false,
+      awaitingPersonaSwitch: false,
     };
 
     // Lookup scenarioRunId from DB for simulation event audit linkage

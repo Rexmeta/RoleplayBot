@@ -1060,6 +1060,7 @@ describe('handleGeminiMessage', () => {
         voiceId: null,
         selectedVoice: 'Puck',
         activePersonaIndex: 0,
+        personaSwitchPending: true,
         scenarioPersonas: [
           { id: 'p0', name: 'PersonaA', gender: 'male' },
           { id: 'p1', name: 'PersonaB', gender: 'female', voiceId: 'XrExE9yKIg1WjnnlVkGX' },
@@ -1096,6 +1097,7 @@ describe('handleGeminiMessage', () => {
         voiceId: 'some-old-voice-id',
         selectedVoice: 'Puck',
         activePersonaIndex: 0,
+        personaSwitchPending: true,
         scenarioPersonas: [
           { id: 'p0', name: 'PersonaA', gender: 'male', voiceId: 'some-old-voice-id' },
           { id: 'p1', name: 'PersonaB', gender: 'female' },
@@ -1124,6 +1126,132 @@ describe('handleGeminiMessage', () => {
       expect(session.voiceGender).toBe('female');
       expect(session.voiceId).toBeNull();
       expect(session.selectedVoice).toBeNull();
+    });
+  });
+
+  describe('2-step persona switch state machine', () => {
+    const multiPersonaBase = () => ({
+      hasReceivedFirstAIResponse: true,
+      scenarioPersonas: [
+        { id: 'p0', name: 'PersonaA', gender: 'male' },
+        { id: 'p1', name: 'PersonaB', gender: 'female' },
+      ] as any,
+      activePersonaIndex: 0,
+      geminiSession: { sendToolResponse: vi.fn(), sendClientContent: vi.fn() } as any,
+    });
+
+    const switchToolMsg = (personaSwitchPendingOnSession?: boolean) => ({
+      toolCall: {
+        functionCalls: [{
+          id: 'fc-test',
+          name: 'switch_persona',
+          args: { targetPersonaIndex: 1, reason: 'test', transitionLine: 'Hi from B' },
+        }],
+      },
+    });
+
+    it('(b) blocks switch_persona after announcement but before user consent (awaitingPersonaSwitch=true, personaSwitchPending=false)', async () => {
+      session = makeSession({
+        ...multiPersonaBase(),
+        awaitingPersonaSwitch: true,
+        personaSwitchPending: false,
+      });
+
+      handleGeminiMessage(session, switchToolMsg(), sendToClient, null, proactiveReconnect);
+      await vi.runAllTimersAsync();
+
+      // Switch should be blocked — activePersonaIndex stays 0
+      expect(session.activePersonaIndex).toBe(0);
+      // sendToolResponse should have been called with an error message
+      expect(session.geminiSession.sendToolResponse).toHaveBeenCalled();
+    });
+
+    it('(c) allows switch_persona once user consent has been detected (personaSwitchPending=true)', async () => {
+      session = makeSession({
+        ...multiPersonaBase(),
+        awaitingPersonaSwitch: true,
+        personaSwitchPending: true,
+      });
+
+      handleGeminiMessage(session, switchToolMsg(), sendToClient, null, proactiveReconnect);
+      await vi.runAllTimersAsync();
+
+      // Switch should succeed
+      expect(session.activePersonaIndex).toBe(1);
+      expect(session.personaSwitchPending).toBe(false);
+      expect(session.awaitingPersonaSwitch).toBe(false);
+    });
+
+    it('(d-consent) sets personaSwitchPending=true when user responds with consent keywords', () => {
+      session = makeSession({
+        ...multiPersonaBase(),
+        awaitingPersonaSwitch: true,
+        personaSwitchPending: false,
+        userLanguage: 'en',
+        userTranscriptBuffer: 'Yes, please go ahead and connect me.',
+      });
+
+      handleGeminiMessage(
+        session,
+        { serverContent: { turnComplete: true } },
+        sendToClient,
+        null,
+        proactiveReconnect
+      );
+
+      expect(session.personaSwitchPending).toBe(true);
+      expect(session.awaitingPersonaSwitch).toBe(true);
+    });
+
+    it('(d-decline) clears awaitingPersonaSwitch and emits persona.switch_pending_cleared when user declines', () => {
+      session = makeSession({
+        ...multiPersonaBase(),
+        awaitingPersonaSwitch: true,
+        personaSwitchPending: false,
+        userLanguage: 'en',
+        userTranscriptBuffer: 'No, that is ok, I am fine talking to you.',
+      });
+
+      handleGeminiMessage(
+        session,
+        { serverContent: { turnComplete: true } },
+        sendToClient,
+        null,
+        proactiveReconnect
+      );
+
+      expect(session.awaitingPersonaSwitch).toBe(false);
+      expect(session.personaSwitchPending).toBe(false);
+      expect(sendToClient).toHaveBeenCalledWith(
+        session,
+        expect.objectContaining({ type: 'persona.switch_pending_cleared' })
+      );
+    });
+
+    it('(d-offtopic) keeps awaitingPersonaSwitch=true when user response is off-topic', () => {
+      session = makeSession({
+        ...multiPersonaBase(),
+        awaitingPersonaSwitch: true,
+        personaSwitchPending: false,
+        userLanguage: 'en',
+        userTranscriptBuffer: 'Can you tell me more about the refund process?',
+      });
+
+      handleGeminiMessage(
+        session,
+        { serverContent: { turnComplete: true } },
+        sendToClient,
+        null,
+        proactiveReconnect
+      );
+
+      // Ambiguous — neither consented nor declined, so still waiting
+      expect(session.awaitingPersonaSwitch).toBe(true);
+      expect(session.personaSwitchPending).toBe(false);
+      expect(sendToClient).not.toHaveBeenCalledWith(
+        session,
+        expect.objectContaining({ type: 'persona.switch_pending_cleared' })
+      );
     });
   });
 });

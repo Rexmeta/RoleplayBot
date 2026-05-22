@@ -108,6 +108,8 @@ interface UseRealtimeVoiceProps {
   onSessionTerminated?: (reason: string) => void;
   onSimulationUpdate?: (update: any) => void;
   onPersonaSwitched?: (info: { fromIndex: number; toIndex: number; newPersonaName: string; reason: string; transitionLine: string; fromPersonaName?: string }) => void;
+  onPersonaSwitchAnnounced?: (info: { announcingPersonaName: string }) => void;
+  onPersonaSwitchPendingCleared?: () => void;
 }
 
 interface UseRealtimeVoiceReturn {
@@ -148,6 +150,8 @@ export function useRealtimeVoice({
   onSessionTerminated,
   onSimulationUpdate,
   onPersonaSwitched,
+  onPersonaSwitchAnnounced,
+  onPersonaSwitchPendingCleared,
 }: UseRealtimeVoiceProps): UseRealtimeVoiceReturn {
   const [status, setStatus] = useState<RealtimeVoiceStatus>('disconnected');
   const [conversationPhase, setConversationPhase] = useState<ConversationPhase>('idle');
@@ -216,6 +220,8 @@ export function useRealtimeVoice({
   const onSessionTerminatedRef = useRef(onSessionTerminated);
   const onSimulationUpdateRef = useRef(onSimulationUpdate);
   const onPersonaSwitchedRef = useRef(onPersonaSwitched);
+  const onPersonaSwitchAnnouncedRef = useRef(onPersonaSwitchAnnounced);
+  const onPersonaSwitchPendingClearedRef = useRef(onPersonaSwitchPendingCleared);
 
   useEffect(() => {
     onMessageRef.current = onMessage;
@@ -229,7 +235,9 @@ export function useRealtimeVoice({
     onSessionTerminatedRef.current = onSessionTerminated;
     onSimulationUpdateRef.current = onSimulationUpdate;
     onPersonaSwitchedRef.current = onPersonaSwitched;
-  }, [onMessage, onMessageComplete, onReconnectGreetingComplete, onUserTranscription, onUserTranscriptionDelta, onAiSpeakingStart, onUserSpeakingStart, onError, onSessionTerminated, onSimulationUpdate, onPersonaSwitched]);
+    onPersonaSwitchAnnouncedRef.current = onPersonaSwitchAnnounced;
+    onPersonaSwitchPendingClearedRef.current = onPersonaSwitchPendingCleared;
+  }, [onMessage, onMessageComplete, onReconnectGreetingComplete, onUserTranscription, onUserTranscriptionDelta, onAiSpeakingStart, onUserSpeakingStart, onError, onSessionTerminated, onSimulationUpdate, onPersonaSwitched, onPersonaSwitchAnnounced, onPersonaSwitchPendingCleared]);
 
   useEffect(() => {
     conversationPhaseRef.current = conversationPhase;
@@ -630,6 +638,20 @@ export function useRealtimeVoice({
                   transitionLine: data.switched.transitionLine ?? '',
                   fromPersonaName: data.fromPersonaName,
                 });
+              }
+              break;
+
+            case 'persona.switch_announced':
+              if (onPersonaSwitchAnnouncedRef.current) {
+                onPersonaSwitchAnnouncedRef.current({
+                  announcingPersonaName: data.announcingPersonaName ?? '',
+                });
+              }
+              break;
+
+            case 'persona.switch_pending_cleared':
+              if (onPersonaSwitchPendingClearedRef.current) {
+                onPersonaSwitchPendingClearedRef.current();
               }
               break;
 

@@ -51,12 +51,12 @@ function buildMultiPersonaTextSection(
   const isZh = language === 'zh';
 
   const header = isKo
-    ? '\n# 다중 페르소나 전환 시스템\n상황에 따라 switch_persona 필드를 사용하여 다른 페르소나로 전환할 수 있습니다. 전환이 필요 없으면 switchPersona를 null로 설정하세요.'
+    ? '\n# 다중 페르소나 전환 시스템 (2단계 프로세스 필수 준수)\n\n【1단계 - 발표 턴】\n전환 조건이 감지되면, 이 턴에서 switchPersona를 null로 유지하고, 대화 속에서 자연스럽게 전환 의사를 말하세요.\n예: "제가 더 이야기드리기 어려운 부분이라 김 팀장님을 연결해드릴게요. 괜찮으시겠어요?"\n\n【2단계 - 확인 후 전환 턴】\n사용자가 동의(예: 네, 알겠어요, 좋아요)하면, 그 다음 턴에서 switchPersona 필드를 채우세요.\n사용자가 동의하지 않거나 다른 주제로 답하면 switchPersona를 null로 유지하고 현재 페르소나로 계속 대화하세요.'
     : isJa
-    ? '\n# マルチペルソナ切り替えシステム\nswitch_personaフィールドを使用して他のペルソナに切り替えられます。不要な場合はnullにしてください。'
+    ? '\n# マルチペルソナ切り替えシステム（2段階プロセス必須）\n\n【第1段階 - 発表ターン】\nトリガー条件が検出されたら、このターンはswitchPersonaをnullのままにし、会話の中で自然に切り替え意図を伝えてください。\n例：「この件は私では少し対応が難しいので、田中マネージャーにおつなぎしましょうか？」\n\n【第2段階 - 確認後の切り替えターン】\nユーザーが同意（例：はい、わかりました）を示したら、次のターンでswitchPersonaフィールドを入力してください。\nユーザーが同意しない場合はswitchPersonaをnullのままにし、現在のペルソナで続けてください。'
     : isZh
-    ? '\n# 多角色切换系统\n使用switchPersona字段切换到另一个角色。不需要时设为null。'
-    : '\n# Multi-Persona Switching System\nUse the switchPersona field to switch to another persona when appropriate. Set to null if no switch is needed.';
+    ? '\n# 多角色切换系统（必须遵守两步流程）\n\n【第一步 - 宣告回合】\n检测到触发条件时，本回合将switchPersona保持为null，在对话中自然地表明切换意图。\n例如："这个问题有些超出我的权限范围，让我为您转接李经理，可以吗？"\n\n【第二步 - 确认后切换回合】\n如果用户同意（例如：好的、可以），在下一回合填写switchPersona字段。\n如果用户不同意，将switchPersona保持为null，以当前角色继续对话。'
+    : '\n# Multi-Persona Switching System (Two-Step Process Required)\n\n[Step 1 - Announcement turn]\nWhen a trigger condition is detected, keep switchPersona as null in this turn and naturally announce the switch intent in conversation.\nE.g.: "This is a bit beyond what I can help with — let me connect you with Manager Kim. Would that be okay?"\n\n[Step 2 - Confirmation turn]\nIf the user agrees (e.g. yes, sure, okay), fill in the switchPersona field in the next turn.\nIf the user does not agree, keep switchPersona as null and continue as the current persona.';
 
   const lines: string[] = [header, ''];
   for (const p of otherPersonas) {
@@ -65,10 +65,10 @@ function buildMultiPersonaTextSection(
     if (p.entryLine) lines.push(`  entry: "${p.entryLine}"`);
   }
   const rule = isKo
-    ? '\n전환 시: transitionLine에 현재 페르소나가 마지막으로 할 말을 작성하고, targetPersonaIndex를 지정하세요.'
-    : isJa ? '\n切り替え時：transitionLineに現在のペルソナの最後の言葉を書き、targetPersonaIndexを指定してください。'
-    : isZh ? '\n切换时：在transitionLine中写下当前角色最后说的话，并指定targetPersonaIndex。'
-    : '\nOn switch: write the final words of the current persona in transitionLine, and set targetPersonaIndex.';
+    ? '\n전환 확정 시: transitionLine에 현재 페르소나의 마지막 인사말을 작성하고, targetPersonaIndex를 지정하세요. 전환 후에는 이전 페르소나로 돌아오지 않습니다.'
+    : isJa ? '\n切り替え確定時：transitionLineに現在のペルソナの最後の挨拶を書き、targetPersonaIndexを指定してください。一度切り替えたら元に戻りません。'
+    : isZh ? '\n切换确定时：在transitionLine中写下当前角色的最后告别语，并指定targetPersonaIndex。切换后不再返回。'
+    : '\nOn confirmed switch: write the farewell words of the current persona in transitionLine and set targetPersonaIndex. Once switched, do not revert.';
   lines.push(rule);
   return lines.join('\n');
 }

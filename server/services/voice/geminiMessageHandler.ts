@@ -175,8 +175,40 @@ export function handleGeminiMessage(
           });
         }
 
+        // 2-step persona switch guard: block if AI tries to switch without prior announcement
+        if (fc.name === 'switch_persona' && result.personaSwitched && !session.personaSwitchPending) {
+          console.warn(`[geminiMessageHandler] Blocking premature switch_persona — personaSwitchPending=false. Forcing AI to announce first.`);
+          const blockMessages: Record<string, string> = {
+            ko: '먼저 대화 속에서 전환 의사를 자연스럽게 말한 뒤 사용자의 동의를 기다리세요. 아직 switch_persona를 호출하지 마세요.',
+            en: 'You must first announce the persona switch in natural conversation and wait for the user to agree. Do not call switch_persona yet.',
+            ja: 'まず会話の中で自然に切り替え意図を伝え、ユーザーの同意を待ってください。まだswitch_personaを呼び出さないでください。',
+            zh: '请先在对话中自然地表明切换意图，等待用户同意后再调用switch_persona。',
+          };
+          if (session.geminiSession && fc.id) {
+            try {
+              session.geminiSession.sendToolResponse?.({
+                functionResponses: [{
+                  id: fc.id,
+                  name: fc.name,
+                  response: {
+                    success: false,
+                    error: blockMessages[session.userLanguage] ?? blockMessages.en,
+                  },
+                }],
+              });
+            } catch (e) {
+              console.warn('[geminiMessageHandler] Failed to send switch_persona block response:', e);
+            }
+          }
+          // Skip further processing for this tool call — announcement must come first
+          continue;
+        }
+
         if (result.personaSwitched) {
           const switched = result.personaSwitched;
+          // Reset both switch-state flags now that the confirmed switch is executing
+          session.personaSwitchPending = false;
+          session.awaitingPersonaSwitch = false;
           console.log(`🔄 [Voice] Persona switch: ${switched.fromIndex} → ${switched.toIndex} (${switched.toPersonaId})`);
           session.activePersonaIndex = switched.toIndex;
           const newPersona = session.scenarioPersonas?.[switched.toIndex];
@@ -545,6 +577,40 @@ export function handleGeminiMessage(
         session.userTranscriptBuffer = '';
         session.userTurnsCompleted++;
 
+        // If the AI announced a pending switch, analyze user's response for consent.
+        // Positive consent → allow the next switch_persona tool call.
+        // Clear decline → cancel the pending switch and notify the client.
+        // Off-topic / ambiguous → stay in awaitingPersonaSwitch, keep waiting.
+        if (session.awaitingPersonaSwitch) {
+          const consentKw: Record<string, string[]> = {
+            ko: ['네', '응', '좋아요', '알겠어요', '그래요', '부탁해요', '연결해주세요', '좋습니다', '해주세요', '바꿔주세요'],
+            en: ['yes', 'sure', 'okay', 'ok', 'please', 'go ahead', "that's fine", 'connect me', 'sounds good', 'alright'],
+            ja: ['はい', 'いいです', 'わかりました', 'おねがいします', 'つないでください', 'よろしく'],
+            zh: ['好的', '可以', '行', '好', '请', '没问题', '转接吧', '麻烦你'],
+          };
+          const declineKw: Record<string, string[]> = {
+            ko: ['아니요', '아니', '지금은', '나중에', '필요없어요', '됐어요', '괜찮습니다'],
+            en: ['no', 'not now', 'later', "i'd rather", 'never mind', 'no thanks', "that's ok", 'that is ok'],
+            ja: ['いいえ', '大丈夫です', '後で', '今は', 'けっこうです'],
+            zh: ['不用', '没关系', '以后', '不需要', '算了', '不了'],
+          };
+          const lang = session.userLanguage;
+          const userLower = userText.toLowerCase();
+          const hasConsent = (consentKw[lang] ?? consentKw.en).some(kw => userLower.includes(kw));
+          const hasDecline = (declineKw[lang] ?? declineKw.en).some(kw => userLower.includes(kw));
+
+          if (hasConsent && !hasDecline) {
+            console.log(`✅ [Voice] User consented to persona switch — setting personaSwitchPending=true`);
+            session.personaSwitchPending = true;
+          } else if (hasDecline) {
+            console.log(`❌ [Voice] User declined persona switch — clearing pending state`);
+            session.awaitingPersonaSwitch = false;
+            session.personaSwitchPending = false;
+            sendToClient(session, { type: 'persona.switch_pending_cleared' });
+          }
+          // Off-topic / ambiguous: stay in awaitingPersonaSwitch=true, keep waiting
+        }
+
         // Soft-close: send a one-time wrapping-up instruction when 80% of targetTurns is reached
         if (
           session.targetTurns &&
@@ -724,6 +790,43 @@ export function handleGeminiMessage(
         // mode active for the first turn's accumulated transcript.
         const filteredTranscript = filterThinkingText(session.currentTranscript, session.userLanguage, { strictMode: session.turnSeq <= 1 });
         console.log(`📝 Filtered transcript (${session.userLanguage}): "${filteredTranscript.substring(0, 100)}..."`);
+
+        // Detect persona switch announcement: the AI told the user it will connect
+        // them to another persona and is awaiting the user's confirmation.
+        // Detection heuristic: a non-active persona's name appears in the AI's
+        // transcript alongside transfer-language keywords.
+        // Sets awaitingPersonaSwitch=true; personaSwitchPending is only set later
+        // once the user's consent is detected in the user transcript.
+        if (
+          filteredTranscript &&
+          session.scenarioPersonas && session.scenarioPersonas.length > 1 &&
+          !session.awaitingPersonaSwitch &&
+          !session.personaSwitchPending
+        ) {
+          const nonActivePersonas = session.scenarioPersonas.filter((_, i) => i !== session.activePersonaIndex);
+          const switchKeywords: Record<string, string[]> = {
+            ko: ['연결', '바꿔', '담당', '전달', '연결해드', '부탁드릴', '도움을 받으실'],
+            en: ['connect', 'transfer', 'switch', 'bring in', 'hand over', 'hand you', 'get someone'],
+            ja: ['つなぎ', '代わり', '担当', '切り替え', 'おつなぎ', 'お繋ぎ', 'かわり'],
+            zh: ['转接', '切换', '换', '联系', '转给', '帮您转'],
+          };
+          const lang = session.userLanguage;
+          const keywords = switchKeywords[lang] ?? switchKeywords.en;
+          const textLower = filteredTranscript.toLowerCase();
+          const hasTransferKeyword = keywords.some(kw => textLower.includes(kw));
+          const nonActivePersonaMentioned = nonActivePersonas.some(p =>
+            filteredTranscript.includes(p.name) ||
+            (p.position && filteredTranscript.includes(p.position))
+          );
+          if (hasTransferKeyword && nonActivePersonaMentioned) {
+            console.log(`📢 [Voice] Persona switch announcement detected — awaiting user consent`);
+            session.awaitingPersonaSwitch = true;
+            sendToClient(session, {
+              type: 'persona.switch_announced',
+              announcingPersonaName: session.personaName,
+            });
+          }
+        }
 
         if (filteredTranscript) {
           // Last-resort greeting dedup guard: while the user has not yet spoken
