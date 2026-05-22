@@ -8,7 +8,8 @@ import {
   MAX_CONCURRENT_SESSIONS,
 } from './voice/types';
 import { buildSystemInstructions, buildReconnectSystemInstructions } from './voice/systemPromptBuilder';
-import { setSessionFlowConfig, setSessionTerminationRules, setSessionHarnessConfig, getSessionState } from './simulation/simulationEngine';
+import { getSessionState } from './simulation/simulationEngine';
+import { applyHarnessToSession, readScenarioHarness } from './simulation/harnessReader';
 import { handleGeminiMessage } from './voice/geminiMessageHandler';
 import { handleClientMessage as processClientMessage } from './voice/clientMessageHandler';
 import { handleGeminiClose } from './voice/geminiReconnector';
@@ -187,11 +188,10 @@ export class RealtimeVoiceService {
     const initialFlowGraph = (scenarioObj as any).flowGraph ?? null;
     const initialStageGoal: string | undefined = initialFlowGraph?.stages?.find((s: any) => s.id === 'intro')?.goal;
     const scenarioPlayerConstraints = (scenarioObj as any).playerConstraints ?? null;
-    const scenarioHarness = (scenarioObj as any).simulationHarness ?? null;
     const systemInstructions = buildSystemInstructions(
       scenarioWithUserDifficulty, scenarioPersona, mbtiPersona, userRoleInfo, userLanguage,
       true, allPersonas, initialPersonaIndex, scenarioObj.targetTurns, 'replace', initialStageGoal,
-      scenarioPlayerConstraints, scenarioHarness
+      scenarioPlayerConstraints
     );
 
     // Pre-build system instructions for every persona so switching rebuilds the full prompt
@@ -204,7 +204,7 @@ export class RealtimeVoiceService {
         personaSystemInstructions.push(buildSystemInstructions(
           scenarioWithUserDifficulty, sp, mbtiP, userRoleInfo, userLanguage,
           true, allPersonas, pIdx, scenarioObj.targetTurns, 'replace', initialStageGoal,
-          scenarioPlayerConstraints, scenarioHarness
+          scenarioPlayerConstraints
         ));
       }
     }
@@ -279,23 +279,11 @@ export class RealtimeVoiceService {
       console.log(`⏱️ [createSession] Simulation timer initialized: ${timerCfg.timeLimitSec}s`);
     }
 
-    // Register flowGraph and personaSwitchRules with the simulation engine
-    const scenarioFlowGraph = (scenarioObj as any).flowGraph ?? null;
-    const scenarioPersonaSwitchRules = (scenarioObj as any).personaSwitchRules ?? null;
-    if (scenarioFlowGraph || scenarioPersonaSwitchRules) {
-      setSessionFlowConfig(conversationId, scenarioFlowGraph, scenarioPersonaSwitchRules);
-      console.log(`🗺️ [createSession] Flow config registered: flowGraph=${!!scenarioFlowGraph}, personaSwitchRules=${!!scenarioPersonaSwitchRules}`);
-    }
-    const scenarioTerminationRules = (scenarioObj as any).terminationRules ?? null;
-    if (scenarioTerminationRules) {
-      setSessionTerminationRules(conversationId, scenarioTerminationRules);
-    }
-    const scenarioDifficultyProfile = (scenarioObj as any).difficultyProfile ?? null;
+    // Apply all declarative harness fields to the engine session in one call
     const activePersonaNpcHarness = scenarioPersona?.npcBehaviorHarness ?? null;
-    if (scenarioDifficultyProfile || activePersonaNpcHarness) {
-      setSessionHarnessConfig(conversationId, scenarioDifficultyProfile, activePersonaNpcHarness);
-      console.log(`🎛️ [createSession] Harness config registered: difficultyProfile=${!!scenarioDifficultyProfile}, npcBehaviorHarness=${!!activePersonaNpcHarness}`);
-    }
+    const harnessConfig = readScenarioHarness({ ...scenarioObj as any, npcBehaviorHarness: activePersonaNpcHarness });
+    applyHarnessToSession(conversationId, harnessConfig);
+    console.log(`🎛️ [createSession] Harness applied: flowGraph=${!!harnessConfig.flowGraph}, terminationRules=${!!harnessConfig.terminationRules}, difficultyProfile=${!!harnessConfig.difficultyProfile}, npcBehaviorHarness=${!!harnessConfig.npcBehaviorHarness}, evaluationHarness=${!!harnessConfig.evaluationHarness}`);
 
     this.sessions.set(sessionId, session);
     console.log(`⏱️ [TIMING] 세션 객체 생성 완료: ${Date.now() - sessionStartTime}ms`);

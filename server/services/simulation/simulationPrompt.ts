@@ -1,115 +1,37 @@
-import type { SimulationHarness } from '@shared/schema/scenarios';
-import { DEFAULT_SIMULATION_HARNESS, resolveHarness } from './simulationHarness';
 
-export function buildSimulationToolPrompt(language: 'ko' | 'en' | 'ja' | 'zh' = 'ko', harness?: SimulationHarness | null): string {
-  const h = resolveHarness({ simulationHarness: harness });
-  const maxCalls = h.toolPolicy.updateNpcEmotion.maxCallsPerTurn;
-  const maxDelta = h.toolPolicy.updateNpcEmotion.maxDeltaPerCall;
-  const allowedTypes = h.toolPolicy.triggerIncident.allowedTypes;
-  const globalCooldown = h.toolPolicy.triggerIncident.cooldownOverride.globalCooldownSec;
-  const perTypeCooldown = h.toolPolicy.triggerIncident.cooldownOverride.perTypeCooldownSec;
-  const scenarioStateEnabled = h.toolPolicy.updateScenarioState.enabled !== false;
-  const emotionModel = h.emotionModel;
-  const preferredSignals = h.preferredSignals;
-
-  const hasCustomPolicy = harness != null;
-  const emotionList = emotionModel.join(', ');
-
-  let preferredSignalLines = '';
-  if (preferredSignals && Object.keys(preferredSignals).length > 0) {
-    const lines = Object.entries(preferredSignals).map(([k, v]) => `  - ${k}: ${v}`).join('\n');
-    if (language === 'ko') {
-      preferredSignalLines = `\n**선호 반응 패턴:**\n${lines}`;
-    } else {
-      preferredSignalLines = `\n**Preferred response signals:**\n${lines}`;
-    }
-  }
-
+/**
+ * Prompt Adapter Layer — injects only the minimum context the model needs.
+ *
+ * Design intent: all tool-policy rules (cooldowns, per-type thresholds, allowed types,
+ * stage transition conditions, etc.) are enforced server-side by the engine.
+ * The prompt adapter communicates only:
+ *   1. What tools are available and their one-line purpose
+ *   2. A note that the server validates/enforces all limits
+ *   3. Current simulation state (stage, pressure, emotions) via buildSimulationStateBlock()
+ *   4. Active playerConstraints summary via buildPlayerConstraintsBlock()
+ *   5. Next-action hints derived from current stage (added per-turn via buildSimulationStateBlock)
+ *
+ * Static harness rules (npcBehaviorHarness, difficultyProfile, evaluationHarness,
+ * flowGraph transition conditions) are NOT injected here — the engine enforces them.
+ */
+export function buildSimulationToolPrompt(
+  language: 'ko' | 'en' | 'ja' | 'zh' = 'ko'
+): string {
   if (language === 'ko') {
-    const stateToolSection = scenarioStateEnabled ? `
-**update_scenario_state** (시나리오 상태 업데이트) — 다음 상황에서 호출:
-- 갈등이 심화될 때: intro → conflict, conflict → negotiation
-- 협상이 막힐 때: negotiation → escalation
-- 긍정적으로 해결될 때: negotiation → resolution, escalation → resolution
-- 압박이 증가할 때: pressureDelta +1 (최대 +5)
-- 협상이 순조로울 때: pressureDelta -1
-- 주의: 단계 전환은 앞으로만 가능하며, 이전 단계로 되돌아갈 수 없습니다.
-` : '';
-
-    const allowedTypesLine = allowedTypes.length < 10
-      ? `- 허용된 이벤트 유형: ${allowedTypes.join(', ')}`
-      : '';
-
-    return `
-## 시뮬레이션 상태 관리 도구 사용 지침
-${hasCustomPolicy ? '\n> 이 시나리오에는 맞춤 시뮬레이션 정책이 적용됩니다.\n' : ''}
-### 도구 호출 기준
-
-**update_npc_emotion** (감정 업데이트) — 다음 상황에서 호출:
-- 사용자가 공감적이거나 논리적인 답변을 했을 때 → trust +5~+15, anger -5~-10
-- 사용자가 무례하거나 회피적인 답변을 했을 때 → anger +5~+15, trust -5~-10
-- 사용자의 답변이 모호하거나 불명확할 때 → confusion +5~+10
-- 사용자가 창의적이거나 흥미로운 제안을 했을 때 → interest +5~+15
-- 활성 감정 모델: ${emotionList}
-- 한 턴에 최대 ${maxCalls}회까지만 호출. delta는 절대값 기준 ${maxDelta} 이하.
-${preferredSignalLines}
-${stateToolSection}
-**trigger_incident** (돌발 이벤트) — 다음 상황에서만 호출:
-- anger > 80이고 이미 여러 번 경고가 있었을 때 → customer_escalation (high)
-- 협상이 장기화될 때 → deadline_pressure (medium)
-- 예상치 못한 정보가 나왔을 때 → new_evidence
-- 같은 턴에 한 번만 호출 가능
-- ${globalCooldown}초 글로벌 쿨다운, 같은 타입은 ${perTypeCooldown}초 쿨다운 적용
-${allowedTypesLine}
-
-### 중요 원칙
-- 도구 결과를 사용자에게 직접 언급하지 마세요. 상태를 바탕으로 말투와 반응 강도를 자연스럽게 조절하세요.
-- delta는 절대값이 아닌 변화량입니다. 현재 감정 수치를 모르더라도 상황에 맞는 변화량만 제공하세요.
-- 중립적인 대화에서는 도구를 호출하지 않아도 됩니다.
-`;
+    return `## 시뮬레이션 도구
+서버가 모든 쿨다운·한도·단계 전환 유효성을 검증합니다. 아래 도구를 상황에 맞게 사용하세요.
+- **update_npc_emotion**: 사용자 반응에 따라 NPC 감정(anger/trust/confusion/interest)을 조정.
+- **update_scenario_state**: 갈등 심화, 긴장 고조, 해결, 또는 압박 수준 변화 시 호출.
+- **trigger_incident**: 중요한 전환점에서 돌발 이벤트 발생.
+원칙: 도구 결과를 대화 중 직접 언급하지 말고 자연스러운 말투 변화로 표현하세요.`;
   }
 
-  const stateToolSection = scenarioStateEnabled ? `
-**update_scenario_state** — Call when:
-- Conflict deepens: intro → conflict, conflict → negotiation
-- Negotiation stalls: negotiation → escalation
-- Positive resolution: negotiation → resolution, escalation → resolution
-- Pressure increases: pressureDelta +1 (max 5)
-- Negotiation going well: pressureDelta -1
-- Note: stage transitions are forward-only; backward transitions are rejected by the engine.
-` : '';
-
-  const allowedTypesLine = allowedTypes.length < 10
-    ? `- Allowed incident types: ${allowedTypes.join(', ')}`
-    : '';
-
-  return `
-## Simulation State Management Tool Usage Guidelines
-${hasCustomPolicy ? '\n> This scenario uses a custom simulation policy.\n' : ''}
-### When to Call Each Tool
-
-**update_npc_emotion** — Call when:
-- User gave empathetic or logical response → trust +5~+15, anger -5~-10
-- User was rude or evasive → anger +5~+15, trust -5~-10
-- User's answer was vague or unclear → confusion +5~+10
-- User made a creative or interesting proposal → interest +5~+15
-- Active emotion model: ${emotionList}
-- Maximum ${maxCalls} calls per turn. Each delta must be within ±${maxDelta}.
-${preferredSignalLines}
-${stateToolSection}
-**trigger_incident** — Call only when:
-- anger > 80 and multiple warnings have occurred → customer_escalation (high)
-- Negotiation has been prolonged → deadline_pressure (medium)
-- Unexpected information emerges → new_evidence
-- Only once per turn
-- ${globalCooldown}s global cooldown, ${perTypeCooldown}s per-type cooldown applies
-${allowedTypesLine}
-
-### Key Principles
-- Never directly mention tool results to the user. Use the state to naturally adjust your tone and response intensity.
-- Deltas are changes, not absolute values. Provide appropriate change amounts based on the situation.
-- You don't need to call tools for neutral exchanges.
-`;
+  return `## Simulation Tools
+The server validates all cooldowns, limits, and stage transition rules. Use these tools as appropriate.
+- **update_npc_emotion**: Adjust NPC emotions (anger/trust/confusion/interest) based on user response quality.
+- **update_scenario_state**: Call on deepening conflict, escalation, resolution, or pressure change.
+- **trigger_incident**: Trigger an unexpected event at a pivotal moment.
+Principle: never mention tool results directly — reflect them through natural tone adjustments.`;
 }
 
 export function buildPlayerConstraintsBlock(

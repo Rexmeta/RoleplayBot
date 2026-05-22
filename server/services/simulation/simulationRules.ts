@@ -2,15 +2,30 @@ import {
   SimulationState,
   SimulationStatePatch,
   TurnScore,
-  Incident,
-  IncidentType,
-  ScenarioStage,
   NpcEmotions,
+  ScenarioStage,
 } from './simulationTypes';
 import type { NpcBehaviorHarness, DifficultyProfile } from '../../../shared/schema/scenarios';
-import { checkIncidentCooldown } from './simulationEngine';
-import { renderIncidentMessage } from './incidentTemplates';
-import { v4 as uuidv4 } from 'uuid';
+import { inferStageTransition } from './engine/inferStageTransition';
+
+/**
+ * Re-export engine-layer functions so existing callers keep working unchanged.
+ * The canonical implementations now live in engine/inferStageTransition.ts and
+ * engine/triggerIncident.ts.
+ */
+export {
+  inferStageTransition as inferStagePatchFromState,
+  resolveStageTransition,
+} from './engine/inferStageTransition';
+
+export {
+  inferIncidentCandidate,
+  evaluateIncidentProbability,
+} from './engine/triggerIncident';
+
+// ---------------------------------------------------------------------------
+// Emotion-delta helpers — remain in this module (used by evaluateUserResponse)
+// ---------------------------------------------------------------------------
 
 export function inferEmotionPatchFromEvaluation(
   turnScore: TurnScore,
@@ -46,67 +61,6 @@ export function inferEmotionPatchFromEvaluation(
   return delta;
 }
 
-export function inferStagePatchFromState(state: SimulationState): ScenarioStage | null {
-  const { anger, trust } = state.npcEmotions;
-  const pressure = state.pressureLevel;
-  const stage = state.stage;
-  const { totalTurns } = state.summary;
-
-  if (stage === 'intro' && totalTurns >= 2) return 'conflict';
-  if (stage === 'conflict' && (anger >= 70 || pressure >= 4)) return 'negotiation';
-  if (stage === 'negotiation' && anger >= 85 && trust <= 25) return 'escalation';
-  // escalation -> negotiation (backward) is omitted: engine's stageAllowed() blocks backward transitions
-  if ((stage === 'negotiation' || stage === 'escalation') && trust >= 65 && anger <= 35) return 'resolution';
-
-  return null;
-}
-
-export function inferIncidentCandidate(
-  state: SimulationState,
-  personaRunId: string,
-  currentTurnIndex: number,
-  language: 'ko' | 'en' | 'ja' | 'zh' = 'ko',
-  scenarioContext = ''
-): Incident | null {
-  const { anger, trust } = state.npcEmotions;
-  const pressure = state.pressureLevel;
-
-  let type: IncidentType | null = null;
-  let severity: 'low' | 'medium' | 'high' = 'medium';
-
-  if (anger >= 85 && trust <= 20) {
-    type = 'customer_escalation';
-    severity = 'high';
-  } else if (pressure >= 4 && state.stage === 'negotiation') {
-    type = 'deadline_pressure';
-    severity = 'medium';
-  } else if (anger >= 70 && state.summary.totalTurns >= 5) {
-    type = 'manager_interrupt';
-    severity = 'medium';
-  } else if (trust <= 25 && pressure >= 3) {
-    type = 'compliance_warning';
-    severity = 'low';
-  }
-
-  if (!type) return null;
-
-  const cooldown = checkIncidentCooldown(personaRunId, type);
-  if (!cooldown.allowed) return null;
-
-  const message = renderIncidentMessage(type, severity, scenarioContext, language);
-
-  return {
-    id: uuidv4(),
-    type,
-    severity,
-    message,
-    turnIndex: currentTurnIndex,
-    triggeredBy: 'server_rule',
-    createdAt: new Date().toISOString(),
-    resolved: false,
-  };
-}
-
 /**
  * Applies NpcBehaviorHarness negotiation bounds as additional emotion delta modifiers.
  * Called after the baseline emotion delta is computed to layer harness-specific adjustments.
@@ -121,19 +75,16 @@ export function applyNpcBehaviorHarnessModifiers(
   const bounds = harness.negotiationBounds;
   const { anger, trust } = currentState.npcEmotions;
 
-  // If trust is below the yield threshold, the NPC becomes more resistant — amplify anger
   if (bounds.minTrustToYield !== undefined && trust < bounds.minTrustToYield) {
     result.anger = (result.anger ?? 0) + 3;
     result.trust = (result.trust ?? 0) - 2;
   }
 
-  // If anger is above the walkout threshold, escalate faster
   if (bounds.maxAngerBeforeWalkout !== undefined && anger >= bounds.maxAngerBeforeWalkout) {
     result.anger = (result.anger ?? 0) + 5;
     result.trust = (result.trust ?? 0) - 5;
   }
 
-  // If max patience turns exceeded, suppress positive trust recovery
   if (bounds.maxPatienceTurns !== undefined && currentState.summary.totalTurns >= bounds.maxPatienceTurns) {
     if ((result.trust ?? 0) > 0) {
       result.trust = Math.floor((result.trust ?? 0) * 0.5);
@@ -143,22 +94,6 @@ export function applyNpcBehaviorHarnessModifiers(
   return result;
 }
 
-/**
- * Scales incident probability thresholds using difficultyProfile.incidentProbability.
- * Returns true if the incident should be allowed given the scaled probability, false to suppress.
- * incidentProbability > 1.0 → lower thresholds (more incidents)
- * incidentProbability < 1.0 → higher thresholds (fewer incidents)
- */
-export function evaluateIncidentProbability(
-  baseAllowed: boolean,
-  difficultyProfile: DifficultyProfile | undefined | null
-): boolean {
-  if (!baseAllowed) return false;
-  const prob = difficultyProfile?.incidentProbability ?? 1.0;
-  if (prob >= 1.0) return true;
-  return Math.random() < prob;
-}
-
 export function buildRuleFallbackPatch(
   turnScore: TurnScore,
   state: SimulationState,
@@ -166,15 +101,11 @@ export function buildRuleFallbackPatch(
 ): SimulationStatePatch | null {
   if (toolCallCount > 0) return null;
 
-  // NOTE: emotion deltas are NOT included here because they are already applied
-  // upstream via the server_evaluation patch (evaluateUserResponse().emotionDelta).
-  // Including them again would double-apply and cause ~2x drift on no-tool turns.
-  // This fallback patch is limited to stage transitions and pressure changes only.
-  const newStage = inferStagePatchFromState(state);
+  // NOTE: emotion deltas are NOT included here — already applied via server_evaluation patch.
+  // This fallback is limited to stage transitions only.
+  const newStage: ScenarioStage | null = inferStageTransition(state);
 
   if (!newStage) return null;
 
-  return {
-    ...(newStage ? { targetStage: newStage } : {}),
-  };
+  return { targetStage: newStage };
 }

@@ -4,9 +4,9 @@ import { filterThinkingText, isThinkingText } from './textFilter';
 import { analyzeEmotion } from './emotionAnalyzer';
 import { GoogleGenAI } from '@google/genai';
 import { handleToolCall } from '../simulation/simulationToolHandler';
-import { getOrCreateSessionContext, applySimulationPatch, getSessionState, setSessionState } from '../simulation/simulationEngine';
+import { getOrCreateSessionContext, applySimulationPatch, getSessionState, setSessionState, getSessionEvaluationHarness, getSessionHarnessConfig, getSessionFlowGraph } from '../simulation/simulationEngine';
 import { evaluateUserResponse } from '../simulation/evaluateUserResponse';
-import { buildRuleFallbackPatch, inferStagePatchFromState, inferIncidentCandidate } from '../simulation/simulationRules';
+import { buildRuleFallbackPatch, inferIncidentCandidate, resolveStageTransition } from '../simulation/simulationRules';
 import { checkIncidentCooldown, recordIncidentCooldown } from '../simulation/simulationEngine';
 import { createDefaultSimulationState, SimulationDirective } from '../simulation/simulationTypes';
 import { storage } from '../../storage';
@@ -726,6 +726,8 @@ export function handleGeminiMessage(
                 aiText,
                 simulationState: state,
                 language: session.userLanguage,
+                evaluationHarness: getSessionEvaluationHarness(personaRunId) ?? null,
+                npcBehaviorHarness: getSessionHarnessConfig(personaRunId).npcBehaviorHarness ?? null,
               });
 
               // Short utterances (<10 chars) are skipped by evaluateUserResponse per spec:
@@ -748,7 +750,7 @@ export function handleGeminiMessage(
                   });
                 }
 
-                const stageTransition = inferStagePatchFromState(newState);
+                const stageTransition = resolveStageTransition(newState, getSessionFlowGraph(personaRunId));
                 if (stageTransition) {
                   newState = applySimulationPatch(personaRunId, {
                     source: 'server_rule', priority: 'normal', turnId,

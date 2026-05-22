@@ -26,9 +26,10 @@ import { normalizeProfileName, parseJoinModeSpeakerSegments } from "../services/
 import { filterThinkingText } from "../services/voice/textFilter";
 import { createDefaultSimulationState, TurnScore } from "../services/simulation/simulationTypes";
 import type { ScenarioPersona } from "../services/aiServiceFactory";
-import { setSessionState, getSessionState, applySimulationPatch, checkIncidentCooldown, recordIncidentCooldown, setSessionFlowConfig, setSessionTerminationRules, setSessionHarnessConfig, getSessionHarnessConfig } from "../services/simulation/simulationEngine";
+import { setSessionState, getSessionState, applySimulationPatch, checkIncidentCooldown, recordIncidentCooldown, getSessionHarnessConfig, getSessionEvaluationHarness, getSessionFlowGraph } from "../services/simulation/simulationEngine";
+import { applyHarnessToSession, readScenarioHarness } from "../services/simulation/harnessReader";
 import { evaluateUserResponse } from "../services/simulation/evaluateUserResponse";
-import { buildRuleFallbackPatch, inferStagePatchFromState, inferIncidentCandidate, evaluateIncidentProbability } from "../services/simulation/simulationRules";
+import { buildRuleFallbackPatch, resolveStageTransition, inferIncidentCandidate, evaluateIncidentProbability } from "../services/simulation/simulationRules";
 import { buildSimulationStateBlock } from "../services/simulation/simulationPrompt";
 import { handleToolCall } from "../services/simulation/simulationToolHandler";
 import { v4 as uuidv4 } from "uuid";
@@ -206,13 +207,12 @@ export default function createConversationsRouter(isAuthenticated: any) {
         freshState.timer = { enabled: true, timeLimitSec: initTimerCfg.timeLimitSec, startedAt: new Date().toISOString(), pausedAt: null, elapsedSec: 0 };
       }
       setSessionState(personaRun.id, freshState);
-      setSessionFlowConfig(personaRun.id, (scenarioObj as any).flowGraph ?? null, (scenarioObj as any).personaSwitchRules ?? null);
-      setSessionTerminationRules(personaRun.id, (scenarioFromDb as any).terminationRules ?? null);
-      setSessionHarnessConfig(
-        personaRun.id,
-        (scenarioFromDb as any).difficultyProfile ?? null,
-        (scenarioPersona as any)?.npcBehaviorHarness ?? null
-      );
+      const harnessConfig = readScenarioHarness({
+        ...(scenarioFromDb as any),
+        ...(scenarioObj as any),
+        npcBehaviorHarness: (scenarioPersona as any)?.npcBehaviorHarness ?? null,
+      });
+      applyHarnessToSession(personaRun.id, harnessConfig);
       initialSimState = freshState;
       storage.saveSimulationState(personaRun.id, freshState as unknown as Record<string, unknown>)
         .then(() => {
@@ -899,7 +899,7 @@ ${userNameLine}
           });
           const qr = buildRuleFallbackPatch(qualityEvalResult.turnScore, qs, 0);
           if (qr) qs = applySimulationPatch(personaRunId, { source: 'server_rule', priority: 'low', turnId: evalTurnId, patch: qr });
-          const qt = inferStagePatchFromState(qs);
+          const qt = resolveStageTransition(qs, getSessionFlowGraph(personaRunId));
           if (qt) qs = applySimulationPatch(personaRunId, { source: 'server_rule', priority: 'normal', turnId: evalTurnId, patch: { targetStage: qt } });
           // Server-rule incident inference for quality mode (text/TTS path)
           const qInc = inferIncidentCandidate(qs, personaRunId, currentTurnIndex, userLanguage as any, scenarioRun!.scenarioId);
@@ -1091,7 +1091,7 @@ ${userNameLine}
               let ns = applySimulationPatch(personaRunId, { source: 'server_evaluation', priority: 'normal', turnId: evalTurnId, patch: { turnScoresToAdd: [er.turnScore], npcEmotionDelta: er.emotionDelta } });
               const rp = buildRuleFallbackPatch(er.turnScore, ns, 0);
               if (rp) ns = applySimulationPatch(personaRunId, { source: 'server_rule', priority: 'low', turnId: evalTurnId, patch: rp });
-              const st = inferStagePatchFromState(ns);
+              const st = resolveStageTransition(ns, getSessionFlowGraph(personaRunId));
               if (st) ns = applySimulationPatch(personaRunId, { source: 'server_rule', priority: 'normal', turnId: evalTurnId, patch: { targetStage: st } });
               const fInc = inferIncidentCandidate(ns, personaRunId, currentTurnIndex, userLanguage, scenarioRun!.scenarioId);
               if (fInc && evaluateIncidentProbability(true, scenarioDifficultyProfile)) { const fCool = checkIncidentCooldown(personaRunId, fInc.type); if (fCool.allowed) { recordIncidentCooldown(personaRunId, fInc.type); ns = applySimulationPatch(personaRunId, { source: 'server_rule', priority: 'normal', turnId: evalTurnId, patch: { incidentsToAdd: [fInc] } }); } }
@@ -1299,7 +1299,7 @@ ${userNameLine}
             let ns = applySimulationPatch(personaRunId, { source: 'server_evaluation', priority: 'normal', turnId: evalTurnId, patch: { turnScoresToAdd: [er.turnScore], npcEmotionDelta: er.emotionDelta } });
             const rp = buildRuleFallbackPatch(er.turnScore, ns, 0);
             if (rp) ns = applySimulationPatch(personaRunId, { source: 'server_rule', priority: 'low', turnId: evalTurnId, patch: rp });
-            const st = inferStagePatchFromState(ns);
+            const st = resolveStageTransition(ns, getSessionFlowGraph(personaRunId));
             if (st) ns = applySimulationPatch(personaRunId, { source: 'server_rule', priority: 'normal', turnId: evalTurnId, patch: { targetStage: st } });
             // Server-rule incident inference for fast mode (text/TTS path)
             const fInc = inferIncidentCandidate(ns, personaRunId, currentTurnIndex, userLanguage as any, scenarioRun!.scenarioId);

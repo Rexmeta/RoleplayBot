@@ -10,7 +10,7 @@ import {
   createDefaultSimulationState,
   calcTurnScoreTotal,
 } from './simulationTypes';
-import type { FlowGraph, PersonaSwitchRules, ExitCondition, ConditionOperator, TerminationRules, TerminationConditionGroup, TerminationOutcome, DifficultyProfile, NpcBehaviorHarness } from '../../../shared/schema/scenarios';
+import type { FlowGraph, PersonaSwitchRules, ExitCondition, ConditionOperator, TerminationRules, TerminationConditionGroup, TerminationOutcome, DifficultyProfile, NpcBehaviorHarness, EvaluationHarness } from '../../../shared/schema/scenarios';
 import { evaluatePersonaSwitchRules } from './personaSwitchEvaluator';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -108,6 +108,8 @@ interface InternalSession {
   consecutiveSwitchCounts: Map<string, number>;
   difficultyProfile?: DifficultyProfile;
   npcBehaviorHarness?: NpcBehaviorHarness;
+  /** Stored by harnessReader so callers can retrieve it without passing it through every function */
+  evaluationHarness?: EvaluationHarness;
 }
 
 const sessionContexts = new Map<string, InternalSession>();
@@ -172,6 +174,22 @@ export function getSessionHarnessConfig(personaRunId: string): {
     difficultyProfile: ctx?.difficultyProfile,
     npcBehaviorHarness: ctx?.npcBehaviorHarness,
   };
+}
+
+export function setSessionEvaluationHarness(
+  personaRunId: string,
+  evaluationHarness: EvaluationHarness | null | undefined
+): void {
+  const ctx = getOrCreateSessionContext(personaRunId);
+  if (evaluationHarness) ctx.evaluationHarness = evaluationHarness;
+}
+
+export function getSessionEvaluationHarness(personaRunId: string): EvaluationHarness | undefined {
+  return sessionContexts.get(personaRunId)?.evaluationHarness;
+}
+
+export function getSessionFlowGraph(personaRunId: string): import('../../../shared/schema/scenarios').FlowGraph | undefined {
+  return sessionContexts.get(personaRunId)?.flowGraph;
 }
 
 function checkTerminationConditionGroup(
