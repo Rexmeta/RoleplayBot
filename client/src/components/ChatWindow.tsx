@@ -28,6 +28,7 @@ import { useChatMessages } from "@/hooks/chat/useChatMessages";
 import { useChatSession } from "@/hooks/chat/useChatSession";
 import { MessageList } from "@/components/chat/MessageList";
 import { parseJoinModeSpeakerSegments } from "@/lib/joinModeParser";
+import { resolvePersonaAfterSwitch } from "@/components/chat/resolvePersonaAfterSwitch";
 import { PersonaSwitchCard } from "@/components/chat/PersonaSwitchCard";
 import { TranscriptPanel } from "@/components/chat/TranscriptPanel";
 import { TopMenuPanel } from "@/components/chat/TopMenuPanel";
@@ -186,9 +187,10 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
     // Update active persona so header/portrait displays the new character.
     // Prefer name-based lookup (mirrors MessageList's scenarioPersonas.find(p => p.name === ...) logic)
     // so the correct avatar is shown even if toIndex and newPersonaName diverge.
-    const switchedTo = (info.newPersonaName
-      ? (scenario.personas as ScenarioPersona[] | undefined)?.find(p => p.name === info.newPersonaName)
-      : undefined) ?? (scenario.personas?.[info.toIndex] as ScenarioPersona | undefined);
+    const switchedTo = resolvePersonaAfterSwitch(
+      scenario.personas as ScenarioPersona[] | undefined,
+      { toIndex: info.toIndex, newPersonaName: info.newPersonaName },
+    );
     if (switchedTo) {
       setActivePersona(switchedTo);
     }
