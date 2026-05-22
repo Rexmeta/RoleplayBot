@@ -573,7 +573,10 @@ export default function createConversationsRouter(isAuthenticated: any) {
       storage.getUser(userId),
       needSimStateFromDb ? storage.getSimulationState(personaRunId) : Promise.resolve(null),
     ]);
-    const currentTurnIndex = Math.floor(existingMessages.length / 2);
+    // Greeting is stored at turnIndex 0 (1 existing message after init).
+    // Using Math.ceil ensures the first real user turn starts at 1, not 0,
+    // so the greeting's turnIndex is never shared with any subsequent message.
+    const currentTurnIndex = Math.ceil(existingMessages.length / 2);
 
     if (existingMessages.length > 0) {
       const lastMessage = existingMessages[existingMessages.length - 1];

@@ -359,7 +359,28 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
       const hasNewFromServer = incoming.some(m => !existingKeys.has(`${m.sender}:::${m.message}`));
       const localOnly = prev.filter(m => !incomingKeys.has(`${m.sender}:::${m.message}`));
       if (!hasNewFromServer && localOnly.length === 0) return prev;
-      return [...incoming, ...localOnly];
+      // Determine the highest turnIndex among confirmed server messages so that
+      // local-only optimistic messages (which have no turnIndex yet) are placed
+      // after all confirmed messages rather than defaulting to 0 (which would
+      // sort them next to the greeting).
+      const maxIncomingTurnIndex = incoming.reduce((max, m) => {
+        const t = (m as any).turnIndex ?? 0;
+        return t > max ? t : max;
+      }, 0);
+      const localOnlyWithIndex = localOnly.map((m, i) => ({
+        ...m,
+        __effectiveTurnIndex: (m as any).turnIndex != null
+          ? (m as any).turnIndex
+          : maxIncomingTurnIndex + 1 + i,
+      }));
+      // Sort the merged list by turnIndex then timestamp so the greeting
+      // (turnIndex 0) always appears first and optimistic messages stay at tail.
+      return [...incoming, ...localOnlyWithIndex].sort((a, b) => {
+        const ta = (a as any).__effectiveTurnIndex ?? (a as any).turnIndex ?? 0;
+        const tb = (b as any).__effectiveTurnIndex ?? (b as any).turnIndex ?? 0;
+        if (ta !== tb) return ta - tb;
+        return new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime();
+      });
     });
   }, [conversation?.messages]);
 
