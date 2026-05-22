@@ -146,12 +146,22 @@ export function MessageList({
               message.sender === "user" ? "justify-end" : ""
             }`}
           >
-            {message.sender === "ai" && (
+            {message.sender === "ai" && (() => {
+              const activePersonaName = messagePersonaLabels.get(index) ?? personaName;
+              const activePersona = scenarioPersonas?.find(p => p.name === activePersonaName);
+              const emotionKey = message.emotion || '중립';
+              const emotionImage = activePersona?.expressions?.[emotionKey];
+              const avatarSrc = emotionImage
+                ? toMediaUrl(emotionImage)
+                : activePersona?.image
+                  ? toMediaUrl(activePersona.image)
+                  : (getCharacterImage(emotionKey) || toMediaUrl(personaImage || ''));
+              return (
               <div className="relative flex-shrink-0 self-stretch flex items-end">
                 <div className="w-10 sm:w-16 h-full min-h-[3rem] sm:min-h-[4rem] rounded-xl ring-2 ring-white shadow-lg overflow-hidden bg-slate-100">
                   <img
-                    src={getCharacterImage(message.emotion || '중립') || toMediaUrl(personaImage || '')}
-                    alt={personaName}
+                    src={avatarSrc}
+                    alt={activePersonaName}
                     className="w-full h-full object-cover object-top"
                   />
                 </div>
@@ -164,7 +174,8 @@ export function MessageList({
                   </div>
                 )}
               </div>
-            )}
+              );
+            })()}
 
             <div className={`flex flex-col ${message.sender === "user" ? "items-end" : "items-start"} max-w-[85%] sm:max-w-[70%]`}>
               {message.sender === "ai" && (
