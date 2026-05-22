@@ -164,6 +164,74 @@ export type InsertAuditLog = z.infer<typeof insertAuditLogSchema>;
 export type AuditLog = typeof auditLogs.$inferSelect;
 
 // ─────────────────────────────────────────────────────────────
+// Agent API response type schemas
+// ─────────────────────────────────────────────────────────────
+
+export const agentNpcEmotionsSchema = z.object({
+  anger: z.number(),
+  trust: z.number(),
+  confusion: z.number(),
+  interest: z.number(),
+});
+
+export const agentTurnScoreSchema = z.object({
+  turnId: z.string(),
+  turnIndex: z.number(),
+  clarity: z.number(),
+  empathy: z.number(),
+  logic: z.number(),
+  ownership: z.number(),
+  actionPlan: z.number(),
+  total: z.number(),
+  hint: z.string().optional(),
+  evaluationMethod: z.enum(["llm", "rule", "hybrid"]),
+  evaluationConfidence: z.number(),
+});
+export type AgentTurnScore = z.infer<typeof agentTurnScoreSchema>;
+
+export const agentSimulationStateSchema = z.object({
+  version: z.number(),
+  stage: z.enum(["intro", "conflict", "negotiation", "escalation", "resolution"]),
+  pressureLevel: z.number(),
+  npcEmotions: agentNpcEmotionsSchema,
+  currentScore: z.number(),
+  recentTurnScores: z.array(agentTurnScoreSchema),
+  summary: z.object({
+    totalTurns: z.number(),
+    totalIncidents: z.number(),
+    averageScore: z.number(),
+    maxAnger: z.number(),
+    minTrust: z.number(),
+  }),
+});
+export type AgentSimulationState = z.infer<typeof agentSimulationStateSchema>;
+
+export const agentMessageResponseSchema = z.object({
+  id: z.string(),
+  sessionId: z.string(),
+  turnId: z.string(),
+  reply: z.object({
+    text: z.string(),
+    emotionLabel: z.string().nullable(),
+    emotionReason: z.string().nullable(),
+  }),
+  simulationState: agentSimulationStateSchema.nullable(),
+  turnScore: agentTurnScoreSchema.nullable(),
+  usage: z.null(),
+  requestId: z.string(),
+});
+export type AgentMessageResponse = z.infer<typeof agentMessageResponseSchema>;
+
+export const agentEndSessionResponseSchema = z.object({
+  sessionId: z.string(),
+  status: z.literal("ended"),
+  endedAt: z.string(),
+  feedbackReport: z.record(z.any()).nullable(),
+  requestId: z.string(),
+});
+export type AgentEndSessionResponse = z.infer<typeof agentEndSessionResponseSchema>;
+
+// ─────────────────────────────────────────────────────────────
 // Scope definitions
 // ─────────────────────────────────────────────────────────────
 export const AGENT_API_SCOPES = [

@@ -2,10 +2,6 @@
  * Agent API Routes – Enterprise B2B REST API
  * All routes require Bearer <api_key> authentication via isAgentApiKey middleware.
  *
- * NOTE: simulationState is always null in this implementation until Task #292
- * (Simulation Engine) is integrated. Set AGENT_API_ENABLE_SIMULATION=true to enable
- * once #292 is ready.
- *
  * Rate limiting uses express-rate-limit with an in-memory store.
  * TODO: Replace with Redis store for multi-instance deployment (Upstash etc.)
  */
@@ -33,6 +29,14 @@ import { fileManager } from "../services/fileManager";
 import { generateAIResponse } from "../services/aiServiceFactory";
 import { storage } from "../storage";
 import { z } from "zod";
+import {
+  applySimulationPatch,
+  getOrCreateSessionContext,
+  getSessionState,
+} from "../services/simulation/simulationEngine";
+import { createDefaultSimulationState } from "../services/simulation/simulationTypes";
+import { evaluateUserResponse } from "../services/simulation/evaluateUserResponse";
+import { generateAndSaveFeedback } from "./routerHelpers";
 
 const router = Router();
 
@@ -61,10 +65,6 @@ function generateTurnId(sessionId: string, turn: number): string {
 
 function hashRequestBody(body: any): string {
   return createHash("sha256").update(JSON.stringify(body)).digest("hex");
-}
-
-function isSimulationEnabled(): boolean {
-  return process.env.AGENT_API_ENABLE_SIMULATION === "true";
 }
 
 // Best-effort async: aggregate usage for dashboard
@@ -607,6 +607,85 @@ router.post("/sessions/:id/messages", requireScope("sessions:message"), async (r
 
     const turnId = generateTurnId(sessionId, turn + 1);
 
+    // ── Simulation Engine Integration ──────────────────────────────────────
+    let simulationState: any = null;
+    let turnScore: any = null;
+
+    if (session.personaRunId) {
+      try {
+        const personaRunId = session.personaRunId;
+
+        // Hydrate simulation state from DB if not in memory (survives process restarts)
+        let currentState = getSessionState(personaRunId);
+        if (!currentState) {
+          const stored = await storage.getSimulationState(personaRunId).catch(() => null);
+          if (stored) {
+            const { setSessionState } = await import("../services/simulation/simulationEngine");
+            setSessionState(personaRunId, stored as any);
+            currentState = stored as any;
+          } else {
+            currentState = createDefaultSimulationState();
+          }
+        }
+        getOrCreateSessionContext(personaRunId, currentState);
+
+        // Evaluate the user's message (LLM-based with rule fallback)
+        const evalResult = await evaluateUserResponse({
+          personaRunId,
+          turnId,
+          turnIndex: turn,
+          userText: message,
+          aiText: aiResult.content,
+          simulationState: currentState,
+          language: (session.language as any) ?? "ko",
+          evaluationMode: "fast",
+        });
+
+        if (!evalResult.skipped) {
+          // Apply evaluation scores to simulation state
+          const newState = applySimulationPatch(personaRunId, {
+            turnId,
+            source: "server_evaluation",
+            priority: "normal",
+            patch: {
+              npcEmotionDelta: evalResult.emotionDelta,
+              turnScoresToAdd: [evalResult.turnScore],
+            },
+          });
+          simulationState = newState;
+          turnScore = evalResult.turnScore;
+
+          // Persist updated simulation state to DB for cross-restart continuity
+          storage.saveSimulationState(personaRunId, newState as unknown as Record<string, unknown>)
+            .catch((e) => console.warn("[agentApi] Failed to save simulation state:", e));
+
+          // Persist simulation event for feedback report generation
+          const personaRun = await storage.getPersonaRun(personaRunId).catch(() => null);
+          storage.createSimulationEvent({
+            personaRunId,
+            scenarioRunId: personaRun?.scenarioRunId ?? "",
+            turnIndex: turn,
+            turnId,
+            eventType: "auto_evaluation",
+            toolName: null,
+            args: { userTextLength: message.length, method: evalResult.method, evalMode: "fast" },
+            result: { turnScore: evalResult.turnScore },
+            stateBefore: currentState,
+            stateAfter: newState,
+            stateVersionBefore: currentState.version,
+            stateVersionAfter: newState.version,
+            includeInReport: true,
+          }).catch((e) => console.warn("[agentApi] Failed to save simulation event:", e));
+        } else {
+          // Skipped (short message) — still return the current state
+          simulationState = currentState;
+        }
+      } catch (err) {
+        console.warn("[agentApi] Simulation engine error (non-fatal):", err);
+      }
+    }
+    // ─────────────────────────────────────────────────────────────────────────
+
     const responseBody = {
       id: `msg_${randomUUID().replace(/-/g, "").slice(0, 16)}`,
       sessionId,
@@ -616,8 +695,8 @@ router.post("/sessions/:id/messages", requireScope("sessions:message"), async (r
         emotionLabel: aiResult.emotion,
         emotionReason: aiResult.emotionReason,
       },
-      simulationState: isSimulationEnabled() ? null : null, // #292 Simulation Engine not yet integrated
-      turnScore: null, // #292 not yet integrated
+      simulationState,
+      turnScore,
       usage: null,
       requestId,
     };
@@ -684,11 +763,65 @@ router.post("/sessions/:id/end", requireScope("sessions:end"), async (req: any, 
       metadata: { agentKeyId: agentKey.id },
     }).catch(() => {});
 
+    // ── Generate feedback report if persona run exists ────────────────────
+    let feedbackReport: any = null;
+
+    if (session.personaRunId) {
+      try {
+        const personaRunId = session.personaRunId;
+
+        // Fetch scenario and persona context
+        const allScenarios = await fileManager.getAllScenarios();
+        const scenario = allScenarios.find((s: any) => s.id === session.scenarioId);
+
+        if (scenario) {
+          const scenarioPersona = scenario.personas?.find((p: any) => p.id === session.personaId);
+          const mbtiType = scenarioPersona?.mbti ?? scenarioPersona?.personaRef?.replace(".json", "");
+          const mbtiPersona = mbtiType ? await fileManager.getPersonaByMBTI(mbtiType) : null;
+
+          const personaContext = {
+            id: scenarioPersona?.id ?? session.personaId,
+            name: scenarioPersona?.name ?? session.personaId,
+            role: scenarioPersona?.position ?? scenarioPersona?.role ?? "",
+            department: scenarioPersona?.department ?? "",
+            personality: (mbtiPersona as any)?.communication_style ?? "균형 잡힌 의사소통",
+            responseStyle: (mbtiPersona as any)?.communication_patterns?.opening_style ?? "",
+            goals: (mbtiPersona as any)?.communication_patterns?.win_conditions ?? [],
+            background: (mbtiPersona as any)?.background?.personal_values?.join(", ") ?? "",
+          };
+
+          // Fetch all chat messages for this persona run
+          const rawMessages = await storage.getChatMessagesByPersonaRun(personaRunId).catch(() => []);
+          const conversationMessages = rawMessages.map((m: any) => ({
+            sender: m.sender as "user" | "ai",
+            message: m.message,
+            timestamp: m.createdAt?.toISOString?.() ?? new Date().toISOString(),
+            emotion: m.emotion ?? null,
+            emotionReason: m.emotionReason ?? null,
+          }));
+
+          const conversationObj = { messages: conversationMessages };
+          const language = (session.language as "ko" | "en" | "ja" | "zh") ?? "ko";
+
+          feedbackReport = await generateAndSaveFeedback(
+            personaRunId,
+            conversationObj,
+            scenario,
+            personaContext,
+            language
+          );
+        }
+      } catch (err) {
+        console.warn("[agentApi] Failed to generate feedback report (non-fatal):", err);
+      }
+    }
+    // ─────────────────────────────────────────────────────────────────────────
+
     const responseBody = {
       sessionId,
       status: "ended",
       endedAt: new Date().toISOString(),
-      feedbackReport: null,
+      feedbackReport,
       requestId,
     };
 
