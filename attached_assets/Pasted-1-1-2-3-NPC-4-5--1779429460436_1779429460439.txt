@@ -1,0 +1,131 @@
+1. 현재 시나리오 하네스의 역할
+
+현재 시나리오는 대략 아래 역할을 합니다.
+
+1. 대화 배경 제공
+2. 사용자의 역할 정의
+3. NPC 페르소나 선택
+4. 성공 기준 제공
+5. 목표 턴 수 제공
+6. 난이도 결정
+7. 추천 대화 흐름 제공
+
+실제로 buildSystemInstructions()는 시나리오의 context.situation, scenarioPersona, difficulty, targetTurns, mbtiPersona를 조합해 Gemini Live 음성용 시스템 프롬프트를 만듭니다.
+
+또한 Simulation Tool 지침도 프롬프트에 추가되어, AI가 update_npc_emotion, update_scenario_state, trigger_incident 같은 도구를 사용할 수 있도록 유도합니다.
+
+그래서 현재 구조는 **“프롬프트 하네스”**로는 어느 정도 작동합니다.
+
+하지만 상용 서비스에서 필요한 것은 더 강한 하네스입니다.
+
+프롬프트 하네스
+→ 상태 기반 하네스
+→ 평가 기반 하네스
+→ 이벤트 기반 하네스
+→ 상품/고객사별 정책 하네스
+
+현재는 이 중 1단계와 2단계 일부만 구현되어 있습니다.
+
+2. 가장 큰 부족점: 시나리오가 “검증 가능한 상태 머신”이 아님
+
+현재 recommendedFlow는 text[]입니다.
+즉, 사람이 읽기 좋은 흐름은 있지만, 시스템이 강제할 수 있는 상태 머신은 아닙니다.
+
+현재 한계
+recommendedFlow:
+- 도입
+- 갈등
+- 협상
+- 해결
+
+이런 식이면 AI가 참고는 할 수 있지만, 서버가 아래를 판단하기 어렵습니다.
+
+지금은 몇 단계인가?
+다음 단계로 넘어가도 되는가?
+이벤트 발생 조건은 무엇인가?
+어떤 응답이면 실패인가?
+어떤 응답이면 해결 단계인가?
+보완안
+
+시나리오에 flowGraph 또는 stageRules를 추가해야 합니다.
+
+flowGraph: {
+  stages: [
+    {
+      id: "intro",
+      label: "도입",
+      goal: "문제 상황을 이해하게 한다",
+      entryCondition: "session.start",
+      exitConditions: [
+        {
+          type: "turn_count",
+          operator: ">=",
+          value: 1,
+          nextStage: "conflict"
+        }
+      ]
+    },
+    {
+      id: "conflict",
+      label: "갈등",
+      goal: "사용자가 책임과 영향을 인식하게 한다",
+      exitConditions: [
+        {
+          type: "turn_score",
+          metric: "actionPlan",
+          operator: ">=",
+          value: 70,
+          nextStage: "negotiation"
+        },
+        {
+          type: "npc_emotion",
+          metric: "anger",
+          operator: ">=",
+          value: 85,
+          nextStage: "escalation"
+        }
+      ]
+    }
+  ]
+}
+
+이렇게 해야 시나리오가 단순 프롬프트가 아니라 서버가 통제할 수 있는 실행 하네스가 됩니다.
+
+3. 페르소나 전환 조건이 약함
+
+현재 personas에는 triggerHints, entryLine, isPrimary 같은 필드가 있습니다.
+또한 buildMultiPersonaSection()은 여러 페르소나가 있을 때 switch_persona 도구 호출 기준을 프롬프트로 제공합니다.
+
+좋은 방향입니다. 하지만 아직 약합니다.
+
+현재 문제
+
+triggerHints는 자연어 힌트입니다.
+
+"사용자가 권한 밖의 결정을 요청할 때"
+"상황이 악화될 때"
+"임원 개입이 필요할 때"
+
+이건 AI가 알아서 해석해야 합니다. 서버가 확정적으로 판단하기 어렵습니다.
+
+보완안
+
+triggerHints를 유지하되, 기계 판정 가능한 switchRules를 추가하세요.
+
+personaSwitchRules: [
+  {
+    fromPersonaId: "customer_manager",
+    toPersonaId: "executive",
+    trigger: {
+      anyOf: [
+        { metric: "npcEmotions.anger", operator: ">=", value: 85 },
+        { metric: "turnScores.actionPlan", operator: "<", value: 40, consecutiveTurns: 3 },
+        { keywordIntent: "asks_for_decision_maker" }
+      ]
+    },
+    transitionLine: "마침 담당 임원님도 통화에 들어오셨습니다.",
+    lockAfterSwitch: true
+  }
+]
+
+이렇게 해야 멀티 NPC 전환이 우연한 프롬프트 반응이 아니라 시나리오 규칙에 의해 제어되는 체험이 됩니다.
