@@ -113,11 +113,22 @@ export async function registerRoutes(app: Express, httpServer: Server): Promise<
         req.get('host');
       publicBase = `${proto}://${host}`;
     }
+    const activeServerUrl = `${publicBase}/api/v1/agent`;
+    const urlSource = process.env.AGENT_API_PUBLIC_URL
+      ? '`AGENT_API_PUBLIC_URL` environment variable'
+      : 'inferred from request headers';
+
+    const serverBanner = `\n---\n\n> **🌐 Active base URL for "Try it out"**\n>\n> \`\`\`\n> ${activeServerUrl}\n> \`\`\`\n>\n> Source: ${urlSource}. If this URL doesn't match your expected endpoint (e.g. behind a load balancer or custom domain), set the \`AGENT_API_PUBLIC_URL\` environment variable on the server to the correct public base URL.\n>\n> API keys are managed from the **[Key Management page](/system-admin)**.\n`;
+
     const dynamicSpec = {
       ...agentApiSpec,
+      info: {
+        ...agentApiSpec.info,
+        description: agentApiSpec.info.description + serverBanner,
+      },
       servers: [
         {
-          url: `${publicBase}/api/v1/agent`,
+          url: activeServerUrl,
           description: 'Agent API',
         },
       ],
