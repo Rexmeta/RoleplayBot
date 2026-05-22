@@ -1,0 +1,248 @@
+7. 사용자의 역할 제약이 약함
+
+현재 context.playerRole에는 position, department, experience, responsibility가 있습니다.
+하지만 사용자가 무엇을 할 수 있고, 무엇을 하면 안 되는지가 부족합니다.
+
+왜 중요하냐
+
+예를 들어 고객 클레임 대응 시나리오에서 사용자가 이렇게 말할 수 있습니다.
+
+“전액 환불하고 1억 보상하겠습니다.”
+
+AI는 좋아할 수 있지만, 실제 업무에서는 권한 밖일 수 있습니다.
+
+보완안
+playerConstraints: {
+  authorityLevel: "frontline_manager",
+  canOffer: [
+    "일정 조정",
+    "부분 보상 검토",
+    "상급자 보고",
+    "긴급 출하 요청"
+  ],
+  cannotOffer: [
+    "법적 책임 인정",
+    "무제한 보상",
+    "계약 조건 임의 변경"
+  ],
+  requiredBehaviors: [
+    "고객 영향 먼저 인정",
+    "확정 가능한 것과 검토 필요한 것을 구분",
+    "시간 약속 포함"
+  ],
+  forbiddenBehaviors: [
+    "책임 회피",
+    "근거 없는 약속",
+    "상대 탓"
+  ]
+}
+
+이게 들어가야 시나리오가 실제 업무 하네스가 됩니다.
+
+8. NPC의 목표와 협상 한계가 약함
+
+현재 persona에는 stance, goal, tradeoff가 있습니다.
+좋은 시작입니다. 하지만 NPC가 어떤 조건에서 양보하고, 어떤 조건에서 강경해지는지 부족합니다.
+
+보완안
+npcBehaviorHarness: {
+  personaId: "customer_manager",
+  negotiationBounds: {
+    mustHave: ["오늘 안에 대안 일정 수령", "책임자 확인"],
+    niceToHave: ["보상안", "재발 방지 대책"],
+    unacceptable: ["원인 확인만 약속", "책임 회피"]
+  },
+  trustTriggers: [
+    { condition: "사용자가 시간/담당/조치 제시", trustDelta: 15 },
+    { condition: "사용자가 고객 피해를 먼저 인정", angerDelta: -10 }
+  ],
+  escalationTriggers: [
+    { condition: "책임 회피", angerDelta: 20 },
+    { condition: "3턴 연속 실행안 부족", incident: "executive_join" }
+  ]
+}
+
+이걸 넣으면 NPC가 매번 일관된 기준으로 반응합니다.
+
+9. 시나리오 품질 검증 도구가 필요함
+
+현재 시나리오가 하네스라면, 시나리오 자체도 테스트해야 합니다.
+지금은 시나리오 JSON/DB 내용이 깨져도 런타임에서야 알 수 있습니다.
+
+필요한 검증
+1. primary persona가 정확히 1명인가?
+2. personaRef가 실제 MBTI/persona 파일과 연결되는가?
+3. targetTurns >= minValidTurns인가?
+4. successCriteria가 비어 있지 않은가?
+5. objectives가 evaluationHarness와 연결되는가?
+6. triggerHints는 switchRules와 충돌하지 않는가?
+7. allowed incident type이 템플릿에 존재하는가?
+8. playerConstraints가 있는가?
+9. stageRules가 순환/막힘 없이 연결되는가?
+10. 다국어 sourceLocale/translation 누락 여부
+보완안
+npm run validate:scenarios
+
+또는 관리자 화면에서:
+
+시나리오 품질 점수: 82/100
+누락:
+- terminationRules 없음
+- evaluationHarness 없음
+- personaSwitchRules 없음
+
+이건 상용 서비스에서 매우 중요합니다.
+
+10. 시나리오 버전 관리가 부족함
+
+현재 scenarios에는 createdAt, updatedAt은 있지만 버전 개념이 약합니다.
+
+상용에서 시나리오가 바뀌면 문제가 생깁니다.
+
+어제 수행한 리포트는 어떤 버전 기준인가?
+고객사 A에게 제공한 시나리오와 고객사 B의 시나리오는 같은가?
+평가 기준이 바뀐 뒤 점수를 비교할 수 있는가?
+보완안
+scenarioVersions: {
+  id: string;
+  scenarioId: string;
+  version: number;
+  status: "draft" | "published" | "archived";
+  contentSnapshot: jsonb;
+  evaluationHarnessSnapshot: jsonb;
+  publishedAt: Date;
+  publishedBy: string;
+}
+
+그리고 scenario_runs에는 다음이 들어가야 합니다.
+
+scenarioVersionId
+scenarioSnapshot
+evaluationHarnessSnapshot
+
+그래야 과거 리포트의 재현성이 생깁니다.
+
+11. 하네스와 프롬프트가 너무 강하게 결합되어 있음
+
+현재 buildSystemInstructions()는 시나리오, 페르소나, MBTI, 난이도, 언어, Tool 지침, 다중 페르소나 지침을 하나의 긴 프롬프트로 조합합니다.
+
+이 방식은 빠르게 만들기 좋지만, 상용 하네스에는 한계가 있습니다.
+
+문제
+1. 프롬프트가 길어질수록 모델이 일부 규칙을 놓침
+2. 시나리오별 정책을 서버가 강제하지 못함
+3. 평가/상태/이벤트가 프롬프트 의존적
+4. 디버깅이 어려움
+보완 방향
+
+시나리오 하네스를 3층으로 분리하세요.
+
+1. Declarative Harness
+   - stageRules
+   - evaluationHarness
+   - triggerRules
+   - terminationRules
+
+2. Runtime Engine
+   - applySimulationPatch
+   - evaluateUserResponse
+   - inferStageTransition
+   - triggerIncident
+
+3. Prompt Adapter
+   - 현재 상태와 다음 행동 지침만 짧게 모델에 주입
+
+즉, 프롬프트는 “모든 규칙을 넣는 곳”이 아니라 서버가 계산한 현재 지침을 전달하는 어댑터가 되어야 합니다.
+
+12. 시나리오별 데이터 수집 항목이 없음
+
+B2B 상용 서비스에서는 고객이 이런 걸 원합니다.
+
+이 교육에서 어떤 행동 데이터를 수집하나요?
+어떤 지표를 리포트로 볼 수 있나요?
+개인별/팀별 비교가 되나요?
+
+현재 시나리오에는 analytics spec이 없습니다.
+
+보완안
+analyticsSpec: {
+  trackedMetrics: [
+    "currentScore",
+    "angerMax",
+    "trustMin",
+    "timeToResolution",
+    "turnsToFirstActionPlan",
+    "empathyAverage",
+    "escalationCount"
+  ],
+  reportSections: [
+    "summary",
+    "criticalMoments",
+    "emotionTimeline",
+    "turnScores",
+    "improvementSuggestions"
+  ],
+  benchmarkGroup: "new_employee_reporting_v1"
+}
+
+이게 들어가야 리포트가 시나리오별로 의미 있게 나옵니다.
+
+13. 기업 고객별 커스터마이징 레이어가 없음
+
+시나리오가 하네스라면 고객사마다 조금씩 달라야 합니다.
+
+예:
+
+삼성전자 신입사원 보고
+현대자동차 품질 이슈 대응
+금융권 고객 민원 대응
+제약사 컴플라이언스 대응
+
+현재 시나리오는 공통 DB 객체에 가깝습니다. 고객사별 override 구조가 필요합니다.
+
+보완안
+scenarioOverrides: {
+  organizationId: string;
+  scenarioId: string;
+  override: {
+    terminology?: Record<string, string>;
+    policyConstraints?: string[];
+    forbiddenPhrases?: string[];
+    evaluationWeights?: Record<string, number>;
+    customIncidents?: IncidentTemplate[];
+  }
+}
+
+이렇게 해야 같은 기본 시나리오를 여러 기업에 팔 수 있습니다.
+
+14. 시나리오 난이도 조절이 단순함
+
+현재 difficulty는 integer입니다.
+하지만 난이도가 무엇을 바꾸는지 시나리오 안에 명확하지 않습니다.
+
+현재는 getRealtimeVoiceGuidelines()에서 난이도별 대화 스타일을 가져오는 구조입니다.
+하지만 시나리오 수준의 난이도 조절은 더 세밀해야 합니다.
+
+보완안
+difficultyProfile: {
+  1: {
+    npcPatience: "high",
+    hintFrequency: "high",
+    incidentProbability: "low",
+    passThreshold: 60
+  },
+  3: {
+    npcPatience: "medium",
+    hintFrequency: "medium",
+    incidentProbability: "medium",
+    passThreshold: 70
+  },
+  5: {
+    npcPatience: "low",
+    hintFrequency: "low",
+    incidentProbability: "high",
+    passThreshold: 80
+  }
+}
+
+이렇게 해야 난이도가 단순 말투가 아니라 상태 변화, 평가 기준, 이벤트 빈도를 바꿉니다.
