@@ -49,6 +49,7 @@ export interface SimulationState {
   currentScore: number;
   recentTurnScores: TurnScore[];
   recentIncidents: Incident[];
+  terminationReason?: 'success' | 'failure' | 'timeout';
   summary: {
     totalTurns: number;
     totalIncidents: number;

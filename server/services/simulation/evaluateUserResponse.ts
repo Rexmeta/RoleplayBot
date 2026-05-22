@@ -7,6 +7,7 @@ import {
 } from './simulationTypes';
 import { inferEmotionPatchFromEvaluation } from './simulationRules';
 import { buildSimulationStateBlock } from './simulationPrompt';
+import type { EvaluationHarness, EvaluationHarnessDimension } from '../../../shared/schema/scenarios';
 
 const EVAL_TIMEOUT_MS = 8000;
 
@@ -19,6 +20,7 @@ export interface EvaluationInput {
   simulationState: SimulationState;
   language?: 'ko' | 'en' | 'ja' | 'zh';
   evaluationMode?: 'fast' | 'quality';
+  evaluationHarness?: EvaluationHarness | null;
 }
 
 export interface EvaluationResult {
@@ -97,7 +99,7 @@ async function runLLMEvaluation(input: EvaluationInput): Promise<TurnScore | nul
     const logic = clampScore(data.logic ?? 50);
     const ownership = clampScore(data.ownership ?? 50);
     const actionPlan = clampScore(data.actionPlan ?? 50);
-    const total = calcTurnScoreTotal({ clarity, empathy, logic, ownership, actionPlan });
+    const total = calcWeightedTotal({ clarity, empathy, logic, ownership, actionPlan }, input.evaluationHarness);
 
     return {
       turnId: input.turnId,
@@ -183,7 +185,7 @@ function runRuleBasedEvaluation(input: EvaluationInput): TurnScore {
   logic = clampScore(logic);
   ownership = clampScore(ownership);
   actionPlan = clampScore(actionPlan);
-  const total = calcTurnScoreTotal({ clarity, empathy, logic, ownership, actionPlan });
+  const total = calcWeightedTotal({ clarity, empathy, logic, ownership, actionPlan }, input.evaluationHarness);
 
   return {
     turnId,
@@ -218,8 +220,38 @@ function clampScore(n: number): number {
   return Math.max(0, Math.min(100, Math.round(n)));
 }
 
+function calcWeightedTotal(
+  s: { clarity: number; empathy: number; logic: number; ownership: number; actionPlan: number },
+  harness?: EvaluationHarness | null
+): number {
+  if (!harness?.dimensions || harness.dimensions.length === 0) {
+    return calcTurnScoreTotal(s);
+  }
+  const dims = harness.dimensions;
+  const totalWeight = dims.reduce((acc, d) => acc + d.weight, 0);
+  if (totalWeight === 0) return calcTurnScoreTotal(s);
+  const weighted = dims.reduce((acc, d) => {
+    const score = (s as Record<string, number>)[d.key] ?? 50;
+    return acc + score * d.weight;
+  }, 0);
+  return Math.round(weighted / totalWeight);
+}
+
+function buildHarnessBlock(harness: EvaluationHarness | null | undefined): string {
+  if (!harness?.dimensions || harness.dimensions.length === 0) return '';
+  const lines: string[] = ['\nScenario-specific evaluation guidance:'];
+  for (const dim of harness.dimensions) {
+    const parts: string[] = [`  ${dim.key} (weight=${dim.weight.toFixed(2)})`];
+    if (dim.scenarioSpecificDefinition) parts.push(`    Definition: ${dim.scenarioSpecificDefinition}`);
+    if (dim.positiveSignals?.length) parts.push(`    Positive signals: ${dim.positiveSignals.join(', ')}`);
+    if (dim.negativeSignals?.length) parts.push(`    Negative signals (penalize): ${dim.negativeSignals.join(', ')}`);
+    lines.push(parts.join('\n'));
+  }
+  return lines.join('\n') + '\n';
+}
+
 function buildEvaluationPrompt(input: EvaluationInput): string {
-  const { userText, simulationState, language } = input;
+  const { userText, simulationState, language, evaluationHarness } = input;
   const lang = language ?? 'ko';
 
   const stateBlock = buildSimulationStateBlock({
@@ -236,6 +268,8 @@ function buildEvaluationPrompt(input: EvaluationInput): string {
     ? `\nActive simulation directives:\n${activeDirectives.map(d => `- ${d.instruction}`).join('\n')}\n`
     : '';
 
+  const harnessBlock = buildHarnessBlock(evaluationHarness);
+
   return `Evaluate this workplace conversation response on 5 dimensions (0-100 each):
 1. clarity: How clear and organized is the communication?
 2. empathy: How empathetic and understanding toward the other party?
@@ -244,7 +278,7 @@ function buildEvaluationPrompt(input: EvaluationInput): string {
 5. actionPlan: How specific and actionable is the proposed solution?
 
 ${stateBlock}
-${directivesBlock}
+${directivesBlock}${harnessBlock}
 User response (language: ${lang}):
 """
 ${userText.substring(0, 500)}

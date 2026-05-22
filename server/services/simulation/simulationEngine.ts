@@ -10,7 +10,7 @@ import {
   createDefaultSimulationState,
   calcTurnScoreTotal,
 } from './simulationTypes';
-import type { FlowGraph, PersonaSwitchRules, ExitCondition, ConditionOperator } from '../../../shared/schema/scenarios';
+import type { FlowGraph, PersonaSwitchRules, ExitCondition, ConditionOperator, TerminationRules, TerminationConditionGroup, TerminationOutcome } from '../../../shared/schema/scenarios';
 import { evaluatePersonaSwitchRules } from './personaSwitchEvaluator';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -103,6 +103,7 @@ interface InternalSession {
   allTimeTurnScoreCount: number;
   flowGraph?: FlowGraph;
   personaSwitchRules?: PersonaSwitchRules;
+  terminationRules?: TerminationRules;
   lockedPersonaIndices: Set<number>;
   consecutiveSwitchCounts: Map<string, number>;
 }
@@ -140,6 +141,76 @@ export function setSessionFlowConfig(
   const ctx = getOrCreateSessionContext(personaRunId);
   if (flowGraph) ctx.flowGraph = flowGraph;
   if (personaSwitchRules) ctx.personaSwitchRules = personaSwitchRules;
+}
+
+export function setSessionTerminationRules(
+  personaRunId: string,
+  terminationRules: TerminationRules | null | undefined
+): void {
+  const ctx = getOrCreateSessionContext(personaRunId);
+  if (terminationRules) ctx.terminationRules = terminationRules;
+}
+
+function checkTerminationConditionGroup(
+  group: TerminationConditionGroup,
+  state: SimulationState
+): boolean {
+  const results: boolean[] = [];
+  const logic = group.logic ?? 'all';
+
+  if (group.npcEmotions) {
+    for (const [key, cond] of Object.entries(group.npcEmotions)) {
+      if (!cond) continue;
+      const actual = state.npcEmotions[key as keyof NpcEmotions] ?? 0;
+      results.push(compareOp(actual, cond.operator, cond.value));
+    }
+  }
+  if (group.currentScore !== undefined) {
+    results.push(compareOp(state.currentScore, group.currentScore.operator, group.currentScore.value));
+  }
+  if (group.stage !== undefined) {
+    results.push(state.stage === group.stage);
+  }
+  if (group.totalTurns !== undefined) {
+    results.push(compareOp(state.summary.totalTurns, group.totalTurns.operator, group.totalTurns.value));
+  }
+  if (group.consecutiveTurnsBelow !== undefined) {
+    const { scoreThreshold, turns } = group.consecutiveTurnsBelow;
+    const recent = state.recentTurnScores.slice(-turns);
+    if (recent.length >= turns) {
+      const allBelow = recent.every(ts => ts.total < scoreThreshold);
+      results.push(allBelow);
+    } else {
+      results.push(false);
+    }
+  }
+
+  if (results.length === 0) return false;
+  return logic === 'any' ? results.some(Boolean) : results.every(Boolean);
+}
+
+export function evaluateTerminationRules(
+  state: SimulationState,
+  rules: TerminationRules
+): TerminationOutcome | null {
+  if (state.terminationReason) return null;
+
+  if (rules.success && checkTerminationConditionGroup(rules.success, state)) {
+    return 'success';
+  }
+  if (rules.failure && checkTerminationConditionGroup(rules.failure, state)) {
+    return 'failure';
+  }
+  if (rules.timeout) {
+    const { maxTurns, maxTimeSec } = rules.timeout;
+    if (maxTurns !== undefined && state.summary.totalTurns >= maxTurns) {
+      return 'timeout';
+    }
+    if (maxTimeSec !== undefined && state.timer.enabled && state.timer.elapsedSec >= maxTimeSec) {
+      return 'timeout';
+    }
+  }
+  return null;
 }
 
 export function clearSessionContext(personaRunId: string): void {
@@ -352,12 +423,25 @@ export function applySimulationPatch(
     if (stageDef?.goal) currentStageGoal = stageDef.goal;
   }
 
+  let terminationReason: SimulationState['terminationReason'] = intermediateState.terminationReason;
+  if (!terminationReason && ctx.terminationRules) {
+    const outcome = evaluateTerminationRules(
+      { ...intermediateState, stage: finalStage },
+      ctx.terminationRules
+    );
+    if (outcome) {
+      console.log(`[simulationEngine] terminationRules: outcome="${outcome}" at turn=${totalTurns}`);
+      terminationReason = outcome;
+    }
+  }
+
   const newState: SimulationState = {
     ...intermediateState,
     stage: finalStage,
     simulationDirectives: finalDirectives,
     ...(serverRulePersonaSwitch ? { serverRulePersonaSwitch } : {}),
     ...(currentStageGoal !== undefined ? { currentStageGoal } : {}),
+    ...(terminationReason ? { terminationReason } : {}),
   };
 
   ctx.simulationState = newState;

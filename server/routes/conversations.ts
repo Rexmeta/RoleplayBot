@@ -26,7 +26,7 @@ import { normalizeProfileName, parseJoinModeSpeakerSegments } from "../services/
 import { filterThinkingText } from "../services/voice/textFilter";
 import { createDefaultSimulationState, TurnScore } from "../services/simulation/simulationTypes";
 import type { ScenarioPersona } from "../services/aiServiceFactory";
-import { setSessionState, getSessionState, applySimulationPatch, checkIncidentCooldown, recordIncidentCooldown, setSessionFlowConfig } from "../services/simulation/simulationEngine";
+import { setSessionState, getSessionState, applySimulationPatch, checkIncidentCooldown, recordIncidentCooldown, setSessionFlowConfig, setSessionTerminationRules } from "../services/simulation/simulationEngine";
 import { evaluateUserResponse } from "../services/simulation/evaluateUserResponse";
 import { buildRuleFallbackPatch, inferStagePatchFromState, inferIncidentCandidate } from "../services/simulation/simulationRules";
 import { buildSimulationStateBlock } from "../services/simulation/simulationPrompt";
@@ -186,6 +186,7 @@ export default function createConversationsRouter(isAuthenticated: any) {
       }
       setSessionState(personaRun.id, freshState);
       setSessionFlowConfig(personaRun.id, (scenarioObj as any).flowGraph ?? null, (scenarioObj as any).personaSwitchRules ?? null);
+      setSessionTerminationRules(personaRun.id, (scenarioFromDb as any).terminationRules ?? null);
       initialSimState = freshState;
       storage.saveSimulationState(personaRun.id, freshState as unknown as Record<string, unknown>)
         .then(() => {
@@ -569,10 +570,11 @@ export default function createConversationsRouter(isAuthenticated: any) {
     const cachedSimState = shouldEvalEarly ? getSessionState(personaRunId) : null;
     const needSimStateFromDb = shouldEvalEarly && !cachedSimState;
 
-    const [existingMessages, user, preloadedSimState] = await Promise.all([
+    const [existingMessages, user, preloadedSimState, scenarioDbRecord] = await Promise.all([
       storage.getChatMessagesByPersonaRun(personaRunId),
       storage.getUser(userId),
       needSimStateFromDb ? storage.getSimulationState(personaRunId) : Promise.resolve(null),
+      !isPersonaX ? storage.getScenario(scenarioRun!.scenarioId) : Promise.resolve(null),
     ]);
     // Greeting is stored at turnIndex 0 (1 existing message after init).
     // Using Math.ceil ensures the first real user turn starts at 1, not 0,
@@ -832,11 +834,16 @@ ${userNameLine}
     let fastEvalInput: Parameters<typeof evaluateUserResponse>[0] | null = null;
     let fastEvalPromise: Promise<import('../services/simulation/evaluateUserResponse').EvaluationResult> | null = null;
 
+    const scenarioEvalHarness = !isPersonaX
+      ? ((scenarioDbRecord as any)?.evaluationHarness ?? null)
+      : null;
+
     if (shouldEval && evalState) {
       const baseEvalInput = {
         personaRunId, turnId: evalTurnId, turnIndex: currentTurnIndex,
         userText: message, aiText: '',
         simulationState: evalState, language: userLanguage, evaluationMode: evalMode,
+        evaluationHarness: scenarioEvalHarness,
       };
       if (evalMode === 'quality') {
         try {
@@ -1063,6 +1070,26 @@ ${userNameLine}
 
       const streamEvalSkipped = (!isPersonaX && !isSkipTurn && !shouldEval) || streamFastEvalFailed;
 
+      // Check if terminationRules fired in streaming path
+      const streamTerminationReason = streamSimulationState?.terminationReason;
+      let streamIsTerminated = false;
+      if (streamTerminationReason && !streamIsCompleted && personaRun!.status !== 'completed') {
+        streamIsTerminated = true;
+        await storage.updatePersonaRun(personaRunId, { status: 'completed', completedAt: new Date() });
+        await checkAndCompleteScenario(personaRun!.scenarioRunId);
+        if (streamSimulationState) {
+          storage.createSimulationEvent({
+            personaRunId, scenarioRunId: personaRun!.scenarioRunId,
+            turnIndex: currentTurnIndex, turnId: evalTurnId, eventType: 'session_end',
+            toolName: null, args: null, result: { reason: `termination_${streamTerminationReason}` },
+            stateBefore: null, stateAfter: streamSimulationState,
+            stateVersionBefore: null, stateVersionAfter: streamSimulationState.version,
+            includeInReport: true,
+          }).catch(e => console.warn('[streaming] Failed to log termination session_end event:', e));
+        }
+        console.log(`[streaming] terminationRules fired: reason=${streamTerminationReason}, personaRunId=${personaRunId}`);
+      }
+
       const streamJoinSegments = (scenarioWithUserDifficulty as any)?.personaSwitchMode === 'join'
         ? parseJoinModeSpeakerSegments(streamAiMessageContent)
         : null;
@@ -1072,12 +1099,13 @@ ${userNameLine}
         message: streamAiMessageContent,
         emotion: streamEmotion,
         emotionReason: streamEmotionReason,
-        isCompleted: streamIsCompleted,
+        isCompleted: streamIsCompleted || streamIsTerminated,
         turnCount: newTurnCount,
         personaRun: streamUpdatedPersonaRun,
         messages: [{ sender: 'ai', message: streamAiMessageContent, timestamp: new Date().toISOString(), emotion: streamEmotion, emotionReason: streamEmotionReason, ...(streamJoinSegments ? { speakerSegments: streamJoinSegments } : {}) }],
         simulationState: streamSimulationState,
         turnScore: streamSimTurnScore,
+        ...(streamTerminationReason ? { terminationReason: streamTerminationReason } : {}),
         ...(streamEvalSkipped ? { evaluationSkipped: true } : {}),
         ...(streamJoinSegments ? { speakerSegments: streamJoinSegments } : {}),
         ...(streamSwitchToPersona ? {
@@ -1262,6 +1290,29 @@ ${userNameLine}
       simulationState = getSessionState(personaRunId);
     }
 
+    // Check if terminationRules fired; if so, complete the persona run
+    const terminationReason = simulationState?.terminationReason;
+    let isTerminated = false;
+    if (terminationReason && !isCompleted && personaRun!.status !== 'completed') {
+      isTerminated = true;
+      await storage.updatePersonaRun(personaRunId, {
+        status: 'completed',
+        completedAt: new Date(),
+      });
+      await checkAndCompleteScenario(personaRun!.scenarioRunId);
+      if (simulationState) {
+        storage.createSimulationEvent({
+          personaRunId, scenarioRunId: personaRun!.scenarioRunId,
+          turnIndex: currentTurnIndex, turnId: evalTurnId, eventType: 'session_end',
+          toolName: null, args: null, result: { reason: `termination_${terminationReason}` },
+          stateBefore: null, stateAfter: simulationState,
+          stateVersionBefore: null, stateVersionAfter: simulationState.version,
+          includeInReport: true,
+        }).catch(e => console.warn('[conversations] Failed to log termination session_end event:', e));
+      }
+      console.log(`[conversations] terminationRules fired: reason=${terminationReason}, personaRunId=${personaRunId}`);
+    }
+
     // Signal to the client that evaluation was skipped due to a short message or a failed eval
     const evaluationSkipped = (!isPersonaX && !isSkipTurn && !shouldEval) || fastEvalFailed;
 
@@ -1273,7 +1324,7 @@ ${userNameLine}
       message: aiMessageContent,
       emotion: aiResult.emotion,
       emotionReason: aiResult.emotionReason,
-      isCompleted,
+      isCompleted: isCompleted || isTerminated,
       turnCount: newTurnCount,
       personaRun: updatedPersonaRun,
       messages: [{
@@ -1286,6 +1337,7 @@ ${userNameLine}
       }],
       simulationState,
       turnScore: simTurnScore,
+      ...(terminationReason ? { terminationReason } : {}),
       ...(evaluationSkipped ? { evaluationSkipped: true } : {}),
       ...(joinModeSpeakerSegments ? { speakerSegments: joinModeSpeakerSegments } : {}),
       ...(switchToPersona ? {

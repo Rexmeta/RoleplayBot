@@ -7,6 +7,105 @@ import type { PersonaSelection, StrategyChoice, SequenceAnalysis } from "./types
 
 export type ConditionOperator = 'gte' | 'lte' | 'gt' | 'lt' | 'eq';
 
+// ─── EvaluationHarness ────────────────────────────────────────────────────────
+
+export type EvaluationDimensionKey = 'clarity' | 'empathy' | 'logic' | 'ownership' | 'actionPlan';
+
+export interface EvaluationHarnessDimension {
+  key: EvaluationDimensionKey;
+  weight: number;
+  scenarioSpecificDefinition?: string;
+  positiveSignals?: string[];
+  negativeSignals?: string[];
+}
+
+export interface PassingRule {
+  minAverageScore: number;
+  requiredDimensions?: { key: EvaluationDimensionKey; minScore: number }[];
+}
+
+export interface EvaluationHarness {
+  dimensions?: EvaluationHarnessDimension[];
+  passingRule?: PassingRule;
+}
+
+export const evaluationHarnessDimensionSchema = z.object({
+  key: z.enum(['clarity', 'empathy', 'logic', 'ownership', 'actionPlan']),
+  weight: z.number().min(0).max(10),
+  scenarioSpecificDefinition: z.string().optional(),
+  positiveSignals: z.array(z.string()).optional(),
+  negativeSignals: z.array(z.string()).optional(),
+});
+
+export const passingRuleSchema = z.object({
+  minAverageScore: z.number().min(0).max(100),
+  requiredDimensions: z.array(z.object({
+    key: z.enum(['clarity', 'empathy', 'logic', 'ownership', 'actionPlan']),
+    minScore: z.number().min(0).max(100),
+  })).optional(),
+});
+
+export const evaluationHarnessSchema: z.ZodType<EvaluationHarness> = z.object({
+  dimensions: z.array(evaluationHarnessDimensionSchema).optional(),
+  passingRule: passingRuleSchema.optional(),
+});
+
+// ─── TerminationRules ─────────────────────────────────────────────────────────
+
+export type TerminationOutcome = 'success' | 'failure' | 'timeout';
+
+export interface TerminationConditionGroup {
+  npcEmotions?: Partial<Record<'anger' | 'trust' | 'confusion' | 'interest', { operator: ConditionOperator; value: number }>>;
+  currentScore?: { operator: ConditionOperator; value: number };
+  stage?: string;
+  totalTurns?: { operator: ConditionOperator; value: number };
+  consecutiveTurnsBelow?: { scoreThreshold: number; turns: number };
+  logic?: 'all' | 'any';
+}
+
+export interface TerminationRules {
+  success?: TerminationConditionGroup;
+  failure?: TerminationConditionGroup;
+  timeout?: { maxTurns?: number; maxTimeSec?: number };
+}
+
+const npcEmotionConditionSchema = z.object({
+  operator: z.enum(['gte', 'lte', 'gt', 'lt', 'eq']),
+  value: z.number(),
+});
+
+const terminationConditionGroupSchema: z.ZodType<TerminationConditionGroup> = z.object({
+  npcEmotions: z.object({
+    anger: npcEmotionConditionSchema.optional(),
+    trust: npcEmotionConditionSchema.optional(),
+    confusion: npcEmotionConditionSchema.optional(),
+    interest: npcEmotionConditionSchema.optional(),
+  }).optional(),
+  currentScore: z.object({
+    operator: z.enum(['gte', 'lte', 'gt', 'lt', 'eq']),
+    value: z.number(),
+  }).optional(),
+  stage: z.string().optional(),
+  totalTurns: z.object({
+    operator: z.enum(['gte', 'lte', 'gt', 'lt', 'eq']),
+    value: z.number(),
+  }).optional(),
+  consecutiveTurnsBelow: z.object({
+    scoreThreshold: z.number(),
+    turns: z.number().int().positive(),
+  }).optional(),
+  logic: z.enum(['all', 'any']).optional(),
+});
+
+export const terminationRulesSchema: z.ZodType<TerminationRules> = z.object({
+  success: terminationConditionGroupSchema.optional(),
+  failure: terminationConditionGroupSchema.optional(),
+  timeout: z.object({
+    maxTurns: z.number().int().positive().optional(),
+    maxTimeSec: z.number().positive().optional(),
+  }).optional(),
+});
+
 export interface ExitCondition {
   type: 'turn_count' | 'turn_score' | 'npc_emotion';
   metric?: string;
@@ -141,6 +240,8 @@ export const scenarios = pgTable("scenarios", {
   targetDurationMinutes: integer("target_duration_minutes").notNull().default(7),
   targetTurns: integer("target_turns").notNull().default(10),
   minValidTurns: integer("min_valid_turns").notNull().default(4),
+  evaluationHarness: jsonb("evaluation_harness").$type<EvaluationHarness>(),
+  terminationRules: jsonb("termination_rules").$type<TerminationRules>(),
   personaSwitchMode: varchar("persona_switch_mode", { length: 20 }).$type<'replace' | 'join'>(),
   isDemo: boolean("is_demo").notNull().default(false),
   isPublic: boolean("is_public").notNull().default(false),

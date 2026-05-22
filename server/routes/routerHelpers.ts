@@ -10,6 +10,7 @@ import {
   isVoiceMode,
   calculateEvaluationConfidence,
   determineReportStatus,
+  applyPassingRule,
 } from "../services/evaluationEngine";
 
 export function asyncHandler(fn: (req: any, res: Response, next: NextFunction) => Promise<any>) {
@@ -491,6 +492,43 @@ export async function generateAndSaveFeedback(
   if (verifiedOverallScore !== feedbackData.overallScore) {
     console.log(`📊 종합 점수 보정: AI=${feedbackData.overallScore} → 가중치계산${baseVerifiedScore} - 패널티${storedPenalty} = ${verifiedOverallScore}`);
     feedbackData.overallScore = verifiedOverallScore;
+  }
+
+  // Apply evaluationHarness.passingRule if configured on the scenario.
+  // scenarioObj is file-based and does not carry DB columns, so we fetch
+  // the DB record explicitly to get evaluationHarness.
+  try {
+    const scenarioId = scenarioObj?.id ? String(scenarioObj.id) : null;
+    const scenarioDbRow = scenarioId
+      ? await storage.getScenario(scenarioId).catch(() => null)
+      : null;
+    const harnessPR = (scenarioDbRow as any)?.evaluationHarness?.passingRule ?? null;
+    if (harnessPR) {
+      // Build per-dimension averages from simulation turn scores.
+      // These use EvaluationDimensionKey values (clarity/empathy/logic/ownership/actionPlan)
+      // which match requiredDimensions keys exactly. Scores are 0-100 scale.
+      const simDimAvgs: Array<{ category: string; score: number; maxScore: number }> = [];
+      if (simTurnScores.length > 0) {
+        for (const key of ['clarity', 'empathy', 'logic', 'ownership', 'actionPlan'] as const) {
+          const vals = simTurnScores
+            .map(t => (t.turnScore as Record<string, number>)[key])
+            .filter((v): v is number => typeof v === 'number');
+          if (vals.length > 0) {
+            const avg = vals.reduce((s, v) => s + v, 0) / vals.length;
+            simDimAvgs.push({ category: key, score: avg, maxScore: 100 });
+          }
+        }
+      }
+      // Fall back to holistic evaluation scores if no sim scores are available
+      const dimsForPassRule = simDimAvgs.length > 0 ? simDimAvgs : evaluationScores;
+      const harnessPassResult = applyPassingRule(verifiedOverallScore, dimsForPassRule, harnessPR);
+      feedbackData.harnessPassResult = harnessPassResult;
+      console.log(
+        `📊 [passingRule] passed=${harnessPassResult.passed}, required≥${harnessPR.minAverageScore} (actual=${verifiedOverallScore}), failedDims=[${harnessPassResult.failedDimensions.join(',')}], simDimSrc=${simDimAvgs.length > 0 ? 'sim' : 'holistic'}`
+      );
+    }
+  } catch (e) {
+    console.warn('[generateAndSaveFeedback] passingRule evaluation failed:', e);
   }
 
   // evidence 맵 추출 (AI 피드백에서)

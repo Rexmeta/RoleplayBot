@@ -17,7 +17,7 @@ import { Slider } from '@/components/ui/slider';
 import { useToast } from '@/hooks/use-toast';
 import { apiRequest, queryClient } from '@/lib/queryClient';
 import { ComplexScenario } from '@/lib/scenario-system';
-import { flowGraphSchema, personaSwitchRulesSchema } from '@shared/schema/scenarios';
+import { flowGraphSchema, personaSwitchRulesSchema, evaluationHarnessSchema, terminationRulesSchema } from '@shared/schema/scenarios';
 import { toMediaUrl } from '@/lib/mediaUrl';
 import { Loader2, MoreVertical, ChevronDown, ChevronUp, Clock, Users, Target, Languages, Search, Sparkles, Eye, Copy, Download, Upload, ImageOff, UserX, ListX, BarChart2, Star, Folder } from 'lucide-react';
 import { AIScenarioGenerator } from './AIScenarioGenerator';
@@ -104,6 +104,10 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
   const [personaSwitchRulesJson, setPersonaSwitchRulesJson] = useState('');
   const [flowGraphError, setFlowGraphError] = useState('');
   const [personaSwitchRulesError, setPersonaSwitchRulesError] = useState('');
+  const [evaluationHarnessJson, setEvaluationHarnessJson] = useState('');
+  const [terminationRulesJson, setTerminationRulesJson] = useState('');
+  const [evaluationHarnessError, setEvaluationHarnessError] = useState('');
+  const [terminationRulesError, setTerminationRulesError] = useState('');
   const [isGeneratingImage, setIsGeneratingImage] = useState(false);
   const [isGeneratingVideo, setIsGeneratingVideo] = useState(false);
   const [expandedScenarios, setExpandedScenarios] = useState<Set<string | number>>(new Set());
@@ -474,8 +478,12 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
     setSelectedVideoSignedUrl(null);
     setFlowGraphJson('');
     setPersonaSwitchRulesJson('');
+    setEvaluationHarnessJson('');
+    setTerminationRulesJson('');
     setFlowGraphError('');
     setPersonaSwitchRulesError('');
+    setEvaluationHarnessError('');
+    setTerminationRulesError('');
   };
 
   const handleEdit = (scenario: ComplexScenario) => {
@@ -540,8 +548,14 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
     setFlowGraphJson(existingFlowGraph ? JSON.stringify(existingFlowGraph, null, 2) : '');
     const existingPSR = (originalScenario as any).personaSwitchRules;
     setPersonaSwitchRulesJson(existingPSR ? JSON.stringify(existingPSR, null, 2) : '');
+    const existingEH = (originalScenario as any).evaluationHarness;
+    setEvaluationHarnessJson(existingEH ? JSON.stringify(existingEH, null, 2) : '');
+    const existingTR = (originalScenario as any).terminationRules;
+    setTerminationRulesJson(existingTR ? JSON.stringify(existingTR, null, 2) : '');
     setFlowGraphError('');
     setPersonaSwitchRulesError('');
+    setEvaluationHarnessError('');
+    setTerminationRulesError('');
     setIsCreateOpen(true);
   };
 
@@ -577,7 +591,7 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
     }
   };
 
-  const buildSubmitPayload = (): (typeof formData & { flowGraph: any; personaSwitchRules: any }) | null => {
+  const buildSubmitPayload = (): (typeof formData & { flowGraph: any; personaSwitchRules: any; evaluationHarness: any; terminationRules: any }) | null => {
     let parsedFlowGraph: any = null;
     let parsedPSR: any = null;
 
@@ -621,7 +635,49 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
       setPersonaSwitchRulesError('');
     }
 
-    return { ...formData, flowGraph: parsedFlowGraph, personaSwitchRules: parsedPSR };
+    let parsedEH: any = null;
+    if (evaluationHarnessJson.trim()) {
+      let raw: any;
+      try {
+        raw = JSON.parse(evaluationHarnessJson);
+      } catch {
+        setEvaluationHarnessError('evaluationHarness JSON이 유효하지 않습니다. 형식을 확인하세요.');
+        toast({ title: 'evaluationHarness JSON 오류', description: 'evaluationHarness JSON을 확인하세요.', variant: 'destructive' });
+        return null;
+      }
+      const result = evaluationHarnessSchema.safeParse(raw);
+      if (!result.success) {
+        const msg = result.error.errors[0]?.message ?? '스키마 검증 실패';
+        setEvaluationHarnessError(`evaluationHarness 구조 오류: ${msg}`);
+        toast({ title: 'evaluationHarness 구조 오류', description: msg, variant: 'destructive' });
+        return null;
+      }
+      parsedEH = result.data;
+      setEvaluationHarnessError('');
+    }
+
+    let parsedTR: any = null;
+    if (terminationRulesJson.trim()) {
+      let raw: any;
+      try {
+        raw = JSON.parse(terminationRulesJson);
+      } catch {
+        setTerminationRulesError('terminationRules JSON이 유효하지 않습니다. 형식을 확인하세요.');
+        toast({ title: 'terminationRules JSON 오류', description: 'terminationRules JSON을 확인하세요.', variant: 'destructive' });
+        return null;
+      }
+      const result = terminationRulesSchema.safeParse(raw);
+      if (!result.success) {
+        const msg = result.error.errors[0]?.message ?? '스키마 검증 실패';
+        setTerminationRulesError(`terminationRules 구조 오류: ${msg}`);
+        toast({ title: 'terminationRules 구조 오류', description: msg, variant: 'destructive' });
+        return null;
+      }
+      parsedTR = result.data;
+      setTerminationRulesError('');
+    }
+
+    return { ...formData, flowGraph: parsedFlowGraph, personaSwitchRules: parsedPSR, evaluationHarness: parsedEH, terminationRules: parsedTR };
   };
 
   const handleSaveAndGoToPersona = () => {
@@ -2383,6 +2439,44 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
                     className={`bg-white font-mono text-xs ${personaSwitchRulesError ? 'border-red-400' : ''}`}
                   />
                   {personaSwitchRulesError && <p className="text-xs text-red-500 mt-1">{personaSwitchRulesError}</p>}
+                </div>
+
+                <div>
+                  <Label className="text-sm font-medium text-slate-700 flex items-center gap-1">
+                    evaluationHarness
+                    <span className="text-xs text-slate-400 font-normal">(점수 기준 가중치 및 신호 재정의)</span>
+                  </Label>
+                  <p className="text-xs text-slate-400 mb-1">예: {`{"dimensionWeights":{"clarity":2},"signals":[{"id":"s1","description":"고객이 진정됨","scoreImpact":10}]}`}</p>
+                  <Textarea
+                    value={evaluationHarnessJson}
+                    onChange={(e) => {
+                      setEvaluationHarnessJson(e.target.value);
+                      setEvaluationHarnessError('');
+                    }}
+                    placeholder={'{\n  "dimensionWeights": {\n    "clarity": 2,\n    "empathy": 1.5\n  },\n  "signals": [\n    {\n      "id": "signal-1",\n      "description": "Customer calmed down",\n      "scoreImpact": 10\n    }\n  ]\n}'}
+                    rows={6}
+                    className={`bg-white font-mono text-xs ${evaluationHarnessError ? 'border-red-400' : ''}`}
+                  />
+                  {evaluationHarnessError && <p className="text-xs text-red-500 mt-1">{evaluationHarnessError}</p>}
+                </div>
+
+                <div>
+                  <Label className="text-sm font-medium text-slate-700 flex items-center gap-1">
+                    terminationRules
+                    <span className="text-xs text-slate-400 font-normal">(자동 종료 조건)</span>
+                  </Label>
+                  <p className="text-xs text-slate-400 mb-1">예: {`{"success":[{"conditions":[{"metric":"npcEmotions.trust","operator":"gte","value":80}],"logic":"all"}],"timeout":{"maxTurns":10}}`}</p>
+                  <Textarea
+                    value={terminationRulesJson}
+                    onChange={(e) => {
+                      setTerminationRulesJson(e.target.value);
+                      setTerminationRulesError('');
+                    }}
+                    placeholder={'{\n  "success": [\n    {\n      "conditions": [\n        {"metric": "npcEmotions.trust", "operator": "gte", "value": 80}\n      ],\n      "logic": "all"\n    }\n  ],\n  "failure": [],\n  "timeout": {"maxTurns": 10}\n}'}
+                    rows={7}
+                    className={`bg-white font-mono text-xs ${terminationRulesError ? 'border-red-400' : ''}`}
+                  />
+                  {terminationRulesError && <p className="text-xs text-red-500 mt-1">{terminationRulesError}</p>}
                 </div>
               </div>
 

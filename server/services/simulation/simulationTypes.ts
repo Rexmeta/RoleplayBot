@@ -67,6 +67,8 @@ export interface SimulationState {
   serverRulePersonaSwitch?: { targetPersonaIndex: number; reason: string };
   /** Current flowGraph stage goal — updated whenever a stage transition fires; injected into per-turn AI context. */
   currentStageGoal?: string;
+  /** Set when terminationRules conditions are met; causes route layer to complete the persona run. */
+  terminationReason?: 'success' | 'failure' | 'timeout';
   summary: {
     totalTurns: number;
     totalIncidents: number;

@@ -10,6 +10,7 @@
 import type { ConversationMessage } from "@shared/schema";
 import { EVIDENCE_SCORE_CAP } from "@shared/schema/types";
 import type { EvaluationCriteriaWithDimensions } from "./aiService";
+import type { PassingRule } from "@shared/schema/scenarios";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // 기본 평가 차원 (5개)
@@ -888,4 +889,56 @@ export function getDefaultScores(
     scores[dim.key] = dim.minScore;
   }
   return scores;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// evaluationHarness passingRule 적용
+// ─────────────────────────────────────────────────────────────────────────────
+
+export interface HarnessPassResult {
+  /** Overall pass/fail verdict */
+  passed: boolean;
+  /** true when overallScore < passingRule.minAverageScore */
+  failedMinScore: boolean;
+  /** dimension keys whose percentage score fell below requiredDimensions.minScore */
+  failedDimensions: string[];
+}
+
+/**
+ * Applies `evaluationHarness.passingRule` to the final feedback score.
+ *
+ * @param overallScore  0-100 final score (after all adjustments)
+ * @param dimensionScores  Array of per-dimension scores with raw score and maxScore
+ * @param passingRule  Nullable — if null/undefined, always returns passed=true
+ * @returns  HarnessPassResult
+ */
+export function applyPassingRule(
+  overallScore: number,
+  dimensionScores: Array<{ category: string; score: number; maxScore?: number }>,
+  passingRule: PassingRule | null | undefined
+): HarnessPassResult {
+  if (!passingRule) {
+    return { passed: true, failedMinScore: false, failedDimensions: [] };
+  }
+
+  const failedMinScore = overallScore < passingRule.minAverageScore;
+
+  const failedDimensions: string[] = [];
+  if (passingRule.requiredDimensions && passingRule.requiredDimensions.length > 0) {
+    for (const req of passingRule.requiredDimensions) {
+      const dim = dimensionScores.find(s => s.category === req.key);
+      if (!dim) continue;
+      const maxScore = dim.maxScore ?? 10;
+      const scorePct = Math.round((dim.score / maxScore) * 100);
+      if (scorePct < req.minScore) {
+        failedDimensions.push(req.key);
+      }
+    }
+  }
+
+  return {
+    passed: !failedMinScore && failedDimensions.length === 0,
+    failedMinScore,
+    failedDimensions,
+  };
 }

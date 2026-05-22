@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { Card, CardContent } from '@/components/ui/card';
-import { AlertTriangle, TrendingUp, Heart, Eye, Brain, Zap, Timer, ChevronDown, SkipForward } from 'lucide-react';
+import { AlertTriangle, TrendingUp, Heart, Eye, Brain, Zap, Timer, ChevronDown, SkipForward, CheckCircle2, XCircle, Clock } from 'lucide-react';
 import type { SimulationState, Incident, TurnScore } from '@/hooks/useSimulationState';
 
 interface SimulationPanelProps {
@@ -111,6 +111,34 @@ function IncidentBanner({ incident }: { incident: Incident }) {
         <span className="font-semibold capitalize mr-1">[{incident.severity.toUpperCase()}]</span>
         {incident.message}
       </div>
+    </div>
+  );
+}
+
+function TerminationBanner({ reason }: { reason: 'success' | 'failure' | 'timeout' }) {
+  const { t } = useTranslation();
+  const config = {
+    success: {
+      icon: <CheckCircle2 className="h-4 w-4 shrink-0" />,
+      cls: 'border-green-500 bg-green-500/10 text-green-700 dark:text-green-400',
+      label: t('simulation.termination.success', { defaultValue: 'Scenario complete — goal achieved!' }),
+    },
+    failure: {
+      icon: <XCircle className="h-4 w-4 shrink-0" />,
+      cls: 'border-red-500 bg-red-500/10 text-red-700 dark:text-red-400',
+      label: t('simulation.termination.failure', { defaultValue: 'Scenario ended — failure condition reached.' }),
+    },
+    timeout: {
+      icon: <Clock className="h-4 w-4 shrink-0" />,
+      cls: 'border-yellow-500 bg-yellow-500/10 text-yellow-700 dark:text-yellow-400',
+      label: t('simulation.termination.timeout', { defaultValue: 'Scenario ended — time limit reached.' }),
+    },
+  }[reason];
+
+  return (
+    <div className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-xs font-medium animate-in slide-in-from-top-2 duration-300 ${config.cls}`}>
+      {config.icon}
+      <span>{config.label}</span>
     </div>
   );
 }
@@ -327,15 +355,16 @@ const SimulationPanel = memo(function SimulationPanel({
 
   if (!isVisible || !state) return null;
 
-  const { npcEmotions, stage, pressureLevel, currentScore, summary, timer } = state;
+  const { npcEmotions, stage, pressureLevel, currentScore, summary, timer, terminationReason } = state;
 
   return (
     <Card className={`w-full border border-border/50 bg-card/60 backdrop-blur-sm flex flex-col overflow-hidden ${className}`}>
       {/* Sticky header — always visible even when content below is scrolled */}
       <div className="sticky top-0 z-10 bg-card/90 backdrop-blur-sm px-3 pt-3 pb-2 border-b border-border/30 shrink-0">
-        {newIncident && <IncidentBanner incident={newIncident} />}
+        {terminationReason && <TerminationBanner reason={terminationReason} />}
+        {!terminationReason && newIncident && <IncidentBanner incident={newIncident} />}
 
-        <div className={`flex items-center justify-between ${newIncident ? 'mt-2' : ''}`}>
+        <div className={`flex items-center justify-between ${(terminationReason || newIncident) ? 'mt-2' : ''}`}>
           <div className="flex items-center gap-1.5">
             <StageIndicator stage={stage} />
             {hasActiveIncident && (
