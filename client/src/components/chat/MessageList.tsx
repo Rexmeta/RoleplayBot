@@ -57,9 +57,7 @@ export function MessageList({
     // Insert switch events that happened at this turn (after the transition message)
     sortedSwitchEvents
       .filter(ev => ev.turnIndex != null
-        ? msg.turnIndex != null
-          ? msg.turnIndex === ev.turnIndex
-          : idx === ev.turnIndex
+        ? msg.turnIndex != null && msg.turnIndex === ev.turnIndex
         : idx === ev.toIndex)
       .forEach(ev => items.push({ type: 'switch', event: ev }));
   });

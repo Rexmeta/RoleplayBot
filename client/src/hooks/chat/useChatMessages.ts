@@ -33,7 +33,7 @@ type MessageResponsePayload = {
   isCompleted: boolean;
   turnCount: number;
   personaRun: Record<string, unknown> | null;
-  messages: Array<{ sender: 'ai' | 'user'; message: string; timestamp: string; emotion?: string; emotionReason?: string }>;
+  messages: Array<{ sender: 'ai' | 'user'; message: string; timestamp: string; emotion?: string; emotionReason?: string; turnIndex?: number }>;
   simulationState: ({ recentIncidents?: unknown[]; version?: number } & Record<string, unknown>) | null;
   turnScore: Record<string, unknown> | null;
   evaluationSkipped?: boolean;
@@ -51,7 +51,7 @@ async function streamingFetch(
   url: string,
   body: object,
   onDelta: (content: string) => void,
-  onStreamingDone: (cleanMessage: string, emotion: string, emotionReason: string, personaSwitched?: PersonaSwitchedPayload) => void
+  onStreamingDone: (cleanMessage: string, emotion: string, emotionReason: string, personaSwitched?: PersonaSwitchedPayload, turnIndex?: number) => void
 ): Promise<MessageResponsePayload> {
   const token = localStorage.getItem('authToken');
   const headers: Record<string, string> = {
@@ -104,7 +104,8 @@ async function streamingFetch(
             event.message || '',
             event.emotion || '중립',
             event.emotionReason || '',
-            event.personaSwitched
+            event.personaSwitched,
+            event.messages?.[0]?.turnIndex
           );
           doneData = { ...event, _streamed: true };
         } else if (event.type === 'error') {
@@ -186,7 +187,7 @@ export function useChatMessages({ conversationId, serverMessages, onSimulationUp
         }
       };
 
-      const onStreamingDone = (cleanMessage: string, emotion: string, emotionReason: string, personaSwitched?: PersonaSwitchedPayload) => {
+      const onStreamingDone = (cleanMessage: string, emotion: string, emotionReason: string, personaSwitched?: PersonaSwitchedPayload, turnIndex?: number) => {
         // isStreamingActive is cleared in onSuccess/onSettled so the spinner
         // does not re-appear between the done event and mutation resolution
         if (streamingMessageAdded && cleanMessage) {
@@ -202,6 +203,7 @@ export function useChatMessages({ conversationId, serverMessages, onSimulationUp
                 message: cleanMessage,
                 emotion: emotion || '중립',
                 emotionReason: emotionReason || '',
+                ...(turnIndex != null ? { turnIndex } : {}),
               };
             }
             return msgs;

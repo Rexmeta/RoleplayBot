@@ -131,6 +131,36 @@ describe('computeMessagePersonaLabels', () => {
     expect(labels.get(2)).toBe('Bob');
   });
 
+  it('does not misplace a turnIndex-keyed switch event when messages lack turnIndex', () => {
+    // Simulates live streaming: server sends turnIndex on the switch event
+    // but messages were added as local placeholders without turnIndex.
+    // The event must NOT be placed based on idx === ev.turnIndex (scale mismatch),
+    // and must instead fall through to end-of-list placement.
+    // Result: all local-placeholder messages keep the first persona label;
+    // the switch is appended after the last message.
+    const messages = [
+      makeUserMsg(),           // idx 0 — user
+      makeAiMsg(),             // idx 1 — ai, turnIndex null (streaming placeholder)
+      makeUserMsg(),           // idx 2 — user
+      makeAiMsg(),             // idx 3 — ai, turnIndex null (streaming placeholder)
+    ];
+    // Switch event has turnIndex: 1 (turn-exchange #1) but messages have no turnIndex
+    const switchEvents: PersonaSwitchEvent[] = [
+      makeSwitchEvent({
+        fromPersonaName: 'Alice',
+        toIndex: 0,
+        newPersonaName: 'Bob',
+        turnIndex: 1,
+        timestamp: '2024-01-01T00:00:01Z',
+      }),
+    ];
+    const labels = computeMessagePersonaLabels(messages, switchEvents, 'Alice');
+    // Both AI messages should still be labeled 'Alice' because the switch event
+    // couldn't be matched (no msg.turnIndex) and was appended at the very end
+    expect(labels.get(1)).toBe('Alice');
+    expect(labels.get(3)).toBe('Alice');
+  });
+
   it('falls back to personaName when fromPersonaName is missing on the first switch event', () => {
     // Switch is placed AFTER message at toIndex, so that message still has the old label;
     // only subsequent messages carry the new persona name.
