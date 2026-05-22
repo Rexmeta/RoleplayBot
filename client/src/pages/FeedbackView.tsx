@@ -7,7 +7,52 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { useTranslation } from "react-i18next";
 import { useAuth } from "@/hooks/useAuth";
-import { Users, ArrowRight, Star, TrendingUp, ThumbsUp, AlertCircle, ChevronRight } from "lucide-react";
+import { Users, ArrowRight, Star, TrendingUp, ThumbsUp, AlertCircle, ChevronRight, Trophy, XCircle, Clock } from "lucide-react";
+
+type TerminationReason = 'success' | 'failure' | 'timeout';
+
+function TerminationOutcomeBanner({ reason }: { reason: TerminationReason }) {
+  const { t } = useTranslation();
+
+  const config = {
+    success: {
+      icon: <Trophy className="w-5 h-5 flex-shrink-0" />,
+      label: t('termination.success', '목표 달성'),
+      description: t('termination.successDesc', '시나리오 목표를 성공적으로 완료했습니다.'),
+      classes: 'bg-emerald-50 border-emerald-300 text-emerald-800',
+      badgeClasses: 'bg-emerald-100 text-emerald-800 border-emerald-300',
+    },
+    failure: {
+      icon: <XCircle className="w-5 h-5 flex-shrink-0" />,
+      label: t('termination.failure', '시나리오 실패'),
+      description: t('termination.failureDesc', '종료 조건(실패)이 발동되어 세션이 종료되었습니다.'),
+      classes: 'bg-red-50 border-red-300 text-red-800',
+      badgeClasses: 'bg-red-100 text-red-800 border-red-300',
+    },
+    timeout: {
+      icon: <Clock className="w-5 h-5 flex-shrink-0" />,
+      label: t('termination.timeout', '시간 제한 도달'),
+      description: t('termination.timeoutDesc', '제한 시간(또는 최대 턴 수)에 도달하여 세션이 종료되었습니다.'),
+      classes: 'bg-amber-50 border-amber-300 text-amber-800',
+      badgeClasses: 'bg-amber-100 text-amber-800 border-amber-300',
+    },
+  };
+
+  const c = config[reason];
+  if (!c) return null;
+
+  return (
+    <div className={`border-b px-4 py-3 flex items-center gap-3 ${c.classes}`}>
+      {c.icon}
+      <div className="flex items-center gap-2 flex-1 min-w-0">
+        <Badge variant="outline" className={`flex-shrink-0 font-semibold ${c.badgeClasses}`}>
+          {c.label}
+        </Badge>
+        <span className="text-sm">{c.description}</span>
+      </div>
+    </div>
+  );
+}
 
 interface SwitchLogEntry {
   turn: number;
@@ -305,6 +350,8 @@ export default function FeedbackView() {
   const personaSwitchLog: SwitchLogEntry[] = Array.isArray(conversation?.personaSwitchLog) ? conversation.personaSwitchLog : [];
   const scenarioPersonas: any[] = effectiveScenario?.personas ?? [];
 
+  const terminationReason = (conversation?.simulationState?.terminationReason ?? null) as TerminationReason | null;
+
   return (
     <div>
       {isAdminView && (
@@ -319,6 +366,7 @@ export default function FeedbackView() {
           <span className="text-sm text-yellow-800">이 시나리오는 삭제되었지만, 피드백 리포트는 계속 열람할 수 있습니다.</span>
         </div>
       )}
+      {terminationReason && <TerminationOutcomeBanner reason={terminationReason} />}
       {personaSwitchLog.length > 0 && (
         <PersonaParticipationSummary switchLog={personaSwitchLog} scenarioPersonas={scenarioPersonas} totalTurnCount={conversation?.turnCount ?? 0} />
       )}

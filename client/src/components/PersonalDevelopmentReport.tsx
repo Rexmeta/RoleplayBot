@@ -542,7 +542,12 @@ export default function PersonalDevelopmentReport({
     );
   }
 
-  const overallGrade = getOverallGrade(feedback.overallScore || 0);
+  const terminationReason = (fullConversation?.simulationState?.terminationReason ?? null) as 'success' | 'failure' | 'timeout' | null;
+  const isTerminationFailure = terminationReason === 'failure';
+
+  const overallGrade = isTerminationFailure
+    ? { grade: "F", color: "text-red-600", bg: "bg-red-50" }
+    : getOverallGrade(feedback.overallScore || 0);
   const displayOverallScore = Number(feedback.overallScore || 0).toFixed(1);
   const scores = feedback.scores || [];
   const maxScoreItem = scores.reduce((best: any, s: any) => (!best || s.score > best.score) ? s : best, null);
@@ -561,6 +566,35 @@ export default function PersonalDevelopmentReport({
             <span className="font-semibold">신뢰도 낮음 (Low Confidence)</span>
             {confidence != null && <span className="ml-2 text-amber-600">— 신뢰도 {Math.round(confidence * 100)}%</span>}
             <p className="text-amber-700 mt-0.5 text-xs">대화량이 다소 부족하여 평가 정확도가 낮을 수 있습니다. 더 충분한 대화를 진행하면 더 정확한 평가를 받을 수 있습니다.</p>
+          </div>
+        </div>
+      )}
+
+      {/* 종료 조건 결과 배너 */}
+      {terminationReason === 'failure' && (
+        <div className="flex items-start gap-3 bg-red-50 border border-red-300 rounded-xl px-4 py-3 text-sm text-red-800 screen-only" data-testid="termination-failure-banner">
+          <i className="fas fa-circle-xmark text-red-500 mt-0.5 flex-shrink-0"></i>
+          <div>
+            <span className="font-semibold">{t('termination.failure', '시나리오 실패')} — 종합 평가: F</span>
+            <p className="text-red-700 mt-0.5 text-xs">{t('termination.failureReportNote', '실패 조건이 발동되어 세션이 강제 종료되었습니다. 종합 등급은 F로 처리됩니다. 피드백을 참고하여 어떤 조건이 충족되었는지 확인해 보세요.')}</p>
+          </div>
+        </div>
+      )}
+      {terminationReason === 'success' && (
+        <div className="flex items-start gap-3 bg-emerald-50 border border-emerald-300 rounded-xl px-4 py-3 text-sm text-emerald-800 screen-only" data-testid="termination-success-banner">
+          <i className="fas fa-trophy text-emerald-500 mt-0.5 flex-shrink-0"></i>
+          <div>
+            <span className="font-semibold">{t('termination.success', '목표 달성')} — 시나리오 성공!</span>
+            <p className="text-emerald-700 mt-0.5 text-xs">{t('termination.successReportNote', '성공 조건을 충족하여 세션이 완료되었습니다. 아래 점수는 대화 내용을 기반으로 평가된 실제 역량 점수입니다.')}</p>
+          </div>
+        </div>
+      )}
+      {terminationReason === 'timeout' && (
+        <div className="flex items-start gap-3 bg-amber-50 border border-amber-300 rounded-xl px-4 py-3 text-sm text-amber-800 screen-only" data-testid="termination-timeout-banner">
+          <i className="fas fa-clock text-amber-500 mt-0.5 flex-shrink-0"></i>
+          <div>
+            <span className="font-semibold">{t('termination.timeout', '시간 제한 도달')}</span>
+            <p className="text-amber-700 mt-0.5 text-xs">{t('termination.timeoutReportNote', '제한 시간 또는 최대 턴 수에 도달하여 세션이 종료되었습니다. 점수는 완료된 대화 내용을 기반으로 평가됩니다.')}</p>
           </div>
         </div>
       )}
@@ -593,10 +627,30 @@ export default function PersonalDevelopmentReport({
             <p className="text-corporate-100">{t('report.scenario', '시나리오')} : {scenario.title}</p>
             <p className="text-corporate-100 text-sm mt-1">{t('report.conversationPartner', '대화 상대')} : {getPersonaFullInfo(persona)}</p>
           </div>
-          <div className={`${overallGrade.bg} ${overallGrade.color} px-6 py-4 rounded-lg text-center min-w-[120px]`} style={{ opacity: 0, animation: 'fadeInUp 0.8s ease-out 0.6s forwards' }}>
-            <div className="text-3xl font-bold" data-testid="overall-grade">{overallGrade.grade}</div>
-            <div className="text-sm font-medium">{displayOverallScore}{t('report.points', '점')}</div>
-            <div className="text-xs">{t('report.overallScore', '종합 점수')}</div>
+          <div className="flex flex-col items-end gap-2" style={{ opacity: 0, animation: 'fadeInUp 0.8s ease-out 0.6s forwards' }}>
+            {terminationReason && (
+              <div className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold border ${
+                terminationReason === 'success'
+                  ? 'bg-emerald-500/30 text-emerald-100 border-emerald-400/40'
+                  : terminationReason === 'failure'
+                  ? 'bg-red-500/30 text-red-100 border-red-400/40'
+                  : 'bg-amber-400/30 text-amber-100 border-amber-300/40'
+              }`} data-testid="termination-badge">
+                {terminationReason === 'success' && <i className="fas fa-trophy text-[10px]"></i>}
+                {terminationReason === 'failure' && <i className="fas fa-circle-xmark text-[10px]"></i>}
+                {terminationReason === 'timeout' && <i className="fas fa-clock text-[10px]"></i>}
+                {terminationReason === 'success'
+                  ? t('termination.success', '목표 달성')
+                  : terminationReason === 'failure'
+                  ? t('termination.failure', '시나리오 실패')
+                  : t('termination.timeout', '시간 제한 도달')}
+              </div>
+            )}
+            <div className={`${overallGrade.bg} ${overallGrade.color} px-6 py-4 rounded-lg text-center min-w-[120px]`}>
+              <div className="text-3xl font-bold" data-testid="overall-grade">{overallGrade.grade}</div>
+              <div className="text-sm font-medium">{displayOverallScore}{t('report.points', '점')}</div>
+              <div className="text-xs">{t('report.overallScore', '종합 점수')}</div>
+            </div>
           </div>
         </div>
         <div className="mt-4 pt-4 border-t border-white/20 grid grid-cols-2 md:grid-cols-4 gap-3 text-xs text-white/80">
