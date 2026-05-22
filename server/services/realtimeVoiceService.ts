@@ -8,6 +8,7 @@ import {
   MAX_CONCURRENT_SESSIONS,
 } from './voice/types';
 import { buildSystemInstructions, buildReconnectSystemInstructions } from './voice/systemPromptBuilder';
+import { applyScenarioOverride } from './scenarios/overrideResolver';
 import { getSessionState } from './simulation/simulationEngine';
 import { applyHarnessToSession, readScenarioHarness } from './simulation/harnessReader';
 import { handleGeminiMessage } from './voice/geminiMessageHandler';
@@ -150,14 +151,28 @@ export class RealtimeVoiceService {
     const mbtiPersona = mbtiType ? await fileManager.getPersonaByMBTI(mbtiType) : null;
 
     let userName = '사용자';
+    let activeScenarioOverride = null;
+    let resolvedScenarioObj: any = scenarioObj;
     try {
       const user = await storage.getUser(userId);
       userName = normalizeProfileName(user?.name) || '사용자';
+      if (user?.organizationId) {
+        try {
+          const overrideRecord = await storage.getScenarioOverrideByOrgAndScenario(user.organizationId, scenarioId);
+          if (overrideRecord) {
+            activeScenarioOverride = overrideRecord.override;
+            resolvedScenarioObj = applyScenarioOverride(scenarioObj, activeScenarioOverride);
+            console.log(`[realtimeVoice] Applied scenario override for org=${user.organizationId}, scenario=${scenarioId}`);
+          }
+        } catch (err) {
+          console.warn('[realtimeVoice] Failed to load scenario override (ignored):', err);
+        }
+      }
     } catch (error) {
       console.warn(`⚠️ Failed to load user info for userId ${userId}:`, error);
     }
 
-    const playerRole = scenarioObj.context?.playerRole || {};
+    const playerRole = resolvedScenarioObj.context?.playerRole || {};
     const userRoleInfo = {
       name: userName,
       position: playerRole.position || '담당자',
@@ -169,11 +184,11 @@ export class RealtimeVoiceService {
     console.log(`👤 사용자 정보: ${userRoleInfo.name} (${userRoleInfo.position}${userRoleInfo.department ? ', ' + userRoleInfo.department : ''})`);
 
     const scenarioWithUserDifficulty = {
-      ...scenarioObj,
+      ...resolvedScenarioObj,
       difficulty: userSelectedDifficulty || 4
     };
 
-    const allPersonas = scenarioObj.personas || [];
+    const allPersonas = resolvedScenarioObj.personas || [];
     // Resolve the initial active persona index by finding personaId in the list
     // (fallback to isPrimary flag, then to 0)
     const initialPersonaIndex = (() => {
@@ -185,13 +200,13 @@ export class RealtimeVoiceService {
     // Realtime voice always uses replace mode for persona switching — join mode is
     // text/TTS-only. Hard-force 'replace' here to prevent join-mode multi-speaker
     // instructions from leaking into voice prompts.
-    const initialFlowGraph = (scenarioObj as any).flowGraph ?? null;
+    const initialFlowGraph = (resolvedScenarioObj as any).flowGraph ?? null;
     const initialStageGoal: string | undefined = initialFlowGraph?.stages?.find((s: any) => s.id === 'intro')?.goal;
-    const scenarioPlayerConstraints = (scenarioObj as any).playerConstraints ?? null;
+    const scenarioPlayerConstraints = (resolvedScenarioObj as any).playerConstraints ?? null;
     const systemInstructions = buildSystemInstructions(
       scenarioWithUserDifficulty, scenarioPersona, mbtiPersona, userRoleInfo, userLanguage,
-      true, allPersonas, initialPersonaIndex, scenarioObj.targetTurns, 'replace', initialStageGoal,
-      scenarioPlayerConstraints
+      true, allPersonas, initialPersonaIndex, resolvedScenarioObj.targetTurns, 'replace', initialStageGoal,
+      scenarioPlayerConstraints, activeScenarioOverride
     );
 
     // Pre-build system instructions for every persona so switching rebuilds the full prompt
@@ -203,8 +218,8 @@ export class RealtimeVoiceService {
         const mbtiP = mbtiT ? await fileManager.getPersonaByMBTI(mbtiT) : null;
         personaSystemInstructions.push(buildSystemInstructions(
           scenarioWithUserDifficulty, sp, mbtiP, userRoleInfo, userLanguage,
-          true, allPersonas, pIdx, scenarioObj.targetTurns, 'replace', initialStageGoal,
-          scenarioPlayerConstraints
+          true, allPersonas, pIdx, resolvedScenarioObj.targetTurns, 'replace', initialStageGoal,
+          scenarioPlayerConstraints, activeScenarioOverride
         ));
       }
     }

@@ -1,8 +1,8 @@
 import { sql } from "drizzle-orm";
-import { pgTable, text, varchar, integer, timestamp, jsonb, boolean, index } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, integer, timestamp, jsonb, boolean, index, uniqueIndex } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
-import { categories, users } from "./users";
+import { categories, users, organizations } from "./users";
 import type { PersonaSelection, StrategyChoice, SequenceAnalysis } from "./types";
 
 export const simulationHarnessSchema = z.object({
@@ -454,3 +454,42 @@ export type ScenarioStats = {
   completionCount: number;
   averageScore: number | null;
 };
+
+// ─── ScenarioOverride ─────────────────────────────────────────────────────────
+
+export interface ScenarioOverrideData {
+  terminology?: Record<string, string>;
+  policyConstraints?: string[];
+  forbiddenPhrases?: string[];
+  evaluationWeights?: Partial<Record<EvaluationDimensionKey, number>>;
+  customIncidents?: string[];
+}
+
+export const scenarioOverrideDataSchema: z.ZodType<ScenarioOverrideData> = z.object({
+  terminology: z.record(z.string(), z.string()).optional(),
+  policyConstraints: z.array(z.string()).optional(),
+  forbiddenPhrases: z.array(z.string()).optional(),
+  evaluationWeights: z.record(z.enum(['clarity', 'empathy', 'logic', 'ownership', 'actionPlan']), z.number().min(0).max(10)).optional(),
+  customIncidents: z.array(z.string()).optional(),
+});
+
+export const scenarioOverrides = pgTable("scenario_overrides", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  organizationId: varchar("organization_id").notNull().references(() => organizations.id, { onDelete: 'cascade' }),
+  scenarioId: varchar("scenario_id").notNull().references(() => scenarios.id, { onDelete: 'cascade' }),
+  override: jsonb("override").notNull().$type<ScenarioOverrideData>(),
+  createdAt: timestamp("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+  updatedAt: timestamp("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+}, (table) => [
+  index("idx_scenario_overrides_org_id").on(table.organizationId),
+  index("idx_scenario_overrides_scenario_id").on(table.scenarioId),
+  uniqueIndex("uniq_scenario_overrides_org_scenario").on(table.organizationId, table.scenarioId),
+]);
+
+export const insertScenarioOverrideSchema = createInsertSchema(scenarioOverrides).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+export type InsertScenarioOverride = z.infer<typeof insertScenarioOverrideSchema>;
+export type ScenarioOverride = typeof scenarioOverrides.$inferSelect;

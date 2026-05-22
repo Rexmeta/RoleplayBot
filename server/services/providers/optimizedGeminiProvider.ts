@@ -418,7 +418,7 @@ ${speechStyleGuide}
 ${reactionGuide}
 
 ${difficultyGuidelines}
-
+${(scenario as any)._overridePromptBlock ? `\n${(scenario as any)._overridePromptBlock}\n` : ''}
 ${modeTransitionHint ? `**【모드 전환 안내 - 이번 응답에만 적용】**: ${modeTransitionHint}\n` : ''}${simulationStateBlock ? `\n${simulationStateBlock}\n` : ''}${softClosingInstruction ? `**【대화 마무리 유도 - 이번 응답에 반영】**: ${softClosingInstruction}\n` : ''}${conversationHistory ? `=== 역할 재확인: 당신은 ${persona.name}(${persona.role})이며, 상대방은 ${userLabelInPrompt}입니다. 아래 이전 대화에서도 이 역할을 유지했습니다 ===
 ⚠️ 【${userLabelInPrompt} 답변 ✓】로 표시된 항목은 이미 답변받은 사안입니다. 동일하거나 유사한 질문을 절대 다시 하지 마세요.
 ${conversationHistory}

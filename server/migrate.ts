@@ -1147,6 +1147,26 @@ export async function runMigrations(): Promise<void> {
         console.warn('⚠️ Failed to create scenario_versions table:', err);
       }
 
+      // scenario_overrides table
+      try {
+        await client.query(`
+          CREATE TABLE IF NOT EXISTS "scenario_overrides" (
+            "id" varchar PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+            "organization_id" varchar NOT NULL REFERENCES "organizations"("id") ON DELETE cascade,
+            "scenario_id" varchar NOT NULL REFERENCES "scenarios"("id") ON DELETE cascade,
+            "override" jsonb NOT NULL,
+            "created_at" timestamp DEFAULT CURRENT_TIMESTAMP NOT NULL,
+            "updated_at" timestamp DEFAULT CURRENT_TIMESTAMP NOT NULL
+          );
+          CREATE INDEX IF NOT EXISTS "idx_scenario_overrides_org_id" ON "scenario_overrides"("organization_id");
+          CREATE INDEX IF NOT EXISTS "idx_scenario_overrides_scenario_id" ON "scenario_overrides"("scenario_id");
+          CREATE UNIQUE INDEX IF NOT EXISTS "uniq_scenario_overrides_org_scenario" ON "scenario_overrides"("organization_id", "scenario_id");
+        `);
+        console.log('✅ scenario_overrides table created/verified');
+      } catch (err) {
+        console.warn('⚠️ Failed to create scenario_overrides table:', err);
+      }
+
       // scenario_runs version columns
       try {
         await client.query(`

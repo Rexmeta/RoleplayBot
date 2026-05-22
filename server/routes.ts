@@ -20,6 +20,7 @@ import createScenariosRouter from "./routes/scenarios";
 import createAdminScenariosRouter from "./routes/adminScenarios";
 import createAdminPersonasRouter from "./routes/adminPersonas";
 import createAdminOrganizationsRouter from "./routes/adminOrganizations";
+import createAdminScenarioOverridesRouter from "./routes/adminScenarioOverrides";
 import createSystemAdminRouter from "./routes/systemAdmin";
 import createEvaluationCriteriaRouter from "./routes/evaluationCriteria";
 import createTranslationsRouter from "./routes/translations";
@@ -72,6 +73,7 @@ export async function registerRoutes(app: Express, httpServer: Server): Promise<
   app.use(createAdminScenariosRouter(isAuthenticated));
   app.use(createAdminPersonasRouter(isAuthenticated));
   app.use(createAdminOrganizationsRouter(isAuthenticated));
+  app.use(createAdminScenarioOverridesRouter(isAuthenticated));
   app.use(createEvaluationCriteriaRouter(isAuthenticated));
   app.use(createTranslationsRouter(isAuthenticated));
   app.use(createPersonaScenesRouter(isAuthenticated));

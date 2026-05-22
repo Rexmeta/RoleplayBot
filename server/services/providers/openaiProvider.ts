@@ -81,6 +81,7 @@ export class OpenAIProvider implements AIServiceInterface {
         ? getSoftClosingInstruction(userTurns, scenarioObj.targetTurns, language)
         : null;
 
+      const overridePromptBlock = (scenarioObj as any)._overridePromptBlock || '';
       const systemMessage = {
         role: 'system' as const,
         content: `당신은 ${persona.name}(${persona.role})입니다.${softClose ? `\n\n${softClose}` : ''}
@@ -95,7 +96,7 @@ ${userNameSection}
 ${hierarchySpeechGuide}
 ${modeTransitionSection}
 ${difficultyGuidelines}
-
+${overridePromptBlock ? `\n${overridePromptBlock}\n` : ''}
 대화 규칙:
 1. 주어진 페르소나를 정확히 구현하세요
 2. 자연스럽고 현실적인 대화를 유지하세요

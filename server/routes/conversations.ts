@@ -33,6 +33,8 @@ import { buildRuleFallbackPatch, resolveStageTransition, inferIncidentCandidate,
 import { buildSimulationStateBlock } from "../services/simulation/simulationPrompt";
 import { handleToolCall } from "../services/simulation/simulationToolHandler";
 import { v4 as uuidv4 } from "uuid";
+import { applyScenarioOverride, applyEvalWeightsOverride } from "../services/scenarios/overrideResolver";
+import type { ScenarioOverrideData } from "@shared/schema";
 
 export default function createConversationsRouter(isAuthenticated: any) {
   const router = Router();
@@ -127,9 +129,24 @@ export default function createConversationsRouter(isAuthenticated: any) {
       throw Object.assign(createHttpError(410, "이 시나리오는 삭제되어 더 이상 이용할 수 없습니다."), { errorCode: "SCENARIO_DELETED" });
     }
 
-    const scenarioObj = scenarios.find(s => s.id === validatedData.scenarioId);
+    let scenarioObj = scenarios.find(s => s.id === validatedData.scenarioId);
     if (!scenarioObj) {
       throw new Error(`Scenario not found: ${validatedData.scenarioId}`);
+    }
+
+    const orgId = user?.organizationId;
+    let activeScenarioOverride = null;
+    if (orgId) {
+      try {
+        const overrideRecord = await storage.getScenarioOverrideByOrgAndScenario(orgId, validatedData.scenarioId);
+        if (overrideRecord) {
+          activeScenarioOverride = overrideRecord.override;
+          scenarioObj = applyScenarioOverride(scenarioObj, activeScenarioOverride);
+          console.log(`[conversations] Applied scenario override for org=${orgId}, scenario=${validatedData.scenarioId}`);
+        }
+      } catch (err) {
+        console.warn('[conversations] Failed to load scenario override (ignored):', err);
+      }
     }
 
     let scenarioPersona = scenarioObj.personas.find((p: any) => p.id === personaId) as any;
@@ -650,6 +667,7 @@ export default function createConversationsRouter(isAuthenticated: any) {
     let persona: any;
     let scenarioWithUserDifficulty: any;
     let scenarioObjRef: any = null; // hoisted for auto-feedback trigger
+    let msgActiveScenarioOverride: ScenarioOverrideData | null = null;
 
     if (scenarioRun!.scenarioId === "__free_chat__") {
       const snapshot = personaRun!.personaSnapshot as any || {};
@@ -725,8 +743,22 @@ ${userNameLine}
       };
     } else {
       const scenarios = await fileManager.getAllScenarios();
-      const scenarioObj = scenarios.find(s => s.id === scenarioRun!.scenarioId);
+      let scenarioObj: any = scenarios.find(s => s.id === scenarioRun!.scenarioId);
       if (!scenarioObj) throw new Error(`Scenario not found: ${scenarioRun!.scenarioId}`);
+
+      const msgOrgId = (user as any)?.organizationId;
+      if (msgOrgId) {
+        try {
+          const overrideRecord = await storage.getScenarioOverrideByOrgAndScenario(msgOrgId, scenarioRun!.scenarioId);
+          if (overrideRecord) {
+            msgActiveScenarioOverride = overrideRecord.override as ScenarioOverrideData;
+            scenarioObj = applyScenarioOverride(scenarioObj, msgActiveScenarioOverride);
+            console.log(`[conversations/messages] Applied override for org=${msgOrgId}, scenario=${scenarioRun!.scenarioId}`);
+          }
+        } catch (err) {
+          console.warn('[conversations/messages] Failed to load scenario override (ignored):', err);
+        }
+      }
       scenarioObjRef = scenarioObj; // hoist for auto-feedback
 
       let scenarioPersona: any = scenarioObj.personas.find((p: any) => p.id === personaId);
@@ -871,9 +903,12 @@ ${userNameLine}
     let fastEvalInput: Parameters<typeof evaluateUserResponse>[0] | null = null;
     let fastEvalPromise: Promise<import('../services/simulation/evaluateUserResponse').EvaluationResult> | null = null;
 
-    const scenarioEvalHarness = !isPersonaX
+    const baseScenarioEvalHarness = !isPersonaX
       ? ((scenarioDbRecord as any)?.evaluationHarness ?? null)
       : null;
+    const scenarioEvalHarness = (baseScenarioEvalHarness && msgActiveScenarioOverride?.evaluationWeights && Object.keys(msgActiveScenarioOverride.evaluationWeights).length > 0)
+      ? applyEvalWeightsOverride(baseScenarioEvalHarness, msgActiveScenarioOverride.evaluationWeights as Record<string, number>)
+      : baseScenarioEvalHarness;
     const scenarioDifficultyProfile = !isPersonaX
       ? ((scenarioDbRecord as any)?.difficultyProfile ?? null)
       : null;

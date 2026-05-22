@@ -3,6 +3,8 @@ import { LANGUAGE_INSTRUCTIONS, LangCode } from './prompts/languageInstructions'
 import { SECTION_TEXT } from './prompts/sectionText';
 import { buildSimulationToolPrompt, buildPlayerConstraintsBlock } from '../simulation/simulationPrompt';
 import type { PlayerConstraints } from '../../../shared/schema/scenarios';
+import type { ScenarioOverrideData } from '@shared/schema/scenarios';
+import { buildOverridePromptBlock } from '../scenarios/overrideResolver';
 
 interface UserRoleInfo {
   name: string;
@@ -78,7 +80,8 @@ export function buildSystemInstructions(
   targetTurns?: number,
   personaSwitchMode?: string,
   currentFlowStageGoal?: string,
-  playerConstraints?: PlayerConstraints | null
+  playerConstraints?: PlayerConstraints | null,
+  scenarioOverride?: ScenarioOverrideData | null
 ): string {
   const mbtiType = scenarioPersona.personaRef?.replace('.json', '') || 'UNKNOWN';
 
@@ -230,6 +233,7 @@ export function buildSystemInstructions(
     st.noMetaThink(langInst.langName),
     `${st.firstWordsLabel}: ${langInst.greetingExample(userRoleInfo)}`,
     ...(playerConstraints ? [buildPlayerConstraintsBlock(playerConstraints, userLanguage)] : []),
+    ...(scenarioOverride ? [buildOverridePromptBlock(scenarioOverride)] : []),
     ...(includeSimulationTools ? [``, buildSimulationToolPrompt(userLanguage)] : []),
     ...(allPersonas && allPersonas.length > 1
       ? [personaSwitchMode === 'join'

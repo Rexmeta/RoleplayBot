@@ -22,6 +22,13 @@
       "when": 1746748800000,
       "tag": "0002_rubric_v1_5",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1779436095380,
+      "tag": "0003_add_scenario_overrides",
+      "breakpoints": true
     }
   ]
 }
