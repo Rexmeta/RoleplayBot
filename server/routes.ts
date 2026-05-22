@@ -89,14 +89,49 @@ export async function registerRoutes(app: Express, httpServer: Server): Promise<
   // ================================
   // Public docs — mounted directly on app so swagger-ui static serving
   // is not intercepted by the auth middleware inside agentApiRouter.
-  app.get('/api/v1/agent/openapi.json', (_req, res) => {
+  //
+  // The openapi.json endpoint dynamically sets servers[0].url so that
+  // Swagger UI "Try it out" calls hit the correct absolute base URL.
+  // Priority: AGENT_API_PUBLIC_URL env var → inferred from request host.
+  app.get('/api/v1/agent/openapi.json', (req, res) => {
+    // Derive the public base URL for the OpenAPI servers[] entry.
+    // Priority:
+    //   1. AGENT_API_PUBLIC_URL env var (most reliable for production)
+    //   2. X-Forwarded-Proto / X-Forwarded-Host headers set by reverse proxies
+    //      (e.g. nginx, Cloudflare, GCP LB) — needed because Express's
+    //      req.protocol defaults to "http" when trust proxy is not set.
+    //   3. req.protocol + Host header (works in development / direct access)
+    let publicBase: string;
+    if (process.env.AGENT_API_PUBLIC_URL) {
+      publicBase = process.env.AGENT_API_PUBLIC_URL.replace(/\/+$/, '');
+    } else {
+      const proto =
+        (req.headers['x-forwarded-proto'] as string | undefined)?.split(',')[0].trim() ??
+        req.protocol;
+      const host =
+        (req.headers['x-forwarded-host'] as string | undefined)?.split(',')[0].trim() ??
+        req.get('host');
+      publicBase = `${proto}://${host}`;
+    }
+    const dynamicSpec = {
+      ...agentApiSpec,
+      servers: [
+        {
+          url: `${publicBase}/api/v1/agent`,
+          description: 'Agent API',
+        },
+      ],
+    };
     res.setHeader('Content-Type', 'application/json');
-    res.setHeader('Cache-Control', 'public, max-age=300');
-    res.json(agentApiSpec);
+    res.setHeader('Cache-Control', 'no-store');
+    res.json(dynamicSpec);
   });
-  app.use('/api/v1/agent/docs', ...swaggerUi.serve, swaggerUi.setup(agentApiSpec, {
+  // Swagger UI fetches the spec from the dynamic endpoint above so that
+  // the server URL and Authorize button work correctly for all origins.
+  app.use('/api/v1/agent/docs', ...swaggerUi.serve, swaggerUi.setup(undefined, {
     customSiteTitle: 'Agent API Docs',
     swaggerOptions: {
+      url: '/api/v1/agent/openapi.json',
       persistAuthorization: true,
       displayRequestDuration: true,
       defaultModelsExpandDepth: 2,
