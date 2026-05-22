@@ -62,6 +62,7 @@ interface AgentApiKey {
   revocationReason: string | null;
   createdAt: string;
   monthlyRequestCount: number;
+  monthlyTotalTokens: number;
 }
 
 interface Scenario {
@@ -273,6 +274,7 @@ export function AgentKeyManager() {
                     <TableHead>{t("agentKeys.col.expiresAt", "만료일")}</TableHead>
                     <TableHead>{t("agentKeys.col.lastUsedAt", "마지막 사용")}</TableHead>
                     <TableHead className="text-right">{t("agentKeys.col.monthlyRequests", "월 요청")}</TableHead>
+                    <TableHead className="text-right">{t("agentKeys.col.monthlyTokens", "월 토큰")}</TableHead>
                     <TableHead className="text-right">{t("agentKeys.col.actions", "액션")}</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -333,6 +335,9 @@ export function AgentKeyManager() {
                         </TableCell>
                         <TableCell className="text-right text-sm font-mono">
                           {key.monthlyRequestCount.toLocaleString()}
+                        </TableCell>
+                        <TableCell className="text-right text-sm font-mono">
+                          {key.monthlyTotalTokens.toLocaleString()}
                         </TableCell>
                         <TableCell className="text-right">
                           <div className="flex items-center justify-end gap-2">

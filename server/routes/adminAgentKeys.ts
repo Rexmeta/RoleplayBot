@@ -74,30 +74,35 @@ router.get(
       .select({
         agentKeyId: agentUsageDaily.agentKeyId,
         monthlyRequests: sql<number>`COALESCE(SUM(${agentUsageDaily.requestCount}), 0)::int`,
+        monthlyTotalTokens: sql<number>`COALESCE(SUM(${agentUsageDaily.totalTokens}), 0)::int`,
       })
       .from(agentUsageDaily)
       .where(and(gte(agentUsageDaily.date, monthStart), lt(agentUsageDaily.date, nextMonthStart)))
       .groupBy(agentUsageDaily.agentKeyId);
 
-    const usageByKeyId = new Map(usageRows.map((r) => [r.agentKeyId, r.monthlyRequests]));
+    const usageByKeyId = new Map(usageRows.map((r) => [r.agentKeyId, r]));
 
-    const result = rows.map((k: any) => ({
-      id: k.id,
-      name: k.name,
-      keyPrefix: k.keyPrefix,
-      environment: k.environment,
-      organizationId: k.organizationId,
-      scopes: k.scopes,
-      allowedIps: k.allowedIps,
-      rateLimitPerMinute: k.rateLimitPerMinute,
-      isActive: k.isActive,
-      expiresAt: k.expiresAt,
-      lastUsedAt: k.lastUsedAt,
-      revokedAt: k.revokedAt,
-      revocationReason: k.revocationReason,
-      createdAt: k.createdAt,
-      monthlyRequestCount: usageByKeyId.get(k.id) ?? 0,
-    }));
+    const result = rows.map((k: any) => {
+      const usage = usageByKeyId.get(k.id);
+      return {
+        id: k.id,
+        name: k.name,
+        keyPrefix: k.keyPrefix,
+        environment: k.environment,
+        organizationId: k.organizationId,
+        scopes: k.scopes,
+        allowedIps: k.allowedIps,
+        rateLimitPerMinute: k.rateLimitPerMinute,
+        isActive: k.isActive,
+        expiresAt: k.expiresAt,
+        lastUsedAt: k.lastUsedAt,
+        revokedAt: k.revokedAt,
+        revocationReason: k.revocationReason,
+        createdAt: k.createdAt,
+        monthlyRequestCount: usage?.monthlyRequests ?? 0,
+        monthlyTotalTokens: usage?.monthlyTotalTokens ?? 0,
+      };
+    });
 
     res.json(result);
   })
