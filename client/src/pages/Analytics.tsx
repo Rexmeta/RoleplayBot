@@ -79,6 +79,7 @@ type AnalyticsSummary = {
   overallGrade: string;
   progressTrend: 'improving' | 'stable' | 'declining' | 'neutral';
   lastSessionDate?: string;
+  terminationOutcomes?: { success: number; failure: number; timeout: number };
 };
 
 const DEFAULT_DIMENSION_ICONS: Record<string, string> = {
@@ -354,6 +355,49 @@ export default function Analytics() {
           </Card>
         </div>
         </TooltipProvider>
+
+        {/* Termination Outcomes */}
+        {analytics.terminationOutcomes && (analytics.terminationOutcomes.success + analytics.terminationOutcomes.failure + analytics.terminationOutcomes.timeout) > 0 && (
+          <Card className="mb-8" data-testid="card-termination-outcomes">
+            <CardHeader>
+              <CardTitle className="text-base font-semibold text-slate-700 flex items-center gap-2">
+                <Target className="w-4 h-4 text-corporate-600" />
+                시나리오 종료 결과
+              </CardTitle>
+              <CardDescription>시뮬레이션 종료 사유별 통계</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-3 gap-4">
+                <div className="flex flex-col items-center p-4 bg-emerald-50 border border-emerald-200 rounded-lg">
+                  <div className="text-3xl font-bold text-emerald-600" data-testid="termination-success">
+                    {analytics.terminationOutcomes.success}
+                  </div>
+                  <div className="text-sm font-medium text-emerald-700 mt-1">목표 달성</div>
+                  <div className="text-xs text-emerald-500 mt-0.5">성공적 완료</div>
+                </div>
+                <div className="flex flex-col items-center p-4 bg-red-50 border border-red-200 rounded-lg">
+                  <div className="text-3xl font-bold text-red-600" data-testid="termination-failure">
+                    {analytics.terminationOutcomes.failure}
+                  </div>
+                  <div className="text-sm font-medium text-red-700 mt-1">시나리오 실패</div>
+                  <div className="text-xs text-red-500 mt-0.5">목표 미달성</div>
+                </div>
+                <div className="flex flex-col items-center p-4 bg-orange-50 border border-orange-200 rounded-lg">
+                  <div className="text-3xl font-bold text-orange-500" data-testid="termination-timeout">
+                    {analytics.terminationOutcomes.timeout}
+                  </div>
+                  <div className="text-sm font-medium text-orange-700 mt-1">시간 제한 도달</div>
+                  <div className="text-xs text-orange-500 mt-0.5">시간 초과 종료</div>
+                </div>
+              </div>
+              {analytics.terminationOutcomes.failure > 0 && (
+                <p className="text-xs text-slate-500 mt-3 text-center">
+                  * 시나리오 실패로 종료된 세션은 강제 실패로 처리됩니다.
+                </p>
+              )}
+            </CardContent>
+          </Card>
+        )}
 
         {/* Category Breakdown with Filter */}
         <Card className="mb-8" data-testid="card-categories">

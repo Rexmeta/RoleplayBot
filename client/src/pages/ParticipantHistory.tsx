@@ -119,6 +119,9 @@ function RunAccordionContent({
               ? `${matchedPersona.department ? matchedPersona.department + " " : ""}${matchedPersona.name}${matchedPersona.position ? " " + matchedPersona.position : ""}`
               : (pr.personaName || snapshot?.name || pr.personaId);
 
+            const simState = pr.simulationState as { terminationReason?: string } | null;
+            const terminationReason = simState?.terminationReason;
+
             return (
               <div
                 key={pr.id}
@@ -146,6 +149,15 @@ function RunAccordionContent({
                     }>
                       {isRunCompleted ? "완료" : isRunActive ? "진행 중" : "시작 전"}
                     </Badge>
+                    {terminationReason === "success" && (
+                      <Badge className="bg-emerald-600 text-white text-xs">목표 달성</Badge>
+                    )}
+                    {terminationReason === "failure" && (
+                      <Badge className="bg-red-600 text-white text-xs">시나리오 실패</Badge>
+                    )}
+                    {terminationReason === "timeout" && (
+                      <Badge className="bg-orange-500 text-white text-xs">시간 제한 도달</Badge>
+                    )}
                   </div>
                 </div>
                 <div className="flex items-center gap-3 shrink-0">

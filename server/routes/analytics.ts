@@ -67,14 +67,20 @@ export default function createAnalyticsRouter(isAuthenticated: any) {
     const completedScenarioRuns = roleplayScenarioRuns.filter(sr => sr.status === 'completed');
 
     // 롤플레이X 페르소나 런 ID 세트 구성 (feedbacks 필터링용)
-    const roleplayPersonaRunIds = await (async () => {
-      const runIdSets = await Promise.all(
-        roleplayScenarioRuns.map(sr => storage.getPersonaRunsByScenarioRun(sr.id))
-      );
-      const ids = new Set<string>();
-      runIdSets.forEach(runs => runs.forEach(pr => ids.add(pr.id)));
-      return ids;
-    })();
+    const allRoleplayPersonaRuns = (await Promise.all(
+      roleplayScenarioRuns.map(sr => storage.getPersonaRunsByScenarioRun(sr.id))
+    )).flat();
+
+    const roleplayPersonaRunIds = new Set(allRoleplayPersonaRuns.map(pr => pr.id));
+
+    const terminationOutcomes = { success: 0, failure: 0, timeout: 0 };
+    allRoleplayPersonaRuns.forEach(pr => {
+      const simState = pr.simulationState as { terminationReason?: string } | null;
+      const reason = simState?.terminationReason;
+      if (reason === 'success') terminationOutcomes.success++;
+      else if (reason === 'failure') terminationOutcomes.failure++;
+      else if (reason === 'timeout') terminationOutcomes.timeout++;
+    });
 
     const allUserFeedbacks = await storage.getUserFeedbacks(userId);
     // 롤플레이X 피드백만 사용 (자유 대화 제외)
@@ -97,7 +103,8 @@ export default function createAnalyticsRouter(isAuthenticated: any) {
         topStrengths: [],
         topImprovements: [],
         overallGrade: 'N/A',
-        progressTrend: 'neutral'
+        progressTrend: 'neutral',
+        terminationOutcomes,
       });
     }
 
@@ -338,6 +345,7 @@ export default function createAnalyticsRouter(isAuthenticated: any) {
       overallGrade: getOverallGrade(averageScore),
       progressTrend,
       lastSessionDate: lastCompletedScenario?.startedAt.toISOString(),
+      terminationOutcomes,
     });
   }));
 
