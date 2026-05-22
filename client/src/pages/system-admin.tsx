@@ -297,7 +297,6 @@ const FEATURE_MODEL_INFO = [
 interface ApiKeyStatus {
   gemini: boolean;
   openai: boolean;
-  elevenlabs: boolean;
 }
 
 const roleColorConfig: Record<string, { color: string; bgColor: string }> = {
@@ -1436,23 +1435,6 @@ export default function SystemAdminPage() {
                       </div>
                       <Badge variant={apiKeyStatus?.openai ? "default" : "destructive"}>
                         {apiKeyStatus?.openai ? t('systemAdmin.settings.configured') : t('systemAdmin.settings.notConfigured')}
-                      </Badge>
-                    </div>
-
-                    <div className="flex items-center justify-between p-3 bg-slate-50 rounded-lg">
-                      <div className="flex items-center gap-3">
-                        {apiKeyStatus?.elevenlabs ? (
-                          <CheckCircle className="h-5 w-5 text-green-600" />
-                        ) : (
-                          <XCircle className="h-5 w-5 text-red-500" />
-                        )}
-                        <div>
-                          <p className="font-medium">{t('systemAdmin.settings.elevenlabsApi')}</p>
-                          <p className="text-sm text-muted-foreground">{t('systemAdmin.settings.elevenlabsApiDesc')}</p>
-                        </div>
-                      </div>
-                      <Badge variant={apiKeyStatus?.elevenlabs ? "default" : "destructive"}>
-                        {apiKeyStatus?.elevenlabs ? t('systemAdmin.settings.configured') : t('systemAdmin.settings.notConfigured')}
                       </Badge>
                     </div>
 
