@@ -384,10 +384,17 @@ export function handleGeminiMessage(
       // Skip top-level message.data to prevent double-playback.
       console.log(`🔇 Skipping top-level audio — inlineData present in modelTurn (will use inlineData)`);
     } else if (session.isInterrupted) {
-      console.log(`🔇 Suppressing audio (barge-in active)`);
-      // Do NOT return early — fall through so serverContent (e.g. outputTranscription,
-      // turnComplete) in the same message is still processed.
-    } else {
+      if (session.turnSeq > session.cancelledTurnSeq) {
+        console.log(`🔄 Audio arrived for new turn (turnSeq=${session.turnSeq} > cancelledTurnSeq=${session.cancelledTurnSeq}) — clearing isInterrupted`);
+        session.isInterrupted = false;
+        session.cancelledTurnSeq = -1;
+      } else {
+        console.log(`🔇 Suppressing audio (barge-in active)`);
+        // Do NOT return early — fall through so serverContent (e.g. outputTranscription,
+        // turnComplete) in the same message is still processed.
+      }
+    }
+    if (!session.isInterrupted && !hasInlineDataInModelTurn) {
       if (!session.hasReceivedFirstAIAudio) {
         session.hasReceivedFirstAIAudio = true;
         session.hasReceivedFirstAIResponse = true;
@@ -430,6 +437,10 @@ export function handleGeminiMessage(
           console.log(`🔄 User speech confirmed by VAD — clearing barge-in state (cancelledTurn=${session.cancelledTurnSeq})`);
           session.isInterrupted = false;
           session.cancelledTurnSeq = -1;
+        }
+        if (!session.userSpeechStarted) {
+          session.userSpeechStarted = true;
+          console.log('🎙️ User speech started — userSpeechStarted=true');
         }
         console.log('🎙️ User started speaking - notifying client');
         sendToClient(session, { type: 'user.speaking.started' });
@@ -490,17 +501,24 @@ export function handleGeminiMessage(
 
         if (part.inlineData) {
           if (session.isInterrupted) {
-            console.log(`🔇 Suppressing inline audio (barge-in active)`);
-            continue;
+            if (session.turnSeq > session.cancelledTurnSeq) {
+              console.log(`🔄 Inline audio arrived for new turn (turnSeq=${session.turnSeq} > cancelledTurnSeq=${session.cancelledTurnSeq}) — clearing isInterrupted`);
+              session.isInterrupted = false;
+              session.cancelledTurnSeq = -1;
+            } else {
+              console.log(`🔇 Suppressing inline audio (barge-in active)`);
+              continue;
+            }
           }
           // Suppress duplicate greeting audio: the first AI greeting has already
           // completed (greetingResponseCount ≥ 1) but no user turn has been
-          // recorded yet (userTurnsCompleted === 0).  This happens when a barge-in
+          // recorded yet (userTurnsCompleted === 0) AND the user hasn't even started
+          // speaking (userSpeechStarted === false).  This happens when a barge-in
           // noise interrupts the greeting and Gemini generates a second greeting
           // before the user has actually spoken.  Only the transcript guard existed
           // before; now we also block the audio so the user doesn't hear it twice.
-          if (session.greetingResponseCount >= 1 && session.userTurnsCompleted === 0) {
-            console.log(`🔇 Suppressing duplicate greeting audio (greetingResponseCount=${session.greetingResponseCount}, userTurnsCompleted=0)`);
+          if (session.greetingResponseCount >= 1 && session.userTurnsCompleted === 0 && !session.userSpeechStarted) {
+            console.log(`🔇 Suppressing duplicate greeting audio (greetingResponseCount=${session.greetingResponseCount}, userTurnsCompleted=0, userSpeechStarted=false)`);
             continue;
           }
           if (hasThinkingText) {

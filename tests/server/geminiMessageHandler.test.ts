@@ -44,6 +44,7 @@ function makeSession(overrides: Partial<RealtimeSession> = {}): RealtimeSession 
     hasReceivedFirstTranscriptDelta: false,
     greetingResponseCount: 0,
     userTurnsCompleted: 0,
+    userSpeechStarted: false,
     usingReconnectInstructions: false,
     activePersonaIndex: 0,
     voiceId: null,

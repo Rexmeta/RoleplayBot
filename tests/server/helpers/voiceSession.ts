@@ -41,6 +41,7 @@ export function makeSession(overrides: Partial<RealtimeSession> = {}): RealtimeS
     hasReceivedFirstTranscriptDelta: false,
     greetingResponseCount: 0,
     userTurnsCompleted: 0,
+    userSpeechStarted: false,
     simulationState: null,
     scenarioRunId: null,
     toolCallCountThisTurn: 0,

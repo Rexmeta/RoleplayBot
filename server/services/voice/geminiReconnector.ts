@@ -112,6 +112,7 @@ export function handleGeminiClose(
             sess.cancelledTurnSeq = -1;
             sess.currentTranscript = '';
             sess.usingReconnectInstructions = true;
+            sess.userSpeechStarted = false;
             console.log(`✅ Gemini 재연결 성공!`);
             sendToClient(sess, { type: 'session.reconnected' });
 

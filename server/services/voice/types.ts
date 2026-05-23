@@ -52,6 +52,7 @@ export interface RealtimeSession {
   hasReceivedFirstTranscriptDelta: boolean;
   greetingResponseCount: number;
   userTurnsCompleted: number;
+  userSpeechStarted: boolean;
   simulationState: import('../simulation/simulationTypes').SimulationState | null;
   scenarioRunId: string | null;
   toolCallCountThisTurn: number;
