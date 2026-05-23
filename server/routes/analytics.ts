@@ -1422,5 +1422,71 @@ export default function createAnalyticsRouter(isAuthenticated: any) {
     return res.json(result);
   }));
 
+  // Benchmark group detail: per-scenario breakdown
+  router.get('/api/admin/analytics/benchmark-groups/:groupName', isAuthenticated, asyncHandler(async (req: any, res: Response) => {
+    const user = req.user;
+    if (user?.role !== 'admin' && user?.role !== 'operator') {
+      return res.status(403).json({ message: 'Forbidden' });
+    }
+    const groupName = decodeURIComponent(req.params.groupName);
+
+    const allScenarios = await storage.getScenarios() as any[];
+    const allFeedbacks = await storage.getAllFeedbacks() as any[];
+    const allPersonaRuns = await storage.getAllPersonaRuns() as any[];
+    const allScenarioRuns = await storage.getAllScenarioRuns() as any[];
+
+    const scenarioRunToScenario: Record<string, number> = {};
+    for (const sr of allScenarioRuns) {
+      scenarioRunToScenario[sr.id] = sr.scenarioId;
+    }
+    const personaRunToScenario: Record<string, number> = {};
+    for (const pr of allPersonaRuns) {
+      if (pr.scenarioRunId && scenarioRunToScenario[pr.scenarioRunId] !== undefined) {
+        personaRunToScenario[pr.id] = scenarioRunToScenario[pr.scenarioRunId];
+      }
+    }
+
+    const groupScenarios = allScenarios.filter((s: any) => (s.analyticsSpec as any)?.benchmarkGroup === groupName);
+    if (groupScenarios.length === 0) {
+      return res.status(404).json({ message: 'Benchmark group not found' });
+    }
+
+    // Compute per-scenario stats
+    const scenarioStats = groupScenarios.map((s: any) => {
+      const scenarioFeedbacks = allFeedbacks.filter((f: any) => personaRunToScenario[f.personaRunId] === s.id);
+      const scores = scenarioFeedbacks.map((f: any) => f.overallScore).filter((v: any) => typeof v === 'number') as number[];
+      const avg = scores.length > 0 ? Math.round(scores.reduce((a, b) => a + b, 0) / scores.length) : null;
+      const distribution = {
+        '0-20': 0, '21-40': 0, '41-60': 0, '61-80': 0, '81-100': 0,
+      };
+      for (const score of scores) {
+        if (score <= 20) distribution['0-20']++;
+        else if (score <= 40) distribution['21-40']++;
+        else if (score <= 60) distribution['41-60']++;
+        else if (score <= 80) distribution['61-80']++;
+        else distribution['81-100']++;
+      }
+      return {
+        scenarioId: s.id,
+        scenarioTitle: s.title || `Scenario ${s.id}`,
+        sessionCount: scenarioFeedbacks.length,
+        averageScore: avg,
+        scoreDistribution: distribution,
+      };
+    });
+
+    const allGroupIds = new Set(groupScenarios.map((s: any) => s.id));
+    const allGroupFeedbacks = allFeedbacks.filter((f: any) => {
+      const sid = personaRunToScenario[f.personaRunId];
+      return sid !== undefined && allGroupIds.has(sid);
+    });
+    const groupScores = allGroupFeedbacks.map((f: any) => f.overallScore).filter((v: any) => typeof v === 'number') as number[];
+    const groupAverage = groupScores.length > 0 ? Math.round(groupScores.reduce((a, b) => a + b, 0) / groupScores.length) : null;
+
+    scenarioStats.sort((a: any, b: any) => (b.averageScore ?? -1) - (a.averageScore ?? -1));
+
+    return res.json({ groupName, groupAverage, scenarios: scenarioStats });
+  }));
+
   return router;
 }
