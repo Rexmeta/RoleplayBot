@@ -215,6 +215,23 @@ describe('handleGeminiClose', () => {
       expect(session.isReconnecting).toBe(false);
     });
 
+    it('resets userSpeechStarted to false after successful reconnect', async () => {
+      session.userSpeechStarted = true;
+
+      handleGeminiClose(
+        { code: 1006, reason: 'Abnormal closure' },
+        session,
+        sessions,
+        sendToClient,
+        connectToGemini,
+        trackSessionUsage
+      );
+
+      await vi.runAllTimersAsync();
+
+      expect(session.userSpeechStarted).toBe(false);
+    });
+
     it('restores conversation context from recentMessages after reconnect', async () => {
       session.recentMessages = [
         { role: 'user', text: '안녕하세요' },
