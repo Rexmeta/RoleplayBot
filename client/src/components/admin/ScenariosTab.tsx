@@ -177,24 +177,30 @@ export function ScenariosTab({
               <div className="flex items-center justify-center h-24 text-slate-400 text-sm">로딩 중...</div>
             ) : benchmarkGroups && benchmarkGroups.length > 0 ? (
               <div className="space-y-4">
-                <ResponsiveContainer width="100%" height={280}>
-                  <BarChart data={benchmarkGroups.map(bg => ({
-                    name: bg.benchmarkGroup,
-                    average: bg.averageScore ?? 0,
-                    sessions: bg.sessionCount,
-                  }))}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="name" />
-                    <YAxis domain={[0, 100]} />
-                    <Tooltip
-                      formatter={(value, name) => [
-                        name === 'average' ? `${value}점` : `${value}회`,
-                        name === 'average' ? '평균 점수' : '세션 수',
-                      ]}
-                    />
-                    <Bar dataKey="average" fill="#7c3aed" name="average" />
-                  </BarChart>
-                </ResponsiveContainer>
+                {benchmarkGroups.some(bg => bg.sessionCount > 0) ? (
+                  <ResponsiveContainer width="100%" height={280}>
+                    <BarChart data={benchmarkGroups.map(bg => ({
+                      name: bg.benchmarkGroup,
+                      average: bg.averageScore ?? 0,
+                      sessions: bg.sessionCount,
+                    }))}>
+                      <CartesianGrid strokeDasharray="3 3" />
+                      <XAxis dataKey="name" />
+                      <YAxis domain={[0, 100]} />
+                      <Tooltip
+                        formatter={(value, name) => [
+                          name === 'average' ? `${value}점` : `${value}회`,
+                          name === 'average' ? '평균 점수' : '세션 수',
+                        ]}
+                      />
+                      <Bar dataKey="average" fill="#7c3aed" name="average" />
+                    </BarChart>
+                  </ResponsiveContainer>
+                ) : (
+                  <div className="flex items-center justify-center h-24 text-slate-400 text-sm">
+                    아직 세션 데이터가 없습니다. 세션이 완료되면 그래프가 표시됩니다.
+                  </div>
+                )}
 
                 <div className="overflow-x-auto">
                   <table className="w-full border-collapse text-sm">
@@ -214,7 +220,13 @@ export function ScenariosTab({
                             <span className="bg-violet-100 px-2 py-0.5 rounded-full text-xs">{bg.benchmarkGroup}</span>
                           </td>
                           <td className="p-2 text-slate-600">{bg.scenarioCount}개</td>
-                          <td className="p-2 text-slate-600">{bg.sessionCount}회</td>
+                          <td className="p-2">
+                            {bg.sessionCount === 0 ? (
+                              <span className="text-slate-400 text-xs italic">세션 없음</span>
+                            ) : (
+                              <span className="text-slate-600">{bg.sessionCount}회</span>
+                            )}
+                          </td>
                           <td className="p-2">
                             {bg.averageScore === null ? (
                               <span className="text-slate-400 text-xs">데이터 없음</span>

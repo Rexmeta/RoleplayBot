@@ -1403,7 +1403,6 @@ export default function createAnalyticsRouter(isAuthenticated: any) {
     }> = [];
 
     for (const [bg, info] of Object.entries(groups)) {
-      if (info.scenarioIds.size === 0) continue;
       const groupFeedbacks = allFeedbacks.filter((f: any) => {
         const sid = personaRunToScenario[f.personaRunId];
         return sid !== undefined && info.scenarioIds.has(sid);
