@@ -192,6 +192,44 @@ describe('handleGeminiMessage', () => {
       expect(sendToClient).not.toHaveBeenCalled();
     });
 
+    it('suppresses audio.delta when isInterrupted=true and turnSeq matches cancelledTurnSeq', () => {
+      session.isInterrupted = true;
+      session.turnSeq = 2;
+      session.cancelledTurnSeq = 2;
+
+      handleGeminiMessage(
+        session,
+        { data: 'base64audiodata==' },
+        sendToClient,
+        null,
+        proactiveReconnect
+      );
+
+      expect(sendToClient).not.toHaveBeenCalled();
+      expect(session.isInterrupted).toBe(true);
+    });
+
+    it('forwards audio.delta and clears isInterrupted when turnSeq exceeds cancelledTurnSeq', () => {
+      session.isInterrupted = true;
+      session.turnSeq = 3;
+      session.cancelledTurnSeq = 2;
+
+      handleGeminiMessage(
+        session,
+        { data: 'newturnaudio==' },
+        sendToClient,
+        null,
+        proactiveReconnect
+      );
+
+      expect(session.isInterrupted).toBe(false);
+      expect(session.cancelledTurnSeq).toBe(-1);
+      expect(sendToClient).toHaveBeenCalledWith(
+        session,
+        expect.objectContaining({ type: 'audio.delta', delta: 'newturnaudio==', turnSeq: 3 })
+      );
+    });
+
     it('includes current turnSeq in audio.delta message', () => {
       session.turnSeq = 3;
 
