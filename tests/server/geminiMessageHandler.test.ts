@@ -279,6 +279,82 @@ describe('handleGeminiMessage', () => {
     });
   });
 
+  describe('audio data (inlineData path)', () => {
+    it('forwards audio.delta (from inlineData) when not interrupted', () => {
+      session.isInterrupted = false;
+
+      handleGeminiMessage(
+        session,
+        {
+          serverContent: {
+            modelTurn: {
+              parts: [{ inlineData: { mimeType: 'audio/pcm', data: 'inlineaudio==' } }],
+            },
+          },
+        },
+        sendToClient,
+        null,
+        proactiveReconnect
+      );
+
+      expect(sendToClient).toHaveBeenCalledWith(
+        session,
+        expect.objectContaining({ type: 'audio.delta', delta: 'inlineaudio==' })
+      );
+    });
+
+    it('suppresses audio.delta when isInterrupted=true and turnSeq <= cancelledTurnSeq', () => {
+      session.isInterrupted = true;
+      session.turnSeq = 4;
+      session.cancelledTurnSeq = 4;
+
+      handleGeminiMessage(
+        session,
+        {
+          serverContent: {
+            modelTurn: {
+              parts: [{ inlineData: { mimeType: 'audio/pcm', data: 'suppressedaudio==' } }],
+            },
+          },
+        },
+        sendToClient,
+        null,
+        proactiveReconnect
+      );
+
+      const audioCalls = sendToClient.mock.calls.filter(([, msg]) => msg.type === 'audio.delta');
+      expect(audioCalls).toHaveLength(0);
+      expect(session.isInterrupted).toBe(true);
+    });
+
+    it('clears isInterrupted and forwards audio.delta when turnSeq > cancelledTurnSeq', () => {
+      session.isInterrupted = true;
+      session.turnSeq = 5;
+      session.cancelledTurnSeq = 4;
+
+      handleGeminiMessage(
+        session,
+        {
+          serverContent: {
+            modelTurn: {
+              parts: [{ inlineData: { mimeType: 'audio/pcm', data: 'newturndata==' } }],
+            },
+          },
+        },
+        sendToClient,
+        null,
+        proactiveReconnect
+      );
+
+      expect(session.isInterrupted).toBe(false);
+      expect(session.cancelledTurnSeq).toBe(-1);
+      expect(sendToClient).toHaveBeenCalledWith(
+        session,
+        expect.objectContaining({ type: 'audio.delta', delta: 'newturndata==', turnSeq: 5 })
+      );
+    });
+  });
+
   describe('inputTranscription', () => {
     it('accumulates transcript text in userTranscriptBuffer', () => {
       handleGeminiMessage(
