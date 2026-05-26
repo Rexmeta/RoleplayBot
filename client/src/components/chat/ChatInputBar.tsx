@@ -350,10 +350,10 @@ export function ChatInputBar({
           <div className="absolute bottom-3 right-3 text-xs text-slate-400 bg-white/80 px-1.5 py-0.5 rounded">
             {userInput.length}/200
           </div>
-          {speechSupported && (
-            <TooltipProvider delayDuration={300}>
-              <Tooltip>
-                <TooltipTrigger asChild>
+          <TooltipProvider delayDuration={300}>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                {speechSupported ? (
                   <button
                     type="button"
                     onClick={onVoiceInput}
@@ -368,13 +368,26 @@ export function ChatInputBar({
                     <i className={`fas ${isRecording ? 'fa-stop' : 'fa-microphone'} text-[11px] ${isRecording ? 'text-red-500' : 'text-slate-500'}`}></i>
                     <span>{isRecording ? t('chat.done') : t('chat.voice')}</span>
                   </button>
-                </TooltipTrigger>
-                <TooltipContent side="top">
-                  {isRecording ? t('chat.stopRecording') : t('chat.startRecording')}
-                </TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
-          )}
+                ) : (
+                  <span
+                    className="absolute bottom-2 left-3 inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs bg-slate-100 border border-slate-200 text-slate-400 opacity-50 cursor-not-allowed"
+                    aria-label={t('chat.voiceNotSupported', { defaultValue: '이 브라우저는 음성 인식을 지원하지 않습니다' })}
+                    data-testid="button-voice-input"
+                  >
+                    <i className="fas fa-microphone text-[11px] text-slate-400"></i>
+                    <span>{t('chat.voice')}</span>
+                  </span>
+                )}
+              </TooltipTrigger>
+              <TooltipContent side="top">
+                {!speechSupported
+                  ? t('chat.voiceNotSupported', { defaultValue: '이 브라우저는 음성 인식을 지원하지 않습니다' })
+                  : isRecording
+                    ? t('chat.stopRecording')
+                    : t('chat.startRecording')}
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
         </div>
         <div className="flex items-center justify-between mt-2 px-1">
           <div className="flex items-center gap-2 text-xs text-slate-500">
