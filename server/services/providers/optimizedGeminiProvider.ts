@@ -669,6 +669,10 @@ ${conversationHistory}
         durationMs: totalDurationMs,
         metadata: { ttftMs },
       });
+
+      if (lastPromptTokens > 0 || lastCompletionTokens > 0) {
+        yield `[USAGE:${JSON.stringify({ inputTokens: lastPromptTokens, outputTokens: lastCompletionTokens })}]`;
+      }
     }
 
     return streamGenerator();

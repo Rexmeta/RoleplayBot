@@ -225,15 +225,25 @@ ${metaInstruction}`;
           max_tokens: 300,
           temperature: 0.8,
           stream: true,
+          stream_options: { include_usage: true },
         }),
         { maxRetries: 2, baseDelayMs: 1000 }
       )
     );
 
     async function* generate(): AsyncGenerator<string> {
+      let inputTokens = 0;
+      let outputTokens = 0;
       for await (const chunk of stream) {
         const text = chunk.choices[0]?.delta?.content;
         if (text) yield text;
+        if ((chunk as any).usage) {
+          inputTokens = (chunk as any).usage.prompt_tokens ?? 0;
+          outputTokens = (chunk as any).usage.completion_tokens ?? 0;
+        }
+      }
+      if (inputTokens > 0 || outputTokens > 0) {
+        yield `[USAGE:${JSON.stringify({ inputTokens, outputTokens })}]`;
       }
     }
     return generate();

@@ -762,14 +762,27 @@ router.post("/sessions/:id/messages", requireScope("sessions:message"), async (r
         return;
       }
 
+      // Parse [USAGE:{...}] sidecar emitted by providers after the text stream
+      const usageMatch = fullContent.match(/\[USAGE:([\s\S]*?)\]\s*$/);
+      let usageParsed: { inputTokens?: number; outputTokens?: number } = {};
+      let contentWithoutUsage = fullContent;
+      if (usageMatch) {
+        try {
+          usageParsed = JSON.parse(usageMatch[1]);
+          contentWithoutUsage = fullContent.slice(0, fullContent.lastIndexOf("[USAGE:")).trimEnd();
+        } catch {
+          // keep as-is
+        }
+      }
+
       // Parse [META:{...}] marker from end of accumulated content
-      const metaMatch = fullContent.match(/\[META:([\s\S]*?)\]\s*$/);
+      const metaMatch = contentWithoutUsage.match(/\[META:([\s\S]*?)\]\s*$/);
       let metaParsed: { emotion?: string; emotionReason?: string } = {};
-      let cleanContent = fullContent;
+      let cleanContent = contentWithoutUsage;
       if (metaMatch) {
         try {
           metaParsed = JSON.parse(metaMatch[1]);
-          cleanContent = fullContent.slice(0, fullContent.lastIndexOf("[META:")).trimEnd();
+          cleanContent = contentWithoutUsage.slice(0, contentWithoutUsage.lastIndexOf("[META:")).trimEnd();
         } catch {
           // keep raw content as-is
         }
@@ -805,10 +818,11 @@ router.post("/sessions/:id/messages", requireScope("sessions:message"), async (r
 
       const latencyMs = Date.now() - startTime;
 
-      // Token counts for streaming path are always estimated (no provider metadata)
-      const inputTokensEst = estimateTokens(message);
-      const outputTokensEst = estimateTokens(cleanContent);
-      const tokensEstimated = true;
+      // Use real token counts from provider [USAGE:...] sidecar when available, fall back to estimates
+      const hasRealTokens = (usageParsed.inputTokens ?? 0) > 0 || (usageParsed.outputTokens ?? 0) > 0;
+      const inputTokensEst = hasRealTokens ? usageParsed.inputTokens! : estimateTokens(message);
+      const outputTokensEst = hasRealTokens ? usageParsed.outputTokens! : estimateTokens(cleanContent);
+      const tokensEstimated = !hasRealTokens;
 
       const prevMeta = (session.metadata as Record<string, any>) ?? {};
       const prevSessionUsage = (prevMeta.sessionUsage as { requestCount: number; inputTokens: number; outputTokens: number }) ?? { requestCount: 0, inputTokens: 0, outputTokens: 0 };
