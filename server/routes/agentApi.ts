@@ -16,9 +16,11 @@ import {
   agentSessions,
   agentIdempotencyKeys,
   agentUsageDaily,
+  agentWebhooks,
   auditLogs,
 } from "@shared/schema";
-import { eq, and, lt, sql, gte, lte } from "drizzle-orm";
+import { dispatchWebhook, encryptWebhookSecret } from "../services/webhookDelivery";
+import { eq, and, lt, sql, gte, lte, inArray } from "drizzle-orm";
 import {
   isAgentApiKey,
   requireScope,
@@ -1121,9 +1123,10 @@ router.post("/sessions/:id/end", requireScope("sessions:end"), async (req: any, 
       return;
     }
 
+    const endedAt = new Date();
     await db
       .update(agentSessions)
-      .set({ status: "ended", endedAt: new Date() })
+      .set({ status: "ended", endedAt })
       .where(eq(agentSessions.id, sessionId));
 
     // Audit log
@@ -1136,65 +1139,12 @@ router.post("/sessions/:id/end", requireScope("sessions:end"), async (req: any, 
       metadata: { agentKeyId: agentKey.id },
     }).catch(() => {});
 
-    // ── Generate feedback report if persona run exists ────────────────────
-    let feedbackReport: any = null;
-
-    if (session.personaRunId) {
-      try {
-        const personaRunId = session.personaRunId;
-
-        // Fetch scenario and persona context
-        const allScenarios = await fileManager.getAllScenarios();
-        const scenario = allScenarios.find((s: any) => s.id === session.scenarioId);
-
-        if (scenario) {
-          const scenarioPersona = scenario.personas?.find((p: any) => p.id === session.personaId);
-          const mbtiType = scenarioPersona?.mbti ?? scenarioPersona?.personaRef?.replace(".json", "");
-          const mbtiPersona = mbtiType ? await fileManager.getPersonaByMBTI(mbtiType) : null;
-
-          const personaContext = {
-            id: scenarioPersona?.id ?? session.personaId,
-            name: scenarioPersona?.name ?? session.personaId,
-            role: scenarioPersona?.position ?? scenarioPersona?.role ?? "",
-            department: scenarioPersona?.department ?? "",
-            personality: (mbtiPersona as any)?.communication_style ?? "균형 잡힌 의사소통",
-            responseStyle: (mbtiPersona as any)?.communication_patterns?.opening_style ?? "",
-            goals: (mbtiPersona as any)?.communication_patterns?.win_conditions ?? [],
-            background: (mbtiPersona as any)?.background?.personal_values?.join(", ") ?? "",
-          };
-
-          // Fetch all chat messages for this persona run
-          const rawMessages = await storage.getChatMessagesByPersonaRun(personaRunId).catch(() => []);
-          const conversationMessages = rawMessages.map((m: any) => ({
-            sender: m.sender as "user" | "ai",
-            message: m.message,
-            timestamp: m.createdAt?.toISOString?.() ?? new Date().toISOString(),
-            emotion: m.emotion ?? null,
-            emotionReason: m.emotionReason ?? null,
-          }));
-
-          const conversationObj = { messages: conversationMessages };
-          const language = (session.language as "ko" | "en" | "ja" | "zh") ?? "ko";
-
-          feedbackReport = await generateAndSaveFeedback(
-            personaRunId,
-            conversationObj,
-            scenario,
-            personaContext,
-            language
-          );
-        }
-      } catch (err) {
-        console.warn("[agentApi] Failed to generate feedback report (non-fatal):", err);
-      }
-    }
-    // ─────────────────────────────────────────────────────────────────────────
-
+    // Return immediately — feedback generation and webhook delivery happen in the background
     const responseBody = {
       sessionId,
       status: "ended",
-      endedAt: new Date().toISOString(),
-      feedbackReport,
+      endedAt: endedAt.toISOString(),
+      feedbackReport: null,
       requestId,
     };
 
@@ -1203,6 +1153,62 @@ router.post("/sessions/:id/end", requireScope("sessions:end"), async (req: any, 
     }
 
     res.json(responseBody);
+
+    // Fire session.ended immediately after response (fire-and-forget)
+    dispatchWebhook(agentKey.id, "session.ended", { sessionId, endedAt: endedAt.toISOString() }).catch(() => {});
+
+    // ── Background: generate feedback + fire feedback.completed ───────────
+    if (session.personaRunId) {
+      setImmediate(async () => {
+        try {
+          const personaRunId = session.personaRunId;
+          const allScenarios = await fileManager.getAllScenarios();
+          const scenario = allScenarios.find((s: any) => s.id === session.scenarioId);
+
+          if (scenario) {
+            const scenarioPersona = scenario.personas?.find((p: any) => p.id === session.personaId);
+            const mbtiType = scenarioPersona?.mbti ?? scenarioPersona?.personaRef?.replace(".json", "");
+            const mbtiPersona = mbtiType ? await fileManager.getPersonaByMBTI(mbtiType) : null;
+
+            const personaContext = {
+              id: scenarioPersona?.id ?? session.personaId,
+              name: scenarioPersona?.name ?? session.personaId,
+              role: scenarioPersona?.position ?? scenarioPersona?.role ?? "",
+              department: scenarioPersona?.department ?? "",
+              personality: (mbtiPersona as any)?.communication_style ?? "균형 잡힌 의사소통",
+              responseStyle: (mbtiPersona as any)?.communication_patterns?.opening_style ?? "",
+              goals: (mbtiPersona as any)?.communication_patterns?.win_conditions ?? [],
+              background: (mbtiPersona as any)?.background?.personal_values?.join(", ") ?? "",
+            };
+
+            const rawMessages = await storage.getChatMessagesByPersonaRun(personaRunId).catch(() => []);
+            const conversationMessages = rawMessages.map((m: any) => ({
+              sender: m.sender as "user" | "ai",
+              message: m.message,
+              timestamp: m.createdAt?.toISOString?.() ?? new Date().toISOString(),
+              emotion: m.emotion ?? null,
+              emotionReason: m.emotionReason ?? null,
+            }));
+
+            const language = (session.language as "ko" | "en" | "ja" | "zh") ?? "ko";
+            const feedbackReport = await generateAndSaveFeedback(
+              personaRunId,
+              { messages: conversationMessages },
+              scenario,
+              personaContext,
+              language
+            );
+
+            if (feedbackReport) {
+              dispatchWebhook(agentKey.id, "feedback.completed", { sessionId, feedbackReport }).catch(() => {});
+            }
+          }
+        } catch (err) {
+          console.warn("[agentApi] Failed to generate feedback report (non-fatal):", err);
+        }
+      });
+    }
+    // ─────────────────────────────────────────────────────────────────────────
   } catch (err) {
     console.error("[agentApi] POST /sessions/:id/end error:", err);
     agentError(res, 500, "internal_error", "Failed to end session.");
@@ -1217,9 +1223,10 @@ export async function cleanupExpiredAgentSessions(): Promise<void> {
     const now = new Date();
     const inactiveThreshold = new Date(now.getTime() - AGENT_SESSION_INACTIVE_MINUTES * 60 * 1000);
 
-    await db
-      .update(agentSessions)
-      .set({ status: "expired" })
+    // Fetch sessions about to be expired (inactive)
+    const inactiveSessions = await db
+      .select({ id: agentSessions.id, agentKeyId: agentSessions.agentKeyId })
+      .from(agentSessions)
       .where(
         and(
           eq(agentSessions.status, "active"),
@@ -1227,15 +1234,36 @@ export async function cleanupExpiredAgentSessions(): Promise<void> {
         )
       );
 
-    await db
-      .update(agentSessions)
-      .set({ status: "expired" })
+    if (inactiveSessions.length > 0) {
+      await db
+        .update(agentSessions)
+        .set({ status: "expired" })
+        .where(inArray(agentSessions.id, inactiveSessions.map((s) => s.id)));
+      for (const s of inactiveSessions) {
+        dispatchWebhook(s.agentKeyId, "session.expired", { sessionId: s.id }).catch(() => {});
+      }
+    }
+
+    // Fetch sessions about to be expired (max TTL)
+    const ttlSessions = await db
+      .select({ id: agentSessions.id, agentKeyId: agentSessions.agentKeyId })
+      .from(agentSessions)
       .where(
         and(
           eq(agentSessions.status, "active"),
           lt(agentSessions.expiresAt, now)
         )
       );
+
+    if (ttlSessions.length > 0) {
+      await db
+        .update(agentSessions)
+        .set({ status: "expired" })
+        .where(inArray(agentSessions.id, ttlSessions.map((s) => s.id)));
+      for (const s of ttlSessions) {
+        dispatchWebhook(s.agentKeyId, "session.expired", { sessionId: s.id }).catch(() => {});
+      }
+    }
 
     // Cleanup expired idempotency keys
     await db.delete(agentIdempotencyKeys).where(lt(agentIdempotencyKeys.expiresAt, now));
@@ -1383,6 +1411,124 @@ router.get("/usage", requireScope("usage:read"), async (req: any, res) => {
   } catch (err) {
     console.error("[agentApi] GET /usage error:", err);
     agentError(res, 500, "internal_error", "Failed to fetch usage data.");
+  }
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Webhook CRUD endpoints
+// ─────────────────────────────────────────────────────────────────────────────
+
+const SUPPORTED_WEBHOOK_EVENTS = ["session.ended", "session.expired", "feedback.completed"] as const;
+
+const createWebhookSchema = z.object({
+  url: z
+    .string()
+    .url("url must be a valid URL")
+    .refine((u) => u.startsWith("https://"), "Webhook URL must use HTTPS"),
+  events: z
+    .array(z.enum(SUPPORTED_WEBHOOK_EVENTS))
+    .min(1, "At least one event type is required")
+    .max(SUPPORTED_WEBHOOK_EVENTS.length),
+});
+
+// POST /api/v1/agent/webhooks — register a new webhook
+router.post("/webhooks", requireScope("webhooks:manage"), async (req: any, res) => {
+  try {
+    const agentKey = req.agentKey;
+    const parsed = createWebhookSchema.safeParse(req.body);
+    if (!parsed.success) {
+      agentError(res, 400, "validation_error", "Invalid request body.", parsed.error.flatten());
+      return;
+    }
+
+    const { url, events } = parsed.data;
+
+    // Generate a random secret, return it once.
+    // Store AES-256-GCM ciphertext in DB — never the plaintext.
+    const secret = `whsec_${randomUUID().replace(/-/g, "")}`;
+    const encryptedSecret = encryptWebhookSecret(secret);
+
+    const [webhook] = await db
+      .insert(agentWebhooks)
+      .values({
+        agentKeyId: agentKey.id,
+        url,
+        events,
+        secretKey: encryptedSecret,
+        isActive: true,
+      })
+      .returning();
+
+    res.status(201).json({
+      id: webhook.id,
+      url: webhook.url,
+      events: webhook.events,
+      secret,
+      isActive: webhook.isActive,
+      createdAt: webhook.createdAt?.toISOString?.() ?? new Date().toISOString(),
+    });
+  } catch (err) {
+    console.error("[agentApi] POST /webhooks error:", err);
+    agentError(res, 500, "internal_error", "Failed to register webhook.");
+  }
+});
+
+// GET /api/v1/agent/webhooks — list webhooks for this API key
+router.get("/webhooks", requireScope("webhooks:manage"), async (req: any, res) => {
+  try {
+    const agentKey = req.agentKey;
+    const rows = await db
+      .select({
+        id: agentWebhooks.id,
+        url: agentWebhooks.url,
+        events: agentWebhooks.events,
+        isActive: agentWebhooks.isActive,
+        createdAt: agentWebhooks.createdAt,
+      })
+      .from(agentWebhooks)
+      .where(eq(agentWebhooks.agentKeyId, agentKey.id));
+
+    res.json({
+      webhooks: rows.map((w) => ({
+        id: w.id,
+        url: w.url,
+        events: w.events,
+        isActive: w.isActive,
+        createdAt: w.createdAt?.toISOString?.() ?? null,
+      })),
+      total: rows.length,
+    });
+  } catch (err) {
+    console.error("[agentApi] GET /webhooks error:", err);
+    agentError(res, 500, "internal_error", "Failed to list webhooks.");
+  }
+});
+
+// DELETE /api/v1/agent/webhooks/:id — remove a webhook
+router.delete("/webhooks/:id", requireScope("webhooks:manage"), async (req: any, res) => {
+  try {
+    const agentKey = req.agentKey;
+    const webhookId = req.params.id;
+
+    const existing = await db
+      .select({ id: agentWebhooks.id })
+      .from(agentWebhooks)
+      .where(and(eq(agentWebhooks.id, webhookId), eq(agentWebhooks.agentKeyId, agentKey.id)))
+      .limit(1);
+
+    if (existing.length === 0) {
+      agentError(res, 404, "session_not_found", "Webhook not found.");
+      return;
+    }
+
+    await db
+      .delete(agentWebhooks)
+      .where(and(eq(agentWebhooks.id, webhookId), eq(agentWebhooks.agentKeyId, agentKey.id)));
+
+    res.status(204).end();
+  } catch (err) {
+    console.error("[agentApi] DELETE /webhooks/:id error:", err);
+    agentError(res, 500, "internal_error", "Failed to delete webhook.");
   }
 });
 

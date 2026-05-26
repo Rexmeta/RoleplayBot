@@ -399,6 +399,92 @@ All errors follow a consistent envelope:
           requestId: { type: "string", example: "req_a1b2c3d4e5f6" },
         },
       },
+      WebhookObject: {
+        type: "object",
+        required: ["id", "url", "events", "isActive", "createdAt"],
+        description: "A registered webhook endpoint.",
+        properties: {
+          id: { type: "string", example: "wh_a1b2c3d4e5f6" },
+          url: { type: "string", format: "uri", example: "https://your-server.com/webhooks/agent" },
+          events: {
+            type: "array",
+            items: {
+              type: "string",
+              enum: ["session.ended", "session.expired", "feedback.completed"],
+            },
+            example: ["session.ended", "feedback.completed"],
+          },
+          isActive: { type: "boolean", example: true },
+          createdAt: { type: "string", format: "date-time", example: "2026-05-22T09:00:00.000Z" },
+        },
+      },
+      WebhookCreatedResponse: {
+        type: "object",
+        required: ["id", "url", "events", "secret", "isActive", "createdAt"],
+        description: "Webhook registration response. The `secret` field is returned **once only** — store it securely to verify signatures.",
+        properties: {
+          id: { type: "string", example: "wh_a1b2c3d4e5f6" },
+          url: { type: "string", format: "uri", example: "https://your-server.com/webhooks/agent" },
+          events: {
+            type: "array",
+            items: {
+              type: "string",
+              enum: ["session.ended", "session.expired", "feedback.completed"],
+            },
+            example: ["session.ended", "feedback.completed"],
+          },
+          secret: {
+            type: "string",
+            example: "whsec_a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6",
+            description: "HMAC-SHA256 signing secret. **Shown only at creation** — save it now.",
+          },
+          isActive: { type: "boolean", example: true },
+          createdAt: { type: "string", format: "date-time", example: "2026-05-22T09:00:00.000Z" },
+        },
+      },
+      WebhookEventPayload: {
+        type: "object",
+        required: ["event", "deliveryId", "timestamp", "data"],
+        description: "Payload sent to the registered webhook URL for each event.",
+        properties: {
+          event: {
+            type: "string",
+            enum: ["session.ended", "session.expired", "feedback.completed"],
+            example: "session.ended",
+            description: "The event type that triggered this delivery.",
+          },
+          deliveryId: {
+            type: "string",
+            example: "wdl_a1b2c3d4e5f6g7h8i9j0",
+            description: "Unique delivery ID. Use for deduplication if your endpoint is called more than once.",
+          },
+          timestamp: {
+            type: "string",
+            format: "date-time",
+            example: "2026-05-22T09:15:00.000Z",
+            description: "ISO 8601 timestamp of the event.",
+          },
+          data: {
+            type: "object",
+            required: ["sessionId"],
+            description: "Event-specific payload.",
+            properties: {
+              sessionId: { type: "string", example: "ags_a1b2c3d4e5f6g7h8i9j0" },
+              endedAt: {
+                type: "string",
+                format: "date-time",
+                nullable: true,
+                description: "Present for `session.ended` events.",
+              },
+              feedbackReport: {
+                type: "object",
+                nullable: true,
+                description: "Present for `feedback.completed` events. Mirrors the standard feedback object.",
+              },
+            },
+          },
+        },
+      },
       EndSessionResponse: {
         type: "object",
         required: ["sessionId", "status", "requestId"],
@@ -1104,6 +1190,172 @@ data: {"emotion":"frustrated","emotionReason":"The apology felt generic.","turnI
         },
       },
     },
+    "/webhooks": {
+      post: {
+        operationId: "createWebhook",
+        summary: "Register a webhook endpoint",
+        description: `Register an HTTPS endpoint to receive push notifications for Agent API lifecycle events.
+
+**Scopes required:** \`webhooks:manage\`
+
+### Supported events
+| Event | When it fires |
+|---|---|
+| \`session.ended\` | A session is ended via \`POST /sessions/:id/end\` |
+| \`session.expired\` | A session expires due to inactivity or TTL |
+| \`feedback.completed\` | Feedback report generation finishes after a session ends |
+
+### Signature verification
+Each delivery includes a \`X-Webhook-Signature\` header in the format \`sha256=<hex>\`.  
+Verify it by computing \`HMAC-SHA256(key=<your stored secret>, data=rawBody)\` and comparing in constant time.
+
+\`\`\`js
+const crypto = require('crypto');
+// secret = the plaintext value returned in `secret` at webhook creation (store this securely)
+const sig = crypto.createHmac('sha256', secret).update(rawBody).digest('hex');
+const trusted = req.headers['x-webhook-signature'].replace('sha256=', '');
+if (!crypto.timingSafeEqual(Buffer.from(sig, 'hex'), Buffer.from(trusted, 'hex'))) {
+  throw new Error('Invalid webhook signature');
+}
+\`\`\`
+
+> **Important:** The \`secret\` is returned **once only** at creation and is stored server-side in encrypted form (AES-256-GCM). The plaintext is never stored or re-exposed — store it securely on your end as it cannot be retrieved again.`,
+        tags: ["Webhooks"],
+        security: [{ BearerAuth: [] }],
+        requestBody: {
+          required: true,
+          content: {
+            "application/json": {
+              schema: {
+                type: "object",
+                required: ["url", "events"],
+                properties: {
+                  url: {
+                    type: "string",
+                    format: "uri",
+                    description: "HTTPS URL that will receive webhook POST requests.",
+                    example: "https://your-server.com/webhooks/agent",
+                  },
+                  events: {
+                    type: "array",
+                    items: {
+                      type: "string",
+                      enum: ["session.ended", "session.expired", "feedback.completed"],
+                    },
+                    minItems: 1,
+                    description: "List of event types to subscribe to.",
+                    example: ["session.ended", "feedback.completed"],
+                  },
+                },
+              },
+            },
+          },
+        },
+        responses: {
+          "201": {
+            description: "Webhook registered. **Save the `secret` now** — it is not stored and cannot be retrieved again.",
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/WebhookCreatedResponse" },
+                example: {
+                  id: "wh_a1b2c3d4e5f6",
+                  url: "https://your-server.com/webhooks/agent",
+                  events: ["session.ended", "feedback.completed"],
+                  secret: "whsec_a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6",
+                  isActive: true,
+                  createdAt: "2026-05-22T09:00:00.000Z",
+                },
+              },
+            },
+          },
+          "400": {
+            description: "Validation error.",
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/ErrorEnvelope" },
+                example: {
+                  error: { code: "validation_error", message: "Invalid request body.", details: { fieldErrors: { url: ["Invalid url"] } } },
+                  requestId: "req_a1b2c3d4e5f6",
+                },
+              },
+            },
+          },
+          "401": { $ref: "#/components/responses/Unauthorized" },
+          "403": { $ref: "#/components/responses/Forbidden" },
+          "429": { $ref: "#/components/responses/RateLimitExceeded" },
+          "500": { $ref: "#/components/responses/InternalError" },
+        },
+      },
+      get: {
+        operationId: "listWebhooks",
+        summary: "List registered webhooks",
+        description: "Returns all webhook endpoints registered for this API key. Secrets are never returned.",
+        tags: ["Webhooks"],
+        security: [{ BearerAuth: [] }],
+        responses: {
+          "200": {
+            description: "Webhook list.",
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  required: ["webhooks", "total"],
+                  properties: {
+                    webhooks: {
+                      type: "array",
+                      items: { $ref: "#/components/schemas/WebhookObject" },
+                    },
+                    total: { type: "integer", example: 1 },
+                  },
+                },
+                example: {
+                  webhooks: [
+                    {
+                      id: "wh_a1b2c3d4e5f6",
+                      url: "https://your-server.com/webhooks/agent",
+                      events: ["session.ended", "feedback.completed"],
+                      isActive: true,
+                      createdAt: "2026-05-22T09:00:00.000Z",
+                    },
+                  ],
+                  total: 1,
+                },
+              },
+            },
+          },
+          "401": { $ref: "#/components/responses/Unauthorized" },
+          "403": { $ref: "#/components/responses/Forbidden" },
+          "429": { $ref: "#/components/responses/RateLimitExceeded" },
+          "500": { $ref: "#/components/responses/InternalError" },
+        },
+      },
+    },
+    "/webhooks/{webhookId}": {
+      delete: {
+        operationId: "deleteWebhook",
+        summary: "Delete a webhook",
+        description: "Permanently removes a webhook endpoint. In-flight deliveries already scheduled are not cancelled.",
+        tags: ["Webhooks"],
+        security: [{ BearerAuth: [] }],
+        parameters: [
+          {
+            name: "webhookId",
+            in: "path",
+            required: true,
+            schema: { type: "string" },
+            example: "wh_a1b2c3d4e5f6",
+          },
+        ],
+        responses: {
+          "204": { description: "Webhook deleted." },
+          "401": { $ref: "#/components/responses/Unauthorized" },
+          "403": { $ref: "#/components/responses/Forbidden" },
+          "404": { $ref: "#/components/responses/NotFound" },
+          "429": { $ref: "#/components/responses/RateLimitExceeded" },
+          "500": { $ref: "#/components/responses/InternalError" },
+        },
+      },
+    },
     "/sessions/{sessionId}/end": {
       post: {
         operationId: "endSession",
@@ -1219,6 +1471,10 @@ curl -X POST https://your-host/api/v1/agent/sessions/ags_xxx/end \\
     {
       name: "Sessions",
       description: "Create and manage training sessions, send messages, and retrieve feedback.",
+    },
+    {
+      name: "Webhooks",
+      description: "Register and manage webhook endpoints for push-based event delivery.",
     },
   ],
 };

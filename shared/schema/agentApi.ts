@@ -241,6 +241,50 @@ export const agentEndSessionResponseSchema = z.object({
 export type AgentEndSessionResponse = z.infer<typeof agentEndSessionResponseSchema>;
 
 // ─────────────────────────────────────────────────────────────
+// agent_webhooks
+// ─────────────────────────────────────────────────────────────
+export const agentWebhooks = pgTable("agent_webhooks", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  agentKeyId: varchar("agent_key_id").notNull().references(() => agentApiKeys.id, { onDelete: "cascade" }),
+  url: text("url").notNull(),
+  events: text("events").array().notNull().default(sql`'{}'::text[]`),
+  secretKey: varchar("secret_key").notNull(),
+  isActive: boolean("is_active").notNull().default(true),
+  createdAt: timestamp("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+}, (table) => [
+  index("idx_agent_webhooks_key_id").on(table.agentKeyId),
+  index("idx_agent_webhooks_active").on(table.agentKeyId, table.isActive),
+]);
+
+export const insertAgentWebhookSchema = createInsertSchema(agentWebhooks).omit({
+  id: true,
+  createdAt: true,
+});
+export type InsertAgentWebhook = z.infer<typeof insertAgentWebhookSchema>;
+export type AgentWebhook = typeof agentWebhooks.$inferSelect;
+
+// ─────────────────────────────────────────────────────────────
+// agent_webhook_deliveries
+// ─────────────────────────────────────────────────────────────
+export const agentWebhookDeliveries = pgTable("agent_webhook_deliveries", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  webhookId: varchar("webhook_id").notNull().references(() => agentWebhooks.id, { onDelete: "cascade" }),
+  deliveryId: varchar("delivery_id").notNull(),
+  event: varchar("event").notNull(),
+  payload: jsonb("payload").$type<Record<string, any>>().notNull(),
+  statusCode: integer("status_code"),
+  attempt: integer("attempt").notNull().default(1),
+  succeededAt: timestamp("succeeded_at"),
+  nextRetryAt: timestamp("next_retry_at"),
+  createdAt: timestamp("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+}, (table) => [
+  index("idx_agent_webhook_deliveries_webhook").on(table.webhookId),
+  index("idx_agent_webhook_deliveries_retry").on(table.nextRetryAt),
+]);
+
+export type AgentWebhookDelivery = typeof agentWebhookDeliveries.$inferSelect;
+
+// ─────────────────────────────────────────────────────────────
 // Scope definitions
 // ─────────────────────────────────────────────────────────────
 export const AGENT_API_SCOPES = [
@@ -251,6 +295,7 @@ export const AGENT_API_SCOPES = [
   "sessions:message",
   "sessions:end",
   "usage:read",
+  "webhooks:manage",
 ] as const;
 
 export type AgentApiScope = typeof AGENT_API_SCOPES[number];

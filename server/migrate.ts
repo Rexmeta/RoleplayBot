@@ -1489,6 +1489,49 @@ export async function runMigrations(): Promise<void> {
         console.warn('⚠️ Failed to add cached_tokens column to ai_usage_logs:', err);
       }
 
+      // Agent Webhook tables
+      try {
+        await client.query(`
+          CREATE TABLE IF NOT EXISTS "agent_webhooks" (
+            "id" varchar PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+            "agent_key_id" varchar NOT NULL REFERENCES "agent_api_keys"("id") ON DELETE CASCADE,
+            "url" text NOT NULL,
+            "events" text[] NOT NULL DEFAULT '{}',
+            "secret_key" varchar NOT NULL,
+            "is_active" boolean NOT NULL DEFAULT true,
+            "created_at" timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP
+          );
+          DO $$ BEGIN
+            IF EXISTS (
+              SELECT 1 FROM information_schema.columns
+              WHERE table_name = 'agent_webhooks' AND column_name = 'secret_hash'
+            ) THEN
+              ALTER TABLE "agent_webhooks" RENAME COLUMN "secret_hash" TO "secret_key";
+            END IF;
+          END $$;
+          CREATE INDEX IF NOT EXISTS "idx_agent_webhooks_key_id" ON "agent_webhooks"("agent_key_id");
+          CREATE INDEX IF NOT EXISTS "idx_agent_webhooks_active" ON "agent_webhooks"("agent_key_id", "is_active");
+
+          CREATE TABLE IF NOT EXISTS "agent_webhook_deliveries" (
+            "id" varchar PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+            "webhook_id" varchar NOT NULL REFERENCES "agent_webhooks"("id") ON DELETE CASCADE,
+            "delivery_id" varchar NOT NULL,
+            "event" varchar NOT NULL,
+            "payload" jsonb NOT NULL,
+            "status_code" integer,
+            "attempt" integer NOT NULL DEFAULT 1,
+            "succeeded_at" timestamp,
+            "next_retry_at" timestamp,
+            "created_at" timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP
+          );
+          CREATE INDEX IF NOT EXISTS "idx_agent_webhook_deliveries_webhook" ON "agent_webhook_deliveries"("webhook_id");
+          CREATE INDEX IF NOT EXISTS "idx_agent_webhook_deliveries_retry" ON "agent_webhook_deliveries"("next_retry_at");
+        `);
+        console.log('✅ Agent webhook tables created/verified');
+      } catch (err) {
+        console.warn('⚠️ Failed to create agent webhook tables:', err);
+      }
+
       console.log('✅ Database migrations completed successfully');
     } finally {
       client.release();
