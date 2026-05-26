@@ -258,7 +258,7 @@ export function ChatInputBar({
 
             <button
               onClick={onTextModeToggle}
-              disabled={rv.isRecording || rv.isAISpeaking || rv.isSwitchingMode}
+              disabled={rv.isAISpeaking || rv.isSwitchingMode}
               className="flex items-center gap-1.5 px-3 py-2 text-sm border border-slate-200 rounded-full bg-white hover:bg-slate-50 hover:border-slate-300 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               data-testid="button-text-mode-toggle"
             >
@@ -315,6 +315,20 @@ export function ChatInputBar({
         {rv.error && (
           <p className="text-sm text-red-600 text-center mt-2">{rv.error}</p>
         )}
+
+        {onTextModeToggle && !(rv.status === 'connected' && !rv.isWaitingForGreeting) && (
+          <div className="flex justify-center mt-3 pt-2 border-t border-slate-100">
+            <button
+              onClick={onTextModeToggle}
+              disabled={rv.isAISpeaking || rv.isSwitchingMode}
+              className="flex items-center gap-1.5 px-3 py-2 text-sm border border-slate-200 rounded-full bg-white hover:bg-slate-50 hover:border-slate-300 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              data-testid="button-text-mode-toggle-persistent"
+            >
+              <i className="fas fa-keyboard text-slate-500 text-xs"></i>
+              <span className="text-slate-600">{t('chat.switchToText', { defaultValue: '텍스트로 대화' })}</span>
+            </button>
+          </div>
+        )}
       </>
     );
   }
@@ -329,13 +343,38 @@ export function ChatInputBar({
             placeholder={`메시지를 입력하세요... (최대 200자)`}
             maxLength={200}
             rows={3}
-            className="resize-none rounded-xl border-slate-200 focus:border-corporate-400 focus:ring-corporate-400/20 focus:ring-4 transition-all duration-200 pr-12"
+            className="resize-none rounded-xl border-slate-200 focus:border-corporate-400 focus:ring-corporate-400/20 focus:ring-4 transition-all duration-200 pr-12 pb-8"
             disabled={isLoading}
             data-testid="input-message"
           />
           <div className="absolute bottom-3 right-3 text-xs text-slate-400 bg-white/80 px-1.5 py-0.5 rounded">
             {userInput.length}/200
           </div>
+          {speechSupported && (
+            <TooltipProvider delayDuration={300}>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button
+                    type="button"
+                    onClick={onVoiceInput}
+                    disabled={isLoading}
+                    className={`absolute bottom-2 left-3 flex items-center gap-1 px-2 py-1 rounded-lg text-xs transition-all duration-200 ${
+                      isRecording
+                        ? 'bg-red-100 border border-red-300 text-red-700 animate-pulse'
+                        : 'bg-slate-100 border border-slate-200 text-slate-500 hover:bg-slate-200 hover:text-slate-700'
+                    } disabled:opacity-50 disabled:cursor-not-allowed`}
+                    data-testid="button-voice-input"
+                  >
+                    <i className={`fas ${isRecording ? 'fa-stop' : 'fa-microphone'} text-[11px] ${isRecording ? 'text-red-500' : 'text-slate-500'}`}></i>
+                    <span>{isRecording ? t('chat.done') : t('chat.voice')}</span>
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent side="top">
+                  {isRecording ? t('chat.stopRecording') : t('chat.startRecording')}
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          )}
         </div>
         <div className="flex items-center justify-between mt-2 px-1">
           <div className="flex items-center gap-2 text-xs text-slate-500">
@@ -352,7 +391,7 @@ export function ChatInputBar({
           </div>
         </div>
       </div>
-      <div className="flex flex-col gap-2">
+      <div className="flex flex-col gap-3">
         <Button
           onClick={onSendMessage}
           disabled={!userInput.trim() || isLoading}
@@ -361,21 +400,6 @@ export function ChatInputBar({
         >
           <i className="fas fa-paper-plane mr-2"></i>
           {t('chat.send')}
-        </Button>
-        <Button
-          variant="outline"
-          onClick={onVoiceInput}
-          disabled={isLoading || !speechSupported}
-          className={`rounded-xl min-h-[44px] h-10 transition-all duration-200 ${
-            isRecording
-              ? 'bg-red-50 border-red-300 text-red-700 animate-pulse shadow-md'
-              : 'hover:bg-slate-50 hover:border-slate-300 hover:shadow-sm'
-          } ${!speechSupported ? 'opacity-50 cursor-not-allowed' : ''}`}
-          data-testid="button-voice-input"
-          title={!speechSupported ? t('chat.voiceNotSupported') : isRecording ? t('chat.stopRecording') : t('chat.startRecording')}
-        >
-          <i className={`fas ${isRecording ? 'fa-stop' : 'fa-microphone'} mr-2 ${isRecording ? 'text-red-500' : 'text-corporate-600'}`}></i>
-          {isRecording ? t('chat.done') : t('chat.voice')}
         </Button>
         <Button
           variant="ghost"

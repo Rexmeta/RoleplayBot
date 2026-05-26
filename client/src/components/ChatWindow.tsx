@@ -9,7 +9,7 @@ import { toMediaUrl } from "@/lib/mediaUrl";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Card } from "@/components/ui/card";
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import type { ComplexScenario, ScenarioPersona } from "@/lib/scenario-system";
@@ -63,6 +63,8 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
   const [showInputMode, setShowInputMode] = useState(() => typeof window !== 'undefined' && window.innerWidth >= 1024);
   const [isGoalsExpanded, setIsGoalsExpanded] = useState(false);
   const [isSwitchingMode, setIsSwitchingMode] = useState(false);
+  const [showVoiceModeConfirmDialog, setShowVoiceModeConfirmDialog] = useState(false);
+  const pendingVoiceModeSwitch = useRef(false);
   const [isMobileSimOpen, setIsMobileSimOpenRaw] = useState(
     () => localStorage.getItem('npc-panel-open') === 'true'
   );
@@ -349,17 +351,32 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
   handleSwitchToTextModeRef.current = async () => {
     if (isSwitchingMode) return;
     setIsSwitchingMode(true);
+    const timeoutId = setTimeout(() => {
+      realtimeVoice.disconnect();
+      navigate(`/home?resumePersonaRunId=${conversationId}&mode=text`);
+    }, 5000);
     try {
       await flushRealtimeMessages(false);
+      clearTimeout(timeoutId);
       realtimeVoice.disconnect();
       navigate(`/home?resumePersonaRunId=${conversationId}&mode=text`);
     } catch {
+      clearTimeout(timeoutId);
+      realtimeVoice.disconnect();
+      navigate(`/home?resumePersonaRunId=${conversationId}&mode=text`);
+    } finally {
       setIsSwitchingMode(false);
     }
   };
 
   useEffect(() => {
-    setInputMode(initialInputMode ?? 'realtime-voice');
+    const next = initialInputMode ?? 'realtime-voice';
+    if (next === 'realtime-voice' && inputMode === 'text') {
+      pendingVoiceModeSwitch.current = true;
+      setShowVoiceModeConfirmDialog(true);
+    } else {
+      setInputMode(next);
+    }
   }, [initialInputMode]);
 
   useEffect(() => {
@@ -1113,18 +1130,9 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
                                     maxLength={200} rows={2} className="resize-none text-sm" disabled={isLoading} data-testid="input-message-text" />
                                   <div className="text-xs text-slate-500 mt-1">{userInput.length}/200</div>
                                 </div>
-                                <div className="grid grid-cols-2 gap-1 w-20">
+                                <div className="flex flex-col gap-1 w-16">
                                   <Button onClick={handleSendMessage} disabled={!userInput.trim() || isLoading} className="bg-purple-600 hover:bg-purple-700 text-white" size="sm" data-testid="button-send-message-text"><i className="fas fa-paper-plane"></i></Button>
-                                  <Button variant="outline" size="sm"
-                                    onClick={() => {
-                                      toast({ title: '음성 대화로 전환합니다', description: '음성 대화 창으로 이동합니다.' });
-                                      navigate(`/home?resumePersonaRunId=${conversationId}`);
-                                    }}
-                                    disabled={isLoading}
-                                    data-testid="button-voice-input-text" title="음성 대화로 전환">
-                                    <i className="fas fa-microphone"></i>
-                                  </Button>
-                                  <Button variant="outline" size="sm" onClick={handleSkipTurn} disabled={isLoading} data-testid="button-skip-turn-text" className="col-span-2">Skip</Button>
+                                  <Button variant="outline" size="sm" onClick={handleSkipTurn} disabled={isLoading} data-testid="button-skip-turn-text">Skip</Button>
                                 </div>
                               </div>
                             </div>
@@ -1315,6 +1323,35 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
             </div>
           </>
         )}
+
+        <AlertDialog open={showVoiceModeConfirmDialog} onOpenChange={(open) => { if (!open) { setShowVoiceModeConfirmDialog(false); pendingVoiceModeSwitch.current = false; } }}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle className="flex items-center gap-2">
+                <i className="fas fa-microphone text-purple-500"></i>
+                {t('chat.voiceModeConfirmTitle', { defaultValue: '음성 모드로 전환' })}
+              </AlertDialogTitle>
+              <AlertDialogDescription>
+                {t('chat.voiceModeConfirmDesc', { defaultValue: '음성 모드로 전환하면 텍스트 입력이 중단됩니다. 계속하시겠습니까?' })}
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel onClick={() => { setShowVoiceModeConfirmDialog(false); pendingVoiceModeSwitch.current = false; }}>
+                {t('chat.cancel', { defaultValue: '취소' })}
+              </AlertDialogCancel>
+              <AlertDialogAction
+                className="bg-purple-600 hover:bg-purple-700"
+                onClick={() => {
+                  setShowVoiceModeConfirmDialog(false);
+                  pendingVoiceModeSwitch.current = false;
+                  setInputMode('realtime-voice');
+                }}
+              >
+                {t('chat.voiceModeConfirmAction', { defaultValue: '음성 모드로 전환' })}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
 
         <AlertDialog open={showAlmostDoneDialog} onOpenChange={(open) => { if (!open) handleAlmostDoneKeepGoing(); }}>
           <AlertDialogContent>
