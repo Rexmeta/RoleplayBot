@@ -3,6 +3,7 @@ import jwt from "jsonwebtoken";
 import type { Express, RequestHandler } from "express";
 import { storage } from "./storage";
 import { z } from "zod";
+import { redis, redisAvailable } from "./redisClient";
 
 /**
  * Detect whether an error originates from the database layer (pg / network).
@@ -61,46 +62,83 @@ function getJwtSecret(): string {
 }
 const JWT_EXPIRES_IN = "7d"; // 7일
 
-// Rate Limiting 설정 (메모리 기반)
-const loginAttempts = new Map<string, { count: number; firstAttempt: number }>();
-const RATE_LIMIT_WINDOW = 5 * 60 * 1000; // 5분
+// Rate Limiting 설정
+const RATE_LIMIT_WINDOW_SEC = 5 * 60; // 5분 (초 단위)
 const MAX_LOGIN_ATTEMPTS = 5;
 
-function checkRateLimit(identifier: string): { allowed: boolean; remainingTime?: number } {
+// 인메모리 폴백 (Redis 미연결 시)
+const loginAttemptsFallback = new Map<string, { count: number; firstAttempt: number }>();
+
+async function checkRateLimit(identifier: string): Promise<{ allowed: boolean; remainingTime?: number }> {
+  const key = `rl:login:${identifier}`;
+
+  if (redisAvailable && redis) {
+    try {
+      const count = await redis.get(key);
+      if (!count) return { allowed: true };
+      const ttl = await redis.ttl(key);
+      if (parseInt(count) >= MAX_LOGIN_ATTEMPTS) {
+        return { allowed: false, remainingTime: ttl > 0 ? ttl : 1 };
+      }
+      return { allowed: true };
+    } catch {
+      // Redis 오류 시 인메모리 폴백
+    }
+  }
+
+  // 인메모리 폴백
   const now = Date.now();
-  const attempts = loginAttempts.get(identifier);
-  
-  if (!attempts) {
+  const attempts = loginAttemptsFallback.get(identifier);
+  if (!attempts) return { allowed: true };
+  if (now - attempts.firstAttempt > RATE_LIMIT_WINDOW_SEC * 1000) {
+    loginAttemptsFallback.delete(identifier);
     return { allowed: true };
   }
-  
-  // 윈도우 시간이 지났으면 초기화
-  if (now - attempts.firstAttempt > RATE_LIMIT_WINDOW) {
-    loginAttempts.delete(identifier);
-    return { allowed: true };
-  }
-  
   if (attempts.count >= MAX_LOGIN_ATTEMPTS) {
-    const remainingTime = Math.ceil((RATE_LIMIT_WINDOW - (now - attempts.firstAttempt)) / 1000);
+    const remainingTime = Math.ceil((RATE_LIMIT_WINDOW_SEC * 1000 - (now - attempts.firstAttempt)) / 1000);
     return { allowed: false, remainingTime };
   }
-  
   return { allowed: true };
 }
 
-function recordLoginAttempt(identifier: string): void {
+async function recordLoginAttempt(identifier: string): Promise<void> {
+  const key = `rl:login:${identifier}`;
+
+  if (redisAvailable && redis) {
+    try {
+      const count = await redis.incr(key);
+      if (count === 1) {
+        await redis.expire(key, RATE_LIMIT_WINDOW_SEC);
+      }
+      return;
+    } catch {
+      // Redis 오류 시 인메모리 폴백
+    }
+  }
+
+  // 인메모리 폴백
   const now = Date.now();
-  const attempts = loginAttempts.get(identifier);
-  
-  if (!attempts || now - attempts.firstAttempt > RATE_LIMIT_WINDOW) {
-    loginAttempts.set(identifier, { count: 1, firstAttempt: now });
+  const attempts = loginAttemptsFallback.get(identifier);
+  if (!attempts || now - attempts.firstAttempt > RATE_LIMIT_WINDOW_SEC * 1000) {
+    loginAttemptsFallback.set(identifier, { count: 1, firstAttempt: now });
   } else {
     attempts.count++;
   }
 }
 
-function clearLoginAttempts(identifier: string): void {
-  loginAttempts.delete(identifier);
+async function clearLoginAttempts(identifier: string): Promise<void> {
+  const key = `rl:login:${identifier}`;
+
+  if (redisAvailable && redis) {
+    try {
+      await redis.del(key);
+      return;
+    } catch {
+      // Redis 오류 시 인메모리 폴백
+    }
+  }
+
+  loginAttemptsFallback.delete(identifier);
 }
 
 // 비밀번호 복잡성 검증
@@ -319,7 +357,7 @@ export function setupAuth(app: Express) {
       // Rate Limiting 체크 (IP + 이메일 조합)
       const clientIp = req.ip || req.socket.remoteAddress || 'unknown';
       const rateLimitKey = `${clientIp}:${email}`;
-      const rateCheck = checkRateLimit(rateLimitKey);
+      const rateCheck = await checkRateLimit(rateLimitKey);
       
       if (!rateCheck.allowed) {
         return res.status(429).json({ 
@@ -330,19 +368,19 @@ export function setupAuth(app: Express) {
       // 사용자 찾기
       const user = await storage.getUserByEmail(email);
       if (!user) {
-        recordLoginAttempt(rateLimitKey);
+        await recordLoginAttempt(rateLimitKey);
         return res.status(400).json({ message: "이메일 또는 비밀번호가 일치하지 않습니다" });
       }
 
       // 비밀번호 검증
       const isPasswordValid = await verifyPassword(password, user.password);
       if (!isPasswordValid) {
-        recordLoginAttempt(rateLimitKey);
+        await recordLoginAttempt(rateLimitKey);
         return res.status(400).json({ message: "이메일 또는 비밀번호가 일치하지 않습니다" });
       }
       
       // 로그인 성공 시 실패 횟수 초기화
-      clearLoginAttempts(rateLimitKey);
+      await clearLoginAttempts(rateLimitKey);
 
       // JWT 토큰 생성
       const token = generateToken(user.id, rememberMe);
@@ -496,7 +534,7 @@ export function setupAuth(app: Express) {
       // Rate Limiting 체크 (IP 기반)
       const clientIp = req.ip || req.socket.remoteAddress || 'unknown';
       const rateLimitKey = `${clientIp}:guest-login`;
-      const rateCheck = checkRateLimit(rateLimitKey);
+      const rateCheck = await checkRateLimit(rateLimitKey);
       
       if (!rateCheck.allowed) {
         return res.status(429).json({ 
@@ -507,7 +545,7 @@ export function setupAuth(app: Express) {
       // 게스트 사용자 찾기
       const guestUser = await storage.getUserByEmail(GUEST_EMAIL);
       if (!guestUser) {
-        recordLoginAttempt(rateLimitKey);
+        await recordLoginAttempt(rateLimitKey);
         return res.status(404).json({ 
           message: "게스트 계정이 설정되지 않았습니다. 관리자에게 문의하세요." 
         });
@@ -525,7 +563,7 @@ export function setupAuth(app: Express) {
       }
 
       // 로그인 성공 시 실패 횟수 초기화
-      clearLoginAttempts(rateLimitKey);
+      await clearLoginAttempts(rateLimitKey);
 
       // JWT 토큰 생성 (게스트용 - 24시간 유효)
       const token = jwt.sign(

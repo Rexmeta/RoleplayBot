@@ -187,12 +187,32 @@ async function saveIdempotency(
 // Rate Limiter (per key ID)
 // Uses Redis store when REDIS_URL is set; falls back to in-memory store.
 // ─────────────────────────────────────────────────────────────────────────────
+function parseRedisUrlForAgent(raw: string): string | null {
+  const decoded = decodeURIComponent(raw).trim();
+  const match = decoded.match(/(rediss?:\/\/\S+)/);
+  let url = match ? match[1] : null;
+  if (!url) {
+    if (decoded.startsWith('redis://') || decoded.startsWith('rediss://')) url = decoded;
+    else return null;
+  }
+  if (decoded.includes('--tls') && url.startsWith('redis://')) {
+    url = url.replace('redis://', 'rediss://');
+  }
+  return url;
+}
+
 async function createRateLimitStore() {
   if (!process.env.REDIS_URL) return undefined; // use default memory store
+  const resolvedUrl = parseRedisUrlForAgent(process.env.REDIS_URL);
+  if (!resolvedUrl) {
+    console.warn("[agentApi] Could not parse Redis URL — falling back to memory rate-limit store.");
+    return undefined;
+  }
   try {
     const { default: Redis } = await import("ioredis");
     const { RedisStore } = await import("rate-limit-redis");
-    const client = new Redis(process.env.REDIS_URL, { lazyConnect: true, enableOfflineQueue: false });
+    const isTls = resolvedUrl.startsWith('rediss://');
+    const client = new Redis(resolvedUrl, { lazyConnect: true, enableOfflineQueue: false, ...(isTls ? { tls: {} } : {}) });
     await client.connect().catch(() => {
       console.warn("[agentApi] Redis connection failed, falling back to memory rate-limit store.");
     });
