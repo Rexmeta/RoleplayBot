@@ -64,6 +64,7 @@ export interface RealtimeSession {
   lastClientContentSentAt: number;
   greetingTimeoutId: NodeJS.Timeout | null;
   pendingIsResuming: boolean;
+  pendingHasExistingConversation: boolean;
   usingReconnectInstructions: boolean;
   activePersonaIndex: number;
   voiceId: string | null;

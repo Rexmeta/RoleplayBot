@@ -265,6 +265,7 @@ export class RealtimeVoiceService {
       lastClientContentSentAt: 0,
       greetingTimeoutId: null,
       pendingIsResuming: false,
+      pendingHasExistingConversation: false,
       usingReconnectInstructions: false,
       activePersonaIndex: initialPersonaIndex,
       voiceId: (scenarioPersona as any).voiceId ?? null,
@@ -312,6 +313,18 @@ export class RealtimeVoiceService {
     if (session.pendingIsResuming && preloadedMessages.length === 0) {
       console.log('🔀 [createSession] pendingIsResuming with empty preload — proactive reconnect to apply reconnect instructions');
       session.pendingIsResuming = false;
+      await this.proactiveReconnect(session);
+    }
+
+    // Same guard for text→voice transitions: if client.ready.hasExistingConversation
+    // arrived during the connect window and the DB preload was empty (timing race),
+    // trigger proactiveReconnect now so the greeting system prompt is replaced before
+    // the user speaks.  session.recentMessages was already updated from the client-
+    // supplied previousMessages inside the buffered client.ready handler (Fix 1), so
+    // injectReconnectContext will have the correct conversation history.
+    if (session.pendingHasExistingConversation && preloadedMessages.length === 0) {
+      console.log('🔀 [createSession] pendingHasExistingConversation with empty preload — proactive reconnect to apply reconnect instructions');
+      session.pendingHasExistingConversation = false;
       await this.proactiveReconnect(session);
     }
 
@@ -366,6 +379,7 @@ export class RealtimeVoiceService {
       lastClientContentSentAt: 0,
       greetingTimeoutId: null,
       pendingIsResuming: false,
+      pendingHasExistingConversation: false,
       usingReconnectInstructions: false,
       activePersonaIndex: 0,
       voiceId: null,

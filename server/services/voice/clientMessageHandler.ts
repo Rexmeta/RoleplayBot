@@ -73,6 +73,7 @@ export function handleClientMessage(
       console.log(`⏸️ Gemini not ready yet, buffering client.ready message for session: ${sessionId}`);
       session.pendingClientReady = message;
       if (message.isResuming === true) session.pendingIsResuming = true;
+      if (message.hasExistingConversation === true) session.pendingHasExistingConversation = true;
       return;
     }
     console.warn(`⚠️ Gemini not connected for session: ${sessionId}, dropping message type: ${message.type}`);
@@ -163,46 +164,59 @@ export function handleClientMessage(
         session.hasTriggeredFirstGreeting = true;
         session.hasReceivedFirstAIResponse = true;
 
-        const geminiSessionRef = session.geminiSession;
-        const userLanguage = session.userLanguage;
-        const userLabel = session.userName && session.userName !== '사용자' ? session.userName : '사용자';
-        const personaLabel = session.personaName || 'AI';
-        const voiceSwitchInstruction = `[사용자가 음성 모드로 전환했습니다. 당신은 ${personaLabel}입니다. 지금까지 텍스트 대화에서 유지해온 캐릭터, 말투, 분위기, 감정 상태를 그대로 이어받아 주세요. 새로 인사하거나 재연결을 언급하지 마세요. 사용자가 먼저 발화할 때까지 조용히 대기하세요. 사용자가 발화하면 이전 대화의 톤과 맥락을 자연스럽게 이어서 음성에 맞게 간결하게 말하세요.]`;
-
-        (async () => {
-          let contextMessage: string;
-
+        if (proactiveReconnect && !session.usingReconnectInstructions) {
+          // System prompt still contains greeting instructions — swap it out before
+          // the user speaks.  Update session.recentMessages from the client-supplied
+          // previousMessages so injectReconnectContext uses the freshest data and the
+          // DB timing race (messages not yet committed) cannot cause a re-greeting.
           if (previousMessages && previousMessages.length > 0) {
-            if (previousMessages.length > CONTEXT_WINDOW_SIZE) {
-              const olderMessages = previousMessages.slice(0, previousMessages.length - CONTEXT_WINDOW_SIZE);
-              const recentMessages = previousMessages.slice(-CONTEXT_WINDOW_SIZE);
-
-              console.log(`📝 [Summarizer] Text-to-voice: summarizing ${olderMessages.length} older messages`);
-              const summary = await summarizeOlderMessages(olderMessages, userLanguage);
-
-              const recentSummary = recentMessages.map(m =>
-                `${m.role === 'user' ? userLabel : personaLabel}: ${m.content}`
-              ).join('\n');
-
-              contextMessage = `[이전 대화 요약]\n${summary}\n\n[최근 대화 내용]\n${recentSummary}\n\n${voiceSwitchInstruction}`;
-            } else {
-              const conversationSummary = previousMessages.map(m =>
-                `${m.role === 'user' ? userLabel : personaLabel}: ${m.content}`
-              ).join('\n');
-
-              contextMessage = `[이전 텍스트 대화 내용]\n${conversationSummary}\n\n${voiceSwitchInstruction}`;
-            }
-          } else {
-            contextMessage = `[이미 텍스트로 대화가 진행 중이었습니다.]\n\n${voiceSwitchInstruction}`;
+            session.recentMessages = previousMessages.map(m => ({ role: m.role, text: m.content }));
           }
+          console.log('🔀 hasExistingConversation — triggering proactiveReconnect for reconnect-safe system prompt');
+          proactiveReconnect(session);
+        } else {
+          // Already on reconnect-safe prompt (or no proactiveReconnect callback in test
+          // contexts) — inject context directly to the existing Gemini session.
+          const geminiSessionRef = session.geminiSession;
+          const userLanguage = session.userLanguage;
+          const userLabel = session.userName && session.userName !== '사용자' ? session.userName : '사용자';
+          const personaLabel = session.personaName || 'AI';
+          const voiceSwitchInstruction = `[사용자가 음성 모드로 전환했습니다. 당신은 ${personaLabel}입니다. 지금까지 텍스트 대화에서 유지해온 캐릭터, 말투, 분위기, 감정 상태를 그대로 이어받아 주세요. 새로 인사하거나 재연결을 언급하지 마세요. 사용자가 먼저 발화할 때까지 조용히 대기하세요. 사용자가 발화하면 이전 대화의 톤과 맥락을 자연스럽게 이어서 음성에 맞게 간결하게 말하세요.]`;
 
-          const ctxPayload = { turns: [{ role: 'user', parts: [{ text: contextMessage }] }], turnComplete: true };
-          pushPending(session, { index: session.outgoingMessageIndex++, payload: { type: 'clientContent', data: ctxPayload } });
-          geminiSessionRef.sendClientContent(ctxPayload);
-          const eotPayload1 = { event: 'END_OF_TURN' };
-          pushPending(session, { index: session.outgoingMessageIndex++, payload: { type: 'realtimeInput', data: eotPayload1 } });
-          geminiSessionRef.sendRealtimeInput(eotPayload1);
-        })().catch(err => console.error('❌ Failed to build/send text-to-voice context:', err));
+          (async () => {
+            let contextMessage: string;
+
+            if (previousMessages && previousMessages.length > 0) {
+              if (previousMessages.length > CONTEXT_WINDOW_SIZE) {
+                const olderMessages = previousMessages.slice(0, previousMessages.length - CONTEXT_WINDOW_SIZE);
+                const recentMessages = previousMessages.slice(-CONTEXT_WINDOW_SIZE);
+
+                console.log(`📝 [Summarizer] Text-to-voice: summarizing ${olderMessages.length} older messages`);
+                const summary = await summarizeOlderMessages(olderMessages, userLanguage);
+
+                const recentSummary = recentMessages.map(m =>
+                  `${m.role === 'user' ? userLabel : personaLabel}: ${m.content}`
+                ).join('\n');
+
+                contextMessage = `[이전 대화 요약]\n${summary}\n\n[최근 대화 내용]\n${recentSummary}\n\n${voiceSwitchInstruction}`;
+              } else {
+                const conversationSummary = previousMessages.map(m =>
+                  `${m.role === 'user' ? userLabel : personaLabel}: ${m.content}`
+                ).join('\n');
+
+                contextMessage = `[이전 텍스트 대화 내용]\n${conversationSummary}\n\n${voiceSwitchInstruction}`;
+              }
+            } else {
+              contextMessage = `[이미 텍스트로 대화가 진행 중이었습니다.]\n\n${voiceSwitchInstruction}`;
+            }
+
+            // turnComplete: false — the instruction text already tells Gemini to wait;
+            // setting true would cause an immediate unsolicited AI response.
+            const ctxPayload = { turns: [{ role: 'user', parts: [{ text: contextMessage }] }], turnComplete: false };
+            pushPending(session, { index: session.outgoingMessageIndex++, payload: { type: 'clientContent', data: ctxPayload } });
+            geminiSessionRef.sendClientContent(ctxPayload);
+          })().catch(err => console.error('❌ Failed to build/send text-to-voice context:', err));
+        }
       } else if (isResuming) {
         session.hasTriggeredFirstGreeting = true;
         session.hasReceivedFirstAIResponse = true;
