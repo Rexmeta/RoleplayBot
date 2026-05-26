@@ -576,7 +576,7 @@ export default function SystemAdminPage() {
     model_feedback: "gemini-2.5-flash",
     model_strategy: "gemini-2.5-flash",
     model_scenario: "gemini-2.5-flash",
-    model_realtime: "gemini-live-2.5-flash",
+    model_realtime: "gemini-3.1-flash-live-preview",
     model_emotion: "gemini-2.5-flash",
   });
   const [hasSettingsChanges, setHasSettingsChanges] = useState(false);
