@@ -140,7 +140,8 @@ export class OptimizedGeminiProvider implements AIServiceInterface {
       
       const enrichTime = Date.now() - startTime;
       console.log(`⚡ Parallel processing completed in ${enrichTime}ms`);
-      const { system: systemInstruction, dynamic: dynamicContext } = this.buildCompactPrompt(scenarioObj, enrichedPersona, conversationHistory, messages, language, playerPosition, modeTransitionHint, userName, simulationStateBlock, allPersonas, activePersonaIndex);
+      // Multi-turn mode: skipConversationHistory=true so history goes into contents array
+      const { system: systemInstruction, dynamic: dynamicContext } = this.buildCompactPrompt(scenarioObj, enrichedPersona, conversationHistory, messages, language, playerPosition, modeTransitionHint, userName, simulationStateBlock, allPersonas, activePersonaIndex, undefined, true);
       
       // 건너뛰기 처리
       const prompt = userMessage ? userMessage : "이전 대화의 흐름을 자연스럽게 이어가세요.";
@@ -153,7 +154,10 @@ export class OptimizedGeminiProvider implements AIServiceInterface {
         ? (playerPosition ? `${normalizedName}(${playerPosition})` : normalizedName)
         : (playerPosition || '사용자');
 
-      const userContent = (dynamicContext ? dynamicContext + '\n\n' : '') + `${contentsUserLabel}: ` + prompt;
+      // Build multi-turn contents for better implicit caching
+      const multiTurnContentsForResponse = this.buildMultiTurnContents(
+        messages, dynamicContext, prompt, contentsUserLabel
+      );
 
       // Gemini API 호출 (재시도 + 동시 실행 제한 적용)
       const hasMultiplePersonas = Array.isArray(allPersonas) && allPersonas.length > 1;
@@ -188,6 +192,7 @@ export class OptimizedGeminiProvider implements AIServiceInterface {
           };
 
       const isFlash25 = this.model.includes('gemini-2.5-flash') || this.model.includes('gemini-2.5-pro');
+      const callStartTime = Date.now();
       const response = await conversationSemaphore.run(() =>
         retryWithBackoff(() =>
           this.genAI.models.generateContent({
@@ -196,13 +201,11 @@ export class OptimizedGeminiProvider implements AIServiceInterface {
               systemInstruction,
               responseMimeType: "application/json",
               responseSchema,
-              maxOutputTokens: 1500,
+              maxOutputTokens: 800,
               temperature: 0.7,
               ...(isFlash25 ? { thinkingConfig: { thinkingBudget: 0 } } : {}),
             },
-            contents: [
-              { role: "user", parts: [{ text: userContent }] }
-            ],
+            contents: multiTurnContentsForResponse,
           }),
           { maxRetries: 2, baseDelayMs: 1000 }
         )
@@ -305,7 +308,7 @@ export class OptimizedGeminiProvider implements AIServiceInterface {
    *   system  — static content placed in config.systemInstruction (cached across turns)
    *   dynamic — per-turn context placed in the user message contents
    */
-  private buildCompactPrompt(scenario: RoleplayScenario, persona: ScenarioPersona, conversationHistory: string, messages: ConversationMessage[], language: SupportedLanguage = 'ko', playerPosition?: string, modeTransitionHint?: string, userName?: string, simulationStateBlock?: string, allPersonas?: any[], activePersonaIndex: number = 0, streamingMetaInstruction?: string): { system: string; dynamic: string } {
+  private buildCompactPrompt(scenario: RoleplayScenario, persona: ScenarioPersona, conversationHistory: string, messages: ConversationMessage[], language: SupportedLanguage = 'ko', playerPosition?: string, modeTransitionHint?: string, userName?: string, simulationStateBlock?: string, allPersonas?: any[], activePersonaIndex: number = 0, streamingMetaInstruction?: string, skipConversationHistory: boolean = false): { system: string; dynamic: string } {
     const situation = scenario.context?.situation || '업무 상황';
     const objectives = scenario.objectives?.join(', ') || '문제 해결';
     const playerRole = scenario.context?.playerRole;
@@ -486,7 +489,7 @@ ${jsonFormat}`;
     if (modeTransitionHint) dynamicParts.push(`**【모드 전환 안내 - 이번 응답에만 적용】**: ${modeTransitionHint}`);
     if (simulationStateBlock) dynamicParts.push(simulationStateBlock);
     if (softClosingInstruction) dynamicParts.push(`**【대화 마무리 유도 - 이번 응답에 반영】**: ${softClosingInstruction}`);
-    if (conversationHistory) {
+    if (conversationHistory && !skipConversationHistory) {
       dynamicParts.push(`=== 역할 재확인: 당신은 ${persona.name}(${persona.role})이며, 상대방은 ${userLabelInPrompt}입니다. 아래 이전 대화에서도 이 역할을 유지했습니다 ===
 ⚠️ 【${userLabelInPrompt} 답변 ✓】로 표시된 항목은 이미 답변받은 사안입니다. 동일하거나 유사한 질문을 절대 다시 하지 마세요.
 ${conversationHistory}
@@ -495,6 +498,54 @@ ${conversationHistory}
     const dynamic = dynamicParts.join('\n');
 
     return { system, dynamic };
+  }
+
+  /**
+   * 대화 메시지를 Gemini multi-turn contents 배열로 변환.
+   * 이전 턴들이 Gemini 암묵적 캐시의 prefix로 활용되어
+   * 긴 대화일수록 캐시 히트율과 TTFT가 개선된다.
+   *
+   * @param messages      이전 대화 메시지 (현재 사용자 메시지 제외)
+   * @param dynamicContext  현재 턴 전용 컨텍스트 (시뮬레이션 상태, 모드 힌트 등)
+   * @param currentPrompt  현재 사용자 메시지
+   * @param contentsUserLabel  사용자 레이블 (이름+직책)
+   */
+  private buildMultiTurnContents(
+    messages: ConversationMessage[],
+    dynamicContext: string,
+    currentPrompt: string,
+    contentsUserLabel: string,
+  ): Array<{ role: string; parts: Array<{ text: string }> }> {
+    const contents: Array<{ role: string; parts: Array<{ text: string }> }> = [];
+
+    // Gemini requires strict alternation: user → model → user → ...
+    // Normalize by merging consecutive same-role messages.
+    const normalized: Array<{ role: 'user' | 'model'; text: string }> = [];
+    for (const msg of messages) {
+      const role = msg.sender === 'user' ? 'user' : 'model';
+      const last = normalized[normalized.length - 1];
+      if (last && last.role === role) {
+        last.text += '\n' + msg.message;
+      } else {
+        normalized.push({ role, text: msg.message });
+      }
+    }
+
+    // Gemini contents must start with a user turn
+    if (normalized.length > 0 && normalized[0].role === 'model') {
+      normalized.shift();
+    }
+
+    for (const item of normalized) {
+      const prefix = item.role === 'user' ? `${contentsUserLabel}: ` : '';
+      contents.push({ role: item.role, parts: [{ text: prefix + item.text }] });
+    }
+
+    // Current user message (with per-turn dynamic context injected)
+    const finalUserText = (dynamicContext ? dynamicContext + '\n\n' : '') + `${contentsUserLabel}: ${currentPrompt}`;
+    contents.push({ role: 'user', parts: [{ text: finalUserText }] });
+
+    return contents;
   }
 
   /**
@@ -529,10 +580,13 @@ ${conversationHistory}
       ? `대화 내용을 자연스럽게 작성하세요. 모든 내용 작성 후, 반드시 마지막 줄에만 이 마커를 추가하세요 (대화 내용에 절대 포함하지 마세요):\n[META:{"emotion":"기쁨|슬픔|분노|놀람|중립|호기심|불안|피로|실망|당혹","emotionReason":"감정이유","complete":false,"switchPersona":null}]\n전환 필요 시: [META:{"emotion":"...","emotionReason":"...","complete":false,"switchPersona":{"targetPersonaIndex":0,"reason":"이유","transitionLine":"전환 대사"}}]\n대화를 마무리해야 할 경우 complete를 true로 설정하세요.`
       : `대화 내용을 자연스럽게 작성하세요. 모든 내용 작성 후, 반드시 마지막 줄에만 이 마커를 추가하세요 (대화 내용에 절대 포함하지 마세요):\n[META:{"emotion":"기쁨|슬픔|분노|놀람|중립|호기심|불안|피로|실망|당혹","emotionReason":"감정이유","complete":false}]\n대화를 마무리해야 할 경우 complete를 true로 설정하세요.`;
 
+    // Multi-turn mode: conversation history goes into the contents array (not dynamic string)
+    // so earlier turns can be cached by Gemini's implicit prefix caching.
     const { system: systemInstruction, dynamic: dynamicContext } = this.buildCompactPrompt(
       scenarioObj, enrichedPersona, conversationHistory, messages,
       language, playerPosition, modeTransitionHint, userName,
-      simulationStateBlock, allPersonas, activePersonaIndex, metaInstruction
+      simulationStateBlock, allPersonas, activePersonaIndex, metaInstruction,
+      true // skipConversationHistory — history supplied via multi-turn contents
     );
 
     const prompt = userMessage || '이전 대화의 흐름을 자연스럽게 이어가세요.';
@@ -541,27 +595,29 @@ ${conversationHistory}
       ? (playerPosition ? `${normalizedName}(${playerPosition})` : normalizedName)
       : (playerPosition || '사용자');
 
-    const userContent = (dynamicContext ? dynamicContext + '\n\n' : '') + `${contentsUserLabel}: ` + prompt;
+    // Build multi-turn contents: previous turns as alternating user/model, current turn last
+    const multiTurnContents = this.buildMultiTurnContents(
+      messages, dynamicContext, prompt, contentsUserLabel
+    );
 
     const isFlash25 = this.model.includes('gemini-2.5-flash') || this.model.includes('gemini-2.5-pro');
     const genAI = this.genAI;
     const model = this.model;
 
-    console.log(`🌊 Starting streaming response for persona: ${enrichedPersona.name} (model: ${model})`);
+    console.log(`🌊 Streaming [${model}] persona=${enrichedPersona.name} turns=${messages.length} multiTurn=${multiTurnContents.length}`);
 
+    const streamStartTime = Date.now();
     const streamPromise = conversationSemaphore.run(() =>
       retryWithBackoff(() =>
         genAI.models.generateContentStream({
           model,
           config: {
             systemInstruction,
-            maxOutputTokens: 1500,
+            maxOutputTokens: 800,
             temperature: 0.7,
             ...(isFlash25 ? { thinkingConfig: { thinkingBudget: 0 } } : {}),
           },
-          contents: [
-            { role: 'user', parts: [{ text: userContent }] }
-          ],
+          contents: multiTurnContents,
         }),
         { maxRetries: 1, baseDelayMs: 500 }
       )
@@ -570,13 +626,24 @@ ${conversationHistory}
     async function* streamGenerator(): AsyncIterable<string> {
       const stream = await streamPromise;
       let totalCachedTokens = 0;
+      let firstChunk = true;
       for await (const chunk of stream) {
         const cached = (chunk as any)?.usageMetadata?.cachedContentTokenCount || 0;
         if (cached > totalCachedTokens) totalCachedTokens = cached;
         const text: string = chunk.candidates?.[0]?.content?.parts?.[0]?.text ?? '';
-        if (text) yield text;
+        if (text) {
+          if (firstChunk) {
+            firstChunk = false;
+            console.log(`⚡ TTFT (streaming): ${Date.now() - streamStartTime}ms`);
+          }
+          yield text;
+        }
       }
-      if (totalCachedTokens > 0) console.log(`⚡ Cache hit (streaming): ${totalCachedTokens} cached tokens`);
+      if (totalCachedTokens > 0) {
+        console.log(`⚡ Cache hit (streaming): ${totalCachedTokens} cached tokens`);
+      } else {
+        console.log(`📭 No cache hit (streaming) — first call or cache miss`);
+      }
     }
 
     return streamGenerator();
