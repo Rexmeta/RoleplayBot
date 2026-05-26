@@ -417,7 +417,7 @@ export function ScenariosTab({
                             {isExpanded && (
                               <BenchmarkGroupDetailRow groupName={bg.benchmarkGroup} />
                             )}
-                          </React.Fragment>
+                          </Fragment>
                         );
                       })}
                     </tbody>
