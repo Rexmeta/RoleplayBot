@@ -1135,6 +1135,16 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
                                   <Button variant="outline" size="sm" onClick={handleSkipTurn} disabled={isLoading} data-testid="button-skip-turn-text">Skip</Button>
                                 </div>
                               </div>
+                              <div className="flex justify-center mt-3 pt-2 border-t border-slate-100">
+                                <button
+                                  onClick={() => setShowVoiceModeConfirmDialog(true)}
+                                  className="flex items-center gap-1.5 px-3 py-2 text-sm border border-slate-200 rounded-full bg-white hover:bg-slate-50 hover:border-purple-300 transition-colors"
+                                  data-testid="button-switch-to-voice"
+                                >
+                                  <i className="fas fa-microphone text-purple-500 text-xs"></i>
+                                  <span className="text-slate-600">{t('chat.switchToVoice', { defaultValue: '음성으로 전환' })}</span>
+                                </button>
+                              </div>
                             </div>
                           )}
                           {conversation.turnCount >= MAX_TURNS && (
