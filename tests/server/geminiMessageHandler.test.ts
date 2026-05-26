@@ -246,6 +246,37 @@ describe('handleGeminiMessage', () => {
         expect.objectContaining({ turnSeq: 3 })
       );
     });
+
+    it('skips top-level audio.delta when inlineData is present in modelTurn, even when isInterrupted=true', () => {
+      // Both top-level message.data AND inlineData in modelTurn are present,
+      // and a barge-in is active. The top-level bytes must be suppressed due
+      // to hasInlineDataInModelTurn taking priority — not merely due to the
+      // barge-in guard. This ensures inlineData remains the sole audio source.
+      session.isInterrupted = true;
+      session.turnSeq = 5;
+      session.cancelledTurnSeq = 3; // turnSeq > cancelledTurnSeq → barge-in would clear, but inlineData guard fires first
+
+      handleGeminiMessage(
+        session,
+        {
+          data: 'toplevelaudio==',
+          serverContent: {
+            modelTurn: {
+              parts: [{ inlineData: { mimeType: 'audio/pcm', data: 'inlineaudio==' } }],
+            },
+          },
+        },
+        sendToClient,
+        null,
+        proactiveReconnect
+      );
+
+      // No audio.delta for top-level bytes — inlineData path owns the audio
+      expect(sendToClient).not.toHaveBeenCalledWith(
+        session,
+        expect.objectContaining({ type: 'audio.delta', delta: 'toplevelaudio==' })
+      );
+    });
   });
 
   describe('inputTranscription', () => {
