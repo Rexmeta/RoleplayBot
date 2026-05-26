@@ -351,19 +351,24 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
   handleSwitchToTextModeRef.current = async () => {
     if (isSwitchingMode) return;
     setIsSwitchingMode(true);
+    // Use setInputMode directly instead of navigate so that switching back to
+    // text mode always works — navigate() is a no-op when the current URL is
+    // already /home?resumePersonaRunId=X&mode=text (which happens after the
+    // first voice→text switch because the URL stays unchanged when the user
+    // switches back to voice via setInputMode).
     const timeoutId = setTimeout(() => {
       realtimeVoice.disconnect();
-      navigate(`/home?resumePersonaRunId=${conversationId}&mode=text`);
+      setInputMode('text');
     }, 5000);
     try {
       await flushRealtimeMessages(false);
       clearTimeout(timeoutId);
       realtimeVoice.disconnect();
-      navigate(`/home?resumePersonaRunId=${conversationId}&mode=text`);
+      setInputMode('text');
     } catch {
       clearTimeout(timeoutId);
       realtimeVoice.disconnect();
-      navigate(`/home?resumePersonaRunId=${conversationId}&mode=text`);
+      setInputMode('text');
     } finally {
       setIsSwitchingMode(false);
     }
