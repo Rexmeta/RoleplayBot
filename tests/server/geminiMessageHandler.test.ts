@@ -277,6 +277,39 @@ describe('handleGeminiMessage', () => {
         expect.objectContaining({ type: 'audio.delta', delta: 'toplevelaudio==' })
       );
     });
+
+    it('skips top-level audio when inlineData is present in modelTurn even when NOT interrupted', () => {
+      session.isInterrupted = false;
+
+      handleGeminiMessage(
+        session,
+        {
+          data: 'toplevel==',
+          serverContent: {
+            modelTurn: {
+              parts: [{ inlineData: { mimeType: 'audio/pcm', data: 'inline==' } }],
+            },
+          },
+        },
+        sendToClient,
+        null,
+        proactiveReconnect
+      );
+
+      expect(sendToClient).not.toHaveBeenCalledWith(
+        session,
+        expect.objectContaining({ type: 'audio.delta', delta: 'toplevel==' })
+      );
+    });
+
+    it('sets hasReceivedFirstAIAudio=true on first top-level audio delivery', () => {
+      session.hasReceivedFirstAIAudio = false;
+      session.isInterrupted = false;
+
+      handleGeminiMessage(session, { data: 'firstchunk==' }, sendToClient, null, proactiveReconnect);
+
+      expect(session.hasReceivedFirstAIAudio).toBe(true);
+    });
   });
 
   describe('audio data (inlineData path)', () => {
@@ -352,6 +385,51 @@ describe('handleGeminiMessage', () => {
         session,
         expect.objectContaining({ type: 'audio.delta', delta: 'newturndata==', turnSeq: 5 })
       );
+    });
+
+    it('sets hasReceivedFirstAIAudio=true and hasReceivedFirstAIResponse=true on first inlineData audio delivery', () => {
+      session.hasReceivedFirstAIAudio = false;
+      session.hasReceivedFirstAIResponse = false;
+
+      handleGeminiMessage(
+        session,
+        {
+          serverContent: {
+            modelTurn: {
+              parts: [{ inlineData: { mimeType: 'audio/pcm', data: 'inlinefirst==' } }],
+            },
+          },
+        },
+        sendToClient,
+        null,
+        proactiveReconnect
+      );
+
+      expect(session.hasReceivedFirstAIAudio).toBe(true);
+      expect(session.hasReceivedFirstAIResponse).toBe(true);
+    });
+
+    it('does not set hasReceivedFirstAIAudio when inlineData is suppressed by barge-in guard', () => {
+      session.hasReceivedFirstAIAudio = false;
+      session.isInterrupted = true;
+      session.turnSeq = 2;
+      session.cancelledTurnSeq = 2;
+
+      handleGeminiMessage(
+        session,
+        {
+          serverContent: {
+            modelTurn: {
+              parts: [{ inlineData: { mimeType: 'audio/pcm', data: 'stale==' } }],
+            },
+          },
+        },
+        sendToClient,
+        null,
+        proactiveReconnect
+      );
+
+      expect(session.hasReceivedFirstAIAudio).toBe(false);
     });
   });
 
@@ -812,6 +890,245 @@ describe('handleGeminiMessage', () => {
 
       const audioCalls = sendToClient.mock.calls.filter(([, msg]) => msg.type === 'audio.delta');
       expect(audioCalls).toHaveLength(1);
+    });
+
+    it('does not suppress audio when userTurnsCompleted >= 1, even if greetingResponseCount >= 1', () => {
+      session.greetingResponseCount = 1;
+      session.userTurnsCompleted = 1;
+      session.userSpeechStarted = false;
+
+      handleGeminiMessage(
+        session,
+        {
+          serverContent: {
+            modelTurn: {
+              parts: [{ inlineData: { data: 'postgreeting==', mimeType: 'audio/pcm' } }],
+            },
+          },
+        },
+        sendToClient,
+        null,
+        proactiveReconnect
+      );
+
+      const audioCalls = sendToClient.mock.calls.filter(([, msg]) => msg.type === 'audio.delta');
+      expect(audioCalls).toHaveLength(1);
+    });
+
+    it('does not set hasReceivedFirstAIAudio when inlineData is suppressed by greeting guard', () => {
+      session.hasReceivedFirstAIAudio = false;
+      session.greetingResponseCount = 1;
+      session.userTurnsCompleted = 0;
+      session.userSpeechStarted = false;
+
+      handleGeminiMessage(
+        session,
+        {
+          serverContent: {
+            modelTurn: {
+              parts: [{ inlineData: { mimeType: 'audio/pcm', data: 'dupgreet==' } }],
+            },
+          },
+        },
+        sendToClient,
+        null,
+        proactiveReconnect
+      );
+
+      expect(session.hasReceivedFirstAIAudio).toBe(false);
+    });
+
+    it('does not set hasReceivedFirstAIAudio when inlineData is suppressed by thinking text guard', () => {
+      session.hasReceivedFirstAIAudio = false;
+
+      handleGeminiMessage(
+        session,
+        {
+          serverContent: {
+            modelTurn: {
+              parts: [
+                { text: "I'm focusing on the response" },
+                { inlineData: { mimeType: 'audio/pcm', data: 'thinkingaudio==' } },
+              ],
+            },
+          },
+        },
+        sendToClient,
+        null,
+        proactiveReconnect
+      );
+
+      expect(session.hasReceivedFirstAIAudio).toBe(false);
+    });
+  });
+
+  describe('audio suppression guard combinations (inlineData path)', () => {
+    it('barge-in active (stale turn) + greeting guard both active: barge-in fires first and suppresses', () => {
+      session.isInterrupted = true;
+      session.turnSeq = 2;
+      session.cancelledTurnSeq = 2;
+      session.greetingResponseCount = 1;
+      session.userTurnsCompleted = 0;
+      session.userSpeechStarted = false;
+
+      handleGeminiMessage(
+        session,
+        {
+          serverContent: {
+            modelTurn: {
+              parts: [{ inlineData: { mimeType: 'audio/pcm', data: 'combined==' } }],
+            },
+          },
+        },
+        sendToClient,
+        null,
+        proactiveReconnect
+      );
+
+      const audioCalls = sendToClient.mock.calls.filter(([, msg]) => msg.type === 'audio.delta');
+      expect(audioCalls).toHaveLength(0);
+      // Barge-in fires via continue — isInterrupted stays true
+      expect(session.isInterrupted).toBe(true);
+    });
+
+    it('barge-in clears on new turn but greeting guard still suppresses audio', () => {
+      session.isInterrupted = true;
+      session.turnSeq = 3;
+      session.cancelledTurnSeq = 2;
+      session.greetingResponseCount = 1;
+      session.userTurnsCompleted = 0;
+      session.userSpeechStarted = false;
+
+      handleGeminiMessage(
+        session,
+        {
+          serverContent: {
+            modelTurn: {
+              parts: [{ inlineData: { mimeType: 'audio/pcm', data: 'newturndupgreet==' } }],
+            },
+          },
+        },
+        sendToClient,
+        null,
+        proactiveReconnect
+      );
+
+      // Barge-in is cleared because turnSeq > cancelledTurnSeq
+      expect(session.isInterrupted).toBe(false);
+      expect(session.cancelledTurnSeq).toBe(-1);
+      // Greeting guard fires next and suppresses the audio
+      const audioCalls = sendToClient.mock.calls.filter(([, msg]) => msg.type === 'audio.delta');
+      expect(audioCalls).toHaveLength(0);
+    });
+
+    it('barge-in active (stale turn) + thinking text both present: barge-in fires first and suppresses', () => {
+      session.isInterrupted = true;
+      session.turnSeq = 2;
+      session.cancelledTurnSeq = 2;
+
+      handleGeminiMessage(
+        session,
+        {
+          serverContent: {
+            modelTurn: {
+              parts: [
+                { text: "I'm focusing on the response" },
+                { inlineData: { mimeType: 'audio/pcm', data: 'thinkbargein==' } },
+              ],
+            },
+          },
+        },
+        sendToClient,
+        null,
+        proactiveReconnect
+      );
+
+      const audioCalls = sendToClient.mock.calls.filter(([, msg]) => msg.type === 'audio.delta');
+      expect(audioCalls).toHaveLength(0);
+      // Barge-in fires via continue — isInterrupted stays true
+      expect(session.isInterrupted).toBe(true);
+    });
+
+    it('barge-in clears on new turn but thinking text guard still suppresses audio', () => {
+      session.isInterrupted = true;
+      session.turnSeq = 3;
+      session.cancelledTurnSeq = 2;
+
+      handleGeminiMessage(
+        session,
+        {
+          serverContent: {
+            modelTurn: {
+              parts: [
+                { text: "I'm focusing on the response" },
+                { inlineData: { mimeType: 'audio/pcm', data: 'thinknewturn==' } },
+              ],
+            },
+          },
+        },
+        sendToClient,
+        null,
+        proactiveReconnect
+      );
+
+      // Barge-in is cleared
+      expect(session.isInterrupted).toBe(false);
+      expect(session.cancelledTurnSeq).toBe(-1);
+      // Thinking text guard fires and suppresses the audio
+      const audioCalls = sendToClient.mock.calls.filter(([, msg]) => msg.type === 'audio.delta');
+      expect(audioCalls).toHaveLength(0);
+    });
+
+    it('greeting guard + thinking text both active: both suppress (guards are independent continue statements)', () => {
+      session.isInterrupted = false;
+      session.greetingResponseCount = 1;
+      session.userTurnsCompleted = 0;
+      session.userSpeechStarted = false;
+
+      handleGeminiMessage(
+        session,
+        {
+          serverContent: {
+            modelTurn: {
+              parts: [
+                { text: "I'm focusing on the response" },
+                { inlineData: { mimeType: 'audio/pcm', data: 'greetthink==' } },
+              ],
+            },
+          },
+        },
+        sendToClient,
+        null,
+        proactiveReconnect
+      );
+
+      const audioCalls = sendToClient.mock.calls.filter(([, msg]) => msg.type === 'audio.delta');
+      expect(audioCalls).toHaveLength(0);
+    });
+
+    it('all three guards inactive: audio plays through', () => {
+      session.isInterrupted = false;
+      session.greetingResponseCount = 0;
+      session.userTurnsCompleted = 0;
+      session.userSpeechStarted = false;
+
+      handleGeminiMessage(
+        session,
+        {
+          serverContent: {
+            modelTurn: {
+              parts: [{ inlineData: { mimeType: 'audio/pcm', data: 'clean==' } }],
+            },
+          },
+        },
+        sendToClient,
+        null,
+        proactiveReconnect
+      );
+
+      const audioCalls = sendToClient.mock.calls.filter(([, msg]) => msg.type === 'audio.delta');
+      expect(audioCalls).toHaveLength(1);
+      expect(audioCalls[0][1]).toMatchObject({ type: 'audio.delta', delta: 'clean==' });
     });
   });
 
