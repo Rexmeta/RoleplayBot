@@ -1113,7 +1113,15 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
                                 />
                               </div>
                               {!showInputMode && (
-                                <div className="border-t border-slate-200/30 px-4 py-2 flex justify-end">
+                                <div className="border-t border-slate-200/30 px-4 py-2 flex justify-between items-center">
+                                  <button
+                                    onClick={() => setShowVoiceModeConfirmDialog(true)}
+                                    className="flex items-center gap-1.5 px-3 py-2 text-sm border border-slate-200 rounded-full bg-white hover:bg-slate-50 hover:border-purple-300 transition-colors"
+                                    data-testid="button-switch-to-voice-collapsed"
+                                  >
+                                    <i className="fas fa-microphone text-purple-500 text-xs"></i>
+                                    <span className="text-slate-600">{t('chat.switchToVoice', { defaultValue: '음성으로 전환' })}</span>
+                                  </button>
                                   <Button onClick={() => setShowInputMode(true)} className="bg-purple-600 hover:bg-purple-700 text-white" data-testid="button-start-chat-inline" size="sm">
                                     <i className="fas fa-comment mr-1"></i>{t('chat.startChat')}
                                   </Button>
