@@ -18,6 +18,7 @@ import {
   agentUsageDaily,
   agentWebhooks,
   auditLogs,
+  personaRuns,
 } from "@shared/schema";
 import { dispatchWebhook, encryptWebhookSecret } from "../services/webhookDelivery";
 import { eq, and, lt, sql, gte, lte, inArray } from "drizzle-orm";
@@ -566,7 +567,27 @@ router.get("/sessions/:id", requireScope("sessions:read"), async (req: any, res)
     const sessionMeta = (usedSession.metadata as Record<string, any>) ?? {};
     const sessionUsage = (sessionMeta.sessionUsage as { requestCount: number; inputTokens: number; outputTokens: number }) ?? null;
 
-    res.json(buildSessionResponse(usedSession, requestId, sessionUsage ?? undefined));
+    // Detect lost in-memory context: active session that has had at least one message turn
+    // (requestCount > 0) but whose persona_run simulation_state is null.
+    // A brand-new session with no turns legitimately has a null simulation_state, so we
+    // only flag contextLost when messages have already been exchanged (state should exist).
+    let contextLost = false;
+    if (usedSession.status === "active" && usedSession.personaRunId) {
+      const sessionMeta2 = (usedSession.metadata as Record<string, any>) ?? {};
+      const sessionUsage2 = (sessionMeta2.sessionUsage as { requestCount: number } | undefined);
+      const hasExchangedMessages = (sessionUsage2?.requestCount ?? 0) > 0;
+      if (hasExchangedMessages) {
+        const personaRunRow = await db
+          .select({ simulationState: personaRuns.simulationState })
+          .from(personaRuns)
+          .where(eq(personaRuns.id, usedSession.personaRunId))
+          .limit(1)
+          .then((r: any[]) => r[0] ?? null);
+        contextLost = personaRunRow !== null && personaRunRow.simulationState === null;
+      }
+    }
+
+    res.json(buildSessionResponse(usedSession, requestId, sessionUsage ?? undefined, contextLost));
   } catch (err) {
     console.error("[agentApi] GET /sessions/:id error:", err);
     agentError(res, 500, "internal_error", "Failed to fetch session.");
@@ -1124,9 +1145,17 @@ router.post("/sessions/:id/end", requireScope("sessions:end"), async (req: any, 
     }
 
     const endedAt = new Date();
+    const existingMeta = (session.metadata as Record<string, any>) ?? {};
+
+    // If there is a persona run, mark feedbackStatus as "pending" synchronously
+    // so GET /sessions/:id/feedback can distinguish "job queued" from "no feedback"
+    const metaUpdate = session.personaRunId
+      ? { ...existingMeta, feedbackStatus: "pending" }
+      : existingMeta;
+
     await db
       .update(agentSessions)
-      .set({ status: "ended", endedAt })
+      .set({ status: "ended", endedAt, metadata: metaUpdate })
       .where(eq(agentSessions.id, sessionId));
 
     // Audit log
@@ -1139,12 +1168,13 @@ router.post("/sessions/:id/end", requireScope("sessions:end"), async (req: any, 
       metadata: { agentKeyId: agentKey.id },
     }).catch(() => {});
 
-    // Return immediately — feedback generation and webhook delivery happen in the background
-    const responseBody = {
+    // Return immediately — feedback generation and webhook delivery happen in the background.
+    // Only include feedbackStatus when a generation job was actually queued (personaRunId exists).
+    const responseBody: Record<string, any> = {
       sessionId,
       status: "ended",
       endedAt: endedAt.toISOString(),
-      feedbackReport: null,
+      ...(session.personaRunId ? { feedbackStatus: "pending" } : {}),
       requestId,
     };
 
@@ -1200,6 +1230,21 @@ router.post("/sessions/:id/end", requireScope("sessions:end"), async (req: any, 
             );
 
             if (feedbackReport) {
+              // Re-read latest session metadata before writing to avoid clobbering concurrent updates
+              const freshSessionRow = await db
+                .select({ metadata: agentSessions.metadata })
+                .from(agentSessions)
+                .where(eq(agentSessions.id, sessionId))
+                .limit(1)
+                .then((r: any[]) => r[0] ?? null)
+                .catch(() => null);
+              const latestMeta = ((freshSessionRow?.metadata as Record<string, any>) ?? {});
+              await db
+                .update(agentSessions)
+                .set({ metadata: { ...latestMeta, feedbackReport, feedbackStatus: "completed" } })
+                .where(eq(agentSessions.id, sessionId))
+                .catch((e) => console.warn("[agentApi] Failed to persist feedbackReport to session metadata:", e));
+
               dispatchWebhook(agentKey.id, "feedback.completed", { sessionId, feedbackReport }).catch(() => {});
             }
           }
@@ -1212,6 +1257,45 @@ router.post("/sessions/:id/end", requireScope("sessions:end"), async (req: any, 
   } catch (err) {
     console.error("[agentApi] POST /sessions/:id/end error:", err);
     agentError(res, 500, "internal_error", "Failed to end session.");
+  }
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// GET /api/v1/agent/sessions/:id/feedback
+// ─────────────────────────────────────────────────────────────────────────────
+router.get("/sessions/:id/feedback", requireScope("sessions:read"), async (req: any, res) => {
+  try {
+    const agentKey = req.agentKey;
+    const requestId = req.agentRequestId;
+    const sessionId = req.params.id;
+
+    const session = await getSessionForKey(sessionId, agentKey.id);
+    if (!session) {
+      agentError(res, 404, "session_not_found", "Session not found.");
+      return;
+    }
+
+    const sessionMeta = (session.metadata as Record<string, any>) ?? {};
+
+    // feedbackStatus is only present in metadata when a generation job was explicitly queued
+    // (set synchronously at end-time). Its absence means no feedback will ever exist for this session.
+    if (!("feedbackStatus" in sessionMeta)) {
+      agentError(res, 404, "feedback_not_available", "No feedback report is associated with this session.");
+      return;
+    }
+
+    const feedbackStatus = sessionMeta.feedbackStatus as string;
+    const feedbackReport = sessionMeta.feedbackReport ?? null;
+
+    res.json({
+      sessionId,
+      feedbackStatus,
+      feedbackReport,
+      requestId,
+    });
+  } catch (err) {
+    console.error("[agentApi] GET /sessions/:id/feedback error:", err);
+    agentError(res, 500, "internal_error", "Failed to fetch feedback.");
   }
 });
 
@@ -1311,7 +1395,8 @@ async function autoExpireSession(session: any): Promise<void> {
 function buildSessionResponse(
   session: any,
   requestId: string,
-  usage?: { requestCount: number; inputTokens: number; outputTokens: number }
+  usage?: { requestCount: number; inputTokens: number; outputTokens: number },
+  contextLost?: boolean
 ): any {
   return {
     sessionId: session.id,
@@ -1324,6 +1409,7 @@ function buildSessionResponse(
     difficulty: session.difficulty,
     createdAt: session.createdAt?.toISOString?.() ?? session.createdAt,
     expiresAt: session.expiresAt?.toISOString?.() ?? session.expiresAt,
+    contextLost: contextLost ?? false,
     usage: usage
       ? { requestCount: usage.requestCount, inputTokens: usage.inputTokens, outputTokens: usage.outputTokens }
       : null,

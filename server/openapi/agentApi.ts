@@ -149,6 +149,7 @@ All errors follow a consistent envelope:
           "difficulty",
           "createdAt",
           "expiresAt",
+          "contextLost",
           "requestId",
         ],
         properties: {
@@ -182,6 +183,11 @@ All errors follow a consistent envelope:
           difficulty: { type: "integer", minimum: 1, maximum: 5, example: 4 },
           createdAt: { type: "string", format: "date-time", example: "2026-05-22T09:00:00.000Z" },
           expiresAt: { type: "string", format: "date-time", example: "2026-05-23T09:00:00.000Z" },
+          contextLost: {
+            type: "boolean",
+            example: false,
+            description: "`true` when the session is `active` but the server lost the in-memory simulation context (e.g. due to a restart). Clients should re-send any necessary context or restart the session gracefully when this is `true`.",
+          },
           requestId: { type: "string", example: "req_a1b2c3d4e5f6" },
         },
       },
@@ -490,7 +496,8 @@ All errors follow a consistent envelope:
         required: ["sessionId", "status", "requestId"],
         description: `Response from \`POST /sessions/:id/end\`.
 
-When the session was **active** and is now being ended, \`endedAt\` and \`feedbackReport\` are always present.
+When the session was **active** and is now being ended, \`endedAt\` and \`feedbackStatus\` are always present.
+Feedback generation runs asynchronously in the background — poll \`GET /sessions/:id/feedback\` to retrieve the report when ready.
 When the session was **already ended** (idempotent call), only \`sessionId\`, \`status\`, and \`requestId\` are returned.`,
         properties: {
           sessionId: { type: "string", example: "ags_a1b2c3d4e5f6g7h8i9j0" },
@@ -501,11 +508,31 @@ When the session was **already ended** (idempotent call), only \`sessionId\`, \`
             example: "2026-05-22T09:15:00.000Z",
             description: "ISO 8601 timestamp of when the session was ended. Present when session was just ended; omitted on already-ended replays.",
           },
+          feedbackStatus: {
+            type: "string",
+            enum: ["pending", "completed"],
+            example: "pending",
+            description: "Current status of the background feedback generation. `pending` means feedback is still being generated. Poll `GET /sessions/:id/feedback` to retrieve the completed report.",
+          },
+          requestId: { type: "string", example: "req_a1b2c3d4e5f6" },
+        },
+      },
+      FeedbackResponse: {
+        type: "object",
+        required: ["sessionId", "feedbackStatus", "feedbackReport", "requestId"],
+        description: "Response from `GET /sessions/:id/feedback`.",
+        properties: {
+          sessionId: { type: "string", example: "ags_a1b2c3d4e5f6g7h8i9j0" },
+          feedbackStatus: {
+            type: "string",
+            enum: ["pending", "completed"],
+            example: "completed",
+            description: "`pending` when feedback generation is still in progress; `completed` when the report is ready.",
+          },
           feedbackReport: {
             type: "object",
             nullable: true,
-            description:
-              "AI-generated feedback report for the full session. Structure mirrors the standard platform feedback object with overall score, dimension breakdowns, strengths, and improvement suggestions. `null` if the session had no messages.",
+            description: "AI-generated feedback report. `null` when `feedbackStatus` is `pending`.",
             example: {
               overallScore: 3.4,
               dimensions: {
@@ -1211,7 +1238,7 @@ Verify it by computing \`HMAC-SHA256(key=<your stored secret>, data=rawBody)\` a
 
 \`\`\`js
 const crypto = require('crypto');
-// secret = the plaintext value returned in `secret` at webhook creation (store this securely)
+// secret = the plaintext value returned in \`secret\` at webhook creation (store this securely)
 const sig = crypto.createHmac('sha256', secret).update(rawBody).digest('hex');
 const trusted = req.headers['x-webhook-signature'].replace('sha256=', '');
 if (!crypto.timingSafeEqual(Buffer.from(sig, 'hex'), Buffer.from(trusted, 'hex'))) {
@@ -1356,22 +1383,103 @@ if (!crypto.timingSafeEqual(Buffer.from(sig, 'hex'), Buffer.from(trusted, 'hex')
         },
       },
     },
+    "/sessions/{sessionId}/feedback": {
+      get: {
+        operationId: "getSessionFeedback",
+        summary: "Get feedback report for a session",
+        description: `Returns the AI-generated feedback report for an ended session.
+
+**Scopes required:** \`sessions:read\`
+
+Feedback is generated asynchronously after a session ends. Poll this endpoint until \`feedbackStatus\` is \`"completed"\`.
+
+Returns \`404\` with code \`feedback_not_available\` when no feedback job was ever started for this session. This happens for:
+- Sessions that are still active (use \`POST /sessions/:id/end\` first)
+- Sessions ended without a linked persona run (API-only sessions with no messages)
+
+**Example polling flow:**
+\`\`\`bash
+# 1. End the session
+curl -X POST https://your-host/api/v1/agent/sessions/ags_xxx/end \\
+  -H "Authorization: Bearer agk_live_xxxx"
+# Response: { "feedbackStatus": "pending", ... }
+
+# 2. Poll until completed (typically within 10–30 seconds)
+curl https://your-host/api/v1/agent/sessions/ags_xxx/feedback \\
+  -H "Authorization: Bearer agk_live_xxxx"
+# Response: { "feedbackStatus": "completed", "feedbackReport": { ... } }
+\`\`\``,
+        tags: ["Sessions"],
+        security: [{ BearerAuth: [] }],
+        parameters: [
+          {
+            name: "sessionId",
+            in: "path",
+            required: true,
+            schema: { type: "string" },
+            example: "ags_a1b2c3d4e5f6g7h8i9j0",
+          },
+        ],
+        responses: {
+          "200": {
+            description: "Feedback status and report (when available).",
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/FeedbackResponse" },
+                examples: {
+                  pending: {
+                    summary: "Feedback still generating",
+                    value: {
+                      sessionId: "ags_a1b2c3d4e5f6g7h8i9j0",
+                      feedbackStatus: "pending",
+                      feedbackReport: null,
+                      requestId: "req_a1b2c3d4e5f6",
+                    },
+                  },
+                  completed: {
+                    summary: "Feedback ready",
+                    value: {
+                      sessionId: "ags_a1b2c3d4e5f6g7h8i9j0",
+                      feedbackStatus: "completed",
+                      feedbackReport: {
+                        overallScore: 3.4,
+                        dimensions: {
+                          clarity: 3.5,
+                          empathy: 4.0,
+                          logic: 3.0,
+                          ownership: 3.5,
+                          actionPlan: 2.5,
+                        },
+                        strengths: ["Demonstrated genuine empathy in turns 1 and 3."],
+                        improvements: ["Propose concrete next steps with specific dates."],
+                        summary: "The trainee showed strong empathetic listening but could improve action-oriented responses.",
+                      },
+                      requestId: "req_a1b2c3d4e5f6",
+                    },
+                  },
+                },
+              },
+            },
+          },
+          "401": { $ref: "#/components/responses/Unauthorized" },
+          "403": { $ref: "#/components/responses/Forbidden" },
+          "404": { $ref: "#/components/responses/NotFound" },
+          "429": { $ref: "#/components/responses/RateLimitExceeded" },
+          "500": { $ref: "#/components/responses/InternalError" },
+        },
+      },
+    },
     "/sessions/{sessionId}/end": {
       post: {
         operationId: "endSession",
-        summary: "End a session and get feedback",
-        description: `Ends the session and generates a full AI feedback report for the trainee.
+        summary: "End a session",
+        description: `Ends the session immediately and kicks off asynchronous AI feedback generation.
 
 **Scopes required:** \`sessions:end\`
 
 This operation is idempotent: ending an already-ended session returns the stored result without error.
 
-The \`feedbackReport\` field contains the full coaching summary generated by the AI. It includes:
-- Overall score (1–5)
-- Dimension breakdown (clarity, empathy, logic, ownership, actionPlan)
-- Specific strengths observed
-- Prioritized improvement suggestions
-- A narrative summary paragraph
+The endpoint returns immediately with \`feedbackStatus: "pending"\`. Feedback generation runs in the background (typically 10–30 seconds). Poll \`GET /sessions/:id/feedback\` to retrieve the report when ready, or subscribe to the \`feedback.completed\` webhook event.
 
 **Example curl:**
 \`\`\`bash
@@ -1412,7 +1520,7 @@ curl -X POST https://your-host/api/v1/agent/sessions/ags_xxx/end \\
         },
         responses: {
           "200": {
-            description: "Session ended with feedback report.",
+            description: "Session ended. Feedback generation started in the background.",
             content: {
               "application/json": {
                 schema: { $ref: "#/components/schemas/EndSessionResponse" },
@@ -1420,23 +1528,7 @@ curl -X POST https://your-host/api/v1/agent/sessions/ags_xxx/end \\
                   sessionId: "ags_a1b2c3d4e5f6g7h8i9j0",
                   status: "ended",
                   endedAt: "2026-05-22T09:15:00.000Z",
-                  feedbackReport: {
-                    overallScore: 3.4,
-                    dimensions: {
-                      clarity: 3.5,
-                      empathy: 4.0,
-                      logic: 3.0,
-                      ownership: 3.5,
-                      actionPlan: 2.5,
-                    },
-                    strengths: ["Demonstrated genuine empathy in turns 1 and 3."],
-                    improvements: [
-                      "Propose concrete next steps with specific dates.",
-                      "Clarify root cause ownership more directly.",
-                    ],
-                    summary:
-                      "The trainee showed strong empathetic listening but could improve action-oriented responses.",
-                  },
+                  feedbackStatus: "pending",
                   requestId: "req_a1b2c3d4e5f6",
                 },
               },
