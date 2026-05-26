@@ -26,7 +26,7 @@ import {
   attachAgentRequestId,
 } from "../middleware/agentApiKeyMiddleware";
 import { fileManager } from "../services/fileManager";
-import { generateAIResponse } from "../services/aiServiceFactory";
+import { generateAIResponse, generateStreamingAIResponse } from "../services/aiServiceFactory";
 import { storage } from "../storage";
 import { z } from "zod";
 import {
@@ -586,10 +586,13 @@ router.post("/sessions/:id/messages", requireScope("sessions:message"), async (r
     const requestId = req.agentRequestId;
     const sessionId = req.params.id;
 
-    // Idempotency
+    // Detect SSE streaming early so we can skip idempotency for streaming requests
+    const wantsStream = (req.headers["accept"] || "").includes("text/event-stream");
+
+    // Idempotency (skipped for SSE mode — streaming responses cannot be cached/replayed)
     const idempotencyKeyHeader = req.headers["idempotency-key"] as string | undefined;
     const bodyHash = hashRequestBody(req.body);
-    if (idempotencyKeyHeader) {
+    if (!wantsStream && idempotencyKeyHeader) {
       const { handled } = await handleIdempotency(res, idempotencyKeyHeader, agentKey.id, bodyHash);
       if (handled) return;
     }
@@ -658,19 +661,258 @@ router.post("/sessions/:id/messages", requireScope("sessions:message"), async (r
       emotionReason: m.emotionReason,
     }));
 
-    // Call AI
     const language = session.language as any;
+    const turn = Math.floor(existingMessages.length / 2);
+    const turnId = generateTurnId(sessionId, turn + 1);
+
+    // ── SSE Streaming path ─────────────────────────────────────────────────────
+    if (wantsStream) {
+      res.setHeader("Content-Type", "text/event-stream");
+      res.setHeader("Cache-Control", "no-cache");
+      res.setHeader("Connection", "keep-alive");
+      res.setHeader("X-Accel-Buffering", "no");
+      res.flushHeaders();
+
+      const flushRes = () => {
+        if ("flush" in res && typeof (res as any).flush === "function") {
+          (res as any).flush();
+        }
+      };
+
+      const writeEvent = (eventName: string, data: Record<string, unknown>) => {
+        res.write(`event: ${eventName}\ndata: ${JSON.stringify(data)}\n\n`);
+        flushRes();
+      };
+
+      // Stream chunks immediately while watching for the [META:{...}] marker.
+      // Strategy: emit each chunk right away, but keep a small rolling window (the length
+      // of the META_PREFIX string = 6 chars) so we can detect markers that span chunk
+      // boundaries. Once [META: is found, buffer the rest and stop emitting deltas.
+      const META_PREFIX = "[META:";
+      const META_WINDOW = META_PREFIX.length; // 6 — minimal holdback, ensures true streaming
+      let fullContent = "";
+      let emittedUpTo = 0;
+      let metaFoundAt = -1; // index in fullContent where [META: begins
+
+      try {
+        const stream = await generateStreamingAIResponse(
+          scenarioWithDifficulty as any,
+          conversationMessages,
+          persona,
+          message,
+          language,
+          session.externalUserId ?? undefined
+        );
+        for await (const chunk of stream) {
+          fullContent += chunk;
+
+          if (metaFoundAt >= 0) {
+            // Already buffering META content — don't emit anything further
+            continue;
+          }
+
+          // Search for [META: starting slightly before the last emitted position
+          // to catch markers split across chunk boundaries
+          const searchFrom = Math.max(0, emittedUpTo - META_WINDOW + 1);
+          const idx = fullContent.indexOf(META_PREFIX, searchFrom);
+
+          if (idx >= 0) {
+            // Found [META: — emit everything before it, then stop
+            metaFoundAt = idx;
+            const safe = fullContent.slice(emittedUpTo, idx);
+            if (safe.length > 0) writeEvent("delta", { content: safe });
+            emittedUpTo = idx;
+          } else {
+            // No META yet. Emit up to (fullContent.length - META_WINDOW) to leave
+            // a small window for cross-chunk detection.
+            const safeEnd = Math.max(emittedUpTo, fullContent.length - META_WINDOW);
+            if (safeEnd > emittedUpTo) {
+              writeEvent("delta", { content: fullContent.slice(emittedUpTo, safeEnd) });
+              emittedUpTo = safeEnd;
+            }
+          }
+        }
+      } catch (streamErr) {
+        console.error("[agentApi] SSE stream error:", streamErr);
+        writeEvent("error", { message: "AI response generation failed." });
+        res.end();
+        return;
+      }
+
+      // Parse [META:{...}] marker from end of accumulated content
+      const metaMatch = fullContent.match(/\[META:([\s\S]*?)\]\s*$/);
+      let metaParsed: { emotion?: string; emotionReason?: string } = {};
+      let cleanContent = fullContent;
+      if (metaMatch) {
+        try {
+          metaParsed = JSON.parse(metaMatch[1]);
+          cleanContent = fullContent.slice(0, fullContent.lastIndexOf("[META:")).trimEnd();
+        } catch {
+          // keep raw content as-is
+        }
+      }
+
+      // Emit any remaining clean content that wasn't sent during the loop
+      const remaining = cleanContent.slice(emittedUpTo);
+      if (remaining.length > 0) {
+        writeEvent("delta", { content: remaining });
+      }
+
+      const streamEmotion = metaParsed.emotion ?? "중립";
+      const streamEmotionReason = metaParsed.emotionReason ?? "";
+
+      // Save messages to persona run if available
+      if (session.personaRunId) {
+        await storage.createChatMessage({
+          personaRunId: session.personaRunId,
+          sender: "user",
+          message,
+          turnIndex: turn,
+        }).catch(() => {});
+
+        await storage.createChatMessage({
+          personaRunId: session.personaRunId,
+          sender: "ai",
+          message: cleanContent,
+          turnIndex: turn,
+          emotion: streamEmotion || null,
+          emotionReason: streamEmotionReason || null,
+        }).catch(() => {});
+      }
+
+      const latencyMs = Date.now() - startTime;
+
+      // Token counts for streaming path are always estimated (no provider metadata)
+      const inputTokensEst = estimateTokens(message);
+      const outputTokensEst = estimateTokens(cleanContent);
+      const tokensEstimated = true;
+
+      const prevMeta = (session.metadata as Record<string, any>) ?? {};
+      const prevSessionUsage = (prevMeta.sessionUsage as { requestCount: number; inputTokens: number; outputTokens: number }) ?? { requestCount: 0, inputTokens: 0, outputTokens: 0 };
+      const updatedSessionUsage = {
+        requestCount: prevSessionUsage.requestCount + 1,
+        inputTokens: prevSessionUsage.inputTokens + inputTokensEst,
+        outputTokens: prevSessionUsage.outputTokens + outputTokensEst,
+      };
+
+      await db
+        .update(agentSessions)
+        .set({ lastActivityAt: new Date(), metadata: { ...prevMeta, sessionUsage: updatedSessionUsage } })
+        .where(eq(agentSessions.id, sessionId))
+        .catch(() => {});
+
+      // Run simulation engine (same as non-streaming path)
+      let simulationState: any = null;
+      let turnScore: any = null;
+
+      if (session.personaRunId) {
+        try {
+          const personaRunId = session.personaRunId;
+          let currentState = getSessionState(personaRunId);
+          if (!currentState) {
+            const stored = await storage.getSimulationState(personaRunId).catch(() => null);
+            if (stored) {
+              const { setSessionState } = await import("../services/simulation/simulationEngine");
+              setSessionState(personaRunId, stored as any);
+              currentState = stored as any;
+            } else {
+              currentState = createDefaultSimulationState();
+            }
+          }
+          getOrCreateSessionContext(personaRunId, currentState);
+
+          const evalResult = await evaluateUserResponse({
+            personaRunId,
+            turnId,
+            turnIndex: turn,
+            userText: message,
+            aiText: cleanContent,
+            simulationState: currentState,
+            language: (session.language as any) ?? "ko",
+            evaluationMode: "fast",
+          });
+
+          if (!evalResult.skipped) {
+            const newState = applySimulationPatch(personaRunId, {
+              turnId,
+              source: "server_evaluation",
+              priority: "normal",
+              patch: {
+                npcEmotionDelta: evalResult.emotionDelta,
+                turnScoresToAdd: [evalResult.turnScore],
+              },
+            });
+            simulationState = newState;
+            turnScore = evalResult.turnScore;
+
+            storage.saveSimulationState(personaRunId, newState as unknown as Record<string, unknown>)
+              .catch((e) => console.warn("[agentApi] Failed to save simulation state:", e));
+
+            const personaRun = await storage.getPersonaRun(personaRunId).catch(() => null);
+            storage.createSimulationEvent({
+              personaRunId,
+              scenarioRunId: personaRun?.scenarioRunId ?? "",
+              turnIndex: turn,
+              turnId,
+              eventType: "auto_evaluation",
+              toolName: null,
+              args: { userTextLength: message.length, method: evalResult.method, evalMode: "fast" },
+              result: { turnScore: evalResult.turnScore },
+              stateBefore: currentState,
+              stateAfter: newState,
+              stateVersionBefore: currentState.version,
+              stateVersionAfter: newState.version,
+              includeInReport: true,
+            }).catch((e) => console.warn("[agentApi] Failed to save simulation event:", e));
+          } else {
+            simulationState = currentState;
+          }
+        } catch (err) {
+          console.warn("[agentApi] Simulation engine error (non-fatal):", err);
+        }
+      }
+
+      await incrementUsageDaily(orgId, agentKey.id, {
+        inputTokens: inputTokensEst,
+        outputTokens: outputTokensEst,
+        latencyMs,
+      }).catch(() => {});
+
+      const messageCount = updatedSessionUsage.requestCount * 2;
+
+      writeEvent("done", {
+        emotion: streamEmotion,
+        emotionReason: streamEmotionReason,
+        turnId,
+        turnIndex: turn,
+        turnScore,
+        simulationState,
+        usage: {
+          requestCount: updatedSessionUsage.requestCount,
+          messageCount,
+          inputTokens: updatedSessionUsage.inputTokens,
+          outputTokens: updatedSessionUsage.outputTokens,
+          tokensEstimated,
+        },
+        requestId,
+      });
+
+      res.end();
+      return;
+    }
+    // ── End SSE path ───────────────────────────────────────────────────────────
+
+    // Call AI (non-streaming path)
     const aiResult = await generateAIResponse(
       scenarioWithDifficulty as any,
       conversationMessages,
       persona,
       message,
       language,
-      session.externalUserId
+      session.externalUserId ?? undefined
     );
 
     // Save messages to persona run if available
-    const turn = Math.floor(existingMessages.length / 2);
     if (session.personaRunId) {
       await storage.createChatMessage({
         personaRunId: session.personaRunId,
@@ -692,6 +934,10 @@ router.post("/sessions/:id/messages", requireScope("sessions:message"), async (r
     const latencyMs = Date.now() - startTime;
 
     // Prefer real provider token counts; fall back to length-based estimation
+    const hasRealUsage =
+      (aiResult as any).usageMetadata?.promptTokenCount != null ||
+      (aiResult as any).promptTokenCount != null;
+    const tokensEstimated = !hasRealUsage;
     const inputTokensEst =
       (aiResult as any).usageMetadata?.promptTokenCount ??
       (aiResult as any).promptTokenCount ??
@@ -719,8 +965,6 @@ router.post("/sessions/:id/messages", requireScope("sessions:message"), async (r
       })
       .where(eq(agentSessions.id, sessionId))
       .catch(() => {});
-
-    const turnId = generateTurnId(sessionId, turn + 1);
 
     // ── Simulation Engine Integration ──────────────────────────────────────
     let simulationState: any = null;
@@ -828,6 +1072,7 @@ router.post("/sessions/:id/messages", requireScope("sessions:message"), async (r
         messageCount,
         inputTokens: updatedSessionUsage.inputTokens,
         outputTokens: updatedSessionUsage.outputTokens,
+        tokensEstimated,
       },
       requestId,
     };

@@ -366,7 +366,7 @@ All errors follow a consistent envelope:
           },
           usage: {
             type: "object",
-            required: ["requestCount", "messageCount", "inputTokens", "outputTokens"],
+            required: ["requestCount", "messageCount", "inputTokens", "outputTokens", "tokensEstimated"],
             description: "Cumulative usage counters for this session, updated after every turn.",
             properties: {
               requestCount: {
@@ -382,12 +382,17 @@ All errors follow a consistent envelope:
               inputTokens: {
                 type: "integer",
                 example: 1240,
-                description: "Estimated cumulative input tokens across all turns.",
+                description: "Cumulative input tokens across all turns.",
               },
               outputTokens: {
                 type: "integer",
                 example: 870,
-                description: "Estimated cumulative output tokens across all turns.",
+                description: "Cumulative output tokens across all turns.",
+              },
+              tokensEstimated: {
+                type: "boolean",
+                example: false,
+                description: "`true` when token counts were derived from a heuristic length estimate (provider did not return real usage metadata); `false` when counts came from the provider's actual usage data.",
               },
             },
           },
@@ -899,12 +904,30 @@ When the session was **already ended** (idempotent call), only \`sessionId\`, \`
 
 **Errors:** Returns \`400 session_ended\` if the session is no longer active.
 
-**Example curl:**
+**Streaming (SSE):** Set \`Accept: text/event-stream\` to receive the AI reply as a stream of Server-Sent Events instead of waiting for the full response. The stream emits three event types:
+- \`event: delta\` — incremental content chunk: \`{"content":"<string>"}\`
+- \`event: done\` — final metadata once the full reply has been sent: \`{"emotion","emotionReason","turnId","turnIndex","turnScore","simulationState","usage","requestId"}\`
+- \`event: error\` — error payload if something goes wrong mid-stream: \`{"message":"<string>"}\`
+
+The \`usage.tokensEstimated\` field is \`true\` on the streaming path (heuristic counts) and \`false\` when the provider returned real token metadata.
+
+Note: The \`Idempotency-Key\` header is ignored in SSE mode — do not rely on idempotency for streaming requests.
+
+**Example curl (standard JSON):**
 \`\`\`bash
 curl -X POST https://your-host/api/v1/agent/sessions/ags_xxx/messages \\
   -H "Authorization: Bearer agk_live_xxxx" \\
   -H "Content-Type: application/json" \\
   -H "Idempotency-Key: $(uuidgen)" \\
+  -d '{"message": "I understand your frustration. Let me explain what happened."}'
+\`\`\`
+
+**Example curl (SSE streaming):**
+\`\`\`bash
+curl -X POST https://your-host/api/v1/agent/sessions/ags_xxx/messages \\
+  -H "Authorization: Bearer agk_live_xxxx" \\
+  -H "Content-Type: application/json" \\
+  -H "Accept: text/event-stream" \\
   -d '{"message": "I understand your frustration. Let me explain what happened."}'
 \`\`\``,
         tags: ["Sessions"],
@@ -948,7 +971,17 @@ curl -X POST https://your-host/api/v1/agent/sessions/ags_xxx/messages \\
         },
         responses: {
           "200": {
-            description: "AI reply with simulation update.",
+            description: `AI reply with simulation update.
+
+When \`Accept: text/event-stream\` is **not** set the response is \`application/json\`.
+
+When \`Accept: text/event-stream\` **is** set the response body is a stream of Server-Sent Events (SSE). Each event line has the form \`event: <type>\\ndata: <json>\\n\\n\`. Three event types are emitted:
+
+| Type | Payload | When |
+|---|---|---|
+| \`delta\` | \`{"content":"<chunk>"}\` | Once per AI token chunk |
+| \`done\` | \`{"emotion","emotionReason","turnId","turnIndex","turnScore","simulationState","usage","requestId"}\` | After all chunks sent |
+| \`error\` | \`{"message":"<description>"}\` | If generation fails mid-stream |`,
             content: {
               "application/json": {
                 schema: { $ref: "#/components/schemas/MessageResponse" },
@@ -1003,8 +1036,26 @@ curl -X POST https://your-host/api/v1/agent/sessions/ags_xxx/messages \\
                     evaluationMethod: "llm",
                     evaluationConfidence: 0.91,
                   },
-                  usage: { requestCount: 1, messageCount: 2, inputTokens: 420, outputTokens: 310 },
+                  usage: { requestCount: 1, messageCount: 2, inputTokens: 420, outputTokens: 310, tokensEstimated: false },
                   requestId: "req_a1b2c3d4e5f6",
+                },
+              },
+              "text/event-stream": {
+                schema: {
+                  type: "string",
+                  description: `SSE stream. Lines are in the form \`event: <type>\\ndata: <json>\\n\\n\`.
+
+**Example stream:**
+\`\`\`
+event: delta
+data: {"content":"I appreciate"}
+
+event: delta
+data: {"content":" you saying that,"}
+
+event: done
+data: {"emotion":"frustrated","emotionReason":"The apology felt generic.","turnId":"ags_xxx-1","turnScore":null,"simulationState":null,"usage":{"requestCount":1,"messageCount":2,"inputTokens":105,"outputTokens":48,"tokensEstimated":true},"requestId":"req_a1b2c3d4e5f6"}
+\`\`\``,
                 },
               },
             },
