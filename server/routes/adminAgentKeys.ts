@@ -400,6 +400,7 @@ router.get(
         inputTokens: sql<number>`SUM(${agentUsageDaily.inputTokens})::int`,
         outputTokens: sql<number>`SUM(${agentUsageDaily.outputTokens})::int`,
         totalTokens: sql<number>`SUM(${agentUsageDaily.totalTokens})::int`,
+        cachedTokens: sql<number>`SUM(${agentUsageDaily.cachedTokens})::int`,
         errorCount: sql<number>`SUM(${agentUsageDaily.errorCount})::int`,
       })
       .from(agentUsageDaily)
@@ -408,7 +409,7 @@ router.get(
       .orderBy(agentUsageDaily.date);
 
     // Collapse multi-key rows into single-date aggregates for the chart
-    const byDate = new Map<string, { date: string; requestCount: number; inputTokens: number; outputTokens: number; totalTokens: number; errorCount: number }>();
+    const byDate = new Map<string, { date: string; requestCount: number; inputTokens: number; outputTokens: number; totalTokens: number; cachedTokens: number; errorCount: number }>();
     for (const row of rows) {
       const existing = byDate.get(row.date);
       if (existing) {
@@ -416,6 +417,7 @@ router.get(
         existing.inputTokens += row.inputTokens;
         existing.outputTokens += row.outputTokens;
         existing.totalTokens += row.totalTokens;
+        existing.cachedTokens += row.cachedTokens;
         existing.errorCount += row.errorCount;
       } else {
         byDate.set(row.date, {
@@ -424,6 +426,7 @@ router.get(
           inputTokens: row.inputTokens,
           outputTokens: row.outputTokens,
           totalTokens: row.totalTokens,
+          cachedTokens: row.cachedTokens,
           errorCount: row.errorCount,
         });
       }
@@ -436,10 +439,11 @@ router.get(
         acc.totalRequests += r.requestCount;
         acc.totalInputTokens += r.inputTokens;
         acc.totalOutputTokens += r.outputTokens;
+        acc.totalCachedTokens += r.cachedTokens;
         acc.totalErrors += r.errorCount;
         return acc;
       },
-      { totalRequests: 0, totalInputTokens: 0, totalOutputTokens: 0, totalErrors: 0 }
+      { totalRequests: 0, totalInputTokens: 0, totalOutputTokens: 0, totalCachedTokens: 0, totalErrors: 0 }
     );
 
     res.json({ rows: dailyRows, summary });

@@ -1332,6 +1332,23 @@ export async function runMigrations(): Promise<void> {
         console.warn('⚠️ Failed to migrate deprecated realtime model setting:', err);
       }
 
+      // Add cached_tokens column to agent_usage_daily if not exists
+      try {
+        await client.query(`
+          DO $$ BEGIN
+            IF NOT EXISTS (
+              SELECT 1 FROM information_schema.columns
+              WHERE table_name = 'agent_usage_daily' AND column_name = 'cached_tokens'
+            ) THEN
+              ALTER TABLE "agent_usage_daily" ADD COLUMN "cached_tokens" integer NOT NULL DEFAULT 0;
+            END IF;
+          END $$;
+        `);
+        console.log('✅ agent_usage_daily.cached_tokens column ensured');
+      } catch (err) {
+        console.warn('⚠️ Failed to add cached_tokens column to agent_usage_daily:', err);
+      }
+
       // Backfill isPrimary on multi-persona scenarios that have none set.
       // Sets isPrimary=true on persona[0] (the default primary) for any scenario
       // where >1 persona exists but no persona has isPrimary=true yet.

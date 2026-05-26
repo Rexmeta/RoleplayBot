@@ -155,7 +155,7 @@ describe('incrementUsageDaily', () => {
       expect(targetCols).toContain('date');
     });
 
-    it('includes requestCount, inputTokens, outputTokens, totalTokens, errorCount in the SET clause', async () => {
+    it('includes requestCount, inputTokens, outputTokens, totalTokens, cachedTokens, errorCount in the SET clause', async () => {
       await incrementUsageDaily('org-1', 'key-1', { inputTokens: 10, outputTokens: 20 });
 
       const conflictArg = mockOnConflictDoUpdate.mock.calls[0][0];
@@ -164,7 +164,22 @@ describe('incrementUsageDaily', () => {
       expect(setKeys).toContain('inputTokens');
       expect(setKeys).toContain('outputTokens');
       expect(setKeys).toContain('totalTokens');
+      expect(setKeys).toContain('cachedTokens');
       expect(setKeys).toContain('errorCount');
+    });
+
+    it('inserts cachedTokens=0 when not provided', async () => {
+      await incrementUsageDaily('org-1', 'key-1', { inputTokens: 50, outputTokens: 100 });
+
+      const insertedValues = mockValues.mock.calls[0][0];
+      expect(insertedValues.cachedTokens).toBe(0);
+    });
+
+    it('inserts cachedTokens when provided', async () => {
+      await incrementUsageDaily('org-1', 'key-1', { cachedTokens: 200 });
+
+      const insertedValues = mockValues.mock.calls[0][0];
+      expect(insertedValues.cachedTokens).toBe(200);
     });
 
     it('accumulates error counts when errorCount param is provided', async () => {

@@ -125,6 +125,7 @@ export const agentUsageDaily = pgTable("agent_usage_daily", {
   inputTokens: integer("input_tokens").notNull().default(0),
   outputTokens: integer("output_tokens").notNull().default(0),
   totalTokens: integer("total_tokens").notNull().default(0),
+  cachedTokens: integer("cached_tokens").notNull().default(0),
   errorCount: integer("error_count").notNull().default(0),
   avgLatencyMs: integer("avg_latency_ms"),
 }, (table) => [

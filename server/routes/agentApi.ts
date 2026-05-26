@@ -71,7 +71,7 @@ function hashRequestBody(body: any): string {
 export async function incrementUsageDaily(
   organizationId: string,
   agentKeyId: string,
-  params: { inputTokens?: number; outputTokens?: number; errorCount?: number; latencyMs?: number }
+  params: { inputTokens?: number; outputTokens?: number; cachedTokens?: number; errorCount?: number; latencyMs?: number }
 ): Promise<void> {
   try {
     const date = new Date().toISOString().slice(0, 10);
@@ -86,6 +86,7 @@ export async function incrementUsageDaily(
         inputTokens: params.inputTokens ?? 0,
         outputTokens: params.outputTokens ?? 0,
         totalTokens: (params.inputTokens ?? 0) + (params.outputTokens ?? 0),
+        cachedTokens: params.cachedTokens ?? 0,
         errorCount: params.errorCount ?? 0,
         avgLatencyMs: params.latencyMs ?? null,
       })
@@ -96,6 +97,7 @@ export async function incrementUsageDaily(
           inputTokens: sql`${agentUsageDaily.inputTokens} + ${params.inputTokens ?? 0}`,
           outputTokens: sql`${agentUsageDaily.outputTokens} + ${params.outputTokens ?? 0}`,
           totalTokens: sql`${agentUsageDaily.totalTokens} + ${(params.inputTokens ?? 0) + (params.outputTokens ?? 0)}`,
+          cachedTokens: sql`${agentUsageDaily.cachedTokens} + ${params.cachedTokens ?? 0}`,
           errorCount: sql`${agentUsageDaily.errorCount} + ${params.errorCount ?? 0}`,
         },
       });
@@ -241,7 +243,11 @@ function buildRateLimiter(store: any) {
     store,
     standardHeaders: true,
     legacyHeaders: false,
-    handler: (_req, res) => {
+    handler: (req, res) => {
+      const key = (req as any).agentKey;
+      if (key?.organizationId && key?.id) {
+        incrementUsageDaily(key.organizationId, key.id, { errorCount: 1 }).catch(() => {});
+      }
       agentError(res, 429, "rate_limit_exceeded", "Rate limit exceeded. See X-RateLimit-* headers for limits.");
     },
     skip: (req) => !(req as any).agentKey,

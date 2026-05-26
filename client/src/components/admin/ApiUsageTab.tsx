@@ -25,6 +25,7 @@ interface DailyRow {
   inputTokens: number;
   outputTokens: number;
   totalTokens: number;
+  cachedTokens: number;
   errorCount: number;
 }
 
@@ -32,6 +33,7 @@ interface UsageSummary {
   totalRequests: number;
   totalInputTokens: number;
   totalOutputTokens: number;
+  totalCachedTokens: number;
   totalErrors: number;
 }
 
@@ -121,6 +123,12 @@ export function ApiUsageTab() {
       value: summary ? fmt(summary.totalInputTokens + summary.totalOutputTokens) : "–",
       icon: <Zap className="w-5 h-5 text-amber-500" />,
       bg: "bg-amber-50",
+    },
+    {
+      label: "캐시 토큰",
+      value: summary ? fmt(summary.totalCachedTokens ?? 0) : "–",
+      icon: <AlertCircle className="w-5 h-5 text-cyan-500" />,
+      bg: "bg-cyan-50",
     },
   ];
 

@@ -31,7 +31,7 @@ import {
   BarChart,
   Bar,
 } from "recharts";
-import { Loader2, Activity, AlertCircle, Clock, Zap } from "lucide-react";
+import { Loader2, Activity, AlertCircle, Clock, Zap, Database } from "lucide-react";
 
 interface AgentUsageDailyRow {
   id: string;
@@ -43,6 +43,7 @@ interface AgentUsageDailyRow {
   inputTokens: number;
   outputTokens: number;
   totalTokens: number;
+  cachedTokens: number;
   errorCount: number;
   avgLatencyMs: number | null;
 }
@@ -90,10 +91,11 @@ export function AgentKeyUsageDashboard({ keyId, keyName, keyPrefix, open, onClos
     (acc, r) => ({
       requests: acc.requests + r.requestCount,
       tokens: acc.tokens + r.totalTokens,
+      cached: acc.cached + (r.cachedTokens ?? 0),
       errors: acc.errors + r.errorCount,
       sessions: acc.sessions + r.sessionCount,
     }),
-    { requests: 0, tokens: 0, errors: 0, sessions: 0 }
+    { requests: 0, tokens: 0, cached: 0, errors: 0, sessions: 0 }
   );
 
   const errorRate = totals.requests > 0
@@ -163,7 +165,7 @@ export function AgentKeyUsageDashboard({ keyId, keyName, keyPrefix, open, onClos
         ) : (
           <>
             {/* Summary stat cards */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
               <Card>
                 <CardHeader className="pb-1 pt-3 px-4">
                   <CardTitle className="text-xs text-muted-foreground font-medium flex items-center gap-1">
@@ -184,6 +186,17 @@ export function AgentKeyUsageDashboard({ keyId, keyName, keyPrefix, open, onClos
                 </CardHeader>
                 <CardContent className="px-4 pb-3">
                   <div className="text-2xl font-bold">{totals.tokens.toLocaleString()}</div>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardHeader className="pb-1 pt-3 px-4">
+                  <CardTitle className="text-xs text-muted-foreground font-medium flex items-center gap-1">
+                    <Database className="h-3.5 w-3.5" />
+                    {t("agentKeys.usage.stat.cachedTokens", "Cached Tokens")}
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="px-4 pb-3">
+                  <div className="text-2xl font-bold">{totals.cached.toLocaleString()}</div>
                 </CardContent>
               </Card>
               <Card>

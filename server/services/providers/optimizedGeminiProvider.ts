@@ -239,6 +239,7 @@ export class OptimizedGeminiProvider implements AIServiceInterface {
         completionTokens: tokens.completionTokens,
         cachedTokens,
         durationMs: totalTime,
+        metadata: { ttftMs: totalTime },
       });
 
       return {
@@ -623,27 +624,51 @@ ${conversationHistory}
       )
     );
 
+    const modelForTracking = this.model;
+
     async function* streamGenerator(): AsyncIterable<string> {
       const stream = await streamPromise;
       let totalCachedTokens = 0;
+      let lastPromptTokens = 0;
+      let lastCompletionTokens = 0;
       let firstChunk = true;
+      let ttftMs: number | undefined;
+
       for await (const chunk of stream) {
-        const cached = (chunk as any)?.usageMetadata?.cachedContentTokenCount || 0;
-        if (cached > totalCachedTokens) totalCachedTokens = cached;
+        const meta = (chunk as any)?.usageMetadata;
+        if (meta) {
+          if (meta.cachedContentTokenCount) totalCachedTokens = Math.max(totalCachedTokens, meta.cachedContentTokenCount);
+          if (meta.promptTokenCount) lastPromptTokens = meta.promptTokenCount;
+          if (meta.candidatesTokenCount) lastCompletionTokens = meta.candidatesTokenCount;
+        }
         const text: string = chunk.candidates?.[0]?.content?.parts?.[0]?.text ?? '';
         if (text) {
           if (firstChunk) {
             firstChunk = false;
-            console.log(`⚡ TTFT (streaming): ${Date.now() - streamStartTime}ms`);
+            ttftMs = Date.now() - streamStartTime;
+            console.log(`⚡ TTFT (streaming): ${ttftMs}ms`);
           }
           yield text;
         }
       }
+
+      const totalDurationMs = Date.now() - streamStartTime;
       if (totalCachedTokens > 0) {
         console.log(`⚡ Cache hit (streaming): ${totalCachedTokens} cached tokens`);
       } else {
         console.log(`📭 No cache hit (streaming) — first call or cache miss`);
       }
+
+      trackUsage({
+        feature: 'conversation',
+        model: getModelPricingKey(modelForTracking),
+        provider: 'gemini',
+        promptTokens: lastPromptTokens,
+        completionTokens: lastCompletionTokens,
+        cachedTokens: totalCachedTokens,
+        durationMs: totalDurationMs,
+        metadata: { ttftMs },
+      });
     }
 
     return streamGenerator();
