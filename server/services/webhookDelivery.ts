@@ -23,10 +23,10 @@ import { db } from "../storage";
 import { agentWebhooks, agentWebhookDeliveries } from "@shared/schema";
 import { eq, and } from "drizzle-orm";
 
-export type WebhookEventType = "session.ended" | "session.expired" | "feedback.completed";
+export type WebhookEventType = "session.ended" | "session.expired" | "feedback.completed" | "agent_key.low_token_rate";
 
 export interface WebhookEventData {
-  sessionId: string;
+  sessionId?: string;
   [key: string]: any;
 }
 

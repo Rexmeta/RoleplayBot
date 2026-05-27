@@ -14,7 +14,7 @@ import {
   auditLogs,
   AGENT_API_SCOPES,
 } from "@shared/schema";
-import { eq, and, desc, sql, or, gte, lt, lte, isNull } from "drizzle-orm";
+import { eq, and, desc, sql, or, gte, lt, lte, isNull, ne } from "drizzle-orm";
 import { isSystemAdmin, isOperatorOrAdmin } from "../middleware/authMiddleware";
 import { asyncHandler, createHttpError } from "./routerHelpers";
 import { generateAgentApiKey, computeExpiryDate } from "../utils/agentApiKey";
@@ -466,13 +466,16 @@ router.get(
   asyncHandler(async (req: any, res) => {
     const isAdmin = req.user.role === "admin";
 
+    // Only surface alerts that have an in-app component (exclude webhook-only)
+    const inAppFilter = ne(agentKeyAlerts.notificationMethod, "webhook");
+
     type AlertRow = typeof agentKeyAlerts.$inferSelect;
     let rows: AlertRow[];
     if (isAdmin) {
       rows = await db
         .select()
         .from(agentKeyAlerts)
-        .where(isNull(agentKeyAlerts.acknowledgedAt))
+        .where(and(isNull(agentKeyAlerts.acknowledgedAt), inAppFilter))
         .orderBy(desc(agentKeyAlerts.createdAt))
         .limit(50);
     } else {
@@ -483,7 +486,7 @@ router.get(
         rows = await db
           .select()
           .from(agentKeyAlerts)
-          .where(and(isNull(agentKeyAlerts.acknowledgedAt), eq(agentKeyAlerts.organizationId, req.user.assignedOrganizationId)))
+          .where(and(isNull(agentKeyAlerts.acknowledgedAt), eq(agentKeyAlerts.organizationId, req.user.assignedOrganizationId), inAppFilter))
           .orderBy(desc(agentKeyAlerts.createdAt))
           .limit(50);
       }
@@ -533,9 +536,13 @@ router.get(
   "/alert-settings",
   isSystemAdmin,
   asyncHandler(async (_req: any, res) => {
-    const setting = await storage.getSystemSetting("agent", "real_token_rate_threshold");
-    const threshold = setting ? parseInt(setting.value, 10) : 50;
-    res.json({ threshold });
+    const [thresholdSetting, methodSetting] = await Promise.all([
+      storage.getSystemSetting("agent", "real_token_rate_threshold"),
+      storage.getSystemSetting("agent", "alert_notification_method"),
+    ]);
+    const threshold = thresholdSetting ? parseInt(thresholdSetting.value, 10) : 50;
+    const notificationMethod = (methodSetting?.value as "in_app" | "webhook" | "both") ?? "in_app";
+    res.json({ threshold, notificationMethod });
   })
 );
 
@@ -544,6 +551,7 @@ router.get(
 // ─────────────────────────────────────────────────────────────────────────────
 const alertSettingsSchema = z.object({
   threshold: z.number().int().min(1).max(100),
+  notificationMethod: z.enum(["in_app", "webhook", "both"]).default("in_app"),
 });
 
 router.put(
@@ -556,14 +564,23 @@ router.put(
         details: parsed.error.flatten(),
       });
     }
-    await storage.upsertSystemSetting({
-      category: "agent",
-      key: "real_token_rate_threshold",
-      value: String(parsed.data.threshold),
-      description: "Minimum acceptable real-token rate (%) for agent API keys. Alerts fire when a key drops below this.",
-      updatedBy: req.user.id,
-    });
-    res.json({ threshold: parsed.data.threshold });
+    await Promise.all([
+      storage.upsertSystemSetting({
+        category: "agent",
+        key: "real_token_rate_threshold",
+        value: String(parsed.data.threshold),
+        description: "Minimum acceptable real-token rate (%) for agent API keys. Alerts fire when a key drops below this.",
+        updatedBy: req.user.id,
+      }),
+      storage.upsertSystemSetting({
+        category: "agent",
+        key: "alert_notification_method",
+        value: parsed.data.notificationMethod,
+        description: "Delivery method for low-token-rate alerts: in_app, webhook, or both.",
+        updatedBy: req.user.id,
+      }),
+    ]);
+    res.json({ threshold: parsed.data.threshold, notificationMethod: parsed.data.notificationMethod });
   })
 );
 

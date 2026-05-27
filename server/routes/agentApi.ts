@@ -184,13 +184,17 @@ export async function checkAndFireRateAlert(agentKeyId: string): Promise<void> {
       .where(eq(agentApiKeys.id, agentKeyId))
       .limit(1);
 
-    await db.insert(agentKeyAlerts).values({
+    const methodSetting = await storage.getSystemSetting("agent", "alert_notification_method");
+    const notificationMethod = (methodSetting?.value as "in_app" | "webhook" | "both") ?? "in_app";
+
+    const [upsertResult] = await db.insert(agentKeyAlerts).values({
       agentKeyId,
       agentKeyName: keyRow?.name ?? agentKeyId,
       organizationId: usageRow.organizationId,
       period,
       realTokenRate: realPct,
       threshold,
+      notificationMethod,
     }).onConflictDoUpdate({
       target: [agentKeyAlerts.agentKeyId, agentKeyAlerts.period],
       set: {
@@ -198,8 +202,21 @@ export async function checkAndFireRateAlert(agentKeyId: string): Promise<void> {
         threshold,
         acknowledgedAt: null,
         agentKeyName: keyRow?.name ?? agentKeyId,
+        notificationMethod,
       },
-    });
+    }).returning({ id: agentKeyAlerts.id });
+
+    // Dispatch webhook on first alert and on re-fires (whenever the upsert lands)
+    if (upsertResult && (notificationMethod === "webhook" || notificationMethod === "both")) {
+      dispatchWebhook(agentKeyId, "agent_key.low_token_rate", {
+        agentKeyId,
+        agentKeyName: keyRow?.name ?? agentKeyId,
+        organizationId: usageRow.organizationId,
+        period,
+        realTokenRate: realPct,
+        threshold,
+      }).catch(() => {});
+    }
   } catch (err) {
     console.warn("[agentApi] checkAndFireRateAlert failed (non-fatal):", err);
   }
@@ -1616,7 +1633,7 @@ router.get("/usage", requireScope("usage:read"), async (req: any, res) => {
 // Webhook CRUD endpoints
 // ─────────────────────────────────────────────────────────────────────────────
 
-const SUPPORTED_WEBHOOK_EVENTS = ["session.ended", "session.expired", "feedback.completed"] as const;
+const SUPPORTED_WEBHOOK_EVENTS = ["session.ended", "session.expired", "feedback.completed", "agent_key.low_token_rate"] as const;
 
 const createWebhookSchema = z.object({
   url: z

@@ -1589,6 +1589,17 @@ export async function runMigrations(): Promise<void> {
         console.warn('⚠️ Failed to create agent_key_alerts table:', err);
       }
 
+      // Add notification_method column to agent_key_alerts (idempotent)
+      try {
+        await client.query(`
+          ALTER TABLE "agent_key_alerts"
+            ADD COLUMN IF NOT EXISTS "notification_method" varchar(10) NOT NULL DEFAULT 'in_app';
+        `);
+        console.log('✅ agent_key_alerts.notification_method column ensured');
+      } catch (err) {
+        console.warn('⚠️ Failed to add agent_key_alerts.notification_method column:', err);
+      }
+
       console.log('✅ Database migrations completed successfully');
     } finally {
       client.release();

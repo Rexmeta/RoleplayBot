@@ -80,6 +80,7 @@ interface AgentKeyAlert {
   period: string;
   realTokenRate: number;
   threshold: number;
+  notificationMethod: "in_app" | "webhook" | "both";
   acknowledgedAt: string | null;
   createdAt: string;
 }
@@ -122,6 +123,7 @@ export function AgentKeyManager() {
   const [usageTarget, setUsageTarget] = useState<AgentApiKey | null>(null);
   const [thresholdEditOpen, setThresholdEditOpen] = useState(false);
   const [thresholdInput, setThresholdInput] = useState<number>(50);
+  const [notificationMethodInput, setNotificationMethodInput] = useState<"in_app" | "webhook" | "both">("in_app");
 
   const { data: keys = [], isLoading } = useQuery<AgentApiKey[]>({
     queryKey: ["/api/admin/agent-keys"],
@@ -131,7 +133,7 @@ export function AgentKeyManager() {
     queryKey: ["/api/admin/agent-keys/alerts"],
   });
 
-  const { data: alertSettings } = useQuery<{ threshold: number }>({
+  const { data: alertSettings } = useQuery<{ threshold: number; notificationMethod: "in_app" | "webhook" | "both" }>({
     queryKey: ["/api/admin/agent-keys/alert-settings"],
   });
 
@@ -149,8 +151,8 @@ export function AgentKeyManager() {
   });
 
   const updateThresholdMutation = useMutation({
-    mutationFn: async (threshold: number) => {
-      const res = await apiRequest("PUT", "/api/admin/agent-keys/alert-settings", { threshold });
+    mutationFn: async (payload: { threshold: number; notificationMethod: "in_app" | "webhook" | "both" }) => {
+      const res = await apiRequest("PUT", "/api/admin/agent-keys/alert-settings", payload);
       return res.json();
     },
     onSuccess: () => {
@@ -304,6 +306,7 @@ export function AgentKeyManager() {
   };
 
   const currentThreshold = alertSettings?.threshold ?? 50;
+  const currentNotificationMethod = alertSettings?.notificationMethod ?? "in_app";
 
   return (
     <div className="space-y-6">
@@ -361,7 +364,7 @@ export function AgentKeyManager() {
             <Button
               variant="outline"
               size="sm"
-              onClick={() => { setThresholdInput(currentThreshold); setThresholdEditOpen(true); }}
+              onClick={() => { setThresholdInput(currentThreshold); setNotificationMethodInput(currentNotificationMethod); setThresholdEditOpen(true); }}
               title={t("agentKeys.threshold.configure", "실 토큰률 경보 임계값 설정")}
             >
               <Settings2 className="h-4 w-4 mr-2" />
@@ -922,6 +925,26 @@ export function AgentKeyManager() {
                 {t("agentKeys.threshold.hint", "권장값: 50% (기본값). 높이면 더 민감하게, 낮추면 덜 민감하게 동작합니다.")}
               </p>
             </div>
+
+            <div className="space-y-1.5">
+              <Label>{t("agentKeys.threshold.notificationMethod", "알림 전달 방식")}</Label>
+              <Select
+                value={notificationMethodInput}
+                onValueChange={(v) => setNotificationMethodInput(v as "in_app" | "webhook" | "both")}
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="in_app">{t("agentKeys.threshold.method.inApp", "인앱 알림만")}</SelectItem>
+                  <SelectItem value="webhook">{t("agentKeys.threshold.method.webhook", "웹훅만")}</SelectItem>
+                  <SelectItem value="both">{t("agentKeys.threshold.method.both", "인앱 알림 + 웹훅")}</SelectItem>
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                {t("agentKeys.threshold.notificationHint", "웹훅 옵션은 해당 API 키에 등록된 웹훅으로 agent_key.low_token_rate 이벤트를 발송합니다.")}
+              </p>
+            </div>
           </div>
 
           <DialogFooter>
@@ -929,7 +952,7 @@ export function AgentKeyManager() {
               {t("common.cancel", "취소")}
             </Button>
             <Button
-              onClick={() => updateThresholdMutation.mutate(thresholdInput)}
+              onClick={() => updateThresholdMutation.mutate({ threshold: thresholdInput, notificationMethod: notificationMethodInput })}
               disabled={updateThresholdMutation.isPending || thresholdInput < 1 || thresholdInput > 100}
             >
               {updateThresholdMutation.isPending ? (
