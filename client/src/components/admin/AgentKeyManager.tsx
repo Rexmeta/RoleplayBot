@@ -47,6 +47,10 @@ import {
   AlertTriangle,
   X,
   Settings2,
+  Webhook,
+  Bell,
+  BellOff,
+  Trash2,
 } from "lucide-react";
 import { format } from "date-fns";
 import { AGENT_API_SCOPES } from "@shared/schema";
@@ -85,6 +89,16 @@ interface AgentKeyAlert {
   acknowledgedAt: string | null;
   createdAt: string;
 }
+
+interface AgentWebhook {
+  id: string;
+  url: string;
+  events: string[];
+  isActive: boolean;
+  createdAt: string | null;
+}
+
+const LOW_TOKEN_RATE_EVENT = "agent_key.low_token_rate";
 
 interface Scenario {
   id: string;
@@ -125,6 +139,9 @@ export function AgentKeyManager() {
   const [thresholdEditOpen, setThresholdEditOpen] = useState(false);
   const [thresholdInput, setThresholdInput] = useState<number>(50);
   const [notificationMethodInput, setNotificationMethodInput] = useState<"in_app" | "webhook" | "both">("in_app");
+  const [webhookTarget, setWebhookTarget] = useState<AgentApiKey | null>(null);
+  const [newWebhookUrl, setNewWebhookUrl] = useState("");
+  const [revealedWebhookSecret, setRevealedWebhookSecret] = useState<{ secret: string; url: string } | null>(null);
 
   const { data: keys = [], isLoading } = useQuery<AgentApiKey[]>({
     queryKey: ["/api/admin/agent-keys"],
@@ -136,6 +153,50 @@ export function AgentKeyManager() {
 
   const { data: alertSettings } = useQuery<{ threshold: number; notificationMethod: "in_app" | "webhook" | "both" }>({
     queryKey: ["/api/admin/agent-keys/alert-settings"],
+  });
+
+  const { data: keyWebhooks = [], isLoading: webhooksLoading } = useQuery<AgentWebhook[]>({
+    queryKey: ["/api/admin/agent-keys", webhookTarget?.id, "webhooks"],
+    enabled: !!webhookTarget,
+    queryFn: async () => {
+      const res = await fetch(`/api/admin/agent-keys/${webhookTarget!.id}/webhooks`, {
+        credentials: "include",
+      });
+      if (!res.ok) throw new Error("Failed to fetch webhooks");
+      return res.json();
+    },
+  });
+
+  const createWebhookMutation = useMutation({
+    mutationFn: async ({ keyId, url }: { keyId: string; url: string }) => {
+      const res = await apiRequest("POST", `/api/admin/agent-keys/${keyId}/webhooks`, {
+        url,
+        events: [LOW_TOKEN_RATE_EVENT],
+      });
+      return res.json();
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/agent-keys", webhookTarget?.id, "webhooks"] });
+      setNewWebhookUrl("");
+      setRevealedWebhookSecret({ secret: data.secret, url: data.url });
+    },
+    onError: (err: any) => {
+      toast({ title: t("agentKeys.webhooks.createFailed", "웹훅 생성 실패"), description: err.message, variant: "destructive" });
+    },
+  });
+
+  const deleteWebhookMutation = useMutation({
+    mutationFn: async ({ keyId, webhookId }: { keyId: string; webhookId: string }) => {
+      const res = await apiRequest("DELETE", `/api/admin/agent-keys/${keyId}/webhooks/${webhookId}`, undefined);
+      if (res.status !== 204) throw new Error("Delete failed");
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/agent-keys", webhookTarget?.id, "webhooks"] });
+      toast({ title: t("agentKeys.webhooks.deleted", "웹훅이 삭제되었습니다") });
+    },
+    onError: (err: any) => {
+      toast({ title: t("agentKeys.webhooks.deleteFailed", "삭제 실패"), description: err.message, variant: "destructive" });
+    },
   });
 
   const acknowledgeAlertMutation = useMutation({
@@ -539,6 +600,14 @@ export function AgentKeyManager() {
                                 </Button>
                                 <Button
                                   size="sm"
+                                  variant="outline"
+                                  onClick={() => { setWebhookTarget(key); setNewWebhookUrl(""); }}
+                                  title={t("agentKeys.action.manageWebhooks", "웹훅 구독 관리")}
+                                >
+                                  <Webhook className="h-3.5 w-3.5" />
+                                </Button>
+                                <Button
+                                  size="sm"
                                   variant="destructive"
                                   onClick={() => {
                                     setRevokeTarget(key);
@@ -906,6 +975,204 @@ export function AgentKeyManager() {
         open={!!usageTarget}
         onClose={() => setUsageTarget(null)}
       />
+
+      {/* Webhook Subscriptions Dialog */}
+      <Dialog
+        open={!!webhookTarget}
+        onOpenChange={(open) => {
+          if (!open) {
+            setWebhookTarget(null);
+            setNewWebhookUrl("");
+            setRevealedWebhookSecret(null);
+          }
+        }}
+      >
+        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Webhook className="h-5 w-5" />
+              {t("agentKeys.webhooks.dialogTitle", "웹훅 구독 관리")}
+            </DialogTitle>
+            <DialogDescription>
+              {t("agentKeys.webhooks.dialogDescription", {
+                name: webhookTarget?.name,
+                defaultValue: `"{{name}}" 키에 등록된 웹훅을 관리합니다.`,
+              })}
+            </DialogDescription>
+          </DialogHeader>
+
+          {/* low_token_rate subscription status */}
+          {!webhooksLoading && (() => {
+            const isSubscribed = keyWebhooks.some(
+              (w) => w.isActive && w.events.includes(LOW_TOKEN_RATE_EVENT)
+            );
+            return (
+              <div
+                className={`flex items-center gap-3 rounded-md px-3 py-2.5 border text-sm ${
+                  isSubscribed
+                    ? "bg-green-50 dark:bg-green-950 border-green-200 dark:border-green-800 text-green-800 dark:text-green-200"
+                    : "bg-amber-50 dark:bg-amber-950 border-amber-200 dark:border-amber-800 text-amber-800 dark:text-amber-200"
+                }`}
+              >
+                {isSubscribed ? (
+                  <Bell className="h-4 w-4 shrink-0" />
+                ) : (
+                  <BellOff className="h-4 w-4 shrink-0" />
+                )}
+                <div className="flex-1">
+                  <p className="font-medium text-xs font-mono">{LOW_TOKEN_RATE_EVENT}</p>
+                  <p className="text-xs mt-0.5">
+                    {isSubscribed
+                      ? t("agentKeys.webhooks.eventSubscribed", "이 키에 웹훅 알림이 활성화되어 있습니다.")
+                      : t("agentKeys.webhooks.eventNotSubscribed", "이 키에 웹훅 알림이 등록되어 있지 않습니다. 아래에서 추가하세요.")}
+                  </p>
+                </div>
+              </div>
+            );
+          })()}
+
+          {/* Existing webhooks list */}
+          <div className="space-y-2">
+            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+              {t("agentKeys.webhooks.existingWebhooks", "등록된 웹훅")}
+            </p>
+            {webhooksLoading ? (
+              <div className="flex items-center justify-center py-6 text-muted-foreground">
+                <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                {t("agentKeys.loading", "로딩 중...")}
+              </div>
+            ) : keyWebhooks.length === 0 ? (
+              <p className="text-sm text-muted-foreground text-center py-4">
+                {t("agentKeys.webhooks.noWebhooks", "등록된 웹훅이 없습니다.")}
+              </p>
+            ) : (
+              <div className="space-y-2">
+                {keyWebhooks.map((wh) => (
+                  <div
+                    key={wh.id}
+                    className="flex items-start gap-3 rounded-md border bg-muted/30 px-3 py-2.5"
+                  >
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-mono truncate text-foreground">{wh.url}</p>
+                      <div className="flex flex-wrap gap-1 mt-1.5">
+                        {wh.events.map((ev) => (
+                          <Badge
+                            key={ev}
+                            variant={ev === LOW_TOKEN_RATE_EVENT ? "default" : "secondary"}
+                            className="text-xs px-1 py-0"
+                          >
+                            {ev}
+                          </Badge>
+                        ))}
+                      </div>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        {wh.isActive
+                          ? t("agentKeys.webhooks.active", "활성")
+                          : t("agentKeys.webhooks.inactive", "비활성")}
+                        {wh.createdAt && ` · ${format(new Date(wh.createdAt), "yyyy-MM-dd")}`}
+                      </p>
+                    </div>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="h-7 w-7 p-0 shrink-0 text-muted-foreground hover:text-destructive"
+                      disabled={deleteWebhookMutation.isPending}
+                      onClick={() =>
+                        webhookTarget &&
+                        deleteWebhookMutation.mutate({ keyId: webhookTarget.id, webhookId: wh.id })
+                      }
+                      title={t("agentKeys.webhooks.delete", "웹훅 삭제")}
+                    >
+                      {deleteWebhookMutation.isPending ? (
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      ) : (
+                        <Trash2 className="h-3.5 w-3.5" />
+                      )}
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Revealed secret (shown once after creation) */}
+          {revealedWebhookSecret && (
+            <div className="space-y-2 rounded-md border border-green-300 dark:border-green-700 bg-green-50 dark:bg-green-950 px-3 py-3">
+              <p className="text-xs font-medium text-green-800 dark:text-green-200">
+                {t("agentKeys.webhooks.secretRevealed", "웹훅 시크릿 (한 번만 표시됩니다)")}
+              </p>
+              <div className="flex items-center gap-2">
+                <code className="flex-1 text-xs font-mono bg-white dark:bg-black px-2 py-1 rounded border break-all">
+                  {revealedWebhookSecret.secret}
+                </code>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-7 w-7 p-0 shrink-0"
+                  onClick={() => {
+                    navigator.clipboard.writeText(revealedWebhookSecret.secret);
+                    toast({ title: t("agentKeys.toast.copied", "클립보드에 복사되었습니다") });
+                  }}
+                >
+                  <Copy className="h-3.5 w-3.5" />
+                </Button>
+              </div>
+              <p className="text-xs text-green-700 dark:text-green-300">
+                {t("agentKeys.webhooks.secretHint", "이 창을 닫으면 시크릿을 다시 볼 수 없습니다. 지금 복사하세요.")}
+              </p>
+            </div>
+          )}
+
+          {/* Add new webhook form */}
+          <div className="space-y-2 border-t pt-4">
+            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+              {t("agentKeys.webhooks.addNew", "웹훅 추가 (agent_key.low_token_rate)")}
+            </p>
+            <p className="text-xs text-muted-foreground">
+              {t("agentKeys.webhooks.addNewHint", "URL을 입력하면 agent_key.low_token_rate 이벤트를 구독하는 웹훅이 생성됩니다.")}
+            </p>
+            <div className="flex gap-2">
+              <Input
+                placeholder="https://your-endpoint.example.com/webhook"
+                value={newWebhookUrl}
+                onChange={(e) => setNewWebhookUrl(e.target.value)}
+                className="flex-1 text-sm"
+              />
+              <Button
+                size="sm"
+                disabled={
+                  createWebhookMutation.isPending ||
+                  !newWebhookUrl.trim() ||
+                  !/^https?:\/\//.test(newWebhookUrl.trim())
+                }
+                onClick={() =>
+                  webhookTarget &&
+                  createWebhookMutation.mutate({ keyId: webhookTarget.id, url: newWebhookUrl.trim() })
+                }
+              >
+                {createWebhookMutation.isPending ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Plus className="h-4 w-4" />
+                )}
+              </Button>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setWebhookTarget(null);
+                setNewWebhookUrl("");
+                setRevealedWebhookSecret(null);
+              }}
+            >
+              {t("common.close", "닫기")}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Threshold Configuration Dialog */}
       <Dialog open={thresholdEditOpen} onOpenChange={(open) => !open && setThresholdEditOpen(false)}>

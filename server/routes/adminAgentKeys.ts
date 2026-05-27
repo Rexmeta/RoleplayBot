@@ -4,6 +4,7 @@
  * - operator: list only
  */
 import { Router } from "express";
+import { randomUUID } from "crypto";
 import { db } from "../storage";
 import { storage } from "../storage";
 import {
@@ -11,6 +12,7 @@ import {
   agentKeyScenarios,
   agentUsageDaily,
   agentKeyAlerts,
+  agentWebhooks,
   auditLogs,
   AGENT_API_SCOPES,
 } from "@shared/schema";
@@ -18,6 +20,7 @@ import { eq, and, desc, sql, or, gte, lt, lte, isNull, ne } from "drizzle-orm";
 import { isSystemAdmin, isOperatorOrAdmin } from "../middleware/authMiddleware";
 import { asyncHandler, createHttpError } from "./routerHelpers";
 import { generateAgentApiKey, computeExpiryDate } from "../utils/agentApiKey";
+import { encryptWebhookSecret } from "../services/webhookDelivery";
 import { z } from "zod";
 
 const router = Router();
@@ -581,6 +584,124 @@ router.put(
       }),
     ]);
     res.json({ threshold: parsed.data.threshold, notificationMethod: parsed.data.notificationMethod });
+  })
+);
+
+// ─────────────────────────────────────────────────────────────────────────────
+// GET /api/admin/agent-keys/:id/webhooks — list webhooks for a key (admin)
+// ─────────────────────────────────────────────────────────────────────────────
+router.get(
+  "/:id/webhooks",
+  isSystemAdmin,
+  asyncHandler(async (req: any, res) => {
+    const rows = await db
+      .select({
+        id: agentWebhooks.id,
+        url: agentWebhooks.url,
+        events: agentWebhooks.events,
+        isActive: agentWebhooks.isActive,
+        createdAt: agentWebhooks.createdAt,
+      })
+      .from(agentWebhooks)
+      .where(eq(agentWebhooks.agentKeyId, req.params.id))
+      .orderBy(desc(agentWebhooks.createdAt));
+
+    res.json(
+      rows.map((w) => ({
+        id: w.id,
+        url: w.url,
+        events: w.events,
+        isActive: w.isActive,
+        createdAt: w.createdAt?.toISOString?.() ?? null,
+      }))
+    );
+  })
+);
+
+// ─────────────────────────────────────────────────────────────────────────────
+// POST /api/admin/agent-keys/:id/webhooks — create a webhook for a key (admin)
+// ─────────────────────────────────────────────────────────────────────────────
+const createWebhookAdminSchema = z.object({
+  url: z.string().url("Must be a valid HTTPS URL"),
+  events: z.array(z.string().min(1)).min(1, "At least one event required"),
+});
+
+router.post(
+  "/:id/webhooks",
+  isSystemAdmin,
+  asyncHandler(async (req: any, res) => {
+    const [key] = await db
+      .select({ id: agentApiKeys.id })
+      .from(agentApiKeys)
+      .where(eq(agentApiKeys.id, req.params.id))
+      .limit(1);
+
+    if (!key) throw createHttpError(404, "API key not found");
+
+    const parsed = createWebhookAdminSchema.safeParse(req.body);
+    if (!parsed.success) {
+      throw Object.assign(createHttpError(400, "Invalid input"), {
+        details: parsed.error.flatten(),
+      });
+    }
+
+    const { url, events } = parsed.data;
+
+    const secret = `whsec_${randomUUID().replace(/-/g, "")}`;
+    const encryptedSecret = encryptWebhookSecret(secret);
+
+    const [webhook] = await db
+      .insert(agentWebhooks)
+      .values({
+        agentKeyId: req.params.id,
+        url,
+        events,
+        secretKey: encryptedSecret,
+        isActive: true,
+      })
+      .returning();
+
+    res.status(201).json({
+      id: webhook.id,
+      url: webhook.url,
+      events: webhook.events,
+      secret,
+      isActive: webhook.isActive,
+      createdAt: webhook.createdAt?.toISOString?.() ?? new Date().toISOString(),
+    });
+  })
+);
+
+// ─────────────────────────────────────────────────────────────────────────────
+// DELETE /api/admin/agent-keys/:id/webhooks/:webhookId — delete a webhook (admin)
+// ─────────────────────────────────────────────────────────────────────────────
+router.delete(
+  "/:id/webhooks/:webhookId",
+  isSystemAdmin,
+  asyncHandler(async (req: any, res) => {
+    const [existing] = await db
+      .select({ id: agentWebhooks.id })
+      .from(agentWebhooks)
+      .where(
+        and(
+          eq(agentWebhooks.id, req.params.webhookId),
+          eq(agentWebhooks.agentKeyId, req.params.id)
+        )
+      )
+      .limit(1);
+
+    if (!existing) throw createHttpError(404, "Webhook not found");
+
+    await db
+      .delete(agentWebhooks)
+      .where(
+        and(
+          eq(agentWebhooks.id, req.params.webhookId),
+          eq(agentWebhooks.agentKeyId, req.params.id)
+        )
+      );
+
+    res.status(204).end();
   })
 );
 
