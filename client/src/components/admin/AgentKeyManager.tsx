@@ -66,6 +66,7 @@ interface AgentApiKey {
   createdAt: string;
   monthlyRequestCount: number;
   monthlyTotalTokens: number;
+  monthlyEstimatedRequestCount: number;
 }
 
 interface Scenario {
@@ -286,6 +287,7 @@ export function AgentKeyManager() {
                     <TableHead>{t("agentKeys.col.lastUsedAt", "마지막 사용")}</TableHead>
                     <TableHead className="text-right">{t("agentKeys.col.monthlyRequests", "월 요청")}</TableHead>
                     <TableHead className="text-right">{t("agentKeys.col.monthlyTokens", "월 토큰")}</TableHead>
+                    <TableHead className="text-right">{t("agentKeys.col.tokenAccuracy", "실 토큰률")}</TableHead>
                     <TableHead className="text-right">{t("agentKeys.col.actions", "액션")}</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -349,6 +351,32 @@ export function AgentKeyManager() {
                         </TableCell>
                         <TableCell className="text-right text-sm font-mono">
                           {key.monthlyTotalTokens.toLocaleString()}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          {key.monthlyRequestCount > 0 ? (() => {
+                            const realPct = Math.round(
+                              ((key.monthlyRequestCount - key.monthlyEstimatedRequestCount) / key.monthlyRequestCount) * 100
+                            );
+                            const isLow = realPct < 50;
+                            const isMid = realPct < 90;
+                            return (
+                              <Badge
+                                variant="outline"
+                                title={t("agentKeys.tokenAccuracy.tooltip", "이번 달 실제 토큰 수가 기록된 요청 비율")}
+                                className={
+                                  isLow
+                                    ? "text-red-600 border-red-300 bg-red-50 dark:bg-red-950"
+                                    : isMid
+                                    ? "text-amber-600 border-amber-300 bg-amber-50 dark:bg-amber-950"
+                                    : "text-green-600 border-green-300 bg-green-50 dark:bg-green-950"
+                                }
+                              >
+                                {realPct}%
+                              </Badge>
+                            );
+                          })() : (
+                            <span className="text-xs text-muted-foreground">—</span>
+                          )}
                         </TableCell>
                         <TableCell className="text-right">
                           <div className="flex items-center justify-end gap-2">

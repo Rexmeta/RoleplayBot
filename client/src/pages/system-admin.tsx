@@ -173,6 +173,7 @@ interface AgentKey {
   revocationReason: string | null;
   createdAt: string;
   monthlyRequestCount: number;
+  monthlyEstimatedRequestCount: number;
 }
 
 const AI_MODELS = [
@@ -1793,6 +1794,7 @@ export default function SystemAdminPage() {
                           <TableHead>{t('systemAdmin.agentKeys.col.environment', 'Env')}</TableHead>
                           <TableHead>{t('systemAdmin.agentKeys.col.status', 'Status')}</TableHead>
                           <TableHead className="text-right">{t('systemAdmin.agentKeys.col.monthlyRequests', 'Requests this month')}</TableHead>
+                          <TableHead className="text-right">{t('systemAdmin.agentKeys.col.tokenAccuracy', 'Real Tokens')}</TableHead>
                           <TableHead>{t('systemAdmin.agentKeys.col.lastUsed', 'Last Used')}</TableHead>
                           <TableHead>{t('systemAdmin.agentKeys.col.expires', 'Expires')}</TableHead>
                         </TableRow>
@@ -1825,6 +1827,32 @@ export default function SystemAdminPage() {
                                   {!isHighUsage && isMediumUsage && <span className="inline-block w-2 h-2 rounded-full bg-amber-400" title="Medium usage" />}
                                   {key.monthlyRequestCount.toLocaleString()}
                                 </span>
+                              </TableCell>
+                              <TableCell className="text-right">
+                                {key.monthlyRequestCount > 0 ? (() => {
+                                  const realPct = Math.round(
+                                    ((key.monthlyRequestCount - (key.monthlyEstimatedRequestCount ?? 0)) / key.monthlyRequestCount) * 100
+                                  );
+                                  const isLow = realPct < 50;
+                                  const isMid = realPct < 90;
+                                  return (
+                                    <Badge
+                                      variant="outline"
+                                      title={t('systemAdmin.agentKeys.tokenAccuracy.tooltip', 'Fraction of requests with real token counts this month')}
+                                      className={
+                                        isLow
+                                          ? "text-red-600 border-red-300 bg-red-50 dark:bg-red-950"
+                                          : isMid
+                                          ? "text-amber-600 border-amber-300 bg-amber-50 dark:bg-amber-950"
+                                          : "text-green-600 border-green-300 bg-green-50 dark:bg-green-950"
+                                      }
+                                    >
+                                      {realPct}%
+                                    </Badge>
+                                  );
+                                })() : (
+                                  <span className="text-xs text-muted-foreground">—</span>
+                                )}
                               </TableCell>
                               <TableCell className="text-sm text-muted-foreground">
                                 {key.lastUsedAt ? format(new Date(key.lastUsedAt), "yyyy-MM-dd", { locale: ko }) : "—"}

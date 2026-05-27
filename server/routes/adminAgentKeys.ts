@@ -75,6 +75,7 @@ router.get(
         agentKeyId: agentUsageDaily.agentKeyId,
         monthlyRequests: sql<number>`COALESCE(SUM(${agentUsageDaily.requestCount}), 0)::int`,
         monthlyTotalTokens: sql<number>`COALESCE(SUM(${agentUsageDaily.totalTokens}), 0)::int`,
+        monthlyEstimatedRequests: sql<number>`COALESCE(SUM(${agentUsageDaily.estimatedRequestCount}), 0)::int`,
       })
       .from(agentUsageDaily)
       .where(and(gte(agentUsageDaily.date, monthStart), lt(agentUsageDaily.date, nextMonthStart)))
@@ -101,6 +102,7 @@ router.get(
         createdAt: k.createdAt,
         monthlyRequestCount: usage?.monthlyRequests ?? 0,
         monthlyTotalTokens: usage?.monthlyTotalTokens ?? 0,
+        monthlyEstimatedRequestCount: usage?.monthlyEstimatedRequests ?? 0,
       };
     });
 
