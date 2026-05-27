@@ -81,6 +81,7 @@ interface AgentKeyAlert {
   realTokenRate: number;
   threshold: number;
   notificationMethod: "in_app" | "webhook" | "both";
+  deliveredVia: string[];
   acknowledgedAt: string | null;
   createdAt: string;
 }
@@ -328,7 +329,7 @@ export function AgentKeyManager() {
                 key={alert.id}
                 className="flex items-center justify-between gap-3 rounded-md bg-white dark:bg-amber-900/40 px-3 py-2 text-sm border border-amber-200 dark:border-amber-700"
               >
-                <div className="flex items-center gap-2 min-w-0">
+                <div className="flex items-center gap-2 min-w-0 flex-wrap">
                   <span className="font-medium truncate">{alert.agentKeyName}</span>
                   <span className="text-muted-foreground shrink-0">({alert.period})</span>
                   <Badge variant="outline" className="text-red-600 border-red-300 bg-red-50 dark:bg-red-950 shrink-0">
@@ -337,6 +338,23 @@ export function AgentKeyManager() {
                   <span className="text-muted-foreground text-xs shrink-0">
                     {t("agentKeys.alerts.belowThreshold", { threshold: alert.threshold, defaultValue: `임계값 {{threshold}}% 미달` })}
                   </span>
+                  {alert.deliveredVia && alert.deliveredVia.length > 0 && (
+                    <span className="flex items-center gap-1 shrink-0">
+                      {alert.deliveredVia.map((channel) => (
+                        <Badge
+                          key={channel}
+                          variant="secondary"
+                          className="text-xs px-1.5 py-0 bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-700"
+                        >
+                          {channel === "in_app"
+                            ? t("agentKeys.alerts.channelInApp", "인앱")
+                            : channel === "webhook"
+                            ? t("agentKeys.alerts.channelWebhook", "웹훅")
+                            : channel}
+                        </Badge>
+                      ))}
+                    </span>
+                  )}
                 </div>
                 <Button
                   size="sm"

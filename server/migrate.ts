@@ -1600,6 +1600,17 @@ export async function runMigrations(): Promise<void> {
         console.warn('⚠️ Failed to add agent_key_alerts.notification_method column:', err);
       }
 
+      // Add delivered_via column to agent_key_alerts (idempotent)
+      try {
+        await client.query(`
+          ALTER TABLE "agent_key_alerts"
+            ADD COLUMN IF NOT EXISTS "delivered_via" text[] NOT NULL DEFAULT '{}';
+        `);
+        console.log('✅ agent_key_alerts.delivered_via column ensured');
+      } catch (err) {
+        console.warn('⚠️ Failed to add agent_key_alerts.delivered_via column:', err);
+      }
+
       console.log('✅ Database migrations completed successfully');
     } finally {
       client.release();

@@ -150,6 +150,7 @@ export const agentKeyAlerts = pgTable("agent_key_alerts", {
   realTokenRate: integer("real_token_rate").notNull(), // 0-100 %
   threshold: integer("threshold").notNull(), // configured threshold at time of alert
   notificationMethod: varchar("notification_method", { length: 10 }).notNull().default("in_app"), // "in_app" | "webhook" | "both"
+  deliveredVia: text("delivered_via").array().notNull().default(sql`'{}'::text[]`), // channels that actually fired, e.g. ["in_app", "webhook"]
   acknowledgedAt: timestamp("acknowledged_at"),
   createdAt: timestamp("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
 }, (table) => [

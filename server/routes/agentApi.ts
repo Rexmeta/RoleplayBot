@@ -187,6 +187,15 @@ export async function checkAndFireRateAlert(agentKeyId: string): Promise<void> {
     const methodSetting = await storage.getSystemSetting("agent", "alert_notification_method");
     const notificationMethod = (methodSetting?.value as "in_app" | "webhook" | "both") ?? "in_app";
 
+    // Determine which delivery channels will fire
+    const deliveredVia: string[] = [];
+    if (notificationMethod === "in_app" || notificationMethod === "both") {
+      deliveredVia.push("in_app");
+    }
+    if (notificationMethod === "webhook" || notificationMethod === "both") {
+      deliveredVia.push("webhook");
+    }
+
     const [upsertResult] = await db.insert(agentKeyAlerts).values({
       agentKeyId,
       agentKeyName: keyRow?.name ?? agentKeyId,
@@ -195,6 +204,7 @@ export async function checkAndFireRateAlert(agentKeyId: string): Promise<void> {
       realTokenRate: realPct,
       threshold,
       notificationMethod,
+      deliveredVia,
     }).onConflictDoUpdate({
       target: [agentKeyAlerts.agentKeyId, agentKeyAlerts.period],
       set: {
@@ -203,6 +213,7 @@ export async function checkAndFireRateAlert(agentKeyId: string): Promise<void> {
         acknowledgedAt: null,
         agentKeyName: keyRow?.name ?? agentKeyId,
         notificationMethod,
+        deliveredVia,
       },
     }).returning({ id: agentKeyAlerts.id });
 
