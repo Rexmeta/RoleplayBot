@@ -53,6 +53,7 @@ export function trackSessionUsage(session: RealtimeSession): void {
       promptTokens: totalPromptTokens, completionTokens: totalCompletionTokens,
       cachedTokens: session.totalCachedTokens,
       userId: session.userId, conversationId: session.personaRunId, durationMs,
+      tokensEstimated: true,
       metadata: {
         scenarioId: session.scenarioId, personaId: session.personaId,
         totalUserTranscriptLength: session.totalUserTranscriptLength,

@@ -665,6 +665,7 @@ export async function generateAndSaveFeedback(
               provider: feedbackModelName.startsWith('gpt') ? 'openai' : 'gemini',
               promptTokens: 0,
               completionTokens: 0,
+              tokensEstimated: true,
               conversationId,
               userId: conversation.userId ?? undefined,
               durationMs: segDurationMs,

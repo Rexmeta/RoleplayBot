@@ -240,6 +240,7 @@ export class OptimizedGeminiProvider implements AIServiceInterface {
         cachedTokens,
         durationMs: totalTime,
         metadata: { ttftMs: totalTime },
+        tokensEstimated: tokens.promptTokens === 0 && tokens.completionTokens === 0,
       });
 
       return {
@@ -668,6 +669,7 @@ ${conversationHistory}
         cachedTokens: totalCachedTokens,
         durationMs: totalDurationMs,
         metadata: { ttftMs },
+        tokensEstimated: lastPromptTokens === 0 && lastCompletionTokens === 0,
       });
 
       if (lastPromptTokens > 0 || lastCompletionTokens > 0) {
@@ -768,6 +770,7 @@ ${conversationHistory}
           promptTokens: tokens.promptTokens,
           completionTokens: tokens.completionTokens,
           durationMs: totalTime,
+          tokensEstimated: tokens.promptTokens === 0 && tokens.completionTokens === 0,
         });
         
         const scenarioObj = typeof scenario === 'object' ? scenario : null;

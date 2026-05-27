@@ -128,6 +128,8 @@ export const agentUsageDaily = pgTable("agent_usage_daily", {
   cachedTokens: integer("cached_tokens").notNull().default(0),
   errorCount: integer("error_count").notNull().default(0),
   avgLatencyMs: integer("avg_latency_ms"),
+  // Number of requests within this day where token counts were heuristic estimates
+  estimatedRequestCount: integer("estimated_request_count").notNull().default(0),
 }, (table) => [
   uniqueIndex("idx_agent_usage_daily_unique").on(table.organizationId, table.agentKeyId, table.date),
   index("idx_agent_usage_daily_org").on(table.organizationId),

@@ -46,6 +46,7 @@ interface AgentUsageDailyRow {
   cachedTokens: number;
   errorCount: number;
   avgLatencyMs: number | null;
+  estimatedRequestCount: number;
 }
 
 interface Props {
@@ -289,6 +290,9 @@ export function AgentKeyUsageDashboard({ keyId, keyName, keyPrefix, open, onClos
                           <TableHead className="text-right">{t("agentKeys.usage.table.sessions", "Sessions")}</TableHead>
                           <TableHead className="text-right">{t("agentKeys.usage.table.inputTokens", "Input Tokens")}</TableHead>
                           <TableHead className="text-right">{t("agentKeys.usage.table.outputTokens", "Output Tokens")}</TableHead>
+                          <TableHead className="text-right" title={t("agentKeys.usage.table.estimatedTooltip", "Requests where token counts are heuristic estimates (no real provider metadata)")}>
+                            {t("agentKeys.usage.table.estimated", "Est. Req.")}
+                          </TableHead>
                           <TableHead className="text-right">{t("agentKeys.usage.table.errors", "Errors")}</TableHead>
                           <TableHead className="text-right">{t("agentKeys.usage.table.errorRate", "Error Rate")}</TableHead>
                           <TableHead className="text-right">{t("agentKeys.usage.table.avgLatency", "Avg Latency")}</TableHead>
@@ -299,6 +303,9 @@ export function AgentKeyUsageDashboard({ keyId, keyName, keyPrefix, open, onClos
                           const rate = row.requestCount > 0
                             ? ((row.errorCount / row.requestCount) * 100).toFixed(1)
                             : "0.0";
+                          const estCount = row.estimatedRequestCount ?? 0;
+                          const allEstimated = row.requestCount > 0 && estCount === row.requestCount;
+                          const someEstimated = estCount > 0 && !allEstimated;
                           return (
                             <TableRow key={row.date}>
                               <TableCell className="font-mono text-sm">{row.date}</TableCell>
@@ -306,6 +313,20 @@ export function AgentKeyUsageDashboard({ keyId, keyName, keyPrefix, open, onClos
                               <TableCell className="text-right font-mono text-sm">{row.sessionCount.toLocaleString()}</TableCell>
                               <TableCell className="text-right font-mono text-sm">{row.inputTokens.toLocaleString()}</TableCell>
                               <TableCell className="text-right font-mono text-sm">{row.outputTokens.toLocaleString()}</TableCell>
+                              <TableCell className="text-right font-mono text-sm">
+                                {estCount > 0 ? (
+                                  <Badge
+                                    variant={allEstimated ? "secondary" : "outline"}
+                                    className={`text-xs ${allEstimated ? "text-amber-700 bg-amber-100 dark:bg-amber-900/30 dark:text-amber-400" : "text-amber-600"}`}
+                                    title={t("agentKeys.usage.table.estimatedTooltip", "Requests where token counts are heuristic estimates (no real provider metadata)")}
+                                  >
+                                    {estCount}
+                                    {someEstimated && `/${row.requestCount}`}
+                                  </Badge>
+                                ) : (
+                                  <span className="text-muted-foreground text-xs">—</span>
+                                )}
+                              </TableCell>
                               <TableCell className="text-right font-mono text-sm">
                                 {row.errorCount > 0 ? (
                                   <Badge variant="destructive" className="text-xs">

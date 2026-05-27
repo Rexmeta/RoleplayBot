@@ -51,6 +51,8 @@ interface TrackUsageParams {
   requestId?: string;
   durationMs?: number;
   metadata?: Record<string, any>;
+  /** True when token counts are heuristic estimates (provider returned no real token metadata) */
+  tokensEstimated?: boolean;
 }
 
 interface TokenUsage {
@@ -124,6 +126,7 @@ export async function trackUsage(params: TrackUsageParams): Promise<void> {
       requestId: params.requestId || null,
       durationMs: params.durationMs || null,
       metadata: { ...(params.metadata || {}), cacheSavingsUsd },
+      tokensEstimated: params.tokensEstimated ?? false,
     };
     
     // Fire and forget - don't await to not slow down the response
@@ -160,6 +163,7 @@ export async function trackUsageSync(params: TrackUsageParams): Promise<void> {
     requestId: params.requestId || null,
     durationMs: params.durationMs || null,
     metadata: { ...(params.metadata || {}), cacheSavingsUsd },
+    tokensEstimated: params.tokensEstimated ?? false,
   };
   
   await storage.createAiUsageLog(logEntry);
@@ -295,6 +299,7 @@ export async function trackImageUsage(params: {
       requestId: params.requestId || null,
       durationMs: params.durationMs || null,
       metadata: params.metadata || null,
+      tokensEstimated: true,
     };
     
     storage.createAiUsageLog(logEntry).catch((error) => {

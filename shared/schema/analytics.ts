@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { pgTable, varchar, integer, timestamp, jsonb, doublePrecision, index } from "drizzle-orm/pg-core";
+import { pgTable, varchar, integer, boolean, timestamp, jsonb, doublePrecision, index } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 import { users } from "./users";
@@ -25,6 +25,8 @@ export const aiUsageLogs = pgTable("ai_usage_logs", {
   metadata: jsonb("metadata").$type<Record<string, any>>(),
   // Agent API attribution column (nullable — only set for agent-originated requests)
   agentKeyId: varchar("agent_key_id"),
+  // True when token counts are heuristic estimates (no real provider metadata available)
+  tokensEstimated: boolean("tokens_estimated").notNull().default(false),
 }, (table) => [
   index("idx_ai_usage_logs_occurred_at").on(table.occurredAt),
   index("idx_ai_usage_logs_feature").on(table.feature),

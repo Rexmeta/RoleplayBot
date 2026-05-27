@@ -74,10 +74,11 @@ function hashRequestBody(body: any): string {
 export async function incrementUsageDaily(
   organizationId: string,
   agentKeyId: string,
-  params: { inputTokens?: number; outputTokens?: number; cachedTokens?: number; errorCount?: number; latencyMs?: number }
+  params: { inputTokens?: number; outputTokens?: number; cachedTokens?: number; errorCount?: number; latencyMs?: number; tokensEstimated?: boolean }
 ): Promise<void> {
   try {
     const date = new Date().toISOString().slice(0, 10);
+    const isEstimated = params.tokensEstimated ?? false;
     await db
       .insert(agentUsageDaily)
       .values({
@@ -92,6 +93,7 @@ export async function incrementUsageDaily(
         cachedTokens: params.cachedTokens ?? 0,
         errorCount: params.errorCount ?? 0,
         avgLatencyMs: params.latencyMs ?? null,
+        estimatedRequestCount: isEstimated ? 1 : 0,
       })
       .onConflictDoUpdate({
         target: [agentUsageDaily.organizationId, agentUsageDaily.agentKeyId, agentUsageDaily.date],
@@ -102,6 +104,7 @@ export async function incrementUsageDaily(
           totalTokens: sql`${agentUsageDaily.totalTokens} + ${(params.inputTokens ?? 0) + (params.outputTokens ?? 0)}`,
           cachedTokens: sql`${agentUsageDaily.cachedTokens} + ${params.cachedTokens ?? 0}`,
           errorCount: sql`${agentUsageDaily.errorCount} + ${params.errorCount ?? 0}`,
+          estimatedRequestCount: sql`${agentUsageDaily.estimatedRequestCount} + ${isEstimated ? 1 : 0}`,
         },
       });
   } catch (err) {
@@ -913,6 +916,7 @@ router.post("/sessions/:id/messages", requireScope("sessions:message"), async (r
         inputTokens: inputTokensEst,
         outputTokens: outputTokensEst,
         latencyMs,
+        tokensEstimated,
       }).catch(() => {});
 
       const messageCount = updatedSessionUsage.requestCount * 2;
@@ -1087,6 +1091,7 @@ router.post("/sessions/:id/messages", requireScope("sessions:message"), async (r
       inputTokens: inputTokensEst,
       outputTokens: outputTokensEst,
       latencyMs,
+      tokensEstimated,
     }).catch(() => {});
 
     // messageCount = total user+AI messages in this session (session-scoped, not per-key)

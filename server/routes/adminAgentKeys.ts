@@ -402,6 +402,7 @@ router.get(
         totalTokens: sql<number>`SUM(${agentUsageDaily.totalTokens})::int`,
         cachedTokens: sql<number>`SUM(${agentUsageDaily.cachedTokens})::int`,
         errorCount: sql<number>`SUM(${agentUsageDaily.errorCount})::int`,
+        estimatedRequestCount: sql<number>`SUM(${agentUsageDaily.estimatedRequestCount})::int`,
       })
       .from(agentUsageDaily)
       .where(and(...conditions))
@@ -409,7 +410,7 @@ router.get(
       .orderBy(agentUsageDaily.date);
 
     // Collapse multi-key rows into single-date aggregates for the chart
-    const byDate = new Map<string, { date: string; requestCount: number; inputTokens: number; outputTokens: number; totalTokens: number; cachedTokens: number; errorCount: number }>();
+    const byDate = new Map<string, { date: string; requestCount: number; inputTokens: number; outputTokens: number; totalTokens: number; cachedTokens: number; errorCount: number; estimatedRequestCount: number }>();
     for (const row of rows) {
       const existing = byDate.get(row.date);
       if (existing) {
@@ -419,6 +420,7 @@ router.get(
         existing.totalTokens += row.totalTokens;
         existing.cachedTokens += row.cachedTokens;
         existing.errorCount += row.errorCount;
+        existing.estimatedRequestCount += row.estimatedRequestCount;
       } else {
         byDate.set(row.date, {
           date: row.date,
@@ -428,6 +430,7 @@ router.get(
           totalTokens: row.totalTokens,
           cachedTokens: row.cachedTokens,
           errorCount: row.errorCount,
+          estimatedRequestCount: row.estimatedRequestCount,
         });
       }
     }

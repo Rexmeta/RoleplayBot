@@ -1532,6 +1532,40 @@ export async function runMigrations(): Promise<void> {
         console.warn('⚠️ Failed to create agent webhook tables:', err);
       }
 
+      // Add tokens_estimated column to ai_usage_logs if not exists
+      try {
+        await client.query(`
+          DO $$ BEGIN
+            IF NOT EXISTS (
+              SELECT 1 FROM information_schema.columns
+              WHERE table_name = 'ai_usage_logs' AND column_name = 'tokens_estimated'
+            ) THEN
+              ALTER TABLE "ai_usage_logs" ADD COLUMN "tokens_estimated" boolean NOT NULL DEFAULT false;
+            END IF;
+          END $$;
+        `);
+        console.log('✅ ai_usage_logs.tokens_estimated column ensured');
+      } catch (err) {
+        console.warn('⚠️ Failed to add tokens_estimated column to ai_usage_logs:', err);
+      }
+
+      // Add estimated_request_count column to agent_usage_daily if not exists
+      try {
+        await client.query(`
+          DO $$ BEGIN
+            IF NOT EXISTS (
+              SELECT 1 FROM information_schema.columns
+              WHERE table_name = 'agent_usage_daily' AND column_name = 'estimated_request_count'
+            ) THEN
+              ALTER TABLE "agent_usage_daily" ADD COLUMN "estimated_request_count" integer NOT NULL DEFAULT 0;
+            END IF;
+          END $$;
+        `);
+        console.log('✅ agent_usage_daily.estimated_request_count column ensured');
+      } catch (err) {
+        console.warn('⚠️ Failed to add estimated_request_count column to agent_usage_daily:', err);
+      }
+
       console.log('✅ Database migrations completed successfully');
     } finally {
       client.release();

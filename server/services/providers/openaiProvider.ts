@@ -136,6 +136,7 @@ ${overridePromptBlock ? `\n${overridePromptBlock}\n` : ''}
         promptTokens: tokens.promptTokens,
         completionTokens: tokens.completionTokens,
         durationMs: totalTime,
+        tokensEstimated: tokens.promptTokens === 0 && tokens.completionTokens === 0,
       });
 
       const content = response.choices[0]?.message?.content || "죄송합니다. 응답을 생성할 수 없습니다.";
@@ -392,6 +393,7 @@ JSON 형식으로 응답하세요: {"emotion": "감정", "reason": "감정을 �
           promptTokens: tokens.promptTokens,
           completionTokens: tokens.completionTokens,
           durationMs: totalTime,
+          tokensEstimated: tokens.promptTokens === 0 && tokens.completionTokens === 0,
         });
 
         const feedbackData = JSON.parse(response.choices[0]?.message?.content || '{}');
