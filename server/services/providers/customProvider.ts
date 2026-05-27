@@ -282,6 +282,141 @@ ${conversationHistory}
     }
   }
 
+  async generateStreamingResponse(
+    scenario: RoleplayScenario | string,
+    messages: ConversationMessage[],
+    persona: ScenarioPersona,
+    userMessage?: string,
+    language: SupportedLanguage = 'ko',
+    userName?: string
+  ): Promise<AsyncIterable<string>> {
+    const lang: SupportedLanguage = language || 'ko';
+
+    // The 'custom' API format does not expose a streaming endpoint in a
+    // standardised way, so we cannot capture per-token deltas or usage data.
+    // Fall back to a single buffered call and yield the full text at once;
+    // no [USAGE:] sidecar is emitted for this path.
+    if (this.config.apiFormat === 'custom' || this.config.apiKey === 'test-key') {
+      const self = this;
+      async function* buffered(): AsyncGenerator<string> {
+        const result = await self.generateResponse(scenario, messages, persona, userMessage, lang, userName);
+        yield result.content;
+      }
+      return buffered();
+    }
+
+    // OpenAI-compatible streaming path — request usage in the final chunk.
+    const normalizedUserName = normalizeProfileName(userName) || '';
+    const userLabel = normalizedUserName || '사용자';
+
+    const conversationHistory = messages.map(msg => ({
+      role: msg.sender === 'user' ? 'user' as const : 'assistant' as const,
+      content: `${msg.sender === 'user' ? userLabel : persona.name}: ${msg.message}`
+    }));
+
+    const userMessageContent = userMessage || '앞서 이야기를 자연스럽게 이어가거나 새로운 주제를 제시해주세요.';
+
+    const systemPrompt = `당신은 ${persona.name}(${persona.role})입니다.
+
+페르소나 설정:
+- 성격: ${persona.personality}
+- 응답 스타일: ${persona.responseStyle}
+- 배경: ${persona.background}
+- 목표: ${persona.goals.join(', ')}
+${normalizedUserName ? `\n상대방 실명 호칭:\n- 대화 상대방의 실제 이름은 [${normalizedUserName}]입니다\n- 대화 중 자연스럽게 "${normalizedUserName} 씨" 또는 "${normalizedUserName}" 등으로 상대방을 호칭하세요` : ''}
+대화 규칙:
+1. 주어진 페르소나를 정확히 구현하세요
+2. 자연스럽고 현실적인 대화를 유지하세요
+3. ${LANGUAGE_INSTRUCTIONS[lang] || LANGUAGE_INSTRUCTIONS['ko']}
+4. 50-100단어 내외로 간결하게 응답하세요
+5. 상황에 맞는 감정을 표현하세요
+6. **절대로 ${userLabel}의 역할을 수행하거나 ${userLabel} 입장에서 발언하지 마세요**`;
+
+    const requestBody = {
+      model: this.config.model,
+      messages: [
+        { role: 'system' as const, content: systemPrompt },
+        ...conversationHistory,
+        { role: 'user' as const, content: userMessageContent }
+      ],
+      max_tokens: 300,
+      temperature: 0.8,
+      stream: true,
+      stream_options: { include_usage: true }
+    };
+
+    const apiUrl = `${this.config.baseUrl}/chat/completions`;
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${this.config.apiKey}`,
+      ...this.config.headers
+    };
+
+    const response = await conversationSemaphore.run(() =>
+      retryWithBackoff(async () => {
+        const res = await fetch(apiUrl, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify(requestBody)
+        });
+        if (!res.ok) {
+          const err: any = new Error(`Custom streaming API failed: ${res.status} ${res.statusText}`);
+          err.status = res.status;
+          throw err;
+        }
+        return res;
+      }, { maxRetries: 2, baseDelayMs: 1000 })
+    );
+
+    async function* generate(): AsyncGenerator<string> {
+      let inputTokens = 0;
+      let outputTokens = 0;
+
+      const reader = response.body?.getReader();
+      if (!reader) return;
+
+      const decoder = new TextDecoder();
+      let buffer = '';
+
+      try {
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          buffer += decoder.decode(value, { stream: true });
+
+          const lines = buffer.split('\n');
+          buffer = lines.pop() ?? '';
+
+          for (const line of lines) {
+            const trimmed = line.trim();
+            if (!trimmed || trimmed === 'data: [DONE]') continue;
+            if (!trimmed.startsWith('data: ')) continue;
+
+            try {
+              const chunk = JSON.parse(trimmed.slice(6));
+              const text = chunk.choices?.[0]?.delta?.content;
+              if (text) yield text;
+              if (chunk.usage) {
+                inputTokens = chunk.usage.prompt_tokens ?? 0;
+                outputTokens = chunk.usage.completion_tokens ?? 0;
+              }
+            } catch {
+              // Malformed SSE chunk — skip
+            }
+          }
+        }
+      } finally {
+        reader.releaseLock();
+      }
+
+      if (inputTokens > 0 || outputTokens > 0) {
+        yield `[USAGE:${JSON.stringify({ inputTokens, outputTokens })}]`;
+      }
+    }
+
+    return generate();
+  }
+
   private async analyzeEmotion(
     response: string, 
     persona: ScenarioPersona, 
