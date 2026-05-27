@@ -158,14 +158,24 @@ export async function checkAndFireRateAlert(agentKeyId: string): Promise<void> {
 
     if (realPct >= threshold) return; // rate is fine
 
+    // Fetch re-alert delta from system_settings (default 20 percentage points)
+    const deltaSettingRow = await storage.getSystemSetting("agent", "real_token_rate_alert_delta");
+    const alertDelta = deltaSettingRow ? parseInt(deltaSettingRow.value, 10) : 20;
+
     // Check if an alert for this key+period already exists
     const existing = await db
-      .select({ id: agentKeyAlerts.id })
+      .select({ id: agentKeyAlerts.id, realTokenRate: agentKeyAlerts.realTokenRate })
       .from(agentKeyAlerts)
       .where(and(eq(agentKeyAlerts.agentKeyId, agentKeyId), eq(agentKeyAlerts.period, period)))
       .limit(1);
 
-    if (existing.length > 0) return; // already alerted this month
+    if (existing.length > 0) {
+      // Re-alert only if the rate has dropped by more than alertDelta percentage points
+      // below the rate stored in the existing alert
+      const storedRate = existing[0].realTokenRate;
+      if (storedRate - realPct <= alertDelta) return; // not enough additional degradation
+      // Fall through to upsert which will update the row and reset acknowledgedAt
+    }
 
     // Fetch key name for the alert record
     const [keyRow] = await db
@@ -181,7 +191,15 @@ export async function checkAndFireRateAlert(agentKeyId: string): Promise<void> {
       period,
       realTokenRate: realPct,
       threshold,
-    }).onConflictDoNothing();
+    }).onConflictDoUpdate({
+      target: [agentKeyAlerts.agentKeyId, agentKeyAlerts.period],
+      set: {
+        realTokenRate: realPct,
+        threshold,
+        acknowledgedAt: null,
+        agentKeyName: keyRow?.name ?? agentKeyId,
+      },
+    });
   } catch (err) {
     console.warn("[agentApi] checkAndFireRateAlert failed (non-fatal):", err);
   }
