@@ -110,13 +110,20 @@ export function AgentKeyUsageDashboard({ keyId, keyName, keyPrefix, open, onClos
     return Math.round(sum / withData.length);
   })();
 
-  const chartData = rows.map((r) => ({
-    date: r.date.slice(5),
-    requests: r.requestCount,
-    tokens: r.totalTokens,
-    errors: r.errorCount,
-    latency: r.avgLatencyMs ?? 0,
-  }));
+  const chartData = rows.map((r) => {
+    const est = r.estimatedRequestCount ?? 0;
+    const realTokenPct = r.requestCount > 0
+      ? Math.round(((r.requestCount - est) / r.requestCount) * 100)
+      : null;
+    return {
+      date: r.date.slice(5),
+      requests: r.requestCount,
+      tokens: r.totalTokens,
+      errors: r.errorCount,
+      latency: r.avgLatencyMs ?? 0,
+      realTokenPct,
+    };
+  });
 
   return (
     <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
@@ -271,6 +278,31 @@ export function AgentKeyUsageDashboard({ keyId, keyName, keyPrefix, open, onClos
                         stroke="#8b5cf6"
                         dot={false}
                         strokeWidth={2}
+                      />
+                    </LineChart>
+                  </ResponsiveContainer>
+                </div>
+
+                {/* Real token rate line chart */}
+                <div className="space-y-1">
+                  <p className="text-sm font-medium text-muted-foreground">
+                    {t("agentKeys.usage.chart.realTokenRate", "Real Token Rate (%) Over Time")}
+                  </p>
+                  <ResponsiveContainer width="100%" height={160}>
+                    <LineChart data={chartData} margin={{ top: 4, right: 4, left: -20, bottom: 0 }}>
+                      <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
+                      <XAxis dataKey="date" tick={{ fontSize: 11 }} />
+                      <YAxis tick={{ fontSize: 11 }} domain={[0, 100]} unit="%" />
+                      <Tooltip formatter={(value: number) => [`${value}%`, t("agentKeys.usage.chart.realTokenRate_label", "Real Token %")]} />
+                      <Legend wrapperStyle={{ fontSize: 12 }} />
+                      <Line
+                        type="monotone"
+                        dataKey="realTokenPct"
+                        name={t("agentKeys.usage.chart.realTokenRate_label", "Real Token %")}
+                        stroke="#10b981"
+                        dot={{ r: 3 }}
+                        strokeWidth={2}
+                        connectNulls={false}
                       />
                     </LineChart>
                   </ResponsiveContainer>
