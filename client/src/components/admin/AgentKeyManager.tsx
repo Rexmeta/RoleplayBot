@@ -44,6 +44,9 @@ import {
   List,
   BarChart2,
   ExternalLink,
+  AlertTriangle,
+  X,
+  Settings2,
 } from "lucide-react";
 import { format } from "date-fns";
 import { AGENT_API_SCOPES } from "@shared/schema";
@@ -67,6 +70,18 @@ interface AgentApiKey {
   monthlyRequestCount: number;
   monthlyTotalTokens: number;
   monthlyEstimatedRequestCount: number;
+}
+
+interface AgentKeyAlert {
+  id: string;
+  agentKeyId: string;
+  agentKeyName: string;
+  organizationId: string;
+  period: string;
+  realTokenRate: number;
+  threshold: number;
+  acknowledgedAt: string | null;
+  createdAt: string;
 }
 
 interface Scenario {
@@ -105,9 +120,47 @@ export function AgentKeyManager() {
   const [selectedScenarioIds, setSelectedScenarioIds] = useState<string[]>([]);
   const [formData, setFormData] = useState(EMPTY_FORM);
   const [usageTarget, setUsageTarget] = useState<AgentApiKey | null>(null);
+  const [thresholdEditOpen, setThresholdEditOpen] = useState(false);
+  const [thresholdInput, setThresholdInput] = useState<number>(50);
 
   const { data: keys = [], isLoading } = useQuery<AgentApiKey[]>({
     queryKey: ["/api/admin/agent-keys"],
+  });
+
+  const { data: alerts = [], refetch: refetchAlerts } = useQuery<AgentKeyAlert[]>({
+    queryKey: ["/api/admin/agent-keys/alerts"],
+  });
+
+  const { data: alertSettings } = useQuery<{ threshold: number }>({
+    queryKey: ["/api/admin/agent-keys/alert-settings"],
+  });
+
+  const acknowledgeAlertMutation = useMutation({
+    mutationFn: async (alertId: string) => {
+      const res = await apiRequest("POST", `/api/admin/agent-keys/alerts/${alertId}/acknowledge`, {});
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/agent-keys/alerts"] });
+    },
+    onError: (err: any) => {
+      toast({ title: t("agentKeys.toast.alertDismissFailed", "알림 해제 실패"), description: err.message, variant: "destructive" });
+    },
+  });
+
+  const updateThresholdMutation = useMutation({
+    mutationFn: async (threshold: number) => {
+      const res = await apiRequest("PUT", "/api/admin/agent-keys/alert-settings", { threshold });
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/agent-keys/alert-settings"] });
+      setThresholdEditOpen(false);
+      toast({ title: t("agentKeys.toast.thresholdSaved", "임계값이 저장되었습니다") });
+    },
+    onError: (err: any) => {
+      toast({ title: t("agentKeys.toast.thresholdFailed", "저장 실패"), description: err.message, variant: "destructive" });
+    },
   });
 
   const { data: scenarios = [] } = useQuery<Scenario[]>({
@@ -250,18 +303,75 @@ export function AgentKeyManager() {
     setSelectedScenarioIds([]);
   };
 
+  const currentThreshold = alertSettings?.threshold ?? 50;
+
   return (
     <div className="space-y-6">
+      {/* Alert Banner */}
+      {alerts.length > 0 && (
+        <Card className="border-amber-300 bg-amber-50 dark:bg-amber-950 dark:border-amber-700">
+          <CardHeader className="pb-2">
+            <CardTitle className="flex items-center gap-2 text-amber-800 dark:text-amber-200 text-base">
+              <AlertTriangle className="h-5 w-5" />
+              {t("agentKeys.alerts.title", "실 토큰률 경보")}
+              <Badge variant="secondary" className="ml-auto bg-amber-200 dark:bg-amber-800 text-amber-900 dark:text-amber-100">
+                {alerts.length}
+              </Badge>
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            {alerts.map((alert) => (
+              <div
+                key={alert.id}
+                className="flex items-center justify-between gap-3 rounded-md bg-white dark:bg-amber-900/40 px-3 py-2 text-sm border border-amber-200 dark:border-amber-700"
+              >
+                <div className="flex items-center gap-2 min-w-0">
+                  <span className="font-medium truncate">{alert.agentKeyName}</span>
+                  <span className="text-muted-foreground shrink-0">({alert.period})</span>
+                  <Badge variant="outline" className="text-red-600 border-red-300 bg-red-50 dark:bg-red-950 shrink-0">
+                    {alert.realTokenRate}%
+                  </Badge>
+                  <span className="text-muted-foreground text-xs shrink-0">
+                    {t("agentKeys.alerts.belowThreshold", { threshold: alert.threshold, defaultValue: `임계값 {{threshold}}% 미달` })}
+                  </span>
+                </div>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="h-7 w-7 p-0 shrink-0"
+                  onClick={() => acknowledgeAlertMutation.mutate(alert.id)}
+                  disabled={acknowledgeAlertMutation.isPending}
+                  title={t("agentKeys.alerts.dismiss", "알림 해제")}
+                >
+                  <X className="h-3.5 w-3.5" />
+                </Button>
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+      )}
+
       <Card>
         <CardHeader className="flex flex-row items-center justify-between space-y-0">
           <CardTitle className="flex items-center gap-2">
             <Key className="h-5 w-5" />
             {t("agentKeys.title", "Agent API 키 관리")}
           </CardTitle>
-          <Button onClick={() => setCreateOpen(true)} size="sm">
-            <Plus className="h-4 w-4 mr-2" />
-            {t("agentKeys.createKey", "새 키 생성")}
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => { setThresholdInput(currentThreshold); setThresholdEditOpen(true); }}
+              title={t("agentKeys.threshold.configure", "실 토큰률 경보 임계값 설정")}
+            >
+              <Settings2 className="h-4 w-4 mr-2" />
+              {t("agentKeys.threshold.label", "경보 임계값")}: {currentThreshold}%
+            </Button>
+            <Button onClick={() => setCreateOpen(true)} size="sm">
+              <Plus className="h-4 w-4 mr-2" />
+              {t("agentKeys.createKey", "새 키 생성")}
+            </Button>
+          </div>
         </CardHeader>
         <CardContent>
           {isLoading ? (
@@ -775,6 +885,65 @@ export function AgentKeyManager() {
         open={!!usageTarget}
         onClose={() => setUsageTarget(null)}
       />
+
+      {/* Threshold Configuration Dialog */}
+      <Dialog open={thresholdEditOpen} onOpenChange={(open) => !open && setThresholdEditOpen(false)}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Settings2 className="h-5 w-5" />
+              {t("agentKeys.threshold.dialogTitle", "실 토큰률 경보 임계값")}
+            </DialogTitle>
+            <DialogDescription>
+              {t(
+                "agentKeys.threshold.dialogDescription",
+                "이 값(%)보다 낮은 실 토큰률이 감지되면 월 1회 알림이 생성됩니다. 최소 5건 이상의 요청이 있어야 알림이 발생합니다."
+              )}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-2">
+            <div className="space-y-1.5">
+              <Label>{t("agentKeys.threshold.inputLabel", "임계값 (%)")}</Label>
+              <div className="flex items-center gap-2">
+                <Input
+                  type="number"
+                  min={1}
+                  max={100}
+                  value={thresholdInput}
+                  onChange={(e) => setThresholdInput(Number(e.target.value))}
+                  className="w-24"
+                />
+                <span className="text-sm text-muted-foreground">
+                  {t("agentKeys.threshold.currentValue", { value: currentThreshold, defaultValue: `현재: {{value}}%` })}
+                </span>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                {t("agentKeys.threshold.hint", "권장값: 50% (기본값). 높이면 더 민감하게, 낮추면 덜 민감하게 동작합니다.")}
+              </p>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setThresholdEditOpen(false)}>
+              {t("common.cancel", "취소")}
+            </Button>
+            <Button
+              onClick={() => updateThresholdMutation.mutate(thresholdInput)}
+              disabled={updateThresholdMutation.isPending || thresholdInput < 1 || thresholdInput > 100}
+            >
+              {updateThresholdMutation.isPending ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  {t("common.saving", "저장 중...")}
+                </>
+              ) : (
+                t("common.save", "저장")
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

@@ -5,14 +5,16 @@
  */
 import { Router } from "express";
 import { db } from "../storage";
+import { storage } from "../storage";
 import {
   agentApiKeys,
   agentKeyScenarios,
   agentUsageDaily,
+  agentKeyAlerts,
   auditLogs,
   AGENT_API_SCOPES,
 } from "@shared/schema";
-import { eq, and, desc, sql, or, gte, lt, lte } from "drizzle-orm";
+import { eq, and, desc, sql, or, gte, lt, lte, isNull } from "drizzle-orm";
 import { isSystemAdmin, isOperatorOrAdmin } from "../middleware/authMiddleware";
 import { asyncHandler, createHttpError } from "./routerHelpers";
 import { generateAgentApiKey, computeExpiryDate } from "../utils/agentApiKey";
@@ -452,6 +454,116 @@ router.get(
     );
 
     res.json({ rows: dailyRows, summary });
+  })
+);
+
+// ─────────────────────────────────────────────────────────────────────────────
+// GET /api/admin/agent-keys/alerts — list unacknowledged rate alerts (admin + operator)
+// ─────────────────────────────────────────────────────────────────────────────
+router.get(
+  "/alerts",
+  isOperatorOrAdmin,
+  asyncHandler(async (req: any, res) => {
+    const isAdmin = req.user.role === "admin";
+
+    type AlertRow = typeof agentKeyAlerts.$inferSelect;
+    let rows: AlertRow[];
+    if (isAdmin) {
+      rows = await db
+        .select()
+        .from(agentKeyAlerts)
+        .where(isNull(agentKeyAlerts.acknowledgedAt))
+        .orderBy(desc(agentKeyAlerts.createdAt))
+        .limit(50);
+    } else {
+      // Operators see alerts for keys they own or their assigned org
+      if (!req.user.assignedOrganizationId) {
+        rows = [];
+      } else {
+        rows = await db
+          .select()
+          .from(agentKeyAlerts)
+          .where(and(isNull(agentKeyAlerts.acknowledgedAt), eq(agentKeyAlerts.organizationId, req.user.assignedOrganizationId)))
+          .orderBy(desc(agentKeyAlerts.createdAt))
+          .limit(50);
+      }
+    }
+
+    res.json(rows);
+  })
+);
+
+// ─────────────────────────────────────────────────────────────────────────────
+// POST /api/admin/agent-keys/alerts/:id/acknowledge — dismiss an alert (admin + operator)
+// ─────────────────────────────────────────────────────────────────────────────
+router.post(
+  "/alerts/:id/acknowledge",
+  isOperatorOrAdmin,
+  asyncHandler(async (req: any, res) => {
+    const [alert] = await db
+      .select()
+      .from(agentKeyAlerts)
+      .where(eq(agentKeyAlerts.id, req.params.id))
+      .limit(1);
+
+    if (!alert) throw createHttpError(404, "Alert not found");
+
+    // Operators may only acknowledge alerts for their assigned organization
+    const isAdmin = req.user.role === "admin";
+    if (!isAdmin) {
+      const ownedByOrg = req.user.assignedOrganizationId
+        ? alert.organizationId === req.user.assignedOrganizationId
+        : false;
+      if (!ownedByOrg) throw createHttpError(403, "Access denied");
+    }
+
+    await db
+      .update(agentKeyAlerts)
+      .set({ acknowledgedAt: new Date() })
+      .where(eq(agentKeyAlerts.id, req.params.id));
+
+    res.json({ success: true });
+  })
+);
+
+// ─────────────────────────────────────────────────────────────────────────────
+// GET /api/admin/agent-keys/alert-settings — get threshold setting (admin)
+// ─────────────────────────────────────────────────────────────────────────────
+router.get(
+  "/alert-settings",
+  isSystemAdmin,
+  asyncHandler(async (_req: any, res) => {
+    const setting = await storage.getSystemSetting("agent", "real_token_rate_threshold");
+    const threshold = setting ? parseInt(setting.value, 10) : 50;
+    res.json({ threshold });
+  })
+);
+
+// ─────────────────────────────────────────────────────────────────────────────
+// PUT /api/admin/agent-keys/alert-settings — update threshold (admin)
+// ─────────────────────────────────────────────────────────────────────────────
+const alertSettingsSchema = z.object({
+  threshold: z.number().int().min(1).max(100),
+});
+
+router.put(
+  "/alert-settings",
+  isSystemAdmin,
+  asyncHandler(async (req: any, res) => {
+    const parsed = alertSettingsSchema.safeParse(req.body);
+    if (!parsed.success) {
+      throw Object.assign(createHttpError(400, "Invalid input"), {
+        details: parsed.error.flatten(),
+      });
+    }
+    await storage.upsertSystemSetting({
+      category: "agent",
+      key: "real_token_rate_threshold",
+      value: String(parsed.data.threshold),
+      description: "Minimum acceptable real-token rate (%) for agent API keys. Alerts fire when a key drops below this.",
+      updatedBy: req.user.id,
+    });
+    res.json({ threshold: parsed.data.threshold });
   })
 );
 

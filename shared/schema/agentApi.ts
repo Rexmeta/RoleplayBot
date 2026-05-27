@@ -139,6 +139,33 @@ export const agentUsageDaily = pgTable("agent_usage_daily", {
 export type AgentUsageDaily = typeof agentUsageDaily.$inferSelect;
 
 // ─────────────────────────────────────────────────────────────
+// agent_key_alerts  (low real-token-rate notifications)
+// ─────────────────────────────────────────────────────────────
+export const agentKeyAlerts = pgTable("agent_key_alerts", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  agentKeyId: varchar("agent_key_id").notNull().references(() => agentApiKeys.id, { onDelete: "cascade" }),
+  agentKeyName: varchar("agent_key_name").notNull(),
+  organizationId: varchar("organization_id").notNull(),
+  period: varchar("period", { length: 7 }).notNull(), // "YYYY-MM"
+  realTokenRate: integer("real_token_rate").notNull(), // 0-100 %
+  threshold: integer("threshold").notNull(), // configured threshold at time of alert
+  acknowledgedAt: timestamp("acknowledged_at"),
+  createdAt: timestamp("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+}, (table) => [
+  uniqueIndex("idx_agent_key_alerts_key_period").on(table.agentKeyId, table.period),
+  index("idx_agent_key_alerts_org").on(table.organizationId),
+  index("idx_agent_key_alerts_created").on(table.createdAt),
+]);
+
+export const insertAgentKeyAlertSchema = createInsertSchema(agentKeyAlerts).omit({
+  id: true,
+  acknowledgedAt: true,
+  createdAt: true,
+});
+export type InsertAgentKeyAlert = z.infer<typeof insertAgentKeyAlertSchema>;
+export type AgentKeyAlert = typeof agentKeyAlerts.$inferSelect;
+
+// ─────────────────────────────────────────────────────────────
 // audit_logs
 // ─────────────────────────────────────────────────────────────
 export const auditLogs = pgTable("audit_logs", {

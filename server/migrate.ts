@@ -1566,6 +1566,29 @@ export async function runMigrations(): Promise<void> {
         console.warn('⚠️ Failed to add estimated_request_count column to agent_usage_daily:', err);
       }
 
+      // Create agent_key_alerts table for low real-token-rate in-app notifications
+      try {
+        await client.query(`
+          CREATE TABLE IF NOT EXISTS "agent_key_alerts" (
+            "id" varchar PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+            "agent_key_id" varchar NOT NULL REFERENCES "agent_api_keys"("id") ON DELETE CASCADE,
+            "agent_key_name" varchar NOT NULL,
+            "organization_id" varchar NOT NULL,
+            "period" varchar(7) NOT NULL,
+            "real_token_rate" integer NOT NULL,
+            "threshold" integer NOT NULL,
+            "acknowledged_at" timestamp,
+            "created_at" timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP
+          );
+          CREATE UNIQUE INDEX IF NOT EXISTS "idx_agent_key_alerts_key_period" ON "agent_key_alerts"("agent_key_id", "period");
+          CREATE INDEX IF NOT EXISTS "idx_agent_key_alerts_org" ON "agent_key_alerts"("organization_id");
+          CREATE INDEX IF NOT EXISTS "idx_agent_key_alerts_created" ON "agent_key_alerts"("created_at");
+        `);
+        console.log('✅ agent_key_alerts table created/verified');
+      } catch (err) {
+        console.warn('⚠️ Failed to create agent_key_alerts table:', err);
+      }
+
       console.log('✅ Database migrations completed successfully');
     } finally {
       client.release();

@@ -16,6 +16,8 @@ import {
   agentSessions,
   agentIdempotencyKeys,
   agentUsageDaily,
+  agentKeyAlerts,
+  agentApiKeys,
   agentWebhooks,
   auditLogs,
   personaRuns,
@@ -107,8 +109,81 @@ export async function incrementUsageDaily(
           estimatedRequestCount: sql`${agentUsageDaily.estimatedRequestCount} + ${isEstimated ? 1 : 0}`,
         },
       });
+
+    // Best-effort rate-alert check (fire-and-forget)
+    checkAndFireRateAlert(agentKeyId).catch(() => {});
   } catch (err) {
     console.warn("[agentApi] Failed to increment usage_daily (non-fatal):", err);
+  }
+}
+
+// Check if a key's real-token rate has dropped below the configured threshold
+// and fire a one-per-month in-app alert if so. Runs best-effort (non-fatal).
+export async function checkAndFireRateAlert(agentKeyId: string): Promise<void> {
+  try {
+    const now = new Date();
+    const period = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+    const monthStart = `${period}-01`;
+    const nextMonthStart = now.getMonth() === 11
+      ? `${now.getFullYear() + 1}-01-01`
+      : `${now.getFullYear()}-${String(now.getMonth() + 2).padStart(2, "0")}-01`;
+
+    // Fetch this month's totals for the key
+    const [usageRow] = await db
+      .select({
+        requestCount: sql<number>`COALESCE(SUM(${agentUsageDaily.requestCount}), 0)::int`,
+        estimatedRequestCount: sql<number>`COALESCE(SUM(${agentUsageDaily.estimatedRequestCount}), 0)::int`,
+        organizationId: agentUsageDaily.organizationId,
+      })
+      .from(agentUsageDaily)
+      .where(
+        and(
+          eq(agentUsageDaily.agentKeyId, agentKeyId),
+          gte(agentUsageDaily.date, monthStart),
+          lt(agentUsageDaily.date, nextMonthStart)
+        )
+      )
+      .groupBy(agentUsageDaily.organizationId);
+
+    if (!usageRow || usageRow.requestCount < 5) return; // not enough data yet
+
+    const realPct = Math.round(
+      ((usageRow.requestCount - usageRow.estimatedRequestCount) / usageRow.requestCount) * 100
+    );
+
+    // Fetch threshold from system_settings (default 50)
+    const { storage } = await import("../storage");
+    const settingRow = await storage.getSystemSetting("agent", "real_token_rate_threshold");
+    const threshold = settingRow ? parseInt(settingRow.value, 10) : 50;
+
+    if (realPct >= threshold) return; // rate is fine
+
+    // Check if an alert for this key+period already exists
+    const existing = await db
+      .select({ id: agentKeyAlerts.id })
+      .from(agentKeyAlerts)
+      .where(and(eq(agentKeyAlerts.agentKeyId, agentKeyId), eq(agentKeyAlerts.period, period)))
+      .limit(1);
+
+    if (existing.length > 0) return; // already alerted this month
+
+    // Fetch key name for the alert record
+    const [keyRow] = await db
+      .select({ name: agentApiKeys.name })
+      .from(agentApiKeys)
+      .where(eq(agentApiKeys.id, agentKeyId))
+      .limit(1);
+
+    await db.insert(agentKeyAlerts).values({
+      agentKeyId,
+      agentKeyName: keyRow?.name ?? agentKeyId,
+      organizationId: usageRow.organizationId,
+      period,
+      realTokenRate: realPct,
+      threshold,
+    }).onConflictDoNothing();
+  } catch (err) {
+    console.warn("[agentApi] checkAndFireRateAlert failed (non-fatal):", err);
   }
 }
 
