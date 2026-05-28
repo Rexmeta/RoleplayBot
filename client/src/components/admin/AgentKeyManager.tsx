@@ -104,6 +104,7 @@ interface AgentWebhookDelivery {
   event: string;
   statusCode: number | null;
   attempt: number;
+  payload: Record<string, unknown> | null;
   succeededAt: string | null;
   nextRetryAt: string | null;
   createdAt: string | null;
@@ -154,6 +155,7 @@ export function AgentKeyManager() {
   const [newWebhookUrl, setNewWebhookUrl] = useState("");
   const [revealedWebhookSecret, setRevealedWebhookSecret] = useState<{ secret: string; url: string } | null>(null);
   const [deliveryWebhookId, setDeliveryWebhookId] = useState<string | null>(null);
+  const [expandedPayloadIds, setExpandedPayloadIds] = useState<Set<string>>(new Set());
 
   const { data: keys = [], isLoading } = useQuery<AgentApiKey[]>({
     queryKey: ["/api/admin/agent-keys"],
@@ -1150,42 +1152,69 @@ export function AgentKeyManager() {
                               {webhookDeliveries.map((d) => {
                                 const isSuccess = d.succeededAt !== null;
                                 const isFailed = !isSuccess && d.statusCode !== null && d.statusCode >= 400;
-                                const isPending = d.statusCode === null;
+                                const isPayloadExpanded = expandedPayloadIds.has(d.id);
+                                const togglePayload = () =>
+                                  setExpandedPayloadIds((prev) => {
+                                    const next = new Set(prev);
+                                    if (next.has(d.id)) next.delete(d.id);
+                                    else next.add(d.id);
+                                    return next;
+                                  });
                                 return (
                                   <div
                                     key={d.id}
-                                    className={`flex items-center gap-2 rounded px-2 py-1.5 text-xs ${
+                                    className={`rounded border text-xs ${
                                       isFailed
-                                        ? "bg-red-50 dark:bg-red-950 border border-red-200 dark:border-red-800"
+                                        ? "bg-red-50 dark:bg-red-950 border-red-200 dark:border-red-800"
                                         : isSuccess
-                                        ? "bg-green-50 dark:bg-green-950 border border-green-200 dark:border-green-800"
-                                        : "bg-muted/50 border border-border"
+                                        ? "bg-green-50 dark:bg-green-950 border-green-200 dark:border-green-800"
+                                        : "bg-muted/50 border-border"
                                     }`}
                                   >
-                                    <span
-                                      className={`font-mono font-medium w-8 text-center ${
-                                        isFailed
-                                          ? "text-red-700 dark:text-red-300"
-                                          : isSuccess
-                                          ? "text-green-700 dark:text-green-300"
-                                          : "text-muted-foreground"
-                                      }`}
-                                    >
-                                      {d.statusCode ?? "—"}
-                                    </span>
-                                    <span className="font-mono text-muted-foreground flex-1 truncate">
-                                      {d.event}
-                                    </span>
-                                    {d.attempt > 1 && (
-                                      <Badge variant="outline" className="text-xs px-1 py-0 shrink-0">
-                                        {t("agentKeys.webhooks.deliveries.attempt", "시도 {{n}}", { n: d.attempt })}
-                                      </Badge>
+                                    <div className="flex items-center gap-2 px-2 py-1.5">
+                                      <span
+                                        className={`font-mono font-medium w-8 text-center shrink-0 ${
+                                          isFailed
+                                            ? "text-red-700 dark:text-red-300"
+                                            : isSuccess
+                                            ? "text-green-700 dark:text-green-300"
+                                            : "text-muted-foreground"
+                                        }`}
+                                      >
+                                        {d.statusCode ?? "—"}
+                                      </span>
+                                      <span className="font-mono text-muted-foreground flex-1 truncate">
+                                        {d.event}
+                                      </span>
+                                      {d.attempt > 1 && (
+                                        <Badge variant="outline" className="text-xs px-1 py-0 shrink-0">
+                                          {t("agentKeys.webhooks.deliveries.attempt", "시도 {{n}}", { n: d.attempt })}
+                                        </Badge>
+                                      )}
+                                      <span className="text-muted-foreground shrink-0">
+                                        {d.createdAt
+                                          ? format(new Date(d.createdAt), "MM-dd HH:mm")
+                                          : "—"}
+                                      </span>
+                                      {d.payload && (
+                                        <button
+                                          onClick={togglePayload}
+                                          className="shrink-0 text-muted-foreground hover:text-foreground underline underline-offset-2 transition-colors"
+                                          title={t("agentKeys.webhooks.deliveries.payloadToggle", "페이로드 보기")}
+                                        >
+                                          {isPayloadExpanded
+                                            ? t("agentKeys.webhooks.deliveries.payloadHide", "닫기")
+                                            : t("agentKeys.webhooks.deliveries.payloadShow", "Payload")}
+                                        </button>
+                                      )}
+                                    </div>
+                                    {isPayloadExpanded && d.payload && (
+                                      <div className="border-t px-2 py-2">
+                                        <pre className="text-xs font-mono whitespace-pre-wrap break-all leading-relaxed max-h-48 overflow-y-auto bg-black/5 dark:bg-white/5 rounded p-2">
+                                          {JSON.stringify(d.payload, null, 2)}
+                                        </pre>
+                                      </div>
                                     )}
-                                    <span className="text-muted-foreground shrink-0">
-                                      {d.createdAt
-                                        ? format(new Date(d.createdAt), "MM-dd HH:mm")
-                                        : "—"}
-                                    </span>
                                   </div>
                                 );
                               })}

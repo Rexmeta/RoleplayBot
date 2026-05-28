@@ -712,6 +712,7 @@ router.get(
         event: d.event,
         statusCode: d.statusCode,
         attempt: d.attempt,
+        payload: d.payload ?? null,
         succeededAt: d.succeededAt?.toISOString() ?? null,
         nextRetryAt: d.nextRetryAt?.toISOString() ?? null,
         createdAt: d.createdAt?.toISOString() ?? null,
