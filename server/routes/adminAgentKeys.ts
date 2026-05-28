@@ -21,7 +21,7 @@ import { eq, and, desc, sql, or, gte, lt, lte, isNull, ne } from "drizzle-orm";
 import { isSystemAdmin, isOperatorOrAdmin } from "../middleware/authMiddleware";
 import { asyncHandler, createHttpError } from "./routerHelpers";
 import { generateAgentApiKey, computeExpiryDate } from "../utils/agentApiKey";
-import { encryptWebhookSecret } from "../services/webhookDelivery";
+import { encryptWebhookSecret, fireTestWebhook } from "../services/webhookDelivery";
 import { z } from "zod";
 
 const router = Router();
@@ -718,6 +718,18 @@ router.get(
         createdAt: d.createdAt?.toISOString() ?? null,
       }))
     );
+  })
+);
+
+// ─────────────────────────────────────────────────────────────────────────────
+// POST /api/admin/agent-keys/:id/webhooks/:webhookId/test — fire a test event (admin)
+// ─────────────────────────────────────────────────────────────────────────────
+router.post(
+  "/:id/webhooks/:webhookId/test",
+  isSystemAdmin,
+  asyncHandler(async (req: any, res) => {
+    const { ok, statusCode } = await fireTestWebhook(req.params.webhookId, req.params.id);
+    res.json({ ok, statusCode });
   })
 );
 

@@ -195,6 +195,55 @@ async function deliverWithRetry(
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Public API: fire a single test delivery to a specific webhook (no retries)
+// Returns { ok, statusCode } so callers can surface the result to the admin.
+// ─────────────────────────────────────────────────────────────────────────────
+export async function fireTestWebhook(
+  webhookId: string,
+  agentKeyId: string
+): Promise<{ ok: boolean; statusCode: number | null }> {
+  const [webhook] = await db
+    .select({
+      id: agentWebhooks.id,
+      url: agentWebhooks.url,
+      secretKey: agentWebhooks.secretKey,
+    })
+    .from(agentWebhooks)
+    .where(and(eq(agentWebhooks.id, webhookId), eq(agentWebhooks.agentKeyId, agentKeyId)))
+    .limit(1);
+
+  if (!webhook) throw new Error("Webhook not found");
+
+  let plaintextSecret: string;
+  try {
+    plaintextSecret = decryptWebhookSecret(webhook.secretKey);
+  } catch (err) {
+    throw new Error("Cannot decrypt webhook secret");
+  }
+
+  const deliveryId = `wdl_test_${randomUUID().replace(/-/g, "").slice(0, 16)}`;
+  const event: WebhookEventType = "agent_key.low_token_rate";
+  const payload = {
+    event,
+    deliveryId,
+    timestamp: new Date().toISOString(),
+    test: true,
+    data: {
+      agentKeyId,
+      message: "This is a test delivery sent from the admin panel.",
+    },
+  };
+
+  const rawBody = JSON.stringify(payload);
+  const signature = signPayload(rawBody, plaintextSecret);
+  const { statusCode, ok } = await attemptDelivery(webhook.url, rawBody, signature, event, deliveryId);
+
+  await logDelivery(webhook.id, deliveryId, event, payload, statusCode || null, 1, ok, null);
+
+  return { ok, statusCode: statusCode || null };
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Public API: dispatch an event to all matching webhooks for an API key
 // ─────────────────────────────────────────────────────────────────────────────
 export async function dispatchWebhook(

@@ -226,6 +226,28 @@ export function AgentKeyManager() {
     },
   });
 
+  const testWebhookMutation = useMutation({
+    mutationFn: async ({ keyId, webhookId }: { keyId: string; webhookId: string }) => {
+      const res = await apiRequest("POST", `/api/admin/agent-keys/${keyId}/webhooks/${webhookId}/test`, {});
+      return res.json() as Promise<{ ok: boolean; statusCode: number | null }>;
+    },
+    onSuccess: (data, { keyId, webhookId }) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/agent-keys", webhookTarget?.id, "webhooks", webhookId, "deliveries"] });
+      if (data.ok) {
+        toast({ title: t("agentKeys.webhooks.testSuccess", "테스트 전송 성공"), description: t("agentKeys.webhooks.testSuccessDesc", "엔드포인트가 {{code}} 응답을 반환했습니다.", { code: data.statusCode }) });
+      } else {
+        toast({
+          title: t("agentKeys.webhooks.testFailed", "테스트 전송 실패"),
+          description: t("agentKeys.webhooks.testFailedDesc", "엔드포인트가 {{code}} 응답을 반환했습니다.", { code: data.statusCode ?? 0 }),
+          variant: "destructive",
+        });
+      }
+    },
+    onError: (err: any) => {
+      toast({ title: t("agentKeys.webhooks.testError", "테스트 전송 오류"), description: err.message, variant: "destructive" });
+    },
+  });
+
   const acknowledgeAlertMutation = useMutation({
     mutationFn: async (alertId: string) => {
       const res = await apiRequest("POST", `/api/admin/agent-keys/alerts/${alertId}/acknowledge`, {});
@@ -1111,6 +1133,23 @@ export function AgentKeyManager() {
                             title={t("agentKeys.webhooks.deliveries.toggle", "최근 전송 이력")}
                           >
                             {t("agentKeys.webhooks.deliveries.toggle", "이력")}
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="h-7 px-2 text-xs text-muted-foreground hover:text-primary"
+                            disabled={testWebhookMutation.isPending && testWebhookMutation.variables?.webhookId === wh.id}
+                            onClick={() =>
+                              webhookTarget &&
+                              testWebhookMutation.mutate({ keyId: webhookTarget.id, webhookId: wh.id })
+                            }
+                            title={t("agentKeys.webhooks.test", "테스트 이벤트 전송")}
+                          >
+                            {testWebhookMutation.isPending && testWebhookMutation.variables?.webhookId === wh.id ? (
+                              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                            ) : (
+                              t("agentKeys.webhooks.testButton", "테스트")
+                            )}
                           </Button>
                           <Button
                             size="sm"
