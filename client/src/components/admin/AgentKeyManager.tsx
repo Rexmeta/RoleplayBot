@@ -30,6 +30,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -1284,6 +1289,8 @@ export function AgentKeyManager() {
                                 const isRetrying =
                                   retryDeliveryMutation.isPending &&
                                   retryDeliveryMutation.variables?.deliveryId === d.id;
+                                const hasScheduledAutoRetry =
+                                  !!d.nextRetryAt && new Date(d.nextRetryAt) > new Date();
                                 return (
                                   <div
                                     key={d.id}
@@ -1340,25 +1347,39 @@ export function AgentKeyManager() {
                                       </div>
                                     )}
                                     {isFailed && (
-                                      <button
-                                        onClick={() =>
-                                          retryDeliveryMutation.mutate({
-                                            keyId: webhookTarget!.id,
-                                            webhookId: deliveryWebhookId!,
-                                            deliveryId: d.id,
-                                          })
-                                        }
-                                        disabled={isRetrying}
-                                        className="shrink-0 flex items-center gap-1 rounded px-1.5 py-0.5 text-xs font-medium text-red-700 dark:text-red-300 border border-red-300 dark:border-red-700 hover:bg-red-100 dark:hover:bg-red-900 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                                        title={t("agentKeys.webhooks.deliveries.retryTitle", "재전송")}
-                                      >
-                                        {isRetrying ? (
-                                          <Loader2 className="h-3 w-3 animate-spin" />
-                                        ) : (
-                                          <RotateCcw className="h-3 w-3" />
+                                      <Tooltip>
+                                        <TooltipTrigger asChild>
+                                          <span className="shrink-0">
+                                            <button
+                                              onClick={() =>
+                                                retryDeliveryMutation.mutate({
+                                                  keyId: webhookTarget!.id,
+                                                  webhookId: deliveryWebhookId!,
+                                                  deliveryId: d.id,
+                                                })
+                                              }
+                                              disabled={isRetrying || hasScheduledAutoRetry}
+                                              className="flex items-center gap-1 rounded px-1.5 py-0.5 text-xs font-medium text-red-700 dark:text-red-300 border border-red-300 dark:border-red-700 hover:bg-red-100 dark:hover:bg-red-900 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                                            >
+                                              {isRetrying ? (
+                                                <Loader2 className="h-3 w-3 animate-spin" />
+                                              ) : (
+                                                <RotateCcw className="h-3 w-3" />
+                                              )}
+                                              {t("agentKeys.webhooks.deliveries.retryBtn", "재시도")}
+                                            </button>
+                                          </span>
+                                        </TooltipTrigger>
+                                        {hasScheduledAutoRetry && (
+                                          <TooltipContent side="top">
+                                            {t(
+                                              "agentKeys.webhooks.deliveries.autoRetryScheduled",
+                                              "자동 재시도가 예약되어 있습니다 ({{time}})",
+                                              { time: format(new Date(d.nextRetryAt!), "MM-dd HH:mm") }
+                                            )}
+                                          </TooltipContent>
                                         )}
-                                        {t("agentKeys.webhooks.deliveries.retryBtn", "재시도")}
-                                      </button>
+                                      </Tooltip>
                                     )}
                                   </div>
                                 );

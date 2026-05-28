@@ -851,6 +851,7 @@ router.post(
         event: agentWebhookDeliveries.event,
         payload: agentWebhookDeliveries.payload,
         succeededAt: agentWebhookDeliveries.succeededAt,
+        nextRetryAt: agentWebhookDeliveries.nextRetryAt,
         webhookId: agentWebhookDeliveries.webhookId,
       })
       .from(agentWebhookDeliveries)
@@ -864,6 +865,9 @@ router.post(
 
     if (!delivery) throw createHttpError(404, "Delivery record not found");
     if (delivery.succeededAt) throw createHttpError(400, "Delivery already succeeded");
+    if (delivery.nextRetryAt && delivery.nextRetryAt > new Date()) {
+      throw createHttpError(409, "An automatic retry is already scheduled for this delivery");
+    }
 
     const { ok, statusCode } = await manualRetryDelivery(
       webhook,
