@@ -1611,6 +1611,69 @@ export async function runMigrations(): Promise<void> {
         console.warn('⚠️ Failed to add agent_key_alerts.delivered_via column:', err);
       }
 
+      // Plans and Subscriptions tables for token-based billing
+      try {
+        await client.query(`
+          CREATE TABLE IF NOT EXISTS "plans" (
+            "id" varchar PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+            "name" varchar NOT NULL,
+            "token_quota_monthly" integer NOT NULL,
+            "price_usd_monthly" double precision NOT NULL DEFAULT 0,
+            "features" jsonb DEFAULT '{}'::jsonb,
+            "is_active" boolean NOT NULL DEFAULT true,
+            "created_at" timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            "updated_at" timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            CONSTRAINT "plans_name_unique" UNIQUE("name")
+          );
+        `);
+        console.log('✅ plans table created/verified');
+      } catch (err) {
+        console.warn('⚠️ Failed to create plans table:', err);
+      }
+
+      try {
+        await client.query(`
+          CREATE TABLE IF NOT EXISTS "subscriptions" (
+            "id" varchar PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+            "user_id" varchar REFERENCES "users"("id") ON DELETE CASCADE,
+            "org_id" varchar,
+            "plan_id" varchar NOT NULL REFERENCES "plans"("id"),
+            "cycle_start" timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            "tokens_used_this_cycle" integer NOT NULL DEFAULT 0,
+            "status" varchar NOT NULL DEFAULT 'active',
+            "created_at" timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            "updated_at" timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP
+          );
+          CREATE INDEX IF NOT EXISTS "idx_subscriptions_user_id" ON "subscriptions"("user_id");
+          CREATE INDEX IF NOT EXISTS "idx_subscriptions_plan_id" ON "subscriptions"("plan_id");
+        `);
+        console.log('✅ subscriptions table created/verified');
+      } catch (err) {
+        console.warn('⚠️ Failed to create subscriptions table:', err);
+      }
+
+      // Add org_id column to existing subscriptions table (idempotent)
+      try {
+        await client.query(`
+          ALTER TABLE "subscriptions" ADD COLUMN IF NOT EXISTS "org_id" varchar;
+          CREATE INDEX IF NOT EXISTS "idx_subscriptions_org_id" ON "subscriptions"("org_id");
+        `);
+        console.log('✅ subscriptions.org_id column ensured');
+      } catch (err) {
+        console.warn('⚠️ Failed to add subscriptions.org_id column:', err);
+      }
+
+      // Drop NOT NULL constraint on subscriptions.user_id (to allow org-level subscriptions)
+      try {
+        await client.query(`
+          ALTER TABLE "subscriptions" ALTER COLUMN "user_id" DROP NOT NULL;
+        `);
+        console.log('✅ subscriptions.user_id nullable constraint updated');
+      } catch (err) {
+        // May fail if already nullable or constraint doesn't exist — non-fatal
+        console.warn('⚠️ subscriptions.user_id nullable update (non-fatal):', (err as any).message?.substring(0, 80));
+      }
+
       console.log('✅ Database migrations completed successfully');
     } finally {
       client.release();

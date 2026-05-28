@@ -2,6 +2,7 @@ import type { Express } from "express";
 import type { Server } from "http";
 import WebSocket, { WebSocketServer } from "ws";
 import { storage } from "./storage";
+import { UNLIMITED_QUOTA } from "@shared/schema";
 import { createSampleData } from "./sampleData";
 import imageGenerationRoutes from "./routes/imageGeneration.js";
 import userPersonaImageRoutes from "./routes/userPersonaImage.js";
@@ -28,6 +29,7 @@ import createPersonaUserScenesRouter from "./routes/personaUserScenes";
 import createSimulationRouter from "./routes/simulation";
 import agentApiRouter from "./routes/agentApi";
 import adminAgentKeysRouter from "./routes/adminAgentKeys";
+import createSubscriptionsRouter from "./routes/subscriptions";
 import swaggerUi from "swagger-ui-express";
 import agentApiSpec from "./openapi/agentApi";
 
@@ -84,6 +86,7 @@ export async function registerRoutes(app: Express, httpServer: Server): Promise<
   app.use('/api/conversations', createConversationsRouter(isAuthenticated));
   app.use('/api/simulation', createSimulationRouter(isAuthenticated));
   app.use('/api/system-admin', createSystemAdminRouter(isAuthenticated));
+  app.use('/api/subscriptions', createSubscriptionsRouter(isAuthenticated));
 
   // ================================
   // Agent API (Enterprise B2B)
@@ -262,6 +265,22 @@ export async function registerRoutes(app: Express, httpServer: Server): Promise<
       ws.send(JSON.stringify({ type: 'error', error: 'Unauthorized access' }));
       ws.close();
       return;
+    }
+
+    // Token quota check before starting a real-time voice session
+    try {
+      const { subscription, plan } = await storage.getOrCreateSubscription(userId);
+      if (plan.tokenQuotaMonthly !== UNLIMITED_QUOTA && subscription.tokensUsedThisCycle >= plan.tokenQuotaMonthly) {
+        ws.send(JSON.stringify({
+          type: 'error',
+          error: 'quota_exceeded',
+          message: `Monthly token quota of ${(plan.tokenQuotaMonthly / 1_000_000).toFixed(1)}M tokens exhausted. Please upgrade your plan.`,
+        }));
+        ws.close(1008, 'Quota exceeded');
+        return;
+      }
+    } catch (err) {
+      console.warn('[voice-ws] Could not check quota, proceeding anyway:', err);
     }
 
     const sessionId = `${userId}-${conversationId}-${Date.now()}`;

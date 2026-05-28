@@ -591,6 +591,17 @@ async function initializeApp() {
     console.error('Sample scene seeding failed (non-fatal):', error);
   }
 
+  // Step 11a: Seed default billing plans (idempotent)
+  recordStep('seed_billing_plans', 'start');
+  initStatus = 'seeding_billing_plans';
+  try {
+    await storage.seedDefaultPlans();
+    recordStep('seed_billing_plans', 'done');
+  } catch (error: any) {
+    recordStep('seed_billing_plans', 'error', error?.message);
+    console.error('Billing plan seeding failed (non-fatal):', error);
+  }
+
   // Step 11: Upload workplace scene images to object storage (idempotent)
   recordStep('seed_scene_images', 'start');
   initStatus = 'seeding_scene_images';

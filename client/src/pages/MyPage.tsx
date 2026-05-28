@@ -19,6 +19,7 @@ import { format } from "date-fns";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { StrategyReflection } from "@/components/StrategyReflection";
+import { MyUsageWidget } from "@/components/MyUsageWidget";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as ChartTooltip, Legend, ResponsiveContainer, ComposedChart, Bar } from "recharts";
 
 type ScoreChartPoint = {
@@ -415,6 +416,7 @@ export default function MyPage() {
 
       {/* Main Content */}
       <main className="max-w-6xl mx-auto px-3 sm:px-4 py-4 sm:py-8">
+        <MyUsageWidget className="mb-4 sm:mb-6" />
         <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as ActiveTab)} className="space-y-4 sm:space-y-6">
           <TabsList className="grid w-full grid-cols-3 h-auto">
             <TabsTrigger value="roleplay-history" className="flex flex-col sm:flex-row items-center gap-1 sm:gap-2 py-2 px-1 text-xs sm:text-sm leading-tight" data-testid="history-tab">

@@ -129,9 +129,9 @@ export async function trackUsage(params: TrackUsageParams): Promise<void> {
       tokensEstimated: params.tokensEstimated ?? false,
     };
     
-    // Fire and forget - don't await to not slow down the response
-    storage.createAiUsageLog(logEntry).catch((error) => {
-      console.error('Failed to log AI usage:', error);
+    // Fire and forget — atomically log usage AND increment subscription counter in one DB transaction
+    storage.logUsageAndIncrementSubscription(logEntry).catch((error) => {
+      console.error('Failed to log AI usage + increment subscription:', error);
     });
   } catch (error) {
     console.error('Error in trackUsage:', error);
@@ -166,7 +166,8 @@ export async function trackUsageSync(params: TrackUsageParams): Promise<void> {
     tokensEstimated: params.tokensEstimated ?? false,
   };
   
-  await storage.createAiUsageLog(logEntry);
+  // Atomically log usage AND increment subscription counter in one DB transaction
+  await storage.logUsageAndIncrementSubscription(logEntry);
 }
 
 // Helper to extract token usage from Gemini response

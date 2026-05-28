@@ -34,10 +34,11 @@ import {
 import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { Search, Users, Shield, UserCog, Loader2, User, KeyRound, Eye, EyeOff, FolderTree, Plus, Pencil, Trash2, GripVertical, Settings, Save, CheckCircle, XCircle, ExternalLink, Activity, DollarSign, Zap, TrendingUp, Calendar, RefreshCw, Languages, Building2, HardDrive, CloudDownload, AlertCircle, Key } from "lucide-react";
+import { Search, Users, Shield, UserCog, Loader2, User, KeyRound, Eye, EyeOff, FolderTree, Plus, Pencil, Trash2, GripVertical, Settings, Save, CheckCircle, XCircle, ExternalLink, Activity, DollarSign, Zap, TrendingUp, Calendar, RefreshCw, Languages, Building2, HardDrive, CloudDownload, AlertCircle, Key, CreditCard } from "lucide-react";
 import { LanguageManager } from "@/components/LanguageManager";
 import { HierarchyTreeManager } from "@/components/HierarchyTreeManager";
 import { AgentKeyManager } from "@/components/admin/AgentKeyManager";
+import { PlansBillingTab } from "@/components/admin/PlansBillingTab";
 import { format } from "date-fns";
 import { ko } from "date-fns/locale";
 
@@ -970,7 +971,7 @@ export default function SystemAdminPage() {
 
       <div className="container mx-auto p-3 md:p-6 space-y-6" data-testid="system-admin-page">
         <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <TabsList className="grid w-full grid-cols-4 sm:grid-cols-7 h-auto p-1 gap-1">
+          <TabsList className="grid w-full grid-cols-4 sm:grid-cols-8 h-auto p-1 gap-1">
             <TabsTrigger value="users" className="flex items-center gap-2" data-testid="tab-users">
               <Users className="h-4 w-4" />
               {t('systemAdmin.tabs.users')}
@@ -1002,6 +1003,10 @@ export default function SystemAdminPage() {
             <TabsTrigger value="agent-api" className="flex items-center gap-2" data-testid="tab-agent-api">
               <Key className="h-4 w-4" />
               {t('systemAdmin.tabs.agentApi', 'Agent API')}
+            </TabsTrigger>
+            <TabsTrigger value="billing" className="flex items-center gap-2" data-testid="tab-billing">
+              <CreditCard className="h-4 w-4" />
+              {t('systemAdmin.tabs.billing', 'Plans & Billing')}
             </TabsTrigger>
           </TabsList>
 
@@ -1877,6 +1882,10 @@ export default function SystemAdminPage() {
 
           <TabsContent value="agent-api" className="space-y-6 mt-6">
             <AgentKeyManager />
+          </TabsContent>
+
+          <TabsContent value="billing" className="space-y-6 mt-6">
+            <PlansBillingTab />
           </TabsContent>
         </Tabs>
       </div>

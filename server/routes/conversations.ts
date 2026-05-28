@@ -35,6 +35,7 @@ import { handleToolCall } from "../services/simulation/simulationToolHandler";
 import { v4 as uuidv4 } from "uuid";
 import { applyScenarioOverride, applyEvalWeightsOverride } from "../services/scenarios/overrideResolver";
 import type { ScenarioOverrideData } from "@shared/schema";
+import { checkTokenQuota } from "../middleware/tokenQuotaMiddleware";
 
 export default function createConversationsRouter(isAuthenticated: any) {
   const router = Router();
@@ -588,7 +589,7 @@ export default function createConversationsRouter(isAuthenticated: any) {
     res.json({ success: true, message: "대화가 삭제되었습니다." });
   }));
 
-  router.post("/:id/messages", isAuthenticated, asyncHandler(async (req: any, res) => {
+  router.post("/:id/messages", isAuthenticated, checkTokenQuota, asyncHandler(async (req: any, res) => {
     const userId = req.user?.id;
     const personaRunId = req.params.id;
 
@@ -1436,7 +1437,7 @@ ${userNameLine}
     });
   }));
 
-  router.post("/:id/realtime-messages", isAuthenticated, asyncHandler(async (req: any, res) => {
+  router.post("/:id/realtime-messages", isAuthenticated, checkTokenQuota, asyncHandler(async (req: any, res) => {
     const userId = req.user?.id;
     const personaRunId = req.params.id;
 
@@ -1579,7 +1580,7 @@ ${userNameLine}
     res.json(choices);
   }));
 
-  router.post("/:id/sequence-analysis", isAuthenticated, asyncHandler(async (req: any, res) => {
+  router.post("/:id/sequence-analysis", isAuthenticated, checkTokenQuota, asyncHandler(async (req: any, res) => {
     const userId = req.user?.id;
     await verifyPersonaRunOwnership(req.params.id, userId);
 
@@ -1602,7 +1603,7 @@ ${userNameLine}
     res.json(analysis);
   }));
 
-  router.post("/:id/strategy-reflection", isAuthenticated, asyncHandler(async (req: any, res) => {
+  router.post("/:id/strategy-reflection", isAuthenticated, checkTokenQuota, asyncHandler(async (req: any, res) => {
     const userId = req.user?.id;
     await verifyPersonaRunOwnership(req.params.id, userId);
 
@@ -1623,7 +1624,7 @@ ${userNameLine}
     res.json({ success: true, conversation });
   }));
 
-  router.post("/:id/feedback", isAuthenticated, asyncHandler(async (req: any, res) => {
+  router.post("/:id/feedback", isAuthenticated, checkTokenQuota, asyncHandler(async (req: any, res) => {
     const userId = req.user?.id;
     const personaRunId = req.params.id;
     const { force } = req.body;

@@ -344,6 +344,30 @@ export default function createSystemAdminRouter(isAuthenticated: any) {
     res.json({ success: true });
   }));
 
+  router.get("/plans", isAuthenticated, isSystemAdmin, asyncHandler(async (req, res) => {
+    const allPlans = await storage.getAllPlans();
+    res.json(allPlans);
+  }));
+
+  router.put("/plans/:id", isAuthenticated, isSystemAdmin, asyncHandler(async (req, res) => {
+    const { id } = req.params;
+    const { name, tokenQuotaMonthly, priceUsdMonthly, features, isActive } = req.body;
+
+    const updates: any = {};
+    if (name !== undefined) updates.name = name;
+    if (tokenQuotaMonthly !== undefined) updates.tokenQuotaMonthly = parseInt(tokenQuotaMonthly);
+    if (priceUsdMonthly !== undefined) updates.priceUsdMonthly = parseFloat(priceUsdMonthly);
+    if (features !== undefined) updates.features = features;
+    if (isActive !== undefined) updates.isActive = isActive;
+
+    if (Object.keys(updates).length === 0) {
+      throw createHttpError(400, "No valid updates provided");
+    }
+
+    const updated = await storage.updatePlan(id, updates);
+    res.json(updated);
+  }));
+
   router.get("/api-keys-status", isAuthenticated, isSystemAdmin, asyncHandler(async (req, res) => {
     const status = {
       gemini: !!(process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY),
