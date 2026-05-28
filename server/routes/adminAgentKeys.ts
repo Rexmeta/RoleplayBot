@@ -871,6 +871,23 @@ router.post(
       delivery.payload
     );
 
+    await db.insert(auditLogs).values({
+      actorUserId: req.user.id,
+      action: "agent_webhook.delivery_retried",
+      targetType: "agent_webhook_delivery",
+      targetId: delivery.id,
+      metadata: {
+        webhookId: req.params.webhookId,
+        agentKeyId: req.params.id,
+        originalDeliveryId: delivery.id,
+        event: delivery.event,
+        retryOk: ok,
+        retryStatusCode: statusCode,
+      },
+      ip: req.ip ?? null,
+      userAgent: req.headers["user-agent"] ?? null,
+    });
+
     res.json({ ok, statusCode });
   })
 );
