@@ -120,6 +120,27 @@ export default function createStoreRouter(isAuthenticated: any) {
     res.json({ success: true });
   }));
 
+  router.delete("/admin/entitlements/:id", isAuthenticated, isSystemAdmin, asyncHandler(async (req, res) => {
+    const entitlement = await storage.getEntitlementById(req.params.id);
+    if (!entitlement) throw createHttpError(404, "Entitlement not found");
+
+    const issueRefund = req.query.refund === "true";
+    let stripeRefundId: string | null = null;
+
+    if (issueRefund && entitlement.stripeChargeId) {
+      try {
+        const stripe = await getUncachableStripeClient();
+        const refund = await stripe.refunds.create({ charge: entitlement.stripeChargeId });
+        stripeRefundId = refund.id;
+      } catch (err: any) {
+        throw createHttpError(502, `Stripe refund failed: ${err?.message ?? "unknown error"}`);
+      }
+    }
+
+    await storage.revokeEntitlementById(req.params.id);
+    res.json({ success: true, stripeRefundId });
+  }));
+
   // ─── Stripe checkout ───────────────────────────────────────────────────────
 
   router.post("/packs/:id/checkout", isAuthenticated, asyncHandler(async (req: any, res) => {

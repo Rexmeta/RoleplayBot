@@ -15,11 +15,13 @@ export interface IStoreStorage {
   getStoreEntitlementsForOrg(orgId: string): Promise<StoreEntitlement[]>;
   getStoreEntitlementsForPack(packId: string): Promise<StoreEntitlement[]>;
   getAllStoreEntitlements(): Promise<(StoreEntitlement & { pack: StorePack | null })[]>;
+  getEntitlementById(id: string): Promise<(StoreEntitlement & { pack: StorePack | null }) | undefined>;
   hasEntitlement(orgId: string, packId: string): Promise<boolean>;
   /** True if org has an explicit entitlement OR qualifies via plan tier. */
   isOrgEntitledToPack(orgId: string | null, packId: string): Promise<boolean>;
   grantEntitlement(entitlement: InsertStoreEntitlement & { stripeChargeId?: string; stripeSessionId?: string }): Promise<StoreEntitlement>;
   revokeEntitlement(orgId: string, packId: string): Promise<void>;
+  revokeEntitlementById(id: string): Promise<void>;
   getStoreRevenueSummary(): Promise<{ totalEntitlements: number; revenueUsd: number; byPack: { packId: string; packName: string; count: number; revenueUsd: number }[] }>;
 }
 
@@ -98,6 +100,16 @@ export function StoreMixin<TBase extends Constructor>(Base: TBase) {
       return rows.map(r => ({ ...r.entitlement, pack: r.pack }));
     }
 
+    async getEntitlementById(id: string): Promise<(StoreEntitlement & { pack: StorePack | null }) | undefined> {
+      const rows = await db
+        .select({ entitlement: storeEntitlements, pack: storePacks })
+        .from(storeEntitlements)
+        .leftJoin(storePacks, eq(storeEntitlements.packId, storePacks.id))
+        .where(eq(storeEntitlements.id, id));
+      if (!rows[0]) return undefined;
+      return { ...rows[0].entitlement, pack: rows[0].pack };
+    }
+
     async hasEntitlement(orgId: string, packId: string): Promise<boolean> {
       const rows = await db
         .select({ id: storeEntitlements.id })
@@ -156,6 +168,10 @@ export function StoreMixin<TBase extends Constructor>(Base: TBase) {
       );
     }
 
+    async revokeEntitlementById(id: string): Promise<void> {
+      await db.delete(storeEntitlements).where(eq(storeEntitlements.id, id));
+    }
+
     async getStoreRevenueSummary(): Promise<{ totalEntitlements: number; revenueUsd: number; byPack: { packId: string; packName: string; count: number; revenueUsd: number }[] }> {
       const allEntitlements = await db
         .select({ entitlement: storeEntitlements, pack: storePacks })
@@ -210,6 +226,11 @@ export class MemStoreStorage implements IStoreStorage {
   async getStoreEntitlementsForOrg(orgId: string) { return this.entitlements.filter(e => e.orgId === orgId); }
   async getStoreEntitlementsForPack(packId: string) { return this.entitlements.filter(e => e.packId === packId); }
   async getAllStoreEntitlements() { return this.entitlements.map(e => ({ ...e, pack: this.packs.find(p => p.id === e.packId) ?? null })); }
+  async getEntitlementById(id: string) {
+    const e = this.entitlements.find(e => e.id === id);
+    if (!e) return undefined;
+    return { ...e, pack: this.packs.find(p => p.id === e.packId) ?? null };
+  }
   async hasEntitlement(orgId: string, packId: string) { return this.entitlements.some(e => e.orgId === orgId && e.packId === packId); }
   async isOrgEntitledToPack(orgId: string | null, packId: string) {
     if (!orgId) return false;
@@ -224,6 +245,9 @@ export class MemStoreStorage implements IStoreStorage {
   }
   async revokeEntitlement(orgId: string, packId: string) {
     this.entitlements = this.entitlements.filter(e => !(e.orgId === orgId && e.packId === packId));
+  }
+  async revokeEntitlementById(id: string) {
+    this.entitlements = this.entitlements.filter(e => e.id !== id);
   }
   async getStoreRevenueSummary() { return { totalEntitlements: 0, revenueUsd: 0, byPack: [] }; }
 }
