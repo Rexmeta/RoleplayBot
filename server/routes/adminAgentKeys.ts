@@ -589,6 +589,99 @@ router.put(
 );
 
 // ─────────────────────────────────────────────────────────────────────────────
+// GET /api/admin/agent-keys/webhook-deliveries — global delivery log (admin)
+// Query params: status (failed|success|all), event, from (YYYY-MM-DD),
+//               to (YYYY-MM-DD), limit (default 50, max 100)
+// ─────────────────────────────────────────────────────────────────────────────
+const deliveryQuerySchema = z.object({
+  status: z.enum(["all", "success", "failed"]).default("all"),
+  event: z.string().optional(),
+  from: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  to: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  limit: z.coerce.number().int().min(1).max(100).default(50),
+});
+
+router.get(
+  "/webhook-deliveries",
+  isSystemAdmin,
+  asyncHandler(async (req: any, res) => {
+    const parsed = deliveryQuerySchema.safeParse(req.query);
+    if (!parsed.success) {
+      throw Object.assign(createHttpError(400, "Invalid query params"), {
+        details: parsed.error.flatten(),
+      });
+    }
+    const { status, event, from, to, limit } = parsed.data;
+
+    const conditions: any[] = [];
+
+    if (status === "success") {
+      conditions.push(sql`${agentWebhookDeliveries.succeededAt} IS NOT NULL`);
+    } else if (status === "failed") {
+      // Any delivery that has not succeeded counts as failed — this includes
+      // transport-level failures (statusCode IS NULL) such as network timeouts
+      // and connection errors, not just HTTP 4xx/5xx responses.
+      conditions.push(sql`${agentWebhookDeliveries.succeededAt} IS NULL`);
+    }
+
+    if (event) {
+      conditions.push(eq(agentWebhookDeliveries.event, event));
+    }
+
+    if (from) {
+      conditions.push(gte(agentWebhookDeliveries.createdAt, new Date(`${from}T00:00:00.000Z`)));
+    }
+
+    if (to) {
+      conditions.push(lte(agentWebhookDeliveries.createdAt, new Date(`${to}T23:59:59.999Z`)));
+    }
+
+    const rows = await db
+      .select({
+        id: agentWebhookDeliveries.id,
+        deliveryId: agentWebhookDeliveries.deliveryId,
+        event: agentWebhookDeliveries.event,
+        statusCode: agentWebhookDeliveries.statusCode,
+        latencyMs: agentWebhookDeliveries.latencyMs,
+        attempt: agentWebhookDeliveries.attempt,
+        succeededAt: agentWebhookDeliveries.succeededAt,
+        nextRetryAt: agentWebhookDeliveries.nextRetryAt,
+        createdAt: agentWebhookDeliveries.createdAt,
+        webhookId: agentWebhookDeliveries.webhookId,
+        webhookUrl: agentWebhooks.url,
+        agentKeyId: agentWebhooks.agentKeyId,
+        agentKeyName: agentApiKeys.name,
+        agentKeyPrefix: agentApiKeys.keyPrefix,
+      })
+      .from(agentWebhookDeliveries)
+      .innerJoin(agentWebhooks, eq(agentWebhookDeliveries.webhookId, agentWebhooks.id))
+      .innerJoin(agentApiKeys, eq(agentWebhooks.agentKeyId, agentApiKeys.id))
+      .where(conditions.length > 0 ? and(...conditions) : undefined)
+      .orderBy(desc(agentWebhookDeliveries.createdAt))
+      .limit(limit);
+
+    res.json(
+      rows.map((d) => ({
+        id: d.id,
+        deliveryId: d.deliveryId,
+        event: d.event,
+        statusCode: d.statusCode,
+        latencyMs: d.latencyMs ?? null,
+        attempt: d.attempt,
+        succeededAt: d.succeededAt?.toISOString() ?? null,
+        nextRetryAt: d.nextRetryAt?.toISOString() ?? null,
+        createdAt: d.createdAt?.toISOString() ?? null,
+        webhookId: d.webhookId,
+        webhookUrl: d.webhookUrl,
+        agentKeyId: d.agentKeyId,
+        agentKeyName: d.agentKeyName,
+        agentKeyPrefix: d.agentKeyPrefix,
+      }))
+    );
+  })
+);
+
+// ─────────────────────────────────────────────────────────────────────────────
 // GET /api/admin/agent-keys/webhook-coverage — per-key webhook subscription
 // status for agent_key.low_token_rate (admin)
 // ─────────────────────────────────────────────────────────────────────────────

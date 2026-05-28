@@ -57,6 +57,9 @@ import {
   BellOff,
   Trash2,
   RotateCcw,
+  ChevronDown,
+  ChevronUp,
+  Filter,
 } from "lucide-react";
 import { format } from "date-fns";
 import { AGENT_API_SCOPES } from "@shared/schema";
@@ -125,6 +128,14 @@ interface WebhookCoverageItem {
   hasSubscription: boolean;
 }
 
+interface GlobalWebhookDelivery extends AgentWebhookDelivery {
+  webhookId: string;
+  webhookUrl: string;
+  agentKeyId: string;
+  agentKeyName: string;
+  agentKeyPrefix: string;
+}
+
 const LOW_TOKEN_RATE_EVENT = "agent_key.low_token_rate";
 
 interface Scenario {
@@ -171,6 +182,11 @@ export function AgentKeyManager() {
   const [revealedWebhookSecret, setRevealedWebhookSecret] = useState<{ secret: string; url: string } | null>(null);
   const [deliveryWebhookId, setDeliveryWebhookId] = useState<string | null>(null);
   const [expandedPayloadIds, setExpandedPayloadIds] = useState<Set<string>>(new Set());
+  const [globalDeliveryOpen, setGlobalDeliveryOpen] = useState(false);
+  const [deliveryFilterStatus, setDeliveryFilterStatus] = useState<"all" | "success" | "failed">("all");
+  const [deliveryFilterEvent, setDeliveryFilterEvent] = useState("");
+  const [deliveryFilterFrom, setDeliveryFilterFrom] = useState("");
+  const [deliveryFilterTo, setDeliveryFilterTo] = useState("");
 
   const { data: keys = [], isLoading } = useQuery<AgentApiKey[]>({
     queryKey: ["/api/admin/agent-keys"],
@@ -217,6 +233,25 @@ export function AgentKeyManager() {
         credentials: "include",
       });
       if (!res.ok) throw new Error("Failed to fetch webhook coverage");
+      return res.json();
+    },
+  });
+
+  const globalDeliveryParams = new URLSearchParams();
+  if (deliveryFilterStatus !== "all") globalDeliveryParams.set("status", deliveryFilterStatus);
+  if (deliveryFilterEvent.trim()) globalDeliveryParams.set("event", deliveryFilterEvent.trim());
+  if (deliveryFilterFrom) globalDeliveryParams.set("from", deliveryFilterFrom);
+  if (deliveryFilterTo) globalDeliveryParams.set("to", deliveryFilterTo);
+  globalDeliveryParams.set("limit", "50");
+
+  const { data: globalDeliveries = [], isLoading: globalDeliveriesLoading, refetch: refetchGlobalDeliveries } = useQuery<GlobalWebhookDelivery[]>({
+    queryKey: ["/api/admin/agent-keys/webhook-deliveries", deliveryFilterStatus, deliveryFilterEvent, deliveryFilterFrom, deliveryFilterTo],
+    enabled: globalDeliveryOpen,
+    queryFn: async () => {
+      const res = await fetch(`/api/admin/agent-keys/webhook-deliveries?${globalDeliveryParams.toString()}`, {
+        credentials: "include",
+      });
+      if (!res.ok) throw new Error("Failed to fetch deliveries");
       return res.json();
     },
   });
@@ -746,6 +781,212 @@ export function AgentKeyManager() {
             </div>
           )}
         </CardContent>
+      </Card>
+
+      {/* Global Webhook Deliveries Panel */}
+      <Card>
+        <CardHeader
+          className="flex flex-row items-center justify-between space-y-0 cursor-pointer select-none"
+          onClick={() => setGlobalDeliveryOpen((v) => !v)}
+        >
+          <CardTitle className="flex items-center gap-2 text-base">
+            <Webhook className="h-5 w-5" />
+            {t("agentKeys.globalDeliveries.title", "웹훅 전송 이력")}
+          </CardTitle>
+          <div className="flex items-center gap-2">
+            {globalDeliveries.length > 0 && (
+              <Badge variant="secondary">{globalDeliveries.length}</Badge>
+            )}
+            {globalDeliveryOpen ? <ChevronUp className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
+          </div>
+        </CardHeader>
+
+        {globalDeliveryOpen && (
+          <CardContent className="space-y-4">
+            {/* Filters */}
+            <div className="flex flex-wrap items-end gap-3 p-3 rounded-md bg-muted/30 border">
+              <Filter className="h-4 w-4 text-muted-foreground mt-1 shrink-0" />
+              <div className="space-y-1">
+                <label className="text-xs font-medium text-muted-foreground">
+                  {t("agentKeys.globalDeliveries.filter.status", "상태")}
+                </label>
+                <Select
+                  value={deliveryFilterStatus}
+                  onValueChange={(v) => setDeliveryFilterStatus(v as "all" | "success" | "failed")}
+                >
+                  <SelectTrigger className="h-8 w-28 text-xs">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">{t("agentKeys.globalDeliveries.filter.all", "전체")}</SelectItem>
+                    <SelectItem value="success">{t("agentKeys.globalDeliveries.filter.success", "성공")}</SelectItem>
+                    <SelectItem value="failed">{t("agentKeys.globalDeliveries.filter.failed", "실패")}</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1">
+                <label className="text-xs font-medium text-muted-foreground">
+                  {t("agentKeys.globalDeliveries.filter.event", "이벤트")}
+                </label>
+                <Input
+                  className="h-8 w-52 text-xs font-mono"
+                  placeholder={t("agentKeys.globalDeliveries.filter.eventPlaceholder", "예: agent_key.low_token_rate")}
+                  value={deliveryFilterEvent}
+                  onChange={(e) => setDeliveryFilterEvent(e.target.value)}
+                />
+              </div>
+              <div className="space-y-1">
+                <label className="text-xs font-medium text-muted-foreground">
+                  {t("agentKeys.globalDeliveries.filter.from", "시작일")}
+                </label>
+                <Input
+                  type="date"
+                  className="h-8 w-36 text-xs"
+                  value={deliveryFilterFrom}
+                  onChange={(e) => setDeliveryFilterFrom(e.target.value)}
+                />
+              </div>
+              <div className="space-y-1">
+                <label className="text-xs font-medium text-muted-foreground">
+                  {t("agentKeys.globalDeliveries.filter.to", "종료일")}
+                </label>
+                <Input
+                  type="date"
+                  className="h-8 w-36 text-xs"
+                  value={deliveryFilterTo}
+                  onChange={(e) => setDeliveryFilterTo(e.target.value)}
+                />
+              </div>
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-8 text-xs"
+                onClick={() => refetchGlobalDeliveries()}
+                disabled={globalDeliveriesLoading}
+              >
+                {globalDeliveriesLoading ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  t("agentKeys.globalDeliveries.filter.apply", "조회")
+                )}
+              </Button>
+              {(deliveryFilterStatus !== "all" || deliveryFilterEvent || deliveryFilterFrom || deliveryFilterTo) && (
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="h-8 text-xs text-muted-foreground"
+                  onClick={() => {
+                    setDeliveryFilterStatus("all");
+                    setDeliveryFilterEvent("");
+                    setDeliveryFilterFrom("");
+                    setDeliveryFilterTo("");
+                  }}
+                >
+                  <X className="h-3.5 w-3.5 mr-1" />
+                  {t("agentKeys.globalDeliveries.filter.reset", "초기화")}
+                </Button>
+              )}
+            </div>
+
+            {/* Deliveries Table */}
+            {globalDeliveriesLoading ? (
+              <div className="flex items-center justify-center py-10 text-muted-foreground">
+                <Loader2 className="h-5 w-5 animate-spin mr-2" />
+                {t("agentKeys.loading", "로딩 중...")}
+              </div>
+            ) : globalDeliveries.length === 0 ? (
+              <div className="text-center py-10 text-muted-foreground text-sm">
+                {t("agentKeys.globalDeliveries.empty", "전송 이력이 없습니다.")}
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="w-16">{t("agentKeys.globalDeliveries.col.status", "상태")}</TableHead>
+                      <TableHead>{t("agentKeys.globalDeliveries.col.event", "이벤트")}</TableHead>
+                      <TableHead>{t("agentKeys.globalDeliveries.col.key", "API 키")}</TableHead>
+                      <TableHead>{t("agentKeys.globalDeliveries.col.webhookUrl", "웹훅 URL")}</TableHead>
+                      <TableHead className="text-right w-20">{t("agentKeys.globalDeliveries.col.latency", "지연")}</TableHead>
+                      <TableHead className="text-right w-16">{t("agentKeys.globalDeliveries.col.attempt", "시도")}</TableHead>
+                      <TableHead className="text-right w-32">{t("agentKeys.globalDeliveries.col.createdAt", "시각")}</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {globalDeliveries.map((d) => {
+                      const isSuccess = d.succeededAt !== null;
+                      // Any delivery that has not succeeded is treated as failed,
+                      // including transport-level failures where statusCode is null
+                      // (network timeouts, connection refused, etc.)
+                      const isFailed = !isSuccess;
+                      return (
+                        <TableRow key={d.id} className={isFailed ? "bg-red-50/50 dark:bg-red-950/30" : "bg-green-50/50 dark:bg-green-950/30"}>
+                          <TableCell>
+                            <span
+                              className={`font-mono font-semibold text-sm ${
+                                isFailed
+                                  ? "text-red-600 dark:text-red-400"
+                                  : "text-green-600 dark:text-green-400"
+                              }`}
+                            >
+                              {d.statusCode ?? "—"}
+                            </span>
+                          </TableCell>
+                          <TableCell className="font-mono text-xs">{d.event}</TableCell>
+                          <TableCell>
+                            <button
+                              className="flex items-center gap-1 text-left hover:underline"
+                              onClick={() => {
+                                const key = keys.find((k) => k.id === d.agentKeyId);
+                                if (key) {
+                                  setWebhookTarget(key);
+                                  setNewWebhookUrl("");
+                                }
+                              }}
+                              title={t("agentKeys.globalDeliveries.goToKey", "웹훅 관리 열기")}
+                            >
+                              <span className="font-mono text-xs text-muted-foreground">{d.agentKeyPrefix}…</span>
+                              <span className="text-xs truncate max-w-[120px]">{d.agentKeyName}</span>
+                              <ExternalLink className="h-3 w-3 text-muted-foreground shrink-0" />
+                            </button>
+                          </TableCell>
+                          <TableCell>
+                            <span className="font-mono text-xs text-muted-foreground truncate block max-w-[200px]" title={d.webhookUrl}>
+                              {d.webhookUrl}
+                            </span>
+                          </TableCell>
+                          <TableCell className="text-right text-xs font-mono tabular-nums">
+                            {d.latencyMs !== null
+                              ? d.latencyMs >= 1000
+                                ? `${(d.latencyMs / 1000).toFixed(1)}s`
+                                : `${d.latencyMs}ms`
+                              : "—"}
+                          </TableCell>
+                          <TableCell className="text-right">
+                            {d.attempt > 1 ? (
+                              <Badge variant="outline" className="text-xs px-1 py-0">
+                                {d.attempt}
+                              </Badge>
+                            ) : (
+                              <span className="text-xs text-muted-foreground">{d.attempt}</span>
+                            )}
+                          </TableCell>
+                          <TableCell className="text-right text-xs text-muted-foreground whitespace-nowrap">
+                            {d.createdAt ? format(new Date(d.createdAt), "MM-dd HH:mm") : "—"}
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              </div>
+            )}
+
+            <p className="text-xs text-muted-foreground">
+              {t("agentKeys.globalDeliveries.hint", "최대 50건을 표시합니다. API 키 이름을 클릭하면 해당 키의 웹훅 관리 패널이 열립니다.")}
+            </p>
+          </CardContent>
+        )}
       </Card>
 
       {/* Create Key Dialog */}
