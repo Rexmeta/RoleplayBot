@@ -589,6 +589,91 @@ router.put(
 );
 
 // ─────────────────────────────────────────────────────────────────────────────
+// GET /api/admin/agent-keys/webhook-coverage — per-key webhook subscription
+// status for agent_key.low_token_rate (admin)
+// ─────────────────────────────────────────────────────────────────────────────
+const LOW_TOKEN_RATE_EVENT = "agent_key.low_token_rate";
+
+router.get(
+  "/webhook-coverage",
+  isSystemAdmin,
+  asyncHandler(async (_req: any, res) => {
+    const [keys, webhooks] = await Promise.all([
+      db
+        .select({
+          id: agentApiKeys.id,
+          name: agentApiKeys.name,
+          keyPrefix: agentApiKeys.keyPrefix,
+          isActive: agentApiKeys.isActive,
+          revokedAt: agentApiKeys.revokedAt,
+        })
+        .from(agentApiKeys)
+        .orderBy(desc(agentApiKeys.createdAt)),
+      db
+        .select({
+          agentKeyId: agentWebhooks.agentKeyId,
+          events: agentWebhooks.events,
+        })
+        .from(agentWebhooks)
+        .where(eq(agentWebhooks.isActive, true)),
+    ]);
+
+    const subscribedKeyIds = new Set(
+      webhooks
+        .filter((w) => w.events.includes(LOW_TOKEN_RATE_EVENT))
+        .map((w) => w.agentKeyId)
+    );
+
+    res.json(
+      keys.map((k) => ({
+        keyId: k.id,
+        keyName: k.name,
+        keyPrefix: k.keyPrefix,
+        isActive: k.isActive && !k.revokedAt,
+        hasSubscription: subscribedKeyIds.has(k.id),
+      }))
+    );
+  })
+);
+
+// ─────────────────────────────────────────────────────────────────────────────
+// PATCH /api/admin/agent-keys/:id/webhooks/:webhookId — toggle active state (admin)
+// ─────────────────────────────────────────────────────────────────────────────
+router.patch(
+  "/:id/webhooks/:webhookId",
+  isSystemAdmin,
+  asyncHandler(async (req: any, res) => {
+    const { isActive } = z.object({ isActive: z.boolean() }).parse(req.body);
+
+    const [existing] = await db
+      .select({ id: agentWebhooks.id })
+      .from(agentWebhooks)
+      .where(
+        and(
+          eq(agentWebhooks.id, req.params.webhookId),
+          eq(agentWebhooks.agentKeyId, req.params.id)
+        )
+      )
+      .limit(1);
+
+    if (!existing) throw createHttpError(404, "Webhook not found");
+
+    const [updated] = await db
+      .update(agentWebhooks)
+      .set({ isActive })
+      .where(
+        and(
+          eq(agentWebhooks.id, req.params.webhookId),
+          eq(agentWebhooks.agentKeyId, req.params.id)
+        )
+      )
+      .returning({ id: agentWebhooks.id, isActive: agentWebhooks.isActive });
+
+    res.json({ id: updated.id, isActive: updated.isActive });
+  })
+);
+
+// ─────────────────────────────────────────────────────────────────────────────
 // GET /api/admin/agent-keys/:id/webhooks — list webhooks for a key (admin)
 // ─────────────────────────────────────────────────────────────────────────────
 router.get(

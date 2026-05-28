@@ -111,6 +111,14 @@ interface AgentWebhookDelivery {
   createdAt: string | null;
 }
 
+interface WebhookCoverageItem {
+  keyId: string;
+  keyName: string;
+  keyPrefix: string;
+  isActive: boolean;
+  hasSubscription: boolean;
+}
+
 const LOW_TOKEN_RATE_EVENT = "agent_key.low_token_rate";
 
 interface Scenario {
@@ -195,6 +203,18 @@ export function AgentKeyManager() {
     },
   });
 
+  const { data: webhookCoverage = [], isLoading: coverageLoading } = useQuery<WebhookCoverageItem[]>({
+    queryKey: ["/api/admin/agent-keys/webhook-coverage"],
+    enabled: thresholdEditOpen,
+    queryFn: async () => {
+      const res = await fetch("/api/admin/agent-keys/webhook-coverage", {
+        credentials: "include",
+      });
+      if (!res.ok) throw new Error("Failed to fetch webhook coverage");
+      return res.json();
+    },
+  });
+
   const createWebhookMutation = useMutation({
     mutationFn: async ({ keyId, url }: { keyId: string; url: string }) => {
       const res = await apiRequest("POST", `/api/admin/agent-keys/${keyId}/webhooks`, {
@@ -220,6 +240,7 @@ export function AgentKeyManager() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/admin/agent-keys", webhookTarget?.id, "webhooks"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/agent-keys/webhook-coverage"] });
       toast({ title: t("agentKeys.webhooks.deleted", "웹훅이 삭제되었습니다") });
     },
     onError: (err: any) => {
@@ -272,6 +293,20 @@ export function AgentKeyManager() {
     },
     onError: (err: any) => {
       toast({ title: t("agentKeys.webhooks.deliveries.retryError", "재전송 오류"), description: err.message, variant: "destructive" });
+    },
+  });
+
+  const toggleWebhookMutation = useMutation({
+    mutationFn: async ({ keyId, webhookId, isActive }: { keyId: string; webhookId: string; isActive: boolean }) => {
+      const res = await apiRequest("PATCH", `/api/admin/agent-keys/${keyId}/webhooks/${webhookId}`, { isActive });
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/agent-keys", webhookTarget?.id, "webhooks"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/agent-keys/webhook-coverage"] });
+    },
+    onError: (err: any) => {
+      toast({ title: t("agentKeys.webhooks.toggleFailed", "상태 변경 실패"), description: err.message, variant: "destructive" });
     },
   });
 
@@ -1180,6 +1215,25 @@ export function AgentKeyManager() {
                           </Button>
                           <Button
                             size="sm"
+                            variant="outline"
+                            className={`h-7 px-2 text-xs ${wh.isActive ? "text-green-600 border-green-300 hover:bg-green-50 dark:hover:bg-green-950" : "text-muted-foreground"}`}
+                            disabled={toggleWebhookMutation.isPending}
+                            onClick={() =>
+                              webhookTarget &&
+                              toggleWebhookMutation.mutate({ keyId: webhookTarget.id, webhookId: wh.id, isActive: !wh.isActive })
+                            }
+                            title={wh.isActive ? t("agentKeys.webhooks.disable", "비활성화") : t("agentKeys.webhooks.enable", "활성화")}
+                          >
+                            {toggleWebhookMutation.isPending ? (
+                              <Loader2 className="h-3 w-3 animate-spin" />
+                            ) : wh.isActive ? (
+                              <Bell className="h-3 w-3" />
+                            ) : (
+                              <BellOff className="h-3 w-3" />
+                            )}
+                          </Button>
+                          <Button
+                            size="sm"
                             variant="ghost"
                             className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive"
                             disabled={deleteWebhookMutation.isPending}
@@ -1401,7 +1455,7 @@ export function AgentKeyManager() {
 
       {/* Threshold Configuration Dialog */}
       <Dialog open={thresholdEditOpen} onOpenChange={(open) => !open && setThresholdEditOpen(false)}>
-        <DialogContent className="max-w-sm">
+        <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Settings2 className="h-5 w-5" />
@@ -1455,6 +1509,71 @@ export function AgentKeyManager() {
                 {t("agentKeys.threshold.notificationHint", "웹훅 옵션은 해당 API 키에 등록된 웹훅으로 agent_key.low_token_rate 이벤트를 발송합니다.")}
               </p>
             </div>
+
+            {(notificationMethodInput === "webhook" || notificationMethodInput === "both") && (
+              <div className="space-y-2 rounded-md border p-3 bg-muted/30">
+                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide flex items-center gap-1.5">
+                  <Webhook className="h-3.5 w-3.5" />
+                  {t("agentKeys.threshold.webhookCoverage", "웹훅 구독 현황 (agent_key.low_token_rate)")}
+                </p>
+                {coverageLoading ? (
+                  <div className="flex items-center gap-2 py-2 text-muted-foreground text-xs">
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    {t("agentKeys.loading", "로딩 중...")}
+                  </div>
+                ) : webhookCoverage.filter((item) => item.isActive).length === 0 ? (
+                  <p className="text-xs text-muted-foreground py-1">
+                    {t("agentKeys.threshold.noActiveKeys", "활성 API 키가 없습니다.")}
+                  </p>
+                ) : (
+                  <div className="space-y-1.5">
+                    {webhookCoverage
+                      .filter((item) => item.isActive)
+                      .map((item) => (
+                        <div key={item.keyId} className="flex items-center gap-2 text-sm">
+                          <span className="font-mono text-xs text-muted-foreground shrink-0">{item.keyPrefix}…</span>
+                          <span className="truncate flex-1 text-xs">{item.keyName}</span>
+                          {item.hasSubscription ? (
+                            <Badge
+                              variant="outline"
+                              className="text-green-600 border-green-300 bg-green-50 dark:bg-green-950 shrink-0 text-xs px-1.5 py-0"
+                            >
+                              <Bell className="h-2.5 w-2.5 mr-1" />
+                              {t("agentKeys.threshold.subscribed", "구독됨")}
+                            </Badge>
+                          ) : (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="h-6 px-2 text-xs text-amber-600 border-amber-300 bg-amber-50 dark:bg-amber-950 hover:bg-amber-100 dark:hover:bg-amber-900 shrink-0"
+                              onClick={() => {
+                                setThresholdEditOpen(false);
+                                const key = keys.find((k) => k.id === item.keyId);
+                                if (key) {
+                                  setWebhookTarget(key);
+                                  setNewWebhookUrl("");
+                                }
+                              }}
+                              title={t("agentKeys.threshold.goToWebhooks", "웹훅 관리로 이동")}
+                            >
+                              <AlertTriangle className="h-2.5 w-2.5 mr-1" />
+                              {t("agentKeys.threshold.missingSubscription", "구독 없음")}
+                            </Button>
+                          )}
+                        </div>
+                      ))}
+                  </div>
+                )}
+                {webhookCoverage.filter((item) => item.isActive && !item.hasSubscription).length > 0 && (
+                  <p className="text-xs text-amber-600 dark:text-amber-400 pt-1 border-t border-amber-200 dark:border-amber-800">
+                    {t("agentKeys.threshold.coverageWarning", {
+                      count: webhookCoverage.filter((item) => item.isActive && !item.hasSubscription).length,
+                      defaultValue: "{{count}}개 키에 웹훅 구독이 등록되지 않아 알림이 전달되지 않을 수 있습니다.",
+                    })}
+                  </p>
+                )}
+              </div>
+            )}
           </div>
 
           <DialogFooter>
