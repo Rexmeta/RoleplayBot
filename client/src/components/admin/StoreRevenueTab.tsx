@@ -1,10 +1,12 @@
 import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
+import { useLocation } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -15,7 +17,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Loader2, DollarSign, Package, ShoppingCart, CreditCard, Trash2 } from "lucide-react";
+import { Loader2, DollarSign, Package, ShoppingCart, CreditCard, Trash2, Search, X } from "lucide-react";
 import { authFetch, authFetchRaw } from "@/lib/authFetch";
 import { queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -39,8 +41,23 @@ interface Entitlement {
 
 export function StoreRevenueTab() {
   const { toast } = useToast();
+  const [location, setLocation] = useLocation();
   const [revokeTarget, setRevokeTarget] = useState<Entitlement | null>(null);
   const [issueRefund, setIssueRefund] = useState(false);
+
+  const searchParams = new URLSearchParams(window.location.search);
+  const searchQuery = searchParams.get("q") ?? "";
+
+  function setSearchQuery(value: string) {
+    const params = new URLSearchParams(window.location.search);
+    if (value) {
+      params.set("q", value);
+    } else {
+      params.delete("q");
+    }
+    const qs = params.toString();
+    setLocation(window.location.pathname + (qs ? `?${qs}` : ""), { replace: true });
+  }
 
   const { data: revenue, isLoading: revenueLoading } = useQuery<RevenueSummary>({
     queryKey: ["/api/store/admin/revenue"],
@@ -89,6 +106,14 @@ export function StoreRevenueTab() {
 
   const stripeEntitlements = entitlements.filter(e => e.stripeChargeId || e.stripeSessionId);
   const manualEntitlements = entitlements.filter(e => !e.stripeChargeId && !e.stripeSessionId);
+
+  const normalizedQuery = searchQuery.trim().toLowerCase();
+  const filteredEntitlements = normalizedQuery
+    ? entitlements.filter(e =>
+        e.orgId.toLowerCase().includes(normalizedQuery) ||
+        (e.pack?.name ?? e.packId).toLowerCase().includes(normalizedQuery)
+      )
+    : entitlements;
 
   return (
     <>
@@ -160,14 +185,38 @@ export function StoreRevenueTab() {
 
         <Card>
           <CardHeader>
-            <CardTitle className="text-base">All Entitlements</CardTitle>
+            <div className="flex items-center justify-between gap-4 flex-wrap">
+              <CardTitle className="text-base">All Entitlements</CardTitle>
+              <div className="relative w-full sm:w-64">
+                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
+                <Input
+                  value={searchQuery}
+                  onChange={e => setSearchQuery(e.target.value)}
+                  placeholder="Search by org or pack…"
+                  className="pl-8 pr-8 h-8 text-sm"
+                />
+                {searchQuery && (
+                  <button
+                    onClick={() => setSearchQuery("")}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                    aria-label="Clear search"
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </button>
+                )}
+              </div>
+            </div>
           </CardHeader>
           <CardContent>
             {entitlements.length === 0 ? (
               <p className="text-sm text-muted-foreground text-center py-8">No entitlements yet.</p>
+            ) : filteredEntitlements.length === 0 ? (
+              <p className="text-sm text-muted-foreground text-center py-8">
+                No entitlements match <span className="font-mono">"{searchQuery}"</span>.
+              </p>
             ) : (
               <div className="space-y-2">
-                {entitlements.map(e => (
+                {filteredEntitlements.map(e => (
                   <div key={e.id} className="flex items-start justify-between p-3 rounded-lg border bg-muted/20 gap-4">
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-2 flex-wrap">
