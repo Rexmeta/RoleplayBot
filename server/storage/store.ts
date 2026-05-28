@@ -1,4 +1,4 @@
-import { type StorePack, type InsertStorePack, type StoreEntitlement, type InsertStoreEntitlement, storePacks, storeEntitlements, scenarios, mbtiPersonas, plans, subscriptions } from "@shared/schema";
+import { type StorePack, type InsertStorePack, type StoreEntitlement, type InsertStoreEntitlement, type StoreEntitlementAuditEntry, storePacks, storeEntitlements, storeEntitlementAuditLog, scenarios, mbtiPersonas, plans, subscriptions } from "@shared/schema";
 import { db } from "./db";
 import { eq, and, desc, sql } from "drizzle-orm";
 
@@ -22,6 +22,8 @@ export interface IStoreStorage {
   grantEntitlement(entitlement: InsertStoreEntitlement & { stripeChargeId?: string; stripeSessionId?: string }): Promise<StoreEntitlement>;
   revokeEntitlement(orgId: string, packId: string): Promise<void>;
   revokeEntitlementById(id: string): Promise<void>;
+  logEntitlementRevocation(entry: { entitlementId: string; orgId: string; packId: string; packName: string; revokedBy?: string | null; stripeRefundId?: string | null; reason?: string | null }): Promise<StoreEntitlementAuditEntry>;
+  getEntitlementAuditLog(limit?: number): Promise<StoreEntitlementAuditEntry[]>;
   getStoreRevenueSummary(): Promise<{ totalEntitlements: number; revenueUsd: number; byPack: { packId: string; packName: string; count: number; revenueUsd: number }[] }>;
 }
 
@@ -172,6 +174,31 @@ export function StoreMixin<TBase extends Constructor>(Base: TBase) {
       await db.delete(storeEntitlements).where(eq(storeEntitlements.id, id));
     }
 
+    async logEntitlementRevocation(entry: { entitlementId: string; orgId: string; packId: string; packName: string; revokedBy?: string | null; stripeRefundId?: string | null; reason?: string | null }): Promise<StoreEntitlementAuditEntry> {
+      const [inserted] = await db
+        .insert(storeEntitlementAuditLog)
+        .values({
+          entitlementId: entry.entitlementId,
+          orgId: entry.orgId,
+          packId: entry.packId,
+          packName: entry.packName,
+          action: "revoke",
+          revokedBy: entry.revokedBy ?? null,
+          stripeRefundId: entry.stripeRefundId ?? null,
+          reason: entry.reason ?? null,
+        })
+        .returning();
+      return inserted;
+    }
+
+    async getEntitlementAuditLog(limit = 100): Promise<StoreEntitlementAuditEntry[]> {
+      return db
+        .select()
+        .from(storeEntitlementAuditLog)
+        .orderBy(desc(storeEntitlementAuditLog.revokedAt))
+        .limit(limit);
+    }
+
     async getStoreRevenueSummary(): Promise<{ totalEntitlements: number; revenueUsd: number; byPack: { packId: string; packName: string; count: number; revenueUsd: number }[] }> {
       const allEntitlements = await db
         .select({ entitlement: storeEntitlements, pack: storePacks })
@@ -248,6 +275,15 @@ export class MemStoreStorage implements IStoreStorage {
   }
   async revokeEntitlementById(id: string) {
     this.entitlements = this.entitlements.filter(e => e.id !== id);
+  }
+  private auditLog: StoreEntitlementAuditEntry[] = [];
+  async logEntitlementRevocation(entry: { entitlementId: string; orgId: string; packId: string; packName: string; revokedBy?: string | null; stripeRefundId?: string | null; reason?: string | null }): Promise<StoreEntitlementAuditEntry> {
+    const row: StoreEntitlementAuditEntry = { id: crypto.randomUUID(), action: "revoke", revokedAt: new Date(), revokedBy: entry.revokedBy ?? null, stripeRefundId: entry.stripeRefundId ?? null, reason: entry.reason ?? null, ...entry };
+    this.auditLog.unshift(row);
+    return row;
+  }
+  async getEntitlementAuditLog(limit = 100): Promise<StoreEntitlementAuditEntry[]> {
+    return this.auditLog.slice(0, limit);
   }
   async getStoreRevenueSummary() { return { totalEntitlements: 0, revenueUsd: 0, byPack: [] }; }
 }

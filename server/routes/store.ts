@@ -120,7 +120,7 @@ export default function createStoreRouter(isAuthenticated: any) {
     res.json({ success: true });
   }));
 
-  router.delete("/admin/entitlements/:id", isAuthenticated, isSystemAdmin, asyncHandler(async (req, res) => {
+  router.delete("/admin/entitlements/:id", isAuthenticated, isSystemAdmin, asyncHandler(async (req: any, res) => {
     const entitlement = await storage.getEntitlementById(req.params.id);
     if (!entitlement) throw createHttpError(404, "Entitlement not found");
 
@@ -138,7 +138,22 @@ export default function createStoreRouter(isAuthenticated: any) {
     }
 
     await storage.revokeEntitlementById(req.params.id);
+
+    await storage.logEntitlementRevocation({
+      entitlementId: entitlement.id,
+      orgId: entitlement.orgId,
+      packId: entitlement.packId,
+      packName: entitlement.pack?.name ?? entitlement.packId,
+      revokedBy: req.user?.id ?? null,
+      stripeRefundId,
+    });
+
     res.json({ success: true, stripeRefundId });
+  }));
+
+  router.get("/admin/entitlements/audit-log", isAuthenticated, isSystemAdmin, asyncHandler(async (_req, res) => {
+    const entries = await storage.getEntitlementAuditLog(200);
+    res.json(entries);
   }));
 
   // ─── Stripe checkout ───────────────────────────────────────────────────────

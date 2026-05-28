@@ -32,6 +32,25 @@ export const storeEntitlements = pgTable("store_entitlements", {
   uniqueIndex("uniq_store_entitlements_org_pack").on(table.orgId, table.packId),
 ]);
 
+export const storeEntitlementAuditLog = pgTable("store_entitlement_audit_log", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  entitlementId: varchar("entitlement_id").notNull(),
+  orgId: varchar("org_id").notNull(),
+  packId: varchar("pack_id").notNull(),
+  packName: varchar("pack_name").notNull().default(""),
+  action: varchar("action", { length: 50 }).notNull().default("revoke"),
+  revokedBy: varchar("revoked_by"),
+  stripeRefundId: text("stripe_refund_id"),
+  reason: text("reason"),
+  revokedAt: timestamp("revoked_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+}, (table) => [
+  index("idx_entitlement_audit_org_id").on(table.orgId),
+  index("idx_entitlement_audit_pack_id").on(table.packId),
+  index("idx_entitlement_audit_revoked_at").on(table.revokedAt),
+]);
+
+export type StoreEntitlementAuditEntry = typeof storeEntitlementAuditLog.$inferSelect;
+
 export const insertStorePackSchema = createInsertSchema(storePacks).omit({
   id: true,
   createdAt: true,

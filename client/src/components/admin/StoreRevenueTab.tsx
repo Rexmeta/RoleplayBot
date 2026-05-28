@@ -17,7 +17,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Loader2, DollarSign, Package, ShoppingCart, CreditCard, Trash2, Search, X } from "lucide-react";
+import { Loader2, DollarSign, Package, ShoppingCart, CreditCard, Trash2, Search, X, History, RefreshCw } from "lucide-react";
 import { authFetch, authFetchRaw } from "@/lib/authFetch";
 import { queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -37,6 +37,19 @@ interface Entitlement {
   stripeChargeId: string | null;
   stripeSessionId: string | null;
   pack: { name: string; priceUsd: number } | null;
+}
+
+interface AuditEntry {
+  id: string;
+  entitlementId: string;
+  orgId: string;
+  packId: string;
+  packName: string;
+  action: string;
+  revokedBy: string | null;
+  stripeRefundId: string | null;
+  reason: string | null;
+  revokedAt: string;
 }
 
 export function StoreRevenueTab() {
@@ -71,6 +84,12 @@ export function StoreRevenueTab() {
     staleTime: 1000 * 60 * 5,
   });
 
+  const { data: auditLog = [], isLoading: auditLoading, refetch: refetchAudit } = useQuery<AuditEntry[]>({
+    queryKey: ["/api/store/admin/entitlements/audit-log"],
+    queryFn: () => authFetch("/api/store/admin/entitlements/audit-log"),
+    staleTime: 0,
+  });
+
   const revokeMutation = useMutation({
     mutationFn: async ({ id, refund }: { id: string; refund: boolean }) => {
       const res = await authFetchRaw(`/api/store/admin/entitlements/${id}?refund=${refund}`, {
@@ -85,6 +104,7 @@ export function StoreRevenueTab() {
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["/api/store/entitlements"] });
       queryClient.invalidateQueries({ queryKey: ["/api/store/admin/revenue"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/store/admin/entitlements/audit-log"] });
       const refundMsg = data?.stripeRefundId ? ` Stripe refund issued (${data.stripeRefundId}).` : "";
       toast({ title: "Entitlement revoked", description: `Access has been removed.${refundMsg}` });
       setRevokeTarget(null);
@@ -94,7 +114,7 @@ export function StoreRevenueTab() {
     },
   });
 
-  const isLoading = revenueLoading || entitlementsLoading;
+  const isLoading = revenueLoading || entitlementsLoading || auditLoading;
 
   if (isLoading) {
     return (
@@ -254,6 +274,61 @@ export function StoreRevenueTab() {
                         <Trash2 className="h-3.5 w-3.5 mr-1" />
                         Revoke
                       </Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between pb-3">
+            <CardTitle className="text-base flex items-center gap-2">
+              <History className="h-4 w-4 text-muted-foreground" />
+              Revocation History
+            </CardTitle>
+            <Button variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={() => refetchAudit()}>
+              <RefreshCw className="h-3.5 w-3.5 mr-1" />
+              Refresh
+            </Button>
+          </CardHeader>
+          <CardContent>
+            {auditLog.length === 0 ? (
+              <p className="text-sm text-muted-foreground text-center py-8">No revocations recorded yet.</p>
+            ) : (
+              <div className="space-y-2">
+                {auditLog.map(entry => (
+                  <div key={entry.id} className="p-3 rounded-lg border bg-red-50/40 dark:bg-red-950/10 space-y-1">
+                    <div className="flex items-start justify-between gap-4 flex-wrap">
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="font-medium text-sm">{entry.packName}</span>
+                          {entry.stripeRefundId && (
+                            <Badge className="bg-green-100 text-green-700 hover:bg-green-100 text-xs flex items-center gap-1">
+                              <CreditCard className="h-3 w-3" /> Refunded
+                            </Badge>
+                          )}
+                        </div>
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                          Org: <span className="font-mono">{entry.orgId}</span>
+                        </p>
+                        {entry.revokedBy && (
+                          <p className="text-xs text-muted-foreground">
+                            Revoked by: <span className="font-mono">{entry.revokedBy}</span>
+                          </p>
+                        )}
+                        {entry.stripeRefundId && (
+                          <p className="text-xs text-muted-foreground font-mono truncate">
+                            Refund ID: {entry.stripeRefundId}
+                          </p>
+                        )}
+                        {entry.reason && (
+                          <p className="text-xs text-muted-foreground italic">Reason: {entry.reason}</p>
+                        )}
+                      </div>
+                      <span className="text-xs text-muted-foreground flex-shrink-0">
+                        {new Date(entry.revokedAt).toLocaleString()}
+                      </span>
                     </div>
                   </div>
                 ))}
