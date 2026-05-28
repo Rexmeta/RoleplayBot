@@ -60,6 +60,7 @@ import {
   ChevronDown,
   ChevronUp,
   Filter,
+  RefreshCw,
 } from "lucide-react";
 import { format } from "date-fns";
 import { AGENT_API_SCOPES } from "@shared/schema";
@@ -212,9 +213,10 @@ export function AgentKeyManager() {
     },
   });
 
-  const { data: webhookDeliveries = [], isLoading: deliveriesLoading } = useQuery<AgentWebhookDelivery[]>({
+  const { data: webhookDeliveries = [], isLoading: deliveriesLoading, isFetching: deliveriesFetching, refetch: refetchDeliveries } = useQuery<AgentWebhookDelivery[]>({
     queryKey: ["/api/admin/agent-keys", webhookTarget?.id, "webhooks", deliveryWebhookId, "deliveries"],
     enabled: !!webhookTarget && !!deliveryWebhookId,
+    refetchInterval: deliveryWebhookId ? 15000 : false,
     queryFn: async () => {
       const res = await fetch(
         `/api/admin/agent-keys/${webhookTarget!.id}/webhooks/${deliveryWebhookId}/deliveries?limit=20`,
@@ -1502,9 +1504,21 @@ export function AgentKeyManager() {
                       {/* Recent Deliveries panel */}
                       {isDeliveryOpen && (
                         <div className="border-t px-3 py-2.5 space-y-1.5">
-                          <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">
-                            {t("agentKeys.webhooks.deliveries.title", "최근 전송 이력")}
-                          </p>
+                          <div className="flex items-center justify-between mb-2">
+                            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                              {t("agentKeys.webhooks.deliveries.title", "최근 전송 이력")}
+                            </p>
+                            <button
+                              onClick={() => refetchDeliveries()}
+                              disabled={deliveriesFetching}
+                              className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground disabled:opacity-50 transition-colors"
+                              title={t("agentKeys.webhooks.deliveries.refresh", "새로고침")}
+                            >
+                              <Loader2 className={`h-3 w-3 ${deliveriesFetching ? "animate-spin" : "hidden"}`} />
+                              <RefreshCw className={`h-3 w-3 ${deliveriesFetching ? "hidden" : ""}`} />
+                              {t("agentKeys.webhooks.deliveries.refresh", "새로고침")}
+                            </button>
+                          </div>
                           {deliveriesLoading ? (
                             <div className="flex items-center gap-2 py-3 text-muted-foreground text-xs">
                               <Loader2 className="h-3.5 w-3.5 animate-spin" />
