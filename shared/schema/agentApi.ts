@@ -304,6 +304,7 @@ export const agentWebhookDeliveries = pgTable("agent_webhook_deliveries", {
   event: varchar("event").notNull(),
   payload: jsonb("payload").$type<Record<string, any>>().notNull(),
   statusCode: integer("status_code"),
+  latencyMs: integer("latency_ms"),
   attempt: integer("attempt").notNull().default(1),
   succeededAt: timestamp("succeeded_at"),
   nextRetryAt: timestamp("next_retry_at"),

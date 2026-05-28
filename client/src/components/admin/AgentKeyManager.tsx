@@ -109,6 +109,7 @@ interface AgentWebhookDelivery {
   deliveryId: string;
   event: string;
   statusCode: number | null;
+  latencyMs: number | null;
   attempt: number;
   payload: Record<string, unknown> | null;
   succeededAt: string | null;
@@ -1321,6 +1322,13 @@ export function AgentKeyManager() {
                                         <Badge variant="outline" className="text-xs px-1 py-0 shrink-0">
                                           {t("agentKeys.webhooks.deliveries.attempt", "시도 {{n}}", { n: d.attempt })}
                                         </Badge>
+                                      )}
+                                      {d.latencyMs !== null && (
+                                        <span className="text-muted-foreground shrink-0 tabular-nums">
+                                          {d.latencyMs >= 1000
+                                            ? `${(d.latencyMs / 1000).toFixed(1)}s`
+                                            : `${d.latencyMs}ms`}
+                                        </span>
                                       )}
                                       <span className="text-muted-foreground shrink-0">
                                         {d.createdAt

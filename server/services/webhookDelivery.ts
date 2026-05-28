@@ -99,9 +99,10 @@ async function attemptDelivery(
   signature: string,
   event: WebhookEventType,
   deliveryId: string
-): Promise<{ statusCode: number; ok: boolean }> {
+): Promise<{ statusCode: number; ok: boolean; latencyMs: number }> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), DELIVERY_TIMEOUT_MS);
+  const startedAt = Date.now();
 
   try {
     const resp = await fetch(url, {
@@ -116,9 +117,9 @@ async function attemptDelivery(
       body: rawBody,
       signal: controller.signal,
     });
-    return { statusCode: resp.status, ok: resp.ok };
+    return { statusCode: resp.status, ok: resp.ok, latencyMs: Date.now() - startedAt };
   } catch {
-    return { statusCode: 0, ok: false };
+    return { statusCode: 0, ok: false, latencyMs: Date.now() - startedAt };
   } finally {
     clearTimeout(timer);
   }
@@ -133,6 +134,7 @@ async function logDelivery(
   event: WebhookEventType,
   payload: Record<string, any>,
   statusCode: number | null,
+  latencyMs: number | null,
   attempt: number,
   succeeded: boolean,
   nextRetryAt: Date | null
@@ -145,6 +147,7 @@ async function logDelivery(
       event,
       payload,
       statusCode: statusCode ?? null,
+      latencyMs: latencyMs ?? null,
       attempt,
       succeededAt: succeeded ? new Date() : null,
       nextRetryAt: nextRetryAt ?? null,
@@ -176,13 +179,13 @@ async function deliverWithRetry(
   }
   const signature = signPayload(rawBody, plaintextSecret);
 
-  const { statusCode, ok } = await attemptDelivery(webhook.url, rawBody, signature, event, deliveryId);
+  const { statusCode, ok, latencyMs } = await attemptDelivery(webhook.url, rawBody, signature, event, deliveryId);
 
   const hasMoreAttempts = attempt < MAX_ATTEMPTS;
   const nextRetryDelay = hasMoreAttempts && !ok ? RETRY_DELAYS_MS[attempt - 1] : null;
   const nextRetryAt = nextRetryDelay ? new Date(Date.now() + nextRetryDelay) : null;
 
-  await logDelivery(webhook.id, deliveryId, event, payload, statusCode || null, attempt, ok, nextRetryAt);
+  await logDelivery(webhook.id, deliveryId, event, payload, statusCode || null, latencyMs, attempt, ok, nextRetryAt);
 
   if (!ok && hasMoreAttempts) {
     const delay = RETRY_DELAYS_MS[attempt - 1] ?? 30_000;
@@ -214,9 +217,9 @@ export async function manualRetryDelivery(
     return { ok: false, statusCode: null };
   }
   const signature = signPayload(rawBody, plaintextSecret);
-  const { statusCode, ok } = await attemptDelivery(webhook.url, rawBody, signature, event, newDeliveryId);
+  const { statusCode, ok, latencyMs } = await attemptDelivery(webhook.url, rawBody, signature, event, newDeliveryId);
 
-  await logDelivery(webhook.id, newDeliveryId, event, payload, statusCode || null, 1, ok, null);
+  await logDelivery(webhook.id, newDeliveryId, event, payload, statusCode || null, latencyMs, 1, ok, null);
 
   return { ok, statusCode: statusCode || null };
 }
@@ -263,9 +266,9 @@ export async function fireTestWebhook(
 
   const rawBody = JSON.stringify(payload);
   const signature = signPayload(rawBody, plaintextSecret);
-  const { statusCode, ok } = await attemptDelivery(webhook.url, rawBody, signature, event, deliveryId);
+  const { statusCode, ok, latencyMs } = await attemptDelivery(webhook.url, rawBody, signature, event, deliveryId);
 
-  await logDelivery(webhook.id, deliveryId, event, payload, statusCode || null, 1, ok, null);
+  await logDelivery(webhook.id, deliveryId, event, payload, statusCode || null, latencyMs, 1, ok, null);
 
   return { ok, statusCode: statusCode || null };
 }

@@ -796,6 +796,7 @@ router.get(
         deliveryId: d.deliveryId,
         event: d.event,
         statusCode: d.statusCode,
+        latencyMs: d.latencyMs ?? null,
         attempt: d.attempt,
         payload: d.payload ?? null,
         succeededAt: d.succeededAt?.toISOString() ?? null,

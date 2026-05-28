@@ -1526,6 +1526,16 @@ export async function runMigrations(): Promise<void> {
           );
           CREATE INDEX IF NOT EXISTS "idx_agent_webhook_deliveries_webhook" ON "agent_webhook_deliveries"("webhook_id");
           CREATE INDEX IF NOT EXISTS "idx_agent_webhook_deliveries_retry" ON "agent_webhook_deliveries"("next_retry_at");
+
+          -- Add latency_ms column if not yet present (idempotent)
+          DO $$ BEGIN
+            IF NOT EXISTS (
+              SELECT 1 FROM information_schema.columns
+              WHERE table_name = 'agent_webhook_deliveries' AND column_name = 'latency_ms'
+            ) THEN
+              ALTER TABLE "agent_webhook_deliveries" ADD COLUMN "latency_ms" integer;
+            END IF;
+          END $$;
         `);
         console.log('✅ Agent webhook tables created/verified');
       } catch (err) {
