@@ -24,6 +24,8 @@ export const storeEntitlements = pgTable("store_entitlements", {
   packId: varchar("pack_id").notNull().references(() => storePacks.id, { onDelete: "cascade" }),
   unlockedAt: timestamp("unlocked_at").notNull().default(sql`CURRENT_TIMESTAMP`),
   unlockedBy: varchar("unlocked_by"),
+  stripeChargeId: text("stripe_charge_id"),
+  stripeSessionId: text("stripe_session_id"),
 }, (table) => [
   index("idx_store_entitlements_org_id").on(table.orgId),
   index("idx_store_entitlements_pack_id").on(table.packId),

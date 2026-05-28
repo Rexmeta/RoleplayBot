@@ -5,6 +5,7 @@ import { isSystemAdmin, isOperatorOrAdmin } from "../middleware/authMiddleware";
 import { asyncHandler, createHttpError } from "./routerHelpers";
 import { insertStorePackSchema, insertStoreEntitlementSchema } from "@shared/schema";
 import { optionalAuth } from "../auth";
+import { getUncachableStripeClient } from "../stripeClient";
 
 export default function createStoreRouter(isAuthenticated: any) {
   const router = Router();
@@ -117,6 +118,49 @@ export default function createStoreRouter(isAuthenticated: any) {
     if (!orgId || !packId) throw createHttpError(400, "orgId and packId are required");
     await storage.revokeEntitlement(orgId, packId);
     res.json({ success: true });
+  }));
+
+  // ─── Stripe checkout ───────────────────────────────────────────────────────
+
+  router.post("/packs/:id/checkout", isAuthenticated, asyncHandler(async (req: any, res) => {
+    const pack = await storage.getStorePack(req.params.id);
+    if (!pack || !pack.isActive) throw createHttpError(404, "Pack not found");
+    if (pack.priceUsd <= 0) throw createHttpError(400, "This pack is free — no checkout needed");
+
+    const user = req.user;
+    const orgId = user?.assignedOrganizationId ?? user?.organizationId ?? null;
+    if (!orgId) throw createHttpError(400, "No organization associated with your account");
+
+    const alreadyEntitled = await storage.isOrgEntitledToPack(orgId, pack.id);
+    if (alreadyEntitled) throw createHttpError(400, "Your organization already has access to this pack");
+
+    const stripe = await getUncachableStripeClient();
+    const baseUrl = `${req.protocol}://${req.get('host')}`;
+
+    const session = await stripe.checkout.sessions.create({
+      payment_method_types: ['card'],
+      line_items: [{
+        price_data: {
+          currency: 'usd',
+          unit_amount: Math.round(pack.priceUsd * 100),
+          product_data: {
+            name: pack.name,
+            description: pack.description || undefined,
+          },
+        },
+        quantity: 1,
+      }],
+      mode: 'payment',
+      success_url: `${baseUrl}/store?payment=success&session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url: `${baseUrl}/store?payment=cancelled`,
+      metadata: {
+        packId: pack.id,
+        orgId,
+        unlockedBy: user?.id ?? '',
+      },
+    });
+
+    res.json({ url: session.url });
   }));
 
   // ─── My library (org-scoped entitlements) ─────────────────────────────────

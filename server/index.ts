@@ -363,6 +363,48 @@ async function initializeApp() {
     }
   }
 
+  // Stripe webhook route — MUST be before express.json() so body is raw Buffer
+  app.post(
+    '/api/stripe/webhook',
+    express.raw({ type: 'application/json' }),
+    async (req: any, res: any) => {
+      const signature = req.headers['stripe-signature'];
+      if (!signature) return res.status(400).json({ error: 'Missing stripe-signature' });
+      const sig = Array.isArray(signature) ? signature[0] : signature;
+      try {
+        const { WebhookHandlers } = await import('./webhookHandlers');
+        await WebhookHandlers.processWebhook(req.body as Buffer, sig);
+
+        // Handle store-specific business logic for checkout.session.completed
+        try {
+          const payload = JSON.parse(req.body.toString());
+          if (payload?.type === 'checkout.session.completed') {
+            const session = payload.data?.object;
+            const { packId, orgId, unlockedBy } = session?.metadata ?? {};
+            if (packId && orgId) {
+              const chargeId = typeof session.payment_intent === 'string' ? session.payment_intent : null;
+              await storage.grantEntitlement({
+                packId,
+                orgId,
+                unlockedBy: unlockedBy || null,
+                stripeChargeId: chargeId,
+                stripeSessionId: session.id ?? null,
+              });
+              log(`[stripe-webhook] Granted entitlement: org=${orgId} pack=${packId} charge=${chargeId}`);
+            }
+          }
+        } catch (bizErr: any) {
+          console.error('[stripe-webhook] Business logic error:', bizErr?.message);
+        }
+
+        res.status(200).json({ received: true });
+      } catch (err: any) {
+        console.error('[stripe-webhook] Error:', err?.message);
+        res.status(400).json({ error: 'Webhook processing error' });
+      }
+    }
+  );
+
   // Step 1: Body parser middleware
   recordStep('body_parser', 'start');
   app.use(express.json({ limit: '10mb' }));
@@ -421,6 +463,25 @@ async function initializeApp() {
     recordStep('register_routes', 'error', error?.message);
     throw error;
   }
+
+  // Step 4b: Initialize Stripe (non-blocking — skipped if not configured)
+  (async () => {
+    try {
+      const { runMigrations } = await import('stripe-replit-sync');
+      const { getStripeSync } = await import('./stripeClient');
+      const databaseUrl = process.env.DATABASE_URL;
+      if (!databaseUrl) return;
+      await runMigrations({ databaseUrl });
+      const stripeSync = await getStripeSync();
+      const domains = process.env.REPLIT_DOMAINS ?? '';
+      const webhookBaseUrl = `https://${domains.split(',')[0]}`;
+      await stripeSync.findOrCreateManagedWebhook(`${webhookBaseUrl}/api/stripe/webhook`);
+      stripeSync.syncBackfill().catch((err: any) => console.error('[stripe] syncBackfill error:', err?.message));
+      log('[stripe] Initialized successfully');
+    } catch (err: any) {
+      console.warn('[stripe] Stripe not configured or unavailable:', err?.message);
+    }
+  })();
 
   // Step 5: Error handler (must be after routes)
   app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {

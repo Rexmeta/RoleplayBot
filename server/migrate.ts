@@ -1769,6 +1769,18 @@ export async function runMigrations(): Promise<void> {
         console.warn('⚠️ Failed to add mbti_personas store columns:', err);
       }
 
+      // Stripe payment columns on store_entitlements
+      try {
+        await client.query(`
+          ALTER TABLE "store_entitlements"
+            ADD COLUMN IF NOT EXISTS "stripe_charge_id" text,
+            ADD COLUMN IF NOT EXISTS "stripe_session_id" text;
+        `);
+        console.log('✅ store_entitlements stripe columns ensured');
+      } catch (err) {
+        console.warn('⚠️ Failed to add store_entitlements stripe columns:', err);
+      }
+
       console.log('✅ Database migrations completed successfully');
     } finally {
       client.release();

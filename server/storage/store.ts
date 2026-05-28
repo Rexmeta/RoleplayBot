@@ -18,7 +18,7 @@ export interface IStoreStorage {
   hasEntitlement(orgId: string, packId: string): Promise<boolean>;
   /** True if org has an explicit entitlement OR qualifies via plan tier. */
   isOrgEntitledToPack(orgId: string | null, packId: string): Promise<boolean>;
-  grantEntitlement(entitlement: InsertStoreEntitlement): Promise<StoreEntitlement>;
+  grantEntitlement(entitlement: InsertStoreEntitlement & { stripeChargeId?: string; stripeSessionId?: string }): Promise<StoreEntitlement>;
   revokeEntitlement(orgId: string, packId: string): Promise<void>;
   getStoreRevenueSummary(): Promise<{ totalEntitlements: number; revenueUsd: number; byPack: { packId: string; packName: string; count: number; revenueUsd: number }[] }>;
 }
@@ -135,7 +135,7 @@ export function StoreMixin<TBase extends Constructor>(Base: TBase) {
       }
     }
 
-    async grantEntitlement(entitlement: InsertStoreEntitlement): Promise<StoreEntitlement> {
+    async grantEntitlement(entitlement: InsertStoreEntitlement & { stripeChargeId?: string; stripeSessionId?: string }): Promise<StoreEntitlement> {
       const [inserted] = await db
         .insert(storeEntitlements)
         .values(entitlement as any)
@@ -215,10 +215,10 @@ export class MemStoreStorage implements IStoreStorage {
     if (!orgId) return false;
     return this.hasEntitlement(orgId, packId);
   }
-  async grantEntitlement(entitlement: InsertStoreEntitlement) {
+  async grantEntitlement(entitlement: InsertStoreEntitlement & { stripeChargeId?: string; stripeSessionId?: string }) {
     const existing = this.entitlements.find(e => e.orgId === entitlement.orgId && e.packId === entitlement.packId);
     if (existing) return existing;
-    const row = { id: crypto.randomUUID(), ...entitlement, unlockedAt: new Date() } as StoreEntitlement;
+    const row = { id: crypto.randomUUID(), ...entitlement, unlockedAt: new Date(), stripeChargeId: entitlement.stripeChargeId ?? null, stripeSessionId: entitlement.stripeSessionId ?? null } as StoreEntitlement;
     this.entitlements.push(row);
     return row;
   }

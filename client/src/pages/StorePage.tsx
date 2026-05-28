@@ -1,6 +1,7 @@
-import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useState, useEffect } from "react";
+import { useQuery, useMutation } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
+import { useLocation } from "wouter";
 import { AppHeader } from "@/components/AppHeader";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -8,9 +9,11 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Loader2, Search, ShoppingBag, Library, Lock, CheckCircle, Star, Users, BookOpen, DollarSign } from "lucide-react";
+import { Loader2, Search, ShoppingBag, Library, Lock, CheckCircle, Star, Users, BookOpen, DollarSign, CreditCard } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { toMediaUrl } from "@/lib/mediaUrl";
+import { apiRequest, queryClient } from "@/lib/queryClient";
+import { useToast } from "@/hooks/use-toast";
 
 interface StorePack {
   id: string;
@@ -94,12 +97,50 @@ function PackCard({ pack, onClick }: { pack: StorePack; onClick: () => void }) {
           )}
           {pack.isEntitled ? (
             <span className="text-xs text-green-600 font-medium">In your library</span>
+          ) : pack.priceUsd > 0 && !pack.planTierMinimum ? (
+            <span className="text-xs text-blue-600 font-medium flex items-center gap-1"><CreditCard className="h-3 w-3" /> Buy Now</span>
           ) : (
             <Button size="sm" variant="outline" className="h-7 text-xs">View Pack</Button>
           )}
         </div>
       </CardContent>
     </Card>
+  );
+}
+
+function BuyNowButton({ packId, packName }: { packId: string; packName: string }) {
+  const { toast } = useToast();
+  const checkoutMutation = useMutation({
+    mutationFn: async () => {
+      const resp = await apiRequest("POST", `/api/store/packs/${packId}/checkout`);
+      return resp.json();
+    },
+    onSuccess: (data) => {
+      if (data.url) {
+        window.location.href = data.url;
+      }
+    },
+    onError: (err: any) => {
+      toast({
+        title: "Checkout failed",
+        description: err?.message ?? "Could not start checkout. Please try again.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  return (
+    <Button
+      onClick={() => checkoutMutation.mutate()}
+      disabled={checkoutMutation.isPending}
+      className="bg-green-600 hover:bg-green-700 text-white"
+    >
+      {checkoutMutation.isPending ? (
+        <><Loader2 className="h-4 w-4 animate-spin mr-2" /> Processing...</>
+      ) : (
+        <><CreditCard className="h-4 w-4 mr-2" /> Buy Now</>
+      )}
+    </Button>
   );
 }
 
@@ -138,6 +179,8 @@ function PackDetailDrawer({ packId, open, onClose }: { packId: string; open: boo
                   <Badge className="bg-green-100 text-green-700 hover:bg-green-100">
                     <CheckCircle className="h-3 w-3 mr-1" /> Unlocked
                   </Badge>
+                ) : pack.priceUsd > 0 && !pack.planTierMinimum ? (
+                  <BuyNowButton packId={pack.id} packName={pack.name} />
                 ) : (
                   <Badge variant="outline" className="border-orange-300 text-orange-700">
                     <Lock className="h-3 w-3 mr-1" /> Contact admin to unlock
@@ -190,10 +233,17 @@ function PackDetailDrawer({ packId, open, onClose }: { packId: string; open: boo
               )}
 
               {!pack.isEntitled && (
-                <div className="rounded-lg border border-orange-200 bg-orange-50 p-4 text-sm text-orange-800">
-                  <p className="font-medium">Want access to this pack?</p>
-                  <p className="mt-1 text-orange-700">Contact your system administrator to unlock this content pack for your organization.</p>
-                </div>
+                pack.priceUsd > 0 && !pack.planTierMinimum ? (
+                  <div className="rounded-lg border border-green-200 bg-green-50 p-4 text-sm text-green-800">
+                    <p className="font-medium">Purchase this pack</p>
+                    <p className="mt-1 text-green-700">Click <strong>Buy Now</strong> above to purchase this pack for your organization via Stripe. Access is granted instantly after payment.</p>
+                  </div>
+                ) : (
+                  <div className="rounded-lg border border-orange-200 bg-orange-50 p-4 text-sm text-orange-800">
+                    <p className="font-medium">Want access to this pack?</p>
+                    <p className="mt-1 text-orange-700">Contact your system administrator to unlock this content pack for your organization.</p>
+                  </div>
+                )
               )}
             </div>
           </>
@@ -293,12 +343,28 @@ function LibraryTab() {
 export default function StorePage() {
   const { t } = useTranslation();
   const { user } = useAuth();
+  const { toast } = useToast();
+  const [location] = useLocation();
   const [search, setSearch] = useState("");
   const [selectedPackId, setSelectedPackId] = useState<string | null>(null);
 
   const { data: packs = [], isLoading } = useQuery<StorePack[]>({
     queryKey: ["/api/store/packs"],
   });
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const payment = params.get("payment");
+    if (payment === "success") {
+      toast({ title: "Payment successful!", description: "Your pack is now unlocked. It may take a moment to appear in your library." });
+      queryClient.invalidateQueries({ queryKey: ["/api/store/packs"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/store/my-library"] });
+      window.history.replaceState({}, "", "/store");
+    } else if (payment === "cancelled") {
+      toast({ title: "Payment cancelled", description: "Your purchase was not completed.", variant: "destructive" });
+      window.history.replaceState({}, "", "/store");
+    }
+  }, []);
 
   const filtered = packs.filter(p =>
     p.name.toLowerCase().includes(search.toLowerCase()) ||
