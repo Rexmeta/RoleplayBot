@@ -3,6 +3,7 @@ import { pgTable, varchar, integer, boolean, timestamp, jsonb, doublePrecision, 
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 import { users } from "./users";
+import { organizations } from "./users";
 import type { AiUsageSummary, AiUsageByFeature, AiUsageByModel, AiUsageDaily } from "./types";
 
 export const aiUsageLogs = pgTable("ai_usage_logs", {
@@ -23,9 +24,7 @@ export const aiUsageLogs = pgTable("ai_usage_logs", {
   totalCostUsd: doublePrecision("total_cost_usd").notNull().default(0),
   durationMs: integer("duration_ms"),
   metadata: jsonb("metadata").$type<Record<string, any>>(),
-  // Agent API attribution column (nullable — only set for agent-originated requests)
   agentKeyId: varchar("agent_key_id"),
-  // True when token counts are heuristic estimates (no real provider metadata available)
   tokensEstimated: boolean("tokens_estimated").notNull().default(false),
 }, (table) => [
   index("idx_ai_usage_logs_occurred_at").on(table.occurredAt),
@@ -34,11 +33,29 @@ export const aiUsageLogs = pgTable("ai_usage_logs", {
   index("idx_ai_usage_logs_model").on(table.model),
 ]);
 
+export const hrBenchmarkTargets = pgTable("hr_benchmark_targets", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  orgId: varchar("org_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  dimensionKey: varchar("dimension_key").notNull(),
+  dimensionName: varchar("dimension_name").notNull().default(""),
+  targetScore: doublePrecision("target_score").notNull().default(3.5),
+  updatedAt: timestamp("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+}, (table) => [
+  index("idx_hr_benchmark_targets_org_id").on(table.orgId),
+]);
+
 export const insertAiUsageLogSchema = createInsertSchema(aiUsageLogs).omit({
   id: true,
   occurredAt: true,
 });
 export type InsertAiUsageLog = z.infer<typeof insertAiUsageLogSchema>;
 export type AiUsageLog = typeof aiUsageLogs.$inferSelect;
+
+export const insertHrBenchmarkTargetSchema = createInsertSchema(hrBenchmarkTargets).omit({
+  id: true,
+  updatedAt: true,
+});
+export type InsertHrBenchmarkTarget = z.infer<typeof insertHrBenchmarkTargetSchema>;
+export type HrBenchmarkTarget = typeof hrBenchmarkTargets.$inferSelect;
 
 export type { AiUsageSummary, AiUsageByFeature, AiUsageByModel, AiUsageDaily } from "./types";

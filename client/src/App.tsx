@@ -29,6 +29,7 @@ import PersonaCreatePage from "@/pages/PersonaCreatePage";
 import PersonaScenesPage from "@/pages/PersonaScenesPage";
 import PersonaSceneCreatePage from "@/pages/PersonaSceneCreatePage";
 import PersonaSceneDetailPage from "@/pages/PersonaSceneDetailPage";
+import HRAnalytics from "@/pages/HRAnalytics";
 
 function AdminRoute({ component: Component }: { component: React.ComponentType }) {
   const { user } = useAuth();
@@ -65,6 +66,7 @@ function ProtectedRouter() {
       <Route path="/home" component={Home} />
       <Route path="/mypage" component={MyPage} />
       <Route path="/analytics" component={Analytics} />
+      <Route path="/analytics/hr" component={HRAnalytics} />
       <Route path="/chat/:conversationId" component={ConversationView} />
       <Route path="/feedback/:conversationId" component={FeedbackView} />
       <Route path="/admin/participant/:userId" component={ParticipantHistory} />

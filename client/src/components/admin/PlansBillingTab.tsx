@@ -8,6 +8,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { Switch } from "@/components/ui/switch";
 import { Loader2, CreditCard, Users, Zap, DollarSign, RefreshCw, Pencil, CheckCircle, Building2 } from "lucide-react";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -95,6 +96,7 @@ export function PlansBillingTab() {
   const [editingPlan, setEditingPlan] = useState<Plan | null>(null);
   const [editTokens, setEditTokens] = useState("");
   const [editPrice, setEditPrice] = useState("");
+  const [editHrAnalytics, setEditHrAnalytics] = useState(false);
   const [assignDialog, setAssignDialog] = useState<SubscriptionRow | null>(null);
   const [selectedPlanId, setSelectedPlanId] = useState("");
 
@@ -149,7 +151,8 @@ export function PlansBillingTab() {
     const priceVal = parseFloat(editPrice);
     if (!isNaN(tokenVal)) updates.tokenQuotaMonthly = tokenVal;
     if (!isNaN(priceVal)) updates.priceUsdMonthly = priceVal;
-    if (Object.keys(updates).length === 0) return;
+    const existingFeatures = editingPlan.features || {};
+    updates.features = { ...existingFeatures, hr_analytics: editHrAnalytics };
     updatePlanMutation.mutate({ id: editingPlan.id, updates });
   };
 
@@ -157,6 +160,7 @@ export function PlansBillingTab() {
     setEditingPlan(plan);
     setEditTokens(plan.tokenQuotaMonthly === -1 ? "-1" : String(plan.tokenQuotaMonthly));
     setEditPrice(String(plan.priceUsdMonthly));
+    setEditHrAnalytics(!!(plan.features as Record<string, any>)?.hr_analytics);
   };
 
   const totalRevenue = subscriptions.reduce((acc, s) => acc + (s.plan?.priceUsdMonthly ?? 0), 0);
@@ -319,7 +323,7 @@ export function PlansBillingTab() {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Edit Plan: {editingPlan?.name}</DialogTitle>
-            <DialogDescription>Update the token quota and price for this plan.</DialogDescription>
+            <DialogDescription>Update the token quota, price, and feature flags for this plan.</DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
             <div className="space-y-2">
@@ -329,6 +333,16 @@ export function PlansBillingTab() {
             <div className="space-y-2">
               <label className="text-sm font-medium">Price (USD/month)</label>
               <Input value={editPrice} onChange={e => setEditPrice(e.target.value)} type="number" min="0" step="0.01" />
+            </div>
+            <div className="border rounded-lg p-3 space-y-3">
+              <p className="text-sm font-medium text-muted-foreground uppercase tracking-wide">Feature Flags</p>
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium">HR Team Analytics</p>
+                  <p className="text-xs text-muted-foreground">Enables /analytics/hr dashboard for orgs on this plan</p>
+                </div>
+                <Switch checked={editHrAnalytics} onCheckedChange={setEditHrAnalytics} />
+              </div>
             </div>
           </div>
           <DialogFooter>
