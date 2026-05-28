@@ -98,6 +98,17 @@ interface AgentWebhook {
   createdAt: string | null;
 }
 
+interface AgentWebhookDelivery {
+  id: string;
+  deliveryId: string;
+  event: string;
+  statusCode: number | null;
+  attempt: number;
+  succeededAt: string | null;
+  nextRetryAt: string | null;
+  createdAt: string | null;
+}
+
 const LOW_TOKEN_RATE_EVENT = "agent_key.low_token_rate";
 
 interface Scenario {
@@ -142,6 +153,7 @@ export function AgentKeyManager() {
   const [webhookTarget, setWebhookTarget] = useState<AgentApiKey | null>(null);
   const [newWebhookUrl, setNewWebhookUrl] = useState("");
   const [revealedWebhookSecret, setRevealedWebhookSecret] = useState<{ secret: string; url: string } | null>(null);
+  const [deliveryWebhookId, setDeliveryWebhookId] = useState<string | null>(null);
 
   const { data: keys = [], isLoading } = useQuery<AgentApiKey[]>({
     queryKey: ["/api/admin/agent-keys"],
@@ -163,6 +175,19 @@ export function AgentKeyManager() {
         credentials: "include",
       });
       if (!res.ok) throw new Error("Failed to fetch webhooks");
+      return res.json();
+    },
+  });
+
+  const { data: webhookDeliveries = [], isLoading: deliveriesLoading } = useQuery<AgentWebhookDelivery[]>({
+    queryKey: ["/api/admin/agent-keys", webhookTarget?.id, "webhooks", deliveryWebhookId, "deliveries"],
+    enabled: !!webhookTarget && !!deliveryWebhookId,
+    queryFn: async () => {
+      const res = await fetch(
+        `/api/admin/agent-keys/${webhookTarget!.id}/webhooks/${deliveryWebhookId}/deliveries?limit=20`,
+        { credentials: "include" }
+      );
+      if (!res.ok) throw new Error("Failed to fetch deliveries");
       return res.json();
     },
   });
@@ -984,6 +1009,7 @@ export function AgentKeyManager() {
             setWebhookTarget(null);
             setNewWebhookUrl("");
             setRevealedWebhookSecret(null);
+            setDeliveryWebhookId(null);
           }
         }}
       >
@@ -1046,51 +1072,130 @@ export function AgentKeyManager() {
                 {t("agentKeys.webhooks.noWebhooks", "등록된 웹훅이 없습니다.")}
               </p>
             ) : (
-              <div className="space-y-2">
-                {keyWebhooks.map((wh) => (
-                  <div
-                    key={wh.id}
-                    className="flex items-start gap-3 rounded-md border bg-muted/30 px-3 py-2.5"
-                  >
-                    <div className="flex-1 min-w-0">
-                      <p className="text-xs font-mono truncate text-foreground">{wh.url}</p>
-                      <div className="flex flex-wrap gap-1 mt-1.5">
-                        {wh.events.map((ev) => (
-                          <Badge
-                            key={ev}
-                            variant={ev === LOW_TOKEN_RATE_EVENT ? "default" : "secondary"}
-                            className="text-xs px-1 py-0"
+              <div className="space-y-3">
+                {keyWebhooks.map((wh) => {
+                  const isDeliveryOpen = deliveryWebhookId === wh.id;
+                  return (
+                    <div key={wh.id} className="rounded-md border bg-muted/30">
+                      <div className="flex items-start gap-3 px-3 py-2.5">
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs font-mono truncate text-foreground">{wh.url}</p>
+                          <div className="flex flex-wrap gap-1 mt-1.5">
+                            {wh.events.map((ev) => (
+                              <Badge
+                                key={ev}
+                                variant={ev === LOW_TOKEN_RATE_EVENT ? "default" : "secondary"}
+                                className="text-xs px-1 py-0"
+                              >
+                                {ev}
+                              </Badge>
+                            ))}
+                          </div>
+                          <p className="text-xs text-muted-foreground mt-1">
+                            {wh.isActive
+                              ? t("agentKeys.webhooks.active", "활성")
+                              : t("agentKeys.webhooks.inactive", "비활성")}
+                            {wh.createdAt && ` · ${format(new Date(wh.createdAt), "yyyy-MM-dd")}`}
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-1 shrink-0">
+                          <Button
+                            size="sm"
+                            variant={isDeliveryOpen ? "secondary" : "ghost"}
+                            className="h-7 px-2 text-xs text-muted-foreground"
+                            onClick={() =>
+                              setDeliveryWebhookId(isDeliveryOpen ? null : wh.id)
+                            }
+                            title={t("agentKeys.webhooks.deliveries.toggle", "최근 전송 이력")}
                           >
-                            {ev}
-                          </Badge>
-                        ))}
+                            {t("agentKeys.webhooks.deliveries.toggle", "이력")}
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive"
+                            disabled={deleteWebhookMutation.isPending}
+                            onClick={() =>
+                              webhookTarget &&
+                              deleteWebhookMutation.mutate({ keyId: webhookTarget.id, webhookId: wh.id })
+                            }
+                            title={t("agentKeys.webhooks.delete", "웹훅 삭제")}
+                          >
+                            {deleteWebhookMutation.isPending ? (
+                              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                            ) : (
+                              <Trash2 className="h-3.5 w-3.5" />
+                            )}
+                          </Button>
+                        </div>
                       </div>
-                      <p className="text-xs text-muted-foreground mt-1">
-                        {wh.isActive
-                          ? t("agentKeys.webhooks.active", "활성")
-                          : t("agentKeys.webhooks.inactive", "비활성")}
-                        {wh.createdAt && ` · ${format(new Date(wh.createdAt), "yyyy-MM-dd")}`}
-                      </p>
-                    </div>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      className="h-7 w-7 p-0 shrink-0 text-muted-foreground hover:text-destructive"
-                      disabled={deleteWebhookMutation.isPending}
-                      onClick={() =>
-                        webhookTarget &&
-                        deleteWebhookMutation.mutate({ keyId: webhookTarget.id, webhookId: wh.id })
-                      }
-                      title={t("agentKeys.webhooks.delete", "웹훅 삭제")}
-                    >
-                      {deleteWebhookMutation.isPending ? (
-                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                      ) : (
-                        <Trash2 className="h-3.5 w-3.5" />
+
+                      {/* Recent Deliveries panel */}
+                      {isDeliveryOpen && (
+                        <div className="border-t px-3 py-2.5 space-y-1.5">
+                          <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">
+                            {t("agentKeys.webhooks.deliveries.title", "최근 전송 이력")}
+                          </p>
+                          {deliveriesLoading ? (
+                            <div className="flex items-center gap-2 py-3 text-muted-foreground text-xs">
+                              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                              {t("agentKeys.loading", "로딩 중...")}
+                            </div>
+                          ) : webhookDeliveries.length === 0 ? (
+                            <p className="text-xs text-muted-foreground py-3 text-center">
+                              {t("agentKeys.webhooks.deliveries.empty", "아직 전송 이력이 없습니다.")}
+                            </p>
+                          ) : (
+                            <div className="space-y-1">
+                              {webhookDeliveries.map((d) => {
+                                const isSuccess = d.succeededAt !== null;
+                                const isFailed = !isSuccess && d.statusCode !== null && d.statusCode >= 400;
+                                const isPending = d.statusCode === null;
+                                return (
+                                  <div
+                                    key={d.id}
+                                    className={`flex items-center gap-2 rounded px-2 py-1.5 text-xs ${
+                                      isFailed
+                                        ? "bg-red-50 dark:bg-red-950 border border-red-200 dark:border-red-800"
+                                        : isSuccess
+                                        ? "bg-green-50 dark:bg-green-950 border border-green-200 dark:border-green-800"
+                                        : "bg-muted/50 border border-border"
+                                    }`}
+                                  >
+                                    <span
+                                      className={`font-mono font-medium w-8 text-center ${
+                                        isFailed
+                                          ? "text-red-700 dark:text-red-300"
+                                          : isSuccess
+                                          ? "text-green-700 dark:text-green-300"
+                                          : "text-muted-foreground"
+                                      }`}
+                                    >
+                                      {d.statusCode ?? "—"}
+                                    </span>
+                                    <span className="font-mono text-muted-foreground flex-1 truncate">
+                                      {d.event}
+                                    </span>
+                                    {d.attempt > 1 && (
+                                      <Badge variant="outline" className="text-xs px-1 py-0 shrink-0">
+                                        {t("agentKeys.webhooks.deliveries.attempt", "시도 {{n}}", { n: d.attempt })}
+                                      </Badge>
+                                    )}
+                                    <span className="text-muted-foreground shrink-0">
+                                      {d.createdAt
+                                        ? format(new Date(d.createdAt), "MM-dd HH:mm")
+                                        : "—"}
+                                    </span>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </div>
                       )}
-                    </Button>
-                  </div>
-                ))}
+                    </div>
+                  );
+                })}
               </div>
             )}
           </div>

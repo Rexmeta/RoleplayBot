@@ -13,6 +13,7 @@ import {
   agentUsageDaily,
   agentKeyAlerts,
   agentWebhooks,
+  agentWebhookDeliveries,
   auditLogs,
   AGENT_API_SCOPES,
 } from "@shared/schema";
@@ -669,6 +670,53 @@ router.post(
       isActive: webhook.isActive,
       createdAt: webhook.createdAt?.toISOString?.() ?? new Date().toISOString(),
     });
+  })
+);
+
+// ─────────────────────────────────────────────────────────────────────────────
+// GET /api/admin/agent-keys/:id/webhooks/:webhookId/deliveries — recent deliveries (admin)
+// Query param: limit (default 20, max 50)
+// ─────────────────────────────────────────────────────────────────────────────
+router.get(
+  "/:id/webhooks/:webhookId/deliveries",
+  isSystemAdmin,
+  asyncHandler(async (req: any, res) => {
+    // Verify the webhook belongs to the key
+    const [webhook] = await db
+      .select({ id: agentWebhooks.id })
+      .from(agentWebhooks)
+      .where(
+        and(
+          eq(agentWebhooks.id, req.params.webhookId),
+          eq(agentWebhooks.agentKeyId, req.params.id)
+        )
+      )
+      .limit(1);
+
+    if (!webhook) throw createHttpError(404, "Webhook not found");
+
+    const limitParam = parseInt(String(req.query.limit ?? "20"), 10);
+    const limit = Math.min(Math.max(1, isNaN(limitParam) ? 20 : limitParam), 50);
+
+    const rows = await db
+      .select()
+      .from(agentWebhookDeliveries)
+      .where(eq(agentWebhookDeliveries.webhookId, req.params.webhookId))
+      .orderBy(desc(agentWebhookDeliveries.createdAt))
+      .limit(limit);
+
+    res.json(
+      rows.map((d) => ({
+        id: d.id,
+        deliveryId: d.deliveryId,
+        event: d.event,
+        statusCode: d.statusCode,
+        attempt: d.attempt,
+        succeededAt: d.succeededAt?.toISOString() ?? null,
+        nextRetryAt: d.nextRetryAt?.toISOString() ?? null,
+        createdAt: d.createdAt?.toISOString() ?? null,
+      }))
+    );
   })
 );
 
