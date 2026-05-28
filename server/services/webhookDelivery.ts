@@ -195,6 +195,33 @@ async function deliverWithRetry(
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Public API: manually retry a single failed delivery (admin-triggered)
+// Creates a fresh delivery row; no automatic follow-up retries are scheduled.
+// ─────────────────────────────────────────────────────────────────────────────
+export async function manualRetryDelivery(
+  webhook: { id: string; url: string; secretKey: string },
+  event: WebhookEventType,
+  payload: Record<string, any>
+): Promise<{ ok: boolean; statusCode: number | null }> {
+  const rawBody = JSON.stringify(payload);
+  const newDeliveryId = `wdl_${randomUUID().replace(/-/g, "").slice(0, 20)}`;
+
+  let plaintextSecret: string;
+  try {
+    plaintextSecret = decryptWebhookSecret(webhook.secretKey);
+  } catch (err) {
+    console.error(`[webhookDelivery] Cannot decrypt secret for webhook ${webhook.id}`, err);
+    return { ok: false, statusCode: null };
+  }
+  const signature = signPayload(rawBody, plaintextSecret);
+  const { statusCode, ok } = await attemptDelivery(webhook.url, rawBody, signature, event, newDeliveryId);
+
+  await logDelivery(webhook.id, newDeliveryId, event, payload, statusCode || null, 1, ok, null);
+
+  return { ok, statusCode: statusCode || null };
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Public API: fire a single test delivery to a specific webhook (no retries)
 // Returns { ok, statusCode } so callers can surface the result to the admin.
 // ─────────────────────────────────────────────────────────────────────────────

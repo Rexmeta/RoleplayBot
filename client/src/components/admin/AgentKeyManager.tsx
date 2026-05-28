@@ -51,6 +51,7 @@ import {
   Bell,
   BellOff,
   Trash2,
+  RotateCcw,
 } from "lucide-react";
 import { format } from "date-fns";
 import { AGENT_API_SCOPES } from "@shared/schema";
@@ -245,6 +246,32 @@ export function AgentKeyManager() {
     },
     onError: (err: any) => {
       toast({ title: t("agentKeys.webhooks.testError", "테스트 전송 오류"), description: err.message, variant: "destructive" });
+    },
+  });
+
+  const retryDeliveryMutation = useMutation({
+    mutationFn: async ({ keyId, webhookId, deliveryId }: { keyId: string; webhookId: string; deliveryId: string }) => {
+      const res = await apiRequest(
+        "POST",
+        `/api/admin/agent-keys/${keyId}/webhooks/${webhookId}/deliveries/${deliveryId}/retry`,
+        {}
+      );
+      return res.json() as Promise<{ ok: boolean; statusCode: number | null }>;
+    },
+    onSuccess: (data, { keyId, webhookId }) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/agent-keys", keyId, "webhooks", webhookId, "deliveries"] });
+      if (data.ok) {
+        toast({ title: t("agentKeys.webhooks.deliveries.retrySuccess", "재전송 성공"), description: `HTTP ${data.statusCode}` });
+      } else {
+        toast({
+          title: t("agentKeys.webhooks.deliveries.retryFailed", "재전송 실패"),
+          description: data.statusCode ? `HTTP ${data.statusCode}` : t("agentKeys.webhooks.deliveries.retryTimeout", "연결 실패"),
+          variant: "destructive",
+        });
+      }
+    },
+    onError: (err: any) => {
+      toast({ title: t("agentKeys.webhooks.deliveries.retryError", "재전송 오류"), description: err.message, variant: "destructive" });
     },
   });
 
@@ -1199,6 +1226,10 @@ export function AgentKeyManager() {
                                     else next.add(d.id);
                                     return next;
                                   });
+                                const isPending = d.statusCode === null;
+                                const isRetrying =
+                                  retryDeliveryMutation.isPending &&
+                                  retryDeliveryMutation.variables?.deliveryId === d.id;
                                 return (
                                   <div
                                     key={d.id}
@@ -1253,6 +1284,27 @@ export function AgentKeyManager() {
                                           {JSON.stringify(d.payload, null, 2)}
                                         </pre>
                                       </div>
+                                    )}
+                                    {isFailed && (
+                                      <button
+                                        onClick={() =>
+                                          retryDeliveryMutation.mutate({
+                                            keyId: webhookTarget!.id,
+                                            webhookId: deliveryWebhookId!,
+                                            deliveryId: d.id,
+                                          })
+                                        }
+                                        disabled={isRetrying}
+                                        className="shrink-0 flex items-center gap-1 rounded px-1.5 py-0.5 text-xs font-medium text-red-700 dark:text-red-300 border border-red-300 dark:border-red-700 hover:bg-red-100 dark:hover:bg-red-900 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                                        title={t("agentKeys.webhooks.deliveries.retryTitle", "재전송")}
+                                      >
+                                        {isRetrying ? (
+                                          <Loader2 className="h-3 w-3 animate-spin" />
+                                        ) : (
+                                          <RotateCcw className="h-3 w-3" />
+                                        )}
+                                        {t("agentKeys.webhooks.deliveries.retryBtn", "재시도")}
+                                      </button>
                                     )}
                                   </div>
                                 );

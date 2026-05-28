@@ -21,7 +21,7 @@ import { eq, and, desc, sql, or, gte, lt, lte, isNull, ne } from "drizzle-orm";
 import { isSystemAdmin, isOperatorOrAdmin } from "../middleware/authMiddleware";
 import { asyncHandler, createHttpError } from "./routerHelpers";
 import { generateAgentApiKey, computeExpiryDate } from "../utils/agentApiKey";
-import { encryptWebhookSecret, fireTestWebhook } from "../services/webhookDelivery";
+import { encryptWebhookSecret, fireTestWebhook, manualRetryDelivery } from "../services/webhookDelivery";
 import { z } from "zod";
 
 const router = Router();
@@ -729,6 +729,63 @@ router.post(
   isSystemAdmin,
   asyncHandler(async (req: any, res) => {
     const { ok, statusCode } = await fireTestWebhook(req.params.webhookId, req.params.id);
+    res.json({ ok, statusCode });
+  })
+);
+
+// ─────────────────────────────────────────────────────────────────────────────
+// POST /api/admin/agent-keys/:id/webhooks/:webhookId/deliveries/:deliveryId/retry
+// Immediately re-attempts a failed delivery and records a new row (admin only)
+// ─────────────────────────────────────────────────────────────────────────────
+router.post(
+  "/:id/webhooks/:webhookId/deliveries/:deliveryId/retry",
+  isSystemAdmin,
+  asyncHandler(async (req: any, res) => {
+    // Verify the webhook belongs to the key
+    const [webhook] = await db
+      .select({
+        id: agentWebhooks.id,
+        url: agentWebhooks.url,
+        secretKey: agentWebhooks.secretKey,
+      })
+      .from(agentWebhooks)
+      .where(
+        and(
+          eq(agentWebhooks.id, req.params.webhookId),
+          eq(agentWebhooks.agentKeyId, req.params.id)
+        )
+      )
+      .limit(1);
+
+    if (!webhook) throw createHttpError(404, "Webhook not found");
+
+    // Look up the original delivery row to get the payload and event
+    const [delivery] = await db
+      .select({
+        id: agentWebhookDeliveries.id,
+        event: agentWebhookDeliveries.event,
+        payload: agentWebhookDeliveries.payload,
+        succeededAt: agentWebhookDeliveries.succeededAt,
+        webhookId: agentWebhookDeliveries.webhookId,
+      })
+      .from(agentWebhookDeliveries)
+      .where(
+        and(
+          eq(agentWebhookDeliveries.id, req.params.deliveryId),
+          eq(agentWebhookDeliveries.webhookId, req.params.webhookId)
+        )
+      )
+      .limit(1);
+
+    if (!delivery) throw createHttpError(404, "Delivery record not found");
+    if (delivery.succeededAt) throw createHttpError(400, "Delivery already succeeded");
+
+    const { ok, statusCode } = await manualRetryDelivery(
+      webhook,
+      delivery.event as any,
+      delivery.payload
+    );
+
     res.json({ ok, statusCode });
   })
 );
