@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { pgTable, text, varchar, integer, timestamp, jsonb, boolean, index } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, integer, timestamp, jsonb, boolean, index, doublePrecision } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -43,6 +43,9 @@ export const mbtiPersonas = pgTable("mbti_personas", {
   }>(),
   freeChatAvailable: boolean("free_chat_available").notNull().default(false),
   freeChatDescription: text("free_chat_description"),
+  storeListed: boolean("store_listed").notNull().default(false),
+  storePriceUsd: doublePrecision("store_price_usd"),
+  storePackId: varchar("store_pack_id"),
   createdAt: timestamp("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
   updatedAt: timestamp("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`),
 });

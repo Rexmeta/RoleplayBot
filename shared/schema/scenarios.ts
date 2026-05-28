@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { pgTable, text, varchar, integer, timestamp, jsonb, boolean, index, uniqueIndex } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, integer, timestamp, jsonb, boolean, index, uniqueIndex, doublePrecision } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 import { categories, users, organizations } from "./users";
@@ -345,6 +345,9 @@ export const scenarios = pgTable("scenarios", {
   personaSwitchMode: varchar("persona_switch_mode", { length: 20 }).$type<'replace' | 'join'>(),
   simulationHarness: jsonb("simulation_harness").$type<SimulationHarness>(),
   analyticsSpec: jsonb("analytics_spec").$type<AnalyticsSpec>(),
+  storeListed: boolean("store_listed").notNull().default(false),
+  storePriceUsd: doublePrecision("store_price_usd"),
+  storePackId: varchar("store_pack_id"),
   isDemo: boolean("is_demo").notNull().default(false),
   isPublic: boolean("is_public").notNull().default(false),
   isDeleted: boolean("is_deleted").notNull().default(false),

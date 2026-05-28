@@ -31,6 +31,7 @@ import agentApiRouter from "./routes/agentApi";
 import adminAgentKeysRouter from "./routes/adminAgentKeys";
 import createSubscriptionsRouter from "./routes/subscriptions";
 import createHrAnalyticsRouter from "./routes/hrAnalytics";
+import createStoreRouter from "./routes/store";
 import swaggerUi from "swagger-ui-express";
 import agentApiSpec from "./openapi/agentApi";
 
@@ -89,6 +90,7 @@ export async function registerRoutes(app: Express, httpServer: Server): Promise<
   app.use('/api/simulation', createSimulationRouter(isAuthenticated));
   app.use('/api/system-admin', createSystemAdminRouter(isAuthenticated));
   app.use('/api/subscriptions', createSubscriptionsRouter(isAuthenticated));
+  app.use('/api/store', createStoreRouter(isAuthenticated));
 
   // ================================
   // Agent API (Enterprise B2B)

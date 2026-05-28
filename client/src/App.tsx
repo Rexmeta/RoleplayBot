@@ -23,6 +23,7 @@ import AboutPage from "@/pages/AboutPage";
 import NotFound from "@/pages/not-found";
 import { AuthPage } from "@/pages/AuthPage";
 import FreeChatPage from "@/pages/FreeChatPage";
+import StorePage from "@/pages/StorePage";
 import PersonaDiscoveryPage from "@/pages/PersonaDiscoveryPage";
 import PersonaProfilePage from "@/pages/PersonaProfilePage";
 import PersonaCreatePage from "@/pages/PersonaCreatePage";
@@ -54,9 +55,17 @@ function ProtectedRouter() {
     );
   }
 
-  // 인증되지 않은 사용자는 로그인/회원가입 페이지로
+  // 인증되지 않은 사용자 — public routes pass through, all others go to login
   if (!isAuthenticated) {
-    return <AuthPage />;
+    return (
+      <Switch>
+        <Route path="/store" component={StorePage} />
+        <Route path="/help" component={HelpPage} />
+        <Route path="/privacy-policy" component={PrivacyPolicy} />
+        <Route path="/about" component={AboutPage} />
+        <Route component={AuthPage} />
+      </Switch>
+    );
   }
 
   // 인증된 사용자는 기존 라우트들로
@@ -83,6 +92,7 @@ function ProtectedRouter() {
       <Route path="/persona/create">{() => <AdminRoute component={PersonaCreatePage} />}</Route>
       <Route path="/persona/:id">{() => <AdminRoute component={PersonaProfilePage} />}</Route>
       <Route path="/persona">{() => <AdminRoute component={PersonaDiscoveryPage} />}</Route>
+      <Route path="/store" component={StorePage} />
       <Route path="/help" component={HelpPage} />
       <Route path="/privacy-policy" component={PrivacyPolicy} />
       <Route path="/about" component={AboutPage} />

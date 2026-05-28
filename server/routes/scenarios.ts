@@ -159,6 +159,22 @@ export default function createScenariosRouter(isAuthenticated: any) {
     if (!isAdminOrOperator && !(scenario as any).isPublic) {
       throw createHttpError(404, "Scenario not found");
     }
+
+    // Enforce store entitlements for non-admins (includes plan-tier qualification)
+    if (!isAdminOrOperator && (scenario as any).storeListed && (scenario as any).storePackId) {
+      const orgId = user?.assignedOrganizationId ?? user?.organizationId ?? null;
+      const packId = (scenario as any).storePackId;
+      const entitled = await storage.isOrgEntitledToPack(orgId, packId);
+      if (!entitled) {
+        const pack = await storage.getStorePack(packId);
+        const err: any = createHttpError(403, "entitlement_required");
+        err.code = "entitlement_required";
+        err.pack_id = packId;
+        err.pack_name = pack?.name ?? null;
+        throw err;
+      }
+    }
+
     res.json(scenario);
   }));
 

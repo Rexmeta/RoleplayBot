@@ -68,6 +68,9 @@ interface ScenarioFormData {
   isDemo?: boolean; // 게스트 데모용 시나리오 여부
   isPublic?: boolean; // 공개 여부
   autoTranslate?: boolean; // AI 자동 번역 여부
+  storeListed?: boolean;
+  storePriceUsd?: number | null;
+  storePackId?: string | null;
   personaSwitchMode?: 'replace' | 'join'; // 다중 페르소나 전환 방식
   context: {
     situation: string;
@@ -396,9 +399,12 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
     targetDurationMinutes: 7,
     targetTurns: 10,
     minValidTurns: 4,
-    isDemo: false, // 게스트 데모용 시나리오 초기값 추가
-    isPublic: false, // 공개 여부 초기값 (기본 비공개)
-    autoTranslate: true, // AI 자동 번역 기본값 true
+    isDemo: false,
+    isPublic: false,
+    autoTranslate: true,
+    storeListed: false,
+    storePriceUsd: null,
+    storePackId: null,
     context: {
       situation: '',
       timeline: '',
@@ -543,6 +549,9 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
       objectiveType: scenario.objectiveType || '',
       isDemo: scenario.isDemo || false,
       isPublic: scenario.isPublic || false,
+      storeListed: (scenario as any).storeListed || false,
+      storePriceUsd: (scenario as any).storePriceUsd ?? null,
+      storePackId: (scenario as any).storePackId ?? null,
       context: scenario.context || {
         situation: '',
         timeline: '',
@@ -717,8 +726,11 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
       targetDurationMinutes: 7,
       targetTurns: 10,
       minValidTurns: 4,
-      isPublic: false, // 공개 여부 초기화 (기본 비공개)
-      autoTranslate: true, // 자동 번역 기본값 true
+      isPublic: false,
+      autoTranslate: true,
+      storeListed: false,
+      storePriceUsd: null,
+      storePackId: null,
       context: {
         situation: '',
         timeline: '',
@@ -794,8 +806,11 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
       targetDurationMinutes: (originalScenario as any).targetDurationMinutes ?? 7,
       targetTurns: (originalScenario as any).targetTurns ?? 10,
       minValidTurns: (originalScenario as any).minValidTurns ?? 4,
-      isDemo: (originalScenario as any).isDemo || false, // 기존 시나리오의 데모 여부 로드
-      isPublic: (originalScenario as any).isPublic || false, // 기존 시나리오의 공개 여부 로드
+      isDemo: (originalScenario as any).isDemo || false,
+      isPublic: (originalScenario as any).isPublic || false,
+      storeListed: (originalScenario as any).storeListed || false,
+      storePriceUsd: (originalScenario as any).storePriceUsd ?? null,
+      storePackId: (originalScenario as any).storePackId ?? null,
       context: originalScenario.context,
       objectives: originalScenario.objectives,
       successCriteria: originalScenario.successCriteria,
@@ -2089,6 +2104,50 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
                     </span>
                   </div>
                   
+                  <div className="border-t pt-3 mt-3 space-y-3">
+                    <div className="flex items-center gap-3">
+                      <Switch
+                        id="storeListed"
+                        checked={formData.storeListed || false}
+                        onCheckedChange={(checked) => setFormData(prev => ({ ...prev, storeListed: checked }))}
+                      />
+                      <Star className="h-4 w-4 text-amber-500" />
+                      <Label htmlFor="storeListed" className="text-sm font-medium text-slate-700 cursor-pointer">
+                        Publish to Store
+                      </Label>
+                      <span className="text-xs text-slate-500">
+                        {formData.storeListed ? 'Listed in content store' : 'Not in store'}
+                      </span>
+                    </div>
+                    {formData.storeListed && (
+                      <div className="ml-8 space-y-2">
+                        <div className="flex items-center gap-3">
+                          <Label className="text-xs text-slate-600 w-24">Price (USD)</Label>
+                          <input
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            placeholder="0.00"
+                            className="border rounded px-2 py-1 text-sm w-24"
+                            value={formData.storePriceUsd ?? ''}
+                            onChange={e => setFormData(prev => ({ ...prev, storePriceUsd: e.target.value ? parseFloat(e.target.value) : null }))}
+                          />
+                          <span className="text-xs text-slate-500">0 = free</span>
+                        </div>
+                        <div className="flex items-center gap-3">
+                          <Label className="text-xs text-slate-600 w-24">Pack ID</Label>
+                          <input
+                            type="text"
+                            placeholder="Store pack ID (optional)"
+                            className="border rounded px-2 py-1 text-sm flex-1"
+                            value={formData.storePackId ?? ''}
+                            onChange={e => setFormData(prev => ({ ...prev, storePackId: e.target.value || null }))}
+                          />
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
                   <div className="flex items-center gap-3 border-t pt-3 mt-3">
                     {!editingScenario ? (
                       <>

@@ -448,7 +448,7 @@ async function initializeApp() {
         'error', 'errorCode', 'details', 'reason', 'prompt',
         'connectedScenarios', 'assignedOperators', 'categories', 'organizations',
         'retryAfter', 'isFreeTierLimit', 'fallbackImageUrl', 'validEmotions',
-        'code', 'field',
+        'code', 'field', 'pack_id', 'pack_name',
       ];
       const body: Record<string, any> = { message };
       for (const key of SAFE_EXTRA_KEYS) {

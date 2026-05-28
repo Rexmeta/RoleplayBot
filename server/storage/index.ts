@@ -12,6 +12,7 @@ import { PersonasMixin, MemPersonasStorage } from "./personas";
 import { OrganizationsMixin, MemOrganizationsStorage } from "./organizations";
 import { ScenarioOverridesMixin, MemScenarioOverridesStorage } from "./scenarioOverrides";
 import { BillingMixin, MemBillingStorage } from "./billing";
+import { StoreMixin, MemStoreStorage } from "./store";
 
 export type { IConversationsStorage } from "./conversations";
 export type { ISessionsStorage } from "./sessions";
@@ -25,6 +26,7 @@ export type { IPersonasStorage } from "./personas";
 export type { IOrganizationsStorage } from "./organizations";
 export type { IScenarioOverridesStorage } from "./scenarioOverrides";
 export type { IBillingStorage } from "./billing";
+export type { IStoreStorage } from "./store";
 
 import type { IConversationsStorage } from "./conversations";
 import type { ISessionsStorage } from "./sessions";
@@ -38,6 +40,7 @@ import type { IPersonasStorage } from "./personas";
 import type { IOrganizationsStorage } from "./organizations";
 import type { IScenarioOverridesStorage } from "./scenarioOverrides";
 import type { IBillingStorage } from "./billing";
+import type { IStoreStorage } from "./store";
 
 export interface IStorage extends
   IConversationsStorage,
@@ -51,20 +54,23 @@ export interface IStorage extends
   IPersonasStorage,
   IOrganizationsStorage,
   IScenarioOverridesStorage,
-  IBillingStorage {}
+  IBillingStorage,
+  IStoreStorage {}
 
-const CombinedBase = BillingMixin(
-  ScenarioOverridesMixin(
-    OrganizationsMixin(
-      PersonasMixin(
-        ScenariosMixin(
-          TranslationsMixin(
-            AnalyticsMixin(
-              SettingsMixin(
-                CategoriesMixin(
-                  SessionsMixin(
-                    UsersMixin(
-                      ConversationsMixin(class {})
+const CombinedBase = StoreMixin(
+  BillingMixin(
+    ScenarioOverridesMixin(
+      OrganizationsMixin(
+        PersonasMixin(
+          ScenariosMixin(
+            TranslationsMixin(
+              AnalyticsMixin(
+                SettingsMixin(
+                  CategoriesMixin(
+                    SessionsMixin(
+                      UsersMixin(
+                        ConversationsMixin(class {})
+                      )
                     )
                   )
                 )
@@ -102,6 +108,7 @@ export class MemStorage {
       new MemOrganizationsStorage(),
       new MemScenarioOverridesStorage(),
       new MemBillingStorage(),
+      new MemStoreStorage(),
     ];
 
     return new Proxy(this as unknown as IStorage, {

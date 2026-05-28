@@ -194,6 +194,27 @@ export async function verifyPassword(password: string, hashedPassword: string): 
 }
 
 // 인증 미들웨어
+// Populates req.user if a valid token is present, but always calls next().
+// Use for endpoints that are public but benefit from user context when available.
+export const optionalAuth: RequestHandler = async (req: any, res, next) => {
+  try {
+    const authHeader = req.headers.authorization;
+    const token = authHeader && authHeader.startsWith('Bearer ')
+      ? authHeader.substring(7)
+      : req.cookies?.token;
+    if (token) {
+      const decoded = verifyToken(token);
+      if (decoded) {
+        const user = await storage.getUser(decoded.userId);
+        if (user) req.user = user;
+      }
+    }
+  } catch {
+    // ignore auth errors — this is optional
+  }
+  next();
+};
+
 export const isAuthenticated: RequestHandler = async (req: any, res, next) => {
   try {
     const authHeader = req.headers.authorization;

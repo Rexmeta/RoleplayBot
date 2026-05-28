@@ -200,6 +200,9 @@ export class FileManagerService {
       isDemo: dbScenario.isDemo || false,
       isPublic: dbScenario.isPublic || false,
       isDeleted: dbScenario.isDeleted || false,
+      storeListed: dbScenario.storeListed || false,
+      storePriceUsd: dbScenario.storePriceUsd ?? undefined,
+      storePackId: dbScenario.storePackId ?? undefined,
       targetDurationMinutes: dbScenario.targetDurationMinutes ?? 7,
       targetTurns: dbScenario.targetTurns ?? 10,
       minValidTurns: dbScenario.minValidTurns ?? 4,
@@ -358,6 +361,9 @@ export class FileManagerService {
         evaluationCriteriaSetId: scenario.evaluationCriteriaSetId || null,
         isDemo: scenario.isDemo || false,
         isPublic: scenario.isPublic || false,
+        storeListed: (scenario as any).storeListed || false,
+        storePriceUsd: (scenario as any).storePriceUsd ?? null,
+        storePackId: (scenario as any).storePackId ?? null,
         targetDurationMinutes: scenario.targetDurationMinutes ?? 7,
         targetTurns: scenario.targetTurns ?? 10,
         minValidTurns: scenario.minValidTurns ?? 4,
@@ -412,6 +418,9 @@ export class FileManagerService {
         if (scenario.evaluationCriteriaSetId !== undefined) updates.evaluationCriteriaSetId = scenario.evaluationCriteriaSetId;
         if (scenario.isDemo !== undefined) updates.isDemo = scenario.isDemo;
         if (scenario.isPublic !== undefined) updates.isPublic = scenario.isPublic;
+        if ((scenario as any).storeListed !== undefined) updates.storeListed = (scenario as any).storeListed;
+        if ((scenario as any).storePriceUsd !== undefined) updates.storePriceUsd = (scenario as any).storePriceUsd;
+        if ((scenario as any).storePackId !== undefined) updates.storePackId = (scenario as any).storePackId;
         if (scenario.targetDurationMinutes !== undefined) updates.targetDurationMinutes = scenario.targetDurationMinutes;
         if (scenario.targetTurns !== undefined) updates.targetTurns = scenario.targetTurns;
         if (scenario.minValidTurns !== undefined) updates.minValidTurns = scenario.minValidTurns;
@@ -579,7 +588,12 @@ export class FileManagerService {
       background: dbPersona.background,
       communication_patterns: dbPersona.communicationPatterns,
       voice: dbPersona.voice,
-      images: dbPersona.images || null, // 이미지 필드 추가
+      images: dbPersona.images || null,
+      freeChatAvailable: dbPersona.freeChatAvailable || false,
+      freeChatDescription: dbPersona.freeChatDescription || '',
+      storeListed: dbPersona.storeListed || false,
+      storePriceUsd: dbPersona.storePriceUsd ?? null,
+      storePackId: dbPersona.storePackId ?? null,
     };
   }
 
@@ -604,6 +618,9 @@ export class FileManagerService {
           communicationPatterns: personaData.communication_patterns || null,
           voice: personaData.voice || null,
           images: personaData.images || null,
+          storeListed: personaData.storeListed || false,
+          storePriceUsd: personaData.storePriceUsd ?? null,
+          storePackId: personaData.storePackId ?? null,
         });
         return personaData;
       }
@@ -647,6 +664,9 @@ export class FileManagerService {
           images: personaData.images,
           freeChatAvailable: personaData.freeChatAvailable ?? false,
           freeChatDescription: personaData.freeChatDescription ?? '',
+          storeListed: personaData.storeListed ?? false,
+          storePriceUsd: personaData.storePriceUsd ?? null,
+          storePackId: personaData.storePackId ?? null,
         });
         return personaData;
       }

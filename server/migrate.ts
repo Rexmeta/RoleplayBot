@@ -1692,6 +1692,73 @@ export async function runMigrations(): Promise<void> {
         console.warn('⚠️ Failed to create hr_benchmark_targets table:', err);
       }
 
+      // Store packs table
+      try {
+        await client.query(`
+          CREATE TABLE IF NOT EXISTS "store_packs" (
+            "id" varchar PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+            "name" varchar NOT NULL,
+            "description" text NOT NULL DEFAULT '',
+            "cover_image_key" text,
+            "price_usd" double precision NOT NULL DEFAULT 0,
+            "plan_tier_minimum" varchar(20),
+            "is_active" boolean NOT NULL DEFAULT true,
+            "scenario_count" integer NOT NULL DEFAULT 0,
+            "persona_count" integer NOT NULL DEFAULT 0,
+            "created_at" timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            "updated_at" timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP
+          );
+        `);
+        console.log('✅ store_packs table created/verified');
+      } catch (err) {
+        console.warn('⚠️ Failed to create store_packs table:', err);
+      }
+
+      // Store entitlements table
+      try {
+        await client.query(`
+          CREATE TABLE IF NOT EXISTS "store_entitlements" (
+            "id" varchar PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+            "org_id" varchar NOT NULL REFERENCES "organizations"("id") ON DELETE CASCADE,
+            "pack_id" varchar NOT NULL REFERENCES "store_packs"("id") ON DELETE CASCADE,
+            "unlocked_at" timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            "unlocked_by" varchar
+          );
+          CREATE INDEX IF NOT EXISTS "idx_store_entitlements_org_id" ON "store_entitlements"("org_id");
+          CREATE INDEX IF NOT EXISTS "idx_store_entitlements_pack_id" ON "store_entitlements"("pack_id");
+          CREATE UNIQUE INDEX IF NOT EXISTS "uniq_store_entitlements_org_pack" ON "store_entitlements"("org_id", "pack_id");
+        `);
+        console.log('✅ store_entitlements table created/verified');
+      } catch (err) {
+        console.warn('⚠️ Failed to create store_entitlements table:', err);
+      }
+
+      // Store columns on scenarios
+      try {
+        await client.query(`
+          ALTER TABLE "scenarios"
+            ADD COLUMN IF NOT EXISTS "store_listed" boolean NOT NULL DEFAULT false,
+            ADD COLUMN IF NOT EXISTS "store_price_usd" double precision,
+            ADD COLUMN IF NOT EXISTS "store_pack_id" varchar;
+        `);
+        console.log('✅ scenarios store columns ensured');
+      } catch (err) {
+        console.warn('⚠️ Failed to add scenarios store columns:', err);
+      }
+
+      // Store columns on mbti_personas
+      try {
+        await client.query(`
+          ALTER TABLE "mbti_personas"
+            ADD COLUMN IF NOT EXISTS "store_listed" boolean NOT NULL DEFAULT false,
+            ADD COLUMN IF NOT EXISTS "store_price_usd" double precision,
+            ADD COLUMN IF NOT EXISTS "store_pack_id" varchar;
+        `);
+        console.log('✅ mbti_personas store columns ensured');
+      } catch (err) {
+        console.warn('⚠️ Failed to add mbti_personas store columns:', err);
+      }
+
       console.log('✅ Database migrations completed successfully');
     } finally {
       client.release();

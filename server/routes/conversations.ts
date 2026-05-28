@@ -130,6 +130,44 @@ export default function createConversationsRouter(isAuthenticated: any) {
       throw Object.assign(createHttpError(410, "이 시나리오는 삭제되어 더 이상 이용할 수 없습니다."), { errorCode: "SCENARIO_DELETED" });
     }
 
+    // Enforce store entitlements on scenario execution (non-admin, real scenarios only)
+    const _isPersonaXId = validatedData.scenarioId.startsWith('__user_persona__:') ||
+      validatedData.scenarioId.startsWith('__mbti_persona__:') ||
+      validatedData.scenarioId === '__free_chat__';
+    const _isAdminOrOperator = user?.role === 'admin' || user?.role === 'operator';
+    if (!_isAdminOrOperator && !_isPersonaXId && (scenarioFromDb as any).storeListed && (scenarioFromDb as any).storePackId) {
+      const _orgId = user?.organizationId ?? user?.assignedOrganizationId ?? null;
+      const _packId = (scenarioFromDb as any).storePackId;
+      const _entitled = await storage.isOrgEntitledToPack(_orgId, _packId);
+      if (!_entitled) {
+        const _pack = await storage.getStorePack(_packId);
+        const err: any = createHttpError(403, "entitlement_required");
+        err.code = "entitlement_required";
+        err.pack_id = _packId;
+        err.pack_name = _pack?.name ?? null;
+        throw err;
+      }
+    }
+
+    // Enforce store entitlements for free-chat with store-listed MBTI personas
+    if (!_isAdminOrOperator && validatedData.scenarioId.startsWith('__mbti_persona__:')) {
+      const _mbtiId = validatedData.scenarioId.replace('__mbti_persona__:', '');
+      const _mbtiPersona = _mbtiId ? await storage.getMbtiPersona(_mbtiId) : null;
+      if (_mbtiPersona && (_mbtiPersona as any).storeListed && (_mbtiPersona as any).storePackId) {
+        const _orgId = user?.organizationId ?? user?.assignedOrganizationId ?? null;
+        const _packId = (_mbtiPersona as any).storePackId;
+        const _entitled = await storage.isOrgEntitledToPack(_orgId, _packId);
+        if (!_entitled) {
+          const _pack = await storage.getStorePack(_packId);
+          const err: any = createHttpError(403, "entitlement_required");
+          err.code = "entitlement_required";
+          err.pack_id = _packId;
+          err.pack_name = _pack?.name ?? null;
+          throw err;
+        }
+      }
+    }
+
     let scenarioObj = scenarios.find(s => s.id === validatedData.scenarioId);
     if (!scenarioObj) {
       throw new Error(`Scenario not found: ${validatedData.scenarioId}`);
