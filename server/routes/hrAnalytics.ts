@@ -41,8 +41,6 @@ function csvEscape(v: any): string {
 export default function createHrAnalyticsRouter(isAuthenticated: any) {
   const router = Router();
 
-  router.use(isAuthenticated);
-
   const planGate = asyncHandler(async (req: any, res: any, next: any) => {
     const allowed = await checkHrAnalyticsAccess(req.user);
     if (!allowed) {
@@ -51,9 +49,9 @@ export default function createHrAnalyticsRouter(isAuthenticated: any) {
     next();
   });
 
-  const hrRoleGate = [isOperatorOrAdmin, planGate];
+  const hrRoleGate = [isAuthenticated, isOperatorOrAdmin, planGate];
 
-  router.get("/api/analytics/hr/plan-status", asyncHandler(async (req: any, res) => {
+  router.get("/api/analytics/hr/plan-status", isAuthenticated, asyncHandler(async (req: any, res) => {
     const user = req.user;
     const allowed = await checkHrAnalyticsAccess(user);
     const isAuthorized = user.role === "admin" || user.role === "operator";
@@ -553,7 +551,7 @@ export default function createHrAnalyticsRouter(isAuthenticated: any) {
     throw createHttpError(400, "Unknown export type");
   }));
 
-  router.get("/api/analytics/hr/orgs", isSystemAdmin, asyncHandler(async (req: any, res) => {
+  router.get("/api/analytics/hr/orgs", isAuthenticated, isSystemAdmin, asyncHandler(async (req: any, res) => {
     const allOrgs = await storage.getAllOrganizations();
     res.json(allOrgs);
   }));
