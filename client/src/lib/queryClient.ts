@@ -1,4 +1,12 @@
-import { QueryClient, QueryFunction } from "@tanstack/react-query";
+import { QueryClient, QueryCache, MutationCache, QueryFunction } from "@tanstack/react-query";
+
+// Central 401 handler — clears auth state and redirects to login
+function handle401(): void {
+  localStorage.removeItem("authToken");
+  if (window.location.pathname !== "/auth") {
+    window.location.href = "/auth";
+  }
+}
 
 async function throwIfResNotOk(res: Response) {
   if (!res.ok) {
@@ -14,8 +22,7 @@ export async function apiRequest(
 ): Promise<Response> {
   const token = localStorage.getItem("authToken");
   const headers: Record<string, string> = data ? { "Content-Type": "application/json" } : {};
-  
-  // Add Authorization header if token exists
+
   if (token) {
     headers["Authorization"] = `Bearer ${token}`;
   }
@@ -26,6 +33,11 @@ export async function apiRequest(
     body: data ? JSON.stringify(data) : undefined,
     credentials: "include",
   });
+
+  // Handle 401 from mutations: clear token and redirect before throwing
+  if (res.status === 401) {
+    handle401();
+  }
 
   await throwIfResNotOk(res);
   return res;
@@ -39,8 +51,7 @@ export const getQueryFn: <T>(options: {
   async ({ queryKey }) => {
     const token = localStorage.getItem("authToken");
     const headers: Record<string, string> = {};
-    
-    // Add Authorization header if token exists
+
     if (token) {
       headers["Authorization"] = `Bearer ${token}`;
     }
@@ -50,18 +61,50 @@ export const getQueryFn: <T>(options: {
       credentials: "include",
     });
 
-    if (unauthorizedBehavior === "returnNull" && res.status === 401) {
-      return null;
+    if (res.status === 401) {
+      if (unauthorizedBehavior === "returnNull") {
+        // If the user had a token that the server now rejects, the session
+        // expired mid-use — redirect to login. If there was no token, the
+        // ProtectedRouter will handle the unauthenticated state silently.
+        if (token) {
+          handle401();
+        }
+        return null;
+      }
+      // "throw" behavior: redirect + throw typed error for QueryCache.onError
+      handle401();
+      const text = (await res.text()) || res.statusText;
+      throw new Error(`401: ${text}`);
     }
 
     await throwIfResNotOk(res);
     return await res.json();
   };
 
+function is401Error(error: unknown): boolean {
+  return error instanceof Error && error.message.startsWith("401:");
+}
+
 export const queryClient = new QueryClient({
+  queryCache: new QueryCache({
+    // Safety net: catch any thrown 401 errors that may come from custom queryFns
+    onError: (error) => {
+      if (is401Error(error)) {
+        handle401();
+      }
+    },
+  }),
+  mutationCache: new MutationCache({
+    // Safety net: catch 401 errors thrown by apiRequest in mutation handlers
+    onError: (error) => {
+      if (is401Error(error)) {
+        handle401();
+      }
+    },
+  }),
   defaultOptions: {
     queries: {
-      queryFn: getQueryFn({ on401: "throw" }),
+      queryFn: getQueryFn({ on401: "returnNull" }),
       refetchInterval: false,
       refetchOnWindowFocus: false,
       staleTime: Infinity,
