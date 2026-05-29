@@ -491,6 +491,19 @@ ${jsonFormat}`;
     if (modeTransitionHint) dynamicParts.push(`**【모드 전환 안내 - 이번 응답에만 적용】**: ${modeTransitionHint}`);
     if (simulationStateBlock) dynamicParts.push(simulationStateBlock);
     if (softClosingInstruction) dynamicParts.push(`**【대화 마무리 유도 - 이번 응답에 반영】**: ${softClosingInstruction}`);
+
+    // Bug 1 fix: Step-2 persona switch hint — user has already consented in a prior turn.
+    // Inject a strong per-turn override so the AI fills in switchPersona immediately.
+    const switchStep2 = (scenario as any).personaSwitchStep2 as { targetPersonaIndex?: number } | undefined;
+    if (switchStep2) {
+      const step2Hints: Record<string, string> = {
+        ko: `[시스템 지시 — 이번 턴에만 적용, 소리내어 읽지 말 것] 사용자가 페르소나 전환에 동의했습니다. 이번 응답에서 반드시 switchPersona 필드를 채워 전환을 실행하세요. targetPersonaIndex: ${switchStep2.targetPersonaIndex ?? 1}. transitionLine에는 현재 페르소나의 자연스러운 마지막 인사말을 작성하세요.`,
+        en: `[SYSTEM DIRECTIVE — THIS TURN ONLY, DO NOT READ ALOUD] The user has consented to the persona switch. You MUST fill in the switchPersona field in this response to execute the switch. targetPersonaIndex: ${switchStep2.targetPersonaIndex ?? 1}. Write a natural farewell from the current persona in transitionLine.`,
+        ja: `[システム指示 — このターンのみ、声に出さないこと] ユーザーがペルソナの切り替えに同意しました。このターンでswitchPersonaフィールドに必ず入力して切り替えを実行してください。targetPersonaIndex: ${switchStep2.targetPersonaIndex ?? 1}。transitionLineには現在のペルソナの自然なお別れの言葉を書いてください。`,
+        zh: `[系统指令 — 仅本回合，不要朗读] 用户已同意切换角色。请在本回合填写switchPersona字段以执行切换。targetPersonaIndex: ${switchStep2.targetPersonaIndex ?? 1}。在transitionLine中写当前角色自然的告别语。`,
+      };
+      dynamicParts.push(step2Hints[language as string] ?? step2Hints.en);
+    }
     if (conversationHistory && !skipConversationHistory) {
       dynamicParts.push(`=== 역할 재확인: 당신은 ${persona.name}(${persona.role})이며, 상대방은 ${userLabelInPrompt}입니다. 아래 이전 대화에서도 이 역할을 유지했습니다 ===
 ⚠️ 【${userLabelInPrompt} 답변 ✓】로 표시된 항목은 이미 답변받은 사안입니다. 동일하거나 유사한 질문을 절대 다시 하지 마세요.

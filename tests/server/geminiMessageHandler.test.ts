@@ -1734,7 +1734,10 @@ describe('handleGeminiMessage', () => {
       },
     });
 
-    it('(b) blocks switch_persona after announcement but before user consent (awaitingPersonaSwitch=true, personaSwitchPending=false)', async () => {
+    it('(b) allows switch_persona when awaitingPersonaSwitch=true (announcement was made, user consent keyword missed by heuristic)', async () => {
+      // Bug 2 fix: awaitingPersonaSwitch=true means AI already announced the switch;
+      // even without explicit personaSwitchPending, the switch should be ALLOWED
+      // so heuristic failures don't permanently block the switch.
       session = makeSession({
         ...multiPersonaBase(),
         awaitingPersonaSwitch: true,
@@ -1744,10 +1747,55 @@ describe('handleGeminiMessage', () => {
       handleGeminiMessage(session, switchToolMsg(), sendToClient, null, proactiveReconnect);
       await vi.runAllTimersAsync();
 
+      // Switch should succeed because AI already announced it (awaitingPersonaSwitch=true)
+      expect(session.activePersonaIndex).toBe(1);
+      // sendToolResponse should have been called with success:true (normal Gemini ACK),
+      // NOT a blocking error. Verify the response is a success, not an error.
+      expect(session.geminiSession.sendToolResponse).toHaveBeenCalled();
+      const callArg = (session.geminiSession.sendToolResponse as any).mock.calls[0][0];
+      expect(callArg.functionResponses[0].response.success).toBe(true);
+      expect(callArg.functionResponses[0].response.error).toBeUndefined();
+    });
+
+    it('(b2) blocks switch_persona when both personaSwitchPending=false and awaitingPersonaSwitch=false (completely unannounced)', async () => {
+      session = makeSession({
+        ...multiPersonaBase(),
+        awaitingPersonaSwitch: false,
+        personaSwitchPending: false,
+        currentTranscript: '',
+      });
+
+      handleGeminiMessage(session, switchToolMsg(), sendToClient, null, proactiveReconnect);
+      await vi.runAllTimersAsync();
+
       // Switch should be blocked — activePersonaIndex stays 0
       expect(session.activePersonaIndex).toBe(0);
       // sendToolResponse should have been called with an error message
       expect(session.geminiSession.sendToolResponse).toHaveBeenCalled();
+    });
+
+    it('(b3) allows switch_persona when both flags are false but currentTranscript contains announcement keywords + persona name (heuristic-miss recovery)', async () => {
+      // Bug 2 fix (third allow condition): even when both flags are false,
+      // if the current AI transcript contains a switch keyword + the non-active
+      // persona's name, the switch should be allowed (heuristic miss recovery).
+      session = makeSession({
+        ...multiPersonaBase(),
+        awaitingPersonaSwitch: false,
+        personaSwitchPending: false,
+        // Transcript contains 'transfer' (English keyword) + 'PersonaB' (non-active persona name)
+        currentTranscript: 'Let me transfer you to PersonaB who can help with this.',
+      });
+
+      handleGeminiMessage(session, switchToolMsg(), sendToClient, null, proactiveReconnect);
+      await vi.runAllTimersAsync();
+
+      // Switch should succeed because transcript contains intent signal
+      expect(session.activePersonaIndex).toBe(1);
+      // sendToolResponse called with success:true (not an error)
+      expect(session.geminiSession.sendToolResponse).toHaveBeenCalled();
+      const callArg = (session.geminiSession.sendToolResponse as any).mock.calls[0][0];
+      expect(callArg.functionResponses[0].response.success).toBe(true);
+      expect(callArg.functionResponses[0].response.error).toBeUndefined();
     });
 
     it('(c) allows switch_persona once user consent has been detected (personaSwitchPending=true)', async () => {

@@ -189,14 +189,34 @@ export class RealtimeVoiceService {
     };
 
     const allPersonas = resolvedScenarioObj.personas || [];
-    // Resolve the initial active persona index by finding personaId in the list
-    // (fallback to isPrimary flag, then to 0)
+
+    // Bug 3 fix: Restore activePersonaIndex from DB on reconnect so voice session
+    // starts with the correct persona instead of always defaulting to the original one.
+    let dbActivePersonaIndex: number | null = null;
+    try {
+      const personaRunRecord = await storage.getPersonaRun(conversationId);
+      const dbIdx = personaRunRecord?.activePersonaIndex as number | null | undefined;
+      if (typeof dbIdx === 'number' && dbIdx >= 0 && dbIdx < allPersonas.length) {
+        dbActivePersonaIndex = dbIdx;
+        console.log(`🔄 [Voice] Restoring activePersonaIndex from DB: ${dbIdx} for personaRunId=${conversationId}`);
+      }
+    } catch (e) {
+      console.warn('[realtimeVoice] Failed to fetch personaRun for activePersonaIndex restore (ignored):', e);
+    }
+
+    // Resolve the initial active persona index:
+    // 1. DB activePersonaIndex (restored after reconnect / prior switch)
+    // 2. personaId lookup in allPersonas
+    // 3. isPrimary flag
+    // 4. fallback to 0
     const initialPersonaIndex = (() => {
+      if (dbActivePersonaIndex !== null) return dbActivePersonaIndex;
       const byId = allPersonas.findIndex((p: any) => p.id === personaId);
       if (byId >= 0) return byId;
       const byPrimary = allPersonas.findIndex((p: any) => p.isPrimary === true);
       return byPrimary >= 0 ? byPrimary : 0;
     })();
+
     // Realtime voice always uses replace mode for persona switching — join mode is
     // text/TTS-only. Hard-force 'replace' here to prevent join-mode multi-speaker
     // instructions from leaking into voice prompts.
@@ -224,26 +244,39 @@ export class RealtimeVoiceService {
       }
     }
 
+    // Bug 3 fix (continued): Use the persona-specific system instructions for the active persona.
+    // If initialPersonaIndex > 0 (e.g. after reconnect post-switch), override systemInstructions
+    // with the pre-built prompt for that persona so Gemini Live starts in the right character.
+    const activeSystemInstructions = personaSystemInstructions[initialPersonaIndex] ?? systemInstructions;
+
+    // Resolve the active persona object for session initialization
+    const activeInitialPersona = (initialPersonaIndex > 0 && allPersonas[initialPersonaIndex])
+      ? allPersonas[initialPersonaIndex] as any
+      : scenarioPersona;
+
     console.log('\n' + '='.repeat(80));
     console.log('🎯 실시간 대화 시작 - 전달되는 명령 및 컨텍스트');
     console.log('='.repeat(80));
     console.log('📋 시나리오:', scenarioObj.title);
-    console.log('👤 페르소나:', scenarioPersona.name, `(${scenarioPersona.position})`);
+    console.log('👤 페르소나:', activeInitialPersona.name ?? scenarioPersona.name, `(${activeInitialPersona.position ?? scenarioPersona.position})`);
     console.log('🎭 MBTI:', mbtiType.toUpperCase());
+    if (initialPersonaIndex > 0) console.log(`🔄 [Voice] Reconnect: restored to persona[${initialPersonaIndex}] ${activeInitialPersona.name}`);
     console.log('='.repeat(80));
     console.log('📝 시스템 명령 (SYSTEM INSTRUCTIONS):\n');
-    console.log(systemInstructions);
+    console.log(activeSystemInstructions);
     console.log('='.repeat(80) + '\n');
 
     const realtimeModel = await this.getRealtimeModel();
-    const gender: 'male' | 'female' = scenarioPersona.gender === 'female' ? 'female' : 'male';
+    const gender: 'male' | 'female' = (activeInitialPersona.gender === 'female') ? 'female' : (scenarioPersona.gender === 'female' ? 'female' : 'male');
     console.log(`👤 페르소나 성별 설정: ${scenarioPersona.name} → ${gender} (시나리오 정의값: ${scenarioPersona.gender})`);
 
     const preloadedMessages = await preloadRecentMessages(conversationId, sessionId);
 
     const session: RealtimeSession = {
       id: sessionId, personaRunId: conversationId, scenarioId, personaId,
-      personaName: scenarioPersona.name, userId, userName, clientWs,
+      // Bug 3 fix: use the active persona's name/voiceId when restored from DB
+      personaName: activeInitialPersona.name ?? scenarioPersona.name,
+      userId, userName, clientWs,
       geminiSession: null,
       currentTranscript: '', userTranscriptBuffer: '', audioBuffer: [],
       startTime: Date.now(), lastActivityTime: Date.now(),
@@ -253,7 +286,9 @@ export class RealtimeVoiceService {
       firstGreetingRetryCount: 0, isInterrupted: false,
       turnSeq: 0, cancelledTurnSeq: -1,
       sessionResumptionToken: null, isReconnecting: false, reconnectAttempts: 0,
-      systemInstructions, voiceGender: gender, recentMessages: preloadedMessages,
+      // Bug 3 fix: use the active persona's system instructions
+      systemInstructions: activeSystemInstructions,
+      voiceGender: gender, recentMessages: preloadedMessages,
       selectedVoice: null, goAwayWarningTime: null, pendingClientReady: null,
       userLanguage,
       pendingMessages: [], outgoingMessageIndex: 0,
@@ -268,7 +303,8 @@ export class RealtimeVoiceService {
       pendingHasExistingConversation: false,
       usingReconnectInstructions: false,
       activePersonaIndex: initialPersonaIndex,
-      voiceId: (scenarioPersona as any).voiceId ?? null,
+      // Bug 3 fix: use active persona's voiceId when restored from DB
+      voiceId: (activeInitialPersona as any).voiceId ?? (scenarioPersona as any).voiceId ?? null,
       scenarioPersonas: allPersonas.length > 0 ? allPersonas : null,
       personaSystemInstructions: personaSystemInstructions.length > 1 ? personaSystemInstructions : undefined,
       targetTurns: scenarioObj.targetTurns,
@@ -305,7 +341,9 @@ export class RealtimeVoiceService {
     this.sessions.set(sessionId, session);
     console.log(`⏱️ [TIMING] 세션 객체 생성 완료: ${Date.now() - sessionStartTime}ms`);
 
-    await this.connectToGemini(session, systemInstructions, gender, { isResume: preloadedMessages.length > 0 });
+    // Bug 3 fix: pass activeSystemInstructions (not the base systemInstructions) so that
+    // on reconnect after a persona switch, Gemini Live starts with the correct persona prompt.
+    await this.connectToGemini(session, activeSystemInstructions, gender, { isResume: preloadedMessages.length > 0 });
 
     // If client.ready.isResuming arrived during the Gemini connect window (buffered) but
     // no preloaded messages existed (so we used original greeting instructions), immediately

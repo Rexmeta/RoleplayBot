@@ -16,6 +16,35 @@ import { getSoftClosingInstruction } from '../conversationDifficultyPolicy';
 type SendToClient = (session: RealtimeSession, message: any) => void;
 type ProactiveReconnect = (session: RealtimeSession) => void;
 
+// Voice-mode switch announcement check: allow switch_persona when the current AI
+// transcript contains switch keywords + a non-active persona name/position.
+// Prevents permanent blocking when the heuristic announcement flags were missed.
+const VOICE_SWITCH_KEYWORDS = [
+  // Korean
+  '연결', '바꿔', '담당', '전달', '연결해드', '부탁드릴', '도움을 받으실',
+  // English
+  'connect', 'transfer', 'switch', 'bring in', 'hand over', 'hand you', 'get someone',
+  // Japanese
+  'つなぎ', '代わり', '担当', '切り替え', 'おつなぎ', 'お繋ぎ', 'かわり',
+  // Chinese
+  '转接', '切换', '联系', '转给', '帮您转',
+];
+
+function transcriptHasSwitchIntent(
+  transcript: string,
+  personas: Array<{ name?: string; position?: string; [key: string]: any }> | null,
+  currentPersonaIndex: number
+): boolean {
+  if (!transcript || !personas || personas.length <= 1) return false;
+  const textLower = transcript.toLowerCase();
+  if (!VOICE_SWITCH_KEYWORDS.some(kw => textLower.includes(kw))) return false;
+  const nonActive = personas.filter((_, i) => i !== currentPersonaIndex);
+  return nonActive.some(p =>
+    (p.name && transcript.includes(p.name)) ||
+    (p.position && transcript.includes(p.position))
+  );
+}
+
 async function handleTerminationIfNeeded(
   session: RealtimeSession,
   newState: import('../simulation/simulationTypes').SimulationState,
@@ -238,9 +267,18 @@ export function handleGeminiMessage(
           });
         }
 
-        // 2-step persona switch guard: block if AI tries to switch without prior announcement
-        if (fc.name === 'switch_persona' && result.personaSwitched && !session.personaSwitchPending) {
-          console.warn(`[geminiMessageHandler] Blocking premature switch_persona — personaSwitchPending=false. Forcing AI to announce first.`);
+        // 2-step persona switch guard: block only if ALL three allow-conditions are false:
+        //  1. personaSwitchPending — user consent keyword was detected
+        //  2. awaitingPersonaSwitch — AI announcement was previously detected and tracked
+        //  3. transcriptHasSwitchIntent — current AI transcript contains switch keywords +
+        //     a non-active persona name/position (heuristic-miss recovery, Bug 2 fix)
+        const _transcriptHasIntent = transcriptHasSwitchIntent(
+          session.currentTranscript,
+          session.scenarioPersonas,
+          session.activePersonaIndex
+        );
+        if (fc.name === 'switch_persona' && result.personaSwitched && !session.personaSwitchPending && !session.awaitingPersonaSwitch && !_transcriptHasIntent) {
+          console.warn(`[geminiMessageHandler] Blocking premature switch_persona — neither personaSwitchPending nor awaitingPersonaSwitch is set. Forcing AI to announce first.`);
           const blockMessages: Record<string, string> = {
             ko: '먼저 대화 속에서 전환 의사를 자연스럽게 말한 뒤 사용자의 동의를 기다리세요. 아직 switch_persona를 호출하지 마세요.',
             en: 'You must first announce the persona switch in natural conversation and wait for the user to agree. Do not call switch_persona yet.',

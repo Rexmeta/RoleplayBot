@@ -37,6 +37,70 @@ import { applyScenarioOverride, applyEvalWeightsOverride } from "../services/sce
 import type { ScenarioOverrideData } from "@shared/schema";
 import { checkTokenQuota } from "../middleware/tokenQuotaMiddleware";
 
+// ── Text/TTS mode: 2-step persona switch state tracking ─────────────────────
+// Persists across HTTP requests for the same personaRunId.
+// Cleared after 10 minutes of inactivity to prevent memory leaks.
+interface PersonaSwitchAwaitingState {
+  awaitingSwitch: boolean;
+  announcedPersonaIndex?: number;
+  timestamp: number;
+}
+const personaSwitchAwaitingMap = new Map<string, PersonaSwitchAwaitingState>();
+const PERSONA_SWITCH_STATE_TTL_MS = 10 * 60 * 1000;
+
+function getPersonaSwitchAwaitingState(personaRunId: string): PersonaSwitchAwaitingState | null {
+  const state = personaSwitchAwaitingMap.get(personaRunId);
+  if (!state) return null;
+  if (Date.now() - state.timestamp > PERSONA_SWITCH_STATE_TTL_MS) {
+    personaSwitchAwaitingMap.delete(personaRunId);
+    return null;
+  }
+  return state;
+}
+
+function setPersonaSwitchAwaitingState(personaRunId: string, state: PersonaSwitchAwaitingState | null) {
+  if (!state) { personaSwitchAwaitingMap.delete(personaRunId); return; }
+  personaSwitchAwaitingMap.set(personaRunId, { ...state, timestamp: Date.now() });
+}
+
+const TEXT_MODE_SWITCH_KEYWORDS: Record<string, string[]> = {
+  ko: ['연결', '바꿔', '담당', '전달', '연결해드', '부탁드릴', '도움을 받으실'],
+  en: ['connect', 'transfer', 'switch', 'bring in', 'hand over', 'hand you', 'get someone'],
+  ja: ['つなぎ', '代わり', '担当', '切り替え', 'おつなぎ', 'お繋ぎ', 'かわり'],
+  zh: ['转接', '切换', '换', '联系', '转给', '帮您转'],
+};
+const TEXT_MODE_CONSENT_KEYWORDS: Record<string, string[]> = {
+  ko: ['네', '응', '좋아요', '알겠어요', '그래요', '부탁해요', '연결해주세요', '좋습니다', '해주세요', '바꿔주세요'],
+  en: ['yes', 'sure', 'okay', 'ok', 'please', 'go ahead', "that's fine", 'connect me', 'sounds good', 'alright'],
+  ja: ['はい', 'いいです', 'わかりました', 'おねがいします', 'つないでください', 'よろしく'],
+  zh: ['好的', '可以', '行', '好', '请', '没问题', '转接吧', '麻烦你'],
+};
+const TEXT_MODE_DECLINE_KEYWORDS: Record<string, string[]> = {
+  ko: ['아니요', '아니', '지금은', '나중에', '필요없어요', '됐어요', '괜찮습니다'],
+  en: ['no', 'not now', 'later', "i'd rather", 'never mind', 'no thanks', "that's ok"],
+  ja: ['いいえ', '大丈夫です', '後で', '今は', 'けっこうです'],
+  zh: ['不用', '没关系', '以后', '不需要', '算了', '不了'],
+};
+
+function detectPersonaSwitchAnnouncement(
+  content: string,
+  allPersonas: any[],
+  currentPersonaIndex: number,
+  language: string
+): number | null {
+  if (!content || !allPersonas || allPersonas.length <= 1) return null;
+  const textLower = content.toLowerCase();
+  const keywords = TEXT_MODE_SWITCH_KEYWORDS[language] ?? TEXT_MODE_SWITCH_KEYWORDS.en;
+  const hasKeyword = keywords.some(kw => textLower.includes(kw));
+  if (!hasKeyword) return null;
+  const nonActive = allPersonas.map((p: any, i: number) => ({ ...p, _idx: i })).filter((_: any, i: number) => i !== currentPersonaIndex);
+  for (const p of nonActive) {
+    if (p.name && content.includes(p.name)) return p._idx;
+    if (p.position && content.includes(p.position)) return p._idx;
+  }
+  return null;
+}
+
 export default function createConversationsRouter(isAuthenticated: any) {
   const router = Router();
 
@@ -879,6 +943,32 @@ ${userNameLine}
     const scenarioForAI: RoleplayScenario = scenarioWithUserDifficulty;
     // Inject persona switch log so prepareConversationHistory can label messages correctly
     (scenarioForAI as any).personaSwitchLog = personaRun!.personaSwitchLog ?? [];
+
+    // ── Bug 1 fix: 2-step persona switch state tracking for text/TTS mode ──────
+    // Check if we're awaiting user consent from a previous turn's announcement.
+    const hasMultiplePersonasForSwitch = !isPersonaX &&
+      Array.isArray((scenarioWithUserDifficulty as any).allPersonas) &&
+      (scenarioWithUserDifficulty as any).allPersonas.length > 1;
+    if (hasMultiplePersonasForSwitch && !isSkipTurn) {
+      const switchAwaitingState = getPersonaSwitchAwaitingState(personaRunId);
+      if (switchAwaitingState?.awaitingSwitch) {
+        const lang = userLanguage;
+        const msgLower = message.toLowerCase();
+        const hasConsent = (TEXT_MODE_CONSENT_KEYWORDS[lang] ?? TEXT_MODE_CONSENT_KEYWORDS.en).some(kw => msgLower.includes(kw));
+        const hasDecline = (TEXT_MODE_DECLINE_KEYWORDS[lang] ?? TEXT_MODE_DECLINE_KEYWORDS.en).some(kw => msgLower.includes(kw));
+        if (hasDecline) {
+          console.log(`[TextMode] User declined persona switch — clearing awaiting state for ${personaRunId}`);
+          setPersonaSwitchAwaitingState(personaRunId, null);
+        } else if (hasConsent) {
+          console.log(`[TextMode] User consented to persona switch — injecting step-2 hint for ${personaRunId} (targetIndex=${switchAwaitingState.announcedPersonaIndex ?? 'unknown'})`);
+          (scenarioForAI as any).personaSwitchStep2 = { targetPersonaIndex: switchAwaitingState.announcedPersonaIndex };
+        }
+        // Off-topic/ambiguous: keep awaiting state, do not clear
+        console.log(`[TextMode] Persona switch state: awaiting=${switchAwaitingState.awaitingSwitch}, consent=${hasConsent}, decline=${hasDecline}, targetIndex=${switchAwaitingState.announcedPersonaIndex}`);
+      }
+    }
+    // ──────────────────────────────────────────────────────────────────────────
+
     // Only realtime-voice → text requires a style-continuity hint because it uses a
     // separate AI model (Gemini Live) that has no shared prompt state with the text model.
     // text ↔ tts transitions share the same provider and existing history, so no hint needed.
@@ -1111,6 +1201,29 @@ ${userNameLine}
             streamNewActivePersonaIndex = sw.toIndex;
             streamNewPersonaSwitchLog.push({ turn: currentTurnIndex, fromPersonaIndex: sw.fromIndex, toPersonaIndex: sw.toIndex, fromPersonaId: sw.fromPersonaId, toPersonaId: sw.toPersonaId, reason: sw.reason, transitionLine: sw.transitionLine, timestamp: new Date().toISOString() });
             streamSwitchToPersona = toP;
+            // Bug 4 fix: update scenarioForAI.personaSwitchLog immediately so any
+            // downstream code in the same request uses the latest snapshot.
+            (scenarioForAI as any).personaSwitchLog = streamNewPersonaSwitchLog;
+            console.log(`🔄 [Text/TTS/Stream] Persona switch: ${sw.fromIndex} → ${sw.toIndex} (${toP.name}). Switch log updated (entries=${streamNewPersonaSwitchLog.length}).`);
+          }
+        }
+      }
+
+      // Post-response: update switch awaiting state for text/TTS mode (streaming path)
+      if (hasMultiplePersonasForSwitch && !isSkipTurn) {
+        if (streamSwitchPersonaInfo) {
+          setPersonaSwitchAwaitingState(personaRunId, null);
+          console.log(`[TextMode/Stream] Persona switch completed (step 2) — clearing awaiting state for ${personaRunId}`);
+        } else {
+          const announcedIdx = detectPersonaSwitchAnnouncement(
+            streamCleanContent,
+            (scenarioWithUserDifficulty as any).allPersonas ?? [],
+            (personaRun!.activePersonaIndex as number | null) ?? 0,
+            userLanguage
+          );
+          if (announcedIdx !== null) {
+            console.log(`[TextMode/Stream] Persona switch announcement detected — setting awaitingSwitch=true for ${personaRunId} (announcedIndex=${announcedIdx})`);
+            setPersonaSwitchAwaitingState(personaRunId, { awaitingSwitch: true, announcedPersonaIndex: announcedIdx, timestamp: Date.now() });
           }
         }
       }
@@ -1306,10 +1419,33 @@ ${userNameLine}
           newActivePersonaIndex = switched.toIndex;
           newPersonaSwitchLog.push(switchEntry);
           switchToPersona = toPersona;
-          console.log(`🔄 [Text/TTS] Persona switch via handleToolCall: ${switched.fromIndex} → ${switched.toIndex} (${toPersona.name})`);
+          // Bug 4 fix: update scenarioForAI.personaSwitchLog immediately so any
+          // downstream code in the same request uses the latest snapshot.
+          (scenarioForAI as any).personaSwitchLog = newPersonaSwitchLog;
+          console.log(`🔄 [Text/TTS] Persona switch via handleToolCall: ${switched.fromIndex} → ${switched.toIndex} (${toPersona.name}). Switch log updated (entries=${newPersonaSwitchLog.length}).`);
         }
       }
     }
+
+    // Post-response: update switch awaiting state for text/TTS mode (non-streaming path)
+    if (hasMultiplePersonasForSwitch && !isSkipTurn) {
+      if (switchPersonaInfo) {
+        setPersonaSwitchAwaitingState(personaRunId, null);
+        console.log(`[TextMode] Persona switch completed (step 2) — clearing awaiting state for ${personaRunId}`);
+      } else {
+        const announcedIdx = detectPersonaSwitchAnnouncement(
+          aiResult.content,
+          (scenarioWithUserDifficulty as any).allPersonas ?? [],
+          (personaRun!.activePersonaIndex as number | null) ?? 0,
+          userLanguage
+        );
+        if (announcedIdx !== null) {
+          console.log(`[TextMode] Persona switch announcement detected — setting awaitingSwitch=true for ${personaRunId} (announcedIndex=${announcedIdx})`);
+          setPersonaSwitchAwaitingState(personaRunId, { awaitingSwitch: true, announcedPersonaIndex: announcedIdx, timestamp: Date.now() });
+        }
+      }
+    }
+
     const updatedPersonaRun = await storage.updatePersonaRun(personaRunId, {
       turnCount: newTurnCount,
       status: isCompleted ? "completed" : "active",
