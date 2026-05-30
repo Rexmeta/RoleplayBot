@@ -181,7 +181,7 @@ export default function PersonalDevelopmentReport({
     !reportSectionsEarly || reportSectionsEarly.length === 0 || reportSectionsEarly.includes(key);
 
   const isVoiceMode = currentConversation?.mode === 'realtime_voice';
-  const showSimulationTab = (simulationHasData?.hasData === true || isVoiceMode) && sectionEnabledEarly('simulationReplay');
+  const showSimulationTab = isVoiceMode || (simulationHasData?.hasData === true && sectionEnabledEarly('simulationReplay'));
 
   const { data: fullConversation } = useQuery<any>({
     queryKey: ["/api/conversations", conversationId],
