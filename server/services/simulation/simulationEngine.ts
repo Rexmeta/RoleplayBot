@@ -133,6 +133,14 @@ export function getOrCreateSessionContext(personaRunId: string, state?: Simulati
   const ctx = sessionContexts.get(personaRunId)!;
   if (state && ctx.simulationState.version < state.version) {
     ctx.simulationState = state;
+    // Re-hydrate accumulators from the persisted scoreAccumulator when the incoming state
+    // represents more scored turns than the in-memory counters. This covers the server-restart
+    // scenario where a context was first created without a state (e.g. by applyHarnessToSession)
+    // and then setSessionState is called with the DB-loaded state.
+    if (state.scoreAccumulator && state.scoreAccumulator.count > ctx.allTimeTurnScoreCount) {
+      ctx.allTimeTurnScoreSum = state.scoreAccumulator.sum;
+      ctx.allTimeTurnScoreCount = state.scoreAccumulator.count;
+    }
   }
   return ctx;
 }

@@ -479,4 +479,57 @@ describe('scoreAccumulator (report carry-forward beyond 10-turn window)', () => 
     expect(afterReconnect.currentScore).toBeGreaterThan(75);
     expect(afterReconnect.currentScore).toBeLessThanOrEqual(85);
   });
+
+  it('re-hydrates accumulators via setSessionState when context was pre-created without state', () => {
+    // Build up 12 turns with varying scores (mix of 60 and 100) → average = 80
+    for (let i = 0; i < 12; i++) {
+      const score = i % 2 === 0 ? 60 : 100;
+      applySimulationPatch(RUN_ID, {
+        source: 'server_evaluation',
+        priority: 'normal',
+        turnId: `turn-pre-${i}`,
+        patch: {
+          turnScoresToAdd: [{
+            turnId: `ts-pre-${i}`, turnIndex: i,
+            clarity: score, empathy: score, logic: score, ownership: score, actionPlan: score,
+            total: score, evaluationMethod: 'llm', evaluationConfidence: 90,
+          }],
+        },
+      });
+    }
+    const snapshot = getSessionState(RUN_ID)!;
+    expect(snapshot.scoreAccumulator!.count).toBe(12);
+    expect(snapshot.scoreAccumulator!.sum).toBeCloseTo(80 * 12, 0);
+
+    // Simulate server restart: clear in-memory context
+    clearSessionContext(RUN_ID);
+
+    // Simulate code that creates the context WITHOUT state first (e.g. applyHarnessToSession
+    // or checkIncidentCooldown called before setSessionState in the request handler)
+    getOrCreateSessionContext(RUN_ID);
+
+    // Now setSessionState is called with the DB-loaded state (scoreAccumulator intact)
+    setSessionState(RUN_ID, snapshot);
+
+    // The 13th turn at score 80 should compute currentScore ≈ 80, not 80 (trivial 1-turn average)
+    // To distinguish, we use score 40 for this turn so the result differs between restored vs reset:
+    // Restored: (960 + 40) / 13 ≈ 77     Reset: 40 / 1 = 40
+    const afterRestore = applySimulationPatch(RUN_ID, {
+      source: 'server_evaluation',
+      priority: 'normal',
+      turnId: 'turn-pre-12',
+      patch: {
+        turnScoresToAdd: [{
+          turnId: 'ts-pre-12', turnIndex: 12,
+          clarity: 40, empathy: 40, logic: 40, ownership: 40, actionPlan: 40,
+          total: 40, evaluationMethod: 'llm', evaluationConfidence: 90,
+        }],
+      },
+    });
+
+    // With proper re-hydration the score reflects all 13 turns: (960+40)/13 ≈ 77
+    // Without the fix the accumulators would reset to 0→40/1=40
+    expect(afterRestore.currentScore).toBeGreaterThan(60);
+    expect(afterRestore.currentScore).toBeLessThanOrEqual(85);
+  });
 });
