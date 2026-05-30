@@ -242,9 +242,10 @@ function EmotionBar({ value, label, icon, positiveColor }: { value: number; labe
 
 interface SimulationReplayPanelProps {
   conversationId: string;
+  conversationMode?: string;
 }
 
-export default function SimulationReplayPanel({ conversationId }: SimulationReplayPanelProps) {
+export default function SimulationReplayPanel({ conversationId, conversationMode }: SimulationReplayPanelProps) {
   const { data, isLoading, error } = useQuery<SimulationEventsResponse>({
     queryKey: ["/api/simulation", conversationId, "events"],
     queryFn: async () => {
@@ -306,9 +307,28 @@ export default function SimulationReplayPanel({ conversationId }: SimulationRepl
   const hasSimData = turnScores.length > 0 || incidents.length > 0 || finalNpcEmotions !== null;
 
   if (!hasSimData) {
+    const isVoice = conversationMode === "realtime_voice";
     return (
-      <div className="text-center py-12 text-slate-500 text-sm">
-        이 대화에는 시뮬레이션 점수 데이터가 없습니다.
+      <div className="flex flex-col items-center justify-center py-16 gap-4 text-center">
+        <div className="flex items-center justify-center w-14 h-14 rounded-full bg-slate-100">
+          {isVoice ? (
+            <i className="fas fa-microphone-slash text-slate-400 text-xl" />
+          ) : (
+            <i className="fas fa-chart-bar text-slate-400 text-xl" />
+          )}
+        </div>
+        <div className="space-y-1">
+          <p className="text-slate-700 font-medium text-sm">
+            {isVoice
+              ? "음성 대화는 시뮬레이션 점수를 지원하지 않습니다"
+              : "시뮬레이션 점수 데이터가 없습니다"}
+          </p>
+          <p className="text-slate-400 text-xs max-w-xs leading-relaxed">
+            {isVoice
+              ? "시뮬레이션 점수는 텍스트 또는 TTS 모드 대화에서만 생성됩니다."
+              : "시뮬레이션 점수는 텍스트 또는 TTS 모드로 진행한 대화에서, 10자 이상의 메시지를 입력했을 때 생성됩니다."}
+          </p>
+        </div>
       </div>
     );
   }

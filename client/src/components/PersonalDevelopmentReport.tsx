@@ -180,7 +180,8 @@ export default function PersonalDevelopmentReport({
   const sectionEnabledEarly = (key: string) =>
     !reportSectionsEarly || reportSectionsEarly.length === 0 || reportSectionsEarly.includes(key);
 
-  const showSimulationTab = simulationHasData?.hasData === true && sectionEnabledEarly('simulationReplay');
+  const isVoiceMode = currentConversation?.mode === 'realtime_voice';
+  const showSimulationTab = (simulationHasData?.hasData === true || isVoiceMode) && sectionEnabledEarly('simulationReplay');
 
   const { data: fullConversation } = useQuery<any>({
     queryKey: ["/api/conversations", conversationId],
@@ -850,7 +851,7 @@ export default function PersonalDevelopmentReport({
 
         {showSimulationTab && (
           <TabsContent id="simulation-incidents" value="simulation" className="space-y-6">
-            <SimulationReplayPanel conversationId={conversationId} />
+            <SimulationReplayPanel conversationId={conversationId} conversationMode={currentConversation?.mode} />
           </TabsContent>
         )}
 
