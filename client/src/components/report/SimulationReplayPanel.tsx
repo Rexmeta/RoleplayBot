@@ -55,6 +55,7 @@ interface SimulationEventRecord {
 
 interface SimulationEventsResponse {
   events: SimulationEventRecord[];
+  userMessagesByTurn?: Record<number, string>;
 }
 
 // ── Type guards ────────────────────────────────────────────────────────────
@@ -273,6 +274,7 @@ export default function SimulationReplayPanel({ conversationId }: SimulationRepl
   }
 
   const allEvents = data.events ?? [];
+  const userMessagesByTurn: Record<number, string> = data.userMessagesByTurn ?? {};
 
   // Turn scores from auto_evaluation events with includeInReport=true.
   // Deduplicate by turnIndex: when both a 'quality' and a 'fast' event exist for the
@@ -373,33 +375,50 @@ export default function SimulationReplayPanel({ conversationId }: SimulationRepl
             </div>
 
             {/* Per-turn breakdown */}
-            <div className="space-y-3">
-              {turnScores.map((score, idx) => (
-                <div key={score.turnId ?? idx} className="border border-slate-200 rounded-lg p-3">
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-xs font-semibold text-slate-600">턴 {score.turnIndex + 1}</span>
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs text-slate-400">{score.evaluationMethod}</span>
-                      <span className="text-sm font-bold text-corporate-700">
-                        종합 {Math.round(score.total)}점
-                      </span>
+            <div className="space-y-4">
+              {turnScores.map((score, idx) => {
+                const userMessage = userMessagesByTurn[score.turnIndex];
+                return (
+                  <div key={score.turnId ?? idx} className="border border-slate-200 rounded-lg overflow-hidden">
+                    {/* User message bubble */}
+                    {userMessage && (
+                      <div className="bg-slate-50 border-b border-slate-200 px-3 py-2 flex gap-2 items-start">
+                        <span className="shrink-0 inline-flex items-center justify-center w-5 h-5 rounded-full bg-corporate-600 text-white mt-0.5">
+                          <i className="fas fa-user text-[9px]" />
+                        </span>
+                        <p className="text-sm text-slate-700 leading-relaxed">{userMessage}</p>
+                      </div>
+                    )}
+
+                    {/* Score card */}
+                    <div className="p-3">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-xs font-semibold text-slate-600">턴 {score.turnIndex + 1}</span>
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs text-slate-400">{score.evaluationMethod}</span>
+                          <span className="text-sm font-bold text-corporate-700">
+                            종합 {Math.round(score.total)}점
+                          </span>
+                        </div>
+                      </div>
+                      <div className="space-y-1">
+                        {SCORE_DIMENSIONS.map((dim) => (
+                          <div key={dim.key} className="flex items-center gap-2">
+                            <span className="text-xs text-slate-500 w-14">{dim.label}</span>
+                            <ScoreBar value={score[dim.key]} color={dim.color} />
+                          </div>
+                        ))}
+                      </div>
+                      {score.hint && (
+                        <div className="mt-3 flex gap-2 items-start rounded-md bg-amber-50 border border-amber-200 px-3 py-2">
+                          <i className="fas fa-lightbulb text-amber-500 text-xs mt-0.5 shrink-0" />
+                          <p className="text-xs text-amber-800 leading-relaxed">{score.hint}</p>
+                        </div>
+                      )}
                     </div>
                   </div>
-                  <div className="space-y-1">
-                    {SCORE_DIMENSIONS.map((dim) => (
-                      <div key={dim.key} className="flex items-center gap-2">
-                        <span className="text-xs text-slate-500 w-14">{dim.label}</span>
-                        <ScoreBar value={score[dim.key]} color={dim.color} />
-                      </div>
-                    ))}
-                  </div>
-                  {score.hint && (
-                    <p className="mt-2 text-xs text-slate-500 italic border-t border-slate-100 pt-2">
-                      {score.hint}
-                    </p>
-                  )}
-                </div>
-              ))}
+                );
+              })}
             </div>
           </CardContent>
         </Card>

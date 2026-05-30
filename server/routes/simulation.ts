@@ -195,7 +195,21 @@ export default function createSimulationRouter(isAuthenticated: any) {
 
     await verifyPersonaRunOwnership(personaRunId, userId, req.user?.role);
 
-    const events = await storage.getSimulationEventsByPersonaRun(personaRunId);
+    const [events, chatMessages] = await Promise.all([
+      storage.getSimulationEventsByPersonaRun(personaRunId),
+      storage.getChatMessagesByPersonaRun(personaRunId),
+    ]);
+
+    // Build a map of turnIndex → user message text.
+    // Each turn may have multiple chat messages; we want the user's message for that turn.
+    // When multiple user messages share the same turnIndex (edge case), prefer the first one.
+    const userMessagesByTurn: Record<number, string> = {};
+    for (const msg of chatMessages) {
+      if (msg.sender === 'user' && !(msg.turnIndex in userMessagesByTurn)) {
+        userMessagesByTurn[msg.turnIndex] = msg.message;
+      }
+    }
+
     const debug = {
       totalEvents: events.length,
       autoEvalSummary: events
@@ -208,7 +222,7 @@ export default function createSimulationRouter(isAuthenticated: any) {
           total: ((e.result as Record<string, unknown> | null)?.turnScore as Record<string, unknown> | null)?.total ?? null,
         })),
     };
-    res.json({ events, debug });
+    res.json({ events, userMessagesByTurn, debug });
   }));
 
   return router;
