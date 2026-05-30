@@ -237,6 +237,14 @@ export default function createAdminScenariosRouter(isAuthenticated: any) {
 
     scenarioData.sourceLocale = sourceLocale;
 
+    // Auto-fix isPrimary: if no persona is marked primary, designate the first one
+    if (Array.isArray(scenarioData.personas) && scenarioData.personas.length > 0) {
+      const hasPrimary = scenarioData.personas.some((p: any) => p.isPrimary === true);
+      if (!hasPrimary) {
+        scenarioData.personas = scenarioData.personas.map((p: any, i: number) => ({ ...p, isPrimary: i === 0 }));
+      }
+    }
+
     // Pre-save validation
     const [allPersonas, allLangs] = await Promise.all([
       storage.getAllMbtiPersonas(),
@@ -310,6 +318,18 @@ export default function createAdminScenariosRouter(isAuthenticated: any) {
 
     // Pre-save validation
     const mergedData = { ...(existingScenario ?? {}), ...req.body };
+
+    // Auto-fix isPrimary: if no persona is marked primary, designate the first one
+    if (Array.isArray(mergedData.personas) && mergedData.personas.length > 0) {
+      const hasPrimary = mergedData.personas.some((p: any) => p.isPrimary === true);
+      if (!hasPrimary) {
+        mergedData.personas = mergedData.personas.map((p: any, i: number) => ({ ...p, isPrimary: i === 0 }));
+        if (req.body.personas) {
+          req.body.personas = mergedData.personas;
+        }
+      }
+    }
+
     const [allPersonas, allLangs, existingTranslations] = await Promise.all([
       storage.getAllMbtiPersonas(),
       storage.getActiveSupportedLanguages(),
