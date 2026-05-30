@@ -274,14 +274,26 @@ export default function SimulationReplayPanel({ conversationId }: SimulationRepl
 
   const allEvents = data.events ?? [];
 
-  // Turn scores from auto_evaluation events with includeInReport=true
-  const turnScores: TurnScore[] = allEvents
-    .filter((e) => e.eventType === "auto_evaluation" && e.includeInReport)
-    .flatMap((e) => {
+  // Turn scores from auto_evaluation events with includeInReport=true.
+  // Deduplicate by turnIndex: when both a 'quality' and a 'fast' event exist for the
+  // same turn (e.g. quality succeeded then a fast fallback also ran, or a retry occurred),
+  // prefer the 'quality' event so the richer LLM-based score wins.
+  const turnScores: TurnScore[] = (() => {
+    const byTurnIndex = new Map<number, { score: TurnScore; evalMode: string }>();
+    for (const e of allEvents) {
+      if (e.eventType !== "auto_evaluation" || !e.includeInReport) continue;
       const ts = e.result?.["turnScore"];
-      return isTurnScore(ts) ? [ts] : [];
-    })
-    .sort((a, b) => a.turnIndex - b.turnIndex);
+      if (!isTurnScore(ts)) continue;
+      const evalMode = (e.args?.["evalMode"] as string | undefined) ?? "fast";
+      const existing = byTurnIndex.get(ts.turnIndex);
+      if (!existing || evalMode === "quality") {
+        byTurnIndex.set(ts.turnIndex, { score: ts, evalMode });
+      }
+    }
+    return Array.from(byTurnIndex.values())
+      .map((v) => v.score)
+      .sort((a, b) => a.turnIndex - b.turnIndex);
+  })();
 
   // Incidents from all sources (tool_call result.incident + stateAfter.recentIncidents)
   const incidents = collectIncidents(allEvents);

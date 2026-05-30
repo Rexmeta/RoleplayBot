@@ -196,7 +196,19 @@ export default function createSimulationRouter(isAuthenticated: any) {
     await verifyPersonaRunOwnership(personaRunId, userId, req.user?.role);
 
     const events = await storage.getSimulationEventsByPersonaRun(personaRunId);
-    res.json({ events });
+    const debug = {
+      totalEvents: events.length,
+      autoEvalSummary: events
+        .filter(e => e.eventType === 'auto_evaluation')
+        .map(e => ({
+          turnIndex: e.turnIndex,
+          evalMode: (e.args as Record<string, unknown> | null)?.evalMode ?? 'unknown',
+          includeInReport: e.includeInReport,
+          hasTurnScore: !!(e.result as Record<string, unknown> | null)?.turnScore,
+          total: ((e.result as Record<string, unknown> | null)?.turnScore as Record<string, unknown> | null)?.total ?? null,
+        })),
+    };
+    res.json({ events, debug });
   }));
 
   return router;

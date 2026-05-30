@@ -1078,7 +1078,11 @@ ${userNameLine}
           // Inject updated [SIMULATION_STATE] block into AI generation prompt
           scenarioForAI.simulationStateBlock = buildSimulationStateBlock(qs);
         } catch (e) {
-          console.warn('[conversations] Quality mode pre-evaluation failed, continuing without state injection:', e);
+          console.warn('[conversations] Quality mode pre-evaluation failed, falling back to fast eval:', e);
+          // Fallback: start a fast-mode evaluation so this turn still gets a simulation_event
+          // in the DB even when quality pre-evaluation throws.
+          fastEvalInput = { ...baseEvalInput };
+          fastEvalPromise = evaluateUserResponse(fastEvalInput);
         }
       } else {
         // Fast mode: start evaluation in parallel with AI generation.
