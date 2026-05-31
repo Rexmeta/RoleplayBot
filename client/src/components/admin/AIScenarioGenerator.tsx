@@ -16,11 +16,20 @@ interface AIGeneratorProps {
   onGenerated: (data: any) => void;
 }
 
+function AIBadge() {
+  return (
+    <span className="absolute top-1.5 right-2 z-10 text-[10px] font-bold bg-purple-100 text-purple-700 border border-purple-300 rounded px-1 py-0.5 leading-none pointer-events-none select-none">
+      AI
+    </span>
+  );
+}
+
 export function AIScenarioGenerator({ onGenerated }: AIGeneratorProps) {
   const { t } = useTranslation();
   const { toast } = useToast();
   const [isOpen, setIsOpen] = useState(false);
   const [showAdvanced, setShowAdvanced] = useState(false);
+  const [aiFilledFields, setAiFilledFields] = useState<Set<string>>(new Set());
   const [formData, setFormData] = useState({
     idea: '',
     industry: '',
@@ -39,6 +48,29 @@ export function AIScenarioGenerator({ onGenerated }: AIGeneratorProps) {
     personaCount: 3
   });
 
+  const markAiFilled = (fields: string[]) => {
+    setAiFilledFields(prev => {
+      const next = new Set(prev);
+      fields.forEach(f => next.add(f));
+      return next;
+    });
+  };
+
+  const clearAiFilled = (...fields: string[]) => {
+    setAiFilledFields(prev => {
+      const next = new Set(prev);
+      fields.forEach(f => next.delete(f));
+      return next;
+    });
+  };
+
+  const isAiFilled = (field: string) => aiFilledFields.has(field);
+
+  const aiBorderClass = (field: string) =>
+    isAiFilled(field)
+      ? 'border-purple-400 focus:border-purple-500 focus:ring-purple-500 bg-purple-50/40'
+      : 'border-slate-300 focus:border-purple-500 focus:ring-purple-500 bg-white';
+
   const generateMutation = useMutation({
     mutationFn: async (data: typeof formData) => {
       const response = await apiRequest('POST', '/api/admin/generate-scenario', data);
@@ -46,6 +78,7 @@ export function AIScenarioGenerator({ onGenerated }: AIGeneratorProps) {
     },
     onSuccess: (result) => {
       setIsOpen(false);
+      setAiFilledFields(new Set());
       onGenerated(result);
       toast({
         title: t('admin.aiGenerator.success'),
@@ -68,22 +101,36 @@ export function AIScenarioGenerator({ onGenerated }: AIGeneratorProps) {
       return response.json();
     },
     onSuccess: (result) => {
+      const filled: string[] = [
+        ...(result.industry ? ['industry'] : []),
+        ...(result.situation ? ['situation'] : []),
+        ...(result.timeline ? ['timeline'] : []),
+        ...(result.stakes ? ['stakes'] : []),
+        ...(result.conflictType ? ['conflictType'] : []),
+        ...(result.objectiveType ? ['objectiveType'] : []),
+        ...(result.skills ? ['skills'] : []),
+        ...(result.playerRole?.position ? ['playerRole.position'] : []),
+        ...(result.playerRole?.department ? ['playerRole.department'] : []),
+        ...(result.playerRole?.experience ? ['playerRole.experience'] : []),
+        ...(result.playerRole?.responsibility ? ['playerRole.responsibility'] : []),
+      ];
       setFormData(prev => ({
         ...prev,
         industry: result.industry || prev.industry,
         situation: result.situation || prev.situation,
         timeline: result.timeline || prev.timeline,
         stakes: result.stakes || prev.stakes,
+        conflictType: result.conflictType || prev.conflictType,
+        objectiveType: result.objectiveType || prev.objectiveType,
+        skills: result.skills || prev.skills,
         playerRole: {
           position: result.playerRole?.position || prev.playerRole.position,
           department: result.playerRole?.department || prev.playerRole.department,
           experience: result.playerRole?.experience || prev.playerRole.experience,
           responsibility: result.playerRole?.responsibility || prev.playerRole.responsibility,
         },
-        conflictType: result.conflictType || prev.conflictType,
-        objectiveType: result.objectiveType || prev.objectiveType,
-        skills: result.skills || prev.skills,
       }));
+      markAiFilled(filled);
       if (!showAdvanced) setShowAdvanced(true);
       toast({
         title: '자동완성 완료',
@@ -198,76 +245,100 @@ export function AIScenarioGenerator({ onGenerated }: AIGeneratorProps) {
                 <Label htmlFor="position" className="text-sm font-semibold text-slate-700 mb-1.5 block">
                   {t('admin.aiGenerator.position')}
                 </Label>
-                <Input
-                  id="position"
-                  value={formData.playerRole.position}
-                  onChange={(e) => setFormData(prev => ({ 
-                    ...prev, 
-                    playerRole: { ...prev.playerRole, position: e.target.value }
-                  }))}
-                  placeholder="예: 개발자, 매니저, 팀장"
-                  className="border-slate-300 focus:border-purple-500 focus:ring-purple-500 bg-white"
-                  data-testid="input-position"
-                />
+                <div className="relative">
+                  <Input
+                    id="position"
+                    value={formData.playerRole.position}
+                    onChange={(e) => {
+                      clearAiFilled('playerRole.position');
+                      setFormData(prev => ({ 
+                        ...prev, 
+                        playerRole: { ...prev.playerRole, position: e.target.value }
+                      }));
+                    }}
+                    placeholder="예: 개발자, 매니저, 팀장"
+                    className={aiBorderClass('playerRole.position')}
+                    data-testid="input-position"
+                  />
+                  {isAiFilled('playerRole.position') && <AIBadge />}
+                </div>
               </div>
               
               <div>
                 <Label htmlFor="department" className="text-sm font-semibold text-slate-700 mb-1.5 block">
                   {t('admin.aiGenerator.department')}
                 </Label>
-                <Input
-                  id="department"
-                  value={formData.playerRole.department}
-                  onChange={(e) => setFormData(prev => ({ 
-                    ...prev, 
-                    playerRole: { ...prev.playerRole, department: e.target.value }
-                  }))}
-                  placeholder="예: 개발팀, 마케팅팀, 기획팀"
-                  className="border-slate-300 focus:border-purple-500 focus:ring-purple-500 bg-white"
-                  data-testid="input-department"
-                />
+                <div className="relative">
+                  <Input
+                    id="department"
+                    value={formData.playerRole.department}
+                    onChange={(e) => {
+                      clearAiFilled('playerRole.department');
+                      setFormData(prev => ({ 
+                        ...prev, 
+                        playerRole: { ...prev.playerRole, department: e.target.value }
+                      }));
+                    }}
+                    placeholder="예: 개발팀, 마케팅팀, 기획팀"
+                    className={aiBorderClass('playerRole.department')}
+                    data-testid="input-department"
+                  />
+                  {isAiFilled('playerRole.department') && <AIBadge />}
+                </div>
               </div>
               
               <div>
                 <Label htmlFor="experience" className="text-sm font-semibold text-slate-700 mb-1.5 block">
                   {t('admin.aiGenerator.experienceLevel')}
                 </Label>
-                <Select 
-                  value={formData.playerRole.experience} 
-                  onValueChange={(value) => setFormData(prev => ({ 
-                    ...prev, 
-                    playerRole: { ...prev.playerRole, experience: value }
-                  }))}
-                >
-                  <SelectTrigger className="border-slate-300 focus:border-purple-500 focus:ring-purple-500 bg-white">
-                    <SelectValue placeholder="경력 선택" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="신입">신입</SelectItem>
-                    <SelectItem value="1년차">1년차</SelectItem>
-                    <SelectItem value="3년차">3년차</SelectItem>
-                    <SelectItem value="5년차">5년차</SelectItem>
-                    <SelectItem value="10년차">10년차</SelectItem>
-                    <SelectItem value="팀장급">팀장급</SelectItem>
-                  </SelectContent>
-                </Select>
+                <div className="relative">
+                  <Select 
+                    value={formData.playerRole.experience} 
+                    onValueChange={(value) => {
+                      clearAiFilled('playerRole.experience');
+                      setFormData(prev => ({ 
+                        ...prev, 
+                        playerRole: { ...prev.playerRole, experience: value }
+                      }));
+                    }}
+                  >
+                    <SelectTrigger className={aiBorderClass('playerRole.experience')}>
+                      <SelectValue placeholder="경력 선택" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="신입">신입</SelectItem>
+                      <SelectItem value="1년차">1년차</SelectItem>
+                      <SelectItem value="3년차">3년차</SelectItem>
+                      <SelectItem value="5년차">5년차</SelectItem>
+                      <SelectItem value="10년차">10년차</SelectItem>
+                      <SelectItem value="팀장급">팀장급</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  {isAiFilled('playerRole.experience') && <AIBadge />}
+                </div>
               </div>
               
               <div>
                 <Label htmlFor="responsibility" className="text-sm font-semibold text-slate-700 mb-1.5 block">
                   {t('admin.aiGenerator.coreResponsibility')}
                 </Label>
-                <Input
-                  id="responsibility"
-                  value={formData.playerRole.responsibility}
-                  onChange={(e) => setFormData(prev => ({ 
-                    ...prev, 
-                    playerRole: { ...prev.playerRole, responsibility: e.target.value }
-                  }))}
-                  placeholder="예: 최적의 해결안 도출"
-                  className="border-slate-300 focus:border-purple-500 focus:ring-purple-500 bg-white"
-                  data-testid="input-responsibility"
-                />
+                <div className="relative">
+                  <Input
+                    id="responsibility"
+                    value={formData.playerRole.responsibility}
+                    onChange={(e) => {
+                      clearAiFilled('playerRole.responsibility');
+                      setFormData(prev => ({ 
+                        ...prev, 
+                        playerRole: { ...prev.playerRole, responsibility: e.target.value }
+                      }));
+                    }}
+                    placeholder="예: 최적의 해결안 도출"
+                    className={aiBorderClass('playerRole.responsibility')}
+                    data-testid="input-responsibility"
+                  />
+                  {isAiFilled('playerRole.responsibility') && <AIBadge />}
+                </div>
               </div>
             </div>
           </div>
@@ -328,30 +399,41 @@ export function AIScenarioGenerator({ onGenerated }: AIGeneratorProps) {
                 <div className="pt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <Label htmlFor="industry" className="text-sm font-semibold text-slate-700 mb-1.5 block">{t('admin.aiGenerator.industry')}</Label>
-                    <Input
-                      id="industry"
-                      value={formData.industry}
-                      onChange={(e) => setFormData(prev => ({ ...prev, industry: e.target.value }))}
-                      placeholder="예: IT, 제조업, 서비스업"
-                      className="border-slate-300 focus:border-purple-500 focus:ring-purple-500 bg-white"
-                      data-testid="input-ai-industry"
-                    />
+                    <div className="relative">
+                      <Input
+                        id="industry"
+                        value={formData.industry}
+                        onChange={(e) => {
+                          clearAiFilled('industry');
+                          setFormData(prev => ({ ...prev, industry: e.target.value }));
+                        }}
+                        placeholder="예: IT, 제조업, 서비스업"
+                        className={aiBorderClass('industry')}
+                        data-testid="input-ai-industry"
+                      />
+                      {isAiFilled('industry') && <AIBadge />}
+                    </div>
                   </div>
-
                 </div>
 
                 <div>
                   <Label htmlFor="situation" className="text-sm font-semibold text-slate-700 mb-1.5 block">
                     {t('admin.aiGenerator.situationDescription')}
                   </Label>
-                  <Textarea
-                    id="situation"
-                    value={formData.situation}
-                    onChange={(e) => setFormData(prev => ({ ...prev, situation: e.target.value }))}
-                    placeholder="예: 신규 제품 출시 일정이 지연되면서 부서 간 갈등이 심화되고 있습니다."
-                    className="min-h-[80px] border-slate-300 focus:border-purple-500 focus:ring-purple-500 bg-white"
-                    data-testid="textarea-situation"
-                  />
+                  <div className="relative">
+                    <Textarea
+                      id="situation"
+                      value={formData.situation}
+                      onChange={(e) => {
+                        clearAiFilled('situation');
+                        setFormData(prev => ({ ...prev, situation: e.target.value }));
+                      }}
+                      placeholder="예: 신규 제품 출시 일정이 지연되면서 부서 간 갈등이 심화되고 있습니다."
+                      className={`min-h-[80px] ${aiBorderClass('situation')}`}
+                      data-testid="textarea-situation"
+                    />
+                    {isAiFilled('situation') && <AIBadge />}
+                  </div>
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -359,111 +441,141 @@ export function AIScenarioGenerator({ onGenerated }: AIGeneratorProps) {
                     <Label htmlFor="timeline" className="text-sm font-semibold text-slate-700 mb-1.5 block">
                       {t('admin.aiGenerator.timeConstraint')}
                     </Label>
-                    <Input
-                      id="timeline"
-                      value={formData.timeline}
-                      onChange={(e) => setFormData(prev => ({ ...prev, timeline: e.target.value }))}
-                      placeholder="예: 마케팅 행사까지 1주일 남음"
-                      className="border-slate-300 focus:border-purple-500 focus:ring-purple-500 bg-white"
-                      data-testid="input-timeline"
-                    />
+                    <div className="relative">
+                      <Input
+                        id="timeline"
+                        value={formData.timeline}
+                        onChange={(e) => {
+                          clearAiFilled('timeline');
+                          setFormData(prev => ({ ...prev, timeline: e.target.value }));
+                        }}
+                        placeholder="예: 마케팅 행사까지 1주일 남음"
+                        className={aiBorderClass('timeline')}
+                        data-testid="input-timeline"
+                      />
+                      {isAiFilled('timeline') && <AIBadge />}
+                    </div>
                   </div>
                   
                   <div>
                     <Label htmlFor="stakes" className="text-sm font-semibold text-slate-700 mb-1.5 block">
                       {t('admin.aiGenerator.stakeholdersAndConflicts')}
                     </Label>
-                    <Input
-                      id="stakes"
-                      value={formData.stakes}
-                      onChange={(e) => setFormData(prev => ({ ...prev, stakes: e.target.value }))}
-                      placeholder="예: 품질 vs 일정 vs 고객 만족도"
-                      className="border-slate-300 focus:border-purple-500 focus:ring-purple-500 bg-white"
-                      data-testid="input-stakes"
-                    />
+                    <div className="relative">
+                      <Input
+                        id="stakes"
+                        value={formData.stakes}
+                        onChange={(e) => {
+                          clearAiFilled('stakes');
+                          setFormData(prev => ({ ...prev, stakes: e.target.value }));
+                        }}
+                        placeholder="예: 품질 vs 일정 vs 고객 만족도"
+                        className={aiBorderClass('stakes')}
+                        data-testid="input-stakes"
+                      />
+                      {isAiFilled('stakes') && <AIBadge />}
+                    </div>
                   </div>
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <Label htmlFor="conflictType" className="text-sm font-semibold text-slate-700 mb-1.5 block">{t('admin.aiGenerator.conflictType')}</Label>
-                    <Select 
-                      value={formData.conflictType} 
-                      onValueChange={(value) => setFormData(prev => ({ ...prev, conflictType: value }))}
-                    >
-                      <SelectTrigger className="border-slate-300 focus:border-purple-500 focus:ring-purple-500 bg-white">
-                        <SelectValue placeholder="갈등 유형 선택" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="역할불명확">역할 불명확</SelectItem>
-                        <SelectItem value="업무우선순위충돌">업무 우선순위 충돌</SelectItem>
-                        <SelectItem value="성과불균형인식">성과 불균형 인식</SelectItem>
-                        <SelectItem value="세대차이">세대 차이</SelectItem>
-                        <SelectItem value="소통오류">소통 오류</SelectItem>
-                        <SelectItem value="의사결정방식차이">의사결정 방식 차이</SelectItem>
-                        <SelectItem value="리더십스타일차이">리더십 스타일 차이</SelectItem>
-                        <SelectItem value="성과독점">성과 독점</SelectItem>
-                        <SelectItem value="정보독점">정보 독점</SelectItem>
-                        <SelectItem value="책임떠넘기기">책임 떠넘기기</SelectItem>
-                        <SelectItem value="업무방식차이">업무 방식 차이</SelectItem>
-                        <SelectItem value="개인목표조직목표불일치">개인 목표와 조직 목표 불일치</SelectItem>
-                        <SelectItem value="지식경험차이">지식/경험의 차이</SelectItem>
-                        <SelectItem value="업무범위침범">업무 범위 침범</SelectItem>
-                        <SelectItem value="정치적갈등">정치적 갈등</SelectItem>
-                        <SelectItem value="감정누적">감정의 누적</SelectItem>
-                        <SelectItem value="인정욕구미충족">인정 욕구 미충족</SelectItem>
-                        <SelectItem value="신뢰부족">신뢰 부족</SelectItem>
-                        <SelectItem value="리소스경쟁">리소스 경쟁</SelectItem>
-                        <SelectItem value="다양성가치관차이">다양성·가치관 차이</SelectItem>
-                      </SelectContent>
-                    </Select>
+                    <div className="relative">
+                      <Select 
+                        value={formData.conflictType} 
+                        onValueChange={(value) => {
+                          clearAiFilled('conflictType');
+                          setFormData(prev => ({ ...prev, conflictType: value }));
+                        }}
+                      >
+                        <SelectTrigger className={aiBorderClass('conflictType')}>
+                          <SelectValue placeholder="갈등 유형 선택" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="역할불명확">역할 불명확</SelectItem>
+                          <SelectItem value="업무우선순위충돌">업무 우선순위 충돌</SelectItem>
+                          <SelectItem value="성과불균형인식">성과 불균형 인식</SelectItem>
+                          <SelectItem value="세대차이">세대 차이</SelectItem>
+                          <SelectItem value="소통오류">소통 오류</SelectItem>
+                          <SelectItem value="의사결정방식차이">의사결정 방식 차이</SelectItem>
+                          <SelectItem value="리더십스타일차이">리더십 스타일 차이</SelectItem>
+                          <SelectItem value="성과독점">성과 독점</SelectItem>
+                          <SelectItem value="정보독점">정보 독점</SelectItem>
+                          <SelectItem value="책임떠넘기기">책임 떠넘기기</SelectItem>
+                          <SelectItem value="업무방식차이">업무 방식 차이</SelectItem>
+                          <SelectItem value="개인목표조직목표불일치">개인 목표와 조직 목표 불일치</SelectItem>
+                          <SelectItem value="지식경험차이">지식/경험의 차이</SelectItem>
+                          <SelectItem value="업무범위침범">업무 범위 침범</SelectItem>
+                          <SelectItem value="정치적갈등">정치적 갈등</SelectItem>
+                          <SelectItem value="감정누적">감정의 누적</SelectItem>
+                          <SelectItem value="인정욕구미충족">인정 욕구 미충족</SelectItem>
+                          <SelectItem value="신뢰부족">신뢰 부족</SelectItem>
+                          <SelectItem value="리소스경쟁">리소스 경쟁</SelectItem>
+                          <SelectItem value="다양성가치관차이">다양성·가치관 차이</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      {isAiFilled('conflictType') && <AIBadge />}
+                    </div>
                   </div>
                   
                   <div>
                     <Label htmlFor="objectiveType" className="text-sm font-semibold text-slate-700 mb-1.5 block">{t('admin.aiGenerator.goalType')}</Label>
-                    <Select 
-                      value={formData.objectiveType} 
-                      onValueChange={(value) => setFormData(prev => ({ ...prev, objectiveType: value }))}
-                    >
-                      <SelectTrigger className="border-slate-300 focus:border-purple-500 focus:ring-purple-500 bg-white">
-                        <SelectValue placeholder="목표 유형 선택" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="역할책임명확화">역할 및 책임 명확화</SelectItem>
-                        <SelectItem value="우선순위협의">우선순위 협의 및 합의</SelectItem>
-                        <SelectItem value="공정평가기준수립">공정한 평가 기준 수립</SelectItem>
-                        <SelectItem value="세대간이해증진">세대 간 상호 이해 증진</SelectItem>
-                        <SelectItem value="효과적소통정보공유">효과적 소통 및 정보 공유</SelectItem>
-                        <SelectItem value="의사결정표준화">의사결정 프로세스 표준화</SelectItem>
-                        <SelectItem value="리더십스타일조정">리더십 스타일 조정</SelectItem>
-                        <SelectItem value="공로분배팀워크">공로 분배 및 팀워크 강화</SelectItem>
-                        <SelectItem value="정보투명성공유">정보 투명성 및 공유</SelectItem>
-                        <SelectItem value="책임소재명확화">책임 소재 명확화</SelectItem>
-                        <SelectItem value="업무프로세스조정">업무 프로세스 조정</SelectItem>
-                        <SelectItem value="목표정렬">목표 정렬 및 방향성 통일</SelectItem>
-                        <SelectItem value="전문성존중학습">전문성 존중 및 학습</SelectItem>
-                        <SelectItem value="업무경계협력">업무 경계 설정 및 협력</SelectItem>
-                        <SelectItem value="공정한조직문화">공정한 조직 문화 조성</SelectItem>
-                        <SelectItem value="신뢰회복감정해소">신뢰 회복 및 감정 해소</SelectItem>
-                        <SelectItem value="기여도인정동기부여">기여도 인정 및 동기 부여</SelectItem>
-                        <SelectItem value="신뢰관계재구축">신뢰 관계 재구축</SelectItem>
-                        <SelectItem value="리소스배분협의">리소스 배분 협의 및 최적화</SelectItem>
-                        <SelectItem value="다양성포용성증진">다양성 이해 및 포용성 증진</SelectItem>
-                      </SelectContent>
-                    </Select>
+                    <div className="relative">
+                      <Select 
+                        value={formData.objectiveType} 
+                        onValueChange={(value) => {
+                          clearAiFilled('objectiveType');
+                          setFormData(prev => ({ ...prev, objectiveType: value }));
+                        }}
+                      >
+                        <SelectTrigger className={aiBorderClass('objectiveType')}>
+                          <SelectValue placeholder="목표 유형 선택" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="역할책임명확화">역할 및 책임 명확화</SelectItem>
+                          <SelectItem value="우선순위협의">우선순위 협의 및 합의</SelectItem>
+                          <SelectItem value="공정평가기준수립">공정한 평가 기준 수립</SelectItem>
+                          <SelectItem value="세대간이해증진">세대 간 상호 이해 증진</SelectItem>
+                          <SelectItem value="효과적소통정보공유">효과적 소통 및 정보 공유</SelectItem>
+                          <SelectItem value="의사결정표준화">의사결정 프로세스 표준화</SelectItem>
+                          <SelectItem value="리더십스타일조정">리더십 스타일 조정</SelectItem>
+                          <SelectItem value="공로분배팀워크">공로 분배 및 팀워크 강화</SelectItem>
+                          <SelectItem value="정보투명성공유">정보 투명성 및 공유</SelectItem>
+                          <SelectItem value="책임소재명확화">책임 소재 명확화</SelectItem>
+                          <SelectItem value="업무프로세스조정">업무 프로세스 조정</SelectItem>
+                          <SelectItem value="목표정렬">목표 정렬 및 방향성 통일</SelectItem>
+                          <SelectItem value="전문성존중학습">전문성 존중 및 학습</SelectItem>
+                          <SelectItem value="업무경계협력">업무 경계 설정 및 협력</SelectItem>
+                          <SelectItem value="공정한조직문화">공정한 조직 문화 조성</SelectItem>
+                          <SelectItem value="신뢰회복감정해소">신뢰 회복 및 감정 해소</SelectItem>
+                          <SelectItem value="기여도인정동기부여">기여도 인정 및 동기 부여</SelectItem>
+                          <SelectItem value="신뢰관계재구축">신뢰 관계 재구축</SelectItem>
+                          <SelectItem value="리소스배분협의">리소스 배분 협의 및 최적화</SelectItem>
+                          <SelectItem value="다양성포용성증진">다양성 이해 및 포용성 증진</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      {isAiFilled('objectiveType') && <AIBadge />}
+                    </div>
                   </div>
                 </div>
 
                 <div>
                   <Label htmlFor="skills" className="text-sm font-semibold text-slate-700 mb-1.5 block">필요 역량 (쉼표로 구분)</Label>
-                  <Input
-                    id="skills"
-                    value={formData.skills}
-                    onChange={(e) => setFormData(prev => ({ ...prev, skills: e.target.value }))}
-                    placeholder="예: 갈등 중재, 협상, 의사소통"
-                    className="border-slate-300 focus:border-purple-500 focus:ring-purple-500 bg-white"
-                    data-testid="input-skills"
-                  />
+                  <div className="relative">
+                    <Input
+                      id="skills"
+                      value={formData.skills}
+                      onChange={(e) => {
+                        clearAiFilled('skills');
+                        setFormData(prev => ({ ...prev, skills: e.target.value }));
+                      }}
+                      placeholder="예: 갈등 중재, 협상, 의사소통"
+                      className={aiBorderClass('skills')}
+                      data-testid="input-skills"
+                    />
+                    {isAiFilled('skills') && <AIBadge />}
+                  </div>
                 </div>
               </div>
             )}
