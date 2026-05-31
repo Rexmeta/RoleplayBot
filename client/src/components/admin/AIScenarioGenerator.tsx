@@ -9,7 +9,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
 import { apiRequest } from '@/lib/queryClient';
-import { Loader2, ChevronDown, ChevronUp } from 'lucide-react';
+import { Loader2, ChevronDown, ChevronUp, RefreshCw } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
 interface AIGeneratorProps {
@@ -101,6 +101,7 @@ export function AIScenarioGenerator({ onGenerated }: AIGeneratorProps) {
       return response.json();
     },
     onSuccess: (result) => {
+      const isRefresh = aiFilledFields.size > 0;
       const filled: string[] = [
         ...(result.industry ? ['industry'] : []),
         ...(result.situation ? ['situation'] : []),
@@ -116,25 +117,28 @@ export function AIScenarioGenerator({ onGenerated }: AIGeneratorProps) {
       ];
       setFormData(prev => ({
         ...prev,
-        industry: result.industry || prev.industry,
-        situation: result.situation || prev.situation,
-        timeline: result.timeline || prev.timeline,
-        stakes: result.stakes || prev.stakes,
-        conflictType: result.conflictType || prev.conflictType,
-        objectiveType: result.objectiveType || prev.objectiveType,
-        skills: result.skills || prev.skills,
+        industry: result.industry ?? '',
+        situation: result.situation ?? '',
+        timeline: result.timeline ?? '',
+        stakes: result.stakes ?? '',
         playerRole: {
-          position: result.playerRole?.position || prev.playerRole.position,
-          department: result.playerRole?.department || prev.playerRole.department,
-          experience: result.playerRole?.experience || prev.playerRole.experience,
-          responsibility: result.playerRole?.responsibility || prev.playerRole.responsibility,
+          position: result.playerRole?.position ?? '',
+          department: result.playerRole?.department ?? '',
+          experience: result.playerRole?.experience ?? '',
+          responsibility: result.playerRole?.responsibility ?? '',
         },
+        conflictType: result.conflictType ?? '',
+        objectiveType: result.objectiveType ?? '',
+        skills: result.skills ?? '',
       }));
+      setAiFilledFields(new Set());
       markAiFilled(filled);
       if (!showAdvanced) setShowAdvanced(true);
       toast({
-        title: '자동완성 완료',
-        description: '필드가 채워졌습니다. 내용을 확인하고 수정하세요.',
+        title: isRefresh ? '새 제안으로 교체됨' : '자동완성 완료',
+        description: isRefresh
+          ? '필드가 새로운 AI 제안으로 교체되었습니다. 내용을 확인하고 수정하세요.'
+          : '필드가 채워졌습니다. 내용을 확인하고 수정하세요.',
         variant: 'default'
       });
     },
@@ -161,7 +165,7 @@ export function AIScenarioGenerator({ onGenerated }: AIGeneratorProps) {
   };
 
   return (
-    <Dialog open={isOpen} onOpenChange={setIsOpen}>
+    <Dialog open={isOpen} onOpenChange={(open) => { setIsOpen(open); if (!open) setAiFilledFields(new Set()); }}>
       <TooltipProvider>
         <Tooltip>
           <TooltipTrigger asChild>
@@ -226,6 +230,8 @@ export function AIScenarioGenerator({ onGenerated }: AIGeneratorProps) {
                 >
                   {fillFieldsMutation.isPending ? (
                     <><Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" />생성 중...</>
+                  ) : aiFilledFields.size > 0 ? (
+                    <><RefreshCw className="h-3.5 w-3.5 mr-1.5" />다시 생성</>
                   ) : (
                     <><i className="fas fa-magic mr-1.5"></i>생성하기</>
                   )}
