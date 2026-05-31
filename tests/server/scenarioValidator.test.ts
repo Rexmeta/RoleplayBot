@@ -133,7 +133,7 @@ describe('validateScenario', () => {
 
     it('marks hasFatalErrors=true when primary persona check fails', () => {
       const scenario = makeScenario({
-        personas: [] as any,
+        personas: [{ id: 'p1', name: 'Alice', department: 'Sales', position: 'Mgr', experience: '1y', personaRef: 'mbti-001', stance: 'n', goal: 'g', tradeoff: 't', isPrimary: false }] as any,
       });
       const result = validateScenario(scenario, VALID_PERSONA_IDS, [], ['ko']);
       expect(result.hasFatalErrors).toBe(true);
@@ -678,7 +678,9 @@ describe('validateScenario', () => {
     });
 
     it('hasFatalErrors is true only when an error-severity issue exists', () => {
-      const scenario = makeScenario({ personas: [] as any });
+      const scenario = makeScenario({
+        personas: [{ id: 'p1', name: 'Alice', department: 'Sales', position: 'Mgr', experience: '1y', personaRef: 'mbti-001', stance: 'n', goal: 'g', tradeoff: 't', isPrimary: false }] as any,
+      });
       const result = validateScenario(scenario, VALID_PERSONA_IDS, [], ['ko']);
       expect(result.hasFatalErrors).toBe(true);
     });
