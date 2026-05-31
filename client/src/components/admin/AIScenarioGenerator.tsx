@@ -62,24 +62,52 @@ export function AIScenarioGenerator({ onGenerated }: AIGeneratorProps) {
     }
   });
 
+  const fillFieldsMutation = useMutation({
+    mutationFn: async (idea: string) => {
+      const response = await apiRequest('POST', '/api/admin/fill-scenario-fields', { idea });
+      return response.json();
+    },
+    onSuccess: (result) => {
+      setFormData(prev => ({
+        ...prev,
+        industry: result.industry || prev.industry,
+        situation: result.situation || prev.situation,
+        timeline: result.timeline || prev.timeline,
+        stakes: result.stakes || prev.stakes,
+        playerRole: {
+          position: result.playerRole?.position || prev.playerRole.position,
+          department: result.playerRole?.department || prev.playerRole.department,
+          experience: result.playerRole?.experience || prev.playerRole.experience,
+          responsibility: result.playerRole?.responsibility || prev.playerRole.responsibility,
+        },
+        conflictType: result.conflictType || prev.conflictType,
+        objectiveType: result.objectiveType || prev.objectiveType,
+        skills: result.skills || prev.skills,
+      }));
+      if (!showAdvanced) setShowAdvanced(true);
+      toast({
+        title: '자동완성 완료',
+        description: '필드가 채워졌습니다. 내용을 확인하고 수정하세요.',
+        variant: 'default'
+      });
+    },
+    onError: () => {
+      toast({
+        title: t('common.error'),
+        description: '자동완성에 실패했습니다. 다시 시도해주세요.',
+        variant: 'destructive'
+      });
+    }
+  });
+
   const handleGenerate = () => {
-    const requiredFields = [
-      { field: formData.idea, name: '시나리오 아이디어' },
-      { field: formData.playerRole.position, name: t('admin.aiGenerator.position') },
-      { field: formData.playerRole.department, name: t('admin.aiGenerator.department') },
-      { field: formData.playerRole.experience, name: t('admin.aiGenerator.experienceLevel') },
-      { field: formData.playerRole.responsibility, name: t('admin.aiGenerator.coreResponsibility') }
-    ];
-    
-    for (const { field, name } of requiredFields) {
-      if (!field.trim()) {
-        toast({
-          title: t('admin.aiGenerator.requiredFieldMissing'),
-          description: t('admin.aiGenerator.pleaseEnter', { field: name }),
-          variant: "destructive"
-        });
-        return;
-      }
+    if (!formData.idea.trim()) {
+      toast({
+        title: t('admin.aiGenerator.requiredFieldMissing'),
+        description: t('admin.aiGenerator.pleaseEnter', { field: '시나리오 아이디어' }),
+        variant: "destructive"
+      });
+      return;
     }
     
     generateMutation.mutate(formData);
@@ -111,7 +139,7 @@ export function AIScenarioGenerator({ onGenerated }: AIGeneratorProps) {
             <i className="fas fa-magic"></i>
             {t('admin.aiGenerator.title')}
           </DialogTitle>
-          <p className="text-purple-100 text-sm mt-1">아이디어와 플레이어 역할만 입력하면 AI가 나머지를 자동으로 완성합니다</p>
+          <p className="text-purple-100 text-sm mt-1">아이디어만 입력하면 AI가 나머지 필드를 자동으로 완성합니다</p>
         </DialogHeader>
         
         <div className="space-y-5">
@@ -133,7 +161,29 @@ export function AIScenarioGenerator({ onGenerated }: AIGeneratorProps) {
                 className="min-h-[100px] border-slate-300 focus:border-purple-500 focus:ring-purple-500 bg-white"
                 data-testid="textarea-idea"
               />
-              <p className="text-xs text-slate-500 mt-1">AI가 업종, 상황 세부사항, 시간 제약, 이해관계 등을 자동으로 추론합니다</p>
+              <div className="flex items-center justify-between mt-2">
+                <p className="text-xs text-slate-500">AI가 업종, 상황 세부사항, 시간 제약, 이해관계 등을 자동으로 추론합니다</p>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  onClick={() => {
+                    if (!formData.idea.trim()) {
+                      toast({ title: '아이디어를 먼저 입력해주세요', variant: 'destructive' });
+                      return;
+                    }
+                    fillFieldsMutation.mutate(formData.idea);
+                  }}
+                  disabled={fillFieldsMutation.isPending}
+                  className="border-purple-400 text-purple-600 hover:bg-purple-50 shrink-0 ml-3"
+                >
+                  {fillFieldsMutation.isPending ? (
+                    <><Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" />생성 중...</>
+                  ) : (
+                    <><i className="fas fa-magic mr-1.5"></i>생성하기</>
+                  )}
+                </Button>
+              </div>
             </div>
           </div>
           
@@ -141,12 +191,12 @@ export function AIScenarioGenerator({ onGenerated }: AIGeneratorProps) {
           <div className="bg-white rounded-lg p-5 shadow-sm border border-slate-200">
             <h3 className="text-base font-bold text-slate-900 mb-4 flex items-center gap-2 pb-2 border-b border-slate-200">
               <i className="fas fa-user-tie text-blue-600"></i>
-              플레이어 역할 <span className="text-red-500">*</span>
+              플레이어 역할 <span className="text-xs font-normal text-slate-400 ml-1">(선택사항 — 자동완성 또는 직접 입력)</span>
             </h3>
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <Label htmlFor="position" className="text-sm font-semibold text-slate-700 mb-1.5 block">
-                  {t('admin.aiGenerator.position')} <span className="text-red-500">*</span>
+                  {t('admin.aiGenerator.position')}
                 </Label>
                 <Input
                   id="position"
@@ -163,7 +213,7 @@ export function AIScenarioGenerator({ onGenerated }: AIGeneratorProps) {
               
               <div>
                 <Label htmlFor="department" className="text-sm font-semibold text-slate-700 mb-1.5 block">
-                  {t('admin.aiGenerator.department')} <span className="text-red-500">*</span>
+                  {t('admin.aiGenerator.department')}
                 </Label>
                 <Input
                   id="department"
@@ -180,7 +230,7 @@ export function AIScenarioGenerator({ onGenerated }: AIGeneratorProps) {
               
               <div>
                 <Label htmlFor="experience" className="text-sm font-semibold text-slate-700 mb-1.5 block">
-                  {t('admin.aiGenerator.experienceLevel')} <span className="text-red-500">*</span>
+                  {t('admin.aiGenerator.experienceLevel')}
                 </Label>
                 <Select 
                   value={formData.playerRole.experience} 
@@ -205,7 +255,7 @@ export function AIScenarioGenerator({ onGenerated }: AIGeneratorProps) {
               
               <div>
                 <Label htmlFor="responsibility" className="text-sm font-semibold text-slate-700 mb-1.5 block">
-                  {t('admin.aiGenerator.coreResponsibility')} <span className="text-red-500">*</span>
+                  {t('admin.aiGenerator.coreResponsibility')}
                 </Label>
                 <Input
                   id="responsibility"
@@ -433,7 +483,7 @@ export function AIScenarioGenerator({ onGenerated }: AIGeneratorProps) {
               ) : (
                 <>
                   <i className="fas fa-magic mr-2"></i>
-                  {t('admin.aiGenerator.generateButton')}
+                  완성하기
                 </>
               )}
             </Button>

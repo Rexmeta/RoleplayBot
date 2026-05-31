@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { storage } from "../storage";
 import { fileManager } from "../services/fileManager";
-import { generateScenarioWithAI, enhanceScenarioWithAI } from "../services/aiScenarioGenerator";
+import { generateScenarioWithAI, enhanceScenarioWithAI, fillScenarioFieldsWithAI } from "../services/aiScenarioGenerator";
 import { generateIntroVideo, deleteIntroVideo, getVideoGenerationStatus, getDefaultVideoPrompt } from "../services/gemini-video-generator";
 import { generateImagePrompt } from "./imageGeneration";
 import {
@@ -93,6 +93,15 @@ export default function createAdminScenariosRouter(isAuthenticated: any) {
       scenario: scenarioWithPersonas,
       personas: result.personas
     });
+  }));
+
+  router.post("/api/admin/fill-scenario-fields", isAuthenticated, isOperatorOrAdmin, asyncHandler(async (req, res) => {
+    const { idea } = req.body;
+    if (!idea || !String(idea).trim()) {
+      throw createHttpError(400, "시나리오 아이디어는 필수입니다");
+    }
+    const result = await fillScenarioFieldsWithAI(String(idea).trim());
+    res.json(result);
   }));
 
   router.post("/api/admin/enhance-scenario/:id", isAuthenticated, isOperatorOrAdmin, asyncHandler(async (req, res) => {

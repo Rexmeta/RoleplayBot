@@ -487,6 +487,80 @@ ${(() => {
   }
 }
 
+export async function fillScenarioFieldsWithAI(idea: string): Promise<{
+  industry: string;
+  situation: string;
+  timeline: string;
+  stakes: string;
+  playerRole: { position: string; department: string; experience: string; responsibility: string };
+  conflictType: string;
+  objectiveType: string;
+  skills: string;
+}> {
+  const prompt = `당신은 기업 교육용 롤플레이 시나리오 전문가입니다. 아래 아이디어를 바탕으로 시나리오 폼 필드를 채워주세요.
+
+시나리오 아이디어: ${idea}
+
+다음 JSON 형식으로 반환하세요:
+{
+  "industry": "업종 (예: IT, 제조업, 서비스업, 금융업)",
+  "situation": "구체적인 상황 설명 (200자 이상, 사건의 배경과 현재 상태 포함)",
+  "timeline": "시간적 제약 (예: 다음 주 월요일까지 결정 필요)",
+  "stakes": "이해관계 (예: 품질 vs 일정 vs 고객 만족도)",
+  "playerRole": {
+    "position": "플레이어 직책 (예: 팀장, 개발자, 매니저)",
+    "department": "소속 부서 (예: 개발팀, 마케팅팀)",
+    "experience": "경력 수준 — 반드시 다음 중 하나: 신입, 1년차, 3년차, 5년차, 10년차, 팀장급",
+    "responsibility": "핵심 책임 (예: 팀 간 갈등 조율 및 일정 내 품질 확보)"
+  },
+  "conflictType": "갈등 유형 — 반드시 다음 중 하나: 역할불명확, 업무우선순위충돌, 성과불균형인식, 세대차이, 소통오류, 의사결정방식차이, 리더십스타일차이, 성과독점, 정보독점, 책임떠넘기기, 업무방식차이, 개인목표조직목표불일치, 지식경험차이, 업무범위침범, 정치적갈등, 감정누적, 인정욕구미충족, 신뢰부족, 리소스경쟁, 다양성가치관차이",
+  "objectiveType": "목표 유형 — 반드시 다음 중 하나: 역할책임명확화, 우선순위협의, 공정평가기준수립, 세대간이해증진, 효과적소통정보공유, 의사결정표준화, 리더십스타일조정, 공로분배팀워크, 정보투명성공유, 책임소재명확화, 업무프로세스조정, 목표정렬, 전문성존중학습, 업무경계협력, 공정한조직문화, 신뢰회복감정해소, 기여도인정동기부여, 신뢰관계재구축, 리소스배분협의, 다양성포용성증진",
+  "skills": "필요 역량 쉼표 구분 (예: 갈등 중재, 협상, 의사소통)"
+}`;
+
+  let configuredModel = await getModelForFeature('scenario');
+  if (!configuredModel.startsWith('gemini-')) {
+    configuredModel = 'gemini-2.5-flash';
+  }
+
+  const response = await ai.models.generateContent({
+    model: configuredModel,
+    config: {
+      responseMimeType: "application/json",
+      responseSchema: {
+        type: "object",
+        properties: {
+          industry: { type: "string" },
+          situation: { type: "string" },
+          timeline: { type: "string" },
+          stakes: { type: "string" },
+          playerRole: {
+            type: "object",
+            properties: {
+              position: { type: "string" },
+              department: { type: "string" },
+              experience: { type: "string" },
+              responsibility: { type: "string" }
+            },
+            required: ["position", "department", "experience", "responsibility"]
+          },
+          conflictType: { type: "string" },
+          objectiveType: { type: "string" },
+          skills: { type: "string" }
+        },
+        required: ["industry", "situation", "timeline", "stakes", "playerRole", "conflictType", "objectiveType", "skills"]
+      }
+    },
+    contents: prompt
+  });
+
+  const rawJson = extractText(response);
+  if (!rawJson) throw new Error("AI 응답을 받을 수 없습니다");
+
+  const cleanJson = rawJson.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+  return JSON.parse(cleanJson);
+}
+
 export async function enhanceScenarioWithAI(
   existingScenario: ComplexScenario,
   enhancementType: 'improve' | 'expand' | 'simplify'
