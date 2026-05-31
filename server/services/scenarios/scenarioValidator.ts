@@ -107,8 +107,17 @@ export function validateScenario(
   const personas = (scenario.personas as any[]) ?? [];
 
   // Check ①: exactly one primary persona
+  // Empty personas array is allowed during initial creation (warning, not error).
+  // Error only when personas exist but none (or multiple) are marked primary.
   const primaryPersonas = personas.filter((p: any) => p.isPrimary === true);
-  if (primaryPersonas.length !== 1) {
+  if (personas.length === 0) {
+    issues.push({
+      check: 1,
+      key: 'primary_persona',
+      severity: 'warning',
+      message: '페르소나가 아직 추가되지 않았습니다.',
+    });
+  } else if (primaryPersonas.length !== 1) {
     issues.push({
       check: 1,
       key: 'primary_persona',
@@ -120,10 +129,14 @@ export function validateScenario(
   }
 
   // Check ②: personaRef connects to actual mbti_personas
+  // Normalize ".json" suffix — frontend may append it but DB IDs are stored without it.
   const invalidRefs: string[] = [];
   for (const p of personas) {
-    if (p.personaRef && !allMbtiPersonaIds.has(p.personaRef)) {
-      invalidRefs.push(`${p.name ?? p.id}(ref: ${p.personaRef})`);
+    if (p.personaRef) {
+      const normalizedRef = p.personaRef.replace(/\.json$/i, '');
+      if (!allMbtiPersonaIds.has(normalizedRef) && !allMbtiPersonaIds.has(p.personaRef)) {
+        invalidRefs.push(`${p.name ?? p.id}(ref: ${p.personaRef})`);
+      }
     }
   }
   if (invalidRefs.length > 0) {

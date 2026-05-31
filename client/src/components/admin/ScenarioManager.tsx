@@ -2610,7 +2610,7 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
                                     ...persona, 
                                     id: selectedId,
                                     mbti: selectedPersona.mbti.toUpperCase(),
-                                    personaRef: selectedId + '.json' 
+                                    personaRef: selectedId 
                                   };
                                   setFormData(prev => ({ ...prev, personas: newPersonas }));
                                 }
