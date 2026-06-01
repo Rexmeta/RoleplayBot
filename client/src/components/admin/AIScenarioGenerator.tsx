@@ -9,7 +9,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
 import { apiRequest } from '@/lib/queryClient';
-import { Loader2, ChevronDown, ChevronUp, RefreshCw } from 'lucide-react';
+import { Loader2, ChevronDown, ChevronUp, RefreshCw, X } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
 interface AIGeneratorProps {
@@ -65,6 +65,26 @@ export function AIScenarioGenerator({ onGenerated }: AIGeneratorProps) {
   };
 
   const isAiFilled = (field: string) => aiFilledFields.has(field);
+
+  const handleResetAutoFilled = () => {
+    setFormData(prev => ({
+      ...prev,
+      industry: '',
+      situation: '',
+      timeline: '',
+      stakes: '',
+      playerRole: {
+        position: '',
+        department: '',
+        experience: '',
+        responsibility: '',
+      },
+      conflictType: '',
+      objectiveType: '',
+      skills: '',
+    }));
+    setAiFilledFields(new Set());
+  };
 
   const aiBorderClass = (field: string) =>
     isAiFilled(field)
@@ -214,28 +234,42 @@ export function AIScenarioGenerator({ onGenerated }: AIGeneratorProps) {
               />
               <div className="flex items-center justify-between mt-2">
                 <p className="text-xs text-slate-500">AI가 업종, 상황 세부사항, 시간 제약, 이해관계 등을 자동으로 추론합니다</p>
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="outline"
-                  onClick={() => {
-                    if (!formData.idea.trim()) {
-                      toast({ title: '아이디어를 먼저 입력해주세요', variant: 'destructive' });
-                      return;
-                    }
-                    fillFieldsMutation.mutate(formData.idea);
-                  }}
-                  disabled={fillFieldsMutation.isPending}
-                  className="border-purple-400 text-purple-600 hover:bg-purple-50 shrink-0 ml-3"
-                >
-                  {fillFieldsMutation.isPending ? (
-                    <><Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" />생성 중...</>
-                  ) : aiFilledFields.size > 0 ? (
-                    <><RefreshCw className="h-3.5 w-3.5 mr-1.5" />다시 생성</>
-                  ) : (
-                    <><i className="fas fa-magic mr-1.5"></i>생성하기</>
+                <div className="flex items-center gap-2 shrink-0 ml-3">
+                  {aiFilledFields.size > 0 && (
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      onClick={handleResetAutoFilled}
+                      className="border-slate-300 text-slate-500 hover:bg-slate-50 hover:text-slate-700"
+                    >
+                      <X className="h-3.5 w-3.5 mr-1.5" />
+                      초기화
+                    </Button>
                   )}
-                </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    onClick={() => {
+                      if (!formData.idea.trim()) {
+                        toast({ title: '아이디어를 먼저 입력해주세요', variant: 'destructive' });
+                        return;
+                      }
+                      fillFieldsMutation.mutate(formData.idea);
+                    }}
+                    disabled={fillFieldsMutation.isPending}
+                    className="border-purple-400 text-purple-600 hover:bg-purple-50"
+                  >
+                    {fillFieldsMutation.isPending ? (
+                      <><Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" />생성 중...</>
+                    ) : aiFilledFields.size > 0 ? (
+                      <><RefreshCw className="h-3.5 w-3.5 mr-1.5" />다시 생성</>
+                    ) : (
+                      <><i className="fas fa-magic mr-1.5"></i>생성하기</>
+                    )}
+                  </Button>
+                </div>
               </div>
             </div>
           </div>
