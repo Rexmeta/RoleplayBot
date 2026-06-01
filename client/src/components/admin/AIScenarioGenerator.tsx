@@ -86,6 +86,27 @@ export function AIScenarioGenerator({ onGenerated }: AIGeneratorProps) {
     setAiFilledFields(new Set());
   };
 
+  const handleResetAll = () => {
+    setFormData(prev => ({
+      ...prev,
+      idea: '',
+      industry: '',
+      situation: '',
+      timeline: '',
+      stakes: '',
+      playerRole: {
+        position: '',
+        department: '',
+        experience: '',
+        responsibility: '',
+      },
+      conflictType: '',
+      objectiveType: '',
+      skills: '',
+    }));
+    setAiFilledFields(new Set());
+  };
+
   const aiBorderClass = (field: string) =>
     isAiFilled(field)
       ? 'border-purple-400 focus:border-purple-500 focus:ring-purple-500 bg-purple-50/40'
@@ -235,6 +256,18 @@ export function AIScenarioGenerator({ onGenerated }: AIGeneratorProps) {
               <div className="flex items-center justify-between mt-2">
                 <p className="text-xs text-slate-500">AI가 업종, 상황 세부사항, 시간 제약, 이해관계 등을 자동으로 추론합니다</p>
                 <div className="flex items-center gap-2 shrink-0 ml-3">
+                  {formData.idea.trim() && (
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="ghost"
+                      onClick={handleResetAll}
+                      className="text-slate-400 hover:text-red-500 hover:bg-red-50 px-2"
+                    >
+                      <X className="h-3.5 w-3.5 mr-1" />
+                      전체 초기화
+                    </Button>
+                  )}
                   {aiFilledFields.size > 0 && (
                     <Button
                       type="button"
