@@ -1485,6 +1485,46 @@
         "description": "経済的なOpenAIモデル",
         "pricing": "入力 $0.15/100万トークン、出力 $0.60/100万トークン"
       },
+      "gemini31FlashLivePreview": {
+        "label": "Gemini 3.1 Flash Live (Preview)",
+        "description": "リアルタイム音声向け3.1世代モデル",
+        "pricing": "Preview — 価格未定"
+      },
+      "geminiLive25Flash": {
+        "label": "Gemini 2.5 Flash Live",
+        "description": "安定したリアルタイム音声基本モデル",
+        "pricing": "入力 $0.35/100万、出力 $1.50/100万トークン"
+      },
+      "gpt41": {
+        "label": "GPT-4.1",
+        "description": "OpenAI GPT-4.1モデル",
+        "pricing": "入力 $2.00/100万トークン、出力 $8.00/100万トークン"
+      },
+      "gpt41mini": {
+        "label": "GPT-4.1 Mini",
+        "description": "GPT-4.1軽量モデル",
+        "pricing": "入力 $0.40/100万トークン、出力 $1.60/100万トークン"
+      },
+      "o3": {
+        "label": "OpenAI o3",
+        "description": "OpenAI o3推論モデル",
+        "pricing": "入力 $2.00/100万トークン、出力 $8.00/100万トークン"
+      },
+      "o4mini": {
+        "label": "OpenAI o4-mini",
+        "description": "OpenAI o4-mini軽量推論モデル",
+        "pricing": "入力 $1.10/100万トークン、出力 $4.40/100万トークン"
+      },
+      "gptRealtimePreview": {
+        "label": "GPT-4o Realtime (Preview)",
+        "description": "OpenAIリアルタイム音声会話モデル",
+        "pricing": "準備中"
+      },
+      "gptMiniRealtimePreview": {
+        "label": "GPT-4o Mini Realtime (Preview)",
+        "description": "OpenAI軽量リアルタイム音声モデル",
+        "pricing": "準備中"
+      },
       "geminiLiveNativeAudio": {
         "label": "Gemini 2.5 Flash Native Audio",
         "description": "リアルタイム音声会話基本モデル (2025.12)",

@@ -1485,6 +1485,46 @@
         "description": "经济型OpenAI模型",
         "pricing": "输入 $0.15/百万令牌，输出 $0.60/百万令牌"
       },
+      "gemini31FlashLivePreview": {
+        "label": "Gemini 3.1 Flash Live (Preview)",
+        "description": "实时语音用3.1代模型",
+        "pricing": "Preview — 价格待定"
+      },
+      "geminiLive25Flash": {
+        "label": "Gemini 2.5 Flash Live",
+        "description": "稳定的实时语音基础模型",
+        "pricing": "输入 $0.35/百万，输出 $1.50/百万令牌"
+      },
+      "gpt41": {
+        "label": "GPT-4.1",
+        "description": "OpenAI GPT-4.1模型",
+        "pricing": "输入 $2.00/百万令牌，输出 $8.00/百万令牌"
+      },
+      "gpt41mini": {
+        "label": "GPT-4.1 Mini",
+        "description": "GPT-4.1轻量模型",
+        "pricing": "输入 $0.40/百万令牌，输出 $1.60/百万令牌"
+      },
+      "o3": {
+        "label": "OpenAI o3",
+        "description": "OpenAI o3推理模型",
+        "pricing": "输入 $2.00/百万令牌，输出 $8.00/百万令牌"
+      },
+      "o4mini": {
+        "label": "OpenAI o4-mini",
+        "description": "OpenAI o4-mini轻量推理模型",
+        "pricing": "输入 $1.10/百万令牌，输出 $4.40/百万令牌"
+      },
+      "gptRealtimePreview": {
+        "label": "GPT-4o Realtime (Preview)",
+        "description": "OpenAI实时语音对话模型",
+        "pricing": "即将推出"
+      },
+      "gptMiniRealtimePreview": {
+        "label": "GPT-4o Mini Realtime (Preview)",
+        "description": "OpenAI轻量实时语音模型",
+        "pricing": "即将推出"
+      },
       "geminiLiveNativeAudio": {
         "label": "Gemini 2.5 Flash Native Audio",
         "description": "实时语音对话基础模型 (2025.12)",

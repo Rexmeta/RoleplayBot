@@ -1516,6 +1516,46 @@
         "description": "경제적인 OpenAI 모델",
         "pricing": "입력 $0.15/1M 토큰, 출력 $0.60/1M 토큰"
       },
+      "gemini31FlashLivePreview": {
+        "label": "Gemini 3.1 Flash Live (Preview)",
+        "description": "실시간 음성용 3.1 세대 모델",
+        "pricing": "Preview — 가격 미정"
+      },
+      "geminiLive25Flash": {
+        "label": "Gemini 2.5 Flash Live",
+        "description": "안정적인 실시간 음성 기본 모델",
+        "pricing": "입력 $0.35/1M, 출력 $1.50/1M 토큰"
+      },
+      "gpt41": {
+        "label": "GPT-4.1",
+        "description": "OpenAI GPT-4.1 모델",
+        "pricing": "입력 $2.00/1M 토큰, 출력 $8.00/1M 토큰"
+      },
+      "gpt41mini": {
+        "label": "GPT-4.1 Mini",
+        "description": "GPT-4.1 경량 모델",
+        "pricing": "입력 $0.40/1M 토큰, 출력 $1.60/1M 토큰"
+      },
+      "o3": {
+        "label": "OpenAI o3",
+        "description": "OpenAI o3 추론 모델",
+        "pricing": "입력 $2.00/1M 토큰, 출력 $8.00/1M 토큰"
+      },
+      "o4mini": {
+        "label": "OpenAI o4-mini",
+        "description": "OpenAI o4-mini 경량 추론 모델",
+        "pricing": "입력 $1.10/1M 토큰, 출력 $4.40/1M 토큰"
+      },
+      "gptRealtimePreview": {
+        "label": "GPT-4o Realtime (Preview)",
+        "description": "OpenAI 실시간 음성 대화 모델",
+        "pricing": "준비 중"
+      },
+      "gptMiniRealtimePreview": {
+        "label": "GPT-4o Mini Realtime (Preview)",
+        "description": "OpenAI 실시간 음성 경량 모델",
+        "pricing": "준비 중"
+      },
       "geminiLiveNativeAudio": {
         "label": "Gemini 2.5 Flash Native Audio",
         "description": "실시간 음성 대화 기본 모델 (2025.12)",

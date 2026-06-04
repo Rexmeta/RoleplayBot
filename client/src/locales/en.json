@@ -1489,6 +1489,46 @@
         "description": "Economical OpenAI model",
         "pricing": "Input $0.15/1M tokens, Output $0.60/1M tokens"
       },
+      "gemini31FlashLivePreview": {
+        "label": "Gemini 3.1 Flash Live (Preview)",
+        "description": "Gemini 3.1 generation model for real-time voice",
+        "pricing": "Preview — pricing TBD"
+      },
+      "geminiLive25Flash": {
+        "label": "Gemini 2.5 Flash Live",
+        "description": "Stable base model for real-time voice",
+        "pricing": "Input $0.35/1M, Output $1.50/1M tokens"
+      },
+      "gpt41": {
+        "label": "GPT-4.1",
+        "description": "OpenAI GPT-4.1 model",
+        "pricing": "Input $2.00/1M tokens, Output $8.00/1M tokens"
+      },
+      "gpt41mini": {
+        "label": "GPT-4.1 Mini",
+        "description": "Lightweight GPT-4.1 model",
+        "pricing": "Input $0.40/1M tokens, Output $1.60/1M tokens"
+      },
+      "o3": {
+        "label": "OpenAI o3",
+        "description": "OpenAI o3 reasoning model",
+        "pricing": "Input $2.00/1M tokens, Output $8.00/1M tokens"
+      },
+      "o4mini": {
+        "label": "OpenAI o4-mini",
+        "description": "OpenAI o4-mini lightweight reasoning model",
+        "pricing": "Input $1.10/1M tokens, Output $4.40/1M tokens"
+      },
+      "gptRealtimePreview": {
+        "label": "GPT-4o Realtime (Preview)",
+        "description": "OpenAI real-time voice conversation model",
+        "pricing": "Coming soon"
+      },
+      "gptMiniRealtimePreview": {
+        "label": "GPT-4o Mini Realtime (Preview)",
+        "description": "OpenAI lightweight real-time voice model",
+        "pricing": "Coming soon"
+      },
       "geminiLiveNativeAudio": {
         "label": "Gemini 2.5 Flash Native Audio",
         "description": "Real-time voice conversation base model (2025.12)",

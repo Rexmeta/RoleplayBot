@@ -227,6 +227,30 @@ const AI_MODELS = [
     provider: "OpenAI",
     recommended: false
   },
+  { 
+    value: "gpt-4.1", 
+    modelKey: "gpt41",
+    provider: "OpenAI",
+    recommended: false
+  },
+  { 
+    value: "gpt-4.1-mini", 
+    modelKey: "gpt41mini",
+    provider: "OpenAI",
+    recommended: false
+  },
+  { 
+    value: "o3", 
+    modelKey: "o3",
+    provider: "OpenAI",
+    recommended: false
+  },
+  { 
+    value: "o4-mini", 
+    modelKey: "o4mini",
+    provider: "OpenAI",
+    recommended: false
+  },
 ];
 
 const GEMINI_LIVE_MODELS = [
@@ -241,6 +265,20 @@ const GEMINI_LIVE_MODELS = [
     modelKey: "geminiLive25Flash",
     provider: "Google Live",
     recommended: false
+  },
+  {
+    value: "gpt-4o-realtime-preview",
+    modelKey: "gptRealtimePreview",
+    provider: "OpenAI Realtime",
+    recommended: false,
+    disabled: true
+  },
+  {
+    value: "gpt-4o-mini-realtime-preview",
+    modelKey: "gptMiniRealtimePreview",
+    provider: "OpenAI Realtime",
+    recommended: false,
+    disabled: true
   },
 ];
 
@@ -278,7 +316,7 @@ const FEATURE_MODEL_INFO = [
     settingKey: "model_realtime",
     defaultModel: "gemini-live-2.5-flash",
     configurable: true,
-    supportedProviders: ["Google Live"]
+    supportedProviders: ["Google Live", "OpenAI Realtime"]
   },
   {
     id: "emotion",
@@ -1338,7 +1376,7 @@ export default function SystemAdminPage() {
                                   </div>
                                   <div className="flex-1 min-w-0">
                                     <div className="flex items-center gap-1 flex-wrap">
-                                      <span className="font-medium text-sm">{t(`systemAdmin.models.${model.modelKey}.label`)}</span>
+                                      <span className="font-medium text-sm truncate max-w-[120px]">{t(`systemAdmin.models.${model.modelKey}.label`)}</span>
                                       {'recommended' in model && model.recommended && (
                                         <Badge className="text-[10px] px-1 py-0 bg-green-100 text-green-700 hover:bg-green-100">{t('systemAdmin.settings.recommended')}</Badge>
                                       )}
@@ -1350,7 +1388,7 @@ export default function SystemAdminPage() {
                                       )}
                                     </div>
                                     <p className="text-xs text-muted-foreground mt-1 line-clamp-1">{t(`systemAdmin.models.${model.modelKey}.description`)}</p>
-                                    <p className="text-[10px] text-blue-600 font-mono mt-1">{t(`systemAdmin.models.${model.modelKey}.pricing`)}</p>
+                                    <p className="text-[10px] text-blue-600 font-mono mt-1 truncate">{t(`systemAdmin.models.${model.modelKey}.pricing`)}</p>
                                   </div>
                                 </div>
                               </div>
