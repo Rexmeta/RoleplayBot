@@ -31,6 +31,7 @@ export function AIScenarioGenerator({ onGenerated }: AIGeneratorProps) {
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [aiFilledFields, setAiFilledFields] = useState<Set<string>>(new Set());
   const [showResetConfirm, setShowResetConfirm] = useState(false);
+  const [showResetAutoFilledConfirm, setShowResetAutoFilledConfirm] = useState(false);
   const [formData, setFormData] = useState({
     idea: '',
     industry: '',
@@ -294,16 +295,40 @@ export function AIScenarioGenerator({ onGenerated }: AIGeneratorProps) {
                     )
                   )}
                   {aiFilledFields.size > 0 && (
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="outline"
-                      onClick={handleResetAutoFilled}
-                      className="border-slate-300 text-slate-500 hover:bg-slate-50 hover:text-slate-700"
-                    >
-                      <X className="h-3.5 w-3.5 mr-1.5" />
-                      초기화
-                    </Button>
+                    showResetAutoFilledConfirm ? (
+                      <div className="flex items-center gap-1.5 bg-red-50 border border-red-200 rounded-md px-2 py-1">
+                        <span className="text-xs text-red-600 font-medium">AI 입력을 지우시겠어요?</span>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => { handleResetAutoFilled(); setShowResetAutoFilledConfirm(false); }}
+                          className="h-6 px-2 text-xs text-white bg-red-500 hover:bg-red-600"
+                        >
+                          확인
+                        </Button>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => setShowResetAutoFilledConfirm(false)}
+                          className="h-6 px-2 text-xs text-slate-500 hover:text-slate-700 hover:bg-slate-100"
+                        >
+                          취소
+                        </Button>
+                      </div>
+                    ) : (
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        onClick={() => setShowResetAutoFilledConfirm(true)}
+                        className="border-slate-300 text-slate-500 hover:bg-slate-50 hover:text-slate-700"
+                      >
+                        <X className="h-3.5 w-3.5 mr-1.5" />
+                        초기화
+                      </Button>
+                    )
                   )}
                   <Button
                     type="button"
