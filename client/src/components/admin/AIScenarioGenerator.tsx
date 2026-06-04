@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useMutation } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/button';
@@ -68,6 +68,13 @@ export function AIScenarioGenerator({ onGenerated }: AIGeneratorProps) {
 
   const isAiFilled = (field: string) => aiFilledFields.has(field);
 
+  useEffect(() => {
+    if (aiFilledFields.size === 0) {
+      setShowResetConfirm(false);
+      setShowResetAutoFilledConfirm(false);
+    }
+  }, [aiFilledFields]);
+
   const handleResetAutoFilled = () => {
     setFormData(prev => ({
       ...prev,
@@ -107,6 +114,8 @@ export function AIScenarioGenerator({ onGenerated }: AIGeneratorProps) {
       skills: '',
     }));
     setAiFilledFields(new Set());
+    setShowResetConfirm(false);
+    setShowResetAutoFilledConfirm(false);
   };
 
   const aiBorderClass = (field: string) =>
