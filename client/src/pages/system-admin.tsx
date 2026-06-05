@@ -40,6 +40,7 @@ import { HierarchyTreeManager } from "@/components/HierarchyTreeManager";
 import { AgentKeyManager } from "@/components/admin/AgentKeyManager";
 import { PlansBillingTab } from "@/components/admin/PlansBillingTab";
 import { StorePackManager } from "@/components/admin/StorePackManager";
+import { DefaultIntroVideoManager } from "@/components/admin/DefaultIntroVideoManager";
 import { format } from "date-fns";
 import { ko } from "date-fns/locale";
 
@@ -1496,6 +1497,8 @@ export default function SystemAdminPage() {
                 )}
               </CardContent>
             </Card>
+
+            <DefaultIntroVideoManager />
           </TabsContent>
 
           <TabsContent value="ai-usage" className="space-y-6 mt-6">
