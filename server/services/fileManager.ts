@@ -189,7 +189,7 @@ export class FileManagerService {
       image: dbScenario.image || undefined,
       imagePrompt: dbScenario.imagePrompt || undefined,
       introVideoUrl: dbScenario.introVideoUrl || undefined,
-      introVideoMode: dbScenario.introVideoMode || undefined,
+      introVideoMode: dbScenario.introVideoMode || 'none',
       videoPrompt: dbScenario.videoPrompt || undefined,
       objectiveType: dbScenario.objectiveType || undefined,
       context: dbScenario.context || undefined,
@@ -352,7 +352,7 @@ export class FileManagerService {
         image: scenario.image || null,
         imagePrompt: scenario.imagePrompt || null,
         introVideoUrl: scenario.introVideoUrl || null,
-        introVideoMode: (scenario as any).introVideoMode || 'none',
+        introVideoMode: scenario.introVideoMode || 'none',
         videoPrompt: scenario.videoPrompt || null,
         objectiveType: scenario.objectiveType || null,
         context: scenario.context || null,
@@ -388,12 +388,6 @@ export class FileManagerService {
 
   async updateScenario(id: string, scenario: Partial<ComplexScenario>): Promise<ComplexScenario> {
     try {
-      console.log(`[FileManager.updateScenario] id=${id}`);
-      console.log(`[FileManager.updateScenario] scenario.image=${scenario.image}`);
-      console.log(`[FileManager.updateScenario] scenario.introVideoUrl=${scenario.introVideoUrl}`);
-      console.log(`[FileManager.updateScenario] scenario.imagePrompt=${scenario.imagePrompt}`);
-      console.log(`[FileManager.updateScenario] scenario.videoPrompt=${scenario.videoPrompt}`);
-      
       if (USE_DATABASE) {
         const existingScenario = await storage.getScenario(id);
         if (!existingScenario) {
@@ -410,7 +404,7 @@ export class FileManagerService {
         if (scenario.image !== undefined) updates.image = scenario.image;
         if (scenario.imagePrompt !== undefined) updates.imagePrompt = scenario.imagePrompt;
         if (scenario.introVideoUrl !== undefined) updates.introVideoUrl = scenario.introVideoUrl;
-        if ((scenario as any).introVideoMode !== undefined) updates.introVideoMode = (scenario as any).introVideoMode;
+        if (scenario.introVideoMode !== undefined) updates.introVideoMode = scenario.introVideoMode;
         if (scenario.videoPrompt !== undefined) updates.videoPrompt = scenario.videoPrompt;
         if (scenario.objectiveType !== undefined) updates.objectiveType = scenario.objectiveType;
         if (scenario.context !== undefined) updates.context = scenario.context;
@@ -431,10 +425,6 @@ export class FileManagerService {
         if ((scenario as any).flowGraph !== undefined) updates.flowGraph = (scenario as any).flowGraph;
         if ((scenario as any).personaSwitchRules !== undefined) updates.personaSwitchRules = (scenario as any).personaSwitchRules;
         if ((scenario as any).simulationHarness !== undefined) updates.simulationHarness = (scenario as any).simulationHarness;
-        
-        console.log(`[FileManager.updateScenario] updates.image=${updates.image}`);
-        console.log(`[FileManager.updateScenario] updates.introVideoUrl=${updates.introVideoUrl}`);
-        console.log(`[FileManager.updateScenario] All update keys: ${Object.keys(updates).join(', ')}`);
         
         const updated = await storage.updateScenario(id, updates);
         this.invalidateScenarioCountCache();
