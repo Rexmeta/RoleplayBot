@@ -14,6 +14,8 @@ import { applyHarnessToSession, readScenarioHarness } from './simulation/harness
 import { handleGeminiMessage } from './voice/geminiMessageHandler';
 import { handleClientMessage as processClientMessage } from './voice/clientMessageHandler';
 import { handleGeminiClose } from './voice/geminiReconnector';
+import { connectOpenAIRealtime } from './voice/openaiRealtimeAdapter';
+import { handleOpenAIClose } from './voice/openaiReconnector';
 import {
   startCleanupScheduler,
   trackSessionUsage,
@@ -30,6 +32,13 @@ import { getOrCreateSessionContext } from './simulation/simulationEngine';
 import { createDefaultSimulationState } from './simulation/simulationTypes';
 
 const DEFAULT_REALTIME_MODEL = 'gemini-3.1-flash-live-preview';
+
+const VALID_GEMINI_REALTIME_MODELS = ['gemini-3.1-flash-live-preview', 'gemini-live-2.5-flash'];
+const VALID_OPENAI_REALTIME_MODELS = ['gpt-4o-realtime-preview', 'gpt-4o-mini-realtime-preview'];
+
+function isOpenAIRealtimeModel(model: string): boolean {
+  return VALID_OPENAI_REALTIME_MODELS.includes(model);
+}
 
 async function preloadRecentMessages(
   conversationId: string,
@@ -62,6 +71,7 @@ export class RealtimeVoiceService {
 
   constructor() {
     const geminiApiKey = process.env.GOOGLE_API_KEY || process.env.GEMINI_API_KEY;
+    const openaiApiKey = process.env.OPENAI_API_KEY;
 
     if (geminiApiKey) {
       this.genAI = new GoogleGenAI({ apiKey: geminiApiKey });
@@ -72,9 +82,16 @@ export class RealtimeVoiceService {
       });
       this.isAvailable = true;
       console.log('✅ Gemini Live API Service initialized (live: v1alpha, other: v1beta)');
-      this.startCleanupScheduler();
+    } else if (openaiApiKey) {
+      // OpenAI Realtime-only environment — Gemini not needed for voice sessions
+      this.isAvailable = true;
+      console.log('✅ Realtime Voice Service initialized (OpenAI Realtime only — no Gemini key)');
     } else {
-      console.warn('⚠️  GOOGLE_API_KEY not set - Realtime Voice features disabled');
+      console.warn('⚠️  No GOOGLE_API_KEY or OPENAI_API_KEY set - Realtime Voice features disabled');
+    }
+
+    if (this.isAvailable) {
+      this.startCleanupScheduler();
     }
   }
 
@@ -88,25 +105,114 @@ export class RealtimeVoiceService {
     return this.isAvailable;
   }
 
+  private getProviderAwareDefault(): string {
+    const hasGemini = !!(process.env.GOOGLE_API_KEY || process.env.GEMINI_API_KEY);
+    if (!hasGemini && process.env.OPENAI_API_KEY) {
+      // OpenAI-only environment: default to gpt-4o-mini-realtime-preview
+      return 'gpt-4o-mini-realtime-preview';
+    }
+    return DEFAULT_REALTIME_MODEL;
+  }
+
   private async getRealtimeModel(): Promise<string> {
+    const fallback = this.getProviderAwareDefault();
     try {
       const timeoutPromise = new Promise<undefined>((_, reject) =>
         setTimeout(() => reject(new Error('DB setting fetch timeout')), 2000)
       );
       const settingPromise = storage.getSystemSetting('ai', 'model_realtime');
       const setting = await Promise.race([settingPromise, timeoutPromise]);
-      const validModels = ['gemini-3.1-flash-live-preview', 'gemini-live-2.5-flash'];
+      const allValidModels = [...VALID_GEMINI_REALTIME_MODELS, ...VALID_OPENAI_REALTIME_MODELS];
       const model = setting?.value;
-      if (model && validModels.includes(model)) {
+      if (model && allValidModels.includes(model)) {
+        if (isOpenAIRealtimeModel(model) && !process.env.OPENAI_API_KEY) {
+          console.warn(`⚠️ OpenAI Realtime model ${model} selected but OPENAI_API_KEY is not set — falling back to ${fallback}`);
+          return fallback;
+        }
+        const hasGemini = !!(process.env.GOOGLE_API_KEY || process.env.GEMINI_API_KEY);
+        if (!isOpenAIRealtimeModel(model) && !hasGemini) {
+          console.warn(`⚠️ Gemini Realtime model ${model} selected but no Gemini key — falling back to ${fallback}`);
+          return fallback;
+        }
         console.log(`🤖 Using realtime model from DB: ${model}`);
         return model;
       }
-      console.log(`🤖 Using default realtime model: ${DEFAULT_REALTIME_MODEL}`);
-      return DEFAULT_REALTIME_MODEL;
+      console.log(`🤖 Using default realtime model: ${fallback}`);
+      return fallback;
     } catch (error) {
-      console.warn(`⚠️ Failed to get realtime model from DB, using default: ${DEFAULT_REALTIME_MODEL}`);
-      return DEFAULT_REALTIME_MODEL;
+      console.warn(`⚠️ Failed to get realtime model from DB, using default: ${fallback}`);
+      return fallback;
     }
+  }
+
+  private async connectToOpenAI(
+    session: RealtimeSession,
+    systemInstructions?: string,
+    gender?: 'male' | 'female'
+  ): Promise<void> {
+    if (systemInstructions) {
+      session.systemInstructions = systemInstructions;
+    }
+    if (gender) {
+      session.voiceGender = gender;
+    }
+    session.selectedVoice = null;
+
+    const model = session.realtimeModel;
+
+    const adapter = await connectOpenAIRealtime(
+      model,
+      session,
+      this.sendToClient.bind(this),
+      (event) => {
+        handleOpenAIClose(
+          event,
+          session,
+          this.sessions,
+          this.sendToClient.bind(this),
+          (sess) => this.connectToOpenAI(sess),
+          trackSessionUsage
+        );
+      }
+    );
+
+    session.geminiSession = adapter;
+
+    if (session.pendingClientReady) {
+      console.log(`▶️ [OpenAI] Replaying buffered client.ready for session: ${session.id}`);
+      const buffered = session.pendingClientReady;
+      session.pendingClientReady = null;
+      this.handleClientMessage(session.id, buffered);
+    }
+
+    if (session.greetingTimeoutId !== null) {
+      clearTimeout(session.greetingTimeoutId);
+      session.greetingTimeoutId = null;
+    }
+
+    session.greetingTimeoutId = setTimeout(() => {
+      session.greetingTimeoutId = null;
+      const currentSession = this.sessions.get(session.id);
+      const pendingHasExisting = currentSession?.pendingClientReady?.hasExistingConversation === true;
+      const pendingIsResuming = currentSession?.pendingClientReady?.isResuming === true;
+      if (
+        currentSession &&
+        !currentSession.hasTriggeredFirstGreeting &&
+        !currentSession.hasReceivedFirstAIResponse &&
+        !pendingHasExisting &&
+        !pendingIsResuming &&
+        currentSession.geminiSession
+      ) {
+        console.log('⏰ [OpenAI] client.ready timeout (3s) — auto-triggering first greeting...');
+        currentSession.hasTriggeredFirstGreeting = true;
+        const greetingPayload = {
+          turns: [{ role: 'user', parts: [{ text: '안녕하세요' }] }],
+          turnComplete: true,
+        };
+        currentSession.pendingMessages.push({ index: currentSession.outgoingMessageIndex++, payload: { type: 'clientContent', data: greetingPayload } });
+        currentSession.geminiSession.sendClientContent(greetingPayload);
+      }
+    }, 3000);
   }
 
   async createSession(
@@ -122,8 +228,8 @@ export class RealtimeVoiceService {
     const sessionStartTime = Date.now();
     console.log(`⏱️ [TIMING] createSession 시작: ${new Date(sessionStartTime).toISOString()}`);
 
-    if (!this.isAvailable || !this.genAI) {
-      throw new Error('Gemini Live API Service is not available. Please configure GOOGLE_API_KEY.');
+    if (!this.isAvailable) {
+      throw new Error('Realtime Voice Service is not available. Please configure GOOGLE_API_KEY or OPENAI_API_KEY.');
     }
 
     const currentSessionCount = this.sessions.size;
@@ -341,29 +447,34 @@ export class RealtimeVoiceService {
     this.sessions.set(sessionId, session);
     console.log(`⏱️ [TIMING] 세션 객체 생성 완료: ${Date.now() - sessionStartTime}ms`);
 
-    // Bug 3 fix: pass activeSystemInstructions (not the base systemInstructions) so that
-    // on reconnect after a persona switch, Gemini Live starts with the correct persona prompt.
-    await this.connectToGemini(session, activeSystemInstructions, gender, { isResume: preloadedMessages.length > 0 });
+    if (isOpenAIRealtimeModel(realtimeModel)) {
+      // Route to OpenAI Realtime API
+      await this.connectToOpenAI(session, activeSystemInstructions, gender);
+    } else {
+      // Bug 3 fix: pass activeSystemInstructions (not the base systemInstructions) so that
+      // on reconnect after a persona switch, Gemini Live starts with the correct persona prompt.
+      await this.connectToGemini(session, activeSystemInstructions, gender, { isResume: preloadedMessages.length > 0 });
 
-    // If client.ready.isResuming arrived during the Gemini connect window (buffered) but
-    // no preloaded messages existed (so we used original greeting instructions), immediately
-    // proactive-reconnect to apply reconnect-safe system instructions.
-    if (session.pendingIsResuming && preloadedMessages.length === 0) {
-      console.log('🔀 [createSession] pendingIsResuming with empty preload — proactive reconnect to apply reconnect instructions');
-      session.pendingIsResuming = false;
-      await this.proactiveReconnect(session);
-    }
+      // If client.ready.isResuming arrived during the Gemini connect window (buffered) but
+      // no preloaded messages existed (so we used original greeting instructions), immediately
+      // proactive-reconnect to apply reconnect-safe system instructions.
+      if (session.pendingIsResuming && preloadedMessages.length === 0) {
+        console.log('🔀 [createSession] pendingIsResuming with empty preload — proactive reconnect to apply reconnect instructions');
+        session.pendingIsResuming = false;
+        await this.proactiveReconnect(session);
+      }
 
-    // Same guard for text→voice transitions: if client.ready.hasExistingConversation
-    // arrived during the connect window and the DB preload was empty (timing race),
-    // trigger proactiveReconnect now so the greeting system prompt is replaced before
-    // the user speaks.  session.recentMessages was already updated from the client-
-    // supplied previousMessages inside the buffered client.ready handler (Fix 1), so
-    // injectReconnectContext will have the correct conversation history.
-    if (session.pendingHasExistingConversation && preloadedMessages.length === 0) {
-      console.log('🔀 [createSession] pendingHasExistingConversation with empty preload — proactive reconnect to apply reconnect instructions');
-      session.pendingHasExistingConversation = false;
-      await this.proactiveReconnect(session);
+      // Same guard for text→voice transitions: if client.ready.hasExistingConversation
+      // arrived during the connect window and the DB preload was empty (timing race),
+      // trigger proactiveReconnect now so the greeting system prompt is replaced before
+      // the user speaks.  session.recentMessages was already updated from the client-
+      // supplied previousMessages inside the buffered client.ready handler (Fix 1), so
+      // injectReconnectContext will have the correct conversation history.
+      if (session.pendingHasExistingConversation && preloadedMessages.length === 0) {
+        console.log('🔀 [createSession] pendingHasExistingConversation with empty preload — proactive reconnect to apply reconnect instructions');
+        session.pendingHasExistingConversation = false;
+        await this.proactiveReconnect(session);
+      }
     }
 
     console.log(`⏱️ [TIMING] createSession 완료 (총): ${Date.now() - sessionStartTime}ms`);
@@ -425,7 +536,11 @@ export class RealtimeVoiceService {
     };
 
     this.sessions.set(sessionId, session);
-    await this.connectToGemini(session, systemInstructions, gender, { isResume: preloadedMessagesUserPersona.length > 0 });
+    if (isOpenAIRealtimeModel(realtimeModel)) {
+      await this.connectToOpenAI(session, systemInstructions, gender);
+    } else {
+      await this.connectToGemini(session, systemInstructions, gender, { isResume: preloadedMessagesUserPersona.length > 0 });
+    }
     console.log(`⏱️ [TIMING] UserPersona createSession 완료: ${Date.now() - sessionStartTime}ms`);
   }
 
@@ -602,7 +717,10 @@ export class RealtimeVoiceService {
 
     const reconnectSimState = getSessionState(session.personaRunId);
     const reconnectInstructions = buildReconnectSystemInstructions(session.systemInstructions, session.userLanguage, reconnectSimState?.currentStageGoal ?? undefined);
-    return this.connectToGemini(session, reconnectInstructions, session.voiceGender)
+    const connectFn = isOpenAIRealtimeModel(session.realtimeModel)
+      ? () => this.connectToOpenAI(session, reconnectInstructions, session.voiceGender)
+      : () => this.connectToGemini(session, reconnectInstructions, session.voiceGender);
+    return connectFn()
       .then(() => {
         const currentSession = this.sessions.get(sessionId);
         if (!currentSession) return;

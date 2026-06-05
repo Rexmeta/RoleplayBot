@@ -271,14 +271,12 @@ const GEMINI_LIVE_MODELS = [
     modelKey: "gptRealtimePreview",
     provider: "OpenAI Realtime",
     recommended: false,
-    disabled: true
   },
   {
     value: "gpt-4o-mini-realtime-preview",
     modelKey: "gptMiniRealtimePreview",
     provider: "OpenAI Realtime",
     recommended: false,
-    disabled: true
   },
 ];
 
