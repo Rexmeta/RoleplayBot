@@ -355,128 +355,24 @@ export default function createConversationsRouter(isAuthenticated: any) {
         .catch(e => console.warn('[conversations] Failed to persist initial simulation state:', e));
     }
 
-    if (validatedData.mode === 'realtime_voice') {
-      console.log('🎙️ 실시간 음성 모드 - Gemini 호출 건너뛰기');
-      return res.json({
-        id: personaRun.id,
-        scenarioRunId: scenarioRun.id,
-        scenarioId: validatedData.scenarioId,
-        scenarioName: validatedData.scenarioName,
-        personaId,
-        personaSnapshot: validatedData.personaSnapshot,
-        messages: [],
-        turnCount: 0,
-        status: 'active',
-        mode: validatedData.mode,
-        difficulty: validatedData.difficulty || 4,
-        userId,
-        createdAt: scenarioRun.startedAt,
-        updatedAt: scenarioRun.startedAt,
-        simulationState: initialSimState,
-      });
-    }
-
-    console.log('💬 텍스트 모드 - Gemini로 초기 메시지 생성');
-
-    try {
-      const scenarioPersonaAny = scenarioPersona as any;
-      const mbtiPersonaAny = mbtiPersona as any;
-      const persona = {
-        id: scenarioPersonaAny.id,
-        name: scenarioPersonaAny.name,
-        role: scenarioPersonaAny.position,
-        department: scenarioPersonaAny.department,
-        personality: mbtiPersonaAny?.communication_style || mbtiPersonaAny?.communicationStyle || '균형 잡힌 의사소통',
-        responseStyle: mbtiPersonaAny?.communication_patterns?.opening_style || mbtiPersonaAny?.communicationPatterns?.opening_style || '상황에 맞는 방식으로 대화 시작',
-        goals: mbtiPersonaAny?.communication_patterns?.win_conditions || mbtiPersonaAny?.communicationPatterns?.win_conditions || ['목표 달성'],
-        background: mbtiPersonaAny?.background?.personal_values?.join(', ') || mbtiPersonaAny?.background?.personalValues?.join(', ') || '전문성'
-      };
-
-      const allScenarioPersonas = (scenarioObj.personas || []) as any[];
-      const primaryPersonaIdx = allScenarioPersonas.findIndex((p: any) => p.isPrimary === true);
-      const scenarioWithUserDifficulty = {
-        ...scenarioObj,
-        difficulty: validatedData.difficulty || 4,
-        allPersonas: allScenarioPersonas.length > 1 ? allScenarioPersonas : undefined,
-        activePersonaIndex: primaryPersonaIdx >= 0 ? primaryPersonaIdx : 0,
-      };
-
-      const userLanguage = (user?.preferredLanguage as 'ko' | 'en' | 'ja' | 'zh') || 'ko';
-      const userName = normalizeProfileName(user?.name);
-
-      const AI_TIMEOUT_MS = 25000;
-      const aiResult = await Promise.race([
-        generateAIResponse(
-          scenarioWithUserDifficulty as any,
-          [],
-          persona,
-          undefined,
-          userLanguage,
-          userName
-        ),
-        new Promise<never>((_, reject) =>
-          setTimeout(() => reject(new Error('AI 응답 시간 초과 (25초). 다시 시도해 주세요.')), AI_TIMEOUT_MS)
-        )
-      ]);
-
-      await storage.createChatMessage({
-        personaRunId: personaRun.id,
-        sender: "ai",
-        message: aiResult.content,
-        turnIndex: 0,
-        emotion: aiResult.emotion || null,
-        emotionReason: aiResult.emotionReason || null
-      });
-
-      await storage.updatePersonaRun(personaRun.id, {
-        actualStartedAt: new Date()
-      });
-
-      console.log(`💬 첫 AI 메시지 생성 완료`);
-
-      res.json({
-        id: personaRun.id,
-        scenarioRunId: scenarioRun.id,
-        scenarioId: validatedData.scenarioId,
-        scenarioName: validatedData.scenarioName,
-        personaId,
-        personaSnapshot: validatedData.personaSnapshot,
-        messages: [{
-          sender: "ai",
-          message: aiResult.content,
-          timestamp: new Date().toISOString(),
-          emotion: aiResult.emotion,
-          emotionReason: aiResult.emotionReason
-        }],
-        turnCount: 0,
-        status: 'active',
-        mode: validatedData.mode,
-        difficulty: validatedData.difficulty,
-        userId,
-        createdAt: scenarioRun.startedAt,
-        updatedAt: scenarioRun.startedAt,
-        simulationState: initialSimState,
-      });
-    } catch (aiError) {
-      console.error("AI 초기 메시지 생성 실패:", aiError);
-      res.json({
-        id: personaRun.id,
-        scenarioRunId: scenarioRun.id,
-        scenarioId: validatedData.scenarioId,
-        scenarioName: validatedData.scenarioName,
-        personaId,
-        personaSnapshot: validatedData.personaSnapshot,
-        messages: [],
-        turnCount: 0,
-        status: 'active',
-        mode: validatedData.mode,
-        difficulty: validatedData.difficulty,
-        userId,
-        createdAt: scenarioRun.startedAt,
-        updatedAt: scenarioRun.startedAt,
-        simulationState: initialSimState,
-      });
-    }
+    console.log('💬 대화 생성 완료 - 유저가 먼저 인사를 건넵니다');
+    return res.json({
+      id: personaRun.id,
+      scenarioRunId: scenarioRun.id,
+      scenarioId: validatedData.scenarioId,
+      scenarioName: validatedData.scenarioName,
+      personaId,
+      personaSnapshot: validatedData.personaSnapshot,
+      messages: [],
+      turnCount: 0,
+      status: 'active',
+      mode: validatedData.mode,
+      difficulty: validatedData.difficulty || 4,
+      userId,
+      createdAt: scenarioRun.startedAt,
+      updatedAt: scenarioRun.startedAt,
+      simulationState: initialSimState,
+    });
   }));
 
   router.get("/", isAuthenticated, asyncHandler(async (req: any, res) => {

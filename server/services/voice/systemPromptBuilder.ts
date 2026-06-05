@@ -230,8 +230,6 @@ export function buildSystemInstructions(
     ``,
     st.conversationStart,
     `${langInst.greetingInstruction}`,
-    st.noMetaThink(langInst.langName),
-    `${st.firstWordsLabel}: ${langInst.greetingExample(userRoleInfo)}`,
     ...(playerConstraints ? [buildPlayerConstraintsBlock(playerConstraints, userLanguage)] : []),
     ...(scenarioOverride ? [buildOverridePromptBlock(scenarioOverride)] : []),
     ...(includeSimulationTools ? [``, buildSimulationToolPrompt(userLanguage)] : []),

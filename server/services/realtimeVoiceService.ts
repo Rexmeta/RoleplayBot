@@ -538,42 +538,7 @@ export class RealtimeVoiceService {
         this.handleClientMessage(session.id, bufferedMessage);
       }
 
-      console.log('⏳ Waiting for client.ready signal before triggering first greeting...');
-
-      if (session.greetingTimeoutId !== null) {
-        clearTimeout(session.greetingTimeoutId);
-        session.greetingTimeoutId = null;
-      }
-      session.greetingTimeoutId = setTimeout(() => {
-        session.greetingTimeoutId = null;
-        const currentSession = this.sessions.get(session.id);
-        const pendingHasExisting = currentSession?.pendingClientReady?.hasExistingConversation === true;
-        const pendingIsResuming = currentSession?.pendingClientReady?.isResuming === true;
-        if (currentSession &&
-          !currentSession.hasTriggeredFirstGreeting &&
-          !currentSession.hasReceivedFirstAIResponse &&
-          !pendingHasExisting &&
-          !pendingIsResuming &&
-          currentSession.geminiSession) {
-          console.log('⏰ client.ready timeout (3s) - auto-triggering first greeting...');
-          currentSession.hasTriggeredFirstGreeting = true;
-
-          const greetingTrigger = `안녕하세요`;
-          console.log(`📤 Sending greeting trigger: "${greetingTrigger}"`);
-          const timeoutGreetingPayload = { turns: [{ role: 'user', parts: [{ text: greetingTrigger }] }], turnComplete: true };
-          currentSession.pendingMessages.push({ index: currentSession.outgoingMessageIndex++, payload: { type: 'clientContent', data: timeoutGreetingPayload } });
-          currentSession.geminiSession.sendClientContent(timeoutGreetingPayload);
-          const timeoutEotPayload = { event: 'END_OF_TURN' };
-          currentSession.pendingMessages.push({ index: currentSession.outgoingMessageIndex++, payload: { type: 'realtimeInput', data: timeoutEotPayload } });
-          currentSession.geminiSession.sendRealtimeInput(timeoutEotPayload);
-        } else if (pendingHasExisting) {
-          console.log('⏭️ Timeout skipped - pending client.ready has hasExistingConversation flag');
-        } else if (pendingIsResuming) {
-          console.log('⏭️ Timeout skipped - pending client.ready has isResuming flag');
-        } else if (currentSession?.hasTriggeredFirstGreeting) {
-          console.log('⏭️ Timeout skipped - first greeting already triggered');
-        }
-      }, 3000);
+      console.log('⏳ Gemini connected — waiting for user to speak first (no auto-greeting).');
 
     } catch (error) {
       console.error(`Failed to connect to Gemini Live API:`, error);

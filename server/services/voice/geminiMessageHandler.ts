@@ -548,17 +548,6 @@ export function handleGeminiMessage(
               continue;
             }
           }
-          // Suppress duplicate greeting audio: the first AI greeting has already
-          // completed (greetingResponseCount ≥ 1) but no user turn has been
-          // recorded yet (userTurnsCompleted === 0) AND the user hasn't even started
-          // speaking (userSpeechStarted === false).  This happens when a barge-in
-          // noise interrupts the greeting and Gemini generates a second greeting
-          // before the user has actually spoken.  Only the transcript guard existed
-          // before; now we also block the audio so the user doesn't hear it twice.
-          if (session.greetingResponseCount >= 1 && session.userTurnsCompleted === 0 && !session.userSpeechStarted) {
-            console.log(`🔇 Suppressing duplicate greeting audio (greetingResponseCount=${session.greetingResponseCount}, userTurnsCompleted=0, userSpeechStarted=false)`);
-            continue;
-          }
           if (hasThinkingText) {
             console.log(`🔇 Suppressing inline audio (thinking text detected)`);
             continue;
@@ -601,10 +590,7 @@ export function handleGeminiMessage(
 
       if (transcript.length > 0 && !session.hasReceivedFirstTranscriptDelta) {
         session.hasReceivedFirstTranscriptDelta = true;
-        // Exhaust the retry budget so no retry triggers can fire after this point,
-        // even if turnComplete arrives before Gemini finishes the turn.
-        session.firstGreetingRetryCount = 3;
-        console.log(`✅ First transcript delta received — retry gate closed`);
+        console.log(`✅ First transcript delta received`);
       }
 
       // Always accumulate outputTranscription: it is the authoritative
@@ -657,33 +643,6 @@ export function handleGeminiMessage(
         proactiveReconnect(session);
       }
 
-      if (!session.hasReceivedFirstAIResponse && !session.hasReceivedFirstAIAudio && !session.currentTranscript && !hasModelTurn && !session.hasReceivedFirstTranscriptDelta && session.firstGreetingRetryCount < 3) {
-        session.firstGreetingRetryCount++;
-        console.log(`⚠️ 첫 인사 응답 없음, 재시도 ${session.firstGreetingRetryCount}/3...`);
-        sendToClient(session, {
-          type: 'greeting.retry',
-          retryCount: session.firstGreetingRetryCount,
-          maxRetries: 3,
-        });
-
-        if (session.geminiSession) {
-          const retryMessages = [`네, 안녕하세요`, `여기 있습니다`, `말씀하세요`];
-          const retryMessage = retryMessages[session.firstGreetingRetryCount - 1] || retryMessages[0];
-
-          session.geminiSession.sendClientContent({
-            turns: [{ role: 'user', parts: [{ text: retryMessage }] }],
-            turnComplete: true,
-          });
-          console.log(`🔄 인사 트리거 재전송: "${retryMessage}"`);
-          session.geminiSession.sendRealtimeInput({ event: 'END_OF_TURN' });
-        }
-        return;
-      }
-
-      if (!session.hasReceivedFirstAIResponse && !session.hasReceivedFirstAIAudio && !session.currentTranscript && !hasModelTurn && session.firstGreetingRetryCount >= 3) {
-        console.log(`❌ 3회 시도 후에도 AI 인사 응답 없음 - 사용자가 먼저 시작하도록 안내`);
-        sendToClient(session, { type: 'greeting.failed' });
-      }
 
       sendToClient(session, { type: 'response.done' });
 
@@ -952,20 +911,6 @@ export function handleGeminiMessage(
         }
 
         if (filteredTranscript) {
-          // Last-resort greeting dedup guard: while the user has not yet spoken
-          // (greeting phase), only one AI response is allowed. Any additional
-          // response in this phase is a duplicate from the retry race condition.
-          // This guard is scoped to the greeting turn and does not affect subsequent
-          // turns where the user has already spoken.
-          if (session.userTurnsCompleted === 0) {
-            if (session.greetingResponseCount >= 1) {
-              console.log(`⚠️ Suppressing duplicate greeting response (greetingResponseCount guard, userTurnsCompleted=0)`);
-              session.currentTranscript = '';
-              return;
-            }
-            session.greetingResponseCount++;
-          }
-
           session.recentMessages.push({ role: 'ai', text: filteredTranscript.slice(0, 300) });
           if (session.recentMessages.length > 30) session.recentMessages.shift();
 
@@ -995,11 +940,6 @@ export function handleGeminiMessage(
           // (e.g. all outputTranscription text was reasoning/thinking with no target-language chars).
           // Must still send ai.transcription.done so isWaitingForGreeting is cleared and
           // the mic/text input becomes visible.
-          // Also mark greetingResponseCount so the audio-suppression guard fires
-          // if Gemini generates a duplicate greeting before the user speaks.
-          if (session.userTurnsCompleted === 0 && session.greetingResponseCount === 0) {
-            session.greetingResponseCount = 1;
-          }
           console.log(`⚠️ [turnComplete] Transcript filtered to empty — sending empty ai.transcription.done to unblock UI`);
           sendToClient(session, {
             type: 'ai.transcription.done',
@@ -1017,11 +957,6 @@ export function handleGeminiMessage(
         //   1. Clear isWaitingForGreeting → mic+text input becomes visible
         //   2. Mark conversation as started
         // No message is added to conversation history since text is empty.
-        // Also mark greetingResponseCount so the audio-suppression guard fires
-        // if Gemini generates a duplicate greeting before the user speaks.
-        if (session.userTurnsCompleted === 0 && session.greetingResponseCount === 0) {
-          session.greetingResponseCount = 1;
-        }
         console.log(`⚠️ [turnComplete] Audio received but no transcript — sending empty ai.transcription.done to unblock UI`);
         sendToClient(session, {
           type: 'ai.transcription.done',

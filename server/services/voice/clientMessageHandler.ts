@@ -268,26 +268,10 @@ export function handleClientMessage(
           }
         }
       } else {
-        console.log('🎬 Client ready signal received - triggering first greeting...');
-
-        if (session.hasTriggeredFirstGreeting || session.hasReceivedFirstAIResponse) {
-          console.log('⏭️ First greeting already triggered or received, skipping duplicate trigger');
-          break;
-        }
-
+        console.log('🎬 Client ready (fresh start) - waiting for user to speak first');
+        // New flow: user greets first — no auto-trigger.
+        // Mark flag to prevent duplicate processing if client.ready fires again.
         session.hasTriggeredFirstGreeting = true;
-
-        const greetingText = `안녕하세요`;
-        console.log(`📤 Sending greeting trigger: "${greetingText}"`);
-
-        const greetingPayload = { turns: [{ role: 'user', parts: [{ text: greetingText }] }], turnComplete: true };
-        pushPending(session, { index: session.outgoingMessageIndex++, payload: { type: 'clientContent', data: greetingPayload } });
-        session.geminiSession.sendClientContent(greetingPayload);
-
-        console.log('📤 Sending END_OF_TURN to trigger AI greeting response...');
-        const eotGreeting = { event: 'END_OF_TURN' };
-        pushPending(session, { index: session.outgoingMessageIndex++, payload: { type: 'realtimeInput', data: eotGreeting } });
-        session.geminiSession.sendRealtimeInput(eotGreeting);
       }
       break;
     }

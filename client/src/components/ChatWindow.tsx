@@ -60,7 +60,7 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
   const [userInput, setUserInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [inputMode, setInputMode] = useState<'text' | 'realtime-voice'>(initialInputMode || 'realtime-voice');
-  const [showInputMode, setShowInputMode] = useState(() => typeof window !== 'undefined' && window.innerWidth >= 1024);
+  const [showInputMode, setShowInputMode] = useState(true);
   const [isGoalsExpanded, setIsGoalsExpanded] = useState(false);
   const [isSwitchingMode, setIsSwitchingMode] = useState(false);
   const [showVoiceModeConfirmDialog, setShowVoiceModeConfirmDialog] = useState(false);
@@ -1089,8 +1089,9 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
                         <>
                           {localMessages.length === 0 && !isLoading ? (
                             <div className="flex-1 flex flex-col items-center justify-center p-4 bg-[#ffffff9c] text-center text-slate-600">
-                              <i className="fas fa-comment-dots text-2xl text-purple-400 mb-2"></i>
-                              <p>{t('chat.startConversationHint')}</p>
+                              <i className="fas fa-hand-wave text-2xl text-purple-400 mb-2"></i>
+                              <p className="font-medium text-slate-700">{t('chat.greetFirstHint', { defaultValue: '먼저 인사를 건네보세요!' })}</p>
+                              <p className="text-sm text-slate-500 mt-1">{t('chat.greetFirstHintSub', { defaultValue: '아래 입력창을 열고 상대방에게 먼저 인사해 주세요.' })}</p>
                               <div className="mt-4">
                                 <Button onClick={() => setShowInputMode(true)} className="bg-purple-600 hover:bg-purple-700 text-white" data-testid="button-start-chat-first" size="sm">
                                   <i className="fas fa-comment mr-2"></i>{t('chat.startChat')}

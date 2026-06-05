@@ -606,10 +606,9 @@ describe('handleGeminiMessage', () => {
       expect(session.recentMessages).toContainEqual({ role: 'user', text: '질문입니다' });
     });
 
-    it('retries greeting when no first AI response and retry count < 3', () => {
+    it('does not send any greeting.retry or greeting.failed when no first AI response (user speaks first)', () => {
       session.hasReceivedFirstAIResponse = false;
       session.currentTranscript = '';
-      session.firstGreetingRetryCount = 0;
       session.geminiSession = {
         sendClientContent: vi.fn(),
         sendRealtimeInput: vi.fn(),
@@ -623,30 +622,11 @@ describe('handleGeminiMessage', () => {
         proactiveReconnect
       );
 
-      expect(sendToClient).toHaveBeenCalledWith(
-        session,
-        expect.objectContaining({ type: 'greeting.retry', retryCount: 1 })
+      const greetingCalls = sendToClient.mock.calls.filter(
+        ([, msg]) => msg.type === 'greeting.retry' || msg.type === 'greeting.failed'
       );
-      expect(session.firstGreetingRetryCount).toBe(1);
-    });
-
-    it('sends greeting.failed after 3 failed retries', () => {
-      session.hasReceivedFirstAIResponse = false;
-      session.currentTranscript = '';
-      session.firstGreetingRetryCount = 3;
-
-      handleGeminiMessage(
-        session,
-        { serverContent: { turnComplete: true } },
-        sendToClient,
-        null,
-        proactiveReconnect
-      );
-
-      expect(sendToClient).toHaveBeenCalledWith(
-        session,
-        expect.objectContaining({ type: 'greeting.failed' })
-      );
+      expect(greetingCalls).toHaveLength(0);
+      expect(session.geminiSession.sendClientContent).not.toHaveBeenCalled();
     });
   });
 
@@ -822,8 +802,7 @@ describe('handleGeminiMessage', () => {
       expect(session.cancelledTurnSeq).toBe(-1);
     });
 
-    it('suppresses inlineData audio when duplicate greeting guard is active (greetingResponseCount>=1, userTurnsCompleted=0, userSpeechStarted=false)', () => {
-      session.greetingResponseCount = 1;
+    it('allows inlineData audio regardless of userSpeechStarted (no greeting guard)', () => {
       session.userTurnsCompleted = 0;
       session.userSpeechStarted = false;
 
@@ -832,30 +811,7 @@ describe('handleGeminiMessage', () => {
         {
           serverContent: {
             modelTurn: {
-              parts: [{ inlineData: { data: 'greetaudio==', mimeType: 'audio/pcm' } }],
-            },
-          },
-        },
-        sendToClient,
-        null,
-        proactiveReconnect
-      );
-
-      const audioCalls = sendToClient.mock.calls.filter(([, msg]) => msg.type === 'audio.delta');
-      expect(audioCalls).toHaveLength(0);
-    });
-
-    it('allows inlineData audio once userSpeechStarted=true even when greetingResponseCount>=1 and userTurnsCompleted=0', () => {
-      session.greetingResponseCount = 1;
-      session.userTurnsCompleted = 0;
-      session.userSpeechStarted = true;
-
-      handleGeminiMessage(
-        session,
-        {
-          serverContent: {
-            modelTurn: {
-              parts: [{ inlineData: { data: 'useraudio==', mimeType: 'audio/pcm' } }],
+              parts: [{ inlineData: { data: 'anyaudio==', mimeType: 'audio/pcm' } }],
             },
           },
         },
@@ -866,58 +822,11 @@ describe('handleGeminiMessage', () => {
 
       const audioCalls = sendToClient.mock.calls.filter(([, msg]) => msg.type === 'audio.delta');
       expect(audioCalls).toHaveLength(1);
-      expect(audioCalls[0][1]).toMatchObject({ type: 'audio.delta', delta: 'useraudio==' });
+      expect(audioCalls[0][1]).toMatchObject({ type: 'audio.delta', delta: 'anyaudio==' });
     });
 
-    it('allows inlineData audio when greetingResponseCount=0 regardless of userSpeechStarted', () => {
-      session.greetingResponseCount = 0;
-      session.userTurnsCompleted = 0;
-      session.userSpeechStarted = false;
-
-      handleGeminiMessage(
-        session,
-        {
-          serverContent: {
-            modelTurn: {
-              parts: [{ inlineData: { data: 'firstgreet==', mimeType: 'audio/pcm' } }],
-            },
-          },
-        },
-        sendToClient,
-        null,
-        proactiveReconnect
-      );
-
-      const audioCalls = sendToClient.mock.calls.filter(([, msg]) => msg.type === 'audio.delta');
-      expect(audioCalls).toHaveLength(1);
-    });
-
-    it('does not suppress audio when userTurnsCompleted >= 1, even if greetingResponseCount >= 1', () => {
-      session.greetingResponseCount = 1;
-      session.userTurnsCompleted = 1;
-      session.userSpeechStarted = false;
-
-      handleGeminiMessage(
-        session,
-        {
-          serverContent: {
-            modelTurn: {
-              parts: [{ inlineData: { data: 'postgreeting==', mimeType: 'audio/pcm' } }],
-            },
-          },
-        },
-        sendToClient,
-        null,
-        proactiveReconnect
-      );
-
-      const audioCalls = sendToClient.mock.calls.filter(([, msg]) => msg.type === 'audio.delta');
-      expect(audioCalls).toHaveLength(1);
-    });
-
-    it('does not set hasReceivedFirstAIAudio when inlineData is suppressed by greeting guard', () => {
+    it('sets hasReceivedFirstAIAudio on first inlineData audio', () => {
       session.hasReceivedFirstAIAudio = false;
-      session.greetingResponseCount = 1;
       session.userTurnsCompleted = 0;
       session.userSpeechStarted = false;
 
@@ -926,7 +835,7 @@ describe('handleGeminiMessage', () => {
         {
           serverContent: {
             modelTurn: {
-              parts: [{ inlineData: { mimeType: 'audio/pcm', data: 'dupgreet==' } }],
+              parts: [{ inlineData: { mimeType: 'audio/pcm', data: 'firstaudio==' } }],
             },
           },
         },
@@ -935,7 +844,7 @@ describe('handleGeminiMessage', () => {
         proactiveReconnect
       );
 
-      expect(session.hasReceivedFirstAIAudio).toBe(false);
+      expect(session.hasReceivedFirstAIAudio).toBe(true);
     });
 
     it('does not set hasReceivedFirstAIAudio when inlineData is suppressed by thinking text guard', () => {
@@ -963,13 +872,10 @@ describe('handleGeminiMessage', () => {
   });
 
   describe('audio suppression guard combinations (inlineData path)', () => {
-    it('barge-in active (stale turn) + greeting guard both active: barge-in fires first and suppresses', () => {
+    it('barge-in active (stale turn): barge-in fires first and suppresses', () => {
       session.isInterrupted = true;
       session.turnSeq = 2;
       session.cancelledTurnSeq = 2;
-      session.greetingResponseCount = 1;
-      session.userTurnsCompleted = 0;
-      session.userSpeechStarted = false;
 
       handleGeminiMessage(
         session,
@@ -991,20 +897,17 @@ describe('handleGeminiMessage', () => {
       expect(session.isInterrupted).toBe(true);
     });
 
-    it('barge-in clears on new turn but greeting guard still suppresses audio', () => {
+    it('barge-in clears on new turn and audio plays through (no greeting guard)', () => {
       session.isInterrupted = true;
       session.turnSeq = 3;
       session.cancelledTurnSeq = 2;
-      session.greetingResponseCount = 1;
-      session.userTurnsCompleted = 0;
-      session.userSpeechStarted = false;
 
       handleGeminiMessage(
         session,
         {
           serverContent: {
             modelTurn: {
-              parts: [{ inlineData: { mimeType: 'audio/pcm', data: 'newturndupgreet==' } }],
+              parts: [{ inlineData: { mimeType: 'audio/pcm', data: 'newturnaudio==' } }],
             },
           },
         },
@@ -1016,9 +919,9 @@ describe('handleGeminiMessage', () => {
       // Barge-in is cleared because turnSeq > cancelledTurnSeq
       expect(session.isInterrupted).toBe(false);
       expect(session.cancelledTurnSeq).toBe(-1);
-      // Greeting guard fires next and suppresses the audio
+      // Audio plays through since greeting guard is removed
       const audioCalls = sendToClient.mock.calls.filter(([, msg]) => msg.type === 'audio.delta');
-      expect(audioCalls).toHaveLength(0);
+      expect(audioCalls).toHaveLength(1);
     });
 
     it('barge-in active (stale turn) + thinking text both present: barge-in fires first and suppresses', () => {
@@ -1079,11 +982,8 @@ describe('handleGeminiMessage', () => {
       expect(audioCalls).toHaveLength(0);
     });
 
-    it('greeting guard + thinking text both active: both suppress (guards are independent continue statements)', () => {
+    it('thinking text suppresses audio (only remaining guard besides barge-in)', () => {
       session.isInterrupted = false;
-      session.greetingResponseCount = 1;
-      session.userTurnsCompleted = 0;
-      session.userSpeechStarted = false;
 
       handleGeminiMessage(
         session,
@@ -1092,7 +992,7 @@ describe('handleGeminiMessage', () => {
             modelTurn: {
               parts: [
                 { text: "I'm focusing on the response" },
-                { inlineData: { mimeType: 'audio/pcm', data: 'greetthink==' } },
+                { inlineData: { mimeType: 'audio/pcm', data: 'thinkonly==' } },
               ],
             },
           },
@@ -1106,11 +1006,8 @@ describe('handleGeminiMessage', () => {
       expect(audioCalls).toHaveLength(0);
     });
 
-    it('all three guards inactive: audio plays through', () => {
+    it('both guards inactive: audio plays through', () => {
       session.isInterrupted = false;
-      session.greetingResponseCount = 0;
-      session.userTurnsCompleted = 0;
-      session.userSpeechStarted = false;
 
       handleGeminiMessage(
         session,
@@ -1314,32 +1211,9 @@ describe('handleGeminiMessage', () => {
     });
   });
 
-  describe('retry race condition: triple greeting prevention', () => {
-    it('does not retry when a transcript delta has already arrived', () => {
-      session.hasReceivedFirstAIResponse = false;
-      session.hasReceivedFirstTranscriptDelta = true;
-      session.firstGreetingRetryCount = 3;
-      session.geminiSession = {
-        sendClientContent: vi.fn(),
-        sendRealtimeInput: vi.fn(),
-      };
-
-      handleGeminiMessage(
-        session,
-        { serverContent: { turnComplete: true } },
-        sendToClient,
-        null,
-        proactiveReconnect
-      );
-
-      expect(session.geminiSession.sendClientContent).not.toHaveBeenCalled();
-      const retryCalls = sendToClient.mock.calls.filter(([, msg]) => msg.type === 'greeting.retry');
-      expect(retryCalls).toHaveLength(0);
-    });
-
-    it('closes the retry gate and sets firstGreetingRetryCount=3 on first transcript delta', () => {
+  describe('first-turn AI response handling', () => {
+    it('sets hasReceivedFirstTranscriptDelta on first transcript delta', () => {
       session.hasReceivedFirstTranscriptDelta = false;
-      session.firstGreetingRetryCount = 0;
 
       handleGeminiMessage(
         session,
@@ -1350,18 +1224,11 @@ describe('handleGeminiMessage', () => {
       );
 
       expect(session.hasReceivedFirstTranscriptDelta).toBe(true);
-      expect(session.firstGreetingRetryCount).toBe(3);
     });
 
-    it('true race: two no-content turnComplete retries then delayed greeting — ai.transcription.done emitted exactly once', async () => {
-      // Simulate the exact race described in the task:
-      // 1. Greeting trigger sent (hasTriggeredFirstGreeting=true, no response yet)
-      // 2. Gemini fires turnComplete with no content twice → retry triggers sent
-      // 3. Gemini eventually delivers the greeting response
+    it('no sendClientContent is called on empty turnComplete (user speaks first, no auto-retry)', () => {
       session.hasReceivedFirstAIResponse = false;
       session.hasReceivedFirstTranscriptDelta = false;
-      session.firstGreetingRetryCount = 0;
-      session.greetingResponseCount = 0;
       session.userTurnsCompleted = 0;
       session.currentTranscript = '';
       session.geminiSession = {
@@ -1369,7 +1236,6 @@ describe('handleGeminiMessage', () => {
         sendRealtimeInput: vi.fn(),
       };
 
-      // First empty turnComplete → should trigger retry #1
       handleGeminiMessage(
         session,
         { serverContent: { turnComplete: true } },
@@ -1377,10 +1243,8 @@ describe('handleGeminiMessage', () => {
         null,
         proactiveReconnect
       );
-      expect(session.firstGreetingRetryCount).toBe(1);
-      expect(session.geminiSession.sendClientContent).toHaveBeenCalledTimes(1);
+      expect(session.geminiSession.sendClientContent).not.toHaveBeenCalled();
 
-      // Second empty turnComplete → should trigger retry #2
       handleGeminiMessage(
         session,
         { serverContent: { turnComplete: true } },
@@ -1388,64 +1252,11 @@ describe('handleGeminiMessage', () => {
         null,
         proactiveReconnect
       );
-      expect(session.firstGreetingRetryCount).toBe(2);
-      expect(session.geminiSession.sendClientContent).toHaveBeenCalledTimes(2);
-
-      // Gemini now delivers the greeting transcript delta
-      handleGeminiMessage(
-        session,
-        { serverContent: { outputTranscription: { text: '안녕하세요! 만나서 반갑습니다.' } } },
-        sendToClient,
-        null,
-        proactiveReconnect
-      );
-      expect(session.hasReceivedFirstTranscriptDelta).toBe(true);
-      // Retry gate now closed
-      expect(session.firstGreetingRetryCount).toBe(3);
-
-      // First turnComplete with the greeting content
-      session.hasReceivedFirstAIResponse = true;
-      handleGeminiMessage(
-        session,
-        { serverContent: { turnComplete: true } },
-        sendToClient,
-        null,
-        proactiveReconnect
-      );
-      await vi.runAllTimersAsync();
-
-      // Retry #1 response arrives (different text, different turnComplete)
-      session.currentTranscript = '네, 안녕하세요! 무엇을 도와드릴까요?';
-      handleGeminiMessage(
-        session,
-        { serverContent: { turnComplete: true } },
-        sendToClient,
-        null,
-        proactiveReconnect
-      );
-      await vi.runAllTimersAsync();
-
-      // Retry #2 response arrives (yet another different text)
-      session.currentTranscript = '여기 있습니다. 어떻게 도와드릴까요?';
-      handleGeminiMessage(
-        session,
-        { serverContent: { turnComplete: true } },
-        sendToClient,
-        null,
-        proactiveReconnect
-      );
-      await vi.runAllTimersAsync();
-
-      // Only one greeting should have been sent to the client
-      const doneCalls = sendToClient.mock.calls.filter(([, msg]) => msg.type === 'ai.transcription.done');
-      expect(doneCalls).toHaveLength(1);
+      expect(session.geminiSession.sendClientContent).not.toHaveBeenCalled();
     });
 
-    it('allows normal second-turn AI response after user speaks', async () => {
-      // Greeting emitted (greetingResponseCount=1), then user speaks (userTurnsCompleted=1),
-      // then AI responds again — should be allowed (maxAllowed = 1+1 = 2)
+    it('allows normal AI response after user speaks', async () => {
       session.hasReceivedFirstAIResponse = true;
-      session.greetingResponseCount = 1;
       session.userTurnsCompleted = 0;
       session.userTranscriptBuffer = '감사합니다, 잘 부탁드려요.';
       session.currentTranscript = '저도 잘 부탁드립니다!';
@@ -1459,17 +1270,13 @@ describe('handleGeminiMessage', () => {
       );
       await vi.runAllTimersAsync();
 
-      // userTurnsCompleted should now be 1, greetingResponseCount should be 2
       expect(session.userTurnsCompleted).toBe(1);
       const doneCalls = sendToClient.mock.calls.filter(([, msg]) => msg.type === 'ai.transcription.done');
       expect(doneCalls).toHaveLength(1);
     });
 
-    it('greetingResponseCount guard is scoped to greeting phase — allows AI responses after user speaks', async () => {
-      // After user speaks (userTurnsCompleted >= 1), the greeting guard no longer applies.
-      // A normal AI response should be emitted even if greetingResponseCount > 0.
+    it('AI responses are always allowed regardless of turn count', async () => {
       session.hasReceivedFirstAIResponse = true;
-      session.greetingResponseCount = 1;
       session.userTurnsCompleted = 1;
       session.currentTranscript = '사용자 발화 이후 정상적인 AI 응답입니다.';
 

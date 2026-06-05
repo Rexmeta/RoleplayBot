@@ -546,9 +546,14 @@ ${conversationHistory}
       }
     }
 
-    // Gemini contents must start with a user turn
+    // Gemini contents must start with a user turn.
+    // With the new "user greets first" flow the first message is always a user
+    // message, so this guard should never fire.  For existing conversations that
+    // were persisted under the old flow (AI greeted first), we inject a minimal
+    // synthetic user turn at the front instead of silently discarding the model
+    // turn, so the context is preserved for resume sessions.
     if (normalized.length > 0 && normalized[0].role === 'model') {
-      normalized.shift();
+      normalized.unshift({ role: 'user', text: '(대화 시작)' });
     }
 
     for (const item of normalized) {

@@ -138,41 +138,17 @@ export function ChatInputBar({
         )}
 
         {rv.status === 'connected' && rv.isWaitingForGreeting && (
+          /* This block is kept for backward-compat (e.g. text-to-voice resume).
+             In fresh voice starts isWaitingForGreeting is always false now. */
           <div className="flex flex-col items-center justify-center gap-3 py-4">
-            {rv.isAISpeaking ? (
-              /* Persona is actively speaking the greeting — show speaking indicator only, no button */
-              <div className="flex items-center justify-center space-x-2">
-                <div className="w-2 h-2 bg-blue-500 rounded-full animate-bounce"></div>
-                <div className="w-2 h-2 bg-blue-500 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
-                <div className="w-2 h-2 bg-blue-500 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
-                <span className="ml-2 text-blue-600 text-sm font-medium">
-                  {`${rv.personaDept} ${rv.personaRole} ${rv.personaName}${t('chat.speakingGreeting', { defaultValue: '이(가) 인사하고 있습니다...' })}`}
-                </span>
-              </div>
-            ) : (
-              /* Still preparing — show waiting dots and manual-start fallback button */
-              <>
-                <div className="flex items-center justify-center space-x-2">
-                  <div className="w-2 h-2 bg-purple-500 rounded-full animate-bounce"></div>
-                  <div className="w-2 h-2 bg-purple-500 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
-                  <div className="w-2 h-2 bg-purple-500 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
-                  <span className="ml-2 text-slate-600 text-sm">
-                    {rv.greetingRetryCount > 0
-                      ? `${rv.personaDept} ${rv.personaRole} ${rv.personaName}${t('chat.preparingGreetingRetry', { count: rv.greetingRetryCount })}`
-                      : `${rv.personaDept} ${rv.personaRole} ${rv.personaName}${t('chat.preparingGreeting')}`}
-                  </span>
-                </div>
-                <Button
-                  onClick={rv.onStartRecording}
-                  size="sm"
-                  className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-full text-sm"
-                  data-testid="button-start-greeting"
-                >
-                  <i className="fas fa-microphone mr-1.5"></i>
-                  {t('chat.startConversation')}
-                </Button>
-              </>
-            )}
+            <div className="flex items-center justify-center space-x-2">
+              <div className="w-2 h-2 bg-purple-500 rounded-full animate-bounce"></div>
+              <div className="w-2 h-2 bg-purple-500 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
+              <div className="w-2 h-2 bg-purple-500 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
+              <span className="ml-2 text-slate-600 text-sm">
+                {t('chat.connectingVoiceHint')}
+              </span>
+            </div>
           </div>
         )}
 

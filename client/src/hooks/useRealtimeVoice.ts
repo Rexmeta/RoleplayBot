@@ -416,7 +416,7 @@ export function useRealtimeVoice({
         const isVoiceReconnect = hasConversationStartedRef.current && hasPreviousMessages;
         const isTextToVoice = !hasConversationStartedRef.current && hasPreviousMessages;
 
-        if (!isVoiceReconnect && !isTextToVoice) setIsWaitingForGreeting(true);
+        // New flow: user speaks first, so no waiting-for-greeting state needed on fresh start.
         setGreetingRetryCount(0);
 
         setTimeout(() => {

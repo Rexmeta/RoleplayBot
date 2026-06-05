@@ -962,20 +962,15 @@ describe('handleClientMessage — guard logic and switch-case branches', () => {
   });
 
   describe('switch-case: client.ready (new session, no prior context)', () => {
-    it('sends greeting text and END_OF_TURN when geminiSession is present', () => {
+    it('does NOT auto-trigger greeting — user speaks first (no sendClientContent or sendRealtimeInput)', () => {
       const geminiSession = makeGeminiSession();
       const session = makeSession({ geminiSession });
       const sessions = new Map([[session.id, session]]);
 
       handleClientMessage(session.id, { type: 'client.ready' }, sessions, sendToClient);
 
-      expect(geminiSession.sendClientContent).toHaveBeenCalledWith(
-        expect.objectContaining({
-          turns: [{ role: 'user', parts: [{ text: '안녕하세요' }] }],
-          turnComplete: true,
-        })
-      );
-      expect(geminiSession.sendRealtimeInput).toHaveBeenCalledWith({ event: 'END_OF_TURN' });
+      expect(geminiSession.sendClientContent).not.toHaveBeenCalled();
+      expect(geminiSession.sendRealtimeInput).not.toHaveBeenCalled();
     });
 
     it('marks hasTriggeredFirstGreeting as true after sending the greeting', () => {

@@ -219,7 +219,7 @@ describe('RealtimeVoiceService — session.recentMessages population on createSe
     });
   });
 
-  describe('connectToGemini — 3-second auto-greeting timeout', () => {
+  describe('connectToGemini — no auto-greeting (user speaks first)', () => {
     let mockGeminiSession: any;
 
     beforeEach(() => {
@@ -243,7 +243,7 @@ describe('RealtimeVoiceService — session.recentMessages population on createSe
       vi.useRealTimers();
     });
 
-    it('sends greeting after 3 seconds when client.ready never arrives', async () => {
+    it('no greeting is sent after 3 seconds even when client.ready never arrives — timeout removed', async () => {
       const fakeWs = { readyState: 1, send: vi.fn() };
       await service.createSession(
         SESSION_ID, CONVERSATION_ID, SCENARIO_ID, PERSONA_ID, USER_ID, fakeWs as any
@@ -253,17 +253,11 @@ describe('RealtimeVoiceService — session.recentMessages population on createSe
 
       vi.advanceTimersByTime(3000);
 
-      expect(mockGeminiSession.sendClientContent).toHaveBeenCalledOnce();
-      expect(mockGeminiSession.sendClientContent).toHaveBeenCalledWith(
-        expect.objectContaining({
-          turns: [{ role: 'user', parts: [{ text: '안녕하세요' }] }],
-          turnComplete: true,
-        })
-      );
-      expect(mockGeminiSession.sendRealtimeInput).toHaveBeenCalledWith({ event: 'END_OF_TURN' });
+      expect(mockGeminiSession.sendClientContent).not.toHaveBeenCalled();
+      expect(mockGeminiSession.sendRealtimeInput).not.toHaveBeenCalled();
     });
 
-    it('does NOT send greeting when hasTriggeredFirstGreeting is already true', async () => {
+    it('no greeting is sent when hasTriggeredFirstGreeting is true and 3 seconds pass', async () => {
       const fakeWs = { readyState: 1, send: vi.fn() };
       await service.createSession(
         SESSION_ID, CONVERSATION_ID, SCENARIO_ID, PERSONA_ID, USER_ID, fakeWs as any
@@ -277,7 +271,7 @@ describe('RealtimeVoiceService — session.recentMessages population on createSe
       expect(mockGeminiSession.sendClientContent).not.toHaveBeenCalled();
     });
 
-    it('does NOT send greeting when pendingClientReady.hasExistingConversation is set', async () => {
+    it('no greeting is sent when pendingClientReady.hasExistingConversation is set', async () => {
       const fakeWs = { readyState: 1, send: vi.fn() };
       await service.createSession(
         SESSION_ID, CONVERSATION_ID, SCENARIO_ID, PERSONA_ID, USER_ID, fakeWs as any
@@ -366,7 +360,7 @@ describe('RealtimeVoiceService — session.recentMessages population on createSe
       expect(session.pendingClientReady).toBeNull();
     });
 
-    it('replayed client.ready triggers greeting via sendClientContent', async () => {
+    it('replayed client.ready (fresh start) does NOT auto-trigger greeting — user speaks first', async () => {
       let connectResolve!: (v: any) => void;
       let capturedCallbacks: any;
       const mockGeminiSession = makeGeminiSession();
@@ -391,7 +385,7 @@ describe('RealtimeVoiceService — session.recentMessages population on createSe
       connectResolve(mockGeminiSession);
       await createPromise;
 
-      expect(mockGeminiSession.sendClientContent).toHaveBeenCalled();
+      expect(mockGeminiSession.sendClientContent).not.toHaveBeenCalled();
     });
 
     it('replayed client.ready with isResuming calls proactiveReconnect (which uses session.recentMessages)', async () => {
@@ -468,7 +462,8 @@ describe('RealtimeVoiceService — session.recentMessages population on createSe
       await createPromise;
 
       expect(session.pendingClientReady).toBeNull();
-      expect(mockGeminiSession.sendClientContent).toHaveBeenCalled();
+      // Fresh start: no auto-greeting — user speaks first
+      expect(mockGeminiSession.sendClientContent).not.toHaveBeenCalled();
     });
 
     it('does not re-buffer replayed client.ready when connect() resolves before onopen fires', async () => {
@@ -501,7 +496,8 @@ describe('RealtimeVoiceService — session.recentMessages population on createSe
       await createPromise;
 
       expect(session.pendingClientReady).toBeNull();
-      expect(mockGeminiSession.sendClientContent).toHaveBeenCalled();
+      // Fresh start: no auto-greeting — user speaks first
+      expect(mockGeminiSession.sendClientContent).not.toHaveBeenCalled();
     });
 
     it('replayed client.ready with hasExistingConversation uses session.recentMessages as fallback', async () => {
@@ -574,7 +570,7 @@ describe('RealtimeVoiceService — session.recentMessages population on createSe
       vi.useRealTimers();
     });
 
-    it('greeting is sent exactly once when client.ready arrives before the 3-second timeout', async () => {
+    it('no auto-greeting when client.ready arrives — user speaks first, 3-second timeout removed', async () => {
       const fakeWs = { readyState: 1, send: vi.fn() };
       await service.createSession(
         SESSION_ID, CONVERSATION_ID, SCENARIO_ID, PERSONA_ID, USER_ID, fakeWs as any
@@ -589,10 +585,10 @@ describe('RealtimeVoiceService — session.recentMessages population on createSe
           return payload?.turns?.[0]?.parts?.[0]?.text === '안녕하세요';
         }
       );
-      expect(greetingCalls).toHaveLength(1);
+      expect(greetingCalls).toHaveLength(0);
     });
 
-    it('greeting is sent exactly once when timeout fires before client.ready arrives', async () => {
+    it('no auto-greeting even when 3 seconds pass with no client.ready — timeout removed', async () => {
       const fakeWs = { readyState: 1, send: vi.fn() };
       await service.createSession(
         SESSION_ID, CONVERSATION_ID, SCENARIO_ID, PERSONA_ID, USER_ID, fakeWs as any
@@ -607,10 +603,10 @@ describe('RealtimeVoiceService — session.recentMessages population on createSe
           return payload?.turns?.[0]?.parts?.[0]?.text === '안녕하세요';
         }
       );
-      expect(greetingCalls).toHaveLength(1);
+      expect(greetingCalls).toHaveLength(0);
     });
 
-    it('hasTriggeredFirstGreeting is true after client.ready, so timeout is skipped', async () => {
+    it('hasTriggeredFirstGreeting is true after client.ready, and no sendClientContent is called', async () => {
       const fakeWs = { readyState: 1, send: vi.fn() };
       await service.createSession(
         SESSION_ID, CONVERSATION_ID, SCENARIO_ID, PERSONA_ID, USER_ID, fakeWs as any
@@ -625,24 +621,23 @@ describe('RealtimeVoiceService — session.recentMessages population on createSe
       vi.advanceTimersByTime(3000);
 
       expect(mockGeminiSession.sendClientContent.mock.calls.length).toBe(callsBeforeTimeout);
+      expect(callsBeforeTimeout).toBe(0);
     });
 
-    it('hasTriggeredFirstGreeting is true after timeout, so second client.ready is skipped', async () => {
+    it('second client.ready is skipped because hasTriggeredFirstGreeting is already true', async () => {
       const fakeWs = { readyState: 1, send: vi.fn() };
       await service.createSession(
         SESSION_ID, CONVERSATION_ID, SCENARIO_ID, PERSONA_ID, USER_ID, fakeWs as any
       );
 
-      vi.advanceTimersByTime(3000);
+      service.handleClientMessage(SESSION_ID, { type: 'client.ready' });
 
       const session = (service as any).sessions.get(SESSION_ID);
       expect(session.hasTriggeredFirstGreeting).toBe(true);
 
-      const callsAfterTimeout = mockGeminiSession.sendClientContent.mock.calls.length;
-
       service.handleClientMessage(SESSION_ID, { type: 'client.ready' });
 
-      expect(mockGeminiSession.sendClientContent.mock.calls.length).toBe(callsAfterTimeout);
+      expect(mockGeminiSession.sendClientContent).not.toHaveBeenCalled();
     });
   });
 
