@@ -433,15 +433,18 @@ export default function Home() {
           const dvRes = await fetch('/api/media/default-intro-video', { credentials: 'include' });
           if (dvRes.ok) {
             const dvData = await dvRes.json();
+            // API already returns the correct serving URL — do NOT apply toMediaUrl()
+            // hasCustomVideo:false → '/videos/intro_default.webm' (static file)
+            // hasCustomVideo:true  → '/objects?key=...' or signed GCS URL
             if (dvData.url) resolvedDefaultVideoSrc = dvData.url;
           }
         } catch {
           // fall back to static file
         }
-        setDefaultVideoUrl(toMediaUrl(resolvedDefaultVideoSrc) || resolvedDefaultVideoSrc);
+        setDefaultVideoUrl(resolvedDefaultVideoSrc);
       }
       const videoSrc = videoMode === 'default'
-        ? (toMediaUrl(resolvedDefaultVideoSrc) || resolvedDefaultVideoSrc)
+        ? resolvedDefaultVideoSrc
         : videoMode === 'custom' && selectedScenario.introVideoUrl
           ? selectedScenario.introVideoUrl
           : null;
