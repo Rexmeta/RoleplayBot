@@ -335,6 +335,16 @@ export class MediaStorageService {
     return filePath;
   }
 
+  async saveToFixedPath(
+    buffer: Buffer,
+    objectPath: string,
+    contentType: string
+  ): Promise<string> {
+    const filePath = await this.uploadToStorage(buffer, objectPath, contentType);
+    console.log(`📁 고정 경로 파일 저장 완료 (${getStorageType().toUpperCase()}): ${filePath}`);
+    return filePath;
+  }
+
   getStorageInfo(): { type: string; available: boolean } {
     const storageType = getStorageType();
     return {

@@ -366,6 +366,8 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
 
   const [isGeneratingImage, setIsGeneratingImage] = useState(false);
   const [isGeneratingVideo, setIsGeneratingVideo] = useState(false);
+  const [isUploadingDefaultVideo, setIsUploadingDefaultVideo] = useState(false);
+  const defaultVideoInputRef = useRef<HTMLInputElement>(null);
   const [expandedScenarios, setExpandedScenarios] = useState<Set<string | number>>(new Set());
   const [imagePreviewUrl, setImagePreviewUrl] = useState<string | null>(null);
   const [videoPreviewUrl, setVideoPreviewUrl] = useState<string | null>(null);
@@ -466,6 +468,20 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
       }
       return response.json();
     },
+  });
+
+  // 기본 인트로 비디오 정보 조회 (admin only)
+  const { data: defaultVideoInfo, refetch: refetchDefaultVideo } = useQuery<{ hasCustomVideo: boolean; url: string; storagePath?: string }>({
+    queryKey: ['/api/admin/default-intro-video'],
+    queryFn: async () => {
+      const token = localStorage.getItem('authToken');
+      const headers: Record<string, string> = {};
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+      const res = await fetch('/api/admin/default-intro-video', { headers, credentials: 'include' });
+      if (!res.ok) return { hasCustomVideo: false, url: '/videos/intro_default.webm' };
+      return res.json();
+    },
+    staleTime: 1000 * 60 * 5,
   });
 
   // 카테고리 목록 조회 (조직/회사 정보 포함)
@@ -1405,6 +1421,74 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
     }
   };
 
+  const handleUploadDefaultVideo = async (file: File) => {
+    if (!file) return;
+    const validTypes = ['video/webm', 'video/mp4'];
+    if (!validTypes.includes(file.type)) {
+      toast({
+        title: '지원하지 않는 형식',
+        description: 'WebM 또는 MP4 형식의 비디오 파일만 업로드할 수 있습니다.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setIsUploadingDefaultVideo(true);
+    try {
+      const token = localStorage.getItem('authToken');
+      const headers: Record<string, string> = { 'Content-Type': file.type };
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+
+      const res = await fetch('/api/admin/default-intro-video', {
+        method: 'POST',
+        headers,
+        credentials: 'include',
+        body: file,
+      });
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.message || '업로드 실패');
+      }
+
+      toast({
+        title: '기본 비디오 업로드 완료',
+        description: '기본 인트로 비디오가 성공적으로 교체되었습니다.',
+      });
+      refetchDefaultVideo();
+      queryClient.invalidateQueries({ queryKey: ['/api/media/default-intro-video'] });
+    } catch (error: any) {
+      console.error('Default video upload error:', error);
+      toast({
+        title: '업로드 실패',
+        description: error.message || '기본 인트로 비디오 업로드 중 오류가 발생했습니다.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsUploadingDefaultVideo(false);
+      if (defaultVideoInputRef.current) defaultVideoInputRef.current.value = '';
+    }
+  };
+
+  const handleResetDefaultVideo = async () => {
+    try {
+      const token = localStorage.getItem('authToken');
+      const headers: Record<string, string> = {};
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+      const res = await fetch('/api/admin/default-intro-video', {
+        method: 'DELETE',
+        headers,
+        credentials: 'include',
+      });
+      if (!res.ok) throw new Error('초기화 실패');
+      toast({ title: '기본 비디오 초기화 완료', description: '기본 인트로 비디오가 정적 파일로 되돌아갔습니다.' });
+      refetchDefaultVideo();
+      queryClient.invalidateQueries({ queryKey: ['/api/media/default-intro-video'] });
+    } catch (error: any) {
+      toast({ title: '초기화 실패', description: error.message, variant: 'destructive' });
+    }
+  };
+
   const addSkill = (skill: string) => {
     if (skill && !formData.skills.includes(skill)) {
       setFormData(prev => ({
@@ -1780,19 +1864,65 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
                     </button>
                   </div>
 
-                  {/* 기본 비디오 미리보기 */}
+                  {/* 기본 비디오 미리보기 + 교체 UI */}
                   {formData.introVideoMode === 'default' && (
-                    <div className="mt-2">
-                      <p className="text-xs text-slate-500 mb-2">기본 비디오 미리보기:</p>
+                    <div className="mt-2 space-y-3">
+                      <div className="flex items-center justify-between">
+                        <p className="text-xs text-slate-500">
+                          기본 비디오 미리보기
+                          {defaultVideoInfo?.hasCustomVideo && (
+                            <span className="ml-2 inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-700">커스텀</span>
+                          )}
+                        </p>
+                        <div className="flex items-center gap-2">
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            className="text-xs h-7 px-2"
+                            disabled={isUploadingDefaultVideo}
+                            onClick={() => defaultVideoInputRef.current?.click()}
+                          >
+                            {isUploadingDefaultVideo ? (
+                              <><Loader2 className="h-3 w-3 mr-1 animate-spin" />업로드 중...</>
+                            ) : (
+                              <><Upload className="h-3 w-3 mr-1" />비디오 교체</>
+                            )}
+                          </Button>
+                          {defaultVideoInfo?.hasCustomVideo && (
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              className="text-xs h-7 px-2 text-red-600 hover:text-red-700 hover:bg-red-50"
+                              onClick={handleResetDefaultVideo}
+                            >
+                              초기화
+                            </Button>
+                          )}
+                        </div>
+                      </div>
+                      <input
+                        ref={defaultVideoInputRef}
+                        type="file"
+                        accept="video/webm,video/mp4"
+                        className="hidden"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (file) handleUploadDefaultVideo(file);
+                        }}
+                      />
                       <div className="relative w-full bg-slate-900 rounded-lg overflow-hidden border">
                         <video
-                          src="/videos/intro_default.webm"
+                          key={defaultVideoInfo?.url}
+                          src={defaultVideoInfo?.hasCustomVideo ? toMediaUrl(defaultVideoInfo.url) : '/videos/intro_default.webm'}
                           controls
                           className="w-full max-h-48 object-contain"
                           preload="metadata"
                           data-testid="default-video-preview"
                         />
                       </div>
+                      <p className="text-xs text-slate-400">WebM 또는 MP4 형식 지원 · 모든 "기본 비디오" 모드 시나리오에 적용됩니다</p>
                     </div>
                   )}
 

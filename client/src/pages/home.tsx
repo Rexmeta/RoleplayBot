@@ -83,6 +83,7 @@ export default function Home() {
   const [autoGenerateFeedback, setAutoGenerateFeedback] = useState(false); // 대화 종료 후 자동 피드백 생성 여부
   const [isHeaderVisible, setIsHeaderVisible] = useState(false); // 상세 페이지에서 헤더 표시 상태
   const [showExitConversationDialog, setShowExitConversationDialog] = useState(false); // 대화 중 홈 이동 경고 다이얼로그
+  const [defaultVideoUrl, setDefaultVideoUrl] = useState<string | null>(null); // 커스텀 기본 인트로 비디오 URL
 
   // 현재 언어 코드 (한국어가 기본이므로 'ko'가 아닐 때만 번역 적용)
   const currentLang = i18n.language || 'ko';
@@ -426,8 +427,21 @@ export default function Home() {
       
       // 인트로 영상: 모드가 'none'이 아니고 아직 시청하지 않은 경우에만 표시
       const videoMode = (selectedScenario as any).introVideoMode || (selectedScenario.introVideoUrl ? 'custom' : 'none');
+      let resolvedDefaultVideoSrc = '/videos/intro_default.webm';
+      if (videoMode === 'default') {
+        try {
+          const dvRes = await fetch('/api/media/default-intro-video', { credentials: 'include' });
+          if (dvRes.ok) {
+            const dvData = await dvRes.json();
+            if (dvData.url) resolvedDefaultVideoSrc = dvData.url;
+          }
+        } catch {
+          // fall back to static file
+        }
+        setDefaultVideoUrl(toMediaUrl(resolvedDefaultVideoSrc) || resolvedDefaultVideoSrc);
+      }
       const videoSrc = videoMode === 'default'
-        ? '/videos/intro_default.webm'
+        ? (toMediaUrl(resolvedDefaultVideoSrc) || resolvedDefaultVideoSrc)
         : videoMode === 'custom' && selectedScenario.introVideoUrl
           ? selectedScenario.introVideoUrl
           : null;
@@ -1070,7 +1084,7 @@ export default function Home() {
         {currentView === "video-intro" && selectedScenario && (() => {
           const videoMode = (selectedScenario as any).introVideoMode || (selectedScenario.introVideoUrl ? 'custom' : 'none');
           const videoSrc = videoMode === 'default'
-            ? '/videos/intro_default.webm'
+            ? (defaultVideoUrl || '/videos/intro_default.webm')
             : videoMode === 'custom' && selectedScenario.introVideoUrl
               ? toMediaUrl(selectedScenario.introVideoUrl)
               : null;

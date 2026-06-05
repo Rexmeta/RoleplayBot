@@ -42,6 +42,24 @@ export async function registerRoutes(app: Express, httpServer: Server): Promise<
   const { setupAuth, isAuthenticated } = await import('./auth');
   setupAuth(app);
 
+  // Public: current default intro video URL (authenticated users only)
+  app.get('/api/media/default-intro-video', isAuthenticated, async (req, res) => {
+    try {
+      const { storage: storageModule } = await import('./storage');
+      const setting = await storageModule.getSystemSetting('media', 'default_intro_video');
+      if (!setting?.value) {
+        return res.json({ url: '/videos/intro_default.webm', hasCustomVideo: false });
+      }
+      const { transformToSignedUrl } = await import('./services/gcsStorage');
+      const candidate = await transformToSignedUrl(setting.value);
+      const isHttpUrl = candidate && /^https?:\/\//i.test(candidate);
+      const servingUrl = isHttpUrl ? candidate : `/objects?key=${encodeURIComponent(setting.value)}`;
+      return res.json({ url: servingUrl, storagePath: setting.value, hasCustomVideo: true });
+    } catch (err) {
+      return res.json({ url: '/videos/intro_default.webm', hasCustomVideo: false });
+    }
+  });
+
   // Health check
   app.get('/api/health', (req, res) => {
     const memoryUsage = process.memoryUsage();

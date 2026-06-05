@@ -1,4 +1,5 @@
 import { Router } from "express";
+import express from "express";
 import { storage } from "../storage";
 import { fileManager } from "../services/fileManager";
 import { generateScenarioWithAI, enhanceScenarioWithAI, fillScenarioFieldsWithAI } from "../services/aiScenarioGenerator";
@@ -13,6 +14,7 @@ import {
 import { getOperatorAccessibleCategoryIds, asyncHandler, createHttpError } from "./routerHelpers";
 import { isOperatorOrAdmin } from "../middleware/authMiddleware";
 import { validateScenario } from "../services/scenarios/scenarioValidator";
+import { mediaStorage } from "../services/mediaStorage";
 
 export default function createAdminScenariosRouter(isAuthenticated: any) {
   const router = Router();
@@ -702,6 +704,68 @@ export default function createAdminScenariosRouter(isAuthenticated: any) {
 
     const transformedScenario = await transformScenarioMedia(created);
     res.json(transformedScenario);
+  }));
+
+  // GET /api/admin/default-intro-video — get the current default intro video info (admin only)
+  router.get("/api/admin/default-intro-video", isAuthenticated, asyncHandler(async (req: any, res) => {
+    if (req.user?.role !== 'admin') throw createHttpError(403, "Admin only");
+
+    const setting = await storage.getSystemSetting('media', 'default_intro_video');
+    if (!setting?.value) {
+      return res.json({ hasCustomVideo: false, url: '/videos/intro_default.webm' });
+    }
+
+    const candidate = await transformToSignedUrl(setting.value);
+    const isHttpUrl = candidate && /^https?:\/\//i.test(candidate);
+    const servingUrl = isHttpUrl ? candidate : `/objects?key=${encodeURIComponent(setting.value)}`;
+    return res.json({ hasCustomVideo: true, storagePath: setting.value, url: servingUrl });
+  }));
+
+  // POST /api/admin/default-intro-video — upload a new default intro video (admin only)
+  router.post(
+    "/api/admin/default-intro-video",
+    isAuthenticated,
+    express.raw({ type: ['video/webm', 'video/mp4', 'video/*', 'application/octet-stream'], limit: '500mb' }),
+    asyncHandler(async (req: any, res) => {
+      if (req.user?.role !== 'admin') throw createHttpError(403, "Admin only");
+
+      const buffer = req.body as Buffer;
+      if (!Buffer.isBuffer(buffer) || buffer.length === 0) {
+        throw createHttpError(400, "No video data received");
+      }
+
+      const rawContentType = (req.headers['content-type'] || 'video/webm').split(';')[0].trim();
+      const ext = rawContentType.includes('mp4') ? 'mp4' : 'webm';
+      const contentType = ext === 'mp4' ? 'video/mp4' : 'video/webm';
+      const storagePath = `videos/intro_default.${ext}`;
+
+      await mediaStorage.saveToFixedPath(buffer, storagePath, contentType);
+
+      await storage.upsertSystemSetting({
+        category: 'media',
+        key: 'default_intro_video',
+        value: storagePath,
+        description: '관리자가 업로드한 기본 인트로 비디오 경로',
+        updatedBy: req.user.id,
+      });
+
+      const candidate = await transformToSignedUrl(storagePath);
+      const isHttpUrl = candidate && /^https?:\/\//i.test(candidate);
+      const servingUrl = isHttpUrl ? candidate : `/objects?key=${encodeURIComponent(storagePath)}`;
+
+      console.log(`🎬 기본 인트로 비디오 업데이트 완료: ${storagePath} (${(buffer.length / 1024 / 1024).toFixed(2)}MB)`);
+
+      res.json({ success: true, storagePath, url: servingUrl });
+    })
+  );
+
+  // DELETE /api/admin/default-intro-video — revert to static default video (admin only)
+  router.delete("/api/admin/default-intro-video", isAuthenticated, asyncHandler(async (req: any, res) => {
+    if (req.user?.role !== 'admin') throw createHttpError(403, "Admin only");
+
+    await storage.deleteSystemSetting('media', 'default_intro_video');
+
+    res.json({ success: true, message: '기본 인트로 비디오가 초기화되었습니다.' });
   }));
 
   // GET /api/admin/scenarios/validate — bulk validate all scenarios (for admin UI)
