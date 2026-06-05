@@ -54,6 +54,11 @@ vi.mock('@google/genai', () => ({
     };
   }),
   Modality: { AUDIO: 'AUDIO' },
+  ActivityHandling: {
+    START_OF_ACTIVITY_INTERRUPTS: 'START_OF_ACTIVITY_INTERRUPTS',
+    NO_INTERRUPTION: 'NO_INTERRUPTION',
+    ACTIVITY_HANDLING_UNSPECIFIED: 'ACTIVITY_HANDLING_UNSPECIFIED',
+  },
 }));
 
 function makeScenario() {

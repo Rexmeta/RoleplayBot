@@ -484,6 +484,10 @@ export function useRealtimeVoice({
                   if (isAISpeakingRef.current && !bargeInTriggeredRef.current && serverVoiceDetectedTimeRef.current !== null) {
                     const duration = Date.now() - serverVoiceDetectedTimeRef.current;
                     if (duration >= 1500) {
+                      if (playbackContextRef.current?.state === 'suspended') {
+                        console.log('🎤 1.5-second server path: skipping barge-in, context already suspended (VAD fired first)');
+                        return;
+                      }
                       console.log('🎤 1.5-second voice detected by server - triggering barge-in');
                       bargeInTriggeredRef.current = true;
                       stopCurrentPlayback();
@@ -570,6 +574,9 @@ export function useRealtimeVoice({
               serverVoiceDetectedTimeRef.current = null;
               if (data.turnSeq !== undefined) {
                 expectedTurnSeqRef.current = data.turnSeq - 1;
+              }
+              if (playbackContextRef.current?.state === 'suspended') {
+                playbackContextRef.current.resume().catch(() => {});
               }
               break;
 
@@ -780,7 +787,7 @@ export function useRealtimeVoice({
     const handleVisibilityChange = () => {
       if (document.visibilityState !== 'visible') return;
 
-      if (playbackContextRef.current?.state === 'suspended') {
+      if (playbackContextRef.current?.state === 'suspended' && !isInterruptedRef.current) {
         playbackContextRef.current.resume().catch(() => {});
       }
 

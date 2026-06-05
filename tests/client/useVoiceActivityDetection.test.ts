@@ -423,6 +423,57 @@ describe('useVoiceActivityDetection', () => {
       expect(stopPlayback).not.toHaveBeenCalled();
     });
 
+    it('does not trigger second barge-in after context suspends and bargeInTriggeredRef resets on silence', () => {
+      const { result } = renderHook(() => useVoiceActivityDetection());
+      const ctx = buildMockAudioContext();
+      const source = buildMockMediaStreamSource();
+      const wsRef = { current: makeWs() as any };
+      const isRecordingRef = { current: true };
+      const expectedTurnSeqRef = { current: 2 };
+      const playbackContext = { state: 'running' as string } as unknown as AudioContext;
+      const playbackContextRef = { current: playbackContext };
+      const stopPlayback = vi.fn(() => {
+        (playbackContextRef.current as any).state = 'suspended';
+      });
+
+      act(() => {
+        result.current.setupVAD({
+          audioContext: ctx as unknown as AudioContext,
+          source: source as unknown as MediaStreamAudioSourceNode,
+          playbackContextRef: playbackContextRef as any,
+          wsRef,
+          isRecordingRef,
+          expectedTurnSeqRef,
+          stopPlayback,
+        });
+      });
+
+      const voice = buildVoiceBuffer(0.1);
+      const silent = buildSilentBuffer();
+      const fire = (buf: Float32Array) =>
+        ctx._processor.onaudioprocess?.({ inputBuffer: { getChannelData: () => buf } });
+
+      act(() => {
+        fire(voice);
+        vi.advanceTimersByTime(BARGE_IN_DELAY_MS + 50);
+        fire(voice);
+      });
+      expect(stopPlayback).toHaveBeenCalledTimes(1);
+      expect(expectedTurnSeqRef.current).toBe(3);
+
+      act(() => { fire(silent); });
+      expect(result.current.bargeInTriggeredRef.current).toBe(false);
+
+      act(() => {
+        fire(voice);
+        vi.advanceTimersByTime(BARGE_IN_DELAY_MS + 50);
+        fire(voice);
+      });
+
+      expect(stopPlayback).toHaveBeenCalledTimes(1);
+      expect(expectedTurnSeqRef.current).toBe(3);
+    });
+
     it('does not send WebSocket message when WS is not open', () => {
       const { result } = renderHook(() => useVoiceActivityDetection());
       const ctx = buildMockAudioContext();

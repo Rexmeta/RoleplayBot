@@ -189,6 +189,24 @@ describe('useAudioPlayback', () => {
       expect(mockContext.suspend).toHaveBeenCalled();
     });
 
+    it('leaves context suspended until resume() is called (simulating response.ready)', async () => {
+      const { result } = renderAudioPlayback();
+      result.current.playbackContextRef.current = mockContext as unknown as AudioContext;
+
+      await act(async () => {
+        result.current.stopPlayback();
+      });
+
+      expect(mockContext.state).toBe('suspended');
+
+      await act(async () => {
+        await result.current.playbackContextRef.current?.resume();
+      });
+
+      expect(mockContext.state).toBe('running');
+      expect(mockContext.resume).toHaveBeenCalled();
+    });
+
     it('resets nextPlayTime to 0', async () => {
       const { result } = renderAudioPlayback();
       result.current.nextPlayTimeRef.current = 42;

@@ -1,6 +1,6 @@
 import WebSocket from 'ws';
 import { fileManager } from './fileManager';
-import { GoogleGenAI, Modality } from '@google/genai';
+import { GoogleGenAI, Modality, ActivityHandling } from '@google/genai';
 import { storage } from '../storage';
 import {
   RealtimeSession,
@@ -611,6 +611,9 @@ export class RealtimeVoiceService {
           ? { handle: session.sessionResumptionToken }
           : {},
         tools: simulationToolDeclarations.length > 0 ? simulationToolDeclarations : undefined,
+        realtimeInputConfig: {
+          activityHandling: ActivityHandling.START_OF_ACTIVITY_INTERRUPTS,
+        },
       };
 
       const realtimeModel = session.realtimeModel || await this.getRealtimeModel();
