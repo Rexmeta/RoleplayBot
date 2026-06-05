@@ -124,6 +124,7 @@ interface UseRealtimeVoiceReturn {
   audioAmplitude: number;
   userAudioAmplitude: number;
   vadSensitivity: number;
+  isBargeInActive: boolean;
   setVadSensitivity: (level: number) => void;
   connect: (previousMessages?: PreviousMessage[]) => Promise<void>;
   disconnect: () => void;
@@ -162,6 +163,7 @@ export function useRealtimeVoice({
   const [greetingFailed, setGreetingFailed] = useState(false);
   const [sessionWarning, setSessionWarning] = useState<string | null>(null);
   const [isReconnecting, setIsReconnecting] = useState(false);
+  const [isBargeInActive, setIsBargeInActive] = useState(false);
 
   const [vadSensitivity, setVadSensitivityState] = useState<number>(() => {
     try {
@@ -373,6 +375,7 @@ export function useRealtimeVoice({
     setGreetingRetryCount(0);
     setGreetingFailed(false);
     setIsReconnecting(false);
+    setIsBargeInActive(false);
   }, [stopCurrentPlayback, stopAmplitudeAnalysis, analyserNodeRef, gainNodeRef, playbackContextRef, setIsAISpeaking]);
 
   const previousMessagesRef = useRef<PreviousMessage[] | undefined>(undefined);
@@ -490,6 +493,7 @@ export function useRealtimeVoice({
                       }
                       console.log('🎤 1.5-second voice detected by server - triggering barge-in');
                       bargeInTriggeredRef.current = true;
+                      setIsBargeInActive(true);
                       stopCurrentPlayback();
                       expectedTurnSeqRef.current++;
                       if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
@@ -571,6 +575,7 @@ export function useRealtimeVoice({
             case 'response.ready':
               isInterruptedRef.current = false;
               bargeInTriggeredRef.current = false;
+              setIsBargeInActive(false);
               serverVoiceDetectedTimeRef.current = null;
               if (data.turnSeq !== undefined) {
                 expectedTurnSeqRef.current = data.turnSeq - 1;
@@ -873,6 +878,7 @@ export function useRealtimeVoice({
       console.log('🎤 User starting to speak - interrupting AI (barge-in)');
       stopCurrentPlayback();
       bargeInTriggeredRef.current = true;
+      setIsBargeInActive(true);
       expectedTurnSeqRef.current++;
       if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
         wsRef.current.send(JSON.stringify({ type: 'response.cancel' }));
@@ -932,6 +938,7 @@ export function useRealtimeVoice({
         entryThreshold,
         exitThreshold,
         onNoiseDrift: recalibrateNoiseFloor,
+        onBargeIn: () => setIsBargeInActive(true),
       });
 
       const processor = audioContext.createScriptProcessor(4096, 1, 1);
@@ -1090,6 +1097,7 @@ export function useRealtimeVoice({
     audioAmplitude,
     userAudioAmplitude,
     vadSensitivity,
+    isBargeInActive,
     setVadSensitivity,
     connect,
     disconnect,

@@ -1179,6 +1179,7 @@
   "voice": {
     "connectionError": "Voice connection error",
     "sessionEnded": "Voice session ended",
+    "bargeInDetected": "Interruption heard",
     "sendError": "Unable to send message. Please try again.",
     "saveError": "Error saving conversation.",
     "resetSuccess": "Conversation has been reset",

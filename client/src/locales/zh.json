@@ -1176,6 +1176,7 @@
   "voice": {
     "connectionError": "语音连接错误",
     "sessionEnded": "语音会话已结束",
+    "bargeInDetected": "检测到打断",
     "sendError": "无法发送消息，请重试。",
     "saveError": "保存对话时出错。",
     "resetSuccess": "对话已重置",

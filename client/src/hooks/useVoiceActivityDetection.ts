@@ -17,6 +17,7 @@ interface SetupVADParams {
   entryThreshold?: number;
   exitThreshold?: number;
   onNoiseDrift?: () => void;
+  onBargeIn?: () => void;
 }
 
 interface UseVADReturn {
@@ -40,6 +41,7 @@ export function useVoiceActivityDetection(): UseVADReturn {
 
   const highRmsStartRef = useRef<number | null>(null);
   const onNoiseDriftRef = useRef<(() => void) | undefined>(undefined);
+  const onBargeInRef = useRef<(() => void) | undefined>(undefined);
   const noiseDriftFiredRef = useRef<boolean>(false);
 
   const updateThresholds = useCallback((entry: number, exit: number) => {
@@ -60,10 +62,12 @@ export function useVoiceActivityDetection(): UseVADReturn {
     entryThreshold,
     exitThreshold,
     onNoiseDrift,
+    onBargeIn,
   }: SetupVADParams) => {
     entryThresholdRef.current = entryThreshold ?? DEFAULT_ENTRY_THRESHOLD;
     exitThresholdRef.current = exitThreshold ?? DEFAULT_EXIT_THRESHOLD;
     onNoiseDriftRef.current = onNoiseDrift;
+    onBargeInRef.current = onBargeIn;
     noiseDriftFiredRef.current = false;
     highRmsStartRef.current = null;
 
@@ -114,6 +118,7 @@ export function useVoiceActivityDetection(): UseVADReturn {
         if (voiceDuration >= BARGE_IN_DELAY_MS && !bargeInTriggeredRef.current && isPlaybackRunning) {
           console.log(`🎤 ${BARGE_IN_DELAY_MS}ms voice detected - triggering barge-in`);
           bargeInTriggeredRef.current = true;
+          onBargeInRef.current?.();
 
           stopPlayback();
 

@@ -912,6 +912,19 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
                       style={{ backgroundColor: 'rgba(34, 197, 94, 0.35)', animation: 'bargeInFlash 0.4s ease-out forwards' }} />
                   )}
 
+                  {realtimeVoice.isBargeInActive && (
+                    <div className="absolute bottom-16 left-0 right-0 flex justify-center z-[14] pointer-events-none">
+                      <div className="flex items-center gap-2 bg-emerald-500/90 backdrop-blur-sm text-white rounded-full px-4 py-1.5 shadow-lg"
+                        style={{ animation: 'bargeInChipIn 0.25s ease-out forwards' }}>
+                        <span className="relative flex h-2.5 w-2.5">
+                          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-75" />
+                          <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-white" />
+                        </span>
+                        <span className="text-xs font-semibold tracking-wide">{t('voice.bargeInDetected')}</span>
+                      </div>
+                    </div>
+                  )}
+
                   {realtimeVoice.isAISpeaking && !realtimeVoice.isReconnecting && (
                     <div className="absolute top-0 left-0 right-0 pointer-events-none z-[12]"
                       style={{ height: '45%', background: 'linear-gradient(to bottom, rgba(139, 92, 246, 0.22) 0%, rgba(99, 102, 241, 0.10) 40%, transparent 100%)', animation: 'beamPulse 2.5s ease-in-out infinite' }} />

@@ -1176,6 +1176,7 @@
   "voice": {
     "connectionError": "音声接続エラー",
     "sessionEnded": "音声セッション終了",
+    "bargeInDetected": "割り込み検知",
     "sendError": "メッセージを送信できません。もう一度お試しください。",
     "saveError": "会話の保存中にエラーが発生しました。",
     "resetSuccess": "会話がリセットされました",
