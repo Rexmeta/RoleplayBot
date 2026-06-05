@@ -288,7 +288,9 @@
     "progressBadgeTooltip": "{{current}}/{{target}}ターン進行中",
     "npcStatusButton": "NPC",
     "npcStatusHide": "NPCパネルを隠す",
-    "npcStatusPanel": "NPCステータス"
+    "npcStatusPanel": "NPCステータス",
+    "voiceGreetFirstHint": "まず挨拶してみましょう！",
+    "voiceGreetFirstHintSub": "マイクに向かって自由に話してください。"
   },
   "simulation": {
     "emotions": {

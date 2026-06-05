@@ -309,7 +309,9 @@
     "progressBadgeTooltip": "{{current}}/{{target}} 턴 진행 중",
     "npcStatusButton": "NPC",
     "npcStatusHide": "NPC 패널 숨기기",
-    "npcStatusPanel": "NPC 상태"
+    "npcStatusPanel": "NPC 상태",
+    "voiceGreetFirstHint": "먼저 인사를 건네보세요!",
+    "voiceGreetFirstHintSub": "마이크에 대고 자유롭게 말씀해 주세요."
   },
   "simulation": {
     "emotions": {

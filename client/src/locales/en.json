@@ -288,7 +288,9 @@
     "progressBadgeTooltip": "{{current}}/{{target}} turns in progress",
     "npcStatusButton": "NPC",
     "npcStatusHide": "Hide NPC Panel",
-    "npcStatusPanel": "NPC Status"
+    "npcStatusPanel": "NPC Status",
+    "voiceGreetFirstHint": "Say hello first!",
+    "voiceGreetFirstHintSub": "Speak freely into the microphone."
   },
   "simulation": {
     "emotions": {

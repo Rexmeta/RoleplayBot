@@ -288,7 +288,9 @@
     "progressBadgeTooltip": "进行中 {{current}}/{{target}} 轮",
     "npcStatusButton": "NPC",
     "npcStatusHide": "隐藏NPC面板",
-    "npcStatusPanel": "NPC 状态"
+    "npcStatusPanel": "NPC 状态",
+    "voiceGreetFirstHint": "请先打个招呼！",
+    "voiceGreetFirstHintSub": "对着麦克风自由发言吧。"
   },
   "simulation": {
     "emotions": {

@@ -961,6 +961,17 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
                       joinedPersonas={scenario.personas?.map((p: ScenarioPersona) => ({ name: p.name, image: p.image }))} />
                   )}
 
+                  {inputMode === 'realtime-voice' && realtimeVoice.status === 'connected' && localMessages.length === 0 && !realtimeVoice.isWaitingForGreeting && !realtimeVoice.isAISpeaking && !realtimeVoice.isRecording && (
+                    <div className="absolute inset-0 flex items-center justify-center z-[15] pointer-events-none">
+                      <div className="bg-white/90 backdrop-blur-sm rounded-2xl px-8 py-6 shadow-xl max-w-xs w-full mx-4 text-center border border-purple-100">
+                        <div className="w-12 h-12 rounded-full bg-purple-100 flex items-center justify-center mx-auto mb-3">
+                          <i className="fas fa-microphone text-purple-500 text-xl" />
+                        </div>
+                        <p className="font-medium text-slate-700">{t('chat.voiceGreetFirstHint')}</p>
+                        <p className="text-sm text-slate-500 mt-1">{t('chat.voiceGreetFirstHintSub')}</p>
+                      </div>
+                    </div>
+                  )}
 
                   {/* Desktop NPC status toggle button */}
                   {isSimulationEnabled && simulationState && (
