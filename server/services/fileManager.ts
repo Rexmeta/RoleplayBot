@@ -189,6 +189,7 @@ export class FileManagerService {
       image: dbScenario.image || undefined,
       imagePrompt: dbScenario.imagePrompt || undefined,
       introVideoUrl: dbScenario.introVideoUrl || undefined,
+      introVideoMode: dbScenario.introVideoMode || undefined,
       videoPrompt: dbScenario.videoPrompt || undefined,
       objectiveType: dbScenario.objectiveType || undefined,
       context: dbScenario.context || undefined,
@@ -351,6 +352,7 @@ export class FileManagerService {
         image: scenario.image || null,
         imagePrompt: scenario.imagePrompt || null,
         introVideoUrl: scenario.introVideoUrl || null,
+        introVideoMode: (scenario as any).introVideoMode || 'none',
         videoPrompt: scenario.videoPrompt || null,
         objectiveType: scenario.objectiveType || null,
         context: scenario.context || null,
@@ -408,6 +410,7 @@ export class FileManagerService {
         if (scenario.image !== undefined) updates.image = scenario.image;
         if (scenario.imagePrompt !== undefined) updates.imagePrompt = scenario.imagePrompt;
         if (scenario.introVideoUrl !== undefined) updates.introVideoUrl = scenario.introVideoUrl;
+        if ((scenario as any).introVideoMode !== undefined) updates.introVideoMode = (scenario as any).introVideoMode;
         if (scenario.videoPrompt !== undefined) updates.videoPrompt = scenario.videoPrompt;
         if (scenario.objectiveType !== undefined) updates.objectiveType = scenario.objectiveType;
         if (scenario.context !== undefined) updates.context = scenario.context;

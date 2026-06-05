@@ -424,8 +424,14 @@ export default function Home() {
       setConversationId(conversation.id);
       setScenarioRunId(conversation.scenarioRunId); // scenarioRunId 저장
       
-      // 인트로 영상: 시나리오에 영상이 있고 아직 시청하지 않은 경우에만 표시
-      if (selectedScenario.introVideoUrl && !hasSeenIntroVideo) {
+      // 인트로 영상: 모드가 'none'이 아니고 아직 시청하지 않은 경우에만 표시
+      const videoMode = (selectedScenario as any).introVideoMode || (selectedScenario.introVideoUrl ? 'custom' : 'none');
+      const videoSrc = videoMode === 'default'
+        ? '/videos/intro_default.webm'
+        : videoMode === 'custom' && selectedScenario.introVideoUrl
+          ? selectedScenario.introVideoUrl
+          : null;
+      if (videoSrc && !hasSeenIntroVideo) {
         setCurrentView("video-intro");
       } else {
         setCurrentView("chat");
@@ -1061,14 +1067,23 @@ export default function Home() {
           );
         })()}
         
-        {currentView === "video-intro" && selectedScenario && selectedScenario.introVideoUrl && (
-          <VideoIntro
-            videoSrc={toMediaUrl(selectedScenario.introVideoUrl)}
-            onComplete={handleVideoComplete}
-            onSkip={handleVideoSkip}
-            preloadImageUrl={selectedPersona ? toMediaUrl(`personas/${(selectedPersona.mbti?.toLowerCase() || selectedPersona.id)}/${selectedPersona.gender || 'male'}/neutral.webp`) : undefined}
-          />
-        )}
+        {currentView === "video-intro" && selectedScenario && (() => {
+          const videoMode = (selectedScenario as any).introVideoMode || (selectedScenario.introVideoUrl ? 'custom' : 'none');
+          const videoSrc = videoMode === 'default'
+            ? '/videos/intro_default.webm'
+            : videoMode === 'custom' && selectedScenario.introVideoUrl
+              ? toMediaUrl(selectedScenario.introVideoUrl)
+              : null;
+          if (!videoSrc) return null;
+          return (
+            <VideoIntro
+              videoSrc={videoSrc}
+              onComplete={handleVideoComplete}
+              onSkip={handleVideoSkip}
+              preloadImageUrl={selectedPersona ? toMediaUrl(`personas/${(selectedPersona.mbti?.toLowerCase() || selectedPersona.id)}/${selectedPersona.gender || 'male'}/neutral.webp`) : undefined}
+            />
+          );
+        })()}
 
         {currentView === "chat" && selectedScenario && selectedPersona && conversationId && (
           <ChatWindow

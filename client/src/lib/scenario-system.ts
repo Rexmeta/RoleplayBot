@@ -63,6 +63,7 @@ export interface ComplexScenario {
   imagePrompt?: string;
   categoryId?: string;
   introVideoUrl?: string;
+  introVideoMode?: 'none' | 'default' | 'custom';
   videoPrompt?: string;
   objectiveType?: string;
   sourceLocale?: string;

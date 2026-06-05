@@ -1756,6 +1756,25 @@ export async function runMigrations(): Promise<void> {
         console.warn('⚠️ Failed to add scenarios store columns:', err);
       }
 
+      // intro_video_mode column on scenarios
+      try {
+        await client.query(`
+          ALTER TABLE "scenarios"
+            ADD COLUMN IF NOT EXISTS "intro_video_mode" text DEFAULT 'none';
+        `);
+        // Backfill: scenarios with an existing introVideoUrl get 'custom', others stay 'none'
+        await client.query(`
+          UPDATE "scenarios"
+          SET "intro_video_mode" = 'custom'
+          WHERE "intro_video_url" IS NOT NULL
+            AND "intro_video_url" != ''
+            AND ("intro_video_mode" IS NULL OR "intro_video_mode" = 'none');
+        `);
+        console.log('✅ scenarios intro_video_mode column ensured and backfilled');
+      } catch (err) {
+        console.warn('⚠️ Failed to add scenarios intro_video_mode column:', err);
+      }
+
       // Store columns on mbti_personas
       try {
         await client.query(`

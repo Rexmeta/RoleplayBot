@@ -60,6 +60,7 @@ interface ScenarioFormData {
   image?: string; // 시나리오 이미지 URL 필드 추가
   imagePrompt?: string; // 이미지 생성 프롬프트 필드 추가
   introVideoUrl?: string; // 인트로 비디오 URL 필드 추가
+  introVideoMode?: 'none' | 'default' | 'custom'; // 인트로 비디오 모드
   videoPrompt?: string; // 비디오 생성 프롬프트 필드 추가
   objectiveType?: string; // 목표 유형 추가
   targetDurationMinutes?: number; // 시나리오별 목표 대화 시간(분)
@@ -394,6 +395,7 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
     image: '', // 이미지 초기값 추가
     imagePrompt: '', // 이미지 프롬프트 초기값 추가
     introVideoUrl: '', // 인트로 비디오 URL 초기값 추가
+    introVideoMode: 'none', // 인트로 비디오 모드 초기값
     videoPrompt: '', // 비디오 프롬프트 초기값 추가
     objectiveType: '', // 목표 유형 초기값 추가
     targetDurationMinutes: 7,
@@ -545,6 +547,7 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
       image: scenario.image || '',
       imagePrompt: scenario.imagePrompt || '',
       introVideoUrl: scenario.introVideoUrl || '',
+      introVideoMode: (scenario as any).introVideoMode || (scenario.introVideoUrl ? 'custom' : 'none'),
       videoPrompt: scenario.videoPrompt || '',
       objectiveType: scenario.objectiveType || '',
       isDemo: scenario.isDemo || false,
@@ -721,6 +724,7 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
       image: '', // 이미지 필드 초기화 추가
       imagePrompt: '', // 이미지 프롬프트 초기화 추가
       introVideoUrl: '', // 인트로 비디오 URL 초기화 추가
+      introVideoMode: 'none', // 인트로 비디오 모드 초기화
       videoPrompt: '', // 비디오 프롬프트 초기화 추가
       objectiveType: '', // 목표 유형 초기화
       targetDurationMinutes: 7,
@@ -801,6 +805,7 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
       image: originalScenario.image || '', // 기존 시나리오의 이미지 URL 로드
       imagePrompt: (originalScenario as any).imagePrompt || '', // 기존 시나리오의 이미지 프롬프트 로드
       introVideoUrl: (originalScenario as any).introVideoUrl || '', // 기존 시나리오의 인트로 비디오 URL 로드
+      introVideoMode: (originalScenario as any).introVideoMode || ((originalScenario as any).introVideoUrl ? 'custom' : 'none'),
       videoPrompt: (originalScenario as any).videoPrompt || '', // 기존 시나리오의 비디오 프롬프트 로드
       objectiveType: (originalScenario as any).objectiveType || '', // 기존 시나리오의 목표 유형 로드
       targetDurationMinutes: (originalScenario as any).targetDurationMinutes ?? 7,
@@ -1207,7 +1212,7 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
       const data = await response.json();
       
       if (data.success && data.videoUrl) {
-        setFormData(prev => ({ ...prev, introVideoUrl: data.videoUrl }));
+        setFormData(prev => ({ ...prev, introVideoUrl: data.videoUrl, introVideoMode: 'custom' }));
         toast({
           title: t('admin.scenarioManager.toast.videoGenerated', 'Video Generated'),
           description: t('admin.scenarioManager.toast.videoGeneratedDesc', 'Intro video generated successfully.'),
@@ -1381,7 +1386,7 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
       const data = await response.json();
       
       if (data.success) {
-        setFormData(prev => ({ ...prev, introVideoUrl: '' }));
+        setFormData(prev => ({ ...prev, introVideoUrl: '', introVideoMode: 'none' }));
         toast({
           title: t('admin.scenarioManager.toast.videoDeleted', 'Video Deleted'),
           description: t('admin.scenarioManager.toast.videoDeletedDesc', 'Intro video has been deleted.'),
@@ -1458,8 +1463,8 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
       return;
     }
     const exportData = scenarios.map(s => {
-      const { id, title, description, difficulty, estimatedTime, skills, context, objectives, successCriteria, personas, recommendedFlow, image, imagePrompt, introVideoUrl, videoPrompt, objectiveType, isDemo, isPublic } = s as any;
-      return { id, title, description, difficulty, estimatedTime, skills, context, objectives, successCriteria, personas, recommendedFlow, image, imagePrompt, introVideoUrl, videoPrompt, objectiveType, isDemo, isPublic, categoryId: (s as any).categoryId, evaluationCriteriaSetId: (s as any).evaluationCriteriaSetId };
+      const { id, title, description, difficulty, estimatedTime, skills, context, objectives, successCriteria, personas, recommendedFlow, image, imagePrompt, introVideoUrl, introVideoMode, videoPrompt, objectiveType, isDemo, isPublic } = s as any;
+      return { id, title, description, difficulty, estimatedTime, skills, context, objectives, successCriteria, personas, recommendedFlow, image, imagePrompt, introVideoUrl, introVideoMode, videoPrompt, objectiveType, isDemo, isPublic, categoryId: (s as any).categoryId, evaluationCriteriaSetId: (s as any).evaluationCriteriaSetId };
     });
     const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
@@ -1720,138 +1725,208 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
                   )}
                 </div>
                 
-                {/* 인트로 비디오 생성 섹션 */}
+                {/* 인트로 비디오 모드 선택 섹션 */}
                 <div className="space-y-3 mt-6 pt-6 border-t border-slate-200">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <Label className="text-sm font-medium text-slate-700">{t('admin.scenarioManager.form.introVideo')}</Label>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        onClick={handleOpenVideoSelector}
-                        className="text-xs"
-                      >
-                        📁 {t('admin.scenarioManager.form.selectExistingVideo', '기존 비디오 선택')}
-                      </Button>
-                    </div>
-                    {formData.introVideoUrl && (
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        onClick={handleDeleteVideo}
-                        className="text-red-600 hover:text-red-700 hover:bg-red-50"
-                        data-testid="button-delete-video"
-                      >
-                        <i className="fas fa-trash mr-1"></i>
-                        {t('common.delete')}
-                      </Button>
-                    )}
+                  <Label className="text-sm font-medium text-slate-700">{t('admin.scenarioManager.form.introVideo')}</Label>
+
+                  {/* 모드 선택 라디오 카드 */}
+                  <div className="grid grid-cols-3 gap-2">
+                    {/* 사용 안 함 */}
+                    <button
+                      type="button"
+                      onClick={() => setFormData(prev => ({ ...prev, introVideoMode: 'none' }))}
+                      className={`flex flex-col items-center gap-1.5 p-3 rounded-lg border-2 text-sm transition-all ${
+                        formData.introVideoMode === 'none'
+                          ? 'border-slate-700 bg-slate-50'
+                          : 'border-slate-200 bg-white hover:border-slate-400'
+                      }`}
+                      data-testid="video-mode-none"
+                    >
+                      <span className="text-xl">🚫</span>
+                      <span className="font-medium text-slate-700">사용 안 함</span>
+                      <span className="text-xs text-slate-500 text-center">인트로 없이 시작</span>
+                    </button>
+
+                    {/* 기본 비디오 */}
+                    <button
+                      type="button"
+                      onClick={() => setFormData(prev => ({ ...prev, introVideoMode: 'default' }))}
+                      className={`flex flex-col items-center gap-1.5 p-3 rounded-lg border-2 text-sm transition-all ${
+                        formData.introVideoMode === 'default'
+                          ? 'border-blue-600 bg-blue-50'
+                          : 'border-slate-200 bg-white hover:border-blue-300'
+                      }`}
+                      data-testid="video-mode-default"
+                    >
+                      <span className="text-xl">🎬</span>
+                      <span className="font-medium text-slate-700">기본 비디오</span>
+                      <span className="text-xs text-slate-500 text-center">공통 인트로 재생</span>
+                    </button>
+
+                    {/* 커스텀 비디오 */}
+                    <button
+                      type="button"
+                      onClick={() => setFormData(prev => ({ ...prev, introVideoMode: 'custom' }))}
+                      className={`flex flex-col items-center gap-1.5 p-3 rounded-lg border-2 text-sm transition-all ${
+                        formData.introVideoMode === 'custom'
+                          ? 'border-purple-600 bg-purple-50'
+                          : 'border-slate-200 bg-white hover:border-purple-300'
+                      }`}
+                      data-testid="video-mode-custom"
+                    >
+                      <span className="text-xl">🎥</span>
+                      <span className="font-medium text-slate-700">커스텀 비디오</span>
+                      <span className="text-xs text-slate-500 text-center">시나리오별 영상</span>
+                    </button>
                   </div>
-                  <p className="text-xs text-slate-500">
-                    {t('admin.scenarioManager.form.introVideoDesc')}
-                  </p>
-                  
-                  {/* 비디오 URL 직접 입력 */}
-                  <Input
-                    id="introVideoUrl"
-                    value={formData.introVideoUrl || ''}
-                    onChange={(e) => {
-                      setFormData(prev => ({ ...prev, introVideoUrl: e.target.value }));
-                      if (e.target.value) setVideoLoadFailed(false);
-                    }}
-                    placeholder="비디오 URL을 입력하세요 (예: /scenarios/videos/intro.mp4)"
-                    data-testid="input-intro-video-url"
-                    className="bg-white"
-                  />
-                  
-                  {/* 비디오 프롬프트 입력 */}
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between">
-                      <Label htmlFor="videoPrompt" className="text-sm font-medium text-slate-700">{t('admin.scenarioManager.form.videoPrompt')}</Label>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        onClick={handleLoadDefaultVideoPrompt}
-                        disabled={!formData.title}
-                        className="text-xs"
-                      >
-                        {t('admin.scenarioManager.form.loadDefaultPrompt', '기본 프롬프트 로드')}
-                      </Button>
-                    </div>
-                    <Textarea
-                      id="videoPrompt"
-                      value={formData.videoPrompt || ''}
-                      onChange={(e) => setFormData(prev => ({ ...prev, videoPrompt: e.target.value }))}
-                      placeholder={t('admin.scenarioManager.form.videoPromptPlaceholder')}
-                      className="min-h-[80px] bg-white whitespace-pre-wrap"
-                      data-testid="textarea-video-prompt"
-                    />
-                    <p className="text-xs text-slate-500">
-                      예: "Modern tech office, employees discussing urgently around monitors showing security alerts, tense atmosphere"
-                    </p>
-                  </div>
-                  
-                  {/* 비디오 생성 버튼 */}
-                  <Button
-                    type="button"
-                    onClick={handleGenerateVideo}
-                    disabled={isGeneratingVideo || !editingScenario?.id}
-                    className="w-full"
-                    variant={editingScenario?.id ? "default" : "secondary"}
-                    data-testid="button-generate-video"
-                  >
-                    {isGeneratingVideo ? (
-                      <>
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        {t('admin.scenarioManager.form.generatingVideo')}
-                      </>
-                    ) : editingScenario?.id ? (
-                      `🎬 ${t('admin.scenarioManager.form.generateVideo')}`
-                    ) : (
-                      t('admin.scenarioManager.form.videoAfterSave')
-                    )}
-                  </Button>
-                  
-                  {/* 비디오 미리보기 */}
-                  {isGeneratingVideo && (
-                    <div className="mt-3">
-                      <div className="flex items-center justify-center h-32 bg-slate-900 rounded-lg border text-slate-400 text-sm">
-                        <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-                        비디오 생성 중...
-                      </div>
-                    </div>
-                  )}
-                  {!isGeneratingVideo && videoLoadFailed && (
-                    <div className="mt-3">
-                      <div className="flex items-center justify-center h-32 bg-slate-900 rounded-lg border text-slate-400 text-sm">
-                        <span className="mr-2">⚠️</span>비디오를 불러올 수 없습니다. 새로 생성해 주세요.
-                      </div>
-                    </div>
-                  )}
-                  {!isGeneratingVideo && !videoLoadFailed && formData.introVideoUrl && (
-                    <div className="mt-3">
-                      <p className="text-sm text-slate-600 mb-2">비디오 미리보기 (클릭하면 전체보기):</p>
-                      <div 
-                        className="relative w-full bg-slate-900 rounded-lg overflow-hidden border cursor-pointer hover:shadow-lg transition-shadow"
-                        onClick={() => setVideoPreviewUrl(toMediaUrl(formData.introVideoUrl) || null)}
-                        data-testid="video-preview-container"
-                      >
+
+                  {/* 기본 비디오 미리보기 */}
+                  {formData.introVideoMode === 'default' && (
+                    <div className="mt-2">
+                      <p className="text-xs text-slate-500 mb-2">기본 비디오 미리보기:</p>
+                      <div className="relative w-full bg-slate-900 rounded-lg overflow-hidden border">
                         <video
-                          key={formData.introVideoUrl}
-                          src={toMediaUrl(formData.introVideoUrl)}
+                          src="/videos/intro_default.webm"
                           controls
-                          className="w-full max-h-64 object-contain"
+                          className="w-full max-h-48 object-contain"
                           preload="metadata"
-                          onError={() => {
-                            setVideoLoadFailed(true);
-                            setFormData(prev => ({ ...prev, introVideoUrl: '' }));
-                          }}
-                          data-testid="scenario-video-preview"
+                          data-testid="default-video-preview"
                         />
                       </div>
+                    </div>
+                  )}
+
+                  {/* 커스텀 비디오 UI */}
+                  {formData.introVideoMode === 'custom' && (
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={handleOpenVideoSelector}
+                            className="text-xs"
+                          >
+                            📁 {t('admin.scenarioManager.form.selectExistingVideo', '기존 비디오 선택')}
+                          </Button>
+                        </div>
+                        {formData.introVideoUrl && (
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            onClick={handleDeleteVideo}
+                            className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                            data-testid="button-delete-video"
+                          >
+                            <i className="fas fa-trash mr-1"></i>
+                            {t('common.delete')}
+                          </Button>
+                        )}
+                      </div>
+
+                      {/* 비디오 URL 직접 입력 */}
+                      <Input
+                        id="introVideoUrl"
+                        value={formData.introVideoUrl || ''}
+                        onChange={(e) => {
+                          setFormData(prev => ({ ...prev, introVideoUrl: e.target.value }));
+                          if (e.target.value) setVideoLoadFailed(false);
+                        }}
+                        placeholder="비디오 URL을 입력하세요 (예: /scenarios/videos/intro.webm)"
+                        data-testid="input-intro-video-url"
+                        className="bg-white"
+                      />
+
+                      {/* 비디오 프롬프트 입력 */}
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between">
+                          <Label htmlFor="videoPrompt" className="text-sm font-medium text-slate-700">{t('admin.scenarioManager.form.videoPrompt')}</Label>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={handleLoadDefaultVideoPrompt}
+                            disabled={!formData.title}
+                            className="text-xs"
+                          >
+                            {t('admin.scenarioManager.form.loadDefaultPrompt', '기본 프롬프트 로드')}
+                          </Button>
+                        </div>
+                        <Textarea
+                          id="videoPrompt"
+                          value={formData.videoPrompt || ''}
+                          onChange={(e) => setFormData(prev => ({ ...prev, videoPrompt: e.target.value }))}
+                          placeholder={t('admin.scenarioManager.form.videoPromptPlaceholder')}
+                          className="min-h-[80px] bg-white whitespace-pre-wrap"
+                          data-testid="textarea-video-prompt"
+                        />
+                        <p className="text-xs text-slate-500">
+                          예: "Modern tech office, employees discussing urgently around monitors showing security alerts, tense atmosphere"
+                        </p>
+                      </div>
+
+                      {/* 비디오 생성 버튼 */}
+                      <Button
+                        type="button"
+                        onClick={handleGenerateVideo}
+                        disabled={isGeneratingVideo || !editingScenario?.id}
+                        className="w-full"
+                        variant={editingScenario?.id ? "default" : "secondary"}
+                        data-testid="button-generate-video"
+                      >
+                        {isGeneratingVideo ? (
+                          <>
+                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                            {t('admin.scenarioManager.form.generatingVideo')}
+                          </>
+                        ) : editingScenario?.id ? (
+                          `🎬 ${t('admin.scenarioManager.form.generateVideo')}`
+                        ) : (
+                          t('admin.scenarioManager.form.videoAfterSave')
+                        )}
+                      </Button>
+
+                      {/* 비디오 미리보기 */}
+                      {isGeneratingVideo && (
+                        <div className="mt-3">
+                          <div className="flex items-center justify-center h-32 bg-slate-900 rounded-lg border text-slate-400 text-sm">
+                            <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                            비디오 생성 중...
+                          </div>
+                        </div>
+                      )}
+                      {!isGeneratingVideo && videoLoadFailed && (
+                        <div className="mt-3">
+                          <div className="flex items-center justify-center h-32 bg-slate-900 rounded-lg border text-slate-400 text-sm">
+                            <span className="mr-2">⚠️</span>비디오를 불러올 수 없습니다. 새로 생성해 주세요.
+                          </div>
+                        </div>
+                      )}
+                      {!isGeneratingVideo && !videoLoadFailed && formData.introVideoUrl && (
+                        <div className="mt-3">
+                          <p className="text-sm text-slate-600 mb-2">비디오 미리보기 (클릭하면 전체보기):</p>
+                          <div
+                            className="relative w-full bg-slate-900 rounded-lg overflow-hidden border cursor-pointer hover:shadow-lg transition-shadow"
+                            onClick={() => setVideoPreviewUrl(toMediaUrl(formData.introVideoUrl) || null)}
+                            data-testid="video-preview-container"
+                          >
+                            <video
+                              key={formData.introVideoUrl}
+                              src={toMediaUrl(formData.introVideoUrl)}
+                              controls
+                              className="w-full max-h-64 object-contain"
+                              preload="metadata"
+                              onError={() => {
+                                setVideoLoadFailed(true);
+                                setFormData(prev => ({ ...prev, introVideoUrl: '' }));
+                              }}
+                              data-testid="scenario-video-preview"
+                            />
+                          </div>
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>

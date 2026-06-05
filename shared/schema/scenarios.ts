@@ -293,6 +293,7 @@ export const scenarios = pgTable("scenarios", {
   image: text("image"),
   imagePrompt: text("image_prompt"),
   introVideoUrl: text("intro_video_url"),
+  introVideoMode: text("intro_video_mode").$type<'none' | 'default' | 'custom'>().default('none'),
   videoPrompt: text("video_prompt"),
   objectiveType: text("objective_type"),
   context: jsonb("context").$type<{

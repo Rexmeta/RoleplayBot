@@ -504,7 +504,8 @@ export default function createAdminScenariosRouter(isAuthenticated: any) {
     }
 
     await fileManager.updateScenario(scenarioId, {
-      introVideoUrl: result.videoUrl
+      introVideoUrl: result.videoUrl,
+      introVideoMode: 'custom'
     } as any);
 
     if (oldVideoPath && oldVideoPath !== result.videoUrl) {
@@ -541,7 +542,8 @@ export default function createAdminScenariosRouter(isAuthenticated: any) {
     const deleted = await deleteIntroVideo(scenario.introVideoUrl);
 
     await fileManager.updateScenario(scenarioId, {
-      introVideoUrl: ''
+      introVideoUrl: '',
+      introVideoMode: 'none'
     } as any);
 
     console.log(`🗑️ 시나리오 인트로 비디오 삭제 완료: ${scenarioId}`);
