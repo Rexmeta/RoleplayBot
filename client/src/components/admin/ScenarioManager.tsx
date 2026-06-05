@@ -3698,6 +3698,26 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
                           {(scenario as any).isPublic ? '공개' : '비공개'}
                         </span>
                       </div>
+                      {(() => {
+                        const videoMode = (scenario as any).introVideoMode || 'none';
+                        const videoModeConfig = {
+                          none:    { emoji: '🚫', label: '없음' },
+                          default: { emoji: '🎬', label: '기본' },
+                          custom:  { emoji: '🎥', label: '커스텀' },
+                        }[videoMode as 'none' | 'default' | 'custom'] ?? { emoji: '🚫', label: '없음' };
+                        return (
+                          <TooltipProvider>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Badge variant="outline" className="text-xs bg-slate-50 text-slate-600 border-slate-200 cursor-default select-none">
+                                  {videoModeConfig.emoji} {videoModeConfig.label}
+                                </Badge>
+                              </TooltipTrigger>
+                              <TooltipContent side="bottom">인트로 영상: {videoModeConfig.label}</TooltipContent>
+                            </Tooltip>
+                          </TooltipProvider>
+                        );
+                      })()}
                       <div className="flex items-center gap-1.5">
                         <Clock className="w-3.5 h-3.5" />
                         <span>{scenario.estimatedTime}</span>
