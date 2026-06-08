@@ -146,12 +146,22 @@ export function useAudioPlayback(
         analyserNodeRef.current.fftSize = 256;
         analyserNodeRef.current.smoothingTimeConstant = 0.8;
 
+        // Compressor acts as a peak safety-net AFTER AGC pre-conditions the signal
+        // to ~-14 dBFS RMS (AGC_TARGET_RMS = 0.2). Settings rationale:
+        //   threshold=-10: sits above the AGC steady-state so the compressor only
+        //     engages on genuine transients/peaks, not on every chunk of speech.
+        //   ratio=4: gentle limiting; AGC already handles normalisation, so we
+        //     only need a soft ceiling rather than hard brick-wall compression.
+        //   knee=40: wide soft-knee avoids an abrupt onset at threshold.
+        //   attack=8ms: lets short transients pass naturally before clamping.
+        //   release=100ms: fast enough to not leave residual gain reduction
+        //     between words (preventing the pumping that the old 250ms caused).
         compressorNodeRef.current = audioContext.createDynamicsCompressor();
-        compressorNodeRef.current.threshold.value = -24;
-        compressorNodeRef.current.knee.value = 30;
-        compressorNodeRef.current.ratio.value = 12;
-        compressorNodeRef.current.attack.value = 0.003;
-        compressorNodeRef.current.release.value = 0.25;
+        compressorNodeRef.current.threshold.value = -10;
+        compressorNodeRef.current.knee.value = 40;
+        compressorNodeRef.current.ratio.value = 4;
+        compressorNodeRef.current.attack.value = 0.008;
+        compressorNodeRef.current.release.value = 0.1;
 
         gainNodeRef.current = audioContext.createGain();
         gainNodeRef.current.gain.value = DEFAULT_GAIN;
