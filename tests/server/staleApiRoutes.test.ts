@@ -33,7 +33,7 @@
  */
 
 import { describe, it, expect } from "vitest";
-import { readFileSync, readdirSync, statSync } from "fs";
+import { readFileSync, readdirSync, statSync, existsSync } from "fs";
 import { join, extname, basename } from "path";
 
 // ---------------------------------------------------------------------------
@@ -331,6 +331,35 @@ describe("Stale API route detector", () => {
   const clientFiles = collectSourceFiles(join(CWD, "client", "src"));
 
   // ── Route-file coverage guard ─────────────────────────────────────────────
+
+  it("every non-server/routes/ entry in SERVER_FILES_ABSOLUTE and SERVER_FILES_RELATIVE exists on disk", () => {
+    // Collect all hardcoded entries that live outside server/routes/.
+    // These files are not covered by the auto-discovery scan below, so a
+    // rename or accidental deletion would otherwise pass silently.
+    const outsideRoutesDir = [
+      ...SERVER_FILES_ABSOLUTE,
+      ...SERVER_FILES_RELATIVE.map(({ file }) => file),
+    ].filter((f) => !f.startsWith("server/routes/"));
+
+    const missing = outsideRoutesDir.filter(
+      (f) => !existsSync(join(CWD, f))
+    );
+
+    if (missing.length > 0) {
+      const message = [
+        "",
+        `${missing.length} hardcoded route file(s) outside server/routes/ no longer exist on disk:`,
+        ...missing.map((f) => `  ${f}`),
+        "",
+        "How to fix — choose ONE of the following for each missing file:",
+        "  • If the file was moved, update the path in SERVER_FILES_ABSOLUTE or",
+        "    SERVER_FILES_RELATIVE in tests/server/staleApiRoutes.test.ts.",
+        "  • If the file was intentionally deleted and its routes removed, remove",
+        "    its entry from the relevant list in tests/server/staleApiRoutes.test.ts.",
+      ].join("\n");
+      expect.fail(message);
+    }
+  });
 
   it("all server/routes/*.ts files are registered in SERVER_FILES_ABSOLUTE or SERVER_FILES_RELATIVE", () => {
     const routeDir = join(CWD, "server", "routes");
