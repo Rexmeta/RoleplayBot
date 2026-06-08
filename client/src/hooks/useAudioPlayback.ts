@@ -1,8 +1,13 @@
 import { useState, useRef, useCallback } from 'react';
 
-const PEAK_NORMALIZATION_TARGET = 0.8;
-const PEAK_NORMALIZATION_SILENCE_THRESHOLD = 0.01;
 const DEFAULT_GAIN = 1.0;
+
+const AGC_TARGET_RMS = 0.2;
+const AGC_SILENCE_THRESHOLD = 0.01;
+const AGC_ATTACK_COEFF = 0.1;
+const AGC_RELEASE_COEFF = 0.02;
+const AGC_MIN_GAIN = 0.5;
+const AGC_MAX_GAIN = 8.0;
 
 interface UseAudioPlaybackReturn {
   playbackContextRef: React.MutableRefObject<AudioContext | null>;
@@ -34,6 +39,7 @@ export function useAudioPlayback(
   const compressorNodeRef = useRef<DynamicsCompressorNode | null>(null);
   const amplitudeAnimationRef = useRef<number | null>(null);
   const isAISpeakingRef = useRef<boolean>(false);
+  const agcRmsRef = useRef<number>(AGC_TARGET_RMS);
 
   const startAmplitudeAnalysis = useCallback(() => {
     if (amplitudeAnimationRef.current) return;
@@ -110,6 +116,7 @@ export function useAudioPlayback(
     }
 
     nextPlayTimeRef.current = 0;
+    agcRmsRef.current = AGC_TARGET_RMS;
     setIsAISpeaking(false);
     isAISpeakingRef.current = false;
   }, [isInterruptedRef]);
@@ -170,15 +177,21 @@ export function useAudioPlayback(
         float32[i] = pcm16[i] / 32768.0;
       }
 
-      let peak = 0;
+      let sumSq = 0;
       for (let i = 0; i < float32.length; i++) {
-        const abs = Math.abs(float32[i]);
-        if (abs > peak) peak = abs;
+        sumSq += float32[i] * float32[i];
       }
-      if (peak >= PEAK_NORMALIZATION_SILENCE_THRESHOLD) {
-        const scale = PEAK_NORMALIZATION_TARGET / peak;
+      const chunkRms = Math.sqrt(sumSq / float32.length);
+
+      if (chunkRms >= AGC_SILENCE_THRESHOLD) {
+        const coeff = chunkRms > agcRmsRef.current ? AGC_ATTACK_COEFF : AGC_RELEASE_COEFF;
+        agcRmsRef.current = agcRmsRef.current * (1 - coeff) + chunkRms * coeff;
+      }
+
+      if (agcRmsRef.current >= AGC_SILENCE_THRESHOLD) {
+        const agcGain = Math.min(AGC_MAX_GAIN, Math.max(AGC_MIN_GAIN, AGC_TARGET_RMS / agcRmsRef.current));
         for (let i = 0; i < float32.length; i++) {
-          float32[i] *= scale;
+          float32[i] = Math.max(-1.0, Math.min(1.0, float32[i] * agcGain));
         }
       }
 

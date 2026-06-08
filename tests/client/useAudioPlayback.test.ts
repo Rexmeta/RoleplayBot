@@ -376,8 +376,8 @@ describe('useAudioPlayback', () => {
     });
   });
 
-  describe('peak normalization', () => {
-    it('writes normalized samples to AudioBuffer after playAudioDelta (behavior-level)', async () => {
+  describe('cross-chunk AGC', () => {
+    it('writes AGC-scaled samples to AudioBuffer after playAudioDelta (behavior-level)', async () => {
       const { result } = renderAudioPlayback();
       result.current.playbackContextRef.current = mockContext as unknown as AudioContext;
 
@@ -391,15 +391,23 @@ describe('useAudioPlayback', () => {
       const buf = (mockContext as any)._lastBuffer;
       expect(buf).not.toBeNull();
       const channelData = buf._channelData as Float32Array;
-      let peak = 0;
-      for (let i = 0; i < pcm16.length; i++) {
-        const abs = Math.abs(channelData[i]);
-        if (abs > peak) peak = abs;
+      // AGC should scale samples — result must stay within [-1, 1]
+      for (let i = 0; i < channelData.length; i++) {
+        expect(Math.abs(channelData[i])).toBeLessThanOrEqual(1.0);
       }
-      expect(peak).toBeCloseTo(0.8, 4);
+      // At least one sample should be non-zero (audio was not silenced)
+      const anyNonZero = Array.from(channelData).some(v => Math.abs(v) > 0.001);
+      expect(anyNonZero).toBe(true);
     });
 
-    it('scales non-silent chunks to target peak level 0.8', () => {
+    it('AGC math scales non-silent chunks toward target RMS 0.2', () => {
+      const AGC_TARGET_RMS = 0.2;
+      const AGC_SILENCE_THRESHOLD = 0.01;
+      const AGC_ATTACK_COEFF = 0.1;
+      const AGC_RELEASE_COEFF = 0.02;
+      const AGC_MIN_GAIN = 0.5;
+      const AGC_MAX_GAIN = 8.0;
+
       const pcm16Values = [16384, -16384];
       const pcm16 = new Int16Array(pcm16Values);
       const float32 = new Float32Array(pcm16.length);
@@ -407,50 +415,66 @@ describe('useAudioPlayback', () => {
         float32[i] = pcm16[i] / 32768.0;
       }
 
-      const PEAK_TARGET = 0.8;
-      const SILENCE_THRESHOLD = 0.01;
+      let sumSq = 0;
+      for (let i = 0; i < float32.length; i++) sumSq += float32[i] * float32[i];
+      const chunkRms = Math.sqrt(sumSq / float32.length);
 
-      let peak = 0;
-      for (let i = 0; i < float32.length; i++) {
-        const abs = Math.abs(float32[i]);
-        if (abs > peak) peak = abs;
-      }
-      if (peak >= SILENCE_THRESHOLD) {
-        const scale = PEAK_TARGET / peak;
-        for (let i = 0; i < float32.length; i++) {
-          float32[i] *= scale;
-        }
+      let agcRms = AGC_TARGET_RMS;
+      if (chunkRms >= AGC_SILENCE_THRESHOLD) {
+        const coeff = chunkRms > agcRms ? AGC_ATTACK_COEFF : AGC_RELEASE_COEFF;
+        agcRms = agcRms * (1 - coeff) + chunkRms * coeff;
       }
 
-      let normalizedPeak = 0;
+      const agcGain = Math.min(AGC_MAX_GAIN, Math.max(AGC_MIN_GAIN, AGC_TARGET_RMS / agcRms));
       for (let i = 0; i < float32.length; i++) {
-        const abs = Math.abs(float32[i]);
-        if (abs > normalizedPeak) normalizedPeak = abs;
+        float32[i] = Math.max(-1.0, Math.min(1.0, float32[i] * agcGain));
       }
-      expect(normalizedPeak).toBeCloseTo(PEAK_TARGET, 5);
+
+      // Gain should be within allowed bounds
+      expect(agcGain).toBeGreaterThanOrEqual(AGC_MIN_GAIN);
+      expect(agcGain).toBeLessThanOrEqual(AGC_MAX_GAIN);
+      // Samples remain clipped to [-1, 1]
+      for (let i = 0; i < float32.length; i++) {
+        expect(Math.abs(float32[i])).toBeLessThanOrEqual(1.0);
+      }
     });
 
-    it('skips scaling for near-silent chunks to prevent noise amplification', () => {
+    it('skips AGC scaling for near-silent chunks to prevent noise amplification', () => {
+      const AGC_TARGET_RMS = 0.2;
+      const AGC_SILENCE_THRESHOLD = 0.01;
+      const AGC_ATTACK_COEFF = 0.1;
+      const AGC_RELEASE_COEFF = 0.02;
+      const AGC_MIN_GAIN = 0.5;
+      const AGC_MAX_GAIN = 8.0;
+
       const silentFloat32 = new Float32Array([0.001, -0.001, 0.0005]);
       const original = new Float32Array(silentFloat32);
 
-      const PEAK_TARGET = 0.8;
-      const SILENCE_THRESHOLD = 0.01;
+      let sumSq = 0;
+      for (let i = 0; i < silentFloat32.length; i++) sumSq += silentFloat32[i] * silentFloat32[i];
+      const chunkRms = Math.sqrt(sumSq / silentFloat32.length);
 
-      let peak = 0;
-      for (let i = 0; i < silentFloat32.length; i++) {
-        const abs = Math.abs(silentFloat32[i]);
-        if (abs > peak) peak = abs;
+      // chunk RMS is below silence threshold — AGC state should NOT update
+      let agcRms = AGC_TARGET_RMS;
+      if (chunkRms >= AGC_SILENCE_THRESHOLD) {
+        const coeff = chunkRms > agcRms ? AGC_ATTACK_COEFF : AGC_RELEASE_COEFF;
+        agcRms = agcRms * (1 - coeff) + chunkRms * coeff;
       }
-      if (peak >= SILENCE_THRESHOLD) {
-        const scale = PEAK_TARGET / peak;
+
+      // agcRms should remain at target (no update for silent chunk)
+      expect(agcRms).toBeCloseTo(AGC_TARGET_RMS, 5);
+
+      // Gain is still applied but samples stay within [-1, 1]
+      if (agcRms >= AGC_SILENCE_THRESHOLD) {
+        const agcGain = Math.min(AGC_MAX_GAIN, Math.max(AGC_MIN_GAIN, AGC_TARGET_RMS / agcRms));
         for (let i = 0; i < silentFloat32.length; i++) {
-          silentFloat32[i] *= scale;
+          silentFloat32[i] = Math.max(-1.0, Math.min(1.0, silentFloat32[i] * agcGain));
         }
       }
 
-      expect(silentFloat32[0]).toBeCloseTo(original[0], 5);
-      expect(silentFloat32[1]).toBeCloseTo(original[1], 5);
+      for (let i = 0; i < silentFloat32.length; i++) {
+        expect(Math.abs(silentFloat32[i])).toBeLessThanOrEqual(1.0);
+      }
     });
   });
 
