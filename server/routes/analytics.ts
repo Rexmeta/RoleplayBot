@@ -1488,5 +1488,100 @@ export default function createAnalyticsRouter(isAuthenticated: any) {
     return res.json({ groupName, groupAverage, scenarios: scenarioStats });
   }));
 
+  router.get("/api/admin/users/:userId/feedbacks", isAuthenticated, asyncHandler(async (req: any, res) => {
+    const requestUser = req.user;
+    const { userId } = req.params;
+
+    if (requestUser.role !== 'admin' && requestUser.role !== 'operator') {
+      throw createHttpError(403, "Access denied");
+    }
+
+    const userScenarioRuns = await storage.getUserScenarioRuns(userId);
+
+    let filteredRuns = userScenarioRuns;
+    if (requestUser.role === 'operator') {
+      const allScenarios = await fileManager.getAllScenarios();
+      const accessibleCategoryIds = await getOperatorAccessibleCategoryIds(requestUser);
+      filteredRuns = userScenarioRuns.filter(sr => {
+        const scenario = allScenarios.find((s: any) => s.id === sr.scenarioId);
+        return scenario && accessibleCategoryIds.includes(String(scenario.categoryId));
+      });
+    }
+
+    const results: any[] = [];
+    for (const run of filteredRuns) {
+      const personaRuns = await storage.getPersonaRunsByScenarioRun(run.id);
+      for (const pr of personaRuns) {
+        const feedback = await storage.getFeedbackByConversationId(pr.id);
+        if (feedback) {
+          results.push({
+            personaRunId: pr.id,
+            scenarioRunId: run.id,
+            overallScore: feedback.overallScore,
+            scores: feedback.scores,
+          });
+        }
+      }
+    }
+
+    res.json(results);
+  }));
+
+  router.post("/api/admin/bulk-feedback-export", isAuthenticated, asyncHandler(async (req: any, res) => {
+    const requestUser = req.user;
+
+    if (requestUser.role !== 'admin' && requestUser.role !== 'operator') {
+      throw createHttpError(403, "Access denied");
+    }
+
+    const { userIds } = req.body;
+    if (!Array.isArray(userIds) || userIds.length === 0) {
+      throw createHttpError(400, "userIds array is required");
+    }
+
+    const allScenarios = await fileManager.getAllScenarios();
+    let accessibleCategoryIds: string[] = [];
+    if (requestUser.role === 'operator') {
+      accessibleCategoryIds = await getOperatorAccessibleCategoryIds(requestUser);
+    }
+
+    const results: any[] = [];
+
+    for (const userId of userIds) {
+      const user = await storage.getUser(userId);
+      if (!user) continue;
+
+      const userScenarioRuns = await storage.getUserScenarioRuns(userId);
+      let filteredRuns = userScenarioRuns;
+      if (requestUser.role === 'operator') {
+        filteredRuns = userScenarioRuns.filter(sr => {
+          const scenario = allScenarios.find((s: any) => s.id === sr.scenarioId);
+          return scenario && accessibleCategoryIds.includes(String(scenario.categoryId));
+        });
+      }
+
+      for (const run of filteredRuns) {
+        const personaRuns = await storage.getPersonaRunsByScenarioRun(run.id);
+        for (const pr of personaRuns) {
+          if (pr.status !== 'completed') continue;
+          const feedback = await storage.getFeedbackByConversationId(pr.id);
+          if (!feedback) continue;
+
+          const scenario = allScenarios.find((s: any) => s.id === run.scenarioId);
+          results.push({
+            user: { id: user.id, name: user.name, email: user.email },
+            scenarioTitle: scenario?.title || run.scenarioId,
+            personaRunId: pr.id,
+            overallScore: feedback.overallScore,
+            scores: feedback.scores,
+            detailedFeedback: feedback.detailedFeedback,
+          });
+        }
+      }
+    }
+
+    res.json({ results });
+  }));
+
   return router;
 }

@@ -67,7 +67,7 @@ export default function Landing() {
 
         <div className="space-y-4">
           <Button 
-            onClick={() => window.location.href = '/api/login'}
+            onClick={() => window.location.href = '/login'}
             className="bg-blue-600 hover:bg-blue-700 text-white px-8 py-3 text-lg"
             data-testid="login-button"
           >

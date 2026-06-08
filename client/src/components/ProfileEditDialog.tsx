@@ -111,7 +111,7 @@ export function ProfileEditDialog({ open, onOpenChange, currentUser }: ProfileEd
         title: "프로필 사진 업로드 완료",
         description: "프로필 사진이 성공적으로 변경되었습니다.",
       });
-      queryClient.invalidateQueries({ queryKey: ["/api/auth/me"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/auth/user"] });
     },
     onError: (error: any) => {
       toast({
@@ -146,7 +146,7 @@ export function ProfileEditDialog({ open, onOpenChange, currentUser }: ProfileEd
         title: "프로필 수정 완료",
         description: "회원정보가 성공적으로 수정되었습니다.",
       });
-      queryClient.invalidateQueries({ queryKey: ["/api/auth/me"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/auth/user"] });
       onOpenChange(false);
       form.reset({
         name: form.getValues("name"),
